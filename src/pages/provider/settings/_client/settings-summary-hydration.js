@@ -224,10 +224,13 @@ function hydrateSummary(summary) {
 		blockers.length ? "Con bloqueos" : "Base lista"
 	)
 
-	const nextStepLabel = blockers[0]?.label || "Configuración base lista"
-	const nextStepBody = blockers[0]
-		? "Un solo paso a la vez: resuelve esto para desbloquear publicación, reservas o cobros."
-		: "Ya puedes operar lo básico. Revisa las áreas si quieres afinar fiscalidad, pagos o equipo."
+	const nextStepLabel =
+		summary.actions?.coachLabel || blockers[0]?.label || "Configuración base lista"
+	const nextStepBody = summary.actions?.coachBody
+		? summary.actions.coachBody
+		: blockers[0]
+			? "Un solo paso del mapa de confianza a la vez: Perfil → Verificación → Fiscal → Pagos."
+			: "Ya puedes operar lo básico. Revisa las áreas si quieres afinar fiscalidad, pagos o equipo."
 	setText("[data-settings-next-step-label]", nextStepLabel)
 	setText("[data-settings-next-step-body]", nextStepBody)
 

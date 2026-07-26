@@ -1025,26 +1025,26 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 		owner: "Provider Setup",
 		context: "governance",
 		operationalIntent:
-			"Setup del proveedor fuera de la operación diaria: perfil, verificación, impuestos, cargos e integraciones.",
+			"Setup del proveedor fuera de la operación diaria: configuración de datos, verificación (wizard), fiscalidad e integraciones.",
 		maturity: "operational",
 		items: [
 			{
-				label: "Perfil del proveedor",
+				label: "Configuración",
 				href: routes.settings(),
 				status: "canonical",
-				summary: "Datos de cuenta y negocio.",
+				summary: "Resumen y datos de cuenta (perfil, fiscal, pagos, equipo).",
 			},
 			{
 				label: "Verificación",
 				href: routes.verification(),
 				status: "canonical",
-				summary: "Identidad y aprobación.",
+				summary: "Wizard de confianza: documentos KYC y estado de cuenta.",
 			},
 			{
-				label: "Impuestos y cargos",
+				label: "Fiscalidad",
 				href: routes.taxFees(),
 				status: "canonical",
-				summary: "Cargos que se aplican al vender.",
+				summary: "NIT/TIN, residencia e impuestos al huésped.",
 			},
 			{
 				label: "Integraciones",

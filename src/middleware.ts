@@ -7,6 +7,29 @@ import {
 	type FasttRequestContext,
 } from "@/lib/observability/requestContext"
 
+/**
+ * Response.redirect() (and some platform Responses) expose immutable headers.
+ * Rebuild a mutable Response so we can attach observability headers.
+ */
+function withObservabilityHeaders(response: Response, headers: Record<string, string>): Response {
+	try {
+		for (const [key, value] of Object.entries(headers)) {
+			response.headers.set(key, value)
+		}
+		return response
+	} catch {
+		const nextHeaders = new Headers(response.headers)
+		for (const [key, value] of Object.entries(headers)) {
+			nextHeaders.set(key, value)
+		}
+		return new Response(response.body, {
+			status: response.status,
+			statusText: response.statusText,
+			headers: nextHeaders,
+		})
+	}
+}
+
 export const onRequest: MiddlewareHandler = async (_context, next) => {
 	const requestContext: FasttRequestContext = {
 		id: createRequestId(),
@@ -16,10 +39,11 @@ export const onRequest: MiddlewareHandler = async (_context, next) => {
 	return runWithRequestContext(requestContext, async () => {
 		const response = await next()
 		const cache = summarizeCacheEvents(requestContext.cacheEvents)
-		response.headers.set("X-Fastt-Region", currentRegion())
-		response.headers.set("X-Fastt-Request-Id", requestContext.id)
-		response.headers.set("X-Fastt-Cache", cache.state)
-		response.headers.set("X-Fastt-Cache-Detail", cache.detail)
-		return response
+		return withObservabilityHeaders(response, {
+			"X-Fastt-Region": currentRegion(),
+			"X-Fastt-Request-Id": requestContext.id,
+			"X-Fastt-Cache": cache.state,
+			"X-Fastt-Cache-Detail": cache.detail,
+		})
 	})
 }

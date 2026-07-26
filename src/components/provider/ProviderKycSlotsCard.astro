@@ -1,15 +1,13 @@
 ---
+import ProviderKycUploadForm from "@/components/provider/ProviderKycUploadForm.astro"
 import ProviderReviewWaitNotice from "@/components/provider/ProviderReviewWaitNotice.astro"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
-import Input from "@/components/ui/Input.astro"
 import Notice from "@/components/ui/Notice.astro"
-import {
-	kycCaptureSharedTips,
-	resolveKycUploadFocusType,
-	type ProviderKycSlot,
-} from "@/lib/provider-documents"
+import { resolveKycUploadFocusType, type ProviderKycSlot } from "@/lib/provider-documents"
+import { TRUST_GLOSSARY } from "@/lib/provider-trust-map"
+import { routes } from "@/lib/routes"
 
 type Props = {
 	slots?: ProviderKycSlot[]
@@ -23,6 +21,10 @@ type Props = {
 	>
 	/** Prefocus inline upload for this required type (from ?type=). */
 	focusType?: string | null
+	/**
+	 * Fold mode: one consequence lives in next-step; only the focused slot mounts.
+	 */
+	elevated?: boolean
 }
 
 const {
@@ -30,12 +32,32 @@ const {
 	canManageDocuments = false,
 	documentAssignments = {},
 	focusType = null,
+	elevated = false,
 } = Astro.props as Props
 
 const missingCount = slots.filter((slot) => slot.state === "missing").length
 const rejectedCount = slots.filter((slot) => slot.state === "rejected").length
 const completeCount = slots.filter((slot) => slot.state === "verified").length
 const focusTypeResolved = resolveKycUploadFocusType({ slots, focusType })
+const requestedSlot = focusType ? (slots.find((slot) => slot.type === focusType) ?? null) : null
+const fiscalOnlySlot =
+	requestedSlot?.type === "tax_document" &&
+	requestedSlot.fiscalBridge?.mode === "enter_nit" &&
+	requestedSlot.fiscalBridge.suppressBlindUpload
+		? requestedSlot
+		: null
+const requestedReviewSlot =
+	requestedSlot?.state === "pending" || requestedSlot?.state === "verified" ? requestedSlot : null
+/** Elevated fold: only the focused job card (queue of other slots is hidden). */
+const oneJobOnly = Boolean(elevated && (focusTypeResolved || fiscalOnlySlot || requestedReviewSlot))
+const focusSlots = oneJobOnly
+	? requestedReviewSlot
+		? [requestedReviewSlot]
+		: fiscalOnlySlot
+			? [fiscalOnlySlot]
+			: slots.filter((slot) => slot.type === focusTypeResolved)
+	: slots
+const focusSlot = focusSlots[0] ?? null
 
 function badgeVariant(state: ProviderKycSlot["state"]) {
 	if (state === "verified") return "success" as const
@@ -45,7 +67,13 @@ function badgeVariant(state: ProviderKycSlot["state"]) {
 }
 
 function showInlineUpload(slot: ProviderKycSlot) {
-	return slot.state === "missing" || slot.state === "rejected"
+	if (slot.state === "rejected") return true
+	if (slot.state !== "missing") return false
+	const bridge = slot.fiscalBridge
+	if (!bridge) return true
+	if (bridge.allowOptionalUpload) return true
+	if (bridge.suppressBlindUpload) return false
+	return true
 }
 
 /** Hard one-doc (S6-3): only the focused uploadable slot mounts the form. */
@@ -54,43 +82,71 @@ function allowUploadForm(slot: ProviderKycSlot) {
 	if (!focusTypeResolved) return true
 	return focusTypeResolved === slot.type
 }
+
+function submittedFileLabel(slot: ProviderKycSlot) {
+	return slot.fileName || "Archivo recibido"
+}
 ---
 
-<Card data-kyc-slots data-kyc-hard-one-doc={focusTypeResolved ? "true" : undefined}>
+<Card
+	id="kyc-slots"
+	data-kyc-slots
+	data-kyc-elevated={elevated ? "true" : undefined}
+	data-kyc-hard-one-doc={focusTypeResolved ? "true" : undefined}
+	data-kyc-one-job={oneJobOnly ? "true" : undefined}
+	data-kyc-capture-polish="v2"
+>
 	<div class="space-y-4">
-		<div class="flex flex-wrap items-start justify-between gap-3">
-			<div>
-				<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">Cumplimiento</p>
-				<h2 class="mt-2 text-xl font-semibold text-slate-950">Documentos mínimos</h2>
-				<p class="mt-2 text-sm leading-6 text-slate-600">
-					Un documento a la vez: solo el foco de abajo muestra el envío. El resto queda para
-					después, sin formulario hasta que lo elijas. Sin los tres verificados no puedes cobrar ni
-					conectar servicios sensibles.
-				</p>
-			</div>
-			<div class="flex flex-wrap gap-2">
-				<Badge variant={completeCount === slots.length && slots.length ? "success" : "neutral"}>
-					{completeCount}/{slots.length} listos
-				</Badge>
-				{
-					missingCount ? (
-						<Badge variant="warning">
-							{missingCount} faltante{missingCount === 1 ? "" : "s"}
-						</Badge>
-					) : null
-				}
-				{
-					rejectedCount ? (
-						<Badge variant="error">
-							{rejectedCount} rechazado{rejectedCount === 1 ? "" : "s"}
-						</Badge>
-					) : null
-				}
-			</div>
-		</div>
+		{
+			Astro.slots.has("map") ? (
+				<div class="border-b border-slate-200 pb-3" data-verification-docs-map>
+					<slot name="map" />
+				</div>
+			) : null
+		}
 
 		{
-			missingCount || rejectedCount ? (
+			elevated && focusSlot ? (
+				<div>
+					<h2 class="text-xl font-semibold text-slate-950" data-kyc-elevated-title>
+						{focusSlot.label}
+					</h2>
+				</div>
+			) : (
+				<div class="flex flex-wrap items-start justify-between gap-3">
+					<div>
+						<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">Negocio</p>
+						<h2 class="mt-2 text-xl font-semibold text-slate-950">Documentos mínimos</h2>
+						<p class="mt-2 text-sm leading-6 text-slate-600">
+							Un documento a la vez: solo el foco de abajo muestra el envío. El NIT/TIN vive en
+							Fiscalidad; aquí no se pide a ciegas.
+						</p>
+					</div>
+					<div class="flex flex-wrap gap-2">
+						<Badge variant={completeCount === slots.length && slots.length ? "success" : "neutral"}>
+							{completeCount}/{slots.length} listos
+						</Badge>
+						{missingCount ? (
+							<Badge variant="warning">
+								{missingCount} falta{missingCount === 1 ? "" : "n"}
+							</Badge>
+						) : null}
+						{rejectedCount ? <Badge variant="error">{rejectedCount} por corregir</Badge> : null}
+					</div>
+				</div>
+			)
+		}
+
+		{
+			Astro.slots.has("intro") ? (
+				<div data-verification-docs-intro>
+					<slot name="intro" />
+				</div>
+			) : null
+		}
+
+		{
+			!elevated && (missingCount || rejectedCount) ? (
 				<Notice variant="warning" title="Consecuencia" data-kyc-consequence-banner>
 					Sin estos documentos mínimos verificados no puedes liquidar cobros ni dejar listos los
 					conectores sensibles. La publicación también queda limitada hasta la aprobación de la
@@ -100,22 +156,133 @@ function allowUploadForm(slot: ProviderKycSlot) {
 		}
 
 		{
-			focusTypeResolved ? (
+			!elevated && focusTypeResolved ? (
 				<p class="text-sm leading-6 text-slate-600" data-kyc-one-doc-focus>
 					<strong>En foco ahora:</strong>{" "}
 					{slots.find((slot) => slot.type === focusTypeResolved)?.label ?? "documento pendiente"}.
-					Solo este muestra el envío; los demás usan «Hacer después».
+					Termina este envío; el siguiente mínimo aparece solo cuando toque.
 				</p>
 			) : null
 		}
 
 		<div class="grid gap-3">
 			{
-				slots.map((slot) => {
-					const isFocused = focusTypeResolved === slot.type
+				focusSlots.map((slot) => {
+					const isFocused =
+						focusTypeResolved === slot.type ||
+						fiscalOnlySlot?.type === slot.type ||
+						requestedReviewSlot?.type === slot.type
 					const preferOpen = isFocused && allowUploadForm(slot)
 					const deferUpload = showInlineUpload(slot) && !allowUploadForm(slot)
-					return (
+					const bridge = slot.fiscalBridge
+					return elevated ? (
+						<div
+							class="scroll-mt-24 space-y-4"
+							id={`kyc-slot-${slot.type}`}
+							data-kyc-slot={slot.type}
+							data-kyc-slot-state={slot.state}
+							data-kyc-slot-focus={isFocused ? "true" : undefined}
+							data-kyc-fiscal-bridge={bridge ? bridge.mode : undefined}
+						>
+							{slot.state === "rejected" && (slot.reviewNotes || slot.documentId) ? (
+								<Notice variant="error" title="Motivo del rechazo">
+									{slot.rejectCategoryLabel ? (
+										<Badge variant="error" class="mb-2">
+											{slot.rejectCategoryLabel}
+										</Badge>
+									) : null}
+									<p>
+										{slot.reviewNotes ||
+											"El equipo Fastt rechazó este documento. Corrige y envía una nueva versión."}
+									</p>
+								</Notice>
+							) : null}
+
+							{slot.state === "pending" ? (
+								<div class="space-y-3" data-kyc-slot-review-state>
+									<Notice variant="info" title="Documento en revisión">
+										<div class="space-y-3">
+											<p>
+												Ya recibimos este archivo. El equipo Fastt revisará que coincida con los
+												datos del negocio antes de marcarlo como verificado.
+											</p>
+											<div class="flex flex-wrap items-center gap-2" data-kyc-slot-submitted-file>
+												<Badge variant="neutral">Archivo enviado</Badge>
+												<span class="text-sm font-semibold">{submittedFileLabel(slot)}</span>
+											</div>
+											<div class="flex flex-wrap items-center gap-2" data-kyc-slot-next-action>
+												<Button
+													href={routes.providerSettingsTaxIdentity()}
+													variant="secondary"
+													size="sm"
+												>
+													Continuar a Fiscalidad
+												</Button>
+												<span class="text-sm text-current/75">
+													Siguiente acción: completa o revisa el NIT/TIN mientras esperamos la
+													revisión.
+												</span>
+											</div>
+										</div>
+									</Notice>
+									{!bridge ? (
+										<ProviderReviewWaitNotice
+											domain="document"
+											assignment={
+												slot.documentId ? (documentAssignments[slot.documentId] ?? null) : null
+											}
+										/>
+									) : null}
+								</div>
+							) : null}
+
+							{bridge ? (
+								<div
+									class="fastt-notice space-y-3 rounded-lg border border-slate-200 bg-white p-3"
+									data-kyc-tax-fiscal-bridge
+									data-bridge-mode={bridge.mode}
+								>
+									<div class="space-y-1">
+										<p class="text-sm font-semibold text-slate-950">{bridge.title}</p>
+										<p class="text-sm leading-6 text-slate-600">{bridge.body}</p>
+									</div>
+									<div class="flex flex-wrap gap-2">
+										<Button href={bridge.fiscalHref} size="sm" data-bridge-fiscal-cta>
+											{bridge.ctaLabel}
+										</Button>
+									</div>
+								</div>
+							) : null}
+
+							{allowUploadForm(slot) && canManageDocuments ? (
+								<div
+									class="space-y-3"
+									data-kyc-slot-upload
+									data-kyc-slot-upload-open="true"
+									data-kyc-slot-upload-elevated="true"
+								>
+									<ProviderKycUploadForm
+										documentType={slot.type}
+										optionalConstancia={Boolean(bridge?.allowOptionalUpload)}
+										showSubmitButton={true}
+									/>
+								</div>
+							) : allowUploadForm(slot) ? (
+								<div class="space-y-2" data-kyc-slot-access-denied>
+									<p class="text-sm text-slate-600">
+										Tu rol no puede subir documentos. Revisa Equipo para ver quién tiene permiso de
+										Documentos.
+									</p>
+									<a
+										href={routes.providerSettingsTeam()}
+										class="text-sm font-semibold text-slate-900 underline-offset-2 hover:underline"
+									>
+										Ver equipo y roles
+									</a>
+								</div>
+							) : null}
+						</div>
+					) : (
 						<Card
 							variant="soft"
 							class={`scroll-mt-24 space-y-3${isFocused && showInlineUpload(slot) ? " border-l-4 border-l-slate-800" : ""}`}
@@ -123,6 +290,7 @@ function allowUploadForm(slot: ProviderKycSlot) {
 							data-kyc-slot={slot.type}
 							data-kyc-slot-state={slot.state}
 							data-kyc-slot-focus={isFocused ? "true" : undefined}
+							data-kyc-fiscal-bridge={bridge ? bridge.mode : undefined}
 						>
 							<div class="flex flex-wrap items-start justify-between gap-3">
 								<div class="min-w-0 flex-1">
@@ -142,13 +310,64 @@ function allowUploadForm(slot: ProviderKycSlot) {
 								<Badge variant={badgeVariant(slot.state)}>{slot.stateLabel}</Badge>
 							</div>
 
-							{slot.state !== "verified" && isFocused ? (
+							{bridge ? (
+								<div
+									class="fastt-notice space-y-3 rounded-lg border border-slate-200 bg-white p-3"
+									data-kyc-tax-fiscal-bridge
+									data-bridge-mode={bridge.mode}
+								>
+									<div class="space-y-1">
+										<p class="text-sm font-semibold text-slate-950">{bridge.title}</p>
+										<p class="text-sm leading-6 text-slate-600">{bridge.body}</p>
+									</div>
+									<div class="flex flex-wrap gap-2">
+										{bridge.nitMasked ? (
+											<Badge variant="neutral" data-bridge-nit>
+												NIT {bridge.nitMasked}
+											</Badge>
+										) : null}
+										<Badge
+											variant={
+												bridge.fiscalStatus === "verified"
+													? "success"
+													: bridge.fiscalStatus === "requires_attention"
+														? "error"
+														: bridge.fiscalStatus === "pending"
+															? "warning"
+															: "neutral"
+											}
+											data-bridge-fiscal-status={bridge.fiscalStatus}
+										>
+											Fiscal: {bridge.fiscalStatusLabel}
+										</Badge>
+										{bridge.bureauMatchLabel ? (
+											<Badge variant="info" data-bridge-bureau-status={bridge.bureauMatchStatus}>
+												Bureau: {bridge.bureauMatchLabel}
+											</Badge>
+										) : null}
+									</div>
+									{bridge.bureauNarrative ? (
+										<p class="text-sm leading-6 text-slate-600" data-bridge-bureau-narrative>
+											{bridge.bureauNarrative}
+										</p>
+									) : null}
+									<div class="flex flex-wrap gap-2">
+										<Button href={bridge.fiscalHref} size="sm" data-bridge-fiscal-cta>
+											{bridge.ctaLabel}
+										</Button>
+									</div>
+								</div>
+							) : null}
+
+							{(slot.state === "missing" || slot.state === "rejected") &&
+							isFocused &&
+							!bridge?.suppressBlindUpload ? (
 								<p class="text-sm leading-6 text-slate-700" data-kyc-slot-consequence>
 									<strong>Si falta:</strong> {slot.consequence}
 								</p>
 							) : null}
 
-							{slot.state === "rejected" ? (
+							{slot.state === "rejected" && (slot.reviewNotes || slot.documentId) ? (
 								<Notice variant="error" title="Motivo del rechazo">
 									{slot.rejectCategoryLabel ? (
 										<Badge variant="error" class="mb-2">
@@ -163,12 +382,41 @@ function allowUploadForm(slot: ProviderKycSlot) {
 							) : null}
 
 							{slot.state === "pending" ? (
-								<ProviderReviewWaitNotice
-									domain="document"
-									assignment={
-										slot.documentId ? (documentAssignments[slot.documentId] ?? null) : null
-									}
-								/>
+								<div class="space-y-3" data-kyc-slot-review-state>
+									<Notice variant="info" title="Documento en revisión">
+										<div class="space-y-3">
+											<p>
+												Ya recibimos este archivo. El equipo Fastt revisará que coincida con los
+												datos del negocio antes de marcarlo como verificado.
+											</p>
+											<div class="flex flex-wrap items-center gap-2" data-kyc-slot-submitted-file>
+												<Badge variant="neutral">Archivo enviado</Badge>
+												<span class="text-sm font-semibold">{submittedFileLabel(slot)}</span>
+											</div>
+											<div class="flex flex-wrap items-center gap-2" data-kyc-slot-next-action>
+												<Button
+													href={routes.providerSettingsTaxIdentity()}
+													variant="secondary"
+													size="sm"
+												>
+													Continuar a Fiscalidad
+												</Button>
+												<span class="text-sm text-current/75">
+													Siguiente acción: completa o revisa el NIT/TIN mientras esperamos la
+													revisión.
+												</span>
+											</div>
+										</div>
+									</Notice>
+									{!bridge ? (
+										<ProviderReviewWaitNotice
+											domain="document"
+											assignment={
+												slot.documentId ? (documentAssignments[slot.documentId] ?? null) : null
+											}
+										/>
+									) : null}
+								</div>
 							) : null}
 
 							{allowUploadForm(slot) ? (
@@ -180,67 +428,43 @@ function allowUploadForm(slot: ProviderKycSlot) {
 										data-kyc-slot-upload-open={preferOpen ? "true" : "false"}
 									>
 										<summary class="cursor-pointer text-sm font-semibold text-slate-900">
-											{slot.state === "rejected" ? "Reenviar documento" : "Subir documento"}
+											{bridge?.allowOptionalUpload
+												? "Adjuntar constancia (solo si te la pedimos)"
+												: slot.state === "rejected"
+													? "Reenviar documento"
+													: "Subir documento"}
 										</summary>
-										<form
-											class="mt-3 space-y-3"
-											method="post"
-											action="/api/provider/settings/documents"
-											enctype="multipart/form-data"
-											data-kyc-inline-upload-form
-										>
-											<input type="hidden" name="action" value="submit" />
-											<input type="hidden" name="type" value={slot.type} />
-											<Notice
-												variant="info"
-												title="Cómo preparar el documento"
-												data-kyc-capture-coach={slot.type}
-											>
-												<ul class="list-disc space-y-1 pl-5 text-sm leading-6">
-													{kycCaptureSharedTips.map((tip) => (
-														<li>{tip}</li>
-													))}
-												</ul>
-												<p class="mt-3 text-sm leading-6" data-kyc-capture-example>
-													{slot.captureExample}
-												</p>
-											</Notice>
-											<label class="grid gap-2 text-sm font-medium text-slate-700">
-												Archivo
-												<input
-													type="file"
-													name="file"
-													required
-													accept=".pdf,image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf"
-													class="fastt-field block w-full text-sm text-slate-700 file:mr-3 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white"
-												/>
-											</label>
-											<label class="grid gap-2 text-sm font-medium text-slate-700">
-												Notas de envío (opcional)
-												<Input
-													name="submissionNotes"
-													placeholder="Versión vigente / dato actualizado"
-												/>
-											</label>
-											<Button type="submit" size="sm">
-												Enviar a revisión
-											</Button>
-										</form>
+										<div class="mt-3">
+											<ProviderKycUploadForm
+												documentType={slot.type}
+												optionalConstancia={Boolean(bridge?.allowOptionalUpload)}
+												showSubmitButton={true}
+											/>
+										</div>
 									</details>
 								) : (
-									<p class="border-t border-slate-200 pt-3 text-sm text-slate-600">
-										Tu rol no puede subir documentos. Pide a un administrador del proveedor.
-									</p>
+									<div class="space-y-2 border-t border-slate-200 pt-3" data-kyc-slot-access-denied>
+										<p class="text-sm text-slate-600">
+											Tu rol no puede subir documentos. Revisa Equipo para ver quién tiene permiso
+											de Documentos.
+										</p>
+										<a
+											href={routes.providerSettingsTeam()}
+											class="text-sm font-semibold text-slate-900 underline-offset-2 hover:underline"
+										>
+											Ver equipo y roles
+										</a>
+									</div>
 								)
 							) : null}
 
-							{deferUpload ? (
+							{deferUpload && !oneJobOnly ? (
 								<div
 									class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-3"
 									data-kyc-slot-defer={slot.type}
 								>
 									<p class="text-sm leading-6 text-slate-600">
-										Pendiente — termina primero el documento en foco.
+										{TRUST_GLOSSARY.page.deferOtherSlot}
 									</p>
 									{canManageDocuments ? (
 										<a
@@ -248,7 +472,7 @@ function allowUploadForm(slot: ProviderKycSlot) {
 											class="text-sm font-semibold text-slate-900 underline-offset-2 hover:underline"
 											data-kyc-slot-defer-cta
 										>
-											Hacer después
+											Ver más tarde
 										</a>
 									) : null}
 								</div>

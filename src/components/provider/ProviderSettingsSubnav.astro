@@ -24,11 +24,7 @@ const items = [
 			"/provider?step=register",
 		],
 	},
-	{
-		label: "Verificación",
-		href: routes.providerSettingsVerification(),
-		aliases: ["/provider/verification", "/provider?step=verification"],
-	},
+	// Verificación lives outside this tab bar (sidebar → wizard shell).
 	{
 		label: "Fiscalidad",
 		href: routes.providerSettingsTaxFees(),

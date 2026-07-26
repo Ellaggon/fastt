@@ -6,6 +6,8 @@ export const routes = {
 	providerSettings: () => "/provider/settings",
 	providerSettingsProfile: () => "/provider/settings/profile",
 	providerSettingsVerification: () => "/provider/settings/verification",
+	providerSettingsVerificationDocuments: () => "/provider/settings/verification/documents",
+	productCreate: () => "/product/create?playbook=launch&step=create&flow=create",
 	providerSettingsTaxFees: () => "/provider/settings/tax-fees",
 	providerSettingsTaxIdentity: () => "/provider/settings/tax-fees/identity",
 	providerSettingsTaxSales: () => "/provider/settings/tax-fees/sales",

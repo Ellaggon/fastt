@@ -1,6 +1,11 @@
 import { cacheKeys, cacheTtls } from "@/lib/cache/cacheKeys"
 import * as persistentCache from "@/lib/cache/persistentCache"
-import type { ProviderPermissions, ProviderRole } from "@/lib/provider-permissions"
+import {
+	normalizeProviderRole,
+	resolveProviderPermissions,
+	type ProviderPermissions,
+	type ProviderRole,
+} from "@/lib/provider-permissions"
 import type { AuthUser } from "./getUserFromRequest"
 
 export type ProviderSessionSurface = {
@@ -79,16 +84,21 @@ function normalizeProviderSessionSurface(value: unknown): ProviderSessionSurface
 	const userId = String(raw.userId ?? "").trim()
 	const providerId = String(raw.providerId ?? "").trim()
 	if (!userId || !providerId) return null
-	const role =
-		raw.role === "owner" || raw.role === "admin" || raw.role === "staff" ? raw.role : "staff"
-	const permissions =
-		raw.permissions && typeof raw.permissions === "object" ? raw.permissions : null
-	if (!permissions) return null
+	const role = normalizeProviderRole(raw.role)
+	const cachedPermissions =
+		raw.permissions && typeof raw.permissions === "object"
+			? (raw.permissions as Partial<ProviderPermissions>)
+			: null
+	// Re-resolve from role so owner never keeps a stale canManageDocuments:false cache entry.
+	const permissions = resolveProviderPermissions({
+		role,
+		permissionsJson: cachedPermissions,
+	})
 	return {
 		userId,
 		providerId,
 		role,
-		permissions: permissions as ProviderPermissions,
+		permissions,
 		professionalToolsEnabled: Boolean(raw.professionalToolsEnabled),
 	}
 }

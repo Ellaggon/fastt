@@ -1,0 +1,35 @@
+---
+import type { VerificationCrossLink } from "@/lib/provider-trust-map"
+
+type Props = {
+	links?: VerificationCrossLink[]
+}
+
+const { links = [] } = Astro.props as Props
+---
+
+{
+	links.length ? (
+		<nav
+			aria-label="Conexiones de confianza"
+			class="flex flex-wrap gap-2"
+			data-verification-cross-links
+		>
+			{links.map((link) => (
+				<a
+					href={link.href}
+					data-cross-link={link.id}
+					data-cross-link-emphasized={link.emphasized ? "true" : undefined}
+					class={`inline-flex items-baseline gap-1.5 rounded-lg border px-3 py-2 text-sm transition ${
+						link.emphasized
+							? "border-slate-800 bg-white text-slate-950"
+							: "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300"
+					}`}
+				>
+					<span class="font-semibold">{link.label}</span>
+					<span class="text-xs text-slate-500">{link.hint}</span>
+				</a>
+			))}
+		</nav>
+	) : null
+}

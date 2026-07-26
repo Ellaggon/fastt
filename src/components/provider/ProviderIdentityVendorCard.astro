@@ -1,0 +1,139 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import type { IdentityVendorStatus } from "@/lib/identity-vendor"
+import { routes } from "@/lib/routes"
+
+type Props = {
+	status?: IdentityVendorStatus | null
+	manualHref?: string
+}
+
+const {
+	status = null,
+	manualHref = `${routes.providerSettingsVerification()}#kyc-slot-government_id`,
+} = Astro.props as Props
+
+/** P3: host selfie card only when LIVE (surfaceEnabled === selfieLive). */
+const surfaceEnabled = Boolean(
+	status?.surfaceEnabled && status?.selfieLive && status?.mode === "live"
+)
+---
+
+{
+	surfaceEnabled && status ? (
+		<Card
+			variant="soft"
+			class="space-y-4"
+			data-identity-vendor-card
+			data-identity-vendor-mode="live"
+			data-identity-vendor-provider={status.preferredProvider}
+			data-identity-vendor-selfie-live="true"
+		>
+			<div class="flex flex-wrap items-start justify-between gap-3">
+				<div>
+					<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">
+						Opcional de mercado
+					</p>
+					<h2 class="mt-2 text-lg font-semibold text-slate-950">Verificación con cámara</h2>
+					<p class="mt-2 text-sm leading-6 text-slate-600" data-identity-vendor-host-label>
+						{status.hostLabel}. Documento + selfie con prueba de vida en este entorno live.
+					</p>
+				</div>
+				<Badge variant="success" data-identity-vendor-badge>
+					Live
+				</Badge>
+			</div>
+
+			<p
+				class="fastt-notice rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm leading-6 text-emerald-900"
+				data-identity-vendor-honesty
+				data-identity-vendor-p0-guard
+			>
+				Complementa el envío manual del documento. No sustituye el permiso de Documentos ni arregla
+				un rol sin acceso a subir archivos — si no puedes enviar, revisa Equipo.
+			</p>
+
+			<div class="flex flex-wrap gap-2">
+				<Button
+					type="button"
+					size="sm"
+					data-identity-vendor-start
+					data-identity-vendor-return={routes.providerSettingsVerification()}
+				>
+					Abrir verificación con cámara
+				</Button>
+				<a
+					href={manualHref}
+					class="fastt-notice inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
+					data-identity-vendor-manual-cta
+				>
+					Subir documento manualmente
+				</a>
+			</div>
+
+			<p
+				class="hidden text-sm leading-6 text-slate-700"
+				data-identity-vendor-result
+				aria-live="polite"
+			/>
+			<a
+				class="hidden text-sm font-semibold text-slate-900 underline"
+				data-identity-vendor-launch
+				target="_blank"
+				rel="noreferrer"
+			>
+				Continuar en el proveedor
+			</a>
+
+			<p class="sr-only" data-identity-vendor-admin-hint>
+				{status.adminHint}
+			</p>
+		</Card>
+	) : null
+}
+
+<script>
+	function bindIdentityVendorCard(root: Element) {
+		const startBtn = root.querySelector("[data-identity-vendor-start]")
+		const resultEl = root.querySelector("[data-identity-vendor-result]")
+		const launchEl = root.querySelector<HTMLAnchorElement>("[data-identity-vendor-launch]")
+		if (!startBtn || !resultEl) return
+
+		startBtn.addEventListener("click", async () => {
+			resultEl.classList.remove("hidden")
+			resultEl.textContent = "Creando sesión…"
+			if (launchEl) {
+				launchEl.classList.add("hidden")
+				launchEl.removeAttribute("href")
+			}
+			try {
+				const returnUrl =
+					startBtn.getAttribute("data-identity-vendor-return") || window.location.pathname
+				const res = await fetch("/api/provider/settings/identity-vendor", {
+					method: "POST",
+					headers: { "Accept": "application/json", "Content-Type": "application/json" },
+					body: JSON.stringify({
+						returnUrl: new URL(returnUrl, window.location.origin).toString(),
+					}),
+				})
+				const payload = await res.json().catch(() => ({}))
+				const session = payload.session || {}
+				resultEl.textContent =
+					session.hostNarrative ||
+					payload.error ||
+					"No se pudo crear la sesión. Usa la subida manual."
+				if (session.launchUrl && launchEl) {
+					launchEl.href = session.launchUrl
+					launchEl.classList.remove("hidden")
+				}
+			} catch {
+				resultEl.textContent =
+					"Error de red al abrir la verificación con cámara. Usa la subida manual."
+			}
+		})
+	}
+
+	document.querySelectorAll("[data-identity-vendor-card]").forEach(bindIdentityVendorCard)
+</script>

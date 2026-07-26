@@ -67,6 +67,49 @@ function bindCta(el) {
 	})
 }
 
+/** P2: measure time-to-upload for KYC capture (owner form path). */
+function bindKycCaptureTiming(form) {
+	if (!(form instanceof HTMLFormElement)) return
+	if (form.getAttribute("data-kyc-timing-bound") === "true") return
+	form.setAttribute("data-kyc-timing-bound", "true")
+
+	const startedAt = performance.now()
+	let fileSelectedAt = null
+	const docType = readAttr(form, "data-kyc-upload-type") || "unknown"
+	const surface = readAttr(form, "data-funnel-surface") || "verification"
+	const domain = readAttr(form, "data-funnel-domain") || "documents"
+
+	const fileInput = form.querySelector("[data-kyc-file-input]")
+	if (fileInput) {
+		fileInput.addEventListener("change", () => {
+			if (!fileInput.files?.length) return
+			fileSelectedAt = performance.now()
+			sendFunnelEvent({
+				event: "provider.settings.funnel.kyc_capture_timing",
+				domain,
+				surface,
+				blockerId: "open_to_file",
+				ctaTarget: `doc=${docType};ms=${Math.round(fileSelectedAt - startedAt)}`,
+			})
+		})
+	}
+
+	form.addEventListener("submit", () => {
+		const now = performance.now()
+		const openToSubmitMs = Math.round(now - startedAt)
+		const fileToSubmitMs = fileSelectedAt != null ? Math.round(now - fileSelectedAt) : null
+		sendFunnelEvent({
+			event: "provider.settings.funnel.kyc_capture_timing",
+			domain,
+			surface,
+			blockerId: "open_to_submit",
+			ctaTarget:
+				`doc=${docType};ms=${openToSubmitMs}` +
+				(fileToSubmitMs != null ? `;file_to_submit_ms=${fileToSubmitMs}` : ""),
+		})
+	})
+}
+
 function bindAll() {
 	const nextStep = document.querySelector("[data-settings-next-step]")
 	if (nextStep) emitBlockerShown(nextStep)
@@ -76,6 +119,10 @@ function bindAll() {
 			"[data-settings-primary-cta], [data-settings-secondary-cta], [data-post-save-cta] a, [data-funnel-cta]"
 		)
 		.forEach(bindCta)
+
+	document
+		.querySelectorAll("[data-kyc-inline-upload-form][data-kyc-capture-timing]")
+		.forEach(bindKycCaptureTiming)
 }
 
 if (document.readyState === "loading") {

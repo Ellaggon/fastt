@@ -46,6 +46,8 @@ describe("S4-4 guided payouts: one account + micro-deposit education", () => {
 		expect(card).toContain("hasInFlightAccount")
 		expect(card).toContain('data-micro-deposit-education="awaiting"')
 		expect(card).toContain('data-micro-deposit-education="confirm"')
+		expect(card).toContain('data-long-copy-collapsed="true"')
+		expect(card).toContain("<details")
 		expect(card).toContain("Cómo confirmar los micro-depósitos")
 		expect(card).toContain("Cómo leer el extracto")
 		expect(card).toContain("data-payments-create-form")
@@ -54,6 +56,8 @@ describe("S4-4 guided payouts: one account + micro-deposit education", () => {
 		expect(page).toContain("pending_account_in_progress")
 		expect(page).toContain("Ya hay una cuenta en curso")
 		expect(page).toContain("micro-depósitos")
+		expect(page).not.toContain(">Fiscalidad</Button>")
+		expect(page).not.toContain(">Resumen</Button>")
 
 		expect(lib).toContain("pending_account_in_progress")
 		expect(lib).toContain('eq(ProviderPaymentAccount.status, "requires_attention")')

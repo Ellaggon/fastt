@@ -1,0 +1,138 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import TabsOutsidePanel from "@/components/ui/TabsOutsidePanel.astro"
+import {
+	isProviderTrustMapComplete,
+	TRUST_GLOSSARY,
+	type TrustLinkId,
+	type ProviderTrustLink,
+} from "@/lib/provider-trust-map"
+
+type Props = {
+	links?: ProviderTrustLink[]
+	activeId?: TrustLinkId | null
+}
+
+const { links = [], activeId = null } = Astro.props as Props
+const complete = isProviderTrustMapComplete(links)
+
+function resolveInitialActiveId(): TrustLinkId {
+	if (activeId) return activeId
+	const pathname = Astro.url.pathname
+	if (pathname.includes("/provider/settings/tax-fees/identity")) return "fiscal"
+	if (pathname.includes("/provider/settings/payments")) return "payments"
+	return "identity"
+}
+
+const currentActiveId = resolveInitialActiveId()
+
+function statusClassForLink(link: ProviderTrustLink) {
+	if (link.uiState === "ready") {
+		return "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
+	}
+	if (link.uiState === "in_review") {
+		return "bg-amber-50 text-amber-700 ring-1 ring-amber-200"
+	}
+	if (link.uiState === "action_needed") {
+		return "bg-rose-50 text-rose-700 ring-1 ring-rose-200"
+	}
+	if (link.uiState === "blocked") {
+		return "bg-slate-100 text-slate-600 ring-1 ring-slate-200"
+	}
+	return "bg-sky-50 text-sky-700 ring-1 ring-sky-200"
+}
+---
+
+{
+	links.length ? (
+		<div
+			class={`scroll-mt-24 ${complete ? "rounded-lg border border-emerald-200 bg-emerald-50/40 px-3 py-2" : ""}`}
+			data-trust-map-rail
+			data-trust-map-compact="true"
+			data-trust-map-quiet="true"
+			data-trust-map-on-light="true"
+			data-trust-map-complete={complete ? "true" : undefined}
+			id="trust-map-rail"
+		>
+			{complete ? (
+				<div class="mb-1.5 flex flex-wrap items-center justify-end gap-2">
+					<Badge variant="success" data-trust-map-complete-badge>
+						{TRUST_GLOSSARY.page.railComplete}
+					</Badge>
+				</div>
+			) : null}
+			<TabsOutsidePanel
+				aria-label={TRUST_GLOSSARY.page.railTitle}
+				class="max-w-full flex-wrap"
+				role="tablist"
+				data-trust-tabs-style="rates"
+			>
+				{links.map((link) => {
+					const active = link.id === currentActiveId
+					return (
+						<span class="inline-flex" role="presentation">
+							<a
+								href={link.href}
+								data-trust-link={link.id}
+								data-trust-link-state={link.uiState}
+								data-trust-link-focus={link.isFocus ? "true" : undefined}
+								data-trust-link-active={active ? "true" : undefined}
+								data-active={active ? "true" : "false"}
+								role="tab"
+								aria-selected={active ? "true" : "false"}
+								class={`fastt-tabs-outside-panel__item px-3 py-2 text-sm font-semibold whitespace-nowrap ${
+									active ? "" : "text-slate-600 hover:bg-sky-100/80 hover:text-sky-950"
+								}`}
+							>
+								<span>{link.label}</span>
+								<span
+									class={`ml-2 rounded-[var(--fastt-radius-pill)] px-2 py-0.5 text-xs font-semibold ${statusClassForLink(link)}`}
+									data-trust-link-status
+									data-trust-link-status-state={link.uiState}
+								>
+									{link.stateLabel}
+								</span>
+							</a>
+						</span>
+					)
+				})}
+			</TabsOutsidePanel>
+		</div>
+	) : null
+}
+
+<script is:inline>
+	function resolveTrustRailActiveId() {
+		const pathname = window.location.pathname
+		if (pathname.includes("/provider/settings/tax-fees/identity")) return "fiscal"
+		if (pathname.includes("/provider/settings/payments")) return "payments"
+		if (
+			pathname.includes("/provider/settings/verification") &&
+			(window.location.hash === "#kyc-slots" || window.location.hash.startsWith("#kyc-slot-"))
+		) {
+			return "business"
+		}
+		return "identity"
+	}
+
+	function syncTrustRailActiveTab() {
+		const activeId = resolveTrustRailActiveId()
+		document.querySelectorAll("[data-trust-map-rail]").forEach((rail) => {
+			rail.querySelectorAll("[data-trust-link]").forEach((link) => {
+				const active = link.getAttribute("data-trust-link") === activeId
+				link.setAttribute("data-active", active ? "true" : "false")
+				link.setAttribute("aria-selected", active ? "true" : "false")
+				if (active) {
+					link.setAttribute("data-trust-link-active", "true")
+					link.classList.remove("text-slate-600", "hover:bg-sky-100/80", "hover:text-sky-950")
+				} else {
+					link.removeAttribute("data-trust-link-active")
+					link.classList.add("text-slate-600", "hover:bg-sky-100/80", "hover:text-sky-950")
+				}
+			})
+		})
+	}
+
+	window.addEventListener("hashchange", syncTrustRailActiveTab)
+	document.addEventListener("DOMContentLoaded", syncTrustRailActiveTab)
+</script>

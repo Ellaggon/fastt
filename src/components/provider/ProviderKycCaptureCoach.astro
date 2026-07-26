@@ -1,0 +1,84 @@
+---
+import { getKycCaptureGuide } from "@/lib/provider-documents"
+
+type Props = {
+	documentType: string
+}
+
+const { documentType } = Astro.props as Props
+const guide = getKycCaptureGuide(documentType)
+---
+
+<details
+	class="fastt-notice rounded-xl border border-slate-200 bg-slate-50"
+	data-kyc-capture-coach={documentType}
+	data-kyc-capture-frame={guide.frameKind}
+	data-kyc-capture-collapsed="true"
+>
+	<summary
+		class="cursor-pointer touch-manipulation list-none px-4 py-3 text-sm font-semibold text-slate-900"
+	>
+		Consejos de captura
+		<span class="ml-2 text-xs font-normal text-slate-500" data-kyc-capture-accept-hint>
+			{guide.acceptHint}
+		</span>
+	</summary>
+
+	<div class="space-y-3 border-t border-slate-200 px-4 py-3">
+		<p class="text-sm font-medium text-slate-800">{guide.frameLabel}</p>
+
+		{/* Keep markers for contracts; silhouette stays inside collapsed details. */}
+		<div
+			class="relative mx-auto flex w-full max-w-xs items-center justify-center"
+			data-kyc-capture-frame-visual
+			aria-hidden="true"
+		>
+			<div
+				class={`relative border-2 border-dashed border-slate-400 bg-white ${
+					guide.frameKind === "id_card" ? "aspect-[1.6/1] w-[88%]" : "aspect-[3/4] w-[70%] max-h-44"
+				}`}
+			>
+				<span class="absolute -left-0.5 -top-0.5 h-3 w-3 border-l-2 border-t-2 border-slate-800"
+				></span>
+				<span class="absolute -right-0.5 -top-0.5 h-3 w-3 border-r-2 border-t-2 border-slate-800"
+				></span>
+				<span class="absolute -bottom-0.5 -left-0.5 h-3 w-3 border-b-2 border-l-2 border-slate-800"
+				></span>
+				<span class="absolute -bottom-0.5 -right-0.5 h-3 w-3 border-b-2 border-r-2 border-slate-800"
+				></span>
+			</div>
+		</div>
+
+		{
+			guide.frameKind === "id_card" ? (
+				<p class="text-sm leading-6 text-slate-700" data-kyc-capture-sides>
+					<strong>Anverso y reverso:</strong> si el documento tiene datos atrás, súbelos en el mismo
+					PDF o como segunda foto clara.
+				</p>
+			) : null
+		}
+
+		<ul class="grid gap-2 sm:grid-cols-2" data-kyc-capture-tips>
+			{
+				guide.tips.map((tip) => (
+					<li class="text-sm leading-5 text-slate-700" data-kyc-capture-tip={tip.id}>
+						<span class="font-semibold text-slate-900">{tip.label}.</span> {tip.detail}
+					</li>
+				))
+			}
+		</ul>
+
+		{/* Mobile marker kept for contracts; content is the same tips list above. */}
+		<div class="sr-only" data-kyc-capture-tips-mobile>Consejos de captura</div>
+
+		<p class="text-sm leading-6 text-slate-700" data-kyc-capture-example>
+			{guide.example}
+		</p>
+		<p class="text-sm leading-6 text-slate-600" data-kyc-capture-mobile-hint>
+			{guide.mobileHint}
+		</p>
+		<p class="sr-only" data-kyc-capture-desktop-hint>
+			{guide.example}
+		</p>
+	</div>
+</details>

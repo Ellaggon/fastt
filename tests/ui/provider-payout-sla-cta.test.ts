@@ -37,7 +37,8 @@ describe("S3-2 payout SLA mirror + post-save CTAs", () => {
 		expect(page).toContain('domain === "payments"')
 		expect(page).toContain("paymentAssignments={paymentAssignments}")
 		expect(page).toContain("data-post-save-cta")
-		expect(page).toContain("Continuar a integraciones")
+		expect(page).toContain("TRUST_GLOSSARY.returnToVerification")
+		expect(page).toContain("providerSettingsVerification()")
 
 		expect(card).toContain("ProviderReviewWaitNotice")
 		expect(card).toContain('domain="payment"')
@@ -45,17 +46,18 @@ describe("S3-2 payout SLA mirror + post-save CTAs", () => {
 		expect(card).toContain("assignment={paymentAssignments[account.id]")
 	})
 
-	it("exposes post-save CTAs toward the next settings domain", () => {
+	it("exposes post-save CTAs toward verification (data surfaces) and next domains", () => {
 		const profile = read("src/pages/provider/settings/profile.astro")
 		const verification = read("src/pages/provider/settings/verification.astro")
 		const taxIdentity = read("src/pages/provider/settings/tax-fees/identity.astro")
 
 		expect(profile).toContain("data-post-save-cta")
-		expect(profile).toContain("Continuar a verificación")
+		expect(profile).toContain("TRUST_GLOSSARY.returnToVerification")
 		expect(verification).toContain("data-post-save-cta")
 		expect(verification).toContain("Continuar a registro fiscal")
 		expect(verification).toContain("Continuar a pagos")
 		expect(taxIdentity).toContain("data-post-save-cta")
+		expect(taxIdentity).toContain("TRUST_GLOSSARY.returnToVerification")
 		expect(taxIdentity).toContain("Continuar a pagos")
 	})
 })

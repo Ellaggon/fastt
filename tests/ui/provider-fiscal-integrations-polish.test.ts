@@ -28,10 +28,14 @@ describe("S4-6 fiscal withhold explainer + Pro docs-lite", () => {
 		const integrations = read("src/pages/provider/settings/integrations.astro")
 
 		expect(identity).toContain("data-fiscal-withhold-explainer")
+		expect(identity).toContain('data-long-copy-collapsed="true"')
+		expect(identity).toContain("<details")
 		expect(identity).toContain("Retenciones y liquidaciones")
 		expect(identity).toContain("retener o retrasar")
-		expect(identity).toContain("Ir a cuentas de liquidación")
-		expect(taxCard).toContain("liquidaciones pueden retenerse")
+		expect(identity).not.toContain("Ir a cuentas de liquidación")
+		expect(identity).not.toContain("Resumen fiscal</Button>")
+		expect(identity).toContain("retener o retrasar liquidaciones")
+		expect(taxCard).toContain('data-fiscal-long-copy-collapsed="true"')
 
 		expect(integrations).toContain("data-connector-docs-lite")
 		expect(integrations).toContain("data-connector-scopes")

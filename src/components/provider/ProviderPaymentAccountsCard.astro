@@ -86,13 +86,20 @@ function badgeVariantForPhase(phaseLabel: string) {
 
 			{
 				rail.mode !== "simulated" || rail.preferredProvider === "stripe_connect" ? (
-					<Notice variant="info" title="Rail de payout" data-payout-rail-status>
-						{rail.mode === "scaffold"
-							? "Connect está preparado en entorno, pero los micro-depósitos siguen siendo de prueba (aún no hay ACH bancario real)."
-							: rail.mode === "not_configured"
-								? "Se pidió Stripe Connect pero falta configurar la clave — seguimos en verificación de prueba (simulado)."
-								: "Verificación de titularidad en modo de prueba. Los montos no salen del banco hasta cablear ACH/Connect live."}
-					</Notice>
+					<details
+						class="fastt-notice rounded-[var(--fastt-radius-card)] border border-sky-200 bg-sky-50 p-4 text-sm leading-6 text-sky-900"
+						data-payout-rail-status
+						data-long-copy-collapsed="true"
+					>
+						<summary class="cursor-pointer font-semibold">Rail de payout</summary>
+						<p class="mt-2 text-sky-900/85">
+							{rail.mode === "scaffold"
+								? "Connect está preparado en entorno, pero los micro-depósitos siguen siendo de prueba (aún no hay ACH bancario real)."
+								: rail.mode === "not_configured"
+									? "Se pidió Stripe Connect pero falta configurar la clave; seguimos en verificación de prueba (simulado)."
+									: "Verificación de titularidad en modo de prueba. Los montos no salen del banco hasta cablear ACH/Connect live."}
+						</p>
+					</details>
 				) : (
 					<p class="text-xs leading-5 text-slate-500" data-payout-rail-status>
 						Modo actual: verificación de prueba (simulado). No implica transferencia ACH real.
@@ -154,23 +161,25 @@ function badgeVariantForPhase(phaseLabel: string) {
 
 									{account.status === "pending" && !timeline.showConfirmForm ? (
 										<>
-											<Notice
-												variant="info"
-												title="Cómo leer el extracto"
-												class="border-t border-slate-200 pt-3"
+											<details
+												class="fastt-notice rounded-lg border border-slate-200 bg-white px-3 py-3 text-sm leading-6 text-slate-600"
 												data-micro-deposit-education="awaiting"
+												data-long-copy-collapsed="true"
 											>
-												<ul class="list-disc space-y-1 pl-5 text-sm leading-6">
+												<summary class="cursor-pointer font-semibold text-slate-900">
+													Cómo leer el extracto
+												</summary>
+												<ul class="mt-3 list-disc space-y-1 border-t border-slate-200 pt-3 pl-5">
 													<li>Revisa movimientos recientes en la app o extracto del banco.</li>
 													<li>
-														Busca dos créditos pequeños (a menudo menos de $1), a veces con concepto
-														de verificación o Fastt.
+														Busca dos créditos pequeños, a veces con concepto de verificación o
+														Fastt.
 													</li>
 													<li>
 														Cuando aparezcan, vuelve aquí: el paso “Confirmar montos” se activará.
 													</li>
 												</ul>
-											</Notice>
+											</details>
 											<ProviderReviewWaitNotice
 												domain="payment"
 												assignment={paymentAssignments[account.id] ?? null}
@@ -181,27 +190,27 @@ function badgeVariantForPhase(phaseLabel: string) {
 
 									{timeline.showConfirmForm ? (
 										<div class="space-y-3 border-t border-slate-200 pt-3">
-											<Notice
-												variant="info"
-												title="Cómo confirmar los micro-depósitos"
+											<details
+												class="fastt-notice rounded-lg border border-slate-200 bg-white px-3 py-3 text-sm leading-6 text-slate-600"
 												data-micro-deposit-education="confirm"
+												data-long-copy-collapsed="true"
 											>
-												<ol class="list-decimal space-y-1 pl-5 text-sm leading-6">
+												<summary class="cursor-pointer font-semibold text-slate-900">
+													Cómo confirmar los micro-depósitos
+												</summary>
+												<ol class="mt-3 list-decimal space-y-1 border-t border-slate-200 pt-3 pl-5">
 													<li>Abre el extracto o la app del banco de esta cuenta.</li>
 													<li>
-														Localiza los dos créditos pequeños de verificación (no los confundas con
-														comisiones).
+														Localiza los dos créditos pequeños de verificación y no los confundas
+														con comisiones.
 													</li>
 													<li>
 														Anota cada monto en <strong>centavos</strong> (ejemplo: $0.32 →{" "}
 														<code>32</code>; rango 1–99).
 													</li>
-													<li>
-														Ingresa ambos abajo. Tienes hasta 3 intentos; un error no cancela los
-														depósitos.
-													</li>
+													<li>Ingresa ambos abajo. Tienes hasta 3 intentos.</li>
 												</ol>
-											</Notice>
+											</details>
 											{canManagePayments ? (
 												<form
 													method="post"

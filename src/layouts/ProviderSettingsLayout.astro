@@ -8,19 +8,75 @@ interface Props {
 	eyebrow?: string
 	heading?: string
 	description?: string
+	/**
+	 * Settings hub tabs (Resumen · Perfil · Fiscalidad · …).
+	 * Off for Verificación: wizard/trust map is its own chrome, not a settings tab.
+	 */
+	showSettingsTabs?: boolean
+	/** Playbook-style progress above the page title (Verificación wizard). */
+	progressStep?: number | null
+	progressTotal?: number | null
+	progressPercent?: number | null
 }
 
 const {
 	title = "Configuración del proveedor",
 	eyebrow = "Configuración del proveedor",
 	heading = "Configuración",
-	description = "Administra identidad, cumplimiento, fiscalidad e integraciones del proveedor.",
+	description = "Administra identidad, fiscalidad, pagos e integraciones del proveedor.",
+	showSettingsTabs = true,
+	progressStep = null,
+	progressTotal = null,
+	progressPercent = null,
 } = Astro.props
+
+const hasProgress =
+	typeof progressStep === "number" &&
+	progressStep > 0 &&
+	typeof progressTotal === "number" &&
+	progressTotal > 0
+const stepPositionPercent = hasProgress ? Math.round((progressStep! / progressTotal!) * 100) : 0
+const rawPercent =
+	typeof progressPercent === "number" && Number.isFinite(progressPercent)
+		? Math.min(100, Math.max(0, Math.round(progressPercent)))
+		: 0
+const visualProgressPercent = hasProgress
+	? Math.min(100, Math.max(rawPercent, stepPositionPercent))
+	: 0
 ---
 
 <WorkspaceLayout title={title}>
 	<section class="space-y-8 text-slate-200">
-		<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
+		{
+			hasProgress ? (
+				<div class="mb-5 space-y-2" data-verification-wizard-progress>
+					<p
+						class="text-xs font-semibold tracking-wide text-slate-400 uppercase"
+						data-next-step-progress
+					>
+						{`Paso ${progressStep} de ${progressTotal}`}
+					</p>
+					<div
+						class="fastt-progress-track h-1.5 overflow-hidden bg-slate-800"
+						role="progressbar"
+						aria-valuenow={rawPercent}
+						aria-valuemin={0}
+						aria-valuemax={100}
+						aria-label="Progreso de verificación"
+					>
+						<div
+							class="fastt-progress-value h-full"
+							style={`width: ${visualProgressPercent}%; min-width: ${visualProgressPercent > 0 ? "0.75rem" : "0"}; background-color: var(--fastt-color-selection);`}
+							data-verification-wizard-bar
+						/>
+					</div>
+				</div>
+			) : null
+		}
+
+		<header
+			class={`flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 ${showSettingsTabs ? "pb-5" : "pb-4"} ${hasProgress ? "!mt-0" : ""}`}
+		>
 			<div class="max-w-3xl space-y-1.5">
 				<p
 					class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400"
@@ -36,8 +92,8 @@ const {
 			</div>
 		</header>
 
-		<section class="space-y-6 md:space-y-8">
-			<ProviderSettingsSubnav />
+		<section class={showSettingsTabs ? "space-y-6 md:space-y-8" : "space-y-0"}>
+			{showSettingsTabs ? <ProviderSettingsSubnav /> : null}
 			<slot />
 		</section>
 	</section>

@@ -6,9 +6,11 @@ import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/in
 import {
 	listProviderDocuments,
 	providerDocumentTypes,
+	requiredKycDocumentTypes,
 	submitProviderDocument,
 	validateDocumentFile,
 } from "@/lib/provider-documents"
+import { routes } from "@/lib/routes"
 
 const submitSchema = z.object({
 	type: z.enum([
@@ -38,16 +40,47 @@ function json(payload: unknown, status = 200) {
 	})
 }
 
+/** Browser form navigation must 303 back to Verificación — never dump API JSON. */
 function shouldReturnHtmlRedirect(request: Request) {
-	const accept = request.headers.get("accept") ?? ""
-	return accept.includes("text/html")
+	const accept = (request.headers.get("accept") ?? "").toLowerCase()
+	const fetchDest = request.headers.get("sec-fetch-dest") ?? ""
+	const fetchMode = request.headers.get("sec-fetch-mode") ?? ""
+	const contentType = request.headers.get("content-type") ?? ""
+	// Explicit JSON API clients (integration tests / fetch) keep JSON responses.
+	const wantsJsonOnly = accept.includes("application/json") && !accept.includes("text/html")
+	if (wantsJsonOnly) return false
+	if (accept.includes("text/html")) return true
+	if (fetchDest === "document" || fetchMode === "navigate") return true
+	// Multipart without JSON Accept → classic form post (incl. after data-astro-reload).
+	if (contentType.includes("multipart/form-data")) return true
+	return false
 }
 
-function redirectToVerification(request: Request, result: string) {
-	return Response.redirect(
-		new URL(`/provider/settings/verification?result=${result}`, request.url),
-		303
-	)
+function redirectAfterSubmit(request: Request, result: string, type: string) {
+	const isOptional = !(requiredKycDocumentTypes as readonly string[]).includes(type as any)
+	const path = isOptional
+		? routes.providerSettingsVerificationDocuments()
+		: routes.providerSettingsVerification()
+	const target = new URL(path, request.url)
+	target.searchParams.set("result", result)
+	if (type) target.searchParams.set("type", type)
+	// Hash is fine in Location for browsers; keep slot focus after reload.
+	if (!isOptional && type) target.hash = `kyc-slot-${type}`
+	return Response.redirect(target.toString(), 303)
+}
+
+function redirectAfterFormError(request: Request, errorCode: string, type?: string) {
+	const rawType = String(type ?? "").trim()
+	const isOptional =
+		rawType.length > 0 && !(requiredKycDocumentTypes as readonly string[]).includes(rawType as any)
+	const path = isOptional
+		? routes.providerSettingsVerificationDocuments()
+		: routes.providerSettingsVerification()
+	const target = new URL(path, request.url)
+	target.searchParams.set("result", "error")
+	target.searchParams.set("error", errorCode)
+	if (rawType) target.searchParams.set("type", rawType)
+	return Response.redirect(target.toString(), 303)
 }
 
 export const GET: APIRoute = async ({ request }) => {
@@ -78,15 +111,21 @@ export const GET: APIRoute = async ({ request }) => {
 }
 
 export const POST: APIRoute = async ({ request }) => {
+	const preferRedirect = shouldReturnHtmlRedirect(request)
+	let formTypeHint = ""
 	try {
 		const { user, provider } = await requireProviderSessionSurface(request)
 		const providerId = provider.providerId
 
 		const form = await request.formData()
 		const action = String(form.get("action") ?? "submit")
+		formTypeHint = String(form.get("type") ?? "").trim()
 
 		// Document review is internal-admin only (/api/admin/providers/documents).
 		if (action === "review") {
+			if (preferRedirect) {
+				return redirectAfterFormError(request, "forbidden_review", formTypeHint)
+			}
 			return json(
 				{
 					error: "forbidden",
@@ -95,6 +134,14 @@ export const POST: APIRoute = async ({ request }) => {
 				},
 				403
 			)
+		}
+
+		// Same gate as verification UI (session surface), before storage/DB work.
+		if (!provider.permissions?.canManageDocuments) {
+			if (preferRedirect) {
+				return redirectAfterFormError(request, "forbidden", formTypeHint)
+			}
+			return json({ error: "forbidden" }, 403)
 		}
 
 		const file = form.get("file")
@@ -127,11 +174,32 @@ export const POST: APIRoute = async ({ request }) => {
 		await invalidateProvider(providerId)
 		await invalidateProviderGovernance(providerId, "provider_document_submitted")
 
-		return shouldReturnHtmlRedirect(request)
-			? redirectToVerification(request, "submitted")
+		return preferRedirect
+			? redirectAfterSubmit(request, "submitted", parsed.type)
 			: json({ ok: true, document: submitted }, 201)
 	} catch (err: any) {
-		if (err instanceof Response) return err
+		if (err instanceof Response) {
+			// Auth redirects/forbidden — keep as-is for API clients; form posts go back to UI.
+			if (preferRedirect && err.status >= 400 && err.status < 500 && err.status !== 401) {
+				const code = err.status === 403 ? "forbidden" : "upload_failed"
+				return redirectAfterFormError(request, code, formTypeHint)
+			}
+			return err
+		}
+		if (preferRedirect) {
+			console.error("provider.settings.documents.submit_failed", {
+				type: formTypeHint || null,
+				error:
+					err instanceof ZodError ? "validation_error" : String(err?.message || "upload_failed"),
+			})
+			const code =
+				err instanceof ZodError
+					? "validation_error"
+					: String(err?.message || "upload_failed")
+							.replace(/[^a-zA-Z0-9._-]+/g, "_")
+							.slice(0, 64) || "upload_failed"
+			return redirectAfterFormError(request, code, formTypeHint)
+		}
 		if (err instanceof ZodError)
 			return json({ error: "validation_error", details: err.issues }, 400)
 		const status = typeof err?.status === "number" ? err.status : 400

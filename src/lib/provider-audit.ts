@@ -72,9 +72,25 @@ export async function writeProviderAuditLog(params: WriteProviderAuditLogParams)
 		})
 		.catch((error) => {
 			const message = error instanceof Error ? error.message : String(error)
-			if (!message.includes("ProviderAuditLog") && !message.includes("no such table")) {
-				throw error
+			// Never block the host mutation on audit storage / statement timeouts.
+			if (
+				message.includes("ProviderAuditLog") ||
+				message.includes("no such table") ||
+				message.includes("statement timeout") ||
+				message.includes("canceling statement")
+			) {
+				console.error("provider.audit.write_failed", {
+					action: params.action,
+					providerId: params.providerId,
+					error: message,
+				})
+				return
 			}
+			console.error("provider.audit.write_failed", {
+				action: params.action,
+				providerId: params.providerId,
+				error: message,
+			})
 		})
 }
 

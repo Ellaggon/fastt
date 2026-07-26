@@ -33,7 +33,13 @@ const formAction = hasProvider && provider?.id ? `/api/providers/${provider.id}`
 					<Input id="displayName" name="displayName" required value={provider?.displayName ?? ""} />
 				</FormField>
 				<FormField label="Razón social" htmlFor="legalName" required>
-					<Input id="legalName" name="legalName" required value={provider?.legalName ?? ""} />
+					<Input
+						id="legalName"
+						name="legalName"
+						required
+						value={provider?.legalName ?? ""}
+						class="scroll-mt-24"
+					/>
 				</FormField>
 			</div>
 			<div class="flex items-center justify-end gap-3">

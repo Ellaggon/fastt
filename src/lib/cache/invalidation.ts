@@ -11,11 +11,19 @@ function refreshProductSurface(productId: string, source: string): void {
 function refreshProviderConfiguration(providerId: string, source: string): void {
 	const id = String(providerId ?? "").trim()
 	if (!id) return
-	void import("@/lib/provider-governance")
-		.then(({ refreshProviderConfigurationState }) =>
-			refreshProviderConfigurationState({ providerId: id })
-		)
-		.catch(() => {})
+	// Fire-and-forget: never surface statement timeouts as unhandled rejections.
+	void (async () => {
+		try {
+			const { refreshProviderConfigurationState } = await import("@/lib/provider-governance")
+			await refreshProviderConfigurationState({ providerId: id })
+		} catch (error) {
+			console.error("provider configuration refresh failed", {
+				source,
+				providerId: id,
+				error: error instanceof Error ? error.message : String(error),
+			})
+		}
+	})()
 	console.debug("provider configuration refresh queued", { source, providerId: id })
 }
 

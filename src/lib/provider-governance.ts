@@ -17,8 +17,11 @@ import {
 	ProviderVerification,
 	TaxFeeDefinition,
 } from "@/shared/infrastructure/db/compat"
-import { resolveProviderPermissions } from "@/lib/provider-permissions"
-import { evaluateRequiredKycDocumentsComplete } from "@/lib/provider-documents"
+import { normalizeProviderRole, resolveProviderPermissions } from "@/lib/provider-permissions"
+import {
+	evaluateRequiredKycDocumentsComplete,
+	isTaxDocumentSatisfiedByFiscal,
+} from "@/lib/provider-documents"
 import { emitSettingsFunnelDomainCompletions } from "@/lib/provider-settings-funnel"
 
 export type ProviderCapability = "publish" | "booking" | "payments" | "integrations"
@@ -106,11 +109,27 @@ function isMissingGovernanceStorage(error: unknown): boolean {
 	)
 }
 
+function isStatementTimeout(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : String(error)
+	return (
+		message.includes("statement timeout") ||
+		message.includes("canceling statement") ||
+		message.includes("Query read timeout")
+	)
+}
+
 async function safe<T>(fallback: T, fn: () => Promise<T>): Promise<T> {
 	try {
 		return await fn()
 	} catch (error) {
-		if (isMissingGovernanceStorage(error)) return fallback
+		if (isMissingGovernanceStorage(error) || isStatementTimeout(error)) {
+			if (isStatementTimeout(error)) {
+				console.error("provider.governance.query_timeout", {
+					error: error instanceof Error ? error.message : String(error),
+				})
+			}
+			return fallback
+		}
 		throw error
 	}
 }
@@ -290,35 +309,39 @@ export async function evaluateProviderGovernance(
 		auditRows,
 		teamRows,
 	] = await Promise.all([
-		db
-			.select({
-				provider: {
-					id: Provider.id,
-					displayName: Provider.displayName,
-					legalName: Provider.legalName,
-					status: Provider.status,
-				},
-				profile: {
-					timezone: ProviderProfile.timezone,
-					defaultCurrency: ProviderProfile.defaultCurrency,
-					supportEmail: ProviderProfile.supportEmail,
-					supportPhone: ProviderProfile.supportPhone,
-				},
-			})
-			.from(Provider)
-			.leftJoin(ProviderProfile, eq(ProviderProfile.providerId, Provider.id))
-			.where(eq(Provider.id, id))
-			.then(first),
-		db
-			.select({
-				status: ProviderVerification.status,
-				reason: ProviderVerification.reason,
-				createdAt: ProviderVerification.createdAt,
-			})
-			.from(ProviderVerification)
-			.where(eq(ProviderVerification.providerId, id))
-			.orderBy(desc(ProviderVerification.createdAt), desc(ProviderVerification.id))
-			.then(first),
+		safe(null, () =>
+			db
+				.select({
+					provider: {
+						id: Provider.id,
+						displayName: Provider.displayName,
+						legalName: Provider.legalName,
+						status: Provider.status,
+					},
+					profile: {
+						timezone: ProviderProfile.timezone,
+						defaultCurrency: ProviderProfile.defaultCurrency,
+						supportEmail: ProviderProfile.supportEmail,
+						supportPhone: ProviderProfile.supportPhone,
+					},
+				})
+				.from(Provider)
+				.leftJoin(ProviderProfile, eq(ProviderProfile.providerId, Provider.id))
+				.where(eq(Provider.id, id))
+				.then(first)
+		),
+		safe(null, () =>
+			db
+				.select({
+					status: ProviderVerification.status,
+					reason: ProviderVerification.reason,
+					createdAt: ProviderVerification.createdAt,
+				})
+				.from(ProviderVerification)
+				.where(eq(ProviderVerification.providerId, id))
+				.orderBy(desc(ProviderVerification.createdAt), desc(ProviderVerification.id))
+				.then(first)
+		),
 		safe([], () =>
 			db
 				.select({
@@ -340,12 +363,12 @@ export async function evaluateProviderGovernance(
 				.where(eq(ProviderTaxConfiguration.providerId, id))
 				.then(first)
 		),
-		db
-			.select({ id: TaxFeeDefinition.id, status: TaxFeeDefinition.status })
-			.from(TaxFeeDefinition)
-			.where(eq(TaxFeeDefinition.providerId, id))
-
-			.catch(() => []),
+		safe([], () =>
+			db
+				.select({ id: TaxFeeDefinition.id, status: TaxFeeDefinition.status })
+				.from(TaxFeeDefinition)
+				.where(eq(TaxFeeDefinition.providerId, id))
+		),
 		safe([], () =>
 			db
 				.select({
@@ -355,15 +378,16 @@ export async function evaluateProviderGovernance(
 				.from(ProviderPaymentAccount)
 				.where(eq(ProviderPaymentAccount.providerId, id))
 		),
-		db
-			.select({
-				status: ProviderFinancialProfile.status,
-				taxProfileStatus: ProviderFinancialProfile.taxProfileStatus,
-			})
-			.from(ProviderFinancialProfile)
-			.where(eq(ProviderFinancialProfile.providerId, id))
-			.then(first)
-			.catch(() => null),
+		safe(null, () =>
+			db
+				.select({
+					status: ProviderFinancialProfile.status,
+					taxProfileStatus: ProviderFinancialProfile.taxProfileStatus,
+				})
+				.from(ProviderFinancialProfile)
+				.where(eq(ProviderFinancialProfile.providerId, id))
+				.then(first)
+		),
 		safe([], () =>
 			db
 				.select({
@@ -380,6 +404,7 @@ export async function evaluateProviderGovernance(
 				.select({ id: ProviderAuditLog.id })
 				.from(ProviderAuditLog)
 				.where(eq(ProviderAuditLog.providerId, id))
+				.orderBy(desc(ProviderAuditLog.createdAt))
 				.limit(20)
 		),
 		safe([], () =>
@@ -424,16 +449,25 @@ export async function evaluateProviderGovernance(
 	)
 	const verificationComplete = latestVerification?.status === "approved"
 	// Minimum KYC set (gov ID + business registration + tax doc), all verified.
-	const kycDocuments = evaluateRequiredKycDocumentsComplete(documentRows)
+	// tax_document may be satisfied by verified NIT in Fiscalidad (V1.1 bridge).
+	const kycDocuments = evaluateRequiredKycDocumentsComplete(documentRows, {
+		taxDocumentSatisfiedByFiscal: isTaxDocumentSatisfiedByFiscal({
+			businessRegistrationNumber: taxConfiguration?.businessRegistrationNumber,
+			fiscalStatus,
+		}),
+	})
 	const documentsComplete = kycDocuments.complete
 	// Taxpayer identity must be admin-verified. Active sales tax fees + country are NOT a substitute.
 	const fiscalComplete = fiscalStatus === "verified"
 	// FinancialProfile is a rollup after payout verify — never a self-serve readiness shortcut.
 	const paymentsComplete = verifiedPaymentAccounts.length > 0
 	const integrationsReady = connectedIntegrations.length > 0
-	const teamComplete = teamRows.some((row) => ["owner", "admin"].includes(String(row.role)))
+	const teamComplete = teamRows.some((row) => {
+		const role = normalizeProviderRole(row.role)
+		return role === "owner" || role === "admin"
+	})
 	const currentUserLink = opts.currentUserId
-		? teamRows.find((row) => row.userId === opts.currentUserId)
+		? teamRows.find((row) => String(row.userId) === String(opts.currentUserId))
 		: null
 	const permissions = resolveProviderPermissions({
 		role: currentUserLink?.role,

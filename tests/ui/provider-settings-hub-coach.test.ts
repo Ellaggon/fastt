@@ -26,13 +26,33 @@ describe("S4-2 settings hub coach slim", () => {
 
 		expect(summary).toContain("secondaryCtaLabel")
 		expect(summary).toContain("secondaryCtaAction")
-		expect(summary).toContain("Continuar:")
+		expect(summary).toContain("resolveTrustAlignedHubCoach")
+		expect(summary).toContain("coachLabel")
+		expect(summary).toContain("coachBody")
 		expect(summary).toContain("#estado-cuenta")
 
 		expect(hydration).toContain("data-settings-secondary-cta")
 		expect(hydration).toContain("data-settings-next-step-label")
+		expect(hydration).toContain("coachLabel")
+		expect(hydration).toContain("coachBody")
 		expect(hydration).toContain("Aún no hay estado de tu cuenta disponible.")
 		expect(hydration).not.toContain("No hay readiness disponible.")
+	})
+
+	it("aligns hub coach copy with trust map language", () => {
+		const page = read("src/pages/provider/settings/index.astro")
+		const trust = read("src/lib/provider-trust-map.ts")
+
+		expect(page).toContain("coachLabel")
+		expect(page).toContain("coachBody")
+		expect(page).toContain("mapa de confianza")
+
+		expect(trust).toContain("resolveTrustAlignedHubCoach")
+		expect(trust).toContain("Perfil: completa la razón social")
+		expect(trust).toContain("Negocio: faltan documentos mínimos")
+		expect(trust).toContain("Fiscal: verifica NIT/TIN")
+		expect(trust).toContain("Pagos: verifica cuenta de cobro")
+		expect(trust).toContain("Identidad: cuenta en revisión")
 	})
 
 	it("uses human readiness labels without KYC / smoke jargon", () => {

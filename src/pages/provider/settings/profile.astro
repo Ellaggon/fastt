@@ -6,6 +6,7 @@ import Notice from "@/components/ui/Notice.astro"
 import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { TRUST_GLOSSARY } from "@/lib/provider-trust-map"
 import { routes } from "@/lib/routes"
 import { getProviderFullAggregate } from "@/modules/catalog/public"
 
@@ -77,7 +78,7 @@ const errorNotice =
 		{
 			hasProvider ? (
 				<Button href={routes.providerSettingsVerification()} variant="secondary">
-					Ir a verificación
+					{TRUST_GLOSSARY.returnToVerification.label}
 				</Button>
 			) : null
 		}
@@ -100,7 +101,7 @@ const errorNotice =
 							href={routes.providerSettingsVerification()}
 							data-funnel-cta="post_save"
 						>
-							Continuar a verificación
+							{TRUST_GLOSSARY.returnToVerification.label}
 						</a>
 					</p>
 				) : null}

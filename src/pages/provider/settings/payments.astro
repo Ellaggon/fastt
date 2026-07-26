@@ -7,6 +7,7 @@ import { requireProvider } from "@/lib/auth/requireProvider"
 import { getPayoutRailStatus } from "@/lib/payout-rail"
 import { listOpenComplianceAssignments } from "@/lib/provider-compliance-ops"
 import { listProviderPaymentAccounts } from "@/lib/provider-payment-accounts"
+import { TRUST_GLOSSARY } from "@/lib/provider-trust-map"
 import { routes } from "@/lib/routes"
 
 const auth = await requireProvider(Astro.request).catch((e: any) => {
@@ -49,10 +50,13 @@ const resultMessages: Record<string, { title: string; body: string; variant: "su
 	}
 
 const postSaveCtaByResult: Record<string, { href: string; label: string }> = {
-	submitted: { href: routes.providerSettings(), label: "Ir al resumen" },
+	submitted: {
+		href: routes.providerSettingsVerification(),
+		label: TRUST_GLOSSARY.returnToVerification.label,
+	},
 	micro_deposit_confirmed: {
-		href: routes.providerSettingsIntegrations(),
-		label: "Continuar a integraciones",
+		href: routes.providerSettingsVerification(),
+		label: TRUST_GLOSSARY.returnToVerification.label,
 	},
 }
 
@@ -98,8 +102,9 @@ const errorMessages: Record<string, { title: string; body: string; variant: "war
 	description="Una cuenta a la vez. Confirma los micro-depósitos del extracto para habilitar liquidaciones."
 >
 	<div slot="actions" class="flex flex-wrap gap-3">
-		<Button href={routes.providerSettingsTaxFees()} variant="secondary">Fiscalidad</Button>
-		<Button href={routes.providerSettings()} variant="secondary">Resumen</Button>
+		<Button href={routes.providerSettingsVerification()} variant="secondary">
+			{TRUST_GLOSSARY.returnToVerification.label}
+		</Button>
 	</div>
 
 	{

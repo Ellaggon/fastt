@@ -18,6 +18,7 @@ import {
 	formatProviderRoleLabel,
 	resolveProviderPermissions,
 } from "@/lib/provider-permissions"
+import { resolveTrustAlignedHubCoach } from "@/lib/provider-trust-map"
 import { routes } from "@/lib/routes"
 import { getProviderFullAggregate } from "@/modules/catalog/public"
 import { buildTaxFeeWarnings } from "@/modules/taxes-fees/public"
@@ -291,14 +292,19 @@ async function buildProviderSettingsSummaryUncached(params: {
 					? `${governance.blockers.length} bloqueo${governance.blockers.length === 1 ? "" : "s"} pendiente${governance.blockers.length === 1 ? "" : "s"}.`
 					: "Configuración base lista.",
 		},
-		actions: {
-			primaryCtaLabel: governance.blockers[0]?.label
-				? `Continuar: ${governance.blockers[0].label}`
-				: "Ir al panel",
-			primaryCtaAction: governance.blockers[0]?.href ?? routes.dashboard(),
-			secondaryCtaLabel: governance.blockers[0] ? "Ver todas las áreas" : "Revisar estado de áreas",
-			secondaryCtaAction: "#estado-cuenta",
-		},
+		actions: (() => {
+			const coach = resolveTrustAlignedHubCoach(governance.blockers[0] ?? null)
+			return {
+				primaryCtaLabel: coach?.ctaLabel ?? "Ir al panel",
+				primaryCtaAction: coach?.href ?? routes.dashboard(),
+				secondaryCtaLabel: governance.blockers[0]
+					? "Ver todas las áreas"
+					: "Revisar estado de áreas",
+				secondaryCtaAction: "#estado-cuenta",
+				coachLabel: coach?.label ?? null,
+				coachBody: coach?.body ?? null,
+			}
+		})(),
 		users: teamUsers.length
 			? teamUsers.map((user) => ({
 					id: user.id,

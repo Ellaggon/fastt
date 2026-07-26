@@ -18,20 +18,24 @@ import {
 import {
 	getSessionIdFromRequest,
 	getUserFromRequest,
-	isLocalQaAuthLoggedOut,
+	resolveLocalQaAuthUser,
 	type AuthUser,
 } from "./getUserFromRequest"
-import { resolveProviderPermissions, type ProviderRole } from "@/lib/provider-permissions"
-
-function normalizeRole(role: unknown): ProviderRole {
-	if (role === "owner" || role === "admin" || role === "staff") return role
-	return "staff"
-}
+import {
+	normalizeProviderRole,
+	resolveProviderPermissions,
+	type ProviderRole,
+} from "@/lib/provider-permissions"
 
 async function readProviderSessionSurfaceByProviderId(params: {
 	userId: string
 	providerId: string
 }): Promise<ProviderSessionSurface | null> {
+	const healedRole = await providerRepository.healProviderUserRoleIfNeeded({
+		providerId: params.providerId,
+		userId: params.userId,
+	})
+
 	const row = await db
 		.select({
 			providerId: ProviderUser.providerId,
@@ -46,7 +50,7 @@ async function readProviderSessionSurfaceByProviderId(params: {
 		)
 		.then(first)
 	if (!row?.providerId) return null
-	const role = normalizeRole(row.role)
+	const role: ProviderRole = healedRole ?? normalizeProviderRole(row.role)
 	return {
 		userId: params.userId,
 		providerId: String(row.providerId),
@@ -82,16 +86,33 @@ async function readProviderSessionSurfaceByUser(
 	})
 }
 
-function localQaSurface(request: Request): ProviderSessionSurface | null {
-	if (process.env.NODE_ENV === "production") return null
-	if (process.env.LOCAL_QA_AUTH_ENABLED !== "true") return null
-	if (isLocalQaAuthLoggedOut(request)) return null
-	const userId = String(process.env.LOCAL_QA_AUTH_USER_ID ?? "").trim()
+async function localQaSurface(request: Request): Promise<ProviderSessionSurface | null> {
+	const qaUser = await resolveLocalQaAuthUser(request)
+	if (!qaUser?.id) return null
 	const providerId = String(process.env.LOCAL_QA_PROVIDER_ID ?? "").trim()
-	if (!userId || !providerId) return null
-	const role = normalizeRole(process.env.LOCAL_QA_PROVIDER_ROLE ?? "owner")
+	if (!providerId) return null
+
+	// Keep ProviderUser in sync with the resolved QA identity (env id may be a stub).
+	await providerRepository.ensureProviderUserOwnerLink({
+		providerId,
+		userId: qaUser.id,
+	})
+
+	const healed = await readProviderSessionSurfaceByProviderId({
+		userId: qaUser.id,
+		providerId,
+	})
+	if (healed) {
+		return {
+			...healed,
+			professionalToolsEnabled:
+				healed.professionalToolsEnabled || process.env.LOCAL_QA_PROFESSIONAL_TOOLS === "true",
+		}
+	}
+
+	const role = normalizeProviderRole(process.env.LOCAL_QA_PROVIDER_ROLE ?? "owner")
 	return {
-		userId,
+		userId: qaUser.id,
 		providerId,
 		role,
 		permissions: resolveProviderPermissions({ role }),
@@ -103,14 +124,15 @@ export async function getProviderSessionSurfaceFromRequest(
 	request: Request,
 	preloadedUser?: AuthUser | null
 ): Promise<ProviderSessionSurface | null> {
-	const qaSurface = localQaSurface(request)
+	const qaSurface = await localQaSurface(request)
 	if (qaSurface) return qaSurface
 
 	const user = preloadedUser ?? (await getUserFromRequest(request))
 	if (!user?.id) return null
 	const sessionId = getSessionIdFromRequest(request)
 	const cached = await getCachedProviderSessionSurface({ sessionId, userId: user.id })
-	if (cached) return cached
+	// Owner/admin can use cache. Staff may be a stale false-negative after heal — re-read DB.
+	if (cached && (cached.role === "owner" || cached.role === "admin")) return cached
 
 	let surface: ProviderSessionSurface | null = null
 	const legacyProviderKey = sessionId ? cacheKeys.authProviderBySession(sessionId) : null

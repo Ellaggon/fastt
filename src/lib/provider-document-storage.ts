@@ -15,8 +15,10 @@ export function isR2DocumentStorageConfigured(): boolean {
 }
 
 export function allowLegacyLocalDocumentUrls(): boolean {
-	// Tests and local without R2 may still use local:// placeholders.
+	// Tests always allow placeholders.
 	if (process.env.VITEST) return true
+	// Local/dev may keep local:// even when R2 env is present but upload fails.
+	if (process.env.NODE_ENV !== "production") return true
 	return !isR2DocumentStorageConfigured()
 }
 
@@ -90,7 +92,7 @@ export async function uploadProviderDocumentObject(params: {
 		new PutObjectCommand({
 			Bucket: bucket,
 			Key: objectKey,
-			Body: params.body,
+			Body: Buffer.isBuffer(params.body) ? params.body : Buffer.from(params.body),
 			ContentType: params.mimeType,
 		})
 	)

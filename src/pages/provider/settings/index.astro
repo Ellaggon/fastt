@@ -68,10 +68,15 @@ const secondaryCtaLabel = String(
 		(blockers.length ? "Ver todas las áreas" : "Revisar estado de áreas")
 )
 const hasBlockers = blockers.length > 0
-const nextStepLabel = blockers[0]?.label ? String(blockers[0].label) : "Configuración base lista"
-const nextStepBody = blockers[0]
-	? "Un solo paso a la vez: resuelve esto para desbloquear publicación, reservas o cobros."
-	: "Ya puedes operar lo básico. Revisa las áreas si quieres afinar fiscalidad, pagos o equipo."
+const nextStepLabel = String(
+	summary?.actions?.coachLabel || blockers[0]?.label || "Configuración base lista"
+)
+const nextStepBody = String(
+	summary?.actions?.coachBody ||
+		(blockers[0]
+			? "Un solo paso del mapa de confianza a la vez: Perfil → Verificación → Fiscal → Pagos."
+			: "Ya puedes operar lo básico. Revisa las áreas si quieres afinar fiscalidad, pagos o equipo.")
+)
 const readiness = summary?.readiness ?? []
 const incompleteAreas = readiness.filter((item: { complete?: boolean }) => !item.complete)
 const completeAreas = readiness.filter((item: { complete?: boolean }) => item.complete)
