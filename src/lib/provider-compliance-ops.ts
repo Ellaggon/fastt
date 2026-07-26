@@ -92,17 +92,23 @@ function mapRow(row: {
 export async function listOpenComplianceAssignments(params?: {
 	providerId?: string
 }): Promise<ProviderComplianceAssignmentRecord[]> {
+	const providerId = String(params?.providerId ?? "").trim()
 	const rows = await db
 		.select()
 		.from(ProviderComplianceAssignment)
+		.where(
+			providerId
+				? and(
+						eq(ProviderComplianceAssignment.providerId, providerId),
+						eq(ProviderComplianceAssignment.status, "open")
+					)
+				: eq(ProviderComplianceAssignment.status, "open")
+		)
 		.orderBy(desc(ProviderComplianceAssignment.slaDueAt), desc(ProviderComplianceAssignment.id))
-
+		.limit(providerId ? 50 : 200)
 		.catch(() => [])
 
-	return rows
-		.map(mapRow)
-		.filter((row) => row.status === "open")
-		.filter((row) => !params?.providerId || row.providerId === params.providerId)
+	return rows.map(mapRow)
 }
 
 export async function upsertComplianceAssignment(params: {

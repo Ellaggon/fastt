@@ -152,17 +152,25 @@ const basePermissionsByRole: Record<ProviderRole, ProviderPermissions> = {
 	},
 }
 
-function normalizeRole(role: unknown): ProviderRole {
-	if (role === "owner" || role === "admin" || role === "staff") return role
+/**
+ * Normalize DB/session role strings.
+ * Trims + lowercases so "Owner" / "OWNER " do not silently become staff.
+ * Empty/unknown still maps to staff (least privilege) — heal paths promote sole members.
+ */
+export function normalizeProviderRole(role: unknown): ProviderRole {
+	const raw = String(role ?? "")
+		.trim()
+		.toLowerCase()
+	if (raw === "owner" || raw === "admin" || raw === "staff") return raw
 	return "staff"
 }
 
 export function formatProviderRoleLabel(role: unknown): string {
-	return providerRoleLabels[normalizeRole(role)]
+	return providerRoleLabels[normalizeProviderRole(role)]
 }
 
 export function formatProviderRoleDescription(role: unknown): string {
-	return providerRoleDescriptions[normalizeRole(role)]
+	return providerRoleDescriptions[normalizeProviderRole(role)]
 }
 
 function normalizeOverrides(value: unknown): Partial<ProviderPermissions> {
@@ -179,11 +187,53 @@ export function resolveProviderPermissions(params: {
 	role?: unknown
 	permissionsJson?: unknown
 }): ProviderPermissions {
-	const role = normalizeRole(params.role)
-	return {
+	const role = normalizeProviderRole(params.role)
+	const merged: ProviderPermissions = {
 		...basePermissionsByRole[role],
 		...normalizeOverrides(params.permissionsJson),
 	}
+	// Owner must retain core controls even if permissionsJson was corrupted.
+	if (role === "owner") {
+		merged.canEditProfile = true
+		merged.canManageDocuments = true
+		merged.canInviteTeam = true
+	}
+	return merged
+}
+
+/**
+ * When a provider has no owner (or a single member stuck as staff), promote that member.
+ * Returns the role that should be used after the heal decision (does not write DB by itself).
+ */
+export function resolveHealedProviderRole(params: {
+	currentRole: unknown
+	memberRoles: unknown[]
+}): { role: ProviderRole; shouldPromoteToOwner: boolean; reason: string | null } {
+	const current = normalizeProviderRole(params.currentRole)
+	if (current === "owner" || current === "admin") {
+		return { role: current, shouldPromoteToOwner: false, reason: null }
+	}
+
+	const normalizedMembers = params.memberRoles.map((role) => normalizeProviderRole(role))
+	const ownerCount = normalizedMembers.filter((role) => role === "owner").length
+	const memberCount = normalizedMembers.length
+
+	if (ownerCount === 0) {
+		return {
+			role: "owner",
+			shouldPromoteToOwner: true,
+			reason: "provider_has_no_owner",
+		}
+	}
+	if (memberCount <= 1) {
+		return {
+			role: "owner",
+			shouldPromoteToOwner: true,
+			reason: "sole_provider_member",
+		}
+	}
+
+	return { role: current, shouldPromoteToOwner: false, reason: null }
 }
 
 export function buildProviderRolePermissionMatrix() {

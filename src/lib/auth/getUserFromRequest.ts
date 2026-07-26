@@ -42,10 +42,9 @@ export function isLocalQaAuthLoggedOut(request: Request): boolean {
 	return c[LOCAL_QA_LOGOUT_COOKIE] === "true"
 }
 
-function getLocalQaUser(request: Request): AuthUser | null {
+function readLocalQaEnvUser(): AuthUser | null {
 	if (process.env.NODE_ENV === "production") return null
 	if (process.env.LOCAL_QA_AUTH_ENABLED !== "true") return null
-	if (isLocalQaAuthLoggedOut(request)) return null
 	const id = String(process.env.LOCAL_QA_AUTH_USER_ID ?? "").trim()
 	const email = String(process.env.LOCAL_QA_AUTH_EMAIL ?? "")
 		.trim()
@@ -55,10 +54,32 @@ function getLocalQaUser(request: Request): AuthUser | null {
 }
 
 /**
+ * Local QA auth must resolve to a real User row when possible.
+ * Env user ids like `qa-user-…` often lack a ProviderUser link, which makes
+ * document/payment asserts fail with `forbidden` while the UI still shows owner.
+ */
+export async function resolveLocalQaAuthUser(request: Request): Promise<AuthUser | null> {
+	if (isLocalQaAuthLoggedOut(request)) return null
+	const envUser = readLocalQaEnvUser()
+	if (!envUser) return null
+	try {
+		const existing = await db
+			.select({ id: User.id })
+			.from(User)
+			.where(sql`lower(${User.email}) = ${envUser.email}`)
+			.then(first)
+		if (existing?.id) return { id: String(existing.id), email: envUser.email }
+	} catch {
+		// Fall through to env id when DB is unavailable.
+	}
+	return envUser
+}
+
+/**
  * Reads the access token from Authorization header or cookies and validates it with Supabase.
  */
 export async function getUserFromRequest(request: Request): Promise<AuthUser | null> {
-	const localQaUser = getLocalQaUser(request)
+	const localQaUser = await resolveLocalQaAuthUser(request)
 	if (localQaUser) return localQaUser
 
 	const token = readBearerToken(request) || readCookieToken(request)
