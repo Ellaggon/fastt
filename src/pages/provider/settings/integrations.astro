@@ -954,8 +954,9 @@ function conflictStatusTone(status: string) {
 							<h3 class="text-sm font-semibold text-slate-950">Exportar calendario Fastt</h3>
 							<p class="mt-2 text-sm leading-6 text-slate-600">
 								Crea un enlace iCal para bloquear en otros canales las reservas recibidas en Fastt.
-								Los eventos exportados llevan marca Fastt para evitar bucles si alguien pega este
-								enlace como importación.
+								El feed es por habitación (variante): incluye todas las reservas de esa unidad. Los
+								eventos llevan marca Fastt para evitar bucles si alguien pega este enlace como
+								importación.
 							</p>
 							<form
 								method="post"
@@ -975,22 +976,9 @@ function conflictStatusTone(status: string) {
 										))}
 									</Select>
 								</label>
-								<label class="grid gap-2 text-sm font-semibold text-slate-900">
-									Unidad física
-									<Select name="resourceId">
-										<option value="">Inventario completo de la habitación</option>
-										{externalCalendarData.variants.flatMap((variant) =>
-											variant.resources.map((resource) => (
-												<option value={resource.id}>
-													{variant.label} · {resource.label}
-												</option>
-											))
-										)}
-									</Select>
-								</label>
 								<p class="text-xs leading-5 text-slate-500">
-									Si Fastt aún no asigna reservas a unidades físicas específicas, el feed exporta
-									los bloqueos de la habitación completa para evitar sobreventa.
+									El alcance es la habitación completa. Fastt aún no asigna reservas a unidades
+									físicas, así que no ofrecemos un filtro por habitación física en la exportación.
 								</p>
 								<div>
 									<Button type="submit" size="sm" disabled={!externalCalendarData.variants.length}>
@@ -1019,7 +1007,6 @@ function conflictStatusTone(status: string) {
 												</div>
 												<p class="mt-1 text-sm text-slate-600">
 													{exportLink.productName} · {exportLink.variantName}
-													{exportLink.resourceLabel ? ` · ${exportLink.resourceLabel}` : ""}
 												</p>
 												<p class="mt-1 text-xs text-slate-500">
 													Descargas: {exportLink.downloadCount} · Última descarga:{" "}

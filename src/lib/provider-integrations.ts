@@ -103,6 +103,36 @@ export type ProviderConnectorStatus =
 	| "error"
 	| "revoked"
 
+export const PROVIDER_CONNECTOR_STATUSES = [
+	"not_configured",
+	"pending",
+	"connected",
+	"requires_attention",
+	"syncing",
+	"error",
+	"revoked",
+] as const satisfies readonly ProviderConnectorStatus[]
+
+export const PROVIDER_CONNECTOR_MODES = ["sandbox", "production"] as const
+
+/** Reject unknown Connection.status values (mirrors DB CHECK). */
+export function assertProviderConnectorStatus(value: unknown): ProviderConnectorStatus {
+	const raw = String(value ?? "").trim()
+	if ((PROVIDER_CONNECTOR_STATUSES as readonly string[]).includes(raw)) {
+		return raw as ProviderConnectorStatus
+	}
+	throw new Error("CONNECTION_STATUS_INVALID")
+}
+
+/** Reject unknown Connection.mode values (mirrors DB CHECK). */
+export function assertProviderConnectorMode(value: unknown): "sandbox" | "production" {
+	const raw = String(value ?? "").trim()
+	if ((PROVIDER_CONNECTOR_MODES as readonly string[]).includes(raw)) {
+		return raw as "sandbox" | "production"
+	}
+	throw new Error("CONNECTION_MODE_INVALID")
+}
+
 export type ProviderConnectorMode = "sandbox" | "production"
 
 export type ProviderConnectorCatalogItem = {
@@ -487,19 +517,11 @@ function statusTone(status: ProviderConnectorStatus): ProviderIntegrationCard["t
 }
 
 function asConnectorStatus(value: unknown): ProviderConnectorStatus {
-	const raw = String(value ?? "not_configured").trim()
-	if (
-		raw === "pending" ||
-		raw === "connected" ||
-		raw === "requires_attention" ||
-		raw === "syncing" ||
-		raw === "error" ||
-		raw === "revoked" ||
-		raw === "not_configured"
-	) {
-		return raw
+	try {
+		return assertProviderConnectorStatus(value)
+	} catch {
+		return "not_configured"
 	}
-	return "not_configured"
 }
 
 function connectionAuditSnapshot(

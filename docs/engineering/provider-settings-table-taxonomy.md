@@ -322,14 +322,35 @@ subresource for this,” stop.
 - `lastSyncStatus` = **outcome of the last sync attempt** (e.g. `success`, `error`, `reference_valid`, `not_modified`), not a substitute for lifecycle `status`.
 - Example valid pair: `status = connected`, `lastSyncStatus = success`.
 - Avoid ambiguous pairs such as treating `lastSyncStatus` as the only readiness signal without `status`.
+- **DB CHECK (Phase 7):** `ProviderIntegrationConnection_status_check` and
+  `_mode_check` (`sandbox` \| `production`). App helpers:
+  `assertProviderConnectorStatus` / `assertProviderConnectorMode`.
 
 **`ProviderExternalCalendar` vs Connection rollup**
 
 - Calendar row = **granular** feed truth: per-feed `status` (`pending` \| `active` \| `error` \| `revoked`), `lastSyncAt` / `lastSyncStatus` / `lastError`, `syncEnabled`, `syncIntervalMinutes`, `nextSyncAt`, `consecutiveFailures`.
+- **DB CHECK (Phase 7):** `ProviderExternalCalendar_status_check`. App helper:
+  `assertProviderExternalCalendarStatus`.
 - Due scheduling for iCal is **calendar-level** (`ProviderExternalCalendar.nextSyncAt`). The generic integration scheduler excludes `connectorKey = external_calendars` and must not treat connection `nextSyncAt` as a due-source for feeds.
 - Connection with `connectorKey = external_calendars` = **aggregated rollup** written only by `refreshExternalCalendarConnectionRollup(providerId)` after create/sync/revoke (and after calendar job failure side-effects). Rules: no feeds → `not_configured`; all revoked → `revoked`; any feed `error` → `requires_attention`; all pending → `pending`; otherwise `connected`. Connection `syncEnabled` stays `false`.
-- `ProviderExternalCalendar.connectionId` is **NOT NULL** (every feed belongs to the rollup connection).
+- `ProviderExternalCalendar.connectionId` is **NOT NULL** (every feed belongs to the rollup connection) with **ON DELETE CASCADE** (feeds die with the rollup connection).
 
+**Export scope (Phase 7 honesty)**
+
+- Outbound ICS (`ProviderExternalCalendarExport`) is **variant-scoped only**.
+  `BookingRoomDetail` has no `resourceId`, so the render path cannot honestly filter
+  by physical unit.
+- `resourceId` on Export is nullable / unused (cleared; create always writes `null`).
+  Do not reintroduce a “Unidad física” control on the export form until bookings
+  can bind to `InventoryResource`.
+- Inbound feeds still use `resourceId` for inventory blocks — that path is real.
+
+**Related status CHECKs (Phase 7)**
+
+Also constrained: Mapping (`active`/`inactive`), SyncRun, SyncJob, Incident
+status/severity, Conflict, Export status. Partial due-sync indexes remain
+migration SoT (`WHERE syncEnabled AND status <> 'revoked'`); Drizzle mirrors them;
+Astro `db/config` documents that it cannot express partial WHERE / ON DELETE.
 **Cache columns (not sources of truth)**
 
 See [Phase 6 — `catalogJson` smoke/preview cache](#phase-6--catalogjson-smokepreview-cache)
@@ -424,6 +445,21 @@ calendar rollup, conflict inbox). Phase 6 freezes **catalog modeling**:
 - Emergency production hotfixes (must name which ownership class they touch and
   why an existing table was insufficient).
 
+### Phase 7 — Constraint hardening
+
+Shipped in `db/migrations/2026-08-08_provider_integration_constraint_hardening.sql`:
+
+1. **Status/mode CHECKs** for Connection + Calendar (plus Mapping, SyncRun,
+   SyncJob, Incident, Conflict, Export) matching the TypeScript vocabularies.
+2. **Partial due-sync indexes** reaffirmed; Drizzle declares `.where(...)`;
+   Astro config comments that migrations remain SoT for partials / ON DELETE.
+3. **`ProviderExternalCalendar.connectionId` ON DELETE CASCADE** — feeds are
+   subresources of the rollup connection.
+4. **Export honesty** — variant-only ICS scope; clear/stop writing Export
+   `resourceId`; UI no longer offers a fake physical-unit filter.
+
+**After Phase 7:** prefer extending CHECKs on existing columns over new tables
+when locking vocabularies.
 **After Phase 3:** new connector work must reuse Root → Secret → Mapping → Job →
 Run → Incident (plus Subresource/Conflict/Export only when the domain truly
 needs them). Prefer columns or `operation` / `targetType` values on the

@@ -241,7 +241,6 @@ describe("integration/provider external calendars", () => {
 		const exportLink = await createProviderExternalCalendarExport({
 			providerId: ids.providerId,
 			variantId: ids.variantId,
-			resourceId: ids.resourceAId,
 			label: "Fastt export",
 			baseUrl: "https://fastt.example.test/provider/settings/integrations",
 		})
@@ -252,6 +251,8 @@ describe("integration/provider external calendars", () => {
 			now: new Date("2026-08-01T00:00:00.000Z"),
 		})
 		expect(exportedIcs).toContain("X-FASTT-SOURCE:fastt")
+		expect(exportedIcs).toContain(`X-FASTT-VARIANT-ID:${ids.variantId}`)
+		expect(exportedIcs).not.toContain("X-FASTT-RESOURCE-ID")
 		expect(exportedIcs.replace(/\r\n /g, "")).toContain(
 			`UID:fastt-booking_room_ical_${suffix}@calendar.fastt.local`
 		)

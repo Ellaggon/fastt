@@ -46,7 +46,11 @@ describe("provider external calendars resources + conflict actions", () => {
 		expect(page).toContain("no cambia la disponibilidad")
 		expect(page).toContain("Exportar calendario Fastt")
 		expect(page).toContain("Crear enlace iCal")
+		expect(page).toContain("El alcance es la habitación completa")
+		expect(page).not.toMatch(/data-external-calendar-export[\s\S]*?name="resourceId"/)
 		expect(domain).toContain("Alert-inbox only")
+		expect(domain).toContain("Variant-scoped only")
+		expect(domain).not.toContain("X-FASTT-RESOURCE-ID")
 		expect(domain).toContain('eq(ProviderExternalCalendarConflict.status, "open")')
 		expect(domain).not.toMatch(
 			/reconcileExternalCalendarConflicts[\s\S]{0,200}recordProviderIntegrationIncident/

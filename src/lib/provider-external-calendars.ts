@@ -64,6 +64,26 @@ export type ExternalCalendarConflict = {
 	resourceLabel: string | null
 }
 
+export type ProviderExternalCalendarStatus = "pending" | "active" | "error" | "revoked"
+
+export const PROVIDER_EXTERNAL_CALENDAR_STATUSES = [
+	"pending",
+	"active",
+	"error",
+	"revoked",
+] as const satisfies readonly ProviderExternalCalendarStatus[]
+
+/** Reject unknown Calendar.status values (mirrors DB CHECK). */
+export function assertProviderExternalCalendarStatus(
+	value: unknown
+): ProviderExternalCalendarStatus {
+	const raw = String(value ?? "").trim()
+	if ((PROVIDER_EXTERNAL_CALENDAR_STATUSES as readonly string[]).includes(raw)) {
+		return raw as ProviderExternalCalendarStatus
+	}
+	throw new Error("ICAL_CALENDAR_STATUS_INVALID")
+}
+
 export type ProviderExternalCalendarCard = {
 	id: string
 	name: string
@@ -73,7 +93,7 @@ export type ProviderExternalCalendarCard = {
 	variantName: string
 	productName: string
 	sourceHost: string
-	status: "pending" | "active" | "error" | "revoked"
+	status: ProviderExternalCalendarStatus
 	lastSyncAt: Date | null
 	lastSyncStatus: string | null
 	lastError: string | null
@@ -94,10 +114,8 @@ export type ProviderExternalCalendarExportLink = {
 	id: string
 	label: string
 	variantId: string
-	resourceId: string | null
 	variantName: string
 	productName: string
-	resourceLabel: string | null
 	status: "active" | "revoked"
 	lastDownloadedAt: Date | null
 	downloadCount: number
@@ -131,6 +149,7 @@ export function mapExternalCalendarError(raw: string | null | undefined): string
 		ICAL_RESOURCE_NOT_FOUND: "La unidad física seleccionada no pertenece a esa habitación.",
 		ICAL_CONFLICT_NOT_FOUND: "El conflicto ya no existe o fue resuelto.",
 		ICAL_CALENDAR_NOT_FOUND: "El calendario ya no existe o no tienes acceso.",
+		ICAL_CALENDAR_STATUS_INVALID: "Estado de calendario no válido.",
 		ICAL_EXPORT_NOT_FOUND: "El enlace de exportación ya no existe o fue revocado.",
 		ICAL_EXPORT_CREATE_FAILED: "No pudimos crear el enlace de exportación.",
 		ICAL_EXPORT_REVOKE_FAILED: "No pudimos revocar el enlace de exportación.",
@@ -1154,18 +1173,10 @@ export async function revokeProviderExternalCalendar(params: {
 export async function createProviderExternalCalendarExport(params: {
 	providerId: string
 	variantId: string
-	resourceId?: string | null
 	label?: string | null
 	baseUrl: string
 }) {
 	await assertVariantOwnedByProvider(params.providerId, params.variantId)
-	const resourceId = params.resourceId
-		? await resolveCalendarResource({
-				providerId: params.providerId,
-				variantId: params.variantId,
-				resourceId: params.resourceId,
-			})
-		: null
 	const token = newExportToken()
 	const id = crypto.randomUUID()
 	const label =
@@ -1176,7 +1187,8 @@ export async function createProviderExternalCalendarExport(params: {
 		id,
 		providerId: params.providerId,
 		variantId: params.variantId,
-		resourceId,
+		// Variant-scoped only — BookingRoomDetail has no resourceId to filter on (Phase 7).
+		resourceId: null,
 		label,
 		tokenHash: sha256(token),
 		status: "active",
@@ -1215,7 +1227,6 @@ export async function renderProviderExternalCalendarExport(params: {
 			id: ProviderExternalCalendarExport.id,
 			providerId: ProviderExternalCalendarExport.providerId,
 			variantId: ProviderExternalCalendarExport.variantId,
-			resourceId: ProviderExternalCalendarExport.resourceId,
 			label: ProviderExternalCalendarExport.label,
 			status: ProviderExternalCalendarExport.status,
 			productName: Product.name,
@@ -1281,9 +1292,6 @@ export async function renderProviderExternalCalendarExport(params: {
 			`X-FASTT-PROVIDER-ID:${escapeIcalText(exportRow.providerId)}`,
 			`X-FASTT-BOOKING-ID:${escapeIcalText(row.bookingId)}`,
 			`X-FASTT-VARIANT-ID:${escapeIcalText(exportRow.variantId)}`,
-			...(exportRow.resourceId
-				? [`X-FASTT-RESOURCE-ID:${escapeIcalText(exportRow.resourceId)}`]
-				: []),
 			"END:VEVENT"
 		)
 	}
@@ -1545,21 +1553,15 @@ export async function listProviderExternalCalendars(providerId: string): Promise
 					id: ProviderExternalCalendarExport.id,
 					label: ProviderExternalCalendarExport.label,
 					variantId: ProviderExternalCalendarExport.variantId,
-					resourceId: ProviderExternalCalendarExport.resourceId,
 					status: ProviderExternalCalendarExport.status,
 					lastDownloadedAt: ProviderExternalCalendarExport.lastDownloadedAt,
 					downloadCount: ProviderExternalCalendarExport.downloadCount,
 					variantName: Variant.name,
 					productName: Product.name,
-					resourceLabel: InventoryResource.label,
 				})
 				.from(ProviderExternalCalendarExport)
 				.innerJoin(Variant, eq(Variant.id, ProviderExternalCalendarExport.variantId))
 				.innerJoin(Product, eq(Product.id, Variant.productId))
-				.leftJoin(
-					InventoryResource,
-					eq(InventoryResource.id, ProviderExternalCalendarExport.resourceId)
-				)
 				.where(eq(ProviderExternalCalendarExport.providerId, providerId))
 				.orderBy(desc(ProviderExternalCalendarExport.updatedAt)),
 		])
@@ -1697,10 +1699,8 @@ export async function listProviderExternalCalendars(providerId: string): Promise
 			id: row.id,
 			label: row.label,
 			variantId: row.variantId,
-			resourceId: row.resourceId ?? null,
 			variantName: row.variantName,
 			productName: row.productName,
-			resourceLabel: row.resourceLabel ?? null,
 			status: row.status === "revoked" ? "revoked" : "active",
 			lastDownloadedAt: row.lastDownloadedAt,
 			downloadCount: Number(row.downloadCount ?? 0),

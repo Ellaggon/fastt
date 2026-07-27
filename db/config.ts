@@ -228,6 +228,8 @@ const ProviderIntegrationConnection = defineTable({
 		{ on: ["providerId", "connectorKey"] },
 		{ on: ["providerId", "status"] },
 		{ on: ["providerId", "connectorKey", "isPrimary"] },
+		// Partial WHERE (syncEnabled AND status <> revoked) + one-primary unique live in SQL
+		// migrations — Astro defineTable cannot express them. See 2026-08-08_…hardening.sql.
 		{ on: ["syncEnabled", "status", "nextSyncAt"] },
 	],
 })
@@ -687,6 +689,8 @@ const ProviderExternalCalendar = defineTable({
 		{ on: ["providerId", "status"] },
 		{ on: ["variantId", "status"] },
 		{ on: ["resourceId", "status"] },
+		// Partial WHERE (syncEnabled AND status <> revoked) + ON DELETE CASCADE on connectionId
+		// live in SQL migrations (2026-08-08_…hardening.sql). Astro cannot express them.
 		{ on: ["syncEnabled", "status", "nextSyncAt"] },
 		{ on: ["providerId", "variantId", "feedUrlFingerprint"], unique: true },
 	],
@@ -754,6 +758,7 @@ const ProviderExternalCalendarExport = defineTable({
 		id: column.text({ primaryKey: true }),
 		providerId: column.text({ references: () => Provider.columns.id }),
 		variantId: column.text({ references: () => Variant.columns.id }),
+		// Reserved / unused for ICS scope — exports are variant-scoped only (Phase 7).
 		resourceId: column.text({ references: () => InventoryResource.columns.id, optional: true }),
 		label: column.text(),
 		tokenHash: column.text(),

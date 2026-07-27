@@ -11,7 +11,6 @@ export const POST: APIRoute = async ({ request }) => {
 		const result = await createProviderExternalCalendarExport({
 			providerId: auth.providerId,
 			variantId: String(form.get("variantId") ?? ""),
-			resourceId: String(form.get("resourceId") ?? "") || null,
 			label: String(form.get("label") ?? ""),
 			baseUrl: request.url,
 		})
