@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro"
 
-import { requireProvider } from "@/lib/auth/requireProvider"
+import { requireProviderIntegrationManager } from "@/lib/provider-integration-auth"
 import {
 	buildConnectorOAuthAuthorizeUrl,
 	buildConnectorOAuthRedirectUri,
@@ -17,7 +17,7 @@ export const POST: APIRoute = async ({ request, params }) => {
 	const form = await request.formData()
 	const uiMode = resolveIntegrationUiMode(form.get("uiMode"))
 	try {
-		const auth = await requireProvider(request)
+		const auth = await requireProviderIntegrationManager(request)
 		const connectorKey = String(params.connectorKey ?? "")
 			.trim()
 			.toLowerCase()

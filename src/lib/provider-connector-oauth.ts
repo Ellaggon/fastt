@@ -40,6 +40,8 @@ export type ExchangeConnectorOAuthCodeResult = {
 	ok: boolean
 	credentialsRef?: string
 	tokenType?: string
+	accessToken?: string
+	refreshToken?: string | null
 	expiresIn?: number | null
 	scope?: string | null
 	error?: string
@@ -304,6 +306,87 @@ export async function exchangeConnectorOAuthCode(params: {
 			ok: true,
 			credentialsRef: buildConnectorOAuthCredentialsRef(params.connectorKey),
 			tokenType: typeof json.token_type === "string" ? json.token_type : "bearer",
+			accessToken,
+			refreshToken: typeof json.refresh_token === "string" ? json.refresh_token : null,
+			expiresIn: typeof json.expires_in === "number" ? json.expires_in : null,
+			scope: typeof json.scope === "string" ? json.scope : null,
+		}
+	} catch (error) {
+		return {
+			ok: false,
+			error: "oauth_token_request_failed",
+			message: error instanceof Error ? error.message : String(error),
+		}
+	}
+}
+
+export async function refreshConnectorOAuthToken(params: {
+	refreshToken: string
+	connectorKey: string
+}): Promise<ExchangeConnectorOAuthCodeResult> {
+	const status = getConnectorOAuthStatus()
+	if (status.mode !== "oauth_live") {
+		return {
+			ok: false,
+			error: "oauth_not_live",
+			message: "OAuth live no está activo para renovar credenciales.",
+		}
+	}
+
+	const tokenUrl = getConnectorOAuthTokenUrl()
+	const clientId = envTrim("CONNECTOR_OAUTH_CLIENT_ID")
+	const clientSecret = envTrim("CONNECTOR_OAUTH_CLIENT_SECRET")
+	if (!tokenUrl || !clientId || !clientSecret) {
+		return {
+			ok: false,
+			error: "oauth_token_not_configured",
+			message: "Falta CONNECTOR_OAUTH_TOKEN_URL o client credentials.",
+		}
+	}
+
+	try {
+		const response = await fetch(tokenUrl, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/x-www-form-urlencoded",
+				"Accept": "application/json",
+			},
+			body: new URLSearchParams({
+				grant_type: "refresh_token",
+				refresh_token: params.refreshToken,
+				client_id: clientId,
+				client_secret: clientSecret,
+			}),
+		})
+		const json = (await response.json().catch(() => ({}))) as Record<string, unknown>
+		if (!response.ok) {
+			const errMsg =
+				typeof json.error_description === "string"
+					? json.error_description
+					: typeof json.error === "string"
+						? json.error
+						: `token_http_${response.status}`
+			return {
+				ok: false,
+				error: "oauth_token_refresh_failed",
+				message: errMsg,
+			}
+		}
+		const accessToken = typeof json.access_token === "string" ? json.access_token : ""
+		if (!accessToken) {
+			return {
+				ok: false,
+				error: "oauth_token_missing",
+				message: "El vendor no devolvió access_token al renovar.",
+			}
+		}
+		return {
+			ok: true,
+			credentialsRef: buildConnectorOAuthCredentialsRef(params.connectorKey),
+			tokenType: typeof json.token_type === "string" ? json.token_type : "bearer",
+			accessToken,
+			refreshToken:
+				typeof json.refresh_token === "string" ? json.refresh_token : params.refreshToken,
 			expiresIn: typeof json.expires_in === "number" ? json.expires_in : null,
 			scope: typeof json.scope === "string" ? json.scope : null,
 		}

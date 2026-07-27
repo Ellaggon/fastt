@@ -23,6 +23,9 @@ import {
 	BookingRoomDetail,
 	InventoryLock,
 	Hold,
+	ProviderExternalCalendar,
+	ProviderExternalCalendarEvent,
+	ProviderIntegrationMapping,
 	eq,
 	and,
 	count,
@@ -407,6 +410,20 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 		await db.delete(SearchUnitView).where(eq(SearchUnitView.variantId, variantId))
 		await db.delete(EffectiveRestriction).where(eq(EffectiveRestriction.variantId, variantId))
 		await db.delete(EffectiveAvailability).where(eq(EffectiveAvailability.variantId, variantId))
+		await db
+			.delete(ProviderExternalCalendarEvent)
+			.where(eq(ProviderExternalCalendarEvent.variantId, variantId))
+		await db
+			.delete(ProviderExternalCalendar)
+			.where(eq(ProviderExternalCalendar.variantId, variantId))
+		await db
+			.delete(ProviderIntegrationMapping)
+			.where(
+				and(
+					eq(ProviderIntegrationMapping.localEntityType, "variant"),
+					eq(ProviderIntegrationMapping.localEntityId, variantId)
+				)
+			)
 		await db.delete(DailyInventory).where(eq(DailyInventory.variantId, variantId))
 		await db.delete(VariantInventoryConfig).where(eq(VariantInventoryConfig.variantId, variantId))
 		await db.delete(VariantRoomAmenity).where(eq(VariantRoomAmenity.variantId, variantId))
