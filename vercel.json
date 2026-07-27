@@ -5,5 +5,15 @@
     "env": {
       "NODE_VERSION": "22.x"
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/external-calendars",
+      "schedule": "17 3 * * *"
+    },
+    {
+      "path": "/api/cron/provider-integrations",
+      "schedule": "27 3 * * *"
+    }
+  ]
 }
