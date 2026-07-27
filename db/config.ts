@@ -374,24 +374,6 @@ const ProviderIntegrationIncident = defineTable({
 		{ on: ["connectionId", "lastSeenAt"] },
 	],
 })
-const ProviderIntegrationSyncLog = defineTable({
-	columns: {
-		id: column.text({ primaryKey: true }),
-		providerId: column.text({ references: () => Provider.columns.id }),
-		connectorKey: column.text(),
-		connectionId: column.text({
-			optional: true,
-			references: () => ProviderIntegrationConnection.columns.id,
-		}),
-		eventType: column.text(),
-		status: column.text(),
-		mode: column.text({ default: "sandbox" }),
-		message: column.text({ optional: true }),
-		metadataJson: column.json({ optional: true }),
-		createdAt: column.date({ default: NOW }),
-	},
-	indexes: [{ on: ["providerId", "connectorKey", "createdAt"] }, { on: ["providerId", "status"] }],
-})
 const ProviderAuditLog = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
@@ -1791,7 +1773,6 @@ export default defineDb({
 		ProviderIntegrationSyncRun,
 		ProviderIntegrationSyncJob,
 		ProviderIntegrationIncident,
-		ProviderIntegrationSyncLog,
 		ProviderExternalCalendar,
 		ProviderExternalCalendarEvent,
 		ProviderExternalCalendarConflict,

@@ -18,7 +18,6 @@ import {
 	ProviderIntegrationConnection,
 	ProviderIntegrationIncident,
 	ProviderIntegrationSyncRun,
-	ProviderIntegrationSyncLog,
 	RatePlan,
 	Variant,
 } from "@/shared/infrastructure/db/compat"
@@ -92,9 +91,6 @@ afterEach(async () => {
 	await db
 		.delete(ProviderExternalCalendar)
 		.where(eq(ProviderExternalCalendar.providerId, ids.providerId))
-	await db
-		.delete(ProviderIntegrationSyncLog)
-		.where(eq(ProviderIntegrationSyncLog.providerId, ids.providerId))
 	await db
 		.delete(ProviderIntegrationIncident)
 		.where(eq(ProviderIntegrationIncident.providerId, ids.providerId))

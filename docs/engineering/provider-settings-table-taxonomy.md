@@ -245,14 +245,17 @@ state lives in source tables; audit explains how it got there.
 
 ## Operational Event Log
 
-Distinct from governance audit: these rows record connector runtime activity.
+Distinct from governance audit: connector **execution** history is owned by
+`ProviderIntegrationSyncRun` (see [Integrations Ownership](#integrations-ownership)).
+Config mutations (connect / update / revoke / credential refresh) remain on
+`ProviderAuditLog`.
 
 | Table | Owner | Role |
 | --- | --- | --- |
-| `ProviderIntegrationSyncLog` | Integrations | **Deprecated / pending removal (Phase 2).** Legacy append-only activity feed (`eventType`, free-form `status`, `message`). Overlaps `ProviderIntegrationSyncRun` on sync outcomes and `ProviderAuditLog` on config/revoke/refresh. Do not add new writers or UI readers. Canonical execution history is `ProviderIntegrationSyncRun`; compliance mutations stay on `ProviderAuditLog`. |
+| ~~`ProviderIntegrationSyncLog`~~ | Integrations | **Removed (Phase 2).** Legacy activity feed dropped. Do not recreate. UI “Actividad reciente” reads SyncRun + config Audit. |
 
-Until Phase 2 lands, existing SyncLog writes may remain for the simple-mode
-“Actividad reciente” UI. New features must not depend on SyncLog.
+`ProviderAuditLog` stays the compliance-grade mutation history. Do not merge
+Audit into SyncRun.
 
 ---
 
@@ -306,11 +309,10 @@ subresource for this,” stop.
 | **Subresource** | `ProviderExternalCalendar`, `ProviderExternalCalendarEvent` | Domain-specific payload under a root connection. Calendars are feeds; events are normalized blocks. | Generic connector lifecycle; channel-manager mappings |
 | **Mapping** | `ProviderIntegrationMapping` | Fastt ↔ external entity equivalences for CM-style connectors. | iCal variant/resource binding (use calendar columns) |
 | **Job** | `ProviderIntegrationSyncJob`, `ProviderExternalCalendarSyncJob` | Worker queue (lease, retry, idempotency). **Two tables today is transitional debt** — Phase 3 consolidates into one universal SyncJob (`targetType` + `targetId` + `operation`). | Execution history; user-facing activity |
-| **Run** | `ProviderIntegrationSyncRun` | Durable execution ledger (operation, trigger, counters, cursor, error, summary). Shared by generic sync and `calendar_import`. | Config mutation audit; lightweight UI chatter |
+| **Run** | `ProviderIntegrationSyncRun` | Durable execution ledger (operation, trigger, counters, cursor, error, summary). Shared by generic sync and `calendar_import`. Powers simple-mode activity + Pro run history. | Config mutation audit; lightweight UI chatter |
 | **Incident** | `ProviderIntegrationIncident` | Actionable connector/ops failures (auth, remote API, mapping, data quality) with optional notifications. | Inventory date overlaps (use Conflict) |
 | **Conflict** | `ProviderExternalCalendarConflict` | Specialized overlap workflow (booking ↔ iCal, iCal ↔ iCal) with accept / ignore / resolve. | Sync/auth failures (use Incident); do not mirror into Incident |
 | **Export** | `ProviderExternalCalendarExport` | Outbound ICS share links (token hash, download metrics, revoke). Synchronous render — not an async job queue. | Inbound feed sync |
-| **Event log (deprecated)** | `ProviderIntegrationSyncLog` | Legacy activity feed. Pending removal in Phase 2. | New features |
 
 ### Status contracts
 
@@ -334,21 +336,22 @@ subresource for this,” stop.
 
 ### Schema freeze (Phases 1–3)
 
-Effective while consolidating operational duplication (dead columns → SyncLog
-removal → universal job queue).
+Effective while consolidating operational duplication (dead columns done →
+SyncLog removed → universal job queue next).
 
 **Frozen until Phases 1–3 close:**
 
 - No new tables named `ProviderIntegration*` or `ProviderExternalCalendar*`.
 - No second job queue, second execution ledger, or second “problems inbox” for a
   new connector.
-- No SyncLog-dependent features.
+- No SyncLog recreation or SyncLog-dependent features.
 
 **Allowed during freeze:**
 
 - Documentation and this taxonomy.
 - Bug fixes that do not add tables.
-- Column drops / deprecations in Phases 1–2 (Phase 1 dead columns are done).
+- Column drops / deprecations in Phases 1–2 (Phase 1 dead columns and Phase 2
+  SyncLog drop are done).
 - Evolving `ProviderIntegrationSyncJob` into the universal queue and dropping
   `ProviderExternalCalendarSyncJob` (Phase 3).
 - Emergency production hotfixes (must name which ownership class they touch and
@@ -383,7 +386,7 @@ new table.
    subresource instead.
 10. **Mirroring calendar Conflicts into Incidents** (or the reverse) — two
     problem inboxes for one alert.
-11. **New SyncLog writers** after deprecation — use SyncRun and/or AuditLog.
+11. **Recreating SyncLog** — use SyncRun and/or AuditLog.
 
 ---
 
@@ -420,10 +423,10 @@ Update this document in the same PR that introduces the table.
 - Finance jobs may write `ProviderFinancialProfile` as a rollup, not as taxpayer
   or payout-method authoring.
 - Integration **executions** append `ProviderIntegrationSyncRun` (canonical).
-  Do not add new `ProviderIntegrationSyncLog` writers; SyncLog is deprecated
-  pending Phase 2 removal.
+  `ProviderIntegrationSyncLog` was removed in Phase 2 — do not recreate it.
 - Sensitive settings mutations must call `writeProviderAuditLog` with
   `beforeJson`, `afterJson`, `actorUserId` and `riskLevel`.
+- Simple-mode “Actividad reciente” reads SyncRun + config Audit for the connector.
 - `ProviderProfile` columns are operational only.
 - `ProviderTaxConfiguration` is the only provider fiscal-identity store.
 - `TaxFeeDefinition` + `TaxFeeAssignment` are the only configurable sales

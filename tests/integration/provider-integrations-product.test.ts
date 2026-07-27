@@ -4,8 +4,9 @@ import {
 	db,
 	eq,
 	Provider,
+	ProviderAuditLog,
 	ProviderIntegrationConnection,
-	ProviderIntegrationSyncLog,
+	ProviderIntegrationSyncRun,
 	ProviderUser,
 	User,
 } from "@/shared/infrastructure/db/compat"
@@ -71,7 +72,7 @@ async function upsertPostgresProvider(row: {
 }
 
 describe("integration/provider integrations product", () => {
-	it("persists connector configuration, sync logs, scopes, mode and revocation", async () => {
+	it("persists connector configuration, sync runs, scopes, mode and revocation", async () => {
 		const providerId = "provider_integrations_product"
 		const ownerEmail = "integrations.product@example.com"
 
@@ -119,7 +120,10 @@ describe("integration/provider integrations product", () => {
 		expect(card?.status).toBe("connected")
 		expect(card?.vendorKey).toBe("cloudbeds")
 		expect(card?.lastSyncStatus).toBe("success")
-		expect(card?.logs.some((log) => log.eventType === "sync.test")).toBe(true)
+		expect(card?.recentActivity.some((item) => item.eventType === "sync.test")).toBe(true)
+		expect(card?.recentActivity.some((item) => item.eventType === "configuration.saved")).toBe(
+			true
+		)
 
 		await connectProviderIntegration({
 			providerId,
@@ -155,12 +159,22 @@ describe("integration/provider integrations product", () => {
 		expect(revoked?.status).toBe("revoked")
 		expect(revoked?.credentialsRef).toBeNull()
 
-		const logs = await db
+		const runs = await db
 			.select()
-			.from(ProviderIntegrationSyncLog)
-			.where(eq(ProviderIntegrationSyncLog.providerId, providerId))
-		expect(logs.map((log) => log.eventType)).toEqual(
-			expect.arrayContaining(["configuration.saved", "sync.test", "credentials.revoked"])
+			.from(ProviderIntegrationSyncRun)
+			.where(eq(ProviderIntegrationSyncRun.providerId, providerId))
+		expect(runs.some((run) => run.operation === "connection_test")).toBe(true)
+
+		const audits = await db
+			.select()
+			.from(ProviderAuditLog)
+			.where(eq(ProviderAuditLog.providerId, providerId))
+		expect(audits.map((row) => row.action)).toEqual(
+			expect.arrayContaining([
+				"provider.integration.connect",
+				"provider.integration.sync_test",
+				"provider.integration.revoke",
+			])
 		)
 	}, 20_000)
 })

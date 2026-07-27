@@ -10,7 +10,6 @@ import {
 	ProviderIntegrationCredential,
 	ProviderIntegrationIncident,
 	ProviderIntegrationMapping,
-	ProviderIntegrationSyncLog,
 	ProviderIntegrationSyncJob,
 	ProviderIntegrationSyncRun,
 	ProviderUser,
@@ -50,9 +49,6 @@ describe("provider integration operations", () => {
 		await db
 			.delete(ProviderIntegrationMapping)
 			.where(eq(ProviderIntegrationMapping.providerId, providerId))
-		await db
-			.delete(ProviderIntegrationSyncLog)
-			.where(eq(ProviderIntegrationSyncLog.providerId, providerId))
 		await db
 			.delete(ProviderIntegrationCredential)
 			.where(eq(ProviderIntegrationCredential.providerId, providerId))

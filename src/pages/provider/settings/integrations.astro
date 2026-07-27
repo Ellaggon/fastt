@@ -22,6 +22,8 @@ import {
 	listProviderIntegrationOperations,
 } from "@/lib/provider-integration-operations"
 import {
+	integrationActivityEventLabel,
+	integrationRunOperationLabel,
 	isRecommendedProviderConnector,
 	listProviderIntegrations,
 	type ProviderIntegrationCard,
@@ -598,9 +600,12 @@ function conflictStatusTone(status: string) {
 								recentIntegrationRuns.map((run) => (
 									<div class="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
 										<div>
-											<p class="text-sm font-semibold text-slate-900">{run.operation}</p>
+											<p class="text-sm font-semibold text-slate-900">
+												{integrationRunOperationLabel(String(run.operation))}
+											</p>
 											<p class="mt-1 text-xs text-slate-500">
 												{formatDate(run.startedAt)} · {run.trigger}
+												{run.connectorKey ? ` · ${run.connectorKey}` : ""}
 											</p>
 										</div>
 										<div class="flex flex-wrap items-center gap-2">
@@ -1606,25 +1611,37 @@ function conflictStatusTone(status: string) {
 										<div class="mt-4 border-t border-slate-200 pt-4">
 											<p class="text-sm font-semibold text-slate-950">Actividad reciente</p>
 											<div class="mt-3 grid gap-2">
-												{connector.logs.length ? (
-													connector.logs.map((log) => (
+												{connector.recentActivity.length ? (
+													connector.recentActivity.map((item) => (
 														<Card variant="soft" class="p-3">
 															<div class="flex items-center justify-between gap-3">
 																<p class="text-xs font-semibold tracking-[0.1em] text-slate-500 uppercase">
-																	{log.eventType}
+																	{integrationActivityEventLabel(item.eventType)}
 																</p>
-																<Badge variant={log.status === "error" ? "error" : "neutral"}>
-																	{log.status === "error"
+																<Badge
+																	variant={
+																		item.status === "error"
+																			? "error"
+																			: item.status === "success"
+																				? "success"
+																				: "neutral"
+																	}
+																>
+																	{item.status === "error"
 																		? "Error"
-																		: log.status === "success"
+																		: item.status === "success"
 																			? "Ok"
-																			: log.status}
+																			: item.status === "revoked"
+																				? "Revocado"
+																				: item.status}
 																</Badge>
 															</div>
 															<p class="mt-2 text-sm text-slate-700">
-																{mapProviderIntegrationLogMessage(log.message)}
+																{mapProviderIntegrationLogMessage(item.message)}
 															</p>
-															<p class="mt-1 text-xs text-slate-500">{formatDate(log.createdAt)}</p>
+															<p class="mt-1 text-xs text-slate-500">
+																{formatDate(item.createdAt)}
+															</p>
 														</Card>
 													))
 												) : (

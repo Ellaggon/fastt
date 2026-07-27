@@ -469,30 +469,6 @@ export const ProviderIntegrationIncident = pgTable(
 	]
 )
 
-export const ProviderIntegrationSyncLog = pgTable(
-	"ProviderIntegrationSyncLog",
-	{
-		id: pk(),
-		providerId: txt("providerId").references(() => Provider.id),
-		connectorKey: txt("connectorKey"),
-		connectionId: txtOpt("connectionId").references(() => ProviderIntegrationConnection.id),
-		eventType: txt("eventType"),
-		status: txt("status"),
-		mode: text("mode").default("sandbox").notNull(),
-		message: txtOpt("message"),
-		metadataJson: jsonb("metadataJson"),
-		createdAt: now("createdAt"),
-	},
-	(table) => [
-		index("ProviderIntegrationSyncLog_provider_connector_created_idx").on(
-			table.providerId,
-			table.connectorKey,
-			table.createdAt
-		),
-		index("ProviderIntegrationSyncLog_provider_status_idx").on(table.providerId, table.status),
-	]
-)
-
 export const ProviderAuditLog = pgTable(
 	"ProviderAuditLog",
 	{

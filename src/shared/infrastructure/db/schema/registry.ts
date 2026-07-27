@@ -21,7 +21,6 @@ export const databaseTablesByDomain = {
 		"ProviderIntegrationSyncRun",
 		"ProviderIntegrationSyncJob",
 		"ProviderIntegrationIncident",
-		"ProviderIntegrationSyncLog",
 		"ProviderExternalCalendar",
 		"ProviderExternalCalendarEvent",
 		"ProviderExternalCalendarConflict",

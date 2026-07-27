@@ -27,7 +27,6 @@ import {
 	ProviderExternalCalendarEvent,
 	ProviderExternalCalendarExport,
 	ProviderIntegrationConnection,
-	ProviderIntegrationSyncLog,
 	sql,
 	Variant,
 } from "@/shared/infrastructure/db/compat"
@@ -594,27 +593,6 @@ async function recomputeCalendarRange(
 	})
 }
 
-async function logCalendarSync(params: {
-	providerId: string
-	connectionId: string
-	status: string
-	message: string
-	metadata?: Record<string, unknown>
-}) {
-	await db.insert(ProviderIntegrationSyncLog).values({
-		id: crypto.randomUUID(),
-		providerId: params.providerId,
-		connectorKey: "external_calendars",
-		connectionId: params.connectionId,
-		eventType: "calendar.sync",
-		status: params.status,
-		mode: "production",
-		message: params.message,
-		metadataJson: params.metadata ?? {},
-		createdAt: new Date(),
-	})
-}
-
 export async function createProviderExternalCalendar(params: {
 	providerId: string
 	currentUserId?: string | null
@@ -841,15 +819,6 @@ export async function syncProviderExternalCalendar(params: {
 			[...previous, ...parsed],
 			"external_calendar_sync"
 		)
-		if (calendar.connectionId) {
-			await logCalendarSync({
-				providerId: calendar.providerId,
-				connectionId: calendar.connectionId,
-				status: "success",
-				message: `${parsed.length} bloqueos iCal reconciliados.`,
-				metadata: { calendarId: calendar.id, imported: parsed.length },
-			})
-		}
 		if (run) {
 			await finishProviderIntegrationSyncRun({
 				providerId: params.providerId,
@@ -891,15 +860,6 @@ export async function syncProviderExternalCalendar(params: {
 					updatedAt: now,
 				})
 				.where(eq(ProviderIntegrationConnection.id, calendar.connectionId))
-		}
-		if (calendar.connectionId) {
-			await logCalendarSync({
-				providerId: calendar.providerId,
-				connectionId: calendar.connectionId,
-				status: "error",
-				message,
-				metadata: { calendarId: calendar.id },
-			})
 		}
 		if (run && calendar.connectionId) {
 			await finishProviderIntegrationSyncRun({
