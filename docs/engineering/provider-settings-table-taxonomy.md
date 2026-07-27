@@ -308,7 +308,7 @@ subresource for this,” stop.
 | **Secret** | `ProviderIntegrationCredential` | Encrypted auth material for one connection (PK = `connectionId`). | Opaque public refs (`credentialsRef` stays on Connection) |
 | **Subresource** | `ProviderExternalCalendar`, `ProviderExternalCalendarEvent` | Domain-specific payload under a root connection. Calendars are feeds; events are normalized blocks. | Generic connector lifecycle; channel-manager mappings |
 | **Mapping** | `ProviderIntegrationMapping` | Fastt ↔ external entity equivalences for CM-style connectors. | iCal variant/resource binding (use calendar columns) |
-| **Job** | `ProviderIntegrationSyncJob`, `ProviderExternalCalendarSyncJob` | Worker queue (lease, retry, idempotency). **Two tables today is transitional debt** — Phase 3 consolidates into one universal SyncJob (`targetType` + `targetId` + `operation`). | Execution history; user-facing activity |
+| **Job** | `ProviderIntegrationSyncJob` | Universal worker queue (`targetType` + `targetId` + `operation`, lease/retry/idempotency). Connection and iCal jobs share one table. | Execution history; user-facing activity |
 | **Run** | `ProviderIntegrationSyncRun` | Durable execution ledger (operation, trigger, counters, cursor, error, summary). Shared by generic sync and `calendar_import`. Powers simple-mode activity + Pro run history. | Config mutation audit; lightweight UI chatter |
 | **Incident** | `ProviderIntegrationIncident` | Actionable connector/ops failures (auth, remote API, mapping, data quality) with optional notifications. | Inventory date overlaps (use Conflict) |
 | **Conflict** | `ProviderExternalCalendarConflict` | Specialized overlap workflow (booking ↔ iCal, iCal ↔ iCal) with accept / ignore / resolve. | Sync/auth failures (use Incident); do not mirror into Incident |
@@ -336,8 +336,8 @@ subresource for this,” stop.
 
 ### Schema freeze (Phases 1–3)
 
-Effective while consolidating operational duplication (dead columns done →
-SyncLog removed → universal job queue next).
+Effective while consolidating operational duplication (Phases 1–2 done; Phase 3
+universal job queue landed — freeze remains until this PR merges and settles).
 
 **Frozen until Phases 1–3 close:**
 
@@ -350,17 +350,14 @@ SyncLog removed → universal job queue next).
 
 - Documentation and this taxonomy.
 - Bug fixes that do not add tables.
-- Column drops / deprecations in Phases 1–2 (Phase 1 dead columns and Phase 2
-  SyncLog drop are done).
-- Evolving `ProviderIntegrationSyncJob` into the universal queue and dropping
-  `ProviderExternalCalendarSyncJob` (Phase 3).
+- Follow-up hardening after Phase 3 (rollups, constraints) in later phases.
 - Emergency production hotfixes (must name which ownership class they touch and
   why an existing table was insufficient).
 
 **After Phase 3:** new connector work must reuse Root → Secret → Mapping → Job →
 Run → Incident (plus Subresource/Conflict/Export only when the domain truly
-needs them). Prefer columns or `operation` values on the universal job over a
-new table.
+needs them). Prefer columns or `operation` / `targetType` values on the
+universal job over a new table.
 
 ---
 
@@ -381,8 +378,8 @@ new table.
 8. **Using `ProviderFinancialProfile` as payout method storage** — that is
    `ProviderPaymentAccount`.
 9. **Parallel integration ops stacks** — a second SyncJob / SyncRun / Incident /
-   Conflict table per connector (the failure mode that produced dual iCal +
-   generic queues). Extend the universal job/`operation` or an existing
+   Conflict table per connector. Extend the universal
+   `ProviderIntegrationSyncJob` (`targetType` / `operation`) or an existing
    subresource instead.
 10. **Mirroring calendar Conflicts into Incidents** (or the reverse) — two
     problem inboxes for one alert.
@@ -438,7 +435,9 @@ Update this document in the same PR that introduces the table.
   are subresources (`ProviderExternalCalendar*`), not parallel roots.
 - Until Phases 1–3 close: no new `ProviderIntegration*` /
   `ProviderExternalCalendar*` tables (see
-  [Schema freeze](#schema-freeze-phases-1-3)).
+  [Schema freeze](#schema-freeze-phases-1-3)). Phase 3 landed a universal
+  `ProviderIntegrationSyncJob` (`targetType` / `targetId`); do not recreate
+  `ProviderExternalCalendarSyncJob`.
 - `ProviderInvitation` + `ProviderUser` are the only team membership lifecycle
   stores; resolve permissions in code.
 - Do not reintroduce legacy contractual or readiness columns when a source

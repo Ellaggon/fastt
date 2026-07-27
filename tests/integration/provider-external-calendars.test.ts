@@ -14,9 +14,9 @@ import {
 	ProviderExternalCalendarConflict,
 	ProviderExternalCalendarEvent,
 	ProviderExternalCalendarExport,
-	ProviderExternalCalendarSyncJob,
 	ProviderIntegrationConnection,
 	ProviderIntegrationIncident,
+	ProviderIntegrationSyncJob,
 	ProviderIntegrationSyncRun,
 	RatePlan,
 	Variant,
@@ -80,8 +80,8 @@ afterEach(async () => {
 		.delete(ProviderExternalCalendarConflict)
 		.where(eq(ProviderExternalCalendarConflict.providerId, ids.providerId))
 	await db
-		.delete(ProviderExternalCalendarSyncJob)
-		.where(eq(ProviderExternalCalendarSyncJob.providerId, ids.providerId))
+		.delete(ProviderIntegrationSyncJob)
+		.where(eq(ProviderIntegrationSyncJob.providerId, ids.providerId))
 	await db
 		.delete(ProviderExternalCalendarExport)
 		.where(eq(ProviderExternalCalendarExport.providerId, ids.providerId))
@@ -361,10 +361,16 @@ describe("integration/provider external calendars", () => {
 		).toBe(true)
 		const succeededJobs = await db
 			.select()
-			.from(ProviderExternalCalendarSyncJob)
-			.where(eq(ProviderExternalCalendarSyncJob.providerId, ids.providerId))
+			.from(ProviderIntegrationSyncJob)
+			.where(eq(ProviderIntegrationSyncJob.providerId, ids.providerId))
 		expect(
-			succeededJobs.some((job) => job.calendarId === firstId && job.status === "succeeded")
+			succeededJobs.some(
+				(job) =>
+					job.targetType === "external_calendar" &&
+					job.targetId === firstId &&
+					job.operation === "calendar_import" &&
+					job.status === "succeeded"
+			)
 		).toBe(true)
 
 		const failureAt = new Date(scheduledAt.getTime() + 3_600_000)

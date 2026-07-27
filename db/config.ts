@@ -306,7 +306,12 @@ const ProviderIntegrationSyncJob = defineTable({
 	columns: {
 		id: column.text({ primaryKey: true }),
 		providerId: column.text({ references: () => Provider.columns.id }),
-		connectionId: column.text({ references: () => ProviderIntegrationConnection.columns.id }),
+		connectionId: column.text({
+			optional: true,
+			references: () => ProviderIntegrationConnection.columns.id,
+		}),
+		targetType: column.text({ default: "connection" }),
+		targetId: column.text(),
 		connectorKey: column.text(),
 		operation: column.text({ default: "connection_test" }),
 		status: column.text({ default: "queued" }),
@@ -319,13 +324,15 @@ const ProviderIntegrationSyncJob = defineTable({
 		lockedBy: column.text({ optional: true }),
 		idempotencyKey: column.text(),
 		lastError: column.text({ optional: true }),
+		payloadJson: column.json({ optional: true }),
 		createdAt: column.date({ default: NOW }),
 		updatedAt: column.date({ default: NOW }),
 		finishedAt: column.date({ optional: true }),
 	},
 	indexes: [
-		{ on: ["connectionId", "idempotencyKey"], unique: true },
+		{ on: ["targetType", "targetId", "idempotencyKey"], unique: true },
 		{ on: ["status", "runAfter", "priority"] },
+		{ on: ["targetType", "status", "runAfter", "priority"] },
 		{ on: ["providerId", "status", "runAfter"] },
 	],
 })
@@ -760,36 +767,6 @@ const ProviderExternalCalendarExport = defineTable({
 		{ on: ["providerId", "status"] },
 		{ on: ["variantId", "status"] },
 		{ on: ["tokenHash"], unique: true },
-	],
-})
-
-const ProviderExternalCalendarSyncJob = defineTable({
-	columns: {
-		id: column.text({ primaryKey: true }),
-		providerId: column.text({ references: () => Provider.columns.id }),
-		calendarId: column.text({ references: () => ProviderExternalCalendar.columns.id }),
-		connectionId: column.text({
-			optional: true,
-			references: () => ProviderIntegrationConnection.columns.id,
-		}),
-		status: column.text({ default: "queued" }),
-		trigger: column.text({ default: "scheduled" }),
-		priority: column.number({ default: 100 }),
-		attempts: column.number({ default: 0 }),
-		maxAttempts: column.number({ default: 5 }),
-		runAfter: column.date({ default: NOW }),
-		lockedAt: column.date({ optional: true }),
-		lockedBy: column.text({ optional: true }),
-		idempotencyKey: column.text(),
-		lastError: column.text({ optional: true }),
-		createdAt: column.date({ default: NOW }),
-		updatedAt: column.date({ default: NOW }),
-		finishedAt: column.date({ optional: true }),
-	},
-	indexes: [
-		{ on: ["calendarId", "idempotencyKey"], unique: true },
-		{ on: ["status", "runAfter", "priority"] },
-		{ on: ["providerId", "status", "runAfter"] },
 	],
 })
 
@@ -1777,7 +1754,6 @@ export default defineDb({
 		ProviderExternalCalendarEvent,
 		ProviderExternalCalendarConflict,
 		ProviderExternalCalendarExport,
-		ProviderExternalCalendarSyncJob,
 		InventoryResource,
 		ProviderAuditLog,
 		ProviderComplianceAssignment,

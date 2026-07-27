@@ -20,7 +20,8 @@ describe("provider external calendars resources + conflict actions", () => {
 		expect(schema).toContain("InventoryResource")
 		expect(schema).toContain("ProviderExternalCalendarConflict")
 		expect(schema).toContain("ProviderExternalCalendarExport")
-		expect(schema).toContain("ProviderExternalCalendarSyncJob")
+		expect(schema).not.toContain("ProviderExternalCalendarSyncJob")
+		expect(schema).toContain('targetType: text("targetType")')
 		expect(schema).toContain('resourceId: txtOpt("resourceId")')
 		expect(domain).toContain("X-FASTT-SOURCE:fastt")
 		expect(domain).toContain("isFasttExportedEvent")
@@ -28,6 +29,12 @@ describe("provider external calendars resources + conflict actions", () => {
 		expect(domain).toContain("resolveCalendarResource")
 		expect(domain).toContain("reconcileExternalCalendarConflicts")
 		expect(domain).toContain("resolveProviderExternalCalendarConflict")
+		expect(read("src/lib/provider-external-calendar-scheduler.ts")).toContain(
+			'targetType: "external_calendar"'
+		)
+		expect(read("src/lib/provider-external-calendar-scheduler.ts")).toContain(
+			"ProviderIntegrationSyncJob"
+		)
 		expect(repo).toContain("resource:")
 		expect(repo).toContain("event:")
 		expect(page).toContain("Unidad física")

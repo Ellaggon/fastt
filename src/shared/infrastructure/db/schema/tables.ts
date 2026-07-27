@@ -379,9 +379,11 @@ export const ProviderIntegrationSyncJob = pgTable(
 	{
 		id: pk(),
 		providerId: txt("providerId").references(() => Provider.id),
-		connectionId: txt("connectionId").references(() => ProviderIntegrationConnection.id, {
+		connectionId: txtOpt("connectionId").references(() => ProviderIntegrationConnection.id, {
 			onDelete: "cascade",
 		}),
+		targetType: text("targetType").default("connection").notNull(),
+		targetId: txt("targetId"),
 		connectorKey: txt("connectorKey"),
 		operation: text("operation").default("connection_test").notNull(),
 		status: text("status").default("queued").notNull(),
@@ -394,16 +396,24 @@ export const ProviderIntegrationSyncJob = pgTable(
 		lockedBy: txtOpt("lockedBy"),
 		idempotencyKey: txt("idempotencyKey"),
 		lastError: txtOpt("lastError"),
+		payloadJson: jsonb("payloadJson"),
 		createdAt: now("createdAt"),
 		updatedAt: now("updatedAt"),
 		finishedAt: ts("finishedAt"),
 	},
 	(table) => [
-		uniqueIndex("ProviderIntegrationSyncJob_connection_idempotency_unique").on(
-			table.connectionId,
+		uniqueIndex("ProviderIntegrationSyncJob_target_idempotency_unique").on(
+			table.targetType,
+			table.targetId,
 			table.idempotencyKey
 		),
 		index("ProviderIntegrationSyncJob_due_idx").on(table.status, table.runAfter, table.priority),
+		index("ProviderIntegrationSyncJob_target_due_idx").on(
+			table.targetType,
+			table.status,
+			table.runAfter,
+			table.priority
+		),
 		index("ProviderIntegrationSyncJob_provider_status_idx").on(
 			table.providerId,
 			table.status,
@@ -952,49 +962,6 @@ export const ProviderExternalCalendarExport = pgTable(
 		index("ProviderExternalCalendarExport_provider_status_idx").on(table.providerId, table.status),
 		index("ProviderExternalCalendarExport_variant_status_idx").on(table.variantId, table.status),
 		uniqueIndex("ProviderExternalCalendarExport_token_unique").on(table.tokenHash),
-	]
-)
-
-export const ProviderExternalCalendarSyncJob = pgTable(
-	"ProviderExternalCalendarSyncJob",
-	{
-		id: pk(),
-		providerId: txt("providerId").references(() => Provider.id),
-		calendarId: txt("calendarId").references(() => ProviderExternalCalendar.id, {
-			onDelete: "cascade",
-		}),
-		connectionId: txtOpt("connectionId").references(() => ProviderIntegrationConnection.id, {
-			onDelete: "set null",
-		}),
-		status: text("status").default("queued").notNull(),
-		trigger: text("trigger").default("scheduled").notNull(),
-		priority: intDefault("priority", 100),
-		attempts: intDefault("attempts", 0),
-		maxAttempts: intDefault("maxAttempts", 5),
-		runAfter: now("runAfter"),
-		lockedAt: ts("lockedAt"),
-		lockedBy: txtOpt("lockedBy"),
-		idempotencyKey: txt("idempotencyKey"),
-		lastError: txtOpt("lastError"),
-		createdAt: now("createdAt"),
-		updatedAt: now("updatedAt"),
-		finishedAt: ts("finishedAt"),
-	},
-	(table) => [
-		uniqueIndex("ProviderExternalCalendarSyncJob_calendar_idempotency_unique").on(
-			table.calendarId,
-			table.idempotencyKey
-		),
-		index("ProviderExternalCalendarSyncJob_due_idx").on(
-			table.status,
-			table.runAfter,
-			table.priority
-		),
-		index("ProviderExternalCalendarSyncJob_provider_status_idx").on(
-			table.providerId,
-			table.status,
-			table.runAfter
-		),
 	]
 )
 

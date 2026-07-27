@@ -25,7 +25,6 @@ export const databaseTablesByDomain = {
 		"ProviderExternalCalendarEvent",
 		"ProviderExternalCalendarConflict",
 		"ProviderExternalCalendarExport",
-		"ProviderExternalCalendarSyncJob",
 		"ProviderAuditLog",
 		"ProviderComplianceAssignment",
 		"ProviderConfigurationState",

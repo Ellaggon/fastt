@@ -634,10 +634,13 @@ function conflictStatusTone(status: string) {
 								recentIntegrationJobs.map((job) => (
 									<div class="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
 										<div>
-											<p class="text-sm font-semibold text-slate-900">{job.connectorKey}</p>
+											<p class="text-sm font-semibold text-slate-900">
+												{job.connectorKey}
+												{job.targetType === "external_calendar" ? " · iCal" : ""}
+											</p>
 											<p class="mt-1 text-xs text-slate-500">
-												{job.operation} · intento {job.attempts}/{job.maxAttempts} · desde{" "}
-												{formatDate(job.runAfter)}
+												{integrationRunOperationLabel(String(job.operation))} · intento{" "}
+												{job.attempts}/{job.maxAttempts} · desde {formatDate(job.runAfter)}
 											</p>
 										</div>
 										<div class="flex flex-wrap items-center gap-2">

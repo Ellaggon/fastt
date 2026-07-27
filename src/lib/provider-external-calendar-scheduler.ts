@@ -6,28 +6,26 @@ import {
 	eq,
 	ne,
 	ProviderExternalCalendar,
-	ProviderExternalCalendarSyncJob,
+	ProviderIntegrationSyncJob,
 	sql,
 } from "@/shared/infrastructure/db/compat"
 import {
 	syncProviderExternalCalendar,
 	type ExternalCalendarSyncTrigger,
 } from "@/lib/provider-external-calendars"
+import {
+	boundedInteger,
+	claimQueuedProviderSyncJobs,
+	mapWithConcurrency,
+	markProviderSyncJobFailed,
+	markProviderSyncJobSucceeded,
+	providerSyncJobRetryMinutes,
+	type ClaimedProviderSyncJob,
+} from "@/lib/provider-sync-job-queue"
 
 const DEFAULT_BATCH_SIZE = 20
 const DEFAULT_CONCURRENCY = 3
 const DEFAULT_PROVIDER_LIMIT = 3
-
-type ClaimedJob = {
-	id: string
-	providerId: string
-	calendarId: string
-	connectionId: string | null
-	trigger: ExternalCalendarSyncTrigger
-	attempts: number
-	maxAttempts: number
-	idempotencyKey: string
-}
 
 export type ExternalCalendarScheduledSyncResult = {
 	claimed: number
@@ -41,12 +39,6 @@ export type ExternalCalendarScheduledSyncResult = {
 		status: "succeeded" | "failed"
 		errorCode?: string
 	}>
-}
-
-function boundedInteger(value: unknown, fallback: number, min: number, max: number): number {
-	const parsed = Number(value)
-	if (!Number.isFinite(parsed)) return fallback
-	return Math.min(max, Math.max(min, Math.trunc(parsed)))
 }
 
 export function externalCalendarSchedulerConfig() {
@@ -81,9 +73,9 @@ export function externalCalendarRetryMinutes(
 	return Math.min(Math.max(15, exponential), Math.min(Math.max(15, syncIntervalMinutes), 360))
 }
 
+/** @deprecated Prefer providerSyncJobRetryMinutes from provider-sync-job-queue. */
 export function externalCalendarJobRetryMinutes(attempts: number): number {
-	const attempt = Math.max(1, Math.trunc(attempts))
-	return Math.min(15 * 2 ** Math.min(attempt - 1, 6), 720)
+	return providerSyncJobRetryMinutes(attempts)
 }
 
 export function verifyCronAuthorization(
@@ -131,12 +123,15 @@ export async function enqueueProviderExternalCalendarSyncJob(params: {
 		params.idempotencyKey ??
 		`${params.trigger ?? "manual"}:${params.calendarId}:${now.toISOString()}:${jobId}`
 	await db
-		.insert(ProviderExternalCalendarSyncJob)
+		.insert(ProviderIntegrationSyncJob)
 		.values({
 			id: jobId,
 			providerId: params.providerId,
-			calendarId: params.calendarId,
 			connectionId: calendar.connectionId ?? null,
+			targetType: "external_calendar",
+			targetId: params.calendarId,
+			connectorKey: "external_calendars",
+			operation: "calendar_import",
 			status: "queued",
 			trigger: params.trigger ?? "manual",
 			priority: params.priority ?? 50,
@@ -147,14 +142,21 @@ export async function enqueueProviderExternalCalendarSyncJob(params: {
 			createdAt: now,
 			updatedAt: now,
 		})
-		.onConflictDoNothing()
+		.onConflictDoNothing({
+			target: [
+				ProviderIntegrationSyncJob.targetType,
+				ProviderIntegrationSyncJob.targetId,
+				ProviderIntegrationSyncJob.idempotencyKey,
+			],
+		})
 	const existing = await db
-		.select({ id: ProviderExternalCalendarSyncJob.id })
-		.from(ProviderExternalCalendarSyncJob)
+		.select({ id: ProviderIntegrationSyncJob.id })
+		.from(ProviderIntegrationSyncJob)
 		.where(
 			and(
-				eq(ProviderExternalCalendarSyncJob.calendarId, params.calendarId),
-				eq(ProviderExternalCalendarSyncJob.idempotencyKey, idempotencyKey)
+				eq(ProviderIntegrationSyncJob.targetType, "external_calendar"),
+				eq(ProviderIntegrationSyncJob.targetId, params.calendarId),
+				eq(ProviderIntegrationSyncJob.idempotencyKey, idempotencyKey)
 			)
 		)
 		.then((rows) => rows[0])
@@ -184,11 +186,14 @@ async function enqueueDueExternalCalendarSyncJobs(params: {
 			LIMIT ${params.batchSize}
 		),
 		inserted AS (
-			INSERT INTO "ProviderExternalCalendarSyncJob" (
+			INSERT INTO "ProviderIntegrationSyncJob" (
 				"id",
 				"providerId",
-				"calendarId",
 				"connectionId",
+				"targetType",
+				"targetId",
+				"connectorKey",
+				"operation",
 				"status",
 				"trigger",
 				"priority",
@@ -202,8 +207,11 @@ async function enqueueDueExternalCalendarSyncJobs(params: {
 			SELECT
 				gen_random_uuid()::text,
 				"providerId",
-				"id",
 				"connectionId",
+				'external_calendar',
+				"id",
+				'external_calendars',
+				'calendar_import',
 				'queued',
 				'scheduled',
 				100,
@@ -214,7 +222,7 @@ async function enqueueDueExternalCalendarSyncJobs(params: {
 				${nowIso},
 				${nowIso}
 			FROM due
-			ON CONFLICT ("calendarId", "idempotencyKey") DO NOTHING
+			ON CONFLICT ("targetType", "targetId", "idempotencyKey") DO NOTHING
 			RETURNING "id"
 		)
 		SELECT count(*)::int AS "count" FROM inserted
@@ -223,128 +231,33 @@ async function enqueueDueExternalCalendarSyncJobs(params: {
 	return Number(count)
 }
 
-async function claimQueuedExternalCalendarSyncJobs(params: {
-	now: Date
-	batchSize: number
-	providerLimit: number
-	leaseToken: string
-	providerId?: string
-}): Promise<ClaimedJob[]> {
-	const nowIso = params.now.toISOString()
-	const rows = await db.execute(sql`
-		WITH ranked AS (
-			SELECT
-				"id",
-				row_number() OVER (
-					PARTITION BY "providerId"
-					ORDER BY "priority" ASC, "runAfter" ASC, "createdAt" ASC
-				) AS provider_rank
-			FROM "ProviderExternalCalendarSyncJob"
-			WHERE
-				"status" = 'queued'
-				AND "runAfter" <= ${nowIso}
-				AND (${params.providerId ?? null}::text IS NULL OR "providerId" = ${params.providerId ?? null})
-			ORDER BY "priority" ASC, "runAfter" ASC, "createdAt" ASC
-		),
-		due AS (
-			SELECT "id"
-			FROM ranked
-			WHERE provider_rank <= ${params.providerLimit}
-			LIMIT ${params.batchSize}
-		)
-		UPDATE "ProviderExternalCalendarSyncJob" AS job
-		SET
-			"status" = 'running',
-			"lockedAt" = ${nowIso},
-			"lockedBy" = ${params.leaseToken},
-			"updatedAt" = ${nowIso}
-		FROM due
-		WHERE job."id" = due."id" AND job."status" = 'queued'
-		RETURNING
-			job."id",
-			job."providerId",
-			job."calendarId",
-			job."connectionId",
-			job."trigger",
-			job."attempts",
-			job."maxAttempts",
-			job."idempotencyKey"
-	`)
-	return Array.from(rows as unknown as ClaimedJob[])
-}
-
-async function finishJob(params: {
-	job: ClaimedJob
+async function finishExternalCalendarSyncJob(params: {
+	job: ClaimedProviderSyncJob
 	leaseToken: string
 	status: "succeeded" | "failed"
 	errorCode?: string
 }) {
-	const now = new Date()
 	if (params.status === "succeeded") {
-		await db
-			.update(ProviderExternalCalendarSyncJob)
-			.set({
-				status: "succeeded",
-				lastError: null,
-				finishedAt: now,
-				updatedAt: now,
-			})
-			.where(
-				and(
-					eq(ProviderExternalCalendarSyncJob.id, params.job.id),
-					eq(ProviderExternalCalendarSyncJob.lockedBy, params.leaseToken)
-				)
-			)
+		await markProviderSyncJobSucceeded({ jobId: params.job.id, leaseToken: params.leaseToken })
 		return
 	}
 
-	const attempts = Number(params.job.attempts ?? 0) + 1
-	const terminal = attempts >= Number(params.job.maxAttempts ?? 5)
-	const retryAt = new Date(now.getTime() + externalCalendarJobRetryMinutes(attempts) * 60_000)
+	const { retryAt } = await markProviderSyncJobFailed({
+		jobId: params.job.id,
+		leaseToken: params.leaseToken,
+		attempts: params.job.attempts,
+		maxAttempts: params.job.maxAttempts,
+		errorCode: params.errorCode ?? "ICAL_SYNC_FAILED",
+	})
+	const now = new Date()
 	await db.execute(sql`
 		UPDATE "ProviderExternalCalendar"
 		SET
 			"consecutiveFailures" = "consecutiveFailures" + 1,
 			"nextSyncAt" = ${retryAt.toISOString()},
 			"updatedAt" = ${now.toISOString()}
-		WHERE "id" = ${params.job.calendarId}
+		WHERE "id" = ${params.job.targetId}
 	`)
-	await db
-		.update(ProviderExternalCalendarSyncJob)
-		.set({
-			status: terminal ? "failed" : "queued",
-			attempts,
-			runAfter: terminal ? now : retryAt,
-			lockedAt: null,
-			lockedBy: null,
-			lastError: params.errorCode ?? "ICAL_SYNC_FAILED",
-			finishedAt: terminal ? now : null,
-			updatedAt: now,
-		})
-		.where(
-			and(
-				eq(ProviderExternalCalendarSyncJob.id, params.job.id),
-				eq(ProviderExternalCalendarSyncJob.lockedBy, params.leaseToken)
-			)
-		)
-}
-
-async function mapWithConcurrency<T, R>(
-	values: T[],
-	concurrency: number,
-	mapper: (value: T) => Promise<R>
-): Promise<R[]> {
-	const results = new Array<R>(values.length)
-	let cursor = 0
-	const workers = Array.from({ length: Math.min(concurrency, values.length) }, async () => {
-		while (cursor < values.length) {
-			const index = cursor
-			cursor += 1
-			results[index] = await mapper(values[index])
-		}
-	})
-	await Promise.all(workers)
-	return results
 }
 
 export async function runScheduledExternalCalendarSync(options?: {
@@ -367,29 +280,31 @@ export async function runScheduledExternalCalendarSync(options?: {
 		batchSize,
 		providerId: options?.providerId,
 	})
-	const jobs = await claimQueuedExternalCalendarSyncJobs({
+	const jobs = await claimQueuedProviderSyncJobs({
 		now,
 		batchSize,
 		providerLimit,
 		leaseToken,
+		targetType: "external_calendar",
 		providerId: options?.providerId,
 	})
 	const items = await mapWithConcurrency(jobs, concurrency, async (job) => {
+		const calendarId = job.targetId
 		try {
 			await syncProviderExternalCalendar({
 				providerId: job.providerId,
-				calendarId: job.calendarId,
-				trigger: job.trigger,
+				calendarId,
+				trigger: job.trigger as ExternalCalendarSyncTrigger,
 				idempotencyKey: job.idempotencyKey,
 				fetchImpl: options?.fetchImpl,
 			})
-			await finishJob({ job, leaseToken, status: "succeeded" })
-			return { calendarId: job.calendarId, jobId: job.id, status: "succeeded" as const }
+			await finishExternalCalendarSyncJob({ job, leaseToken, status: "succeeded" })
+			return { calendarId, jobId: job.id, status: "succeeded" as const }
 		} catch (error) {
 			const errorCode = error instanceof Error ? error.message.slice(0, 100) : "ICAL_SYNC_FAILED"
-			await finishJob({ job, leaseToken, status: "failed", errorCode })
+			await finishExternalCalendarSyncJob({ job, leaseToken, status: "failed", errorCode })
 			return {
-				calendarId: job.calendarId,
+				calendarId,
 				jobId: job.id,
 				status: "failed" as const,
 				errorCode,
