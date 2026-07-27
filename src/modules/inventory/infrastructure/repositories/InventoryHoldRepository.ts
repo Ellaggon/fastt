@@ -4,10 +4,13 @@ import {
 	DailyInventory,
 	Hold,
 	InventoryLock,
+	ProviderExternalCalendarEvent,
 	and,
 	eq,
+	gt,
 	gte,
 	lt,
+	lte,
 	sql,
 } from "@/shared/infrastructure/db/compat"
 import { toISODate } from "@/shared/domain/date/date.utils"
@@ -166,6 +169,18 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 							.then(first)
 						const heldUnits = Number((lockAgg as any)?.heldUnits ?? 0)
 						const bookedUnits = Number((lockAgg as any)?.bookedUnits ?? 0)
+						const externalBlockRows = await tx
+							.select({ id: ProviderExternalCalendarEvent.id })
+							.from(ProviderExternalCalendarEvent)
+							.where(
+								and(
+									eq(ProviderExternalCalendarEvent.variantId, params.variantId),
+									eq(ProviderExternalCalendarEvent.isActive, true),
+									lte(ProviderExternalCalendarEvent.startDate, date),
+									gt(ProviderExternalCalendarEvent.endDate, date)
+								)
+							)
+						const externalBlockedUnits = externalBlockRows.length
 						if (
 							!Number.isFinite(heldUnits) ||
 							!Number.isFinite(bookedUnits) ||
@@ -174,7 +189,7 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 						) {
 							throw new NotAvailableError()
 						}
-						if (heldUnits + bookedUnits + params.quantity > totalInventory) {
+						if (heldUnits + bookedUnits + externalBlockedUnits + params.quantity > totalInventory) {
 							throw new NotAvailableError()
 						}
 						if (reservedCount + params.quantity > totalInventory) {
@@ -191,7 +206,14 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 								and(
 									eq(DailyInventory.variantId, params.variantId),
 									eq(DailyInventory.date, date),
-									sql`${DailyInventory.reservedCount} + ${params.quantity} <= ${DailyInventory.totalInventory}`
+									sql`${DailyInventory.reservedCount} + ${params.quantity} + (
+										select count(*)
+										from ${ProviderExternalCalendarEvent}
+										where ${ProviderExternalCalendarEvent.variantId} = ${params.variantId}
+											and ${ProviderExternalCalendarEvent.isActive} = true
+											and ${ProviderExternalCalendarEvent.startDate} <= ${date}
+											and ${ProviderExternalCalendarEvent.endDate} > ${date}
+									) <= ${DailyInventory.totalInventory}`
 								)
 							)
 							.returning({ id: DailyInventory.id })

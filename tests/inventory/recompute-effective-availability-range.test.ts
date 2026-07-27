@@ -5,7 +5,12 @@ import { recomputeEffectiveAvailabilityRange } from "@/modules/inventory/public"
 type DailyRow = { date: string; totalInventory: number }
 type LockRow = { date: string; quantity: number; expiresAt: Date; bookingId: string | null }
 
-function makeDeps(params: { dailyRows: DailyRow[]; lockRows: LockRow[]; now?: Date }) {
+function makeDeps(params: {
+	dailyRows: DailyRow[]
+	lockRows: LockRow[]
+	externalRows?: Array<{ date: string; quantity: number }>
+	now?: Date
+}) {
 	const store = new Map<string, any>()
 
 	return {
@@ -15,6 +20,9 @@ function makeDeps(params: { dailyRows: DailyRow[]; lockRows: LockRow[]; now?: Da
 			},
 			async loadInventoryLocksRange() {
 				return params.lockRows
+			},
+			async loadExternalCalendarBlocksRange() {
+				return params.externalRows ?? []
 			},
 			async upsertEffectiveAvailabilityRows(rows: any[]) {
 				for (const row of rows) {
@@ -109,6 +117,30 @@ describe("inventory/use-cases/recomputeEffectiveAvailabilityRange", () => {
 		expect(row.heldUnits).toBe(0)
 		expect(row.bookedUnits).toBe(3)
 		expect(row.availableUnits).toBe(2)
+	})
+
+	it("resta bloqueos iCal como una capa separada y explicable", async () => {
+		const { deps, store } = makeDeps({
+			dailyRows: [{ date: "2026-05-02", totalInventory: 5 }],
+			lockRows: [],
+			externalRows: [{ date: "2026-05-02", quantity: 2 }],
+		})
+
+		await recomputeEffectiveAvailabilityRange(
+			{
+				variantId: "var_ical",
+				from: "2026-05-02",
+				to: "2026-05-03",
+				reason: "external_calendar_sync",
+			},
+			deps
+		)
+
+		const row = store.get("var_ical:2026-05-02")
+		expect(row.externalBlockedUnits).toBe(2)
+		expect(row.bookedUnits).toBe(0)
+		expect(row.heldUnits).toBe(0)
+		expect(row.availableUnits).toBe(3)
 	})
 
 	it("fecha sin DailyInventory aplica fallback seguro", async () => {

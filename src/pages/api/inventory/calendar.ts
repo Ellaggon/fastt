@@ -122,6 +122,7 @@ export const GET: APIRoute = async ({ request }) => {
 				totalUnits: EffectiveAvailability.totalUnits,
 				heldUnits: EffectiveAvailability.heldUnits,
 				bookedUnits: EffectiveAvailability.bookedUnits,
+				externalBlockedUnits: EffectiveAvailability.externalBlockedUnits,
 				availableUnits: EffectiveAvailability.availableUnits,
 			})
 			.from(EffectiveAvailability)
@@ -170,6 +171,7 @@ export const GET: APIRoute = async ({ request }) => {
 					totalUnits: Number(r.totalUnits ?? 0),
 					heldUnits: Number(r.heldUnits ?? 0),
 					bookedUnits: Number(r.bookedUnits ?? 0),
+					externalBlockedUnits: Number(r.externalBlockedUnits ?? 0),
 					availableUnits: Number(r.availableUnits ?? 0),
 				},
 			])
@@ -180,6 +182,7 @@ export const GET: APIRoute = async ({ request }) => {
 				totalUnits: 0,
 				heldUnits: 0,
 				bookedUnits: 0,
+				externalBlockedUnits: 0,
 				availableUnits: 0,
 			}
 			return {
@@ -188,6 +191,7 @@ export const GET: APIRoute = async ({ request }) => {
 				totalUnits: row.totalUnits,
 				heldUnits: row.heldUnits,
 				bookedUnits: row.bookedUnits,
+				externalBlockedUnits: row.externalBlockedUnits,
 				availableUnits: row.availableUnits,
 				available: row.availableUnits,
 				hasEffective: byDate.has(date),

@@ -118,6 +118,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 					totalUnits: EffectiveAvailability.totalUnits,
 					heldUnits: EffectiveAvailability.heldUnits,
 					bookedUnits: EffectiveAvailability.bookedUnits,
+					externalBlockedUnits: EffectiveAvailability.externalBlockedUnits,
 					availableUnits: EffectiveAvailability.availableUnits,
 					computedAt: EffectiveAvailability.computedAt,
 				})
@@ -158,6 +159,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 					totalUnits: Number(row.totalUnits ?? 0),
 					heldUnits: Number(row.heldUnits ?? 0),
 					bookedUnits: Number(row.bookedUnits ?? 0),
+					externalBlockedUnits: Number(row.externalBlockedUnits ?? 0),
 					availableUnits: Number(row.availableUnits ?? 0),
 					computedAt: row.computedAt ? String(row.computedAt) : null,
 				},
@@ -183,15 +185,19 @@ export const GET: APIRoute = async ({ request, url }) => {
 			const daily = dailyByDate.get(date) ?? { total: 0 }
 			const heldUnits = Number(heldByDate.get(date) ?? 0)
 			const bookedUnits = Number(bookedByDate.get(date) ?? 0)
-			const canonicalAvailable = Math.max(0, daily.total - heldUnits - bookedUnits)
-
 			const effective = effectiveByDate.get(date) ?? null
+			const externalBlockedUnits = Number(effective?.externalBlockedUnits ?? 0)
+			const canonicalAvailable = Math.max(
+				0,
+				daily.total - heldUnits - bookedUnits - externalBlockedUnits
+			)
 			const mismatch =
 				effective == null
 					? true
 					: effective.totalUnits !== daily.total ||
 						effective.heldUnits !== heldUnits ||
 						effective.bookedUnits !== bookedUnits ||
+						effective.externalBlockedUnits !== externalBlockedUnits ||
 						effective.availableUnits !== canonicalAvailable
 
 			return {
@@ -202,6 +208,9 @@ export const GET: APIRoute = async ({ request, url }) => {
 				locks: {
 					heldUnits,
 					bookedUnits,
+				},
+				externalCalendars: {
+					blockedUnits: externalBlockedUnits,
 				},
 				canonicalDerived: {
 					availableUnits: canonicalAvailable,

@@ -29,6 +29,7 @@ export async function loadEffectiveAvailabilityForValidation(params: {
 		totalUnits: number
 		heldUnits: number
 		bookedUnits: number
+		externalBlockedUnits: number
 		availableUnits: number
 	}>
 > {
@@ -38,6 +39,7 @@ export async function loadEffectiveAvailabilityForValidation(params: {
 			totalUnits: EffectiveAvailability.totalUnits,
 			heldUnits: EffectiveAvailability.heldUnits,
 			bookedUnits: EffectiveAvailability.bookedUnits,
+			externalBlockedUnits: EffectiveAvailability.externalBlockedUnits,
 			availableUnits: EffectiveAvailability.availableUnits,
 		})
 		.from(EffectiveAvailability)
@@ -55,6 +57,7 @@ export async function loadEffectiveAvailabilityForValidation(params: {
 		totalUnits: Number(row.totalUnits ?? 0),
 		heldUnits: Number(row.heldUnits ?? 0),
 		bookedUnits: Number(row.bookedUnits ?? 0),
+		externalBlockedUnits: Number(row.externalBlockedUnits ?? 0),
 		availableUnits: Number(row.availableUnits ?? 0),
 	}))
 }

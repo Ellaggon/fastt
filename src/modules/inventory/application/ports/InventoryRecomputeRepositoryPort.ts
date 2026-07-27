@@ -10,6 +10,11 @@ export type InventoryLockRow = {
 	bookingId: string | null
 }
 
+export type ExternalCalendarBlockRow = {
+	date: string
+	quantity: number
+}
+
 export type EffectiveAvailabilityUpsertRow = {
 	id: string
 	variantId: string
@@ -17,6 +22,7 @@ export type EffectiveAvailabilityUpsertRow = {
 	totalUnits: number
 	heldUnits: number
 	bookedUnits: number
+	externalBlockedUnits: number
 	availableUnits: number
 	computedAt: Date
 }
@@ -32,5 +38,10 @@ export interface InventoryRecomputeRepositoryPort {
 		from: string
 		to: string
 	}): Promise<InventoryLockRow[]>
+	loadExternalCalendarBlocksRange(params: {
+		variantId: string
+		from: string
+		to: string
+	}): Promise<ExternalCalendarBlockRow[]>
 	upsertEffectiveAvailabilityRows(rows: EffectiveAvailabilityUpsertRow[]): Promise<void>
 }

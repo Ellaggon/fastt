@@ -4,9 +4,11 @@ import {
 	db,
 	EffectiveAvailability,
 	eq,
+	gt,
 	gte,
 	InventoryLock,
 	lt,
+	ProviderExternalCalendarEvent,
 	sql,
 } from "@/shared/infrastructure/db/compat"
 
@@ -73,6 +75,53 @@ export class InventoryRecomputeRepository implements InventoryRecomputeRepositor
 		}))
 	}
 
+	async loadExternalCalendarBlocksRange(params: {
+		variantId: string
+		from: string
+		to: string
+	}): Promise<Array<{ date: string; quantity: number }>> {
+		const rows = await db
+			.select({
+				id: ProviderExternalCalendarEvent.id,
+				calendarId: ProviderExternalCalendarEvent.calendarId,
+				resourceId: ProviderExternalCalendarEvent.resourceId,
+				startDate: ProviderExternalCalendarEvent.startDate,
+				endDate: ProviderExternalCalendarEvent.endDate,
+			})
+			.from(ProviderExternalCalendarEvent)
+			.where(
+				and(
+					eq(ProviderExternalCalendarEvent.variantId, params.variantId),
+					eq(ProviderExternalCalendarEvent.isActive, true),
+					lt(ProviderExternalCalendarEvent.startDate, params.to),
+					gt(ProviderExternalCalendarEvent.endDate, params.from)
+				)
+			)
+
+		const byDate = new Map<string, number>()
+		const unitsByDate = new Map<string, Set<string>>()
+		for (const row of rows) {
+			const cursor = new Date(`${String(row.startDate)}T00:00:00.000Z`)
+			const eventEnd = new Date(`${String(row.endDate)}T00:00:00.000Z`)
+			const rangeStart = new Date(`${params.from}T00:00:00.000Z`)
+			const rangeEnd = new Date(`${params.to}T00:00:00.000Z`)
+			if (cursor < rangeStart) cursor.setTime(rangeStart.getTime())
+			const end = eventEnd < rangeEnd ? eventEnd : rangeEnd
+			while (cursor < end) {
+				const date = cursor.toISOString().slice(0, 10)
+				const unitKey = row.resourceId
+					? `resource:${String(row.resourceId)}`
+					: `event:${String(row.calendarId)}:${String(row.id)}`
+				const units = unitsByDate.get(date) ?? new Set<string>()
+				units.add(unitKey)
+				unitsByDate.set(date, units)
+				cursor.setUTCDate(cursor.getUTCDate() + 1)
+			}
+		}
+		for (const [date, units] of unitsByDate) byDate.set(date, units.size)
+		return [...byDate].map(([date, quantity]) => ({ date, quantity }))
+	}
+
 	async upsertEffectiveAvailabilityRows(rows: EffectiveAvailabilityUpsertRow[]): Promise<void> {
 		if (rows.length === 0) return
 		await db
@@ -81,11 +130,12 @@ export class InventoryRecomputeRepository implements InventoryRecomputeRepositor
 			.onConflictDoUpdate({
 				target: [EffectiveAvailability.variantId, EffectiveAvailability.date],
 				set: {
-					totalUnits: sql`excluded.totalUnits`,
-					heldUnits: sql`excluded.heldUnits`,
-					bookedUnits: sql`excluded.bookedUnits`,
-					availableUnits: sql`excluded.availableUnits`,
-					computedAt: sql`excluded.computedAt`,
+					totalUnits: sql.raw('excluded."totalUnits"'),
+					heldUnits: sql.raw('excluded."heldUnits"'),
+					bookedUnits: sql.raw('excluded."bookedUnits"'),
+					externalBlockedUnits: sql.raw('excluded."externalBlockedUnits"'),
+					availableUnits: sql.raw('excluded."availableUnits"'),
+					computedAt: sql.raw('excluded."computedAt"'),
 				},
 			})
 	}

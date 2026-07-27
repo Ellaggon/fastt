@@ -28,6 +28,11 @@ export type RecomputeDeps = {
 		from: string
 		to: string
 	}) => Promise<InventoryLockRow[]>
+	loadExternalCalendarBlocksRange?: (params: {
+		variantId: string
+		from: string
+		to: string
+	}) => Promise<Array<{ date: string; quantity: number }>>
 	upsertEffectiveAvailabilityRows: (rows: EffectiveAvailabilityUpsertRow[]) => Promise<void>
 	now: () => Date
 }
@@ -104,7 +109,7 @@ export async function recomputeEffectiveAvailabilityRange(
 		try {
 			const dates = enumerateDates(parsed.from, parsed.to)
 			const now = deps.now()
-			const [dailyRows, lockRows] = await Promise.all([
+			const [dailyRows, lockRows, externalBlockRows] = await Promise.all([
 				deps.loadDailyInventoryRange({
 					variantId: parsed.variantId,
 					from: parsed.from,
@@ -115,6 +120,13 @@ export async function recomputeEffectiveAvailabilityRange(
 					from: parsed.from,
 					to: parsed.to,
 				}),
+				deps.loadExternalCalendarBlocksRange
+					? deps.loadExternalCalendarBlocksRange({
+							variantId: parsed.variantId,
+							from: parsed.from,
+							to: parsed.to,
+						})
+					: Promise.resolve([]),
 			])
 
 			const dailyByDate = new Map(
@@ -128,6 +140,7 @@ export async function recomputeEffectiveAvailabilityRange(
 
 			const heldByDate = new Map<string, number>()
 			const bookedByDate = new Map<string, number>()
+			const externalBlockedByDate = new Map<string, number>()
 			for (const lock of lockRows) {
 				const date = String(lock.date)
 				const quantity = Math.max(0, Number(lock.quantity ?? 0))
@@ -141,6 +154,14 @@ export async function recomputeEffectiveAvailabilityRange(
 					heldByDate.set(date, Number(heldByDate.get(date) ?? 0) + quantity)
 				}
 			}
+			for (const block of externalBlockRows) {
+				const quantity = Math.max(0, Number(block.quantity ?? 0))
+				if (quantity <= 0) continue
+				externalBlockedByDate.set(
+					String(block.date),
+					Number(externalBlockedByDate.get(String(block.date)) ?? 0) + quantity
+				)
+			}
 
 			const computedAt = new Date()
 			const rows: EffectiveAvailabilityUpsertRow[] = dates.map((date) => {
@@ -148,7 +169,11 @@ export async function recomputeEffectiveAvailabilityRange(
 				const totalUnits = daily?.totalUnits ?? 0
 				const heldUnits = Math.max(0, Number(heldByDate.get(date) ?? 0))
 				const bookedUnits = Math.max(0, Number(bookedByDate.get(date) ?? 0))
-				const availableUnits = Math.max(0, totalUnits - heldUnits - bookedUnits)
+				const externalBlockedUnits = Math.max(0, Number(externalBlockedByDate.get(date) ?? 0))
+				const availableUnits = Math.max(
+					0,
+					totalUnits - heldUnits - bookedUnits - externalBlockedUnits
+				)
 
 				return {
 					id: buildStableRowId(parsed.variantId, date),
@@ -157,6 +182,7 @@ export async function recomputeEffectiveAvailabilityRange(
 					totalUnits,
 					heldUnits,
 					bookedUnits,
+					externalBlockedUnits,
 					availableUnits,
 					computedAt,
 				}
