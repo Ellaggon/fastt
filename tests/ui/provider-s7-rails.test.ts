@@ -84,7 +84,7 @@ describe("S7-2 OAuth + docs-lite Simple", () => {
 		expect(getConnectorOAuthStatus().mode).toBe("credentials_ref")
 		expect(
 			buildConnectorOAuthAuthorizeUrl({
-				connectorKey: "payment_gateway",
+				connectorKey: "channel_manager",
 				providerId: "p1",
 				redirectUri: "https://app.test/callback",
 				state: "abc",
@@ -97,7 +97,7 @@ describe("S7-2 OAuth + docs-lite Simple", () => {
 		process.env.CONNECTOR_OAUTH_AUTHORIZE_URL = "https://vendor.test/oauth/authorize"
 		expect(getConnectorOAuthStatus().mode).toBe("oauth_scaffold")
 		const url = buildConnectorOAuthAuthorizeUrl({
-			connectorKey: "payment_gateway",
+			connectorKey: "channel_manager",
 			providerId: "p1",
 			redirectUri: "https://app.test/callback",
 			state: "abc",
@@ -105,7 +105,7 @@ describe("S7-2 OAuth + docs-lite Simple", () => {
 		})
 		expect(url).toContain("https://vendor.test/oauth/authorize")
 		expect(url).toContain("client_id=cid")
-		expect(url).toContain("connector=payment_gateway")
+		expect(url).toContain("connector=channel_manager")
 	})
 })
 
