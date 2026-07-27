@@ -237,7 +237,9 @@ export const ProviderIntegrationConnection = pgTable(
 		vendorKey: txtOpt("vendorKey"),
 		authType: txtOpt("authType"),
 		externalPropertyId: txtOpt("externalPropertyId"),
+		/** Smoke/preview cache only — not remote-entity SoT. See Phase 6 taxonomy. */
 		catalogJson: jsonb("catalogJson"),
+		/** Clock for catalogJson freshness (conceptual TTL); not a sync ledger. */
 		lastCatalogSyncAt: ts("lastCatalogSyncAt"),
 		lastSyncAt: ts("lastSyncAt"),
 		lastSyncStatus: txtOpt("lastSyncStatus"),

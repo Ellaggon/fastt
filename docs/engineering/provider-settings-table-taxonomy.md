@@ -136,7 +136,7 @@ Effective permissions are resolved in application code
 
 | Table | Owner | Role |
 | --- | --- | --- |
-| `ProviderIntegrationConnection` | Integrations | **Root** connector instance: connector key, lifecycle `status`, mode, scopes, opaque `credentialsRef`, vendor/auth metadata, sync schedule summary, optional `catalogJson` cache. |
+| `ProviderIntegrationConnection` | Integrations | **Root** connector instance: connector key, lifecycle `status`, mode, scopes, opaque `credentialsRef`, vendor/auth metadata, sync schedule summary, optional `catalogJson` **smoke/preview cache** (not catalog SoT — see Phase 6). |
 | `ProviderIntegrationCredential` | Integrations | **Secret** vault row (1:1 with connection): encrypted tokens, auth type, expiry/refresh, revoke. |
 | `ProviderIntegrationMapping` | Integrations | Local ↔ external entity links for channel managers (rooms, rates, properties, etc.). |
 | `ProviderExternalCalendar` | Integrations | **Subresource** of an `external_calendars` connection: inbound iCal feed config + per-feed sync state. |
@@ -332,26 +332,95 @@ subresource for this,” stop.
 
 **Cache columns (not sources of truth)**
 
-- `catalogJson` / `lastCatalogSyncAt` on Connection are temporary smoke/preview cache for channel managers. Mappings remain the durable local↔external contract. Do not invent `ProviderIntegrationRemoteEntity` until a real catalog importer needs queryable remote entities.
-- Removed in Phase 1: Connection `previewJson` / `lastPreviewAt` (never used) and Calendar `syncLeaseToken` / `syncLeaseUntil` (locking lives on SyncJob).
+See [Phase 6 — `catalogJson` smoke/preview cache](#phase-6--catalogjson-smokepreview-cache)
+below. Summary:
 
-### Schema freeze (Phases 1–3)
+- `catalogJson` / `lastCatalogSyncAt` on Connection are a **temporary smoke/preview
+  cache** for channel managers only — not durable catalog SoT.
+- Durable local↔external identity lives in `ProviderIntegrationMapping` rows.
+- Do **not** invent `ProviderIntegrationRemoteEntity` until a real Cloudbeds/Channex
+  (or equivalent) importer needs query-by-`entityType`/`externalId`.
+- Removed in Phase 1: Connection `previewJson` / `lastPreviewAt` (never used) and
+  Calendar `syncLeaseToken` / `syncLeaseUntil` (locking lives on SyncJob).
 
-Effective while consolidating operational duplication (Phases 1–2 done; Phase 3
-universal job queue landed — freeze remains until this PR merges and settles).
+### Phase 6 — `catalogJson` smoke/preview cache
 
-**Frozen until Phases 1–3 close:**
+**Purpose**
+
+After a successful channel-manager API smoke/sync probe, Connection may store a
+small JSON blob so operators can see “last verified vendor / property / probe”
+without a second round-trip. That blob is a **product cache**, not a remote
+entity model.
+
+**What may live in `catalogJson` today**
+
+- Vendor key, auth type, external property id (denormalized from Connection columns).
+- Last smoke probe name + message.
+- A short note that a vendor-specific catalog import is still future work.
+
+**What must not live there**
+
+- Room / rate / listing catalogs treated as SoT for mapping UI or sync.
+- Arrays of remote entities that mappings are derived from at read time.
+- Secrets, tokens, or full API payloads.
+
+**Conceptual product limits** (enforced in write path via
+`PROVIDER_INTEGRATION_CATALOG_CACHE` in `src/lib/provider-integrations.ts`):
+
+| Limit | Value | Rationale |
+| --- | --- | --- |
+| Max serialized size | **32 KiB** | Keeps Connection rows lean; overflow stores a stub note instead of a blob. |
+| Freshness / TTL | **7 days** (via `lastCatalogSyncAt`) | Stale cache is informational only; remapping and sync must not require it. |
+
+`lastCatalogSyncAt` is the cache clock. Consumers that display the blob should
+treat age > TTL as “possibly stale preview”, never as “catalog import failed”.
+
+**Source of truth rules**
+
+| Concern | SoT | Not SoT |
+| --- | --- | --- |
+| Local ↔ external binding | `ProviderIntegrationMapping` | `catalogJson` |
+| Connection lifecycle / credentials | Connection + Credential | `catalogJson` |
+| Smoke probe outcome for CM | SyncRun + Connection `lastSync*` | `catalogJson` may mirror a summary |
+
+**Grep / code contract**
+
+- Writers: only the channel-manager sync path may set `catalogJson`.
+- Readers of mappings: `listProviderIntegrationMappingCatalog` /
+  `upsertProviderIntegrationMapping` must load `ProviderIntegrationMapping` —
+  never parse `catalogJson` to invent mapping rows.
+- No table or type named `ProviderIntegrationRemoteEntity` until an importer
+  needs indexed remote entities.
+
+**When a real CM catalog importer lands (Cloudbeds / Channex / …)**
+
+1. Persist typed remote entities (then — and only then — consider
+   `ProviderIntegrationRemoteEntity` or an equivalent queryable store).
+2. Fill `ProviderIntegrationMapping` from those typed entities (or from an
+   explicit provider mapping step), not from opaque JSON.
+3. Make `catalogJson` optional (summary-only) or remove it in a follow-up
+   migration once UI no longer needs the smoke stub.
+
+### Schema freeze (Phases 1–6)
+
+Phases 1–5 closed the operational shape (dead weight, SyncLog, universal job,
+calendar rollup, conflict inbox). Phase 6 freezes **catalog modeling**:
+
+**Still frozen:**
 
 - No new tables named `ProviderIntegration*` or `ProviderExternalCalendar*`.
-- No second job queue, second execution ledger, or second “problems inbox” for a
-  new connector.
-- No SyncLog recreation or SyncLog-dependent features.
+- Especially: **no `ProviderIntegrationRemoteEntity`** until a real importer
+  needs `entityType` / `externalId` queries.
+- No second job queue, second execution ledger, or second “problems inbox”.
+- No SyncLog recreation.
+- Do not promote `catalogJson` into a durable catalog schema.
 
-**Allowed during freeze:**
+**Allowed:**
 
 - Documentation and this taxonomy.
 - Bug fixes that do not add tables.
-- Follow-up hardening after Phase 3 (rollups, constraints) in later phases.
+- Enforcing cache size/TTL on the existing Connection columns.
+- Phase 7 status CHECKs / export `resourceId` honesty without new entity tables.
 - Emergency production hotfixes (must name which ownership class they touch and
   why an existing table was insufficient).
 
@@ -387,6 +456,10 @@ universal job over a new table.
     `ProviderExternalCalendarConflict`; connector failures stay on
     `ProviderIntegrationIncident`.
 11. **Recreating SyncLog** — use SyncRun and/or AuditLog.
+12. **Treating `catalogJson` as mapping/catalog SoT** — mappings are
+    `ProviderIntegrationMapping` rows; do not parse opaque Connection JSON to
+    invent local↔external bindings. Do not add `ProviderIntegrationRemoteEntity`
+    until a real CM importer needs queryable remote entities.
 
 ---
 
@@ -410,7 +483,7 @@ the following. If any answer is “an existing table already owns this,” stop.
 9. **Integrations freeze:** If the name matches `ProviderIntegration*` or
    `ProviderExternalCalendar*` and Phases 1–3 are not closed, stop unless it is
    an explicitly allowed Phase 1–3 consolidation change (see
-   [Schema freeze](#schema-freeze-phases-1-3)).
+   [Schema freeze](#schema-freeze-phases-1-6)).
 
 Update this document in the same PR that introduces the table.
 
@@ -438,7 +511,7 @@ Update this document in the same PR that introduces the table.
   are subresources (`ProviderExternalCalendar*`), not parallel roots.
 - Until Phases 1–3 close: no new `ProviderIntegration*` /
   `ProviderExternalCalendar*` tables (see
-  [Schema freeze](#schema-freeze-phases-1-3)). Phase 3 landed a universal
+  [Schema freeze](#schema-freeze-phases-1-6)). Phase 3 landed a universal
   `ProviderIntegrationSyncJob` (`targetType` / `targetId`); do not recreate
   `ProviderExternalCalendarSyncJob`.
 - `ProviderInvitation` + `ProviderUser` are the only team membership lifecycle

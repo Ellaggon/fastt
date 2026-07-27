@@ -38,6 +38,62 @@ export type ProviderConnectorKey =
 	| "webhooks_api"
 	| "accounting_export"
 
+/**
+ * Conceptual product limits for Connection.catalogJson (smoke/preview cache).
+ * Not a remote-entity model — durable local↔external bindings live in
+ * ProviderIntegrationMapping. See docs/engineering/provider-settings-table-taxonomy.md
+ * (Phase 6).
+ */
+export const PROVIDER_INTEGRATION_CATALOG_CACHE = {
+	/** Max UTF-8 JSON size stored on Connection; overflow becomes a stub note. */
+	maxBytes: 32 * 1024,
+	/** Informational freshness window via lastCatalogSyncAt (not a hard eviction). */
+	ttlMs: 7 * 24 * 60 * 60 * 1000,
+} as const
+
+export type ProviderIntegrationCatalogCachePayload = {
+	vendorKey: ChannelManagerVendorKey
+	authType: ChannelManagerAuthType
+	externalPropertyId: string | null
+	lastSmokeProbe: string | null
+	lastSmokeMessage: string
+	note: string
+}
+
+/** Build a size-capped smoke/preview cache blob for channel-manager connections. */
+export function buildChannelManagerCatalogCache(params: {
+	vendorKey: string | null | undefined
+	authType: string | null | undefined
+	externalPropertyId: string | null | undefined
+	lastSmokeProbe: string | null | undefined
+	lastSmokeMessage: string
+}): ProviderIntegrationCatalogCachePayload {
+	const payload: ProviderIntegrationCatalogCachePayload = {
+		vendorKey: normalizeChannelManagerVendorKey(params.vendorKey),
+		authType: normalizeChannelManagerAuthType(params.authType),
+		externalPropertyId: params.externalPropertyId ?? null,
+		lastSmokeProbe: params.lastSmokeProbe ?? null,
+		lastSmokeMessage: params.lastSmokeMessage,
+		note: "Conexión API verificada. El catálogo remoto detallado se importará en una fase vendor-specific.",
+	}
+	const serialized = JSON.stringify(payload)
+	if (serialized.length <= PROVIDER_INTEGRATION_CATALOG_CACHE.maxBytes) return payload
+	return {
+		...payload,
+		lastSmokeMessage: params.lastSmokeMessage.slice(0, 240),
+		note: "Smoke cache truncated: exceeded PROVIDER_INTEGRATION_CATALOG_CACHE.maxBytes. Not catalog SoT.",
+	}
+}
+
+/** True when lastCatalogSyncAt is older than the conceptual catalog-cache TTL. */
+export function isProviderIntegrationCatalogCacheStale(
+	lastCatalogSyncAt: Date | null | undefined,
+	now: Date = new Date()
+): boolean {
+	if (!lastCatalogSyncAt) return true
+	return now.getTime() - lastCatalogSyncAt.getTime() > PROVIDER_INTEGRATION_CATALOG_CACHE.ttlMs
+}
+
 export type ProviderConnectorStatus =
 	| "not_configured"
 	| "pending"
@@ -988,16 +1044,16 @@ export async function syncProviderIntegration(params: {
 				hasVerifiedConnection && connectorKey === "channel_manager"
 					? now
 					: existing.lastCatalogSyncAt,
+			// Smoke/preview cache only — never treat as mapping/catalog SoT (Phase 6).
 			catalogJson:
 				hasVerifiedConnection && connectorKey === "channel_manager"
-					? {
-							vendorKey: normalizeChannelManagerVendorKey(existing.vendorKey),
-							authType: normalizeChannelManagerAuthType(existing.authType),
-							externalPropertyId: existing.externalPropertyId ?? null,
+					? buildChannelManagerCatalogCache({
+							vendorKey: existing.vendorKey,
+							authType: existing.authType,
+							externalPropertyId: existing.externalPropertyId,
 							lastSmokeProbe: smoke.probe,
 							lastSmokeMessage: message,
-							note: "Conexión API verificada. El catálogo remoto detallado se importará en una fase vendor-specific.",
-						}
+						})
 					: existing.catalogJson,
 			updatedAt: now,
 		})

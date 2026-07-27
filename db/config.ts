@@ -210,6 +210,7 @@ const ProviderIntegrationConnection = defineTable({
 		vendorKey: column.text({ optional: true }),
 		authType: column.text({ optional: true }),
 		externalPropertyId: column.text({ optional: true }),
+		// Smoke/preview cache only (Phase 6) — not mapping/catalog SoT.
 		catalogJson: column.json({ optional: true }),
 		lastCatalogSyncAt: column.date({ optional: true }),
 		lastSyncAt: column.date({ optional: true }),
