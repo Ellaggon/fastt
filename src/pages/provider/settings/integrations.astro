@@ -219,7 +219,7 @@ const activeExternalCalendarsLabel = `${activeExternalCalendars.length} ${
 	activeExternalCalendars.length === 1 ? "activo" : "activos"
 }`
 const externalConflictLabel = `${externalConflictCount} ${
-	externalConflictCount === 1 ? "posible conflicto" : "posibles conflictos"
+	externalConflictCount === 1 ? "alerta abierta" : "alertas abiertas"
 }`
 
 function authTypeLabel(authType: string) {
@@ -428,8 +428,10 @@ function conflictStatusTone(status: string) {
 				Sus bloqueos dejaron de afectar la disponibilidad.
 			</Notice>
 		) : icalResult === "conflict_updated" ? (
-			<Notice variant="success" title="Conflicto actualizado">
-				La decisión quedó guardada. Si el choque sigue presente, volverá a abrirse.
+			<Notice variant="success" title="Alerta actualizada">
+				Se guardó tu decisión sobre la alerta. Esto no cambia la disponibilidad: los bloqueos del
+				calendario externo ya se aplicaron al sincronizar. Si el choque vuelve a detectarse, la
+				alerta puede abrirse de nuevo.
 			</Notice>
 		) : icalResult === "export_created" ? (
 			<Notice variant="success" title="Enlace de exportación creado">
@@ -867,7 +869,11 @@ function conflictStatusTone(status: string) {
 												<div class="fastt-notice rounded-md border border-amber-200 bg-amber-50 p-3">
 													<p class="flex items-center gap-2 text-sm font-semibold text-amber-950">
 														<TriangleAlert class="h-4 w-4" aria-hidden="true" />
-														Posibles conflictos
+														Alertas de solapamiento
+													</p>
+													<p class="mt-1 text-xs leading-5 text-amber-800">
+														Solo gestionan la alerta. La disponibilidad ya refleja los bloqueos
+														importados al sincronizar el feed.
 													</p>
 													<ul class="mt-2 grid gap-1 text-sm text-amber-900">
 														{calendar.conflicts.slice(0, 3).map((conflict) => (
@@ -893,7 +899,7 @@ function conflictStatusTone(status: string) {
 																		>
 																			<input type="hidden" name="action" value="accept" />
 																			<Button type="submit" size="sm" variant="secondary">
-																				Aceptar bloqueo
+																				Aceptar alerta
 																			</Button>
 																		</form>
 																		<form

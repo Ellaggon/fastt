@@ -311,7 +311,7 @@ subresource for this,” stop.
 | **Job** | `ProviderIntegrationSyncJob` | Universal worker queue (`targetType` + `targetId` + `operation`, lease/retry/idempotency). Connection and iCal jobs share one table. | Execution history; user-facing activity |
 | **Run** | `ProviderIntegrationSyncRun` | Durable execution ledger (operation, trigger, counters, cursor, error, summary). Shared by generic sync and `calendar_import`. Powers simple-mode activity + Pro run history. | Config mutation audit; lightweight UI chatter |
 | **Incident** | `ProviderIntegrationIncident` | Actionable connector/ops failures (auth, remote API, mapping, data quality) with optional notifications. | Inventory date overlaps (use Conflict) |
-| **Conflict** | `ProviderExternalCalendarConflict` | Specialized overlap workflow (booking ↔ iCal, iCal ↔ iCal) with accept / ignore / resolve. | Sync/auth failures (use Incident); do not mirror into Incident |
+| **Conflict** | `ProviderExternalCalendarConflict` | Specialized overlap **alert** inbox (booking ↔ iCal, iCal ↔ iCal) with accept / ignore / resolve. Status changes are alert-only: they do **not** mutate inventory; blocks already applied during feed sync. Do not mirror into Incident. Hiding accepted/ignored from the host list is intentional. | Sync/auth failures (use Incident); inventing a second problems inbox |
 | **Export** | `ProviderExternalCalendarExport` | Outbound ICS share links (token hash, download metrics, revoke). Synchronous render — not an async job queue. | Inbound feed sync |
 
 ### Status contracts
@@ -383,7 +383,9 @@ universal job over a new table.
    `ProviderIntegrationSyncJob` (`targetType` / `operation`) or an existing
    subresource instead.
 10. **Mirroring calendar Conflicts into Incidents** (or the reverse) — two
-    problem inboxes for one alert.
+    problem inboxes for one alert. Overlaps stay on
+    `ProviderExternalCalendarConflict`; connector failures stay on
+    `ProviderIntegrationIncident`.
 11. **Recreating SyncLog** — use SyncRun and/or AuditLog.
 
 ---

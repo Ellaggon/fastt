@@ -313,8 +313,15 @@ describe("integration/provider external calendars", () => {
 		expect(
 			ignored.calendars
 				.find((calendar) => calendar.id === firstId)
-				?.conflicts.find((conflict) => conflict.id === bookingConflict.id)?.status
-		).toBe("ignored")
+				?.conflicts.some((conflict) => conflict.id === bookingConflict.id)
+		).toBe(false)
+		const ignoredRow = await db
+			.select()
+			.from(ProviderExternalCalendarConflict)
+			.where(eq(ProviderExternalCalendarConflict.id, bookingConflict.id))
+			.then((rows) => rows[0])
+		expect(ignoredRow?.status).toBe("ignored")
+		expect(ignoredRow?.resolutionNote).toMatch(/no cambia/i)
 
 		const scheduledAt = new Date("2026-07-26T20:00:00.000Z")
 		await db

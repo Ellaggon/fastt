@@ -1435,12 +1435,14 @@ export async function resolveProviderExternalCalendarConflict(params: {
 	if (!conflict) throw new Error("ICAL_CONFLICT_NOT_FOUND")
 	const status =
 		params.action === "accept" ? "accepted" : params.action === "ignore" ? "ignored" : "resolved"
+	// Alert-inbox only: inventory blocks already applied during calendar sync.
+	// Accept / ignore / resolve do not mutate availability or deactivate events.
 	const note =
 		params.action === "accept"
-			? "Bloqueo externo aceptado por el proveedor."
+			? "Alerta aceptada. El bloqueo de inventario no cambia; ya se aplicó al sincronizar el feed."
 			: params.action === "ignore"
-				? "Alerta ignorada por el proveedor."
-				: "Marcado como resuelto por el proveedor."
+				? "Alerta ignorada. El bloqueo de inventario no cambia; ya se aplicó al sincronizar el feed."
+				: "Alerta marcada como resuelta. El bloqueo de inventario no cambia; ya se aplicó al sincronizar el feed."
 	await db
 		.update(ProviderExternalCalendarConflict)
 		.set({
@@ -1621,13 +1623,15 @@ export async function listProviderExternalCalendars(providerId: string): Promise
 		).values(),
 	]
 	await reconcileExternalCalendarConflicts(providerId, uniqueDetected)
+	// Host inbox shows open alerts only. accepted / ignored / resolved stay in DB
+	// for audit but are not re-listed (avoids noise; re-detection can reopen resolved).
 	const conflictRows = await db
 		.select()
 		.from(ProviderExternalCalendarConflict)
 		.where(
 			and(
 				eq(ProviderExternalCalendarConflict.providerId, providerId),
-				ne(ProviderExternalCalendarConflict.status, "resolved")
+				eq(ProviderExternalCalendarConflict.status, "open")
 			)
 		)
 	const conflictsByCalendar = new Map<string, ExternalCalendarConflict[]>()
