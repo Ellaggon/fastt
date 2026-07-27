@@ -95,7 +95,7 @@ describe("S1-2 payout verification timeline", () => {
 	})
 
 	it("wires payments UI to timeline, confirm form and mismatch notices", () => {
-		const page = read("src/pages/provider/settings/payments.astro")
+		const page = read("src/pages/provider/settings/verification/payments.astro")
 		const card = read("src/components/provider/ProviderPaymentAccountsCard.astro")
 		const timeline = read("src/components/provider/ProviderPayoutVerificationTimeline.astro")
 		const api = read("src/pages/api/provider/settings/payment-accounts.ts")

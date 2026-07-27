@@ -1,12 +1,10 @@
 ---
-import ProviderFiscalDomainTabs from "@/components/provider/ProviderFiscalDomainTabs.astro"
-import Badge from "@/components/ui/Badge.astro"
+import TaxFeePage from "@/components/tax-fees/TaxFeePage"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import Notice from "@/components/ui/Notice.astro"
 import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
-import { getProviderTaxConfiguration } from "@/lib/provider-tax-configuration"
 import { routes } from "@/lib/routes"
 
 const auth = await requireProvider(Astro.request).catch((e: any) => {
@@ -18,29 +16,19 @@ if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
 if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerSettingsProfile())
 
 const create = Astro.url.searchParams.get("create")
-if (create === "1") {
-	return Astro.redirect(`${routes.providerSettingsTaxSales()}?create=1`)
-}
 const result = Astro.url.searchParams.get("result")
 if (result === "tax_profile_saved") {
-	return Astro.redirect(`${routes.providerSettingsTaxIdentity()}?result=${result}`)
+	return Astro.redirect(`${routes.providerSettingsVerificationFiscal()}?result=${result}`)
 }
 
 const cookie = Astro.request.headers.get("cookie") ?? ""
-const [defsRes, summaryRes] = await Promise.all([
-	fetch(new URL("/api/provider/tax-fees/definitions", Astro.url), {
-		headers: { cookie },
-	}),
-	fetch(new URL("/api/provider/settings/summary", Astro.url), {
-		headers: { cookie },
-	}),
-])
+const defsRes = await fetch(new URL("/api/provider/tax-fees/definitions", Astro.url), {
+	headers: { cookie },
+})
 const defsBody = defsRes.ok ? await defsRes.json() : null
-const summary = summaryRes.ok ? await summaryRes.json() : null
 const initialDefinitions = Array.isArray(defsBody?.definitions) ? defsBody.definitions : []
-const taxConfiguration = await getProviderTaxConfiguration(auth.providerId).catch(() => null)
-const permissions = summary?.permissions ?? {}
-const canManageFiscality = Boolean(permissions.canManageFiscality)
+const initialWarnings = Array.isArray(defsBody?.warnings) ? defsBody.warnings : []
+const initialMode = create === "1" ? "creating" : "idle"
 const definitionCount = initialDefinitions.length
 const activeCount = initialDefinitions.filter((item: any) => item.status === "active").length
 ---
@@ -48,30 +36,23 @@ const activeCount = initialDefinitions.filter((item: any) => item.status === "ac
 <ProviderSettingsLayout
 	title="Fiscalidad"
 	eyebrow="Configuración del proveedor · Fiscalidad"
-	heading="Fiscalidad"
-	description="Elige el dominio: tu registro fiscal (quién eres) o los impuestos que cobras al huésped (qué suma al precio)."
+	heading="Impuestos al huésped"
+	description="Definiciones y cargos que se suman al precio de la reserva. Tu identidad fiscal se completa en Verificación."
 >
 	<div slot="actions" class="flex flex-wrap gap-3">
-		<Button href={routes.providerSettingsVerification()} variant="secondary">Documentos</Button>
+		<Button href={routes.providerSettingsVerificationFiscal()} variant="secondary">
+			Identidad fiscal
+		</Button>
 		<Button href={routes.ratePlansList()} variant="secondary">Tarifas</Button>
+		<Button href={`${routes.providerSettingsTaxFees()}?create=1`} variant="secondary">
+			Nueva definición
+		</Button>
 	</div>
 
-	<ProviderFiscalDomainTabs active="hub" />
-
-	<Notice variant="info" title="Dos cosas distintas">
-		<p class="leading-6">
-			<strong>Tu registro fiscal</strong> identifica al proveedor para impuestos y liquidaciones.
-			<strong> Impuestos al huésped</strong> se aplican al precio que ve en la reserva. Configúralos en
-			pantallas separadas.
-		</p>
-	</Notice>
-
-	<div class="grid gap-3 sm:grid-cols-3">
+	<div class="grid gap-3 sm:grid-cols-2">
 		<Card variant="soft" class="space-y-1">
 			<p class="text-xs font-semibold tracking-[0.12em] text-slate-500 uppercase">Perfil fiscal</p>
-			<p class="text-lg font-semibold text-slate-950">
-				{taxConfiguration?.statusLabel ?? "No configurado"}
-			</p>
+			<p class="text-lg font-semibold text-slate-950">En Verificación</p>
 		</Card>
 		<Card variant="soft" class="space-y-1">
 			<p class="text-xs font-semibold tracking-[0.12em] text-slate-500 uppercase">
@@ -81,60 +62,26 @@ const activeCount = initialDefinitions.filter((item: any) => item.status === "ac
 				{definitionCount} total · {activeCount} activas
 			</p>
 		</Card>
-		<Card variant="soft" class="flex items-center justify-between gap-3">
-			<div>
-				<p class="text-xs font-semibold tracking-[0.12em] text-slate-500 uppercase">Permiso</p>
-				<p class="text-lg font-semibold text-slate-950">Fiscalidad</p>
-			</div>
-			<Badge variant={canManageFiscality ? "success" : "neutral"}>
-				{canManageFiscality ? "Editable" : "Solo lectura"}
-			</Badge>
-		</Card>
 	</div>
 
-	<div class="grid gap-4 lg:grid-cols-2">
-		<Card class="space-y-4">
-			<div>
-				<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">Dominio 1</p>
-				<h2 class="mt-2 text-xl font-semibold text-slate-950">Tu registro fiscal</h2>
-				<p class="mt-2 text-sm leading-6 text-slate-600">
-					País, NIT/registro y régimen. Sin verificación, las liquidaciones pueden retenerse. Fastt
-					lo revisa; no puedes marcar Verificado tú mismo.
-				</p>
-			</div>
-			<div class="flex flex-wrap items-center gap-3">
-				<Badge
-					variant={taxConfiguration?.status === "verified"
-						? "success"
-						: taxConfiguration?.status === "pending"
-							? "warning"
-							: taxConfiguration?.status === "requires_attention"
-								? "error"
-								: "neutral"}
-				>
-					{taxConfiguration?.statusLabel ?? "No configurado"}
-				</Badge>
-				<Button href={routes.providerSettingsTaxIdentity()}>Abrir registro fiscal</Button>
-			</div>
-		</Card>
+	<Notice variant="info" title="Solo precios de reserva">
+		Aquí defines impuestos y cargos comerciales para el huésped. El NIT/registro y la residencia
+		fiscal del proveedor se gestionan en{" "}
+		<a class="font-semibold underline" href={routes.providerSettingsVerificationFiscal()}>
+			Verificación fiscal
+		</a>
+		.
+	</Notice>
 
-		<Card class="space-y-4">
-			<div>
-				<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">Dominio 2</p>
-				<h2 class="mt-2 text-xl font-semibold text-slate-950">Impuestos al huésped</h2>
-				<p class="mt-2 text-sm leading-6 text-slate-600">
-					Definiciones y cargos que se suman al precio de la reserva. No sustituyen tu registro
-					fiscal.
-				</p>
-			</div>
-			<div class="flex flex-wrap items-center gap-3">
-				<Badge variant={activeCount ? "success" : "neutral"}>
-					{activeCount} activa{activeCount === 1 ? "" : "s"}
-				</Badge>
-				<Button href={routes.providerSettingsTaxSales()} variant="secondary">
-					Abrir impuestos al huésped
-				</Button>
-			</div>
-		</Card>
-	</div>
+	<Notice variant="info" title="Flujo recomendado">
+		Crea una definición, asigna su alcance y ejecuta una vista previa real antes de aplicarla a
+		ventas.
+	</Notice>
+
+	<TaxFeePage
+		client:load
+		initialDefinitions={initialDefinitions}
+		initialWarnings={initialWarnings}
+		initialMode={initialMode}
+	/>
 </ProviderSettingsLayout>

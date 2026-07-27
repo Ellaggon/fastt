@@ -18,9 +18,9 @@ function read(relativePath: string) {
 }
 
 describe("V1.1 tax_document ↔ Fiscalidad bridge", () => {
-	it("masks NIT and deep-links to Fiscalidad field", () => {
+	it("masks NIT and deep-links to Verificación fiscal field", () => {
 		expect(maskTaxpayerId("NIT-12345678")).toBe("••••5678")
-		expect(FISCAL_NIT_HREF).toContain("/tax-fees/identity")
+		expect(FISCAL_NIT_HREF).toContain("/verification/fiscal")
 		expect(FISCAL_NIT_HREF).toContain("#businessRegistrationNumber")
 	})
 

@@ -220,14 +220,14 @@ export function buildVerificationCrossLinks(params: {
 			id: "fiscal",
 			label: TRUST_GLOSSARY.crossLinks.fiscal.label,
 			hint: TRUST_GLOSSARY.crossLinks.fiscal.hint,
-			href: routes.providerSettingsTaxIdentity(),
+			href: routes.providerSettingsVerificationFiscal(),
 			emphasized: emphasized === "fiscal",
 		},
 		{
 			id: "payments",
 			label: TRUST_GLOSSARY.crossLinks.payments.label,
 			hint: TRUST_GLOSSARY.crossLinks.payments.hint,
-			href: routes.providerSettingsPayments(),
+			href: routes.providerSettingsVerificationPayments(),
 			emphasized: emphasized === "payments",
 		},
 	]
@@ -284,9 +284,9 @@ export function resolveTrustAlignedHubCoach(
 	if (id === "fiscality") {
 		return {
 			label: "Fiscal: verifica NIT/TIN",
-			body: "El registro fiscal (NIT/TIN y residencia) se completa en Fiscalidad, no en Verificación.",
+			body: "El registro fiscal (NIT/TIN y residencia) se completa como parte del mapa de Verificación.",
 			ctaLabel: "Ir a registro fiscal",
-			href: routes.providerSettingsTaxIdentity(),
+			href: routes.providerSettingsVerificationFiscal(),
 		}
 	}
 	if (id === "payments") {
@@ -294,7 +294,7 @@ export function resolveTrustAlignedHubCoach(
 			label: "Pagos: verifica cuenta de cobro",
 			body: "Añade o confirma la cuenta bancaria para recibir liquidaciones.",
 			ctaLabel: "Ir a pagos",
-			href: routes.providerSettingsPayments(),
+			href: routes.providerSettingsVerificationPayments(),
 		}
 	}
 	if (id === "team") {
@@ -499,7 +499,7 @@ export function buildProviderTrustMap(input: BuildProviderTrustMapInput = {}): P
 			id: "fiscal",
 			label: TRUST_GLOSSARY.links.fiscal.label,
 			description: TRUST_GLOSSARY.links.fiscal.description,
-			href: routes.providerSettingsTaxIdentity(),
+			href: routes.providerSettingsVerificationFiscal(),
 			uiState: fiscalUi,
 			stateLabel: trustLinkStateLabel(fiscalUi),
 			tone: trustLinkTone(fiscalUi),
@@ -508,7 +508,7 @@ export function buildProviderTrustMap(input: BuildProviderTrustMapInput = {}): P
 			id: "payments",
 			label: TRUST_GLOSSARY.links.payments.label,
 			description: TRUST_GLOSSARY.links.payments.description,
-			href: routes.providerSettingsPayments(),
+			href: routes.providerSettingsVerificationPayments(),
 			uiState: paymentsUi,
 			stateLabel: trustLinkStateLabel(paymentsUi),
 			tone: trustLinkTone(paymentsUi),
@@ -730,7 +730,7 @@ export function resolveVerificationNextStep(params: {
 			ctaLabel: TRUST_GLOSSARY.page.readyPrimaryCta,
 			ctaHref: VERIFICATION_PUBLISH_HREF,
 			secondaryCtaLabel: TRUST_GLOSSARY.page.readySecondaryCta,
-			secondaryCtaHref: routes.providerSettingsPayments(),
+			secondaryCtaHref: routes.providerSettingsVerificationPayments(),
 			consequenceLine: null,
 			anchorsKyc: false,
 			tone: "success",
@@ -830,7 +830,7 @@ export function resolveVerificationNextStep(params: {
 			title: "Documentos mínimos listos",
 			body: "El eslabón Negocio está completo. Continúa con Fiscal o Pagos según el mapa.",
 			ctaLabel: "Ir a fiscalidad",
-			ctaHref: routes.providerSettingsTaxIdentity(),
+			ctaHref: routes.providerSettingsVerificationFiscal(),
 			consequenceLine: null,
 			anchorsKyc: false,
 			ctaKind: "navigate",
@@ -863,9 +863,9 @@ export function resolveVerificationNextStep(params: {
 		return {
 			linkId: "fiscal",
 			title: "Completa tu registro fiscal",
-			body: "NIT/TIN y residencia viven en Fiscalidad. Vuelve aquí cuando el eslabón quede listo.",
+			body: "Registra NIT/TIN, residencia fiscal y modo de facturación para que podamos revisar tu identidad tributaria.",
 			ctaLabel: "Ir a registro fiscal",
-			ctaHref: routes.providerSettingsTaxIdentity(),
+			ctaHref: routes.providerSettingsVerificationFiscal(),
 			consequenceLine: "Sin registro fiscal verificado las liquidaciones pueden retenerse.",
 			anchorsKyc: false,
 			ctaKind: "navigate",
@@ -879,7 +879,7 @@ export function resolveVerificationNextStep(params: {
 			title: "Verifica tu cuenta de cobro",
 			body: "Añade o confirma la cuenta bancaria para recibir liquidaciones.",
 			ctaLabel: "Ir a pagos",
-			ctaHref: routes.providerSettingsPayments(),
+			ctaHref: routes.providerSettingsVerificationPayments(),
 			consequenceLine: "Sin cuenta de cobro verificada no puedes liquidar.",
 			anchorsKyc: false,
 			ctaKind: "navigate",

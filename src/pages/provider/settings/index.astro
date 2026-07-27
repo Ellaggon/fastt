@@ -25,6 +25,7 @@ const summary = await timing.time("settingsSummary", () =>
 		providerId,
 		userId,
 		timing,
+		scope: "hub",
 	})
 )
 
@@ -52,6 +53,8 @@ const progressLabel =
 	(blockers.length
 		? `${blockers.length} bloqueo${blockers.length === 1 ? "" : "s"} pendiente${blockers.length === 1 ? "" : "s"}.`
 		: "Configuración base lista.")
+const blockerCountLabel = `${blockers.length} ${blockers.length === 1 ? "bloqueo" : "bloqueos"}`
+const riskCountLabel = `${risks.length} ${risks.length === 1 ? "riesgo" : "riesgos"}`
 const providerName = String(
 	summary?.provider?.displayName || summary?.provider?.legalName || "Proveedor"
 )
@@ -75,11 +78,23 @@ const nextStepBody = String(
 	summary?.actions?.coachBody ||
 		(blockers[0]
 			? "Un solo paso del mapa de confianza a la vez: Perfil → Verificación → Fiscal → Pagos."
-			: "Ya puedes operar lo básico. Revisa las áreas si quieres afinar fiscalidad, pagos o equipo.")
+			: "Ya puedes operar lo básico. Revisa las áreas si quieres afinar fiscalidad, integraciones o equipo.")
 )
 const readiness = summary?.readiness ?? []
 const incompleteAreas = readiness.filter((item: { complete?: boolean }) => !item.complete)
 const completeAreas = readiness.filter((item: { complete?: boolean }) => item.complete)
+const highRisks = risks.filter((risk: { severity?: string }) => risk.severity === "high")
+const risksForArea = (item: { href?: string; capabilities?: string[] }) =>
+	risks.filter((risk: { href?: string; capabilities?: string[] }) => {
+		if (risk.href && item.href && risk.href === item.href) return true
+		const itemCapabilities = Array.isArray(item.capabilities) ? item.capabilities : []
+		const riskCapabilities = Array.isArray(risk.capabilities) ? risk.capabilities : []
+		return riskCapabilities.some((capability) => itemCapabilities.includes(capability))
+	})
+const riskBadgeVariant = (severity?: string) =>
+	severity === "high" ? "error" : severity === "medium" ? "warning" : "neutral"
+const riskBadgeLabel = (severity?: string) =>
+	severity === "high" ? "Alto" : severity === "medium" ? "Medio" : "Bajo"
 
 const professionalToolsEnabled = providerSession.professionalToolsEnabled
 const professionalToolsParam = String(Astro.url.searchParams.get("professionalTools") ?? "").trim()
@@ -134,7 +149,7 @@ logRoutePerformance({
 		data-settings-coach
 		data-settings-hub-density={hasBlockers ? "blocker" : "clear"}
 	>
-		<Card class="border-slate-800 bg-slate-950 text-white">
+		<Card variant="dark">
 			<div class="space-y-6">
 				<div class="flex flex-wrap items-start justify-between gap-4">
 					<div>
@@ -143,7 +158,11 @@ logRoutePerformance({
 							{providerName}
 						</h2>
 					</div>
-					<Badge variant={hasBlockers ? "warning" : "success"} data-settings-base-badge>
+					<Badge
+						variant={hasBlockers ? "darkWarning" : "darkSuccess"}
+						data-settings-base-badge
+						data-settings-dark-badge
+					>
 						{hasBlockers ? "Con bloqueos" : "Base lista"}
 					</Badge>
 				</div>
@@ -180,6 +199,7 @@ logRoutePerformance({
 					<div class="mt-5 flex flex-wrap gap-3">
 						<Button
 							href={primaryCtaHref}
+							variant="onDark"
 							data-settings-primary-cta
 							data-funnel-cta="primary"
 							data-funnel-domain={blockers[0]?.id || undefined}
@@ -201,69 +221,35 @@ logRoutePerformance({
 					</div>
 				</div>
 
-				{
-					hasBlockers ? (
-						<details
-							class="fastt-notice rounded-2xl border border-white/10 bg-white/5 p-4"
-							data-settings-details-capabilities
-						>
-							<summary class="cursor-pointer text-sm font-semibold text-white">
-								Capacidades y conteo de bloqueos
-							</summary>
-							<div class="mt-4 flex flex-wrap gap-2" data-settings-capabilities-strip>
-								{capabilityRows.map((row) => {
-									const enabled = Boolean(capabilities[row.key])
-									return (
-										<div class="fastt-notice flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
-											<span class="text-xs font-medium text-slate-300">{row.label}</span>
-											<Badge
-												variant={
-													enabled ? "success" : row.key === "integrations" ? "neutral" : "warning"
-												}
-												data-capability={row.key}
-											>
-												{enabled ? row.on : row.off}
-											</Badge>
-										</div>
-									)
-								})}
-							</div>
-							<p class="mt-4 text-xs text-slate-500">
-								<span data-settings-blockers-count>{blockers.length}</span> bloqueo
-								{blockers.length === 1 ? "" : "s"} ·{" "}
-								<span data-settings-risks-count>{risks.length}</span> riesgo
-								{risks.length === 1 ? "" : "s"} a revisar
-							</p>
-						</details>
-					) : (
-						<>
-							<div class="flex flex-wrap gap-2" data-settings-capabilities-strip>
-								{capabilityRows.map((row) => {
-									const enabled = Boolean(capabilities[row.key])
-									return (
-										<div class="fastt-notice flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
-											<span class="text-xs font-medium text-slate-300">{row.label}</span>
-											<Badge
-												variant={
-													enabled ? "success" : row.key === "integrations" ? "neutral" : "warning"
-												}
-												data-capability={row.key}
-											>
-												{enabled ? row.on : row.off}
-											</Badge>
-										</div>
-									)
-								})}
-							</div>
-							<p class="text-xs text-slate-500">
-								<span data-settings-blockers-count>{blockers.length}</span> bloqueo
-								{blockers.length === 1 ? "" : "s"} ·{" "}
-								<span data-settings-risks-count>{risks.length}</span> riesgo
-								{risks.length === 1 ? "" : "s"} a revisar
-							</p>
-						</>
-					)
-				}
+				<div class="flex flex-wrap gap-2" data-settings-capabilities-strip>
+					{
+						capabilityRows.map((row) => {
+							const enabled = Boolean(capabilities[row.key])
+							return (
+								<div class="fastt-notice flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
+									<span class="text-xs font-medium text-slate-300">{row.label}</span>
+									<Badge
+										variant={
+											enabled
+												? "darkSuccess"
+												: row.key === "integrations"
+													? "darkNeutral"
+													: "darkWarning"
+										}
+										data-capability={row.key}
+										data-settings-dark-badge
+									>
+										{enabled ? row.on : row.off}
+									</Badge>
+								</div>
+							)
+						})
+					}
+				</div>
+				<p class="text-xs text-slate-400" data-settings-summary-counts>
+					<span data-settings-blockers-count>{blockerCountLabel}</span> ·{" "}
+					<span data-settings-risks-count>{riskCountLabel}</span> a revisar
+				</p>
 			</div>
 		</Card>
 	</section>
@@ -272,11 +258,11 @@ logRoutePerformance({
 		<Card>
 			<div class="space-y-4">
 				<div>
-					<h2 class="text-xl font-semibold text-slate-950">Estado de tu cuenta</h2>
+					<h2 class="text-xl font-semibold text-slate-950">Checklist de configuración</h2>
 					<p class="mt-2 text-sm leading-6 text-slate-600">
 						{
 							hasBlockers
-								? "Áreas pendientes primero. El detalle de capacidades está plegado arriba."
+								? "Resuelve las áreas pendientes en orden. Cada fila muestra su impacto y señales relevantes."
 								: "Primero lo pendiente; lo completo queda al final."
 						}
 					</p>
@@ -284,24 +270,44 @@ logRoutePerformance({
 				<div class="space-y-3" data-settings-readiness>
 					{
 						readiness.length ? (
-							[...incompleteAreas, ...completeAreas].map((item) => (
-								<a href={item.href || "#"} class="block">
-									<Card
-										variant="soft"
-										class="flex items-center justify-between gap-4 transition hover:border-slate-300 hover:bg-white"
-									>
-										<div>
-											<p class="text-sm font-semibold text-slate-950">{item.label}</p>
-											<p class="mt-1 text-sm text-slate-600">
-												{item.complete ? "Listo para operar" : "Requiere configuración"}
-											</p>
-										</div>
-										<Badge variant={item.complete ? "success" : "warning"}>
-											{item.complete ? "Completo" : "Pendiente"}
-										</Badge>
-									</Card>
-								</a>
-							))
+							[...incompleteAreas, ...completeAreas].map((item) => {
+								const areaRisks = risksForArea(item)
+								return (
+									<a href={item.href || "#"} class="block">
+										<Card
+											variant="soft"
+											class="space-y-3 transition hover:border-slate-300 hover:bg-white"
+											data-settings-checklist-row
+										>
+											<div class="flex items-center justify-between gap-4">
+												<div>
+													<p class="text-sm font-semibold text-slate-950">{item.label}</p>
+													<p class="mt-1 text-sm text-slate-600">
+														{item.complete ? "Listo para operar" : "Requiere configuración"}
+													</p>
+												</div>
+												<Badge variant={item.complete ? "success" : "warning"}>
+													{item.complete ? "Completo" : "Pendiente"}
+												</Badge>
+											</div>
+											{areaRisks.length ? (
+												<div class="grid gap-2" data-settings-row-risks>
+													{areaRisks.slice(0, 2).map((risk) => (
+														<div class="fastt-notice flex items-start justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+															<p class="text-xs leading-5 font-semibold text-amber-950">
+																{risk.label}
+															</p>
+															<Badge variant={riskBadgeVariant(risk.severity)}>
+																{riskBadgeLabel(risk.severity)}
+															</Badge>
+														</div>
+													))}
+												</div>
+											) : null}
+										</Card>
+									</a>
+								)
+							})
 						) : (
 							<Card variant="soft" class="text-sm text-slate-600">
 								Aún no hay estado de tu cuenta disponible.
@@ -313,55 +319,43 @@ logRoutePerformance({
 		</Card>
 	</section>
 
-	<details
-		class="fastt-notice rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-5"
-		data-settings-details-risks
-	>
-		<summary class="cursor-pointer text-lg font-semibold text-slate-950">
-			Riesgos y señales ({risks.length})
-		</summary>
-		<p class="mt-2 text-sm leading-6 text-slate-600">
-			No bloquean todo, pero conviene revisarlas antes de escalar.
-		</p>
-		<div class="mt-4 space-y-3" data-settings-risks>
-			{
-				risks.length ? (
-					risks.map((risk) => (
+	{
+		highRisks.length ? (
+			<Card class="space-y-3 border-red-200 bg-red-50" data-settings-high-risks>
+				<div>
+					<h2 class="text-lg font-semibold text-red-950">Atención alta</h2>
+					<p class="mt-1 text-sm leading-6 text-red-800">
+						Estas señales pueden afectar publicación, cobros o cumplimiento.
+					</p>
+				</div>
+				<div class="space-y-2" data-settings-risks>
+					{highRisks.map((risk) => (
 						<a href={risk.href || "#"} class="block">
-							<Card variant="soft" class="transition hover:border-slate-300 hover:bg-white">
-								<div class="flex items-start justify-between gap-4">
-									<p class="text-sm font-semibold text-slate-950">{risk.label}</p>
-									<Badge variant={risk.severity === "medium" ? "warning" : "neutral"}>
-										{risk.severity === "medium"
-											? "Medio"
-											: risk.severity === "high"
-												? "Alto"
-												: "Bajo"}
-									</Badge>
-								</div>
-							</Card>
+							<div class="fastt-notice flex items-start justify-between gap-4 rounded-xl border border-red-200 bg-white px-3 py-2">
+								<p class="text-sm font-semibold text-red-950">{risk.label}</p>
+								<Badge variant="error">Alto</Badge>
+							</div>
 						</a>
-					))
-				) : (
-					<Card variant="soft" class="text-sm text-slate-600">
-						No hay riesgos activos en el resumen actual.
-					</Card>
-				)
-			}
-		</div>
-	</details>
+					))}
+				</div>
+			</Card>
+		) : (
+			<div data-settings-risks hidden />
+		)
+	}
 
 	<details
 		class="fastt-notice rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-5"
-		data-settings-details-counts
+		data-settings-details-diagnostics
 	>
 		<summary class="cursor-pointer text-lg font-semibold text-slate-950">
-			Números de apoyo
+			Diagnóstico avanzado
 		</summary>
 		<p class="mt-2 text-sm leading-6 text-slate-600">
-			Conteos útiles para soporte; no son el trabajo principal de esta pantalla.
+			Datos de apoyo para revisar documentos, cobros, conectores y cambios recientes. No necesitas
+			abrirlo para completar el siguiente paso.
 		</p>
-		<section class="mt-4 grid gap-4 md:grid-cols-4">
+		<section class="mt-4 grid gap-4 md:grid-cols-4" data-settings-support-counts>
 			<Card variant="soft" class="bg-white">
 				<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Documentos</p>
 				<p class="mt-2 text-2xl font-semibold text-slate-950" data-count="documents">
@@ -370,7 +364,7 @@ logRoutePerformance({
 			</Card>
 			<Card variant="soft" class="bg-white">
 				<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-					Cuentas de pago
+					Cuentas de cobro
 				</p>
 				<p class="mt-2 text-2xl font-semibold text-slate-950" data-count="paymentAccounts">
 					{Number(counts.verifiedPaymentAccounts ?? 0)} / {Number(counts.paymentAccounts ?? 0)}
@@ -383,25 +377,14 @@ logRoutePerformance({
 				</p>
 			</Card>
 			<Card variant="soft" class="bg-white">
-				<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Auditoría</p>
+				<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+					Cambios recientes
+				</p>
 				<p class="mt-2 text-2xl font-semibold text-slate-950" data-count="auditEvents">
 					{Number(counts.auditEvents ?? 0)}
 				</p>
 			</Card>
 		</section>
-	</details>
-
-	<details
-		class="fastt-notice rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-5"
-		open={false}
-		data-settings-details-ops
-	>
-		<summary class="cursor-pointer text-lg font-semibold text-slate-950">
-			Detalle operativo (capacidades, simulación, auditoría)
-		</summary>
-		<p class="mt-2 text-sm leading-6 text-slate-600">
-			Matriz de bloqueos por capacidad, simulación fiscal/pagos y eventos recientes.
-		</p>
 		<div data-settings-deferred-root class="mt-4 space-y-4"></div>
 	</details>
 

@@ -32,8 +32,8 @@ describe("S0-3 provider settings copy without schema jargon", () => {
 	it("keeps tax, payments and integrations notices host-facing", () => {
 		const sources = [
 			read("src/pages/provider/settings/tax-fees/index.astro"),
-			read("src/pages/provider/settings/tax-fees/identity.astro"),
-			read("src/pages/provider/settings/payments.astro"),
+			read("src/pages/provider/settings/verification/fiscal.astro"),
+			read("src/pages/provider/settings/verification/payments.astro"),
 			read("src/pages/provider/settings/integrations.astro"),
 			read("src/pages/provider/settings/verification.astro"),
 			read("src/components/provider/ProviderTaxProfileCard.astro"),
@@ -46,7 +46,7 @@ describe("S0-3 provider settings copy without schema jargon", () => {
 			}
 		}
 
-		expect(sources[0]).toContain("Dos cosas distintas")
+		expect(sources[0]).toContain("Solo precios de reserva")
 		expect(sources[1]).toContain("Guardamos tu registro fiscal")
 		expect(sources[6]).toContain("envía → espera depósitos")
 		expect(sources[6]).toContain("Confirmar montos")

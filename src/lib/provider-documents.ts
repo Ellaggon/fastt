@@ -21,8 +21,8 @@ import { resolveProviderPermissions } from "@/lib/provider-permissions"
 import { resolveProviderRejectCategory } from "@/lib/provider-reject-categories"
 import { routes } from "@/lib/routes"
 
-/** Deep-link into Fiscalidad NIT field (owner of taxpayer ID). */
-export const FISCAL_NIT_HREF = `${routes.providerSettingsTaxIdentity()}#businessRegistrationNumber`
+/** Deep-link into Verificación fiscal NIT field (owner of taxpayer ID in trust flow). */
+export const FISCAL_NIT_HREF = `${routes.providerSettingsVerificationFiscal()}#businessRegistrationNumber`
 
 /**
  * Provider compliance documents.

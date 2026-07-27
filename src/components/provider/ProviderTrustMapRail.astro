@@ -19,6 +19,8 @@ const complete = isProviderTrustMapComplete(links)
 function resolveInitialActiveId(): TrustLinkId {
 	if (activeId) return activeId
 	const pathname = Astro.url.pathname
+	if (pathname.includes("/provider/settings/verification/fiscal")) return "fiscal"
+	if (pathname.includes("/provider/settings/verification/payments")) return "payments"
 	if (pathname.includes("/provider/settings/tax-fees/identity")) return "fiscal"
 	if (pathname.includes("/provider/settings/payments")) return "payments"
 	return "identity"
@@ -73,6 +75,7 @@ function statusClassForLink(link: ProviderTrustLink) {
 						<span class="inline-flex" role="presentation">
 							<a
 								href={link.href}
+								data-astro-prefetch="hover"
 								data-trust-link={link.id}
 								data-trust-link-state={link.uiState}
 								data-trust-link-focus={link.isFocus ? "true" : undefined}
@@ -101,38 +104,6 @@ function statusClassForLink(link: ProviderTrustLink) {
 	) : null
 }
 
-<script is:inline>
-	function resolveTrustRailActiveId() {
-		const pathname = window.location.pathname
-		if (pathname.includes("/provider/settings/tax-fees/identity")) return "fiscal"
-		if (pathname.includes("/provider/settings/payments")) return "payments"
-		if (
-			pathname.includes("/provider/settings/verification") &&
-			(window.location.hash === "#kyc-slots" || window.location.hash.startsWith("#kyc-slot-"))
-		) {
-			return "business"
-		}
-		return "identity"
-	}
-
-	function syncTrustRailActiveTab() {
-		const activeId = resolveTrustRailActiveId()
-		document.querySelectorAll("[data-trust-map-rail]").forEach((rail) => {
-			rail.querySelectorAll("[data-trust-link]").forEach((link) => {
-				const active = link.getAttribute("data-trust-link") === activeId
-				link.setAttribute("data-active", active ? "true" : "false")
-				link.setAttribute("aria-selected", active ? "true" : "false")
-				if (active) {
-					link.setAttribute("data-trust-link-active", "true")
-					link.classList.remove("text-slate-600", "hover:bg-sky-100/80", "hover:text-sky-950")
-				} else {
-					link.removeAttribute("data-trust-link-active")
-					link.classList.add("text-slate-600", "hover:bg-sky-100/80", "hover:text-sky-950")
-				}
-			})
-		})
-	}
-
-	window.addEventListener("hashchange", syncTrustRailActiveTab)
-	document.addEventListener("DOMContentLoaded", syncTrustRailActiveTab)
+<script>
+	import "@/pages/provider/settings/_client/provider-trust-rail.js"
 </script>

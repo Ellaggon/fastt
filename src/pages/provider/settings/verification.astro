@@ -14,15 +14,15 @@ import { listOpenComplianceAssignments } from "@/lib/provider-compliance-ops"
 import {
 	buildRequiredKycSlots,
 	evaluateRequiredKycDocumentsComplete,
+	isTaxDocumentSatisfiedByFiscal,
 	listProviderDocuments,
 	providerDocumentTypes,
 	requiredKycDocumentTypes,
 	resolveKycUploadFocusType,
-	isTaxDocumentSatisfiedByFiscal,
 } from "@/lib/provider-documents"
 import { formatProviderRoleLabel } from "@/lib/provider-permissions"
-import { getProviderTaxConfiguration } from "@/lib/provider-tax-configuration"
 import { resolveProviderRejectCategory } from "@/lib/provider-reject-categories"
+import { getProviderTaxConfiguration } from "@/lib/provider-tax-configuration"
 import {
 	buildProviderTrustMap,
 	buildVerificationCrossLinks,
@@ -49,28 +49,6 @@ const sessionPermissions = typeof auth === "string" ? null : auth.provider.permi
 const providerRoleLabel =
 	typeof auth === "string" ? "Operaciones" : formatProviderRoleLabel(auth.provider.role)
 
-const aggregate = providerId && userId ? await getProviderFullAggregate(providerId, userId) : null
-
-const summaryRes = await fetch(new URL("/api/provider/settings/summary", Astro.url), {
-	headers: { cookie: Astro.request.headers.get("cookie") ?? "" },
-})
-const summary = summaryRes.ok ? await summaryRes.json() : null
-// Session surface is source of truth for upload gates (matches documents API).
-const permissions = sessionPermissions ?? summary?.permissions ?? {}
-const canManageDocuments = Boolean(permissions.canManageDocuments)
-const documents = providerId ? await listProviderDocuments(providerId).catch(() => []) : []
-const openAssignments = providerId
-	? await listOpenComplianceAssignments({ providerId }).catch(() => [])
-	: []
-const verificationAssignment = providerId
-	? (openAssignments.find((row) => row.domain === "verification" && row.entityId === providerId) ??
-		null)
-	: null
-const documentAssignmentById = new Map(
-	openAssignments
-		.filter((row) => row.domain === "documents")
-		.map((row) => [row.entityId, row] as const)
-)
 const result = Astro.url.searchParams.get("result")
 const uploadErrorCode = String(Astro.url.searchParams.get("error") ?? "").trim()
 const requestedType = String(Astro.url.searchParams.get("type") ?? "").trim()
@@ -86,9 +64,40 @@ if (requestedType && optionalTypeValues.has(requestedType)) {
 	return Astro.redirect(target.pathname + target.search)
 }
 
-const taxConfiguration = providerId
-	? await getProviderTaxConfiguration(providerId).catch(() => null)
+const summaryPromise = fetch(new URL("/api/provider/settings/summary", Astro.url), {
+	headers: { cookie: Astro.request.headers.get("cookie") ?? "" },
+})
+	.then((res) => (res.ok ? res.json() : null))
+	.catch(() => null)
+const aggregatePromise =
+	providerId && userId ? getProviderFullAggregate(providerId, userId).catch(() => null) : null
+const documentsPromise = providerId ? listProviderDocuments(providerId).catch(() => []) : []
+const openAssignmentsPromise = providerId
+	? listOpenComplianceAssignments({ providerId }).catch(() => [])
+	: []
+const taxConfigurationPromise = providerId
+	? getProviderTaxConfiguration(providerId).catch(() => null)
 	: null
+
+const [aggregate, summary, documents, openAssignments, taxConfiguration] = await Promise.all([
+	aggregatePromise,
+	summaryPromise,
+	documentsPromise,
+	openAssignmentsPromise,
+	taxConfigurationPromise,
+])
+// Session surface is source of truth for upload gates (matches documents API).
+const permissions = sessionPermissions ?? summary?.permissions ?? {}
+const canManageDocuments = Boolean(permissions.canManageDocuments)
+const verificationAssignment = providerId
+	? (openAssignments.find((row) => row.domain === "verification" && row.entityId === providerId) ??
+		null)
+	: null
+const documentAssignmentById = new Map(
+	openAssignments
+		.filter((row) => row.domain === "documents")
+		.map((row) => [row.entityId, row] as const)
+)
 
 const kycSlots = buildRequiredKycSlots({
 	documents,
@@ -354,14 +363,14 @@ const initialTrustPanel = requestedType ? "business" : "identity"
 					>
 						<a
 							class="font-semibold underline"
-							href={routes.providerSettingsTaxFees()}
+							href={routes.providerSettingsVerificationFiscal()}
 							data-funnel-cta="post_save"
 						>
 							Continuar a registro fiscal
 						</a>
 						<a
 							class="font-semibold underline"
-							href={routes.providerSettingsPayments()}
+							href={routes.providerSettingsVerificationPayments()}
 							data-funnel-cta="post_save"
 						>
 							Continuar a pagos
@@ -494,25 +503,7 @@ const initialTrustPanel = requestedType ? "business" : "identity"
 			</div>
 		</details>
 	</div>
-	<script is:inline>
-		function resolveVerificationTrustPanel() {
-			const params = new URLSearchParams(window.location.search)
-			const hash = window.location.hash || ""
-			if (params.get("type")) return "business"
-			if (hash === "#kyc-slots" || hash.startsWith("#kyc-slot-")) return "business"
-			return "identity"
-		}
-
-		function syncVerificationTrustPanels() {
-			const activeId = resolveVerificationTrustPanel()
-			document.querySelectorAll("[data-verification-trust-panel]").forEach((panel) => {
-				const isActive = panel.getAttribute("data-verification-trust-panel") === activeId
-				panel.toggleAttribute("hidden", !isActive)
-				panel.setAttribute("data-active", isActive ? "true" : "false")
-			})
-		}
-
-		document.addEventListener("DOMContentLoaded", syncVerificationTrustPanels)
-		window.addEventListener("hashchange", syncVerificationTrustPanels)
+	<script>
+		import "@/pages/provider/settings/_client/verification-trust-panels.js"
 	</script>
 </ProviderSettingsLayout>

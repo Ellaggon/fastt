@@ -41,29 +41,6 @@ const selectedType = documentTypes.some((item) => item.value === defaultUploadTy
 ---
 
 <section class="space-y-5" data-verification-optionals data-verification-optionals-page>
-	<div class="flex flex-wrap items-start justify-between gap-3">
-		<div>
-			<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">
-				Respaldo adicional
-			</p>
-			<h2 class="mt-2 text-xl font-semibold text-slate-950">Documentos opcionales</h2>
-			<p class="mt-2 text-sm leading-6 text-slate-600">
-				Propiedad, licencias y domicilio. No desbloquean los documentos mínimos de Verificación.
-			</p>
-		</div>
-		<div class="flex flex-wrap gap-2">
-			<Badge variant={pendingCount ? "warning" : "neutral"}>
-				{pendingCount} enviado{pendingCount === 1 ? "" : "s"}
-			</Badge>
-			<Badge variant={verifiedCount ? "success" : "neutral"}>
-				{verifiedCount} verificado{verifiedCount === 1 ? "" : "s"}
-			</Badge>
-			<Badge variant={rejectedCount ? "error" : "neutral"}>
-				{rejectedCount} por corregir
-			</Badge>
-		</div>
-	</div>
-
 	<div class="space-y-3" data-optional-documents-list>
 		{
 			documents.length ? (
@@ -135,11 +112,24 @@ const selectedType = documentTypes.some((item) => item.value === defaultUploadTy
 				data-optional-upload-form
 			>
 				<input type="hidden" name="action" value="submit" />
-				<div>
-					<h3 class="text-base font-semibold text-slate-950">Subir documento opcional</h3>
-					<p class="mt-1 text-sm leading-6 text-slate-600">
-						Adjunta PDF o imagen (máx. 12&nbsp;MB). Los mínimos se suben en Verificación.
-					</p>
+				<div class="flex flex-wrap items-start justify-between gap-3">
+					<div>
+						<h3 class="text-base font-semibold text-slate-950">Subir documento opcional</h3>
+						<p class="mt-1 text-sm leading-6 text-slate-600">
+							Adjunta PDF o imagen (máx. 12&nbsp;MB). Los mínimos se suben en Verificación.
+						</p>
+					</div>
+					<div class="flex flex-wrap gap-2">
+						<Badge variant={pendingCount ? "warning" : "neutral"}>
+							{pendingCount} enviado{pendingCount === 1 ? "" : "s"}
+						</Badge>
+						<Badge variant={verifiedCount ? "success" : "neutral"}>
+							{verifiedCount} verificado{verifiedCount === 1 ? "" : "s"}
+						</Badge>
+						<Badge variant={rejectedCount ? "error" : "neutral"}>
+							{rejectedCount} por corregir
+						</Badge>
+					</div>
 				</div>
 				<label class="grid gap-2 text-sm font-medium text-slate-700">
 					Tipo

@@ -43,7 +43,9 @@ describe("V0 trust map IA + glossary (cuenta vs docs)", () => {
 			"#verification-status-panel"
 		)
 		expect(links.find((link) => link.id === "business")?.href).toContain("#kyc-slots")
-		expect(links.find((link) => link.id === "fiscal")?.href).toContain("/tax-fees/identity")
+		expect(links.find((link) => link.id === "fiscal")?.href).toContain(
+			"/verification/fiscal"
+		)
 		expect(links.find((link) => link.id === "payments")?.href).toContain("/payments")
 	})
 
@@ -83,6 +85,7 @@ describe("V0 trust map IA + glossary (cuenta vs docs)", () => {
 		const view = read("src/components/provider/ProviderVerificationView.astro")
 		const card = read("src/components/provider/ProviderKycSlotsCard.astro")
 		const rail = read("src/components/provider/ProviderTrustMapRail.astro")
+		const railClient = read("src/pages/provider/settings/_client/provider-trust-rail.js")
 		const lib = read("src/lib/provider-trust-map.ts")
 
 		expect(lib).toContain("TRUST_GLOSSARY")
@@ -95,6 +98,7 @@ describe("V0 trust map IA + glossary (cuenta vs docs)", () => {
 
 		expect(rail).toContain("data-trust-map-rail")
 		expect(rail).toContain("data-trust-link")
+		expect(rail).toContain('data-astro-prefetch="hover"')
 		expect(rail).toContain('role="tablist"')
 		expect(rail).toContain('role="tab"')
 		expect(rail).toContain("resolveInitialActiveId")
@@ -105,9 +109,13 @@ describe("V0 trust map IA + glossary (cuenta vs docs)", () => {
 		expect(rail).toContain("TabsOutsidePanel")
 		expect(rail).toContain('data-trust-tabs-style="rates"')
 		expect(rail).toContain('data-active={active ? "true" : "false"}')
-		expect(rail).toContain("resolveTrustRailActiveId")
-		expect(rail).toContain("window.location.hash === \"#kyc-slots\"")
-		expect(rail).toContain('window.location.hash.startsWith("#kyc-slot-")')
+		expect(rail).toContain("provider-trust-rail.js")
+		expect(railClient).toContain("resolveTrustRailActiveId")
+		expect(railClient).toContain("/provider/settings/verification/fiscal")
+		expect(railClient).toContain('window.location.hash === "#kyc-slots"')
+		expect(railClient).toContain('window.location.hash.startsWith("#kyc-slot-")')
+		expect(railClient).toContain("provider-verification-trust-sync")
+		expect(railClient).toContain("astro:page-load")
 		expect(rail).toContain("fastt-tabs-outside-panel__item px-3 py-2 text-sm font-semibold whitespace-nowrap")
 		expect(rail).toContain("text-slate-600 hover:bg-sky-100/80 hover:text-sky-950")
 		expect(rail).toContain("data-trust-link-status")

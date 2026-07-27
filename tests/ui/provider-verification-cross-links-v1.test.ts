@@ -31,7 +31,7 @@ describe("V1 verification cross-links + hub coach alignment", () => {
 			PROFILE_LEGAL_NAME_HREF
 		)
 		expect(linksMissingLegal.find((link) => link.id === "fiscal")?.href).toContain(
-			"/tax-fees/identity"
+			"/verification/fiscal"
 		)
 		expect(linksMissingLegal.find((link) => link.id === "payments")?.href).toContain("/payments")
 

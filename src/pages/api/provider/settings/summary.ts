@@ -39,11 +39,14 @@ export const GET: APIRoute = async ({ request }) => {
 	providerIdForLog = providerSession?.providerId ?? null
 	if (!providerSession?.userId) return jsonWithTiming({ error: "Unauthorized" }, 401)
 	if (!providerSession.providerId) return jsonWithTiming({ error: "Provider not found" }, 404)
+	const url = new URL(request.url)
+	const scope = url.searchParams.get("scope") === "hub" ? "hub" : "full"
 
 	const summary = await buildProviderSettingsSummary({
 		providerId: providerSession.providerId,
 		userId: providerSession.userId,
 		timing,
+		scope,
 	})
 	if (!summary) return jsonWithTiming({ error: "Provider not found" }, 404)
 

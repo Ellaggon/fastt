@@ -36,7 +36,7 @@ describe("S2-4 admin SLA/assignee + provider mirror", () => {
 		const admin = read("src/pages/admin/providers.astro")
 		const assign = read("src/components/admin/AdminComplianceSlaAssign.astro")
 		const verification = read("src/pages/provider/settings/verification.astro")
-		const identity = read("src/pages/provider/settings/tax-fees/identity.astro")
+		const identity = read("src/pages/provider/settings/verification/fiscal.astro")
 		const view = read("src/components/provider/ProviderVerificationView.astro")
 		const ops = read("src/lib/provider-compliance-ops.ts")
 

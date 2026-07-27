@@ -106,8 +106,8 @@ describe("S5-6 settings funnel analytics (blocker→CTA→complete)", () => {
 		const governance = read("src/lib/provider-governance.ts")
 		const profile = read("src/pages/provider/settings/profile.astro")
 		const verification = read("src/pages/provider/settings/verification.astro")
-		const payments = read("src/pages/provider/settings/payments.astro")
-		const fiscal = read("src/pages/provider/settings/tax-fees/identity.astro")
+		const payments = read("src/pages/provider/settings/verification/payments.astro")
+		const fiscal = read("src/pages/provider/settings/verification/fiscal.astro")
 		const envExample = read(".env.example")
 
 		expect(helper).toContain("provider.settings.funnel.blocker_shown")
