@@ -20,6 +20,7 @@ import {
 	gt,
 	inArray,
 	InventoryResource,
+	isNull,
 	ne,
 	Product,
 	ProviderExternalCalendar,
@@ -433,10 +434,213 @@ async function ensureExternalCalendarConnection(providerId: string): Promise<str
 		status: "pending",
 		mode: "production",
 		scopesJson: ["calendar:import"],
+		// Due scheduling is calendar-level; connection syncEnabled stays false.
+		syncEnabled: false,
 		createdAt: new Date(),
 		updatedAt: new Date(),
 	})
 	return id
+}
+
+export type ExternalCalendarFeedRollupRow = {
+	status: string
+	lastSyncAt: Date | null
+	lastSyncStatus: string | null
+	lastError: string | null
+	consecutiveFailures: number
+	nextSyncAt: Date | null
+	syncEnabled: boolean
+}
+
+export type ExternalCalendarConnectionRollup = {
+	status: "not_configured" | "pending" | "connected" | "requires_attention" | "revoked"
+	lastSyncAt: Date | null
+	lastSyncStatus: string | null
+	errorMessage: string | null
+	consecutiveFailures: number
+	nextSyncAt: Date | null
+	syncEnabled: false
+}
+
+/**
+ * Pure rollup rules for the external_calendars connection.
+ * Active feeds = non-revoked. Connection schedule fields are display/aggregate only;
+ * due-ness for workers stays on ProviderExternalCalendar.nextSyncAt.
+ */
+export function computeExternalCalendarConnectionRollup(params: {
+	activeFeeds: ExternalCalendarFeedRollupRow[]
+	revokedFeedCount: number
+}): ExternalCalendarConnectionRollup {
+	const { activeFeeds, revokedFeedCount } = params
+	if (!activeFeeds.length) {
+		return {
+			status: revokedFeedCount > 0 ? "revoked" : "not_configured",
+			lastSyncAt: null,
+			lastSyncStatus: revokedFeedCount > 0 ? "revoked" : null,
+			errorMessage: null,
+			consecutiveFailures: 0,
+			nextSyncAt: null,
+			syncEnabled: false,
+		}
+	}
+
+	const errored = activeFeeds.filter((feed) => feed.status === "error")
+	if (errored.length) {
+		const latestError = [...errored].sort(
+			(a, b) => Number(b.lastSyncAt ?? 0) - Number(a.lastSyncAt ?? 0)
+		)[0]
+		const dueCandidates = activeFeeds
+			.filter((feed) => feed.syncEnabled && feed.nextSyncAt)
+			.map((feed) => feed.nextSyncAt as Date)
+		return {
+			status: "requires_attention",
+			lastSyncAt: maxDate(activeFeeds.map((feed) => feed.lastSyncAt)),
+			lastSyncStatus: "error",
+			errorMessage: latestError?.lastError ? String(latestError.lastError) : null,
+			consecutiveFailures: Math.max(
+				0,
+				...activeFeeds.map((feed) => Number(feed.consecutiveFailures ?? 0))
+			),
+			nextSyncAt: minDate(dueCandidates),
+			syncEnabled: false,
+		}
+	}
+
+	const allPending = activeFeeds.every((feed) => feed.status === "pending")
+	const dueCandidates = activeFeeds
+		.filter((feed) => feed.syncEnabled && feed.nextSyncAt)
+		.map((feed) => feed.nextSyncAt as Date)
+	const latest = [...activeFeeds].sort(
+		(a, b) => Number(b.lastSyncAt ?? 0) - Number(a.lastSyncAt ?? 0)
+	)[0]
+
+	return {
+		status: allPending ? "pending" : "connected",
+		lastSyncAt: maxDate(activeFeeds.map((feed) => feed.lastSyncAt)),
+		lastSyncStatus: allPending ? null : (latest?.lastSyncStatus ?? null),
+		errorMessage: null,
+		consecutiveFailures: Math.max(
+			0,
+			...activeFeeds.map((feed) => Number(feed.consecutiveFailures ?? 0))
+		),
+		nextSyncAt: minDate(dueCandidates),
+		syncEnabled: false,
+	}
+}
+
+function maxDate(values: Array<Date | null | undefined>): Date | null {
+	const dates = values.filter((value): value is Date => value instanceof Date)
+	if (!dates.length) return null
+	return dates.reduce((latest, value) => (value.getTime() > latest.getTime() ? value : latest))
+}
+
+function minDate(values: Date[]): Date | null {
+	if (!values.length) return null
+	return values.reduce((earliest, value) =>
+		value.getTime() < earliest.getTime() ? value : earliest
+	)
+}
+
+/** Single writer for external_calendars connection aggregate state. */
+export async function refreshExternalCalendarConnectionRollup(
+	providerId: string
+): Promise<string | null> {
+	const calendars = await db
+		.select({
+			id: ProviderExternalCalendar.id,
+			status: ProviderExternalCalendar.status,
+			lastSyncAt: ProviderExternalCalendar.lastSyncAt,
+			lastSyncStatus: ProviderExternalCalendar.lastSyncStatus,
+			lastError: ProviderExternalCalendar.lastError,
+			consecutiveFailures: ProviderExternalCalendar.consecutiveFailures,
+			nextSyncAt: ProviderExternalCalendar.nextSyncAt,
+			syncEnabled: ProviderExternalCalendar.syncEnabled,
+			connectionId: ProviderExternalCalendar.connectionId,
+		})
+		.from(ProviderExternalCalendar)
+		.where(eq(ProviderExternalCalendar.providerId, providerId))
+
+	const activeFeeds = calendars.filter((row) => row.status !== "revoked")
+	const revokedFeedCount = calendars.length - activeFeeds.length
+	if (!calendars.length) {
+		const existing = await db
+			.select({ id: ProviderIntegrationConnection.id })
+			.from(ProviderIntegrationConnection)
+			.where(
+				and(
+					eq(ProviderIntegrationConnection.providerId, providerId),
+					eq(ProviderIntegrationConnection.connectorKey, "external_calendars")
+				)
+			)
+			.then((rows) => rows[0])
+		if (!existing?.id) return null
+		const empty = computeExternalCalendarConnectionRollup({
+			activeFeeds: [],
+			revokedFeedCount: 0,
+		})
+		await db
+			.update(ProviderIntegrationConnection)
+			.set({
+				status: empty.status,
+				lastSyncAt: empty.lastSyncAt,
+				lastSyncStatus: empty.lastSyncStatus,
+				errorMessage: empty.errorMessage,
+				consecutiveFailures: empty.consecutiveFailures,
+				nextSyncAt: empty.nextSyncAt,
+				syncEnabled: false,
+				updatedAt: new Date(),
+			})
+			.where(eq(ProviderIntegrationConnection.id, existing.id))
+		return existing.id
+	}
+
+	const connectionId =
+		activeFeeds.find((row) => row.connectionId)?.connectionId ??
+		calendars.find((row) => row.connectionId)?.connectionId ??
+		(await ensureExternalCalendarConnection(providerId))
+
+	// Heal legacy null connectionId rows before NOT NULL constraint.
+	const orphans = calendars.filter((row) => !row.connectionId)
+	if (orphans.length) {
+		await db
+			.update(ProviderExternalCalendar)
+			.set({ connectionId, updatedAt: new Date() })
+			.where(
+				and(
+					eq(ProviderExternalCalendar.providerId, providerId),
+					isNull(ProviderExternalCalendar.connectionId)
+				)
+			)
+	}
+
+	const rollup = computeExternalCalendarConnectionRollup({
+		activeFeeds: activeFeeds.map((feed) => ({
+			status: String(feed.status),
+			lastSyncAt: feed.lastSyncAt ?? null,
+			lastSyncStatus: feed.lastSyncStatus ? String(feed.lastSyncStatus) : null,
+			lastError: feed.lastError ? String(feed.lastError) : null,
+			consecutiveFailures: Number(feed.consecutiveFailures ?? 0),
+			nextSyncAt: feed.nextSyncAt ?? null,
+			syncEnabled: Boolean(feed.syncEnabled),
+		})),
+		revokedFeedCount,
+	})
+
+	await db
+		.update(ProviderIntegrationConnection)
+		.set({
+			status: rollup.status,
+			lastSyncAt: rollup.lastSyncAt,
+			lastSyncStatus: rollup.lastSyncStatus,
+			errorMessage: rollup.errorMessage,
+			consecutiveFailures: rollup.consecutiveFailures,
+			nextSyncAt: rollup.nextSyncAt,
+			syncEnabled: false,
+			updatedAt: new Date(),
+		})
+		.where(eq(ProviderIntegrationConnection.id, connectionId))
+
+	return connectionId
 }
 
 function sha256(value: string): string {
@@ -673,16 +877,14 @@ export async function syncProviderExternalCalendar(params: {
 		resolveProviderIntegrationIncidentByKey,
 		startProviderIntegrationSyncRun,
 	} = await import("@/lib/provider-integration-operations")
-	const run = calendar.connectionId
-		? await startProviderIntegrationSyncRun({
-				providerId: params.providerId,
-				connectionId: calendar.connectionId,
-				operation: "calendar_import",
-				trigger: params.trigger ?? "manual",
-				requestedBy: params.currentUserId,
-				idempotencyKey: params.idempotencyKey,
-			})
-		: null
+	const run = await startProviderIntegrationSyncRun({
+		providerId: params.providerId,
+		connectionId: calendar.connectionId!,
+		operation: "calendar_import",
+		trigger: params.trigger ?? "manual",
+		requestedBy: params.currentUserId,
+		idempotencyKey: params.idempotencyKey,
+	})
 
 	try {
 		const feedUrl = decryptExternalCalendarUrl({
@@ -712,22 +914,20 @@ export async function syncProviderExternalCalendar(params: {
 					updatedAt: now,
 				})
 				.where(eq(ProviderExternalCalendar.id, calendar.id))
-			if (run) {
-				await finishProviderIntegrationSyncRun({
-					providerId: params.providerId,
-					runId: run.id,
-					status: "succeeded",
-					readCount: Number(calendar.lastEventCount ?? 0),
-					skippedCount: Number(calendar.lastEventCount ?? 0),
-					summaryJson: { calendarId: calendar.id, notModified: true },
-				})
-				await resolveProviderIntegrationIncidentByKey({
-					providerId: params.providerId,
-					connectionId: calendar.connectionId!,
-					dedupeKey: `calendar_sync_failed:${calendar.id}`,
-					resolvedBy: params.currentUserId,
-				})
-			}
+			await finishProviderIntegrationSyncRun({
+				providerId: params.providerId,
+				runId: run.id,
+				status: "succeeded",
+				readCount: Number(calendar.lastEventCount ?? 0),
+				skippedCount: Number(calendar.lastEventCount ?? 0),
+				summaryJson: { calendarId: calendar.id, notModified: true },
+			})
+			await resolveProviderIntegrationIncidentByKey({
+				providerId: params.providerId,
+				connectionId: calendar.connectionId!,
+				dedupeKey: `calendar_sync_failed:${calendar.id}`,
+				resolvedBy: params.currentUserId,
+			})
 			return { status: "not_modified" as const, imported: Number(calendar.lastEventCount ?? 0) }
 		}
 
@@ -802,16 +1002,6 @@ export async function syncProviderExternalCalendar(params: {
 					updatedAt: now,
 				})
 				.where(eq(ProviderExternalCalendar.id, calendar.id))
-			await tx
-				.update(ProviderIntegrationConnection)
-				.set({
-					status: "connected",
-					lastSyncAt: now,
-					lastSyncStatus: "success",
-					errorMessage: null,
-					updatedAt: now,
-				})
-				.where(eq(ProviderIntegrationConnection.id, calendar.connectionId ?? ""))
 		})
 
 		await recomputeCalendarRange(
@@ -819,23 +1009,21 @@ export async function syncProviderExternalCalendar(params: {
 			[...previous, ...parsed],
 			"external_calendar_sync"
 		)
-		if (run) {
-			await finishProviderIntegrationSyncRun({
-				providerId: params.providerId,
-				runId: run.id,
-				status: "succeeded",
-				readCount: parsed.length,
-				changedCount: parsed.length,
-				summaryJson: { calendarId: calendar.id, imported: parsed.length },
-			})
-			await resolveProviderIntegrationIncidentByKey({
-				providerId: params.providerId,
-				connectionId: calendar.connectionId!,
-				dedupeKey: `calendar_sync_failed:${calendar.id}`,
-				resolvedBy: params.currentUserId,
-				resolutionNote: "El calendario volvió a sincronizar correctamente.",
-			})
-		}
+		await finishProviderIntegrationSyncRun({
+			providerId: params.providerId,
+			runId: run.id,
+			status: "succeeded",
+			readCount: parsed.length,
+			changedCount: parsed.length,
+			summaryJson: { calendarId: calendar.id, imported: parsed.length },
+		})
+		await resolveProviderIntegrationIncidentByKey({
+			providerId: params.providerId,
+			connectionId: calendar.connectionId!,
+			dedupeKey: `calendar_sync_failed:${calendar.id}`,
+			resolvedBy: params.currentUserId,
+			resolutionNote: "El calendario volvió a sincronizar correctamente.",
+		})
 		return { status: "success" as const, imported: parsed.length }
 	} catch (error) {
 		const message = error instanceof Error ? error.message : "ICAL_SYNC_FAILED"
@@ -849,47 +1037,35 @@ export async function syncProviderExternalCalendar(params: {
 				updatedAt: now,
 			})
 			.where(eq(ProviderExternalCalendar.id, calendar.id))
-		if (calendar.connectionId) {
-			await db
-				.update(ProviderIntegrationConnection)
-				.set({
-					status: "requires_attention",
-					lastSyncAt: now,
-					lastSyncStatus: "error",
-					errorMessage: message,
-					updatedAt: now,
-				})
-				.where(eq(ProviderIntegrationConnection.id, calendar.connectionId))
-		}
-		if (run && calendar.connectionId) {
-			await finishProviderIntegrationSyncRun({
-				providerId: params.providerId,
-				runId: run.id,
-				status: "failed",
-				failedCount: 1,
-				errorCode: message,
-				errorMessage: mapExternalCalendarError(message),
-				summaryJson: { calendarId: calendar.id },
-			})
-			await recordProviderIntegrationIncident({
-				providerId: params.providerId,
-				connectionId: calendar.connectionId,
-				syncRunId: run.id,
-				input: {
-					dedupeKey: `calendar_sync_failed:${calendar.id}`,
-					code: message.slice(0, 100),
-					category: "remote_api",
-					severity: "error",
-					title: `No se pudo actualizar ${calendar.name}`,
-					description: mapExternalCalendarError(message),
-					actionLabel: "Revisar calendario",
-					actionHref: "/provider/settings/integrations?mode=pro",
-					entityType: "calendar",
-					entityId: calendar.id,
-				},
-			})
-		}
+		await finishProviderIntegrationSyncRun({
+			providerId: params.providerId,
+			runId: run.id,
+			status: "failed",
+			failedCount: 1,
+			errorCode: message,
+			errorMessage: mapExternalCalendarError(message),
+			summaryJson: { calendarId: calendar.id },
+		})
+		await recordProviderIntegrationIncident({
+			providerId: params.providerId,
+			connectionId: calendar.connectionId!,
+			syncRunId: run.id,
+			input: {
+				dedupeKey: `calendar_sync_failed:${calendar.id}`,
+				code: message.slice(0, 100),
+				category: "remote_api",
+				severity: "error",
+				title: `No se pudo actualizar ${calendar.name}`,
+				description: mapExternalCalendarError(message),
+				actionLabel: "Revisar calendario",
+				actionHref: "/provider/settings/integrations?mode=pro",
+				entityType: "calendar",
+				entityId: calendar.id,
+			},
+		})
 		throw error
+	} finally {
+		await refreshExternalCalendarConnectionRollup(params.providerId)
 	}
 }
 
@@ -972,28 +1148,7 @@ export async function revokeProviderExternalCalendar(params: {
 			.where(eq(ProviderExternalCalendarEvent.calendarId, calendar.id))
 	})
 	await recomputeCalendarRange(calendar.variantId, previous, "external_calendar_revoked")
-	if (calendar.connectionId) {
-		const remaining = await db
-			.select({ id: ProviderExternalCalendar.id })
-			.from(ProviderExternalCalendar)
-			.where(
-				and(
-					eq(ProviderExternalCalendar.providerId, params.providerId),
-					ne(ProviderExternalCalendar.status, "revoked")
-				)
-			)
-		if (!remaining.length) {
-			await db
-				.update(ProviderIntegrationConnection)
-				.set({
-					status: "revoked",
-					lastSyncStatus: "revoked",
-					errorMessage: null,
-					updatedAt: new Date(),
-				})
-				.where(eq(ProviderIntegrationConnection.id, calendar.connectionId))
-		}
-	}
+	await refreshExternalCalendarConnectionRollup(params.providerId)
 }
 
 export async function createProviderExternalCalendarExport(params: {

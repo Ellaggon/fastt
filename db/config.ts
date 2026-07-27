@@ -659,7 +659,6 @@ const ProviderExternalCalendar = defineTable({
 		id: column.text({ primaryKey: true }),
 		providerId: column.text({ references: () => Provider.columns.id }),
 		connectionId: column.text({
-			optional: true,
 			references: () => ProviderIntegrationConnection.columns.id,
 		}),
 		variantId: column.text({ references: () => Variant.columns.id }),

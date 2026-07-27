@@ -818,7 +818,7 @@ export const ProviderExternalCalendar = pgTable(
 	{
 		id: pk(),
 		providerId: txt("providerId").references(() => Provider.id),
-		connectionId: txtOpt("connectionId").references(() => ProviderIntegrationConnection.id),
+		connectionId: txt("connectionId").references(() => ProviderIntegrationConnection.id),
 		variantId: txt("variantId").references(() => Variant.id),
 		resourceId: txtOpt("resourceId").references(() => InventoryResource.id),
 		name: txt("name"),

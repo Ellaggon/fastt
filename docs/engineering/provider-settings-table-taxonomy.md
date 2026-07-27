@@ -326,8 +326,9 @@ subresource for this,” stop.
 **`ProviderExternalCalendar` vs Connection rollup**
 
 - Calendar row = **granular** feed truth: per-feed `status` (`pending` \| `active` \| `error` \| `revoked`), `lastSyncAt` / `lastSyncStatus` / `lastError`, `syncEnabled`, `syncIntervalMinutes`, `nextSyncAt`, `consecutiveFailures`.
-- Due scheduling for iCal is **calendar-level** (`nextSyncAt` on the feed). The generic integration scheduler excludes `connectorKey = external_calendars`.
-- Connection with `connectorKey = external_calendars` = **aggregated rollup** for governance/UI (e.g. any feed error ⇒ `requires_attention`), not the source of per-feed due-ness. Phase 4 formalizes a single rollup helper; until then, treat calendar rows as authoritative for feed health.
+- Due scheduling for iCal is **calendar-level** (`ProviderExternalCalendar.nextSyncAt`). The generic integration scheduler excludes `connectorKey = external_calendars` and must not treat connection `nextSyncAt` as a due-source for feeds.
+- Connection with `connectorKey = external_calendars` = **aggregated rollup** written only by `refreshExternalCalendarConnectionRollup(providerId)` after create/sync/revoke (and after calendar job failure side-effects). Rules: no feeds → `not_configured`; all revoked → `revoked`; any feed `error` → `requires_attention`; all pending → `pending`; otherwise `connected`. Connection `syncEnabled` stays `false`.
+- `ProviderExternalCalendar.connectionId` is **NOT NULL** (every feed belongs to the rollup connection).
 
 **Cache columns (not sources of truth)**
 

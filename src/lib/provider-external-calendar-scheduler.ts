@@ -10,6 +10,7 @@ import {
 	sql,
 } from "@/shared/infrastructure/db/compat"
 import {
+	refreshExternalCalendarConnectionRollup,
 	syncProviderExternalCalendar,
 	type ExternalCalendarSyncTrigger,
 } from "@/lib/provider-external-calendars"
@@ -258,6 +259,7 @@ async function finishExternalCalendarSyncJob(params: {
 			"updatedAt" = ${now.toISOString()}
 		WHERE "id" = ${params.job.targetId}
 	`)
+	await refreshExternalCalendarConnectionRollup(params.job.providerId)
 }
 
 export async function runScheduledExternalCalendarSync(options?: {
