@@ -1003,8 +1003,6 @@ export async function revokeProviderExternalCalendar(params: {
 				lastSyncStatus: "revoked",
 				lastError: null,
 				syncEnabled: false,
-				syncLeaseToken: null,
-				syncLeaseUntil: null,
 				updatedAt: new Date(),
 			})
 			.where(eq(ProviderExternalCalendar.id, calendar.id))

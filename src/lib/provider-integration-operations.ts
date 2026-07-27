@@ -29,10 +29,18 @@ export type IntegrationMappingInput = {
 
 export type IntegrationRunStatus = "running" | "succeeded" | "partial" | "failed" | "cancelled"
 
+/** Connector/ops failure classes. Inventory overlaps use ProviderExternalCalendarConflict. */
+export type IntegrationIncidentCategory =
+	| "authentication"
+	| "mapping"
+	| "remote_api"
+	| "data_quality"
+	| "system"
+
 export type IntegrationIncidentInput = {
 	dedupeKey: string
 	code: string
-	category: "authentication" | "mapping" | "conflict" | "remote_api" | "data_quality" | "system"
+	category: IntegrationIncidentCategory
 	severity: "info" | "warning" | "error" | "critical"
 	title: string
 	description: string

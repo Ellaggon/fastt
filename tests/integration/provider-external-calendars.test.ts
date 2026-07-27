@@ -353,8 +353,8 @@ describe("integration/provider external calendars", () => {
 			.from(ProviderExternalCalendar)
 			.where(eq(ProviderExternalCalendar.id, firstId))
 			.then((rows) => rows[0])
-		expect(scheduledCalendar?.syncLeaseToken).toBeNull()
 		expect(scheduledCalendar?.lastAutomaticSyncAt).not.toBeNull()
+		expect(scheduledCalendar?.consecutiveFailures).toBe(0)
 		expect(scheduledCalendar?.nextSyncAt.getTime()).toBeGreaterThan(scheduledAt.getTime())
 		const scheduledRuns = await db
 			.select()
@@ -390,7 +390,6 @@ describe("integration/provider external calendars", () => {
 			.from(ProviderExternalCalendar)
 			.where(eq(ProviderExternalCalendar.id, firstId))
 			.then((rows) => rows[0])
-		expect(failedCalendar?.syncLeaseToken).toBeNull()
 		expect(failedCalendar?.consecutiveFailures).toBe(1)
 		expect(failedCalendar?.nextSyncAt.getTime()).toBeGreaterThan(failureAt.getTime())
 		const openIncidents = await db

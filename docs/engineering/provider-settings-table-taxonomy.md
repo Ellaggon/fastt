@@ -330,8 +330,7 @@ subresource for this,” stop.
 **Cache columns (not sources of truth)**
 
 - `catalogJson` / `lastCatalogSyncAt` on Connection are temporary smoke/preview cache for channel managers. Mappings remain the durable local↔external contract. Do not invent `ProviderIntegrationRemoteEntity` until a real catalog importer needs queryable remote entities.
-- `previewJson` / `lastPreviewAt` are dead and scheduled for Phase 1 removal.
-- Calendar `syncLeaseToken` / `syncLeaseUntil` are unused (locking lives on SyncJob) and scheduled for Phase 1 removal.
+- Removed in Phase 1: Connection `previewJson` / `lastPreviewAt` (never used) and Calendar `syncLeaseToken` / `syncLeaseUntil` (locking lives on SyncJob).
 
 ### Schema freeze (Phases 1–3)
 
@@ -349,7 +348,7 @@ removal → universal job queue).
 
 - Documentation and this taxonomy.
 - Bug fixes that do not add tables.
-- Column drops / deprecations in Phases 1–2.
+- Column drops / deprecations in Phases 1–2 (Phase 1 dead columns are done).
 - Evolving `ProviderIntegrationSyncJob` into the universal queue and dropping
   `ProviderExternalCalendarSyncJob` (Phase 3).
 - Emergency production hotfixes (must name which ownership class they touch and

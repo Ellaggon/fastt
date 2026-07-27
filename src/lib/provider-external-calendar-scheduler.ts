@@ -306,8 +306,6 @@ async function finishJob(params: {
 		SET
 			"consecutiveFailures" = "consecutiveFailures" + 1,
 			"nextSyncAt" = ${retryAt.toISOString()},
-			"syncLeaseToken" = NULL,
-			"syncLeaseUntil" = NULL,
 			"updatedAt" = ${now.toISOString()}
 		WHERE "id" = ${params.job.calendarId}
 	`)
