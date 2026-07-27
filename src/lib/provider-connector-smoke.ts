@@ -7,7 +7,8 @@ export type ConnectorSmokeResult = {
 	ok: boolean
 	message: string
 	latencyMs: number
-	probe: "https" | "vault" | "oauth2" | "test_harness" | "none"
+	probe: "https" | "vault" | "oauth2" | "vendor_api" | "test_harness" | "none"
+	trustLevel: "verified_connection" | "structural_reference" | "failed"
 }
 
 const DEFAULT_TIMEOUT_MS = 5000
@@ -48,6 +49,7 @@ async function probeHttps(url: string, timeoutMs: number): Promise<ConnectorSmok
 				message: `Smoke HTTPS OK (HTTP ${response.status}) en ${latencyMs}ms.`,
 				latencyMs,
 				probe: "https",
+				trustLevel: "verified_connection",
 			}
 		}
 		return {
@@ -55,6 +57,7 @@ async function probeHttps(url: string, timeoutMs: number): Promise<ConnectorSmok
 			message: `Smoke HTTPS falló (HTTP ${response.status}).`,
 			latencyMs,
 			probe: "https",
+			trustLevel: "failed",
 		}
 	} catch (error) {
 		const latencyMs = Date.now() - started
@@ -64,6 +67,7 @@ async function probeHttps(url: string, timeoutMs: number): Promise<ConnectorSmok
 			message: `Smoke HTTPS no alcanzó el endpoint: ${reason}`,
 			latencyMs,
 			probe: "https",
+			trustLevel: "failed",
 		}
 	} finally {
 		clearTimeout(timer)
@@ -91,6 +95,7 @@ export async function runConnectorSmokeTest(params: {
 			message: "No hay credentialsRef para probar.",
 			latencyMs: 0,
 			probe: "none",
+			trustLevel: "failed",
 		}
 	}
 
@@ -100,6 +105,7 @@ export async function runConnectorSmokeTest(params: {
 			message: "Smoke harness OK (test://smoke-ok).",
 			latencyMs: 1,
 			probe: "test_harness",
+			trustLevel: "verified_connection",
 		}
 	}
 
@@ -115,6 +121,7 @@ export async function runConnectorSmokeTest(params: {
 				message: "vault:// debe incluir al menos secret/path.",
 				latencyMs: 0,
 				probe: "vault",
+				trustLevel: "failed",
 			}
 		}
 		return {
@@ -122,6 +129,7 @@ export async function runConnectorSmokeTest(params: {
 			message: `Referencia vault válida para ${params.connectorKey} (${params.mode ?? "sandbox"}).`,
 			latencyMs: 0,
 			probe: "vault",
+			trustLevel: "structural_reference",
 		}
 	}
 
@@ -131,6 +139,7 @@ export async function runConnectorSmokeTest(params: {
 			message: `Referencia OAuth válida para ${params.connectorKey} (${params.mode ?? "sandbox"}).`,
 			latencyMs: 0,
 			probe: "oauth2",
+			trustLevel: "structural_reference",
 		}
 	}
 
@@ -140,5 +149,6 @@ export async function runConnectorSmokeTest(params: {
 			"credentialsRef debe ser https://… (probe real), vault://… o oauth2://… (OAuth-grade).",
 		latencyMs: 0,
 		probe: "none",
+		trustLevel: "failed",
 	}
 }

@@ -10,6 +10,7 @@ import {
 	eq,
 	inArray,
 	Product,
+	ProviderIntegrationMapping,
 	RatePlan,
 	RatePlanOccupancyPolicy,
 	SearchUnitView,
@@ -278,6 +279,16 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 					delete from "TaxFeeAssignment"
 					where "scope" = 'rate_plan' and "scopeId" = ${ratePlanId}
 				`)
+			)
+			await removeOptional(() =>
+				tx
+					.delete(ProviderIntegrationMapping)
+					.where(
+						and(
+							eq(ProviderIntegrationMapping.localEntityType, "rate_plan"),
+							eq(ProviderIntegrationMapping.localEntityId, ratePlanId)
+						)
+					)
 			)
 			await tx.delete(RatePlan).where(eq(RatePlan.id, ratePlanId))
 			if (legacyTemplate?.templateId) {

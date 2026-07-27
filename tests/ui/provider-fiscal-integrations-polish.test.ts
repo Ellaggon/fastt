@@ -12,14 +12,12 @@ function read(relativePath: string) {
 describe("S4-6 fiscal withhold explainer + Pro docs-lite", () => {
 	it("exposes docs-lite help for every connector in the catalog", () => {
 		const catalog = listProviderConnectorCatalog()
-		expect(catalog.length).toBeGreaterThanOrEqual(5)
+		expect(catalog.length).toBeGreaterThanOrEqual(4)
 		for (const item of catalog) {
 			expect(item.docsLite.title.length).toBeGreaterThan(8)
 			expect(item.docsLite.steps.length).toBeGreaterThan(0)
 		}
-		expect(catalog.find((item) => item.key === "payment_gateway")?.docsLite.title).toContain(
-			"pasarela"
-		)
+		expect(catalog.some((item) => String(item.key) === "payment_gateway")).toBe(false)
 	})
 
 	it("wires withhold explainer on fiscal identity and docs-lite in Simple+Pro integrations", () => {

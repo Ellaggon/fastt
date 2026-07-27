@@ -56,7 +56,13 @@ export let ProviderDocument: any
 export let ProviderTaxConfiguration: any
 export let ProviderPaymentAccount: any
 export let ProviderIntegrationConnection: any
+export let ProviderIntegrationCredential: any
+export let ProviderIntegrationMapping: any
+export let ProviderIntegrationSyncRun: any
+export let ProviderIntegrationIncident: any
 export let ProviderIntegrationSyncLog: any
+export let ProviderExternalCalendar: any
+export let ProviderExternalCalendarEvent: any
 export let ProviderAuditLog: any
 export let ProviderComplianceAssignment: any
 export let ProviderConfigurationState: any
@@ -210,7 +216,13 @@ async function init() {
 	ProviderTaxConfiguration = drizzleTables.ProviderTaxConfiguration
 	ProviderPaymentAccount = drizzleTables.ProviderPaymentAccount
 	ProviderIntegrationConnection = drizzleTables.ProviderIntegrationConnection
+	ProviderIntegrationCredential = drizzleTables.ProviderIntegrationCredential
+	ProviderIntegrationMapping = drizzleTables.ProviderIntegrationMapping
+	ProviderIntegrationSyncRun = drizzleTables.ProviderIntegrationSyncRun
+	ProviderIntegrationIncident = drizzleTables.ProviderIntegrationIncident
 	ProviderIntegrationSyncLog = drizzleTables.ProviderIntegrationSyncLog
+	ProviderExternalCalendar = drizzleTables.ProviderExternalCalendar
+	ProviderExternalCalendarEvent = drizzleTables.ProviderExternalCalendarEvent
 	ProviderAuditLog = drizzleTables.ProviderAuditLog
 	ProviderComplianceAssignment = drizzleTables.ProviderComplianceAssignment
 	ProviderConfigurationState = drizzleTables.ProviderConfigurationState

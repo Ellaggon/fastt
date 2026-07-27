@@ -3,24 +3,79 @@ import {
 	and,
 	db,
 	eq,
+	Provider,
 	ProviderIntegrationConnection,
 	ProviderIntegrationSyncLog,
-} from "astro:db"
+	ProviderUser,
+	User,
+} from "@/shared/infrastructure/db/compat"
 import {
 	connectProviderIntegration,
 	revokeProviderIntegration,
 	syncProviderIntegration,
 	listProviderIntegrations,
 } from "@/lib/provider-integrations"
-import { upsertProvider } from "../test-support/catalog-db-test-data"
+
+async function upsertPostgresProvider(row: {
+	id: string
+	legalName?: string | null
+	displayName?: string | null
+	ownerEmail: string
+}) {
+	const legalName = String(row.legalName ?? row.displayName ?? `Provider ${row.id}`).trim()
+	const displayName = String(row.displayName ?? row.legalName ?? `Provider ${row.id}`).trim()
+	const email = row.ownerEmail.trim().toLowerCase()
+	const existingUsers = await db
+		.select({ id: User.id })
+		.from(User)
+		.where(eq(User.email, email))
+	const existingUser = existingUsers[0]
+	const userId = existingUser?.id ?? `user_${email}`
+
+	await db
+		.insert(Provider)
+		.values({
+			id: row.id,
+			legalName,
+			displayName,
+			status: "draft",
+			createdAt: new Date(),
+		})
+		.onConflictDoUpdate({
+			target: [Provider.id],
+			set: {
+				legalName,
+				displayName,
+				status: "draft",
+			},
+		})
+
+	if (!existingUser?.id) {
+		await db.insert(User).values({ id: userId, email }).onConflictDoNothing()
+	}
+
+	await db
+		.insert(ProviderUser)
+		.values({
+			id: `provider_user_${row.id}`,
+			providerId: row.id,
+			userId,
+			role: "owner",
+		})
+		.onConflictDoUpdate({
+			target: [ProviderUser.providerId, ProviderUser.userId],
+			set: { role: "owner" },
+		})
+
+	return { userId }
+}
 
 describe("integration/provider integrations product", () => {
 	it("persists connector configuration, sync logs, scopes, mode and revocation", async () => {
 		const providerId = "provider_integrations_product"
 		const ownerEmail = "integrations.product@example.com"
-		const ownerId = `user_${ownerEmail}`
 
-		await upsertProvider({
+		const { userId: ownerId } = await upsertPostgresProvider({
 			id: providerId,
 			legalName: "Integraciones Producto S.R.L.",
 			displayName: "Integraciones Producto",
@@ -33,19 +88,25 @@ describe("integration/provider integrations product", () => {
 			connectorKey: "channel_manager",
 			mode: "sandbox",
 			scopes: ["availability:sync", "rates:sync"],
-			credentialsRef: "vault://provider/channel-manager",
+			credentialsRef: "test://cloudbeds-ok",
+			vendorKey: "cloudbeds",
+			authType: "api_key",
+			externalPropertyId: "cloudbeds_property_1",
 		})
 
-		const connection = await db
+		const connections = await db
 			.select()
 			.from(ProviderIntegrationConnection)
 			.where(eq(ProviderIntegrationConnection.providerId, providerId))
-			.get()
+		const connection = connections[0]
 
 		expect(connection?.connectorKey).toBe("channel_manager")
 		expect(connection?.status).toBe("pending")
 		expect(connection?.mode).toBe("sandbox")
 		expect(connection?.scopesJson).toEqual(["availability:sync", "rates:sync"])
+		expect(connection?.vendorKey).toBe("cloudbeds")
+		expect(connection?.authType).toBe("api_key")
+		expect(connection?.externalPropertyId).toBe("cloudbeds_property_1")
 
 		await syncProviderIntegration({
 			providerId,
@@ -56,21 +117,22 @@ describe("integration/provider integrations product", () => {
 		const cards = await listProviderIntegrations({ providerId, currentUserId: ownerId })
 		const card = cards.find((connector) => connector.key === "channel_manager")
 		expect(card?.status).toBe("connected")
+		expect(card?.vendorKey).toBe("cloudbeds")
 		expect(card?.lastSyncStatus).toBe("success")
 		expect(card?.logs.some((log) => log.eventType === "sync.test")).toBe(true)
 
 		await connectProviderIntegration({
 			providerId,
 			currentUserId: ownerId,
-			connectorKey: "payment_gateway",
+			connectorKey: "external_calendars",
 			mode: "sandbox",
-			scopes: ["payments:authorize"],
+			scopes: ["calendar:import"],
 			credentialsRef: "not-a-real-probe",
 		})
 		const failed = await syncProviderIntegration({
 			providerId,
 			currentUserId: ownerId,
-			connectorKey: "payment_gateway",
+			connectorKey: "external_calendars",
 		})
 		expect(failed.status).toBe("error")
 
@@ -80,7 +142,7 @@ describe("integration/provider integrations product", () => {
 			connectorKey: "channel_manager",
 		})
 
-		const revoked = await db
+		const revokedRows = await db
 			.select()
 			.from(ProviderIntegrationConnection)
 			.where(
@@ -89,7 +151,7 @@ describe("integration/provider integrations product", () => {
 					eq(ProviderIntegrationConnection.connectorKey, "channel_manager")
 				)
 			)
-			.get()
+		const revoked = revokedRows[0]
 		expect(revoked?.status).toBe("revoked")
 		expect(revoked?.credentialsRef).toBeNull()
 
@@ -97,9 +159,8 @@ describe("integration/provider integrations product", () => {
 			.select()
 			.from(ProviderIntegrationSyncLog)
 			.where(eq(ProviderIntegrationSyncLog.providerId, providerId))
-			.all()
 		expect(logs.map((log) => log.eventType)).toEqual(
 			expect.arrayContaining(["configuration.saved", "sync.test", "credentials.revoked"])
 		)
-	})
+	}, 20_000)
 })

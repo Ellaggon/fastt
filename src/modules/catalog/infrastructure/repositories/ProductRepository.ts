@@ -33,6 +33,9 @@ import {
 	RatePlan,
 	SearchUnitView,
 	TaxFeeAssignment,
+	ProviderExternalCalendar,
+	ProviderExternalCalendarEvent,
+	ProviderIntegrationMapping,
 } from "@/shared/infrastructure/db/compat"
 import { DeleteObjectCommand } from "@aws-sdk/client-s3"
 import type { S3Client } from "@aws-sdk/client-s3"
@@ -450,6 +453,20 @@ export class ProductRepository implements ProductRepositoryPort {
 			await db
 				.delete(EffectiveAvailability)
 				.where(inArray(EffectiveAvailability.variantId, variantIds))
+			await db
+				.delete(ProviderExternalCalendarEvent)
+				.where(inArray(ProviderExternalCalendarEvent.variantId, variantIds))
+			await db
+				.delete(ProviderExternalCalendar)
+				.where(inArray(ProviderExternalCalendar.variantId, variantIds))
+			await db
+				.delete(ProviderIntegrationMapping)
+				.where(
+					and(
+						eq(ProviderIntegrationMapping.localEntityType, "variant"),
+						inArray(ProviderIntegrationMapping.localEntityId, variantIds)
+					)
+				)
 			await db.delete(DailyInventory).where(inArray(DailyInventory.variantId, variantIds))
 			await db
 				.delete(VariantInventoryConfig)
@@ -480,6 +497,14 @@ export class ProductRepository implements ProductRepositoryPort {
 		await db
 			.delete(TaxFeeAssignment)
 			.where(and(eq(TaxFeeAssignment.scope, "product"), eq(TaxFeeAssignment.scopeId, productId)))
+		await db
+			.delete(ProviderIntegrationMapping)
+			.where(
+				and(
+					eq(ProviderIntegrationMapping.localEntityType, "product"),
+					eq(ProviderIntegrationMapping.localEntityId, productId)
+				)
+			)
 		await db
 			.delete(PolicyAssignment)
 			.where(and(eq(PolicyAssignment.scope, "product"), eq(PolicyAssignment.scopeId, productId)))

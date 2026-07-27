@@ -5,10 +5,22 @@
 
 const exactMessages: Record<string, string> = {
 	CONNECTION_NOT_FOUND: "No encontramos esa integración. Guárdala primero y vuelve a intentar.",
+	INTEGRATION_CONNECTION_NOT_FOUND: "No encontramos esa conexión o ya no tienes acceso.",
+	INTEGRATION_CONNECTION_REVOKED: "Una conexión revocada no puede establecerse como principal.",
+	INTEGRATION_MAPPING_NOT_FOUND: "No encontramos ese mapeo o ya fue eliminado.",
+	INTEGRATION_INCIDENT_NOT_FOUND: "No encontramos esa incidencia o ya no está disponible.",
 	CONNECTOR_NOT_FOUND: "Ese tipo de conector no está disponible.",
 	unknown_connector: "Ese tipo de conector no está disponible.",
 	unauthorized: "Tu sesión expiró. Vuelve a iniciar sesión.",
 	forbidden: "No tienes permiso para gestionar integraciones.",
+	INTEGRATION_PERMISSION_DENIED: "No tienes permiso para gestionar integraciones.",
+	DISCONNECT_CONFIRMATION_REQUIRED: "Para desconectar, escribe DESCONECTAR y confirma la acción.",
+	INTEGRATION_VAULT_KEY_REQUIRED:
+		"El entorno no tiene configurada la llave segura de integraciones. Configúrala antes de guardar OAuth.",
+	INTEGRATION_VAULT_DECRYPT_FAILED:
+		"No pudimos leer la credencial segura. Vuelve a conectar la integración.",
+	INTEGRATION_VAULT_PAYLOAD_INVALID:
+		"La credencial segura no es válida. Vuelve a conectar la integración.",
 	integration_error: "No se pudo completar la acción. Revisa los datos e inténtalo de nuevo.",
 	credentials_required: "Falta el enlace o la referencia de conexión.",
 	oauth_not_configured:

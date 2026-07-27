@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro"
-import { requireProvider } from "@/lib/auth/requireProvider"
+import { requireProviderIntegrationManager } from "@/lib/provider-integration-auth"
 import {
 	redirectIntegrationsError,
 	redirectIntegrationsSuccess,
@@ -11,7 +11,7 @@ export const POST: APIRoute = async ({ request, params }) => {
 	const form = await request.formData()
 	const uiMode = resolveIntegrationUiMode(form.get("uiMode"))
 	try {
-		const auth = await requireProvider(request)
+		const auth = await requireProviderIntegrationManager(request)
 		await connectProviderIntegration({
 			providerId: auth.providerId,
 			currentUserId: auth.user.id,
@@ -19,6 +19,12 @@ export const POST: APIRoute = async ({ request, params }) => {
 			mode: String(form.get("mode") ?? "sandbox"),
 			scopes: form.getAll("scopes"),
 			credentialsRef: String(form.get("credentialsRef") ?? ""),
+			connectionId: String(form.get("connectionId") ?? "") || null,
+			displayName: String(form.get("displayName") ?? "") || null,
+			createNew: form.get("createNew") === "true",
+			vendorKey: String(form.get("vendorKey") ?? "") || null,
+			authType: String(form.get("authType") ?? "") || null,
+			externalPropertyId: String(form.get("externalPropertyId") ?? "") || null,
 		})
 		return redirectIntegrationsSuccess(request, "integration_saved", uiMode)
 	} catch (error) {

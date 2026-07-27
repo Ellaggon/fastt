@@ -65,14 +65,14 @@ describe("P2 OAuth-grade connect + docs-lite Simple", () => {
 		process.env.CONNECTOR_OAUTH_STATE_SECRET = "test-secret"
 		const state = createConnectorOAuthState({
 			providerId: "prov_1",
-			connectorKey: "payment_gateway",
+			connectorKey: "channel_manager",
 			actorUserId: "user_1",
 			uiMode: "simple",
 			mode: "sandbox",
 		})
 		const parsed = parseConnectorOAuthState(state)
 		expect(parsed?.providerId).toBe("prov_1")
-		expect(parsed?.connectorKey).toBe("payment_gateway")
+		expect(parsed?.connectorKey).toBe("channel_manager")
 		expect(parseConnectorOAuthState(state + "x")).toBeNull()
 	})
 
@@ -101,21 +101,22 @@ describe("P2 OAuth-grade connect + docs-lite Simple", () => {
 		const result = await exchangeConnectorOAuthCode({
 			code: "auth_code",
 			redirectUri: "https://app.test/api/provider/integrations/oauth/callback",
-			connectorKey: "payment_gateway",
+			connectorKey: "channel_manager",
 		})
 		expect(result.ok).toBe(true)
-		expect(result.credentialsRef).toBe(buildConnectorOAuthCredentialsRef("payment_gateway"))
-		expect(result.credentialsRef).toBe("oauth2://payment_gateway")
+		expect(result.credentialsRef).toBe(buildConnectorOAuthCredentialsRef("channel_manager"))
+		expect(result.credentialsRef).toBe("oauth2://channel_manager")
 	})
 
 	it("accepts oauth2:// credentials in smoke", async () => {
 		const smoke = await runConnectorSmokeTest({
-			connectorKey: "payment_gateway",
-			credentialsRef: "oauth2://payment_gateway",
+			connectorKey: "channel_manager",
+			credentialsRef: "oauth2://channel_manager",
 			mode: "sandbox",
 		})
 		expect(smoke.ok).toBe(true)
 		expect(smoke.probe).toBe("oauth2")
+		expect(smoke.trustLevel).toBe("structural_reference")
 	})
 
 	it("builds authorize URL in scaffold or live", () => {

@@ -11,6 +11,7 @@ import {
 	timestamp,
 	uniqueIndex,
 } from "drizzle-orm/pg-core"
+import { sql } from "drizzle-orm"
 
 const pgTable = pgTableCreator((name) => name)
 
@@ -227,22 +228,246 @@ export const ProviderIntegrationConnection = pgTable(
 		id: pk(),
 		providerId: txt("providerId").references(() => Provider.id),
 		connectorKey: txt("connectorKey"),
+		displayName: txtOpt("displayName"),
+		isPrimary: boolDefault("isPrimary", false),
 		status: text("status").default("not_configured").notNull(),
 		mode: text("mode").default("sandbox").notNull(),
 		scopesJson: jsonb("scopesJson"),
 		credentialsRef: txtOpt("credentialsRef"),
+		vendorKey: txtOpt("vendorKey"),
+		authType: txtOpt("authType"),
+		externalPropertyId: txtOpt("externalPropertyId"),
+		catalogJson: jsonb("catalogJson"),
+		lastCatalogSyncAt: ts("lastCatalogSyncAt"),
+		previewJson: jsonb("previewJson"),
+		lastPreviewAt: ts("lastPreviewAt"),
 		lastSyncAt: ts("lastSyncAt"),
 		lastSyncStatus: txtOpt("lastSyncStatus"),
 		errorMessage: txtOpt("errorMessage"),
+		syncEnabled: boolDefault("syncEnabled", false),
+		syncIntervalMinutes: intDefault("syncIntervalMinutes", 1440),
+		nextSyncAt: ts("nextSyncAt"),
+		lastAutomaticSyncAt: ts("lastAutomaticSyncAt"),
+		consecutiveFailures: intDefault("consecutiveFailures", 0),
 		createdAt: now("createdAt"),
 		updatedAt: now("updatedAt"),
 	},
 	(table) => [
-		uniqueIndex("ProviderIntegrationConnection_provider_connector_unique").on(
+		index("ProviderIntegrationConnection_provider_connector_idx").on(
 			table.providerId,
 			table.connectorKey
 		),
 		index("ProviderIntegrationConnection_providerId_status_idx").on(table.providerId, table.status),
+		index("ProviderIntegrationConnection_provider_connector_primary_idx").on(
+			table.providerId,
+			table.connectorKey,
+			table.isPrimary
+		),
+		index("ProviderIntegrationConnection_due_sync_idx").on(
+			table.syncEnabled,
+			table.status,
+			table.nextSyncAt
+		),
+		uniqueIndex("ProviderIntegrationConnection_one_primary_unique")
+			.on(table.providerId, table.connectorKey)
+			.where(sql`${table.isPrimary} = true`),
+	]
+)
+
+export const ProviderIntegrationCredential = pgTable(
+	"ProviderIntegrationCredential",
+	{
+		connectionId: text("connectionId")
+			.primaryKey()
+			.references(() => ProviderIntegrationConnection.id, { onDelete: "cascade" }),
+		providerId: txt("providerId").references(() => Provider.id),
+		authType: txt("authType"),
+		encryptedJson: jsonb("encryptedJson").notNull(),
+		scopesJson: jsonb("scopesJson"),
+		tokenExpiresAt: ts("tokenExpiresAt"),
+		refreshAfterAt: ts("refreshAfterAt"),
+		lastRefreshedAt: ts("lastRefreshedAt"),
+		revokedAt: ts("revokedAt"),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		index("ProviderIntegrationCredential_provider_idx").on(table.providerId),
+		index("ProviderIntegrationCredential_expiry_idx").on(table.providerId, table.tokenExpiresAt),
+	]
+)
+
+export const ProviderIntegrationMapping = pgTable(
+	"ProviderIntegrationMapping",
+	{
+		id: pk(),
+		providerId: txt("providerId").references(() => Provider.id),
+		connectionId: txt("connectionId").references(() => ProviderIntegrationConnection.id, {
+			onDelete: "cascade",
+		}),
+		mappingType: txt("mappingType"),
+		localEntityType: txt("localEntityType"),
+		localEntityId: txt("localEntityId"),
+		externalEntityType: txt("externalEntityType"),
+		externalEntityId: txt("externalEntityId"),
+		externalEntityName: txtOpt("externalEntityName"),
+		direction: text("direction").default("bidirectional").notNull(),
+		status: text("status").default("active").notNull(),
+		metadataJson: jsonb("metadataJson"),
+		lastVerifiedAt: ts("lastVerifiedAt"),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		uniqueIndex("ProviderIntegrationMapping_connection_local_unique").on(
+			table.connectionId,
+			table.mappingType,
+			table.localEntityId
+		),
+		uniqueIndex("ProviderIntegrationMapping_connection_external_unique").on(
+			table.connectionId,
+			table.mappingType,
+			table.externalEntityId
+		),
+		index("ProviderIntegrationMapping_provider_status_idx").on(table.providerId, table.status),
+	]
+)
+
+export const ProviderIntegrationSyncRun = pgTable(
+	"ProviderIntegrationSyncRun",
+	{
+		id: pk(),
+		providerId: txt("providerId").references(() => Provider.id),
+		connectionId: txt("connectionId").references(() => ProviderIntegrationConnection.id, {
+			onDelete: "cascade",
+		}),
+		connectorKey: txt("connectorKey"),
+		operation: txt("operation"),
+		trigger: text("trigger").default("manual").notNull(),
+		status: text("status").default("running").notNull(),
+		idempotencyKey: txtOpt("idempotencyKey"),
+		readCount: intDefault("readCount", 0),
+		changedCount: intDefault("changedCount", 0),
+		skippedCount: intDefault("skippedCount", 0),
+		failedCount: intDefault("failedCount", 0),
+		cursor: txtOpt("cursor"),
+		errorCode: txtOpt("errorCode"),
+		errorMessage: txtOpt("errorMessage"),
+		summaryJson: jsonb("summaryJson"),
+		requestedBy: txtOpt("requestedBy").references(() => User.id),
+		startedAt: now("startedAt"),
+		finishedAt: ts("finishedAt"),
+		createdAt: now("createdAt"),
+	},
+	(table) => [
+		uniqueIndex("ProviderIntegrationSyncRun_connection_idempotency_unique").on(
+			table.connectionId,
+			table.idempotencyKey
+		),
+		index("ProviderIntegrationSyncRun_connection_started_idx").on(
+			table.connectionId,
+			table.startedAt
+		),
+		index("ProviderIntegrationSyncRun_provider_status_started_idx").on(
+			table.providerId,
+			table.status,
+			table.startedAt
+		),
+	]
+)
+
+export const ProviderIntegrationSyncJob = pgTable(
+	"ProviderIntegrationSyncJob",
+	{
+		id: pk(),
+		providerId: txt("providerId").references(() => Provider.id),
+		connectionId: txt("connectionId").references(() => ProviderIntegrationConnection.id, {
+			onDelete: "cascade",
+		}),
+		connectorKey: txt("connectorKey"),
+		operation: text("operation").default("connection_test").notNull(),
+		status: text("status").default("queued").notNull(),
+		trigger: text("trigger").default("scheduled").notNull(),
+		priority: intDefault("priority", 100),
+		attempts: intDefault("attempts", 0),
+		maxAttempts: intDefault("maxAttempts", 5),
+		runAfter: now("runAfter"),
+		lockedAt: ts("lockedAt"),
+		lockedBy: txtOpt("lockedBy"),
+		idempotencyKey: txt("idempotencyKey"),
+		lastError: txtOpt("lastError"),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+		finishedAt: ts("finishedAt"),
+	},
+	(table) => [
+		uniqueIndex("ProviderIntegrationSyncJob_connection_idempotency_unique").on(
+			table.connectionId,
+			table.idempotencyKey
+		),
+		index("ProviderIntegrationSyncJob_due_idx").on(table.status, table.runAfter, table.priority),
+		index("ProviderIntegrationSyncJob_provider_status_idx").on(
+			table.providerId,
+			table.status,
+			table.runAfter
+		),
+	]
+)
+
+export const ProviderIntegrationIncident = pgTable(
+	"ProviderIntegrationIncident",
+	{
+		id: pk(),
+		providerId: txt("providerId").references(() => Provider.id),
+		connectionId: txt("connectionId").references(() => ProviderIntegrationConnection.id, {
+			onDelete: "cascade",
+		}),
+		syncRunId: txtOpt("syncRunId").references(() => ProviderIntegrationSyncRun.id, {
+			onDelete: "set null",
+		}),
+		mappingId: txtOpt("mappingId").references(() => ProviderIntegrationMapping.id, {
+			onDelete: "set null",
+		}),
+		dedupeKey: txt("dedupeKey"),
+		code: txt("code"),
+		category: txt("category"),
+		severity: text("severity").default("warning").notNull(),
+		status: text("status").default("open").notNull(),
+		title: txt("title"),
+		description: txt("description"),
+		actionLabel: txtOpt("actionLabel"),
+		actionHref: txtOpt("actionHref"),
+		entityType: txtOpt("entityType"),
+		entityId: txtOpt("entityId"),
+		occurrenceCount: intDefault("occurrenceCount", 1),
+		firstSeenAt: now("firstSeenAt"),
+		lastSeenAt: now("lastSeenAt"),
+		resolvedAt: ts("resolvedAt"),
+		resolvedBy: txtOpt("resolvedBy").references(() => User.id),
+		resolutionNote: txtOpt("resolutionNote"),
+		notificationStatus: text("notificationStatus").default("pending").notNull(),
+		notificationChannelsJson: jsonb("notificationChannelsJson"),
+		notificationAttemptCount: intDefault("notificationAttemptCount", 0),
+		notifiedAt: ts("notifiedAt"),
+		notificationError: txtOpt("notificationError"),
+		metadataJson: jsonb("metadataJson"),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		uniqueIndex("ProviderIntegrationIncident_connection_dedupe_unique").on(
+			table.connectionId,
+			table.dedupeKey
+		),
+		index("ProviderIntegrationIncident_provider_status_severity_idx").on(
+			table.providerId,
+			table.status,
+			table.severity
+		),
+		index("ProviderIntegrationIncident_connection_last_seen_idx").on(
+			table.connectionId,
+			table.lastSeenAt
+		),
 	]
 )
 
@@ -581,6 +806,226 @@ export const Variant = pgTable(
 	]
 )
 
+export const InventoryResource = pgTable(
+	"InventoryResource",
+	{
+		id: pk(),
+		providerId: txt("providerId").references(() => Provider.id),
+		variantId: txt("variantId").references(() => Variant.id),
+		label: txt("label"),
+		status: text("status").default("active").notNull(),
+		externalCode: txtOpt("externalCode"),
+		metadataJson: jsonb("metadataJson"),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		index("InventoryResource_provider_variant_status_idx").on(
+			table.providerId,
+			table.variantId,
+			table.status
+		),
+		uniqueIndex("InventoryResource_variant_label_unique").on(table.variantId, table.label),
+	]
+)
+
+export const ProviderExternalCalendar = pgTable(
+	"ProviderExternalCalendar",
+	{
+		id: pk(),
+		providerId: txt("providerId").references(() => Provider.id),
+		connectionId: txtOpt("connectionId").references(() => ProviderIntegrationConnection.id),
+		variantId: txt("variantId").references(() => Variant.id),
+		resourceId: txtOpt("resourceId").references(() => InventoryResource.id),
+		name: txt("name"),
+		feedUrlEncrypted: jsonb("feedUrlEncrypted").notNull(),
+		feedUrlHost: txt("feedUrlHost"),
+		feedUrlFingerprint: txt("feedUrlFingerprint"),
+		status: text("status").default("pending").notNull(),
+		lastSyncAt: ts("lastSyncAt"),
+		lastSyncStatus: txtOpt("lastSyncStatus"),
+		lastError: txtOpt("lastError"),
+		lastEventCount: intDefault("lastEventCount", 0),
+		etag: txtOpt("etag"),
+		lastModified: txtOpt("lastModified"),
+		syncEnabled: boolDefault("syncEnabled", true),
+		syncIntervalMinutes: intDefault("syncIntervalMinutes", 1440),
+		nextSyncAt: now("nextSyncAt"),
+		lastAutomaticSyncAt: ts("lastAutomaticSyncAt"),
+		consecutiveFailures: intDefault("consecutiveFailures", 0),
+		syncLeaseToken: txtOpt("syncLeaseToken"),
+		syncLeaseUntil: ts("syncLeaseUntil"),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		index("ProviderExternalCalendar_provider_status_idx").on(table.providerId, table.status),
+		index("ProviderExternalCalendar_variant_status_idx").on(table.variantId, table.status),
+		index("ProviderExternalCalendar_resource_status_idx").on(table.resourceId, table.status),
+		index("ProviderExternalCalendar_due_sync_idx").on(
+			table.syncEnabled,
+			table.status,
+			table.nextSyncAt
+		),
+		uniqueIndex("ProviderExternalCalendar_provider_variant_fingerprint_unique").on(
+			table.providerId,
+			table.variantId,
+			table.feedUrlFingerprint
+		),
+	]
+)
+
+export const ProviderExternalCalendarEvent = pgTable(
+	"ProviderExternalCalendarEvent",
+	{
+		id: pk(),
+		calendarId: txt("calendarId").references(() => ProviderExternalCalendar.id, {
+			onDelete: "cascade",
+		}),
+		providerId: txt("providerId").references(() => Provider.id),
+		variantId: txt("variantId").references(() => Variant.id),
+		resourceId: txtOpt("resourceId").references(() => InventoryResource.id),
+		sourceKey: txt("sourceKey"),
+		externalUid: txt("externalUid"),
+		summary: txtOpt("summary"),
+		startDate: day("startDate"),
+		endDate: day("endDate"),
+		sourceUpdatedAt: ts("sourceUpdatedAt"),
+		fingerprint: txt("fingerprint"),
+		isActive: boolDefault("isActive", true),
+		firstSeenAt: now("firstSeenAt"),
+		lastSeenAt: now("lastSeenAt"),
+	},
+	(table) => [
+		uniqueIndex("ProviderExternalCalendarEvent_calendar_source_unique").on(
+			table.calendarId,
+			table.sourceKey
+		),
+		index("ProviderExternalCalendarEvent_variant_active_range_idx").on(
+			table.variantId,
+			table.isActive,
+			table.startDate,
+			table.endDate
+		),
+		index("ProviderExternalCalendarEvent_resource_active_range_idx").on(
+			table.resourceId,
+			table.isActive,
+			table.startDate,
+			table.endDate
+		),
+		index("ProviderExternalCalendarEvent_calendar_active_idx").on(table.calendarId, table.isActive),
+	]
+)
+
+export const ProviderExternalCalendarConflict = pgTable(
+	"ProviderExternalCalendarConflict",
+	{
+		id: pk(),
+		providerId: txt("providerId").references(() => Provider.id),
+		calendarId: txt("calendarId").references(() => ProviderExternalCalendar.id, {
+			onDelete: "cascade",
+		}),
+		variantId: txt("variantId").references(() => Variant.id),
+		resourceId: txtOpt("resourceId").references(() => InventoryResource.id),
+		kind: txt("kind"),
+		status: text("status").default("open").notNull(),
+		dedupeKey: txt("dedupeKey"),
+		startDate: day("startDate"),
+		endDate: day("endDate"),
+		title: txt("title"),
+		description: txt("description"),
+		actionLabel: txtOpt("actionLabel"),
+		resolutionNote: txtOpt("resolutionNote"),
+		actedAt: ts("actedAt"),
+		actedBy: txtOpt("actedBy").references(() => User.id),
+		firstSeenAt: now("firstSeenAt"),
+		lastSeenAt: now("lastSeenAt"),
+		metadataJson: jsonb("metadataJson"),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		uniqueIndex("ProviderExternalCalendarConflict_calendar_dedupe_unique").on(
+			table.calendarId,
+			table.dedupeKey
+		),
+		index("ProviderExternalCalendarConflict_provider_status_idx").on(
+			table.providerId,
+			table.status,
+			table.lastSeenAt
+		),
+		index("ProviderExternalCalendarConflict_calendar_status_idx").on(
+			table.calendarId,
+			table.status
+		),
+	]
+)
+
+export const ProviderExternalCalendarExport = pgTable(
+	"ProviderExternalCalendarExport",
+	{
+		id: pk(),
+		providerId: txt("providerId").references(() => Provider.id),
+		variantId: txt("variantId").references(() => Variant.id),
+		resourceId: txtOpt("resourceId").references(() => InventoryResource.id),
+		label: txt("label"),
+		tokenHash: txt("tokenHash"),
+		status: text("status").default("active").notNull(),
+		lastDownloadedAt: ts("lastDownloadedAt"),
+		downloadCount: intDefault("downloadCount", 0),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		index("ProviderExternalCalendarExport_provider_status_idx").on(table.providerId, table.status),
+		index("ProviderExternalCalendarExport_variant_status_idx").on(table.variantId, table.status),
+		uniqueIndex("ProviderExternalCalendarExport_token_unique").on(table.tokenHash),
+	]
+)
+
+export const ProviderExternalCalendarSyncJob = pgTable(
+	"ProviderExternalCalendarSyncJob",
+	{
+		id: pk(),
+		providerId: txt("providerId").references(() => Provider.id),
+		calendarId: txt("calendarId").references(() => ProviderExternalCalendar.id, {
+			onDelete: "cascade",
+		}),
+		connectionId: txtOpt("connectionId").references(() => ProviderIntegrationConnection.id, {
+			onDelete: "set null",
+		}),
+		status: text("status").default("queued").notNull(),
+		trigger: text("trigger").default("scheduled").notNull(),
+		priority: intDefault("priority", 100),
+		attempts: intDefault("attempts", 0),
+		maxAttempts: intDefault("maxAttempts", 5),
+		runAfter: now("runAfter"),
+		lockedAt: ts("lockedAt"),
+		lockedBy: txtOpt("lockedBy"),
+		idempotencyKey: txt("idempotencyKey"),
+		lastError: txtOpt("lastError"),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+		finishedAt: ts("finishedAt"),
+	},
+	(table) => [
+		uniqueIndex("ProviderExternalCalendarSyncJob_calendar_idempotency_unique").on(
+			table.calendarId,
+			table.idempotencyKey
+		),
+		index("ProviderExternalCalendarSyncJob_due_idx").on(
+			table.status,
+			table.runAfter,
+			table.priority
+		),
+		index("ProviderExternalCalendarSyncJob_provider_status_idx").on(
+			table.providerId,
+			table.status,
+			table.runAfter
+		),
+	]
+)
+
 export const VariantCapacity = pgTable("VariantCapacity", {
 	variantId: text("variantId")
 		.primaryKey()
@@ -908,6 +1353,7 @@ export const EffectiveAvailability = pgTable(
 		totalUnits: intDefault("totalUnits", 0),
 		heldUnits: intDefault("heldUnits", 0),
 		bookedUnits: intDefault("bookedUnits", 0),
+		externalBlockedUnits: intDefault("externalBlockedUnits", 0),
 		availableUnits: intDefault("availableUnits", 0),
 		computedAt: tsReq("computedAt"),
 	},

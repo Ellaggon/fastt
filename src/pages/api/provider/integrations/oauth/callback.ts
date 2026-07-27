@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro"
 
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { getProviderSessionSurfaceFromRequest } from "@/lib/auth/providerSessionSurface"
 import {
 	buildConnectorOAuthRedirectUri,
 	exchangeConnectorOAuthCode,
@@ -54,6 +55,14 @@ export const GET: APIRoute = async ({ request, url }) => {
 		target.searchParams.set("oauth", "actor_mismatch")
 		return Response.redirect(target, 303)
 	}
+	const providerSurface = await getProviderSessionSurfaceFromRequest(request, user)
+	if (
+		providerSurface?.providerId !== state.providerId ||
+		!providerSurface.permissions.canManageIntegrations
+	) {
+		target.searchParams.set("oauth", "permission_denied")
+		return Response.redirect(target, 303)
+	}
 
 	const connectorKey = state.connectorKey || connectorFromQuery
 	target.searchParams.set("mode", state.uiMode)
@@ -84,6 +93,15 @@ export const GET: APIRoute = async ({ request, url }) => {
 			mode: state.mode,
 			scopes: exchanged.scope ? exchanged.scope.split(/\s+/).filter(Boolean) : [],
 			credentialsRef: exchanged.credentialsRef,
+			oauthCredential: exchanged.accessToken
+				? {
+						accessToken: exchanged.accessToken,
+						refreshToken: exchanged.refreshToken ?? null,
+						tokenType: exchanged.tokenType,
+						expiresIn: exchanged.expiresIn,
+						scope: exchanged.scope,
+					}
+				: undefined,
 		})
 	} catch (connectError) {
 		target.searchParams.set("oauth", "persist_failed")

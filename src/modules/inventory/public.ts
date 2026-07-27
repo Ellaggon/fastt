@@ -46,6 +46,8 @@ export async function recomputeEffectiveAvailabilityRange(
 				container.inventoryRecomputeRepository.loadDailyInventoryRange(params),
 			loadInventoryLocksRange: (params: { variantId: string; from: string; to: string }) =>
 				container.inventoryRecomputeRepository.loadInventoryLocksRange(params),
+			loadExternalCalendarBlocksRange: (params: { variantId: string; from: string; to: string }) =>
+				container.inventoryRecomputeRepository.loadExternalCalendarBlocksRange(params),
 			upsertEffectiveAvailabilityRows: (rows: any[]) =>
 				container.inventoryRecomputeRepository.upsertEffectiveAvailabilityRows(rows),
 			now: () => new Date(),
@@ -53,6 +55,7 @@ export async function recomputeEffectiveAvailabilityRange(
 	return recomputeEffectiveAvailabilityRange(input, {
 		loadDailyInventoryRange: defaultDeps.loadDailyInventoryRange,
 		loadInventoryLocksRange: defaultDeps.loadInventoryLocksRange,
+		loadExternalCalendarBlocksRange: defaultDeps.loadExternalCalendarBlocksRange,
 		upsertEffectiveAvailabilityRows: defaultDeps.upsertEffectiveAvailabilityRows,
 		now: defaultDeps.now,
 	})
@@ -103,6 +106,8 @@ export async function applyInventoryMutation<T>(params: {
 				container.inventoryRecomputeRepository.loadDailyInventoryRange(input),
 			loadInventoryLocksRange: (input: { variantId: string; from: string; to: string }) =>
 				container.inventoryRecomputeRepository.loadInventoryLocksRange(input),
+			loadExternalCalendarBlocksRange: (input: { variantId: string; from: string; to: string }) =>
+				container.inventoryRecomputeRepository.loadExternalCalendarBlocksRange(input),
 			upsertEffectiveAvailabilityRows: (rows: any[]) =>
 				container.inventoryRecomputeRepository.upsertEffectiveAvailabilityRows(rows),
 			now: () => new Date(),

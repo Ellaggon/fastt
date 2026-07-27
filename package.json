@@ -60,6 +60,7 @@
     "dotenv": "^17.4.2",
     "drizzle-orm": "0.42.0",
     "leaflet": "^1.9.4",
+    "node-ical": "^0.27.1",
     "postgres": "^3.4.5",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",

@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro"
-import { requireProvider } from "@/lib/auth/requireProvider"
+import { requireProviderIntegrationManager } from "@/lib/provider-integration-auth"
 import {
 	redirectIntegrationsError,
 	redirectIntegrationsSuccess,
@@ -11,13 +11,18 @@ export const POST: APIRoute = async ({ request, params }) => {
 	const form = await request.formData().catch(() => null)
 	const uiMode = resolveIntegrationUiMode(form?.get("uiMode"))
 	try {
-		const auth = await requireProvider(request)
-		await syncProviderIntegration({
+		const auth = await requireProviderIntegrationManager(request)
+		const result = await syncProviderIntegration({
 			providerId: auth.providerId,
 			currentUserId: auth.user.id,
 			connectorKey: params.connectorKey ?? "",
+			connectionId: String(form?.get("connectionId") ?? "") || null,
 		})
-		return redirectIntegrationsSuccess(request, "sync_tested", uiMode)
+		return redirectIntegrationsSuccess(
+			request,
+			result.status === "connected" ? "sync_tested" : "reference_checked",
+			uiMode
+		)
 	} catch (error) {
 		const message = error instanceof Error ? error.message : "integration_error"
 		return redirectIntegrationsError(request, message, uiMode)

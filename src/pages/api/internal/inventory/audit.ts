@@ -125,7 +125,7 @@ export const GET: APIRoute = async ({ request }) => {
 			db
 				.select({
 					variantId: EffectiveAvailability.variantId,
-					consistencyIssues: sql<number>`sum(case when (${EffectiveAvailability.availableUnits} + ${EffectiveAvailability.heldUnits} + ${EffectiveAvailability.bookedUnits}) <> ${EffectiveAvailability.totalUnits} then 1 else 0 end)`,
+					consistencyIssues: sql<number>`sum(case when (${EffectiveAvailability.availableUnits} + ${EffectiveAvailability.heldUnits} + ${EffectiveAvailability.bookedUnits} + ${EffectiveAvailability.externalBlockedUnits}) <> ${EffectiveAvailability.totalUnits} then 1 else 0 end)`,
 				})
 				.from(EffectiveAvailability)
 				.where(inArray(EffectiveAvailability.variantId, variantIds))

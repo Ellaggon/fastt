@@ -1,21 +1,36 @@
 import {
-	first,
 	db,
 	desc,
 	eq,
 	and,
 	ProviderIntegrationConnection,
+	ProviderIntegrationCredential,
+	ProviderIntegrationMapping,
 	ProviderIntegrationSyncLog,
 } from "@/shared/infrastructure/db/compat"
 import { invalidateProviderGovernance } from "@/lib/cache/invalidation"
+import { refreshConnectorOAuthToken } from "@/lib/provider-connector-oauth"
 import {
 	evaluateProviderGovernance,
 	readProviderGovernanceFromConfigurationState,
 } from "@/lib/provider-governance"
 import { inferSettingsRiskLevel, writeProviderAuditLog } from "@/lib/provider-audit"
+import {
+	decryptProviderIntegrationSecret,
+	encryptProviderIntegrationSecret,
+	isProviderIntegrationTokenExpired,
+	shouldRefreshProviderIntegrationToken,
+	type ProviderIntegrationVaultPayload,
+} from "@/lib/provider-integration-vault"
+import {
+	getChannelManagerVendor,
+	normalizeChannelManagerAuthType,
+	normalizeChannelManagerVendorKey,
+	type ChannelManagerAuthType,
+	type ChannelManagerVendorKey,
+} from "@/lib/provider-channel-manager-vendors"
 
 export type ProviderConnectorKey =
-	| "payment_gateway"
 	| "channel_manager"
 	| "external_calendars"
 	| "webhooks_api"
@@ -49,16 +64,40 @@ export type ProviderConnectorCatalogItem = {
 }
 
 export type ProviderIntegrationCard = ProviderConnectorCatalogItem & {
+	connectionId: string | null
+	connectionCount: number
 	status: ProviderConnectorStatus
 	statusLabel: string
 	tone: "neutral" | "success" | "warning" | "error" | "info"
 	mode: ProviderConnectorMode
 	scopes: string[]
 	credentialsRef: string
+	vendorKey: ChannelManagerVendorKey
+	vendorLabel: string
+	authType: ChannelManagerAuthType
+	externalPropertyId: string | null
 	lastSyncAt: Date | null
 	lastSyncStatus: string | null
 	errorMessage: string | null
 	canUseProduction: boolean
+	instances: Array<{
+		id: string
+		displayName: string
+		status: ProviderConnectorStatus
+		statusLabel: string
+		tone: ProviderIntegrationCard["tone"]
+		mode: ProviderConnectorMode
+		isPrimary: boolean
+		lastSyncAt: Date | null
+		lastSyncStatus: string | null
+		errorMessage: string | null
+		hasVaultCredential: boolean
+		tokenExpiresAt: Date | null
+		vendorKey: ChannelManagerVendorKey
+		vendorLabel: string
+		authType: ChannelManagerAuthType
+		externalPropertyId: string | null
+	}>
 	logs: Array<{
 		id: string
 		eventType: string
@@ -70,30 +109,6 @@ export type ProviderIntegrationCard = ProviderConnectorCatalogItem & {
 }
 
 const connectorCatalog: ProviderConnectorCatalogItem[] = [
-	{
-		key: "payment_gateway",
-		name: "Pasarela de pago",
-		category: "Cobros",
-		description:
-			"Autoriza cobros, conserva referencias de transacción y alimenta conciliación financiera.",
-		requirements: ["Proveedor verificado", "Cuenta de pago validada", "Permisos de cobro"],
-		defaultScopes: ["payments:authorize", "payments:refund", "reconciliation:write"],
-		availableScopes: [
-			{ key: "payments:authorize", label: "Autorizar cobros" },
-			{ key: "payments:refund", label: "Gestionar reembolsos" },
-			{ key: "reconciliation:write", label: "Enviar conciliación" },
-		],
-		docsLite: {
-			title: "Cómo conectar la pasarela",
-			steps: [
-				"Crea o abre tu cuenta en el proveedor de pagos (sandbox primero).",
-				"Copia el enlace https de webhook/API o la referencia que te entreguen.",
-				"Pégala arriba, guarda y pulsa Probar conexión.",
-				"Cuando la prueba sea OK, cambia a Producción solo si el resto de la cuenta está lista.",
-			],
-			tip: "Sin cuenta de liquidación verificada, la pasarela puede guardar la conexión pero no operar cobros reales.",
-		},
-	},
 	{
 		key: "channel_manager",
 		name: "Channel manager",
@@ -110,11 +125,11 @@ const connectorCatalog: ProviderConnectorCatalogItem[] = [
 		docsLite: {
 			title: "Cómo conectar el channel manager",
 			steps: [
-				"En el channel manager, crea el establecimiento y anota el ID o URL de sync.",
-				"Pega la referencia https aquí y elige los permisos de disponibilidad/tarifas/restricciones.",
-				"Guarda y prueba la conexión antes de publicar en canales externos.",
+				"Elige proveedor: Cloudbeds, Channex u otro. Fastt guarda el vendor en la conexión.",
+				"Para Cloudbeds usa API key/OAuth y prueba getHotels; para Channex usa user-api-key y prueba properties.",
+				"Después crea mappings de habitaciones/tarifas antes de activar sincronizaciones de producción.",
 			],
-			tip: "Si la prueba falla, revisa que tarifas y calendario tengan datos base en Fastt.",
+			tip: "La prueba API valida acceso. El envío completo de ARI por vendor debe pasar por cola, mappings y límites del proveedor.",
 		},
 	},
 	{
@@ -122,20 +137,18 @@ const connectorCatalog: ProviderConnectorCatalogItem[] = [
 		name: "Calendarios externos",
 		category: "Operación",
 		description:
-			"Importa o exporta bloqueos operativos para equipos que trabajan con calendarios externos.",
-		requirements: ["Unidades publicables", "Política de conflictos", "Auditoría de cambios"],
-		defaultScopes: ["calendar:import", "calendar:export"],
-		availableScopes: [
-			{ key: "calendar:import", label: "Importar bloqueos" },
-			{ key: "calendar:export", label: "Exportar disponibilidad" },
-		],
+			"Importa bloqueos iCal por habitación, con actualización manual y detección de conflictos.",
+		requirements: ["Unidades publicables", "URL iCal segura", "Revisión de conflictos"],
+		defaultScopes: ["calendar:import"],
+		availableScopes: [{ key: "calendar:import", label: "Importar bloqueos" }],
 		docsLite: {
 			title: "Cómo conectar calendarios",
 			steps: [
-				"Obtén el feed iCal/URL de importación o exportación del calendario externo.",
-				"Pega la referencia, elige importar y/o exportar, guarda y prueba.",
+				"Obtén la URL de exportación iCal del canal externo.",
+				"Agrega un feed por cada calendario y asígnalo a su habitación o unidad.",
+				"Actualiza el feed y revisa los posibles conflictos antes de abrir disponibilidad.",
 			],
-			tip: "Importar y exportar a la vez puede crear bucles: empieza solo con importación.",
+			tip: "Este MVP importa bloqueos. La exportación queda desactivada para evitar bucles.",
 		},
 	},
 	{
@@ -199,9 +212,8 @@ export function listProviderConnectorCatalog(): ProviderConnectorCatalogItem[] {
 	}))
 }
 
-/** Simple-mode starters: payments + distribution (Airbnb/Expedia-shaped minimum). */
+/** Simple mode starts with distribution; Fastt owns guest payment orchestration centrally. */
 export const recommendedProviderConnectorKeys = [
-	"payment_gateway",
 	"channel_manager",
 ] as const satisfies ReadonlyArray<ProviderConnectorKey>
 
@@ -234,9 +246,9 @@ function normalizeScopes(connector: ProviderConnectorCatalogItem, rawScopes: unk
 
 function statusLabel(status: ProviderConnectorStatus): string {
 	const labels = {
-		not_configured: "No configurado",
-		pending: "Pendiente de prueba",
-		connected: "Conectado",
+		not_configured: "Por configurar",
+		pending: "Referencia guardada",
+		connected: "Validado por prueba",
 		requires_attention: "Requiere atención",
 		syncing: "Sincronizando",
 		error: "Error",
@@ -277,6 +289,7 @@ function connectionAuditSnapshot(
 		mode?: string | null
 		scopesJson?: unknown
 		credentialsRef?: string | null
+		tokenExpiresAt?: Date | null
 		lastSyncStatus?: string | null
 		errorMessage?: string | null
 	} | null
@@ -289,6 +302,7 @@ function connectionAuditSnapshot(
 		mode: normalizeMode(row.mode),
 		scopes: Array.isArray(row.scopesJson) ? row.scopesJson.map(String) : [],
 		credentialsRef: row.credentialsRef ? String(row.credentialsRef) : null,
+		tokenExpiresAt: row.tokenExpiresAt instanceof Date ? row.tokenExpiresAt.toISOString() : null,
 		lastSyncStatus: row.lastSyncStatus ? String(row.lastSyncStatus) : null,
 		errorMessage: row.errorMessage ? String(row.errorMessage) : null,
 	}
@@ -347,13 +361,27 @@ export async function listProviderIntegrations(params: {
 		.limit(30)
 
 		.catch(() => [])
+	const credentials = await db
+		.select()
+		.from(ProviderIntegrationCredential)
+		.where(eq(ProviderIntegrationCredential.providerId, params.providerId))
+		.catch(() => [])
 
 	return connectorCatalog.map((connector) => {
-		const connection = connections.find((row) => row.connectorKey === connector.key)
+		const connectorConnections = connections
+			.filter((row) => row.connectorKey === connector.key)
+			.sort(
+				(a, b) =>
+					Number(Boolean(b.isPrimary)) - Number(Boolean(a.isPrimary)) ||
+					Number(b.updatedAt ?? 0) - Number(a.updatedAt ?? 0)
+			)
+		const connection = connectorConnections[0]
 		const status = asConnectorStatus(connection?.status ?? "not_configured")
 		const mode = normalizeMode(connection?.mode)
 		return {
 			...connector,
+			connectionId: connection?.id ?? null,
+			connectionCount: connectorConnections.length,
 			status,
 			statusLabel: statusLabel(status),
 			tone: statusTone(status),
@@ -365,7 +393,42 @@ export async function listProviderIntegrations(params: {
 			lastSyncAt: connection?.lastSyncAt ?? null,
 			lastSyncStatus: connection?.lastSyncStatus ? String(connection.lastSyncStatus) : null,
 			errorMessage: connection?.errorMessage ? String(connection.errorMessage) : null,
+			vendorKey: normalizeChannelManagerVendorKey(connection?.vendorKey),
+			vendorLabel: getChannelManagerVendor(connection?.vendorKey).name,
+			authType: normalizeChannelManagerAuthType(connection?.authType),
+			externalPropertyId: connection?.externalPropertyId
+				? String(connection.externalPropertyId)
+				: null,
 			canUseProduction: governance.capabilities.integrations,
+			instances: connectorConnections.map((row, index) => {
+				const instanceStatus = asConnectorStatus(row.status)
+				const vendor = getChannelManagerVendor(row.vendorKey)
+				return {
+					id: row.id,
+					displayName:
+						String(row.displayName ?? "").trim() ||
+						`${connector.name}${connectorConnections.length > 1 ? ` ${index + 1}` : ""}`,
+					status: instanceStatus,
+					statusLabel: statusLabel(instanceStatus),
+					tone: statusTone(instanceStatus),
+					mode: normalizeMode(row.mode),
+					isPrimary: Boolean(row.isPrimary),
+					lastSyncAt: row.lastSyncAt ?? null,
+					lastSyncStatus: row.lastSyncStatus ? String(row.lastSyncStatus) : null,
+					errorMessage: row.errorMessage ? String(row.errorMessage) : null,
+					hasVaultCredential: credentials.some(
+						(credential) => credential.connectionId === row.id && !credential.revokedAt
+					),
+					tokenExpiresAt:
+						credentials.find(
+							(credential) => credential.connectionId === row.id && !credential.revokedAt
+						)?.tokenExpiresAt ?? null,
+					vendorKey: vendor.key,
+					vendorLabel: vendor.name,
+					authType: normalizeChannelManagerAuthType(row.authType),
+					externalPropertyId: row.externalPropertyId ? String(row.externalPropertyId) : null,
+				}
+			}),
 			logs: logs
 				.filter((row) => row.connectorKey === connector.key)
 				.slice(0, 3)
@@ -388,6 +451,19 @@ export async function connectProviderIntegration(params: {
 	mode: string
 	scopes: unknown
 	credentialsRef?: string | null
+	connectionId?: string | null
+	displayName?: string | null
+	createNew?: boolean
+	vendorKey?: string | null
+	authType?: string | null
+	externalPropertyId?: string | null
+	oauthCredential?: {
+		accessToken: string
+		refreshToken?: string | null
+		tokenType?: string | null
+		expiresIn?: number | null
+		scope?: string | null
+	}
 }) {
 	const connectorKey = normalizeConnectorKey(params.connectorKey)
 	const connector = catalogByKey.get(connectorKey)!
@@ -402,7 +478,20 @@ export async function connectProviderIntegration(params: {
 			: requestedMode
 	const scopes = normalizeScopes(connector, params.scopes)
 	const credentialsRef = String(params.credentialsRef ?? "").trim()
-	const existing = await db
+	const vendorKey =
+		connectorKey === "channel_manager"
+			? normalizeChannelManagerVendorKey(params.vendorKey)
+			: "generic"
+	const vendor = getChannelManagerVendor(vendorKey)
+	const authType =
+		connectorKey === "channel_manager"
+			? normalizeChannelManagerAuthType(params.authType)
+			: "reference"
+	const externalPropertyId =
+		String(params.externalPropertyId ?? "")
+			.trim()
+			.slice(0, 120) || null
+	const connectorConnections = await db
 		.select()
 		.from(ProviderIntegrationConnection)
 		.where(
@@ -411,23 +500,43 @@ export async function connectProviderIntegration(params: {
 				eq(ProviderIntegrationConnection.connectorKey, connectorKey)
 			)
 		)
-		.then(first)
-		.catch(() => null)
+		.catch(() => [])
+	let existing = params.connectionId
+		? (connectorConnections.find((row) => row.id === params.connectionId) ?? null)
+		: params.createNew
+			? null
+			: (connectorConnections.find((row) => row.isPrimary) ?? connectorConnections[0] ?? null)
+	if (params.connectionId && !existing) throw new Error("INTEGRATION_CONNECTION_NOT_FOUND")
 	const now = new Date()
 	// Credentials alone never mean "connected" (Expedia connectivity test / Airbnb channel smoke).
 	const status: ProviderConnectorStatus = credentialsRef ? "pending" : "requires_attention"
 	const values = {
 		providerId: params.providerId,
 		connectorKey,
+		displayName:
+			String(params.displayName ?? existing?.displayName ?? "")
+				.trim()
+				.slice(0, 100) ||
+			`${connector.name}${existing || !connectorConnections.length ? "" : ` ${connectorConnections.length + 1}`}`,
 		status,
 		mode,
 		scopesJson: scopes,
 		credentialsRef: credentialsRef || undefined,
+		vendorKey,
+		authType,
+		externalPropertyId,
 		errorMessage: credentialsRef
-			? "Ejecuta una prueba de sync para marcar el conector como conectado."
+			? "Ejecuta una prueba de conexión antes de usar este conector como validado."
 			: "Falta referencia de credenciales.",
 		lastSyncStatus: existing?.lastSyncStatus ?? undefined,
 		lastSyncAt: existing?.lastSyncAt ?? undefined,
+		syncEnabled: connectorKey !== "external_calendars" && Boolean(credentialsRef),
+		syncIntervalMinutes: Number(existing?.syncIntervalMinutes ?? 1440),
+		nextSyncAt:
+			connectorKey !== "external_calendars" && credentialsRef
+				? (existing?.nextSyncAt ?? now)
+				: null,
+		consecutiveFailures: 0,
 		updatedAt: now,
 	}
 
@@ -437,6 +546,15 @@ export async function connectProviderIntegration(params: {
 			.update(ProviderIntegrationConnection)
 			.set(values)
 			.where(eq(ProviderIntegrationConnection.id, existing.id))
+		if (params.oauthCredential?.accessToken) {
+			await upsertProviderIntegrationCredential({
+				providerId: params.providerId,
+				connectionId: existing.id,
+				connectorKey,
+				credential: params.oauthCredential,
+				previousCredentialRef: existing.credentialsRef,
+			})
+		}
 		await insertIntegrationLog({
 			providerId: params.providerId,
 			connectorKey,
@@ -445,9 +563,9 @@ export async function connectProviderIntegration(params: {
 			status,
 			mode,
 			message: credentialsRef
-				? "Configuración actualizada. Pendiente de prueba de sync."
+				? `${vendor.name}: configuración actualizada. Pendiente de prueba de sync.`
 				: "Configuración guardada con credenciales pendientes.",
-			metadataJson: { scopes },
+			metadataJson: { scopes, vendorKey, authType, externalPropertyId },
 		})
 		await insertAudit({
 			providerId: params.providerId,
@@ -469,8 +587,18 @@ export async function connectProviderIntegration(params: {
 	await db.insert(ProviderIntegrationConnection).values({
 		id,
 		...values,
+		isPrimary: connectorConnections.length === 0,
 		createdAt: now,
 	})
+	if (params.oauthCredential?.accessToken) {
+		await upsertProviderIntegrationCredential({
+			providerId: params.providerId,
+			connectionId: id,
+			connectorKey,
+			credential: params.oauthCredential,
+			previousCredentialRef: null,
+		})
+	}
 	await insertIntegrationLog({
 		providerId: params.providerId,
 		connectorKey,
@@ -479,9 +607,9 @@ export async function connectProviderIntegration(params: {
 		status,
 		mode,
 		message: credentialsRef
-			? "Conector configurado. Ejecuta una prueba de sync para activarlo."
+			? `${vendor.name}: referencia guardada. Ejecuta una prueba de conexión antes de usar este conector como validado.`
 			: "Conector creado con credenciales pendientes.",
-		metadataJson: { scopes },
+		metadataJson: { scopes, vendorKey, authType, externalPropertyId },
 	})
 	await insertAudit({
 		providerId: params.providerId,
@@ -503,9 +631,10 @@ export async function revokeProviderIntegration(params: {
 	providerId: string
 	currentUserId?: string | null
 	connectorKey: string
+	connectionId?: string | null
 }) {
 	const connectorKey = normalizeConnectorKey(params.connectorKey)
-	const existing = await db
+	const candidates = await db
 		.select()
 		.from(ProviderIntegrationConnection)
 		.where(
@@ -514,7 +643,9 @@ export async function revokeProviderIntegration(params: {
 				eq(ProviderIntegrationConnection.connectorKey, connectorKey)
 			)
 		)
-		.then(first)
+	const existing = params.connectionId
+		? candidates.find((row) => row.id === params.connectionId)
+		: (candidates.find((row) => row.isPrimary) ?? candidates[0])
 	if (!existing?.id) return null
 
 	const before = connectionAuditSnapshot(existing)
@@ -525,15 +656,37 @@ export async function revokeProviderIntegration(params: {
 		errorMessage: "Credenciales revocadas por el proveedor.",
 	}
 
-	await db
-		.update(ProviderIntegrationConnection)
-		.set({
-			status: "revoked",
-			credentialsRef: null,
-			errorMessage: "Credenciales revocadas por el proveedor.",
-			updatedAt: new Date(),
-		})
-		.where(eq(ProviderIntegrationConnection.id, existing.id))
+	await db.transaction(async (tx) => {
+		await tx
+			.update(ProviderIntegrationConnection)
+			.set({
+				status: "revoked",
+				isPrimary: false,
+				credentialsRef: null,
+				errorMessage: "Credenciales revocadas por el proveedor.",
+				updatedAt: new Date(),
+			})
+			.where(eq(ProviderIntegrationConnection.id, existing.id))
+		await tx
+			.update(ProviderIntegrationCredential)
+			.set({ revokedAt: new Date(), updatedAt: new Date() })
+			.where(eq(ProviderIntegrationCredential.connectionId, existing.id))
+		await tx
+			.update(ProviderIntegrationMapping)
+			.set({ status: "inactive", updatedAt: new Date() })
+			.where(eq(ProviderIntegrationMapping.connectionId, existing.id))
+		if (existing.isPrimary) {
+			const replacement = candidates.find(
+				(row) => row.id !== existing.id && row.status !== "revoked"
+			)
+			if (replacement) {
+				await tx
+					.update(ProviderIntegrationConnection)
+					.set({ isPrimary: true, updatedAt: new Date() })
+					.where(eq(ProviderIntegrationConnection.id, replacement.id))
+			}
+		}
+	})
 	await insertIntegrationLog({
 		providerId: params.providerId,
 		connectorKey,
@@ -560,9 +713,12 @@ export async function syncProviderIntegration(params: {
 	providerId: string
 	currentUserId?: string | null
 	connectorKey: string
+	connectionId?: string | null
+	trigger?: "manual" | "scheduled" | "webhook" | "retry"
+	idempotencyKey?: string | null
 }) {
 	const connectorKey = normalizeConnectorKey(params.connectorKey)
-	const existing = await db
+	const candidates = await db
 		.select()
 		.from(ProviderIntegrationConnection)
 		.where(
@@ -571,27 +727,115 @@ export async function syncProviderIntegration(params: {
 				eq(ProviderIntegrationConnection.connectorKey, connectorKey)
 			)
 		)
-		.then(first)
+	const existing = params.connectionId
+		? candidates.find((row) => row.id === params.connectionId)
+		: (candidates.find((row) => row.isPrimary) ?? candidates[0])
 	if (!existing?.id) throw new Error("CONNECTION_NOT_FOUND")
 
-	const credentialsRef = String(existing.credentialsRef ?? "").trim()
-	const { runConnectorSmokeTest } = await import("@/lib/provider-connector-smoke")
-	const smoke = await runConnectorSmokeTest({
-		connectorKey,
-		credentialsRef,
-		mode: String(existing.mode ?? "sandbox"),
+	const {
+		finishProviderIntegrationSyncRun,
+		recordProviderIntegrationIncident,
+		resolveProviderIntegrationIncidentByKey,
+		startProviderIntegrationSyncRun,
+	} = await import("@/lib/provider-integration-operations")
+	const run = await startProviderIntegrationSyncRun({
+		providerId: params.providerId,
+		connectionId: existing.id,
+		operation: "connection_test",
+		trigger: params.trigger ?? "manual",
+		requestedBy: params.currentUserId,
+		idempotencyKey: params.idempotencyKey,
 	})
-	const status: ProviderConnectorStatus = smoke.ok ? "connected" : "error"
+	const credentialsRef = String(existing.credentialsRef ?? "").trim()
+	const credentialState = await ensureProviderIntegrationCredentialFresh({
+		providerId: params.providerId,
+		connectionId: existing.id,
+		connectorKey,
+		actorUserId: params.currentUserId,
+		credentialsRef,
+		mode: normalizeMode(existing.mode),
+	})
+	const { runConnectorSmokeTest } = await import("@/lib/provider-connector-smoke")
+	const { runChannelManagerVendorSmokeTest } = await import("@/lib/provider-channel-manager-smoke")
+	const vendorSmoke =
+		connectorKey === "channel_manager"
+			? await runChannelManagerVendorSmokeTest({
+					vendorKey: normalizeChannelManagerVendorKey(existing.vendorKey),
+					authType: normalizeChannelManagerAuthType(existing.authType),
+					credentialsRef,
+					externalPropertyId: existing.externalPropertyId,
+				})
+			: null
+	const smoke = credentialState.error
+		? {
+				ok: false,
+				message: credentialState.error,
+				latencyMs: 0,
+				probe: "oauth2" as const,
+				trustLevel: "failed" as const,
+			}
+		: credentialState.oauthVaultVerified
+			? {
+					ok: true,
+					message: credentialState.refreshed
+						? "Token OAuth renovado y credencial activa."
+						: "Credencial OAuth activa en vault.",
+					latencyMs: 0,
+					probe: "oauth2" as const,
+					trustLevel: "verified_connection" as const,
+				}
+			: vendorSmoke
+				? vendorSmoke
+				: await runConnectorSmokeTest({
+						connectorKey,
+						credentialsRef,
+						mode: String(existing.mode ?? "sandbox"),
+					})
+	const hasVerifiedConnection = smoke.ok && smoke.trustLevel === "verified_connection"
+	const status: ProviderConnectorStatus = hasVerifiedConnection
+		? "connected"
+		: smoke.ok
+			? "pending"
+			: "error"
 	const message = smoke.message
 	const before = connectionAuditSnapshot(existing)
+	const now = new Date()
+	const nextSyncAt = new Date(
+		now.getTime() + Math.max(15, Number(existing.syncIntervalMinutes ?? 1440)) * 60_000
+	)
 	await db
 		.update(ProviderIntegrationConnection)
 		.set({
 			status,
-			lastSyncAt: new Date(),
-			lastSyncStatus: smoke.ok ? "success" : "error",
-			errorMessage: smoke.ok ? null : message,
-			updatedAt: new Date(),
+			lastSyncAt: now,
+			lastSyncStatus: hasVerifiedConnection ? "success" : smoke.ok ? "reference_valid" : "error",
+			errorMessage: hasVerifiedConnection
+				? null
+				: smoke.ok
+					? "La referencia es válida, pero falta una prueba real del proveedor antes de usarla como conexión activa."
+					: message,
+			nextSyncAt: hasVerifiedConnection ? nextSyncAt : existing.nextSyncAt,
+			lastAutomaticSyncAt:
+				params.trigger === "scheduled" || params.trigger === "retry"
+					? now
+					: existing.lastAutomaticSyncAt,
+			consecutiveFailures: hasVerifiedConnection ? 0 : Number(existing.consecutiveFailures ?? 0),
+			lastCatalogSyncAt:
+				hasVerifiedConnection && connectorKey === "channel_manager"
+					? now
+					: existing.lastCatalogSyncAt,
+			catalogJson:
+				hasVerifiedConnection && connectorKey === "channel_manager"
+					? {
+							vendorKey: normalizeChannelManagerVendorKey(existing.vendorKey),
+							authType: normalizeChannelManagerAuthType(existing.authType),
+							externalPropertyId: existing.externalPropertyId ?? null,
+							lastSmokeProbe: smoke.probe,
+							lastSmokeMessage: message,
+							note: "Conexión API verificada. El catálogo remoto detallado se importará en una fase vendor-specific.",
+						}
+					: existing.catalogJson,
+			updatedAt: now,
 		})
 		.where(eq(ProviderIntegrationConnection.id, existing.id))
 	await insertIntegrationLog({
@@ -599,14 +843,20 @@ export async function syncProviderIntegration(params: {
 		connectorKey,
 		connectionId: existing.id,
 		eventType: "sync.test",
-		status: smoke.ok ? "success" : "error",
+		status: hasVerifiedConnection ? "success" : smoke.ok ? "reference_valid" : "error",
 		mode: normalizeMode(existing.mode),
 		message,
 		metadataJson: {
 			scopes: existing.scopesJson ?? [],
 			smokeTest: true,
 			probe: smoke.probe,
+			trustLevel: smoke.trustLevel,
 			latencyMs: smoke.latencyMs,
+			vaultCredential: credentialState.oauthVaultVerified ? "active" : "not_used",
+			refreshed: credentialState.refreshed,
+			vendorKey: normalizeChannelManagerVendorKey(existing.vendorKey),
+			authType: normalizeChannelManagerAuthType(existing.authType),
+			externalPropertyId: existing.externalPropertyId ?? null,
 		},
 	})
 	await insertAudit({
@@ -618,13 +868,233 @@ export async function syncProviderIntegration(params: {
 		afterJson: connectionAuditSnapshot({
 			...existing,
 			status,
-			lastSyncStatus: smoke.ok ? "success" : "error",
-			errorMessage: smoke.ok ? null : message,
+			lastSyncStatus: hasVerifiedConnection ? "success" : smoke.ok ? "reference_valid" : "error",
+			errorMessage: hasVerifiedConnection
+				? null
+				: smoke.ok
+					? "La referencia es válida, pero falta una prueba real del proveedor antes de usarla como conexión activa."
+					: message,
 		}),
 		riskLevel: "medium",
 	})
+	await finishProviderIntegrationSyncRun({
+		providerId: params.providerId,
+		runId: run.id,
+		status: hasVerifiedConnection ? "succeeded" : "failed",
+		readCount: 1,
+		changedCount: hasVerifiedConnection ? 1 : 0,
+		failedCount: hasVerifiedConnection ? 0 : 1,
+		errorCode: hasVerifiedConnection ? null : "CONNECTION_TEST_FAILED",
+		errorMessage: hasVerifiedConnection ? null : message,
+		summaryJson: {
+			probe: smoke.probe,
+			trustLevel: smoke.trustLevel,
+			latencyMs: smoke.latencyMs,
+		},
+	})
+	if (hasVerifiedConnection) {
+		await resolveProviderIntegrationIncidentByKey({
+			providerId: params.providerId,
+			connectionId: existing.id,
+			dedupeKey: "connection_test_failed",
+			resolvedBy: params.currentUserId,
+			resolutionNote: "La prueba de conexión volvió a responder correctamente.",
+		})
+	} else {
+		await recordProviderIntegrationIncident({
+			providerId: params.providerId,
+			connectionId: existing.id,
+			syncRunId: run.id,
+			input: {
+				dedupeKey: "connection_test_failed",
+				code: "CONNECTION_TEST_FAILED",
+				category: "authentication",
+				severity: "error",
+				title: "La conexión no respondió correctamente",
+				description:
+					"Revisa las credenciales o el acceso del proveedor y vuelve a probar esta conexión.",
+				actionLabel: "Revisar conexión",
+				actionHref: "/provider/settings/integrations?mode=pro",
+			},
+		})
+	}
 	await invalidateProviderGovernance(params.providerId, "provider_integration_sync_tested")
 	return { status, message, smoke }
+}
+
+function credentialsExpiresAt(expiresIn?: number | null, now = new Date()): Date | null {
+	if (!expiresIn || expiresIn <= 0) return null
+	return new Date(now.getTime() + expiresIn * 1000)
+}
+
+function refreshAfter(expiresAt: Date | null): Date | null {
+	if (!expiresAt) return null
+	return new Date(Math.max(Date.now(), expiresAt.getTime() - 5 * 60 * 1000))
+}
+
+async function upsertProviderIntegrationCredential(params: {
+	providerId: string
+	connectionId: string
+	connectorKey: ProviderConnectorKey
+	credential: {
+		accessToken: string
+		refreshToken?: string | null
+		tokenType?: string | null
+		expiresIn?: number | null
+		scope?: string | null
+	}
+	previousCredentialRef?: string | null
+	refreshed?: boolean
+}) {
+	const now = new Date()
+	const expiresAt = credentialsExpiresAt(params.credential.expiresIn, now)
+	const payload: ProviderIntegrationVaultPayload = {
+		v: 1,
+		authType: "oauth2",
+		tokenType: String(params.credential.tokenType || "bearer"),
+		accessToken: params.credential.accessToken,
+		refreshToken: params.credential.refreshToken ?? null,
+		scope: params.credential.scope ?? null,
+		obtainedAt: now.toISOString(),
+		expiresAt: expiresAt?.toISOString() ?? null,
+		vendor: params.connectorKey,
+	}
+	const encryptedJson = encryptProviderIntegrationSecret({
+		providerId: params.providerId,
+		connectionId: params.connectionId,
+		payload,
+	})
+	const scopes = params.credential.scope?.split(/\s+/).filter(Boolean) ?? []
+	const existing = await db
+		.select()
+		.from(ProviderIntegrationCredential)
+		.where(eq(ProviderIntegrationCredential.connectionId, params.connectionId))
+		.then((rows) => rows[0])
+		.catch(() => null)
+	const values = {
+		providerId: params.providerId,
+		authType: "oauth2",
+		encryptedJson,
+		scopesJson: scopes,
+		tokenExpiresAt: expiresAt ?? undefined,
+		refreshAfterAt: refreshAfter(expiresAt) ?? undefined,
+		lastRefreshedAt: params.refreshed ? now : (existing?.lastRefreshedAt ?? undefined),
+		revokedAt: null,
+		updatedAt: now,
+	}
+	if (existing) {
+		await db
+			.update(ProviderIntegrationCredential)
+			.set(values)
+			.where(eq(ProviderIntegrationCredential.connectionId, params.connectionId))
+		return
+	}
+	await db.insert(ProviderIntegrationCredential).values({
+		connectionId: params.connectionId,
+		...values,
+		createdAt: now,
+	})
+}
+
+async function ensureProviderIntegrationCredentialFresh(params: {
+	providerId: string
+	connectionId: string
+	connectorKey: ProviderConnectorKey
+	actorUserId?: string | null
+	credentialsRef: string
+	mode: ProviderConnectorMode
+}): Promise<{ oauthVaultVerified: boolean; refreshed: boolean; error: string | null }> {
+	if (!params.credentialsRef.startsWith("oauth2://")) {
+		return { oauthVaultVerified: false, refreshed: false, error: null }
+	}
+	const row = await db
+		.select()
+		.from(ProviderIntegrationCredential)
+		.where(eq(ProviderIntegrationCredential.connectionId, params.connectionId))
+		.then((rows) => rows[0])
+		.catch(() => null)
+	if (!row || row.revokedAt) {
+		return {
+			oauthVaultVerified: false,
+			refreshed: false,
+			error: "No encontramos una credencial OAuth activa para esta conexión.",
+		}
+	}
+	let payload: ProviderIntegrationVaultPayload
+	try {
+		payload = decryptProviderIntegrationSecret({
+			providerId: params.providerId,
+			connectionId: params.connectionId,
+			authType: "oauth2",
+			encrypted: row.encryptedJson,
+		})
+	} catch (error) {
+		return {
+			oauthVaultVerified: false,
+			refreshed: false,
+			error: error instanceof Error ? error.message : "INTEGRATION_VAULT_DECRYPT_FAILED",
+		}
+	}
+	const expiresAt = row.tokenExpiresAt ?? payload.expiresAt ?? null
+	if (!shouldRefreshProviderIntegrationToken(expiresAt)) {
+		return { oauthVaultVerified: true, refreshed: false, error: null }
+	}
+	if (!payload.refreshToken) {
+		return {
+			oauthVaultVerified: false,
+			refreshed: false,
+			error: isProviderIntegrationTokenExpired(expiresAt)
+				? "La autorización OAuth expiró. Conecta de nuevo para renovar el acceso."
+				: "La autorización OAuth está por expirar y el proveedor no entregó refresh token.",
+		}
+	}
+	const refreshed = await refreshConnectorOAuthToken({
+		refreshToken: payload.refreshToken,
+		connectorKey: params.connectorKey,
+	})
+	if (!refreshed.ok || !refreshed.accessToken) {
+		return {
+			oauthVaultVerified: false,
+			refreshed: false,
+			error: refreshed.message ?? refreshed.error ?? "No se pudo renovar la autorización OAuth.",
+		}
+	}
+	await upsertProviderIntegrationCredential({
+		providerId: params.providerId,
+		connectionId: params.connectionId,
+		connectorKey: params.connectorKey,
+		credential: {
+			accessToken: refreshed.accessToken,
+			refreshToken: refreshed.refreshToken ?? payload.refreshToken,
+			tokenType: refreshed.tokenType,
+			expiresIn: refreshed.expiresIn,
+			scope: refreshed.scope ?? payload.scope,
+		},
+		previousCredentialRef: params.credentialsRef,
+		refreshed: true,
+	})
+	await insertIntegrationLog({
+		providerId: params.providerId,
+		connectorKey: params.connectorKey,
+		connectionId: params.connectionId,
+		eventType: "credentials.refreshed",
+		status: "success",
+		mode: params.mode,
+		message: "Autorización OAuth renovada.",
+	})
+	await insertAudit({
+		providerId: params.providerId,
+		actorUserId: params.actorUserId,
+		action: "provider.integration.credential_refresh",
+		entityId: params.connectionId,
+		beforeJson: { credentialsRef: params.credentialsRef, tokenExpiresAt: expiresAt },
+		afterJson: {
+			credentialsRef: params.credentialsRef,
+			tokenExpiresAt: credentialsExpiresAt(refreshed.expiresIn),
+		},
+		riskLevel: "medium",
+	})
+	return { oauthVaultVerified: true, refreshed: true, error: null }
 }
 
 async function insertIntegrationLog(params: {
