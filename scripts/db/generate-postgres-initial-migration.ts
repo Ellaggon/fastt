@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
+import { PgDialect } from "drizzle-orm/pg-core"
 
 import * as schema from "../../src/shared/infrastructure/db/schema/tables"
 import { databaseTableNames } from "../../src/shared/infrastructure/db/schema/registry"
@@ -21,6 +22,20 @@ type DrizzleColumn = {
 		withTimezone?: boolean
 	}
 }
+
+type ExtraConfigItem = {
+	constructor?: { name?: string }
+	config?: {
+		name: string
+		unique?: boolean
+		columns: { name: string }[]
+		where?: unknown
+	}
+	name?: string
+	value?: unknown
+}
+
+const dialect = new PgDialect()
 
 function drizzleSymbol(target: object, marker: string): symbol {
 	const symbol = Object.getOwnPropertySymbols(target).find((candidate) =>
@@ -79,7 +94,8 @@ function columnType(column: DrizzleColumn): string {
 			return column.config?.withTimezone
 				? "timestamp with time zone"
 				: "timestamp without time zone"
-		case "PgNumeric": {
+		case "PgNumeric":
+		case "PgNumericNumber": {
 			const precision = column.config?.precision
 			const scale = column.config?.scale
 			return precision && scale != null ? `numeric(${precision}, ${scale})` : "numeric"
@@ -105,6 +121,23 @@ function createTableSql(table: DrizzleTable): string {
 		.map((column) => `\t${columnDefinition(column)}`)
 		.join(",\n")
 	return `CREATE TABLE ${q(tableName(table))} (\n${body}\n);`
+}
+
+function renderExpression(value: unknown, sourceTable: string): string {
+	const query = dialect.sqlToQuery(value as Parameters<PgDialect["sqlToQuery"]>[0])
+	if (query.params.length > 0) {
+		throw new Error(`Parameterized schema expression is not supported on ${sourceTable}`)
+	}
+	return query.sql.replaceAll(`${q(sourceTable)}.`, "")
+}
+
+function extraConfig(table: DrizzleTable): ExtraConfigItem[] {
+	const builder = table[drizzleSymbol(table, "ExtraConfigBuilder")] as
+		| ((columns: unknown) => ExtraConfigItem[])
+		| undefined
+	if (!builder) return []
+	const columns = table[drizzleSymbol(table, "ExtraConfigColumns")]
+	return builder(columns)
 }
 
 function foreignKeySql(table: DrizzleTable): string[] {
@@ -150,18 +183,26 @@ function foreignKeySql(table: DrizzleTable): string[] {
 }
 
 function indexSql(table: DrizzleTable): string[] {
-	const builder = table[drizzleSymbol(table, "ExtraConfigBuilder")] as
-		| ((
-				columns: unknown
-		  ) => Array<{ config: { name: string; unique?: boolean; columns: { name: string }[] } }>)
-		| undefined
-	if (!builder) return []
-	const columns = table[drizzleSymbol(table, "ExtraConfigColumns")]
-	return builder(columns).map((index) => {
-		const uniqueness = index.config.unique ? "UNIQUE " : ""
-		const columnList = index.config.columns.map((column) => q(column.name)).join(", ")
-		return `CREATE ${uniqueness}INDEX ${q(index.config.name)} ON ${q(tableName(table))} (${columnList});`
-	})
+	return extraConfig(table)
+		.filter((item) => item.constructor?.name === "IndexBuilder" && item.config)
+		.map((index) => {
+			const config = index.config!
+			const uniqueness = config.unique ? "UNIQUE " : ""
+			const columnList = config.columns.map((column) => q(column.name)).join(", ")
+			const predicate = config.where
+				? ` WHERE ${renderExpression(config.where, tableName(table))}`
+				: ""
+			return `CREATE ${uniqueness}INDEX ${q(config.name)} ON ${q(tableName(table))} (${columnList})${predicate};`
+		})
+}
+
+function checkSql(table: DrizzleTable): string[] {
+	return extraConfig(table)
+		.filter((item) => item.constructor?.name === "CheckBuilder" && item.name && item.value)
+		.map(
+			(item) =>
+				`ALTER TABLE ${q(tableName(table))} ADD CONSTRAINT ${q(item.name!)} CHECK (${renderExpression(item.value, tableName(table))});`
+		)
 }
 
 async function main() {
@@ -185,6 +226,8 @@ async function main() {
 		"",
 		...tables.flatMap(indexSql),
 		"",
+		...tables.flatMap(checkSql),
+		"",
 		"-- Native PostgreSQL constraints, partial indexes and triggers.",
 		integritySql.trim(),
 		"",
@@ -193,7 +236,7 @@ async function main() {
 	]
 
 	await mkdir(path.dirname(OUT_FILE), { recursive: true })
-	await writeFile(OUT_FILE, lines.join("\n\n"))
+	await writeFile(OUT_FILE, `${lines.join("\n\n").trimEnd()}\n`)
 	console.log(`Generated ${OUT_FILE} from ${tables.length} tables.`)
 }
 

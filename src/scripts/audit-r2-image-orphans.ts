@@ -1,5 +1,5 @@
 import { ListObjectsV2Command } from "@aws-sdk/client-s3"
-import { db, Image, ImageUpload } from "astro:db"
+import { db, Image, ImageUpload } from "@/shared/infrastructure/db/compat"
 import { r2 } from "@/container/shared.container"
 
 type R2ObjectSummary = {
@@ -56,8 +56,8 @@ async function listR2Objects(bucket: string, prefix: string): Promise<R2ObjectSu
 
 async function listTrackedObjectKeys(): Promise<Set<string>> {
 	const [images, uploads] = await Promise.all([
-		db.select({ objectKey: Image.objectKey }).from(Image).all(),
-		db.select({ objectKey: ImageUpload.objectKey }).from(ImageUpload).all(),
+		db.select({ objectKey: Image.objectKey }).from(Image),
+		db.select({ objectKey: ImageUpload.objectKey }).from(ImageUpload),
 	])
 
 	return new Set(

@@ -3,7 +3,9 @@ const globalFinancialSeed = globalThis as typeof globalThis & {
 }
 
 export async function ensureLocalFinancialDemoSeed(): Promise<void> {
-	const hasRemoteDb = Boolean(process.env.ASTRO_DB_REMOTE_URL || process.env.ASTRO_DB_APP_TOKEN)
+	const hasRemoteDb = Boolean(
+		process.env.SUPABASE_DB_POOLER_URL || process.env.DATABASE_URL || process.env.DIRECT_URL
+	)
 	const shouldSeed =
 		process.env.NODE_ENV !== "production" &&
 		(process.env.FASTT_SEED_FINANCIAL_DEMO === "true" ||

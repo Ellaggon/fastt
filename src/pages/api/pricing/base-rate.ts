@@ -120,7 +120,7 @@ export const POST: APIRoute = async ({ request }) => {
 			await db
 				.update(RatePlanOccupancyPolicy)
 				.set({
-					baseAmount: String(normalizedBasePrice),
+					baseAmount: normalizedBasePrice,
 					currency: normalizedCurrency,
 					baseCurrency: normalizedCurrency,
 				})

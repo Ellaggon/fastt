@@ -73,7 +73,7 @@ export class BaseRateRepository implements RatePlanPricingBaselineRepositoryPort
 			await db
 				.update(RatePlanOccupancyPolicy)
 				.set({
-					baseAmount: String(normalizedBasePrice),
+					baseAmount: normalizedBasePrice,
 					baseCurrency: normalizedCurrency,
 					currency: normalizedCurrency,
 				})

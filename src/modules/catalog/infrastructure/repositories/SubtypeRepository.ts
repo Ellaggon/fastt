@@ -42,7 +42,7 @@ export class SubtypeRepository {
 		return db.transaction(async (tx) => fn(tx))
 	}
 
-	// Convenience helpers so application code doesn't need to import `astro:db`.
+	// Convenience helpers keep application code behind the repository boundary.
 	async insertHotelStandalone(data: HotelPayload) {
 		return this.insertHotel(db, data)
 	}

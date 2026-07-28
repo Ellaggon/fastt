@@ -1,5 +1,5 @@
 import { ROOM_TYPES } from "@/data/room/room-types"
-import { db, RoomType } from "astro:db"
+import { db, RoomType } from "@/shared/infrastructure/db/compat"
 
 export default async function seedRoomTypes(): Promise<void> {
 	for (const roomType of ROOM_TYPES) {

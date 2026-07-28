@@ -1,5 +1,5 @@
 import { InventorySeederService } from "@/modules/inventory/public"
-import { and, db, EffectiveAvailability, eq, gte, lt } from "astro:db"
+import { and, db, EffectiveAvailability, eq, gte, lt } from "@/shared/infrastructure/db/compat"
 
 import { DailyInventoryRepository } from "../modules/inventory/infrastructure/repositories/DailyInventoryRepository"
 import { InventoryHoldRepository } from "../modules/inventory/infrastructure/repositories/InventoryHoldRepository"
@@ -50,7 +50,6 @@ export async function loadEffectiveAvailabilityForValidation(params: {
 				lt(EffectiveAvailability.date, params.to)
 			)
 		)
-		.all()
 
 	return rows.map((row) => ({
 		date: String(row.date),
