@@ -22,7 +22,8 @@ export type WriteProviderAuditLogParams = {
 }
 
 const SENSITIVE_KEYS = new Set([
-	"credentialsRef",
+	"credentialSecret",
+	"endpointUrl",
 	"credentials",
 	"secret",
 	"token",
@@ -104,7 +105,7 @@ export function inferSettingsRiskLevel(params: {
 	if (params.domain === "fiscal" || params.domain === "documents") return "high"
 	if (params.domain === "integrations") {
 		const keys = params.changedKeys ?? []
-		if (keys.some((key) => ["credentialsRef", "status", "mode"].includes(key))) return "high"
+		if (keys.some((key) => ["credentialSecret", "status", "mode"].includes(key))) return "high"
 		return "medium"
 	}
 	if (params.domain === "payments") return "high"

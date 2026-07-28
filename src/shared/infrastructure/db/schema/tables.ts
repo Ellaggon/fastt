@@ -24,9 +24,10 @@ const intOpt = (name: string) => integer(name)
 const intDefault = (name: string, value: number) => integer(name).default(value).notNull()
 const boolDefault = (name: string, value: boolean) => boolean(name).default(value).notNull()
 const boolOpt = (name: string) => boolean(name)
-const amount = (name: string) => numeric(name, { precision: 14, scale: 2 }).notNull()
-const amountOpt = (name: string) => numeric(name, { precision: 14, scale: 2 })
-const ratioOpt = (name: string) => numeric(name, { precision: 7, scale: 4 })
+const amount = (name: string) =>
+	numeric(name, { precision: 14, scale: 2, mode: "number" }).notNull()
+const amountOpt = (name: string) => numeric(name, { precision: 14, scale: 2, mode: "number" })
+const ratioOpt = (name: string) => numeric(name, { precision: 7, scale: 4, mode: "number" })
 const day = (name: string) => pgDate(name).notNull()
 const dayOpt = (name: string) => pgDate(name)
 const ts = (name: string) => timestamp(name, { withTimezone: true })
@@ -234,7 +235,8 @@ export const ProviderIntegrationConnection = pgTable(
 		status: text("status").default("not_configured").notNull(),
 		mode: text("mode").default("sandbox").notNull(),
 		scopesJson: jsonb("scopesJson"),
-		credentialsRef: txtOpt("credentialsRef"),
+		/** Public HTTPS endpoint only. Authentication material lives in ProviderIntegrationCredential. */
+		endpointUrl: txtOpt("endpointUrl"),
 		vendorKey: txtOpt("vendorKey"),
 		authType: txtOpt("authType"),
 		externalPropertyId: txtOpt("externalPropertyId"),
@@ -278,6 +280,10 @@ export const ProviderIntegrationConnection = pgTable(
 			"ProviderIntegrationConnection_mode_check",
 			sql`${table.mode} IN ('sandbox', 'production')`
 		),
+		check(
+			"ProviderIntegrationConnection_endpoint_url_check",
+			sql`${table.endpointUrl} IS NULL OR ${table.endpointUrl} ~ '^https://'`
+		),
 	]
 )
 
@@ -301,6 +307,10 @@ export const ProviderIntegrationCredential = pgTable(
 	(table) => [
 		index("ProviderIntegrationCredential_provider_idx").on(table.providerId),
 		index("ProviderIntegrationCredential_expiry_idx").on(table.providerId, table.tokenExpiresAt),
+		check(
+			"ProviderIntegrationCredential_auth_type_check",
+			sql`${table.authType} IN ('api_key', 'oauth2', 'reference')`
+		),
 	]
 )
 

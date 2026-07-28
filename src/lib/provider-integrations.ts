@@ -168,7 +168,8 @@ export type ProviderIntegrationCard = ProviderConnectorCatalogItem & {
 	tone: "neutral" | "success" | "warning" | "error" | "info"
 	mode: ProviderConnectorMode
 	scopes: string[]
-	credentialsRef: string
+	endpointUrl: string
+	hasCredential: boolean
 	vendorKey: ChannelManagerVendorKey
 	vendorLabel: string
 	authType: ChannelManagerAuthType
@@ -484,6 +485,20 @@ function normalizeMode(value: unknown): ProviderConnectorMode {
 	return value === "production" ? "production" : "sandbox"
 }
 
+function normalizePublicEndpoint(value: unknown): string {
+	const raw = String(value ?? "").trim()
+	if (!raw) return ""
+	try {
+		const url = new URL(raw)
+		if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) {
+			throw new Error("INTEGRATION_ENDPOINT_INVALID")
+		}
+		return url.toString()
+	} catch {
+		throw new Error("INTEGRATION_ENDPOINT_INVALID")
+	}
+}
+
 function normalizeScopes(connector: ProviderConnectorCatalogItem, rawScopes: unknown): string[] {
 	const requested = Array.isArray(rawScopes)
 		? rawScopes
@@ -531,7 +546,8 @@ function connectionAuditSnapshot(
 		status?: string | null
 		mode?: string | null
 		scopesJson?: unknown
-		credentialsRef?: string | null
+		endpointUrl?: string | null
+		hasCredential?: boolean
 		tokenExpiresAt?: Date | null
 		lastSyncStatus?: string | null
 		errorMessage?: string | null
@@ -544,7 +560,8 @@ function connectionAuditSnapshot(
 		status: row.status ?? null,
 		mode: normalizeMode(row.mode),
 		scopes: Array.isArray(row.scopesJson) ? row.scopesJson.map(String) : [],
-		credentialsRef: row.credentialsRef ? String(row.credentialsRef) : null,
+		endpointUrl: row.endpointUrl ? String(row.endpointUrl) : null,
+		hasCredential: Boolean(row.hasCredential),
 		tokenExpiresAt: row.tokenExpiresAt instanceof Date ? row.tokenExpiresAt.toISOString() : null,
 		lastSyncStatus: row.lastSyncStatus ? String(row.lastSyncStatus) : null,
 		errorMessage: row.errorMessage ? String(row.errorMessage) : null,
@@ -573,7 +590,7 @@ async function insertAudit(params: {
 			params.riskLevel ??
 			inferSettingsRiskLevel({
 				domain: "integrations",
-				changedKeys: ["status", "mode", "credentialsRef"],
+				changedKeys: ["status", "mode", "endpointUrl", "credential"],
 			}),
 	})
 }
@@ -652,6 +669,9 @@ export async function listProviderIntegrations(params: {
 					Number(b.updatedAt ?? 0) - Number(a.updatedAt ?? 0)
 			)
 		const connection = connectorConnections[0]
+		const activeCredential = credentials.find(
+			(credential) => credential.connectionId === connection?.id && !credential.revokedAt
+		)
 		const status = asConnectorStatus(connection?.status ?? "not_configured")
 		const mode = normalizeMode(connection?.mode)
 		return {
@@ -665,7 +685,8 @@ export async function listProviderIntegrations(params: {
 			scopes: Array.isArray(connection?.scopesJson)
 				? connection.scopesJson.map(String)
 				: connector.defaultScopes,
-			credentialsRef: String(connection?.credentialsRef ?? ""),
+			endpointUrl: String(connection?.endpointUrl ?? ""),
+			hasCredential: Boolean(activeCredential),
 			lastSyncAt: connection?.lastSyncAt ?? null,
 			lastSyncStatus: connection?.lastSyncStatus ? String(connection.lastSyncStatus) : null,
 			errorMessage: connection?.errorMessage ? String(connection.errorMessage) : null,
@@ -726,7 +747,8 @@ export async function connectProviderIntegration(params: {
 	connectorKey: string
 	mode: string
 	scopes: unknown
-	credentialsRef?: string | null
+	endpointUrl?: string | null
+	credentialSecret?: string | null
 	connectionId?: string | null
 	displayName?: string | null
 	createNew?: boolean
@@ -753,7 +775,8 @@ export async function connectProviderIntegration(params: {
 			? "sandbox"
 			: requestedMode
 	const scopes = normalizeScopes(connector, params.scopes)
-	const credentialsRef = String(params.credentialsRef ?? "").trim()
+	const endpointUrl = normalizePublicEndpoint(params.endpointUrl)
+	const credentialSecret = String(params.credentialSecret ?? "").trim()
 	const vendorKey =
 		connectorKey === "channel_manager"
 			? normalizeChannelManagerVendorKey(params.vendorKey)
@@ -776,6 +799,11 @@ export async function connectProviderIntegration(params: {
 			)
 		)
 		.catch(() => [])
+	const existingCredentialRows = await db
+		.select()
+		.from(ProviderIntegrationCredential)
+		.where(eq(ProviderIntegrationCredential.providerId, params.providerId))
+		.catch(() => [])
 	let existing = params.connectionId
 		? (connectorConnections.find((row) => row.id === params.connectionId) ?? null)
 		: params.createNew
@@ -783,8 +811,15 @@ export async function connectProviderIntegration(params: {
 			: (connectorConnections.find((row) => row.isPrimary) ?? connectorConnections[0] ?? null)
 	if (params.connectionId && !existing) throw new Error("INTEGRATION_CONNECTION_NOT_FOUND")
 	const now = new Date()
+	const hasExistingCredential = Boolean(
+		existing &&
+		existingCredentialRows.some((row) => row.connectionId === existing?.id && !row.revokedAt)
+	)
+	const hasCredential = Boolean(credentialSecret || params.oauthCredential || hasExistingCredential)
+	const hasConnectionMaterial =
+		connectorKey === "external_calendars" || Boolean(endpointUrl || hasCredential)
 	// Credentials alone never mean "connected" (Expedia connectivity test / Airbnb channel smoke).
-	const status: ProviderConnectorStatus = credentialsRef ? "pending" : "requires_attention"
+	const status: ProviderConnectorStatus = hasConnectionMaterial ? "pending" : "requires_attention"
 	const values = {
 		providerId: params.providerId,
 		connectorKey,
@@ -796,19 +831,19 @@ export async function connectProviderIntegration(params: {
 		status,
 		mode,
 		scopesJson: scopes,
-		credentialsRef: credentialsRef || undefined,
+		endpointUrl: endpointUrl || null,
 		vendorKey,
 		authType,
 		externalPropertyId,
-		errorMessage: credentialsRef
+		errorMessage: hasConnectionMaterial
 			? "Ejecuta una prueba de conexión antes de usar este conector como validado."
-			: "Falta referencia de credenciales.",
+			: "Falta configurar el endpoint o la credencial.",
 		lastSyncStatus: existing?.lastSyncStatus ?? undefined,
 		lastSyncAt: existing?.lastSyncAt ?? undefined,
-		syncEnabled: connectorKey !== "external_calendars" && Boolean(credentialsRef),
+		syncEnabled: connectorKey !== "external_calendars" && hasConnectionMaterial,
 		syncIntervalMinutes: Number(existing?.syncIntervalMinutes ?? 1440),
 		nextSyncAt:
-			connectorKey !== "external_calendars" && credentialsRef
+			connectorKey !== "external_calendars" && hasConnectionMaterial
 				? (existing?.nextSyncAt ?? now)
 				: null,
 		consecutiveFailures: 0,
@@ -822,12 +857,19 @@ export async function connectProviderIntegration(params: {
 			.set(values)
 			.where(eq(ProviderIntegrationConnection.id, existing.id))
 		if (params.oauthCredential?.accessToken) {
-			await upsertProviderIntegrationCredential({
+			await upsertProviderIntegrationOAuthCredential({
 				providerId: params.providerId,
 				connectionId: existing.id,
 				connectorKey,
 				credential: params.oauthCredential,
-				previousCredentialRef: existing.credentialsRef,
+			})
+		} else if (credentialSecret) {
+			await upsertProviderIntegrationOpaqueCredential({
+				providerId: params.providerId,
+				connectionId: existing.id,
+				connectorKey,
+				authType,
+				secret: credentialSecret,
 			})
 		}
 		await insertAudit({
@@ -836,10 +878,14 @@ export async function connectProviderIntegration(params: {
 			action: "provider.integration.update",
 			entityId: existing.id,
 			beforeJson: before,
-			afterJson: connectionAuditSnapshot({ id: existing.id, ...values }),
+			afterJson: connectionAuditSnapshot({
+				id: existing.id,
+				...values,
+				hasCredential,
+			}),
 			riskLevel: inferSettingsRiskLevel({
 				domain: "integrations",
-				changedKeys: ["status", "mode", "credentialsRef", "scopes"],
+				changedKeys: ["status", "mode", "endpointUrl", "credential", "scopes"],
 			}),
 		})
 		await invalidateProviderGovernance(params.providerId, "provider_integration_updated")
@@ -854,12 +900,19 @@ export async function connectProviderIntegration(params: {
 		createdAt: now,
 	})
 	if (params.oauthCredential?.accessToken) {
-		await upsertProviderIntegrationCredential({
+		await upsertProviderIntegrationOAuthCredential({
 			providerId: params.providerId,
 			connectionId: id,
 			connectorKey,
 			credential: params.oauthCredential,
-			previousCredentialRef: null,
+		})
+	} else if (credentialSecret) {
+		await upsertProviderIntegrationOpaqueCredential({
+			providerId: params.providerId,
+			connectionId: id,
+			connectorKey,
+			authType,
+			secret: credentialSecret,
 		})
 	}
 	await insertAudit({
@@ -868,10 +921,10 @@ export async function connectProviderIntegration(params: {
 		action: "provider.integration.connect",
 		entityId: id,
 		beforeJson: null,
-		afterJson: connectionAuditSnapshot({ id, ...values }),
+		afterJson: connectionAuditSnapshot({ id, ...values, hasCredential }),
 		riskLevel: inferSettingsRiskLevel({
 			domain: "integrations",
-			changedKeys: ["status", "mode", "credentialsRef", "scopes"],
+			changedKeys: ["status", "mode", "endpointUrl", "credential", "scopes"],
 		}),
 	})
 	await invalidateProviderGovernance(params.providerId, "provider_integration_connected")
@@ -903,7 +956,8 @@ export async function revokeProviderIntegration(params: {
 	const after = {
 		...before,
 		status: "revoked",
-		credentialsRef: null,
+		endpointUrl: null,
+		hasCredential: false,
 		errorMessage: "Credenciales revocadas por el proveedor.",
 	}
 
@@ -913,7 +967,7 @@ export async function revokeProviderIntegration(params: {
 			.set({
 				status: "revoked",
 				isPrimary: false,
-				credentialsRef: null,
+				endpointUrl: null,
 				errorMessage: "Credenciales revocadas por el proveedor.",
 				updatedAt: new Date(),
 			})
@@ -988,13 +1042,12 @@ export async function syncProviderIntegration(params: {
 		requestedBy: params.currentUserId,
 		idempotencyKey: params.idempotencyKey,
 	})
-	const credentialsRef = String(existing.credentialsRef ?? "").trim()
 	const credentialState = await ensureProviderIntegrationCredentialFresh({
 		providerId: params.providerId,
 		connectionId: existing.id,
 		connectorKey,
 		actorUserId: params.currentUserId,
-		credentialsRef,
+		authType: normalizeChannelManagerAuthType(existing.authType),
 		mode: normalizeMode(existing.mode),
 	})
 	const { runConnectorSmokeTest } = await import("@/lib/provider-connector-smoke")
@@ -1004,7 +1057,7 @@ export async function syncProviderIntegration(params: {
 			? await runChannelManagerVendorSmokeTest({
 					vendorKey: normalizeChannelManagerVendorKey(existing.vendorKey),
 					authType: normalizeChannelManagerAuthType(existing.authType),
-					credentialsRef,
+					credentialSecret: credentialState.credentialSecret,
 					externalPropertyId: existing.externalPropertyId,
 				})
 			: null
@@ -1016,21 +1069,21 @@ export async function syncProviderIntegration(params: {
 				probe: "oauth2" as const,
 				trustLevel: "failed" as const,
 			}
-		: credentialState.oauthVaultVerified
-			? {
-					ok: true,
-					message: credentialState.refreshed
-						? "Token OAuth renovado y credencial activa."
-						: "Credencial OAuth activa en vault.",
-					latencyMs: 0,
-					probe: "oauth2" as const,
-					trustLevel: "verified_connection" as const,
-				}
-			: vendorSmoke
-				? vendorSmoke
+		: vendorSmoke
+			? vendorSmoke
+			: credentialState.oauthVaultVerified
+				? {
+						ok: true,
+						message: credentialState.refreshed
+							? "Token OAuth renovado y credencial activa."
+							: "Credencial OAuth activa en vault.",
+						latencyMs: 0,
+						probe: "oauth2" as const,
+						trustLevel: "verified_connection" as const,
+					}
 				: await runConnectorSmokeTest({
 						connectorKey,
-						credentialsRef,
+						endpointUrl: String(existing.endpointUrl ?? ""),
 						mode: String(existing.mode ?? "sandbox"),
 					})
 	const hasVerifiedConnection = smoke.ok && smoke.trustLevel === "verified_connection"
@@ -1153,7 +1206,7 @@ function refreshAfter(expiresAt: Date | null): Date | null {
 	return new Date(Math.max(Date.now(), expiresAt.getTime() - 5 * 60 * 1000))
 }
 
-async function upsertProviderIntegrationCredential(params: {
+async function upsertProviderIntegrationOAuthCredential(params: {
 	providerId: string
 	connectionId: string
 	connectorKey: ProviderConnectorKey
@@ -1164,7 +1217,6 @@ async function upsertProviderIntegrationCredential(params: {
 		expiresIn?: number | null
 		scope?: string | null
 	}
-	previousCredentialRef?: string | null
 	refreshed?: boolean
 }) {
 	const now = new Date()
@@ -1217,17 +1269,72 @@ async function upsertProviderIntegrationCredential(params: {
 	})
 }
 
+async function upsertProviderIntegrationOpaqueCredential(params: {
+	providerId: string
+	connectionId: string
+	connectorKey: ProviderConnectorKey
+	authType: ChannelManagerAuthType
+	secret: string
+}) {
+	if (params.authType === "oauth2") {
+		throw new Error("INTEGRATION_OAUTH_REQUIRES_AUTHORIZATION_FLOW")
+	}
+	const now = new Date()
+	const encryptedJson = encryptProviderIntegrationSecret({
+		providerId: params.providerId,
+		connectionId: params.connectionId,
+		payload: {
+			v: 1,
+			authType: params.authType,
+			secret: params.secret,
+			obtainedAt: now.toISOString(),
+			vendor: params.connectorKey,
+		},
+	})
+	const values = {
+		providerId: params.providerId,
+		authType: params.authType,
+		encryptedJson,
+		scopesJson: [],
+		tokenExpiresAt: null,
+		refreshAfterAt: null,
+		lastRefreshedAt: null,
+		revokedAt: null,
+		updatedAt: now,
+	}
+	const existing = await db
+		.select({ connectionId: ProviderIntegrationCredential.connectionId })
+		.from(ProviderIntegrationCredential)
+		.where(eq(ProviderIntegrationCredential.connectionId, params.connectionId))
+		.then((rows) => rows[0])
+		.catch(() => null)
+	if (existing) {
+		await db
+			.update(ProviderIntegrationCredential)
+			.set(values)
+			.where(eq(ProviderIntegrationCredential.connectionId, params.connectionId))
+		return
+	}
+	await db.insert(ProviderIntegrationCredential).values({
+		connectionId: params.connectionId,
+		...values,
+		createdAt: now,
+	})
+}
+
 async function ensureProviderIntegrationCredentialFresh(params: {
 	providerId: string
 	connectionId: string
 	connectorKey: ProviderConnectorKey
 	actorUserId?: string | null
-	credentialsRef: string
+	authType: ChannelManagerAuthType
 	mode: ProviderConnectorMode
-}): Promise<{ oauthVaultVerified: boolean; refreshed: boolean; error: string | null }> {
-	if (!params.credentialsRef.startsWith("oauth2://")) {
-		return { oauthVaultVerified: false, refreshed: false, error: null }
-	}
+}): Promise<{
+	credentialSecret: string
+	oauthVaultVerified: boolean
+	refreshed: boolean
+	error: string | null
+}> {
 	const row = await db
 		.select()
 		.from(ProviderIntegrationCredential)
@@ -1235,7 +1342,16 @@ async function ensureProviderIntegrationCredentialFresh(params: {
 		.then((rows) => rows[0])
 		.catch(() => null)
 	if (!row || row.revokedAt) {
+		if (params.authType !== "oauth2") {
+			return {
+				credentialSecret: "",
+				oauthVaultVerified: false,
+				refreshed: false,
+				error: null,
+			}
+		}
 		return {
+			credentialSecret: "",
 			oauthVaultVerified: false,
 			refreshed: false,
 			error: "No encontramos una credencial OAuth activa para esta conexión.",
@@ -1246,22 +1362,37 @@ async function ensureProviderIntegrationCredentialFresh(params: {
 		payload = decryptProviderIntegrationSecret({
 			providerId: params.providerId,
 			connectionId: params.connectionId,
-			authType: "oauth2",
+			authType: row.authType,
 			encrypted: row.encryptedJson,
 		})
 	} catch (error) {
 		return {
+			credentialSecret: "",
 			oauthVaultVerified: false,
 			refreshed: false,
 			error: error instanceof Error ? error.message : "INTEGRATION_VAULT_DECRYPT_FAILED",
 		}
 	}
+	if (payload.authType !== "oauth2") {
+		return {
+			credentialSecret: payload.secret,
+			oauthVaultVerified: false,
+			refreshed: false,
+			error: null,
+		}
+	}
 	const expiresAt = row.tokenExpiresAt ?? payload.expiresAt ?? null
 	if (!shouldRefreshProviderIntegrationToken(expiresAt)) {
-		return { oauthVaultVerified: true, refreshed: false, error: null }
+		return {
+			credentialSecret: payload.accessToken,
+			oauthVaultVerified: true,
+			refreshed: false,
+			error: null,
+		}
 	}
 	if (!payload.refreshToken) {
 		return {
+			credentialSecret: "",
 			oauthVaultVerified: false,
 			refreshed: false,
 			error: isProviderIntegrationTokenExpired(expiresAt)
@@ -1275,12 +1406,13 @@ async function ensureProviderIntegrationCredentialFresh(params: {
 	})
 	if (!refreshed.ok || !refreshed.accessToken) {
 		return {
+			credentialSecret: "",
 			oauthVaultVerified: false,
 			refreshed: false,
 			error: refreshed.message ?? refreshed.error ?? "No se pudo renovar la autorización OAuth.",
 		}
 	}
-	await upsertProviderIntegrationCredential({
+	await upsertProviderIntegrationOAuthCredential({
 		providerId: params.providerId,
 		connectionId: params.connectionId,
 		connectorKey: params.connectorKey,
@@ -1291,7 +1423,6 @@ async function ensureProviderIntegrationCredentialFresh(params: {
 			expiresIn: refreshed.expiresIn,
 			scope: refreshed.scope ?? payload.scope,
 		},
-		previousCredentialRef: params.credentialsRef,
 		refreshed: true,
 	})
 	await insertAudit({
@@ -1299,12 +1430,17 @@ async function ensureProviderIntegrationCredentialFresh(params: {
 		actorUserId: params.actorUserId,
 		action: "provider.integration.credential_refresh",
 		entityId: params.connectionId,
-		beforeJson: { credentialsRef: params.credentialsRef, tokenExpiresAt: expiresAt },
+		beforeJson: { authType: "oauth2", tokenExpiresAt: expiresAt },
 		afterJson: {
-			credentialsRef: params.credentialsRef,
+			authType: "oauth2",
 			tokenExpiresAt: credentialsExpiresAt(refreshed.expiresIn),
 		},
 		riskLevel: "medium",
 	})
-	return { oauthVaultVerified: true, refreshed: true, error: null }
+	return {
+		credentialSecret: refreshed.accessToken,
+		oauthVaultVerified: true,
+		refreshed: true,
+		error: null,
+	}
 }

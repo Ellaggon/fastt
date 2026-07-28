@@ -79,28 +79,221 @@ CREATE TABLE "ProviderIntegrationConnection" (
 	"id" text PRIMARY KEY,
 	"providerId" text NOT NULL,
 	"connectorKey" text NOT NULL,
+	"displayName" text,
+	"isPrimary" boolean NOT NULL DEFAULT false,
 	"status" text NOT NULL DEFAULT 'not_configured',
 	"mode" text NOT NULL DEFAULT 'sandbox',
 	"scopesJson" jsonb,
-	"credentialsRef" text,
+	"endpointUrl" text,
+	"vendorKey" text,
+	"authType" text,
+	"externalPropertyId" text,
+	"catalogJson" jsonb,
+	"lastCatalogSyncAt" timestamp with time zone,
 	"lastSyncAt" timestamp with time zone,
 	"lastSyncStatus" text,
 	"errorMessage" text,
+	"syncEnabled" boolean NOT NULL DEFAULT false,
+	"syncIntervalMinutes" integer NOT NULL DEFAULT 1440,
+	"nextSyncAt" timestamp with time zone,
+	"lastAutomaticSyncAt" timestamp with time zone,
+	"consecutiveFailures" integer NOT NULL DEFAULT 0,
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
 	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
-CREATE TABLE "ProviderIntegrationSyncLog" (
+CREATE TABLE "ProviderIntegrationCredential" (
+	"connectionId" text PRIMARY KEY,
+	"providerId" text NOT NULL,
+	"authType" text NOT NULL,
+	"encryptedJson" jsonb NOT NULL,
+	"scopesJson" jsonb,
+	"tokenExpiresAt" timestamp with time zone,
+	"refreshAfterAt" timestamp with time zone,
+	"lastRefreshedAt" timestamp with time zone,
+	"revokedAt" timestamp with time zone,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "ProviderIntegrationMapping" (
 	"id" text PRIMARY KEY,
 	"providerId" text NOT NULL,
-	"connectorKey" text NOT NULL,
-	"connectionId" text,
-	"eventType" text NOT NULL,
-	"status" text NOT NULL,
-	"mode" text NOT NULL DEFAULT 'sandbox',
-	"message" text,
+	"connectionId" text NOT NULL,
+	"mappingType" text NOT NULL,
+	"localEntityType" text NOT NULL,
+	"localEntityId" text NOT NULL,
+	"externalEntityType" text NOT NULL,
+	"externalEntityId" text NOT NULL,
+	"externalEntityName" text,
+	"direction" text NOT NULL DEFAULT 'bidirectional',
+	"status" text NOT NULL DEFAULT 'active',
 	"metadataJson" jsonb,
+	"lastVerifiedAt" timestamp with time zone,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "ProviderIntegrationSyncRun" (
+	"id" text PRIMARY KEY,
+	"providerId" text NOT NULL,
+	"connectionId" text NOT NULL,
+	"connectorKey" text NOT NULL,
+	"operation" text NOT NULL,
+	"trigger" text NOT NULL DEFAULT 'manual',
+	"status" text NOT NULL DEFAULT 'running',
+	"idempotencyKey" text,
+	"readCount" integer NOT NULL DEFAULT 0,
+	"changedCount" integer NOT NULL DEFAULT 0,
+	"skippedCount" integer NOT NULL DEFAULT 0,
+	"failedCount" integer NOT NULL DEFAULT 0,
+	"cursor" text,
+	"errorCode" text,
+	"errorMessage" text,
+	"summaryJson" jsonb,
+	"requestedBy" text,
+	"startedAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"finishedAt" timestamp with time zone,
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "ProviderIntegrationSyncJob" (
+	"id" text PRIMARY KEY,
+	"providerId" text NOT NULL,
+	"connectionId" text,
+	"targetType" text NOT NULL DEFAULT 'connection',
+	"targetId" text NOT NULL,
+	"connectorKey" text NOT NULL,
+	"operation" text NOT NULL DEFAULT 'connection_test',
+	"status" text NOT NULL DEFAULT 'queued',
+	"trigger" text NOT NULL DEFAULT 'scheduled',
+	"priority" integer NOT NULL DEFAULT 100,
+	"attempts" integer NOT NULL DEFAULT 0,
+	"maxAttempts" integer NOT NULL DEFAULT 5,
+	"runAfter" timestamp with time zone NOT NULL DEFAULT now(),
+	"lockedAt" timestamp with time zone,
+	"lockedBy" text,
+	"idempotencyKey" text NOT NULL,
+	"lastError" text,
+	"payloadJson" jsonb,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"finishedAt" timestamp with time zone
+);
+
+CREATE TABLE "ProviderIntegrationIncident" (
+	"id" text PRIMARY KEY,
+	"providerId" text NOT NULL,
+	"connectionId" text NOT NULL,
+	"syncRunId" text,
+	"mappingId" text,
+	"dedupeKey" text NOT NULL,
+	"code" text NOT NULL,
+	"category" text NOT NULL,
+	"severity" text NOT NULL DEFAULT 'warning',
+	"status" text NOT NULL DEFAULT 'open',
+	"title" text NOT NULL,
+	"description" text NOT NULL,
+	"actionLabel" text,
+	"actionHref" text,
+	"entityType" text,
+	"entityId" text,
+	"occurrenceCount" integer NOT NULL DEFAULT 1,
+	"firstSeenAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"lastSeenAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"resolvedAt" timestamp with time zone,
+	"resolvedBy" text,
+	"resolutionNote" text,
+	"notificationStatus" text NOT NULL DEFAULT 'pending',
+	"notificationChannelsJson" jsonb,
+	"notificationAttemptCount" integer NOT NULL DEFAULT 0,
+	"notifiedAt" timestamp with time zone,
+	"notificationError" text,
+	"metadataJson" jsonb,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "ProviderExternalCalendar" (
+	"id" text PRIMARY KEY,
+	"providerId" text NOT NULL,
+	"connectionId" text NOT NULL,
+	"variantId" text NOT NULL,
+	"resourceId" text,
+	"name" text NOT NULL,
+	"feedUrlEncrypted" jsonb NOT NULL,
+	"feedUrlHost" text NOT NULL,
+	"feedUrlFingerprint" text NOT NULL,
+	"status" text NOT NULL DEFAULT 'pending',
+	"lastSyncAt" timestamp with time zone,
+	"lastSyncStatus" text,
+	"lastError" text,
+	"lastEventCount" integer NOT NULL DEFAULT 0,
+	"etag" text,
+	"lastModified" text,
+	"syncEnabled" boolean NOT NULL DEFAULT true,
+	"syncIntervalMinutes" integer NOT NULL DEFAULT 1440,
+	"nextSyncAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"lastAutomaticSyncAt" timestamp with time zone,
+	"consecutiveFailures" integer NOT NULL DEFAULT 0,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "ProviderExternalCalendarEvent" (
+	"id" text PRIMARY KEY,
+	"calendarId" text NOT NULL,
+	"providerId" text NOT NULL,
+	"variantId" text NOT NULL,
+	"resourceId" text,
+	"sourceKey" text NOT NULL,
+	"externalUid" text NOT NULL,
+	"summary" text,
+	"startDate" date NOT NULL,
+	"endDate" date NOT NULL,
+	"sourceUpdatedAt" timestamp with time zone,
+	"fingerprint" text NOT NULL,
+	"isActive" boolean NOT NULL DEFAULT true,
+	"firstSeenAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"lastSeenAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "ProviderExternalCalendarConflict" (
+	"id" text PRIMARY KEY,
+	"providerId" text NOT NULL,
+	"calendarId" text NOT NULL,
+	"variantId" text NOT NULL,
+	"resourceId" text,
+	"kind" text NOT NULL,
+	"status" text NOT NULL DEFAULT 'open',
+	"dedupeKey" text NOT NULL,
+	"startDate" date NOT NULL,
+	"endDate" date NOT NULL,
+	"title" text NOT NULL,
+	"description" text NOT NULL,
+	"actionLabel" text,
+	"resolutionNote" text,
+	"actedAt" timestamp with time zone,
+	"actedBy" text,
+	"firstSeenAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"lastSeenAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"metadataJson" jsonb,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "ProviderExternalCalendarExport" (
+	"id" text PRIMARY KEY,
+	"providerId" text NOT NULL,
+	"variantId" text NOT NULL,
+	"resourceId" text,
+	"label" text NOT NULL,
+	"tokenHash" text NOT NULL,
+	"status" text NOT NULL DEFAULT 'active',
+	"lastDownloadedAt" timestamp with time zone,
+	"downloadCount" integer NOT NULL DEFAULT 0,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
 CREATE TABLE "ProviderAuditLog" (
@@ -171,6 +364,7 @@ CREATE TABLE "ProviderInvitation" (
 	"email" text NOT NULL,
 	"role" text NOT NULL,
 	"status" text NOT NULL DEFAULT 'pending',
+	"token" text,
 	"invitedBy" text NOT NULL,
 	"acceptedAt" timestamp with time zone,
 	"expiresAt" timestamp with time zone NOT NULL,
@@ -195,20 +389,6 @@ CREATE TABLE "ProviderFinancialProfile" (
 	"currency" text NOT NULL,
 	"taxProfileStatus" text NOT NULL,
 	"status" text NOT NULL,
-	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
-	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
-);
-
-CREATE TABLE "FinancialProviderSummary" (
-	"providerId" text PRIMARY KEY,
-	"summaryJson" jsonb NOT NULL DEFAULT '{}'::jsonb,
-	"collectionsJson" jsonb NOT NULL DEFAULT '{}'::jsonb,
-	"refundsJson" jsonb NOT NULL DEFAULT '{}'::jsonb,
-	"exceptionsJson" jsonb NOT NULL DEFAULT '{}'::jsonb,
-	"settlementsJson" jsonb NOT NULL DEFAULT '{}'::jsonb,
-	"computedAt" timestamp with time zone NOT NULL DEFAULT now(),
-	"invalidatedAt" timestamp with time zone,
-	"invalidationReason" text,
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
 	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
 );
@@ -311,20 +491,6 @@ CREATE TABLE "Product" (
 	"destinationId" text NOT NULL
 );
 
-CREATE TABLE "HouseRule" (
-	"id" text PRIMARY KEY,
-	"productId" text NOT NULL,
-	"type" text NOT NULL,
-	"payloadJson" jsonb NOT NULL,
-	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
-);
-
-CREATE TABLE "ProductStatus" (
-	"productId" text PRIMARY KEY,
-	"state" text NOT NULL DEFAULT 'draft',
-	"validationErrorsJson" jsonb
-);
-
 CREATE TABLE "ProductOperationalSurface" (
 	"productId" text PRIMARY KEY,
 	"providerId" text NOT NULL,
@@ -341,6 +507,20 @@ CREATE TABLE "ProductOperationalSurface" (
 	"policyCoverageStateJson" jsonb,
 	"conditionsHref" text,
 	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "HouseRule" (
+	"id" text PRIMARY KEY,
+	"productId" text NOT NULL,
+	"type" text NOT NULL,
+	"payloadJson" jsonb NOT NULL,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "ProductStatus" (
+	"productId" text PRIMARY KEY,
+	"state" text NOT NULL DEFAULT 'draft',
+	"validationErrorsJson" jsonb
 );
 
 CREATE TABLE "ProductPreparationSnapshot" (
@@ -574,6 +754,18 @@ CREATE TABLE "VariantInventoryConfig" (
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
+CREATE TABLE "InventoryResource" (
+	"id" text PRIMARY KEY,
+	"providerId" text NOT NULL,
+	"variantId" text NOT NULL,
+	"label" text NOT NULL,
+	"status" text NOT NULL DEFAULT 'active',
+	"externalCode" text,
+	"metadataJson" jsonb,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
 CREATE TABLE "DailyInventory" (
 	"id" text PRIMARY KEY,
 	"variantId" text NOT NULL,
@@ -591,6 +783,7 @@ CREATE TABLE "EffectiveAvailability" (
 	"totalUnits" integer NOT NULL DEFAULT 0,
 	"heldUnits" integer NOT NULL DEFAULT 0,
 	"bookedUnits" integer NOT NULL DEFAULT 0,
+	"externalBlockedUnits" integer NOT NULL DEFAULT 0,
 	"availableUnits" integer NOT NULL DEFAULT 0,
 	"computedAt" timestamp with time zone NOT NULL
 );
@@ -1050,6 +1243,20 @@ CREATE TABLE "ReconciliationMatch" (
 	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
+CREATE TABLE "FinancialProviderSummary" (
+	"providerId" text PRIMARY KEY,
+	"summaryJson" jsonb NOT NULL,
+	"collectionsJson" jsonb NOT NULL,
+	"refundsJson" jsonb NOT NULL,
+	"exceptionsJson" jsonb NOT NULL,
+	"settlementsJson" jsonb NOT NULL,
+	"computedAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"invalidatedAt" timestamp with time zone,
+	"invalidationReason" text,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
 CREATE TABLE "CommissionSnapshot" (
 	"id" text PRIMARY KEY,
 	"bookingId" text NOT NULL,
@@ -1126,16 +1333,194 @@ ALTER TABLE "ProviderIntegrationConnection"
 	REFERENCES "Provider" ("id")
 ;
 
-ALTER TABLE "ProviderIntegrationSyncLog"
-	ADD CONSTRAINT "ProviderIntegrationSyncLog_providerId_fk"
+ALTER TABLE "ProviderIntegrationCredential"
+	ADD CONSTRAINT "ProviderIntegrationCredential_connectionId_fk"
+	FOREIGN KEY ("connectionId")
+	REFERENCES "ProviderIntegrationConnection" ("id")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "ProviderIntegrationCredential"
+	ADD CONSTRAINT "ProviderIntegrationCredential_providerId_fk"
 	FOREIGN KEY ("providerId")
 	REFERENCES "Provider" ("id")
 ;
 
-ALTER TABLE "ProviderIntegrationSyncLog"
-	ADD CONSTRAINT "ProviderIntegrationSyncLog_connectionId_fk"
+ALTER TABLE "ProviderIntegrationMapping"
+	ADD CONSTRAINT "ProviderIntegrationMapping_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
+;
+
+ALTER TABLE "ProviderIntegrationMapping"
+	ADD CONSTRAINT "ProviderIntegrationMapping_connectionId_fk"
 	FOREIGN KEY ("connectionId")
 	REFERENCES "ProviderIntegrationConnection" ("id")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "ProviderIntegrationSyncRun"
+	ADD CONSTRAINT "ProviderIntegrationSyncRun_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
+;
+
+ALTER TABLE "ProviderIntegrationSyncRun"
+	ADD CONSTRAINT "ProviderIntegrationSyncRun_connectionId_fk"
+	FOREIGN KEY ("connectionId")
+	REFERENCES "ProviderIntegrationConnection" ("id")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "ProviderIntegrationSyncRun"
+	ADD CONSTRAINT "ProviderIntegrationSyncRun_requestedBy_fk"
+	FOREIGN KEY ("requestedBy")
+	REFERENCES "User" ("id")
+;
+
+ALTER TABLE "ProviderIntegrationSyncJob"
+	ADD CONSTRAINT "ProviderIntegrationSyncJob_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
+;
+
+ALTER TABLE "ProviderIntegrationSyncJob"
+	ADD CONSTRAINT "ProviderIntegrationSyncJob_connectionId_fk"
+	FOREIGN KEY ("connectionId")
+	REFERENCES "ProviderIntegrationConnection" ("id")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "ProviderIntegrationIncident"
+	ADD CONSTRAINT "ProviderIntegrationIncident_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
+;
+
+ALTER TABLE "ProviderIntegrationIncident"
+	ADD CONSTRAINT "ProviderIntegrationIncident_connectionId_fk"
+	FOREIGN KEY ("connectionId")
+	REFERENCES "ProviderIntegrationConnection" ("id")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "ProviderIntegrationIncident"
+	ADD CONSTRAINT "ProviderIntegrationIncident_syncRunId_fk"
+	FOREIGN KEY ("syncRunId")
+	REFERENCES "ProviderIntegrationSyncRun" ("id")
+	ON DELETE SET NULL
+;
+
+ALTER TABLE "ProviderIntegrationIncident"
+	ADD CONSTRAINT "ProviderIntegrationIncident_mappingId_fk"
+	FOREIGN KEY ("mappingId")
+	REFERENCES "ProviderIntegrationMapping" ("id")
+	ON DELETE SET NULL
+;
+
+ALTER TABLE "ProviderIntegrationIncident"
+	ADD CONSTRAINT "ProviderIntegrationIncident_resolvedBy_fk"
+	FOREIGN KEY ("resolvedBy")
+	REFERENCES "User" ("id")
+;
+
+ALTER TABLE "ProviderExternalCalendar"
+	ADD CONSTRAINT "ProviderExternalCalendar_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
+;
+
+ALTER TABLE "ProviderExternalCalendar"
+	ADD CONSTRAINT "ProviderExternalCalendar_connectionId_fk"
+	FOREIGN KEY ("connectionId")
+	REFERENCES "ProviderIntegrationConnection" ("id")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "ProviderExternalCalendar"
+	ADD CONSTRAINT "ProviderExternalCalendar_variantId_fk"
+	FOREIGN KEY ("variantId")
+	REFERENCES "Variant" ("id")
+;
+
+ALTER TABLE "ProviderExternalCalendar"
+	ADD CONSTRAINT "ProviderExternalCalendar_resourceId_fk"
+	FOREIGN KEY ("resourceId")
+	REFERENCES "InventoryResource" ("id")
+;
+
+ALTER TABLE "ProviderExternalCalendarEvent"
+	ADD CONSTRAINT "ProviderExternalCalendarEvent_calendarId_fk"
+	FOREIGN KEY ("calendarId")
+	REFERENCES "ProviderExternalCalendar" ("id")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "ProviderExternalCalendarEvent"
+	ADD CONSTRAINT "ProviderExternalCalendarEvent_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
+;
+
+ALTER TABLE "ProviderExternalCalendarEvent"
+	ADD CONSTRAINT "ProviderExternalCalendarEvent_variantId_fk"
+	FOREIGN KEY ("variantId")
+	REFERENCES "Variant" ("id")
+;
+
+ALTER TABLE "ProviderExternalCalendarEvent"
+	ADD CONSTRAINT "ProviderExternalCalendarEvent_resourceId_fk"
+	FOREIGN KEY ("resourceId")
+	REFERENCES "InventoryResource" ("id")
+;
+
+ALTER TABLE "ProviderExternalCalendarConflict"
+	ADD CONSTRAINT "ProviderExternalCalendarConflict_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
+;
+
+ALTER TABLE "ProviderExternalCalendarConflict"
+	ADD CONSTRAINT "ProviderExternalCalendarConflict_calendarId_fk"
+	FOREIGN KEY ("calendarId")
+	REFERENCES "ProviderExternalCalendar" ("id")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "ProviderExternalCalendarConflict"
+	ADD CONSTRAINT "ProviderExternalCalendarConflict_variantId_fk"
+	FOREIGN KEY ("variantId")
+	REFERENCES "Variant" ("id")
+;
+
+ALTER TABLE "ProviderExternalCalendarConflict"
+	ADD CONSTRAINT "ProviderExternalCalendarConflict_resourceId_fk"
+	FOREIGN KEY ("resourceId")
+	REFERENCES "InventoryResource" ("id")
+;
+
+ALTER TABLE "ProviderExternalCalendarConflict"
+	ADD CONSTRAINT "ProviderExternalCalendarConflict_actedBy_fk"
+	FOREIGN KEY ("actedBy")
+	REFERENCES "User" ("id")
+;
+
+ALTER TABLE "ProviderExternalCalendarExport"
+	ADD CONSTRAINT "ProviderExternalCalendarExport_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
+;
+
+ALTER TABLE "ProviderExternalCalendarExport"
+	ADD CONSTRAINT "ProviderExternalCalendarExport_variantId_fk"
+	FOREIGN KEY ("variantId")
+	REFERENCES "Variant" ("id")
+;
+
+ALTER TABLE "ProviderExternalCalendarExport"
+	ADD CONSTRAINT "ProviderExternalCalendarExport_resourceId_fk"
+	FOREIGN KEY ("resourceId")
+	REFERENCES "InventoryResource" ("id")
 ;
 
 ALTER TABLE "ProviderAuditLog"
@@ -1210,13 +1595,6 @@ ALTER TABLE "ProviderFinancialProfile"
 	REFERENCES "Provider" ("id")
 ;
 
-ALTER TABLE "FinancialProviderSummary"
-	ADD CONSTRAINT "FinancialProviderSummary_providerId_fk"
-	FOREIGN KEY ("providerId")
-	REFERENCES "Provider" ("id")
-	ON DELETE CASCADE
-;
-
 ALTER TABLE "ImageUpload"
 	ADD CONSTRAINT "ImageUpload_imageId_fk"
 	FOREIGN KEY ("imageId")
@@ -1235,18 +1613,6 @@ ALTER TABLE "Product"
 	REFERENCES "Destination" ("id")
 ;
 
-ALTER TABLE "HouseRule"
-	ADD CONSTRAINT "HouseRule_productId_fk"
-	FOREIGN KEY ("productId")
-	REFERENCES "Product" ("id")
-;
-
-ALTER TABLE "ProductStatus"
-	ADD CONSTRAINT "ProductStatus_productId_fk"
-	FOREIGN KEY ("productId")
-	REFERENCES "Product" ("id")
-;
-
 ALTER TABLE "ProductOperationalSurface"
 	ADD CONSTRAINT "ProductOperationalSurface_productId_fk"
 	FOREIGN KEY ("productId")
@@ -1257,6 +1623,18 @@ ALTER TABLE "ProductOperationalSurface"
 	ADD CONSTRAINT "ProductOperationalSurface_providerId_fk"
 	FOREIGN KEY ("providerId")
 	REFERENCES "Provider" ("id")
+;
+
+ALTER TABLE "HouseRule"
+	ADD CONSTRAINT "HouseRule_productId_fk"
+	FOREIGN KEY ("productId")
+	REFERENCES "Product" ("id")
+;
+
+ALTER TABLE "ProductStatus"
+	ADD CONSTRAINT "ProductStatus_productId_fk"
+	FOREIGN KEY ("productId")
+	REFERENCES "Product" ("id")
 ;
 
 ALTER TABLE "ProductPreparationSnapshot"
@@ -1435,6 +1813,18 @@ ALTER TABLE "PolicyAuditLog"
 
 ALTER TABLE "VariantInventoryConfig"
 	ADD CONSTRAINT "VariantInventoryConfig_variantId_fk"
+	FOREIGN KEY ("variantId")
+	REFERENCES "Variant" ("id")
+;
+
+ALTER TABLE "InventoryResource"
+	ADD CONSTRAINT "InventoryResource_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
+;
+
+ALTER TABLE "InventoryResource"
+	ADD CONSTRAINT "InventoryResource_variantId_fk"
 	FOREIGN KEY ("variantId")
 	REFERENCES "Variant" ("id")
 ;
@@ -1673,6 +2063,12 @@ ALTER TABLE "BookingPolicySnapshot"
 	REFERENCES "Policy" ("id")
 ;
 
+ALTER TABLE "FinancialProviderSummary"
+	ADD CONSTRAINT "FinancialProviderSummary_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
+;
+
 
 
 CREATE INDEX "ProviderDocument_providerId_type_idx" ON "ProviderDocument" ("providerId", "type");
@@ -1689,13 +2085,75 @@ CREATE INDEX "ProviderPaymentAccount_providerId_provider_idx" ON "ProviderPaymen
 
 CREATE INDEX "ProviderPaymentAccount_country_idx" ON "ProviderPaymentAccount" ("country");
 
-CREATE UNIQUE INDEX "ProviderIntegrationConnection_provider_connector_unique" ON "ProviderIntegrationConnection" ("providerId", "connectorKey");
+CREATE INDEX "ProviderIntegrationConnection_provider_connector_idx" ON "ProviderIntegrationConnection" ("providerId", "connectorKey");
 
 CREATE INDEX "ProviderIntegrationConnection_providerId_status_idx" ON "ProviderIntegrationConnection" ("providerId", "status");
 
-CREATE INDEX "ProviderIntegrationSyncLog_provider_connector_created_idx" ON "ProviderIntegrationSyncLog" ("providerId", "connectorKey", "createdAt");
+CREATE INDEX "ProviderIntegrationConnection_provider_connector_primary_idx" ON "ProviderIntegrationConnection" ("providerId", "connectorKey", "isPrimary");
 
-CREATE INDEX "ProviderIntegrationSyncLog_provider_status_idx" ON "ProviderIntegrationSyncLog" ("providerId", "status");
+CREATE INDEX "ProviderIntegrationConnection_due_sync_idx" ON "ProviderIntegrationConnection" ("syncEnabled", "status", "nextSyncAt") WHERE "syncEnabled" = true AND "status" <> 'revoked';
+
+CREATE UNIQUE INDEX "ProviderIntegrationConnection_one_primary_unique" ON "ProviderIntegrationConnection" ("providerId", "connectorKey") WHERE "isPrimary" = true;
+
+CREATE INDEX "ProviderIntegrationCredential_provider_idx" ON "ProviderIntegrationCredential" ("providerId");
+
+CREATE INDEX "ProviderIntegrationCredential_expiry_idx" ON "ProviderIntegrationCredential" ("providerId", "tokenExpiresAt");
+
+CREATE UNIQUE INDEX "ProviderIntegrationMapping_connection_local_unique" ON "ProviderIntegrationMapping" ("connectionId", "mappingType", "localEntityId");
+
+CREATE UNIQUE INDEX "ProviderIntegrationMapping_connection_external_unique" ON "ProviderIntegrationMapping" ("connectionId", "mappingType", "externalEntityId");
+
+CREATE INDEX "ProviderIntegrationMapping_provider_status_idx" ON "ProviderIntegrationMapping" ("providerId", "status");
+
+CREATE UNIQUE INDEX "ProviderIntegrationSyncRun_connection_idempotency_unique" ON "ProviderIntegrationSyncRun" ("connectionId", "idempotencyKey");
+
+CREATE INDEX "ProviderIntegrationSyncRun_connection_started_idx" ON "ProviderIntegrationSyncRun" ("connectionId", "startedAt");
+
+CREATE INDEX "ProviderIntegrationSyncRun_provider_status_started_idx" ON "ProviderIntegrationSyncRun" ("providerId", "status", "startedAt");
+
+CREATE UNIQUE INDEX "ProviderIntegrationSyncJob_target_idempotency_unique" ON "ProviderIntegrationSyncJob" ("targetType", "targetId", "idempotencyKey");
+
+CREATE INDEX "ProviderIntegrationSyncJob_due_idx" ON "ProviderIntegrationSyncJob" ("status", "runAfter", "priority");
+
+CREATE INDEX "ProviderIntegrationSyncJob_target_due_idx" ON "ProviderIntegrationSyncJob" ("targetType", "status", "runAfter", "priority");
+
+CREATE INDEX "ProviderIntegrationSyncJob_provider_status_idx" ON "ProviderIntegrationSyncJob" ("providerId", "status", "runAfter");
+
+CREATE UNIQUE INDEX "ProviderIntegrationIncident_connection_dedupe_unique" ON "ProviderIntegrationIncident" ("connectionId", "dedupeKey");
+
+CREATE INDEX "ProviderIntegrationIncident_provider_status_severity_idx" ON "ProviderIntegrationIncident" ("providerId", "status", "severity");
+
+CREATE INDEX "ProviderIntegrationIncident_connection_last_seen_idx" ON "ProviderIntegrationIncident" ("connectionId", "lastSeenAt");
+
+CREATE INDEX "ProviderExternalCalendar_provider_status_idx" ON "ProviderExternalCalendar" ("providerId", "status");
+
+CREATE INDEX "ProviderExternalCalendar_variant_status_idx" ON "ProviderExternalCalendar" ("variantId", "status");
+
+CREATE INDEX "ProviderExternalCalendar_resource_status_idx" ON "ProviderExternalCalendar" ("resourceId", "status");
+
+CREATE INDEX "ProviderExternalCalendar_due_sync_idx" ON "ProviderExternalCalendar" ("syncEnabled", "status", "nextSyncAt") WHERE "syncEnabled" = true AND "status" <> 'revoked';
+
+CREATE UNIQUE INDEX "ProviderExternalCalendar_provider_variant_fingerprint_unique" ON "ProviderExternalCalendar" ("providerId", "variantId", "feedUrlFingerprint");
+
+CREATE UNIQUE INDEX "ProviderExternalCalendarEvent_calendar_source_unique" ON "ProviderExternalCalendarEvent" ("calendarId", "sourceKey");
+
+CREATE INDEX "ProviderExternalCalendarEvent_variant_active_range_idx" ON "ProviderExternalCalendarEvent" ("variantId", "isActive", "startDate", "endDate");
+
+CREATE INDEX "ProviderExternalCalendarEvent_resource_active_range_idx" ON "ProviderExternalCalendarEvent" ("resourceId", "isActive", "startDate", "endDate");
+
+CREATE INDEX "ProviderExternalCalendarEvent_calendar_active_idx" ON "ProviderExternalCalendarEvent" ("calendarId", "isActive");
+
+CREATE UNIQUE INDEX "ProviderExternalCalendarConflict_calendar_dedupe_unique" ON "ProviderExternalCalendarConflict" ("calendarId", "dedupeKey");
+
+CREATE INDEX "ProviderExternalCalendarConflict_provider_status_idx" ON "ProviderExternalCalendarConflict" ("providerId", "status", "lastSeenAt");
+
+CREATE INDEX "ProviderExternalCalendarConflict_calendar_status_idx" ON "ProviderExternalCalendarConflict" ("calendarId", "status");
+
+CREATE INDEX "ProviderExternalCalendarExport_provider_status_idx" ON "ProviderExternalCalendarExport" ("providerId", "status");
+
+CREATE INDEX "ProviderExternalCalendarExport_variant_status_idx" ON "ProviderExternalCalendarExport" ("variantId", "status");
+
+CREATE UNIQUE INDEX "ProviderExternalCalendarExport_token_unique" ON "ProviderExternalCalendarExport" ("tokenHash");
 
 CREATE INDEX "ProviderAuditLog_provider_created_idx" ON "ProviderAuditLog" ("providerId", "createdAt");
 
@@ -1723,6 +2181,8 @@ CREATE INDEX "ProviderInvitation_providerId_status_idx" ON "ProviderInvitation" 
 
 CREATE INDEX "ProviderInvitation_providerId_email_idx" ON "ProviderInvitation" ("providerId", "email");
 
+CREATE UNIQUE INDEX "ProviderInvitation_token_unique" ON "ProviderInvitation" ("token");
+
 CREATE INDEX "ProviderInvitation_providerId_created_idx" ON "ProviderInvitation" ("providerId", "createdAt", "id");
 
 CREATE UNIQUE INDEX "User_email_unique" ON "User" ("email");
@@ -1732,10 +2192,6 @@ CREATE UNIQUE INDEX "User_username_unique" ON "User" ("username");
 CREATE INDEX "ProviderFinancialProfile_status_idx" ON "ProviderFinancialProfile" ("status");
 
 CREATE INDEX "ProviderFinancialProfile_taxProfileStatus_idx" ON "ProviderFinancialProfile" ("taxProfileStatus");
-
-CREATE INDEX "FinancialProviderSummary_computedAt_idx" ON "FinancialProviderSummary" ("computedAt");
-
-CREATE INDEX "FinancialProviderSummary_invalidatedAt_idx" ON "FinancialProviderSummary" ("invalidatedAt");
 
 CREATE INDEX "ProviderPayableSnapshot_booking_provider_idx" ON "ProviderPayableSnapshot" ("bookingId", "providerId");
 
@@ -1759,11 +2215,11 @@ CREATE INDEX "Product_providerId_productType_idx" ON "Product" ("providerId", "p
 
 CREATE INDEX "Product_providerId_idx" ON "Product" ("providerId");
 
-CREATE INDEX "HouseRule_productId_type_idx" ON "HouseRule" ("productId", "type");
-
 CREATE INDEX "ProductOperationalSurface_provider_updated_idx" ON "ProductOperationalSurface" ("providerId", "updatedAt");
 
 CREATE INDEX "ProductOperationalSurface_provider_status_idx" ON "ProductOperationalSurface" ("providerId", "status");
+
+CREATE INDEX "HouseRule_productId_type_idx" ON "HouseRule" ("productId", "type");
 
 CREATE INDEX "ProductPreparationSnapshot_provider_updated_idx" ON "ProductPreparationSnapshot" ("providerId", "updatedAt");
 
@@ -1820,6 +2276,10 @@ CREATE INDEX "PolicyAuditLog_event_created_idx" ON "PolicyAuditLog" ("eventType"
 CREATE INDEX "PolicyAuditLog_policyGroupId_idx" ON "PolicyAuditLog" ("policyGroupId");
 
 CREATE INDEX "PolicyAuditLog_scope_scopeId_idx" ON "PolicyAuditLog" ("scope", "scopeId");
+
+CREATE INDEX "InventoryResource_provider_variant_status_idx" ON "InventoryResource" ("providerId", "variantId", "status");
+
+CREATE UNIQUE INDEX "InventoryResource_variant_label_unique" ON "InventoryResource" ("variantId", "label");
 
 CREATE UNIQUE INDEX "DailyInventory_variantId_date_unique" ON "DailyInventory" ("variantId", "date");
 
@@ -2003,6 +2463,10 @@ CREATE INDEX "ReconciliationMatch_provider_reviewStatus_idx" ON "ReconciliationM
 
 CREATE INDEX "ReconciliationMatch_updatedAt_idx" ON "ReconciliationMatch" ("updatedAt");
 
+CREATE INDEX "FinancialProviderSummary_computedAt_idx" ON "FinancialProviderSummary" ("computedAt");
+
+CREATE INDEX "FinancialProviderSummary_invalidatedAt_idx" ON "FinancialProviderSummary" ("invalidatedAt");
+
 CREATE INDEX "CommissionSnapshot_booking_provider_idx" ON "CommissionSnapshot" ("bookingId", "providerId");
 
 CREATE INDEX "CommissionSnapshot_provider_snapshot_idx" ON "CommissionSnapshot" ("providerId", "snapshotAt");
@@ -2012,6 +2476,32 @@ CREATE INDEX "PayoutRecord_bookingId_idx" ON "PayoutRecord" ("bookingId");
 CREATE INDEX "PayoutRecord_provider_status_idx" ON "PayoutRecord" ("providerId", "status");
 
 CREATE INDEX "PayoutRecord_payoutReference_idx" ON "PayoutRecord" ("payoutReference");
+
+
+
+ALTER TABLE "ProviderIntegrationConnection" ADD CONSTRAINT "ProviderIntegrationConnection_status_check" CHECK ("status" IN ('not_configured', 'pending', 'connected', 'requires_attention', 'syncing', 'error', 'revoked'));
+
+ALTER TABLE "ProviderIntegrationConnection" ADD CONSTRAINT "ProviderIntegrationConnection_mode_check" CHECK ("mode" IN ('sandbox', 'production'));
+
+ALTER TABLE "ProviderIntegrationConnection" ADD CONSTRAINT "ProviderIntegrationConnection_endpoint_url_check" CHECK ("endpointUrl" IS NULL OR "endpointUrl" ~ '^https://');
+
+ALTER TABLE "ProviderIntegrationCredential" ADD CONSTRAINT "ProviderIntegrationCredential_auth_type_check" CHECK ("authType" IN ('api_key', 'oauth2', 'reference'));
+
+ALTER TABLE "ProviderIntegrationMapping" ADD CONSTRAINT "ProviderIntegrationMapping_status_check" CHECK ("status" IN ('active', 'inactive'));
+
+ALTER TABLE "ProviderIntegrationSyncRun" ADD CONSTRAINT "ProviderIntegrationSyncRun_status_check" CHECK ("status" IN ('running', 'succeeded', 'partial', 'failed', 'cancelled'));
+
+ALTER TABLE "ProviderIntegrationSyncJob" ADD CONSTRAINT "ProviderIntegrationSyncJob_status_check" CHECK ("status" IN ('queued', 'running', 'succeeded', 'failed'));
+
+ALTER TABLE "ProviderIntegrationIncident" ADD CONSTRAINT "ProviderIntegrationIncident_status_check" CHECK ("status" IN ('open', 'resolved'));
+
+ALTER TABLE "ProviderIntegrationIncident" ADD CONSTRAINT "ProviderIntegrationIncident_severity_check" CHECK ("severity" IN ('info', 'warning', 'error', 'critical'));
+
+ALTER TABLE "ProviderExternalCalendar" ADD CONSTRAINT "ProviderExternalCalendar_status_check" CHECK ("status" IN ('pending', 'active', 'error', 'revoked'));
+
+ALTER TABLE "ProviderExternalCalendarConflict" ADD CONSTRAINT "ProviderExternalCalendarConflict_status_check" CHECK ("status" IN ('open', 'accepted', 'ignored', 'resolved'));
+
+ALTER TABLE "ProviderExternalCalendarExport" ADD CONSTRAINT "ProviderExternalCalendarExport_status_check" CHECK ("status" IN ('active', 'revoked'));
 
 
 
@@ -2147,6 +2637,7 @@ BEGIN
 		'PaymentTransaction',
 		'ReconciliationMatch',
 		'ProviderFinancialProfile',
+		'FinancialProviderSummary',
 		'ProviderPayableSnapshot',
 		'PayoutRecord',
 		'ProviderStatement'
@@ -2276,6 +2767,30 @@ CREATE INDEX IF NOT EXISTS "PolicyAssignment_active_resolution_range_idx"
 CREATE INDEX IF NOT EXISTS "SearchUnitView_available_search_idx"
 	ON "SearchUnitView" ("productId", "date", "occupancyKey", "pricePerNight")
 	WHERE "isAvailable" = true;
+
+CREATE INDEX IF NOT EXISTS "ProviderVerification_providerId_created_idx"
+	ON "ProviderVerification" ("providerId", "createdAt", "id");
+
+CREATE INDEX IF NOT EXISTS "ProviderInvitation_providerId_created_idx"
+	ON "ProviderInvitation" ("providerId", "createdAt", "id");
+
+CREATE INDEX IF NOT EXISTS "RatePlanOccupancyPolicy_ratePlan_current_idx"
+	ON "RatePlanOccupancyPolicy" ("ratePlanId", "effectiveFrom", "id", "effectiveTo");
+
+CREATE INDEX IF NOT EXISTS "EffectivePricingV2_ratePlan_occupancy_date_idx"
+	ON "EffectivePricingV2" ("ratePlanId", "occupancyKey", "date", "computedAt");
+
+CREATE INDEX IF NOT EXISTS "TaxFeeDefinition_provider_status_priority_idx"
+	ON "TaxFeeDefinition" ("providerId", "status", "priority");
+
+CREATE INDEX IF NOT EXISTS "TaxFeeDefinition_provider_code_status_idx"
+	ON "TaxFeeDefinition" ("providerId", "code", "status");
+
+CREATE INDEX IF NOT EXISTS "TaxFeeAssignment_scope_active_channel_idx"
+	ON "TaxFeeAssignment" ("scope", "scopeId", "status", "channel");
+
+CREATE INDEX IF NOT EXISTS "TaxFeeAssignment_definition_scope_active_idx"
+	ON "TaxFeeAssignment" ("taxFeeDefinitionId", "scope", "scopeId", "status", "channel");
 
 DROP TRIGGER IF EXISTS "trg_PolicyAssignment_category_match_insert" ON "PolicyAssignment";
 CREATE TRIGGER "trg_PolicyAssignment_category_match_insert"
