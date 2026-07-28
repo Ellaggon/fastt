@@ -1,17 +1,17 @@
 # DB Surface Risk Analysis (Phase H)
 
-Last updated: 2026-06-09
+Last updated: 2026-07-28
 
 ## Objective
 
-Assess real exploitability of current DB-related dependency risk (`drizzle-orm`) in this repository.
+Describe the canonical PostgreSQL surface and its query-safety guardrails.
 
 ## 1) Where DB is used
 
 Command used:
 
 ```bash
-rg -n "from \"astro:db\"|from 'astro:db'" src tests
+rg -n "shared/infrastructure/db/compat" src tests
 ```
 
 Observed usage pattern:
@@ -24,8 +24,9 @@ Observed usage pattern:
 
 Important architectural note:
 
-- Application-layer direct `astro:db` imports were already blocked in prior phases.
-- Current direct DB usage is concentrated in infrastructure, APIs, SSR surfaces, and tests.
+- Astro DB/libSQL imports are prohibited across `src`.
+- The compatibility module delegates directly to the Supabase PostgreSQL client and canonical schema.
+- Direct DB usage remains concentrated in infrastructure, APIs, SSR surfaces, and tests.
 
 ## 2) Query style and SQL exposure
 
@@ -53,11 +54,7 @@ Validation controls:
 - Extensive `zod` parsing and schema validation in API boundaries and core use-cases.
 - Invalid payloads are generally rejected before persistence paths.
 
-## 4) Practical exploitability assessment for `drizzle-orm` advisory
-
-Advisory context:
-
-- Drizzle vulnerability concerns improperly escaped SQL identifiers.
+## 4) Query-safety assessment
 
 Repo-specific assessment:
 
@@ -68,19 +65,19 @@ Repo-specific assessment:
 Residual risk:
 
 - Not zero: any future introduction of dynamic identifiers could activate the vulnerable path.
-- Current practical runtime exploitability appears **lower than generic advisory severity**, but still non-negligible because affected package is in active runtime stack.
+- Current practical identifier-injection exposure appears low, while normal value parameters remain bound by Drizzle/PostgreSQL.
 
 ## 5) Risk classification (repo-specific)
 
 - Runtime impact potential: **Medium**
 - Current exploitability evidence: **Low-to-Medium**
-- Operational urgency: **High for tracking**, **Medium for immediate intervention** (because safe upgrade path currently regresses functional invariants).
+- Operational urgency: **Medium for continuous dependency monitoring**
 
 ## 6) Guardrails required until upstream fix path is viable
 
 1. Keep concurrency invariant tests mandatory for DB upgrades:
    - `tests/integration/inventory-hold.test.ts` race/conflict expectations.
-2. Re-run full validation on any `@astrojs/db` or Drizzle change:
+2. Re-run full validation on any Drizzle or PostgreSQL client change:
    - `pnpm exec astro check`
    - `pnpm exec tsc --noEmit`
    - `pnpm test`
@@ -89,4 +86,6 @@ Residual risk:
 
 ## 7) Conclusion
 
-The unresolved Drizzle issue is currently an upstream-coupled risk with constrained exploitability in this repo. It should remain a tracked security debt item with strict regression gates, rather than forcing an unstable upgrade that breaks domain invariants.
+Supabase PostgreSQL is the sole persistence target. The remaining risk is ordinary ORM/client
+upgrade risk, controlled through static query construction, validated boundaries, architecture
+tests and concurrency regression tests.

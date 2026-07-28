@@ -1,5 +1,7 @@
 # Supabase Migration - Phase 4 Critical Repositories
 
+> Archived migration record (2026-07-28). Supabase PostgreSQL is canonical; commands and files below may no longer exist and are not operational instructions.
+
 Date: 2026-07-22
 
 ## Objective

@@ -1,5 +1,7 @@
 # Supabase Migration Phase 1 DB Layer
 
+> Archived migration record (2026-07-28). Supabase PostgreSQL is canonical; commands and files below may no longer exist and are not operational instructions.
+
 Last updated: 2026-07-21
 
 ## Objective

@@ -1,6 +1,6 @@
 # Security & Technical Debt Register (Phase H)
 
-Last updated: 2026-06-09
+Last updated: 2026-07-28
 
 ## Scope
 
@@ -31,35 +31,21 @@ Run a fresh `pnpm audit --json` in a dedicated audit phase before using this reg
 merge, release or security-risk decisions. Package registry access may require network
 approval in sandboxed environments.
 
-## Active items
+## Resolved items
 
-### 1) `drizzle-orm` vulnerability via `@astrojs/db` (HIGH)
+### 1) Legacy `drizzle-orm` vulnerability via `@astrojs/db` (RESOLVED)
 
-- Package chain: `@astrojs/db@0.17.2 -> drizzle-orm@0.42.0`
+- Former package chain: `@astrojs/db@0.17.2 -> drizzle-orm@0.42.0`
 - Advisory: `GHSA-gpj5-g38j-94v9` (SQL injection via improperly escaped SQL identifiers)
-- Audit range affected: `<0.45.2`
-- Resolution status: **Unresolved (upstream-coupled)**
+- Resolution status: **Resolved by removing Astro DB/libSQL and using the canonical PostgreSQL adapter**
 
-Attempts executed:
+Final action:
 
-1. Upgrade `@astrojs/db` to latest (`0.20.1`)
-   - Result: broke test runtime API (`createLocalDatabaseClient` not exported as expected by test bootstrap).
-2. Override `drizzle-orm` to `0.45.2`
-   - Result: build/check passed, but integration concurrency invariant failed:
-     - `tests/integration/inventory-hold.test.ts`
-     - `concurrent safety: two holds race; only one succeeds`
-     - Expected one conflict (`409`), observed zero conflicts.
+- Removed `@astrojs/db`, `@libsql/client`, the Astro DB integration and the libSQL test bootstrap.
+- All runtime and test persistence paths now enter through `src/shared/infrastructure/db/compat.ts`.
+- Added an architecture test that prevents Astro DB/Turso dependencies and environment variables from returning.
 
-Decision:
-
-- Keep stable/runtime-safe combination (`@astrojs/db@0.17.2`, no `drizzle-orm` override).
-- Treat as accepted residual risk until upstream-compatible path exists.
-
-Exit criteria to close:
-
-- Either:
-  - `@astrojs/db` release compatible with current test/runtime contracts and patched Drizzle, or
-  - internal migration plan that updates test bootstrap + concurrency behavior without domain regressions.
+## Active items
 
 ### 2) `path-to-regexp` transitives via Vercel adapter (RESOLVED)
 
@@ -93,16 +79,12 @@ Exit criteria:
    - Type: Operational debt
    - Owner action: remove override when adapter tree ships patched transitive by default.
 
-2. DB test bootstrap compatibility coupling (`src/test-support/astro-db.ts`)
-   - Priority: High
-   - Type: Upgrade coupling debt
-   - Owner action: decouple bootstrap from unstable runtime internals exposed by `@astrojs/db` changes.
-
-3. Concurrency invariant sensitivity in hold flow under ORM changes
+2. Concurrency invariant sensitivity in hold flow under ORM changes
    - Priority: High
    - Type: Behavioral upgrade risk
    - Owner action: keep dedicated invariant tests as gate for any DB/ORM upgrade.
 
-## Accepted risk statement
+## Current database position
 
-Given current repo constraints (no domain behavior changes allowed in this phase), keeping `drizzle-orm` unresolved is a conscious stability-first decision, with explicit monitoring and upgrade re-evaluation gates.
+Supabase PostgreSQL is the only canonical database. Dependency risk must be assessed against
+the installed `drizzle-orm` and `postgres` versions, not the removed Astro DB/libSQL chain.
