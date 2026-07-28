@@ -14,11 +14,10 @@ import {
 	ProviderExternalCalendarConflict,
 	ProviderExternalCalendarEvent,
 	ProviderExternalCalendarExport,
-	ProviderExternalCalendarSyncJob,
 	ProviderIntegrationConnection,
 	ProviderIntegrationIncident,
+	ProviderIntegrationSyncJob,
 	ProviderIntegrationSyncRun,
-	ProviderIntegrationSyncLog,
 	RatePlan,
 	Variant,
 } from "@/shared/infrastructure/db/compat"
@@ -81,8 +80,8 @@ afterEach(async () => {
 		.delete(ProviderExternalCalendarConflict)
 		.where(eq(ProviderExternalCalendarConflict.providerId, ids.providerId))
 	await db
-		.delete(ProviderExternalCalendarSyncJob)
-		.where(eq(ProviderExternalCalendarSyncJob.providerId, ids.providerId))
+		.delete(ProviderIntegrationSyncJob)
+		.where(eq(ProviderIntegrationSyncJob.providerId, ids.providerId))
 	await db
 		.delete(ProviderExternalCalendarExport)
 		.where(eq(ProviderExternalCalendarExport.providerId, ids.providerId))
@@ -92,9 +91,6 @@ afterEach(async () => {
 	await db
 		.delete(ProviderExternalCalendar)
 		.where(eq(ProviderExternalCalendar.providerId, ids.providerId))
-	await db
-		.delete(ProviderIntegrationSyncLog)
-		.where(eq(ProviderIntegrationSyncLog.providerId, ids.providerId))
 	await db
 		.delete(ProviderIntegrationIncident)
 		.where(eq(ProviderIntegrationIncident.providerId, ids.providerId))
@@ -245,7 +241,6 @@ describe("integration/provider external calendars", () => {
 		const exportLink = await createProviderExternalCalendarExport({
 			providerId: ids.providerId,
 			variantId: ids.variantId,
-			resourceId: ids.resourceAId,
 			label: "Fastt export",
 			baseUrl: "https://fastt.example.test/provider/settings/integrations",
 		})
@@ -256,6 +251,8 @@ describe("integration/provider external calendars", () => {
 			now: new Date("2026-08-01T00:00:00.000Z"),
 		})
 		expect(exportedIcs).toContain("X-FASTT-SOURCE:fastt")
+		expect(exportedIcs).toContain(`X-FASTT-VARIANT-ID:${ids.variantId}`)
+		expect(exportedIcs).not.toContain("X-FASTT-RESOURCE-ID")
 		expect(exportedIcs.replace(/\r\n /g, "")).toContain(
 			`UID:fastt-booking_room_ical_${suffix}@calendar.fastt.local`
 		)
@@ -317,8 +314,15 @@ describe("integration/provider external calendars", () => {
 		expect(
 			ignored.calendars
 				.find((calendar) => calendar.id === firstId)
-				?.conflicts.find((conflict) => conflict.id === bookingConflict.id)?.status
-		).toBe("ignored")
+				?.conflicts.some((conflict) => conflict.id === bookingConflict.id)
+		).toBe(false)
+		const ignoredRow = await db
+			.select()
+			.from(ProviderExternalCalendarConflict)
+			.where(eq(ProviderExternalCalendarConflict.id, bookingConflict.id))
+			.then((rows) => rows[0])
+		expect(ignoredRow?.status).toBe("ignored")
+		expect(ignoredRow?.resolutionNote).toMatch(/no cambia/i)
 
 		const scheduledAt = new Date("2026-07-26T20:00:00.000Z")
 		await db
@@ -353,8 +357,8 @@ describe("integration/provider external calendars", () => {
 			.from(ProviderExternalCalendar)
 			.where(eq(ProviderExternalCalendar.id, firstId))
 			.then((rows) => rows[0])
-		expect(scheduledCalendar?.syncLeaseToken).toBeNull()
 		expect(scheduledCalendar?.lastAutomaticSyncAt).not.toBeNull()
+		expect(scheduledCalendar?.consecutiveFailures).toBe(0)
 		expect(scheduledCalendar?.nextSyncAt.getTime()).toBeGreaterThan(scheduledAt.getTime())
 		const scheduledRuns = await db
 			.select()
@@ -365,10 +369,16 @@ describe("integration/provider external calendars", () => {
 		).toBe(true)
 		const succeededJobs = await db
 			.select()
-			.from(ProviderExternalCalendarSyncJob)
-			.where(eq(ProviderExternalCalendarSyncJob.providerId, ids.providerId))
+			.from(ProviderIntegrationSyncJob)
+			.where(eq(ProviderIntegrationSyncJob.providerId, ids.providerId))
 		expect(
-			succeededJobs.some((job) => job.calendarId === firstId && job.status === "succeeded")
+			succeededJobs.some(
+				(job) =>
+					job.targetType === "external_calendar" &&
+					job.targetId === firstId &&
+					job.operation === "calendar_import" &&
+					job.status === "succeeded"
+			)
 		).toBe(true)
 
 		const failureAt = new Date(scheduledAt.getTime() + 3_600_000)
@@ -390,7 +400,6 @@ describe("integration/provider external calendars", () => {
 			.from(ProviderExternalCalendar)
 			.where(eq(ProviderExternalCalendar.id, firstId))
 			.then((rows) => rows[0])
-		expect(failedCalendar?.syncLeaseToken).toBeNull()
 		expect(failedCalendar?.consecutiveFailures).toBe(1)
 		expect(failedCalendar?.nextSyncAt.getTime()).toBeGreaterThan(failureAt.getTime())
 		const openIncidents = await db

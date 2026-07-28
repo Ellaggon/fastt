@@ -22,6 +22,8 @@ import {
 	listProviderIntegrationOperations,
 } from "@/lib/provider-integration-operations"
 import {
+	integrationActivityEventLabel,
+	integrationRunOperationLabel,
 	isRecommendedProviderConnector,
 	listProviderIntegrations,
 	type ProviderIntegrationCard,
@@ -217,7 +219,7 @@ const activeExternalCalendarsLabel = `${activeExternalCalendars.length} ${
 	activeExternalCalendars.length === 1 ? "activo" : "activos"
 }`
 const externalConflictLabel = `${externalConflictCount} ${
-	externalConflictCount === 1 ? "posible conflicto" : "posibles conflictos"
+	externalConflictCount === 1 ? "alerta abierta" : "alertas abiertas"
 }`
 
 function authTypeLabel(authType: string) {
@@ -426,8 +428,10 @@ function conflictStatusTone(status: string) {
 				Sus bloqueos dejaron de afectar la disponibilidad.
 			</Notice>
 		) : icalResult === "conflict_updated" ? (
-			<Notice variant="success" title="Conflicto actualizado">
-				La decisión quedó guardada. Si el choque sigue presente, volverá a abrirse.
+			<Notice variant="success" title="Alerta actualizada">
+				Se guardó tu decisión sobre la alerta. Esto no cambia la disponibilidad: los bloqueos del
+				calendario externo ya se aplicaron al sincronizar. Si el choque vuelve a detectarse, la
+				alerta puede abrirse de nuevo.
 			</Notice>
 		) : icalResult === "export_created" ? (
 			<Notice variant="success" title="Enlace de exportación creado">
@@ -598,9 +602,12 @@ function conflictStatusTone(status: string) {
 								recentIntegrationRuns.map((run) => (
 									<div class="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
 										<div>
-											<p class="text-sm font-semibold text-slate-900">{run.operation}</p>
+											<p class="text-sm font-semibold text-slate-900">
+												{integrationRunOperationLabel(String(run.operation))}
+											</p>
 											<p class="mt-1 text-xs text-slate-500">
 												{formatDate(run.startedAt)} · {run.trigger}
+												{run.connectorKey ? ` · ${run.connectorKey}` : ""}
 											</p>
 										</div>
 										<div class="flex flex-wrap items-center gap-2">
@@ -629,10 +636,13 @@ function conflictStatusTone(status: string) {
 								recentIntegrationJobs.map((job) => (
 									<div class="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
 										<div>
-											<p class="text-sm font-semibold text-slate-900">{job.connectorKey}</p>
+											<p class="text-sm font-semibold text-slate-900">
+												{job.connectorKey}
+												{job.targetType === "external_calendar" ? " · iCal" : ""}
+											</p>
 											<p class="mt-1 text-xs text-slate-500">
-												{job.operation} · intento {job.attempts}/{job.maxAttempts} · desde{" "}
-												{formatDate(job.runAfter)}
+												{integrationRunOperationLabel(String(job.operation))} · intento{" "}
+												{job.attempts}/{job.maxAttempts} · desde {formatDate(job.runAfter)}
 											</p>
 										</div>
 										<div class="flex flex-wrap items-center gap-2">
@@ -859,7 +869,11 @@ function conflictStatusTone(status: string) {
 												<div class="fastt-notice rounded-md border border-amber-200 bg-amber-50 p-3">
 													<p class="flex items-center gap-2 text-sm font-semibold text-amber-950">
 														<TriangleAlert class="h-4 w-4" aria-hidden="true" />
-														Posibles conflictos
+														Alertas de solapamiento
+													</p>
+													<p class="mt-1 text-xs leading-5 text-amber-800">
+														Solo gestionan la alerta. La disponibilidad ya refleja los bloqueos
+														importados al sincronizar el feed.
 													</p>
 													<ul class="mt-2 grid gap-1 text-sm text-amber-900">
 														{calendar.conflicts.slice(0, 3).map((conflict) => (
@@ -885,7 +899,7 @@ function conflictStatusTone(status: string) {
 																		>
 																			<input type="hidden" name="action" value="accept" />
 																			<Button type="submit" size="sm" variant="secondary">
-																				Aceptar bloqueo
+																				Aceptar alerta
 																			</Button>
 																		</form>
 																		<form
@@ -940,8 +954,9 @@ function conflictStatusTone(status: string) {
 							<h3 class="text-sm font-semibold text-slate-950">Exportar calendario Fastt</h3>
 							<p class="mt-2 text-sm leading-6 text-slate-600">
 								Crea un enlace iCal para bloquear en otros canales las reservas recibidas en Fastt.
-								Los eventos exportados llevan marca Fastt para evitar bucles si alguien pega este
-								enlace como importación.
+								El feed es por habitación (variante): incluye todas las reservas de esa unidad. Los
+								eventos llevan marca Fastt para evitar bucles si alguien pega este enlace como
+								importación.
 							</p>
 							<form
 								method="post"
@@ -961,22 +976,9 @@ function conflictStatusTone(status: string) {
 										))}
 									</Select>
 								</label>
-								<label class="grid gap-2 text-sm font-semibold text-slate-900">
-									Unidad física
-									<Select name="resourceId">
-										<option value="">Inventario completo de la habitación</option>
-										{externalCalendarData.variants.flatMap((variant) =>
-											variant.resources.map((resource) => (
-												<option value={resource.id}>
-													{variant.label} · {resource.label}
-												</option>
-											))
-										)}
-									</Select>
-								</label>
 								<p class="text-xs leading-5 text-slate-500">
-									Si Fastt aún no asigna reservas a unidades físicas específicas, el feed exporta
-									los bloqueos de la habitación completa para evitar sobreventa.
+									El alcance es la habitación completa. Fastt aún no asigna reservas a unidades
+									físicas, así que no ofrecemos un filtro por habitación física en la exportación.
 								</p>
 								<div>
 									<Button type="submit" size="sm" disabled={!externalCalendarData.variants.length}>
@@ -1005,7 +1007,6 @@ function conflictStatusTone(status: string) {
 												</div>
 												<p class="mt-1 text-sm text-slate-600">
 													{exportLink.productName} · {exportLink.variantName}
-													{exportLink.resourceLabel ? ` · ${exportLink.resourceLabel}` : ""}
 												</p>
 												<p class="mt-1 text-xs text-slate-500">
 													Descargas: {exportLink.downloadCount} · Última descarga:{" "}
@@ -1606,25 +1607,37 @@ function conflictStatusTone(status: string) {
 										<div class="mt-4 border-t border-slate-200 pt-4">
 											<p class="text-sm font-semibold text-slate-950">Actividad reciente</p>
 											<div class="mt-3 grid gap-2">
-												{connector.logs.length ? (
-													connector.logs.map((log) => (
+												{connector.recentActivity.length ? (
+													connector.recentActivity.map((item) => (
 														<Card variant="soft" class="p-3">
 															<div class="flex items-center justify-between gap-3">
 																<p class="text-xs font-semibold tracking-[0.1em] text-slate-500 uppercase">
-																	{log.eventType}
+																	{integrationActivityEventLabel(item.eventType)}
 																</p>
-																<Badge variant={log.status === "error" ? "error" : "neutral"}>
-																	{log.status === "error"
+																<Badge
+																	variant={
+																		item.status === "error"
+																			? "error"
+																			: item.status === "success"
+																				? "success"
+																				: "neutral"
+																	}
+																>
+																	{item.status === "error"
 																		? "Error"
-																		: log.status === "success"
+																		: item.status === "success"
 																			? "Ok"
-																			: log.status}
+																			: item.status === "revoked"
+																				? "Revocado"
+																				: item.status}
 																</Badge>
 															</div>
 															<p class="mt-2 text-sm text-slate-700">
-																{mapProviderIntegrationLogMessage(log.message)}
+																{mapProviderIntegrationLogMessage(item.message)}
 															</p>
-															<p class="mt-1 text-xs text-slate-500">{formatDate(log.createdAt)}</p>
+															<p class="mt-1 text-xs text-slate-500">
+																{formatDate(item.createdAt)}
+															</p>
 														</Card>
 													))
 												) : (

@@ -1,30 +1,18 @@
-import {
-	and,
-	db,
-	eq,
-	ProviderIntegrationConnection,
-	ProviderIntegrationSyncJob,
-	sql,
-} from "@/shared/infrastructure/db/compat"
+import { db, eq, ProviderIntegrationConnection, sql } from "@/shared/infrastructure/db/compat"
 import { syncProviderIntegration } from "@/lib/provider-integrations"
+import {
+	boundedInteger,
+	claimQueuedProviderSyncJobs,
+	mapWithConcurrency,
+	markProviderSyncJobFailed,
+	markProviderSyncJobSucceeded,
+	providerSyncJobRetryMinutes,
+	type ClaimedProviderSyncJob,
+} from "@/lib/provider-sync-job-queue"
 
 const DEFAULT_BATCH_SIZE = 20
 const DEFAULT_CONCURRENCY = 3
 const DEFAULT_PROVIDER_LIMIT = 3
-
-type IntegrationSyncTrigger = "manual" | "scheduled" | "webhook" | "retry"
-
-type ClaimedIntegrationJob = {
-	id: string
-	providerId: string
-	connectionId: string
-	connectorKey: string
-	operation: string
-	trigger: IntegrationSyncTrigger
-	attempts: number
-	maxAttempts: number
-	idempotencyKey: string
-}
 
 export type ProviderIntegrationWorkerResult = {
 	enqueued: number
@@ -38,12 +26,6 @@ export type ProviderIntegrationWorkerResult = {
 		status: "succeeded" | "failed"
 		errorCode?: string
 	}>
-}
-
-function boundedInteger(value: unknown, fallback: number, min: number, max: number): number {
-	const parsed = Number(value)
-	if (!Number.isFinite(parsed)) return fallback
-	return Math.min(max, Math.max(min, Math.trunc(parsed)))
 }
 
 export function providerIntegrationSchedulerConfig() {
@@ -69,9 +51,9 @@ export function providerIntegrationSchedulerConfig() {
 	}
 }
 
+/** @deprecated Prefer providerSyncJobRetryMinutes from provider-sync-job-queue. */
 export function providerIntegrationJobRetryMinutes(attempts: number): number {
-	const attempt = Math.max(1, Math.trunc(attempts))
-	return Math.min(15 * 2 ** Math.min(attempt - 1, 6), 720)
+	return providerSyncJobRetryMinutes(attempts)
 }
 
 async function enqueueDueProviderIntegrationSyncJobs(params: {
@@ -103,6 +85,8 @@ async function enqueueDueProviderIntegrationSyncJobs(params: {
 				"id",
 				"providerId",
 				"connectionId",
+				"targetType",
+				"targetId",
 				"connectorKey",
 				"operation",
 				"status",
@@ -119,6 +103,8 @@ async function enqueueDueProviderIntegrationSyncJobs(params: {
 				gen_random_uuid()::text,
 				"providerId",
 				"id",
+				'connection',
+				"id",
 				"connectorKey",
 				'connection_test',
 				'queued',
@@ -131,7 +117,7 @@ async function enqueueDueProviderIntegrationSyncJobs(params: {
 				${nowIso},
 				${nowIso}
 			FROM due
-			ON CONFLICT ("connectionId", "idempotencyKey") DO NOTHING
+			ON CONFLICT ("targetType", "targetId", "idempotencyKey") DO NOTHING
 			RETURNING "id"
 		)
 		SELECT count(*)::int AS "count" FROM inserted
@@ -140,129 +126,35 @@ async function enqueueDueProviderIntegrationSyncJobs(params: {
 	return Number(count)
 }
 
-async function claimQueuedProviderIntegrationSyncJobs(params: {
-	now: Date
-	batchSize: number
-	providerLimit: number
-	leaseToken: string
-	providerId?: string
-}): Promise<ClaimedIntegrationJob[]> {
-	const nowIso = params.now.toISOString()
-	const rows = await db.execute(sql`
-		WITH ranked AS (
-			SELECT
-				"id",
-				row_number() OVER (
-					PARTITION BY "providerId"
-					ORDER BY "priority" ASC, "runAfter" ASC, "createdAt" ASC
-				) AS provider_rank
-			FROM "ProviderIntegrationSyncJob"
-			WHERE
-				"status" = 'queued'
-				AND "runAfter" <= ${nowIso}
-				AND (${params.providerId ?? null}::text IS NULL OR "providerId" = ${params.providerId ?? null})
-			ORDER BY "priority" ASC, "runAfter" ASC, "createdAt" ASC
-		),
-		due AS (
-			SELECT "id"
-			FROM ranked
-			WHERE provider_rank <= ${params.providerLimit}
-			LIMIT ${params.batchSize}
-		)
-		UPDATE "ProviderIntegrationSyncJob" AS job
-		SET
-			"status" = 'running',
-			"lockedAt" = ${nowIso},
-			"lockedBy" = ${params.leaseToken},
-			"updatedAt" = ${nowIso}
-		FROM due
-		WHERE job."id" = due."id" AND job."status" = 'queued'
-		RETURNING
-			job."id",
-			job."providerId",
-			job."connectionId",
-			job."connectorKey",
-			job."operation",
-			job."trigger",
-			job."attempts",
-			job."maxAttempts",
-			job."idempotencyKey"
-	`)
-	return Array.from(rows as unknown as ClaimedIntegrationJob[])
-}
-
 async function finishProviderIntegrationSyncJob(params: {
-	job: ClaimedIntegrationJob
+	job: ClaimedProviderSyncJob
 	leaseToken: string
 	status: "succeeded" | "failed"
 	errorCode?: string
 }) {
-	const now = new Date()
 	if (params.status === "succeeded") {
-		await db
-			.update(ProviderIntegrationSyncJob)
-			.set({
-				status: "succeeded",
-				lastError: null,
-				finishedAt: now,
-				updatedAt: now,
-			})
-			.where(
-				and(
-					eq(ProviderIntegrationSyncJob.id, params.job.id),
-					eq(ProviderIntegrationSyncJob.lockedBy, params.leaseToken)
-				)
-			)
+		await markProviderSyncJobSucceeded({ jobId: params.job.id, leaseToken: params.leaseToken })
 		return
 	}
 
-	const attempts = Number(params.job.attempts ?? 0) + 1
-	const terminal = attempts >= Number(params.job.maxAttempts ?? 5)
-	const retryAt = new Date(now.getTime() + providerIntegrationJobRetryMinutes(attempts) * 60_000)
-	await db
-		.update(ProviderIntegrationConnection)
-		.set({
-			consecutiveFailures: sql`${ProviderIntegrationConnection.consecutiveFailures} + 1`,
-			nextSyncAt: retryAt,
-			updatedAt: now,
-		})
-		.where(eq(ProviderIntegrationConnection.id, params.job.connectionId))
-	await db
-		.update(ProviderIntegrationSyncJob)
-		.set({
-			status: terminal ? "failed" : "queued",
-			attempts,
-			runAfter: terminal ? now : retryAt,
-			lockedAt: null,
-			lockedBy: null,
-			lastError: params.errorCode ?? "INTEGRATION_SYNC_FAILED",
-			finishedAt: terminal ? now : null,
-			updatedAt: now,
-		})
-		.where(
-			and(
-				eq(ProviderIntegrationSyncJob.id, params.job.id),
-				eq(ProviderIntegrationSyncJob.lockedBy, params.leaseToken)
-			)
-		)
-}
-
-async function mapWithConcurrency<T, R>(
-	values: T[],
-	concurrency: number,
-	mapper: (value: T) => Promise<R>
-): Promise<R[]> {
-	const results = new Array<R>(values.length)
-	let cursor = 0
-	const workers = Array.from({ length: Math.min(concurrency, values.length) }, async () => {
-		while (cursor < values.length) {
-			const index = cursor
-			cursor += 1
-			results[index] = await mapper(values[index])
-		}
+	const { retryAt } = await markProviderSyncJobFailed({
+		jobId: params.job.id,
+		leaseToken: params.leaseToken,
+		attempts: params.job.attempts,
+		maxAttempts: params.job.maxAttempts,
+		errorCode: params.errorCode ?? "INTEGRATION_SYNC_FAILED",
 	})
-	await Promise.all(workers)
-	return results
+	if (params.job.connectionId) {
+		const now = new Date()
+		await db
+			.update(ProviderIntegrationConnection)
+			.set({
+				consecutiveFailures: sql`${ProviderIntegrationConnection.consecutiveFailures} + 1`,
+				nextSyncAt: retryAt,
+				updatedAt: now,
+			})
+			.where(eq(ProviderIntegrationConnection.id, params.job.connectionId))
+	}
 }
 
 export async function runScheduledProviderIntegrationSync(options?: {
@@ -284,31 +176,33 @@ export async function runScheduledProviderIntegrationSync(options?: {
 		batchSize,
 		providerId: options?.providerId,
 	})
-	const jobs = await claimQueuedProviderIntegrationSyncJobs({
+	const jobs = await claimQueuedProviderSyncJobs({
 		now,
 		batchSize,
 		providerLimit,
 		leaseToken,
+		targetType: "connection",
 		providerId: options?.providerId,
 	})
 	const items = await mapWithConcurrency(jobs, concurrency, async (job) => {
+		const connectionId = String(job.connectionId ?? job.targetId)
 		try {
 			const result = await syncProviderIntegration({
 				providerId: job.providerId,
 				connectorKey: job.connectorKey,
-				connectionId: job.connectionId,
-				trigger: job.trigger,
+				connectionId,
+				trigger: job.trigger as "manual" | "scheduled" | "webhook" | "retry",
 				idempotencyKey: job.idempotencyKey,
 			})
 			if (result.status !== "connected") throw new Error("INTEGRATION_SYNC_NOT_CONNECTED")
 			await finishProviderIntegrationSyncJob({ job, leaseToken, status: "succeeded" })
-			return { connectionId: job.connectionId, jobId: job.id, status: "succeeded" as const }
+			return { connectionId, jobId: job.id, status: "succeeded" as const }
 		} catch (error) {
 			const errorCode =
 				error instanceof Error ? error.message.slice(0, 100) : "INTEGRATION_SYNC_FAILED"
 			await finishProviderIntegrationSyncJob({ job, leaseToken, status: "failed", errorCode })
 			return {
-				connectionId: job.connectionId,
+				connectionId,
 				jobId: job.id,
 				status: "failed" as const,
 				errorCode,

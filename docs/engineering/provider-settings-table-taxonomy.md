@@ -136,7 +136,7 @@ Effective permissions are resolved in application code
 
 | Table | Owner | Role |
 | --- | --- | --- |
-| `ProviderIntegrationConnection` | Integrations | **Root** connector instance: connector key, lifecycle `status`, mode, scopes, opaque `credentialsRef`, vendor/auth metadata, sync schedule summary, optional `catalogJson` cache. |
+| `ProviderIntegrationConnection` | Integrations | **Root** connector instance: connector key, lifecycle `status`, mode, scopes, opaque `credentialsRef`, vendor/auth metadata, sync schedule summary, optional `catalogJson` **smoke/preview cache** (not catalog SoT — see Phase 6). |
 | `ProviderIntegrationCredential` | Integrations | **Secret** vault row (1:1 with connection): encrypted tokens, auth type, expiry/refresh, revoke. |
 | `ProviderIntegrationMapping` | Integrations | Local ↔ external entity links for channel managers (rooms, rates, properties, etc.). |
 | `ProviderExternalCalendar` | Integrations | **Subresource** of an `external_calendars` connection: inbound iCal feed config + per-feed sync state. |
@@ -245,14 +245,17 @@ state lives in source tables; audit explains how it got there.
 
 ## Operational Event Log
 
-Distinct from governance audit: these rows record connector runtime activity.
+Distinct from governance audit: connector **execution** history is owned by
+`ProviderIntegrationSyncRun` (see [Integrations Ownership](#integrations-ownership)).
+Config mutations (connect / update / revoke / credential refresh) remain on
+`ProviderAuditLog`.
 
 | Table | Owner | Role |
 | --- | --- | --- |
-| `ProviderIntegrationSyncLog` | Integrations | **Deprecated / pending removal (Phase 2).** Legacy append-only activity feed (`eventType`, free-form `status`, `message`). Overlaps `ProviderIntegrationSyncRun` on sync outcomes and `ProviderAuditLog` on config/revoke/refresh. Do not add new writers or UI readers. Canonical execution history is `ProviderIntegrationSyncRun`; compliance mutations stay on `ProviderAuditLog`. |
+| ~~`ProviderIntegrationSyncLog`~~ | Integrations | **Removed (Phase 2).** Legacy activity feed dropped. Do not recreate. UI “Actividad reciente” reads SyncRun + config Audit. |
 
-Until Phase 2 lands, existing SyncLog writes may remain for the simple-mode
-“Actividad reciente” UI. New features must not depend on SyncLog.
+`ProviderAuditLog` stays the compliance-grade mutation history. Do not merge
+Audit into SyncRun.
 
 ---
 
@@ -305,12 +308,11 @@ subresource for this,” stop.
 | **Secret** | `ProviderIntegrationCredential` | Encrypted auth material for one connection (PK = `connectionId`). | Opaque public refs (`credentialsRef` stays on Connection) |
 | **Subresource** | `ProviderExternalCalendar`, `ProviderExternalCalendarEvent` | Domain-specific payload under a root connection. Calendars are feeds; events are normalized blocks. | Generic connector lifecycle; channel-manager mappings |
 | **Mapping** | `ProviderIntegrationMapping` | Fastt ↔ external entity equivalences for CM-style connectors. | iCal variant/resource binding (use calendar columns) |
-| **Job** | `ProviderIntegrationSyncJob`, `ProviderExternalCalendarSyncJob` | Worker queue (lease, retry, idempotency). **Two tables today is transitional debt** — Phase 3 consolidates into one universal SyncJob (`targetType` + `targetId` + `operation`). | Execution history; user-facing activity |
-| **Run** | `ProviderIntegrationSyncRun` | Durable execution ledger (operation, trigger, counters, cursor, error, summary). Shared by generic sync and `calendar_import`. | Config mutation audit; lightweight UI chatter |
+| **Job** | `ProviderIntegrationSyncJob` | Universal worker queue (`targetType` + `targetId` + `operation`, lease/retry/idempotency). Connection and iCal jobs share one table. | Execution history; user-facing activity |
+| **Run** | `ProviderIntegrationSyncRun` | Durable execution ledger (operation, trigger, counters, cursor, error, summary). Shared by generic sync and `calendar_import`. Powers simple-mode activity + Pro run history. | Config mutation audit; lightweight UI chatter |
 | **Incident** | `ProviderIntegrationIncident` | Actionable connector/ops failures (auth, remote API, mapping, data quality) with optional notifications. | Inventory date overlaps (use Conflict) |
-| **Conflict** | `ProviderExternalCalendarConflict` | Specialized overlap workflow (booking ↔ iCal, iCal ↔ iCal) with accept / ignore / resolve. | Sync/auth failures (use Incident); do not mirror into Incident |
+| **Conflict** | `ProviderExternalCalendarConflict` | Specialized overlap **alert** inbox (booking ↔ iCal, iCal ↔ iCal) with accept / ignore / resolve. Status changes are alert-only: they do **not** mutate inventory; blocks already applied during feed sync. Do not mirror into Incident. Hiding accepted/ignored from the host list is intentional. | Sync/auth failures (use Incident); inventing a second problems inbox |
 | **Export** | `ProviderExternalCalendarExport` | Outbound ICS share links (token hash, download metrics, revoke). Synchronous render — not an async job queue. | Inbound feed sync |
-| **Event log (deprecated)** | `ProviderIntegrationSyncLog` | Legacy activity feed. Pending removal in Phase 2. | New features |
 
 ### Status contracts
 
@@ -320,45 +322,148 @@ subresource for this,” stop.
 - `lastSyncStatus` = **outcome of the last sync attempt** (e.g. `success`, `error`, `reference_valid`, `not_modified`), not a substitute for lifecycle `status`.
 - Example valid pair: `status = connected`, `lastSyncStatus = success`.
 - Avoid ambiguous pairs such as treating `lastSyncStatus` as the only readiness signal without `status`.
+- **DB CHECK (Phase 7):** `ProviderIntegrationConnection_status_check` and
+  `_mode_check` (`sandbox` \| `production`). App helpers:
+  `assertProviderConnectorStatus` / `assertProviderConnectorMode`.
 
 **`ProviderExternalCalendar` vs Connection rollup**
 
 - Calendar row = **granular** feed truth: per-feed `status` (`pending` \| `active` \| `error` \| `revoked`), `lastSyncAt` / `lastSyncStatus` / `lastError`, `syncEnabled`, `syncIntervalMinutes`, `nextSyncAt`, `consecutiveFailures`.
-- Due scheduling for iCal is **calendar-level** (`nextSyncAt` on the feed). The generic integration scheduler excludes `connectorKey = external_calendars`.
-- Connection with `connectorKey = external_calendars` = **aggregated rollup** for governance/UI (e.g. any feed error ⇒ `requires_attention`), not the source of per-feed due-ness. Phase 4 formalizes a single rollup helper; until then, treat calendar rows as authoritative for feed health.
+- **DB CHECK (Phase 7):** `ProviderExternalCalendar_status_check`. App helper:
+  `assertProviderExternalCalendarStatus`.
+- Due scheduling for iCal is **calendar-level** (`ProviderExternalCalendar.nextSyncAt`). The generic integration scheduler excludes `connectorKey = external_calendars` and must not treat connection `nextSyncAt` as a due-source for feeds.
+- Connection with `connectorKey = external_calendars` = **aggregated rollup** written only by `refreshExternalCalendarConnectionRollup(providerId)` after create/sync/revoke (and after calendar job failure side-effects). Rules: no feeds → `not_configured`; all revoked → `revoked`; any feed `error` → `requires_attention`; all pending → `pending`; otherwise `connected`. Connection `syncEnabled` stays `false`.
+- `ProviderExternalCalendar.connectionId` is **NOT NULL** (every feed belongs to the rollup connection) with **ON DELETE CASCADE** (feeds die with the rollup connection).
 
+**Export scope (Phase 7 honesty)**
+
+- Outbound ICS (`ProviderExternalCalendarExport`) is **variant-scoped only**.
+  `BookingRoomDetail` has no `resourceId`, so the render path cannot honestly filter
+  by physical unit.
+- `resourceId` on Export is nullable / unused (cleared; create always writes `null`).
+  Do not reintroduce a “Unidad física” control on the export form until bookings
+  can bind to `InventoryResource`.
+- Inbound feeds still use `resourceId` for inventory blocks — that path is real.
+
+**Related status CHECKs (Phase 7)**
+
+Also constrained: Mapping (`active`/`inactive`), SyncRun, SyncJob, Incident
+status/severity, Conflict, Export status. Partial due-sync indexes remain
+migration SoT (`WHERE syncEnabled AND status <> 'revoked'`); Drizzle mirrors them;
+Astro `db/config` documents that it cannot express partial WHERE / ON DELETE.
 **Cache columns (not sources of truth)**
 
-- `catalogJson` / `lastCatalogSyncAt` on Connection are temporary smoke/preview cache for channel managers. Mappings remain the durable local↔external contract. Do not invent `ProviderIntegrationRemoteEntity` until a real catalog importer needs queryable remote entities.
-- `previewJson` / `lastPreviewAt` are dead and scheduled for Phase 1 removal.
-- Calendar `syncLeaseToken` / `syncLeaseUntil` are unused (locking lives on SyncJob) and scheduled for Phase 1 removal.
+See [Phase 6 — `catalogJson` smoke/preview cache](#phase-6--catalogjson-smokepreview-cache)
+below. Summary:
 
-### Schema freeze (Phases 1–3)
+- `catalogJson` / `lastCatalogSyncAt` on Connection are a **temporary smoke/preview
+  cache** for channel managers only — not durable catalog SoT.
+- Durable local↔external identity lives in `ProviderIntegrationMapping` rows.
+- Do **not** invent `ProviderIntegrationRemoteEntity` until a real Cloudbeds/Channex
+  (or equivalent) importer needs query-by-`entityType`/`externalId`.
+- Removed in Phase 1: Connection `previewJson` / `lastPreviewAt` (never used) and
+  Calendar `syncLeaseToken` / `syncLeaseUntil` (locking lives on SyncJob).
 
-Effective while consolidating operational duplication (dead columns → SyncLog
-removal → universal job queue).
+### Phase 6 — `catalogJson` smoke/preview cache
 
-**Frozen until Phases 1–3 close:**
+**Purpose**
+
+After a successful channel-manager API smoke/sync probe, Connection may store a
+small JSON blob so operators can see “last verified vendor / property / probe”
+without a second round-trip. That blob is a **product cache**, not a remote
+entity model.
+
+**What may live in `catalogJson` today**
+
+- Vendor key, auth type, external property id (denormalized from Connection columns).
+- Last smoke probe name + message.
+- A short note that a vendor-specific catalog import is still future work.
+
+**What must not live there**
+
+- Room / rate / listing catalogs treated as SoT for mapping UI or sync.
+- Arrays of remote entities that mappings are derived from at read time.
+- Secrets, tokens, or full API payloads.
+
+**Conceptual product limits** (enforced in write path via
+`PROVIDER_INTEGRATION_CATALOG_CACHE` in `src/lib/provider-integrations.ts`):
+
+| Limit | Value | Rationale |
+| --- | --- | --- |
+| Max serialized size | **32 KiB** | Keeps Connection rows lean; overflow stores a stub note instead of a blob. |
+| Freshness / TTL | **7 days** (via `lastCatalogSyncAt`) | Stale cache is informational only; remapping and sync must not require it. |
+
+`lastCatalogSyncAt` is the cache clock. Consumers that display the blob should
+treat age > TTL as “possibly stale preview”, never as “catalog import failed”.
+
+**Source of truth rules**
+
+| Concern | SoT | Not SoT |
+| --- | --- | --- |
+| Local ↔ external binding | `ProviderIntegrationMapping` | `catalogJson` |
+| Connection lifecycle / credentials | Connection + Credential | `catalogJson` |
+| Smoke probe outcome for CM | SyncRun + Connection `lastSync*` | `catalogJson` may mirror a summary |
+
+**Grep / code contract**
+
+- Writers: only the channel-manager sync path may set `catalogJson`.
+- Readers of mappings: `listProviderIntegrationMappingCatalog` /
+  `upsertProviderIntegrationMapping` must load `ProviderIntegrationMapping` —
+  never parse `catalogJson` to invent mapping rows.
+- No table or type named `ProviderIntegrationRemoteEntity` until an importer
+  needs indexed remote entities.
+
+**When a real CM catalog importer lands (Cloudbeds / Channex / …)**
+
+1. Persist typed remote entities (then — and only then — consider
+   `ProviderIntegrationRemoteEntity` or an equivalent queryable store).
+2. Fill `ProviderIntegrationMapping` from those typed entities (or from an
+   explicit provider mapping step), not from opaque JSON.
+3. Make `catalogJson` optional (summary-only) or remove it in a follow-up
+   migration once UI no longer needs the smoke stub.
+
+### Schema freeze (Phases 1–6)
+
+Phases 1–5 closed the operational shape (dead weight, SyncLog, universal job,
+calendar rollup, conflict inbox). Phase 6 freezes **catalog modeling**:
+
+**Still frozen:**
 
 - No new tables named `ProviderIntegration*` or `ProviderExternalCalendar*`.
-- No second job queue, second execution ledger, or second “problems inbox” for a
-  new connector.
-- No SyncLog-dependent features.
+- Especially: **no `ProviderIntegrationRemoteEntity`** until a real importer
+  needs `entityType` / `externalId` queries.
+- No second job queue, second execution ledger, or second “problems inbox”.
+- No SyncLog recreation.
+- Do not promote `catalogJson` into a durable catalog schema.
 
-**Allowed during freeze:**
+**Allowed:**
 
 - Documentation and this taxonomy.
 - Bug fixes that do not add tables.
-- Column drops / deprecations in Phases 1–2.
-- Evolving `ProviderIntegrationSyncJob` into the universal queue and dropping
-  `ProviderExternalCalendarSyncJob` (Phase 3).
+- Enforcing cache size/TTL on the existing Connection columns.
+- Phase 7 status CHECKs / export `resourceId` honesty without new entity tables.
 - Emergency production hotfixes (must name which ownership class they touch and
   why an existing table was insufficient).
 
+### Phase 7 — Constraint hardening
+
+Shipped in `db/migrations/2026-08-08_provider_integration_constraint_hardening.sql`:
+
+1. **Status/mode CHECKs** for Connection + Calendar (plus Mapping, SyncRun,
+   SyncJob, Incident, Conflict, Export) matching the TypeScript vocabularies.
+2. **Partial due-sync indexes** reaffirmed; Drizzle declares `.where(...)`;
+   Astro config comments that migrations remain SoT for partials / ON DELETE.
+3. **`ProviderExternalCalendar.connectionId` ON DELETE CASCADE** — feeds are
+   subresources of the rollup connection.
+4. **Export honesty** — variant-only ICS scope; clear/stop writing Export
+   `resourceId`; UI no longer offers a fake physical-unit filter.
+
+**After Phase 7:** prefer extending CHECKs on existing columns over new tables
+when locking vocabularies.
 **After Phase 3:** new connector work must reuse Root → Secret → Mapping → Job →
 Run → Incident (plus Subresource/Conflict/Export only when the domain truly
-needs them). Prefer columns or `operation` values on the universal job over a
-new table.
+needs them). Prefer columns or `operation` / `targetType` values on the
+universal job over a new table.
 
 ---
 
@@ -379,12 +484,18 @@ new table.
 8. **Using `ProviderFinancialProfile` as payout method storage** — that is
    `ProviderPaymentAccount`.
 9. **Parallel integration ops stacks** — a second SyncJob / SyncRun / Incident /
-   Conflict table per connector (the failure mode that produced dual iCal +
-   generic queues). Extend the universal job/`operation` or an existing
+   Conflict table per connector. Extend the universal
+   `ProviderIntegrationSyncJob` (`targetType` / `operation`) or an existing
    subresource instead.
 10. **Mirroring calendar Conflicts into Incidents** (or the reverse) — two
-    problem inboxes for one alert.
-11. **New SyncLog writers** after deprecation — use SyncRun and/or AuditLog.
+    problem inboxes for one alert. Overlaps stay on
+    `ProviderExternalCalendarConflict`; connector failures stay on
+    `ProviderIntegrationIncident`.
+11. **Recreating SyncLog** — use SyncRun and/or AuditLog.
+12. **Treating `catalogJson` as mapping/catalog SoT** — mappings are
+    `ProviderIntegrationMapping` rows; do not parse opaque Connection JSON to
+    invent local↔external bindings. Do not add `ProviderIntegrationRemoteEntity`
+    until a real CM importer needs queryable remote entities.
 
 ---
 
@@ -408,7 +519,7 @@ the following. If any answer is “an existing table already owns this,” stop.
 9. **Integrations freeze:** If the name matches `ProviderIntegration*` or
    `ProviderExternalCalendar*` and Phases 1–3 are not closed, stop unless it is
    an explicitly allowed Phase 1–3 consolidation change (see
-   [Schema freeze](#schema-freeze-phases-1-3)).
+   [Schema freeze](#schema-freeze-phases-1-6)).
 
 Update this document in the same PR that introduces the table.
 
@@ -421,10 +532,10 @@ Update this document in the same PR that introduces the table.
 - Finance jobs may write `ProviderFinancialProfile` as a rollup, not as taxpayer
   or payout-method authoring.
 - Integration **executions** append `ProviderIntegrationSyncRun` (canonical).
-  Do not add new `ProviderIntegrationSyncLog` writers; SyncLog is deprecated
-  pending Phase 2 removal.
+  `ProviderIntegrationSyncLog` was removed in Phase 2 — do not recreate it.
 - Sensitive settings mutations must call `writeProviderAuditLog` with
   `beforeJson`, `afterJson`, `actorUserId` and `riskLevel`.
+- Simple-mode “Actividad reciente” reads SyncRun + config Audit for the connector.
 - `ProviderProfile` columns are operational only.
 - `ProviderTaxConfiguration` is the only provider fiscal-identity store.
 - `TaxFeeDefinition` + `TaxFeeAssignment` are the only configurable sales
@@ -436,7 +547,9 @@ Update this document in the same PR that introduces the table.
   are subresources (`ProviderExternalCalendar*`), not parallel roots.
 - Until Phases 1–3 close: no new `ProviderIntegration*` /
   `ProviderExternalCalendar*` tables (see
-  [Schema freeze](#schema-freeze-phases-1-3)).
+  [Schema freeze](#schema-freeze-phases-1-6)). Phase 3 landed a universal
+  `ProviderIntegrationSyncJob` (`targetType` / `targetId`); do not recreate
+  `ProviderExternalCalendarSyncJob`.
 - `ProviderInvitation` + `ProviderUser` are the only team membership lifecycle
   stores; resolve permissions in code.
 - Do not reintroduce legacy contractual or readiness columns when a source

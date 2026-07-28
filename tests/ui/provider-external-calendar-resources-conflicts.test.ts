@@ -20,7 +20,8 @@ describe("provider external calendars resources + conflict actions", () => {
 		expect(schema).toContain("InventoryResource")
 		expect(schema).toContain("ProviderExternalCalendarConflict")
 		expect(schema).toContain("ProviderExternalCalendarExport")
-		expect(schema).toContain("ProviderExternalCalendarSyncJob")
+		expect(schema).not.toContain("ProviderExternalCalendarSyncJob")
+		expect(schema).toContain('targetType: text("targetType")')
 		expect(schema).toContain('resourceId: txtOpt("resourceId")')
 		expect(domain).toContain("X-FASTT-SOURCE:fastt")
 		expect(domain).toContain("isFasttExportedEvent")
@@ -28,14 +29,32 @@ describe("provider external calendars resources + conflict actions", () => {
 		expect(domain).toContain("resolveCalendarResource")
 		expect(domain).toContain("reconcileExternalCalendarConflicts")
 		expect(domain).toContain("resolveProviderExternalCalendarConflict")
+		expect(read("src/lib/provider-external-calendar-scheduler.ts")).toContain(
+			'targetType: "external_calendar"'
+		)
+		expect(read("src/lib/provider-external-calendar-scheduler.ts")).toContain(
+			"ProviderIntegrationSyncJob"
+		)
 		expect(repo).toContain("resource:")
 		expect(repo).toContain("event:")
 		expect(page).toContain("Unidad física")
-		expect(page).toContain("Aceptar bloqueo")
+		expect(page).toContain("Alertas de solapamiento")
+		expect(page).toContain("Solo gestionan la alerta")
+		expect(page).toContain("Aceptar alerta")
 		expect(page).toContain("Ignorar alerta")
 		expect(page).toContain("Marcar resuelto")
+		expect(page).toContain("no cambia la disponibilidad")
 		expect(page).toContain("Exportar calendario Fastt")
 		expect(page).toContain("Crear enlace iCal")
+		expect(page).toContain("El alcance es la habitación completa")
+		expect(page).not.toMatch(/data-external-calendar-export[\s\S]*?name="resourceId"/)
+		expect(domain).toContain("Alert-inbox only")
+		expect(domain).toContain("Variant-scoped only")
+		expect(domain).not.toContain("X-FASTT-RESOURCE-ID")
+		expect(domain).toContain('eq(ProviderExternalCalendarConflict.status, "open")')
+		expect(domain).not.toMatch(
+			/reconcileExternalCalendarConflicts[\s\S]{0,200}recordProviderIntegrationIncident/
+		)
 		expect(api).toContain("requireProviderIntegrationManager")
 	})
 })

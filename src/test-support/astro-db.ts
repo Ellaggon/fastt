@@ -60,7 +60,6 @@ export let ProviderIntegrationCredential: any
 export let ProviderIntegrationMapping: any
 export let ProviderIntegrationSyncRun: any
 export let ProviderIntegrationIncident: any
-export let ProviderIntegrationSyncLog: any
 export let ProviderExternalCalendar: any
 export let ProviderExternalCalendarEvent: any
 export let ProviderAuditLog: any
@@ -220,7 +219,6 @@ async function init() {
 	ProviderIntegrationMapping = drizzleTables.ProviderIntegrationMapping
 	ProviderIntegrationSyncRun = drizzleTables.ProviderIntegrationSyncRun
 	ProviderIntegrationIncident = drizzleTables.ProviderIntegrationIncident
-	ProviderIntegrationSyncLog = drizzleTables.ProviderIntegrationSyncLog
 	ProviderExternalCalendar = drizzleTables.ProviderExternalCalendar
 	ProviderExternalCalendarEvent = drizzleTables.ProviderExternalCalendarEvent
 	ProviderAuditLog = drizzleTables.ProviderAuditLog

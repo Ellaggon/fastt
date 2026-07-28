@@ -1,12 +1,14 @@
 import {
+	and,
 	db,
 	desc,
 	eq,
-	and,
+	inArray,
+	ProviderAuditLog,
 	ProviderIntegrationConnection,
 	ProviderIntegrationCredential,
 	ProviderIntegrationMapping,
-	ProviderIntegrationSyncLog,
+	ProviderIntegrationSyncRun,
 } from "@/shared/infrastructure/db/compat"
 import { invalidateProviderGovernance } from "@/lib/cache/invalidation"
 import { refreshConnectorOAuthToken } from "@/lib/provider-connector-oauth"
@@ -36,6 +38,62 @@ export type ProviderConnectorKey =
 	| "webhooks_api"
 	| "accounting_export"
 
+/**
+ * Conceptual product limits for Connection.catalogJson (smoke/preview cache).
+ * Not a remote-entity model — durable local↔external bindings live in
+ * ProviderIntegrationMapping. See docs/engineering/provider-settings-table-taxonomy.md
+ * (Phase 6).
+ */
+export const PROVIDER_INTEGRATION_CATALOG_CACHE = {
+	/** Max UTF-8 JSON size stored on Connection; overflow becomes a stub note. */
+	maxBytes: 32 * 1024,
+	/** Informational freshness window via lastCatalogSyncAt (not a hard eviction). */
+	ttlMs: 7 * 24 * 60 * 60 * 1000,
+} as const
+
+export type ProviderIntegrationCatalogCachePayload = {
+	vendorKey: ChannelManagerVendorKey
+	authType: ChannelManagerAuthType
+	externalPropertyId: string | null
+	lastSmokeProbe: string | null
+	lastSmokeMessage: string
+	note: string
+}
+
+/** Build a size-capped smoke/preview cache blob for channel-manager connections. */
+export function buildChannelManagerCatalogCache(params: {
+	vendorKey: string | null | undefined
+	authType: string | null | undefined
+	externalPropertyId: string | null | undefined
+	lastSmokeProbe: string | null | undefined
+	lastSmokeMessage: string
+}): ProviderIntegrationCatalogCachePayload {
+	const payload: ProviderIntegrationCatalogCachePayload = {
+		vendorKey: normalizeChannelManagerVendorKey(params.vendorKey),
+		authType: normalizeChannelManagerAuthType(params.authType),
+		externalPropertyId: params.externalPropertyId ?? null,
+		lastSmokeProbe: params.lastSmokeProbe ?? null,
+		lastSmokeMessage: params.lastSmokeMessage,
+		note: "Conexión API verificada. El catálogo remoto detallado se importará en una fase vendor-specific.",
+	}
+	const serialized = JSON.stringify(payload)
+	if (serialized.length <= PROVIDER_INTEGRATION_CATALOG_CACHE.maxBytes) return payload
+	return {
+		...payload,
+		lastSmokeMessage: params.lastSmokeMessage.slice(0, 240),
+		note: "Smoke cache truncated: exceeded PROVIDER_INTEGRATION_CATALOG_CACHE.maxBytes. Not catalog SoT.",
+	}
+}
+
+/** True when lastCatalogSyncAt is older than the conceptual catalog-cache TTL. */
+export function isProviderIntegrationCatalogCacheStale(
+	lastCatalogSyncAt: Date | null | undefined,
+	now: Date = new Date()
+): boolean {
+	if (!lastCatalogSyncAt) return true
+	return now.getTime() - lastCatalogSyncAt.getTime() > PROVIDER_INTEGRATION_CATALOG_CACHE.ttlMs
+}
+
 export type ProviderConnectorStatus =
 	| "not_configured"
 	| "pending"
@@ -44,6 +102,36 @@ export type ProviderConnectorStatus =
 	| "syncing"
 	| "error"
 	| "revoked"
+
+export const PROVIDER_CONNECTOR_STATUSES = [
+	"not_configured",
+	"pending",
+	"connected",
+	"requires_attention",
+	"syncing",
+	"error",
+	"revoked",
+] as const satisfies readonly ProviderConnectorStatus[]
+
+export const PROVIDER_CONNECTOR_MODES = ["sandbox", "production"] as const
+
+/** Reject unknown Connection.status values (mirrors DB CHECK). */
+export function assertProviderConnectorStatus(value: unknown): ProviderConnectorStatus {
+	const raw = String(value ?? "").trim()
+	if ((PROVIDER_CONNECTOR_STATUSES as readonly string[]).includes(raw)) {
+		return raw as ProviderConnectorStatus
+	}
+	throw new Error("CONNECTION_STATUS_INVALID")
+}
+
+/** Reject unknown Connection.mode values (mirrors DB CHECK). */
+export function assertProviderConnectorMode(value: unknown): "sandbox" | "production" {
+	const raw = String(value ?? "").trim()
+	if ((PROVIDER_CONNECTOR_MODES as readonly string[]).includes(raw)) {
+		return raw as "sandbox" | "production"
+	}
+	throw new Error("CONNECTION_MODE_INVALID")
+}
 
 export type ProviderConnectorMode = "sandbox" | "production"
 
@@ -61,6 +149,15 @@ export type ProviderConnectorCatalogItem = {
 		steps: string[]
 		tip?: string
 	}
+}
+
+export type ProviderIntegrationActivityItem = {
+	id: string
+	eventType: string
+	status: string
+	message: string | null
+	createdAt: Date | null
+	source: "sync_run" | "audit"
 }
 
 export type ProviderIntegrationCard = ProviderConnectorCatalogItem & {
@@ -98,14 +195,168 @@ export type ProviderIntegrationCard = ProviderConnectorCatalogItem & {
 		authType: ChannelManagerAuthType
 		externalPropertyId: string | null
 	}>
-	logs: Array<{
-		id: string
-		eventType: string
-		status: string
-		mode: string
-		message: string | null
-		createdAt: Date | null
-	}>
+	/** Recent activity from SyncRun + config Audit (not SyncLog). */
+	recentActivity: ProviderIntegrationActivityItem[]
+}
+
+const INTEGRATION_CONFIG_AUDIT_ACTIONS = [
+	"provider.integration.connect",
+	"provider.integration.update",
+	"provider.integration.revoke",
+	"provider.integration.credential_refresh",
+] as const
+
+export function integrationActivityEventLabel(eventType: string): string {
+	switch (eventType) {
+		case "sync.test":
+		case "connection_test":
+			return "Prueba de conexión"
+		case "calendar.sync":
+		case "calendar_import":
+			return "Sincronización iCal"
+		case "configuration.saved":
+			return "Conexión creada"
+		case "configuration.updated":
+			return "Configuración actualizada"
+		case "credentials.revoked":
+			return "Acceso revocado"
+		case "credentials.refreshed":
+			return "OAuth renovado"
+		default:
+			return eventType
+	}
+}
+
+export function integrationRunOperationLabel(operation: string): string {
+	return integrationActivityEventLabel(operation)
+}
+
+function activityStatusFromRun(status: string): string {
+	if (status === "succeeded") return "success"
+	if (status === "failed" || status === "cancelled") return "error"
+	if (status === "partial") return "partial"
+	return status
+}
+
+function activityMessageFromRun(run: {
+	operation: string
+	status: string
+	errorMessage?: string | null
+	summaryJson?: unknown
+	readCount?: number | null
+	changedCount?: number | null
+}): string {
+	if (run.errorMessage) return String(run.errorMessage)
+	if (run.operation === "calendar_import") {
+		const summary =
+			run.summaryJson && typeof run.summaryJson === "object"
+				? (run.summaryJson as Record<string, unknown>)
+				: null
+		const imported = Number(summary?.imported ?? run.changedCount ?? run.readCount ?? 0)
+		if (run.status === "succeeded") {
+			return imported === 1
+				? "1 bloqueo iCal reconciliado."
+				: `${imported} bloqueos iCal reconciliados.`
+		}
+		return "Sincronización de calendario incompleta."
+	}
+	if (run.operation === "connection_test") {
+		return run.status === "succeeded"
+			? "Prueba de conexión correcta."
+			: "La prueba de conexión no se completó."
+	}
+	return run.status === "succeeded" ? "Ejecución completada." : "Ejecución con errores."
+}
+
+function activityFromSyncRun(run: {
+	id: string
+	connectorKey: string
+	operation: string
+	status: string
+	errorMessage?: string | null
+	summaryJson?: unknown
+	readCount?: number | null
+	changedCount?: number | null
+	startedAt?: Date | null
+	createdAt?: Date | null
+}): ProviderIntegrationActivityItem & { connectorKey: string } {
+	const eventType =
+		run.operation === "calendar_import"
+			? "calendar.sync"
+			: run.operation === "connection_test"
+				? "sync.test"
+				: String(run.operation)
+	return {
+		id: run.id,
+		connectorKey: String(run.connectorKey),
+		eventType,
+		status: activityStatusFromRun(String(run.status)),
+		message: activityMessageFromRun(run),
+		createdAt: run.startedAt ?? run.createdAt ?? null,
+		source: "sync_run",
+	}
+}
+
+function activityFromAudit(params: {
+	id: string
+	action: string
+	connectorKey: string
+	createdAt: Date | null
+}): ProviderIntegrationActivityItem & { connectorKey: string } {
+	const eventType =
+		params.action === "provider.integration.connect"
+			? "configuration.saved"
+			: params.action === "provider.integration.update"
+				? "configuration.updated"
+				: params.action === "provider.integration.revoke"
+					? "credentials.revoked"
+					: params.action === "provider.integration.credential_refresh"
+						? "credentials.refreshed"
+						: params.action
+	const message =
+		eventType === "configuration.saved"
+			? "Conector configurado. Ejecuta una prueba de conexión antes de usarlo como validado."
+			: eventType === "configuration.updated"
+				? "Configuración actualizada."
+				: eventType === "credentials.revoked"
+					? "Acceso revocado."
+					: eventType === "credentials.refreshed"
+						? "Autorización OAuth renovada."
+						: null
+	const status =
+		eventType === "credentials.revoked"
+			? "revoked"
+			: eventType === "credentials.refreshed"
+				? "success"
+				: "pending"
+	return {
+		id: params.id,
+		connectorKey: params.connectorKey,
+		eventType,
+		status,
+		message,
+		createdAt: params.createdAt,
+		source: "audit",
+	}
+}
+
+function connectorKeyFromAuditRow(
+	row: { entityId?: string | null; beforeJson?: unknown; afterJson?: unknown },
+	connectionsById: Map<string, { connectorKey: string }>
+): string | null {
+	if (row.entityId && connectionsById.has(row.entityId)) {
+		return connectionsById.get(row.entityId)!.connectorKey
+	}
+	const after =
+		row.afterJson && typeof row.afterJson === "object"
+			? (row.afterJson as Record<string, unknown>)
+			: null
+	const before =
+		row.beforeJson && typeof row.beforeJson === "object"
+			? (row.beforeJson as Record<string, unknown>)
+			: null
+	const key = after?.connectorKey ?? before?.connectorKey
+	return key ? String(key) : null
 }
 
 const connectorCatalog: ProviderConnectorCatalogItem[] = [
@@ -266,19 +517,11 @@ function statusTone(status: ProviderConnectorStatus): ProviderIntegrationCard["t
 }
 
 function asConnectorStatus(value: unknown): ProviderConnectorStatus {
-	const raw = String(value ?? "not_configured").trim()
-	if (
-		raw === "pending" ||
-		raw === "connected" ||
-		raw === "requires_attention" ||
-		raw === "syncing" ||
-		raw === "error" ||
-		raw === "revoked" ||
-		raw === "not_configured"
-	) {
-		return raw
+	try {
+		return assertProviderConnectorStatus(value)
+	} catch {
+		return "not_configured"
 	}
-	return "not_configured"
 }
 
 function connectionAuditSnapshot(
@@ -353,19 +596,52 @@ export async function listProviderIntegrations(params: {
 		.where(eq(ProviderIntegrationConnection.providerId, params.providerId))
 
 		.catch(() => [])
-	const logs = await db
-		.select()
-		.from(ProviderIntegrationSyncLog)
-		.where(eq(ProviderIntegrationSyncLog.providerId, params.providerId))
-		.orderBy(desc(ProviderIntegrationSyncLog.createdAt))
-		.limit(30)
+	const [runs, audits, credentials] = await Promise.all([
+		db
+			.select()
+			.from(ProviderIntegrationSyncRun)
+			.where(eq(ProviderIntegrationSyncRun.providerId, params.providerId))
+			.orderBy(desc(ProviderIntegrationSyncRun.startedAt))
+			.limit(40)
+			.catch(() => []),
+		db
+			.select()
+			.from(ProviderAuditLog)
+			.where(
+				and(
+					eq(ProviderAuditLog.providerId, params.providerId),
+					eq(ProviderAuditLog.entityType, "ProviderIntegrationConnection"),
+					inArray(ProviderAuditLog.action, [...INTEGRATION_CONFIG_AUDIT_ACTIONS])
+				)
+			)
+			.orderBy(desc(ProviderAuditLog.createdAt))
+			.limit(40)
+			.catch(() => []),
+		db
+			.select()
+			.from(ProviderIntegrationCredential)
+			.where(eq(ProviderIntegrationCredential.providerId, params.providerId))
+			.catch(() => []),
+	])
 
-		.catch(() => [])
-	const credentials = await db
-		.select()
-		.from(ProviderIntegrationCredential)
-		.where(eq(ProviderIntegrationCredential.providerId, params.providerId))
-		.catch(() => [])
+	const connectionsById = new Map(
+		connections.map((row) => [row.id, { connectorKey: String(row.connectorKey) }])
+	)
+	const activityFeed = [
+		...runs.map((run) => activityFromSyncRun(run)),
+		...audits.flatMap((row) => {
+			const connectorKey = connectorKeyFromAuditRow(row, connectionsById)
+			if (!connectorKey) return []
+			return [
+				activityFromAudit({
+					id: row.id,
+					action: String(row.action),
+					connectorKey,
+					createdAt: row.createdAt ?? null,
+				}),
+			]
+		}),
+	].sort((a, b) => Number(b.createdAt ?? 0) - Number(a.createdAt ?? 0))
 
 	return connectorCatalog.map((connector) => {
 		const connectorConnections = connections
@@ -429,16 +705,16 @@ export async function listProviderIntegrations(params: {
 					externalPropertyId: row.externalPropertyId ? String(row.externalPropertyId) : null,
 				}
 			}),
-			logs: logs
+			recentActivity: activityFeed
 				.filter((row) => row.connectorKey === connector.key)
 				.slice(0, 3)
 				.map((row) => ({
 					id: row.id,
-					eventType: String(row.eventType),
-					status: String(row.status),
-					mode: String(row.mode),
-					message: row.message ? String(row.message) : null,
-					createdAt: row.createdAt ?? null,
+					eventType: row.eventType,
+					status: row.status,
+					message: row.message,
+					createdAt: row.createdAt,
+					source: row.source,
 				})),
 		}
 	})
@@ -482,7 +758,6 @@ export async function connectProviderIntegration(params: {
 		connectorKey === "channel_manager"
 			? normalizeChannelManagerVendorKey(params.vendorKey)
 			: "generic"
-	const vendor = getChannelManagerVendor(vendorKey)
 	const authType =
 		connectorKey === "channel_manager"
 			? normalizeChannelManagerAuthType(params.authType)
@@ -555,18 +830,6 @@ export async function connectProviderIntegration(params: {
 				previousCredentialRef: existing.credentialsRef,
 			})
 		}
-		await insertIntegrationLog({
-			providerId: params.providerId,
-			connectorKey,
-			connectionId: existing.id,
-			eventType: "configuration.updated",
-			status,
-			mode,
-			message: credentialsRef
-				? `${vendor.name}: configuración actualizada. Pendiente de prueba de sync.`
-				: "Configuración guardada con credenciales pendientes.",
-			metadataJson: { scopes, vendorKey, authType, externalPropertyId },
-		})
 		await insertAudit({
 			providerId: params.providerId,
 			actorUserId: params.currentUserId,
@@ -599,18 +862,6 @@ export async function connectProviderIntegration(params: {
 			previousCredentialRef: null,
 		})
 	}
-	await insertIntegrationLog({
-		providerId: params.providerId,
-		connectorKey,
-		connectionId: id,
-		eventType: "configuration.saved",
-		status,
-		mode,
-		message: credentialsRef
-			? `${vendor.name}: referencia guardada. Ejecuta una prueba de conexión antes de usar este conector como validado.`
-			: "Conector creado con credenciales pendientes.",
-		metadataJson: { scopes, vendorKey, authType, externalPropertyId },
-	})
 	await insertAudit({
 		providerId: params.providerId,
 		actorUserId: params.currentUserId,
@@ -686,15 +937,6 @@ export async function revokeProviderIntegration(params: {
 					.where(eq(ProviderIntegrationConnection.id, replacement.id))
 			}
 		}
-	})
-	await insertIntegrationLog({
-		providerId: params.providerId,
-		connectorKey,
-		connectionId: existing.id,
-		eventType: "credentials.revoked",
-		status: "revoked",
-		mode: normalizeMode(existing.mode),
-		message: "Acceso revocado.",
 	})
 	await insertAudit({
 		providerId: params.providerId,
@@ -824,41 +1066,20 @@ export async function syncProviderIntegration(params: {
 				hasVerifiedConnection && connectorKey === "channel_manager"
 					? now
 					: existing.lastCatalogSyncAt,
+			// Smoke/preview cache only — never treat as mapping/catalog SoT (Phase 6).
 			catalogJson:
 				hasVerifiedConnection && connectorKey === "channel_manager"
-					? {
-							vendorKey: normalizeChannelManagerVendorKey(existing.vendorKey),
-							authType: normalizeChannelManagerAuthType(existing.authType),
-							externalPropertyId: existing.externalPropertyId ?? null,
+					? buildChannelManagerCatalogCache({
+							vendorKey: existing.vendorKey,
+							authType: existing.authType,
+							externalPropertyId: existing.externalPropertyId,
 							lastSmokeProbe: smoke.probe,
 							lastSmokeMessage: message,
-							note: "Conexión API verificada. El catálogo remoto detallado se importará en una fase vendor-specific.",
-						}
+						})
 					: existing.catalogJson,
 			updatedAt: now,
 		})
 		.where(eq(ProviderIntegrationConnection.id, existing.id))
-	await insertIntegrationLog({
-		providerId: params.providerId,
-		connectorKey,
-		connectionId: existing.id,
-		eventType: "sync.test",
-		status: hasVerifiedConnection ? "success" : smoke.ok ? "reference_valid" : "error",
-		mode: normalizeMode(existing.mode),
-		message,
-		metadataJson: {
-			scopes: existing.scopesJson ?? [],
-			smokeTest: true,
-			probe: smoke.probe,
-			trustLevel: smoke.trustLevel,
-			latencyMs: smoke.latencyMs,
-			vaultCredential: credentialState.oauthVaultVerified ? "active" : "not_used",
-			refreshed: credentialState.refreshed,
-			vendorKey: normalizeChannelManagerVendorKey(existing.vendorKey),
-			authType: normalizeChannelManagerAuthType(existing.authType),
-			externalPropertyId: existing.externalPropertyId ?? null,
-		},
-	})
 	await insertAudit({
 		providerId: params.providerId,
 		actorUserId: params.currentUserId,
@@ -1073,15 +1294,6 @@ async function ensureProviderIntegrationCredentialFresh(params: {
 		previousCredentialRef: params.credentialsRef,
 		refreshed: true,
 	})
-	await insertIntegrationLog({
-		providerId: params.providerId,
-		connectorKey: params.connectorKey,
-		connectionId: params.connectionId,
-		eventType: "credentials.refreshed",
-		status: "success",
-		mode: params.mode,
-		message: "Autorización OAuth renovada.",
-	})
 	await insertAudit({
 		providerId: params.providerId,
 		actorUserId: params.actorUserId,
@@ -1095,28 +1307,4 @@ async function ensureProviderIntegrationCredentialFresh(params: {
 		riskLevel: "medium",
 	})
 	return { oauthVaultVerified: true, refreshed: true, error: null }
-}
-
-async function insertIntegrationLog(params: {
-	providerId: string
-	connectorKey: ProviderConnectorKey
-	connectionId?: string | null
-	eventType: string
-	status: string
-	mode: ProviderConnectorMode
-	message?: string | null
-	metadataJson?: unknown
-}) {
-	await db.insert(ProviderIntegrationSyncLog).values({
-		id: crypto.randomUUID(),
-		providerId: params.providerId,
-		connectorKey: params.connectorKey,
-		connectionId: params.connectionId ?? undefined,
-		eventType: params.eventType,
-		status: params.status,
-		mode: params.mode,
-		message: params.message ?? undefined,
-		metadataJson: params.metadataJson,
-		createdAt: new Date(),
-	})
 }
