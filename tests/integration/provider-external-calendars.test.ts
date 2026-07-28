@@ -220,7 +220,7 @@ describe("integration/provider external calendars", () => {
 			checkOutDate: "2026-08-11",
 			numAdults: 2,
 			numChildren: 0,
-			totalAmount: "100",
+			totalAmount: 100,
 			status: "confirmed",
 			currency: "USD",
 		})
@@ -233,9 +233,9 @@ describe("integration/provider external calendars", () => {
 			checkOut: "2026-08-11",
 			adults: 2,
 			children: 0,
-			subtotalAmount: "100",
-			taxAmount: "0",
-			totalAmount: "100",
+			subtotalAmount: 100,
+			taxAmount: 0,
+			totalAmount: 100,
 		})
 
 		const exportLink = await createProviderExternalCalendarExport({
@@ -287,8 +287,7 @@ describe("integration/provider external calendars", () => {
 		)
 		expect(
 			listed.calendars.every(
-				(calendar) =>
-					!calendar.conflicts.some((conflict) => conflict.kind === "external_calendar")
+				(calendar) => !calendar.conflicts.some((conflict) => conflict.kind === "external_calendar")
 			)
 		).toBe(true)
 		expect(
@@ -301,9 +300,8 @@ describe("integration/provider external calendars", () => {
 			?.conflicts.find((conflict) => conflict.kind === "fastt_booking")
 		expect(bookingConflict?.status).toBe("open")
 		if (!bookingConflict?.id) throw new Error("missing persisted booking conflict")
-		const { resolveProviderExternalCalendarConflict } = await import(
-			"@/lib/provider-external-calendars"
-		)
+		const { resolveProviderExternalCalendarConflict } =
+			await import("@/lib/provider-external-calendars")
 		await resolveProviderExternalCalendarConflict({
 			providerId: ids.providerId,
 			conflictId: bookingConflict.id,

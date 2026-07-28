@@ -14,7 +14,7 @@ import {
 	Provider,
 	RatePlan,
 	Variant,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 import { POST as holdPost } from "@/pages/api/inventory/hold"
 import { POST as bookingConfirmPost } from "@/pages/api/booking/confirm"
@@ -280,11 +280,8 @@ describe("integration/booking -> inventory materialization", () => {
 			expect(bookingId.length).toBeGreaterThan(0)
 			expect(String(confirmBodyB?.bookingId ?? "")).toBe(bookingId)
 
-			const lockRows = await db
-				.select()
-				.from(InventoryLock)
-				.where(eq(InventoryLock.holdId, holdId))
-				.all()
+			const lockRows = await db.select().from(InventoryLock).where(eq(InventoryLock.holdId, holdId))
+
 			expect(lockRows.length).toBe(3)
 			expect(lockRows.every((row: any) => String(row.bookingId ?? "") === bookingId)).toBe(true)
 
@@ -299,7 +296,7 @@ describe("integration/booking -> inventory materialization", () => {
 							eq(EffectiveAvailability.date, date)
 						)
 					)
-					.get()
+					.then((rows) => rows[0])
 				expect(ea).toBeTruthy()
 				const totalUnits = Number((ea as any).totalUnits ?? 0)
 				const heldUnits = Number((ea as any).heldUnits ?? 0)
@@ -320,10 +317,10 @@ describe("integration/booking -> inventory materialization", () => {
 						eq(EffectiveAvailability.date, "2026-04-13")
 					)
 				)
-				.get()
+				.then((rows) => rows[0])
 			expect(outside == null || Number((outside as any).bookedUnits ?? 0) === 0).toBe(true)
 
-			const bookingRows = await db.select().from(Booking).where(eq(Booking.id, bookingId)).all()
+			const bookingRows = await db.select().from(Booking).where(eq(Booking.id, bookingId))
 			expect(bookingRows.length).toBe(1)
 
 			for (const date of impactedDates) {
@@ -336,7 +333,7 @@ describe("integration/booking -> inventory materialization", () => {
 							eq(EffectiveAvailability.date, date)
 						)
 					)
-					.get()
+					.then((rows) => rows[0])
 				expect(Number((ea as any)?.heldUnits ?? 0)).toBe(0)
 				expect(Number((ea as any)?.bookedUnits ?? 0)).toBe(1)
 				expect(Number((ea as any)?.availableUnits ?? 0)).toBe(2)

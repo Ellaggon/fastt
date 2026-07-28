@@ -1,4 +1,4 @@
-import { and, db, eq, Policy, PolicyGroup } from "astro:db"
+import { and, db, eq, Policy, PolicyGroup } from "@/shared/infrastructure/db/compat"
 import { describe, expect, it } from "vitest"
 
 import { getOrCreateProviderPresetPolicy } from "@/lib/policies/getOrCreateProviderPresetPolicy"
@@ -48,7 +48,7 @@ describe("integration/provider policy preset reuse", () => {
 					eq(Policy.status, "active")
 				)
 			)
-			.all()
+
 		expect(new Set(rows.map((row) => String(row.groupId))).size).toBe(2)
 	})
 })

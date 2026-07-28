@@ -11,7 +11,7 @@ import {
 	Variant,
 	eq,
 	and,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 import { POST as holdPost } from "@/pages/api/inventory/hold"
 import { POST as releasePost } from "@/pages/api/inventory/release"
@@ -262,12 +262,12 @@ describe("integration/inventory holds (InventoryLock)", () => {
 				.select()
 				.from(DailyInventory)
 				.where(and(eq(DailyInventory.variantId, variantId), eq(DailyInventory.date, "2026-03-10")))
-				.get()
+				.then((rows) => rows[0])
 			const d2 = await db
 				.select()
 				.from(DailyInventory)
 				.where(and(eq(DailyInventory.variantId, variantId), eq(DailyInventory.date, "2026-03-11")))
-				.get()
+				.then((rows) => rows[0])
 			expect(d1?.reservedCount).toBe(1)
 			expect(d2?.reservedCount).toBe(1)
 
@@ -275,7 +275,7 @@ describe("integration/inventory holds (InventoryLock)", () => {
 				.select()
 				.from(InventoryLock)
 				.where(eq(InventoryLock.holdId, body.holdId))
-				.all()
+
 			expect(locks.length).toBe(2)
 
 			const eaDay1 = await db
@@ -287,7 +287,7 @@ describe("integration/inventory holds (InventoryLock)", () => {
 						eq(EffectiveAvailability.date, "2026-03-10")
 					)
 				)
-				.get()
+				.then((rows) => rows[0])
 			const eaDay2 = await db
 				.select()
 				.from(EffectiveAvailability)
@@ -297,7 +297,7 @@ describe("integration/inventory holds (InventoryLock)", () => {
 						eq(EffectiveAvailability.date, "2026-03-11")
 					)
 				)
-				.get()
+				.then((rows) => rows[0])
 			expect(Number((eaDay1 as any)?.heldUnits ?? 0)).toBe(1)
 			expect(Number((eaDay2 as any)?.heldUnits ?? 0)).toBe(1)
 			expect(Number((eaDay1 as any)?.availableUnits ?? 0)).toBe(1)
@@ -331,7 +331,7 @@ describe("integration/inventory holds (InventoryLock)", () => {
 			.update(DailyInventory)
 			.set({ reservedCount: 1 } as any)
 			.where(and(eq(DailyInventory.variantId, variantId), eq(DailyInventory.date, "2026-03-11")))
-			.run()
+
 		await refreshSearchView({
 			variantId,
 			ratePlanId,
@@ -362,12 +362,12 @@ describe("integration/inventory holds (InventoryLock)", () => {
 				.select()
 				.from(DailyInventory)
 				.where(and(eq(DailyInventory.variantId, variantId), eq(DailyInventory.date, "2026-03-10")))
-				.get()
+				.then((rows) => rows[0])
 			const d2 = await db
 				.select()
 				.from(DailyInventory)
 				.where(and(eq(DailyInventory.variantId, variantId), eq(DailyInventory.date, "2026-03-11")))
-				.get()
+				.then((rows) => rows[0])
 			expect(d1?.reservedCount).toBe(0)
 			expect(d2?.reservedCount).toBe(1)
 		})
@@ -438,7 +438,7 @@ describe("integration/inventory holds (InventoryLock)", () => {
 				.select()
 				.from(InventoryLock)
 				.where(eq(InventoryLock.variantId, variantId))
-				.all()
+
 			expect(locks.length).toBe(0)
 		})
 	})
@@ -484,7 +484,7 @@ describe("integration/inventory holds (InventoryLock)", () => {
 				.select()
 				.from(EffectiveAvailability)
 				.where(eq(EffectiveAvailability.variantId, variantId))
-				.all()
+
 			const affectedDates = rows
 				.map((row: any) => String(row.date))
 				.filter((date) => date >= "2026-03-10" && date < "2026-03-13")
@@ -542,7 +542,7 @@ describe("integration/inventory holds (InventoryLock)", () => {
 				.select()
 				.from(DailyInventory)
 				.where(and(eq(DailyInventory.variantId, variantId), eq(DailyInventory.date, "2026-03-10")))
-				.get()
+				.then((rows) => rows[0])
 			expect(d?.reservedCount).toBe(1)
 		})
 	})
@@ -595,12 +595,12 @@ describe("integration/inventory holds (InventoryLock)", () => {
 				.select()
 				.from(DailyInventory)
 				.where(and(eq(DailyInventory.variantId, variantId), eq(DailyInventory.date, "2026-03-10")))
-				.get()
+				.then((rows) => rows[0])
 			const d2 = await db
 				.select()
 				.from(DailyInventory)
 				.where(and(eq(DailyInventory.variantId, variantId), eq(DailyInventory.date, "2026-03-11")))
-				.get()
+				.then((rows) => rows[0])
 			expect(d1?.reservedCount).toBe(0)
 			expect(d2?.reservedCount).toBe(0)
 
@@ -608,7 +608,7 @@ describe("integration/inventory holds (InventoryLock)", () => {
 				.select()
 				.from(InventoryLock)
 				.where(eq(InventoryLock.holdId, holdBody.holdId))
-				.all()
+
 			expect(locks.length).toBe(0)
 
 			const eaDay1 = await db
@@ -620,7 +620,7 @@ describe("integration/inventory holds (InventoryLock)", () => {
 						eq(EffectiveAvailability.date, "2026-03-10")
 					)
 				)
-				.get()
+				.then((rows) => rows[0])
 			const eaDay2 = await db
 				.select()
 				.from(EffectiveAvailability)
@@ -630,7 +630,7 @@ describe("integration/inventory holds (InventoryLock)", () => {
 						eq(EffectiveAvailability.date, "2026-03-11")
 					)
 				)
-				.get()
+				.then((rows) => rows[0])
 			expect(Number((eaDay1 as any)?.heldUnits ?? 0)).toBe(0)
 			expect(Number((eaDay2 as any)?.heldUnits ?? 0)).toBe(0)
 			expect(Number((eaDay1 as any)?.availableUnits ?? 0)).toBe(2)
@@ -684,7 +684,6 @@ describe("integration/inventory holds (InventoryLock)", () => {
 			.update(InventoryLock)
 			.set({ expiresAt: new Date(Date.now() - 60_000) } as any)
 			.where(eq(InventoryLock.holdId, holdId))
-			.run()
 
 		const { releasedHolds } = await releaseExpiredHolds(
 			{ repo: inventoryHoldRepository },
@@ -696,14 +695,11 @@ describe("integration/inventory holds (InventoryLock)", () => {
 			.select()
 			.from(DailyInventory)
 			.where(and(eq(DailyInventory.variantId, variantId), eq(DailyInventory.date, "2026-03-10")))
-			.get()
+			.then((rows) => rows[0])
 		expect(d?.reservedCount).toBe(0)
 
-		const locks = await db
-			.select()
-			.from(InventoryLock)
-			.where(eq(InventoryLock.holdId, holdId))
-			.all()
+		const locks = await db.select().from(InventoryLock).where(eq(InventoryLock.holdId, holdId))
+
 		expect(locks.length).toBe(0)
 
 		const ea = await db
@@ -715,7 +711,7 @@ describe("integration/inventory holds (InventoryLock)", () => {
 					eq(EffectiveAvailability.date, "2026-03-10")
 				)
 			)
-			.get()
+			.then((rows) => rows[0])
 		expect(Number((ea as any)?.heldUnits ?? 0)).toBe(0)
 		expect(Number((ea as any)?.availableUnits ?? 0)).toBe(2)
 	})

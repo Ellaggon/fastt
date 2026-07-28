@@ -10,7 +10,7 @@ import { POST as evaluateVariantPost } from "@/pages/api/variant/evaluate"
 import { POST as updateVariantStatusPost } from "@/pages/api/variant/status"
 
 import { variantManagementRepository } from "@/container"
-import { db, Image, VariantCapacity, eq } from "astro:db"
+import { db, Image, VariantCapacity, eq } from "@/shared/infrastructure/db/compat"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -397,7 +397,7 @@ describe("integration/variant (CAPA 3)", () => {
 				.select()
 				.from(VariantCapacity)
 				.where(eq(VariantCapacity.variantId, variantId))
-				.all()
+
 			expect(rows.length).toBe(1)
 			expect(rows[0].minOccupancy).toBe(1)
 			expect(rows[0].maxOccupancy).toBe(3)

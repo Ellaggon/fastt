@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import { readdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 
-const CONFIG_PATH = join(process.cwd(), "db/config.ts")
+const CONFIG_PATH = join(process.cwd(), "src/shared/infrastructure/db/schema/tables.ts")
 const MIGRATIONS_DIR = join(process.cwd(), "db/migrations")
 
 describe("Guardrail: no pricing V1 schema/runtime", () => {
@@ -11,16 +11,24 @@ describe("Guardrail: no pricing V1 schema/runtime", () => {
 		const violations: string[] = []
 
 		if (/const\s+EffectivePricing\s*=\s*defineTable\s*\(/.test(source)) {
-			violations.push("db/config.ts -> EffectivePricing table declaration")
+			violations.push(
+				"src/shared/infrastructure/db/schema/tables.ts -> EffectivePricing table declaration"
+			)
 		}
 		if (/const\s+PricingBaseRate\s*=\s*defineTable\s*\(/.test(source)) {
-			violations.push("db/config.ts -> PricingBaseRate table declaration")
+			violations.push(
+				"src/shared/infrastructure/db/schema/tables.ts -> PricingBaseRate table declaration"
+			)
 		}
 		if (/\bEffectivePricing\b\s*,/.test(source)) {
-			violations.push("db/config.ts -> EffectivePricing exported in defineDb tables")
+			violations.push(
+				"src/shared/infrastructure/db/schema/tables.ts -> EffectivePricing exported in defineDb tables"
+			)
 		}
 		if (/\bPricingBaseRate\b\s*,/.test(source)) {
-			violations.push("db/config.ts -> PricingBaseRate exported in defineDb tables")
+			violations.push(
+				"src/shared/infrastructure/db/schema/tables.ts -> PricingBaseRate exported in defineDb tables"
+			)
 		}
 
 		expect(violations, `Found forbidden V1 schema entries:\n${violations.join("\n")}`).toEqual([])

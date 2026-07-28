@@ -71,7 +71,9 @@ describe("S7-2 OAuth + docs-lite Simple", () => {
 		const oauth = read("src/lib/provider-connector-oauth.ts")
 
 		expect(integrations).toContain("data-connector-docs-lite")
-		expect(integrations).not.toContain("{!isSimple ? (\n\t\t\t\t\t\t\t<details class=\"rounded-lg border border-slate-200 bg-white p-3\" data-connector-docs-lite>")
+		expect(integrations).not.toContain(
+			'{!isSimple ? (\n\t\t\t\t\t\t\t<details class="rounded-lg border border-slate-200 bg-white p-3" data-connector-docs-lite>'
+		)
 		expect(callback).toContain("getConnectorOAuthStatus")
 		expect(callback).toContain("exchangeConnectorOAuthCode")
 		expect(oauth).toContain("buildConnectorOAuthAuthorizeUrl")
@@ -81,7 +83,7 @@ describe("S7-2 OAuth + docs-lite Simple", () => {
 	})
 
 	it("builds authorize URL only when oauth scaffold/live is configured", () => {
-		expect(getConnectorOAuthStatus().mode).toBe("credentials_ref")
+		expect(getConnectorOAuthStatus().mode).toBe("manual")
 		expect(
 			buildConnectorOAuthAuthorizeUrl({
 				connectorKey: "channel_manager",

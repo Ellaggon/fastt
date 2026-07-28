@@ -97,14 +97,16 @@ describe("Guardrail: final policy and refund governance", () => {
 		const useCase = read(
 			"src/modules/financial/application/use-cases/record-refund-ledger-from-quote.ts"
 		)
-		const dbConfig = read("db/config.ts")
+		const dbConfig = read("src/shared/infrastructure/db/schema/tables.ts")
 		const migration = read("db/migrations/2026-06-07_refund_ledger_idempotency.sql")
 
 		expect(useCase).toContain("findQuoteById")
 		expect(useCase).toContain("REFUND_QUOTE_NOT_FOUND")
 		expect(repo).toContain("findLedgerByQuoteId")
 		expect(repo).toMatch(/db\s*\.\s*insert\s*\(\s*RefundLedgerTable\s*\)/)
-		expect(dbConfig).toContain('{ on: ["refundQuoteId"], unique: true }')
+		expect(dbConfig).toContain(
+			'uniqueIndex("RefundLedger_refundQuoteId_unique").on(table.refundQuoteId)'
+		)
 		expect(migration).toContain("idx_refund_ledger_quote_unique")
 	})
 })

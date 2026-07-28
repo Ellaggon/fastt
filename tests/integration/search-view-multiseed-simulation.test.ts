@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { db, SearchUnitView } from "astro:db"
+import { db, SearchUnitView } from "@/shared/infrastructure/db/compat"
 
 import { GET as getSearchViewHealth } from "@/pages/api/internal/search/search-view-health"
 import {

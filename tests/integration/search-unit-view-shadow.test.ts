@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest"
-import { and, db, eq, EffectiveAvailability, EffectivePricingV2, SearchUnitView } from "astro:db"
+import {
+	and,
+	db,
+	eq,
+	EffectiveAvailability,
+	EffectivePricingV2,
+	SearchUnitView,
+} from "@/shared/infrastructure/db/compat"
 
 import { materializeSearchUnitRange } from "@/modules/search/public"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
@@ -97,7 +104,6 @@ describe("integration/search-unit-view-shadow", () => {
 			.where(
 				and(eq(SearchUnitView.variantId, variantId), eq(SearchUnitView.ratePlanId, ratePlanId))
 			)
-			.all()
 
 		expect(rows.length).toBeGreaterThan(0)
 		expect(rows.some((row: any) => String(row.date) === "2026-06-10")).toBe(true)

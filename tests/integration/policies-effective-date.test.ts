@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { db, eq, Policy } from "astro:db"
+import { db, eq, Policy } from "@/shared/infrastructure/db/compat"
 
 import {
 	replacePolicyAssignmentCapa6,
@@ -41,7 +41,7 @@ describe("integration/policies effective date filtering", () => {
 			.select({ effectiveFrom: Policy.effectiveFrom, effectiveTo: Policy.effectiveTo })
 			.from(Policy)
 			.where(eq(Policy.id, created.policyId))
-			.get()
+			.then((rows) => rows[0])
 		expect(stored).toEqual({
 			effectiveFrom: "2030-01-01",
 			effectiveTo: "2030-01-31",

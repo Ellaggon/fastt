@@ -27,7 +27,7 @@ import {
 	Variant,
 	and,
 	eq,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 type SupabaseTestUser = { id: string; email: string }
 

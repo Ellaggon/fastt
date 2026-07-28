@@ -1,18 +1,18 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-// Production invite/accept paths import Postgres compat; Vitest seeds via astro:db.
+// Production and test paths use the canonical Postgres adapter.
 vi.mock("@/shared/infrastructure/db/compat", async () => {
-	const astro = await import("astro:db")
+	const astro = await import("@/shared/infrastructure/db/compat")
 	const drizzle = await import("drizzle-orm")
 	return {
 		...drizzle,
 		...astro,
-		first: <T,>(rows: readonly T[]) => rows[0],
+		first: <T>(rows: readonly T[]) => rows[0],
 		sql: drizzle.sql,
 	}
 })
 
-import { db, eq, ProviderInvitation, ProviderUser, User } from "astro:db"
+import { db, eq, ProviderInvitation, ProviderUser, User } from "@/shared/infrastructure/db/compat"
 
 import { POST as invitationsPost } from "@/pages/api/provider/settings/invitations"
 import { POST as acceptPost } from "@/pages/api/provider/invitations/accept"
@@ -169,11 +169,7 @@ describe("S6-2 Resend invite create → acceptUrl → accept E2E", () => {
 				createBody.set("role", "staff")
 
 				const createRes = await invitationsPost({
-					request: makeAuthedRequest(
-						"/api/provider/settings/invitations",
-						ownerToken,
-						createBody
-					),
+					request: makeAuthedRequest("/api/provider/settings/invitations", ownerToken, createBody),
 				} as any)
 				expect(createRes.status).toBe(201)
 				const created = await createRes.json()
@@ -196,11 +192,7 @@ describe("S6-2 Resend invite create → acceptUrl → accept E2E", () => {
 				const acceptBody = new FormData()
 				acceptBody.set("token", emailedToken!)
 				const acceptRes = await acceptPost({
-					request: makeAuthedRequest(
-						"/api/provider/invitations/accept",
-						inviteeToken,
-						acceptBody
-					),
+					request: makeAuthedRequest("/api/provider/invitations/accept", inviteeToken, acceptBody),
 				} as any)
 				expect(acceptRes.status).toBe(200)
 				const accepted = await acceptRes.json()
@@ -212,14 +204,14 @@ describe("S6-2 Resend invite create → acceptUrl → accept E2E", () => {
 					.select({ status: ProviderInvitation.status })
 					.from(ProviderInvitation)
 					.where(eq(ProviderInvitation.id, created.id))
-					.get()
+					.then((rows) => rows[0])
 				expect(invitation?.status).toBe("accepted")
 
 				const link = await db
 					.select({ role: ProviderUser.role })
 					.from(ProviderUser)
 					.where(eq(ProviderUser.userId, inviteeId))
-					.get()
+					.then((rows) => rows[0])
 				expect(link?.role).toBe("staff")
 			},
 		})

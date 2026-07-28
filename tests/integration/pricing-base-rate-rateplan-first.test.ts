@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from "vitest"
-import { and, asc, db, eq, RatePlanOccupancyPolicy, RatePlan } from "astro:db"
+import {
+	and,
+	asc,
+	db,
+	eq,
+	RatePlanOccupancyPolicy,
+	RatePlan,
+} from "@/shared/infrastructure/db/compat"
 
 import { POST as setBaseRatePost } from "@/pages/api/pricing/base-rate"
 import {
@@ -207,7 +214,7 @@ describe("integration/api pricing base-rate ratePlan-first", () => {
 						)
 					)
 					.orderBy(asc(RatePlanOccupancyPolicy.effectiveFrom), asc(RatePlanOccupancyPolicy.id))
-					.get()
+					.then((rows) => rows[0])
 				expect(Number(row?.baseAmount ?? 0)).toBe(157)
 				expect(String(row?.baseCurrency ?? "")).toBe("USD")
 			}
@@ -289,7 +296,7 @@ describe("integration/api pricing base-rate ratePlan-first", () => {
 				)
 			)
 			.orderBy(asc(RatePlan.createdAt), asc(RatePlan.id))
-			.get()
+			.then((rows) => rows[0])
 		const otherPlan = await db
 			.select({ id: RatePlan.id })
 			.from(RatePlan)
@@ -301,7 +308,7 @@ describe("integration/api pricing base-rate ratePlan-first", () => {
 				)
 			)
 			.orderBy(asc(RatePlan.createdAt), asc(RatePlan.id))
-			.get()
+			.then((rows) => rows[0])
 		const mainVariantRow = mainPlan
 			? await db
 					.select({ baseAmount: RatePlanOccupancyPolicy.baseAmount })
@@ -314,7 +321,7 @@ describe("integration/api pricing base-rate ratePlan-first", () => {
 						)
 					)
 					.orderBy(asc(RatePlanOccupancyPolicy.effectiveFrom), asc(RatePlanOccupancyPolicy.id))
-					.get()
+					.then((rows) => rows[0])
 			: null
 		const otherVariantRow = otherPlan
 			? await db
@@ -328,7 +335,7 @@ describe("integration/api pricing base-rate ratePlan-first", () => {
 						)
 					)
 					.orderBy(asc(RatePlanOccupancyPolicy.effectiveFrom), asc(RatePlanOccupancyPolicy.id))
-					.get()
+					.then((rows) => rows[0])
 			: null
 
 		expect(Number(mainVariantRow?.baseAmount ?? 0)).toBe(333)

@@ -5,7 +5,7 @@ import {
 	ProviderFinancialProfile,
 	ProviderPaymentAccount,
 	User,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 import {
 	confirmPaymentAccountMicroDeposit,
 	createProviderPaymentAccount,
@@ -87,36 +87,36 @@ describe("P2 maturity — micro-deposit / smoke / TIN / ops SLA", () => {
 			.select({ status: ProviderPaymentAccount.status })
 			.from(ProviderPaymentAccount)
 			.where(eq(ProviderPaymentAccount.id, account.id))
-			.get()
+			.then((rows) => rows[0])
 		expect(persisted?.status).toBe("verified")
 
 		const financial = await db
 			.select({ status: ProviderFinancialProfile.status })
 			.from(ProviderFinancialProfile)
 			.where(eq(ProviderFinancialProfile.providerId, providerId))
-			.get()
+			.then((rows) => rows[0])
 		expect(financial?.status).toBe("ready")
 	})
 
-	it("runs connector smoke for vault and rejects opaque refs", async () => {
+	it("runs endpoint smoke and rejects non-HTTPS endpoints", async () => {
 		const ok = await runConnectorSmokeTest({
 			connectorKey: "channel_manager",
-			credentialsRef: "vault://provider/channel-manager",
+			endpointUrl: "https://provider.test/channel-manager",
 			mode: "sandbox",
 		})
 		expect(ok.ok).toBe(true)
-		expect(ok.probe).toBe("vault")
+		expect(ok.probe).toBe("https")
 
 		const harness = await runConnectorSmokeTest({
 			connectorKey: "channel_manager",
-			credentialsRef: "test://smoke-ok",
+			endpointUrl: "test://smoke-ok",
 		})
 		expect(harness.ok).toBe(true)
 		expect(harness.probe).toBe("test_harness")
 
 		const bad = await runConnectorSmokeTest({
 			connectorKey: "channel_manager",
-			credentialsRef: "plaintext-not-a-probe",
+			endpointUrl: "plaintext-not-a-probe",
 		})
 		expect(bad.ok).toBe(false)
 	})

@@ -12,11 +12,8 @@ import {
 	ProviderVerification,
 	TaxFeeDefinition,
 	User,
-} from "astro:db"
-import {
-	assertProviderCapability,
-	evaluateProviderGovernance,
-} from "@/lib/provider-governance"
+} from "@/shared/infrastructure/db/compat"
+import { assertProviderCapability, evaluateProviderGovernance } from "@/lib/provider-governance"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
 
 describe("integration/provider governance", () => {
@@ -196,7 +193,7 @@ describe("integration/provider governance", () => {
 			.select()
 			.from(ProviderConfigurationState)
 			.where(eq(ProviderConfigurationState.providerId, providerId))
-			.get()
+			.then((rows) => rows[0])
 		expect(state?.canPublish).toBe(true)
 		expect(state?.canAcceptBookings).toBe(true)
 		expect(state?.canCollectPayments).toBe(true)
@@ -351,7 +348,7 @@ describe("integration/provider governance", () => {
 			status: "pending",
 			mode: "sandbox",
 			scopesJson: ["webhooks:deliver"],
-			credentialsRef: "vault://secret/webhooks",
+			endpointUrl: "https://webhooks.governance.test/events",
 			createdAt: now,
 			updatedAt: now,
 		})

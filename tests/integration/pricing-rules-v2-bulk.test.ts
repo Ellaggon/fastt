@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { db, eq, RatePlanOccupancyPolicy, sql } from "astro:db"
+import { db, eq, RatePlanOccupancyPolicy, sql } from "@/shared/infrastructure/db/compat"
 
 import {
 	createCommercialPriceRule,

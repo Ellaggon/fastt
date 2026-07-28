@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest"
-import { Booking, BookingPolicySnapshot, DailyInventory, Hold, db, eq } from "astro:db"
+import {
+	Booking,
+	BookingPolicySnapshot,
+	DailyInventory,
+	Hold,
+	db,
+	eq,
+} from "@/shared/infrastructure/db/compat"
 
 import { inventoryHoldRepository } from "@/container"
 import { snapshotPoliciesForBookingUseCase } from "@/container/booking-policy-snapshot.container"
@@ -308,7 +315,7 @@ describe("integration/policy exception rules CAPA6", () => {
 			.select({ policySnapshotJson: Hold.policySnapshotJson })
 			.from(Hold)
 			.where(eq(Hold.id, hold.holdId))
-			.get()
+			.then((rows) => rows[0])
 		const holdSnapshot = holdRow?.policySnapshotJson as HoldPolicySnapshot
 		expect(holdSnapshot.cancellation?.appliedOverrides?.[0]).toEqual(
 			expect.objectContaining({
@@ -364,7 +371,7 @@ describe("integration/policy exception rules CAPA6", () => {
 			.select()
 			.from(BookingPolicySnapshot)
 			.where(eq(BookingPolicySnapshot.bookingId, bookingId))
-			.get()
+			.then((rows) => rows[0])
 		expect((bookingSnapshot as any)?.policySnapshotJson?.appliedOverrides?.[0]?.id).toBe(created.id)
 		expect(
 			(bookingSnapshot as any)?.policySnapshotJson?.calculation?.cancellation?.refundTiers?.[0]

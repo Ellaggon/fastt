@@ -15,7 +15,7 @@ import { POST as setCapacityPost } from "@/pages/api/variant/capacity"
 import { POST as attachSubtypePost } from "@/pages/api/variant/subtype/hotel-room"
 import { POST as evaluateVariantPost } from "@/pages/api/variant/evaluate"
 
-import { and, asc, db, eq, Image, RatePlanOccupancyPolicy } from "astro:db"
+import { and, asc, db, eq, Image, RatePlanOccupancyPolicy } from "@/shared/infrastructure/db/compat"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -190,7 +190,7 @@ describe("integration/pricing base rate (ratePlan-first)", () => {
 						)
 					)
 					.orderBy(asc(RatePlanOccupancyPolicy.effectiveFrom), asc(RatePlanOccupancyPolicy.id))
-					.get()
+					.then((rows) => rows[0])
 				expect(Number(row1?.baseAmount ?? 0)).toBe(120)
 				expect(String(row1?.baseCurrency ?? "")).toBe("USD")
 
@@ -217,7 +217,7 @@ describe("integration/pricing base rate (ratePlan-first)", () => {
 						)
 					)
 					.orderBy(asc(RatePlanOccupancyPolicy.effectiveFrom), asc(RatePlanOccupancyPolicy.id))
-					.get()
+					.then((rows) => rows[0])
 				expect(Number(row2?.baseAmount ?? 0)).toBe(200)
 				expect(String(row2?.baseCurrency ?? "")).toBe("BOB")
 			}

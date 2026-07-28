@@ -6,7 +6,7 @@ import {
 	ProviderTaxConfiguration,
 	ProviderVerification,
 	TaxFeeDefinition,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 import { GET as settingsSummaryGet } from "@/pages/api/provider/settings/summary"
 import { GET as publicationSimulationGet } from "@/pages/api/provider/settings/publication-simulation"
 import { upsertProvider } from "../test-support/catalog-db-test-data"

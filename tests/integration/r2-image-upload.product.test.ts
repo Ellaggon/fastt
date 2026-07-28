@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest"
-import { and, db, eq, Image, ImageUpload, Variant } from "astro:db"
+import { and, db, eq, Image, ImageUpload, Variant } from "@/shared/infrastructure/db/compat"
 
 import { upsertDestination, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
@@ -260,13 +260,13 @@ describe("integration/r2 image upload system (Product V2)", () => {
 				.select()
 				.from(Image)
 				.where(and(eq(Image.id, initJson.imageId), eq(Image.entityId, variantId)))
-				.all()
+
 			expect(attached).toHaveLength(1)
 			const upload = await db
 				.select()
 				.from(ImageUpload)
 				.where(eq(ImageUpload.imageId, initJson.imageId))
-				.all()
+
 			expect(upload).toHaveLength(1)
 			expect(String(upload[0]?.status ?? "")).toBe("completed")
 
@@ -282,10 +282,10 @@ describe("integration/r2 image upload system (Product V2)", () => {
 			expect(removeRes.status).toBe(200)
 
 			await expect(
-				db.select().from(Image).where(eq(Image.id, initJson.imageId)).all()
+				db.select().from(Image).where(eq(Image.id, initJson.imageId))
 			).resolves.toHaveLength(0)
 			await expect(
-				db.select().from(ImageUpload).where(eq(ImageUpload.imageId, initJson.imageId)).all()
+				db.select().from(ImageUpload).where(eq(ImageUpload.imageId, initJson.imageId))
 			).resolves.toHaveLength(0)
 			expect(sendSpy.mock.calls.map(([command]) => (command as any)?.input?.Key)).toContain(
 				initJson.objectKey

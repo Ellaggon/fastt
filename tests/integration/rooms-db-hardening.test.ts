@@ -9,7 +9,7 @@ import {
 	VariantRoomBed,
 	VariantRoomProfile,
 	eq,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 import { HotelAmenityQueryRepository } from "@/modules/catalog/infrastructure/repositories/HotelAmenityQueryRepository"
 import { VariantRoomProfileRepository } from "@/modules/catalog/infrastructure/repositories/VariantRoomProfileRepository"
@@ -78,12 +78,11 @@ describe("rooms db hardening", () => {
 			.select()
 			.from(VariantRoomProfile)
 			.where(eq(VariantRoomProfile.variantId, variantId))
-			.get()
+			.then((rows) => rows[0])
 		const beds = await db
 			.select()
 			.from(VariantRoomBed)
 			.where(eq(VariantRoomBed.variantId, variantId))
-			.all()
 
 		expect(profile?.variantId).toBe(variantId)
 		expect(beds).toHaveLength(1)
@@ -147,7 +146,7 @@ describe("rooms db hardening", () => {
 			.select()
 			.from(VariantRoomAmenity)
 			.where(eq(VariantRoomAmenity.variantId, variantId))
-			.all()
+
 		expect(persisted).toHaveLength(1)
 		expect(persisted[0].amenityId).toBe(amenityId)
 	})

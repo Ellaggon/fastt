@@ -20,12 +20,10 @@ function visibleCopy(source: string) {
 describe("S2-2 integrations Simple: recommended + mapped errors", () => {
 	it("maps raw connector errors to host-facing copy without jargon", () => {
 		expect(mapProviderIntegrationError("CONNECTION_NOT_FOUND")).toContain("No encontramos")
-		expect(mapProviderIntegrationError("No hay credentialsRef para probar.")).toContain(
+		expect(mapProviderIntegrationError("No hay un endpoint HTTPS para probar.")).toContain(
 			"enlace https"
 		)
-		expect(
-			mapProviderIntegrationError("credentialsRef debe ser https://… o vault://…")
-		).not.toContain("vault://")
+		expect(mapProviderIntegrationError("INTEGRATION_ENDPOINT_INVALID")).toContain("enlace https")
 		expect(mapProviderIntegrationError("Smoke HTTPS falló (HTTP 503).")).toContain(
 			"servicio respondió"
 		)
@@ -43,7 +41,7 @@ describe("S2-2 integrations Simple: recommended + mapped errors", () => {
 				connectorKey: "payment_gateway",
 				mode: "sandbox",
 				scopes: [],
-				credentialsRef: "https://payments.example.test",
+				endpointUrl: "https://payments.example.test",
 			})
 		).rejects.toThrow("CONNECTOR_NOT_FOUND")
 	})
@@ -70,7 +68,7 @@ describe("S2-2 integrations Simple: recommended + mapped errors", () => {
 		expect(page).toContain("Actualizar todos")
 		expect(page).toContain("Actualización automática")
 		expect(page).toContain("Próxima actualización programada")
-		expect(page).toContain("Posibles conflictos")
+		expect(page).toContain("alertas abiertas")
 		expect(page).toContain("listProviderExternalCalendars")
 		expect(page).toContain("canRevoke(connector)")
 		expect(page).toContain("data-channel-manager-vendor-picker")
@@ -78,7 +76,7 @@ describe("S2-2 integrations Simple: recommended + mapped errors", () => {
 		expect(page).toContain('name="authType"')
 		expect(page).toContain('name="externalPropertyId"')
 		expect(sync).toContain('result.status === "connected" ? "sync_tested" : "reference_checked"')
-		expect(page).toContain('mode=pro')
+		expect(page).toContain("mode=pro")
 		expect(visible).toContain("Recomendado")
 		expect(visible).toContain("Estado de conexión")
 		expect(visible).not.toContain("Conectados")
@@ -91,7 +89,7 @@ describe("S2-2 integrations Simple: recommended + mapped errors", () => {
 		expect(visible).not.toContain("Smoke test")
 
 		expect(errors).toContain("mapProviderIntegrationError")
-		expect(errors).toContain("vault://")
+		expect(errors).not.toContain("credentialsRef")
 		expect(domain).toContain("Validado por prueba")
 		expect(domain).toContain("reference_valid")
 		expect(domain).toContain("vendorKey")

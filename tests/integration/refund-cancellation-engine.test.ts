@@ -7,7 +7,7 @@ import {
 	eq,
 	RefundLedger,
 	RefundQuote,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 import { POST as executeCancellationPost } from "@/pages/api/booking/cancel"
 import { POST as refundQuotePost } from "@/pages/api/internal/financial/refund-quotes"
@@ -334,20 +334,17 @@ describe("integration/refund cancellation engine", () => {
 			})
 			.from(Booking)
 			.where(eq(Booking.id, bookingId))
-			.get()
+			.then((rows) => rows[0])
 		expect(booking?.status).toBe("cancelled")
 		expect((booking as any)?.refundHandoffSnapshotJson?.state).toBe("ledger_recorded")
 
-		const quotes = await db
-			.select()
-			.from(RefundQuote)
-			.where(eq(RefundQuote.bookingId, bookingId))
-			.all()
+		const quotes = await db.select().from(RefundQuote).where(eq(RefundQuote.bookingId, bookingId))
+
 		const ledgers = await db
 			.select()
 			.from(RefundLedger)
 			.where(eq(RefundLedger.bookingId, bookingId))
-			.all()
+
 		expect(quotes).toHaveLength(1)
 		expect(ledgers).toHaveLength(1)
 	})

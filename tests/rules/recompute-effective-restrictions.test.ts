@@ -9,7 +9,7 @@ import {
 	Provider,
 	RatePlan,
 	Variant,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 import {
 	createCommercialSellabilityRule,
@@ -108,7 +108,7 @@ async function loadEffectiveRow(variantId: string, ratePlanId: string, date: str
 		.select()
 		.from(EffectiveRestriction)
 		.where(eq(EffectiveRestriction.id, `er_${variantId}_${ratePlanId}_${date}`))
-		.get()
+		.then((rows) => rows[0])
 }
 
 describe("recomputeEffectiveRestrictions", () => {

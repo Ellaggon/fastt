@@ -1,6 +1,14 @@
-// Integration-test-only helpers. Tests should not import "astro:db" directly;
+// Integration-test-only helpers. Tests use the canonical PostgreSQL schema;
 // this file centralizes minimal seeding needed for catalog flows.
-import { and, db, eq, Provider, ProviderUser, RoomType, User } from "astro:db"
+import {
+	and,
+	db,
+	eq,
+	Provider,
+	ProviderUser,
+	RoomType,
+	User,
+} from "@/shared/infrastructure/db/compat"
 
 export async function upsertProvider(row: {
 	id: string
@@ -36,7 +44,7 @@ export async function upsertProvider(row: {
 		.select({ id: User.id })
 		.from(User)
 		.where(eq(User.email, email))
-		.get()
+		.then((rows) => rows[0])
 	const userId = existingUser?.id ?? `user_${email}`
 	if (!existingUser?.id) {
 		await db.insert(User).values({ id: userId, email }).onConflictDoNothing()
@@ -46,7 +54,7 @@ export async function upsertProvider(row: {
 		.select({ id: ProviderUser.id })
 		.from(ProviderUser)
 		.where(and(eq(ProviderUser.providerId, row.id), eq(ProviderUser.userId, userId)))
-		.get()
+		.then((rows) => rows[0])
 	if (link?.id) return
 
 	await db.insert(ProviderUser).values({

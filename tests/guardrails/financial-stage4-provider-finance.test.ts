@@ -14,7 +14,7 @@ const providerFinanceBuilder =
 
 describe("Guardrail: financial Stage 4 provider finance foundation", () => {
 	it("defines Stage 4 provider finance tables without legacy payout/payment reuse", () => {
-		const dbConfig = read("db/config.ts")
+		const dbConfig = read("src/shared/infrastructure/db/schema/tables.ts")
 		const required = [
 			"ProviderFinancialProfile",
 			"CommissionSnapshot",
@@ -23,7 +23,7 @@ describe("Guardrail: financial Stage 4 provider finance foundation", () => {
 			"ProviderStatement",
 		]
 		const violations = required.flatMap((table) =>
-			dbConfig.includes(`const ${table} = defineTable`) ? [] : [`missing ${table}`]
+			dbConfig.includes(`export const ${table} = pgTable`) ? [] : [`missing ${table}`]
 		)
 		expect(violations).toEqual([])
 	})

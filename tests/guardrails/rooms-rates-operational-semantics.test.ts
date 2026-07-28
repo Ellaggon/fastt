@@ -30,6 +30,13 @@ function read(relativePath: string): string {
 	return readFileSync(join(process.cwd(), relativePath), "utf8")
 }
 
+function tableSource(schema: string, table: string): string {
+	const start = schema.indexOf(`export const ${table} = pgTable`)
+	if (start < 0) return ""
+	const next = schema.indexOf("\nexport const ", start + 1)
+	return schema.slice(start, next < 0 ? schema.length : next)
+}
+
 const semanticRoots = [
 	"src/pages/rates",
 	"src/pages/pricing",
@@ -54,11 +61,9 @@ const physicalContextFiles = [
 
 describe("Guardrail: Rooms & Rates operational semantics", () => {
 	it("resolves commercial automations through CommercialRule tables", () => {
-		const dbConfig = read("db/config.ts")
-		const commercialRule =
-			dbConfig.match(/const CommercialRule = defineTable\(\{[\s\S]*?\n\}\)/)?.[0] ?? ""
-		const commercialRuleApplication =
-			dbConfig.match(/const CommercialRuleApplication = defineTable\(\{[\s\S]*?\n\}\)/)?.[0] ?? ""
+		const dbConfig = read("src/shared/infrastructure/db/schema/tables.ts")
+		const commercialRule = tableSource(dbConfig, "CommercialRule")
+		const commercialRuleApplication = tableSource(dbConfig, "CommercialRuleApplication")
 
 		expect(dbConfig).not.toContain("const RatePlanOccupancyOverride")
 		expect(dbConfig).not.toContain("RatePlanOccupancyOverride,")
@@ -74,13 +79,10 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 	})
 
 	it("keeps physical inventory units in VariantInventoryConfig", () => {
-		const dbConfig = read("db/config.ts")
-		const roomProfile =
-			dbConfig.match(/const VariantRoomProfile = defineTable\(\{[\s\S]*?\n\}\)/)?.[0] ?? ""
-		const inventoryConfig =
-			dbConfig.match(/const VariantInventoryConfig = defineTable\(\{[\s\S]*?\n\}\)/)?.[0] ?? ""
-		const variantCapacity =
-			dbConfig.match(/const VariantCapacity = defineTable\(\{[\s\S]*?\n\}\)/)?.[0] ?? ""
+		const dbConfig = read("src/shared/infrastructure/db/schema/tables.ts")
+		const roomProfile = tableSource(dbConfig, "VariantRoomProfile")
+		const inventoryConfig = tableSource(dbConfig, "VariantInventoryConfig")
+		const variantCapacity = tableSource(dbConfig, "VariantCapacity")
 
 		expect(roomProfile).not.toContain("totalRooms")
 		expect(roomProfile).not.toContain("maxOccupancyOverride")
@@ -90,14 +92,14 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 	})
 
 	it("uses TaxFeeDefinition and TaxFeeAssignment as the only taxes/fees contract", () => {
-		const dbConfig = read("db/config.ts")
+		const dbConfig = read("src/shared/infrastructure/db/schema/tables.ts")
 		const catalogPublic = read("src/modules/catalog/public.ts")
 		const catalogContainer = read("src/container/catalog.container.ts")
 
 		expect(dbConfig).not.toContain("const TaxFee = defineTable")
 		expect(dbConfig).not.toContain("\n\t\tTaxFee,")
-		expect(dbConfig).toContain("const TaxFeeDefinition = defineTable")
-		expect(dbConfig).toContain("const TaxFeeAssignment = defineTable")
+		expect(dbConfig).toContain("export const TaxFeeDefinition = pgTable")
+		expect(dbConfig).toContain("export const TaxFeeAssignment = pgTable")
 		expect(catalogPublic).not.toContain("create-tax")
 		expect(catalogPublic).not.toContain("update-tax")
 		expect(catalogPublic).not.toContain("delete-tax")
@@ -110,7 +112,7 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 	})
 
 	it("documents source, derived, and snapshot table roles", () => {
-		const dbConfig = read("db/config.ts")
+		const dbConfig = read("src/shared/infrastructure/db/schema/tables.ts")
 		const taxonomy = read("docs/engineering/rooms-rates-table-taxonomy.md")
 		const sourceTables = [
 			"Variant",
@@ -137,9 +139,10 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 		const snapshotTables = ["Hold", "BookingRoomDetail", "BookingPolicySnapshot", "BookingTaxFee"]
 
 		for (const table of [...sourceTables, ...derivedTables, ...snapshotTables]) {
-			expect(dbConfig, `${table} must exist in db/config.ts`).toContain(
-				`const ${table} = defineTable`
-			)
+			expect(
+				dbConfig,
+				`${table} must exist in src/shared/infrastructure/db/schema/tables.ts`
+			).toContain(`export const ${table} = pgTable`)
 			expect(taxonomy, `${table} must be classified in the table taxonomy`).toContain(
 				`\`${table}\``
 			)
@@ -485,7 +488,7 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 	})
 
 	it("keeps legacy Inventory sellability compatibility explicit and off canonical surfaces", () => {
-		const dbConfig = read("db/config.ts")
+		const dbConfig = read("src/shared/infrastructure/db/schema/tables.ts")
 		const bulkService = read(
 			"src/modules/inventory/application/use-cases/bulk-inventory-service.ts"
 		)

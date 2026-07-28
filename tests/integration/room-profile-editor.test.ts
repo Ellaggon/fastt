@@ -10,7 +10,7 @@ import {
 	VariantRoomAmenity,
 	VariantRoomBed,
 	VariantRoomProfile,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 import { POST as saveRoomProfilePost } from "@/pages/api/variant/room-profile"
 import { upsertDestination, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
@@ -180,24 +180,28 @@ describe("integration/room profile editor", () => {
 
 			const variantId = json.variantId as string
 			const [variant, capacity, profile, inventoryConfig, beds, amenities] = await Promise.all([
-				db.select().from(Variant).where(eq(Variant.id, variantId)).get(),
-				db.select().from(VariantCapacity).where(eq(VariantCapacity.variantId, variantId)).get(),
+				db
+					.select()
+					.from(Variant)
+					.where(eq(Variant.id, variantId))
+					.then((rows) => rows[0]),
+				db
+					.select()
+					.from(VariantCapacity)
+					.where(eq(VariantCapacity.variantId, variantId))
+					.then((rows) => rows[0]),
 				db
 					.select()
 					.from(VariantRoomProfile)
 					.where(eq(VariantRoomProfile.variantId, variantId))
-					.get(),
+					.then((rows) => rows[0]),
 				db
 					.select()
 					.from(VariantInventoryConfig)
 					.where(eq(VariantInventoryConfig.variantId, variantId))
-					.get(),
-				db.select().from(VariantRoomBed).where(eq(VariantRoomBed.variantId, variantId)).all(),
-				db
-					.select()
-					.from(VariantRoomAmenity)
-					.where(eq(VariantRoomAmenity.variantId, variantId))
-					.all(),
+					.then((rows) => rows[0]),
+				db.select().from(VariantRoomBed).where(eq(VariantRoomBed.variantId, variantId)),
+				db.select().from(VariantRoomAmenity).where(eq(VariantRoomAmenity.variantId, variantId)),
 			])
 
 			expect(variant).toMatchObject({

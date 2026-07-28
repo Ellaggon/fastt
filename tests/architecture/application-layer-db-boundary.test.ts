@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import { promises as fs } from "node:fs"
 import path from "node:path"
 
-const MODULES_ROOT = path.resolve(process.cwd(), "src/modules")
+const SOURCE_ROOT = path.resolve(process.cwd(), "src")
 const IMPORT_RE = /from\s+["']astro:db["']/
 
 async function walk(dir: string): Promise<string[]> {
@@ -21,26 +21,14 @@ async function walk(dir: string): Promise<string[]> {
 	return files
 }
 
-describe("architecture boundary: application layer must not import astro:db", () => {
-	it("has no direct astro:db imports under src/modules/*/application", async () => {
-		const moduleNames = await fs.readdir(MODULES_ROOT)
+describe("architecture boundary: Astro DB must not return", () => {
+	it("has no direct astro:db imports under src", async () => {
 		const offenders: string[] = []
-
-		for (const moduleName of moduleNames) {
-			const appDir = path.join(MODULES_ROOT, moduleName, "application")
-			try {
-				const stats = await fs.stat(appDir)
-				if (!stats.isDirectory()) continue
-			} catch {
-				continue
-			}
-
-			const files = await walk(appDir)
-			for (const file of files) {
-				const content = await fs.readFile(file, "utf8")
-				if (IMPORT_RE.test(content)) {
-					offenders.push(path.relative(process.cwd(), file))
-				}
+		const files = await walk(SOURCE_ROOT)
+		for (const file of files) {
+			const content = await fs.readFile(file, "utf8")
+			if (IMPORT_RE.test(content)) {
+				offenders.push(path.relative(process.cwd(), file))
 			}
 		}
 

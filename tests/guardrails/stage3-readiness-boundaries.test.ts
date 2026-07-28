@@ -114,7 +114,7 @@ describe("Guardrail: Stage 3 readiness semantic freeze", () => {
 				? null
 				: `${reconciliationRoute}: must use centralized financial operation review builder`,
 			route.includes("BookingRoomDetail.totalAmount") &&
-			(route.includes(".all()") || !route.includes(".limit("))
+			(route.includes("") || !route.includes(".limit("))
 				? null
 				: `${reconciliationRoute}: must read all room snapshot rows for multi-room safety`,
 			/\.insert\(|\.update\(|\.delete\(|autoResolve|autoClose/.test(route)

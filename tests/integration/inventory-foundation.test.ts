@@ -10,7 +10,7 @@ import {
 	lt,
 	VariantInventoryConfig,
 	Variant,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 import { upsertDestination, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
@@ -119,14 +119,14 @@ describe("CAPA 5 / Phase 1 inventory foundation", () => {
 				.select()
 				.from(VariantInventoryConfig)
 				.where(eq(VariantInventoryConfig.variantId, variantId))
-				.get()
+				.then((rows) => rows[0])
 			expect(cfg?.defaultTotalUnits).toBe(1)
 
 			const anyRow = await db
 				.select({ id: DailyInventory.id })
 				.from(DailyInventory)
 				.where(eq(DailyInventory.variantId, variantId))
-				.get()
+				.then((rows) => rows[0])
 			expect(anyRow).toBeTruthy()
 		})
 	})
@@ -195,7 +195,7 @@ describe("CAPA 5 / Phase 1 inventory foundation", () => {
 					lt(EffectiveAvailability.date, "2026-03-13")
 				)
 			)
-			.all()
+
 		expect(rows.length).toBe(3)
 
 		const byDate = new Map(rows.map((r: any) => [String(r.date), r]))
@@ -251,7 +251,7 @@ describe("CAPA 5 / Phase 1 inventory foundation", () => {
 				.select({ id: DailyInventory.id })
 				.from(DailyInventory)
 				.where(eq(DailyInventory.variantId, variantId))
-				.get()
+				.then((rows) => rows[0])
 		).toBeFalsy()
 
 		await withSupabaseAuthStub({ [token]: { id: "u_inv_backfill", email } }, async () => {
@@ -270,14 +270,14 @@ describe("CAPA 5 / Phase 1 inventory foundation", () => {
 			.select()
 			.from(VariantInventoryConfig)
 			.where(eq(VariantInventoryConfig.variantId, variantId))
-			.get()
+			.then((rows) => rows[0])
 		expect(cfg?.defaultTotalUnits).toBe(1)
 
 		const anyRow = await db
 			.select({ id: DailyInventory.id })
 			.from(DailyInventory)
 			.where(eq(DailyInventory.variantId, variantId))
-			.get()
+			.then((rows) => rows[0])
 		expect(anyRow).toBeTruthy()
 	})
 })

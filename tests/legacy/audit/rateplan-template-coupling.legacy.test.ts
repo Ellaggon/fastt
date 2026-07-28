@@ -4,7 +4,10 @@ import { join } from "node:path"
 
 describe.skip("legacy/audit rateplan template coupling", () => {
 	it("legacy: RatePlanTemplate has been removed from the canonical schema", () => {
-		const dbConfig = readFileSync(join(process.cwd(), "db/config.ts"), "utf8")
+		const dbConfig = readFileSync(
+			join(process.cwd(), "src/shared/infrastructure/db/schema/tables.ts"),
+			"utf8"
+		)
 		expect(dbConfig).not.toContain("const RatePlanTemplate")
 	})
 })

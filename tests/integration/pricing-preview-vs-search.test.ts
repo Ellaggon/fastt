@@ -12,7 +12,7 @@ import { upsertProvider } from "../test-support/catalog-db-test-data"
 
 import { POST as previewPost } from "@/pages/api/pricing/preview"
 import { baseRateRepository, searchOffers, dailyInventoryRepository } from "@/container"
-import { db, EffectiveAvailability, EffectivePricingV2 } from "astro:db"
+import { db, EffectiveAvailability, EffectivePricingV2 } from "@/shared/infrastructure/db/compat"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
 import { materializeSearchUnitRange } from "@/modules/search/public"
 import { ensurePricingCoverageForRequestRuntime } from "@/modules/pricing/public"

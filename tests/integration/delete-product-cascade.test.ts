@@ -23,14 +23,14 @@ import {
 	VariantRoomBed,
 	VariantRoomProfile,
 	eq,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 import { productRepository, r2 } from "@/container"
 import { upsertDestination } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
 
 async function rowsFor(table: any, column: any, value: string) {
-	return db.select().from(table).where(eq(column, value)).all()
+	return db.select().from(table).where(eq(column, value))
 }
 
 describe("integration/catalog delete product cascade", () => {

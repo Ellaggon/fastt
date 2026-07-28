@@ -16,14 +16,14 @@ describe("audit/rateplan-first modern flows", () => {
 		expect(fs.existsSync(path.join(ROOT, "src/pages/rates/plans/index.astro"))).toBe(false)
 		const page = read("src/pages/rates/plans/manage.astro")
 		expect(page).toContain("loadRatePlansReadModel")
-		expect(page).not.toContain('from "astro:db"')
+		expect(page).not.toContain('from "@/shared/infrastructure/db/compat"')
 		expect(page).not.toContain("resolveEffectivePolicies")
 	})
 
 	it("detalle moderno consume read model y evita queries directas", () => {
 		const detail = read("src/pages/rates/plans/[ratePlanId].astro")
 		expect(detail).toContain("loadRatePlanReadModelById")
-		expect(detail).not.toContain('from "astro:db"')
+		expect(detail).not.toContain('from "@/shared/infrastructure/db/compat"')
 	})
 
 	it("surfaces modernas operan con ratePlanId como input principal", () => {

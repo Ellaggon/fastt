@@ -588,7 +588,10 @@ describe("Guardrail: backoffice governance navigation", () => {
 	})
 
 	it("persists professional tools in provider profile instead of creating workspace tables", () => {
-		const config = readFileSync(join(process.cwd(), "db/config.ts"), "utf8")
+		const config = readFileSync(
+			join(process.cwd(), "src/shared/infrastructure/db/schema/tables.ts"),
+			"utf8"
+		)
 		const migration = readFileSync(
 			join(process.cwd(), "db/migrations/2026-06-09_provider_profile_professional_tools.sql"),
 			"utf8"

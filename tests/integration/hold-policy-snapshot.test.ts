@@ -10,7 +10,7 @@ import {
 	RatePlan,
 	db,
 	eq,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 import {
 	replacePolicyAssignmentCapa6,
@@ -244,7 +244,7 @@ describe("integration/hold policy snapshot", () => {
 			})
 			.from(Hold)
 			.where(eq(Hold.id, hold.holdId))
-			.get()
+			.then((rows) => rows[0])
 		expect(holdRow).toBeTruthy()
 		const holdSnapshot = holdRow?.policySnapshotJson as HoldPolicySnapshot
 		expect(holdSnapshot.meta.checkIn).toBe(checkIn)
@@ -308,7 +308,7 @@ describe("integration/hold policy snapshot", () => {
 			.select()
 			.from(BookingPolicySnapshot)
 			.where(eq(BookingPolicySnapshot.bookingId, booking.bookingId))
-			.all()
+
 		expect(bookingPolicyRows.length).toBeGreaterThan(0)
 
 		const paymentRow = bookingPolicyRows.find(
@@ -323,7 +323,7 @@ describe("integration/hold policy snapshot", () => {
 			.select({ policySnapshotJson: Hold.policySnapshotJson })
 			.from(Hold)
 			.where(and(eq(Hold.id, hold.holdId), eq(Hold.variantId, variantId)))
-			.get()
+			.then((rows) => rows[0])
 		expect(holdRowAfter?.policySnapshotJson).toEqual(holdSnapshot)
 	})
 
@@ -366,18 +366,15 @@ describe("integration/hold policy snapshot", () => {
 			isActive: true,
 			isDefault: true,
 		})
-		await db
-			.insert(RatePlan)
-			.values({
-				id: ratePlanIdB,
-				name: "Default",
-				description: null,
-				variantId,
-				isActive: true,
-				isDefault: false,
-				createdAt: new Date(),
-			} as any)
-			.run()
+		await db.insert(RatePlan).values({
+			id: ratePlanIdB,
+			name: "Default",
+			description: null,
+			variantId,
+			isActive: true,
+			isDefault: false,
+			createdAt: new Date(),
+		} as any)
 
 		for (const date of stayDates(checkIn, checkOut)) {
 			await db.insert(DailyInventory).values({
@@ -389,40 +386,35 @@ describe("integration/hold policy snapshot", () => {
 				createdAt: new Date(),
 				updatedAt: new Date(),
 			} as any)
-			await db
-				.insert(EffectivePricingV2)
-				.values({
-					id: `ep_ctx_a_${date}_${crypto.randomUUID()}`,
-					variantId,
-					ratePlanId: ratePlanIdA,
-					date,
-					occupancyKey: buildOccupancyKey({ adults: 2, children: 0, infants: 0 }),
-					baseComponent: 100,
-					occupancyAdjustment: 0,
-					ruleAdjustment: 0,
-					finalBasePrice: 100,
-					currency: "USD",
-					computedAt: new Date(),
-					sourceVersion: "test",
-				} as any)
-				.run()
-			await db
-				.insert(EffectivePricingV2)
-				.values({
-					id: `ep_ctx_b_${date}_${crypto.randomUUID()}`,
-					variantId,
-					ratePlanId: ratePlanIdB,
-					date,
-					occupancyKey: buildOccupancyKey({ adults: 2, children: 0, infants: 0 }),
-					baseComponent: 120,
-					occupancyAdjustment: 0,
-					ruleAdjustment: 0,
-					finalBasePrice: 120,
-					currency: "USD",
-					computedAt: new Date(),
-					sourceVersion: "test",
-				} as any)
-				.run()
+			await db.insert(EffectivePricingV2).values({
+				id: `ep_ctx_a_${date}_${crypto.randomUUID()}`,
+				variantId,
+				ratePlanId: ratePlanIdA,
+				date,
+				occupancyKey: buildOccupancyKey({ adults: 2, children: 0, infants: 0 }),
+				baseComponent: 100,
+				occupancyAdjustment: 0,
+				ruleAdjustment: 0,
+				finalBasePrice: 100,
+				currency: "USD",
+				computedAt: new Date(),
+				sourceVersion: "test",
+			} as any)
+
+			await db.insert(EffectivePricingV2).values({
+				id: `ep_ctx_b_${date}_${crypto.randomUUID()}`,
+				variantId,
+				ratePlanId: ratePlanIdB,
+				date,
+				occupancyKey: buildOccupancyKey({ adults: 2, children: 0, infants: 0 }),
+				baseComponent: 120,
+				occupancyAdjustment: 0,
+				ruleAdjustment: 0,
+				finalBasePrice: 120,
+				currency: "USD",
+				computedAt: new Date(),
+				sourceVersion: "test",
+			} as any)
 		}
 
 		const createPolicySetForRatePlan = async (ratePlanId: string, paymentDescription: string) => {
@@ -536,7 +528,11 @@ describe("integration/hold policy snapshot", () => {
 			const holdId = String(holdBody?.holdId ?? "")
 			expect(holdId.length).toBeGreaterThan(0)
 
-			const holdRow = await db.select().from(Hold).where(eq(Hold.id, holdId)).get()
+			const holdRow = await db
+				.select()
+				.from(Hold)
+				.where(eq(Hold.id, holdId))
+				.then((rows) => rows[0])
 			expect(String((holdRow as any)?.ratePlanId ?? "")).toBe(ratePlanIdB)
 			const holdSnapshot = (holdRow as any)?.policySnapshotJson as HoldPolicySnapshot
 			expect(String(holdSnapshot?.payment?.policyId ?? "")).toBe(ratePlanBPolicies.paymentPolicyId)
@@ -551,14 +547,18 @@ describe("integration/hold policy snapshot", () => {
 			const bookingId = String(confirmBody?.bookingId ?? "")
 			expect(bookingId.length).toBeGreaterThan(0)
 
-			const bookingRow = await db.select().from(Booking).where(eq(Booking.id, bookingId)).get()
+			const bookingRow = await db
+				.select()
+				.from(Booking)
+				.where(eq(Booking.id, bookingId))
+				.then((rows) => rows[0])
 			expect(String((bookingRow as any)?.ratePlanId ?? "")).toBe(ratePlanIdB)
 
 			const bookingPolicyRows = await db
 				.select()
 				.from(BookingPolicySnapshot)
 				.where(eq(BookingPolicySnapshot.bookingId, bookingId))
-				.all()
+
 			const paymentRow = bookingPolicyRows.find(
 				(row: any) => String(row.category) === "payment"
 			) as any
