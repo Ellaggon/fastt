@@ -798,6 +798,13 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		rationale: "Scheduled connector sync worker; cron-secret auth only.",
 	},
 	{
+		pattern: "/api/cron/provider-integration-maintenance",
+		status: "internal-only",
+		context: "internal-ops",
+		owner: "Provider Integrations",
+		rationale: "Bounded retention worker for completed integration operational data.",
+	},
+	{
 		pattern: "/api/cron/**",
 		status: "internal-only",
 		context: "internal-ops",
