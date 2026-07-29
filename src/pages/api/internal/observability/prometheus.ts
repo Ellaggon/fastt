@@ -6,6 +6,7 @@ import {
 	readTimingCountByKey,
 	readTimingQuantile,
 } from "@/lib/observability/metrics"
+import { collectProviderIntegrationOperationalMetrics } from "@/lib/provider-integration-operational-metrics"
 
 type ParsedMetricKey = {
 	name: string
@@ -68,6 +69,18 @@ export const GET: APIRoute = async () => {
 		if (p99 != null) {
 			lines.push(`${base}_p99_ms${labelsToProm(labels)} ${Number(p99)}`)
 		}
+	}
+
+	try {
+		const operationalMetrics = await collectProviderIntegrationOperationalMetrics()
+		for (const metric of operationalMetrics) {
+			lines.push(
+				`${sanitizeMetricName(metric.name)}${labelsToProm(metric.labels ?? {})} ${Number(metric.value)}`
+			)
+		}
+		lines.push("provider_integration_operational_metrics_collection_error 0")
+	} catch {
+		lines.push("provider_integration_operational_metrics_collection_error 1")
 	}
 
 	return new Response(lines.join("\n"), {

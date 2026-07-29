@@ -314,6 +314,25 @@ subresource for this,” stop.
 | **Conflict**    | `ProviderExternalCalendarConflict`                          | Specialized overlap **alert** inbox (booking ↔ iCal, iCal ↔ iCal) with accept / ignore / resolve. Status changes are alert-only: they do **not** mutate inventory; blocks already applied during feed sync. Do not mirror into Incident. Hiding accepted/ignored from the host list is intentional. | Sync/auth failures (use Incident); inventing a second problems inbox |
 | **Export**      | `ProviderExternalCalendarExport`                            | Outbound ICS share links (token hash, download metrics, revoke). Synchronous render — not an async job queue.                                                                                                                                                                                       | Inbound feed sync                                                    |
 
+### State ownership
+
+Each status answers one question only. Consumers must read the owning entity
+instead of copying its state into a neighboring table.
+
+| Owner                              | Status answers                                        | Vocabulary                                                                                    | Authorized writer                                                                                | Must not represent                                           |
+| ---------------------------------- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| `ProviderIntegrationConnection`    | Is the connector usable overall?                      | `not_configured`, `pending`, `connected`, `requires_attention`, `syncing`, `error`, `revoked` | Connector connect/test/revoke services; for iCal, only `refreshExternalCalendarConnectionRollup` | One feed attempt, queue progress, incident resolution        |
+| `ProviderExternalCalendar`         | Is this individual inbound feed usable?               | `pending`, `active`, `error`, `revoked`                                                       | Calendar create/sync/revoke services and calendar-job failure handling                           | Aggregate connector health or historical run outcome         |
+| `ProviderIntegrationSyncJob`       | What should the worker execute next?                  | `queued`, `running`, `succeeded`, `failed`                                                    | Universal queue claim/retry/finish functions                                                     | User-facing connector health or durable execution analysis   |
+| `ProviderIntegrationSyncRun`       | What was the durable result of one execution?         | `running`, `succeeded`, `partial`, `failed`, `cancelled`                                      | Sync orchestration start/finish functions                                                        | Pending work, current connector readiness or alert decisions |
+| `ProviderIntegrationIncident`      | Does a technical problem still require action?        | `open`, `resolved` plus independent severity                                                  | Incident record/resolve service                                                                  | Calendar overlaps or routine failed-run history              |
+| `ProviderExternalCalendarConflict` | What decision did the operator make about an overlap? | `open`, `accepted`, `ignored`, `resolved`                                                     | Conflict reconciliation and explicit host actions                                                | Technical connector failures or inventory mutation state     |
+
+Propagation is directional: a Job may create a Run; a failed Run may open an
+Incident; feed results may refresh the Connection aggregate. A Conflict never
+changes availability by status alone. No reverse propagation may rewrite
+historical Runs or completed Jobs.
+
 ### Status contracts
 
 **`ProviderIntegrationConnection`**
@@ -340,9 +359,9 @@ subresource for this,” stop.
 - Outbound ICS (`ProviderExternalCalendarExport`) is **variant-scoped only**.
   `BookingRoomDetail` has no `resourceId`, so the render path cannot honestly filter
   by physical unit.
-- `resourceId` on Export is nullable / unused (cleared; create always writes `null`).
-  Do not reintroduce a “Unidad física” control on the export form until bookings
-  can bind to `InventoryResource`.
+- Export no longer has `resourceId`. Do not reintroduce that column or a “Unidad
+  física” control until bookings can bind to `InventoryResource` and the renderer
+  can enforce unit scope end to end.
 - Inbound feeds still use `resourceId` for inventory blocks — that path is real.
 
 **Related status CHECKs (Phase 7)**
@@ -350,7 +369,7 @@ subresource for this,” stop.
 Also constrained: Mapping (`active`/`inactive`), SyncRun, SyncJob, Incident
 status/severity, Conflict, Export status. Partial due-sync indexes remain
 migration SoT (`WHERE syncEnabled AND status <> 'revoked'`); Drizzle mirrors them;
-Astro `db/config` documents that it cannot express partial WHERE / ON DELETE.
+The generated PostgreSQL baseline mirrors these predicates and cascade rules.
 **Cache columns (not sources of truth)**
 
 See [Phase 6 — `catalogJson` smoke/preview cache](#phase-6--catalogjson-smokepreview-cache)
@@ -441,7 +460,7 @@ calendar rollup, conflict inbox). Phase 6 freezes **catalog modeling**:
 - Documentation and this taxonomy.
 - Bug fixes that do not add tables.
 - Enforcing cache size/TTL on the existing Connection columns.
-- Phase 7 status CHECKs / export `resourceId` honesty without new entity tables.
+- Phase 7 status CHECKs / variant-only export honesty without new entity tables.
 - Emergency production hotfixes (must name which ownership class they touch and
   why an existing table was insufficient).
 
@@ -451,12 +470,12 @@ Shipped in `db/migrations/2026-08-08_provider_integration_constraint_hardening.s
 
 1. **Status/mode CHECKs** for Connection + Calendar (plus Mapping, SyncRun,
    SyncJob, Incident, Conflict, Export) matching the TypeScript vocabularies.
-2. **Partial due-sync indexes** reaffirmed; Drizzle declares `.where(...)`;
-   Astro config comments that migrations remain SoT for partials / ON DELETE.
+2. **Partial due-sync indexes** reaffirmed; Drizzle declares `.where(...)` and
+   the generated PostgreSQL baseline preserves the predicates.
 3. **`ProviderExternalCalendar.connectionId` ON DELETE CASCADE** — feeds are
    subresources of the rollup connection.
-4. **Export honesty** — variant-only ICS scope; clear/stop writing Export
-   `resourceId`; UI no longer offers a fake physical-unit filter.
+4. **Export honesty** — variant-only ICS scope; Export has no `resourceId` and
+   the UI offers no fake physical-unit filter.
 
 **After Phase 7:** prefer extending CHECKs on existing columns over new tables
 when locking vocabularies.

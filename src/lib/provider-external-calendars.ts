@@ -1187,8 +1187,6 @@ export async function createProviderExternalCalendarExport(params: {
 		id,
 		providerId: params.providerId,
 		variantId: params.variantId,
-		// Variant-scoped only — BookingRoomDetail has no resourceId to filter on (Phase 7).
-		resourceId: null,
 		label,
 		tokenHash: sha256(token),
 		status: "active",

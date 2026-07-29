@@ -28,18 +28,11 @@ describe("Phase 7: status CHECKs + export honesty", () => {
 			"ICAL_CALENDAR_STATUS_INVALID"
 		)
 		expect(PROVIDER_CONNECTOR_STATUSES).toContain("requires_attention")
-		expect(PROVIDER_EXTERNAL_CALENDAR_STATUSES).toEqual([
-			"pending",
-			"active",
-			"error",
-			"revoked",
-		])
+		expect(PROVIDER_EXTERNAL_CALENDAR_STATUSES).toEqual(["pending", "active", "error", "revoked"])
 	})
 
 	it("ships status CHECKs and cascade in the hardening migration", () => {
-		const migration = read(
-			"db/migrations/2026-08-08_provider_integration_constraint_hardening.sql"
-		)
+		const migration = read("db/migrations/2026-08-08_provider_integration_constraint_hardening.sql")
 		expect(migration).toContain("ProviderIntegrationConnection_status_check")
 		expect(migration).toContain("ProviderIntegrationConnection_mode_check")
 		expect(migration).toContain("ProviderExternalCalendar_status_check")
@@ -60,20 +53,24 @@ describe("Phase 7: status CHECKs + export honesty", () => {
 		expect(schema).toMatch(
 			/connectionId: txt\("connectionId"\)\.references\(\(\) => ProviderIntegrationConnection\.id, \{\s*onDelete: "cascade"/
 		)
-		expect(schema).toContain("Unused for ICS scope (variant-only)")
+		const exportTable = schema.match(
+			/export const ProviderExternalCalendarExport[\s\S]*?export const VariantCapacity/
+		)?.[0]
+		expect(exportTable).toBeTruthy()
+		expect(exportTable).not.toContain("resourceId")
 	})
 
-	it("keeps outbound ICS variant-scoped and stops pretending resource filter", () => {
+	it("keeps outbound ICS variant-scoped and removes the unused resource column", () => {
 		const domain = read("src/lib/provider-external-calendars.ts")
-		const api = read(
-			"src/pages/api/provider/integrations/external-calendars/exports/index.ts"
-		)
+		const api = read("src/pages/api/provider/integrations/external-calendars/exports/index.ts")
 		const page = read("src/pages/provider/settings/integrations.astro")
+		const migration = read(
+			"db/migrations/2026-08-10_provider_external_calendar_export_variant_scope.sql"
+		)
 
-		expect(domain).toContain("Variant-scoped only")
-		expect(domain).toContain("resourceId: null")
 		expect(domain).not.toContain("X-FASTT-RESOURCE-ID")
 		expect(api).not.toContain("resourceId")
+		expect(migration).toContain('DROP COLUMN IF EXISTS "resourceId"')
 		expect(page).toContain("data-external-calendar-export")
 		expect(page).toContain("El alcance es la habitación completa")
 		expect(page).not.toMatch(/data-external-calendar-export[\s\S]*?name="resourceId"/)

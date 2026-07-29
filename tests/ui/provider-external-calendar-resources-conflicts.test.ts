@@ -11,7 +11,9 @@ describe("provider external calendars resources + conflict actions", () => {
 	it("wires physical resources, persisted conflicts and host actions", () => {
 		const schema = read("src/shared/infrastructure/db/schema/tables.ts")
 		const domain = read("src/lib/provider-external-calendars.ts")
-		const repo = read("src/modules/inventory/infrastructure/repositories/InventoryRecomputeRepository.ts")
+		const repo = read(
+			"src/modules/inventory/infrastructure/repositories/InventoryRecomputeRepository.ts"
+		)
 		const page = read("src/pages/provider/settings/integrations.astro")
 		const api = read(
 			"src/pages/api/provider/integrations/external-calendars/conflicts/[conflictId]/resolve.ts"
@@ -23,6 +25,10 @@ describe("provider external calendars resources + conflict actions", () => {
 		expect(schema).not.toContain("ProviderExternalCalendarSyncJob")
 		expect(schema).toContain('targetType: text("targetType")')
 		expect(schema).toContain('resourceId: txtOpt("resourceId")')
+		const exportTable = schema.match(
+			/export const ProviderExternalCalendarExport[\s\S]*?export const VariantCapacity/
+		)?.[0]
+		expect(exportTable).not.toContain("resourceId")
 		expect(domain).toContain("X-FASTT-SOURCE:fastt")
 		expect(domain).toContain("isFasttExportedEvent")
 		expect(domain).toContain("renderProviderExternalCalendarExport")
@@ -49,7 +55,6 @@ describe("provider external calendars resources + conflict actions", () => {
 		expect(page).toContain("El alcance es la habitación completa")
 		expect(page).not.toMatch(/data-external-calendar-export[\s\S]*?name="resourceId"/)
 		expect(domain).toContain("Alert-inbox only")
-		expect(domain).toContain("Variant-scoped only")
 		expect(domain).not.toContain("X-FASTT-RESOURCE-ID")
 		expect(domain).toContain('eq(ProviderExternalCalendarConflict.status, "open")')
 		expect(domain).not.toMatch(

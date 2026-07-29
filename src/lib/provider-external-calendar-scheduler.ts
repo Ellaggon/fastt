@@ -239,7 +239,11 @@ async function finishExternalCalendarSyncJob(params: {
 	errorCode?: string
 }) {
 	if (params.status === "succeeded") {
-		await markProviderSyncJobSucceeded({ jobId: params.job.id, leaseToken: params.leaseToken })
+		await markProviderSyncJobSucceeded({
+			jobId: params.job.id,
+			leaseToken: params.leaseToken,
+			targetType: params.job.targetType,
+		})
 		return
 	}
 
@@ -249,6 +253,7 @@ async function finishExternalCalendarSyncJob(params: {
 		attempts: params.job.attempts,
 		maxAttempts: params.job.maxAttempts,
 		errorCode: params.errorCode ?? "ICAL_SYNC_FAILED",
+		targetType: params.job.targetType,
 	})
 	const now = new Date()
 	await db.execute(sql`
