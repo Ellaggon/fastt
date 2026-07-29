@@ -286,7 +286,6 @@ CREATE TABLE "ProviderExternalCalendarExport" (
 	"id" text PRIMARY KEY,
 	"providerId" text NOT NULL,
 	"variantId" text NOT NULL,
-	"resourceId" text,
 	"label" text NOT NULL,
 	"tokenHash" text NOT NULL,
 	"status" text NOT NULL DEFAULT 'active',
@@ -1517,12 +1516,6 @@ ALTER TABLE "ProviderExternalCalendarExport"
 	REFERENCES "Variant" ("id")
 ;
 
-ALTER TABLE "ProviderExternalCalendarExport"
-	ADD CONSTRAINT "ProviderExternalCalendarExport_resourceId_fk"
-	FOREIGN KEY ("resourceId")
-	REFERENCES "InventoryResource" ("id")
-;
-
 ALTER TABLE "ProviderAuditLog"
 	ADD CONSTRAINT "ProviderAuditLog_providerId_fk"
 	FOREIGN KEY ("providerId")
@@ -2111,13 +2104,15 @@ CREATE INDEX "ProviderIntegrationSyncRun_connection_started_idx" ON "ProviderInt
 
 CREATE INDEX "ProviderIntegrationSyncRun_provider_status_started_idx" ON "ProviderIntegrationSyncRun" ("providerId", "status", "startedAt");
 
+CREATE INDEX "ProviderIntegrationSyncRun_terminal_retention_idx" ON "ProviderIntegrationSyncRun" ("status", "finishedAt") WHERE "status" <> 'running' AND "finishedAt" IS NOT NULL;
+
 CREATE UNIQUE INDEX "ProviderIntegrationSyncJob_target_idempotency_unique" ON "ProviderIntegrationSyncJob" ("targetType", "targetId", "idempotencyKey");
 
-CREATE INDEX "ProviderIntegrationSyncJob_due_idx" ON "ProviderIntegrationSyncJob" ("status", "runAfter", "priority");
-
-CREATE INDEX "ProviderIntegrationSyncJob_target_due_idx" ON "ProviderIntegrationSyncJob" ("targetType", "status", "runAfter", "priority");
+CREATE INDEX "ProviderIntegrationSyncJob_claim_due_idx" ON "ProviderIntegrationSyncJob" ("targetType", "priority", "runAfter", "createdAt", "providerId") WHERE "status" = 'queued';
 
 CREATE INDEX "ProviderIntegrationSyncJob_provider_status_idx" ON "ProviderIntegrationSyncJob" ("providerId", "status", "runAfter");
+
+CREATE INDEX "ProviderIntegrationSyncJob_terminal_retention_idx" ON "ProviderIntegrationSyncJob" ("status", "finishedAt") WHERE "status" IN ('succeeded', 'failed') AND "finishedAt" IS NOT NULL;
 
 CREATE UNIQUE INDEX "ProviderIntegrationIncident_connection_dedupe_unique" ON "ProviderIntegrationIncident" ("connectionId", "dedupeKey");
 
@@ -2125,23 +2120,29 @@ CREATE INDEX "ProviderIntegrationIncident_provider_status_severity_idx" ON "Prov
 
 CREATE INDEX "ProviderIntegrationIncident_connection_last_seen_idx" ON "ProviderIntegrationIncident" ("connectionId", "lastSeenAt");
 
+CREATE INDEX "ProviderIntegrationIncident_open_last_seen_idx" ON "ProviderIntegrationIncident" ("lastSeenAt") WHERE "status" = 'open';
+
 CREATE INDEX "ProviderExternalCalendar_provider_status_idx" ON "ProviderExternalCalendar" ("providerId", "status");
 
 CREATE INDEX "ProviderExternalCalendar_variant_status_idx" ON "ProviderExternalCalendar" ("variantId", "status");
 
 CREATE INDEX "ProviderExternalCalendar_resource_status_idx" ON "ProviderExternalCalendar" ("resourceId", "status");
 
-CREATE INDEX "ProviderExternalCalendar_due_sync_idx" ON "ProviderExternalCalendar" ("syncEnabled", "status", "nextSyncAt") WHERE "syncEnabled" = true AND "status" <> 'revoked';
+CREATE INDEX "ProviderExternalCalendar_due_sync_idx" ON "ProviderExternalCalendar" ("nextSyncAt", "id") WHERE "syncEnabled" = true AND "status" <> 'revoked';
 
 CREATE UNIQUE INDEX "ProviderExternalCalendar_provider_variant_fingerprint_unique" ON "ProviderExternalCalendar" ("providerId", "variantId", "feedUrlFingerprint");
 
 CREATE UNIQUE INDEX "ProviderExternalCalendarEvent_calendar_source_unique" ON "ProviderExternalCalendarEvent" ("calendarId", "sourceKey");
 
-CREATE INDEX "ProviderExternalCalendarEvent_variant_active_range_idx" ON "ProviderExternalCalendarEvent" ("variantId", "isActive", "startDate", "endDate");
+CREATE INDEX "ProviderExternalCalendarEvent_variant_active_range_idx" ON "ProviderExternalCalendarEvent" ("variantId", "startDate", "endDate") WHERE "isActive" = true;
 
-CREATE INDEX "ProviderExternalCalendarEvent_resource_active_range_idx" ON "ProviderExternalCalendarEvent" ("resourceId", "isActive", "startDate", "endDate");
+CREATE INDEX "ProviderExternalCalendarEvent_resource_active_range_idx" ON "ProviderExternalCalendarEvent" ("resourceId", "startDate", "endDate") WHERE "isActive" = true AND "resourceId" IS NOT NULL;
 
 CREATE INDEX "ProviderExternalCalendarEvent_calendar_active_idx" ON "ProviderExternalCalendarEvent" ("calendarId", "isActive");
+
+CREATE INDEX "ProviderExternalCalendarEvent_inactive_retention_idx" ON "ProviderExternalCalendarEvent" ("lastSeenAt") WHERE "isActive" = false;
+
+CREATE INDEX "ProviderExternalCalendarEvent_ended_retention_idx" ON "ProviderExternalCalendarEvent" ("endDate");
 
 CREATE UNIQUE INDEX "ProviderExternalCalendarConflict_calendar_dedupe_unique" ON "ProviderExternalCalendarConflict" ("calendarId", "dedupeKey");
 

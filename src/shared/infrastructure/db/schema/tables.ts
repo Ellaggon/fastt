@@ -232,6 +232,7 @@ export const ProviderIntegrationConnection = pgTable(
 		connectorKey: txt("connectorKey"),
 		displayName: txtOpt("displayName"),
 		isPrimary: boolDefault("isPrimary", false),
+		/** Aggregate connector lifecycle; detail failures belong to feeds, runs or incidents. */
 		status: text("status").default("not_configured").notNull(),
 		mode: text("mode").default("sandbox").notNull(),
 		scopesJson: jsonb("scopesJson"),
@@ -365,6 +366,7 @@ export const ProviderIntegrationSyncRun = pgTable(
 		connectorKey: txt("connectorKey"),
 		operation: txt("operation"),
 		trigger: text("trigger").default("manual").notNull(),
+		/** Immutable execution outcome after the run finishes. */
 		status: text("status").default("running").notNull(),
 		idempotencyKey: txtOpt("idempotencyKey"),
 		readCount: intDefault("readCount", 0),
@@ -387,13 +389,16 @@ export const ProviderIntegrationSyncRun = pgTable(
 		),
 		index("ProviderIntegrationSyncRun_connection_started_idx").on(
 			table.connectionId,
-			table.startedAt
+			table.startedAt.desc()
 		),
 		index("ProviderIntegrationSyncRun_provider_status_started_idx").on(
 			table.providerId,
 			table.status,
 			table.startedAt
 		),
+		index("ProviderIntegrationSyncRun_terminal_retention_idx")
+			.on(table.status, table.finishedAt)
+			.where(sql`${table.status} <> 'running' AND ${table.finishedAt} IS NOT NULL`),
 		check(
 			"ProviderIntegrationSyncRun_status_check",
 			sql`${table.status} IN ('running', 'succeeded', 'partial', 'failed', 'cancelled')`
@@ -413,6 +418,7 @@ export const ProviderIntegrationSyncJob = pgTable(
 		targetId: txt("targetId"),
 		connectorKey: txt("connectorKey"),
 		operation: text("operation").default("connection_test").notNull(),
+		/** Queue lifecycle for pending work, not synchronization history. */
 		status: text("status").default("queued").notNull(),
 		trigger: text("trigger").default("scheduled").notNull(),
 		priority: intDefault("priority", 100),
@@ -434,18 +440,17 @@ export const ProviderIntegrationSyncJob = pgTable(
 			table.targetId,
 			table.idempotencyKey
 		),
-		index("ProviderIntegrationSyncJob_due_idx").on(table.status, table.runAfter, table.priority),
-		index("ProviderIntegrationSyncJob_target_due_idx").on(
-			table.targetType,
-			table.status,
-			table.runAfter,
-			table.priority
-		),
+		index("ProviderIntegrationSyncJob_claim_due_idx")
+			.on(table.targetType, table.priority, table.runAfter, table.createdAt, table.providerId)
+			.where(sql`${table.status} = 'queued'`),
 		index("ProviderIntegrationSyncJob_provider_status_idx").on(
 			table.providerId,
 			table.status,
 			table.runAfter
 		),
+		index("ProviderIntegrationSyncJob_terminal_retention_idx")
+			.on(table.status, table.finishedAt)
+			.where(sql`${table.status} IN ('succeeded', 'failed') AND ${table.finishedAt} IS NOT NULL`),
 		check(
 			"ProviderIntegrationSyncJob_status_check",
 			sql`${table.status} IN ('queued', 'running', 'succeeded', 'failed')`
@@ -471,6 +476,7 @@ export const ProviderIntegrationIncident = pgTable(
 		code: txt("code"),
 		category: txt("category"),
 		severity: text("severity").default("warning").notNull(),
+		/** Lifecycle of an actionable technical problem. */
 		status: text("status").default("open").notNull(),
 		title: txt("title"),
 		description: txt("description"),
@@ -507,6 +513,9 @@ export const ProviderIntegrationIncident = pgTable(
 			table.connectionId,
 			table.lastSeenAt
 		),
+		index("ProviderIntegrationIncident_open_last_seen_idx")
+			.on(table.lastSeenAt.desc())
+			.where(sql`${table.status} = 'open'`),
 		check("ProviderIntegrationIncident_status_check", sql`${table.status} IN ('open', 'resolved')`),
 		check(
 			"ProviderIntegrationIncident_severity_check",
@@ -863,6 +872,7 @@ export const ProviderExternalCalendar = pgTable(
 		feedUrlEncrypted: jsonb("feedUrlEncrypted").notNull(),
 		feedUrlHost: txt("feedUrlHost"),
 		feedUrlFingerprint: txt("feedUrlFingerprint"),
+		/** Operational state of this individual inbound feed. */
 		status: text("status").default("pending").notNull(),
 		lastSyncAt: ts("lastSyncAt"),
 		lastSyncStatus: txtOpt("lastSyncStatus"),
@@ -883,7 +893,7 @@ export const ProviderExternalCalendar = pgTable(
 		index("ProviderExternalCalendar_variant_status_idx").on(table.variantId, table.status),
 		index("ProviderExternalCalendar_resource_status_idx").on(table.resourceId, table.status),
 		index("ProviderExternalCalendar_due_sync_idx")
-			.on(table.syncEnabled, table.status, table.nextSyncAt)
+			.on(table.nextSyncAt, table.id)
 			.where(sql`${table.syncEnabled} = true AND ${table.status} <> 'revoked'`),
 		uniqueIndex("ProviderExternalCalendar_provider_variant_fingerprint_unique").on(
 			table.providerId,
@@ -923,19 +933,17 @@ export const ProviderExternalCalendarEvent = pgTable(
 			table.calendarId,
 			table.sourceKey
 		),
-		index("ProviderExternalCalendarEvent_variant_active_range_idx").on(
-			table.variantId,
-			table.isActive,
-			table.startDate,
-			table.endDate
-		),
-		index("ProviderExternalCalendarEvent_resource_active_range_idx").on(
-			table.resourceId,
-			table.isActive,
-			table.startDate,
-			table.endDate
-		),
+		index("ProviderExternalCalendarEvent_variant_active_range_idx")
+			.on(table.variantId, table.startDate, table.endDate)
+			.where(sql`${table.isActive} = true`),
+		index("ProviderExternalCalendarEvent_resource_active_range_idx")
+			.on(table.resourceId, table.startDate, table.endDate)
+			.where(sql`${table.isActive} = true AND ${table.resourceId} IS NOT NULL`),
 		index("ProviderExternalCalendarEvent_calendar_active_idx").on(table.calendarId, table.isActive),
+		index("ProviderExternalCalendarEvent_inactive_retention_idx")
+			.on(table.lastSeenAt)
+			.where(sql`${table.isActive} = false`),
+		index("ProviderExternalCalendarEvent_ended_retention_idx").on(table.endDate),
 	]
 )
 
@@ -950,6 +958,7 @@ export const ProviderExternalCalendarConflict = pgTable(
 		variantId: txt("variantId").references(() => Variant.id),
 		resourceId: txtOpt("resourceId").references(() => InventoryResource.id),
 		kind: txt("kind"),
+		/** Host decision state for an operational overlap alert. */
 		status: text("status").default("open").notNull(),
 		dedupeKey: txt("dedupeKey"),
 		startDate: day("startDate"),
@@ -993,8 +1002,6 @@ export const ProviderExternalCalendarExport = pgTable(
 		id: pk(),
 		providerId: txt("providerId").references(() => Provider.id),
 		variantId: txt("variantId").references(() => Variant.id),
-		/** Unused for ICS scope (variant-only). Kept nullable for a future booking→resource filter. */
-		resourceId: txtOpt("resourceId").references(() => InventoryResource.id),
 		label: txt("label"),
 		tokenHash: txt("tokenHash"),
 		status: text("status").default("active").notNull(),
