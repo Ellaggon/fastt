@@ -133,7 +133,11 @@ async function finishProviderIntegrationSyncJob(params: {
 	errorCode?: string
 }) {
 	if (params.status === "succeeded") {
-		await markProviderSyncJobSucceeded({ jobId: params.job.id, leaseToken: params.leaseToken })
+		await markProviderSyncJobSucceeded({
+			jobId: params.job.id,
+			leaseToken: params.leaseToken,
+			targetType: params.job.targetType,
+		})
 		return
 	}
 
@@ -143,6 +147,7 @@ async function finishProviderIntegrationSyncJob(params: {
 		attempts: params.job.attempts,
 		maxAttempts: params.job.maxAttempts,
 		errorCode: params.errorCode ?? "INTEGRATION_SYNC_FAILED",
+		targetType: params.job.targetType,
 	})
 	if (params.job.connectionId) {
 		const now = new Date()

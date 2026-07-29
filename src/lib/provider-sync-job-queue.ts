@@ -1,4 +1,5 @@
 import { and, db, eq, ProviderIntegrationSyncJob, sql } from "@/shared/infrastructure/db/compat"
+import { incrementCounter, observeTiming } from "@/lib/observability/metrics"
 
 export type ProviderSyncJobTargetType = "connection" | "external_calendar"
 
@@ -15,6 +16,7 @@ export type ClaimedProviderSyncJob = {
 	maxAttempts: number
 	idempotencyKey: string
 	payloadJson: unknown
+	createdAt: Date
 }
 
 export function boundedInteger(value: unknown, fallback: number, min: number, max: number): number {
@@ -56,14 +58,21 @@ export async function claimQueuedProviderSyncJobs(params: {
 	providerId?: string
 }): Promise<ClaimedProviderSyncJob[]> {
 	const nowIso = params.now.toISOString()
-	const rows = await db.execute(sql`
-		WITH ranked AS (
+	const claimed: ClaimedProviderSyncJob[] = []
+	for (let round = 0; round < 3 && claimed.length < params.batchSize; round += 1) {
+		const remaining = params.batchSize - claimed.length
+		const candidateLimit = Math.min(
+			4000,
+			Math.max(remaining, remaining * Math.max(20, params.providerLimit * 8))
+		)
+		const rows = await db.execute(sql`
+		WITH candidates AS (
 			SELECT
 				"id",
-				row_number() OVER (
-					PARTITION BY "providerId"
-					ORDER BY "priority" ASC, "runAfter" ASC, "createdAt" ASC
-				) AS provider_rank
+				"providerId",
+				"priority",
+				"runAfter",
+				"createdAt"
 			FROM "ProviderIntegrationSyncJob"
 			WHERE
 				"status" = 'queued'
@@ -71,12 +80,29 @@ export async function claimQueuedProviderSyncJobs(params: {
 				AND "runAfter" <= ${nowIso}
 				AND (${params.providerId ?? null}::text IS NULL OR "providerId" = ${params.providerId ?? null})
 			ORDER BY "priority" ASC, "runAfter" ASC, "createdAt" ASC
+			LIMIT ${candidateLimit}
+		),
+		ranked AS (
+			SELECT
+				"id",
+				"priority",
+				"runAfter",
+				"createdAt",
+				row_number() OVER (
+					PARTITION BY "providerId"
+					ORDER BY "priority" ASC, "runAfter" ASC, "createdAt" ASC
+				) AS provider_rank
+			FROM candidates
 		),
 		due AS (
-			SELECT "id"
+			SELECT job."id"
 			FROM ranked
+			INNER JOIN "ProviderIntegrationSyncJob" AS job ON job."id" = ranked."id"
 			WHERE provider_rank <= ${params.providerLimit}
-			LIMIT ${params.batchSize}
+				AND job."status" = 'queued'
+			ORDER BY ranked."priority" ASC, ranked."runAfter" ASC, ranked."createdAt" ASC
+			LIMIT ${remaining}
+			FOR UPDATE OF job SKIP LOCKED
 		)
 		UPDATE "ProviderIntegrationSyncJob" AS job
 		SET
@@ -98,14 +124,33 @@ export async function claimQueuedProviderSyncJobs(params: {
 			job."attempts",
 			job."maxAttempts",
 			job."idempotencyKey",
-			job."payloadJson"
+			job."payloadJson",
+			job."createdAt"
 	`)
-	return Array.from(rows as unknown as ClaimedProviderSyncJob[])
+		const roundJobs = Array.from(rows as unknown as ClaimedProviderSyncJob[])
+		claimed.push(...roundJobs)
+		if (roundJobs.length === 0 && round > 0) break
+	}
+	for (const job of claimed) {
+		observeTiming(
+			"provider_integration_job_queue_latency_ms",
+			Math.max(0, params.now.getTime() - new Date(job.createdAt).getTime()),
+			{ target_type: job.targetType }
+		)
+		incrementCounter("provider_integration_jobs_claimed_total", {
+			target_type: job.targetType,
+		})
+	}
+	return claimed
 }
 
-export async function markProviderSyncJobSucceeded(params: { jobId: string; leaseToken: string }) {
+export async function markProviderSyncJobSucceeded(params: {
+	jobId: string
+	leaseToken: string
+	targetType?: ProviderSyncJobTargetType
+}) {
 	const now = new Date()
-	await db
+	const updated = await db
 		.update(ProviderIntegrationSyncJob)
 		.set({
 			status: "succeeded",
@@ -119,6 +164,12 @@ export async function markProviderSyncJobSucceeded(params: { jobId: string; leas
 				eq(ProviderIntegrationSyncJob.lockedBy, params.leaseToken)
 			)
 		)
+		.returning({ id: ProviderIntegrationSyncJob.id })
+	if (updated.length === 0) return
+	incrementCounter("provider_integration_jobs_completed_total", {
+		target_type: params.targetType ?? "unknown",
+		status: "succeeded",
+	})
 }
 
 export async function markProviderSyncJobFailed(params: {
@@ -127,12 +178,13 @@ export async function markProviderSyncJobFailed(params: {
 	attempts: number
 	maxAttempts: number
 	errorCode?: string
+	targetType?: ProviderSyncJobTargetType
 }): Promise<{ terminal: boolean; retryAt: Date }> {
 	const now = new Date()
 	const attempts = Number(params.attempts ?? 0) + 1
 	const terminal = attempts >= Number(params.maxAttempts ?? 5)
 	const retryAt = new Date(now.getTime() + providerSyncJobRetryMinutes(attempts) * 60_000)
-	await db
+	const updated = await db
 		.update(ProviderIntegrationSyncJob)
 		.set({
 			status: terminal ? "failed" : "queued",
@@ -150,5 +202,21 @@ export async function markProviderSyncJobFailed(params: {
 				eq(ProviderIntegrationSyncJob.lockedBy, params.leaseToken)
 			)
 		)
+		.returning({ id: ProviderIntegrationSyncJob.id })
+	if (updated.length === 0) return { terminal, retryAt }
+	incrementCounter("provider_integration_job_attempt_failures_total", {
+		target_type: params.targetType ?? "unknown",
+		terminal,
+	})
+	if (!terminal) {
+		incrementCounter("provider_integration_job_retries_total", {
+			target_type: params.targetType ?? "unknown",
+		})
+	} else {
+		incrementCounter("provider_integration_jobs_completed_total", {
+			target_type: params.targetType ?? "unknown",
+			status: "failed",
+		})
+	}
 	return { terminal, retryAt }
 }
