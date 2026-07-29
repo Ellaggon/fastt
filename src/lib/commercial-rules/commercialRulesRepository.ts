@@ -307,7 +307,7 @@ export async function createCommercialPriceRule(params: {
 				category: "price",
 				type: params.type,
 				name: params.name ?? null,
-				value: params.value == null ? null : String(params.value),
+				value: params.value == null ? null : Number(params.value),
 				configJson: configPayload,
 				priority: params.priority ?? 20,
 				isActive,

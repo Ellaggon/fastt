@@ -7,7 +7,7 @@ import {
 	VariantInventoryConfig,
 	VariantRoomBed,
 	VariantRoomProfile,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 import { upsertDestination } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider } from "../test-support/catalog-db-test-data"

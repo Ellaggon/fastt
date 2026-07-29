@@ -4,9 +4,9 @@ Aplicacion SSR en Astro para una plataforma tipo OTA (tours/hoteles) con panel d
 
 ## Stack
 
-- Astro 5 (SSR), Tailwind, React islands
-- Astro DB (`astro:db`) con backend libsql/Turso (via `ASTRO_DB_REMOTE_URL` y `ASTRO_DB_APP_TOKEN`)
-- Auth: base Supabase-ready (validacion por token via cookies/Authorization; dev bypass configurable)
+- Astro 6 (SSR), Tailwind, React islands
+- PostgreSQL administrado por Supabase, accedido con Drizzle y `postgres`
+- Auth: Supabase (validacion por token via cookies/Authorization; dev bypass configurable)
 - Storage: Cloudflare R2 (S3 compatible) para imagenes (URLs firmadas)
 
 ## Estructura del proyecto
@@ -15,7 +15,9 @@ Aplicacion SSR en Astro para una plataforma tipo OTA (tours/hoteles) con panel d
 - `src/pages/api`: endpoints (search offers, rate plans, policies, upload signed URLs, etc.)
 - `src/modules`: modular monolith (domain/application/infrastructure por bounded context)
 - `src/container`: composition root (DI manual)
-- `db/`: schema y seed de Astro DB
+- `src/shared/infrastructure/db/schema`: fuente canonica del esquema PostgreSQL
+- `db/migrations`: migraciones incrementales para Supabase
+- `db/postgres/0001_initial_schema.sql`: baseline limpio para bases nuevas
 
 ## Requisitos
 

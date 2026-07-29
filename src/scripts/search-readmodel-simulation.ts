@@ -8,7 +8,7 @@ import {
 	lt,
 	SearchUnitView,
 	sql,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 import { searchOffers } from "@/container"
 import { GET as getCoverage } from "@/pages/api/internal/search/coverage"
@@ -455,7 +455,6 @@ async function validateAutoBackfill() {
 				lt(SearchUnitView.date, end)
 			)
 		)
-		.run()
 
 	const before = readCounter("search_view_autobackfill_success_total", {
 		endpoint: "searchOffers",
@@ -484,7 +483,7 @@ async function validateAutoBackfill() {
 					lt(SearchUnitView.date, end)
 				)
 			)
-			.get()
+			.then((rows) => rows[0])
 		if (Number(count?.c ?? 0) >= 2) break
 		await new Promise((resolve) => setTimeout(resolve, 100))
 	}

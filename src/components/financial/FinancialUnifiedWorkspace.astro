@@ -10,7 +10,7 @@ import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProfessionalModeCookiePreference } from "@/lib/dashboard/professionalModeCookie"
 import { getProviderSidebarData } from "@/lib/dashboard/providerSidebarReadiness"
 import { actorFilterOptions } from "@/pages/financial/_client/financial-actor-filters"
-import { and, db, eq, Product, sql } from "astro:db"
+import { and, db, eq, Product, sql } from "@/shared/infrastructure/db/compat"
 
 type FinancialViewId =
 	| "inbox"
@@ -55,7 +55,6 @@ try {
 				.where(
 					and(eq(Product.providerId, providerId), sql`lower(${Product.productType}) = 'hotel'`)
 				)
-				.all()
 		)
 			.map((product) => ({
 				id: String(product.id),

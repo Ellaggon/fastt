@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest"
-import { db, eq, ProviderAuditLog, ProviderDocument, ProviderUser, User } from "astro:db"
 import {
-	GET as documentsGet,
-	POST as documentsPost,
-} from "@/pages/api/provider/settings/documents"
+	db,
+	eq,
+	ProviderAuditLog,
+	ProviderDocument,
+	ProviderUser,
+	User,
+} from "@/shared/infrastructure/db/compat"
+import { GET as documentsGet, POST as documentsPost } from "@/pages/api/provider/settings/documents"
 import { POST as adminDocumentsPost } from "@/pages/api/admin/providers/documents"
 import { GET as settingsSummaryGet } from "@/pages/api/provider/settings/summary"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
@@ -128,11 +132,7 @@ describe("provider compliance documents", () => {
 				selfReviewBody.set("reviewNotes", "Documento legible y vigente")
 
 				const selfReviewRes = await documentsPost({
-					request: makeAuthedRequest(
-						"/api/provider/settings/documents",
-						token,
-						selfReviewBody
-					),
+					request: makeAuthedRequest("/api/provider/settings/documents", token, selfReviewBody),
 				} as any)
 				expect(selfReviewRes.status).toBe(403)
 				const selfReviewPayload = await selfReviewRes.json()
@@ -163,7 +163,7 @@ describe("provider compliance documents", () => {
 					})
 					.from(ProviderDocument)
 					.where(eq(ProviderDocument.id, submitted.document.id))
-					.get()
+					.then((rows) => rows[0])
 				expect(persisted?.status).toBe("verified")
 				expect(persisted?.reviewNotes).toBe("Documento legible y vigente")
 				expect(persisted?.reviewedBy).toBe(adminId)
@@ -176,7 +176,7 @@ describe("provider compliance documents", () => {
 					})
 					.from(ProviderAuditLog)
 					.where(eq(ProviderAuditLog.providerId, providerId))
-					.all()
+
 				expect(audit.some((row) => row.action === "provider.document.submit")).toBe(true)
 				expect(audit.some((row) => row.action === "provider.document.review")).toBe(true)
 				const reviewAudit = audit.find((row) => row.action === "provider.document.review")
@@ -218,6 +218,7 @@ describe("provider compliance documents", () => {
 			registrationDate: now,
 		})
 		await db.insert(ProviderUser).values({
+			id: `provider_user_${staffId}`,
 			providerId,
 			userId: staffId,
 			role: "staff",

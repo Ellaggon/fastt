@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest"
 
-import { db, PolicyAssignment, eq } from "astro:db"
+import { db, PolicyAssignment, eq } from "@/shared/infrastructure/db/compat"
 
 import {
 	createPolicyCapa6,

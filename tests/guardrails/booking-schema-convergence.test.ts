@@ -7,7 +7,7 @@ function read(relativePath: string): string {
 }
 
 describe("Guardrail: canonical booking operations schema", () => {
-	const schema = read("db/config.ts")
+	const schema = read("src/shared/infrastructure/db/schema/tables.ts")
 	const migration = read("db/migrations/2026-06-22_booking_operations_schema_convergence.sql")
 	const repository = read(
 		"src/modules/booking/infrastructure/repositories/BookingOperationsQueryRepository.ts"
@@ -17,8 +17,8 @@ describe("Guardrail: canonical booking operations schema", () => {
 	)
 
 	it("keeps one contractual booking amount and direct provider ownership", () => {
-		expect(schema).toContain("providerId: column.text({ references: () => Provider.columns.id })")
-		expect(schema).toContain("totalAmount: column.number()")
+		expect(schema).toContain('providerId: txt("providerId").references(() => Provider.id)')
+		expect(schema).toContain('totalAmount: amount("totalAmount")')
 		expect(schema).not.toContain("totalAmountUSD: column.number")
 		expect(schema).not.toContain("totalAmountBOB: column.number")
 		expect(bookingWriter).toContain("providerId: product.providerId")
@@ -44,11 +44,11 @@ describe("Guardrail: canonical booking operations schema", () => {
 
 	it("uses unambiguous room amounts and date-only hotel stays", () => {
 		for (const field of ["subtotalAmount", "taxAmount", "totalAmount"]) {
-			expect(schema).toContain(`${field}: column.number()`)
+			expect(schema).toContain(`${field}: amount("${field}")`)
 			expect(bookingWriter).toContain(`${field}:`)
 		}
-		expect(schema).toContain("checkInDate: column.text()")
-		expect(schema).toContain("checkOutDate: column.text()")
+		expect(schema).toContain('checkInDate: day("checkInDate")')
+		expect(schema).toContain('checkOutDate: day("checkOutDate")')
 		expect(bookingWriter).toContain("checkInDate: snapshot.from")
 		expect(bookingWriter).toContain("checkOutDate: snapshot.to")
 	})

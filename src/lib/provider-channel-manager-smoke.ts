@@ -8,14 +8,6 @@ const CLOUD_BEDS_BASE_URL = "https://hotels.cloudbeds.com/api/v1.2"
 const CHANNEX_BASE_URL = "https://staging.channex.io/api/v1"
 const DEFAULT_TIMEOUT_MS = 7000
 
-function isVaultRef(value: string): boolean {
-	return /^vault:\/\/[A-Za-z0-9._/-]+$/.test(value)
-}
-
-function isOAuth2Ref(value: string): boolean {
-	return /^oauth2:\/\/[A-Za-z0-9._-]+$/.test(value)
-}
-
 async function vendorFetch(
 	url: string,
 	options: RequestInit,
@@ -32,50 +24,27 @@ async function vendorFetch(
 	}
 }
 
-function structuralReference(params: {
-	vendorName: string
-	credentialsRef: string
-	authType: ChannelManagerAuthType
-}): ConnectorSmokeResult | null {
-	if (isVaultRef(params.credentialsRef)) {
-		return {
-			ok: true,
-			message: `${params.vendorName}: referencia vault válida; falta resolver secreto server-side para ejecutar smoke API real.`,
-			latencyMs: 0,
-			probe: "vendor_api",
-			trustLevel: "structural_reference",
-		}
-	}
-	if (params.authType === "oauth2" || isOAuth2Ref(params.credentialsRef)) {
-		return {
-			ok: true,
-			message: `${params.vendorName}: referencia OAuth válida; la conexión se verifica cuando el token OAuth esté en vault.`,
-			latencyMs: 0,
-			probe: "vendor_api",
-			trustLevel: "structural_reference",
-		}
-	}
-	return null
-}
-
 async function smokeCloudbeds(params: {
-	credentialsRef: string
+	credentialSecret: string
 	authType: ChannelManagerAuthType
 	timeoutMs?: number
 }): Promise<ConnectorSmokeResult> {
-	const structural = structuralReference({
-		vendorName: "Cloudbeds",
-		credentialsRef: params.credentialsRef,
-		authType: params.authType,
-	})
-	if (structural) return structural
+	if (!params.credentialSecret) {
+		return {
+			ok: false,
+			message: "Cloudbeds: falta una credencial activa en el vault.",
+			latencyMs: 0,
+			probe: "vendor_api",
+			trustLevel: "failed",
+		}
+	}
 	const { response, latencyMs } = await vendorFetch(
 		`${CLOUD_BEDS_BASE_URL}/getHotels`,
 		{
 			method: "GET",
 			headers: {
 				"Accept": "application/json",
-				"Authorization": `Bearer ${params.credentialsRef}`,
+				"Authorization": `Bearer ${params.credentialSecret}`,
 				"User-Agent": "fastt-cloudbeds-smoke/1.0",
 			},
 		},
@@ -100,16 +69,19 @@ async function smokeCloudbeds(params: {
 }
 
 async function smokeChannex(params: {
-	credentialsRef: string
+	credentialSecret: string
 	externalPropertyId?: string | null
 	timeoutMs?: number
 }): Promise<ConnectorSmokeResult> {
-	const structural = structuralReference({
-		vendorName: "Channex",
-		credentialsRef: params.credentialsRef,
-		authType: "api_key",
-	})
-	if (structural) return structural
+	if (!params.credentialSecret) {
+		return {
+			ok: false,
+			message: "Channex: falta una API key activa en el vault.",
+			latencyMs: 0,
+			probe: "vendor_api",
+			trustLevel: "failed",
+		}
+	}
 	const propertyPath = String(params.externalPropertyId ?? "").trim()
 		? `/properties/${encodeURIComponent(String(params.externalPropertyId).trim())}`
 		: "/properties/?pagination[page]=1&pagination[limit]=1"
@@ -120,7 +92,7 @@ async function smokeChannex(params: {
 			headers: {
 				"Accept": "application/json",
 				"Content-Type": "application/json",
-				"user-api-key": params.credentialsRef,
+				"user-api-key": params.credentialSecret,
 				"User-Agent": "fastt-channex-smoke/1.0",
 			},
 		},
@@ -147,11 +119,11 @@ async function smokeChannex(params: {
 export async function runChannelManagerVendorSmokeTest(params: {
 	vendorKey: ChannelManagerVendorKey
 	authType: ChannelManagerAuthType
-	credentialsRef: string
+	credentialSecret: string
 	externalPropertyId?: string | null
 	timeoutMs?: number
 }): Promise<ConnectorSmokeResult | null> {
-	if (params.credentialsRef === "test://cloudbeds-ok") {
+	if (params.credentialSecret === "test://cloudbeds-ok") {
 		return {
 			ok: true,
 			message: "Cloudbeds smoke harness OK.",
@@ -160,7 +132,7 @@ export async function runChannelManagerVendorSmokeTest(params: {
 			trustLevel: "verified_connection",
 		}
 	}
-	if (params.credentialsRef === "test://channex-ok") {
+	if (params.credentialSecret === "test://channex-ok") {
 		return {
 			ok: true,
 			message: "Channex smoke harness OK.",

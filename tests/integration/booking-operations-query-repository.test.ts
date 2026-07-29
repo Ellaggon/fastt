@@ -5,7 +5,7 @@ import {
 	BookingTaxFee,
 	db,
 	PaymentTransaction,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 import { describe, expect, it } from "vitest"
 
 import { bookingOperationsQueryRepository } from "@/modules/booking/public"

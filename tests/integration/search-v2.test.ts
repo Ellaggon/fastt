@@ -2,7 +2,12 @@ import { describe, it, expect } from "vitest"
 
 import { baseRateRepository, dailyInventoryRepository } from "@/container"
 import { GET as searchV2Get } from "@/pages/api/search-v2"
-import { db, EffectiveAvailability, EffectivePricingV2, EffectiveRestriction } from "astro:db"
+import {
+	db,
+	EffectiveAvailability,
+	EffectivePricingV2,
+	EffectiveRestriction,
+} from "@/shared/infrastructure/db/compat"
 import { materializeSearchUnitRange } from "@/modules/search/public"
 import { ensurePricingCoverageForRequestRuntime } from "@/modules/pricing/public"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"

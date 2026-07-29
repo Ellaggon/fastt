@@ -8,7 +8,6 @@ export default defineConfig({
 	},
 	resolve: {
 		alias: {
-			"astro:db": path.resolve(__dirname, "src/test-support/astro-db.ts"),
 			"@": path.resolve(__dirname, "src"),
 		},
 	},

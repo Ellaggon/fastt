@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { db, DailyInventory, EffectivePricingV2, Image } from "astro:db"
+import { db, DailyInventory, EffectivePricingV2, Image } from "@/shared/infrastructure/db/compat"
 
 import { productImageRepository, productRepository, subtypeRepository } from "@/container"
 import { evaluateLaunchProgress } from "@/lib/playbook/evaluate-launch-progress"

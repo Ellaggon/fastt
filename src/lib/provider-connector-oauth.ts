@@ -1,20 +1,16 @@
 /**
  * OAuth-grade connector auth (P2 / S7-2).
- * Default integrations still use credentialsRef + HTTPS smoke.
+ * Non-OAuth connectors use a public endpoint and/or an encrypted vault credential.
  * With CONNECTOR_AUTH_PROVIDER=oauth2 + client credentials:
  * - oauth_scaffold: authorize URL + callback surface (no token exchange)
- * - oauth_live: authorize → token exchange → credentialsRef oauth2://…
+ * - oauth_live: authorize → token exchange → encrypted ProviderIntegrationCredential
  */
 
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto"
 
 export type ConnectorOAuthProviderId = "none" | "oauth2"
 
-export type ConnectorOAuthMode =
-	| "credentials_ref"
-	| "oauth_scaffold"
-	| "oauth_live"
-	| "not_configured"
+export type ConnectorOAuthMode = "manual" | "oauth_scaffold" | "oauth_live" | "not_configured"
 
 export type ConnectorOAuthStatus = {
 	preferred: ConnectorOAuthProviderId
@@ -38,7 +34,6 @@ export type ConnectorOAuthStatePayload = {
 
 export type ExchangeConnectorOAuthCodeResult = {
 	ok: boolean
-	credentialsRef?: string
 	tokenType?: string
 	accessToken?: string
 	refreshToken?: string | null
@@ -79,12 +74,12 @@ export function getConnectorOAuthStatus(): ConnectorOAuthStatus {
 	if (preferred === "none") {
 		return {
 			preferred,
-			mode: "credentials_ref",
+			mode: "manual",
 			liveEnabled,
 			tokenUrlPresent,
 			hostLabel: "Referencia HTTPS / vault (no OAuth)",
 			adminHint:
-				"Connect usa credentialsRef + smoke. OAuth: CONNECTOR_AUTH_PROVIDER=oauth2 + client id/secret (+ TOKEN_URL + CONNECTOR_OAUTH_LIVE=1 para exchange).",
+				"Conexión manual activa. OAuth: CONNECTOR_AUTH_PROVIDER=oauth2 + client id/secret (+ TOKEN_URL + CONNECTOR_OAUTH_LIVE=1 para exchange).",
 		}
 	}
 	if (!isConnectorOAuthConfigured()) {
@@ -104,8 +99,7 @@ export function getConnectorOAuthStatus(): ConnectorOAuthStatus {
 			liveEnabled: true,
 			tokenUrlPresent: true,
 			hostLabel: "OAuth live (authorize + token exchange)",
-			adminHint:
-				"OAuth live activo. Start → vendor authorize → callback exchange → credentialsRef oauth2://…",
+			adminHint: "OAuth live activo. Start → vendor authorize → callback exchange → vault cifrado.",
 		}
 	}
 	return {
@@ -225,17 +219,9 @@ export function buildConnectorOAuthRedirectUri(origin: string): string {
 	return `${base}/api/provider/integrations/oauth/callback`
 }
 
-export function buildConnectorOAuthCredentialsRef(connectorKey: string): string {
-	const key = String(connectorKey ?? "")
-		.trim()
-		.toLowerCase()
-		.replace(/[^a-z0-9._-]+/g, "_")
-	return `oauth2://${key || "connector"}`
-}
-
 /**
  * Authorization-code token exchange (OAuth live).
- * Does not persist raw access_token — returns opaque oauth2:// credentialsRef.
+ * Does not persist raw access_token; the callback sends it directly to the encrypted vault writer.
  */
 export async function exchangeConnectorOAuthCode(params: {
 	code: string
@@ -304,7 +290,6 @@ export async function exchangeConnectorOAuthCode(params: {
 		}
 		return {
 			ok: true,
-			credentialsRef: buildConnectorOAuthCredentialsRef(params.connectorKey),
 			tokenType: typeof json.token_type === "string" ? json.token_type : "bearer",
 			accessToken,
 			refreshToken: typeof json.refresh_token === "string" ? json.refresh_token : null,
@@ -382,7 +367,6 @@ export async function refreshConnectorOAuthToken(params: {
 		}
 		return {
 			ok: true,
-			credentialsRef: buildConnectorOAuthCredentialsRef(params.connectorKey),
 			tokenType: typeof json.token_type === "string" ? json.token_type : "bearer",
 			accessToken,
 			refreshToken:

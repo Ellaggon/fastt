@@ -9,7 +9,7 @@ import {
 	sql,
 	RatePlan,
 	Variant,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 function toInt(v: unknown): number {
 	if (typeof v === "number") return v
@@ -21,20 +21,11 @@ function toInt(v: unknown): number {
 describe("audit/rateplan data (read-only)", () => {
 	it("prints modern RatePlan/CommercialRule audit report", async () => {
 		const [{ n: ratePlanCount }] =
-			(await db
-				.select({ n: sql<number>`count(*)` })
-				.from(RatePlan)
-				.all()) ?? []
+			(await db.select({ n: sql<number>`count(*)` }).from(RatePlan)) ?? []
 		const [{ n: commercialRuleCount }] =
-			(await db
-				.select({ n: sql<number>`count(*)` })
-				.from(CommercialRule)
-				.all()) ?? []
+			(await db.select({ n: sql<number>`count(*)` }).from(CommercialRule)) ?? []
 		const [{ n: commercialRuleApplicationCount }] =
-			(await db
-				.select({ n: sql<number>`count(*)` })
-				.from(CommercialRuleApplication)
-				.all()) ?? []
+			(await db.select({ n: sql<number>`count(*)` }).from(CommercialRuleApplication)) ?? []
 
 		const invalidRuleTypes = await db
 			.select({ type: CommercialRule.type, n: sql<number>`count(*)` })
@@ -51,7 +42,6 @@ describe("audit/rateplan data (read-only)", () => {
 				)
 			)
 			.groupBy(CommercialRule.type)
-			.all()
 
 		const perVariant = await db
 			.select({
@@ -61,7 +51,6 @@ describe("audit/rateplan data (read-only)", () => {
 			})
 			.from(RatePlan)
 			.groupBy(RatePlan.variantId)
-			.all()
 
 		const variantsWithMultiplePlans = perVariant
 			.map((r: any) => ({
@@ -86,23 +75,22 @@ describe("audit/rateplan data (read-only)", () => {
 				.select({ n: sql<number>`count(*)` })
 				.from(CommercialRuleApplication)
 				.leftJoin(RatePlan, eq(CommercialRuleApplication.scopeId, RatePlan.id))
-				.where(and(eq(CommercialRuleApplication.scope, "rate_plan"), sql`${RatePlan.id} is null`))
-				.all()) ?? []
+				.where(
+					and(eq(CommercialRuleApplication.scope, "rate_plan"), sql`${RatePlan.id} is null`)
+				)) ?? []
 
 		const [{ n: orphanRatePlansByVariant }] =
 			(await db
 				.select({ n: sql<number>`count(*)` })
 				.from(RatePlan)
 				.leftJoin(Variant, eq(RatePlan.variantId, Variant.id))
-				.where(sql`${Variant.id} is null`)
-				.all()) ?? []
+				.where(sql`${Variant.id} is null`)) ?? []
 
 		const [{ n: unnamedRatePlans }] =
 			(await db
 				.select({ n: sql<number>`count(*)` })
 				.from(RatePlan)
-				.where(sql`"RatePlan"."name" is null or trim("RatePlan"."name") = ''`)
-				.all()) ?? []
+				.where(sql`"RatePlan"."name" is null or trim("RatePlan"."name") = ''`)) ?? []
 
 		const report = {
 			counts: {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { db, PolicyAuditLog, and, eq } from "astro:db"
+import { db, PolicyAuditLog, and, eq } from "@/shared/infrastructure/db/compat"
 
 import {
 	replacePolicyAssignmentCapa6,

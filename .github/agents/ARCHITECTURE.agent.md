@@ -19,14 +19,15 @@ For new work, follow the canonical direction. When touching old code, improve th
 - `src/modules/*/{domain,application,infrastructure,public.ts}` is the canonical direction for business domains.
 - `src/lib` may contain composition helpers, read models, UI loaders, auth utilities, adapters, and shared operational helpers.
 - `src/lib` must not become the owner of new contractual business logic when a module owns that domain.
-- `db/config.ts` is the current schema source of truth until the repo deliberately splits schemas into domain files.
+- `src/shared/infrastructure/db/schema/tables.ts` is the canonical schema source.
+- Supabase PostgreSQL is the only business database; Turso, libSQL and Astro DB are forbidden.
 - Migrations under `db/migrations` document runtime schema convergence and must match code expectations.
 
 ## Layer Rules
 
 - Domain code should stay framework-agnostic.
 - Application/use-case code should express business operations and depend on ports where practical.
-- Infrastructure repositories may depend on `astro:db`, storage, auth providers, or external SDKs.
+- Infrastructure repositories may depend on the shared PostgreSQL adapter, storage, auth providers, or external SDKs.
 - Pages and API routes may call module public APIs, containers, and read models, but should not accumulate contractual business rules.
 - Cross-module access should prefer public module APIs over deep imports.
 

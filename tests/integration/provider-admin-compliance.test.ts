@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { db, eq, ProviderAuditLog, User } from "astro:db"
+import { db, eq, ProviderAuditLog, User } from "@/shared/infrastructure/db/compat"
 import {
 	loadProviderComplianceConsole,
 	parseProviderComplianceQueueFilter,
@@ -171,10 +171,7 @@ describe("provider admin unified compliance console", () => {
 				expect(approveRes.status).toBe(200)
 
 				const complianceRes = await complianceGet({
-					request: makeAuthedRequest(
-						"/api/admin/providers/compliance?filter=audit",
-						adminToken
-					),
+					request: makeAuthedRequest("/api/admin/providers/compliance?filter=audit", adminToken),
 				} as any)
 				expect(complianceRes.status).toBe(200)
 				const payload = await complianceRes.json()
@@ -196,7 +193,7 @@ describe("provider admin unified compliance console", () => {
 			.select({ action: ProviderAuditLog.action })
 			.from(ProviderAuditLog)
 			.where(eq(ProviderAuditLog.providerId, providerId))
-			.all()
+
 		expect(auditRows.some((row) => row.action === "provider.verification.review")).toBe(true)
 		expect(auditRows.some((row) => row.action === "provider.tax_configuration.upsert")).toBe(true)
 		expect(auditRows.some((row) => row.action === "provider.document.submit")).toBe(true)

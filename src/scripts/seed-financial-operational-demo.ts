@@ -38,7 +38,7 @@ import {
 	VariantRoomProfile,
 	eq,
 	sql,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
 
 const QA_EMAIL = process.env.LOCAL_QA_AUTH_EMAIL?.trim().toLowerCase() || "ellaggon@gmail.com"
@@ -141,7 +141,7 @@ async function ensureUser(email: string): Promise<string> {
 		.select({ id: User.id })
 		.from(User)
 		.where(eq(User.email, normalizedEmail))
-		.get()
+		.then((rows) => rows[0])
 	if (existing?.id) return String(existing.id)
 
 	const userId = `qa-user-${normalizedEmail.replace(/[^a-z0-9]+/g, "-")}`
@@ -165,7 +165,7 @@ async function resolveProviderIdForUser(userId: string): Promise<string> {
 		.select({ providerId: ProviderUser.providerId })
 		.from(ProviderUser)
 		.where(eq(ProviderUser.userId, userId))
-		.get()
+		.then((rows) => rows[0])
 	const existingProviderId = String(existingLink?.providerId ?? "").trim()
 	return existingProviderId || providerId
 }
@@ -176,12 +176,12 @@ async function keepOnlyLocalQaProviderLink(userId: string): Promise<void> {
 	if (!providerId || !userId) return
 
 	try {
-		await db.run(sql`
+		await db.execute(sql`
 			DELETE FROM ProviderUser
 			WHERE userId = ${userId}
 				AND providerId <> ${providerId}
 		`)
-		await db.run(sql`
+		await db.execute(sql`
 			DELETE FROM Provider
 			WHERE id = 'qa-financial-provider-ellaggon'
 				AND id <> ${providerId}
@@ -204,7 +204,7 @@ async function seedCatalog(userId: string): Promise<void> {
 		.select({ id: Provider.id })
 		.from(Provider)
 		.where(eq(Provider.id, providerId))
-		.get()
+		.then((rows) => rows[0])
 	if (!existingProvider?.id) {
 		await db
 			.insert(Provider)

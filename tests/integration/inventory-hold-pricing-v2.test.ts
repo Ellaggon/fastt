@@ -8,7 +8,7 @@ import {
 	eq,
 	RatePlan,
 	Variant,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 import { POST as holdPost } from "@/pages/api/inventory/hold"
 import { POST as bookingConfirmPost } from "@/pages/api/booking/confirm"
@@ -304,7 +304,7 @@ describe("integration/hold pricing V2 snapshot", () => {
 				})
 				.from(BookingRoomDetail)
 				.where(eq(BookingRoomDetail.bookingId, bookingId))
-				.get()
+				.then((rows) => rows[0])
 			expect(detail).toBeTruthy()
 			expect(Number(detail?.basePrice ?? 0)).toBe(snapshot.totalPrice)
 			expect(Number(detail?.totalPrice ?? 0)).toBeGreaterThanOrEqual(snapshot.totalPrice)
@@ -334,7 +334,7 @@ describe("integration/hold pricing V2 snapshot", () => {
 			const confirmBodyAgain = await readJson(confirmResponseAgain)
 			expect(String(confirmBodyAgain?.bookingId ?? "")).toBe(bookingId)
 
-			const bookingRows = await db.select().from(Booking).where(eq(Booking.id, bookingId)).all()
+			const bookingRows = await db.select().from(Booking).where(eq(Booking.id, bookingId))
 			expect(bookingRows).toHaveLength(1)
 		}
 	)
@@ -524,7 +524,7 @@ describe("integration/hold pricing V2 snapshot", () => {
 			.select({ pricingBreakdownJson: BookingRoomDetail.pricingBreakdownJson })
 			.from(BookingRoomDetail)
 			.where(eq(BookingRoomDetail.bookingId, bookingId))
-			.get()
+			.then((rows) => rows[0])
 		expect((detail as any)?.pricingBreakdownJson?.occupancyDetail).toEqual({
 			adults: 1,
 			children: 1,

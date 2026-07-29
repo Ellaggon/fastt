@@ -259,11 +259,12 @@ describe("Guardrail: Property Content operational semantics", () => {
 		const contentPage = read("src/pages/product/[id]/content.astro")
 		const productContentApi = read("src/pages/api/product/content.ts")
 		const rulesResolver = read("src/modules/rules/application/use-cases/resolve-effective-rules.ts")
-		const dbConfig = read("db/config.ts")
-		const productContentTable =
-			dbConfig.match(/const ProductContent = defineTable\(\{[\s\S]*?\n\}\)/)?.[0] ?? ""
-		const houseRuleTable =
-			dbConfig.match(/const HouseRule = defineTable\(\{[\s\S]*?\n\}\)/)?.[0] ?? ""
+		const dbConfig = read("src/shared/infrastructure/db/schema/tables.ts")
+		const productContentStart = dbConfig.indexOf("export const ProductContent = pgTable")
+		const houseRuleStart = dbConfig.indexOf("export const HouseRule = pgTable")
+		const productContentTable = dbConfig.slice(productContentStart, houseRuleStart)
+		const nextAfterHouseRule = dbConfig.indexOf("\nexport const ", houseRuleStart + 1)
+		const houseRuleTable = dbConfig.slice(houseRuleStart, nextAfterHouseRule)
 		const houseRuleRepository = read(
 			"src/modules/house-rules/infrastructure/repositories/HouseRuleRepository.ts"
 		)

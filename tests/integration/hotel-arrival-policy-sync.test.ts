@@ -1,4 +1,12 @@
-import { and, db, eq, Policy, PolicyAssignment, PolicyGroup, PolicyRule } from "astro:db"
+import {
+	and,
+	db,
+	eq,
+	Policy,
+	PolicyAssignment,
+	PolicyGroup,
+	PolicyRule,
+} from "@/shared/infrastructure/db/compat"
 import { describe, expect, it } from "vitest"
 
 import { syncHotelArrivalPolicy } from "@/lib/policies/syncHotelArrivalPolicy"
@@ -75,13 +83,13 @@ describe("hotel arrival policy synchronization", () => {
 					eq(PolicyAssignment.isActive, true)
 				)
 			)
-			.get()
+			.then((rows) => rows[0])
 		expect(assignment?.groupId).toBeTruthy()
 		const group = await db
 			.select({ ownerProviderId: PolicyGroup.ownerProviderId })
 			.from(PolicyGroup)
 			.where(eq(PolicyGroup.id, String(assignment?.groupId)))
-			.get()
+			.then((rows) => rows[0])
 		expect(group?.ownerProviderId).toBe(providerId)
 
 		await syncHotelArrivalPolicy({
@@ -95,14 +103,14 @@ describe("hotel arrival policy synchronization", () => {
 			.select({ id: Policy.id, version: Policy.version })
 			.from(Policy)
 			.where(eq(Policy.groupId, String(assignment?.groupId)))
-			.all()
+
 		expect(versions.map((row) => Number(row.version)).sort()).toEqual([1, 2])
 		const latest = versions.find((row) => Number(row.version) === 2)
 		const rules = await db
 			.select({ key: PolicyRule.ruleKey, value: PolicyRule.ruleValue })
 			.from(PolicyRule)
 			.where(eq(PolicyRule.policyId, String(latest?.id)))
-			.all()
+
 		expect(Object.fromEntries(rules.map((row) => [row.key, row.value]))).toMatchObject({
 			checkInFrom: "14:00",
 			checkInUntil: "22:00",

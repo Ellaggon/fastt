@@ -1,4 +1,11 @@
-import { and, db, eq, isNull, PolicyAssignment, PolicyAuditLog } from "astro:db"
+import {
+	and,
+	db,
+	eq,
+	isNull,
+	PolicyAssignment,
+	PolicyAuditLog,
+} from "@/shared/infrastructure/db/compat"
 import { describe, it, expect } from "vitest"
 
 import {
@@ -132,7 +139,7 @@ describe("integration/policies CAPA 6 Step 4 (write path)", () => {
 					isNull(PolicyAssignment.channel)
 				)
 			)
-			.all()
+
 		expect(assignments.filter((row) => row.isActive)).toHaveLength(1)
 		expect(assignments.find((row) => row.id === initial.assignmentId)?.isActive).toBe(false)
 		expect(assignments.find((row) => row.id === replacement.assignmentId)?.isActive).toBe(true)
@@ -141,7 +148,7 @@ describe("integration/policies CAPA 6 Step 4 (write path)", () => {
 			.select()
 			.from(PolicyAuditLog)
 			.where(eq(PolicyAuditLog.assignmentId, replacement.assignmentId))
-			.get()
+			.then((rows) => rows[0])
 		expect(audit).toEqual(
 			expect.objectContaining({
 				eventType: "assignment_replaced",
@@ -241,7 +248,7 @@ describe("integration/policies CAPA 6 Step 4 (write path)", () => {
 			.select({ isActive: PolicyAssignment.isActive })
 			.from(PolicyAssignment)
 			.where(eq(PolicyAssignment.id, assignment.assignmentId))
-			.get()
+			.then((rows) => rows[0])
 		expect(stillActive?.isActive).toBe(true)
 
 		const result = await deactivatePolicyAssignmentCapa6({
@@ -257,7 +264,7 @@ describe("integration/policies CAPA 6 Step 4 (write path)", () => {
 			.select()
 			.from(PolicyAuditLog)
 			.where(eq(PolicyAuditLog.assignmentId, assignment.assignmentId))
-			.all()
+
 		expect(audit).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({

@@ -26,10 +26,7 @@ async function upsertPostgresProvider(row: {
 	const legalName = String(row.legalName ?? row.displayName ?? `Provider ${row.id}`).trim()
 	const displayName = String(row.displayName ?? row.legalName ?? `Provider ${row.id}`).trim()
 	const email = row.ownerEmail.trim().toLowerCase()
-	const existingUsers = await db
-		.select({ id: User.id })
-		.from(User)
-		.where(eq(User.email, email))
+	const existingUsers = await db.select({ id: User.id }).from(User).where(eq(User.email, email))
 	const existingUser = existingUsers[0]
 	const userId = existingUser?.id ?? `user_${email}`
 
@@ -89,7 +86,7 @@ describe("integration/provider integrations product", () => {
 			connectorKey: "channel_manager",
 			mode: "sandbox",
 			scopes: ["availability:sync", "rates:sync"],
-			credentialsRef: "test://cloudbeds-ok",
+			credentialSecret: "test://cloudbeds-ok",
 			vendorKey: "cloudbeds",
 			authType: "api_key",
 			externalPropertyId: "cloudbeds_property_1",
@@ -121,9 +118,7 @@ describe("integration/provider integrations product", () => {
 		expect(card?.vendorKey).toBe("cloudbeds")
 		expect(card?.lastSyncStatus).toBe("success")
 		expect(card?.recentActivity.some((item) => item.eventType === "sync.test")).toBe(true)
-		expect(card?.recentActivity.some((item) => item.eventType === "configuration.saved")).toBe(
-			true
-		)
+		expect(card?.recentActivity.some((item) => item.eventType === "configuration.saved")).toBe(true)
 
 		await connectProviderIntegration({
 			providerId,
@@ -131,7 +126,6 @@ describe("integration/provider integrations product", () => {
 			connectorKey: "external_calendars",
 			mode: "sandbox",
 			scopes: ["calendar:import"],
-			credentialsRef: "not-a-real-probe",
 		})
 		const failed = await syncProviderIntegration({
 			providerId,
@@ -157,7 +151,7 @@ describe("integration/provider integrations product", () => {
 			)
 		const revoked = revokedRows[0]
 		expect(revoked?.status).toBe("revoked")
-		expect(revoked?.credentialsRef).toBeNull()
+		expect(revoked?.endpointUrl).toBeNull()
 
 		const runs = await db
 			.select()

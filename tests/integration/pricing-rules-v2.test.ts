@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { and, db, EffectivePricingV2, eq } from "astro:db"
+import { and, db, EffectivePricingV2, eq } from "@/shared/infrastructure/db/compat"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
 
 import { POST as createRuleV2Post } from "@/pages/api/pricing/rules/v2/create"
@@ -394,7 +394,7 @@ describe("integration/pricing rules v2 (ratePlan-first)", () => {
 							)
 						)
 					)
-					.get()
+					.then((rows) => rows[0])
 				expect(Number(effectiveRow?.finalBasePrice ?? 0)).toBe(previewFirstAfter)
 			}
 		)

@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { db, eq, ProviderAuditLog } from "astro:db"
-import {
-	connectProviderIntegration,
-	revokeProviderIntegration,
-} from "@/lib/provider-integrations"
+import { db, eq, ProviderAuditLog } from "@/shared/infrastructure/db/compat"
+import { connectProviderIntegration, revokeProviderIntegration } from "@/lib/provider-integrations"
 import { POST as invitationsPost } from "@/pages/api/provider/settings/invitations"
 import { POST as paymentAccountsPost } from "@/pages/api/provider/settings/payment-accounts"
 import { POST as providerProfilePost } from "@/pages/api/providers/profile"
@@ -72,7 +69,6 @@ async function listAudit(providerId: string) {
 		})
 		.from(ProviderAuditLog)
 		.where(eq(ProviderAuditLog.providerId, providerId))
-		.all()
 }
 
 function expectSensitiveAudit(row: {
@@ -118,11 +114,7 @@ describe("provider sensitive audit hardening", () => {
 			taxForm.set("taxRegime", "general")
 			taxForm.set("invoicingMode", "platform_receipt")
 			const taxRes = await taxConfigurationPost({
-				request: makeAuthedRequest(
-					"/api/provider/settings/tax-configuration",
-					token,
-					taxForm
-				),
+				request: makeAuthedRequest("/api/provider/settings/tax-configuration", token, taxForm),
 			} as any)
 			expect(taxRes.status).toBe(200)
 
@@ -150,7 +142,7 @@ describe("provider sensitive audit hardening", () => {
 			connectorKey: "webhooks_api",
 			mode: "sandbox",
 			scopes: ["webhooks:deliver"],
-			credentialsRef: "vault://secret/webhooks",
+			endpointUrl: "https://webhooks.audit.test/events",
 		})
 		await revokeProviderIntegration({
 			providerId,
@@ -168,11 +160,7 @@ describe("provider sensitive audit hardening", () => {
 			paymentForm.set("accountIdentifier", "1234567890")
 			paymentForm.set("payoutSchedule", "weekly")
 			const paymentRes = await paymentAccountsPost({
-				request: makeAuthedRequest(
-					"/api/provider/settings/payment-accounts",
-					token,
-					paymentForm
-				),
+				request: makeAuthedRequest("/api/provider/settings/payment-accounts", token, paymentForm),
 			} as any)
 			expect(paymentRes.status).toBe(201)
 		})
@@ -227,7 +215,8 @@ describe("provider sensitive audit hardening", () => {
 		expect(connectAudit!.afterJson).toMatchObject({
 			connectorKey: "webhooks_api",
 			status: "pending",
-			credentialsRef: "[redacted]",
+			endpointUrl: "[redacted]",
+			hasCredential: false,
 		})
 
 		const revokeAudit = audit.find((row) => row.action === "provider.integration.revoke")
@@ -236,11 +225,11 @@ describe("provider sensitive audit hardening", () => {
 		expect(revokeAudit!.riskLevel).toBe("high")
 		expect(revokeAudit!.beforeJson).toMatchObject({
 			status: "pending",
-			credentialsRef: "[redacted]",
+			endpointUrl: "[redacted]",
 		})
 		expect(revokeAudit!.afterJson).toMatchObject({
 			status: "revoked",
-			credentialsRef: null,
+			endpointUrl: null,
 		})
 	})
 })

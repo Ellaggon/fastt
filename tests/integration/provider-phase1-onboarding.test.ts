@@ -12,15 +12,19 @@ import {
 } from "@/lib/provider-document-storage"
 import { loadProviderComplianceDetail } from "@/lib/provider-admin-compliance"
 import { evaluateProviderGovernance } from "@/lib/provider-governance"
-import { db, ProviderDocument, ProviderProfile, ProviderVerification } from "astro:db"
+import {
+	db,
+	ProviderDocument,
+	ProviderProfile,
+	ProviderVerification,
+} from "@/shared/infrastructure/db/compat"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
 
 describe("phase 1 onboarding parity", () => {
 	it("requires the full KYC document set for documentsComplete", async () => {
 		expect(
-			evaluateRequiredKycDocumentsComplete([
-				{ type: "business_registration", status: "verified" },
-			]).complete
+			evaluateRequiredKycDocumentsComplete([{ type: "business_registration", status: "verified" }])
+				.complete
 		).toBe(false)
 		expect(
 			evaluateRequiredKycDocumentsComplete(

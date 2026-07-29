@@ -1,7 +1,7 @@
 ---
 import { routes } from "@/lib/routes"
 import { ChevronDown, Hotel } from "@lucide/astro"
-import { and, db, eq, Product, sql } from "astro:db"
+import { and, db, eq, Product, sql } from "@/shared/infrastructure/db/compat"
 
 interface Props {
 	providerId: string
@@ -32,7 +32,6 @@ const accommodations = providerId
 				.where(
 					and(eq(Product.providerId, providerId), sql`lower(${Product.productType}) = 'hotel'`)
 				)
-				.all()
 		)
 			.map((product) => {
 				const id = String(product.id)

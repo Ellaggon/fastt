@@ -13,7 +13,7 @@ const { selectMock, allMock, andMock, orMock, eqMock, lteMock, descMock, isNullM
 		sqlMock: vi.fn((parts: TemplateStringsArray, ...values: unknown[]) => ({ parts, values })),
 	}))
 
-vi.mock("astro:db", () => ({
+vi.mock("@/shared/infrastructure/db/compat", () => ({
 	db: {
 		select: selectMock,
 	},

@@ -22,14 +22,6 @@ function isHttpsUrl(value: string): boolean {
 	}
 }
 
-function isVaultRef(value: string): boolean {
-	return /^vault:\/\/[A-Za-z0-9._/-]+$/.test(value)
-}
-
-function isOAuth2Ref(value: string): boolean {
-	return /^oauth2:\/\/[A-Za-z0-9._-]+$/.test(value)
-}
-
 async function probeHttps(url: string, timeoutMs: number): Promise<ConnectorSmokeResult> {
 	const started = Date.now()
 	const controller = new AbortController()
@@ -77,29 +69,27 @@ async function probeHttps(url: string, timeoutMs: number): Promise<ConnectorSmok
 /**
  * Run a real smoke probe against connector credentials.
  * - https://… → live GET with timeout
- * - vault://… → structural validation (secret material stays in vault)
- * - oauth2://… → OAuth-grade connection marker (token stays off credentialsRef)
  * - test://smoke-ok → harness success (Vitest / local demos only)
  */
 export async function runConnectorSmokeTest(params: {
 	connectorKey: string
-	credentialsRef: string
+	endpointUrl: string
 	mode?: string
 	timeoutMs?: number
 }): Promise<ConnectorSmokeResult> {
-	const credentialsRef = String(params.credentialsRef ?? "").trim()
+	const endpointUrl = String(params.endpointUrl ?? "").trim()
 	const timeoutMs = params.timeoutMs ?? DEFAULT_TIMEOUT_MS
-	if (!credentialsRef) {
+	if (!endpointUrl) {
 		return {
 			ok: false,
-			message: "No hay credentialsRef para probar.",
+			message: "No hay un endpoint HTTPS para probar.",
 			latencyMs: 0,
 			probe: "none",
 			trustLevel: "failed",
 		}
 	}
 
-	if (credentialsRef === "test://smoke-ok") {
+	if (endpointUrl === "test://smoke-ok") {
 		return {
 			ok: true,
 			message: "Smoke harness OK (test://smoke-ok).",
@@ -109,44 +99,13 @@ export async function runConnectorSmokeTest(params: {
 		}
 	}
 
-	if (isHttpsUrl(credentialsRef)) {
-		return probeHttps(credentialsRef, timeoutMs)
-	}
-
-	if (isVaultRef(credentialsRef)) {
-		const path = credentialsRef.replace(/^vault:\/\//, "")
-		if (path.split("/").filter(Boolean).length < 2) {
-			return {
-				ok: false,
-				message: "vault:// debe incluir al menos secret/path.",
-				latencyMs: 0,
-				probe: "vault",
-				trustLevel: "failed",
-			}
-		}
-		return {
-			ok: true,
-			message: `Referencia vault válida para ${params.connectorKey} (${params.mode ?? "sandbox"}).`,
-			latencyMs: 0,
-			probe: "vault",
-			trustLevel: "structural_reference",
-		}
-	}
-
-	if (isOAuth2Ref(credentialsRef)) {
-		return {
-			ok: true,
-			message: `Referencia OAuth válida para ${params.connectorKey} (${params.mode ?? "sandbox"}).`,
-			latencyMs: 0,
-			probe: "oauth2",
-			trustLevel: "structural_reference",
-		}
+	if (isHttpsUrl(endpointUrl)) {
+		return probeHttps(endpointUrl, timeoutMs)
 	}
 
 	return {
 		ok: false,
-		message:
-			"credentialsRef debe ser https://… (probe real), vault://… o oauth2://… (OAuth-grade).",
+		message: "El endpoint debe usar HTTPS.",
 		latencyMs: 0,
 		probe: "none",
 		trustLevel: "failed",

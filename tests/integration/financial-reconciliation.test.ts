@@ -10,7 +10,7 @@ import {
 	InventoryLock,
 	RatePlan,
 	Variant,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 import { POST as holdPost } from "@/pages/api/inventory/hold"
 import { POST as bookingConfirmPost } from "@/pages/api/booking/confirm"
@@ -432,15 +432,12 @@ describe("integration/financial reconciliation", () => {
 			expect(bookingId.length).toBeGreaterThan(0)
 			expect(String(bodyB.bookingId ?? "")).toBe(bookingId)
 
-			const lockRows = await db
-				.select()
-				.from(InventoryLock)
-				.where(eq(InventoryLock.holdId, holdId))
-				.all()
+			const lockRows = await db.select().from(InventoryLock).where(eq(InventoryLock.holdId, holdId))
+
 			expect(lockRows.length).toBe(2)
 			expect(lockRows.every((row: any) => String(row.bookingId ?? "") === bookingId)).toBe(true)
 
-			const bookingRows = await db.select().from(Booking).where(eq(Booking.id, bookingId)).all()
+			const bookingRows = await db.select().from(Booking).where(eq(Booking.id, bookingId))
 			expect(bookingRows).toHaveLength(1)
 
 			const evidenceComparison = await callReconciliation(bookingId, token)

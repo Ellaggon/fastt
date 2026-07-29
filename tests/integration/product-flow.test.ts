@@ -7,7 +7,7 @@ import {
 	VariantInventoryConfig,
 	VariantRoomBed,
 	VariantRoomProfile,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 import { productRepository, productImageRepository, subtypeRepository } from "@/container"
 import {

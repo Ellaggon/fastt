@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest"
-import { db, eq, ProviderProfile, ProviderTaxConfiguration } from "astro:db"
+import {
+	db,
+	eq,
+	ProviderProfile,
+	ProviderTaxConfiguration,
+} from "@/shared/infrastructure/db/compat"
 import { POST as providerProfilePost } from "@/pages/api/providers/profile"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
 
@@ -88,7 +93,7 @@ describe("integration/provider profile canonical settings", () => {
 			.select()
 			.from(ProviderProfile)
 			.where(eq(ProviderProfile.providerId, providerId))
-			.get()
+			.then((rows) => rows[0])
 		expect(profile).toMatchObject({
 			timezone: "America/Santiago",
 			defaultCurrency: "USD",
@@ -104,7 +109,7 @@ describe("integration/provider profile canonical settings", () => {
 			.select()
 			.from(ProviderTaxConfiguration)
 			.where(eq(ProviderTaxConfiguration.providerId, providerId))
-			.get()
+			.then((rows) => rows[0])
 		expect(taxConfiguration).toBeFalsy()
 	})
 })

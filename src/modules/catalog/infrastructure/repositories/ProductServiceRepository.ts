@@ -103,7 +103,7 @@ export class ProductServiceRepository implements ProductServiceRepositoryPort {
 			await tx
 				.update(ProductService)
 				.set({
-					price: params.price == null ? null : String(params.price),
+					price: params.price,
 					priceUnit: params.priceUnit,
 					currency: params.currency,
 					appliesTo: params.appliesTo,

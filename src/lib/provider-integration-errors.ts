@@ -44,7 +44,7 @@ const successPatterns: Array<{ test: RegExp; message: string }> = [
 
 const errorPatterns: Array<{ test: RegExp; message: string }> = [
 	{
-		test: /credentialsRef|No hay credentialsRef|credentialsRef debe ser/i,
+		test: /No hay un endpoint|INTEGRATION_ENDPOINT_INVALID/i,
 		message:
 			"Falta un enlace https válido o una referencia de acceso guardada. Completa el campo y vuelve a probar.",
 	},
@@ -69,7 +69,7 @@ const errorPatterns: Array<{ test: RegExp; message: string }> = [
 ]
 
 function sanitizeJargon(value: string): string {
-	if (/vault:\/\/|oauth2:\/\/|credentialsRef|smoke|probe/i.test(value)) {
+	if (/smoke|probe/i.test(value)) {
 		return "No se pudo completar la acción. Revisa la conexión e inténtalo de nuevo."
 	}
 	return value.length > 180

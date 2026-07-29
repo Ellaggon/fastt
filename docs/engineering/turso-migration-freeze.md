@@ -1,5 +1,7 @@
 # Turso Migration Freeze
 
+> Archived migration record (2026-07-28). Turso and Astro DB have been removed; Supabase PostgreSQL is the only operational database.
+
 Effective date: 2026-07-21
 
 ## Purpose

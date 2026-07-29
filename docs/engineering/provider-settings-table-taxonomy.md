@@ -15,15 +15,15 @@ never be confused with provider taxpayer identity.
 
 External product analogs (for domain language only, not schema copy):
 
-| Concern | Airbnb-style surface | Expedia-style surface | Fastt owner |
-| --- | --- | --- | --- |
-| Account / ops defaults | Account settings | Partner profile / property admin | `Provider` + `ProviderProfile` |
-| Taxpayer / tax registration | Taxes → Taxpayers | Financials → Tax & Registration | `ProviderTaxConfiguration` |
-| Occupancy / sales taxes & fees | Listing tax tools / fee settings | Property taxes & fees | `TaxFeeDefinition` + `TaxFeeAssignment` |
-| Payout methods | Payments → Payout methods | Financials → Bank / payout | `ProviderPaymentAccount` |
-| Team & permissions | Hosting team / co-host permissions | Partner users & roles | `ProviderUser` + `ProviderInvitation` |
-| Identity / business docs | Identity & business verification | Onboarding document requests | `ProviderDocument` + `ProviderVerification` |
-| Connectivity | Channel / calendar / API tools | Connectivity providers / CRS / CM | `ProviderIntegrationConnection` |
+| Concern                        | Airbnb-style surface               | Expedia-style surface             | Fastt owner                                 |
+| ------------------------------ | ---------------------------------- | --------------------------------- | ------------------------------------------- |
+| Account / ops defaults         | Account settings                   | Partner profile / property admin  | `Provider` + `ProviderProfile`              |
+| Taxpayer / tax registration    | Taxes → Taxpayers                  | Financials → Tax & Registration   | `ProviderTaxConfiguration`                  |
+| Occupancy / sales taxes & fees | Listing tax tools / fee settings   | Property taxes & fees             | `TaxFeeDefinition` + `TaxFeeAssignment`     |
+| Payout methods                 | Payments → Payout methods          | Financials → Bank / payout        | `ProviderPaymentAccount`                    |
+| Team & permissions             | Hosting team / co-host permissions | Partner users & roles             | `ProviderUser` + `ProviderInvitation`       |
+| Identity / business docs       | Identity & business verification   | Onboarding document requests      | `ProviderDocument` + `ProviderVerification` |
+| Connectivity                   | Channel / calendar / API tools     | Connectivity providers / CRS / CM | `ProviderIntegrationConnection`             |
 
 ---
 
@@ -31,13 +31,13 @@ External product analogs (for domain language only, not schema copy):
 
 Every configuration-related table belongs to exactly one of these classes:
 
-| Class | Mutability | Purpose | If wrong, fix by… |
-| --- | --- | --- | --- |
-| **Source of truth** | Provider- or platform-editable inputs | Authoritative place to define a fact | Editing the owning table through its domain API |
-| **Derived / read model** | System-written projection | Fast capability / eligibility reads | Recomputing from sources |
-| **Audit log** | Append-only mutation history | Who changed what, before/after, risk | Writing via `writeProviderAuditLog` (never hand-editing history) |
-| **Operational event log** | Append-only telemetry | Connector sync / delivery traces | Emitting events from integration ops |
-| **Snapshot** | Immutable frozen contract at a point in time | Preserve sold or evaluated state | Creating a new snapshot; never mutating old ones |
+| Class                     | Mutability                                   | Purpose                              | If wrong, fix by…                                                |
+| ------------------------- | -------------------------------------------- | ------------------------------------ | ---------------------------------------------------------------- |
+| **Source of truth**       | Provider- or platform-editable inputs        | Authoritative place to define a fact | Editing the owning table through its domain API                  |
+| **Derived / read model**  | System-written projection                    | Fast capability / eligibility reads  | Recomputing from sources                                         |
+| **Audit log**             | Append-only mutation history                 | Who changed what, before/after, risk | Writing via `writeProviderAuditLog` (never hand-editing history) |
+| **Operational event log** | Append-only telemetry                        | Connector sync / delivery traces     | Emitting events from integration ops                             |
+| **Snapshot**              | Immutable frozen contract at a point in time | Preserve sold or evaluated state     | Creating a new snapshot; never mutating old ones                 |
 
 Do not invent a sixth class for “temporary compatibility columns.” Prefer a
 migration that deletes the duplicate.
@@ -53,9 +53,9 @@ providers redefine the fact.
 
 ### Identity And Operations
 
-| Table | Owner | Role |
-| --- | --- | --- |
-| `Provider` | Catalog | Commercial identity: legal name, display name, lifecycle status. |
+| Table             | Owner          | Role                                                                                                    |
+| ----------------- | -------------- | ------------------------------------------------------------------------------------------------------- |
+| `Provider`        | Catalog        | Commercial identity: legal name, display name, lifecycle status.                                        |
 | `ProviderProfile` | Settings / Ops | Operational defaults only: timezone, default currency, support contacts, professional-tools preference. |
 
 `ProviderProfile` must **not** store fiscal identity, payout readiness or
@@ -66,11 +66,11 @@ integration readiness. Those belong to the tables below.
 These are two different products. Mixing them recreates the Airbnb mistake of
 putting taxpayer forms inside listing tax tools (or the reverse).
 
-| Table | Owner | Role |
-| --- | --- | --- |
+| Table                      | Owner             | Role                                                                                                                                           |
+| -------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ProviderTaxConfiguration` | Settings / Fiscal | Provider taxpayer / tax-registration identity and fiscal readiness (`status`, residence country, registration number, regime, invoicing mode). |
-| `TaxFeeDefinition` | Taxes & Fees | Canonical commercial tax or fee rule applied to sellable prices. |
-| `TaxFeeAssignment` | Taxes & Fees | Scope/channel application of a definition to provider, product, variant, rate or global scope. |
+| `TaxFeeDefinition`         | Taxes & Fees      | Canonical commercial tax or fee rule applied to sellable prices.                                                                               |
+| `TaxFeeAssignment`         | Taxes & Fees      | Scope/channel application of a definition to provider, product, variant, rate or global scope.                                                 |
 
 **TaxConfiguration status ownership (Airbnb/Expedia-aligned):** the provider may
 only produce `not_configured` | `pending` by submitting identity fields.
@@ -83,8 +83,8 @@ Rooms & Rates taxonomy because booking, search and finance consume them. Their
 
 ### Payments
 
-| Table | Owner | Role |
-| --- | --- | --- |
+| Table                    | Owner    | Role                                                                           |
+| ------------------------ | -------- | ------------------------------------------------------------------------------ |
 | `ProviderPaymentAccount` | Payments | Concrete payout/payment method records and verification status for a provider. |
 
 Multiple accounts per provider are allowed. Readiness is derived from verified
@@ -101,10 +101,10 @@ payout accounts (micro-deposit / admin review is the future verification path).
 
 ### Compliance And Verification
 
-| Table | Owner | Role |
-| --- | --- | --- |
-| `ProviderDocument` | Verification | Submitted compliance artifacts (identity, business registration, tax docs, ownership, licenses, address proof) with review lifecycle. |
-| `ProviderVerification` | Verification | Append-only compliance decisions (`pending` / `approved` / `rejected`). Latest row by `createdAt`/`id` is the effective decision. |
+| Table                  | Owner        | Role                                                                                                                                  |
+| ---------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `ProviderDocument`     | Verification | Submitted compliance artifacts (identity, business registration, tax docs, ownership, licenses, address proof) with review lifecycle. |
+| `ProviderVerification` | Verification | Append-only compliance decisions (`pending` / `approved` / `rejected`). Latest row by `createdAt`/`id` is the effective decision.     |
 
 Providers may **submit** documents (`POST /api/provider/settings/documents`).
 Verify/reject is internal-admin only (`POST /api/admin/providers/documents`),
@@ -124,29 +124,29 @@ never grant providers review powers.
 
 ### Team And Access
 
-| Table | Owner | Role |
-| --- | --- | --- |
-| `ProviderUser` | Team | Active membership: `role` (`owner` \| `admin` \| `staff`) plus optional `permissionsJson` domain overrides. |
-| `ProviderInvitation` | Team | Pending invite lifecycle: email, role, status, invitedBy, expiresAt, acceptedAt. |
+| Table                | Owner | Role                                                                                                        |
+| -------------------- | ----- | ----------------------------------------------------------------------------------------------------------- |
+| `ProviderUser`       | Team  | Active membership: `role` (`owner` \| `admin` \| `staff`) plus optional `permissionsJson` domain overrides. |
+| `ProviderInvitation` | Team  | Pending invite lifecycle: email, role, status, invitedBy, expiresAt, acceptedAt.                            |
 
 Effective permissions are resolved in application code
 (`resolveProviderPermissions`). Do not invent a second membership table.
 
 ### Integrations
 
-| Table | Owner | Role |
-| --- | --- | --- |
-| `ProviderIntegrationConnection` | Integrations | **Root** connector instance: connector key, lifecycle `status`, mode, scopes, opaque `credentialsRef`, vendor/auth metadata, sync schedule summary, optional `catalogJson` **smoke/preview cache** (not catalog SoT — see Phase 6). |
-| `ProviderIntegrationCredential` | Integrations | **Secret** vault row (1:1 with connection): encrypted tokens, auth type, expiry/refresh, revoke. |
-| `ProviderIntegrationMapping` | Integrations | Local ↔ external entity links for channel managers (rooms, rates, properties, etc.). |
-| `ProviderExternalCalendar` | Integrations | **Subresource** of an `external_calendars` connection: inbound iCal feed config + per-feed sync state. |
-| `ProviderExternalCalendarEvent` | Integrations | Normalized busy blocks from a feed (drives inventory `externalBlockedUnits`). |
-| `ProviderExternalCalendarExport` | Integrations | Outbound shareable ICS export tokens (create / render / revoke). |
+| Table                            | Owner        | Role                                                                                                                                                                                                                                   |
+| -------------------------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ProviderIntegrationConnection`  | Integrations | **Root** connector instance: connector key, lifecycle `status`, mode, scopes, public HTTPS `endpointUrl`, vendor/auth metadata, sync schedule summary, optional `catalogJson` **smoke/preview cache** (not catalog SoT — see Phase 6). |
+| `ProviderIntegrationCredential`  | Integrations | **Secret** vault row (1:1 with connection): encrypted tokens, auth type, expiry/refresh, revoke.                                                                                                                                       |
+| `ProviderIntegrationMapping`     | Integrations | Local ↔ external entity links for channel managers (rooms, rates, properties, etc.).                                                                                                                                                   |
+| `ProviderExternalCalendar`       | Integrations | **Subresource** of an `external_calendars` connection: inbound iCal feed config + per-feed sync state.                                                                                                                                 |
+| `ProviderExternalCalendarEvent`  | Integrations | Normalized busy blocks from a feed (drives inventory `externalBlockedUnits`).                                                                                                                                                          |
+| `ProviderExternalCalendarExport` | Integrations | Outbound shareable ICS export tokens (create / render / revoke).                                                                                                                                                                       |
 
 Operational integration tables (job, run, incident, conflict, deprecated
 event log) are classified under [Integrations Ownership](#integrations-ownership).
-Do not store secrets in `credentialsRef`; it is an opaque pointer (`vault://`,
-`oauth2://`, https probe). Encrypted material lives only in
+`endpointUrl` is public connector configuration, never a secret pointer.
+Encrypted API keys, references and OAuth tokens live only in
 `ProviderIntegrationCredential`. Never put plaintext secrets in audit payloads.
 
 ---
@@ -158,20 +158,20 @@ capability gates and finance ops. If a derived row is wrong, fix the source or
 recompute — do not “correct” readiness by editing the projection by hand in
 product UI.
 
-| Table | Derived From | Role |
-| --- | --- | --- |
-| `ProviderConfigurationState` | `evaluateProviderGovernance` over identity, profile, verification, documents, tax config, tax fees, payment accounts, integrations, team | Persisted capability snapshot: publish / bookings / payments / integrations, readiness percent, blockers and risks. |
-| `ProviderFinancialProfile` | Payment accounts, tax configuration, finance operations | Aggregated finance eligibility summary consumed by financial workflows. Not the payout method store. Not the taxpayer store. |
+| Table                        | Derived From                                                                                                                             | Role                                                                                                                         |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `ProviderConfigurationState` | `evaluateProviderGovernance` over identity, profile, verification, documents, tax config, tax fees, payment accounts, integrations, team | Persisted capability snapshot: publish / bookings / payments / integrations, readiness percent, blockers and risks.          |
+| `ProviderFinancialProfile`   | Payment accounts, tax configuration, finance operations                                                                                  | Aggregated finance eligibility summary consumed by financial workflows. Not the payout method store. Not the taxpayer store. |
 
 Non-table derived signals (computed in governance, not persisted as columns on
 `ProviderProfile`):
 
-| Signal | Derived From |
-| --- | --- |
-| Payment readiness | Verified `ProviderPaymentAccount` only (`ProviderFinancialProfile` is rollup, not a shortcut). Upsert to `ready` requires a verified payout account. |
+| Signal                | Derived From                                                                                                                                                        |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Payment readiness     | Verified `ProviderPaymentAccount` only (`ProviderFinancialProfile` is rollup, not a shortcut). Upsert to `ready` requires a verified payout account.                |
 | Integration readiness | `ProviderIntegrationConnection.status = connected` **and** successful smoke `lastSyncStatus` (`success`/`ok`). Saving credentials yields `pending` until sync test. |
-| Fiscal readiness | `ProviderTaxConfiguration.status = verified` only. Active `TaxFeeDefinition` + country is a **risk** if taxpayer is unverified, never `complete`. |
-| Documents readiness | Verified minimum KYC set: `government_id` + `business_registration` + `tax_document`. Approved `ProviderVerification` does **not** bypass. |
+| Fiscal readiness      | `ProviderTaxConfiguration.status = verified` only. Active `TaxFeeDefinition` + country is a **risk** if taxpayer is unverified, never `complete`.                   |
+| Documents readiness   | Verified minimum KYC set: `government_id` + `business_registration` + `tax_document`. Approved `ProviderVerification` does **not** bypass.                          |
 
 **Progress surfaces:** `/api/provider/settings/summary` and `/api/internal/provider-summary`
 both derive progress from `evaluateProviderGovernance` (8 checks). Do not reintroduce
@@ -219,8 +219,8 @@ treat commercial tax-fee tools as taxpayer verification.
 Audit logs are append-only histories of **sensitive mutations**. They answer:
 who changed what, from which before-state to which after-state, at what risk.
 
-| Table | Owner | Role |
-| --- | --- | --- |
+| Table              | Owner      | Role                                                                                                                                    |
+| ------------------ | ---------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | `ProviderAuditLog` | Governance | Provider-scoped mutation audit: `actorUserId`, `action`, `entityType`, `entityId`, `beforeJson`, `afterJson`, `riskLevel`, `createdAt`. |
 
 ### Audit contract
@@ -234,7 +234,7 @@ operational profile must go through `writeProviderAuditLog`
 3. `afterJson`
 4. `riskLevel` (`low` \| `medium` \| `high`)
 
-Secrets (`credentialsRef`, tokens, passwords) are redacted by
+Secrets (`credentialSecret`, tokens, passwords) are redacted by
 `snapshotForProviderAudit`. Do not bypass the helper to store raw secrets in
 audit JSON.
 
@@ -250,8 +250,8 @@ Distinct from governance audit: connector **execution** history is owned by
 Config mutations (connect / update / revoke / credential refresh) remain on
 `ProviderAuditLog`.
 
-| Table | Owner | Role |
-| --- | --- | --- |
+| Table                            | Owner        | Role                                                                                                                        |
+| -------------------------------- | ------------ | --------------------------------------------------------------------------------------------------------------------------- |
 | ~~`ProviderIntegrationSyncLog`~~ | Integrations | **Removed (Phase 2).** Legacy activity feed dropped. Do not recreate. UI “Actividad reciente” reads SyncRun + config Audit. |
 
 `ProviderAuditLog` stays the compliance-grade mutation history. Do not merge
@@ -265,10 +265,10 @@ Snapshots freeze an evaluated or sold state so later source edits do not rewrite
 history. Configuration’s primary snapshot is governance state; booking-time tax
 snapshots live with the booking aggregate (see Rooms & Rates taxonomy).
 
-| Table | Captures | Role |
-| --- | --- | --- |
-| `ProviderConfigurationState` | Latest governance evaluation | Capability / blocker snapshot for settings summary, publish gates and simulations. Treated as derived+snapshot: overwritten on re-evaluate, never manually edited as product truth. |
-| `BookingTaxFee` | Tax/fee breakdown at booking time | Immutable sales-tax snapshot on the booking contract. Owned by booking; sourced from `TaxFeeDefinition` / `TaxFeeAssignment` resolution. |
+| Table                        | Captures                          | Role                                                                                                                                                                                |
+| ---------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ProviderConfigurationState` | Latest governance evaluation      | Capability / blocker snapshot for settings summary, publish gates and simulations. Treated as derived+snapshot: overwritten on re-evaluate, never manually edited as product truth. |
+| `BookingTaxFee`              | Tax/fee breakdown at booking time | Immutable sales-tax snapshot on the booking contract. Owned by booking; sourced from `TaxFeeDefinition` / `TaxFeeAssignment` resolution.                                            |
 
 `ProviderConfigurationState` may be classified as both derived and snapshot: it
 is recomputed from sources, but consumers may read it as the last known gate
@@ -278,17 +278,17 @@ state without re-running full governance.
 
 ## Domain Ownership Map
 
-| Domain | Write APIs / libs (canonical) | Must not write |
-| --- | --- | --- |
-| Ops profile | `/api/providers/profile`, `upsertProviderProfileV2` | Tax, payment, integration readiness fields |
-| Fiscal identity | `/api/provider/settings/tax-configuration`, `provider-tax-configuration` | `TaxFeeDefinition` / assignments |
-| Sales taxes & fees | `/api/provider/tax-fees/*`, taxes-fees module | `ProviderTaxConfiguration` |
-| Payout methods | `/api/provider/settings/payment-accounts`, `provider-payment-accounts` (admin review: `/api/admin/providers/payment-accounts`) | Self-verify; readiness flags on `ProviderProfile` |
-| Documents | `/api/provider/settings/documents`, `provider-documents` | Verification decision stream except via review actions |
-| Compliance ops console | `/admin/providers`, `provider-admin-compliance`, `GET /api/admin/providers/compliance` + review POSTs under `/api/admin/providers/*` | Provider-facing self-certify; editing `ProviderConfigurationState` as settings |
-| Team | `/api/provider/settings/invitations`, permissions helpers | Ad-hoc membership tables |
-| Integrations | `/api/provider/integrations/*`, `provider-integrations`, `provider-external-calendars`, `provider-integration-operations`, schedulers | Profile readiness flags; parallel per-connector job/incident tables |
-| Governance | `evaluateProviderGovernance`, `writeProviderAuditLog` | Manual edits to `ProviderConfigurationState` as if it were settings UI |
+| Domain                 | Write APIs / libs (canonical)                                                                                                         | Must not write                                                                 |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Ops profile            | `/api/providers/profile`, `upsertProviderProfileV2`                                                                                   | Tax, payment, integration readiness fields                                     |
+| Fiscal identity        | `/api/provider/settings/tax-configuration`, `provider-tax-configuration`                                                              | `TaxFeeDefinition` / assignments                                               |
+| Sales taxes & fees     | `/api/provider/tax-fees/*`, taxes-fees module                                                                                         | `ProviderTaxConfiguration`                                                     |
+| Payout methods         | `/api/provider/settings/payment-accounts`, `provider-payment-accounts` (admin review: `/api/admin/providers/payment-accounts`)        | Self-verify; readiness flags on `ProviderProfile`                              |
+| Documents              | `/api/provider/settings/documents`, `provider-documents`                                                                              | Verification decision stream except via review actions                         |
+| Compliance ops console | `/admin/providers`, `provider-admin-compliance`, `GET /api/admin/providers/compliance` + review POSTs under `/api/admin/providers/*`  | Provider-facing self-certify; editing `ProviderConfigurationState` as settings |
+| Team                   | `/api/provider/settings/invitations`, permissions helpers                                                                             | Ad-hoc membership tables                                                       |
+| Integrations           | `/api/provider/integrations/*`, `provider-integrations`, `provider-external-calendars`, `provider-integration-operations`, schedulers | Profile readiness flags; parallel per-connector job/incident tables            |
+| Governance             | `evaluateProviderGovernance`, `writeProviderAuditLog`                                                                                 | Manual edits to `ProviderConfigurationState` as if it were settings UI         |
 
 ---
 
@@ -302,17 +302,17 @@ subresource for this,” stop.
 
 ### Ownership classes
 
-| Class | Table(s) | Role | Not for |
-| --- | --- | --- | --- |
-| **Root** | `ProviderIntegrationConnection` | Canonical connector instance (Cloudbeds, Channex, `external_calendars`, etc.). Multiple instances per `connectorKey` allowed; at most one `isPrimary` per `(providerId, connectorKey)`. | Per-feed iCal state; encrypted secrets; overlap alerts |
-| **Secret** | `ProviderIntegrationCredential` | Encrypted auth material for one connection (PK = `connectionId`). | Opaque public refs (`credentialsRef` stays on Connection) |
-| **Subresource** | `ProviderExternalCalendar`, `ProviderExternalCalendarEvent` | Domain-specific payload under a root connection. Calendars are feeds; events are normalized blocks. | Generic connector lifecycle; channel-manager mappings |
-| **Mapping** | `ProviderIntegrationMapping` | Fastt ↔ external entity equivalences for CM-style connectors. | iCal variant/resource binding (use calendar columns) |
-| **Job** | `ProviderIntegrationSyncJob` | Universal worker queue (`targetType` + `targetId` + `operation`, lease/retry/idempotency). Connection and iCal jobs share one table. | Execution history; user-facing activity |
-| **Run** | `ProviderIntegrationSyncRun` | Durable execution ledger (operation, trigger, counters, cursor, error, summary). Shared by generic sync and `calendar_import`. Powers simple-mode activity + Pro run history. | Config mutation audit; lightweight UI chatter |
-| **Incident** | `ProviderIntegrationIncident` | Actionable connector/ops failures (auth, remote API, mapping, data quality) with optional notifications. | Inventory date overlaps (use Conflict) |
-| **Conflict** | `ProviderExternalCalendarConflict` | Specialized overlap **alert** inbox (booking ↔ iCal, iCal ↔ iCal) with accept / ignore / resolve. Status changes are alert-only: they do **not** mutate inventory; blocks already applied during feed sync. Do not mirror into Incident. Hiding accepted/ignored from the host list is intentional. | Sync/auth failures (use Incident); inventing a second problems inbox |
-| **Export** | `ProviderExternalCalendarExport` | Outbound ICS share links (token hash, download metrics, revoke). Synchronous render — not an async job queue. | Inbound feed sync |
+| Class           | Table(s)                                                    | Role                                                                                                                                                                                                                                                                                                | Not for                                                              |
+| --------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| **Root**        | `ProviderIntegrationConnection`                             | Canonical connector instance (Cloudbeds, Channex, `external_calendars`, etc.). Multiple instances per `connectorKey` allowed; at most one `isPrimary` per `(providerId, connectorKey)`.                                                                                                             | Per-feed iCal state; encrypted secrets; overlap alerts               |
+| **Secret**      | `ProviderIntegrationCredential`                             | Encrypted auth material for one connection (PK = `connectionId`).                                                                                                                                                                                                                                   | Public endpoints (`endpointUrl` stays on Connection)                 |
+| **Subresource** | `ProviderExternalCalendar`, `ProviderExternalCalendarEvent` | Domain-specific payload under a root connection. Calendars are feeds; events are normalized blocks.                                                                                                                                                                                                 | Generic connector lifecycle; channel-manager mappings                |
+| **Mapping**     | `ProviderIntegrationMapping`                                | Fastt ↔ external entity equivalences for CM-style connectors.                                                                                                                                                                                                                                       | iCal variant/resource binding (use calendar columns)                 |
+| **Job**         | `ProviderIntegrationSyncJob`                                | Universal worker queue (`targetType` + `targetId` + `operation`, lease/retry/idempotency). Connection and iCal jobs share one table.                                                                                                                                                                | Execution history; user-facing activity                              |
+| **Run**         | `ProviderIntegrationSyncRun`                                | Durable execution ledger (operation, trigger, counters, cursor, error, summary). Shared by generic sync and `calendar_import`. Powers simple-mode activity + Pro run history.                                                                                                                       | Config mutation audit; lightweight UI chatter                        |
+| **Incident**    | `ProviderIntegrationIncident`                               | Actionable connector/ops failures (auth, remote API, mapping, data quality) with optional notifications.                                                                                                                                                                                            | Inventory date overlaps (use Conflict)                               |
+| **Conflict**    | `ProviderExternalCalendarConflict`                          | Specialized overlap **alert** inbox (booking ↔ iCal, iCal ↔ iCal) with accept / ignore / resolve. Status changes are alert-only: they do **not** mutate inventory; blocks already applied during feed sync. Do not mirror into Incident. Hiding accepted/ignored from the host list is intentional. | Sync/auth failures (use Incident); inventing a second problems inbox |
+| **Export**      | `ProviderExternalCalendarExport`                            | Outbound ICS share links (token hash, download metrics, revoke). Synchronous render — not an async job queue.                                                                                                                                                                                       | Inbound feed sync                                                    |
 
 ### Status contracts
 
@@ -388,21 +388,21 @@ entity model.
 **Conceptual product limits** (enforced in write path via
 `PROVIDER_INTEGRATION_CATALOG_CACHE` in `src/lib/provider-integrations.ts`):
 
-| Limit | Value | Rationale |
-| --- | --- | --- |
-| Max serialized size | **32 KiB** | Keeps Connection rows lean; overflow stores a stub note instead of a blob. |
-| Freshness / TTL | **7 days** (via `lastCatalogSyncAt`) | Stale cache is informational only; remapping and sync must not require it. |
+| Limit               | Value                                | Rationale                                                                  |
+| ------------------- | ------------------------------------ | -------------------------------------------------------------------------- |
+| Max serialized size | **32 KiB**                           | Keeps Connection rows lean; overflow stores a stub note instead of a blob. |
+| Freshness / TTL     | **7 days** (via `lastCatalogSyncAt`) | Stale cache is informational only; remapping and sync must not require it. |
 
 `lastCatalogSyncAt` is the cache clock. Consumers that display the blob should
 treat age > TTL as “possibly stale preview”, never as “catalog import failed”.
 
 **Source of truth rules**
 
-| Concern | SoT | Not SoT |
-| --- | --- | --- |
-| Local ↔ external binding | `ProviderIntegrationMapping` | `catalogJson` |
-| Connection lifecycle / credentials | Connection + Credential | `catalogJson` |
-| Smoke probe outcome for CM | SyncRun + Connection `lastSync*` | `catalogJson` may mirror a summary |
+| Concern                            | SoT                              | Not SoT                            |
+| ---------------------------------- | -------------------------------- | ---------------------------------- |
+| Local ↔ external binding           | `ProviderIntegrationMapping`     | `catalogJson`                      |
+| Connection lifecycle / credentials | Connection + Credential          | `catalogJson`                      |
+| Smoke probe outcome for CM         | SyncRun + Connection `lastSync*` | `catalogJson` may mirror a summary |
 
 **Grep / code contract**
 

@@ -9,7 +9,7 @@ import {
 	Tour,
 	Variant,
 	eq,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 import { PRODUCT_VERTICALS, normalizeProductTypeForStorage } from "@/lib/productVerticalRegistry"
 import { productRepository } from "@/container"
@@ -85,7 +85,11 @@ describe("vertical maturity", () => {
 			excludesJson: ["Propinas"],
 		})
 
-		const row = await db.select().from(Package).where(eq(Package.productId, productId)).get()
+		const row = await db
+			.select()
+			.from(Package)
+			.where(eq(Package.productId, productId))
+			.then((rows) => rows[0])
 		expect(row?.itineraryJson).toEqual([{ day: 1, description: "Llegada y city tour" }])
 		expect(row?.includesJson).toEqual(["Traslados", "Guia"])
 		expect(row?.excludesJson).toEqual(["Propinas"])
@@ -119,7 +123,11 @@ describe("vertical maturity", () => {
 			guideJson: { languages: "es, en", guideType: "Guia local" },
 		})
 
-		const row = await db.select().from(Tour).where(eq(Tour.productId, productId)).get()
+		const row = await db
+			.select()
+			.from(Tour)
+			.where(eq(Tour.productId, productId))
+			.then((rows) => rows[0])
 		expect(row?.meetingPointJson).toMatchObject({ address: "Plaza principal" })
 		expect(row?.itineraryJson).toEqual([{ step: 1, description: "Salar de Uyuni" }])
 		expect(row?.safetyJson).toMatchObject({ warnings: "Altura" })
@@ -153,7 +161,11 @@ describe("vertical maturity", () => {
 			luggageCapacity: 2,
 		})
 
-		const row = await db.select().from(Limousine).where(eq(Limousine.productId, productId)).get()
+		const row = await db
+			.select()
+			.from(Limousine)
+			.where(eq(Limousine.productId, productId))
+			.then((rows) => rows[0])
 		expect(normalizeProductTypeForStorage("limusina")).toBe("Limousine")
 		expect(PRODUCT_VERTICALS.limousine.variantKind).toBe("limousine_service")
 		expect(row?.vehicleProfileJson).toMatchObject({ model: "Clase S" })

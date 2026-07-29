@@ -8,7 +8,7 @@ function read(relativePath: string): string {
 
 describe("Guardrail: policy tables are the only contractual source", () => {
 	it("keeps RatePlan compressed and free of cancellation/payment contract fields", () => {
-		const dbConfig = read("db/config.ts")
+		const dbConfig = read("src/shared/infrastructure/db/schema/tables.ts")
 		expect(dbConfig).not.toContain("const RatePlanTemplate")
 		const ratePlan = dbConfig.match(/const RatePlan = defineTable\(\{[\s\S]*?\n\}\)/)?.[0] ?? ""
 		const forbidden = [/paymentType/, /refundable/, /cancellation/i, /refund/i]
@@ -74,12 +74,18 @@ describe("Guardrail: policy tables are the only contractual source", () => {
 	})
 
 	it("keeps final policy constraints and indexes persistent", () => {
-		const dbConfig = read("db/config.ts")
+		const dbConfig = read("src/shared/infrastructure/db/schema/tables.ts")
 		const migration = read("db/migrations/2026-07-10_policy_final_constraints_indexes.sql")
 
-		expect(dbConfig).toContain('{ on: ["ownerProviderId", "category"] }')
-		expect(dbConfig).toContain('{ on: ["groupId", "version"], unique: true }')
-		expect(dbConfig).toContain('{ on: ["policyId", "ruleKey"], unique: true }')
+		expect(dbConfig).toContain(
+			'index("PolicyGroup_ownerProviderId_category_idx").on(table.ownerProviderId, table.category)'
+		)
+		expect(dbConfig).toContain(
+			'uniqueIndex("Policy_groupId_version_unique").on(table.groupId, table.version)'
+		)
+		expect(dbConfig).toContain(
+			'uniqueIndex("PolicyRule_policyId_ruleKey_unique").on(table.policyId, table.ruleKey)'
+		)
 		expect(migration).toContain("idx_policy_assignment_resolution_range")
 		expect(migration).toContain("idx_policy_rule_policy_key_unique")
 		expect(migration).toContain("policy_group_category_validate_insert")
@@ -101,6 +107,8 @@ describe("Guardrail: policy tables are the only contractual source", () => {
 		expect(publicApi).toContain("PolicyCoverageQueryRepository")
 		expect(publicApi).toContain("listRatePlanCoverageByProvider")
 		expect(repository).toContain("class PolicyCoverageQueryRepository")
-		expect(repository).toContain("innerJoin(Policy, eq(Policy.groupId, PolicyAssignment.policyGroupId))")
+		expect(repository).toContain(
+			"innerJoin(Policy, eq(Policy.groupId, PolicyAssignment.policyGroupId))"
+		)
 	})
 })

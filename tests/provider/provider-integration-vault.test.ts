@@ -54,14 +54,15 @@ describe("provider integration vault", () => {
 		})
 		expect(JSON.stringify(encrypted)).not.toContain("access_secret")
 		expect(JSON.stringify(encrypted)).not.toContain("refresh_secret")
-		expect(
-			decryptProviderIntegrationSecret({
-				providerId: "provider_1",
-				connectionId: "connection_1",
-				authType: "oauth2",
-				encrypted,
-			}).accessToken
-		).toBe("access_secret")
+		const decrypted = decryptProviderIntegrationSecret({
+			providerId: "provider_1",
+			connectionId: "connection_1",
+			authType: "oauth2",
+			encrypted,
+		})
+		expect(decrypted.authType).toBe("oauth2")
+		if (decrypted.authType !== "oauth2") throw new Error("Expected OAuth vault payload")
+		expect(decrypted.accessToken).toBe("access_secret")
 		expect(() =>
 			decryptProviderIntegrationSecret({
 				providerId: "provider_1",
@@ -74,12 +75,8 @@ describe("provider integration vault", () => {
 
 	it("detects refresh windows and hard expiry", () => {
 		const now = new Date("2026-07-27T12:00:00.000Z")
-		expect(
-			shouldRefreshProviderIntegrationToken("2026-07-27T12:04:59.000Z", now)
-		).toBe(true)
-		expect(
-			shouldRefreshProviderIntegrationToken("2026-07-27T12:06:00.000Z", now)
-		).toBe(false)
+		expect(shouldRefreshProviderIntegrationToken("2026-07-27T12:04:59.000Z", now)).toBe(true)
+		expect(shouldRefreshProviderIntegrationToken("2026-07-27T12:06:00.000Z", now)).toBe(false)
 		expect(isProviderIntegrationTokenExpired("2026-07-27T11:59:59.000Z", now)).toBe(true)
 	})
 })

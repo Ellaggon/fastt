@@ -1,4 +1,12 @@
-import { db, inArray, Product, Provider, ProviderUser, sql, User } from "astro:db"
+import {
+	db,
+	inArray,
+	Product,
+	Provider,
+	ProviderUser,
+	sql,
+	User,
+} from "@/shared/infrastructure/db/compat"
 
 export default async function auditProviderAccount() {
 	const targetEmail = String(process.env.AUDIT_PROVIDER_EMAIL ?? "")

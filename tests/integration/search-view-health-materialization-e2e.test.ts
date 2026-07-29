@@ -7,7 +7,7 @@ import {
 	EffectivePricingV2,
 	EffectiveRestriction,
 	SearchUnitView,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 
 import { GET as getSearchViewHealth } from "@/pages/api/internal/search/search-view-health"
 import { materializeSearchUnitRange, SEARCH_VIEW_REASON_CODES } from "@/modules/search/public"
@@ -226,7 +226,6 @@ describe("search view health endpoint (e2e via real materialization)", () => {
 					eq(EffectiveAvailability.date, dates[0])
 				)
 			)
-			.run()
 
 		await materializeSearchUnitRange({
 			variantId,
@@ -256,7 +255,7 @@ describe("search view health endpoint (e2e via real materialization)", () => {
 			.where(
 				and(eq(SearchUnitView.variantId, variantId), eq(SearchUnitView.ratePlanId, ratePlanId))
 			)
-			.all()
+
 		expect(suvRows.length).toBeGreaterThan(0)
 	})
 

@@ -1,6 +1,6 @@
 # Dependency Security Monitoring Runbook
 
-Last updated: 2026-06-09
+Last updated: 2026-07-28
 
 ## Purpose
 
@@ -10,7 +10,7 @@ Provide an executable routine for monitoring unresolved dependency security debt
 
 - Weekly: quick audit + vulnerability diff
 - Monthly: full upgrade attempt window on a feature branch
-- Trigger-based (immediate): when upstream releases in `@astrojs/db`, `@astrojs/vercel`, or Astro core
+- Trigger-based (immediate): when upstream releases in `drizzle-orm`, `postgres`, `@astrojs/vercel`, or Astro core
 
 ## Required commands
 
@@ -19,7 +19,7 @@ Provide an executable routine for monitoring unresolved dependency security debt
 ```bash
 pnpm install
 pnpm audit --json
-pnpm list drizzle-orm @astrojs/db path-to-regexp @astrojs/vercel @vercel/routing-utils
+pnpm list drizzle-orm postgres path-to-regexp @astrojs/vercel @vercel/routing-utils
 ```
 
 Decision trigger:
@@ -44,12 +44,13 @@ If any command fails:
 
 ## Upgrade protocol for sensitive packages
 
-### A) `@astrojs/db` / `drizzle-orm`
+### A) `drizzle-orm` / `postgres`
 
 1. Attempt package bump in isolated branch.
 2. Run full validation gate.
 3. Mandatory targeted check:
    - `tests/integration/inventory-hold.test.ts` concurrent safety case.
+   - `tests/architecture/postgres-canonical-database.test.ts`.
 4. Only merge if no functional invariant drift.
 
 ### B) `@astrojs/vercel` / `path-to-regexp`

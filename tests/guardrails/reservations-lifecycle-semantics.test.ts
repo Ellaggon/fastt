@@ -207,7 +207,7 @@ describe("Guardrail: Reservations lifecycle enterprise semantics", () => {
 	})
 
 	it("requires immutable textual and guest snapshots in booking materialization", () => {
-		const schema = read("db/config.ts")
+		const schema = read("src/shared/infrastructure/db/schema/tables.ts")
 		const repo = read(
 			"src/modules/booking/infrastructure/repositories/BookingFromHoldRepository.ts"
 		)

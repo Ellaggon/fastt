@@ -14,7 +14,7 @@ export class BookingTaxFeeRepository implements BookingTaxFeeRepositoryPort {
 					bookingId: row.bookingId,
 					name: row.name ?? null,
 					breakdownJson: row.breakdownJson,
-					totalAmount: String(row.totalAmount),
+					totalAmount: row.totalAmount,
 					createdAt: row.createdAt,
 				})
 			}

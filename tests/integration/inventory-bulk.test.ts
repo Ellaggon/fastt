@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest"
 
-import { and, db, DailyInventory, eq } from "astro:db"
+import { and, db, DailyInventory, eq } from "@/shared/infrastructure/db/compat"
 
 import { POST as bulkPreviewPost } from "@/pages/api/inventory/bulk-preview"
 import { POST as bulkApplyPost } from "@/pages/api/inventory/bulk-apply"
@@ -143,7 +143,7 @@ async function getDailyRow(variantId: string, date: string) {
 		.select()
 		.from(DailyInventory)
 		.where(and(eq(DailyInventory.variantId, variantId), eq(DailyInventory.date, date)))
-		.get()
+		.then((rows) => rows[0])
 }
 
 describe("integration/inventory bulk operations", () => {

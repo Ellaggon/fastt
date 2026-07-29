@@ -16,7 +16,7 @@ import {
 	upsertVariant,
 } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
-import { BookingTaxFee, db, Booking, eq } from "astro:db"
+import { BookingTaxFee, db, Booking, eq } from "@/shared/infrastructure/db/compat"
 
 describe("integration/booking tax/fee snapshot", () => {
 	const buildResolved = (partial: Partial<TaxFeeDefinition>): ResolvedTaxFeeDefinition => {
@@ -126,11 +126,8 @@ describe("integration/booking tax/fee snapshot", () => {
 
 		await snapshotTaxFeesForBookingUseCase({ bookingId, breakdown })
 
-		const rows = await db
-			.select()
-			.from(BookingTaxFee)
-			.where(eq(BookingTaxFee.bookingId, bookingId))
-			.all()
+		const rows = await db.select().from(BookingTaxFee).where(eq(BookingTaxFee.bookingId, bookingId))
+
 		expect(rows.length).toBe(1)
 		expect(rows[0].totalAmount).toBe(110)
 		expect(rows[0].breakdownJson).toEqual(breakdown)
@@ -201,11 +198,8 @@ describe("integration/booking tax/fee snapshot", () => {
 
 		await snapshotTaxFeesForBookingUseCase({ bookingId, breakdown })
 
-		const rows = await db
-			.select()
-			.from(BookingTaxFee)
-			.where(eq(BookingTaxFee.bookingId, bookingId))
-			.all()
+		const rows = await db.select().from(BookingTaxFee).where(eq(BookingTaxFee.bookingId, bookingId))
+
 		expect(rows.length).toBe(2)
 		expect(rows[0].breakdownJson).toEqual(breakdown)
 		expect(rows[0].totalAmount).toBe(210)

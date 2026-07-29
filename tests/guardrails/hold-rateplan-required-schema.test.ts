@@ -9,14 +9,14 @@ function read(path: string) {
 describe("Guardrail: hold ratePlanId required schema", () => {
 	it("requires ratePlanId in hold API and keeps Hold.ratePlanId mandatory in db schema", () => {
 		const holdApi = read("src/pages/api/inventory/hold.ts")
-		const dbConfig = read("db/config.ts")
-		const holdTable = dbConfig.match(/const Hold = defineTable\(\{[\s\S]*?\n\}\)/)?.[0] ?? ""
+		const dbConfig = read("src/shared/infrastructure/db/schema/tables.ts")
+		const start = dbConfig.indexOf("export const Hold = pgTable")
+		const end = dbConfig.indexOf("\nexport const ", start + 1)
+		const holdTable = dbConfig.slice(start, end)
 		expect(holdApi).toContain("ratePlanId: z.string().min(1)")
 		expect(holdTable).toMatch(
-			/ratePlanId:\s*column\.text\(\{\s*references:\s*\(\)\s*=>\s*RatePlan\.columns\.id\s*\}\)/
+			/ratePlanId:\s*txt\("ratePlanId"\)\.references\(\(\)\s*=>\s*RatePlan\.id\)/
 		)
-		expect(holdTable).not.toMatch(
-			/ratePlanId:\s*column\.text\(\{\s*references:\s*\(\)\s*=>\s*RatePlan\.columns\.id,\s*optional:\s*true\s*\}\)/
-		)
+		expect(holdTable).not.toMatch(/ratePlanId:\s*txtOpt\("ratePlanId"\)/)
 	})
 })

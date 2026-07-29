@@ -15,12 +15,13 @@ const reconciliationQueueRoute = "src/pages/api/internal/financial/reconciliatio
 
 describe("Guardrail: financial Stage 3 foundation stays evidence-based", () => {
 	it("defines real Stage 3 models without reusing legacy finance tables", () => {
-		const dbConfig = read("db/config.ts")
+		const dbConfig = read("src/shared/infrastructure/db/schema/tables.ts")
 		const violations = [
 			...["PaymentTransaction", "FinancialSettlementRecord", "ReconciliationMatch"].flatMap(
-				(table) => (dbConfig.includes(`const ${table} = defineTable`) ? [] : [`missing ${table}`])
+				(table) =>
+					dbConfig.includes(`export const ${table} = pgTable`) ? [] : [`missing ${table}`]
 			),
-			/const SettlementRecord = defineTable/.test(dbConfig)
+			/export const SettlementRecord = pgTable/.test(dbConfig)
 				? "Stage 3 must not introduce a real table named SettlementRecord"
 				: null,
 		].filter(Boolean)

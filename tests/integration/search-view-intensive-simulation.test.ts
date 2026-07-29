@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest"
-import { and, db, eq, EffectiveAvailability, EffectivePricingV2 } from "astro:db"
+import {
+	and,
+	db,
+	eq,
+	EffectiveAvailability,
+	EffectivePricingV2,
+} from "@/shared/infrastructure/db/compat"
 
 import { searchOffers } from "@/container"
 import { GET as getCoverage } from "@/pages/api/internal/search/coverage"
@@ -656,7 +662,7 @@ async function validateMutations() {
 			computedAt: new Date(),
 		} as any)
 		.where(and(eq(EffectiveAvailability.variantId, variantId), eq(EffectiveAvailability.date, day)))
-		.run()
+
 	await db
 		.update(EffectivePricingV2)
 		.set({
@@ -674,7 +680,6 @@ async function validateMutations() {
 				)
 			)
 		)
-		.run()
 
 	await materializeSearchUnitRange({
 		variantId,
@@ -703,7 +708,7 @@ async function validateMutations() {
 			computedAt: new Date(),
 		} as any)
 		.where(and(eq(EffectiveAvailability.variantId, variantId), eq(EffectiveAvailability.date, day)))
-		.run()
+
 	await db
 		.update(EffectivePricingV2)
 		.set({
@@ -721,7 +726,7 @@ async function validateMutations() {
 				)
 			)
 		)
-		.run()
+
 	await materializeSearchUnitRange({
 		variantId,
 		ratePlanId,

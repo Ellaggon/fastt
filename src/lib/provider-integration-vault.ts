@@ -1,6 +1,6 @@
 import { createCipheriv, createDecipheriv, createHmac, randomBytes } from "node:crypto"
 
-export type ProviderIntegrationVaultPayload = {
+export type ProviderIntegrationOAuthVaultPayload = {
 	v: 1
 	authType: "oauth2"
 	tokenType: string
@@ -11,6 +11,18 @@ export type ProviderIntegrationVaultPayload = {
 	expiresAt?: string | null
 	vendor?: string | null
 }
+
+export type ProviderIntegrationOpaqueVaultPayload = {
+	v: 1
+	authType: "api_key" | "reference"
+	secret: string
+	obtainedAt: string
+	vendor?: string | null
+}
+
+export type ProviderIntegrationVaultPayload =
+	| ProviderIntegrationOAuthVaultPayload
+	| ProviderIntegrationOpaqueVaultPayload
 
 export type ProviderIntegrationEncryptedSecret = {
 	v: 1
@@ -133,7 +145,9 @@ export function decryptProviderIntegrationSecret(params: {
 				decipher.final(),
 			]).toString("utf8")
 			const payload = JSON.parse(plaintext) as ProviderIntegrationVaultPayload
-			if (payload.v !== 1 || payload.authType !== params.authType || !payload.accessToken) {
+			const hasSecret =
+				payload.authType === "oauth2" ? Boolean(payload.accessToken) : Boolean(payload.secret)
+			if (payload.v !== 1 || payload.authType !== params.authType || !hasSecret) {
 				throw new Error("INTEGRATION_VAULT_PAYLOAD_INVALID")
 			}
 			return payload

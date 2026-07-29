@@ -7,7 +7,7 @@ import {
 	ProviderPaymentAccount,
 	ProviderUser,
 	User,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 import {
 	GET as paymentAccountsGet,
 	POST as paymentAccountsPost,
@@ -114,11 +114,7 @@ describe("provider payment accounts / payouts", () => {
 				submitBody.set("submissionNotes", "Cuenta principal")
 
 				const submitRes = await paymentAccountsPost({
-					request: makeAuthedRequest(
-						"/api/provider/settings/payment-accounts",
-						token,
-						submitBody
-					),
+					request: makeAuthedRequest("/api/provider/settings/payment-accounts", token, submitBody),
 				} as any)
 				expect(submitRes.status).toBe(201)
 				const submitted = await submitRes.json()
@@ -171,7 +167,7 @@ describe("provider payment accounts / payouts", () => {
 					})
 					.from(ProviderPaymentAccount)
 					.where(eq(ProviderPaymentAccount.id, submitted.account.id))
-					.get()
+					.then((rows) => rows[0])
 				expect(persisted?.status).toBe("verified")
 				expect(persisted?.accountNumberLast4).toBe("9012")
 				expect(persisted?.verifiedAt).toBeTruthy()
@@ -180,7 +176,7 @@ describe("provider payment accounts / payouts", () => {
 					.select({ metadataJson: ProviderPaymentAccount.metadataJson })
 					.from(ProviderPaymentAccount)
 					.where(eq(ProviderPaymentAccount.id, submitted.account.id))
-					.get()
+					.then((rows) => rows[0])
 				const meta = (rawAccount?.metadataJson ?? {}) as Record<string, unknown>
 				expect(meta.accountIdentifier).toBeUndefined()
 				expect(meta.accountIdentifierEnc).toBeTruthy()
@@ -189,7 +185,7 @@ describe("provider payment accounts / payouts", () => {
 					.select()
 					.from(ProviderFinancialProfile)
 					.where(eq(ProviderFinancialProfile.providerId, providerId))
-					.get()
+					.then((rows) => rows[0])
 				expect(financial).toMatchObject({
 					status: "ready",
 					currency: "USD",
@@ -201,7 +197,7 @@ describe("provider payment accounts / payouts", () => {
 					.select({ action: ProviderAuditLog.action })
 					.from(ProviderAuditLog)
 					.where(eq(ProviderAuditLog.providerId, providerId))
-					.all()
+
 				expect(audit.some((row) => row.action === "provider.payment_account.create")).toBe(true)
 				expect(audit.some((row) => row.action === "provider.payment_account.review")).toBe(true)
 			},
@@ -229,6 +225,7 @@ describe("provider payment accounts / payouts", () => {
 			registrationDate: now,
 		})
 		await db.insert(ProviderUser).values({
+			id: `provider_user_${staffId}`,
 			providerId,
 			userId: staffId,
 			role: "staff",
@@ -288,11 +285,7 @@ describe("provider payment accounts / payouts", () => {
 				submitBody.set("accountIdentifier", "5566778899")
 
 				const submitRes = await paymentAccountsPost({
-					request: makeAuthedRequest(
-						"/api/provider/settings/payment-accounts",
-						token,
-						submitBody
-					),
+					request: makeAuthedRequest("/api/provider/settings/payment-accounts", token, submitBody),
 				} as any)
 				const submitted = await submitRes.json()
 

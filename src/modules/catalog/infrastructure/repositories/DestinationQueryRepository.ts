@@ -43,7 +43,7 @@ export class DestinationQueryRepository implements DestinationQueryRepositoryPor
 // 	}
 
 // 	async search(params: { q: string; limit: number }): Promise<DestinationRow[]> {
-// 		// Prefer astro:db predicates over raw SQL. The previous raw `sql\`...\``
+// 		// Prefer Drizzle predicates over raw SQL. The previous raw `sql\`...\``
 // 		// where-clause interpolated column objects and could silently generate a
 // 		// predicate that never matches depending on the runtime.
 // 		const pattern = `%${params.q}%`

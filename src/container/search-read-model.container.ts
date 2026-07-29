@@ -15,7 +15,7 @@ import {
 	sql,
 	Variant,
 	VariantCapacity,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 import { createHash } from "node:crypto"
 
 export type SearchUnitViewReadRow = {
@@ -135,7 +135,7 @@ export const searchReadModelRepository = {
 				isActive: Variant.isActive,
 			})
 			.from(Variant)
-		const rows = whereClause ? await query.where(whereClause).all() : await query.all()
+		const rows = whereClause ? await query.where(whereClause) : await query
 		return rows.map((row) => ({
 			variantId: String(row.variantId),
 			productId: String(row.productId),
@@ -167,7 +167,7 @@ export const searchReadModelRepository = {
 					inArray(SearchUnitView.occupancyKey, params.occupancyKeys)
 				)
 			)
-			.all()
+
 		return rows.map((row) => ({
 			variantId: String(row.variantId),
 			date: String(row.date),
@@ -178,10 +178,8 @@ export const searchReadModelRepository = {
 	},
 
 	async purgeStaleSearchUnitRows(cutoff: Date): Promise<number> {
-		const result = await db
-			.delete(SearchUnitView)
-			.where(lt(SearchUnitView.computedAt, cutoff))
-			.run()
+		const result = await db.delete(SearchUnitView).where(lt(SearchUnitView.computedAt, cutoff))
+
 		return Number((result as { rowsAffected?: unknown })?.rowsAffected ?? 0)
 	},
 
@@ -219,7 +217,6 @@ export const searchReadModelRepository = {
 					eq(SearchUnitView.occupancyKey, params.occupancyKey)
 				)
 			)
-			.all()
 
 		return rows.map((row) => ({
 			variantId: String(row.variantId),
@@ -270,7 +267,6 @@ export const searchReadModelRepository = {
 					eq(EffectivePricingV2.occupancyKey, params.occupancyKey)
 				)
 			)
-			.all()
 
 		return rows.map((row) => ({
 			variantId: String(row.variantId),
@@ -295,7 +291,7 @@ export const searchReadModelRepository = {
 					eq(RatePlan.isActive, true)
 				)
 			)
-			.all()
+
 		return rows.map((row) => String(row.id)).filter(Boolean)
 	},
 
@@ -304,7 +300,7 @@ export const searchReadModelRepository = {
 			.select({ productId: Variant.productId })
 			.from(Variant)
 			.where(eq(Variant.id, variantId))
-			.get()
+			.then((rows) => rows[0])
 		return row?.productId ? String(row.productId) : null
 	},
 
@@ -313,7 +309,7 @@ export const searchReadModelRepository = {
 			.select({ maxOccupancy: VariantCapacity.maxOccupancy })
 			.from(VariantCapacity)
 			.where(eq(VariantCapacity.variantId, variantId))
-			.get()
+			.then((rows) => rows[0])
 		const maxOccupancy = Math.max(1, Number(capacity?.maxOccupancy ?? 2))
 		return Array.from({ length: maxOccupancy }, (_, i) => i + 1)
 	},
@@ -329,7 +325,7 @@ export const searchReadModelRepository = {
 			})
 			.from(VariantCapacity)
 			.where(eq(VariantCapacity.variantId, variantId))
-			.get()
+			.then((rows) => rows[0])
 		const maxOccupancy = Math.max(1, Number(capacity?.maxOccupancy ?? 2))
 		const maxAdults = Math.max(1, Number(capacity?.maxAdults ?? maxOccupancy))
 		const maxChildren = Math.max(0, Number(capacity?.maxChildren ?? Math.min(2, maxOccupancy - 1)))
@@ -365,7 +361,7 @@ export const searchReadModelRepository = {
 								eq(EffectivePricingV2.occupancyKey, params.occupancyKey)
 							)
 						)
-						.get()
+						.then((rows) => rows[0])
 						.then((row) => row ?? null)
 				: Promise.resolve(null)
 		const [availabilityRow, pricingRow, restrictionRow] = await Promise.all([
@@ -380,7 +376,7 @@ export const searchReadModelRepository = {
 						eq(EffectiveAvailability.date, params.date)
 					)
 				)
-				.get(),
+				.then((rows) => rows[0]),
 			pricingReadPromise.then((v2Pricing) => {
 				if (
 					v2Pricing?.finalBasePrice != null &&
@@ -413,7 +409,7 @@ export const searchReadModelRepository = {
 					)
 				)
 				.orderBy(sql`${EffectiveRestriction.ratePlanId} IS NULL`)
-				.get(),
+				.then((rows) => rows[0]),
 		])
 
 		return {
@@ -453,7 +449,7 @@ export const searchReadModelRepository = {
 								eq(EffectivePricingV2.occupancyKey, params.occupancyKey)
 							)
 						)
-						.get()
+						.then((rows) => rows[0])
 				: Promise.resolve(null)
 		const [availabilityRow, pricingRow, restrictionRow] = await Promise.all([
 			db
@@ -465,7 +461,7 @@ export const searchReadModelRepository = {
 						eq(EffectiveAvailability.date, params.date)
 					)
 				)
-				.get(),
+				.then((rows) => rows[0]),
 			pricingVersionPromise,
 			db
 				.select({
@@ -484,7 +480,7 @@ export const searchReadModelRepository = {
 					)
 				)
 				.orderBy(sql`${EffectiveRestriction.ratePlanId} IS NULL`)
-				.get(),
+				.then((rows) => rows[0]),
 		])
 		const a = availabilityRow?.computedAt
 			? new Date(availabilityRow.computedAt).toISOString()
@@ -538,7 +534,6 @@ export const searchReadModelRepository = {
 					sourceVersion: sql`excluded.sourceVersion`,
 				},
 			})
-			.run()
 	},
 
 	async getSearchUnitViewRow(params: {
@@ -579,7 +574,7 @@ export const searchReadModelRepository = {
 					eq(SearchUnitView.occupancyKey, params.occupancyKey)
 				)
 			)
-			.get()
+			.then((rows) => rows[0])
 		if (!row) return null
 		return {
 			variantId: String(row.variantId),

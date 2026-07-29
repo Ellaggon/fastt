@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { db, Provider, ProviderUser, eq, sql } from "astro:db"
+import { db, Provider, ProviderUser, eq, sql } from "@/shared/infrastructure/db/compat"
 import { POST as updateProviderPost } from "@/pages/api/providers/[id]"
 import { requireProvider } from "@/lib/auth/requireProvider"
 
@@ -72,7 +72,7 @@ describe("debug/provider update read-after-write consistency", () => {
 		const email = "provider.debug@example.com"
 		const providerByEmailId = "prov_by_email"
 
-		await db.run(sql`INSERT INTO User (id, email) VALUES (${userId}, ${email})`)
+		await db.execute(sql`INSERT INTO User (id, email) VALUES (${userId}, ${email})`)
 
 		await db.insert(Provider).values({
 			id: providerByEmailId,
@@ -112,12 +112,12 @@ describe("debug/provider update read-after-write consistency", () => {
 				.select()
 				.from(Provider)
 				.where(eq(Provider.id, auth.providerId))
-				.get()
+				.then((rows) => rows[0])
 			const providerEmail = await db
 				.select()
 				.from(Provider)
 				.where(eq(Provider.id, providerByEmailId))
-				.get()
+				.then((rows) => rows[0])
 			console.log({
 				step: "debug_provider_compare",
 				updateResponseStatus: updateRes.status,

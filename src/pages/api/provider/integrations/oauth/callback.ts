@@ -13,7 +13,7 @@ import { routes } from "@/lib/routes"
 
 /**
  * OAuth callback (P2).
- * - oauth_live: authorization-code exchange → credentialsRef oauth2://…
+ * - oauth_live: authorization-code exchange → encrypted credential vault
  * - oauth_scaffold: validates state/code shape, honest redirect (no token store)
  */
 export const GET: APIRoute = async ({ request, url }) => {
@@ -79,7 +79,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 		redirectUri,
 		connectorKey,
 	})
-	if (!exchanged.ok || !exchanged.credentialsRef) {
+	if (!exchanged.ok || !exchanged.accessToken) {
 		target.searchParams.set("oauth", "token_failed")
 		target.searchParams.set("reason", String(exchanged.error ?? "exchange_failed").slice(0, 64))
 		return Response.redirect(target, 303)
@@ -92,7 +92,6 @@ export const GET: APIRoute = async ({ request, url }) => {
 			connectorKey,
 			mode: state.mode,
 			scopes: exchanged.scope ? exchanged.scope.split(/\s+/).filter(Boolean) : [],
-			credentialsRef: exchanged.credentialsRef,
 			oauthCredential: exchanged.accessToken
 				? {
 						accessToken: exchanged.accessToken,

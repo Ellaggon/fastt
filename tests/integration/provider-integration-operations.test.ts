@@ -94,7 +94,7 @@ describe("provider integration operations", () => {
 			connectorKey: "channel_manager",
 			mode: "sandbox",
 			scopes: ["availability:sync"],
-			credentialsRef: "test://smoke-ok",
+			credentialSecret: "test://smoke-ok",
 			displayName: "Hotel principal",
 		})
 		const secondaryId = await connectProviderIntegration({
@@ -103,7 +103,7 @@ describe("provider integration operations", () => {
 			connectorKey: "channel_manager",
 			mode: "sandbox",
 			scopes: ["availability:sync", "rates:sync"],
-			credentialsRef: "test://smoke-ok",
+			credentialSecret: "test://smoke-ok",
 			displayName: "Segunda propiedad",
 			createNew: true,
 		})

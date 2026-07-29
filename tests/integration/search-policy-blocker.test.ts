@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest"
-import { and, db, eq, EffectiveAvailability, EffectivePricingV2, SearchUnitView } from "astro:db"
+import {
+	and,
+	db,
+	eq,
+	EffectiveAvailability,
+	EffectivePricingV2,
+	SearchUnitView,
+} from "@/shared/infrastructure/db/compat"
 
 import { searchOffers } from "@/container"
 import { materializeSearchUnitRange } from "@/modules/search/public"
@@ -208,7 +215,7 @@ describe("integration/search policy blocker", () => {
 						eq(SearchUnitView.date, date)
 					)
 				)
-				.get()
+				.then((rows) => rows[0])
 			expect(String(suv?.primaryBlocker ?? "")).toBe("POLICY_BLOCKED")
 
 			const offers = await searchOffers({

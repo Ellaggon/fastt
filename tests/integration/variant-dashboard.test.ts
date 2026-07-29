@@ -8,7 +8,7 @@ import { POST as createVariantPost } from "@/pages/api/variant/create"
 import { POST as setCapacityPost } from "@/pages/api/variant/capacity"
 import { POST as attachSubtypePost } from "@/pages/api/variant/subtype/hotel-room"
 import { POST as evaluateVariantPost } from "@/pages/api/variant/evaluate"
-import { db, Image } from "astro:db"
+import { db, Image } from "@/shared/infrastructure/db/compat"
 
 type SupabaseTestUser = { id: string; email: string }
 

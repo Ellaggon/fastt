@@ -6,7 +6,7 @@ import {
 	ProviderProfile,
 	ProviderTaxConfiguration,
 	User,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 import { POST as providerProfilePost } from "@/pages/api/providers/profile"
 import {
 	GET as taxConfigurationGet,
@@ -130,11 +130,7 @@ describe("integration/provider fiscal profile separation", () => {
 				taxForm.set("invoicingMode", "provider_invoice")
 
 				const taxRes = await taxConfigurationPost({
-					request: makeAuthedRequest(
-						"/api/provider/settings/tax-configuration",
-						token,
-						taxForm
-					),
+					request: makeAuthedRequest("/api/provider/settings/tax-configuration", token, taxForm),
 				} as any)
 				expect(taxRes.status).toBe(200)
 				const taxBody = await taxRes.json()
@@ -190,7 +186,7 @@ describe("integration/provider fiscal profile separation", () => {
 			.select()
 			.from(ProviderProfile)
 			.where(eq(ProviderProfile.providerId, providerId))
-			.get()
+			.then((rows) => rows[0])
 		expect(profile).toMatchObject({
 			timezone: "America/Santiago",
 			defaultCurrency: "USD",
@@ -204,7 +200,7 @@ describe("integration/provider fiscal profile separation", () => {
 			.select()
 			.from(ProviderTaxConfiguration)
 			.where(eq(ProviderTaxConfiguration.providerId, providerId))
-			.get()
+			.then((rows) => rows[0])
 		expect(taxConfiguration).toMatchObject({
 			status: "verified",
 			taxResidenceCountry: "BO",
@@ -222,7 +218,7 @@ describe("integration/provider fiscal profile separation", () => {
 			})
 			.from(ProviderAuditLog)
 			.where(eq(ProviderAuditLog.providerId, providerId))
-			.all()
+
 		expect(audit.some((row) => row.action === "provider.tax_configuration.upsert")).toBe(true)
 		expect(audit.some((row) => row.action === "provider.tax_configuration.review")).toBe(true)
 		const taxAudit = audit.find((row) => row.action === "provider.tax_configuration.upsert")

@@ -1,4 +1,9 @@
-import { db, EffectiveAvailability, EffectivePricingV2, EffectiveRestriction } from "astro:db"
+import {
+	db,
+	EffectiveAvailability,
+	EffectivePricingV2,
+	EffectiveRestriction,
+} from "@/shared/infrastructure/db/compat"
 import { describe, expect, it } from "vitest"
 
 import {
@@ -146,9 +151,7 @@ async function seedPoliciesForRatePlan(ratePlanId: string, providerId: string): 
 
 const cachedReusablePolicies = new Map<string, Array<{ policyId: string }>>()
 
-async function createReusablePolicies(
-	providerId: string
-): Promise<Array<{ policyId: string }>> {
+async function createReusablePolicies(providerId: string): Promise<Array<{ policyId: string }>> {
 	const cached = cachedReusablePolicies.get(providerId)
 	if (cached) return cached
 

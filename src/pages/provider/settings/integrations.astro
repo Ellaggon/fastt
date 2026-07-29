@@ -83,7 +83,7 @@ const recentIntegrationRuns = integrationOperations.runs.slice(0, 6)
 const recentIntegrationJobs = integrationOperations.jobs.slice(0, 6)
 
 const configuredConnectors = connectors.filter((connector) =>
-	Boolean(connector.credentialsRef && connector.status !== "revoked")
+	Boolean((connector.endpointUrl || connector.hasCredential) && connector.status !== "revoked")
 )
 const validatedConnectors = connectors.filter((connector) => connector.status === "connected")
 const attentionConnectors = connectors.filter((connector) =>
@@ -184,14 +184,14 @@ function formatDate(value: Date | null) {
 
 function canTest(connector: ProviderIntegrationCard) {
 	return (
-		Boolean(connector.credentialsRef) &&
+		Boolean(connector.endpointUrl || connector.hasCredential) &&
 		connector.status !== "revoked" &&
 		connector.status !== "syncing"
 	)
 }
 
 function canRevoke(connector: ProviderIntegrationCard) {
-	return Boolean(connector.credentialsRef) && connector.status !== "revoked"
+	return Boolean(connector.endpointUrl || connector.hasCredential) && connector.status !== "revoked"
 }
 
 function externalCalendarStatusLabel(status: string) {
@@ -1162,16 +1162,23 @@ function conflictStatusTone(status: string) {
 										) : null}
 
 										<label class="grid gap-2 text-sm font-semibold text-slate-900">
-											Enlace o referencia de acceso
+											{connector.key === "channel_manager"
+												? "Credencial de acceso"
+												: "Endpoint HTTPS"}
 											<Input
-												name="credentialsRef"
-												value={connector.credentialsRef}
+												name={
+													connector.key === "channel_manager" ? "credentialSecret" : "endpointUrl"
+												}
+												type={connector.key === "channel_manager" ? "password" : "url"}
+												value={connector.key === "channel_manager" ? "" : connector.endpointUrl}
 												placeholder={
 													connector.key === "channel_manager"
-														? "API key, OAuth o referencia segura"
+														? connector.hasCredential
+															? "Dejar vacío para conservar la credencial actual"
+															: "API key del proveedor"
 														: isSimple
 															? "https://tu-servicio.ejemplo.com/…"
-															: "https://… o referencia segura del secreto"
+															: "https://tu-servicio.ejemplo.com/…"
 												}
 											/>
 										</label>
@@ -1580,13 +1587,20 @@ function conflictStatusTone(status: string) {
 													<Input name="displayName" placeholder="Ej. Segunda propiedad" required />
 												</label>
 												<label class="grid gap-2 text-sm font-semibold text-slate-900">
-													Referencia de acceso
+													{connector.key === "channel_manager"
+														? "Credencial de acceso"
+														: "Endpoint HTTPS"}
 													<Input
-														name="credentialsRef"
+														name={
+															connector.key === "channel_manager"
+																? "credentialSecret"
+																: "endpointUrl"
+														}
+														type={connector.key === "channel_manager" ? "password" : "url"}
 														placeholder={
 															connector.key === "channel_manager"
-																? "API key, OAuth o referencia segura"
-																: "https://… o referencia segura"
+																? "API key del proveedor"
+																: "https://tu-servicio.ejemplo.com/…"
 														}
 														required
 													/>

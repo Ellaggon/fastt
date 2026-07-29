@@ -9,7 +9,7 @@ import {
 	RatePlanOccupancyPolicy,
 	eq,
 	and,
-} from "astro:db"
+} from "@/shared/infrastructure/db/compat"
 import { createCommercialPriceRule } from "@/lib/commercial-rules/commercialRulesRepository"
 
 const ratePlanTemplateFixtures = new Map<string, { name: string; description: string | null }>()
@@ -315,7 +315,7 @@ export async function upsertPriceRule(row: {
 		.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
 		.innerJoin(Product, eq(Product.id, Variant.productId))
 		.where(eq(RatePlan.id, row.ratePlanId))
-		.get()
+		.then((rows) => rows[0])
 	if (!owner?.providerId) throw new Error("test_rate_plan_provider_not_found")
 	await createCommercialPriceRule({
 		providerId: String(owner.providerId),

@@ -3,7 +3,6 @@ import { readFileSync } from "node:fs"
 
 import {
 	buildConnectorOAuthAuthorizeUrl,
-	buildConnectorOAuthCredentialsRef,
 	createConnectorOAuthState,
 	exchangeConnectorOAuthCode,
 	getConnectorOAuthStatus,
@@ -38,7 +37,7 @@ describe("P2 OAuth-grade connect + docs-lite Simple", () => {
 		expect(integrations).toContain("data-connector-docs-lite")
 		expect(integrations).toContain("data-connector-oauth-start")
 		expect(integrations).not.toContain(
-			"{!isSimple ? (\n\t\t\t\t\t\t\t<details class=\"rounded-lg border border-slate-200 bg-white p-3\" data-connector-docs-lite>"
+			'{!isSimple ? (\n\t\t\t\t\t\t\t<details class="rounded-lg border border-slate-200 bg-white p-3" data-connector-docs-lite>'
 		)
 		expect(integrations).toContain("/oauth/start")
 		expect(read("src/pages/api/provider/integrations/oauth/callback.ts")).toContain(
@@ -104,19 +103,17 @@ describe("P2 OAuth-grade connect + docs-lite Simple", () => {
 			connectorKey: "channel_manager",
 		})
 		expect(result.ok).toBe(true)
-		expect(result.credentialsRef).toBe(buildConnectorOAuthCredentialsRef("channel_manager"))
-		expect(result.credentialsRef).toBe("oauth2://channel_manager")
+		expect(result.accessToken).toBe("at_test")
 	})
 
-	it("accepts oauth2:// credentials in smoke", async () => {
+	it("does not accept OAuth markers as public endpoints", async () => {
 		const smoke = await runConnectorSmokeTest({
 			connectorKey: "channel_manager",
-			credentialsRef: "oauth2://channel_manager",
+			endpointUrl: "oauth2://channel_manager",
 			mode: "sandbox",
 		})
-		expect(smoke.ok).toBe(true)
-		expect(smoke.probe).toBe("oauth2")
-		expect(smoke.trustLevel).toBe("structural_reference")
+		expect(smoke.ok).toBe(false)
+		expect(smoke.probe).toBe("none")
 	})
 
 	it("builds authorize URL in scaffold or live", () => {

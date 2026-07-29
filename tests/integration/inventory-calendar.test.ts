@@ -1,6 +1,12 @@
 import { describe, it, expect } from "vitest"
 
-import { db, DailyInventory, EffectiveAvailability, eq, and } from "astro:db"
+import {
+	db,
+	DailyInventory,
+	EffectiveAvailability,
+	eq,
+	and,
+} from "@/shared/infrastructure/db/compat"
 
 import { GET as calendarGet } from "@/pages/api/inventory/calendar"
 import { POST as bulkPost } from "@/pages/api/inventory/bulk-update"
@@ -207,7 +213,7 @@ describe("integration/inventory calendar API", () => {
 				.select()
 				.from(DailyInventory)
 				.where(and(eq(DailyInventory.variantId, variantId), eq(DailyInventory.date, "2026-03-10")))
-				.get()
+				.then((rows) => rows[0])
 			expect(Number((row as any)?.reservedCount)).toBe(1) // unchanged
 			expect(Number((row as any)?.totalInventory)).toBe(5)
 			expect("stopSell" in (row as any)).toBe(false)
@@ -343,7 +349,7 @@ describe("integration/inventory calendar API", () => {
 						eq(EffectiveAvailability.date, targetDate)
 					)
 				)
-				.get()
+				.then((rows) => rows[0])
 			expect(row1).toBeTruthy()
 			expect(Number((row1 as any)?.totalUnits)).toBe(5)
 			expect(Number((row1 as any)?.availableUnits)).toBe(5)
@@ -370,7 +376,7 @@ describe("integration/inventory calendar API", () => {
 						eq(EffectiveAvailability.date, targetDate)
 					)
 				)
-				.all()
+
 			expect(rows.length).toBe(1)
 			expect(Number((rows[0] as any).availableUnits)).toBe(5)
 		})
