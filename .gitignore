@@ -27,6 +27,10 @@ tmp/
 .idea/
 .vercel/
 
+# Obsidian vault metadata (personal UI/workspace; docs markdown stays tracked)
+.obsidian/
+**/.obsidian/
+
 .vitest/
 
 test-results/
