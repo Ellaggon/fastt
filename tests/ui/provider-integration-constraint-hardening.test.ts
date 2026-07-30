@@ -63,7 +63,7 @@ describe("Phase 7: status CHECKs + export honesty", () => {
 	it("keeps outbound ICS variant-scoped and removes the unused resource column", () => {
 		const domain = read("src/lib/provider-external-calendars.ts")
 		const api = read("src/pages/api/provider/integrations/external-calendars/exports/index.ts")
-		const page = read("src/pages/provider/settings/integrations.astro")
+		const page = read("src/pages/rates/calendar/connections.astro")
 		const migration = read(
 			"db/migrations/2026-08-10_provider_external_calendar_export_variant_scope.sql"
 		)
@@ -72,7 +72,7 @@ describe("Phase 7: status CHECKs + export honesty", () => {
 		expect(api).not.toContain("resourceId")
 		expect(migration).toContain('DROP COLUMN IF EXISTS "resourceId"')
 		expect(page).toContain("data-external-calendar-export")
-		expect(page).toContain("El alcance es la habitación completa")
+		expect(page).toContain("El enlace incluye las reservas de la habitación completa")
 		expect(page).not.toMatch(/data-external-calendar-export[\s\S]*?name="resourceId"/)
 		// Inbound feed form still binds physical units.
 		expect(page).toMatch(/external-calendars\/feeds[\s\S]*?name="resourceId"/)

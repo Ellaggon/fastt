@@ -112,7 +112,11 @@ describe("integration/provider integrations product", () => {
 			connectorKey: "channel_manager",
 		})
 
-		const cards = await listProviderIntegrations({ providerId, currentUserId: ownerId })
+		const cards = await listProviderIntegrations({
+			providerId,
+			currentUserId: ownerId,
+			includeRecentActivity: true,
+		})
 		const card = cards.find((connector) => connector.key === "channel_manager")
 		expect(card?.status).toBe("connected")
 		expect(card?.vendorKey).toBe("cloudbeds")

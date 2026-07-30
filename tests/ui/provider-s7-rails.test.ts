@@ -66,14 +66,16 @@ describe("S7-2 OAuth + docs-lite Simple", () => {
 	})
 
 	it("exposes docs-lite in Simple mode and OAuth start/callback", () => {
-		const integrations = read("src/pages/provider/settings/integrations.astro")
+		const integrations = read(
+			"src/pages/provider/settings/integrations/connect/channel-manager.astro"
+		)
+		const legacyManage = read("src/pages/provider/settings/integrations/manage.astro")
 		const callback = read("src/pages/api/provider/integrations/oauth/callback.ts")
 		const oauth = read("src/lib/provider-connector-oauth.ts")
 
-		expect(integrations).toContain("data-connector-docs-lite")
-		expect(integrations).not.toContain(
-			'{!isSimple ? (\n\t\t\t\t\t\t\t<details class="rounded-lg border border-slate-200 bg-white p-3" data-connector-docs-lite>'
-		)
+		expect(integrations).toContain('data-channel-wizard-step="access"')
+		expect(integrations).toContain("Autorizar con")
+		expect(legacyManage).not.toContain("<form")
 		expect(callback).toContain("getConnectorOAuthStatus")
 		expect(callback).toContain("exchangeConnectorOAuthCode")
 		expect(oauth).toContain("buildConnectorOAuthAuthorizeUrl")

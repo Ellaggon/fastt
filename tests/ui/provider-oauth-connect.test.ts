@@ -33,13 +33,12 @@ describe("P2 OAuth-grade connect + docs-lite Simple", () => {
 	})
 
 	it("keeps docs-lite available in Simple (not Pro-only)", () => {
-		const integrations = read("src/pages/provider/settings/integrations.astro")
-		expect(integrations).toContain("data-connector-docs-lite")
-		expect(integrations).toContain("data-connector-oauth-start")
-		expect(integrations).not.toContain(
-			'{!isSimple ? (\n\t\t\t\t\t\t\t<details class="rounded-lg border border-slate-200 bg-white p-3" data-connector-docs-lite>'
-		)
-		expect(integrations).toContain("/oauth/start")
+		const wizard = read("src/pages/provider/settings/integrations/connect/channel-manager.astro")
+		const legacyManage = read("src/pages/provider/settings/integrations/manage.astro")
+		expect(wizard).toContain('data-channel-wizard-step="access"')
+		expect(wizard).toContain("Autorizar con")
+		expect(wizard).toContain("/oauth/start")
+		expect(legacyManage).not.toContain("<form")
 		expect(read("src/pages/api/provider/integrations/oauth/callback.ts")).toContain(
 			"exchangeConnectorOAuthCode"
 		)

@@ -34,7 +34,7 @@ describe("S0-3 provider settings copy without schema jargon", () => {
 			read("src/pages/provider/settings/tax-fees/index.astro"),
 			read("src/pages/provider/settings/verification/fiscal.astro"),
 			read("src/pages/provider/settings/verification/payments.astro"),
-			read("src/pages/provider/settings/integrations.astro"),
+			read("src/pages/provider/settings/integrations/connect/channel-manager.astro"),
 			read("src/pages/provider/settings/verification.astro"),
 			read("src/components/provider/ProviderTaxProfileCard.astro"),
 			read("src/components/provider/ProviderPaymentAccountsCard.astro"),
@@ -53,8 +53,8 @@ describe("S0-3 provider settings copy without schema jargon", () => {
 		expect(sources[6]).toContain("Una cuenta primero")
 		expect(sources[6]).toContain("Cómo confirmar los micro-depósitos")
 		expect(sources[3]).toContain("Probar conexión")
-		expect(sources[3]).toContain("Modo Pro · catálogo + ayuda por conector")
-		expect(sources[3]).toContain("data-connector-docs-lite")
+		expect(sources[3]).toContain("Autorizar acceso")
+		expect(sources[3]).toContain("data-channel-wizard-steps")
 		expect(sources[1]).toContain("Retenciones y liquidaciones")
 	})
 })

@@ -53,15 +53,17 @@ describe("provider integration security phase 6", () => {
 	})
 
 	it("requires explicit disconnect confirmation and keeps secrets out of UI copy", () => {
-		const page = read("src/pages/provider/settings/integrations.astro")
+		const page = read(
+			"src/pages/provider/settings/integrations/connections/[connectionId]/index.astro"
+		)
 		const revoke = read("src/pages/api/provider/integrations/[connectorKey]/revoke.ts")
 		const audit = read("src/lib/provider-audit.ts")
 
 		expect(page).toContain("data-disconnect-confirmation")
 		expect(page).toContain("confirmDisconnect")
 		expect(page).toContain("DESCONECTAR")
-		expect(page).toContain("data-integration-security-vault")
-		expect(page).toContain("Vault activo")
+		expect(page).toContain("guardada de forma segura")
+		expect(page).not.toContain("encryptedJson")
 		expect(revoke).toContain('confirmDisconnect") ?? "") !== "DESCONECTAR"')
 		expect(audit).toContain('"accessToken"')
 		expect(audit).toContain('"refreshToken"')
