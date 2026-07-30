@@ -287,6 +287,14 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		rationale: "Superficies comerciales centradas en tarifas, precios y condiciones.",
 	},
 	{
+		pattern: "/rates/calendar/connections",
+		status: "canonical",
+		context: "enterprise-operations",
+		owner: "Rooms & Rates",
+		rationale:
+			"Entrada contextual desde Calendario hacia las conexiones que afectan disponibilidad.",
+	},
+	{
 		pattern: "/rates/calendar",
 		status: "canonical",
 		context: "enterprise-operations",
@@ -364,12 +372,20 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 			"Reglas visibles para huéspedes; no son precios, reglas de venta ni condiciones de reserva.",
 	},
 	{
+		pattern: "/provider/settings/integrations/**",
+		status: "canonical",
+		context: "enterprise-operations",
+		owner: "Connectivity",
+		rationale:
+			"Workspace operativo de conexiones, sincronizaciones, mapeos e incidencias externas.",
+	},
+	{
 		pattern: "/provider/settings/**",
 		status: "canonical",
 		context: "governance",
 		owner: "Provider Setup",
 		rationale:
-			"Centro canónico de configuración del proveedor: identidad, cumplimiento, fiscalidad, integraciones y equipo.",
+			"Centro canónico de configuración del proveedor: identidad, cumplimiento, fiscalidad y equipo.",
 	},
 	{
 		pattern: "/provider/tax-fees",
@@ -389,8 +405,8 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 	{
 		pattern: "/system/integrations",
 		status: "legacy",
-		context: "governance",
-		owner: "Provider Setup",
+		context: "enterprise-operations",
+		owner: "Connectivity",
 		rationale: "Legacy redirect hacia /provider/settings/integrations.",
 	},
 	{
@@ -1062,12 +1078,29 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 		],
 	},
 	{
+		title: "Distribución",
+		subtitle: "Conectividad externa",
+		owner: "Provider Integrations",
+		context: "enterprise-operations",
+		operationalIntent:
+			"Conexiones, sincronizaciones, mapeos e incidencias de los sistemas externos del proveedor.",
+		maturity: "operational",
+		items: [
+			{
+				label: "Integraciones",
+				href: routes.integrations(),
+				status: "canonical",
+				summary: "Conexiones externas y salud de sincronización.",
+			},
+		],
+	},
+	{
 		title: "Configuración",
 		subtitle: "Setup del proveedor",
 		owner: "Provider Setup",
 		context: "governance",
 		operationalIntent:
-			"Setup del proveedor fuera de la operación diaria: configuración de datos, verificación (wizard), fiscalidad e integraciones.",
+			"Setup del proveedor fuera de la operación diaria: datos de cuenta, verificación, fiscalidad y equipo.",
 		maturity: "operational",
 		items: [
 			{
@@ -1087,12 +1120,6 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				href: routes.taxFees(),
 				status: "canonical",
 				summary: "NIT/TIN, residencia e impuestos al huésped.",
-			},
-			{
-				label: "Integraciones",
-				href: routes.integrations(),
-				status: "canonical",
-				summary: "Conexiones externas.",
 			},
 		],
 	},

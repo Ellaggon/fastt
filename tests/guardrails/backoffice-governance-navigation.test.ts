@@ -194,6 +194,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 			"Reservas",
 			"Finanzas",
 			"Analítica",
+			"Distribución",
 			"Configuración",
 		])
 		expect(sectionTitles).not.toContain("Conectividad")
@@ -290,8 +291,13 @@ describe("Guardrail: backoffice governance navigation", () => {
 			"Configuración",
 			"Verificación",
 			"Fiscalidad",
-			"Integraciones",
 		])
+
+		const distributionSection = enterpriseNavigation.find(
+			(section) => section.title === "Distribución"
+		)
+		expect(distributionSection?.owner).toBe("Provider Integrations")
+		expect(distributionSection?.items.map((item) => item.label)).toEqual(["Integraciones"])
 
 		const forbiddenDailyLabels = [
 			"Reservas",
@@ -325,6 +331,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 			Finanzas: ["Payments & Finance"],
 			Analítica: ["Analytics & Performance"],
 			Conectividad: ["Connectivity"],
+			Distribución: ["Connectivity"],
 			Configuración: ["Provider Setup"],
 		}
 		const violations = enterpriseNavigation.flatMap((section) =>

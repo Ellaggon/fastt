@@ -15,6 +15,18 @@ export const routes = {
 	providerSettingsTaxSales: () => "/provider/settings/tax-fees/sales",
 	providerSettingsPayments: () => "/provider/settings/payments",
 	providerSettingsIntegrations: () => "/provider/settings/integrations",
+	providerSettingsIntegrationsConnections: () => "/provider/settings/integrations/connections",
+	providerSettingsIntegrationsCatalog: () => "/provider/settings/integrations/catalog",
+	providerSettingsIntegrationsManage: () => "/provider/settings/integrations/manage",
+	providerSettingsIntegrationsConnectChannelManager: () =>
+		"/provider/settings/integrations/connect/channel-manager",
+	providerSettingsIntegrationConnection: (connectionId: string) =>
+		`/provider/settings/integrations/connections/${encodeURIComponent(String(connectionId))}`,
+	providerSettingsIntegrationMapping: (connectionId: string) =>
+		`/provider/settings/integrations/connections/${encodeURIComponent(String(connectionId))}/mapping`,
+	providerSettingsIntegrationsIncidents: () => "/provider/settings/integrations/incidents",
+	providerSettingsIntegrationsActivity: () => "/provider/settings/integrations/activity",
+	ratesCalendarConnections: () => "/rates/calendar/connections",
 	providerSettingsTeam: () => "/provider/settings/team",
 	providerInvitationAccept: () => "/provider/invitations/accept",
 	verification: () => "/provider/settings/verification",
