@@ -1,0 +1,276 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Notice from "@/components/ui/Notice.astro"
+import ProviderIntegrationsLayout from "@/layouts/ProviderIntegrationsLayout.astro"
+import { requireProvider } from "@/lib/auth/requireProvider"
+import { listProviderIntegrationIncidents } from "@/lib/provider-integration-operations"
+import { isProviderIntegrationWorkspaceConnector } from "@/lib/provider-integrations"
+import { routes } from "@/lib/routes"
+import { ArrowRight, CheckCircle2, CircleAlert, PlugZap } from "@lucide/astro"
+
+const auth = await requireProvider(Astro.request).catch((error: unknown) => {
+	if (error instanceof Response && error.status === 401) return "__REDIRECT_LOGIN__"
+	if (error instanceof Response && error.status === 403) return "__REDIRECT_PROVIDER__"
+	throw error
+})
+if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
+if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerSettingsProfile())
+
+const requestedStatus = Astro.url.searchParams.get("status")
+const status =
+	requestedStatus === "resolved" || requestedStatus === "all" ? requestedStatus : "open"
+const connectionId = Astro.url.searchParams.get("connectionId")?.trim() || null
+const incidentResult = await listProviderIntegrationIncidents({
+	providerId: auth.providerId,
+	status: "all",
+	connectionId,
+	limit: 100,
+}).catch((error: unknown) => {
+	if (error instanceof Error && error.message === "INTEGRATION_CONNECTION_NOT_FOUND") return null
+	throw error
+})
+if (!incidentResult) return Astro.redirect(routes.providerSettingsIntegrationsIncidents(), 302)
+const incidents = incidentResult.filter((incident) =>
+	isProviderIntegrationWorkspaceConnector(incident.connectorKey)
+)
+
+const visibleIncidents =
+	status === "all" ? incidents : incidents.filter((incident) => incident.status === status)
+const openCount = incidents.filter((incident) => incident.status === "open").length
+const resolvedCount = incidents.filter((incident) => incident.status === "resolved").length
+const operationResult = Astro.url.searchParams.get("operation")
+
+function formatDate(value: Date | null) {
+	if (!value) return "Sin fecha"
+	return new Intl.DateTimeFormat("es", {
+		dateStyle: "medium",
+		timeStyle: "short",
+	}).format(value)
+}
+
+function severityPresentation(severity: string) {
+	if (severity === "critical") return { label: "Crítica", tone: "error" as const }
+	if (severity === "error") return { label: "Error", tone: "error" as const }
+	if (severity === "warning") return { label: "Atención", tone: "warning" as const }
+	return { label: "Información", tone: "info" as const }
+}
+
+function categoryLabel(category: string) {
+	if (category === "authentication") return "Autorización"
+	if (category === "mapping") return "Mapeo"
+	if (category === "remote_api") return "Servicio externo"
+	if (category === "data_quality") return "Calidad de datos"
+	return "Sistema"
+}
+
+function connectorLabel(key: string) {
+	if (key === "channel_manager") return "Channel manager"
+	if (key === "external_calendars") return "Calendario externo"
+	return "Integración"
+}
+
+function notificationLabel(value: string) {
+	if (value === "sent") return "Aviso enviado"
+	if (value === "partial") return "Aviso parcial"
+	if (value === "failed") return "Aviso fallido"
+	if (value === "not_configured") return "Sin canal de aviso"
+	return null
+}
+
+function filterHref(filter: "open" | "resolved" | "all") {
+	const params = new URLSearchParams()
+	if (filter !== "open") params.set("status", filter)
+	if (connectionId) params.set("connectionId", connectionId)
+	const query = params.toString()
+	return `${routes.providerSettingsIntegrationsIncidents()}${query ? `?${query}` : ""}`
+}
+
+const filterItems = [
+	{ id: "open", label: "Abiertas", count: openCount },
+	{ id: "resolved", label: "Resueltas", count: resolvedCount },
+	{ id: "all", label: "Todas", count: incidents.length },
+] as const
+const returnTo = `${Astro.url.pathname}${Astro.url.search}`
+---
+
+<ProviderIntegrationsLayout
+	title="Incidencias de integraciones"
+	eyebrow="Integraciones · Salud"
+	heading="Incidencias"
+	description="Revisa problemas accionables, su impacto y la conexión donde debes intervenir."
+>
+	<div slot="actions">
+		<Button href={routes.providerSettingsIntegrationsConnections()} variant="onDark">
+			Ver conexiones
+		</Button>
+	</div>
+
+	{
+		operationResult === "incident_resolved" ? (
+			<Notice variant="success" title="Incidencia resuelta">
+				La incidencia salió de la lista de problemas abiertos.
+			</Notice>
+		) : operationResult === "error" ? (
+			<Notice variant="warning" title="No pudimos resolver la incidencia">
+				El problema sigue abierto. Revisa tus permisos o vuelve a intentarlo.
+			</Notice>
+		) : null
+	}
+
+	{
+		connectionId ? (
+			<section class="fastt-notice flex flex-col gap-3 rounded-lg border border-sky-200 bg-sky-50 p-4 text-slate-900 sm:flex-row sm:items-center sm:justify-between">
+				<div>
+					<p class="text-sm font-semibold text-slate-950">Vista filtrada por conexión</p>
+					<p class="mt-1 text-sm text-slate-600">
+						Solo se muestran problemas vinculados a la conexión seleccionada.
+					</p>
+				</div>
+				<Button href={routes.providerSettingsIntegrationsIncidents()} variant="secondary" size="sm">
+					Ver todas
+				</Button>
+			</section>
+		) : null
+	}
+
+	<section
+		class="fastt-notice grid gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 text-slate-900 sm:grid-cols-2"
+		aria-label="Resumen de incidencias"
+		data-integration-incident-summary
+	>
+		<div class={openCount ? "bg-amber-50 p-4" : "bg-white p-4"}>
+			<p class="text-xs font-semibold text-slate-500">Requieren acción</p>
+			<p class="mt-1 text-2xl font-semibold text-slate-950">{openCount}</p>
+		</div>
+		<div class="bg-white p-4">
+			<p class="text-xs font-semibold text-slate-500">Resueltas</p>
+			<p class="mt-1 text-2xl font-semibold text-slate-950">{resolvedCount}</p>
+		</div>
+	</section>
+
+	<Card data-integration-incidents-page>
+		<div class="border-b border-slate-200">
+			<nav class="flex min-w-max gap-1 overflow-x-auto" aria-label="Estado de incidencias">
+				{
+					filterItems.map((item) => (
+						<a
+							href={filterHref(item.id)}
+							aria-current={status === item.id ? "page" : undefined}
+							class={`inline-flex min-h-11 items-center gap-2 border-b-2 px-3 py-2 text-sm font-semibold ${
+								status === item.id
+									? "border-slate-950 text-slate-950"
+									: "border-transparent text-slate-500 hover:text-slate-950"
+							}`}
+						>
+							{item.label}
+							<span
+								class={`rounded-full px-2 py-0.5 text-xs ${
+									item.id === "open" && item.count
+										? "bg-amber-100 text-amber-900"
+										: "bg-slate-100 text-slate-600"
+								}`}
+							>
+								{item.count}
+							</span>
+						</a>
+					))
+				}
+			</nav>
+		</div>
+
+		{
+			visibleIncidents.length ? (
+				<div class="divide-y divide-slate-200">
+					{visibleIncidents.map((incident) => {
+						const severity = severityPresentation(String(incident.severity))
+						const notice = notificationLabel(String(incident.notificationStatus))
+						return (
+							<article class="py-5" data-integration-incident={incident.id}>
+								<div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+									<div class="max-w-3xl min-w-0">
+										<div class="flex flex-wrap items-center gap-2">
+											<Badge variant={severity.tone}>{severity.label}</Badge>
+											<Badge variant={incident.status === "open" ? "warning" : "success"}>
+												{incident.status === "open" ? "Abierta" : "Resuelta"}
+											</Badge>
+											<span class="text-xs font-medium text-slate-500">
+												{categoryLabel(String(incident.category))}
+											</span>
+										</div>
+										<h2 class="mt-2 text-base font-semibold text-slate-950">{incident.title}</h2>
+										<p class="mt-1 text-sm leading-6 text-slate-600">{incident.description}</p>
+										<div class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+											<span class="inline-flex items-center gap-1.5">
+												<PlugZap class="size-3.5" aria-hidden="true" />
+												{incident.connectionName || connectorLabel(String(incident.connectorKey))}
+											</span>
+											<span>
+												{incident.occurrenceCount}{" "}
+												{Number(incident.occurrenceCount) === 1 ? "detección" : "detecciones"}
+											</span>
+											<span>Última: {formatDate(incident.lastSeenAt)}</span>
+											{notice ? <span>{notice}</span> : null}
+										</div>
+										{incident.status === "resolved" && incident.resolutionNote ? (
+											<p class="mt-3 rounded-md bg-slate-50 p-3 text-sm text-slate-600">
+												{incident.resolutionNote}
+											</p>
+										) : null}
+									</div>
+									<div class="flex shrink-0 flex-wrap gap-2">
+										{incident.actionHref && incident.actionLabel ? (
+											<Button href={incident.actionHref} size="sm">
+												{incident.actionLabel}
+												<ArrowRight class="size-4" aria-hidden="true" />
+											</Button>
+										) : (
+											<Button
+												href={routes.providerSettingsIntegrationConnection(incident.connectionId)}
+												size="sm"
+												variant="secondary"
+											>
+												Ver conexión
+											</Button>
+										)}
+										{incident.status === "open" ? (
+											<form
+												method="post"
+												action={`/api/provider/integrations/operations/incidents/${incident.id}/resolve`}
+											>
+												<input type="hidden" name="returnTo" value={returnTo} />
+												<Button type="submit" size="sm" variant="ghost">
+													<CheckCircle2 class="size-4" aria-hidden="true" />
+													Marcar resuelta
+												</Button>
+											</form>
+										) : null}
+									</div>
+								</div>
+							</article>
+						)
+					})}
+				</div>
+			) : (
+				<div class="py-10 text-center">
+					<div class="mx-auto flex size-10 items-center justify-center text-emerald-700">
+						{status === "open" ? (
+							<CheckCircle2 class="size-8" aria-hidden="true" />
+						) : (
+							<CircleAlert class="size-8 text-slate-400" aria-hidden="true" />
+						)}
+					</div>
+					<h2 class="mt-3 text-base font-semibold text-slate-950">
+						{status === "open" ? "No hay incidencias abiertas" : "No hay incidencias en esta vista"}
+					</h2>
+					<p class="mt-1 text-sm text-slate-600">
+						{status === "open"
+							? "Tus conexiones no requieren intervención."
+							: "Cambia el filtro para consultar otro estado."}
+					</p>
+				</div>
+			)
+		}
+	</Card>
+</ProviderIntegrationsLayout>

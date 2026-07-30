@@ -1,0 +1,63 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import { CalendarDays, ChevronRight, PlugZap } from "@lucide/astro"
+
+interface Props {
+	name: string
+	description: string
+	statusLabel: string
+	statusTone?: "neutral" | "success" | "warning" | "error" | "info"
+	scopeLabel: string
+	lastActivityLabel: string
+	actionLabel: string
+	actionHref: string
+	kind?: "channel_manager" | "external_calendars" | "other"
+}
+
+const {
+	name,
+	description,
+	statusLabel,
+	statusTone = "neutral",
+	scopeLabel,
+	lastActivityLabel,
+	actionLabel,
+	actionHref,
+	kind = "other",
+} = Astro.props
+
+const IntegrationIcon = kind === "external_calendars" ? CalendarDays : PlugZap
+---
+
+<article
+	class="grid gap-4 border-b border-slate-200 py-5 last:border-b-0 md:grid-cols-[minmax(0,1fr)_auto] md:items-center"
+	data-integration-status-row
+>
+	<div class="flex min-w-0 items-start gap-3.5">
+		<div
+			class="fastt-notice flex size-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700"
+		>
+			<IntegrationIcon class="size-5" aria-hidden="true" />
+		</div>
+		<div class="min-w-0">
+			<div class="flex flex-wrap items-center gap-2">
+				<h3 class="text-base font-semibold text-slate-950">{name}</h3>
+				<Badge variant={statusTone}>{statusLabel}</Badge>
+			</div>
+			<p class="mt-1 text-sm leading-6 text-slate-600">{description}</p>
+			<div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+				<span>{scopeLabel}</span>
+				<span>{lastActivityLabel}</span>
+			</div>
+		</div>
+	</div>
+
+	<a
+		href={actionHref}
+		class="fastt-notice fastt-button inline-flex h-9 items-center justify-center gap-2 justify-self-start rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 md:justify-self-end"
+		data-integration-row-action
+	>
+		{actionLabel}
+		<ChevronRight class="size-4" aria-hidden="true" />
+	</a>
+</article>

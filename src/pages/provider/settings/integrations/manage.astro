@@ -1,0 +1,20 @@
+---
+import { requireProvider } from "@/lib/auth/requireProvider"
+import { routes } from "@/lib/routes"
+
+const auth = await requireProvider(Astro.request).catch((error: unknown) => {
+	if (error instanceof Response && error.status === 401) return "__REDIRECT_LOGIN__"
+	if (error instanceof Response && error.status === 403) return "__REDIRECT_PROVIDER__"
+	throw error
+})
+if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
+if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerSettingsProfile())
+
+const destination = new URL(routes.providerSettingsIntegrationsConnections(), Astro.url)
+for (const key of ["success", "error", "oauth", "reason", "operation"]) {
+	const value = Astro.url.searchParams.get(key)
+	if (value) destination.searchParams.set(key, value)
+}
+
+return Astro.redirect(`${destination.pathname}${destination.search}`, 302)
+---

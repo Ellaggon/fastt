@@ -1,0 +1,292 @@
+---
+import Button from "@/components/ui/Button.astro"
+import { History, RefreshCw } from "@lucide/astro"
+
+interface Props {
+	connectionId?: string | null
+	title?: string
+	description?: string
+}
+
+const {
+	connectionId = null,
+	title = "Historial de sincronización",
+	description = "Carga las ejecuciones recientes y los procesos pendientes solo cuando necesites revisarlos.",
+} = Astro.props
+---
+
+<section
+	class="fastt-notice overflow-hidden rounded-lg border border-slate-200 bg-white text-slate-900"
+	data-integration-execution-panel
+	data-connection-id={connectionId ?? ""}
+>
+	<div class="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+		<div class="flex min-w-0 items-start gap-3">
+			<div
+				class="fastt-notice flex size-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700"
+			>
+				<History class="size-5" aria-hidden="true" />
+			</div>
+			<div>
+				<h2 class="text-lg font-semibold text-slate-950">{title}</h2>
+				<p class="mt-1 max-w-2xl text-sm leading-6 text-slate-600">{description}</p>
+			</div>
+		</div>
+		<Button type="button" variant="secondary" data-load-integration-activity>
+			<RefreshCw class="size-4" aria-hidden="true" />
+			<span data-load-label>Cargar historial</span>
+		</Button>
+	</div>
+	<div
+		class="hidden border-t border-slate-200"
+		data-integration-activity-results
+		aria-live="polite"
+	>
+	</div>
+</section>
+
+<script>
+	type ActivityRun = {
+		id: string
+		connectorKey: string
+		operation: string
+		trigger: string
+		status: string
+		readCount: number
+		changedCount: number
+		skippedCount: number
+		failedCount: number
+		errorMessage: string | null
+		startedAt: string | null
+		finishedAt: string | null
+	}
+
+	type ActivityJob = {
+		id: string
+		connectorKey: string
+		operation: string
+		status: string
+		trigger: string
+		attempts: number
+		maxAttempts: number
+		runAfter: string | null
+		updatedAt: string | null
+	}
+
+	function element<K extends keyof HTMLElementTagNameMap>(
+		tag: K,
+		className = "",
+		text = ""
+	): HTMLElementTagNameMap[K] {
+		const node = document.createElement(tag)
+		if (className) node.className = className
+		if (text) node.textContent = text
+		return node
+	}
+
+	function operationLabel(operation: string) {
+		if (operation === "connection_test") return "Prueba de conexión"
+		if (operation === "calendar_import") return "Actualización de calendario"
+		if (operation === "availability_sync") return "Disponibilidad"
+		if (operation === "rates_sync") return "Tarifas"
+		if (operation === "restrictions_sync") return "Restricciones"
+		return "Sincronización"
+	}
+
+	function connectorLabel(key: string) {
+		if (key === "channel_manager") return "Channel manager"
+		if (key === "external_calendars") return "Calendario externo"
+		return "Integración"
+	}
+
+	function triggerLabel(trigger: string) {
+		if (trigger === "scheduled") return "Automática"
+		if (trigger === "webhook") return "Evento externo"
+		if (trigger === "retry") return "Reintento"
+		return "Manual"
+	}
+
+	function statusPresentation(status: string) {
+		if (status === "succeeded")
+			return { label: "Completada", className: "border-emerald-200 bg-emerald-50 text-emerald-800" }
+		if (status === "partial")
+			return { label: "Parcial", className: "border-amber-200 bg-amber-50 text-amber-900" }
+		if (status === "failed" || status === "cancelled")
+			return { label: "Fallida", className: "border-red-200 bg-red-50 text-red-800" }
+		return { label: "En curso", className: "border-sky-200 bg-sky-50 text-sky-800" }
+	}
+
+	function formatDate(value: string | null) {
+		if (!value) return "Sin fecha"
+		return new Intl.DateTimeFormat("es", {
+			dateStyle: "medium",
+			timeStyle: "short",
+		}).format(new Date(value))
+	}
+
+	function badge(label: string, className: string) {
+		return element(
+			"span",
+			`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${className}`,
+			label
+		)
+	}
+
+	function renderJob(job: ActivityJob) {
+		const row = element(
+			"article",
+			"flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between"
+		)
+		const body = element("div")
+		body.append(
+			element("h3", "text-sm font-semibold text-slate-950", operationLabel(job.operation)),
+			element(
+				"p",
+				"mt-1 text-xs leading-5 text-slate-500",
+				`${connectorLabel(job.connectorKey)} · ${triggerLabel(job.trigger)} · intento ${job.attempts}/${job.maxAttempts}`
+			)
+		)
+		const state =
+			job.status === "running"
+				? badge("En ejecución", "border-sky-200 bg-sky-50 text-sky-800")
+				: badge("En espera", "border-slate-200 bg-slate-100 text-slate-700")
+		row.append(body, state)
+		return row
+	}
+
+	function renderRun(run: ActivityRun) {
+		const row = element(
+			"article",
+			"grid gap-3 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+		)
+		const body = element("div")
+		body.append(
+			element("h3", "text-sm font-semibold text-slate-950", operationLabel(run.operation)),
+			element(
+				"p",
+				"mt-1 text-xs leading-5 text-slate-500",
+				`${connectorLabel(run.connectorKey)} · ${triggerLabel(run.trigger)} · ${formatDate(run.startedAt)}`
+			)
+		)
+		if (run.errorMessage) {
+			body.append(element("p", "mt-2 text-sm leading-6 text-red-700", run.errorMessage))
+		}
+		const aside = element("div", "flex flex-wrap items-center gap-2 sm:justify-end")
+		aside.append(
+			element(
+				"span",
+				"text-xs text-slate-600",
+				`${run.readCount} leídos · ${run.changedCount} cambios · ${run.failedCount} fallos`
+			)
+		)
+		const status = statusPresentation(run.status)
+		aside.append(badge(status.label, status.className))
+		row.append(body, aside)
+		return row
+	}
+
+	function renderActivity(
+		target: HTMLElement,
+		data: { runs: ActivityRun[]; jobs: ActivityJob[] },
+		append = false
+	) {
+		if (!append) target.replaceChildren()
+		if (data.jobs.length) {
+			const jobs = element("section", "px-5")
+			jobs.append(element("h3", "pt-5 text-sm font-semibold text-slate-950", "Procesos pendientes"))
+			const rows = element("div", "divide-y divide-slate-200")
+			data.jobs.forEach((job) => rows.append(renderJob(job)))
+			jobs.append(rows)
+			target.append(jobs)
+		}
+		let history = target.querySelector<HTMLElement>("[data-activity-history]")
+		if (!history) {
+			history = element("section", data.jobs.length ? "border-t border-slate-200 px-5" : "px-5")
+			history.dataset.activityHistory = "true"
+			history.append(
+				element("h3", "pt-5 text-sm font-semibold text-slate-950", "Ejecuciones recientes")
+			)
+			target.append(history)
+		}
+		if (data.runs.length) {
+			let rows = history.querySelector<HTMLElement>("[data-activity-runs]")
+			if (!rows) {
+				rows = element("div", "divide-y divide-slate-200")
+				rows.dataset.activityRuns = "true"
+				history.append(rows)
+			}
+			data.runs.forEach((run) => rows.append(renderRun(run)))
+		} else if (!append) {
+			history.append(
+				element(
+					"p",
+					"py-5 text-sm leading-6 text-slate-600",
+					"La actividad aparecerá después de probar o sincronizar una conexión."
+				)
+			)
+		}
+		target.classList.remove("hidden")
+	}
+
+	function setupIntegrationExecutionPanels() {
+		document
+			.querySelectorAll<HTMLElement>("[data-integration-execution-panel]")
+			.forEach((panel) => {
+				if (panel.dataset.ready === "true") return
+				panel.dataset.ready = "true"
+				const button = panel.querySelector<HTMLButtonElement>("[data-load-integration-activity]")
+				const label = panel.querySelector<HTMLElement>("[data-load-label]")
+				const target = panel.querySelector<HTMLElement>("[data-integration-activity-results]")
+				if (!button || !label || !target) return
+				let nextPage = 1
+				button.addEventListener("click", async () => {
+					const requestedPage = nextPage
+					button.disabled = true
+					label.textContent = "Cargando…"
+					target.classList.remove("hidden")
+					if (requestedPage === 1) {
+						target.replaceChildren(
+							element("p", "p-5 text-sm text-slate-600", "Consultando actividad reciente…")
+						)
+					}
+					try {
+						const params = new URLSearchParams()
+						const connectionId = panel.dataset.connectionId?.trim()
+						if (connectionId) params.set("connectionId", connectionId)
+						params.set("page", String(requestedPage))
+						params.set("pageSize", "10")
+						const response = await fetch(
+							`/api/provider/integrations/operations/activity${params.size ? `?${params}` : ""}`,
+							{ headers: { Accept: "application/json" } }
+						)
+						const data = await response.json()
+						if (!response.ok)
+							throw new Error(String(data?.error ?? "No pudimos cargar el historial."))
+						renderActivity(target, data, requestedPage > 1)
+						if (data.pagination?.hasMore) {
+							nextPage = requestedPage + 1
+							label.textContent = "Cargar más"
+						} else {
+							nextPage = 1
+							label.textContent = "Actualizar historial"
+						}
+					} catch (error) {
+						target.replaceChildren(
+							element(
+								"p",
+								"p-5 text-sm font-medium text-red-700",
+								error instanceof Error ? error.message : "No pudimos cargar el historial."
+							)
+						)
+						nextPage = requestedPage
+						label.textContent = "Reintentar"
+					} finally {
+						button.disabled = false
+					}
+				})
+			})
+	}
+
+	setupIntegrationExecutionPanels()
+	document.addEventListener("astro:page-load", setupIntegrationExecutionPanels)
+</script>

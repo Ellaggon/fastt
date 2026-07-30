@@ -1,0 +1,144 @@
+---
+import Button from "@/components/ui/Button.astro"
+import { Activity, RefreshCw } from "@lucide/astro"
+
+interface Props {
+	connectionId: string
+}
+
+const { connectionId } = Astro.props
+---
+
+<section
+	class="fastt-notice overflow-hidden rounded-lg border border-slate-200 bg-white text-slate-900"
+	data-integration-diagnostics
+	data-connection-id={connectionId}
+>
+	<div class="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+		<div class="flex min-w-0 items-start gap-3">
+			<div
+				class="fastt-notice flex size-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700"
+			>
+				<Activity class="size-5" aria-hidden="true" />
+			</div>
+			<div>
+				<h2 class="text-lg font-semibold text-slate-950">Diagnóstico</h2>
+				<p class="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
+					Consulta autorización, relaciones e incidencias solo cuando necesites revisarlas.
+				</p>
+			</div>
+		</div>
+		<Button type="button" variant="secondary" data-load-diagnostics>
+			<RefreshCw class="size-4" aria-hidden="true" />
+			<span data-diagnostics-label>Cargar diagnóstico</span>
+		</Button>
+	</div>
+	<div class="hidden border-t border-slate-200 p-5" data-diagnostics-results aria-live="polite">
+	</div>
+</section>
+
+<script>
+	function node<K extends keyof HTMLElementTagNameMap>(
+		tag: K,
+		className = "",
+		text = ""
+	): HTMLElementTagNameMap[K] {
+		const element = document.createElement(tag)
+		element.className = className
+		element.textContent = text
+		return element
+	}
+
+	function mappingLabel(type: string) {
+		if (type === "room_type") return "habitaciones"
+		if (type === "rate_plan") return "tarifas"
+		if (type === "tax") return "impuestos"
+		return "otras"
+	}
+
+	function setupDiagnostics() {
+		document.querySelectorAll<HTMLElement>("[data-integration-diagnostics]").forEach((panel) => {
+			if (panel.dataset.ready === "true") return
+			panel.dataset.ready = "true"
+			const button = panel.querySelector<HTMLButtonElement>("[data-load-diagnostics]")
+			const label = panel.querySelector<HTMLElement>("[data-diagnostics-label]")
+			const target = panel.querySelector<HTMLElement>("[data-diagnostics-results]")
+			if (!button || !label || !target) return
+			button.addEventListener("click", async () => {
+				button.disabled = true
+				label.textContent = "Consultando…"
+				target.classList.remove("hidden")
+				target.replaceChildren(node("p", "text-sm text-slate-600", "Preparando diagnóstico…"))
+				try {
+					const params = new URLSearchParams({ connectionId: panel.dataset.connectionId ?? "" })
+					const response = await fetch(
+						`/api/provider/integrations/operations/diagnostics?${params}`,
+						{ headers: { Accept: "application/json" } }
+					)
+					const data = await response.json()
+					if (!response.ok)
+						throw new Error(String(data?.error ?? "No pudimos cargar el diagnóstico."))
+					const groups = Array.isArray(data.mappingGroups) ? data.mappingGroups : []
+					const incidents = Array.isArray(data.openIncidents) ? data.openIncidents : []
+					const totalMappings = groups.reduce(
+						(total: number, group: { count?: number }) => total + Number(group.count ?? 0),
+						0
+					)
+					const grid = node(
+						"div",
+						"grid gap-px overflow-hidden rounded-lg bg-slate-200 sm:grid-cols-3"
+					)
+					;[
+						["Autorización", data.credential?.active ? "Activa" : "Sin acceso activo"],
+						["Relaciones", String(totalMappings)],
+						["Incidencias abiertas", String(incidents.length)],
+					].forEach(([title, value]) => {
+						const cell = node("div", "bg-slate-50 p-4")
+						cell.append(
+							node("p", "text-xs font-semibold text-slate-500", title),
+							node("p", "mt-1 text-lg font-semibold text-slate-950", value)
+						)
+						grid.append(cell)
+					})
+					target.replaceChildren(grid)
+					if (groups.length) {
+						target.append(
+							node(
+								"p",
+								"mt-4 text-sm text-slate-600",
+								`Relaciones activas: ${groups.map((group: { type: string; count: number }) => `${group.count} ${mappingLabel(group.type)}`).join(", ")}.`
+							)
+						)
+					}
+					if (incidents.length) {
+						const list = node("div", "mt-4 divide-y divide-slate-200 border-t border-slate-200")
+						incidents.forEach((incident: { title: string; description: string }) => {
+							const item = node("article", "py-3")
+							item.append(
+								node("h3", "text-sm font-semibold text-slate-950", incident.title),
+								node("p", "mt-1 text-sm leading-6 text-slate-600", incident.description)
+							)
+							list.append(item)
+						})
+						target.append(list)
+					}
+					label.textContent = "Actualizar diagnóstico"
+				} catch (error) {
+					target.replaceChildren(
+						node(
+							"p",
+							"text-sm font-medium text-red-700",
+							error instanceof Error ? error.message : "No pudimos cargar el diagnóstico."
+						)
+					)
+					label.textContent = "Reintentar"
+				} finally {
+					button.disabled = false
+				}
+			})
+		})
+	}
+
+	setupDiagnostics()
+	document.addEventListener("astro:page-load", setupDiagnostics)
+</script>

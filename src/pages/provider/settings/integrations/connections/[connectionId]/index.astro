@@ -1,0 +1,327 @@
+---
+import IntegrationDiagnosticsPanel from "@/components/provider/integrations/IntegrationDiagnosticsPanel.astro"
+import IntegrationExecutionPanel from "@/components/provider/integrations/IntegrationExecutionPanel.astro"
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Input from "@/components/ui/Input.astro"
+import Notice from "@/components/ui/Notice.astro"
+import ProviderIntegrationsLayout from "@/layouts/ProviderIntegrationsLayout.astro"
+import { requireProvider } from "@/lib/auth/requireProvider"
+import { getChannelManagerVendor } from "@/lib/provider-channel-manager-vendors"
+import { mapProviderIntegrationError } from "@/lib/provider-integration-errors"
+import { getProviderIntegrationConnectionReadModel } from "@/lib/provider-integration-read-models"
+import {
+	isProviderIntegrationWorkspaceConnector,
+	listProviderConnectorCatalog,
+} from "@/lib/provider-integrations"
+import { routes } from "@/lib/routes"
+import { ArrowLeft, Link2, ShieldCheck } from "@lucide/astro"
+
+const auth = await requireProvider(Astro.request).catch((error: unknown) => {
+	if (error instanceof Response && error.status === 401) return "__REDIRECT_LOGIN__"
+	if (error instanceof Response && error.status === 403) return "__REDIRECT_PROVIDER__"
+	throw error
+})
+if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
+if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerSettingsProfile())
+
+const connectionId = String(Astro.params.connectionId ?? "")
+const connection = await getProviderIntegrationConnectionReadModel({
+	providerId: auth.providerId,
+	connectionId,
+})
+if (!connection || !isProviderIntegrationWorkspaceConnector(connection.connectorKey)) {
+	return Astro.redirect(routes.providerSettingsIntegrationsConnections(), 302)
+}
+const connector =
+	listProviderConnectorCatalog().find((item) => item.key === connection.connectorKey) ?? null
+const vendor = getChannelManagerVendor(connection.vendorKey)
+const displayName = String(connection.displayName ?? "").trim() || connector?.name || "Conexión"
+const scopes = Array.isArray(connection.scopesJson)
+	? connection.scopesJson.map(String)
+	: (connector?.defaultScopes ?? [])
+const success = Astro.url.searchParams.get("success")
+const error = Astro.url.searchParams.get("error")
+const returnTo = routes.providerSettingsIntegrationConnection(connection.id)
+
+function formatDate(value: Date | null) {
+	if (!value) return "Sin actividad"
+	return new Intl.DateTimeFormat("es", {
+		dateStyle: "medium",
+		timeStyle: "short",
+	}).format(value)
+}
+
+function statusPresentation(status: string) {
+	if (status === "connected")
+		return {
+			label: "Funcionando",
+			tone: "success" as const,
+			description: "Fastt pudo validar el acceso y la conexión está disponible.",
+		}
+	if (status === "syncing")
+		return {
+			label: "Actualizando",
+			tone: "info" as const,
+			description: "Hay una actualización en curso.",
+		}
+	if (status === "pending")
+		return {
+			label: "Falta validar",
+			tone: "info" as const,
+			description: "La configuración está guardada, pero aún falta probar el acceso.",
+		}
+	if (status === "requires_attention" || status === "error")
+		return {
+			label: "Requiere atención",
+			tone: "warning" as const,
+			description: "Revisa las incidencias abiertas antes de volver a sincronizar.",
+		}
+	if (status === "revoked")
+		return {
+			label: "Desconectada",
+			tone: "neutral" as const,
+			description: "Fastt ya no utiliza esta conexión.",
+		}
+	return {
+		label: "Por configurar",
+		tone: "neutral" as const,
+		description: "Completa la configuración para comenzar.",
+	}
+}
+
+function modeLabel(mode: string) {
+	return mode === "production" ? "Producción" : "Pruebas"
+}
+
+function permissionLabel(scope: string) {
+	if (scope === "availability:sync") return "Disponibilidad"
+	if (scope === "rates:sync") return "Tarifas"
+	if (scope === "restrictions:sync") return "Restricciones"
+	if (scope === "inventory:read") return "Consultar inventario"
+	if (scope === "rates:read") return "Consultar tarifas"
+	if (scope === "calendar:import") return "Importar bloqueos"
+	return "Acceso operativo"
+}
+
+function endpointHost(value: string | null) {
+	if (!value) return "Administrado por el proveedor"
+	try {
+		return new URL(value).hostname
+	} catch {
+		return "Endpoint configurado"
+	}
+}
+
+const status = statusPresentation(String(connection.status))
+const nextAction =
+	connection.status === "pending"
+		? {
+				title: "Valida el acceso",
+				description:
+					"Ejecuta una prueba para confirmar que Fastt puede comunicarse con el servicio.",
+				label: "Probar conexión",
+			}
+		: null
+---
+
+<ProviderIntegrationsLayout
+	title={displayName}
+	eyebrow="Integraciones · Detalle de conexión"
+	heading={displayName}
+	description={`${connector?.name ?? "Integración"}${connection.connectorKey === "channel_manager" && vendor.key !== "generic" ? ` · ${vendor.name}` : ""}`}
+>
+	<div slot="actions" class="flex flex-wrap gap-2">
+		<Button href={routes.providerSettingsIntegrationsConnections()} variant="onDark" size="sm">
+			<ArrowLeft class="size-4" aria-hidden="true" />
+			Conexiones
+		</Button>
+		{
+			connection.status !== "revoked" ? (
+				<form method="post" action={`/api/provider/integrations/${connection.connectorKey}/sync`}>
+					<input type="hidden" name="uiMode" value="simple" />
+					<input type="hidden" name="connectionId" value={connection.id} />
+					<input type="hidden" name="returnTo" value={returnTo} />
+					<Button type="submit" variant="onDark" size="sm">
+						Probar conexión
+					</Button>
+				</form>
+			) : null
+		}
+	</div>
+
+	{
+		success === "sync_tested" ? (
+			<Notice variant="success" title="Conexión validada">
+				Fastt pudo comunicarse con el servicio correctamente.
+			</Notice>
+		) : success === "reference_checked" ? (
+			<Notice variant="info" title="Referencia comprobada">
+				La referencia es válida, pero el proveedor todavía no confirmó una prueba completa.
+			</Notice>
+		) : null
+	}
+	{
+		error ? (
+			<Notice variant="warning" title="No pudimos validar la conexión">
+				{mapProviderIntegrationError(error)}
+			</Notice>
+		) : null
+	}
+
+	<section
+		class="fastt-notice grid gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 text-slate-900 sm:grid-cols-3"
+		aria-label="Salud de la conexión"
+		data-integration-connection-health
+	>
+		<div class="bg-white p-4">
+			<p class="text-xs font-semibold text-slate-500">Estado</p>
+			<div class="mt-2"><Badge variant={status.tone}>{status.label}</Badge></div>
+		</div>
+		<div class="bg-white p-4">
+			<p class="text-xs font-semibold text-slate-500">Relaciones activas</p>
+			<p class="mt-1 text-sm font-semibold text-slate-700">Bajo demanda</p>
+		</div>
+		<div class="bg-white p-4">
+			<p class="text-xs font-semibold text-slate-500">Incidencias abiertas</p>
+			<p class="mt-1 text-sm font-semibold text-slate-700">Bajo demanda</p>
+		</div>
+	</section>
+
+	{
+		nextAction ? (
+			<section class="fastt-notice rounded-lg border border-sky-200 bg-sky-50 p-5 text-slate-900">
+				<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+					<div>
+						<p class="text-xs font-semibold tracking-wide text-sky-800 uppercase">Siguiente paso</p>
+						<h2 class="mt-1 text-lg font-semibold text-slate-950">{nextAction.title}</h2>
+						<p class="mt-1 max-w-2xl text-sm leading-6 text-slate-600">{nextAction.description}</p>
+					</div>
+					<form method="post" action={`/api/provider/integrations/${connection.connectorKey}/sync`}>
+						<input type="hidden" name="uiMode" value="simple" />
+						<input type="hidden" name="connectionId" value={connection.id} />
+						<input type="hidden" name="returnTo" value={returnTo} />
+						<Button type="submit">{nextAction.label}</Button>
+					</form>
+				</div>
+			</section>
+		) : null
+	}
+
+	<div class="grid gap-5">
+		<Card>
+			<div class="flex items-start gap-3 border-b border-slate-200 pb-4">
+				<div
+					class="fastt-notice flex size-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700"
+				>
+					<ShieldCheck class="size-5" aria-hidden="true" />
+				</div>
+				<div>
+					<h2 class="text-lg font-semibold text-slate-950">Estado y alcance</h2>
+					<p class="mt-1 text-sm leading-6 text-slate-600">{status.description}</p>
+				</div>
+			</div>
+			<dl class="divide-y divide-slate-200">
+				<div class="grid gap-1 py-3 sm:grid-cols-[10rem_1fr]">
+					<dt class="text-sm font-medium text-slate-500">Entorno</dt>
+					<dd class="text-sm font-semibold text-slate-950">{modeLabel(String(connection.mode))}</dd>
+				</div>
+				<div class="grid gap-1 py-3 sm:grid-cols-[10rem_1fr]">
+					<dt class="text-sm font-medium text-slate-500">Origen</dt>
+					<dd class="text-sm font-semibold text-slate-950">
+						{connection.connectorKey === "channel_manager" ? vendor.name : connector?.name}
+					</dd>
+				</div>
+				<div class="grid gap-1 py-3 sm:grid-cols-[10rem_1fr]">
+					<dt class="text-sm font-medium text-slate-500">Propiedad externa</dt>
+					<dd class="text-sm font-semibold text-slate-950">
+						{connection.externalPropertyId ?? "Sin seleccionar"}
+					</dd>
+				</div>
+				<div class="grid gap-1 py-3 sm:grid-cols-[10rem_1fr]">
+					<dt class="text-sm font-medium text-slate-500">Servicio remoto</dt>
+					<dd class="text-sm font-semibold text-slate-950">
+						{endpointHost(connection.endpointUrl)}
+					</dd>
+				</div>
+				<div class="grid gap-1 py-3 sm:grid-cols-[10rem_1fr]">
+					<dt class="text-sm font-medium text-slate-500">Última respuesta</dt>
+					<dd class="text-sm font-semibold text-slate-950">{formatDate(connection.lastSyncAt)}</dd>
+				</div>
+			</dl>
+			<div class="border-t border-slate-200 pt-4">
+				<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+					<div>
+						<p class="text-sm font-semibold text-slate-950">Permisos concedidos</p>
+						<div class="mt-2 flex flex-wrap gap-2">
+							{
+								scopes.length ? (
+									scopes.map((scope) => <Badge variant="neutral">{permissionLabel(scope)}</Badge>)
+								) : (
+									<span class="text-sm text-slate-600">Sin permisos declarados.</span>
+								)
+							}
+						</div>
+					</div>
+					{
+						connection.connectorKey === "channel_manager" ? (
+							<Button
+								href={routes.providerSettingsIntegrationMapping(connection.id)}
+								size="sm"
+								variant="secondary"
+							>
+								<Link2 class="size-4" aria-hidden="true" />
+								Abrir mapeo
+							</Button>
+						) : null
+					}
+				</div>
+			</div>
+		</Card>
+	</div>
+
+	<IntegrationDiagnosticsPanel connectionId={connection.id} />
+
+	<IntegrationExecutionPanel
+		connectionId={connection.id}
+		description="Las ejecuciones y los procesos en cola no se consultan hasta que abras este historial."
+	/>
+
+	{
+		connection.status !== "revoked" ? (
+			<Card data-disconnect-confirmation>
+				<details>
+					<summary class="cursor-pointer text-sm font-semibold text-slate-700">
+						Administrar acceso
+					</summary>
+					<div class="mt-4 border-t border-slate-200 pt-4">
+						<h2 class="text-base font-semibold text-slate-950">Desconectar servicio</h2>
+						<p class="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
+							Fastt dejará de sincronizar esta conexión. El historial permanecerá disponible para
+							auditoría.
+						</p>
+						<form
+							method="post"
+							action={`/api/provider/integrations/${connection.connectorKey}/revoke`}
+							class="mt-4 grid max-w-md gap-3"
+						>
+							<input type="hidden" name="uiMode" value="simple" />
+							<input type="hidden" name="connectionId" value={connection.id} />
+							<input type="hidden" name="returnTo" value={routes.providerSettingsIntegrations()} />
+							<label for="confirm-disconnect" class="text-sm font-medium text-slate-700">
+								Escribe DESCONECTAR para confirmar
+							</label>
+							<Input id="confirm-disconnect" name="confirmDisconnect" autocomplete="off" required />
+							<div>
+								<Button type="submit" variant="danger">
+									Desconectar
+								</Button>
+							</div>
+						</form>
+					</div>
+				</details>
+			</Card>
+		) : null
+	}
+</ProviderIntegrationsLayout>

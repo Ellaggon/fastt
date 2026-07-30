@@ -1,383 +1,181 @@
 ---
+import IntegrationEmptyState from "@/components/provider/integrations/IntegrationEmptyState.astro"
+import IntegrationNextAction from "@/components/provider/integrations/IntegrationNextAction.astro"
+import IntegrationStatusRow from "@/components/provider/integrations/IntegrationStatusRow.astro"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
-import Input from "@/components/ui/Input.astro"
 import Notice from "@/components/ui/Notice.astro"
-import Select from "@/components/ui/Select.astro"
-import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
+import ProviderIntegrationsLayout from "@/layouts/ProviderIntegrationsLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
-import { listChannelManagerVendors } from "@/lib/provider-channel-manager-vendors"
-import { getConnectorOAuthStatus } from "@/lib/provider-connector-oauth"
-import {
-	listProviderExternalCalendars,
-	mapExternalCalendarError,
-} from "@/lib/provider-external-calendars"
-import {
-	mapProviderIntegrationError,
-	mapProviderIntegrationLogMessage,
-} from "@/lib/provider-integration-errors"
-import {
-	listProviderIntegrationMappingCatalog,
-	listProviderIntegrationOperations,
-} from "@/lib/provider-integration-operations"
-import {
-	integrationActivityEventLabel,
-	integrationRunOperationLabel,
-	isRecommendedProviderConnector,
-	listProviderIntegrations,
-	type ProviderIntegrationCard,
-} from "@/lib/provider-integrations"
+import { getChannelManagerVendor } from "@/lib/provider-channel-manager-vendors"
+import { mapProviderIntegrationError } from "@/lib/provider-integration-errors"
+import { getProviderIntegrationsSummaryReadModel } from "@/lib/provider-integration-read-models"
 import { routes } from "@/lib/routes"
-import { CalendarDays, Plus, RefreshCw, Trash2, TriangleAlert } from "@lucide/astro"
 
-const auth = await requireProvider(Astro.request).catch((e: any) => {
-	if (e instanceof Response && e.status === 401) return "__REDIRECT_LOGIN__"
-	if (e instanceof Response && e.status === 403) return "__REDIRECT_PROVIDER__"
-	throw e
+const legacyMode = Astro.url.searchParams.get("mode")
+if (legacyMode === "simple" || legacyMode === "pro") {
+	const destination = new URL(
+		legacyMode === "pro"
+			? routes.providerSettingsIntegrationsCatalog()
+			: routes.providerSettingsIntegrations(),
+		Astro.url
+	)
+	Astro.url.searchParams.forEach((value: string, key: string) => {
+		if (key !== "mode") destination.searchParams.set(key, value)
+	})
+	return Astro.redirect(`${destination.pathname}${destination.search}${destination.hash}`, 302)
+}
+
+const auth = await requireProvider(Astro.request).catch((error: any) => {
+	if (error instanceof Response && error.status === 401) return "__REDIRECT_LOGIN__"
+	if (error instanceof Response && error.status === 403) return "__REDIRECT_PROVIDER__"
+	throw error
 })
 if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
 if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerSettingsProfile())
 
-const url = new URL(Astro.request.url)
-const success = url.searchParams.get("success")
-const error = url.searchParams.get("error")
-const oauth = url.searchParams.get("oauth")
-const oauthReason = url.searchParams.get("reason")
-const icalResult = url.searchParams.get("ical")
-const icalReason = url.searchParams.get("reason")
-const icalExportUrl = url.searchParams.get("exportUrl")
-const operationResult = url.searchParams.get("operation")
-const uiMode = url.searchParams.get("mode") === "pro" ? "pro" : "simple"
-const isSimple = uiMode === "simple"
-const modeQuery = isSimple ? "simple" : "pro"
-const oauthStatus = getConnectorOAuthStatus()
-const oauthConnectAvailable =
-	oauthStatus.mode === "oauth_scaffold" || oauthStatus.mode === "oauth_live"
-const channelManagerVendors = listChannelManagerVendors()
-
-const connectors = await listProviderIntegrations({
-	providerId: auth.providerId,
-	currentUserId: auth.user.id,
-})
-
-const recommended = connectors.filter((connector) => isRecommendedProviderConnector(connector.key))
-const others = connectors.filter((connector) => !isRecommendedProviderConnector(connector.key))
-const visibleConnectors = isSimple ? recommended : connectors
-const displayConnectors = visibleConnectors.filter(
-	(connector) => connector.key !== "external_calendars"
+const readModel = await getProviderIntegrationsSummaryReadModel(auth.providerId)
+const channelConnections = readModel.connections.filter(
+	(connection) =>
+		connection.connectorKey === "channel_manager" &&
+		connection.status !== "not_configured" &&
+		connection.status !== "revoked"
 )
-const externalCalendarData = isSimple
-	? { calendars: [], variants: [], exports: [] }
-	: await listProviderExternalCalendars(auth.providerId)
-const integrationOperations = isSimple
-	? { connections: [], mappings: [], runs: [], jobs: [], incidents: [] }
-	: await listProviderIntegrationOperations(auth.providerId)
-const mappingCatalog = isSimple
-	? { products: [], variants: [], ratePlans: [], taxes: [] }
-	: await listProviderIntegrationMappingCatalog(auth.providerId)
-const openIntegrationIncidents = integrationOperations.incidents.filter(
-	(incident) => incident.status === "open"
-)
-const recentIntegrationRuns = integrationOperations.runs.slice(0, 6)
-const recentIntegrationJobs = integrationOperations.jobs.slice(0, 6)
-
-const configuredConnectors = connectors.filter((connector) =>
-	Boolean((connector.endpointUrl || connector.hasCredential) && connector.status !== "revoked")
-)
-const validatedConnectors = connectors.filter((connector) => connector.status === "connected")
-const attentionConnectors = connectors.filter((connector) =>
+const primaryChannel =
+	channelConnections.find((connection) => connection.isPrimary) ?? channelConnections[0] ?? null
+const calendarStatus = readModel.calendars.some((calendar) => calendar.status === "error")
+	? "error"
+	: readModel.calendars.some((calendar) => calendar.status === "pending")
+		? "pending"
+		: "connected"
+const configuredConnectors = [
+	...(primaryChannel
+		? [
+				{
+					key: "channel_manager" as const,
+					name: "Channel manager",
+					status: String(primaryChannel.status),
+					lastSyncAt: primaryChannel.lastSyncAt,
+					errorMessage: primaryChannel.errorMessage,
+					connectionId: primaryChannel.id,
+					description:
+						primaryChannel.vendorKey && primaryChannel.vendorKey !== "generic"
+							? `${getChannelManagerVendor(primaryChannel.vendorKey).name}${primaryChannel.externalPropertyId ? ` · Propiedad ${primaryChannel.externalPropertyId}` : ""}`
+							: "Sincroniza disponibilidad, tarifas y restricciones.",
+				},
+			]
+		: []),
+	...(readModel.calendars.length
+		? [
+				{
+					key: "external_calendars" as const,
+					name: "Calendarios externos",
+					status: calendarStatus,
+					lastSyncAt:
+						readModel.calendars
+							.map((calendar) => calendar.lastSyncAt)
+							.filter((value): value is Date => value instanceof Date)
+							.sort((a, b) => b.getTime() - a.getTime())[0] ?? null,
+					errorMessage: null,
+					connectionId: null,
+					description: `${readModel.calendars.length} ${readModel.calendars.length === 1 ? "calendario activo" : "calendarios activos"}.`,
+				},
+			]
+		: []),
+]
+const attentionConnectors = configuredConnectors.filter((connector) =>
 	["pending", "requires_attention", "error"].includes(connector.status)
 )
-const lastValidatedAt = validatedConnectors
-	.map((connector) => connector.lastSyncAt)
-	.filter(Boolean)
-	.sort((a, b) => Number(b) - Number(a))[0]
-const featuredConnector = recommended[0]
-const integrationSummaryText = isSimple
-	? featuredConnector
-		? `${featuredConnector.name}: ${featuredConnector.statusLabel.toLowerCase()}.`
-		: "No hay conectores recomendados para configurar."
-	: configuredConnectors.length
-		? `${configuredConnectors.length} conector${configuredConnectors.length === 1 ? "" : "es"} con referencia guardada.`
-		: "Aún no hay conectores con referencia guardada."
-const integrationSummaryDetail = validatedConnectors.length
-	? `${validatedConnectors.length} validado${validatedConnectors.length === 1 ? "" : "s"} por prueba real. Última validación: ${formatDate(lastValidatedAt ?? null)}.`
-	: "Ningún conector está validado por una prueba real todavía."
+const healthyConnectors = configuredConnectors.filter(
+	(connector) => connector.status === "connected"
+)
+const nextConnector = attentionConnectors[0] ?? configuredConnectors[0] ?? null
+
+const success = Astro.url.searchParams.get("success")
+const error = Astro.url.searchParams.get("error")
 
 const successMessages: Record<string, string> = {
-	integration_saved:
-		"Referencia guardada. Ejecuta “Probar conexión” para validarla antes de usarla.",
-	integration_revoked: "Acceso revocado. El conector ya no puede sincronizar.",
-	sync_tested: "Prueba de conexión correcta. El conector quedó validado.",
-	reference_checked:
-		"Referencia válida. Falta una prueba real del proveedor antes de tratarla como conexión activa.",
+	integration_saved: "La conexión quedó guardada. Ahora valida el acceso antes de activarla.",
+	integration_revoked: "La integración fue desconectada.",
+	sync_tested: "La prueba terminó correctamente.",
+	reference_checked: "La referencia es válida. Todavía falta validar al proveedor.",
 }
 
-const oauthMessages: Record<
-	string,
-	{ variant: "success" | "info" | "warning"; title: string; body: string }
-> = {
-	connected: {
-		variant: "success",
-		title: "OAuth completado",
-		body: "Autorización guardada. Ejecuta “Probar conexión” para validar el conector.",
-	},
-	scaffold: {
-		variant: "info",
-		title: "OAuth en modo preparación",
-		body: "El callback respondió, pero el exchange de tokens aún no está activo en este entorno (falta LIVE + TOKEN_URL).",
-	},
-	denied: {
-		variant: "warning",
-		title: "Autorización cancelada",
-		body: oauthReason
-			? `El proveedor rechazó o canceló el acceso (${oauthReason}).`
-			: "El proveedor rechazó o canceló el acceso.",
-	},
-	not_configured: {
-		variant: "warning",
-		title: "OAuth no configurado",
-		body: "Este entorno no tiene OAuth listo. Usa el enlace o referencia manual.",
-	},
-	missing_code: {
-		variant: "warning",
-		title: "Respuesta OAuth incompleta",
-		body: "Faltó el código de autorización. Vuelve a intentar “Conectar con OAuth”.",
-	},
-	invalid_state: {
-		variant: "warning",
-		title: "Sesión OAuth inválida",
-		body: "El state expiró o no es válido. Vuelve a iniciar “Conectar con OAuth”.",
-	},
-	actor_mismatch: {
-		variant: "warning",
-		title: "Sesión distinta",
-		body: "La autorización no coincide con el usuario actual. Inicia sesión de nuevo.",
-	},
-	token_failed: {
-		variant: "warning",
-		title: "No se pudo canjear el token",
-		body: oauthReason
-			? `El exchange OAuth falló (${oauthReason}).`
-			: "El exchange OAuth falló. Revisa la configuración del vendor.",
-	},
-	persist_failed: {
-		variant: "warning",
-		title: "No se pudo guardar la conexión",
-		body: "La autorización llegó, pero no pudimos persistir el conector. Inténtalo de nuevo.",
-	},
-	permission_denied: {
-		variant: "warning",
-		title: "Sin permiso para integrar",
-		body: "Tu rol no tiene permiso para administrar integraciones de este proveedor.",
-	},
+function connectorAnchor(connector: (typeof configuredConnectors)[number]) {
+	if (connector.key === "external_calendars") return routes.ratesCalendarConnections()
+	if (connector.connectionId) {
+		return routes.providerSettingsIntegrationConnection(connector.connectionId)
+	}
+	return `${routes.providerSettingsIntegrationsCatalog()}#connector-${connector.key}`
 }
 
-function formatDate(value: Date | null) {
-	if (!value) return "Sin actividad"
-	return new Intl.DateTimeFormat("es", {
+function statusLabel(status: string) {
+	if (status === "connected") return "Funcionando"
+	if (status === "pending") return "Falta validar"
+	if (status === "syncing") return "Actualizando"
+	if (status === "requires_attention" || status === "error") return "Requiere atención"
+	return "Por configurar"
+}
+
+function statusTone(status: string) {
+	if (status === "connected") return "success"
+	if (status === "pending" || status === "syncing") return "info"
+	if (status === "requires_attention") return "warning"
+	if (status === "error") return "error"
+	return "neutral"
+}
+
+function scopeLabel(key: string) {
+	if (key === "channel_manager") return "Disponibilidad, tarifas y restricciones"
+	return "Bloqueos de calendario"
+}
+
+function connectorDescription(connector: (typeof configuredConnectors)[number]) {
+	return connector.description
+}
+
+function formatActivity(value: Date | null) {
+	if (!value) return "Sin pruebas todavía"
+	return `Última actividad: ${new Intl.DateTimeFormat("es", {
 		dateStyle: "medium",
 		timeStyle: "short",
-	}).format(value)
+	}).format(value)}`
 }
 
-function canTest(connector: ProviderIntegrationCard) {
-	return (
-		Boolean(connector.endpointUrl || connector.hasCredential) &&
-		connector.status !== "revoked" &&
-		connector.status !== "syncing"
-	)
+function actionLabel(status: string) {
+	if (status === "connected") return "Administrar"
+	if (status === "requires_attention" || status === "error") return "Revisar conexión"
+	return "Continuar configuración"
 }
 
-function canRevoke(connector: ProviderIntegrationCard) {
-	return Boolean(connector.endpointUrl || connector.hasCredential) && connector.status !== "revoked"
-}
-
-function externalCalendarStatusLabel(status: string) {
-	if (status === "active") return "Actualizado"
-	if (status === "error") return "Requiere atención"
-	if (status === "revoked") return "Desconectado"
-	return "Pendiente"
-}
-
-function externalCalendarStatusTone(status: string) {
-	if (status === "active") return "success"
-	if (status === "error") return "error"
-	if (status === "revoked") return "warning"
-	return "info"
-}
-
-const activeExternalCalendars = externalCalendarData.calendars.filter(
-	(calendar) => calendar.status !== "revoked"
-)
-const externalConflictCount = activeExternalCalendars.reduce(
-	(total, calendar) => total + calendar.conflicts.length,
-	0
-)
-const activeExternalCalendarsLabel = `${activeExternalCalendars.length} ${
-	activeExternalCalendars.length === 1 ? "activo" : "activos"
-}`
-const externalConflictLabel = `${externalConflictCount} ${
-	externalConflictCount === 1 ? "alerta abierta" : "alertas abiertas"
-}`
-
-function authTypeLabel(authType: string) {
-	if (authType === "api_key") return "API key"
-	if (authType === "oauth2") return "OAuth 2.0"
-	return "Referencia"
-}
-
-function runStatusLabel(status: string) {
-	if (status === "succeeded") return "Completada"
-	if (status === "partial") return "Parcial"
-	if (status === "failed") return "Fallida"
-	if (status === "cancelled") return "Cancelada"
-	return "En curso"
-}
-
-function runStatusTone(status: string) {
-	if (status === "succeeded") return "success"
-	if (status === "failed") return "error"
-	if (status === "partial") return "warning"
-	return "info"
-}
-
-function jobStatusLabel(status: string) {
-	if (status === "succeeded") return "Completado"
-	if (status === "failed") return "Fallido"
-	if (status === "running") return "En ejecución"
-	return "En cola"
-}
-
-function incidentTone(severity: string) {
-	if (severity === "critical" || severity === "error") return "error"
-	if (severity === "warning") return "warning"
-	return "info"
-}
-
-function incidentNotificationLabel(status: string) {
-	if (status === "sent") return "Aviso enviado"
-	if (status === "partial") return "Aviso parcial"
-	if (status === "failed") return "Aviso falló"
-	if (status === "not_configured") return "Aviso no configurado"
-	if (status === "skipped") return "Aviso omitido"
-	return "Aviso pendiente"
-}
-
-function incidentNotificationTone(status: string) {
-	if (status === "sent") return "success"
-	if (status === "partial") return "warning"
-	if (status === "failed") return "error"
-	if (status === "not_configured" || status === "skipped") return "neutral"
-	return "info"
-}
-
-function mappingPresetForConnector(connectorKey: string) {
-	if (connectorKey === "channel_manager") {
-		return {
-			mappingType: "room_type",
-			localEntityType: "variant",
-			externalEntityType: "room_type",
-			direction: "bidirectional",
-			title: "Mapear habitación",
-			helper:
-				"Relaciona una habitación/tipo de cuarto de Fastt con el ID que usa el channel manager.",
+const nextAction = nextConnector
+	? {
+			title:
+				nextConnector.status === "connected"
+					? `${nextConnector.name} está funcionando`
+					: `${nextConnector.name} necesita un paso más`,
+			description:
+				nextConnector.status === "connected"
+					? "Puedes revisar qué sincroniza, cuándo se actualizó y administrar la conexión."
+					: nextConnector.errorMessage
+						? mapProviderIntegrationError(nextConnector.errorMessage)
+						: "Completa la validación para confirmar que Fastt puede comunicarse con el servicio.",
+			actionLabel: actionLabel(nextConnector.status),
+			actionHref: connectorAnchor(nextConnector),
+			tone: nextConnector.status === "connected" ? ("success" as const) : ("attention" as const),
 		}
-	}
-	if (connectorKey === "accounting_export") {
-		return {
-			mappingType: "tax",
-			localEntityType: "tax",
-			externalEntityType: "tax",
-			direction: "export",
-			title: "Mapear impuesto",
-			helper: "Relaciona un impuesto de Fastt con su cuenta, código o concepto contable externo.",
-		}
-	}
-	if (connectorKey === "webhooks_api") {
-		return {
-			mappingType: "property",
-			localEntityType: "product",
-			externalEntityType: "property",
-			direction: "bidirectional",
-			title: "Mapear propiedad",
-			helper: "Relaciona un producto de Fastt con la entidad principal del sistema externo.",
-		}
-	}
-	return {
-		mappingType: "property",
-		localEntityType: "product",
-		externalEntityType: "property",
-		direction: "bidirectional",
-		title: "Mapear entidad",
-		helper: "Relaciona una entidad local de Fastt con su ID externo.",
-	}
-}
-
-function mappingOptionsForEntity(entityType: string) {
-	if (entityType === "variant") return mappingCatalog.variants
-	if (entityType === "rate_plan") return mappingCatalog.ratePlans
-	if (entityType === "tax") return mappingCatalog.taxes
-	return mappingCatalog.products
-}
-
-function mappingTypeLabel(mappingType: string) {
-	if (mappingType === "room_type") return "Habitación"
-	if (mappingType === "rate_plan") return "Plan tarifario"
-	if (mappingType === "tax") return "Impuesto"
-	if (mappingType === "account") return "Cuenta"
-	if (mappingType === "calendar") return "Calendario"
-	return "Propiedad"
-}
-
-function directionLabel(direction: string) {
-	if (direction === "import") return "Importa"
-	if (direction === "export") return "Exporta"
-	return "Bidireccional"
-}
-
-function conflictStatusLabel(status: string) {
-	if (status === "accepted") return "Aceptado"
-	if (status === "ignored") return "Ignorado"
-	if (status === "resolved") return "Resuelto"
-	return "Abierto"
-}
-
-function conflictStatusTone(status: string) {
-	if (status === "accepted") return "success"
-	if (status === "ignored") return "neutral"
-	if (status === "resolved") return "success"
-	return "warning"
-}
+	: null
 ---
 
-<ProviderSettingsLayout
+<ProviderIntegrationsLayout
 	title="Integraciones"
-	eyebrow="Configuración del proveedor · Conectividad"
+	eyebrow="Distribución · Integraciones"
 	heading="Integraciones"
-	description={isSimple
-		? "Empieza por el conector recomendado. Guarda la referencia y prueba la conexión antes de usarla."
-		: "Catálogo completo: modos, permisos y actividad. Guarda la conexión y pruébala antes de producción."}
+	description="Conecta calendarios o un channel manager para mantener disponibilidad y tarifas actualizadas."
 >
-	<div slot="actions" class="flex flex-wrap gap-2">
-		<Button
-			href={`${routes.providerSettingsIntegrations()}?mode=simple`}
-			variant={isSimple ? "primary" : "secondary"}
-			size="sm"
-		>
-			Simple
-		</Button>
-		<Button
-			href={`${routes.providerSettingsIntegrations()}?mode=pro`}
-			variant={!isSimple ? "primary" : "secondary"}
-			size="sm"
-		>
-			Pro
-		</Button>
-		<Button href={routes.providerSettingsVerification()} variant="secondary" size="sm">
-			Verificación
-		</Button>
+	<div slot="actions">
+		<Button href={routes.providerSettingsIntegrationsCatalog()}>Conectar servicio</Button>
 	</div>
 
 	{
@@ -388,1347 +186,75 @@ function conflictStatusTone(status: string) {
 		) : null
 	}
 	{
-		oauth && oauthMessages[oauth] ? (
-			<Notice
-				variant={oauthMessages[oauth].variant}
-				title={oauthMessages[oauth].title}
-				data-oauth-flash={oauth}
-			>
-				{oauthMessages[oauth].body}
-			</Notice>
-		) : null
-	}
-	{
 		error ? (
 			<Notice variant="warning" title="No se pudo completar la acción">
 				{mapProviderIntegrationError(error)}
 			</Notice>
 		) : null
 	}
-	{
-		icalResult === "added" ? (
-			<Notice variant="success" title="Calendario agregado">
-				El feed se importó y sus bloqueos ya forman parte de la disponibilidad.
-			</Notice>
-		) : icalResult === "queued" ? (
-			<Notice variant="info" title="Actualización encolada">
-				El trabajo quedó en cola. Fastt lo procesará con reintentos si el origen tarda o falla.
-			</Notice>
-		) : icalResult === "synced" ? (
-			<Notice variant="success" title="Calendarios actualizados">
-				Se actualizaron {url.searchParams.get("updated") ?? "1"} calendario(s).
-			</Notice>
-		) : icalResult === "partial" ? (
-			<Notice variant="warning" title="Actualización parcial">
-				Se actualizaron {url.searchParams.get("updated") ?? "0"} y fallaron{" "}
-				{url.searchParams.get("failed") ?? "0"}. Revisa cada calendario.
-			</Notice>
-		) : icalResult === "revoked" ? (
-			<Notice variant="success" title="Calendario desconectado">
-				Sus bloqueos dejaron de afectar la disponibilidad.
-			</Notice>
-		) : icalResult === "conflict_updated" ? (
-			<Notice variant="success" title="Alerta actualizada">
-				Se guardó tu decisión sobre la alerta. Esto no cambia la disponibilidad: los bloqueos del
-				calendario externo ya se aplicaron al sincronizar. Si el choque vuelve a detectarse, la
-				alerta puede abrirse de nuevo.
-			</Notice>
-		) : icalResult === "export_created" ? (
-			<Notice variant="success" title="Enlace de exportación creado">
-				Guarda este enlace en el canal externo. Por seguridad, Fastt solo lo muestra completo al
-				crearlo.
-				{icalExportUrl ? (
-					<div class="fastt-notice mt-3 rounded-md border border-emerald-200 bg-white p-3 font-mono text-xs break-all text-slate-800">
-						{icalExportUrl}
-					</div>
-				) : null}
-			</Notice>
-		) : icalResult === "export_revoked" ? (
-			<Notice variant="success" title="Exportación revocada">
-				El enlace dejó de entregar calendarios.
-			</Notice>
-		) : icalResult === "error" ? (
-			<Notice variant="warning" title="No se pudo actualizar el calendario">
-				{mapExternalCalendarError(icalReason)}
-			</Notice>
-		) : null
-	}
-	{
-		operationResult === "mapping_saved" ? (
-			<Notice variant="success" title="Mapeo guardado">
-				La relación quedó disponible para las próximas sincronizaciones.
-			</Notice>
-		) : operationResult === "mapping_removed" ? (
-			<Notice variant="success" title="Mapeo eliminado">
-				La entidad externa dejó de estar vinculada.
-			</Notice>
-		) : operationResult === "incident_resolved" ? (
-			<Notice variant="success" title="Incidencia resuelta">
-				La incidencia quedó cerrada. Volverá a abrirse si el problema reaparece.
-			</Notice>
-		) : operationResult === "primary_changed" ? (
-			<Notice variant="success" title="Conexión principal actualizada">
-				Las acciones generales usarán esta conexión por defecto.
-			</Notice>
-		) : operationResult === "error" ? (
-			<Notice variant="warning" title="No se pudo completar la acción">
-				{mapProviderIntegrationError(url.searchParams.get("reason"))}
-			</Notice>
-		) : null
-	}
 
-	{
-		oauthConnectAvailable ? (
-			<p class="text-xs text-slate-500" data-connector-oauth-status={oauthStatus.mode}>
-				{oauthStatus.hostLabel}
-			</p>
-		) : null
-	}
-	<Notice variant="info" title="Seguridad de acceso" data-integration-security-vault>
-		Las credenciales OAuth se guardan cifradas, con expiración y renovación controlada. Al
-		desconectar una integración, Fastt exige confirmación y deja auditoría del cambio.
-	</Notice>
+	{nextAction ? <IntegrationNextAction {...nextAction} /> : null}
 
-	<Card variant="soft" class="bg-white" data-integrations-honest-summary>
-		<div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+	<Card>
+		<div
+			class="flex flex-col gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:items-end sm:justify-between"
+		>
 			<div>
 				<p class="text-xs font-semibold tracking-[0.12em] text-slate-500 uppercase">
-					Estado de conexión
+					Estado actual
 				</p>
-				<p class="mt-2 text-lg font-semibold text-slate-950">{integrationSummaryText}</p>
-				<p class="mt-1 text-sm leading-6 text-slate-600">{integrationSummaryDetail}</p>
+				<h2 class="mt-1.5 text-xl font-semibold text-slate-950">Tus conexiones</h2>
+				<p class="mt-1 text-sm leading-6 text-slate-600">
+					Revisa qué está funcionando y dónde necesitas actuar.
+				</p>
 			</div>
 			{
-				attentionConnectors.length ? (
-					<Badge variant="warning">{attentionConnectors.length} por revisar</Badge>
-				) : (
-					<Badge variant={validatedConnectors.length ? "success" : "neutral"}>
-						{validatedConnectors.length ? "Con prueba válida" : "Sin prueba"}
-					</Badge>
-				)
+				configuredConnectors.length ? (
+					<div class="flex flex-wrap gap-2">
+						<Badge variant={healthyConnectors.length ? "success" : "neutral"}>
+							{healthyConnectors.length} funcionando
+						</Badge>
+						{attentionConnectors.length ? (
+							<Badge variant="warning">{attentionConnectors.length} por revisar</Badge>
+						) : null}
+					</div>
+				) : null
 			}
 		</div>
+
+		{
+			configuredConnectors.length ? (
+				<div data-integration-status-list>
+					{configuredConnectors.map((connector) => (
+						<IntegrationStatusRow
+							name={connector.name}
+							description={connectorDescription(connector)}
+							statusLabel={statusLabel(connector.status)}
+							statusTone={statusTone(connector.status)}
+							scopeLabel={scopeLabel(connector.key)}
+							lastActivityLabel={formatActivity(connector.lastSyncAt)}
+							actionLabel={actionLabel(connector.status)}
+							actionHref={connectorAnchor(connector)}
+							kind={
+								connector.key === "external_calendars"
+									? "external_calendars"
+									: connector.key === "channel_manager"
+										? "channel_manager"
+										: "other"
+							}
+						/>
+					))}
+				</div>
+			) : (
+				<div class="pt-5">
+					<IntegrationEmptyState catalogHref={routes.providerSettingsIntegrationsCatalog()} />
+				</div>
+			)
+		}
 	</Card>
 
-	{
-		!isSimple ? (
-			<Card data-integration-operations>
-				<div class="flex flex-col gap-5">
-					<div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-						<div>
-							<p class="text-xs font-semibold tracking-[0.12em] text-slate-500 uppercase">
-								Operación
-							</p>
-							<h2 class="mt-2 text-xl font-semibold text-slate-950">
-								Sincronizaciones e incidencias
-							</h2>
-							<p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-								Cada ejecución conserva su resultado. Los problemas repetidos se agrupan en una sola
-								incidencia hasta que se resuelven.
-							</p>
-						</div>
-						<div class="flex flex-wrap gap-2">
-							<Badge variant={openIntegrationIncidents.length ? "warning" : "success"}>
-								{openIntegrationIncidents.length} abiertas
-							</Badge>
-							<Badge variant="neutral">{integrationOperations.mappings.length} mapeos</Badge>
-							<Badge variant="neutral">{integrationOperations.connections.length} conexiones</Badge>
-						</div>
-					</div>
-
-					{openIntegrationIncidents.length ? (
-						<div class="divide-y divide-slate-200 border-y border-slate-200">
-							{openIntegrationIncidents.slice(0, 5).map((incident) => (
-								<div class="flex flex-col gap-3 py-4 md:flex-row md:items-center md:justify-between">
-									<div class="min-w-0">
-										<div class="flex flex-wrap items-center gap-2">
-											<Badge variant={incidentTone(String(incident.severity))}>
-												{incident.severity === "critical"
-													? "Crítica"
-													: incident.severity === "error"
-														? "Error"
-														: incident.severity === "warning"
-															? "Atención"
-															: "Información"}
-											</Badge>
-											<Badge
-												variant={incidentNotificationTone(String(incident.notificationStatus))}
-											>
-												{incidentNotificationLabel(String(incident.notificationStatus))}
-											</Badge>
-											<p class="font-semibold text-slate-950">{incident.title}</p>
-										</div>
-										<p class="mt-1 text-sm leading-6 text-slate-600">{incident.description}</p>
-										<p class="mt-1 text-xs text-slate-500">
-											Detectada {incident.occurrenceCount}{" "}
-											{Number(incident.occurrenceCount) === 1 ? "vez" : "veces"} · última{" "}
-											{formatDate(incident.lastSeenAt)}
-											{incident.notifiedAt ? ` · aviso ${formatDate(incident.notifiedAt)}` : ""}
-										</p>
-										{incident.notificationError ? (
-											<p class="mt-1 text-xs text-rose-700">{incident.notificationError}</p>
-										) : null}
-									</div>
-									<div class="flex shrink-0 flex-wrap gap-2">
-										{incident.actionHref && incident.actionLabel ? (
-											<Button href={incident.actionHref} size="sm" variant="secondary">
-												{incident.actionLabel}
-											</Button>
-										) : null}
-										<form
-											method="post"
-											action={`/api/provider/integrations/operations/incidents/${incident.id}/resolve`}
-										>
-											<Button type="submit" size="sm" variant="ghost">
-												Marcar resuelta
-											</Button>
-										</form>
-									</div>
-								</div>
-							))}
-						</div>
-					) : (
-						<p class="border-y border-slate-200 py-4 text-sm text-slate-600">
-							No hay incidencias abiertas.
-						</p>
-					)}
-
-					<details>
-						<summary class="cursor-pointer text-sm font-semibold text-slate-950">
-							Ver ejecuciones recientes ({recentIntegrationRuns.length})
-						</summary>
-						<div class="mt-3 divide-y divide-slate-200 border-y border-slate-200">
-							{recentIntegrationRuns.length ? (
-								recentIntegrationRuns.map((run) => (
-									<div class="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
-										<div>
-											<p class="text-sm font-semibold text-slate-900">
-												{integrationRunOperationLabel(String(run.operation))}
-											</p>
-											<p class="mt-1 text-xs text-slate-500">
-												{formatDate(run.startedAt)} · {run.trigger}
-												{run.connectorKey ? ` · ${run.connectorKey}` : ""}
-											</p>
-										</div>
-										<div class="flex flex-wrap items-center gap-2">
-											<span class="text-xs text-slate-600">
-												{run.readCount} leídos · {run.changedCount} cambios · {run.failedCount}{" "}
-												fallos
-											</span>
-											<Badge variant={runStatusTone(String(run.status))}>
-												{runStatusLabel(String(run.status))}
-											</Badge>
-										</div>
-									</div>
-								))
-							) : (
-								<p class="py-4 text-sm text-slate-600">Todavía no hay ejecuciones.</p>
-							)}
-						</div>
-					</details>
-
-					<details>
-						<summary class="cursor-pointer text-sm font-semibold text-slate-950">
-							Ver trabajos programados ({recentIntegrationJobs.length})
-						</summary>
-						<div class="mt-3 divide-y divide-slate-200 border-y border-slate-200">
-							{recentIntegrationJobs.length ? (
-								recentIntegrationJobs.map((job) => (
-									<div class="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
-										<div>
-											<p class="text-sm font-semibold text-slate-900">
-												{job.connectorKey}
-												{job.targetType === "external_calendar" ? " · iCal" : ""}
-											</p>
-											<p class="mt-1 text-xs text-slate-500">
-												{integrationRunOperationLabel(String(job.operation))} · intento{" "}
-												{job.attempts}/{job.maxAttempts} · desde {formatDate(job.runAfter)}
-											</p>
-										</div>
-										<div class="flex flex-wrap items-center gap-2">
-											{job.lastError ? (
-												<span class="text-xs text-slate-600">{job.lastError}</span>
-											) : null}
-											<Badge variant={runStatusTone(String(job.status))}>
-												{jobStatusLabel(String(job.status))}
-											</Badge>
-										</div>
-									</div>
-								))
-							) : (
-								<p class="py-4 text-sm text-slate-600">No hay trabajos programados recientes.</p>
-							)}
-						</div>
-					</details>
-				</div>
-			</Card>
-		) : null
-	}
-
-	{
-		isSimple ? (
-			<Notice variant="info" title="Modo Simple · recomendado">
-				Te mostramos primero el channel manager para conectar distribución, tarifas y
-				disponibilidad. Abre la ayuda corta, guarda el enlace o referencia y pulsa{" "}
-				<strong>Probar conexión</strong> — solo una respuesta real lo deja validado. Cambia a Pro
-				para ver el catálogo completo y permisos avanzados.
-			</Notice>
-		) : (
-			<Notice
-				variant="info"
-				title="Modo Pro · catálogo + ayuda por conector"
-				data-integrations-pro-notice
-			>
-				Primero guarda la conexión (manual u OAuth). Abre la ayuda corta de cada conector si
-				necesitas el paso a paso. Luego ejecuta “Probar conexión”: solo una respuesta real lo deja
-				validado.
-			</Notice>
-		)
-	}
-
-	{
-		isSimple && others.some((row) => row.status !== "not_configured") ? (
-			<Notice variant="info" title="Hay más conectores configurados">
-				Tienes conectores fuera de la lista recomendada. Ábrelos en{" "}
-				<a
-					class="font-semibold underline"
-					href={`${routes.providerSettingsIntegrations()}?mode=pro`}
-				>
-					modo Pro
-				</a>
-				.
-			</Notice>
-		) : null
-	}
-
-	{
-		!isSimple ? (
-			<Card data-external-calendars-mvp>
-				<div class="flex flex-col gap-5">
-					<div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-						<div class="max-w-2xl">
-							<p class="text-xs font-semibold tracking-[0.12em] text-slate-500 uppercase">
-								Operación · iCal
-							</p>
-							<h2 class="mt-2 flex items-center gap-2 text-xl font-semibold text-slate-950">
-								<CalendarDays class="h-5 w-5" aria-hidden="true" />
-								Calendarios externos
-							</h2>
-							<p class="mt-2 text-sm leading-6 text-slate-600">
-								Importa bloqueos de Airbnb, Booking.com u otro calendario iCal. Cada feed afecta una
-								unidad de inventario en la habitación seleccionada.
-							</p>
-						</div>
-						<div class="flex flex-wrap items-center gap-2">
-							<Badge variant={activeExternalCalendars.length ? "success" : "neutral"}>
-								{activeExternalCalendarsLabel}
-							</Badge>
-							<Badge variant={externalConflictCount ? "warning" : "neutral"}>
-								{externalConflictLabel}
-							</Badge>
-							{activeExternalCalendars.length ? (
-								<form
-									method="post"
-									action="/api/provider/integrations/external-calendars/feeds/sync-all"
-								>
-									<Button type="submit" size="sm" variant="secondary">
-										<RefreshCw class="h-4 w-4" aria-hidden="true" />
-										Actualizar todos
-									</Button>
-								</form>
-							) : null}
-						</div>
-					</div>
-
-					<div class="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
-						<Card variant="soft" class="p-4">
-							<h3 class="text-sm font-semibold text-slate-950">Agregar calendario</h3>
-							<form
-								method="post"
-								action="/api/provider/integrations/external-calendars/feeds"
-								class="mt-4 grid gap-4"
-							>
-								<label class="grid gap-2 text-sm font-semibold text-slate-900">
-									Nombre
-									<Input name="name" required maxlength="80" placeholder="Airbnb · Habitación 1" />
-								</label>
-								<label class="grid gap-2 text-sm font-semibold text-slate-900">
-									Habitación o unidad
-									<Select name="variantId" required>
-										<option value="">Selecciona una unidad</option>
-										{externalCalendarData.variants.map((variant) => (
-											<option value={variant.id}>{variant.label}</option>
-										))}
-									</Select>
-								</label>
-								<label class="grid gap-2 text-sm font-semibold text-slate-900">
-									Unidad física
-									<Select name="resourceId">
-										<option value="">Sin asignar / inventario compartido</option>
-										{externalCalendarData.variants.flatMap((variant) =>
-											variant.resources.map((resource) => (
-												<option value={resource.id}>
-													{variant.label} · {resource.label}
-												</option>
-											))
-										)}
-									</Select>
-								</label>
-								<label class="grid gap-2 text-sm font-semibold text-slate-900">
-									Nueva unidad física
-									<Input name="resourceLabel" maxlength="80" placeholder="Ej. Habitación 203" />
-								</label>
-								<label class="grid gap-2 text-sm font-semibold text-slate-900">
-									URL de importación iCal
-									<Input
-										name="feedUrl"
-										type="url"
-										required
-										placeholder="https://…/calendar.ics"
-										autocomplete="off"
-									/>
-								</label>
-								<p class="text-xs leading-5 text-slate-500">
-									Importación unidireccional. La URL se guarda de forma privada y debe usar https.
-								</p>
-								<div>
-									<Button type="submit" size="sm" disabled={!externalCalendarData.variants.length}>
-										<Plus class="h-4 w-4" aria-hidden="true" />
-										Agregar y actualizar
-									</Button>
-								</div>
-							</form>
-						</Card>
-
-						<div class="grid content-start gap-3" data-external-calendar-list>
-							{externalCalendarData.calendars.length ? (
-								externalCalendarData.calendars.map((calendar) => (
-									<Card variant="plain" class="p-4" data-external-calendar={calendar.id}>
-										<div class="flex flex-col gap-4">
-											<div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-												<div>
-													<div class="flex flex-wrap items-center gap-2">
-														<h3 class="font-semibold text-slate-950">{calendar.name}</h3>
-														<Badge variant={externalCalendarStatusTone(calendar.status)}>
-															{externalCalendarStatusLabel(calendar.status)}
-														</Badge>
-														{calendar.status !== "revoked" && calendar.syncEnabled ? (
-															<Badge variant="neutral">Actualización automática</Badge>
-														) : null}
-													</div>
-													<p class="mt-1 text-sm text-slate-600">
-														{calendar.productName} · {calendar.variantName}
-														{calendar.resourceLabel ? ` · ${calendar.resourceLabel}` : ""}
-													</p>
-													<p class="mt-1 text-xs text-slate-500">
-														{calendar.sourceHost} · {calendar.lastEventCount} bloqueos · Última
-														actualización: {formatDate(calendar.lastSyncAt)}
-													</p>
-													{calendar.status !== "revoked" && calendar.syncEnabled ? (
-														<p class="mt-1 text-xs text-slate-500">
-															Próxima actualización programada: {formatDate(calendar.nextSyncAt)}
-														</p>
-													) : null}
-												</div>
-												{calendar.status !== "revoked" ? (
-													<div class="flex gap-2">
-														<form
-															method="post"
-															action={`/api/provider/integrations/external-calendars/feeds/${calendar.id}/sync`}
-														>
-															<Button type="submit" size="sm" variant="secondary">
-																<RefreshCw class="h-4 w-4" aria-hidden="true" />
-																Actualizar
-															</Button>
-														</form>
-														<form
-															method="post"
-															action={`/api/provider/integrations/external-calendars/feeds/${calendar.id}/revoke`}
-														>
-															<Button
-																type="submit"
-																size="sm"
-																variant="danger"
-																title="Desconectar calendario"
-															>
-																<Trash2 class="h-4 w-4" aria-hidden="true" />
-																<span class="sr-only">Desconectar calendario</span>
-															</Button>
-														</form>
-													</div>
-												) : null}
-											</div>
-
-											{calendar.lastError ? (
-												<Notice variant="warning" title="Último intento">
-													{mapExternalCalendarError(calendar.lastError)}
-												</Notice>
-											) : null}
-
-											{calendar.conflicts.length ? (
-												<div class="fastt-notice rounded-md border border-amber-200 bg-amber-50 p-3">
-													<p class="flex items-center gap-2 text-sm font-semibold text-amber-950">
-														<TriangleAlert class="h-4 w-4" aria-hidden="true" />
-														Alertas de solapamiento
-													</p>
-													<p class="mt-1 text-xs leading-5 text-amber-800">
-														Solo gestionan la alerta. La disponibilidad ya refleja los bloqueos
-														importados al sincronizar el feed.
-													</p>
-													<ul class="mt-2 grid gap-1 text-sm text-amber-900">
-														{calendar.conflicts.slice(0, 3).map((conflict) => (
-															<li class="fastt-notice rounded-md border border-amber-200 bg-white/70 p-3">
-																<div class="flex flex-wrap items-center gap-2">
-																	<Badge variant={conflictStatusTone(conflict.status)}>
-																		{conflictStatusLabel(conflict.status)}
-																	</Badge>
-																	<span class="font-semibold">{conflict.label}</span>
-																</div>
-																<p class="mt-1">
-																	{conflict.startDate} a {conflict.endDate}
-																	{conflict.resourceLabel ? ` · ${conflict.resourceLabel}` : ""}
-																</p>
-																<p class="mt-1 text-xs leading-5 text-amber-800">
-																	{conflict.description}
-																</p>
-																{conflict.id && conflict.status === "open" ? (
-																	<div class="mt-2 flex flex-wrap gap-2">
-																		<form
-																			method="post"
-																			action={`/api/provider/integrations/external-calendars/conflicts/${conflict.id}/resolve`}
-																		>
-																			<input type="hidden" name="action" value="accept" />
-																			<Button type="submit" size="sm" variant="secondary">
-																				Aceptar alerta
-																			</Button>
-																		</form>
-																		<form
-																			method="post"
-																			action={`/api/provider/integrations/external-calendars/conflicts/${conflict.id}/resolve`}
-																		>
-																			<input type="hidden" name="action" value="ignore" />
-																			<Button type="submit" size="sm" variant="ghost">
-																				Ignorar alerta
-																			</Button>
-																		</form>
-																		<form
-																			method="post"
-																			action={`/api/provider/integrations/external-calendars/conflicts/${conflict.id}/resolve`}
-																		>
-																			<input type="hidden" name="action" value="resolve" />
-																			<Button type="submit" size="sm" variant="ghost">
-																				Marcar resuelto
-																			</Button>
-																		</form>
-																	</div>
-																) : null}
-															</li>
-														))}
-													</ul>
-													{calendar.conflicts.length > 3 ? (
-														<p class="mt-2 text-xs text-amber-800">
-															+{calendar.conflicts.length - 3} más
-														</p>
-													) : null}
-												</div>
-											) : null}
-										</div>
-									</Card>
-								))
-							) : (
-								<div class="rounded-md border border-dashed border-slate-300 p-6 text-center">
-									<p class="text-sm font-semibold text-slate-900">
-										Aún no hay calendarios importados
-									</p>
-									<p class="mt-1 text-sm text-slate-600">
-										Agrega el primer feed para proteger la disponibilidad frente a reservas
-										externas.
-									</p>
-								</div>
-							)}
-						</div>
-					</div>
-
-					<div class="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]" data-external-calendar-export>
-						<Card variant="soft" class="p-4">
-							<h3 class="text-sm font-semibold text-slate-950">Exportar calendario Fastt</h3>
-							<p class="mt-2 text-sm leading-6 text-slate-600">
-								Crea un enlace iCal para bloquear en otros canales las reservas recibidas en Fastt.
-								El feed es por habitación (variante): incluye todas las reservas de esa unidad. Los
-								eventos llevan marca Fastt para evitar bucles si alguien pega este enlace como
-								importación.
-							</p>
-							<form
-								method="post"
-								action="/api/provider/integrations/external-calendars/exports"
-								class="mt-4 grid gap-4"
-							>
-								<label class="grid gap-2 text-sm font-semibold text-slate-900">
-									Nombre del enlace
-									<Input name="label" maxlength="80" placeholder="Fastt · Suite iCal" />
-								</label>
-								<label class="grid gap-2 text-sm font-semibold text-slate-900">
-									Habitación o unidad
-									<Select name="variantId" required>
-										<option value="">Selecciona una unidad</option>
-										{externalCalendarData.variants.map((variant) => (
-											<option value={variant.id}>{variant.label}</option>
-										))}
-									</Select>
-								</label>
-								<p class="text-xs leading-5 text-slate-500">
-									El alcance es la habitación completa. Fastt aún no asigna reservas a unidades
-									físicas, así que no ofrecemos un filtro por habitación física en la exportación.
-								</p>
-								<div>
-									<Button type="submit" size="sm" disabled={!externalCalendarData.variants.length}>
-										<Plus class="h-4 w-4" aria-hidden="true" />
-										Crear enlace iCal
-									</Button>
-								</div>
-							</form>
-						</Card>
-
-						<div class="grid content-start gap-3">
-							{externalCalendarData.exports.length ? (
-								externalCalendarData.exports.map((exportLink) => (
-									<Card
-										variant="plain"
-										class="p-4"
-										data-external-calendar-export-link={exportLink.id}
-									>
-										<div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-											<div>
-												<div class="flex flex-wrap items-center gap-2">
-													<h3 class="font-semibold text-slate-950">{exportLink.label}</h3>
-													<Badge variant={exportLink.status === "active" ? "success" : "warning"}>
-														{exportLink.status === "active" ? "Activo" : "Revocado"}
-													</Badge>
-												</div>
-												<p class="mt-1 text-sm text-slate-600">
-													{exportLink.productName} · {exportLink.variantName}
-												</p>
-												<p class="mt-1 text-xs text-slate-500">
-													Descargas: {exportLink.downloadCount} · Última descarga:{" "}
-													{formatDate(exportLink.lastDownloadedAt)}
-												</p>
-												<p class="mt-1 text-xs text-slate-500">
-													El token completo solo se muestra al crear el enlace.
-												</p>
-											</div>
-											{exportLink.status === "active" ? (
-												<form
-													method="post"
-													action={`/api/provider/integrations/external-calendars/exports/${exportLink.id}/revoke`}
-												>
-													<Button type="submit" size="sm" variant="danger">
-														<Trash2 class="h-4 w-4" aria-hidden="true" />
-														Revocar
-													</Button>
-												</form>
-											) : null}
-										</div>
-									</Card>
-								))
-							) : (
-								<div class="rounded-md border border-dashed border-slate-300 p-6 text-center">
-									<p class="text-sm font-semibold text-slate-900">
-										Aún no hay enlaces de exportación
-									</p>
-									<p class="mt-1 text-sm text-slate-600">
-										Crea uno cuando quieras bloquear otros canales con reservas de Fastt.
-									</p>
-								</div>
-							)}
-						</div>
-					</div>
-				</div>
-			</Card>
-		) : null
-	}
-
-	<div class="grid gap-4 xl:grid-cols-2">
-		{
-			displayConnectors.map((connector) => (
-				<Card
-					data-connector={connector.key}
-					data-recommended={isRecommendedProviderConnector(connector.key) ? "true" : "false"}
-				>
-					<div class="flex flex-col gap-5">
-						<div class="flex flex-wrap items-start justify-between gap-4">
-							<div>
-								<p class="text-xs font-semibold tracking-[0.12em] text-slate-500 uppercase">
-									{connector.category}
-									{isRecommendedProviderConnector(connector.key) ? " · Recomendado" : ""}
-								</p>
-								<h2 class="mt-2 text-xl font-semibold text-slate-950">{connector.name}</h2>
-							</div>
-							<div class="flex flex-wrap justify-end gap-2">
-								<Badge variant={connector.tone}>{connector.statusLabel}</Badge>
-								<Badge variant={connector.mode === "production" ? "success" : "info"}>
-									{connector.mode === "production" ? "Producción" : "Sandbox"}
-								</Badge>
-							</div>
-						</div>
-
-						<p class="text-sm leading-6 text-slate-600">{connector.description}</p>
-
-						{connector.errorMessage ? (
-							<Notice variant="warning" title="Último problema">
-								{mapProviderIntegrationError(connector.errorMessage)}
-							</Notice>
-						) : null}
-
-						<div class={`grid gap-4 ${isSimple ? "" : "lg:grid-cols-[1fr_0.85fr]"}`}>
-							<Card variant="soft" class="p-4">
-								<form method="post" action={`/api/provider/integrations/${connector.key}/connect`}>
-									<input type="hidden" name="uiMode" value={modeQuery} />
-									{connector.connectionId ? (
-										<input type="hidden" name="connectionId" value={connector.connectionId} />
-									) : null}
-									<div class="grid gap-4">
-										{!isSimple ? (
-											<label class="grid gap-2 text-sm font-semibold text-slate-900">
-												Nombre de la conexión
-												<Input
-													name="displayName"
-													value={connector.instances[0]?.displayName ?? connector.name}
-													placeholder="Ej. Cuenta principal"
-												/>
-											</label>
-										) : null}
-										<label class="grid gap-2 text-sm font-semibold text-slate-900">
-											Modo
-											<Select name="mode">
-												<option value="sandbox" selected={connector.mode === "sandbox"}>
-													Sandbox
-												</option>
-												<option
-													value="production"
-													selected={connector.mode === "production"}
-													disabled={!connector.canUseProduction}
-												>
-													Producción
-												</option>
-											</Select>
-										</label>
-
-										{connector.key === "channel_manager" ? (
-											<div
-												class="fastt-notice grid gap-3 rounded-lg border border-slate-200 bg-white p-3"
-												data-channel-manager-vendor-picker
-											>
-												<label class="grid gap-2 text-sm font-semibold text-slate-900">
-													Proveedor
-													<Select name="vendorKey">
-														{channelManagerVendors.map((vendor) => (
-															<option
-																value={vendor.key}
-																selected={connector.vendorKey === vendor.key}
-															>
-																{vendor.name}
-															</option>
-														))}
-													</Select>
-												</label>
-												<label class="grid gap-2 text-sm font-semibold text-slate-900">
-													Autenticación
-													<Select name="authType">
-														<option value="reference" selected={connector.authType === "reference"}>
-															Referencia / manual
-														</option>
-														<option value="api_key" selected={connector.authType === "api_key"}>
-															API key
-														</option>
-														<option value="oauth2" selected={connector.authType === "oauth2"}>
-															OAuth 2.0
-														</option>
-													</Select>
-												</label>
-												<label class="grid gap-2 text-sm font-semibold text-slate-900">
-													ID de propiedad externo
-													<Input
-														name="externalPropertyId"
-														value={connector.externalPropertyId ?? ""}
-														placeholder="Cloudbeds property ID o Channex property UUID"
-													/>
-												</label>
-												<p class="text-xs leading-5 text-slate-500">
-													Cloudbeds prueba <code>getHotels</code>; Channex prueba{" "}
-													<code>properties</code>. Si usas OAuth o una referencia segura, Fastt
-													valida la credencial sin mostrar secretos en pantalla.
-												</p>
-											</div>
-										) : null}
-
-										<label class="grid gap-2 text-sm font-semibold text-slate-900">
-											{connector.key === "channel_manager"
-												? "Credencial de acceso"
-												: "Endpoint HTTPS"}
-											<Input
-												name={
-													connector.key === "channel_manager" ? "credentialSecret" : "endpointUrl"
-												}
-												type={connector.key === "channel_manager" ? "password" : "url"}
-												value={connector.key === "channel_manager" ? "" : connector.endpointUrl}
-												placeholder={
-													connector.key === "channel_manager"
-														? connector.hasCredential
-															? "Dejar vacío para conservar la credencial actual"
-															: "API key del proveedor"
-														: isSimple
-															? "https://tu-servicio.ejemplo.com/…"
-															: "https://tu-servicio.ejemplo.com/…"
-												}
-											/>
-										</label>
-
-										<details
-											class="fastt-notice rounded-lg border border-slate-200 bg-white p-3"
-											data-connector-docs-lite
-										>
-											<summary class="cursor-pointer text-sm font-semibold text-slate-900">
-												{connector.docsLite.title}
-											</summary>
-											<ol class="mt-3 list-decimal space-y-1 pl-5 text-sm leading-6 text-slate-600">
-												{connector.docsLite.steps.map((step) => (
-													<li>{step}</li>
-												))}
-											</ol>
-											{connector.docsLite.tip ? (
-												<p class="mt-3 text-xs leading-5 text-slate-500">
-													<strong>Tip:</strong> {connector.docsLite.tip}
-												</p>
-											) : null}
-										</details>
-
-										{!isSimple ? (
-											<details
-												class="fastt-notice rounded-lg border border-slate-200 bg-slate-50 p-3"
-												open={false}
-												data-connector-scopes
-											>
-												<summary class="cursor-pointer text-sm font-semibold text-slate-900">
-													Permisos ({connector.availableScopes.length})
-												</summary>
-												<div class="mt-3 grid gap-2">
-													{connector.availableScopes.map((scope) => (
-														<label class="flex items-center gap-2 text-sm text-slate-700">
-															<input
-																type="checkbox"
-																name="scopes"
-																value={scope.key}
-																checked={connector.scopes.includes(scope.key)}
-																class="fastt-check-input h-4 w-4 rounded border-slate-300"
-															/>
-															<span>{scope.label}</span>
-														</label>
-													))}
-												</div>
-											</details>
-										) : null}
-
-										<div class="flex flex-wrap gap-2">
-											<Button type="submit" size="sm" variant="secondary">
-												Guardar
-											</Button>
-										</div>
-									</div>
-								</form>
-								{oauthConnectAvailable ? (
-									<form
-										method="post"
-										action={`/api/provider/integrations/${connector.key}/oauth/start`}
-										class="mt-3"
-									>
-										<input type="hidden" name="uiMode" value={modeQuery} />
-										<input type="hidden" name="mode" value={connector.mode} />
-										{!isSimple
-											? connector.scopes.map((scope) => (
-													<input type="hidden" name="scopes" value={scope} />
-												))
-											: null}
-										<Button
-											type="submit"
-											size="sm"
-											variant="primary"
-											data-connector-oauth-start={connector.key}
-										>
-											{oauthStatus.mode === "oauth_live"
-												? "Conectar con OAuth"
-												: "Probar OAuth (scaffold)"}
-										</Button>
-									</form>
-								) : null}
-							</Card>
-
-							{!isSimple ? (
-								<Card variant="plain" class="p-4">
-									<div>
-										<p class="text-sm font-semibold text-slate-950">
-											Conexiones ({connector.connectionCount})
-										</p>
-										<div class="mt-3 grid gap-3">
-											{connector.instances.length ? (
-												connector.instances.map((instance) => (
-													<div class="border-b border-slate-200 pb-3 last:border-0 last:pb-0">
-														<div class="flex flex-wrap items-start justify-between gap-2">
-															<div>
-																<p class="text-sm font-semibold text-slate-900">
-																	{instance.displayName}
-																</p>
-																<p class="mt-1 text-xs text-slate-500">
-																	{instance.lastSyncAt
-																		? `Última prueba ${formatDate(instance.lastSyncAt)}`
-																		: "Sin pruebas todavía"}
-																</p>
-															</div>
-															<div class="flex flex-wrap gap-2">
-																{instance.isPrimary ? (
-																	<Badge variant="neutral">Principal</Badge>
-																) : null}
-																{connector.key === "channel_manager" ? (
-																	<Badge variant="info">{instance.vendorLabel}</Badge>
-																) : null}
-																{connector.key === "channel_manager" ? (
-																	<Badge variant="neutral">
-																		{authTypeLabel(instance.authType)}
-																	</Badge>
-																) : null}
-																{instance.hasVaultCredential ? (
-																	<Badge variant="success">Vault activo</Badge>
-																) : null}
-																<Badge variant={instance.tone}>{instance.statusLabel}</Badge>
-															</div>
-														</div>
-														{instance.hasVaultCredential ? (
-															<p class="mt-2 text-xs text-slate-500">
-																Credencial cifrada
-																{instance.tokenExpiresAt
-																	? ` · expira ${formatDate(instance.tokenExpiresAt)}`
-																	: " · sin expiración publicada"}
-															</p>
-														) : null}
-														{connector.key === "channel_manager" && instance.externalPropertyId ? (
-															<p class="mt-2 text-xs text-slate-500">
-																Propiedad externa: {instance.externalPropertyId}
-															</p>
-														) : null}
-														<div class="mt-3 flex flex-wrap gap-2">
-															{instance.status !== "revoked" ? (
-																<form
-																	method="post"
-																	action={`/api/provider/integrations/${connector.key}/sync`}
-																>
-																	<input type="hidden" name="uiMode" value={modeQuery} />
-																	<input type="hidden" name="connectionId" value={instance.id} />
-																	<Button type="submit" size="sm" variant="secondary">
-																		Probar
-																	</Button>
-																</form>
-															) : null}
-															{!instance.isPrimary && instance.status !== "revoked" ? (
-																<form
-																	method="post"
-																	action={`/api/provider/integrations/operations/connections/${instance.id}/primary`}
-																>
-																	<Button type="submit" size="sm" variant="ghost">
-																		Usar como principal
-																	</Button>
-																</form>
-															) : null}
-															{instance.status !== "revoked" ? (
-																<details
-																	class="fastt-notice rounded-md border border-rose-200 bg-rose-50 p-2"
-																	data-disconnect-confirmation
-																>
-																	<summary class="cursor-pointer text-sm font-semibold text-rose-950">
-																		Desconectar
-																	</summary>
-																	<form
-																		method="post"
-																		action={`/api/provider/integrations/${connector.key}/revoke`}
-																		class="mt-3 grid gap-2"
-																	>
-																		<input type="hidden" name="uiMode" value={modeQuery} />
-																		<input type="hidden" name="connectionId" value={instance.id} />
-																		<label class="grid gap-1 text-xs font-semibold text-rose-950">
-																			Escribe DESCONECTAR
-																			<Input name="confirmDisconnect" autocomplete="off" required />
-																		</label>
-																		<Button type="submit" size="sm" variant="danger">
-																			Confirmar desconexión
-																		</Button>
-																	</form>
-																</details>
-															) : null}
-														</div>
-														{instance.status !== "revoked"
-															? (() => {
-																	const preset = mappingPresetForConnector(connector.key)
-																	const localOptions = mappingOptionsForEntity(
-																		preset.localEntityType
-																	)
-																	const instanceMappings = integrationOperations.mappings.filter(
-																		(mapping) => mapping.connectionId === instance.id
-																	)
-																	return (
-																		<details
-																			class="fastt-notice mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3"
-																			data-integration-mapping-builder
-																		>
-																			<summary class="cursor-pointer text-sm font-semibold text-slate-900">
-																				Mapeos ({instanceMappings.length})
-																			</summary>
-																			<div class="mt-3 grid gap-4">
-																				<p class="text-xs leading-5 text-slate-600">
-																					{preset.helper} Usa OAuth/API cuando el proveedor entregue
-																					catálogo remoto; mientras tanto pega el ID externo exacto.
-																				</p>
-																				<form
-																					method="post"
-																					action="/api/provider/integrations/operations/mappings"
-																					class="fastt-notice grid gap-3 rounded-md border border-white bg-white p-3"
-																					data-integration-mapping-form
-																				>
-																					<input
-																						type="hidden"
-																						name="connectionId"
-																						value={instance.id}
-																					/>
-																					<input
-																						type="hidden"
-																						name="mappingType"
-																						value={preset.mappingType}
-																					/>
-																					<input
-																						type="hidden"
-																						name="localEntityType"
-																						value={preset.localEntityType}
-																					/>
-																					<input
-																						type="hidden"
-																						name="externalEntityType"
-																						value={preset.externalEntityType}
-																					/>
-																					<input
-																						type="hidden"
-																						name="direction"
-																						value={preset.direction}
-																					/>
-																					<div>
-																						<p class="text-sm font-semibold text-slate-950">
-																							{preset.title}
-																						</p>
-																						<p class="mt-1 text-xs text-slate-500">
-																							Local: {mappingTypeLabel(preset.mappingType)} ·{" "}
-																							{directionLabel(preset.direction)}
-																						</p>
-																					</div>
-																					<label class="grid gap-2 text-sm font-semibold text-slate-900">
-																						Entidad local
-																						<Select name="localEntityId" required>
-																							<option value="">
-																								{localOptions.length
-																									? "Selecciona en Fastt"
-																									: "No hay entidades locales disponibles"}
-																							</option>
-																							{localOptions.map((option) => (
-																								<option value={option.id}>{option.label}</option>
-																							))}
-																						</Select>
-																					</label>
-																					<label class="grid gap-2 text-sm font-semibold text-slate-900">
-																						ID externo
-																						<Input
-																							name="externalEntityId"
-																							placeholder="Ej. remote-room-123"
-																							required
-																						/>
-																					</label>
-																					<label class="grid gap-2 text-sm font-semibold text-slate-900">
-																						Nombre externo
-																						<Input
-																							name="externalEntityName"
-																							placeholder="Ej. Deluxe King en el channel manager"
-																						/>
-																					</label>
-																					<Button
-																						type="submit"
-																						size="sm"
-																						variant="secondary"
-																						disabled={!localOptions.length}
-																					>
-																						Guardar mapeo
-																					</Button>
-																				</form>
-																				<div class="grid gap-2">
-																					{instanceMappings.length ? (
-																						instanceMappings.map((mapping) => (
-																							<div class="fastt-notice flex flex-col gap-2 rounded-md border border-slate-200 bg-white p-3 md:flex-row md:items-center md:justify-between">
-																								<div class="min-w-0">
-																									<div class="flex flex-wrap gap-2">
-																										<Badge variant="neutral">
-																											{mappingTypeLabel(
-																												String(mapping.mappingType)
-																											)}
-																										</Badge>
-																										<Badge
-																											variant={
-																												mapping.status === "active"
-																													? "success"
-																													: "neutral"
-																											}
-																										>
-																											{mapping.status === "active"
-																												? "Activo"
-																												: "Inactivo"}
-																										</Badge>
-																									</div>
-																									<p class="mt-2 truncate text-sm font-semibold text-slate-950">
-																										{mapping.localEntityType}:
-																										{mapping.localEntityId}
-																									</p>
-																									<p class="mt-1 truncate text-xs text-slate-500">
-																										{mapping.externalEntityName ||
-																											mapping.externalEntityId}{" "}
-																										· {directionLabel(String(mapping.direction))}
-																									</p>
-																								</div>
-																								<form
-																									method="post"
-																									action="/api/provider/integrations/operations/mappings"
-																								>
-																									<input
-																										type="hidden"
-																										name="action"
-																										value="remove"
-																									/>
-																									<input
-																										type="hidden"
-																										name="connectionId"
-																										value={instance.id}
-																									/>
-																									<input
-																										type="hidden"
-																										name="mappingId"
-																										value={mapping.id}
-																									/>
-																									<Button type="submit" size="sm" variant="ghost">
-																										Quitar
-																									</Button>
-																								</form>
-																							</div>
-																						))
-																					) : (
-																						<p class="text-xs leading-5 text-slate-500">
-																							Sin mapeos todavía. Crea el primero después de guardar
-																							y probar la conexión.
-																						</p>
-																					)}
-																				</div>
-																			</div>
-																		</details>
-																	)
-																})()
-															: null}
-													</div>
-												))
-											) : (
-												<p class="text-sm text-slate-500">Sin conexiones guardadas.</p>
-											)}
-										</div>
-										<details class="mt-4 border-t border-slate-200 pt-4" data-add-connection>
-											<summary class="cursor-pointer text-sm font-semibold text-slate-900">
-												Agregar otra conexión
-											</summary>
-											<form
-												method="post"
-												action={`/api/provider/integrations/${connector.key}/connect`}
-												class="mt-3 grid gap-3"
-											>
-												<input type="hidden" name="uiMode" value={modeQuery} />
-												<input type="hidden" name="createNew" value="true" />
-												<input type="hidden" name="mode" value={connector.mode} />
-												{connector.scopes.map((scope) => (
-													<input type="hidden" name="scopes" value={scope} />
-												))}
-												{connector.key === "channel_manager" ? (
-													<label class="grid gap-2 text-sm font-semibold text-slate-900">
-														Proveedor
-														<Select name="vendorKey">
-															{channelManagerVendors.map((vendor) => (
-																<option value={vendor.key}>{vendor.name}</option>
-															))}
-														</Select>
-													</label>
-												) : null}
-												{connector.key === "channel_manager" ? (
-													<label class="grid gap-2 text-sm font-semibold text-slate-900">
-														Autenticación
-														<Select name="authType">
-															<option value="api_key">API key</option>
-															<option value="oauth2">OAuth 2.0</option>
-															<option value="reference">Referencia / manual</option>
-														</Select>
-													</label>
-												) : null}
-												{connector.key === "channel_manager" ? (
-													<label class="grid gap-2 text-sm font-semibold text-slate-900">
-														ID de propiedad externo
-														<Input
-															name="externalPropertyId"
-															placeholder="Cloudbeds property ID o Channex property UUID"
-														/>
-													</label>
-												) : null}
-												<label class="grid gap-2 text-sm font-semibold text-slate-900">
-													Nombre
-													<Input name="displayName" placeholder="Ej. Segunda propiedad" required />
-												</label>
-												<label class="grid gap-2 text-sm font-semibold text-slate-900">
-													{connector.key === "channel_manager"
-														? "Credencial de acceso"
-														: "Endpoint HTTPS"}
-													<Input
-														name={
-															connector.key === "channel_manager"
-																? "credentialSecret"
-																: "endpointUrl"
-														}
-														type={connector.key === "channel_manager" ? "password" : "url"}
-														placeholder={
-															connector.key === "channel_manager"
-																? "API key del proveedor"
-																: "https://tu-servicio.ejemplo.com/…"
-														}
-														required
-													/>
-												</label>
-												<Button type="submit" size="sm" variant="secondary">
-													Agregar conexión
-												</Button>
-											</form>
-										</details>
-									</div>
-									<div class="mt-5 border-t border-slate-200 pt-4">
-										<p class="text-sm font-semibold text-slate-950">Requisitos</p>
-										<ul class="mt-3 grid gap-2 text-sm text-slate-600">
-											{connector.requirements.map((requirement) => (
-												<li>{requirement}</li>
-											))}
-										</ul>
-										<div class="mt-4 border-t border-slate-200 pt-4">
-											<p class="text-sm font-semibold text-slate-950">Actividad reciente</p>
-											<div class="mt-3 grid gap-2">
-												{connector.recentActivity.length ? (
-													connector.recentActivity.map((item) => (
-														<Card variant="soft" class="p-3">
-															<div class="flex items-center justify-between gap-3">
-																<p class="text-xs font-semibold tracking-[0.1em] text-slate-500 uppercase">
-																	{integrationActivityEventLabel(item.eventType)}
-																</p>
-																<Badge
-																	variant={
-																		item.status === "error"
-																			? "error"
-																			: item.status === "success"
-																				? "success"
-																				: "neutral"
-																	}
-																>
-																	{item.status === "error"
-																		? "Error"
-																		: item.status === "success"
-																			? "Ok"
-																			: item.status === "revoked"
-																				? "Revocado"
-																				: item.status}
-																</Badge>
-															</div>
-															<p class="mt-2 text-sm text-slate-700">
-																{mapProviderIntegrationLogMessage(item.message)}
-															</p>
-															<p class="mt-1 text-xs text-slate-500">
-																{formatDate(item.createdAt)}
-															</p>
-														</Card>
-													))
-												) : (
-													<p class="text-sm text-slate-500">Sin eventos registrados.</p>
-												)}
-											</div>
-										</div>
-									</div>
-								</Card>
-							) : (
-								<ul class="grid gap-1 text-sm text-slate-600">
-									{connector.requirements.slice(0, 2).map((requirement) => (
-										<li>· {requirement}</li>
-									))}
-								</ul>
-							)}
-						</div>
-
-						{isSimple && (canTest(connector) || canRevoke(connector)) ? (
-							<div class="flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-4">
-								{canTest(connector) ? (
-									<form method="post" action={`/api/provider/integrations/${connector.key}/sync`}>
-										<input type="hidden" name="uiMode" value={modeQuery} />
-										{connector.connectionId ? (
-											<input type="hidden" name="connectionId" value={connector.connectionId} />
-										) : null}
-										<Button type="submit" size="sm">
-											Probar conexión
-										</Button>
-									</form>
-								) : null}
-								{canRevoke(connector) ? (
-									<details
-										class="fastt-notice rounded-md border border-rose-200 bg-rose-50 p-2"
-										data-disconnect-confirmation
-									>
-										<summary class="cursor-pointer text-sm font-semibold text-rose-950">
-											Desconectar
-										</summary>
-										<form
-											method="post"
-											action={`/api/provider/integrations/${connector.key}/revoke`}
-											class="mt-3 grid gap-2"
-										>
-											<input type="hidden" name="uiMode" value={modeQuery} />
-											{connector.connectionId ? (
-												<input type="hidden" name="connectionId" value={connector.connectionId} />
-											) : null}
-											<label class="grid gap-1 text-xs font-semibold text-rose-950">
-												Escribe DESCONECTAR
-												<Input name="confirmDisconnect" autocomplete="off" required />
-											</label>
-											<Button type="submit" variant="danger" size="sm">
-												Confirmar desconexión
-											</Button>
-										</form>
-									</details>
-								) : null}
-							</div>
-						) : null}
-					</div>
-				</Card>
-			))
-		}
-	</div>
-
-	{
-		isSimple ? (
-			<p class="text-sm text-slate-600">
-				¿Necesitas calendarios, webhooks o exportación contable?{" "}
-				<a
-					class="font-semibold text-slate-900 underline"
-					href={`${routes.providerSettingsIntegrations()}?mode=pro`}
-				>
-					Abrir modo Pro
-				</a>
-			</p>
-		) : null
-	}
-</ProviderSettingsLayout>
+	<p class="text-sm leading-6 text-slate-400" data-integration-summary-help>
+		Fastt no activará una conexión hasta completar una prueba real. Antes de continuar podrás
+		revisar qué información controla cada sistema.
+	</p>
+</ProviderIntegrationsLayout>

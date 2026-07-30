@@ -1,0 +1,582 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Input from "@/components/ui/Input.astro"
+import Notice from "@/components/ui/Notice.astro"
+import ProviderIntegrationsLayout from "@/layouts/ProviderIntegrationsLayout.astro"
+import { requireProvider } from "@/lib/auth/requireProvider"
+import {
+	getChannelManagerVendor,
+	listChannelManagerVendors,
+	normalizeChannelManagerVendorKey,
+} from "@/lib/provider-channel-manager-vendors"
+import { getConnectorOAuthStatus } from "@/lib/provider-connector-oauth"
+import { mapProviderIntegrationError } from "@/lib/provider-integration-errors"
+import { getProviderIntegrationConnectionReadModel } from "@/lib/provider-integration-read-models"
+import { routes } from "@/lib/routes"
+import { ArrowLeft, ArrowRight, Check, KeyRound, LockKeyhole, RefreshCw } from "@lucide/astro"
+
+const auth = await requireProvider(Astro.request).catch((error: any) => {
+	if (error instanceof Response && error.status === 401) return "__REDIRECT_LOGIN__"
+	if (error instanceof Response && error.status === 403) return "__REDIRECT_PROVIDER__"
+	throw error
+})
+if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
+if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerSettingsProfile())
+
+const connectionId = String(Astro.url.searchParams.get("connectionId") ?? "").trim()
+const connection = connectionId
+	? await getProviderIntegrationConnectionReadModel({
+			providerId: auth.providerId,
+			connectionId,
+		})
+	: null
+const requestedVendor = normalizeChannelManagerVendorKey(Astro.url.searchParams.get("vendor"))
+const vendorKey =
+	connection?.vendorKey && connection.vendorKey !== "generic"
+		? connection.vendorKey
+		: requestedVendor
+const vendor = getChannelManagerVendor(vendorKey)
+const allowedSteps = ["provider", "access", "property", "review"] as const
+type WizardStep = (typeof allowedSteps)[number]
+const requestedStep = String(Astro.url.searchParams.get("step") ?? "provider")
+const step: WizardStep = allowedSteps.includes(requestedStep as WizardStep)
+	? (requestedStep as WizardStep)
+	: "provider"
+const stepIndex = allowedSteps.indexOf(step)
+const success = String(Astro.url.searchParams.get("success") ?? "")
+const error = String(Astro.url.searchParams.get("error") ?? "")
+const oauth = String(Astro.url.searchParams.get("oauth") ?? "")
+const oauthStatus = getConnectorOAuthStatus()
+const oauthAvailable =
+	vendor.authTypes.includes("oauth2") &&
+	(oauthStatus.mode === "oauth_live" || oauthStatus.mode === "oauth_scaffold")
+const remotePropertiesEndpoint = connection
+	? `/api/provider/integrations/channel-manager/connections/${encodeURIComponent(connection.id)}/properties`
+	: ""
+
+const wizardSteps: Array<{ key: WizardStep; label: string }> = [
+	{ key: "provider", label: "Proveedor" },
+	{ key: "access", label: "Acceso" },
+	{ key: "property", label: "Propiedad" },
+	{ key: "review", label: "Validar" },
+]
+const selectableVendors = listChannelManagerVendors().filter(
+	(item) => item.key === "cloudbeds" || item.key === "channex"
+)
+
+function wizardHref(nextStep: WizardStep, extra: Record<string, string> = {}) {
+	const url = new URL(routes.providerSettingsIntegrationsConnectChannelManager(), Astro.url)
+	url.searchParams.set("step", nextStep)
+	if (vendorKey !== "generic") url.searchParams.set("vendor", vendorKey)
+	if (connection?.id) url.searchParams.set("connectionId", connection.id)
+	Object.entries(extra).forEach(([key, value]) => url.searchParams.set(key, value))
+	return `${url.pathname}${url.search}`
+}
+
+const propertyReturnTo = wizardHref("property", { vendor: vendorKey })
+const reviewReturnTo = wizardHref("review", { vendor: vendorKey })
+const connectionReady = connection?.status === "connected"
+---
+
+<ProviderIntegrationsLayout
+	title="Conectar channel manager"
+	eyebrow="Integraciones · Asistente"
+	heading="Conectar channel manager"
+	description="Autoriza el acceso, elige la propiedad y valida la conexión antes de sincronizar datos."
+>
+	<div slot="actions">
+		<Button href={routes.providerSettingsIntegrationsConnections()} variant="secondary">
+			Cancelar
+		</Button>
+	</div>
+
+	<nav
+		aria-label="Progreso de conexión"
+		class="max-w-full overflow-x-auto pb-1"
+		data-channel-wizard-steps
+	>
+		<ol class="grid min-w-[30rem] grid-cols-4 gap-2">
+			{
+				wizardSteps.map((item, index) => {
+					const complete = index < stepIndex
+					const active = index === stepIndex
+					return (
+						<li
+							class={`border-t-2 pt-2 ${
+								active
+									? "border-white text-white"
+									: complete
+										? "border-emerald-400 text-emerald-200"
+										: "border-slate-700 text-slate-500"
+							}`}
+							aria-current={active ? "step" : undefined}
+						>
+							<div class="flex items-center gap-1.5">
+								{complete ? <Check class="size-3.5" aria-hidden="true" /> : null}
+								<span class="text-xs font-semibold">{item.label}</span>
+							</div>
+						</li>
+					)
+				})
+			}
+		</ol>
+	</nav>
+
+	{
+		error ? (
+			<Notice variant="warning" title="No pudimos completar el paso">
+				{mapProviderIntegrationError(error)}
+			</Notice>
+		) : null
+	}
+	{
+		oauth === "connected" ? (
+			<Notice variant="success" title="Acceso autorizado">
+				La autorización quedó guardada de forma cifrada. Ahora elige la propiedad.
+			</Notice>
+		) : null
+	}
+
+	{
+		step === "provider" ? (
+			<section class="space-y-4" data-channel-wizard-step="provider">
+				<div>
+					<h2 class="text-xl font-semibold text-white">¿Qué sistema utilizas?</h2>
+					<p class="mt-1 text-sm leading-6 text-slate-400">
+						Selecciona el sistema que hoy administra tus habitaciones y disponibilidad.
+					</p>
+				</div>
+				<div class="grid gap-3 md:grid-cols-2">
+					{selectableVendors.map((item) => (
+						<article class="fastt-notice grid gap-4 rounded-lg border border-slate-200 bg-white p-5 text-slate-900">
+							<div class="flex items-start justify-between gap-3">
+								<div>
+									<h3 class="text-lg font-semibold text-slate-950">{item.name}</h3>
+									<p class="mt-1 text-sm leading-6 text-slate-600">{item.help}</p>
+								</div>
+								{item.key === "cloudbeds" ? <Badge variant="info">OAuth disponible</Badge> : null}
+							</div>
+							<div class="mt-auto">
+								<Button
+									href={`${routes.providerSettingsIntegrationsConnectChannelManager()}?step=access&vendor=${item.key}`}
+									variant="secondary"
+								>
+									Elegir {item.name}
+									<ArrowRight class="size-4" aria-hidden="true" />
+								</Button>
+							</div>
+						</article>
+					))}
+				</div>
+			</section>
+		) : null
+	}
+
+	{
+		step === "access" ? (
+			<section
+				class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]"
+				data-channel-wizard-step="access"
+			>
+				<Card>
+					<div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-4">
+						<div>
+							<p class="text-xs font-semibold tracking-[0.12em] text-slate-500 uppercase">
+								Paso 2 · {vendor.name}
+							</p>
+							<h2 class="mt-1.5 text-xl font-semibold text-slate-950">Autorizar acceso</h2>
+						</div>
+						<Badge variant="neutral">Sandbox</Badge>
+					</div>
+
+					<div class="mt-5 grid gap-5">
+						{oauthAvailable ? (
+							<div class="rounded-lg border border-slate-200 p-4">
+								<div class="flex items-start gap-3">
+									<div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+										<LockKeyhole class="size-4.5" aria-hidden="true" />
+									</div>
+									<div>
+										<h3 class="font-semibold text-slate-950">Autorizar con {vendor.name}</h3>
+										<p class="mt-1 text-sm leading-6 text-slate-600">
+											Serás enviado al proveedor para aprobar el acceso. Fastt no verá tu
+											contraseña.
+										</p>
+									</div>
+								</div>
+								<form
+									method="post"
+									action="/api/provider/integrations/channel_manager/oauth/start"
+									class="mt-4"
+								>
+									<input type="hidden" name="uiMode" value="pro" />
+									<input type="hidden" name="mode" value="sandbox" />
+									<input type="hidden" name="vendorKey" value={vendor.key} />
+									<input type="hidden" name="returnTo" value={propertyReturnTo} />
+									<input type="hidden" name="scopes" value="inventory:read" />
+									<input type="hidden" name="scopes" value="rates:read" />
+									<Button type="submit">
+										Continuar con OAuth
+										<ArrowRight class="size-4" aria-hidden="true" />
+									</Button>
+								</form>
+							</div>
+						) : null}
+
+						{vendor.authTypes.includes("api_key") ? (
+							<div class="rounded-lg border border-slate-200 p-4">
+								<div class="flex items-start gap-3">
+									<div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+										<KeyRound class="size-4.5" aria-hidden="true" />
+									</div>
+									<div>
+										<h3 class="font-semibold text-slate-950">Usar API key</h3>
+										<p class="mt-1 text-sm leading-6 text-slate-600">
+											Pega una clave creada para Fastt. Se cifra antes de guardarse y no volverá a
+											mostrarse.
+										</p>
+									</div>
+								</div>
+								<form
+									method="post"
+									action="/api/provider/integrations/channel_manager/connect"
+									class="mt-4 grid gap-4"
+									data-channel-api-key-form
+								>
+									<input type="hidden" name="uiMode" value="pro" />
+									<input type="hidden" name="returnTo" value={propertyReturnTo} />
+									<input type="hidden" name="createNew" value="true" />
+									<input type="hidden" name="mode" value="sandbox" />
+									<input type="hidden" name="vendorKey" value={vendor.key} />
+									<input type="hidden" name="authType" value="api_key" />
+									<input type="hidden" name="scopes" value="inventory:read" />
+									<input type="hidden" name="scopes" value="rates:read" />
+									<label class="grid gap-2 text-sm font-semibold text-slate-900">
+										Nombre de la conexión
+										<Input
+											name="displayName"
+											value={`${vendor.name} principal`}
+											autocomplete="off"
+											required
+										/>
+									</label>
+									<label class="grid gap-2 text-sm font-semibold text-slate-900">
+										{vendor.credentialLabel}
+										<Input
+											name="credentialSecret"
+											type="password"
+											placeholder={vendor.credentialPlaceholder}
+											autocomplete="new-password"
+											required
+										/>
+									</label>
+									<Button type="submit" variant={oauthAvailable ? "secondary" : "primary"}>
+										Guardar acceso
+										<ArrowRight class="size-4" aria-hidden="true" />
+									</Button>
+								</form>
+							</div>
+						) : null}
+					</div>
+				</Card>
+
+				<aside class="fastt-notice self-start rounded-lg border border-slate-800 bg-slate-950 p-5">
+					<h2 class="text-sm font-semibold text-white">Antes de continuar</h2>
+					<ul class="mt-3 grid gap-3 text-sm leading-6 text-slate-400">
+						<li>Usa una cuenta con acceso a las propiedades que administrarás.</li>
+						<li>Fastt solicita inventario y tarifas; no necesita tu contraseña personal.</li>
+						<li>Podrás desconectar y revocar el acceso cuando quieras.</li>
+					</ul>
+					<a
+						href={wizardHref("provider")}
+						class="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-white"
+					>
+						<ArrowLeft class="size-4" aria-hidden="true" />
+						Cambiar proveedor
+					</a>
+				</aside>
+			</section>
+		) : null
+	}
+
+	{
+		step === "property" && connection ? (
+			<section class="space-y-5" data-channel-wizard-step="property">
+				<Card>
+					<div class="flex flex-col gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:items-start sm:justify-between">
+						<div>
+							<p class="text-xs font-semibold tracking-[0.12em] text-slate-500 uppercase">
+								Paso 3 · {vendor.name}
+							</p>
+							<h2 class="mt-1.5 text-xl font-semibold text-slate-950">Selecciona la propiedad</h2>
+							<p class="mt-1 text-sm leading-6 text-slate-600">
+								Elige qué propiedad externa corresponde a este proveedor en Fastt.
+							</p>
+						</div>
+						<Badge variant="success">Acceso guardado</Badge>
+					</div>
+
+					<div class="mt-5" data-remote-property-picker data-endpoint={remotePropertiesEndpoint}>
+						<div class="flex flex-wrap items-center justify-between gap-3">
+							<p
+								class="text-sm text-slate-600"
+								data-property-status
+								role="status"
+								aria-live="polite"
+							>
+								Consultando propiedades disponibles…
+							</p>
+							<Button type="button" size="sm" variant="secondary" data-refresh-properties>
+								<RefreshCw class="size-4" aria-hidden="true" />
+								Actualizar lista
+							</Button>
+						</div>
+						<form
+							method="post"
+							action="/api/provider/integrations/channel_manager/connect"
+							class="mt-4"
+							data-property-form
+						>
+							<input type="hidden" name="uiMode" value="pro" />
+							<input type="hidden" name="returnTo" value={reviewReturnTo} />
+							<input type="hidden" name="connectionId" value={connection.id} />
+							<input type="hidden" name="mode" value={connection.mode} />
+							<input type="hidden" name="vendorKey" value={vendor.key} />
+							<input type="hidden" name="authType" value={connection.authType} />
+							<input type="hidden" name="externalPropertyId" value="" data-property-id />
+							<div class="grid gap-2" data-property-options />
+							<Button type="submit" class="mt-4" disabled data-property-submit>
+								Continuar
+								<ArrowRight class="size-4" aria-hidden="true" />
+							</Button>
+						</form>
+					</div>
+
+					<details class="mt-5 border-t border-slate-200 pt-4">
+						<summary class="cursor-pointer text-sm font-semibold text-slate-950">
+							No encuentro mi propiedad
+						</summary>
+						<form
+							method="post"
+							action="/api/provider/integrations/channel_manager/connect"
+							class="mt-4 grid max-w-lg gap-4"
+						>
+							<input type="hidden" name="uiMode" value="pro" />
+							<input type="hidden" name="returnTo" value={reviewReturnTo} />
+							<input type="hidden" name="connectionId" value={connection.id} />
+							<input type="hidden" name="mode" value={connection.mode} />
+							<input type="hidden" name="vendorKey" value={vendor.key} />
+							<input type="hidden" name="authType" value={connection.authType} />
+							<label class="grid gap-2 text-sm font-semibold text-slate-900">
+								{vendor.propertyIdLabel}
+								<Input name="externalPropertyId" autocomplete="off" required />
+							</label>
+							<Button type="submit" variant="secondary">
+								Usar este identificador
+							</Button>
+						</form>
+					</details>
+				</Card>
+			</section>
+		) : step === "property" ? (
+			<Notice variant="warning" title="Falta autorizar el acceso">
+				Vuelve al paso anterior para guardar una conexión antes de consultar propiedades.
+				<div class="mt-4">
+					<Button href={wizardHref("access")} size="sm">
+						Volver a acceso
+					</Button>
+				</div>
+			</Notice>
+		) : null
+	}
+
+	{
+		step === "review" && connection ? (
+			<section
+				class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]"
+				data-channel-wizard-step="review"
+			>
+				<Card>
+					<div class="border-b border-slate-200 pb-4">
+						<p class="text-xs font-semibold tracking-[0.12em] text-slate-500 uppercase">
+							Paso 4 · Validación
+						</p>
+						<h2 class="mt-1.5 text-xl font-semibold text-slate-950">Revisa y prueba la conexión</h2>
+						<p class="mt-1 text-sm leading-6 text-slate-600">
+							La conexión solo quedará lista si {vendor.name} responde correctamente.
+						</p>
+					</div>
+
+					<dl class="divide-y divide-slate-200">
+						<div class="grid gap-1 py-4 sm:grid-cols-[10rem_1fr]">
+							<dt class="text-sm text-slate-500">Proveedor</dt>
+							<dd class="text-sm font-semibold text-slate-950">{vendor.name}</dd>
+						</div>
+						<div class="grid gap-1 py-4 sm:grid-cols-[10rem_1fr]">
+							<dt class="text-sm text-slate-500">Conexión</dt>
+							<dd class="text-sm font-semibold text-slate-950">{connection.displayName}</dd>
+						</div>
+						<div class="grid gap-1 py-4 sm:grid-cols-[10rem_1fr]">
+							<dt class="text-sm text-slate-500">Propiedad externa</dt>
+							<dd class="text-sm font-semibold text-slate-950">
+								{connection.externalPropertyId || "Sin seleccionar"}
+							</dd>
+						</div>
+						<div class="grid gap-1 py-4 sm:grid-cols-[10rem_1fr]">
+							<dt class="text-sm text-slate-500">Acceso</dt>
+							<dd class="text-sm font-semibold text-slate-950">
+								{connection.authType === "oauth2" ? "OAuth" : "API key cifrada"}
+							</dd>
+						</div>
+					</dl>
+
+					{connectionReady ? (
+						<div class="mt-4 flex flex-wrap gap-3">
+							<Button href={routes.providerSettingsIntegrationMapping(connection.id)}>
+								Relacionar inventario
+								<ArrowRight class="size-4" aria-hidden="true" />
+							</Button>
+							<Button href={wizardHref("property")} variant="secondary">
+								Cambiar propiedad
+							</Button>
+						</div>
+					) : (
+						<form
+							method="post"
+							action="/api/provider/integrations/channel_manager/sync"
+							class="mt-4"
+						>
+							<input type="hidden" name="uiMode" value="pro" />
+							<input type="hidden" name="returnTo" value={reviewReturnTo} />
+							<input type="hidden" name="connectionId" value={connection.id} />
+							<Button type="submit" disabled={!connection.externalPropertyId}>
+								Probar conexión
+								<RefreshCw class="size-4" aria-hidden="true" />
+							</Button>
+						</form>
+					)}
+				</Card>
+
+				<aside class="fastt-notice self-start rounded-lg border border-slate-800 bg-slate-950 p-5">
+					<Badge variant={connectionReady ? "darkSuccess" : "darkNeutral"}>
+						{connectionReady ? "Conexión validada" : "Pendiente de prueba"}
+					</Badge>
+					<h2 class="mt-4 text-sm font-semibold text-white">
+						{connectionReady ? "Todo listo" : "Qué comprobará Fastt"}
+					</h2>
+					<p class="mt-2 text-sm leading-6 text-slate-400">
+						{connectionReady
+							? "Fastt pudo autenticarse y consultar la propiedad seleccionada."
+							: "Validaremos la credencial, el acceso a la propiedad y una respuesta real del proveedor."}
+					</p>
+					{success === "sync_tested" ? (
+						<p class="mt-3 text-sm font-semibold text-emerald-200">Prueba completada.</p>
+					) : null}
+				</aside>
+			</section>
+		) : step === "review" ? (
+			<Notice variant="warning" title="La conexión no está disponible">
+				Vuelve a Conexiones e inicia nuevamente el asistente.
+			</Notice>
+		) : null
+	}
+</ProviderIntegrationsLayout>
+
+<script>
+	type RemoteProperty = {
+		id?: string
+		name?: string
+		city?: string | null
+		country?: string | null
+		currency?: string | null
+	}
+
+	const picker = document.querySelector("[data-remote-property-picker]")
+	if (picker instanceof HTMLElement) {
+		const endpoint = picker.dataset.endpoint || ""
+		const status = picker.querySelector("[data-property-status]")
+		const options = picker.querySelector("[data-property-options]")
+		const propertyId = picker.querySelector("[data-property-id]")
+		const submit = picker.querySelector("[data-property-submit]")
+		const refresh = picker.querySelector("[data-refresh-properties]")
+
+		const setStatus = (message: string) => {
+			if (status) status.textContent = message
+		}
+		const selectProperty = (id: string) => {
+			if (propertyId instanceof HTMLInputElement) propertyId.value = id
+			if (submit instanceof HTMLButtonElement) submit.disabled = !id
+		}
+		const renderProperties = (properties: RemoteProperty[]) => {
+			if (!options) return
+			options.replaceChildren()
+			properties.forEach((property) => {
+				const label = document.createElement("label")
+				label.className =
+					"grid cursor-pointer grid-cols-[auto_1fr] gap-3 rounded-lg border border-slate-200 p-4 text-slate-900 transition hover:border-slate-400 focus-within:border-slate-950 focus-within:ring-2 focus-within:ring-slate-950/20"
+				const radio = document.createElement("input")
+				radio.type = "radio"
+				radio.name = "remoteProperty"
+				radio.value = String(property.id || "")
+				radio.className = "fastt-check-input mt-1 size-4"
+				radio.addEventListener("change", () => selectProperty(radio.value))
+				const body = document.createElement("span")
+				const title = document.createElement("strong")
+				title.className = "block text-sm font-semibold text-slate-950"
+				title.textContent = String(property.name || property.id || "Propiedad")
+				const meta = document.createElement("span")
+				meta.className = "mt-1 block text-xs text-slate-500"
+				meta.textContent = [property.city, property.country, property.currency]
+					.filter(Boolean)
+					.join(" · ")
+				body.append(title, meta)
+				label.append(radio, body)
+				options.append(label)
+			})
+		}
+		const loadProperties = async () => {
+			if (!endpoint) return
+			selectProperty("")
+			setStatus("Consultando propiedades disponibles…")
+			if (refresh instanceof HTMLButtonElement) refresh.disabled = true
+			try {
+				const response = await fetch(endpoint, {
+					headers: { Accept: "application/json" },
+					credentials: "same-origin",
+					cache: "no-store",
+				})
+				const payload = await response.json()
+				if (!response.ok) {
+					const errorCode = payload.error || `REMOTE_PROPERTIES_${response.status}`
+					document.dispatchEvent(
+						new CustomEvent("integration:authorization-error", {
+							detail: {
+								step: "property",
+								errorCode,
+							},
+						})
+					)
+					throw new Error(errorCode)
+				}
+				const properties = Array.isArray(payload.properties) ? payload.properties : []
+				renderProperties(properties)
+				setStatus(
+					properties.length
+						? `${properties.length} ${properties.length === 1 ? "propiedad encontrada" : "propiedades encontradas"}.`
+						: "No encontramos propiedades con este acceso."
+				)
+			} catch {
+				renderProperties([])
+				setStatus(
+					"No pudimos consultar las propiedades. Puedes reintentar o ingresar el ID manualmente."
+				)
+			} finally {
+				if (refresh instanceof HTMLButtonElement) refresh.disabled = false
+			}
+		}
+		refresh?.addEventListener("click", loadProperties)
+		loadProperties()
+	}
+</script>

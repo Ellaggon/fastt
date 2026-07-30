@@ -1,0 +1,45 @@
+---
+import IntegrationExecutionPanel from "@/components/provider/integrations/IntegrationExecutionPanel.astro"
+import Button from "@/components/ui/Button.astro"
+import ProviderIntegrationsLayout from "@/layouts/ProviderIntegrationsLayout.astro"
+import { requireProvider } from "@/lib/auth/requireProvider"
+import { routes } from "@/lib/routes"
+
+const auth = await requireProvider(Astro.request).catch((error: unknown) => {
+	if (error instanceof Response && error.status === 401) return "__REDIRECT_LOGIN__"
+	if (error instanceof Response && error.status === 403) return "__REDIRECT_PROVIDER__"
+	throw error
+})
+if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
+if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerSettingsProfile())
+---
+
+<ProviderIntegrationsLayout
+	title="Historial de integraciones"
+	eyebrow="Integraciones · Historial"
+	heading="Historial"
+	description="Consulta ejecuciones recientes y procesos pendientes cuando necesites investigar una sincronización."
+>
+	<div slot="actions" class="flex flex-wrap gap-2">
+		<Button href={routes.providerSettingsIntegrationsIncidents()} variant="onDark">
+			Ver incidencias
+		</Button>
+		<Button href={routes.providerSettingsIntegrationsConnections()} variant="onDark">
+			Ver conexiones
+		</Button>
+	</div>
+
+	<section class="fastt-notice rounded-lg border border-slate-800 bg-slate-950 p-5">
+		<p class="text-xs font-semibold tracking-wide text-slate-400 uppercase">Carga bajo demanda</p>
+		<h2 class="mt-1 text-lg font-semibold text-white">Actividad operativa</h2>
+		<p class="mt-1 max-w-2xl text-sm leading-6 text-slate-300">
+			Esta pantalla no consulta ejecuciones ni procesos de sincronización hasta que abras el
+			historial. Así las páginas de Integraciones se mantienen rápidas durante el trabajo diario.
+		</p>
+	</section>
+
+	<IntegrationExecutionPanel
+		title="Todas las conexiones"
+		description="Carga las últimas ejecuciones de tus conexiones y los procesos que siguen pendientes."
+	/>
+</ProviderIntegrationsLayout>
