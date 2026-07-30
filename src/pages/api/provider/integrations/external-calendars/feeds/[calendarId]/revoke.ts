@@ -3,8 +3,7 @@ import { requireProviderIntegrationManager } from "@/lib/provider-integration-au
 import { revokeProviderExternalCalendar } from "@/lib/provider-external-calendars"
 
 export const POST: APIRoute = async ({ request, params }) => {
-	const url = new URL("/provider/settings/integrations", request.url)
-	url.searchParams.set("mode", "pro")
+	const url = new URL("/rates/calendar/connections", request.url)
 	try {
 		const auth = await requireProviderIntegrationManager(request)
 		await revokeProviderExternalCalendar({

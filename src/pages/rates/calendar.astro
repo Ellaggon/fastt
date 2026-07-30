@@ -1,4 +1,5 @@
 ---
+import CalendarSubnav from "@/components/rates/CalendarSubnav.astro"
 import SingleCalendarWorkspace from "@/components/rates/SingleCalendarWorkspace"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
@@ -33,6 +34,7 @@ const isProfessionalCalendar = sidebarData.disclosureMode !== "small-provider"
 const rows = await loadRatePlansReadModel({ request: Astro.request, channel: "web" })
 const surface = await buildSingleCalendarSurface({
 	rows,
+	providerId: auth.providerId,
 	ratePlanId: Astro.url.searchParams.get("ratePlanId"),
 	variantId: Astro.url.searchParams.get("variantId"),
 	month: Astro.url.searchParams.get("month"),
@@ -162,6 +164,7 @@ const layoutProps =
 				</p>
 			</div>
 		</header>
+		{!activePlaybook ? <CalendarSubnav /> : null}
 
 		<SingleCalendarWorkspace
 			client:load

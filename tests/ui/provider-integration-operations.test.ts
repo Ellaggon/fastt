@@ -6,20 +6,25 @@ const read = (path: string) => readFileSync(new URL(path, root), "utf8")
 
 describe("provider integration operations UI", () => {
 	it("exposes multiple connections, run history and actionable incidents", () => {
-		const page = read("src/pages/provider/settings/integrations.astro")
-		expect(page).toContain("data-integration-operations")
-		expect(page).toContain("Sincronizaciones e incidencias")
-		expect(page).toContain("Agregar otra conexión")
-		expect(page).toContain("Usar como principal")
-		expect(page).toContain("Marcar resuelta")
-		expect(page).toContain("Ver ejecuciones recientes")
-		expect(page).toContain("Ver trabajos programados")
-		expect(page).toContain("Aviso enviado")
-		expect(page).toContain("Aviso no configurado")
-		expect(page).toContain("data-integration-mapping-builder")
-		expect(page).toContain("Guardar mapeo")
-		expect(page).toContain("Cloudbeds")
-		expect(page).toContain("Channex")
+		const wizard = read("src/pages/provider/settings/integrations/connect/channel-manager.astro")
+		const mapping = read(
+			"src/pages/provider/settings/integrations/connections/[connectionId]/mapping.astro"
+		)
+		const activity = read("src/pages/provider/settings/integrations/activity.astro")
+		const incidents = read("src/pages/provider/settings/integrations/incidents.astro")
+		const connections = read("src/pages/provider/settings/integrations/connections/index.astro")
+		expect(activity).toContain("IntegrationExecutionPanel")
+		expect(activity).toContain("Carga bajo demanda")
+		expect(incidents).toContain("data-integration-incident-summary")
+		expect(incidents).toContain("data-integration-incidents-page")
+		expect(incidents).toContain("Marcar resuelta")
+		expect(incidents).toContain("Aviso enviado")
+		expect(incidents).toContain("Sin canal de aviso")
+		expect(connections).toContain("data-integration-connections-list")
+		expect(wizard).toContain('item.key === "cloudbeds"')
+		expect(wizard).toContain('item.key === "channex"')
+		expect(mapping).toContain("data-mapping-workspace")
+		expect(mapping).toContain("Guardar mapeos")
 	})
 
 	it("has provider-owned mutation endpoints for mappings and incidents", () => {
@@ -47,12 +52,13 @@ describe("provider integration operations UI", () => {
 	})
 
 	it("builds mapping creation from the local catalog and connector presets", () => {
-		const page = read("src/pages/provider/settings/integrations.astro")
+		const page = read(
+			"src/pages/provider/settings/integrations/connections/[connectionId]/mapping.astro"
+		)
 		const operations = read("src/lib/provider-integration-operations.ts")
 
-		expect(page).toContain("listProviderIntegrationMappingCatalog")
-		expect(page).toContain("mappingPresetForConnector")
-		expect(page).toContain('action="/api/provider/integrations/operations/mappings"')
+		expect(page).toContain("mapping-workspace")
+		expect(page).toContain("data-mapping-workspace")
 		expect(page).toContain('name="externalEntityId"')
 		expect(page).toContain('name="localEntityId"')
 		expect(operations).toContain("ProviderIntegrationMappingCatalog")
@@ -68,7 +74,9 @@ describe("provider integration operations UI", () => {
 		const cron = read("src/pages/api/cron/provider-integrations.ts")
 		const vercel = read("vercel.json")
 		const domain = read("src/lib/provider-integrations.ts")
-		const page = read("src/pages/provider/settings/integrations.astro")
+		const activityPanel = read(
+			"src/components/provider/integrations/IntegrationExecutionPanel.astro"
+		)
 
 		expect(schema).toContain("ProviderIntegrationSyncJob")
 		expect(schema).toContain("targetType")
@@ -84,9 +92,8 @@ describe("provider integration operations UI", () => {
 		expect(domain).toContain("ProviderIntegrationSyncRun")
 		expect(domain).toContain("ProviderAuditLog")
 		expect(domain).not.toContain("insertIntegrationLog")
-		expect(page).toContain("recentActivity")
-		expect(page).toContain("integrationActivityEventLabel")
-		expect(page).toContain("integrationRunOperationLabel")
+		expect(activityPanel).toContain("operationLabel")
+		expect(activityPanel).toContain("Procesos pendientes")
 		expect(worker).toContain("runScheduledProviderIntegrationSync")
 		expect(worker).toContain("claimQueuedProviderSyncJobs")
 		expect(worker).toContain('targetType: "connection"')

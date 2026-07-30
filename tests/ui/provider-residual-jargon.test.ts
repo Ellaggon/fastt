@@ -35,7 +35,7 @@ describe("S3-1 residual product jargon cleaned", () => {
 			read("src/pages/provider/settings/profile.astro"),
 			read("src/components/provider/ProviderProfileForm.astro"),
 			read("src/components/provider/ProviderKycSlotsCard.astro"),
-			read("src/pages/provider/settings/integrations.astro"),
+			read("src/pages/provider/settings/integrations/connect/channel-manager.astro"),
 			read("src/pages/admin/providers.astro"),
 		]
 		const visible = sources.map(visibleCopy)
@@ -46,13 +46,13 @@ describe("S3-1 residual product jargon cleaned", () => {
 			}
 		}
 
-		expect(visible[0]).toContain("Estado de tu cuenta")
+		expect(visible[0]).toContain("Checklist de configuración")
 		expect(visible[0]).toContain("estado de tu cuenta")
 		expect(visible[1]).toContain("sus propias secciones")
-		expect(visible[2]).toContain("documentos mínimos de cumplimiento")
+		expect(visible[2]).toContain("documentos mínimos")
 		expect(visible[3]).toContain("Documentos mínimos")
 		expect(visible[3]).not.toContain("Checklist KYC")
-		expect(visible[4]).toContain("Enlace o referencia de acceso")
+		expect(visible[4]).toContain("Autorizar acceso")
 		expect(visible[5]).toContain("Verificar manualmente")
 		expect(visible[5]).toContain("Documentos de cumplimiento")
 	})

@@ -13,6 +13,12 @@ import {
 import { invalidateProviderGovernance } from "@/lib/cache/invalidation"
 import { refreshConnectorOAuthToken } from "@/lib/provider-connector-oauth"
 import {
+	fetchChannelManagerRemoteCatalog,
+	fetchChannelManagerRemoteProperties,
+	type RemoteChannelManagerCatalogResult,
+	type RemoteChannelManagerPropertyResult,
+} from "@/lib/provider-channel-manager-properties"
+import {
 	evaluateProviderGovernance,
 	readProviderGovernanceFromConfigurationState,
 } from "@/lib/provider-governance"
@@ -37,6 +43,23 @@ export type ProviderConnectorKey =
 	| "external_calendars"
 	| "webhooks_api"
 	| "accounting_export"
+
+/**
+ * Provider-facing integrations that have a complete operational workflow.
+ * The remaining connector keys are retained only for historical data and audit compatibility.
+ */
+export const providerIntegrationWorkspaceConnectorKeys = [
+	"channel_manager",
+	"external_calendars",
+] as const satisfies ReadonlyArray<ProviderConnectorKey>
+
+export function isProviderIntegrationWorkspaceConnector(
+	key: unknown
+): key is (typeof providerIntegrationWorkspaceConnectorKeys)[number] {
+	return (providerIntegrationWorkspaceConnectorKeys as readonly string[]).includes(
+		String(key ?? "")
+	)
+}
 
 /**
  * Conceptual product limits for Connection.catalogJson (smoke/preview cache).
@@ -598,6 +621,7 @@ async function insertAudit(params: {
 export async function listProviderIntegrations(params: {
 	providerId: string
 	currentUserId?: string | null
+	includeRecentActivity?: boolean
 }): Promise<ProviderIntegrationCard[]> {
 	const governance =
 		(await readProviderGovernanceFromConfigurationState(params.providerId, {
@@ -614,26 +638,30 @@ export async function listProviderIntegrations(params: {
 
 		.catch(() => [])
 	const [runs, audits, credentials] = await Promise.all([
-		db
-			.select()
-			.from(ProviderIntegrationSyncRun)
-			.where(eq(ProviderIntegrationSyncRun.providerId, params.providerId))
-			.orderBy(desc(ProviderIntegrationSyncRun.startedAt))
-			.limit(40)
-			.catch(() => []),
-		db
-			.select()
-			.from(ProviderAuditLog)
-			.where(
-				and(
-					eq(ProviderAuditLog.providerId, params.providerId),
-					eq(ProviderAuditLog.entityType, "ProviderIntegrationConnection"),
-					inArray(ProviderAuditLog.action, [...INTEGRATION_CONFIG_AUDIT_ACTIONS])
-				)
-			)
-			.orderBy(desc(ProviderAuditLog.createdAt))
-			.limit(40)
-			.catch(() => []),
+		params.includeRecentActivity
+			? db
+					.select()
+					.from(ProviderIntegrationSyncRun)
+					.where(eq(ProviderIntegrationSyncRun.providerId, params.providerId))
+					.orderBy(desc(ProviderIntegrationSyncRun.startedAt))
+					.limit(40)
+					.catch(() => [])
+			: Promise.resolve([]),
+		params.includeRecentActivity
+			? db
+					.select()
+					.from(ProviderAuditLog)
+					.where(
+						and(
+							eq(ProviderAuditLog.providerId, params.providerId),
+							eq(ProviderAuditLog.entityType, "ProviderIntegrationConnection"),
+							inArray(ProviderAuditLog.action, [...INTEGRATION_CONFIG_AUDIT_ACTIONS])
+						)
+					)
+					.orderBy(desc(ProviderAuditLog.createdAt))
+					.limit(40)
+					.catch(() => [])
+			: Promise.resolve([]),
 		db
 			.select()
 			.from(ProviderIntegrationCredential)
@@ -1194,6 +1222,89 @@ export async function syncProviderIntegration(params: {
 	}
 	await invalidateProviderGovernance(params.providerId, "provider_integration_sync_tested")
 	return { status, message, smoke }
+}
+
+export async function listProviderChannelManagerRemoteProperties(params: {
+	providerId: string
+	currentUserId?: string | null
+	connectionId: string
+}): Promise<RemoteChannelManagerPropertyResult> {
+	const connection = await db
+		.select()
+		.from(ProviderIntegrationConnection)
+		.where(
+			and(
+				eq(ProviderIntegrationConnection.id, params.connectionId),
+				eq(ProviderIntegrationConnection.providerId, params.providerId),
+				eq(ProviderIntegrationConnection.connectorKey, "channel_manager")
+			)
+		)
+		.then((rows) => rows[0])
+	if (!connection || connection.status === "revoked") {
+		throw new Error("INTEGRATION_CONNECTION_NOT_FOUND")
+	}
+	const vendorKey = normalizeChannelManagerVendorKey(connection.vendorKey)
+	if (vendorKey === "generic") throw new Error("REMOTE_PROPERTIES_VENDOR_UNSUPPORTED")
+
+	const credential = await ensureProviderIntegrationCredentialFresh({
+		providerId: params.providerId,
+		connectionId: connection.id,
+		connectorKey: "channel_manager",
+		actorUserId: params.currentUserId,
+		authType: normalizeChannelManagerAuthType(connection.authType),
+		mode: normalizeMode(connection.mode),
+	})
+	if (credential.error) throw new Error(credential.error)
+
+	return fetchChannelManagerRemoteProperties({
+		vendorKey,
+		authType: normalizeChannelManagerAuthType(connection.authType),
+		credentialSecret: credential.credentialSecret,
+		mode: normalizeMode(connection.mode),
+	})
+}
+
+export async function getProviderChannelManagerRemoteCatalog(params: {
+	providerId: string
+	currentUserId?: string | null
+	connectionId: string
+}): Promise<RemoteChannelManagerCatalogResult> {
+	const connection = await db
+		.select()
+		.from(ProviderIntegrationConnection)
+		.where(
+			and(
+				eq(ProviderIntegrationConnection.id, params.connectionId),
+				eq(ProviderIntegrationConnection.providerId, params.providerId),
+				eq(ProviderIntegrationConnection.connectorKey, "channel_manager")
+			)
+		)
+		.then((rows) => rows[0])
+	if (!connection || connection.status === "revoked") {
+		throw new Error("INTEGRATION_CONNECTION_NOT_FOUND")
+	}
+	const propertyId = String(connection.externalPropertyId ?? "").trim()
+	if (!propertyId) throw new Error("REMOTE_CATALOG_PROPERTY_REQUIRED")
+	const vendorKey = normalizeChannelManagerVendorKey(connection.vendorKey)
+	if (vendorKey === "generic") throw new Error("REMOTE_CATALOG_VENDOR_UNSUPPORTED")
+
+	const credential = await ensureProviderIntegrationCredentialFresh({
+		providerId: params.providerId,
+		connectionId: connection.id,
+		connectorKey: "channel_manager",
+		actorUserId: params.currentUserId,
+		authType: normalizeChannelManagerAuthType(connection.authType),
+		mode: normalizeMode(connection.mode),
+	})
+	if (credential.error) throw new Error(credential.error)
+
+	return fetchChannelManagerRemoteCatalog({
+		vendorKey,
+		authType: normalizeChannelManagerAuthType(connection.authType),
+		credentialSecret: credential.credentialSecret,
+		mode: normalizeMode(connection.mode),
+		propertyId,
+	})
 }
 
 function credentialsExpiresAt(expiresIn?: number | null, now = new Date()): Date | null {

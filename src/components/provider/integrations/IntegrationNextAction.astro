@@ -1,0 +1,51 @@
+---
+import Button from "@/components/ui/Button.astro"
+import { ArrowRight, CircleCheck, TriangleAlert } from "@lucide/astro"
+
+interface Props {
+	eyebrow?: string
+	title: string
+	description: string
+	actionLabel: string
+	actionHref: string
+	tone?: "default" | "attention" | "success"
+}
+
+const {
+	eyebrow = "Siguiente acción",
+	title,
+	description,
+	actionLabel,
+	actionHref,
+	tone = "default",
+} = Astro.props
+
+const Icon = tone === "attention" ? TriangleAlert : CircleCheck
+const iconClass =
+	tone === "attention"
+		? "border-amber-200 bg-amber-50 text-amber-800"
+		: tone === "success"
+			? "border-emerald-200 bg-emerald-50 text-emerald-700"
+			: "border-slate-200 bg-slate-50 text-slate-700"
+---
+
+<section
+	class="fastt-notice grid gap-5 rounded-[var(--fastt-radius-panel)] border border-slate-200 bg-white p-5 text-slate-900 shadow-[var(--fastt-shadow-panel)] md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:p-6"
+	data-integration-next-action
+	data-tone={tone}
+>
+	<div class="flex min-w-0 items-start gap-4">
+		<div class={`flex size-10 shrink-0 items-center justify-center rounded-lg border ${iconClass}`}>
+			<Icon class="size-5" aria-hidden="true" />
+		</div>
+		<div>
+			<p class="text-xs font-semibold tracking-[0.12em] text-slate-500 uppercase">{eyebrow}</p>
+			<h2 class="mt-1.5 text-lg font-semibold text-slate-950">{title}</h2>
+			<p class="mt-1 text-sm leading-6 text-slate-600">{description}</p>
+		</div>
+	</div>
+	<Button href={actionHref} variant={tone === "attention" ? "primary" : "secondary"}>
+		{actionLabel}
+		<ArrowRight class="size-4" aria-hidden="true" />
+	</Button>
+</section>

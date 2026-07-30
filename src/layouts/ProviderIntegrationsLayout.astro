@@ -1,0 +1,54 @@
+---
+import ProviderIntegrationsSubnav from "@/components/provider/integrations/ProviderIntegrationsSubnav.astro"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { PlugZap } from "@lucide/astro"
+
+interface Props {
+	title?: string
+	eyebrow?: string
+	heading?: string
+	description?: string
+	showIntegrationTabs?: boolean
+}
+
+const {
+	title = "Integraciones",
+	eyebrow = "Distribución · Integraciones",
+	heading = "Integraciones",
+	description = "Administra conexiones, sincronizaciones y problemas de conectividad.",
+	showIntegrationTabs = true,
+} = Astro.props
+---
+
+<WorkspaceLayout title={title}>
+	<section class="space-y-8 text-slate-200" data-integrations-workspace>
+		<header
+			class={`flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 ${
+				showIntegrationTabs ? "pb-5" : "pb-4"
+			}`}
+		>
+			<div class="max-w-3xl space-y-1.5">
+				<p
+					class="flex items-center gap-2 text-xs font-semibold tracking-wide text-slate-400 uppercase"
+				>
+					<PlugZap class="size-4" aria-hidden="true" />
+					{eyebrow}
+				</p>
+				<h1 class="text-3xl font-semibold text-slate-100">{heading}</h1>
+				<p class="max-w-2xl text-sm leading-6 text-slate-300">{description}</p>
+			</div>
+			<div class="flex flex-wrap items-center gap-3">
+				<slot name="actions" />
+			</div>
+		</header>
+
+		<section class={showIntegrationTabs ? "space-y-6 md:space-y-8" : "space-y-0"}>
+			{showIntegrationTabs ? <ProviderIntegrationsSubnav /> : null}
+			<slot />
+		</section>
+	</section>
+</WorkspaceLayout>
+
+<script>
+	import "@/pages/provider/settings/integrations/_client/integration-ux-beacon.js"
+</script>

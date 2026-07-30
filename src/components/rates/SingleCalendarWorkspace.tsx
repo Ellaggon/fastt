@@ -213,6 +213,11 @@ export default function SingleCalendarWorkspace({
 		to: selected[selected.length - 1] || "",
 		count: selected.length,
 	}
+	const selectedExternalDays = surface.days.filter(
+		(day) => selectedDates.has(day.date) && day.externalCalendar
+	)
+	const externalDays = surface.days.filter((day) => day.externalCalendar?.eventCount)
+	const conflictDays = surface.days.filter((day) => day.externalCalendar?.conflictCount)
 
 	async function loadSurface(params: { ratePlanId?: string; month?: string } = {}) {
 		const requestedMonth = params.month || surface.month
@@ -724,14 +729,19 @@ export default function SingleCalendarWorkspace({
 								))}
 							</Select>
 						</label>
-						{isProfessional && (
-							<Button
-								href={multiCalendarHref(mode === "sellability" ? "sellability" : mode)}
-								variant="secondary"
-							>
-								Multicalendario
+						<div className="flex flex-wrap gap-2">
+							<Button href="/rates/calendar/connections" variant="secondary">
+								Conexiones iCal
 							</Button>
-						)}
+							{isProfessional && (
+								<Button
+									href={multiCalendarHref(mode === "sellability" ? "sellability" : mode)}
+									variant="secondary"
+								>
+									Multicalendario
+								</Button>
+							)}
+						</div>
 					</div>
 				)}
 
@@ -860,6 +870,34 @@ export default function SingleCalendarWorkspace({
 					)}
 				</div>
 
+				{selectedExternalDays.length > 0 && (
+					<Notice
+						variant={
+							selectedExternalDays.some((day) => day.externalCalendar?.conflictCount)
+								? "warning"
+								: "info"
+						}
+					>
+						<p className="font-semibold">
+							{selectedExternalDays.length === 1
+								? "La fecha seleccionada tiene actividad externa"
+								: `${selectedExternalDays.length} fechas seleccionadas tienen actividad externa`}
+						</p>
+						<p className="mt-1">
+							Los bloqueos ya están incluidos en el cupo disponible. Revisa la conexión antes de
+							abrir inventario sobre estas fechas.
+						</p>
+						<Button
+							href="/rates/calendar/connections?view=conflicts"
+							variant="secondary"
+							size="sm"
+							className="mt-3"
+						>
+							Revisar calendarios
+						</Button>
+					</Notice>
+				)}
+
 				<div className="mt-5 flex items-center justify-between gap-3 border-b border-slate-200 pb-3">
 					<div className="flex items-center gap-2">
 						<IconButton
@@ -882,6 +920,23 @@ export default function SingleCalendarWorkspace({
 						{summary}
 					</span>
 				</div>
+				{(externalDays.length > 0 || conflictDays.length > 0) && (
+					<div
+						className="mt-3 flex flex-wrap items-center gap-4 text-xs text-slate-600"
+						aria-label="Leyenda de calendarios externos"
+					>
+						<span className="inline-flex items-center gap-2">
+							<span className="size-2 rounded-full bg-sky-500" aria-hidden="true" />
+							Bloqueo externo
+						</span>
+						{conflictDays.length > 0 && (
+							<span className="inline-flex items-center gap-2">
+								<span className="size-2 rounded-full bg-amber-500" aria-hidden="true" />
+								Conflicto por revisar
+							</span>
+						)}
+					</div>
+				)}
 
 				<div className="mt-3 grid grid-cols-7 gap-1 text-center text-[10px] font-semibold text-slate-400 md:gap-2 md:text-xs">
 					{WEEKDAYS.map((weekday) => (
@@ -898,6 +953,7 @@ export default function SingleCalendarWorkspace({
 					))}
 					{surface.days.map((day) => {
 						const presentation = cellPresentation(mode, day, showComparison, showInventoryDetail)
+						const external = day.externalCalendar
 						const isSelected = selectedDates.has(day.date)
 						const isToday = day.date === today
 						const selectionEdge = !isSelected
@@ -915,12 +971,14 @@ export default function SingleCalendarWorkspace({
 								type="button"
 								disabled={day.isPast}
 								onClick={() => selectDate(day)}
-								aria-label={`${formatDate(day.date, true)}${presentation.primary ? ` · ${presentation.primary}` : ""}`}
+								aria-label={`${formatDate(day.date, true)}${presentation.primary ? ` · ${presentation.primary}` : ""}${external?.eventCount ? ` · ${external.eventCount} bloqueo externo` : ""}${external?.conflictCount ? ` · ${external.conflictCount} conflicto` : ""}`}
 								aria-pressed={isSelected}
+								data-external-calendar-day={external?.eventCount ? "true" : undefined}
+								data-external-calendar-conflict={external?.conflictCount ? "true" : undefined}
 								data-selected={isSelected}
 								data-selection-edge={selectionEdge}
 								data-today={isToday}
-								className={`calendar-cell fastt-calendar-cell min-h-20 border p-1.5 text-left disabled:cursor-default md:min-h-28 md:p-2 ${updatedDates.has(day.date) ? "calendar-updated" : ""} ${toneClass(presentation.tone)}`}
+								className={`calendar-cell fastt-calendar-cell min-h-20 border p-1.5 text-left disabled:cursor-default md:min-h-28 md:p-2 ${updatedDates.has(day.date) ? "calendar-updated" : ""} ${external?.conflictCount ? "ring-1 ring-amber-400" : external?.eventCount ? "border-sky-300" : ""} ${toneClass(presentation.tone)}`}
 							>
 								<div className="flex items-start justify-end gap-1.5">
 									{isToday && (
@@ -944,6 +1002,21 @@ export default function SingleCalendarWorkspace({
 										)}
 									</div>
 								)}
+								{!day.isPast && external?.eventCount ? (
+									<div className="mt-1 flex items-center gap-1 overflow-hidden">
+										<span
+											className={`size-1.5 shrink-0 rounded-full ${
+												external.conflictCount ? "bg-amber-500" : "bg-sky-500"
+											}`}
+											aria-hidden="true"
+										/>
+										<span className="truncate text-[9px] font-semibold text-slate-600 md:text-[10px]">
+											{external.conflictCount
+												? `${external.conflictCount} conflicto${external.conflictCount === 1 ? "" : "s"}`
+												: `${external.eventCount} externo${external.eventCount === 1 ? "" : "s"}`}
+										</span>
+									</div>
+								) : null}
 							</button>
 						)
 					})}

@@ -106,7 +106,7 @@ function placeholders(values: readonly unknown[]) {
 }
 
 async function rawRun(query: unknown) {
-	await (db as any).run(query)
+	await db.execute(query as Parameters<typeof db.execute>[0])
 }
 
 let ensureCommercialRuleTablesPromise: Promise<void> | null = null
@@ -135,8 +135,7 @@ async function run(query: unknown) {
 
 async function all<T>(query: unknown): Promise<T[]> {
 	await ensureCommercialRuleTables()
-	const result = await (db as any).run(query)
-	return ((result as any)?.rows ?? []) as T[]
+	return (await db.execute(query as Parameters<typeof db.execute>[0])) as T[]
 }
 
 async function get<T>(query: unknown): Promise<T | null> {

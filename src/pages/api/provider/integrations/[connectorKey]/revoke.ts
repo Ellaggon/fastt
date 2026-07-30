@@ -10,6 +10,7 @@ import { revokeProviderIntegration } from "@/lib/provider-integrations"
 export const POST: APIRoute = async ({ request, params }) => {
 	const form = await request.formData().catch(() => null)
 	const uiMode = resolveIntegrationUiMode(form?.get("uiMode"))
+	const returnTo = form?.get("returnTo")
 	try {
 		if (String(form?.get("confirmDisconnect") ?? "") !== "DESCONECTAR") {
 			throw new Error("DISCONNECT_CONFIRMATION_REQUIRED")
@@ -21,9 +22,9 @@ export const POST: APIRoute = async ({ request, params }) => {
 			connectorKey: params.connectorKey ?? "",
 			connectionId: String(form?.get("connectionId") ?? "") || null,
 		})
-		return redirectIntegrationsSuccess(request, "integration_revoked", uiMode)
+		return redirectIntegrationsSuccess(request, "integration_revoked", uiMode, { returnTo })
 	} catch (error) {
 		const message = error instanceof Error ? error.message : "integration_error"
-		return redirectIntegrationsError(request, message, uiMode)
+		return redirectIntegrationsError(request, message, uiMode, { returnTo })
 	}
 }

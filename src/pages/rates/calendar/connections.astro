@@ -1,0 +1,536 @@
+---
+import CalendarSubnav from "@/components/rates/CalendarSubnav.astro"
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Input from "@/components/ui/Input.astro"
+import Notice from "@/components/ui/Notice.astro"
+import Select from "@/components/ui/Select.astro"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { requireProvider } from "@/lib/auth/requireProvider"
+import {
+	EXTERNAL_CALENDAR_EXPORT_FLASH_COOKIE,
+	readExternalCalendarExportFlash,
+} from "@/lib/provider-external-calendar-export-flash"
+import {
+	listProviderExternalCalendars,
+	mapExternalCalendarError,
+} from "@/lib/provider-external-calendars"
+import { routes } from "@/lib/routes"
+import {
+	ArrowLeft,
+	CalendarDays,
+	ExternalLink,
+	Plus,
+	RefreshCw,
+	Trash2,
+	TriangleAlert,
+} from "@lucide/astro"
+
+const auth = await requireProvider(Astro.request).catch((error: unknown) => {
+	if (error instanceof Response && error.status === 401) return "__REDIRECT_LOGIN__"
+	if (error instanceof Response && error.status === 403) return "__REDIRECT_PROVIDER__"
+	throw error
+})
+if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
+if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerSettingsProfile())
+
+const data = await listProviderExternalCalendars(auth.providerId)
+const activeCalendars = data.calendars.filter((calendar) => calendar.status !== "revoked")
+const importedEvents = activeCalendars.reduce(
+	(total, calendar) => total + calendar.lastEventCount,
+	0
+)
+const openConflicts = activeCalendars.flatMap((calendar) =>
+	calendar.conflicts.map((conflict) => ({ ...conflict, calendar }))
+)
+const result = Astro.url.searchParams.get("ical")
+const reason = Astro.url.searchParams.get("reason")
+const exportFlash = Astro.cookies.get(EXTERNAL_CALENDAR_EXPORT_FLASH_COOKIE)?.value ?? ""
+const exportUrl = exportFlash
+	? readExternalCalendarExportFlash({ providerId: auth.providerId, value: exportFlash })
+	: null
+if (exportFlash) {
+	Astro.cookies.delete(EXTERNAL_CALENDAR_EXPORT_FLASH_COOKIE, {
+		path: "/rates/calendar/connections",
+	})
+}
+const requestedView = Astro.url.searchParams.get("view")
+const view = requestedView === "conflicts" || requestedView === "exports" ? requestedView : "feeds"
+
+function formatDate(value: Date | null) {
+	if (!value) return "Sin actividad"
+	return new Intl.DateTimeFormat("es", {
+		dateStyle: "medium",
+		timeStyle: "short",
+	}).format(value)
+}
+
+function statusLabel(status: string) {
+	if (status === "active") return "Actualizado"
+	if (status === "error") return "Requiere atención"
+	if (status === "revoked") return "Desconectado"
+	return "Pendiente"
+}
+
+function statusTone(status: string) {
+	if (status === "active") return "success"
+	if (status === "error") return "error"
+	if (status === "revoked") return "warning"
+	return "info"
+}
+
+const localTabs = [
+	{ id: "feeds", label: "Importaciones", count: activeCalendars.length },
+	{ id: "conflicts", label: "Conflictos", count: openConflicts.length },
+	{
+		id: "exports",
+		label: "Exportación",
+		count: data.exports.filter((item) => item.status === "active").length,
+	},
+] as const
+---
+
+<WorkspaceLayout title="Conexiones iCal">
+	<div class="space-y-6 text-slate-200" data-calendar-connections-workspace>
+		<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
+			<div class="max-w-3xl">
+				<p
+					class="flex items-center gap-2 text-xs font-semibold tracking-wide text-slate-400 uppercase"
+				>
+					<CalendarDays class="size-4" aria-hidden="true" />
+					Calendario · Distribución
+				</p>
+				<h1 class="mt-1.5 text-3xl font-semibold text-slate-100">Conexiones iCal</h1>
+				<p class="mt-1.5 max-w-2xl text-sm leading-6 text-slate-300">
+					Importa bloqueos de otros canales y comparte las reservas de Fastt sin perder de vista la
+					disponibilidad.
+				</p>
+			</div>
+			<Button href={routes.calendar()} variant="onDark">
+				<ArrowLeft class="size-4" aria-hidden="true" />
+				Volver al calendario
+			</Button>
+		</header>
+
+		<CalendarSubnav />
+
+		{
+			result === "added" ? (
+				<Notice variant="success" title="Calendario conectado">
+					El feed se guardó y se ejecutó su primera actualización.
+				</Notice>
+			) : result === "queued" ? (
+				<Notice variant="success" title="Calendario actualizado">
+					Los bloqueos externos ya están reflejados en disponibilidad.
+				</Notice>
+			) : result === "revoked" ? (
+				<Notice variant="success" title="Calendario desconectado">
+					El feed dejó de actualizarse.
+				</Notice>
+			) : result === "conflict_updated" ? (
+				<Notice variant="success" title="Conflicto actualizado">
+					La decisión quedó registrada en la auditoría del calendario.
+				</Notice>
+			) : result === "export_created" && exportUrl ? (
+				<Notice variant="success" title="Enlace iCal creado">
+					<p>Guarda este enlace ahora. El token completo no volverá a mostrarse.</p>
+					<code class="mt-2 block rounded-md bg-white/80 p-2 text-xs break-all">{exportUrl}</code>
+				</Notice>
+			) : result === "export_revoked" ? (
+				<Notice variant="success" title="Enlace revocado">
+					El calendario dejó de estar disponible para descargas externas.
+				</Notice>
+			) : result === "error" ? (
+				<Notice variant="error" title="No pudimos completar la acción">
+					{mapExternalCalendarError(reason)}
+				</Notice>
+			) : null
+		}
+
+		<section
+			class="fastt-notice grid gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 text-slate-900 sm:grid-cols-3"
+			aria-label="Estado de calendarios externos"
+		>
+			<div class="bg-white p-4">
+				<p class="text-xs font-semibold text-slate-500">Feeds activos</p>
+				<p class="mt-1 text-2xl font-semibold text-slate-950">{activeCalendars.length}</p>
+			</div>
+			<div class="bg-white p-4">
+				<p class="text-xs font-semibold text-slate-500">Bloqueos importados</p>
+				<p class="mt-1 text-2xl font-semibold text-slate-950">{importedEvents}</p>
+			</div>
+			<div class={openConflicts.length ? "bg-amber-50 p-4" : "bg-white p-4"}>
+				<p class="text-xs font-semibold text-slate-500">Conflictos abiertos</p>
+				<p
+					class={`mt-1 text-2xl font-semibold ${
+						openConflicts.length ? "text-amber-950" : "text-slate-950"
+					}`}
+				>
+					{openConflicts.length}
+				</p>
+			</div>
+		</section>
+
+		<section
+			class="fastt-notice overflow-hidden rounded-lg border border-slate-200 bg-white text-slate-900 shadow-[var(--fastt-shadow-row)]"
+		>
+			<div class="border-b border-slate-200 px-4 pt-3">
+				<nav class="flex min-w-max gap-1 overflow-x-auto" aria-label="Secciones de iCal">
+					{
+						localTabs.map((tab) => (
+							<a
+								href={`${routes.ratesCalendarConnections()}?view=${tab.id}`}
+								aria-current={view === tab.id ? "page" : undefined}
+								class={`inline-flex min-h-11 items-center gap-2 border-b-2 px-3 py-2 text-sm font-semibold ${
+									view === tab.id
+										? "border-slate-950 text-slate-950"
+										: "border-transparent text-slate-500 hover:text-slate-950"
+								}`}
+							>
+								{tab.label}
+								<span
+									class={`rounded-full px-2 py-0.5 text-xs ${
+										tab.id === "conflicts" && tab.count
+											? "bg-amber-100 text-amber-900"
+											: "bg-slate-100 text-slate-600"
+									}`}
+								>
+									{tab.count}
+								</span>
+							</a>
+						))
+					}
+				</nav>
+			</div>
+
+			{
+				view === "feeds" ? (
+					<div data-external-calendars-mvp>
+						<div class="flex flex-col gap-3 border-b border-slate-200 p-5 sm:flex-row sm:items-start sm:justify-between">
+							<div>
+								<h2 class="text-lg font-semibold text-slate-950">Calendarios importados</h2>
+								<p class="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
+									Cada feed bloquea la habitación o unidad física elegida. Fastt actualiza el cupo
+									después de cada sincronización.
+								</p>
+							</div>
+							{activeCalendars.length ? (
+								<form
+									method="post"
+									action="/api/provider/integrations/external-calendars/feeds/sync-all"
+								>
+									<Button type="submit" size="sm" variant="secondary">
+										<RefreshCw class="size-4" aria-hidden="true" />
+										Actualizar todos
+									</Button>
+								</form>
+							) : null}
+						</div>
+
+						<details
+							class="border-b border-slate-200 bg-slate-50 p-5"
+							open={!activeCalendars.length}
+						>
+							<summary class="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-slate-950">
+								<Plus class="size-4" aria-hidden="true" />
+								Conectar otro calendario
+							</summary>
+							<form
+								method="post"
+								action="/api/provider/integrations/external-calendars/feeds"
+								class="mt-4 grid gap-4 md:grid-cols-2"
+							>
+								<label class="grid gap-2 text-sm font-semibold text-slate-900">
+									Nombre
+									<Input name="name" required maxlength="80" placeholder="Airbnb · Suite 203" />
+								</label>
+								<label class="grid gap-2 text-sm font-semibold text-slate-900">
+									Habitación
+									<Select name="variantId" required>
+										<option value="">Selecciona en Fastt</option>
+										{data.variants.map((variant) => (
+											<option value={variant.id}>{variant.label}</option>
+										))}
+									</Select>
+								</label>
+								<label class="grid gap-2 text-sm font-semibold text-slate-900">
+									Unidad física
+									<Select name="resourceId">
+										<option value="">Inventario compartido</option>
+										{data.variants.flatMap((variant) =>
+											variant.resources.map((resource) => (
+												<option value={resource.id}>
+													{variant.label} · {resource.label}
+												</option>
+											))
+										)}
+									</Select>
+								</label>
+								<label class="grid gap-2 text-sm font-semibold text-slate-900">
+									Nueva unidad física
+									<Input name="resourceLabel" maxlength="80" placeholder="Ej. Habitación 203" />
+								</label>
+								<label class="grid gap-2 text-sm font-semibold text-slate-900 md:col-span-2">
+									URL privada de importación
+									<Input
+										name="feedUrl"
+										type="url"
+										required
+										placeholder="https://…/calendar.ics"
+										autocomplete="off"
+									/>
+								</label>
+								<div class="md:col-span-2">
+									<p class="mb-3 text-xs leading-5 text-slate-500">
+										La URL se cifra antes de guardarse y debe usar HTTPS.
+									</p>
+									<Button type="submit" disabled={!data.variants.length}>
+										<Plus class="size-4" aria-hidden="true" />
+										Conectar y actualizar
+									</Button>
+								</div>
+							</form>
+						</details>
+
+						<div class="divide-y divide-slate-200" data-external-calendar-list>
+							{data.calendars.length ? (
+								data.calendars.map((calendar) => (
+									<article class="p-5" data-external-calendar={calendar.id}>
+										<div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+											<div class="min-w-0">
+												<div class="flex flex-wrap items-center gap-2">
+													<h3 class="font-semibold text-slate-950">{calendar.name}</h3>
+													<Badge variant={statusTone(calendar.status)}>
+														{statusLabel(calendar.status)}
+													</Badge>
+													{calendar.status !== "revoked" && calendar.syncEnabled ? (
+														<Badge variant="neutral">Automático</Badge>
+													) : null}
+												</div>
+												<p class="mt-1 text-sm text-slate-600">
+													{calendar.productName} · {calendar.variantName}
+													{calendar.resourceLabel ? ` · ${calendar.resourceLabel}` : ""}
+												</p>
+												<p class="mt-1 text-xs leading-5 text-slate-500">
+													{calendar.sourceHost} · {calendar.lastEventCount} bloqueos ·{" "}
+													{formatDate(calendar.lastSyncAt)}
+												</p>
+												{calendar.syncEnabled && calendar.status !== "revoked" ? (
+													<p class="text-xs text-slate-500">
+														Próxima actualización: {formatDate(calendar.nextSyncAt)}
+													</p>
+												) : null}
+											</div>
+											{calendar.status !== "revoked" ? (
+												<div class="flex shrink-0 gap-2">
+													<form
+														method="post"
+														action={`/api/provider/integrations/external-calendars/feeds/${calendar.id}/sync`}
+													>
+														<Button type="submit" size="sm" variant="secondary">
+															<RefreshCw class="size-4" aria-hidden="true" />
+															Actualizar
+														</Button>
+													</form>
+													<form
+														method="post"
+														action={`/api/provider/integrations/external-calendars/feeds/${calendar.id}/revoke`}
+													>
+														<Button
+															type="submit"
+															size="sm"
+															variant="danger"
+															title="Desconectar calendario"
+														>
+															<Trash2 class="size-4" aria-hidden="true" />
+															<span class="sr-only">Desconectar</span>
+														</Button>
+													</form>
+												</div>
+											) : null}
+										</div>
+										{calendar.lastError ? (
+											<Notice variant="warning" title="Último intento" class="mt-4">
+												{mapExternalCalendarError(calendar.lastError)}
+											</Notice>
+										) : null}
+										{calendar.conflicts.length ? (
+											<a
+												href={`${routes.ratesCalendarConnections()}?view=conflicts`}
+												class="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-amber-800 hover:text-amber-950"
+											>
+												<TriangleAlert class="size-4" aria-hidden="true" />
+												{calendar.conflicts.length}{" "}
+												{calendar.conflicts.length === 1
+													? "conflicto abierto"
+													: "conflictos abiertos"}
+											</a>
+										) : null}
+									</article>
+								))
+							) : (
+								<div class="p-8 text-center">
+									<p class="text-sm font-semibold text-slate-950">Sin calendarios conectados</p>
+									<p class="mt-1 text-sm text-slate-600">
+										Conecta el primer feed para proteger fechas ocupadas en otros canales.
+									</p>
+								</div>
+							)}
+						</div>
+					</div>
+				) : view === "conflicts" ? (
+					<div>
+						<div class="border-b border-slate-200 p-5">
+							<h2 class="text-lg font-semibold text-slate-950">Conflictos operativos</h2>
+							<p class="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
+								La disponibilidad ya incluye el bloqueo externo. Aquí decides cómo clasificar la
+								alerta para mantener la operación limpia.
+							</p>
+						</div>
+						<div class="divide-y divide-slate-200" data-external-calendar-conflicts>
+							{openConflicts.length ? (
+								openConflicts.map(({ calendar, ...conflict }) => (
+									<article class="p-5">
+										<div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+											<div class="max-w-2xl">
+												<div class="flex flex-wrap items-center gap-2">
+													<Badge variant="warning">Abierto</Badge>
+													<h3 class="font-semibold text-slate-950">{conflict.label}</h3>
+												</div>
+												<p class="mt-2 text-sm text-slate-700">
+													{calendar.name} · {calendar.productName} · {calendar.variantName}
+													{conflict.resourceLabel ? ` · ${conflict.resourceLabel}` : ""}
+												</p>
+												<p class="mt-1 text-sm font-semibold text-slate-950">
+													{conflict.startDate} → {conflict.endDate}
+												</p>
+												<p class="mt-2 text-sm leading-6 text-slate-600">{conflict.description}</p>
+											</div>
+											{conflict.id ? (
+												<div class="flex flex-wrap gap-2">
+													{(["accept", "ignore", "resolve"] as const).map((action) => (
+														<form
+															method="post"
+															action={`/api/provider/integrations/external-calendars/conflicts/${conflict.id}/resolve`}
+														>
+															<input type="hidden" name="action" value={action} />
+															<Button
+																type="submit"
+																size="sm"
+																variant={action === "accept" ? "secondary" : "ghost"}
+															>
+																{action === "accept"
+																	? "Aceptar alerta"
+																	: action === "ignore"
+																		? "Ignorar"
+																		: "Marcar resuelto"}
+															</Button>
+														</form>
+													))}
+												</div>
+											) : null}
+										</div>
+									</article>
+								))
+							) : (
+								<div class="p-8 text-center">
+									<p class="text-sm font-semibold text-slate-950">No hay conflictos abiertos</p>
+									<p class="mt-1 text-sm text-slate-600">
+										Los calendarios no se solapan con reservas ni con otros feeds.
+									</p>
+								</div>
+							)}
+						</div>
+					</div>
+				) : (
+					<div data-external-calendar-export>
+						<div class="border-b border-slate-200 p-5">
+							<h2 class="text-lg font-semibold text-slate-950">Compartir calendario Fastt</h2>
+							<p class="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
+								Crea un enlace por habitación para que otros canales bloqueen las reservas recibidas
+								en Fastt.
+							</p>
+						</div>
+						<div class="grid border-b border-slate-200 lg:grid-cols-[0.8fr_1.2fr]">
+							<form
+								method="post"
+								action="/api/provider/integrations/external-calendars/exports"
+								class="grid gap-4 bg-slate-50 p-5"
+							>
+								<label class="grid gap-2 text-sm font-semibold text-slate-900">
+									Nombre del enlace
+									<Input name="label" maxlength="80" placeholder="Fastt · Suite principal" />
+								</label>
+								<label class="grid gap-2 text-sm font-semibold text-slate-900">
+									Habitación
+									<Select name="variantId" required>
+										<option value="">Selecciona en Fastt</option>
+										{data.variants.map((variant) => (
+											<option value={variant.id}>{variant.label}</option>
+										))}
+									</Select>
+								</label>
+								<p class="text-xs leading-5 text-slate-500">
+									El enlace incluye las reservas de la habitación completa y protege contra bucles
+									de reimportación.
+								</p>
+								<div>
+									<Button type="submit" disabled={!data.variants.length}>
+										<ExternalLink class="size-4" aria-hidden="true" />
+										Crear enlace
+									</Button>
+								</div>
+							</form>
+							<div class="divide-y divide-slate-200 border-t border-slate-200 lg:border-t-0 lg:border-l">
+								{data.exports.length ? (
+									data.exports.map((exportLink) => (
+										<article class="flex flex-col gap-3 p-5 sm:flex-row sm:items-start sm:justify-between">
+											<div>
+												<div class="flex flex-wrap items-center gap-2">
+													<h3 class="font-semibold text-slate-950">{exportLink.label}</h3>
+													<Badge variant={exportLink.status === "active" ? "success" : "warning"}>
+														{exportLink.status === "active" ? "Activo" : "Revocado"}
+													</Badge>
+												</div>
+												<p class="mt-1 text-sm text-slate-600">
+													{exportLink.productName} · {exportLink.variantName}
+												</p>
+												<p class="mt-1 text-xs text-slate-500">
+													{exportLink.downloadCount} descargas ·{" "}
+													{formatDate(exportLink.lastDownloadedAt)}
+												</p>
+											</div>
+											{exportLink.status === "active" ? (
+												<form
+													method="post"
+													action={`/api/provider/integrations/external-calendars/exports/${exportLink.id}/revoke`}
+												>
+													<Button type="submit" size="sm" variant="danger">
+														<Trash2 class="size-4" aria-hidden="true" />
+														Revocar
+													</Button>
+												</form>
+											) : null}
+										</article>
+									))
+								) : (
+									<div class="p-8 text-center">
+										<p class="text-sm font-semibold text-slate-950">Sin enlaces de exportación</p>
+										<p class="mt-1 text-sm text-slate-600">
+											Crea uno cuando necesites compartir reservas de Fastt.
+										</p>
+									</div>
+								)}
+							</div>
+						</div>
+					</div>
+				)
+			}
+		</section>
+
+		<p class="flex items-center gap-2 text-xs text-slate-400">
+			<ExternalLink class="size-3.5" aria-hidden="true" />
+			El estado resumido también permanece visible en Integraciones.
+		</p>
+	</div>
+</WorkspaceLayout>

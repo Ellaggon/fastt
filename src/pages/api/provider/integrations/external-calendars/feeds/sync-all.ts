@@ -7,8 +7,7 @@ import {
 import { ProviderExternalCalendar, db, eq, ne, and } from "@/shared/infrastructure/db/compat"
 
 export const POST: APIRoute = async ({ request }) => {
-	const url = new URL("/provider/settings/integrations", request.url)
-	url.searchParams.set("mode", "pro")
+	const url = new URL("/rates/calendar/connections", request.url)
 	try {
 		const auth = await requireProviderIntegrationManager(request)
 		const calendars = await db

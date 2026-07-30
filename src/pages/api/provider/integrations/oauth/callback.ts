@@ -28,7 +28,11 @@ export const GET: APIRoute = async ({ request, url }) => {
 	const error = String(url.searchParams.get("error") ?? "").trim()
 	const connectorFromQuery = String(url.searchParams.get("connector") ?? "").trim()
 
-	const target = new URL(routes.providerSettingsIntegrations(), request.url)
+	const stateForTarget = stateRaw ? parseConnectorOAuthState(stateRaw) : null
+	let target = new URL(
+		stateForTarget?.returnTo ?? routes.providerSettingsIntegrationsConnectChannelManager(),
+		request.url
+	)
 	if (error) {
 		target.searchParams.set("oauth", "denied")
 		target.searchParams.set("reason", error.slice(0, 80))
@@ -45,11 +49,12 @@ export const GET: APIRoute = async ({ request, url }) => {
 		return Response.redirect(target, 303)
 	}
 
-	const state = parseConnectorOAuthState(stateRaw)
+	const state = stateForTarget
 	if (!state) {
 		target.searchParams.set("oauth", "invalid_state")
 		return Response.redirect(target, 303)
 	}
+	if (state.returnTo) target = new URL(state.returnTo, request.url)
 
 	if (state.actorUserId !== user.id) {
 		target.searchParams.set("oauth", "actor_mismatch")
@@ -65,7 +70,6 @@ export const GET: APIRoute = async ({ request, url }) => {
 	}
 
 	const connectorKey = state.connectorKey || connectorFromQuery
-	target.searchParams.set("mode", state.uiMode)
 	target.searchParams.set("connector", connectorKey)
 
 	if (status.mode === "oauth_scaffold") {
@@ -86,11 +90,13 @@ export const GET: APIRoute = async ({ request, url }) => {
 	}
 
 	try {
-		await connectProviderIntegration({
+		const connectionId = await connectProviderIntegration({
 			providerId: state.providerId,
 			currentUserId: state.actorUserId,
 			connectorKey,
 			mode: state.mode,
+			vendorKey: state.vendorKey,
+			authType: "oauth2",
 			scopes: exchanged.scope ? exchanged.scope.split(/\s+/).filter(Boolean) : [],
 			oauthCredential: exchanged.accessToken
 				? {
@@ -102,6 +108,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 					}
 				: undefined,
 		})
+		target.searchParams.set("connectionId", connectionId)
 	} catch (connectError) {
 		target.searchParams.set("oauth", "persist_failed")
 		target.searchParams.set(

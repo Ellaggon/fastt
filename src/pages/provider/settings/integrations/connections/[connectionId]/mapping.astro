@@ -1,0 +1,868 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Dialog from "@/components/ui/Dialog.astro"
+import ProviderIntegrationsLayout from "@/layouts/ProviderIntegrationsLayout.astro"
+import { requireProvider } from "@/lib/auth/requireProvider"
+import { getProviderIntegrationConnectionReadModel } from "@/lib/provider-integration-read-models"
+import { routes } from "@/lib/routes"
+import {
+	ArrowLeft,
+	ArrowRight,
+	Check,
+	ChevronDown,
+	RefreshCw,
+	Sparkles,
+	TriangleAlert,
+	X,
+} from "@lucide/astro"
+
+const auth = await requireProvider(Astro.request).catch((error: any) => {
+	if (error instanceof Response && error.status === 401) return "__REDIRECT_LOGIN__"
+	if (error instanceof Response && error.status === 403) return "__REDIRECT_PROVIDER__"
+	throw error
+})
+if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
+if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerSettingsProfile())
+
+const connectionId = String(Astro.params.connectionId ?? "").trim()
+const connection = await getProviderIntegrationConnectionReadModel({
+	providerId: auth.providerId,
+	connectionId,
+})
+if (
+	!connection ||
+	connection.connectorKey !== "channel_manager" ||
+	connection.status === "revoked"
+) {
+	return Astro.redirect(routes.providerSettingsIntegrationsConnections(), 302)
+}
+
+const workspaceEndpoint = `/api/provider/integrations/channel-manager/connections/${encodeURIComponent(connectionId)}/mapping-workspace`
+const saveEndpoint = `/api/provider/integrations/channel-manager/connections/${encodeURIComponent(connectionId)}/mappings`
+---
+
+<ProviderIntegrationsLayout
+	title="Mapeo de channel manager"
+	eyebrow="Integraciones · Channel manager"
+	heading="Relacionar inventario"
+	description="Une las habitaciones y tarifas de Fastt con el catálogo del proveedor antes de sincronizar."
+>
+	<div slot="actions">
+		<Button href={routes.providerSettingsIntegrationsConnections()} variant="onDark">
+			<ArrowLeft class="size-4" aria-hidden="true" />
+			Conexiones
+		</Button>
+	</div>
+
+	<section
+		class="space-y-4"
+		data-mapping-workspace
+		data-workspace-endpoint={workspaceEndpoint}
+		data-save-endpoint={saveEndpoint}
+	>
+		<div
+			class="fastt-notice grid gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 sm:grid-cols-3"
+			aria-label="Contexto de la conexión"
+		>
+			<div class="bg-white p-4">
+				<p class="text-xs font-semibold text-slate-500">Conexión</p>
+				<p class="mt-1 truncate text-sm font-semibold text-slate-950">
+					{connection.displayName}
+				</p>
+			</div>
+			<div class="bg-white p-4">
+				<p class="text-xs font-semibold text-slate-500">Propiedad externa</p>
+				<p class="mt-1 truncate text-sm font-semibold text-slate-950">
+					{connection.externalPropertyId || "Sin seleccionar"}
+				</p>
+			</div>
+			<div class="bg-white p-4">
+				<p class="text-xs font-semibold text-slate-500">Entorno</p>
+				<div class="mt-1">
+					<Badge variant={connection.mode === "production" ? "success" : "info"}>
+						{connection.mode === "production" ? "Producción" : "Sandbox"}
+					</Badge>
+				</div>
+			</div>
+		</div>
+
+		<div
+			class="fastt-notice overflow-hidden rounded-lg border border-slate-200 bg-white text-slate-900 shadow-[var(--fastt-shadow-row)]"
+		>
+			<div
+				class="flex flex-col gap-4 border-b border-slate-200 p-4 lg:flex-row lg:items-center lg:justify-between"
+			>
+				<div>
+					<div class="flex flex-wrap items-center gap-2">
+						<h2 class="text-lg font-semibold text-slate-950">Workspace de mapeo</h2>
+						<span
+							class="hidden rounded-full bg-sky-50 px-2 py-1 text-xs font-semibold text-sky-800"
+							data-fetched-at></span>
+					</div>
+					<p class="mt-1 text-sm leading-6 text-slate-600">
+						Fastt compara nombres y jerarquías. Tú mantienes el control antes de guardar.
+					</p>
+				</div>
+				<div class="flex flex-wrap gap-2">
+					<Button type="button" variant="secondary" data-refresh-catalog>
+						<RefreshCw class="size-4" aria-hidden="true" />
+						Actualizar catálogo
+					</Button>
+					<Button type="button" disabled data-open-preview>
+						<span data-review-label>Revisar cambios</span>
+						<ArrowRight class="size-4" aria-hidden="true" />
+					</Button>
+				</div>
+			</div>
+
+			<div class="grid gap-px border-b border-slate-200 bg-slate-200 sm:grid-cols-4">
+				<div class="bg-slate-50 p-3">
+					<p class="text-xs text-slate-500">Habitaciones</p>
+					<p class="mt-1 text-lg font-semibold text-slate-950" data-room-progress>—</p>
+				</div>
+				<div class="bg-slate-50 p-3">
+					<p class="text-xs text-slate-500">Planes tarifarios</p>
+					<p class="mt-1 text-lg font-semibold text-slate-950" data-rate-progress>—</p>
+				</div>
+				<div class="bg-slate-50 p-3">
+					<p class="text-xs text-slate-500">Sugerencias seguras</p>
+					<p class="mt-1 text-lg font-semibold text-slate-950" data-suggestion-count>—</p>
+				</div>
+				<div class="bg-slate-50 p-3">
+					<p class="text-xs text-slate-500">Sin coincidencia</p>
+					<p class="mt-1 text-lg font-semibold text-slate-950" data-unmatched-count>—</p>
+				</div>
+			</div>
+
+			<div class="border-b border-slate-200 px-4 pt-3">
+				<div class="flex min-w-max gap-1" role="tablist" aria-label="Tipo de mapeo">
+					<button
+						type="button"
+						class="fastt-button border-b-2 border-slate-950 px-3 py-3 text-sm font-semibold text-slate-950"
+						role="tab"
+						aria-selected="true"
+						data-mapping-tab="roomTypes"
+					>
+						Habitaciones
+					</button>
+					<button
+						type="button"
+						class="fastt-button border-b-2 border-transparent px-3 py-3 text-sm font-semibold text-slate-500 hover:text-slate-950"
+						role="tab"
+						aria-selected="false"
+						data-mapping-tab="ratePlans"
+					>
+						Planes de tarifa
+					</button>
+				</div>
+			</div>
+
+			<div
+				class="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between"
+			>
+				<label class="relative block max-w-sm flex-1">
+					<span class="sr-only">Buscar entidad</span>
+					<input
+						type="search"
+						placeholder="Buscar en Fastt o en el proveedor"
+						class="fastt-field fastt-notice h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-950 outline-none focus:border-slate-950 focus:ring-1 focus:ring-slate-950"
+						data-mapping-search
+					/>
+				</label>
+				<button
+					type="button"
+					class="fastt-button fastt-notice inline-flex h-10 items-center justify-center gap-2 rounded-md border border-sky-200 bg-sky-50 px-3 text-sm font-semibold text-sky-900 hover:bg-sky-100"
+					data-apply-suggestions
+				>
+					<Sparkles class="size-4" aria-hidden="true" />
+					Aplicar sugerencias seguras
+				</button>
+			</div>
+
+			<div
+				class="hidden grid-cols-[minmax(0,1fr)_2.5rem_minmax(0,1fr)_auto] gap-3 border-b border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-500 lg:grid"
+				aria-hidden="true"
+			>
+				<span>En Fastt</span>
+				<span></span>
+				<span>En el channel manager</span>
+				<span class="w-20">Incluir</span>
+			</div>
+
+			<div class="min-h-64 divide-y divide-slate-200" data-mapping-rows aria-live="polite">
+				<div class="grid min-h-64 place-items-center p-8 text-center">
+					<div>
+						<RefreshCw class="mx-auto size-5 animate-spin text-slate-400" aria-hidden="true" />
+						<p class="mt-3 text-sm font-semibold text-slate-700">Consultando catálogos</p>
+						<p class="mt-1 text-xs text-slate-500">
+							Esto puede tardar unos segundos según el proveedor.
+						</p>
+					</div>
+				</div>
+			</div>
+			<div
+				class="hidden border-t border-slate-200 bg-white p-4 text-center"
+				data-mapping-pagination
+			>
+				<Button type="button" variant="secondary" data-load-more-mappings> Cargar más </Button>
+			</div>
+
+			<div class="border-t border-slate-200 bg-slate-50 p-4">
+				<details data-manual-mapping>
+					<summary
+						class="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-slate-700"
+					>
+						<span>Opción avanzada: usar un ID externo</span>
+						<ChevronDown class="size-4" aria-hidden="true" />
+					</summary>
+					<p class="mt-2 max-w-2xl text-xs leading-5 text-slate-500">
+						Úsala solo si el proveedor no devuelve una entidad que sabes que existe. El ID será
+						validado por las mismas reglas al guardar.
+					</p>
+					<form class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto]" data-manual-form>
+						<label class="grid gap-1 text-xs font-semibold text-slate-700">
+							Entidad local
+							<select
+								class="fastt-notice fastt-field h-10 rounded-md border border-slate-300 bg-white px-3 text-sm"
+								name="localEntityId"
+								required
+								data-manual-local></select>
+						</label>
+						<label class="grid gap-1 text-xs font-semibold text-slate-700">
+							ID externo exacto
+							<input
+								class="fastt-field fastt-notice h-10 rounded-md border border-slate-300 bg-white px-3 text-sm"
+								name="externalEntityId"
+								autocomplete="off"
+								required
+							/>
+						</label>
+						<button
+							type="submit"
+							class="fastt-notice fastt-button mt-auto h-10 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 hover:bg-slate-100"
+						>
+							Añadir a revisión
+						</button>
+					</form>
+				</details>
+			</div>
+		</div>
+
+		<div
+			class="fastt-notice hidden rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900"
+			role="alert"
+			data-workspace-error
+		>
+		</div>
+	</section>
+
+	<Dialog
+		class="w-[min(42rem,calc(100%-2rem))] shadow-2xl backdrop:bg-slate-950/60"
+		data-mapping-preview
+	>
+		<div class="flex items-start justify-between gap-4 border-b border-slate-200 p-5">
+			<div>
+				<p class="text-xs font-semibold text-slate-500">Vista previa</p>
+				<h2 class="mt-1 text-xl font-semibold text-slate-950">Revisar mapeos</h2>
+				<p class="mt-1 text-sm leading-6 text-slate-600" data-preview-summary></p>
+			</div>
+			<button
+				type="button"
+				class="fastt-button grid size-9 shrink-0 place-items-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-950"
+				aria-label="Cerrar"
+				data-close-preview
+			>
+				<X class="size-5" aria-hidden="true" />
+			</button>
+		</div>
+		<div class="max-h-[55vh] divide-y divide-slate-200 overflow-y-auto" data-preview-rows></div>
+		<div class="border-t border-slate-200 bg-slate-50 p-5">
+			<div class="flex items-start gap-2 text-xs leading-5 text-slate-600">
+				<TriangleAlert class="mt-0.5 size-4 shrink-0 text-amber-600" aria-hidden="true" />
+				<span>
+					Guardar no inicia una sincronización. Primero podrás validar la cobertura completa.
+				</span>
+			</div>
+			<div class="mt-4 flex flex-wrap justify-end gap-2">
+				<Button type="button" variant="secondary" data-close-preview>Seguir revisando</Button>
+				<Button type="button" data-save-mappings>
+					<Check class="size-4" aria-hidden="true" />
+					Guardar mapeos
+				</Button>
+			</div>
+		</div>
+	</Dialog>
+</ProviderIntegrationsLayout>
+
+<script>
+	type Confidence = "high" | "medium" | "low"
+	type Suggestion = {
+		externalEntityId: string
+		externalEntityName: string
+		score: number
+		confidence: Confidence
+		reason: string
+	}
+	type CurrentMapping = {
+		id: string
+		externalEntityId: string
+		externalEntityName: string | null
+		status: string
+	}
+	type LocalRow = {
+		localEntityId: string
+		localEntityName: string
+		localEntityLabel: string
+		parentLocalEntityId: string | null
+		currentMapping: CurrentMapping | null
+		suggestion: Suggestion | null
+	}
+	type RemoteRow = {
+		id: string
+		name: string
+		roomTypeId?: string | null
+		units?: number | null
+		currency?: string | null
+		derived?: boolean
+		readOnly?: boolean
+	}
+	type WorkspaceData = {
+		propertyId: string
+		fetchedAt: string
+		roomTypes: { local: LocalRow[]; remote: RemoteRow[] }
+		ratePlans: { local: LocalRow[]; remote: RemoteRow[] }
+		summary: {
+			localRoomTypes: number
+			mappedRoomTypes: number
+			localRatePlans: number
+			mappedRatePlans: number
+			highConfidenceSuggestions: number
+			unmatchedLocal: number
+		}
+	}
+	type WorkspacePagination = Record<
+		"roomTypes" | "ratePlans",
+		{ page: number; pageSize: number; total: number; hasMore: boolean }
+	>
+
+	const root = document.querySelector<HTMLElement>("[data-mapping-workspace]")
+	if (root) {
+		const rowsHost = root.querySelector<HTMLElement>("[data-mapping-rows]")
+		const errorHost = root.querySelector<HTMLElement>("[data-workspace-error]")
+		const preview = document.querySelector<HTMLDialogElement>("[data-mapping-preview]")
+		const pending = new Map<
+			string,
+			{
+				mappingType: "room_type" | "rate_plan"
+				localEntityType: "variant" | "rate_plan"
+				localEntityId: string
+				localEntityName: string
+				externalEntityType: "room_type" | "rate_plan"
+				externalEntityId: string
+				externalEntityName: string
+				direction: "bidirectional"
+				source: "suggestion" | "user"
+				confidence: Confidence | null
+			}
+		>()
+		let workspace: WorkspaceData | null = null
+		let activeTab: "roomTypes" | "ratePlans" = "roomTypes"
+		let search = ""
+		let pagination: WorkspacePagination | null = null
+
+		const text = (tag: string, value: string, className = "") => {
+			const element = document.createElement(tag)
+			element.textContent = value
+			element.className = className
+			return element
+		}
+
+		const confidenceLabel = (value: Confidence) =>
+			value === "high" ? "Alta confianza" : value === "medium" ? "Revisar" : "Baja confianza"
+
+		const confidenceClass = (value: Confidence) =>
+			value === "high"
+				? "bg-emerald-50 text-emerald-800"
+				: value === "medium"
+					? "bg-amber-50 text-amber-900"
+					: "bg-slate-100 text-slate-700"
+
+		const currentSection = () => workspace?.[activeTab] ?? null
+		const rowKey = (localId: string) => `${activeTab}:${localId}`
+
+		function updateActions() {
+			const button = root?.querySelector<HTMLButtonElement>("[data-open-preview]")
+			if (!button) return
+			button.disabled = pending.size === 0
+			const label = button.querySelector<HTMLElement>("[data-review-label]")
+			if (label) {
+				label.textContent = pending.size
+					? `Revisar ${pending.size} ${pending.size === 1 ? "cambio" : "cambios"}`
+					: "Revisar cambios"
+			}
+		}
+
+		function updateSummary() {
+			if (!workspace || !root) return
+			const summary = workspace.summary
+			const room = root.querySelector("[data-room-progress]")
+			const rate = root.querySelector("[data-rate-progress]")
+			const suggestions = root.querySelector("[data-suggestion-count]")
+			const unmatched = root.querySelector("[data-unmatched-count]")
+			if (room) room.textContent = `${summary.mappedRoomTypes}/${summary.localRoomTypes}`
+			if (rate) rate.textContent = `${summary.mappedRatePlans}/${summary.localRatePlans}`
+			if (suggestions) suggestions.textContent = String(summary.highConfidenceSuggestions)
+			if (unmatched) unmatched.textContent = String(summary.unmatchedLocal)
+			const fetched = root.querySelector<HTMLElement>("[data-fetched-at]")
+			if (fetched) {
+				fetched.textContent = `Actualizado ${new Intl.DateTimeFormat("es", {
+					hour: "2-digit",
+					minute: "2-digit",
+				}).format(new Date(workspace.fetchedAt))}`
+				fetched.classList.remove("hidden")
+			}
+			document.dispatchEvent(
+				new CustomEvent("integration:mapping-snapshot", {
+					detail: {
+						totalMappings: summary.localRoomTypes + summary.localRatePlans,
+						pendingMappings:
+							summary.localRoomTypes +
+							summary.localRatePlans -
+							summary.mappedRoomTypes -
+							summary.mappedRatePlans,
+					},
+				})
+			)
+		}
+
+		function renderManualOptions() {
+			const select = root?.querySelector<HTMLSelectElement>("[data-manual-local]")
+			const section = currentSection()
+			if (!select || !section) return
+			select.replaceChildren()
+			const placeholder = document.createElement("option")
+			placeholder.value = ""
+			placeholder.textContent = "Selecciona en Fastt"
+			select.append(placeholder)
+			for (const row of section.local) {
+				const option = document.createElement("option")
+				option.value = row.localEntityId
+				option.textContent = row.localEntityLabel
+				select.append(option)
+			}
+		}
+
+		function renderRows() {
+			if (!workspace || !rowsHost) return
+			const section = currentSection()
+			if (!section) return
+			rowsHost.replaceChildren()
+			const filtered = section.local.filter((row) => {
+				if (!search) return true
+				const remoteName =
+					section.remote.find(
+						(item) =>
+							item.id ===
+							(pending.get(rowKey(row.localEntityId))?.externalEntityId ??
+								row.currentMapping?.externalEntityId ??
+								row.suggestion?.externalEntityId)
+					)?.name ?? ""
+				return `${row.localEntityLabel} ${remoteName}`.toLowerCase().includes(search)
+			})
+			if (!filtered.length) {
+				const empty = text(
+					"div",
+					search
+						? "No hay resultados para esta búsqueda."
+						: "No hay entidades locales para mapear.",
+					"grid min-h-48 place-items-center p-8 text-sm text-slate-500"
+				)
+				rowsHost.append(empty)
+				updatePagination()
+				return
+			}
+
+			for (const row of filtered) {
+				const key = rowKey(row.localEntityId)
+				const selected =
+					pending.get(key)?.externalEntityId ??
+					row.currentMapping?.externalEntityId ??
+					row.suggestion?.externalEntityId ??
+					""
+				const wrapper = document.createElement("div")
+				wrapper.className =
+					"grid gap-3 p-4 lg:grid-cols-[minmax(0,1fr)_2.5rem_minmax(0,1fr)_auto] lg:items-center"
+				wrapper.dataset.mappingRow = row.localEntityId
+
+				const local = document.createElement("div")
+				local.className = "min-w-0"
+				local.append(
+					text("p", row.localEntityName, "truncate text-sm font-semibold text-slate-950")
+				)
+				local.append(text("p", row.localEntityLabel, "mt-1 truncate text-xs text-slate-500"))
+				wrapper.append(local)
+
+				const arrow = document.createElement("div")
+				arrow.className =
+					"hidden size-8 place-items-center rounded-full bg-slate-100 text-slate-500 lg:grid"
+				arrow.innerHTML =
+					'<svg aria-hidden="true" viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>'
+				wrapper.append(arrow)
+
+				const remote = document.createElement("div")
+				remote.className = "min-w-0"
+				const select = document.createElement("select")
+				select.className =
+					"fastt-notice h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-950 outline-none focus:border-slate-950 focus:ring-1 focus:ring-slate-950"
+				select.dataset.remoteSelect = row.localEntityId
+				select.setAttribute(
+					"aria-label",
+					`Relacionar ${row.localEntityName} con una entidad del channel manager`
+				)
+				const placeholder = document.createElement("option")
+				placeholder.value = ""
+				placeholder.textContent = "Selecciona en el proveedor"
+				select.append(placeholder)
+				if (selected && !section.remote.some((item) => item.id === selected)) {
+					const manual = document.createElement("option")
+					manual.value = selected
+					manual.textContent = `${pending.get(key)?.externalEntityName ?? selected} · ID manual`
+					manual.selected = true
+					select.append(manual)
+				}
+				for (const item of section.remote) {
+					const option = document.createElement("option")
+					option.value = item.id
+					const parentRoom =
+						activeTab === "ratePlans"
+							? workspace.roomTypes.remote.find((room) => room.id === item.roomTypeId)?.name
+							: null
+					option.textContent = parentRoom ? `${item.name} · ${parentRoom}` : item.name
+					option.selected = item.id === selected
+					select.append(option)
+				}
+				select.addEventListener("change", () => {
+					const item = section.remote.find((candidate) => candidate.id === select.value)
+					if (!item || select.value === row.currentMapping?.externalEntityId) {
+						pending.delete(key)
+					} else {
+						pending.set(key, {
+							mappingType: activeTab === "roomTypes" ? "room_type" : "rate_plan",
+							localEntityType: activeTab === "roomTypes" ? "variant" : "rate_plan",
+							localEntityId: row.localEntityId,
+							localEntityName: row.localEntityName,
+							externalEntityType: activeTab === "roomTypes" ? "room_type" : "rate_plan",
+							externalEntityId: item.id,
+							externalEntityName: item.name,
+							direction: "bidirectional",
+							source: item.id === row.suggestion?.externalEntityId ? "suggestion" : "user",
+							confidence:
+								item.id === row.suggestion?.externalEntityId
+									? (row.suggestion?.confidence ?? null)
+									: null,
+						})
+					}
+					renderRows()
+					updateActions()
+				})
+				remote.append(select)
+				const selectedRemote = section.remote.find((item) => item.id === selected)
+				if (selectedRemote) {
+					const facts: string[] = []
+					if (typeof selectedRemote.units === "number") {
+						facts.push(
+							`${selectedRemote.units} ${selectedRemote.units === 1 ? "unidad" : "unidades"}`
+						)
+					}
+					if (selectedRemote.currency) facts.push(selectedRemote.currency)
+					if (selectedRemote.derived) facts.push("Tarifa derivada")
+					if (selectedRemote.readOnly) facts.push("Solo lectura")
+					if (facts.length) {
+						remote.append(text("p", facts.join(" · "), "mt-1.5 text-xs font-medium text-slate-500"))
+					}
+				}
+				if (row.suggestion && row.suggestion.externalEntityId === selected) {
+					const reason = document.createElement("div")
+					reason.className = "mt-1.5 flex flex-wrap items-center gap-2"
+					reason.append(
+						text(
+							"span",
+							confidenceLabel(row.suggestion.confidence),
+							`rounded-full px-2 py-0.5 text-[11px] font-semibold ${confidenceClass(
+								row.suggestion.confidence
+							)}`
+						)
+					)
+					reason.append(text("span", row.suggestion.reason, "text-xs text-slate-500"))
+					remote.append(reason)
+				} else if (row.currentMapping && row.currentMapping.externalEntityId === selected) {
+					remote.append(
+						text(
+							"span",
+							"Mapeo actual",
+							"mt-1.5 inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-800"
+						)
+					)
+				}
+				wrapper.append(remote)
+
+				const include = document.createElement("label")
+				include.className =
+					"flex h-10 w-fit items-center gap-2 rounded-md px-2 text-xs font-semibold text-slate-700 lg:w-20"
+				const checkbox = document.createElement("input")
+				checkbox.type = "checkbox"
+				checkbox.className = "size-4 rounded border-slate-300 text-slate-950"
+				checkbox.checked = pending.has(key)
+				checkbox.disabled = !select.value || select.value === row.currentMapping?.externalEntityId
+				checkbox.addEventListener("change", () => {
+					if (!checkbox.checked) {
+						pending.delete(key)
+					} else {
+						select.dispatchEvent(new Event("change"))
+					}
+					renderRows()
+					updateActions()
+				})
+				include.append(checkbox, document.createTextNode("Incluir"))
+				wrapper.append(include)
+				rowsHost.append(wrapper)
+			}
+			updatePagination()
+		}
+
+		function updatePagination() {
+			const host = root?.querySelector<HTMLElement>("[data-mapping-pagination]")
+			const button = root?.querySelector<HTMLButtonElement>("[data-load-more-mappings]")
+			const state = pagination?.[activeTab]
+			if (!host || !button) return
+			host.classList.toggle("hidden", !state?.hasMore)
+			button.textContent = state
+				? `Cargar más (${workspace?.[activeTab].local.length ?? 0} de ${state.total})`
+				: "Cargar más"
+		}
+
+		function applyHighConfidenceSuggestions() {
+			const section = currentSection()
+			if (!section) return
+			for (const row of section.local) {
+				if (row.currentMapping || row.suggestion?.confidence !== "high") continue
+				pending.set(rowKey(row.localEntityId), {
+					mappingType: activeTab === "roomTypes" ? "room_type" : "rate_plan",
+					localEntityType: activeTab === "roomTypes" ? "variant" : "rate_plan",
+					localEntityId: row.localEntityId,
+					localEntityName: row.localEntityName,
+					externalEntityType: activeTab === "roomTypes" ? "room_type" : "rate_plan",
+					externalEntityId: row.suggestion.externalEntityId,
+					externalEntityName: row.suggestion.externalEntityName,
+					direction: "bidirectional",
+					source: "suggestion",
+					confidence: "high",
+				})
+			}
+			renderRows()
+			updateActions()
+		}
+
+		function renderPreview() {
+			if (!preview) return
+			const host = preview.querySelector<HTMLElement>("[data-preview-rows]")
+			const summary = preview.querySelector<HTMLElement>("[data-preview-summary]")
+			if (!host || !summary) return
+			host.replaceChildren()
+			summary.textContent = `${pending.size} ${pending.size === 1 ? "relación cambiará" : "relaciones cambiarán"}. Nada se sincronizará todavía.`
+			for (const item of pending.values()) {
+				const row = document.createElement("div")
+				row.className = "grid gap-1 p-4 sm:grid-cols-[1fr_auto_1fr] sm:items-center"
+				row.append(text("p", item.localEntityName, "text-sm font-semibold text-slate-950"))
+				row.append(text("span", "→", "text-slate-400"))
+				const remote = document.createElement("div")
+				remote.className = "sm:text-right"
+				remote.append(text("p", item.externalEntityName, "text-sm font-semibold text-slate-950"))
+				remote.append(
+					text(
+						"p",
+						item.source === "suggestion" ? "Sugerencia de Fastt" : "Selección manual",
+						"text-xs text-slate-500"
+					)
+				)
+				row.append(remote)
+				host.append(row)
+			}
+		}
+
+		async function loadWorkspace(
+			options: { append?: boolean; tab?: "roomTypes" | "ratePlans" } = {}
+		) {
+			if (!rowsHost || !errorHost) return
+			errorHost.classList.add("hidden")
+			const refreshIcon = root?.querySelector<SVGElement>("[data-refresh-catalog] svg")
+			refreshIcon?.classList.add("animate-spin")
+			try {
+				const endpoint = new URL(String(root?.dataset.workspaceEndpoint), window.location.origin)
+				if (options.append && options.tab && pagination) {
+					const state = pagination[options.tab]
+					endpoint.searchParams.set(
+						options.tab === "roomTypes" ? "roomPage" : "ratePage",
+						String(state.page + 1)
+					)
+					endpoint.searchParams.set("pageSize", String(state.pageSize))
+				}
+				const response = await fetch(endpoint, {
+					headers: { Accept: "application/json" },
+					credentials: "same-origin",
+					cache: "no-store",
+				})
+				const payload = await response.json()
+				if (!response.ok) throw new Error(payload.error || "No se pudo leer el catálogo remoto.")
+				if (options.append && options.tab && workspace && pagination) {
+					const previousPagination = pagination
+					workspace[options.tab].local.push(...payload.workspace[options.tab].local)
+					workspace[options.tab].remote = payload.workspace[options.tab].remote
+					workspace.fetchedAt = payload.workspace.fetchedAt
+					pagination = {
+						roomTypes:
+							options.tab === "roomTypes"
+								? payload.pagination.roomTypes
+								: previousPagination.roomTypes,
+						ratePlans:
+							options.tab === "ratePlans"
+								? payload.pagination.ratePlans
+								: previousPagination.ratePlans,
+					}
+				} else {
+					workspace = payload.workspace
+					pagination = payload.pagination
+					pending.clear()
+				}
+				updateSummary()
+				renderRows()
+				renderManualOptions()
+				updateActions()
+			} catch (error) {
+				rowsHost.replaceChildren()
+				rowsHost.append(
+					text(
+						"div",
+						"No pudimos cargar el catálogo. Revisa la conexión y vuelve a intentarlo.",
+						"grid min-h-64 place-items-center p-8 text-center text-sm font-semibold text-slate-700"
+					)
+				)
+				errorHost.textContent =
+					error instanceof Error ? error.message : "MAPPING_WORKSPACE_UNAVAILABLE"
+				errorHost.classList.remove("hidden")
+			} finally {
+				refreshIcon?.classList.remove("animate-spin")
+			}
+		}
+
+		root.querySelector("[data-refresh-catalog]")?.addEventListener("click", () => {
+			void loadWorkspace()
+		})
+		root.querySelector("[data-load-more-mappings]")?.addEventListener("click", () => {
+			void loadWorkspace({ append: true, tab: activeTab })
+		})
+		root
+			.querySelector("[data-apply-suggestions]")
+			?.addEventListener("click", applyHighConfidenceSuggestions)
+		root
+			.querySelector<HTMLInputElement>("[data-mapping-search]")
+			?.addEventListener("input", (event) => {
+				search = (event.currentTarget as HTMLInputElement).value.trim().toLowerCase()
+				renderRows()
+			})
+		const mappingTabs = [...root.querySelectorAll<HTMLButtonElement>("[data-mapping-tab]")]
+		function activateMappingTab(tab: HTMLButtonElement, focus = false) {
+			activeTab = tab.dataset.mappingTab === "ratePlans" ? "ratePlans" : "roomTypes"
+			for (const sibling of mappingTabs) {
+				const active = sibling === tab
+				sibling.setAttribute("aria-selected", String(active))
+				sibling.tabIndex = active ? 0 : -1
+				sibling.classList.toggle("border-slate-950", active)
+				sibling.classList.toggle("text-slate-950", active)
+				sibling.classList.toggle("border-transparent", !active)
+				sibling.classList.toggle("text-slate-500", !active)
+			}
+			if (focus) tab.focus()
+			renderRows()
+			renderManualOptions()
+		}
+		for (const [index, tab] of mappingTabs.entries()) {
+			tab.tabIndex = index === 0 ? 0 : -1
+			tab.addEventListener("click", () => activateMappingTab(tab))
+			tab.addEventListener("keydown", (event) => {
+				let targetIndex = index
+				if (event.key === "ArrowRight") targetIndex = (index + 1) % mappingTabs.length
+				else if (event.key === "ArrowLeft") {
+					targetIndex = (index - 1 + mappingTabs.length) % mappingTabs.length
+				} else if (event.key === "Home") targetIndex = 0
+				else if (event.key === "End") targetIndex = mappingTabs.length - 1
+				else return
+				event.preventDefault()
+				activateMappingTab(mappingTabs[targetIndex], true)
+			})
+		}
+		root.querySelector("[data-open-preview]")?.addEventListener("click", () => {
+			renderPreview()
+			preview?.showModal()
+		})
+		for (const close of document.querySelectorAll("[data-close-preview]")) {
+			close.addEventListener("click", () => preview?.close())
+		}
+		root
+			.querySelector<HTMLFormElement>("[data-manual-form]")
+			?.addEventListener("submit", (event) => {
+				event.preventDefault()
+				const formElement = event.currentTarget as HTMLFormElement
+				const form = new FormData(formElement)
+				const localId = String(form.get("localEntityId") ?? "")
+				const externalId = String(form.get("externalEntityId") ?? "").trim()
+				const local = currentSection()?.local.find((item) => item.localEntityId === localId)
+				if (!local || !externalId) return
+				pending.set(rowKey(localId), {
+					mappingType: activeTab === "roomTypes" ? "room_type" : "rate_plan",
+					localEntityType: activeTab === "roomTypes" ? "variant" : "rate_plan",
+					localEntityId: localId,
+					localEntityName: local.localEntityName,
+					externalEntityType: activeTab === "roomTypes" ? "room_type" : "rate_plan",
+					externalEntityId: externalId,
+					externalEntityName: externalId,
+					direction: "bidirectional",
+					source: "user",
+					confidence: null,
+				})
+				formElement.reset()
+				renderRows()
+				updateActions()
+			})
+		document.querySelector("[data-save-mappings]")?.addEventListener("click", async (event) => {
+			const button = event.currentTarget as HTMLButtonElement
+			button.disabled = true
+			button.textContent = "Guardando…"
+			try {
+				const response = await fetch(String(root.dataset.saveEndpoint), {
+					method: "POST",
+					headers: { "Content-Type": "application/json", "Accept": "application/json" },
+					credentials: "same-origin",
+					body: JSON.stringify({ mappings: [...pending.values()] }),
+				})
+				const payload = await response.json()
+				if (!response.ok) throw new Error(payload.error || "No se pudieron guardar los mapeos.")
+				document.dispatchEvent(new CustomEvent("integration:mappings-saved"))
+				preview?.close()
+				await loadWorkspace()
+			} catch (error) {
+				if (errorHost) {
+					errorHost.textContent = error instanceof Error ? error.message : "MAPPING_SAVE_FAILED"
+					errorHost.classList.remove("hidden")
+				}
+				preview?.close()
+			} finally {
+				button.disabled = false
+				button.textContent = "Guardar mapeos"
+			}
+		})
+
+		void loadWorkspace()
+	}
+</script>

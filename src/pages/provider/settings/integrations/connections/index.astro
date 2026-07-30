@@ -1,0 +1,157 @@
+---
+import IntegrationEmptyState from "@/components/provider/integrations/IntegrationEmptyState.astro"
+import IntegrationStatusRow from "@/components/provider/integrations/IntegrationStatusRow.astro"
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import ProviderIntegrationsLayout from "@/layouts/ProviderIntegrationsLayout.astro"
+import { requireProvider } from "@/lib/auth/requireProvider"
+import { getChannelManagerVendor } from "@/lib/provider-channel-manager-vendors"
+import { mapProviderIntegrationError } from "@/lib/provider-integration-errors"
+import { getProviderIntegrationsConnectionsReadModel } from "@/lib/provider-integration-read-models"
+import { routes } from "@/lib/routes"
+
+const auth = await requireProvider(Astro.request).catch((error: any) => {
+	if (error instanceof Response && error.status === 401) return "__REDIRECT_LOGIN__"
+	if (error instanceof Response && error.status === 403) return "__REDIRECT_PROVIDER__"
+	throw error
+})
+if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
+if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerSettingsProfile())
+
+const readModel = await getProviderIntegrationsConnectionsReadModel(auth.providerId)
+const connectorInstances = readModel.connections.filter(
+	(instance) => instance.status !== "not_configured" && instance.status !== "revoked"
+)
+const calendars = readModel.calendars
+const attentionCount =
+	connectorInstances.filter((instance) =>
+		["pending", "requires_attention", "error"].includes(instance.status)
+	).length + calendars.filter((calendar) => calendar.status === "error").length
+const workingCount =
+	connectorInstances.filter((instance) => instance.status === "connected").length +
+	calendars.filter((calendar) => calendar.status === "active").length
+
+function statusLabel(status: string) {
+	if (status === "connected") return "Funcionando"
+	if (status === "pending") return "Falta validar"
+	if (status === "syncing") return "Actualizando"
+	if (status === "requires_attention" || status === "error") return "Requiere atención"
+	return "Por configurar"
+}
+
+function statusTone(status: string) {
+	if (status === "connected") return "success"
+	if (status === "pending" || status === "syncing") return "info"
+	if (status === "requires_attention") return "warning"
+	if (status === "error") return "error"
+	return "neutral"
+}
+
+function calendarStatus(calendar: (typeof calendars)[number]) {
+	if (calendar.status === "active") return { label: "Actualizado", tone: "success" as const }
+	if (calendar.status === "error") return { label: "Requiere atención", tone: "error" as const }
+	return { label: "Pendiente", tone: "info" as const }
+}
+
+function formatActivity(value: Date | null) {
+	if (!value) return "Sin actividad todavía"
+	return `Última actividad: ${new Intl.DateTimeFormat("es", {
+		dateStyle: "medium",
+		timeStyle: "short",
+	}).format(value)}`
+}
+
+function scopeLabel(key: string) {
+	if (key === "channel_manager") return "Disponibilidad, tarifas y restricciones"
+	return "Bloqueos de disponibilidad"
+}
+
+function connectionActionHref(params: { connectionId: string }) {
+	return routes.providerSettingsIntegrationConnection(params.connectionId)
+}
+---
+
+<ProviderIntegrationsLayout
+	title="Conexiones"
+	eyebrow="Integraciones · Conexiones"
+	heading="Conexiones"
+	description="Administra los servicios que intercambian disponibilidad, tarifas y otros datos con Fastt."
+>
+	<div slot="actions">
+		<Button href={routes.providerSettingsIntegrationsCatalog()}>Conectar servicio</Button>
+	</div>
+
+	<Card>
+		<div
+			class="flex flex-col gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:items-end sm:justify-between"
+		>
+			<div>
+				<p class="text-xs font-semibold tracking-[0.12em] text-slate-500 uppercase">
+					Servicios conectados
+				</p>
+				<h2 class="mt-1.5 text-xl font-semibold text-slate-950">Tus conexiones</h2>
+				<p class="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
+					Cada fila indica qué controla el servicio y cuándo respondió por última vez.
+				</p>
+			</div>
+			{
+				connectorInstances.length || calendars.length ? (
+					<div class="flex flex-wrap gap-2">
+						<Badge variant={workingCount ? "success" : "neutral"}>{workingCount} funcionando</Badge>
+						{attentionCount ? <Badge variant="warning">{attentionCount} por revisar</Badge> : null}
+					</div>
+				) : null
+			}
+		</div>
+
+		{
+			connectorInstances.length || calendars.length ? (
+				<div data-integration-connections-list>
+					{connectorInstances.map((instance) => (
+						<IntegrationStatusRow
+							name={instance.displayName || "Channel manager"}
+							description={
+								instance.errorMessage
+									? mapProviderIntegrationError(instance.errorMessage)
+									: instance.vendorKey !== "generic"
+										? `${getChannelManagerVendor(instance.vendorKey).name}${instance.externalPropertyId ? ` · Propiedad ${instance.externalPropertyId}` : ""}`
+										: "Sincroniza disponibilidad, tarifas y restricciones."
+							}
+							statusLabel={statusLabel(instance.status)}
+							statusTone={statusTone(instance.status)}
+							scopeLabel={scopeLabel(instance.connectorKey)}
+							lastActivityLabel={formatActivity(instance.lastSyncAt)}
+							actionLabel="Administrar"
+							actionHref={connectionActionHref({
+								connectionId: instance.id,
+							})}
+							kind={instance.connectorKey === "channel_manager" ? "channel_manager" : "other"}
+						/>
+					))}
+					{calendars.map((calendar) => (
+						<IntegrationStatusRow
+							name={calendar.name}
+							description={
+								calendar.lastError
+									? mapProviderIntegrationError(calendar.lastError)
+									: `Calendario externo asignado a ${calendar.variantName}.`
+							}
+							statusLabel={calendarStatus(calendar).label}
+							statusTone={calendarStatus(calendar).tone}
+							scopeLabel="Bloqueos de disponibilidad"
+							lastActivityLabel={formatActivity(calendar.lastSyncAt)}
+							actionLabel="Administrar"
+							actionHref={routes.ratesCalendarConnections()}
+							kind="external_calendars"
+						/>
+					))}
+				</div>
+			) : (
+				<div class="pt-5">
+					<IntegrationEmptyState catalogHref={routes.providerSettingsIntegrationsCatalog()} />
+				</div>
+			)
+		}
+	</Card>
+</ProviderIntegrationsLayout>

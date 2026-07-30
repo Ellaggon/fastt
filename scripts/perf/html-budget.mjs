@@ -8,9 +8,13 @@ if (!baseUrl) {
 const productId = process.env.FASTT_HTML_BUDGET_PRODUCT_ID?.trim()
 const cookie = process.env.FASTT_HTML_BUDGET_COOKIE?.trim()
 const rawBudgets = process.env.FASTT_HTML_BUDGET_ROUTES?.trim()
+const maxTtfbMs = Math.max(1, Number(process.env.FASTT_HTML_BUDGET_MAX_TTFB_MS ?? 1000))
 
 const defaultBudgets = [
 	{ path: "/provider/settings", maxBytes: 145_000 },
+	{ path: "/provider/settings/integrations", maxBytes: 100_000 },
+	{ path: "/provider/settings/integrations/catalog", maxBytes: 100_000 },
+	{ path: "/provider/settings/integrations/connections", maxBytes: 100_000 },
 	...(productId ? [{ path: `/product/${encodeURIComponent(productId)}`, maxBytes: 155_000 }] : []),
 ]
 
@@ -44,6 +48,7 @@ let failed = false
 
 for (const budget of budgets) {
 	const url = absoluteUrl(budget.path)
+	const startedAt = performance.now()
 	const response = await fetch(url, {
 		redirect: "manual",
 		headers: {
@@ -51,6 +56,7 @@ for (const budget of budgets) {
 			...(cookie ? { cookie } : {}),
 		},
 	})
+	const ttfbMs = Math.round(performance.now() - startedAt)
 
 	if (response.status < 200 || response.status >= 300) {
 		console.error(
@@ -68,6 +74,7 @@ for (const budget of budgets) {
 	const html = await response.text()
 	const bytes = Buffer.byteLength(html, "utf8")
 	const withinBudget = bytes <= budget.maxBytes
+	const withinTtfbBudget = ttfbMs <= maxTtfbMs
 	const percentOfBudget = Math.round((bytes / budget.maxBytes) * 100)
 	console.log(
 		JSON.stringify({
@@ -76,9 +83,12 @@ for (const budget of budgets) {
 			maxBytes: budget.maxBytes,
 			percentOfBudget,
 			withinBudget,
+			ttfbMs,
+			maxTtfbMs,
+			withinTtfbBudget,
 		})
 	)
-	if (!withinBudget) failed = true
+	if (!withinBudget || !withinTtfbBudget) failed = true
 }
 
 if (failed) process.exit(1)

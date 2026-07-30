@@ -13,8 +13,8 @@ describe("Settings IA: Verificación outside settings tabs", () => {
 		expect(subnav).toContain('label: "Resumen"')
 		expect(subnav).toContain('label: "Perfil"')
 		expect(subnav).toContain('label: "Fiscalidad"')
-		expect(subnav).toContain('label: "Integraciones"')
 		expect(subnav).toContain('label: "Equipo"')
+		expect(subnav).not.toContain('label: "Integraciones"')
 		expect(subnav).not.toContain('label: "Verificación"')
 		expect(subnav).not.toContain('label: "Pagos"')
 		expect(subnav).toContain("Verificación lives outside this tab bar")
@@ -52,7 +52,7 @@ describe("Settings IA: Verificación outside settings tabs", () => {
 
 	it("stacks verification sections with explicit gap (not display:contents)", () => {
 		const page = read("src/pages/provider/settings/verification.astro")
-		expect(page).toContain('data-verification-page')
+		expect(page).toContain("data-verification-page")
 		expect(page).toContain('class="space-y-4"')
 		expect(page).not.toMatch(/data-verification-page[\s\S]{0,80}class="contents"/)
 		expect(page).not.toMatch(/class="contents"[\s\S]{0,80}data-verification-page/)

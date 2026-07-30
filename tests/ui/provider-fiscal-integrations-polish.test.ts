@@ -23,7 +23,9 @@ describe("S4-6 fiscal withhold explainer + Pro docs-lite", () => {
 	it("wires withhold explainer on fiscal identity and docs-lite in Simple+Pro integrations", () => {
 		const identity = read("src/pages/provider/settings/verification/fiscal.astro")
 		const taxCard = read("src/components/provider/ProviderTaxProfileCard.astro")
-		const integrations = read("src/pages/provider/settings/integrations.astro")
+		const integrations = read(
+			"src/pages/provider/settings/integrations/connect/channel-manager.astro"
+		)
 
 		expect(identity).toContain("data-fiscal-withhold-explainer")
 		expect(identity).toContain('data-long-copy-collapsed="true"')
@@ -35,14 +37,9 @@ describe("S4-6 fiscal withhold explainer + Pro docs-lite", () => {
 		expect(identity).toContain("retener o retrasar liquidaciones")
 		expect(taxCard).toContain('data-fiscal-long-copy-collapsed="true"')
 
-		expect(integrations).toContain("data-connector-docs-lite")
-		expect(integrations).toContain("data-connector-scopes")
-		expect(integrations).toContain("connector.docsLite.title")
-		// S7-2: docs-lite available in Simple (not Pro-only)
-		expect(integrations).not.toMatch(
-			/\{!isSimple \? \(\s*<details[^>]*data-connector-docs-lite/
-		)
-		expect(integrations).toContain("data-integrations-pro-notice")
-		expect(integrations).toContain("Modo Pro · catálogo + ayuda por conector")
+		expect(integrations).toContain('data-channel-wizard-step="provider"')
+		expect(integrations).toContain('data-channel-wizard-step="access"')
+		expect(integrations).toContain("Selecciona el sistema")
+		expect(integrations).toContain("Autorizar acceso")
 	})
 })

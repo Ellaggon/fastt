@@ -1,0 +1,22 @@
+---
+import Button from "@/components/ui/Button.astro"
+import EmptyState from "@/components/ui/EmptyState.astro"
+import { PlugZap } from "@lucide/astro"
+
+interface Props {
+	catalogHref: string
+}
+
+const { catalogHref } = Astro.props
+---
+
+<EmptyState
+	title="Conecta tu primera fuente"
+	description="Usa un channel manager para sincronizar disponibilidad y tarifas, o un calendario externo para proteger fechas ocupadas."
+	data-integration-empty-state
+>
+	<PlugZap slot="icon" class="size-5" aria-hidden="true" />
+	<div class="mt-5">
+		<Button href={catalogHref}>Explorar integraciones</Button>
+	</div>
+</EmptyState>

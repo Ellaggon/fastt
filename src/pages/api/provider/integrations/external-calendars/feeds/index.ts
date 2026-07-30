@@ -3,8 +3,7 @@ import { requireProviderIntegrationManager } from "@/lib/provider-integration-au
 import { createProviderExternalCalendar } from "@/lib/provider-external-calendars"
 
 function redirect(request: Request, key: "added" | "error", detail?: string) {
-	const url = new URL("/provider/settings/integrations", request.url)
-	url.searchParams.set("mode", "pro")
+	const url = new URL("/rates/calendar/connections", request.url)
 	url.searchParams.set("ical", key)
 	if (detail) url.searchParams.set("reason", detail)
 	return Response.redirect(url, 303)
