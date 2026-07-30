@@ -1,12 +1,15 @@
 import type { APIRoute } from "astro"
 
 import { requireProviderIntegrationManager } from "@/lib/provider-integration-auth"
+import { safeIntegrationReturnTo } from "@/lib/provider-integration-redirects"
 import { resolveProviderIntegrationIncident } from "@/lib/provider-integration-operations"
+import { routes } from "@/lib/routes"
 
 export const POST: APIRoute = async ({ request, params }) => {
 	const form = await request.formData().catch(() => null)
-	const url = new URL("/provider/settings/integrations", request.url)
-	url.searchParams.set("mode", "pro")
+	const url =
+		safeIntegrationReturnTo(request, form?.get("returnTo")) ??
+		new URL(routes.providerSettingsIntegrationsIncidents(), request.url)
 	try {
 		const auth = await requireProviderIntegrationManager(request)
 		await resolveProviderIntegrationIncident({

@@ -10,9 +10,13 @@ import { connectProviderIntegration } from "@/lib/provider-integrations"
 export const POST: APIRoute = async ({ request, params }) => {
 	const form = await request.formData()
 	const uiMode = resolveIntegrationUiMode(form.get("uiMode"))
+	const returnTo = form.get("returnTo")
 	try {
+		if (params.connectorKey !== "channel_manager") {
+			throw new Error("CONNECTOR_NOT_AVAILABLE")
+		}
 		const auth = await requireProviderIntegrationManager(request)
-		await connectProviderIntegration({
+		const connectionId = await connectProviderIntegration({
 			providerId: auth.providerId,
 			currentUserId: auth.user.id,
 			connectorKey: params.connectorKey ?? "",
@@ -27,9 +31,12 @@ export const POST: APIRoute = async ({ request, params }) => {
 			authType: String(form.get("authType") ?? "") || null,
 			externalPropertyId: String(form.get("externalPropertyId") ?? "") || null,
 		})
-		return redirectIntegrationsSuccess(request, "integration_saved", uiMode)
+		return redirectIntegrationsSuccess(request, "integration_saved", uiMode, {
+			returnTo,
+			params: { connectionId },
+		})
 	} catch (error) {
 		const message = error instanceof Error ? error.message : "integration_error"
-		return redirectIntegrationsError(request, message, uiMode)
+		return redirectIntegrationsError(request, message, uiMode, { returnTo })
 	}
 }

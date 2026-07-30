@@ -5,14 +5,15 @@ import {
 	removeProviderIntegrationMapping,
 	upsertProviderIntegrationMapping,
 } from "@/lib/provider-integration-operations"
+import { routes } from "@/lib/routes"
 
 function redirect(
 	request: Request,
+	connectionId: string,
 	result: "mapping_saved" | "mapping_removed" | "error",
 	reason?: string
 ) {
-	const url = new URL("/provider/settings/integrations", request.url)
-	url.searchParams.set("mode", "pro")
+	const url = new URL(routes.providerSettingsIntegrationMapping(connectionId), request.url)
 	url.searchParams.set("operation", result)
 	if (reason) url.searchParams.set("reason", reason.slice(0, 100))
 	return Response.redirect(url, 303)
@@ -30,7 +31,7 @@ export const POST: APIRoute = async ({ request }) => {
 				connectionId,
 				mappingId: String(form.get("mappingId") ?? ""),
 			})
-			return redirect(request, "mapping_removed")
+			return redirect(request, connectionId, "mapping_removed")
 		}
 		await upsertProviderIntegrationMapping({
 			providerId: auth.providerId,
@@ -48,8 +49,13 @@ export const POST: APIRoute = async ({ request }) => {
 					| "bidirectional",
 			},
 		})
-		return redirect(request, "mapping_saved")
+		return redirect(request, connectionId, "mapping_saved")
 	} catch (error) {
-		return redirect(request, "error", error instanceof Error ? error.message : "mapping_error")
+		return redirect(
+			request,
+			String(form.get("connectionId") ?? ""),
+			"error",
+			error instanceof Error ? error.message : "mapping_error"
+		)
 	}
 }

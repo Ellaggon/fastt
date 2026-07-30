@@ -4,7 +4,9 @@ import {
 	desc,
 	eq,
 	first,
+	inArray,
 	ProviderIntegrationConnection,
+	ProviderIntegrationCredential,
 	ProviderIntegrationIncident,
 	ProviderIntegrationMapping,
 	ProviderIntegrationSyncJob,
@@ -54,8 +56,23 @@ export type IntegrationIncidentInput = {
 
 export type ProviderIntegrationMappingCatalog = {
 	products: Array<{ id: string; label: string; entityType: "product" }>
-	variants: Array<{ id: string; label: string; entityType: "variant"; productName: string }>
-	ratePlans: Array<{ id: string; label: string; entityType: "rate_plan"; variantName: string }>
+	variants: Array<{
+		id: string
+		label: string
+		name: string
+		entityType: "variant"
+		productId: string
+		productName: string
+	}>
+	ratePlans: Array<{
+		id: string
+		label: string
+		name: string
+		entityType: "rate_plan"
+		variantId: string
+		variantName: string
+		isDefault: boolean
+	}>
 	taxes: Array<{ id: string; label: string; entityType: "tax" }>
 }
 
@@ -133,67 +150,110 @@ export async function upsertProviderIntegrationMapping(params: {
 	connectionId: string
 	input: IntegrationMappingInput
 }) {
-	await ownedConnection(params.providerId, params.connectionId)
-	const mappingType = requiredIdentifier(params.input.mappingType, "MAPPING_TYPE_REQUIRED", 60)
+	const ids = await upsertProviderIntegrationMappings({
+		providerId: params.providerId,
+		connectionId: params.connectionId,
+		inputs: [params.input],
+	})
+	return ids[0]
+}
+
+function normalizeMappingInput(input: IntegrationMappingInput) {
+	const mappingType = requiredIdentifier(input.mappingType, "MAPPING_TYPE_REQUIRED", 60)
 	const localEntityType = requiredIdentifier(
-		params.input.localEntityType,
+		input.localEntityType,
 		"MAPPING_LOCAL_TYPE_REQUIRED",
 		60
 	)
 	if (!ALLOWED_MAPPING_TYPES.has(mappingType)) throw new Error("MAPPING_TYPE_INVALID")
 	if (!ALLOWED_ENTITY_TYPES.has(localEntityType)) throw new Error("MAPPING_LOCAL_TYPE_INVALID")
-	const localEntityId = requiredIdentifier(params.input.localEntityId, "MAPPING_LOCAL_ID_REQUIRED")
+	const localEntityId = requiredIdentifier(input.localEntityId, "MAPPING_LOCAL_ID_REQUIRED")
 	const externalEntityType = requiredIdentifier(
-		params.input.externalEntityType,
+		input.externalEntityType,
 		"MAPPING_EXTERNAL_TYPE_REQUIRED",
 		60
 	)
 	const externalEntityId = requiredIdentifier(
-		params.input.externalEntityId,
+		input.externalEntityId,
 		"MAPPING_EXTERNAL_ID_REQUIRED"
 	)
 	const direction =
-		params.input.direction === "import" || params.input.direction === "export"
-			? params.input.direction
-			: "bidirectional"
-	const now = new Date()
-	const existing = await db
-		.select()
-		.from(ProviderIntegrationMapping)
-		.where(
-			and(
-				eq(ProviderIntegrationMapping.connectionId, params.connectionId),
-				eq(ProviderIntegrationMapping.mappingType, mappingType),
-				eq(ProviderIntegrationMapping.localEntityId, localEntityId)
-			)
-		)
-		.then(first)
-
-	const values = {
-		providerId: params.providerId,
-		connectionId: params.connectionId,
+		input.direction === "import" || input.direction === "export" ? input.direction : "bidirectional"
+	return {
 		mappingType,
 		localEntityType,
 		localEntityId,
 		externalEntityType,
 		externalEntityId,
-		externalEntityName: String(params.input.externalEntityName ?? "").trim() || null,
+		externalEntityName: String(input.externalEntityName ?? "").trim() || null,
 		direction,
-		status: "active",
-		metadataJson: params.input.metadataJson ?? null,
-		lastVerifiedAt: now,
-		updatedAt: now,
+		metadataJson: input.metadataJson ?? null,
 	}
-	if (existing) {
-		await db
-			.update(ProviderIntegrationMapping)
-			.set(values)
-			.where(eq(ProviderIntegrationMapping.id, existing.id))
-		return existing.id
+}
+
+export async function upsertProviderIntegrationMappings(params: {
+	providerId: string
+	connectionId: string
+	inputs: IntegrationMappingInput[]
+}) {
+	await ownedConnection(params.providerId, params.connectionId)
+	if (!params.inputs.length || params.inputs.length > 250) {
+		throw new Error("MAPPING_BATCH_SIZE_INVALID")
 	}
-	const id = crypto.randomUUID()
-	await db.insert(ProviderIntegrationMapping).values({ id, ...values, createdAt: now })
-	return id
+	const normalized = params.inputs.map(normalizeMappingInput)
+	const localKeys = new Set<string>()
+	const externalKeys = new Set<string>()
+	for (const input of normalized) {
+		const localKey = `${input.mappingType}:${input.localEntityId}`
+		const externalKey = `${input.mappingType}:${input.externalEntityId}`
+		if (localKeys.has(localKey)) throw new Error("MAPPING_LOCAL_DUPLICATED")
+		if (externalKeys.has(externalKey)) throw new Error("MAPPING_EXTERNAL_DUPLICATED")
+		localKeys.add(localKey)
+		externalKeys.add(externalKey)
+	}
+
+	const existingMappings = await db
+		.select()
+		.from(ProviderIntegrationMapping)
+		.where(eq(ProviderIntegrationMapping.connectionId, params.connectionId))
+	const replacedLocalKeys = new Set(localKeys)
+	for (const mapping of existingMappings) {
+		const localKey = `${mapping.mappingType}:${mapping.localEntityId}`
+		if (replacedLocalKeys.has(localKey)) continue
+		const externalKey = `${mapping.mappingType}:${mapping.externalEntityId}`
+		if (externalKeys.has(externalKey)) throw new Error("MAPPING_EXTERNAL_ALREADY_ASSIGNED")
+	}
+
+	const now = new Date()
+	return db.transaction(async (tx) => {
+		const ids: string[] = []
+		for (const input of normalized) {
+			const existing = existingMappings.find(
+				(mapping) =>
+					mapping.mappingType === input.mappingType && mapping.localEntityId === input.localEntityId
+			)
+			const values = {
+				providerId: params.providerId,
+				connectionId: params.connectionId,
+				...input,
+				status: "active",
+				lastVerifiedAt: now,
+				updatedAt: now,
+			}
+			if (existing) {
+				await tx
+					.update(ProviderIntegrationMapping)
+					.set(values)
+					.where(eq(ProviderIntegrationMapping.id, existing.id))
+				ids.push(existing.id)
+				continue
+			}
+			const id = crypto.randomUUID()
+			await tx.insert(ProviderIntegrationMapping).values({ id, ...values, createdAt: now })
+			ids.push(id)
+		}
+		return ids
+	})
 }
 
 export async function removeProviderIntegrationMapping(params: {
@@ -494,6 +554,262 @@ export async function listProviderIntegrationOperations(providerId: string) {
 	return { connections, mappings, runs, jobs, incidents }
 }
 
+export async function getProviderIntegrationConnectionOverview(params: {
+	providerId: string
+	connectionId: string
+}) {
+	const connection = await ownedConnection(params.providerId, params.connectionId)
+	const [credential, mappings, incidents] = await Promise.all([
+		db
+			.select({
+				authType: ProviderIntegrationCredential.authType,
+				scopesJson: ProviderIntegrationCredential.scopesJson,
+				tokenExpiresAt: ProviderIntegrationCredential.tokenExpiresAt,
+				lastRefreshedAt: ProviderIntegrationCredential.lastRefreshedAt,
+				revokedAt: ProviderIntegrationCredential.revokedAt,
+			})
+			.from(ProviderIntegrationCredential)
+			.where(eq(ProviderIntegrationCredential.connectionId, params.connectionId))
+			.then(first),
+		db
+			.select()
+			.from(ProviderIntegrationMapping)
+			.where(
+				and(
+					eq(ProviderIntegrationMapping.providerId, params.providerId),
+					eq(ProviderIntegrationMapping.connectionId, params.connectionId)
+				)
+			)
+			.orderBy(ProviderIntegrationMapping.mappingType, ProviderIntegrationMapping.updatedAt),
+		db
+			.select()
+			.from(ProviderIntegrationIncident)
+			.where(
+				and(
+					eq(ProviderIntegrationIncident.providerId, params.providerId),
+					eq(ProviderIntegrationIncident.connectionId, params.connectionId),
+					eq(ProviderIntegrationIncident.status, "open")
+				)
+			)
+			.orderBy(desc(ProviderIntegrationIncident.lastSeenAt))
+			.limit(5),
+	])
+	return {
+		connection,
+		credential: credential ?? null,
+		mappings,
+		openIncidents: incidents,
+	}
+}
+
+export async function getProviderIntegrationConnectionDiagnostics(params: {
+	providerId: string
+	connectionId: string
+}) {
+	await ownedConnection(params.providerId, params.connectionId)
+	const [credential, mappingGroups, incidents] = await Promise.all([
+		db
+			.select({
+				authType: ProviderIntegrationCredential.authType,
+				tokenExpiresAt: ProviderIntegrationCredential.tokenExpiresAt,
+				lastRefreshedAt: ProviderIntegrationCredential.lastRefreshedAt,
+				revokedAt: ProviderIntegrationCredential.revokedAt,
+			})
+			.from(ProviderIntegrationCredential)
+			.where(eq(ProviderIntegrationCredential.connectionId, params.connectionId))
+			.then(first),
+		db
+			.select({
+				mappingType: ProviderIntegrationMapping.mappingType,
+				count: sql<number>`count(*)`,
+			})
+			.from(ProviderIntegrationMapping)
+			.where(
+				and(
+					eq(ProviderIntegrationMapping.providerId, params.providerId),
+					eq(ProviderIntegrationMapping.connectionId, params.connectionId),
+					eq(ProviderIntegrationMapping.status, "active")
+				)
+			)
+			.groupBy(ProviderIntegrationMapping.mappingType),
+		db
+			.select({
+				id: ProviderIntegrationIncident.id,
+				severity: ProviderIntegrationIncident.severity,
+				title: ProviderIntegrationIncident.title,
+				description: ProviderIntegrationIncident.description,
+				occurrenceCount: ProviderIntegrationIncident.occurrenceCount,
+			})
+			.from(ProviderIntegrationIncident)
+			.where(
+				and(
+					eq(ProviderIntegrationIncident.providerId, params.providerId),
+					eq(ProviderIntegrationIncident.connectionId, params.connectionId),
+					eq(ProviderIntegrationIncident.status, "open")
+				)
+			)
+			.orderBy(desc(ProviderIntegrationIncident.lastSeenAt))
+			.limit(5),
+	])
+	return {
+		credential: credential ?? null,
+		mappingGroups: mappingGroups.map((group) => ({
+			type: String(group.mappingType),
+			count: Number(group.count ?? 0),
+		})),
+		openIncidents: incidents,
+	}
+}
+
+export async function listProviderIntegrationMappingsForConnection(params: {
+	providerId: string
+	connectionId: string
+}) {
+	await ownedConnection(params.providerId, params.connectionId)
+	return db
+		.select({
+			id: ProviderIntegrationMapping.id,
+			mappingType: ProviderIntegrationMapping.mappingType,
+			localEntityId: ProviderIntegrationMapping.localEntityId,
+			externalEntityId: ProviderIntegrationMapping.externalEntityId,
+			externalEntityName: ProviderIntegrationMapping.externalEntityName,
+			status: ProviderIntegrationMapping.status,
+		})
+		.from(ProviderIntegrationMapping)
+		.where(
+			and(
+				eq(ProviderIntegrationMapping.providerId, params.providerId),
+				eq(ProviderIntegrationMapping.connectionId, params.connectionId)
+			)
+		)
+		.orderBy(ProviderIntegrationMapping.mappingType, ProviderIntegrationMapping.updatedAt)
+}
+
+export async function listProviderIntegrationIncidents(params: {
+	providerId: string
+	status?: "open" | "resolved" | "all"
+	connectionId?: string | null
+	limit?: number
+}) {
+	if (params.connectionId) await ownedConnection(params.providerId, params.connectionId)
+	const status = params.status ?? "open"
+	const limit = Math.min(100, Math.max(1, params.limit ?? 50))
+	const baseFilter = params.connectionId
+		? and(
+				eq(ProviderIntegrationIncident.providerId, params.providerId),
+				eq(ProviderIntegrationIncident.connectionId, params.connectionId)
+			)
+		: eq(ProviderIntegrationIncident.providerId, params.providerId)
+	const filter =
+		status === "all" ? baseFilter : and(baseFilter, eq(ProviderIntegrationIncident.status, status))
+	return db
+		.select({
+			id: ProviderIntegrationIncident.id,
+			connectionId: ProviderIntegrationIncident.connectionId,
+			connectionName: ProviderIntegrationConnection.displayName,
+			connectorKey: ProviderIntegrationConnection.connectorKey,
+			code: ProviderIntegrationIncident.code,
+			category: ProviderIntegrationIncident.category,
+			severity: ProviderIntegrationIncident.severity,
+			status: ProviderIntegrationIncident.status,
+			title: ProviderIntegrationIncident.title,
+			description: ProviderIntegrationIncident.description,
+			actionLabel: ProviderIntegrationIncident.actionLabel,
+			actionHref: ProviderIntegrationIncident.actionHref,
+			occurrenceCount: ProviderIntegrationIncident.occurrenceCount,
+			firstSeenAt: ProviderIntegrationIncident.firstSeenAt,
+			lastSeenAt: ProviderIntegrationIncident.lastSeenAt,
+			resolvedAt: ProviderIntegrationIncident.resolvedAt,
+			resolutionNote: ProviderIntegrationIncident.resolutionNote,
+			notificationStatus: ProviderIntegrationIncident.notificationStatus,
+		})
+		.from(ProviderIntegrationIncident)
+		.innerJoin(
+			ProviderIntegrationConnection,
+			eq(ProviderIntegrationConnection.id, ProviderIntegrationIncident.connectionId)
+		)
+		.where(filter)
+		.orderBy(desc(ProviderIntegrationIncident.lastSeenAt))
+		.limit(limit)
+}
+
+export async function listProviderIntegrationExecutionActivity(params: {
+	providerId: string
+	connectionId?: string | null
+	page?: number
+	pageSize?: number
+	jobLimit?: number
+}) {
+	if (params.connectionId) await ownedConnection(params.providerId, params.connectionId)
+	const page = Math.max(1, params.page ?? 1)
+	const pageSize = Math.min(25, Math.max(5, params.pageSize ?? 10))
+	const runFilter = params.connectionId
+		? and(
+				eq(ProviderIntegrationSyncRun.providerId, params.providerId),
+				eq(ProviderIntegrationSyncRun.connectionId, params.connectionId)
+			)
+		: eq(ProviderIntegrationSyncRun.providerId, params.providerId)
+	const jobFilter = params.connectionId
+		? and(
+				eq(ProviderIntegrationSyncJob.providerId, params.providerId),
+				eq(ProviderIntegrationSyncJob.connectionId, params.connectionId),
+				inArray(ProviderIntegrationSyncJob.status, ["queued", "running"])
+			)
+		: and(
+				eq(ProviderIntegrationSyncJob.providerId, params.providerId),
+				inArray(ProviderIntegrationSyncJob.status, ["queued", "running"])
+			)
+	const [runs, jobs] = await Promise.all([
+		db
+			.select({
+				id: ProviderIntegrationSyncRun.id,
+				connectorKey: ProviderIntegrationSyncRun.connectorKey,
+				operation: ProviderIntegrationSyncRun.operation,
+				trigger: ProviderIntegrationSyncRun.trigger,
+				status: ProviderIntegrationSyncRun.status,
+				readCount: ProviderIntegrationSyncRun.readCount,
+				changedCount: ProviderIntegrationSyncRun.changedCount,
+				skippedCount: ProviderIntegrationSyncRun.skippedCount,
+				failedCount: ProviderIntegrationSyncRun.failedCount,
+				errorMessage: ProviderIntegrationSyncRun.errorMessage,
+				startedAt: ProviderIntegrationSyncRun.startedAt,
+				finishedAt: ProviderIntegrationSyncRun.finishedAt,
+			})
+			.from(ProviderIntegrationSyncRun)
+			.where(runFilter)
+			.orderBy(desc(ProviderIntegrationSyncRun.startedAt))
+			.limit(pageSize + 1)
+			.offset((page - 1) * pageSize),
+		page === 1
+			? db
+					.select({
+						id: ProviderIntegrationSyncJob.id,
+						connectorKey: ProviderIntegrationSyncJob.connectorKey,
+						operation: ProviderIntegrationSyncJob.operation,
+						status: ProviderIntegrationSyncJob.status,
+						trigger: ProviderIntegrationSyncJob.trigger,
+						attempts: ProviderIntegrationSyncJob.attempts,
+						maxAttempts: ProviderIntegrationSyncJob.maxAttempts,
+						runAfter: ProviderIntegrationSyncJob.runAfter,
+						updatedAt: ProviderIntegrationSyncJob.updatedAt,
+					})
+					.from(ProviderIntegrationSyncJob)
+					.where(jobFilter)
+					.orderBy(desc(ProviderIntegrationSyncJob.updatedAt))
+					.limit(Math.min(20, Math.max(1, params.jobLimit ?? 10)))
+			: Promise.resolve([]),
+	])
+	return {
+		runs: runs.slice(0, pageSize),
+		jobs,
+		pagination: {
+			page,
+			pageSize,
+			hasMore: runs.length > pageSize,
+		},
+	}
+}
+
 export async function listProviderIntegrationMappingCatalog(
 	providerId: string
 ): Promise<ProviderIntegrationMappingCatalog> {
@@ -512,6 +828,7 @@ export async function listProviderIntegrationMappingCatalog(
 			.select({
 				id: Variant.id,
 				name: Variant.name,
+				productId: Product.id,
 				productName: Product.name,
 			})
 			.from(Variant)
@@ -523,8 +840,10 @@ export async function listProviderIntegrationMappingCatalog(
 			.select({
 				id: RatePlan.id,
 				name: RatePlan.name,
+				variantId: Variant.id,
 				variantName: Variant.name,
 				productName: Product.name,
+				isDefault: RatePlan.isDefault,
 			})
 			.from(RatePlan)
 			.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
@@ -553,14 +872,19 @@ export async function listProviderIntegrationMappingCatalog(
 		variants: variants.map((variant) => ({
 			id: variant.id,
 			label: `${variant.productName} / ${variant.name}`,
+			name: variant.name,
 			entityType: "variant",
+			productId: variant.productId,
 			productName: variant.productName,
 		})),
 		ratePlans: ratePlans.map((ratePlan) => ({
 			id: ratePlan.id,
 			label: `${ratePlan.productName} / ${ratePlan.variantName} / ${ratePlan.name}`,
+			name: ratePlan.name,
 			entityType: "rate_plan",
+			variantId: ratePlan.variantId,
 			variantName: ratePlan.variantName,
+			isDefault: Boolean(ratePlan.isDefault),
 		})),
 		taxes: taxes.map((tax) => ({
 			id: tax.id,

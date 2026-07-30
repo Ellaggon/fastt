@@ -42,6 +42,8 @@ export const POST: APIRoute = async ({ request, params }) => {
 			actorUserId: auth.user.id,
 			uiMode,
 			mode,
+			vendorKey: String(form.get("vendorKey") ?? "") || null,
+			returnTo: String(form.get("returnTo") ?? "") || null,
 		})
 		const authorizeUrl = buildConnectorOAuthAuthorizeUrl({
 			connectorKey,

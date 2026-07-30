@@ -28,6 +28,8 @@ export type ConnectorOAuthStatePayload = {
 	actorUserId: string
 	uiMode: "simple" | "pro"
 	mode: "sandbox" | "production"
+	vendorKey?: string | null
+	returnTo?: string | null
 	nonce: string
 	exp: number
 }
@@ -161,6 +163,24 @@ function b64url(input: string | Buffer): string {
 		.replace(/=+$/g, "")
 }
 
+export function normalizeConnectorOAuthReturnTo(raw: unknown): string | null {
+	const value = String(raw ?? "").trim()
+	if (
+		!value.startsWith("/provider/settings/integrations") ||
+		value.startsWith("//") ||
+		value.includes("\\")
+	) {
+		return null
+	}
+	const url = new URL(value, "https://fastt.invalid")
+	for (const key of url.searchParams.keys()) {
+		if (/^(?:access_?token|refresh_?token|credential|secret|code|state)$/i.test(key)) {
+			return null
+		}
+	}
+	return `${url.pathname}${url.search}${url.hash}`
+}
+
 function fromB64url(input: string): Buffer {
 	const padded = input.replace(/-/g, "+").replace(/_/g, "/")
 	const pad = padded.length % 4 === 0 ? "" : "=".repeat(4 - (padded.length % 4))
@@ -179,6 +199,8 @@ export function createConnectorOAuthState(
 		actorUserId: payload.actorUserId,
 		uiMode: payload.uiMode,
 		mode: payload.mode,
+		vendorKey: String(payload.vendorKey ?? "").trim() || null,
+		returnTo: normalizeConnectorOAuthReturnTo(payload.returnTo),
 		nonce: randomBytes(8).toString("hex"),
 		exp: Math.floor(Date.now() / 1000) + (payload.ttlSeconds ?? 600),
 	}
@@ -206,6 +228,7 @@ export function parseConnectorOAuthState(raw: string): ConnectorOAuthStatePayloa
 		if (typeof json.exp !== "number" || json.exp < Math.floor(Date.now() / 1000)) return null
 		if (json.uiMode !== "simple" && json.uiMode !== "pro") return null
 		if (json.mode !== "sandbox" && json.mode !== "production") return null
+		json.returnTo = normalizeConnectorOAuthReturnTo(json.returnTo)
 		return json
 	} catch {
 		return null

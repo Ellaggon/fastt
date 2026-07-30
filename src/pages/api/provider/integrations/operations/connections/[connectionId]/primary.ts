@@ -2,15 +2,16 @@ import type { APIRoute } from "astro"
 
 import { requireProviderIntegrationManager } from "@/lib/provider-integration-auth"
 import { setPrimaryProviderIntegrationConnection } from "@/lib/provider-integration-operations"
+import { routes } from "@/lib/routes"
 
 export const POST: APIRoute = async ({ request, params }) => {
-	const url = new URL("/provider/settings/integrations", request.url)
-	url.searchParams.set("mode", "pro")
+	const connectionId = String(params.connectionId ?? "")
+	const url = new URL(routes.providerSettingsIntegrationConnection(connectionId), request.url)
 	try {
 		const auth = await requireProviderIntegrationManager(request)
 		await setPrimaryProviderIntegrationConnection({
 			providerId: auth.providerId,
-			connectionId: String(params.connectionId ?? ""),
+			connectionId,
 		})
 		url.searchParams.set("operation", "primary_changed")
 	} catch (error) {

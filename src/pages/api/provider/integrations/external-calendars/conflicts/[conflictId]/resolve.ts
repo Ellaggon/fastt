@@ -4,8 +4,8 @@ import { resolveProviderExternalCalendarConflict } from "@/lib/provider-external
 
 export const POST: APIRoute = async ({ request, params }) => {
 	const form = await request.formData().catch(() => null)
-	const url = new URL("/provider/settings/integrations", request.url)
-	url.searchParams.set("mode", "pro")
+	const url = new URL("/rates/calendar/connections", request.url)
+	url.searchParams.set("view", "conflicts")
 	try {
 		const auth = await requireProviderIntegrationManager(request)
 		const actionRaw = String(form?.get("action") ?? "resolve")
