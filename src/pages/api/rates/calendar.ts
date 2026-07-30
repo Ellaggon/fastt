@@ -16,10 +16,11 @@ function json(status: number, payload: unknown) {
 
 export const GET: APIRoute = async ({ request, url }) => {
 	try {
-		await requireProvider(request)
+		const auth = await requireProvider(request)
 		const rows = await loadRatePlansReadModel({ request, channel: "web" })
 		const surface = await buildSingleCalendarSurface({
 			rows,
+			providerId: auth.providerId,
 			ratePlanId: url.searchParams.get("ratePlanId"),
 			variantId: url.searchParams.get("variantId"),
 			month: url.searchParams.get("month"),

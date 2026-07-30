@@ -1,4 +1,8 @@
 import { buildPricingCalendarSurface, type PricingCalendarDay } from "@/lib/rates/calendarSurfaces"
+import {
+	listProviderExternalCalendarOverlay,
+	type ProviderExternalCalendarDayOverlay,
+} from "@/lib/provider-external-calendars"
 import type { RatePlanListItem } from "@/lib/rates/loadRatePlansReadModel"
 import { summarizeMissingPolicyCategories } from "@/modules/policies/public"
 
@@ -6,6 +10,7 @@ export type SingleCalendarDay = PricingCalendarDay & {
 	conditionsComplete: boolean
 	conditionsSummary: string
 	conditionsMissingSummary: string
+	externalCalendar: ProviderExternalCalendarDayOverlay | null
 }
 
 export type SingleCalendarSurface = {
@@ -33,9 +38,11 @@ export type SingleCalendarSurface = {
 
 export async function buildSingleCalendarSurface(input: {
 	rows: RatePlanListItem[]
+	providerId?: string | null
 	ratePlanId?: string | null
 	variantId?: string | null
 	month?: string | null
+	externalCalendarOverlay?: ProviderExternalCalendarDayOverlay[]
 }): Promise<SingleCalendarSurface> {
 	const pricing = await buildPricingCalendarSurface({
 		rows: input.rows,
@@ -54,6 +61,23 @@ export async function buildSingleCalendarSurface(input: {
 				(complete ? "Contrato completo" : summarizeMissingPolicyCategories(missingCategories))
 	const conditionsMissingSummary = summarizeMissingPolicyCategories(missingCategories)
 	const firstDay = pricing.days[0]?.date
+	const lastDay = pricing.days.at(-1)?.date
+	const automaticOverlay =
+		input.providerId && selected?.variantId && firstDay && lastDay
+			? await listProviderExternalCalendarOverlay({
+					providerId: input.providerId,
+					variantId: String(selected.variantId),
+					from: firstDay,
+					toExclusive: (() => {
+						const date = new Date(`${lastDay}T00:00:00.000Z`)
+						date.setUTCDate(date.getUTCDate() + 1)
+						return date.toISOString().slice(0, 10)
+					})(),
+				})
+			: []
+	const externalCalendarByDate = new Map(
+		(input.externalCalendarOverlay ?? automaticOverlay).map((day) => [day.date, day])
+	)
 
 	return {
 		month: pricing.month,
@@ -82,6 +106,7 @@ export async function buildSingleCalendarSurface(input: {
 			conditionsComplete: complete,
 			conditionsSummary,
 			conditionsMissingSummary,
+			externalCalendar: externalCalendarByDate.get(day.date) ?? null,
 		})),
 	}
 }

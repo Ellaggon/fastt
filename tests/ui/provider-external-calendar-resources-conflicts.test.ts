@@ -14,7 +14,7 @@ describe("provider external calendars resources + conflict actions", () => {
 		const repo = read(
 			"src/modules/inventory/infrastructure/repositories/InventoryRecomputeRepository.ts"
 		)
-		const page = read("src/pages/provider/settings/integrations.astro")
+		const page = read("src/pages/rates/calendar/connections.astro")
 		const api = read(
 			"src/pages/api/provider/integrations/external-calendars/conflicts/[conflictId]/resolve.ts"
 		)
@@ -44,15 +44,15 @@ describe("provider external calendars resources + conflict actions", () => {
 		expect(repo).toContain("resource:")
 		expect(repo).toContain("event:")
 		expect(page).toContain("Unidad física")
-		expect(page).toContain("Alertas de solapamiento")
-		expect(page).toContain("Solo gestionan la alerta")
+		expect(page).toContain("Conflictos")
+		expect(page).toContain("La disponibilidad ya incluye el bloqueo externo")
 		expect(page).toContain("Aceptar alerta")
-		expect(page).toContain("Ignorar alerta")
+		expect(page).toContain('"Ignorar"')
 		expect(page).toContain("Marcar resuelto")
-		expect(page).toContain("no cambia la disponibilidad")
-		expect(page).toContain("Exportar calendario Fastt")
-		expect(page).toContain("Crear enlace iCal")
-		expect(page).toContain("El alcance es la habitación completa")
+		expect(page).toContain("La disponibilidad ya incluye el bloqueo externo")
+		expect(page).toContain("Compartir calendario Fastt")
+		expect(page).toContain("Crear enlace")
+		expect(page).toContain("El enlace incluye las reservas de la habitación completa")
 		expect(page).not.toMatch(/data-external-calendar-export[\s\S]*?name="resourceId"/)
 		expect(domain).toContain("Alert-inbox only")
 		expect(domain).not.toContain("X-FASTT-RESOURCE-ID")

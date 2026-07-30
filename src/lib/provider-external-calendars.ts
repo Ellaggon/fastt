@@ -21,6 +21,7 @@ import {
 	inArray,
 	InventoryResource,
 	isNull,
+	lt,
 	ne,
 	Product,
 	ProviderExternalCalendar,
@@ -120,6 +121,15 @@ export type ProviderExternalCalendarExportLink = {
 	lastDownloadedAt: Date | null
 	downloadCount: number
 	url: string | null
+}
+
+export type ProviderExternalCalendarDayOverlay = {
+	date: string
+	eventCount: number
+	calendarNames: string[]
+	resourceLabels: string[]
+	conflictCount: number
+	conflictLabels: string[]
 }
 
 type FeedFetchResult =
@@ -1705,4 +1715,110 @@ export async function listProviderExternalCalendars(providerId: string): Promise
 			url: null,
 		})),
 	}
+}
+
+export async function listProviderExternalCalendarOverlay(params: {
+	providerId: string
+	variantId: string
+	from: string
+	toExclusive: string
+}): Promise<ProviderExternalCalendarDayOverlay[]> {
+	if (!params.variantId || !params.from || !params.toExclusive) return []
+	const [events, conflicts] = await Promise.all([
+		db
+			.select({
+				startDate: ProviderExternalCalendarEvent.startDate,
+				endDate: ProviderExternalCalendarEvent.endDate,
+				calendarName: ProviderExternalCalendar.name,
+				resourceLabel: InventoryResource.label,
+			})
+			.from(ProviderExternalCalendarEvent)
+			.innerJoin(
+				ProviderExternalCalendar,
+				eq(ProviderExternalCalendar.id, ProviderExternalCalendarEvent.calendarId)
+			)
+			.leftJoin(
+				InventoryResource,
+				eq(InventoryResource.id, ProviderExternalCalendarEvent.resourceId)
+			)
+			.where(
+				and(
+					eq(ProviderExternalCalendarEvent.providerId, params.providerId),
+					eq(ProviderExternalCalendarEvent.variantId, params.variantId),
+					eq(ProviderExternalCalendarEvent.isActive, true),
+					lt(ProviderExternalCalendarEvent.startDate, params.toExclusive),
+					gt(ProviderExternalCalendarEvent.endDate, params.from)
+				)
+			),
+		db
+			.select({
+				startDate: ProviderExternalCalendarConflict.startDate,
+				endDate: ProviderExternalCalendarConflict.endDate,
+				title: ProviderExternalCalendarConflict.title,
+			})
+			.from(ProviderExternalCalendarConflict)
+			.where(
+				and(
+					eq(ProviderExternalCalendarConflict.providerId, params.providerId),
+					eq(ProviderExternalCalendarConflict.variantId, params.variantId),
+					eq(ProviderExternalCalendarConflict.status, "open"),
+					lt(ProviderExternalCalendarConflict.startDate, params.toExclusive),
+					gt(ProviderExternalCalendarConflict.endDate, params.from)
+				)
+			),
+	])
+	const byDate = new Map<
+		string,
+		{
+			eventCount: number
+			calendarNames: Set<string>
+			resourceLabels: Set<string>
+			conflictCount: number
+			conflictLabels: Set<string>
+		}
+	>()
+	const entry = (date: string) => {
+		const current = byDate.get(date) ?? {
+			eventCount: 0,
+			calendarNames: new Set<string>(),
+			resourceLabels: new Set<string>(),
+			conflictCount: 0,
+			conflictLabels: new Set<string>(),
+		}
+		byDate.set(date, current)
+		return current
+	}
+	const eachDate = (from: string, toExclusive: string, visit: (date: string) => void) => {
+		let date = from < params.from ? params.from : from
+		const end = toExclusive > params.toExclusive ? params.toExclusive : toExclusive
+		while (date < end) {
+			visit(date)
+			date = addUtcDays(date, 1)
+		}
+	}
+	for (const event of events) {
+		eachDate(String(event.startDate), String(event.endDate), (date) => {
+			const day = entry(date)
+			day.eventCount += 1
+			day.calendarNames.add(event.calendarName)
+			if (event.resourceLabel) day.resourceLabels.add(event.resourceLabel)
+		})
+	}
+	for (const conflict of conflicts) {
+		eachDate(String(conflict.startDate), String(conflict.endDate), (date) => {
+			const day = entry(date)
+			day.conflictCount += 1
+			day.conflictLabels.add(conflict.title)
+		})
+	}
+	return [...byDate.entries()]
+		.sort(([left], [right]) => left.localeCompare(right))
+		.map(([date, day]) => ({
+			date,
+			eventCount: day.eventCount,
+			calendarNames: [...day.calendarNames].sort((a, b) => a.localeCompare(b, "es")),
+			resourceLabels: [...day.resourceLabels].sort((a, b) => a.localeCompare(b, "es")),
+			conflictCount: day.conflictCount,
+			conflictLabels: [...day.conflictLabels].sort((a, b) => a.localeCompare(b, "es")),
+		}))
 }
