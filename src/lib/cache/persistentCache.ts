@@ -4,6 +4,7 @@ type MemoryEntry = {
 }
 
 type RedisDriver = {
+	kind: "redis" | "upstash-rest"
 	get: (key: string) => Promise<string | null>
 	set: (key: string, value: string, ttlSeconds: number) => Promise<void>
 	del: (key: string) => Promise<void>
@@ -13,6 +14,30 @@ type RedisDriver = {
 const memory = new Map<string, MemoryEntry>()
 let redisDriverPromise: Promise<RedisDriver | null> | null = null
 const SCAN_COUNT = 200
+const DEFAULT_L1_TTL_SECONDS = 15
+
+function l1TtlMs(ttlSeconds = DEFAULT_L1_TTL_SECONDS): number {
+	const configured = Number(process.env.FASTT_CACHE_L1_TTL_SECONDS ?? DEFAULT_L1_TTL_SECONDS)
+	const maxSeconds = Number.isFinite(configured) && configured > 0 ? configured : 0
+	return Math.max(0, Math.min(ttlSeconds, maxSeconds) * 1000)
+}
+
+function readMemory(key: string, now = Date.now()): unknown | null {
+	const entry = memory.get(key)
+	if (!entry) return null
+	if (entry.expiresAt <= now) {
+		memory.delete(key)
+		return null
+	}
+	return JSON.parse(entry.value)
+}
+
+function writeMemory(key: string, raw: string, ttlSeconds?: number): void {
+	const ttlMs = l1TtlMs(ttlSeconds)
+	if (ttlMs <= 0) return
+	memory.set(key, { value: raw, expiresAt: Date.now() + ttlMs })
+	if (memory.size > 500) sweepMemory()
+}
 
 function sweepMemory(now = Date.now()): void {
 	for (const [key, entry] of memory.entries()) {
@@ -31,6 +56,7 @@ async function createRedisDriverFromNodeRedis(redisUrl: string): Promise<RedisDr
 		client.on("error", () => {})
 		await client.connect()
 		return {
+			kind: "redis",
 			async get(key: string) {
 				return await client.get(key)
 			},
@@ -98,6 +124,7 @@ async function createRedisDriverFromUpstashRest(redisUrl: string): Promise<Redis
 	}
 
 	return {
+		kind: "upstash-rest",
 		async get(key: string) {
 			const value = await command(["GET", key])
 			return value == null ? null : String(value)
@@ -128,6 +155,11 @@ async function createRedisDriverFromUpstashRest(redisUrl: string): Promise<Redis
 }
 
 async function resolveRedisDriver(): Promise<RedisDriver | null> {
+	const upstashRestUrl = process.env.UPSTASH_REDIS_REST_URL?.trim()
+	if (upstashRestUrl) {
+		return await createRedisDriverFromUpstashRest(upstashRestUrl)
+	}
+
 	const redisUrl = process.env.REDIS_URL?.trim()
 	if (!redisUrl) return null
 
@@ -144,30 +176,62 @@ async function getDriver(): Promise<RedisDriver | null> {
 	return await redisDriverPromise
 }
 
+export async function getRuntimeStatus(): Promise<{
+	configured: boolean
+	configuredBackend: "redis" | "upstash-rest" | "none"
+	activeBackend: "redis" | "upstash-rest" | "memory"
+}> {
+	const hasUpstashRest = Boolean(process.env.UPSTASH_REDIS_REST_URL?.trim())
+	const hasRedis = Boolean(process.env.REDIS_URL?.trim())
+	const driver = await getDriver()
+	return {
+		configured: hasUpstashRest || hasRedis,
+		configuredBackend: hasUpstashRest ? "upstash-rest" : hasRedis ? "redis" : "none",
+		activeBackend: driver?.kind ?? "memory",
+	}
+}
+
+export async function verifyRuntimeConnection(): Promise<{
+	ok: boolean
+	backend: "redis" | "upstash-rest" | "memory"
+}> {
+	const driver = await getDriver()
+	if (!driver) return { ok: false, backend: "memory" }
+
+	const key = `infra:cache:${crypto.randomUUID()}`
+	const value = JSON.stringify({ ok: true })
+	try {
+		await driver.set(key, value, 15)
+		return { ok: (await driver.get(key)) === value, backend: driver.kind }
+	} catch {
+		return { ok: false, backend: driver.kind }
+	} finally {
+		await driver.del(key).catch(() => {})
+	}
+}
+
 export async function get(key: string): Promise<unknown | null> {
+	const local = readMemory(key)
+	if (local !== null) return local
+
 	const driver = await getDriver()
 	if (driver) {
 		try {
 			const raw = await driver.get(key)
-			return raw == null ? null : JSON.parse(raw)
+			if (raw == null) return null
+			writeMemory(key, raw)
+			return JSON.parse(raw)
 		} catch {
 			// Fallback to in-memory when Redis is unavailable.
 		}
 	}
 
-	const now = Date.now()
-	const entry = memory.get(key)
-	if (!entry) return null
-	if (entry.expiresAt <= now) {
-		memory.delete(key)
-		return null
-	}
-	return JSON.parse(entry.value)
+	return readMemory(key)
 }
 
 export async function set(key: string, value: unknown, ttlSeconds: number): Promise<void> {
-	const ttlMs = Math.max(1, Math.floor(ttlSeconds)) * 1000
 	const raw = JSON.stringify(value)
+	writeMemory(key, raw, Math.max(1, Math.floor(ttlSeconds)))
 	const driver = await getDriver()
 	if (driver) {
 		try {
@@ -177,9 +241,6 @@ export async function set(key: string, value: unknown, ttlSeconds: number): Prom
 			// Fallback to in-memory when Redis is unavailable.
 		}
 	}
-
-	memory.set(key, { value: raw, expiresAt: Date.now() + ttlMs })
-	if (memory.size > 500) sweepMemory()
 }
 
 export async function del(key: string): Promise<void> {

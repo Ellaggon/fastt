@@ -3,6 +3,7 @@ import { createPostgresSqlClient } from "@/shared/infrastructure/db/client"
 import { readPostgresDatabaseEnv } from "@/shared/infrastructure/db/env"
 import { currentRegion } from "@/lib/observability/requestContext"
 import * as persistentCache from "@/lib/cache/persistentCache"
+import { readThrough } from "@/lib/cache/readThrough"
 
 function nowMs() {
 	return performance.now()
@@ -52,23 +53,31 @@ async function measureRedis() {
 	const key = `infra:region:${crypto.randomUUID()}`
 	const startedAt = nowMs()
 	try {
-		await persistentCache.set(key, { ok: true, at: Date.now() }, 15)
-		const value = await persistentCache.get(key)
+		const connection = await persistentCache.verifyRuntimeConnection()
+		let calculations = 0
+		const first = await readThrough(key, 15, async () => {
+			calculations += 1
+			return { ok: true, at: Date.now() }
+		})
+		const second = await readThrough(key, 15, async () => {
+			calculations += 1
+			return { ok: true, at: Date.now() }
+		})
+		const runtime = await persistentCache.getRuntimeStatus()
 		await persistentCache.del(key)
 		return {
-			ok: Boolean(value),
+			ok: Boolean(connection.ok && first && second && calculations === 1),
 			durationMs: durationSince(startedAt),
-			driverConfigured: Boolean(
-				process.env.REDIS_URL?.trim() || process.env.UPSTASH_REDIS_REST_URL?.trim()
-			),
+			calculations,
+			connection,
+			...runtime,
 		}
 	} catch (error) {
+		const runtime = await persistentCache.getRuntimeStatus()
 		return {
 			ok: false,
 			durationMs: durationSince(startedAt),
-			driverConfigured: Boolean(
-				process.env.REDIS_URL?.trim() || process.env.UPSTASH_REDIS_REST_URL?.trim()
-			),
+			...runtime,
 			error: error instanceof Error ? error.message.slice(0, 160) : "redis_failed",
 		}
 	}

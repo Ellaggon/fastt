@@ -1,4 +1,41 @@
 import { delByPrefix } from "./persistentCache"
+import { cacheKeys } from "./cacheKeys"
+
+async function invalidateRatePlanSurfacesByOwnership(params: {
+	providerId?: string | null
+	productId?: string | null
+	variantId?: string | null
+	ratePlanIds?: string[]
+}): Promise<void> {
+	const providerIds = new Set<string>()
+	if (params.providerId) providerIds.add(String(params.providerId).trim())
+	if (params.productId || params.variantId || params.ratePlanIds?.length) {
+		const { and, db, eq, inArray, Product, RatePlan, Variant } =
+			await import("@/shared/infrastructure/db/compat")
+		const filters = []
+		if (params.productId) filters.push(eq(Product.id, params.productId))
+		if (params.variantId) filters.push(eq(Variant.id, params.variantId))
+		const ratePlanIds = (params.ratePlanIds ?? []).filter(Boolean)
+		if (ratePlanIds.length) filters.push(inArray(RatePlan.id, ratePlanIds))
+		if (filters.length) {
+			const rows = await db
+				.select({ providerId: Product.providerId })
+				.from(Product)
+				.innerJoin(Variant, eq(Variant.productId, Product.id))
+				.leftJoin(RatePlan, eq(RatePlan.variantId, Variant.id))
+				.where(and(...filters))
+			for (const row of rows) providerIds.add(String(row.providerId ?? "").trim())
+		}
+	}
+	await Promise.all(
+		[...providerIds]
+			.filter(Boolean)
+			.flatMap((providerId) => [
+				delByPrefix(cacheKeys.providerRatePlansSurfacePrefix(providerId)),
+				delByPrefix(cacheKeys.providerRatePlanVariants(providerId)),
+			])
+	)
+}
 
 function refreshProductSurface(productId: string, source: string): void {
 	void import("@/lib/product/productOperationalSurface")
@@ -52,14 +89,29 @@ export async function invalidateProviderGovernance(
 	await Promise.all([
 		delByPrefix(`ws:provider:${id}:governance`),
 		delByPrefix(`ws:provider:${id}:settings`),
+		delByPrefix(`ws:provider:${id}:integrations`),
 		delByPrefix(`ws:provider:${id}:surface`),
 	])
 	refreshProviderConfiguration(id, source)
 	console.debug("cache invalidated", { scope: "provider_governance", id, source })
 }
 
+export async function invalidateProviderIntegrations(
+	providerId: string,
+	source = "provider_integrations_mutation"
+): Promise<void> {
+	const id = String(providerId ?? "").trim()
+	if (!id) return
+	await delByPrefix(`ws:provider:${id}:integrations`)
+	console.debug("cache invalidated", { scope: "provider_integrations", id, source })
+}
+
 export async function invalidateProduct(productId: string): Promise<void> {
-	await Promise.all([delByPrefix(`ws:product:${productId}`), delByPrefix("ws:search:public")])
+	await Promise.all([
+		delByPrefix(`ws:product:${productId}`),
+		delByPrefix("ws:search:public"),
+		invalidateRatePlanSurfacesByOwnership({ productId }),
+	])
 	refreshProductSurface(productId, "invalidate_product")
 	console.debug("cache invalidated", { scope: "product", id: productId })
 }
@@ -72,6 +124,7 @@ export async function invalidateVariant(variantId: string, productId: string): P
 		delByPrefix(`ws:product:${productId}`),
 		delByPrefix("ws:pricing:rateplans:"),
 		delByPrefix("ws:search:public"),
+		invalidateRatePlanSurfacesByOwnership({ variantId, productId }),
 	])
 	refreshProductSurface(productId, "invalidate_variant")
 	console.debug("cache invalidated", { scope: "variant", id: variantId, productId })
@@ -89,6 +142,10 @@ export async function invalidateInventoryAvailabilitySurface(params: {
 	]
 	if (params.productId) tasks.push(delByPrefix(`ws:product:${params.productId}`))
 	await Promise.all(tasks)
+	await invalidateRatePlanSurfacesByOwnership({
+		variantId,
+		productId: params.productId,
+	})
 	if (params.productId) refreshProductSurface(params.productId, "invalidate_inventory_availability")
 	console.debug("cache invalidated", {
 		scope: "inventory_availability",
@@ -112,6 +169,12 @@ export async function invalidatePricing(params: {
 	if (params.productId) tasks.push(delByPrefix(`ws:product:${params.productId}`))
 	if (params.providerId) tasks.push(delByPrefix(`ws:provider:${params.providerId}`))
 	await Promise.all(tasks)
+	await invalidateRatePlanSurfacesByOwnership({
+		providerId: params.providerId,
+		productId: params.productId,
+		variantId: params.variantId,
+		ratePlanIds: params.ratePlanId ? [params.ratePlanId] : [],
+	})
 	if (params.productId) refreshProductSurface(params.productId, "invalidate_pricing")
 	if (params.ratePlanId) refreshRatePlanConditions([params.ratePlanId], "invalidate_pricing")
 	console.debug("cache invalidated", { scope: "pricing", ...params })
@@ -133,6 +196,10 @@ export async function invalidatePolicyConditions(params: {
 	await Promise.all(
 		ratePlanIds.map((ratePlanId) => delByPrefix(`ws:pricing:rateplan:${ratePlanId}:`))
 	)
+	await invalidateRatePlanSurfacesByOwnership({
+		productId: params.productId,
+		ratePlanIds,
+	})
 	refreshRatePlanConditions(ratePlanIds, "invalidate_policy_conditions")
 	if (params.productId) refreshProductSurface(params.productId, "invalidate_policy_conditions")
 	console.debug("cache invalidated", {

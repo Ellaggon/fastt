@@ -287,18 +287,33 @@ export async function getProviderSidebarData(
 			accommodationCount: 0,
 		}
 
-	const professionalToolsCachePart =
+	const [resolvedRole, professionalToolsPreference] = await Promise.all([
+		context.providerRole
+			? Promise.resolve(normalizeProviderRole(context.providerRole))
+			: getProviderUserRole(normalizedProviderId, context.userId),
 		typeof context.professionalToolsEnabled === "boolean"
-			? String(context.professionalToolsEnabled)
-			: "provider-default"
-	const roleCachePart = String(context.providerRole ?? "provider-role-default")
+			? Promise.resolve(null)
+			: getProviderProfessionalToolsPreferenceRead(normalizedProviderId),
+	])
+	const effectiveContext: ProviderAdvancedDisclosureContext = {
+		...context,
+		providerRole: normalizeProviderRole(resolvedRole) || "provider-role-none",
+		professionalToolsEnabled:
+			typeof context.professionalToolsEnabled === "boolean"
+				? context.professionalToolsEnabled
+				: Boolean(
+						professionalToolsPreference?.schemaAvailable &&
+						professionalToolsPreference.professionalToolsEnabled
+					),
+	}
 	const cacheKey = cacheKeys.providerSidebar(
 		normalizedProviderId,
 		String(context.userId ?? "anonymous"),
-		`${professionalToolsCachePart}:${roleCachePart}`
+		Boolean(effectiveContext.professionalToolsEnabled),
+		String(effectiveContext.providerRole)
 	)
 	return readThrough(cacheKey, cacheTtls.providerSidebar, async () =>
-		loadProviderSidebarData(normalizedProviderId, context)
+		loadProviderSidebarData(normalizedProviderId, effectiveContext)
 	)
 }
 
@@ -325,19 +340,11 @@ async function loadProviderSidebarData(
 	const productTypes = [
 		...new Set(productRows.map((row) => String(row.productType ?? "").trim()).filter(Boolean)),
 	]
-	const [activePriceRules, activeRestrictions, providerRole] = await Promise.all([
+	const [activePriceRules, activeRestrictions] = await Promise.all([
 		countActivePriceRules(ratePlanIds),
 		countActiveRestrictions(scopeIds),
-		getProviderUserRole(normalizedProviderId, context.userId),
 	])
-	const professionalToolsPreference =
-		await getProviderProfessionalToolsPreferenceRead(normalizedProviderId)
-	const professionalToolsEnabled =
-		typeof context.professionalToolsEnabled === "boolean"
-			? context.professionalToolsEnabled
-			: professionalToolsPreference.schemaAvailable
-				? professionalToolsPreference.professionalToolsEnabled
-				: false
+	const professionalToolsEnabled = Boolean(context.professionalToolsEnabled)
 
 	const [ratesSummary, pricingSummary, restrictionsSummary] = await Promise.all([
 		getRatesSummary(ratePlanIds, policyReadiness),
@@ -354,7 +361,7 @@ async function loadProviderSidebarData(
 				activeRestrictions,
 			},
 			{
-				providerRole: context.providerRole ?? providerRole,
+				providerRole: context.providerRole,
 				professionalToolsEnabled,
 				userId: context.userId,
 			}
