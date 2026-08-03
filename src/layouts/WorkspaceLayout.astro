@@ -2,6 +2,7 @@
 import DashboardSidebar from "@/components/dashboard/DashboardSidebar.astro"
 import DashboardTopBar from "@/components/dashboard/DashboardTopBar.astro"
 import Layout from "@/layouts/Layout.astro"
+import { resolveWorkspaceShellContext } from "@/lib/dashboard/workspaceRequestContext"
 
 interface Props {
 	title?: string
@@ -10,6 +11,9 @@ interface Props {
 const { title = "Workspace" } = Astro.props
 const pathname = Astro.url.pathname
 const currentPath = `${Astro.url.pathname}${Astro.url.search}`
+const workspaceContext = await resolveWorkspaceShellContext(
+	await Astro.locals.getWorkspaceContext()
+)
 ---
 
 <Layout title={title}>
@@ -21,11 +25,15 @@ const currentPath = `${Astro.url.pathname}${Astro.url.search}`
 				<div class="mb-3.5 px-2.5">
 					<p class="truncate text-lg font-semibold text-white">Fastt</p>
 				</div>
-				<DashboardSidebar pathname={pathname} currentPath={currentPath} />
+				<DashboardSidebar
+					pathname={pathname}
+					currentPath={currentPath}
+					workspaceContext={workspaceContext}
+				/>
 			</aside>
 
 			<div class="flex min-h-screen min-w-0 flex-1 flex-col">
-				<DashboardTopBar />
+				<DashboardTopBar workspaceContext={workspaceContext} />
 				<main class="min-w-0 flex-1">
 					<div class="mx-auto max-w-7xl min-w-0 px-3 py-4 sm:px-6 sm:py-8">
 						<div class="mb-4 sm:mb-6 lg:hidden">
@@ -34,7 +42,11 @@ const currentPath = `${Astro.url.pathname}${Astro.url.search}`
 							>
 								<summary class="cursor-pointer text-sm font-semibold text-white"> Menú </summary>
 								<div class="mt-4">
-									<DashboardSidebar pathname={pathname} currentPath={currentPath} />
+									<DashboardSidebar
+										pathname={pathname}
+										currentPath={currentPath}
+										workspaceContext={workspaceContext}
+									/>
 								</div>
 							</details>
 						</div>

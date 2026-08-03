@@ -1,26 +1,22 @@
 ---
 import DashboardSidebarItem from "@/components/dashboard/DashboardSidebarItem.astro"
 import DashboardSidebarSection from "@/components/dashboard/DashboardSidebarSection.astro"
-import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
-import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import {
 	enterpriseNavigation,
 	filterEnterpriseNavigationForDisclosure,
 	type SidebarDisclosureMode,
 } from "@/lib/backoffice-governance"
-import { getProfessionalModeCookiePreference } from "@/lib/dashboard/professionalModeCookie"
-import {
-	getProviderSidebarData,
-	type ProviderSidebarReadiness,
-} from "@/lib/dashboard/providerSidebarReadiness"
+import type { ProviderSidebarReadiness } from "@/lib/dashboard/providerSidebarReadiness"
+import type { WorkspaceShellContext } from "@/lib/dashboard/workspaceRequestContext"
 import { routes } from "@/lib/routes"
 
 interface Props {
 	pathname?: string
 	currentPath?: string
+	workspaceContext: WorkspaceShellContext
 }
 
-const { pathname = "", currentPath = pathname } = Astro.props
+const { pathname = "", currentPath = pathname, workspaceContext } = Astro.props
 const isAccommodationHubSurface = (value: string) =>
 	/^\/catalog\/accommodations(?:\/|$)/.test(value)
 const isProductDetailSurface = (value: string) => /^\/product\/[^/]+\/?$/.test(value)
@@ -37,43 +33,17 @@ const activeHref =
 		.filter((href) => isActive(href))
 		.sort((a, b) => b.length - a.length)[0] ?? ""
 
-let sidebarReadiness: ProviderSidebarReadiness = {}
-let disclosureMode: SidebarDisclosureMode = "small-provider"
-let serviceProductTypes: string[] = []
-let primaryAccommodationHref: string | null = null
-let primaryAccommodationRoomsHref: string | null = null
-let primaryAccommodationHouseRulesHref: string | null = null
-const professionalToolsEnabledFromCookie = getProfessionalModeCookiePreference(Astro.request)
-try {
-	const user = await getUserFromRequest(Astro.request)
-	const providerId = await getProviderIdFromRequest(Astro.request, user)
-	if (providerId) {
-		const sidebarData = await getProviderSidebarData(providerId, {
-			userId: user?.id,
-			professionalToolsEnabled:
-				typeof professionalToolsEnabledFromCookie === "boolean"
-					? professionalToolsEnabledFromCookie
-					: undefined,
-		})
-		sidebarReadiness = sidebarData.summaries
-		disclosureMode = sidebarData.disclosureMode
-		serviceProductTypes = sidebarData.productTypes
-		primaryAccommodationHref = sidebarData.primaryAccommodationHref ?? null
-		primaryAccommodationRoomsHref = sidebarData.primaryAccommodationRoomsHref ?? null
-		primaryAccommodationHouseRulesHref = sidebarData.primaryAccommodationHouseRulesHref ?? null
-	}
-} catch {
-	disclosureMode = professionalToolsEnabledFromCookie ? "professional-tools" : "small-provider"
-	sidebarReadiness = {
-		[routes.ratePlansList()]: "Estado no disponible",
-		[routes.calendar()]: "Estado no disponible",
-		[routes.ratesMultiCalendar()]: "Estado no disponible",
-	}
-	serviceProductTypes = []
-	primaryAccommodationHref = null
-	primaryAccommodationRoomsHref = null
-	primaryAccommodationHouseRulesHref = null
+const sidebarData = workspaceContext.sidebarData
+const sidebarReadiness: ProviderSidebarReadiness = sidebarData?.summaries ?? {
+	[routes.ratePlansList()]: "Estado no disponible",
+	[routes.calendar()]: "Estado no disponible",
+	[routes.ratesMultiCalendar()]: "Estado no disponible",
 }
+const disclosureMode: SidebarDisclosureMode = workspaceContext.disclosureMode
+const serviceProductTypes = sidebarData?.productTypes ?? []
+const primaryAccommodationHref = sidebarData?.primaryAccommodationHref ?? null
+const primaryAccommodationRoomsHref = sidebarData?.primaryAccommodationRoomsHref ?? null
+const primaryAccommodationHouseRulesHref = sidebarData?.primaryAccommodationHouseRulesHref ?? null
 const visibleNavigationBase = filterEnterpriseNavigationForDisclosure(enterpriseNavigation, {
 	mode: disclosureMode,
 	activeHref,
