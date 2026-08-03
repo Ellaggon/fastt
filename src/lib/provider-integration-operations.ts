@@ -17,6 +17,9 @@ import {
 	TaxFeeDefinition,
 	Variant,
 } from "@/shared/infrastructure/db/compat"
+import { cacheKeys, cacheTtls } from "@/lib/cache/cacheKeys"
+import { invalidateProviderIntegrations } from "@/lib/cache/invalidation"
+import { readThrough } from "@/lib/cache/readThrough"
 
 export type IntegrationMappingInput = {
 	mappingType: string
@@ -93,6 +96,7 @@ const ALLOWED_ENTITY_TYPES = new Set([
 	"account",
 	"calendar",
 ])
+const WORKSPACE_CONNECTOR_KEYS = ["channel_manager", "external_calendars"] as const
 
 function requiredIdentifier(value: unknown, code: string, max = 200): string {
 	const normalized = String(value ?? "").trim()
@@ -143,6 +147,7 @@ export async function setPrimaryProviderIntegrationConnection(params: {
 			.set({ isPrimary: true, updatedAt: new Date() })
 			.where(eq(ProviderIntegrationConnection.id, params.connectionId))
 	})
+	await invalidateProviderIntegrations(params.providerId, "provider_integration_primary_changed")
 }
 
 export async function upsertProviderIntegrationMapping(params: {
@@ -225,7 +230,7 @@ export async function upsertProviderIntegrationMappings(params: {
 	}
 
 	const now = new Date()
-	return db.transaction(async (tx) => {
+	const ids = await db.transaction(async (tx) => {
 		const ids: string[] = []
 		for (const input of normalized) {
 			const existing = existingMappings.find(
@@ -254,6 +259,11 @@ export async function upsertProviderIntegrationMappings(params: {
 		}
 		return ids
 	})
+	await invalidateProviderIntegrations(
+		params.providerId,
+		"provider_integration_mappings_upserted"
+	).catch(() => {})
+	return ids
 }
 
 export async function removeProviderIntegrationMapping(params: {
@@ -277,6 +287,7 @@ export async function removeProviderIntegrationMapping(params: {
 	await db
 		.delete(ProviderIntegrationMapping)
 		.where(eq(ProviderIntegrationMapping.id, params.mappingId))
+	await invalidateProviderIntegrations(params.providerId, "provider_integration_mapping_removed")
 }
 
 export async function startProviderIntegrationSyncRun(params: {
@@ -453,6 +464,10 @@ export async function recordProviderIntegrationIncident(params: {
 		incidentId,
 		force: forceNotify || params.input.severity === "critical",
 	}).catch(() => null)
+	await invalidateProviderIntegrations(
+		params.providerId,
+		"provider_integration_incident_recorded"
+	).catch(() => {})
 	return incidentId
 }
 
@@ -486,6 +501,10 @@ export async function resolveProviderIntegrationIncident(params: {
 			updatedAt: new Date(),
 		})
 		.where(eq(ProviderIntegrationIncident.id, params.incidentId))
+	await invalidateProviderIntegrations(
+		params.providerId,
+		"provider_integration_incident_resolved"
+	).catch(() => {})
 }
 
 export async function resolveProviderIntegrationIncidentByKey(params: {
@@ -515,6 +534,10 @@ export async function resolveProviderIntegrationIncidentByKey(params: {
 				eq(ProviderIntegrationIncident.status, "open")
 			)
 		)
+	await invalidateProviderIntegrations(
+		params.providerId,
+		"provider_integration_incident_resolved_by_key"
+	).catch(() => {})
 }
 
 export async function listProviderIntegrationOperations(providerId: string) {
@@ -683,6 +706,145 @@ export async function listProviderIntegrationMappingsForConnection(params: {
 			)
 		)
 		.orderBy(ProviderIntegrationMapping.mappingType, ProviderIntegrationMapping.updatedAt)
+}
+
+type ProviderIntegrationIncidentRow = Awaited<
+	ReturnType<typeof loadProviderWorkspaceIntegrationIncidents>
+>[number]
+
+function toDate(value: Date | string | null | undefined): Date | null {
+	if (!value) return null
+	if (value instanceof Date) return value
+	const date = new Date(value)
+	return Number.isNaN(date.getTime()) ? null : date
+}
+
+function hydrateProviderIntegrationIncidents(rows: ProviderIntegrationIncidentRow[]) {
+	return rows.map((row) => ({
+		...row,
+		firstSeenAt: toDate(row.firstSeenAt),
+		lastSeenAt: toDate(row.lastSeenAt),
+		resolvedAt: toDate(row.resolvedAt),
+	}))
+}
+
+function providerIntegrationIncidentBaseFilter(params: {
+	providerId: string
+	connectionId?: string | null
+}) {
+	const providerFilter = eq(ProviderIntegrationIncident.providerId, params.providerId)
+	const workspaceFilter = inArray(ProviderIntegrationConnection.connectorKey, [
+		...WORKSPACE_CONNECTOR_KEYS,
+	])
+	if (!params.connectionId) return and(providerFilter, workspaceFilter)
+	return and(
+		providerFilter,
+		eq(ProviderIntegrationIncident.connectionId, params.connectionId),
+		workspaceFilter
+	)
+}
+
+async function loadProviderWorkspaceIntegrationIncidents(params: {
+	providerId: string
+	status: "open" | "resolved" | "all"
+	connectionId?: string | null
+	limit: number
+}) {
+	if (params.connectionId) await ownedConnection(params.providerId, params.connectionId)
+	const baseFilter = providerIntegrationIncidentBaseFilter(params)
+	const filter =
+		params.status === "all"
+			? baseFilter
+			: and(baseFilter, eq(ProviderIntegrationIncident.status, params.status))
+	return db
+		.select({
+			id: ProviderIntegrationIncident.id,
+			connectionId: ProviderIntegrationIncident.connectionId,
+			connectionName: ProviderIntegrationConnection.displayName,
+			connectorKey: ProviderIntegrationConnection.connectorKey,
+			code: ProviderIntegrationIncident.code,
+			category: ProviderIntegrationIncident.category,
+			severity: ProviderIntegrationIncident.severity,
+			status: ProviderIntegrationIncident.status,
+			title: ProviderIntegrationIncident.title,
+			description: ProviderIntegrationIncident.description,
+			actionLabel: ProviderIntegrationIncident.actionLabel,
+			actionHref: ProviderIntegrationIncident.actionHref,
+			occurrenceCount: ProviderIntegrationIncident.occurrenceCount,
+			firstSeenAt: ProviderIntegrationIncident.firstSeenAt,
+			lastSeenAt: ProviderIntegrationIncident.lastSeenAt,
+			resolvedAt: ProviderIntegrationIncident.resolvedAt,
+			resolutionNote: ProviderIntegrationIncident.resolutionNote,
+			notificationStatus: ProviderIntegrationIncident.notificationStatus,
+		})
+		.from(ProviderIntegrationIncident)
+		.innerJoin(
+			ProviderIntegrationConnection,
+			eq(ProviderIntegrationConnection.id, ProviderIntegrationIncident.connectionId)
+		)
+		.where(filter)
+		.orderBy(desc(ProviderIntegrationIncident.lastSeenAt))
+		.limit(params.limit)
+}
+
+export async function listProviderWorkspaceIntegrationIncidents(params: {
+	providerId: string
+	status?: "open" | "resolved" | "all"
+	connectionId?: string | null
+	limit?: number
+}) {
+	const status = params.status ?? "open"
+	const limit = Math.min(100, Math.max(1, params.limit ?? 50))
+	const rows = await readThrough(
+		cacheKeys.providerIntegrationsIncidents(
+			params.providerId,
+			status,
+			params.connectionId ?? "",
+			limit
+		),
+		cacheTtls.providerIntegrationsIncidents,
+		async () =>
+			loadProviderWorkspaceIntegrationIncidents({
+				providerId: params.providerId,
+				status,
+				connectionId: params.connectionId,
+				limit,
+			})
+	)
+	return hydrateProviderIntegrationIncidents(rows as ProviderIntegrationIncidentRow[])
+}
+
+async function loadProviderWorkspaceIntegrationIncidentCounts(params: {
+	providerId: string
+	connectionId?: string | null
+}) {
+	if (params.connectionId) await ownedConnection(params.providerId, params.connectionId)
+	const rows = await db
+		.select({
+			status: ProviderIntegrationIncident.status,
+			count: sql<number>`count(*)`,
+		})
+		.from(ProviderIntegrationIncident)
+		.innerJoin(
+			ProviderIntegrationConnection,
+			eq(ProviderIntegrationConnection.id, ProviderIntegrationIncident.connectionId)
+		)
+		.where(providerIntegrationIncidentBaseFilter(params))
+		.groupBy(ProviderIntegrationIncident.status)
+	const open = Number(rows.find((row) => row.status === "open")?.count ?? 0)
+	const resolved = Number(rows.find((row) => row.status === "resolved")?.count ?? 0)
+	return { open, resolved, all: open + resolved }
+}
+
+export async function countProviderWorkspaceIntegrationIncidents(params: {
+	providerId: string
+	connectionId?: string | null
+}) {
+	return readThrough(
+		cacheKeys.providerIntegrationsIncidentCounts(params.providerId, params.connectionId ?? ""),
+		cacheTtls.providerIntegrationsIncidents,
+		async () => loadProviderWorkspaceIntegrationIncidentCounts(params)
+	)
 }
 
 export async function listProviderIntegrationIncidents(params: {

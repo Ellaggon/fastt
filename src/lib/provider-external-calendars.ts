@@ -10,6 +10,7 @@ import {
 	decryptExternalCalendarUrl,
 	encryptExternalCalendarUrl,
 } from "@/lib/provider-external-calendar-secrets"
+import { invalidateProviderIntegrations } from "@/lib/cache/invalidation"
 import {
 	and,
 	Booking,
@@ -620,6 +621,10 @@ export async function refreshExternalCalendarConnectionRollup(
 				updatedAt: new Date(),
 			})
 			.where(eq(ProviderIntegrationConnection.id, existing.id))
+		await invalidateProviderIntegrations(
+			providerId,
+			"external_calendar_connection_rollup_refreshed"
+		).catch(() => {})
 		return existing.id
 	}
 
@@ -669,6 +674,10 @@ export async function refreshExternalCalendarConnectionRollup(
 		})
 		.where(eq(ProviderIntegrationConnection.id, connectionId))
 
+	await invalidateProviderIntegrations(
+		providerId,
+		"external_calendar_connection_rollup_refreshed"
+	).catch(() => {})
 	return connectionId
 }
 
@@ -1203,6 +1212,9 @@ export async function createProviderExternalCalendarExport(params: {
 		createdAt: new Date(),
 		updatedAt: new Date(),
 	})
+	await invalidateProviderIntegrations(params.providerId, "external_calendar_export_created").catch(
+		() => {}
+	)
 	return {
 		id,
 		url: buildExportUrl({ baseUrl: params.baseUrl, exportId: id, token })!,
@@ -1222,6 +1234,9 @@ export async function revokeProviderExternalCalendarExport(params: {
 				eq(ProviderExternalCalendarExport.providerId, params.providerId)
 			)
 		)
+	await invalidateProviderIntegrations(params.providerId, "external_calendar_export_revoked").catch(
+		() => {}
+	)
 }
 
 export async function renderProviderExternalCalendarExport(params: {
@@ -1469,6 +1484,10 @@ export async function resolveProviderExternalCalendarConflict(params: {
 			updatedAt: new Date(),
 		})
 		.where(eq(ProviderExternalCalendarConflict.id, conflict.id))
+	await invalidateProviderIntegrations(
+		params.providerId,
+		"external_calendar_conflict_resolved"
+	).catch(() => {})
 	return conflict.calendarId
 }
 
