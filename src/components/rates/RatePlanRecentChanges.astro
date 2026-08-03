@@ -1,0 +1,137 @@
+---
+import { RefreshCw } from "@lucide/astro"
+
+type Props = {
+	checkIn: string
+	checkOut: string
+}
+
+const { checkIn, checkOut } = Astro.props
+const params = new URLSearchParams({ checkIn, checkOut })
+const endpoint = `/api/rates/plans/history?${params.toString()}`
+---
+
+<details
+	class="rate-history-panel fastt-card border bg-white text-slate-900"
+	data-rate-plan-history
+	data-history-endpoint={endpoint}
+>
+	<summary
+		class="calendar-control cursor-pointer px-4 py-3 text-sm font-semibold hover:bg-slate-50"
+	>
+		Cambios recientes de tarifa
+	</summary>
+	<div class="rate-history-grid">
+		<div class="overflow-hidden">
+			<div class="border-t border-slate-200 px-4 py-4">
+				<p class="text-sm text-slate-500" data-history-status aria-live="polite">
+					Cargando cambios...
+				</p>
+				<ol class="hidden divide-y divide-slate-100" data-history-list></ol>
+				<button
+					type="button"
+					class="fastt-button mt-3 hidden items-center gap-2 text-sm font-medium text-slate-700 hover:text-slate-950"
+					data-history-retry
+				>
+					<RefreshCw class="size-4" aria-hidden="true" />
+					Reintentar
+				</button>
+			</div>
+		</div>
+	</div>
+</details>
+
+<script>
+	type HistoryItem = {
+		id: string
+		title: string
+		description: string
+		createdAt: string
+		createdAtLabel: string
+	}
+
+	function renderHistory(root: HTMLElement, history: HistoryItem[]) {
+		const status = root.querySelector<HTMLElement>("[data-history-status]")
+		const list = root.querySelector<HTMLOListElement>("[data-history-list]")
+		const retry = root.querySelector<HTMLButtonElement>("[data-history-retry]")
+		if (!status || !list || !retry) return
+
+		list.replaceChildren()
+		retry.classList.add("hidden")
+		retry.classList.remove("flex")
+		if (!history.length) {
+			status.textContent = "Todavía no hay cambios registrados."
+			return
+		}
+
+		for (const item of history) {
+			const row = document.createElement("li")
+			row.className = "flex flex-wrap justify-between gap-3 py-3 first:pt-0 last:pb-0"
+			const content = document.createElement("div")
+			const title = document.createElement("p")
+			title.className = "text-sm font-semibold"
+			title.textContent = item.title
+			const description = document.createElement("p")
+			description.className = "mt-1 text-xs text-slate-500"
+			description.textContent = item.description
+			const time = document.createElement("time")
+			time.className = "text-xs text-slate-500"
+			time.dateTime = item.createdAt
+			time.textContent = item.createdAtLabel
+			content.append(title, description)
+			row.append(content, time)
+			list.append(row)
+		}
+		status.classList.add("hidden")
+		list.classList.remove("hidden")
+	}
+
+	async function loadHistory(root: HTMLElement) {
+		if (root.dataset.historyState === "loading" || root.dataset.historyState === "loaded") return
+		const endpoint = root.dataset.historyEndpoint
+		const status = root.querySelector<HTMLElement>("[data-history-status]")
+		const retry = root.querySelector<HTMLButtonElement>("[data-history-retry]")
+		if (!endpoint || !status || !retry) return
+		root.dataset.historyState = "loading"
+		status.classList.remove("hidden")
+		status.textContent = "Cargando cambios..."
+
+		try {
+			const response = await fetch(endpoint, { headers: { Accept: "application/json" } })
+			const payload = (await response.json()) as { history?: HistoryItem[]; error?: string }
+			if (!response.ok) throw new Error(payload.error || "history_failed")
+			root.dataset.historyState = "loaded"
+			renderHistory(root, payload.history ?? [])
+		} catch {
+			root.dataset.historyState = "error"
+			status.textContent = "No se pudieron cargar los cambios."
+			retry.classList.remove("hidden")
+			retry.classList.add("flex")
+		}
+	}
+
+	function initializeRatePlanHistory() {
+		for (const root of document.querySelectorAll<HTMLElement>("[data-rate-plan-history]")) {
+			if (root.dataset.historyBound === "true") continue
+			root.dataset.historyBound = "true"
+			root.addEventListener("toggle", () => {
+				if ((root as HTMLDetailsElement).open) void loadHistory(root)
+			})
+			root.querySelector("[data-history-retry]")?.addEventListener("click", () => {
+				root.dataset.historyState = "idle"
+				void loadHistory(root)
+			})
+			const schedule = () => void loadHistory(root)
+			const requestIdle = (
+				window as Window & {
+					requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
+				}
+			).requestIdleCallback
+			if (typeof requestIdle === "function") requestIdle(schedule, { timeout: 1500 })
+			else globalThis.setTimeout(schedule, 250)
+		}
+	}
+
+	document.addEventListener("astro:page-load", initializeRatePlanHistory)
+	initializeRatePlanHistory()
+</script>

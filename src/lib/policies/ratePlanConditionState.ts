@@ -31,6 +31,14 @@ const STATE_MAX_AGE_MS = Number(
 	process.env.FASTT_RATE_PLAN_CONDITION_STATE_MAX_AGE_MS ?? 30 * 60 * 1000
 )
 
+/** Serialize background refreshes so they cannot starve the shared Postgres pool. */
+let conditionRefreshQueue: Promise<void> = Promise.resolve()
+const conditionRefreshInflight = new Set<string>()
+
+function conditionRefreshKey(ratePlanId: string, channel: string) {
+	return `${channel}:${ratePlanId}`
+}
+
 function unique(values: readonly unknown[]): string[] {
 	return [...new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean))]
 }
@@ -157,19 +165,43 @@ export async function readRatePlanConditionSummaries(
 		})
 	}
 
-	const staleOrMissing = ids.filter((id) => !result.has(id))
-	if (staleOrMissing.length) {
-		void refreshRatePlanConditionStates({ ratePlanIds: staleOrMissing, channel }).catch(() => {})
-	}
-	for (const row of rows) {
-		if (!isFresh(row.updatedAt)) {
-			void refreshRatePlanConditionStates({ ratePlanIds: [String(row.ratePlanId)], channel }).catch(
-				() => {}
-			)
-		}
+	const refreshIds = unique([
+		...ids.filter((id) => !result.has(id)),
+		...rows.filter((row) => !isFresh(row.updatedAt)).map((row) => String(row.ratePlanId)),
+	])
+	if (refreshIds.length) {
+		scheduleRatePlanConditionStateRefresh({ ratePlanIds: refreshIds, channel })
 	}
 
 	return result
+}
+
+function scheduleRatePlanConditionStateRefresh(params: {
+	ratePlanIds: readonly string[]
+	channel: string
+}) {
+	const channel = params.channel
+	const pendingIds = unique(params.ratePlanIds).filter((ratePlanId) => {
+		const key = conditionRefreshKey(ratePlanId, channel)
+		if (conditionRefreshInflight.has(key)) return false
+		conditionRefreshInflight.add(key)
+		return true
+	})
+	if (!pendingIds.length) return
+
+	conditionRefreshQueue = conditionRefreshQueue
+		.then(() => refreshRatePlanConditionStates({ ratePlanIds: pendingIds, channel }))
+		.catch((error) => {
+			console.error("rate_plan.condition_state.refresh_failed", {
+				error: error instanceof Error ? error.message : String(error),
+				count: pendingIds.length,
+			})
+		})
+		.finally(() => {
+			for (const ratePlanId of pendingIds) {
+				conditionRefreshInflight.delete(conditionRefreshKey(ratePlanId, channel))
+			}
+		})
 }
 
 export async function refreshRatePlanConditionStates(params: {

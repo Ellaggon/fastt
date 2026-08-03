@@ -1,4 +1,6 @@
 import { asc, db, eq, Product, Variant } from "@/shared/infrastructure/db/compat"
+import { cacheKeys, cacheTtls } from "@/lib/cache/cacheKeys"
+import { readThrough } from "@/lib/cache/readThrough"
 
 export type ProviderRatePlanVariantChoice = {
 	variantId: string
@@ -9,6 +11,19 @@ export type ProviderRatePlanVariantChoice = {
 }
 
 export async function loadProviderRatePlanVariants(
+	providerId: string
+): Promise<ProviderRatePlanVariantChoice[]> {
+	const normalizedProviderId = String(providerId ?? "").trim()
+	if (!normalizedProviderId) return []
+
+	return readThrough(
+		cacheKeys.providerRatePlanVariants(normalizedProviderId),
+		cacheTtls.providerRatePlanVariants,
+		() => queryProviderRatePlanVariants(normalizedProviderId)
+	)
+}
+
+async function queryProviderRatePlanVariants(
 	providerId: string
 ): Promise<ProviderRatePlanVariantChoice[]> {
 	const rows = await db

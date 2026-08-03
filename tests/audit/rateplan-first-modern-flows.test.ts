@@ -9,13 +9,16 @@ function read(filePath: string) {
 }
 
 describe("audit/rateplan-first modern flows", () => {
-	it("la lista de tarifas consume endpoint canónico y evita acceso DB directo", () => {
-		const helper = read("src/lib/rates/loadRatePlansReadModel.ts")
-		expect(helper).toContain('from "@/pages/api/rates/plans"')
+	it("la lista de tarifas consume una surface compartida y evita acceso DB directo", () => {
+		const surface = read("src/lib/rates/providerRatePlansSurface.ts")
+		const endpoint = read("src/pages/api/rates/plans.ts")
+		expect(surface).toContain("buildProviderRatePlansSurface")
+		expect(endpoint).toContain("buildProviderRatePlansSurface")
 
 		expect(fs.existsSync(path.join(ROOT, "src/pages/rates/plans/index.astro"))).toBe(false)
 		const page = read("src/pages/rates/plans/manage.astro")
-		expect(page).toContain("loadRatePlansReadModel")
+		expect(page).toContain("buildProviderRatePlansSurface")
+		expect(page).not.toContain("loadRatePlansReadModel")
 		expect(page).not.toContain('from "@/shared/infrastructure/db/compat"')
 		expect(page).not.toContain("resolveEffectivePolicies")
 	})

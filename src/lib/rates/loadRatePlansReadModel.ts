@@ -1,40 +1,7 @@
 import { GET as listRatePlansGet } from "@/pages/api/rates/plans"
+import type { RatePlanListItem } from "./providerRatePlansSurface"
 
-export type RatePlanListItem = {
-	ratePlanId: string
-	ratePlanName: string
-	description?: string | null
-	productId: string
-	productName: string
-	variantId: string
-	variantName: string
-	isActive: boolean
-	isDefault: boolean
-	status: "active" | "inactive"
-	summary: {
-		priceRulesCount: number
-		activeRestrictionsCount: number
-	}
-	pricingReadiness?: {
-		hasBasePrice: boolean
-		basePrice: number | null
-		currency: string | null
-		effectivePricingDays: number
-	}
-	inventoryReadiness?: {
-		isReady: boolean
-		coverageDays: number
-		availableDays: number
-		expectedDays: number
-	}
-	policyCoverage?: {
-		totalCategories: number
-		coveredCategories: number
-		missingCategories: string[]
-		isComplete: boolean
-	}
-	policySummary?: string
-}
+export type { RatePlanListItem } from "./providerRatePlansSurface"
 
 export async function loadRatePlansReadModel(input: {
 	request: Request

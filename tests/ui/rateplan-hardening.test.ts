@@ -12,7 +12,7 @@ describe("ui/rateplan hardening post-migration (modern)", () => {
 		const hubDetail = read("src/pages/rates/plans/[ratePlanId].astro")
 
 		expect(existsSync(resolve(process.cwd(), "src/pages/rates/plans/index.astro"))).toBe(false)
-		expect(manage).toContain("loadRatePlansReadModel")
+		expect(manage).toContain("buildProviderRatePlansSurface")
 		expect(manage).toContain("routes.ratePlanPolicies")
 		expect(manage).not.toContain("routes.ratePlanPricing")
 		expect(manage).toContain("ratePlanId")

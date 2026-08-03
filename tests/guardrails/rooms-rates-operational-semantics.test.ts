@@ -208,7 +208,11 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 	})
 
 	it("keeps Tarifas as the visible client-first surface without a duplicate hub", () => {
-		const manage = read("src/pages/rates/plans/manage.astro")
+		const manage = [
+			read("src/pages/rates/plans/manage.astro"),
+			read("src/components/rates/RatePlanResponsiveTable.astro"),
+			read("src/components/rates/RatePlanRecentChanges.astro"),
+		].join("\n")
 		const detail = read("src/pages/rates/plans/[ratePlanId].astro")
 		const actionMenu = read("src/components/rates/RatePlanActionMenu.astro")
 		const policySummary = read("src/modules/policies/application/mappers/derivePolicySummary.ts")
