@@ -27,14 +27,24 @@ import {
 	type ProviderRole,
 } from "@/lib/provider-permissions"
 
+const LOCAL_QA_SURFACE_TTL_MS = 30_000
+let localQaSurfaceCache: {
+	key: string
+	surface: ProviderSessionSurface
+	expiresAt: number
+} | null = null
+
 async function readProviderSessionSurfaceByProviderId(params: {
 	userId: string
 	providerId: string
+	skipHeal?: boolean
 }): Promise<ProviderSessionSurface | null> {
-	const healedRole = await providerRepository.healProviderUserRoleIfNeeded({
-		providerId: params.providerId,
-		userId: params.userId,
-	})
+	const healedRole = params.skipHeal
+		? null
+		: await providerRepository.healProviderUserRoleIfNeeded({
+				providerId: params.providerId,
+				userId: params.userId,
+			})
 
 	const row = await db
 		.select({
@@ -86,11 +96,26 @@ async function readProviderSessionSurfaceByUser(
 	})
 }
 
-async function localQaSurface(request: Request): Promise<ProviderSessionSurface | null> {
-	const qaUser = await resolveLocalQaAuthUser(request)
+async function localQaSurface(
+	request: Request,
+	preloadedUser?: AuthUser | null
+): Promise<ProviderSessionSurface | null> {
+	if (process.env.NODE_ENV === "production" || process.env.LOCAL_QA_AUTH_ENABLED !== "true") {
+		return null
+	}
+	const qaUser = preloadedUser ?? (await resolveLocalQaAuthUser(request))
 	if (!qaUser?.id) return null
 	const providerId = String(process.env.LOCAL_QA_PROVIDER_ID ?? "").trim()
 	if (!providerId) return null
+	const cacheKey = [
+		qaUser.id,
+		providerId,
+		process.env.LOCAL_QA_PROVIDER_ROLE ?? "owner",
+		process.env.LOCAL_QA_PROFESSIONAL_TOOLS ?? "false",
+	].join(":")
+	if (localQaSurfaceCache?.key === cacheKey && localQaSurfaceCache.expiresAt > Date.now()) {
+		return localQaSurfaceCache.surface
+	}
 
 	// Keep ProviderUser in sync with the resolved QA identity (env id may be a stub).
 	await providerRepository.ensureProviderUserOwnerLink({
@@ -101,30 +126,43 @@ async function localQaSurface(request: Request): Promise<ProviderSessionSurface 
 	const healed = await readProviderSessionSurfaceByProviderId({
 		userId: qaUser.id,
 		providerId,
+		skipHeal: true,
 	})
 	if (healed) {
-		return {
+		const surface = {
 			...healed,
 			professionalToolsEnabled:
 				healed.professionalToolsEnabled || process.env.LOCAL_QA_PROFESSIONAL_TOOLS === "true",
 		}
+		localQaSurfaceCache = {
+			key: cacheKey,
+			surface,
+			expiresAt: Date.now() + LOCAL_QA_SURFACE_TTL_MS,
+		}
+		return surface
 	}
 
 	const role = normalizeProviderRole(process.env.LOCAL_QA_PROVIDER_ROLE ?? "owner")
-	return {
+	const surface = {
 		userId: qaUser.id,
 		providerId,
 		role,
 		permissions: resolveProviderPermissions({ role }),
 		professionalToolsEnabled: process.env.LOCAL_QA_PROFESSIONAL_TOOLS === "true",
 	}
+	localQaSurfaceCache = {
+		key: cacheKey,
+		surface,
+		expiresAt: Date.now() + LOCAL_QA_SURFACE_TTL_MS,
+	}
+	return surface
 }
 
 export async function getProviderSessionSurfaceFromRequest(
 	request: Request,
 	preloadedUser?: AuthUser | null
 ): Promise<ProviderSessionSurface | null> {
-	const qaSurface = await localQaSurface(request)
+	const qaSurface = await localQaSurface(request, preloadedUser)
 	if (qaSurface) return qaSurface
 
 	const user = preloadedUser ?? (await getUserFromRequest(request))

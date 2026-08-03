@@ -19,7 +19,7 @@ describe("document upload auth alignment (hotel admin)", () => {
 		const session = read("src/lib/auth/providerSessionSurface.ts")
 		expect(session).toContain("resolveLocalQaAuthUser")
 		expect(session).toContain("ensureProviderUserOwnerLink")
-		expect(session).toContain("await localQaSurface(request)")
+		expect(session).toContain("await localQaSurface(request, preloadedUser)")
 	})
 
 	it("document assert heals role before permission check", () => {
