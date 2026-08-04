@@ -11,12 +11,14 @@ describe("provider rate plans performance contract", () => {
 		const page = read("src/pages/rates/plans/manage.astro")
 		const endpoint = read("src/pages/api/rates/plans.ts")
 		const surface = read("src/lib/rates/providerRatePlansSurface.ts")
+		const readModel = read("src/lib/rates/loadRatePlansReadModel.ts")
 
 		expect(page).toContain("buildProviderRatePlansSurface")
 		expect(page).toContain("workspaceContext.provider.providerId")
 		expect(page).not.toContain("loadRatePlansReadModel")
 		expect(endpoint).toContain("requireProvider")
-		expect(endpoint).toContain("buildProviderRatePlansSurface")
+		expect(endpoint).toContain("loadProviderRatePlansReadModel")
+		expect(readModel).toContain("buildProviderRatePlansSurface")
 		expect(surface).not.toContain("getUserFromRequest")
 		expect(surface).not.toContain("getProviderIdFromRequest")
 		expect(surface).toContain("readThrough")
@@ -33,9 +35,22 @@ describe("provider rate plans performance contract", () => {
 		expect(component).toContain("requestIdleCallback")
 		expect(component).toContain('document.addEventListener("astro:page-load"')
 		expect(component).toContain("fetch(endpoint")
+		expect(component).toContain("data-history-skeleton")
+		expect(component).toContain("animate-pulse")
 		expect(endpoint).toContain("requireProvider")
 		expect(endpoint).toContain("loadRatesContextualHistory")
 		expect(endpoint).toContain("buildProviderRatePlansSurface")
+	})
+
+	it("uses a neutral responsive rates placeholder shaped like the final table", () => {
+		const pending = read("src/components/dashboard/WorkspaceNavigationPending.astro")
+
+		expect(pending).toContain("workspace-skeleton-rates-panel")
+		expect(pending).toContain("workspace-skeleton-rates-tabs")
+		expect(pending).toContain("workspace-skeleton-rates-header")
+		expect(pending).toContain("workspace-skeleton-rate-row")
+		expect(pending).toContain("min-width: 920px")
+		expect(pending).not.toContain("border border-slate-800 bg-slate-950")
 	})
 
 	it("invalidates the rates surface from operational ownership", () => {
@@ -75,6 +90,10 @@ describe("provider rate plans performance contract", () => {
 		expect(table.match(/<RatePlanActionMenu/g)).toHaveLength(1)
 		expect(table.match(/data-rate-plan-row/g)).toHaveLength(1)
 		expect(table).toContain("rate-plan-secondary-group")
+		expect(table).not.toMatch(/\.rate-plan-responsive-row\s*\{[^}]*align-items:\s*center/)
+		expect(table).toMatch(
+			/\.rate-plan-identity,[\s\S]*?\.rate-plan-actions\s*\{[\s\S]*?grid-row:\s*1/
+		)
 		expect(controller).toContain("data-rate-plan-mobile-toggle")
 		expect(budget).toContain('{ path: "/rates/plans/manage", maxBytes: 150_000 }')
 	})

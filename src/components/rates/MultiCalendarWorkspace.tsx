@@ -16,6 +16,7 @@ import {
 	Select,
 } from "@/components/ui-react"
 import { CALENDAR_CONTROL_MODES } from "@/lib/rates/calendarControlCatalog"
+import { createBoundedClientCache } from "@/lib/rates/calendarSurfaceClientCache"
 import type {
 	MultiCalendarCell,
 	MultiCalendarRow,
@@ -28,6 +29,11 @@ type Props = {
 	initialSurface: MultiCalendarSurface
 	initialRules: MultiCalendarAppliedRule[]
 }
+
+const workspaceCache = createBoundedClientCache<{
+	surface: MultiCalendarSurface
+	appliedRules: MultiCalendarAppliedRule[]
+}>(12)
 
 type CancellationOption = {
 	id: string
@@ -429,9 +435,6 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 	const [cancellationPreview, setCancellationPreview] = useState<CancellationPreviewItem[]>([])
 	const [cancellationPreviewReady, setCancellationPreviewReady] = useState(false)
 	const requestRef = useRef<AbortController | null>(null)
-	const cacheRef = useRef(
-		new Map<string, { surface: MultiCalendarSurface; appliedRules: MultiCalendarAppliedRule[] }>()
-	)
 
 	useEffect(() => {
 		const media = window.matchMedia("(max-width: 639px)")
@@ -494,8 +497,8 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 			url.searchParams.set("ratePlanIds", [...new Set(patchIds)].join(","))
 		}
 		const cacheKey = url.toString()
-		if (!patchIds.length && cacheRef.current.has(cacheKey)) {
-			const cached = cacheRef.current.get(cacheKey)!
+		const cached = patchIds.length ? null : workspaceCache.get(cacheKey)
+		if (cached) {
 			startTransition(() => {
 				setSurface(cached.surface)
 				setRules(cached.appliedRules)
@@ -528,7 +531,7 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 					setRules(payload.appliedRules)
 				})
 			} else {
-				cacheRef.current.set(cacheKey, payload)
+				workspaceCache.set(cacheKey, payload)
 				startTransition(() => {
 					setSurface(payload.surface)
 					setRules(payload.appliedRules)

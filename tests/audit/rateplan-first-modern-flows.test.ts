@@ -13,7 +13,7 @@ describe("audit/rateplan-first modern flows", () => {
 		const surface = read("src/lib/rates/providerRatePlansSurface.ts")
 		const endpoint = read("src/pages/api/rates/plans.ts")
 		expect(surface).toContain("buildProviderRatePlansSurface")
-		expect(endpoint).toContain("buildProviderRatePlansSurface")
+		expect(endpoint).toContain("loadProviderRatePlansReadModel")
 
 		expect(fs.existsSync(path.join(ROOT, "src/pages/rates/plans/index.astro"))).toBe(false)
 		const page = read("src/pages/rates/plans/manage.astro")

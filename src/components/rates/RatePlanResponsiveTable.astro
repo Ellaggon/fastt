@@ -204,7 +204,7 @@ const hasVisibleRows = rows.some((row) => matchesView(row.stateKey, activeView))
 		}
 		.rate-plan-responsive-row {
 			min-width: 920px;
-			align-items: center;
+			align-items: start;
 			padding: 0;
 		}
 		.rate-plan-identity,
@@ -213,6 +213,7 @@ const hasVisibleRows = rows.some((row) => matchesView(row.stateKey, activeView))
 		.rate-plan-policy,
 		.rate-plan-inventory,
 		.rate-plan-actions {
+			grid-row: 1;
 			padding: 1rem;
 		}
 		.rate-plan-identity {

@@ -309,7 +309,7 @@ logRoutePerformance({
 			{
 				isPlaybookRateStep ? null : (
 					<div class="flex flex-wrap gap-2">
-						<Button href={routes.calendar()} variant="secondary">
+						<Button href={routes.calendar()} variant="secondary" data-astro-prefetch="hover">
 							<CalendarDays class="mr-2 size-4" /> Calendario
 						</Button>
 						<Button type="button" variant="primary" data-open-rate-plan-dialog>

@@ -24,9 +24,26 @@ const endpoint = `/api/rates/plans/history?${params.toString()}`
 	<div class="rate-history-grid">
 		<div class="overflow-hidden">
 			<div class="border-t border-slate-200 px-4 py-4">
-				<p class="text-sm text-slate-500" data-history-status aria-live="polite">
+				<p class="sr-only text-sm text-slate-500" data-history-status aria-live="polite">
 					Cargando cambios...
 				</p>
+				<div
+					class="animate-pulse divide-y divide-neutral-100"
+					data-history-skeleton
+					aria-hidden="true"
+				>
+					{
+						Array.from({ length: 3 }).map((_, index) => (
+							<div class="flex items-start justify-between gap-4 py-3 first:pt-0 last:pb-0">
+								<div class="min-w-0 flex-1 space-y-2">
+									<div class={`h-3.5 rounded-md bg-neutral-200 ${index === 1 ? "w-40" : "w-52"}`} />
+									<div class="h-3 w-full max-w-sm rounded-md bg-neutral-100" />
+								</div>
+								<div class="h-3 w-16 shrink-0 rounded-md bg-neutral-100" />
+							</div>
+						))
+					}
+				</div>
 				<ol class="hidden divide-y divide-slate-100" data-history-list></ol>
 				<button
 					type="button"
@@ -54,12 +71,15 @@ const endpoint = `/api/rates/plans/history?${params.toString()}`
 		const status = root.querySelector<HTMLElement>("[data-history-status]")
 		const list = root.querySelector<HTMLOListElement>("[data-history-list]")
 		const retry = root.querySelector<HTMLButtonElement>("[data-history-retry]")
-		if (!status || !list || !retry) return
+		const skeleton = root.querySelector<HTMLElement>("[data-history-skeleton]")
+		if (!status || !list || !retry || !skeleton) return
 
 		list.replaceChildren()
+		skeleton.classList.add("hidden")
 		retry.classList.add("hidden")
 		retry.classList.remove("flex")
 		if (!history.length) {
+			status.classList.remove("sr-only", "hidden")
 			status.textContent = "Todavía no hay cambios registrados."
 			return
 		}
@@ -91,10 +111,13 @@ const endpoint = `/api/rates/plans/history?${params.toString()}`
 		const endpoint = root.dataset.historyEndpoint
 		const status = root.querySelector<HTMLElement>("[data-history-status]")
 		const retry = root.querySelector<HTMLButtonElement>("[data-history-retry]")
-		if (!endpoint || !status || !retry) return
+		const skeleton = root.querySelector<HTMLElement>("[data-history-skeleton]")
+		if (!endpoint || !status || !retry || !skeleton) return
 		root.dataset.historyState = "loading"
 		status.classList.remove("hidden")
+		status.classList.add("sr-only")
 		status.textContent = "Cargando cambios..."
+		skeleton.classList.remove("hidden")
 
 		try {
 			const response = await fetch(endpoint, { headers: { Accept: "application/json" } })
@@ -104,6 +127,8 @@ const endpoint = `/api/rates/plans/history?${params.toString()}`
 			renderHistory(root, payload.history ?? [])
 		} catch {
 			root.dataset.historyState = "error"
+			skeleton.classList.add("hidden")
+			status.classList.remove("sr-only", "hidden")
 			status.textContent = "No se pudieron cargar los cambios."
 			retry.classList.remove("hidden")
 			retry.classList.add("flex")

@@ -2,7 +2,7 @@ import type { APIRoute } from "astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { logRoutePerformance } from "@/lib/observability/performanceLog"
 import { createServerTimingRecorder } from "@/lib/observability/serverTiming"
-import { buildProviderRatePlansSurface } from "@/lib/rates/providerRatePlansSurface"
+import { loadProviderRatePlansReadModel } from "@/lib/rates/loadRatePlansReadModel"
 import { resolvePolicyDateRange } from "@/modules/policies/public"
 
 export const GET: APIRoute = async ({ request, url }) => {
@@ -37,12 +37,12 @@ export const GET: APIRoute = async ({ request, url }) => {
 
 	const requestUrl = url ?? new URL(request.url || "http://localhost:4321/api/rates/plans")
 	const { checkIn, checkOut } = resolvePolicyDateRange(requestUrl)
-	const surface = await buildProviderRatePlansSurface({
+	const ratePlans = await loadProviderRatePlansReadModel({
 		providerId: auth.providerId,
 		checkIn,
 		checkOut,
 		timing,
 	})
 
-	return response({ ratePlans: surface.ratePlans }, 200)
+	return response({ ratePlans }, 200)
 }
