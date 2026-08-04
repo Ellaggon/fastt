@@ -62,6 +62,7 @@ export async function applyInventoryMutation<T>(params: {
 	recomputeDeps?: RecomputeDeps
 	failSoft?: boolean
 	logContext?: Record<string, unknown>
+	enqueueIncremental?: boolean
 }): Promise<T> {
 	const startedAt = Date.now()
 	const mutationTimeoutMs = Number(process.env.INVENTORY_MUTATION_TIMEOUT_MS ?? 3000)
@@ -234,6 +235,20 @@ export async function applyInventoryMutation<T>(params: {
 		instructions: instructions.length,
 		durationMs: Date.now() - startedAt,
 	})
+
+	if (params.enqueueIncremental !== false) {
+		const { enqueueProviderIncrementalAriChangeSoft } =
+			await import("@/lib/channel-manager/channel-manager-incremental-queue")
+		for (const instruction of instructions) {
+			if (instruction.reason.startsWith("channel_manager_")) continue
+			await enqueueProviderIncrementalAriChangeSoft({
+				domain: "availability",
+				variantIds: [instruction.variantId],
+				from: instruction.from,
+				toExclusive: instruction.to,
+			})
+		}
+	}
 
 	return mutationResult
 }

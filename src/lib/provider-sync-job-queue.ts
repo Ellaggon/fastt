@@ -172,6 +172,26 @@ export async function markProviderSyncJobSucceeded(params: {
 	})
 }
 
+export async function updateProviderSyncJobProgress(params: {
+	jobId: string
+	leaseToken: string
+	progress: unknown
+}) {
+	await db
+		.update(ProviderIntegrationSyncJob)
+		.set({
+			payloadJson: sql`coalesce(${ProviderIntegrationSyncJob.payloadJson}, '{}'::jsonb) || ${JSON.stringify(params.progress)}::jsonb`,
+			updatedAt: new Date(),
+		})
+		.where(
+			and(
+				eq(ProviderIntegrationSyncJob.id, params.jobId),
+				eq(ProviderIntegrationSyncJob.lockedBy, params.leaseToken),
+				eq(ProviderIntegrationSyncJob.status, "running")
+			)
+		)
+}
+
 export async function markProviderSyncJobFailed(params: {
 	jobId: string
 	leaseToken: string
@@ -179,11 +199,16 @@ export async function markProviderSyncJobFailed(params: {
 	maxAttempts: number
 	errorCode?: string
 	targetType?: ProviderSyncJobTargetType
+	retryMinutes?: number
 }): Promise<{ terminal: boolean; retryAt: Date }> {
 	const now = new Date()
 	const attempts = Number(params.attempts ?? 0) + 1
 	const terminal = attempts >= Number(params.maxAttempts ?? 5)
-	const retryAt = new Date(now.getTime() + providerSyncJobRetryMinutes(attempts) * 60_000)
+	const retryMinutes =
+		params.retryMinutes == null
+			? providerSyncJobRetryMinutes(attempts)
+			: Math.max(1, Math.min(720, Number(params.retryMinutes)))
+	const retryAt = new Date(now.getTime() + retryMinutes * 60_000)
 	const updated = await db
 		.update(ProviderIntegrationSyncJob)
 		.set({

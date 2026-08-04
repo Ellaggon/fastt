@@ -52,13 +52,24 @@ export async function recomputeEffectiveAvailabilityRange(
 				container.inventoryRecomputeRepository.upsertEffectiveAvailabilityRows(rows),
 			now: () => new Date(),
 		})))
-	return recomputeEffectiveAvailabilityRange(input, {
+	const result = await recomputeEffectiveAvailabilityRange(input, {
 		loadDailyInventoryRange: defaultDeps.loadDailyInventoryRange,
 		loadInventoryLocksRange: defaultDeps.loadInventoryLocksRange,
 		loadExternalCalendarBlocksRange: defaultDeps.loadExternalCalendarBlocksRange,
 		upsertEffectiveAvailabilityRows: defaultDeps.upsertEffectiveAvailabilityRows,
 		now: defaultDeps.now,
 	})
+	if (!deps && !input.reason.startsWith("channel_manager_")) {
+		const { enqueueProviderIncrementalAriChangeSoft } =
+			await import("@/lib/channel-manager/channel-manager-incremental-queue")
+		await enqueueProviderIncrementalAriChangeSoft({
+			domain: "availability",
+			variantIds: [input.variantId],
+			from: input.from,
+			toExclusive: input.to,
+		})
+	}
+	return result
 }
 
 export async function applyInventoryMutation<T>(params: {
@@ -95,6 +106,7 @@ export async function applyInventoryMutation<T>(params: {
 				  }>)
 	failSoft?: boolean
 	logContext?: Record<string, unknown>
+	enqueueIncremental?: boolean
 	recomputeDeps?: import("./application/use-cases/recompute-effective-availability-range").RecomputeDeps
 }) {
 	const { applyInventoryMutation } =

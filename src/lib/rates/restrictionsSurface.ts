@@ -470,6 +470,15 @@ async function recomputeRuleProjection(params: {
 	await rematerializeSearchUnitViewForRestrictions(result, params.reason)
 	const { invalidateCalendarSurface } = await import("@/lib/cache/invalidation")
 	await invalidateCalendarSurface(params.providerId, params.reason)
+	const { enqueueProviderIncrementalAriChangeSoft } =
+		await import("@/lib/channel-manager/channel-manager-incremental-queue")
+	await enqueueProviderIncrementalAriChangeSoft({
+		domain: "rates_restrictions",
+		variantIds: result.variantIds,
+		ratePlanIds: result.ratePlanIds,
+		from: result.from,
+		toExclusive: result.to,
+	})
 }
 
 async function rematerializeSearchUnitViewForRestrictions(
