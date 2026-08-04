@@ -88,6 +88,7 @@ export async function ensurePricingCoverageRuntime(params: {
 		infants?: number
 	}
 	fallbackCurrency?: string
+	enqueueIncremental?: boolean
 }) {
 	const { ensurePricingCoverage } = await import("./application/use-cases/ensure-pricing-coverage")
 	const { pricingRepository, pricingV2Repository, variantManagementRepository } =
@@ -106,6 +107,17 @@ export async function ensurePricingCoverageRuntime(params: {
 			ratePlanId: params.ratePlanId,
 			variantId: params.variantId,
 		})
+		if (params.enqueueIncremental !== false) {
+			const { enqueueProviderIncrementalAriChangeSoft } =
+				await import("@/lib/channel-manager/channel-manager-incremental-queue")
+			await enqueueProviderIncrementalAriChangeSoft({
+				domain: "rates_restrictions",
+				variantIds: [params.variantId],
+				ratePlanIds: [params.ratePlanId],
+				from: params.from,
+				toExclusive: params.to,
+			})
+		}
 	}
 	return result
 }

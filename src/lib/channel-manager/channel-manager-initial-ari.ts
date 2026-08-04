@@ -1,0 +1,733 @@
+import { createHash } from "node:crypto"
+
+import type {
+	ChannelManagerAdapter,
+	ChannelManagerAvailabilityUpdate,
+	ChannelManagerMutationResult,
+	ChannelManagerRateRestrictionUpdate,
+} from "@/lib/channel-manager/channel-manager-adapter"
+import {
+	finishProviderIntegrationSyncRun,
+	recordProviderIntegrationIncident,
+	startProviderIntegrationSyncRun,
+} from "@/lib/provider-integration-operations"
+import {
+	getProviderChannelManagerPreflight,
+	getProviderChannelManagerRuntime,
+} from "@/lib/provider-integrations"
+import { mapWithConcurrency } from "@/lib/provider-sync-job-queue"
+import { recomputeEffectiveAvailabilityRange } from "@/modules/inventory/public"
+import { ensurePricingCoverageRuntime } from "@/modules/pricing/public"
+import { recomputeEffectiveRestrictionsForVariantRange } from "@/modules/rules/public"
+import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
+import {
+	and,
+	asc,
+	db,
+	desc,
+	EffectiveAvailability,
+	EffectivePricingV2,
+	EffectiveRestriction,
+	eq,
+	gte,
+	inArray,
+	lt,
+	ProviderIntegrationConnection,
+	ProviderIntegrationSyncJob,
+	ProviderIntegrationSyncRun,
+} from "@/shared/infrastructure/db/compat"
+
+export const INITIAL_ARI_DAYS = 500
+const MATERIALIZATION_CONCURRENCY = 3
+const CANONICAL_OCCUPANCY = { adults: 2, children: 0, infants: 0 } as const
+const CANONICAL_OCCUPANCY_KEY = buildOccupancyKey(normalizeOccupancy(CANONICAL_OCCUPANCY))
+
+export type InitialAriProgressStage =
+	| "preflight"
+	| "building_snapshot"
+	| "sending_availability"
+	| "sending_rates"
+	| "completed"
+
+export type InitialAriProgress = {
+	stage: InitialAriProgressStage
+	percent: number
+	message: string
+}
+
+export type InitialAriSummary = {
+	version: 1
+	kind: "initial_ari_sync"
+	environment: "sandbox" | "production"
+	window: { from: string; to: string; days: number }
+	counts: {
+		rooms: number
+		ratePlans: number
+		days: number
+		availabilityDays: number
+		rateRestrictionDays: number
+	}
+	requests: {
+		availability: InitialAriRequestSummary | null
+		ratesAndRestrictions: InitialAriRequestSummary | null
+	}
+	totals: { submitted: number; accepted: number; warned: number; rejected: number }
+	snapshot: { algorithm: "sha256"; hash: string }
+}
+
+type InitialAriRequestSummary = {
+	taskIds: string[]
+	requestIds: string[]
+	submitted: number
+	accepted: number
+	warned: number
+	rejected: number
+}
+
+type AriSnapshot = {
+	propertyId: string
+	window: { from: string; to: string; toExclusive: string; days: number }
+	availability: ChannelManagerAvailabilityUpdate[]
+	ratesAndRestrictions: ChannelManagerRateRestrictionUpdate[]
+	counts: InitialAriSummary["counts"]
+	hash: string
+}
+
+type DailyAvailability = { date: string; availability: number }
+type DailyRateRestriction = {
+	date: string
+	rate: string
+	minStay: number
+	maxStay: number
+	closedToArrival: boolean
+	closedToDeparture: boolean
+	stopSell: boolean
+}
+
+function dateOnlyInTimezone(now: Date, timezone: string): string {
+	const parts = new Intl.DateTimeFormat("en-CA", {
+		timeZone: timezone,
+		year: "numeric",
+		month: "2-digit",
+		day: "2-digit",
+	}).formatToParts(now)
+	const byType = new Map(parts.map((part) => [part.type, part.value]))
+	return `${byType.get("year")}-${byType.get("month")}-${byType.get("day")}`
+}
+
+function addDays(date: string, days: number): string {
+	const value = new Date(`${date}T00:00:00.000Z`)
+	value.setUTCDate(value.getUTCDate() + days)
+	return value.toISOString().slice(0, 10)
+}
+
+export function buildInitialAriWindow(now: Date, timezone: string) {
+	const from = dateOnlyInTimezone(now, timezone)
+	return {
+		from,
+		to: addDays(from, INITIAL_ARI_DAYS - 1),
+		toExclusive: addDays(from, INITIAL_ARI_DAYS),
+		days: INITIAL_ARI_DAYS,
+	}
+}
+
+function normalizeDate(value: unknown): string {
+	if (value instanceof Date) return value.toISOString().slice(0, 10)
+	return String(value ?? "").slice(0, 10)
+}
+
+function stableHash(value: unknown): string {
+	return createHash("sha256").update(JSON.stringify(value)).digest("hex")
+}
+
+function compressRanges<T extends { date: string }>(
+	values: T[],
+	equals: (left: T, right: T) => boolean
+): Array<{ dateFrom: string; dateTo: string; value: T }> {
+	if (!values.length) return []
+	const result: Array<{ dateFrom: string; dateTo: string; value: T }> = []
+	let first = values[0]
+	let previous = values[0]
+	for (const current of values.slice(1)) {
+		if (equals(previous, current) && current.date === addDays(previous.date, 1)) {
+			previous = current
+			continue
+		}
+		result.push({ dateFrom: first.date, dateTo: previous.date, value: first })
+		first = current
+		previous = current
+	}
+	result.push({ dateFrom: first.date, dateTo: previous.date, value: first })
+	return result
+}
+
+function requestSummary(result: ChannelManagerMutationResult): InitialAriRequestSummary {
+	return {
+		taskIds: result.taskIds,
+		requestIds: result.requestIds,
+		submitted: result.submitted,
+		accepted: result.accepted,
+		warned: result.warnings.length,
+		rejected: result.rejected,
+	}
+}
+
+function emptySummary(params: {
+	environment: "sandbox" | "production"
+	window: AriSnapshot["window"]
+	counts: InitialAriSummary["counts"]
+	hash: string
+}): InitialAriSummary {
+	return {
+		version: 1,
+		kind: "initial_ari_sync",
+		environment: params.environment,
+		window: { from: params.window.from, to: params.window.to, days: params.window.days },
+		counts: params.counts,
+		requests: { availability: null, ratesAndRestrictions: null },
+		totals: { submitted: 0, accepted: 0, warned: 0, rejected: 0 },
+		snapshot: { algorithm: "sha256", hash: params.hash },
+	}
+}
+
+function finalizeSummary(summary: InitialAriSummary): InitialAriSummary {
+	const requests = [summary.requests.availability, summary.requests.ratesAndRestrictions].filter(
+		(value): value is InitialAriRequestSummary => Boolean(value)
+	)
+	return {
+		...summary,
+		totals: requests.reduce(
+			(total, request) => ({
+				submitted: total.submitted + request.submitted,
+				accepted: total.accepted + request.accepted,
+				warned: total.warned + request.warned,
+				rejected: total.rejected + request.rejected,
+			}),
+			{ submitted: 0, accepted: 0, warned: 0, rejected: 0 }
+		),
+	}
+}
+
+function assertCompleteDates(rows: Array<{ date: string }>, label: string) {
+	const uniqueDates = new Set(rows.map((row) => row.date))
+	if (rows.length !== INITIAL_ARI_DAYS || uniqueDates.size !== INITIAL_ARI_DAYS) {
+		throw new Error(`INITIAL_ARI_CANONICAL_COVERAGE_INCOMPLETE:${label}`)
+	}
+}
+
+export async function buildProviderInitialAriSnapshot(params: {
+	providerId: string
+	connectionId: string
+	now?: Date
+}): Promise<AriSnapshot> {
+	const context = await getProviderChannelManagerPreflight(params)
+	if (!context.preflight.readyForProduction) {
+		throw new Error("INTEGRATION_COMMERCIAL_SYNC_PREFLIGHT_REQUIRED")
+	}
+	if (context.connection.mode === "production" && !context.connection.syncEnabled) {
+		throw new Error("INTEGRATION_COMMERCIAL_SYNC_PREFLIGHT_REQUIRED")
+	}
+	const propertyId = String(context.connection.externalPropertyId ?? "").trim()
+	const property = context.properties.find((item) => item.id === propertyId)
+	if (!property?.timezone || !property.currency) {
+		throw new Error("INITIAL_ARI_PROPERTY_CONTEXT_REQUIRED")
+	}
+	const { from, to, toExclusive } = buildInitialAriWindow(
+		params.now ?? new Date(),
+		property.timezone
+	)
+	const activeMappings = context.mappings.filter((mapping) => mapping.status === "active")
+	const sellableRooms = context.localCatalog.variants.filter((item) => item.sellable)
+	const sellableRates = context.localCatalog.ratePlans.filter((item) => item.sellable)
+	const roomExternalByLocal = new Map(
+		activeMappings
+			.filter((mapping) => mapping.mappingType === "room_type")
+			.map((mapping) => [String(mapping.localEntityId), String(mapping.externalEntityId)])
+	)
+	const rateExternalByLocal = new Map(
+		activeMappings
+			.filter((mapping) => mapping.mappingType === "rate_plan")
+			.map((mapping) => [String(mapping.localEntityId), String(mapping.externalEntityId)])
+	)
+
+	await mapWithConcurrency(sellableRooms, MATERIALIZATION_CONCURRENCY, async (room) => {
+		await recomputeEffectiveAvailabilityRange({
+			variantId: room.id,
+			from,
+			to: toExclusive,
+			reason: "channel_manager_initial_ari",
+		})
+		await recomputeEffectiveRestrictionsForVariantRange({
+			variantId: room.id,
+			from,
+			to: toExclusive,
+			reason: "channel_manager_initial_ari",
+		})
+	})
+	await mapWithConcurrency(sellableRates, MATERIALIZATION_CONCURRENCY, async (ratePlan) => {
+		await ensurePricingCoverageRuntime({
+			variantId: ratePlan.variantId,
+			ratePlanId: ratePlan.id,
+			from,
+			to: toExclusive,
+			occupancy: CANONICAL_OCCUPANCY,
+			fallbackCurrency: property.currency ?? undefined,
+			enqueueIncremental: false,
+		})
+	})
+
+	const variantIds = sellableRooms.map((item) => item.id)
+	const ratePlanIds = sellableRates.map((item) => item.id)
+	const [availabilityRows, pricingRows, restrictionRows] = await Promise.all([
+		db
+			.select({
+				variantId: EffectiveAvailability.variantId,
+				date: EffectiveAvailability.date,
+				availableUnits: EffectiveAvailability.availableUnits,
+			})
+			.from(EffectiveAvailability)
+			.where(
+				and(
+					inArray(EffectiveAvailability.variantId, variantIds),
+					gte(EffectiveAvailability.date, from),
+					lt(EffectiveAvailability.date, toExclusive)
+				)
+			)
+			.orderBy(asc(EffectiveAvailability.variantId), asc(EffectiveAvailability.date)),
+		db
+			.select({
+				variantId: EffectivePricingV2.variantId,
+				ratePlanId: EffectivePricingV2.ratePlanId,
+				date: EffectivePricingV2.date,
+				finalBasePrice: EffectivePricingV2.finalBasePrice,
+				currency: EffectivePricingV2.currency,
+			})
+			.from(EffectivePricingV2)
+			.where(
+				and(
+					inArray(EffectivePricingV2.ratePlanId, ratePlanIds),
+					eq(EffectivePricingV2.occupancyKey, CANONICAL_OCCUPANCY_KEY),
+					gte(EffectivePricingV2.date, from),
+					lt(EffectivePricingV2.date, toExclusive)
+				)
+			)
+			.orderBy(asc(EffectivePricingV2.ratePlanId), asc(EffectivePricingV2.date)),
+		db
+			.select({
+				variantId: EffectiveRestriction.variantId,
+				ratePlanId: EffectiveRestriction.ratePlanId,
+				date: EffectiveRestriction.date,
+				minStay: EffectiveRestriction.minStay,
+				maxStay: EffectiveRestriction.maxStay,
+				cta: EffectiveRestriction.cta,
+				ctd: EffectiveRestriction.ctd,
+				stopSell: EffectiveRestriction.stopSell,
+			})
+			.from(EffectiveRestriction)
+			.where(
+				and(
+					inArray(EffectiveRestriction.ratePlanId, ratePlanIds),
+					gte(EffectiveRestriction.date, from),
+					lt(EffectiveRestriction.date, toExclusive)
+				)
+			)
+			.orderBy(asc(EffectiveRestriction.ratePlanId), asc(EffectiveRestriction.date)),
+	])
+
+	const availability: ChannelManagerAvailabilityUpdate[] = []
+	for (const room of sellableRooms) {
+		const daily: DailyAvailability[] = availabilityRows
+			.filter((row) => row.variantId === room.id)
+			.map((row) => ({
+				date: normalizeDate(row.date),
+				availability: Math.max(0, Number(row.availableUnits ?? 0)),
+			}))
+		assertCompleteDates(daily, `availability:${room.id}`)
+		for (const range of compressRanges(
+			daily,
+			(left, right) => left.availability === right.availability
+		)) {
+			availability.push({
+				propertyId,
+				roomTypeId: roomExternalByLocal.get(room.id) ?? "",
+				dateFrom: range.dateFrom,
+				dateTo: range.dateTo,
+				availability: range.value.availability,
+			})
+		}
+	}
+
+	const ratesAndRestrictions: ChannelManagerRateRestrictionUpdate[] = []
+	for (const ratePlan of sellableRates) {
+		const prices = new Map(
+			pricingRows
+				.filter((row) => row.ratePlanId === ratePlan.id)
+				.map((row) => [normalizeDate(row.date), row])
+		)
+		const restrictions = new Map(
+			restrictionRows
+				.filter((row) => row.ratePlanId === ratePlan.id)
+				.map((row) => [normalizeDate(row.date), row])
+		)
+		const daily: DailyRateRestriction[] = []
+		for (let offset = 0; offset < INITIAL_ARI_DAYS; offset += 1) {
+			const date = addDays(from, offset)
+			const price = prices.get(date)
+			const restriction = restrictions.get(date)
+			const numericPrice = Number(price?.finalBasePrice)
+			if (!price || !Number.isFinite(numericPrice) || numericPrice <= 0) {
+				throw new Error(`INITIAL_ARI_PRICE_INVALID:${ratePlan.id}:${date}`)
+			}
+			if (String(price.currency).toUpperCase() !== String(property.currency).toUpperCase()) {
+				throw new Error(`INITIAL_ARI_PRICE_CURRENCY_MISMATCH:${ratePlan.id}:${date}`)
+			}
+			if (!restriction) {
+				throw new Error(`INITIAL_ARI_RESTRICTION_MISSING:${ratePlan.id}:${date}`)
+			}
+			daily.push({
+				date,
+				rate: numericPrice.toFixed(2),
+				minStay: Math.max(1, Number(restriction.minStay ?? 1)),
+				maxStay: Math.max(0, Number(restriction.maxStay ?? 0)),
+				closedToArrival: Boolean(restriction.cta),
+				closedToDeparture: Boolean(restriction.ctd),
+				stopSell: Boolean(restriction.stopSell),
+			})
+		}
+		assertCompleteDates(daily, `rates:${ratePlan.id}`)
+		for (const range of compressRanges(
+			daily,
+			(left, right) =>
+				left.rate === right.rate &&
+				left.minStay === right.minStay &&
+				left.maxStay === right.maxStay &&
+				left.closedToArrival === right.closedToArrival &&
+				left.closedToDeparture === right.closedToDeparture &&
+				left.stopSell === right.stopSell
+		)) {
+			ratesAndRestrictions.push({
+				propertyId,
+				ratePlanId: rateExternalByLocal.get(ratePlan.id) ?? "",
+				dateFrom: range.dateFrom,
+				dateTo: range.dateTo,
+				rate: range.value.rate,
+				minStay: range.value.minStay,
+				maxStay: range.value.maxStay,
+				closedToArrival: range.value.closedToArrival,
+				closedToDeparture: range.value.closedToDeparture,
+				stopSell: range.value.stopSell,
+			})
+		}
+	}
+
+	if (availability.some((value) => !value.roomTypeId)) {
+		throw new Error("INITIAL_ARI_ROOM_MAPPING_REQUIRED")
+	}
+	if (ratesAndRestrictions.some((value) => !value.ratePlanId)) {
+		throw new Error("INITIAL_ARI_RATE_MAPPING_REQUIRED")
+	}
+	const hash = stableHash({
+		version: 1,
+		propertyId,
+		window: { from, to, days: INITIAL_ARI_DAYS },
+		availability,
+		ratesAndRestrictions,
+	})
+	return {
+		propertyId,
+		window: { from, to, toExclusive, days: INITIAL_ARI_DAYS },
+		availability,
+		ratesAndRestrictions,
+		counts: {
+			rooms: sellableRooms.length,
+			ratePlans: sellableRates.length,
+			days: INITIAL_ARI_DAYS,
+			availabilityDays: sellableRooms.length * INITIAL_ARI_DAYS,
+			rateRestrictionDays: sellableRates.length * INITIAL_ARI_DAYS,
+		},
+		hash,
+	}
+}
+
+export async function runProviderInitialAriSync(params: {
+	providerId: string
+	connectionId: string
+	requestedBy?: string | null
+	trigger?: "manual" | "scheduled" | "webhook" | "retry"
+	idempotencyKey: string
+	onProgress?: (progress: InitialAriProgress) => Promise<void>
+	adapter?: ChannelManagerAdapter
+}) {
+	const progress = async (value: InitialAriProgress) => params.onProgress?.(value)
+	await progress({ stage: "preflight", percent: 8, message: "Validando acceso y cobertura" })
+	const runtime = params.adapter
+		? null
+		: await getProviderChannelManagerRuntime({
+				providerId: params.providerId,
+				currentUserId: params.requestedBy,
+				connectionId: params.connectionId,
+			})
+	const adapter = params.adapter ?? runtime?.adapter
+	if (!adapter) throw new Error("CHANNEL_MANAGER_ADAPTER_UNAVAILABLE")
+	const environment = runtime?.mode ?? "sandbox"
+	const run = await startProviderIntegrationSyncRun({
+		providerId: params.providerId,
+		connectionId: params.connectionId,
+		operation: "initial_ari_sync",
+		trigger: params.trigger ?? "manual",
+		requestedBy: params.requestedBy,
+		idempotencyKey: params.idempotencyKey,
+	})
+	let summary: InitialAriSummary | null = null
+	try {
+		await progress({
+			stage: "building_snapshot",
+			percent: 22,
+			message: "Preparando 500 días de inventario y tarifas",
+		})
+		const snapshot = await buildProviderInitialAriSnapshot(params)
+		summary = emptySummary({ environment, ...snapshot })
+		await progress({
+			stage: "sending_availability",
+			percent: 62,
+			message: "Enviando disponibilidad por habitación",
+		})
+		const availability = await adapter.pushAvailability({ values: snapshot.availability })
+		summary.requests.availability = requestSummary(availability)
+		await progress({
+			stage: "sending_rates",
+			percent: 82,
+			message: "Enviando tarifas y restricciones",
+		})
+		const rates = await adapter.pushRatesAndRestrictions({
+			values: snapshot.ratesAndRestrictions,
+		})
+		summary.requests.ratesAndRestrictions = requestSummary(rates)
+		summary = finalizeSummary(summary)
+		const status =
+			summary.totals.warned > 0 || summary.totals.rejected > 0 ? "partial" : "succeeded"
+		await finishProviderIntegrationSyncRun({
+			providerId: params.providerId,
+			runId: String(run.id),
+			status,
+			readCount: snapshot.counts.availabilityDays + snapshot.counts.rateRestrictionDays,
+			changedCount: summary.totals.accepted,
+			skippedCount: summary.totals.warned,
+			failedCount: summary.totals.rejected,
+			summaryJson: summary,
+		})
+		if (status === "partial") {
+			await recordProviderIntegrationIncident({
+				providerId: params.providerId,
+				connectionId: params.connectionId,
+				syncRunId: String(run.id),
+				input: {
+					dedupeKey: "initial_ari_partial",
+					code: "INITIAL_ARI_PARTIAL",
+					category: "data_quality",
+					severity: "warning",
+					title: "Channex aceptó la sincronización con advertencias",
+					description: `${summary.totals.warned} elementos advertidos y ${summary.totals.rejected} rechazados.`,
+					actionLabel: "Revisar conexión",
+					actionHref: `/provider/settings/integrations/connections/${params.connectionId}`,
+					entityType: "integration_connection",
+					entityId: params.connectionId,
+					metadataJson: { snapshotHash: summary.snapshot.hash, totals: summary.totals },
+				},
+			}).catch(() => undefined)
+		}
+		await db
+			.update(ProviderIntegrationConnection)
+			.set({
+				status: status === "succeeded" ? "connected" : "requires_attention",
+				lastSyncAt: new Date(),
+				lastSyncStatus: status === "succeeded" ? "initial_ari_succeeded" : "initial_ari_partial",
+				errorMessage: status === "succeeded" ? null : "INITIAL_ARI_PARTIAL",
+				consecutiveFailures: status === "succeeded" ? 0 : 1,
+				updatedAt: new Date(),
+			})
+			.where(
+				and(
+					eq(ProviderIntegrationConnection.id, params.connectionId),
+					eq(ProviderIntegrationConnection.providerId, params.providerId)
+				)
+			)
+		await progress({ stage: "completed", percent: 100, message: "Sincronización completada" })
+		return { runId: String(run.id), status, summary }
+	} catch (error) {
+		const message = error instanceof Error ? error.message : "INITIAL_ARI_SYNC_FAILED"
+		const compactSummary = summary ? finalizeSummary(summary) : null
+		await finishProviderIntegrationSyncRun({
+			providerId: params.providerId,
+			runId: String(run.id),
+			status: compactSummary?.requests.availability ? "partial" : "failed",
+			changedCount: compactSummary?.totals.accepted ?? 0,
+			skippedCount: compactSummary?.totals.warned ?? 0,
+			failedCount: Math.max(1, compactSummary?.totals.rejected ?? 0),
+			errorCode: message.slice(0, 100),
+			errorMessage: message,
+			summaryJson: compactSummary,
+		})
+		await db
+			.update(ProviderIntegrationConnection)
+			.set({
+				status: "requires_attention",
+				lastSyncAt: new Date(),
+				lastSyncStatus: "initial_ari_failed",
+				errorMessage: message.slice(0, 1000),
+				updatedAt: new Date(),
+			})
+			.where(
+				and(
+					eq(ProviderIntegrationConnection.id, params.connectionId),
+					eq(ProviderIntegrationConnection.providerId, params.providerId)
+				)
+			)
+		await recordProviderIntegrationIncident({
+			providerId: params.providerId,
+			connectionId: params.connectionId,
+			syncRunId: String(run.id),
+			input: {
+				dedupeKey: "initial_ari_failed",
+				code: message.slice(0, 100),
+				category:
+					message.includes("PREFLIGHT") || message.includes("MAPPING") ? "mapping" : "remote_api",
+				severity: "error",
+				title: "La sincronización inicial no se completó",
+				description: "Fastt detuvo o no pudo completar el envío inicial de datos comerciales.",
+				actionLabel: "Revisar conexión",
+				actionHref: `/provider/settings/integrations/connections/${params.connectionId}`,
+				entityType: "integration_connection",
+				entityId: params.connectionId,
+				metadataJson: { snapshotHash: compactSummary?.snapshot.hash ?? null },
+			},
+		}).catch(() => undefined)
+		throw error
+	}
+}
+
+export async function enqueueProviderInitialAriSync(params: {
+	providerId: string
+	connectionId: string
+	requestedBy: string
+}) {
+	const context = await getProviderChannelManagerPreflight(params)
+	if (!context.preflight.readyForProduction) {
+		throw new Error("INTEGRATION_COMMERCIAL_SYNC_PREFLIGHT_REQUIRED")
+	}
+	const existing = await db
+		.select({ id: ProviderIntegrationSyncJob.id, status: ProviderIntegrationSyncJob.status })
+		.from(ProviderIntegrationSyncJob)
+		.where(
+			and(
+				eq(ProviderIntegrationSyncJob.providerId, params.providerId),
+				eq(ProviderIntegrationSyncJob.connectionId, params.connectionId),
+				eq(ProviderIntegrationSyncJob.operation, "initial_ari_sync"),
+				inArray(ProviderIntegrationSyncJob.status, ["queued", "running"])
+			)
+		)
+		.orderBy(desc(ProviderIntegrationSyncJob.createdAt))
+		.then((rows) => rows[0])
+	if (existing) return { ...existing, created: false }
+	const now = new Date()
+	const lastFullSync = await db
+		.select({ id: ProviderIntegrationSyncRun.id })
+		.from(ProviderIntegrationSyncRun)
+		.where(
+			and(
+				eq(ProviderIntegrationSyncRun.providerId, params.providerId),
+				eq(ProviderIntegrationSyncRun.connectionId, params.connectionId),
+				eq(ProviderIntegrationSyncRun.operation, "initial_ari_sync"),
+				inArray(ProviderIntegrationSyncRun.status, ["succeeded", "partial"]),
+				gte(ProviderIntegrationSyncRun.startedAt, new Date(now.getTime() - 86_400_000))
+			)
+		)
+		.then((rows) => rows[0] ?? null)
+	if (lastFullSync) throw new Error("INITIAL_ARI_DAILY_LIMIT")
+	const id = crypto.randomUUID()
+	await db.insert(ProviderIntegrationSyncJob).values({
+		id,
+		providerId: params.providerId,
+		connectionId: params.connectionId,
+		targetType: "connection",
+		targetId: params.connectionId,
+		connectorKey: "channel_manager",
+		operation: "initial_ari_sync",
+		status: "queued",
+		trigger: "manual",
+		priority: 10,
+		attempts: 0,
+		maxAttempts: 3,
+		runAfter: now,
+		idempotencyKey: `initial-ari:${params.connectionId}:${id}`,
+		payloadJson: {
+			requestedBy: params.requestedBy,
+			stage: "preflight",
+			percent: 0,
+			message: "Esperando al worker de sincronización",
+		},
+		createdAt: now,
+		updatedAt: now,
+	})
+	return { id, status: "queued", created: true }
+}
+
+export async function getProviderInitialAriStatus(params: {
+	providerId: string
+	connectionId: string
+}) {
+	const connection = await db
+		.select({ id: ProviderIntegrationConnection.id, mode: ProviderIntegrationConnection.mode })
+		.from(ProviderIntegrationConnection)
+		.where(
+			and(
+				eq(ProviderIntegrationConnection.id, params.connectionId),
+				eq(ProviderIntegrationConnection.providerId, params.providerId),
+				eq(ProviderIntegrationConnection.connectorKey, "channel_manager")
+			)
+		)
+		.then((rows) => rows[0])
+	if (!connection) throw new Error("INTEGRATION_CONNECTION_NOT_FOUND")
+	const [job, run] = await Promise.all([
+		db
+			.select({
+				id: ProviderIntegrationSyncJob.id,
+				status: ProviderIntegrationSyncJob.status,
+				attempts: ProviderIntegrationSyncJob.attempts,
+				maxAttempts: ProviderIntegrationSyncJob.maxAttempts,
+				lastError: ProviderIntegrationSyncJob.lastError,
+				payloadJson: ProviderIntegrationSyncJob.payloadJson,
+				updatedAt: ProviderIntegrationSyncJob.updatedAt,
+			})
+			.from(ProviderIntegrationSyncJob)
+			.where(
+				and(
+					eq(ProviderIntegrationSyncJob.providerId, params.providerId),
+					eq(ProviderIntegrationSyncJob.connectionId, params.connectionId),
+					eq(ProviderIntegrationSyncJob.operation, "initial_ari_sync")
+				)
+			)
+			.orderBy(desc(ProviderIntegrationSyncJob.createdAt))
+			.then((rows) => rows[0] ?? null),
+		db
+			.select({
+				id: ProviderIntegrationSyncRun.id,
+				status: ProviderIntegrationSyncRun.status,
+				summaryJson: ProviderIntegrationSyncRun.summaryJson,
+				errorMessage: ProviderIntegrationSyncRun.errorMessage,
+				startedAt: ProviderIntegrationSyncRun.startedAt,
+				finishedAt: ProviderIntegrationSyncRun.finishedAt,
+			})
+			.from(ProviderIntegrationSyncRun)
+			.where(
+				and(
+					eq(ProviderIntegrationSyncRun.providerId, params.providerId),
+					eq(ProviderIntegrationSyncRun.connectionId, params.connectionId),
+					eq(ProviderIntegrationSyncRun.operation, "initial_ari_sync")
+				)
+			)
+			.orderBy(desc(ProviderIntegrationSyncRun.startedAt))
+			.then((rows) => rows[0] ?? null),
+	])
+	return { environment: connection.mode, job, run }
+}

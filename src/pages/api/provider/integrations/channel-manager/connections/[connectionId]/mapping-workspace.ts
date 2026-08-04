@@ -2,12 +2,7 @@ import type { APIRoute } from "astro"
 
 import { requireProviderIntegrationManager } from "@/lib/provider-integration-auth"
 import { buildChannelManagerMappingWorkspace } from "@/lib/provider-integration-mapping-workspace"
-import {
-	listProviderIntegrationMappingCatalog,
-	listProviderIntegrationMappingsForConnection,
-} from "@/lib/provider-integration-operations"
-import { getProviderIntegrationConnectionReadModel } from "@/lib/provider-integration-read-models"
-import { getProviderChannelManagerRemoteCatalog } from "@/lib/provider-integrations"
+import { getProviderChannelManagerPreflight } from "@/lib/provider-integrations"
 
 const secureHeaders = {
 	"Cache-Control": "private, no-store",
@@ -32,22 +27,12 @@ export const GET: APIRoute = async ({ request, params }) => {
 		const roomPage = Math.max(1, Number.parseInt(url.searchParams.get("roomPage") ?? "1", 10) || 1)
 		const ratePage = Math.max(1, Number.parseInt(url.searchParams.get("ratePage") ?? "1", 10) || 1)
 
-		const [connection, localCatalog, remoteCatalog, mappings] = await Promise.all([
-			getProviderIntegrationConnectionReadModel({
-				providerId: auth.providerId,
-				connectionId,
-			}),
-			listProviderIntegrationMappingCatalog(auth.providerId),
-			getProviderChannelManagerRemoteCatalog({
-				providerId: auth.providerId,
-				currentUserId: auth.user.id,
-				connectionId,
-			}),
-			listProviderIntegrationMappingsForConnection({
-				providerId: auth.providerId,
-				connectionId,
-			}),
-		])
+		const context = await getProviderChannelManagerPreflight({
+			providerId: auth.providerId,
+			currentUserId: auth.user.id,
+			connectionId,
+		})
+		const { connection, localCatalog, remoteCatalog, mappings, preflight } = context
 		if (!connection || connection.connectorKey !== "channel_manager") {
 			return json({ error: "INTEGRATION_CONNECTION_NOT_FOUND" }, 404)
 		}
@@ -80,6 +65,19 @@ export const GET: APIRoute = async ({ request, params }) => {
 				externalPropertyId: connection.externalPropertyId,
 			},
 			workspace,
+			preflight: {
+				...preflight,
+				checkedAt: preflight.checkedAt.toISOString(),
+			},
+			remoteCatalog: {
+				partial: remoteCatalog.partial ?? false,
+				warnings: (remoteCatalog.warnings ?? []).map(({ code, message, itemIndex }) => ({
+					code,
+					message,
+					itemIndex,
+				})),
+				fetchedAt: remoteCatalog.fetchedAt.toISOString(),
+			},
 			pagination: {
 				roomTypes: {
 					page: roomPage,

@@ -1,3 +1,8 @@
+import {
+	assertProviderIntegrationTestCredentialAllowed,
+	isSyntheticProviderIntegrationCredential,
+} from "@/lib/provider-integration-test-harness"
+
 /**
  * Connector smoke tests (Expedia connectivity-test style).
  * Saving credentials never marks connected — only a successful smoke does.
@@ -90,6 +95,7 @@ export async function runConnectorSmokeTest(params: {
 	}
 
 	if (endpointUrl === "test://smoke-ok") {
+		assertProviderIntegrationTestCredentialAllowed(endpointUrl, { mode: params.mode })
 		return {
 			ok: true,
 			message: "Smoke harness OK (test://smoke-ok).",
@@ -97,6 +103,9 @@ export async function runConnectorSmokeTest(params: {
 			probe: "test_harness",
 			trustLevel: "verified_connection",
 		}
+	}
+	if (isSyntheticProviderIntegrationCredential(endpointUrl)) {
+		assertProviderIntegrationTestCredentialAllowed(endpointUrl, { mode: params.mode })
 	}
 
 	if (isHttpsUrl(endpointUrl)) {

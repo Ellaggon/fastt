@@ -2,6 +2,7 @@
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Dialog from "@/components/ui/Dialog.astro"
+import Notice from "@/components/ui/Notice.astro"
 import ProviderIntegrationsLayout from "@/layouts/ProviderIntegrationsLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { getProviderIntegrationConnectionReadModel } from "@/lib/provider-integration-read-models"
@@ -10,6 +11,7 @@ import {
 	ArrowLeft,
 	ArrowRight,
 	Check,
+	Circle,
 	ChevronDown,
 	RefreshCw,
 	Sparkles,
@@ -40,6 +42,7 @@ if (
 
 const workspaceEndpoint = `/api/provider/integrations/channel-manager/connections/${encodeURIComponent(connectionId)}/mapping-workspace`
 const saveEndpoint = `/api/provider/integrations/channel-manager/connections/${encodeURIComponent(connectionId)}/mappings`
+const productionResult = Astro.url.searchParams.get("production")
 ---
 
 <ProviderIntegrationsLayout
@@ -60,7 +63,20 @@ const saveEndpoint = `/api/provider/integrations/channel-manager/connections/${e
 		data-mapping-workspace
 		data-workspace-endpoint={workspaceEndpoint}
 		data-save-endpoint={saveEndpoint}
+		data-connection-mode={connection.mode}
 	>
+		{
+			productionResult === "activated" ? (
+				<Notice variant="success" title="Producción habilitada">
+					La cobertura volvió a validarse y esta conexión ya puede ejecutar sincronizaciones
+					comerciales.
+				</Notice>
+			) : productionResult === "blocked" ? (
+				<Notice variant="error" title="Producción sigue bloqueada">
+					El catálogo cambió o todavía hay requisitos pendientes. Revisa el preflight actualizado.
+				</Notice>
+			) : null
+		}
 		<div
 			class="fastt-notice grid gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 sm:grid-cols-3"
 			aria-label="Contexto de la conexión"
@@ -83,6 +99,87 @@ const saveEndpoint = `/api/provider/integrations/channel-manager/connections/${e
 					<Badge variant={connection.mode === "production" ? "success" : "info"}>
 						{connection.mode === "production" ? "Producción" : "Sandbox"}
 					</Badge>
+				</div>
+			</div>
+		</div>
+
+		<div
+			class="fastt-notice overflow-hidden rounded-lg border border-slate-200 bg-white text-slate-900 shadow-[var(--fastt-shadow-row)]"
+			data-preflight
+		>
+			<div
+				class="flex flex-col gap-4 border-b border-slate-200 p-4 lg:flex-row lg:items-start lg:justify-between"
+			>
+				<div>
+					<div class="flex flex-wrap items-center gap-2">
+						<h2 class="text-lg font-semibold text-slate-950">Preflight de producción</h2>
+						<span
+							class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700"
+							data-preflight-badge
+						>
+							Validando
+						</span>
+					</div>
+					<p class="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
+						Fastt comprueba el catálogo completo y todas las relaciones vendibles antes de enviar
+						disponibilidad o tarifas.
+					</p>
+				</div>
+				<Button
+					href={routes.providerSettingsIntegrationConnection(connection.id)}
+					variant="secondary"
+					class={connection.mode === "production" ? "" : "hidden"}
+				>
+					Volver al detalle
+					<ArrowRight class="size-4" aria-hidden="true" />
+				</Button>
+			</div>
+			<ol
+				class="grid gap-px border-b border-slate-200 bg-slate-200 sm:grid-cols-5"
+				data-preflight-steps
+				aria-label="Validación previa"
+			>
+				{
+					["Acceso", "Propiedad", "Habitaciones", "Tarifas", "Cobertura"].map((label) => (
+						<li class="bg-slate-50 p-3" data-preflight-step>
+							<div class="flex items-center gap-2">
+								<Circle class="size-3.5 shrink-0 text-slate-400" aria-hidden="true" />
+								<p class="text-xs font-semibold text-slate-700">{label}</p>
+							</div>
+							<p class="mt-1 pl-[1.375rem] text-xs text-slate-500" data-preflight-step-summary>
+								Pendiente
+							</p>
+						</li>
+					))
+				}
+			</ol>
+			<div class="grid gap-px bg-slate-200 sm:grid-cols-2">
+				<div class="bg-white p-4">
+					<p class="text-xs font-semibold text-slate-500">Cobertura vendible</p>
+					<div class="mt-2 grid grid-cols-2 gap-3">
+						<div>
+							<p class="text-lg font-semibold text-slate-950" data-preflight-room-coverage>—</p>
+							<p class="text-xs text-slate-500">Habitaciones</p>
+						</div>
+						<div>
+							<p class="text-lg font-semibold text-slate-950" data-preflight-rate-coverage>—</p>
+							<p class="text-xs text-slate-500">Tarifas</p>
+						</div>
+					</div>
+				</div>
+				<div class="bg-white p-4">
+					<p class="text-xs font-semibold text-slate-500">Qué falta</p>
+					<div
+						class="mt-2 text-sm leading-6 text-slate-600"
+						data-preflight-issues
+						aria-live="polite"
+					>
+						Comprobando el catálogo del proveedor…
+					</div>
+					<p class="mt-2 hidden text-xs text-slate-500" data-sandbox-note>
+						Esta conexión está en Sandbox. El preflight prueba cobertura, pero no habilita envíos
+						comerciales.
+					</p>
 				</div>
 			</div>
 		</div>
@@ -345,6 +442,32 @@ const saveEndpoint = `/api/provider/integrations/channel-manager/connections/${e
 		"roomTypes" | "ratePlans",
 		{ page: number; pageSize: number; total: number; hasMore: boolean }
 	>
+	type PreflightData = {
+		readyForProduction: boolean
+		checkedAt: string
+		steps: Array<{
+			key: "access" | "property" | "rooms" | "rates" | "coverage"
+			label: string
+			status: "complete" | "error" | "pending"
+			summary: string
+		}>
+		issues: Array<{
+			code: string
+			step: "access" | "property" | "rooms" | "rates" | "coverage"
+			severity: "blocker" | "warning"
+			message: string
+		}>
+		summary: {
+			sellableRoomTypes: number
+			mappedSellableRoomTypes: number
+			sellableRatePlans: number
+			mappedSellableRatePlans: number
+			inactiveMappings: number
+			orphanMappings: number
+			duplicateMappings: number
+			manualMappings: number
+		}
+	}
 
 	const root = document.querySelector<HTMLElement>("[data-mapping-workspace]")
 	if (root) {
@@ -370,6 +493,7 @@ const saveEndpoint = `/api/provider/integrations/channel-manager/connections/${e
 		let activeTab: "roomTypes" | "ratePlans" = "roomTypes"
 		let search = ""
 		let pagination: WorkspacePagination | null = null
+		let preflight: PreflightData | null = null
 
 		const text = (tag: string, value: string, className = "") => {
 			const element = document.createElement(tag)
@@ -434,6 +558,92 @@ const saveEndpoint = `/api/provider/integrations/channel-manager/connections/${e
 					},
 				})
 			)
+		}
+
+		function renderPreflight() {
+			if (!root || !preflight) return
+			const badge = root.querySelector<HTMLElement>("[data-preflight-badge]")
+			if (badge) {
+				badge.textContent = preflight.readyForProduction
+					? "Cobertura completa"
+					: "Requiere atención"
+				badge.className = preflight.readyForProduction
+					? "rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800"
+					: "rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-900"
+			}
+
+			const stepElements = [...root.querySelectorAll<HTMLElement>("[data-preflight-step]")]
+			for (const [index, element] of stepElements.entries()) {
+				const step = preflight.steps[index]
+				if (!step) continue
+				const icon = element.querySelector<SVGElement>("svg")
+				const summary = element.querySelector<HTMLElement>("[data-preflight-step-summary]")
+				element.className =
+					step.status === "complete"
+						? "bg-emerald-50 p-3"
+						: step.status === "error"
+							? "bg-amber-50 p-3"
+							: "bg-slate-50 p-3"
+				if (icon) {
+					icon.setAttribute(
+						"class",
+						step.status === "complete"
+							? "size-3.5 shrink-0 fill-emerald-600 text-emerald-600"
+							: step.status === "error"
+								? "size-3.5 shrink-0 fill-amber-500 text-amber-600"
+								: "size-3.5 shrink-0 text-slate-400"
+					)
+				}
+				if (summary) summary.textContent = step.summary
+			}
+
+			const roomCoverage = root.querySelector<HTMLElement>("[data-preflight-room-coverage]")
+			const rateCoverage = root.querySelector<HTMLElement>("[data-preflight-rate-coverage]")
+			if (roomCoverage) {
+				roomCoverage.textContent = `${preflight.summary.mappedSellableRoomTypes}/${preflight.summary.sellableRoomTypes}`
+			}
+			if (rateCoverage) {
+				rateCoverage.textContent = `${preflight.summary.mappedSellableRatePlans}/${preflight.summary.sellableRatePlans}`
+			}
+
+			const issuesHost = root.querySelector<HTMLElement>("[data-preflight-issues]")
+			if (issuesHost) {
+				issuesHost.replaceChildren()
+				const blockers = preflight.issues.filter((issue) => issue.severity === "blocker")
+				if (!blockers.length) {
+					issuesHost.append(
+						text(
+							"p",
+							"No hay bloqueos. El catálogo y la cobertura vendible están completos.",
+							"font-medium text-emerald-800"
+						)
+					)
+				} else {
+					const list = document.createElement("ul")
+					list.className = "grid gap-1.5"
+					for (const issue of blockers.slice(0, 5)) {
+						const item = document.createElement("li")
+						item.className = "flex gap-2"
+						item.append(text("span", "•", "text-amber-600"), text("span", issue.message))
+						list.append(item)
+					}
+					if (blockers.length > 5) {
+						list.append(
+							text(
+								"li",
+								`Y ${blockers.length - 5} ${blockers.length - 5 === 1 ? "bloqueo más" : "bloqueos más"}.`,
+								"font-semibold text-slate-700"
+							)
+						)
+					}
+					issuesHost.append(list)
+				}
+			}
+
+			const activation = root.querySelector<HTMLButtonElement>("[data-activate-production]")
+			if (activation) activation.disabled = !preflight.readyForProduction
+			const sandboxNote = root.querySelector<HTMLElement>("[data-sandbox-note]")
+			sandboxNote?.classList.toggle("hidden", root.dataset.connectionMode !== "sandbox")
 		}
 
 		function renderManualOptions() {
@@ -735,7 +945,9 @@ const saveEndpoint = `/api/provider/integrations/channel-manager/connections/${e
 					pagination = payload.pagination
 					pending.clear()
 				}
+				preflight = payload.preflight
 				updateSummary()
+				renderPreflight()
 				renderRows()
 				renderManualOptions()
 				updateActions()

@@ -1,0 +1,310 @@
+---
+import { CheckCircle2, DatabaseZap, LoaderCircle, TriangleAlert } from "@lucide/astro"
+
+import Button from "@/components/ui/Button.astro"
+
+interface Props {
+	connectionId: string
+	environment: "sandbox" | "production"
+	canStart: boolean
+}
+
+const { connectionId, environment, canStart } = Astro.props
+---
+
+<section
+	class="fastt-notice overflow-hidden rounded-lg border border-slate-200 bg-white text-slate-900"
+	data-initial-ari-panel
+	data-connection-id={connectionId}
+	data-can-start={String(canStart)}
+>
+	<div class="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+		<div class="flex min-w-0 items-start gap-3">
+			<div
+				class="fastt-notice flex size-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700"
+			>
+				<DatabaseZap class="size-5" aria-hidden="true" />
+			</div>
+			<div>
+				<div class="flex flex-wrap items-center gap-2">
+					<h2 class="text-lg font-semibold text-slate-950">Sincronización inicial</h2>
+					<span
+						class:list={[
+							"inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold",
+							environment === "sandbox"
+								? "border-sky-200 bg-sky-50 text-sky-800"
+								: "border-emerald-200 bg-emerald-50 text-emerald-800",
+						]}
+					>
+						{environment === "sandbox" ? "Channex staging" : "Producción"}
+					</span>
+				</div>
+				<p class="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
+					Envía 500 días de disponibilidad, tarifas y restricciones después de validar toda la
+					cobertura. Channex recibirá dos solicitudes por propiedad.
+				</p>
+			</div>
+		</div>
+		<Button type="button" data-run-initial-ari disabled={!canStart}>
+			<DatabaseZap class="size-4" aria-hidden="true" />
+			<span data-action-label>
+				{canStart ? "Ejecutar sincronización inicial" : "Valida el acceso primero"}
+			</span>
+		</Button>
+	</div>
+
+	<div class="hidden border-t border-slate-200 px-5 py-5" data-ari-status aria-live="polite">
+		<div class="flex items-center justify-between gap-4">
+			<div class="flex min-w-0 items-center gap-2">
+				<LoaderCircle class="hidden size-4 shrink-0 animate-spin text-sky-700" data-running-icon />
+				<CheckCircle2 class="hidden size-4 shrink-0 text-emerald-700" data-success-icon />
+				<TriangleAlert class="hidden size-4 shrink-0 text-red-700" data-error-icon />
+				<p class="truncate text-sm font-semibold text-slate-950" data-status-title></p>
+			</div>
+			<span class="shrink-0 text-xs font-medium text-slate-500" data-status-percent></span>
+		</div>
+		<div class="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
+			<div
+				class="h-full rounded-full bg-sky-600 transition-[width] duration-300"
+				style="width: 0%"
+				data-progress-bar
+			>
+			</div>
+		</div>
+		<p class="mt-3 text-sm leading-6 text-slate-600" data-status-message></p>
+		<div class="mt-4 hidden border-t border-slate-200 pt-4" data-ari-result></div>
+	</div>
+</section>
+
+<script>
+	type RequestSummary = {
+		taskIds: string[]
+		requestIds: string[]
+		submitted: number
+		accepted: number
+		warned: number
+		rejected: number
+	}
+	type AriSummary = {
+		environment: string
+		window: { from: string; to: string; days: number }
+		counts: { rooms: number; ratePlans: number; days: number }
+		requests: {
+			availability: RequestSummary | null
+			ratesAndRestrictions: RequestSummary | null
+		}
+		totals: { submitted: number; accepted: number; warned: number; rejected: number }
+		snapshot: { algorithm: string; hash: string }
+	}
+	type StatusPayload = {
+		job: {
+			status: string
+			lastError: string | null
+			payloadJson: { stage?: string; percent?: number; message?: string } | null
+		} | null
+		run: {
+			status: string
+			errorMessage: string | null
+			summaryJson: AriSummary | null
+		} | null
+	}
+
+	const stageLabels: Record<string, string> = {
+		preflight: "Validando cobertura",
+		building_snapshot: "Preparando snapshot canónico",
+		sending_availability: "Enviando disponibilidad",
+		sending_rates: "Enviando tarifas y restricciones",
+		completed: "Sincronización completada",
+	}
+
+	function node<K extends keyof HTMLElementTagNameMap>(
+		tag: K,
+		className = "",
+		text = ""
+	): HTMLElementTagNameMap[K] {
+		const element = document.createElement(tag)
+		if (className) element.className = className
+		if (text) element.textContent = text
+		return element
+	}
+
+	function taskIds(summary: AriSummary) {
+		return [
+			...(summary.requests.availability?.taskIds ?? []),
+			...(summary.requests.ratesAndRestrictions?.taskIds ?? []),
+		]
+	}
+
+	function renderResult(target: HTMLElement, summary: AriSummary) {
+		target.replaceChildren()
+		const metrics = node("dl", "grid gap-3 sm:grid-cols-4")
+		const values = [
+			["Ventana", `${summary.window.days} días`],
+			["Habitaciones", String(summary.counts.rooms)],
+			["Tarifas", String(summary.counts.ratePlans)],
+			["Aceptados", String(summary.totals.accepted)],
+		]
+		for (const [label, value] of values) {
+			const item = node("div")
+			item.append(
+				node("dt", "text-xs font-medium text-slate-500", label),
+				node("dd", "mt-1 text-sm font-semibold text-slate-950", value)
+			)
+			metrics.append(item)
+		}
+		target.append(metrics)
+		const ids = taskIds(summary)
+		const evidence = node("div", "mt-4 grid gap-2 text-xs text-slate-600")
+		evidence.append(
+			node(
+				"p",
+				"font-medium text-slate-700",
+				`Ventana: ${summary.window.from} a ${summary.window.to}`
+			),
+			node("p", "break-all", `Snapshot SHA-256: ${summary.snapshot.hash}`),
+			node(
+				"p",
+				"break-all",
+				ids.length ? `Task IDs de Channex: ${ids.join(", ")}` : "Channex no devolvió task IDs."
+			)
+		)
+		target.append(evidence)
+		target.classList.remove("hidden")
+	}
+
+	function setupInitialAriPanels() {
+		document.querySelectorAll<HTMLElement>("[data-initial-ari-panel]").forEach((panel) => {
+			if (panel.dataset.ready === "true") return
+			panel.dataset.ready = "true"
+			const connectionId = panel.dataset.connectionId
+			const canStart = panel.dataset.canStart === "true"
+			const button = panel.querySelector<HTMLButtonElement>("[data-run-initial-ari]")
+			const actionLabel = panel.querySelector<HTMLElement>("[data-action-label]")
+			const status = panel.querySelector<HTMLElement>("[data-ari-status]")
+			const title = panel.querySelector<HTMLElement>("[data-status-title]")
+			const message = panel.querySelector<HTMLElement>("[data-status-message]")
+			const percent = panel.querySelector<HTMLElement>("[data-status-percent]")
+			const bar = panel.querySelector<HTMLElement>("[data-progress-bar]")
+			const result = panel.querySelector<HTMLElement>("[data-ari-result]")
+			const runningIcon = panel.querySelector<HTMLElement>("[data-running-icon]")
+			const successIcon = panel.querySelector<HTMLElement>("[data-success-icon]")
+			const errorIcon = panel.querySelector<HTMLElement>("[data-error-icon]")
+			if (
+				!connectionId ||
+				!button ||
+				!actionLabel ||
+				!status ||
+				!title ||
+				!message ||
+				!percent ||
+				!bar ||
+				!result
+			)
+				return
+			const endpoint = `/api/provider/integrations/channel-manager/connections/${encodeURIComponent(connectionId)}/initial-sync`
+			let timer: number | null = null
+
+			const present = (data: StatusPayload) => {
+				if (!data.job && !data.run) {
+					status.classList.add("hidden")
+					return false
+				}
+				status.classList.remove("hidden")
+				const active = data.job && ["queued", "running"].includes(data.job.status)
+				const progress = data.job?.payloadJson ?? {}
+				const runStatus = data.run?.status
+				const failed = !active && (runStatus === "failed" || data.job?.status === "failed")
+				const complete = !active && (runStatus === "succeeded" || runStatus === "partial")
+				const progressValue = complete
+					? 100
+					: failed
+						? 100
+						: Math.max(2, Number(progress.percent ?? 4))
+				title.textContent = failed
+					? "No se completó la sincronización"
+					: complete
+						? runStatus === "partial"
+							? "Sincronización completada con advertencias"
+							: "Sincronización inicial completada"
+						: (stageLabels[String(progress.stage ?? "preflight")] ?? "Sincronización en curso")
+				message.textContent = failed
+					? (data.run?.errorMessage ??
+						data.job?.lastError ??
+						"Revisa la cobertura e inténtalo de nuevo.")
+					: complete
+						? "La evidencia quedó guardada y puedes contrastar los task IDs en Channex."
+						: String(progress.message ?? "Esperando al worker de sincronización")
+				percent.textContent = `${progressValue}%`
+				bar.style.width = `${progressValue}%`
+				bar.className = `h-full rounded-full transition-[width] duration-300 ${failed ? "bg-red-600" : complete ? "bg-emerald-600" : "bg-sky-600"}`
+				runningIcon?.classList.toggle("hidden", !active)
+				successIcon?.classList.toggle("hidden", !complete)
+				errorIcon?.classList.toggle("hidden", !failed)
+				button.disabled = Boolean(active) || !canStart
+				actionLabel.textContent = active
+					? "Sincronización en curso"
+					: canStart
+						? "Ejecutar sincronización inicial"
+						: "Valida el acceso primero"
+				if (!active && data.run?.summaryJson) renderResult(result, data.run.summaryJson)
+				else {
+					result.replaceChildren()
+					result.classList.add("hidden")
+				}
+				if (!active && timer !== null) {
+					window.clearInterval(timer)
+					timer = null
+				}
+				return Boolean(active)
+			}
+
+			const load = async () => {
+				const response = await fetch(endpoint, { headers: { Accept: "application/json" } })
+				const data = await response.json()
+				if (!response.ok) throw new Error(String(data?.error ?? "No pudimos consultar el estado."))
+				return present(data)
+			}
+			const beginPolling = () => {
+				if (timer !== null) return
+				timer = window.setInterval(() => void load().catch(() => undefined), 1500)
+			}
+
+			button.addEventListener("click", () => {
+				button.disabled = true
+				actionLabel.textContent = "Iniciando…"
+				status.classList.remove("hidden")
+				title.textContent = "Validando cobertura"
+				message.textContent = "Comprobando propiedad, habitaciones, tarifas y mapeos."
+				percent.textContent = "2%"
+				bar.style.width = "2%"
+				runningIcon?.classList.remove("hidden")
+				beginPolling()
+				void fetch(endpoint, {
+					method: "POST",
+					headers: { Accept: "application/json" },
+				})
+					.then(async (response) => {
+						if (response.ok) return
+						const data = await response.json()
+						throw new Error(String(data?.error ?? "No pudimos iniciar la sincronización."))
+					})
+					.catch((error) => {
+						button.disabled = false
+						actionLabel.textContent = "Reintentar sincronización inicial"
+						title.textContent = "No pudimos iniciar la sincronización"
+						message.textContent = error instanceof Error ? error.message : "Revisa la cobertura."
+						bar.className = "h-full rounded-full bg-red-600"
+						errorIcon?.classList.remove("hidden")
+						runningIcon?.classList.add("hidden")
+					})
+			})
+
+			void load()
+				.then((active) => active && beginPolling())
+				.catch(() => undefined)
+		})
+	}
+
+	setupInitialAriPanels()
+	document.addEventListener("astro:page-load", setupInitialAriPanels)
+</script>

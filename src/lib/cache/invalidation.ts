@@ -46,11 +46,13 @@ function refreshProductSurface(productId: string, source: string): void {
 		.catch(() => {})
 }
 
+const pendingProviderConfigurationRefreshes = new Set<Promise<void>>()
+
 function refreshProviderConfiguration(providerId: string, source: string): void {
 	const id = String(providerId ?? "").trim()
 	if (!id) return
 	// Fire-and-forget: never surface statement timeouts as unhandled rejections.
-	void (async () => {
+	const refresh = (async () => {
 		try {
 			const { refreshProviderConfigurationState } = await import("@/lib/provider-governance")
 			await refreshProviderConfigurationState({ providerId: id })
@@ -61,8 +63,14 @@ function refreshProviderConfiguration(providerId: string, source: string): void 
 				error: error instanceof Error ? error.message : String(error),
 			})
 		}
-	})()
+	})().finally(() => pendingProviderConfigurationRefreshes.delete(refresh))
+	pendingProviderConfigurationRefreshes.add(refresh)
 	console.debug("provider configuration refresh queued", { source, providerId: id })
+}
+
+/** Allows short-lived maintenance scripts to drain refreshes before closing the DB pool. */
+export async function waitForProviderConfigurationRefreshes(): Promise<void> {
+	await Promise.allSettled([...pendingProviderConfigurationRefreshes])
 }
 
 function refreshRatePlanConditions(ratePlanIds: string[], source: string): void {

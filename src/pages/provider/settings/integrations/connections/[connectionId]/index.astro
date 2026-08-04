@@ -1,6 +1,9 @@
 ---
+import ChannelManagerOperationsPanel from "@/components/provider/integrations/ChannelManagerOperationsPanel.astro"
+import InitialAriSyncPanel from "@/components/provider/integrations/InitialAriSyncPanel.astro"
 import IntegrationDiagnosticsPanel from "@/components/provider/integrations/IntegrationDiagnosticsPanel.astro"
 import IntegrationExecutionPanel from "@/components/provider/integrations/IntegrationExecutionPanel.astro"
+import IntegrationLifecycle from "@/components/provider/integrations/IntegrationLifecycle.astro"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
@@ -10,7 +13,8 @@ import ProviderIntegrationsLayout from "@/layouts/ProviderIntegrationsLayout.ast
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { getChannelManagerVendor } from "@/lib/provider-channel-manager-vendors"
 import { mapProviderIntegrationError } from "@/lib/provider-integration-errors"
-import { getProviderIntegrationConnectionReadModel } from "@/lib/provider-integration-read-models"
+import { deriveProviderIntegrationOperationalState } from "@/lib/provider-integration-operational-state"
+import { getProviderChannelManagerOperationalReadModel } from "@/lib/provider-integration-read-models"
 import {
 	isProviderIntegrationWorkspaceConnector,
 	listProviderConnectorCatalog,
@@ -27,11 +31,16 @@ if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
 if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerSettingsProfile())
 
 const connectionId = String(Astro.params.connectionId ?? "")
-const connection = await getProviderIntegrationConnectionReadModel({
+const operational = await getProviderChannelManagerOperationalReadModel({
 	providerId: auth.providerId,
 	connectionId,
 })
-if (!connection || !isProviderIntegrationWorkspaceConnector(connection.connectorKey)) {
+const connection = operational?.connection ?? null
+if (
+	!operational ||
+	!connection ||
+	!isProviderIntegrationWorkspaceConnector(connection.connectorKey)
+) {
 	return Astro.redirect(routes.providerSettingsIntegrationsConnections(), 302)
 }
 const connector =
@@ -43,6 +52,7 @@ const scopes = Array.isArray(connection.scopesJson)
 	: (connector?.defaultScopes ?? [])
 const success = Astro.url.searchParams.get("success")
 const error = Astro.url.searchParams.get("error")
+const productionResult = Astro.url.searchParams.get("production")
 const returnTo = routes.providerSettingsIntegrationConnection(connection.id)
 
 function formatDate(value: Date | null) {
@@ -51,44 +61,6 @@ function formatDate(value: Date | null) {
 		dateStyle: "medium",
 		timeStyle: "short",
 	}).format(value)
-}
-
-function statusPresentation(status: string) {
-	if (status === "connected")
-		return {
-			label: "Funcionando",
-			tone: "success" as const,
-			description: "Fastt pudo validar el acceso y la conexión está disponible.",
-		}
-	if (status === "syncing")
-		return {
-			label: "Actualizando",
-			tone: "info" as const,
-			description: "Hay una actualización en curso.",
-		}
-	if (status === "pending")
-		return {
-			label: "Falta validar",
-			tone: "info" as const,
-			description: "La configuración está guardada, pero aún falta probar el acceso.",
-		}
-	if (status === "requires_attention" || status === "error")
-		return {
-			label: "Requiere atención",
-			tone: "warning" as const,
-			description: "Revisa las incidencias abiertas antes de volver a sincronizar.",
-		}
-	if (status === "revoked")
-		return {
-			label: "Desconectada",
-			tone: "neutral" as const,
-			description: "Fastt ya no utiliza esta conexión.",
-		}
-	return {
-		label: "Por configurar",
-		tone: "neutral" as const,
-		description: "Completa la configuración para comenzar.",
-	}
 }
 
 function modeLabel(mode: string) {
@@ -114,16 +86,29 @@ function endpointHost(value: string | null) {
 	}
 }
 
-const status = statusPresentation(String(connection.status))
-const nextAction =
-	connection.status === "pending"
-		? {
-				title: "Valida el acceso",
-				description:
-					"Ejecuta una prueba para confirmar que Fastt puede comunicarse con el servicio.",
-				label: "Probar conexión",
-			}
+const state = deriveProviderIntegrationOperationalState({
+	connectionStatus: String(connection.status),
+	accessValidated: operational.accessValidated,
+	coverageComplete: operational.coverage.complete,
+	initialSyncState: operational.initialSyncState,
+	hasAttention: operational.openIncidents.some((item) =>
+		["error", "critical"].includes(String(item.severity))
+	),
+})
+const initialSucceeded = operational.initialSyncState === "succeeded"
+const initialBusy = ["queued", "running"].includes(operational.initialSyncState)
+const reconnectHref = `${routes.providerSettingsIntegrationsConnectChannelManager()}?step=access&connectionId=${encodeURIComponent(connection.id)}&vendor=${encodeURIComponent(String(connection.vendorKey ?? "generic"))}&env=${connection.mode === "production" ? "production" : "sandbox"}`
+const latestRun = operational.latestRun
+const latestSummary =
+	latestRun?.summaryJson && typeof latestRun.summaryJson === "object"
+		? (latestRun.summaryJson as Record<string, any>)
 		: null
+const warningCount = Number(
+	latestSummary?.totals?.warned ?? latestSummary?.request?.warned ?? latestRun?.skippedCount ?? 0
+)
+const rejectedCount = Number(
+	latestSummary?.totals?.rejected ?? latestSummary?.request?.rejected ?? latestRun?.failedCount ?? 0
+)
 ---
 
 <ProviderIntegrationsLayout
@@ -137,23 +122,11 @@ const nextAction =
 			<ArrowLeft class="size-4" aria-hidden="true" />
 			Conexiones
 		</Button>
-		{
-			connection.status !== "revoked" ? (
-				<form method="post" action={`/api/provider/integrations/${connection.connectorKey}/sync`}>
-					<input type="hidden" name="uiMode" value="simple" />
-					<input type="hidden" name="connectionId" value={connection.id} />
-					<input type="hidden" name="returnTo" value={returnTo} />
-					<Button type="submit" variant="onDark" size="sm">
-						Probar conexión
-					</Button>
-				</form>
-			) : null
-		}
 	</div>
 
 	{
 		success === "sync_tested" ? (
-			<Notice variant="success" title="Conexión validada">
+			<Notice variant="success" title="Acceso validado">
 				Fastt pudo comunicarse con el servicio correctamente.
 			</Notice>
 		) : success === "reference_checked" ? (
@@ -169,47 +142,130 @@ const nextAction =
 			</Notice>
 		) : null
 	}
+	{
+		productionResult === "activated" ? (
+			<Notice variant="success" title="Producción activada">
+				La cobertura se validó nuevamente. Ya puedes ejecutar la sincronización inicial.
+			</Notice>
+		) : productionResult === "blocked" ? (
+			<Notice variant="warning" title="Producción sigue bloqueada">
+				No se confirmó la acción o algún requisito cambió. Revisa la cobertura antes de intentarlo.
+			</Notice>
+		) : null
+	}
+
+	<IntegrationLifecycle
+		currentStepIndex={state.stepIndex}
+		accessComplete={operational.accessValidated}
+		mappingComplete={operational.coverage.complete}
+		initialComplete={initialSucceeded}
+		operationalComplete={initialSucceeded}
+	/>
+
+	<ChannelManagerOperationsPanel
+		connectionId={connection.id}
+		state={state}
+		syncEnabled={connection.syncEnabled}
+		accessValidated={operational.accessValidated}
+		coverageComplete={operational.coverage.complete}
+		initialSucceeded={initialSucceeded}
+		initialBusy={initialBusy}
+		mode={connection.mode === "production" ? "production" : "sandbox"}
+		isRevoked={connection.status === "revoked"}
+		credentialRevoked={operational.credentialRevoked}
+		mappingHref={routes.providerSettingsIntegrationMapping(connection.id)}
+		incidentsHref={routes.providerSettingsIntegrationsIncidents()}
+		reconnectHref={reconnectHref}
+		testAction={`/api/provider/integrations/${connection.connectorKey}/sync`}
+		returnTo={returnTo}
+	/>
 
 	<section
-		class="fastt-notice grid gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 text-slate-900 sm:grid-cols-3"
-		aria-label="Salud de la conexión"
-		data-integration-connection-health
+		class="fastt-notice grid gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 text-slate-900 md:grid-cols-3"
+		aria-label="Resumen operativo"
+		data-integration-operational-summary
 	>
 		<div class="bg-white p-4">
-			<p class="text-xs font-semibold text-slate-500">Estado</p>
-			<div class="mt-2"><Badge variant={status.tone}>{status.label}</Badge></div>
+			<p class="text-xs font-semibold text-slate-500">Cobertura de mapping</p>
+			<p class="mt-1 text-xl font-semibold text-slate-950">{operational.coverage.percent}%</p>
+			<p class="mt-1 text-xs leading-5 text-slate-500">
+				{operational.coverage.rooms.mapped}/{operational.coverage.rooms.total} habitaciones · {
+					operational.coverage.rates.mapped
+				}/{operational.coverage.rates.total} tarifas
+			</p>
 		</div>
 		<div class="bg-white p-4">
-			<p class="text-xs font-semibold text-slate-500">Relaciones activas</p>
-			<p class="mt-1 text-sm font-semibold text-slate-700">Bajo demanda</p>
+			<p class="text-xs font-semibold text-slate-500">Último resultado</p>
+			<p class="mt-1 text-sm font-semibold text-slate-950">
+				{
+					latestRun
+						? latestRun.status === "succeeded"
+							? "Completado"
+							: latestRun.status === "partial"
+								? "Con advertencias"
+								: latestRun.status === "failed"
+									? "Fallido"
+									: "En curso"
+						: "Sin sincronizaciones"
+				}
+			</p>
+			<p class="mt-1 text-xs leading-5 text-slate-500">
+				{
+					latestRun
+						? formatDate(latestRun.finishedAt ?? latestRun.startedAt)
+						: "Aún no hay evidencia comercial."
+				}
+			</p>
 		</div>
 		<div class="bg-white p-4">
-			<p class="text-xs font-semibold text-slate-500">Incidencias abiertas</p>
-			<p class="mt-1 text-sm font-semibold text-slate-700">Bajo demanda</p>
+			<p class="text-xs font-semibold text-slate-500">Próxima ejecución</p>
+			<p class="mt-1 text-sm font-semibold text-slate-950">
+				{
+					initialSucceeded
+						? connection.syncEnabled
+							? formatDate(operational.nextExecutionAt)
+							: "Pausada"
+						: initialBusy
+							? "En curso"
+							: "Aún no programada"
+				}
+			</p>
+			<p class="mt-1 text-xs leading-5 text-slate-500">
+				{
+					!initialSucceeded
+						? initialBusy
+							? "El primer envío está siendo procesado."
+							: "Se programará después de la sincronización inicial."
+						: operational.activeJob
+							? operational.activeJob.status === "running"
+								? "Hay un proceso en ejecución."
+								: "Hay cambios esperando al worker."
+							: connection.syncEnabled
+								? "Los cambios nuevos se agrupan automáticamente."
+								: "Reanuda para volver a enviar y recibir."
+				}
+			</p>
 		</div>
 	</section>
 
 	{
-		nextAction ? (
-			<section class="fastt-notice rounded-lg border border-sky-200 bg-sky-50 p-5 text-slate-900">
-				<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-					<div>
-						<p class="text-xs font-semibold tracking-wide text-sky-800 uppercase">Siguiente paso</p>
-						<h2 class="mt-1 text-lg font-semibold text-slate-950">{nextAction.title}</h2>
-						<p class="mt-1 max-w-2xl text-sm leading-6 text-slate-600">{nextAction.description}</p>
-					</div>
-					<form method="post" action={`/api/provider/integrations/${connection.connectorKey}/sync`}>
-						<input type="hidden" name="uiMode" value="simple" />
-						<input type="hidden" name="connectionId" value={connection.id} />
-						<input type="hidden" name="returnTo" value={returnTo} />
-						<Button type="submit">{nextAction.label}</Button>
-					</form>
+		latestRun?.status === "partial" || warningCount > 0 || rejectedCount > 0 ? (
+			<Notice variant="warning" title="Advertencias parciales">
+				<div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+					<span>{warningCount} observados</span>
+					<span>{rejectedCount} rechazados</span>
+					<a
+						href={routes.providerSettingsIntegrationsIncidents()}
+						class="font-semibold underline underline-offset-2"
+					>
+						Revisar incidencias
+					</a>
 				</div>
-			</section>
+			</Notice>
 		) : null
 	}
 
-	<div class="grid gap-5">
+	<div class="grid gap-5" data-integration-connection-health>
 		<Card>
 			<div class="flex items-start gap-3 border-b border-slate-200 pb-4">
 				<div
@@ -219,7 +275,7 @@ const nextAction =
 				</div>
 				<div>
 					<h2 class="text-lg font-semibold text-slate-950">Estado y alcance</h2>
-					<p class="mt-1 text-sm leading-6 text-slate-600">{status.description}</p>
+					<p class="mt-1 text-sm leading-6 text-slate-600">{state.description}</p>
 				</div>
 			</div>
 			<dl class="divide-y divide-slate-200">
@@ -280,6 +336,19 @@ const nextAction =
 			</div>
 		</Card>
 	</div>
+
+	{
+		connection.status !== "revoked" &&
+		operational.coverage.complete &&
+		!initialSucceeded &&
+		(connection.mode !== "production" || connection.syncEnabled) ? (
+			<InitialAriSyncPanel
+				connectionId={connection.id}
+				environment={connection.mode === "production" ? "production" : "sandbox"}
+				canStart={operational.accessValidated && !initialBusy}
+			/>
+		) : null
+	}
 
 	<IntegrationDiagnosticsPanel connectionId={connection.id} />
 

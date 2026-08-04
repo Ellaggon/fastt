@@ -1726,6 +1726,13 @@ export const Booking = pgTable(
 		lifecycleAuditJson: jsonb("lifecycleAuditJson"),
 		refundHandoffSnapshotJson: jsonb("refundHandoffSnapshotJson"),
 		contractSnapshotVersion: txtOpt("contractSnapshotVersion"),
+		integrationConnectionId: txtOpt("integrationConnectionId").references(
+			() => ProviderIntegrationConnection.id,
+			{ onDelete: "set null" }
+		),
+		externalBookingId: txtOpt("externalBookingId"),
+		externalRevisionId: txtOpt("externalRevisionId"),
+		externalRevisionAt: ts("externalRevisionAt"),
 	},
 	(table) => [
 		index("Booking_provider_status_checkin_idx").on(
@@ -1739,6 +1746,21 @@ export const Booking = pgTable(
 			table.checkOutDate
 		),
 		index("Booking_ratePlanId_idx").on(table.ratePlanId),
+		uniqueIndex("Booking_connection_external_booking_unique")
+			.on(table.integrationConnectionId, table.externalBookingId)
+			.where(
+				sql`${table.integrationConnectionId} IS NOT NULL AND ${table.externalBookingId} IS NOT NULL`
+			),
+		uniqueIndex("Booking_connection_external_revision_unique")
+			.on(table.integrationConnectionId, table.externalRevisionId)
+			.where(
+				sql`${table.integrationConnectionId} IS NOT NULL AND ${table.externalRevisionId} IS NOT NULL`
+			),
+		index("Booking_provider_source_booking_date_idx").on(
+			table.providerId,
+			table.source,
+			table.bookingDate.desc()
+		),
 	]
 )
 

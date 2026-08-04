@@ -15,6 +15,12 @@ export const GET: APIRoute = async ({ request, params }) => {
 			{
 				properties: result.properties,
 				fetchedAt: result.fetchedAt.toISOString(),
+				partial: result.partial ?? false,
+				warnings: (result.warnings ?? []).map(({ code, message, itemIndex }) => ({
+					code,
+					message,
+					itemIndex,
+				})),
 			},
 			{
 				headers: {

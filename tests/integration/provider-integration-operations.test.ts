@@ -94,7 +94,10 @@ describe("provider integration operations", () => {
 			connectorKey: "channel_manager",
 			mode: "sandbox",
 			scopes: ["availability:sync"],
-			credentialSecret: "test://smoke-ok",
+			credentialSecret: "test://channex-ok",
+			vendorKey: "channex",
+			authType: "api_key",
+			externalPropertyId: "channex_property_1",
 			displayName: "Hotel principal",
 		})
 		const secondaryId = await connectProviderIntegration({
@@ -103,7 +106,10 @@ describe("provider integration operations", () => {
 			connectorKey: "channel_manager",
 			mode: "sandbox",
 			scopes: ["availability:sync", "rates:sync"],
-			credentialSecret: "test://smoke-ok",
+			credentialSecret: "test://channex-ok",
+			vendorKey: "channex",
+			authType: "api_key",
+			externalPropertyId: "channex_property_2",
 			displayName: "Segunda propiedad",
 			createNew: true,
 		})

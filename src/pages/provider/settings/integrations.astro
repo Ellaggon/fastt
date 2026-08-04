@@ -111,7 +111,7 @@ function connectorAnchor(connector: (typeof configuredConnectors)[number]) {
 }
 
 function statusLabel(status: string) {
-	if (status === "connected") return "Funcionando"
+	if (status === "connected") return "Acceso validado"
 	if (status === "pending") return "Falta validar"
 	if (status === "syncing") return "Actualizando"
 	if (status === "requires_attention" || status === "error") return "Requiere atención"
@@ -153,7 +153,7 @@ const nextAction = nextConnector
 	? {
 			title:
 				nextConnector.status === "connected"
-					? `${nextConnector.name} está funcionando`
+					? `${nextConnector.name} tiene acceso validado`
 					: `${nextConnector.name} necesita un paso más`,
 			description:
 				nextConnector.status === "connected"
@@ -212,7 +212,7 @@ const nextAction = nextConnector
 				configuredConnectors.length ? (
 					<div class="flex flex-wrap gap-2">
 						<Badge variant={healthyConnectors.length ? "success" : "neutral"}>
-							{healthyConnectors.length} funcionando
+							{healthyConnectors.length} con acceso validado
 						</Badge>
 						{attentionConnectors.length ? (
 							<Badge variant="warning">{attentionConnectors.length} por revisar</Badge>

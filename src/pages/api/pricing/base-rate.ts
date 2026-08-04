@@ -14,6 +14,10 @@ import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { invalidateProvider, invalidateVariant } from "@/lib/cache/invalidation"
 import { logger } from "@/lib/observability/logger"
 import {
+	buildIncrementalAriHorizon,
+	enqueueProviderIncrementalAriChangeSoft,
+} from "@/lib/channel-manager/channel-manager-incremental-queue"
+import {
 	resolveRatePlanOwnerContext,
 	setRatePlanPricingBaselineSchema,
 } from "@/modules/pricing/public"
@@ -145,6 +149,12 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 		await invalidateVariant(variantId, v.productId)
 		await invalidateProvider(providerId)
+		await enqueueProviderIncrementalAriChangeSoft({
+			domain: "rates_restrictions",
+			variantIds: [variantId],
+			ratePlanIds: [ratePlanId],
+			...buildIncrementalAriHorizon(now),
+		})
 
 		return new Response(
 			JSON.stringify({

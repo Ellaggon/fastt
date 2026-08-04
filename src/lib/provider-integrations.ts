@@ -8,8 +8,15 @@ import {
 	ProviderIntegrationConnection,
 	ProviderIntegrationCredential,
 	ProviderIntegrationMapping,
+	ProviderIntegrationSyncJob,
 	ProviderIntegrationSyncRun,
+	ProviderProfile,
 } from "@/shared/infrastructure/db/compat"
+import { createChannelManagerAdapter } from "@/lib/channel-manager/channel-manager-adapter-factory"
+import {
+	evaluateChannelManagerPreflight,
+	type ChannelManagerPreflightResult,
+} from "@/lib/channel-manager/channel-manager-preflight"
 import { invalidateProviderGovernance } from "@/lib/cache/invalidation"
 import { refreshConnectorOAuthToken } from "@/lib/provider-connector-oauth"
 import {
@@ -30,6 +37,7 @@ import {
 	shouldRefreshProviderIntegrationToken,
 	type ProviderIntegrationVaultPayload,
 } from "@/lib/provider-integration-vault"
+import { assertProviderIntegrationTestCredentialAllowed } from "@/lib/provider-integration-test-harness"
 import {
 	getChannelManagerVendor,
 	normalizeChannelManagerAuthType,
@@ -537,7 +545,7 @@ function statusLabel(status: ProviderConnectorStatus): string {
 	const labels = {
 		not_configured: "Por configurar",
 		pending: "Referencia guardada",
-		connected: "Validado por prueba",
+		connected: "Acceso validado",
 		requires_attention: "Requiere atención",
 		syncing: "Sincronizando",
 		error: "Error",
@@ -805,6 +813,7 @@ export async function connectProviderIntegration(params: {
 	const scopes = normalizeScopes(connector, params.scopes)
 	const endpointUrl = normalizePublicEndpoint(params.endpointUrl)
 	const credentialSecret = String(params.credentialSecret ?? "").trim()
+	assertProviderIntegrationTestCredentialAllowed(credentialSecret, { mode: requestedMode })
 	const vendorKey =
 		connectorKey === "channel_manager"
 			? normalizeChannelManagerVendorKey(params.vendorKey)
@@ -868,10 +877,15 @@ export async function connectProviderIntegration(params: {
 			: "Falta configurar el endpoint o la credencial.",
 		lastSyncStatus: existing?.lastSyncStatus ?? undefined,
 		lastSyncAt: existing?.lastSyncAt ?? undefined,
-		syncEnabled: connectorKey !== "external_calendars" && hasConnectionMaterial,
+		syncEnabled:
+			connectorKey !== "external_calendars" &&
+			hasConnectionMaterial &&
+			!(connectorKey === "channel_manager" && mode === "production"),
 		syncIntervalMinutes: Number(existing?.syncIntervalMinutes ?? 1440),
 		nextSyncAt:
-			connectorKey !== "external_calendars" && hasConnectionMaterial
+			connectorKey !== "external_calendars" &&
+			hasConnectionMaterial &&
+			!(connectorKey === "channel_manager" && mode === "production")
 				? (existing?.nextSyncAt ?? now)
 				: null,
 		consecutiveFailures: 0,
@@ -1087,6 +1101,7 @@ export async function syncProviderIntegration(params: {
 					authType: normalizeChannelManagerAuthType(existing.authType),
 					credentialSecret: credentialState.credentialSecret,
 					externalPropertyId: existing.externalPropertyId,
+					mode: normalizeMode(existing.mode),
 				})
 			: null
 	const smoke = credentialState.error
@@ -1126,17 +1141,45 @@ export async function syncProviderIntegration(params: {
 	const nextSyncAt = new Date(
 		now.getTime() + Math.max(15, Number(existing.syncIntervalMinutes ?? 1440)) * 60_000
 	)
+	const preservesCommercialState = [
+		"initial_ari_succeeded",
+		"initial_ari_partial",
+		"initial_ari_failed",
+		"incremental_ari_succeeded",
+		"incremental_ari_partial",
+		"incremental_ari_failed",
+	].includes(String(existing.lastSyncStatus ?? ""))
+	const preservesCommercialAttention =
+		hasVerifiedConnection &&
+		existing.status === "requires_attention" &&
+		[
+			"initial_ari_partial",
+			"initial_ari_failed",
+			"incremental_ari_partial",
+			"incremental_ari_failed",
+		].includes(String(existing.lastSyncStatus ?? ""))
+	const resolvedStatus = preservesCommercialAttention ? existing.status : status
+	const resolvedErrorMessage = preservesCommercialAttention
+		? existing.errorMessage
+		: hasVerifiedConnection
+			? null
+			: smoke.ok
+				? "La referencia es válida, pero falta una prueba real del proveedor antes de usarla como conexión activa."
+				: message
+	const accessStatus = hasVerifiedConnection
+		? preservesCommercialState
+			? existing.lastSyncStatus
+			: "success"
+		: smoke.ok
+			? "reference_valid"
+			: "error"
 	await db
 		.update(ProviderIntegrationConnection)
 		.set({
-			status,
+			status: resolvedStatus,
 			lastSyncAt: now,
-			lastSyncStatus: hasVerifiedConnection ? "success" : smoke.ok ? "reference_valid" : "error",
-			errorMessage: hasVerifiedConnection
-				? null
-				: smoke.ok
-					? "La referencia es válida, pero falta una prueba real del proveedor antes de usarla como conexión activa."
-					: message,
+			lastSyncStatus: accessStatus,
+			errorMessage: resolvedErrorMessage,
 			nextSyncAt: hasVerifiedConnection ? nextSyncAt : existing.nextSyncAt,
 			lastAutomaticSyncAt:
 				params.trigger === "scheduled" || params.trigger === "retry"
@@ -1169,13 +1212,9 @@ export async function syncProviderIntegration(params: {
 		beforeJson: before,
 		afterJson: connectionAuditSnapshot({
 			...existing,
-			status,
-			lastSyncStatus: hasVerifiedConnection ? "success" : smoke.ok ? "reference_valid" : "error",
-			errorMessage: hasVerifiedConnection
-				? null
-				: smoke.ok
-					? "La referencia es válida, pero falta una prueba real del proveedor antes de usarla como conexión activa."
-					: message,
+			status: resolvedStatus,
+			lastSyncStatus: accessStatus,
+			errorMessage: resolvedErrorMessage,
 		}),
 		riskLevel: "medium",
 	})
@@ -1221,7 +1260,126 @@ export async function syncProviderIntegration(params: {
 		})
 	}
 	await invalidateProviderGovernance(params.providerId, "provider_integration_sync_tested")
-	return { status, message, smoke }
+	return { status: resolvedStatus, accessValidated: hasVerifiedConnection, message, smoke }
+}
+
+const channelManagerQueuedOperations = [
+	"initial_ari_sync",
+	"incremental_availability_sync",
+	"incremental_rates_restrictions_sync",
+	"booking_revision_feed",
+]
+
+async function ownedChannelManagerConnection(providerId: string, connectionId: string) {
+	const connection = await db
+		.select()
+		.from(ProviderIntegrationConnection)
+		.where(
+			and(
+				eq(ProviderIntegrationConnection.providerId, providerId),
+				eq(ProviderIntegrationConnection.id, connectionId),
+				eq(ProviderIntegrationConnection.connectorKey, "channel_manager")
+			)
+		)
+		.then((rows) => rows[0] ?? null)
+	if (!connection) throw new Error("INTEGRATION_CONNECTION_NOT_FOUND")
+	return connection
+}
+
+async function hasSuccessfulInitialAri(connectionId: string) {
+	const rows = await db
+		.select({ id: ProviderIntegrationSyncRun.id })
+		.from(ProviderIntegrationSyncRun)
+		.where(
+			and(
+				eq(ProviderIntegrationSyncRun.connectionId, connectionId),
+				eq(ProviderIntegrationSyncRun.operation, "initial_ari_sync"),
+				eq(ProviderIntegrationSyncRun.status, "succeeded")
+			)
+		)
+		.limit(1)
+	return rows.length > 0
+}
+
+export async function setProviderChannelManagerSyncEnabled(params: {
+	providerId: string
+	currentUserId?: string | null
+	connectionId: string
+	enabled: boolean
+}) {
+	const connection = await ownedChannelManagerConnection(params.providerId, params.connectionId)
+	if (connection.status === "revoked") throw new Error("INTEGRATION_CONNECTION_REVOKED")
+	if (params.enabled) {
+		if (connection.status !== "connected") throw new Error("INTEGRATION_RESUME_REQUIRES_HEALTHY")
+		if (!(await hasSuccessfulInitialAri(connection.id))) {
+			throw new Error("INTEGRATION_RESUME_REQUIRES_INITIAL_SYNC")
+		}
+	}
+	const now = new Date()
+	await db.transaction(async (tx) => {
+		await tx
+			.update(ProviderIntegrationConnection)
+			.set({
+				syncEnabled: params.enabled,
+				nextSyncAt: params.enabled ? now : null,
+				updatedAt: now,
+			})
+			.where(eq(ProviderIntegrationConnection.id, connection.id))
+		if (!params.enabled) {
+			await tx
+				.delete(ProviderIntegrationSyncJob)
+				.where(
+					and(
+						eq(ProviderIntegrationSyncJob.connectionId, connection.id),
+						eq(ProviderIntegrationSyncJob.status, "queued"),
+						inArray(ProviderIntegrationSyncJob.operation, channelManagerQueuedOperations)
+					)
+				)
+		}
+	})
+	await insertAudit({
+		providerId: params.providerId,
+		actorUserId: params.currentUserId,
+		action: params.enabled ? "provider.integration.sync.resume" : "provider.integration.sync.pause",
+		entityId: connection.id,
+		beforeJson: { syncEnabled: Boolean(connection.syncEnabled), nextSyncAt: connection.nextSyncAt },
+		afterJson: { syncEnabled: params.enabled, nextSyncAt: params.enabled ? now : null },
+		riskLevel: "medium",
+	})
+	await invalidateProviderGovernance(
+		params.providerId,
+		params.enabled ? "provider_integration_sync_resumed" : "provider_integration_sync_paused"
+	)
+	return { enabled: params.enabled, nextSyncAt: params.enabled ? now : null }
+}
+
+export async function flushProviderChannelManagerIncrementalJobs(params: {
+	providerId: string
+	connectionId: string
+}) {
+	const connection = await ownedChannelManagerConnection(params.providerId, params.connectionId)
+	if (connection.status !== "connected" || !connection.syncEnabled) {
+		throw new Error("INTEGRATION_SYNC_PAUSED_OR_UNHEALTHY")
+	}
+	if (!(await hasSuccessfulInitialAri(connection.id))) {
+		throw new Error("INTEGRATION_INITIAL_SYNC_REQUIRED")
+	}
+	const now = new Date()
+	const jobs = await db
+		.update(ProviderIntegrationSyncJob)
+		.set({ runAfter: now, trigger: "manual", updatedAt: now })
+		.where(
+			and(
+				eq(ProviderIntegrationSyncJob.connectionId, connection.id),
+				eq(ProviderIntegrationSyncJob.status, "queued"),
+				inArray(ProviderIntegrationSyncJob.operation, [
+					"incremental_availability_sync",
+					"incremental_rates_restrictions_sync",
+				])
+			)
+		)
+		.returning({ id: ProviderIntegrationSyncJob.id })
+	return { queuedChanges: jobs.length, requestedAt: now }
 }
 
 export async function listProviderChannelManagerRemoteProperties(params: {
@@ -1305,6 +1463,351 @@ export async function getProviderChannelManagerRemoteCatalog(params: {
 		mode: normalizeMode(connection.mode),
 		propertyId,
 	})
+}
+
+function channelManagerPreflightError(error: unknown, fallback: string): string {
+	if (!(error instanceof Error)) return fallback
+	const code = error.message
+	if (code.includes("AUTH") || code.includes("401")) return "La credencial ya no es válida."
+	if (code.includes("403")) return "La credencial no tiene permisos suficientes."
+	if (code.includes("TIMEOUT")) return "El proveedor tardó demasiado en responder."
+	if (code.includes("RATE_LIMIT") || code.includes("429")) {
+		return "El proveedor limitó temporalmente las consultas. Inténtalo nuevamente."
+	}
+	return fallback
+}
+
+export async function getProviderChannelManagerPreflight(params: {
+	providerId: string
+	currentUserId?: string | null
+	connectionId: string
+}) {
+	const connection = await db
+		.select()
+		.from(ProviderIntegrationConnection)
+		.where(
+			and(
+				eq(ProviderIntegrationConnection.id, params.connectionId),
+				eq(ProviderIntegrationConnection.providerId, params.providerId),
+				eq(ProviderIntegrationConnection.connectorKey, "channel_manager")
+			)
+		)
+		.then((rows) => rows[0])
+	if (!connection || connection.status === "revoked") {
+		throw new Error("INTEGRATION_CONNECTION_NOT_FOUND")
+	}
+
+	const { listProviderIntegrationMappingCatalog, listProviderIntegrationMappingsForConnection } =
+		await import("@/lib/provider-integration-operations")
+	const [profile, localCatalog, mappings] = await Promise.all([
+		db
+			.select({
+				timezone: ProviderProfile.timezone,
+				defaultCurrency: ProviderProfile.defaultCurrency,
+			})
+			.from(ProviderProfile)
+			.where(eq(ProviderProfile.providerId, params.providerId))
+			.then((rows) => rows[0] ?? null),
+		listProviderIntegrationMappingCatalog(params.providerId),
+		listProviderIntegrationMappingsForConnection({
+			providerId: params.providerId,
+			connectionId: connection.id,
+		}),
+	])
+
+	const progress = { access: false, properties: false, rooms: false, rates: false }
+	const stageErrors: Partial<Record<"access" | "properties" | "rooms" | "rates", string>> = {}
+	const remoteWarnings = [] as Array<{
+		code: string
+		message: string
+		itemIndex: number | null
+		details?: unknown
+	}>
+	let remotePartial = false
+	let properties: RemoteChannelManagerPropertyResult["properties"] = []
+	let roomTypes: RemoteChannelManagerCatalogResult["roomTypes"] = []
+	let ratePlans: RemoteChannelManagerCatalogResult["ratePlans"] = []
+	let fetchedAt = new Date()
+
+	const vendorKey = normalizeChannelManagerVendorKey(connection.vendorKey)
+	const mode = normalizeMode(connection.mode)
+	const credential = await ensureProviderIntegrationCredentialFresh({
+		providerId: params.providerId,
+		connectionId: connection.id,
+		connectorKey: "channel_manager",
+		actorUserId: params.currentUserId,
+		authType: normalizeChannelManagerAuthType(connection.authType),
+		mode,
+	})
+	if (credential.error) {
+		stageErrors.access = credential.error
+	} else {
+		const adapter = createChannelManagerAdapter({
+			vendorKey,
+			credentialSecret: credential.credentialSecret,
+			mode,
+		})
+		if (adapter) {
+			try {
+				const access = await adapter.testAccess()
+				progress.access = access.ok
+				remoteWarnings.push(...access.warnings)
+				remotePartial ||= access.partial
+				if (!access.ok) stageErrors.access = access.message
+			} catch (error) {
+				stageErrors.access = channelManagerPreflightError(
+					error,
+					"No se pudo validar el acceso al channel manager."
+				)
+			}
+			if (progress.access) {
+				try {
+					const result = await adapter.listProperties()
+					properties = result.items
+					fetchedAt = result.fetchedAt
+					progress.properties = true
+					remoteWarnings.push(...result.warnings)
+					remotePartial ||= result.partial
+				} catch (error) {
+					stageErrors.properties = channelManagerPreflightError(
+						error,
+						"No se pudo leer el catálogo de propiedades."
+					)
+				}
+			}
+			const selectedPropertyExists = properties.some(
+				(property) => property.id === connection.externalPropertyId
+			)
+			if (progress.properties && selectedPropertyExists && connection.externalPropertyId) {
+				try {
+					const result = await adapter.listRoomTypes({
+						propertyId: connection.externalPropertyId,
+					})
+					roomTypes = result.items
+					fetchedAt = result.fetchedAt
+					progress.rooms = true
+					remoteWarnings.push(...result.warnings)
+					remotePartial ||= result.partial
+				} catch (error) {
+					stageErrors.rooms = channelManagerPreflightError(
+						error,
+						"No se pudo leer el catálogo de habitaciones."
+					)
+				}
+				if (progress.rooms) {
+					try {
+						const result = await adapter.listRatePlans({
+							propertyId: connection.externalPropertyId,
+						})
+						ratePlans = result.items
+						fetchedAt = result.fetchedAt
+						progress.rates = true
+						remoteWarnings.push(...result.warnings)
+						remotePartial ||= result.partial
+					} catch (error) {
+						stageErrors.rates = channelManagerPreflightError(
+							error,
+							"No se pudo leer el catálogo de tarifas."
+						)
+					}
+				}
+			}
+		} else {
+			try {
+				const { runChannelManagerVendorSmokeTest } =
+					await import("@/lib/provider-channel-manager-smoke")
+				const access = await runChannelManagerVendorSmokeTest({
+					vendorKey,
+					authType: normalizeChannelManagerAuthType(connection.authType),
+					credentialSecret: credential.credentialSecret,
+					externalPropertyId: null,
+					mode,
+				})
+				progress.access = Boolean(access?.ok)
+				if (!progress.access) stageErrors.access = access?.message ?? "Adapter no disponible."
+			} catch (error) {
+				stageErrors.access = channelManagerPreflightError(error, "No se pudo validar el acceso.")
+			}
+			if (progress.access) {
+				try {
+					const result = await fetchChannelManagerRemoteProperties({
+						vendorKey,
+						authType: normalizeChannelManagerAuthType(connection.authType),
+						credentialSecret: credential.credentialSecret,
+						mode,
+					})
+					properties = result.properties
+					fetchedAt = result.fetchedAt
+					progress.properties = true
+				} catch (error) {
+					stageErrors.properties = channelManagerPreflightError(
+						error,
+						"No se pudo leer el catálogo de propiedades."
+					)
+				}
+			}
+			if (
+				progress.properties &&
+				connection.externalPropertyId &&
+				properties.some((property) => property.id === connection.externalPropertyId)
+			) {
+				try {
+					const result = await fetchChannelManagerRemoteCatalog({
+						vendorKey,
+						authType: normalizeChannelManagerAuthType(connection.authType),
+						credentialSecret: credential.credentialSecret,
+						mode,
+						propertyId: connection.externalPropertyId,
+					})
+					roomTypes = result.roomTypes
+					ratePlans = result.ratePlans
+					fetchedAt = result.fetchedAt
+					progress.rooms = true
+					progress.rates = true
+					remoteWarnings.push(...(result.warnings ?? []))
+					remotePartial ||= result.partial ?? false
+				} catch (error) {
+					stageErrors.rooms = channelManagerPreflightError(error, "No se pudo leer el catálogo.")
+					stageErrors.rates = stageErrors.rooms
+				}
+			}
+		}
+	}
+
+	const preflight = evaluateChannelManagerPreflight({
+		selectedPropertyId: connection.externalPropertyId,
+		providerProfile: profile,
+		properties,
+		roomTypes,
+		ratePlans,
+		localCatalog,
+		mappings,
+		remoteWarnings,
+		remotePartial,
+		progress,
+		stageErrors,
+	})
+
+	return {
+		connection,
+		localCatalog,
+		mappings,
+		remoteCatalog: {
+			propertyId: String(connection.externalPropertyId ?? ""),
+			roomTypes,
+			ratePlans,
+			fetchedAt,
+			warnings: remoteWarnings,
+			partial: remotePartial,
+		},
+		properties,
+		preflight,
+	}
+}
+
+export async function getProviderChannelManagerRuntime(params: {
+	providerId: string
+	currentUserId?: string | null
+	connectionId: string
+}) {
+	const connection = await db
+		.select()
+		.from(ProviderIntegrationConnection)
+		.where(
+			and(
+				eq(ProviderIntegrationConnection.id, params.connectionId),
+				eq(ProviderIntegrationConnection.providerId, params.providerId),
+				eq(ProviderIntegrationConnection.connectorKey, "channel_manager")
+			)
+		)
+		.then((rows) => rows[0])
+	if (!connection || connection.status === "revoked") {
+		throw new Error("INTEGRATION_CONNECTION_NOT_FOUND")
+	}
+	const mode = normalizeMode(connection.mode)
+	const vendorKey = normalizeChannelManagerVendorKey(connection.vendorKey)
+	const credential = await ensureProviderIntegrationCredentialFresh({
+		providerId: params.providerId,
+		connectionId: connection.id,
+		connectorKey: "channel_manager",
+		actorUserId: params.currentUserId,
+		authType: normalizeChannelManagerAuthType(connection.authType),
+		mode,
+	})
+	if (credential.error || !credential.credentialSecret) {
+		throw new Error(credential.error ?? "INTEGRATION_CREDENTIAL_REQUIRED")
+	}
+	const adapter = createChannelManagerAdapter({
+		vendorKey,
+		credentialSecret: credential.credentialSecret,
+		mode,
+	})
+	if (!adapter) throw new Error("CHANNEL_MANAGER_ADAPTER_UNAVAILABLE")
+	return { adapter, connection, mode, vendorKey }
+}
+
+export async function activateProviderChannelManagerProduction(params: {
+	providerId: string
+	currentUserId?: string | null
+	connectionId: string
+}): Promise<ChannelManagerPreflightResult> {
+	const governance = await evaluateProviderGovernance(params.providerId, {
+		currentUserId: params.currentUserId,
+		persist: true,
+	})
+	if (!governance.capabilities.integrations) throw new Error("INTEGRATION_PRODUCTION_NOT_ALLOWED")
+	const context = await getProviderChannelManagerPreflight(params)
+	if (normalizeMode(context.connection.mode) !== "production") {
+		throw new Error("INTEGRATION_PRODUCTION_CONNECTION_REQUIRED")
+	}
+	if (!context.preflight.readyForProduction) {
+		throw new Error("INTEGRATION_PRODUCTION_PREFLIGHT_BLOCKED")
+	}
+	const now = new Date()
+	await db
+		.update(ProviderIntegrationConnection)
+		.set({
+			status: "connected",
+			syncEnabled: true,
+			lastSyncStatus: "preflight_success",
+			errorMessage: null,
+			lastCatalogSyncAt: context.preflight.checkedAt,
+			nextSyncAt: now,
+			updatedAt: now,
+		})
+		.where(eq(ProviderIntegrationConnection.id, context.connection.id))
+	await insertAudit({
+		providerId: params.providerId,
+		actorUserId: params.currentUserId,
+		action: "provider.integration.production.activate",
+		entityId: context.connection.id,
+		beforeJson: connectionAuditSnapshot(context.connection),
+		afterJson: {
+			...connectionAuditSnapshot(context.connection),
+			status: "connected",
+			mode: "production",
+			syncEnabled: true,
+			preflight: context.preflight.summary,
+		},
+		riskLevel: "high",
+	})
+	await invalidateProviderGovernance(params.providerId, "provider_integration_production_activated")
+	return context.preflight
+}
+
+export async function assertProviderChannelManagerCommercialSyncAllowed(params: {
+	providerId: string
+	connectionId: string
+}): Promise<ChannelManagerPreflightResult> {
+	const context = await getProviderChannelManagerPreflight(params)
+	if (
+		normalizeMode(context.connection.mode) !== "production" ||
+		!context.connection.syncEnabled ||
+		!context.preflight.readyForProduction
+	) {
+		throw new Error("INTEGRATION_COMMERCIAL_SYNC_PREFLIGHT_REQUIRED")
+	}
+	return context.preflight
 }
 
 function credentialsExpiresAt(expiresIn?: number | null, now = new Date()): Date | null {

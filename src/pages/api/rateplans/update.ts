@@ -8,6 +8,10 @@ import { getRatePlanById, resolveRatePlanOwnerContext } from "@/modules/pricing/
 import { assertProviderCapability } from "@/lib/provider-governance"
 import { validateRatePlanPublication } from "@/lib/rates/validateRatePlanPublication"
 import { getRatePlanRemovalReadiness } from "@/lib/rates/getRatePlanRemovalReadiness"
+import {
+	buildIncrementalAriHorizon,
+	enqueueProviderIncrementalAriChangeSoft,
+} from "@/lib/channel-manager/channel-manager-incremental-queue"
 
 const updateRatePlanSchema = z.object({
 	id: z.string().trim().min(1),
@@ -84,6 +88,14 @@ export const PUT: APIRoute = async ({ request }) => {
 			providerId,
 		})
 		await invalidateProvider(providerId)
+		if (Boolean(current?.isActive) !== body.isActive) {
+			await enqueueProviderIncrementalAriChangeSoft({
+				domain: "rates_restrictions",
+				variantIds: [owner.variantId],
+				ratePlanIds: [body.id],
+				...buildIncrementalAriHorizon(),
+			})
+		}
 		return json(200, { success: true })
 	} catch (error) {
 		if (error instanceof Response) return error

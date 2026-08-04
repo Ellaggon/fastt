@@ -135,7 +135,9 @@ function mappingFor(
 ) {
 	const mapping = mappings.find(
 		(item) =>
-			String(item.mappingType) === mappingType && String(item.localEntityId) === localEntityId
+			String(item.mappingType) === mappingType &&
+			String(item.localEntityId) === localEntityId &&
+			String(item.status ?? "active") === "active"
 	)
 	if (!mapping) return null
 	return {
@@ -183,7 +185,11 @@ export function buildChannelManagerMappingWorkspace(params: {
 }): ChannelManagerMappingWorkspace {
 	const usedRoomIds = new Set(
 		params.mappings
-			.filter((mapping) => String(mapping.mappingType) === "room_type")
+			.filter(
+				(mapping) =>
+					String(mapping.mappingType) === "room_type" &&
+					String(mapping.status ?? "active") === "active"
+			)
 			.map((mapping) => String(mapping.externalEntityId))
 	)
 	const roomRows = params.localCatalog.variants.map((variant) => {
@@ -215,7 +221,11 @@ export function buildChannelManagerMappingWorkspace(params: {
 	}
 	const usedRateIds = new Set(
 		params.mappings
-			.filter((mapping) => String(mapping.mappingType) === "rate_plan")
+			.filter(
+				(mapping) =>
+					String(mapping.mappingType) === "rate_plan" &&
+					String(mapping.status ?? "active") === "active"
+			)
 			.map((mapping) => String(mapping.externalEntityId))
 	)
 	const rateRows = params.localCatalog.ratePlans.map((ratePlan) => {
@@ -246,7 +256,11 @@ export function buildChannelManagerMappingWorkspace(params: {
 	const highConfidenceSuggestions = allRows.filter(
 		(row) => row.suggestion?.confidence === "high"
 	).length
-	const usedRemote = new Set(params.mappings.map((mapping) => String(mapping.externalEntityId)))
+	const usedRemote = new Set(
+		params.mappings
+			.filter((mapping) => String(mapping.status ?? "active") === "active")
+			.map((mapping) => String(mapping.externalEntityId))
+	)
 
 	return {
 		propertyId: params.remoteCatalog.propertyId,

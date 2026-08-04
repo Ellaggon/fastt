@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import {
 	and,
 	db,
@@ -6,6 +6,10 @@ import {
 	Provider,
 	ProviderAuditLog,
 	ProviderIntegrationConnection,
+	ProviderIntegrationCredential,
+	ProviderIntegrationIncident,
+	ProviderIntegrationMapping,
+	ProviderIntegrationSyncJob,
 	ProviderIntegrationSyncRun,
 	ProviderUser,
 	User,
@@ -69,8 +73,34 @@ async function upsertPostgresProvider(row: {
 }
 
 describe("integration/provider integrations product", () => {
+	const providerId = "provider_integrations_product"
+
+	async function cleanup() {
+		await db
+			.delete(ProviderIntegrationIncident)
+			.where(eq(ProviderIntegrationIncident.providerId, providerId))
+		await db
+			.delete(ProviderIntegrationSyncJob)
+			.where(eq(ProviderIntegrationSyncJob.providerId, providerId))
+		await db
+			.delete(ProviderIntegrationSyncRun)
+			.where(eq(ProviderIntegrationSyncRun.providerId, providerId))
+		await db
+			.delete(ProviderIntegrationMapping)
+			.where(eq(ProviderIntegrationMapping.providerId, providerId))
+		await db
+			.delete(ProviderIntegrationCredential)
+			.where(eq(ProviderIntegrationCredential.providerId, providerId))
+		await db
+			.delete(ProviderIntegrationConnection)
+			.where(eq(ProviderIntegrationConnection.providerId, providerId))
+		await db.delete(ProviderAuditLog).where(eq(ProviderAuditLog.providerId, providerId))
+	}
+
+	beforeAll(cleanup)
+	afterAll(cleanup)
+
 	it("persists connector configuration, sync runs, scopes, mode and revocation", async () => {
-		const providerId = "provider_integrations_product"
 		const ownerEmail = "integrations.product@example.com"
 
 		const { userId: ownerId } = await upsertPostgresProvider({

@@ -12,6 +12,7 @@ import {
 	ProviderIntegrationSyncJob,
 	ProviderIntegrationSyncRun,
 	Product,
+	ProductStatus,
 	RatePlan,
 	sql,
 	TaxFeeDefinition,
@@ -66,6 +67,8 @@ export type ProviderIntegrationMappingCatalog = {
 		entityType: "variant"
 		productId: string
 		productName: string
+		productPublished: boolean
+		sellable: boolean
 	}>
 	ratePlans: Array<{
 		id: string
@@ -75,6 +78,8 @@ export type ProviderIntegrationMappingCatalog = {
 		variantId: string
 		variantName: string
 		isDefault: boolean
+		productPublished: boolean
+		sellable: boolean
 	}>
 	taxes: Array<{ id: string; label: string; entityType: "tax" }>
 }
@@ -693,10 +698,14 @@ export async function listProviderIntegrationMappingsForConnection(params: {
 		.select({
 			id: ProviderIntegrationMapping.id,
 			mappingType: ProviderIntegrationMapping.mappingType,
+			localEntityType: ProviderIntegrationMapping.localEntityType,
 			localEntityId: ProviderIntegrationMapping.localEntityId,
+			externalEntityType: ProviderIntegrationMapping.externalEntityType,
 			externalEntityId: ProviderIntegrationMapping.externalEntityId,
 			externalEntityName: ProviderIntegrationMapping.externalEntityName,
 			status: ProviderIntegrationMapping.status,
+			metadataJson: ProviderIntegrationMapping.metadataJson,
+			lastVerifiedAt: ProviderIntegrationMapping.lastVerifiedAt,
 		})
 		.from(ProviderIntegrationMapping)
 		.where(
@@ -992,12 +1001,13 @@ export async function listProviderIntegrationMappingCatalog(
 				name: Variant.name,
 				productId: Product.id,
 				productName: Product.name,
+				productState: ProductStatus.state,
 			})
 			.from(Variant)
 			.innerJoin(Product, eq(Product.id, Variant.productId))
+			.leftJoin(ProductStatus, eq(ProductStatus.productId, Product.id))
 			.where(and(eq(Product.providerId, providerId), eq(Variant.isActive, true)))
-			.orderBy(Product.name, Variant.name)
-			.limit(200),
+			.orderBy(Product.name, Variant.name),
 		db
 			.select({
 				id: RatePlan.id,
@@ -1006,13 +1016,15 @@ export async function listProviderIntegrationMappingCatalog(
 				variantName: Variant.name,
 				productName: Product.name,
 				isDefault: RatePlan.isDefault,
+				variantActive: Variant.isActive,
+				productState: ProductStatus.state,
 			})
 			.from(RatePlan)
 			.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
 			.innerJoin(Product, eq(Product.id, Variant.productId))
+			.leftJoin(ProductStatus, eq(ProductStatus.productId, Product.id))
 			.where(and(eq(Product.providerId, providerId), eq(RatePlan.isActive, true)))
-			.orderBy(Product.name, Variant.name, RatePlan.name)
-			.limit(250),
+			.orderBy(Product.name, Variant.name, RatePlan.name),
 		db
 			.select({
 				id: TaxFeeDefinition.id,
@@ -1038,6 +1050,8 @@ export async function listProviderIntegrationMappingCatalog(
 			entityType: "variant",
 			productId: variant.productId,
 			productName: variant.productName,
+			productPublished: variant.productState === "published",
+			sellable: variant.productState === "published",
 		})),
 		ratePlans: ratePlans.map((ratePlan) => ({
 			id: ratePlan.id,
@@ -1047,6 +1061,8 @@ export async function listProviderIntegrationMappingCatalog(
 			variantId: ratePlan.variantId,
 			variantName: ratePlan.variantName,
 			isDefault: Boolean(ratePlan.isDefault),
+			productPublished: ratePlan.productState === "published",
+			sellable: ratePlan.productState === "published" && Boolean(ratePlan.variantActive),
 		})),
 		taxes: taxes.map((tax) => ({
 			id: tax.id,

@@ -22,7 +22,7 @@ export const POST: APIRoute = async ({ request, params }) => {
 		})
 		return redirectIntegrationsSuccess(
 			request,
-			result.status === "connected" ? "sync_tested" : "reference_checked",
+			result.accessValidated ? "sync_tested" : "reference_checked",
 			uiMode,
 			{ returnTo, params: { connectionId } }
 		)
