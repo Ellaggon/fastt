@@ -1,6 +1,6 @@
 # Provider Integration Operations Runbook
 
-Last updated: 2026-07-28
+Last updated: 2026-08-03
 
 ## Scope
 
@@ -121,6 +121,8 @@ Process counters/timings supplement the database gauges:
 - `provider_integration_job_retries_total`
 - `provider_integration_job_attempt_failures_total`
 - `provider_integration_jobs_completed_total`
+- `provider_booking_revision_items_total{revision_status,outcome}`
+- `provider_booking_revision_feed_ms`
 - `provider_integration_purged_rows_total`
 - `provider_integration_purge_duration_ms`
 
@@ -134,3 +136,38 @@ Recommended initial alerts:
 
 Calendar labels use immutable IDs rather than names or URLs. This avoids leaking
 feed data, while still providing the requested per-calendar event volume.
+
+## Inbound channel-manager bookings
+
+The connection worker polls Channex's Booking Revision Feed once per minute after
+the initial ARI synchronization succeeds. Each queued execution reads every feed
+page in oldest-first order and handles `new`, `modified` and `cancelled`
+revisions.
+
+Processing ownership is intentionally narrow:
+
+- `ProviderIntegrationMapping` resolves remote room types and rate plans to the
+  Fastt `Variant` and `RatePlan` records.
+- `Booking.integrationConnectionId + externalBookingId` identifies the imported
+  reservation; `externalRevisionId` makes a retried revision idempotent.
+- A PostgreSQL advisory transaction lock serializes workers for the same remote
+  reservation.
+- `Booking`, `BookingRoomDetail`, `InventoryLock` and `DailyInventory` change in
+  one database transaction. A modification replaces current room details and
+  inventory locks. A cancellation releases inventory but retains the last room
+  detail as operational history.
+- Effective availability is recomputed after commit and enters the incremental
+  ARI availability path.
+- Channex is acknowledged only after the transaction commits. An ACK transport
+  failure is retryable; the next run sees the stored revision, skips duplicate
+  inventory work and retries the ACK.
+
+Missing mappings, incompatible inventory and persistence failures create an open
+`ProviderIntegrationIncident`. These revisions remain unacknowledged so they stay
+recoverable from Channex after the operator resolves the incident.
+
+Fastt does not parse or persist the Channex `guarantee` object in this MVP. Guest
+identity and stay data are stored, but card number, CVV, expiry and cardholder
+authentication data must never enter application logs, run summaries, incidents
+or booking snapshots. Adding payment-card retrieval requires a separate PCI
+architecture and security review.

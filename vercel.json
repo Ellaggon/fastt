@@ -13,7 +13,7 @@
     },
     {
       "path": "/api/cron/provider-integrations",
-      "schedule": "27 3 * * *"
+      "schedule": "* * * * *"
     },
     {
       "path": "/api/cron/provider-integration-maintenance",

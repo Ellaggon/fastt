@@ -35,6 +35,8 @@
     "smoke:invite-resend": "tsx src/scripts/smoke-provider-invitation-resend.ts",
     "query:settings-funnel": "tsx src/scripts/query-settings-funnel.ts",
     "query:integration-ux": "tsx src/scripts/query-provider-integration-ux.ts",
+    "bootstrap:channex-staging": "tsx src/scripts/bootstrap-channex-staging.ts",
+    "smoke:channex-staging": "tsx src/scripts/smoke-channex-staging.ts",
     "perf:html-budget": "node scripts/perf/html-budget.mjs",
     "perf:infra-region": "node scripts/perf/infra-region-compare.mjs",
     "perf:pagespeed": "node scripts/perf/pagespeed-public.mjs",

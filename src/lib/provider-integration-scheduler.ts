@@ -1,5 +1,19 @@
 import { db, eq, ProviderIntegrationConnection, sql } from "@/shared/infrastructure/db/compat"
 import { syncProviderIntegration } from "@/lib/provider-integrations"
+import { runProviderInitialAriSync } from "@/lib/channel-manager/channel-manager-initial-ari"
+import {
+	incrementalAriRetryMinutes,
+	runProviderIncrementalAriSync,
+} from "@/lib/channel-manager/channel-manager-incremental-ari"
+import {
+	INCREMENTAL_AVAILABILITY_OPERATION,
+	INCREMENTAL_RATES_OPERATION,
+} from "@/lib/channel-manager/channel-manager-incremental-queue"
+import { ChannelManagerAdapterError } from "@/lib/channel-manager/channel-manager-adapter"
+import {
+	BOOKING_REVISION_FEED_OPERATION,
+	runProviderBookingRevisionFeed,
+} from "@/lib/channel-manager/channel-manager-booking-revisions"
 import {
 	boundedInteger,
 	claimQueuedProviderSyncJobs,
@@ -7,6 +21,7 @@ import {
 	markProviderSyncJobFailed,
 	markProviderSyncJobSucceeded,
 	providerSyncJobRetryMinutes,
+	updateProviderSyncJobProgress,
 	type ClaimedProviderSyncJob,
 } from "@/lib/provider-sync-job-queue"
 
@@ -126,11 +141,55 @@ async function enqueueDueProviderIntegrationSyncJobs(params: {
 	return Number(count)
 }
 
+async function enqueueBookingRevisionFeedJobs(params: {
+	now: Date
+	batchSize: number
+	providerId?: string
+}): Promise<number> {
+	const nowIso = params.now.toISOString()
+	const minute = nowIso.slice(0, 16)
+	const rows = await db.execute(sql`
+		WITH eligible AS (
+			SELECT "id", "providerId"
+			FROM "ProviderIntegrationConnection"
+			WHERE
+				"connectorKey" = 'channel_manager'
+				AND "status" <> 'revoked'
+				AND "externalPropertyId" IS NOT NULL
+				AND "lastSyncStatus" IN (
+					'initial_ari_succeeded', 'incremental_ari_succeeded',
+					'incremental_ari_partial', 'booking_revision_feed_succeeded',
+					'booking_revision_feed_partial'
+				)
+				AND "syncEnabled" = TRUE
+				AND (${params.providerId ?? null}::text IS NULL OR "providerId" = ${params.providerId ?? null})
+			ORDER BY "id"
+			LIMIT ${params.batchSize}
+		), inserted AS (
+			INSERT INTO "ProviderIntegrationSyncJob" (
+				"id", "providerId", "connectionId", "targetType", "targetId", "connectorKey",
+				"operation", "status", "trigger", "priority", "attempts", "maxAttempts",
+				"runAfter", "idempotencyKey", "createdAt", "updatedAt"
+			)
+			SELECT
+				gen_random_uuid()::text, "providerId", "id", 'connection', "id", 'channel_manager',
+				${BOOKING_REVISION_FEED_OPERATION}, 'queued', 'scheduled', 5, 0, 8,
+				${nowIso}, 'booking-feed:' || "id" || ':' || ${minute}, ${nowIso}, ${nowIso}
+			FROM eligible
+			ON CONFLICT ("targetType", "targetId", "idempotencyKey") DO NOTHING
+			RETURNING "id"
+		)
+		SELECT count(*)::int AS "count" FROM inserted
+	`)
+	return Number(Array.from(rows as unknown as Array<{ count: number | string }>)[0]?.count ?? 0)
+}
+
 async function finishProviderIntegrationSyncJob(params: {
 	job: ClaimedProviderSyncJob
 	leaseToken: string
 	status: "succeeded" | "failed"
 	errorCode?: string
+	retryMinutes?: number
 }) {
 	if (params.status === "succeeded") {
 		await markProviderSyncJobSucceeded({
@@ -148,8 +207,9 @@ async function finishProviderIntegrationSyncJob(params: {
 		maxAttempts: params.job.maxAttempts,
 		errorCode: params.errorCode ?? "INTEGRATION_SYNC_FAILED",
 		targetType: params.job.targetType,
+		retryMinutes: params.retryMinutes,
 	})
-	if (params.job.connectionId) {
+	if (params.job.connectionId && params.job.operation === "connection_test") {
 		const now = new Date()
 		await db
 			.update(ProviderIntegrationConnection)
@@ -176,11 +236,11 @@ export async function runScheduledProviderIntegrationSync(options?: {
 	const concurrency = boundedInteger(options?.concurrency, config.concurrency, 1, 8)
 	const providerLimit = boundedInteger(options?.providerLimit, config.providerLimit, 1, 10)
 	const leaseToken = crypto.randomUUID()
-	const enqueued = await enqueueDueProviderIntegrationSyncJobs({
-		now,
-		batchSize,
-		providerId: options?.providerId,
-	})
+	const [scheduledConnections, bookingFeeds] = await Promise.all([
+		enqueueDueProviderIntegrationSyncJobs({ now, batchSize, providerId: options?.providerId }),
+		enqueueBookingRevisionFeedJobs({ now, batchSize, providerId: options?.providerId }),
+	])
+	const enqueued = scheduledConnections + bookingFeeds
 	const jobs = await claimQueuedProviderSyncJobs({
 		now,
 		batchSize,
@@ -192,20 +252,86 @@ export async function runScheduledProviderIntegrationSync(options?: {
 	const items = await mapWithConcurrency(jobs, concurrency, async (job) => {
 		const connectionId = String(job.connectionId ?? job.targetId)
 		try {
-			const result = await syncProviderIntegration({
-				providerId: job.providerId,
-				connectorKey: job.connectorKey,
-				connectionId,
-				trigger: job.trigger as "manual" | "scheduled" | "webhook" | "retry",
-				idempotencyKey: job.idempotencyKey,
-			})
-			if (result.status !== "connected") throw new Error("INTEGRATION_SYNC_NOT_CONNECTED")
+			if (job.operation === "initial_ari_sync") {
+				const payload =
+					job.payloadJson && typeof job.payloadJson === "object"
+						? (job.payloadJson as Record<string, unknown>)
+						: {}
+				await runProviderInitialAriSync({
+					providerId: job.providerId,
+					connectionId,
+					requestedBy: String(payload.requestedBy ?? "").trim() || null,
+					trigger: job.trigger as "manual" | "scheduled" | "webhook" | "retry",
+					idempotencyKey: `${job.idempotencyKey}:attempt:${Number(job.attempts ?? 0) + 1}`,
+					onProgress: (progress) =>
+						updateProviderSyncJobProgress({
+							jobId: job.id,
+							leaseToken,
+							progress,
+						}),
+				})
+			} else if (
+				job.operation === INCREMENTAL_AVAILABILITY_OPERATION ||
+				job.operation === INCREMENTAL_RATES_OPERATION
+			) {
+				await runProviderIncrementalAriSync({
+					providerId: job.providerId,
+					connectionId,
+					operation: job.operation,
+					idempotencyKey: `${job.idempotencyKey}:attempt:${Number(job.attempts ?? 0) + 1}`,
+					payload: job.payloadJson,
+					trigger: job.trigger as "manual" | "scheduled" | "webhook" | "retry",
+					now,
+				})
+			} else if (job.operation === BOOKING_REVISION_FEED_OPERATION) {
+				await runProviderBookingRevisionFeed({
+					providerId: job.providerId,
+					connectionId,
+					idempotencyKey: `${job.idempotencyKey}:attempt:${Number(job.attempts ?? 0) + 1}`,
+					trigger: job.trigger as "manual" | "scheduled" | "webhook" | "retry",
+				})
+			} else {
+				const result = await syncProviderIntegration({
+					providerId: job.providerId,
+					connectorKey: job.connectorKey,
+					connectionId,
+					trigger: job.trigger as "manual" | "scheduled" | "webhook" | "retry",
+					idempotencyKey: job.idempotencyKey,
+				})
+				if (result.status !== "connected") throw new Error("INTEGRATION_SYNC_NOT_CONNECTED")
+			}
 			await finishProviderIntegrationSyncJob({ job, leaseToken, status: "succeeded" })
 			return { connectionId, jobId: job.id, status: "succeeded" as const }
 		} catch (error) {
 			const errorCode =
 				error instanceof Error ? error.message.slice(0, 100) : "INTEGRATION_SYNC_FAILED"
-			await finishProviderIntegrationSyncJob({ job, leaseToken, status: "failed", errorCode })
+			const retryableInitialAriFailure =
+				job.operation === "initial_ari_sync" &&
+				error instanceof ChannelManagerAdapterError &&
+				error.retryable
+			const incrementalOperation =
+				job.operation === INCREMENTAL_AVAILABILITY_OPERATION ||
+				job.operation === INCREMENTAL_RATES_OPERATION
+			const retryableIncrementalFailure =
+				incrementalOperation && error instanceof ChannelManagerAdapterError && error.retryable
+			const bookingFeedOperation = job.operation === BOOKING_REVISION_FEED_OPERATION
+			const retryableBookingFeedFailure =
+				bookingFeedOperation && error instanceof ChannelManagerAdapterError && error.retryable
+			await finishProviderIntegrationSyncJob({
+				job:
+					(job.operation === "initial_ari_sync" && !retryableInitialAriFailure) ||
+					(incrementalOperation && !retryableIncrementalFailure) ||
+					(bookingFeedOperation && !retryableBookingFeedFailure)
+						? { ...job, maxAttempts: Number(job.attempts ?? 0) + 1 }
+						: job,
+				leaseToken,
+				status: "failed",
+				errorCode,
+				retryMinutes:
+					retryableIncrementalFailure || retryableBookingFeedFailure
+						? incrementalAriRetryMinutes(Number(job.attempts ?? 0) + 1)
+						: undefined,
+			})
 			return {
 				connectionId,
 				jobId: job.id,
