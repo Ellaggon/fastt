@@ -453,6 +453,7 @@ async function loadProviderRuleOrThrow(
 }
 
 async function recomputeRuleProjection(params: {
+	providerId: string
 	scope: RestrictionScope
 	scopeId: string
 	startDate: string
@@ -467,6 +468,8 @@ async function recomputeRuleProjection(params: {
 		reason: params.reason,
 	})
 	await rematerializeSearchUnitViewForRestrictions(result, params.reason)
+	const { invalidateCalendarSurface } = await import("@/lib/cache/invalidation")
+	await invalidateCalendarSurface(params.providerId, params.reason)
 }
 
 async function rematerializeSearchUnitViewForRestrictions(
@@ -617,6 +620,7 @@ export async function createRestrictionsSurfaceRule(
 		priority: computeRestrictionPriority(scope, type),
 	})
 	await recomputeRuleProjection({
+		providerId,
 		scope,
 		scopeId,
 		startDate,
@@ -661,6 +665,7 @@ export async function updateRestrictionsSurfaceRule(
 		priority: computeRestrictionPriority(scope, type),
 	})
 	await recomputeRuleProjection({
+		providerId,
 		scope: previous.scope,
 		scopeId: previous.scopeId,
 		startDate: previous.startDate,
@@ -668,6 +673,7 @@ export async function updateRestrictionsSurfaceRule(
 		reason: "restriction_update_previous",
 	})
 	await recomputeRuleProjection({
+		providerId,
 		scope,
 		scopeId,
 		startDate,
@@ -694,6 +700,7 @@ export async function setRestrictionsSurfaceRuleActive(
 	}
 	await setCommercialRuleActive(ruleId, isActive)
 	await recomputeRuleProjection({
+		providerId,
 		scope: rule.scope,
 		scopeId: rule.scopeId,
 		startDate: rule.startDate,
@@ -709,6 +716,7 @@ export async function deleteRestrictionsSurfaceRule(
 	const rule = await loadProviderRuleOrThrow(providerId, ruleId)
 	await deleteCommercialRule(ruleId)
 	await recomputeRuleProjection({
+		providerId,
 		scope: rule.scope,
 		scopeId: rule.scopeId,
 		startDate: rule.startDate,

@@ -5,7 +5,7 @@ import {
 	buildRatesMultiCalendarSurface,
 	type MultiCalendarSurface,
 } from "@/lib/rates/multiCalendarSurface"
-import { loadRatePlansReadModel } from "@/lib/rates/loadRatePlansReadModel"
+import { loadProviderRatePlansReadModel } from "@/lib/rates/loadRatePlansReadModel"
 import { loadRestrictionsSurface } from "@/lib/rates/restrictionsSurface"
 
 export type MultiCalendarAppliedRule = {
@@ -39,12 +39,14 @@ export type MultiCalendarWorkspace = {
 }
 
 export async function loadMultiCalendarWorkspace(input: {
-	request: Request
 	providerId: string
 	url: URL
 	ratePlanIds?: string[]
 }): Promise<MultiCalendarWorkspace> {
-	const allRows = await loadRatePlansReadModel({ request: input.request, channel: "web" })
+	const allRows = await loadProviderRatePlansReadModel({
+		providerId: input.providerId,
+		url: input.url,
+	})
 	const requestedIds = new Set((input.ratePlanIds ?? []).filter(Boolean))
 	const rows = requestedIds.size
 		? allRows.filter((row) => requestedIds.has(String(row.ratePlanId)))

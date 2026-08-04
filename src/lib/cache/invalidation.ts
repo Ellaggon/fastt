@@ -33,6 +33,7 @@ async function invalidateRatePlanSurfacesByOwnership(params: {
 			.flatMap((providerId) => [
 				delByPrefix(cacheKeys.providerRatePlansSurfacePrefix(providerId)),
 				delByPrefix(cacheKeys.providerRatePlanVariants(providerId)),
+				delByPrefix(cacheKeys.calendarSurfacePrefix(providerId)),
 			])
 	)
 }
@@ -102,8 +103,18 @@ export async function invalidateProviderIntegrations(
 ): Promise<void> {
 	const id = String(providerId ?? "").trim()
 	if (!id) return
-	await delByPrefix(`ws:provider:${id}:integrations`)
+	await Promise.all([
+		delByPrefix(`ws:provider:${id}:integrations`),
+		delByPrefix(cacheKeys.calendarSurfacePrefix(id)),
+	])
 	console.debug("cache invalidated", { scope: "provider_integrations", id, source })
+}
+
+export async function invalidateCalendarSurface(providerId: string, source: string): Promise<void> {
+	const id = String(providerId ?? "").trim()
+	if (!id) return
+	await delByPrefix(cacheKeys.calendarSurfacePrefix(id))
+	console.debug("cache invalidated", { scope: "calendar_surface", providerId: id, source })
 }
 
 export async function invalidateProduct(productId: string): Promise<void> {

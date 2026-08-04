@@ -29,6 +29,17 @@ export const cacheKeys = {
 	providerRatePlanVariants(providerId: string): string {
 		return `ws:provider:${providerId}:rates:variants`
 	},
+	calendarSurface(
+		providerId: string,
+		ratePlanId: string,
+		variantId: string,
+		month: string
+	): string {
+		return `ws:provider:${providerId}:calendar:${variantId}:${ratePlanId}:${month}`
+	},
+	calendarSurfacePrefix(providerId: string): string {
+		return `ws:provider:${providerId}:calendar:`
+	},
 	productSurface(productId: string): string {
 		return `ws:product:${productId}:surface`
 	},
@@ -150,6 +161,7 @@ export const cacheTtls = {
 	providerSidebar: 20,
 	providerRatePlansSurface: 20,
 	providerRatePlanVariants: 30,
+	calendarSurface: 15,
 	providerBookingsSummary: 30,
 	productSurface: 60,
 	productVariantsList: 30,
