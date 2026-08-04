@@ -2,40 +2,30 @@ import type {
 	ChannelManagerAuthType,
 	ChannelManagerVendorKey,
 } from "@/lib/provider-channel-manager-vendors"
+import { createChannelManagerAdapter } from "@/lib/channel-manager/channel-manager-adapter-factory"
+import type {
+	ChannelManagerOperationMeta,
+	ChannelManagerProperty,
+	ChannelManagerRatePlan,
+	ChannelManagerRoomType,
+} from "@/lib/channel-manager/channel-manager-adapter"
+import {
+	assertProviderIntegrationTestCredentialAllowed,
+	isSyntheticProviderIntegrationCredential,
+} from "@/lib/provider-integration-test-harness"
 
-export type RemoteChannelManagerProperty = {
-	id: string
-	name: string
-	city: string | null
-	country: string | null
-	currency: string | null
-}
+export type RemoteChannelManagerProperty = ChannelManagerProperty
 
-export type RemoteChannelManagerPropertyResult = {
+export type RemoteChannelManagerPropertyResult = Partial<ChannelManagerOperationMeta> & {
 	properties: RemoteChannelManagerProperty[]
 	fetchedAt: Date
 }
 
-export type RemoteChannelManagerRoomType = {
-	id: string
-	name: string
-	propertyId: string
-	units: number | null
-	maxAdults: number | null
-	maxChildren: number | null
-}
+export type RemoteChannelManagerRoomType = ChannelManagerRoomType
 
-export type RemoteChannelManagerRatePlan = {
-	id: string
-	name: string
-	propertyId: string
-	roomTypeId: string | null
-	currency: string | null
-	derived: boolean
-	readOnly: boolean
-}
+export type RemoteChannelManagerRatePlan = ChannelManagerRatePlan
 
-export type RemoteChannelManagerCatalogResult = {
+export type RemoteChannelManagerCatalogResult = Partial<ChannelManagerOperationMeta> & {
 	propertyId: string
 	roomTypes: RemoteChannelManagerRoomType[]
 	ratePlans: RemoteChannelManagerRatePlan[]
@@ -44,8 +34,6 @@ export type RemoteChannelManagerCatalogResult = {
 
 const CLOUDBEDS_BASE_URL = "https://hotels.cloudbeds.com/api/v1.2"
 const CLOUDBEDS_CATALOG_BASE_URL = "https://hotels.cloudbeds.com/api/v1.3"
-const CHANNEX_SANDBOX_BASE_URL = "https://staging.channex.io/api/v1"
-const CHANNEX_PRODUCTION_BASE_URL = "https://app.channex.io/api/v1"
 const REQUEST_TIMEOUT_MS = 8_000
 
 async function fetchJson(url: string, options: RequestInit): Promise<unknown> {
@@ -97,27 +85,11 @@ function cloudbedsProperties(payload: unknown): RemoteChannelManagerProperty[] {
 				city: normalizeText(row.propertyCity ?? row.city),
 				country: normalizeText(row.propertyCountry ?? row.country),
 				currency: normalizeText(row.propertyCurrency ?? row.currency),
-			},
-		]
-	})
-}
-
-function channexProperties(payload: unknown): RemoteChannelManagerProperty[] {
-	const rows = Array.isArray((payload as { data?: unknown })?.data)
-		? ((payload as { data: unknown[] }).data ?? [])
-		: []
-	return rows.flatMap((raw) => {
-		const row = raw as { id?: unknown; attributes?: Record<string, unknown> }
-		const id = normalizeText(row.id)
-		if (!id) return []
-		const attributes = row.attributes ?? {}
-		return [
-			{
-				id,
-				name: normalizeText(attributes.title ?? attributes.name) ?? `Propiedad ${id}`,
-				city: normalizeText(attributes.city),
-				country: normalizeText(attributes.country),
-				currency: normalizeText(attributes.currency),
+				timezone: normalizeText(row.propertyTimezone ?? row.timezone),
+				active:
+					row.isActive == null && row.active == null
+						? null
+						: normalizeBoolean(row.isActive ?? row.active),
 			},
 		]
 	})
@@ -184,61 +156,6 @@ function cloudbedsRatePlans(payload: unknown, propertyId: string): RemoteChannel
 	})
 }
 
-function channexRoomTypes(payload: unknown, propertyId: string): RemoteChannelManagerRoomType[] {
-	return payloadRows(payload).flatMap((raw) => {
-		const row = raw as {
-			id?: unknown
-			attributes?: Record<string, unknown>
-			relationships?: Record<string, { data?: { id?: unknown } }>
-		}
-		const attributes = row.attributes ?? {}
-		const id = normalizeText(row.id ?? attributes.id)
-		if (!id) return []
-		return [
-			{
-				id,
-				name: normalizeText(attributes.title ?? attributes.name) ?? `Habitación ${id}`,
-				propertyId:
-					normalizeText(attributes.property_id ?? row.relationships?.property?.data?.id) ??
-					propertyId,
-				units: normalizeNumber(attributes.count_of_rooms ?? attributes.count),
-				maxAdults: normalizeNumber(attributes.occ_adults ?? attributes.max_persons),
-				maxChildren: normalizeNumber(attributes.occ_children),
-			},
-		]
-	})
-}
-
-function channexRatePlans(payload: unknown, propertyId: string): RemoteChannelManagerRatePlan[] {
-	return payloadRows(payload).flatMap((raw) => {
-		const row = raw as {
-			id?: unknown
-			attributes?: Record<string, unknown>
-			relationships?: Record<string, { data?: { id?: unknown } }>
-		}
-		const attributes = row.attributes ?? {}
-		const id = normalizeText(row.id ?? attributes.id)
-		if (!id) return []
-		return [
-			{
-				id,
-				name: normalizeText(attributes.title ?? attributes.name) ?? `Tarifa ${id}`,
-				propertyId:
-					normalizeText(attributes.property_id ?? row.relationships?.property?.data?.id) ??
-					propertyId,
-				roomTypeId: normalizeText(
-					attributes.room_type_id ?? row.relationships?.room_type?.data?.id
-				),
-				currency: normalizeText(attributes.currency),
-				derived:
-					normalizeBoolean(attributes.inherit_rate) ||
-					Boolean(normalizeText(attributes.parent_rate_plan_id)),
-				readOnly: normalizeBoolean(attributes.read_only),
-			},
-		]
-	})
-}
-
 export async function fetchChannelManagerRemoteProperties(params: {
 	vendorKey: ChannelManagerVendorKey
 	authType: ChannelManagerAuthType
@@ -246,6 +163,21 @@ export async function fetchChannelManagerRemoteProperties(params: {
 	mode: "sandbox" | "production"
 }): Promise<RemoteChannelManagerPropertyResult> {
 	if (!params.credentialSecret) throw new Error("REMOTE_PROPERTIES_CREDENTIAL_REQUIRED")
+	if (isSyntheticProviderIntegrationCredential(params.credentialSecret)) {
+		assertProviderIntegrationTestCredentialAllowed(params.credentialSecret, { mode: params.mode })
+	}
+	const adapter = createChannelManagerAdapter(params)
+	if (adapter) {
+		const result = await adapter.listProperties()
+		return {
+			properties: result.items,
+			fetchedAt: result.fetchedAt,
+			requestIds: result.requestIds,
+			warnings: result.warnings,
+			partial: result.partial,
+			pageCount: result.pageCount,
+		}
+	}
 
 	if (params.credentialSecret === "test://cloudbeds-ok") {
 		return {
@@ -256,20 +188,8 @@ export async function fetchChannelManagerRemoteProperties(params: {
 					city: "Santiago",
 					country: "CL",
 					currency: "USD",
-				},
-			],
-			fetchedAt: new Date(),
-		}
-	}
-	if (params.credentialSecret === "test://channex-ok") {
-		return {
-			properties: [
-				{
-					id: "channex_property_1",
-					name: "Hotel de prueba Channex",
-					city: "Santiago",
-					country: "CL",
-					currency: "USD",
+					timezone: "America/Santiago",
+					active: true,
 				},
 			],
 			fetchedAt: new Date(),
@@ -288,24 +208,6 @@ export async function fetchChannelManagerRemoteProperties(params: {
 		return { properties: cloudbedsProperties(payload), fetchedAt: new Date() }
 	}
 
-	if (params.vendorKey === "channex") {
-		const baseUrl =
-			params.mode === "production" ? CHANNEX_PRODUCTION_BASE_URL : CHANNEX_SANDBOX_BASE_URL
-		const payload = await fetchJson(
-			`${baseUrl}/properties/?pagination[page]=1&pagination[limit]=100`,
-			{
-				method: "GET",
-				headers: {
-					"Accept": "application/json",
-					"Content-Type": "application/json",
-					"user-api-key": params.credentialSecret,
-					"User-Agent": "fastt-channex-properties/1.0",
-				},
-			}
-		)
-		return { properties: channexProperties(payload), fetchedAt: new Date() }
-	}
-
 	throw new Error("REMOTE_PROPERTIES_VENDOR_UNSUPPORTED")
 }
 
@@ -319,6 +221,26 @@ export async function fetchChannelManagerRemoteCatalog(params: {
 	const propertyId = String(params.propertyId ?? "").trim()
 	if (!propertyId) throw new Error("REMOTE_CATALOG_PROPERTY_REQUIRED")
 	if (!params.credentialSecret) throw new Error("REMOTE_CATALOG_CREDENTIAL_REQUIRED")
+	if (isSyntheticProviderIntegrationCredential(params.credentialSecret)) {
+		assertProviderIntegrationTestCredentialAllowed(params.credentialSecret, { mode: params.mode })
+	}
+	const adapter = createChannelManagerAdapter(params)
+	if (adapter) {
+		const [roomTypes, ratePlans] = await Promise.all([
+			adapter.listRoomTypes({ propertyId }),
+			adapter.listRatePlans({ propertyId }),
+		])
+		return {
+			propertyId,
+			roomTypes: roomTypes.items,
+			ratePlans: ratePlans.items,
+			fetchedAt: new Date(Math.max(roomTypes.fetchedAt.getTime(), ratePlans.fetchedAt.getTime())),
+			requestIds: [...roomTypes.requestIds, ...ratePlans.requestIds],
+			warnings: [...roomTypes.warnings, ...ratePlans.warnings],
+			partial: roomTypes.partial || ratePlans.partial,
+			pageCount: roomTypes.pageCount + ratePlans.pageCount,
+		}
+	}
 
 	if (params.credentialSecret === "test://cloudbeds-ok") {
 		return {
@@ -355,33 +277,6 @@ export async function fetchChannelManagerRemoteCatalog(params: {
 			fetchedAt: new Date(),
 		}
 	}
-	if (params.credentialSecret === "test://channex-ok") {
-		return {
-			propertyId,
-			roomTypes: [
-				{
-					id: "cx_room_twin",
-					name: "Twin Room",
-					propertyId,
-					units: 6,
-					maxAdults: 2,
-					maxChildren: 0,
-				},
-			],
-			ratePlans: [
-				{
-					id: "cx_rate_bar",
-					name: "Best Available Rate",
-					propertyId,
-					roomTypeId: "cx_room_twin",
-					currency: "USD",
-					derived: false,
-					readOnly: false,
-				},
-			],
-			fetchedAt: new Date(),
-		}
-	}
 
 	if (params.vendorKey === "cloudbeds") {
 		const headers = {
@@ -406,34 +301,6 @@ export async function fetchChannelManagerRemoteCatalog(params: {
 			propertyId,
 			roomTypes: cloudbedsRoomTypes(roomPayload, propertyId),
 			ratePlans: cloudbedsRatePlans(ratePayload, propertyId),
-			fetchedAt: new Date(),
-		}
-	}
-
-	if (params.vendorKey === "channex") {
-		const baseUrl =
-			params.mode === "production" ? CHANNEX_PRODUCTION_BASE_URL : CHANNEX_SANDBOX_BASE_URL
-		const headers = {
-			"Accept": "application/json",
-			"Content-Type": "application/json",
-			"user-api-key": params.credentialSecret,
-			"User-Agent": "fastt-channex-catalog/1.0",
-		}
-		const filter = encodeURIComponent(propertyId)
-		const [roomPayload, ratePayload] = await Promise.all([
-			fetchJson(
-				`${baseUrl}/room_types?filter[property_id]=${filter}&pagination[page]=1&pagination[limit]=100`,
-				{ method: "GET", headers }
-			),
-			fetchJson(
-				`${baseUrl}/rate_plans?filter[property_id]=${filter}&pagination[page]=1&pagination[limit]=250`,
-				{ method: "GET", headers }
-			),
-		])
-		return {
-			propertyId,
-			roomTypes: channexRoomTypes(roomPayload, propertyId),
-			ratePlans: channexRatePlans(ratePayload, propertyId),
 			fetchedAt: new Date(),
 		}
 	}
