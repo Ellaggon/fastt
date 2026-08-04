@@ -1,44 +1,35 @@
 ---
 import CalendarSubnav from "@/components/rates/CalendarSubnav.astro"
+import CalendarWorkspaceSkeleton from "@/components/rates/CalendarWorkspaceSkeleton.astro"
 import SingleCalendarWorkspace from "@/components/rates/SingleCalendarWorkspace"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
-import { requireProvider } from "@/lib/auth/requireProvider"
-import { getProfessionalModeCookiePreference } from "@/lib/dashboard/professionalModeCookie"
-import { getProviderSidebarData } from "@/lib/dashboard/providerSidebarReadiness"
+import type { WorkspaceRequestContext } from "@/lib/dashboard/workspaceRequestContext"
+import { createServerTimingRecorder } from "@/lib/observability/serverTiming"
 import { getNextAddRoomStep, resolveAddRoomPlaybookFromUrl } from "@/lib/playbook/add-room"
 import {
 	getNextLaunchStep,
 	resolveLaunchPlaybookFromUrl,
 } from "@/lib/playbook/launch-accommodation"
-import { loadRatePlansReadModel } from "@/lib/rates/loadRatePlansReadModel"
-import { buildSingleCalendarSurface } from "@/lib/rates/singleCalendarSurface"
+import {
+	loadProviderRatePlansReadModel,
+	type RatePlanListItem,
+} from "@/lib/rates/loadRatePlansReadModel"
 import { routes } from "@/lib/routes"
 import { count, DailyInventory, db, eq, first } from "@/shared/infrastructure/db/compat"
 
-const auth = await requireProvider(Astro.request).catch((error: unknown) => {
-	if (error instanceof Response && error.status === 401) return "__REDIRECT_LOGIN__"
-	if (error instanceof Response && error.status === 403) return "__REDIRECT_PROVIDER__"
-	throw error
-})
-if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
-if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerSettingsProfile())
-
-const professionalModeCookie = getProfessionalModeCookiePreference(Astro.request)
-const sidebarData = await getProviderSidebarData(auth.providerId, {
-	userId: auth.user.id,
-	professionalToolsEnabled:
-		typeof professionalModeCookie === "boolean" ? professionalModeCookie : undefined,
-})
-const isProfessionalCalendar = sidebarData.disclosureMode !== "small-provider"
-const rows = await loadRatePlansReadModel({ request: Astro.request, channel: "web" })
-const surface = await buildSingleCalendarSurface({
-	rows,
-	providerId: auth.providerId,
-	ratePlanId: Astro.url.searchParams.get("ratePlanId"),
-	variantId: Astro.url.searchParams.get("variantId"),
-	month: Astro.url.searchParams.get("month"),
-})
+const timing = createServerTimingRecorder()
+const workspaceContext = await timing.time<WorkspaceRequestContext>("authProvider", () =>
+	Astro.locals.getWorkspaceContext()
+)
+if (!workspaceContext.user) return Astro.redirect("/SignInPage")
+if (!workspaceContext.provider) return Astro.redirect(routes.providerSettingsProfile())
+const sidebarTimingPromise = timing.time("sidebar", () => workspaceContext.sidebarDataPromise)
+const auth = {
+	user: workspaceContext.user,
+	providerId: workspaceContext.provider.providerId,
+}
+const isProfessionalCalendar = workspaceContext.professionalToolsEnabled
 const requestedFocus = String(Astro.url.searchParams.get("focus") ?? "price")
 const initialMode =
 	requestedFocus === "availability"
@@ -52,10 +43,16 @@ const initialMode =
 const addRoomPlaybook = resolveAddRoomPlaybookFromUrl(Astro.url)
 const launchPlaybook = resolveLaunchPlaybookFromUrl(Astro.url)
 const flow = Astro.url.searchParams.get("flow")
+const needsGuidedContext = Boolean(addRoomPlaybook.active || launchPlaybook.active || flow)
+const rows = needsGuidedContext
+	? await timing.time("ratePlans", () =>
+			loadProviderRatePlansReadModel({ providerId: auth.providerId, url: Astro.url })
+		)
+	: (timing.add("ratePlans", 0, "deferred_calendar_api"), [])
 const variantIdParam = String(Astro.url.searchParams.get("variantId") ?? "").trim()
 const ratePlanIdParam = String(Astro.url.searchParams.get("ratePlanId") ?? "").trim()
 const matchedRow = rows.find(
-	(row) =>
+	(row: RatePlanListItem) =>
 		(variantIdParam && String(row.variantId) === variantIdParam) ||
 		(ratePlanIdParam && String(row.ratePlanId) === ratePlanIdParam)
 )
@@ -102,14 +99,16 @@ const isGuidedAvailabilityStep = Boolean(
 const guidedVariantId = String(addRoomCtx.variantId || launchCtx.variantId || "").trim()
 const guidedInventoryDays =
 	isGuidedAvailabilityStep && guidedVariantId
-		? Number(
-				(
-					await db
-						.select({ value: count() })
-						.from(DailyInventory)
-						.where(eq(DailyInventory.variantId, guidedVariantId))
-						.then(first)
-				)?.value ?? 0
+		? await timing.time("inventory", async () =>
+				Number(
+					(
+						await db
+							.select({ value: count() })
+							.from(DailyInventory)
+							.where(eq(DailyInventory.variantId, guidedVariantId))
+							.then(first)
+					)?.value ?? 0
+				)
 			)
 		: 0
 const Layout = activePlaybook ? PlaybookLayout : WorkspaceLayout
@@ -139,6 +138,15 @@ const layoutProps =
 					continueHref: launchContinueHref,
 				}
 			: { title: "Calendario" }
+
+await sidebarTimingPromise
+for (const name of ["pricing", "inventory", "restrictions", "searchFreshness", "ical"]) {
+	if (!timing.metrics.some((metric) => metric.name === name)) {
+		timing.add(name, 0, "deferred_calendar_api")
+	}
+}
+timing.addTotal("total")
+timing.setHeader(Astro.response.headers)
 ---
 
 <Layout {...layoutProps}>
@@ -167,8 +175,10 @@ const layoutProps =
 		{!activePlaybook ? <CalendarSubnav /> : null}
 
 		<SingleCalendarWorkspace
-			client:load
-			initialSurface={surface}
+			client:only="react"
+			initialRatePlanId={ratePlanIdParam || undefined}
+			initialVariantId={variantIdParam || undefined}
+			initialMonth={Astro.url.searchParams.get("month") ?? undefined}
 			isProfessional={isProfessionalCalendar}
 			initialMode={initialMode}
 			guidedAvailability={isGuidedAvailabilityStep
@@ -181,6 +191,8 @@ const layoutProps =
 						initialInventoryDays: guidedInventoryDays,
 					}
 				: undefined}
-		/>
+		>
+			<CalendarWorkspaceSkeleton slot="fallback" />
+		</SingleCalendarWorkspace>
 	</div>
 </Layout>

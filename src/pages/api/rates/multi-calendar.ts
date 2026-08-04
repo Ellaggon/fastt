@@ -21,7 +21,6 @@ export const GET: APIRoute = async ({ request, url }) => {
 			.map((value) => value.trim())
 			.filter(Boolean)
 		const workspace = await loadMultiCalendarWorkspace({
-			request,
 			providerId: auth.providerId,
 			url,
 			ratePlanIds,

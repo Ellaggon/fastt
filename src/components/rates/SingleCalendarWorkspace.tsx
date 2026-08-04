@@ -1,5 +1,5 @@
 /** @jsxRuntime classic */
-import React, { startTransition, useEffect, useMemo, useState } from "react"
+import React, { startTransition, useEffect, useMemo, useRef, useState } from "react"
 
 import CalendarResponsiveDrawer from "@/components/rates/CalendarResponsiveDrawer"
 import {
@@ -19,10 +19,13 @@ import {
 	type CalendarControlMode,
 	visibleCalendarActions,
 } from "@/lib/rates/calendarControlCatalog"
+import { createBoundedClientCache } from "@/lib/rates/calendarSurfaceClientCache"
 import type { SingleCalendarDay, SingleCalendarSurface } from "@/lib/rates/singleCalendarSurface"
 
 type Props = {
-	initialSurface: SingleCalendarSurface
+	initialRatePlanId?: string
+	initialVariantId?: string
+	initialMonth?: string
 	isProfessional: boolean
 	initialMode?: CalendarControlMode
 	guidedAvailability?: {
@@ -44,6 +47,53 @@ const RANGE_PRESETS = [
 	["next_7", "Prox. 7 días"],
 	["next_30", "Prox. 30 días"],
 ] as const
+const CLIENT_SURFACE_TTL_MS = 60_000
+const surfaceCache = createBoundedClientCache<SingleCalendarSurface>(12, CLIENT_SURFACE_TTL_MS)
+const prefetches = new Map<string, Promise<SingleCalendarSurface>>()
+
+function currentMonth() {
+	return new Date().toISOString().slice(0, 7)
+}
+
+function surfaceCacheKey(ratePlanId: string, variantId: string, month: string) {
+	return `${ratePlanId || "default"}:${variantId || "default"}:${month || currentMonth()}`
+}
+
+async function fetchCalendarSurface(
+	request: { ratePlanId: string; variantId: string; month: string },
+	signal?: AbortSignal
+): Promise<SingleCalendarSurface> {
+	const query = new URLSearchParams({ month: request.month })
+	if (request.ratePlanId) query.set("ratePlanId", request.ratePlanId)
+	if (request.variantId) query.set("variantId", request.variantId)
+	const response = await fetch(`/api/rates/calendar?${query.toString()}`, { signal })
+	const body = await response.json().catch(() => ({}))
+	if (!response.ok || !body?.surface) {
+		throw new Error(body?.error || "No se pudo actualizar el calendario")
+	}
+	const surface = body.surface as SingleCalendarSurface
+	surfaceCache.set(
+		surfaceCacheKey(surface.selectedRatePlanId, surface.selectedVariantId, surface.month),
+		surface
+	)
+	surfaceCache.set(surfaceCacheKey(request.ratePlanId, request.variantId, request.month), surface)
+	return surface
+}
+
+function prefetchCalendarSurface(request: {
+	ratePlanId: string
+	variantId: string
+	month: string
+}): Promise<SingleCalendarSurface> {
+	const key = surfaceCacheKey(request.ratePlanId, request.variantId, request.month)
+	const cached = surfaceCache.get(key)
+	if (cached) return Promise.resolve(cached)
+	const existing = prefetches.get(key)
+	if (existing) return existing
+	const pending = fetchCalendarSurface(request).finally(() => prefetches.delete(key))
+	prefetches.set(key, pending)
+	return pending
+}
 
 function localIsoDate() {
 	const date = new Date()
@@ -164,12 +214,21 @@ function actionTitle(action: DrawerAction) {
 }
 
 export default function SingleCalendarWorkspace({
-	initialSurface,
+	initialRatePlanId = "",
+	initialVariantId = "",
+	initialMonth = currentMonth(),
 	isProfessional,
 	initialMode = "price",
 	guidedAvailability,
 }: Props) {
-	const [surface, setSurface] = useState(initialSurface)
+	const initialRequest = {
+		ratePlanId: initialRatePlanId,
+		variantId: initialVariantId,
+		month: initialMonth,
+	}
+	const [surface, setSurface] = useState<SingleCalendarSurface | null>(() =>
+		surfaceCache.get(surfaceCacheKey(initialRatePlanId, initialVariantId, initialMonth))
+	)
 	const [mode, setMode] = useState<CalendarControlMode>(
 		!isProfessional && initialMode === "conditions" ? "price" : initialMode
 	)
@@ -180,7 +239,7 @@ export default function SingleCalendarWorkspace({
 	const [showInventoryDetail, setShowInventoryDetail] = useState(false)
 	const [value, setValue] = useState("")
 	const [reviewed, setReviewed] = useState(false)
-	const [loading, setLoading] = useState(false)
+	const [loading, setLoading] = useState(!surface)
 	const [feedback, setFeedback] = useState("")
 	const [guidedFeedback, setGuidedFeedback] = useState("")
 	const [guidedInventoryDays, setGuidedInventoryDays] = useState(
@@ -189,12 +248,11 @@ export default function SingleCalendarWorkspace({
 	const [guidedRange, setGuidedRange] = useState<"next_30" | "next_60" | "custom">("next_30")
 	const [guidedFrom, setGuidedFrom] = useState(localIsoDate())
 	const [guidedTo, setGuidedTo] = useState(addDays(localIsoDate(), 29))
-	const [guidedUnits, setGuidedUnits] = useState(() => {
-		const firstAvailable = initialSurface.days.find((day) => !day.isPast && day.totalUnits > 0)
-		return Math.max(1, Number(firstAvailable?.totalUnits ?? 1))
-	})
+	const [guidedUnits, setGuidedUnits] = useState(1)
 	const [gridDirection, setGridDirection] = useState<"previous" | "next" | "neutral">("neutral")
 	const [updatedDates, setUpdatedDates] = useState<Set<string>>(new Set())
+	const activeRequest = useRef<AbortController | null>(null)
+	const requestSequence = useRef(0)
 	const today = localIsoDate()
 	const visibleControlModes = isProfessional
 		? CALENDAR_CONTROL_MODES
@@ -208,58 +266,203 @@ export default function SingleCalendarWorkspace({
 	const guidedIsReady = guidedInventoryDays >= requiredGuidedDays
 
 	const selected = useMemo(() => [...selectedDates].sort(), [selectedDates])
-	const selection = {
-		from: selected[0] || "",
-		to: selected[selected.length - 1] || "",
-		count: selected.length,
-	}
-	const selectedExternalDays = surface.days.filter(
-		(day) => selectedDates.has(day.date) && day.externalCalendar
-	)
-	const externalDays = surface.days.filter((day) => day.externalCalendar?.eventCount)
-	const conflictDays = surface.days.filter((day) => day.externalCalendar?.conflictCount)
 
-	async function loadSurface(params: { ratePlanId?: string; month?: string } = {}) {
-		const requestedMonth = params.month || surface.month
+	async function loadSurface(
+		params: { ratePlanId?: string; variantId?: string; month?: string } = {},
+		options: { force?: boolean; updateUrl?: boolean } = {}
+	) {
+		const requestedRatePlanId =
+			params.ratePlanId || surface?.selectedRatePlanId || initialRatePlanId
+		const requestedVariantId = params.variantId || surface?.selectedVariantId || initialVariantId
+		const requestedMonth = params.month || surface?.month || initialMonth
 		setGridDirection(
-			requestedMonth < surface.month
+			surface && requestedMonth < surface.month
 				? "previous"
-				: requestedMonth > surface.month
+				: surface && requestedMonth > surface.month
 					? "next"
 					: "neutral"
 		)
-		setLoading(true)
 		setFeedback("")
-		try {
-			const query = new URLSearchParams({
-				ratePlanId: params.ratePlanId || surface.selectedRatePlanId,
-				month: params.month || surface.month,
-			})
-			const response = await fetch(`/api/rates/calendar?${query.toString()}`)
-			const body = await response.json().catch(() => ({}))
-			if (!response.ok) throw new Error(body?.error || "No se pudo actualizar el calendario")
+		const key = surfaceCacheKey(requestedRatePlanId, requestedVariantId, requestedMonth)
+		if (options.force) surfaceCache.delete(key)
+		const cached = options.force ? null : surfaceCache.get(key)
+		if (cached) {
+			activeRequest.current?.abort()
 			startTransition(() => {
-				setSurface(body.surface)
+				setSurface(cached)
 				setSelectedDates(new Set())
 				setRangeAnchor("")
 			})
-			const nextUrl = new URL(window.location.href)
-			nextUrl.searchParams.set("ratePlanId", params.ratePlanId || surface.selectedRatePlanId)
-			nextUrl.searchParams.set("month", params.month || surface.month)
-			nextUrl.searchParams.set("focus", mode)
-			window.history.replaceState(null, "", nextUrl)
+			if (options.updateUrl !== false) {
+				const nextUrl = new URL(window.location.href)
+				nextUrl.searchParams.set("ratePlanId", cached.selectedRatePlanId)
+				nextUrl.searchParams.set("month", cached.month)
+				nextUrl.searchParams.set("focus", mode)
+				window.history.replaceState(null, "", nextUrl)
+			}
+			setLoading(false)
+			return
+		}
+
+		activeRequest.current?.abort()
+		const prefetched = options.force ? null : prefetches.get(key)
+		const controller = prefetched ? null : new AbortController()
+		activeRequest.current = controller
+		const sequence = ++requestSequence.current
+		setLoading(true)
+		try {
+			const nextSurface = prefetched
+				? await prefetched
+				: await fetchCalendarSurface(
+						{
+							ratePlanId: requestedRatePlanId,
+							variantId: requestedVariantId,
+							month: requestedMonth,
+						},
+						controller?.signal
+					)
+			if (sequence !== requestSequence.current) return
+			startTransition(() => {
+				setSurface(nextSurface)
+				setSelectedDates(new Set())
+				setRangeAnchor("")
+			})
+			if (options.updateUrl !== false) {
+				const nextUrl = new URL(window.location.href)
+				nextUrl.searchParams.set("ratePlanId", nextSurface.selectedRatePlanId)
+				nextUrl.searchParams.set("month", nextSurface.month)
+				nextUrl.searchParams.set("focus", mode)
+				window.history.replaceState(null, "", nextUrl)
+			}
 		} catch (error) {
+			if (error instanceof DOMException && error.name === "AbortError") return
 			setFeedback(error instanceof Error ? error.message : "No se pudo actualizar el calendario")
 		} finally {
-			setLoading(false)
+			if (sequence === requestSequence.current) setLoading(false)
 		}
 	}
+
+	useEffect(() => {
+		if (surface) {
+			setLoading(false)
+			return
+		}
+		void loadSurface(initialRequest, { updateUrl: false })
+		return () => activeRequest.current?.abort()
+	}, [])
+
+	useEffect(() => {
+		if (!surface) return
+		const firstAvailable = surface.days.find((day) => !day.isPast && day.totalUnits > 0)
+		if (firstAvailable) setGuidedUnits(Math.max(1, Number(firstAvailable.totalUnits)))
+		const idleWindow = window as Window & {
+			requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
+			cancelIdleCallback?: (handle: number) => void
+		}
+		const prefetch = () => {
+			void Promise.allSettled(
+				[surface.previousMonth, surface.nextMonth].map((month) =>
+					prefetchCalendarSurface({
+						ratePlanId: surface.selectedRatePlanId,
+						variantId: surface.selectedVariantId,
+						month,
+					})
+				)
+			)
+		}
+		const handle = idleWindow.requestIdleCallback
+			? idleWindow.requestIdleCallback(prefetch, { timeout: 1200 })
+			: window.setTimeout(prefetch, 500)
+		return () => {
+			if (idleWindow.cancelIdleCallback) idleWindow.cancelIdleCallback(handle)
+			else window.clearTimeout(handle)
+		}
+	}, [surface])
 
 	useEffect(() => {
 		if (!updatedDates.size) return
 		const timeout = window.setTimeout(() => setUpdatedDates(new Set()), 850)
 		return () => window.clearTimeout(timeout)
 	}, [updatedDates])
+
+	if (!surface) {
+		return (
+			<section
+				className="fastt-workspace-panel overflow-hidden border border-slate-200 bg-white p-4 text-slate-900"
+				aria-busy="true"
+			>
+				<div className="animate-pulse">
+					<div className="flex flex-wrap items-end justify-between gap-3">
+						<div className="space-y-2">
+							<div className="h-3 w-16 rounded-md bg-neutral-200" />
+							<div className="h-10 w-72 max-w-[75vw] rounded-md bg-neutral-100" />
+						</div>
+						<div className="flex gap-2">
+							<div className="h-9 w-24 rounded-md bg-neutral-100" />
+							<div className="h-9 w-32 rounded-md bg-neutral-100" />
+						</div>
+					</div>
+					<div className="mt-4 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
+						<div className="h-3 w-24 rounded-md bg-neutral-200" />
+						<div className="mt-3 grid gap-3 sm:grid-cols-3">
+							{Array.from({ length: 3 }).map((_, index) => (
+								<div key={index} className="h-10 rounded-md border border-neutral-200 bg-white" />
+							))}
+						</div>
+					</div>
+					<div className="mt-5 flex items-center justify-between border-b border-neutral-200 pb-3">
+						<div className="h-7 w-36 rounded-md bg-neutral-200" />
+						<div className="flex gap-2">
+							<div className="size-8 rounded-md bg-neutral-100" />
+							<div className="size-8 rounded-md bg-neutral-100" />
+						</div>
+					</div>
+					<div className="mt-3 grid grid-cols-7 gap-1.5 md:gap-2">
+						{Array.from({ length: 7 }).map((_, index) => (
+							<div
+								key={`weekday-${index}`}
+								className="mx-auto h-3 w-5 rounded-md bg-neutral-100 sm:w-10"
+							/>
+						))}
+						{Array.from({ length: 28 }).map((_, index) => (
+							<div
+								key={index}
+								className="min-h-20 rounded-md border border-neutral-200 bg-neutral-50 p-2 md:min-h-24"
+							>
+								<div className="size-4 rounded-md bg-neutral-200" />
+								{index % 3 !== 0 && <div className="mt-5 h-2.5 w-3/5 rounded-md bg-neutral-100" />}
+							</div>
+						))}
+					</div>
+				</div>
+				{feedback && (
+					<div className="mt-4 flex items-center justify-between gap-3 text-sm text-red-700">
+						<span>{feedback}</span>
+						<Button
+							type="button"
+							variant="secondary"
+							onClick={() => void loadSurface(initialRequest)}
+						>
+							Reintentar
+						</Button>
+					</div>
+				)}
+				<span className="sr-only">Cargando calendario</span>
+			</section>
+		)
+	}
+
+	const readySurface = surface
+	const selection = {
+		from: selected[0] || "",
+		to: selected[selected.length - 1] || "",
+		count: selected.length,
+	}
+	const selectedExternalDays = readySurface.days.filter(
+		(day) => selectedDates.has(day.date) && day.externalCalendar
+	)
+	const externalDays = readySurface.days.filter((day) => day.externalCalendar?.eventCount)
+	const conflictDays = readySurface.days.filter((day) => day.externalCalendar?.conflictCount)
 
 	function selectDate(day: SingleCalendarDay) {
 		if (day.isPast) return
@@ -272,7 +475,7 @@ export default function SingleCalendarWorkspace({
 		const to = rangeAnchor < day.date ? day.date : rangeAnchor
 		setSelectedDates(
 			new Set(
-				surface.days
+				readySurface.days
 					.filter((item) => !item.isPast && item.date >= from && item.date <= to)
 					.map((item) => item.date)
 			)
@@ -286,7 +489,7 @@ export default function SingleCalendarWorkspace({
 			kind === "next_7" ? addDays(today, 6) : kind === "next_30" ? addDays(today, 29) : "9999-12-31"
 		setSelectedDates(
 			new Set(
-				surface.days
+				readySurface.days
 					.filter((day) => {
 						if (day.isPast) return false
 						const weekday = new Date(`${day.date}T12:00:00.000Z`).getUTCDay()
@@ -323,7 +526,7 @@ export default function SingleCalendarWorkspace({
 	async function applyGuidedAvailability() {
 		const nights = guidedNightCount()
 		const units = Math.trunc(Number(guidedUnits))
-		if (!surface.selectedVariantId) {
+		if (!readySurface.selectedVariantId) {
 			setGuidedFeedback("No hay una habitación seleccionada para abrir disponibilidad.")
 			return
 		}
@@ -343,7 +546,7 @@ export default function SingleCalendarWorkspace({
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
-					selection: { variantIds: [surface.selectedVariantId] },
+					selection: { variantIds: [readySurface.selectedVariantId] },
 					dateRange: { from: guidedFrom, to: addDays(guidedTo, 1) },
 					operation: { type: "SET_INVENTORY", value: units },
 					context: { source: "playbook-availability" },
@@ -356,11 +559,12 @@ export default function SingleCalendarWorkspace({
 				)
 			}
 			const changedDates = new Set(
-				surface.days
+				readySurface.days
 					.filter((day) => day.date >= guidedFrom && day.date <= guidedTo)
 					.map((day) => day.date)
 			)
-			await loadSurface()
+			surfaceCache.clear()
+			await loadSurface({}, { force: true })
 			setUpdatedDates(changedDates)
 			setSelectedDates(changedDates)
 			setRangeAnchor("")
@@ -378,8 +582,8 @@ export default function SingleCalendarWorkspace({
 	function multiCalendarHref(tab: string) {
 		const query = new URLSearchParams({
 			tab,
-			ratePlanId: surface.selectedRatePlanId,
-			month: surface.month,
+			ratePlanId: readySurface.selectedRatePlanId,
+			month: readySurface.month,
 		})
 		if (selection.from) query.set("from", selection.from)
 		if (selection.to) query.set("to", selection.to)
@@ -390,7 +594,7 @@ export default function SingleCalendarWorkspace({
 		if (id === "price_comparison") return setShowComparison((current) => !current)
 		if (id === "inventory_detail") return setShowInventoryDetail((current) => !current)
 		if (id === "conditions") {
-			window.location.href = `/rates/plans/${encodeURIComponent(surface.selectedRatePlanId)}?vista=conditions`
+			window.location.href = `/rates/plans/${encodeURIComponent(readySurface.selectedRatePlanId)}?vista=conditions`
 			return
 		}
 		if (["price_rules", "availability_scale", "sellability_rules", "applied_rules"].includes(id)) {
@@ -422,7 +626,7 @@ export default function SingleCalendarWorkspace({
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({
-						ratePlanIds: [surface.selectedRatePlanId],
+						ratePlanIds: [readySurface.selectedRatePlanId],
 						operation: {
 							type: "fixed_override",
 							value: numeric,
@@ -447,7 +651,7 @@ export default function SingleCalendarWorkspace({
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({
-						selection: { variantIds: [surface.selectedVariantId] },
+						selection: { variantIds: [readySurface.selectedVariantId] },
 						dateRange: { from: selection.from, to: addDays(selection.to, 1) },
 						operation: { type: "SET_INVENTORY", value: Math.trunc(numeric) },
 						context: { dryRun: true, source: "calendar" },
@@ -476,7 +680,7 @@ export default function SingleCalendarWorkspace({
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({
-						ratePlanIds: [surface.selectedRatePlanId],
+						ratePlanIds: [readySurface.selectedRatePlanId],
 						operation: {
 							type: "fixed_override",
 							value: numeric,
@@ -497,7 +701,7 @@ export default function SingleCalendarWorkspace({
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({
-						selection: { variantIds: [surface.selectedVariantId] },
+						selection: { variantIds: [readySurface.selectedVariantId] },
 						dateRange: { from: selection.from, to: addDays(selection.to, 1) },
 						operation: { type: "SET_INVENTORY", value: Math.trunc(numeric) },
 						context: { source: "calendar" },
@@ -507,7 +711,7 @@ export default function SingleCalendarWorkspace({
 				const form = new FormData()
 				form.set("action", "create")
 				form.set("scope", "rate_plan")
-				form.set("rate_planScopeId", surface.selectedRatePlanId)
+				form.set("rate_planScopeId", readySurface.selectedRatePlanId)
 				form.set("startDate", selection.from)
 				form.set("endDate", selection.to)
 				form.set("type", drawerAction)
@@ -523,7 +727,8 @@ export default function SingleCalendarWorkspace({
 				throw new Error(body?.failures?.[0]?.error || body?.error || "No se pudo guardar")
 			}
 			const changedDates = new Set(selected)
-			await loadSurface()
+			surfaceCache.clear()
+			await loadSurface({}, { force: true })
 			setUpdatedDates(changedDates)
 			setDrawerAction(null)
 			setFeedback("Cambio guardado.")
@@ -535,7 +740,7 @@ export default function SingleCalendarWorkspace({
 	}
 
 	const actions = visibleCalendarActions(mode, isProfessional)
-	const activeDays = surface.days.filter((day) => !day.isPast)
+	const activeDays = readySurface.days.filter((day) => !day.isPast)
 	const missingPriceDays = activeDays.filter((day) => day.finalPrice == null).length
 	const noInventoryDays = activeDays.filter((day) => day.availableUnits <= 0).length
 	const closedDays = activeDays.filter((day) => day.restrictionSignals.hasCommercialBlocker).length
@@ -552,9 +757,9 @@ export default function SingleCalendarWorkspace({
 					? closedDays
 						? `${closedDays} días cerrados`
 						: "Venta abierta"
-					: surface.conditions.complete
+					: readySurface.conditions.complete
 						? "Condiciones completas"
-						: surface.conditions.missingSummary
+						: readySurface.conditions.missingSummary
 	const guidedNights = guidedNightCount()
 
 	return (
@@ -688,13 +893,13 @@ export default function SingleCalendarWorkspace({
 								<div>
 									<dt className="text-slate-500">Habitación</dt>
 									<dd className="mt-1 font-semibold text-slate-950">
-										{guidedAvailability.variantName || surface.selectedContext}
+										{guidedAvailability.variantName || readySurface.selectedContext}
 									</dd>
 								</div>
 								<div>
 									<dt className="text-slate-500">Tarifa</dt>
 									<dd className="mt-1 font-semibold text-slate-950">
-										{guidedAvailability.ratePlanName || surface.selectedRatePlanName}
+										{guidedAvailability.ratePlanName || readySurface.selectedRatePlanName}
 									</dd>
 								</div>
 								<div>
@@ -719,10 +924,10 @@ export default function SingleCalendarWorkspace({
 						<label className="space-y-1 text-sm">
 							<span className="text-xs font-semibold text-slate-500">Tarifa</span>
 							<Select
-								value={surface.selectedRatePlanId}
+								value={readySurface.selectedRatePlanId}
 								onChange={(event) => void loadSurface({ ratePlanId: event.target.value })}
 							>
-								{surface.ratePlans.map((ratePlan) => (
+								{readySurface.ratePlans.map((ratePlan) => (
 									<option key={ratePlan.id} value={ratePlan.id}>
 										{ratePlan.context} · {ratePlan.name}
 									</option>
@@ -771,13 +976,13 @@ export default function SingleCalendarWorkspace({
 										{selection.count
 											? formatRange(selection.from, selection.to, true)
 											: mode === "conditions"
-												? surface.conditions.summary
+												? readySurface.conditions.summary
 												: "Selecciona una fecha o rango"}
 									</p>
 									{selection.count > 0 && (
 										<p className="text-xs text-slate-500">
 											{selection.count} {selection.count === 1 ? "noche" : "noches"} ·{" "}
-											{surface.selectedRatePlanName}
+											{readySurface.selectedRatePlanName}
 										</p>
 									)}
 								</div>
@@ -901,15 +1106,17 @@ export default function SingleCalendarWorkspace({
 				<div className="mt-5 flex items-center justify-between gap-3 border-b border-slate-200 pb-3">
 					<div className="flex items-center gap-2">
 						<IconButton
-							onClick={() => void loadSurface({ month: surface.previousMonth })}
+							onClick={() => void loadSurface({ month: readySurface.previousMonth })}
 							label="Mes anterior"
 							size="sm"
 						>
 							‹
 						</IconButton>
-						<h2 className="text-base font-semibold text-slate-950">{monthLabel(surface.month)}</h2>
+						<h2 className="text-base font-semibold text-slate-950">
+							{monthLabel(readySurface.month)}
+						</h2>
 						<IconButton
-							onClick={() => void loadSurface({ month: surface.nextMonth })}
+							onClick={() => void loadSurface({ month: readySurface.nextMonth })}
 							label="Mes siguiente"
 							size="sm"
 						>
@@ -944,14 +1151,14 @@ export default function SingleCalendarWorkspace({
 					))}
 				</div>
 				<div
-					key={`${surface.selectedRatePlanId}:${surface.month}`}
+					key={`${readySurface.selectedRatePlanId}:${readySurface.month}`}
 					data-direction={gridDirection}
 					className="calendar-grid-enter mt-1 grid grid-cols-7 gap-1 md:gap-2"
 				>
-					{Array.from({ length: surface.leadingBlankDays }).map((_, index) => (
+					{Array.from({ length: readySurface.leadingBlankDays }).map((_, index) => (
 						<div key={`blank-${index}`} className="min-h-20 md:min-h-28" />
 					))}
-					{surface.days.map((day) => {
+					{readySurface.days.map((day) => {
 						const presentation = cellPresentation(mode, day, showComparison, showInventoryDetail)
 						const external = day.externalCalendar
 						const isSelected = selectedDates.has(day.date)
@@ -1030,7 +1237,7 @@ export default function SingleCalendarWorkspace({
 			{drawerAction && (
 				<CalendarResponsiveDrawer
 					title={actionTitle(drawerAction)}
-					meta={`${formatRange(selection.from, selection.to, true)} · ${surface.selectedRatePlanName}`}
+					meta={`${formatRange(selection.from, selection.to, true)} · ${readySurface.selectedRatePlanName}`}
 					onClose={() => setDrawerAction(null)}
 				>
 					<div className="mt-5 space-y-4">

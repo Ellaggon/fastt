@@ -5,8 +5,10 @@ import Card from "@/components/ui/Card.astro"
 import Notice from "@/components/ui/Notice.astro"
 import ProviderIntegrationsLayout from "@/layouts/ProviderIntegrationsLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
-import { listProviderIntegrationIncidents } from "@/lib/provider-integration-operations"
-import { isProviderIntegrationWorkspaceConnector } from "@/lib/provider-integrations"
+import {
+	countProviderWorkspaceIntegrationIncidents,
+	listProviderWorkspaceIntegrationIncidents,
+} from "@/lib/provider-integration-operations"
 import { routes } from "@/lib/routes"
 import { ArrowRight, CheckCircle2, CircleAlert, PlugZap } from "@lucide/astro"
 
@@ -22,24 +24,27 @@ const requestedStatus = Astro.url.searchParams.get("status")
 const status =
 	requestedStatus === "resolved" || requestedStatus === "all" ? requestedStatus : "open"
 const connectionId = Astro.url.searchParams.get("connectionId")?.trim() || null
-const incidentResult = await listProviderIntegrationIncidents({
-	providerId: auth.providerId,
-	status: "all",
-	connectionId,
-	limit: 100,
-}).catch((error: unknown) => {
+const incidentData = await Promise.all([
+	listProviderWorkspaceIntegrationIncidents({
+		providerId: auth.providerId,
+		status,
+		connectionId,
+		limit: status === "all" ? 100 : 50,
+	}),
+	countProviderWorkspaceIntegrationIncidents({
+		providerId: auth.providerId,
+		connectionId,
+	}),
+]).catch((error: unknown) => {
 	if (error instanceof Error && error.message === "INTEGRATION_CONNECTION_NOT_FOUND") return null
 	throw error
 })
-if (!incidentResult) return Astro.redirect(routes.providerSettingsIntegrationsIncidents(), 302)
-const incidents = incidentResult.filter((incident) =>
-	isProviderIntegrationWorkspaceConnector(incident.connectorKey)
-)
+if (!incidentData) return Astro.redirect(routes.providerSettingsIntegrationsIncidents(), 302)
+const [incidentResult, incidentCounts] = incidentData
 
-const visibleIncidents =
-	status === "all" ? incidents : incidents.filter((incident) => incident.status === status)
-const openCount = incidents.filter((incident) => incident.status === "open").length
-const resolvedCount = incidents.filter((incident) => incident.status === "resolved").length
+const visibleIncidents = incidentResult
+const openCount = incidentCounts.open
+const resolvedCount = incidentCounts.resolved
 const operationResult = Astro.url.searchParams.get("operation")
 
 function formatDate(value: Date | null) {
@@ -90,7 +95,7 @@ function filterHref(filter: "open" | "resolved" | "all") {
 const filterItems = [
 	{ id: "open", label: "Abiertas", count: openCount },
 	{ id: "resolved", label: "Resueltas", count: resolvedCount },
-	{ id: "all", label: "Todas", count: incidents.length },
+	{ id: "all", label: "Todas", count: incidentCounts.all },
 ] as const
 const returnTo = `${Astro.url.pathname}${Astro.url.search}`
 ---

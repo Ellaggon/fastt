@@ -100,6 +100,13 @@ export async function ensurePricingCoverageRuntime(params: {
 		},
 		params
 	)
+	if (result.generatedDatesCount > 0) {
+		const { invalidatePricing } = await import("@/lib/cache/invalidation")
+		await invalidatePricing({
+			ratePlanId: params.ratePlanId,
+			variantId: params.variantId,
+		})
+	}
 	return result
 }
 

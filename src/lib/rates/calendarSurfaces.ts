@@ -17,6 +17,7 @@ import {
 } from "@/shared/infrastructure/db/compat"
 
 import type { RatePlanListItem } from "@/lib/rates/loadRatePlansReadModel"
+import type { ServerTimingRecorder } from "@/lib/observability/serverTiming"
 import {
 	evaluateMaterializationFreshness,
 	summarizeMaterializationFreshness,
@@ -556,91 +557,125 @@ async function loadBaseline(
 	}
 }
 
+export function resolvePricingCalendarScope(input: {
+	rows: RatePlanListItem[]
+	ratePlanId?: string | null
+	variantId?: string | null
+	month?: string | null
+	visibleMonths?: number
+}) {
+	const selectedRatePlan =
+		input.rows.find((row) => String(row.ratePlanId) === String(input.ratePlanId ?? "")) ??
+		input.rows.find(
+			(row) =>
+				String(row.variantId) === String(input.variantId ?? "") && row.isDefault && row.isActive
+		) ??
+		input.rows.find(
+			(row) => String(row.variantId) === String(input.variantId ?? "") && row.isActive
+		) ??
+		input.rows.find((row) => row.isDefault && row.isActive) ??
+		input.rows.find((row) => row.isActive) ??
+		input.rows[0] ??
+		null
+	const monthStart = parseMonth(input.month ?? null)
+	const baseDays = enumerateConsecutiveMonthDays(monthStart, input.visibleMonths ?? 1)
+
+	return {
+		selectedRatePlan,
+		monthStart,
+		baseDays,
+		startDate: baseDays[0]?.date ?? toDateOnly(monthStart),
+		endDate: exclusiveEnd(baseDays),
+	}
+}
+
 export async function buildPricingCalendarSurface(input: {
 	rows: RatePlanListItem[]
 	ratePlanId?: string | null
 	variantId?: string | null
 	month?: string | null
 	visibleMonths?: number
+	timing?: ServerTimingRecorder
 }): Promise<PricingCalendarSurface> {
 	const rows = input.rows
-	const selectedRatePlan =
-		rows.find((row) => String(row.ratePlanId) === String(input.ratePlanId ?? "")) ??
-		rows.find(
-			(row) =>
-				String(row.variantId) === String(input.variantId ?? "") && row.isDefault && row.isActive
-		) ??
-		rows.find((row) => String(row.variantId) === String(input.variantId ?? "") && row.isActive) ??
-		rows.find((row) => row.isDefault && row.isActive) ??
-		rows.find((row) => row.isActive) ??
-		rows[0] ??
-		null
-	const monthStart = parseMonth(input.month ?? null)
-	const baseDays = enumerateConsecutiveMonthDays(monthStart, input.visibleMonths ?? 1)
-	const startDate = baseDays[0]?.date ?? toDateOnly(monthStart)
-	const endDate = exclusiveEnd(baseDays)
-	const vocabulary = await resolveVocabulary(rows)
-	const baseline = selectedRatePlan
-		? await loadBaseline(String(selectedRatePlan.ratePlanId))
-		: { currency: "USD", basePrice: null }
-
-	const pricingRows = selectedRatePlan
-		? await db
-				.select({
-					date: EffectivePricingV2.date,
-					finalPrice: EffectivePricingV2.finalBasePrice,
-					currency: EffectivePricingV2.currency,
-					baseComponent: EffectivePricingV2.baseComponent,
-					ruleAdjustment: EffectivePricingV2.ruleAdjustment,
-					computedAt: EffectivePricingV2.computedAt,
-				})
-				.from(EffectivePricingV2)
-				.where(
-					and(
-						eq(EffectivePricingV2.ratePlanId, String(selectedRatePlan.ratePlanId)),
-						eq(EffectivePricingV2.occupancyKey, DEFAULT_OCCUPANCY_KEY),
-						gte(EffectivePricingV2.date, startDate),
-						lt(EffectivePricingV2.date, endDate)
-					)
-				)
-				.orderBy(asc(EffectivePricingV2.date))
-		: []
-	const restrictionRows = selectedRatePlan
-		? await loadRestrictionSignalRows({
-				variantId: String(selectedRatePlan.variantId),
-				ratePlanId: String(selectedRatePlan.ratePlanId),
-				startDate,
-				endDate,
-			})
-		: []
-	const availabilityRows = selectedRatePlan
-		? await db
-				.select({
-					date: EffectiveAvailability.date,
-					totalUnits: EffectiveAvailability.totalUnits,
-					bookedUnits: EffectiveAvailability.bookedUnits,
-					heldUnits: EffectiveAvailability.heldUnits,
-					availableUnits: EffectiveAvailability.availableUnits,
-					computedAt: EffectiveAvailability.computedAt,
-				})
-				.from(EffectiveAvailability)
-				.where(
-					and(
-						eq(EffectiveAvailability.variantId, String(selectedRatePlan.variantId)),
-						gte(EffectiveAvailability.date, startDate),
-						lt(EffectiveAvailability.date, endDate)
-					)
-				)
-				.orderBy(asc(EffectiveAvailability.date))
-		: []
-	const searchRows = selectedRatePlan
-		? await loadSearchMaterializationRows({
-				variantId: String(selectedRatePlan.variantId),
-				ratePlanId: String(selectedRatePlan.ratePlanId),
-				startDate,
-				endDate,
-			})
-		: []
+	const { selectedRatePlan, monthStart, baseDays, startDate, endDate } =
+		resolvePricingCalendarScope(input)
+	const measured = <TValue>(name: string, fn: () => Promise<TValue>) =>
+		input.timing ? input.timing.time(name, fn) : fn()
+	const [pricingBundle, restrictionRows, availabilityRows, searchRows] = await Promise.all([
+		measured("pricing", () =>
+			Promise.all([
+				resolveVocabulary(rows),
+				selectedRatePlan
+					? loadBaseline(String(selectedRatePlan.ratePlanId))
+					: Promise.resolve({ currency: "USD", basePrice: null }),
+				selectedRatePlan
+					? db
+							.select({
+								date: EffectivePricingV2.date,
+								finalPrice: EffectivePricingV2.finalBasePrice,
+								currency: EffectivePricingV2.currency,
+								baseComponent: EffectivePricingV2.baseComponent,
+								ruleAdjustment: EffectivePricingV2.ruleAdjustment,
+								computedAt: EffectivePricingV2.computedAt,
+							})
+							.from(EffectivePricingV2)
+							.where(
+								and(
+									eq(EffectivePricingV2.ratePlanId, String(selectedRatePlan.ratePlanId)),
+									eq(EffectivePricingV2.occupancyKey, DEFAULT_OCCUPANCY_KEY),
+									gte(EffectivePricingV2.date, startDate),
+									lt(EffectivePricingV2.date, endDate)
+								)
+							)
+							.orderBy(asc(EffectivePricingV2.date))
+					: Promise.resolve([]),
+			])
+		),
+		measured("restrictions", () =>
+			selectedRatePlan
+				? loadRestrictionSignalRows({
+						variantId: String(selectedRatePlan.variantId),
+						ratePlanId: String(selectedRatePlan.ratePlanId),
+						startDate,
+						endDate,
+					})
+				: Promise.resolve([])
+		),
+		measured("inventory", () =>
+			selectedRatePlan
+				? db
+						.select({
+							date: EffectiveAvailability.date,
+							totalUnits: EffectiveAvailability.totalUnits,
+							bookedUnits: EffectiveAvailability.bookedUnits,
+							heldUnits: EffectiveAvailability.heldUnits,
+							availableUnits: EffectiveAvailability.availableUnits,
+							computedAt: EffectiveAvailability.computedAt,
+						})
+						.from(EffectiveAvailability)
+						.where(
+							and(
+								eq(EffectiveAvailability.variantId, String(selectedRatePlan.variantId)),
+								gte(EffectiveAvailability.date, startDate),
+								lt(EffectiveAvailability.date, endDate)
+							)
+						)
+						.orderBy(asc(EffectiveAvailability.date))
+				: Promise.resolve([])
+		),
+		measured("searchFreshness", () =>
+			selectedRatePlan
+				? loadSearchMaterializationRows({
+						variantId: String(selectedRatePlan.variantId),
+						ratePlanId: String(selectedRatePlan.ratePlanId),
+						startDate,
+						endDate,
+					})
+				: Promise.resolve([])
+		),
+	])
+	const [vocabulary, baseline, pricingRows] = pricingBundle
 	const byDate = new Map(pricingRows.map((row) => [String(row.date), row]))
 	const availabilityByDate = new Map(availabilityRows.map((row) => [String(row.date), row]))
 	const restrictionSignalsByDate = groupRestrictionSignals(restrictionRows)
@@ -781,48 +816,48 @@ export async function buildInventoryCalendarSurface(input: {
 	const baseDays = enumerateMonthDays(monthStart)
 	const startDate = baseDays[0]?.date ?? toDateOnly(monthStart)
 	const endDate = exclusiveEnd(baseDays)
-	const vocabulary = await resolveVocabulary(rows)
-
-	const inventoryRows = selectedVariant
-		? await db
-				.select({
-					date: EffectiveAvailability.date,
-					totalUnits: EffectiveAvailability.totalUnits,
-					bookedUnits: EffectiveAvailability.bookedUnits,
-					heldUnits: EffectiveAvailability.heldUnits,
-					availableUnits: EffectiveAvailability.availableUnits,
-					computedAt: EffectiveAvailability.computedAt,
-				})
-				.from(EffectiveAvailability)
-				.where(
-					and(
-						eq(EffectiveAvailability.variantId, selectedVariant.variantId),
-						gte(EffectiveAvailability.date, startDate),
-						lt(EffectiveAvailability.date, endDate)
-					)
-				)
-				.orderBy(asc(EffectiveAvailability.date))
-		: []
 	const selectedVariantRatePlanIds = selectedVariant
 		? rows
 				.filter((row) => String(row.variantId) === selectedVariant.variantId)
 				.map((row) => String(row.ratePlanId))
 		: []
-	const restrictionRows =
+	const [vocabulary, inventoryRows, restrictionRows, searchRows] = await Promise.all([
+		resolveVocabulary(rows),
+		selectedVariant
+			? db
+					.select({
+						date: EffectiveAvailability.date,
+						totalUnits: EffectiveAvailability.totalUnits,
+						bookedUnits: EffectiveAvailability.bookedUnits,
+						heldUnits: EffectiveAvailability.heldUnits,
+						availableUnits: EffectiveAvailability.availableUnits,
+						computedAt: EffectiveAvailability.computedAt,
+					})
+					.from(EffectiveAvailability)
+					.where(
+						and(
+							eq(EffectiveAvailability.variantId, selectedVariant.variantId),
+							gte(EffectiveAvailability.date, startDate),
+							lt(EffectiveAvailability.date, endDate)
+						)
+					)
+					.orderBy(asc(EffectiveAvailability.date))
+			: Promise.resolve([]),
 		selectedVariant && selectedVariantRatePlanIds.length > 0
-			? await loadRestrictionSignalRows({
+			? loadRestrictionSignalRows({
 					variantId: selectedVariant.variantId,
 					startDate,
 					endDate,
 				})
-			: []
-	const searchRows = selectedVariant
-		? await loadSearchMaterializationRows({
-				variantId: selectedVariant.variantId,
-				startDate,
-				endDate,
-			})
-		: []
+			: Promise.resolve([]),
+		selectedVariant
+			? loadSearchMaterializationRows({
+					variantId: selectedVariant.variantId,
+					startDate,
+					endDate,
+				})
+			: Promise.resolve([]),
+	])
 	const byDate = new Map(inventoryRows.map((row) => [String(row.date), row]))
 	const restrictionSignalsByDate = groupRestrictionSignals(restrictionRows)
 	const days: InventoryCalendarDay[] = baseDays.map((day) => {

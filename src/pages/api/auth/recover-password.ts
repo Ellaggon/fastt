@@ -1,4 +1,5 @@
 import type { APIRoute } from "astro"
+import { getPasswordResetRedirectTo } from "@/lib/auth/passwordRecovery"
 import { sendPasswordRecoveryEmail } from "@/lib/auth/supabaseClient"
 
 function redirectToSignIn(params: Record<string, string>) {
@@ -9,17 +10,7 @@ function redirectToSignIn(params: Record<string, string>) {
 	})
 }
 
-function getPasswordResetRedirectTo(request: Request, site?: URL) {
-	const explicit = String(process.env.AUTH_PASSWORD_RESET_REDIRECT_URL || "").trim()
-	if (explicit) return explicit
-
-	if (site?.origin) return `${site.origin}/auth/reset-password`
-
-	const origin = new URL(request.url).origin
-	return `${origin}/auth/reset-password`
-}
-
-export const POST: APIRoute = async ({ request, site }) => {
+export const POST: APIRoute = async ({ request }) => {
 	const form = await request.formData()
 	const email = String(form.get("email") || "").trim()
 
@@ -27,7 +18,21 @@ export const POST: APIRoute = async ({ request, site }) => {
 		return redirectToSignIn({ error: "missing_email" })
 	}
 
-	const redirectTo = getPasswordResetRedirectTo(request, site)
+	let redirectTo: string
+	try {
+		redirectTo = getPasswordResetRedirectTo(
+			request.url,
+			process.env.AUTH_PASSWORD_RESET_REDIRECT_URL
+		)
+	} catch (error) {
+		console.error(
+			JSON.stringify({
+				type: "auth_password_recovery_redirect_invalid",
+				error: error instanceof Error ? error.message : String(error),
+			})
+		)
+		return redirectToSignIn({ error: "recovery_unavailable" })
+	}
 	const result = await sendPasswordRecoveryEmail({ email, redirectTo })
 
 	if (!result.ok) {

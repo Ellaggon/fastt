@@ -3,33 +3,19 @@ import PolicyAssignmentFlow from "@/components/policy/PolicyAssignmentFlow.astro
 import MultiCalendarWorkspace from "@/components/rates/MultiCalendarWorkspace"
 import Button from "@/components/ui/Button.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
-import { requireProvider } from "@/lib/auth/requireProvider"
-import { getProfessionalModeCookiePreference } from "@/lib/dashboard/professionalModeCookie"
-import { getProviderSidebarData } from "@/lib/dashboard/providerSidebarReadiness"
 import { loadMultiCalendarWorkspace } from "@/lib/rates/loadMultiCalendarWorkspace"
 import { routes } from "@/lib/routes"
 
-const auth = await requireProvider(Astro.request).catch((error: unknown) => {
-	if (error instanceof Response && error.status === 401) return "__REDIRECT_LOGIN__"
-	if (error instanceof Response && error.status === 403) return "__REDIRECT_PROVIDER__"
-	throw error
-})
-if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
-if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerSettingsProfile())
-
-const professionalModeCookie = getProfessionalModeCookiePreference(Astro.request)
-const sidebarData = await getProviderSidebarData(auth.providerId, {
-	userId: auth.user.id,
-	professionalToolsEnabled:
-		typeof professionalModeCookie === "boolean" ? professionalModeCookie : undefined,
-})
-if (sidebarData.disclosureMode === "small-provider") {
+const workspaceContext = await Astro.locals.getWorkspaceContext()
+if (!workspaceContext.user) return Astro.redirect("/SignInPage")
+if (!workspaceContext.provider) return Astro.redirect(routes.providerSettingsProfile())
+const sidebarData = await workspaceContext.sidebarDataPromise
+if (sidebarData?.disclosureMode === "small-provider") {
 	return Astro.redirect(`${routes.calendar()}?focus=price&source=multi-calendar-simple-redirect`)
 }
 
 const workspace = await loadMultiCalendarWorkspace({
-	request: Astro.request,
-	providerId: auth.providerId,
+	providerId: workspaceContext.provider.providerId,
 	url: Astro.url,
 })
 ---

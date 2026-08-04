@@ -7,6 +7,9 @@ import { fetchSupabaseUser } from "./supabaseClient"
 
 export type AuthUser = { id: string; email: string }
 
+const LOCAL_QA_CACHE_TTL_MS = 30_000
+let localQaUserCache: { key: string; user: AuthUser; expiresAt: number } | null = null
+
 function readBearerToken(req: Request): string | null {
 	const h = req.headers.get("authorization") || req.headers.get("Authorization")
 	if (!h) return null
@@ -62,15 +65,28 @@ export async function resolveLocalQaAuthUser(request: Request): Promise<AuthUser
 	if (isLocalQaAuthLoggedOut(request)) return null
 	const envUser = readLocalQaEnvUser()
 	if (!envUser) return null
+	const cacheKey = `${envUser.id}:${envUser.email}`
+	if (localQaUserCache?.key === cacheKey && localQaUserCache.expiresAt > Date.now()) {
+		return localQaUserCache.user
+	}
 	try {
 		const existing = await db
 			.select({ id: User.id })
 			.from(User)
 			.where(sql`lower(${User.email}) = ${envUser.email}`)
 			.then(first)
-		if (existing?.id) return { id: String(existing.id), email: envUser.email }
+		if (existing?.id) {
+			const user = { id: String(existing.id), email: envUser.email }
+			localQaUserCache = { key: cacheKey, user, expiresAt: Date.now() + LOCAL_QA_CACHE_TTL_MS }
+			return user
+		}
 	} catch {
 		// Fall through to env id when DB is unavailable.
+	}
+	localQaUserCache = {
+		key: cacheKey,
+		user: envUser,
+		expiresAt: Date.now() + LOCAL_QA_CACHE_TTL_MS,
 	}
 	return envUser
 }

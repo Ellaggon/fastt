@@ -15,6 +15,7 @@ const defaultBudgets = [
 	{ path: "/provider/settings/integrations", maxBytes: 100_000 },
 	{ path: "/provider/settings/integrations/catalog", maxBytes: 100_000 },
 	{ path: "/provider/settings/integrations/connections", maxBytes: 100_000 },
+	{ path: "/rates/plans/manage", maxBytes: 150_000 },
 	...(productId ? [{ path: `/product/${encodeURIComponent(productId)}`, maxBytes: 155_000 }] : []),
 ]
 

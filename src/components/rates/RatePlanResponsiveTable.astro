@@ -1,0 +1,249 @@
+---
+import { ChevronDown } from "@lucide/astro"
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import RatePlanActionMenu from "@/components/rates/RatePlanActionMenu.astro"
+
+type RatePlanDisplayRow = {
+	id: string
+	name: string
+	description?: string | null
+	contextLabel: string
+	isDefault: boolean
+	isActive: boolean
+	stateKey: string
+	stateLabel: string
+	stateReason: string
+	stateBadge: "neutral" | "warning" | "success" | "info" | "error"
+	resolveHref: string
+	resolveLabel: string
+	priceLabel: string
+	policyLabel: string
+	policyCoverageLabel: string
+	inventoryLabel: string
+	inventoryModeLabel: string
+}
+
+type Props = { rows: RatePlanDisplayRow[]; activeView: string }
+const { rows, activeView } = Astro.props
+
+function matchesView(state: string, view: string) {
+	if (view === "all") return true
+	if (view === "ready") return state === "ready"
+	if (view === "inactive" || view === "drafts") return state === "inactive"
+	return state !== "ready" && state !== "inactive"
+}
+
+const hasVisibleRows = rows.some((row) => matchesView(row.stateKey, activeView))
+---
+
+<div class={`px-6 py-12 text-center ${hasVisibleRows ? "hidden" : ""}`} data-rate-plan-empty>
+	<p class="font-semibold text-slate-950">No hay tarifas en esta vista.</p>
+	<p class="mt-1 text-sm text-slate-500">Cambia de estado o crea una nueva tarifa.</p>
+</div>
+
+{
+	rows.length ? (
+		<div class="rate-plan-responsive-table" role="table" aria-label="Tarifas del proveedor">
+			<div class="rate-plan-responsive-header" role="row">
+				<span role="columnheader">Tarifa</span>
+				<span role="columnheader">Precio base</span>
+				<span role="columnheader">Condiciones</span>
+				<span role="columnheader">Calendario</span>
+				<span role="columnheader">Estado</span>
+				<span role="columnheader" class="text-right">
+					Acciones
+				</span>
+			</div>
+			<div class="divide-y divide-slate-100" role="rowgroup">
+				{rows.map((row) => {
+					const detailsId = `rate-plan-details-${row.id}`
+					return (
+						<article
+							class={`rate-plan-responsive-row hover:bg-slate-50/70 ${matchesView(row.stateKey, activeView) ? "" : "hidden"}`}
+							role="row"
+							data-rate-plan-row
+							data-rate-plan-id={row.id}
+							data-rate-plan-state={row.stateKey}
+							data-mobile-expanded="false"
+						>
+							<div class="rate-plan-identity" role="cell">
+								<div class="flex min-w-0 flex-wrap items-center gap-2">
+									<p class="truncate font-semibold text-slate-950">{row.name}</p>
+									{row.isDefault && <Badge variant="info">Principal</Badge>}
+								</div>
+								<p class="mt-1 truncate text-xs text-slate-500">{row.contextLabel}</p>
+							</div>
+							<div class="rate-plan-state" role="cell">
+								<div class="flex items-center justify-end gap-2 md:justify-start">
+									<Badge variant={row.stateBadge}>{row.stateLabel}</Badge>
+									<button
+										type="button"
+										class="fastt-button calendar-control inline-flex size-8 items-center justify-center text-slate-500 md:hidden"
+										data-rate-plan-mobile-toggle
+										aria-label={`Mostrar detalles de ${row.name}`}
+										aria-expanded="false"
+										aria-controls={detailsId}
+									>
+										<ChevronDown class="size-4 transition-transform" data-rate-plan-chevron />
+									</button>
+								</div>
+								<p class="mt-1.5 hidden max-w-48 text-xs leading-5 text-slate-500 md:block">
+									{row.stateReason}
+								</p>
+							</div>
+							<div id={detailsId} class="rate-plan-secondary-group">
+								<div class="rate-plan-price" role="cell">
+									<p class="rate-plan-mobile-label">Precio base</p>
+									<p class="font-semibold text-slate-950">{row.priceLabel}</p>
+									<p class="mt-1 hidden text-xs text-slate-500 md:block">por noche</p>
+								</div>
+								<div class="rate-plan-policy" role="cell">
+									<p class="rate-plan-mobile-label">Condiciones</p>
+									<p class="max-w-56 truncate font-medium text-slate-900">{row.policyLabel}</p>
+									<p class="mt-1 text-xs text-slate-500">{row.policyCoverageLabel}</p>
+								</div>
+								<div class="rate-plan-inventory" role="cell">
+									<p class="rate-plan-mobile-label">Calendario</p>
+									<p class="font-medium text-slate-900">{row.inventoryLabel}</p>
+									<p class="mt-1 text-xs text-slate-500">{row.inventoryModeLabel}</p>
+								</div>
+								<div class="rate-plan-mobile-reason">
+									<p class="rate-plan-mobile-label">Venta</p>
+									<p class="text-sm text-slate-700">{row.stateReason}</p>
+								</div>
+								<div class="rate-plan-actions" role="cell">
+									<Button
+										href={row.resolveHref}
+										variant={row.stateKey === "ready" ? "secondary" : "primary"}
+										size="sm"
+									>
+										{row.resolveLabel}
+									</Button>
+									<RatePlanActionMenu
+										ratePlanId={row.id}
+										name={row.name}
+										description={row.description}
+										isActive={row.isActive}
+										isDefault={row.isDefault}
+									/>
+								</div>
+							</div>
+						</article>
+					)
+				})}
+			</div>
+		</div>
+	) : null
+}
+
+<style>
+	.rate-plan-responsive-header {
+		display: none;
+	}
+	.rate-plan-responsive-row {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		align-items: start;
+		padding: 1rem;
+	}
+	.rate-plan-identity,
+	.rate-plan-state {
+		min-width: 0;
+	}
+	.rate-plan-secondary-group {
+		display: none;
+		grid-column: 1 / -1;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 1rem;
+		margin-top: 1rem;
+		padding-top: 1rem;
+		border-top: 1px solid rgb(241 245 249);
+	}
+	.rate-plan-responsive-row[data-mobile-expanded="true"] .rate-plan-secondary-group {
+		display: grid;
+	}
+	.rate-plan-responsive-row[data-mobile-expanded="true"] [data-rate-plan-chevron] {
+		transform: rotate(180deg);
+	}
+	.rate-plan-actions {
+		display: flex;
+		grid-column: 1 / -1;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		padding-top: 0.75rem;
+		border-top: 1px solid rgb(241 245 249);
+	}
+	.rate-plan-mobile-label {
+		margin-bottom: 0.25rem;
+		font-size: 0.75rem;
+		font-weight: 600;
+		color: rgb(100 116 139);
+		text-transform: uppercase;
+	}
+	@media (min-width: 768px) {
+		.rate-plan-responsive-table {
+			overflow-x: auto;
+		}
+		.rate-plan-responsive-header,
+		.rate-plan-responsive-row {
+			grid-template-columns:
+				minmax(180px, 1.35fr) minmax(105px, 0.8fr) minmax(150px, 1.1fr) minmax(120px, 0.9fr)
+				minmax(130px, 0.9fr) minmax(120px, 0.8fr);
+		}
+		.rate-plan-responsive-header {
+			display: grid;
+			min-width: 920px;
+			padding: 0.75rem 1rem;
+			background: rgb(248 250 252);
+			font-size: 0.75rem;
+			font-weight: 600;
+			color: rgb(100 116 139);
+			text-transform: uppercase;
+		}
+		.rate-plan-responsive-row {
+			min-width: 920px;
+			align-items: start;
+			padding: 0;
+		}
+		.rate-plan-identity,
+		.rate-plan-state,
+		.rate-plan-price,
+		.rate-plan-policy,
+		.rate-plan-inventory,
+		.rate-plan-actions {
+			grid-row: 1;
+			padding: 1rem;
+		}
+		.rate-plan-identity {
+			grid-column: 1;
+		}
+		.rate-plan-state {
+			grid-column: 5;
+		}
+		.rate-plan-secondary-group {
+			display: contents;
+		}
+		.rate-plan-price {
+			grid-column: 2;
+		}
+		.rate-plan-policy {
+			grid-column: 3;
+		}
+		.rate-plan-inventory {
+			grid-column: 4;
+		}
+		.rate-plan-actions {
+			display: flex;
+			grid-column: 6;
+			justify-content: flex-end;
+			padding-top: 1rem;
+			border-top: 0;
+		}
+		.rate-plan-mobile-label,
+		.rate-plan-mobile-reason {
+			display: none;
+		}
+	}
+</style>

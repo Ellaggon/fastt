@@ -5,21 +5,34 @@ import {
 	ratePlanNameColumn,
 } from "@/lib/rates/ratePlanDbColumns"
 
-async function listRatePlanColumns(): Promise<Set<string>> {
-	try {
-		const rows = (await db.execute(sql`
-			select column_name as name
-			from information_schema.columns
-			where table_schema = current_schema()
-				and table_name = 'RatePlan'
-		`)) as Array<{ name: string }>
-		return new Set(rows.map((column) => String(column.name)))
-	} catch {
-		// Legacy Turso/libSQL compatibility for tests and old migration utilities.
-	}
+let ratePlanColumnsPromise: Promise<Set<string>> | null = null
 
-	const rows = await db.select({ name: sql<string>`name` }).from(sql`pragma_table_info('RatePlan')`)
-	return new Set(rows.map((column) => String(column.name)))
+async function listRatePlanColumns(): Promise<Set<string>> {
+	if (!ratePlanColumnsPromise) {
+		ratePlanColumnsPromise = (async () => {
+			try {
+				const rows = (await db.execute(sql`
+					select column_name as name
+					from information_schema.columns
+					where table_schema = current_schema()
+						and table_name = 'RatePlan'
+				`)) as Array<{ name: string }>
+				return new Set(rows.map((column) => String(column.name)))
+			} catch {
+				// Legacy Turso/libSQL compatibility for tests and old migration utilities.
+			}
+
+			const rows = await db
+				.select({ name: sql<string>`name` })
+				.from(sql`pragma_table_info('RatePlan')`)
+			return new Set(rows.map((column) => String(column.name)))
+		})().catch((error) => {
+			// Allow a later request to retry if the first probe failed (timeout / pool pressure).
+			ratePlanColumnsPromise = null
+			throw error
+		})
+	}
+	return ratePlanColumnsPromise
 }
 
 export async function hasCompressedRatePlanSchema(): Promise<boolean> {

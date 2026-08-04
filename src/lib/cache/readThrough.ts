@@ -3,6 +3,21 @@ import { recordCacheEvent } from "@/lib/observability/requestContext"
 
 let cacheRequests = 0
 let cacheHits = 0
+const inFlight = new Map<string, Promise<unknown>>()
+
+function durationSince(startedAt: number): number {
+	return Number((performance.now() - startedAt).toFixed(1))
+}
+
+function logCacheResult(key: string, state: "hit" | "miss" | "coalesced", startedAt: number) {
+	console.debug("cache", {
+		key,
+		state,
+		durationMs: durationSince(startedAt),
+		hitRatio: Number(((cacheHits / cacheRequests) * 100).toFixed(1)),
+		requests: cacheRequests,
+	})
+}
 
 export async function readThrough<TValue>(
 	key: string,
@@ -11,49 +26,56 @@ export async function readThrough<TValue>(
 ): Promise<TValue> {
 	const startedAt = performance.now()
 	cacheRequests += 1
-	let hit = false
 	try {
 		const cached = await persistentCache.get(key)
 		if (cached !== null) {
-			hit = true
 			cacheHits += 1
 			recordCacheEvent({
 				key,
 				state: "hit",
-				durationMs: Number((performance.now() - startedAt).toFixed(1)),
+				durationMs: durationSince(startedAt),
 			})
-			console.debug("cache", {
-				key,
-				hit,
-				durationMs: Number((performance.now() - startedAt).toFixed(1)),
-				hitRatio: Number(((cacheHits / cacheRequests) * 100).toFixed(1)),
-				requests: cacheRequests,
-			})
+			logCacheResult(key, "hit", startedAt)
 			return cached as TValue
 		}
-	} catch {
-		hit = false
+	} catch {}
+
+	const existing = inFlight.get(key)
+	if (existing) {
+		const value = (await existing) as TValue
+		cacheHits += 1
+		recordCacheEvent({
+			key,
+			state: "hit",
+			durationMs: durationSince(startedAt),
+		})
+		logCacheResult(key, "coalesced", startedAt)
+		return value
 	}
 
-	const value = await fetcher()
+	const calculation = (async () => {
+		const value = await fetcher()
 
-	// Keep current behavior: do not cache nulls to avoid stale not-found reads.
-	if (value !== null) {
-		void persistentCache.set(key, value, ttlSeconds).catch(() => {})
+		// Do not cache nulls to avoid stale not-found reads.
+		if (value !== null) {
+			void persistentCache.set(key, value, ttlSeconds).catch(() => {})
+		}
+
+		return value
+	})()
+	inFlight.set(key, calculation)
+
+	try {
+		const value = await calculation
+		logCacheResult(key, "miss", startedAt)
+		recordCacheEvent({
+			key,
+			state: "miss",
+			durationMs: durationSince(startedAt),
+		})
+
+		return value
+	} finally {
+		if (inFlight.get(key) === calculation) inFlight.delete(key)
 	}
-
-	console.debug("cache", {
-		key,
-		hit,
-		durationMs: Number((performance.now() - startedAt).toFixed(1)),
-		hitRatio: Number(((cacheHits / cacheRequests) * 100).toFixed(1)),
-		requests: cacheRequests,
-	})
-	recordCacheEvent({
-		key,
-		state: "miss",
-		durationMs: Number((performance.now() - startedAt).toFixed(1)),
-	})
-
-	return value
 }

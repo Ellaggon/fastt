@@ -1,9 +1,16 @@
-import { buildPricingCalendarSurface, type PricingCalendarDay } from "@/lib/rates/calendarSurfaces"
+import {
+	buildPricingCalendarSurface,
+	resolvePricingCalendarScope,
+	type PricingCalendarDay,
+} from "@/lib/rates/calendarSurfaces"
+import { cacheKeys, cacheTtls } from "@/lib/cache/cacheKeys"
+import { readThrough } from "@/lib/cache/readThrough"
 import {
 	listProviderExternalCalendarOverlay,
 	type ProviderExternalCalendarDayOverlay,
 } from "@/lib/provider-external-calendars"
 import type { RatePlanListItem } from "@/lib/rates/loadRatePlansReadModel"
+import type { ServerTimingRecorder } from "@/lib/observability/serverTiming"
 import { summarizeMissingPolicyCategories } from "@/modules/policies/public"
 
 export type SingleCalendarDay = PricingCalendarDay & {
@@ -43,14 +50,33 @@ export async function buildSingleCalendarSurface(input: {
 	variantId?: string | null
 	month?: string | null
 	externalCalendarOverlay?: ProviderExternalCalendarDayOverlay[]
+	timing?: ServerTimingRecorder
 }): Promise<SingleCalendarSurface> {
-	const pricing = await buildPricingCalendarSurface({
+	const pricingInput = {
 		rows: input.rows,
 		ratePlanId: input.ratePlanId,
 		variantId: input.variantId,
 		month: input.month,
 		visibleMonths: 1,
-	})
+		timing: input.timing,
+	}
+	const scope = resolvePricingCalendarScope(pricingInput)
+	const loadOverlay = () =>
+		input.externalCalendarOverlay !== undefined
+			? Promise.resolve(input.externalCalendarOverlay)
+			: input.providerId && scope.selectedRatePlan?.variantId
+				? listProviderExternalCalendarOverlay({
+						providerId: input.providerId,
+						variantId: String(scope.selectedRatePlan.variantId),
+						from: scope.startDate,
+						toExclusive: scope.endDate,
+					})
+				: Promise.resolve([])
+	const overlayPromise = input.timing ? input.timing.time("ical", loadOverlay) : loadOverlay()
+	const [pricing, externalCalendarOverlay] = await Promise.all([
+		buildPricingCalendarSurface(pricingInput),
+		overlayPromise,
+	])
 	const selected = pricing.selectedRatePlan
 	const missingCategories = selected?.policyCoverage?.missingCategories ?? []
 	const complete = Boolean(selected?.policyCoverage?.isComplete)
@@ -61,23 +87,7 @@ export async function buildSingleCalendarSurface(input: {
 				(complete ? "Contrato completo" : summarizeMissingPolicyCategories(missingCategories))
 	const conditionsMissingSummary = summarizeMissingPolicyCategories(missingCategories)
 	const firstDay = pricing.days[0]?.date
-	const lastDay = pricing.days.at(-1)?.date
-	const automaticOverlay =
-		input.providerId && selected?.variantId && firstDay && lastDay
-			? await listProviderExternalCalendarOverlay({
-					providerId: input.providerId,
-					variantId: String(selected.variantId),
-					from: firstDay,
-					toExclusive: (() => {
-						const date = new Date(`${lastDay}T00:00:00.000Z`)
-						date.setUTCDate(date.getUTCDate() + 1)
-						return date.toISOString().slice(0, 10)
-					})(),
-				})
-			: []
-	const externalCalendarByDate = new Map(
-		(input.externalCalendarOverlay ?? automaticOverlay).map((day) => [day.date, day])
-	)
+	const externalCalendarByDate = new Map(externalCalendarOverlay.map((day) => [day.date, day]))
 
 	return {
 		month: pricing.month,
@@ -109,4 +119,40 @@ export async function buildSingleCalendarSurface(input: {
 			externalCalendar: externalCalendarByDate.get(day.date) ?? null,
 		})),
 	}
+}
+
+export async function loadSingleCalendarSurface(input: {
+	rows: RatePlanListItem[]
+	providerId: string
+	ratePlanId?: string | null
+	variantId?: string | null
+	month?: string | null
+	timing?: ServerTimingRecorder
+}): Promise<SingleCalendarSurface> {
+	const scope = resolvePricingCalendarScope({
+		rows: input.rows,
+		ratePlanId: input.ratePlanId,
+		variantId: input.variantId,
+		month: input.month,
+		visibleMonths: 1,
+	})
+	const selected = scope.selectedRatePlan
+	const key = cacheKeys.calendarSurface(
+		input.providerId,
+		String(selected?.ratePlanId ?? "none"),
+		String(selected?.variantId ?? "none"),
+		scope.monthStart.toISOString().slice(0, 7)
+	)
+
+	const metricStart = input.timing?.metrics.length ?? 0
+	const surface = await readThrough(key, cacheTtls.calendarSurface, () =>
+		buildSingleCalendarSurface(input)
+	)
+	if (input.timing) {
+		const recorded = new Set(input.timing.metrics.slice(metricStart).map((metric) => metric.name))
+		for (const name of ["pricing", "inventory", "restrictions", "searchFreshness", "ical"]) {
+			if (!recorded.has(name)) input.timing.add(name, 0, "calendar_surface_cache_hit")
+		}
+	}
+	return surface
 }

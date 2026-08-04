@@ -1,78 +1,70 @@
-import { GET as listRatePlansGet } from "@/pages/api/rates/plans"
+import { requireProvider } from "@/lib/auth/requireProvider"
+import type { ServerTimingRecorder } from "@/lib/observability/serverTiming"
+import {
+	buildProviderRatePlansSurface,
+	type RatePlanListItem,
+} from "@/lib/rates/providerRatePlansSurface"
+import { resolvePolicyDateRange } from "@/modules/policies/public"
 
-export type RatePlanListItem = {
-	ratePlanId: string
-	ratePlanName: string
-	description?: string | null
-	productId: string
-	productName: string
-	variantId: string
-	variantName: string
-	isActive: boolean
-	isDefault: boolean
-	status: "active" | "inactive"
-	summary: {
-		priceRulesCount: number
-		activeRestrictionsCount: number
-	}
-	pricingReadiness?: {
-		hasBasePrice: boolean
-		basePrice: number | null
-		currency: string | null
-		effectivePricingDays: number
-	}
-	inventoryReadiness?: {
-		isReady: boolean
-		coverageDays: number
-		availableDays: number
-		expectedDays: number
-	}
-	policyCoverage?: {
-		totalCategories: number
-		coveredCategories: number
-		missingCategories: string[]
-		isComplete: boolean
-	}
-	policySummary?: string
+export type { RatePlanListItem } from "@/lib/rates/providerRatePlansSurface"
+
+type ProviderRatePlansReadInput = {
+	providerId: string
+	url?: URL
+	checkIn?: string
+	checkOut?: string
+	timing?: ServerTimingRecorder
 }
 
+export async function loadProviderRatePlansReadModel(
+	input: ProviderRatePlansReadInput
+): Promise<RatePlanListItem[]> {
+	const providerId = String(input.providerId ?? "").trim()
+	if (!providerId) throw new Error("Provider id is required")
+	const range =
+		input.checkIn && input.checkOut
+			? { checkIn: input.checkIn, checkOut: input.checkOut }
+			: resolvePolicyDateRange(input.url ?? new URL("http://fastt.local/rates/plans"))
+	const surface = await buildProviderRatePlansSurface({
+		providerId,
+		checkIn: range.checkIn,
+		checkOut: range.checkOut,
+		timing: input.timing,
+	})
+	return surface.ratePlans
+}
+
+/**
+ * Compatibility adapter for legacy callers. New SSR and API paths should resolve
+ * provider ownership once and call loadProviderRatePlansReadModel directly.
+ */
 export async function loadRatePlansReadModel(input: {
-	request: Request
+	providerId?: string
+	request?: Request
+	url?: URL
 	checkIn?: string
 	checkOut?: string
 	channel?: string
+	timing?: ServerTimingRecorder
 }): Promise<RatePlanListItem[]> {
-	const url = new URL("/api/rates/plans", input.request.url)
-	if (input.checkIn) url.searchParams.set("checkIn", input.checkIn)
-	if (input.checkOut) url.searchParams.set("checkOut", input.checkOut)
-	if (input.channel) url.searchParams.set("channel", input.channel)
-
-	const headers = new Headers()
-	const cookie = input.request.headers.get("cookie")
-	if (cookie) headers.set("cookie", cookie)
-	const authorization = input.request.headers.get("authorization")
-	if (authorization) headers.set("authorization", authorization)
-
-	const response = await listRatePlansGet({
-		request: new Request(url.toString(), {
-			method: "GET",
-			headers,
-		}),
-		url,
-	} as any)
-	if (!response.ok) {
-		throw new Error(`No se pudieron cargar las tarifas (${response.status}).`)
+	let providerId = String(input.providerId ?? "").trim()
+	if (!providerId) {
+		if (!input.request) throw new Error("Provider id or request is required")
+		providerId = (await requireProvider(input.request)).providerId
 	}
-
-	const payload = await response.json().catch(() => null)
-	if (!Array.isArray(payload?.ratePlans)) {
-		throw new Error("La respuesta de tarifas no tiene el formato esperado.")
-	}
-	return payload.ratePlans as RatePlanListItem[]
+	return loadProviderRatePlansReadModel({
+		providerId,
+		url: input.url ?? (input.request ? new URL(input.request.url) : undefined),
+		checkIn: input.checkIn,
+		checkOut: input.checkOut,
+		timing: input.timing,
+	})
 }
 
 export async function loadRatePlanReadModelById(input: {
-	request: Request
+	providerId?: string
+	request?: Request
+	url?: URL
 	ratePlanId: string
 	checkIn?: string
 	checkOut?: string

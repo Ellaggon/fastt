@@ -12,6 +12,7 @@ import {
 	lte,
 	RatePlan,
 	RatePlanOccupancyPolicy,
+	sql,
 } from "@/shared/infrastructure/db/compat"
 import { cacheKeys, cacheTtls } from "@/lib/cache/cacheKeys"
 import { readThrough } from "@/lib/cache/readThrough"
@@ -154,21 +155,27 @@ export class RatePlanPricingReadRepository implements RatePlanPricingReadReposit
 					)
 				)
 				.orderBy(desc(RatePlanOccupancyPolicy.effectiveFrom), desc(RatePlanOccupancyPolicy.id)),
-			db
-				.select({
-					ratePlanId: EffectivePricingV2.ratePlanId,
-					currency: EffectivePricingV2.currency,
-					basePrice: EffectivePricingV2.baseComponent,
-					date: EffectivePricingV2.date,
-				})
-				.from(EffectivePricingV2)
-				.where(
-					and(
-						inArray(EffectivePricingV2.ratePlanId, ids),
-						eq(EffectivePricingV2.occupancyKey, CANONICAL_OCCUPANCY_KEY)
-					)
-				)
-				.orderBy(desc(EffectivePricingV2.date), desc(EffectivePricingV2.computedAt)),
+			db.execute(sql`
+				select distinct on ("ratePlanId")
+					"ratePlanId",
+					currency,
+					"baseComponent" as "basePrice",
+					date
+				from "EffectivePricingV2"
+				where "ratePlanId" in (${sql.join(
+					ids.map((id) => sql`${id}`),
+					sql`, `
+				)})
+					and "occupancyKey" = ${CANONICAL_OCCUPANCY_KEY}
+				order by "ratePlanId", date desc, "computedAt" desc
+			`) as Promise<
+				Array<{
+					ratePlanId: string
+					currency: string | null
+					basePrice: number | string | null
+					date: Date | string
+				}>
+			>,
 			db
 				.select({ ratePlanId: EffectivePricingV2.ratePlanId, value: count() })
 				.from(EffectivePricingV2)
@@ -187,11 +194,12 @@ export class RatePlanPricingReadRepository implements RatePlanPricingReadReposit
 			const id = String(policy.ratePlanId)
 			if (!policyByRatePlan.has(id)) policyByRatePlan.set(id, policy)
 		}
-		const effectiveByRatePlan = new Map<string, (typeof effectiveRows)[number]>()
-		for (const row of effectiveRows) {
-			const id = String(row.ratePlanId)
-			if (!effectiveByRatePlan.has(id)) effectiveByRatePlan.set(id, row)
-		}
+		const effectiveByRatePlan = new Map(
+			(Array.isArray(effectiveRows) ? effectiveRows : []).map((row) => [
+				String(row.ratePlanId),
+				row,
+			])
+		)
 		const coverageByRatePlan = new Map(
 			coverageRows.map((row) => [String(row.ratePlanId), Number(row.value ?? 0)])
 		)

@@ -74,7 +74,8 @@ export const GET: APIRoute = async ({ request, url }) => {
 
 	const { checkIn, checkOut } = resolvePolicyDateRange(url)
 	const rows = await loadRatePlansReadModel({
-		request,
+		providerId: auth.providerId,
+		url,
 		checkIn,
 		checkOut,
 		channel: "web",

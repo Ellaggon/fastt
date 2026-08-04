@@ -11,8 +11,34 @@ export const cacheKeys = {
 	): string {
 		return `ws:provider:${providerId}:bookings:summary:${status}:${from}:${to}:${limit}`
 	},
-	providerSidebar(providerId: string, userId: string, professionalToolsEnabled: string): string {
-		return `ws:provider:${providerId}:sidebar:${userId}:${professionalToolsEnabled}`
+	providerSidebar(
+		providerId: string,
+		userId: string,
+		professionalToolsEnabled: boolean,
+		providerRole: string
+	): string {
+		const mode = professionalToolsEnabled ? "professional" : "standard"
+		return `ws:provider:${providerId}:sidebar:${userId}:${mode}:${providerRole}`
+	},
+	providerRatePlansSurface(providerId: string, checkIn: string, checkOut: string): string {
+		return `ws:provider:${providerId}:rates:surface:${checkIn}:${checkOut}`
+	},
+	providerRatePlansSurfacePrefix(providerId: string): string {
+		return `ws:provider:${providerId}:rates:surface:`
+	},
+	providerRatePlanVariants(providerId: string): string {
+		return `ws:provider:${providerId}:rates:variants`
+	},
+	calendarSurface(
+		providerId: string,
+		ratePlanId: string,
+		variantId: string,
+		month: string
+	): string {
+		return `ws:provider:${providerId}:calendar:${variantId}:${ratePlanId}:${month}`
+	},
+	calendarSurfacePrefix(providerId: string): string {
+		return `ws:provider:${providerId}:calendar:`
 	},
 	productSurface(productId: string): string {
 		return `ws:product:${productId}:surface`
@@ -22,6 +48,26 @@ export const cacheKeys = {
 	},
 	providerSettingsSummary(providerId: string, userId: string): string {
 		return `ws:provider:${providerId}:settings:summary:${userId}`
+	},
+	providerIntegrationsSummary(providerId: string): string {
+		return `ws:provider:${providerId}:integrations:summary`
+	},
+	providerIntegrationsConnections(providerId: string): string {
+		return `ws:provider:${providerId}:integrations:connections`
+	},
+	providerIntegrationsCatalog(providerId: string): string {
+		return `ws:provider:${providerId}:integrations:catalog`
+	},
+	providerIntegrationsIncidents(
+		providerId: string,
+		status: string,
+		connectionId: string,
+		limit: number
+	): string {
+		return `ws:provider:${providerId}:integrations:incidents:${status}:${connectionId || "all"}:${limit}`
+	},
+	providerIntegrationsIncidentCounts(providerId: string, connectionId: string): string {
+		return `ws:provider:${providerId}:integrations:incidents:counts:${connectionId || "all"}`
 	},
 	providerGovernanceSummary(providerId: string, userId: string): string {
 		return `ws:provider:${providerId}:governance:summary:${userId}`
@@ -113,10 +159,17 @@ export const cacheKeys = {
 export const cacheTtls = {
 	providerSurface: 60,
 	providerSidebar: 20,
+	providerRatePlansSurface: 20,
+	providerRatePlanVariants: 30,
+	calendarSurface: 15,
 	providerBookingsSummary: 30,
 	productSurface: 60,
 	productVariantsList: 30,
 	providerSettingsSummary: 20,
+	providerIntegrationsSummary: 30,
+	providerIntegrationsConnections: 20,
+	providerIntegrationsCatalog: 30,
+	providerIntegrationsIncidents: 15,
 	providerGovernanceSummary: 20,
 	pricingSummary: 30,
 	variantDetail: 30,

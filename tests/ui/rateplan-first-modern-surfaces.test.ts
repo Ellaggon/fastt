@@ -48,12 +48,17 @@ describe("ui/rateplan-first modern surfaces", () => {
 
 	it("filtra estados de tarifas sin volver a cargar lecturas comerciales", () => {
 		const manage = read("src/pages/rates/plans/manage.astro")
+		const responsiveTable = read("src/components/rates/RatePlanResponsiveTable.astro")
+		const controller = read("src/lib/rates/ratePlanTabsClient.ts")
 
 		expect(manage).toContain("data-rate-plan-tab")
-		expect(manage).toContain("data-rate-plan-row")
-		expect(manage).toContain("renderRatePlanView")
-		expect(manage).toContain("window.history.pushState")
-		expect(manage).toContain("event.preventDefault()")
+		expect(responsiveTable).toContain("data-rate-plan-row")
+		expect(manage).toContain("installRatePlanTabsController")
+		expect(controller).toContain("renderRatePlanView")
+		expect(controller).toContain('document.addEventListener("astro:page-load"')
+		expect(controller).toContain("window.history.pushState")
+		expect(controller).toContain("event.preventDefault()")
+		expect(controller).toContain("{ capture: true }")
 	})
 
 	it("gestiona el retiro de tarifas con desactivacion reversible y borrado protegido", () => {
