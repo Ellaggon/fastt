@@ -12,7 +12,7 @@ describe("provider integration detail and health", () => {
 		const connections = read("src/pages/provider/settings/integrations/connections/index.astro")
 		const summary = read("src/pages/provider/settings/integrations.astro")
 
-		expect(detail).toContain("getProviderIntegrationConnectionReadModel")
+		expect(detail).toContain("getProviderChannelManagerOperationalReadModel")
 		expect(detail).toContain("data-integration-connection-health")
 		expect(detail).toContain("Estado y alcance")
 		expect(detail).toContain("IntegrationDiagnosticsPanel")
@@ -28,7 +28,8 @@ describe("provider integration detail and health", () => {
 		const activity = read("src/pages/provider/settings/integrations/activity.astro")
 		const subnav = read("src/components/provider/integrations/ProviderIntegrationsSubnav.astro")
 
-		expect(incidents).toContain("listProviderIntegrationIncidents")
+		expect(incidents).toContain("listProviderWorkspaceIntegrationIncidents")
+		expect(incidents).toContain("countProviderWorkspaceIntegrationIncidents")
 		expect(incidents).toContain('label: "Abiertas"')
 		expect(incidents).toContain('label: "Resueltas"')
 		expect(incidents).toContain("Marcar resuelta")

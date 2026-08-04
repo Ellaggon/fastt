@@ -48,6 +48,8 @@ describe("provider channel-manager mapping workspace", () => {
 						entityType: "variant",
 						productId: "product_1",
 						productName: "Hotel Sol",
+						productPublished: true,
+						sellable: true,
 					},
 				],
 				ratePlans: [
@@ -59,6 +61,8 @@ describe("provider channel-manager mapping workspace", () => {
 						variantId: "variant_1",
 						variantName: "Deluxe King",
 						isDefault: true,
+						productPublished: true,
+						sellable: true,
 					},
 				],
 				taxes: [],
@@ -91,6 +95,13 @@ describe("provider channel-manager mapping workspace", () => {
 		expect(page).toContain("data-mapping-preview")
 		expect(page).toContain("Vista previa")
 		expect(page).toContain("Opción avanzada: usar un ID externo")
+		expect(page).toContain("Preflight de producción")
+		expect(page).toContain("Acceso")
+		expect(page).toContain("Propiedad")
+		expect(page).toContain("Habitaciones")
+		expect(page).toContain("Tarifas")
+		expect(page).toContain("Cobertura")
+		expect(page).toContain("data-activate-production")
 		expect(page.indexOf("data-manual-mapping")).toBeGreaterThan(page.indexOf("data-mapping-rows"))
 		expect(wizard).toContain("providerSettingsIntegrationMapping(connection.id)")
 		expect(connections).toContain("providerSettingsIntegrationConnection(params.connectionId)")
@@ -112,9 +123,61 @@ describe("provider channel-manager mapping workspace", () => {
 		expect(workspaceEndpoint).toContain('"Cache-Control": "private, no-store"')
 		expect(saveEndpoint).toContain("requireProviderIntegrationManager")
 		expect(saveEndpoint).toContain("upsertProviderIntegrationMappings")
+		expect(saveEndpoint).toContain("MAPPING_EXTERNAL_ENTITY_NOT_FOUND")
+		expect(saveEndpoint).toContain("MAPPING_RATE_ROOM_MISMATCH")
 		expect(operations).toContain("db.transaction")
 		expect(operations).toContain("MAPPING_EXTERNAL_ALREADY_ASSIGNED")
 		expect(domain).toContain("getProviderChannelManagerRemoteCatalog")
 		expect(domain).toContain("ensureProviderIntegrationCredentialFresh")
+	})
+
+	it("does not treat inactive mappings as current coverage", () => {
+		const workspace = buildChannelManagerMappingWorkspace({
+			localCatalog: {
+				products: [{ id: "product_1", label: "Hotel Sol", entityType: "product" }],
+				variants: [
+					{
+						id: "variant_1",
+						label: "Hotel Sol / Deluxe",
+						name: "Deluxe",
+						entityType: "variant",
+						productId: "product_1",
+						productName: "Hotel Sol",
+						productPublished: true,
+						sellable: true,
+					},
+				],
+				ratePlans: [],
+				taxes: [],
+			},
+			remoteCatalog: {
+				propertyId: "property_1",
+				roomTypes: [
+					{
+						id: "room_1",
+						name: "Deluxe",
+						propertyId: "property_1",
+						units: 2,
+						maxAdults: 2,
+						maxChildren: 0,
+					},
+				],
+				ratePlans: [],
+				fetchedAt: new Date(),
+			},
+			mappings: [
+				{
+					id: "mapping_1",
+					mappingType: "room_type",
+					localEntityId: "variant_1",
+					externalEntityId: "room_1",
+					status: "inactive",
+				},
+			],
+		})
+
+		expect(workspace.roomTypes.local[0].currentMapping).toBeNull()
+		expect(workspace.summary.mappedRoomTypes).toBe(0)
+		expect(workspace.roomTypes.local[0].suggestion?.externalEntityId).toBe("room_1")
 	})
 })

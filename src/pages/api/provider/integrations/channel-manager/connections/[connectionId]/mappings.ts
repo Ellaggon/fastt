@@ -3,9 +3,9 @@ import type { APIRoute } from "astro"
 import { requireProviderIntegrationManager } from "@/lib/provider-integration-auth"
 import {
 	type IntegrationMappingInput,
-	listProviderIntegrationMappingCatalog,
 	upsertProviderIntegrationMappings,
 } from "@/lib/provider-integration-operations"
+import { getProviderChannelManagerPreflight } from "@/lib/provider-integrations"
 
 const secureHeaders = {
 	"Cache-Control": "private, no-store",
@@ -49,9 +49,16 @@ export const POST: APIRoute = async ({ request, params }) => {
 		const body = (await request.json()) as { mappings?: unknown }
 		if (!Array.isArray(body.mappings)) return json({ error: "MAPPINGS_REQUIRED" }, 400)
 		const inputs = body.mappings.map(asMappingInput)
-		const localCatalog = await listProviderIntegrationMappingCatalog(auth.providerId)
+		const context = await getProviderChannelManagerPreflight({
+			providerId: auth.providerId,
+			currentUserId: auth.user.id,
+			connectionId,
+		})
+		const localCatalog = context.localCatalog
 		const validVariantIds = new Set(localCatalog.variants.map((item) => item.id))
 		const validRatePlanIds = new Set(localCatalog.ratePlans.map((item) => item.id))
+		const remoteRoomIds = new Set(context.remoteCatalog.roomTypes.map((item) => item.id))
+		const remoteRateById = new Map(context.remoteCatalog.ratePlans.map((item) => [item.id, item]))
 		for (const input of inputs) {
 			const validRoom =
 				input.mappingType === "room_type" &&
@@ -62,6 +69,30 @@ export const POST: APIRoute = async ({ request, params }) => {
 				input.localEntityType === "rate_plan" &&
 				validRatePlanIds.has(input.localEntityId)
 			if (!validRoom && !validRate) return json({ error: "MAPPING_LOCAL_ENTITY_INVALID" }, 400)
+			const externalExists =
+				input.mappingType === "room_type"
+					? remoteRoomIds.has(input.externalEntityId)
+					: remoteRateById.has(input.externalEntityId)
+			if (!externalExists) return json({ error: "MAPPING_EXTERNAL_ENTITY_NOT_FOUND" }, 400)
+		}
+		const roomExternalByLocal = new Map(
+			context.mappings
+				.filter((mapping) => mapping.mappingType === "room_type" && mapping.status === "active")
+				.map((mapping) => [mapping.localEntityId, mapping.externalEntityId])
+		)
+		for (const input of inputs.filter((item) => item.mappingType === "room_type")) {
+			roomExternalByLocal.set(input.localEntityId, input.externalEntityId)
+		}
+		for (const input of inputs.filter((item) => item.mappingType === "rate_plan")) {
+			const localRate = localCatalog.ratePlans.find((item) => item.id === input.localEntityId)
+			const remoteRate = remoteRateById.get(input.externalEntityId)
+			if (
+				!localRate ||
+				!remoteRate?.roomTypeId ||
+				roomExternalByLocal.get(localRate.variantId) !== remoteRate.roomTypeId
+			) {
+				return json({ error: "MAPPING_RATE_ROOM_MISMATCH" }, 400)
+			}
 		}
 		const ids = await upsertProviderIntegrationMappings({
 			providerId: auth.providerId,

@@ -41,12 +41,15 @@ describe("provider integration phase 6 cleanup", () => {
 		const incidents = read("src/pages/provider/settings/integrations/incidents.astro")
 		const activity = read("src/pages/api/provider/integrations/operations/activity.ts")
 		const readModels = read("src/lib/provider-integration-read-models.ts")
+		const operations = read("src/lib/provider-integration-operations.ts")
 
 		expect(summary).toContain("getProviderIntegrationsSummaryReadModel")
 		expect(connections).toContain("getProviderIntegrationsConnectionsReadModel")
 		expect(readModels).toContain('["channel_manager", "external_calendars"]')
 		expect(detail).toContain("isProviderIntegrationWorkspaceConnector")
-		expect(incidents).toContain("isProviderIntegrationWorkspaceConnector")
+		expect(incidents).toContain("listProviderWorkspaceIntegrationIncidents")
+		expect(operations).toContain("providerIntegrationIncidentBaseFilter")
+		expect(operations).toContain("WORKSPACE_CONNECTOR_KEYS")
 		expect(activity).toContain("isProviderIntegrationWorkspaceConnector")
 	})
 
