@@ -1044,7 +1044,11 @@ CREATE TABLE "Booking" (
 	"guestContactSnapshotJson" jsonb,
 	"lifecycleAuditJson" jsonb,
 	"refundHandoffSnapshotJson" jsonb,
-	"contractSnapshotVersion" text
+	"contractSnapshotVersion" text,
+	"integrationConnectionId" text,
+	"externalBookingId" text,
+	"externalRevisionId" text,
+	"externalRevisionAt" timestamp with time zone
 );
 
 CREATE TABLE "BookingRoomDetail" (
@@ -2026,6 +2030,13 @@ ALTER TABLE "Booking"
 	REFERENCES "User" ("id")
 ;
 
+ALTER TABLE "Booking"
+	ADD CONSTRAINT "Booking_integrationConnectionId_fk"
+	FOREIGN KEY ("integrationConnectionId")
+	REFERENCES "ProviderIntegrationConnection" ("id")
+	ON DELETE SET NULL
+;
+
 ALTER TABLE "BookingRoomDetail"
 	ADD CONSTRAINT "BookingRoomDetail_bookingId_fk"
 	FOREIGN KEY ("bookingId")
@@ -2373,6 +2384,12 @@ CREATE INDEX "Booking_provider_status_checkin_idx" ON "Booking" ("providerId", "
 CREATE INDEX "Booking_provider_operation_checkout_idx" ON "Booking" ("providerId", "operationalStatus", "checkOutDate");
 
 CREATE INDEX "Booking_ratePlanId_idx" ON "Booking" ("ratePlanId");
+
+CREATE UNIQUE INDEX "Booking_connection_external_booking_unique" ON "Booking" ("integrationConnectionId", "externalBookingId") WHERE "integrationConnectionId" IS NOT NULL AND "externalBookingId" IS NOT NULL;
+
+CREATE UNIQUE INDEX "Booking_connection_external_revision_unique" ON "Booking" ("integrationConnectionId", "externalRevisionId") WHERE "integrationConnectionId" IS NOT NULL AND "externalRevisionId" IS NOT NULL;
+
+CREATE INDEX "Booking_provider_source_booking_date_idx" ON "Booking" ("providerId", "source", "bookingDate" DESC);
 
 CREATE INDEX "BookingRoomDetail_bookingId_idx" ON "BookingRoomDetail" ("bookingId");
 
