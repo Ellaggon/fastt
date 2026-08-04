@@ -32,8 +32,10 @@ const workingCount =
 	connectorInstances.filter((instance) => instance.status === "connected").length +
 	calendars.filter((calendar) => calendar.status === "active").length
 
-function statusLabel(status: string) {
-	if (status === "connected") return "Funcionando"
+function statusLabel(status: string, lastSyncStatus: string | null) {
+	if (status === "connected" && lastSyncStatus === "initial_ari_succeeded")
+		return "ARI sincronizado"
+	if (status === "connected") return "Acceso validado"
 	if (status === "pending") return "Falta validar"
 	if (status === "syncing") return "Actualizando"
 	if (status === "requires_attention" || status === "error") return "Requiere atención"
@@ -98,7 +100,9 @@ function connectionActionHref(params: { connectionId: string }) {
 			{
 				connectorInstances.length || calendars.length ? (
 					<div class="flex flex-wrap gap-2">
-						<Badge variant={workingCount ? "success" : "neutral"}>{workingCount} funcionando</Badge>
+						<Badge variant={workingCount ? "success" : "neutral"}>
+							{workingCount} con acceso validado
+						</Badge>
 						{attentionCount ? <Badge variant="warning">{attentionCount} por revisar</Badge> : null}
 					</div>
 				) : null
@@ -118,7 +122,7 @@ function connectionActionHref(params: { connectionId: string }) {
 										? `${getChannelManagerVendor(instance.vendorKey).name}${instance.externalPropertyId ? ` · Propiedad ${instance.externalPropertyId}` : ""}`
 										: "Sincroniza disponibilidad, tarifas y restricciones."
 							}
-							statusLabel={statusLabel(instance.status)}
+							statusLabel={statusLabel(instance.status, instance.lastSyncStatus)}
 							statusTone={statusTone(instance.status)}
 							scopeLabel={scopeLabel(instance.connectorKey)}
 							lastActivityLabel={formatActivity(instance.lastSyncAt)}

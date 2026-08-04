@@ -59,13 +59,13 @@ function catalogStatus(key: string) {
 		if (hasError || catalogState.openConflictCount) {
 			return { label: "Requiere atención", tone: "warning" as const }
 		}
-		return { label: "Funcionando", tone: "success" as const }
+		return { label: "Acceso validado", tone: "success" as const }
 	}
 	const statuses = catalogState.connections
 		.filter((connection) => connection.connectorKey === key)
 		.map((connection) => connection.status)
 	if (!statuses.length) return null
-	if (statuses.includes("connected")) return { label: "Funcionando", tone: "success" as const }
+	if (statuses.includes("connected")) return { label: "Acceso validado", tone: "success" as const }
 	if (statuses.includes("error") || statuses.includes("requires_attention")) {
 		return { label: "Requiere atención", tone: "warning" as const }
 	}

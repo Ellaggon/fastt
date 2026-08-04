@@ -38,6 +38,8 @@ const vendorKey =
 		? connection.vendorKey
 		: requestedVendor
 const vendor = getChannelManagerVendor(vendorKey)
+const requestedMode = Astro.url.searchParams.get("env") === "production" ? "production" : "sandbox"
+const setupMode = connection?.mode === "production" ? "production" : requestedMode
 const allowedSteps = ["provider", "access", "property", "review"] as const
 type WizardStep = (typeof allowedSteps)[number]
 const requestedStep = String(Astro.url.searchParams.get("step") ?? "provider")
@@ -71,6 +73,7 @@ function wizardHref(nextStep: WizardStep, extra: Record<string, string> = {}) {
 	url.searchParams.set("step", nextStep)
 	if (vendorKey !== "generic") url.searchParams.set("vendor", vendorKey)
 	if (connection?.id) url.searchParams.set("connectionId", connection.id)
+	url.searchParams.set("env", setupMode)
 	Object.entries(extra).forEach(([key, value]) => url.searchParams.set(key, value))
 	return `${url.pathname}${url.search}`
 }
@@ -188,7 +191,44 @@ const connectionReady = connection?.status === "connected"
 							</p>
 							<h2 class="mt-1.5 text-xl font-semibold text-slate-950">Autorizar acceso</h2>
 						</div>
-						<Badge variant="neutral">Sandbox</Badge>
+						<Badge variant={setupMode === "production" ? "warning" : "neutral"}>
+							{setupMode === "production" ? "Producción" : "Sandbox"}
+						</Badge>
+					</div>
+					<div class="mt-5 border-b border-slate-200 pb-5">
+						<p class="text-sm font-semibold text-slate-950">Entorno</p>
+						<div
+							class="fastt-soft-box mt-2 inline-flex rounded-md border border-slate-300 bg-slate-50 p-1"
+							aria-label="Entorno de conexión"
+						>
+							<a
+								href={wizardHref("access", { env: "sandbox" })}
+								class:list={[
+									"rounded px-3 py-2 text-sm font-semibold",
+									setupMode === "sandbox" ? "bg-white text-slate-950 shadow-sm" : "text-slate-600",
+								]}
+								aria-current={setupMode === "sandbox" ? "true" : undefined}
+							>
+								Pruebas
+							</a>
+							<a
+								href={wizardHref("access", { env: "production" })}
+								class:list={[
+									"rounded px-3 py-2 text-sm font-semibold",
+									setupMode === "production"
+										? "bg-white text-slate-950 shadow-sm"
+										: "text-slate-600",
+								]}
+								aria-current={setupMode === "production" ? "true" : undefined}
+							>
+								Producción
+							</a>
+						</div>
+						<p class="mt-2 text-xs leading-5 text-slate-500">
+							{setupMode === "production"
+								? "No se enviarán datos hasta completar propiedad, habitaciones, tarifas y cobertura."
+								: "Usa credenciales de pruebas para preparar el catálogo sin afectar canales reales."}
+						</p>
 					</div>
 
 					<div class="mt-5 grid gap-5">
@@ -212,7 +252,7 @@ const connectionReady = connection?.status === "connected"
 									class="mt-4"
 								>
 									<input type="hidden" name="uiMode" value="pro" />
-									<input type="hidden" name="mode" value="sandbox" />
+									<input type="hidden" name="mode" value={setupMode} />
 									<input type="hidden" name="vendorKey" value={vendor.key} />
 									<input type="hidden" name="returnTo" value={propertyReturnTo} />
 									<input type="hidden" name="scopes" value="inventory:read" />
@@ -248,7 +288,7 @@ const connectionReady = connection?.status === "connected"
 									<input type="hidden" name="uiMode" value="pro" />
 									<input type="hidden" name="returnTo" value={propertyReturnTo} />
 									<input type="hidden" name="createNew" value="true" />
-									<input type="hidden" name="mode" value="sandbox" />
+									<input type="hidden" name="mode" value={setupMode} />
 									<input type="hidden" name="vendorKey" value={vendor.key} />
 									<input type="hidden" name="authType" value="api_key" />
 									<input type="hidden" name="scopes" value="inventory:read" />
@@ -356,8 +396,12 @@ const connectionReady = connection?.status === "connected"
 
 					<details class="mt-5 border-t border-slate-200 pt-4">
 						<summary class="cursor-pointer text-sm font-semibold text-slate-950">
-							No encuentro mi propiedad
+							Opción avanzada: usar ID de propiedad
 						</summary>
+						<p class="mt-2 max-w-lg text-xs leading-5 text-slate-500">
+							El preflight deberá encontrar este ID en el catálogo completo y confirmar que la
+							propiedad esté activa antes de permitir producción.
+						</p>
 						<form
 							method="post"
 							action="/api/provider/integrations/channel_manager/connect"
@@ -461,7 +505,7 @@ const connectionReady = connection?.status === "connected"
 
 				<aside class="fastt-notice self-start rounded-lg border border-slate-800 bg-slate-950 p-5">
 					<Badge variant={connectionReady ? "darkSuccess" : "darkNeutral"}>
-						{connectionReady ? "Conexión validada" : "Pendiente de prueba"}
+						{connectionReady ? "Acceso validado" : "Pendiente de prueba"}
 					</Badge>
 					<h2 class="mt-4 text-sm font-semibold text-white">
 						{connectionReady ? "Todo listo" : "Qué comprobará Fastt"}
@@ -491,6 +535,8 @@ const connectionReady = connection?.status === "connected"
 		city?: string | null
 		country?: string | null
 		currency?: string | null
+		timezone?: string | null
+		active?: boolean | null
 	}
 
 	const picker = document.querySelector("[data-remote-property-picker]")
@@ -509,7 +555,7 @@ const connectionReady = connection?.status === "connected"
 			if (propertyId instanceof HTMLInputElement) propertyId.value = id
 			if (submit instanceof HTMLButtonElement) submit.disabled = !id
 		}
-		const renderProperties = (properties: RemoteProperty[]) => {
+		const renderProperties = (properties: RemoteProperty[], catalogComplete = true) => {
 			if (!options) return
 			options.replaceChildren()
 			properties.forEach((property) => {
@@ -521,6 +567,7 @@ const connectionReady = connection?.status === "connected"
 				radio.name = "remoteProperty"
 				radio.value = String(property.id || "")
 				radio.className = "fastt-check-input mt-1 size-4"
+				radio.disabled = property.active === false || !catalogComplete
 				radio.addEventListener("change", () => selectProperty(radio.value))
 				const body = document.createElement("span")
 				const title = document.createElement("strong")
@@ -528,9 +575,22 @@ const connectionReady = connection?.status === "connected"
 				title.textContent = String(property.name || property.id || "Propiedad")
 				const meta = document.createElement("span")
 				meta.className = "mt-1 block text-xs text-slate-500"
-				meta.textContent = [property.city, property.country, property.currency]
+				meta.textContent = [
+					property.city,
+					property.country,
+					property.currency,
+					property.timezone,
+					property.active === false
+						? "Inactiva"
+						: property.active === true
+							? "Activa"
+							: "Actividad sin confirmar",
+				]
 					.filter(Boolean)
 					.join(" · ")
+				if (radio.disabled) {
+					label.classList.add("cursor-not-allowed", "bg-slate-50", "opacity-70")
+				}
 				body.append(title, meta)
 				label.append(radio, body)
 				options.append(label)
@@ -561,11 +621,14 @@ const connectionReady = connection?.status === "connected"
 					throw new Error(errorCode)
 				}
 				const properties = Array.isArray(payload.properties) ? payload.properties : []
-				renderProperties(properties)
+				const catalogComplete = payload.partial !== true
+				renderProperties(properties, catalogComplete)
 				setStatus(
-					properties.length
-						? `${properties.length} ${properties.length === 1 ? "propiedad encontrada" : "propiedades encontradas"}.`
-						: "No encontramos propiedades con este acceso."
+					!catalogComplete
+						? "El proveedor devolvió un catálogo parcial. Actualiza la lista antes de elegir."
+						: properties.length
+							? `${properties.length} ${properties.length === 1 ? "propiedad encontrada" : "propiedades encontradas"}.`
+							: "No encontramos propiedades con este acceso."
 				)
 			} catch {
 				renderProperties([])
