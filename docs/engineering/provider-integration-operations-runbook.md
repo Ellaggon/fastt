@@ -139,10 +139,13 @@ feed data, while still providing the requested per-calendar event volume.
 
 ## Inbound channel-manager bookings
 
-The connection worker polls Channex's Booking Revision Feed once per minute after
-the initial ARI synchronization succeeds. Each queued execution reads every feed
-page in oldest-first order and handles `new`, `modified` and `cancelled`
-revisions.
+The connection worker is designed to poll Channex's Booking Revision Feed on a
+near-real-time cadence after the initial ARI synchronization succeeds. On the
+current Vercel Hobby plan the `/api/cron/provider-integrations` schedule must stay
+daily (`27 3 * * *`); sub-daily crons fail deployment. Use Pro or an external
+scheduler to hit that route every minute in production. Each queued execution
+reads every feed page in oldest-first order and handles `new`, `modified` and
+`cancelled` revisions.
 
 Processing ownership is intentionally narrow:
 
