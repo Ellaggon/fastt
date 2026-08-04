@@ -9,3 +9,7 @@ declare namespace App {
 		>
 	}
 }
+
+interface Window {
+	__fasttWorkspacePendingInstalled?: boolean
+}

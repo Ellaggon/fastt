@@ -1,6 +1,7 @@
 ---
 import DashboardSidebar from "@/components/dashboard/DashboardSidebar.astro"
 import DashboardTopBar from "@/components/dashboard/DashboardTopBar.astro"
+import WorkspaceNavigationPending from "@/components/dashboard/WorkspaceNavigationPending.astro"
 import Layout from "@/layouts/Layout.astro"
 import { resolveWorkspaceShellContext } from "@/lib/dashboard/workspaceRequestContext"
 
@@ -34,7 +35,8 @@ const workspaceContext = await resolveWorkspaceShellContext(
 
 			<div class="flex min-h-screen min-w-0 flex-1 flex-col">
 				<DashboardTopBar workspaceContext={workspaceContext} />
-				<main class="min-w-0 flex-1">
+				<main class="relative min-w-0 flex-1" data-workspace-main>
+					<WorkspaceNavigationPending />
 					<div class="mx-auto max-w-7xl min-w-0 px-3 py-4 sm:px-6 sm:py-8">
 						<div class="mb-4 sm:mb-6 lg:hidden">
 							<details
