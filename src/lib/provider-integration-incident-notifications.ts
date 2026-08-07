@@ -28,6 +28,35 @@ type IncidentChannelResult = {
 
 const NOTIFIABLE_SEVERITIES = new Set<IncidentSeverity>(["error", "critical"])
 
+function consecutiveFailureThreshold(): number {
+	const parsed = Number(process.env.PROVIDER_INTEGRATION_ALERT_CONSECUTIVE_FAILURES)
+	if (!Number.isFinite(parsed)) return 3
+	return Math.min(10, Math.max(2, Math.trunc(parsed)))
+}
+
+export function providerIntegrationExternalAlertReason(params: {
+	severity: IncidentSeverity
+	entityType?: string | null
+	metadataJson?: unknown
+	consecutiveFailures?: number | null
+}): "booking_blocked" | "consecutive_failures" | null {
+	if (!NOTIFIABLE_SEVERITIES.has(params.severity)) return null
+	const metadata =
+		params.metadataJson && typeof params.metadataJson === "object"
+			? (params.metadataJson as Record<string, unknown>)
+			: {}
+	if (
+		params.entityType === "booking_revision" &&
+		metadata.notificationClass === "booking_blocked"
+	) {
+		return "booking_blocked"
+	}
+	if (Number(params.consecutiveFailures ?? 0) >= consecutiveFailureThreshold()) {
+		return "consecutive_failures"
+	}
+	return null
+}
+
 function envList(name: string): string[] {
 	return String(process.env[name] ?? "")
 		.split(",")
@@ -84,7 +113,9 @@ function shouldNotifyIncident(params: {
 	status: string
 	notifiedAt: Date | null
 	force?: boolean
+	eligible: boolean
 }): boolean {
+	if (!params.eligible) return false
 	if (params.force) return true
 	if (!NOTIFIABLE_SEVERITIES.has(params.severity)) return false
 	if (!params.notifiedAt) return true
@@ -219,7 +250,23 @@ export async function notifyProviderIntegrationIncident(params: {
 	if (!incident || incident.status !== "open") return { status: "skipped", results: [] }
 
 	const severity = String(incident.severity ?? "warning") as IncidentSeverity
-	if (!NOTIFIABLE_SEVERITIES.has(severity) && !params.force) {
+	const connection = await db
+		.select()
+		.from(ProviderIntegrationConnection)
+		.where(
+			and(
+				eq(ProviderIntegrationConnection.id, incident.connectionId),
+				eq(ProviderIntegrationConnection.providerId, incident.providerId)
+			)
+		)
+		.then((rows) => rows[0] ?? null)
+	const alertReason = providerIntegrationExternalAlertReason({
+		severity,
+		entityType: incident.entityType,
+		metadataJson: incident.metadataJson,
+		consecutiveFailures: connection?.consecutiveFailures,
+	})
+	if (!alertReason) {
 		await db
 			.update(ProviderIntegrationIncident)
 			.set({
@@ -237,6 +284,7 @@ export async function notifyProviderIntegrationIncident(params: {
 			status: String(incident.status),
 			notifiedAt: incident.notifiedAt ?? null,
 			force: params.force,
+			eligible: true,
 		})
 	) {
 		return { status: "skipped", results: [] }
@@ -259,23 +307,11 @@ export async function notifyProviderIntegrationIncident(params: {
 		return { status: "not_configured", results: [] }
 	}
 
-	const [provider, connection] = await Promise.all([
-		db
-			.select()
-			.from(Provider)
-			.where(eq(Provider.id, incident.providerId))
-			.then((rows) => rows[0] ?? null),
-		db
-			.select()
-			.from(ProviderIntegrationConnection)
-			.where(
-				and(
-					eq(ProviderIntegrationConnection.id, incident.connectionId),
-					eq(ProviderIntegrationConnection.providerId, incident.providerId)
-				)
-			)
-			.then((rows) => rows[0] ?? null),
-	])
+	const provider = await db
+		.select()
+		.from(Provider)
+		.where(eq(Provider.id, incident.providerId))
+		.then((rows) => rows[0] ?? null)
 	const message = buildIncidentMessage({ incident, provider, connection })
 	const results: IncidentChannelResult[] = []
 	for (const recipient of emailRecipients) {
@@ -328,6 +364,7 @@ export async function notifyProviderIntegrationIncident(params: {
 	logger.info("provider.integration.incident.notification", {
 		incidentId: incident.id,
 		providerId: incident.providerId,
+		alertReason,
 		status,
 		channels: results.map((result) => result.channel),
 	})

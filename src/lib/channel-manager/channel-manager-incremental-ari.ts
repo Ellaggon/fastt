@@ -400,6 +400,11 @@ export async function runProviderIncrementalAriSync(params: {
 					})
 		const request = mutationSummary(result)
 		const status = request.warned > 0 || request.rejected > 0 ? "partial" : "succeeded"
+		const deliveredAt = new Date()
+		const changeLatencyMs = Math.max(
+			0,
+			deliveredAt.getTime() - new Date(payload.queuedAt).getTime()
+		)
 		const summary = {
 			version: 1,
 			kind: "incremental_ari_sync",
@@ -408,6 +413,12 @@ export async function runProviderIncrementalAriSync(params: {
 			entities: snapshot.entities,
 			request,
 			snapshot: { algorithm: "sha256", hash },
+			telemetry: {
+				propertyId,
+				queuedAt: payload.queuedAt,
+				deliveredAt: deliveredAt.toISOString(),
+				changeLatencyMs,
+			},
 		}
 		await finishProviderIntegrationSyncRun({
 			providerId: params.providerId,
@@ -428,7 +439,10 @@ export async function runProviderIncrementalAriSync(params: {
 				lastSyncStatus:
 					status === "succeeded" ? "incremental_ari_succeeded" : "incremental_ari_partial",
 				errorMessage: status === "succeeded" ? null : "INCREMENTAL_ARI_PARTIAL",
-				consecutiveFailures: status === "succeeded" ? 0 : 1,
+				consecutiveFailures:
+					status === "succeeded"
+						? 0
+						: sql`${ProviderIntegrationConnection.consecutiveFailures} + 1`,
 				updatedAt: new Date(),
 			})
 			.where(eq(ProviderIntegrationConnection.id, params.connectionId))
@@ -451,12 +465,20 @@ export async function runProviderIncrementalAriSync(params: {
 				},
 			}).catch(() => undefined)
 		}
-		observeTiming(
-			"provider_incremental_ari_end_to_end_ms",
-			Date.now() - new Date(payload.queuedAt).getTime(),
-			{ domain: payload.domain }
-		)
-		incrementCounter("provider_incremental_ari_runs_total", { domain: payload.domain, status })
+		observeTiming("provider_incremental_ari_end_to_end_ms", changeLatencyMs, {
+			domain: payload.domain,
+			provider_id: params.providerId,
+			property_id: propertyId,
+			operation: params.operation,
+			result: status,
+		})
+		incrementCounter("provider_incremental_ari_runs_total", {
+			domain: payload.domain,
+			provider_id: params.providerId,
+			property_id: propertyId,
+			operation: params.operation,
+			result: status,
+		})
 		return { runId: String(run.id), status, summary }
 	} catch (error) {
 		const message = error instanceof Error ? error.message : "INCREMENTAL_ARI_SYNC_FAILED"
@@ -465,12 +487,24 @@ export async function runProviderIncrementalAriSync(params: {
 			runId: String(run.id),
 			status: "failed",
 			failedCount: 1,
-			errorCode: message.slice(0, 100),
+			errorCode:
+				error instanceof ChannelManagerAdapterError && error.kind === "rate_limit"
+					? "CHANNEL_MANAGER_RATE_LIMIT"
+					: message.slice(0, 100),
 			errorMessage: message,
+			summaryJson: {
+				version: 1,
+				kind: "incremental_ari_sync",
+				domain: payload.domain,
+				telemetry: { propertyId, queuedAt: payload.queuedAt },
+			},
 		})
 		incrementCounter("provider_incremental_ari_runs_total", {
 			domain: payload.domain,
-			status: "failed",
+			provider_id: params.providerId,
+			property_id: propertyId,
+			operation: params.operation,
+			result: "failed",
 		})
 		if (!(error instanceof ChannelManagerAdapterError && error.kind === "rate_limit")) {
 			await db
@@ -480,7 +514,6 @@ export async function runProviderIncrementalAriSync(params: {
 					lastSyncAt: new Date(),
 					lastSyncStatus: "incremental_ari_failed",
 					errorMessage: message.slice(0, 1000),
-					consecutiveFailures: sql`${ProviderIntegrationConnection.consecutiveFailures} + 1`,
 					updatedAt: new Date(),
 				})
 				.where(eq(ProviderIntegrationConnection.id, params.connectionId))

@@ -3,6 +3,7 @@ import type { APIRoute } from "astro"
 import { requireProviderIntegrationManager } from "@/lib/provider-integration-auth"
 import { mapProviderIntegrationError } from "@/lib/provider-integration-errors"
 import { runScheduledProviderIntegrationSync } from "@/lib/provider-integration-scheduler"
+import { enqueueProviderRecoveryFullSync } from "@/lib/channel-manager/channel-manager-recovery"
 import {
 	flushProviderChannelManagerIncrementalJobs,
 	setProviderChannelManagerSyncEnabled,
@@ -54,6 +55,22 @@ export const POST: APIRoute = async ({ request, params }) => {
 				providerLimit: 4,
 			})
 			return json({ ok: worker.failed === 0, action, ...result, worker }, 202)
+		}
+		if (action === "full_recovery_sync") {
+			const job = await enqueueProviderRecoveryFullSync({
+				providerId: auth.providerId,
+				connectionId,
+				requestedBy: auth.user.id,
+			})
+			return json(
+				{
+					ok: true,
+					action,
+					job,
+					message: "Full sync de recuperación programado. El historial mostrará su avance.",
+				},
+				202
+			)
 		}
 		return json({ error: "INTEGRATION_OPERATION_INVALID" }, 400)
 	} catch (error) {

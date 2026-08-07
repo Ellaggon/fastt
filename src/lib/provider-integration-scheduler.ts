@@ -1,6 +1,14 @@
 import { db, eq, ProviderIntegrationConnection, sql } from "@/shared/infrastructure/db/compat"
 import { syncProviderIntegration } from "@/lib/provider-integrations"
-import { runProviderInitialAriSync } from "@/lib/channel-manager/channel-manager-initial-ari"
+import {
+	INITIAL_ARI_OPERATION,
+	RECOVERY_FULL_SYNC_OPERATION,
+	runProviderInitialAriSync,
+} from "@/lib/channel-manager/channel-manager-initial-ari"
+import {
+	recordProviderIntegrationIncident,
+	resolveProviderIntegrationIncidentByKey,
+} from "@/lib/provider-integration-operations"
 import {
 	incrementalAriRetryMinutes,
 	runProviderIncrementalAriSync,
@@ -197,10 +205,22 @@ async function finishProviderIntegrationSyncJob(params: {
 			leaseToken: params.leaseToken,
 			targetType: params.job.targetType,
 		})
+		if (params.job.connectionId) {
+			await db
+				.update(ProviderIntegrationConnection)
+				.set({ consecutiveFailures: 0, updatedAt: new Date() })
+				.where(eq(ProviderIntegrationConnection.id, params.job.connectionId))
+			await resolveProviderIntegrationIncidentByKey({
+				providerId: params.job.providerId,
+				connectionId: params.job.connectionId,
+				dedupeKey: `sync_job_failed:${params.job.operation}`,
+				resolutionNote: "La ejecución posterior se completó correctamente.",
+			}).catch(() => undefined)
+		}
 		return
 	}
 
-	const { retryAt } = await markProviderSyncJobFailed({
+	const { retryAt, terminal } = await markProviderSyncJobFailed({
 		jobId: params.job.id,
 		leaseToken: params.leaseToken,
 		attempts: params.job.attempts,
@@ -209,7 +229,7 @@ async function finishProviderIntegrationSyncJob(params: {
 		targetType: params.job.targetType,
 		retryMinutes: params.retryMinutes,
 	})
-	if (params.job.connectionId && params.job.operation === "connection_test") {
+	if (params.job.connectionId) {
 		const now = new Date()
 		await db
 			.update(ProviderIntegrationConnection)
@@ -219,6 +239,29 @@ async function finishProviderIntegrationSyncJob(params: {
 				updatedAt: now,
 			})
 			.where(eq(ProviderIntegrationConnection.id, params.job.connectionId))
+		if (terminal) {
+			await recordProviderIntegrationIncident({
+				providerId: params.job.providerId,
+				connectionId: params.job.connectionId,
+				input: {
+					dedupeKey: `sync_job_failed:${params.job.operation}`,
+					code: params.errorCode ?? "INTEGRATION_SYNC_FAILED",
+					category: "remote_api",
+					severity: "error",
+					title: "Una sincronización agotó sus reintentos",
+					description: "Fastt detuvo esta ejecución después de varios intentos fallidos.",
+					actionLabel: "Revisar y reintentar",
+					actionHref: `/provider/settings/integrations/connections/${params.job.connectionId}`,
+					entityType: "integration_sync_job",
+					entityId: params.job.id,
+					metadataJson: {
+						operation: params.job.operation,
+						attempts: Number(params.job.attempts ?? 0) + 1,
+						notificationClass: "consecutive_failures",
+					},
+				},
+			}).catch(() => undefined)
+		}
 	}
 }
 
@@ -252,7 +295,10 @@ export async function runScheduledProviderIntegrationSync(options?: {
 	const items = await mapWithConcurrency(jobs, concurrency, async (job) => {
 		const connectionId = String(job.connectionId ?? job.targetId)
 		try {
-			if (job.operation === "initial_ari_sync") {
+			if (
+				job.operation === INITIAL_ARI_OPERATION ||
+				job.operation === RECOVERY_FULL_SYNC_OPERATION
+			) {
 				const payload =
 					job.payloadJson && typeof job.payloadJson === "object"
 						? (job.payloadJson as Record<string, unknown>)
@@ -263,6 +309,7 @@ export async function runScheduledProviderIntegrationSync(options?: {
 					requestedBy: String(payload.requestedBy ?? "").trim() || null,
 					trigger: job.trigger as "manual" | "scheduled" | "webhook" | "retry",
 					idempotencyKey: `${job.idempotencyKey}:attempt:${Number(job.attempts ?? 0) + 1}`,
+					operation: job.operation,
 					onProgress: (progress) =>
 						updateProviderSyncJobProgress({
 							jobId: job.id,
@@ -306,7 +353,8 @@ export async function runScheduledProviderIntegrationSync(options?: {
 			const errorCode =
 				error instanceof Error ? error.message.slice(0, 100) : "INTEGRATION_SYNC_FAILED"
 			const retryableInitialAriFailure =
-				job.operation === "initial_ari_sync" &&
+				(job.operation === INITIAL_ARI_OPERATION ||
+					job.operation === RECOVERY_FULL_SYNC_OPERATION) &&
 				error instanceof ChannelManagerAdapterError &&
 				error.retryable
 			const incrementalOperation =
@@ -319,7 +367,9 @@ export async function runScheduledProviderIntegrationSync(options?: {
 				bookingFeedOperation && error instanceof ChannelManagerAdapterError && error.retryable
 			await finishProviderIntegrationSyncJob({
 				job:
-					(job.operation === "initial_ari_sync" && !retryableInitialAriFailure) ||
+					((job.operation === INITIAL_ARI_OPERATION ||
+						job.operation === RECOVERY_FULL_SYNC_OPERATION) &&
+						!retryableInitialAriFailure) ||
 					(incrementalOperation && !retryableIncrementalFailure) ||
 					(bookingFeedOperation && !retryableBookingFeedFailure)
 						? { ...job, maxAttempts: Number(job.attempts ?? 0) + 1 }

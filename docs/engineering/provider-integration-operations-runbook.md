@@ -1,6 +1,6 @@
 # Provider Integration Operations Runbook
 
-Last updated: 2026-08-03
+Last updated: 2026-08-05
 
 ## Scope
 
@@ -111,8 +111,18 @@ Database-backed gauges are refreshed whenever
 - `provider_integration_consecutive_failures_entities{entity_type}`
 - `provider_external_calendar_events{provider_id,calendar_id,state}`
 - `provider_integration_open_incidents{severity}`
-- `provider_integration_run_duration_average_ms{connector_key}`
-- `provider_integration_run_duration_p95_ms{connector_key}`
+- `provider_integration_operation_queue_depth{provider_id,property_id,operation,result}`
+- `provider_integration_operation_queue_oldest_age_seconds{provider_id,property_id,operation,result}`
+- `provider_integration_operation_retry_jobs{provider_id,property_id,operation,result}`
+- `provider_integration_operation_retry_attempts{provider_id,property_id,operation,result}`
+- `provider_integration_runs_total_24h{provider_id,property_id,operation,result}`
+- `provider_integration_run_duration_average_ms{provider_id,property_id,operation,result}`
+- `provider_integration_run_duration_p95_ms{provider_id,property_id,operation,result}`
+- `provider_integration_change_delivery_latency_average_ms{provider_id,property_id,operation,result}`
+- `provider_integration_change_delivery_latency_p95_ms{provider_id,property_id,operation,result}`
+- `provider_integration_partial_rejections_total_24h{provider_id,property_id,operation,result}`
+- `provider_integration_rate_limit_429_total_24h{provider_id,property_id,operation,result}`
+- `provider_integration_booking_revisions_unacknowledged{provider_id,property_id,operation,result}`
 
 Process counters/timings supplement the database gauges:
 
@@ -133,6 +143,24 @@ Recommended initial alerts:
 - consecutive failures at or above 3;
 - terminal job failures above 0 for 15 minutes;
 - `provider_integration_operational_metrics_collection_error = 1`.
+
+Email and Slack are deliberately narrower than the internal incident stream. They are sent only
+when a booking revision is blocked or a connection reaches
+`PROVIDER_INTEGRATION_ALERT_CONSECUTIVE_FAILURES` (3 by default). Warnings and isolated failures
+remain visible in Fastt and Prometheus without generating an external notification.
+
+## Recovery controls
+
+- **Retry** creates a new immutable job from the failed run's original queue context. It never
+  changes the failed run. Incremental runs whose retained job payload has expired direct the
+  operator to full recovery instead.
+- **Full sync de recuperación** recalculates the canonical 500-day ARI snapshot and records the run
+  as `recovery_full_sync`. It requires a prior initial sync, complete preflight, no active full sync
+  and a 15-minute cooldown.
+- Both actions require integration-manager permission and write `ProviderAuditLog` entries. The UI
+  only queues work; the regular worker owns execution, retry and backoff.
+- A later successful job resolves the deduplicated terminal-job incident. A booking incident is
+  resolved only after Fastt commits the reservation and Channex acknowledges its revision.
 
 Calendar labels use immutable IDs rather than names or URLs. This avoids leaking
 feed data, while still providing the requested per-calendar event volume.

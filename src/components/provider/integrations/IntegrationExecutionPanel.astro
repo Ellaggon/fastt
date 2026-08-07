@@ -59,6 +59,7 @@ const {
 		errorMessage: string | null
 		startedAt: string | null
 		finishedAt: string | null
+		canRetry: boolean
 	}
 
 	type ActivityJob = {
@@ -87,6 +88,8 @@ const {
 	function operationLabel(operation: string) {
 		if (operation === "connection_test") return "Prueba de conexión"
 		if (operation === "initial_ari_sync") return "Sincronización inicial ARI"
+		if (operation === "recovery_full_sync") return "Full sync de recuperación"
+		if (operation === "booking_revision_feed") return "Recepción de reservas"
 		if (operation === "calendar_import") return "Actualización de calendario"
 		if (operation === "availability_sync") return "Disponibilidad"
 		if (operation === "rates_sync") return "Tarifas"
@@ -182,6 +185,16 @@ const {
 		)
 		const status = statusPresentation(run.status)
 		aside.append(badge(status.label, status.className))
+		if (run.canRetry) {
+			const retry = element(
+				"button",
+				"inline-flex h-8 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60",
+				"Reintentar"
+			)
+			retry.type = "button"
+			retry.dataset.retryRun = run.id
+			aside.append(retry)
+		}
 		row.append(body, aside)
 		return row
 	}
@@ -240,6 +253,33 @@ const {
 				const target = panel.querySelector<HTMLElement>("[data-integration-activity-results]")
 				if (!button || !label || !target) return
 				let nextPage = 1
+				target.addEventListener("click", async (event) => {
+					const retry = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-retry-run]")
+					if (!retry?.dataset.retryRun) return
+					retry.disabled = true
+					retry.textContent = "Programando…"
+					try {
+						const response = await fetch(
+							`/api/provider/integrations/operations/runs/${encodeURIComponent(retry.dataset.retryRun)}/retry`,
+							{ method: "POST", headers: { Accept: "application/json" } }
+						)
+						const data = await response.json()
+						if (!response.ok || !data.ok)
+							throw new Error(String(data.error ?? "No pudimos programar el reintento."))
+						retry.textContent = "Reintento programado"
+						retry.className =
+							"fastt-notice inline-flex h-8 items-center rounded-md border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-800"
+					} catch (error) {
+						retry.disabled = false
+						retry.textContent = "Reintentar"
+						const message = element(
+							"p",
+							"mt-2 text-xs font-medium text-red-700",
+							error instanceof Error ? error.message : "No pudimos programar el reintento."
+						)
+						retry.closest("article")?.querySelector("div")?.append(message)
+					}
+				})
 				button.addEventListener("click", async () => {
 					const requestedPage = nextPage
 					button.disabled = true
