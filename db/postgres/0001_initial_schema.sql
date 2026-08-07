@@ -516,6 +516,36 @@ CREATE TABLE "HouseRule" (
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
+CREATE TABLE "ProductCategory" (
+	"id" text PRIMARY KEY,
+	"slug" text NOT NULL,
+	"name" text NOT NULL,
+	"vertical" text NOT NULL,
+	"sortOrder" integer NOT NULL DEFAULT 0,
+	"isActive" boolean NOT NULL DEFAULT true,
+	"createdAt" timestamp with time zone DEFAULT now()
+);
+
+CREATE TABLE "ProductCategoryLink" (
+	"id" text PRIMARY KEY,
+	"productId" text NOT NULL,
+	"categoryId" text NOT NULL,
+	"createdAt" timestamp with time zone DEFAULT now()
+);
+
+CREATE TABLE "ProductReview" (
+	"id" text PRIMARY KEY,
+	"productId" text NOT NULL,
+	"userId" text,
+	"rating" integer NOT NULL,
+	"body" text,
+	"status" text NOT NULL DEFAULT 'published',
+	"createdAt" timestamp with time zone DEFAULT now(),
+	"updatedAt" timestamp with time zone DEFAULT now(),
+	CONSTRAINT "ProductReview_rating_check" CHECK ("rating" >= 1 AND "rating" <= 5),
+	CONSTRAINT "ProductReview_status_check" CHECK ("status" IN ('published', 'pending', 'rejected', 'hidden'))
+);
+
 CREATE TABLE "ProductStatus" (
 	"productId" text PRIMARY KEY,
 	"state" text NOT NULL DEFAULT 'draft',
@@ -564,11 +594,16 @@ CREATE TABLE "Hotel" (
 CREATE TABLE "Tour" (
 	"productId" text PRIMARY KEY,
 	"duration" text,
+	"durationMinutes" integer,
 	"difficultyLevel" text,
 	"meetingPointJson" jsonb,
 	"itineraryJson" jsonb,
 	"safetyJson" jsonb,
-	"guideJson" jsonb
+	"guideJson" jsonb,
+	"includesJson" jsonb,
+	"excludesJson" jsonb,
+	"categoriesJson" jsonb,
+	"pickupJson" jsonb
 );
 
 CREATE TABLE "Package" (
@@ -621,6 +656,35 @@ CREATE TABLE "VariantRoomProfile" (
 	"guestFacingNotes" text,
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
 	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "TourSlotProfile" (
+	"variantId" text PRIMARY KEY,
+	"departureTime" text NOT NULL,
+	"durationMinutes" integer,
+	"maxPax" integer NOT NULL,
+	"languageCode" text NOT NULL,
+	"bookingMode" text NOT NULL DEFAULT 'shared',
+	"meetingPointOverrideJson" jsonb,
+	"isActive" boolean NOT NULL DEFAULT true,
+	"createdAt" timestamp with time zone DEFAULT now(),
+	"updatedAt" timestamp with time zone DEFAULT now(),
+	CONSTRAINT "TourSlotProfile_bookingMode_check" CHECK ("bookingMode" IN ('shared', 'private')),
+	CONSTRAINT "TourSlotProfile_maxPax_check" CHECK ("maxPax" >= 1)
+);
+
+CREATE TABLE "TourTicketType" (
+	"id" text PRIMARY KEY,
+	"productId" text NOT NULL,
+	"code" text NOT NULL,
+	"label" text NOT NULL,
+	"minAge" integer,
+	"maxAge" integer,
+	"sortOrder" integer NOT NULL DEFAULT 0,
+	"isActive" boolean NOT NULL DEFAULT true,
+	"createdAt" timestamp with time zone DEFAULT now(),
+	"updatedAt" timestamp with time zone DEFAULT now(),
+	CONSTRAINT "TourTicketType_code_check" CHECK ("code" IN ('adult', 'child', 'infant', 'custom'))
 );
 
 CREATE TABLE "VariantRoomBed" (
@@ -704,6 +768,7 @@ CREATE TABLE "CancellationTier" (
 	"id" text PRIMARY KEY,
 	"policyId" text NOT NULL,
 	"daysBeforeArrival" integer NOT NULL,
+	"hoursBeforeDeparture" integer,
 	"penaltyType" text NOT NULL DEFAULT 'percentage',
 	"penaltyAmount" numeric(14, 2)
 );
@@ -1049,6 +1114,20 @@ CREATE TABLE "Booking" (
 	"externalBookingId" text,
 	"externalRevisionId" text,
 	"externalRevisionAt" timestamp with time zone
+);
+
+CREATE TABLE "BookingVoucher" (
+	"id" text PRIMARY KEY,
+	"bookingId" text NOT NULL,
+	"code" text NOT NULL,
+	"status" text NOT NULL,
+	"issuedAt" timestamp with time zone DEFAULT now(),
+	"redeemedAt" timestamp with time zone,
+	"instructionsJson" jsonb,
+	"qrPayload" text,
+	"createdAt" timestamp with time zone DEFAULT now(),
+	"updatedAt" timestamp with time zone DEFAULT now(),
+	CONSTRAINT "BookingVoucher_status_check" CHECK ("status" IN ('issued', 'redeemed', 'void'))
 );
 
 CREATE TABLE "BookingRoomDetail" (
@@ -1706,6 +1785,12 @@ ALTER TABLE "VariantRoomProfile"
 	REFERENCES "RoomType" ("id")
 ;
 
+ALTER TABLE "TourSlotProfile"
+	ADD CONSTRAINT "TourSlotProfile_variantId_fk"
+	FOREIGN KEY ("variantId")
+	REFERENCES "Variant" ("id")
+;
+
 ALTER TABLE "VariantRoomBed"
 	ADD CONSTRAINT "VariantRoomBed_variantId_fk"
 	FOREIGN KEY ("variantId")
@@ -2244,6 +2329,9 @@ CREATE INDEX "Variant_productId_isActive_idx" ON "Variant" ("productId", "isActi
 CREATE INDEX "Variant_productId_kind_idx" ON "Variant" ("productId", "kind");
 
 CREATE INDEX "VariantRoomProfile_roomTypeId_idx" ON "VariantRoomProfile" ("roomTypeId");
+CREATE INDEX "TourSlotProfile_departureTime_idx" ON "TourSlotProfile" ("departureTime");
+CREATE INDEX "TourSlotProfile_languageCode_idx" ON "TourSlotProfile" ("languageCode");
+CREATE INDEX "TourSlotProfile_bookingMode_idx" ON "TourSlotProfile" ("bookingMode");
 
 CREATE INDEX "VariantRoomBed_variantId_idx" ON "VariantRoomBed" ("variantId");
 
@@ -2644,6 +2732,7 @@ BEGIN
 		'ProductOperationalSurface',
 		'ProductPreparationSnapshot',
 		'VariantRoomProfile',
+		'TourSlotProfile',
 		'VariantReadiness',
 		'DailyInventory',
 		'RatePlanConditionState',
