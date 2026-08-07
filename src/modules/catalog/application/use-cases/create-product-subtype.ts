@@ -5,6 +5,7 @@ import {
 	packageSchema,
 	limousineSchema,
 } from "@/schemas/product/subtype"
+import { parseDurationMinutes } from "@/lib/tours/tourSemantics"
 
 function listFromForm(value: FormDataEntryValue | null): string[] {
 	return String(value ?? "")
@@ -94,10 +95,16 @@ export async function createProductSubtype(params: {
 	}
 
 	if (productType === "tour") {
+		const duration = form.get("duration")
+		const durationMinutesRaw = String(form.get("durationMinutes") ?? "").trim()
+		const durationMinutes = durationMinutesRaw
+			? Number(durationMinutesRaw)
+			: parseDurationMinutes(String(duration ?? ""))
 		const payload = {
 			productId,
 			productType: "tour",
-			duration: form.get("duration"),
+			duration,
+			durationMinutes: Number.isFinite(Number(durationMinutes)) ? Number(durationMinutes) : null,
 			difficultyLevel: form.get("difficultyLevel"),
 			meetingPointJson: objectFromFields({
 				address: form.get("meetingPointAddress"),
@@ -114,6 +121,13 @@ export async function createProductSubtype(params: {
 			guideJson: objectFromFields({
 				languages: listFromForm(form.get("guideLanguages")).join(", "),
 				guideType: form.get("guideType"),
+			}),
+			includesJson: listFromForm(form.get("tourIncludes")),
+			excludesJson: listFromForm(form.get("tourExcludes")),
+			categoriesJson: listFromForm(form.get("tourCategories")),
+			pickupJson: objectFromFields({
+				defaultArea: form.get("pickupDefaultArea"),
+				instructions: form.get("pickupInstructions"),
 			}),
 		}
 		const parsed = tourSchema.safeParse(payload)

@@ -196,6 +196,10 @@ export function isHotelProductType(raw: unknown): boolean {
 	return normalizeProductVertical(raw) === "hotel"
 }
 
+export function isTourProductType(raw: unknown): boolean {
+	return normalizeProductVertical(raw) === "tour"
+}
+
 export function productTypeLabel(raw: unknown, fallback = "Oferta"): string {
 	return getProductVerticalDefinition(raw)?.labels.singular ?? fallback
 }

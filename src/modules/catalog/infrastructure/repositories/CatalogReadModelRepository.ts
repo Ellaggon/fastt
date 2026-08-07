@@ -125,11 +125,16 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 				hotelPhone: Hotel.phone,
 				hotelEmail: Hotel.email,
 				tourDuration: Tour.duration,
+				tourDurationMinutes: Tour.durationMinutes,
 				tourDifficulty: Tour.difficultyLevel,
 				tourMeetingPoint: Tour.meetingPointJson,
 				tourItinerary: Tour.itineraryJson,
 				tourSafety: Tour.safetyJson,
 				tourGuide: Tour.guideJson,
+				tourIncludes: Tour.includesJson,
+				tourExcludes: Tour.excludesJson,
+				tourCategories: Tour.categoriesJson,
+				tourPickup: Tour.pickupJson,
 				packageDays: Package.days,
 				packageNights: Package.nights,
 				packageItinerary: Package.itineraryJson,
@@ -182,11 +187,16 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 					? {
 							kind: "tour" as const,
 							duration: row.tourDuration ? String(row.tourDuration) : null,
+							durationMinutes: row.tourDurationMinutes ?? null,
 							difficultyLevel: row.tourDifficulty ? String(row.tourDifficulty) : null,
 							meetingPoint: row.tourMeetingPoint ?? null,
 							itinerary: row.tourItinerary ?? null,
 							safety: row.tourSafety ?? null,
 							guide: row.tourGuide ?? null,
+							includes: row.tourIncludes ?? null,
+							excludes: row.tourExcludes ?? null,
+							categories: row.tourCategories ?? null,
+							pickup: row.tourPickup ?? null,
 						}
 					: normalizedType === "package"
 						? {

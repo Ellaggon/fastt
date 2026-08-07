@@ -194,11 +194,16 @@ export const GET: APIRoute = async ({ request, url }) => {
 			db
 				.select({
 					duration: Tour.duration,
+					durationMinutes: Tour.durationMinutes,
 					difficultyLevel: Tour.difficultyLevel,
 					meetingPointJson: Tour.meetingPointJson,
 					itineraryJson: Tour.itineraryJson,
 					safetyJson: Tour.safetyJson,
 					guideJson: Tour.guideJson,
+					includesJson: Tour.includesJson,
+					excludesJson: Tour.excludesJson,
+					categoriesJson: Tour.categoriesJson,
+					pickupJson: Tour.pickupJson,
 				})
 				.from(Tour)
 				.where(eq(Tour.productId, productId))
@@ -206,11 +211,16 @@ export const GET: APIRoute = async ({ request, url }) => {
 		)
 		subtypeDetails = {
 			duration: row?.duration ?? aggregate.subtype.duration ?? "",
+			durationMinutes: row?.durationMinutes ?? null,
 			difficultyLevel: row?.difficultyLevel ?? aggregate.subtype.difficultyLevel ?? "",
 			meetingPoint: row?.meetingPointJson ?? aggregate.subtype.meetingPoint ?? null,
 			itinerary: row?.itineraryJson ?? aggregate.subtype.itinerary ?? null,
 			safety: row?.safetyJson ?? aggregate.subtype.safety ?? null,
 			guide: row?.guideJson ?? aggregate.subtype.guide ?? null,
+			includes: row?.includesJson ?? null,
+			excludes: row?.excludesJson ?? null,
+			categories: row?.categoriesJson ?? null,
+			pickup: row?.pickupJson ?? null,
 		}
 	}
 	if (aggregate.subtype?.kind === "package") {
