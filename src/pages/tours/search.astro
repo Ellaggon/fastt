@@ -2,15 +2,22 @@
 import ProductCard from "@/components/productUI/ProductCard.astro"
 import { ratePlanPricingReadRepository } from "@/container"
 import SearchLayout from "@/layouts/SearchLayout.astro"
+import { durationMinutesMatchesBucket } from "@/lib/tours/tourSemantics"
 import {
 	and,
+	avg,
+	count,
 	db,
 	Destination,
 	eq,
 	Image,
+	inArray,
 	or,
 	Product,
+	ProductCategory,
+	ProductCategoryLink,
 	ProductContent,
+	ProductReview,
 	sql,
 	Tour,
 	Variant,
@@ -25,21 +32,24 @@ type ProductResult = {
 	duration: string | null
 	difficultyLevel: string | null
 	imageUrl: string | null
+	avgRating: number | null
 }
 
 const url = new URL(Astro.request.url)
 const params = url.searchParams
 const destinationId = params.get("destinationId") || params.get("destinationQuery") || null
-const checkin = params.get("checkin") || null
-const checkout = params.get("checkout") || null
-const adults = params.get("adults") || "2"
-const children = params.get("children") || "0"
-const rooms = params.get("rooms") || "1"
+const startDate = params.get("startDate") || params.get("checkin") || null
+const durationBucket = params.get("duration") || null
+const level = params.get("level") || null
+const categorySlugs = params
+	.getAll("category")
+	.map((v) => v.trim().toLowerCase())
+	.filter(Boolean)
+const sort = String(params.get("sort") ?? "relevance").trim()
 let tours: ProductResult[] = []
 let destination = null
 
 if (destinationId) {
-	// si nos pasan un slug o un id, intentamos resolverlo en Destination
 	const possible = await db
 		.select()
 		.from(Destination)
@@ -52,80 +62,174 @@ if (destinationId) {
 }
 
 try {
-	const whereClause = destination
-		? and(
-				sql`lower(${Product.productType}) = 'tour'`,
-				or(
-					eq(Product.destinationId, destination?.id),
-					eq(Destination.department, destination?.department ?? destination?.id)
-				)
+	let categoryProductIds: string[] | null = null
+	if (categorySlugs.length > 0) {
+		const linked = await db
+			.select({ productId: ProductCategoryLink.productId })
+			.from(ProductCategoryLink)
+			.innerJoin(ProductCategory, eq(ProductCategory.id, ProductCategoryLink.categoryId))
+			.where(
+				and(eq(ProductCategory.vertical, "tour"), inArray(ProductCategory.slug, categorySlugs))
 			)
-		: sql`lower(${Product.productType}) = 'tour'`
+		categoryProductIds = [...new Set(linked.map((row) => String(row.productId)))]
+	}
 
-	const rows = await db
-		.select({
-			id: Product.id,
-			name: Product.name,
-			description: ProductContent.description,
-			duration: Tour.duration,
-			difficultyLevel: Tour.difficultyLevel,
-			imageUrl: Image.url,
-			variantId: Variant.id,
-		})
-		.from(Product)
-		.leftJoin(ProductContent, eq(ProductContent.productId, Product.id))
-		.leftJoin(Tour, eq(Tour.productId, Product.id))
-		.leftJoin(Image, and(eq(Image.entityId, Product.id), eq(Image.isPrimary, true)))
-		.leftJoin(Destination, eq(Destination.id, Product.destinationId))
-		.leftJoin(Variant, and(eq(Variant.productId, Product.id), eq(Variant.isActive, true)))
-		.where(whereClause)
-		.groupBy(Product.id)
-		.limit(50)
+	const whereParts = [sql`lower(${Product.productType}) = 'tour'`]
+	if (destination) {
+		whereParts.push(
+			or(
+				eq(Product.destinationId, destination.id),
+				eq(Destination.department, destination.department ?? destination.id)
+			)!
+		)
+	}
+	if (categoryProductIds) {
+		if (categoryProductIds.length === 0) {
+			tours = []
+		} else {
+			whereParts.push(inArray(Product.id, categoryProductIds))
+		}
+	}
 
-	tours = await Promise.all(
-		rows.map(async (row) => {
-			const variantId = String(row.variantId ?? "").trim()
-			const summary = variantId
-				? await ratePlanPricingReadRepository.getDefaultRatePlanPricingSummaryByVariant(variantId)
-				: null
-			const normalizedCurrency = String(summary?.currency ?? "USD")
-				.trim()
-				.toUpperCase()
-			const basePrice = Number(summary?.basePrice ?? 0)
-			return {
-				id: row.id,
-				name: row.name,
-				description: row.description,
-				basePriceUSD: normalizedCurrency === "USD" ? basePrice : null,
-				basePriceBOB: normalizedCurrency === "BOB" ? basePrice : null,
-				duration: row.duration,
-				difficultyLevel: row.difficultyLevel,
-				imageUrl: row.imageUrl,
+	if (tours.length === 0 && !(categoryProductIds && categoryProductIds.length === 0)) {
+		const whereClause = and(...whereParts)
+
+		const rows = await db
+			.select({
+				id: Product.id,
+				name: Product.name,
+				description: ProductContent.description,
+				duration: Tour.duration,
+				durationMinutes: Tour.durationMinutes,
+				difficultyLevel: Tour.difficultyLevel,
+				imageUrl: Image.url,
+				variantId: Variant.id,
+			})
+			.from(Product)
+			.leftJoin(ProductContent, eq(ProductContent.productId, Product.id))
+			.leftJoin(Tour, eq(Tour.productId, Product.id))
+			.leftJoin(Image, and(eq(Image.entityId, Product.id), eq(Image.isPrimary, true)))
+			.leftJoin(Destination, eq(Destination.id, Product.destinationId))
+			.leftJoin(Variant, and(eq(Variant.productId, Product.id), eq(Variant.isActive, true)))
+			.where(whereClause)
+			.groupBy(Product.id)
+			.limit(80)
+
+		const filtered = rows.filter((row) => {
+			if (
+				level &&
+				String(row.difficultyLevel ?? "")
+					.trim()
+					.toLowerCase() !== level.trim().toLowerCase()
+			) {
+				return false
 			}
+			if (!durationMinutesMatchesBucket(row.durationMinutes, durationBucket)) return false
+			return true
 		})
-	)
+
+		const productIds = filtered.map((row) => String(row.id))
+		const ratingRows =
+			productIds.length > 0
+				? await db
+						.select({
+							productId: ProductReview.productId,
+							avgRating: avg(ProductReview.rating),
+							reviewCount: count(ProductReview.id),
+						})
+						.from(ProductReview)
+						.where(
+							and(
+								inArray(ProductReview.productId, productIds),
+								eq(ProductReview.status, "published")
+							)
+						)
+						.groupBy(ProductReview.productId)
+				: []
+		const ratingByProduct = new Map(
+			ratingRows.map((row) => [
+				String(row.productId),
+				{
+					avg: row.avgRating == null ? null : Number(row.avgRating),
+					count: Number(row.reviewCount ?? 0),
+				},
+			])
+		)
+
+		const mapped = await Promise.all(
+			filtered.slice(0, 50).map(async (row) => {
+				const variantId = String(row.variantId ?? "").trim()
+				const summary = variantId
+					? await ratePlanPricingReadRepository.getDefaultRatePlanPricingSummaryByVariant(variantId)
+					: null
+				const normalizedCurrency = String(summary?.currency ?? "USD")
+					.trim()
+					.toUpperCase()
+				const basePrice = Number(summary?.basePrice ?? 0)
+				const rating = ratingByProduct.get(String(row.id))
+				return {
+					id: row.id,
+					name: row.name,
+					description: row.description,
+					basePriceUSD: normalizedCurrency === "USD" ? basePrice : null,
+					basePriceBOB: normalizedCurrency === "BOB" ? basePrice : null,
+					duration: row.duration,
+					difficultyLevel: row.difficultyLevel,
+					imageUrl: row.imageUrl,
+					avgRating: rating?.avg ?? null,
+					durationMinutes: Number(row.durationMinutes ?? 0) || null,
+				}
+			})
+		)
+
+		mapped.sort((a, b) => {
+			if (sort === "price_asc") {
+				return (
+					Number(a.basePriceUSD ?? a.basePriceBOB ?? 0) -
+					Number(b.basePriceUSD ?? b.basePriceBOB ?? 0)
+				)
+			}
+			if (sort === "price_desc") {
+				return (
+					Number(b.basePriceUSD ?? b.basePriceBOB ?? 0) -
+					Number(a.basePriceUSD ?? a.basePriceBOB ?? 0)
+				)
+			}
+			if (sort === "duration_asc") {
+				return Number(a.durationMinutes ?? 99999) - Number(b.durationMinutes ?? 99999)
+			}
+			if (sort === "rating_desc") {
+				return Number(b.avgRating ?? 0) - Number(a.avgRating ?? 0)
+			}
+			return 0
+		})
+
+		tours = mapped.map(({ durationMinutes: _d, ...rest }) => rest)
+	}
 } catch (err) {
-	console.error("error querying hotels", err)
+	console.error("error querying tours", err)
 }
 ---
 
 <SearchLayout title="Resultados de búsqueda" producType="tours">
 	<main class="mx-auto max-w-7xl p-6">
-		<h1 class="mb-4 text-2xl font-bold">Resultados</h1>
+		<h1 class="mb-4 text-2xl font-bold">Resultados de tours</h1>
 		<p class="text-sm text-gray-600">
-			Destino: {destination?.name ?? "Cualquier lugar"} — Fechas: {checkin ?? "-"} → {
-				checkout ?? "-"
-			}
+			Destino: {destination?.name ?? "Cualquier lugar"}
+			{startDate ? ` — Fecha: ${startDate}` : ""}
+			{durationBucket ? ` — Duración: ${durationBucket}` : ""}
+			{level ? ` — Nivel: ${level}` : ""}
+			{categorySlugs.length ? ` — Categorías: ${categorySlugs.join(", ")}` : ""}
 		</p>
 		<div class="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
 			{
 				tours.length === 0 ? (
-					<p class="col-span-full text-gray-500">No se encontraron hoteles para esos filtros.</p>
+					<p class="col-span-full text-gray-500">No se encontraron tours para esos filtros.</p>
 				) : (
 					tours.map((t) => (
 						<ProductCard
 							name={t.name}
-							href={`/hotels/${t.id}`}
+							href={`/tours/${t.id}`}
 							image={t.imageUrl || "https://picsum.photos/400/250"}
 							alt={t.name}
 							duration={t.duration || ""}

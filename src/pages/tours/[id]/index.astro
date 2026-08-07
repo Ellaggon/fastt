@@ -1,7 +1,10 @@
 ---
 import Breadcrumbs from "@/components/Breadcrumbs.astro"
+import TourDepartureSection from "@/components/tours/TourDepartureSection.astro"
 import { SERVICE_CATALOG } from "@/data/service/service-catalog"
+import { searchOffers } from "@/container"
 import Layout from "@/layouts/Layout.astro"
+import { tourDepartureToStay } from "@/lib/tours/tourSemantics"
 import type { ImageRow, ServiceRow } from "@/types/products"
 import {
 	first,
@@ -9,39 +12,105 @@ import {
 	db,
 	Destination,
 	eq,
-	Hotel,
 	Image,
-	Package,
+	inArray,
 	Product,
+	ProductContent,
 	ProductLocation,
 	ProductService,
 	Tour,
+	TourSlotProfile,
+	Variant,
 } from "@/shared/infrastructure/db/compat"
 
+const url = Astro.url
 const productId = Astro.params.id
 let product: any = null
 let images: ImageRow[] = []
 let subtype: any = null
+let description: string | null = null
 let services: Array<ServiceRow & { iconId?: string | null }> = []
 let errorMessage: string | null = null
 
-try {
-	if (!productId) return Astro.redirect("/tours")
+function toISODateOnly(d: Date) {
+	return d.toISOString().slice(0, 10)
+}
 
+function asStringList(value: unknown): string[] {
+	if (!Array.isArray(value)) return []
+	return value
+		.map((item) => {
+			if (typeof item === "string") return item.trim()
+			if (item && typeof item === "object") {
+				return String((item as any).description ?? (item as any).name ?? "").trim()
+			}
+			return ""
+		})
+		.filter(Boolean)
+}
+
+function fieldFromObject(value: unknown, key: string) {
+	if (!value || typeof value !== "object") return ""
+	return String((value as any)[key] ?? "").trim()
+}
+
+if (!productId) return Astro.redirect("/tours")
+
+const departureStr = url.searchParams.get("departure")
+const participants = Math.max(1, Number(url.searchParams.get("participants") ?? 1) || 1)
+
+if (!departureStr) {
+	const today = new Date()
+	return Astro.redirect(
+		`/tours/${productId}?departure=${toISODateOnly(today)}&participants=${participants}`
+	)
+}
+
+let stay
+try {
+	stay = tourDepartureToStay(departureStr)
+} catch {
+	const today = new Date()
+	return Astro.redirect(
+		`/tours/${productId}?departure=${toISODateOnly(today)}&participants=${participants}`
+	)
+}
+
+const offers = await searchOffers({
+	productId,
+	checkIn: stay.checkIn,
+	checkOut: stay.checkOut,
+	adults: participants,
+	children: 0,
+	featureContext: {
+		request: Astro.request,
+		query: url.searchParams,
+	},
+})
+
+try {
 	const productResult = await db
 		.select()
 		.from(Product)
 		.leftJoin(Destination, eq(Destination.id, Product.destinationId))
 		.leftJoin(ProductLocation, eq(ProductLocation.productId, Product.id))
+		.leftJoin(ProductContent, eq(ProductContent.productId, Product.id))
 		.where(eq(Product.id, productId))
 		.then(first)
 
 	if (!productResult) return Astro.redirect("/tours")
+
+	const productType = String(productResult.Product.productType ?? "")
+		.trim()
+		.toLowerCase()
+	if (productType !== "tour") return Astro.redirect("/tours")
+
 	product = {
 		...productResult.Product,
 		destination: productResult.Destination,
 		location: productResult.ProductLocation,
 	}
+	description = productResult.ProductContent?.description ?? null
 
 	const servicesResult = await db
 		.select({ id: ProductService.serviceId })
@@ -67,47 +136,76 @@ try {
 		.where(eq(Image.entityId, productId))
 		.orderBy(asc(Image.order))
 
-	switch ((product.productType || "").toLowerCase()) {
-		case "hotel":
-			subtype = await db.select().from(Hotel).where(eq(Hotel.productId, productId)).then(first)
-			break
-		case "package":
-			subtype = await db.select().from(Package).where(eq(Package.productId, productId)).then(first)
-			break
-		case "tour":
-			subtype = await db.select().from(Tour).where(eq(Tour.productId, productId)).then(first)
-			break
-	}
+	subtype = await db.select().from(Tour).where(eq(Tour.productId, productId)).then(first)
 } catch (e) {
-	console.error("Error al obtener detalles del producto:", e)
+	console.error("Error al obtener detalles del tour:", e)
 	errorMessage = e instanceof Error ? e.message : "Error desconocido"
 }
 
-const productData = product ? { ...product, images, subtype, services } : null
-export const productDataExport = productData
+const productData = product ? { ...product, images, subtype, services, description } : null
+
+const itinerarySteps = asStringList(productData?.subtype?.itineraryJson)
+const includes = asStringList(productData?.subtype?.includesJson)
+const excludes = asStringList(productData?.subtype?.excludesJson)
+const categories = asStringList(productData?.subtype?.categoriesJson)
+const meetingAddress = fieldFromObject(productData?.subtype?.meetingPointJson, "address")
+const meetingInstructions = fieldFromObject(productData?.subtype?.meetingPointJson, "instructions")
+const pickupArea = fieldFromObject(productData?.subtype?.pickupJson, "defaultArea")
+const pickupInstructions = fieldFromObject(productData?.subtype?.pickupJson, "instructions")
+const guideLanguages = fieldFromObject(productData?.subtype?.guideJson, "languages")
+const guideType = fieldFromObject(productData?.subtype?.guideJson, "guideType")
+const safetyRequirements = fieldFromObject(productData?.subtype?.safetyJson, "requirements")
+const safetyWarnings = fieldFromObject(productData?.subtype?.safetyJson, "warnings")
+
+const offerVariantIds = Array.from(
+	new Set(offers.map((offer: any) => String(offer?.variantId ?? "")).filter(Boolean))
+)
+const slotRows =
+	offerVariantIds.length > 0
+		? await db
+				.select({
+					variantId: Variant.id,
+					name: Variant.name,
+					departureTime: TourSlotProfile.departureTime,
+					maxPax: TourSlotProfile.maxPax,
+					languageCode: TourSlotProfile.languageCode,
+					bookingMode: TourSlotProfile.bookingMode,
+				})
+				.from(Variant)
+				.leftJoin(TourSlotProfile, eq(TourSlotProfile.variantId, Variant.id))
+				.where(inArray(Variant.id, offerVariantIds))
+		: []
+
+const slotsByVariantId = Object.fromEntries(
+	slotRows.map((row) => [
+		String(row.variantId),
+		{
+			name: row.name,
+			departureTime: row.departureTime,
+			maxPax: row.maxPax,
+			languageCode: row.languageCode,
+			bookingMode: row.bookingMode,
+		},
+	])
+)
+
+const searchState = {
+	departureDate: departureStr,
+	participants,
+}
 
 const breadcrumbItems = [
 	{ name: "Home", href: "/" },
-	{
-		name: productData?.productType ?? "",
-		href:
-			productData?.productType === "Hotel"
-				? "/hotels"
-				: productData?.productType === "Package"
-					? "/packages"
-					: "/tours",
-	},
+	{ name: "Tours", href: "/tours" },
 	{
 		name: productData?.name || "/",
 		href: `/tours/${productId}`,
 		current: true,
 	},
 ]
-
-const isHotel = productData?.productType?.toLowerCase() === "hotel"
 ---
 
-<Layout title={productData?.name || "Producto"}>
+<Layout title={productData?.name || "Tour"}>
 	<main class="mx-auto min-h-screen max-w-7xl space-y-10 p-4 lg:p-12">
 		<Breadcrumbs items={breadcrumbItems} />
 
@@ -116,15 +214,14 @@ const isHotel = productData?.productType?.toLowerCase() === "hotel"
 				<div class="flex min-h-[60vh] flex-col items-center justify-center text-center">
 					<h1 class="mb-4 text-4xl font-bold text-red-500">{errorMessage}</h1>
 					<a
-						href="/"
+						href="/tours"
 						class="rounded-[var(--fastt-radius-card)] border border-gray-500 px-6 py-3 transition hover:bg-gray-800 hover:text-white"
 					>
-						Volver al inicio
+						Volver a tours
 					</a>
 				</div>
 			) : productData ? (
 				<>
-					{/* <!-- 🖼 Imagen principal --> */}
 					<div class="relative overflow-hidden rounded-[var(--fastt-radius-panel)] shadow-lg">
 						<img
 							id="gallery-main-img"
@@ -134,7 +231,6 @@ const isHotel = productData?.productType?.toLowerCase() === "hotel"
 						/>
 					</div>
 
-					{/* <!-- 🖼 Miniaturas --> */}
 					{productData.images.length > 1 && (
 						<div class="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
 							{productData.images.map((img: ImageRow, i: number) => (
@@ -148,75 +244,138 @@ const isHotel = productData?.productType?.toLowerCase() === "hotel"
 						</div>
 					)}
 
-					{/* <!-- 📋 Info principal --> */}
 					<section class="fastt-card space-y-4 rounded-[var(--fastt-radius-panel)] border border-gray-200 bg-gray-100 p-8 shadow-sm">
-						<div class="flex gap-1 text-black">
-							{Array.from({ length: productData.subtype?.stars || 0 }).map((_, i) => (
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									fill="currentColor"
-									viewBox="0 0 24 24"
-									class="h-5 w-5"
-								>
-									<path d="M12 .587l3.668 7.568L24 9.748l-6 5.85 1.416 8.252L12 19.771l-7.416 4.079L6 15.598 0 9.748l8.332-1.593z" />
-								</svg>
-							))}
-						</div>
 						<h1 class="text-4xl font-bold text-gray-900">{productData.name}</h1>
+						<p class="text-neutral-500">
+							{productData.location?.address ?? (meetingAddress || "Ubicación por confirmar")}
+							{productData.destination?.name ? `, ${productData.destination.name}` : ""}
+						</p>
 
-						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-							<p class="text-neutral-500">
-								{productData.location?.address ?? "Dirección no disponible"},{" "}
-								{productData.destination?.name}
-							</p>
+						<div class="flex flex-wrap gap-3 text-sm text-slate-700">
+							{productData.subtype?.duration ? (
+								<span class="rounded-md bg-white px-3 py-1 shadow-sm">
+									Duración: {productData.subtype.duration}
+									{productData.subtype.durationMinutes != null
+										? ` (${productData.subtype.durationMinutes} min)`
+										: ""}
+								</span>
+							) : null}
+							{productData.subtype?.difficultyLevel ? (
+								<span class="rounded-md bg-white px-3 py-1 shadow-sm">
+									Nivel: {productData.subtype.difficultyLevel}
+								</span>
+							) : null}
+							{guideLanguages ? (
+								<span class="rounded-md bg-white px-3 py-1 shadow-sm">
+									Idiomas: {guideLanguages}
+								</span>
+							) : null}
+							{guideType ? (
+								<span class="rounded-md bg-white px-3 py-1 shadow-sm">Guía: {guideType}</span>
+							) : null}
 						</div>
-						{/* <!-- Servicios --> */}
+
+						{categories.length > 0 && (
+							<ul class="flex flex-wrap gap-2">
+								{categories.map((c) => (
+									<li class="rounded-full bg-slate-800 px-3 py-1 text-xs text-white">{c}</li>
+								))}
+							</ul>
+						)}
+
 						{productData.services.length > 0 && (
-							<ul class="grid grid-cols-2 gap-3 py-10 md:grid-cols-3 lg:grid-cols-4">
+							<ul class="grid grid-cols-2 gap-3 py-4 md:grid-cols-3 lg:grid-cols-4">
 								{productData.services.map((s: ServiceRow & { iconId?: string | null }) => (
 									<li class="flex items-center gap-2">
-										<span>{s.iconId === "wifi" ? "📶" : "•"}</span>
+										<span>•</span>
 										<span>{s.name}</span>
 									</li>
 								))}
 							</ul>
 						)}
-						<p class="mt-4 leading-relaxed text-gray-700">{productData.longDescription}</p>
+
+						{description ? <p class="mt-4 leading-relaxed text-gray-700">{description}</p> : null}
 					</section>
 
-					<section class="grid grid-cols-2 p-8">
-						<div>
-							<p>
-								<b>Ingreso:</b> {productData.subtype?.checkInTime}
-							</p>
-							<p>
-								<b>Salida:</b> {productData.subtype?.checkOutTime}
-							</p>
-						</div>
-						<div>
-							<p>
-								<b>$</b>
-								{productData?.basePriceUSD}
-							</p>
-							<p>
-								{productData?.basePriceBOB}
-								<b>Bs</b>
-							</p>
-						</div>
+					<section id="booking">
+						<TourDepartureSection
+							productId={productId}
+							offers={offers}
+							slotsByVariantId={slotsByVariantId}
+							searchState={searchState}
+						/>
 					</section>
 
-					{/* mapa */}
-					<section class="fastt-card rounded-[var(--fastt-radius-panel)] border border-gray-200 bg-white p-8 shadow-sm">
-						<h2 class="mb-4 text-2xl font-semibold text-gray-900">Ubicación</h2>
-						<p class="mb-4 text-gray-700">
-							{isHotel ? productData.subtype?.address : "Ver ubicación en mapa"}
-						</p>
-						<div class="flex h-64 items-center justify-center rounded-[var(--fastt-radius-card)] bg-gray-100 text-gray-500">
-							Mapa (pendiente)
-						</div>
-					</section>
+					{(meetingAddress || meetingInstructions || pickupArea) && (
+						<section class="fastt-card space-y-3 rounded-[var(--fastt-radius-panel)] border border-gray-200 bg-white p-8 shadow-sm">
+							<h2 class="text-2xl font-semibold text-gray-900">Punto de encuentro y pickup</h2>
+							{meetingAddress ? (
+								<p class="text-gray-700">
+									<strong>Encuentro:</strong> {meetingAddress}
+								</p>
+							) : null}
+							{meetingInstructions ? <p class="text-gray-600">{meetingInstructions}</p> : null}
+							{pickupArea ? (
+								<p class="text-gray-700">
+									<strong>Pickup:</strong> {pickupArea}
+								</p>
+							) : null}
+							{pickupInstructions ? <p class="text-gray-600">{pickupInstructions}</p> : null}
+						</section>
+					)}
 
-					{/* <!-- 🪟 Modal --> */}
+					{itinerarySteps.length > 0 && (
+						<section class="fastt-card space-y-3 rounded-[var(--fastt-radius-panel)] border border-gray-200 bg-white p-8 shadow-sm">
+							<h2 class="text-2xl font-semibold text-gray-900">Itinerario</h2>
+							<ol class="list-decimal space-y-2 pl-5 text-gray-700">
+								{itinerarySteps.map((step) => (
+									<li>{step}</li>
+								))}
+							</ol>
+						</section>
+					)}
+
+					{(includes.length > 0 || excludes.length > 0) && (
+						<section class="grid gap-6 md:grid-cols-2">
+							{includes.length > 0 ? (
+								<div class="fastt-card rounded-[var(--fastt-radius-panel)] border border-gray-200 bg-white p-8 shadow-sm">
+									<h2 class="mb-3 text-xl font-semibold text-gray-900">Incluye</h2>
+									<ul class="list-disc space-y-1 pl-5 text-gray-700">
+										{includes.map((item) => (
+											<li>{item}</li>
+										))}
+									</ul>
+								</div>
+							) : null}
+							{excludes.length > 0 ? (
+								<div class="fastt-card rounded-[var(--fastt-radius-panel)] border border-gray-200 bg-white p-8 shadow-sm">
+									<h2 class="mb-3 text-xl font-semibold text-gray-900">No incluye</h2>
+									<ul class="list-disc space-y-1 pl-5 text-gray-700">
+										{excludes.map((item) => (
+											<li>{item}</li>
+										))}
+									</ul>
+								</div>
+							) : null}
+						</section>
+					)}
+
+					{(safetyRequirements || safetyWarnings) && (
+						<section class="fastt-card space-y-2 rounded-[var(--fastt-radius-panel)] border border-gray-200 bg-white p-8 shadow-sm">
+							<h2 class="text-2xl font-semibold text-gray-900">Seguridad y preparación</h2>
+							{safetyRequirements ? (
+								<p class="text-gray-700">
+									<strong>Requisitos:</strong> {safetyRequirements}
+								</p>
+							) : null}
+							{safetyWarnings ? (
+								<p class="text-gray-700">
+									<strong>Advertencias:</strong> {safetyWarnings}
+								</p>
+							) : null}
+						</section>
+					)}
+
 					<div
 						id="gallery-modal"
 						class="bg-opacity-90 fixed inset-0 z-50 hidden items-center justify-center bg-black"
@@ -227,7 +386,6 @@ const isHotel = productData?.productType?.toLowerCase() === "hotel"
 						>
 							&times;
 						</button>
-
 						<button
 							id="modal-prev"
 							class="absolute left-6 text-4xl font-bold text-white hover:text-gray-400"
@@ -266,22 +424,22 @@ const isHotel = productData?.productType?.toLowerCase() === "hotel"
 			let currentIndex = 0
 
 			const openModal = (index: number) => {
-				if (!modal || !modalImg) return
+				if (!modal || !modalImg || thumbImgs.length === 0) return
 				currentIndex = index
-				modalImg.src = thumbImgs[index].src
+				modalImg.src = thumbImgs[index]?.src || mainImg?.src || ""
 				modal.classList.remove("hidden")
 			}
 
 			const closeModal = () => modal?.classList.add("hidden")
 
 			const showPrev = () => {
-				if (!modalImg) return
+				if (!modalImg || thumbImgs.length === 0) return
 				currentIndex = (currentIndex - 1 + thumbImgs.length) % thumbImgs.length
 				modalImg.src = thumbImgs[currentIndex].src
 			}
 
 			const showNext = () => {
-				if (!modalImg) return
+				if (!modalImg || thumbImgs.length === 0) return
 				currentIndex = (currentIndex + 1) % thumbImgs.length
 				modalImg.src = thumbImgs[currentIndex].src
 			}
