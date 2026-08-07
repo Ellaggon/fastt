@@ -175,6 +175,7 @@ export class PolicyResolutionRepository implements PolicyResolutionRepositoryPor
 			id: String(r.id),
 			policyId: String(r.policyId),
 			daysBeforeArrival: Number(r.daysBeforeArrival ?? 0),
+			hoursBeforeDeparture: r.hoursBeforeDeparture == null ? null : Number(r.hoursBeforeDeparture),
 			penaltyType: String(r.penaltyType ?? ""),
 			penaltyAmount: r.penaltyAmount == null ? null : Number(r.penaltyAmount),
 		}))

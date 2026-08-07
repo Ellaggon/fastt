@@ -44,6 +44,7 @@ export type CancellationTierRow = {
 	id: string
 	policyId: string
 	daysBeforeArrival: number
+	hoursBeforeDeparture: number | null
 	penaltyType: string
 	penaltyAmount: number | null
 }

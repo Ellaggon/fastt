@@ -1,0 +1,160 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Checkbox from "@/components/ui/Checkbox.astro"
+import { productRepository } from "@/container"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { isTourProductType } from "@/lib/productVerticalRegistry"
+import { routes } from "@/lib/routes"
+import { getProductAggregate } from "@/modules/catalog/public"
+import {
+	asc,
+	db,
+	eq,
+	ProductCategory,
+	ProductCategoryLink,
+	TourTicketType,
+} from "@/shared/infrastructure/db/compat"
+import { Ticket } from "@lucide/astro"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
+
+const providerId = (await getProviderIdFromRequest(Astro.request, user)) ?? ""
+if (!providerId) return Astro.redirect(routes.providerSettingsProfile())
+
+const productId = String(Astro.params.id ?? "")
+if (!productId) return Astro.redirect("/product/create")
+
+const owned = await productRepository.ensureProductOwnedByProvider(productId, providerId)
+if (!owned) return Astro.redirect("/product/create")
+if (!isTourProductType(owned.productType)) return Astro.redirect(routes.productDetail(productId))
+
+const product = await getProductAggregate(productId)
+if (!product) return Astro.redirect("/product/create")
+
+const [tickets, categories, links] = await Promise.all([
+	db
+		.select()
+		.from(TourTicketType)
+		.where(eq(TourTicketType.productId, productId))
+		.orderBy(asc(TourTicketType.sortOrder)),
+	db
+		.select()
+		.from(ProductCategory)
+		.where(eq(ProductCategory.vertical, "tour"))
+		.orderBy(asc(ProductCategory.sortOrder)),
+	db
+		.select({ categoryId: ProductCategoryLink.categoryId })
+		.from(ProductCategoryLink)
+		.where(eq(ProductCategoryLink.productId, productId)),
+])
+
+const linked = new Set(links.map((row) => String(row.categoryId)))
+---
+
+<WorkspaceLayout title={`${product.displayName} · Tickets y categorías`}>
+	<section class="space-y-6" data-product-id={productId}>
+		<header class="space-y-1.5 border-b border-slate-200 pb-5">
+			<p
+				class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500"
+			>
+				<Ticket class="h-4 w-4" />
+				{product.displayName}
+			</p>
+			<h1 class="text-3xl font-semibold text-slate-950">Tickets y categorías</h1>
+			<p class="max-w-2xl text-sm leading-6 text-slate-600">
+				Define age bands (adulto/niño/infante) y categorías persistidas para discovery.
+			</p>
+		</header>
+
+		<Card class="bg-white space-y-4">
+			<h2 class="text-sm font-semibold text-slate-950">Tipos de ticket</h2>
+			<ul class="space-y-2 text-sm text-slate-700">
+				{
+					tickets.length === 0 ? (
+						<li>Sin tickets todavía. Usa “Sembrar tickets por defecto”.</li>
+					) : (
+						tickets.map((t) => (
+							<li class="flex justify-between gap-3 border-b border-slate-100 py-2">
+								<span>
+									{t.label} <span class="text-slate-400">({t.code})</span>
+								</span>
+								<span class="text-slate-500">
+									{t.minAge != null ? `${t.minAge}` : "—"}–{t.maxAge != null ? `${t.maxAge}` : "—"}{" "}
+									años
+								</span>
+							</li>
+						))
+					)
+				}
+			</ul>
+			<Button type="button" id="seed-tickets-btn">Sembrar tickets por defecto</Button>
+			<p id="tickets-status" class="text-sm text-slate-600" aria-live="polite"></p>
+		</Card>
+
+		<Card class="bg-white space-y-4">
+			<h2 class="text-sm font-semibold text-slate-950">Categorías (discovery)</h2>
+			<div class="flex flex-wrap gap-2">
+				{
+					categories.map((c) => (
+						<Checkbox
+							name="categoryId"
+							value={c.id}
+							checked={linked.has(String(c.id))}
+							className="fastt-soft-box rounded border border-slate-200 px-3 py-2 text-sm"
+						>
+							{c.name}
+						</Checkbox>
+					))
+				}
+			</div>
+			<Button type="button" id="save-categories-btn">Guardar categorías</Button>
+			<p id="categories-status" class="text-sm text-slate-600" aria-live="polite"></p>
+		</Card>
+
+		<a href={routes.productDetail(productId)} class="text-sm font-semibold text-slate-700">
+			← Volver a la ficha
+		</a>
+	</section>
+
+	<script>
+		const root = document.querySelector<HTMLElement>("[data-product-id]")
+		const productId = String(root?.dataset.productId ?? "")
+
+		document.getElementById("seed-tickets-btn")?.addEventListener("click", async () => {
+			const status = document.getElementById("tickets-status")
+			if (status) status.textContent = "Creando tickets..."
+			const res = await fetch(
+				`/api/variant/tour-ticket-types?productId=${encodeURIComponent(productId)}`
+			)
+			const payload = await res.json().catch(() => ({}))
+			if (!res.ok) {
+				if (status) status.textContent = "No se pudieron crear tickets."
+				return
+			}
+			if (status) status.textContent = `${(payload.tickets ?? []).length} tickets listos.`
+			window.location.reload()
+		})
+
+		document.getElementById("save-categories-btn")?.addEventListener("click", async () => {
+			const status = document.getElementById("categories-status")
+			const ids = Array.from(
+				document.querySelectorAll<HTMLInputElement>('input[name="categoryId"]:checked')
+			).map((el) => el.value)
+			if (status) status.textContent = "Guardando..."
+			const res = await fetch("/api/catalog/product-categories", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ productId, categoryIds: ids }),
+			})
+			if (!res.ok) {
+				if (status) status.textContent = "No se pudieron guardar categorías."
+				return
+			}
+			if (status) status.textContent = "Categorías guardadas."
+		})
+	</script>
+</WorkspaceLayout>
