@@ -26,6 +26,7 @@ import {
 	ProviderExternalCalendar,
 	ProviderExternalCalendarEvent,
 	ProviderIntegrationMapping,
+	TourSlotProfile,
 	eq,
 	and,
 	count,
@@ -464,5 +465,14 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 			.where(and(inArray(Image.entityType, ["variant", "Variant"]), eq(Image.entityId, variantId)))
 			.then(first)
 		return Number(row?.value ?? 0)
+	}
+
+	async hasTourSlotProfile(variantId: string): Promise<boolean> {
+		const row = await db
+			.select({ variantId: TourSlotProfile.variantId })
+			.from(TourSlotProfile)
+			.where(eq(TourSlotProfile.variantId, variantId))
+			.then(first)
+		return Boolean(row?.variantId)
 	}
 }

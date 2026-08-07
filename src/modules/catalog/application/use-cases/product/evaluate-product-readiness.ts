@@ -74,7 +74,10 @@ export async function evaluateProductReadiness(
 			errors.push({ code: "missing_tour_meeting_point", message: "Tour meeting point is required" })
 		}
 		if (!tour?.hasSchedule) {
-			errors.push({ code: "missing_tour_schedule", message: "Tour schedule is required" })
+			errors.push({
+				code: "missing_tour_schedule",
+				message: "At least one salida with profile, capacity and rate is required",
+			})
 		}
 	}
 

@@ -2,15 +2,20 @@ import type {
 	VariantLifecycleStatus,
 	VariantManagementRepositoryPort,
 } from "../../ports/VariantManagementRepositoryPort"
-import type { RatePlanPricingReadRepositoryPort } from "@/modules/pricing/application/ports"
 import { evaluateVariantReadinessSchema } from "../../schemas/variant/variantSchemas"
 
 type ValidationError = { code: string; message: string }
 
+type VariantPricingReadPort = {
+	getDefaultRatePlanPricingSummaryByVariant(
+		variantId: string
+	): Promise<{ ratePlanId: string } | null | undefined>
+}
+
 export async function evaluateVariantReadiness(
 	deps: {
 		repo: VariantManagementRepositoryPort
-		pricingReadRepo: RatePlanPricingReadRepositoryPort
+		pricingReadRepo: VariantPricingReadPort
 	},
 	params: { variantId: string }
 ): Promise<{ variantId: string; state: "draft" | "ready"; validationErrors: ValidationError[] }> {
@@ -19,8 +24,25 @@ export async function evaluateVariantReadiness(
 	const v = await deps.repo.getVariantById(parsed.variantId)
 	if (!v) throw new Error("Variant not found")
 
+	const kind = String(v.kind ?? "")
+		.trim()
+		.toLowerCase()
+	const isTourSlot = kind === "tour_slot"
+
 	const blockingErrors: ValidationError[] = []
 	const allErrors: ValidationError[] = []
+
+	if (isTourSlot) {
+		const hasProfile = await deps.repo.hasTourSlotProfile(parsed.variantId)
+		if (!hasProfile) {
+			const e = {
+				code: "missing_tour_slot_profile",
+				message: "Tour slot profile (hora, cupo, idioma) is required",
+			}
+			blockingErrors.push(e)
+			allErrors.push(e)
+		}
+	}
 
 	const capacity = await deps.repo.getCapacity(parsed.variantId)
 	if (!capacity) {
@@ -29,10 +51,7 @@ export async function evaluateVariantReadiness(
 		allErrors.push(e)
 	}
 
-	const requiresRoomPhoto =
-		String(v.kind ?? "")
-			.trim()
-			.toLowerCase() === "hotel_room"
+	const requiresRoomPhoto = kind === "hotel_room"
 	const imageCount = requiresRoomPhoto ? await deps.repo.countVariantImages(parsed.variantId) : 0
 	if (requiresRoomPhoto && imageCount < 1) {
 		const e = {
@@ -52,7 +71,10 @@ export async function evaluateVariantReadiness(
 		parsed.variantId
 	)
 	if (!pricingSummary) {
-		allErrors.push({ code: "pricing_missing", message: "Pricing summary not configured" })
+		const e = { code: "pricing_missing", message: "Pricing summary not configured" }
+		allErrors.push(e)
+		// Fase 2: tour salidas require a default rate to be ready/sellable.
+		if (isTourSlot) blockingErrors.push(e)
 	}
 	allErrors.push({
 		code: "inventory_missing",

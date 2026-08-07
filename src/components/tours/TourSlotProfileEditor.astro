@@ -1,0 +1,213 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Checkbox from "@/components/ui/Checkbox.astro"
+import FormField from "@/components/ui/FormField.astro"
+import Input from "@/components/ui/Input.astro"
+import Notice from "@/components/ui/Notice.astro"
+import Select from "@/components/ui/Select.astro"
+import Textarea from "@/components/ui/Textarea.astro"
+import { Clock, Languages, Users } from "@lucide/astro"
+
+interface Props {
+	productId: string
+	variantId?: string | null
+	mode: "create" | "edit"
+	name?: string | null
+	description?: string | null
+	departureTime?: string | null
+	durationMinutes?: number | null
+	maxPax?: number | null
+	languageCode?: string | null
+	bookingMode?: "shared" | "private" | null
+	meetingPointOverride?: string | null
+	isActive?: boolean | null
+	redirectOnSuccess?: string | null
+}
+
+const {
+	productId,
+	variantId = null,
+	mode,
+	name = "",
+	description = "",
+	departureTime = "09:00",
+	durationMinutes = null,
+	maxPax = 12,
+	languageCode = "es",
+	bookingMode = "shared",
+	meetingPointOverride = "",
+	isActive = true,
+	redirectOnSuccess = null,
+} = Astro.props
+
+const isEditMode = mode === "edit"
+---
+
+<form
+	id="tour-slot-profile-form"
+	class="space-y-6"
+	data-product-id={productId}
+	data-variant-id={variantId ?? ""}
+	data-redirect={redirectOnSuccess ?? ""}
+>
+	{isEditMode ? <input type="hidden" name="variantId" value={variantId ?? ""} /> : null}
+	<input type="hidden" name="productId" value={productId} />
+
+	<Notice tone="info">
+		Cada salida es una variante con un horario. El cupo (participantes) se usa como inventario
+		disponible por fecha.
+	</Notice>
+
+	<section
+		class="fastt-card space-y-4 rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-5"
+	>
+		<header class="flex items-center gap-2">
+			<Clock class="h-4 w-4 text-slate-500" />
+			<h2 class="text-sm font-semibold text-slate-950">Salida</h2>
+		</header>
+		<div class="grid gap-4 md:grid-cols-2">
+			<FormField label="Nombre de la salida" for="name" required>
+				<Input
+					id="name"
+					name="name"
+					required
+					value={name ?? ""}
+					placeholder="Ej: Salida mañana 09:00"
+				/>
+			</FormField>
+			<FormField label="Hora de salida" for="departureTime" required>
+				<Input
+					id="departureTime"
+					name="departureTime"
+					type="time"
+					required
+					value={departureTime ?? "09:00"}
+				/>
+			</FormField>
+			<FormField label="Duración override (minutos, opcional)" for="durationMinutes">
+				<Input
+					id="durationMinutes"
+					name="durationMinutes"
+					type="number"
+					min="1"
+					value={durationMinutes != null ? String(durationMinutes) : ""}
+					placeholder="Deja vacío para usar la duración del tour"
+				/>
+			</FormField>
+		</div>
+		<FormField label="Descripción (opcional)" for="description">
+			<Textarea
+				id="description"
+				name="description"
+				rows={3}
+				value={description ?? ""}
+				placeholder="Notas visibles para el huésped sobre esta salida"
+			/>
+		</FormField>
+	</section>
+
+	<section
+		class="fastt-card space-y-4 rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-5"
+	>
+		<header class="flex items-center gap-2">
+			<Users class="h-4 w-4 text-slate-500" />
+			<h2 class="text-sm font-semibold text-slate-950">Cupo y modalidad</h2>
+		</header>
+		<div class="grid gap-4 md:grid-cols-2">
+			<FormField label="Máximo de participantes" for="maxPax" required>
+				<Input
+					id="maxPax"
+					name="maxPax"
+					type="number"
+					min="1"
+					required
+					value={String(maxPax ?? 12)}
+				/>
+			</FormField>
+			<FormField label="Modalidad" for="bookingMode" required>
+				<Select id="bookingMode" name="bookingMode" required>
+					<option value="shared" selected={bookingMode !== "private"}>Compartido</option>
+					<option value="private" selected={bookingMode === "private"}>Privado</option>
+				</Select>
+			</FormField>
+		</div>
+		<Checkbox name="isActive" value="true" checked={isActive !== false}>
+			Salida activa (visible para venta)
+		</Checkbox>
+	</section>
+
+	<section
+		class="fastt-card space-y-4 rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-5"
+	>
+		<header class="flex items-center gap-2">
+			<Languages class="h-4 w-4 text-slate-500" />
+			<h2 class="text-sm font-semibold text-slate-950">Idioma y punto de encuentro</h2>
+		</header>
+		<div class="grid gap-4 md:grid-cols-2">
+			<FormField label="Idioma" for="languageCode" required>
+				<Select id="languageCode" name="languageCode" required>
+					<option value="es" selected={languageCode === "es"}>Español</option>
+					<option value="en" selected={languageCode === "en"}>English</option>
+					<option value="pt" selected={languageCode === "pt"}>Português</option>
+					<option value="fr" selected={languageCode === "fr"}>Français</option>
+					<option value="de" selected={languageCode === "de"}>Deutsch</option>
+				</Select>
+			</FormField>
+			<FormField label="Override de encuentro (opcional)" for="meetingPointOverride">
+				<Input
+					id="meetingPointOverride"
+					name="meetingPointOverride"
+					value={meetingPointOverride ?? ""}
+					placeholder="Si esta salida reúne en otro lugar"
+				/>
+			</FormField>
+		</div>
+	</section>
+
+	<p id="tour-slot-form-status" class="text-sm text-slate-600" aria-live="polite"></p>
+
+	<div class="flex flex-wrap gap-3">
+		<Button type="submit" id="tour-slot-submit">
+			{isEditMode ? "Guardar salida" : "Crear salida"}
+		</Button>
+	</div>
+</form>
+
+<script>
+	const form = document.getElementById("tour-slot-profile-form") as HTMLFormElement | null
+	const statusEl = document.getElementById("tour-slot-form-status")
+	const submitBtn = document.getElementById("tour-slot-submit") as HTMLButtonElement | null
+
+	form?.addEventListener("submit", async (event) => {
+		event.preventDefault()
+		if (!form) return
+		if (statusEl) statusEl.textContent = "Guardando salida..."
+		if (submitBtn) submitBtn.disabled = true
+		try {
+			const response = await fetch("/api/variant/tour-slot-profile", {
+				method: "POST",
+				body: new FormData(form),
+			})
+			const payload = await response.json().catch(() => ({}))
+			if (!response.ok) {
+				if (statusEl) {
+					statusEl.textContent =
+						payload?.error === "validation_error"
+							? "Revisa hora, cupo e idioma."
+							: "No se pudo guardar la salida."
+				}
+				return
+			}
+			const productId = form.dataset.productId || ""
+			const redirect = form.dataset.redirect || ""
+			const variantId = String(payload?.variantId ?? "")
+			window.location.href =
+				redirect ||
+				`/product/${encodeURIComponent(productId)}/departures${variantId ? `?created=${encodeURIComponent(variantId)}` : ""}`
+		} catch {
+			if (statusEl) statusEl.textContent = "Error de red al guardar."
+		} finally {
+			if (submitBtn) submitBtn.disabled = false
+		}
+	})
+</script>

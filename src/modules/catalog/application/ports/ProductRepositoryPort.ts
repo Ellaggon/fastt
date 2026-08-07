@@ -38,6 +38,8 @@ export type ProductAggregate = {
 			hasItinerary: boolean
 			hasMeetingPoint: boolean
 			hasSchedule: boolean
+			slotCount?: number
+			completeSlotCount?: number
 		}
 		package?: {
 			hasDaysAndNights: boolean
