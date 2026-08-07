@@ -1,9 +1,10 @@
+import { getVerticalOpsVocabulary, normalizeVertical } from "@/lib/verticalVocabulary"
 import {
 	first,
 	and,
 	Booking,
+	BookingLineItem,
 	BookingPolicySnapshot,
-	BookingRoomDetail,
 	BookingTaxFee,
 	db,
 	desc,
@@ -73,6 +74,7 @@ export function deriveBookingLifecycle(params: {
 	operationalStatus: string | null
 	checkIn: string | null
 	checkOut: string | null
+	productType?: string | null
 }): BookingLifecycle {
 	const status = String(params.status ?? "")
 		.trim()
@@ -80,6 +82,7 @@ export function deriveBookingLifecycle(params: {
 	const operationalStatus = String(params.operationalStatus ?? "")
 		.trim()
 		.toLowerCase()
+	const ops = getVerticalOpsVocabulary(params.productType)
 
 	if (status === "cancelled" || operationalStatus === "cancelled") {
 		return {
@@ -92,7 +95,7 @@ export function deriveBookingLifecycle(params: {
 	if (operationalStatus === "checked_in") {
 		return {
 			state: "in_house",
-			label: "En estancia",
+			label: ops.inProgressState,
 			basis: "stored_operation",
 			reality: "persisted_operation",
 		}
@@ -100,7 +103,7 @@ export function deriveBookingLifecycle(params: {
 	if (operationalStatus === "checked_out") {
 		return {
 			state: "checked_out",
-			label: "Salida registrada",
+			label: ops.checkedOutState,
 			basis: "stored_operation",
 			reality: "persisted_operation",
 		}
@@ -108,7 +111,7 @@ export function deriveBookingLifecycle(params: {
 	if (operationalStatus === "no_show") {
 		return {
 			state: "no_show",
-			label: "No presentación",
+			label: ops.noShowState,
 			basis: "stored_operation",
 			reality: "persisted_operation",
 		}
@@ -134,7 +137,7 @@ export function deriveBookingLifecycle(params: {
 	if (today < params.checkIn) {
 		return {
 			state: "upcoming_arrival",
-			label: "Próxima llegada",
+			label: ops.upcomingState,
 			basis: "derived_visibility",
 			reality: "date_derived_visibility",
 		}
@@ -142,7 +145,7 @@ export function deriveBookingLifecycle(params: {
 	if (today === params.checkOut) {
 		return {
 			state: "departure_due",
-			label: "Salida hoy",
+			label: ops.departureDueState,
 			basis: "derived_visibility",
 			reality: "date_derived_visibility",
 		}
@@ -150,14 +153,14 @@ export function deriveBookingLifecycle(params: {
 	if (today > params.checkOut) {
 		return {
 			state: "checked_out",
-			label: "Estancia finalizada sin salida registrada",
+			label: `${ops.stayWindow} finalizada sin cierre registrado`,
 			basis: "derived_visibility",
 			reality: "date_derived_visibility",
 		}
 	}
 	return {
 		state: "in_house",
-		label: "Llegada pendiente de registrar",
+		label: `${ops.confirmArrivalAction} pendiente`,
 		basis: "derived_visibility",
 		reality: "date_derived_visibility",
 	}
@@ -270,26 +273,27 @@ export class BookingOperationsQueryRepository {
 				checkOutDate: Booking.checkOutDate,
 				guestNameSnapshot: Booking.guestNameSnapshot,
 				guestEmailSnapshot: Booking.guestEmailSnapshot,
-				detailId: BookingRoomDetail.id,
-				detailCheckIn: BookingRoomDetail.checkIn,
-				detailCheckOut: BookingRoomDetail.checkOut,
-				detailVariantId: BookingRoomDetail.variantId,
-				detailRatePlanId: BookingRoomDetail.ratePlanId,
-				adults: BookingRoomDetail.adults,
-				children: BookingRoomDetail.children,
-				pricingBreakdownJson: BookingRoomDetail.pricingBreakdownJson,
-				productIdSnapshot: BookingRoomDetail.productIdSnapshot,
-				productNameSnapshot: BookingRoomDetail.productNameSnapshot,
-				variantNameSnapshot: BookingRoomDetail.variantNameSnapshot,
-				ratePlanNameSnapshot: BookingRoomDetail.ratePlanNameSnapshot,
-				occupancySnapshotJson: BookingRoomDetail.occupancySnapshotJson,
+				detailId: BookingLineItem.id,
+				detailCheckIn: BookingLineItem.checkIn,
+				detailCheckOut: BookingLineItem.checkOut,
+				detailVariantId: BookingLineItem.variantId,
+				detailRatePlanId: BookingLineItem.ratePlanId,
+				adults: BookingLineItem.adults,
+				children: BookingLineItem.children,
+				pricingBreakdownJson: BookingLineItem.pricingBreakdownJson,
+				productIdSnapshot: BookingLineItem.productIdSnapshot,
+				productNameSnapshot: BookingLineItem.productNameSnapshot,
+				variantNameSnapshot: BookingLineItem.variantNameSnapshot,
+				ratePlanNameSnapshot: BookingLineItem.ratePlanNameSnapshot,
+				occupancySnapshotJson: BookingLineItem.occupancySnapshotJson,
 				productId: Product.id,
 				productName: Product.name,
+				productType: Product.productType,
 				variantName: Variant.name,
 			})
 			.from(Booking)
-			.leftJoin(BookingRoomDetail, eq(BookingRoomDetail.bookingId, Booking.id))
-			.leftJoin(Variant, eq(Variant.id, BookingRoomDetail.variantId))
+			.leftJoin(BookingLineItem, eq(BookingLineItem.bookingId, Booking.id))
+			.leftJoin(Variant, eq(Variant.id, BookingLineItem.variantId))
 			.leftJoin(Product, eq(Product.id, Variant.productId))
 			.where(and(eq(Booking.providerId, filters.providerId), inArray(Booking.id, pagedBookingIds)))
 			.orderBy(desc(Booking.bookingDate), desc(Booking.id))
@@ -327,6 +331,10 @@ export class BookingOperationsQueryRepository {
 
 		const items = Array.from(grouped.values()).map((group) => {
 			const row = group[0]
+			const productType = String(
+				group.find((item) => item.productType)?.productType ?? row.productType ?? ""
+			).trim()
+			const ops = getVerticalOpsVocabulary(productType)
 			const checkIn = dateOnly(row.checkInDate ?? row.detailCheckIn)
 			const checkOut = dateOnly(row.checkOutDate ?? row.detailCheckOut)
 			const lifecycle = deriveBookingLifecycle({
@@ -334,6 +342,7 @@ export class BookingOperationsQueryRepository {
 				operationalStatus: row.operationalStatus,
 				checkIn,
 				checkOut,
+				productType,
 			})
 			const firstSnapshot =
 				group.find((item) => item.occupancySnapshotJson)?.occupancySnapshotJson ??
@@ -351,6 +360,7 @@ export class BookingOperationsQueryRepository {
 				.filter((item) => item.detailId)
 				.every((item) => Boolean(item.detailRatePlanId && item.pricingBreakdownJson))
 			const totalAmount = Number(row.totalAmount ?? 0)
+			const lineItemCount = group.filter((item) => item.detailId).length
 
 			return {
 				bookingId: row.bookingId,
@@ -358,6 +368,8 @@ export class BookingOperationsQueryRepository {
 				guestEmail: row.guestEmailSnapshot ?? null,
 				productId: row.productIdSnapshot ?? row.productId ?? null,
 				productName: row.productNameSnapshot ?? row.productName ?? null,
+				productType: productType || null,
+				vertical: normalizeVertical(productType),
 				variantId: row.detailVariantId ?? null,
 				variantName: row.variantNameSnapshot ?? row.variantName ?? null,
 				ratePlanId: row.detailRatePlanId ?? null,
@@ -370,12 +382,21 @@ export class BookingOperationsQueryRepository {
 				operationalStatus: String(row.operationalStatus ?? "untracked"),
 				createdAt: asIso(row.bookingDate),
 				confirmedAt: asIso(row.confirmedAt),
-				rooms: group.filter((item) => item.detailId).length,
+				/** @deprecated Prefer lineItemCount — kept for hotel UI compatibility. */
+				rooms: lineItemCount,
+				lineItemCount,
 				occupancyDetail,
 				lifecycleState: lifecycle.state,
 				lifecycleLabel: lifecycle.label,
 				lifecycleBasis: lifecycle.basis,
 				lifecycleReality: lifecycle.reality,
+				opsCopy: {
+					confirmArrivalAction: ops.confirmArrivalAction,
+					registerDepartureAction: ops.registerDepartureAction,
+					stayWindow: ops.stayWindow,
+					lineItemPlural: ops.lineItemPlural,
+					guest: ops.guest,
+				},
 				refundHandoffState: lifecycle.state === "cancelled" ? "handoff_required" : "not_applicable",
 				reconciliationState: lifecycle.state === "cancelled" ? "handoff_pending" : "snapshot_ready",
 				snapshotState:
@@ -455,33 +476,34 @@ export class BookingOperationsQueryRepository {
 			.then(first)
 		if (!booking) return null
 
-		const [roomRows, taxLines, policyRows, transactions] = await Promise.all([
+		const [lineItemRows, taxLines, policyRows, transactions] = await Promise.all([
 			db
 				.select({
-					id: BookingRoomDetail.id,
-					variantId: BookingRoomDetail.variantId,
-					ratePlanId: BookingRoomDetail.ratePlanId,
-					checkIn: BookingRoomDetail.checkIn,
-					checkOut: BookingRoomDetail.checkOut,
-					adults: BookingRoomDetail.adults,
-					children: BookingRoomDetail.children,
-					subtotalAmount: BookingRoomDetail.subtotalAmount,
-					taxAmount: BookingRoomDetail.taxAmount,
-					totalAmount: BookingRoomDetail.totalAmount,
-					pricingBreakdownJson: BookingRoomDetail.pricingBreakdownJson,
-					productIdSnapshot: BookingRoomDetail.productIdSnapshot,
-					productNameSnapshot: BookingRoomDetail.productNameSnapshot,
-					variantNameSnapshot: BookingRoomDetail.variantNameSnapshot,
-					ratePlanNameSnapshot: BookingRoomDetail.ratePlanNameSnapshot,
-					occupancySnapshotJson: BookingRoomDetail.occupancySnapshotJson,
+					id: BookingLineItem.id,
+					variantId: BookingLineItem.variantId,
+					ratePlanId: BookingLineItem.ratePlanId,
+					checkIn: BookingLineItem.checkIn,
+					checkOut: BookingLineItem.checkOut,
+					adults: BookingLineItem.adults,
+					children: BookingLineItem.children,
+					subtotalAmount: BookingLineItem.subtotalAmount,
+					taxAmount: BookingLineItem.taxAmount,
+					totalAmount: BookingLineItem.totalAmount,
+					pricingBreakdownJson: BookingLineItem.pricingBreakdownJson,
+					productIdSnapshot: BookingLineItem.productIdSnapshot,
+					productNameSnapshot: BookingLineItem.productNameSnapshot,
+					variantNameSnapshot: BookingLineItem.variantNameSnapshot,
+					ratePlanNameSnapshot: BookingLineItem.ratePlanNameSnapshot,
+					occupancySnapshotJson: BookingLineItem.occupancySnapshotJson,
 					productId: Product.id,
 					productName: Product.name,
+					productType: Product.productType,
 					variantName: Variant.name,
 				})
-				.from(BookingRoomDetail)
-				.leftJoin(Variant, eq(Variant.id, BookingRoomDetail.variantId))
+				.from(BookingLineItem)
+				.leftJoin(Variant, eq(Variant.id, BookingLineItem.variantId))
 				.leftJoin(Product, eq(Product.id, Variant.productId))
-				.where(eq(BookingRoomDetail.bookingId, key.bookingId)),
+				.where(eq(BookingLineItem.bookingId, key.bookingId)),
 			db.select().from(BookingTaxFee).where(eq(BookingTaxFee.bookingId, key.bookingId)),
 			db
 				.select()
@@ -506,13 +528,18 @@ export class BookingOperationsQueryRepository {
 				)
 				.orderBy(desc(PaymentTransaction.occurredAt)),
 		])
-		if (!roomRows.length) return null
+		if (!lineItemRows.length) return null
 
-		const allocations = roomRows.map((row, index) => ({
+		const productType = String(
+			lineItemRows.find((row) => row.productType)?.productType ?? ""
+		).trim()
+		const ops = getVerticalOpsVocabulary(productType)
+		const allocations = lineItemRows.map((row, index) => ({
 			allocationId: row.id,
 			sequence: index + 1,
 			productId: row.productIdSnapshot ?? row.productId ?? null,
 			productName: row.productNameSnapshot ?? row.productName ?? null,
+			productType: (row.productType ?? productType) || null,
 			variantId: row.variantId,
 			variantName: row.variantNameSnapshot ?? row.variantName ?? null,
 			ratePlanId: row.ratePlanId ?? booking.ratePlanId,
@@ -526,13 +553,14 @@ export class BookingOperationsQueryRepository {
 			totalAmount: Number(row.totalAmount ?? 0),
 			pricingSnapshot: row.pricingBreakdownJson ?? null,
 		}))
-		const checkIn = dateOnly(booking.checkInDate ?? roomRows[0]?.checkIn)
-		const checkOut = dateOnly(booking.checkOutDate ?? roomRows[0]?.checkOut)
+		const checkIn = dateOnly(booking.checkInDate ?? lineItemRows[0]?.checkIn)
+		const checkOut = dateOnly(booking.checkOutDate ?? lineItemRows[0]?.checkOut)
 		const lifecycle = deriveBookingLifecycle({
 			status: booking.status,
 			operationalStatus: booking.operationalStatus,
 			checkIn,
 			checkOut,
+			productType,
 		})
 		const totalAmount = Number(booking.totalAmount ?? 0)
 		const guestContact =
@@ -591,6 +619,8 @@ export class BookingOperationsQueryRepository {
 				createdAt: asIso(booking.bookingDate ?? booking.confirmedAt),
 				source: booking.source,
 				ratePlanId: booking.ratePlanId,
+				productType: productType || null,
+				vertical: normalizeVertical(productType),
 				guestSnapshot: {
 					userId: booking.userId,
 					name:
@@ -604,7 +634,16 @@ export class BookingOperationsQueryRepository {
 					source: guestContact ? "contract_snapshot" : "live_user_fallback",
 				},
 				rooms: allocations.length,
+				lineItemCount: allocations.length,
 				lifecycle,
+				opsCopy: {
+					confirmArrivalAction: ops.confirmArrivalAction,
+					registerDepartureAction: ops.registerDepartureAction,
+					stayWindow: ops.stayWindow,
+					lineItemPlural: ops.lineItemPlural,
+					guest: ops.guest,
+					financeGrossSourceLabel: ops.financeGrossSourceLabel,
+				},
 				refundHandoff,
 				snapshotIntegrity,
 				lifecycleAudit:
