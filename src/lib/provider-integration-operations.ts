@@ -545,6 +545,33 @@ export async function resolveProviderIntegrationIncidentByKey(params: {
 	).catch(() => {})
 }
 
+export async function resolveProviderIntegrationIncidentsForEntity(params: {
+	providerId: string
+	connectionId: string
+	entityType: string
+	entityId: string
+	resolutionNote?: string | null
+}) {
+	await ownedConnection(params.providerId, params.connectionId)
+	await db
+		.update(ProviderIntegrationIncident)
+		.set({
+			status: "resolved",
+			resolvedAt: new Date(),
+			resolutionNote: params.resolutionNote?.slice(0, 500) ?? null,
+			updatedAt: new Date(),
+		})
+		.where(
+			and(
+				eq(ProviderIntegrationIncident.providerId, params.providerId),
+				eq(ProviderIntegrationIncident.connectionId, params.connectionId),
+				eq(ProviderIntegrationIncident.entityType, params.entityType),
+				eq(ProviderIntegrationIncident.entityId, params.entityId),
+				eq(ProviderIntegrationIncident.status, "open")
+			)
+		)
+}
+
 export async function listProviderIntegrationOperations(providerId: string) {
 	const [connections, mappings, runs, jobs, incidents] = await Promise.all([
 		db
@@ -942,6 +969,7 @@ export async function listProviderIntegrationExecutionActivity(params: {
 				changedCount: ProviderIntegrationSyncRun.changedCount,
 				skippedCount: ProviderIntegrationSyncRun.skippedCount,
 				failedCount: ProviderIntegrationSyncRun.failedCount,
+				idempotencyKey: ProviderIntegrationSyncRun.idempotencyKey,
 				errorMessage: ProviderIntegrationSyncRun.errorMessage,
 				startedAt: ProviderIntegrationSyncRun.startedAt,
 				finishedAt: ProviderIntegrationSyncRun.finishedAt,

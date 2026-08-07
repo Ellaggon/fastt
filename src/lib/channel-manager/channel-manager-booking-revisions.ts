@@ -8,6 +8,7 @@ import {
 	finishProviderIntegrationSyncRun,
 	listProviderIntegrationMappingsForConnection,
 	recordProviderIntegrationIncident,
+	resolveProviderIntegrationIncidentsForEntity,
 	startProviderIntegrationSyncRun,
 } from "@/lib/provider-integration-operations"
 import { getProviderChannelManagerRuntime } from "@/lib/provider-integrations"
@@ -570,7 +571,8 @@ async function recordRevisionIncident(params: {
 	error: unknown
 }) {
 	const typed = params.error instanceof BookingRevisionError ? params.error : null
-	const code = typed?.code ?? "BOOKING_REVISION_PERSIST_FAILED"
+	const adapterError = params.error instanceof ChannelManagerAdapterError ? params.error : null
+	const code = typed?.code ?? adapterError?.message ?? "BOOKING_REVISION_PERSIST_FAILED"
 	await recordProviderIntegrationIncident({
 		providerId: params.providerId,
 		connectionId: params.connectionId,
@@ -586,16 +588,21 @@ async function recordRevisionIncident(params: {
 						: "system",
 			severity: "error",
 			title: "Una reserva entrante necesita atención",
-			description: typed?.message ?? "Fastt no pudo guardar la revisión recibida de Channex.",
-			actionLabel: "Revisar incidencias",
-			actionHref: "/provider/settings/integrations/incidents",
+			description:
+				typed?.message ??
+				(adapterError
+					? "Fastt guardó la reserva, pero Channex aún no confirmó su recepción."
+					: "Fastt no pudo guardar la revisión recibida de Channex."),
+			actionLabel: "Revisar y reintentar",
+			actionHref: `/provider/settings/integrations/connections/${params.connectionId}`,
 			entityType: "booking_revision",
 			entityId: params.revision.id,
 			metadataJson: {
 				externalBookingId: params.revision.bookingId,
 				status: params.revision.status,
 				propertyId: params.revision.propertyId,
-				failureKind: typed?.category ?? "persistence",
+				failureKind: typed?.category ?? (adapterError ? "acknowledgement" : "persistence"),
+				notificationClass: "booking_blocked",
 				// Deliberately excludes guarantee/card fields.
 				pciDataStored: false,
 			},
@@ -676,6 +683,13 @@ export async function runProviderBookingRevisionFeed(params: {
 					})
 				}
 				acknowledged += 1
+				await resolveProviderIntegrationIncidentsForEntity({
+					providerId: params.providerId,
+					connectionId: params.connectionId,
+					entityType: "booking_revision",
+					entityId: revision.id,
+					resolutionNote: "La reserva quedó guardada y confirmada ante Channex.",
+				}).catch(() => undefined)
 				const outcome = persisted.idempotent ? "deduped" : "saved"
 				if (persisted.idempotent) deduped += 1
 				else saved += 1
@@ -684,7 +698,16 @@ export async function runProviderBookingRevisionFeed(params: {
 					outcome,
 				})
 			} catch (error) {
-				if (error instanceof ChannelManagerAdapterError && error.retryable) throw error
+				if (error instanceof ChannelManagerAdapterError && error.retryable) {
+					await recordRevisionIncident({
+						providerId: params.providerId,
+						connectionId: params.connectionId,
+						runId: String(run.id),
+						revision,
+						error,
+					})
+					throw error
+				}
 				failed += 1
 				incrementCounter("provider_booking_revision_items_total", {
 					revision_status: revision.status,
@@ -720,7 +743,12 @@ export async function runProviderBookingRevisionFeed(params: {
 				pciDataStored: false,
 			},
 		})
-		incrementCounter("provider_booking_revisions_total", { status })
+		incrementCounter("provider_booking_revisions_total", {
+			provider_id: params.providerId,
+			property_id: propertyId,
+			operation: BOOKING_REVISION_FEED_OPERATION,
+			result: status,
+		})
 		return {
 			runId: String(run.id),
 			status,

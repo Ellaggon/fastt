@@ -367,6 +367,20 @@ describe.sequential("provider booking revision feed", () => {
 			adapter,
 		})
 		expect(modifiedRetry).toMatchObject({ saved: 0, deduped: 1, acknowledged: 1 })
+		const acknowledgementIncident = await db
+			.select()
+			.from(ProviderIntegrationIncident)
+			.where(
+				and(
+					eq(ProviderIntegrationIncident.providerId, providerId),
+					eq(ProviderIntegrationIncident.entityId, "revision-2")
+				)
+			)
+			.then((rows) => rows[0])
+		expect(acknowledgementIncident).toMatchObject({
+			code: "ACK_NETWORK_RETRY",
+			status: "resolved",
+		})
 
 		feedItems = [revision({ id: "revision-3", status: "cancelled" })]
 		const cancelled = await runProviderBookingRevisionFeed({
@@ -416,7 +430,12 @@ describe.sequential("provider booking revision feed", () => {
 		const incidents = await db
 			.select()
 			.from(ProviderIntegrationIncident)
-			.where(eq(ProviderIntegrationIncident.providerId, providerId))
+			.where(
+				and(
+					eq(ProviderIntegrationIncident.providerId, providerId),
+					eq(ProviderIntegrationIncident.status, "open")
+				)
+			)
 		expect(incidents).toHaveLength(1)
 		expect(incidents[0]).toMatchObject({
 			code: "BOOKING_REVISION_MAPPING_REQUIRED",
