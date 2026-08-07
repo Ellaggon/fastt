@@ -216,7 +216,9 @@ logRoutePerformance({
 			data-singular-label={vertical.labels.singular}
 			data-workspace-singular-label={vertical.labels.workspaceSingular}
 			data-preview-href={routes.productPreview(productId)}
-			data-rooms-href={routes.productRoomsForProduct(productId)}
+			data-rooms-href={isTour
+				? routes.productDeparturesForProduct(productId)
+				: routes.productRoomsForProduct(productId)}
 			data-rates-href={routes.rates()}
 			data-conditions-href={conditionsHref}
 			data-calendar-href={routes.calendar()}
@@ -247,14 +249,36 @@ logRoutePerformance({
 						) : null
 					}
 					{
-						isHotel ? (
+						isTour ? (
+							<Button
+								href={routes.productDeparturesForProduct(productId)}
+								data-astro-prefetch
+								variant="secondary"
+							>
+								Salidas
+							</Button>
+						) : null
+					}
+					{
+						isTour ? (
+							<Button
+								href={routes.productTourTickets(productId)}
+								data-astro-prefetch
+								variant="secondary"
+							>
+								Tickets
+							</Button>
+						) : null
+					}
+					{
+						isHotel || isTour ? (
 							<Button href={routes.rates()} data-astro-prefetch variant="secondary">
 								Tarifas
 							</Button>
 						) : null
 					}
 					{
-						isHotel ? (
+						isHotel || isTour ? (
 							<Button href={routes.calendar()} data-astro-prefetch variant="secondary">
 								Calendario
 							</Button>

@@ -98,8 +98,11 @@ if (!bookingId) return Astro.redirect("/booking")
 				`${String(currency || "USD")} ${Number(value || 0).toFixed(2)}`
 			const fmtDate = (value) => String(value || "—")
 			const guest = (booking) => booking?.guestSnapshot || {}
-			const guestName = (booking) =>
-				String(guest(booking)?.name || guest(booking)?.email || "Huésped sin nombre")
+			const guestName = (booking) => {
+				const guestLabel = String(booking?.opsCopy?.guest || "huésped")
+				const fallback = `${guestLabel[0].toUpperCase()}${guestLabel.slice(1)} sin nombre`
+				return String(guest(booking)?.name || guest(booking)?.email || fallback)
+			}
 			const paymentLabel = (booking) => {
 				const pending = Number(booking?.payment?.pendingAmount || 0)
 				return pending > 0
@@ -109,13 +112,24 @@ if (!bookingId) return Astro.redirect("/booking")
 			const lifecycleCopy = (booking) => {
 				const lifecycle = booking?.lifecycle || {}
 				const state = String(lifecycle.state || "")
-				if (state === "upcoming_arrival") return ["Próxima llegada", "Confirmar llegada"]
-				if (state === "in_house") return ["En estancia", "Registrar salida"]
-				if (state === "departure_due") return ["Salida pendiente", "Registrar salida"]
-				if (state === "checked_out") return ["Finalizada", "Ver reserva"]
-				if (state === "no_show") return ["No presentación", "Ver reserva"]
+				const ops = booking?.opsCopy || {}
+				const label = String(lifecycle.label || "").trim()
+				if (state === "upcoming_arrival")
+					return [
+						label || "Próxima llegada",
+						String(ops.confirmArrivalAction || "Confirmar llegada"),
+					]
+				if (state === "in_house")
+					return [label || "En estancia", String(ops.registerDepartureAction || "Registrar salida")]
+				if (state === "departure_due")
+					return [
+						label || "Salida pendiente",
+						String(ops.registerDepartureAction || "Registrar salida"),
+					]
+				if (state === "checked_out") return [label || "Finalizada", "Ver reserva"]
+				if (state === "no_show") return [label || "No presentación", "Ver reserva"]
 				if (state === "cancelled") return ["Cancelada", "Ver reembolso"]
-				return [lifecycle.label || "Pendiente", "Ver reserva"]
+				return [label || "Pendiente", "Ver reserva"]
 			}
 			const escapeHtml = (value) =>
 				String(value ?? "")
@@ -142,13 +156,20 @@ if (!bookingId) return Astro.redirect("/booking")
 				const stay = `${fmtDate(booking.checkIn)} → ${fmtDate(booking.checkOut)}`
 				if (title) title.textContent = guestName(booking)
 				if (subtitle) {
-					subtitle.textContent = `${stay} · ${String(firstAllocation.productName || "Alojamiento")} · ${String(firstAllocation.variantName || "Habitación")}`
+					const productFallback = String(booking.vertical || "") === "tour" ? "Tour" : "Alojamiento"
+					const variantFallback =
+						String(booking.vertical || "") === "tour" ? "Salida" : "Habitación"
+					subtitle.textContent = `${stay} · ${String(firstAllocation.productName || productFallback)} · ${String(firstAllocation.variantName || variantFallback)}`
 				}
 				if (primaryAction) primaryAction.textContent = action
 				if (!hero) return
 				const cards = [
 					["Estado", status, String(booking.status || "Contrato")],
-					["Estancia", stay, `${Number(booking.rooms || allocations.length || 0)} habitación(es)`],
+					[
+						String(booking?.opsCopy?.stayWindow || "Estancia"),
+						stay,
+						`${Number(booking.lineItemCount || booking.rooms || allocations.length || 0)} ${String(booking?.opsCopy?.lineItemPlural || "habitación(es)")}`,
+					],
 					["Pago", paymentLabel(booking), String(booking.payment?.state || "pending")],
 					["Próxima acción", action, "Según estado actual"],
 				]

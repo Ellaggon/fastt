@@ -5,6 +5,7 @@ import {
 	BookingPolicySnapshot,
 	BookingRoomDetail,
 	BookingTaxFee,
+	BookingVoucher,
 	db,
 	eq,
 	Hold,
@@ -12,6 +13,7 @@ import {
 	Product,
 	RatePlan,
 	sql,
+	Tour,
 	User,
 	Variant,
 } from "@/shared/infrastructure/db/compat"
@@ -441,6 +443,35 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 				}))
 			if (policyRows.length > 0) {
 				await tx.insert(BookingPolicySnapshot).values(policyRows as any)
+			}
+
+			const isTourProduct = await tx
+				.select({ productId: Tour.productId })
+				.from(Tour)
+				.where(eq(Tour.productId, variant.productId))
+				.then(first)
+			if (isTourProduct) {
+				const voucherCode = `FT-${bookingId.replace(/-/g, "").slice(0, 10).toUpperCase()}`
+				await tx.insert(BookingVoucher).values({
+					id: crypto.randomUUID(),
+					bookingId,
+					code: voucherCode,
+					status: "issued",
+					issuedAt: now,
+					instructionsJson: {
+						productName: product.productName,
+						departureDate: snapshot.from,
+						participants: {
+							adults: Math.max(1, adults),
+							children: Math.max(0, children),
+							infants: Math.max(0, infants),
+						},
+						note: "Presenta este voucher el día de la salida.",
+					},
+					qrPayload: voucherCode,
+					createdAt: now,
+					updatedAt: now,
+				} as any)
 			}
 
 			const taxLines = [

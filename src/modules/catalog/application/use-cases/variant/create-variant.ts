@@ -24,7 +24,14 @@ export async function createVariant(
 		inventoryConfigRepo: VariantInventoryConfigRepositoryPort
 		inventoryBootstrap: InventoryBootstrapPort
 	},
-	params: { productId: string; name: string; description?: string | null; kind: VariantKind }
+	params: {
+		productId: string
+		name: string
+		description?: string | null
+		kind: VariantKind
+		/** Inventory cupo bootstrap; tour_slot should pass maxPax. Default 1 (hotel rooms). */
+		defaultTotalUnits?: number
+	}
 ): Promise<{ variantId: string; status: VariantLifecycleStatus }> {
 	const parsed = createVariantSchema.parse({
 		productId: params.productId,
@@ -58,16 +65,17 @@ export async function createVariant(
 		isActive: false,
 	})
 
-	// CAPA 5 (Phase 1): ensure inventory exists and is complete for the variant.
-	// Minimal defaults for now: 1 unit and 365-day horizon; providers can adjust later.
+	const defaultTotalUnits = Math.max(1, Math.floor(Number(params.defaultTotalUnits ?? 1)) || 1)
+
+	// CAPA 5: ensure inventory exists; tour_slot uses maxPax as cupo default.
 	await deps.inventoryConfigRepo.upsert({
 		variantId,
-		defaultTotalUnits: 1,
+		defaultTotalUnits,
 		horizonDays: 365,
 	})
 	await deps.inventoryBootstrap.bootstrapVariantInventory({
 		variantId,
-		totalInventory: 1,
+		totalInventory: defaultTotalUnits,
 		days: 365,
 	})
 

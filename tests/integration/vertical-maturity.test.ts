@@ -6,8 +6,11 @@ import {
 	Package,
 	ProductContent,
 	ProductLocation,
+	RatePlan,
 	Tour,
+	TourSlotProfile,
 	Variant,
+	VariantCapacity,
 	eq,
 } from "@/shared/infrastructure/db/compat"
 
@@ -116,11 +119,16 @@ describe("vertical maturity", () => {
 		await repo.insertTourStandalone({
 			productId,
 			duration: "1 dia",
+			durationMinutes: 1440,
 			difficultyLevel: "Facil",
 			meetingPointJson: { address: "Plaza principal", instructions: "Llegar 15 minutos antes" },
 			itineraryJson: [{ step: 1, description: "Salar de Uyuni" }],
 			safetyJson: { requirements: "Protector solar", warnings: "Altura" },
 			guideJson: { languages: "es, en", guideType: "Guia local" },
+			includesJson: ["Transporte", "Guia"],
+			excludesJson: ["Propinas"],
+			categoriesJson: ["Adventure", "Wildlife"],
+			pickupJson: { defaultArea: "Hoteles centro", instructions: "Recojo 07:30" },
 		})
 
 		const row = await db
@@ -132,6 +140,11 @@ describe("vertical maturity", () => {
 		expect(row?.itineraryJson).toEqual([{ step: 1, description: "Salar de Uyuni" }])
 		expect(row?.safetyJson).toMatchObject({ warnings: "Altura" })
 		expect(row?.guideJson).toMatchObject({ guideType: "Guia local" })
+		expect(row?.durationMinutes).toBe(1440)
+		expect(row?.includesJson).toEqual(["Transporte", "Guia"])
+		expect(row?.excludesJson).toEqual(["Propinas"])
+		expect(row?.categoriesJson).toEqual(["Adventure", "Wildlife"])
+		expect(row?.pickupJson).toMatchObject({ defaultArea: "Hoteles centro" })
 	})
 
 	it("adds Limousine as a first-class vertical with vehicle and capacity profile", async () => {
@@ -173,9 +186,10 @@ describe("vertical maturity", () => {
 		expect(row?.luggageCapacity).toBe(2)
 	})
 
-	it("marks Tour ready only when itinerary, meeting point and schedule exist", async () => {
+	it("marks Tour ready only when itinerary, meeting point and sellable schedule exist", async () => {
 		const suffix = crypto.randomUUID()
 		const productId = `tour_ready_${suffix}`
+		const slotId = `tour_slot_${suffix}`
 		await seedReadyCatalogBase({
 			productId,
 			productType: "Tour",
@@ -196,18 +210,58 @@ describe("vertical maturity", () => {
 		expect(evaluated.validationErrors.some((e) => e.code === "missing_tour_schedule")).toBe(true)
 
 		await db.insert(Variant).values({
-			id: `tour_slot_${suffix}`,
+			id: slotId,
 			productId,
-			name: "Salida diaria",
+			name: "Salida 09:00",
 			kind: "tour_slot",
-			status: "ready",
+			status: "draft",
+			isActive: false,
+		})
+
+		// Bare variant is not enough (Fase 2: profile + capacity + rate).
+		evaluated = await evaluateProductReadiness({ repo: productRepository }, { productId })
+		expect(evaluated.state).toBe("draft")
+		expect(evaluated.validationErrors.some((e) => e.code === "missing_tour_schedule")).toBe(true)
+
+		await db.insert(TourSlotProfile).values({
+			variantId: slotId,
+			departureTime: "09:00",
+			maxPax: 12,
+			languageCode: "es",
+			bookingMode: "shared",
 			isActive: true,
+		})
+
+		// Profile alone is not enough — still needs capacity + default rate.
+		evaluated = await evaluateProductReadiness({ repo: productRepository }, { productId })
+		expect(evaluated.state).toBe("draft")
+		expect(evaluated.validationErrors.some((e) => e.code === "missing_tour_schedule")).toBe(true)
+
+		await db.insert(VariantCapacity).values({
+			variantId: slotId,
+			minOccupancy: 1,
+			maxOccupancy: 12,
+			maxAdults: 12,
+			maxChildren: null,
+		})
+
+		evaluated = await evaluateProductReadiness({ repo: productRepository }, { productId })
+		expect(evaluated.state).toBe("draft")
+		expect(evaluated.validationErrors.some((e) => e.code === "missing_tour_schedule")).toBe(true)
+
+		await db.insert(RatePlan).values({
+			id: `rp_${suffix}`,
+			variantId: slotId,
+			name: "Standard",
+			isDefault: true,
+			isActive: true,
+			createdAt: new Date(),
 		})
 
 		evaluated = await evaluateProductReadiness({ repo: productRepository }, { productId })
 		expect(evaluated.state).toBe("ready")
 		expect(evaluated.validationErrors).toEqual([])
-	})
+	}, 30000)
 
 	it("marks Package ready when duration, itinerary and inclusions exist", async () => {
 		const suffix = crypto.randomUUID()

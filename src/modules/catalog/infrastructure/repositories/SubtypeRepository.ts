@@ -10,11 +10,16 @@ export type HotelPayload = {
 export type TourPayload = {
 	productId: string
 	duration?: string | null
+	durationMinutes?: number | null
 	difficultyLevel?: string | null
 	meetingPointJson?: unknown | null
 	itineraryJson?: unknown | null
 	safetyJson?: unknown | null
 	guideJson?: unknown | null
+	includesJson?: unknown | null
+	excludesJson?: unknown | null
+	categoriesJson?: unknown | null
+	pickupJson?: unknown | null
 }
 export type PackagePayload = {
 	productId: string
@@ -88,11 +93,16 @@ export class SubtypeRepository {
 		return await dbOrTx.insert(Tour).values({
 			productId: data.productId,
 			duration: data.duration ?? null,
+			durationMinutes: data.durationMinutes ?? null,
 			difficultyLevel: data.difficultyLevel ?? null,
 			meetingPointJson: data.meetingPointJson ?? null,
 			itineraryJson: data.itineraryJson ?? null,
 			safetyJson: data.safetyJson ?? null,
 			guideJson: data.guideJson ?? null,
+			includesJson: data.includesJson ?? null,
+			excludesJson: data.excludesJson ?? null,
+			categoriesJson: data.categoriesJson ?? null,
+			pickupJson: data.pickupJson ?? null,
 		})
 	}
 
@@ -101,11 +111,16 @@ export class SubtypeRepository {
 			.update(Tour)
 			.set({
 				duration: data.duration ?? null,
+				durationMinutes: data.durationMinutes ?? null,
 				difficultyLevel: data.difficultyLevel ?? null,
 				meetingPointJson: data.meetingPointJson ?? null,
 				itineraryJson: data.itineraryJson ?? null,
 				safetyJson: data.safetyJson ?? null,
 				guideJson: data.guideJson ?? null,
+				includesJson: data.includesJson ?? null,
+				excludesJson: data.excludesJson ?? null,
+				categoriesJson: data.categoriesJson ?? null,
+				pickupJson: data.pickupJson ?? null,
 			})
 			.where(eq(Tour.productId, productId))
 	}

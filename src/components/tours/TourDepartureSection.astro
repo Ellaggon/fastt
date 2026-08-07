@@ -1,0 +1,270 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Input from "@/components/ui/Input.astro"
+import { Clock, Users } from "@lucide/astro"
+
+const { offers = [], slotsByVariantId = {}, searchState, productId } = Astro.props
+
+function ratePlanIdOf(ratePlan: any): string {
+	return String(ratePlan?.ratePlanId ?? ratePlan?.id ?? "").trim()
+}
+
+function priceOf(ratePlan: any): number | null {
+	const value = Number(ratePlan?.finalPrice ?? ratePlan?.basePrice ?? ratePlan?.price)
+	return Number.isFinite(value) ? value : null
+}
+---
+
+<section
+	class="fastt-workspace-panel space-y-5 p-4 md:p-6"
+	data-tour-booking-root
+	data-product-id={productId}
+>
+	<header class="flex flex-wrap items-end justify-between gap-4">
+		<div>
+			<span class="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+				Reserva tu experiencia
+			</span>
+			<h2 class="mt-1 text-2xl font-semibold text-slate-950">Salidas disponibles</h2>
+		</div>
+		<div class="grid w-full grid-cols-2 gap-2 md:flex md:w-auto md:items-end">
+			<div class="flex flex-col gap-1">
+				<label class="text-xs text-slate-500" for="tourDepartureDate">Fecha de salida</label>
+				<Input
+					id="tourDepartureDate"
+					type="date"
+					value={String(searchState?.departureDate ?? "")}
+					class="md:w-[160px]"
+				/>
+			</div>
+			<div class="flex flex-col gap-1">
+				<label class="text-xs text-slate-500" for="tourParticipants">Participantes</label>
+				<Input
+					id="tourParticipants"
+					type="number"
+					min="1"
+					value={String(searchState?.participants ?? 1)}
+					class="md:w-[120px]"
+				/>
+			</div>
+			<Button type="button" id="tourSearchBtn" variant="secondary">Buscar</Button>
+		</div>
+	</header>
+
+	{
+		(offers ?? []).length === 0 ? (
+			<p class="text-sm text-slate-600">
+				No hay salidas reservables para esa fecha. Prueba otra fecha o revisa tarifas/cupo.
+			</p>
+		) : (
+			<ul class="grid gap-3 md:grid-cols-2">
+				{(offers ?? []).map((offer: any) => {
+					const variantId = String(offer?.variantId ?? offer?.variant?.id ?? "")
+					const slot = slotsByVariantId?.[variantId] ?? {}
+					const name = String(slot.name ?? offer?.variant?.name ?? "Salida")
+					const time = String(slot.departureTime ?? "—")
+					const lang = String(slot.languageCode ?? "").toUpperCase()
+					const mode = slot.bookingMode === "private" ? "Privado" : "Compartido"
+					const maxPax = Number(slot.maxPax ?? offer?.variant?.capacity?.maxOccupancy ?? 0) || null
+					const ratePlans = Array.isArray(offer?.ratePlans) ? offer.ratePlans : []
+					const firstPlan = ratePlans[0]
+					const ratePlanId = ratePlanIdOf(firstPlan)
+					const price = firstPlan ? priceOf(firstPlan) : null
+					return (
+						<li
+							class="fastt-card rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-5"
+							data-tour-offer
+							data-variant-id={variantId}
+							data-rateplan-id={ratePlanId}
+						>
+							<div class="flex items-start justify-between gap-3">
+								<div>
+									<p class="text-base font-semibold text-slate-950">{name}</p>
+									<p class="mt-1 flex flex-wrap items-center gap-3 text-sm text-slate-600">
+										<span class="inline-flex items-center gap-1">
+											<Clock class="h-3.5 w-3.5" />
+											{time}
+										</span>
+										{maxPax ? (
+											<span class="inline-flex items-center gap-1">
+												<Users class="h-3.5 w-3.5" />
+												Hasta {maxPax} participantes
+											</span>
+										) : null}
+										{lang ? <span>{lang}</span> : null}
+										<span>{mode}</span>
+									</p>
+								</div>
+								{price != null ? (
+									<p class="text-sm font-semibold text-slate-950">
+										desde {price}
+										<span class="font-normal text-slate-500"> / participante</span>
+									</p>
+								) : null}
+							</div>
+							<div class="mt-4 flex flex-wrap gap-2">
+								{ratePlans.map((rp: any) => {
+									const id = ratePlanIdOf(rp)
+									const rpPrice = priceOf(rp)
+									if (!id) return null
+									return (
+										<button
+											type="button"
+											class="fastt-button rounded-[var(--fastt-radius-control)] border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+											data-select-variant-id={variantId}
+											data-select-rateplan-id={id}
+										>
+											{String(rp.name ?? "Tarifa")}
+											{rpPrice != null ? ` · ${rpPrice}` : ""}
+										</button>
+									)
+								})}
+							</div>
+						</li>
+					)
+				})}
+			</ul>
+		)
+	}
+
+	<div
+		class="fastt-soft-box rounded-[var(--fastt-radius-card)] border border-slate-200 bg-slate-50 p-4"
+	>
+		<p id="tourHoldStatus" class="text-sm text-slate-700" aria-live="polite">
+			Selecciona una tarifa para reservar cupo.
+		</p>
+		<div class="mt-3 flex flex-wrap gap-2">
+			<Button type="button" id="tourReserveBtn" disabled>Reservar cupo</Button>
+			<Button type="button" id="tourConfirmBtn" variant="secondary" disabled>
+				Confirmar reserva
+			</Button>
+		</div>
+	</div>
+</section>
+
+<script>
+	const root = document.querySelector<HTMLElement>("[data-tour-booking-root]")
+	if (root) {
+		const productId = String(root.dataset.productId ?? "")
+		const departureInput = document.getElementById("tourDepartureDate") as HTMLInputElement | null
+		const participantsInput = document.getElementById("tourParticipants") as HTMLInputElement | null
+		const searchBtn = document.getElementById("tourSearchBtn")
+		const reserveBtn = document.getElementById("tourReserveBtn") as HTMLButtonElement | null
+		const confirmBtn = document.getElementById("tourConfirmBtn") as HTMLButtonElement | null
+		const statusEl = document.getElementById("tourHoldStatus")
+		let selectedVariantId = ""
+		let selectedRatePlanId = ""
+		let latestHoldId = ""
+
+		function participants(): number {
+			return Math.max(1, Number(participantsInput?.value ?? 1) || 1)
+		}
+
+		function departureDate(): string {
+			return String(departureInput?.value ?? "").trim()
+		}
+
+		function nextDay(iso: string): string {
+			const d = new Date(`${iso}T00:00:00.000Z`)
+			d.setUTCDate(d.getUTCDate() + 1)
+			return d.toISOString().slice(0, 10)
+		}
+
+		searchBtn?.addEventListener("click", () => {
+			const date = departureDate()
+			const pax = participants()
+			if (!productId || !date) return
+			const url = new URL(window.location.href)
+			url.searchParams.set("departure", date)
+			url.searchParams.set("participants", String(pax))
+			window.location.href = url.toString()
+		})
+
+		root.querySelectorAll<HTMLButtonElement>("[data-select-variant-id]").forEach((btn) => {
+			btn.addEventListener("click", () => {
+				selectedVariantId = String(btn.dataset.selectVariantId ?? "")
+				selectedRatePlanId = String(btn.dataset.selectRateplanId ?? "")
+				latestHoldId = ""
+				if (reserveBtn) reserveBtn.disabled = !(selectedVariantId && selectedRatePlanId)
+				if (confirmBtn) confirmBtn.disabled = true
+				if (statusEl) {
+					statusEl.textContent = selectedRatePlanId
+						? "Tarifa seleccionada. Reserva el cupo para continuar."
+						: "Selecciona una tarifa."
+				}
+			})
+		})
+
+		reserveBtn?.addEventListener("click", async () => {
+			const from = departureDate()
+			if (!selectedVariantId || !selectedRatePlanId || !from) {
+				if (statusEl) statusEl.textContent = "Selecciona salida, tarifa y fecha."
+				return
+			}
+			if (statusEl) statusEl.textContent = "Creando hold..."
+			if (reserveBtn) reserveBtn.disabled = true
+			try {
+				const response = await fetch("/api/inventory/hold", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						variantId: selectedVariantId,
+						ratePlanId: selectedRatePlanId,
+						dateRange: { from, to: nextDay(from) },
+						occupancyDetail: {
+							adults: participants(),
+							children: 0,
+							infants: 0,
+						},
+						// Tour cupo: each participant consumes 1 inventory unit.
+						rooms: participants(),
+					}),
+				})
+				const payload = await response.json().catch(() => ({}))
+				if (!response.ok) {
+					if (statusEl) {
+						statusEl.textContent =
+							payload?.error === "not_available"
+								? "No hay cupo suficiente para esa salida."
+								: "No se pudo crear el hold."
+					}
+					return
+				}
+				latestHoldId = String(payload?.holdId ?? "")
+				if (statusEl) {
+					statusEl.textContent = latestHoldId
+						? "Cupo reservado. Confirma la reserva."
+						: "Hold creado."
+				}
+				if (confirmBtn) confirmBtn.disabled = !latestHoldId
+			} catch {
+				if (statusEl) statusEl.textContent = "Error de red al crear hold."
+			} finally {
+				if (reserveBtn) reserveBtn.disabled = !(selectedVariantId && selectedRatePlanId)
+			}
+		})
+
+		confirmBtn?.addEventListener("click", async () => {
+			if (!latestHoldId) return
+			if (confirmBtn) confirmBtn.disabled = true
+			if (statusEl) statusEl.textContent = "Confirmando reserva..."
+			try {
+				const response = await fetch("/api/booking/confirm", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ holdId: latestHoldId }),
+				})
+				const payload = await response.json().catch(() => ({}))
+				if (!response.ok || !payload?.bookingId) {
+					if (statusEl) statusEl.textContent = "No se pudo confirmar la reserva."
+					if (confirmBtn) confirmBtn.disabled = false
+					return
+				}
+				window.location.href = `/booking/${encodeURIComponent(String(payload.bookingId))}`
+			} catch {
+				if (statusEl) statusEl.textContent = "Error de red al confirmar."
+				if (confirmBtn) confirmBtn.disabled = false
+			}
+		})
+	}
+</script>

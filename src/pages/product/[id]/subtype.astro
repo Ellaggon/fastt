@@ -80,11 +80,16 @@ const tourSubtype =
 		? await db
 				.select({
 					duration: Tour.duration,
+					durationMinutes: Tour.durationMinutes,
 					difficultyLevel: Tour.difficultyLevel,
 					meetingPointJson: Tour.meetingPointJson,
 					itineraryJson: Tour.itineraryJson,
 					safetyJson: Tour.safetyJson,
 					guideJson: Tour.guideJson,
+					includesJson: Tour.includesJson,
+					excludesJson: Tour.excludesJson,
+					categoriesJson: Tour.categoriesJson,
+					pickupJson: Tour.pickupJson,
 				})
 				.from(Tour)
 				.where(eq(Tour.productId, productId))
@@ -211,12 +216,24 @@ const limousineSubtype =
 						{
 							pt === "tour" ? (
 								<div class="space-y-4">
-									<FormField label="Duración" htmlFor="duration">
+									<FormField label="Duración (texto)" htmlFor="duration">
 										<Input
 											id="duration"
 											name="duration"
 											value={tourSubtype?.duration ?? ""}
-											placeholder="Opcional"
+											placeholder="Ej: 4 Horas"
+										/>
+									</FormField>
+									<FormField label="Duración en minutos" htmlFor="durationMinutes">
+										<Input
+											id="durationMinutes"
+											name="durationMinutes"
+											value={
+												tourSubtype?.durationMinutes != null
+													? String(tourSubtype.durationMinutes)
+													: ""
+											}
+											placeholder="Ej: 240 (se infiere del texto si vacío)"
 										/>
 									</FormField>
 									<FormField label="Nivel de dificultad" htmlFor="difficultyLevel">
@@ -224,7 +241,16 @@ const limousineSubtype =
 											id="difficultyLevel"
 											name="difficultyLevel"
 											value={tourSubtype?.difficultyLevel ?? ""}
-											placeholder="Opcional"
+											placeholder="Fácil, Moderado, Difícil..."
+										/>
+									</FormField>
+									<FormField label="Categorías (una por línea o coma)" htmlFor="tourCategories">
+										<Textarea
+											id="tourCategories"
+											name="tourCategories"
+											value={listToText(tourSubtype?.categoriesJson, "name")}
+											rows="3"
+											placeholder="City Tour, Cultural, Adventure"
 										/>
 									</FormField>
 									<FormField label="Idiomas guía (separados por coma)" htmlFor="guideLanguages">
@@ -262,6 +288,22 @@ const limousineSubtype =
 											rows="3"
 										/>
 									</FormField>
+									<FormField label="Área de pickup (opcional)" htmlFor="pickupDefaultArea">
+										<Input
+											id="pickupDefaultArea"
+											name="pickupDefaultArea"
+											value={fieldFromObject(tourSubtype?.pickupJson, "defaultArea")}
+											placeholder="Hoteles zona centro, aeropuerto..."
+										/>
+									</FormField>
+									<FormField label="Instrucciones de pickup" htmlFor="pickupInstructions">
+										<Textarea
+											id="pickupInstructions"
+											name="pickupInstructions"
+											value={fieldFromObject(tourSubtype?.pickupJson, "instructions")}
+											rows="2"
+										/>
+									</FormField>
 									<FormField label="Itinerario del tour" htmlFor="tourItinerary">
 										<Textarea
 											id="tourItinerary"
@@ -269,6 +311,24 @@ const limousineSubtype =
 											value={listToText(tourSubtype?.itineraryJson)}
 											rows="5"
 											placeholder="Una parada o experiencia por línea"
+										/>
+									</FormField>
+									<FormField label="Incluye" htmlFor="tourIncludes">
+										<Textarea
+											id="tourIncludes"
+											name="tourIncludes"
+											value={listToText(tourSubtype?.includesJson)}
+											rows="3"
+											placeholder="Transporte, guía, entradas..."
+										/>
+									</FormField>
+									<FormField label="No incluye" htmlFor="tourExcludes">
+										<Textarea
+											id="tourExcludes"
+											name="tourExcludes"
+											value={listToText(tourSubtype?.excludesJson)}
+											rows="3"
+											placeholder="Propinas, almuerzo..."
 										/>
 									</FormField>
 									<FormField label="Requisitos de seguridad" htmlFor="safetyRequirements">

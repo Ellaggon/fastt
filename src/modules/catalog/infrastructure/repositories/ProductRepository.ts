@@ -15,6 +15,7 @@ import {
 	Hotel,
 	Limousine,
 	Tour,
+	TourSlotProfile,
 	Package,
 	Variant,
 	VariantCapacity,
@@ -297,9 +298,32 @@ export class ProductRepository implements ProductRepositoryPort {
 			const tour = await db.select().from(Tour).where(eq(Tour.productId, productId)).then(first)
 			subtypeExists = !!tour
 			const schedules = await db
-				.select({ id: Variant.id })
+				.select({
+					id: Variant.id,
+					profileVariantId: TourSlotProfile.variantId,
+					capacityVariantId: VariantCapacity.variantId,
+					defaultRatePlanId: RatePlan.id,
+				})
 				.from(Variant)
+				.leftJoin(TourSlotProfile, eq(TourSlotProfile.variantId, Variant.id))
+				.leftJoin(VariantCapacity, eq(VariantCapacity.variantId, Variant.id))
+				.leftJoin(
+					RatePlan,
+					and(
+						eq(RatePlan.variantId, Variant.id),
+						eq(RatePlan.isDefault, true),
+						eq(RatePlan.isActive, true)
+					)
+				)
 				.where(and(eq(Variant.productId, productId), eq(Variant.kind, "tour_slot")))
+
+			// Fase 2: a sellable salida needs profile + capacity + default rate.
+			const completeSlotCount = schedules.filter(
+				(row) =>
+					Boolean(row.profileVariantId) &&
+					Boolean(row.capacityVariantId) &&
+					Boolean(row.defaultRatePlanId)
+			).length
 
 			verticalReadiness = {
 				kind: "tour",
@@ -307,7 +331,9 @@ export class ProductRepository implements ProductRepositoryPort {
 				tour: {
 					hasItinerary: Array.isArray(tour?.itineraryJson) && tour.itineraryJson.length > 0,
 					hasMeetingPoint: !!tour?.meetingPointJson,
-					hasSchedule: schedules.length > 0,
+					hasSchedule: completeSlotCount > 0,
+					slotCount: schedules.length,
+					completeSlotCount,
 				},
 			}
 		} else if (pt === "package") {

@@ -61,6 +61,14 @@ export const routes = {
 		`/product/${encodeURIComponent(String(productId))}/rooms/${encodeURIComponent(String(roomId))}/profile`,
 	productRoomCalendar: (_productId: string, roomId: string) =>
 		`/rates/calendar?variantId=${encodeURIComponent(String(roomId))}&focus=availability`,
+	productDeparturesForProduct: (productId: string) =>
+		`/product/${encodeURIComponent(String(productId))}/departures`,
+	productDepartureNew: (productId: string) =>
+		`/product/${encodeURIComponent(String(productId))}/departures/new`,
+	productDepartureDetail: (productId: string, slotId: string) =>
+		`/product/${encodeURIComponent(String(productId))}/departures/${encodeURIComponent(String(slotId))}`,
+	productTourTickets: (productId: string) =>
+		`/product/${encodeURIComponent(String(productId))}/tickets`,
 	bookingList: () => "/booking",
 	rates: () => "/rates/plans/manage",
 	financialOperations: () => "/financial",

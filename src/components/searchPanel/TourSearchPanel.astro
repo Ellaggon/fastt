@@ -3,18 +3,7 @@ import Button from "@/components/ui/Button.astro"
 import DatesModal from "@/components/ui/DatesModal.astro"
 import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
-
-const activitiesList = [
-	"Trekking",
-	"City Tour",
-	"Cultural",
-	"Wildlife",
-	"Adventure",
-	"Gastronomy",
-	"Water Activities",
-	"Ski",
-	"Cruise",
-]
+import { asc, db, eq, ProductCategory } from "@/shared/infrastructure/db/compat"
 
 const durationOptions = [
 	{ value: "lt1", label: "Medio día / <1 día" },
@@ -32,6 +21,21 @@ const sortOptions = [
 	{ value: "duration_asc", label: "Duración: corta primero" },
 	{ value: "rating_desc", label: "Mejor calificados" },
 ]
+
+let categories: Array<{ id: string; slug: string; name: string }> = []
+try {
+	categories = await db
+		.select({
+			id: ProductCategory.id,
+			slug: ProductCategory.slug,
+			name: ProductCategory.name,
+		})
+		.from(ProductCategory)
+		.where(eq(ProductCategory.vertical, "tour"))
+		.orderBy(asc(ProductCategory.sortOrder), asc(ProductCategory.name))
+} catch {
+	categories = []
+}
 ---
 
 <div class="sticky top-0 z-40 mx-auto w-full max-w-4xl">
@@ -41,7 +45,6 @@ const sortOptions = [
 		method="get"
 		class="fastt-card grid grid-cols-1 gap-3 border bg-white p-4 md:grid-cols-3"
 	>
-		<!-- DESTINATION + hidden id -->
 		<div class="col-span-1 md:col-span-1">
 			<label for="destinationInput" class="mb-1 block text-sm font-semibold text-slate-800"
 				>Destino</label
@@ -63,13 +66,11 @@ const sortOptions = [
 			</div>
 		</div>
 
-		<!-- START DATE -->
 		<div class="col-span-1 md:col-span-1">
 			<label class="mb-1 block text-sm font-semibold text-slate-800">Fecha de inicio</label>
 			<DatesModal id="startDate" name="startDate" className="w-full" />
 		</div>
 
-		<!-- DURATION -->
 		<div class="col-span-1 md:col-span-1">
 			<label class="mb-1 block text-sm font-semibold text-slate-800">Duración</label>
 			<Select name="duration" id="duration">
@@ -78,22 +79,24 @@ const sortOptions = [
 			</Select>
 		</div>
 
-		<!-- Activities (expandable, occupies full width on small screens) -->
 		<div class="col-span-1 md:col-span-3">
 			<label class="mb-1 block text-sm font-semibold text-slate-800">Actividades</label>
 			<div id="activitiesWrap" class="flex flex-wrap gap-2">
 				{
-					activitiesList.map((act) => (
-						<label class="fastt-soft-box inline-flex items-center gap-2 bg-slate-50 px-2 py-1 text-sm">
-							<input type="checkbox" name="activities" value={act} class="h-4 w-4" />
-							<span class="text-slate-700">{act}</span>
-						</label>
-					))
+					categories.length === 0 ? (
+						<p class="text-sm text-slate-500">Categorías aún no sembradas en discovery.</p>
+					) : (
+						categories.map((cat) => (
+							<label class="fastt-soft-box inline-flex items-center gap-2 bg-slate-50 px-2 py-1 text-sm">
+								<input type="checkbox" name="category" value={cat.slug} class="h-4 w-4" />
+								<span class="text-slate-700">{cat.name}</span>
+							</label>
+						))
+					)
 				}
 			</div>
 		</div>
 
-		<!-- Level + Price range -->
 		<div class="col-span-1 md:col-span-1">
 			<label class="mb-1 block text-sm font-semibold text-slate-800">Nivel</label>
 			<Select name="level" id="level">
@@ -117,7 +120,6 @@ const sortOptions = [
 			</Select>
 		</div>
 
-		<!-- Submit -->
 		<div class="col-span-1 flex justify-end md:col-span-3">
 			<Button type="submit">Buscar tours</Button>
 		</div>
@@ -126,7 +128,6 @@ const sortOptions = [
 
 <script type="module">
 	const qs = (s, el = document) => el.querySelector(s)
-	const qsa = (s, el = document) => Array.from(el.querySelectorAll(s))
 
 	function debounce(fn, wait = 200) {
 		let t
@@ -136,7 +137,6 @@ const sortOptions = [
 		}
 	}
 
-	// DESTINATIONS AUTOCOMPLETE (same pattern as HotelSearchPanel)
 	async function fetchDestinations(q) {
 		if (!q) return []
 		const res = await fetch(`/api/destinations?q=${encodeURIComponent(q)}&limit=8`)
@@ -176,23 +176,16 @@ const sortOptions = [
 			renderDestinations(destList, items)
 		}, 180)
 
-		destInput.addEventListener("input", (e) => {
-			destId.value = ""
+		destInput?.addEventListener("input", (e) => {
 			debouncedSearch(e.target.value)
 		})
 
-		destList.addEventListener("click", (ev) => {
-			const li = ev.target.closest("li")
+		destList?.addEventListener("click", (e) => {
+			const li = e.target.closest("li")
 			if (!li) return
 			destInput.value = li.textContent
 			destId.value = li.dataset.id
 			destList.classList.add("hidden")
-		})
-
-		document.addEventListener("click", (e) => {
-			if (!e.target.closest("#destinationInput") && !e.target.closest("#destinationsList")) {
-				destList.classList.add("hidden")
-			}
 		})
 	})
 </script>

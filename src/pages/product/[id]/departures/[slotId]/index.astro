@@ -1,0 +1,83 @@
+---
+import TourSlotProfileEditor from "@/components/tours/TourSlotProfileEditor.astro"
+import { productRepository, variantManagementRepository } from "@/container"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { isTourProductType } from "@/lib/productVerticalRegistry"
+import { routes } from "@/lib/routes"
+import { getProductAggregate } from "@/modules/catalog/public"
+import { db, eq, first, TourSlotProfile } from "@/shared/infrastructure/db/compat"
+import { Clock } from "@lucide/astro"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
+
+const providerId = (await getProviderIdFromRequest(Astro.request, user)) ?? ""
+if (!providerId) return Astro.redirect(routes.providerSettingsProfile())
+
+const productId = String(Astro.params.id ?? "")
+const slotId = String(Astro.params.slotId ?? "")
+if (!productId) return Astro.redirect("/product/create")
+if (!slotId) return Astro.redirect(routes.productDeparturesForProduct(productId))
+
+const owned = await productRepository.ensureProductOwnedByProvider(productId, providerId)
+if (!owned) return Astro.redirect("/product/create")
+if (!isTourProductType(owned.productType)) return Astro.redirect(routes.productDetail(productId))
+
+const product = await getProductAggregate(productId)
+if (!product) return Astro.redirect("/product/create")
+
+const variant = await variantManagementRepository.getVariantById(slotId)
+if (!variant || variant.productId !== productId) {
+	return Astro.redirect(routes.productDeparturesForProduct(productId))
+}
+if (
+	String(variant.kind ?? "")
+		.trim()
+		.toLowerCase() !== "tour_slot"
+) {
+	return Astro.redirect(routes.productDeparturesForProduct(productId))
+}
+
+const profile = await db
+	.select()
+	.from(TourSlotProfile)
+	.where(eq(TourSlotProfile.variantId, slotId))
+	.then(first)
+
+const override =
+	profile?.meetingPointOverrideJson && typeof profile.meetingPointOverrideJson === "object"
+		? String((profile.meetingPointOverrideJson as any).instructions ?? "").trim()
+		: ""
+---
+
+<WorkspaceLayout title={`${product.displayName} · Editar salida`}>
+	<section class="space-y-5">
+		<header class="space-y-1.5 border-b border-slate-200 pb-5">
+			<p
+				class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500"
+			>
+				<Clock class="h-4 w-4" />
+				{product.displayName} · Editar salida
+			</p>
+			<h1 class="text-3xl font-semibold text-slate-950">{variant.name}</h1>
+		</header>
+
+		<TourSlotProfileEditor
+			productId={productId}
+			variantId={slotId}
+			mode="edit"
+			name={variant.name}
+			description={variant.description}
+			departureTime={profile?.departureTime ?? "09:00"}
+			durationMinutes={profile?.durationMinutes ?? null}
+			maxPax={profile?.maxPax ?? 12}
+			languageCode={profile?.languageCode ?? "es"}
+			bookingMode={(profile?.bookingMode as "shared" | "private") ?? "shared"}
+			meetingPointOverride={override}
+			isActive={profile?.isActive ?? variant.isActive ?? true}
+			redirectOnSuccess={routes.productDeparturesForProduct(productId)}
+		/>
+	</section>
+</WorkspaceLayout>

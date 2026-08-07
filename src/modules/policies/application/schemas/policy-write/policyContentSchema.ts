@@ -4,6 +4,7 @@ import { PolicyValidationError, type ValidationIssue } from "../../errors/policy
 
 export const cancellationTierSchema = z.object({
 	daysBeforeArrival: z.number().int().min(0),
+	hoursBeforeDeparture: z.number().int().min(0).nullable().optional(),
 	penaltyType: z.enum(["percentage", "nights"]),
 	penaltyAmount: z.number().min(0),
 })

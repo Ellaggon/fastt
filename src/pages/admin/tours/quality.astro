@@ -1,0 +1,155 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
+import { requireInternalAdmin } from "@/lib/auth/requireInternalAdmin"
+import { loadTourAdminQualityQueue } from "@/lib/tours/tourAdminQuality"
+
+let isAdmin = false
+try {
+	await requireInternalAdmin(Astro.request)
+	isAdmin = true
+} catch (response) {
+	if (response instanceof Response && response.status === 401) return Astro.redirect("/SignInPage")
+	isAdmin = false
+}
+
+const onlyNeedsAttention = Astro.url.searchParams.get("filter") === "attention"
+const queue = isAdmin
+	? await loadTourAdminQualityQueue({ limit: 100, onlyNeedsAttention })
+	: { rows: [], counts: { total: 0, needsAttention: 0 } }
+
+const issueLabels: Record<string, string> = {
+	missing_images: "Pocas fotos",
+	thin_itinerary: "Itinerario débil",
+	missing_meeting_point: "Sin meeting point",
+	missing_duration: "Sin duración",
+	missing_includes: "Sin includes",
+	no_active_salida: "Sin salida activa",
+	draft_status: "No publicado",
+}
+---
+
+<InternalAdminLayout title="Admin · Tour quality">
+	<div class="space-y-6">
+		<header class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+			<div class="space-y-1">
+				<p class="text-xs font-semibold uppercase tracking-[0.14em] text-amber-300/80">
+					Catalog quality
+				</p>
+				<h1 class="text-2xl font-semibold text-white">Tours · calidad</h1>
+				<p class="max-w-2xl text-sm text-slate-400">
+					Cola de revisión por fotos, itinerario, meeting point, duración e salidas activas. Sin
+					rename físico de tablas — solo claridad ops (Fase 6).
+				</p>
+			</div>
+			<div class="flex flex-wrap gap-2">
+				<Button href="/admin/providers" variant="secondary" size="sm">Providers</Button>
+				<Button
+					href={onlyNeedsAttention
+						? "/admin/tours/quality"
+						: "/admin/tours/quality?filter=attention"}
+					variant="primary"
+					size="sm"
+				>
+					{onlyNeedsAttention ? "Ver todos" : "Solo atención"}
+				</Button>
+			</div>
+		</header>
+
+		{
+			!isAdmin ? (
+				<Card class="border border-amber-500/40 bg-amber-950/40 p-4 text-sm text-amber-100">
+					Forbidden: internal admin only.
+				</Card>
+			) : (
+				<>
+					<div class="grid gap-3 sm:grid-cols-2">
+						<div class="fastt-soft-box rounded-xl border border-slate-800 bg-slate-900/80 p-4">
+							<p class="text-xs text-slate-400">Tours en cola</p>
+							<p class="mt-1 text-2xl font-semibold text-white">{queue.counts.total}</p>
+						</div>
+						<div class="fastt-soft-box rounded-xl border border-slate-800 bg-slate-900/80 p-4">
+							<p class="text-xs text-slate-400">Necesitan atención</p>
+							<p class="mt-1 text-2xl font-semibold text-amber-200">
+								{queue.counts.needsAttention}
+							</p>
+						</div>
+					</div>
+
+					<Card class="overflow-hidden border border-slate-800 bg-slate-900 p-0">
+						<div class="overflow-x-auto">
+							<table class="min-w-full text-left text-sm text-slate-200">
+								<thead class="border-b border-slate-800 bg-slate-950/80 text-xs tracking-wide text-slate-500 uppercase">
+									<tr>
+										<th class="px-4 py-3 font-medium">Tour</th>
+										<th class="px-4 py-3 font-medium">Score</th>
+										<th class="px-4 py-3 font-medium">Señales</th>
+										<th class="px-4 py-3 font-medium">Issues</th>
+										<th class="px-4 py-3 font-medium" />
+									</tr>
+								</thead>
+								<tbody>
+									{queue.rows.length === 0 ? (
+										<tr>
+											<td class="px-4 py-8 text-slate-500" colspan="5">
+												No hay tours en esta vista.
+											</td>
+										</tr>
+									) : (
+										queue.rows.map((row) => (
+											<tr class="border-b border-slate-800/80 last:border-0">
+												<td class="px-4 py-3">
+													<p class="font-medium text-white">{row.name}</p>
+													<p class="mt-0.5 font-mono text-xs text-slate-500">{row.productId}</p>
+													<p class="mt-1 text-xs text-slate-500">status: {row.status}</p>
+												</td>
+												<td class="px-4 py-3">
+													<span
+														class={`text-lg font-semibold ${
+															row.score >= 80
+																? "text-emerald-300"
+																: row.score >= 60
+																	? "text-amber-200"
+																	: "text-rose-300"
+														}`}
+													>
+														{row.score}
+													</span>
+												</td>
+												<td class="px-4 py-3 text-xs text-slate-400">
+													{row.imageCount} fotos · {row.itinerarySteps} pasos ·{" "}
+													{row.activeSalidaCount} salidas
+												</td>
+												<td class="px-4 py-3">
+													<div class="flex flex-wrap gap-1">
+														{row.issues.length === 0 ? (
+															<Badge variant="success">OK</Badge>
+														) : (
+															row.issues.map((issue) => (
+																<Badge variant="warning">{issueLabels[issue] ?? issue}</Badge>
+															))
+														)}
+													</div>
+												</td>
+												<td class="px-4 py-3 text-right">
+													<a
+														href={row.reviewHref}
+														class="text-sm font-semibold text-sky-300 hover:text-sky-200"
+													>
+														Revisar
+													</a>
+												</td>
+											</tr>
+										))
+									)}
+								</tbody>
+							</table>
+						</div>
+					</Card>
+				</>
+			)
+		}
+	</div>
+</InternalAdminLayout>

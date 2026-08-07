@@ -130,8 +130,9 @@ function ensureProductShell(config: ProductSummaryConfig): void {
 				</div>
 			</div>
 			<aside class="space-y-4" aria-label="Operación">
-				${card(`<p class="text-sm font-semibold text-slate-950">Acciones principales</p><div class="mt-4 grid gap-2">${actionButton(config.previewHref, "Vista previa", true)}${config.isHotel ? actionButton(config.roomsHref, "Abrir habitaciones") + actionButton(config.ratesHref, "Abrir tarifas") + actionButton(config.conditionsHref, "Abrir condiciones") + actionButton(config.calendarHref, "Abrir calendario") : ""}</div>`)}
+				${card(`<p class="text-sm font-semibold text-slate-950">Acciones principales</p><div class="mt-4 grid gap-2">${actionButton(config.previewHref, "Vista previa", true)}${config.isHotel ? actionButton(config.roomsHref, "Abrir habitaciones") + actionButton(config.ratesHref, "Abrir tarifas") + actionButton(config.conditionsHref, "Abrir condiciones") + actionButton(config.calendarHref, "Abrir calendario") : ""}${config.isTour ? actionButton(config.roomsHref, "Abrir salidas") + actionButton(config.ratesHref, "Abrir tarifas") + actionButton(config.calendarHref, "Abrir calendario") : ""}</div>`)}
 				${config.isHotel ? card(`<div class="flex items-start justify-between gap-4"><div><p class="text-sm font-semibold text-slate-950">Habitaciones</p><p id="summaryRooms" class="mt-2 text-sm leading-6 text-slate-600">Cargando habitaciones...</p></div>${badge("blockBadge-variants")}</div><a href="${buttonHref(config.roomsHref)}" data-astro-prefetch class="mt-4 inline-flex text-sm font-semibold text-slate-800">Gestionar habitaciones</a>`) : ""}
+				${config.isTour ? card(`<div class="flex items-start justify-between gap-4"><div><p class="text-sm font-semibold text-slate-950">Salidas</p><p id="summaryRooms" class="mt-2 text-sm leading-6 text-slate-600">Cargando salidas...</p></div>${badge("blockBadge-variants")}</div><a href="${buttonHref(config.roomsHref)}" data-astro-prefetch class="mt-4 inline-flex text-sm font-semibold text-slate-800">Gestionar salidas</a>`) : ""}
 				${config.isHotel ? card(`<p class="text-sm font-semibold text-slate-950">Condiciones de reserva</p><p class="mt-2 text-sm leading-6 text-slate-600">Cancelación, pagos, no presentación y horarios.</p><a href="${buttonHref(config.conditionsHref)}" data-astro-prefetch class="mt-4 inline-flex text-sm font-semibold text-slate-800">Gestionar condiciones</a>`) : ""}
 				${config.isHotel ? card(`<div class="flex items-start justify-between gap-4"><div><p class="text-sm font-semibold text-slate-950">Reglas para huéspedes</p><p id="summaryHouseRules" class="mt-2 text-sm leading-6 text-slate-600">Cargando reglas...</p></div>${badge("blockBadge-houseRules")}</div><a href="${buttonHref(config.houseRulesHref)}" data-astro-prefetch class="mt-4 inline-flex text-sm font-semibold text-slate-800">Editar reglas</a>`) : ""}
 			</aside>
@@ -240,6 +241,9 @@ export function initProductSummaryHydration(): void {
 				setBadgeState("variants", hasVariants)
 				setBadgeState("houseRules", hasHouseRules)
 			}
+			if (config.isTour) {
+				setBadgeState("variants", hasVariants)
+			}
 
 			setText("summaryDescription", String(payload?.content?.descriptionPreview ?? ""))
 			setText("summaryHighlights", `Destacados: ${Number(payload?.content?.highlightsCount ?? 0)}`)
@@ -311,6 +315,18 @@ export function initProductSummaryHydration(): void {
 					hasHouseRules
 						? "Reglas principales listas para este alojamiento."
 						: "Agrega las reglas principales para que el huésped sepa qué esperar."
+				)
+			}
+			if (config.isTour) {
+				setText(
+					"summaryRooms",
+					hasVariants
+						? `${Number(payload?.variants?.count ?? 0)} salidas configuradas${
+								Array.isArray(payload?.variants?.names) && payload.variants.names.length > 0
+									? `: ${payload.variants.names.join(", ")}`
+									: "."
+							}`
+						: "Agrega salidas (horarios) para que este tour pueda venderse."
 				)
 			}
 

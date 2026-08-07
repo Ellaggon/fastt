@@ -104,6 +104,10 @@ export const ImageUpload = pgTable(
 	(table) => [index("ImageUpload_objectKey_status_idx").on(table.objectKey, table.status)]
 )
 
+/**
+ * Deprecated / unused localization table.
+ * Keep physical table for compatibility; do not build new features on it (Fase 6).
+ */
 export const Translation = pgTable(
 	"Translation",
 	{
@@ -715,6 +719,65 @@ export const HouseRule = pgTable(
 	(table) => [index("HouseRule_productId_type_idx").on(table.productId, table.type)]
 )
 
+/** Marketplace category taxonomy (Things to Do / Experiences discovery). */
+export const ProductCategory = pgTable(
+	"ProductCategory",
+	{
+		id: pk(),
+		slug: txt("slug"),
+		name: txt("name"),
+		vertical: txt("vertical"),
+		sortOrder: intDefault("sortOrder", 0),
+		isActive: boolDefault("isActive", true),
+		createdAt: now("createdAt"),
+	},
+	(table) => [
+		uniqueIndex("ProductCategory_slug_unique").on(table.slug),
+		index("ProductCategory_vertical_idx").on(table.vertical),
+	]
+)
+
+export const ProductCategoryLink = pgTable(
+	"ProductCategoryLink",
+	{
+		id: pk(),
+		productId: txt("productId").references(() => Product.id),
+		categoryId: txt("categoryId").references(() => ProductCategory.id),
+		createdAt: now("createdAt"),
+	},
+	(table) => [
+		uniqueIndex("ProductCategoryLink_product_category_unique").on(
+			table.productId,
+			table.categoryId
+		),
+		index("ProductCategoryLink_categoryId_idx").on(table.categoryId),
+		index("ProductCategoryLink_productId_idx").on(table.productId),
+	]
+)
+
+export const ProductReview = pgTable(
+	"ProductReview",
+	{
+		id: pk(),
+		productId: txt("productId").references(() => Product.id),
+		userId: txtOpt("userId").references(() => User.id),
+		rating: int("rating"),
+		body: txtOpt("body"),
+		status: text("status").default("published").notNull(),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		index("ProductReview_product_status_idx").on(table.productId, table.status),
+		index("ProductReview_product_rating_idx").on(table.productId, table.rating),
+		check("ProductReview_rating_check", sql`${table.rating} >= 1 AND ${table.rating} <= 5`),
+		check(
+			"ProductReview_status_check",
+			sql`${table.status} in ('published', 'pending', 'rejected', 'hidden')`
+		),
+	]
+)
+
 export const ProductStatus = pgTable("ProductStatus", {
 	productId: text("productId")
 		.primaryKey()
@@ -781,17 +844,29 @@ export const Hotel = pgTable("Hotel", {
 	website: txtOpt("website"),
 })
 
-export const Tour = pgTable("Tour", {
-	productId: text("productId")
-		.primaryKey()
-		.references(() => Product.id),
-	duration: txtOpt("duration"),
-	difficultyLevel: txtOpt("difficultyLevel"),
-	meetingPointJson: jsonb("meetingPointJson"),
-	itineraryJson: jsonb("itineraryJson"),
-	safetyJson: jsonb("safetyJson"),
-	guideJson: jsonb("guideJson"),
-})
+export const Tour = pgTable(
+	"Tour",
+	{
+		productId: text("productId")
+			.primaryKey()
+			.references(() => Product.id),
+		duration: txtOpt("duration"),
+		durationMinutes: intOpt("durationMinutes"),
+		difficultyLevel: txtOpt("difficultyLevel"),
+		meetingPointJson: jsonb("meetingPointJson"),
+		itineraryJson: jsonb("itineraryJson"),
+		safetyJson: jsonb("safetyJson"),
+		guideJson: jsonb("guideJson"),
+		includesJson: jsonb("includesJson"),
+		excludesJson: jsonb("excludesJson"),
+		categoriesJson: jsonb("categoriesJson"),
+		pickupJson: jsonb("pickupJson"),
+	},
+	(table) => [
+		index("Tour_durationMinutes_idx").on(table.durationMinutes),
+		index("Tour_difficultyLevel_idx").on(table.difficultyLevel),
+	]
+)
 
 export const Package = pgTable("Package", {
 	productId: text("productId")
@@ -1050,6 +1125,58 @@ export const VariantRoomProfile = pgTable(
 	(table) => [index("VariantRoomProfile_roomTypeId_idx").on(table.roomTypeId)]
 )
 
+/** One row per tour_slot Variant: clock time + pax + language + booking mode. */
+export const TourSlotProfile = pgTable(
+	"TourSlotProfile",
+	{
+		variantId: text("variantId")
+			.primaryKey()
+			.references(() => Variant.id),
+		departureTime: txt("departureTime"),
+		/** Optional override of Tour.durationMinutes for this salida. */
+		durationMinutes: intOpt("durationMinutes"),
+		maxPax: int("maxPax"),
+		languageCode: txt("languageCode"),
+		bookingMode: text("bookingMode").notNull().default("shared"),
+		meetingPointOverrideJson: jsonb("meetingPointOverrideJson"),
+		isActive: boolDefault("isActive", true),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		index("TourSlotProfile_departureTime_idx").on(table.departureTime),
+		index("TourSlotProfile_languageCode_idx").on(table.languageCode),
+		index("TourSlotProfile_bookingMode_idx").on(table.bookingMode),
+		check("TourSlotProfile_bookingMode_check", sql`${table.bookingMode} in ('shared', 'private')`),
+		check("TourSlotProfile_maxPax_check", sql`${table.maxPax} >= 1`),
+	]
+)
+
+/** Age-band / ticket types for a tour product (Viator-style adult|child|infant|custom). */
+export const TourTicketType = pgTable(
+	"TourTicketType",
+	{
+		id: pk(),
+		productId: txt("productId").references(() => Product.id),
+		code: txt("code"),
+		label: txt("label"),
+		minAge: intOpt("minAge"),
+		maxAge: intOpt("maxAge"),
+		sortOrder: intDefault("sortOrder", 0),
+		isActive: boolDefault("isActive", true),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		uniqueIndex("TourTicketType_product_code_unique").on(table.productId, table.code),
+		index("TourTicketType_productId_idx").on(table.productId),
+		check(
+			"TourTicketType_code_check",
+			sql`${table.code} in ('adult', 'child', 'infant', 'custom')`
+		),
+	]
+)
+
 export const VariantRoomBed = pgTable(
 	"VariantRoomBed",
 	{
@@ -1206,6 +1333,8 @@ export const CancellationTier = pgTable(
 		id: pk(),
 		policyId: txt("policyId").references(() => Policy.id),
 		daysBeforeArrival: int("daysBeforeArrival"),
+		/** When set, this lead-time (hours before departure) prevails over daysBeforeArrival. */
+		hoursBeforeDeparture: intOpt("hoursBeforeDeparture"),
 		penaltyType: text("penaltyType").default("percentage").notNull(),
 		penaltyAmount: amountOpt("penaltyAmount"),
 	},
@@ -1214,6 +1343,7 @@ export const CancellationTier = pgTable(
 			table.policyId,
 			table.daysBeforeArrival
 		),
+		index("CancellationTier_hoursBeforeDeparture_idx").on(table.hoursBeforeDeparture),
 	]
 )
 
@@ -1764,6 +1894,29 @@ export const Booking = pgTable(
 	]
 )
 
+/** Guest voucher issued on tour booking confirm (day-of ops via Booking.checkedInAt). */
+export const BookingVoucher = pgTable(
+	"BookingVoucher",
+	{
+		id: pk(),
+		bookingId: txt("bookingId").references(() => Booking.id),
+		code: txt("code"),
+		status: txt("status"),
+		issuedAt: now("issuedAt"),
+		redeemedAt: ts("redeemedAt"),
+		instructionsJson: jsonb("instructionsJson"),
+		qrPayload: txtOpt("qrPayload"),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		uniqueIndex("BookingVoucher_bookingId_unique").on(table.bookingId),
+		uniqueIndex("BookingVoucher_code_unique").on(table.code),
+		index("BookingVoucher_status_idx").on(table.status),
+		check("BookingVoucher_status_check", sql`${table.status} in ('issued', 'redeemed', 'void')`),
+	]
+)
+
 export const BookingRoomDetail = pgTable(
 	"BookingRoomDetail",
 	{
@@ -1793,6 +1946,14 @@ export const BookingRoomDetail = pgTable(
 		index("BookingRoomDetail_ratePlanId_idx").on(table.ratePlanId),
 	]
 )
+
+/**
+ * App-layer alias for BookingRoomDetail (all verticals).
+ * Physical table name stays BookingRoomDetail — no schema rename (Fase 6).
+ */
+export const BookingLineItem = BookingRoomDetail
+export type BookingLineItemRow = typeof BookingRoomDetail.$inferSelect
+export type BookingLineItemInsert = typeof BookingRoomDetail.$inferInsert
 
 export const InventoryLock = pgTable(
 	"InventoryLock",

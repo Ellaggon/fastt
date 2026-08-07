@@ -132,6 +132,8 @@ export class PolicyCommandRepositoryCapa6 implements PolicyCommandRepositoryPort
 					id: randomUUID(),
 					policyId: params.policyId,
 					daysBeforeArrival: Number(t.daysBeforeArrival),
+					hoursBeforeDeparture:
+						t.hoursBeforeDeparture == null ? null : Number(t.hoursBeforeDeparture),
 					penaltyType: t.penaltyType,
 					penaltyAmount: Number(t.penaltyAmount),
 				} as any)

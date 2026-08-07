@@ -2,6 +2,7 @@ import type { APIRoute } from "astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { invalidateProduct } from "@/lib/cache/invalidation"
 import { refreshProductPreparationSnapshotAfterMutation } from "@/lib/playbook/summarize-product-preparation"
+import { parseDurationMinutes } from "@/lib/tours/tourSemantics"
 import { updateProductSubtype } from "@/modules/catalog/public"
 import { productRepository, subtypeRepository } from "@/container"
 
@@ -70,6 +71,14 @@ export const POST: APIRoute = async ({ request }) => {
 				: subtypeType === "tour"
 					? {
 							duration: String(form.get("duration") ?? "").trim() || null,
+							durationMinutes: (() => {
+								const raw = String(form.get("durationMinutes") ?? "").trim()
+								if (raw) {
+									const n = Number(raw)
+									return Number.isFinite(n) ? n : null
+								}
+								return parseDurationMinutes(String(form.get("duration") ?? ""))
+							})(),
 							difficultyLevel: String(form.get("difficultyLevel") ?? "").trim() || null,
 							meetingPointJson: objectFromFields({
 								address: form.get("meetingPointAddress"),
@@ -86,6 +95,13 @@ export const POST: APIRoute = async ({ request }) => {
 							guideJson: objectFromFields({
 								languages: listFromForm(form.get("guideLanguages")).join(", "),
 								guideType: form.get("guideType"),
+							}),
+							includesJson: listFromForm(form.get("tourIncludes")),
+							excludesJson: listFromForm(form.get("tourExcludes")),
+							categoriesJson: listFromForm(form.get("tourCategories")),
+							pickupJson: objectFromFields({
+								defaultArea: form.get("pickupDefaultArea"),
+								instructions: form.get("pickupInstructions"),
 							}),
 						}
 					: subtypeType === "package"

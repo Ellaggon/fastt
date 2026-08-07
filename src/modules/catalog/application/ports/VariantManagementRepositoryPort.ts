@@ -74,4 +74,5 @@ export interface VariantManagementRepositoryPort {
 
 	countDailyInventoryDays(variantId: string): Promise<number>
 	countVariantImages(variantId: string): Promise<number>
+	hasTourSlotProfile(variantId: string): Promise<boolean>
 }

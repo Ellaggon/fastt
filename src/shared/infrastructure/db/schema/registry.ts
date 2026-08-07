@@ -53,6 +53,8 @@ export const databaseTablesByDomain = {
 		"ProductLocation",
 		"Hotel",
 		"Tour",
+		"TourSlotProfile",
+		"TourTicketType",
 		"Package",
 		"Limousine",
 		"Variant",
@@ -63,6 +65,9 @@ export const databaseTablesByDomain = {
 		"VariantReadiness",
 		"ProductService",
 		"ProductServiceAttribute",
+		"ProductCategory",
+		"ProductCategoryLink",
+		"ProductReview",
 	],
 	policy: [
 		"PolicyGroup",
@@ -95,7 +100,7 @@ export const databaseTablesByDomain = {
 		"EffectivePricingV2",
 	],
 	taxes: ["TaxFeeDefinition", "TaxFeeAssignment", "BookingTaxFee"],
-	booking: ["Booking", "BookingRoomDetail", "BookingPolicySnapshot"],
+	booking: ["Booking", "BookingVoucher", "BookingRoomDetail", "BookingPolicySnapshot"],
 	financial: [
 		"FinancialExceptionRecord",
 		"FinancialReference",
