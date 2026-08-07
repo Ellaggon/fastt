@@ -39,12 +39,13 @@ describe("provider integration incremental ARI wiring", () => {
 		}
 	})
 
-	it("runs the serverless worker each minute and keeps the full sync on a daily guard", async () => {
+	it("wires the production worker and keeps the initial full sync on a daily guard", async () => {
 		const [vercel, initial] = await Promise.all([
 			source("vercel.json"),
 			source("src/lib/channel-manager/channel-manager-initial-ari.ts"),
 		])
-		expect(vercel).toContain('"schedule": "* * * * *"')
+		expect(vercel).toContain('"path": "/api/cron/provider-integrations"')
+		expect(vercel).toContain('"schedule": "27 3 * * *"')
 		expect(initial).toContain("INITIAL_ARI_DAILY_LIMIT")
 		expect(initial).toContain("86_400_000")
 	})
