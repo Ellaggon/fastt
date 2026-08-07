@@ -45,6 +45,13 @@ const exactMessages: Record<string, string> = {
 		"La conexión está pausada o requiere atención. Resuélvelo antes de enviar cambios.",
 	INTEGRATION_INITIAL_SYNC_REQUIRED:
 		"Ejecuta primero la sincronización inicial antes de enviar cambios incrementales.",
+	INTEGRATION_SYNC_RUN_NOT_RETRYABLE: "Esta ejecución no admite un reintento manual.",
+	INTEGRATION_SYNC_RETRY_CONTEXT_EXPIRED:
+		"El detalle de este cambio ya no está disponible. Ejecuta un full sync de recuperación.",
+	RECOVERY_FULL_SYNC_INITIAL_REQUIRED:
+		"Completa primero la sincronización inicial antes de usar la recuperación completa.",
+	RECOVERY_FULL_SYNC_COOLDOWN:
+		"Ya se ejecutó una recuperación recientemente. Espera unos minutos antes de repetirla.",
 	INTEGRATION_COMMERCIAL_SYNC_PREFLIGHT_REQUIRED:
 		"La sincronización comercial está bloqueada hasta completar nuevamente el preflight.",
 	INITIAL_ARI_AVAILABILITY_REJECTED:

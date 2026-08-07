@@ -16,6 +16,7 @@ import {
 	getProviderChannelManagerRuntime,
 } from "@/lib/provider-integrations"
 import { mapWithConcurrency } from "@/lib/provider-sync-job-queue"
+import { writeProviderAuditLog } from "@/lib/provider-audit"
 import { recomputeEffectiveAvailabilityRange } from "@/modules/inventory/public"
 import { ensurePricingCoverageRuntime } from "@/modules/pricing/public"
 import { recomputeEffectiveRestrictionsForVariantRange } from "@/modules/rules/public"
@@ -38,6 +39,11 @@ import {
 } from "@/shared/infrastructure/db/compat"
 
 export const INITIAL_ARI_DAYS = 500
+export const INITIAL_ARI_OPERATION = "initial_ari_sync"
+export const RECOVERY_FULL_SYNC_OPERATION = "recovery_full_sync"
+export type FullAriSyncOperation =
+	| typeof INITIAL_ARI_OPERATION
+	| typeof RECOVERY_FULL_SYNC_OPERATION
 const MATERIALIZATION_CONCURRENCY = 3
 const CANONICAL_OCCUPANCY = { adults: 2, children: 0, infants: 0 } as const
 const CANONICAL_OCCUPANCY_KEY = buildOccupancyKey(normalizeOccupancy(CANONICAL_OCCUPANCY))
@@ -457,6 +463,7 @@ export async function runProviderInitialAriSync(params: {
 	idempotencyKey: string
 	onProgress?: (progress: InitialAriProgress) => Promise<void>
 	adapter?: ChannelManagerAdapter
+	operation?: FullAriSyncOperation
 }) {
 	const progress = async (value: InitialAriProgress) => params.onProgress?.(value)
 	await progress({ stage: "preflight", percent: 8, message: "Validando acceso y cobertura" })
@@ -473,7 +480,7 @@ export async function runProviderInitialAriSync(params: {
 	const run = await startProviderIntegrationSyncRun({
 		providerId: params.providerId,
 		connectionId: params.connectionId,
-		operation: "initial_ari_sync",
+		operation: params.operation ?? INITIAL_ARI_OPERATION,
 		trigger: params.trigger ?? "manual",
 		requestedBy: params.requestedBy,
 		idempotencyKey: params.idempotencyKey,
@@ -622,7 +629,7 @@ export async function enqueueProviderInitialAriSync(params: {
 			and(
 				eq(ProviderIntegrationSyncJob.providerId, params.providerId),
 				eq(ProviderIntegrationSyncJob.connectionId, params.connectionId),
-				eq(ProviderIntegrationSyncJob.operation, "initial_ari_sync"),
+				eq(ProviderIntegrationSyncJob.operation, INITIAL_ARI_OPERATION),
 				inArray(ProviderIntegrationSyncJob.status, ["queued", "running"])
 			)
 		)
@@ -637,7 +644,7 @@ export async function enqueueProviderInitialAriSync(params: {
 			and(
 				eq(ProviderIntegrationSyncRun.providerId, params.providerId),
 				eq(ProviderIntegrationSyncRun.connectionId, params.connectionId),
-				eq(ProviderIntegrationSyncRun.operation, "initial_ari_sync"),
+				eq(ProviderIntegrationSyncRun.operation, INITIAL_ARI_OPERATION),
 				inArray(ProviderIntegrationSyncRun.status, ["succeeded", "partial"]),
 				gte(ProviderIntegrationSyncRun.startedAt, new Date(now.getTime() - 86_400_000))
 			)
@@ -652,7 +659,7 @@ export async function enqueueProviderInitialAriSync(params: {
 		targetType: "connection",
 		targetId: params.connectionId,
 		connectorKey: "channel_manager",
-		operation: "initial_ari_sync",
+		operation: INITIAL_ARI_OPERATION,
 		status: "queued",
 		trigger: "manual",
 		priority: 10,
@@ -668,6 +675,102 @@ export async function enqueueProviderInitialAriSync(params: {
 		},
 		createdAt: now,
 		updatedAt: now,
+	})
+	return { id, status: "queued", created: true }
+}
+
+export async function enqueueProviderRecoveryFullSync(params: {
+	providerId: string
+	connectionId: string
+	requestedBy: string
+}) {
+	const context = await getProviderChannelManagerPreflight(params)
+	if (!context.preflight.readyForProduction) {
+		throw new Error("INTEGRATION_COMMERCIAL_SYNC_PREFLIGHT_REQUIRED")
+	}
+	const completedInitial = await db
+		.select({ id: ProviderIntegrationSyncRun.id })
+		.from(ProviderIntegrationSyncRun)
+		.where(
+			and(
+				eq(ProviderIntegrationSyncRun.providerId, params.providerId),
+				eq(ProviderIntegrationSyncRun.connectionId, params.connectionId),
+				inArray(ProviderIntegrationSyncRun.operation, [
+					INITIAL_ARI_OPERATION,
+					RECOVERY_FULL_SYNC_OPERATION,
+				]),
+				inArray(ProviderIntegrationSyncRun.status, ["succeeded", "partial"])
+			)
+		)
+		.then((rows) => rows[0] ?? null)
+	if (!completedInitial) throw new Error("RECOVERY_FULL_SYNC_INITIAL_REQUIRED")
+	const active = await db
+		.select({ id: ProviderIntegrationSyncJob.id, status: ProviderIntegrationSyncJob.status })
+		.from(ProviderIntegrationSyncJob)
+		.where(
+			and(
+				eq(ProviderIntegrationSyncJob.providerId, params.providerId),
+				eq(ProviderIntegrationSyncJob.connectionId, params.connectionId),
+				inArray(ProviderIntegrationSyncJob.operation, [
+					INITIAL_ARI_OPERATION,
+					RECOVERY_FULL_SYNC_OPERATION,
+				]),
+				inArray(ProviderIntegrationSyncJob.status, ["queued", "running"])
+			)
+		)
+		.orderBy(desc(ProviderIntegrationSyncJob.createdAt))
+		.then((rows) => rows[0] ?? null)
+	if (active) return { ...active, created: false }
+
+	const now = new Date()
+	const recentRecovery = await db
+		.select({ id: ProviderIntegrationSyncRun.id })
+		.from(ProviderIntegrationSyncRun)
+		.where(
+			and(
+				eq(ProviderIntegrationSyncRun.providerId, params.providerId),
+				eq(ProviderIntegrationSyncRun.connectionId, params.connectionId),
+				eq(ProviderIntegrationSyncRun.operation, RECOVERY_FULL_SYNC_OPERATION),
+				gte(ProviderIntegrationSyncRun.startedAt, new Date(now.getTime() - 15 * 60_000))
+			)
+		)
+		.then((rows) => rows[0] ?? null)
+	if (recentRecovery) throw new Error("RECOVERY_FULL_SYNC_COOLDOWN")
+
+	const id = crypto.randomUUID()
+	await db.insert(ProviderIntegrationSyncJob).values({
+		id,
+		providerId: params.providerId,
+		connectionId: params.connectionId,
+		targetType: "connection",
+		targetId: params.connectionId,
+		connectorKey: "channel_manager",
+		operation: RECOVERY_FULL_SYNC_OPERATION,
+		status: "queued",
+		trigger: "manual",
+		priority: 8,
+		attempts: 0,
+		maxAttempts: 3,
+		runAfter: now,
+		idempotencyKey: `recovery-full:${params.connectionId}:${id}`,
+		payloadJson: {
+			requestedBy: params.requestedBy,
+			stage: "preflight",
+			percent: 0,
+			message: "Esperando al worker de recuperación",
+		},
+		createdAt: now,
+		updatedAt: now,
+	})
+	await writeProviderAuditLog({
+		providerId: params.providerId,
+		actorUserId: params.requestedBy,
+		action: "provider.integration.recovery_full_sync.queued",
+		entityType: "ProviderIntegrationConnection",
+		entityId: params.connectionId,
+		beforeJson: null,
+		afterJson: { jobId: id, operation: RECOVERY_FULL_SYNC_OPERATION },
+		riskLevel: "high",
 	})
 	return { id, status: "queued", created: true }
 }
@@ -704,7 +807,10 @@ export async function getProviderInitialAriStatus(params: {
 				and(
 					eq(ProviderIntegrationSyncJob.providerId, params.providerId),
 					eq(ProviderIntegrationSyncJob.connectionId, params.connectionId),
-					eq(ProviderIntegrationSyncJob.operation, "initial_ari_sync")
+					inArray(ProviderIntegrationSyncJob.operation, [
+						INITIAL_ARI_OPERATION,
+						RECOVERY_FULL_SYNC_OPERATION,
+					])
 				)
 			)
 			.orderBy(desc(ProviderIntegrationSyncJob.createdAt))
@@ -723,7 +829,10 @@ export async function getProviderInitialAriStatus(params: {
 				and(
 					eq(ProviderIntegrationSyncRun.providerId, params.providerId),
 					eq(ProviderIntegrationSyncRun.connectionId, params.connectionId),
-					eq(ProviderIntegrationSyncRun.operation, "initial_ari_sync")
+					inArray(ProviderIntegrationSyncRun.operation, [
+						INITIAL_ARI_OPERATION,
+						RECOVERY_FULL_SYNC_OPERATION,
+					])
 				)
 			)
 			.orderBy(desc(ProviderIntegrationSyncRun.startedAt))
