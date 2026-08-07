@@ -71,6 +71,8 @@ function tiersToRows(policyId: string, tiers: unknown[] | undefined) {
 		id: `${policyId}:tier:${index}`,
 		policyId,
 		daysBeforeArrival: Number(tier.daysBeforeArrival ?? 0),
+		hoursBeforeDeparture:
+			tier.hoursBeforeDeparture == null ? null : Number(tier.hoursBeforeDeparture),
 		penaltyType: String(tier.penaltyType ?? "percentage"),
 		penaltyAmount: tier.penaltyAmount == null ? null : Number(tier.penaltyAmount),
 	}))
@@ -85,6 +87,7 @@ function buildResolvedDTO(params: {
 		id: string
 		policyId: string
 		daysBeforeArrival: number
+		hoursBeforeDeparture: number | null
 		penaltyType: string
 		penaltyAmount: number | null
 	}>
@@ -159,6 +162,8 @@ async function loadExistingPolicy(providerId: string, policyId: string) {
 			id: String(tier.id),
 			policyId: String(tier.policyId),
 			daysBeforeArrival: Number(tier.daysBeforeArrival ?? 0),
+			hoursBeforeDeparture:
+				tier.hoursBeforeDeparture == null ? null : Number(tier.hoursBeforeDeparture),
 			penaltyType: String(tier.penaltyType ?? "percentage"),
 			penaltyAmount: tier.penaltyAmount == null ? null : Number(tier.penaltyAmount),
 		})),
