@@ -751,6 +751,13 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		rationale: "APIs de contenido de ofertas.",
 	},
 	{
+		pattern: "/api/catalog/**",
+		status: "canonical",
+		context: "provider-workspace",
+		owner: "Tour Catalog",
+		rationale: "Tour discovery categories and related catalog metadata APIs.",
+	},
+	{
 		pattern: "/api/products/**",
 		status: "canonical",
 		context: "provider-workspace",
