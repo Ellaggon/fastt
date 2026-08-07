@@ -171,15 +171,23 @@ const needsReconnect = isRevoked || credentialRevoked
 						Comprueba la credencial; no envía inventario, tarifas ni reservas.
 					</p>
 				</div>
-				<form method="post" action={testAction}>
-					<input type="hidden" name="uiMode" value="simple" />
-					<input type="hidden" name="connectionId" value={connectionId} />
-					<input type="hidden" name="returnTo" value={returnTo} />
-					<Button type="submit" variant="secondary" size="sm">
-						<ShieldCheck class="size-4" aria-hidden="true" />
-						Probar conexión
-					</Button>
-				</form>
+				<div class="flex flex-wrap gap-2">
+					{initialSucceeded ? (
+						<Button type="button" variant="secondary" size="sm" data-open-recovery>
+							<RotateCcw class="size-4" aria-hidden="true" />
+							Full sync de recuperación
+						</Button>
+					) : null}
+					<form method="post" action={testAction}>
+						<input type="hidden" name="uiMode" value="simple" />
+						<input type="hidden" name="connectionId" value={connectionId} />
+						<input type="hidden" name="returnTo" value={returnTo} />
+						<Button type="submit" variant="secondary" size="sm">
+							<ShieldCheck class="size-4" aria-hidden="true" />
+							Probar conexión
+						</Button>
+					</form>
+				</div>
 			</div>
 		) : null
 	}
@@ -208,6 +216,36 @@ const needsReconnect = isRevoked || credentialRevoked
 		</div>
 	</div>
 </Dialog>
+
+{
+	initialSucceeded ? (
+		<Dialog
+			class="w-[min(34rem,calc(100%-2rem))] rounded-lg shadow-2xl backdrop:bg-slate-950/60"
+			data-recovery-dialog
+		>
+			<div class="p-5">
+				<h2 class="text-lg font-semibold text-slate-950">Full sync de recuperación</h2>
+				<p class="mt-2 text-sm leading-6 text-slate-600">
+					Fastt volverá a calcular y enviar 500 días de disponibilidad, tarifas y restricciones.
+					Úsalo cuando una interrupción haya dejado Channex desactualizado.
+				</p>
+				<div class="fastt-notice mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-950">
+					No modifica el mapeo ni recupera datos desde Channex. Los cambios posteriores se enviarán
+					de forma incremental.
+				</div>
+				<div class="mt-5 flex justify-end gap-2">
+					<Button type="button" variant="secondary" data-close-recovery>
+						Cancelar
+					</Button>
+					<Button type="button" variant="danger" data-operation="full_recovery_sync">
+						<RotateCcw class="size-4" aria-hidden="true" />
+						Programar recuperación
+					</Button>
+				</div>
+			</div>
+		</Dialog>
+	) : null
+}
 
 {
 	canActivateProduction ? (
@@ -257,18 +295,25 @@ const needsReconnect = isRevoked || credentialRevoked
 			const feedback = panel.querySelector<HTMLElement>("[data-operation-feedback]")
 			const pauseDialog = document.querySelector<HTMLDialogElement>("[data-pause-dialog]")
 			const productionDialog = document.querySelector<HTMLDialogElement>("[data-production-dialog]")
+			const recoveryDialog = document.querySelector<HTMLDialogElement>("[data-recovery-dialog]")
 			panel
 				.querySelector<HTMLElement>("[data-open-pause]")
 				?.addEventListener("click", () => pauseDialog?.showModal())
 			panel
 				.querySelector<HTMLElement>("[data-open-production]")
 				?.addEventListener("click", () => productionDialog?.showModal())
+			panel
+				.querySelector<HTMLElement>("[data-open-recovery]")
+				?.addEventListener("click", () => recoveryDialog?.showModal())
 			document
 				.querySelector("[data-close-pause]")
 				?.addEventListener("click", () => pauseDialog?.close())
 			document
 				.querySelector("[data-close-production]")
 				?.addEventListener("click", () => productionDialog?.close())
+			document
+				.querySelector("[data-close-recovery]")
+				?.addEventListener("click", () => recoveryDialog?.close())
 
 			panel.querySelectorAll<HTMLButtonElement>("[data-operation]").forEach((button) => {
 				button.addEventListener("click", async () => {
@@ -280,7 +325,11 @@ const needsReconnect = isRevoked || credentialRevoked
 					if (feedback) {
 						feedback.className = "border-t border-slate-200 px-5 py-3 text-sm text-slate-600"
 						feedback.textContent =
-							action === "sync_now" ? "Buscando cambios pendientes…" : "Actualizando la conexión…"
+							action === "sync_now"
+								? "Buscando cambios pendientes…"
+								: action === "full_recovery_sync"
+									? "Programando recuperación completa…"
+									: "Actualizando la conexión…"
 					}
 					try {
 						const response = await fetch(endpoint, {
@@ -303,6 +352,7 @@ const needsReconnect = isRevoked || credentialRevoked
 										: "Los cambios pendientes se enviaron al worker.")
 						}
 						pauseDialog?.close()
+						recoveryDialog?.close()
 						window.setTimeout(() => window.location.reload(), 700)
 					} catch (error) {
 						if (feedback) {

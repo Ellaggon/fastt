@@ -4,6 +4,7 @@ import { requireProvider } from "@/lib/auth/requireProvider"
 import { mapProviderIntegrationError } from "@/lib/provider-integration-errors"
 import { listProviderIntegrationExecutionActivity } from "@/lib/provider-integration-operations"
 import { isProviderIntegrationWorkspaceConnector } from "@/lib/provider-integrations"
+import { isRetryableProviderIntegrationRun } from "@/lib/channel-manager/channel-manager-recovery"
 
 function dateValue(value: Date | null) {
 	return value instanceof Date ? value.toISOString() : null
@@ -48,6 +49,7 @@ export const GET: APIRoute = async ({ request }) => {
 						: null,
 					startedAt: dateValue(run.startedAt),
 					finishedAt: dateValue(run.finishedAt),
+					canRetry: isRetryableProviderIntegrationRun(run.operation, run.status),
 				})),
 				jobs: jobs.map((job) => ({
 					id: job.id,
