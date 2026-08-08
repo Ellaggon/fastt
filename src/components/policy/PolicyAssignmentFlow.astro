@@ -248,6 +248,33 @@ const policyModalCopy = {
 											<Input id="assignmentCancellationFreeDays" type="number" min="0" value="1" />
 											<span class="text-sm text-slate-500">día(s) antes</span>
 										</div>
+										<p class="mt-1 text-xs text-slate-500">
+											Fallback cuando no defines horas (hoteles y tours).
+										</p>
+									</label>
+									<label class="block text-sm font-medium text-slate-700">
+										O hasta (tours)
+										<div class="mt-1 flex items-center gap-2">
+											<Input
+												id="assignmentCancellationFreeHours"
+												type="number"
+												min="0"
+												placeholder="p. ej. 6"
+											/>
+											<span class="text-sm text-slate-500">hora(s) antes de la salida</span>
+										</div>
+										<p class="mt-1 text-xs text-slate-500">
+											Si lo completas, prevalece sobre los días.
+										</p>
+									</label>
+									<label class="block text-sm font-medium text-slate-700">
+										Hora de salida (preview)
+										<Input
+											id="assignmentCancellationDepartureTime"
+											type="time"
+											value="09:00"
+											class="mt-1"
+										/>
 									</label>
 									<label class="block text-sm font-medium text-slate-700">
 										Penalidad después
@@ -479,6 +506,10 @@ const policyModalCopy = {
 		document.querySelectorAll("[data-assignment-custom-category]")
 	)
 	const cancellationFreeDaysInput = document.getElementById("assignmentCancellationFreeDays")
+	const cancellationFreeHoursInput = document.getElementById("assignmentCancellationFreeHours")
+	const cancellationDepartureTimeInput = document.getElementById(
+		"assignmentCancellationDepartureTime"
+	)
 	const cancellationPenaltyInput = document.getElementById("assignmentCancellationPenalty")
 	const paymentTypeInput = document.getElementById("assignmentPaymentType")
 	const prepaymentPercentageInput = document.getElementById("assignmentPrepaymentPercentage")
@@ -814,6 +845,7 @@ const policyModalCopy = {
 				description: draftDescription(selected.category),
 				rules: draftRules(selected.category),
 				cancellationTiers: draftCancellationTiers(),
+				departureTime: String(cancellationDepartureTimeInput?.value || "").trim() || null,
 				scope: selected.scope,
 				scopeId: selected.scopeId,
 				channel: channelSelect?.value || null,
@@ -836,12 +868,24 @@ const policyModalCopy = {
 
 	function draftCancellationTiers() {
 		const freeDays = Math.max(0, Math.round(numberValue(cancellationFreeDaysInput, 1)))
+		const hoursRaw = String(cancellationFreeHoursInput?.value ?? "").trim()
+		const freeHours =
+			hoursRaw === "" ? null : Math.max(0, Math.round(numberValue(cancellationFreeHoursInput, 0)))
 		const penalty = Math.max(0, Math.min(100, numberValue(cancellationPenaltyInput, 100)))
-		const tiers = [{ daysBeforeArrival: freeDays, penaltyType: "percentage", penaltyAmount: 0 }]
-		if (freeDays === 0)
+		const freeLeadDays =
+			freeHours != null
+				? Math.max(0, Math.ceil(freeHours / 24) || (freeHours > 0 ? 1 : 0))
+				: freeDays
+		const freeTier = {
+			daysBeforeArrival: freeLeadDays,
+			...(freeHours != null ? { hoursBeforeDeparture: freeHours } : {}),
+			penaltyType: "percentage",
+			penaltyAmount: 0,
+		}
+		if (freeLeadDays === 0 && (freeHours == null || freeHours === 0)) {
 			return [{ daysBeforeArrival: 0, penaltyType: "percentage", penaltyAmount: penalty }]
-		tiers.push({ daysBeforeArrival: 0, penaltyType: "percentage", penaltyAmount: penalty })
-		return tiers
+		}
+		return [freeTier, { daysBeforeArrival: 0, penaltyType: "percentage", penaltyAmount: penalty }]
 	}
 
 	function draftRules(category = categorySelect?.value) {
@@ -881,7 +925,13 @@ const policyModalCopy = {
 	function draftDescription(category = categorySelect?.value) {
 		if (category === "Cancellation") {
 			const freeDays = Math.max(0, Math.round(numberValue(cancellationFreeDaysInput, 1)))
+			const hoursRaw = String(cancellationFreeHoursInput?.value ?? "").trim()
+			const freeHours =
+				hoursRaw === "" ? null : Math.max(0, Math.round(numberValue(cancellationFreeHoursInput, 0)))
 			const penalty = Math.max(0, Math.min(100, numberValue(cancellationPenaltyInput, 100)))
+			if (freeHours != null) {
+				return `Cancelación gratis hasta ${freeHours} hora(s) antes de la salida · penalidad ${penalty}%`
+			}
 			return `Cancelación gratis hasta ${freeDays} día(s) antes · penalidad ${penalty}%`
 		}
 		if (category === "Payment") {
@@ -1277,6 +1327,8 @@ const policyModalCopy = {
 	channelSelect?.addEventListener("change", renderImpact)
 	for (const input of [
 		cancellationFreeDaysInput,
+		cancellationFreeHoursInput,
+		cancellationDepartureTimeInput,
 		cancellationPenaltyInput,
 		paymentTypeInput,
 		prepaymentPercentageInput,

@@ -1,6 +1,11 @@
 ---
 import Button from "@/components/ui/Button.astro"
 import { SERVICE_CATALOG } from "@/data/service/service-catalog"
+import {
+	getVerticalVocabulary,
+	normalizeVertical,
+	type ProviderVertical,
+} from "@/lib/verticalVocabulary"
 
 interface Props {
 	name: string
@@ -9,21 +14,29 @@ interface Props {
 	alt: string
 	description: string
 	stars?: number
+	reviewCount?: number
 	address?: string
 	difficultyLevel?: string
 	duration?: string
 	priceUSD?: number
 	priceBOB?: number
+	/** Optional secondary line (e.g. departure time). */
+	metaLine?: string
+	/** Vertical drives CTA + price unit copy via vocabulary. Default hotel for legacy callers. */
+	vertical?: ProviderVertical | string
 	services: { free?: boolean; available: boolean }[]
 }
 
 const props = Astro.props as Props
+const vertical = normalizeVertical(props.vertical ?? "hotel")
+const vocab = getVerticalVocabulary(vertical)
+const viewCta = vocab.card.viewCta
+const priceUnitLabel = vocab.card.priceUnitLabel
 
 const renderStars = (count: number) => {
+	const full = Math.max(0, Math.min(5, Math.round(count)))
 	let starIcons = ""
-	for (let i = 0; i < count; i++) {
-		starIcons += "★"
-	}
+	for (let i = 0; i < full; i++) starIcons += "★"
 	return starIcons
 }
 
@@ -33,10 +46,15 @@ const services = (
 )
 	.map((s: any) => serviceMap.get(s.id))
 	.filter(Boolean)
+
+const hasPrice = Boolean(Number(props.priceUSD) > 0 || Number(props.priceBOB) > 0)
+const ratingValue = Number(props.stars ?? 0)
+const reviewCount = Number(props.reviewCount ?? 0)
+const showTourMeta = vertical === "tour" && (props.duration || props.difficultyLevel)
 ---
 
-<article class="fastt-row-card flex h-48 w-full overflow-hidden md:flex-row">
-	<a href={props.href} class="relative aspect-[3/4] w-32 md:aspect-[4/3] md:w-40 xl:w-72">
+<article class="fastt-row-card flex h-auto min-h-48 w-full overflow-hidden md:flex-row">
+	<a href={props.href} class="relative aspect-[3/4] w-32 shrink-0 md:aspect-[4/3] md:w-40 xl:w-72">
 		<img
 			src={props.image}
 			alt={props.alt}
@@ -54,16 +72,48 @@ const services = (
 					</a>
 				</h3>
 				{
-					props.stars && props.stars > 0 && (
-						<div
-							class="mb-2 hidden text-base text-yellow-500 lg:block"
-							aria-label={`Calificación: ${props.stars} estrellas`}
-						>
-							{renderStars(props.stars)}
+					ratingValue > 0 && (
+						<div class="mb-2 flex flex-wrap items-center gap-2 text-sm">
+							<span class="text-base text-yellow-500" aria-label={`Calificación: ${ratingValue}`}>
+								{renderStars(ratingValue)}
+							</span>
+							<span class="text-xs font-medium text-slate-700">{ratingValue.toFixed(1)}</span>
+							{reviewCount > 0 ? (
+								<span class="text-xs text-slate-500">
+									{reviewCount} reseña{reviewCount === 1 ? "" : "s"}
+								</span>
+							) : null}
 						</div>
 					)
 				}
-				<p class="mb-2 text-xs text-slate-500 md:text-sm">{props.address}</p>
+				{
+					props.address ? (
+						<p class="mb-2 text-xs text-slate-500 md:text-sm">{props.address}</p>
+					) : null
+				}
+				{
+					showTourMeta ? (
+						<ul class="mb-2 flex flex-wrap gap-2 text-xs text-slate-600">
+							{props.duration ? (
+								<li class="rounded-md bg-slate-50 px-2 py-1 ring-1 ring-slate-200">
+									{props.duration}
+								</li>
+							) : null}
+							{props.difficultyLevel ? (
+								<li class="rounded-md bg-slate-50 px-2 py-1 ring-1 ring-slate-200">
+									{props.difficultyLevel}
+								</li>
+							) : null}
+							{props.metaLine ? (
+								<li class="rounded-md bg-sky-50 px-2 py-1 text-sky-900 ring-1 ring-sky-100">
+									{props.metaLine}
+								</li>
+							) : null}
+						</ul>
+					) : props.metaLine ? (
+						<p class="mb-2 text-xs text-slate-500">{props.metaLine}</p>
+					) : null
+				}
 
 				{
 					props.services?.length > 0 && (
@@ -87,26 +137,28 @@ const services = (
 				class="mt-auto flex min-w-[8rem] flex-col items-end justify-end border-gray-200 pl-4 lg:mt-2 lg:border-l"
 			>
 				<div class="text-right">
-					<p class="hidden text-xs font-semibold text-slate-500 lg:block">Precio por noche</p>
 					{
-						props.priceUSD && (
-							<p class="text-base font-semibold text-slate-950 md:text-2xl md:font-bold">
-								<span class="text-xs text-slate-950 md:text-base">US$</span>
-								{props.priceUSD}
-							</p>
-						)
-					}
-					{
-						props.priceBOB && (
-							<p class="text-sm text-slate-500">
-								<span class="text-xs">BOB $</span>
-								{props.priceBOB}
-							</p>
-						)
+						hasPrice ? (
+							<>
+								<p class="hidden text-xs font-semibold text-slate-500 lg:block">{priceUnitLabel}</p>
+								{Number(props.priceUSD) > 0 ? (
+									<p class="text-base font-semibold text-slate-950 md:text-2xl md:font-bold">
+										<span class="text-xs text-slate-950 md:text-base">US$</span>
+										{props.priceUSD}
+									</p>
+								) : null}
+								{Number(props.priceBOB) > 0 ? (
+									<p class="text-sm text-slate-500">
+										<span class="text-xs">BOB $</span>
+										{props.priceBOB}
+									</p>
+								) : null}
+							</>
+						) : null
 					}
 				</div>
 
-				<Button href={props.href} size="sm" class="mt-1 md:mt-2 lg:mt-4"> Ver Hotel </Button>
+				<Button href={props.href} size="sm" class="mt-1 md:mt-2 lg:mt-4">{viewCta}</Button>
 			</div>
 		</div>
 	</div>

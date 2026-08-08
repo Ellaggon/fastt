@@ -23,6 +23,11 @@ export { upsertProductContent } from "./application/use-cases/product/upsert-pro
 export { upsertProductLocation } from "./application/use-cases/product/upsert-product-location"
 export { evaluateProductReadiness } from "./application/use-cases/product/evaluate-product-readiness"
 export { publishProduct } from "./application/use-cases/product/publish-product"
+export { createVerifiedProductReview } from "./application/use-cases/create-verified-product-review"
+export { moderateProductReview } from "./application/use-cases/moderate-product-review"
+export { createTourPrivateRequest } from "./application/use-cases/create-tour-private-request"
+export { transitionTourPrivateRequest } from "./application/use-cases/transition-tour-private-request"
+export { recordMarketplaceEvent } from "./application/use-cases/record-marketplace-event"
 export type {
 	ProductFullAggregate,
 	ProductVariantsAggregate,
@@ -47,6 +52,7 @@ export * from "./application/ports/ProductRepositoryPort"
 export * from "./application/ports/ProductServiceQueryRepositoryPort"
 export * from "./application/ports/ProductServiceRepositoryPort"
 export * from "./application/ports/ProviderV2RepositoryPort"
+export * from "./application/ports/TourTrustRepositoryPort"
 export * from "./application/ports/VariantManagementRepositoryPort"
 
 // Lazy exports: these use-cases import external libs (AWS SDK). Keep module import side-effect free.

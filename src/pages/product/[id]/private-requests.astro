@@ -1,0 +1,147 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Notice from "@/components/ui/Notice.astro"
+import { productRepository } from "@/container"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { isTourProductType } from "@/lib/productVerticalRegistry"
+import { routes } from "@/lib/routes"
+import {
+	and,
+	asc,
+	db,
+	desc,
+	eq,
+	TourPrivateRequest,
+	Variant,
+} from "@/shared/infrastructure/db/compat"
+
+type PartyJson = {
+	adults?: number
+	children?: number
+	infants?: number
+}
+
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
+const providerId = (await getProviderIdFromRequest(Astro.request, user)) ?? ""
+if (!providerId) return Astro.redirect(routes.providerSettingsProfile())
+
+const productId = String(Astro.params.id ?? "")
+if (!productId) return Astro.redirect("/product/create")
+const owned = await productRepository.ensureProductOwnedByProvider(productId, providerId)
+if (!owned) return Astro.redirect("/product/create")
+if (!isTourProductType(owned.productType)) return Astro.redirect(routes.productDetail(productId))
+
+const rows = await db
+	.select({
+		id: TourPrivateRequest.id,
+		status: TourPrivateRequest.status,
+		departureDate: TourPrivateRequest.departureDate,
+		partyJson: TourPrivateRequest.partyJson,
+		contactName: TourPrivateRequest.contactName,
+		contactEmail: TourPrivateRequest.contactEmail,
+		contactPhone: TourPrivateRequest.contactPhone,
+		message: TourPrivateRequest.message,
+		slaDueAt: TourPrivateRequest.slaDueAt,
+		createdAt: TourPrivateRequest.createdAt,
+		variantName: Variant.name,
+	})
+	.from(TourPrivateRequest)
+	.leftJoin(Variant, eq(Variant.id, TourPrivateRequest.variantId))
+	.where(
+		and(eq(TourPrivateRequest.productId, productId), eq(TourPrivateRequest.providerId, providerId))
+	)
+	.orderBy(desc(TourPrivateRequest.createdAt), asc(TourPrivateRequest.id))
+	.limit(50)
+
+const pending = rows.filter((r) => String(r.status) === "pending").length
+
+const requestCards = rows.map((row) => {
+	const party = (row.partyJson ?? {}) as PartyJson
+	const status = String(row.status ?? "pending")
+	return {
+		id: row.id,
+		status,
+		badgeVariant:
+			status === "pending"
+				? ("warning" as const)
+				: status === "accepted"
+					? ("success" as const)
+					: ("neutral" as const),
+		title: `${row.variantName ?? "Salida"} · ${String(row.departureDate ?? "").slice(0, 10)}`,
+		contactLine: `${row.contactName} · ${row.contactEmail}${
+			row.contactPhone ? ` · ${row.contactPhone}` : ""
+		}`,
+		partyLine: `Grupo: ${Number(party.adults ?? 0)} adultos · ${Number(party.children ?? 0)} niños · ${Number(party.infants ?? 0)} infantes`,
+		message: row.message ? String(row.message) : null,
+		sla: row.slaDueAt ? new Date(row.slaDueAt).toLocaleString("es-CL") : "—",
+	}
+})
+---
+
+<WorkspaceLayout title="Solicitudes de salida privada">
+	<section class="space-y-6">
+		<header class="space-y-2">
+			<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+				{owned.name ?? "Tour"}
+			</p>
+			<h1 class="text-3xl font-semibold text-slate-950">Salidas privadas · solicitudes</h1>
+			<p class="max-w-2xl text-sm leading-6 text-slate-600">
+				Cotizaciones on-request. No se reserva inventario hasta que aceptes y armes la tarifa. SLA
+				por defecto: 24h.
+			</p>
+			<div class="flex flex-wrap gap-2">
+				<Button href={routes.productDetail(productId)} variant="secondary" size="sm">
+					Volver al producto
+				</Button>
+				<Button href={`/product/${productId}/departures`} variant="secondary" size="sm">
+					Salidas
+				</Button>
+			</div>
+		</header>
+
+		{
+			pending > 0 ? (
+				<Notice variant="warning" title={`${pending} pendiente${pending === 1 ? "" : "s"}`}>
+					Responde con precio y condiciones antes del SLA para no perder la conversión.
+				</Notice>
+			) : (
+				<Notice variant="info" title="Bandeja al día">
+					No hay solicitudes pendientes. Las nuevas llegan aquí cuando un viajero pide cotizar una
+					salida privada.
+				</Notice>
+			)
+		}
+
+		<div class="space-y-3">
+			{
+				requestCards.length === 0 ? (
+					<Card class="border-dashed p-6 text-sm text-slate-500">
+						Aún no hay solicitudes de salida privada para este tour.
+					</Card>
+				) : (
+					requestCards.map((card) => (
+						<Card class="space-y-3 border-slate-200 bg-white p-5">
+							<div class="flex flex-wrap items-start justify-between gap-3">
+								<div>
+									<p class="font-semibold text-slate-950">{card.title}</p>
+									<p class="mt-1 text-sm text-slate-600">{card.contactLine}</p>
+								</div>
+								<Badge variant={card.badgeVariant}>{card.status}</Badge>
+							</div>
+							<p class="text-sm text-slate-700">{card.partyLine}</p>
+							{card.message ? <p class="text-sm leading-6 text-slate-600">{card.message}</p> : null}
+							<p class="text-xs text-slate-500">
+								SLA: {card.sla} · id {card.id}
+							</p>
+						</Card>
+					))
+				)
+			}
+		</div>
+	</section>
+</WorkspaceLayout>

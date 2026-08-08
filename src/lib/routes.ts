@@ -70,6 +70,9 @@ export const routes = {
 	productTourTickets: (productId: string) =>
 		`/product/${encodeURIComponent(String(productId))}/tickets`,
 	bookingList: () => "/booking",
+	/** Provider day-of tour departure queue (today's salidas + check-in). */
+	bookingDayOf: () => "/booking/day-of",
+	tripConfirmation: (bookingId: string) => `/trips/${encodeURIComponent(String(bookingId))}`,
 	rates: () => "/rates/plans/manage",
 	financialOperations: () => "/financial",
 	financialCollections: () => "/financial/collections",

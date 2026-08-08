@@ -6,6 +6,7 @@ import {
 	BookingLineItem,
 	BookingPolicySnapshot,
 	BookingTaxFee,
+	BookingVoucher,
 	db,
 	desc,
 	eq,
@@ -15,6 +16,7 @@ import {
 	PaymentTransaction,
 	Product,
 	sql,
+	TourSlotProfile,
 	User,
 	Variant,
 } from "@/shared/infrastructure/db/compat"
@@ -170,11 +172,48 @@ function readOccupancyDetail(
 	snapshot: unknown,
 	fallback: { adults?: number | null; children?: number | null } = {}
 ) {
-	const value = snapshot && typeof snapshot === "object" ? (snapshot as any).occupancyDetail : null
+	const value =
+		snapshot && typeof snapshot === "object"
+			? (snapshot as any).occupancyDetail && typeof (snapshot as any).occupancyDetail === "object"
+				? (snapshot as any).occupancyDetail
+				: snapshot
+			: null
 	return {
 		adults: Math.max(0, Number(value?.adults ?? fallback.adults ?? 0)),
 		children: Math.max(0, Number(value?.children ?? fallback.children ?? 0)),
 		infants: Math.max(0, Number(value?.infants ?? 0)),
+	}
+}
+
+function readMeetingPoint(source: unknown): Record<string, unknown> | null {
+	if (!source || typeof source !== "object") return null
+	const meeting = (source as any).meetingPoint
+	if (meeting && typeof meeting === "object") return meeting as Record<string, unknown>
+	return null
+}
+
+function mapVoucher(
+	row: {
+		code: string | null
+		status: string | null
+		qrPayload: string | null
+		issuedAt: unknown
+		redeemedAt: unknown
+		instructionsJson: unknown
+	} | null
+) {
+	if (!row) return null
+	const instructions =
+		row.instructionsJson && typeof row.instructionsJson === "object"
+			? (row.instructionsJson as Record<string, unknown>)
+			: null
+	return {
+		code: String(row.code ?? ""),
+		status: String(row.status ?? ""),
+		qrPayload: row.qrPayload == null ? null : String(row.qrPayload),
+		issuedAt: asIso(row.issuedAt),
+		redeemedAt: asIso(row.redeemedAt),
+		instructions,
 	}
 }
 
@@ -265,6 +304,7 @@ export class BookingOperationsQueryRepository {
 				bookingId: Booking.id,
 				status: Booking.status,
 				operationalStatus: Booking.operationalStatus,
+				checkedInAt: Booking.checkedInAt,
 				currency: Booking.currency,
 				totalAmount: Booking.totalAmount,
 				bookingDate: Booking.bookingDate,
@@ -273,6 +313,7 @@ export class BookingOperationsQueryRepository {
 				checkOutDate: Booking.checkOutDate,
 				guestNameSnapshot: Booking.guestNameSnapshot,
 				guestEmailSnapshot: Booking.guestEmailSnapshot,
+				guestContactSnapshotJson: Booking.guestContactSnapshotJson,
 				detailId: BookingLineItem.id,
 				detailCheckIn: BookingLineItem.checkIn,
 				detailCheckOut: BookingLineItem.checkOut,
@@ -290,36 +331,61 @@ export class BookingOperationsQueryRepository {
 				productName: Product.name,
 				productType: Product.productType,
 				variantName: Variant.name,
+				departureTime: TourSlotProfile.departureTime,
+				maxPax: TourSlotProfile.maxPax,
+				languageCode: TourSlotProfile.languageCode,
+				bookingMode: TourSlotProfile.bookingMode,
 			})
 			.from(Booking)
 			.leftJoin(BookingLineItem, eq(BookingLineItem.bookingId, Booking.id))
 			.leftJoin(Variant, eq(Variant.id, BookingLineItem.variantId))
 			.leftJoin(Product, eq(Product.id, Variant.productId))
+			.leftJoin(TourSlotProfile, eq(TourSlotProfile.variantId, BookingLineItem.variantId))
 			.where(and(eq(Booking.providerId, filters.providerId), inArray(Booking.id, pagedBookingIds)))
 			.orderBy(desc(Booking.bookingDate), desc(Booking.id))
 
 		const bookingIds = [...new Set(rows.map((row) => row.bookingId))]
-		const transactions = bookingIds.length
-			? await db
-					.select({
-						bookingId: PaymentTransaction.bookingId,
-						type: PaymentTransaction.type,
-						status: PaymentTransaction.status,
-						amount: PaymentTransaction.amount,
-					})
-					.from(PaymentTransaction)
-					.where(
-						and(
-							eq(PaymentTransaction.providerId, filters.providerId),
-							inArray(PaymentTransaction.bookingId, bookingIds)
+		const [transactions, voucherRows] = await Promise.all([
+			bookingIds.length
+				? db
+						.select({
+							bookingId: PaymentTransaction.bookingId,
+							type: PaymentTransaction.type,
+							status: PaymentTransaction.status,
+							amount: PaymentTransaction.amount,
+						})
+						.from(PaymentTransaction)
+						.where(
+							and(
+								eq(PaymentTransaction.providerId, filters.providerId),
+								inArray(PaymentTransaction.bookingId, bookingIds)
+							)
 						)
-					)
-			: []
+				: Promise.resolve([]),
+			bookingIds.length
+				? db
+						.select({
+							bookingId: BookingVoucher.bookingId,
+							code: BookingVoucher.code,
+							status: BookingVoucher.status,
+							qrPayload: BookingVoucher.qrPayload,
+							issuedAt: BookingVoucher.issuedAt,
+							redeemedAt: BookingVoucher.redeemedAt,
+							instructionsJson: BookingVoucher.instructionsJson,
+						})
+						.from(BookingVoucher)
+						.where(inArray(BookingVoucher.bookingId, bookingIds))
+				: Promise.resolve([]),
+		])
 		const transactionsByBooking = new Map<string, typeof transactions>()
 		for (const row of transactions) {
 			const bucket = transactionsByBooking.get(row.bookingId) ?? []
 			bucket.push(row)
 			transactionsByBooking.set(row.bookingId, bucket)
+		}
+		const voucherByBooking = new Map<string, (typeof voucherRows)[number]>()
+		for (const row of voucherRows) {
+			if (row.bookingId) voucherByBooking.set(String(row.bookingId), row)
 		}
 
 		const grouped = new Map<string, typeof rows>()
@@ -361,6 +427,33 @@ export class BookingOperationsQueryRepository {
 				.every((item) => Boolean(item.detailRatePlanId && item.pricingBreakdownJson))
 			const totalAmount = Number(row.totalAmount ?? 0)
 			const lineItemCount = group.filter((item) => item.detailId).length
+			const voucher = mapVoucher(voucherByBooking.get(String(row.bookingId)) ?? null)
+			const contact =
+				row.guestContactSnapshotJson && typeof row.guestContactSnapshotJson === "object"
+					? (row.guestContactSnapshotJson as Record<string, unknown>)
+					: null
+			const meetingPoint =
+				readMeetingPoint(contact) ??
+				readMeetingPoint(voucher?.instructions) ??
+				(contact?.departureTime ? { departureTime: contact.departureTime } : null)
+			const slotProfile =
+				row.departureTime || row.maxPax || row.languageCode || row.bookingMode
+					? {
+							departureTime: row.departureTime == null ? null : String(row.departureTime),
+							maxPax: row.maxPax == null ? null : Number(row.maxPax),
+							languageCode: row.languageCode == null ? null : String(row.languageCode),
+							bookingMode: row.bookingMode == null ? null : String(row.bookingMode),
+						}
+					: null
+			const vertical = normalizeVertical(productType)
+			const alreadyCheckedIn =
+				Boolean(row.checkedInAt) ||
+				String(row.operationalStatus ?? "").toLowerCase() === "checked_in"
+			const voucherNeedsRedeem = String(voucher?.status ?? "").toLowerCase() === "issued"
+			const canCheckIn =
+				vertical === "tour" &&
+				String(row.status ?? "").toLowerCase() === "confirmed" &&
+				(!alreadyCheckedIn || voucherNeedsRedeem)
 
 			return {
 				bookingId: row.bookingId,
@@ -369,7 +462,7 @@ export class BookingOperationsQueryRepository {
 				productId: row.productIdSnapshot ?? row.productId ?? null,
 				productName: row.productNameSnapshot ?? row.productName ?? null,
 				productType: productType || null,
-				vertical: normalizeVertical(productType),
+				vertical,
 				variantId: row.detailVariantId ?? null,
 				variantName: row.variantNameSnapshot ?? row.variantName ?? null,
 				ratePlanId: row.detailRatePlanId ?? null,
@@ -380,12 +473,20 @@ export class BookingOperationsQueryRepository {
 				currency: String(row.currency ?? "USD").toUpperCase(),
 				status: String(row.status ?? "draft"),
 				operationalStatus: String(row.operationalStatus ?? "untracked"),
+				checkedInAt: asIso(row.checkedInAt),
 				createdAt: asIso(row.bookingDate),
 				confirmedAt: asIso(row.confirmedAt),
 				/** @deprecated Prefer lineItemCount — kept for hotel UI compatibility. */
 				rooms: lineItemCount,
 				lineItemCount,
 				occupancyDetail,
+				voucher,
+				slotProfile,
+				meetingPoint,
+				departureTime:
+					slotProfile?.departureTime ??
+					(contact?.departureTime == null ? null : String(contact.departureTime)),
+				canCheckIn,
 				lifecycleState: lifecycle.state,
 				lifecycleLabel: lifecycle.label,
 				lifecycleBasis: lifecycle.basis,
@@ -476,7 +577,7 @@ export class BookingOperationsQueryRepository {
 			.then(first)
 		if (!booking) return null
 
-		const [lineItemRows, taxLines, policyRows, transactions] = await Promise.all([
+		const [lineItemRows, taxLines, policyRows, transactions, voucherRow] = await Promise.all([
 			db
 				.select({
 					id: BookingLineItem.id,
@@ -499,10 +600,16 @@ export class BookingOperationsQueryRepository {
 					productName: Product.name,
 					productType: Product.productType,
 					variantName: Variant.name,
+					departureTime: TourSlotProfile.departureTime,
+					maxPax: TourSlotProfile.maxPax,
+					languageCode: TourSlotProfile.languageCode,
+					bookingMode: TourSlotProfile.bookingMode,
+					meetingPointOverrideJson: TourSlotProfile.meetingPointOverrideJson,
 				})
 				.from(BookingLineItem)
 				.leftJoin(Variant, eq(Variant.id, BookingLineItem.variantId))
 				.leftJoin(Product, eq(Product.id, Variant.productId))
+				.leftJoin(TourSlotProfile, eq(TourSlotProfile.variantId, BookingLineItem.variantId))
 				.where(eq(BookingLineItem.bookingId, key.bookingId)),
 			db.select().from(BookingTaxFee).where(eq(BookingTaxFee.bookingId, key.bookingId)),
 			db
@@ -527,6 +634,18 @@ export class BookingOperationsQueryRepository {
 					)
 				)
 				.orderBy(desc(PaymentTransaction.occurredAt)),
+			db
+				.select({
+					code: BookingVoucher.code,
+					status: BookingVoucher.status,
+					qrPayload: BookingVoucher.qrPayload,
+					issuedAt: BookingVoucher.issuedAt,
+					redeemedAt: BookingVoucher.redeemedAt,
+					instructionsJson: BookingVoucher.instructionsJson,
+				})
+				.from(BookingVoucher)
+				.where(eq(BookingVoucher.bookingId, key.bookingId))
+				.then(first),
 		])
 		if (!lineItemRows.length) return null
 
@@ -534,6 +653,7 @@ export class BookingOperationsQueryRepository {
 			lineItemRows.find((row) => row.productType)?.productType ?? ""
 		).trim()
 		const ops = getVerticalOpsVocabulary(productType)
+		const voucher = mapVoucher(voucherRow ?? null)
 		const allocations = lineItemRows.map((row, index) => ({
 			allocationId: row.id,
 			sequence: index + 1,
@@ -552,6 +672,19 @@ export class BookingOperationsQueryRepository {
 			taxAmount: Number(row.taxAmount ?? 0),
 			totalAmount: Number(row.totalAmount ?? 0),
 			pricingSnapshot: row.pricingBreakdownJson ?? null,
+			slotProfile:
+				row.departureTime || row.maxPax || row.languageCode || row.bookingMode
+					? {
+							departureTime: row.departureTime == null ? null : String(row.departureTime),
+							maxPax: row.maxPax == null ? null : Number(row.maxPax),
+							languageCode: row.languageCode == null ? null : String(row.languageCode),
+							bookingMode: row.bookingMode == null ? null : String(row.bookingMode),
+							meetingPointOverride:
+								row.meetingPointOverrideJson && typeof row.meetingPointOverrideJson === "object"
+									? row.meetingPointOverrideJson
+									: null,
+						}
+					: null,
 		}))
 		const checkIn = dateOnly(booking.checkInDate ?? lineItemRows[0]?.checkIn)
 		const checkOut = dateOnly(booking.checkOutDate ?? lineItemRows[0]?.checkOut)
@@ -567,6 +700,23 @@ export class BookingOperationsQueryRepository {
 			booking.guestContactSnapshotJson && typeof booking.guestContactSnapshotJson === "object"
 				? (booking.guestContactSnapshotJson as Record<string, unknown>)
 				: null
+		const meetingPoint =
+			readMeetingPoint(guestContact) ??
+			readMeetingPoint(voucher?.instructions) ??
+			(allocations[0]?.slotProfile?.meetingPointOverride as Record<string, unknown> | null) ??
+			null
+		const departureTime =
+			allocations[0]?.slotProfile?.departureTime ??
+			(guestContact?.departureTime == null ? null : String(guestContact.departureTime))
+		const vertical = normalizeVertical(productType)
+		const alreadyCheckedIn =
+			Boolean(booking.checkedInAt) ||
+			String(booking.operationalStatus ?? "").toLowerCase() === "checked_in"
+		const voucherNeedsRedeem = String(voucher?.status ?? "").toLowerCase() === "issued"
+		const canCheckIn =
+			vertical === "tour" &&
+			String(booking.status ?? "").toLowerCase() === "confirmed" &&
+			(!alreadyCheckedIn || voucherNeedsRedeem)
 		const liveGuestName = [booking.guestFirstName, booking.guestLastName]
 			.map((part) => String(part ?? "").trim())
 			.filter(Boolean)
@@ -620,7 +770,12 @@ export class BookingOperationsQueryRepository {
 				source: booking.source,
 				ratePlanId: booking.ratePlanId,
 				productType: productType || null,
-				vertical: normalizeVertical(productType),
+				vertical,
+				canCheckIn,
+				voucher,
+				meetingPoint,
+				departureTime,
+				slotProfile: allocations[0]?.slotProfile ?? null,
 				guestSnapshot: {
 					userId: booking.userId,
 					name:
@@ -631,6 +786,7 @@ export class BookingOperationsQueryRepository {
 						(String(guestContact?.email ?? "").trim() || booking.guestEmail || null),
 					adults: Number(booking.numAdults ?? 0),
 					children: Number(booking.numChildren ?? 0),
+					infants: Number(allocations[0]?.occupancyDetail?.infants ?? 0),
 					source: guestContact ? "contract_snapshot" : "live_user_fallback",
 				},
 				rooms: allocations.length,

@@ -1,0 +1,323 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Notice from "@/components/ui/Notice.astro"
+import Textarea from "@/components/ui/Textarea.astro"
+import TourCrossSellRail from "@/components/tours/TourCrossSellRail.astro"
+import Layout from "@/layouts/Layout.astro"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { routes } from "@/lib/routes"
+import { loadHotelTourCrossSell } from "@/lib/tours/hotelTourCrossSell"
+import { guestTripQueryRepository } from "@/container/booking.container"
+import { getGuestTripConfirmation } from "@/modules/booking/public"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user?.id) return Astro.redirect("/SignInPage")
+
+const bookingId = String(Astro.params.bookingId ?? "").trim()
+if (!bookingId) return Astro.redirect("/")
+
+const trip = await getGuestTripConfirmation(
+	{ repo: guestTripQueryRepository },
+	{ bookingId, userId: user.id }
+)
+if (!trip) {
+	return new Response(null, { status: 404, statusText: "Not Found" })
+}
+
+const meetingAddress = trip.meetingPoint
+	? String(
+			(trip.meetingPoint as any).address ??
+				(trip.meetingPoint as any).name ??
+				(trip.meetingPoint as any).label ??
+				""
+		).trim()
+	: ""
+const meetingInstructions = trip.meetingPoint
+	? String(
+			(trip.meetingPoint as any).instructions ??
+				(trip.meetingPoint as any).notes ??
+				(trip.meetingPoint as any).howToFind ??
+				""
+		).trim()
+	: ""
+
+const voucherStatus = String(trip.voucher?.status ?? "missing")
+const voucherLabel =
+	voucherStatus === "redeemed"
+		? "Canjeado"
+		: voucherStatus === "issued"
+			? "Listo para presentar"
+			: voucherStatus === "void"
+				? "Anulado"
+				: "Sin voucher"
+
+const crossSell = await loadHotelTourCrossSell({
+	destinationId: trip.destinationId,
+	preferredDate: trip.departureDate,
+	surface: "guest_trip",
+	excludeProductId: trip.productId,
+	limit: 3,
+})
+---
+
+<Layout title={`Confirmación · ${trip.productName}`}>
+	<main
+		class="min-h-screen bg-[radial-gradient(circle_at_top,_#eef6ff_0%,_#f8fafc_42%,_#ffffff_100%)]"
+	>
+		<div class="mx-auto max-w-3xl px-4 py-10 md:px-6 md:py-14">
+			<header class="space-y-3">
+				<p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+					Confirmación de reserva
+				</p>
+				<h1 class="text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">
+					{trip.productName}
+				</h1>
+				<p class="max-w-2xl text-sm leading-6 text-slate-600">
+					Tu cupo está confirmado. Lleva este voucher el día de la salida; el punto de encuentro y
+					la hora quedan congelados desde la compra.
+				</p>
+			</header>
+
+			<section class="mt-8 grid gap-4">
+				<Card class="border-slate-200 bg-white/90 p-5 shadow-sm backdrop-blur md:p-6">
+					<div class="flex flex-wrap items-start justify-between gap-4">
+						<div>
+							<p class="text-xs font-medium uppercase tracking-wide text-slate-500">Salida</p>
+							<p class="mt-2 text-xl font-semibold text-slate-950">{trip.salidaName}</p>
+							<p class="mt-1 text-sm text-slate-600">
+								{trip.departureDate || "—"}
+								{trip.departureTime ? ` · ${trip.departureTime}` : ""}
+							</p>
+						</div>
+						<div class="rounded-xl bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
+							{trip.status === "confirmed" ? "Confirmada" : trip.status}
+						</div>
+					</div>
+					<dl class="mt-6 grid gap-4 sm:grid-cols-3">
+						<div>
+							<dt class="text-xs text-slate-500">Participantes</dt>
+							<dd class="mt-1 text-sm font-medium text-slate-900">
+								{trip.participants.adults} adulto{trip.participants.adults === 1 ? "" : "s"}
+								{
+									trip.participants.children > 0
+										? ` · ${trip.participants.children} niño${trip.participants.children === 1 ? "" : "s"}`
+										: ""
+								}
+								{
+									trip.participants.infants > 0
+										? ` · ${trip.participants.infants} infante${trip.participants.infants === 1 ? "" : "s"}`
+										: ""
+								}
+							</dd>
+						</div>
+						<div>
+							<dt class="text-xs text-slate-500">Total</dt>
+							<dd class="mt-1 text-sm font-medium text-slate-900">
+								{trip.currency}
+								{Number(trip.totalAmount).toFixed(2)}
+							</dd>
+						</div>
+						<div>
+							<dt class="text-xs text-slate-500">Reserva</dt>
+							<dd class="mt-1 font-mono text-xs text-slate-700">{trip.bookingId}</dd>
+						</div>
+					</dl>
+				</Card>
+
+				<Card class="border-slate-200 bg-white/90 p-5 shadow-sm backdrop-blur md:p-6">
+					<p class="text-xs font-medium uppercase tracking-wide text-slate-500">
+						Punto de encuentro
+					</p>
+					{
+						meetingAddress || meetingInstructions ? (
+							<>
+								{meetingAddress ? (
+									<p class="mt-2 text-base font-semibold text-slate-950">{meetingAddress}</p>
+								) : null}
+								{meetingInstructions ? (
+									<p class="mt-2 text-sm leading-6 text-slate-600">{meetingInstructions}</p>
+								) : null}
+							</>
+						) : (
+							<p class="mt-2 text-sm text-slate-600">
+								El proveedor no dejó instrucciones de encuentro en el snapshot de esta reserva.
+							</p>
+						)
+					}
+				</Card>
+
+				<Card class="border-slate-200 bg-white/90 p-5 shadow-sm backdrop-blur md:p-6">
+					<div class="flex flex-wrap items-start justify-between gap-4">
+						<div>
+							<p class="text-xs font-medium uppercase tracking-wide text-slate-500">Voucher</p>
+							<p class="mt-2 font-mono text-2xl font-semibold tracking-wide text-slate-950">
+								{trip.voucher?.code ?? "—"}
+							</p>
+							<p class="mt-1 text-sm text-slate-600">{voucherLabel}</p>
+						</div>
+						{
+							trip.voucher?.qrPayload ? (
+								<div class="fastt-soft-box rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-center">
+									<p class="text-[10px] font-semibold tracking-wide text-slate-500 uppercase">
+										Código
+									</p>
+									<p class="mt-1 font-mono text-sm font-semibold text-slate-800">
+										{trip.voucher.qrPayload}
+									</p>
+								</div>
+							) : null
+						}
+					</div>
+					<p class="mt-4 text-sm leading-6 text-slate-600">
+						{
+							trip.voucher?.note ||
+								"Presenta este voucher (o el código) al llegar al punto de encuentro."
+						}
+					</p>
+				</Card>
+
+				{
+					trip.review.eligible ? (
+						<Card
+							class="border-slate-200 bg-white/90 p-5 shadow-sm backdrop-blur md:p-6"
+							data-review-root
+							data-booking-id={trip.bookingId}
+						>
+							<p class="text-xs font-medium tracking-wide text-slate-500 uppercase">
+								Tu opinión verificada
+							</p>
+							<p class="mt-2 text-sm leading-6 text-slate-600">
+								Solo participantes presentados pueden reseñar. La reseña queda en moderación antes
+								de publicar (rating público = published).
+							</p>
+							<div class="mt-4 flex flex-wrap gap-2" id="reviewStars">
+								{[1, 2, 3, 4, 5].map((n) => (
+									<Button
+										type="button"
+										variant="secondary"
+										class="h-10 w-10 rounded-lg border border-slate-200 text-lg text-slate-400 hover:border-amber-300 hover:text-amber-500"
+										data-rating={n}
+										aria-label={`${n} estrellas`}
+									>
+										★
+									</Button>
+								))}
+							</div>
+							<Textarea
+								id="reviewBody"
+								rows="3"
+								class="mt-3 w-full"
+								placeholder="¿Qué tal la experiencia?"
+							/>
+							<p id="reviewStatus" class="mt-2 text-sm text-slate-600" aria-live="polite" />
+							<div class="mt-3">
+								<Button type="button" id="reviewSubmitBtn">
+									Enviar reseña
+								</Button>
+							</div>
+						</Card>
+					) : trip.review.existingReviewId ? (
+						<Notice variant="info" title="Reseña registrada">
+							Estado: {trip.review.existingStatus ?? "pending"}. Solo las publicadas mueven el
+							rating del tour.
+						</Notice>
+					) : trip.review.reason === "not_attended" ? (
+						<Notice variant="neutral" title="Reseña después de la presentación">
+							Podrás opinar cuando el proveedor registre tu presentación o canjee el voucher.
+						</Notice>
+					) : null
+				}
+			</section>
+
+			{
+				crossSell.cards.length > 0 ? (
+					<section class="mt-10">
+						<TourCrossSellRail
+							title="Más experiencias en el destino"
+							subtitle={`Salidas disponibles cerca · ${crossSell.departureDate}`}
+							cards={crossSell.cards}
+							surface="guest_trip"
+							sourceProductId={trip.productId}
+							destinationId={crossSell.destinationId}
+						/>
+					</section>
+				) : null
+			}
+
+			<footer class="mt-8 flex flex-wrap gap-3">
+				<Button href="/tours" variant="secondary">Explorar más experiencias</Button>
+				{
+					trip.guestEmail ? (
+						<p class="self-center text-xs text-slate-500">
+							Confirmación asociada a {trip.guestEmail}
+						</p>
+					) : null
+				}
+			</footer>
+
+			<p class="mt-10 text-xs text-slate-400">
+				Confirmación guest · {routes.tripConfirmation(trip.bookingId)}
+			</p>
+		</div>
+	</main>
+
+	<script>
+		const root = document.querySelector<HTMLElement>("[data-review-root]")
+		if (root) {
+			const bookingId = String(root.dataset.bookingId ?? "")
+			let rating = 0
+			const statusEl = document.getElementById("reviewStatus")
+			const submitBtn = document.getElementById("reviewSubmitBtn") as HTMLButtonElement | null
+			root.querySelectorAll<HTMLButtonElement>("[data-rating]").forEach((btn) => {
+				btn.addEventListener("click", () => {
+					rating = Number(btn.dataset.rating || 0)
+					root.querySelectorAll<HTMLButtonElement>("[data-rating]").forEach((star) => {
+						const value = Number(star.dataset.rating || 0)
+						star.classList.toggle("text-amber-500", value <= rating)
+						star.classList.toggle("border-amber-300", value <= rating)
+						star.classList.toggle("text-slate-400", value > rating)
+					})
+				})
+			})
+			submitBtn?.addEventListener("click", async () => {
+				if (!bookingId || rating < 1) {
+					if (statusEl) statusEl.textContent = "Elige una calificación de 1 a 5."
+					return
+				}
+				const body = String(
+					(document.getElementById("reviewBody") as HTMLTextAreaElement | null)?.value ?? ""
+				).trim()
+				if (statusEl) statusEl.textContent = "Enviando..."
+				if (submitBtn) submitBtn.disabled = true
+				try {
+					const response = await fetch("/api/reviews/create", {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({ bookingId, rating, body }),
+					})
+					const payload = await response.json().catch(() => ({}))
+					if (!response.ok) {
+						if (statusEl) {
+							statusEl.textContent =
+								payload?.error === "already_reviewed"
+									? "Ya enviaste una reseña para esta reserva."
+									: payload?.error === "not_eligible"
+										? "Aún no eres elegible para reseñar."
+										: "No se pudo enviar la reseña."
+						}
+						if (submitBtn) submitBtn.disabled = false
+						return
+					}
+					if (statusEl) {
+						statusEl.textContent = payload?.message || "Reseña enviada a moderación. Gracias."
+					}
+					if (submitBtn) submitBtn.classList.add("hidden")
+				} catch {
+					if (statusEl) statusEl.textContent = "Error de red."
+					if (submitBtn) submitBtn.disabled = false
+				}
+			})
+		}
+	</script>
+</Layout>

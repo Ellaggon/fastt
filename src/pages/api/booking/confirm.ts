@@ -17,6 +17,7 @@ import { invalidateBooking, invalidateProvider, invalidateVariant } from "@/lib/
 import { assertProviderCapability } from "@/lib/provider-governance"
 import { createBookingFromHold } from "@/modules/booking/public"
 import { bookingFromHoldRepository } from "@/container/booking.container"
+import { tourTrustRepository } from "@/container"
 import { applyInventoryMutation } from "@/modules/inventory/public"
 import { resolveEffectiveTaxFeesUseCase } from "@/container/taxes-fees.container"
 import { logger } from "@/lib/observability/logger"
@@ -26,9 +27,26 @@ import {
 	logFallbackTriggered,
 	logFeatureFlagEvaluation,
 } from "@/lib/observability/migration-logger"
+import {
+	recordTourConfirm,
+	recordTourVoucher,
+	toursCheckoutEnabled,
+} from "@/lib/tours/tourObservability"
+import { recordMarketplaceEvent } from "@/modules/catalog/public"
 
 const schema = z.object({
 	holdId: z.string().uuid(),
+	/** Optional cross-sell attribution funnel close (hotel → tour). */
+	marketplaceAttribution: z
+		.object({
+			surface: z.string().trim().min(1).max(80),
+			sourceProductId: z.string().trim().min(1).optional().nullable(),
+			targetProductId: z.string().trim().min(1).optional().nullable(),
+			destinationId: z.string().trim().min(1).optional().nullable(),
+			sessionId: z.string().trim().min(1).max(120).optional().nullable(),
+		})
+		.optional()
+		.nullable(),
 })
 const bookingConfirmQueues = new Map<string, Promise<unknown>>()
 
@@ -67,15 +85,27 @@ async function findLinkedBookingByHold(
 	}
 }
 
-async function findProviderIdByHold(holdId: string): Promise<string | null> {
+async function findHoldMeta(holdId: string): Promise<{
+	providerId: string | null
+	isTourSlot: boolean
+}> {
 	const row = await db
-		.select({ providerId: Product.providerId })
+		.select({
+			providerId: Product.providerId,
+			variantKind: Variant.kind,
+			productType: Product.productType,
+		})
 		.from(InventoryLock)
 		.leftJoin(Variant, eq(Variant.id, InventoryLock.variantId))
 		.leftJoin(Product, eq(Product.id, Variant.productId))
 		.where(eq(InventoryLock.holdId, holdId))
 		.then(first)
-	return String(row?.providerId ?? "").trim() || null
+	const productType = String(row?.productType ?? "").toLowerCase()
+	const variantKind = String(row?.variantKind ?? "").toLowerCase()
+	return {
+		providerId: String(row?.providerId ?? "").trim() || null,
+		isTourSlot: variantKind === "tour_slot" || productType === "tour",
+	}
 }
 
 async function serializeBookingConfirm<T>(holdId: string, fn: () => Promise<T>): Promise<T> {
@@ -104,19 +134,16 @@ export const POST: APIRoute = async ({ request }) => {
 	let requestedHoldId: string | null = null
 	let busyRecoveryAttempts = 0
 	try {
-		const url = new URL(request.url)
-		const flags = getFeatureFlags({
-			request,
-			query: url.searchParams,
-		})
+		// Tours kill-switches are env-only; do not resolve from guest request.
+		const flags = getFeatureFlags()
 		logFeatureFlagEvaluation({
 			requestId,
 			domain: "booking",
 			endpoint: "/api/booking/confirm",
 			flags,
 			overrides: {
-				queryFlag: url.searchParams.get("flag"),
-				headerFlag: request.headers.get("x-flag"),
+				queryFlag: null,
+				headerFlag: null,
 			},
 		})
 
@@ -134,8 +161,39 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 		const parsed = schema.parse(payload)
 		requestedHoldId = parsed.holdId
-		const providerIdForHold = await findProviderIdByHold(parsed.holdId)
+		const holdMeta = await findHoldMeta(parsed.holdId)
+		const providerIdForHold = holdMeta.providerId
 		if (!providerIdForHold) throw new Error("PROVIDER_OWNERSHIP_REQUIRED")
+		const confirmHost = (() => {
+			try {
+				return new URL(request.url).host
+			} catch {
+				return null
+			}
+		})()
+		const tourMetricCtx = {
+			providerId: providerIdForHold,
+			subject: { providerId: providerIdForHold, host: confirmHost },
+		}
+		if (
+			holdMeta.isTourSlot &&
+			!toursCheckoutEnabled({
+				providerId: providerIdForHold,
+				host: confirmHost,
+			})
+		) {
+			recordTourConfirm("disabled", "canary_or_kill_switch", tourMetricCtx)
+			return new Response(
+				JSON.stringify({
+					error: "tours_checkout_disabled",
+					message: "Tour checkout is temporarily disabled.",
+				}),
+				{
+					status: 503,
+					headers: { "Content-Type": "application/json" },
+				}
+			)
+		}
 		await assertProviderCapability({
 			providerId: providerIdForHold,
 			currentUserId: user?.id ?? null,
@@ -186,6 +244,42 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 		await invalidateBooking(result.bookingId, providerId)
 
+		if (holdMeta.isTourSlot) {
+			if (result.idempotent) {
+				recordTourConfirm("idempotent", "hold_already_confirmed", tourMetricCtx)
+			} else {
+				recordTourConfirm("success", undefined, tourMetricCtx)
+				recordTourVoucher("issued", "success", tourMetricCtx)
+			}
+		}
+
+		let marketplaceAttributed = false
+		const attribution = parsed.marketplaceAttribution
+		if (attribution && user?.id && holdMeta.isTourSlot) {
+			try {
+				const attributed = await recordMarketplaceEvent(
+					{ repo: tourTrustRepository },
+					{
+						eventType: "booking_attributed",
+						surface: attribution.surface,
+						sourceProductId: attribution.sourceProductId ?? null,
+						targetProductId: attribution.targetProductId ?? result.productId,
+						destinationId: attribution.destinationId ?? null,
+						bookingId: result.bookingId,
+						sessionId: attribution.sessionId ?? null,
+						userId: user.id,
+					}
+				)
+				marketplaceAttributed = attributed.ok
+			} catch (error) {
+				// Attribution must never fail the commercial confirm path.
+				logger.warn("booking.confirm_attribution_failed", {
+					bookingId: result.bookingId,
+					message: error instanceof Error ? error.message : String(error),
+				})
+			}
+		}
+
 		logger.info("booking.confirm", {
 			holdId: parsed.holdId,
 			bookingId: result.bookingId,
@@ -198,6 +292,7 @@ export const POST: APIRoute = async ({ request }) => {
 			JSON.stringify({
 				bookingId: result.bookingId,
 				status: result.status,
+				marketplaceAttributed,
 			}),
 			{
 				status: 200,
@@ -232,6 +327,10 @@ export const POST: APIRoute = async ({ request }) => {
 					recoveryAttempts: busyRecoveryAttempts,
 					durationMs: Number((performance.now() - startedAt).toFixed(1)),
 				})
+				const recoveredMeta = await findHoldMeta(requestedHoldId)
+				if (recoveredMeta.isTourSlot) {
+					recordTourConfirm("recovered", "sqlite_busy_recovered")
+				}
 				return new Response(
 					JSON.stringify({
 						bookingId: linked.bookingId,
@@ -258,12 +357,20 @@ export const POST: APIRoute = async ({ request }) => {
 			durationMs: Number((performance.now() - startedAt).toFixed(1)),
 		})
 		if (error instanceof ZodError) {
+			if (requestedHoldId) {
+				const meta = await findHoldMeta(requestedHoldId).catch(() => ({ isTourSlot: false }))
+				if (meta.isTourSlot) recordTourConfirm("failure", "validation_error")
+			}
 			return new Response(JSON.stringify({ error: "validation_error", details: error.issues }), {
 				status: 400,
 				headers: { "Content-Type": "application/json" },
 			})
 		}
 		if (error instanceof Error && error.message.startsWith("PROVIDER_CONFIGURATION_BLOCKED")) {
+			if (requestedHoldId) {
+				const meta = await findHoldMeta(requestedHoldId).catch(() => ({ isTourSlot: false }))
+				if (meta.isTourSlot) recordTourConfirm("failure", "provider_configuration_blocked")
+			}
 			return new Response(
 				JSON.stringify({
 					error: "provider_configuration_blocked",
@@ -276,6 +383,16 @@ export const POST: APIRoute = async ({ request }) => {
 			)
 		}
 		const code = error instanceof Error ? error.message : "INTERNAL_ERROR"
+		if (requestedHoldId) {
+			const meta = await findHoldMeta(requestedHoldId).catch(() => ({ isTourSlot: false }))
+			if (meta.isTourSlot) {
+				if (code === "HOLD_ALREADY_CONFIRMED") {
+					recordTourConfirm("idempotent", code)
+				} else {
+					recordTourConfirm("failure", code)
+				}
+			}
+		}
 		if (
 			code === "HOLD_NOT_FOUND" ||
 			code === "HOLD_EXPIRED" ||

@@ -1,0 +1,113 @@
+---
+import ProductCard from "@/components/productUI/ProductCard.astro"
+import type { TourSearchCard } from "@/lib/tours/tourSearchSurface"
+
+type Props = {
+	title?: string
+	subtitle?: string
+	cards: TourSearchCard[]
+	surface: string
+	sourceProductId?: string | null
+	destinationId?: string | null
+	emptyHint?: string
+}
+
+const {
+	title = "Experiencias cerca",
+	subtitle = "Tours disponibles según destino y fechas de tu estadía",
+	cards = [],
+	surface,
+	sourceProductId = null,
+	destinationId = null,
+	emptyHint = "No hay salidas disponibles cerca para esas fechas.",
+} = Astro.props as Props
+---
+
+<section
+	class="space-y-4"
+	data-tour-cross-sell
+	data-surface={surface}
+	data-source-product={sourceProductId ?? ""}
+	data-destination={destinationId ?? ""}
+>
+	<header class="space-y-1">
+		<h2 class="text-xl font-semibold tracking-tight text-slate-950 md:text-2xl">{title}</h2>
+		<p class="text-sm text-slate-600">{subtitle}</p>
+	</header>
+
+	{
+		cards.length === 0 ? (
+			<p class="text-sm text-slate-500">{emptyHint}</p>
+		) : (
+			<div class="grid grid-cols-1 gap-3">
+				{cards.map((t) => (
+					<div data-cross-sell-card data-target-product={t.productId}>
+						<ProductCard
+							vertical="tour"
+							name={t.name}
+							href={`/tours/${t.productId}?departure=${encodeURIComponent(t.departureDate)}&adults=1&utm_surface=${encodeURIComponent(surface)}`}
+							image={t.imageUrl || "https://picsum.photos/400/250"}
+							alt={t.name}
+							duration={t.duration || ""}
+							difficultyLevel={t.difficultyLevel || ""}
+							description={t.description || ""}
+							priceUSD={t.currency === "USD" ? t.fromPrice : 0}
+							priceBOB={t.currency === "BOB" ? t.fromPrice : 0}
+							stars={t.avgRating ?? 0}
+							reviewCount={t.reviewCount}
+							metaLine={t.departureTime ? `Salida ${t.departureTime}` : undefined}
+							services={[]}
+						/>
+					</div>
+				))}
+			</div>
+		)
+	}
+</section>
+
+<script>
+	const root = document.querySelector<HTMLElement>("[data-tour-cross-sell]")
+	if (root) {
+		const surface = String(root.dataset.surface ?? "")
+		const sourceProductId = String(root.dataset.sourceProduct ?? "") || null
+		const destinationId = String(root.dataset.destination ?? "") || null
+		const sessionKey = "fastt_mkt_session"
+		let sessionId = ""
+		try {
+			sessionId = String(sessionStorage.getItem(sessionKey) ?? "")
+			if (!sessionId) {
+				sessionId = crypto.randomUUID()
+				sessionStorage.setItem(sessionKey, sessionId)
+			}
+		} catch {
+			sessionId = `anon_${Date.now()}`
+		}
+
+		const track = (eventType: string, targetProductId: string | null) => {
+			void fetch("/api/telemetry/marketplace", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					eventType,
+					surface,
+					sourceProductId,
+					targetProductId,
+					destinationId,
+					sessionId,
+				}),
+				keepalive: true,
+			}).catch(() => {})
+		}
+
+		const cards = Array.from(root.querySelectorAll<HTMLElement>("[data-cross-sell-card]"))
+		if (cards.length) {
+			track("impression", null)
+			cards.forEach((card) => {
+				const target = String(card.dataset.targetProduct ?? "")
+				card.querySelector("a")?.addEventListener("click", () => {
+					if (target) track("click", target)
+				})
+			})
+		}
+	}
+</script>

@@ -1,12 +1,18 @@
 import type { APIRoute } from "astro"
 
 import {
+	isInternalObservabilityAuthorized,
+	unauthorizedObservabilityResponse,
+} from "@/lib/observability/internalObservabilityAuth"
+import {
 	listAllCounters,
 	listTimingKeys,
 	readTimingCountByKey,
 	readTimingQuantile,
 } from "@/lib/observability/metrics"
 import { collectProviderIntegrationOperationalMetrics } from "@/lib/provider-integration-operational-metrics"
+import { collectTourRolloutPrometheusMetrics } from "@/lib/tours/tourObservability"
+import { syncSharedTourCountersFromRedis } from "@/lib/tours/tourRolloutSharedStore"
 
 type ParsedMetricKey = {
 	name: string
@@ -41,7 +47,12 @@ function labelsToProm(labels: Record<string, string>): string {
 	return `{${serialized}}`
 }
 
-export const GET: APIRoute = async () => {
+export const GET: APIRoute = async ({ request }) => {
+	if (!isInternalObservabilityAuthorized(request)) {
+		return unauthorizedObservabilityResponse()
+	}
+
+	await syncSharedTourCountersFromRedis().catch(() => null)
 	const lines: string[] = []
 
 	for (const counter of listAllCounters()) {
@@ -81,6 +92,17 @@ export const GET: APIRoute = async () => {
 		lines.push("provider_integration_operational_metrics_collection_error 0")
 	} catch {
 		lines.push("provider_integration_operational_metrics_collection_error 1")
+	}
+
+	try {
+		for (const metric of collectTourRolloutPrometheusMetrics()) {
+			lines.push(
+				`${sanitizeMetricName(metric.name)}${labelsToProm(metric.labels ?? {})} ${Number(metric.value)}`
+			)
+		}
+		lines.push("tours_rollout_metrics_collection_error 0")
+	} catch {
+		lines.push("tours_rollout_metrics_collection_error 1")
 	}
 
 	return new Response(lines.join("\n"), {

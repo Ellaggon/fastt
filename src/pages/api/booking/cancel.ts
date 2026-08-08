@@ -1,11 +1,24 @@
 import type { APIRoute } from "astro"
-import { Booking, db, eq } from "@/shared/infrastructure/db/compat"
+import {
+	Booking,
+	BookingLineItem,
+	BookingVoucher,
+	db,
+	eq,
+	first,
+	Variant,
+} from "@/shared/infrastructure/db/compat"
 import { z } from "zod"
 
 import { refundCalculationRepository } from "@/container/financial.container"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { invalidateBooking, invalidateFinancialProviderSummary } from "@/lib/cache/invalidation"
 import { loadRefundCancellationContext } from "@/lib/financial/refundCancellationContext"
+import {
+	recordTourRefund,
+	recordTourRefundQuote,
+	recordTourVoucher,
+} from "@/lib/tours/tourObservability"
 import {
 	buildPolicyFinancialPreviewFromSnapshot,
 	createRefundQuoteBeforeCancellation,
@@ -45,16 +58,25 @@ async function readBody(request: Request): Promise<unknown> {
 	}
 }
 
+async function bookingIsTourSlot(bookingId: string): Promise<boolean> {
+	const row = await db
+		.select({ kind: Variant.kind })
+		.from(BookingLineItem)
+		.innerJoin(Variant, eq(Variant.id, BookingLineItem.variantId))
+		.where(eq(BookingLineItem.bookingId, bookingId))
+		.then(first)
+	return String(row?.kind ?? "") === "tour_slot"
+}
+
 async function resolveQuote(params: {
 	quoteId?: string | null
-	context: Awaited<ReturnType<typeof loadRefundCancellationContext>>
+	context: NonNullable<Awaited<ReturnType<typeof loadRefundCancellationContext>>>
 	providerId: string
 	reason: string
 	cancelledAt: Date
 	idempotencyKey?: string | null
 	createdBy: string
 }): Promise<{ quote: RefundQuote; quoteCreated: boolean }> {
-	if (!params.context) throw new Error("booking_not_found")
 	const quoteId = String(params.quoteId ?? "").trim()
 	if (quoteId) {
 		const quote = await refundCalculationRepository.findQuoteById(quoteId)
@@ -102,6 +124,7 @@ export const POST: APIRoute = async ({ request }) => {
 		if (!context.policySnapshot.cancellation) {
 			return json({ error: "missing_cancellation_policy_snapshot" }, 409)
 		}
+		const isTour = await bookingIsTourSlot(context.booking.id)
 		const { quote, quoteCreated } = await resolveQuote({
 			quoteId: parsed.refundQuoteId,
 			context,
@@ -112,7 +135,13 @@ export const POST: APIRoute = async ({ request }) => {
 			createdBy: auth.user.id,
 		})
 		if (quote.status !== "quoted") {
+			if (isTour) {
+				recordTourRefundQuote("manual_review", String(quote.status ?? "manual_review"))
+			}
 			return json({ error: "refund_quote_requires_manual_review", quote }, 409)
+		}
+		if (isTour) {
+			recordTourRefundQuote("success", parsed.reason)
 		}
 		const ledger = await recordRefundLedgerFromQuote(
 			{ repo: refundCalculationRepository },
@@ -124,6 +153,19 @@ export const POST: APIRoute = async ({ request }) => {
 				externalReference: parsed.externalReference ?? null,
 			}
 		)
+		if (isTour) {
+			const quoteAmount = Number(quote.refundAmount ?? NaN)
+			const ledgerAmount = Number(ledger.refundAmount ?? NaN)
+			if (
+				Number.isFinite(quoteAmount) &&
+				Number.isFinite(ledgerAmount) &&
+				Math.abs(quoteAmount - ledgerAmount) > 0.009
+			) {
+				recordTourRefund("amount_mismatch", parsed.reason)
+			} else {
+				recordTourRefund("success", parsed.reason)
+			}
+		}
 		const financialPreview = buildPolicyFinancialPreviewFromSnapshot({
 			providerId: auth.providerId,
 			bookingId: context.booking.id,
@@ -160,6 +202,23 @@ export const POST: APIRoute = async ({ request }) => {
 				},
 			} as any)
 			.where(eq(Booking.id, context.booking.id))
+
+		// Canonical cancel path voids tour vouchers (issued/redeemed → void). No UI shortcut.
+		const voucher = await db
+			.select({ id: BookingVoucher.id, status: BookingVoucher.status })
+			.from(BookingVoucher)
+			.where(eq(BookingVoucher.bookingId, context.booking.id))
+			.then(first)
+		let voucherStatus: string | null = voucher ? String(voucher.status) : null
+		if (voucher && ["issued", "redeemed"].includes(String(voucher.status))) {
+			await db
+				.update(BookingVoucher)
+				.set({ status: "void", updatedAt: cancelledAt } as any)
+				.where(eq(BookingVoucher.id, voucher.id))
+			voucherStatus = "void"
+			recordTourVoucher("void")
+		}
+
 		await invalidateBooking(context.booking.id, auth.providerId)
 		void invalidateFinancialProviderSummary({
 			providerId: auth.providerId,
@@ -173,6 +232,7 @@ export const POST: APIRoute = async ({ request }) => {
 			quoteCreated,
 			ledger,
 			financialPreview,
+			voucherStatus,
 		})
 	} catch (error) {
 		if (error instanceof Response) return error

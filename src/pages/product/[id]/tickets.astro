@@ -2,6 +2,7 @@
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import Checkbox from "@/components/ui/Checkbox.astro"
+import Notice from "@/components/ui/Notice.astro"
 import { productRepository } from "@/container"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
@@ -17,7 +18,7 @@ import {
 	ProductCategoryLink,
 	TourTicketType,
 } from "@/shared/infrastructure/db/compat"
-import { Ticket } from "@lucide/astro"
+import { Plus, Ticket } from "@lucide/astro"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
@@ -40,7 +41,7 @@ const [tickets, categories, links] = await Promise.all([
 		.select()
 		.from(TourTicketType)
 		.where(eq(TourTicketType.productId, productId))
-		.orderBy(asc(TourTicketType.sortOrder)),
+		.orderBy(asc(TourTicketType.sortOrder), asc(TourTicketType.code)),
 	db
 		.select()
 		.from(ProductCategory)
@@ -53,6 +54,15 @@ const [tickets, categories, links] = await Promise.all([
 ])
 
 const linked = new Set(links.map((row) => String(row.categoryId)))
+const initialTickets = tickets.map((t) => ({
+	id: String(t.id),
+	code: String(t.code),
+	label: String(t.label),
+	minAge: t.minAge == null ? null : Number(t.minAge),
+	maxAge: t.maxAge == null ? null : Number(t.maxAge),
+	sortOrder: Number(t.sortOrder ?? 0),
+	isActive: Boolean(t.isActive),
+}))
 ---
 
 <WorkspaceLayout title={`${product.displayName} · Tickets y categorías`}>
@@ -66,36 +76,47 @@ const linked = new Set(links.map((row) => String(row.categoryId)))
 			</p>
 			<h1 class="text-3xl font-semibold text-slate-950">Tickets y categorías</h1>
 			<p class="max-w-2xl text-sm leading-6 text-slate-600">
-				Define age bands (adulto/niño/infante) y categorías persistidas para discovery.
+				Define age bands para el PDP. Cada ticket consume 1 cupo; el pricing MVP usa la ocupación
+				adulto/niño/infante (custom hereda el bucket adulto por defecto).
 			</p>
 		</header>
 
-		<Card class="bg-white space-y-4">
-			<h2 class="text-sm font-semibold text-slate-950">Tipos de ticket</h2>
-			<ul class="space-y-2 text-sm text-slate-700">
-				{
-					tickets.length === 0 ? (
-						<li>Sin tickets todavía. Usa “Sembrar tickets por defecto”.</li>
-					) : (
-						tickets.map((t) => (
-							<li class="flex justify-between gap-3 border-b border-slate-100 py-2">
-								<span>
-									{t.label} <span class="text-slate-400">({t.code})</span>
-								</span>
-								<span class="text-slate-500">
-									{t.minAge != null ? `${t.minAge}` : "—"}–{t.maxAge != null ? `${t.maxAge}` : "—"}{" "}
-									años
-								</span>
-							</li>
-						))
-					)
-				}
-			</ul>
-			<Button type="button" id="seed-tickets-btn">Sembrar tickets por defecto</Button>
+		<Notice variant="info" title="Pricing MVP">
+			Adulto, niño e infante alimentan <code>occupancyDetail</code>. Un ticket
+			<code>custom</code> hereda el bucket configurado por edad (o adulto) hasta existir tarifas por tipo
+			de ticket.
+		</Notice>
+
+		<Card class="space-y-4 bg-white">
+			<div class="flex flex-wrap items-center justify-between gap-3">
+				<div>
+					<h2 class="text-sm font-semibold text-slate-950">Tipos de ticket</h2>
+					<p class="mt-1 text-xs text-slate-500">Label, rango de edad, orden y estado activo.</p>
+				</div>
+				<div class="flex flex-wrap gap-2">
+					<Button type="button" id="seed-tickets-btn" variant="secondary" size="sm">
+						Sembrar defaults
+					</Button>
+					<Button type="button" id="add-ticket-btn" variant="secondary" size="sm">
+						<span class="inline-flex items-center gap-1">
+							<Plus class="h-3.5 w-3.5" />
+							Agregar
+						</span>
+					</Button>
+					<Button type="button" id="save-tickets-btn" size="sm">Guardar tickets</Button>
+				</div>
+			</div>
+
+			<div id="ticket-editor-list" class="space-y-3"></div>
 			<p id="tickets-status" class="text-sm text-slate-600" aria-live="polite"></p>
 		</Card>
 
-		<Card class="bg-white space-y-4">
+		<Notice variant="info" title="Fuente canónica de categorías">
+			<code>ProductCategoryLink</code> es la única fuente que ve search y el PDP. El campo libre
+			<code class="mx-1">Tour.categoriesJson</code> quedó legacy (backfill → links).
+		</Notice>
+
+		<Card class="space-y-4 bg-white">
 			<h2 class="text-sm font-semibold text-slate-950">Categorías (discovery)</h2>
 			<div class="flex flex-wrap gap-2">
 				{
@@ -120,41 +141,201 @@ const linked = new Set(links.map((row) => String(row.categoryId)))
 		</a>
 	</section>
 
-	<script>
-		const root = document.querySelector<HTMLElement>("[data-product-id]")
-		const productId = String(root?.dataset.productId ?? "")
-
-		document.getElementById("seed-tickets-btn")?.addEventListener("click", async () => {
+	<script is:inline define:vars={{ productId, initialTickets }}>
+		;(function () {
+			const list = document.getElementById("ticket-editor-list")
 			const status = document.getElementById("tickets-status")
-			if (status) status.textContent = "Creando tickets..."
-			const res = await fetch(
-				`/api/variant/tour-ticket-types?productId=${encodeURIComponent(productId)}`
-			)
-			const payload = await res.json().catch(() => ({}))
-			if (!res.ok) {
-				if (status) status.textContent = "No se pudieron crear tickets."
-				return
-			}
-			if (status) status.textContent = `${(payload.tickets ?? []).length} tickets listos.`
-			window.location.reload()
-		})
+			let rows = Array.isArray(initialTickets) ? initialTickets.map((row) => ({ ...row })) : []
 
-		document.getElementById("save-categories-btn")?.addEventListener("click", async () => {
-			const status = document.getElementById("categories-status")
-			const ids = Array.from(
-				document.querySelectorAll<HTMLInputElement>('input[name="categoryId"]:checked')
-			).map((el) => el.value)
-			if (status) status.textContent = "Guardando..."
-			const res = await fetch("/api/catalog/product-categories", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ productId, categoryIds: ids }),
-			})
-			if (!res.ok) {
-				if (status) status.textContent = "No se pudieron guardar categorías."
-				return
+			function escapeHtml(value) {
+				return String(value ?? "")
+					.replaceAll("&", "&amp;")
+					.replaceAll("<", "&lt;")
+					.replaceAll(">", "&gt;")
+					.replaceAll('"', "&quot;")
 			}
-			if (status) status.textContent = "Categorías guardadas."
-		})
+
+			function render() {
+				if (!list) return
+				if (!rows.length) {
+					list.innerHTML =
+						'<p class="fastt-empty-state rounded-[var(--fastt-radius-control)] border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-600">Sin tickets. Siembra defaults o agrega un age band.</p>'
+					return
+				}
+				list.innerHTML = rows
+					.map((row, index) => {
+						const activeBadge = row.isActive
+							? '<span class="inline-flex px-2 py-0.5 text-[10px] font-semibold text-emerald-800">Activo</span>'
+							: '<span class="inline-flex px-2 py-0.5 text-[10px] font-semibold text-slate-600">Inactivo</span>'
+						return `<article class="fastt-soft-box rounded-[var(--fastt-radius-card)] border border-slate-200 bg-slate-50/80 p-4" data-ticket-index="${index}">
+							<div class="mb-3 flex items-center justify-between gap-2">
+								<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Age band ${index + 1}</p>
+								${activeBadge}
+							</div>
+							<div class="grid gap-3 md:grid-cols-6">
+								<label class="md:col-span-2 block text-xs font-medium text-slate-700">
+									Etiqueta
+									<input data-field="label" class="fastt-field mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" value="${escapeHtml(row.label)}" />
+								</label>
+								<label class="block text-xs font-medium text-slate-700">
+									Código
+									<select data-field="code" class="fastt-field mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+										${["adult", "child", "infant", "custom"]
+											.map(
+												(code) =>
+													`<option value="${code}" ${row.code === code ? "selected" : ""}>${code}</option>`
+											)
+											.join("")}
+									</select>
+								</label>
+								<label class="block text-xs font-medium text-slate-700">
+									Edad mín.
+									<input data-field="minAge" type="number" min="0" class="fastt-field mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" value="${row.minAge == null ? "" : row.minAge}" />
+								</label>
+								<label class="block text-xs font-medium text-slate-700">
+									Edad máx.
+									<input data-field="maxAge" type="number" min="0" class="fastt-field mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" value="${row.maxAge == null ? "" : row.maxAge}" />
+								</label>
+								<label class="block text-xs font-medium text-slate-700">
+									Orden
+									<input data-field="sortOrder" type="number" min="0" class="fastt-field mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" value="${Number(row.sortOrder || 0)}" />
+								</label>
+							</div>
+							<div class="mt-3 flex flex-wrap items-center justify-between gap-2">
+								<label class="inline-flex items-center gap-2 text-sm text-slate-700">
+									<input data-field="isActive" type="checkbox" ${row.isActive ? "checked" : ""} />
+									Visible en PDP
+								</label>
+								<button type="button" data-remove-ticket class="fastt-button inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50">
+									Eliminar
+								</button>
+							</div>
+						</article>`
+					})
+					.join("")
+
+				list.querySelectorAll("[data-ticket-index]").forEach((article) => {
+					const index = Number(article.getAttribute("data-ticket-index"))
+					article.querySelectorAll("[data-field]").forEach((input) => {
+						const field = input.getAttribute("data-field")
+						const sync = () => {
+							if (!rows[index] || !field) return
+							if (field === "isActive") {
+								rows[index].isActive = Boolean(input.checked)
+							} else if (field === "minAge" || field === "maxAge") {
+								const raw = String(input.value ?? "").trim()
+								rows[index][field] = raw === "" ? null : Math.max(0, Math.round(Number(raw) || 0))
+							} else if (field === "sortOrder") {
+								rows[index].sortOrder = Math.max(0, Math.round(Number(input.value) || 0))
+							} else {
+								rows[index][field] = String(input.value ?? "")
+							}
+						}
+						input.addEventListener("change", sync)
+						input.addEventListener("input", sync)
+					})
+					article.querySelector("[data-remove-ticket]")?.addEventListener("click", () => {
+						rows.splice(index, 1)
+						render()
+					})
+				})
+			}
+
+			document.getElementById("add-ticket-btn")?.addEventListener("click", () => {
+				rows.push({
+					id: crypto.randomUUID(),
+					code: "custom",
+					label: "Personalizado",
+					minAge: null,
+					maxAge: null,
+					sortOrder: (rows.length + 1) * 10,
+					isActive: true,
+				})
+				render()
+			})
+
+			document.getElementById("seed-tickets-btn")?.addEventListener("click", async () => {
+				if (status) status.textContent = "Sembrando defaults..."
+				const res = await fetch(
+					`/api/variant/tour-ticket-types?productId=${encodeURIComponent(productId)}`
+				)
+				const payload = await res.json().catch(() => ({}))
+				if (!res.ok) {
+					if (status) status.textContent = "No se pudieron crear tickets."
+					return
+				}
+				rows = (payload.tickets || []).map((t) => ({
+					id: String(t.id),
+					code: String(t.code),
+					label: String(t.label),
+					minAge: t.minAge == null ? null : Number(t.minAge),
+					maxAge: t.maxAge == null ? null : Number(t.maxAge),
+					sortOrder: Number(t.sortOrder ?? 0),
+					isActive: Boolean(t.isActive),
+				}))
+				render()
+				if (status) status.textContent = `${rows.length} tickets listos.`
+			})
+
+			document.getElementById("save-tickets-btn")?.addEventListener("click", async () => {
+				if (!rows.length) {
+					if (status) status.textContent = "Agrega al menos un ticket."
+					return
+				}
+				if (status) status.textContent = "Guardando..."
+				const res = await fetch("/api/variant/tour-ticket-types", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						productId,
+						tickets: rows.map((row) => ({
+							id: row.id,
+							code: row.code,
+							label: String(row.label || "").trim() || row.code,
+							minAge: row.minAge,
+							maxAge: row.maxAge,
+							sortOrder: Number(row.sortOrder || 0),
+							isActive: Boolean(row.isActive),
+						})),
+					}),
+				})
+				const payload = await res.json().catch(() => ({}))
+				if (!res.ok) {
+					if (status) status.textContent = "No se pudieron guardar los tickets."
+					return
+				}
+				rows = (payload.tickets || []).map((t) => ({
+					id: String(t.id),
+					code: String(t.code),
+					label: String(t.label),
+					minAge: t.minAge == null ? null : Number(t.minAge),
+					maxAge: t.maxAge == null ? null : Number(t.maxAge),
+					sortOrder: Number(t.sortOrder ?? 0),
+					isActive: Boolean(t.isActive),
+				}))
+				render()
+				if (status) status.textContent = "Tickets guardados."
+			})
+
+			document.getElementById("save-categories-btn")?.addEventListener("click", async () => {
+				const catStatus = document.getElementById("categories-status")
+				const ids = Array.from(document.querySelectorAll('input[name="categoryId"]:checked')).map(
+					(el) => el.value
+				)
+				if (catStatus) catStatus.textContent = "Guardando..."
+				const res = await fetch("/api/catalog/product-categories", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ productId, categoryIds: ids }),
+				})
+				if (!res.ok) {
+					if (catStatus) catStatus.textContent = "No se pudieron guardar categorías."
+					return
+				}
+				if (catStatus) catStatus.textContent = "Categorías guardadas."
+			})
+
+			render()
+		})()
 	</script>
 </WorkspaceLayout>

@@ -1,5 +1,6 @@
 import type { ProductRepositoryPort, ProductStatusState } from "../../ports/ProductRepositoryPort"
 import { normalizeProductVertical } from "@/lib/productVerticalRegistry"
+import { tourPublicationValidationErrors } from "@/lib/tours/tourAdminQuality"
 
 type ValidationError = { code: string; message: string }
 
@@ -37,18 +38,20 @@ export async function evaluateProductReadiness(
 		errors.push({ code: "missing_location", message: "Location coordinates are required" })
 	}
 
-	// Images checks
-	if (!agg.imagesCount || agg.imagesCount < 1) {
-		errors.push({ code: "missing_images", message: "At least one image is required" })
+	const vertical = normalizeProductVertical(agg.product.productType)
+	const verticalReadiness = agg.verticalReadiness
+
+	// Images — tours use the shared quality floor via tourPublicationValidationErrors.
+	if (vertical !== "tour") {
+		if (!agg.imagesCount || agg.imagesCount < 1) {
+			errors.push({ code: "missing_images", message: "At least one image is required" })
+		}
 	}
 
 	// Subtype checks
 	if (!agg.subtypeExists) {
 		errors.push({ code: "missing_subtype", message: "Subtype details are required" })
 	}
-
-	const vertical = normalizeProductVertical(agg.product.productType)
-	const verticalReadiness = agg.verticalReadiness
 
 	if (vertical === "hotel") {
 		const room = verticalReadiness?.hotel
@@ -67,18 +70,21 @@ export async function evaluateProductReadiness(
 
 	if (vertical === "tour") {
 		const tour = verticalReadiness?.tour
-		if (!tour?.hasItinerary) {
-			errors.push({ code: "missing_tour_itinerary", message: "Tour itinerary is required" })
-		}
-		if (!tour?.hasMeetingPoint) {
-			errors.push({ code: "missing_tour_meeting_point", message: "Tour meeting point is required" })
-		}
-		if (!tour?.hasSchedule) {
-			errors.push({
-				code: "missing_tour_schedule",
-				message: "At least one salida with profile, capacity and rate is required",
+		// Admin quality score and publish readiness share one blocker set.
+		errors.push(
+			...tourPublicationValidationErrors({
+				status: agg.status?.state ?? "draft",
+				imageCount: Number(tour?.imageCount ?? agg.imagesCount ?? 0),
+				itinerarySteps: Number(tour?.itinerarySteps ?? 0),
+				hasMeetingPoint: Boolean(tour?.hasMeetingPoint),
+				hasDurationMinutes: Boolean(tour?.hasDurationMinutes),
+				hasIncludes: Boolean(tour?.hasIncludes),
+				categoryCount: tour?.hasCategory ? 1 : 0,
+				activeTicketCount: tour?.hasActiveTickets ? 1 : 0,
+				activeSalidaCount: Number(tour?.activeSlotCount ?? 0),
+				completeSalidaCount: Number(tour?.completeSlotCount ?? 0),
 			})
-		}
+		)
 	}
 
 	if (vertical === "package") {

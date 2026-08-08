@@ -3,7 +3,10 @@ import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { BookingLineItem, BookingRoomDetail } from "@/shared/infrastructure/db/schema/tables"
 import { TOUR_SEMANTICS } from "@/lib/tours/tourSemantics"
-import { scoreTourQuality } from "@/lib/tours/tourAdminQuality"
+import {
+	scoreTourQuality,
+	tourPublicationValidationErrors,
+} from "@/lib/tours/tourAdminQuality"
 import { deriveBookingLifecycle } from "@/modules/booking/public"
 import { getVerticalOpsVocabulary } from "@/lib/verticalVocabulary"
 
@@ -57,27 +60,56 @@ describe("tour ops clarity (fase 6)", () => {
 			hasMeetingPoint: false,
 			hasDurationMinutes: false,
 			hasIncludes: false,
+			categoryCount: 0,
+			activeTicketCount: 0,
 			activeSalidaCount: 0,
+			completeSalidaCount: 0,
 		})
 		expect(weak.score).toBeLessThan(50)
 		expect(weak.issues).toContain("missing_images")
-		expect(weak.issues).toContain("no_active_salida")
+		expect(weak.blockers).toContain("no_complete_salida")
+		expect(weak.blockers.length).toBeGreaterThan(0)
 
 		const strong = scoreTourQuality({
 			status: "published",
+			imageCount: 5,
+			itinerarySteps: 3,
+			hasMeetingPoint: true,
+			hasDurationMinutes: true,
+			hasIncludes: true,
+			categoryCount: 1,
+			activeTicketCount: 2,
+			activeSalidaCount: 2,
+			completeSalidaCount: 1,
+		})
+		expect(strong.score).toBe(100)
+		expect(strong.issues).toEqual([])
+		expect(strong.blockers).toEqual([])
+
+		const fourPhotos = {
+			status: "draft" as const,
 			imageCount: 4,
 			itinerarySteps: 3,
 			hasMeetingPoint: true,
 			hasDurationMinutes: true,
 			hasIncludes: true,
-			activeSalidaCount: 2,
-		})
-		expect(strong.score).toBe(100)
-		expect(strong.issues).toEqual([])
+			categoryCount: 1,
+			activeTicketCount: 1,
+			activeSalidaCount: 1,
+			completeSalidaCount: 1,
+		}
+		expect(scoreTourQuality(fourPhotos).blockers).toContain("missing_images")
+		expect(tourPublicationValidationErrors(fourPhotos).map((e) => e.code)).toEqual([
+			"missing_tour_images",
+		])
+		expect(
+			tourPublicationValidationErrors({ ...fourPhotos, imageCount: 5 }).map((e) => e.code)
+		).toEqual([])
 
 		const page = read("src/pages/admin/tours/quality.astro")
 		expect(page).toContain("loadTourAdminQualityQueue")
-		expect(page).toContain("Tour quality")
+		expect(page).toContain("blockers")
+		expect(page).toContain("Qué corregir")
 
 		const opsRepo = read(
 			"src/modules/booking/infrastructure/repositories/BookingOperationsQueryRepository.ts"

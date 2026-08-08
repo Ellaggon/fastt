@@ -90,6 +90,9 @@ export async function createInventoryHold(
 			productId: string
 			ratePlanId: string
 			channel?: string | null
+			departureTime?: string | null
+			providerId?: string | null
+			host?: string | null
 		}
 	},
 	input: CreateInventoryHoldInput
@@ -178,6 +181,9 @@ export async function createInventoryHold(
 		channel: deps.policyContext.channel,
 		resolvedAt: now,
 		exceptionRules: policyExceptionRules,
+		departureTime: deps.policyContext.departureTime ?? null,
+		providerId: deps.policyContext.providerId ?? null,
+		host: deps.policyContext.host ?? null,
 	})
 	if (deps.auditPolicySnapshot) {
 		await deps.auditPolicySnapshot({
@@ -238,12 +244,14 @@ export async function createInventoryHold(
 		throw new Error("not_available")
 	}
 
+	// Await snapshot persistence so confirm can read pricing even when recompute is slow
+	// and L1/memory is the active cache backend.
 	if (pricingSnapshot) {
-		void persistentCache
+		await persistentCache
 			.set(cacheKeys.holdPricingSnapshot(created.holdId), pricingSnapshot, 10 * 60)
 			.catch(() => {})
 	}
-	void persistentCache
+	await persistentCache
 		.set(cacheKeys.holdPolicySnapshot(created.holdId), policySnapshot, 10 * 60)
 		.catch(() => {})
 

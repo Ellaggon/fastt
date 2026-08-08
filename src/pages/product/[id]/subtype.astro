@@ -244,15 +244,20 @@ const limousineSubtype =
 											placeholder="Fácil, Moderado, Difícil..."
 										/>
 									</FormField>
-									<FormField label="Categorías (una por línea o coma)" htmlFor="tourCategories">
-										<Textarea
-											id="tourCategories"
-											name="tourCategories"
-											value={listToText(tourSubtype?.categoriesJson, "name")}
-											rows="3"
-											placeholder="City Tour, Cultural, Adventure"
-										/>
-									</FormField>
+									<div class="fastt-soft-box rounded-[var(--fastt-radius-card)] border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 md:col-span-2">
+										<p class="font-semibold text-slate-900">Categorías de discovery</p>
+										<p class="mt-1 leading-6">
+											Se editan en una sola superficie canónica:
+											<a
+												class="font-semibold text-sky-800 underline"
+												href={`/product/${productId}/tickets`}
+											>
+												Tickets y categorías
+											</a>
+											. Search usa exactamente
+											<code class="mx-1">ProductCategoryLink</code>.
+										</p>
+									</div>
 									<FormField label="Idiomas guía (separados por coma)" htmlFor="guideLanguages">
 										<Input
 											id="guideLanguages"

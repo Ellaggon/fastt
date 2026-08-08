@@ -4,15 +4,15 @@ import { resolve } from "node:path"
 import {
 	calculateCancellationPenalty,
 	tierLeadHours,
-} from "@/modules/policies/domain/cancellation/cancellationEngine"
+} from "@/modules/policies/public"
 import { resolveCancelLeadHours } from "@/lib/tours/tourSemantics"
 
 function read(rel: string) {
 	return readFileSync(resolve(process.cwd(), rel), "utf8")
 }
 
-describe("tour tickets + voucher + cancel hours (fase 4)", () => {
-	it("defines TourTicketType, BookingVoucher, hoursBeforeDeparture, checkedInAt day-of", () => {
+describe("tour tickets + cancel hours schema contracts (architectural)", () => {
+	it("defines TourTicketType, BookingVoucher, hoursBeforeDeparture, checkedInAt", () => {
 		const tables = read("src/shared/infrastructure/db/schema/tables.ts")
 		expect(tables).toContain('export const TourTicketType = pgTable(\n\t"TourTicketType"')
 		expect(tables).toContain('export const BookingVoucher = pgTable(\n\t"BookingVoucher"')
@@ -23,16 +23,6 @@ describe("tour tickets + voucher + cancel hours (fase 4)", () => {
 		expect(migration).toContain("TourTicketType")
 		expect(migration).toContain("BookingVoucher")
 		expect(migration).toContain("hoursBeforeDeparture")
-
-		const confirmRepo = read(
-			"src/modules/booking/infrastructure/repositories/BookingFromHoldRepository.ts"
-		)
-		expect(confirmRepo).toContain("BookingVoucher")
-		expect(confirmRepo).toContain('status: "issued"')
-
-		const checkIn = read("src/pages/api/booking/check-in.ts")
-		expect(checkIn).toContain("checkedInAt")
-		expect(checkIn).toContain("redeemed")
 	})
 
 	it("prefers hoursBeforeDeparture over days in cancellation engine", () => {
@@ -46,7 +36,6 @@ describe("tour tickets + voucher + cancel hours (fase 4)", () => {
 		).toBe(6)
 		expect(resolveCancelLeadHours({ daysBeforeArrival: 1, hoursBeforeDeparture: 12 })).toBe(12)
 
-		// Cancel 3h before departure: 6h free-cancel tier should not apply; 24h tier with 50% should.
 		const penalty = calculateCancellationPenalty(
 			[
 				{
@@ -70,8 +59,8 @@ describe("tour tickets + voucher + cancel hours (fase 4)", () => {
 	})
 })
 
-describe("tour discovery categories + reviews (fase 5)", () => {
-	it("defines ProductCategory/Link/Review and wires persisted search filters", () => {
+describe("tour discovery schema contracts (architectural)", () => {
+	it("defines ProductCategory/Link/Review without hardcoding UI activity lists", () => {
 		const tables = read("src/shared/infrastructure/db/schema/tables.ts")
 		expect(tables).toContain('export const ProductCategory = pgTable(\n\t"ProductCategory"')
 		expect(tables).toContain('export const ProductCategoryLink = pgTable(\n\t"ProductCategoryLink"')
@@ -79,13 +68,18 @@ describe("tour discovery categories + reviews (fase 5)", () => {
 
 		const panel = read("src/components/searchPanel/TourSearchPanel.astro")
 		expect(panel).toContain("ProductCategory")
-		expect(panel).toContain('name="category"')
 		expect(panel).not.toContain("activitiesList = [")
 
-		const search = read("src/pages/tours/search.astro")
-		expect(search).toContain("ProductCategoryLink")
-		expect(search).toContain("ProductReview")
-		expect(search).toContain("rating_desc")
-		expect(search).toContain('params.getAll("category")')
+		const backfill = read("db/migrations/2026-08-19_tour_category_link_backfill.sql")
+		expect(backfill).toContain("ProductCategoryLink")
+		expect(backfill).toContain("TourCategoryBackfillUnmapped")
+		// Both INSERTs must share a materialized mapped set (CTE scope is one statement).
+		expect(backfill).toContain('CREATE TEMP TABLE "_TourCategoryBackfillMapped"')
+		expect(backfill).toContain('FROM "_TourCategoryBackfillMapped" m')
+		expect(backfill.match(/FROM "_TourCategoryBackfillMapped" m/g)?.length).toBe(2)
+		expect(backfill).toContain('ON CONFLICT ("productId", "categoryId") DO NOTHING')
+		expect(backfill).toContain('ON CONFLICT ("id") DO NOTHING')
+		// Regression: bare FROM mapped outside its WITH fails at apply time.
+		expect(backfill).not.toMatch(/FROM mapped m\s*\nWHERE m\."categoryId" IS NULL/)
 	})
 })

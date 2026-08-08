@@ -16,6 +16,8 @@ import {
 	Limousine,
 	Tour,
 	TourSlotProfile,
+	TourTicketType,
+	ProductCategoryLink,
 	Package,
 	Variant,
 	VariantCapacity,
@@ -45,6 +47,7 @@ import type {
 	ProductRepositoryPort,
 	ProductStatusState,
 } from "../../application/ports/ProductRepositoryPort"
+import { tourHasMeetingPoint } from "@/lib/tours/tourAdminQuality"
 import type { RatePlanCommandRepositoryPort } from "../../../pricing/application/ports/RatePlanCommandRepositoryPort"
 import { RatePlanCommandRepository } from "../../../pricing/infrastructure/repositories/RatePlanCommandRepository"
 
@@ -300,6 +303,7 @@ export class ProductRepository implements ProductRepositoryPort {
 			const schedules = await db
 				.select({
 					id: Variant.id,
+					isActive: Variant.isActive,
 					profileVariantId: TourSlotProfile.variantId,
 					capacityVariantId: VariantCapacity.variantId,
 					defaultRatePlanId: RatePlan.id,
@@ -317,23 +321,47 @@ export class ProductRepository implements ProductRepositoryPort {
 				)
 				.where(and(eq(Variant.productId, productId), eq(Variant.kind, "tour_slot")))
 
-			// Fase 2: a sellable salida needs profile + capacity + default rate.
+			// Align with admin quality: complete salida = active + profile + capacity + default rate.
 			const completeSlotCount = schedules.filter(
 				(row) =>
+					row.isActive === true &&
 					Boolean(row.profileVariantId) &&
 					Boolean(row.capacityVariantId) &&
 					Boolean(row.defaultRatePlanId)
 			).length
+			const activeSlotCount = schedules.filter((row) => row.isActive === true).length
+			const itinerarySteps = Array.isArray(tour?.itineraryJson) ? tour.itineraryJson.length : 0
+			const [categoryRow, ticketRow] = await Promise.all([
+				db
+					.select({ id: ProductCategoryLink.id })
+					.from(ProductCategoryLink)
+					.where(eq(ProductCategoryLink.productId, productId))
+					.limit(1)
+					.then(first),
+				db
+					.select({ id: TourTicketType.id })
+					.from(TourTicketType)
+					.where(and(eq(TourTicketType.productId, productId), eq(TourTicketType.isActive, true)))
+					.limit(1)
+					.then(first),
+			])
 
 			verticalReadiness = {
 				kind: "tour",
 				subtypeExists,
 				tour: {
-					hasItinerary: Array.isArray(tour?.itineraryJson) && tour.itineraryJson.length > 0,
-					hasMeetingPoint: !!tour?.meetingPointJson,
+					hasItinerary: itinerarySteps > 0,
+					itinerarySteps,
+					hasMeetingPoint: tourHasMeetingPoint(tour?.meetingPointJson),
+					hasDurationMinutes: tour?.durationMinutes != null && Number(tour.durationMinutes) > 0,
+					hasIncludes: Array.isArray(tour?.includesJson) && tour.includesJson.length > 0,
+					hasCategory: Boolean(categoryRow?.id),
+					hasActiveTickets: Boolean(ticketRow?.id),
 					hasSchedule: completeSlotCount > 0,
+					imageCount: images.length,
 					slotCount: schedules.length,
 					completeSlotCount,
+					activeSlotCount,
 				},
 			}
 		} else if (pt === "package") {

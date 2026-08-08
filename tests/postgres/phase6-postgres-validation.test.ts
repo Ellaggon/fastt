@@ -64,6 +64,11 @@ async function seedCatalog(sql: Sql, scope = randomUUID().slice(0, 8)) {
 
 async function cleanup(sql: Sql) {
 	await sql`
+		delete from "BookingVoucher"
+		where "bookingId" like ${`${prefix}%`}
+			or "bookingId" in (select "id" from "Booking" where "providerId" like ${`${prefix}%`})
+	`
+	await sql`
 		delete from "BookingPolicySnapshot"
 		where "bookingId" like ${`${prefix}%`}
 			or "bookingId" in (select "id" from "Booking" where "providerId" like ${`${prefix}%`})
@@ -85,7 +90,9 @@ async function cleanup(sql: Sql) {
 	await sql`delete from "EffectivePricingV2" where "id" like ${`${prefix}%`}`
 	await sql`delete from "DailyInventory" where "id" like ${`${prefix}%`}`
 	await sql`delete from "RatePlan" where "id" like ${`${prefix}%`}`
+	await sql`delete from "TourSlotProfile" where "variantId" like ${`${prefix}%`}`
 	await sql`delete from "Variant" where "id" like ${`${prefix}%`}`
+	await sql`delete from "Tour" where "productId" like ${`${prefix}%`}`
 	await sql`delete from "Product" where "id" like ${`${prefix}%`}`
 	await sql`delete from "Destination" where "id" like ${`${prefix}%`}`
 	await sql`delete from "Provider" where "id" like ${`${prefix}%`}`
@@ -146,11 +153,27 @@ describePostgres("phase 6 Postgres double validation", () => {
 		const holdId = id(`${scope}-hold-confirm`)
 		const date = "2027-03-02"
 		const expiresAt = new Date(Date.now() + 15 * 60 * 1000)
+		await sql`
+			update "Product" set "productType" = 'Tour' where "id" = ${fixture.productId}
+		`
+		await sql`
+			update "Variant" set "kind" = 'tour_slot' where "id" = ${fixture.variantId}
+		`
+		await sql`
+			insert into "Tour" ("productId", "duration", "durationMinutes", "meetingPointJson")
+			values (${fixture.productId}, '3 horas', 180, ${sql.json({ address: "Plaza Murillo" })})
+		`
+		await sql`
+			insert into "TourSlotProfile" (
+				"variantId", "departureTime", "maxPax", "languageCode", "bookingMode"
+			)
+			values (${fixture.variantId}, '09:00', 12, 'es', 'shared')
+		`
 		const pricingSnapshot = {
 			ratePlanId: fixture.ratePlanId,
 			currency: "USD",
-			occupancy: 2,
-			occupancyDetail: { adults: 2, children: 0, infants: 0 },
+			occupancy: 3,
+			occupancyDetail: { adults: 2, children: 1, infants: 0 },
 			from: date,
 			to: "2027-03-03",
 			nights: 1,
@@ -208,6 +231,11 @@ describePostgres("phase 6 Postgres double validation", () => {
 		const [taxSnapshotCount] = await sql`
 			select count(*)::int as count from "BookingTaxFee" where "bookingId" = ${first.bookingId}
 		`
+		const [voucher] = await sql`
+			select "status", "instructionsJson", "qrPayload"
+			from "BookingVoucher"
+			where "bookingId" = ${first.bookingId}
+		`
 
 		expect(first.status).toBe("confirmed")
 		expect(second.bookingId).toBe(first.bookingId)
@@ -218,6 +246,12 @@ describePostgres("phase 6 Postgres double validation", () => {
 		expect(lock.bookingId).toBe(first.bookingId)
 		expect(Number(roomDetailCount.count)).toBe(1)
 		expect(Number(taxSnapshotCount.count)).toBe(1)
+		expect(voucher.status).toBe("issued")
+		expect(voucher.qrPayload).toMatch(/^FT-/)
+		expect(voucher.instructionsJson).toMatchObject({
+			departureDate: date,
+			participants: { adults: 2, children: 1, infants: 0 },
+		})
 	}, 20_000)
 
 	it("keeps search and pricing materializations aligned on Postgres read models", async () => {

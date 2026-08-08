@@ -114,6 +114,11 @@ if (!bookingId) return Astro.redirect("/booking")
 				const state = String(lifecycle.state || "")
 				const ops = booking?.opsCopy || {}
 				const label = String(lifecycle.label || "").trim()
+				if (booking?.canCheckIn)
+					return [
+						label || "Pendiente de presentación",
+						String(ops.confirmArrivalAction || "Registrar presentación"),
+					]
 				if (state === "upcoming_arrival")
 					return [
 						label || "Próxima llegada",
@@ -130,6 +135,53 @@ if (!bookingId) return Astro.redirect("/booking")
 				if (state === "no_show") return [label || "No presentación", "Ver reserva"]
 				if (state === "cancelled") return ["Cancelada", "Ver reembolso"]
 				return [label || "Pendiente", "Ver reserva"]
+			}
+			const voucherStatusLabel = (booking) => {
+				const status = String(booking?.voucher?.status || "").toLowerCase()
+				if (!status) return "Sin voucher"
+				if (status === "issued") return "Emitido"
+				if (status === "redeemed") return "Canjeado"
+				if (status === "void") return "Anulado"
+				return status
+			}
+			const runCheckIn = async () => {
+				const booking = state.payload?.booking || {}
+				if (!booking?.canCheckIn || !primaryAction) return
+				primaryAction.setAttribute("disabled", "true")
+				const previous = primaryAction.textContent
+				primaryAction.textContent = "Registrando..."
+				try {
+					const response = await fetch("/api/booking/check-in", {
+						method: "POST",
+						headers: { "Content-Type": "application/json", "accept": "application/json" },
+						body: JSON.stringify({ bookingId }),
+					})
+					const payload = await response.json().catch(() => ({}))
+					if (!response.ok) {
+						primaryAction.textContent = previous
+						primaryAction.removeAttribute("disabled")
+						window.alert(
+							payload?.error === "booking_not_confirmed"
+								? "La reserva debe estar confirmada."
+								: "No se pudo registrar la presentación."
+						)
+						return
+					}
+					const refreshed = await fetch(
+						`/api/internal/booking-summary?bookingId=${encodeURIComponent(bookingId)}`,
+						{ headers: { accept: "application/json" } }
+					)
+					if (refreshed.ok) {
+						state.payload = await refreshed.json()
+						render()
+					} else {
+						window.location.reload()
+					}
+				} catch {
+					primaryAction.textContent = previous
+					primaryAction.removeAttribute("disabled")
+					window.alert("Error de red al registrar presentación.")
+				}
 			}
 			const escapeHtml = (value) =>
 				String(value ?? "")
@@ -161,17 +213,28 @@ if (!bookingId) return Astro.redirect("/booking")
 						String(booking.vertical || "") === "tour" ? "Salida" : "Habitación"
 					subtitle.textContent = `${stay} · ${String(firstAllocation.productName || productFallback)} · ${String(firstAllocation.variantName || variantFallback)}`
 				}
-				if (primaryAction) primaryAction.textContent = action
+				if (primaryAction) {
+					primaryAction.textContent = action
+					primaryAction.setAttribute("href", booking.canCheckIn ? "#" : "/booking")
+					primaryAction.dataset.canCheckIn = booking.canCheckIn ? "true" : "false"
+				}
 				if (!hero) return
+				const departureHint = booking.departureTime
+					? `Salida ${String(booking.departureTime)}`
+					: String(booking.status || "Contrato")
 				const cards = [
-					["Estado", status, String(booking.status || "Contrato")],
+					["Estado", status, departureHint],
 					[
 						String(booking?.opsCopy?.stayWindow || "Estancia"),
 						stay,
 						`${Number(booking.lineItemCount || booking.rooms || allocations.length || 0)} ${String(booking?.opsCopy?.lineItemPlural || "habitación(es)")}`,
 					],
 					["Pago", paymentLabel(booking), String(booking.payment?.state || "pending")],
-					["Próxima acción", action, "Según estado actual"],
+					[
+						"Próxima acción",
+						action,
+						booking.voucher ? `Voucher: ${voucherStatusLabel(booking)}` : "Según estado actual",
+					],
 				]
 				hero.innerHTML = cards
 					.map(
@@ -208,21 +271,51 @@ if (!bookingId) return Astro.redirect("/booking")
 				const [status, action] = lifecycleCopy(booking)
 
 				if (state.activeTab === "summary") {
+					const meeting =
+						booking.meetingPoint && typeof booking.meetingPoint === "object"
+							? String(
+									booking.meetingPoint.address ||
+										booking.meetingPoint.name ||
+										booking.meetingPoint.label ||
+										""
+								).trim()
+							: ""
 					panel.innerHTML = `<div class="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
 						${section(
 							"Resumen operativo",
 							[
 								keyValue("Estado", status),
-								keyValue("Estancia", `${fmtDate(booking.checkIn)} → ${fmtDate(booking.checkOut)}`),
+								keyValue(
+									String(booking?.opsCopy?.stayWindow || "Estancia"),
+									`${fmtDate(booking.checkIn)} → ${fmtDate(booking.checkOut)}`
+								),
+								booking.departureTime
+									? keyValue("Hora de salida", String(booking.departureTime))
+									: "",
+								meeting ? keyValue("Punto de encuentro", meeting) : "",
 								keyValue("Próxima acción", action),
 								keyValue("Pago", paymentLabel(booking)),
-							].join("")
+								booking.voucher
+									? keyValue(
+											"Voucher",
+											`${String(booking.voucher.code || "—")} · ${voucherStatusLabel(booking)}`
+										)
+									: "",
+								booking.checkedInAt ? keyValue("Presentación", String(booking.checkedInAt)) : "",
+							]
+								.filter(Boolean)
+								.join("")
 						)}
 						${section(
 							"Alertas",
 							`<div class="space-y-2 text-sm text-slate-700">
 								<p class="fastt-soft-box rounded-[var(--fastt-radius-control)] bg-slate-50 p-3">${Number(booking.payment?.pendingAmount || 0) > 0 ? "Existe saldo pendiente por registrar." : "No hay saldo pendiente."}</p>
 								<p class="fastt-soft-box rounded-[var(--fastt-radius-control)] bg-slate-50 p-3">${policies.length ? "Condiciones contratadas disponibles." : "Faltan condiciones congeladas para esta reserva."}</p>
+								${
+									booking.canCheckIn
+										? `<p class="fastt-soft-box rounded-[var(--fastt-radius-control)] bg-sky-50 p-3 text-sky-900">Tour confirmado listo para registrar presentación.</p>`
+										: ""
+								}
 							</div>`
 						)}
 					</div>`
@@ -236,25 +329,36 @@ if (!bookingId) return Astro.redirect("/booking")
 							keyValue("Email", guest(booking)?.email || "No registrado"),
 							keyValue("Adultos", Number(guest(booking)?.adults || 0)),
 							keyValue("Niños", Number(guest(booking)?.children || 0)),
-						].join("")
+							Number(guest(booking)?.infants || 0) > 0
+								? keyValue("Infantes", Number(guest(booking)?.infants || 0))
+								: "",
+						]
+							.filter(Boolean)
+							.join("")
 					)
 					return
 				}
 				if (state.activeTab === "room") {
+					const isTour = String(booking.vertical || "") === "tour"
 					panel.innerHTML = `<div class="space-y-3">
 						${allocations
 							.map((item) =>
 								section(
-									`${String(item.productName || "Alojamiento")} · ${String(item.variantName || "Habitación")}`,
+									`${String(item.productName || (isTour ? "Tour" : "Alojamiento"))} · ${String(item.variantName || (isTour ? "Salida" : "Habitación"))}`,
 									[
 										keyValue("Tarifa", item.ratePlanName || item.ratePlanId || "Tarifa contratada"),
 										keyValue("Fechas", `${fmtDate(item.checkIn)} → ${fmtDate(item.checkOut)}`),
+										item.slotProfile?.departureTime
+											? keyValue("Hora", String(item.slotProfile.departureTime))
+											: "",
 										keyValue(
 											"Ocupación",
-											`${Number(item.occupancyDetail?.adults || 0)} adultos · ${Number(item.occupancyDetail?.children || 0)} niños`
+											`${Number(item.occupancyDetail?.adults || 0)} adultos · ${Number(item.occupancyDetail?.children || 0)} niños${Number(item.occupancyDetail?.infants || 0) > 0 ? ` · ${Number(item.occupancyDetail.infants)} infantes` : ""}`
 										),
 										keyValue("Total", money(booking.currency, item.totalAmount)),
-									].join("")
+									]
+										.filter(Boolean)
+										.join("")
 								)
 							)
 							.join("")}
@@ -351,6 +455,11 @@ if (!bookingId) return Astro.redirect("/booking")
 					state.activeTab = button.getAttribute("data-booking-detail-tab") || "summary"
 					render()
 				})
+			})
+			primaryAction?.addEventListener("click", (event) => {
+				if (primaryAction.dataset.canCheckIn !== "true") return
+				event.preventDefault()
+				void runCheckIn()
 			})
 			fetch(`/api/internal/booking-summary?bookingId=${encodeURIComponent(bookingId)}`, {
 				headers: { accept: "application/json" },

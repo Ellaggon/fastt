@@ -1,7 +1,7 @@
-import type { PolicyExceptionRule } from "@/modules/policies/public"
 import {
 	buildPolicySnapshot,
 	type HoldPolicySnapshot,
+	type PolicyExceptionRule,
 	type ResolveEffectivePoliciesResult,
 } from "@/modules/policies/public"
 import type { RefundQuote } from "../../domain/refund-quote"
@@ -60,6 +60,7 @@ export type BuildPolicyFinancialPreviewFromResolutionInput = {
 	lines?: RefundQuoteMoneyLine[]
 	idPrefix?: string
 	exceptionRules?: PolicyExceptionRule[]
+	departureTime?: string | null
 }
 
 function addDays(dateOnly: string, days: number): string {
@@ -274,6 +275,7 @@ export function buildPolicyFinancialPreviewFromResolution(
 		channel: input.channel ?? null,
 		resolvedAt: cancelledAt,
 		exceptionRules: input.exceptionRules,
+		departureTime: input.departureTime ?? null,
 	})
 	const longStaySnapshot = buildPolicySnapshot({
 		resolvedPolicies: input.resolvedPolicies,
@@ -282,6 +284,7 @@ export function buildPolicyFinancialPreviewFromResolution(
 		channel: input.channel ?? null,
 		resolvedAt: cancelledAt,
 		exceptionRules: input.exceptionRules,
+		departureTime: input.departureTime ?? null,
 	})
 	return buildPolicyFinancialPreviewFromSnapshot({
 		providerId: input.providerId,

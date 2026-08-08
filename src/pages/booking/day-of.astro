@@ -1,0 +1,262 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Section from "@/components/ui/Section.astro"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { routes } from "@/lib/routes"
+import { resolveVerticalVocabulary } from "@/lib/verticalVocabulary"
+
+const workspaceContext = await Astro.locals.getWorkspaceContext()
+if (!workspaceContext.user) return Astro.redirect("/SignInPage")
+if (!workspaceContext.provider) return Astro.redirect(routes.providerSettingsProfile())
+const sidebarData = await workspaceContext.sidebarDataPromise
+const ops = resolveVerticalVocabulary(sidebarData?.productTypes ?? []).ops
+---
+
+<WorkspaceLayout title="Cola day-of">
+	<section class="space-y-8" data-day-of-queue>
+		<header
+			class="flex flex-col gap-4 border-b border-slate-800 pb-5 lg:flex-row lg:items-end lg:justify-between"
+		>
+			<div class="space-y-2">
+				<p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+					Operación del día
+				</p>
+				<h1 class="text-3xl font-semibold tracking-tight text-white">Cola day-of</h1>
+				<p class="max-w-3xl text-sm leading-6 text-slate-400">
+					{ops.queueHint}. Presentación y reparación de voucher para las salidas de hoy.
+				</p>
+			</div>
+			<div class="flex flex-wrap gap-2">
+				<Button href={routes.bookingList()} variant="secondary">Todas las reservas</Button>
+				<Button href="/booking?vista=today" variant="primary">Vista hoy</Button>
+			</div>
+		</header>
+
+		<div id="dayOfMetrics" class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+			{
+				["Pendientes", "Presentados", "Voucher emitido", "Salidas"].map((label) => (
+					<Card class="border border-slate-700 bg-slate-900/60 p-4">
+						<p class="text-xs tracking-[0.12em] text-slate-500 uppercase">{label}</p>
+						<p class="mt-2 h-7 w-10 animate-pulse rounded bg-slate-700" />
+					</Card>
+				))
+			}
+		</div>
+
+		<Section title="Salidas de hoy" description="Ordenadas por hora de salida.">
+			<Card class="fastt-workspace-panel min-h-[280px] border bg-white p-0 text-slate-900">
+				<div
+					class="flex flex-col gap-2 border-b border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+				>
+					<p id="dayOfSummary" class="text-sm text-slate-600">Cargando salidas...</p>
+					<p id="dayOfLatency" class="text-xs text-slate-400"></p>
+				</div>
+				<div id="dayOfRows" class="divide-y divide-slate-100">
+					{
+						Array.from({ length: 4 }).map(() => (
+							<div class="px-4 py-4">
+								<div class="h-4 w-40 animate-pulse rounded bg-slate-200" />
+								<div class="mt-2 h-3 w-56 animate-pulse rounded bg-slate-100" />
+							</div>
+						))
+					}
+				</div>
+			</Card>
+		</Section>
+	</section>
+
+	<script is:inline data-astro-rerun>
+		;(function () {
+			const root = document.querySelector("[data-day-of-queue]")
+			if (!(root instanceof HTMLElement)) return
+			if (root.dataset.dayOfBootReady === "true") return
+			root.dataset.dayOfBootReady = "true"
+
+			const summary = document.getElementById("dayOfSummary")
+			const latency = document.getElementById("dayOfLatency")
+			const rows = document.getElementById("dayOfRows")
+			const metrics = document.getElementById("dayOfMetrics")
+
+			const todayIso = () => new Date().toISOString().slice(0, 10)
+			const escapeHtml = (value) =>
+				String(value ?? "")
+					.replace(/&/g, "&amp;")
+					.replace(/</g, "&lt;")
+					.replace(/>/g, "&gt;")
+					.replace(/"/g, "&quot;")
+
+			const guestName = (item) => {
+				const guestLabel = String(item?.opsCopy?.guest || "participante")
+				return String(
+					item?.guestName ||
+						item?.guestEmail ||
+						`${guestLabel[0].toUpperCase()}${guestLabel.slice(1)} por registrar`
+				)
+			}
+
+			const voucherLabel = (item) => {
+				const status = String(item?.voucher?.status || "").toLowerCase()
+				if (!status) return "Sin voucher"
+				if (status === "issued") return "Voucher emitido"
+				if (status === "redeemed") return "Voucher canjeado"
+				if (status === "void") return "Voucher anulado"
+				return `Voucher ${status}`
+			}
+
+			const actionLabel = (item) => {
+				const voucherStatus = String(item?.voucher?.status || "").toLowerCase()
+				const presented =
+					Boolean(item?.checkedInAt) ||
+					String(item?.operationalStatus || "").toLowerCase() === "checked_in"
+				if (presented && voucherStatus === "issued") return "Reparar voucher"
+				if (item?.canCheckIn)
+					return String(item?.opsCopy?.confirmArrivalAction || "Registrar presentación")
+				if (voucherStatus === "redeemed") return "Listo"
+				return "Ver reserva"
+			}
+
+			const checkInBooking = async (bookingId, button) => {
+				if (!bookingId || !button) return
+				button.setAttribute("disabled", "true")
+				const previous = button.textContent
+				button.textContent = "Registrando..."
+				try {
+					const response = await fetch("/api/booking/check-in", {
+						method: "POST",
+						headers: { "Content-Type": "application/json", "accept": "application/json" },
+						body: JSON.stringify({ bookingId }),
+					})
+					const payload = await response.json().catch(() => ({}))
+					if (!response.ok) {
+						button.textContent = previous
+						button.removeAttribute("disabled")
+						window.alert(
+							payload?.error === "booking_not_confirmed"
+								? "La reserva debe estar confirmada."
+								: "No se pudo registrar la presentación."
+						)
+						return
+					}
+					await loadQueue()
+				} catch {
+					button.textContent = previous
+					button.removeAttribute("disabled")
+					window.alert("Error de red al registrar presentación.")
+				}
+			}
+
+			const renderMetrics = (items) => {
+				if (!metrics) return
+				const pending = items.filter((item) => item?.canCheckIn).length
+				const presented = items.filter(
+					(item) =>
+						Boolean(item?.checkedInAt) ||
+						String(item?.operationalStatus || "").toLowerCase() === "checked_in"
+				).length
+				const issued = items.filter(
+					(item) => String(item?.voucher?.status || "").toLowerCase() === "issued"
+				).length
+				const cards = [
+					["Pendientes", pending],
+					["Presentados", presented],
+					["Voucher emitido", issued],
+					["Salidas", items.length],
+				]
+				metrics.innerHTML = cards
+					.map(
+						([
+							label,
+							value,
+						]) => `<div class="fastt-soft-box rounded-[var(--fastt-radius-card)] border border-slate-700 bg-slate-900/60 p-4">
+						<p class="text-xs uppercase tracking-[0.12em] text-slate-500">${label}</p>
+						<p class="mt-2 text-2xl font-semibold text-white">${value}</p>
+					</div>`
+					)
+					.join("")
+			}
+
+			const renderRows = (items) => {
+				if (!rows) return
+				if (!items.length) {
+					rows.innerHTML = `<div class="px-4 py-10 text-center text-sm text-slate-500">No hay salidas de tour para hoy.</div>`
+					return
+				}
+				rows.innerHTML = items
+					.map((item) => {
+						const time = String(item?.departureTime || "—")
+						const product = escapeHtml(item?.productName || "Tour")
+						const variant = escapeHtml(item?.variantName || "Salida")
+						const guest = escapeHtml(guestName(item))
+						const voucher = escapeHtml(voucherLabel(item))
+						const lifecycle = escapeHtml(item?.lifecycleLabel || item?.operationalStatus || "—")
+						const action = actionLabel(item)
+						const canAct = Boolean(item?.canCheckIn)
+						const primary = canAct
+							? `<button type="button" class="fastt-button inline-flex h-9 items-center justify-center rounded-md border border-slate-950 bg-slate-950 px-3 text-sm font-semibold text-white hover:bg-slate-800" data-check-in="${escapeHtml(item.bookingId)}">${escapeHtml(action)}</button>`
+							: `<a class="fastt-button inline-flex h-9 items-center justify-center rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800" href="/booking/${encodeURIComponent(String(item.bookingId || ""))}">${escapeHtml(action)}</a>`
+						return `<article class="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+							<div class="min-w-0 space-y-1">
+								<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">${escapeHtml(time)}</p>
+								<p class="font-semibold text-slate-950">${guest}</p>
+								<p class="text-sm text-slate-700">${product} · ${variant}</p>
+								<p class="text-xs text-slate-500">${voucher} · ${lifecycle}</p>
+							</div>
+							<div class="flex flex-wrap items-center gap-2">${primary}
+								<a class="text-xs font-medium text-slate-500 hover:text-slate-800" href="/booking/${encodeURIComponent(String(item.bookingId || ""))}">Detalle</a>
+							</div>
+						</article>`
+					})
+					.join("")
+				rows.querySelectorAll("[data-check-in]").forEach((button) => {
+					button.addEventListener("click", () => {
+						void checkInBooking(String(button.getAttribute("data-check-in") || ""), button)
+					})
+				})
+			}
+
+			const loadQueue = async () => {
+				const started = performance.now()
+				if (summary) summary.textContent = "Cargando salidas..."
+				try {
+					const today = todayIso()
+					const qs = new URLSearchParams({
+						from: today,
+						to: today,
+						status: "confirmed",
+						limit: "100",
+					})
+					const response = await fetch(`/api/internal/provider-bookings-summary?${qs}`, {
+						headers: { accept: "application/json" },
+					})
+					const payload = await response.json().catch(() => ({}))
+					if (!response.ok) {
+						if (summary) summary.textContent = "No se pudo cargar la cola day-of."
+						return
+					}
+					const items = (Array.isArray(payload?.items) ? payload.items : [])
+						.filter((item) => String(item?.vertical || "").toLowerCase() === "tour")
+						.filter((item) => String(item?.checkIn || "") === today)
+						.sort((a, b) =>
+							String(a?.departureTime || "99:99").localeCompare(String(b?.departureTime || "99:99"))
+						)
+					renderMetrics(items)
+					renderRows(items)
+					if (summary) {
+						summary.textContent =
+							items.length === 0
+								? "Sin salidas de tour confirmadas para hoy."
+								: `${items.length} salidas ordenadas por hora.`
+					}
+					if (latency) {
+						latency.textContent = `${Math.round(performance.now() - started)} ms`
+					}
+				} catch {
+					if (summary) summary.textContent = "Error de red al cargar la cola day-of."
+				}
+			}
+
+			void loadQueue()
+		})()
+	</script>
+</WorkspaceLayout>

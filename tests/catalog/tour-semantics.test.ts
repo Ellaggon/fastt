@@ -78,10 +78,11 @@ describe("tour JSON shapes contract (fase 0 inventory)", () => {
 			expect(source).toContain("step: index + 1")
 			// guideJson.languages is a comma-joined string (not an array)
 			expect(source).toContain('listFromForm(form.get("guideLanguages")).join(", ")')
-			// includes/excludes/categories: string[]
+			// includes/excludes: string[]; categories moved to ProductCategoryLink
 			expect(source).toContain('includesJson: listFromForm(form.get("tourIncludes"))')
 			expect(source).toContain('excludesJson: listFromForm(form.get("tourExcludes"))')
-			expect(source).toContain('categoriesJson: listFromForm(form.get("tourCategories"))')
+			expect(source).not.toContain('categoriesJson: listFromForm(form.get("tourCategories"))')
+			expect(source).toContain("ProductCategoryLink")
 			// pickupJson: { defaultArea, instructions }
 			expect(source).toContain('defaultArea: form.get("pickupDefaultArea")')
 		}

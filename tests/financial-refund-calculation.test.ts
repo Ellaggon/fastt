@@ -48,6 +48,7 @@ function policySnapshot(): HoldPolicySnapshot {
 					refundTiers: [
 						{
 							daysBeforeArrival: 7,
+							hoursBeforeDeparture: null,
 							deadlineLocal: "2030-02-03T00:00:00[America/Santiago]",
 							penaltyType: "percentage",
 							penaltyAmount: 50,

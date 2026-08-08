@@ -57,6 +57,7 @@ function contentRules(content: unknown): Record<string, unknown> {
 
 function contentCancellationTiers(content: unknown): Array<{
 	daysBeforeArrival: number
+	hoursBeforeDeparture: number | null
 	penaltyType: string
 	penaltyAmount: number | null
 }> {
@@ -69,19 +70,26 @@ function contentCancellationTiers(content: unknown): Array<{
 			const source = tier as Record<string, unknown>
 			const daysBeforeArrival = Number(source.daysBeforeArrival ?? NaN)
 			if (!Number.isFinite(daysBeforeArrival)) return null
+			const hoursRaw = source.hoursBeforeDeparture
+			const hoursBeforeDeparture =
+				hoursRaw == null || !Number.isFinite(Number(hoursRaw)) ? null : Number(hoursRaw)
 			const penaltyType = String(source.penaltyType ?? "percentage").toLowerCase()
 			const penaltyAmountRaw = source.penaltyAmount
 			const penaltyAmount =
 				penaltyAmountRaw == null || !Number.isFinite(Number(penaltyAmountRaw))
 					? null
 					: Number(penaltyAmountRaw)
-			return { daysBeforeArrival, penaltyType, penaltyAmount }
+			return { daysBeforeArrival, hoursBeforeDeparture, penaltyType, penaltyAmount }
 		})
 		.filter(
 			(
 				row
-			): row is { daysBeforeArrival: number; penaltyType: string; penaltyAmount: number | null } =>
-				Boolean(row)
+			): row is {
+				daysBeforeArrival: number
+				hoursBeforeDeparture: number | null
+				penaltyType: string
+				penaltyAmount: number | null
+			} => Boolean(row)
 		)
 		.sort((a, b) => b.daysBeforeArrival - a.daysBeforeArrival)
 }
@@ -106,6 +114,16 @@ function describeCancellation(term: RuleContractTerm | null): { text: string; sc
 		(tier) => tier.penaltyType === "percentage" && (tier.penaltyAmount ?? 0) <= 0
 	)
 	if (freeTier) {
+		const hours = Number(freeTier.hoursBeforeDeparture ?? NaN)
+		if (Number.isFinite(hours) && hours >= 0) {
+			const score = Math.min(95, 70 + Math.min(20, hours))
+			return hours > 0
+				? {
+						text: `Cancelación gratis hasta ${hours} hora${hours === 1 ? "" : "s"} antes de la salida`,
+						score,
+					}
+				: { text: "Cancelación gratis hasta la hora de salida", score }
+		}
 		const days = Number(freeTier.daysBeforeArrival ?? 0)
 		const score = Math.min(95, 65 + days)
 		return days > 0

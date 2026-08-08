@@ -4,9 +4,11 @@
 export * from "./application/use-cases/snapshot-policies-for-booking"
 export * from "./application/use-cases/get-policies-for-booking"
 export * from "./application/use-cases/create-booking-from-hold"
+export * from "./application/use-cases/get-guest-trip-confirmation"
 export * from "./application/errors/bookingValidationError"
 export * from "./application/errors/bookingPolicySnapshotMissingError"
 export * from "./application/ports/BookingPolicySnapshotRepositoryPort"
+export * from "./application/ports/GuestTripQueryRepositoryPort"
 export {
 	BookingOperationsQueryRepository,
 	bookingOperationsQueryRepository,

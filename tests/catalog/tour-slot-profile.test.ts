@@ -63,7 +63,10 @@ describe("tour slot profile (fase 2)", () => {
 		const evaluate = read(
 			"src/modules/catalog/application/use-cases/product/evaluate-product-readiness.ts"
 		)
-		expect(evaluate).toContain("profile, capacity and rate")
+		expect(evaluate).toContain("tourPublicationValidationErrors")
+		const quality = read("src/lib/tours/tourAdminQuality.ts")
+		expect(quality).toContain("profile, capacity and rate")
+		expect(quality).toContain("missing_tour_schedule")
 
 		const variantReady = read(
 			"src/modules/catalog/application/use-cases/variant/evaluate-variant-readiness.ts"
@@ -78,7 +81,7 @@ describe("tour slot profile (fase 2)", () => {
 })
 
 describe("tour booking guest commerce (fase 3)", () => {
-	it("wires TourAdapter and PDP hold/confirm with salida/participantes labels", () => {
+	it("wires TourAdapter and PDP hold/confirm with age-band occupancy", () => {
 		const adapter = read("src/modules/search/infrastructure/adapters/TourAdapter.ts")
 		expect(adapter).toContain("export class TourAdapter")
 
@@ -90,12 +93,22 @@ describe("tour booking guest commerce (fase 3)", () => {
 		expect(pdp).toContain("tourDepartureToStay")
 		expect(pdp).toContain("TourDepartureSection")
 		expect(pdp).toContain("searchOffers")
+		expect(pdp).toContain("tourTicketsToOccupancyDetail")
+		expect(pdp).toContain("TourTicketType")
 
 		const section = read("src/components/tours/TourDepartureSection.astro")
 		expect(section).toContain("Fecha de salida")
-		expect(section).toContain("Participantes")
+		expect(section).toContain("data-ticket-qty")
+		expect(section).toContain("occupancyDetail")
 		expect(section).toContain("/api/inventory/hold")
 		expect(section).toContain("/api/booking/confirm")
-		expect(section).toContain("rooms: participants()")
+
+		const confirmation = read(
+			"src/modules/booking/infrastructure/repositories/BookingFromHoldRepository.ts"
+		)
+		expect(confirmation).toContain('toLowerCase() === "tour_slot"')
+		expect(confirmation).toContain("TourSlotProfile.meetingPointOverrideJson")
+		expect(confirmation).toContain("productMeetingPoint: Tour.meetingPointJson")
+		expect(confirmation).toContain("meetingPoint: meetingPointSnapshot")
 	})
 })

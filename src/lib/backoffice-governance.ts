@@ -446,6 +446,14 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 			"Superficie administrativa de plataforma; no pertenece a la navegación del proveedor.",
 	},
 	{
+		pattern: "/api/internal/observability/tours-rollout",
+		status: "canonical",
+		context: "internal-admin",
+		owner: "Internal Admin / Tours Rollout",
+		rationale:
+			"Internal admin BFF for Tours canary health; consumed by /admin/tours/rollout before the observability catch-all.",
+	},
+	{
 		pattern: "/api/internal/dashboard-summary",
 		status: "canonical",
 		context: "enterprise-operations",
@@ -688,6 +696,34 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		rationale: "Booking lifecycle APIs.",
 	},
 	{
+		pattern: "/api/trips/:bookingId",
+		status: "public",
+		context: "public-marketplace",
+		owner: "Public Marketplace",
+		rationale: "Guest trip confirmation API; owner-scoped by Booking.userId.",
+	},
+	{
+		pattern: "/api/reviews/**",
+		status: "public",
+		context: "public-marketplace",
+		owner: "Public Marketplace",
+		rationale: "Verified review create and provider moderation APIs for tours trust.",
+	},
+	{
+		pattern: "/api/telemetry/**",
+		status: "public",
+		context: "public-marketplace",
+		owner: "Public Marketplace",
+		rationale: "Marketplace attribution telemetry for cross-sell funnels.",
+	},
+	{
+		pattern: "/api/tours/**",
+		status: "public",
+		context: "public-marketplace",
+		owner: "Public Marketplace",
+		rationale: "Guest private-request and provider transition APIs for private salidas.",
+	},
+	{
 		pattern: "/api/inventory/**",
 		status: "canonical",
 		context: "enterprise-operations",
@@ -904,6 +940,13 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		context: "public-marketplace",
 		owner: "Public Marketplace",
 		rationale: "Consumer tour discovery and detail routes.",
+	},
+	{
+		pattern: "/trips/:bookingId",
+		status: "public",
+		context: "public-marketplace",
+		owner: "Public Marketplace",
+		rationale: "Guest trip confirmation surface after tour booking.",
 	},
 	{
 		pattern: "/packages/**",

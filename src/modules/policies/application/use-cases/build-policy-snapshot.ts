@@ -68,7 +68,9 @@ export function buildPolicyItemSnapshot(
 	entry: ResolveEffectivePoliciesResult["policies"][number],
 	checkIn: string,
 	checkOut?: string | null,
-	exceptionRules?: PolicyExceptionRule[]
+	exceptionRules?: PolicyExceptionRule[],
+	departureTime?: string | null,
+	canary?: { providerId?: string | null; host?: string | null }
 ): HoldPolicyItemSnapshot {
 	const normalized = normalizeCategory(entry.category)
 	if (!normalized) {
@@ -79,6 +81,9 @@ export function buildPolicyItemSnapshot(
 		policy: entry.policy,
 		checkIn,
 		checkOut,
+		departureTime,
+		providerId: canary?.providerId,
+		host: canary?.host,
 		exceptionRules,
 	})
 	return {
@@ -122,6 +127,11 @@ export function buildPolicySnapshot(params: {
 	channel?: string | null
 	resolvedAt?: Date
 	exceptionRules?: PolicyExceptionRule[]
+	/** Tour salida clock (HH:mm); freezes hour-based cancellation deadlines. */
+	departureTime?: string | null
+	/** Tours refund-hours canary subject. */
+	providerId?: string | null
+	host?: string | null
 }): HoldPolicySnapshot {
 	const byCategory: Record<SnapshotCategory, HoldPolicyItemSnapshot | null> = {
 		cancellation: null,
@@ -137,7 +147,9 @@ export function buildPolicySnapshot(params: {
 			entry,
 			params.checkIn,
 			params.checkOut,
-			params.exceptionRules
+			params.exceptionRules,
+			params.departureTime,
+			{ providerId: params.providerId, host: params.host }
 		)
 	}
 

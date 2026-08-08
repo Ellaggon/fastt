@@ -1,25 +1,50 @@
 ---
+import Badge from "@/components/ui/Badge.astro"
 import Breadcrumbs from "@/components/Breadcrumbs.astro"
 import TourDepartureSection from "@/components/tours/TourDepartureSection.astro"
 import { SERVICE_CATALOG } from "@/data/service/service-catalog"
 import { searchOffers } from "@/container"
 import Layout from "@/layouts/Layout.astro"
 import { tourDepartureToStay } from "@/lib/tours/tourSemantics"
+import {
+	buildAgeBandPriceBreakdown,
+	parseTourTicketQuantitiesFromSearchParams,
+	tourCupoUnits,
+	tourTicketsToOccupancyDetail,
+} from "@/lib/tours/tourTicketOccupancy"
+import {
+	buildPolicySnapshot,
+	derivePolicySummaryFromResolvedPolicies,
+	resolveEffectivePolicies,
+} from "@/modules/policies/public"
 import type { ImageRow, ServiceRow } from "@/types/products"
 import {
-	first,
+	and,
 	asc,
+	avg,
+	count,
 	db,
+	desc,
 	Destination,
 	eq,
+	first,
 	Image,
 	inArray,
+	lte,
+	or,
+	isNull,
 	Product,
+	ProductCategory,
+	ProductCategoryLink,
 	ProductContent,
 	ProductLocation,
+	ProductReview,
 	ProductService,
+	RatePlanOccupancyPolicy,
+	gt,
 	Tour,
 	TourSlotProfile,
+	TourTicketType,
 	Variant,
 } from "@/shared/infrastructure/db/compat"
 
@@ -31,6 +56,7 @@ let subtype: any = null
 let description: string | null = null
 let services: Array<ServiceRow & { iconId?: string | null }> = []
 let errorMessage: string | null = null
+let productType = ""
 
 function toISODateOnly(d: Date) {
 	return d.toISOString().slice(0, 10)
@@ -57,13 +83,26 @@ function fieldFromObject(value: unknown, key: string) {
 if (!productId) return Astro.redirect("/tours")
 
 const departureStr = url.searchParams.get("departure")
-const participants = Math.max(1, Number(url.searchParams.get("participants") ?? 1) || 1)
+const quantities = parseTourTicketQuantitiesFromSearchParams(url.searchParams)
+// Legacy participants → adults
+if (
+	!url.searchParams.has("adults") &&
+	!url.searchParams.has("adult") &&
+	url.searchParams.has("participants")
+) {
+	quantities.adult = Math.max(1, Number(url.searchParams.get("participants") ?? 1) || 1)
+}
 
 if (!departureStr) {
 	const today = new Date()
-	return Astro.redirect(
-		`/tours/${productId}?departure=${toISODateOnly(today)}&participants=${participants}`
-	)
+	const qs = new URLSearchParams({
+		departure: toISODateOnly(today),
+		adults: String(quantities.adult || 1),
+		children: String(quantities.child || 0),
+		infants: String(quantities.infant || 0),
+	})
+	if (quantities.custom) qs.set("custom", String(quantities.custom))
+	return Astro.redirect(`/tours/${productId}?${qs.toString()}`)
 }
 
 let stay
@@ -72,16 +111,40 @@ try {
 } catch {
 	const today = new Date()
 	return Astro.redirect(
-		`/tours/${productId}?departure=${toISODateOnly(today)}&participants=${participants}`
+		`/tours/${productId}?departure=${toISODateOnly(today)}&adults=${quantities.adult || 1}`
 	)
 }
+
+const ticketTypes = await db
+	.select()
+	.from(TourTicketType)
+	.where(and(eq(TourTicketType.productId, productId), eq(TourTicketType.isActive, true)))
+	.orderBy(asc(TourTicketType.sortOrder), asc(TourTicketType.code))
+
+const ticketBands = ticketTypes.map((t) => ({
+	code: String(t.code),
+	label: String(t.label),
+	minAge: t.minAge == null ? null : Number(t.minAge),
+	maxAge: t.maxAge == null ? null : Number(t.maxAge),
+	isActive: Boolean(t.isActive),
+}))
+
+const occupancyDetail = tourTicketsToOccupancyDetail({
+	tickets: ticketBands.length ? ticketBands : [{ code: "adult", label: "Adulto", isActive: true }],
+	quantities,
+})
+const cupoUnits = tourCupoUnits({
+	tickets: ticketBands.length ? ticketBands : [{ code: "adult", label: "Adulto", isActive: true }],
+	quantities,
+})
 
 const offers = await searchOffers({
 	productId,
 	checkIn: stay.checkIn,
 	checkOut: stay.checkOut,
-	adults: participants,
-	children: 0,
+	adults: occupancyDetail.adults,
+	children: occupancyDetail.children,
+	rooms: cupoUnits,
 	featureContext: {
 		request: Astro.request,
 		query: url.searchParams,
@@ -100,7 +163,7 @@ try {
 
 	if (!productResult) return Astro.redirect("/tours")
 
-	const productType = String(productResult.Product.productType ?? "")
+	productType = String(productResult.Product.productType ?? "")
 		.trim()
 		.toLowerCase()
 	if (productType !== "tour") return Astro.redirect("/tours")
@@ -147,15 +210,37 @@ const productData = product ? { ...product, images, subtype, services, descripti
 const itinerarySteps = asStringList(productData?.subtype?.itineraryJson)
 const includes = asStringList(productData?.subtype?.includesJson)
 const excludes = asStringList(productData?.subtype?.excludesJson)
-const categories = asStringList(productData?.subtype?.categoriesJson)
+const categoryRows = productId
+	? await db
+			.select({ name: ProductCategory.name, slug: ProductCategory.slug })
+			.from(ProductCategoryLink)
+			.innerJoin(ProductCategory, eq(ProductCategory.id, ProductCategoryLink.categoryId))
+			.where(
+				and(
+					eq(ProductCategoryLink.productId, productId),
+					eq(ProductCategory.vertical, "tour"),
+					eq(ProductCategory.isActive, true)
+				)
+			)
+			.orderBy(asc(ProductCategory.sortOrder), asc(ProductCategory.name))
+	: []
+const categories = categoryRows.map((row) => String(row.name)).filter(Boolean)
 const meetingAddress = fieldFromObject(productData?.subtype?.meetingPointJson, "address")
 const meetingInstructions = fieldFromObject(productData?.subtype?.meetingPointJson, "instructions")
+const meetingLat = fieldFromObject(productData?.subtype?.meetingPointJson, "lat")
+const meetingLng = fieldFromObject(productData?.subtype?.meetingPointJson, "lng")
 const pickupArea = fieldFromObject(productData?.subtype?.pickupJson, "defaultArea")
 const pickupInstructions = fieldFromObject(productData?.subtype?.pickupJson, "instructions")
 const guideLanguages = fieldFromObject(productData?.subtype?.guideJson, "languages")
 const guideType = fieldFromObject(productData?.subtype?.guideJson, "guideType")
 const safetyRequirements = fieldFromObject(productData?.subtype?.safetyJson, "requirements")
 const safetyWarnings = fieldFromObject(productData?.subtype?.safetyJson, "warnings")
+const beforeYouBook = [
+	safetyRequirements ? `Requisitos: ${safetyRequirements}` : "",
+	safetyWarnings ? `Advertencias: ${safetyWarnings}` : "",
+	pickupInstructions ? `Pickup: ${pickupInstructions}` : "",
+	meetingInstructions ? `Encuentro: ${meetingInstructions}` : "",
+].filter(Boolean)
 
 const offerVariantIds = Array.from(
 	new Set(offers.map((offer: any) => String(offer?.variantId ?? "")).filter(Boolean))
@@ -189,9 +274,154 @@ const slotsByVariantId = Object.fromEntries(
 	])
 )
 
+const firstOffer = offers[0] as any
+const firstRatePlanId = String(
+	firstOffer?.ratePlans?.[0]?.ratePlanId ?? firstOffer?.ratePlans?.[0]?.id ?? ""
+).trim()
+const firstVariantId = String(firstOffer?.variantId ?? "").trim()
+const firstDepartureTime = String(slotsByVariantId[firstVariantId]?.departureTime ?? "09:00").trim()
+
+let policySummary = ""
+let freeCancelDeadline: string | null = null
+/** Badges only when backed by persisted rows (policy / productType / TourSlotProfile). */
+let badges: Array<{
+	label: string
+	variant: "success" | "info" | "neutral" | "warning"
+	source: string
+}> = []
+
+if (firstRatePlanId && productId) {
+	try {
+		const resolved = await resolveEffectivePolicies({
+			productId,
+			variantId: firstVariantId || undefined,
+			ratePlanId: firstRatePlanId,
+			checkIn: stay.checkIn.toISOString().slice(0, 10),
+			checkOut: stay.checkOut.toISOString().slice(0, 10),
+			channel: "web",
+		})
+		policySummary = derivePolicySummaryFromResolvedPolicies(resolved)
+		const snapshot = buildPolicySnapshot({
+			resolvedPolicies: resolved,
+			checkIn: stay.checkIn.toISOString().slice(0, 10),
+			checkOut: stay.checkOut.toISOString().slice(0, 10),
+			channel: "web",
+			departureTime: firstDepartureTime,
+		})
+		freeCancelDeadline =
+			snapshot.cancellation?.calculation?.cancellation?.freeCancellationDeadlineLocal ?? null
+		if (snapshot.cancellation) {
+			const cancelText = policySummary.toLowerCase()
+			if (cancelText.includes("gratis") || cancelText.includes("flexible")) {
+				badges.push({
+					label: "Cancelación flexible",
+					variant: "success",
+					source: "BookingPolicySnapshot/cancellation",
+				})
+			} else if (cancelText.includes("no reembolsable")) {
+				badges.push({
+					label: "No reembolsable",
+					variant: "warning",
+					source: "BookingPolicySnapshot/cancellation",
+				})
+			} else {
+				badges.push({
+					label: "Política de cancelación",
+					variant: "info",
+					source: "PolicyAssignment→cancellation",
+				})
+			}
+		}
+	} catch {
+		/* no cancellation badge without a resolved policy */
+	}
+}
+// Tours issue BookingVoucher on confirm — persisted Product.productType.
+if (productType === "tour") {
+	badges.push({ label: "Voucher móvil", variant: "info", source: "Product.productType=tour" })
+}
+// Instant confirm path for published salidas with TourSlotProfile.
+const hasSlotProfile = offerVariantIds.some((id) => Boolean(slotsByVariantId[id]?.departureTime))
+if (hasSlotProfile) {
+	badges.push({
+		label: "Confirmación inmediata",
+		variant: "success",
+		source: "TourSlotProfile.departureTime",
+	})
+}
+
+const todayIso = new Date().toISOString().slice(0, 10)
+const occupancyPolicy = firstRatePlanId
+	? await db
+			.select({
+				baseAmount: RatePlanOccupancyPolicy.baseAmount,
+				baseAdults: RatePlanOccupancyPolicy.baseAdults,
+				baseChildren: RatePlanOccupancyPolicy.baseChildren,
+				extraAdultValue: RatePlanOccupancyPolicy.extraAdultValue,
+				childMode: RatePlanOccupancyPolicy.childMode,
+				childValue: RatePlanOccupancyPolicy.childValue,
+			})
+			.from(RatePlanOccupancyPolicy)
+			.where(
+				and(
+					eq(RatePlanOccupancyPolicy.ratePlanId, firstRatePlanId),
+					lte(RatePlanOccupancyPolicy.effectiveFrom, new Date(`${todayIso}T00:00:00.000Z`)),
+					or(
+						isNull(RatePlanOccupancyPolicy.effectiveTo),
+						gt(RatePlanOccupancyPolicy.effectiveTo, new Date(`${todayIso}T00:00:00.000Z`))
+					)
+				)
+			)
+			.orderBy(desc(RatePlanOccupancyPolicy.effectiveFrom))
+			.then(first)
+	: null
+
+const priceBreakdown = buildAgeBandPriceBreakdown({
+	tickets: ticketBands.length ? ticketBands : [{ code: "adult", label: "Adulto", isActive: true }],
+	quantities,
+	policy: occupancyPolicy
+		? {
+				baseAmount: Number(occupancyPolicy.baseAmount ?? 0),
+				baseAdults: Number(occupancyPolicy.baseAdults ?? 1),
+				baseChildren: Number(occupancyPolicy.baseChildren ?? 0),
+				extraAdultValue:
+					occupancyPolicy.extraAdultValue == null ? null : Number(occupancyPolicy.extraAdultValue),
+				childMode: occupancyPolicy.childMode == null ? null : String(occupancyPolicy.childMode),
+				childValue: occupancyPolicy.childValue == null ? null : Number(occupancyPolicy.childValue),
+			}
+		: null,
+})
+
+const reviewAgg = await db
+	.select({
+		avgRating: avg(ProductReview.rating),
+		reviewCount: count(),
+	})
+	.from(ProductReview)
+	.where(and(eq(ProductReview.productId, productId), eq(ProductReview.status, "published")))
+	.then(first)
+
+const recentReviews = await db
+	.select({
+		id: ProductReview.id,
+		rating: ProductReview.rating,
+		body: ProductReview.body,
+		createdAt: ProductReview.createdAt,
+	})
+	.from(ProductReview)
+	.where(and(eq(ProductReview.productId, productId), eq(ProductReview.status, "published")))
+	.orderBy(desc(ProductReview.createdAt))
+	.limit(3)
+
+const avgRating =
+	reviewAgg?.avgRating == null ? null : Number(Number(reviewAgg.avgRating).toFixed(1))
+const reviewCount = Number(reviewAgg?.reviewCount ?? 0)
+
 const searchState = {
 	departureDate: departureStr,
-	participants,
+	quantities,
+	occupancyDetail,
+	cupoUnits,
 }
 
 const breadcrumbItems = [
@@ -203,6 +433,16 @@ const breadcrumbItems = [
 		current: true,
 	},
 ]
+
+const mapsQuery = encodeURIComponent(
+	[meetingAddress, productData?.destination?.name].filter(Boolean).join(", ")
+)
+const mapEmbed =
+	meetingLat && meetingLng
+		? `https://www.openstreetmap.org/export/embed.html?bbox=${Number(meetingLng) - 0.01}%2C${Number(meetingLat) - 0.01}%2C${Number(meetingLng) + 0.01}%2C${Number(meetingLat) + 0.01}&layer=mapnik&marker=${meetingLat}%2C${meetingLng}`
+		: meetingAddress
+			? `https://www.openstreetmap.org/export/embed.html?bbox=-180%2C-85%2C180%2C85&layer=mapnik`
+			: null
 ---
 
 <Layout title={productData?.name || "Tour"}>
@@ -244,16 +484,38 @@ const breadcrumbItems = [
 						</div>
 					)}
 
-					<section class="fastt-card space-y-4 rounded-[var(--fastt-radius-panel)] border border-gray-200 bg-gray-100 p-8 shadow-sm">
-						<h1 class="text-4xl font-bold text-gray-900">{productData.name}</h1>
-						<p class="text-neutral-500">
-							{productData.location?.address ?? (meetingAddress || "Ubicación por confirmar")}
-							{productData.destination?.name ? `, ${productData.destination.name}` : ""}
-						</p>
+					<section class="fastt-card space-y-4 rounded-[var(--fastt-radius-panel)] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+						<div class="flex flex-wrap items-start justify-between gap-4">
+							<div class="space-y-2">
+								<h1 class="text-4xl font-bold tracking-tight text-slate-950">{productData.name}</h1>
+								<p class="text-slate-600">
+									{productData.location?.address ?? (meetingAddress || "Ubicación por confirmar")}
+									{productData.destination?.name ? `, ${productData.destination.name}` : ""}
+								</p>
+								{avgRating != null && reviewCount > 0 ? (
+									<p class="text-sm font-medium text-slate-800">
+										★ {avgRating}
+										<span class="font-normal text-slate-500">
+											{" "}
+											· {reviewCount} reseñas publicadas
+										</span>
+									</p>
+								) : (
+									<p class="text-sm text-slate-500">Aún sin reseñas publicadas</p>
+								)}
+							</div>
+							<div class="flex flex-wrap gap-2">
+								{badges.map((badge) => (
+									<Badge variant={badge.variant} title={`Fuente: ${badge.source}`}>
+										{badge.label}
+									</Badge>
+								))}
+							</div>
+						</div>
 
 						<div class="flex flex-wrap gap-3 text-sm text-slate-700">
 							{productData.subtype?.duration ? (
-								<span class="rounded-md bg-white px-3 py-1 shadow-sm">
+								<span class="rounded-md bg-slate-50 px-3 py-1 ring-1 ring-slate-200">
 									Duración: {productData.subtype.duration}
 									{productData.subtype.durationMinutes != null
 										? ` (${productData.subtype.durationMinutes} min)`
@@ -261,40 +523,43 @@ const breadcrumbItems = [
 								</span>
 							) : null}
 							{productData.subtype?.difficultyLevel ? (
-								<span class="rounded-md bg-white px-3 py-1 shadow-sm">
+								<span class="rounded-md bg-slate-50 px-3 py-1 ring-1 ring-slate-200">
 									Nivel: {productData.subtype.difficultyLevel}
 								</span>
 							) : null}
 							{guideLanguages ? (
-								<span class="rounded-md bg-white px-3 py-1 shadow-sm">
+								<span class="rounded-md bg-slate-50 px-3 py-1 ring-1 ring-slate-200">
 									Idiomas: {guideLanguages}
 								</span>
 							) : null}
 							{guideType ? (
-								<span class="rounded-md bg-white px-3 py-1 shadow-sm">Guía: {guideType}</span>
+								<span class="rounded-md bg-slate-50 px-3 py-1 ring-1 ring-slate-200">
+									Guía: {guideType}
+								</span>
 							) : null}
 						</div>
+
+						{policySummary ? (
+							<div class="fastt-soft-box rounded-[var(--fastt-radius-card)] border border-slate-200 bg-slate-50 p-4">
+								<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+									Cancelación
+								</p>
+								<p class="mt-1 text-sm font-medium text-slate-900">{policySummary}</p>
+								{freeCancelDeadline ? (
+									<p class="mt-1 text-xs text-slate-600">Cutoff local: {freeCancelDeadline}</p>
+								) : null}
+							</div>
+						) : null}
 
 						{categories.length > 0 && (
 							<ul class="flex flex-wrap gap-2">
 								{categories.map((c) => (
-									<li class="rounded-full bg-slate-800 px-3 py-1 text-xs text-white">{c}</li>
+									<li class="rounded-full bg-slate-900 px-3 py-1 text-xs text-white">{c}</li>
 								))}
 							</ul>
 						)}
 
-						{productData.services.length > 0 && (
-							<ul class="grid grid-cols-2 gap-3 py-4 md:grid-cols-3 lg:grid-cols-4">
-								{productData.services.map((s: ServiceRow & { iconId?: string | null }) => (
-									<li class="flex items-center gap-2">
-										<span>•</span>
-										<span>{s.name}</span>
-									</li>
-								))}
-							</ul>
-						)}
-
-						{description ? <p class="mt-4 leading-relaxed text-gray-700">{description}</p> : null}
+						{description ? <p class="leading-relaxed text-slate-700">{description}</p> : null}
 					</section>
 
 					<section id="booking">
@@ -303,31 +568,60 @@ const breadcrumbItems = [
 							offers={offers}
 							slotsByVariantId={slotsByVariantId}
 							searchState={searchState}
+							ticketTypes={ticketBands}
+							priceBreakdown={priceBreakdown}
+							policySummary={policySummary}
 						/>
 					</section>
 
 					{(meetingAddress || meetingInstructions || pickupArea) && (
-						<section class="fastt-card space-y-3 rounded-[var(--fastt-radius-panel)] border border-gray-200 bg-white p-8 shadow-sm">
-							<h2 class="text-2xl font-semibold text-gray-900">Punto de encuentro y pickup</h2>
-							{meetingAddress ? (
-								<p class="text-gray-700">
-									<strong>Encuentro:</strong> {meetingAddress}
-								</p>
-							) : null}
-							{meetingInstructions ? <p class="text-gray-600">{meetingInstructions}</p> : null}
-							{pickupArea ? (
-								<p class="text-gray-700">
-									<strong>Pickup:</strong> {pickupArea}
-								</p>
-							) : null}
-							{pickupInstructions ? <p class="text-gray-600">{pickupInstructions}</p> : null}
+						<section class="fastt-card space-y-4 rounded-[var(--fastt-radius-panel)] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+							<h2 class="text-2xl font-semibold text-slate-950">Punto de encuentro y pickup</h2>
+							<div class="grid gap-6 lg:grid-cols-2">
+								<div class="space-y-2 text-sm text-slate-700">
+									{meetingAddress ? (
+										<p>
+											<strong>Encuentro:</strong> {meetingAddress}
+										</p>
+									) : null}
+									{meetingInstructions ? <p>{meetingInstructions}</p> : null}
+									{pickupArea ? (
+										<p>
+											<strong>Pickup:</strong> {pickupArea}
+										</p>
+									) : null}
+									{pickupInstructions ? <p>{pickupInstructions}</p> : null}
+									{meetingAddress ? (
+										<a
+											class="inline-flex text-sm font-semibold text-sky-800 hover:underline"
+											href={`https://www.openstreetmap.org/search?query=${mapsQuery}`}
+											target="_blank"
+											rel="noreferrer"
+										>
+											Abrir en mapa
+										</a>
+									) : null}
+								</div>
+								{mapEmbed && meetingLat && meetingLng ? (
+									<iframe
+										title="Mapa del punto de encuentro"
+										class="h-56 w-full rounded-[var(--fastt-radius-card)] border border-slate-200"
+										src={mapEmbed}
+										loading="lazy"
+									/>
+								) : meetingAddress ? (
+									<div class="flex h-56 items-center justify-center rounded-[var(--fastt-radius-card)] border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-sm text-slate-600">
+										Dirección disponible: {meetingAddress}. Coordenadas no publicadas todavía.
+									</div>
+								) : null}
+							</div>
 						</section>
 					)}
 
 					{itinerarySteps.length > 0 && (
-						<section class="fastt-card space-y-3 rounded-[var(--fastt-radius-panel)] border border-gray-200 bg-white p-8 shadow-sm">
-							<h2 class="text-2xl font-semibold text-gray-900">Itinerario</h2>
-							<ol class="list-decimal space-y-2 pl-5 text-gray-700">
+						<section class="fastt-card space-y-3 rounded-[var(--fastt-radius-panel)] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+							<h2 class="text-2xl font-semibold text-slate-950">Itinerario</h2>
+							<ol class="list-decimal space-y-2 pl-5 text-slate-700">
 								{itinerarySteps.map((step) => (
 									<li>{step}</li>
 								))}
@@ -338,9 +632,9 @@ const breadcrumbItems = [
 					{(includes.length > 0 || excludes.length > 0) && (
 						<section class="grid gap-6 md:grid-cols-2">
 							{includes.length > 0 ? (
-								<div class="fastt-card rounded-[var(--fastt-radius-panel)] border border-gray-200 bg-white p-8 shadow-sm">
-									<h2 class="mb-3 text-xl font-semibold text-gray-900">Incluye</h2>
-									<ul class="list-disc space-y-1 pl-5 text-gray-700">
+								<div class="fastt-card rounded-[var(--fastt-radius-panel)] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+									<h2 class="mb-3 text-xl font-semibold text-slate-950">Incluye</h2>
+									<ul class="list-disc space-y-1 pl-5 text-slate-700">
 										{includes.map((item) => (
 											<li>{item}</li>
 										))}
@@ -348,9 +642,9 @@ const breadcrumbItems = [
 								</div>
 							) : null}
 							{excludes.length > 0 ? (
-								<div class="fastt-card rounded-[var(--fastt-radius-panel)] border border-gray-200 bg-white p-8 shadow-sm">
-									<h2 class="mb-3 text-xl font-semibold text-gray-900">No incluye</h2>
-									<ul class="list-disc space-y-1 pl-5 text-gray-700">
+								<div class="fastt-card rounded-[var(--fastt-radius-panel)] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+									<h2 class="mb-3 text-xl font-semibold text-slate-950">No incluye</h2>
+									<ul class="list-disc space-y-1 pl-5 text-slate-700">
 										{excludes.map((item) => (
 											<li>{item}</li>
 										))}
@@ -360,19 +654,37 @@ const breadcrumbItems = [
 						</section>
 					)}
 
-					{(safetyRequirements || safetyWarnings) && (
-						<section class="fastt-card space-y-2 rounded-[var(--fastt-radius-panel)] border border-gray-200 bg-white p-8 shadow-sm">
-							<h2 class="text-2xl font-semibold text-gray-900">Seguridad y preparación</h2>
-							{safetyRequirements ? (
-								<p class="text-gray-700">
-									<strong>Requisitos:</strong> {safetyRequirements}
-								</p>
-							) : null}
-							{safetyWarnings ? (
-								<p class="text-gray-700">
-									<strong>Advertencias:</strong> {safetyWarnings}
-								</p>
-							) : null}
+					{beforeYouBook.length > 0 && (
+						<section class="fastt-card space-y-3 rounded-[var(--fastt-radius-panel)] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+							<h2 class="text-2xl font-semibold text-slate-950">Antes de reservar</h2>
+							<ul class="list-disc space-y-2 pl-5 text-slate-700">
+								{beforeYouBook.map((item) => (
+									<li>{item}</li>
+								))}
+							</ul>
+						</section>
+					)}
+
+					{recentReviews.length > 0 && (
+						<section class="fastt-card space-y-4 rounded-[var(--fastt-radius-panel)] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+							<div class="flex items-end justify-between gap-3">
+								<h2 class="text-2xl font-semibold text-slate-950">Reseñas</h2>
+								{avgRating != null ? (
+									<p class="text-sm text-slate-600">
+										Promedio {avgRating} · {reviewCount} publicadas
+									</p>
+								) : null}
+							</div>
+							<ul class="space-y-3">
+								{recentReviews.map((review) => (
+									<li class="rounded-[var(--fastt-radius-card)] border border-slate-100 bg-slate-50 p-4">
+										<p class="text-sm font-semibold text-slate-900">★ {Number(review.rating)}</p>
+										{review.body ? (
+											<p class="mt-1 text-sm leading-6 text-slate-700">{review.body}</p>
+										) : null}
+									</li>
+								))}
+							</ul>
 						</section>
 					)}
 
