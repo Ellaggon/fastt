@@ -5,13 +5,17 @@ import {
 	db,
 	EffectivePricingV2,
 	eq,
+	first,
 	gte,
 	lt,
+	Product,
 	SearchUnitView,
+	TourSlotProfile,
 } from "@/shared/infrastructure/db/compat"
 
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { invalidateVariant } from "@/lib/cache/invalidation"
+import { recordTourHold, toursCheckoutEnabled } from "@/lib/tours/tourObservability"
 import { applyInventoryMutation, createInventoryHold } from "@/modules/inventory/public"
 import { resolveEffectivePolicies } from "@/modules/policies/public"
 import { buildGuestStayExpectationsSnapshot } from "@/modules/house-rules/public"
@@ -362,6 +366,10 @@ const GUEST_SESSION_COOKIE = "ft_guest_session_id"
 
 export const POST: APIRoute = async ({ request, cookies }) => {
 	const startedAt = performance.now()
+	let tourHoldAttempt = false
+	let tourMetricCtx:
+		| { providerId: string | null; subject: { providerId: string | null; host: string | null } }
+		| undefined
 	try {
 		const user = await getUserFromRequest(request)
 
@@ -472,6 +480,55 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 				const variant = await variantManagementRepository.getVariantById(parsed.variantId)
 				if (!variant?.productId) throw new Error("variant_not_found")
 
+				const tourSlot = await db
+					.select({
+						departureTime: TourSlotProfile.departureTime,
+						bookingMode: TourSlotProfile.bookingMode,
+					})
+					.from(TourSlotProfile)
+					.where(eq(TourSlotProfile.variantId, parsed.variantId))
+					.then(first)
+
+				const isTourSlot = Boolean(tourSlot)
+				tourHoldAttempt = isTourSlot
+				const requestHost = (() => {
+					try {
+						return new URL(request.url).host
+					} catch {
+						return null
+					}
+				})()
+				const providerId = await db
+					.select({ providerId: Product.providerId })
+					.from(Product)
+					.where(eq(Product.id, variant.productId))
+					.then(first)
+					.then((row) => String(row?.providerId ?? "").trim() || null)
+				tourMetricCtx = {
+					providerId,
+					subject: { providerId, host: requestHost },
+				}
+				// Env-only kill-switch + canary (staging → allowlist → % → general).
+				if (
+					isTourSlot &&
+					!toursCheckoutEnabled({
+						providerId,
+						host: requestHost,
+					})
+				) {
+					throw new Error("tours_checkout_disabled")
+				}
+
+				if (String(tourSlot?.bookingMode ?? "").toLowerCase() === "private") {
+					recordTourHold("private_on_request", undefined, tourMetricCtx)
+					const err = new Error("private_on_request")
+					;(err as any).details = {
+						bookingMode: "private",
+						hint: "Use /api/tours/private-request — no inventory hold until provider accepts",
+					}
+					throw err
+				}
+
 				const holdability = await resolveHoldabilityFromView({
 					productId: variant.productId,
 					variantId: parsed.variantId,
@@ -482,6 +539,9 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 					requestedRooms: parsed.rooms,
 				})
 				if (!holdability.holdable) {
+					if (isTourSlot) {
+						recordTourHold("not_holdable", String(holdability.reason ?? "UNKNOWN"), tourMetricCtx)
+					}
 					const err = new Error("not_holdable")
 					;(err as any).details = holdability
 					throw err
@@ -498,6 +558,9 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 							productId: variant.productId,
 							ratePlanId: parsed.ratePlanId,
 							channel: "web",
+							departureTime: tourSlot?.departureTime ?? null,
+							providerId,
+							host: requestHost,
 						},
 						resolvePricingSnapshot: async ({ from, to }) => {
 							if (from !== parsed.dateRange.from || to !== parsed.dateRange.to) return null
@@ -569,6 +632,10 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 			await invalidateVariant(parsed.variantId, variant.productId)
 		}
 
+		if (String(variant?.kind ?? "") === "tour_slot") {
+			recordTourHold("success", undefined, tourMetricCtx)
+		}
+
 		console.debug("inventory_hold_created", {
 			variantId: parsed.variantId,
 			holdId: result.holdId,
@@ -593,6 +660,19 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 				headers: { "Content-Type": "application/json" },
 			})
 		}
+		if (e instanceof Error && e.message === "tours_checkout_disabled") {
+			recordTourHold("disabled", undefined, tourMetricCtx)
+			return new Response(
+				JSON.stringify({
+					error: "tours_checkout_disabled",
+					message: "Tour checkout is temporarily disabled.",
+				}),
+				{
+					status: 503,
+					headers: { "Content-Type": "application/json" },
+				}
+			)
+		}
 		if (e instanceof Error && e.message.startsWith("MISSING_POLICY_CATEGORY:")) {
 			return new Response(
 				JSON.stringify({
@@ -607,12 +687,26 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 			)
 		}
 		if (e instanceof Error && e.message === "not_available") {
+			if (tourHoldAttempt) recordTourHold("not_holdable", "NO_CAPACITY", tourMetricCtx)
 			return new Response(
 				JSON.stringify({
 					error: "not_holdable",
 					reason: "NO_CAPACITY",
 					failingDate: null,
 					debug: null,
+				}),
+				{
+					status: 409,
+					headers: { "Content-Type": "application/json" },
+				}
+			)
+		}
+		if (e instanceof Error && e.message === "private_on_request") {
+			return new Response(
+				JSON.stringify({
+					error: "private_on_request",
+					message:
+						"Esta salida es privada: solicita cotización. No se reserva inventario hasta aceptación del proveedor.",
 				}),
 				{
 					status: 409,
@@ -642,6 +736,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 			)
 		}
 		const msg = e instanceof Error ? e.message : "Unknown error"
+		if (tourHoldAttempt) recordTourHold("failure", msg, tourMetricCtx)
 		return new Response(JSON.stringify({ error: msg }), {
 			status: 500,
 			headers: { "Content-Type": "application/json" },

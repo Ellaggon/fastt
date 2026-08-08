@@ -14,6 +14,7 @@ import {
 	RatePlan,
 	sql,
 	Tour,
+	TourSlotProfile,
 	User,
 	Variant,
 } from "@/shared/infrastructure/db/compat"
@@ -261,14 +262,22 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 			const variantId = variantIds[0]
 
 			const variant = await tx
-				.select({ productId: Variant.productId, variantName: Variant.name })
+				.select({
+					productId: Variant.productId,
+					variantName: Variant.name,
+					kind: Variant.kind,
+				})
 				.from(Variant)
 				.where(eq(Variant.id, variantId))
 				.then(first)
 			if (!variant) throw new Error("HOLD_NOT_FOUND")
 
 			const product = await tx
-				.select({ id: Product.id, providerId: Product.providerId, productName: Product.name })
+				.select({
+					id: Product.id,
+					providerId: Product.providerId,
+					productName: Product.name,
+				})
 				.from(Product)
 				.where(eq(Product.id, variant.productId))
 				.then(first)
@@ -330,6 +339,32 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 				: null
 			const guestNameSnapshot = guest ? compactName([guest.firstName, guest.lastName]) : null
 			const guestEmailSnapshot = String(guest?.email ?? "").trim() || null
+			const isTourSlot =
+				String(variant.kind ?? "")
+					.trim()
+					.toLowerCase() === "tour_slot"
+			const tourMeetingPointSnapshot = isTourSlot
+				? await tx
+						.select({
+							productMeetingPoint: Tour.meetingPointJson,
+							slotMeetingPoint: TourSlotProfile.meetingPointOverrideJson,
+							departureTime: TourSlotProfile.departureTime,
+						})
+						.from(Tour)
+						.leftJoin(TourSlotProfile, eq(TourSlotProfile.variantId, variantId))
+						.where(eq(Tour.productId, product.id))
+						.then(first)
+				: null
+			// Snapshot the slot override first so the traveler receives the precise
+			// departure-point instructions even if a provider edits the tour later.
+			const meetingPointSnapshot =
+				tourMeetingPointSnapshot?.slotMeetingPoint ??
+				tourMeetingPointSnapshot?.productMeetingPoint ??
+				null
+			const departureTimeSnapshot =
+				tourMeetingPointSnapshot?.departureTime == null
+					? null
+					: String(tourMeetingPointSnapshot.departureTime).trim() || null
 			const lifecycleAuditSnapshot = {
 				mode: "derived_visibility",
 				createdAt: now.toISOString(),
@@ -381,6 +416,15 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 					email: guestEmailSnapshot,
 					name: guestNameSnapshot,
 					userId: params.input.userId ?? null,
+					...(isTourSlot
+						? {
+								productName: product.productName,
+								variantName: variant.variantName ?? null,
+								departureDate: snapshot.from,
+								...(departureTimeSnapshot ? { departureTime: departureTimeSnapshot } : {}),
+							}
+						: {}),
+					...(meetingPointSnapshot ? { meetingPoint: meetingPointSnapshot } : {}),
 				},
 				lifecycleAuditJson: lifecycleAuditSnapshot,
 				refundHandoffSnapshotJson: refundHandoffSnapshot,
@@ -461,11 +505,13 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 					instructionsJson: {
 						productName: product.productName,
 						departureDate: snapshot.from,
+						...(departureTimeSnapshot ? { departureTime: departureTimeSnapshot } : {}),
 						participants: {
 							adults: Math.max(1, adults),
 							children: Math.max(0, children),
 							infants: Math.max(0, infants),
 						},
+						...(meetingPointSnapshot ? { meetingPoint: meetingPointSnapshot } : {}),
 						note: "Presenta este voucher el día de la salida.",
 					},
 					qrPayload: voucherCode,
