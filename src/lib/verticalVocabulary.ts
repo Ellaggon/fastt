@@ -28,6 +28,12 @@ export type VerticalOpsVocabulary = {
 	financeGrossSourceLabel: string
 }
 
+/** Guest-facing card / discovery copy (ProductCard, search results). */
+export type VerticalCardVocabulary = {
+	viewCta: string
+	priceUnitLabel: string
+}
+
 export type VerticalVocabulary = {
 	vertical: ProviderVertical
 	product: string
@@ -41,6 +47,7 @@ export type VerticalVocabulary = {
 	scopeRatePlan: string
 	contextLine: string
 	ops: VerticalOpsVocabulary
+	card: VerticalCardVocabulary
 }
 
 const VOCABULARY: Record<ProviderVertical, VerticalVocabulary> = {
@@ -82,6 +89,10 @@ const VOCABULARY: Record<ProviderVertical, VerticalVocabulary> = {
 				"Gestiona llegadas, estadías, salidas, pagos y cancelaciones desde una sola cola de trabajo.",
 			financeGrossSourceLabel: "Línea de reserva (BookingRoomDetail)",
 		},
+		card: {
+			viewCta: "Ver hotel",
+			priceUnitLabel: "Precio por noche",
+		},
 	},
 	tour: {
 		vertical: "tour",
@@ -120,6 +131,10 @@ const VOCABULARY: Record<ProviderVertical, VerticalVocabulary> = {
 			pageIntro:
 				"Gestiona salidas, presentaciones, vouchers, pagos y cancelaciones desde una sola cola de trabajo.",
 			financeGrossSourceLabel: "Línea de reserva / BookingLineItem (tabla BookingRoomDetail)",
+		},
+		card: {
+			viewCta: "Ver tour",
+			priceUnitLabel: "Desde (por participante)",
 		},
 	},
 	rental: {
@@ -160,6 +175,10 @@ const VOCABULARY: Record<ProviderVertical, VerticalVocabulary> = {
 				"Gestiona llegadas, estadías, salidas, pagos y cancelaciones desde una sola cola de trabajo.",
 			financeGrossSourceLabel: "Línea de reserva (BookingRoomDetail)",
 		},
+		card: {
+			viewCta: "Ver propiedad",
+			priceUnitLabel: "Precio por noche",
+		},
 	},
 	package: {
 		vertical: "package",
@@ -198,6 +217,10 @@ const VOCABULARY: Record<ProviderVertical, VerticalVocabulary> = {
 			pageIntro:
 				"Gestiona inicios, viajes, cierres, pagos y cancelaciones desde una sola cola de trabajo.",
 			financeGrossSourceLabel: "Línea de reserva (BookingRoomDetail)",
+		},
+		card: {
+			viewCta: "Ver paquete",
+			priceUnitLabel: "Desde (por persona)",
 		},
 	},
 	limousine: {
@@ -238,6 +261,10 @@ const VOCABULARY: Record<ProviderVertical, VerticalVocabulary> = {
 				"Gestiona servicios, presentaciones, cierres, pagos y cancelaciones desde una sola cola de trabajo.",
 			financeGrossSourceLabel: "Línea de reserva (BookingRoomDetail)",
 		},
+		card: {
+			viewCta: "Ver servicio",
+			priceUnitLabel: "Desde (por unidad)",
+		},
 	},
 	generic: {
 		vertical: "generic",
@@ -276,6 +303,10 @@ const VOCABULARY: Record<ProviderVertical, VerticalVocabulary> = {
 			pageIntro:
 				"Gestiona inicios, actividad, cierres, pagos y cancelaciones desde una sola cola de trabajo.",
 			financeGrossSourceLabel: "Línea de reserva / BookingLineItem (tabla BookingRoomDetail)",
+		},
+		card: {
+			viewCta: "Ver oferta",
+			priceUnitLabel: "Desde (por unidad)",
 		},
 	},
 }

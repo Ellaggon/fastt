@@ -6,7 +6,9 @@ import MapModal from "@/components/productUI/MapModal.astro"
 import RoomModal from "@/components/productUI/RoomModal.astro"
 import RoomSection from "@/components/productUI/RoomSection.astro"
 import ServiceDetailsModal from "@/components/productUI/ServiceDetailsModal.astro"
+import TourCrossSellRail from "@/components/tours/TourCrossSellRail.astro"
 import { searchOffers } from "@/container"
+import { loadHotelTourCrossSell } from "@/lib/tours/hotelTourCrossSell"
 import { POLICY_CATEGORY_ORDER, POLICY_UI_GROUPS } from "@/data/policy/policy-categories"
 import UILayout from "@/layouts/UILayout.astro"
 import { ensureObjectKey } from "@/lib/images/objectKey"
@@ -311,6 +313,17 @@ try {
 	console.error("Error al obtener detalles del producto:", e)
 	errorMessage = e instanceof Error ? e.message : "Error desconocido"
 }
+
+const tourCrossSell = hotelProduct
+	? await loadHotelTourCrossSell({
+			destinationId: hotelProduct.destinationId ?? hotelProduct.destination?.id,
+			checkIn: checkInStr,
+			checkOut: checkOutStr,
+			surface: "hotel_pdp",
+			excludeProductId: productId,
+			limit: 4,
+		})
+	: { cards: [], departureDate: checkInStr, destinationId: null, surface: "hotel_pdp" as const }
 ---
 
 <UILayout title={hotelProduct?.name || "Producto"}>
@@ -560,6 +573,19 @@ try {
 							)}
 						</article>
 					</section>
+
+					{tourCrossSell.cards.length > 0 ? (
+						<section class="space-y-4">
+							<TourCrossSellRail
+								title="Experiencias cerca"
+								subtitle={`Tours disponibles en ${hotelProduct.destination?.name ?? "el destino"} · ${tourCrossSell.departureDate}`}
+								cards={tourCrossSell.cards}
+								surface="hotel_pdp"
+								sourceProductId={productId}
+								destinationId={tourCrossSell.destinationId}
+							/>
+						</section>
+					) : null}
 				</>
 			) : (
 				<p class="text-center text-neutral-500">Cargando...</p>

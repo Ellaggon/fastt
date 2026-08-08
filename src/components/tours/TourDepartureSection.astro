@@ -1,9 +1,18 @@
 ---
 import Button from "@/components/ui/Button.astro"
 import Input from "@/components/ui/Input.astro"
+import Textarea from "@/components/ui/Textarea.astro"
 import { Clock, Users } from "@lucide/astro"
 
-const { offers = [], slotsByVariantId = {}, searchState, productId } = Astro.props
+const {
+	offers = [],
+	slotsByVariantId = {},
+	searchState,
+	productId,
+	ticketTypes = [],
+	priceBreakdown = null,
+	policySummary = null,
+} = Astro.props
 
 function ratePlanIdOf(ratePlan: any): string {
 	return String(ratePlan?.ratePlanId ?? ratePlan?.id ?? "").trim()
@@ -13,12 +22,20 @@ function priceOf(ratePlan: any): number | null {
 	const value = Number(ratePlan?.finalPrice ?? ratePlan?.basePrice ?? ratePlan?.price)
 	return Number.isFinite(value) ? value : null
 }
+
+const activeTickets = (Array.isArray(ticketTypes) ? ticketTypes : []).filter(
+	(t: any) => t?.isActive !== false
+)
+const quantities = searchState?.quantities ?? { adult: 1, child: 0, infant: 0, custom: 0 }
+const occupancyDetail = searchState?.occupancyDetail ?? { adults: 1, children: 0, infants: 0 }
+const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 ---
 
 <section
 	class="fastt-workspace-panel space-y-5 p-4 md:p-6"
 	data-tour-booking-root
 	data-product-id={productId}
+	data-ticket-types={JSON.stringify(activeTickets)}
 >
 	<header class="flex flex-wrap items-end justify-between gap-4">
 		<div>
@@ -26,35 +43,84 @@ function priceOf(ratePlan: any): number | null {
 				Reserva tu experiencia
 			</span>
 			<h2 class="mt-1 text-2xl font-semibold text-slate-950">Salidas disponibles</h2>
+			{policySummary ? <p class="mt-2 max-w-xl text-sm text-slate-600">{policySummary}</p> : null}
 		</div>
-		<div class="grid w-full grid-cols-2 gap-2 md:flex md:w-auto md:items-end">
+		<div class="grid w-full gap-2 sm:grid-cols-2 lg:flex lg:w-auto lg:flex-wrap lg:items-end">
 			<div class="flex flex-col gap-1">
 				<label class="text-xs text-slate-500" for="tourDepartureDate">Fecha de salida</label>
 				<Input
 					id="tourDepartureDate"
 					type="date"
 					value={String(searchState?.departureDate ?? "")}
-					class="md:w-[160px]"
+					class="lg:w-[160px]"
 				/>
 			</div>
-			<div class="flex flex-col gap-1">
-				<label class="text-xs text-slate-500" for="tourParticipants">Participantes</label>
-				<Input
-					id="tourParticipants"
-					type="number"
-					min="1"
-					value={String(searchState?.participants ?? 1)}
-					class="md:w-[120px]"
-				/>
-			</div>
-			<Button type="button" id="tourSearchBtn" variant="secondary">Buscar</Button>
+			{
+				(activeTickets.length ? activeTickets : [{ code: "adult", label: "Adulto" }]).map(
+					(ticket: any) => {
+						const code = String(ticket.code)
+						const value = Number(quantities[code] ?? (code === "adult" ? 1 : 0)) || 0
+						return (
+							<div class="flex flex-col gap-1">
+								<label class="text-xs text-slate-500" for={`tourQty_${code}`}>
+									{String(ticket.label ?? code)}
+									{ticket.minAge != null || ticket.maxAge != null ? (
+										<span class="text-slate-400">
+											{" "}
+											({ticket.minAge != null ? ticket.minAge : "—"}–
+											{ticket.maxAge != null ? ticket.maxAge : "—"})
+										</span>
+									) : null}
+								</label>
+								<Input
+									id={`tourQty_${code}`}
+									type="number"
+									min="0"
+									value={String(value)}
+									class="lg:w-[110px]"
+									data-ticket-qty={code}
+								/>
+							</div>
+						)
+					}
+				)
+			}
+			<Button type="button" id="tourSearchBtn" variant="secondary">Actualizar precio</Button>
 		</div>
 	</header>
 
 	{
+		priceBreakdown?.rows?.length ? (
+			<div class="fastt-soft-box rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-4">
+				<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+					Desglose por age band
+				</p>
+				<ul class="mt-3 space-y-2 text-sm text-slate-700">
+					{priceBreakdown.rows.map((row: any) => (
+						<li class="flex items-center justify-between gap-3 border-b border-slate-100 pb-2 last:border-0 last:pb-0">
+							<span>
+								{row.quantity}× {row.label}
+								{row.inheritsAdultPricing ? (
+									<span class="ml-1 text-xs text-slate-400">(hereda adulto)</span>
+								) : null}
+							</span>
+							<span class="font-medium text-slate-950">
+								{row.lineTotal != null ? row.lineTotal : "—"}
+							</span>
+						</li>
+					))}
+				</ul>
+				{priceBreakdown.note ? (
+					<p class="mt-3 text-xs leading-5 text-slate-500">{priceBreakdown.note}</p>
+				) : null}
+			</div>
+		) : null
+	}
+
+	{
 		(offers ?? []).length === 0 ? (
 			<p class="text-sm text-slate-600">
-				No hay salidas reservables para esa fecha. Prueba otra fecha o revisa tarifas/cupo.
+				No hay salidas reservables para esa fecha y mezcla de tickets. Prueba otra fecha o cupo.
 			</p>
 		) : (
 			<ul class="grid gap-3 md:grid-cols-2">
@@ -64,7 +130,8 @@ function priceOf(ratePlan: any): number | null {
 					const name = String(slot.name ?? offer?.variant?.name ?? "Salida")
 					const time = String(slot.departureTime ?? "—")
 					const lang = String(slot.languageCode ?? "").toUpperCase()
-					const mode = slot.bookingMode === "private" ? "Privado" : "Compartido"
+					const isPrivate = String(slot.bookingMode ?? "").toLowerCase() === "private"
+					const mode = isPrivate ? "Privado" : "Compartido"
 					const maxPax = Number(slot.maxPax ?? offer?.variant?.capacity?.maxOccupancy ?? 0) || null
 					const ratePlans = Array.isArray(offer?.ratePlans) ? offer.ratePlans : []
 					const firstPlan = ratePlans[0]
@@ -76,6 +143,7 @@ function priceOf(ratePlan: any): number | null {
 							data-tour-offer
 							data-variant-id={variantId}
 							data-rateplan-id={ratePlanId}
+							data-booking-mode={isPrivate ? "private" : "shared"}
 						>
 							<div class="flex items-start justify-between gap-3">
 								<div>
@@ -88,37 +156,52 @@ function priceOf(ratePlan: any): number | null {
 										{maxPax ? (
 											<span class="inline-flex items-center gap-1">
 												<Users class="h-3.5 w-3.5" />
-												Hasta {maxPax} participantes
+												Hasta {maxPax} cupos
 											</span>
 										) : null}
 										{lang ? <span>{lang}</span> : null}
 										<span>{mode}</span>
 									</p>
 								</div>
-								{price != null ? (
-									<p class="text-sm font-semibold text-slate-950">
-										desde {price}
-										<span class="font-normal text-slate-500"> / participante</span>
+								{!isPrivate && price != null ? (
+									<p class="text-right text-sm font-semibold text-slate-950">
+										{price}
+										<span class="block font-normal text-slate-500">total · {cupoUnits} cupos</span>
+									</p>
+								) : isPrivate ? (
+									<p class="text-right text-sm font-semibold text-slate-950">
+										A cotizar
+										<span class="block font-normal text-slate-500">salida privada</span>
 									</p>
 								) : null}
 							</div>
 							<div class="mt-4 flex flex-wrap gap-2">
-								{ratePlans.map((rp: any) => {
-									const id = ratePlanIdOf(rp)
-									const rpPrice = priceOf(rp)
-									if (!id) return null
-									return (
-										<button
-											type="button"
-											class="fastt-button rounded-[var(--fastt-radius-control)] border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-											data-select-variant-id={variantId}
-											data-select-rateplan-id={id}
-										>
-											{String(rp.name ?? "Tarifa")}
-											{rpPrice != null ? ` · ${rpPrice}` : ""}
-										</button>
-									)
-								})}
+								{isPrivate ? (
+									<button
+										type="button"
+										class="fastt-button rounded-[var(--fastt-radius-control)] border border-slate-950 bg-slate-950 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+										data-quote-private-variant={variantId}
+									>
+										Cotizar salida privada
+									</button>
+								) : (
+									ratePlans.map((rp: any) => {
+										const id = ratePlanIdOf(rp)
+										const rpPrice = priceOf(rp)
+										if (!id) return null
+										return (
+											<button
+												type="button"
+												class="fastt-button rounded-[var(--fastt-radius-control)] border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+												data-select-variant-id={variantId}
+												data-select-rateplan-id={id}
+											>
+												{String(rp.name ?? "Tarifa")}
+												{rpPrice != null ? ` · ${rpPrice}` : ""}
+											</button>
+										)
+									})
+								)}
 							</div>
 						</li>
 					)
@@ -128,9 +211,16 @@ function priceOf(ratePlan: any): number | null {
 	}
 
 	<div
+		id="tourSharedCheckout"
 		class="fastt-soft-box rounded-[var(--fastt-radius-card)] border border-slate-200 bg-slate-50 p-4"
 	>
-		<p id="tourHoldStatus" class="text-sm text-slate-700" aria-live="polite">
+		<p class="text-xs text-slate-500">
+			Ocupación comercial: {occupancyDetail.adults} adultos · {occupancyDetail.children} niños ·{
+				" "
+			}
+			{occupancyDetail.infants} infantes · cupo {cupoUnits}
+		</p>
+		<p id="tourHoldStatus" class="mt-2 text-sm text-slate-700" aria-live="polite">
 			Selecciona una tarifa para reservar cupo.
 		</p>
 		<div class="mt-3 flex flex-wrap gap-2">
@@ -140,14 +230,54 @@ function priceOf(ratePlan: any): number | null {
 			</Button>
 		</div>
 	</div>
+
+	<div
+		id="tourPrivateQuote"
+		class="fastt-soft-box hidden rounded-[var(--fastt-radius-card)] border border-sky-200 bg-sky-50/60 p-4"
+	>
+		<p class="text-sm font-semibold text-slate-950">Cotizar salida privada</p>
+		<p class="mt-1 text-xs leading-5 text-slate-600">
+			No se reserva inventario hasta que el proveedor acepte. Recibirás una cotización con el
+			contexto de fecha, grupo y contacto (SLA 24h).
+		</p>
+		<div class="mt-3 grid gap-2 sm:grid-cols-2">
+			<Input id="privateContactName" placeholder="Nombre" autocomplete="name" />
+			<Input id="privateContactEmail" type="email" placeholder="Email" autocomplete="email" />
+			<Input
+				id="privateContactPhone"
+				type="tel"
+				placeholder="Teléfono (opcional)"
+				class="sm:col-span-2"
+			/>
+			<Textarea
+				id="privateMessage"
+				rows="3"
+				class="sm:col-span-2"
+				placeholder="Cuéntanos el grupo, idioma o requerimientos especiales"
+			/>
+		</div>
+		<p id="tourPrivateStatus" class="mt-2 text-sm text-slate-700" aria-live="polite"></p>
+		<div class="mt-3 flex flex-wrap gap-2">
+			<Button type="button" id="tourPrivateSubmitBtn">Enviar solicitud</Button>
+			<Button type="button" id="tourPrivateCancelBtn" variant="secondary">Cancelar</Button>
+		</div>
+	</div>
 </section>
 
 <script>
-	const root = document.querySelector<HTMLElement>("[data-tour-booking-root]")
-	if (root) {
+	const rootEl = document.querySelector<HTMLElement>("[data-tour-booking-root]")
+	if (rootEl) {
+		// Capture non-null for nested listeners (TS does not narrow across closures).
+		const root: HTMLElement = rootEl
 		const productId = String(root.dataset.productId ?? "")
+		const ticketTypes = JSON.parse(String(root.dataset.ticketTypes || "[]")) as Array<{
+			code: string
+			label?: string
+			isActive?: boolean
+			minAge?: number | null
+			maxAge?: number | null
+		}>
 		const departureInput = document.getElementById("tourDepartureDate") as HTMLInputElement | null
-		const participantsInput = document.getElementById("tourParticipants") as HTMLInputElement | null
 		const searchBtn = document.getElementById("tourSearchBtn")
 		const reserveBtn = document.getElementById("tourReserveBtn") as HTMLButtonElement | null
 		const confirmBtn = document.getElementById("tourConfirmBtn") as HTMLButtonElement | null
@@ -155,9 +285,80 @@ function priceOf(ratePlan: any): number | null {
 		let selectedVariantId = ""
 		let selectedRatePlanId = ""
 		let latestHoldId = ""
+		let privateVariantId = ""
+		const sharedCheckout = document.getElementById("tourSharedCheckout")
+		const privateQuote = document.getElementById("tourPrivateQuote")
+		const privateStatus = document.getElementById("tourPrivateStatus")
+		const privateSubmit = document.getElementById(
+			"tourPrivateSubmitBtn"
+		) as HTMLButtonElement | null
+		const privateCancel = document.getElementById("tourPrivateCancelBtn")
 
-		function participants(): number {
-			return Math.max(1, Number(participantsInput?.value ?? 1) || 1)
+		function showPrivateQuote(variantId: string) {
+			privateVariantId = variantId
+			selectedVariantId = ""
+			selectedRatePlanId = ""
+			latestHoldId = ""
+			if (reserveBtn) reserveBtn.disabled = true
+			if (confirmBtn) confirmBtn.disabled = true
+			sharedCheckout?.classList.add("hidden")
+			privateQuote?.classList.remove("hidden")
+			if (privateStatus) {
+				privateStatus.textContent = "Completa tus datos para solicitar la cotización."
+			}
+		}
+
+		function hidePrivateQuote() {
+			privateVariantId = ""
+			privateQuote?.classList.add("hidden")
+			sharedCheckout?.classList.remove("hidden")
+		}
+
+		function readQuantities() {
+			const quantities: Record<string, number> = {}
+			root.querySelectorAll<HTMLInputElement>("[data-ticket-qty]").forEach((input) => {
+				const code = String(input.dataset.ticketQty ?? "")
+				quantities[code] = Math.max(0, Math.floor(Number(input.value) || 0))
+			})
+			if (!Object.keys(quantities).length) quantities.adult = 1
+			return quantities
+		}
+
+		function toOccupancy(quantities: Record<string, number>) {
+			const bands = ticketTypes.length
+				? ticketTypes
+				: [{ code: "adult", label: "Adulto", isActive: true }]
+			let adults = 0
+			let children = 0
+			let infants = 0
+			let cupo = 0
+			for (const ticket of bands) {
+				if (ticket.isActive === false) continue
+				const code = String(ticket.code ?? "")
+				const qty = Math.max(0, Math.floor(Number(quantities[code] ?? 0)))
+				cupo += qty
+				const minAge = ticket.minAge == null ? null : Number(ticket.minAge)
+				let bucket = code
+				if (code === "custom") {
+					if (minAge != null && minAge >= 12) bucket = "adult"
+					else if (minAge != null && minAge >= 3) bucket = "child"
+					else if (minAge != null) bucket = "infant"
+					else bucket = "adult"
+				}
+				if (bucket === "adult") adults += qty
+				else if (bucket === "child") children += qty
+				else if (bucket === "infant") infants += qty
+			}
+			if (adults < 1 && children + infants > 0) {
+				adults = 1
+				if (children > 0) children -= 1
+				else infants = Math.max(0, infants - 1)
+			}
+			if (adults < 1) adults = 1
+			return {
+				occupancyDetail: { adults, children, infants },
+				rooms: Math.max(1, cupo || adults + children + infants),
+			}
 		}
 
 		function departureDate(): string {
@@ -172,16 +373,21 @@ function priceOf(ratePlan: any): number | null {
 
 		searchBtn?.addEventListener("click", () => {
 			const date = departureDate()
-			const pax = participants()
+			const quantities = readQuantities()
 			if (!productId || !date) return
 			const url = new URL(window.location.href)
 			url.searchParams.set("departure", date)
-			url.searchParams.set("participants", String(pax))
+			url.searchParams.set("adults", String(quantities.adult ?? quantities.adulto ?? 1))
+			url.searchParams.set("children", String(quantities.child ?? 0))
+			url.searchParams.set("infants", String(quantities.infant ?? 0))
+			if (quantities.custom) url.searchParams.set("custom", String(quantities.custom))
+			url.searchParams.delete("participants")
 			window.location.href = url.toString()
 		})
 
 		root.querySelectorAll<HTMLButtonElement>("[data-select-variant-id]").forEach((btn) => {
 			btn.addEventListener("click", () => {
+				hidePrivateQuote()
 				selectedVariantId = String(btn.dataset.selectVariantId ?? "")
 				selectedRatePlanId = String(btn.dataset.selectRateplanId ?? "")
 				latestHoldId = ""
@@ -195,12 +401,76 @@ function priceOf(ratePlan: any): number | null {
 			})
 		})
 
+		root.querySelectorAll<HTMLButtonElement>("[data-quote-private-variant]").forEach((btn) => {
+			btn.addEventListener("click", () => {
+				showPrivateQuote(String(btn.dataset.quotePrivateVariant ?? ""))
+			})
+		})
+		privateCancel?.addEventListener("click", () => hidePrivateQuote())
+		privateSubmit?.addEventListener("click", async () => {
+			if (!privateVariantId || !productId) return
+			const name = String(
+				(document.getElementById("privateContactName") as HTMLInputElement | null)?.value ?? ""
+			).trim()
+			const email = String(
+				(document.getElementById("privateContactEmail") as HTMLInputElement | null)?.value ?? ""
+			).trim()
+			const phone = String(
+				(document.getElementById("privateContactPhone") as HTMLInputElement | null)?.value ?? ""
+			).trim()
+			const message = String(
+				(document.getElementById("privateMessage") as HTMLTextAreaElement | null)?.value ?? ""
+			).trim()
+			const { occupancyDetail, rooms } = toOccupancy(readQuantities())
+			if (!name || !email) {
+				if (privateStatus) privateStatus.textContent = "Nombre y email son obligatorios."
+				return
+			}
+			if (privateStatus) privateStatus.textContent = "Enviando solicitud..."
+			if (privateSubmit) privateSubmit.disabled = true
+			try {
+				const response = await fetch("/api/tours/private-request", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						productId,
+						variantId: privateVariantId,
+						departureDate: departureDate(),
+						party: { ...occupancyDetail, rooms },
+						contactName: name,
+						contactEmail: email,
+						contactPhone: phone || null,
+						message: message || null,
+					}),
+				})
+				const payload = await response.json().catch(() => ({}))
+				if (!response.ok) {
+					if (privateStatus) {
+						privateStatus.textContent =
+							payload?.error === "not_private"
+								? "Esta salida ya no es privada."
+								: "No se pudo enviar la solicitud."
+					}
+					return
+				}
+				if (privateStatus) {
+					privateStatus.textContent =
+						payload?.message || "Solicitud enviada. El proveedor te contactará sin reservar cupo."
+				}
+			} catch {
+				if (privateStatus) privateStatus.textContent = "Error de red al enviar la solicitud."
+			} finally {
+				if (privateSubmit) privateSubmit.disabled = false
+			}
+		})
+
 		reserveBtn?.addEventListener("click", async () => {
 			const from = departureDate()
 			if (!selectedVariantId || !selectedRatePlanId || !from) {
 				if (statusEl) statusEl.textContent = "Selecciona salida, tarifa y fecha."
 				return
 			}
+			const { occupancyDetail, rooms } = toOccupancy(readQuantities())
 			if (statusEl) statusEl.textContent = "Creando hold..."
 			if (reserveBtn) reserveBtn.disabled = true
 			try {
@@ -211,22 +481,19 @@ function priceOf(ratePlan: any): number | null {
 						variantId: selectedVariantId,
 						ratePlanId: selectedRatePlanId,
 						dateRange: { from, to: nextDay(from) },
-						occupancyDetail: {
-							adults: participants(),
-							children: 0,
-							infants: 0,
-						},
-						// Tour cupo: each participant consumes 1 inventory unit.
-						rooms: participants(),
+						occupancyDetail,
+						rooms,
 					}),
 				})
 				const payload = await response.json().catch(() => ({}))
 				if (!response.ok) {
 					if (statusEl) {
 						statusEl.textContent =
-							payload?.error === "not_available"
-								? "No hay cupo suficiente para esa salida."
-								: "No se pudo crear el hold."
+							payload?.error === "private_on_request"
+								? "Salida privada: usa Cotizar salida privada (sin hold)."
+								: payload?.error === "not_available" || payload?.error === "not_holdable"
+									? "No hay cupo suficiente para esa salida."
+									: "No se pudo crear el hold."
 					}
 					return
 				}
@@ -260,7 +527,7 @@ function priceOf(ratePlan: any): number | null {
 					if (confirmBtn) confirmBtn.disabled = false
 					return
 				}
-				window.location.href = `/booking/${encodeURIComponent(String(payload.bookingId))}`
+				window.location.href = `/trips/${encodeURIComponent(String(payload.bookingId))}`
 			} catch {
 				if (statusEl) statusEl.textContent = "Error de red al confirmar."
 				if (confirmBtn) confirmBtn.disabled = false

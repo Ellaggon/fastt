@@ -67,8 +67,10 @@ try {
 		</div>
 
 		<div class="col-span-1 md:col-span-1">
-			<label class="mb-1 block text-sm font-semibold text-slate-800">Fecha de inicio</label>
-			<DatesModal id="startDate" name="startDate" className="w-full" />
+			<label class="mb-1 block text-sm font-semibold text-slate-800">
+				Fecha de inicio <span class="font-normal text-slate-500">(requerida)</span>
+			</label>
+			<DatesModal id="startDate" name="startDate" className="w-full" required />
 		</div>
 
 		<div class="col-span-1 md:col-span-1">

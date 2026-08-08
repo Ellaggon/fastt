@@ -1,39 +1,9 @@
 ---
 import ProductCard from "@/components/productUI/ProductCard.astro"
-import { ratePlanPricingReadRepository } from "@/container"
+import Notice from "@/components/ui/Notice.astro"
 import SearchLayout from "@/layouts/SearchLayout.astro"
-import { durationMinutesMatchesBucket } from "@/lib/tours/tourSemantics"
-import {
-	and,
-	avg,
-	count,
-	db,
-	Destination,
-	eq,
-	Image,
-	inArray,
-	or,
-	Product,
-	ProductCategory,
-	ProductCategoryLink,
-	ProductContent,
-	ProductReview,
-	sql,
-	Tour,
-	Variant,
-} from "@/shared/infrastructure/db/compat"
-
-type ProductResult = {
-	id: string
-	name: string
-	description: string | null
-	basePriceUSD: number | null
-	basePriceBOB: number | null
-	duration: string | null
-	difficultyLevel: string | null
-	imageUrl: string | null
-	avgRating: number | null
-}
+import { getTourSearchSurface } from "@/lib/tours/tourSearchSurface"
+import { db, Destination, eq, or } from "@/shared/infrastructure/db/compat"
 
 const url = new URL(Astro.request.url)
 const params = url.searchParams
@@ -46,202 +16,151 @@ const categorySlugs = params
 	.map((v) => v.trim().toLowerCase())
 	.filter(Boolean)
 const sort = String(params.get("sort") ?? "relevance").trim()
-let tours: ProductResult[] = []
-let destination = null
+const priceMinRaw = params.get("priceMin")
+const priceMaxRaw = params.get("priceMax")
+const priceMin =
+	priceMinRaw == null || String(priceMinRaw).trim() === "" ? null : Number(priceMinRaw)
+const priceMax =
+	priceMaxRaw == null || String(priceMaxRaw).trim() === "" ? null : Number(priceMaxRaw)
 
+let destination: { id: string; name: string; department: string | null } | null = null
 if (destinationId) {
 	const possible = await db
-		.select()
+		.select({
+			id: Destination.id,
+			name: Destination.name,
+			department: Destination.department,
+		})
 		.from(Destination)
 		.where(or(eq(Destination.id, destinationId), eq(Destination.slug, destinationId)))
 		.limit(1)
-
-	if (possible.length > 0) {
-		destination = possible[0]
-	}
+	if (possible.length > 0) destination = possible[0]
 }
 
-try {
-	let categoryProductIds: string[] | null = null
-	if (categorySlugs.length > 0) {
-		const linked = await db
-			.select({ productId: ProductCategoryLink.productId })
-			.from(ProductCategoryLink)
-			.innerJoin(ProductCategory, eq(ProductCategory.id, ProductCategoryLink.categoryId))
-			.where(
-				and(eq(ProductCategory.vertical, "tour"), inArray(ProductCategory.slug, categorySlugs))
-			)
-		categoryProductIds = [...new Set(linked.map((row) => String(row.productId)))]
-	}
+const todayIso = new Date().toISOString().slice(0, 10)
+const effectiveStartDate = startDate && /^\d{4}-\d{2}-\d{2}$/.test(startDate) ? startDate : null
 
-	const whereParts = [sql`lower(${Product.productType}) = 'tour'`]
-	if (destination) {
-		whereParts.push(
-			or(
-				eq(Product.destinationId, destination.id),
-				eq(Destination.department, destination.department ?? destination.id)
-			)!
-		)
-	}
-	if (categoryProductIds) {
-		if (categoryProductIds.length === 0) {
-			tours = []
-		} else {
-			whereParts.push(inArray(Product.id, categoryProductIds))
-		}
-	}
+const COOKIE_NAME = "fastt_tour_canary"
+let sessionSubjectId = Astro.cookies.get(COOKIE_NAME)?.value?.trim() || ""
+if (!sessionSubjectId) {
+	sessionSubjectId = crypto.randomUUID()
+	Astro.cookies.set(COOKIE_NAME, sessionSubjectId, {
+		path: "/",
+		httpOnly: true,
+		sameSite: "lax",
+		maxAge: 60 * 60 * 24 * 180,
+	})
+}
 
-	if (tours.length === 0 && !(categoryProductIds && categoryProductIds.length === 0)) {
-		const whereClause = and(...whereParts)
+let tours: Awaited<ReturnType<typeof getTourSearchSurface>>["cards"] = []
+let searchMeta: Awaited<ReturnType<typeof getTourSearchSurface>>["meta"] | null = null
+let loadError: string | null = null
 
-		const rows = await db
-			.select({
-				id: Product.id,
-				name: Product.name,
-				description: ProductContent.description,
-				duration: Tour.duration,
-				durationMinutes: Tour.durationMinutes,
-				difficultyLevel: Tour.difficultyLevel,
-				imageUrl: Image.url,
-				variantId: Variant.id,
-			})
-			.from(Product)
-			.leftJoin(ProductContent, eq(ProductContent.productId, Product.id))
-			.leftJoin(Tour, eq(Tour.productId, Product.id))
-			.leftJoin(Image, and(eq(Image.entityId, Product.id), eq(Image.isPrimary, true)))
-			.leftJoin(Destination, eq(Destination.id, Product.destinationId))
-			.leftJoin(Variant, and(eq(Variant.productId, Product.id), eq(Variant.isActive, true)))
-			.where(whereClause)
-			.groupBy(Product.id)
-			.limit(80)
-
-		const filtered = rows.filter((row) => {
-			if (
-				level &&
-				String(row.difficultyLevel ?? "")
-					.trim()
-					.toLowerCase() !== level.trim().toLowerCase()
-			) {
-				return false
-			}
-			if (!durationMinutesMatchesBucket(row.durationMinutes, durationBucket)) return false
-			return true
+if (effectiveStartDate) {
+	try {
+		const surface = await getTourSearchSurface({
+			startDate: effectiveStartDate,
+			destinationRowId: destination?.id ?? null,
+			destinationDepartment: destination?.department ?? null,
+			categorySlugs,
+			durationBucket,
+			level,
+			priceMin: Number.isFinite(priceMin as number) ? priceMin : null,
+			priceMax: Number.isFinite(priceMax as number) ? priceMax : null,
+			sort,
+			limit: 50,
+			sessionSubjectId,
+			host: url.host,
 		})
-
-		const productIds = filtered.map((row) => String(row.id))
-		const ratingRows =
-			productIds.length > 0
-				? await db
-						.select({
-							productId: ProductReview.productId,
-							avgRating: avg(ProductReview.rating),
-							reviewCount: count(ProductReview.id),
-						})
-						.from(ProductReview)
-						.where(
-							and(
-								inArray(ProductReview.productId, productIds),
-								eq(ProductReview.status, "published")
-							)
-						)
-						.groupBy(ProductReview.productId)
-				: []
-		const ratingByProduct = new Map(
-			ratingRows.map((row) => [
-				String(row.productId),
-				{
-					avg: row.avgRating == null ? null : Number(row.avgRating),
-					count: Number(row.reviewCount ?? 0),
-				},
-			])
-		)
-
-		const mapped = await Promise.all(
-			filtered.slice(0, 50).map(async (row) => {
-				const variantId = String(row.variantId ?? "").trim()
-				const summary = variantId
-					? await ratePlanPricingReadRepository.getDefaultRatePlanPricingSummaryByVariant(variantId)
-					: null
-				const normalizedCurrency = String(summary?.currency ?? "USD")
-					.trim()
-					.toUpperCase()
-				const basePrice = Number(summary?.basePrice ?? 0)
-				const rating = ratingByProduct.get(String(row.id))
-				return {
-					id: row.id,
-					name: row.name,
-					description: row.description,
-					basePriceUSD: normalizedCurrency === "USD" ? basePrice : null,
-					basePriceBOB: normalizedCurrency === "BOB" ? basePrice : null,
-					duration: row.duration,
-					difficultyLevel: row.difficultyLevel,
-					imageUrl: row.imageUrl,
-					avgRating: rating?.avg ?? null,
-					durationMinutes: Number(row.durationMinutes ?? 0) || null,
-				}
-			})
-		)
-
-		mapped.sort((a, b) => {
-			if (sort === "price_asc") {
-				return (
-					Number(a.basePriceUSD ?? a.basePriceBOB ?? 0) -
-					Number(b.basePriceUSD ?? b.basePriceBOB ?? 0)
-				)
-			}
-			if (sort === "price_desc") {
-				return (
-					Number(b.basePriceUSD ?? b.basePriceBOB ?? 0) -
-					Number(a.basePriceUSD ?? a.basePriceBOB ?? 0)
-				)
-			}
-			if (sort === "duration_asc") {
-				return Number(a.durationMinutes ?? 99999) - Number(b.durationMinutes ?? 99999)
-			}
-			if (sort === "rating_desc") {
-				return Number(b.avgRating ?? 0) - Number(a.avgRating ?? 0)
-			}
-			return 0
-		})
-
-		tours = mapped.map(({ durationMinutes: _d, ...rest }) => rest)
+		tours = surface.cards
+		searchMeta = surface.meta
+	} catch (err) {
+		console.error("error querying tour discovery", err)
+		loadError = "No se pudo cargar la disponibilidad de tours."
 	}
-} catch (err) {
-	console.error("error querying tours", err)
 }
 ---
 
 <SearchLayout title="Resultados de búsqueda" producType="tours">
-	<main class="mx-auto max-w-7xl p-6">
-		<h1 class="mb-4 text-2xl font-bold">Resultados de tours</h1>
-		<p class="text-sm text-gray-600">
-			Destino: {destination?.name ?? "Cualquier lugar"}
-			{startDate ? ` — Fecha: ${startDate}` : ""}
-			{durationBucket ? ` — Duración: ${durationBucket}` : ""}
-			{level ? ` — Nivel: ${level}` : ""}
-			{categorySlugs.length ? ` — Categorías: ${categorySlugs.join(", ")}` : ""}
-		</p>
-		<div class="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+	<main class="mx-auto max-w-7xl space-y-6 p-6">
+		<header class="space-y-2">
+			<h1 class="text-2xl font-bold tracking-tight text-slate-950">Resultados de tours</h1>
+			<p class="text-sm text-slate-600">
+				Destino: {destination?.name ?? "Cualquier lugar"}
+				{
+					effectiveStartDate
+						? ` — Fecha: ${effectiveStartDate}`
+						: " — Selecciona una fecha para ver salidas disponibles"
+				}
+				{durationBucket ? ` — Duración: ${durationBucket}` : ""}
+				{level ? ` — Nivel: ${level}` : ""}
+				{categorySlugs.length ? ` — Categorías: ${categorySlugs.join(", ")}` : ""}
+				{priceMin != null && Number.isFinite(priceMin) ? ` — Desde ${priceMin}` : ""}
+				{priceMax != null && Number.isFinite(priceMax) ? ` — Hasta ${priceMax}` : ""}
+			</p>
 			{
-				tours.length === 0 ? (
-					<p class="col-span-full text-gray-500">No se encontraron tours para esos filtros.</p>
-				) : (
-					tours.map((t) => (
-						<ProductCard
-							name={t.name}
-							href={`/tours/${t.id}`}
-							image={t.imageUrl || "https://picsum.photos/400/250"}
-							alt={t.name}
-							duration={t.duration || ""}
-							difficultyLevel={t.difficultyLevel || ""}
-							description={t.description || ""}
-							priceUSD={t.basePriceUSD || 0}
-							priceBOB={t.basePriceBOB || 0}
-							services={[]}
-						/>
-					))
-				)
+				searchMeta ? (
+					<p class="text-xs text-slate-500">
+						Disponibilidad materializada · {searchMeta.source} · occupancy {searchMeta.occupancyKey}
+					</p>
+				) : null
 			}
-		</div>
+		</header>
+
+		{
+			!effectiveStartDate ? (
+				<Notice variant="warning" title="Fecha requerida">
+					Elige una fecha de inicio en el panel. Solo mostramos tours con <code>tour_slot</code>{" "}
+					disponible ese día (precio “desde” real).
+					<a
+						class="ml-1 font-semibold text-sky-800 underline"
+						href={`/tours/search?startDate=${todayIso}${destination ? `&destinationId=${destination.id}` : ""}`}
+					>
+						Buscar para hoy
+					</a>
+				</Notice>
+			) : null
+		}
+
+		{
+			loadError ? (
+				<p class="text-sm text-red-600">{loadError}</p>
+			) : (
+				<div class="grid grid-cols-1 gap-4">
+					{effectiveStartDate && tours.length === 0 ? (
+						<p class="text-slate-500">
+							No hay salidas disponibles para esa fecha con los filtros elegidos. Prueba otra fecha
+							o amplía el rango de precio.
+						</p>
+					) : (
+						tours.map((t) => (
+							<ProductCard
+								vertical="tour"
+								name={t.name}
+								href={`/tours/${t.productId}?departure=${encodeURIComponent(t.departureDate)}&adults=1`}
+								image={t.imageUrl || "https://picsum.photos/400/250"}
+								alt={t.name}
+								duration={t.duration || ""}
+								difficultyLevel={t.difficultyLevel || ""}
+								description={t.description || ""}
+								priceUSD={t.currency === "USD" ? t.fromPrice : 0}
+								priceBOB={t.currency === "BOB" ? t.fromPrice : 0}
+								stars={t.avgRating ?? 0}
+								reviewCount={t.reviewCount}
+								metaLine={
+									[
+										t.departureTime ? `Salida ${t.departureTime}` : null,
+										t.availableSlots > 1 ? `${t.availableSlots} salidas` : null,
+									]
+										.filter(Boolean)
+										.join(" · ") || undefined
+								}
+								services={[]}
+							/>
+						))
+					)}
+				</div>
+			)
+		}
 	</main>
 </SearchLayout>
