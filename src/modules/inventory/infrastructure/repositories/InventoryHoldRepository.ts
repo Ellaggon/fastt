@@ -159,7 +159,7 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 						}
 						const lockAgg = await tx
 							.select({
-								heldUnits: sql<number>`coalesce(sum(case when ${InventoryLock.bookingId} is null and ${InventoryLock.expiresAt} > ${new Date()} then ${InventoryLock.quantity} else 0 end), 0)`,
+								heldUnits: sql<number>`coalesce(sum(case when ${InventoryLock.bookingId} is null and ${InventoryLock.expiresAt} > now() then ${InventoryLock.quantity} else 0 end), 0)`,
 								bookedUnits: sql<number>`coalesce(sum(case when ${InventoryLock.bookingId} is not null then ${InventoryLock.quantity} else 0 end), 0)`,
 							})
 							.from(InventoryLock)
