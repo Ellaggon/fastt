@@ -1,0 +1,236 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
+import { requireInternalAdmin } from "@/lib/auth/requireInternalAdmin"
+import {
+	buildTourRolloutCohortComparison,
+	evaluateTourRolloutExpansionGateAsync,
+} from "@/lib/tours/tourObservability"
+import {
+	getTourProviderAllowlist,
+	getTourRolloutPercent,
+	getTourRolloutStage,
+} from "@/lib/tours/tourRolloutCanary"
+import { syncSharedTourCountersFromRedis } from "@/lib/tours/tourRolloutSharedStore"
+
+let isAdmin = false
+try {
+	await requireInternalAdmin(Astro.request)
+	isAdmin = true
+} catch (response) {
+	if (response instanceof Response && response.status === 401) return Astro.redirect("/SignInPage")
+	isAdmin = false
+}
+
+if (isAdmin) {
+	await syncSharedTourCountersFromRedis().catch(() => null)
+}
+const expansion = isAdmin ? await evaluateTourRolloutExpansionGateAsync() : null
+const health = expansion?.health ?? null
+const cohorts = isAdmin ? buildTourRolloutCohortComparison() : null
+const canaryStage = isAdmin ? getTourRolloutStage() : "off"
+const allowlistCount = isAdmin ? getTourProviderAllowlist().size : 0
+const rolloutPercent = isAdmin ? getTourRolloutPercent() : 0
+const statusVariant =
+	health?.status === "healthy"
+		? "darkSuccess"
+		: health?.status === "insufficient_sample"
+			? "darkWarning"
+			: "darkError"
+
+function pct(rate: number): string {
+	return `${(Number(rate) * 100).toFixed(1)}%`
+}
+function hours(ms: number): string {
+	return `${(Number(ms) / (60 * 60 * 1000)).toFixed(1)}h`
+}
+---
+
+<InternalAdminLayout title="Admin · Tours rollout">
+	<div class="space-y-6">
+		<header class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+			<div class="space-y-1">
+				<p class="text-xs font-semibold uppercase tracking-[0.14em] text-amber-300/80">
+					Rollout observability
+				</p>
+				<h1 class="text-2xl font-semibold text-white">Tours · métricas y alertas</h1>
+				<p class="max-w-2xl text-sm text-slate-400">
+					Canary staging → allowlist → % → general. Compara cohortes canary vs control y respeta
+					dwell + sample antes de expandir. Alert rules:
+					<code class="text-slate-300">docs/ops/tours-rollout.rules.yml</code>
+					· runbook
+					<code class="text-slate-300">docs/engineering/tours-rollout-canary.md</code>. JSON API
+					requiere Bearer
+					<code class="text-slate-300">FASTT_INFRA_HEALTH_TOKEN</code>.
+				</p>
+			</div>
+			<div class="flex flex-wrap gap-2">
+				<Button href="/admin/tours/quality" variant="secondary" size="sm">Quality</Button>
+			</div>
+		</header>
+
+		{
+			!isAdmin || !health ? (
+				<Card class="border border-amber-500/40 bg-amber-950/40 p-4 text-sm text-amber-100">
+					Forbidden: internal admin only.
+				</Card>
+			) : (
+				<>
+					<div class="flex flex-wrap items-center gap-3">
+						<Badge variant={statusVariant}>{health.status}</Badge>
+						<Badge variant="darkNeutral">stage={canaryStage}</Badge>
+						<Badge variant={expansion?.expand ? "darkSuccess" : "darkWarning"}>
+							expand={expansion?.expand ? "yes" : "no"}
+						</Badge>
+						<p class="text-sm text-slate-400">
+							allowlist={allowlistCount} · percent={rolloutPercent} · holds=
+							{health.summary.holds.total} · confirms={health.summary.confirms.total}
+							{expansion?.dwell ? ` · dwell left ${hours(expansion.dwell.remainingMs)}` : ""}
+						</p>
+					</div>
+					{expansion && !expansion.expand ? (
+						<Card class="border border-amber-500/40 bg-amber-950/30 p-4 text-sm text-amber-50">
+							No expandir canary todavía:
+							<ul class="mt-2 list-disc space-y-1 pl-5">
+								{expansion.blockers.map((b) => (
+									<li>{b}</li>
+								))}
+							</ul>
+						</Card>
+					) : null}
+
+					{cohorts ? (
+						<div class="grid gap-3 lg:grid-cols-3">
+							{(
+								[
+									["canary", cohorts.canary],
+									["control", cohorts.control],
+									["all", cohorts.all],
+								] as const
+							).map(([label, summary]) => (
+								<div class="fastt-soft-box rounded-xl border border-slate-800 bg-slate-900/80 p-4">
+									<p class="text-xs tracking-wide text-slate-400 uppercase">Cohort {label}</p>
+									<p class="mt-2 text-sm text-slate-200">
+										hold→confirm {pct(summary.ratios.holdToConfirm)}
+									</p>
+									<p class="text-sm text-slate-200">
+										redeem/issued {pct(summary.ratios.redeemIssued)}
+									</p>
+									<p class="text-sm text-slate-200">
+										refund applied {pct(summary.ratios.refundQuoteApplied)}
+									</p>
+									<p class="mt-2 text-xs text-slate-500">
+										holds {summary.holds.total} · confirms {summary.confirms.total}
+									</p>
+								</div>
+							))}
+						</div>
+					) : null}
+
+					<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+						<div class="fastt-soft-box rounded-xl border border-slate-800 bg-slate-900/80 p-4">
+							<p class="text-xs text-slate-400">Hold → confirm</p>
+							<p class="mt-1 text-2xl font-semibold text-white">
+								{pct(health.summary.ratios.holdToConfirm)}
+							</p>
+							<p class="mt-1 text-xs text-slate-500">
+								baseline ≥ {pct(health.thresholds.minHoldToConfirmRate)}
+							</p>
+						</div>
+						<div class="fastt-soft-box rounded-xl border border-slate-800 bg-slate-900/80 p-4">
+							<p class="text-xs text-slate-400">Redeem / issued</p>
+							<p class="mt-1 text-2xl font-semibold text-white">
+								{pct(health.summary.ratios.redeemIssued)}
+							</p>
+							<p class="mt-1 text-xs text-slate-500">
+								baseline ≥ {pct(health.thresholds.minRedeemIssuedRate)}
+							</p>
+						</div>
+						<div class="fastt-soft-box rounded-xl border border-slate-800 bg-slate-900/80 p-4">
+							<p class="text-xs text-slate-400">Refund quote → applied</p>
+							<p class="mt-1 text-2xl font-semibold text-white">
+								{pct(health.summary.ratios.refundQuoteApplied)}
+							</p>
+							<p class="mt-1 text-xs text-slate-500">
+								gap max {pct(health.thresholds.maxRefundQuoteNotAppliedRate)}
+							</p>
+						</div>
+						<div class="fastt-soft-box rounded-xl border border-slate-800 bg-slate-900/80 p-4">
+							<p class="text-xs text-slate-400">Hold failure rate</p>
+							<p class="mt-1 text-2xl font-semibold text-white">
+								{pct(health.summary.ratios.holdFailureRate)}
+							</p>
+							<p class="mt-1 text-xs text-slate-500">
+								max {pct(health.thresholds.maxHoldFailureRate)}
+							</p>
+						</div>
+					</div>
+
+					{health.alerts.length > 0 ? (
+						<Card class="border border-rose-500/40 bg-rose-950/30 p-4">
+							<p class="text-sm font-semibold text-rose-100">Alertas activas</p>
+							<ul class="mt-2 space-y-1 text-sm text-rose-50/90">
+								{health.alerts.map((alert) => (
+									<li>
+										<span class="font-medium tracking-wide text-rose-200 uppercase">
+											{alert.severity}
+										</span>
+										{" · "}
+										{alert.code}: {alert.message}
+									</li>
+								))}
+							</ul>
+						</Card>
+					) : (
+						<Card class="border border-emerald-500/30 bg-emerald-950/20 p-4 text-sm text-emerald-100">
+							Sin alertas sobre baseline (o muestra insuficiente).
+						</Card>
+					)}
+
+					<div class="grid gap-4 lg:grid-cols-2">
+						<Card class="border border-slate-800 bg-slate-900/60 p-4">
+							<p class="text-sm font-semibold text-white">Hold failures por reason</p>
+							<ul class="mt-3 space-y-1 text-sm text-slate-300">
+								{health.summary.holds.failuresByReason.length === 0 ? (
+									<li class="text-slate-500">Sin fallos en la ventana</li>
+								) : (
+									health.summary.holds.failuresByReason.slice(0, 12).map((row) => (
+										<li class="flex justify-between gap-3">
+											<span class="truncate font-mono text-xs">{row.reason}</span>
+											<span>{row.count}</span>
+										</li>
+									))
+								)}
+							</ul>
+						</Card>
+						<Card class="border border-slate-800 bg-slate-900/60 p-4">
+							<p class="text-sm font-semibold text-white">Confirm / refund failures</p>
+							<ul class="mt-3 space-y-1 text-sm text-slate-300">
+								{[
+									...health.summary.confirms.failuresByReason,
+									...health.summary.refunds.failuresByReason,
+								].length === 0 ? (
+									<li class="text-slate-500">Sin fallos en la ventana</li>
+								) : (
+									[
+										...health.summary.confirms.failuresByReason,
+										...health.summary.refunds.failuresByReason,
+									]
+										.slice(0, 12)
+										.map((row) => (
+											<li class="flex justify-between gap-3">
+												<span class="truncate font-mono text-xs">{row.reason}</span>
+												<span>{row.count}</span>
+											</li>
+										))
+								)}
+							</ul>
+						</Card>
+					</div>
+				</>
+			)
+		}
+	</div>
+</InternalAdminLayout>

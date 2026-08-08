@@ -1,0 +1,147 @@
+name: Tours Release Gates
+
+on:
+  pull_request:
+    paths:
+      - "src/lib/tours/**"
+      - "src/pages/tours/**"
+      - "src/pages/booking/**"
+      - "src/pages/api/booking/**"
+      - "src/pages/api/inventory/**"
+      - "src/pages/api/tours/**"
+      - "src/pages/api/reviews/**"
+      - "src/pages/api/trips/**"
+      - "src/pages/api/internal/observability/**"
+      - "src/pages/admin/tours/**"
+      - "src/components/tours/**"
+      - "src/modules/catalog/**"
+      - "src/modules/booking/**"
+      - "db/migrations/**tour*"
+      - "db/postgres/**"
+      - "docs/engineering/tours-*"
+      - "docs/ops/tours-*"
+      - "tests/catalog/tour-*"
+      - "tests/integration/tour-*"
+      - "tests/guardrails/tour-*"
+      - "tests/policies/cancellation-hours-deadline.test.ts"
+      - "scripts/db/validate-tour-*"
+      - "scripts/ops/tours-*"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/tours.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "src/lib/tours/**"
+      - "src/pages/tours/**"
+      - "src/pages/booking/**"
+      - "src/pages/api/booking/**"
+      - "src/pages/api/inventory/**"
+      - "src/pages/api/tours/**"
+      - "src/pages/api/reviews/**"
+      - "src/pages/api/trips/**"
+      - "src/pages/api/internal/observability/**"
+      - "src/pages/admin/tours/**"
+      - "src/components/tours/**"
+      - "src/modules/catalog/**"
+      - "src/modules/booking/**"
+      - "db/migrations/**tour*"
+      - "db/postgres/**"
+      - "docs/engineering/tours-*"
+      - "docs/ops/tours-*"
+      - "tests/catalog/tour-*"
+      - "tests/integration/tour-*"
+      - "tests/guardrails/tour-*"
+      - "tests/policies/cancellation-hours-deadline.test.ts"
+      - "scripts/db/validate-tour-*"
+      - "scripts/ops/tours-*"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/tours.yml"
+  workflow_dispatch:
+
+jobs:
+  tours:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      SUPABASE_DB_POOLER_URL: ${{ secrets.SUPABASE_DB_POOLER_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      TOURS_CHECKOUT_ENABLED: "true"
+      TOURS_CHECKIN_ENABLED: "true"
+      TOURS_PUBLIC_SEARCH_ENABLED: "true"
+      TOURS_REFUND_HOURS_ENABLED: "true"
+      TOURS_ROLLOUT_STAGE: general
+      TOURS_ROLLOUT_MIN_DWELL_MS: "0"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.12.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Astro types
+        run: pnpm exec astro sync
+
+      - name: Type check
+        run: pnpm exec tsc --noEmit
+
+      - name: Astro check
+        run: pnpm run check
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Lint Tours surfaces
+        run: pnpm run lint:tours
+
+      - name: UI guardrail
+        run: pnpm run check:ui
+
+      - name: Postgres schema parity
+        run: pnpm exec vitest run tests/architecture/postgres-schema-parity.test.ts
+
+      - name: Tour migration validators (idempotent apply)
+        if: ${{ env.DATABASE_URL != '' || env.SUPABASE_DB_POOLER_URL != '' || env.DIRECT_URL != '' }}
+        run: |
+          pnpm run db:validate:tour-category-backfill
+          pnpm run db:validate:tour-p2-trust
+
+      - name: Tour migration SQL presence (no DB)
+        if: ${{ env.DATABASE_URL == '' && env.SUPABASE_DB_POOLER_URL == '' && env.DIRECT_URL == '' }}
+        run: |
+          test -f db/migrations/2026-08-19_tour_category_link_backfill.sql
+          test -f db/migrations/2026-08-20_tour_p2_trust_quality_private.sql
+          grep -E "IF NOT EXISTS|ON CONFLICT|idempotent" db/migrations/2026-08-19_tour_category_link_backfill.sql db/migrations/2026-08-20_tour_p2_trust_quality_private.sql
+
+      - name: Tours browser-surface contracts
+        run: pnpm exec vitest run tests/catalog/tour-pdp-browser-surface.test.ts tests/catalog/tour-ticket-occupancy.test.ts tests/catalog/tour-canary-observation.test.ts
+
+      - name: Tours phase6 suite
+        run: pnpm run test:tours:phase6
+
+      - name: Canary observation snapshot (local dry-run)
+        run: |
+          mkdir -p artifacts/tours-canary
+          TOURS_CANARY_SNAPSHOT_LABEL=ci-dry-run \
+          TOURS_CANARY_SNAPSHOT_OUT=artifacts/tours-canary/ci-dry-run.json \
+            pnpm run ops:tours-canary-snapshot
+
+      - name: Upload canary snapshot artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tours-canary-snapshot
+          path: artifacts/tours-canary/
+          if-no-files-found: error
