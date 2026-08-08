@@ -1,3 +1,10 @@
+import { resolveTourHoursBeforeDeparture } from "@/lib/tours/tourObservability"
+import {
+	formatZonedLocalDateTime,
+	isValidIanaTimeZone,
+	zonedLocalDateTimeToUtcMs,
+	zonedWallTimeToUtcMs,
+} from "@/shared/domain/date/zoned-datetime"
 import {
 	primaryPolicyExceptionOverride,
 	type AppliedPolicyExceptionRule,
@@ -19,6 +26,7 @@ export type PolicyCalculationSnapshot = {
 	cancellation: {
 		refundTiers: Array<{
 			daysBeforeArrival: number
+			hoursBeforeDeparture: number | null
 			deadlineLocal: string
 			penaltyType: string
 			penaltyAmount: number | null
@@ -81,6 +89,50 @@ function dateOnlyMinusDays(dateOnly: string, days: number): string {
 
 function localDeadline(dateOnly: string, daysBeforeArrival: number, timezone: string): string {
 	return `${dateOnlyMinusDays(dateOnly, daysBeforeArrival)}T00:00:00[${timezone}]`
+}
+
+function normalizeDepartureTime(value: unknown): string {
+	const raw = String(value ?? "").trim()
+	if (/^\d{2}:\d{2}$/.test(raw)) return `${raw}:00`
+	if (/^\d{2}:\d{2}:\d{2}$/.test(raw)) return raw
+	return "00:00:00"
+}
+
+/**
+ * Deadline from check-in date + departure clock − hoursBeforeDeparture,
+ * computed in the property timezone (DST-aware) and annotated as zoned local.
+ */
+export function localDeadlineFromHours(params: {
+	checkInDate: string
+	departureTime?: string | null
+	hoursBeforeDeparture: number
+	timezone: string
+}): string {
+	const dateOnly = String(params.checkInDate).slice(0, 10)
+	const timezone = String(params.timezone ?? "").trim() || "UTC"
+	const hours = Math.max(0, Number(params.hoursBeforeDeparture) || 0)
+	const time = normalizeDepartureTime(params.departureTime)
+
+	if (!isValidIanaTimeZone(timezone)) {
+		return localDeadline(dateOnly, Math.ceil(hours / 24), timezone)
+	}
+
+	const departureUtcMs = zonedWallTimeToUtcMs({
+		dateOnly,
+		time,
+		timeZone: timezone,
+	})
+	if (!Number.isFinite(departureUtcMs)) {
+		return localDeadline(dateOnly, Math.ceil(hours / 24), timezone)
+	}
+
+	const deadlineUtcMs = departureUtcMs - hours * 3_600_000
+	return formatZonedLocalDateTime(deadlineUtcMs, timezone)
+}
+
+function deadlineSortKey(value: string): number {
+	const time = zonedLocalDateTimeToUtcMs(value)
+	return Number.isFinite(time) ? time : Number.NEGATIVE_INFINITY
 }
 
 function nightsBetween(from: string, to?: string | null): number | null {
@@ -160,6 +212,11 @@ export function buildPolicyCalculationSnapshot(params: {
 	policy: ResolveEffectivePoliciesResult["policies"][number]["policy"]
 	checkIn: string
 	checkOut?: string | null
+	/** HH:mm / HH:mm:ss for tour departures; used when tiers set hoursBeforeDeparture. */
+	departureTime?: string | null
+	/** Provider id for Tours refund-hours canary (allowlist/percentage). */
+	providerId?: string | null
+	host?: string | null
 	exceptionRules?: PolicyExceptionRule[]
 	resolvedFromScope?: string | null
 	scopeId?: string | null
@@ -205,6 +262,11 @@ export function buildPolicyCalculationSnapshot(params: {
 		)
 			.map((tier: any) => {
 				const daysBeforeArrival = Number(tier.daysBeforeArrival ?? 0)
+				const rawHours = numberOrNull(tier.hoursBeforeDeparture)
+				const hoursBeforeDeparture = resolveTourHoursBeforeDeparture(rawHours, {
+					providerId: params.providerId,
+					host: params.host,
+				})
 				const penaltyType = String(tier.penaltyType ?? "")
 				const penaltyAmount = numberOrNull(tier.penaltyAmount)
 				const refundPercent =
@@ -219,9 +281,19 @@ export function buildPolicyCalculationSnapshot(params: {
 					payoutOverridePercent,
 					override,
 				})
+				const deadlineLocal =
+					hoursBeforeDeparture != null
+						? localDeadlineFromHours({
+								checkInDate: params.checkIn,
+								departureTime: params.departureTime,
+								hoursBeforeDeparture,
+								timezone: localTimezone,
+							})
+						: localDeadline(params.checkIn, daysBeforeArrival, localTimezone)
 				return {
 					daysBeforeArrival,
-					deadlineLocal: localDeadline(params.checkIn, daysBeforeArrival, localTimezone),
+					hoursBeforeDeparture,
+					deadlineLocal,
 					penaltyType: overridePercent == null ? penaltyType : "percentage",
 					penaltyAmount:
 						overridePercent == null
@@ -237,7 +309,7 @@ export function buildPolicyCalculationSnapshot(params: {
 					payoutImpact: effectivePayoutImpact,
 				}
 			})
-			.sort((a, b) => b.daysBeforeArrival - a.daysBeforeArrival)
+			.sort((a, b) => deadlineSortKey(b.deadlineLocal) - deadlineSortKey(a.deadlineLocal))
 		const freeTier = refundTiers.find((tier) => Number(tier.refundPercent ?? -1) >= 100)
 		const bestTier = refundTiers[0] ?? null
 		return {

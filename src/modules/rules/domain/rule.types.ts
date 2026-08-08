@@ -22,6 +22,7 @@ export type RuleCode = KnownRuleCode | (string & {})
 
 export type CancellationTierContent = {
 	daysBeforeArrival: number
+	hoursBeforeDeparture?: number | null
 	penaltyType: "percentage" | "nights" | (string & {})
 	penaltyAmount: number | null
 }

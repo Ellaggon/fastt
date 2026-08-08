@@ -11,6 +11,7 @@ type PolicyRule = {
 
 type CancellationTier = {
 	daysBeforeArrival?: unknown
+	hoursBeforeDeparture?: unknown
 	penaltyType?: unknown
 	penaltyAmount?: unknown
 }
@@ -52,6 +53,7 @@ function toCancellationTiers(policy: SnapshotPolicy | null): CancellationTier[] 
 	return tiers
 		.map((tier) => ({
 			daysBeforeArrival: tier?.daysBeforeArrival,
+			hoursBeforeDeparture: tier?.hoursBeforeDeparture,
 			penaltyType: tier?.penaltyType,
 			penaltyAmount: tier?.penaltyAmount,
 		}))
@@ -91,6 +93,11 @@ function describeCancellation(policy: SnapshotPolicy | null): string {
 		return penaltyType === "percentage" && Number.isFinite(penaltyAmount) && penaltyAmount <= 0
 	})
 	if (freeTier) {
+		const hours = Number(freeTier.hoursBeforeDeparture ?? NaN)
+		if (Number.isFinite(hours) && hours >= 0) {
+			if (hours === 0) return "Cancelación gratis hasta la hora de salida"
+			return `Cancelación gratis hasta ${hours} hora${hours === 1 ? "" : "s"} antes de la salida`
+		}
 		const days = Number(freeTier.daysBeforeArrival ?? 0)
 		if (days > 0) return `Cancelación gratis hasta ${days} día${days === 1 ? "" : "s"} antes`
 		return "Cancelación gratis hasta el día de llegada"

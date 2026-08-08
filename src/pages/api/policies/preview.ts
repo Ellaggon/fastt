@@ -34,6 +34,7 @@ type PreviewBody = {
 	channel?: string | null
 	checkIn?: string
 	checkOut?: string
+	departureTime?: string | null
 	currency?: string
 	grossAmount?: number
 }
@@ -265,6 +266,7 @@ export const POST: APIRoute = async ({ request }) => {
 		rules: selected.rules,
 		cancellationTiers: selected.cancellationTiers,
 	})
+	const departureTime = String(body.departureTime ?? "").trim() || null
 	const financialPreview = buildPolicyFinancialPreviewFromResolution({
 		providerId,
 		resolvedPolicies: resolved,
@@ -277,6 +279,7 @@ export const POST: APIRoute = async ({ request }) => {
 		bookedAt: new Date(today.getTime() - 2 * 60 * 60 * 1000),
 		reason: "policy_preview",
 		idPrefix: "policy-preview",
+		departureTime,
 	})
 	const categoryPreview = buildPolicyCategoryPreview({
 		category: selected.category,

@@ -1,4 +1,5 @@
 import type { HoldPolicySnapshot } from "@/modules/policies/public"
+import { zonedLocalDateTimeToUtcMs } from "@/shared/domain/date/zoned-datetime"
 import type { RefundQuote, RefundQuoteLine } from "../../domain/refund-quote"
 
 export type RefundQuoteMoneyLine = {
@@ -38,8 +39,7 @@ function roundMoney(value: number): number {
 
 function deadlineTime(value: string | null): number {
 	if (!value) return Number.NEGATIVE_INFINITY
-	const isoish = value.replace(/\[[^\]]+\]$/, "Z")
-	const time = new Date(isoish).getTime()
+	const time = zonedLocalDateTimeToUtcMs(value)
 	return Number.isFinite(time) ? time : Number.NEGATIVE_INFINITY
 }
 
@@ -60,13 +60,15 @@ function selectCancellationTier(
 	const tiers = policySnapshot.cancellation?.calculation?.cancellation?.refundTiers ?? []
 	if (!tiers.length) return null
 	const cancelledTime = cancelledAt.getTime()
-	return (
-		[...tiers]
-			.sort((a, b) => deadlineTime(b.deadlineLocal) - deadlineTime(a.deadlineLocal))
-			.find((tier) => cancelledTime <= deadlineTime(tier.deadlineLocal)) ??
-		tiers[tiers.length - 1] ??
-		null
-	)
+	// deadlineLocal is the last instant the tier still applies. When several apply,
+	// pick the guest-favorable refund (free hour/day windows beat later penalty tiers).
+	const applicable = tiers.filter((tier) => cancelledTime <= deadlineTime(tier.deadlineLocal))
+	if (applicable.length) {
+		return [...applicable].sort(
+			(a, b) => Number(b.refundPercent ?? 0) - Number(a.refundPercent ?? 0)
+		)[0]
+	}
+	return [...tiers].sort((a, b) => Number(a.refundPercent ?? 0) - Number(b.refundPercent ?? 0))[0]
 }
 
 function defaultLines(input: BuildRefundQuoteInput): RefundQuoteMoneyLine[] {

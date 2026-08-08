@@ -15,6 +15,7 @@ type PolicyRuleRow = {
 
 type CancellationTierRow = {
 	daysBeforeArrival?: unknown
+	hoursBeforeDeparture?: unknown
 	penaltyType?: unknown
 	penaltyAmount?: unknown
 }
@@ -32,6 +33,7 @@ function toRulesMap(rows: unknown[]): Record<string, unknown> {
 
 function toCancellationTiers(rows: unknown[]): Array<{
 	daysBeforeArrival: number
+	hoursBeforeDeparture: number | null
 	penaltyType: "percentage" | "nights" | (string & {})
 	penaltyAmount: number | null
 }> {
@@ -39,6 +41,10 @@ function toCancellationTiers(rows: unknown[]): Array<{
 	return tiers
 		.map((tier) => ({
 			daysBeforeArrival: Number(tier?.daysBeforeArrival ?? 0),
+			hoursBeforeDeparture:
+				tier?.hoursBeforeDeparture == null || !Number.isFinite(Number(tier.hoursBeforeDeparture))
+					? null
+					: Number(tier.hoursBeforeDeparture),
 			penaltyType: String(tier?.penaltyType ?? "percentage") as
 				| "percentage"
 				| "nights"
