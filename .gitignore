@@ -15,6 +15,7 @@ pnpm-debug.log*
 
 # temporary/generated artifacts
 tmp/
+artifacts/
 
 # environment variables
 .env
