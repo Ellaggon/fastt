@@ -16,6 +16,7 @@ import { ProductServiceQueryRepository } from "../modules/catalog/infrastructure
 import { DestinationQueryRepository } from "../modules/catalog/infrastructure/repositories/DestinationQueryRepository"
 import { MarketplaceHotelSearchRepository } from "../modules/catalog/infrastructure/repositories/MarketplaceHotelSearchRepository"
 import { CatalogReadModelRepository } from "../modules/catalog/infrastructure/repositories/CatalogReadModelRepository"
+import { TourTrustRepository } from "../modules/catalog/infrastructure/repositories/TourTrustRepository"
 
 import {
 	createResolveHotelAmenitiesQuery,
@@ -68,6 +69,7 @@ export const productServiceQueryRepository = new ProductServiceQueryRepository()
 export const destinationQueryRepository = new DestinationQueryRepository()
 export const marketplaceHotelSearchRepository = new MarketplaceHotelSearchRepository()
 export const catalogReadModelRepository = new CatalogReadModelRepository()
+export const tourTrustRepository = new TourTrustRepository()
 
 // ---- Wired read queries ----
 export const resolveHotelAmenities = createResolveHotelAmenitiesQuery({
