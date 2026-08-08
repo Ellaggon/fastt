@@ -2,8 +2,11 @@ import { createHash } from "node:crypto"
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 
-import "dotenv/config"
 import postgres from "postgres"
+
+import { ensureCleanPostgresEnv } from "../../src/shared/infrastructure/db/clean-db-env"
+
+ensureCleanPostgresEnv()
 
 const MIGRATIONS_DIR = path.resolve("db/migrations")
 const LOCK_KEY = 8_370_202_607_22

@@ -9,6 +9,8 @@ type RedisDriver = {
 	set: (key: string, value: string, ttlSeconds: number) => Promise<void>
 	del: (key: string) => Promise<void>
 	delByPrefix: (prefix: string) => Promise<void>
+	incrBy: (key: string, delta: number) => Promise<number>
+	listKeysByPrefix: (prefix: string) => Promise<string[]>
 }
 
 const memory = new Map<string, MemoryEntry>()
@@ -55,6 +57,29 @@ async function createRedisDriverFromNodeRedis(redisUrl: string): Promise<RedisDr
 		const client = mod.createClient({ url: redisUrl })
 		client.on("error", () => {})
 		await client.connect()
+		async function scanKeys(prefix: string): Promise<string[]> {
+			const keys: string[] = []
+			if (typeof client.scanIterator === "function") {
+				for await (const key of client.scanIterator({
+					MATCH: `${prefix}*`,
+					COUNT: SCAN_COUNT,
+				})) {
+					keys.push(String(key))
+				}
+			} else {
+				let cursor = "0"
+				do {
+					const result = await client.scan(cursor, {
+						MATCH: `${prefix}*`,
+						COUNT: SCAN_COUNT,
+					})
+					cursor = String(result.cursor ?? result[0] ?? "0")
+					const batch = (result.keys ?? result[1] ?? []) as string[]
+					keys.push(...batch.map(String))
+				} while (cursor !== "0")
+			}
+			return keys
+		}
 		return {
 			kind: "redis",
 			async get(key: string) {
@@ -66,33 +91,14 @@ async function createRedisDriverFromNodeRedis(redisUrl: string): Promise<RedisDr
 			async del(key: string) {
 				await client.del(key)
 			},
+			async incrBy(key: string, delta: number) {
+				return Number(await client.incrBy(key, delta))
+			},
+			async listKeysByPrefix(prefix: string) {
+				return await scanKeys(prefix)
+			},
 			async delByPrefix(prefix: string) {
-				const keys: string[] = []
-				if (typeof client.scanIterator === "function") {
-					for await (const key of client.scanIterator({
-						MATCH: `${prefix}*`,
-						COUNT: SCAN_COUNT,
-					})) {
-						keys.push(String(key))
-						if (keys.length >= SCAN_COUNT) {
-							await client.del(keys.splice(0))
-						}
-					}
-				} else {
-					let cursor = "0"
-					do {
-						const result = await client.scan(cursor, {
-							MATCH: `${prefix}*`,
-							COUNT: SCAN_COUNT,
-						})
-						cursor = String(result.cursor ?? result[0] ?? "0")
-						const batch = (result.keys ?? result[1] ?? []) as string[]
-						keys.push(...batch)
-						if (keys.length >= SCAN_COUNT) {
-							await client.del(keys.splice(0))
-						}
-					} while (cursor !== "0")
-				}
+				const keys = await scanKeys(prefix)
 				if (keys.length > 0) await client.del(keys)
 			},
 		}
@@ -123,6 +129,24 @@ async function createRedisDriverFromUpstashRest(redisUrl: string): Promise<Redis
 		return data.result
 	}
 
+	async function scanKeys(prefix: string): Promise<string[]> {
+		const keys: string[] = []
+		let cursor = "0"
+		do {
+			const result = (await command([
+				"SCAN",
+				cursor,
+				"MATCH",
+				`${prefix}*`,
+				"COUNT",
+				String(SCAN_COUNT),
+			])) as [string, string[]] | null
+			cursor = String(result?.[0] ?? "0")
+			keys.push(...(result?.[1] ?? []).map(String))
+		} while (cursor !== "0")
+		return keys
+	}
+
 	return {
 		kind: "upstash-rest",
 		async get(key: string) {
@@ -135,21 +159,15 @@ async function createRedisDriverFromUpstashRest(redisUrl: string): Promise<Redis
 		async del(key: string) {
 			await command(["DEL", key])
 		},
+		async incrBy(key: string, delta: number) {
+			return Number(await command(["INCRBY", key, String(delta)]))
+		},
+		async listKeysByPrefix(prefix: string) {
+			return await scanKeys(prefix)
+		},
 		async delByPrefix(prefix: string) {
-			let cursor = "0"
-			do {
-				const result = (await command([
-					"SCAN",
-					cursor,
-					"MATCH",
-					`${prefix}*`,
-					"COUNT",
-					String(SCAN_COUNT),
-				])) as [string, string[]] | null
-				cursor = String(result?.[0] ?? "0")
-				const keys = result?.[1] ?? []
-				if (keys.length > 0) await command(["DEL", ...keys])
-			} while (cursor !== "0")
+			const keys = await scanKeys(prefix)
+			if (keys.length > 0) await command(["DEL", ...keys])
 		},
 	}
 }
@@ -266,5 +284,26 @@ export async function delByPrefix(prefix: string): Promise<void> {
 	}
 	for (const key of memory.keys()) {
 		if (key.startsWith(prefix)) memory.delete(key)
+	}
+}
+
+/** Atomic counter increment for shared multi-instance metrics. */
+export async function incrBy(key: string, delta = 1): Promise<number | null> {
+	const driver = await getDriver()
+	if (!driver) return null
+	try {
+		return await driver.incrBy(key, Number(delta) || 0)
+	} catch {
+		return null
+	}
+}
+
+export async function listKeysByPrefix(prefix: string): Promise<string[]> {
+	const driver = await getDriver()
+	if (!driver) return []
+	try {
+		return await driver.listKeysByPrefix(prefix)
+	} catch {
+		return []
 	}
 }

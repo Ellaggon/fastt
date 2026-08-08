@@ -1,3 +1,5 @@
+import { isValidPostgresConnectionUrl } from "@/shared/infrastructure/db/clean-db-env"
+
 export type PostgresConnectionMode = "runtime" | "direct"
 
 export type PostgresDatabaseEnv = {
@@ -8,7 +10,11 @@ export type PostgresDatabaseEnv = {
 
 function clean(value: string | undefined): string | null {
 	const trimmed = String(value ?? "").trim()
-	return trimmed.length > 0 ? trimmed : null
+	if (!trimmed) return null
+	// Reject corrupted shell inheritances (spaces / unparseable) so callers fail
+	// clearly instead of `new URL` / postgres throwing Invalid URL mid-suite.
+	if (!isValidPostgresConnectionUrl(trimmed)) return null
+	return trimmed
 }
 
 export function readPostgresDatabaseEnv(env: NodeJS.ProcessEnv = process.env): PostgresDatabaseEnv {
