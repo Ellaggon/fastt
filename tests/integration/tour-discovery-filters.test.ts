@@ -1,5 +1,6 @@
 import "dotenv/config"
-import { describe, expect, it } from "vitest"
+import { expect, it } from "vitest"
+import { describePostgres as describe } from "../setup/postgres-suite"
 
 import { getTourSearchSurface } from "@/lib/tours/tourSearchSurface"
 import { tourDepartureToStay } from "@/lib/tours/tourSemantics"

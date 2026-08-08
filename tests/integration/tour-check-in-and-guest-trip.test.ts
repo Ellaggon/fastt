@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest"
+import { expect, it } from "vitest"
+import { describePostgres as describe } from "../setup/postgres-suite"
 
 import {
 	Booking,

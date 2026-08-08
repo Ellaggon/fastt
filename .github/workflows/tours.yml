@@ -130,6 +130,8 @@ jobs:
         run: pnpm exec vitest run tests/catalog/tour-pdp-browser-surface.test.ts tests/catalog/tour-ticket-occupancy.test.ts tests/catalog/tour-canary-observation.test.ts
 
       - name: Tours phase6 suite
+        # Catalog/guardrail/policy contracts always run. Postgres integration suites
+        # skip cleanly when DATABASE_URL / pooler secrets are unset.
         run: pnpm run test:tours:phase6
 
       - name: Canary observation snapshot (local dry-run)
