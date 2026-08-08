@@ -3,9 +3,28 @@ export const FEATURE_FLAG_DEFAULTS = {
 	SEARCH_V2_ENABLED: false,
 	SEARCH_SHADOW_COMPARE: false,
 	SEARCH_POLICY_BLOCKER_ENABLED: false,
+	/** Tour hold + confirm. Kill-switch for checkout rollout. Env-only; default off. */
+	TOURS_CHECKOUT_ENABLED: false,
+	/** Hour-based cancel/refund deadlines (`hoursBeforeDeparture`). Env-only; default off. */
+	TOURS_REFUND_HOURS_ENABLED: false,
+	/** Provider day-of check-in + voucher redeem. Env-only; default off. */
+	TOURS_CHECKIN_ENABLED: false,
+	/** Public `/tours/search` SearchUnitView discovery surface. Env-only; default off. */
+	TOURS_PUBLIC_SEARCH_ENABLED: false,
 } as const
 
 export type FeatureFlagName = keyof typeof FEATURE_FLAG_DEFAULTS
+
+/**
+ * Kill-switches that must never be flipped by guest request headers/query.
+ * Resolution is env (or `context.env` in tests) + default only.
+ */
+export const ENV_ONLY_FEATURE_FLAGS = new Set<FeatureFlagName>([
+	"TOURS_CHECKOUT_ENABLED",
+	"TOURS_REFUND_HOURS_ENABLED",
+	"TOURS_CHECKIN_ENABLED",
+	"TOURS_PUBLIC_SEARCH_ENABLED",
+])
 
 export type FeatureFlagContext = {
 	request?: Request | null
@@ -125,12 +144,19 @@ function getOverrideValue(
 	return undefined
 }
 
+export function isEnvOnlyFeatureFlag(flagName: FeatureFlagName): boolean {
+	return ENV_ONLY_FEATURE_FLAGS.has(normalizeFlagName(flagName) as FeatureFlagName)
+}
+
 export function getFeatureFlag(flagName: FeatureFlagName, context?: FeatureFlagContext): boolean {
 	const normalizedName = normalizeFlagName(flagName) as FeatureFlagName
 	const defaultValue = FEATURE_FLAG_DEFAULTS[normalizedName]
-	const overrideValue = getOverrideValue(normalizedName, context)
-	if (overrideValue != null) {
-		return parseBoolean(overrideValue, defaultValue)
+	// Guest/public request must never re-enable kill-switches that env has off.
+	if (!isEnvOnlyFeatureFlag(normalizedName)) {
+		const overrideValue = getOverrideValue(normalizedName, context)
+		if (overrideValue != null) {
+			return parseBoolean(overrideValue, defaultValue)
+		}
 	}
 	const envValue = getEnvValue(normalizedName, context)
 	return parseBoolean(envValue, defaultValue)
@@ -142,6 +168,10 @@ export function getFeatureFlags(context?: FeatureFlagContext): Record<FeatureFla
 		SEARCH_V2_ENABLED: getFeatureFlag("SEARCH_V2_ENABLED", context),
 		SEARCH_SHADOW_COMPARE: getFeatureFlag("SEARCH_SHADOW_COMPARE", context),
 		SEARCH_POLICY_BLOCKER_ENABLED: getFeatureFlag("SEARCH_POLICY_BLOCKER_ENABLED", context),
+		TOURS_CHECKOUT_ENABLED: getFeatureFlag("TOURS_CHECKOUT_ENABLED", context),
+		TOURS_REFUND_HOURS_ENABLED: getFeatureFlag("TOURS_REFUND_HOURS_ENABLED", context),
+		TOURS_CHECKIN_ENABLED: getFeatureFlag("TOURS_CHECKIN_ENABLED", context),
+		TOURS_PUBLIC_SEARCH_ENABLED: getFeatureFlag("TOURS_PUBLIC_SEARCH_ENABLED", context),
 	}
 }
 
