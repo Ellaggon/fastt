@@ -36,10 +36,17 @@ export type ProductAggregate = {
 		}
 		tour?: {
 			hasItinerary: boolean
+			itinerarySteps: number
 			hasMeetingPoint: boolean
+			hasDurationMinutes: boolean
+			hasIncludes: boolean
+			hasCategory: boolean
+			hasActiveTickets: boolean
 			hasSchedule: boolean
+			imageCount: number
 			slotCount?: number
 			completeSlotCount?: number
+			activeSlotCount?: number
 		}
 		package?: {
 			hasDaysAndNights: boolean

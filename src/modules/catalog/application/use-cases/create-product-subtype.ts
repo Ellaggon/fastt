@@ -124,7 +124,8 @@ export async function createProductSubtype(params: {
 			}),
 			includesJson: listFromForm(form.get("tourIncludes")),
 			excludesJson: listFromForm(form.get("tourExcludes")),
-			categoriesJson: listFromForm(form.get("tourCategories")),
+			// Categories: ProductCategoryLink via /product/[id]/tickets (canonical).
+			categoriesJson: null,
 			pickupJson: objectFromFields({
 				defaultArea: form.get("pickupDefaultArea"),
 				instructions: form.get("pickupInstructions"),

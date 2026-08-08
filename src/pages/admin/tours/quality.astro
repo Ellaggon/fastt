@@ -4,7 +4,11 @@ import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
 import { requireInternalAdmin } from "@/lib/auth/requireInternalAdmin"
-import { loadTourAdminQualityQueue } from "@/lib/tours/tourAdminQuality"
+import {
+	TOUR_QUALITY_MIN_IMAGES,
+	TOUR_QUALITY_MIN_ITINERARY_STEPS,
+	loadTourAdminQualityQueue,
+} from "@/lib/tours/tourAdminQuality"
 
 let isAdmin = false
 try {
@@ -18,14 +22,17 @@ try {
 const onlyNeedsAttention = Astro.url.searchParams.get("filter") === "attention"
 const queue = isAdmin
 	? await loadTourAdminQualityQueue({ limit: 100, onlyNeedsAttention })
-	: { rows: [], counts: { total: 0, needsAttention: 0 } }
+	: { rows: [], counts: { total: 0, needsAttention: 0, blocked: 0 } }
 
 const issueLabels: Record<string, string> = {
-	missing_images: "Pocas fotos",
-	thin_itinerary: "Itinerario débil",
+	missing_images: `Fotos < ${TOUR_QUALITY_MIN_IMAGES}`,
+	thin_itinerary: `Itinerario < ${TOUR_QUALITY_MIN_ITINERARY_STEPS}`,
 	missing_meeting_point: "Sin meeting point",
 	missing_duration: "Sin duración",
 	missing_includes: "Sin includes",
+	missing_category: "Sin categoría",
+	missing_active_tickets: "Sin tickets activos",
+	no_complete_salida: "Sin salida completa",
 	no_active_salida: "Sin salida activa",
 	draft_status: "No publicado",
 }
@@ -38,10 +45,11 @@ const issueLabels: Record<string, string> = {
 				<p class="text-xs font-semibold uppercase tracking-[0.14em] text-amber-300/80">
 					Catalog quality
 				</p>
-				<h1 class="text-2xl font-semibold text-white">Tours · calidad</h1>
+				<h1 class="text-2xl font-semibold text-white">Tours · calidad de publicación</h1>
 				<p class="max-w-2xl text-sm text-slate-400">
-					Cola de revisión por fotos, itinerario, meeting point, duración e salidas activas. Sin
-					rename físico de tablas — solo claridad ops (Fase 6).
+					Blockers impiden publicar (≥{TOUR_QUALITY_MIN_IMAGES} fotos, itinerario ≥
+					{TOUR_QUALITY_MIN_ITINERARY_STEPS}, meeting point, duración, includes, categoría, tickets
+					y una salida completa). Warnings son editoriales.
 				</p>
 			</div>
 			<div class="flex flex-wrap gap-2">
@@ -65,10 +73,14 @@ const issueLabels: Record<string, string> = {
 				</Card>
 			) : (
 				<>
-					<div class="grid gap-3 sm:grid-cols-2">
+					<div class="grid gap-3 sm:grid-cols-3">
 						<div class="fastt-soft-box rounded-xl border border-slate-800 bg-slate-900/80 p-4">
 							<p class="text-xs text-slate-400">Tours en cola</p>
 							<p class="mt-1 text-2xl font-semibold text-white">{queue.counts.total}</p>
+						</div>
+						<div class="fastt-soft-box rounded-xl border border-slate-800 bg-slate-900/80 p-4">
+							<p class="text-xs text-slate-400">Con blockers</p>
+							<p class="mt-1 text-2xl font-semibold text-rose-300">{queue.counts.blocked}</p>
 						</div>
 						<div class="fastt-soft-box rounded-xl border border-slate-800 bg-slate-900/80 p-4">
 							<p class="text-xs text-slate-400">Necesitan atención</p>
@@ -86,7 +98,7 @@ const issueLabels: Record<string, string> = {
 										<th class="px-4 py-3 font-medium">Tour</th>
 										<th class="px-4 py-3 font-medium">Score</th>
 										<th class="px-4 py-3 font-medium">Señales</th>
-										<th class="px-4 py-3 font-medium">Issues</th>
+										<th class="px-4 py-3 font-medium">Qué corregir</th>
 										<th class="px-4 py-3 font-medium" />
 									</tr>
 								</thead>
@@ -99,7 +111,7 @@ const issueLabels: Record<string, string> = {
 										</tr>
 									) : (
 										queue.rows.map((row) => (
-											<tr class="border-b border-slate-800/80 last:border-0">
+											<tr class="border-b border-slate-800/80 align-top last:border-0">
 												<td class="px-4 py-3">
 													<p class="font-medium text-white">{row.name}</p>
 													<p class="mt-0.5 font-mono text-xs text-slate-500">{row.productId}</p>
@@ -117,21 +129,42 @@ const issueLabels: Record<string, string> = {
 													>
 														{row.score}
 													</span>
+													{row.blockers.length > 0 ? (
+														<p class="mt-1 text-[11px] text-rose-300">
+															{row.blockers.length} blocker
+															{row.blockers.length === 1 ? "" : "s"}
+														</p>
+													) : null}
 												</td>
 												<td class="px-4 py-3 text-xs text-slate-400">
 													{row.imageCount} fotos · {row.itinerarySteps} pasos ·{" "}
-													{row.activeSalidaCount} salidas
+													{row.completeSalidaCount}/{row.activeSalidaCount} salidas completas ·{" "}
+													{row.categoryCount} cat · {row.activeTicketCount} tickets
 												</td>
 												<td class="px-4 py-3">
-													<div class="flex flex-wrap gap-1">
-														{row.issues.length === 0 ? (
-															<Badge variant="success">OK</Badge>
-														) : (
-															row.issues.map((issue) => (
-																<Badge variant="warning">{issueLabels[issue] ?? issue}</Badge>
-															))
-														)}
-													</div>
+													{row.actions.length === 0 ? (
+														<Badge variant="success">Listo</Badge>
+													) : (
+														<ul class="space-y-2">
+															{row.actions.map((action) => (
+																<li>
+																	<a
+																		href={action.href}
+																		class="group flex flex-wrap items-center gap-2"
+																	>
+																		<Badge
+																			variant={action.severity === "blocker" ? "error" : "warning"}
+																		>
+																			{issueLabels[action.issue] ?? action.issue}
+																		</Badge>
+																		<span class="text-xs text-sky-300 group-hover:underline">
+																			{action.label} →
+																		</span>
+																	</a>
+																</li>
+															))}
+														</ul>
+													)}
 												</td>
 												<td class="px-4 py-3 text-right">
 													<a

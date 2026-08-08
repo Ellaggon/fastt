@@ -4,15 +4,19 @@ import {
 	Image,
 	Limousine,
 	Package,
+	ProductCategory,
+	ProductCategoryLink,
 	ProductContent,
 	ProductLocation,
 	RatePlan,
 	Tour,
 	TourSlotProfile,
+	TourTicketType,
 	Variant,
 	VariantCapacity,
 	eq,
 } from "@/shared/infrastructure/db/compat"
+import { TOUR_QUALITY_MIN_IMAGES } from "@/lib/tours/tourAdminQuality"
 
 import { PRODUCT_VERTICALS, normalizeProductTypeForStorage } from "@/lib/productVerticalRegistry"
 import { productRepository } from "@/container"
@@ -186,23 +190,67 @@ describe("vertical maturity", () => {
 		expect(row?.luggageCapacity).toBe(2)
 	})
 
-	it("marks Tour ready only when itinerary, meeting point and sellable schedule exist", async () => {
+	it("marks Tour ready only when quality floors and sellable schedule are met", async () => {
 		const suffix = crypto.randomUUID()
 		const productId = `tour_ready_${suffix}`
 		const slotId = `tour_slot_${suffix}`
+		const categoryId = `cat_tour_ready_${suffix}`
 		await seedReadyCatalogBase({
 			productId,
 			productType: "Tour",
 			destinationId: `dest_tour_ready_${suffix}`,
 		})
+		// Start at 4 photos (seedReadyCatalogBase inserts 1) — below publish floor.
+		for (let i = 1; i < TOUR_QUALITY_MIN_IMAGES - 1; i += 1) {
+			await db.insert(Image).values({
+				id: `img_${productId}_${i}`,
+				entityType: "product",
+				entityId: productId,
+				objectKey: `products/${productId}_${i}.jpg`,
+				url: `https://example.com/image-${i}.jpg`,
+				isPrimary: false,
+				order: i,
+			})
+		}
 		const repo = new SubtypeRepository()
 		await repo.insertTourStandalone({
 			productId,
 			duration: "3 horas",
+			durationMinutes: 180,
 			meetingPointJson: { address: "Plaza principal" },
-			itineraryJson: [{ step: 1, description: "Recorrido historico" }],
+			itineraryJson: [
+				{ step: 1, description: "Encuentro" },
+				{ step: 2, description: "Recorrido historico" },
+				{ step: 3, description: "Cierre" },
+			],
+			includesJson: ["Guia", "Entradas"],
 			safetyJson: { requirements: "Calzado comodo" },
 			guideJson: { languages: "es" },
+		})
+		await db.insert(ProductCategory).values({
+			id: categoryId,
+			slug: `city-tour-${suffix}`,
+			name: "City Tour",
+			vertical: "tour",
+			sortOrder: 1,
+			isActive: true,
+			createdAt: new Date(),
+		})
+		await db.insert(ProductCategoryLink).values({
+			id: `pcl_${suffix}`,
+			productId,
+			categoryId,
+			createdAt: new Date(),
+		})
+		await db.insert(TourTicketType).values({
+			id: `ttt_${suffix}`,
+			productId,
+			code: "adult",
+			label: "Adulto",
+			sortOrder: 0,
+			isActive: true,
+			createdAt: new Date(),
+			updatedAt: new Date(),
 		})
 
 		let evaluated = await evaluateProductReadiness({ repo: productRepository }, { productId })
@@ -218,7 +266,7 @@ describe("vertical maturity", () => {
 			isActive: false,
 		})
 
-		// Bare variant is not enough (Fase 2: profile + capacity + rate).
+		// Bare / incomplete / inactive salida is not enough (aligned with admin quality).
 		evaluated = await evaluateProductReadiness({ repo: productRepository }, { productId })
 		expect(evaluated.state).toBe("draft")
 		expect(evaluated.validationErrors.some((e) => e.code === "missing_tour_schedule")).toBe(true)
@@ -231,12 +279,6 @@ describe("vertical maturity", () => {
 			bookingMode: "shared",
 			isActive: true,
 		})
-
-		// Profile alone is not enough — still needs capacity + default rate.
-		evaluated = await evaluateProductReadiness({ repo: productRepository }, { productId })
-		expect(evaluated.state).toBe("draft")
-		expect(evaluated.validationErrors.some((e) => e.code === "missing_tour_schedule")).toBe(true)
-
 		await db.insert(VariantCapacity).values({
 			variantId: slotId,
 			minOccupancy: 1,
@@ -244,11 +286,6 @@ describe("vertical maturity", () => {
 			maxAdults: 12,
 			maxChildren: null,
 		})
-
-		evaluated = await evaluateProductReadiness({ repo: productRepository }, { productId })
-		expect(evaluated.state).toBe("draft")
-		expect(evaluated.validationErrors.some((e) => e.code === "missing_tour_schedule")).toBe(true)
-
 		await db.insert(RatePlan).values({
 			id: `rp_${suffix}`,
 			variantId: slotId,
@@ -258,6 +295,33 @@ describe("vertical maturity", () => {
 			createdAt: new Date(),
 		})
 
+		// Still inactive → still missing schedule (quality requires active complete salida).
+		evaluated = await evaluateProductReadiness({ repo: productRepository }, { productId })
+		expect(evaluated.state).toBe("draft")
+		expect(evaluated.validationErrors.some((e) => e.code === "missing_tour_schedule")).toBe(true)
+
+		await db
+			.update(Variant)
+			.set({ isActive: true, status: "ready" } as any)
+			.where(eq(Variant.id, slotId))
+
+		// 4 photos + full content/salida still blocks (shared quality floor).
+		evaluated = await evaluateProductReadiness({ repo: productRepository }, { productId })
+		expect(evaluated.state).toBe("draft")
+		expect(evaluated.validationErrors.some((e) => e.code === "missing_tour_images")).toBe(true)
+		expect(evaluated.validationErrors.some((e) => e.code === "missing_tour_schedule")).toBe(false)
+
+		await db.insert(Image).values({
+			id: `img_${productId}_5`,
+			entityType: "product",
+			entityId: productId,
+			objectKey: `products/${productId}_5.jpg`,
+			url: "https://example.com/image-5.jpg",
+			isPrimary: false,
+			order: 4,
+		})
+
+		// 5 photos + 3 steps + includes/category/tickets/active salida → ready.
 		evaluated = await evaluateProductReadiness({ repo: productRepository }, { productId })
 		expect(evaluated.state).toBe("ready")
 		expect(evaluated.validationErrors).toEqual([])

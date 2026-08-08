@@ -107,21 +107,26 @@ export class SubtypeRepository {
 	}
 
 	async updateTour(dbOrTx: DBOrTx, productId: string, data: Partial<TourPayload>) {
+		const patch: Record<string, unknown> = {
+			duration: data.duration ?? null,
+			durationMinutes: data.durationMinutes ?? null,
+			difficultyLevel: data.difficultyLevel ?? null,
+			meetingPointJson: data.meetingPointJson ?? null,
+			itineraryJson: data.itineraryJson ?? null,
+			safetyJson: data.safetyJson ?? null,
+			guideJson: data.guideJson ?? null,
+			includesJson: data.includesJson ?? null,
+			excludesJson: data.excludesJson ?? null,
+			pickupJson: data.pickupJson ?? null,
+		}
+		// Legacy Tour.categoriesJson is read-only after ProductCategoryLink became canonical.
+		// Only overwrite when an explicit value is provided (tests / rare admin tools).
+		if (Object.prototype.hasOwnProperty.call(data, "categoriesJson")) {
+			patch.categoriesJson = data.categoriesJson ?? null
+		}
 		await dbOrTx
 			.update(Tour)
-			.set({
-				duration: data.duration ?? null,
-				durationMinutes: data.durationMinutes ?? null,
-				difficultyLevel: data.difficultyLevel ?? null,
-				meetingPointJson: data.meetingPointJson ?? null,
-				itineraryJson: data.itineraryJson ?? null,
-				safetyJson: data.safetyJson ?? null,
-				guideJson: data.guideJson ?? null,
-				includesJson: data.includesJson ?? null,
-				excludesJson: data.excludesJson ?? null,
-				categoriesJson: data.categoriesJson ?? null,
-				pickupJson: data.pickupJson ?? null,
-			})
+			.set(patch as any)
 			.where(eq(Tour.productId, productId))
 	}
 

@@ -74,12 +74,17 @@ const createdId = String(Astro.url.searchParams.get("created") ?? "").trim()
 					para vender opciones.
 				</p>
 			</div>
-			<Button href={routes.productDepartureNew(productId)}>
-				<span class="inline-flex items-center gap-2">
-					<Plus class="h-4 w-4" />
-					Nueva salida
-				</span>
-			</Button>
+			<div class="flex flex-wrap gap-2">
+				<Button href={`/product/${productId}/private-requests`} variant="secondary">
+					Solicitudes privadas
+				</Button>
+				<Button href={routes.productDepartureNew(productId)}>
+					<span class="inline-flex items-center gap-2">
+						<Plus class="h-4 w-4" />
+						Nueva salida
+					</span>
+				</Button>
+			</div>
 		</header>
 
 		{
