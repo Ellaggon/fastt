@@ -761,19 +761,83 @@ export const ProductReview = pgTable(
 		id: pk(),
 		productId: txt("productId").references(() => Product.id),
 		userId: txtOpt("userId").references(() => User.id),
+		/** Verified post-activity review — one per booking when set. */
+		bookingId: txtOpt("bookingId").references(() => Booking.id),
 		rating: int("rating"),
 		body: txtOpt("body"),
-		status: text("status").default("published").notNull(),
+		status: text("status").default("pending").notNull(),
 		createdAt: now("createdAt"),
 		updatedAt: now("updatedAt"),
 	},
 	(table) => [
 		index("ProductReview_product_status_idx").on(table.productId, table.status),
 		index("ProductReview_product_rating_idx").on(table.productId, table.rating),
+		index("ProductReview_bookingId_idx").on(table.bookingId),
+		uniqueIndex("ProductReview_bookingId_unique").on(table.bookingId),
 		check("ProductReview_rating_check", sql`${table.rating} >= 1 AND ${table.rating} <= 5`),
 		check(
 			"ProductReview_status_check",
 			sql`${table.status} in ('published', 'pending', 'rejected', 'hidden')`
+		),
+	]
+)
+
+/** Guest marketplace telemetry for cross-sell attribution. */
+export const MarketplaceEvent = pgTable(
+	"MarketplaceEvent",
+	{
+		id: pk(),
+		eventType: txt("eventType"),
+		surface: txt("surface"),
+		sourceProductId: txtOpt("sourceProductId").references(() => Product.id),
+		targetProductId: txtOpt("targetProductId").references(() => Product.id),
+		destinationId: txtOpt("destinationId").references(() => Destination.id),
+		bookingId: txtOpt("bookingId").references(() => Booking.id),
+		sessionId: txtOpt("sessionId"),
+		metaJson: jsonb("metaJson"),
+		createdAt: now("createdAt"),
+	},
+	(table) => [
+		index("MarketplaceEvent_surface_created_idx").on(table.surface, table.createdAt),
+		index("MarketplaceEvent_target_created_idx").on(table.targetProductId, table.createdAt),
+		check(
+			"MarketplaceEvent_eventType_check",
+			sql`${table.eventType} in ('impression', 'click', 'booking_attributed')`
+		),
+	]
+)
+
+/** Private salida quote requests — no inventory hold until provider accepts. */
+export const TourPrivateRequest = pgTable(
+	"TourPrivateRequest",
+	{
+		id: pk(),
+		productId: txt("productId").references(() => Product.id),
+		variantId: txt("variantId").references(() => Variant.id),
+		providerId: txt("providerId").references(() => Provider.id),
+		userId: txtOpt("userId").references(() => User.id),
+		departureDate: day("departureDate"),
+		partyJson: jsonb("partyJson"),
+		contactName: txt("contactName"),
+		contactEmail: txt("contactEmail"),
+		contactPhone: txtOpt("contactPhone"),
+		message: txtOpt("message"),
+		status: text("status").default("pending").notNull(),
+		slaDueAt: ts("slaDueAt"),
+		providerNote: txtOpt("providerNote"),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		index("TourPrivateRequest_provider_status_idx").on(
+			table.providerId,
+			table.status,
+			table.createdAt
+		),
+		index("TourPrivateRequest_product_idx").on(table.productId, table.departureDate),
+		check(
+			"TourPrivateRequest_status_check",
+			sql`${table.status} in ('pending', 'accepted', 'declined', 'expired', 'cancelled')`
 		),
 	]
 )

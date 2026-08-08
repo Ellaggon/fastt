@@ -537,13 +537,50 @@ CREATE TABLE "ProductReview" (
 	"id" text PRIMARY KEY,
 	"productId" text NOT NULL,
 	"userId" text,
+	"bookingId" text,
 	"rating" integer NOT NULL,
 	"body" text,
-	"status" text NOT NULL DEFAULT 'published',
+	"status" text NOT NULL DEFAULT 'pending',
 	"createdAt" timestamp with time zone DEFAULT now(),
 	"updatedAt" timestamp with time zone DEFAULT now(),
 	CONSTRAINT "ProductReview_rating_check" CHECK ("rating" >= 1 AND "rating" <= 5),
 	CONSTRAINT "ProductReview_status_check" CHECK ("status" IN ('published', 'pending', 'rejected', 'hidden'))
+);
+
+CREATE TABLE "MarketplaceEvent" (
+	"id" text PRIMARY KEY,
+	"eventType" text NOT NULL,
+	"surface" text NOT NULL,
+	"sourceProductId" text,
+	"targetProductId" text,
+	"destinationId" text,
+	"bookingId" text,
+	"sessionId" text,
+	"metaJson" jsonb,
+	"createdAt" timestamp with time zone DEFAULT now(),
+	CONSTRAINT "MarketplaceEvent_eventType_check"
+		CHECK ("eventType" IN ('impression', 'click', 'booking_attributed'))
+);
+
+CREATE TABLE "TourPrivateRequest" (
+	"id" text PRIMARY KEY,
+	"productId" text NOT NULL,
+	"variantId" text NOT NULL,
+	"providerId" text NOT NULL,
+	"userId" text,
+	"departureDate" date NOT NULL,
+	"partyJson" jsonb NOT NULL,
+	"contactName" text NOT NULL,
+	"contactEmail" text NOT NULL,
+	"contactPhone" text,
+	"message" text,
+	"status" text NOT NULL DEFAULT 'pending',
+	"slaDueAt" timestamp with time zone,
+	"providerNote" text,
+	"createdAt" timestamp with time zone DEFAULT now(),
+	"updatedAt" timestamp with time zone DEFAULT now(),
+	CONSTRAINT "TourPrivateRequest_status_check"
+		CHECK ("status" IN ('pending', 'accepted', 'declined', 'expired', 'cancelled'))
 );
 
 CREATE TABLE "ProductStatus" (

@@ -55,6 +55,7 @@ export const databaseTablesByDomain = {
 		"Tour",
 		"TourSlotProfile",
 		"TourTicketType",
+		"TourPrivateRequest",
 		"Package",
 		"Limousine",
 		"Variant",
@@ -68,6 +69,7 @@ export const databaseTablesByDomain = {
 		"ProductCategory",
 		"ProductCategoryLink",
 		"ProductReview",
+		"MarketplaceEvent",
 	],
 	policy: [
 		"PolicyGroup",
