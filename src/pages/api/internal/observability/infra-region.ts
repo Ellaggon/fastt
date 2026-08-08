@@ -1,6 +1,10 @@
 import type { APIRoute } from "astro"
 import { createPostgresSqlClient } from "@/shared/infrastructure/db/client"
 import { readPostgresDatabaseEnv } from "@/shared/infrastructure/db/env"
+import {
+	isInternalObservabilityAuthorized,
+	unauthorizedObservabilityResponse,
+} from "@/lib/observability/internalObservabilityAuth"
 import { currentRegion } from "@/lib/observability/requestContext"
 import * as persistentCache from "@/lib/cache/persistentCache"
 import { readThrough } from "@/lib/cache/readThrough"
@@ -15,14 +19,6 @@ function durationSince(startedAt: number) {
 
 function hasRuntimePoolerHost(value: string | null) {
 	return Boolean(value && value.includes(".pooler.supabase.com"))
-}
-
-function isAuthorized(request: Request) {
-	const token = process.env.FASTT_INFRA_HEALTH_TOKEN?.trim()
-	if (!token) return process.env.NODE_ENV !== "production"
-	const header = request.headers.get("authorization") ?? ""
-	const bearer = header.match(/^Bearer\s+(.+)$/i)?.[1]?.trim()
-	return bearer === token
 }
 
 async function measurePostgres() {
@@ -84,11 +80,8 @@ async function measureRedis() {
 }
 
 export const GET: APIRoute = async ({ request }) => {
-	if (!isAuthorized(request)) {
-		return new Response(JSON.stringify({ error: "unauthorized" }), {
-			status: 401,
-			headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
-		})
+	if (!isInternalObservabilityAuthorized(request)) {
+		return unauthorizedObservabilityResponse()
 	}
 
 	const dbEnv = readPostgresDatabaseEnv()
