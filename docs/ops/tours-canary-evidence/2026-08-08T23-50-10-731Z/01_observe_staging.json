@@ -1,0 +1,52 @@
+{
+  "ok": true,
+  "capturedAt": "2026-08-08T23:50:12.977Z",
+  "label": "peak-remote-2026-08-08T23-50-10-731Z",
+  "source": "remote",
+  "stage": "staging",
+  "providerAllowlistCount": 1,
+  "rolloutPercent": 10,
+  "canary": {
+    "expansion": {
+      "expand": false,
+      "blockers": [
+        "dwell_remaining_ms 86399998 (min 86400000 since stage staging)"
+      ],
+      "dwell": {
+        "ready": false,
+        "minDwellMs": 86400000,
+        "elapsedMs": 2,
+        "remainingMs": 86399998,
+        "enteredAtMs": 1786233012983
+      }
+    }
+  },
+  "health": {
+    "status": "healthy",
+    "isHealthy": true,
+    "reasons": [],
+    "alerts": [],
+    "ratios": {
+      "holdToConfirm": 0.583333,
+      "redeemIssued": 0.8,
+      "refundQuoteApplied": 1,
+      "holdFailureRate": 0.052632,
+      "confirmFailureRate": 0
+    },
+    "sampleHolds": 76,
+    "sampleConfirms": 42
+  },
+  "releaseChecks": {
+    "holdFailureOk": true,
+    "holdConfirmOk": true,
+    "redeemIssuedOk": true,
+    "refundGapOk": true,
+    "expandReady": false
+  },
+  "p0": {
+    "runId": "2026-08-08T23-50-10-731Z",
+    "mode": "remote",
+    "step": "A2-observe",
+    "decision": "observe"
+  }
+}

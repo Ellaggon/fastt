@@ -1,0 +1,50 @@
+{
+  "ok": true,
+  "capturedAt": "2026-08-08T23:32:35.412Z",
+  "label": "peak-staging-2026-08-08T23-32-31-937Z-local",
+  "source": "local",
+  "stage": "staging",
+  "providerAllowlistCount": 2,
+  "rolloutPercent": 10,
+  "canary": {
+    "expansion": {
+      "expand": true,
+      "blockers": [],
+      "dwell": {
+        "ready": true,
+        "minDwellMs": 0,
+        "elapsedMs": 61521,
+        "remainingMs": 0,
+        "enteredAtMs": 1786231893891
+      }
+    }
+  },
+  "health": {
+    "status": "healthy",
+    "isHealthy": true,
+    "reasons": [],
+    "alerts": [],
+    "ratios": {
+      "holdToConfirm": 1,
+      "redeemIssued": 0.8,
+      "refundQuoteApplied": 1,
+      "holdFailureRate": 0.076923,
+      "confirmFailureRate": 0
+    },
+    "sampleHolds": 26,
+    "sampleConfirms": 24
+  },
+  "releaseChecks": {
+    "holdFailureOk": true,
+    "holdConfirmOk": true,
+    "redeemIssuedOk": true,
+    "refundGapOk": true,
+    "expandReady": true
+  },
+  "p0": {
+    "runId": "2026-08-08T23-32-31-937Z-local",
+    "mode": "local-controlled",
+    "step": "A2/staging",
+    "decision": "advance"
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "ok": true,
+  "capturedAt": "2026-08-08T23:32:33.890Z",
+  "label": "peak-remote-2026-08-08T23-32-31-937Z-remote",
+  "source": "remote",
+  "stage": "off",
+  "providerAllowlistCount": 0,
+  "rolloutPercent": 0,
+  "canary": {
+    "expansion": {
+      "expand": false,
+      "blockers": [
+        "hold_to_confirm 0.2500 < baseline 0.5500",
+        "dwell_remaining_ms 86399998 (min 86400000 since stage off)"
+      ],
+      "dwell": {
+        "ready": false,
+        "minDwellMs": 86400000,
+        "elapsedMs": 2,
+        "remainingMs": 86399998,
+        "enteredAtMs": 1786231953883
+      }
+    }
+  },
+  "health": {
+    "status": "degraded",
+    "isHealthy": false,
+    "reasons": [
+      "hold_to_confirm 0.2500 < baseline 0.5500"
+    ],
+    "alerts": [
+      {
+        "code": "tours_hold_confirm_below_baseline",
+        "severity": "critical",
+        "message": "hold_to_confirm 0.2500 < baseline 0.5500"
+      }
+    ],
+    "ratios": {
+      "holdToConfirm": 0.25,
+      "redeemIssued": 0,
+      "refundQuoteApplied": 0,
+      "holdFailureRate": 0,
+      "confirmFailureRate": 0
+    },
+    "sampleHolds": 24,
+    "sampleConfirms": 6
+  },
+  "releaseChecks": {
+    "holdFailureOk": true,
+    "holdConfirmOk": false,
+    "redeemIssuedOk": true,
+    "refundGapOk": true,
+    "expandReady": false
+  },
+  "p0": {
+    "runId": "2026-08-08T23-32-31-937Z-remote",
+    "mode": "remote",
+    "step": "A2-observe",
+    "decision": "observe"
+  }
+}

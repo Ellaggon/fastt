@@ -7,6 +7,7 @@
  *
  * Env:
  *   TOURS_CANARY_SNAPSHOT_OUT=artifacts/tours-canary/<stamp>.json
+ *     (ephemeral; prefer docs/ops/tours-canary-evidence/ via ops:tours-canary-p0)
  *   TOURS_CANARY_SNAPSHOT_URL=https://host/api/internal/observability/tours-rollout
  *   FASTT_INFRA_HEALTH_TOKEN=...
  *   TOURS_CANARY_SNAPSHOT_LABEL=peak-window-1

@@ -70,11 +70,25 @@ TOURS_CANARY_SNAPSHOT_REQUIRE_EXPAND=true \
   pnpm run ops:tours-canary-snapshot
 ```
 
-Artifacts land under `artifacts/tours-canary/*.json` with `releaseChecks`
-(`holdFailureOk`, `holdConfirmOk`, `redeemIssuedOk`, `refundGapOk`, `expandReady`).
-Keep at least one snapshot per stage dwell before expanding.
+Ephemeral CI dry-runs land under gitignored `artifacts/tours-canary/*.json`.
+**Release evidence (A4)** is archived under tracked
+`docs/ops/tours-canary-evidence/<runId>/` via:
 
-8. Then advance: `staging` → `allowlist` → raise `TOURS_ROLLOUT_PERCENT` → `general`.
+```bash
+# Full P0: observe remote (if token) + local-controlled stage walk gated by expand
+pnpm run ops:tours-canary-p0
+
+# Modes: auto (default) | remote | local
+TOURS_CANARY_P0_MODE=remote pnpm run ops:tours-canary-p0
+```
+
+Each snapshot includes `releaseChecks`
+(`holdFailureOk`, `holdConfirmOk`, `redeemIssuedOk`, `refundGapOk`, `expandReady`).
+Keep at least one peak snapshot per stage dwell before expanding. See
+`docs/ops/tours-canary-evidence/LATEST` for the newest run pointer.
+
+8. Then advance: `staging` → `allowlist` → raise `TOURS_ROLLOUT_PERCENT` → `general`
+   **only when** the latest peak snapshot has `releaseChecks.expandReady === true`.
 
 Rollback: set `TOURS_ROLLOUT_STAGE=off` or flip the relevant `TOURS_*_ENABLED=false` (env-only).
 
@@ -84,12 +98,37 @@ Provider queue: `/booking/day-of` (today's tour salidas, check-in + voucher repa
 Convergent check-in: `POST /api/booking/check-in` redeems an `issued` voucher even when
 Booking is already `checked_in` (`repaired: true`).
 
+## Browser smoke (P1)
+
+```bash
+pnpm run test:tours:playwright
+# Optional live PDP against a deployed host:
+# PLAYWRIGHT_BASE_URL=https://<host> PLAYWRIGHT_TOUR_ID=<productId> pnpm run test:tours:playwright
+```
+
+Harnesses under `tests/e2e/fixtures/` cover PDP trust + ticket→price→hold and day-of
+check-in/voucher repair without requiring a seeded marketplace DB.
+
 ## Metrics + alerts
 
 - Counters dual-write to a process-shared Map and Redis (`INCR`) when configured.
 - Labels: `stage`, `cohort` (`canary`|`control`|`unknown`), `provider_safe` (hashed).
 - Prometheus rules: `docs/ops/tours-rollout.rules.yml`
+- Scrape fragment: `docs/ops/prometheus/prometheus.tours.scrape.yml`
+- Alertmanager fragment: `docs/ops/prometheus/alertmanager.tours.receivers.yml`
 - Auth: `FASTT_INFRA_HEALTH_TOKEN` on prometheus + tours-rollout.
+- `GET /api/internal/observability/tours-rollout` exposes `sharedStore.multipodReady`
+  (`activeBackend` must be `redis` or `upstash-rest` for multi-pod aggregation).
+
+```bash
+# Validate rule ↔ emitted metric parity
+pnpm run ops:tours-prometheus-rules
+
+# Verify Redis cross-pod sync (exit 2 = Redis unset; exit 0 = ok)
+pnpm run ops:tours-redis-multipod
+# Require Redis in staging:
+# TOURS_REDIS_CHECK_REQUIRE=true pnpm run ops:tours-redis-multipod
+```
 
 ## Code entry points
 

@@ -1,0 +1,60 @@
+{
+  "ok": true,
+  "capturedAt": "2026-08-08T23:32:36.916Z",
+  "label": "peak-allowlist-2026-08-08T23-32-31-937Z-local",
+  "source": "local",
+  "stage": "allowlist",
+  "providerAllowlistCount": 2,
+  "rolloutPercent": 10,
+  "canary": {
+    "expansion": {
+      "expand": false,
+      "blockers": [
+        "refund_quote_gap 0.5000 > 0.2500"
+      ],
+      "dwell": {
+        "ready": true,
+        "minDwellMs": 0,
+        "elapsedMs": 61504,
+        "remainingMs": 0,
+        "enteredAtMs": 1786231895412
+      }
+    }
+  },
+  "health": {
+    "status": "degraded",
+    "isHealthy": false,
+    "reasons": [
+      "refund_quote_gap 0.5000 > 0.2500"
+    ],
+    "alerts": [
+      {
+        "code": "tours_refund_quote_vs_applied_gap",
+        "severity": "warning",
+        "message": "refund_quote_gap 0.5000 > 0.2500"
+      }
+    ],
+    "ratios": {
+      "holdToConfirm": 0.583333,
+      "redeemIssued": 0.8,
+      "refundQuoteApplied": 0.5,
+      "holdFailureRate": 0.052632,
+      "confirmFailureRate": 0
+    },
+    "sampleHolds": 76,
+    "sampleConfirms": 42
+  },
+  "releaseChecks": {
+    "holdFailureOk": true,
+    "holdConfirmOk": true,
+    "redeemIssuedOk": true,
+    "refundGapOk": false,
+    "expandReady": false
+  },
+  "p0": {
+    "runId": "2026-08-08T23-32-31-937Z-local",
+    "mode": "local-controlled",
+    "step": "A2/allowlist",
+    "decision": "hold"
+  }
+}
