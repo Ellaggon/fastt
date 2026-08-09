@@ -15,6 +15,7 @@ CREATE TABLE "Provider" (
 	"legalName" text,
 	"displayName" text,
 	"status" text,
+	"accountPurpose" text NOT NULL DEFAULT 'commercial',
 	"createdAt" timestamp with time zone
 );
 
@@ -138,6 +139,7 @@ CREATE TABLE "ProviderIntegrationSyncRun" (
 	"id" text PRIMARY KEY,
 	"providerId" text NOT NULL,
 	"connectionId" text NOT NULL,
+	"certificationId" text,
 	"connectorKey" text NOT NULL,
 	"operation" text NOT NULL,
 	"trigger" text NOT NULL DEFAULT 'manual',
@@ -155,6 +157,24 @@ CREATE TABLE "ProviderIntegrationSyncRun" (
 	"startedAt" timestamp with time zone NOT NULL DEFAULT now(),
 	"finishedAt" timestamp with time zone,
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "ProviderIntegrationCertification" (
+	"id" text PRIMARY KEY,
+	"providerId" text NOT NULL,
+	"connectionId" text NOT NULL,
+	"vendorKey" text NOT NULL,
+	"fixtureProductId" text,
+	"status" text NOT NULL DEFAULT 'draft',
+	"suiteVersion" text,
+	"createdBy" text,
+	"activatedBy" text,
+	"startedAt" timestamp with time zone,
+	"completedAt" timestamp with time zone,
+	"expiresAt" timestamp with time zone,
+	"evidenceManifestJson" jsonb,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
 CREATE TABLE "ProviderIntegrationSyncJob" (
@@ -1478,6 +1498,33 @@ ALTER TABLE "ProviderIntegrationMapping"
 	ON DELETE CASCADE
 ;
 
+ALTER TABLE "ProviderIntegrationCertification"
+	ADD CONSTRAINT "ProviderIntegrationCertification_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
+;
+
+ALTER TABLE "ProviderIntegrationCertification"
+	ADD CONSTRAINT "ProviderIntegrationCertification_connectionId_fk"
+	FOREIGN KEY ("connectionId")
+	REFERENCES "ProviderIntegrationConnection" ("id")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "ProviderIntegrationCertification"
+	ADD CONSTRAINT "ProviderIntegrationCertification_createdBy_fk"
+	FOREIGN KEY ("createdBy")
+	REFERENCES "User" ("id")
+	ON DELETE SET NULL
+;
+
+ALTER TABLE "ProviderIntegrationCertification"
+	ADD CONSTRAINT "ProviderIntegrationCertification_activatedBy_fk"
+	FOREIGN KEY ("activatedBy")
+	REFERENCES "User" ("id")
+	ON DELETE SET NULL
+;
+
 ALTER TABLE "ProviderIntegrationSyncRun"
 	ADD CONSTRAINT "ProviderIntegrationSyncRun_providerId_fk"
 	FOREIGN KEY ("providerId")
@@ -1489,6 +1536,13 @@ ALTER TABLE "ProviderIntegrationSyncRun"
 	FOREIGN KEY ("connectionId")
 	REFERENCES "ProviderIntegrationConnection" ("id")
 	ON DELETE CASCADE
+;
+
+ALTER TABLE "ProviderIntegrationSyncRun"
+	ADD CONSTRAINT "ProviderIntegrationSyncRun_certificationId_fk"
+	FOREIGN KEY ("certificationId")
+	REFERENCES "ProviderIntegrationCertification" ("id")
+	ON DELETE SET NULL
 ;
 
 ALTER TABLE "ProviderIntegrationSyncRun"
@@ -2231,11 +2285,19 @@ CREATE UNIQUE INDEX "ProviderIntegrationMapping_connection_external_unique" ON "
 
 CREATE INDEX "ProviderIntegrationMapping_provider_status_idx" ON "ProviderIntegrationMapping" ("providerId", "status");
 
+CREATE INDEX "ProviderIntegrationCertification_provider_status_idx" ON "ProviderIntegrationCertification" ("providerId", "status");
+
+CREATE INDEX "ProviderIntegrationCertification_connection_status_idx" ON "ProviderIntegrationCertification" ("connectionId", "status");
+
+CREATE UNIQUE INDEX "ProviderIntegrationCertification_one_active_connection_unique" ON "ProviderIntegrationCertification" ("connectionId") WHERE "status" IN ('draft', 'prepared', 'ready', 'running', 'requires_attention');
+
 CREATE UNIQUE INDEX "ProviderIntegrationSyncRun_connection_idempotency_unique" ON "ProviderIntegrationSyncRun" ("connectionId", "idempotencyKey");
 
 CREATE INDEX "ProviderIntegrationSyncRun_connection_started_idx" ON "ProviderIntegrationSyncRun" ("connectionId", "startedAt");
 
 CREATE INDEX "ProviderIntegrationSyncRun_provider_status_started_idx" ON "ProviderIntegrationSyncRun" ("providerId", "status", "startedAt");
+
+CREATE INDEX "ProviderIntegrationSyncRun_certification_started_idx" ON "ProviderIntegrationSyncRun" ("certificationId", "startedAt" DESC);
 
 CREATE INDEX "ProviderIntegrationSyncRun_terminal_retention_idx" ON "ProviderIntegrationSyncRun" ("status", "finishedAt") WHERE "status" <> 'running' AND "finishedAt" IS NOT NULL;
 
@@ -2622,6 +2684,8 @@ CREATE INDEX "PayoutRecord_payoutReference_idx" ON "PayoutRecord" ("payoutRefere
 
 
 
+ALTER TABLE "Provider" ADD CONSTRAINT "Provider_accountPurpose_check" CHECK ("accountPurpose" IN ('commercial', 'internal_qa', 'integration_certification'));
+
 ALTER TABLE "ProviderIntegrationConnection" ADD CONSTRAINT "ProviderIntegrationConnection_status_check" CHECK ("status" IN ('not_configured', 'pending', 'connected', 'requires_attention', 'syncing', 'error', 'revoked'));
 
 ALTER TABLE "ProviderIntegrationConnection" ADD CONSTRAINT "ProviderIntegrationConnection_mode_check" CHECK ("mode" IN ('sandbox', 'production'));
@@ -2631,6 +2695,8 @@ ALTER TABLE "ProviderIntegrationConnection" ADD CONSTRAINT "ProviderIntegrationC
 ALTER TABLE "ProviderIntegrationCredential" ADD CONSTRAINT "ProviderIntegrationCredential_auth_type_check" CHECK ("authType" IN ('api_key', 'oauth2', 'reference'));
 
 ALTER TABLE "ProviderIntegrationMapping" ADD CONSTRAINT "ProviderIntegrationMapping_status_check" CHECK ("status" IN ('active', 'inactive'));
+
+ALTER TABLE "ProviderIntegrationCertification" ADD CONSTRAINT "ProviderIntegrationCertification_status_check" CHECK ("status" IN ('draft', 'prepared', 'ready', 'running', 'requires_attention', 'completed', 'expired', 'revoked'));
 
 ALTER TABLE "ProviderIntegrationSyncRun" ADD CONSTRAINT "ProviderIntegrationSyncRun_status_check" CHECK ("status" IN ('running', 'succeeded', 'partial', 'failed', 'cancelled'));
 
@@ -2763,6 +2829,7 @@ BEGIN
 		'ProviderTaxConfiguration',
 		'ProviderPaymentAccount',
 		'ProviderIntegrationConnection',
+		'ProviderIntegrationCertification',
 		'ProviderComplianceAssignment',
 		'ProviderConfigurationState',
 		'ProviderInvitation',

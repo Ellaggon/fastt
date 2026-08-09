@@ -18,6 +18,7 @@ export const databaseTablesByDomain = {
 		"ProviderIntegrationConnection",
 		"ProviderIntegrationCredential",
 		"ProviderIntegrationMapping",
+		"ProviderIntegrationCertification",
 		"ProviderIntegrationSyncRun",
 		"ProviderIntegrationSyncJob",
 		"ProviderIntegrationIncident",
