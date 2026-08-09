@@ -1,0 +1,15 @@
+{
+  "runId": "2026-08-08T23-33-20-834Z-local",
+  "archivedAt": "2026-08-08T23:33:21.665Z",
+  "evidenceDir": "/Users/ellaggon/Projects/fastt/docs/ops/tours-canary-evidence/2026-08-08T23-33-20-834Z/local-controlled",
+  "tracked": true,
+  "gitignoredArtifactsPath": "artifacts/tours-canary/",
+  "finalStage": "general",
+  "blockedAt": null,
+  "files": [
+    "01_peak_staging.json",
+    "02_peak_allowlist.json",
+    "03_peak_percentage.json",
+    "04_peak_general.json"
+  ]
+}

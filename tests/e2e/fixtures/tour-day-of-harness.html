@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="es">
+	<head>
+		<meta charset="utf-8" />
+		<title>Day-of queue harness</title>
+		<style>
+			body {
+				font-family: system-ui, sans-serif;
+				margin: 0;
+				padding: 24px;
+				background: #0f172a;
+				color: #e2e8f0;
+			}
+			#dayOfRows {
+				background: #fff;
+				color: #0f172a;
+			}
+			button:disabled {
+				opacity: 0.5;
+			}
+		</style>
+	</head>
+	<body>
+		<section data-day-of-queue>
+			<header>
+				<p>Operación del día</p>
+				<h1>Cola day-of</h1>
+				<p>Cola operativa de salidas. Presentación y reparación de voucher.</p>
+			</header>
+			<div id="dayOfMetrics"></div>
+			<p id="dayOfSummary">Cargando salidas...</p>
+			<p id="dayOfLatency"></p>
+			<div id="dayOfRows"></div>
+		</section>
+
+		<script>
+			;(function () {
+				const root = document.querySelector("[data-day-of-queue]")
+				if (!(root instanceof HTMLElement)) return
+				if (root.dataset.dayOfBootReady === "true") return
+				root.dataset.dayOfBootReady = "true"
+
+				const summary = document.getElementById("dayOfSummary")
+				const latency = document.getElementById("dayOfLatency")
+				const rows = document.getElementById("dayOfRows")
+				const metrics = document.getElementById("dayOfMetrics")
+
+				const todayIso = () => new Date().toISOString().slice(0, 10)
+				const escapeHtml = (value) =>
+					String(value ?? "")
+						.replace(/&/g, "&amp;")
+						.replace(/</g, "&lt;")
+						.replace(/>/g, "&gt;")
+						.replace(/"/g, "&quot;")
+
+				const guestName = (item) =>
+					String(item?.guestName || item?.guestEmail || "Participante por registrar")
+
+				const voucherLabel = (item) => {
+					const status = String(item?.voucher?.status || "").toLowerCase()
+					if (!status) return "Sin voucher"
+					if (status === "issued") return "Voucher emitido"
+					if (status === "redeemed") return "Voucher canjeado"
+					return `Voucher ${status}`
+				}
+
+				const actionLabel = (item) => {
+					const voucherStatus = String(item?.voucher?.status || "").toLowerCase()
+					const presented =
+						Boolean(item?.checkedInAt) ||
+						String(item?.operationalStatus || "").toLowerCase() === "checked_in"
+					if (presented && voucherStatus === "issued") return "Reparar voucher"
+					if (item?.canCheckIn) return "Registrar presentación"
+					if (voucherStatus === "redeemed") return "Listo"
+					return "Ver reserva"
+				}
+
+				const checkInBooking = async (bookingId, button) => {
+					if (!bookingId || !button) return
+					button.setAttribute("disabled", "true")
+					const previous = button.textContent
+					button.textContent = "Registrando..."
+					try {
+						const response = await fetch("/api/booking/check-in", {
+							method: "POST",
+							headers: { "Content-Type": "application/json", accept: "application/json" },
+							body: JSON.stringify({ bookingId }),
+						})
+						const payload = await response.json().catch(() => ({}))
+						if (!response.ok) {
+							button.textContent = previous
+							button.removeAttribute("disabled")
+							window.alert("No se pudo registrar la presentación.")
+							return
+						}
+						await loadQueue()
+					} catch {
+						button.textContent = previous
+						button.removeAttribute("disabled")
+						window.alert("Error de red al registrar presentación.")
+					}
+				}
+
+				const renderMetrics = (items) => {
+					if (!metrics) return
+					const pending = items.filter((item) => item?.canCheckIn).length
+					const presented = items.filter(
+						(item) =>
+							Boolean(item?.checkedInAt) ||
+							String(item?.operationalStatus || "").toLowerCase() === "checked_in"
+					).length
+					const issued = items.filter(
+						(item) => String(item?.voucher?.status || "").toLowerCase() === "issued"
+					).length
+					metrics.innerHTML = [
+						["Pendientes", pending],
+						["Presentados", presented],
+						["Voucher emitido", issued],
+						["Salidas", items.length],
+					]
+						.map(
+							([label, value]) =>
+								`<div><p>${label}</p><p data-metric="${label}">${value}</p></div>`
+						)
+						.join("")
+				}
+
+				const renderRows = (items) => {
+					if (!rows) return
+					if (!items.length) {
+						rows.innerHTML =
+							'<div data-empty-day-of>No hay salidas de tour para hoy.</div>'
+						return
+					}
+					rows.innerHTML = items
+						.map((item) => {
+							const action = actionLabel(item)
+							const canAct = Boolean(item?.canCheckIn)
+							const primary = canAct
+								? `<button type="button" data-check-in="${escapeHtml(item.bookingId)}">${escapeHtml(action)}</button>`
+								: `<a href="/booking/${encodeURIComponent(String(item.bookingId || ""))}">${escapeHtml(action)}</a>`
+							return `<article data-booking-row="${escapeHtml(item.bookingId)}">
+								<p>${escapeHtml(item.departureTime || "—")}</p>
+								<p>${escapeHtml(guestName(item))}</p>
+								<p>${escapeHtml(voucherLabel(item))}</p>
+								${primary}
+							</article>`
+						})
+						.join("")
+					rows.querySelectorAll("[data-check-in]").forEach((button) => {
+						button.addEventListener("click", () => {
+							void checkInBooking(String(button.getAttribute("data-check-in") || ""), button)
+						})
+					})
+				}
+
+				const loadQueue = async () => {
+					const started = performance.now()
+					if (summary) summary.textContent = "Cargando salidas..."
+					try {
+						const today = todayIso()
+						const qs = new URLSearchParams({
+							from: today,
+							to: today,
+							status: "confirmed",
+							limit: "100",
+						})
+						const response = await fetch(`/api/internal/provider-bookings-summary?${qs}`, {
+							headers: { accept: "application/json" },
+						})
+						const payload = await response.json().catch(() => ({}))
+						if (!response.ok) {
+							if (summary) summary.textContent = "No se pudo cargar la cola day-of."
+							return
+						}
+						const items = (Array.isArray(payload?.items) ? payload.items : [])
+							.filter((item) => String(item?.vertical || "").toLowerCase() === "tour")
+							.filter((item) => String(item?.checkIn || "") === today)
+							.sort((a, b) =>
+								String(a?.departureTime || "99:99").localeCompare(
+									String(b?.departureTime || "99:99")
+								)
+							)
+						renderMetrics(items)
+						renderRows(items)
+						if (summary) {
+							summary.textContent =
+								items.length === 0
+									? "Sin salidas de tour confirmadas para hoy."
+									: `${items.length} salidas ordenadas por hora.`
+						}
+						if (latency) latency.textContent = `${Math.round(performance.now() - started)} ms`
+					} catch {
+						if (summary) summary.textContent = "Error de red al cargar la cola day-of."
+					}
+				}
+
+				void loadQueue()
+			})()
+		</script>
+	</body>
+</html>

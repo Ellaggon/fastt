@@ -21,6 +21,7 @@ const tickets = [
 ]
 
 describe("tour PDP browser surface (trust + ticket→price→hold)", () => {
+	// Interaction smoke lives in Playwright: pnpm run test:tours:playwright
 	it("PDP trust block keeps published reviews above booking and uses tour copy order", () => {
 		const pdp = read("src/pages/tours/[id]/index.astro")
 		const departure = read("src/components/tours/TourDepartureSection.astro")

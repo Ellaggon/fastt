@@ -1,0 +1,50 @@
+{
+  "ok": true,
+  "capturedAt": "2026-08-08T23:33:21.657Z",
+  "label": "peak-allowlist-2026-08-08T23-33-20-834Z-local",
+  "source": "local",
+  "stage": "allowlist",
+  "providerAllowlistCount": 2,
+  "rolloutPercent": 10,
+  "canary": {
+    "expansion": {
+      "expand": true,
+      "blockers": [],
+      "dwell": {
+        "ready": true,
+        "minDwellMs": 0,
+        "elapsedMs": 60003,
+        "remainingMs": 0,
+        "enteredAtMs": 1786231941654
+      }
+    }
+  },
+  "health": {
+    "status": "healthy",
+    "isHealthy": true,
+    "reasons": [],
+    "alerts": [],
+    "ratios": {
+      "holdToConfirm": 0.833333,
+      "redeemIssued": 0.9,
+      "refundQuoteApplied": 1,
+      "holdFailureRate": 0.076923,
+      "confirmFailureRate": 0
+    },
+    "sampleHolds": 26,
+    "sampleConfirms": 20
+  },
+  "releaseChecks": {
+    "holdFailureOk": true,
+    "holdConfirmOk": true,
+    "redeemIssuedOk": true,
+    "refundGapOk": true,
+    "expandReady": true
+  },
+  "p0": {
+    "runId": "2026-08-08T23-33-20-834Z-local",
+    "mode": "local-controlled",
+    "step": "A2/allowlist",
+    "decision": "advance"
+  }
+}

@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="es">
+	<head>
+		<meta charset="utf-8" />
+		<title>Tour PDP harness</title>
+		<style>
+			body {
+				font-family: system-ui, sans-serif;
+				margin: 0;
+				padding: 24px;
+				color: #0f172a;
+			}
+			.hidden {
+				display: none !important;
+			}
+			label {
+				display: block;
+				font-size: 12px;
+				color: #64748b;
+			}
+			input,
+			button {
+				margin-top: 4px;
+			}
+			button:disabled {
+				opacity: 0.5;
+			}
+		</style>
+	</head>
+	<body>
+		<main data-tour-pdp>
+			<header>
+				<h1>Mirador Andino</h1>
+				<p data-trust-rating>★ 4.8 <span>· 12 reseñas publicadas</span></p>
+				<p>Punto de encuentro y pickup · Plaza central</p>
+				<p>Itinerario · Ascenso y mirador</p>
+			</header>
+
+			<section
+				data-tour-booking-root
+				data-product-id="prod_tour_smoke"
+				data-ticket-types='[{"code":"adult","label":"Adulto","isActive":true},{"code":"child","label":"Niño","minAge":3,"maxAge":11,"isActive":true},{"code":"infant","label":"Infante","minAge":0,"maxAge":2,"isActive":true}]'
+			>
+				<header>
+					<span>Reserva tu experiencia</span>
+					<h2>Salidas disponibles</h2>
+					<div>
+						<label for="tourDepartureDate">Fecha de salida</label>
+						<input id="tourDepartureDate" type="date" value="2026-09-15" />
+						<label for="tourQty_adult">Adulto</label>
+						<input id="tourQty_adult" type="number" min="0" value="2" data-ticket-qty="adult" />
+						<label for="tourQty_child">Niño (3–11)</label>
+						<input id="tourQty_child" type="number" min="0" value="1" data-ticket-qty="child" />
+						<label for="tourQty_infant">Infante (0–2)</label>
+						<input id="tourQty_infant" type="number" min="0" value="0" data-ticket-qty="infant" />
+						<button type="button" id="tourSearchBtn">Actualizar precio</button>
+					</div>
+				</header>
+
+				<div data-price-breakdown>
+					<p>Desglose por age band</p>
+					<ul>
+						<li><span>2× Adulto</span><span data-line-adult>200</span></li>
+						<li><span>1× Niño</span><span data-line-child>40</span></li>
+					</ul>
+					<p data-price-total>Total estimado: 240</p>
+					<p data-cupo>cupo 3</p>
+				</div>
+
+				<ul>
+					<li data-tour-offer data-variant-id="var_smoke" data-rateplan-id="rp_smoke" data-booking-mode="shared">
+						<p>Salida 10:00</p>
+						<p>Hasta 12 cupos</p>
+						<button
+							type="button"
+							data-select-variant-id="var_smoke"
+							data-select-rateplan-id="rp_smoke"
+						>
+							Tarifa estándar · 240
+						</button>
+					</li>
+				</ul>
+
+				<div id="tourSharedCheckout">
+					<p>
+						Ocupación comercial: <span data-occ-adults>2</span> adultos ·
+						<span data-occ-children>1</span> niños · <span data-occ-infants>0</span> infantes ·
+						cupo <span data-occ-cupo>3</span>
+					</p>
+					<p id="tourHoldStatus" aria-live="polite">Selecciona una tarifa para reservar cupo.</p>
+					<button type="button" id="tourReserveBtn" disabled>Reservar cupo</button>
+					<button type="button" id="tourConfirmBtn" disabled>Confirmar reserva</button>
+				</div>
+			</section>
+		</main>
+
+		<script>
+			;(function () {
+				const root = document.querySelector("[data-tour-booking-root]")
+				if (!(root instanceof HTMLElement)) return
+				const ticketTypes = JSON.parse(String(root.dataset.ticketTypes || "[]"))
+				const departureInput = document.getElementById("tourDepartureDate")
+				const searchBtn = document.getElementById("tourSearchBtn")
+				const reserveBtn = document.getElementById("tourReserveBtn")
+				const confirmBtn = document.getElementById("tourConfirmBtn")
+				const statusEl = document.getElementById("tourHoldStatus")
+				let selectedVariantId = ""
+				let selectedRatePlanId = ""
+				let latestHoldId = ""
+
+				function readQuantities() {
+					const quantities = {}
+					root.querySelectorAll("[data-ticket-qty]").forEach((input) => {
+						const code = String(input.dataset.ticketQty || "")
+						quantities[code] = Math.max(0, Math.floor(Number(input.value) || 0))
+					})
+					if (!Object.keys(quantities).length) quantities.adult = 1
+					return quantities
+				}
+
+				function toOccupancy(quantities) {
+					let adults = 0
+					let children = 0
+					let infants = 0
+					let cupo = 0
+					for (const ticket of ticketTypes) {
+						if (ticket.isActive === false) continue
+						const code = String(ticket.code || "")
+						const qty = Math.max(0, Math.floor(Number(quantities[code] || 0)))
+						cupo += qty
+						if (code === "adult") adults += qty
+						else if (code === "child") children += qty
+						else if (code === "infant") infants += qty
+					}
+					if (adults < 1) adults = 1
+					return {
+						occupancyDetail: { adults, children, infants },
+						rooms: Math.max(1, cupo || adults + children + infants),
+						cupo: Math.max(1, cupo || adults + children + infants),
+					}
+				}
+
+				function priceFor(quantities) {
+					const adult = Number(quantities.adult || 0)
+					const child = Number(quantities.child || 0)
+					const infant = Number(quantities.infant || 0)
+					const adultTotal = adult * 100
+					const childTotal = child * 40
+					return {
+						adultTotal,
+						childTotal,
+						total: adultTotal + childTotal,
+						cupo: adult + child + infant,
+					}
+				}
+
+				function refreshPriceUi() {
+					const quantities = readQuantities()
+					const { occupancyDetail, cupo } = toOccupancy(quantities)
+					const priced = priceFor(quantities)
+					const adultEl = document.querySelector("[data-line-adult]")
+					const childEl = document.querySelector("[data-line-child]")
+					const totalEl = document.querySelector("[data-price-total]")
+					const cupoEl = document.querySelector("[data-cupo]")
+					if (adultEl) adultEl.textContent = String(priced.adultTotal)
+					if (childEl) childEl.textContent = String(priced.childTotal)
+					if (totalEl) totalEl.textContent = `Total estimado: ${priced.total}`
+					if (cupoEl) cupoEl.textContent = `cupo ${priced.cupo}`
+					const a = document.querySelector("[data-occ-adults]")
+					const c = document.querySelector("[data-occ-children]")
+					const i = document.querySelector("[data-occ-infants]")
+					const o = document.querySelector("[data-occ-cupo]")
+					if (a) a.textContent = String(occupancyDetail.adults)
+					if (c) c.textContent = String(occupancyDetail.children)
+					if (i) i.textContent = String(occupancyDetail.infants)
+					if (o) o.textContent = String(cupo)
+				}
+
+				function departureDate() {
+					return String(departureInput?.value || "").trim()
+				}
+				function nextDay(iso) {
+					const d = new Date(`${iso}T00:00:00.000Z`)
+					d.setUTCDate(d.getUTCDate() + 1)
+					return d.toISOString().slice(0, 10)
+				}
+
+				searchBtn?.addEventListener("click", () => {
+					refreshPriceUi()
+					if (statusEl) statusEl.textContent = "Precio actualizado para la mezcla de tickets."
+				})
+
+				root.querySelectorAll("[data-select-variant-id]").forEach((btn) => {
+					btn.addEventListener("click", () => {
+						selectedVariantId = String(btn.dataset.selectVariantId || "")
+						selectedRatePlanId = String(btn.dataset.selectRateplanId || "")
+						latestHoldId = ""
+						if (reserveBtn) reserveBtn.disabled = !(selectedVariantId && selectedRatePlanId)
+						if (confirmBtn) confirmBtn.disabled = true
+						if (statusEl) {
+							statusEl.textContent = selectedRatePlanId
+								? "Tarifa seleccionada. Reserva el cupo para continuar."
+								: "Selecciona una tarifa."
+						}
+					})
+				})
+
+				reserveBtn?.addEventListener("click", async () => {
+					const from = departureDate()
+					if (!selectedVariantId || !selectedRatePlanId || !from) {
+						if (statusEl) statusEl.textContent = "Selecciona salida, tarifa y fecha."
+						return
+					}
+					const { occupancyDetail, rooms } = toOccupancy(readQuantities())
+					if (statusEl) statusEl.textContent = "Creando hold..."
+					if (reserveBtn) reserveBtn.disabled = true
+					try {
+						const response = await fetch("/api/inventory/hold", {
+							method: "POST",
+							headers: { "Content-Type": "application/json" },
+							body: JSON.stringify({
+								variantId: selectedVariantId,
+								ratePlanId: selectedRatePlanId,
+								dateRange: { from, to: nextDay(from) },
+								occupancyDetail,
+								rooms,
+							}),
+						})
+						const payload = await response.json().catch(() => ({}))
+						if (!response.ok) {
+							if (statusEl) {
+								statusEl.textContent =
+									payload?.error === "not_available" || payload?.error === "not_holdable"
+										? "No hay cupo suficiente para esa salida."
+										: "No se pudo crear el hold."
+							}
+							return
+						}
+						latestHoldId = String(payload?.holdId || "")
+						if (statusEl) {
+							statusEl.textContent = latestHoldId
+								? "Cupo reservado. Confirma la reserva."
+								: "Hold creado."
+						}
+						if (confirmBtn) confirmBtn.disabled = !latestHoldId
+					} catch {
+						if (statusEl) statusEl.textContent = "Error de red al crear hold."
+					} finally {
+						if (reserveBtn) reserveBtn.disabled = !(selectedVariantId && selectedRatePlanId)
+					}
+				})
+
+				confirmBtn?.addEventListener("click", async () => {
+					if (!latestHoldId) return
+					if (confirmBtn) confirmBtn.disabled = true
+					if (statusEl) statusEl.textContent = "Confirmando reserva..."
+					try {
+						const response = await fetch("/api/booking/confirm", {
+							method: "POST",
+							headers: { "Content-Type": "application/json" },
+							body: JSON.stringify({ holdId: latestHoldId }),
+						})
+						const payload = await response.json().catch(() => ({}))
+						if (!response.ok || !payload?.bookingId) {
+							if (statusEl) statusEl.textContent = "No se pudo confirmar la reserva."
+							if (confirmBtn) confirmBtn.disabled = false
+							return
+						}
+						window.location.href = `/trips/${encodeURIComponent(String(payload.bookingId))}`
+					} catch {
+						if (statusEl) statusEl.textContent = "Error de red al confirmar."
+						if (confirmBtn) confirmBtn.disabled = false
+					}
+				})
+
+				refreshPriceUi()
+			})()
+		</script>
+	</body>
+</html>

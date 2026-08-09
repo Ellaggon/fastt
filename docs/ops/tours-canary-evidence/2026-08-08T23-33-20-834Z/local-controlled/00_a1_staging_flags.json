@@ -1,0 +1,17 @@
+{
+  "capturedAt": "2026-08-08T23:33:21.633Z",
+  "source": "local-controlled",
+  "flags": {
+    "TOURS_CHECKOUT_ENABLED": "true",
+    "TOURS_CHECKIN_ENABLED": "true",
+    "TOURS_PUBLIC_SEARCH_ENABLED": "true",
+    "TOURS_REFUND_HOURS_ENABLED": "true",
+    "TOURS_ROLLOUT_STAGE": "staging",
+    "TOURS_PROVIDER_ALLOWLIST": "prov_canary_a,prov_canary_b",
+    "TOURS_ROLLOUT_PERCENT": "10",
+    "TOURS_ROLLOUT_STAGING_HOSTS": "localhost,127.0.0.1,fastt-five.vercel.app",
+    "TOURS_ROLLOUT_DEPLOYMENT_ENV": "staging",
+    "TOURS_CANARY_P0_MIN_DWELL_MS": "0"
+  },
+  "criterion": "A1 staging + kill-switches ON"
+}

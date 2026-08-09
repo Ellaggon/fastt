@@ -1,0 +1,29 @@
+# Scrape fragment for Tours canary metrics.
+# Merge into your Prometheus scrape_configs (or import as a file).
+#
+# Required secret on the scraper:
+#   FASTT_INFRA_HEALTH_TOKEN — Bearer for /api/internal/observability/*
+#
+# Example host: https://fastt-five.vercel.app
+
+scrape_configs:
+  - job_name: fastt-tours-rollout
+    metrics_path: /api/internal/observability/prometheus
+    scheme: https
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    honor_labels: true
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/secrets/fastt_infra_health_token
+    static_configs:
+      - targets:
+          - fastt-five.vercel.app
+        labels:
+          service: fastt
+          vertical: tours
+          env: production
+
+rule_files:
+  - /etc/prometheus/rules/tours-rollout.rules.yml
+  # Copy from repo: docs/ops/tours-rollout.rules.yml

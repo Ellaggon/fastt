@@ -1,0 +1,11 @@
+{
+  "runId": "2026-08-08T23-32-31-937Z",
+  "archivedAt": "2026-08-08T23:32:36.918Z",
+  "evidenceDir": "/Users/ellaggon/Projects/fastt/docs/ops/tours-canary-evidence/2026-08-08T23-32-31-937Z",
+  "tracked": true,
+  "remoteOk": true,
+  "remoteExpand": false,
+  "remoteStage": "off",
+  "localFinalStage": "allowlist",
+  "localExpandReady": false
+}

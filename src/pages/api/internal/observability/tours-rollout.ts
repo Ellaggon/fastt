@@ -15,7 +15,10 @@ import {
 	getTourRolloutPercent,
 	getTourRolloutStage,
 } from "@/lib/tours/tourRolloutCanary"
-import { syncSharedTourCountersFromRedis } from "@/lib/tours/tourRolloutSharedStore"
+import {
+	getTourRolloutSharedStoreStatus,
+	syncSharedTourCountersFromRedis,
+} from "@/lib/tours/tourRolloutSharedStore"
 
 function parseNumber(value: string | null, fallback: number): number {
 	if (value == null || String(value).trim().length === 0) return fallback
@@ -65,6 +68,7 @@ export const GET: APIRoute = async ({ request }) => {
 	const health = expansion.health
 	const cohorts = buildTourRolloutCohortComparison()
 	const stage = getTourRolloutStage()
+	const sharedStore = await getTourRolloutSharedStoreStatus()
 	return new Response(
 		JSON.stringify({
 			ok: true,
@@ -79,6 +83,7 @@ export const GET: APIRoute = async ({ request }) => {
 					dwell: expansion.dwell,
 				},
 			},
+			sharedStore,
 			cohorts: {
 				canary: {
 					ratios: cohorts.canary.ratios,
@@ -119,6 +124,8 @@ export const GET: APIRoute = async ({ request }) => {
 				"tours_rollout_alert_firing > 0 for 15m",
 			],
 			alertRulesPath: "docs/ops/tours-rollout.rules.yml",
+			prometheusScrapePath: "docs/ops/prometheus/prometheus.tours.scrape.yml",
+			alertmanagerPath: "docs/ops/prometheus/alertmanager.tours.receivers.yml",
 			releaseSequence: ["staging", "allowlist", "percentage", "general"],
 		}),
 		{

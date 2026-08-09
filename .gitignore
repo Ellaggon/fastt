@@ -35,3 +35,9 @@ artifacts/
 .vitest/
 
 test-results/
+playwright-report/
+blob-report/
+.vercel
+.env.local
+.env*.local
+!.env.example

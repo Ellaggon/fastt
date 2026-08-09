@@ -1,14 +1,18 @@
 # Prometheus alerting rules for Tours canary rollout.
-# Wire into Prometheus rule_files / Alertmanager. Drill: fire → ack → resolve by restoring ratios.
+# Wire via docs/ops/prometheus/prometheus.tours.scrape.yml (rule_files)
+# and docs/ops/prometheus/alertmanager.tours.receivers.yml.
+#
+# Metrics are scraped from GET /api/internal/observability/prometheus
+# (Bearer FASTT_INFRA_HEALTH_TOKEN). Series are emitted by
+# collectTourRolloutPrometheusMetrics() in src/lib/tours/tourObservability.ts.
+#
+# Drill: fire → ack → resolve by restoring ratios / flipping TOURS_ROLLOUT_STAGE=off.
+
 groups:
   - name: tours-rollout
     rules:
       - alert: ToursHoldConfirmBelowBaseline
-        expr: |
-          tours_rollout_hold_to_confirm_ratio{cohort="canary"}
-            < on() group_left tours_rollout_baseline_min_hold_confirm_rate
-          and tours_rollout_health{status="healthy"} == 1
-            or tours_rollout_alert{code="tours_hold_confirm_below_baseline"} == 1
+        expr: tours_rollout_alert{code="tours_hold_confirm_below_baseline"} == 1
         for: 15m
         labels:
           severity: critical
@@ -17,6 +21,7 @@ groups:
           summary: Tours hold→confirm below canary baseline
           description: Conversion regressed during Tours canary. Do not expand stage.
           runbook: docs/engineering/tours-rollout-canary.md
+          dashboard: /admin/tours/rollout
 
       - alert: ToursHoldFailureRateHigh
         expr: tours_rollout_alert{code="tours_hold_failure_rate_high"} == 1
@@ -28,6 +33,7 @@ groups:
           summary: Tours hold failure rate above baseline
           description: Hard hold failures exceeded TOURS_ROLLOUT_MAX_HOLD_FAILURE_RATE.
           runbook: docs/engineering/tours-rollout-canary.md
+          dashboard: /admin/tours/rollout
 
       - alert: ToursRedeemIssuedBelowBaseline
         expr: tours_rollout_alert{code="tours_redeem_issued_below_baseline"} == 1
@@ -39,6 +45,7 @@ groups:
           summary: Tours voucher redeem/issued below baseline
           description: Check-in / redeem path may be broken for canary cohort.
           runbook: docs/engineering/tours-rollout-canary.md
+          dashboard: /admin/tours/rollout
 
       - alert: ToursRefundQuoteAppliedGap
         expr: tours_rollout_alert{code="tours_refund_quote_vs_applied_gap"} == 1
@@ -50,6 +57,7 @@ groups:
           summary: Tours refund quote→applied gap above baseline
           description: Quoted refunds are not being applied consistently.
           runbook: docs/engineering/tours-rollout-canary.md
+          dashboard: /admin/tours/rollout
 
       - alert: ToursRefundAmountMismatch
         expr: tours_rollout_alert{code="tours_refund_amount_mismatch"} == 1
@@ -61,6 +69,7 @@ groups:
           summary: Tours refund amount mismatch detected
           description: Applied refund amount diverged from quote. Investigate before expand.
           runbook: docs/engineering/tours-rollout-canary.md
+          dashboard: /admin/tours/rollout
 
       - alert: ToursRolloutAlertFiring
         expr: tours_rollout_alert_firing > 0
@@ -71,4 +80,16 @@ groups:
         annotations:
           summary: Tours rollout has active baseline alerts
           description: See /admin/tours/rollout and tours_rollout_alert series.
+          runbook: docs/engineering/tours-rollout-canary.md
+          dashboard: /admin/tours/rollout
+
+      - alert: ToursRolloutMetricsCollectionError
+        expr: tours_rollout_metrics_collection_error == 1
+        for: 5m
+        labels:
+          severity: warning
+          vertical: tours
+        annotations:
+          summary: Tours rollout Prometheus collection failed
+          description: collectTourRolloutPrometheusMetrics threw on scrape.
           runbook: docs/engineering/tours-rollout-canary.md

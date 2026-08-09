@@ -175,6 +175,13 @@ describe("tour rollout observability", () => {
 		expect(payload.cohorts.canary).toBeTruthy()
 		expect(payload.canary.expansion.dwell).toBeTruthy()
 		expect(payload.alertRulesPath).toContain("tours-rollout.rules.yml")
+		expect(payload.prometheusScrapePath).toContain("prometheus.tours.scrape.yml")
+		expect(payload.alertmanagerPath).toContain("alertmanager.tours.receivers.yml")
+		expect(payload.sharedStore).toMatchObject({
+			configured: expect.any(Boolean),
+			activeBackend: expect.stringMatching(/^(redis|upstash-rest|memory)$/),
+			multipodReady: expect.any(Boolean),
+		})
 		expect(payload.recommendedAlerts.length).toBeGreaterThan(0)
 	})
 })

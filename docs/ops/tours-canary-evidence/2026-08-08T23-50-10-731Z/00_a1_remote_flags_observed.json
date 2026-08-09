@@ -1,0 +1,26 @@
+{
+  "capturedAt": "2026-08-08T23:50:12.977Z",
+  "source": "remote",
+  "host": "https://fastt-five.vercel.app/api/internal/observability/tours-rollout",
+  "observedStage": "staging",
+  "providerAllowlistCount": 1,
+  "rolloutPercent": 10,
+  "expand": false,
+  "blockers": [
+    "dwell_remaining_ms 86399998 (min 86400000 since stage staging)"
+  ],
+  "releaseChecks": {
+    "holdFailureOk": true,
+    "holdConfirmOk": true,
+    "redeemIssuedOk": true,
+    "refundGapOk": true,
+    "expandReady": false
+  },
+  "requiredHostEnv": {
+    "TOURS_CHECKOUT_ENABLED": "true",
+    "TOURS_CHECKIN_ENABLED": "true",
+    "TOURS_PUBLIC_SEARCH_ENABLED": "true",
+    "TOURS_REFUND_HOURS_ENABLED": "true",
+    "TOURS_ROLLOUT_STAGE": "staging|allowlist|percentage|general"
+  }
+}
