@@ -5,6 +5,7 @@ export type ProviderPermissionKey =
 	| "canManageFiscality"
 	| "canManagePayments"
 	| "canManageIntegrations"
+	| "canRunIntegrationCertification"
 	| "canManageDocuments"
 	| "canInviteTeam"
 
@@ -15,6 +16,7 @@ export const providerPermissionLabels: Record<ProviderPermissionKey, string> = {
 	canManageFiscality: "Fiscalidad",
 	canManagePayments: "Pagos",
 	canManageIntegrations: "Integraciones",
+	canRunIntegrationCertification: "Certificación de integraciones",
 	canManageDocuments: "Documentos",
 	canInviteTeam: "Equipo",
 }
@@ -131,6 +133,7 @@ const basePermissionsByRole: Record<ProviderRole, ProviderPermissions> = {
 		canManageFiscality: true,
 		canManagePayments: true,
 		canManageIntegrations: true,
+		canRunIntegrationCertification: false,
 		canManageDocuments: true,
 		canInviteTeam: true,
 	},
@@ -139,6 +142,7 @@ const basePermissionsByRole: Record<ProviderRole, ProviderPermissions> = {
 		canManageFiscality: true,
 		canManagePayments: true,
 		canManageIntegrations: true,
+		canRunIntegrationCertification: false,
 		canManageDocuments: true,
 		canInviteTeam: false,
 	},
@@ -147,6 +151,7 @@ const basePermissionsByRole: Record<ProviderRole, ProviderPermissions> = {
 		canManageFiscality: false,
 		canManagePayments: false,
 		canManageIntegrations: false,
+		canRunIntegrationCertification: false,
 		canManageDocuments: false,
 		canInviteTeam: false,
 	},
