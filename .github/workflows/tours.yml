@@ -113,6 +113,21 @@ jobs:
       - name: Postgres schema parity
         run: pnpm exec vitest run tests/architecture/postgres-schema-parity.test.ts
 
+      - name: P0 gates (slot-profile + occupancy key)
+        run: pnpm exec vitest run tests/catalog/tour-slot-profile.test.ts tests/guardrails/no-manual-occupancy-key.test.ts
+
+      - name: Prometheus rules + Alertmanager fragments
+        run: pnpm run ops:tours-prometheus-rules
+
+      - name: Redis multipod counter check
+        # Soft-skip (exit 2) when Upstash/Redis is not configured in the runner.
+        run: |
+          set +e
+          pnpm run ops:tours-redis-multipod
+          code=$?
+          if [ "$code" -eq 0 ] || [ "$code" -eq 2 ]; then exit 0; fi
+          exit "$code"
+
       - name: Tour migration validators (idempotent apply)
         if: ${{ env.DATABASE_URL != '' || env.SUPABASE_DB_POOLER_URL != '' || env.DIRECT_URL != '' }}
         run: |
@@ -128,6 +143,12 @@ jobs:
 
       - name: Tours browser-surface contracts
         run: pnpm exec vitest run tests/catalog/tour-pdp-browser-surface.test.ts tests/catalog/tour-ticket-occupancy.test.ts tests/catalog/tour-canary-observation.test.ts
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Tours Playwright smoke (PDP hold + day-of)
+        run: pnpm run test:tours:playwright
 
       - name: Tours phase6 suite
         # Catalog/guardrail/policy contracts always run. Postgres integration suites
