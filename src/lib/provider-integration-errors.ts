@@ -31,6 +31,26 @@ const exactMessages: Record<string, string> = {
 		"Todavía no puedes usar producción. Completa verificación, pagos y el resto de requisitos del proveedor.",
 	INTEGRATION_PRODUCTION_NOT_ALLOWED:
 		"Tu cuenta todavía no cumple los requisitos generales para usar integraciones en producción.",
+	CERTIFICATION_PROVIDER_PRODUCTION_FORBIDDEN:
+		"Un proveedor de certificación sólo puede conectarse a staging; nunca puede usar producción.",
+	CERTIFICATION_PROVIDER_REQUIRED:
+		"Esta acción sólo está disponible dentro de un proveedor de certificación aislado.",
+	INTEGRATION_CERTIFICATION_ID_REQUIRED:
+		"Esta cuenta de certificación necesita una sesión autorizada antes de sincronizar.",
+	CERTIFICATION_SANDBOX_CONNECTION_REQUIRED:
+		"La certificación sólo puede ejecutarse con una conexión sandbox.",
+	CERTIFICATION_VENDOR_MISMATCH:
+		"La sesión de certificación no corresponde a este proveedor externo.",
+	INTEGRATION_CERTIFICATION_PERMISSION_DENIED:
+		"No tienes permiso explícito para ejecutar certificaciones de integraciones.",
+	INTEGRATION_CERTIFICATION_NOT_ACTIVE:
+		"La sesión de certificación no está lista para ejecutar pruebas.",
+	INTEGRATION_CERTIFICATION_EXPIRED:
+		"La sesión de certificación expiró. Crea o activa una nueva antes de continuar.",
+	CERTIFICATION_FIXTURE_PRODUCT_REQUIRED:
+		"La sesión de certificación no tiene un fixture aislado asignado.",
+	INTEGRATION_CERTIFICATION_PREFLIGHT_REQUIRED:
+		"La cobertura del fixture de certificación todavía está incompleta. Corrige el preflight antes de sincronizar.",
 	INTEGRATION_PRODUCTION_CONNECTION_REQUIRED:
 		"Configura esta conexión en Producción antes de habilitar sincronizaciones comerciales.",
 	INTEGRATION_PRODUCTION_PREFLIGHT_BLOCKED:

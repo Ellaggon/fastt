@@ -35,6 +35,8 @@ export type ChannelManagerProperty = {
 	currency: string | null
 	timezone: string | null
 	active: boolean | null
+	/** Channex property setting that determines the valid min-stay field on ARI writes. */
+	minStayType?: "arrival" | "through" | "both" | null
 }
 
 export type ChannelManagerRoomType = {

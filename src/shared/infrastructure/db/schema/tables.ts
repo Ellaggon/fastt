@@ -34,13 +34,24 @@ const ts = (name: string) => timestamp(name, { withTimezone: true })
 const tsReq = (name: string) => timestamp(name, { withTimezone: true }).notNull()
 const now = (name: string) => timestamp(name, { withTimezone: true }).defaultNow().notNull()
 
-export const Provider = pgTable("Provider", {
-	id: pk(),
-	legalName: txtOpt("legalName"),
-	displayName: txtOpt("displayName"),
-	status: txtOpt("status"),
-	createdAt: ts("createdAt"),
-})
+export const Provider = pgTable(
+	"Provider",
+	{
+		id: pk(),
+		legalName: txtOpt("legalName"),
+		displayName: txtOpt("displayName"),
+		status: txtOpt("status"),
+		/** Separates real commercial tenants from deliberately non-commercial QA tenants. */
+		accountPurpose: text("accountPurpose").default("commercial").notNull(),
+		createdAt: ts("createdAt"),
+	},
+	(table) => [
+		check(
+			"Provider_accountPurpose_check",
+			sql`${table.accountPurpose} IN ('commercial', 'internal_qa', 'integration_certification')`
+		),
+	]
+)
 
 export const Destination = pgTable(
 	"Destination",
@@ -359,6 +370,52 @@ export const ProviderIntegrationMapping = pgTable(
 	]
 )
 
+/**
+ * Explicit, expiring authorization to run a vendor certification through the real PMS pipeline.
+ * It is not a substitute for provider KYC, fiscal approval, or commercial publication.
+ */
+export const ProviderIntegrationCertification = pgTable(
+	"ProviderIntegrationCertification",
+	{
+		id: pk(),
+		providerId: txt("providerId").references(() => Provider.id),
+		connectionId: txt("connectionId").references(() => ProviderIntegrationConnection.id, {
+			onDelete: "cascade",
+		}),
+		vendorKey: txt("vendorKey"),
+		fixtureProductId: txtOpt("fixtureProductId"),
+		status: text("status").default("draft").notNull(),
+		suiteVersion: txtOpt("suiteVersion"),
+		createdBy: txtOpt("createdBy").references(() => User.id, { onDelete: "set null" }),
+		activatedBy: txtOpt("activatedBy").references(() => User.id, { onDelete: "set null" }),
+		startedAt: ts("startedAt"),
+		completedAt: ts("completedAt"),
+		expiresAt: ts("expiresAt"),
+		evidenceManifestJson: jsonb("evidenceManifestJson"),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		index("ProviderIntegrationCertification_provider_status_idx").on(
+			table.providerId,
+			table.status
+		),
+		index("ProviderIntegrationCertification_connection_status_idx").on(
+			table.connectionId,
+			table.status
+		),
+		uniqueIndex("ProviderIntegrationCertification_one_active_connection_unique")
+			.on(table.connectionId)
+			.where(
+				sql`${table.status} IN ('draft', 'prepared', 'ready', 'running', 'requires_attention')`
+			),
+		check(
+			"ProviderIntegrationCertification_status_check",
+			sql`${table.status} IN ('draft', 'prepared', 'ready', 'running', 'requires_attention', 'completed', 'expired', 'revoked')`
+		),
+	]
+)
+
 export const ProviderIntegrationSyncRun = pgTable(
 	"ProviderIntegrationSyncRun",
 	{
@@ -367,6 +424,11 @@ export const ProviderIntegrationSyncRun = pgTable(
 		connectionId: txt("connectionId").references(() => ProviderIntegrationConnection.id, {
 			onDelete: "cascade",
 		}),
+		/** Nullable because commercial runs are not certification evidence. */
+		certificationId: txtOpt("certificationId").references(
+			() => ProviderIntegrationCertification.id,
+			{ onDelete: "set null" }
+		),
 		connectorKey: txt("connectorKey"),
 		operation: txt("operation"),
 		trigger: text("trigger").default("manual").notNull(),
@@ -399,6 +461,10 @@ export const ProviderIntegrationSyncRun = pgTable(
 			table.providerId,
 			table.status,
 			table.startedAt
+		),
+		index("ProviderIntegrationSyncRun_certification_started_idx").on(
+			table.certificationId,
+			table.startedAt.desc()
 		),
 		index("ProviderIntegrationSyncRun_terminal_retention_idx")
 			.on(table.status, table.finishedAt)

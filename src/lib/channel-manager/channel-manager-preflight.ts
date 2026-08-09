@@ -19,6 +19,16 @@ export type ChannelManagerPreflightIssue = {
 
 export type ChannelManagerPreflightResult = {
 	readyForProduction: boolean
+	readyForCertification: boolean
+	readyForExecution: boolean
+	executionContext:
+		| { kind: "commercial"; label: "Producción" }
+		| {
+				kind: "certification"
+				label: "Certificación QA"
+				certificationId: string
+				fixtureProductId: string
+		  }
 	checkedAt: Date
 	steps: Array<{
 		key: ChannelManagerPreflightStepKey
@@ -35,6 +45,10 @@ export type ChannelManagerPreflightResult = {
 		mappedSellableRoomTypes: number
 		sellableRatePlans: number
 		mappedSellableRatePlans: number
+		certificationEligibleRoomTypes: number
+		mappedCertificationEligibleRoomTypes: number
+		certificationEligibleRatePlans: number
+		mappedCertificationEligibleRatePlans: number
 		activeMappings: number
 		inactiveMappings: number
 		orphanMappings: number
@@ -69,6 +83,14 @@ type PreflightInput = {
 	remotePartial?: boolean
 	progress?: Partial<PreflightProgress>
 	stageErrors?: Partial<Record<"access" | "properties" | "rooms" | "rates", string>>
+	executionContext?:
+		| { kind: "commercial" }
+		| {
+				kind: "certification"
+				certificationId: string
+				fixtureProductId: string
+				expectedStructure: { roomTypes: number; ratePlans: number } | null
+		  }
 }
 
 const stepLabels: Record<ChannelManagerPreflightStepKey, string> = {
@@ -117,6 +139,10 @@ function duplicateKeys(rows: MappingRow[], keyFor: (row: MappingRow) => string):
 export function evaluateChannelManagerPreflight(
 	input: PreflightInput
 ): ChannelManagerPreflightResult {
+	const executionContext = input.executionContext ?? { kind: "commercial" as const }
+	const certification = executionContext.kind === "certification" ? executionContext : null
+	const isCertification = Boolean(certification)
+	const scopeLabel = isCertification ? "de certificación" : "vendible"
 	const progress: PreflightProgress = {
 		access: input.progress?.access ?? true,
 		properties: input.progress?.properties ?? true,
@@ -336,9 +362,22 @@ export function evaluateChannelManagerPreflight(
 		}
 	}
 
-	const relevantMappings = input.mappings.filter((mapping) =>
+	const allRelevantMappings = input.mappings.filter((mapping) =>
 		["room_type", "rate_plan"].includes(normalized(mapping.mappingType))
 	)
+	const certificationLocalIds = new Set([
+		...input.localCatalog.variants
+			.filter((item) => item.certificationEligible)
+			.map((item) => item.id),
+		...input.localCatalog.ratePlans
+			.filter((item) => item.certificationEligible)
+			.map((item) => item.id),
+	])
+	const relevantMappings = isCertification
+		? allRelevantMappings.filter((mapping) =>
+				certificationLocalIds.has(normalized(mapping.localEntityId))
+			)
+		: allRelevantMappings
 	const activeMappings = relevantMappings.filter(
 		(mapping) => normalized(mapping.status) === "active"
 	)
@@ -449,7 +488,18 @@ export function evaluateChannelManagerPreflight(
 
 	const sellableRooms = input.localCatalog.variants.filter((item) => item.sellable)
 	const sellableRates = input.localCatalog.ratePlans.filter((item) => item.sellable)
+	const certificationEligibleRooms = input.localCatalog.variants.filter(
+		(item) => item.certificationEligible
+	)
+	const certificationEligibleRates = input.localCatalog.ratePlans.filter(
+		(item) => item.certificationEligible
+	)
+	const coverageRooms = isCertification ? certificationEligibleRooms : sellableRooms
+	const coverageRates = isCertification ? certificationEligibleRates : sellableRates
 	const mappedSellableRooms = sellableRooms.filter((item) => validRoomMappingByLocal.has(item.id))
+	const mappedCertificationEligibleRooms = certificationEligibleRooms.filter((item) =>
+		validRoomMappingByLocal.has(item.id)
+	)
 	const rateMappingByLocal = new Map(
 		activeMappings
 			.filter((mapping) => normalized(mapping.mappingType) === "rate_plan")
@@ -467,45 +517,86 @@ export function evaluateChannelManagerPreflight(
 		})
 	)
 	const mappedSellableRates = sellableRates.filter((item) => validRateMappingByLocal.has(item.id))
-	if (catalogComplete && sellableRooms.length === 0) {
+	const mappedCertificationEligibleRates = certificationEligibleRates.filter((item) =>
+		validRateMappingByLocal.has(item.id)
+	)
+	const mappedCoverageRooms = isCertification
+		? mappedCertificationEligibleRooms
+		: mappedSellableRooms
+	const mappedCoverageRates = isCertification
+		? mappedCertificationEligibleRates
+		: mappedSellableRates
+	if (catalogComplete && coverageRooms.length === 0) {
 		add({
-			code: "PREFLIGHT_NO_SELLABLE_ROOMS",
+			code: isCertification ? "PREFLIGHT_NO_CERTIFICATION_ROOMS" : "PREFLIGHT_NO_SELLABLE_ROOMS",
 			step: "coverage",
 			severity: "blocker",
-			message: "No hay habitaciones publicadas y activas para sincronizar.",
+			message: isCertification
+				? "El fixture no tiene habitaciones activas para certificar."
+				: "No hay habitaciones publicadas y activas para sincronizar.",
 		})
 	}
-	for (const room of (catalogComplete ? sellableRooms : []).filter(
+	for (const room of (catalogComplete ? coverageRooms : []).filter(
 		(item) => !validRoomMappingByLocal.has(item.id)
 	)) {
 		add({
-			code: "PREFLIGHT_SELLABLE_ROOM_UNMAPPED",
+			code: isCertification
+				? "PREFLIGHT_CERTIFICATION_ROOM_UNMAPPED"
+				: "PREFLIGHT_SELLABLE_ROOM_UNMAPPED",
 			step: "coverage",
 			severity: "blocker",
-			message: `La habitación vendible “${room.name}” no está mapeada.`,
+			message: `La habitación ${scopeLabel} “${room.name}” no está mapeada.`,
 			entityType: "room_type",
 			entityId: room.id,
 		})
 	}
-	if (catalogComplete && sellableRates.length === 0) {
+	if (catalogComplete && coverageRates.length === 0) {
 		add({
-			code: "PREFLIGHT_NO_SELLABLE_RATES",
+			code: isCertification ? "PREFLIGHT_NO_CERTIFICATION_RATES" : "PREFLIGHT_NO_SELLABLE_RATES",
 			step: "coverage",
 			severity: "blocker",
-			message: "No hay tarifas publicadas y activas para sincronizar.",
+			message: isCertification
+				? "El fixture no tiene tarifas activas para certificar."
+				: "No hay tarifas publicadas y activas para sincronizar.",
 		})
 	}
-	for (const rate of (catalogComplete ? sellableRates : []).filter(
+	for (const rate of (catalogComplete ? coverageRates : []).filter(
 		(item) => !validRateMappingByLocal.has(item.id)
 	)) {
 		add({
-			code: "PREFLIGHT_SELLABLE_RATE_UNMAPPED",
+			code: isCertification
+				? "PREFLIGHT_CERTIFICATION_RATE_UNMAPPED"
+				: "PREFLIGHT_SELLABLE_RATE_UNMAPPED",
 			step: "coverage",
 			severity: "blocker",
-			message: `La tarifa vendible “${rate.name}” no está mapeada.`,
+			message: `La tarifa ${scopeLabel} “${rate.name}” no está mapeada.`,
 			entityType: "rate_plan",
 			entityId: rate.id,
 		})
+	}
+	if (catalogComplete && certification?.expectedStructure) {
+		if (
+			input.roomTypes.length !== certification.expectedStructure.roomTypes ||
+			certificationEligibleRooms.length !== certification.expectedStructure.roomTypes
+		) {
+			add({
+				code: "PREFLIGHT_CERTIFICATION_ROOM_STRUCTURE_MISMATCH",
+				step: "rooms",
+				severity: "blocker",
+				message: `La certificación requiere exactamente ${certification.expectedStructure.roomTypes} habitaciones locales y remotas.`,
+			})
+		}
+		if (
+			input.ratePlans.length !== certification.expectedStructure.ratePlans ||
+			certificationEligibleRates.length !== certification.expectedStructure.ratePlans
+		) {
+			add({
+				code: "PREFLIGHT_CERTIFICATION_RATE_STRUCTURE_MISMATCH",
+				step: "rates",
+				severity: "blocker",
+				message: `La certificación requiere exactamente ${certification.expectedStructure.ratePlans} tarifas locales y remotas.`,
+			})
+		}
 	}
 
 	if (catalogComplete && (input.remotePartial || (input.remoteWarnings?.length ?? 0) > 0)) {
@@ -569,7 +660,7 @@ export function evaluateChannelManagerPreflight(
 						: "Requiere atención",
 			coverage:
 				status === "complete"
-					? `${mappedSellableRooms.length + mappedSellableRates.length} relaciones cubiertas`
+					? `${mappedCoverageRooms.length + mappedCoverageRates.length} relaciones cubiertas`
 					: status === "pending"
 						? "Pendiente"
 						: "Cobertura incompleta",
@@ -578,7 +669,19 @@ export function evaluateChannelManagerPreflight(
 	})
 
 	return {
-		readyForProduction: catalogComplete && issues.every((issue) => issue.severity !== "blocker"),
+		readyForProduction:
+			!isCertification && catalogComplete && issues.every((issue) => issue.severity !== "blocker"),
+		readyForCertification:
+			isCertification && catalogComplete && issues.every((issue) => issue.severity !== "blocker"),
+		readyForExecution: catalogComplete && issues.every((issue) => issue.severity !== "blocker"),
+		executionContext: certification
+			? {
+					kind: "certification",
+					label: "Certificación QA",
+					certificationId: certification.certificationId,
+					fixtureProductId: certification.fixtureProductId,
+				}
+			: { kind: "commercial", label: "Producción" },
 		checkedAt: new Date(),
 		steps,
 		issues,
@@ -590,6 +693,10 @@ export function evaluateChannelManagerPreflight(
 			mappedSellableRoomTypes: mappedSellableRooms.length,
 			sellableRatePlans: sellableRates.length,
 			mappedSellableRatePlans: mappedSellableRates.length,
+			certificationEligibleRoomTypes: certificationEligibleRooms.length,
+			mappedCertificationEligibleRoomTypes: mappedCertificationEligibleRooms.length,
+			certificationEligibleRatePlans: certificationEligibleRates.length,
+			mappedCertificationEligibleRatePlans: mappedCertificationEligibleRates.length,
 			activeMappings: activeMappings.length,
 			inactiveMappings: inactiveMappings.length,
 			orphanMappings,

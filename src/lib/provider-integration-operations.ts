@@ -18,6 +18,7 @@ import {
 	TaxFeeDefinition,
 	Variant,
 } from "@/shared/infrastructure/db/compat"
+import { assertProviderIntegrationCertificationRunLink } from "@/lib/provider-integration-certification"
 import { cacheKeys, cacheTtls } from "@/lib/cache/cacheKeys"
 import { invalidateProviderIntegrations } from "@/lib/cache/invalidation"
 import { readThrough } from "@/lib/cache/readThrough"
@@ -69,6 +70,11 @@ export type ProviderIntegrationMappingCatalog = {
 		productName: string
 		productPublished: boolean
 		sellable: boolean
+		/**
+		 * Derived only for an authenticated certification context. It is deliberately
+		 * not persisted: certification eligibility must never make inventory public.
+		 */
+		certificationEligible?: boolean
 	}>
 	ratePlans: Array<{
 		id: string
@@ -80,6 +86,7 @@ export type ProviderIntegrationMappingCatalog = {
 		isDefault: boolean
 		productPublished: boolean
 		sellable: boolean
+		certificationEligible?: boolean
 	}>
 	taxes: Array<{ id: string; label: string; entityType: "tax" }>
 }
@@ -298,12 +305,20 @@ export async function removeProviderIntegrationMapping(params: {
 export async function startProviderIntegrationSyncRun(params: {
 	providerId: string
 	connectionId: string
+	certificationId?: string | null
 	operation: string
 	trigger?: "manual" | "scheduled" | "webhook" | "retry"
 	requestedBy?: string | null
 	idempotencyKey?: string | null
 }) {
 	const connection = await ownedConnection(params.providerId, params.connectionId)
+	if (params.certificationId) {
+		await assertProviderIntegrationCertificationRunLink({
+			providerId: params.providerId,
+			connectionId: params.connectionId,
+			certificationId: params.certificationId,
+		})
+	}
 	const idempotencyKey = String(params.idempotencyKey ?? "").trim() || null
 	if (idempotencyKey) {
 		const existing = await db
@@ -323,6 +338,7 @@ export async function startProviderIntegrationSyncRun(params: {
 		id: crypto.randomUUID(),
 		providerId: params.providerId,
 		connectionId: params.connectionId,
+		certificationId: params.certificationId ?? null,
 		connectorKey: String(connection.connectorKey),
 		operation: requiredIdentifier(params.operation, "SYNC_OPERATION_REQUIRED", 80),
 		trigger: params.trigger ?? "manual",
@@ -1010,8 +1026,10 @@ export async function listProviderIntegrationExecutionActivity(params: {
 }
 
 export async function listProviderIntegrationMappingCatalog(
-	providerId: string
+	providerId: string,
+	options?: { certificationFixtureProductId?: string | null }
 ): Promise<ProviderIntegrationMappingCatalog> {
+	const certificationFixtureProductId = String(options?.certificationFixtureProductId ?? "").trim()
 	const [products, variants, ratePlans, taxes] = await Promise.all([
 		db
 			.select({
@@ -1042,6 +1060,7 @@ export async function listProviderIntegrationMappingCatalog(
 				name: RatePlan.name,
 				variantId: Variant.id,
 				variantName: Variant.name,
+				productId: Product.id,
 				productName: Product.name,
 				isDefault: RatePlan.isDefault,
 				variantActive: Variant.isActive,
@@ -1080,6 +1099,9 @@ export async function listProviderIntegrationMappingCatalog(
 			productName: variant.productName,
 			productPublished: variant.productState === "published",
 			sellable: variant.productState === "published",
+			certificationEligible:
+				Boolean(certificationFixtureProductId) &&
+				variant.productId === certificationFixtureProductId,
 		})),
 		ratePlans: ratePlans.map((ratePlan) => ({
 			id: ratePlan.id,
@@ -1091,6 +1113,9 @@ export async function listProviderIntegrationMappingCatalog(
 			isDefault: Boolean(ratePlan.isDefault),
 			productPublished: ratePlan.productState === "published",
 			sellable: ratePlan.productState === "published" && Boolean(ratePlan.variantActive),
+			certificationEligible:
+				Boolean(certificationFixtureProductId) &&
+				ratePlan.productId === certificationFixtureProductId,
 		})),
 		taxes: taxes.map((tax) => ({
 			id: tax.id,

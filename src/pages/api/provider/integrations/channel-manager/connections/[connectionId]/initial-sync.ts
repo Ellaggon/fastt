@@ -58,10 +58,16 @@ export const POST: APIRoute = async ({ request, params }) => {
 		const auth = await requireProviderIntegrationManager(request)
 		const connectionId = String(params.connectionId ?? "").trim()
 		if (!connectionId) throw new Error("CONNECTION_ID_REQUIRED")
+		let certificationId: string | null = null
+		if (request.headers.get("content-type")?.includes("application/json")) {
+			const body = (await request.json()) as { certificationId?: unknown }
+			certificationId = String(body.certificationId ?? "").trim() || null
+		}
 		const job = await enqueueProviderInitialAriSync({
 			providerId: auth.providerId,
 			connectionId,
 			requestedBy: auth.user.id,
+			certificationId,
 		})
 		const worker = await runScheduledProviderIntegrationSync({
 			providerId: auth.providerId,

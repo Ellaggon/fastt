@@ -7,16 +7,26 @@ interface Props {
 	connectionId: string
 	environment: "sandbox" | "production"
 	canStart: boolean
+	certificationId?: string | null
+	completed?: boolean
 }
 
-const { connectionId, environment, canStart } = Astro.props
+const {
+	connectionId,
+	environment,
+	canStart,
+	certificationId = null,
+	completed = false,
+} = Astro.props
 ---
 
 <section
 	class="fastt-notice overflow-hidden rounded-lg border border-slate-200 bg-white text-slate-900"
 	data-initial-ari-panel
 	data-connection-id={connectionId}
+	data-certification-id={certificationId ?? ""}
 	data-can-start={String(canStart)}
+	data-completed={String(completed)}
 >
 	<div class="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
 		<div class="flex min-w-0 items-start gap-3">
@@ -48,7 +58,13 @@ const { connectionId, environment, canStart } = Astro.props
 		<Button type="button" data-run-initial-ari disabled={!canStart}>
 			<DatabaseZap class="size-4" aria-hidden="true" />
 			<span data-action-label>
-				{canStart ? "Ejecutar sincronización inicial" : "Valida el acceso primero"}
+				{
+					canStart
+						? "Ejecutar sincronización inicial"
+						: completed
+							? "Full sync completado"
+							: "Valida el acceso primero"
+				}
 			</span>
 		</Button>
 	</div>
@@ -177,7 +193,9 @@ const { connectionId, environment, canStart } = Astro.props
 			if (panel.dataset.ready === "true") return
 			panel.dataset.ready = "true"
 			const connectionId = panel.dataset.connectionId
+			const certificationId = panel.dataset.certificationId || null
 			const canStart = panel.dataset.canStart === "true"
+			const completed = panel.dataset.completed === "true"
 			const button = panel.querySelector<HTMLButtonElement>("[data-run-initial-ari]")
 			const actionLabel = panel.querySelector<HTMLElement>("[data-action-label]")
 			const status = panel.querySelector<HTMLElement>("[data-ari-status]")
@@ -245,7 +263,9 @@ const { connectionId, environment, canStart } = Astro.props
 					? "Sincronización en curso"
 					: canStart
 						? "Ejecutar sincronización inicial"
-						: "Valida el acceso primero"
+						: completed
+							? "Full sync completado"
+							: "Valida el acceso primero"
 				if (!active && data.run?.summaryJson) renderResult(result, data.run.summaryJson)
 				else {
 					result.replaceChildren()
@@ -281,7 +301,8 @@ const { connectionId, environment, canStart } = Astro.props
 				beginPolling()
 				void fetch(endpoint, {
 					method: "POST",
-					headers: { Accept: "application/json" },
+					headers: { "Accept": "application/json", "Content-Type": "application/json" },
+					body: JSON.stringify(certificationId ? { certificationId } : {}),
 				})
 					.then(async (response) => {
 						if (response.ok) return

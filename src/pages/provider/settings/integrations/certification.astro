@@ -1,0 +1,483 @@
+---
+import InitialAriSyncPanel from "@/components/provider/integrations/InitialAriSyncPanel.astro"
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Notice from "@/components/ui/Notice.astro"
+import ProviderIntegrationsLayout from "@/layouts/ProviderIntegrationsLayout.astro"
+import { requireProviderIntegrationManager } from "@/lib/provider-integration-auth"
+import {
+	assertProviderIntegrationCertificationExecution,
+	getProviderAccountPurpose,
+	getProviderIntegrationCertificationEvidencePackage,
+	providerIntegrationCertificationActiveStatuses,
+	type ProviderIntegrationCertificationScenarioKey,
+} from "@/lib/provider-integration-certification"
+import { getProviderChannelManagerPreflight } from "@/lib/provider-integrations"
+import { routes } from "@/lib/routes"
+import {
+	and,
+	db,
+	desc,
+	eq,
+	inArray,
+	ProviderIntegrationCertification,
+} from "@/shared/infrastructure/db/compat"
+import {
+	ArrowLeft,
+	CircleCheck,
+	CircleDashed,
+	Download,
+	ExternalLink,
+	Printer,
+} from "@lucide/astro"
+
+const auth = await requireProviderIntegrationManager(Astro.request).catch((error: unknown) => {
+	if (error instanceof Response && error.status === 401) return "__REDIRECT_LOGIN__"
+	if (error instanceof Response && error.status === 403) return "__REDIRECT_PROVIDER__"
+	throw error
+})
+if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
+if (auth === "__REDIRECT_PROVIDER__")
+	return Astro.redirect(routes.providerSettingsIntegrationsConnections())
+
+if ((await getProviderAccountPurpose(auth.providerId)) !== "integration_certification") {
+	return Astro.redirect(routes.providerSettingsIntegrationsConnections(), 302)
+}
+
+const certification = await db
+	.select()
+	.from(ProviderIntegrationCertification)
+	.where(
+		and(
+			eq(ProviderIntegrationCertification.providerId, auth.providerId),
+			inArray(
+				ProviderIntegrationCertification.status,
+				providerIntegrationCertificationActiveStatuses
+			)
+		)
+	)
+	.orderBy(desc(ProviderIntegrationCertification.updatedAt))
+	.limit(1)
+	.then((rows) => rows[0] ?? null)
+
+if (!certification) return Astro.redirect(routes.providerSettingsIntegrationsConnections(), 302)
+
+await assertProviderIntegrationCertificationExecution({
+	providerId: auth.providerId,
+	connectionId: certification.connectionId,
+	certificationId: certification.id,
+	userId: auth.user.id,
+})
+
+const [preflight, evidencePackage] = await Promise.all([
+	getProviderChannelManagerPreflight({
+		providerId: auth.providerId,
+		connectionId: certification.connectionId,
+		certificationId: certification.id,
+	}),
+	getProviderIntegrationCertificationEvidencePackage({
+		providerId: auth.providerId,
+		connectionId: certification.connectionId,
+		certificationId: certification.id,
+	}),
+])
+
+const latestSuccessfulFullSync = evidencePackage.runs.find(
+	(run) => run.operation === "initial_ari_sync" && run.status === "succeeded"
+)
+const fullSyncSummary =
+	latestSuccessfulFullSync?.summaryJson && typeof latestSuccessfulFullSync.summaryJson === "object"
+		? (latestSuccessfulFullSync.summaryJson as Record<string, any>)
+		: null
+const taskIds = [
+	...(fullSyncSummary?.requests?.availability?.taskIds ?? []),
+	...(fullSyncSummary?.requests?.ratesAndRestrictions?.taskIds ?? []),
+].map(String)
+const successfulScenarioRuns = new Set(
+	evidencePackage.runs
+		.filter((run) => run.status === "succeeded")
+		.map((run) => {
+			const summary = run.summaryJson
+			return summary && typeof summary === "object"
+				? String((summary as Record<string, any>).execution?.scenario ?? "").trim()
+				: ""
+		})
+)
+const scenarioCompleted = (key: ProviderIntegrationCertificationScenarioKey) =>
+	Boolean(evidencePackage.scenarioEvidence[key]) || successfulScenarioRuns.has(key)
+const evidenceEndpoint = `/api/provider/integrations/certifications/${encodeURIComponent(certification.id)}/evidence?connectionId=${encodeURIComponent(certification.connectionId)}`
+
+const calendarHref = `${routes.ratesCalendar()}?source=channex-certification&certificationId=${encodeURIComponent(certification.id)}`
+const availabilityHref = `${routes.inventory()}&source=channex-certification&certificationId=${encodeURIComponent(certification.id)}`
+const scenarios: Array<{
+	key: ProviderIntegrationCertificationScenarioKey
+	title: string
+	description: string
+	href: string
+	action: string
+	automatic: boolean
+	completed: boolean
+}> = [
+	{
+		key: "access",
+		title: "Acceso y propiedad",
+		description:
+			"Confirma que la key, la propiedad de staging y la moneda USD responden desde Fastt.",
+		href: routes.providerSettingsIntegrationConnection(certification.connectionId),
+		action: "Revisar conexión",
+		automatic: true,
+		completed: Boolean(
+			preflight.connection.externalPropertyId && preflight.connection.mode === "sandbox"
+		),
+	},
+	{
+		key: "mapping",
+		title: "Habitaciones y tarifas",
+		description: "Verifica la cobertura exacta de dos habitaciones y cuatro tarifas del fixture.",
+		href: routes.providerSettingsIntegrationMapping(certification.connectionId),
+		action: "Abrir mapping",
+		automatic: true,
+		completed: preflight.preflight.readyForCertification,
+	},
+	{
+		key: "full_sync",
+		title: "Full sync de 500 días",
+		description:
+			"Envía una llamada de disponibilidad y otra de tarifas y restricciones desde el worker de Fastt.",
+		href: "#full-sync",
+		action: "Ejecutar full sync",
+		automatic: true,
+		completed: Boolean(latestSuccessfulFullSync),
+	},
+	{
+		key: "single_rate",
+		title: "Precio de una fecha",
+		description:
+			"Cambia una tarifa para una sola fecha desde el calendario de Fastt y conserva el task ID.",
+		href: calendarHref,
+		action: "Abrir calendario",
+		automatic: false,
+		completed: scenarioCompleted("single_rate"),
+	},
+	{
+		key: "multiple_rates",
+		title: "Precios de varias tarifas",
+		description: "Edita varias tarifas en fechas distintas en una misma operación del calendario.",
+		href: routes.ratesMultiCalendar(),
+		action: "Abrir calendario múltiple",
+		automatic: false,
+		completed: scenarioCompleted("multiple_rates"),
+	},
+	{
+		key: "range_rates",
+		title: "Rango de fechas",
+		description:
+			"Aplica precios a un rango continuo y conserva la referencia devuelta por la sincronización.",
+		href: calendarHref,
+		action: "Abrir calendario",
+		automatic: false,
+		completed: scenarioCompleted("range_rates"),
+	},
+	{
+		key: "min_stay",
+		title: "Estancia mínima",
+		description:
+			"Modifica la estancia mínima desde las condiciones tarifarias y registra el resultado.",
+		href: routes.ratePlansList(),
+		action: "Abrir tarifas",
+		automatic: false,
+		completed: scenarioCompleted("min_stay"),
+	},
+	{
+		key: "stop_sell",
+		title: "Stop sell",
+		description:
+			"Cierra una fecha de venta desde Fastt y conserva la evidencia de envío a Channex.",
+		href: calendarHref,
+		action: "Abrir calendario",
+		automatic: false,
+		completed: scenarioCompleted("stop_sell"),
+	},
+	{
+		key: "arrival_departure",
+		title: "CTA y CTD",
+		description: "Prueba cierres de llegada y salida en el calendario de restricciones.",
+		href: calendarHref,
+		action: "Abrir calendario",
+		automatic: false,
+		completed: scenarioCompleted("arrival_departure"),
+	},
+	{
+		key: "availability",
+		title: "Disponibilidad",
+		description: "Actualiza cupos de una habitación desde Fastt y revisa el cambio en staging.",
+		href: availabilityHref,
+		action: "Abrir disponibilidad",
+		automatic: false,
+		completed: scenarioCompleted("availability"),
+	},
+	{
+		key: "booking_crs",
+		title: "Reserva, modificación y cancelación",
+		description:
+			"Crea, modifica y cancela una reserva de prueba con Booking CRS en Channex staging. Luego deja que Fastt reciba cada revisión y registra las referencias.",
+		href: routes.providerSettingsIntegrationConnection(certification.connectionId),
+		action: "Abrir conexión",
+		automatic: false,
+		completed: scenarioCompleted("booking_crs"),
+	},
+]
+
+const completedCount = scenarios.filter((scenario) => scenario.completed).length
+---
+
+<ProviderIntegrationsLayout
+	title="Certificación Channex"
+	eyebrow="Integraciones · Certificación QA"
+	heading="Certificación Channex"
+	description="Ejecuta y documenta el flujo real de Fastt contra staging. Esta sesión no publica inventario ni habilita producción."
+>
+	<div slot="actions" class="flex flex-wrap gap-2">
+		<Button
+			href={routes.providerSettingsIntegrationConnection(certification.connectionId)}
+			variant="onDark"
+			size="sm"
+		>
+			<ArrowLeft class="size-4" aria-hidden="true" />
+			Conexión QA
+		</Button>
+	</div>
+
+	<Notice variant="info" title="Perfil aislado de certificación">
+		Esta sesión usa Channex staging y datos no comerciales. La evidencia registrada aquí no
+		sustituye verificación de proveedor, publicación ni autorización de producción.
+	</Notice>
+
+	<section class="grid gap-3 md:grid-cols-3" aria-label="Resumen de certificación">
+		<Card variant="dark" className="p-5">
+			<p class="text-xs font-semibold tracking-wide text-slate-400 uppercase">Progreso</p>
+			<p class="mt-2 text-3xl font-semibold text-white">{completedCount}/{scenarios.length}</p>
+			<p class="mt-1 text-sm text-slate-300">Escenarios con resultado o evidencia registrada.</p>
+		</Card>
+		<Card variant="dark" className="p-5">
+			<p class="text-xs font-semibold tracking-wide text-slate-400 uppercase">Fixture</p>
+			<p class="mt-2 text-lg font-semibold text-white">2 habitaciones · 4 tarifas</p>
+			<p class="mt-1 text-sm text-slate-300">USD · 500 días · Channex staging</p>
+		</Card>
+		<Card variant="dark" className="p-5">
+			<p class="text-xs font-semibold tracking-wide text-slate-400 uppercase">Sesión</p>
+			<p class="mt-2 text-lg font-semibold text-white">
+				{certification.suiteVersion ?? "Suite Channex"}
+			</p>
+			<p class="mt-1 text-sm text-slate-300">Estado: {certification.status}</p>
+		</Card>
+	</section>
+
+	<section id="full-sync" class="scroll-mt-6">
+		<InitialAriSyncPanel
+			connectionId={certification.connectionId}
+			environment="sandbox"
+			canStart={preflight.preflight.readyForCertification && !latestSuccessfulFullSync}
+			certificationId={certification.id}
+			completed={Boolean(latestSuccessfulFullSync)}
+		/>
+		{
+			latestSuccessfulFullSync ? (
+				<p class="mt-3 text-sm leading-6 text-slate-300">
+					Último full sync válido:{" "}
+					{taskIds.length ? `task IDs ${taskIds.join(" · ")}` : "evidencia guardada"}.
+				</p>
+			) : null
+		}
+	</section>
+
+	<Card
+		className="overflow-hidden p-0"
+		data-certification-workspace
+		data-evidence-endpoint={evidenceEndpoint}
+		data-connection-id={certification.connectionId}
+	>
+		<div class="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 p-5">
+			<div>
+				<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+					Checklist de escenarios
+				</p>
+				<h2 class="mt-1 text-lg font-semibold text-slate-950">
+					Prueba desde las superficies reales
+				</h2>
+				<p class="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
+					Los tres primeros pasos se comprueban con datos de Fastt. En las pruebas manuales,
+					registra la referencia obtenida después de ejecutar el cambio; una nota no equivale a una
+					aprobación de Channex.
+				</p>
+			</div>
+			<div class="flex flex-wrap gap-2">
+				<Button type="button" variant="secondary" size="sm" data-print-evidence
+					><Printer class="size-4" aria-hidden="true" />Imprimir / guardar PDF</Button
+				>
+				<Button href={evidenceEndpoint} variant="secondary" size="sm"
+					><Download class="size-4" aria-hidden="true" />Paquete JSON</Button
+				>
+			</div>
+		</div>
+		<div class="divide-y divide-slate-200">
+			{
+				scenarios.map((scenario, index) => {
+					const recorded = evidencePackage.scenarioEvidence[scenario.key]
+					return (
+						<article
+							class="grid gap-4 p-5 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-start"
+							data-certification-scenario={scenario.key}
+						>
+							<div
+								class:list={[
+									"mt-0.5 flex size-8 items-center justify-center rounded-full border",
+									scenario.completed
+										? "border-emerald-200 bg-emerald-50 text-emerald-700"
+										: "border-slate-200 bg-slate-50 text-slate-500",
+								]}
+							>
+								{scenario.completed ? (
+									<CircleCheck class="size-4" aria-hidden="true" />
+								) : (
+									<CircleDashed class="size-4" aria-hidden="true" />
+								)}
+							</div>
+							<div class="min-w-0">
+								<div class="flex flex-wrap items-center gap-2">
+									<h3 class="text-sm font-semibold text-slate-950">
+										{index + 1}. {scenario.title}
+									</h3>
+									<Badge variant={scenario.completed ? "success" : "neutral"}>
+										{scenario.completed
+											? scenario.automatic
+												? "Comprobado por Fastt"
+												: "Evidencia registrada"
+											: "Pendiente"}
+									</Badge>
+								</div>
+								<p class="mt-1 text-sm leading-6 text-slate-600">{scenario.description}</p>
+								{recorded ? (
+									<p class="mt-2 text-xs leading-5 text-slate-500">
+										Referencia: {recorded.taskId ?? "sin task ID"}
+										{recorded.screenshotReference
+											? ` · captura: ${recorded.screenshotReference}`
+											: ""}
+									</p>
+								) : null}
+								{!scenario.automatic ? (
+									<details class="mt-3 max-w-2xl" data-evidence-details>
+										<summary class="cursor-pointer text-xs font-semibold text-slate-700 hover:text-slate-950">
+											Registrar referencia de esta prueba
+										</summary>
+										<form
+											class="mt-3 grid gap-3 sm:grid-cols-2"
+											data-evidence-form
+											data-scenario={scenario.key}
+										>
+											<label class="text-xs font-medium text-slate-700">
+												Task ID / referencia
+												<input
+													class="fastt-field mt-1 h-9 w-full px-2 text-sm"
+													name="taskId"
+													maxlength="200"
+													placeholder="Task ID de Channex"
+												/>
+											</label>
+											<label class="text-xs font-medium text-slate-700">
+												Captura o URL
+												<input
+													class="fastt-field mt-1 h-9 w-full px-2 text-sm"
+													name="screenshotReference"
+													maxlength="500"
+													placeholder="Nombre de PDF o enlace"
+												/>
+											</label>
+											<label class="text-xs font-medium text-slate-700 sm:col-span-2">
+												Nota
+												<textarea
+													class="fastt-field mt-1 min-h-20 w-full px-2 py-2 text-sm"
+													name="note"
+													maxlength="1000"
+													placeholder="Qué comprobaste en staging"
+												/>
+											</label>
+											<div class="flex flex-wrap items-center gap-3 sm:col-span-2">
+												<Button type="submit" size="sm">
+													Guardar evidencia
+												</Button>
+												<span class="text-xs text-slate-500" data-evidence-feedback />
+											</div>
+										</form>
+									</details>
+								) : null}
+							</div>
+							<Button href={scenario.href} variant="secondary" size="sm">
+								<ExternalLink class="size-4" aria-hidden="true" />
+								{scenario.action}
+							</Button>
+						</article>
+					)
+				})
+			}
+		</div>
+	</Card>
+
+	<Notice variant="info" title="Evidencia lista para compartir">
+		El paquete incluye sesión, conexión sandbox, runs vinculados, hashes, task IDs y referencias
+		anotadas. La versión imprimible sirve como captura de la pantalla de Fastt sin consultar Postman
+		ni Supabase.
+	</Notice>
+</ProviderIntegrationsLayout>
+
+<script>
+	function setupCertificationWorkspace() {
+		document
+			.querySelectorAll<HTMLElement>("[data-certification-workspace]")
+			.forEach((workspace) => {
+				if (workspace.dataset.ready === "true") return
+				workspace.dataset.ready = "true"
+				const endpoint = workspace.dataset.evidenceEndpoint
+				const connectionId = workspace.dataset.connectionId
+				workspace
+					.querySelector<HTMLButtonElement>("[data-print-evidence]")
+					?.addEventListener("click", () => window.print())
+				workspace.querySelectorAll<HTMLFormElement>("[data-evidence-form]").forEach((form) => {
+					form.addEventListener("submit", (event) => {
+						event.preventDefault()
+						if (!endpoint || !connectionId) return
+						const feedback = form.querySelector<HTMLElement>("[data-evidence-feedback]")
+						const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]')
+						const values = new FormData(form)
+						if (submit) submit.disabled = true
+						if (feedback) feedback.textContent = "Guardando…"
+						void fetch(endpoint, {
+							method: "POST",
+							headers: { "Accept": "application/json", "Content-Type": "application/json" },
+							body: JSON.stringify({
+								connectionId,
+								scenario: form.dataset.scenario,
+								taskId: values.get("taskId"),
+								screenshotReference: values.get("screenshotReference"),
+								note: values.get("note"),
+							}),
+						})
+							.then(async (response) => {
+								if (!response.ok)
+									throw new Error(String((await response.json())?.error ?? "No se pudo guardar."))
+								window.location.reload()
+							})
+							.catch((error) => {
+								if (feedback)
+									feedback.textContent =
+										error instanceof Error ? error.message : "No se pudo guardar."
+								if (submit) submit.disabled = false
+							})
+					})
+				})
+			})
+	}
+	setupCertificationWorkspace()
+	document.addEventListener("astro:page-load", setupCertificationWorkspace)
+</script>

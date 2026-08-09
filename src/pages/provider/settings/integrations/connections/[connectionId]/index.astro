@@ -12,6 +12,7 @@ import Notice from "@/components/ui/Notice.astro"
 import ProviderIntegrationsLayout from "@/layouts/ProviderIntegrationsLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { getChannelManagerVendor } from "@/lib/provider-channel-manager-vendors"
+import { getProviderAccountPurpose } from "@/lib/provider-integration-certification"
 import { mapProviderIntegrationError } from "@/lib/provider-integration-errors"
 import { deriveProviderIntegrationOperationalState } from "@/lib/provider-integration-operational-state"
 import { getProviderChannelManagerOperationalReadModel } from "@/lib/provider-integration-read-models"
@@ -54,6 +55,8 @@ const success = Astro.url.searchParams.get("success")
 const error = Astro.url.searchParams.get("error")
 const productionResult = Astro.url.searchParams.get("production")
 const returnTo = routes.providerSettingsIntegrationConnection(connection.id)
+const isCertificationProvider =
+	(await getProviderAccountPurpose(auth.providerId)) === "integration_certification"
 
 function formatDate(value: Date | null) {
 	if (!value) return "Sin actividad"
@@ -118,6 +121,18 @@ const rejectedCount = Number(
 	description={`${connector?.name ?? "Integración"}${connection.connectorKey === "channel_manager" && vendor.key !== "generic" ? ` · ${vendor.name}` : ""}`}
 >
 	<div slot="actions" class="flex flex-wrap gap-2">
+		{
+			isCertificationProvider ? (
+				<Button
+					href={routes.providerSettingsIntegrationsCertification()}
+					variant="onDark"
+					size="sm"
+				>
+					<ShieldCheck class="size-4" aria-hidden="true" />
+					Certificación QA
+				</Button>
+			) : null
+		}
 		<Button href={routes.providerSettingsIntegrationsConnections()} variant="onDark" size="sm">
 			<ArrowLeft class="size-4" aria-hidden="true" />
 			Conexiones

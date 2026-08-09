@@ -7,6 +7,7 @@ import {
 	type ChannelManagerMutationResult,
 	type ChannelManagerRateRestrictionUpdate,
 } from "@/lib/channel-manager/channel-manager-adapter"
+import { minStayUpdateForProperty } from "@/lib/channel-manager/channel-manager-restrictions"
 import {
 	parseIncrementalAriJobPayload,
 	type IncrementalAriJobPayload,
@@ -19,6 +20,10 @@ import {
 	startProviderIntegrationSyncRun,
 } from "@/lib/provider-integration-operations"
 import { getProviderChannelManagerRuntime } from "@/lib/provider-integrations"
+import {
+	assertProviderIntegrationCertificationRunLink,
+	getProviderAccountPurpose,
+} from "@/lib/provider-integration-certification"
 import { recomputeEffectiveAvailabilityRange } from "@/modules/inventory/public"
 import { ensurePricingCoverageRuntime } from "@/modules/pricing/public"
 import { recomputeEffectiveRestrictionsForVariantRange } from "@/modules/rules/public"
@@ -186,6 +191,7 @@ async function buildRatesAndRestrictions(params: {
 	payload: IncrementalAriJobPayload
 	propertyId: string
 	rateExternalByLocal: Map<string, string>
+	minStayType: "arrival" | "through" | "both" | null | undefined
 }) {
 	const ratePlanIds = params.payload.ratePlanIds.filter((id) => params.rateExternalByLocal.has(id))
 	if (!ratePlanIds.length) throw new Error("INCREMENTAL_ARI_RATE_MAPPING_REQUIRED")
@@ -307,7 +313,7 @@ async function buildRatesAndRestrictions(params: {
 				dateFrom: range.from,
 				dateTo: range.to,
 				rate: range.value.rate,
-				minStay: range.value.minStay,
+				...minStayUpdateForProperty(range.value.minStay, params.minStayType),
 				maxStay: range.value.maxStay,
 				closedToArrival: range.value.cta,
 				closedToDeparture: range.value.ctd,
@@ -334,6 +340,18 @@ export async function runProviderIncrementalAriSync(params: {
 }) {
 	const startedAt = Date.now()
 	const payload = parseIncrementalAriJobPayload(params.payload)
+	const accountPurpose = await getProviderAccountPurpose(params.providerId)
+	const certificationId = payload.certificationId
+	if (accountPurpose === "integration_certification") {
+		if (!certificationId) throw new Error("INTEGRATION_CERTIFICATION_ID_REQUIRED")
+		await assertProviderIntegrationCertificationRunLink({
+			providerId: params.providerId,
+			connectionId: params.connectionId,
+			certificationId,
+		})
+	} else if (certificationId) {
+		throw new Error("CERTIFICATION_PROVIDER_REQUIRED")
+	}
 	const runtime = params.adapter
 		? null
 		: await getProviderChannelManagerRuntime({
@@ -356,6 +374,8 @@ export async function runProviderIncrementalAriSync(params: {
 			.then((rows) => rows[0]))
 	const propertyId = String(connection?.externalPropertyId ?? "").trim()
 	if (!propertyId) throw new Error("INCREMENTAL_ARI_PROPERTY_REQUIRED")
+	const property = (await adapter.listProperties()).items.find((item) => item.id === propertyId)
+	if (!property) throw new Error("INCREMENTAL_ARI_PROPERTY_CONTEXT_REQUIRED")
 	const mappings = await listProviderIntegrationMappingsForConnection(params)
 	const roomExternalByLocal = new Map(
 		mappings
@@ -370,6 +390,7 @@ export async function runProviderIncrementalAriSync(params: {
 	const run = await startProviderIntegrationSyncRun({
 		providerId: params.providerId,
 		connectionId: params.connectionId,
+		certificationId,
 		operation: params.operation,
 		trigger: params.trigger ?? "webhook",
 		idempotencyKey: params.idempotencyKey,
@@ -383,7 +404,12 @@ export async function runProviderIncrementalAriSync(params: {
 		const snapshot =
 			payload.domain === "availability"
 				? await buildAvailability({ payload, propertyId, roomExternalByLocal })
-				: await buildRatesAndRestrictions({ payload, propertyId, rateExternalByLocal })
+				: await buildRatesAndRestrictions({
+						payload,
+						propertyId,
+						rateExternalByLocal,
+						minStayType: property.minStayType,
+					})
 		const hash = stableHash({
 			version: 1,
 			domain: payload.domain,
@@ -406,8 +432,15 @@ export async function runProviderIncrementalAriSync(params: {
 			deliveredAt.getTime() - new Date(payload.queuedAt).getTime()
 		)
 		const summary = {
-			version: 1,
+			version: 2,
 			kind: "incremental_ari_sync",
+			execution: certificationId
+				? {
+						context: "certification",
+						certificationId,
+						scenario: payload.certificationScenario,
+					}
+				: { context: "commercial", certificationId: null, scenario: null },
 			domain: payload.domain,
 			window: { from: payload.from, toExclusive: payload.toExclusive, days: snapshot.days },
 			entities: snapshot.entities,

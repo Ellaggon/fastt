@@ -29,11 +29,38 @@ describe("initial Channex ARI synchronization", () => {
 		expect(service.match(/adapter\.pushAvailability\(/g)).toHaveLength(1)
 		expect(service.match(/adapter\.pushRatesAndRestrictions\(/g)).toHaveLength(1)
 		expect(service).toContain('algorithm: "sha256"')
+		expect(service).toContain("version: 2")
+		expect(service).toContain("suiteVersion")
+		expect(service).toContain("fixtureVersion")
 		expect(service).toContain("taskIds")
+		expect(service).toContain("warningSamples")
+		expect(service).toContain("minStayUpdateForProperty")
 		expect(service).toContain("availabilityDays")
 		expect(service).toContain("rateRestrictionDays")
 		expect(schema).toContain('summaryJson: jsonb("summaryJson")')
 		expect(schema).not.toContain("snapshotPayloadJson")
+	})
+
+	it("requires exactly two adapter requests and separates certification telemetry", () => {
+		const service = read("src/lib/channel-manager/channel-manager-initial-ari.ts")
+
+		expect(service).toContain("assertInitialAriRequestCount(summary)")
+		expect(service).toContain('stream: "availability"')
+		expect(service).toContain('stream: "rates_and_restrictions"')
+		expect(service).toContain('execution_context: certificationEvidence ? "certification" : "commercial"')
+		expect(service).toContain("provider_initial_ari_task_ids_total")
+		expect(service).toContain('status: "requires_attention"')
+	})
+
+	it("uses PostgreSQL-compatible restriction materialization before building the snapshot", () => {
+		const materializer = read(
+			"src/modules/rules/infrastructure/materializers/recompute-effective-restrictions.db.ts"
+		)
+
+		expect(materializer).toContain("db.execute(query as Parameters<typeof db.execute>[0])")
+		expect(materializer).not.toContain("(db as any).run(query)")
+		expect(materializer).toContain('FROM "CommercialRule" r')
+		expect(materializer).toContain('excluded."minStay"')
 	})
 
 	it("exposes one guarded action with live progress and Channex evidence", () => {

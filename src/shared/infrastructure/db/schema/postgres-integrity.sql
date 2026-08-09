@@ -111,6 +111,7 @@ BEGIN
 		'ProviderTaxConfiguration',
 		'ProviderPaymentAccount',
 		'ProviderIntegrationConnection',
+		'ProviderIntegrationCertification',
 		'ProviderComplianceAssignment',
 		'ProviderConfigurationState',
 		'ProviderInvitation',
