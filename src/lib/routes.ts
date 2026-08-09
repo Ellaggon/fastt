@@ -26,6 +26,7 @@ export const routes = {
 		`/provider/settings/integrations/connections/${encodeURIComponent(String(connectionId))}/mapping`,
 	providerSettingsIntegrationsIncidents: () => "/provider/settings/integrations/incidents",
 	providerSettingsIntegrationsActivity: () => "/provider/settings/integrations/activity",
+	providerSettingsIntegrationsCertification: () => "/provider/settings/integrations/certification",
 	ratesCalendarConnections: () => "/rates/calendar/connections",
 	providerSettingsTeam: () => "/provider/settings/team",
 	providerInvitationAccept: () => "/provider/invitations/accept",
