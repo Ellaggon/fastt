@@ -39,6 +39,10 @@ import {
 } from "@/lib/provider-integration-vault"
 import { assertProviderIntegrationTestCredentialAllowed } from "@/lib/provider-integration-test-harness"
 import {
+	assertProviderIntegrationModeAllowed,
+	resolveProviderIntegrationPreflightContext,
+} from "@/lib/provider-integration-certification"
+import {
 	getChannelManagerVendor,
 	normalizeChannelManagerAuthType,
 	normalizeChannelManagerVendorKey,
@@ -806,6 +810,10 @@ export async function connectProviderIntegration(params: {
 		persist: true,
 	})
 	const requestedMode = normalizeMode(params.mode)
+	await assertProviderIntegrationModeAllowed({
+		providerId: params.providerId,
+		mode: requestedMode,
+	})
 	const mode =
 		requestedMode === "production" && !governance.capabilities.integrations
 			? "sandbox"
@@ -1481,6 +1489,7 @@ export async function getProviderChannelManagerPreflight(params: {
 	providerId: string
 	currentUserId?: string | null
 	connectionId: string
+	certificationId?: string | null
 }) {
 	const connection = await db
 		.select()
@@ -1497,6 +1506,11 @@ export async function getProviderChannelManagerPreflight(params: {
 		throw new Error("INTEGRATION_CONNECTION_NOT_FOUND")
 	}
 
+	const executionContext = await resolveProviderIntegrationPreflightContext({
+		providerId: params.providerId,
+		connectionId: connection.id,
+		certificationId: params.certificationId,
+	})
 	const { listProviderIntegrationMappingCatalog, listProviderIntegrationMappingsForConnection } =
 		await import("@/lib/provider-integration-operations")
 	const [profile, localCatalog, mappings] = await Promise.all([
@@ -1508,7 +1522,10 @@ export async function getProviderChannelManagerPreflight(params: {
 			.from(ProviderProfile)
 			.where(eq(ProviderProfile.providerId, params.providerId))
 			.then((rows) => rows[0] ?? null),
-		listProviderIntegrationMappingCatalog(params.providerId),
+		listProviderIntegrationMappingCatalog(params.providerId, {
+			certificationFixtureProductId:
+				executionContext.kind === "certification" ? executionContext.fixtureProductId : null,
+		}),
 		listProviderIntegrationMappingsForConnection({
 			providerId: params.providerId,
 			connectionId: connection.id,
@@ -1531,6 +1548,7 @@ export async function getProviderChannelManagerPreflight(params: {
 
 	const vendorKey = normalizeChannelManagerVendorKey(connection.vendorKey)
 	const mode = normalizeMode(connection.mode)
+	await assertProviderIntegrationModeAllowed({ providerId: params.providerId, mode })
 	const credential = await ensureProviderIntegrationCredentialFresh({
 		providerId: params.providerId,
 		connectionId: connection.id,
@@ -1686,6 +1704,7 @@ export async function getProviderChannelManagerPreflight(params: {
 		remotePartial,
 		progress,
 		stageErrors,
+		executionContext,
 	})
 
 	return {
@@ -1751,6 +1770,7 @@ export async function activateProviderChannelManagerProduction(params: {
 	currentUserId?: string | null
 	connectionId: string
 }): Promise<ChannelManagerPreflightResult> {
+	await assertProviderIntegrationModeAllowed({ providerId: params.providerId, mode: "production" })
 	const governance = await evaluateProviderGovernance(params.providerId, {
 		currentUserId: params.currentUserId,
 		persist: true,

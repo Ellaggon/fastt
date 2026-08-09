@@ -6,6 +6,7 @@ import type {
 	ChannelManagerMutationResult,
 	ChannelManagerRateRestrictionUpdate,
 } from "@/lib/channel-manager/channel-manager-adapter"
+import { minStayUpdateForProperty } from "@/lib/channel-manager/channel-manager-restrictions"
 import {
 	finishProviderIntegrationSyncRun,
 	recordProviderIntegrationIncident,
@@ -15,8 +16,14 @@ import {
 	getProviderChannelManagerPreflight,
 	getProviderChannelManagerRuntime,
 } from "@/lib/provider-integrations"
+import {
+	assertProviderIntegrationCertificationExecution,
+	assertProviderIntegrationCertificationRunLink,
+	getProviderAccountPurpose,
+} from "@/lib/provider-integration-certification"
 import { mapWithConcurrency } from "@/lib/provider-sync-job-queue"
 import { writeProviderAuditLog } from "@/lib/provider-audit"
+import { incrementCounter, observeTiming } from "@/lib/observability/metrics"
 import { recomputeEffectiveAvailabilityRange } from "@/modules/inventory/public"
 import { ensurePricingCoverageRuntime } from "@/modules/pricing/public"
 import { recomputeEffectiveRestrictionsForVariantRange } from "@/modules/rules/public"
@@ -34,6 +41,7 @@ import {
 	inArray,
 	lt,
 	ProviderIntegrationConnection,
+	ProviderIntegrationCertification,
 	ProviderIntegrationSyncJob,
 	ProviderIntegrationSyncRun,
 } from "@/shared/infrastructure/db/compat"
@@ -62,9 +70,15 @@ export type InitialAriProgress = {
 }
 
 export type InitialAriSummary = {
-	version: 1
+	version: 2
 	kind: "initial_ari_sync"
 	environment: "sandbox" | "production"
+	execution: {
+		context: "commercial" | "certification"
+		certificationId: string | null
+		suiteVersion: string | null
+		fixtureVersion: string | null
+	}
 	window: { from: string; to: string; days: number }
 	counts: {
 		rooms: number
@@ -88,6 +102,13 @@ type InitialAriRequestSummary = {
 	accepted: number
 	warned: number
 	rejected: number
+	/** A compact, non-secret diagnostic sample. The commercial payload remains ephemeral. */
+	warningSamples: Array<{
+		code: string
+		message: string
+		itemIndex: number | null
+		details: string | null
+	}>
 }
 
 type AriSnapshot = {
@@ -175,6 +196,13 @@ function requestSummary(result: ChannelManagerMutationResult): InitialAriRequest
 		accepted: result.accepted,
 		warned: result.warnings.length,
 		rejected: result.rejected,
+		warningSamples: result.warnings.slice(0, 25).map((warning) => ({
+			code: warning.code,
+			message: warning.message.slice(0, 500),
+			itemIndex: warning.itemIndex,
+			details:
+				warning.details === undefined ? null : JSON.stringify(warning.details).slice(0, 2_000),
+		})),
 	}
 }
 
@@ -183,11 +211,13 @@ function emptySummary(params: {
 	window: AriSnapshot["window"]
 	counts: InitialAriSummary["counts"]
 	hash: string
+	execution: InitialAriSummary["execution"]
 }): InitialAriSummary {
 	return {
-		version: 1,
+		version: 2,
 		kind: "initial_ari_sync",
 		environment: params.environment,
+		execution: params.execution,
 		window: { from: params.window.from, to: params.window.to, days: params.window.days },
 		counts: params.counts,
 		requests: { availability: null, ratesAndRestrictions: null },
@@ -214,6 +244,14 @@ function finalizeSummary(summary: InitialAriSummary): InitialAriSummary {
 	}
 }
 
+function assertInitialAriRequestCount(summary: InitialAriSummary) {
+	const availabilityRequests = summary.requests.availability?.requestIds.length ?? 0
+	const rateRequests = summary.requests.ratesAndRestrictions?.requestIds.length ?? 0
+	if (availabilityRequests !== 1 || rateRequests !== 1) {
+		throw new Error("INITIAL_ARI_REQUEST_COUNT_INVALID")
+	}
+}
+
 function assertCompleteDates(rows: Array<{ date: string }>, label: string) {
 	const uniqueDates = new Set(rows.map((row) => row.date))
 	if (rows.length !== INITIAL_ARI_DAYS || uniqueDates.size !== INITIAL_ARI_DAYS) {
@@ -224,11 +262,16 @@ function assertCompleteDates(rows: Array<{ date: string }>, label: string) {
 export async function buildProviderInitialAriSnapshot(params: {
 	providerId: string
 	connectionId: string
+	certificationId?: string | null
 	now?: Date
 }): Promise<AriSnapshot> {
 	const context = await getProviderChannelManagerPreflight(params)
-	if (!context.preflight.readyForProduction) {
-		throw new Error("INTEGRATION_COMMERCIAL_SYNC_PREFLIGHT_REQUIRED")
+	if (!context.preflight.readyForExecution) {
+		throw new Error(
+			context.preflight.executionContext.kind === "certification"
+				? "INTEGRATION_CERTIFICATION_PREFLIGHT_REQUIRED"
+				: "INTEGRATION_COMMERCIAL_SYNC_PREFLIGHT_REQUIRED"
+		)
 	}
 	if (context.connection.mode === "production" && !context.connection.syncEnabled) {
 		throw new Error("INTEGRATION_COMMERCIAL_SYNC_PREFLIGHT_REQUIRED")
@@ -243,8 +286,16 @@ export async function buildProviderInitialAriSnapshot(params: {
 		property.timezone
 	)
 	const activeMappings = context.mappings.filter((mapping) => mapping.status === "active")
-	const sellableRooms = context.localCatalog.variants.filter((item) => item.sellable)
-	const sellableRates = context.localCatalog.ratePlans.filter((item) => item.sellable)
+	const rooms = context.localCatalog.variants.filter((item) =>
+		context.preflight.executionContext.kind === "certification"
+			? item.certificationEligible
+			: item.sellable
+	)
+	const rates = context.localCatalog.ratePlans.filter((item) =>
+		context.preflight.executionContext.kind === "certification"
+			? item.certificationEligible
+			: item.sellable
+	)
 	const roomExternalByLocal = new Map(
 		activeMappings
 			.filter((mapping) => mapping.mappingType === "room_type")
@@ -256,7 +307,7 @@ export async function buildProviderInitialAriSnapshot(params: {
 			.map((mapping) => [String(mapping.localEntityId), String(mapping.externalEntityId)])
 	)
 
-	await mapWithConcurrency(sellableRooms, MATERIALIZATION_CONCURRENCY, async (room) => {
+	await mapWithConcurrency(rooms, MATERIALIZATION_CONCURRENCY, async (room) => {
 		await recomputeEffectiveAvailabilityRange({
 			variantId: room.id,
 			from,
@@ -270,7 +321,7 @@ export async function buildProviderInitialAriSnapshot(params: {
 			reason: "channel_manager_initial_ari",
 		})
 	})
-	await mapWithConcurrency(sellableRates, MATERIALIZATION_CONCURRENCY, async (ratePlan) => {
+	await mapWithConcurrency(rates, MATERIALIZATION_CONCURRENCY, async (ratePlan) => {
 		await ensurePricingCoverageRuntime({
 			variantId: ratePlan.variantId,
 			ratePlanId: ratePlan.id,
@@ -282,8 +333,8 @@ export async function buildProviderInitialAriSnapshot(params: {
 		})
 	})
 
-	const variantIds = sellableRooms.map((item) => item.id)
-	const ratePlanIds = sellableRates.map((item) => item.id)
+	const variantIds = rooms.map((item) => item.id)
+	const ratePlanIds = rates.map((item) => item.id)
 	const [availabilityRows, pricingRows, restrictionRows] = await Promise.all([
 		db
 			.select({
@@ -341,7 +392,7 @@ export async function buildProviderInitialAriSnapshot(params: {
 	])
 
 	const availability: ChannelManagerAvailabilityUpdate[] = []
-	for (const room of sellableRooms) {
+	for (const room of rooms) {
 		const daily: DailyAvailability[] = availabilityRows
 			.filter((row) => row.variantId === room.id)
 			.map((row) => ({
@@ -364,7 +415,7 @@ export async function buildProviderInitialAriSnapshot(params: {
 	}
 
 	const ratesAndRestrictions: ChannelManagerRateRestrictionUpdate[] = []
-	for (const ratePlan of sellableRates) {
+	for (const ratePlan of rates) {
 		const prices = new Map(
 			pricingRows
 				.filter((row) => row.ratePlanId === ratePlan.id)
@@ -417,7 +468,7 @@ export async function buildProviderInitialAriSnapshot(params: {
 				dateFrom: range.dateFrom,
 				dateTo: range.dateTo,
 				rate: range.value.rate,
-				minStay: range.value.minStay,
+				...minStayUpdateForProperty(range.value.minStay, property.minStayType),
 				maxStay: range.value.maxStay,
 				closedToArrival: range.value.closedToArrival,
 				closedToDeparture: range.value.closedToDeparture,
@@ -445,11 +496,11 @@ export async function buildProviderInitialAriSnapshot(params: {
 		availability,
 		ratesAndRestrictions,
 		counts: {
-			rooms: sellableRooms.length,
-			ratePlans: sellableRates.length,
+			rooms: rooms.length,
+			ratePlans: rates.length,
 			days: INITIAL_ARI_DAYS,
-			availabilityDays: sellableRooms.length * INITIAL_ARI_DAYS,
-			rateRestrictionDays: sellableRates.length * INITIAL_ARI_DAYS,
+			availabilityDays: rooms.length * INITIAL_ARI_DAYS,
+			rateRestrictionDays: rates.length * INITIAL_ARI_DAYS,
 		},
 		hash,
 	}
@@ -458,6 +509,7 @@ export async function buildProviderInitialAriSnapshot(params: {
 export async function runProviderInitialAriSync(params: {
 	providerId: string
 	connectionId: string
+	certificationId?: string | null
 	requestedBy?: string | null
 	trigger?: "manual" | "scheduled" | "webhook" | "retry"
 	idempotencyKey: string
@@ -465,6 +517,35 @@ export async function runProviderInitialAriSync(params: {
 	adapter?: ChannelManagerAdapter
 	operation?: FullAriSyncOperation
 }) {
+	const startedAtMs = Date.now()
+	const accountPurpose = await getProviderAccountPurpose(params.providerId)
+	const certificationId = String(params.certificationId ?? "").trim() || null
+	let certificationEvidence: {
+		id: string
+		suiteVersion: string | null
+		evidenceManifestJson: unknown
+	} | null = null
+	if (accountPurpose === "integration_certification") {
+		if (!certificationId) throw new Error("INTEGRATION_CERTIFICATION_ID_REQUIRED")
+		if (params.requestedBy) {
+			const authorization = await assertProviderIntegrationCertificationExecution({
+				providerId: params.providerId,
+				connectionId: params.connectionId,
+				certificationId,
+				userId: params.requestedBy,
+			})
+			certificationEvidence = authorization.certification
+		} else {
+			const link = await assertProviderIntegrationCertificationRunLink({
+				providerId: params.providerId,
+				connectionId: params.connectionId,
+				certificationId,
+			})
+			certificationEvidence = link.certification
+		}
+	} else if (certificationId) {
+		throw new Error("CERTIFICATION_PROVIDER_REQUIRED")
+	}
 	const progress = async (value: InitialAriProgress) => params.onProgress?.(value)
 	await progress({ stage: "preflight", percent: 8, message: "Validando acceso y cobertura" })
 	const runtime = params.adapter
@@ -477,14 +558,27 @@ export async function runProviderInitialAriSync(params: {
 	const adapter = params.adapter ?? runtime?.adapter
 	if (!adapter) throw new Error("CHANNEL_MANAGER_ADAPTER_UNAVAILABLE")
 	const environment = runtime?.mode ?? "sandbox"
+	const telemetry = {
+		vendor: runtime?.vendorKey ?? "test_adapter",
+		environment,
+		operation: params.operation ?? INITIAL_ARI_OPERATION,
+		execution_context: certificationEvidence ? "certification" : "commercial",
+	}
 	const run = await startProviderIntegrationSyncRun({
 		providerId: params.providerId,
 		connectionId: params.connectionId,
+		certificationId,
 		operation: params.operation ?? INITIAL_ARI_OPERATION,
 		trigger: params.trigger ?? "manual",
 		requestedBy: params.requestedBy,
 		idempotencyKey: params.idempotencyKey,
 	})
+	if (certificationId) {
+		await db
+			.update(ProviderIntegrationCertification)
+			.set({ status: "running", updatedAt: new Date() })
+			.where(eq(ProviderIntegrationCertification.id, certificationId))
+	}
 	let summary: InitialAriSummary | null = null
 	try {
 		await progress({
@@ -493,7 +587,23 @@ export async function runProviderInitialAriSync(params: {
 			message: "Preparando 500 días de inventario y tarifas",
 		})
 		const snapshot = await buildProviderInitialAriSnapshot(params)
-		summary = emptySummary({ environment, ...snapshot })
+		summary = emptySummary({
+			environment,
+			...snapshot,
+			execution: {
+				context: certificationEvidence ? "certification" : "commercial",
+				certificationId,
+				suiteVersion: String(certificationEvidence?.suiteVersion ?? "").trim() || null,
+				fixtureVersion:
+					certificationEvidence?.evidenceManifestJson &&
+					typeof certificationEvidence.evidenceManifestJson === "object"
+						? String(
+								(certificationEvidence.evidenceManifestJson as Record<string, unknown>)
+									.fixtureVersion ?? ""
+							).trim() || null
+						: null,
+			},
+		})
 		await progress({
 			stage: "sending_availability",
 			percent: 62,
@@ -501,6 +611,15 @@ export async function runProviderInitialAriSync(params: {
 		})
 		const availability = await adapter.pushAvailability({ values: snapshot.availability })
 		summary.requests.availability = requestSummary(availability)
+		incrementCounter("provider_initial_ari_requests_total", {
+			...telemetry,
+			stream: "availability",
+		})
+		incrementCounter(
+			"provider_initial_ari_task_ids_total",
+			{ ...telemetry, stream: "availability" },
+			availability.taskIds.length
+		)
 		await progress({
 			stage: "sending_rates",
 			percent: 82,
@@ -510,7 +629,17 @@ export async function runProviderInitialAriSync(params: {
 			values: snapshot.ratesAndRestrictions,
 		})
 		summary.requests.ratesAndRestrictions = requestSummary(rates)
+		incrementCounter("provider_initial_ari_requests_total", {
+			...telemetry,
+			stream: "rates_and_restrictions",
+		})
+		incrementCounter(
+			"provider_initial_ari_task_ids_total",
+			{ ...telemetry, stream: "rates_and_restrictions" },
+			rates.taskIds.length
+		)
 		summary = finalizeSummary(summary)
+		assertInitialAriRequestCount(summary)
 		const status =
 			summary.totals.warned > 0 || summary.totals.rejected > 0 ? "partial" : "succeeded"
 		await finishProviderIntegrationSyncRun({
@@ -524,6 +653,12 @@ export async function runProviderInitialAriSync(params: {
 			summaryJson: summary,
 		})
 		if (status === "partial") {
+			if (certificationId) {
+				await db
+					.update(ProviderIntegrationCertification)
+					.set({ status: "requires_attention", updatedAt: new Date() })
+					.where(eq(ProviderIntegrationCertification.id, certificationId))
+			}
 			await recordProviderIntegrationIncident({
 				providerId: params.providerId,
 				connectionId: params.connectionId,
@@ -560,6 +695,11 @@ export async function runProviderInitialAriSync(params: {
 				)
 			)
 		await progress({ stage: "completed", percent: 100, message: "Sincronización completada" })
+		incrementCounter("provider_initial_ari_runs_total", { ...telemetry, status })
+		observeTiming("provider_initial_ari_duration_ms", Date.now() - startedAtMs, {
+			...telemetry,
+			status,
+		})
 		return { runId: String(run.id), status, summary }
 	} catch (error) {
 		const message = error instanceof Error ? error.message : "INITIAL_ARI_SYNC_FAILED"
@@ -590,6 +730,12 @@ export async function runProviderInitialAriSync(params: {
 					eq(ProviderIntegrationConnection.providerId, params.providerId)
 				)
 			)
+		if (certificationId) {
+			await db
+				.update(ProviderIntegrationCertification)
+				.set({ status: "requires_attention", updatedAt: new Date() })
+				.where(eq(ProviderIntegrationCertification.id, certificationId))
+		}
 		await recordProviderIntegrationIncident({
 			providerId: params.providerId,
 			connectionId: params.connectionId,
@@ -609,6 +755,11 @@ export async function runProviderInitialAriSync(params: {
 				metadataJson: { snapshotHash: compactSummary?.snapshot.hash ?? null },
 			},
 		}).catch(() => undefined)
+		incrementCounter("provider_initial_ari_runs_total", { ...telemetry, status: "failed" })
+		observeTiming("provider_initial_ari_duration_ms", Date.now() - startedAtMs, {
+			...telemetry,
+			status: "failed",
+		})
 		throw error
 	}
 }
@@ -617,10 +768,28 @@ export async function enqueueProviderInitialAriSync(params: {
 	providerId: string
 	connectionId: string
 	requestedBy: string
+	certificationId?: string | null
 }) {
-	const context = await getProviderChannelManagerPreflight(params)
-	if (!context.preflight.readyForProduction) {
-		throw new Error("INTEGRATION_COMMERCIAL_SYNC_PREFLIGHT_REQUIRED")
+	const accountPurpose = await getProviderAccountPurpose(params.providerId)
+	const certificationId = String(params.certificationId ?? "").trim() || null
+	if (accountPurpose === "integration_certification") {
+		if (!certificationId) throw new Error("INTEGRATION_CERTIFICATION_ID_REQUIRED")
+		await assertProviderIntegrationCertificationExecution({
+			providerId: params.providerId,
+			connectionId: params.connectionId,
+			certificationId,
+			userId: params.requestedBy,
+		})
+	} else if (certificationId) {
+		throw new Error("CERTIFICATION_PROVIDER_REQUIRED")
+	}
+	const context = await getProviderChannelManagerPreflight({ ...params, certificationId })
+	if (!context.preflight.readyForExecution) {
+		throw new Error(
+			context.preflight.executionContext.kind === "certification"
+				? "INTEGRATION_CERTIFICATION_PREFLIGHT_REQUIRED"
+				: "INTEGRATION_COMMERCIAL_SYNC_PREFLIGHT_REQUIRED"
+		)
 	}
 	const existing = await db
 		.select({ id: ProviderIntegrationSyncJob.id, status: ProviderIntegrationSyncJob.status })
@@ -645,7 +814,10 @@ export async function enqueueProviderInitialAriSync(params: {
 				eq(ProviderIntegrationSyncRun.providerId, params.providerId),
 				eq(ProviderIntegrationSyncRun.connectionId, params.connectionId),
 				eq(ProviderIntegrationSyncRun.operation, INITIAL_ARI_OPERATION),
-				inArray(ProviderIntegrationSyncRun.status, ["succeeded", "partial"]),
+				inArray(
+					ProviderIntegrationSyncRun.status,
+					accountPurpose === "integration_certification" ? ["succeeded"] : ["succeeded", "partial"]
+				),
 				gte(ProviderIntegrationSyncRun.startedAt, new Date(now.getTime() - 86_400_000))
 			)
 		)
@@ -669,6 +841,7 @@ export async function enqueueProviderInitialAriSync(params: {
 		idempotencyKey: `initial-ari:${params.connectionId}:${id}`,
 		payloadJson: {
 			requestedBy: params.requestedBy,
+			certificationId: String(params.certificationId ?? "").trim() || null,
 			stage: "preflight",
 			percent: 0,
 			message: "Esperando al worker de sincronización",

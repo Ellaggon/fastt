@@ -230,6 +230,9 @@ describe.sequential("provider booking revision feed", () => {
 			providerId,
 			destinationId,
 		} as any)
+		expect(
+			await db.select({ id: Product.id }).from(Product).where(eq(Product.id, productId))
+		).toEqual([{ id: productId }])
 		await db.insert(Variant).values({
 			id: variantId,
 			productId,

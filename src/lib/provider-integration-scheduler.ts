@@ -307,6 +307,7 @@ export async function runScheduledProviderIntegrationSync(options?: {
 					providerId: job.providerId,
 					connectionId,
 					requestedBy: String(payload.requestedBy ?? "").trim() || null,
+					certificationId: String(payload.certificationId ?? "").trim() || null,
 					trigger: job.trigger as "manual" | "scheduled" | "webhook" | "retry",
 					idempotencyKey: `${job.idempotencyKey}:attempt:${Number(job.attempts ?? 0) + 1}`,
 					operation: job.operation,

@@ -224,3 +224,86 @@ describe("channel manager production preflight", () => {
 		expect(result.issues.map((issue) => issue.code)).toEqual(["PREFLIGHT_PROPERTY_REQUIRED"])
 	})
 })
+
+describe("channel manager certification preflight", () => {
+	it("accepts the isolated fixture without making its product sellable", () => {
+		const certificationCatalog = {
+			...localCatalog,
+			variants: localCatalog.variants.map((item) => ({
+				...item,
+				productPublished: false,
+				sellable: false,
+				certificationEligible: true,
+			})),
+			ratePlans: localCatalog.ratePlans.map((item) => ({
+				...item,
+				productPublished: false,
+				sellable: false,
+				certificationEligible: true,
+			})),
+		}
+		const result = evaluateChannelManagerPreflight({
+			selectedPropertyId: "property_1",
+			providerProfile: { timezone: "America/Santiago", defaultCurrency: "USD" },
+			properties: [property],
+			roomTypes: [room],
+			ratePlans: [rate],
+			localCatalog: certificationCatalog,
+			mappings,
+			executionContext: {
+				kind: "certification",
+				certificationId: "certification_1",
+				fixtureProductId: "product_1",
+				expectedStructure: { roomTypes: 1, ratePlans: 1 },
+			},
+		})
+
+		expect(result.readyForProduction).toBe(false)
+		expect(result.readyForCertification).toBe(true)
+		expect(result.readyForExecution).toBe(true)
+		expect(result.executionContext.kind).toBe("certification")
+		expect(result.summary).toMatchObject({
+			sellableRoomTypes: 0,
+			sellableRatePlans: 0,
+			certificationEligibleRoomTypes: 1,
+			mappedCertificationEligibleRoomTypes: 1,
+			certificationEligibleRatePlans: 1,
+			mappedCertificationEligibleRatePlans: 1,
+		})
+	})
+
+	it("requires the exact certified remote structure", () => {
+		const result = evaluateChannelManagerPreflight({
+			selectedPropertyId: "property_1",
+			providerProfile: { timezone: "America/Santiago", defaultCurrency: "USD" },
+			properties: [property],
+			roomTypes: [room, { ...room, id: "room_2" }],
+			ratePlans: [rate],
+			localCatalog: {
+				...localCatalog,
+				variants: localCatalog.variants.map((item) => ({
+					...item,
+					sellable: false,
+					certificationEligible: true,
+				})),
+				ratePlans: localCatalog.ratePlans.map((item) => ({
+					...item,
+					sellable: false,
+					certificationEligible: true,
+				})),
+			},
+			mappings,
+			executionContext: {
+				kind: "certification",
+				certificationId: "certification_1",
+				fixtureProductId: "product_1",
+				expectedStructure: { roomTypes: 1, ratePlans: 1 },
+			},
+		})
+
+		expect(result.readyForExecution).toBe(false)
+		expect(result.issues.map((issue) => issue.code)).toContain(
+			"PREFLIGHT_CERTIFICATION_ROOM_STRUCTURE_MISMATCH"
+		)
+	})
+})

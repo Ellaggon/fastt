@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { readFileSync } from "node:fs"
 
 import { incrementalAriRetryMinutes } from "@/lib/channel-manager/channel-manager-incremental-ari"
 import {
@@ -35,7 +36,37 @@ describe("channel manager incremental ARI", () => {
 			variantIds: ["room-1", "room-2"],
 			ratePlanIds: [],
 			queuedAt: "2026-08-03T10:20:00.000Z",
+			certificationId: null,
+			certificationScenario: null,
 		})
+	})
+
+	it("carries an explicit certification scenario only through the isolated QA worker path", () => {
+		const payload = parseIncrementalAriJobPayload({
+			version: 1,
+			domain: "rates_restrictions",
+			from: "2026-08-03",
+			toExclusive: "2026-08-04",
+			variantIds: ["room-1"],
+			ratePlanIds: ["rate-1"],
+			queuedAt: "2026-08-03T10:20:00.000Z",
+			certificationId: "certification-1",
+			certificationScenario: "min_stay",
+		})
+
+		expect(payload.certificationId).toBe("certification-1")
+		expect(payload.certificationScenario).toBe("min_stay")
+	})
+
+	it("revalidates the certification boundary and records it on the incremental run", () => {
+		const worker = readFileSync(
+			"src/lib/channel-manager/channel-manager-incremental-ari.ts",
+			"utf8"
+		)
+
+		expect(worker).toContain("assertProviderIntegrationCertificationRunLink")
+		expect(worker).toContain("certificationId,")
+		expect(worker).toContain('context: "certification"')
 	})
 
 	it("backs off transient Channex failures without delaying normal deltas for 15 minutes", () => {

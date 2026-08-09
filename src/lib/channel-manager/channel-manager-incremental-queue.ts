@@ -1,4 +1,8 @@
 import { logger } from "@/lib/observability/logger"
+import {
+	providerIntegrationCertificationScenarioKeys,
+	type ProviderIntegrationCertificationScenarioKey,
+} from "@/lib/provider-integration-certification"
 import { incrementCounter } from "@/lib/observability/metrics"
 import {
 	and,
@@ -23,6 +27,8 @@ export type IncrementalAriJobPayload = {
 	variantIds: string[]
 	ratePlanIds: string[]
 	queuedAt: string
+	certificationId: string | null
+	certificationScenario: ProviderIntegrationCertificationScenarioKey | null
 }
 
 function uniqueIds(values: string[] | undefined): string[] {
@@ -69,6 +75,12 @@ export function parseIncrementalAriJobPayload(value: unknown): IncrementalAriJob
 		variantIds: uniqueIds(Array.isArray(input.variantIds) ? input.variantIds.map(String) : []),
 		ratePlanIds: uniqueIds(Array.isArray(input.ratePlanIds) ? input.ratePlanIds.map(String) : []),
 		queuedAt: String(input.queuedAt ?? new Date().toISOString()),
+		certificationId: String(input.certificationId ?? "").trim() || null,
+		certificationScenario: (
+			providerIntegrationCertificationScenarioKeys as readonly string[]
+		).includes(String(input.certificationScenario ?? "").trim())
+			? (String(input.certificationScenario).trim() as ProviderIntegrationCertificationScenarioKey)
+			: null,
 	}
 }
 
@@ -79,6 +91,8 @@ export async function enqueueProviderIncrementalAriChange(params: {
 	from: string
 	toExclusive: string
 	now?: Date
+	certificationId?: string | null
+	certificationScenario?: ProviderIntegrationCertificationScenarioKey | null
 }): Promise<{ connections: number; jobs: number }> {
 	const variantIds = uniqueIds(params.variantIds)
 	const ratePlanIds = uniqueIds(params.ratePlanIds)
@@ -125,6 +139,8 @@ export async function enqueueProviderIncrementalAriChange(params: {
 		variantIds,
 		ratePlanIds,
 		queuedAt: now.toISOString(),
+		certificationId: String(params.certificationId ?? "").trim() || null,
+		certificationScenario: params.certificationScenario ?? null,
 	}
 	let jobs = 0
 	for (const connection of connections) {
@@ -149,7 +165,9 @@ export async function enqueueProviderIncrementalAriChange(params: {
 					'toExclusive', GREATEST("ProviderIntegrationSyncJob"."payloadJson"->>'toExclusive', EXCLUDED."payloadJson"->>'toExclusive'),
 					'variantIds', COALESCE("ProviderIntegrationSyncJob"."payloadJson"->'variantIds', '[]'::jsonb) || COALESCE(EXCLUDED."payloadJson"->'variantIds', '[]'::jsonb),
 					'ratePlanIds', COALESCE("ProviderIntegrationSyncJob"."payloadJson"->'ratePlanIds', '[]'::jsonb) || COALESCE(EXCLUDED."payloadJson"->'ratePlanIds', '[]'::jsonb),
-					'queuedAt', LEAST("ProviderIntegrationSyncJob"."payloadJson"->>'queuedAt', EXCLUDED."payloadJson"->>'queuedAt')
+					'queuedAt', LEAST("ProviderIntegrationSyncJob"."payloadJson"->>'queuedAt', EXCLUDED."payloadJson"->>'queuedAt'),
+					'certificationId', COALESCE(EXCLUDED."payloadJson"->'certificationId', "ProviderIntegrationSyncJob"."payloadJson"->'certificationId'),
+					'certificationScenario', COALESCE(EXCLUDED."payloadJson"->'certificationScenario', "ProviderIntegrationSyncJob"."payloadJson"->'certificationScenario')
 				),
 				"updatedAt" = EXCLUDED."updatedAt"
 			WHERE "ProviderIntegrationSyncJob"."status" = 'queued'
