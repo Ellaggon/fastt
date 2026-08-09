@@ -121,8 +121,7 @@ function placeholders(values: readonly unknown[]) {
 
 async function all<T>(query: unknown): Promise<T[]> {
 	await ensureCommercialRuleTables()
-	const result = await (db as any).run(query)
-	return ((result as any)?.rows ?? []) as T[]
+	return (await db.execute(query as Parameters<typeof db.execute>[0])) as T[]
 }
 
 async function resolveVariantContext(variantId: string): Promise<{
@@ -183,23 +182,23 @@ async function loadApplicableRules(params: {
 	if (!scopeIds.length) return []
 	const rows = await all(sql`
 		SELECT
-			r.id AS id,
-			a.scope AS scope,
-			a.scopeId AS scopeId,
-			r.type AS type,
-			r.value AS value,
-			a.startDate AS startDate,
-			a.endDate AS endDate,
-			a.validDays AS validDays,
-			r.priority AS priority
-		FROM CommercialRule r
-		INNER JOIN CommercialRuleApplication a ON a.ruleId = r.id
-		WHERE r.isActive = 1
-			AND a.isActive = 1
-			AND a.scopeId IN (${placeholders(scopeIds)})
-			AND a.startDate <= ${toInclusive}
-			AND a.endDate >= ${params.from}
-			AND r.category <> 'price'
+			r."id" AS id,
+			a."scope" AS scope,
+			a."scopeId" AS "scopeId",
+			r."type" AS type,
+			r."value" AS value,
+			a."startDate" AS "startDate",
+			a."endDate" AS "endDate",
+			a."validDays" AS "validDays",
+			r."priority" AS priority
+		FROM "CommercialRule" r
+		INNER JOIN "CommercialRuleApplication" a ON a."ruleId" = r."id"
+		WHERE r."isActive" = TRUE
+			AND a."isActive" = TRUE
+			AND a."scopeId" IN (${placeholders(scopeIds)})
+			AND a."startDate" <= ${toInclusive}
+			AND a."endDate" >= ${params.from}
+			AND r."category" <> 'price'
 	`)
 	return rows.map(normalizeRule).filter((rule): rule is RestrictionRuleRow => rule != null)
 }
@@ -271,15 +270,15 @@ export async function recomputeEffectiveRestrictionsForVariantRange(
 					EffectiveRestriction.date,
 				],
 				set: {
-					minStay: sql`excluded.minStay`,
-					maxStay: sql`excluded.maxStay`,
-					minLeadTime: sql`excluded.minLeadTime`,
-					maxLeadTime: sql`excluded.maxLeadTime`,
-					cta: sql`excluded.cta`,
-					ctd: sql`excluded.ctd`,
-					stopSell: sql`excluded.stopSell`,
-					priority: sql`excluded.priority`,
-					computedAt: sql`excluded.computedAt`,
+					minStay: sql`excluded."minStay"`,
+					maxStay: sql`excluded."maxStay"`,
+					minLeadTime: sql`excluded."minLeadTime"`,
+					maxLeadTime: sql`excluded."maxLeadTime"`,
+					cta: sql`excluded."cta"`,
+					ctd: sql`excluded."ctd"`,
+					stopSell: sql`excluded."stopSell"`,
+					priority: sql`excluded."priority"`,
+					computedAt: sql`excluded."computedAt"`,
 				},
 			})
 	}

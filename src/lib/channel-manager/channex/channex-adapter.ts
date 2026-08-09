@@ -46,6 +46,10 @@ const propertyResourceSchema = z
 				currency: nullableTextSchema.optional(),
 				timezone: nullableTextSchema.optional(),
 				is_active: z.union([z.boolean(), z.number(), z.string()]).nullish(),
+				settings: z
+					.object({ min_stay_type: nullableTextSchema.optional() })
+					.passthrough()
+					.nullish(),
 			})
 			.passthrough()
 			.default({}),
@@ -325,6 +329,14 @@ export class ChannexAdapter implements ChannelManagerAdapter {
 				currency: row.attributes.currency ?? null,
 				timezone: row.attributes.timezone ?? null,
 				active: row.attributes.is_active == null ? null : booleanValue(row.attributes.is_active),
+				minStayType: ["arrival", "through", "both"].includes(
+					String(row.attributes.settings?.min_stay_type ?? "").toLowerCase()
+				)
+					? (String(row.attributes.settings?.min_stay_type).toLowerCase() as
+							| "arrival"
+							| "through"
+							| "both")
+					: null,
 			})),
 			fetchedAt: new Date(),
 			...meta(result),
@@ -589,6 +601,7 @@ export class ChannexAdapter implements ChannelManagerAdapter {
 					currency: "USD",
 					timezone: "America/Santiago",
 					active: true,
+					minStayType: "arrival",
 				},
 			],
 			fetchedAt: new Date(),
