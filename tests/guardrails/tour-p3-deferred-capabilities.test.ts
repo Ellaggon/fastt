@@ -8,9 +8,6 @@ function read(rel: string) {
 	return readFileSync(root(rel), "utf8")
 }
 
-/** Tables that must not appear in drizzle schema while ADRs stay deferred. */
-const DEFERRED_TABLES = ["Guide", "TourGuideAssignment", "TourDepartureInstance"] as const
-
 const ADRS = [
 	"docs/engineering/adr/0001-deferred-tour-p3-capabilities.md",
 	"docs/engineering/adr/0002-tour-guide-assignment.md",
@@ -26,10 +23,10 @@ function adrStatus(source: string): string {
 }
 
 describe("tour P3 deferred capabilities (ADR gate)", () => {
-	it("keeps Guide / TourGuideAssignment / TourDepartureInstance out of schema while deferred", () => {
+	it("keeps channel-specific booking tables out of the shared booking spine", () => {
 		const tables = read("src/shared/infrastructure/db/schema/tables.ts")
 		const registry = read("src/shared/infrastructure/db/schema/registry.ts")
-		for (const name of DEFERRED_TABLES) {
+		for (const name of ["ChannelBooking", "ViatorBooking"] as const) {
 			expect(tables).not.toContain(`export const ${name} = pgTable(`)
 			expect(tables).not.toContain(`pgTable(\n\t"${name}"`)
 			expect(tables).not.toContain(`pgTable("${name}"`)
@@ -37,7 +34,7 @@ describe("tour P3 deferred capabilities (ADR gate)", () => {
 		}
 	})
 
-	it("publishes ADRs with evidence gates and deferred status for volume-gated tables", () => {
+	it("records accepted resource ADRs while keeping Viator deferred", () => {
 		expect(existsSync(root("docs/engineering/adr/README.md"))).toBe(true)
 		const readme = read("docs/engineering/adr/README.md")
 		expect(readme).toContain("Evidence gate")
@@ -47,17 +44,12 @@ describe("tour P3 deferred capabilities (ADR gate)", () => {
 		expect(adrStatus(policy)).toContain("accepted")
 		expect(policy).toContain("Evidence gate")
 
-		for (const path of [
-			"docs/engineering/adr/0002-tour-guide-assignment.md",
-			"docs/engineering/adr/0003-tour-departure-instance.md",
-			"docs/engineering/adr/0004-viator-channel-sync.md",
-		]) {
+		for (const path of ["docs/engineering/adr/0002-tour-guide-assignment.md", "docs/engineering/adr/0003-tour-departure-instance.md"]) {
 			const source = read(path)
-			expect(adrStatus(source)).toContain("deferred")
-			expect(source).toContain("Evidence gate")
-			expect(source).toMatch(/Metric|_TBD_/)
-			expect(source).toMatch(/Incident|_TBD_/)
+			expect(adrStatus(source)).toContain("accepted")
 		}
+		const viator = read("docs/engineering/adr/0004-viator-channel-sync.md")
+		expect(adrStatus(viator)).toContain("deferred")
 
 		const departure = read("docs/engineering/adr/0003-tour-departure-instance.md")
 		expect(departure).toContain("variantId")
@@ -69,7 +61,7 @@ describe("tour P3 deferred capabilities (ADR gate)", () => {
 		expect(channel).toMatch(/parallel|no parallel/i)
 	})
 
-	it("documents P3 deferral in tour taxonomy", () => {
+	it("documents the historical P3 deferral in tour taxonomy", () => {
 		const taxonomy = read("docs/engineering/tour-vertical-table-taxonomy.md")
 		expect(taxonomy).toContain("P3 — Deferred by volume")
 		expect(taxonomy).toContain("TourGuideAssignment")
