@@ -30,7 +30,11 @@ describe("Guardrail: Property Content operational semantics", () => {
 				"¿Administras otro servicio?",
 				"Agregar otro servicio",
 			],
-			"src/pages/product/create.astro": ["Crear alojamiento", "Tipo de oferta"],
+			"src/pages/product/create.astro": [
+				"¿Qué quieres ofrecer?",
+				"Tipo de servicio",
+				"workspaceCreateHref",
+			],
 			"src/pages/product/[id]/index.astro": [
 				"Ficha del alojamiento",
 				"Descripción",
@@ -101,23 +105,32 @@ describe("Guardrail: Property Content operational semantics", () => {
 	})
 
 	it("prevents editorial catalog pages from owning pricing or inventory runtime", () => {
-		const forbiddenRuntimePatterns = [
+		const forbiddenWritePatterns = [
 			/\/api\/pricing\//,
 			/\/api\/inventory\//,
 			/\/pricing\/bulk/,
 			/\/inventory\/bulk/,
-			/ratePlanId/,
-			/RatePlan/,
 			/EffectivePricing/,
-			/DailyInventory/,
 			/EffectiveAvailability/,
 		]
+		const forbiddenOwnershipOutsidePreview = [/ratePlanId/, /RatePlan/, /DailyInventory/]
+		const previewPath = "src/pages/product/[id]/preview.astro"
 
 		const violations = editorialSurfaces.flatMap((relativePath) => {
 			const source = read(relativePath)
-			return forbiddenRuntimePatterns.flatMap((pattern) =>
+			const writeHits = forbiddenWritePatterns.flatMap((pattern) =>
 				pattern.test(source) ? [`${relativePath}: forbidden operational ownership ${pattern}`] : []
 			)
+			if (relativePath === previewPath) {
+				// Preview may read RatePlan/DailyInventory for contextual sellability readiness only.
+				return writeHits
+			}
+			return [
+				...writeHits,
+				...forbiddenOwnershipOutsidePreview.flatMap((pattern) =>
+					pattern.test(source) ? [`${relativePath}: forbidden operational ownership ${pattern}`] : []
+				),
+			]
 		})
 
 		expect(
@@ -235,9 +248,10 @@ describe("Guardrail: Property Content operational semantics", () => {
 		expect(registry).toContain('storageType: "Package"')
 		expect(registry).toContain('storageType: "Limousine"')
 		expect(registry).toContain("normalizeProductTypeForStorage")
-		expect(productCreate).toContain("PRODUCT_VERTICAL_OPTIONS")
-		expect(productCreate).toContain("Crear oferta")
-		expect(roomsAggregate).toContain("lower(${Product.productType}) = 'hotel'")
+		expect(productCreate).toContain("listActiveProductVerticalEntries")
+		expect(productCreate).toContain("¿Qué quieres ofrecer?")
+		expect(productCreate).toContain("Tipo de servicio")
+		expect(roomsAggregate).toContain('product.type.toLowerCase() === "hotel"')
 		expect(roomsAggregate).toContain("Inicio")
 		expect(roomsAggregate).toContain("buildAddRoomHref")
 		expect(roomsAggregate).toContain("¿Administras otro servicio?")

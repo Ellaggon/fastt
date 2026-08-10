@@ -1,5 +1,6 @@
 ---
 import TourSlotProfileEditor from "@/components/tours/TourSlotProfileEditor.astro"
+import Card from "@/components/ui/Card.astro"
 import { productRepository, variantManagementRepository } from "@/container"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
@@ -79,5 +80,51 @@ const override =
 			isActive={profile?.isActive ?? variant.isActive ?? true}
 			redirectOnSuccess={routes.productDeparturesForProduct(productId)}
 		/>
+
+		<Card class="space-y-3 bg-white">
+			<div>
+				<h2 class="text-lg font-semibold text-slate-950">Manifiesto de participantes</h2>
+				<p class="text-sm text-slate-600">
+					Reservas confirmadas para esta salida. La presentación y el voucher se gestionan desde el
+					detalle de cada reserva.
+				</p>
+			</div>
+			<div id="departureManifest" class="divide-y divide-slate-100 text-sm text-slate-700">
+				Cargando manifiesto…
+			</div>
+		</Card>
 	</section>
+	<script is:inline define:vars={{ slotId }}>
+		;(async () => {
+			const target = document.getElementById("departureManifest")
+			if (!target) return
+			try {
+				const params = new URLSearchParams({ variantId: slotId, status: "confirmed", limit: "100" })
+				const response = await fetch(`/api/internal/provider-bookings-summary?${params}`, {
+					headers: { accept: "application/json" },
+				})
+				const payload = await response.json()
+				const items = Array.isArray(payload?.items) ? payload.items : []
+				const escapeHtml = (value) =>
+					String(value ?? "")
+						.replaceAll("&", "&amp;")
+						.replaceAll("<", "&lt;")
+						.replaceAll(">", "&gt;")
+						.replaceAll('"', "&quot;")
+				target.innerHTML = items.length
+					? items
+							.map((item) => {
+								const guest = escapeHtml(item.guestName || item.guestEmail || "Participante")
+								const state = escapeHtml(
+									item.lifecycleLabel || item.operationalStatus || "Pendiente"
+								)
+								return `<a class="flex items-center justify-between gap-3 px-1 py-3 hover:bg-slate-50" href="/booking/${encodeURIComponent(String(item.bookingId))}"><span>${guest}</span><span class="text-xs text-slate-500">${state}</span></a>`
+							})
+							.join("")
+					: '<p class="py-4 text-slate-500">No hay participantes confirmados para esta salida.</p>'
+			} catch {
+				target.textContent = "No se pudo cargar el manifiesto."
+			}
+		})()
+	</script>
 </WorkspaceLayout>

@@ -6,6 +6,7 @@ import { invalidateProvider } from "@/lib/cache/invalidation"
 import { refreshProductPreparationSnapshotAfterMutation } from "@/lib/playbook/summarize-product-preparation"
 import { createProduct } from "@/modules/catalog/public"
 import { productRepository } from "@/container"
+import { db, Destination, eq, first } from "@/shared/infrastructure/db/compat"
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
@@ -31,6 +32,24 @@ export const POST: APIRoute = async ({ request }) => {
 			productType: String(form.get("productType") ?? ""),
 			destinationId: String(form.get("destinationId") ?? ""),
 		}
+		const playbook = String(form.get("playbook") ?? "").trim()
+		const wantsJson = String(form.get("_response") ?? "").trim() !== "redirect"
+		const destination = raw.destinationId
+			? await db
+					.select({ id: Destination.id })
+					.from(Destination)
+					.where(eq(Destination.id, raw.destinationId))
+					.then(first)
+			: null
+		if (!destination) {
+			return new Response(
+				JSON.stringify({
+					error: "validation_error",
+					details: { fieldErrors: { destinationId: ["Selecciona un destino válido."] } },
+				}),
+				{ status: 400, headers: { "Content-Type": "application/json" } }
+			)
+		}
 
 		const id = crypto.randomUUID()
 		const result = await createProduct(
@@ -50,6 +69,21 @@ export const POST: APIRoute = async ({ request }) => {
 			source: "product.create",
 		})
 		await invalidateProvider(providerId)
+
+		if (!wantsJson) {
+			const params = new URLSearchParams({ step: "content", flow: "create" })
+			if (playbook === "launch-tour") params.set("playbook", "launch-tour")
+			else if (playbook === "launch" || playbook === "launch-accommodation") {
+				params.set("playbook", "launch")
+			}
+			const nextPath = playbook
+				? `/product/${encodeURIComponent(id)}/content?${params.toString()}`
+				: `/product/${encodeURIComponent(id)}`
+			return new Response(null, {
+				status: 303,
+				headers: { Location: nextPath },
+			})
+		}
 
 		return new Response(JSON.stringify(result), {
 			status: 200,

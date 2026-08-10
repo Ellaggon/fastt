@@ -29,7 +29,7 @@ type Props = {
 	isProfessional: boolean
 	initialMode?: CalendarControlMode
 	guidedAvailability?: {
-		playbook: "add-room" | "launch" | null
+		playbook: "add-room" | "launch" | "launch-tour" | null
 		productName: string
 		variantName: string
 		ratePlanName: string
@@ -221,6 +221,8 @@ export default function SingleCalendarWorkspace({
 	initialMode = "price",
 	guidedAvailability,
 }: Props) {
+	const isTourGuidedAvailability = guidedAvailability?.playbook === "launch-tour"
+	const guidedStartDate = isTourGuidedAvailability ? addDays(localIsoDate(), 1) : localIsoDate()
 	const initialRequest = {
 		ratePlanId: initialRatePlanId,
 		variantId: initialVariantId,
@@ -246,8 +248,8 @@ export default function SingleCalendarWorkspace({
 		Math.max(0, Number(guidedAvailability?.initialInventoryDays ?? 0))
 	)
 	const [guidedRange, setGuidedRange] = useState<"next_30" | "next_60" | "custom">("next_30")
-	const [guidedFrom, setGuidedFrom] = useState(localIsoDate())
-	const [guidedTo, setGuidedTo] = useState(addDays(localIsoDate(), 29))
+	const [guidedFrom, setGuidedFrom] = useState(guidedStartDate)
+	const [guidedTo, setGuidedTo] = useState(addDays(guidedStartDate, 29))
 	const [guidedUnits, setGuidedUnits] = useState(1)
 	const [gridDirection, setGridDirection] = useState<"previous" | "next" | "neutral">("neutral")
 	const [updatedDates, setUpdatedDates] = useState<Set<string>>(new Set())
@@ -505,7 +507,7 @@ export default function SingleCalendarWorkspace({
 
 	function setGuidedPreset(kind: "next_30" | "next_60" | "custom") {
 		setGuidedRange(kind)
-		const start = localIsoDate()
+		const start = guidedStartDate
 		if (kind === "next_30") {
 			setGuidedFrom(start)
 			setGuidedTo(addDays(start, 29))
@@ -527,15 +529,27 @@ export default function SingleCalendarWorkspace({
 		const nights = guidedNightCount()
 		const units = Math.trunc(Number(guidedUnits))
 		if (!readySurface.selectedVariantId) {
-			setGuidedFeedback("No hay una habitación seleccionada para abrir disponibilidad.")
+			setGuidedFeedback(
+				isTourGuidedAvailability
+					? "No hay una salida seleccionada para abrir disponibilidad."
+					: "No hay una habitación seleccionada para abrir disponibilidad."
+			)
 			return
 		}
 		if (!guidedFrom || !guidedTo || guidedTo < guidedFrom || nights <= 0) {
 			setGuidedFeedback("Elige un rango de fechas válido.")
 			return
 		}
+		if (isTourGuidedAvailability && guidedFrom <= localIsoDate()) {
+			setGuidedFeedback("La primera fecha reservable debe ser futura.")
+			return
+		}
 		if (!Number.isFinite(units) || units < 1) {
-			setGuidedFeedback("El cupo por noche debe ser al menos 1.")
+			setGuidedFeedback(
+				isTourGuidedAvailability
+					? "El cupo de participantes debe ser al menos 1."
+					: "El cupo por noche debe ser al menos 1."
+			)
 			return
 		}
 
@@ -570,7 +584,9 @@ export default function SingleCalendarWorkspace({
 			setRangeAnchor("")
 			setGuidedInventoryDays((current) => Math.max(current, nights))
 			setGuidedFeedback(
-				`Disponibilidad abierta para ${nights} ${nights === 1 ? "noche" : "noches"} con ${units} ${units === 1 ? "unidad" : "unidades"} por noche.`
+				isTourGuidedAvailability
+					? `Disponibilidad abierta para ${nights} ${nights === 1 ? "fecha" : "fechas"} con cupo para ${units} ${units === 1 ? "participante" : "participantes"} por salida.`
+					: `Disponibilidad abierta para ${nights} ${nights === 1 ? "noche" : "noches"} con ${units} ${units === 1 ? "unidad" : "unidades"} por noche.`
 			)
 		} catch (error) {
 			setGuidedFeedback(error instanceof Error ? error.message : "No se pudo abrir disponibilidad")
@@ -772,21 +788,29 @@ export default function SingleCalendarWorkspace({
 								<div>
 									<div className="flex flex-wrap items-center gap-2">
 										<h2 className="text-xl font-semibold text-slate-950">
-											Abrir disponibilidad inicial
+											{isTourGuidedAvailability
+												? "Abre la primera fecha reservable"
+												: "Abrir disponibilidad inicial"}
 										</h2>
 										<Badge variant={guidedIsReady ? "success" : "warning"}>
 											{guidedIsReady ? "Lista" : "Pendiente"}
 										</Badge>
 									</div>
 									<p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
-										Configura un primer rango vendible. Esto solo abre cupo; precios y condiciones
-										ya se revisaron en los pasos anteriores.
+										{isTourGuidedAvailability
+											? "Elige una o más fechas futuras y asigna el cupo de participantes. Con al menos una fecha con cupo, la salida queda lista para reservar."
+											: "Configura un primer rango vendible. Esto solo abre cupo; precios y condiciones ya se revisaron en los pasos anteriores."}
 									</p>
 								</div>
 								<div className="min-w-36 text-right">
 									<p className="text-xs font-semibold text-slate-500 uppercase">Meta</p>
 									<p className="mt-1 text-sm font-semibold text-slate-950">
-										{Math.min(guidedInventoryDays, requiredGuidedDays)}/{requiredGuidedDays} noches
+										{Math.min(guidedInventoryDays, requiredGuidedDays)}/{requiredGuidedDays}{" "}
+										{isTourGuidedAvailability
+											? requiredGuidedDays === 1
+												? "fecha futura"
+												: "fechas futuras"
+											: "noches"}
 									</p>
 									<div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
 										<div
@@ -832,7 +856,7 @@ export default function SingleCalendarWorkspace({
 									<Input
 										type="date"
 										value={guidedFrom}
-										min={localIsoDate()}
+										min={guidedStartDate}
 										onChange={(event) => {
 											setGuidedRange("custom")
 											setGuidedFrom(event.target.value)
@@ -854,7 +878,9 @@ export default function SingleCalendarWorkspace({
 									/>
 								</label>
 								<label className="block text-sm">
-									<span className="font-medium text-slate-800">Cupo por noche</span>
+									<span className="font-medium text-slate-800">
+										{isTourGuidedAvailability ? "Cupo de participantes" : "Cupo por noche"}
+									</span>
 									<Input
 										type="number"
 										min="1"
@@ -869,7 +895,9 @@ export default function SingleCalendarWorkspace({
 							<div className="flex flex-col gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
 								<p className="text-sm leading-6 text-slate-500">
 									{guidedNights > 0
-										? `Abrirás ${guidedNights} ${guidedNights === 1 ? "noche" : "noches"} con ${guidedUnits || 0} ${Number(guidedUnits) === 1 ? "unidad" : "unidades"} disponible por noche.`
+										? isTourGuidedAvailability
+											? `Abrirás ${guidedNights} ${guidedNights === 1 ? "fecha" : "fechas"} con cupo para ${guidedUnits || 0} ${Number(guidedUnits) === 1 ? "participante" : "participantes"} por salida.`
+											: `Abrirás ${guidedNights} ${guidedNights === 1 ? "noche" : "noches"} con ${guidedUnits || 0} ${Number(guidedUnits) === 1 ? "unidad" : "unidades"} disponible por noche.`
 										: "Selecciona un rango para calcular la disponibilidad inicial."}
 								</p>
 								<Button
@@ -891,7 +919,9 @@ export default function SingleCalendarWorkspace({
 							<p className="text-xs font-semibold text-slate-500 uppercase">Contexto</p>
 							<dl className="mt-4 space-y-4 text-sm">
 								<div>
-									<dt className="text-slate-500">Habitación</dt>
+									<dt className="text-slate-500">
+										{isTourGuidedAvailability ? "Salida" : "Habitación"}
+									</dt>
 									<dd className="mt-1 font-semibold text-slate-950">
 										{guidedAvailability.variantName || readySurface.selectedContext}
 									</dd>
@@ -956,7 +986,9 @@ export default function SingleCalendarWorkspace({
 							<div>
 								<p className="font-semibold text-slate-950">Vista de apoyo</p>
 								<p className="text-xs text-slate-500">
-									Revisa visualmente los cupos abiertos para esta habitación.
+									{isTourGuidedAvailability
+										? "Revisa visualmente las fechas y los cupos de esta salida."
+										: "Revisa visualmente los cupos abiertos para esta habitación."}
 								</p>
 							</div>
 							<Button

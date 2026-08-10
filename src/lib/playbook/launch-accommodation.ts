@@ -210,7 +210,9 @@ export function isLaunchPlaybookActive(url: URL): boolean {
 	const flow = String(url.searchParams.get("flow") ?? "")
 		.trim()
 		.toLowerCase()
-	return playbook === LAUNCH_PLAYBOOK_ID || playbook === "launch-accommodation" || flow === "create"
+	const explicitLaunch = playbook === LAUNCH_PLAYBOOK_ID || playbook === "launch-accommodation"
+	const legacyCreateFlow = !playbook && flow === "create"
+	return explicitLaunch || legacyCreateFlow
 }
 
 export function resolveLaunchPlaybookFromUrl(url: URL): {

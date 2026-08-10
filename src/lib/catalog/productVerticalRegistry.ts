@@ -14,6 +14,10 @@ export type ProductVerticalSectionKey =
 	| "itinerary"
 	| "services"
 	| "inclusions"
+	| "tickets"
+	| "departure"
+	| "rate"
+	| "calendar"
 	| "preview"
 
 export type ProductVerticalSection = {
@@ -232,7 +236,7 @@ export const productVerticalRegistry = {
 		},
 		routes: {
 			workspaceListHref: "/catalog/tours",
-			workspaceCreateHref: "/product/create?type=Tour",
+			workspaceCreateHref: "/product/create?type=Tour&playbook=launch-tour&step=create&flow=create",
 			workspaceFilteredHref: "/catalog/tours",
 			publicCollectionHref: "/tours",
 			publicDetailHref: (productId: string) => `/tours/${encodeId(productId)}`,
@@ -275,12 +279,16 @@ export const productVerticalRegistry = {
 				"location",
 				"subtype",
 				"itinerary",
+				"tickets",
+				"departure",
+				"rate",
 				"bookingPolicies",
+				"calendar",
 				"preview",
 			],
 			recommendedSections: ["services"],
 			publishSummary:
-				"El tour debe explicar actividad, itinerario, duracion, punto de encuentro, fotos y condiciones.",
+				"El tour debe explicar actividad, itinerario, duracion, punto de encuentro, fotos, modalidades, precio y cupo.",
 		},
 		contextLine:
 			"Prepara la ficha del tour: descripcion, fotos, punto de encuentro, itinerario, duracion, guia y vista previa.",

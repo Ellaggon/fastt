@@ -42,6 +42,7 @@ export type ProviderDocumentType =
 	| "tax_document"
 	| "ownership_proof"
 	| "operating_license"
+	| "insurance"
 	| "address_proof"
 
 export type ProviderDocumentStatus = "pending" | "verified" | "rejected" | "superseded"
@@ -144,6 +145,12 @@ export const providerDocumentTypes: Array<{
 		value: "operating_license",
 		label: "Licencia de operación",
 		description: "Permiso municipal, turístico u otra licencia operativa.",
+	},
+	{
+		value: "insurance",
+		label: "Seguro de responsabilidad",
+		description:
+			"Póliza vigente para actividades, pasajeros, vehículos o guías cuando corresponda.",
 	},
 	{
 		value: "address_proof",

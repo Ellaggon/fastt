@@ -5,12 +5,17 @@ import ProfessionalModeToggle from "@/components/dashboard/ProfessionalModeToggl
 import type { SidebarDisclosureMode } from "@/lib/backoffice-governance"
 import type { WorkspaceShellContext } from "@/lib/dashboard/workspaceRequestContext"
 import { routes } from "@/lib/routes"
+import {
+	type WorkspaceNavigationScope,
+	withWorkspaceNavigationScope,
+} from "@/lib/workspace/verticalContext"
 
 interface Props {
 	workspaceContext: WorkspaceShellContext
+	workspaceScope: WorkspaceNavigationScope
 }
 
-const { workspaceContext } = Astro.props
+const { workspaceContext, workspaceScope } = Astro.props
 const user = workspaceContext.user
 const email = user?.email?.trim() || "Sin sesión"
 const accountInitial = email.slice(0, 1).toUpperCase()
@@ -41,6 +46,11 @@ const accountLinks = [
 		Icon: ShieldCheck,
 	},
 ]
+const availableVerticals = workspaceContext.sidebarData?.productTypes ?? []
+const hasHotel = availableVerticals.some((type) => String(type).toLowerCase() === "hotel")
+const hasTours = availableVerticals.some((type) => String(type).toLowerCase() === "tour")
+const scopeHref = (vertical: "hotel" | "tour" | null) =>
+	withWorkspaceNavigationScope(returnTo, { vertical, productId: null })
 ---
 
 <header class="bg-black">
@@ -54,6 +64,52 @@ const accountLinks = [
 		>
 			Fastt
 		</a>
+		<div
+			class="hidden min-w-0 items-center gap-1 rounded-lg border border-white/[0.08] p-1 sm:flex"
+		>
+			<a
+				data-workspace-scope="all"
+				class:list={[
+					"rounded px-2 py-1 text-xs font-semibold",
+					!workspaceScope.vertical
+						? "bg-white text-slate-950"
+						: "text-slate-300 hover:bg-white/[0.08]",
+				]}
+				href={scopeHref(null)}>Todo</a
+			>
+			{
+				hasHotel ? (
+					<a
+						data-workspace-scope="hotel"
+						class:list={[
+							"rounded px-2 py-1 text-xs font-semibold",
+							workspaceScope.vertical === "hotel"
+								? "bg-white text-slate-950"
+								: "text-slate-300 hover:bg-white/[0.08]",
+						]}
+						href={scopeHref("hotel")}
+					>
+						Hotel
+					</a>
+				) : null
+			}
+			{
+				hasTours ? (
+					<a
+						data-workspace-scope="tour"
+						class:list={[
+							"rounded px-2 py-1 text-xs font-semibold",
+							workspaceScope.vertical === "tour"
+								? "bg-white text-slate-950"
+								: "text-slate-300 hover:bg-white/[0.08]",
+						]}
+						href={scopeHref("tour")}
+					>
+						Tours
+					</a>
+				) : null
+			}
+		</div>
 		{
 			showProfessionalToggle ? (
 				<div class="hidden min-w-0 flex-1 items-center justify-center gap-2 sm:flex lg:mr-auto lg:flex-none">
@@ -125,3 +181,15 @@ const accountLinks = [
 		</details>
 	</div>
 </header>
+<script is:inline>
+	document.querySelectorAll("[data-workspace-scope]").forEach((link) => {
+		link.addEventListener("click", () => {
+			try {
+				localStorage.setItem(
+					"fastt.workspace.scope",
+					link.getAttribute("data-workspace-scope") || "all"
+				)
+			} catch {}
+		})
+	})
+</script>

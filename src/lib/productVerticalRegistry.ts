@@ -77,7 +77,7 @@ export const PRODUCT_VERTICALS: Record<ProductVertical, ProductVerticalDefinitio
 		},
 		providerRoutes: {
 			list: "/catalog/tours",
-			create: "/product/create?type=Tour",
+			create: "/product/create?type=Tour&playbook=launch-tour&step=create&flow=create",
 		},
 		requiredSections: ["contenido", "ubicacion", "fotos", "itinerario"],
 		readinessSections: ["identidad", "contenido", "punto de encuentro", "itinerario", "fotos"],

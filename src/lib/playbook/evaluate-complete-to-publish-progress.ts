@@ -4,6 +4,11 @@ import {
 	type ProductVerticalSectionKey,
 } from "@/lib/catalog/productVerticalRegistry"
 import { routes } from "@/lib/routes"
+import { productRepository } from "@/container"
+import {
+	TOUR_QUALITY_MIN_IMAGES,
+	TOUR_QUALITY_MIN_ITINERARY_STEPS,
+} from "@/lib/tours/tourAdminQuality"
 import { buildCompleteToPublishHref } from "@/lib/playbook/complete-to-publish"
 import { getProductFullAggregate, getProductVariantsAggregate } from "@/modules/catalog/public"
 import {
@@ -42,6 +47,10 @@ const SECTION_GUEST_IMPACT: Partial<Record<ProductVerticalSectionKey, string>> =
 	houseRules: "Qué esperar durante la estadía",
 	bookingPolicies: "Cancelación, pago y reglas de reserva",
 	itinerary: "Secuencia de actividades del tour",
+	tickets: "Modalidades que puede seleccionar el viajero",
+	departure: "La primera salida reservable del tour",
+	rate: "El precio de venta de la salida",
+	calendar: "El cupo disponible para reservar",
 	inclusions: "Qué incluye y qué no incluye el paquete",
 	preview: "Revisión final antes de recibir reservas",
 }
@@ -53,6 +62,10 @@ const BLOCKER_ORDER: ProductVerticalSectionKey[] = [
 	"subtype",
 	"rooms",
 	"itinerary",
+	"tickets",
+	"departure",
+	"rate",
+	"calendar",
 	"inclusions",
 	"houseRules",
 	"bookingPolicies",
@@ -71,6 +84,14 @@ function sectionHref(productId: string, section: ProductVerticalSectionKey): str
 		case "itinerary":
 		case "inclusions":
 			return `/product/${encodeURIComponent(productId)}/subtype`
+		case "tickets":
+			return `/product/${encodeURIComponent(productId)}/tickets`
+		case "departure":
+			return `/product/${encodeURIComponent(productId)}/departures/new`
+		case "rate":
+			return `${routes.rates()}?productId=${encodeURIComponent(productId)}&openDialog=1`
+		case "calendar":
+			return `${routes.calendar()}?focus=availability`
 		case "rooms":
 			return routes.productRoomsForProduct(productId)
 		case "houseRules":
@@ -95,6 +116,10 @@ function sectionLabel(section: ProductVerticalSectionKey, verticalLabel: string)
 		houseRules: "Reglas para huéspedes",
 		bookingPolicies: "Condiciones de reserva",
 		itinerary: "Itinerario del tour",
+		tickets: "Modalidades y tickets",
+		departure: "Primera salida",
+		rate: "Precio de la salida",
+		calendar: "Cupo y disponibilidad",
 		inclusions: "Incluye / No incluye",
 		services: "Servicios incluidos",
 		preview: "Vista previa y publicar",
@@ -112,6 +137,10 @@ function sectionCta(section: ProductVerticalSectionKey): string {
 		houseRules: "Revisar reglas",
 		bookingPolicies: "Revisar tarifas",
 		itinerary: "Editar itinerario",
+		tickets: "Configurar tickets",
+		departure: "Crear salida",
+		rate: "Configurar precio",
+		calendar: "Configurar disponibilidad",
 		inclusions: "Editar inclusiones",
 		preview: "Ir a vista previa",
 	}
@@ -131,6 +160,11 @@ export async function loadCompleteToPublishState(params: {
 	const vertical = getProductVerticalEntry(aggregate.productType)
 	const verticalLabel = vertical.labels.singular.toLowerCase()
 	const isHotel = vertical.vertical === "hotel"
+	const repositoryAggregate = await productRepository.getProductAggregate(productId)
+	const tourReadiness =
+		repositoryAggregate?.verticalReadiness?.kind === "tour"
+			? repositoryAggregate.verticalReadiness.tour
+			: null
 	const description = String(aggregate.content.description ?? "").trim()
 	const highlights = Array.isArray(aggregate.content.highlights) ? aggregate.content.highlights : []
 	const packageIncludes =
@@ -139,6 +173,10 @@ export async function loadCompleteToPublishState(params: {
 		.split(/\r?\n|,/)
 		.map((item) => item.trim())
 		.filter(Boolean)
+	const tourSubtype = aggregate.subtype?.kind === "tour" ? aggregate.subtype : null
+	const tourItinerarySteps = Array.isArray(tourSubtype?.itinerary)
+		? tourSubtype.itinerary.filter(Boolean).length
+		: 0
 
 	const guestExpectationsSnapshot = isHotel
 		? await buildGuestStayExpectationsSnapshot(productId)
@@ -197,10 +235,17 @@ export async function loadCompleteToPublishState(params: {
 					: "Agrega descripción y al menos un destacado.",
 		},
 		photos: {
-			complete: aggregate.images.length > 0,
+			complete:
+				vertical.vertical === "tour"
+					? aggregate.images.length >= TOUR_QUALITY_MIN_IMAGES
+					: aggregate.images.length > 0,
 			detail: aggregate.images.length
-				? `${aggregate.images.length} fotos disponibles.`
-				: "Agrega al menos una foto.",
+				? vertical.vertical === "tour" && aggregate.images.length < TOUR_QUALITY_MIN_IMAGES
+					? `Agrega ${TOUR_QUALITY_MIN_IMAGES - aggregate.images.length} fotos más para publicar.`
+					: `${aggregate.images.length} fotos disponibles.`
+				: vertical.vertical === "tour"
+					? `Agrega al menos ${TOUR_QUALITY_MIN_IMAGES} fotos.`
+					: "Agrega al menos una foto.",
 		},
 		location: {
 			complete: aggregate.location.lat !== null && aggregate.location.lng !== null,
@@ -210,8 +255,22 @@ export async function loadCompleteToPublishState(params: {
 					: "Agrega coordenadas antes de publicar.",
 		},
 		subtype: {
-			complete: Boolean(aggregate.subtype),
-			detail: aggregate.subtype ? "Detalles del subtipo configurados." : "Completa los detalles.",
+			complete:
+				vertical.vertical === "tour"
+					? Boolean(
+							tourSubtype &&
+							Number(tourSubtype.durationMinutes ?? 0) > 0 &&
+							tourSubtype.meetingPoint &&
+							Array.isArray(tourSubtype.includes) &&
+							tourSubtype.includes.length > 0
+						)
+					: Boolean(aggregate.subtype),
+			detail:
+				vertical.vertical === "tour"
+					? "Define duración, punto de encuentro e inclusiones."
+					: aggregate.subtype
+						? "Detalles del subtipo configurados."
+						: "Completa los detalles.",
 		},
 		rooms: {
 			complete: !isHotel || variantsCount > 0,
@@ -238,11 +297,46 @@ export async function loadCompleteToPublishState(params: {
 					: "Condiciones principales visibles.",
 		},
 		itinerary: {
-			complete: Boolean(
-				aggregate.subtype?.kind === "tour" &&
-				(aggregate.subtype.itinerary || aggregate.subtype.duration)
-			),
-			detail: "Completa itinerario y duración del tour.",
+			complete: tourItinerarySteps >= TOUR_QUALITY_MIN_ITINERARY_STEPS,
+			detail: `Completa al menos ${TOUR_QUALITY_MIN_ITINERARY_STEPS} pasos del itinerario.`,
+		},
+		tickets: {
+			complete:
+				vertical.vertical !== "tour" ||
+				(Boolean(tourReadiness?.hasActiveTickets) && Boolean(tourReadiness?.hasCategory)),
+			detail:
+				vertical.vertical !== "tour"
+					? "No aplica para este tipo de oferta."
+					: tourReadiness?.hasActiveTickets && tourReadiness?.hasCategory
+						? "Hay una modalidad activa y una categoría de discovery."
+						: "Crea una modalidad activa y asigna una categoría de discovery.",
+		},
+		departure: {
+			complete: vertical.vertical !== "tour" || Number(tourReadiness?.activeSlotCount ?? 0) > 0,
+			detail:
+				vertical.vertical !== "tour"
+					? "No aplica para este tipo de oferta."
+					: Number(tourReadiness?.activeSlotCount ?? 0) > 0
+						? "Hay una salida activa."
+						: "Crea una salida activa con fecha, hora y cupo.",
+		},
+		rate: {
+			complete: vertical.vertical !== "tour" || Number(tourReadiness?.completeSlotCount ?? 0) > 0,
+			detail:
+				vertical.vertical !== "tour"
+					? "No aplica para este tipo de oferta."
+					: Number(tourReadiness?.completeSlotCount ?? 0) > 0
+						? "La salida tiene tarifa activa."
+						: "Asigna una tarifa activa a la salida.",
+		},
+		calendar: {
+			complete: vertical.vertical !== "tour" || Number(tourReadiness?.completeSlotCount ?? 0) > 0,
+			detail:
+				vertical.vertical !== "tour"
+					? "No aplica para este tipo de oferta."
+					: Number(tourReadiness?.completeSlotCount ?? 0) > 0
+						? "La salida tiene cupo y disponibilidad."
+						: "Configura cupo y disponibilidad de la salida.",
 		},
 		inclusions: {
 			complete: packageInclusionItems.length > 0,

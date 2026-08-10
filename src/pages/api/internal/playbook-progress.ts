@@ -14,11 +14,13 @@ import {
 } from "@/lib/playbook/evaluate-complete-to-publish-progress"
 import { isCompleteToPublishPlaybookActive } from "@/lib/playbook/complete-to-publish"
 import { evaluateLaunchProgress } from "@/lib/playbook/evaluate-launch-progress"
+import { evaluateTourLaunchProgress } from "@/lib/playbook/evaluate-tour-launch-progress"
 import {
 	inferLaunchStepFromPathname,
 	isLaunchPlaybookActive,
 	type LaunchStepId,
 } from "@/lib/playbook/launch-accommodation"
+import { inferTourLaunchStepFromPathname, type TourLaunchStepId } from "@/lib/playbook/launch-tour"
 import { getProductFullAggregate } from "@/modules/catalog/public"
 
 export const GET: APIRoute = async ({ request, url }) => {
@@ -146,6 +148,30 @@ export const GET: APIRoute = async ({ request, url }) => {
 				headers: { "Content-Type": "application/json" },
 			}
 		)
+	}
+
+	if (playbookParam === "launch-tour") {
+		const currentStepId =
+			(explicitStep as TourLaunchStepId) || inferTourLaunchStepFromPathname(url.pathname)
+		const progress = await evaluateTourLaunchProgress(productId, providerId, {
+			variantId,
+			ratePlanId,
+			currentStepId,
+			request,
+			url,
+		})
+		if (!progress) {
+			logEndpoint()
+			return new Response(JSON.stringify({ error: "Not found" }), {
+				status: 404,
+				headers: { "Content-Type": "application/json" },
+			})
+		}
+		logEndpoint()
+		return new Response(JSON.stringify({ ...progress, mode: "launch-tour" }), {
+			status: 200,
+			headers: { "Content-Type": "application/json" },
+		})
 	}
 
 	const currentStepId =

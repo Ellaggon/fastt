@@ -2,8 +2,10 @@ import type { APIRoute } from "astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { invalidateProduct } from "@/lib/cache/invalidation"
 import { refreshProductPreparationSnapshotAfterMutation } from "@/lib/playbook/summarize-product-preparation"
+import { canonicalizeTourDifficultyForStorage } from "@/lib/tours/tourDifficulty"
 import { parseDurationMinutes } from "@/lib/tours/tourSemantics"
 import { updateProductSubtype } from "@/modules/catalog/public"
+import { tourSchema } from "@/schemas/product/subtype"
 import { productRepository, subtypeRepository } from "@/container"
 
 function listFromForm(value: FormDataEntryValue | null): string[] {
@@ -60,7 +62,7 @@ export const POST: APIRoute = async ({ request }) => {
 			})
 		}
 
-		const subtype =
+		let subtype: any =
 			subtypeType === "hotel"
 				? {
 						stars: form.get("stars") ? Number(form.get("stars")) : null,
@@ -79,7 +81,7 @@ export const POST: APIRoute = async ({ request }) => {
 								}
 								return parseDurationMinutes(String(form.get("duration") ?? ""))
 							})(),
-							difficultyLevel: String(form.get("difficultyLevel") ?? "").trim() || null,
+							difficultyLevel: canonicalizeTourDifficultyForStorage(form.get("difficultyLevel")),
 							meetingPointJson: objectFromFields({
 								address: form.get("meetingPointAddress"),
 								instructions: form.get("meetingPointInstructions"),
@@ -137,6 +139,24 @@ export const POST: APIRoute = async ({ request }) => {
 									? Number(form.get("luggageCapacity"))
 									: null,
 							}
+
+		if (subtypeType === "tour") {
+			const parsed = tourSchema.safeParse({
+				productId,
+				productType: "tour",
+				...subtype,
+			})
+			if (!parsed.success) {
+				return new Response(JSON.stringify({ error: parsed.error.flatten() }), {
+					status: 400,
+					headers: { "Content-Type": "application/json" },
+				})
+			}
+			const validatedSubtype: Record<string, unknown> = { ...parsed.data }
+			delete validatedSubtype.productId
+			delete validatedSubtype.productType
+			subtype = validatedSubtype
+		}
 
 		const response = await updateProductSubtype({
 			ensureOwned: (pid, prov) => productRepository.ensureProductOwnedByProvider(pid, prov),

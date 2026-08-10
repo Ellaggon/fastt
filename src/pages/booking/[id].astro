@@ -60,6 +60,7 @@ if (!bookingId) return Astro.redirect("/booking")
 						["room", "Habitación"],
 						["policies", "Condiciones"],
 						["payments", "Pagos"],
+						["operations", "Operación"],
 						["history", "Historial"],
 						["technical", "Detalle técnico"],
 					].map(([value, label]) => (
@@ -260,6 +261,31 @@ if (!bookingId) return Astro.redirect("/booking")
 					<span class="text-sm text-slate-500">${escapeHtml(label)}</span>
 					<strong class="text-right text-sm font-medium text-slate-900">${escapeHtml(value)}</strong>
 				</div>`
+			const runTourOperation = async (action) => {
+				const note = document.getElementById("tourOperationNote")?.value || ""
+				if (action === "no_show" && !window.confirm("¿Marcar como no presentado?")) return
+				try {
+					const response = await fetch("/api/booking/tour-operations", {
+						method: "POST",
+						headers: { "Content-Type": "application/json", "accept": "application/json" },
+						body: JSON.stringify({ bookingId, action, note }),
+					})
+					if (!response.ok) throw new Error("operation_failed")
+					const refreshed = await fetch(
+						`/api/internal/booking-summary?bookingId=${encodeURIComponent(bookingId)}`,
+						{ headers: { accept: "application/json" } }
+					)
+					if (!refreshed.ok) throw new Error("refresh_failed")
+					state.payload = await refreshed.json()
+					render()
+				} catch {
+					window.alert(
+						action === "no_show"
+							? "No se pudo registrar la no presentación."
+							: "No se pudo guardar la nota."
+					)
+				}
+			}
 			const renderPanel = () => {
 				if (!panel) return
 				const payload = state.payload || {}
@@ -319,6 +345,37 @@ if (!bookingId) return Astro.redirect("/booking")
 							</div>`
 						)}
 					</div>`
+					return
+				}
+				if (state.activeTab === "operations") {
+					const isTour = String(booking.vertical || "") === "tour"
+					if (!isTour) {
+						panel.innerHTML = section(
+							"Operación",
+							'<p class="text-sm text-slate-600">La operación diaria específica está disponible para Tours.</p>'
+						)
+						return
+					}
+					const canNoShow = booking.canCheckIn && !booking.checkedInAt
+					panel.innerHTML = section(
+						"Operación de la salida",
+						`<div class="space-y-4">
+							${keyValue("Voucher", voucherStatusLabel(booking))}
+							${booking.checkedInAt ? keyValue("Presentación", booking.checkedInAt) : ""}
+							${booking.noShowAt ? keyValue("No presentación", booking.noShowAt) : ""}
+							<div><label class="mb-1 block text-sm font-medium text-slate-700" for="tourOperationNote">Nota interna</label><textarea id="tourOperationNote" class="fastt-field min-h-24 w-full rounded-md border border-slate-300 p-2 text-sm" placeholder="Indicaciones, incidencias o seguimiento…">${escapeHtml(booking.notes || "")}</textarea></div>
+							<div class="flex flex-wrap gap-2">
+								<button type="button" class="fastt-button rounded-md border border-slate-950 bg-slate-950 px-3 py-2 text-sm font-semibold text-white" data-save-tour-note>Guardar nota</button>
+								${canNoShow ? '<button type="button" class="fastt-button rounded-md px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100" data-mark-no-show>Marcar no presentado</button>' : ""}
+							</div>
+						</div>`
+					)
+					panel
+						.querySelector("[data-save-tour-note]")
+						?.addEventListener("click", () => void runTourOperation("note"))
+					panel
+						.querySelector("[data-mark-no-show]")
+						?.addEventListener("click", () => void runTourOperation("no_show"))
 					return
 				}
 				if (state.activeTab === "guests") {

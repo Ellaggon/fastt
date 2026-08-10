@@ -744,6 +744,57 @@ CREATE TABLE "TourTicketType" (
 	CONSTRAINT "TourTicketType_code_check" CHECK ("code" IN ('adult', 'child', 'infant', 'custom'))
 );
 
+CREATE TABLE "TourDepartureInstance" (
+	"id" text PRIMARY KEY,
+	"providerId" text,
+	"variantId" text,
+	"date" date,
+	"departureTimeOverride" text,
+	"meetingPointOverrideJson" jsonb,
+	"notes" text,
+	"isCancelled" boolean DEFAULT false,
+	"createdAt" timestamp with time zone DEFAULT now(),
+	"updatedAt" timestamp with time zone DEFAULT now()
+);
+
+CREATE TABLE "TourOperationalResource" (
+	"id" text PRIMARY KEY,
+	"providerId" text,
+	"userId" text,
+	"type" text,
+	"name" text,
+	"status" text DEFAULT 'active' NOT NULL,
+	"languagesJson" jsonb,
+	"capacity" integer,
+	"credentialsJson" jsonb,
+	"createdAt" timestamp with time zone DEFAULT now(),
+	"updatedAt" timestamp with time zone DEFAULT now()
+);
+
+CREATE TABLE "TourResourceAssignment" (
+	"id" text PRIMARY KEY,
+	"providerId" text,
+	"variantId" text,
+	"date" date,
+	"resourceId" text,
+	"role" text,
+	"status" text DEFAULT 'assigned' NOT NULL,
+	"assignedBy" text,
+	"createdAt" timestamp with time zone DEFAULT now(),
+	"updatedAt" timestamp with time zone DEFAULT now()
+);
+
+CREATE TABLE "TourBookingQuestion" (
+	"id" text PRIMARY KEY,
+	"productId" text,
+	"code" text,
+	"label" text,
+	"isRequired" boolean DEFAULT false,
+	"sortOrder" integer DEFAULT 0,
+	"createdAt" timestamp with time zone DEFAULT now(),
+	"updatedAt" timestamp with time zone DEFAULT now()
+);
+
 CREATE TABLE "VariantRoomBed" (
 	"id" text PRIMARY KEY,
 	"variantId" text NOT NULL,
@@ -1882,6 +1933,60 @@ ALTER TABLE "TourSlotProfile"
 	REFERENCES "Variant" ("id")
 ;
 
+ALTER TABLE "TourDepartureInstance"
+	ADD CONSTRAINT "TourDepartureInstance_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
+;
+
+ALTER TABLE "TourDepartureInstance"
+	ADD CONSTRAINT "TourDepartureInstance_variantId_fk"
+	FOREIGN KEY ("variantId")
+	REFERENCES "Variant" ("id")
+;
+
+ALTER TABLE "TourOperationalResource"
+	ADD CONSTRAINT "TourOperationalResource_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
+;
+
+ALTER TABLE "TourOperationalResource"
+	ADD CONSTRAINT "TourOperationalResource_userId_fk"
+	FOREIGN KEY ("userId")
+	REFERENCES "User" ("id")
+;
+
+ALTER TABLE "TourResourceAssignment"
+	ADD CONSTRAINT "TourResourceAssignment_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
+;
+
+ALTER TABLE "TourResourceAssignment"
+	ADD CONSTRAINT "TourResourceAssignment_variantId_fk"
+	FOREIGN KEY ("variantId")
+	REFERENCES "Variant" ("id")
+;
+
+ALTER TABLE "TourResourceAssignment"
+	ADD CONSTRAINT "TourResourceAssignment_resourceId_fk"
+	FOREIGN KEY ("resourceId")
+	REFERENCES "TourOperationalResource" ("id")
+;
+
+ALTER TABLE "TourResourceAssignment"
+	ADD CONSTRAINT "TourResourceAssignment_assignedBy_fk"
+	FOREIGN KEY ("assignedBy")
+	REFERENCES "User" ("id")
+;
+
+ALTER TABLE "TourBookingQuestion"
+	ADD CONSTRAINT "TourBookingQuestion_productId_fk"
+	FOREIGN KEY ("productId")
+	REFERENCES "Product" ("id")
+;
+
 ALTER TABLE "VariantRoomBed"
 	ADD CONSTRAINT "VariantRoomBed_variantId_fk"
 	FOREIGN KEY ("variantId")
@@ -2837,6 +2942,10 @@ BEGIN
 		'ProductPreparationSnapshot',
 		'VariantRoomProfile',
 		'TourSlotProfile',
+		'TourDepartureInstance',
+		'TourOperationalResource',
+		'TourResourceAssignment',
+		'TourBookingQuestion',
 		'VariantReadiness',
 		'DailyInventory',
 		'RatePlanConditionState',

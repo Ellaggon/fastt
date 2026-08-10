@@ -324,6 +324,14 @@ describe("integration/tour discovery filters (phase 6 / P1 discovery)", () => {
 		})
 		expect(byLevel.cards.map((c) => c.productId)).toEqual([`prod_disc_b_${suffix}`])
 
+		const byLevelSpanish = await getTourSearchSurface({
+			startDate: departure,
+			destinationRowId: destinationId,
+			level: "Difícil",
+		})
+		expect(byLevelSpanish.cards.map((c) => c.productId)).toEqual([`prod_disc_b_${suffix}`])
+		expect(byLevelSpanish.meta.availability).toBe("ready")
+
 		// Price filter after aggregation + limit only at the end → expensive match survives limit=1.
 		const byPrice = await getTourSearchSurface({
 			startDate: departure,

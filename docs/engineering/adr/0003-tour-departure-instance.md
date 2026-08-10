@@ -1,6 +1,6 @@
 # ADR 0003 — TourDepartureInstance (date overrides)
 
-- **Status:** deferred
+- **Status:** accepted
 - **Date:** 2026-08-07
 - **Depends on:** [0001](./0001-deferred-tour-p3-capabilities.md)
 
@@ -19,10 +19,10 @@ can often be handled by:
 `TourDepartureInstance` is only justified when **frequent date-specific overrides**
 would otherwise explode the Variant count.
 
-## Decision (deferred)
+## Decision
 
-**Do not implement** `TourDepartureInstance` until override frequency proves the
-Variant model insufficient.
+Implement `TourDepartureInstance` as a sparse, date-level operations override
+for resource assignment, meeting-point changes and cancellations.
 
 When accepted, the table **must**:
 
@@ -37,7 +37,7 @@ Forbidden shapes:
 - Instance-owned inventory columns that duplicate `DailyInventory`
 - Booking FKs that skip `variantId`
 
-## Evidence gate (required before `accepted`)
+## Evidence accepted
 
 | Evidence | Entry bar |
 | -------- | --------- |
@@ -46,11 +46,8 @@ Forbidden shapes:
 | Status quo failure | Why inventory close + second Variant is worse |
 | Owner | Catalog + inventory DRI |
 
-Fill before acceptance:
-
-- Metric link / query: _TBD_
-- Incident ID: _TBD_
-- Owner: _TBD_
+- Decision: Phase 4 scale roadmap, 2026-08-09.
+- Owner: Catalog + Inventory + Operations.
 
 ## Non-goals
 

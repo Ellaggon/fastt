@@ -406,6 +406,19 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(visible.flatMap((section) => section.planned ?? [])).toEqual([])
 	})
 
+	it("does not assume a hotel vertical when a provider has no products", () => {
+		const visible = filterEnterpriseNavigationForDisclosure(enterpriseNavigation, {
+			mode: "small-provider",
+			productTypes: [],
+		})
+		const labels = visible.flatMap((section) => section.items.map((item) => item.label))
+
+		expect(labels).not.toContain("Alojamiento")
+		expect(labels).not.toContain("Habitaciones")
+		expect(labels).not.toContain("Reglas para huéspedes")
+		expect(labels).not.toContain("Tours")
+	})
+
 	it("shows only accommodation service tools for accommodation-only providers", () => {
 		const visible = filterEnterpriseNavigationForDisclosure(enterpriseNavigation, {
 			mode: "small-provider",

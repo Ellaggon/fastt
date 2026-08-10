@@ -8,6 +8,7 @@ import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderCatalogSummary } from "@/lib/catalog/providerCatalogSummary"
+import { buildCompleteToPublishEntryHref } from "@/lib/playbook/complete-to-publish"
 import { PRODUCT_VERTICALS } from "@/lib/productVerticalRegistry"
 import { routes } from "@/lib/routes"
 
@@ -98,7 +99,8 @@ const catalog = await getProviderCatalogSummary(providerId, vertical.storageType
 						<div class="space-y-1">
 							<h3 class="text-lg font-semibold text-slate-950">Todavía no hay tours</h3>
 							<p class="text-sm leading-6 text-slate-500">
-								Crea una ficha inicial para preparar contenido, itinerario y fotos.
+								Crea una ficha inicial y completa contenido, itinerario, tickets, salida, precio y
+								cupo para poder publicarla.
 							</p>
 						</div>
 						<Button href={vertical.providerRoutes.create}>Crear tour</Button>
@@ -113,10 +115,17 @@ const catalog = await getProviderCatalogSummary(providerId, vertical.storageType
 										<Badge variant={product.status.variant}>{product.status.label}</Badge>
 									</div>
 									<p class="text-sm text-slate-500">
-										Ficha del tour · contenido, itinerario y fotos
+										Ficha del tour · contenido, itinerario, tickets, salida y disponibilidad
 									</p>
 								</div>
 								<div class="flex flex-wrap justify-end gap-2">
+									<Button
+										href={buildCompleteToPublishEntryHref(product.id)}
+										variant="secondary"
+										size="sm"
+									>
+										Preparar
+									</Button>
 									<Button href={routes.productPreview(product.id)} variant="secondary" size="sm">
 										Vista previa
 									</Button>

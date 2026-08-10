@@ -18,12 +18,18 @@ import {
 	buildPlaybookHref,
 	resolveLaunchPlaybookFromUrl,
 } from "@/lib/playbook/launch-accommodation"
+import {
+	buildTourPlaybookHref,
+	resolveTourLaunchPlaybookFromUrl,
+	type TourLaunchStepId,
+} from "@/lib/playbook/launch-tour"
 import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
 import { resolveReservationConditionsHref } from "@/lib/product-preview/resolveReservationConditionsHref"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
 import { routes } from "@/lib/routes"
+import { listProviderDocuments } from "@/lib/provider-documents"
 import {
 	getProductFullAggregate,
 	getProductVariantsAggregate,
@@ -43,9 +49,17 @@ import {
 	asc,
 	db,
 	eq,
+	gt,
 	Image,
 	inArray,
 	ProductStatus,
+	TourBookingQuestion,
+	TourSlotProfile,
+	TourTicketType,
+	Variant,
+	DailyInventory,
+	RatePlan,
+	RatePlanOccupancyPolicy,
 } from "@/shared/infrastructure/db/compat"
 
 const user = await getUserFromRequest(Astro.request)
@@ -65,6 +79,7 @@ if (!aggregate) return Astro.redirect(routes.productList())
 
 const vertical = getProductVerticalEntry(aggregate.productType)
 const isHotel = vertical.vertical === "hotel"
+const isTour = vertical.vertical === "tour"
 const publicDetailHref = vertical.routes.publicDetailHref(productId)
 
 const statusRow = await db
@@ -76,6 +91,82 @@ const productStatus = String(statusRow?.state ?? "draft")
 	.trim()
 	.toLowerCase()
 const isPublished = productStatus === "published"
+const [tourBookingQuestions, providerDocuments] = isTour
+	? await Promise.all([
+			db
+				.select({ label: TourBookingQuestion.label })
+				.from(TourBookingQuestion)
+				.where(eq(TourBookingQuestion.productId, productId))
+				.orderBy(asc(TourBookingQuestion.sortOrder)),
+			listProviderDocuments(providerId),
+		])
+	: [[], []]
+const verifiedTourCompliance = new Set(
+	providerDocuments
+		.filter((document) => document.status === "verified")
+		.map((document) => document.type)
+)
+const [tourTickets, tourSlots] = isTour
+	? await Promise.all([
+			db
+				.select({ label: TourTicketType.label })
+				.from(TourTicketType)
+				.where(and(eq(TourTicketType.productId, productId), eq(TourTicketType.isActive, true))),
+			db
+				.select({
+					variantId: Variant.id,
+					name: Variant.name,
+					time: TourSlotProfile.departureTime,
+					maxPax: TourSlotProfile.maxPax,
+				})
+				.from(Variant)
+				.innerJoin(TourSlotProfile, eq(TourSlotProfile.variantId, Variant.id))
+				.where(and(eq(Variant.productId, productId), eq(TourSlotProfile.isActive, true))),
+		])
+	: [[], []]
+const nextTourInventory =
+	isTour && tourSlots.length
+		? await db
+				.select({
+					date: DailyInventory.date,
+					totalInventory: DailyInventory.totalInventory,
+					reservedCount: DailyInventory.reservedCount,
+				})
+				.from(DailyInventory)
+				.where(
+					and(
+						inArray(
+							DailyInventory.variantId,
+							tourSlots.map((slot) => slot.variantId)
+						),
+						gt(DailyInventory.date, new Date().toISOString().slice(0, 10)),
+						gt(DailyInventory.totalInventory, 0)
+					)
+				)
+				.orderBy(asc(DailyInventory.date))
+				.then(first)
+		: null
+const tourStartingPrice =
+	isTour && tourSlots.length
+		? await db
+				.select({
+					amount: RatePlanOccupancyPolicy.baseAmount,
+					currency: RatePlanOccupancyPolicy.baseCurrency,
+				})
+				.from(RatePlan)
+				.innerJoin(RatePlanOccupancyPolicy, eq(RatePlanOccupancyPolicy.ratePlanId, RatePlan.id))
+				.where(
+					and(
+						inArray(
+							RatePlan.variantId,
+							tourSlots.map((slot) => slot.variantId)
+						),
+						eq(RatePlan.isActive, true)
+					)
+				)
+				.orderBy(asc(RatePlanOccupancyPolicy.baseAmount))
+				.then(first)
+		: null
 
 const publishState = await loadCompleteToPublishState({
 	productId,
@@ -95,6 +186,7 @@ const blockerLabels = publishState.blockers
 
 const playbook = resolvePlaybookFromUrl(Astro.url, { isHotel })
 const launchPlaybook = resolveLaunchPlaybookFromUrl(Astro.url)
+const tourLaunchPlaybook = resolveTourLaunchPlaybookFromUrl(Astro.url)
 const completePlaybook = resolveCompleteToPublishPlaybookFromUrl(Astro.url)
 const flow = Astro.url.searchParams.get("flow")
 
@@ -111,11 +203,29 @@ const stepId =
 		? (completePlaybook.stepId ?? "preview")
 		: playbookId === "launch"
 			? (launchPlaybook.stepId ?? "preview")
-			: "preview"
+			: playbookId === "launch-tour"
+				? (tourLaunchPlaybook.stepId ?? "preview")
+				: "preview"
 
 function checkHref(check: (typeof checks)[number]) {
 	if (playbookId === "complete-to-publish") {
 		return buildCompleteToPublishHref(check.href, check.sectionKey)
+	}
+	if (playbookId === "launch-tour") {
+		const stepBySection: Record<string, TourLaunchStepId> = {
+			identity: "create",
+			content: "content",
+			photos: "images",
+			location: "location",
+			subtype: "subtype",
+			itinerary: "subtype",
+			tickets: "tickets",
+			departure: "departure",
+			rate: "rate",
+			calendar: "calendar",
+			preview: "preview",
+		}
+		return buildTourPlaybookHref(check.href, stepBySection[check.sectionKey] ?? "preview")
 	}
 	return check.href
 }
@@ -140,6 +250,16 @@ const packageExclusionItems = packageExcludes
 	.split(/\r?\n|,/)
 	.map((item) => item.trim())
 	.filter(Boolean)
+const tourSubtype = aggregate.subtype?.kind === "tour" ? aggregate.subtype : null
+const tourItineraryItems = Array.isArray(tourSubtype?.itinerary)
+	? tourSubtype.itinerary.map((item) => String(item ?? "").trim()).filter(Boolean)
+	: []
+const tourIncludes = Array.isArray(tourSubtype?.includes)
+	? tourSubtype.includes.map((item) => String(item ?? "").trim()).filter(Boolean)
+	: []
+const tourExcludes = Array.isArray(tourSubtype?.excludes)
+	? tourSubtype.excludes.map((item) => String(item ?? "").trim()).filter(Boolean)
+	: []
 
 const guestExpectationsSnapshot = isHotel
 	? await buildGuestStayExpectationsSnapshot(productId)
@@ -241,7 +361,7 @@ try {
 ---
 
 <PlaybookLayout
-	title="Alojamientos · Vista previa"
+	title={`${vertical.labels.workspacePlural} · Vista previa`}
 	playbookId={playbookId}
 	active={playbook.active}
 	stepId={stepId}
@@ -260,9 +380,11 @@ try {
 				</p>
 				<h1 class="text-3xl font-semibold tracking-tight text-slate-100">Revisa y publica</h1>
 				<p class="max-w-2xl text-sm leading-6 text-slate-400">
-					Antes de publicar, confirma fotos, habitaciones, condiciones y reglas para activar {
-						aggregate.displayName
-					} para reservas.
+					{
+						isTour
+							? `Antes de publicar, confirma fotos, itinerario, modalidades, precio y próximas fechas de ${aggregate.displayName}.`
+							: `Antes de publicar, confirma fotos, habitaciones, condiciones y reglas para activar ${aggregate.displayName} para reservas.`
+					}
 				</p>
 			</div>
 			<div class="flex flex-wrap items-center justify-end gap-2">
@@ -285,7 +407,7 @@ try {
 							<p class="text-sm font-semibold text-slate-950">
 								{
 									isPublished
-										? "Alojamiento publicado"
+										? `${vertical.labels.workspaceSingular} publicado`
 										: readyToPublish
 											? "Listo para publicar"
 											: "Pendientes para publicar"
@@ -294,7 +416,7 @@ try {
 							<p class="text-sm leading-6 text-slate-600">
 								{
 									isPublished
-										? "La ficha ya está activa. Puedes usar esta pantalla para revisar cómo se presenta al huésped."
+										? "La ficha ya está activa. Puedes usar esta pantalla para revisar cómo se presenta al viajero."
 										: readyToPublish
 											? "Todo lo obligatorio está completo. Publica cuando estés listo para recibir reservas."
 											: `${completedChecks} de ${checks.length} bloques principales listos.`
@@ -315,9 +437,9 @@ try {
 					<p class="text-sm leading-6 text-slate-600">
 						{
 							isPublished
-								? "El alojamiento ya está publicado. Usa esta revisión para detectar ajustes de contenido."
+								? `${vertical.labels.workspaceSingular} ya está publicado. Usa esta revisión para detectar ajustes de contenido.`
 								: readyToPublish
-									? "Revisa la ficha pública debajo. Si todo representa correctamente tu alojamiento, puedes publicarlo."
+									? `Revisa la ficha pública debajo. Si todo representa correctamente tu ${vertical.labels.singular}, puedes publicarlo.`
 									: blockerLabels.length
 										? `Faltan ${blockerLabels.length} paso${blockerLabels.length === 1 ? "" : "s"}: ${blockerLabels.slice(0, 3).join(", ")}${blockerLabels.length > 3 ? "..." : ""}.`
 										: "Revisa lo pendiente antes de publicar."
@@ -358,7 +480,7 @@ try {
 							<Button href={routes.productDetail(productId)}>Ir a ficha</Button>
 						) : readyToPublish ? (
 							<Button class="publish-product-button" type="button">
-								Publicar alojamiento
+								Publicar {vertical.labels.singular}
 							</Button>
 						) : (
 							<Button href={completePreparationHref}>
@@ -380,9 +502,7 @@ try {
 		<section class="space-y-4">
 			<header class="space-y-1">
 				<h2 class="text-lg font-semibold text-slate-100">Ficha pública</h2>
-				<p class="text-sm leading-6 text-slate-400">
-					Así se leerá el contenido principal para el huésped.
-				</p>
+				<p class="text-sm leading-6 text-slate-400">Así leerá el viajero el contenido principal.</p>
 			</header>
 			<Card className="overflow-hidden bg-white p-0 text-slate-800">
 				{
@@ -406,7 +526,7 @@ try {
 							</p>
 						</div>
 						<Badge variant={readyToPublish || isPublished ? "success" : "warning"}>
-							{readyToPublish || isPublished ? "Lista para huéspedes" : "Borrador"}
+							{readyToPublish || isPublished ? "Lista para viajeros" : "Borrador"}
 						</Badge>
 					</div>
 
@@ -423,11 +543,17 @@ try {
 					<div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
 						<div class="space-y-5">
 							<div>
-								<p class="text-sm font-semibold text-slate-900">Sobre este alojamiento</p>
+								<p class="text-sm font-semibold text-slate-900">
+									Sobre {
+										vertical.labels.singular === "alojamiento"
+											? "este alojamiento"
+											: `este ${vertical.labels.singular}`
+									}
+								</p>
 								<p class="mt-2 text-sm leading-7 text-slate-700">
 									{
 										description ||
-											"Agrega una descripción clara para que el huésped entienda el alojamiento."
+											`Agrega una descripción clara para que el viajero entienda ${vertical.labels.singular === "alojamiento" ? "el alojamiento" : `este ${vertical.labels.singular}`}.`
 									}
 								</p>
 							</div>
@@ -442,7 +568,7 @@ try {
 										</ul>
 									) : (
 										<p class="mt-2 text-sm text-slate-500">
-											Agrega al menos un destacado visible para huéspedes.
+											Agrega al menos un destacado visible para viajeros.
 										</p>
 									)
 								}
@@ -513,6 +639,166 @@ try {
 		}
 
 		{
+			isTour ? (
+				<section class="space-y-4">
+					<header class="flex flex-wrap items-end justify-between gap-3">
+						<div class="space-y-1">
+							<h2 class="text-lg font-semibold text-slate-100">La experiencia</h2>
+							<p class="text-sm leading-6 text-slate-400">
+								Itinerario, punto de encuentro y modalidades que verá el participante.
+							</p>
+						</div>
+						<div class="flex flex-wrap gap-2">
+							<Button
+								href={`/product/${encodeURIComponent(productId)}/tickets`}
+								variant="secondary"
+								size="sm"
+							>
+								Editar modalidades
+							</Button>
+							<Button
+								href={`/product/${encodeURIComponent(productId)}/departures`}
+								variant="secondary"
+								size="sm"
+							>
+								Editar salidas
+							</Button>
+						</div>
+					</header>
+					<Card className="bg-white text-slate-800">
+						<div class="grid gap-4 md:grid-cols-4">
+							<div>
+								<p class="text-sm font-semibold text-slate-900">Duración</p>
+								<p class="mt-1 text-sm text-slate-600">
+									{aggregate.subtype?.kind === "tour" && aggregate.subtype.duration
+										? String(aggregate.subtype.duration)
+										: "Pendiente de definir"}
+								</p>
+							</div>
+							<div>
+								<p class="text-sm font-semibold text-slate-900">Punto de encuentro</p>
+								<p class="mt-1 text-sm text-slate-600">
+									{aggregate.subtype?.kind === "tour" && aggregate.subtype.meetingPoint
+										? String(aggregate.subtype.meetingPoint)
+										: "Pendiente de definir"}
+								</p>
+							</div>
+							<div>
+								<p class="text-sm font-semibold text-slate-900">Dificultad</p>
+								<p class="mt-1 text-sm text-slate-600">
+									{String((tourSubtype as any)?.difficultyLevel ?? "Pendiente de definir")}
+								</p>
+							</div>
+							<div>
+								<p class="text-sm font-semibold text-slate-900">Itinerario</p>
+								<p class="mt-1 text-sm text-slate-600">
+									{tourItineraryItems.length
+										? `${tourItineraryItems.length} actividades`
+										: "Pendiente de definir"}
+								</p>
+							</div>
+						</div>
+						{tourItineraryItems.length ? (
+							<ol class="mt-5 space-y-2">
+								{tourItineraryItems.map((item, index) => (
+									<li class="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+										<span class="mr-2 font-semibold text-slate-900">{index + 1}.</span>
+										{item}
+									</li>
+								))}
+							</ol>
+						) : null}
+						<div class="mt-5 grid gap-4 md:grid-cols-2">
+							<div>
+								<p class="text-sm font-semibold text-slate-900">Incluye</p>
+								<p class="mt-1 text-sm text-slate-600">
+									{tourIncludes.length ? tourIncludes.join(" · ") : "Pendiente de definir"}
+								</p>
+							</div>
+							<div>
+								<p class="text-sm font-semibold text-slate-900">No incluye</p>
+								<p class="mt-1 text-sm text-slate-600">
+									{tourExcludes.length ? tourExcludes.join(" · ") : "Sin exclusiones informadas"}
+								</p>
+							</div>
+						</div>
+					</Card>
+					<Card className="bg-white text-slate-800">
+						<div class="grid gap-4 md:grid-cols-4">
+							<div>
+								<p class="text-sm font-semibold text-slate-900">Participantes</p>
+								<p class="mt-1 text-sm text-slate-600">
+									{tourTickets.length
+										? tourTickets.map((ticket) => ticket.label).join(" · ")
+										: "Pendiente de definir"}
+								</p>
+							</div>
+							<div>
+								<p class="text-sm font-semibold text-slate-900">Modalidades activas</p>
+								<p class="mt-1 text-sm text-slate-600">
+									{tourSlots.length
+										? tourSlots.map((slot) => `${slot.name} · ${slot.time}`).join(" · ")
+										: "Pendiente de definir"}
+								</p>
+							</div>
+							<div>
+								<p class="text-sm font-semibold text-slate-900">Próxima fecha disponible</p>
+								<p class="mt-1 text-sm text-slate-600">
+									{nextTourInventory?.date
+										? `${nextTourInventory.date} · ${Number(nextTourInventory.totalInventory) - Number(nextTourInventory.reservedCount)} cupos`
+										: "Pendiente de definir"}
+								</p>
+							</div>
+							<div>
+								<p class="text-sm font-semibold text-slate-900">Precio desde</p>
+								<p class="mt-1 text-sm text-slate-600">
+									{tourStartingPrice
+										? new Intl.NumberFormat("es-BO", {
+												style: "currency",
+												currency: String(tourStartingPrice.currency || "USD"),
+											}).format(Number(tourStartingPrice.amount))
+										: "Pendiente de definir"}
+								</p>
+							</div>
+						</div>
+					</Card>
+					<div class="grid gap-4 md:grid-cols-2">
+						<Card className="bg-white text-slate-800">
+							<p class="text-sm font-semibold text-slate-900">Preguntas antes de reservar</p>
+							{tourBookingQuestions.length ? (
+								<ul class="mt-3 space-y-2 text-sm text-slate-700">
+									{tourBookingQuestions.map((question: any) => (
+										<li class="rounded-lg bg-slate-50 px-3 py-2">{String(question.label)}</li>
+									))}
+								</ul>
+							) : (
+								<p class="mt-2 text-sm text-slate-500">
+									No se solicitarán datos adicionales al viajero.
+								</p>
+							)}
+						</Card>
+						<Card className="bg-white text-slate-800">
+							<p class="text-sm font-semibold text-slate-900">Cumplimiento operativo</p>
+							<p class="mt-2 text-sm leading-6 text-slate-600">
+								Seguro de responsabilidad:{" "}
+								{verifiedTourCompliance.has("insurance") ? "verificado" : "no verificado"}
+								<br />
+								Licencia de operación:{" "}
+								{verifiedTourCompliance.has("operating_license") ? "verificada" : "no verificada"}
+							</p>
+							<a
+								href={routes.providerSettingsVerificationDocuments()}
+								class="mt-3 inline-flex text-sm font-semibold text-sky-800 underline"
+							>
+								Gestionar documentos
+							</a>
+						</Card>
+					</div>
+				</section>
+			) : null
+		}
+
+		{
 			vertical.vertical === "package" ? (
 				<section class="space-y-4">
 					<header class="space-y-1">
@@ -558,7 +844,9 @@ try {
 		<section class="space-y-4">
 			<header class="flex flex-wrap items-end justify-between gap-3">
 				<div class="space-y-1">
-					<h2 class="text-lg font-semibold text-slate-100">Condiciones que verá el huésped</h2>
+					<h2 class="text-lg font-semibold text-slate-100">
+						{isHotel ? "Condiciones que verá el huésped" : "Condiciones que verá el viajero"}
+					</h2>
 					<p class="text-sm leading-6 text-slate-400">
 						Resumen visible de cancelación, pago, no presentación y llegada.
 					</p>
@@ -662,6 +950,7 @@ try {
 
 	<script
 		is:inline
+		data-astro-rerun
 		define:vars={{
 			productId,
 			productPublishedHref: `${routes.productDetail(productId)}?published=1`,
@@ -676,6 +965,16 @@ try {
 				for (const button of publishButtons) {
 					button.disabled = disabled
 				}
+			}
+			const tourErrorMessages = {
+				missing_tour_images: "Agrega al menos 5 fotos de la experiencia.",
+				missing_tour_itinerary: "Completa al menos 3 actividades del itinerario.",
+				missing_tour_meeting_point: "Define el punto e instrucciones de encuentro.",
+				missing_tour_duration: "Define la duración total del tour.",
+				missing_tour_includes: "Indica al menos un servicio incluido.",
+				missing_tour_category: "Selecciona una categoría de discovery.",
+				missing_tour_tickets: "Crea al menos un tipo de participante activo.",
+				missing_tour_schedule: "Configura una salida futura con precio y cupo.",
 			}
 
 			const publish = async () => {
@@ -697,10 +996,12 @@ try {
 					if (!evaluateResponse.ok || evaluatePayload.state !== "ready") {
 						const errors = Array.isArray(evaluatePayload.validationErrors)
 							? evaluatePayload.validationErrors
-									.map((item) => String(item?.message || item?.code || ""))
+									.map((item) =>
+										String(tourErrorMessages[item?.code] || item?.message || item?.code || "")
+									)
 									.filter(Boolean)
 									.join("\n")
-							: String(evaluatePayload.error || "No se pudo validar el alojamiento.")
+							: String(evaluatePayload.error || "No se pudo validar la oferta.")
 						if (feedback)
 							feedback.textContent = errors || "Completa los requisitos antes de publicar."
 						setDisabled(false)
@@ -718,7 +1019,7 @@ try {
 									.map((item) => String(item?.message || item?.code || ""))
 									.filter(Boolean)
 									.join("\n")
-							: String(publishPayload.error || "No se pudo publicar el alojamiento.")
+							: String(publishPayload.error || "No se pudo publicar la oferta.")
 						if (feedback) feedback.textContent = errors
 						setDisabled(false)
 						return

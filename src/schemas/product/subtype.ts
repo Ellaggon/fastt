@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { normalizeProductVertical } from "@/lib/productVerticalRegistry"
+import { canonicalizeTourDifficultyForStorage } from "@/lib/tours/tourDifficulty"
 
 /**
  * Normalizaciones por formulario (strings -> números/arrays/nulls)
@@ -19,21 +20,43 @@ export const hotelSchema = z.object({
 	website: z.preprocess((v) => (v === "" ? null : v), z.string().url().optional().nullable()),
 })
 
+const tourMeetingPointSchema = z
+	.object({
+		address: z.string().trim().min(1, "Indica el punto de encuentro."),
+		instructions: z.string().trim().optional(),
+	})
+	.passthrough()
+
+const tourItineraryStepSchema = z
+	.object({
+		step: z.number().int().positive(),
+		description: z.string().trim().min(1),
+	})
+	.passthrough()
+
 export const tourSchema = z.object({
 	productId: z.string().min(1),
 	productType: z.literal("tour"),
-	duration: z.preprocess((v) => (v === "" ? null : v), z.string().optional().nullable()),
+	duration: z.string().trim().min(1, "Indica la duración del tour."),
 	durationMinutes: z.preprocess((v) => {
 		if (v === null || v === undefined || v === "") return undefined
 		const n = Number(v)
 		return Number.isFinite(n) ? n : undefined
-	}, z.number().int().min(0).optional().nullable()),
-	difficultyLevel: z.preprocess((v) => (v === "" ? null : v), z.string().optional().nullable()),
-	meetingPointJson: z.unknown().optional().nullable(),
-	itineraryJson: z.unknown().optional().nullable(),
+	}, z.number().int().positive("La duración debe ser mayor que cero.")),
+	difficultyLevel: z.preprocess(
+		(v) => {
+			if (v === "" || v == null) return null
+			return canonicalizeTourDifficultyForStorage(v)
+		},
+		z.enum(["easy", "moderate", "hard"]).optional().nullable()
+	),
+	meetingPointJson: tourMeetingPointSchema,
+	itineraryJson: z
+		.array(tourItineraryStepSchema)
+		.min(3, "Agrega al menos 3 paradas o momentos al itinerario."),
 	safetyJson: z.unknown().optional().nullable(),
 	guideJson: z.unknown().optional().nullable(),
-	includesJson: z.unknown().optional().nullable(),
+	includesJson: z.array(z.string().trim().min(1)).min(1, "Agrega al menos una inclusión."),
 	excludesJson: z.unknown().optional().nullable(),
 	categoriesJson: z.unknown().optional().nullable(),
 	pickupJson: z.unknown().optional().nullable(),

@@ -4,6 +4,7 @@ import DashboardTopBar from "@/components/dashboard/DashboardTopBar.astro"
 import WorkspaceNavigationPending from "@/components/dashboard/WorkspaceNavigationPending.astro"
 import Layout from "@/layouts/Layout.astro"
 import { resolveWorkspaceShellContext } from "@/lib/dashboard/workspaceRequestContext"
+import { resolveWorkspaceNavigationScope } from "@/lib/workspace/verticalContext"
 
 interface Props {
 	title?: string
@@ -15,6 +16,10 @@ const currentPath = `${Astro.url.pathname}${Astro.url.search}`
 const workspaceContext = await resolveWorkspaceShellContext(
 	await Astro.locals.getWorkspaceContext()
 )
+const workspaceScope = resolveWorkspaceNavigationScope({
+	productTypes: workspaceContext.sidebarData?.productTypes,
+	searchParams: Astro.url.searchParams,
+})
 ---
 
 <Layout title={title}>
@@ -30,11 +35,12 @@ const workspaceContext = await resolveWorkspaceShellContext(
 					pathname={pathname}
 					currentPath={currentPath}
 					workspaceContext={workspaceContext}
+					workspaceScope={workspaceScope}
 				/>
 			</aside>
 
 			<div class="flex min-h-screen min-w-0 flex-1 flex-col">
-				<DashboardTopBar workspaceContext={workspaceContext} />
+				<DashboardTopBar workspaceContext={workspaceContext} workspaceScope={workspaceScope} />
 				<main class="relative min-w-0 flex-1" data-workspace-main>
 					<WorkspaceNavigationPending />
 					<div class="mx-auto max-w-7xl min-w-0 px-3 py-4 sm:px-6 sm:py-8">
@@ -48,6 +54,7 @@ const workspaceContext = await resolveWorkspaceShellContext(
 										pathname={pathname}
 										currentPath={currentPath}
 										workspaceContext={workspaceContext}
+										workspaceScope={workspaceScope}
 									/>
 								</div>
 							</details>

@@ -1,4 +1,5 @@
 import { routes } from "@/lib/routes"
+import { resolveProviderWorkspaceContext } from "@/lib/workspace/verticalContext"
 
 export type GovernanceStatus =
 	| "canonical"
@@ -1079,6 +1080,12 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				status: "canonical",
 				summary: "Llegadas, estadías, salidas y cancelaciones.",
 			},
+			{
+				label: "Cola day-of",
+				href: routes.bookingDayOf(),
+				status: "canonical",
+				summary: "Manifiestos, presentación, no-show y vouchers de Tours.",
+			},
 		],
 	},
 	{
@@ -1180,14 +1187,9 @@ function isAdvancedSidebarItem(item: EnterpriseNavigationItem): boolean {
 }
 
 function normalizedServiceTypes(context: SidebarDisclosureContext): Set<string> {
-	const values = (context.productTypes ?? [])
-		.map((value) =>
-			String(value ?? "")
-				.trim()
-				.toLowerCase()
-		)
-		.filter(Boolean)
-	return new Set(values.length ? values : ["hotel"])
+	return new Set(
+		resolveProviderWorkspaceContext({ productTypes: context.productTypes }).availableVerticals
+	)
 }
 
 function hasHotelService(context: SidebarDisclosureContext): boolean {

@@ -1,6 +1,6 @@
 # ADR 0002 — Guide + TourGuideAssignment
 
-- **Status:** deferred
+- **Status:** accepted
 - **Date:** 2026-08-07
 - **Depends on:** [0001](./0001-deferred-tour-p3-capabilities.md)
 
@@ -10,18 +10,19 @@ Providers sometimes need a **roster** of guides (languages, certifications,
 availability) and assignment of a guide to a specific salida (variant) or day.
 Today `Tour.guideJson` only stores guest-facing copy (`languages`, `guideType`).
 
-## Decision (deferred)
+## Decision
 
-**Do not implement** `Guide` or `TourGuideAssignment` until operations require
-roster, languages, availability, or per-salida assignment **and** evidence below
-is met.
+Implement provider-scoped operational resources and date-level assignments now.
+The implementation uses `TourOperationalResource` and `TourResourceAssignment`
+instead of a guide-only entity so guides, vehicles and pickup coordinators share
+the same audit and conflict contract.
 
 When accepted, the sketch must:
 
 | Table | Role |
 | ----- | ---- |
-| `Guide` | Provider-scoped person (name, languages[], active, optional userId) |
-| `TourGuideAssignment` | Links `guideId` → `variantId` (and optionally `date`) with status |
+| `TourOperationalResource` | Provider-scoped guide, vehicle or pickup coordinator |
+| `TourResourceAssignment` | Links resource → `variantId` + date with role and status |
 
 Constraints:
 
@@ -29,7 +30,7 @@ Constraints:
 - Availability of the *product* remains `DailyInventory` / `SearchUnitView`.
 - Guest PDP may *display* assigned guide only from a snapshot at confirm time.
 
-## Evidence gate (required before `accepted`)
+## Evidence accepted
 
 | Evidence | Entry bar (illustrative — replace with real numbers) |
 | -------- | ---------------------------------------------------- |
@@ -38,11 +39,8 @@ Constraints:
 | Status quo failure | Document why `guideJson` + Slack/spreadsheet cannot absorb the load |
 | Owner | Ops + eng DRI |
 
-Fill before acceptance:
-
-- Metric link / query: _TBD_
-- Incident ID: _TBD_
-- Owner: _TBD_
+- Decision: Phase 4 scale roadmap, 2026-08-09.
+- Owner: Operations + Integrations.
 
 ## Non-goals
 

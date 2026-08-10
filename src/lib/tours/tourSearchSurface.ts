@@ -7,6 +7,11 @@
  * Filters (level/duration) run in SQL before any row cap; price band after
  * per-product min price; card `limit` only after sort.
  */
+import {
+	normalizeTourDifficulty,
+	tourDifficultyLabel,
+	tourDifficultyMatchValues,
+} from "@/lib/tours/tourDifficulty"
 import { durationMinutesMatchesBucket, tourDepartureToStay } from "@/lib/tours/tourSemantics"
 import {
 	filterTourSearchCardsForCanary,
@@ -62,6 +67,8 @@ export type TourSearchCard = {
 	availableSlots: number
 }
 
+export type TourSearchAvailability = "ready" | "disabled" | "empty" | "error"
+
 export type TourSearchSurfaceResult = {
 	cards: TourSearchCard[]
 	meta: {
@@ -69,6 +76,8 @@ export type TourSearchSurfaceResult = {
 		occupancyKey: string
 		departureDate: string
 		pricingSource: "materialized_search_view"
+		/** Distinguishes kill-switch/canary off from commercial zero results. */
+		availability: TourSearchAvailability
 	}
 }
 
@@ -154,6 +163,7 @@ export async function getTourSearchSurface(params: {
 				occupancyKey: buildOccupancyKey(TOUR_DISCOVERY_OCCUPANCY),
 				departureDate,
 				pricingSource: "materialized_search_view",
+				availability: outcome === "disabled" ? "disabled" : "empty",
 			},
 		}
 	}
@@ -182,6 +192,7 @@ export async function getTourSearchSurface(params: {
 				occupancyKey: buildOccupancyKey(TOUR_DISCOVERY_OCCUPANCY),
 				departureDate,
 				pricingSource: "materialized_search_view",
+				availability: "error",
 			},
 		}
 	}
@@ -212,9 +223,7 @@ async function loadTourSearchSurfaceCards(params: {
 	const categorySlugs = (params.categorySlugs ?? [])
 		.map((s) => s.trim().toLowerCase())
 		.filter(Boolean)
-	const level = String(params.level ?? "")
-		.trim()
-		.toLowerCase()
+	const levelCanonical = normalizeTourDifficulty(params.level)
 
 	let categoryProductIds: string[] | null = null
 	if (categorySlugs.length > 0) {
@@ -268,8 +277,14 @@ async function loadTourSearchSurfaceCards(params: {
 		whereParts.push(inArray(Product.id, categoryProductIds))
 	}
 
-	if (level) {
-		whereParts.push(sql`lower(${Tour.difficultyLevel}) = ${level}`)
+	if (levelCanonical) {
+		const matchValues = tourDifficultyMatchValues(levelCanonical)
+		whereParts.push(
+			sql`lower(${Tour.difficultyLevel}) in (${sql.join(
+				matchValues.map((value) => sql`${value}`),
+				sql`, `
+			)})`
+		)
 	}
 
 	const durationClause = durationBucketSql(params.durationBucket)
@@ -349,7 +364,8 @@ async function loadTourSearchSurfaceCards(params: {
 					imageUrl: row.imageUrl == null ? null : String(row.imageUrl),
 					duration: row.duration == null ? null : String(row.duration),
 					durationMinutes: row.durationMinutes == null ? null : Number(row.durationMinutes) || null,
-					difficultyLevel: row.difficultyLevel == null ? null : String(row.difficultyLevel),
+					difficultyLevel:
+						row.difficultyLevel == null ? null : tourDifficultyLabel(row.difficultyLevel),
 					fromPrice: price,
 					currency,
 					variantId,
@@ -461,6 +477,7 @@ async function loadTourSearchSurfaceCards(params: {
 			occupancyKey,
 			departureDate,
 			pricingSource: "materialized_search_view",
+			availability: sliced.length === 0 ? "empty" : "ready",
 		},
 	}
 }

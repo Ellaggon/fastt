@@ -46,6 +46,10 @@ const detailTitle =
 			: vertical.vertical === "package"
 				? "Ficha del paquete"
 				: `Ficha de ${vertical.labels.singular}`
+const productHeaderSummary =
+	vertical.vertical === "hotel"
+		? "Administra la información pública, habitaciones y reglas de este alojamiento. Las tarifas y el calendario se gestionan desde Venta."
+		: vertical.contextLine
 
 const operationalSurface = await timing.time("productOperationalSurface", () =>
 	getProductOperationalSurface({
@@ -60,13 +64,16 @@ const status = String(operationalSurface?.status || "draft")
 	.toLowerCase()
 
 const readiness = operationalSurface?.readiness ?? null
+const requiredPreparationSections = vertical.readiness.requiredSections.length
 const publishState =
 	status !== "published" && readiness
 		? {
 				readyToPublish: readiness.readyToPublish,
 				readinessPercent: readiness.readinessPercent,
-				completedChecks: Math.round((readiness.readinessPercent / 100) * 6),
-				totalChecks: 6,
+				completedChecks: Math.round(
+					(readiness.readinessPercent / 100) * requiredPreparationSections
+				),
+				totalChecks: requiredPreparationSections,
 			}
 		: null
 const completePreparationHref =
@@ -113,8 +120,7 @@ logRoutePerformance({
 					id="productHeaderSummary"
 					class="hidden max-w-2xl text-sm leading-6 text-slate-400 sm:block"
 				>
-					Administra la información pública, habitaciones y reglas de este alojamiento. Las tarifas
-					y el calendario se gestionan desde Venta.
+					{productHeaderSummary}
 				</p>
 			</div>
 			<div class="flex flex-wrap items-center justify-end gap-2">
@@ -140,10 +146,12 @@ logRoutePerformance({
 								<CircleCheck class="h-5 w-5" aria-hidden="true" />
 							</div>
 							<div class="space-y-1">
-								<p class="text-sm font-semibold text-slate-950">Alojamiento publicado</p>
+								<p class="text-sm font-semibold text-slate-950">
+									{vertical.labels.workspaceSingular} publicado
+								</p>
 								<p class="max-w-2xl text-sm leading-6 text-slate-600">
-									Ya está activo para huéspedes. Desde aquí puedes seguir gestionando habitaciones,
-									tarifas y disponibilidad diaria.
+									Ya está activo para viajeros. Desde aquí puedes seguir gestionando su ficha,
+									tarifas y disponibilidad.
 								</p>
 							</div>
 						</div>

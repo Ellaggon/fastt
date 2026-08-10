@@ -1282,6 +1282,80 @@ export const TourSlotProfile = pgTable(
 	]
 )
 
+/**
+ * Date-specific operational metadata for a reusable tour_slot. Sellability remains
+ * exclusively in DailyInventory; this row never owns capacity or pricing.
+ */
+export const TourDepartureInstance = pgTable(
+	"TourDepartureInstance",
+	{
+		id: pk(),
+		providerId: txt("providerId").references(() => Provider.id),
+		variantId: txt("variantId").references(() => Variant.id),
+		date: day("date"),
+		departureTimeOverride: txtOpt("departureTimeOverride"),
+		meetingPointOverrideJson: jsonb("meetingPointOverrideJson"),
+		notes: txtOpt("notes"),
+		isCancelled: boolDefault("isCancelled", false),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		uniqueIndex("TourDepartureInstance_variant_date_unique").on(table.variantId, table.date),
+		index("TourDepartureInstance_provider_date_idx").on(table.providerId, table.date),
+	]
+)
+
+/** Provider-owned operational resources. They are not inventory and cannot be sold. */
+export const TourOperationalResource = pgTable(
+	"TourOperationalResource",
+	{
+		id: pk(),
+		providerId: txt("providerId").references(() => Provider.id),
+		userId: txtOpt("userId").references(() => User.id),
+		type: txt("type"), // guide | vehicle | pickup_coordinator
+		name: txt("name"),
+		status: text("status").default("active").notNull(),
+		languagesJson: jsonb("languagesJson"),
+		capacity: intOpt("capacity"),
+		credentialsJson: jsonb("credentialsJson"),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		index("TourOperationalResource_provider_type_status_idx").on(
+			table.providerId,
+			table.type,
+			table.status
+		),
+	]
+)
+
+/** Effective resource assignment at the variant + date operational grain. */
+export const TourResourceAssignment = pgTable(
+	"TourResourceAssignment",
+	{
+		id: pk(),
+		providerId: txt("providerId").references(() => Provider.id),
+		variantId: txt("variantId").references(() => Variant.id),
+		date: day("date"),
+		resourceId: txt("resourceId").references(() => TourOperationalResource.id),
+		role: txt("role"), // lead_guide | vehicle | pickup
+		status: text("status").default("assigned").notNull(),
+		assignedBy: txtOpt("assignedBy").references(() => User.id),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		uniqueIndex("TourResourceAssignment_variant_date_role_unique").on(
+			table.variantId,
+			table.date,
+			table.role
+		),
+		uniqueIndex("TourResourceAssignment_resource_date_unique").on(table.resourceId, table.date),
+	]
+)
+
 /** Age-band / ticket types for a tour product (Viator-style adult|child|infant|custom). */
 export const TourTicketType = pgTable(
 	"TourTicketType",
@@ -1305,6 +1379,22 @@ export const TourTicketType = pgTable(
 			sql`${table.code} in ('adult', 'child', 'infant', 'custom')`
 		),
 	]
+)
+
+/** Questions collected from the lead traveler before confirming a Tour booking. */
+export const TourBookingQuestion = pgTable(
+	"TourBookingQuestion",
+	{
+		id: pk(),
+		productId: txt("productId").references(() => Product.id),
+		code: txt("code"),
+		label: txt("label"),
+		isRequired: boolDefault("isRequired", false),
+		sortOrder: intDefault("sortOrder", 0),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [index("TourBookingQuestion_product_sort_idx").on(table.productId, table.sortOrder)]
 )
 
 export const VariantRoomBed = pgTable(

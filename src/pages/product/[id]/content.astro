@@ -36,6 +36,7 @@ if (!aggregate) return Astro.redirect("/product/create")
 
 const vertical = getProductVerticalEntry(aggregate.productType)
 const isHotel = vertical.vertical === "hotel"
+const isTour = vertical.vertical === "tour"
 const playbookResolved = resolvePlaybookFromUrl(Astro.url, { isHotel })
 const descriptionValue = aggregate.content.description ?? ""
 
@@ -47,7 +48,7 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 ---
 
 <PlaybookLayout
-	title="Alojamientos · Descripción"
+	title={`${vertical.labels.workspacePlural} · Descripción`}
 	playbookId={playbookResolved.playbookId}
 	active={playbookResolved.active}
 	stepId={playbookResolved.stepId ?? "content"}
@@ -59,7 +60,11 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 			<header class="space-y-1">
 				<h1 class="text-3xl font-semibold text-slate-100">Contenido</h1>
 				<p class="max-w-3xl text-sm leading-6 text-slate-400">
-					Define la narrativa visible de esta oferta: descripción y destacados.
+					{
+						isTour
+							? "Cuenta qué vivirá el viajero y qué hace especial este tour."
+							: "Define la narrativa visible de esta oferta: descripción y destacados."
+					}
 				</p>
 			</header>
 
@@ -85,7 +90,11 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 						<div class="space-y-1">
 							<h2 class="text-xl font-semibold text-slate-900">Contenido principal</h2>
 							<p class="text-sm text-slate-600">
-								Este bloque define la información visible de {vertical.labels.singular}.
+								{
+									isTour
+										? "Describe la experiencia para que el viajero pueda decidir si este tour es para él. El itinerario y el punto de encuentro se completan más adelante."
+										: `Este bloque define la información visible de ${vertical.labels.singular}.`
+								}
 							</p>
 						</div>
 
@@ -96,7 +105,10 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 								value={descriptionValue}
 								rows="5"
 								required
-								placeholder="Describe la oferta con claridad para el viajero."
+								placeholder={isTour
+									? "Explica el recorrido, el ambiente y para quién está pensado."
+									: "Describe la oferta con claridad para el viajero."}
+								aria-describedby="descriptionGuidance descriptionError"
 							/>
 							{
 								isHotel ? (
@@ -104,6 +116,14 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 										Describe la experiencia del alojamiento. Las normas, horarios, mascotas y
 										condiciones de estadía se completan más adelante en su propio paso del
 										asistente.
+									</p>
+								) : null
+							}
+							{
+								isTour ? (
+									<p id="descriptionGuidance" class="text-sm leading-6 text-slate-500">
+										Enfócate en la experiencia. Evita repetir horarios, inclusiones o instrucciones
+										logísticas.
 									</p>
 								) : null
 							}
@@ -117,13 +137,24 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 								value={highlightsValue}
 								rows="4"
 								required
-								placeholder={"Ubicación céntrica\nDesayuno incluido"}
+								placeholder={isTour
+									? "Mirador al amanecer\nGuía local experto\nGrupo reducido"
+									: "Ubicación céntrica\nDesayuno incluido"}
 							/>
+							{
+								isTour ? (
+									<p class="text-sm leading-6 text-slate-500">
+										Escribe beneficios concretos y fáciles de escanear, uno por línea.
+									</p>
+								) : null
+							}
 						</FormField>
 					</div>
 
 					<div class="space-y-1">
-						<p id="stateLabel" class="text-sm text-slate-600">Vacío: sin cambios guardados.</p>
+						<p id="stateLabel" class="text-sm text-slate-600" aria-live="polite">
+							Vacío: sin cambios guardados.
+						</p>
 						<p id="stateDetail" class="whitespace-pre-wrap text-sm text-slate-600"></p>
 					</div>
 
@@ -181,12 +212,14 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 			setState("loading")
 			descriptionError?.classList.add("hidden")
 			descriptionError.textContent = ""
+			descriptionInput?.removeAttribute("aria-invalid")
 
 			const description = String(descriptionInput?.value || "").trim()
 			if (!description) {
 				setState("empty")
 				descriptionError.textContent = "La descripción es obligatoria."
 				descriptionError?.classList.remove("hidden")
+				descriptionInput?.setAttribute("aria-invalid", "true")
 				descriptionInput?.focus()
 				return
 			}

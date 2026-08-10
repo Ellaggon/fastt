@@ -5,6 +5,7 @@ import TourDepartureSection from "@/components/tours/TourDepartureSection.astro"
 import { SERVICE_CATALOG } from "@/data/service/service-catalog"
 import { searchOffers } from "@/container"
 import Layout from "@/layouts/Layout.astro"
+import { tourDifficultyLabel } from "@/lib/tours/tourDifficulty"
 import { tourDepartureToStay } from "@/lib/tours/tourSemantics"
 import {
 	buildAgeBandPriceBreakdown,
@@ -524,7 +525,7 @@ const mapEmbed =
 							) : null}
 							{productData.subtype?.difficultyLevel ? (
 								<span class="rounded-md bg-slate-50 px-3 py-1 ring-1 ring-slate-200">
-									Nivel: {productData.subtype.difficultyLevel}
+									Nivel: {tourDifficultyLabel(productData.subtype.difficultyLevel)}
 								</span>
 							) : null}
 							{guideLanguages ? (

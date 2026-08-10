@@ -36,7 +36,7 @@ const rows = await db
 	})
 	.from(Product)
 	.leftJoin(Variant, eq(Variant.productId, Product.id))
-	.where(and(eq(Product.providerId, providerId), sql`lower(${Product.productType}) = 'hotel'`))
+	.where(eq(Product.providerId, providerId))
 
 const byProduct = new Map<
 	string,
@@ -52,14 +52,14 @@ for (const row of rows) {
 	const productId = String(row.productId)
 	const entry = byProduct.get(productId) ?? {
 		id: productId,
-		name: String(row.productName ?? "Alojamiento"),
+		name: String(row.productName ?? "Servicio"),
 		type: String(row.productType ?? "Hotel"),
 		rooms: [],
 	}
 	if (row.variantId) {
 		entry.rooms.push({
 			id: String(row.variantId),
-			name: String(row.variantName ?? "Habitación"),
+			name: String(row.variantName ?? "Modalidad"),
 			kind: String(row.variantKind ?? "hotel_room"),
 			active: Boolean(row.variantActive ?? true),
 		})
@@ -89,6 +89,9 @@ const activeRooms = products.reduce(
 	0
 )
 const inactiveRooms = Math.max(0, totalRooms - activeRooms)
+const hotelProducts = products.filter((product) => product.type.toLowerCase() === "hotel")
+const tourProducts = products.filter((product) => product.type.toLowerCase() === "tour")
+const tourDepartures = tourProducts.reduce((sum, product) => sum + product.rooms.length, 0)
 const isChoosingForAddRoom = addRoomPlaybook.active
 const Layout = addRoomPlaybook.active ? PlaybookLayout : WorkspaceLayout
 const layoutProps = addRoomPlaybook.active
@@ -165,29 +168,24 @@ function preparationSupport(
 						<div class="grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]">
 							<div class="space-y-5 p-6">
 								<div class="inline-flex h-11 w-11 items-center justify-center rounded-[var(--fastt-radius-card)] bg-slate-950 text-white">
-									<Hotel class="h-5 w-5" />
+									<Plus class="h-5 w-5" />
 								</div>
 								<div class="space-y-2">
-									<h2 class="text-2xl font-semibold text-slate-950">
-										Prepara tu primer alojamiento
-									</h2>
+									<h2 class="text-2xl font-semibold text-slate-950">Añade tu primer servicio</h2>
 									<p class="max-w-2xl text-sm leading-6 text-slate-600">
-										Crea un alojamiento para poder configurar habitaciones, tarifas y disponibilidad
-										desde las herramientas operativas.
+										Elige si quieres ofrecer alojamientos, tours, paquetes o traslados antes de
+										configurar su operación.
 									</p>
 								</div>
 							</div>
 							<aside class="border-t border-slate-200 bg-slate-50 p-6 lg:border-t-0 lg:border-l">
 								<div class="flex h-full flex-col justify-between gap-6">
 									<p class="text-sm leading-6 text-slate-600">
-										El asistente te llevará por la ficha, ubicación, fotos y primera habitación.
+										Cada servicio tiene un recorrido de preparación propio.
 									</p>
 									<div class="flex flex-col gap-2">
-										<Button
-											href="/product/create?playbook=launch&step=create&flow=create"
-											data-astro-prefetch
-										>
-											Preparar mi primer alojamiento
+										<Button href="/product/create" data-astro-prefetch>
+											Añadir servicio
 										</Button>
 									</div>
 								</div>
@@ -198,20 +196,20 @@ function preparationSupport(
 					<>
 						<div class="grid gap-3 sm:grid-cols-3">
 							<div class="rounded-[var(--fastt-radius-card)] bg-slate-900 p-4 text-slate-100 ring-1 ring-slate-800">
-								<p class="text-xs font-medium text-slate-400">Alojamientos</p>
+								<p class="text-xs font-medium text-slate-400">Servicios</p>
 								<p class="mt-1 text-2xl font-semibold">{products.length}</p>
 							</div>
 							<div class="rounded-[var(--fastt-radius-card)] bg-slate-900 p-4 text-slate-100 ring-1 ring-slate-800">
-								<p class="text-xs font-medium text-slate-400">Habitaciones</p>
-								<p class="mt-1 text-2xl font-semibold">{totalRooms}</p>
+								<p class="text-xs font-medium text-slate-400">Hotel</p>
+								<p class="mt-1 text-2xl font-semibold">{hotelProducts.length}</p>
 							</div>
 							<div class="rounded-[var(--fastt-radius-card)] bg-slate-900 p-4 text-slate-100 ring-1 ring-slate-800">
-								<p class="text-xs font-medium text-slate-400">Activas</p>
+								<p class="text-xs font-medium text-slate-400">Tours</p>
 								<p class="mt-1 text-2xl font-semibold">
-									{activeRooms}
+									{tourProducts.length}
 									<span class="text-sm font-medium text-slate-400">
 										{" "}
-										· {inactiveRooms} inactivas
+										· {tourDepartures} salidas
 									</span>
 								</p>
 							</div>
@@ -219,16 +217,23 @@ function preparationSupport(
 
 						<div class="grid gap-4">
 							{products.map((product) => {
+								const isTour = product.type.toLowerCase() === "tour"
+								const variantLabel = isTour ? "salida" : "habitación"
+								const variantsLabel = isTour ? "salidas" : "habitaciones"
 								const activeCount = product.rooms.filter((room) => room.active).length
 								const inactiveCount = Math.max(0, product.rooms.length - activeCount)
-								const primaryHref = isChoosingForAddRoom
-									? buildAddRoomHref(routes.productRoomNew(product.id), "create-room")
-									: routes.productRoomsForProduct(product.id)
+								const primaryHref = isTour
+									? routes.productDeparturesForProduct(product.id)
+									: isChoosingForAddRoom
+										? buildAddRoomHref(routes.productRoomNew(product.id), "create-room")
+										: routes.productRoomsForProduct(product.id)
 								const primaryLabel = isChoosingForAddRoom
 									? "Crear habitación"
-									: product.rooms.length === 0
-										? "Crear primera habitación"
-										: "Abrir habitaciones"
+									: isTour
+										? "Abrir salidas"
+										: product.rooms.length === 0
+											? "Crear primera habitación"
+											: "Abrir habitaciones"
 								const accommodationHref = routes.productDetail(product.id)
 								const preparation = preparationByProduct.get(product.id)
 								const hasPreparationPending =
@@ -268,12 +273,12 @@ function preparationSupport(
 													<div class="space-y-1">
 														<p class="flex items-center gap-2 text-xs font-semibold tracking-wide text-slate-500 uppercase">
 															<Hotel class="h-4 w-4" />
-															Alojamiento
+															{isTour ? "Tour" : "Alojamiento"}
 														</p>
 														<h2 class="text-xl font-semibold text-slate-950">{product.name}</h2>
 														<p class="text-sm text-slate-600">
-															{product.rooms.length} habitación
-															{product.rooms.length === 1 ? "" : "es"} · {activeCount} activa
+															{product.rooms.length} {variantLabel}
+															{product.rooms.length === 1 ? "" : "s"} · {activeCount} activa
 															{activeCount === 1 ? "" : "s"}
 														</p>
 													</div>

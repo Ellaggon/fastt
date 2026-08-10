@@ -8,6 +8,11 @@ import {
 	LAUNCH_PLAYBOOK_ID,
 	type LaunchStepId,
 } from "@/lib/playbook/launch-accommodation"
+import {
+	buildTourPlaybookHref,
+	LAUNCH_TOUR_PLAYBOOK_ID,
+	type TourLaunchStepId,
+} from "@/lib/playbook/launch-tour"
 import type { PlaybookId } from "@/lib/playbook/types"
 import { routes } from "@/lib/routes"
 
@@ -36,6 +41,7 @@ export function isPlaybookMode(formData: FormData): boolean {
 		flow === "complete" ||
 		playbook === LAUNCH_PLAYBOOK_ID ||
 		playbook === "launch-accommodation" ||
+		playbook === LAUNCH_TOUR_PLAYBOOK_ID ||
 		playbook === ADD_ROOM_PLAYBOOK_ID ||
 		playbook === COMPLETE_TO_PUBLISH_PLAYBOOK_ID ||
 		playbook === "complete"
@@ -52,8 +58,16 @@ export function isAddRoomPlaybookMode(formData: FormData): boolean {
 	return flow === "add-room" || playbook === ADD_ROOM_PLAYBOOK_ID
 }
 
-export function playbookRedirectHref(path: string, step: LaunchStepId): string {
-	return buildPlaybookHref(path, step)
+export function isTourLaunchPlaybookMode(formData: FormData): boolean {
+	return (
+		String(formData.get("playbook") ?? "")
+			.trim()
+			.toLowerCase() === LAUNCH_TOUR_PLAYBOOK_ID
+	)
+}
+
+export function playbookRedirectHref(path: string, step: LaunchStepId | TourLaunchStepId): string {
+	return buildPlaybookHref(path, step as LaunchStepId)
 }
 
 export function addRoomRedirectHref(path: string, step: AddRoomStepId): string {
@@ -67,7 +81,7 @@ export function completeToPublishRedirectHref(productId: string): string {
 export function playbookRedirectHrefFor(
 	playbookId: PlaybookId,
 	path: string,
-	step: LaunchStepId | AddRoomStepId,
+	step: LaunchStepId | TourLaunchStepId | AddRoomStepId,
 	productId?: string
 ): string {
 	if (playbookId === ADD_ROOM_PLAYBOOK_ID) {
@@ -75,6 +89,9 @@ export function playbookRedirectHrefFor(
 	}
 	if (playbookId === COMPLETE_TO_PUBLISH_PLAYBOOK_ID && productId) {
 		return completeToPublishRedirectHref(productId)
+	}
+	if (playbookId === LAUNCH_TOUR_PLAYBOOK_ID) {
+		return buildTourPlaybookHref(path, step as TourLaunchStepId)
 	}
 	return buildPlaybookHref(path, step as LaunchStepId)
 }
@@ -84,7 +101,7 @@ export function resolvePlaybookRedirectAfterSave(
 	options: {
 		productId: string
 		launchPath: string
-		launchStep: LaunchStepId
+		launchStep: LaunchStepId | TourLaunchStepId
 	}
 ): string {
 	if (!isPlaybookMode(formData)) {
@@ -95,6 +112,9 @@ export function resolvePlaybookRedirectAfterSave(
 	}
 	if (isAddRoomPlaybookMode(formData)) {
 		return addRoomRedirectHref(options.launchPath, options.launchStep as AddRoomStepId)
+	}
+	if (isTourLaunchPlaybookMode(formData)) {
+		return buildTourPlaybookHref(options.launchPath, options.launchStep as TourLaunchStepId)
 	}
 	return playbookRedirectHref(options.launchPath, options.launchStep)
 }
