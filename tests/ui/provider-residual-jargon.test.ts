@@ -46,7 +46,7 @@ describe("S3-1 residual product jargon cleaned", () => {
 			}
 		}
 
-		expect(visible[0]).toContain("Checklist de configuración")
+		expect(visible[0]).toContain("Pendientes")
 		expect(visible[0]).toContain("estado de tu cuenta")
 		expect(visible[1]).toContain("sus propias secciones")
 		expect(visible[2]).toContain("documentos mínimos")

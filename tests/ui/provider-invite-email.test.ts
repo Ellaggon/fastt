@@ -87,22 +87,20 @@ describe("S6-1 invite mail honesty", () => {
 		expect(parseInvitationMailStatus("nope")).toBeNull()
 	})
 
-	it("uses honest team notices and documents EMAIL_* env", () => {
+	it("keeps invitation copy concise and documents EMAIL_* env", () => {
 		const team = read("src/pages/provider/settings/team.astro")
 		const permissions = read("src/lib/provider-permissions.ts")
 		const envExample = read(".env.example")
 		const api = read("src/pages/api/provider/settings/invitations.ts")
 
 		expect(team).toContain("resolveInviteResultNotice")
-		expect(team).toContain("data-invite-mail-status")
-		expect(team).toContain("Invitación enviada por correo")
-		expect(team).toContain("correo no enviado")
-		expect(team).toContain("modo log")
+		expect(team).toContain("Invitación enviada")
+		expect(team).toContain("Invitación creada")
+		expect(team).toContain("dentro de 14 días")
 		expect(team).not.toContain("Enviamos el correo automáticamente")
-		expect(team).toContain("Si el envío de correo está configurado")
+		expect(team).toContain("Copiar enlace de aceptación")
 
-		expect(permissions).toContain("Si el correo está configurado")
-		expect(permissions).not.toContain("Fastt envía el correo con el enlace; también puedes compartirlo.")
+		expect(permissions).toContain('admin: "Gestiona el perfil y las integraciones')
 
 		expect(api).toContain('redirectToTeam(request, "invited", { mail: mailStatus })')
 		expect(api).toContain('redirectToTeam(request, "resent", { mail: mailStatus })')

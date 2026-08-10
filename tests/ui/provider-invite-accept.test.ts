@@ -57,9 +57,9 @@ describe("S4-1 invite accept tokenized lifecycle", () => {
 
 		expect(summary).toContain("acceptPath:")
 		expect(summary).toContain("ensureProviderInvitationToken")
-		expect(team).toContain("data-invite-accept-link")
-		expect(team).toContain("Enlace de aceptación")
-		expect(team).toContain("joined:")
+		expect(team).toContain("data-invite-accept-url")
+		expect(team).toContain("Copiar enlace de aceptación")
+		expect(team).toContain('resultKey === "joined"')
 		expect(team).toContain("Te uniste al equipo")
 	})
 })

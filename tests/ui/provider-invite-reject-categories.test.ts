@@ -84,7 +84,7 @@ describe("S3-3 invite live stepper + host reject categories", () => {
 		expect(rejected?.rejectCategoryLabel).toBe("Documento ilegible / incompleto")
 	})
 
-	it("wires team stepper/resend and host reject category UI", () => {
+	it("wires concise team invitation controls and host reject category UI", () => {
 		const team = read("src/pages/provider/settings/team.astro")
 		const api = read("src/pages/api/provider/settings/invitations.ts")
 		const stepper = read("src/components/provider/ProviderInviteLifecycleStepper.astro")
@@ -92,12 +92,12 @@ describe("S3-3 invite live stepper + host reject categories", () => {
 		const verification = read("src/components/provider/ProviderVerificationView.astro")
 		const adminLib = read("src/lib/provider-admin-compliance.ts")
 
-		expect(team).toContain("buildInviteLifecycleProgress")
-		expect(team).toContain("ProviderInviteLifecycleStepper")
-		expect(team).toContain("data-invite-resend")
+		expect(team).not.toContain("buildInviteLifecycleProgress")
+		expect(team).not.toContain("ProviderInviteLifecycleStepper")
+		expect(team).toContain("Invitaciones pendientes")
 		expect(team).toContain('value="resend"')
 		expect(team).toContain("<details")
-		expect(team).toContain("Ciclo de la invitación")
+		expect(team).toContain("Copiar enlace de aceptación")
 
 		expect(api).toContain('action === "resend"')
 		expect(api).toContain("provider.invitation.resend")

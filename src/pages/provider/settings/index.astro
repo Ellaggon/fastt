@@ -2,7 +2,6 @@
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
-import Notice from "@/components/ui/Notice.astro"
 import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
 import { getProviderSessionSurfaceFromRequest } from "@/lib/auth/providerSessionSurface"
 import { logRoutePerformance } from "@/lib/observability/performanceLog"
@@ -37,24 +36,7 @@ const capabilities = summary?.capabilities ?? {
 	payments: false,
 	integrations: false,
 }
-const counts = summary?.counts ?? {
-	documents: 0,
-	verifiedDocuments: 0,
-	paymentAccounts: 0,
-	verifiedPaymentAccounts: 0,
-	integrations: 0,
-	connectedIntegrations: 0,
-	auditEvents: 0,
-	teamMembers: 0,
-}
 const progressPercent = Number(summary?.progress?.progressPercent ?? 0)
-const progressLabel =
-	summary?.progress?.message ??
-	(blockers.length
-		? `${blockers.length} bloqueo${blockers.length === 1 ? "" : "s"} pendiente${blockers.length === 1 ? "" : "s"}.`
-		: "Configuración base lista.")
-const blockerCountLabel = `${blockers.length} ${blockers.length === 1 ? "bloqueo" : "bloqueos"}`
-const riskCountLabel = `${risks.length} ${risks.length === 1 ? "riesgo" : "riesgos"}`
 const providerName = String(
 	summary?.provider?.displayName || summary?.provider?.legalName || "Proveedor"
 )
@@ -64,11 +46,6 @@ const primaryCtaHref = String(
 const primaryCtaLabel = String(
 	summary?.actions?.primaryCtaLabel ||
 		(blockers[0]?.label ? `Continuar: ${blockers[0].label}` : "Continuar configuración")
-)
-const secondaryCtaHref = String(summary?.actions?.secondaryCtaAction || "#estado-cuenta")
-const secondaryCtaLabel = String(
-	summary?.actions?.secondaryCtaLabel ||
-		(blockers.length ? "Ver todas las áreas" : "Revisar estado de áreas")
 )
 const hasBlockers = blockers.length > 0
 const nextStepLabel = String(
@@ -83,32 +60,69 @@ const nextStepBody = String(
 const readiness = summary?.readiness ?? []
 const incompleteAreas = readiness.filter((item: { complete?: boolean }) => !item.complete)
 const completeAreas = readiness.filter((item: { complete?: boolean }) => item.complete)
-const highRisks = risks.filter((risk: { severity?: string }) => risk.severity === "high")
-const risksForArea = (item: { href?: string; capabilities?: string[] }) =>
-	risks.filter((risk: { href?: string; capabilities?: string[] }) => {
-		if (risk.href && item.href && risk.href === item.href) return true
-		const itemCapabilities = Array.isArray(item.capabilities) ? item.capabilities : []
-		const riskCapabilities = Array.isArray(risk.capabilities) ? risk.capabilities : []
-		return riskCapabilities.some((capability) => itemCapabilities.includes(capability))
-	})
-const riskBadgeVariant = (severity?: string) =>
-	severity === "high" ? "error" : severity === "medium" ? "warning" : "neutral"
-const riskBadgeLabel = (severity?: string) =>
-	severity === "high" ? "Alto" : severity === "medium" ? "Medio" : "Bajo"
-
-const professionalToolsEnabled = providerSession.professionalToolsEnabled
-const professionalToolsParam = String(Astro.url.searchParams.get("professionalTools") ?? "").trim()
-const professionalToolsSaved = professionalToolsParam === "saved"
-const professionalToolsError = professionalToolsParam === "error"
+const risksForArea = (item: { id?: string }) =>
+	risks.filter((risk: { areaId?: string }) => risk.areaId === item.id)
+const impactLabel = (item: { complete?: boolean; capabilities?: string[] }) => {
+	if (item.complete) return "Sin bloqueos directos"
+	const labels = (item.capabilities ?? [])
+		.map(
+			(capability) =>
+				({
+					publish: "publicación",
+					booking: "reservas",
+					payments: "cobros",
+					integrations: "integraciones",
+				})[capability]
+		)
+		.filter(Boolean)
+	return labels.length ? `Bloquea ${labels.join(", ")}` : "Requiere atención"
+}
+const primaryRiskForArea = (item: { id?: string }) =>
+	[...risksForArea(item)].sort((a, b) => {
+		const weights: Record<string, number> = { high: 0, medium: 1, low: 2 }
+		return (weights[a.severity] ?? 3) - (weights[b.severity] ?? 3)
+	})[0]
+const activationLabel = (item: { id?: string; label?: string; complete?: boolean }) => {
+	if (item.complete) return item.label || "Configuración completa"
+	const risk = primaryRiskForArea(item)
+	if (risk) return risk.label
+	return (
+		{
+			identity: "Completa los datos del negocio",
+			operations: "Completa la operación diaria",
+			verification: "Cuenta en revisión",
+			documents: "Completa los documentos mínimos",
+			fiscality: "Verifica tu registro fiscal",
+			payments: "Configura una cuenta para cobrar",
+			integrations: "Conecta un canal",
+			team: "Añade una persona administradora",
+		}[item.id || ""] ||
+		item.label ||
+		"Configuración pendiente"
+	)
+}
+const activationHref = (item: { href?: string; id?: string }) =>
+	primaryRiskForArea(item)?.href || item.href || "#"
+const areaStatus = (item: { id?: string; complete?: boolean }) => {
+	if (item.complete) return { label: "Completo", variant: "success" as const }
+	const risk = primaryRiskForArea(item)
+	if (
+		item.id === "verification" ||
+		/pendiente de validación|en revisión|enviado/i.test(String(risk?.label || ""))
+	) {
+		return { label: "En revisión", variant: "warning" as const }
+	}
+	if (risk?.severity === "high") return { label: "Acción necesaria", variant: "error" as const }
+	return { label: "Pendiente", variant: "warning" as const }
+}
+const activationTitle =
+	capabilities.publish && capabilities.payments
+		? "Tu operación está lista"
+		: capabilities.publish
+			? "Completa la activación para cobrar"
+			: "Completa la activación para publicar y cobrar"
 
 const summaryBootstrap = summary ? JSON.stringify(summary).replace(/</g, "\\u003c") : "null"
-
-const capabilityRows = [
-	{ key: "publish", label: "Publicación", on: "Habilitada", off: "Bloqueada" },
-	{ key: "booking", label: "Reservas", on: "Habilitadas", off: "Bloqueadas" },
-	{ key: "payments", label: "Cobros", on: "Habilitados", off: "Bloqueados" },
-	{ key: "integrations", label: "Integraciones", on: "Listas", off: "Sin activar" },
-] as const
 
 timing.addTotal("providerSettingsPage")
 timing.setHeader(Astro.response.headers)
@@ -126,34 +140,21 @@ logRoutePerformance({
 
 <ProviderSettingsLayout
 	title="Configuración del proveedor"
-	heading="Resumen de configuración"
-	description="Un próximo paso claro cuando hay bloqueos; el resto queda plegado."
+	heading="Activación del proveedor"
+	description="Completa los requisitos necesarios para publicar y cobrar."
 >
-	{
-		professionalToolsSaved ? (
-			<Notice variant="success" title="Herramientas profesionales actualizadas">
-				El sidebar se ajustará según la preferencia del proveedor, escala y rol.
-			</Notice>
-		) : null
-	}
-	{
-		professionalToolsError ? (
-			<Notice variant="warning" title="No se pudo actualizar">
-				Revisa que la migración de preferencias del proveedor esté aplicada.
-			</Notice>
-		) : null
-	}
-
 	<section
 		class="space-y-4"
 		data-settings-coach
 		data-settings-hub-density={hasBlockers ? "blocker" : "clear"}
 	>
-		<Card variant="dark">
-			<div class="space-y-6">
+		<Card variant="dark" class="!border-neutral-800 !bg-black">
+			<div class="space-y-5">
 				<div class="flex flex-wrap items-start justify-between gap-4">
 					<div>
-						<p class="text-sm text-slate-400">Proveedor</p>
+						<p class="text-xs font-semibold tracking-[0.14em] text-neutral-500 uppercase">
+							Proveedor
+						</p>
 						<h2 class="mt-1 text-2xl font-semibold text-white" data-settings-provider-name>
 							{providerName}
 						</h2>
@@ -167,36 +168,45 @@ logRoutePerformance({
 					</Badge>
 				</div>
 
-				<div class="h-2 overflow-hidden rounded-full bg-slate-800">
+				<div>
+					<h2 class="text-2xl font-semibold text-white" data-settings-activation-title>
+						{activationTitle}
+					</h2>
+					<p class="mt-2 text-sm leading-6 text-neutral-400" data-settings-next-step-body>
+						{nextStepBody}
+					</p>
+				</div>
+
+				<div class="h-1.5 overflow-hidden rounded-full bg-neutral-800">
 					<div
-						class="h-full bg-white"
+						class="h-full bg-amber-300"
 						style={`width: ${Math.max(0, Math.min(100, progressPercent))}%`}
 						data-settings-progress-bar
 					>
 					</div>
 				</div>
-				<p class="text-sm leading-6 text-slate-300" data-settings-progress-label>
-					{progressLabel}
+				<p class="text-sm text-neutral-400" data-settings-progress-label>
+					{Number(summary?.progress?.completed ?? 0)} de {Number(summary?.progress?.total ?? 0)} requisitos
+					completados
 				</p>
 
 				<div
-					class="fastt-notice rounded-2xl border border-white/10 bg-white/5 p-5"
+					class="flex flex-wrap items-center justify-between gap-4 border-t border-neutral-800 pt-5"
 					data-settings-blockers-notice
 					data-settings-next-step
 					data-funnel-blocker-id={blockers[0]?.id || undefined}
 					data-funnel-domain={blockers[0]?.id || undefined}
 					data-funnel-surface="hub_coach"
 				>
-					<p class="text-xs font-semibold tracking-[0.14em] text-slate-400 uppercase">
-						Próximo paso
-					</p>
-					<p class="mt-2 text-xl font-semibold text-white" data-settings-next-step-label>
-						{nextStepLabel}
-					</p>
-					<p class="mt-2 text-sm leading-6 text-slate-300" data-settings-next-step-body>
-						{nextStepBody}
-					</p>
-					<div class="mt-5 flex flex-wrap gap-3">
+					<div>
+						<p class="text-xs font-semibold tracking-[0.14em] text-neutral-500 uppercase">
+							Siguiente requisito
+						</p>
+						<p class="mt-1 text-sm font-semibold text-white" data-settings-next-step-label>
+							{nextStepLabel}
+						</p>
+					</div>
+					<div class="flex flex-wrap gap-3">
 						<Button
 							href={primaryCtaHref}
 							variant="onDark"
@@ -208,269 +218,93 @@ logRoutePerformance({
 						>
 							{primaryCtaLabel}
 						</Button>
-						<a
-							href={secondaryCtaHref}
-							class="fastt-notice inline-flex items-center justify-center rounded-xl border border-white/20 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
-							data-settings-secondary-cta
-							data-funnel-cta="secondary"
-							data-funnel-domain={blockers[0]?.id || undefined}
-							data-funnel-surface="hub_coach"
-						>
-							{secondaryCtaLabel}
-						</a>
 					</div>
 				</div>
-
-				<div class="flex flex-wrap gap-2" data-settings-capabilities-strip>
-					{
-						capabilityRows.map((row) => {
-							const enabled = Boolean(capabilities[row.key])
-							return (
-								<div class="fastt-notice flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
-									<span class="text-xs font-medium text-slate-300">{row.label}</span>
-									<Badge
-										variant={
-											enabled
-												? "darkSuccess"
-												: row.key === "integrations"
-													? "darkNeutral"
-													: "darkWarning"
-										}
-										data-capability={row.key}
-										data-settings-dark-badge
-									>
-										{enabled ? row.on : row.off}
-									</Badge>
-								</div>
-							)
-						})
-					}
-				</div>
-				<p class="text-xs text-slate-400" data-settings-summary-counts>
-					<span data-settings-blockers-count>{blockerCountLabel}</span> ·{" "}
-					<span data-settings-risks-count>{riskCountLabel}</span> a revisar
-				</p>
 			</div>
 		</Card>
 	</section>
 
-	<section id="estado-cuenta" class="scroll-mt-24 space-y-4" data-settings-estado-min>
-		<Card>
-			<div class="space-y-4">
-				<div>
-					<h2 class="text-xl font-semibold text-slate-950">Checklist de configuración</h2>
-					<p class="mt-2 text-sm leading-6 text-slate-600">
-						{
-							hasBlockers
-								? "Resuelve las áreas pendientes en orden. Cada fila muestra su impacto y señales relevantes."
-								: "Primero lo pendiente; lo completo queda al final."
-						}
-					</p>
-				</div>
-				<div class="space-y-3" data-settings-readiness>
-					{
-						readiness.length ? (
-							[...incompleteAreas, ...completeAreas].map((item) => {
-								const areaRisks = risksForArea(item)
-								return (
-									<a href={item.href || "#"} class="block">
-										<Card
-											variant="soft"
-											class="space-y-3 transition hover:border-slate-300 hover:bg-white"
+	<section
+		id="estado-cuenta"
+		class="scroll-mt-24 border-t border-neutral-800 pt-7"
+		data-settings-estado-min
+	>
+		<div>
+			<div>
+				<h2 class="text-xl font-semibold text-white">Pendientes</h2>
+				<p class="mt-2 max-w-2xl text-sm leading-6 text-neutral-400">
+					Un requisito a la vez. El detalle de cada revisión permanece en su propia sección.
+				</p>
+			</div>
+		</div>
+
+		<Card
+			variant="dark"
+			className="mt-5 overflow-hidden border-neutral-800 bg-black p-0"
+			data-settings-readiness
+		>
+			{
+				readiness.length ? (
+					<>
+						{incompleteAreas.map((item) => {
+							const status = areaStatus(item)
+							return (
+								<a
+									href={activationHref(item)}
+									class="group grid gap-3 border-b border-l-2 border-neutral-800 border-l-transparent px-4 py-4 transition hover:border-l-amber-300 hover:bg-neutral-900 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-5"
+									data-settings-checklist-row
+								>
+									<div class="min-w-0">
+										<p class="text-sm font-semibold text-white">{activationLabel(item)}</p>
+										<p class="mt-1 text-sm text-neutral-400">{impactLabel(item)}</p>
+									</div>
+									<div class="flex flex-wrap items-center gap-2 sm:justify-end">
+										<Badge variant={status.variant} data-settings-row-status>
+											{status.label}
+										</Badge>
+									</div>
+								</a>
+							)
+						})}
+						{completeAreas.length ? (
+							<details class="group" open={!incompleteAreas.length} data-settings-complete-areas>
+								<summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-4 text-sm font-semibold text-neutral-300 transition hover:bg-neutral-900 sm:px-5">
+									<span>Áreas completadas ({completeAreas.length})</span>
+									<span class="text-xs font-medium text-neutral-500 group-open:hidden">
+										Mostrar
+									</span>
+									<span class="hidden text-xs font-medium text-neutral-500 group-open:inline">
+										Ocultar
+									</span>
+								</summary>
+								<div class="border-t border-neutral-800">
+									{completeAreas.map((item) => (
+										<a
+											href={item.href || "#"}
+											class="group flex flex-wrap items-center justify-between gap-3 border-b border-neutral-800 px-4 py-4 transition last:border-b-0 hover:bg-neutral-900 sm:px-5"
 											data-settings-checklist-row
 										>
-											<div class="flex items-center justify-between gap-4">
-												<div>
-													<p class="text-sm font-semibold text-slate-950">{item.label}</p>
-													<p class="mt-1 text-sm text-slate-600">
-														{item.complete ? "Listo para operar" : "Requiere configuración"}
-													</p>
-												</div>
-												<Badge variant={item.complete ? "success" : "warning"}>
-													{item.complete ? "Completo" : "Pendiente"}
-												</Badge>
+											<div>
+												<p class="text-sm font-semibold text-white">{item.label}</p>
+												<p class="mt-1 text-sm text-neutral-400">Sin bloqueos directos</p>
 											</div>
-											{areaRisks.length ? (
-												<div class="grid gap-2" data-settings-row-risks>
-													{areaRisks.slice(0, 2).map((risk) => (
-														<div class="fastt-notice flex items-start justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
-															<p class="text-xs leading-5 font-semibold text-amber-950">
-																{risk.label}
-															</p>
-															<Badge variant={riskBadgeVariant(risk.severity)}>
-																{riskBadgeLabel(risk.severity)}
-															</Badge>
-														</div>
-													))}
-												</div>
-											) : null}
-										</Card>
-									</a>
-								)
-							})
-						) : (
-							<Card variant="soft" class="text-sm text-slate-600">
-								Aún no hay estado de tu cuenta disponible.
-							</Card>
-						)
-					}
-				</div>
-			</div>
+											<Badge variant="darkSuccess" data-settings-row-status>
+												Completo
+											</Badge>
+										</a>
+									))}
+								</div>
+							</details>
+						) : null}
+					</>
+				) : (
+					<div class="px-5 py-4 text-sm text-neutral-400">
+						Aún no hay estado de tu cuenta disponible.
+					</div>
+				)
+			}
 		</Card>
 	</section>
-
-	{
-		highRisks.length ? (
-			<Card class="space-y-3 border-red-200 bg-red-50" data-settings-high-risks>
-				<div>
-					<h2 class="text-lg font-semibold text-red-950">Atención alta</h2>
-					<p class="mt-1 text-sm leading-6 text-red-800">
-						Estas señales pueden afectar publicación, cobros o cumplimiento.
-					</p>
-				</div>
-				<div class="space-y-2" data-settings-risks>
-					{highRisks.map((risk) => (
-						<a href={risk.href || "#"} class="block">
-							<div class="fastt-notice flex items-start justify-between gap-4 rounded-xl border border-red-200 bg-white px-3 py-2">
-								<p class="text-sm font-semibold text-red-950">{risk.label}</p>
-								<Badge variant="error">Alto</Badge>
-							</div>
-						</a>
-					))}
-				</div>
-			</Card>
-		) : (
-			<div data-settings-risks hidden />
-		)
-	}
-
-	<details
-		class="fastt-notice rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-5"
-		data-settings-details-diagnostics
-	>
-		<summary class="cursor-pointer text-lg font-semibold text-slate-950">
-			Diagnóstico avanzado
-		</summary>
-		<p class="mt-2 text-sm leading-6 text-slate-600">
-			Datos de apoyo para revisar documentos, cobros, conectores y cambios recientes. No necesitas
-			abrirlo para completar el siguiente paso.
-		</p>
-		<section class="mt-4 grid gap-4 md:grid-cols-4" data-settings-support-counts>
-			<Card variant="soft" class="bg-white">
-				<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Documentos</p>
-				<p class="mt-2 text-2xl font-semibold text-slate-950" data-count="documents">
-					{Number(counts.verifiedDocuments ?? 0)} / {Number(counts.documents ?? 0)}
-				</p>
-			</Card>
-			<Card variant="soft" class="bg-white">
-				<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-					Cuentas de cobro
-				</p>
-				<p class="mt-2 text-2xl font-semibold text-slate-950" data-count="paymentAccounts">
-					{Number(counts.verifiedPaymentAccounts ?? 0)} / {Number(counts.paymentAccounts ?? 0)}
-				</p>
-			</Card>
-			<Card variant="soft" class="bg-white">
-				<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Conectores</p>
-				<p class="mt-2 text-2xl font-semibold text-slate-950" data-count="integrations">
-					{Number(counts.connectedIntegrations ?? 0)} / {Number(counts.integrations ?? 0)}
-				</p>
-			</Card>
-			<Card variant="soft" class="bg-white">
-				<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-					Cambios recientes
-				</p>
-				<p class="mt-2 text-2xl font-semibold text-slate-950" data-count="auditEvents">
-					{Number(counts.auditEvents ?? 0)}
-				</p>
-			</Card>
-		</section>
-		<div data-settings-deferred-root class="mt-4 space-y-4"></div>
-	</details>
-
-	<details
-		class="fastt-notice rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-5"
-		open={!hasBlockers}
-		data-settings-details-prefs
-	>
-		<summary class="cursor-pointer text-lg font-semibold text-slate-950">
-			Preferencias del espacio de trabajo
-		</summary>
-		<p class="mt-2 text-sm leading-6 text-slate-600">
-			Preferencias que cambian cómo se organiza el sidebar y las herramientas visibles.
-		</p>
-		<Card class="mt-4">
-			<form method="post" action="/api/provider/preferences/professional-tools" class="space-y-5">
-				<input type="hidden" name="returnTo" value={routes.providerSettings()} />
-				<div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-					<div class="max-w-2xl space-y-2">
-						<div class="flex flex-wrap items-center gap-3">
-							<h2 class="text-xl font-semibold text-slate-900">Herramientas profesionales</h2>
-							<Badge variant={professionalToolsEnabled ? "success" : "neutral"}>
-								{professionalToolsEnabled ? "Activadas" : "Desactivadas"}
-							</Badge>
-						</div>
-						<p class="text-sm leading-6 text-slate-600">
-							Activa herramientas para manejar muchas tarifas, reglas, inventario físico y
-							operaciones masivas.
-						</p>
-						<p class="text-sm leading-6 text-slate-600">
-							Recomendado si administras varios hoteles, muchas habitaciones o reglas recurrentes.
-						</p>
-					</div>
-					<div
-						class="fastt-tabs min-w-[220px] border border-slate-200 bg-white p-1 text-sm font-semibold text-slate-700 shadow-sm"
-						role="radiogroup"
-						aria-label="Modo de experiencia"
-					>
-						<label class="block">
-							<input
-								type="radio"
-								name="mode"
-								value="simple"
-								checked={!professionalToolsEnabled}
-								class="peer sr-only fastt-check-input"
-							/>
-							<span
-								class="fastt-tab block cursor-pointer px-4 py-2 text-center text-slate-600 transition peer-checked:bg-slate-950 peer-checked:text-white"
-							>
-								Simple
-							</span>
-						</label>
-						<label class="mt-1 block">
-							<input
-								type="radio"
-								name="mode"
-								value="professional"
-								checked={professionalToolsEnabled}
-								class="peer sr-only fastt-check-input"
-							/>
-							<span
-								class="fastt-tab block cursor-pointer px-4 py-2 text-center text-slate-600 transition peer-checked:bg-slate-950 peer-checked:text-white"
-							>
-								Pro
-							</span>
-						</label>
-					</div>
-				</div>
-				<Card variant="soft">
-					<p class="text-sm font-semibold text-slate-900">Modo Simple</p>
-					<p class="mt-1 text-sm leading-6 text-slate-600">
-						Muestra la operación diaria: Tarifas y Calendario. El contrato se completa dentro de
-						cada tarifa.
-					</p>
-					<p class="mt-3 text-sm font-semibold text-slate-900">Modo Pro</p>
-					<p class="mt-1 text-sm leading-6 text-slate-600">
-						El sidebar puede mostrar Reglas de venta y herramientas profesionales. Las operaciones
-						de cupo y disponibilidad siguen dentro de Calendario.
-					</p>
-				</Card>
-				<div class="flex justify-end">
-					<Button type="submit">Guardar preferencia</Button>
-				</div>
-			</form>
-		</Card>
-	</details>
 
 	<script type="application/json" id="settings-summary-bootstrap" set:html={summaryBootstrap} />
 

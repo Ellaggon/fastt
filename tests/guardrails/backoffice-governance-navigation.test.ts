@@ -629,7 +629,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 			"utf8"
 		)
 		const settings = readFileSync(
-			join(process.cwd(), "src/pages/provider/settings/index.astro"),
+			join(process.cwd(), "src/pages/provider/settings/profile.astro"),
 			"utf8"
 		)
 		const endpoint = readFileSync(

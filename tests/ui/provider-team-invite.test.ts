@@ -28,15 +28,16 @@ describe("S2-3 team invite lifecycle + human role labels", () => {
 		])
 	})
 
-	it("wires team page to lifecycle copy and never shows raw admin/staff labels", () => {
+	it("keeps the team page focused on access and never shows raw role keys", () => {
 		const page = read("src/pages/provider/settings/team.astro")
 		const permissions = read("src/lib/provider-permissions.ts")
 		const summary = read("src/lib/provider-settings-summary.ts")
 		const api = read("src/pages/api/provider/settings/invitations.ts")
 
-		expect(page).toContain("providerInviteLifecycleSteps")
-		expect(page).toContain("Ciclo de la invitación")
-		expect(page).toContain("Invita a tu equipo")
+		expect(page).not.toContain("providerInviteLifecycleSteps")
+		expect(page).not.toContain("Ciclo de la invitación")
+		expect(page).toContain("Miembros activos")
+		expect(page).toContain("Acceso restringido")
 		expect(page).toContain("providerRoleLabels.admin")
 		expect(page).toContain("providerRoleLabels.staff")
 		expect(page).toContain("Pendiente de aceptación")
@@ -44,6 +45,9 @@ describe("S2-3 team invite lifecycle + human role labels", () => {
 		expect(page).not.toContain("Rol: {invitation.role}")
 		expect(page).toContain("roleLabelFor(user)")
 		expect(page).toContain("roleLabelFor(invitation)")
+		expect(page).toContain("canManageMembers")
+		expect(page).toContain("/api/provider/settings/team-members")
+		expect(page).toContain("Retirar acceso")
 		expect(page).toContain('value="admin"')
 		expect(page).toContain('value="staff"')
 
