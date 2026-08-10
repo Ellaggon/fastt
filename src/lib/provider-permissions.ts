@@ -29,9 +29,10 @@ export const providerRoleLabels: Record<ProviderRole, string> = {
 }
 
 export const providerRoleDescriptions: Record<ProviderRole, string> = {
-	owner: "Control total del proveedor, incluido invitar al equipo.",
-	admin: "Puede gestionar perfil, fiscalidad, pagos, integraciones y documentos.",
-	staff: "Acceso operativo limitado; no cambia configuración sensible.",
+	owner: "Gestiona la identidad legal, cobros, cumplimiento y acceso del equipo.",
+	admin:
+		"Gestiona el perfil y las integraciones, sin cambiar datos financieros ni de cumplimiento.",
+	staff: "Opera el día a día sin acceso a la configuración sensible.",
 }
 
 export const providerInviteLifecycleSteps = [
@@ -139,11 +140,11 @@ const basePermissionsByRole: Record<ProviderRole, ProviderPermissions> = {
 	},
 	admin: {
 		canEditProfile: true,
-		canManageFiscality: true,
-		canManagePayments: true,
+		canManageFiscality: false,
+		canManagePayments: false,
 		canManageIntegrations: true,
 		canRunIntegrationCertification: false,
-		canManageDocuments: true,
+		canManageDocuments: false,
 		canInviteTeam: false,
 	},
 	staff: {
