@@ -16,6 +16,7 @@ import {
 import { evaluateAddRoomProgress } from "@/lib/playbook/evaluate-add-room-progress"
 import { evaluateCompleteToPublishProgress } from "@/lib/playbook/evaluate-complete-to-publish-progress"
 import { evaluateLaunchProgress } from "@/lib/playbook/evaluate-launch-progress"
+import { evaluateTourLaunchProgress } from "@/lib/playbook/evaluate-tour-launch-progress"
 import {
 	getApplicableLaunchSteps,
 	getLaunchStepById,
@@ -23,13 +24,22 @@ import {
 	LAUNCH_PLAYBOOK_TITLE,
 	type LaunchStepId,
 } from "@/lib/playbook/launch-accommodation"
+import {
+	getLaunchLikeStepPosition,
+	resolveLaunchPlaybookDefinition,
+} from "@/lib/playbook/launch-playbook-definition"
+import {
+	LAUNCH_TOUR_PLAYBOOK_ID,
+	TOUR_LAUNCH_STEPS,
+	type TourLaunchStepId,
+} from "@/lib/playbook/launch-tour"
 import type { PlaybookId } from "@/lib/playbook/types"
 
 interface Props {
 	title?: string
 	playbookId?: PlaybookId | null
 	active?: boolean
-	stepId?: LaunchStepId | string | null
+	stepId?: LaunchStepId | TourLaunchStepId | string | null
 	productId?: string
 	variantId?: string
 	ratePlanId?: string
@@ -59,6 +69,7 @@ const {
 
 const isAddRoom = playbookId === "add-room"
 const isComplete = playbookId === "complete-to-publish"
+const isTourLaunch = playbookId === LAUNCH_TOUR_PLAYBOOK_ID
 const launchCtx = {
 	productId,
 	isHotel,
@@ -70,6 +81,13 @@ const addRoomCtx = {
 	variantId: variantId || undefined,
 	ratePlanId: ratePlanId || undefined,
 }
+const launchLikeDefinition =
+	playbookId === "launch" || playbookId === LAUNCH_TOUR_PLAYBOOK_ID
+		? resolveLaunchPlaybookDefinition(playbookId, launchCtx)
+		: null
+const launchLikePosition = launchLikeDefinition
+	? getLaunchLikeStepPosition(launchLikeDefinition, stepId)
+	: null
 
 let playbookTitle = LAUNCH_PLAYBOOK_TITLE
 let stepLabel = ""
@@ -115,19 +133,22 @@ if (isComplete && active && productId) {
 	const currentStep = active
 		? isAddRoom
 			? getAddRoomStepById(stepId, addRoomCtx)
-			: getLaunchStepById(stepId, launchCtx)
+			: (launchLikePosition?.current ?? getLaunchStepById(stepId, launchCtx))
 		: null
 	const previousStep =
 		active && stepId
 			? isAddRoom
 				? getPreviousAddRoomStep(stepId, addRoomCtx)
-				: getPreviousLaunchStep(stepId, launchCtx)
+				: (launchLikePosition?.previous ?? getPreviousLaunchStep(stepId, launchCtx))
 			: null
 
 	if (isAddRoom) {
 		const position = getAddRoomStepPosition(stepId, addRoomCtx)
 		stepNumber = position.stepNumber
 		totalSteps = position.totalSteps
+	} else if (isTourLaunch) {
+		stepNumber = launchLikePosition?.stepNumber ?? null
+		totalSteps = launchLikePosition?.totalSteps ?? TOUR_LAUNCH_STEPS.length
 	} else {
 		const applicableSteps = getApplicableLaunchSteps(launchCtx)
 		const stepIndex = currentStep
@@ -137,7 +158,9 @@ if (isComplete && active && productId) {
 		totalSteps = applicableSteps.length
 	}
 
-	playbookTitle = isAddRoom ? ADD_ROOM_PLAYBOOK_TITLE : LAUNCH_PLAYBOOK_TITLE
+	playbookTitle = isAddRoom
+		? ADD_ROOM_PLAYBOOK_TITLE
+		: (launchLikeDefinition?.title ?? LAUNCH_PLAYBOOK_TITLE)
 	if (currentStep) {
 		currentStepKnown = true
 		stepLabel = currentStep.label
@@ -146,9 +169,18 @@ if (isComplete && active && productId) {
 	if (previousStep) {
 		previousHref = isAddRoom
 			? (getPreviousAddRoomStep(stepId, addRoomCtx)?.buildHref(addRoomCtx) ?? null)
-			: previousStep.id === "create" && productId
-				? null
-				: (getPreviousLaunchStep(stepId, launchCtx)?.buildHref(launchCtx) ?? null)
+			: isTourLaunch
+				? previousStep.id === "create" && productId
+					? null
+					: previousStep.buildHref({
+							productId,
+							isHotel: false,
+							variantId: variantId || undefined,
+							ratePlanId: ratePlanId || undefined,
+						})
+				: previousStep.id === "create" && productId
+					? null
+					: (getPreviousLaunchStep(stepId, launchCtx)?.buildHref(launchCtx) ?? null)
 	}
 
 	if (active && stepNumber && totalSteps > 0) {
@@ -159,18 +191,26 @@ if (isComplete && active && productId) {
 		const user = await getUserFromRequest(Astro.request)
 		const providerId = user ? await getProviderIdFromRequest(Astro.request, user) : null
 		if (providerId) {
-			const progress = isAddRoom
-				? await evaluateAddRoomProgress(productId, providerId, {
+			const progress = isTourLaunch
+				? await evaluateTourLaunchProgress(productId, providerId, {
 						variantId,
 						ratePlanId,
 						currentStepId: stepId,
+						request: Astro.request,
+						url: Astro.url,
 					})
-				: await evaluateLaunchProgress(productId, providerId, {
-						isHotel,
-						variantId,
-						ratePlanId,
-						currentStepId: stepId,
-					})
+				: isAddRoom
+					? await evaluateAddRoomProgress(productId, providerId, {
+							variantId,
+							ratePlanId,
+							currentStepId: stepId,
+						})
+					: await evaluateLaunchProgress(productId, providerId, {
+							isHotel,
+							variantId,
+							ratePlanId,
+							currentStepId: stepId,
+						})
 			if (progress) {
 				progressPercent = progress.progress.progressPercent
 			}
