@@ -266,6 +266,7 @@ async function buildProviderSettingsSummaryUncached(params: {
 						label: "Hay advertencias en impuestos o cargos",
 						severity: "medium",
 						href: routes.providerSettingsTaxFees(),
+						areaId: "fiscality",
 					},
 				]
 			: []),
@@ -348,9 +349,13 @@ async function buildProviderSettingsSummaryUncached(params: {
 		invitations: await Promise.all(
 			invitations.map(async (invitation) => {
 				const token =
-					invitation.status === "pending" && !invitation.token
+					governance.permissions.canInviteTeam &&
+					invitation.status === "pending" &&
+					!invitation.token
 						? await ensureProviderInvitationToken(invitation.id).catch(() => null)
-						: invitation.token
+						: governance.permissions.canInviteTeam
+							? invitation.token
+							: null
 				return {
 					id: invitation.id,
 					email: invitation.email,
@@ -371,6 +376,8 @@ async function buildProviderSettingsSummaryUncached(params: {
 					acceptedAt: invitation.acceptedAt,
 					expiresAt: invitation.expiresAt,
 					createdAt: invitation.createdAt,
+					// Acceptance links are bearer credentials. They never leave the BFF for users
+					// who cannot administer invitations, even if they call the endpoint directly.
 					acceptPath: token ? buildProviderInvitationAcceptPath(token) : null,
 				}
 			})

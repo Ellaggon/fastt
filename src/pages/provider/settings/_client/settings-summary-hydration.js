@@ -11,9 +11,6 @@ const darkBadgeClasses = {
 	warning: "border-amber-300/30 bg-amber-400/10 text-amber-100",
 	error: "border-red-300/30 bg-red-400/10 text-red-100",
 }
-const cardSoft = "rounded-[var(--fastt-radius-card)] border border-slate-200 bg-slate-50 p-4"
-const panel = "rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-5"
-
 function escapeHtml(value) {
 	return String(value ?? "")
 		.replaceAll("&", "&amp;")
@@ -35,261 +32,124 @@ function setBadge(node, variant, label) {
 	node.textContent = label
 }
 
-function pluralizeEs(count, singular, plural) {
-	return `${Number(count || 0)} ${Number(count || 0) === 1 ? singular : plural}`
-}
-
-function ensureDeferredShell() {
-	const root = document.querySelector("[data-settings-deferred-root]")
-	if (!root || root.dataset.ready === "true") return
-	root.dataset.ready = "true"
-	root.innerHTML = `
-		<section class="grid gap-4 xl:grid-cols-4" data-settings-blocking-matrix></section>
-		<section class="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-			<div class="${panel}" data-settings-simulation>
-				<div class="space-y-4">
-					<div class="flex flex-wrap items-start justify-between gap-4">
-						<div>
-							<h2 class="text-xl font-semibold text-slate-950">Prueba de publicación</h2>
-							<p class="mt-2 text-sm leading-6 text-slate-600">Una lectura rápida de precio, impuestos y cobro con la configuración actual.</p>
-						</div>
-						<span class="${badgeBase} ${badgeClasses.neutral}" data-simulation-status>Revisar</span>
-					</div>
-					<div class="grid gap-3 sm:grid-cols-3">
-						<div class="rounded-[var(--fastt-radius-card)] bg-slate-50 p-4">
-							<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Base</p>
-							<p class="mt-2 text-xl font-semibold text-slate-950" data-simulation-base>USD0.00</p>
-						</div>
-						<div class="rounded-[var(--fastt-radius-card)] bg-slate-50 p-4">
-							<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Impuestos</p>
-							<p class="mt-2 text-xl font-semibold text-slate-950" data-simulation-tax>USD0.00</p>
-						</div>
-						<div class="rounded-[var(--fastt-radius-card)] bg-slate-50 p-4">
-							<p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Pago proveedor</p>
-							<p class="mt-2 text-xl font-semibold text-slate-950" data-simulation-payout>USD0.00</p>
-						</div>
-					</div>
-					<p class="text-sm leading-6 text-slate-600" data-simulation-message></p>
-				</div>
-			</div>
-			<div class="${panel}">
-				<div class="space-y-4">
-					<div>
-						<h2 class="text-xl font-semibold text-slate-950">Cambios recientes</h2>
-						<p class="mt-2 text-sm leading-6 text-slate-600">Últimas actualizaciones en perfil, fiscalidad, cobros e integraciones.</p>
-					</div>
-					<div class="space-y-3" data-settings-audit></div>
-				</div>
-			</div>
-		</section>`
-}
-
-function formatDate(value) {
-	if (!value) return "Sin fecha"
-	const date = new Date(value)
-	if (Number.isNaN(date.getTime())) return "Sin fecha"
-	return new Intl.DateTimeFormat("es", {
-		dateStyle: "medium",
-		timeStyle: "short",
-	}).format(date)
-}
-
-function renderBlockingMatrix(items) {
-	const container = document.querySelector("[data-settings-blocking-matrix]")
-	if (!container) return
-	if (!items.length) {
-		container.innerHTML = `<div class="${cardSoft} text-sm text-slate-600">Sin áreas adicionales para revisar.</div>`
-		return
-	}
-	container.innerHTML = items
-		.map((item) => {
-			const blockers = Array.isArray(item.blockers) ? item.blockers : []
-			const blockerHtml = blockers.length
-				? blockers
-						.map(
-							(blocker) => `
-								<a href="${escapeHtml(blocker.href || "#")}" class="block">
-									<div class="${cardSoft} p-3 text-sm font-semibold text-slate-800 transition hover:bg-white">
-										${escapeHtml(blocker.label)}
-									</div>
-								</a>`
-						)
-						.join("")
-				: `<p class="rounded-[var(--fastt-radius-control)] bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">Sin bloqueos directos</p>`
-			return `
-				<div class="rounded-[var(--fastt-radius-card)] border ${item.enabled ? "border-emerald-200" : "border-amber-200"} bg-white p-5">
-					<div class="flex h-full flex-col gap-4">
-						<div class="flex items-start justify-between gap-3">
-							<h2 class="text-lg font-semibold text-slate-950">${escapeHtml(item.label)}</h2>
-							<span class="${badgeBase} ${item.enabled ? badgeClasses.success : badgeClasses.warning}">
-								${item.enabled ? "Activa" : "Bloqueada"}
-							</span>
-						</div>
-						<p class="text-sm leading-6 text-slate-600">${escapeHtml(item.message)}</p>
-						<div class="grid gap-2">${blockerHtml}</div>
-					</div>
-				</div>`
-		})
-		.join("")
-}
-
-function riskSeverityLabel(severity) {
-	return severity === "high" ? "Alto" : severity === "medium" ? "Medio" : "Bajo"
-}
-
 function risksForReadinessItem(item, risks) {
-	return risks.filter((risk) => {
-		if (risk.href && item.href && risk.href === item.href) return true
-		const itemCapabilities = Array.isArray(item.capabilities) ? item.capabilities : []
-		const riskCapabilities = Array.isArray(risk.capabilities) ? risk.capabilities : []
-		return riskCapabilities.some((capability) => itemCapabilities.includes(capability))
-	})
+	return risks.filter((risk) => risk.areaId === item.id)
+}
+
+function impactLabel(item) {
+	if (item.complete) return "Sin bloqueos directos"
+	const labels = (Array.isArray(item.capabilities) ? item.capabilities : [])
+		.map(
+			(capability) =>
+				({
+					publish: "publicación",
+					booking: "reservas",
+					payments: "cobros",
+					integrations: "integraciones",
+				})[capability]
+		)
+		.filter(Boolean)
+	return labels.length ? `Bloquea ${labels.join(", ")}` : "Requiere atención"
+}
+
+function primaryRiskForArea(item, risks) {
+	const weights = { high: 0, medium: 1, low: 2 }
+	return [...risksForReadinessItem(item, risks)].sort(
+		(a, b) => (weights[a.severity] ?? 3) - (weights[b.severity] ?? 3)
+	)[0]
+}
+
+function activationLabel(item, risks) {
+	const risk = primaryRiskForArea(item, risks)
+	if (risk) return risk.label
+	return (
+		{
+			identity: "Completa los datos del negocio",
+			operations: "Completa la operación diaria",
+			verification: "Cuenta en revisión",
+			documents: "Completa los documentos mínimos",
+			fiscality: "Verifica tu registro fiscal",
+			payments: "Configura una cuenta para cobrar",
+			integrations: "Conecta un canal",
+			team: "Añade una persona administradora",
+		}[item.id] ||
+		item.label ||
+		"Configuración pendiente"
+	)
+}
+
+function activationTitle(capabilities) {
+	if (capabilities.publish && capabilities.payments) return "Tu operación está lista"
+	if (capabilities.publish) return "Completa la activación para cobrar"
+	return "Completa la activación para publicar y cobrar"
+}
+
+function areaStatus(item, risks) {
+	if (item.complete) return { label: "Completo", variant: "success" }
+	const risk = primaryRiskForArea(item, risks)
+	if (
+		item.id === "verification" ||
+		/pendiente de validación|en revisión|enviado/i.test(String(risk?.label || ""))
+	) {
+		return { label: "En revisión", variant: "warning" }
+	}
+	if (risk?.severity === "high") return { label: "Acción necesaria", variant: "error" }
+	return { label: "Pendiente", variant: "warning" }
+}
+
+function renderReadinessRow(item, risks, options = {}) {
+	const status = areaStatus(item, risks)
+	const complete = options.complete === true
+	const label = complete ? item.label : activationLabel(item, risks)
+	const href = complete ? item.href : primaryRiskForArea(item, risks)?.href || item.href
+	const copy = complete ? "Sin bloqueos directos" : impactLabel(item)
+	return `
+		<a href="${escapeHtml(href || "#")}" class="${complete ? "flex flex-wrap items-center justify-between" : "grid sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center border-l-2 border-l-transparent hover:border-l-amber-300"} gap-3 border-b border-neutral-800 px-4 py-4 transition last:border-b-0 hover:bg-neutral-900 sm:px-5" data-settings-checklist-row>
+			<div class="min-w-0">
+				<p class="text-sm font-semibold text-white">${escapeHtml(label)}</p>
+				<p class="mt-1 text-sm text-neutral-400">${escapeHtml(copy)}</p>
+			</div>
+			<div class="flex flex-wrap items-center gap-2 sm:justify-end">
+				<span class="${badgeBase} ${badgeClasses[status.variant] || badgeClasses.neutral}" data-settings-row-status>${escapeHtml(status.label)}</span>
+			</div>
+		</a>`
 }
 
 function renderReadiness(items, risks = []) {
 	const container = document.querySelector("[data-settings-readiness]")
 	if (!container) return
-	const ordered = [...items].sort(
-		(a, b) => Number(Boolean(a.complete)) - Number(Boolean(b.complete))
-	)
-	container.innerHTML = ordered.length
-		? ordered
-				.map((item) => {
-					const areaRisks = risksForReadinessItem(item, risks).slice(0, 2)
-					const risksHtml = areaRisks.length
-						? `
-							<div class="grid gap-2" data-settings-row-risks>
-								${areaRisks
-									.map((risk) => {
-										const variant =
-											risk.severity === "high"
-												? "error"
-												: risk.severity === "medium"
-													? "warning"
-													: "neutral"
-										const palette =
-											risk.severity === "high"
-												? "border-red-200 bg-red-50 text-red-950"
-												: "border-amber-200 bg-amber-50 text-amber-950"
-										return `
-											<div class="flex items-start justify-between gap-3 rounded-xl border px-3 py-2 ${palette}">
-												<p class="text-xs font-semibold leading-5">${escapeHtml(risk.label)}</p>
-												<span class="${badgeBase} ${badgeClasses[variant]}">${riskSeverityLabel(risk.severity)}</span>
-											</div>`
-									})
-									.join("")}
-							</div>`
-						: ""
-					return `
-						<a href="${escapeHtml(item.href || "#")}" class="block">
-							<div class="${cardSoft} space-y-3 transition hover:border-slate-300 hover:bg-white" data-settings-checklist-row>
-								<div class="flex items-center justify-between gap-4">
-									<div>
-										<p class="text-sm font-semibold text-slate-950">${escapeHtml(item.label)}</p>
-										<p class="mt-1 text-sm text-slate-600">${item.complete ? "Listo para operar" : "Requiere configuración"}</p>
-									</div>
-									<span class="${badgeBase} ${item.complete ? badgeClasses.success : badgeClasses.warning}">
-										${item.complete ? "Completo" : "Pendiente"}
-									</span>
-								</div>
-								${risksHtml}
-							</div>
-						</a>`
-				})
-				.join("")
-		: `<div class="${cardSoft} text-sm text-slate-600">Aún no hay estado de tu cuenta disponible.</div>`
-}
-
-function renderRisks(items) {
-	const container = document.querySelector("[data-settings-risks]")
-	if (!container) return
-	const highRisks = items.filter((risk) => risk.severity === "high")
-	const highRisksSection = document.querySelector("[data-settings-high-risks]")
-	if (highRisksSection instanceof HTMLElement) {
-		highRisksSection.hidden = highRisks.length === 0
+	if (!items.length) {
+		container.innerHTML = `<div class="px-5 py-4 text-sm text-neutral-400">Aún no hay estado de tu cuenta disponible.</div>`
+		return
 	}
-	container.innerHTML = highRisks.length
-		? highRisks
-				.map((risk) => {
-					return `
-						<a href="${escapeHtml(risk.href || "#")}" class="block">
-							<div class="flex items-start justify-between gap-4 rounded-xl border border-red-200 bg-white px-3 py-2">
-								<div class="flex items-start justify-between gap-4">
-									<p class="text-sm font-semibold text-red-950">${escapeHtml(risk.label)}</p>
-									<span class="${badgeBase} ${badgeClasses.error}">Alto</span>
-								</div>
-							</div>
-						</a>`
-				})
-				.join("")
+	const incomplete = items.filter((item) => !item.complete)
+	const complete = items.filter((item) => item.complete)
+	const completeHtml = complete.length
+		? `
+			<details class="group" ${incomplete.length ? "" : "open"} data-settings-complete-areas>
+				<summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-4 text-sm font-semibold text-neutral-300 transition hover:bg-neutral-900 sm:px-5">
+					<span>Áreas completadas (${complete.length})</span>
+					<span class="text-xs font-medium text-neutral-500 group-open:hidden">Mostrar</span>
+					<span class="hidden text-xs font-medium text-neutral-500 group-open:inline">Ocultar</span>
+				</summary>
+				<div class="border-t border-neutral-800">${complete.map((item) => renderReadinessRow(item, risks, { complete: true })).join("")}</div>
+			</details>`
 		: ""
+	container.innerHTML = `${incomplete.map((item) => renderReadinessRow(item, risks)).join("")}${completeHtml}`
 }
 
-function renderAudit(items) {
-	const container = document.querySelector("[data-settings-audit]")
-	if (!container) return
-	container.innerHTML = items.length
-		? items
-				.map((event) => {
-					const variant =
-						event.riskLevel === "high"
-							? "error"
-							: event.riskLevel === "medium"
-								? "warning"
-								: "neutral"
-					return `
-						<div class="${cardSoft}">
-							<div class="flex flex-wrap items-start justify-between gap-3">
-								<div>
-									<p class="text-sm font-semibold text-slate-950">${escapeHtml(event.action)}</p>
-									<p class="mt-1 text-sm text-slate-600">${escapeHtml(event.entityType)} · ${escapeHtml(event.actorEmail || "Sistema")}</p>
-								</div>
-								<span class="${badgeBase} ${badgeClasses[variant]}">${escapeHtml(event.riskLevel || "low")}</span>
-							</div>
-							<p class="mt-2 text-xs text-slate-500">${formatDate(event.createdAt)}</p>
-						</div>`
-				})
-				.join("")
-		: `<div class="${cardSoft} text-sm text-slate-600">Aún no hay eventos de auditoría visibles.</div>`
-}
-
-let diagnosticsLoaded = false
-let diagnosticsLoading = false
-
-function renderDiagnostics(summary) {
-	ensureDeferredShell()
-	const simulation = summary.publicationSimulation || {}
-	renderBlockingMatrix(Array.isArray(summary.blockingMatrix) ? summary.blockingMatrix : [])
-	renderAudit(Array.isArray(summary.auditEvents) ? summary.auditEvents : [])
-
-	setBadge(
-		document.querySelector("[data-simulation-status]"),
-		simulation.canPublishSafely ? "success" : "warning",
-		simulation.canPublishSafely ? "Lista" : "Revisar"
-	)
-	const currency = simulation.currency || "USD"
-	setText("[data-simulation-base]", `${currency}${Number(simulation.baseAmount || 0).toFixed(2)}`)
-	setText("[data-simulation-tax]", `${currency}${Number(simulation.estimatedTax || 0).toFixed(2)}`)
-	setText(
-		"[data-simulation-payout]",
-		`${currency}${Number(simulation.estimatedPayout || 0).toFixed(2)}`
-	)
-	setText("[data-simulation-message]", simulation.message || "Prueba no disponible.")
-	diagnosticsLoaded = true
-}
-
-function hydrateSummary(summary, options = {}) {
-	const renderAdvanced = options.renderDiagnostics === true
+function hydrateSummary(summary) {
 	const blockers = Array.isArray(summary.blockers) ? summary.blockers : []
 	const risks = Array.isArray(summary.risks) ? summary.risks : []
 	const progress = summary.progress || {}
-	const counts = summary.counts || {}
 	const capabilities = summary.capabilities || {}
 
 	setText("[data-settings-provider-name]", summary.provider?.displayName || "Proveedor")
-	setText("[data-settings-blockers-count]", pluralizeEs(blockers.length, "bloqueo", "bloqueos"))
-	setText("[data-settings-risks-count]", pluralizeEs(risks.length, "riesgo", "riesgos"))
-	setText("[data-settings-progress-label]", progress.message || "Configuración base calculada.")
+	setText(
+		"[data-settings-progress-label]",
+		`${Number(progress.completed || 0)} de ${Number(progress.total || 0)} requisitos completados`
+	)
+	setText("[data-settings-activation-title]", activationTitle(capabilities))
 	const progressBar = document.querySelector("[data-settings-progress-bar]")
 	if (progressBar) {
 		const percent = Math.max(0, Math.min(100, Number(progress.progressPercent || 0)))
@@ -316,16 +176,6 @@ function hydrateSummary(summary, options = {}) {
 		cta.setAttribute("href", summary.actions.primaryCtaAction)
 		cta.textContent = summary.actions.primaryCtaLabel || "Continuar configuración"
 	}
-	const secondary = document.querySelector("[data-settings-secondary-cta]")
-	if (secondary) {
-		if (summary.actions?.secondaryCtaAction) {
-			secondary.setAttribute("href", summary.actions.secondaryCtaAction)
-		}
-		if (summary.actions?.secondaryCtaLabel) {
-			secondary.textContent = summary.actions.secondaryCtaLabel
-		}
-	}
-
 	const nextStep = document.querySelector("[data-settings-next-step]")
 	const primaryBlockerId = blockers[0]?.id || ""
 	if (nextStep) {
@@ -347,69 +197,20 @@ function hydrateSummary(summary, options = {}) {
 			cta.setAttribute("data-funnel-blocker-id", primaryBlockerId)
 		}
 	}
-	if (secondary instanceof HTMLElement) {
-		secondary.setAttribute("data-funnel-cta", "secondary")
-		secondary.setAttribute("data-funnel-surface", "hub_coach")
-		if (primaryBlockerId) {
-			secondary.setAttribute("data-funnel-domain", primaryBlockerId)
-		}
-	}
-
 	document.dispatchEvent(new CustomEvent("settings-summary-hydrated"))
 
-	const capabilityLabels = {
-		publish: ["Habilitada", "Bloqueada"],
-		booking: ["Habilitadas", "Bloqueadas"],
-		payments: ["Habilitados", "Bloqueados"],
-		integrations: ["Listas", "Sin activar"],
-	}
-	for (const [key, labels] of Object.entries(capabilityLabels)) {
-		const enabled = Boolean(capabilities[key])
-		setBadge(
-			document.querySelector(`[data-capability="${key}"]`),
-			enabled ? "success" : key === "integrations" ? "neutral" : "warning",
-			enabled ? labels[0] : labels[1]
-		)
-	}
-
 	renderReadiness(Array.isArray(summary.readiness) ? summary.readiness : [], risks)
-	renderRisks(risks)
-
-	setText(
-		'[data-count="documents"]',
-		`${Number(counts.verifiedDocuments || 0)} / ${Number(counts.documents || 0)}`
-	)
-	setText(
-		'[data-count="paymentAccounts"]',
-		`${Number(counts.verifiedPaymentAccounts || 0)} / ${Number(counts.paymentAccounts || 0)}`
-	)
-	setText(
-		'[data-count="integrations"]',
-		`${Number(counts.connectedIntegrations || 0)} / ${Number(counts.integrations || 0)}`
-	)
-	setText('[data-count="auditEvents"]', Number(counts.auditEvents || 0))
-
-	if (renderAdvanced) renderDiagnostics(summary)
 }
 
-async function loadSettingsSummary(options = {}) {
+async function loadSettingsSummary() {
 	try {
-		const scope = options.scope === "full" ? "full" : "hub"
-		const response = await fetch(`/api/provider/settings/summary?scope=${scope}`, {
+		const response = await fetch("/api/provider/settings/summary?scope=hub", {
 			headers: { Accept: "application/json" },
 			credentials: "same-origin",
 		})
 		if (!response.ok) throw new Error(`summary_failed:${response.status}`)
-		hydrateSummary(await response.json(), {
-			renderDiagnostics: options.renderDiagnostics === true,
-		})
+		hydrateSummary(await response.json())
 	} catch {
-		if (options.renderDiagnostics === true) {
-			const root = document.querySelector("[data-settings-deferred-root]")
-			if (root) {
-				root.innerHTML = `<div class="${cardSoft} text-sm text-slate-600">No se pudo cargar el diagnóstico avanzado. Intenta refrescar.</div>`
-			}
-		}
 		document.querySelectorAll("[data-settings-placeholder]").forEach((node) => {
 			node.textContent = "No se pudo cargar esta sección. Intenta refrescar."
 		})
@@ -417,22 +218,6 @@ async function loadSettingsSummary(options = {}) {
 		if (progress && /cargar|Cargando/i.test(progress.textContent || "")) {
 			progress.textContent = "No se pudo actualizar el estado operativo."
 		}
-	}
-}
-
-async function loadDiagnosticsOnOpen() {
-	const details = document.querySelector("[data-settings-details-diagnostics]")
-	if (!(details instanceof HTMLDetailsElement)) return
-	if (!details.open || diagnosticsLoaded || diagnosticsLoading) return
-	diagnosticsLoading = true
-	const root = document.querySelector("[data-settings-deferred-root]")
-	if (root) {
-		root.innerHTML = `<div class="${cardSoft} text-sm text-slate-600">Cargando diagnóstico avanzado...</div>`
-	}
-	try {
-		await loadSettingsSummary({ scope: "full", renderDiagnostics: true })
-	} finally {
-		diagnosticsLoading = false
 	}
 }
 
@@ -451,12 +236,6 @@ function readBootstrapSummary() {
 const bootstrapSummary = readBootstrapSummary()
 if (bootstrapSummary) {
 	hydrateSummary(bootstrapSummary)
-}
-
-const diagnosticsDetails = document.querySelector("[data-settings-details-diagnostics]")
-if (diagnosticsDetails instanceof HTMLDetailsElement) {
-	diagnosticsDetails.addEventListener("toggle", loadDiagnosticsOnOpen)
-	loadDiagnosticsOnOpen()
 }
 
 if (!bootstrapSummary && "requestIdleCallback" in window) {
