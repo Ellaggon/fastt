@@ -12,6 +12,10 @@ import {
 	startProviderIntegrationSyncRun,
 } from "@/lib/provider-integration-operations"
 import { getProviderChannelManagerRuntime } from "@/lib/provider-integrations"
+import {
+	assertProviderIntegrationCertificationRunLink,
+	getProviderAccountPurpose,
+} from "@/lib/provider-integration-certification"
 import { recomputeEffectiveAvailabilityRange } from "@/modules/inventory/public"
 import {
 	and,
@@ -614,10 +618,23 @@ export async function runProviderBookingRevisionFeed(params: {
 	providerId: string
 	connectionId: string
 	idempotencyKey: string
+	certificationId?: string | null
 	trigger?: "manual" | "scheduled" | "webhook" | "retry"
 	adapter?: ChannelManagerAdapter
 }) {
 	const startedAt = Date.now()
+	const certificationId = String(params.certificationId ?? "").trim() || null
+	const accountPurpose = await getProviderAccountPurpose(params.providerId)
+	if (accountPurpose === "integration_certification") {
+		if (!certificationId) throw new Error("INTEGRATION_CERTIFICATION_ID_REQUIRED")
+		await assertProviderIntegrationCertificationRunLink({
+			providerId: params.providerId,
+			connectionId: params.connectionId,
+			certificationId,
+		})
+	} else if (certificationId) {
+		throw new Error("CERTIFICATION_PROVIDER_REQUIRED")
+	}
 	const runtime = params.adapter
 		? null
 		: await getProviderChannelManagerRuntime({
@@ -643,6 +660,7 @@ export async function runProviderBookingRevisionFeed(params: {
 	const run = await startProviderIntegrationSyncRun({
 		providerId: params.providerId,
 		connectionId: params.connectionId,
+		certificationId,
 		operation: BOOKING_REVISION_FEED_OPERATION,
 		trigger: params.trigger ?? "scheduled",
 		idempotencyKey: params.idempotencyKey,
@@ -734,6 +752,9 @@ export async function runProviderBookingRevisionFeed(params: {
 			summaryJson: {
 				version: 1,
 				kind: "booking_revision_feed",
+				execution: certificationId
+					? { context: "certification", certificationId, scenario: "booking_crs" }
+					: { context: "commercial", certificationId: null, scenario: null },
 				propertyId,
 				fetched: feed.items.length,
 				saved,

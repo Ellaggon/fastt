@@ -427,3 +427,77 @@ export async function recordProviderIntegrationCertificationScenarioEvidence(par
 	})
 	return { scenarioEvidence: evidence }
 }
+
+/**
+ * Associates completed Booking CRS runs with their active certification session.
+ * This is deliberately narrow: it cannot repurpose commercial runs or rewrite
+ * failed work as certification evidence.
+ */
+export async function linkProviderIntegrationCertificationBookingRuns(params: {
+	providerId: string
+	connectionId: string
+	certificationId: string
+	userId: string
+	runIds: string[]
+}) {
+	await assertProviderIntegrationCertificationExecution(params)
+	const runIds = [...new Set(params.runIds.map((id) => String(id).trim()).filter(Boolean))]
+	if (!runIds.length) throw new Error("INTEGRATION_CERTIFICATION_RUNS_REQUIRED")
+	const runs = await db
+		.select({
+			id: ProviderIntegrationSyncRun.id,
+			status: ProviderIntegrationSyncRun.status,
+			certificationId: ProviderIntegrationSyncRun.certificationId,
+			summaryJson: ProviderIntegrationSyncRun.summaryJson,
+		})
+		.from(ProviderIntegrationSyncRun)
+		.where(
+			and(
+				eq(ProviderIntegrationSyncRun.providerId, params.providerId),
+				eq(ProviderIntegrationSyncRun.connectionId, params.connectionId),
+				eq(ProviderIntegrationSyncRun.operation, "booking_revision_feed"),
+				inArray(ProviderIntegrationSyncRun.id, runIds)
+			)
+		)
+	if (runs.length !== runIds.length) throw new Error("INTEGRATION_CERTIFICATION_RUN_NOT_FOUND")
+	if (runs.some((run) => run.status !== "succeeded")) {
+		throw new Error("INTEGRATION_CERTIFICATION_RUN_NOT_SUCCEEDED")
+	}
+	if (
+		runs.some(
+			(run) => run.certificationId && String(run.certificationId) !== params.certificationId
+		)
+	) {
+		throw new Error("INTEGRATION_CERTIFICATION_RUN_ALREADY_LINKED")
+	}
+	for (const run of runs) {
+		const summary = certificationManifest(run.summaryJson)
+		await db
+			.update(ProviderIntegrationSyncRun)
+			.set({
+				certificationId: params.certificationId,
+				summaryJson: {
+					...summary,
+					execution: {
+						context: "certification",
+						certificationId: params.certificationId,
+						scenario: "booking_crs",
+					},
+				},
+			})
+			.where(eq(ProviderIntegrationSyncRun.id, run.id))
+	}
+	await writeProviderAuditLog({
+		providerId: params.providerId,
+		actorUserId: params.userId,
+		action: "provider.integration.certification.booking_runs_linked",
+		entityType: "ProviderIntegrationCertification",
+		entityId: params.certificationId,
+		beforeJson: {
+			runIds: runs.map((run) => ({ id: run.id, certificationId: run.certificationId })),
+		},
+		afterJson: { runIds, scenario: "booking_crs" },
+		riskLevel: "medium",
+	})
+	return { runIds }
+}

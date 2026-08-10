@@ -28,6 +28,20 @@ describe("channel manager booking revision guardrails", () => {
 		expect(acknowledgement).toBeGreaterThan(revisionWrite)
 	})
 
+	it("binds certification booking runs to the governed certification session", () => {
+		const service = read("src/lib/channel-manager/channel-manager-booking-revisions.ts")
+		const certification = read("src/lib/provider-integration-certification.ts")
+
+		expect(service).toContain("certificationId?: string | null")
+		expect(service).toContain("INTEGRATION_CERTIFICATION_ID_REQUIRED")
+		expect(service).toContain("assertProviderIntegrationCertificationRunLink")
+		expect(service).toContain("scenario: \"booking_crs\"")
+		expect(certification).toContain(
+			"linkProviderIntegrationCertificationBookingRuns"
+		)
+		expect(certification).toContain("INTEGRATION_CERTIFICATION_RUN_NOT_SUCCEEDED")
+	})
+
 	it("does not model or persist payment-card fields", () => {
 		const contract = read("src/lib/channel-manager/channel-manager-adapter.ts")
 		const service = read("src/lib/channel-manager/channel-manager-booking-revisions.ts")
