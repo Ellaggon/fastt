@@ -325,6 +325,12 @@ describe("integration/provider governance", () => {
 		expect(summary.risks.map((risk) => risk.id)).toContain("fiscal_pending_verification")
 		expect(summary.risks.map((risk) => risk.id)).toContain("documents_pending_review")
 		expect(summary.risks.map((risk) => risk.id)).toContain("documents_kyc_set_incomplete")
+		expect(summary.risks.find((risk) => risk.id === "fiscal_pending_verification")?.areaId).toBe(
+			"fiscality"
+		)
+		expect(summary.risks.find((risk) => risk.id === "documents_pending_review")?.areaId).toBe(
+			"documents"
+		)
 		// Active tax fees exist — should NOT complete fiscality, and missing-fees risk should be absent.
 		expect(summary.risks.map((risk) => risk.id)).not.toContain("tax_definitions_missing")
 	})

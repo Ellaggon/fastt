@@ -40,6 +40,8 @@ export type ProviderGovernanceIssue = {
 	severity: "low" | "medium" | "high"
 	href: string
 	capabilities: ProviderCapability[]
+	/** Área de configuración responsable de resolver la señal. */
+	areaId?: string
 }
 
 export type ProviderGovernanceSummary = {
@@ -142,12 +144,35 @@ function issueFromCheck(check: ProviderGovernanceCheck): ProviderGovernanceIssue
 		severity: high ? "high" : "medium",
 		href: check.href,
 		capabilities: check.capabilities,
+		areaId: check.id,
 	}
 }
 
 function isFreshConfigurationState(value: unknown): boolean {
 	const time = value ? new Date(value as any).getTime() : 0
 	return Number.isFinite(time) && Date.now() - time <= PROVIDER_CONFIGURATION_STATE_MAX_AGE_MS
+}
+
+function inferIssueAreaId(id: string, href: string): string | undefined {
+	if (id === "identity" || id === "operations" || id === "verification") return id
+	if (id === "documents" || id.startsWith("documents_")) return "documents"
+	if (
+		id === "fiscality" ||
+		id.startsWith("tax_") ||
+		id.startsWith("taxpayer_") ||
+		id.startsWith("fiscal_")
+	) {
+		return "fiscality"
+	}
+	if (id === "payments" || id.startsWith("financial_profile_")) return "payments"
+	if (id === "integrations" || id.startsWith("integrations_")) return "integrations"
+	if (id === "team") return "team"
+	if (href.includes("/verification/payments")) return "payments"
+	if (href.includes("/verification/fiscal") || href.includes("/tax-fees")) return "fiscality"
+	if (href.includes("/integrations")) return "integrations"
+	if (href.includes("/settings/team")) return "team"
+	if (href.includes("/settings/profile")) return "identity"
+	return undefined
 }
 
 function normalizeReadiness(value: unknown): ProviderGovernanceCheck[] | null {
@@ -187,6 +212,9 @@ function normalizeIssues(value: unknown): ProviderGovernanceIssue[] {
 							["publish", "booking", "payments", "integrations"].includes(String(capability))
 						) as ProviderCapability[])
 					: [],
+				areaId: raw.areaId
+					? String(raw.areaId)
+					: inferIssueAreaId(String(raw.id ?? ""), String(raw.href ?? "")),
 			}
 		})
 }
@@ -556,6 +584,7 @@ export async function evaluateProviderGovernance(
 						severity: "low" as const,
 						href: settingsRoutes.integrations,
 						capabilities: ["integrations"] as ProviderCapability[],
+						areaId: "integrations",
 					},
 				]),
 		...(pendingSmokeIntegrations.length > 0
@@ -566,6 +595,7 @@ export async function evaluateProviderGovernance(
 						severity: "medium" as const,
 						href: settingsRoutes.integrations,
 						capabilities: ["integrations"] as ProviderCapability[],
+						areaId: "integrations",
 					},
 				]
 			: []),
@@ -577,6 +607,7 @@ export async function evaluateProviderGovernance(
 						severity: "medium" as const,
 						href: settingsRoutes.taxFeesSales,
 						capabilities: ["booking", "payments"] as ProviderCapability[],
+						areaId: "fiscality",
 					},
 				]
 			: []),
@@ -593,6 +624,7 @@ export async function evaluateProviderGovernance(
 						severity: "high" as const,
 						href: settingsRoutes.taxFeesIdentity,
 						capabilities: ["publish", "booking", "payments"] as ProviderCapability[],
+						areaId: "fiscality",
 					},
 				]
 			: []),
@@ -606,6 +638,7 @@ export async function evaluateProviderGovernance(
 						severity: "high" as const,
 						href: settingsRoutes.taxFeesIdentity,
 						capabilities: ["publish", "booking", "payments"] as ProviderCapability[],
+						areaId: "fiscality",
 					},
 				]
 			: []),
@@ -617,6 +650,7 @@ export async function evaluateProviderGovernance(
 						severity: "medium" as const,
 						href: settingsRoutes.verification,
 						capabilities: ["payments", "integrations"] as ProviderCapability[],
+						areaId: "documents",
 					},
 				]
 			: []),
@@ -624,10 +658,11 @@ export async function evaluateProviderGovernance(
 			? [
 					{
 						id: "documents_kyc_set_incomplete",
-						label: `Faltan documentos mínimos verificados: ${kycDocuments.missingRequiredTypes.join(", ")}`,
+						label: "Faltan documentos mínimos verificados",
 						severity: "high" as const,
 						href: settingsRoutes.verification,
 						capabilities: ["payments", "integrations"] as ProviderCapability[],
+						areaId: "documents",
 					},
 				]
 			: []),
@@ -640,6 +675,7 @@ export async function evaluateProviderGovernance(
 						severity: "high" as const,
 						href: settingsRoutes.payments,
 						capabilities: ["payments"] as ProviderCapability[],
+						areaId: "payments",
 					},
 				]
 			: []),
