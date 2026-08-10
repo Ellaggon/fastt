@@ -844,7 +844,9 @@ try {
 		<section class="space-y-4">
 			<header class="flex flex-wrap items-end justify-between gap-3">
 				<div class="space-y-1">
-					<h2 class="text-lg font-semibold text-slate-100">Condiciones que verá el viajero</h2>
+					<h2 class="text-lg font-semibold text-slate-100">
+						{isHotel ? "Condiciones que verá el huésped" : "Condiciones que verá el viajero"}
+					</h2>
 					<p class="text-sm leading-6 text-slate-400">
 						Resumen visible de cancelación, pago, no presentación y llegada.
 					</p>
