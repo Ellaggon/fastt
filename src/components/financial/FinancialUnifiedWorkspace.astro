@@ -48,24 +48,20 @@ try {
 				typeof professionalModeCookie === "boolean" ? professionalModeCookie : undefined,
 		})
 		isSimpleFinancialView = sidebarData.disclosureMode === "small-provider"
-		const accommodations = (
+		const products = (
 			await db
-				.select({ id: Product.id, name: Product.name })
+				.select({ id: Product.id, name: Product.name, type: Product.productType })
 				.from(Product)
-				.where(
-					and(eq(Product.providerId, providerId), sql`lower(${Product.productType}) = 'hotel'`)
-				)
+				.where(eq(Product.providerId, providerId))
 		)
 			.map((product) => ({
 				id: String(product.id),
-				name: String(product.name || "Alojamiento"),
+				name: String(product.name || product.type || "Servicio"),
 			}))
 			.sort((left, right) => left.name.localeCompare(right.name, "es"))
 		const requestedProductId = String(Astro.url.searchParams.get("productId") ?? "").trim()
 		selectedAccommodation =
-			accommodations.find((product) => product.id === requestedProductId) ??
-			accommodations[0] ??
-			null
+			products.find((product) => product.id === requestedProductId) ?? products[0] ?? null
 	}
 } catch {
 	isSimpleFinancialView = true

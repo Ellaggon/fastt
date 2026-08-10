@@ -24,6 +24,11 @@ const initialStatus = String(Astro.url.searchParams.get("status") ?? "all")
 const initialVista = String(Astro.url.searchParams.get("vista") ?? "today")
 	.trim()
 	.toLowerCase()
+const initialVertical = String(
+	Astro.url.searchParams.get("scope") ?? Astro.url.searchParams.get("vertical") ?? "all"
+)
+	.trim()
+	.toLowerCase()
 ---
 
 <WorkspaceLayout title="Reservas">
@@ -43,6 +48,7 @@ const initialVista = String(Astro.url.searchParams.get("vista") ?? "today")
 			<div class="flex flex-wrap gap-2">
 				<Button href="/rates/calendar" variant="secondary">Ver calendario</Button>
 				<Button href={routes.bookingDayOf()} variant="secondary">Cola day-of</Button>
+				<Button href="/booking?vertical=tour&vista=today" variant="secondary">Solo Tours</Button>
 				<Button href="/booking?vista=today" variant="primary">Ver hoy</Button>
 			</div>
 		</header>
@@ -276,7 +282,7 @@ const initialVista = String(Astro.url.searchParams.get("vista") ?? "today")
 	<script
 		is:inline
 		data-astro-rerun
-		define:vars={{ initialFrom, initialTo, initialStatus, initialVista }}
+		define:vars={{ initialFrom, initialTo, initialStatus, initialVista, initialVertical }}
 	>
 		;(function () {
 			const bootBookingPage = () => {
@@ -640,6 +646,7 @@ const initialVista = String(Astro.url.searchParams.get("vista") ?? "today")
 						if (from) qs.set("from", from)
 						if (to) qs.set("to", to)
 						if (status && status !== "all") qs.set("status", status)
+						if (initialVertical !== "all") qs.set("scope", initialVertical)
 						qs.set("limit", String(state.limit))
 						const response = await fetch(
 							`/api/internal/provider-bookings-summary?${qs.toString()}`,
@@ -649,7 +656,11 @@ const initialVista = String(Astro.url.searchParams.get("vista") ?? "today")
 						)
 						if (!response.ok) throw new Error(`provider_bookings_${response.status}`)
 						const payload = await response.json()
-						state.items = Array.isArray(payload?.items) ? payload.items : []
+						const received = Array.isArray(payload?.items) ? payload.items : []
+						state.items =
+							initialVertical === "tour"
+								? received.filter((item) => String(item?.vertical || "").toLowerCase() === "tour")
+								: received
 						state.hasMore = Boolean(payload?.pagination?.hasMore)
 						render()
 						if (latency)

@@ -38,6 +38,11 @@ export const GET: APIRoute = async ({ request, url }) => {
 			.toLowerCase()
 		const from = String(url.searchParams.get("from") ?? "").trim()
 		const to = String(url.searchParams.get("to") ?? "").trim()
+		const variantId = String(url.searchParams.get("variantId") ?? "").trim()
+		const productId = String(url.searchParams.get("productId") ?? "").trim()
+		const vertical = String(url.searchParams.get("scope") ?? url.searchParams.get("vertical") ?? "")
+			.trim()
+			.toLowerCase()
 		const limit = Math.max(1, Math.min(Number(url.searchParams.get("limit") ?? 25) || 25, 100))
 		const result = await readThrough(
 			cacheKeys.providerBookingsSummary(providerId, status, from || "any", to || "any", limit),
@@ -53,7 +58,13 @@ export const GET: APIRoute = async ({ request, url }) => {
 		)
 		logEndpoint()
 		const durationMs = Number((performance.now() - startedAt).toFixed(1))
-		return new Response(JSON.stringify(result), {
+		const items = result.items.filter(
+			(item: { variantId?: string | null; productId?: string | null; vertical?: string | null }) =>
+				(!variantId || item.variantId === variantId) &&
+				(!productId || item.productId === productId) &&
+				(!vertical || item.vertical === vertical)
+		)
+		return new Response(JSON.stringify({ ...result, items }), {
 			status: 200,
 			headers: {
 				"Content-Type": "application/json",

@@ -9,14 +9,20 @@ import {
 import type { ProviderSidebarReadiness } from "@/lib/dashboard/providerSidebarReadiness"
 import type { WorkspaceShellContext } from "@/lib/dashboard/workspaceRequestContext"
 import { routes } from "@/lib/routes"
+import {
+	resolveProviderWorkspaceContext,
+	withWorkspaceNavigationScope,
+	type WorkspaceNavigationScope,
+} from "@/lib/workspace/verticalContext"
 
 interface Props {
 	pathname?: string
 	currentPath?: string
 	workspaceContext: WorkspaceShellContext
+	workspaceScope: WorkspaceNavigationScope
 }
 
-const { pathname = "", currentPath = pathname, workspaceContext } = Astro.props
+const { pathname = "", currentPath = pathname, workspaceContext, workspaceScope } = Astro.props
 const isAccommodationHubSurface = (value: string) =>
 	/^\/catalog\/accommodations(?:\/|$)/.test(value)
 const isProductDetailSurface = (value: string) => /^\/product\/[^/]+\/?$/.test(value)
@@ -103,10 +109,9 @@ function summaryTone(summary: string): "neutral" | "success" | "warning" | "dang
 }
 
 const sectionByTitle = new Map(visibleNavigation.map((section) => [section.title, section]))
-const normalizedServiceTypes = serviceProductTypes
-	.map((type) => String(type).trim().toLowerCase())
-	.filter(Boolean)
-const serviceTypes = normalizedServiceTypes.length ? normalizedServiceTypes : ["hotel"]
+const serviceTypes = resolveProviderWorkspaceContext({
+	productTypes: serviceProductTypes,
+}).availableVerticals
 const hasHotelService = serviceTypes.includes("hotel")
 const onlyHotelService = hasHotelService && new Set(serviceTypes).size === 1
 const navigationGroups = [
@@ -195,7 +200,7 @@ function shouldShowNavGroupHeading(
 								</p>
 							) : null}
 							<DashboardSidebarItem
-								href={item.href}
+								href={withWorkspaceNavigationScope(item.href, workspaceScope)}
 								label={item.label}
 								status={item.status}
 								summary={summary}
