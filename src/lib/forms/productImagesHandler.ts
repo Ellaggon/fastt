@@ -19,17 +19,20 @@ type ExistingImage = {
 	order?: number
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+function initProductImagesForm() {
 	const form = qs<HTMLFormElement>("#imagesForm")
 	const btn = qs<HTMLButtonElement>("#submitBtn")
 	const filesInput = qs<HTMLInputElement>("#files")
 	const dropzone = qs<HTMLDivElement>("#dropzone")
 	const previewGrid = qs<HTMLDivElement>("#previewGrid")
+	const imageCount = qs<HTMLElement>("#imageCount")
 	const stateLabel = qs<HTMLElement>("#stateLabel")
 	const stateDetail = qs<HTMLElement>("#stateDetail")
 
 	if (!form || !btn || !filesInput || !dropzone || !previewGrid || !stateLabel || !stateDetail)
 		return
+	if (form.dataset.bound === "true") return
+	form.dataset.bound = "true"
 
 	const pendingImages: PendingImage[] = []
 	const existingImagesData = qs<HTMLScriptElement>("#existingImagesData")
@@ -73,6 +76,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
 	function renderPreviewGrid() {
 		previewGridEl.innerHTML = ""
+		if (imageCount) {
+			imageCount.textContent = `${existingImages.length + pendingImages.length}/5 fotos recomendadas`
+		}
 		if (pendingImages.length === 0 && existingImages.length === 0) {
 			previewGridEl.innerHTML =
 				'<p class="fastt-empty-state col-span-full p-6 text-sm text-slate-600">Todavía no hay imágenes cargadas.</p>'
@@ -160,6 +166,11 @@ document.addEventListener("DOMContentLoaded", () => {
 	}
 
 	dropzoneEl.addEventListener("click", () => fileInputEl.click())
+	dropzoneEl.addEventListener("keydown", (event) => {
+		if (event.key !== "Enter" && event.key !== " ") return
+		event.preventDefault()
+		fileInputEl.click()
+	})
 	dropzoneEl.addEventListener("dragover", (event) => {
 		event.preventDefault()
 		dropzoneEl.classList.remove("border-slate-300", "bg-white")
@@ -186,8 +197,35 @@ document.addEventListener("DOMContentLoaded", () => {
 	if (existingImages.length > 0) {
 		setState(
 			"empty",
-			`Imágenes existentes: ${existingImages.length}. Puedes agregar nuevas imágenes.`
+			`Ya tienes ${existingImages.length} foto(s). Puedes continuar o agregar nuevas.`
 		)
+	}
+
+	function redirectAfterSuccess(formFd: FormData, productId: string) {
+		const mode = String(formFd.get("flow") || "")
+			.trim()
+			.toLowerCase()
+		const playbook = String(formFd.get("playbook") || "")
+			.trim()
+			.toLowerCase()
+		if (
+			mode === "create" ||
+			mode === "complete" ||
+			playbook === "launch" ||
+			playbook === "launch-accommodation" ||
+			playbook === "launch-tour" ||
+			playbook === "complete-to-publish" ||
+			playbook === "complete"
+		) {
+			if (mode === "complete" || playbook === "complete-to-publish" || playbook === "complete") {
+				window.location.href = `/product/${encodeURIComponent(productId)}/preview?playbook=complete-to-publish&step=preview&flow=complete`
+				return
+			}
+			const nextPlaybook = playbook === "launch-tour" ? "launch-tour" : "launch"
+			window.location.href = `/product/${encodeURIComponent(productId)}/subtype?playbook=${nextPlaybook}&step=subtype&flow=create`
+			return
+		}
+		window.location.href = `/product/${encodeURIComponent(productId)}`
 	}
 
 	form.addEventListener("submit", async (e) => {
@@ -198,8 +236,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
 		try {
 			if (pendingImages.length === 0) {
+				if (existingImages.length > 0) {
+					const formFd = new FormData(form)
+					setState("success", "Continuando con las fotos existentes.")
+					redirectAfterSuccess(formFd, String(formFd.get("productId") || ""))
+					return
+				}
 				btn.disabled = false
 				setState("empty", "Debes seleccionar al menos una imagen.")
+				dropzoneEl.focus()
 				return
 			}
 
@@ -283,32 +328,14 @@ document.addEventListener("DOMContentLoaded", () => {
 				return
 			}
 
-			const mode = String(formFd.get("flow") || "")
-				.trim()
-				.toLowerCase()
-			const playbook = String(formFd.get("playbook") || "")
-				.trim()
-				.toLowerCase()
 			setState("success", "Guardado correctamente")
-			if (
-				mode === "create" ||
-				mode === "complete" ||
-				playbook === "launch" ||
-				playbook === "launch-accommodation" ||
-				playbook === "complete-to-publish" ||
-				playbook === "complete"
-			) {
-				if (mode === "complete" || playbook === "complete-to-publish" || playbook === "complete") {
-					window.location.href = `/product/${encodeURIComponent(productId)}/preview?playbook=complete-to-publish&step=preview&flow=complete`
-					return
-				}
-				window.location.href = `/product/${encodeURIComponent(productId)}/subtype?playbook=launch&step=subtype&flow=create`
-				return
-			}
-			window.location.href = `/product/${encodeURIComponent(productId)}`
+			redirectAfterSuccess(formFd, productId)
 		} catch (err) {
 			btn.disabled = false
 			setState("error", `Error de red: ${String(err)}`)
 		}
 	})
-})
+}
+
+initProductImagesForm()
+document.addEventListener("astro:page-load", initProductImagesForm)

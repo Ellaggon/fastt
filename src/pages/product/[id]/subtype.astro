@@ -3,11 +3,14 @@ import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
+import Select from "@/components/ui/Select.astro"
 import Textarea from "@/components/ui/Textarea.astro"
+import { TOUR_DIFFICULTY_OPTIONS, normalizeTourDifficulty } from "@/lib/tours/tourDifficulty"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import { buildCompleteToPublishHref } from "@/lib/playbook/complete-to-publish"
 import { buildPlaybookHref } from "@/lib/playbook/launch-accommodation"
 import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
+import { playbookRedirectHrefFor } from "@/lib/playbook/playbook-nav"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProductVerticalDefinition } from "@/lib/productVerticalRegistry"
@@ -43,6 +46,7 @@ const vertical = getProductVerticalDefinition(product.productType)
 const verticalLabel = vertical?.labels.singular.toLowerCase() ?? "oferta"
 const detailTitle = vertical?.labels.detailTitle ?? "Detalles de la oferta"
 const subtypeHeading = pt === "hotel" ? "Detalles del alojamiento" : `Detalles del ${verticalLabel}`
+const workspacePlural = vertical?.labels.plural ?? "Ofertas"
 
 function listToText(value: unknown, key = "description") {
 	if (!Array.isArray(value)) return ""
@@ -128,7 +132,7 @@ const limousineSubtype =
 ---
 
 <PlaybookLayout
-	title={`Alojamientos · ${detailTitle}`}
+	title={`${workspacePlural} · ${detailTitle}`}
 	playbookId={playbook.playbookId}
 	active={playbook.active}
 	stepId={playbook.stepId ?? "subtype"}
@@ -152,6 +156,8 @@ const limousineSubtype =
 					action="/api/product/subtype"
 					class="max-w-3xl space-y-6"
 					data-is-hotel={isHotel ? "true" : "false"}
+					data-is-tour={pt === "tour" ? "true" : "false"}
+					novalidate={pt === "tour"}
 				>
 					<Input type="hidden" name="productId" value={productId} />
 					<Input
@@ -215,143 +221,226 @@ const limousineSubtype =
 
 						{
 							pt === "tour" ? (
-								<div class="space-y-4">
-									<FormField label="Duración (texto)" htmlFor="duration">
-										<Input
-											id="duration"
-											name="duration"
-											value={tourSubtype?.duration ?? ""}
-											placeholder="Ej: 4 Horas"
-										/>
-									</FormField>
-									<FormField label="Duración en minutos" htmlFor="durationMinutes">
-										<Input
-											id="durationMinutes"
-											name="durationMinutes"
-											value={
-												tourSubtype?.durationMinutes != null
-													? String(tourSubtype.durationMinutes)
-													: ""
-											}
-											placeholder="Ej: 240 (se infiere del texto si vacío)"
-										/>
-									</FormField>
-									<FormField label="Nivel de dificultad" htmlFor="difficultyLevel">
-										<Input
-											id="difficultyLevel"
-											name="difficultyLevel"
-											value={tourSubtype?.difficultyLevel ?? ""}
-											placeholder="Fácil, Moderado, Difícil..."
-										/>
-									</FormField>
-									<div class="fastt-soft-box rounded-[var(--fastt-radius-card)] border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 md:col-span-2">
-										<p class="font-semibold text-slate-900">Categorías de discovery</p>
-										<p class="mt-1 leading-6">
-											Se editan en una sola superficie canónica:
-											<a
-												class="font-semibold text-sky-800 underline"
-												href={`/product/${productId}/tickets`}
-											>
-												Tickets y categorías
-											</a>
-											. Search usa exactamente
-											<code class="mx-1">ProductCategoryLink</code>.
-										</p>
-									</div>
-									<FormField label="Idiomas guía (separados por coma)" htmlFor="guideLanguages">
-										<Input
-											id="guideLanguages"
-											name="guideLanguages"
-											value={fieldFromObject(tourSubtype?.guideJson, "languages")}
-											placeholder="es,en"
-										/>
-									</FormField>
-									<FormField label="Tipo de guía" htmlFor="guideType">
-										<Input
-											id="guideType"
-											name="guideType"
-											value={fieldFromObject(tourSubtype?.guideJson, "guideType")}
-											placeholder="Guía local, conductor guía, anfitrión..."
-										/>
-									</FormField>
-									<FormField label="Punto de encuentro" htmlFor="meetingPointAddress">
-										<Input
-											id="meetingPointAddress"
-											name="meetingPointAddress"
-											value={fieldFromObject(tourSubtype?.meetingPointJson, "address")}
-											placeholder="Dirección o referencia"
-										/>
-									</FormField>
-									<FormField
-										label="Instrucciones del punto de encuentro"
-										htmlFor="meetingPointInstructions"
+								<div class="space-y-6">
+									<section
+										class="space-y-5 rounded-xl border border-slate-200 bg-white p-5"
+										aria-labelledby="tourEssentialsHeading"
 									>
-										<Textarea
-											id="meetingPointInstructions"
-											name="meetingPointInstructions"
-											value={fieldFromObject(tourSubtype?.meetingPointJson, "instructions")}
-											rows="3"
-										/>
-									</FormField>
-									<FormField label="Área de pickup (opcional)" htmlFor="pickupDefaultArea">
-										<Input
-											id="pickupDefaultArea"
-											name="pickupDefaultArea"
-											value={fieldFromObject(tourSubtype?.pickupJson, "defaultArea")}
-											placeholder="Hoteles zona centro, aeropuerto..."
-										/>
-									</FormField>
-									<FormField label="Instrucciones de pickup" htmlFor="pickupInstructions">
-										<Textarea
-											id="pickupInstructions"
-											name="pickupInstructions"
-											value={fieldFromObject(tourSubtype?.pickupJson, "instructions")}
-											rows="2"
-										/>
-									</FormField>
-									<FormField label="Itinerario del tour" htmlFor="tourItinerary">
-										<Textarea
-											id="tourItinerary"
-											name="tourItinerary"
-											value={listToText(tourSubtype?.itineraryJson)}
-											rows="5"
-											placeholder="Una parada o experiencia por línea"
-										/>
-									</FormField>
-									<FormField label="Incluye" htmlFor="tourIncludes">
-										<Textarea
-											id="tourIncludes"
-											name="tourIncludes"
-											value={listToText(tourSubtype?.includesJson)}
-											rows="3"
-											placeholder="Transporte, guía, entradas..."
-										/>
-									</FormField>
-									<FormField label="No incluye" htmlFor="tourExcludes">
-										<Textarea
-											id="tourExcludes"
-											name="tourExcludes"
-											value={listToText(tourSubtype?.excludesJson)}
-											rows="3"
-											placeholder="Propinas, almuerzo..."
-										/>
-									</FormField>
-									<FormField label="Requisitos de seguridad" htmlFor="safetyRequirements">
-										<Textarea
-											id="safetyRequirements"
-											name="safetyRequirements"
-											value={fieldFromObject(tourSubtype?.safetyJson, "requirements")}
-											rows="3"
-										/>
-									</FormField>
-									<FormField label="Advertencias o condiciones físicas" htmlFor="safetyWarnings">
-										<Textarea
-											id="safetyWarnings"
-											name="safetyWarnings"
-											value={fieldFromObject(tourSubtype?.safetyJson, "warnings")}
-											rows="3"
-										/>
-									</FormField>
+										<div class="space-y-1">
+											<h3 id="tourEssentialsHeading" class="text-lg font-semibold text-slate-900">
+												Información esencial
+											</h3>
+											<p class="text-sm text-slate-600">
+												Completa estos datos para explicar cómo funciona el tour.
+											</p>
+										</div>
+										<div class="grid gap-4 md:grid-cols-2">
+											<FormField label="Duración visible" htmlFor="duration" required>
+												<Input
+													id="duration"
+													name="duration"
+													value={tourSubtype?.duration ?? ""}
+													placeholder="Ej: 4 horas"
+													required
+													aria-describedby="durationHelp durationError"
+												/>
+												<p id="durationHelp" class="text-xs text-slate-500">
+													Así se mostrará al viajero.
+												</p>
+												<p id="durationError" class="hidden text-sm text-red-600" />
+											</FormField>
+											<FormField
+												label="Duración total en minutos"
+												htmlFor="durationMinutes"
+												required
+											>
+												<Input
+													id="durationMinutes"
+													name="durationMinutes"
+													type="number"
+													min="1"
+													inputmode="numeric"
+													value={
+														tourSubtype?.durationMinutes != null
+															? String(tourSubtype.durationMinutes)
+															: ""
+													}
+													placeholder="240"
+													required
+													aria-describedby="durationMinutesError"
+												/>
+												<p id="durationMinutesError" class="hidden text-sm text-red-600" />
+											</FormField>
+										</div>
+										<FormField
+											label="Punto de encuentro"
+											htmlFor="meetingPointAddress"
+											required
+											description="Este es el lugar exacto donde comienza el tour; no es la ubicación de discovery del paso anterior."
+										>
+											<Input
+												id="meetingPointAddress"
+												name="meetingPointAddress"
+												value={fieldFromObject(tourSubtype?.meetingPointJson, "address")}
+												placeholder="Dirección, puerta o referencia reconocible"
+												required
+												aria-describedby="meetingPointAddressError"
+											/>
+											<p id="meetingPointAddressError" class="hidden text-sm text-red-600" />
+										</FormField>
+										<FormField
+											label="Instrucciones para encontrar al guía (opcional)"
+											htmlFor="meetingPointInstructions"
+										>
+											<Textarea
+												id="meetingPointInstructions"
+												name="meetingPointInstructions"
+												value={fieldFromObject(tourSubtype?.meetingPointJson, "instructions")}
+												rows="3"
+												placeholder="Ej: espera junto a la puerta azul 15 minutos antes."
+											/>
+										</FormField>
+										<FormField
+											label="Itinerario (mínimo 3 momentos)"
+											htmlFor="tourItinerary"
+											required
+										>
+											<Textarea
+												id="tourItinerary"
+												name="tourItinerary"
+												value={listToText(tourSubtype?.itineraryJson)}
+												rows="6"
+												placeholder={
+													"Encuentro y bienvenida\nRecorrido por el centro histórico\nVisita al mirador"
+												}
+												required
+												aria-describedby="tourItineraryHelp tourItineraryError"
+											/>
+											<p id="tourItineraryHelp" class="text-xs text-slate-500">
+												Escribe una parada o momento por línea.
+											</p>
+											<p id="tourItineraryError" class="hidden text-sm text-red-600" />
+										</FormField>
+										<FormField label="Qué incluye" htmlFor="tourIncludes" required>
+											<Textarea
+												id="tourIncludes"
+												name="tourIncludes"
+												value={listToText(tourSubtype?.includesJson)}
+												rows="4"
+												placeholder={"Guía local\nEntradas\nTransporte durante el recorrido"}
+												required
+												aria-describedby="tourIncludesError"
+											/>
+											<p id="tourIncludesError" class="hidden text-sm text-red-600" />
+										</FormField>
+									</section>
+
+									<details class="rounded-xl border border-slate-200 bg-white p-5">
+										<summary class="cursor-pointer font-semibold text-slate-900">
+											Presentación y guía (opcional)
+										</summary>
+										<div class="mt-5 space-y-4">
+											<FormField label="Nivel de dificultad" htmlFor="difficultyLevel">
+												{(() => {
+													const selected =
+														normalizeTourDifficulty(tourSubtype?.difficultyLevel) ?? ""
+													return (
+														<Select id="difficultyLevel" name="difficultyLevel">
+															<option value="" selected={selected === ""}>
+																Sin definir
+															</option>
+															{TOUR_DIFFICULTY_OPTIONS.map((level) => (
+																<option value={level.value} selected={selected === level.value}>
+																	{level.label}
+																</option>
+															))}
+														</Select>
+													)
+												})()}
+											</FormField>
+											<FormField label="Idiomas del guía" htmlFor="guideLanguages">
+												<Input
+													id="guideLanguages"
+													name="guideLanguages"
+													value={fieldFromObject(tourSubtype?.guideJson, "languages")}
+													placeholder="Español, inglés"
+												/>
+											</FormField>
+											<FormField label="Tipo de guía" htmlFor="guideType">
+												<Input
+													id="guideType"
+													name="guideType"
+													value={fieldFromObject(tourSubtype?.guideJson, "guideType")}
+													placeholder="Guía local, conductor guía, anfitrión..."
+												/>
+											</FormField>
+											<div class="fastt-soft-box rounded-[var(--fastt-radius-card)] border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+												<p class="font-semibold text-slate-900">Categorías de discovery</p>
+												<p class="mt-1 leading-6">
+													Se completan en
+													<a
+														class="font-semibold text-sky-800 underline"
+														href={`/product/${productId}/tickets`}
+													>
+														Tickets y categorías
+													</a>
+													.
+												</p>
+											</div>
+										</div>
+									</details>
+
+									<details class="rounded-xl border border-slate-200 bg-white p-5">
+										<summary class="cursor-pointer font-semibold text-slate-900">
+											Logística, exclusiones y seguridad (opcional)
+										</summary>
+										<div class="mt-5 space-y-4">
+											<FormField label="Área de recogida" htmlFor="pickupDefaultArea">
+												<Input
+													id="pickupDefaultArea"
+													name="pickupDefaultArea"
+													value={fieldFromObject(tourSubtype?.pickupJson, "defaultArea")}
+													placeholder="Hoteles de la zona centro, aeropuerto..."
+												/>
+											</FormField>
+											<FormField label="Instrucciones de recogida" htmlFor="pickupInstructions">
+												<Textarea
+													id="pickupInstructions"
+													name="pickupInstructions"
+													value={fieldFromObject(tourSubtype?.pickupJson, "instructions")}
+													rows="2"
+												/>
+											</FormField>
+											<FormField label="No incluye" htmlFor="tourExcludes">
+												<Textarea
+													id="tourExcludes"
+													name="tourExcludes"
+													value={listToText(tourSubtype?.excludesJson)}
+													rows="3"
+													placeholder="Propinas, almuerzo..."
+												/>
+											</FormField>
+											<FormField label="Requisitos de seguridad" htmlFor="safetyRequirements">
+												<Textarea
+													id="safetyRequirements"
+													name="safetyRequirements"
+													value={fieldFromObject(tourSubtype?.safetyJson, "requirements")}
+													rows="3"
+												/>
+											</FormField>
+											<FormField
+												label="Advertencias o condiciones físicas"
+												htmlFor="safetyWarnings"
+											>
+												<Textarea
+													id="safetyWarnings"
+													name="safetyWarnings"
+													value={fieldFromObject(tourSubtype?.safetyJson, "warnings")}
+													rows="3"
+												/>
+											</FormField>
+										</div>
+									</details>
 								</div>
 							) : null
 						}
@@ -505,14 +594,21 @@ const limousineSubtype =
 					</div>
 
 					<div class="space-y-1">
-						<p id="stateLabel" class="text-sm text-slate-600">Vacío: sin cambios guardados.</p>
+						<p id="stateLabel" class="text-sm text-slate-600" aria-live="polite">
+							Vacío: sin cambios guardados.
+						</p>
 						<p id="stateDetail" class="whitespace-pre-wrap text-sm text-slate-600"></p>
 					</div>
 
 					<div class="flex items-center justify-end gap-3">
 						<Button
-							href={playbook.active
-								? buildPlaybookHref(`/product/${productId}/images`, "images")
+							href={playbook.active && playbook.playbookId
+								? playbookRedirectHrefFor(
+										playbook.playbookId,
+										`/product/${productId}/images`,
+										"images",
+										productId
+									)
 								: `/product/${encodeURIComponent(productId)}/images`}
 							variant="secondary"
 						>
@@ -536,6 +632,7 @@ const limousineSubtype =
 		import {
 			isCompleteToPublishPlaybookMode,
 			isPlaybookMode,
+			isTourLaunchPlaybookMode,
 			playbookRedirectHref,
 			resolvePlaybookRedirectAfterSave,
 		} from "@/lib/playbook/playbook-nav.ts"
@@ -546,6 +643,7 @@ const limousineSubtype =
 		const stateDetail = document.getElementById("stateDetail")
 		const btn = document.getElementById("submitBtn")
 		const isHotel = form instanceof HTMLElement && form.dataset.isHotel === "true"
+		const isTour = form instanceof HTMLElement && form.dataset.isTour === "true"
 		const draft = bindPlaybookFormDraft(form instanceof HTMLFormElement ? form : null, {
 			key: `product:${window.location.pathname}:subtype`,
 		})
@@ -562,8 +660,101 @@ const limousineSubtype =
 			stateDetail.textContent = detail
 		}
 
+		const tourFieldErrors = {
+			duration: "durationError",
+			durationMinutes: "durationMinutesError",
+			meetingPointJson: "meetingPointAddressError",
+			itineraryJson: "tourItineraryError",
+			includesJson: "tourIncludesError",
+		}
+
+		function setFieldError(fieldId, errorId, message) {
+			const field = document.getElementById(fieldId)
+			const error = document.getElementById(errorId)
+			if (field) field.setAttribute("aria-invalid", message ? "true" : "false")
+			if (!error) return
+			error.textContent = message
+			error.classList.toggle("hidden", !message)
+		}
+
+		function validateTourForm() {
+			if (!isTour) return true
+			const values = {
+				duration: String(document.getElementById("duration")?.value || "").trim(),
+				durationMinutes: Number(document.getElementById("durationMinutes")?.value || 0),
+				meetingPointAddress: String(
+					document.getElementById("meetingPointAddress")?.value || ""
+				).trim(),
+				itinerary: String(document.getElementById("tourItinerary")?.value || "")
+					.split(/\r?\n|,/)
+					.map((value) => value.trim())
+					.filter(Boolean),
+				includes: String(document.getElementById("tourIncludes")?.value || "")
+					.split(/\r?\n|,/)
+					.map((value) => value.trim())
+					.filter(Boolean),
+			}
+			const errors = {
+				duration: values.duration ? "" : "Indica la duración del tour.",
+				durationMinutes:
+					Number.isInteger(values.durationMinutes) && values.durationMinutes > 0
+						? ""
+						: "Indica una duración en minutos mayor que cero.",
+				meetingPointAddress: values.meetingPointAddress ? "" : "Indica el punto de encuentro.",
+				itinerary:
+					values.itinerary.length >= 3
+						? ""
+						: "Agrega al menos 3 paradas o momentos, uno por línea.",
+				includes: values.includes.length ? "" : "Agrega al menos una inclusión.",
+			}
+			setFieldError("duration", "durationError", errors.duration)
+			setFieldError("durationMinutes", "durationMinutesError", errors.durationMinutes)
+			setFieldError("meetingPointAddress", "meetingPointAddressError", errors.meetingPointAddress)
+			setFieldError("tourItinerary", "tourItineraryError", errors.itinerary)
+			setFieldError("tourIncludes", "tourIncludesError", errors.includes)
+			const firstInvalid = Object.entries(errors).find(([, message]) => Boolean(message))?.[0]
+			const fieldIds = {
+				duration: "duration",
+				durationMinutes: "durationMinutes",
+				meetingPointAddress: "meetingPointAddress",
+				itinerary: "tourItinerary",
+				includes: "tourIncludes",
+			}
+			if (firstInvalid) {
+				document.getElementById(fieldIds[firstInvalid])?.focus()
+				setState("error", "Revisa los campos marcados.")
+				return false
+			}
+			return true
+		}
+
+		function showServerFieldErrors(text) {
+			if (!isTour) return
+			try {
+				const payload = JSON.parse(text)
+				const errors = payload?.error?.fieldErrors
+				if (!errors || typeof errors !== "object") return
+				for (const [field, errorId] of Object.entries(tourFieldErrors)) {
+					const messages = errors[field]
+					if (!Array.isArray(messages) || !messages.length) continue
+					const fieldId =
+						field === "meetingPointJson"
+							? "meetingPointAddress"
+							: field === "itineraryJson"
+								? "tourItinerary"
+								: field === "includesJson"
+									? "tourIncludes"
+									: field
+					setFieldError(fieldId, errorId, String(messages[0]))
+				}
+			} catch {
+				// The status message still exposes non-validation server errors.
+			}
+		}
+
 		form?.addEventListener("submit", async (e) => {
 			e.preventDefault()
+			if (!validateTourForm()) return
 			setState("loading")
 			btn.disabled = true
 			setState("disabled")
@@ -574,6 +765,7 @@ const limousineSubtype =
 				const txt = await res.text()
 				if (!res.ok) {
 					btn.disabled = false
+					showServerFieldErrors(txt)
 					setState("error", `status=${res.status}\n${txt}`)
 					return
 				}
@@ -597,6 +789,14 @@ const limousineSubtype =
 						`/product/${encodeURIComponent(id)}/rooms/new`,
 						"room-profile"
 					)
+					return
+				}
+				if (isTourLaunchPlaybookMode(fd)) {
+					window.location.href = resolvePlaybookRedirectAfterSave(fd, {
+						productId: id,
+						launchPath: `/product/${encodeURIComponent(id)}/tickets`,
+						launchStep: "tickets",
+					})
 					return
 				}
 				window.location.href = playbookRedirectHref(

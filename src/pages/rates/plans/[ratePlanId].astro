@@ -6,7 +6,7 @@ import RatePlanPoliciesSurface from "@/components/policy/RatePlanPoliciesSurface
 import RatePlanPricingSurface from "@/components/pricing/RatePlanPricingSurface.astro"
 import SegmentedControl from "@/components/ui/SegmentedControl.astro"
 import Textarea from "@/components/ui/Textarea.astro"
-import { Hotel } from "@lucide/astro"
+import { Hotel, Ticket } from "@lucide/astro"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import {
 	buildAddRoomHref,
@@ -17,6 +17,7 @@ import {
 	getNextLaunchStep,
 	resolveLaunchPlaybookFromUrl,
 } from "@/lib/playbook/launch-accommodation"
+import { getNextTourLaunchStep, resolveTourLaunchPlaybookFromUrl } from "@/lib/playbook/launch-tour"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { getProfessionalModeCookiePreference } from "@/lib/dashboard/professionalModeCookie"
@@ -110,6 +111,7 @@ const calendarHref = `${routes.calendar()}?ratePlanId=${encodeURIComponent(rateP
 
 const addRoomPlaybook = resolveAddRoomPlaybookFromUrl(Astro.url)
 const launchPlaybook = resolveLaunchPlaybookFromUrl(Astro.url)
+const tourLaunchPlaybook = resolveTourLaunchPlaybookFromUrl(Astro.url)
 const flow = Astro.url.searchParams.get("flow")
 if (!addRoomPlaybook.active && flow === "add-room") {
 	return Astro.redirect(
@@ -119,7 +121,7 @@ if (!addRoomPlaybook.active && flow === "add-room") {
 		)
 	)
 }
-if (!launchPlaybook.active && flow === "create") {
+if (!launchPlaybook.active && !tourLaunchPlaybook.active && flow === "create") {
 	const params = new URLSearchParams(Astro.url.searchParams)
 	params.set("playbook", "launch")
 	params.set("step", "conditions")
@@ -146,7 +148,21 @@ const launchContinueHref = launchPlaybook.active
 	? (getNextLaunchStep(launchPlaybook.stepId ?? "conditions", launchCtx)?.buildHref(launchCtx) ??
 		null)
 	: null
-const activePlaybook = addRoomPlaybook.active ? "add-room" : launchPlaybook.active ? "launch" : null
+const tourCtx = {
+	productId: String(row.productId),
+	variantId: String(row.variantId),
+	ratePlanId,
+}
+const tourContinueHref = tourLaunchPlaybook.active
+	? (getNextTourLaunchStep("conditions")?.buildHref(tourCtx) ?? null)
+	: null
+const activePlaybook = addRoomPlaybook.active
+	? "add-room"
+	: launchPlaybook.active
+		? "launch"
+		: tourLaunchPlaybook.active
+			? "launch-tour"
+			: null
 const isPlaybookMode = Boolean(activePlaybook)
 const effectiveActiveView = isPlaybookMode ? "conditions" : activeView
 const Layout = activePlaybook ? PlaybookLayout : WorkspaceLayout
@@ -177,7 +193,20 @@ const layoutProps =
 					continueHref: launchContinueHref,
 					continueLabel: "Confirmar condiciones y continuar →",
 				}
-			: { title: `Tarifa · ${row.ratePlanName}` }
+			: activePlaybook === "launch-tour"
+				? {
+						title: `Tarifa · ${row.ratePlanName}`,
+						playbookId: "launch-tour" as const,
+						active: true,
+						stepId: tourLaunchPlaybook.stepId ?? "conditions",
+						productId: tourCtx.productId,
+						variantId: tourCtx.variantId,
+						ratePlanId,
+						isHotel: false,
+						continueHref: tourContinueHref,
+						continueLabel: "Confirmar condiciones y continuar →",
+					}
+				: { title: `Tarifa · ${row.ratePlanName}` }
 ---
 
 <Layout {...layoutProps}>
@@ -190,8 +219,13 @@ const layoutProps =
 					{
 						isPlaybookMode ? (
 							<>
-								<Hotel class="h-4 w-4" />
-								{row.productName} · Nueva habitación
+								{activePlaybook === "launch-tour" ? (
+									<Ticket class="h-4 w-4" />
+								) : (
+									<Hotel class="h-4 w-4" />
+								)}
+								{row.productName} ·{" "}
+								{activePlaybook === "launch-tour" ? "Salida" : "Nueva habitación"}
 							</>
 						) : (
 							<>
@@ -272,8 +306,8 @@ const layoutProps =
 				<RatePlanPoliciesSurface
 					title={viewTitles.conditions}
 					description={isPlaybookMode
-						? "Revisa las condiciones iniciales. Puedes cambiarlas ahora o confirmarlas para continuar."
-						: "Define lo que verá y aceptará el huésped antes de reservar. Los cambios se aplican a reservas futuras."}
+						? "Revisa cancelación, pago, no presentación y confirmación antes de abrir fechas."
+						: "Define lo que verá y aceptará el viajero antes de reservar. Los cambios se aplican a reservas futuras."}
 					policyPlans={policyPlans}
 					checkIn={checkIn}
 					checkOut={checkOut}
@@ -283,6 +317,59 @@ const layoutProps =
 					showPlanSummary={false}
 					showHeader={false}
 				/>
+				{
+					activePlaybook === "launch-tour" ? (
+						<div
+							id="tourBookingQuestions"
+							data-product-id={tourCtx.productId}
+							class="mx-auto mt-6 max-w-3xl space-y-4 border-t border-slate-200 pt-6"
+						>
+							<div>
+								<h2 class="text-lg font-semibold text-slate-950">
+									Preguntas necesarias para operar
+								</h2>
+								<p class="mt-1 text-sm leading-6 text-slate-600">
+									Solicita solo datos imprescindibles. Se mostrarán al viajero antes de confirmar.
+								</p>
+							</div>
+							<div class="grid gap-3 sm:grid-cols-2">
+								{[
+									["pickup_location", "Hotel o dirección de recogida"],
+									["language", "Idioma preferido"],
+									["dietary", "Restricciones alimentarias"],
+									["mobility", "Necesidades de movilidad"],
+									["weight", "Peso para seguridad/equipamiento"],
+									["height", "Altura para seguridad/equipamiento"],
+								].map(([code, label]) => (
+									<label class="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+										<input type="checkbox" value={code} data-tour-question class="mt-0.5" />
+										<span>{label}</span>
+									</label>
+								))}
+							</div>
+							<label class="block text-sm font-medium text-slate-700">
+								Pregunta adicional (opcional)
+								<Input
+									id="tourCustomQuestion"
+									placeholder="Ej: ¿Qué talla de traje de neopreno necesitas?"
+									className="mt-1"
+								/>
+							</label>
+							<div class="flex flex-wrap items-center gap-3">
+								<Button type="button" id="saveTourQuestions" size="sm">
+									Guardar preguntas
+								</Button>
+								<a
+									href={routes.providerSettingsVerificationDocuments()}
+									class="text-sm font-semibold text-sky-800 underline"
+								>
+									Revisar licencias y seguro
+								</a>
+							</div>
+							<p id="tourQuestionsStatus" class="text-sm text-slate-600" aria-live="polite" />
+						</div>
+					) : null
+				}
 			</div>
 
 			{
@@ -616,4 +703,69 @@ const layoutProps =
 			}
 		})
 	})
+</script>
+
+<script>
+	const QUESTION_LABELS: Record<string, string> = {
+		pickup_location: "Hotel o dirección de recogida",
+		language: "Idioma preferido",
+		dietary: "Restricciones alimentarias",
+		mobility: "Necesidades de movilidad",
+		weight: "Peso para seguridad/equipamiento",
+		height: "Altura para seguridad/equipamiento",
+	}
+
+	async function initTourQuestions() {
+		const root = document.getElementById("tourBookingQuestions")
+		if (!(root instanceof HTMLElement) || root.dataset.bound === "true") return
+		root.dataset.bound = "true"
+		const productId = String(root.dataset.productId || "")
+		const status = document.getElementById("tourQuestionsStatus")
+		const custom = document.getElementById("tourCustomQuestion") as HTMLInputElement | null
+		const inputs = Array.from(root.querySelectorAll<HTMLInputElement>("[data-tour-question]"))
+		const current = await fetch(
+			`/api/tours/booking-questions?productId=${encodeURIComponent(productId)}`
+		)
+			.then((response) => response.json())
+			.catch(() => ({ questions: [] }))
+		const questions = Array.isArray(current?.questions) ? current.questions : []
+		for (const input of inputs) {
+			input.checked = questions.some((question: any) => question.code === input.value)
+		}
+		const customQuestion = questions.find((question: any) => question.code === "custom")
+		if (custom && customQuestion) custom.value = String(customQuestion.label || "")
+
+		document.getElementById("saveTourQuestions")?.addEventListener("click", async () => {
+			if (status) status.textContent = "Guardando preguntas..."
+			const selected = inputs
+				.filter((input) => input.checked)
+				.map((input) => ({
+					id: crypto.randomUUID(),
+					code: input.value,
+					label: QUESTION_LABELS[input.value],
+					required: true,
+				}))
+			if (custom?.value.trim()) {
+				selected.push({
+					id: crypto.randomUUID(),
+					code: "custom",
+					label: custom.value.trim(),
+					required: false,
+				})
+			}
+			const response = await fetch("/api/tours/booking-questions", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ productId, questions: selected }),
+			})
+			if (status) {
+				status.textContent = response.ok
+					? "Preguntas guardadas."
+					: "No se pudieron guardar las preguntas."
+			}
+		})
+	}
+
+	initTourQuestions()
+	document.addEventListener("astro:page-load", initTourQuestions)
 </script>

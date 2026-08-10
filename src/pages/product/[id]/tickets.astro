@@ -4,11 +4,12 @@ import Card from "@/components/ui/Card.astro"
 import Checkbox from "@/components/ui/Checkbox.astro"
 import Notice from "@/components/ui/Notice.astro"
 import { productRepository } from "@/container"
-import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { isTourProductType } from "@/lib/productVerticalRegistry"
 import { routes } from "@/lib/routes"
+import { buildTourPlaybookHref, resolveTourLaunchPlaybookFromUrl } from "@/lib/playbook/launch-tour"
 import { getProductAggregate } from "@/modules/catalog/public"
 import {
 	asc,
@@ -35,6 +36,7 @@ if (!isTourProductType(owned.productType)) return Astro.redirect(routes.productD
 
 const product = await getProductAggregate(productId)
 if (!product) return Astro.redirect("/product/create")
+const tourPlaybook = resolveTourLaunchPlaybookFromUrl(Astro.url)
 
 const [tickets, categories, links] = await Promise.all([
 	db
@@ -65,7 +67,14 @@ const initialTickets = tickets.map((t) => ({
 }))
 ---
 
-<WorkspaceLayout title={`${product.displayName} · Tickets y categorías`}>
+<PlaybookLayout
+	title={`${product.displayName} · Tickets y categorías`}
+	playbookId={tourPlaybook.playbookId}
+	active={tourPlaybook.active}
+	stepId={tourPlaybook.stepId ?? "tickets"}
+	productId={productId}
+	isHotel={false}
+>
 	<section class="space-y-6" data-product-id={productId}>
 		<header class="space-y-1.5 border-b border-slate-200 pb-5">
 			<p
@@ -76,15 +85,14 @@ const initialTickets = tickets.map((t) => ({
 			</p>
 			<h1 class="text-3xl font-semibold text-slate-950">Tickets y categorías</h1>
 			<p class="max-w-2xl text-sm leading-6 text-slate-600">
-				Define age bands para el PDP. Cada ticket consume 1 cupo; el pricing MVP usa la ocupación
-				adulto/niño/infante (custom hereda el bucket adulto por defecto).
+				Define quién puede reservar y cómo encontrarán los viajeros esta experiencia. Cada ticket
+				consume un cupo de participante.
 			</p>
 		</header>
 
-		<Notice variant="info" title="Pricing MVP">
-			Adulto, niño e infante alimentan <code>occupancyDetail</code>. Un ticket
-			<code>custom</code> hereda el bucket configurado por edad (o adulto) hasta existir tarifas por tipo
-			de ticket.
+		<Notice variant="info" title="Antes de continuar">
+			Necesitas al menos un tipo de ticket activo y una categoría. Guarda ambos juntos para crear
+			después la primera salida.
 		</Notice>
 
 		<Card class="space-y-4 bg-white">
@@ -103,36 +111,51 @@ const initialTickets = tickets.map((t) => ({
 							Agregar
 						</span>
 					</Button>
-					<Button type="button" id="save-tickets-btn" size="sm">Guardar tickets</Button>
+					{
+						!tourPlaybook.active ? (
+							<Button type="button" id="save-tickets-btn" size="sm">
+								Guardar tickets
+							</Button>
+						) : null
+					}
 				</div>
 			</div>
 
 			<div id="ticket-editor-list" class="space-y-3"></div>
 			<p id="tickets-status" class="text-sm text-slate-600" aria-live="polite"></p>
 		</Card>
-
-		<Notice variant="info" title="Fuente canónica de categorías">
-			<code>ProductCategoryLink</code> es la única fuente que ve search y el PDP. El campo libre
-			<code class="mx-1">Tour.categoriesJson</code> quedó legacy (backfill → links).
-		</Notice>
-
 		<Card class="space-y-4 bg-white">
-			<h2 class="text-sm font-semibold text-slate-950">Categorías (discovery)</h2>
-			<div class="flex flex-wrap gap-2">
-				{
-					categories.map((c) => (
-						<Checkbox
-							name="categoryId"
-							value={c.id}
-							checked={linked.has(String(c.id))}
-							className="fastt-soft-box rounded border border-slate-200 px-3 py-2 text-sm"
-						>
-							{c.name}
-						</Checkbox>
-					))
-				}
-			</div>
-			<Button type="button" id="save-categories-btn">Guardar categorías</Button>
+			<fieldset class="space-y-4">
+				<legend class="text-sm font-semibold text-slate-950">Categorías de la experiencia</legend>
+				<p class="text-xs text-slate-500">
+					Selecciona al menos una para que los viajeros puedan descubrir el tour.
+				</p>
+				<div class="flex flex-wrap gap-2">
+					{
+						categories.map((c) => (
+							<Checkbox
+								name="categoryId"
+								value={c.id}
+								checked={linked.has(String(c.id))}
+								className="fastt-soft-box rounded border border-slate-200 px-3 py-2 text-sm"
+							>
+								{c.name}
+							</Checkbox>
+						))
+					}
+				</div>
+			</fieldset>
+			{
+				tourPlaybook.active ? (
+					<Button type="button" id="save-and-continue-btn">
+						Guardar y continuar a la primera salida →
+					</Button>
+				) : (
+					<Button type="button" id="save-categories-btn">
+						Guardar categorías
+					</Button>
+				)
+			}
 			<p id="categories-status" class="text-sm text-slate-600" aria-live="polite"></p>
 		</Card>
 
@@ -141,7 +164,17 @@ const initialTickets = tickets.map((t) => ({
 		</a>
 	</section>
 
-	<script is:inline define:vars={{ productId, initialTickets }}>
+	<script
+		is:inline
+		define:vars={{
+			productId,
+			initialTickets,
+			departureHref: buildTourPlaybookHref(
+				`/product/${encodeURIComponent(productId)}/departures/new`,
+				"departure"
+			),
+		}}
+	>
 		;(function () {
 			const list = document.getElementById("ticket-editor-list")
 			const status = document.getElementById("tickets-status")
@@ -175,11 +208,11 @@ const initialTickets = tickets.map((t) => ({
 							<div class="grid gap-3 md:grid-cols-6">
 								<label class="md:col-span-2 block text-xs font-medium text-slate-700">
 									Etiqueta
-									<input data-field="label" class="fastt-field mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" value="${escapeHtml(row.label)}" />
+									<input data-field="label" aria-label="Etiqueta del ticket ${index + 1}" class="fastt-field mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" value="${escapeHtml(row.label)}" />
 								</label>
 								<label class="block text-xs font-medium text-slate-700">
 									Código
-									<select data-field="code" class="fastt-field mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+									<select data-field="code" aria-label="Tipo del ticket ${index + 1}" class="fastt-field mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
 										${["adult", "child", "infant", "custom"]
 											.map(
 												(code) =>
@@ -190,20 +223,20 @@ const initialTickets = tickets.map((t) => ({
 								</label>
 								<label class="block text-xs font-medium text-slate-700">
 									Edad mín.
-									<input data-field="minAge" type="number" min="0" class="fastt-field mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" value="${row.minAge == null ? "" : row.minAge}" />
+									<input data-field="minAge" aria-label="Edad mínima del ticket ${index + 1}" type="number" min="0" class="fastt-field mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" value="${row.minAge == null ? "" : row.minAge}" />
 								</label>
 								<label class="block text-xs font-medium text-slate-700">
 									Edad máx.
-									<input data-field="maxAge" type="number" min="0" class="fastt-field mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" value="${row.maxAge == null ? "" : row.maxAge}" />
+									<input data-field="maxAge" aria-label="Edad máxima del ticket ${index + 1}" type="number" min="0" class="fastt-field mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" value="${row.maxAge == null ? "" : row.maxAge}" />
 								</label>
 								<label class="block text-xs font-medium text-slate-700">
 									Orden
-									<input data-field="sortOrder" type="number" min="0" class="fastt-field mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" value="${Number(row.sortOrder || 0)}" />
+									<input data-field="sortOrder" aria-label="Orden del ticket ${index + 1}" type="number" min="0" class="fastt-field mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" value="${Number(row.sortOrder || 0)}" />
 								</label>
 							</div>
 							<div class="mt-3 flex flex-wrap items-center justify-between gap-2">
 								<label class="inline-flex items-center gap-2 text-sm text-slate-700">
-									<input data-field="isActive" type="checkbox" ${row.isActive ? "checked" : ""} />
+									<input data-field="isActive" aria-label="Ticket ${index + 1} visible para reservar" type="checkbox" ${row.isActive ? "checked" : ""} />
 									Visible en PDP
 								</label>
 								<button type="button" data-remove-ticket class="fastt-button inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50">
@@ -277,12 +310,7 @@ const initialTickets = tickets.map((t) => ({
 				if (status) status.textContent = `${rows.length} tickets listos.`
 			})
 
-			document.getElementById("save-tickets-btn")?.addEventListener("click", async () => {
-				if (!rows.length) {
-					if (status) status.textContent = "Agrega al menos un ticket."
-					return
-				}
-				if (status) status.textContent = "Guardando..."
+			async function saveTickets() {
 				const res = await fetch("/api/variant/tour-ticket-types", {
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
@@ -301,8 +329,7 @@ const initialTickets = tickets.map((t) => ({
 				})
 				const payload = await res.json().catch(() => ({}))
 				if (!res.ok) {
-					if (status) status.textContent = "No se pudieron guardar los tickets."
-					return
+					throw new Error("No se pudieron guardar los tickets.")
 				}
 				rows = (payload.tickets || []).map((t) => ({
 					id: String(t.id),
@@ -314,28 +341,85 @@ const initialTickets = tickets.map((t) => ({
 					isActive: Boolean(t.isActive),
 				}))
 				render()
-				if (status) status.textContent = "Tickets guardados."
-			})
+				return rows
+			}
 
-			document.getElementById("save-categories-btn")?.addEventListener("click", async () => {
-				const catStatus = document.getElementById("categories-status")
+			async function saveCategories() {
 				const ids = Array.from(document.querySelectorAll('input[name="categoryId"]:checked')).map(
 					(el) => el.value
 				)
-				if (catStatus) catStatus.textContent = "Guardando..."
 				const res = await fetch("/api/catalog/product-categories", {
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ productId, categoryIds: ids }),
 				})
 				if (!res.ok) {
-					if (catStatus) catStatus.textContent = "No se pudieron guardar categorías."
+					throw new Error("No se pudieron guardar las categorías.")
+				}
+				return ids
+			}
+
+			document.getElementById("save-tickets-btn")?.addEventListener("click", async () => {
+				if (!rows.length) {
+					if (status) status.textContent = "Agrega al menos un ticket."
 					return
 				}
-				if (catStatus) catStatus.textContent = "Categorías guardadas."
+				if (status) status.textContent = "Guardando..."
+				try {
+					await saveTickets()
+					if (status) status.textContent = "Tickets guardados."
+				} catch (error) {
+					if (status)
+						status.textContent =
+							error instanceof Error ? error.message : "No se pudieron guardar los tickets."
+				}
+			})
+
+			document.getElementById("save-categories-btn")?.addEventListener("click", async () => {
+				const catStatus = document.getElementById("categories-status")
+				if (catStatus) catStatus.textContent = "Guardando..."
+				try {
+					await saveCategories()
+					if (catStatus) catStatus.textContent = "Categorías guardadas."
+				} catch (error) {
+					if (catStatus)
+						catStatus.textContent =
+							error instanceof Error ? error.message : "No se pudieron guardar categorías."
+				}
+			})
+
+			document.getElementById("save-and-continue-btn")?.addEventListener("click", async (event) => {
+				const button = event.currentTarget
+				const catStatus = document.getElementById("categories-status")
+				const categoryIds = Array.from(
+					document.querySelectorAll('input[name="categoryId"]:checked')
+				).map((el) => el.value)
+				if (!rows.some((row) => row.isActive)) {
+					if (status) status.textContent = "Activa al menos un tipo de ticket para continuar."
+					return
+				}
+				if (!categoryIds.length) {
+					if (catStatus) catStatus.textContent = "Selecciona al menos una categoría para continuar."
+					return
+				}
+				button.disabled = true
+				if (status) status.textContent = "Guardando tickets y categorías..."
+				if (catStatus) catStatus.textContent = ""
+				try {
+					await Promise.all([saveTickets(), saveCategories()])
+					window.location.href = departureHref
+				} catch (error) {
+					if (status) status.textContent = ""
+					if (catStatus)
+						catStatus.textContent =
+							error instanceof Error
+								? `${error.message} Revisa los datos e inténtalo de nuevo.`
+								: "No se pudo guardar. Inténtalo de nuevo."
+					button.disabled = false
+				}
 			})
 
 			render()
 		})()
 	</script>
-</WorkspaceLayout>
+</PlaybookLayout>

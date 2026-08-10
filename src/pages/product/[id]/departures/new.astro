@@ -1,9 +1,10 @@
 ---
 import TourSlotProfileEditor from "@/components/tours/TourSlotProfileEditor.astro"
 import { productRepository } from "@/container"
-import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { buildTourPlaybookHref, resolveTourLaunchPlaybookFromUrl } from "@/lib/playbook/launch-tour"
 import { isTourProductType } from "@/lib/productVerticalRegistry"
 import { routes } from "@/lib/routes"
 import { getProductAggregate } from "@/modules/catalog/public"
@@ -24,9 +25,21 @@ if (!isTourProductType(owned.productType)) return Astro.redirect(routes.productD
 
 const product = await getProductAggregate(productId)
 if (!product) return Astro.redirect("/product/create")
+const tourPlaybook = resolveTourLaunchPlaybookFromUrl(Astro.url)
+const tourRateHref = buildTourPlaybookHref(
+	`/rates/plans/manage?productId=${encodeURIComponent(productId)}&openDialog=1&variantId=__VARIANT_ID__`,
+	"rate"
+)
 ---
 
-<WorkspaceLayout title={`${product.displayName} · Nueva salida`}>
+<PlaybookLayout
+	title={`${product.displayName} · Nueva salida`}
+	playbookId={tourPlaybook.playbookId}
+	active={tourPlaybook.active}
+	stepId={tourPlaybook.stepId ?? "departure"}
+	productId={productId}
+	isHotel={false}
+>
 	<section class="space-y-5">
 		<header class="space-y-1.5 border-b border-slate-200 pb-5">
 			<p
@@ -37,14 +50,17 @@ if (!product) return Astro.redirect("/product/create")
 			</p>
 			<h1 class="text-3xl font-semibold text-slate-950">Crea una salida</h1>
 			<p class="max-w-2xl text-sm leading-6 text-slate-600">
-				Define hora, cupo máximo de participantes, idioma y si es compartida o privada.
+				Primero define la plantilla operativa: hora, cupo máximo, idioma y modalidad. Todavía no
+				estás abriendo fechas; lo harás en disponibilidad después de fijar el precio.
 			</p>
 		</header>
 
 		<TourSlotProfileEditor
 			productId={productId}
 			mode="create"
-			redirectOnSuccess={routes.productDeparturesForProduct(productId)}
+			redirectOnSuccess={tourPlaybook.active
+				? tourRateHref
+				: routes.productDeparturesForProduct(productId)}
 		/>
 	</section>
-</WorkspaceLayout>
+</PlaybookLayout>

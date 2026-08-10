@@ -12,11 +12,15 @@ import {
 	resolveLaunchPlaybookFromUrl,
 } from "@/lib/playbook/launch-accommodation"
 import {
+	LAUNCH_TOUR_PLAYBOOK_ID,
+	resolveTourLaunchPlaybookFromUrl,
+} from "@/lib/playbook/launch-tour"
+import {
 	loadProviderRatePlansReadModel,
 	type RatePlanListItem,
 } from "@/lib/rates/loadRatePlansReadModel"
 import { routes } from "@/lib/routes"
-import { count, DailyInventory, db, eq, first } from "@/shared/infrastructure/db/compat"
+import { and, count, DailyInventory, db, eq, first, gt } from "@/shared/infrastructure/db/compat"
 
 const timing = createServerTimingRecorder()
 const workspaceContext = await timing.time<WorkspaceRequestContext>("authProvider", () =>
@@ -42,8 +46,11 @@ const initialMode =
 
 const addRoomPlaybook = resolveAddRoomPlaybookFromUrl(Astro.url)
 const launchPlaybook = resolveLaunchPlaybookFromUrl(Astro.url)
+const tourLaunchPlaybook = resolveTourLaunchPlaybookFromUrl(Astro.url)
 const flow = Astro.url.searchParams.get("flow")
-const needsGuidedContext = Boolean(addRoomPlaybook.active || launchPlaybook.active || flow)
+const needsGuidedContext = Boolean(
+	addRoomPlaybook.active || launchPlaybook.active || tourLaunchPlaybook.active || flow
+)
 const rows = needsGuidedContext
 	? await timing.time("ratePlans", () =>
 			loadProviderRatePlansReadModel({ providerId: auth.providerId, url: Astro.url })
@@ -56,7 +63,10 @@ const matchedRow = rows.find(
 		(variantIdParam && String(row.variantId) === variantIdParam) ||
 		(ratePlanIdParam && String(row.ratePlanId) === ratePlanIdParam)
 )
-const playbookProductId = matchedRow?.productId ?? addRoomPlaybook.productId
+const playbookProductId =
+	matchedRow?.productId ??
+	addRoomPlaybook.productId ??
+	String(Astro.url.searchParams.get("productId") ?? "")
 
 if (!addRoomPlaybook.active && flow === "add-room" && playbookProductId) {
 	const params = new URLSearchParams(Astro.url.searchParams)
@@ -91,12 +101,23 @@ const launchContinueHref = launchPlaybook.active
 	? (getNextLaunchStep(launchPlaybook.stepId ?? "calendar", launchCtx)?.buildHref(launchCtx) ??
 		null)
 	: null
-const activePlaybook = addRoomPlaybook.active ? "add-room" : launchPlaybook.active ? "launch" : null
+const activePlaybook = addRoomPlaybook.active
+	? "add-room"
+	: launchPlaybook.active
+		? "launch"
+		: tourLaunchPlaybook.active
+			? "launch-tour"
+			: null
 const isGuidedAvailabilityStep = Boolean(
 	activePlaybook &&
-	(addRoomPlaybook.stepId === "availability" || launchPlaybook.stepId === "calendar")
+	(addRoomPlaybook.stepId === "availability" ||
+		launchPlaybook.stepId === "calendar" ||
+		tourLaunchPlaybook.stepId === "calendar")
 )
-const guidedVariantId = String(addRoomCtx.variantId || launchCtx.variantId || "").trim()
+const guidedVariantId = String(
+	addRoomCtx.variantId || launchCtx.variantId || variantIdParam || ""
+).trim()
+const todayIso = new Date().toISOString().slice(0, 10)
 const guidedInventoryDays =
 	isGuidedAvailabilityStep && guidedVariantId
 		? await timing.time("inventory", async () =>
@@ -105,7 +126,15 @@ const guidedInventoryDays =
 						await db
 							.select({ value: count() })
 							.from(DailyInventory)
-							.where(eq(DailyInventory.variantId, guidedVariantId))
+							.where(
+								activePlaybook === "launch-tour"
+									? and(
+											eq(DailyInventory.variantId, guidedVariantId),
+											gt(DailyInventory.date, todayIso),
+											gt(DailyInventory.totalInventory, 0)
+										)
+									: eq(DailyInventory.variantId, guidedVariantId)
+							)
 							.then(first)
 					)?.value ?? 0
 				)
@@ -137,7 +166,19 @@ const layoutProps =
 					isHotel: true,
 					continueHref: launchContinueHref,
 				}
-			: { title: "Calendario" }
+			: activePlaybook === "launch-tour"
+				? {
+						title: "Calendario · Disponibilidad de la salida",
+						playbookId: LAUNCH_TOUR_PLAYBOOK_ID,
+						active: true,
+						stepId: tourLaunchPlaybook.stepId ?? "calendar",
+						productId: playbookProductId,
+						variantId: variantIdParam,
+						ratePlanId: ratePlanIdParam,
+						isHotel: false,
+						continueHref: `/product/${encodeURIComponent(playbookProductId)}/preview?playbook=launch-tour&step=preview&flow=create`,
+					}
+				: { title: "Calendario" }
 
 await sidebarTimingPromise
 for (const name of ["pricing", "inventory", "restrictions", "searchFreshness", "ical"]) {
@@ -156,8 +197,12 @@ timing.setHeader(Astro.response.headers)
 				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
 					{
 						isGuidedAvailabilityStep && matchedRow
-							? `${matchedRow.productName} · Nueva habitación`
-							: "Habitaciones y tarifas"
+							? activePlaybook === "launch-tour"
+								? `${matchedRow.productName} · Primera salida`
+								: `${matchedRow.productName} · Nueva habitación`
+							: activePlaybook === "launch-tour"
+								? "Tour y salidas"
+								: "Habitaciones y tarifas"
 					}
 				</p>
 				<h1 class="text-3xl font-semibold text-slate-100">
@@ -166,7 +211,9 @@ timing.setHeader(Astro.response.headers)
 				<p class="max-w-3xl text-sm leading-6 text-slate-300">
 					{
 						isGuidedAvailabilityStep
-							? "Elige las primeras fechas en las que esta habitación podrá recibir reservas. Después podrás operar el calendario completo."
+							? activePlaybook === "launch-tour"
+								? "Abre al menos una fecha futura con cupo para participantes. Esa será la primera salida que podrán reservar los viajeros."
+								: "Elige las primeras fechas en las que esta habitación podrá recibir reservas. Después podrás operar el calendario completo."
 							: "Opera una tarifa por fecha. Selecciona noches y cambia precio, cupo o venta desde un solo lugar."
 					}
 				</p>
@@ -187,7 +234,7 @@ timing.setHeader(Astro.response.headers)
 						productName: matchedRow?.productName ?? "",
 						variantName: matchedRow?.variantName ?? "",
 						ratePlanName: matchedRow?.ratePlanName ?? "",
-						requiredDays: 30,
+						requiredDays: activePlaybook === "launch-tour" ? 1 : 30,
 						initialInventoryDays: guidedInventoryDays,
 					}
 				: undefined}

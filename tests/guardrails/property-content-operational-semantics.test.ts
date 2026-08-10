@@ -30,7 +30,11 @@ describe("Guardrail: Property Content operational semantics", () => {
 				"¿Administras otro servicio?",
 				"Agregar otro servicio",
 			],
-			"src/pages/product/create.astro": ["Crear alojamiento", "Tipo de oferta"],
+			"src/pages/product/create.astro": [
+				"¿Qué quieres ofrecer?",
+				"Tipo de servicio",
+				"workspaceCreateHref",
+			],
 			"src/pages/product/[id]/index.astro": [
 				"Ficha del alojamiento",
 				"Descripción",
@@ -235,8 +239,9 @@ describe("Guardrail: Property Content operational semantics", () => {
 		expect(registry).toContain('storageType: "Package"')
 		expect(registry).toContain('storageType: "Limousine"')
 		expect(registry).toContain("normalizeProductTypeForStorage")
-		expect(productCreate).toContain("PRODUCT_VERTICAL_OPTIONS")
-		expect(productCreate).toContain("Crear oferta")
+		expect(productCreate).toContain("listActiveProductVerticalEntries")
+		expect(productCreate).toContain("¿Qué quieres ofrecer?")
+		expect(productCreate).toContain("Tipo de servicio")
 		expect(roomsAggregate).toContain("lower(${Product.productType}) = 'hotel'")
 		expect(roomsAggregate).toContain("Inicio")
 		expect(roomsAggregate).toContain("buildAddRoomHref")

@@ -3,16 +3,18 @@ import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
-import Select from "@/components/ui/Select.astro"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
-import { resolveLaunchPlaybookFromUrl } from "@/lib/playbook/launch-accommodation"
+import { LAUNCH_TOUR_PLAYBOOK_ID } from "@/lib/playbook/launch-tour"
+import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import {
-	getProductVerticalDefinition,
-	PRODUCT_VERTICAL_OPTIONS,
-} from "@/lib/productVerticalRegistry"
+	listActiveProductVerticalEntries,
+	normalizeProductVertical,
+	productVerticalRegistry,
+} from "@/lib/catalog/productVerticalRegistry"
 import { routes } from "@/lib/routes"
+import { asc, db, Destination } from "@/shared/infrastructure/db/compat"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
@@ -20,160 +22,291 @@ if (!user) return Astro.redirect("/SignInPage")
 const providerId = (await getProviderIdFromRequest(Astro.request, user)) ?? ""
 if (!providerId) return Astro.redirect(routes.providerSettingsProfile())
 
-const playbook = resolveLaunchPlaybookFromUrl(Astro.url)
+const resolvedPlaybook = resolvePlaybookFromUrl(Astro.url)
 if (Astro.url.searchParams.get("flow") === "create" && !Astro.url.searchParams.get("playbook")) {
 	return Astro.redirect("/product/create?playbook=launch&step=create&flow=create")
 }
 const requestedType = String(Astro.url.searchParams.get("type") ?? "").trim()
-const requestedVertical = getProductVerticalDefinition(playbook.active ? "Hotel" : requestedType)
-const createCopy = requestedVertical?.createCopy ?? {
-	title: "Crear oferta",
-	description:
-		"Crea la identidad mínima de la oferta para empezar contenido, configuración y publicación.",
-	namePlaceholder: "Ej: Hotel Boutique Centro",
+const requestedVertical = normalizeProductVertical(requestedType)
+const isHotelLaunch =
+	resolvedPlaybook.playbookId === "launch" && (!requestedType || requestedVertical === "hotel")
+const isTourLaunch =
+	resolvedPlaybook.playbookId === LAUNCH_TOUR_PLAYBOOK_ID && requestedVertical === "tour"
+if (
+	resolvedPlaybook.playbookId === "launch" &&
+	requestedVertical !== "generic" &&
+	requestedVertical !== "hotel"
+) {
+	return Astro.redirect(`/product/create?type=${encodeURIComponent(requestedType)}`)
 }
-const selectedProductType = requestedVertical?.storageType ?? ""
-const isLaunchHotelFlow = playbook.active || requestedVertical?.vertical === "hotel"
+if (resolvedPlaybook.playbookId === LAUNCH_TOUR_PLAYBOOK_ID && !isTourLaunch) {
+	return Astro.redirect("/product/create?type=Tour&playbook=launch-tour&step=create&flow=create")
+}
+const selectedVertical = isHotelLaunch ? "hotel" : isTourLaunch ? "tour" : requestedVertical
+const vertical = productVerticalRegistry[selectedVertical]
+const activePlaybook = isHotelLaunch || isTourLaunch
+const isChooser = !activePlaybook && (!requestedType || requestedVertical === "generic")
+const activeVerticals = listActiveProductVerticalEntries()
+const createCopy = vertical.creation
+const selectedProductType = vertical.productType ?? ""
+const isLaunchHotelFlow = isHotelLaunch
+const destinations = isChooser
+	? []
+	: await db
+			.select({ id: Destination.id, name: Destination.name, country: Destination.country })
+			.from(Destination)
+			.orderBy(asc(Destination.name))
 ---
 
 <PlaybookLayout
-	title="Alojamientos · Crear alojamiento"
-	active={playbook.active}
-	stepId={playbook.stepId ?? "create"}
+	title={isChooser ? "Servicios · Añadir servicio" : createCopy.title}
+	playbookId={resolvedPlaybook.playbookId}
+	active={activePlaybook}
+	stepId={resolvedPlaybook.stepId ?? "create"}
 	isHotel={isLaunchHotelFlow}
 >
 	<section class="space-y-8">
-		<section class="space-y-4">
-			<header class="space-y-1">
-				<p class="text-sm font-medium text-slate-400">Alojamientos</p>
-				<h1 class="text-3xl font-semibold text-slate-100">{createCopy.title}</h1>
-				<p class="text-sm text-slate-400">{createCopy.description}</p>
-			</header>
-
-			<Card class="rounded-lg border-slate-200 bg-slate-100 shadow-none">
-				<form
-					id="createForm"
-					method="POST"
-					action="/api/product/create"
-					class="max-w-3xl space-y-6"
-				>
-					<div class="space-y-4">
-						<div class="space-y-1">
-							<h2 class="text-xl font-semibold text-slate-900">Datos base de la oferta</h2>
-							<p class="text-sm text-slate-600">Solo se piden los campos mínimos obligatorios.</p>
-						</div>
-
-						<FormField label="Nombre" htmlFor="name" required>
-							<Input id="name" name="name" required placeholder={createCopy.namePlaceholder} />
-						</FormField>
-
-						<FormField label="Tipo de oferta" htmlFor="productType" required>
-							<Select id="productType" name="productType" required value={selectedProductType}>
-								<option value="">Selecciona una opción</option>
-								{
-									PRODUCT_VERTICAL_OPTIONS.map((vertical) => (
-										<option value={vertical.storageType}>{vertical.labels.singular}</option>
-									))
-								}
-							</Select>
-						</FormField>
-
-						<FormField label="Destino (ID)" htmlFor="destinationId" required>
-							<Input id="destinationId" name="destinationId" required placeholder="Ej: la-paz" />
-						</FormField>
-					</div>
-
-					<div class="space-y-1">
-						<p id="stateLabel" class="text-sm text-slate-600">
-							Vacío: completa el formulario para crear.
+		{
+			isChooser ? (
+				<section class="space-y-4">
+					<header class="space-y-1">
+						<p class="text-sm font-medium text-slate-400">Servicios</p>
+						<h1 class="text-3xl font-semibold text-slate-100">¿Qué quieres ofrecer?</h1>
+						<p class="max-w-2xl text-sm text-slate-400">
+							Elige el tipo de servicio antes de iniciar su configuración. Cada tipo usa su propio
+							recorrido operativo.
 						</p>
-						<p id="stateDetail" class="whitespace-pre-wrap text-sm text-slate-600"></p>
+					</header>
+					<div class="grid gap-4 md:grid-cols-2">
+						{activeVerticals.map((entry) => (
+							<Card class="flex flex-col justify-between gap-5 bg-slate-100">
+								<div class="space-y-2">
+									<h2 class="text-xl font-semibold text-slate-950">
+										{entry.labels.workspaceSingular}
+									</h2>
+									<p class="text-sm leading-6 text-slate-600">{entry.creation.description}</p>
+								</div>
+								<Button href={entry.routes.workspaceCreateHref}>
+									{entry.creation.submitLabel}
+								</Button>
+							</Card>
+						))}
 					</div>
+				</section>
+			) : (
+				<section class="space-y-4">
+					<header class="space-y-1">
+						<p class="text-sm font-medium text-slate-400">{vertical.labels.workspacePlural}</p>
+						<h1 class="text-3xl font-semibold text-slate-100">{createCopy.heading}</h1>
+						<p class="text-sm text-slate-400">{createCopy.description}</p>
+					</header>
 
-					<div class="flex items-center justify-end gap-3">
-						<Button href="/dashboard" variant="secondary"> Volver </Button>
-						<Button id="submitBtn" type="submit">
-							{
-								playbook.active
-									? "Crear y continuar"
-									: (requestedVertical?.labels.createCta ?? "Crear oferta")
-							}
-						</Button>
-					</div>
-				</form>
-			</Card>
-		</section>
+					<Card class="rounded-lg border-slate-200 bg-slate-100 shadow-none">
+						<form
+							id="createForm"
+							method="POST"
+							action="/api/product/create"
+							data-is-launch={isHotelLaunch ? "true" : "false"}
+							data-is-tour-launch={isTourLaunch ? "true" : "false"}
+							data-product-type={selectedProductType}
+							class="max-w-3xl space-y-6"
+						>
+							<Input type="hidden" name="flow" value={activePlaybook ? "create" : "edit"} />
+							<Input type="hidden" name="_response" value="redirect" />
+							{activePlaybook ? (
+								<Input
+									type="hidden"
+									name="playbook"
+									value={isTourLaunch ? LAUNCH_TOUR_PLAYBOOK_ID : "launch"}
+								/>
+							) : null}
+							<div class="space-y-4">
+								<div class="space-y-1">
+									<h2 class="text-xl font-semibold text-slate-900">Datos base de la oferta</h2>
+									<p class="text-sm text-slate-600">
+										Solo se piden los campos mínimos obligatorios.
+									</p>
+								</div>
+
+								<FormField label={createCopy.nameLabel} htmlFor="name" required>
+									<Input id="name" name="name" required placeholder={createCopy.namePlaceholder} />
+								</FormField>
+
+								<FormField label="Tipo de servicio" htmlFor="productType">
+									<Input
+										id="productType"
+										name="productType"
+										readonly
+										value={selectedProductType}
+										aria-describedby="productTypeHelp"
+									/>
+									<p id="productTypeHelp" class="mt-1 text-sm text-slate-600">
+										Para elegir otro servicio, vuelve al selector.
+									</p>
+								</FormField>
+
+								<FormField label={createCopy.destinationLabel} htmlFor="destinationId" required>
+									<Input
+										id="destinationId"
+										name="destinationId"
+										list="destinationOptions"
+										required
+										placeholder="Busca por nombre y selecciona un destino"
+									/>
+									<datalist id="destinationOptions">
+										{destinations.map((destination) => (
+											<option value={destination.id}>
+												{destination.name}
+												{destination.country ? ` · ${destination.country}` : ""}
+											</option>
+										))}
+									</datalist>
+									<p class="mt-1 text-sm text-slate-600">
+										Selecciona un destino existente; podrás precisar el punto en el mapa después.
+									</p>
+									<p id="destinationError" class="hidden text-sm text-red-600" />
+								</FormField>
+							</div>
+
+							<div class="space-y-1">
+								<p id="stateLabel" class="text-sm text-slate-600">
+									Vacío: completa el formulario para crear.
+								</p>
+								<p id="stateDetail" class="text-sm whitespace-pre-wrap text-slate-600" />
+							</div>
+
+							<div class="flex items-center justify-end gap-3">
+								<Button href="/product/create" variant="secondary">
+									{" "}
+									Volver{" "}
+								</Button>
+								<Button id="submitBtn" type="submit">
+									{activePlaybook ? "Crear y continuar" : createCopy.submitLabel}
+								</Button>
+							</div>
+						</form>
+					</Card>
+				</section>
+			)
+		}
 	</section>
 
 	<script>
 		// @ts-nocheck
 		import { bindPlaybookFormDraft } from "@/lib/forms/playbookFormDraft.ts"
 
-		const form = document.getElementById("createForm")
-		const btn = document.getElementById("submitBtn")
-		const btnText = btn?.textContent || "Crear producto"
-		const stateLabel = document.getElementById("stateLabel")
-		const stateDetail = document.getElementById("stateDetail")
-		const draft = bindPlaybookFormDraft(form instanceof HTMLFormElement ? form : null, {
-			key: "launch:create",
-		})
+		function initCreateForm() {
+			const form = document.getElementById("createForm")
+			if (!(form instanceof HTMLFormElement) || form.dataset.bound === "true") return
+			form.dataset.bound = "true"
 
-		function setState(state, detail = "") {
-			const labels = {
-				empty: "Vacío: completa el formulario para crear.",
-				loading: "Cargando: creando oferta...",
-				success: "Éxito: oferta creada correctamente.",
-				error: "Error: no se pudo crear la oferta.",
-				disabled: "Deshabilitado: esperando respuesta del servidor.",
+			const btn = document.getElementById("submitBtn")
+			const btnText = btn?.textContent || "Crear producto"
+			const stateLabel = document.getElementById("stateLabel")
+			const stateDetail = document.getElementById("stateDetail")
+			const destinationInput = document.getElementById("destinationId")
+			const destinationError = document.getElementById("destinationError")
+			const isLaunch = form.dataset.isLaunch === "true"
+			const isTourLaunch = form.dataset.isTourLaunch === "true"
+			const productType = String(form.dataset.productType || "")
+			const draft = bindPlaybookFormDraft(form, {
+				key: isLaunch
+					? "launch:create"
+					: isTourLaunch
+						? "launch-tour:create"
+						: `create:${productType.toLowerCase()}`,
+				excludeNames: ["flow", "playbook"],
+			})
+
+			function setState(state, detail = "") {
+				const labels = {
+					empty: "Vacío: completa el formulario para crear.",
+					loading: "Cargando: creando oferta...",
+					success: "Éxito: oferta creada correctamente.",
+					error: "Error: no se pudo crear la oferta.",
+					disabled: "Deshabilitado: esperando respuesta del servidor.",
+				}
+				if (stateLabel) stateLabel.textContent = labels[state] || labels.empty
+				if (stateDetail) stateDetail.textContent = detail
 			}
-			stateLabel.textContent = labels[state] || labels.empty
-			stateDetail.textContent = detail
+
+			form.addEventListener("submit", async (e) => {
+				e.preventDefault()
+				setState("loading")
+				if (btn instanceof HTMLButtonElement) {
+					btn.disabled = true
+					btn.textContent = "Cargando..."
+				}
+				setState("disabled")
+
+				try {
+					const fd = new FormData(form)
+					fd.set("_response", "json")
+					destinationError?.classList.add("hidden")
+					const res = await fetch("/api/product/create", { method: "POST", body: fd })
+					const txt = await res.text()
+
+					if (!res.ok) {
+						if (btn instanceof HTMLButtonElement) {
+							btn.disabled = false
+							btn.textContent = btnText
+						}
+						const payload = (() => {
+							try {
+								return JSON.parse(txt)
+							} catch {
+								return null
+							}
+						})()
+						const destinationMessage = payload?.details?.fieldErrors?.destinationId?.[0]
+						if (destinationMessage && destinationError) {
+							destinationError.textContent = destinationMessage
+							destinationError.classList.remove("hidden")
+							destinationInput?.focus()
+						}
+						setState("error", destinationMessage || `status=${res.status}\n${txt}`)
+						return
+					}
+
+					let json = null
+					try {
+						json = JSON.parse(txt)
+					} catch {
+						if (btn instanceof HTMLButtonElement) {
+							btn.disabled = false
+							btn.textContent = btnText
+						}
+						setState("error", `Respuesta inválida:\n${txt}`)
+						return
+					}
+
+					if (!json?.id) {
+						if (btn instanceof HTMLButtonElement) {
+							btn.disabled = false
+							btn.textContent = btnText
+						}
+						setState("error", `Respuesta sin ID:\n${txt}`)
+						return
+					}
+
+					setState("success", "Guardado correctamente")
+					draft.clear()
+					window.location.href = isTourLaunch
+						? `/product/${json.id}/content?playbook=launch-tour&step=content&flow=create`
+						: isLaunch
+							? `/product/${json.id}/content?playbook=launch&step=content&flow=create`
+							: `/product/${json.id}`
+				} catch (err) {
+					if (btn instanceof HTMLButtonElement) {
+						btn.disabled = false
+						btn.textContent = btnText
+					}
+					setState("error", `Error de red: ${String(err)}`)
+				}
+			})
 		}
 
-		form?.addEventListener("submit", async (e) => {
-			e.preventDefault()
-			setState("loading")
-			btn.disabled = true
-			btn.textContent = "Cargando..."
-			setState("disabled")
-
-			try {
-				const fd = new FormData(form)
-				const res = await fetch("/api/product/create", { method: "POST", body: fd })
-				const txt = await res.text()
-
-				if (!res.ok) {
-					btn.disabled = false
-					btn.textContent = btnText
-					setState("error", `status=${res.status}\n${txt}`)
-					return
-				}
-
-				let json = null
-				try {
-					json = JSON.parse(txt)
-				} catch {
-					btn.disabled = false
-					btn.textContent = btnText
-					setState("error", `Respuesta inválida:\n${txt}`)
-					return
-				}
-
-				if (!json?.id) {
-					btn.disabled = false
-					btn.textContent = btnText
-					setState("error", `Respuesta sin ID:\n${txt}`)
-					return
-				}
-
-				setState("success", "Guardado correctamente")
-				draft.clear()
-				window.location.href = `/product/${json.id}/content?playbook=launch&step=content&flow=create`
-			} catch (err) {
-				btn.disabled = false
-				btn.textContent = btnText
-				setState("error", `Error de red: ${String(err)}`)
-			}
-		})
+		initCreateForm()
+		document.addEventListener("astro:page-load", initCreateForm)
 	</script>
 </PlaybookLayout>

@@ -7,6 +7,7 @@ import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import { buildCompleteToPublishHref } from "@/lib/playbook/complete-to-publish"
 import { buildPlaybookHref } from "@/lib/playbook/launch-accommodation"
 import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
+import { playbookRedirectHrefFor } from "@/lib/playbook/playbook-nav"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
@@ -35,6 +36,7 @@ if (!product) return Astro.redirect("/product/create")
 
 const vertical = getProductVerticalEntry(product.productType)
 const isHotel = vertical.vertical === "hotel"
+const isTour = vertical.vertical === "tour"
 const playbook = resolvePlaybookFromUrl(Astro.url, { isHotel })
 const existingLocation = product.location
 
@@ -43,7 +45,7 @@ const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.
 ---
 
 <PlaybookLayout
-	title="Alojamientos · Ubicación"
+	title={`${vertical.labels.workspacePlural} · Ubicación`}
 	playbookId={playbook.playbookId}
 	active={playbook.active}
 	stepId={playbook.stepId ?? "location"}
@@ -55,7 +57,11 @@ const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.
 			<header class="space-y-1">
 				<h1 class="text-3xl font-semibold text-slate-100">Ubicación</h1>
 				<p class="max-w-3xl text-sm leading-6 text-slate-400">
-					Define ubicación, coordenadas y contexto geográfico de {vertical.labels.singular}.
+					{
+						isTour
+							? "Indica dónde se descubre este tour en búsquedas y mapas."
+							: `Define ubicación, coordenadas y contexto geográfico de ${vertical.labels.singular}.`
+					}
 				</p>
 			</header>
 
@@ -82,16 +88,27 @@ const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.
 
 					<div class="space-y-4">
 						<div class="space-y-1">
-							<h2 class="text-xl font-semibold text-slate-900">Metadata geográfica</h2>
-							<p class="text-sm text-slate-600">Selecciona el punto en el mapa y guarda.</p>
+							<h2 class="text-xl font-semibold text-slate-900">
+								{isTour ? "Ubicación para discovery" : "Metadata geográfica"}
+							</h2>
+							<p class="text-sm text-slate-600">
+								{
+									isTour
+										? "Selecciona la zona que representa el destino o atractivo principal. El punto exacto donde empieza el tour se solicita después en Detalles del tour."
+										: "Selecciona el punto en el mapa y guarda."
+								}
+							</p>
 						</div>
 
-						<FormField label="Dirección (opcional)" htmlFor="address">
+						<FormField
+							label={isTour ? "Zona o dirección de discovery (opcional)" : "Dirección (opcional)"}
+							htmlFor="address"
+						>
 							<Input
 								id="address"
 								name="address"
 								value={existingLocation?.address ?? ""}
-								placeholder="Av. Ejemplo 123"
+								placeholder={isTour ? "Ej: Centro histórico, La Paz" : "Av. Ejemplo 123"}
 							/>
 						</FormField>
 
@@ -101,26 +118,41 @@ const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.
 							required
 							description="Haz clic en el mapa para seleccionar la ubicación"
 						>
+							<p id="mapInstructions" class="text-xs leading-5 text-slate-500">
+								También puedes enfocar el mapa y usar las flechas del teclado para ajustar el punto.
+							</p>
 							<div
 								id="map"
 								class="h-72 w-full overflow-hidden rounded-lg border border-slate-300"
 								data-lat={initialLat}
 								data-lng={initialLng}
+								tabindex="0"
+								aria-label={isTour
+									? "Mapa para elegir la ubicación de discovery del tour"
+									: "Mapa para elegir la ubicación de la oferta"}
+								aria-describedby="mapInstructions coordsText"
 							>
 							</div>
-							<p id="coordsText" class="mt-2 text-sm text-slate-600"></p>
+							<p id="coordsText" class="mt-2 text-sm text-slate-600" aria-live="polite"></p>
 						</FormField>
 					</div>
 
 					<div class="space-y-1">
-						<p id="stateLabel" class="text-sm text-slate-600">Vacío: sin cambios guardados.</p>
+						<p id="stateLabel" class="text-sm text-slate-600" aria-live="polite">
+							Vacío: sin cambios guardados.
+						</p>
 						<p id="stateDetail" class="whitespace-pre-wrap text-sm text-slate-600"></p>
 					</div>
 
 					<div class="flex items-center justify-end gap-3">
 						<Button
-							href={playbook.active && playbook.playbookId === "launch"
-								? buildPlaybookHref(`/product/${productId}/content`, "content")
+							href={playbook.active && playbook.playbookId
+								? playbookRedirectHrefFor(
+										playbook.playbookId,
+										`/product/${productId}/content`,
+										"content",
+										productId
+									)
 								: playbook.active && playbook.playbookId === "complete-to-publish"
 									? buildCompleteToPublishHref(`/product/${productId}/preview`, "preview")
 									: `/product/${encodeURIComponent(productId)}/content`}
@@ -216,6 +248,23 @@ const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.
 			marker.on("dragend", () => {
 				const { lat, lng } = marker.getLatLng()
 				updateCoords(lat, lng)
+			})
+
+			mapElement.addEventListener("keydown", (event) => {
+				const offsets: Record<string, [number, number]> = {
+					ArrowUp: [0.001, 0],
+					ArrowDown: [-0.001, 0],
+					ArrowLeft: [0, -0.001],
+					ArrowRight: [0, 0.001],
+				}
+				const offset = offsets[event.key]
+				if (!offset) return
+				event.preventDefault()
+				const current = marker.getLatLng()
+				const next: [number, number] = [current.lat + offset[0], current.lng + offset[1]]
+				marker.setLatLng(next)
+				map.panTo(next)
+				updateCoords(next[0], next[1])
 			})
 
 			form.addEventListener("submit", async (e) => {
