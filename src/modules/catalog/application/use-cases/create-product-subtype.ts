@@ -5,6 +5,7 @@ import {
 	packageSchema,
 	limousineSchema,
 } from "@/schemas/product/subtype"
+import { canonicalizeTourDifficultyForStorage } from "@/lib/tours/tourDifficulty"
 import { parseDurationMinutes } from "@/lib/tours/tourSemantics"
 
 function listFromForm(value: FormDataEntryValue | null): string[] {
@@ -105,7 +106,7 @@ export async function createProductSubtype(params: {
 			productType: "tour",
 			duration,
 			durationMinutes: Number.isFinite(Number(durationMinutes)) ? Number(durationMinutes) : null,
-			difficultyLevel: form.get("difficultyLevel"),
+			difficultyLevel: canonicalizeTourDifficultyForStorage(form.get("difficultyLevel")),
 			meetingPointJson: objectFromFields({
 				address: form.get("meetingPointAddress"),
 				instructions: form.get("meetingPointInstructions"),

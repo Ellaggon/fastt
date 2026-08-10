@@ -9,6 +9,8 @@ describe("tour public surfaces (fase 0+1)", () => {
 		expect(source).toContain("href={`/tours/${t.productId}")
 		expect(source).not.toContain("href={`/hotels/${t.id}`}")
 		expect(source).toContain("No hay salidas disponibles")
+		expect(source).toContain("Búsqueda de tours temporalmente no disponible")
+		expect(source).toContain('availability === "disabled"')
 		expect(source).not.toContain("No se encontraron hoteles")
 		expect(source).toContain("error querying tour discovery")
 	})

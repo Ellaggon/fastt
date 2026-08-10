@@ -489,12 +489,18 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 				if (!response.ok) {
 					if (statusEl) {
 						statusEl.textContent =
-							payload?.error === "private_on_request"
-								? "Salida privada: usa Cotizar salida privada (sin hold)."
-								: payload?.error === "not_available" || payload?.error === "not_holdable"
-									? "No hay cupo suficiente para esa salida."
-									: "No se pudo crear el hold."
+							payload?.error === "tours_checkout_disabled"
+								? "La reserva de tours no está disponible ahora (rollout). Intenta más tarde."
+								: payload?.error === "private_on_request"
+									? "Salida privada: usa Cotizar salida privada (sin hold)."
+									: payload?.error === "not_available" || payload?.error === "not_holdable"
+										? "No hay cupo suficiente para esa salida."
+										: "No se pudo crear el hold."
 					}
+					if (payload?.error === "tours_checkout_disabled" && reserveBtn) {
+						reserveBtn.disabled = true
+					}
+					if (confirmBtn) confirmBtn.disabled = true
 					return
 				}
 				latestHoldId = String(payload?.holdId ?? "")
@@ -523,8 +529,18 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 				})
 				const payload = await response.json().catch(() => ({}))
 				if (!response.ok || !payload?.bookingId) {
-					if (statusEl) statusEl.textContent = "No se pudo confirmar la reserva."
-					if (confirmBtn) confirmBtn.disabled = false
+					if (statusEl) {
+						statusEl.textContent =
+							payload?.error === "tours_checkout_disabled"
+								? "La reserva de tours no está disponible ahora (rollout). Intenta más tarde."
+								: "No se pudo confirmar la reserva."
+					}
+					if (confirmBtn) {
+						confirmBtn.disabled = payload?.error === "tours_checkout_disabled"
+					}
+					if (payload?.error === "tours_checkout_disabled" && reserveBtn) {
+						reserveBtn.disabled = true
+					}
 					return
 				}
 				window.location.href = `/trips/${encodeURIComponent(String(payload.bookingId))}`

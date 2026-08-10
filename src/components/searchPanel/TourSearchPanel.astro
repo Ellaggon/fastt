@@ -3,6 +3,7 @@ import Button from "@/components/ui/Button.astro"
 import DatesModal from "@/components/ui/DatesModal.astro"
 import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
+import { TOUR_DIFFICULTY_OPTIONS } from "@/lib/tours/tourDifficulty"
 import { asc, db, eq, ProductCategory } from "@/shared/infrastructure/db/compat"
 
 const durationOptions = [
@@ -13,7 +14,6 @@ const durationOptions = [
 	{ value: "8+", label: "8+ días" },
 ]
 
-const levels = ["Fácil", "Moderado", "Difícil"]
 const sortOptions = [
 	{ value: "relevance", label: "Más relevantes" },
 	{ value: "price_asc", label: "Precio: menor primero" },
@@ -103,7 +103,7 @@ try {
 			<label class="mb-1 block text-sm font-semibold text-slate-800">Nivel</label>
 			<Select name="level" id="level">
 				<option value="">Cualquiera</option>
-				{levels.map((l) => <option value={l}>{l}</option>)}
+				{TOUR_DIFFICULTY_OPTIONS.map((level) => <option value={level.value}>{level.label}</option>)}
 			</Select>
 		</div>
 
