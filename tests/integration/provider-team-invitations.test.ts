@@ -110,7 +110,7 @@ describe("provider team invitations", () => {
 			const created = await createRes.json()
 			expect(created.status).toBe("pending")
 			expect(created.acceptPath).toMatch(/^\/provider\/invitations\/accept\?token=/)
-			expect(created.emailSent).toBe(true)
+			expect(created.emailSent).toBe(false)
 			expect(created.mailStatus).toBe("logged")
 
 			const summaryRes = await settingsSummaryGet({

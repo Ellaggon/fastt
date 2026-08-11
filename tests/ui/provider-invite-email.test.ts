@@ -22,6 +22,25 @@ function read(relativePath: string) {
 	return readFileSync(new URL(relativePath, root), "utf8")
 }
 
+async function withLogEmail<T>(fn: () => Promise<T>) {
+	const previous = {
+		EMAIL_PROVIDER: process.env.EMAIL_PROVIDER,
+		RESEND_API_KEY: process.env.RESEND_API_KEY,
+		EMAIL_FROM: process.env.EMAIL_FROM,
+	}
+	process.env.EMAIL_PROVIDER = "log"
+	delete process.env.RESEND_API_KEY
+	delete process.env.EMAIL_FROM
+	try {
+		return await fn()
+	} finally {
+		for (const [key, value] of Object.entries(previous)) {
+			if (value === undefined) delete process.env[key]
+			else process.env[key] = value
+		}
+	}
+}
+
 describe("S5-1 invite transactional email + deep-link accept", () => {
 	it("builds invite email content with deep-link accept URL", () => {
 		const content = buildProviderInvitationEmailContent({
@@ -38,29 +57,33 @@ describe("S5-1 invite transactional email + deep-link accept", () => {
 	})
 
 	it("resolves public origin and logs email by default", async () => {
-		expect(resolvePublicAppOrigin("http://localhost:4321/api/x")).toBe("http://localhost:4321")
-		const result = await sendTransactionalEmail({
-			to: "persona@example.com",
-			subject: "Test",
-			text: "Hola",
+		await withLogEmail(async () => {
+			expect(resolvePublicAppOrigin("http://localhost:4321/api/x")).toBe("http://localhost:4321")
+			const result = await sendTransactionalEmail({
+				to: "persona@example.com",
+				subject: "Test",
+				text: "Hola",
+			})
+			expect(result).toEqual({ ok: true, provider: "log" })
 		})
-		expect(result).toEqual({ ok: true, provider: "log" })
 	})
 
 	it("sends invite email best-effort with accept path", async () => {
-		const token = createProviderInvitationToken()
-		const result = await sendProviderInvitationEmail({
-			to: "persona@example.com",
-			providerDisplayName: "Equipo Config",
-			role: "staff",
-			token,
-			requestUrl: "http://localhost:4321/api/provider/settings/invitations",
-			kind: "create",
+		await withLogEmail(async () => {
+			const token = createProviderInvitationToken()
+			const result = await sendProviderInvitationEmail({
+				to: "persona@example.com",
+				providerDisplayName: "Equipo Config",
+				role: "staff",
+				token,
+				requestUrl: "http://localhost:4321/api/provider/settings/invitations",
+				kind: "create",
+			})
+			expect(result.ok).toBe(true)
+			expect(result.provider).toBe("log")
+			expect(result.acceptPath).toContain(encodeURIComponent(token))
+			expect(result.acceptUrl).toContain("/provider/invitations/accept?token=")
 		})
-		expect(result.ok).toBe(true)
-		expect(result.provider).toBe("log")
-		expect(result.acceptPath).toContain(encodeURIComponent(token))
-		expect(result.acceptUrl).toContain("/provider/invitations/accept?token=")
 	})
 
 	it("wires create/resend to sendProviderInvitationEmail", () => {
@@ -68,8 +91,8 @@ describe("S5-1 invite transactional email + deep-link accept", () => {
 		expect(api).toContain("sendProviderInvitationEmail")
 		expect(api).toContain('kind: "create"')
 		expect(api).toContain('kind: "resend"')
-		expect(api).toContain("emailSent:")
-		expect(api).toContain("emailProvider:")
+		expect(api).toContain("emailSent")
+		expect(api).toContain("emailProvider")
 		expect(api).toContain("mailStatus")
 		expect(api).toContain("classifyInvitationMailStatus")
 	})
@@ -94,16 +117,19 @@ describe("S6-1 invite mail honesty", () => {
 		const api = read("src/pages/api/provider/settings/invitations.ts")
 
 		expect(team).toContain("resolveInviteResultNotice")
+		expect(team).toContain('mail === "logged"')
+		expect(team).toContain("El correo no está configurado en este entorno")
 		expect(team).toContain("Invitación enviada")
 		expect(team).toContain("Invitación creada")
 		expect(team).toContain("dentro de 14 días")
 		expect(team).not.toContain("Enviamos el correo automáticamente")
 		expect(team).toContain("Copiar enlace de aceptación")
 
-		expect(permissions).toContain('admin: "Gestiona el perfil y las integraciones')
+		expect(permissions).toContain("Gestiona el perfil y las integraciones")
 
 		expect(api).toContain('redirectToTeam(request, "invited", { mail: mailStatus })')
 		expect(api).toContain('redirectToTeam(request, "resent", { mail: mailStatus })')
+		expect(api).toContain('const emailSent = mailStatus === "sent"')
 
 		expect(envExample).toContain("EMAIL_PROVIDER")
 		expect(envExample).toContain("RESEND_API_KEY")

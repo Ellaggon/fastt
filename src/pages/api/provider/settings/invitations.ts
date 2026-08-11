@@ -197,6 +197,7 @@ export const POST: APIRoute = async ({ request }) => {
 			})
 			const acceptPath = emailResult.acceptPath || buildProviderInvitationAcceptPath(token)
 			const mailStatus = classifyInvitationMailStatus(emailResult)
+			const emailSent = mailStatus === "sent"
 
 			await writeProviderAuditLog({
 				providerId,
@@ -216,7 +217,8 @@ export const POST: APIRoute = async ({ request }) => {
 					status: "pending",
 					expiresAt,
 					tokenRotated: true,
-					emailSent: emailResult.ok,
+					emailSent,
+					emailLogged: mailStatus === "logged",
 					emailProvider: emailResult.provider,
 					mailStatus,
 				},
@@ -231,7 +233,8 @@ export const POST: APIRoute = async ({ request }) => {
 						ok: true,
 						expiresAt,
 						acceptPath,
-						emailSent: emailResult.ok,
+						emailSent,
+						emailLogged: mailStatus === "logged",
 						emailProvider: emailResult.provider,
 						mailStatus,
 					})
@@ -290,6 +293,7 @@ export const POST: APIRoute = async ({ request }) => {
 		})
 		const acceptPath = emailResult.acceptPath || buildProviderInvitationAcceptPath(token)
 		const mailStatus = classifyInvitationMailStatus(emailResult)
+		const emailSent = mailStatus === "sent"
 
 		await writeProviderAuditLog({
 			providerId,
@@ -305,7 +309,8 @@ export const POST: APIRoute = async ({ request }) => {
 				expiresAt,
 				invitedBy: user.id,
 				hasToken: true,
-				emailSent: emailResult.ok,
+				emailSent,
+				emailLogged: mailStatus === "logged",
 				emailProvider: emailResult.provider,
 				mailStatus,
 			},
@@ -322,7 +327,8 @@ export const POST: APIRoute = async ({ request }) => {
 						status: "pending",
 						expiresAt,
 						acceptPath,
-						emailSent: emailResult.ok,
+						emailSent,
+						emailLogged: mailStatus === "logged",
 						emailProvider: emailResult.provider,
 						mailStatus,
 					},
