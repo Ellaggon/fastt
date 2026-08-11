@@ -136,13 +136,20 @@ const emailMatches =
 						) : !emailMatches ? (
 							<Notice variant="warning" title="Correo distinto">
 								Estás autenticado como <strong>{user.email}</strong>, pero la invitación es para{" "}
-								<strong>{invitation.email}</strong>. Cierra sesión e ingresa con el correo invitado.
+								<strong>{invitation.email}</strong>.{" "}
+								<a
+									class="font-semibold underline underline-offset-2"
+									href={`/api/auth/logout?returnTo=${encodeURIComponent(signInHref)}`}
+								>
+									Cambiar de cuenta
+								</a>
 							</Notice>
 						) : invitation.canAccept ? (
 							<form
 								method="post"
 								action="/api/provider/invitations/accept"
 								class="border-t border-slate-200 pt-4"
+								data-astro-reload
 								data-invite-accept-form
 							>
 								<input type="hidden" name="token" value={invitation.token} />

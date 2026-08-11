@@ -8,7 +8,7 @@ const returnTo = sanitizeReturnTo(returnToRaw, "/dashboard")
 const hasCustomReturn = Boolean(returnToRaw) && returnTo !== "/dashboard"
 
 const user = await getUserFromRequest(Astro.request)
-if (user) {
+if (user && !hasCustomReturn) {
 	return Astro.redirect(returnTo)
 }
 
@@ -58,7 +58,7 @@ const successMessages: Record<string, string> = {
 				{
 					hasCustomReturn ? (
 						<p class="rounded-md bg-sky-900/40 px-3 py-2 text-sm text-sky-100">
-							Después de iniciar sesión continuarás con la invitación al equipo.
+							Inicia sesión o crea una cuenta con el correo invitado para continuar con el equipo.
 						</p>
 					) : null
 				}
@@ -116,6 +116,7 @@ const successMessages: Record<string, string> = {
 					</form>
 
 					<form method="post" action="/api/auth/signup" class="mt-6 flex flex-col gap-3">
+						{hasCustomReturn ? <input type="hidden" name="returnTo" value={returnTo} /> : null}
 						<p class="text-xs text-gray-400">O crear cuenta:</p>
 						<label class="block text-sm font-medium text-gray-400">
 							Email

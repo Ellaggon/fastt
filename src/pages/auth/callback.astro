@@ -1,5 +1,8 @@
 ---
 import Layout from "@/layouts/Layout.astro"
+import { sanitizeReturnTo } from "@/lib/auth/returnTo"
+
+const returnTo = sanitizeReturnTo(Astro.url.searchParams.get("returnTo"), "/dashboard")
 ---
 
 <Layout title="Auth Callback">
@@ -32,7 +35,7 @@ import Layout from "@/layouts/Layout.astro"
 		</section>
 	</main>
 
-	<script is:inline>
+	<script is:inline define:vars={{ returnTo }}>
 		;(async function () {
 			const $status = document.getElementById("status")
 			const $debug = document.getElementById("debug")
@@ -105,7 +108,7 @@ import Layout from "@/layouts/Layout.astro"
 				}
 
 				setStatus("Listo. Redirigiendo...")
-				window.location.replace("/dashboard")
+				window.location.replace(returnTo)
 			} catch (e) {
 				setStatus("Error de red guardando sesion.")
 				showDebug({ error: String(e) })
