@@ -87,26 +87,20 @@ describe("integration/provider tax-fees API", () => {
 
 		await upsertProvider({ id: providerA, displayName: "ProvA", ownerEmail: emailA })
 		await upsertProvider({ id: providerB, displayName: "ProvB", ownerEmail: emailB })
-		await upsertDestination(
-			{
-				id: destinationId,
-				name: "Dest",
-				type: "city",
-				country: "CL",
-				slug: "dest",
-			},
-			20_000
-		)
-		await upsertProduct(
-			{
-				id: productId,
-				name: "Hotel",
-				productType: "Hotel",
-				destinationId,
-				providerId: providerA,
-			},
-			20_000
-		)
+		await upsertDestination({
+			id: destinationId,
+			name: "Dest",
+			type: "city",
+			country: "CL",
+			slug: "dest",
+		})
+		await upsertProduct({
+			id: productId,
+			name: "Hotel",
+			productType: "Hotel",
+			destinationId,
+			providerId: providerA,
+		})
 		await upsertVariant({
 			id: variantId,
 			productId,
