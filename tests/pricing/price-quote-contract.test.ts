@@ -37,7 +37,7 @@ describe("PriceQuote contract", () => {
 							appliesPer: "stay",
 							priority: 0,
 							amount: 10,
-							source: "rate_plan",
+							source: { scope: "rate_plan", scopeId: "rate_1", definitionId: "tax_1" },
 						},
 					],
 				},
