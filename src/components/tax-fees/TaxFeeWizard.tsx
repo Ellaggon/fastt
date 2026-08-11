@@ -60,11 +60,25 @@ type WarningGroup = {
 
 export type TaxFeeWizardMode = "creating" | "editing"
 
+export type TaxFeeScopeResources = {
+	providerId: string
+	products: Array<{ id: string; label: string; kind: string }>
+	variants: Array<{ id: string; productId: string; label: string; kind: string }>
+	ratePlans: Array<{
+		id: string
+		productId: string
+		variantId: string
+		label: string
+		isActive: boolean
+	}>
+}
+
 type TaxFeeWizardProps = {
 	initialDefinitions: DefinitionSummary[]
 	initialWarnings: ApiWarning[]
 	initialMode?: TaxFeeWizardMode
 	initialDefinitionId?: string | null
+	initialResources: TaxFeeScopeResources
 	showDefinitionsSidebar?: boolean
 	onDefinitionsChange?: (definitions: DefinitionSummary[], warnings: ApiWarning[]) => void
 	onAssignmentSuccess?: (message: string) => void
@@ -387,6 +401,23 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 		? [...previewResult.breakdown.taxes.excluded, ...previewResult.breakdown.fees.excluded]
 		: []
 	const showDefinitionsSidebar = props.showDefinitionsSidebar !== false
+	const selectableVariants = useMemo(
+		() =>
+			props.initialResources.variants.filter((variant) => variant.productId === draft.productId),
+		[props.initialResources.variants, draft.productId]
+	)
+	const selectedVariantId =
+		draft.scope === "rate_plan"
+			? (props.initialResources.ratePlans.find((ratePlan) => ratePlan.id === draft.scopeId)
+					?.variantId ?? draft.scopeId)
+			: draft.scopeId
+	const selectableRatePlans = useMemo(
+		() =>
+			props.initialResources.ratePlans.filter(
+				(ratePlan) => ratePlan.variantId === selectedVariantId && ratePlan.isActive
+			),
+		[props.initialResources.ratePlans, selectedVariantId]
+	)
 
 	useEffect(() => {
 		setDraft((current) => {
@@ -423,10 +454,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 						Number(draft.value) > 0 &&
 						(draft.calculationType === "percentage" || draft.currency.trim().length > 0)
 					: step === 4
-						? draft.scopeId.trim().length > 0 &&
-							(draft.scope === "product" ||
-								draft.scope === "provider" ||
-								draft.productId.trim().length > 0)
+						? draft.scopeId.trim().length > 0 && draft.productId.trim().length > 0
 						: step === 5
 							? draft.name.trim().length > 0 &&
 								isValidDateRange(draft.effectiveFrom, draft.effectiveTo)
@@ -485,33 +513,73 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 	}
 
 	useEffect(() => {
-		if (props.initialMode === "creating") {
-			if (
-				editingDefinitionId !== null ||
-				definitionId !== null ||
-				step !== 1 ||
-				draft.kind !== null
-			) {
-				resetWizard()
-			}
-			return
-		}
-
 		if (props.initialMode === "editing" && props.initialDefinitionId) {
 			const definition = definitions.find((item) => item.id === props.initialDefinitionId)
 			if (definition && editingDefinitionId !== definition.id) {
 				startEdit(definition)
 			}
 		}
-	}, [
-		props.initialMode,
-		props.initialDefinitionId,
-		definitions,
-		editingDefinitionId,
-		definitionId,
-		step,
-		draft.kind,
-	])
+	}, [props.initialMode, props.initialDefinitionId, definitions, editingDefinitionId, definitionId])
+
+	function changeScope(scope: ScopeType) {
+		setDraft((current) => {
+			const productId = current.productId
+			return {
+				...current,
+				scope,
+				productId,
+				scopeId:
+					scope === "provider"
+						? props.initialResources.providerId
+						: scope === "product"
+							? productId
+							: "",
+			}
+		})
+		setErrorMessage(null)
+		setSuccessMessage(null)
+		invalidatePreview()
+	}
+
+	function selectProduct(productId: string) {
+		setDraft((current) => ({
+			...current,
+			productId,
+			scopeId:
+				current.scope === "product"
+					? productId
+					: current.scope === "provider"
+						? props.initialResources.providerId
+						: "",
+		}))
+		setErrorMessage(null)
+		setSuccessMessage(null)
+		invalidatePreview()
+	}
+
+	function selectVariant(variantId: string) {
+		const variant = props.initialResources.variants.find((item) => item.id === variantId)
+		setDraft((current) => ({
+			...current,
+			productId: variant?.productId ?? current.productId,
+			scopeId: variantId,
+		}))
+		setErrorMessage(null)
+		setSuccessMessage(null)
+		invalidatePreview()
+	}
+
+	function selectRatePlan(ratePlanId: string) {
+		const ratePlan = props.initialResources.ratePlans.find((item) => item.id === ratePlanId)
+		setDraft((current) => ({
+			...current,
+			productId: ratePlan?.productId ?? current.productId,
+			scopeId: ratePlanId,
+		}))
+		setErrorMessage(null)
+		setSuccessMessage(null)
+		invalidatePreview()
+	}
 
 	function selectKind(kind: TaxFeeKind) {
 		setDraft((current) => ({
@@ -1015,8 +1083,8 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 							<div>
 								<h2 className="text-2xl font-semibold text-slate-950">Elige dónde se aplicará</h2>
 								<p className="mt-2 text-sm text-slate-600">
-									La vista previa necesita contexto de producto y la asignación final usará el
-									alcance seleccionado.
+									Selecciona recursos de tu catálogo. La regla se aplicará solo en el alcance que
+									confirmes.
 								</p>
 							</div>
 
@@ -1025,7 +1093,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 									<ChoiceCard
 										key={option.value}
 										selected={draft.scope === option.value}
-										onClick={() => updateDraft({ scope: option.value })}
+										onClick={() => changeScope(option.value)}
 									>
 										<div className="text-base font-semibold text-slate-950">{option.label}</div>
 										<p className="mt-2 text-sm text-slate-600">{option.helper}</p>
@@ -1033,44 +1101,87 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 								))}
 							</div>
 
-							<div className="grid gap-4 md:grid-cols-2">
-								<label className="flex flex-col gap-2">
-									<span className="text-sm font-medium text-slate-700">ID del alcance</span>
-									<Input
-										value={draft.scopeId}
-										onChange={(event) => updateDraft({ scopeId: event.target.value })}
-										placeholder={
-											draft.scope === "product"
-												? "prod_123"
-												: draft.scope === "variant"
-													? "var_123"
-													: draft.scope === "rate_plan"
-														? "rp_123"
-														: "provider_id"
-										}
-									/>
-								</label>
+							{props.initialResources.products.length === 0 ? (
+								<Notice variant="warning" title="No hay recursos para asignar">
+									Crea primero un alojamiento, tour o servicio. Luego podrás aplicar esta regla a
+									sus tarifas.
+								</Notice>
+							) : (
+								<div className="grid gap-4 md:grid-cols-2">
+									<label className="flex flex-col gap-2">
+										<span className="text-sm font-medium text-slate-700">
+											{draft.scope === "provider" ? "Producto para la vista previa" : "Producto"}
+										</span>
+										<Select
+											value={draft.productId}
+											onChange={(event) => selectProduct(event.target.value)}
+										>
+											<option value="">Selecciona un producto</option>
+											{props.initialResources.products.map((product) => (
+												<option key={product.id} value={product.id}>
+													{product.label} · {product.kind}
+												</option>
+											))}
+										</Select>
+									</label>
 
-								<label className="flex flex-col gap-2">
-									<span className="text-sm font-medium text-slate-700">
-										ID de producto para vista previa
-									</span>
-									<Input
-										value={draft.productId}
-										onChange={(event) => updateDraft({ productId: event.target.value })}
-										placeholder="prod_123"
-									/>
-								</label>
+									{(draft.scope === "variant" || draft.scope === "rate_plan") && (
+										<label className="flex flex-col gap-2">
+											<span className="text-sm font-medium text-slate-700">Unidad</span>
+											<Select
+												value={selectedVariantId}
+												onChange={(event) => selectVariant(event.target.value)}
+											>
+												<option value="">Selecciona una unidad</option>
+												{selectableVariants.map((variant) => (
+													<option key={variant.id} value={variant.id}>
+														{variant.label} · {variant.kind}
+													</option>
+												))}
+											</Select>
+										</label>
+									)}
 
-								<label className="flex flex-col gap-2 md:col-span-2">
-									<span className="text-sm font-medium text-slate-700">Canal opcional</span>
-									<Input
-										value={draft.channel}
-										onChange={(event) => updateDraft({ channel: event.target.value })}
-										placeholder="web"
-									/>
-								</label>
-							</div>
+									{draft.scope === "rate_plan" && (
+										<label className="flex flex-col gap-2">
+											<span className="text-sm font-medium text-slate-700">Tarifa</span>
+											<Select
+												value={draft.scopeId}
+												onChange={(event) => selectRatePlan(event.target.value)}
+											>
+												<option value="">Selecciona una tarifa</option>
+												{selectableRatePlans.map((ratePlan) => (
+													<option key={ratePlan.id} value={ratePlan.id}>
+														{ratePlan.label}
+													</option>
+												))}
+											</Select>
+										</label>
+									)}
+
+									<label className="flex flex-col gap-2 md:col-span-2">
+										<span className="text-sm font-medium text-slate-700">Canal de venta</span>
+										<Select
+											value={draft.channel}
+											onChange={(event) => updateDraft({ channel: event.target.value })}
+										>
+											<option value="">Todos los canales</option>
+											<option value="web">Sitio web Fastt</option>
+										</Select>
+										<p className="text-xs text-slate-500">
+											Los canales externos se incorporarán cuando sus integraciones estén
+											certificadas.
+										</p>
+									</label>
+								</div>
+							)}
+
+							{draft.scope === "provider" && (
+								<p className="fastt-soft-box rounded-[var(--fastt-radius-card)] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+									La regla se aplicará a toda la cuenta del proveedor. Elige un producto arriba para
+									simular el precio antes de activarla.
+								</p>
+							)}
 						</div>
 					)}
 

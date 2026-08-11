@@ -8,7 +8,7 @@ function read(relativePath: string) {
 }
 
 describe("S2-1 fiscal UX split TIN vs guest taxes", () => {
-	it("keeps settings fiscality focused on guest taxes and redirects fiscal identity to verification", () => {
+	it("keeps guest charges in their own workspace and fiscal identity in verification", () => {
 		const routes = read("src/lib/routes.ts")
 		const hub = read("src/pages/provider/settings/tax-fees/index.astro")
 		const identity = read("src/pages/provider/settings/tax-fees/identity.astro")
@@ -16,13 +16,20 @@ describe("S2-1 fiscal UX split TIN vs guest taxes", () => {
 		const api = read("src/pages/api/provider/settings/tax-configuration.ts")
 		const governance = read("src/lib/provider-governance.ts")
 
-		expect(routes).toContain('providerSettingsVerificationFiscal: () => "/provider/settings/verification/fiscal"')
-		expect(routes).toContain('providerSettingsTaxIdentity: () => "/provider/settings/tax-fees/identity"')
+		expect(routes).toContain(
+			'providerSettingsVerificationFiscal: () => "/provider/settings/verification/fiscal"'
+		)
+		expect(routes).toContain(
+			'providerSettingsTaxIdentity: () => "/provider/settings/tax-fees/identity"'
+		)
 		expect(routes).toContain('providerSettingsTaxSales: () => "/provider/settings/tax-fees/sales"')
 
 		expect(hub).toContain("TaxFeePage")
-		expect(hub).toContain("Impuestos al huésped")
-		expect(hub).toContain("Solo precios de reserva")
+		expect(hub).toContain("Impuestos y cargos")
+		expect(hub).toContain("showSettingsTabs={false}")
+		expect(hub).toContain("getProviderTaxConfiguration")
+		expect(hub).toContain("initialResources")
+		expect(hub).not.toContain("Solo precios de reserva")
 		expect(hub).toContain("providerSettingsVerificationFiscal")
 		expect(hub).not.toContain("ProviderFiscalDomainTabs")
 		expect(hub).not.toContain("Dos cosas distintas")

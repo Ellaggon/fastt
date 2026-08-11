@@ -3,11 +3,15 @@ import TaxFeePage from "@/components/tax-fees/TaxFeePage"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import Notice from "@/components/ui/Notice.astro"
+import { variantManagementRepository } from "@/container"
 import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
-import { requireProvider } from "@/lib/auth/requireProvider"
+import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
+import { getProviderTaxConfiguration } from "@/lib/provider-tax-configuration"
 import { routes } from "@/lib/routes"
+import { listRatePlansByProvider } from "@/modules/pricing/public"
+import { db, eq, Product } from "@/shared/infrastructure/db/compat"
 
-const auth = await requireProvider(Astro.request).catch((e: any) => {
+const auth = await requireProviderSessionSurface(Astro.request).catch((e: any) => {
 	if (e instanceof Response && e.status === 401) return "__REDIRECT_LOGIN__"
 	if (e instanceof Response && e.status === 403) return "__REDIRECT_PROVIDER__"
 	throw e
@@ -22,66 +26,112 @@ if (result === "tax_profile_saved") {
 }
 
 const cookie = Astro.request.headers.get("cookie") ?? ""
-const defsRes = await fetch(new URL("/api/provider/tax-fees/definitions", Astro.url), {
-	headers: { cookie },
-})
+const providerId = typeof auth === "string" ? "" : auth.provider.providerId
+const canManageFiscality =
+	typeof auth === "string" ? false : auth.provider.permissions.canManageFiscality
+const [defsRes, taxConfiguration, productRows, ratePlans] = await Promise.all([
+	fetch(new URL("/api/provider/tax-fees/definitions", Astro.url), { headers: { cookie } }),
+	getProviderTaxConfiguration(providerId).catch(() => null),
+	db
+		.select({ id: Product.id, name: Product.name, productType: Product.productType })
+		.from(Product)
+		.where(eq(Product.providerId, providerId))
+		.catch(() => []),
+	listRatePlansByProvider(providerId).catch(() => []),
+])
 const defsBody = defsRes.ok ? await defsRes.json() : null
 const initialDefinitions = Array.isArray(defsBody?.definitions) ? defsBody.definitions : []
 const initialWarnings = Array.isArray(defsBody?.warnings) ? defsBody.warnings : []
 const initialMode = create === "1" ? "creating" : "idle"
 const definitionCount = initialDefinitions.length
 const activeCount = initialDefinitions.filter((item: any) => item.status === "active").length
+const variantsByProduct = await Promise.all(
+	productRows.map(async (product) => ({
+		productId: String(product.id),
+		variants: await variantManagementRepository
+			.listVariantsByProductId(String(product.id))
+			.catch(() => []),
+	}))
+)
+const initialResources = {
+	providerId,
+	products: productRows.map((product) => ({
+		id: String(product.id),
+		label: String(product.name || "Producto sin nombre"),
+		kind: String(product.productType || "Producto"),
+	})),
+	variants: variantsByProduct.flatMap(({ productId, variants }) =>
+		variants.map((variant) => ({
+			id: String(variant.id),
+			productId,
+			label: String(variant.name || "Unidad sin nombre"),
+			kind: String(variant.kind || "Unidad"),
+		}))
+	),
+	ratePlans: (ratePlans as Array<any>).map((ratePlan) => ({
+		id: String(ratePlan.ratePlanId),
+		productId: String(ratePlan.productId),
+		variantId: String(ratePlan.variantId),
+		label: String(ratePlan.ratePlanName || "Tarifa sin nombre"),
+		isActive: Boolean(ratePlan.isActive),
+	})),
+}
 ---
 
 <ProviderSettingsLayout
-	title="Fiscalidad"
-	eyebrow="Configuración del proveedor · Fiscalidad"
-	heading="Impuestos al huésped"
-	description="Definiciones y cargos que se suman al precio de la reserva. Tu identidad fiscal se completa en Verificación."
+	title="Impuestos y cargos"
+	eyebrow="Operación comercial · Precio al huésped"
+	heading="Impuestos y cargos"
+	description="Define cargos transparentes para el huésped y aplícalos a tus productos, unidades y tarifas."
+	showSettingsTabs={false}
 >
 	<div slot="actions" class="flex flex-wrap gap-3">
 		<Button href={routes.providerSettingsVerificationFiscal()} variant="secondary">
 			Identidad fiscal
 		</Button>
 		<Button href={routes.ratePlansList()} variant="secondary">Tarifas</Button>
-		<Button href={`${routes.providerSettingsTaxFees()}?create=1`} variant="secondary">
-			Nueva definición
-		</Button>
 	</div>
 
 	<div class="grid gap-3 sm:grid-cols-2">
 		<Card variant="soft" class="space-y-1">
-			<p class="text-xs font-semibold tracking-[0.12em] text-slate-500 uppercase">Perfil fiscal</p>
-			<p class="text-lg font-semibold text-slate-950">En Verificación</p>
+			<p class="text-xs font-semibold tracking-[0.12em] text-slate-500 uppercase">
+				Identidad fiscal
+			</p>
+			<p class="text-lg font-semibold text-slate-950">
+				{taxConfiguration?.statusLabel ?? "No configurada"}
+			</p>
+			<p class="text-sm text-slate-600">
+				{
+					taxConfiguration?.isConfigured
+						? "La validación de tu registro se gestiona en Verificación."
+						: "Completa tu registro fiscal antes de operar liquidaciones."
+				}
+			</p>
 		</Card>
 		<Card variant="soft" class="space-y-1">
-			<p class="text-xs font-semibold tracking-[0.12em] text-slate-500 uppercase">
-				Impuestos al huésped
-			</p>
+			<p class="text-xs font-semibold tracking-[0.12em] text-slate-500 uppercase">Reglas activas</p>
 			<p class="text-lg font-semibold text-slate-950">
 				{definitionCount} total · {activeCount} activas
 			</p>
+			<p class="text-sm text-slate-600">Las reglas se aplican solo después de asignarlas.</p>
 		</Card>
 	</div>
 
-	<Notice variant="info" title="Solo precios de reserva">
-		Aquí defines impuestos y cargos comerciales para el huésped. El NIT/registro y la residencia
-		fiscal del proveedor se gestionan en{" "}
-		<a class="font-semibold underline" href={routes.providerSettingsVerificationFiscal()}>
-			Verificación fiscal
-		</a>
-		.
-	</Notice>
-
-	<Notice variant="info" title="Flujo recomendado">
-		Crea una definición, asigna su alcance y ejecuta una vista previa real antes de aplicarla a
-		ventas.
-	</Notice>
+	{
+		!canManageFiscality ? (
+			<Notice variant="info" title="Acceso de consulta">
+				Puedes revisar las reglas y su configuración. Solo el propietario o un miembro con permiso
+				de fiscalidad puede crear, editar o aplicar cambios.
+			</Notice>
+		) : null
+	}
 
 	<TaxFeePage
 		client:load
 		initialDefinitions={initialDefinitions}
 		initialWarnings={initialWarnings}
 		initialMode={initialMode}
+		canManageFiscality={canManageFiscality}
+		initialResources={initialResources}
 	/>
 </ProviderSettingsLayout>

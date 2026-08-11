@@ -3,6 +3,7 @@ import { useState } from "react"
 import TaxFeeWizard, {
 	type ApiWarning,
 	type DefinitionSummary,
+	type TaxFeeScopeResources,
 	type TaxFeeWizardMode,
 } from "./TaxFeeWizard"
 import { Badge, Button, Card, Notice } from "../ui-react"
@@ -11,6 +12,8 @@ type TaxFeePageProps = {
 	initialDefinitions: DefinitionSummary[]
 	initialWarnings: ApiWarning[]
 	initialMode?: PageMode
+	canManageFiscality: boolean
+	initialResources: TaxFeeScopeResources
 }
 
 type PageMode = "idle" | "creating" | "editing"
@@ -38,6 +41,7 @@ function warningTitle(code: string) {
 		case "high_percentage":
 			return "Revisar monto"
 		case "overlap_detected":
+		case "overlapping_taxes":
 			return "Posible solapamiento"
 		case "duplicate_code":
 			return "Ya existe un cargo similar"
@@ -47,7 +51,9 @@ function warningTitle(code: string) {
 }
 
 export default function TaxFeePage(props: TaxFeePageProps) {
-	const [mode, setMode] = useState<PageMode>(props.initialMode ?? "idle")
+	const [mode, setMode] = useState<PageMode>(
+		props.canManageFiscality ? (props.initialMode ?? "idle") : "idle"
+	)
 	const [selectedDefinition, setSelectedDefinition] = useState<DefinitionSummary | null>(null)
 	const [definitions, setDefinitions] = useState<DefinitionSummary[]>(props.initialDefinitions)
 	const [warnings, setWarnings] = useState<ApiWarning[]>(props.initialWarnings)
@@ -57,12 +63,14 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 	const wizardMode: TaxFeeWizardMode = mode === "editing" ? "editing" : "creating"
 
 	function startCreating() {
+		if (!props.canManageFiscality) return
 		setSelectedDefinition(null)
 		setSuccessMessage(null)
 		setMode("creating")
 	}
 
 	function startEditing(definition: DefinitionSummary) {
+		if (!props.canManageFiscality) return
 		setSelectedDefinition(definition)
 		setSuccessMessage(null)
 		setMode("editing")
@@ -78,7 +86,7 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 							Impuestos y cargos existentes
 						</h2>
 					</div>
-					{hasDefinitions && (
+					{hasDefinitions && props.canManageFiscality && (
 						<Button type="button" onClick={startCreating}>
 							Crear
 						</Button>
@@ -123,18 +131,22 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 										<h3 className="mt-2 text-lg font-semibold text-slate-950">{definition.name}</h3>
 										<p className="mt-1 text-sm text-slate-600">
 											{definition.inclusionType === "included"
-												? "Incluido en el precio"
-												: "Se agrega al confirmar"}
+												? "Incluido en el precio mostrado"
+												: "Se cobra durante la reserva"}
 										</p>
 									</div>
-									<Button
-										type="button"
-										onClick={() => startEditing(definition)}
-										variant="secondary"
-										size="sm"
-									>
-										Editar
-									</Button>
+									{props.canManageFiscality ? (
+										<Button
+											type="button"
+											onClick={() => startEditing(definition)}
+											variant="secondary"
+											size="sm"
+										>
+											Gestionar
+										</Button>
+									) : (
+										<Badge variant="neutral">Consulta</Badge>
+									)}
 								</div>
 								<p className="mt-3 text-sm text-slate-700">
 									{formatDefinitionValue(definition)} · {formatAppliesPer(definition.appliesPer)}
@@ -162,10 +174,10 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 						</h2>
 						<p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
 							{hasDefinitions
-								? "Usa Crear en el encabezado de definiciones para agregar una regla nueva, o Editar para revisar una existente."
-								: "El asistente te guía desde el preset hasta una vista previa real antes de asignar."}
+								? "Selecciona una regla para revisar su cálculo. Las asignaciones se eligen con nombres de productos, unidades y tarifas."
+								: "Crea una regla y asígnala a los recursos donde debe aplicarse."}
 						</p>
-						{!hasDefinitions && (
+						{!hasDefinitions && props.canManageFiscality && (
 							<Button type="button" onClick={startCreating} className="mt-6">
 								Crear impuesto o cargo
 							</Button>
@@ -176,6 +188,7 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 						initialDefinitions={definitions}
 						initialWarnings={warnings}
 						initialMode={wizardMode}
+						initialResources={props.initialResources}
 						initialDefinitionId={selectedDefinition?.id ?? null}
 						showDefinitionsSidebar={false}
 						onDefinitionsChange={(nextDefinitions, nextWarnings) => {
