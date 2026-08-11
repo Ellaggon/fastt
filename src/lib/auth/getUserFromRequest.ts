@@ -95,11 +95,14 @@ export async function resolveLocalQaAuthUser(request: Request): Promise<AuthUser
  * Reads the access token from Authorization header or cookies and validates it with Supabase.
  */
 export async function getUserFromRequest(request: Request): Promise<AuthUser | null> {
-	const localQaUser = await resolveLocalQaAuthUser(request)
-	if (localQaUser) return localQaUser
-
 	const token = readBearerToken(request) || readCookieToken(request)
 	const sessionId = token ? hashToken(token) : null
+	// A real session must always win over the local QA fixture. Without this guard,
+	// LOCAL_QA_AUTH_ENABLED silently impersonates the fixture user after sign-in.
+	if (!token) {
+		const localQaUser = await resolveLocalQaAuthUser(request)
+		if (localQaUser) return localQaUser
+	}
 
 	// Supabase configured: validate token against Supabase.
 	if (process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) {
