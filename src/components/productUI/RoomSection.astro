@@ -436,6 +436,7 @@ function policyStatusClass(status: string): string {
 	let selectedVariantId = String(selectedVariantIdFromQuery || defaultVariantId || "").trim()
 	let selectedRatePlanId = String(defaultRatePlanId || "").trim()
 	let latestHoldId = ""
+	let latestPriceQuoteId = ""
 
 	function parseIsoDate(iso) {
 		const parsed = new Date(`${iso}T00:00:00`)
@@ -608,6 +609,7 @@ function policyStatusClass(status: string): string {
 				return
 			}
 			latestHoldId = String(payload?.holdId ?? "")
+			latestPriceQuoteId = String(payload?.priceQuote?.quoteId ?? "")
 			if (holdStatusText) {
 				holdStatusText.textContent = latestHoldId ? "Hold creado correctamente." : "Hold creado."
 			}
@@ -627,11 +629,19 @@ function policyStatusClass(status: string): string {
 			const response = await fetch("/api/booking/confirm", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ holdId: latestHoldId }),
+				body: JSON.stringify({
+					holdId: latestHoldId,
+					priceQuoteId: latestPriceQuoteId || undefined,
+				}),
 			})
 			const payload = await response.json().catch(() => ({}))
 			if (!response.ok || !payload?.bookingId) {
-				if (holdStatusText) holdStatusText.textContent = "No se pudo confirmar la reserva."
+				if (holdStatusText) {
+					holdStatusText.textContent =
+						payload?.error === "PRICE_QUOTE_MISMATCH"
+							? "El precio confirmado cambió. Vuelve a crear el hold para revisar el nuevo total."
+							: "No se pudo confirmar la reserva."
+				}
 				if (confirmBookingBtn) confirmBookingBtn.disabled = false
 				return
 			}

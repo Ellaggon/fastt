@@ -2,6 +2,7 @@ import type { ResolvedTaxFeeDefinition } from "@/modules/taxes-fees/public"
 
 export type CreateBookingFromHoldInput = {
 	holdId: string
+	priceQuoteId?: string | null
 	userId?: string | null
 	source?: string | null
 }

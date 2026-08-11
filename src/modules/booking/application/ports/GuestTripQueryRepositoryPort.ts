@@ -20,6 +20,7 @@ export type GuestTripLineRow = {
 	adults: number | null
 	children: number | null
 	totalAmount: number | null
+	pricingBreakdownJson: unknown
 	occupancySnapshotJson: unknown
 	productId: string | null
 	destinationId: string | null

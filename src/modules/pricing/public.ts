@@ -4,6 +4,7 @@
 
 // Domain
 export * from "./domain/pricing.types"
+export * from "./domain/price-quote"
 export * from "./domain/pricing.utils"
 export * from "./domain/computeBasePriceWithRules"
 export * from "./domain/strictMinimalRules"

@@ -30,6 +30,7 @@ import type {
 } from "@/modules/booking/application/ports/BookingFromHoldRepositoryPort"
 import type { HoldPolicySnapshot } from "@/modules/policies/public"
 import { computeTaxBreakdown } from "@/modules/taxes-fees/public"
+import { isPriceQuote, quoteExtraAmount, type PriceQuote } from "@/modules/pricing/public"
 
 type BookingPricingSnapshot = {
 	ratePlanId: string
@@ -62,6 +63,7 @@ type BookingPricingSnapshot = {
 		final: number
 	}
 	pricingSource?: "v2"
+	priceQuote?: PriceQuote
 }
 
 function isMissingHoldTableError(error: unknown): boolean {
@@ -147,6 +149,15 @@ async function buildSnapshotFromHoldLifecycle(params: {
 	if (!Number.isFinite(nights) || nights < 1) return null
 	if (!Number.isFinite(totalPrice) || totalPrice <= 0) return null
 	if (!days.length) return null
+	const priceQuote = isPriceQuote(snapshot.priceQuote) ? snapshot.priceQuote : undefined
+	if (
+		priceQuote &&
+		(priceQuote.context.ratePlanId !== ratePlanId ||
+			priceQuote.context.checkIn !== from ||
+			priceQuote.context.checkOut !== to)
+	) {
+		return null
+	}
 
 	const lockDates = new Set(params.holdRows.map((row) => String(row.date)))
 	const snapshotDates = new Set(days.map((day) => day.date))
@@ -166,7 +177,7 @@ async function buildSnapshotFromHoldLifecycle(params: {
 		from,
 		to,
 		nights: Math.max(1, Math.round(nights)),
-		totalPrice: Number(totalPrice.toFixed(2)),
+		totalPrice: Number((priceQuote?.totalAmount ?? totalPrice).toFixed(2)),
 		days: days.map((day) => ({
 			date: day.date,
 			price: Number(day.price.toFixed(2)),
@@ -196,6 +207,7 @@ async function buildSnapshotFromHoldLifecycle(params: {
 				}
 			: undefined,
 		pricingSource: snapshot.pricingSource === "v2" ? "v2" : undefined,
+		priceQuote,
 	}
 }
 
@@ -313,13 +325,20 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 				})),
 			})
 			if (!snapshot) throw new Error("INVENTORY_CONFLICT")
+			if (
+				params.input.priceQuoteId &&
+				(!snapshot.priceQuote || snapshot.priceQuote.quoteId !== params.input.priceQuoteId)
+			) {
+				throw new Error("PRICE_QUOTE_MISMATCH")
+			}
 
 			const adults = Number(snapshot.occupancyDetail.adults ?? 1)
 			const children = Number(snapshot.occupancyDetail.children ?? 0)
 			const infants = Number(snapshot.occupancyDetail.infants ?? 0)
 			const guests = Math.max(1, adults + children)
 			const bookingId = crypto.randomUUID()
-			const baseTotal = Number(snapshot.totalPrice)
+			const priceQuote = snapshot.priceQuote
+			const baseTotal = Number(priceQuote?.baseAmount ?? snapshot.totalPrice)
 			const ratePlanName = await resolveRatePlanNameColumn()
 			const ratePlan = await tx
 				.select({ name: ratePlanName })
@@ -378,21 +397,28 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 				reason: "Booking confirmation does not create a refund workflow.",
 			}
 
-			const taxResolved = await params.resolveEffectiveTaxFees({
-				productId: variant.productId,
-				variantId,
-				ratePlanId: snapshot.ratePlanId,
-				channel: "web",
-			})
-			const taxBreakdown = computeTaxBreakdown({
-				base: baseTotal,
-				definitions: taxResolved.definitions,
-				nights: snapshot.nights,
-				guests,
-			})
-			const taxesAmount = Number((taxBreakdown.total - taxBreakdown.base).toFixed(2))
+			const taxBreakdown = priceQuote
+				? priceQuote.taxesAndFees
+				: computeTaxBreakdown({
+						base: baseTotal,
+						definitions: (
+							await params.resolveEffectiveTaxFees({
+								productId: variant.productId,
+								variantId,
+								ratePlanId: snapshot.ratePlanId,
+								channel: "web",
+							})
+						).definitions,
+						nights: snapshot.nights,
+						guests,
+					})
+			const taxesAmount = priceQuote
+				? quoteExtraAmount(priceQuote)
+				: Number((taxBreakdown.total - taxBreakdown.base).toFixed(2))
 			// Pricing total is sourced from the hold snapshot and must remain stable end-to-end.
-			const finalTotal = Number(baseTotal.toFixed(2))
+			// The bound PriceQuote on that snapshot is the guest total; legacy holds keep the
+			// former snapshot path only so in-flight reservations remain recoverable.
+			const finalTotal = Number((priceQuote?.totalAmount ?? taxBreakdown.total).toFixed(2))
 
 			await tx.insert(Booking).values({
 				id: bookingId,
@@ -445,8 +471,9 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 				totalAmount: finalTotal,
 				pricingBreakdownJson: {
 					nights: snapshot.days.map((day) => ({ date: day.date, price: day.price })),
-					totalPrice: Number(baseTotal.toFixed(2)),
+					totalPrice: finalTotal,
 					currency: snapshot.currency,
+					priceQuote: priceQuote ?? null,
 					ratePlanId: snapshot.ratePlanId,
 					occupancyDetail: {
 						adults: Math.max(1, adults),
@@ -530,9 +557,9 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 				(taxLines.length > 0 ? taxLines : [null]).map((line) => ({
 					id: crypto.randomUUID(),
 					bookingId,
-					name: line?.name ?? "Taxes and fees snapshot",
+					name: line?.name ?? "Sin impuestos ni cargos adicionales",
 					breakdownJson: taxBreakdown,
-					totalAmount: finalTotal,
+					totalAmount: Number(line?.amount ?? 0),
 					createdAt: now,
 				})) as any
 			)

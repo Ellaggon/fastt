@@ -1,4 +1,6 @@
 import type { GuestTripQueryRepositoryPort } from "../ports/GuestTripQueryRepositoryPort"
+import { buildBookingReceipt } from "./build-booking-receipt"
+import { isPriceQuote } from "@/modules/pricing/public"
 
 export type GuestTripConfirmation = {
 	bookingId: string
@@ -23,6 +25,7 @@ export type GuestTripConfirmation = {
 		note: string | null
 		instructions: Record<string, unknown>
 	} | null
+	receipt: ReturnType<typeof buildBookingReceipt> | null
 	review: {
 		eligible: boolean
 		existingReviewId: string | null
@@ -62,6 +65,7 @@ export async function getGuestTripConfirmation(
 			: instructions.meetingPoint && typeof instructions.meetingPoint === "object"
 				? instructions.meetingPoint
 				: null
+	const priceQuote = (line?.pricingBreakdownJson as any)?.priceQuote
 
 	const productId = String(line?.productIdSnapshot ?? line?.productId ?? "").trim() || null
 	const productType = String(line?.productType ?? "")
@@ -140,6 +144,14 @@ export async function getGuestTripConfirmation(
 					note: instructions.note == null ? null : String(instructions.note),
 					instructions,
 				}
+			: null,
+		receipt: isPriceQuote(priceQuote)
+			? buildBookingReceipt({
+					bookingId: booking.id,
+					status: String(booking.status ?? "confirmed"),
+					issuedAt: booking.checkedInAt ?? null,
+					quote: priceQuote,
+				})
 			: null,
 		review: {
 			eligible,

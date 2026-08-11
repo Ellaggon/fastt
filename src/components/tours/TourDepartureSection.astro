@@ -285,6 +285,7 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 		let selectedVariantId = ""
 		let selectedRatePlanId = ""
 		let latestHoldId = ""
+		let latestPriceQuoteId = ""
 		let privateVariantId = ""
 		const sharedCheckout = document.getElementById("tourSharedCheckout")
 		const privateQuote = document.getElementById("tourPrivateQuote")
@@ -299,6 +300,7 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 			selectedVariantId = ""
 			selectedRatePlanId = ""
 			latestHoldId = ""
+			latestPriceQuoteId = ""
 			if (reserveBtn) reserveBtn.disabled = true
 			if (confirmBtn) confirmBtn.disabled = true
 			sharedCheckout?.classList.add("hidden")
@@ -391,6 +393,7 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 				selectedVariantId = String(btn.dataset.selectVariantId ?? "")
 				selectedRatePlanId = String(btn.dataset.selectRateplanId ?? "")
 				latestHoldId = ""
+				latestPriceQuoteId = ""
 				if (reserveBtn) reserveBtn.disabled = !(selectedVariantId && selectedRatePlanId)
 				if (confirmBtn) confirmBtn.disabled = true
 				if (statusEl) {
@@ -504,6 +507,7 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 					return
 				}
 				latestHoldId = String(payload?.holdId ?? "")
+				latestPriceQuoteId = String(payload?.priceQuote?.quoteId ?? "")
 				if (statusEl) {
 					statusEl.textContent = latestHoldId
 						? "Cupo reservado. Confirma la reserva."
@@ -525,7 +529,10 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 				const response = await fetch("/api/booking/confirm", {
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ holdId: latestHoldId }),
+					body: JSON.stringify({
+						holdId: latestHoldId,
+						priceQuoteId: latestPriceQuoteId || undefined,
+					}),
 				})
 				const payload = await response.json().catch(() => ({}))
 				if (!response.ok || !payload?.bookingId) {
@@ -533,7 +540,9 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 						statusEl.textContent =
 							payload?.error === "tours_checkout_disabled"
 								? "La reserva de tours no está disponible ahora (rollout). Intenta más tarde."
-								: "No se pudo confirmar la reserva."
+								: payload?.error === "PRICE_QUOTE_MISMATCH"
+									? "El precio confirmado cambió. Vuelve a reservar el cupo para revisar el nuevo total."
+									: "No se pudo confirmar la reserva."
 					}
 					if (confirmBtn) {
 						confirmBtn.disabled = payload?.error === "tours_checkout_disabled"
