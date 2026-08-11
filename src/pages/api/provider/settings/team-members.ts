@@ -32,6 +32,7 @@ function redirectToTeam(
 		| "forbidden"
 		| "not_found"
 		| "owner_protected"
+		| "last_owner_protected"
 		| "self_protected"
 		| "validation_error"
 ) {
@@ -84,13 +85,24 @@ export const POST: APIRoute = async ({ request }) => {
 			.then((rows) => rows[0] ?? null)
 
 		if (!target?.id) return respond(request, { error: "not_found" }, 404)
-		if (normalizeProviderRole(target.role) === "owner") {
+		const targetRole = normalizeProviderRole(target.role)
+		if (mutation.action === "remove" && targetRole === "owner") {
 			return respond(request, { error: "owner_protected" }, 409)
+		}
+		if (mutation.action === "update_role" && targetRole === "owner") {
+			const memberRoles = await db
+				.select({ role: ProviderUser.role })
+				.from(ProviderUser)
+				.where(eq(ProviderUser.providerId, provider.providerId))
+			const ownerCount = memberRoles.filter(
+				(member) => normalizeProviderRole(member.role) === "owner"
+			).length
+			if (ownerCount <= 1) return respond(request, { error: "last_owner_protected" }, 409)
 		}
 
 		const riskLevel = inferSettingsRiskLevel({ domain: "team" })
 		if (mutation.action === "update_role") {
-			const previousRole = normalizeProviderRole(target.role)
+			const previousRole = targetRole
 			if (previousRole === mutation.role) {
 				return respond(request, { ok: true, result: "member_updated", unchanged: true })
 			}

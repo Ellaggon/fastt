@@ -162,8 +162,12 @@ export async function getProviderSessionSurfaceFromRequest(
 	request: Request,
 	preloadedUser?: AuthUser | null
 ): Promise<ProviderSessionSurface | null> {
-	const qaSurface = await localQaSurface(request, preloadedUser)
-	if (qaSurface) return qaSurface
+	// Mirror getUserFromRequest: local QA is a no-session fixture, never an override
+	// for an authenticated user who is switching accounts or accepting an invitation.
+	if (!getSessionIdFromRequest(request)) {
+		const qaSurface = await localQaSurface(request, preloadedUser)
+		if (qaSurface) return qaSurface
+	}
 
 	const user = preloadedUser ?? (await getUserFromRequest(request))
 	if (!user?.id) return null

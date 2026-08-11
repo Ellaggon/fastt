@@ -39,6 +39,7 @@ const pendingInvitations = invitations.filter(
 const canInviteTeam = Boolean(permissions.canInviteTeam)
 const canManageMembers = auth.provider.role === "owner"
 const visibleInvitations = canInviteTeam ? pendingInvitations : []
+const ownerCount = users.filter((user: any) => user.role === "owner").length
 
 type InviteNotice = { title: string; body: string; variant: "success" | "info" | "warning" }
 
@@ -60,16 +61,36 @@ function resolveInviteResultNotice(
 			body: "Ya puedes operar con el rol asignado.",
 		}
 	if (resultKey === "invited")
+		if (mail === "logged")
+			return {
+				variant: "info",
+				title: "Invitación creada",
+				body: "El correo no está configurado en este entorno. Copia el enlace de aceptación y compártelo con la persona invitada.",
+			}
+	if (resultKey === "invited")
 		return {
 			variant: mail === "failed" ? "warning" : "success",
 			title: mail === "failed" ? "Invitación creada" : "Invitación enviada",
-			body: "La persona debe aceptarla con el mismo correo dentro de 14 días.",
+			body:
+				mail === "failed"
+					? "No pudimos enviar el correo. Copia el enlace de aceptación y compártelo con la persona invitada."
+					: "La persona debe aceptarla con el mismo correo dentro de 14 días.",
 		}
+	if (resultKey === "resent")
+		if (mail === "logged")
+			return {
+				variant: "info",
+				title: "Invitación renovada",
+				body: "El correo no está configurado en este entorno. Comparte el enlace de aceptación actualizado.",
+			}
 	if (resultKey === "resent")
 		return {
 			variant: mail === "failed" ? "warning" : "success",
 			title: "Invitación renovada",
-			body: "La invitación volvió a estar activa durante 14 días.",
+			body:
+				mail === "failed"
+					? "No pudimos enviar el correo. Comparte el enlace de aceptación actualizado."
+					: "La invitación volvió a estar activa durante 14 días.",
 		}
 	if (resultKey === "member_updated")
 		return {
@@ -94,6 +115,7 @@ const errorMessages: Record<string, string> = {
 	not_pending: "Esa invitación ya no está pendiente.",
 	not_resendable: "Esa invitación no se puede reenviar.",
 	owner_protected: "La propiedad de la cuenta no se cambia desde esta pantalla.",
+	last_owner_protected: "Debe existir al menos un propietario en el proveedor.",
 	self_protected: "No puedes retirar ni cambiar tu propio acceso.",
 	validation_error: "Revisa los datos e inténtalo de nuevo.",
 }
@@ -168,7 +190,9 @@ function formatMemberDate(value: string | Date | null | undefined) {
 								</div>
 								<div class="flex shrink-0 items-center gap-2 self-start sm:self-auto">
 									<Badge variant="success">Activo</Badge>
-									{canManageMembers && user.id !== auth.user.id && user.role !== "owner" ? (
+									{canManageMembers &&
+									user.id !== auth.user.id &&
+									(user.role !== "owner" || ownerCount > 1) ? (
 										<details class="relative">
 											<summary class="fastt-button cursor-pointer list-none rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:border-slate-400 hover:bg-slate-50">
 												Gestionar
@@ -178,6 +202,7 @@ function formatMemberDate(value: string | Date | null | undefined) {
 													class="space-y-3"
 													method="post"
 													action="/api/provider/settings/team-members"
+													data-astro-reload
 												>
 													<input type="hidden" name="action" value="update_role" />
 													<input type="hidden" name="userId" value={user.id} />
@@ -197,7 +222,11 @@ function formatMemberDate(value: string | Date | null | undefined) {
 													</Button>
 												</form>
 												<div class="border-t border-slate-200 pt-3">
-													<form method="post" action="/api/provider/settings/team-members">
+													<form
+														method="post"
+														action="/api/provider/settings/team-members"
+														data-astro-reload
+													>
 														<input type="hidden" name="action" value="remove" />
 														<input type="hidden" name="userId" value={user.id} />
 														<Button type="submit" variant="danger" size="sm">
@@ -221,7 +250,12 @@ function formatMemberDate(value: string | Date | null | undefined) {
 		<Card>
 			{
 				canInviteTeam ? (
-					<form class="space-y-4" method="post" action="/api/provider/settings/invitations">
+					<form
+						class="space-y-4"
+						method="post"
+						action="/api/provider/settings/invitations"
+						data-astro-reload
+					>
 						<div>
 							<h2 class="text-xl font-semibold text-slate-950">Invitar persona</h2>
 							<p class="mt-2 text-sm leading-6 text-slate-600">
@@ -292,7 +326,11 @@ function formatMemberDate(value: string | Date | null | undefined) {
 										</div>
 										<div class="flex flex-wrap gap-2">
 											{invitation.status !== "expired" ? (
-												<form method="post" action="/api/provider/settings/invitations">
+												<form
+													method="post"
+													action="/api/provider/settings/invitations"
+													data-astro-reload
+												>
 													<input type="hidden" name="action" value="resend" />
 													<input type="hidden" name="id" value={invitation.id} />
 													<Button type="submit" variant="secondary" size="sm">
@@ -300,7 +338,11 @@ function formatMemberDate(value: string | Date | null | undefined) {
 													</Button>
 												</form>
 											) : null}
-											<form method="post" action="/api/provider/settings/invitations">
+											<form
+												method="post"
+												action="/api/provider/settings/invitations"
+												data-astro-reload
+											>
 												<input type="hidden" name="action" value="cancel" />
 												<input type="hidden" name="id" value={invitation.id} />
 												<Button type="submit" variant="secondary" size="sm">
