@@ -2,6 +2,7 @@ import type { APIRoute } from "astro"
 import { z, ZodError } from "zod"
 
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { requireProviderFiscalityManager } from "@/lib/provider-fiscality-auth"
 import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/invalidation"
 import {
 	createTaxFeeDefinitionUseCase,
@@ -94,13 +95,7 @@ export const GET: APIRoute = async ({ request }) => {
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
-		const providerId = await getProviderIdFromRequest(request)
-		if (!providerId) {
-			return new Response(JSON.stringify({ error: "unauthorized" }), {
-				status: 401,
-				headers: { "Content-Type": "application/json" },
-			})
-		}
+		const { providerId } = await requireProviderFiscalityManager(request)
 
 		const form = await request.formData()
 		const parsed = createSchema.parse({
@@ -143,6 +138,7 @@ export const POST: APIRoute = async ({ request }) => {
 			headers: { "Content-Type": "application/json" },
 		})
 	} catch (err: any) {
+		if (err instanceof Response) return err
 		if (err instanceof ZodError) {
 			return new Response(JSON.stringify({ error: "validation_error", details: err.issues }), {
 				status: 400,
@@ -160,13 +156,7 @@ export const POST: APIRoute = async ({ request }) => {
 
 export const PUT: APIRoute = async ({ request }) => {
 	try {
-		const providerId = await getProviderIdFromRequest(request)
-		if (!providerId) {
-			return new Response(JSON.stringify({ error: "unauthorized" }), {
-				status: 401,
-				headers: { "Content-Type": "application/json" },
-			})
-		}
+		const { providerId } = await requireProviderFiscalityManager(request)
 
 		const form = await request.formData()
 		const parsed = createSchema.parse({
@@ -218,6 +208,7 @@ export const PUT: APIRoute = async ({ request }) => {
 			headers: { "Content-Type": "application/json" },
 		})
 	} catch (err: any) {
+		if (err instanceof Response) return err
 		if (err instanceof ZodError) {
 			return new Response(JSON.stringify({ error: "validation_error", details: err.issues }), {
 				status: 400,

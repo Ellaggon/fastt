@@ -46,7 +46,8 @@ describe("S0-3 provider settings copy without schema jargon", () => {
 			}
 		}
 
-		expect(sources[0]).toContain("Solo precios de reserva")
+		expect(sources[0]).toContain("Impuestos y cargos")
+		expect(sources[0]).toContain("Acceso de consulta")
 		expect(sources[1]).toContain("Guardamos tu registro fiscal")
 		expect(sources[6]).toContain("envía → espera depósitos")
 		expect(sources[6]).toContain("Confirmar montos")

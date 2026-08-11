@@ -20,7 +20,7 @@ export function buildTaxFeeWarnings(definitions: TaxFeeDefinition[]): TaxFeeWarn
 		if (def.calculationType === "percentage" && def.value > HIGH_PERCENTAGE_THRESHOLD) {
 			warnings.push({
 				code: "high_percentage",
-				message: `High percentage detected for ${def.code} (${def.value}%).`,
+				message: `${def.name} tiene un porcentaje inusualmente alto (${def.value}%). Confirma que el monto sea correcto.`,
 				meta: { code: def.code, value: def.value },
 			})
 		}
@@ -35,7 +35,7 @@ export function buildTaxFeeWarnings(definitions: TaxFeeDefinition[]): TaxFeeWarn
 		if (count <= 1) continue
 		warnings.push({
 			code: "duplicate_code",
-			message: `Multiple active definitions with code ${code} detected.`,
+			message: `Hay ${count} definiciones activas con el mismo código (${code}). Revisa si una de ellas debe archivarse.`,
 			meta: { code, count },
 		})
 	}
@@ -44,7 +44,7 @@ export function buildTaxFeeWarnings(definitions: TaxFeeDefinition[]): TaxFeeWarn
 		if (count <= 1) continue
 		warnings.push({
 			code: "overlapping_taxes",
-			message: `Multiple taxes apply for ${key.replace(":", " / ")}.`,
+			message: `Hay ${count} impuestos activos que se aplican ${key === "included:stay" ? "dentro del precio por estadía" : "sobre el mismo contexto de reserva"}. Revisa sus alcances antes de vender.`,
 			meta: { key, count },
 		})
 	}

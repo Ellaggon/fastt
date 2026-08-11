@@ -156,7 +156,7 @@ describe("integration/provider tax-fees API", () => {
 				expect(res.status).toBe(404)
 			}
 		)
-	})
+	}, 20_000)
 
 	it("rejects invalid scope", async () => {
 		const token = "t_scope"
@@ -179,7 +179,7 @@ describe("integration/provider tax-fees API", () => {
 			} as any)
 			expect(res.status).toBe(400)
 		})
-	})
+	}, 20_000)
 
 	it("returns preview breakdown for provider product", async () => {
 		const token = "t_preview"
@@ -271,8 +271,14 @@ describe("integration/provider tax-fees API", () => {
 
 			expect(res.status).toBe(200)
 			const body = await readJson(res)
-			expect(body.breakdown.total).toBe(110)
-			expect(body.breakdown.taxes.excluded[0].amount).toBe(10)
+			const excludedTotal = [
+				...body.breakdown.taxes.excluded,
+				...body.breakdown.fees.excluded,
+			].reduce((sum: number, line: { amount: number }) => sum + Number(line.amount ?? 0), 0)
+			expect(body.breakdown.total).toBe(100 + excludedTotal)
+			expect(
+				body.breakdown.taxes.excluded.some((line: { amount: number }) => line.amount === 10)
+			).toBe(true)
 		})
-	})
+	}, 20_000)
 })

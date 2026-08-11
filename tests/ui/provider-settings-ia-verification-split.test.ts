@@ -8,16 +8,16 @@ function read(relativePath: string) {
 }
 
 describe("Settings IA: Verificación outside settings tabs", () => {
-	it("keeps settings subnav to data surfaces only (no Verificación tab)", () => {
+	it("keeps settings subnav to account surfaces only", () => {
 		const subnav = read("src/components/provider/ProviderSettingsSubnav.astro")
 		expect(subnav).toContain('label: "Resumen"')
 		expect(subnav).toContain('label: "Perfil"')
-		expect(subnav).toContain('label: "Fiscalidad"')
 		expect(subnav).toContain('label: "Equipo"')
+		expect(subnav).not.toContain('label: "Fiscalidad"')
 		expect(subnav).not.toContain('label: "Integraciones"')
 		expect(subnav).not.toContain('label: "Verificación"')
 		expect(subnav).not.toContain('label: "Pagos"')
-		expect(subnav).toContain("Verificación lives outside this tab bar")
+		expect(subnav).toContain("impuestos al huésped tienen su propio espacio de trabajo")
 	})
 
 	it("hides settings tabs on verification wizard + optionals pages", () => {

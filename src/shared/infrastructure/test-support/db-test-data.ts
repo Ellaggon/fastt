@@ -139,8 +139,8 @@ export async function upsertVariant(row: {
 					childMode: "fixed",
 					childValue: 0,
 					currency: baseRateCurrency,
-					effectiveFrom: "2020-01-01",
-					effectiveTo: "2100-12-31",
+					effectiveFrom: new Date("2020-01-01T00:00:00.000Z"),
+					effectiveTo: new Date("2100-12-31T00:00:00.000Z"),
 					createdAt: new Date(),
 				} as any)
 				.onConflictDoUpdate({

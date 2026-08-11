@@ -24,16 +24,7 @@ const items = [
 			"/provider?step=register",
 		],
 	},
-	// Verificación lives outside this tab bar (sidebar → wizard shell).
-	{
-		label: "Fiscalidad",
-		href: routes.providerSettingsTaxFees(),
-		aliases: [
-			"/provider/tax-fees",
-			"/provider/settings/tax-fees/identity",
-			"/provider/settings/tax-fees/sales",
-		],
-	},
+	// Verificación y los impuestos al huésped tienen su propio espacio de trabajo.
 	{
 		label: "Equipo",
 		href: routes.providerSettingsTeam(),
