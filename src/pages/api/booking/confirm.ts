@@ -36,6 +36,11 @@ import { recordMarketplaceEvent } from "@/modules/catalog/public"
 
 const schema = z.object({
 	holdId: z.string().uuid(),
+	priceQuoteId: z
+		.string()
+		.regex(/^pq_[a-f0-9]{32}$/)
+		.optional()
+		.nullable(),
 	/** Optional cross-sell attribution funnel close (hotel → tour). */
 	marketplaceAttribution: z
 		.object({
@@ -157,6 +162,7 @@ export const POST: APIRoute = async ({ request }) => {
 			const form = await request.formData()
 			payload = {
 				holdId: String(form.get("holdId") ?? "").trim(),
+				priceQuoteId: String(form.get("priceQuoteId") ?? "").trim() || undefined,
 			}
 		}
 		const parsed = schema.parse(payload)
@@ -210,6 +216,7 @@ export const POST: APIRoute = async ({ request }) => {
 						},
 						{
 							holdId: parsed.holdId,
+							priceQuoteId: parsed.priceQuoteId,
 							userId: String((user as any)?.id ?? "").trim() || null,
 							source: "web",
 						}
@@ -292,6 +299,7 @@ export const POST: APIRoute = async ({ request }) => {
 			JSON.stringify({
 				bookingId: result.bookingId,
 				status: result.status,
+				priceQuoteId: parsed.priceQuoteId ?? null,
 				marketplaceAttributed,
 			}),
 			{
@@ -397,6 +405,7 @@ export const POST: APIRoute = async ({ request }) => {
 			code === "HOLD_NOT_FOUND" ||
 			code === "HOLD_EXPIRED" ||
 			code === "HOLD_ALREADY_CONFIRMED" ||
+			code === "PRICE_QUOTE_MISMATCH" ||
 			code === "INVENTORY_CONFLICT"
 		) {
 			return new Response(JSON.stringify({ error: code }), {

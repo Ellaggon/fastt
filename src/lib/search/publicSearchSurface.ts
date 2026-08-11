@@ -12,6 +12,9 @@ import {
 import { cacheKeys, cacheTtls } from "@/lib/cache/cacheKeys"
 import * as persistentCache from "@/lib/cache/persistentCache"
 import { buildOccupancyKey } from "@/modules/search/public"
+import { buildPriceQuote, type PriceQuote } from "@/modules/pricing/public"
+import { computeTaxBreakdown } from "@/modules/taxes-fees/public"
+import { resolveEffectiveTaxFeesUseCase } from "@/container/taxes-fees.container"
 
 export type PublicSearchResult = {
 	productId: string
@@ -24,6 +27,7 @@ export type PublicSearchResult = {
 	currency: string
 	available: boolean
 	availableVariants: number
+	priceQuote: PriceQuote
 	taxes: {
 		hasIncluded: boolean
 		hasExcluded: boolean
@@ -153,9 +157,45 @@ async function loadPublicSearchSurface(params: {
 		if (!sellable) continue
 		const prices = stayDates.map((date) => Number(byDate.get(date)?.pricePerNight ?? NaN))
 		if (prices.some((price) => !Number.isFinite(price) || price <= 0)) continue
-		const totalPrice = roundMoney(prices.reduce((sum, price) => sum + price, 0))
+		const baseAmount = roundMoney(prices.reduce((sum, price) => sum + price, 0))
 		const first = bucket[0]
 		const productId = String(first.productId)
+		const variantId = String(first.variantId)
+		const ratePlanId = String(first.ratePlanId)
+		const taxResolved = await resolveEffectiveTaxFeesUseCase({
+			productId,
+			variantId,
+			ratePlanId,
+			channel: "web",
+		})
+		const taxesAndFees = computeTaxBreakdown({
+			base: baseAmount,
+			definitions: taxResolved.definitions,
+			nights: stayDates.length,
+			guests: Math.max(1, params.adults + params.children),
+		})
+		const priceQuote = buildPriceQuote({
+			source: "search",
+			context: {
+				productId,
+				variantId,
+				ratePlanId,
+				checkIn: params.checkIn,
+				checkOut: params.checkOut,
+				rooms: params.rooms,
+				occupancy: { adults: params.adults, children: params.children, infants: 0 },
+				channel: "web",
+			},
+			currency: String(first.currency ?? params.currency).toUpperCase(),
+			nights: stayDates.length,
+			baseAmount,
+			taxesAndFees,
+			pricing: {
+				days: stayDates.map((date, index) => ({ date, price: prices[index] })),
+				source: "materialized_search_view",
+			},
+		})
+		const totalPrice = priceQuote.totalAmount
 		const existing = byProduct.get(productId)
 		const lastMaterializedAt =
 			bucket
@@ -179,12 +219,20 @@ async function loadPublicSearchSurface(params: {
 			destinationId: String(first.destinationId ?? params.destinationId),
 			heroImage: first.heroImageUrl ? String(first.heroImageUrl) : undefined,
 			fromPrice: totalPrice,
-			basePrice: totalPrice,
+			basePrice: baseAmount,
 			totalPrice,
 			currency: String(first.currency ?? params.currency).toUpperCase(),
 			available: true,
 			availableVariants: Math.max(1, existing?.availableVariants ?? 1),
-			taxes: { hasIncluded: false, hasExcluded: false },
+			priceQuote,
+			taxes: {
+				hasIncluded:
+					priceQuote.taxesAndFees.taxes.included.length > 0 ||
+					priceQuote.taxesAndFees.fees.included.length > 0,
+				hasExcluded:
+					priceQuote.taxesAndFees.taxes.excluded.length > 0 ||
+					priceQuote.taxesAndFees.fees.excluded.length > 0,
+			},
 			freshness: { lastMaterializedAt },
 		})
 	}

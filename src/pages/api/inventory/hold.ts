@@ -14,13 +14,18 @@ import {
 } from "@/shared/infrastructure/db/compat"
 
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { cacheKeys } from "@/lib/cache/cacheKeys"
 import { invalidateVariant } from "@/lib/cache/invalidation"
+import * as persistentCache from "@/lib/cache/persistentCache"
 import { recordTourHold, toursCheckoutEnabled } from "@/lib/tours/tourObservability"
 import { applyInventoryMutation, createInventoryHold } from "@/modules/inventory/public"
 import { resolveEffectivePolicies } from "@/modules/policies/public"
 import { buildGuestStayExpectationsSnapshot } from "@/modules/house-rules/public"
 import { inventoryHoldRepository, variantManagementRepository } from "@/container"
 import { resolvePolicyExceptionRulesUseCase } from "@/container/policy-exceptions.container"
+import { resolveEffectiveTaxFeesUseCase } from "@/container/taxes-fees.container"
+import { buildPriceQuote, isPriceQuote, type PriceQuote } from "@/modules/pricing/public"
+import { computeTaxBreakdown } from "@/modules/taxes-fees/public"
 import {
 	buildOccupancyKey,
 	evaluateStaySellabilityFromView,
@@ -43,6 +48,10 @@ const schema = z.object({
 		infants: z.number().int().min(0).default(0),
 	}),
 	sessionId: z.string().min(1).optional(),
+	quoteId: z
+		.string()
+		.regex(/^pq_[a-f0-9]{32}$/)
+		.optional(),
 })
 
 function optionalTrimmed(value: unknown): string | undefined {
@@ -375,6 +384,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
 		const contentType = request.headers.get("content-type") ?? ""
 		let payload: unknown
+		let resolvedPriceQuote: PriceQuote | null = null
 		let usedLegacyNumericOccupancy = false
 		if (contentType.includes("application/json")) {
 			const raw = (await request.json().catch(() => ({}))) as Record<string, unknown>
@@ -398,6 +408,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 				rooms: Number(raw.rooms ?? raw.quantity ?? 1),
 				occupancyDetail: occupancyDetailFromRaw,
 				sessionId: optionalTrimmed(raw.sessionId ?? request.headers.get("x-session-id")),
+				quoteId: optionalTrimmed(raw.quoteId),
 			}
 		} else {
 			const form = await request.formData()
@@ -424,6 +435,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 						}
 					: null,
 				sessionId: optionalTrimmed(form.get("sessionId")),
+				quoteId: optionalTrimmed(form.get("quoteId")),
 			}
 		}
 		if (usedLegacyNumericOccupancy) {
@@ -578,6 +590,55 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 								},
 								{ base: 0, occupancyAdjustment: 0, rules: 0, final: 0 }
 							)
+							const taxResolved = await resolveEffectiveTaxFeesUseCase({
+								productId: variant.productId,
+								variantId: parsed.variantId,
+								ratePlanId: holdability.ratePlanId,
+								channel: "web",
+							})
+							const taxBreakdown = computeTaxBreakdown({
+								base: holdability.totalPrice,
+								definitions: taxResolved.definitions,
+								nights: holdability.nights,
+								guests: Math.max(
+									1,
+									parsed.occupancyDetail.adults + parsed.occupancyDetail.children
+								),
+							})
+							const priceQuote = buildPriceQuote({
+								context: {
+									productId: variant.productId,
+									variantId: parsed.variantId,
+									ratePlanId: holdability.ratePlanId,
+									checkIn: from,
+									checkOut: to,
+									rooms: parsed.rooms,
+									occupancy: parsed.occupancyDetail,
+									channel: "web",
+								},
+								currency: "USD",
+								nights: holdability.nights,
+								baseAmount: holdability.totalPrice,
+								taxesAndFees: taxBreakdown,
+								pricing: {
+									days: holdability.days,
+									breakdownV2: {
+										base: Number(pricingBreakdownV2Totals.base.toFixed(2)),
+										occupancyAdjustment: Number(
+											pricingBreakdownV2Totals.occupancyAdjustment.toFixed(2)
+										),
+										rules: Number(pricingBreakdownV2Totals.rules.toFixed(2)),
+										final: Number(pricingBreakdownV2Totals.final.toFixed(2)),
+									},
+									source: "v2",
+								},
+							})
+							if (parsed.quoteId && parsed.quoteId !== priceQuote.quoteId) {
+								const error = new Error("price_changed")
+								;(error as any).details = { priceQuote }
+								throw error
+							}
+							resolvedPriceQuote = priceQuote
 							return {
 								ratePlanId: holdability.ratePlanId,
 								currency: "USD",
@@ -590,8 +651,9 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 								from,
 								to,
 								nights: holdability.nights,
-								totalPrice: holdability.totalPrice,
+								totalPrice: priceQuote.totalAmount,
 								days: holdability.days,
+								priceQuote,
 								pricingBreakdownV2: {
 									base: Number(pricingBreakdownV2Totals.base.toFixed(2)),
 									occupancyAdjustment: Number(
@@ -642,10 +704,28 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 			durationMs: Number((performance.now() - startedAt).toFixed(1)),
 		})
 
+		const cachedPricingSnapshot = (await persistentCache
+			.get(cacheKeys.holdPricingSnapshot(result.holdId))
+			.catch(() => null)) as { priceQuote?: unknown } | null
+		const boundPriceQuote =
+			resolvedPriceQuote ??
+			(isPriceQuote(cachedPricingSnapshot?.priceQuote) ? cachedPricingSnapshot.priceQuote : null)
+
+		if (parsed.quoteId && boundPriceQuote?.quoteId !== parsed.quoteId) {
+			return new Response(
+				JSON.stringify({
+					error: "price_changed",
+					priceQuote: boundPriceQuote,
+				}),
+				{ status: 409, headers: { "Content-Type": "application/json" } }
+			)
+		}
+
 		return new Response(
 			JSON.stringify({
 				holdId: result.holdId,
 				expiresAt: result.expiresAt.toISOString(),
+				priceQuote: boundPriceQuote,
 				warnings,
 			}),
 			{
@@ -734,6 +814,12 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 					headers: { "Content-Type": "application/json" },
 				}
 			)
+		}
+		if (e instanceof Error && e.message === "price_changed") {
+			return new Response(JSON.stringify({ error: "price_changed", ...(e as any).details }), {
+				status: 409,
+				headers: { "Content-Type": "application/json" },
+			})
 		}
 		const msg = e instanceof Error ? e.message : "Unknown error"
 		if (tourHoldAttempt) recordTourHold("failure", msg, tourMetricCtx)
