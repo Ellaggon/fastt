@@ -415,7 +415,8 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 			const taxesAmount = priceQuote
 				? quoteExtraAmount(priceQuote)
 				: Number((taxBreakdown.total - taxBreakdown.base).toFixed(2))
-			// A confirmed booking reads the binding quote from the hold. Legacy holds keep the
+			// Pricing total is sourced from the hold snapshot and must remain stable end-to-end.
+			// The bound PriceQuote on that snapshot is the guest total; legacy holds keep the
 			// former snapshot path only so in-flight reservations remain recoverable.
 			const finalTotal = Number((priceQuote?.totalAmount ?? taxBreakdown.total).toFixed(2))
 
