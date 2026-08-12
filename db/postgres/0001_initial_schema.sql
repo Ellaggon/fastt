@@ -1194,6 +1194,68 @@ CREATE TABLE "TaxFeeAssignment" (
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
+CREATE TABLE "FiscalActivityEvent" (
+	"id" text PRIMARY KEY,
+	"providerId" text NOT NULL,
+	"eventType" text NOT NULL,
+	"definitionId" text,
+	"definitionVersionId" text,
+	"productId" text,
+	"channel" text,
+	"syncRunId" text,
+	"actorUserId" text,
+	"actorRole" text,
+	"correlationId" text,
+	"result" text NOT NULL DEFAULT 'succeeded',
+	"riskLevel" text NOT NULL DEFAULT 'low',
+	"beforeJson" jsonb,
+	"afterJson" jsonb,
+	"contextJson" jsonb,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "FiscalExportJob" (
+	"id" text PRIMARY KEY,
+	"providerId" text NOT NULL,
+	"requestedByUserId" text,
+	"format" text NOT NULL,
+	"status" text NOT NULL DEFAULT 'requested',
+	"from" date NOT NULL,
+	"to" date NOT NULL,
+	"correlationId" text NOT NULL,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"completedAt" timestamp with time zone
+);
+
+CREATE TABLE "FiscalReconciliationCase" (
+	"id" text PRIMARY KEY,
+	"providerId" text NOT NULL,
+	"bookingId" text NOT NULL,
+	"status" text NOT NULL DEFAULT 'open',
+	"assigneeUserId" text,
+	"resolutionComment" text,
+	"evidenceJson" jsonb NOT NULL,
+	"openedAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"resolvedAt" timestamp with time zone,
+	"resolvedByUserId" text
+);
+
+CREATE TABLE "FiscalChannelPublication" (
+	"id" text PRIMARY KEY,
+	"providerId" text NOT NULL,
+	"definitionId" text NOT NULL,
+	"definitionVersionId" text,
+	"connectionId" text NOT NULL,
+	"channel" text NOT NULL,
+	"syncRunId" text,
+	"status" text NOT NULL DEFAULT 'pending',
+	"divergenceJson" jsonb,
+	"payloadJson" jsonb,
+	"confirmedAt" timestamp with time zone,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
 CREATE TABLE "BookingTaxFee" (
 	"id" text PRIMARY KEY,
 	"bookingId" text NOT NULL,
@@ -2295,6 +2357,108 @@ ALTER TABLE "TaxFeeAssignment"
 	REFERENCES "TaxFeeDefinition" ("id")
 ;
 
+ALTER TABLE "FiscalActivityEvent"
+	ADD CONSTRAINT "FiscalActivityEvent_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
+;
+
+ALTER TABLE "FiscalActivityEvent"
+	ADD CONSTRAINT "FiscalActivityEvent_definitionId_fk"
+	FOREIGN KEY ("definitionId")
+	REFERENCES "TaxFeeDefinition" ("id")
+;
+
+ALTER TABLE "FiscalActivityEvent"
+	ADD CONSTRAINT "FiscalActivityEvent_definitionVersionId_fk"
+	FOREIGN KEY ("definitionVersionId")
+	REFERENCES "TaxFeeDefinitionVersion" ("id")
+;
+
+ALTER TABLE "FiscalActivityEvent"
+	ADD CONSTRAINT "FiscalActivityEvent_productId_fk"
+	FOREIGN KEY ("productId")
+	REFERENCES "Product" ("id")
+;
+
+ALTER TABLE "FiscalActivityEvent"
+	ADD CONSTRAINT "FiscalActivityEvent_syncRunId_fk"
+	FOREIGN KEY ("syncRunId")
+	REFERENCES "ProviderIntegrationSyncRun" ("id")
+;
+
+ALTER TABLE "FiscalActivityEvent"
+	ADD CONSTRAINT "FiscalActivityEvent_actorUserId_fk"
+	FOREIGN KEY ("actorUserId")
+	REFERENCES "User" ("id")
+;
+
+ALTER TABLE "FiscalExportJob"
+	ADD CONSTRAINT "FiscalExportJob_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
+;
+
+ALTER TABLE "FiscalExportJob"
+	ADD CONSTRAINT "FiscalExportJob_requestedByUserId_fk"
+	FOREIGN KEY ("requestedByUserId")
+	REFERENCES "User" ("id")
+;
+
+ALTER TABLE "FiscalReconciliationCase"
+	ADD CONSTRAINT "FiscalReconciliationCase_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
+;
+
+ALTER TABLE "FiscalReconciliationCase"
+	ADD CONSTRAINT "FiscalReconciliationCase_bookingId_fk"
+	FOREIGN KEY ("bookingId")
+	REFERENCES "Booking" ("id")
+;
+
+ALTER TABLE "FiscalReconciliationCase"
+	ADD CONSTRAINT "FiscalReconciliationCase_assigneeUserId_fk"
+	FOREIGN KEY ("assigneeUserId")
+	REFERENCES "User" ("id")
+;
+
+ALTER TABLE "FiscalReconciliationCase"
+	ADD CONSTRAINT "FiscalReconciliationCase_resolvedByUserId_fk"
+	FOREIGN KEY ("resolvedByUserId")
+	REFERENCES "User" ("id")
+;
+
+ALTER TABLE "FiscalChannelPublication"
+	ADD CONSTRAINT "FiscalChannelPublication_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
+;
+
+ALTER TABLE "FiscalChannelPublication"
+	ADD CONSTRAINT "FiscalChannelPublication_definitionId_fk"
+	FOREIGN KEY ("definitionId")
+	REFERENCES "TaxFeeDefinition" ("id")
+;
+
+ALTER TABLE "FiscalChannelPublication"
+	ADD CONSTRAINT "FiscalChannelPublication_definitionVersionId_fk"
+	FOREIGN KEY ("definitionVersionId")
+	REFERENCES "TaxFeeDefinitionVersion" ("id")
+;
+
+ALTER TABLE "FiscalChannelPublication"
+	ADD CONSTRAINT "FiscalChannelPublication_connectionId_fk"
+	FOREIGN KEY ("connectionId")
+	REFERENCES "ProviderIntegrationConnection" ("id")
+;
+
+ALTER TABLE "FiscalChannelPublication"
+	ADD CONSTRAINT "FiscalChannelPublication_syncRunId_fk"
+	FOREIGN KEY ("syncRunId")
+	REFERENCES "ProviderIntegrationSyncRun" ("id")
+;
+
 ALTER TABLE "BookingTaxFee"
 	ADD CONSTRAINT "BookingTaxFee_bookingId_fk"
 	FOREIGN KEY ("bookingId")
@@ -2699,6 +2863,22 @@ CREATE INDEX "TaxFeeDefinitionVersion_definition_created_idx"
 CREATE INDEX "TaxFeeAssignment_scope_active_channel_idx" ON "TaxFeeAssignment" ("scope", "scopeId", "status", "channel");
 
 CREATE INDEX "TaxFeeAssignment_definition_scope_active_idx" ON "TaxFeeAssignment" ("taxFeeDefinitionId", "scope", "scopeId", "status", "channel");
+
+CREATE INDEX "FiscalActivityEvent_provider_created_idx" ON "FiscalActivityEvent" ("providerId", "createdAt");
+CREATE INDEX "FiscalActivityEvent_provider_type_created_idx" ON "FiscalActivityEvent" ("providerId", "eventType", "createdAt");
+CREATE INDEX "FiscalActivityEvent_correlation_idx" ON "FiscalActivityEvent" ("correlationId");
+
+CREATE INDEX "FiscalExportJob_provider_created_idx" ON "FiscalExportJob" ("providerId", "createdAt");
+
+CREATE UNIQUE INDEX "FiscalReconciliationCase_provider_booking_unique"
+	ON "FiscalReconciliationCase" ("providerId", "bookingId");
+CREATE INDEX "FiscalReconciliationCase_provider_status_idx"
+	ON "FiscalReconciliationCase" ("providerId", "status");
+
+CREATE UNIQUE INDEX "FiscalChannelPublication_version_connection_unique"
+	ON "FiscalChannelPublication" ("definitionVersionId", "connectionId");
+CREATE INDEX "FiscalChannelPublication_provider_status_idx"
+	ON "FiscalChannelPublication" ("providerId", "status");
 
 CREATE INDEX "BookingTaxFee_bookingId_idx" ON "BookingTaxFee" ("bookingId");
 
