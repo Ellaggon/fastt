@@ -9,6 +9,8 @@ export async function assignTaxFee(
 		scopeId: string | null
 		channel?: string | null
 		status?: "active" | "archived"
+		effectiveFrom?: Date | null
+		effectiveTo?: Date | null
 	}
 ): Promise<{ id: string }> {
 	const def = await deps.repo.getDefinitionById(params.taxFeeDefinitionId)
@@ -38,6 +40,8 @@ export async function assignTaxFee(
 		scopeId: params.scopeId,
 		channel: params.channel ?? null,
 		status: params.status ?? "active",
+		effectiveFrom: params.effectiveFrom ?? null,
+		effectiveTo: params.effectiveTo ?? null,
 	})
 
 	return { id }

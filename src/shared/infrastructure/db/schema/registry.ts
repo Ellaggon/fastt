@@ -106,7 +106,7 @@ export const databaseTablesByDomain = {
 		"EffectiveRestriction",
 		"EffectivePricingV2",
 	],
-	taxes: ["TaxFeeDefinition", "TaxFeeAssignment", "BookingTaxFee"],
+	taxes: ["TaxFeeDefinition", "TaxFeeDefinitionVersion", "TaxFeeAssignment", "BookingTaxFee"],
 	booking: ["Booking", "BookingVoucher", "BookingRoomDetail", "BookingPolicySnapshot"],
 	financial: [
 		"FinancialExceptionRecord",

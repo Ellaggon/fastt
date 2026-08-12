@@ -29,6 +29,7 @@ export async function createTaxFeeDefinition(
 		effectiveFrom?: Date | null
 		effectiveTo?: Date | null
 		status?: "active" | "archived"
+		editingState?: "draft" | "published"
 	}
 ): Promise<{ id: string }> {
 	const code = String(params.code || "").trim()
@@ -80,6 +81,7 @@ export async function createTaxFeeDefinition(
 		effectiveFrom: params.effectiveFrom ?? null,
 		effectiveTo: params.effectiveTo ?? null,
 		status: params.status ?? "active",
+		editingState: params.editingState ?? "published",
 	}
 
 	await deps.repo.createDefinition(def)

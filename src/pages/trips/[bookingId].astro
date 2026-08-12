@@ -164,6 +164,17 @@ const crossSell = await loadHotelTourCrossSell({
 									</dd>
 								</div>
 							</dl>
+							<div class="mt-5 border-t border-slate-100 pt-4 text-xs text-slate-500">
+								<p class="font-medium text-slate-700">Registro fiscal del precio</p>
+								<p class="mt-1 font-mono">{trip.receipt.fiscalDocument.documentId}</p>
+								{trip.receipt.fiscalDocument.collection.platform > 0 ||
+								trip.receipt.fiscalDocument.collection.marketplace > 0 ? (
+									<p class="mt-2">
+										Parte de los impuestos o cargos se recauda por la plataforma según el precio
+										confirmado.
+									</p>
+								) : null}
+							</div>
 						</Card>
 					) : null
 				}

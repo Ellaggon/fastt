@@ -32,6 +32,8 @@ function mapDefinition(row: any): TaxFeeDefinition {
 		effectiveFrom: row.effectiveFrom ?? null,
 		effectiveTo: row.effectiveTo ?? null,
 		status: row.status,
+		editingState: row.editingState ?? "published",
+		currentVersionId: row.currentVersionId ?? null,
 		createdAt: row.createdAt ?? new Date(0),
 		updatedAt: row.updatedAt ?? new Date(0),
 	}
@@ -45,6 +47,8 @@ function mapAssignment(row: any): TaxFeeAssignment {
 		scopeId: row.scopeId ?? null,
 		channel: row.channel ?? null,
 		status: row.status,
+		effectiveFrom: row.effectiveFrom ?? null,
+		effectiveTo: row.effectiveTo ?? null,
 		createdAt: row.createdAt ?? new Date(0),
 	}
 }
@@ -69,6 +73,7 @@ export class TaxFeeRepository
 			effectiveFrom: params.effectiveFrom ?? null,
 			effectiveTo: params.effectiveTo ?? null,
 			status: params.status,
+			editingState: params.editingState ?? "published",
 			createdAt: new Date(),
 			updatedAt: new Date(),
 		})
@@ -92,6 +97,7 @@ export class TaxFeeRepository
 				effectiveFrom: params.effectiveFrom ?? null,
 				effectiveTo: params.effectiveTo ?? null,
 				status: params.status,
+				editingState: params.editingState ?? "published",
 				updatedAt: new Date(),
 			})
 			.where(eq(TaxFeeDefinitionTable.id, params.id))
@@ -105,6 +111,8 @@ export class TaxFeeRepository
 			scopeId: params.scopeId ?? null,
 			channel: params.channel ?? null,
 			status: params.status,
+			effectiveFrom: params.effectiveFrom ?? null,
+			effectiveTo: params.effectiveTo ?? null,
 			createdAt: new Date(),
 		})
 	}

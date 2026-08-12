@@ -13,6 +13,7 @@ import { cacheKeys, cacheTtls } from "@/lib/cache/cacheKeys"
 import * as persistentCache from "@/lib/cache/persistentCache"
 import { buildOccupancyKey } from "@/modules/search/public"
 import { buildPriceQuote, type PriceQuote } from "@/modules/pricing/public"
+import { getProductTaxJurisdictionContext } from "@/lib/taxes-fees/jurisdiction-context"
 import { computeTaxBreakdown } from "@/modules/taxes-fees/public"
 import { resolveEffectiveTaxFeesUseCase } from "@/container/taxes-fees.container"
 
@@ -139,6 +140,7 @@ async function loadPublicSearchSurface(params: {
 	}
 
 	const byProduct = new Map<string, PublicSearchResult>()
+	const jurisdictionByProduct = new Map<string, Promise<{ country: string | null }>>()
 	for (const bucket of byProductRateVariant.values()) {
 		const byDate = new Map(bucket.map((row) => [String(row.date), row]))
 		const complete = stayDates.every((date) => byDate.has(date))
@@ -168,11 +170,17 @@ async function loadPublicSearchSurface(params: {
 			ratePlanId,
 			channel: "web",
 		})
+		const taxJurisdiction = await (jurisdictionByProduct.get(productId) ??
+			jurisdictionByProduct.set(productId, getProductTaxJurisdictionContext(productId)))
 		const taxesAndFees = computeTaxBreakdown({
 			base: baseAmount,
 			definitions: taxResolved.definitions,
 			nights: stayDates.length,
 			guests: Math.max(1, params.adults + params.children),
+			context: {
+				...taxJurisdiction,
+				checkIn: params.checkIn,
+			},
 		})
 		const priceQuote = buildPriceQuote({
 			source: "search",

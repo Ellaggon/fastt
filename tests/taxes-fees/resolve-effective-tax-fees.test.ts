@@ -90,6 +90,35 @@ describe("taxes-fees/resolveEffectiveTaxFees", () => {
 		expect(res.definitions.map((d) => d.definition.id)).toEqual(["d4", "d5"])
 	})
 
+	it("keeps all matching scopes additive while the fiscality migration is in progress", async () => {
+		const provider = def({ id: "provider", priority: 4 })
+		const product = def({ id: "product", priority: 3 })
+		const unit = def({ id: "unit", priority: 2 })
+		const rate = def({ id: "rate", priority: 1 })
+		const repo = {
+			listActiveAssignments: async () => [
+				assign({ definitionId: "provider", scope: "provider", scopeId: "prov1" }),
+				assign({ definitionId: "product", scope: "product", scopeId: "product1" }),
+				assign({ definitionId: "unit", scope: "variant", scopeId: "unit1" }),
+				assign({ definitionId: "rate", scope: "rate_plan", scopeId: "rate1" }),
+			],
+			listDefinitionsByIds: async () => [provider, product, unit, rate],
+			getProviderIdByProductId: async () => "prov1",
+		}
+
+		const res = await resolveEffectiveTaxFees(
+			{ repo },
+			{ productId: "product1", variantId: "unit1", ratePlanId: "rate1" }
+		)
+
+		expect(res.definitions.map((item) => item.definition.id)).toEqual([
+			"rate",
+			"unit",
+			"product",
+			"provider",
+		])
+	})
+
 	it("skips invalid definitions without throwing", async () => {
 		const valid = def({ id: "ok" })
 		const invalid = def({ id: "bad", value: 0 })

@@ -1166,8 +1166,20 @@ CREATE TABLE "TaxFeeDefinition" (
 	"effectiveFrom" timestamp with time zone,
 	"effectiveTo" timestamp with time zone,
 	"status" text NOT NULL DEFAULT 'active',
+	"editingState" text NOT NULL DEFAULT 'published',
+	"currentVersionId" text,
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
 	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "TaxFeeDefinitionVersion" (
+	"id" text PRIMARY KEY,
+	"taxFeeDefinitionId" text NOT NULL,
+	"version" integer NOT NULL,
+	"publicationState" text NOT NULL,
+	"snapshotJson" jsonb NOT NULL,
+	"createdByUserId" text,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
 CREATE TABLE "TaxFeeAssignment" (
@@ -1177,6 +1189,8 @@ CREATE TABLE "TaxFeeAssignment" (
 	"scopeId" text,
 	"channel" text,
 	"status" text NOT NULL DEFAULT 'active',
+	"effectiveFrom" timestamp with time zone,
+	"effectiveTo" timestamp with time zone,
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
@@ -2263,6 +2277,18 @@ ALTER TABLE "TaxFeeDefinition"
 	REFERENCES "Provider" ("id")
 ;
 
+ALTER TABLE "TaxFeeDefinitionVersion"
+	ADD CONSTRAINT "TaxFeeDefinitionVersion_taxFeeDefinitionId_fk"
+	FOREIGN KEY ("taxFeeDefinitionId")
+	REFERENCES "TaxFeeDefinition" ("id")
+;
+
+ALTER TABLE "TaxFeeDefinitionVersion"
+	ADD CONSTRAINT "TaxFeeDefinitionVersion_createdByUserId_fk"
+	FOREIGN KEY ("createdByUserId")
+	REFERENCES "User" ("id")
+;
+
 ALTER TABLE "TaxFeeAssignment"
 	ADD CONSTRAINT "TaxFeeAssignment_taxFeeDefinitionId_fk"
 	FOREIGN KEY ("taxFeeDefinitionId")
@@ -2664,6 +2690,11 @@ CREATE INDEX "EffectivePricingV2_variant_date_occupancy_idx" ON "EffectivePricin
 CREATE INDEX "TaxFeeDefinition_provider_status_priority_idx" ON "TaxFeeDefinition" ("providerId", "status", "priority");
 
 CREATE INDEX "TaxFeeDefinition_provider_code_status_idx" ON "TaxFeeDefinition" ("providerId", "code", "status");
+
+CREATE UNIQUE INDEX "TaxFeeDefinitionVersion_definition_version_unique"
+	ON "TaxFeeDefinitionVersion" ("taxFeeDefinitionId", "version");
+CREATE INDEX "TaxFeeDefinitionVersion_definition_created_idx"
+	ON "TaxFeeDefinitionVersion" ("taxFeeDefinitionId", "createdAt");
 
 CREATE INDEX "TaxFeeAssignment_scope_active_channel_idx" ON "TaxFeeAssignment" ("scope", "scopeId", "status", "channel");
 
@@ -3111,6 +3142,9 @@ CREATE INDEX IF NOT EXISTS "TaxFeeAssignment_scope_active_channel_idx"
 
 CREATE INDEX IF NOT EXISTS "TaxFeeAssignment_definition_scope_active_idx"
 	ON "TaxFeeAssignment" ("taxFeeDefinitionId", "scope", "scopeId", "status", "channel");
+
+CREATE INDEX IF NOT EXISTS "TaxFeeAssignment_effective_range_idx"
+	ON "TaxFeeAssignment" ("status", "effectiveFrom", "effectiveTo");
 
 DROP TRIGGER IF EXISTS "trg_PolicyAssignment_category_match_insert" ON "PolicyAssignment";
 CREATE TRIGGER "trg_PolicyAssignment_category_match_insert"

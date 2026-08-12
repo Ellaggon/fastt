@@ -60,6 +60,8 @@ export async function resolveEffectiveTaxFees(
 
 	const resolved: ResolvedTaxFeeDefinition[] = []
 	for (const a of assignments) {
+		if (a.effectiveFrom && a.effectiveFrom > now) continue
+		if (a.effectiveTo && a.effectiveTo < now) continue
 		const def = definitionById.get(a.taxFeeDefinitionId)
 		if (!def) continue
 		if (!isValidDefinition(def, now)) continue

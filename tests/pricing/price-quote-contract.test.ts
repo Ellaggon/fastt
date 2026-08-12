@@ -37,6 +37,8 @@ describe("PriceQuote contract", () => {
 							appliesPer: "stay",
 							priority: 0,
 							amount: 10,
+							collectionResponsibility: "provider",
+							taxableBase: "booking_base",
 							source: { scope: "rate_plan", scopeId: "rate_1", definitionId: "tax_1" },
 						},
 					],
