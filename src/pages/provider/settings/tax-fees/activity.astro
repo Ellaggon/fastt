@@ -1,33 +1,17 @@
 ---
-import Button from "@/components/ui/Button.astro"
+import FiscalActivity from "@/components/tax-fees/FiscalActivity"
+import FiscalOperations from "@/components/tax-fees/FiscalOperations"
 import FiscalWorkspaceLayout from "@/layouts/FiscalWorkspaceLayout.astro"
 import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
 import { getProviderTaxConfiguration } from "@/lib/provider-tax-configuration"
-import { routes } from "@/lib/routes"
-import { getProviderFiscalReport } from "@/lib/taxes-fees/fiscal-report"
-
 const auth = await requireProviderSessionSurface(Astro.request).catch(() => "__DENIED__" as const)
 if (auth === "__DENIED__") return Astro.redirect("/SignInPage")
-const today = new Date().toISOString().slice(0, 10)
-const defaultFrom = new Date(Date.now() - 89 * 86400000).toISOString().slice(0, 10)
-const from = /^\d{4}-\d{2}-\d{2}$/.test(Astro.url.searchParams.get("from") ?? "")
-	? String(Astro.url.searchParams.get("from"))
-	: defaultFrom
-const to = /^\d{4}-\d{2}-\d{2}$/.test(Astro.url.searchParams.get("to") ?? "")
-	? String(Astro.url.searchParams.get("to"))
-	: today
-const [configuration, report] = await Promise.all([
-	getProviderTaxConfiguration(auth.provider.providerId).catch(() => null),
-	getProviderFiscalReport({ providerId: auth.provider.providerId, from, to }),
-])
-const currency = report.summary.currencies[0] ?? "USD"
-const money = (amount: number, code = currency) =>
-	new Intl.NumberFormat("es-CL", {
-		style: "currency",
-		currency: code,
-		maximumFractionDigits: 2,
-	}).format(amount)
-const csvUrl = `/api/provider/tax-fees/reports?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&format=csv`
+const configuration = await getProviderTaxConfiguration(auth.provider.providerId).catch(() => null)
+const requestedView = Astro.url.searchParams.get("view")
+const view =
+	requestedView === "reports" || requestedView === "reconciliation" || requestedView === "exports"
+		? requestedView
+		: "activity"
 ---
 
 <FiscalWorkspaceLayout
@@ -36,118 +20,27 @@ const csvUrl = `/api/provider/tax-fees/reports?from=${encodeURIComponent(from)}&
 	isIdentityConfigured={Boolean(configuration?.isConfigured)}
 	canManageFiscality={auth.provider.permissions.canManageFiscality}
 	primaryLabel="Exportar"
-	primaryHref={csvUrl}
+	primaryHref="/api/provider/tax-fees/reports?format=csv"
 >
-	<section aria-labelledby="activity-heading">
-		<div class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 pb-4">
-			<div>
-				<p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
-					Historial y conciliación
-				</p><h2 id="activity-heading" class="mt-1 text-lg font-semibold text-slate-950">
-					Actividad fiscal
-				</h2>
-			</div><form class="flex flex-wrap items-end gap-2" method="get">
-				<label class="grid gap-1 text-xs font-medium text-slate-600"
-					>Desde<input
-						class="fastt-field h-9 rounded-md border border-slate-300 px-2 text-sm text-slate-800"
-						type="date"
-						name="from"
-						value={from}
-					/></label
-				><label class="grid gap-1 text-xs font-medium text-slate-600"
-					>Hasta<input
-						class="fastt-field h-9 rounded-md border border-slate-300 px-2 text-sm text-slate-800"
-						type="date"
-						name="to"
-						value={to}
-					/></label
-				><Button type="submit" size="sm" variant="secondary">Actualizar</Button>
-			</form>
-		</div>
-		<div
-			class="grid divide-y divide-slate-200 border-b border-slate-200 sm:grid-cols-3 sm:divide-x sm:divide-y-0"
-		>
-			<div class="py-4 sm:pr-4">
-				<p class="text-xs font-medium text-slate-500">Reservas</p><p
-					class="mt-1 text-xl font-semibold text-slate-950"
-				>
-					{report.summary.bookings}
-				</p>
-			</div><div class="py-4 sm:px-4">
-				<p class="text-xs font-medium text-slate-500">Impuestos confirmados</p><p
-					class="mt-1 text-xl font-semibold text-slate-950"
-				>
-					{money(report.summary.taxAmount)}
-				</p>
-			</div><div class="py-4 sm:pl-4">
-				<p class="text-xs font-medium text-slate-500">Por revisar</p><p
-					class="mt-1 text-xl font-semibold text-slate-950"
-				>
-					{report.summary.needsReview}
-				</p>
-			</div>
-		</div>
-		{
-			report.rows.length ? (
-				<div class="overflow-x-auto">
-					<table class="w-full min-w-[720px] text-left text-sm">
-						<>
-							<thead class="border-b border-slate-200 text-xs tracking-[0.08em] text-slate-500 uppercase">
-								<tr>
-									<>
-										<th class="py-3 pr-4">Reserva</th>
-										<th class="px-4 py-3">Impuestos</th>
-										<th class="px-4 py-3">Reembolso</th>
-										<th class="py-3 pl-4">Estado</th>
-									</>
-								</tr>
-							</thead>
-							<tbody class="divide-y divide-slate-100">
-								{report.rows.map((row) => (
-									<tr>
-										<td class="py-4 pr-4">
-											<p class="font-medium text-slate-950">{row.bookingId}</p>
-											<p class="mt-1 text-xs text-slate-500">
-												{row.confirmedAt
-													? new Date(row.confirmedAt).toLocaleDateString("es-CL")
-													: "Sin fecha"}
-											</p>
-										</td>
-										<td class="px-4 py-4 font-medium text-slate-800">
-											{money(row.taxAmount, row.currency)}
-										</td>
-										<td class="px-4 py-4 text-slate-600">
-											{money(row.refundedAmount, row.currency)}
-										</td>
-										<td class="py-4 pl-4">
-											<span
-												class={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${row.reconciliationStatus === "reconciled" ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}
-											>
-												{row.reconciliationStatus === "reconciled" ? "Conciliado" : "Revisión"}
-											</span>
-										</td>
-									</tr>
-								))}
-							</tbody>
-						</>
-					</table>
-				</div>
-			) : (
-				<div class="py-10 text-center">
-					<>
-						<p class="font-medium text-slate-950">No hay actividad en este periodo.</p>
-						<p class="mt-1 text-sm text-slate-500">
-							Las reservas confirmadas aparecerán aquí con su snapshot fiscal.
-						</p>
-					</>
-				</div>
-			)
-		}
-		<p class="pt-4 text-xs text-slate-500">
-			Las liquidaciones se revisan en <a
-				class="font-medium underline underline-offset-4"
-				href={routes.financialSettlements()}>Finanzas</a
-			>. Este historial no recalcula reglas actuales.
-		</p>
-	</section>
+	<nav class="mb-5 flex gap-4 border-b border-slate-200 text-sm">
+		<a
+			class={`pb-3 ${view === "activity" ? "border-b-2 border-slate-950 font-semibold text-slate-950" : "text-slate-600"}`}
+			href="/provider/settings/tax-fees/activity">Actividad</a
+		><a
+			class={`pb-3 ${view === "reports" ? "border-b-2 border-slate-950 font-semibold text-slate-950" : "text-slate-600"}`}
+			href="?view=reports">Reportes</a
+		><a
+			class={`pb-3 ${view === "reconciliation" ? "border-b-2 border-slate-950 font-semibold text-slate-950" : "text-slate-600"}`}
+			href="?view=reconciliation">Conciliación</a
+		><a
+			class={`pb-3 ${view === "exports" ? "border-b-2 border-slate-950 font-semibold text-slate-950" : "text-slate-600"}`}
+			href="?view=exports">Exportaciones</a>
+	</nav>
+	{
+		view === "activity" ? (
+			<FiscalActivity client:load />
+		) : (
+			<FiscalOperations client:load view={view} />
+		)
+	}
 </FiscalWorkspaceLayout>
