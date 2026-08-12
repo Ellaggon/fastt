@@ -2000,6 +2000,8 @@ export const TaxFeeDefinition = pgTable(
 		effectiveFrom: ts("effectiveFrom"),
 		effectiveTo: ts("effectiveTo"),
 		status: text("status").default("active").notNull(),
+		editingState: text("editingState").default("published").notNull(),
+		currentVersionId: txtOpt("currentVersionId"),
 		createdAt: now("createdAt"),
 		updatedAt: now("updatedAt"),
 	},
@@ -2017,6 +2019,30 @@ export const TaxFeeDefinition = pgTable(
 	]
 )
 
+/** Immutable publication history. TaxFeeDefinition keeps the current version pointer. */
+export const TaxFeeDefinitionVersion = pgTable(
+	"TaxFeeDefinitionVersion",
+	{
+		id: pk(),
+		taxFeeDefinitionId: txt("taxFeeDefinitionId").references(() => TaxFeeDefinition.id),
+		version: int("version"),
+		publicationState: text("publicationState").notNull(),
+		snapshotJson: jsonb("snapshotJson").notNull(),
+		createdByUserId: txtOpt("createdByUserId").references(() => User.id),
+		createdAt: now("createdAt"),
+	},
+	(table) => [
+		uniqueIndex("TaxFeeDefinitionVersion_definition_version_unique").on(
+			table.taxFeeDefinitionId,
+			table.version
+		),
+		index("TaxFeeDefinitionVersion_definition_created_idx").on(
+			table.taxFeeDefinitionId,
+			table.createdAt
+		),
+	]
+)
+
 export const TaxFeeAssignment = pgTable(
 	"TaxFeeAssignment",
 	{
@@ -2026,6 +2052,8 @@ export const TaxFeeAssignment = pgTable(
 		scopeId: txtOpt("scopeId"),
 		channel: txtOpt("channel"),
 		status: text("status").default("active").notNull(),
+		effectiveFrom: ts("effectiveFrom"),
+		effectiveTo: ts("effectiveTo"),
 		createdAt: now("createdAt"),
 	},
 	(table) => [
@@ -2041,6 +2069,11 @@ export const TaxFeeAssignment = pgTable(
 			table.scopeId,
 			table.status,
 			table.channel
+		),
+		index("TaxFeeAssignment_effective_range_idx").on(
+			table.status,
+			table.effectiveFrom,
+			table.effectiveTo
 		),
 	]
 )
