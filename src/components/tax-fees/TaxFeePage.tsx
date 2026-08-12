@@ -7,6 +7,7 @@ import TaxFeeWizard, {
 	type TaxFeeWizardMode,
 	type TaxFeeSuggestedDraft,
 } from "./TaxFeeWizard"
+import FiscalReviewCenter from "./FiscalReviewCenter"
 import { Badge, Button, IconButton, Input, Notice, Select } from "../ui-react"
 
 type TaxFeePageProps = {
@@ -37,26 +38,6 @@ function formatAppliesPer(value: DefinitionSummary["appliesPer"]) {
 			return "Por huésped"
 		case "guest_night":
 			return "Por huésped por noche"
-	}
-}
-
-function warningTitle(code: string) {
-	switch (code) {
-		case "high_percentage":
-			return "Revisar monto"
-		case "overlap_detected":
-		case "overlapping_taxes":
-			return "Posible solapamiento"
-		case "duplicate_code":
-			return "Ya existe un cargo similar"
-		case "active_without_assignment":
-			return "Sin alcance de venta"
-		case "duplicate_active_assignment":
-			return "Asignación duplicada"
-		case "missing_jurisdiction":
-			return "Jurisdicción pendiente"
-		default:
-			return "Requiere revisión"
 	}
 }
 
@@ -143,6 +124,7 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 	const [jurisdictionFilter, setJurisdictionFilter] = useState("all")
 	const [responsibilityFilter, setResponsibilityFilter] = useState("all")
 	const [validityFilter, setValidityFilter] = useState("all")
+	const [filtersOpen, setFiltersOpen] = useState(false)
 
 	const hasDefinitions = Array.isArray(definitions) && definitions.length > 0
 	const wizardMode: TaxFeeWizardMode = mode === "editing" ? "editing" : "creating"
@@ -192,6 +174,15 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 		setSelectedDefinition(null)
 		setSuccessMessage(null)
 		setMode("creating")
+	}
+
+	function clearFilters() {
+		setQuery("")
+		setStatusFilter("all")
+		setKindFilter("all")
+		setJurisdictionFilter("all")
+		setResponsibilityFilter("all")
+		setValidityFilter("all")
 	}
 
 	function startEditing(definition: DefinitionSummary) {
@@ -314,6 +305,63 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 		}
 	}
 
+	if (mode !== "idle") {
+		return (
+			<section className="min-w-0">
+				<div className="mb-5 flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 pb-4">
+					<div>
+						<p className="text-xs font-semibold tracking-[0.08em] text-slate-500 uppercase">
+							{mode === "creating" ? "Nueva definición" : "Editar definición"}
+						</p>
+						<h2 className="mt-1 text-lg font-semibold text-slate-950">
+							{mode === "creating" ? "Configura una regla fiscal" : selectedDefinition?.name}
+						</h2>
+					</div>
+					<Button
+						type="button"
+						variant="ghost"
+						onClick={() => {
+							setMode("idle")
+							setSelectedDefinition(null)
+						}}
+					>
+						Volver a definiciones
+					</Button>
+				</div>
+				{operationError && (
+					<Notice variant="error" className="mb-4">
+						{operationError}
+					</Notice>
+				)}
+				<TaxFeeWizard
+					initialDefinitions={definitions}
+					initialWarnings={warnings}
+					initialMode={wizardMode}
+					initialResources={props.initialResources}
+					initialSuggestion={props.initialSuggestion}
+					initialDefinitionId={selectedDefinition?.id ?? null}
+					initialDuplicateDefinitionId={
+						mode === "creating" && selectedDefinition ? selectedDefinition.id : null
+					}
+					showDefinitionsSidebar={false}
+					onDefinitionsChange={(nextDefinitions, nextWarnings) => {
+						setDefinitions(nextDefinitions)
+						setWarnings(nextWarnings)
+					}}
+					onEditingComplete={(message) => {
+						setMode("idle")
+						setSelectedDefinition(null)
+						setSuccessMessage(message)
+					}}
+					onCancel={() => {
+						setMode("idle")
+						setSelectedDefinition(null)
+					}}
+				/>
+			</section>
+		)
+	}
+
 	return (
 		<section className="min-w-0">
 			<div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 pb-4">
@@ -337,18 +385,12 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 				)}
 			</div>
 
-			{warnings.length > 0 && (
-				<Notice variant="warning" title="Requiere atención" className="mt-4">
-					<div className="mt-3 space-y-3">
-						{warnings.map((warning, index) => (
-							<div key={`${warning.code}-${index}`}>
-								<p className="font-medium">{warningTitle(warning.code)}</p>
-								<p className="mt-1">{warning.message}</p>
-							</div>
-						))}
-					</div>
-				</Notice>
-			)}
+			<FiscalReviewCenter
+				definitions={definitions}
+				warnings={warnings}
+				canManageFiscality={props.canManageFiscality}
+				onResolveDefinition={startEditing}
+			/>
 
 			{!hasDefinitions ? (
 				<div className="fastt-empty-state mt-4 border border-dashed border-slate-300 bg-slate-50 p-5">
@@ -362,108 +404,139 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 				</div>
 			) : (
 				<>
-					<div className="mt-4 flex flex-wrap gap-2 border-b border-slate-200 pb-4">
-						<Input
-							className="h-9 min-w-48 flex-1"
-							placeholder="Buscar por nombre o código"
-							value={query}
-							onChange={(event) => setQuery(event.target.value)}
-						/>
-						<Select
-							className="h-9 w-auto"
-							value={statusFilter}
-							onChange={(event) => setStatusFilter(event.target.value)}
+					<div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
+						<div className="min-w-56 flex-1">
+							<Input
+								className="h-9 w-full"
+								placeholder="Buscar por nombre o código"
+								value={query}
+								onChange={(event) => setQuery(event.target.value)}
+							/>
+						</div>
+						<button
+							type="button"
+							onClick={() => setFiltersOpen(!filtersOpen)}
+							aria-expanded={filtersOpen}
+							className="fastt-button inline-flex h-9 items-center gap-2 rounded-md border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
 						>
-							<option value="all">Todos los estados</option>
-							{["active", "scheduled", "conflict", "draft", "paused", "expired", "archived"].map(
-								(status) => (
-									<option key={status} value={status}>
-										{statusLabel(status as DefinitionSummary["operationalStatus"])}
-									</option>
-								)
-							)}
-						</Select>
-						<Select
-							className="h-9 w-auto"
-							value={kindFilter}
-							onChange={(event) => setKindFilter(event.target.value)}
-						>
-							<option value="all">Tipo</option>
-							<option value="tax">Impuestos</option>
-							<option value="fee">Cargos</option>
-						</Select>
-						<Select
-							className="h-9 w-auto"
-							value={jurisdictionFilter}
-							onChange={(event) => setJurisdictionFilter(event.target.value)}
-						>
-							<option value="all">Jurisdicción</option>
-							{availableJurisdictions.map((item) => (
-								<option key={item} value={item}>
-									{item}
-								</option>
-							))}
-						</Select>
-						<Select
-							className="h-9 w-auto"
-							value={responsibilityFilter}
-							onChange={(event) => setResponsibilityFilter(event.target.value)}
-						>
-							<option value="all">Recauda</option>
-							<option value="Proveedor">Proveedor</option>
-							<option value="Plataforma">Plataforma</option>
-							<option value="Marketplace">Marketplace</option>
-						</Select>
-						<Select
-							className="h-9 w-auto"
-							value={validityFilter}
-							onChange={(event) => setValidityFilter(event.target.value)}
-						>
-							<option value="all">Vigencia</option>
-							<option value="dated">Con vigencia</option>
-							<option value="open">Sin fecha</option>
-						</Select>
+							Filtros{" "}
+							<span className="text-xs text-slate-500">
+								{[
+									statusFilter,
+									kindFilter,
+									jurisdictionFilter,
+									responsibilityFilter,
+									validityFilter,
+								].filter((value) => value !== "all").length || ""}
+							</span>
+						</button>
 					</div>
-					<div className="grid grid-cols-2 divide-x divide-slate-200 border-b border-slate-200 sm:grid-cols-4">
-						<div className="py-3 text-center">
-							<p className="text-xs text-slate-500">Activas</p>
-							<p className="font-semibold">
-								{definitions.filter((item) => item.operationalStatus === "active").length}
-							</p>
+					{filtersOpen && (
+						<div className="grid gap-3 border-b border-slate-200 bg-slate-50 px-3 py-4 sm:grid-cols-2 lg:grid-cols-3">
+							<div className="flex flex-wrap items-start justify-between gap-3 sm:col-span-2 lg:col-span-3">
+								<div>
+									<p className="text-sm font-semibold text-slate-950">
+										Filtrar definiciones visibles
+									</p>
+									<p className="mt-1 text-xs text-slate-500">
+										Acota el catálogo sin salir de esta página.
+									</p>
+								</div>
+								<Button type="button" variant="ghost" size="sm" onClick={clearFilters}>
+									Limpiar filtros
+								</Button>
+							</div>
+							<label className="grid gap-1 text-xs font-semibold text-slate-500">
+								Estado
+								<Select
+									className="h-9 w-auto"
+									value={statusFilter}
+									onChange={(event) => setStatusFilter(event.target.value)}
+								>
+									<option value="all">Todos los estados</option>
+									{[
+										"active",
+										"scheduled",
+										"conflict",
+										"draft",
+										"paused",
+										"expired",
+										"archived",
+									].map((status) => (
+										<option key={status} value={status}>
+											{statusLabel(status as DefinitionSummary["operationalStatus"])}
+										</option>
+									))}
+								</Select>
+							</label>
+							<label className="grid gap-1 text-xs font-semibold text-slate-500">
+								Tipo
+								<Select
+									className="h-9 w-auto"
+									value={kindFilter}
+									onChange={(event) => setKindFilter(event.target.value)}
+								>
+									<option value="all">Tipo</option>
+									<option value="tax">Impuestos</option>
+									<option value="fee">Cargos</option>
+								</Select>
+							</label>
+							<label className="grid gap-1 text-xs font-semibold text-slate-500">
+								Jurisdicción
+								<Select
+									className="h-9 w-auto"
+									value={jurisdictionFilter}
+									onChange={(event) => setJurisdictionFilter(event.target.value)}
+								>
+									<option value="all">Jurisdicción</option>
+									{availableJurisdictions.map((item) => (
+										<option key={item} value={item}>
+											{item}
+										</option>
+									))}
+								</Select>
+							</label>
+							<label className="grid gap-1 text-xs font-semibold text-slate-500">
+								Responsable de recaudo
+								<Select
+									className="h-9 w-auto"
+									value={responsibilityFilter}
+									onChange={(event) => setResponsibilityFilter(event.target.value)}
+								>
+									<option value="all">Recauda</option>
+									<option value="Proveedor">Proveedor</option>
+									<option value="Plataforma">Plataforma</option>
+									<option value="Marketplace">Marketplace</option>
+								</Select>
+							</label>
+							<label className="grid gap-1 text-xs font-semibold text-slate-500">
+								Vigencia
+								<Select
+									className="h-9 w-auto"
+									value={validityFilter}
+									onChange={(event) => setValidityFilter(event.target.value)}
+								>
+									<option value="all">Vigencia</option>
+									<option value="dated">Con vigencia</option>
+									<option value="open">Sin fecha</option>
+								</Select>
+							</label>
 						</div>
-						<div className="py-3 text-center">
-							<p className="text-xs text-slate-500">Programadas</p>
-							<p className="font-semibold">
-								{definitions.filter((item) => item.operationalStatus === "scheduled").length}
-							</p>
-						</div>
-						<div className="py-3 text-center">
-							<p className="text-xs text-slate-500">Conflictos</p>
-							<p className="font-semibold">
-								{definitions.filter((item) => item.operationalStatus === "conflict").length}
-							</p>
-						</div>
-						<div className="py-3 text-center">
-							<p className="text-xs text-slate-500">Borradores</p>
-							<p className="font-semibold">
-								{definitions.filter((item) => item.operationalStatus === "draft").length}
-							</p>
-						</div>
-					</div>
-					<div className="overflow-x-auto">
-						<table className="w-full min-w-[1050px] text-left text-sm">
-							<thead className="border-b border-slate-200 text-xs tracking-[0.06em] text-slate-500 uppercase">
+					)}
+					<div className="fiscal-definitions-table overflow-x-auto">
+						<table className="w-full min-w-[1080px] text-left text-sm">
+							<thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold tracking-[0.06em] text-slate-500 uppercase">
 								<tr>
-									<th className="py-3 pr-3">Regla</th>
-									<th className="px-3 py-3">Tipo</th>
-									<th className="px-3 py-3">Cálculo</th>
-									<th className="px-3 py-3">Base</th>
-									<th className="px-3 py-3">Recauda</th>
-									<th className="px-3 py-3">Jurisdicción</th>
-									<th className="px-3 py-3">Vigencia</th>
-									<th className="px-3 py-3">Asignadas</th>
-									<th className="px-3 py-3">Estado</th>
-									<th className="py-3 pl-3"></th>
+									<th className="w-[20%] px-4 py-3">Regla</th>
+									<th className="w-[8%] px-3 py-3">Tipo</th>
+									<th className="w-[12%] px-3 py-3">Cálculo</th>
+									<th className="w-[11%] px-3 py-3">Base</th>
+									<th className="w-[10%] px-3 py-3">Recauda</th>
+									<th className="w-[11%] px-3 py-3">Jurisdicción</th>
+									<th className="w-[11%] px-3 py-3">Vigencia</th>
+									<th className="w-[7%] px-3 py-3">Asignadas</th>
+									<th className="w-[10%] px-3 py-3">Estado</th>
+									<th className="px-4 py-3 text-right">Acciones</th>
 								</tr>
 							</thead>
 							<tbody className="divide-y divide-slate-100">
@@ -473,38 +546,40 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 										className="cursor-pointer hover:bg-slate-50"
 										onClick={() => setInspectedDefinition(definition)}
 									>
-										<td className="py-3 pr-3">
-											<p className="font-medium text-slate-950">{definition.name}</p>
-											<p className="mt-0.5 text-xs text-slate-500">{definition.code}</p>
+										<td className="px-4 py-4">
+											<p className="font-semibold text-slate-950">{definition.name}</p>
+											<p className="mt-1 text-xs text-slate-500">{definition.code}</p>
 										</td>
-										<td className="px-3 py-3 text-slate-600">
+										<td className="px-3 py-4 text-slate-600">
 											{definition.kind === "tax" ? "Impuesto" : "Cargo"}
 										</td>
-										<td className="px-3 py-3 text-slate-700">
-											{formatDefinitionValue(definition)}
+										<td className="px-3 py-4 text-slate-700">
+											<span className="font-semibold text-slate-950">
+												{formatDefinitionValue(definition)}
+											</span>
 											<br />
 											<span className="text-xs text-slate-500">
 												{formatAppliesPer(definition.appliesPer)}
 											</span>
 										</td>
-										<td className="px-3 py-3 text-slate-600">
+										<td className="px-3 py-4 text-slate-600">
 											{(definition.jurisdictionJson as any)?.taxableBase === "base_plus_included"
 												? "Base + incluidos"
 												: "Base de reserva"}
 										</td>
-										<td className="px-3 py-3 text-slate-600">{responsibilityLabel(definition)}</td>
-										<td className="px-3 py-3 text-slate-600">{jurisdictionLabel(definition)}</td>
-										<td className="px-3 py-3 text-slate-600">
+										<td className="px-3 py-4 text-slate-600">{responsibilityLabel(definition)}</td>
+										<td className="px-3 py-4 text-slate-600">{jurisdictionLabel(definition)}</td>
+										<td className="px-3 py-4 text-slate-600">
 											{definition.effectiveFrom || definition.effectiveTo
 												? `${definition.effectiveFrom ?? "Ahora"} - ${definition.effectiveTo ?? "Sin fin"}`
 												: "Continua"}
 										</td>
-										<td className="px-3 py-3 text-slate-600">
+										<td className="px-3 py-4 text-slate-600">
 											{definition.assignments?.filter(
 												(assignment) => assignment.status === "active"
 											).length ?? 0}
 										</td>
-										<td className="px-3 py-3">
+										<td className="px-3 py-4">
 											<Badge
 												variant={
 													definition.operationalStatus === "conflict"
@@ -517,7 +592,7 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 												{statusLabel(definition.operationalStatus)}
 											</Badge>
 										</td>
-										<td className="py-3 pl-3 text-right">
+										<td className="px-4 py-4 text-right">
 											<Button
 												type="button"
 												size="sm"
@@ -527,7 +602,7 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 													setInspectedDefinition(definition)
 												}}
 											>
-												Ver
+												{definition.operationalStatus === "active" ? "Ver" : "Resolver"}
 											</Button>
 										</td>
 									</tr>
@@ -736,34 +811,6 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 					<Notice variant="success" className="mb-4">
 						{successMessage}
 					</Notice>
-				)}
-
-				{mode === "idle" ? null : (
-					<TaxFeeWizard
-						initialDefinitions={definitions}
-						initialWarnings={warnings}
-						initialMode={wizardMode}
-						initialResources={props.initialResources}
-						initialSuggestion={props.initialSuggestion}
-						initialDefinitionId={selectedDefinition?.id ?? null}
-						initialDuplicateDefinitionId={
-							mode === "creating" && selectedDefinition ? selectedDefinition.id : null
-						}
-						showDefinitionsSidebar={false}
-						onDefinitionsChange={(nextDefinitions, nextWarnings) => {
-							setDefinitions(nextDefinitions)
-							setWarnings(nextWarnings)
-						}}
-						onEditingComplete={(message) => {
-							setMode("idle")
-							setSelectedDefinition(null)
-							setSuccessMessage(message)
-						}}
-						onCancel={() => {
-							setMode("idle")
-							setSelectedDefinition(null)
-						}}
-					/>
 				)}
 			</div>
 		</section>
