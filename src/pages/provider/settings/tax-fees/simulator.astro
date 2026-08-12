@@ -1,0 +1,76 @@
+---
+import FiscalSimulator from "@/components/tax-fees/FiscalSimulator"
+import { variantManagementRepository } from "@/container"
+import FiscalWorkspaceLayout from "@/layouts/FiscalWorkspaceLayout.astro"
+import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
+import { getProviderTaxConfiguration } from "@/lib/provider-tax-configuration"
+import { listRatePlansByProvider } from "@/modules/pricing/public"
+import { db, eq, Product } from "@/shared/infrastructure/db/compat"
+
+const auth = await requireProviderSessionSurface(Astro.request).catch(() => "__DENIED__" as const)
+if (auth === "__DENIED__") return Astro.redirect("/SignInPage")
+const cookie = Astro.request.headers.get("cookie") ?? ""
+const [configuration, response, products, ratePlans] = await Promise.all([
+	getProviderTaxConfiguration(auth.provider.providerId).catch(() => null),
+	fetch(new URL("/api/provider/tax-fees/definitions", Astro.url), { headers: { cookie } }),
+	db
+		.select({ id: Product.id, name: Product.name, productType: Product.productType })
+		.from(Product)
+		.where(eq(Product.providerId, auth.provider.providerId))
+		.catch(() => []),
+	listRatePlansByProvider(auth.provider.providerId).catch(() => []),
+])
+const body = response.ok ? await response.json() : { definitions: [], audit: { findings: [] } }
+const variantsByProduct = await Promise.all(
+	products.map(async (product) => ({
+		productId: String(product.id),
+		variants: await variantManagementRepository
+			.listVariantsByProductId(String(product.id))
+			.catch(() => []),
+	}))
+)
+const resources = {
+	providerId: auth.provider.providerId,
+	products: products.map((product) => ({
+		id: String(product.id),
+		label: String(product.name || "Producto"),
+		kind: String(product.productType || "Producto"),
+	})),
+	variants: variantsByProduct.flatMap(({ productId, variants }) =>
+		variants.map((variant) => ({
+			id: String(variant.id),
+			productId,
+			label: String(variant.name || "Unidad"),
+			kind: String(variant.kind || "Unidad"),
+		}))
+	),
+	ratePlans: (ratePlans as Array<any>).map((plan) => ({
+		id: String(plan.ratePlanId),
+		productId: String(plan.productId),
+		variantId: String(plan.variantId),
+		label: String(plan.ratePlanName || "Tarifa"),
+		isActive: Boolean(plan.isActive),
+	})),
+}
+const conflicts = Array.isArray(body.audit?.findings)
+	? body.audit.findings.filter((finding: any) => finding.code === "duplicate_active_assignment")
+			.length
+	: 0
+---
+
+<FiscalWorkspaceLayout
+	activeTab="simulator"
+	identityLabel={configuration?.statusLabel ?? "No configurada"}
+	isIdentityConfigured={Boolean(configuration?.isConfigured)}
+	canManageFiscality={auth.provider.permissions.canManageFiscality}
+	conflictCount={conflicts}
+	scopeOptions={resources.products.map((product) => ({ id: product.id, label: product.label }))}
+	selectedScopeId={Astro.url.searchParams.get("scope")}
+>
+	<FiscalSimulator
+		client:load
+		definitions={Array.isArray(body.definitions) ? body.definitions : []}
+		resources={resources}
+		canManage={auth.provider.permissions.canManageFiscality}
+	/>
+</FiscalWorkspaceLayout>
