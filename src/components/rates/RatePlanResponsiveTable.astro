@@ -147,6 +147,10 @@ const hasVisibleRows = rows.some((row) => matchesView(row.stateKey, activeView))
 		align-items: start;
 		padding: 1rem;
 	}
+	/* Scoped `display: grid` beats Tailwind `.hidden` — keep filter tabs working. */
+	.rate-plan-responsive-row.hidden {
+		display: none;
+	}
 	.rate-plan-identity,
 	.rate-plan-state {
 		min-width: 0;
