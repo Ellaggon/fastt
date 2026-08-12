@@ -11,6 +11,7 @@ import {
 
 import type { RefundQuoteMoneyLine } from "@/modules/financial/public"
 import type { HoldPolicyItemSnapshot, HoldPolicySnapshot } from "@/modules/policies/public"
+import { isPriceQuote, type PriceQuote } from "@/modules/pricing/public"
 
 export type RefundCancellationContext = {
 	booking: {
@@ -120,6 +121,7 @@ export async function loadRefundCancellationContext(params: {
 			checkIn: BookingRoomDetail.checkIn,
 			checkOut: BookingRoomDetail.checkOut,
 			providerIdSnapshot: BookingRoomDetail.providerIdSnapshot,
+			pricingBreakdownJson: BookingRoomDetail.pricingBreakdownJson,
 		})
 		.from(BookingRoomDetail)
 		.where(eq(BookingRoomDetail.bookingId, bookingId))
@@ -153,6 +155,25 @@ export async function loadRefundCancellationContext(params: {
 			taxRows.reduce((sum, row) => sum + Number(row.totalAmount ?? 0), 0)
 	)
 	const baseAmount = roundMoney(Math.max(0, grossAmount - taxAmount))
+	const priceQuoteCandidate = roomRows
+		.map((row) => (row.pricingBreakdownJson as any)?.priceQuote)
+		.find(isPriceQuote)
+	const priceQuote: PriceQuote | null = isPriceQuote(priceQuoteCandidate)
+		? priceQuoteCandidate
+		: null
+	const fiscalLines: RefundQuoteMoneyLine[] = isPriceQuote(priceQuote)
+		? [
+				...priceQuote.taxesAndFees.taxes.included,
+				...priceQuote.taxesAndFees.taxes.excluded,
+				...priceQuote.taxesAndFees.fees.included,
+				...priceQuote.taxesAndFees.fees.excluded,
+			].map((line) => ({
+				type: line.kind,
+				label: `${line.name} · recauda ${line.collectionResponsibility}`,
+				amount: Number(line.amount),
+				basis: `price_quote:${priceQuote.quoteId}`,
+			}))
+		: []
 	const firstRoom = roomRows[0]
 	const checkIn = dateOnly(firstRoom?.checkIn ?? booking.checkInDate)
 	const checkOut = dateOnly(firstRoom?.checkOut ?? booking.checkOutDate)
@@ -181,16 +202,18 @@ export async function loadRefundCancellationContext(params: {
 				amount: baseAmount || grossAmount,
 				basis: "booking_room_detail",
 			},
-			...(taxAmount > 0
-				? [
-						{
-							type: "tax" as const,
-							label: "Booked taxes and fees",
-							amount: taxAmount,
-							basis: "booking_tax_fee_snapshot",
-						},
-					]
-				: []),
+			...(fiscalLines.length
+				? fiscalLines
+				: taxAmount > 0
+					? [
+							{
+								type: "tax" as const,
+								label: "Booked taxes and fees",
+								amount: taxAmount,
+								basis: "booking_tax_fee_snapshot",
+							},
+						]
+					: []),
 		],
 	}
 }

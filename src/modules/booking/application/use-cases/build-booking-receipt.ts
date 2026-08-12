@@ -1,4 +1,5 @@
 import type { PriceQuote } from "@/modules/pricing/public"
+import { buildBookingFiscalDocument } from "./build-booking-fiscal-document"
 
 export function buildBookingReceipt(input: {
 	bookingId: string
@@ -9,6 +10,7 @@ export function buildBookingReceipt(input: {
 	const { quote } = input
 	const included = [...quote.taxesAndFees.taxes.included, ...quote.taxesAndFees.fees.included]
 	const added = [...quote.taxesAndFees.taxes.excluded, ...quote.taxesAndFees.fees.excluded]
+	const fiscalDocument = buildBookingFiscalDocument(input)
 	return {
 		receiptId: `receipt_${input.bookingId}`,
 		bookingId: input.bookingId,
@@ -20,5 +22,6 @@ export function buildBookingReceipt(input: {
 		included,
 		added,
 		totalAmount: quote.totalAmount,
+		fiscalDocument,
 	}
 }

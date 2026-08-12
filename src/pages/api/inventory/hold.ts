@@ -26,6 +26,7 @@ import { resolvePolicyExceptionRulesUseCase } from "@/container/policy-exception
 import { resolveEffectiveTaxFeesUseCase } from "@/container/taxes-fees.container"
 import { buildPriceQuote, isPriceQuote, type PriceQuote } from "@/modules/pricing/public"
 import { computeTaxBreakdown } from "@/modules/taxes-fees/public"
+import { getProductTaxJurisdictionContext } from "@/lib/taxes-fees/jurisdiction-context"
 import {
 	buildOccupancyKey,
 	evaluateStaySellabilityFromView,
@@ -604,6 +605,10 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 									1,
 									parsed.occupancyDetail.adults + parsed.occupancyDetail.children
 								),
+								context: {
+									...(await getProductTaxJurisdictionContext(variant.productId)),
+									checkIn: from,
+								},
 							})
 							const priceQuote = buildPriceQuote({
 								context: {
