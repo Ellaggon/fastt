@@ -114,6 +114,8 @@ describe("integration/booking tax/fee snapshot", () => {
 			appliesPer: "stay",
 			priority: 0,
 			amount: 10,
+			collectionResponsibility: "provider",
+			taxableBase: "booking_base",
 			source: { scope: "product", scopeId: "prod_1", definitionId: "def_1" },
 		}
 
