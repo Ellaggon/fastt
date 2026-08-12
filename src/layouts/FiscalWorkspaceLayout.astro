@@ -1,0 +1,118 @@
+---
+import FiscalPermissionNotice from "@/components/tax-fees/FiscalPermissionNotice.astro"
+import FiscalScopeSwitcher from "@/components/tax-fees/FiscalScopeSwitcher.astro"
+import FiscalStatusBar from "@/components/tax-fees/FiscalStatusBar.astro"
+import FiscalWorkspaceTabs from "@/components/tax-fees/FiscalWorkspaceTabs.astro"
+import Button from "@/components/ui/Button.astro"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { routes } from "@/lib/routes"
+
+type FiscalTab = "definitions" | "assignments" | "simulator" | "activity"
+
+interface Props {
+	title?: string
+	activeTab: FiscalTab
+	identityLabel: string
+	isIdentityConfigured: boolean
+	canManageFiscality: boolean
+	conflictCount?: number
+	pendingSyncCount?: number
+	scopeOptions?: Array<{ id: string; label: string }>
+	selectedScopeId?: string | null
+	primaryLabel?: string
+	primaryHref?: string
+}
+
+const {
+	title = "Fiscalidad de ventas",
+	activeTab,
+	identityLabel,
+	isIdentityConfigured,
+	canManageFiscality,
+	conflictCount = 0,
+	pendingSyncCount = 0,
+	scopeOptions = [],
+	selectedScopeId = null,
+	primaryLabel,
+	primaryHref,
+} = Astro.props
+
+const secondaryLinks = [
+	{ label: "Identidad fiscal", href: routes.providerSettingsVerificationFiscal() },
+	{ label: "Tarifas", href: routes.ratePlansList() },
+	{ label: "Finanzas", href: routes.financialSettlements() },
+	{ label: "Canales", href: routes.providerSettingsIntegrationsConnections() },
+]
+---
+
+<WorkspaceLayout title={title}>
+	<section class="mx-auto max-w-6xl">
+		<header class="mb-4 flex flex-wrap items-end justify-between gap-4 text-slate-100 sm:mb-5">
+			<div class="min-w-0">
+				<p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-400">
+					Configuración comercial
+				</p>
+				<h1 class="mt-1 text-2xl font-semibold text-white sm:text-3xl">Fiscalidad de ventas</h1>
+				<p class="mt-1 text-sm text-slate-300">Impuestos y cargos que se muestran al huésped.</p>
+			</div>
+			<div class="flex items-center gap-2">
+				<details class="relative sm:hidden">
+					<summary
+						class="flex h-9 cursor-pointer list-none items-center rounded-md border border-white/20 px-3 text-sm font-medium text-white"
+						>Más</summary
+					>
+					<div
+						class="fastt-soft-box absolute right-0 z-20 mt-2 grid min-w-44 gap-1 rounded-md border border-slate-200 bg-white p-1 shadow-lg"
+					>
+						{
+							secondaryLinks.map((link) => (
+								<a
+									class="rounded px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+									href={link.href}
+								>
+									{link.label}
+								</a>
+							))
+						}
+					</div>
+				</details>
+				{
+					primaryLabel && primaryHref && canManageFiscality ? (
+						<Button href={primaryHref}>{primaryLabel}</Button>
+					) : null
+				}
+			</div>
+		</header>
+
+		<div
+			class="fastt-card overflow-hidden rounded-lg border border-slate-200 bg-white text-slate-900"
+		>
+			<div
+				class="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-2.5 sm:px-6"
+			>
+				<FiscalScopeSwitcher options={scopeOptions} selectedId={selectedScopeId} />
+				<nav
+					class="hidden items-center gap-4 text-xs font-medium text-slate-500 sm:flex"
+					aria-label="Accesos relacionados"
+				>
+					{
+						secondaryLinks.map((link) => (
+							<a class="hover:text-slate-950" href={link.href}>
+								{link.label}
+							</a>
+						))
+					}
+				</nav>
+			</div>
+			<FiscalWorkspaceTabs active={activeTab} search={Astro.url.searchParams} />
+			<FiscalStatusBar
+				identityLabel={identityLabel}
+				isIdentityConfigured={isIdentityConfigured}
+				conflictCount={conflictCount}
+				pendingSyncCount={pendingSyncCount}
+			/>
+			<FiscalPermissionNotice canManageFiscality={canManageFiscality} />
+			<div class="min-w-0 p-4 sm:p-6"><slot /></div>
+		</div>
+	</section>
+</WorkspaceLayout>

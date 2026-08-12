@@ -13,7 +13,8 @@ describe("Fiscalidad Fase 0", () => {
 		const page = read("src/pages/provider/settings/tax-fees/index.astro")
 
 		expect(subnav).not.toContain('label: "Fiscalidad"')
-		expect(page).toContain("showSettingsTabs={false}")
+		expect(page).toContain("FiscalWorkspaceLayout")
+		expect(page).not.toContain("ProviderSettingsLayout")
 	})
 
 	it("uses live fiscal status and enforces read-only access in the workspace", () => {
