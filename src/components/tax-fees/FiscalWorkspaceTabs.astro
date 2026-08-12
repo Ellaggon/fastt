@@ -1,4 +1,5 @@
 ---
+import TabsInsidePanel from "@/components/ui/TabsInsidePanel.astro"
 import { routes } from "@/lib/routes"
 
 type FiscalTab = "definitions" | "assignments" | "simulator" | "activity"
@@ -6,9 +7,10 @@ type FiscalTab = "definitions" | "assignments" | "simulator" | "activity"
 interface Props {
 	active: FiscalTab
 	search?: URLSearchParams
+	counts?: Partial<Record<FiscalTab, number>>
 }
 
-const { active, search = new URLSearchParams() } = Astro.props
+const { active, search = new URLSearchParams(), counts = {} } = Astro.props
 const suffix = search.toString() ? `?${search.toString()}` : ""
 const tabs: Array<{ id: FiscalTab; label: string; href: string }> = [
 	{ id: "definitions", label: "Definiciones", href: routes.providerSettingsTaxFees() },
@@ -18,25 +20,24 @@ const tabs: Array<{ id: FiscalTab; label: string; href: string }> = [
 ]
 ---
 
-<nav class="overflow-x-auto border-b border-slate-200" aria-label="Secciones de fiscalidad">
-	<div class="flex min-w-max gap-6 px-4 sm:px-6">
-		{
-			tabs.map((tab) => {
-				const selected = tab.id === active
-				return (
-					<a
-						href={`${tab.href}${suffix}`}
-						aria-current={selected ? "page" : undefined}
-						class={`relative py-3 text-sm font-medium transition-colors ${
-							selected
-								? "text-slate-950 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-slate-950"
-								: "text-slate-500 hover:text-slate-800"
-						}`}
-					>
-						{tab.label}
-					</a>
-				)
-			})
-		}
-	</div>
-</nav>
+<TabsInsidePanel class="max-w-full flex-nowrap bg-black" aria-label="Secciones de fiscalidad">
+	{
+		tabs.map((tab) => {
+			const selected = tab.id === active
+			return (
+				<a
+					href={`${tab.href}${suffix}`}
+					data-astro-prefetch="viewport"
+					aria-current={selected ? "page" : undefined}
+					data-active={selected ? "true" : "false"}
+					class="fastt-tabs-inside-panel__item px-4 py-2 text-sm font-semibold whitespace-nowrap text-slate-300 hover:bg-slate-800 hover:text-white"
+				>
+					{tab.label}
+					{counts[tab.id] !== undefined ? (
+						<span class="ml-1 text-xs opacity-70">{counts[tab.id]}</span>
+					) : null}
+				</a>
+			)
+		})
+	}
+</TabsInsidePanel>

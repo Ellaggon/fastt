@@ -4,6 +4,7 @@ import { z, ZodError } from "zod"
 import { requireProviderFiscalityManager } from "@/lib/provider-fiscality-auth"
 import { writeProviderAuditLog } from "@/lib/provider-audit"
 import { invalidateProduct, invalidateProvider, invalidatePricing } from "@/lib/cache/invalidation"
+import { invalidateAggregateCache } from "@/lib/cache/ssrAggregateCache"
 import { productRepository, ratePlanRepository, variantManagementRepository } from "@/container"
 import {
 	db,
@@ -116,7 +117,15 @@ export const POST: APIRoute = async ({ request }) => {
 				.from(TaxFeeDefinition)
 				.where(eq(TaxFeeDefinition.id, input.taxFeeDefinitionId!))
 				.then((rows) => rows[0] ?? null)
-			if (!definition || definition.providerId !== providerId || definition.status !== "active")
+			if (
+				!definition ||
+				definition.providerId !== providerId ||
+				definition.status !== "active" ||
+				definition.editingState === "draft" ||
+				!/^[A-Za-z]{2}$/.test(
+					String((definition.jurisdictionJson as { country?: string } | null)?.country ?? "")
+				)
+			)
 				throw new Error("Not found")
 		}
 
@@ -194,6 +203,7 @@ export const POST: APIRoute = async ({ request }) => {
 				])
 			)
 		)
+		invalidateAggregateCache({ providerId })
 		return Response.json({ ids: result }, { status: 200 })
 	} catch (error: any) {
 		if (error instanceof ZodError)

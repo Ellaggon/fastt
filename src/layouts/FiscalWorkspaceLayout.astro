@@ -17,6 +17,7 @@ interface Props {
 	canManageFiscality: boolean
 	conflictCount?: number
 	pendingSyncCount?: number
+	tabCounts?: Partial<Record<FiscalTab, number>>
 	scopeOptions?: Array<{ id: string; label: string }>
 	selectedScopeId?: string | null
 	primaryLabel?: string
@@ -31,6 +32,7 @@ const {
 	canManageFiscality,
 	conflictCount = 0,
 	pendingSyncCount = 0,
+	tabCounts = {},
 	scopeOptions = [],
 	selectedScopeId = null,
 	primaryLabel,
@@ -46,23 +48,30 @@ const secondaryLinks = [
 ---
 
 <WorkspaceLayout title={title}>
-	<section class="mx-auto max-w-6xl">
-		<header class="mb-4 flex flex-wrap items-end justify-between gap-4 text-slate-100 sm:mb-5">
-			<div class="min-w-0">
-				<p class="text-xs font-semibold uppercase tracking-[0.08em] text-slate-400">
-					Configuración comercial
+	<section class="space-y-6 md:space-y-8">
+		<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
+			<div class="min-w-0 space-y-1.5">
+				<div
+					class="flex flex-wrap items-center gap-1 text-xs font-semibold uppercase tracking-[0.02em] text-slate-400"
+				>
+					<span>Configuración comercial</span><FiscalScopeSwitcher
+						options={scopeOptions}
+						selectedId={selectedScopeId}
+					/>
+				</div>
+				<h1 class="text-3xl font-semibold text-slate-100">Fiscalidad de ventas</h1>
+				<p class="max-w-2xl text-sm leading-6 text-slate-400">
+					Impuestos y cargos que se muestran al huésped.
 				</p>
-				<h1 class="mt-1 text-2xl font-semibold text-white sm:text-3xl">Fiscalidad de ventas</h1>
-				<p class="mt-1 text-sm text-slate-300">Impuestos y cargos que se muestran al huésped.</p>
 			</div>
 			<div class="flex items-center gap-2">
-				<details class="relative sm:hidden">
+				<details class="relative">
 					<summary
-						class="flex h-9 cursor-pointer list-none items-center rounded-md border border-white/20 px-3 text-sm font-medium text-white"
-						>Más</summary
+						class="fastt-button flex h-10 cursor-pointer list-none items-center border border-white/20 bg-transparent px-4 text-sm font-semibold text-white hover:bg-white/10"
+						>Relacionadas</summary
 					>
 					<div
-						class="fastt-soft-box absolute right-0 z-20 mt-2 grid min-w-44 gap-1 rounded-md border border-slate-200 bg-white p-1 shadow-lg"
+						class="fastt-soft-box absolute right-0 z-20 mt-2 grid min-w-44 gap-1 rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-1 shadow-lg"
 					>
 						{
 							secondaryLinks.map((link) => (
@@ -83,33 +92,26 @@ const secondaryLinks = [
 				}
 			</div>
 		</header>
+		<div class="flex max-w-full flex-wrap items-center justify-between gap-3">
+			<FiscalWorkspaceTabs active={activeTab} search={Astro.url.searchParams} counts={tabCounts} />
+			<a
+				href={routes.providerSettingsVerificationFiscal()}
+				class="inline-flex shrink-0 items-center gap-2 border-b border-transparent py-1 text-sm font-medium text-slate-300 hover:border-slate-300 hover:text-white focus:border-slate-300 focus:text-white focus:outline-none"
+			>
+				<span class="size-1.5 rounded-full bg-emerald-400"></span>
+				Identidad fiscal: {identityLabel}
+			</a>
+		</div>
 
 		<div
 			class="fastt-card overflow-hidden rounded-lg border border-slate-200 bg-white text-slate-900"
 		>
-			<div
-				class="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-2.5 sm:px-6"
-			>
-				<FiscalScopeSwitcher options={scopeOptions} selectedId={selectedScopeId} />
-				<nav
-					class="hidden items-center gap-4 text-xs font-medium text-slate-500 sm:flex"
-					aria-label="Accesos relacionados"
-				>
-					{
-						secondaryLinks.map((link) => (
-							<a class="hover:text-slate-950" href={link.href}>
-								{link.label}
-							</a>
-						))
-					}
-				</nav>
-			</div>
-			<FiscalWorkspaceTabs active={activeTab} search={Astro.url.searchParams} />
 			<FiscalStatusBar
 				identityLabel={identityLabel}
 				isIdentityConfigured={isIdentityConfigured}
 				conflictCount={conflictCount}
 				pendingSyncCount={pendingSyncCount}
+				showIdentity={false}
 			/>
 			<FiscalPermissionNotice canManageFiscality={canManageFiscality} />
 			<div class="min-w-0 p-4 sm:p-6"><slot /></div>

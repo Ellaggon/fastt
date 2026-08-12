@@ -16,6 +16,7 @@ import {
 	type TaxFeeAssignment as TaxFeeAssignmentDomain,
 } from "@/modules/taxes-fees/public"
 import { writeProviderAuditLog } from "@/lib/provider-audit"
+import { getAggregateCache, setAggregateCache } from "@/lib/cache/ssrAggregateCache"
 import { publishTaxFeeDefinitionVersion } from "@/lib/taxes-fees/tax-fee-versioning"
 import {
 	db,
@@ -118,6 +119,9 @@ export const GET: APIRoute = async ({ request }) => {
 			headers: { "Content-Type": "application/json" },
 		})
 	}
+	const cacheKey = `fiscal:definitions:${providerId}`
+	const cached = getAggregateCache<Record<string, unknown>>(cacheKey)
+	if (cached) return Response.json(cached)
 
 	const { definitions } = await listTaxFeeDefinitionsByProviderUseCase({ providerId })
 	const warnings = buildTaxFeeWarnings(definitions)
@@ -255,17 +259,13 @@ export const GET: APIRoute = async ({ request }) => {
 		meta: { definitionIds: finding.definitionIds, assignmentIds: finding.assignmentIds },
 	}))
 
-	return new Response(
-		JSON.stringify({
-			definitions: payload,
-			warnings: [...warnings, ...auditWarnings],
-			audit: fiscalityAudit,
-		}),
-		{
-			status: 200,
-			headers: { "Content-Type": "application/json" },
-		}
-	)
+	const responseBody = {
+		definitions: payload,
+		warnings: [...warnings, ...auditWarnings],
+		audit: fiscalityAudit,
+	}
+	setAggregateCache(cacheKey, responseBody, { ttlMs: 5_000, tags: [`provider:${providerId}`] })
+	return Response.json(responseBody)
 }
 
 export const POST: APIRoute = async ({ request }) => {

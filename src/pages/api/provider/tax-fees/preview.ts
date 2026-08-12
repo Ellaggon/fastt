@@ -15,6 +15,7 @@ import {
 import { buildTaxFeeWarnings, computeTaxBreakdown } from "@/modules/taxes-fees/public"
 import type { TaxFeeDefinition } from "@/modules/taxes-fees/public"
 import { buildPriceQuote } from "@/modules/pricing/public"
+import { writeFiscalActivity } from "@/lib/taxes-fees/fiscal-activity"
 
 const schema = z.object({
 	productId: z.string().min(1),
@@ -246,6 +247,20 @@ export const POST: APIRoute = async ({ request }) => {
 					price: Number((parsed.base / nights).toFixed(2)),
 				})),
 				source: "legacy",
+			},
+		})
+		await writeFiscalActivity({
+			providerId,
+			eventType: "simulation_executed",
+			definitionId: parsed.taxFeeDefinitionId ?? null,
+			productId: parsed.productId,
+			channel: parsed.channel ?? "web",
+			correlationId: quote.quoteId,
+			result: "succeeded",
+			context: {
+				quoteId: quote.quoteId,
+				ratePlanId: parsed.ratePlanId ?? null,
+				draft: Boolean(parsed.taxFeeDefinitionId),
 			},
 		})
 		const appliedLines = [

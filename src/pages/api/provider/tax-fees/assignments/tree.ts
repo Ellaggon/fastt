@@ -4,6 +4,7 @@ import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { resolveEffectiveTaxFeesUseCase } from "@/container/taxes-fees.container"
 import {
 	db,
+	and,
 	eq,
 	inArray,
 	Product,
@@ -26,10 +27,19 @@ export const GET: APIRoute = async ({ request }) => {
 
 	const url = new URL(request.url)
 	const channel = url.searchParams.get("channel") || null
+	const selectedScopeId = String(url.searchParams.get("scope") ?? "").trim() || null
+	const cacheKey = `fiscal:assignment-tree:${providerId}:${selectedScopeId ?? "all"}:${channel ?? "all"}`
+	const { getAggregateCache, setAggregateCache } = await import("@/lib/cache/ssrAggregateCache")
+	const cached = getAggregateCache<Record<string, unknown>>(cacheKey)
+	if (cached) return Response.json(cached)
 	const products = await db
 		.select({ id: Product.id, name: Product.name, productType: Product.productType })
 		.from(Product)
-		.where(eq(Product.providerId, providerId))
+		.where(
+			selectedScopeId
+				? and(eq(Product.providerId, providerId), eq(Product.id, selectedScopeId))
+				: eq(Product.providerId, providerId)
+		)
 	const productIds = products.map((product) => product.id)
 	const variants = productIds.length
 		? await db
@@ -55,10 +65,27 @@ export const GET: APIRoute = async ({ request }) => {
 				.where(inArray(RatePlan.variantId, variantIds))
 		: []
 	const definitionRows = await db
-		.select({ id: TaxFeeDefinition.id, name: TaxFeeDefinition.name, code: TaxFeeDefinition.code })
+		.select({
+			id: TaxFeeDefinition.id,
+			name: TaxFeeDefinition.name,
+			code: TaxFeeDefinition.code,
+			status: TaxFeeDefinition.status,
+			editingState: TaxFeeDefinition.editingState,
+			jurisdictionJson: TaxFeeDefinition.jurisdictionJson,
+		})
 		.from(TaxFeeDefinition)
 		.where(eq(TaxFeeDefinition.providerId, providerId))
 	const definitions = new Map(definitionRows.map((definition) => [definition.id, definition]))
+	const assignableDefinitions = definitionRows.filter((definition) => {
+		const country = String(
+			(definition.jurisdictionJson as { country?: string } | null)?.country ?? ""
+		)
+		return (
+			definition.status === "active" &&
+			definition.editingState !== "draft" &&
+			/^[A-Za-z]{2}$/.test(country)
+		)
+	})
 	const assignments = definitionRows.length
 		? await db
 				.select()
@@ -145,7 +172,7 @@ export const GET: APIRoute = async ({ request }) => {
 		})
 	)
 
-	return Response.json({
+	const responseBody = {
 		provider: {
 			id: providerId,
 			name: "Proveedor",
@@ -163,6 +190,15 @@ export const GET: APIRoute = async ({ request }) => {
 					variants.find((entry) => entry.id === variant.id)?.productId === product.id
 			),
 		})),
-		definitions: definitionRows,
+		definitions: assignableDefinitions,
+	}
+	setAggregateCache(cacheKey, responseBody, {
+		ttlMs: 5_000,
+		tags: [
+			`provider:${providerId}`,
+			...products.map((product) => `product:${product.id}`),
+			...variants.map((variant) => `variant:${variant.id}`),
+		],
 	})
+	return Response.json(responseBody)
 }

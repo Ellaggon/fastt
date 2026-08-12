@@ -1,5 +1,6 @@
 import { delByPrefix } from "./persistentCache"
 import { cacheKeys } from "./cacheKeys"
+import { invalidateAggregateCache } from "./ssrAggregateCache"
 
 async function invalidateRatePlanSurfacesByOwnership(params: {
 	providerId?: string | null
@@ -86,6 +87,7 @@ function refreshRatePlanConditions(ratePlanIds: string[], source: string): void 
 
 export async function invalidateProvider(providerId: string): Promise<void> {
 	await delByPrefix(`ws:provider:${providerId}`)
+	invalidateAggregateCache({ providerId })
 	console.debug("cache invalidated", { scope: "provider", id: providerId })
 }
 
