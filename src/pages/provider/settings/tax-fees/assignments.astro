@@ -1,0 +1,49 @@
+---
+import FiscalAssignmentsMatrix from "@/components/tax-fees/FiscalAssignmentsMatrix"
+import FiscalWorkspaceLayout from "@/layouts/FiscalWorkspaceLayout.astro"
+import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
+import { getProviderTaxConfiguration } from "@/lib/provider-tax-configuration"
+import { routes } from "@/lib/routes"
+import { db, eq, Product } from "@/shared/infrastructure/db/compat"
+
+const auth = await requireProviderSessionSurface(Astro.request).catch(() => "__DENIED__" as const)
+if (auth === "__DENIED__") return Astro.redirect("/SignInPage")
+const cookie = Astro.request.headers.get("cookie") ?? ""
+const [configuration, definitionsResponse, products] = await Promise.all([
+	getProviderTaxConfiguration(auth.provider.providerId).catch(() => null),
+	fetch(new URL("/api/provider/tax-fees/definitions", Astro.url), { headers: { cookie } }),
+	db
+		.select({ id: Product.id, name: Product.name })
+		.from(Product)
+		.where(eq(Product.providerId, auth.provider.providerId))
+		.catch(() => []),
+])
+const payload = definitionsResponse.ok
+	? await definitionsResponse.json()
+	: { definitions: [], audit: { findings: [] } }
+const definitions = Array.isArray(payload.definitions) ? payload.definitions : []
+const conflictCount = Array.isArray(payload.audit?.findings)
+	? payload.audit.findings.filter((finding: any) => finding.code === "duplicate_active_assignment")
+			.length
+	: 0
+const resources = new Map(
+	products.map((product) => [String(product.id), String(product.name || "Producto")])
+)
+---
+
+<FiscalWorkspaceLayout
+	activeTab="assignments"
+	identityLabel={configuration?.statusLabel ?? "No configurada"}
+	isIdentityConfigured={Boolean(configuration?.isConfigured)}
+	canManageFiscality={auth.provider.permissions.canManageFiscality}
+	conflictCount={conflictCount}
+	scopeOptions={products.map((product) => ({
+		id: String(product.id),
+		label: String(product.name || "Producto"),
+	}))}
+	selectedScopeId={Astro.url.searchParams.get("scope")}
+	primaryLabel="Asignar reglas"
+	primaryHref={`${routes.providerSettingsTaxFees()}?create=1`}
+>
+	<FiscalAssignmentsMatrix client:load canManage={auth.provider.permissions.canManageFiscality} />
+</FiscalWorkspaceLayout>
