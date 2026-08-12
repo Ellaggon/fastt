@@ -8,7 +8,7 @@ export type PriceQuote = {
 	version: typeof PRICE_QUOTE_VERSION
 	quoteId: string
 	issuedAt: string
-	source: "search" | "hold" | "legacy_hold_snapshot"
+	source: "search" | "hold" | "simulation" | "legacy_hold_snapshot"
 	context: {
 		productId: string
 		variantId: string
@@ -46,6 +46,8 @@ function normalizeLine(line: TaxFeeLine) {
 		code: String(line.code),
 		kind: String(line.kind),
 		inclusionType: String(line.inclusionType),
+		collectionResponsibility: String(line.collectionResponsibility),
+		taxableBase: String(line.taxableBase),
 		amount: money(line.amount),
 	}
 }

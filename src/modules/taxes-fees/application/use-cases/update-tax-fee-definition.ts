@@ -30,6 +30,7 @@ export async function updateTaxFeeDefinition(
 		effectiveFrom?: Date | null
 		effectiveTo?: Date | null
 		status?: "active" | "archived"
+		editingState?: "draft" | "published"
 	}
 ): Promise<{ id: string }> {
 	const existing = await deps.repo.getDefinitionById(params.id)
@@ -88,6 +89,7 @@ export async function updateTaxFeeDefinition(
 		effectiveFrom: params.effectiveFrom ?? null,
 		effectiveTo: params.effectiveTo ?? null,
 		status: params.status ?? "active",
+		editingState: params.editingState ?? existing.editingState ?? "published",
 	}
 
 	await deps.repo.updateDefinition(next)

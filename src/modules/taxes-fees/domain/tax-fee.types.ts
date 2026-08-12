@@ -4,6 +4,21 @@ export type TaxFeeInclusionType = "included" | "excluded"
 export type TaxFeeAppliesPer = "stay" | "night" | "guest" | "guest_night"
 export type TaxFeeScope = "global" | "provider" | "product" | "variant" | "rate_plan"
 export type TaxFeeStatus = "active" | "archived"
+export type TaxFeeEditingState = "draft" | "published"
+export type TaxFeeCollectionResponsibility = "provider" | "platform" | "marketplace"
+export type TaxFeeTaxableBase = "booking_base" | "base_plus_included"
+
+export type TaxFeeJurisdictionRule = {
+	country?: string
+	region?: string
+	city?: string
+	collectionResponsibility?: TaxFeeCollectionResponsibility
+	taxableBase?: TaxFeeTaxableBase
+	exemptGuestResidenceCountries?: string[]
+	maxAmount?: number | null
+	maxNights?: number | null
+	seasons?: Array<{ from: string; to: string; value?: number | null }>
+}
 
 export type TaxFeeDefinition = {
 	id: string
@@ -21,6 +36,8 @@ export type TaxFeeDefinition = {
 	effectiveFrom: Date | null
 	effectiveTo: Date | null
 	status: TaxFeeStatus
+	editingState?: TaxFeeEditingState
+	currentVersionId?: string | null
 	createdAt: Date
 	updatedAt: Date
 }
@@ -32,6 +49,8 @@ export type TaxFeeAssignment = {
 	scopeId: string | null
 	channel: string | null
 	status: TaxFeeStatus
+	effectiveFrom?: Date | null
+	effectiveTo?: Date | null
 	createdAt: Date
 }
 
@@ -58,6 +77,8 @@ export type TaxFeeLine = {
 	appliesPer: TaxFeeAppliesPer
 	priority: number
 	amount: number
+	collectionResponsibility: TaxFeeCollectionResponsibility
+	taxableBase: TaxFeeTaxableBase
 	source: TaxFeeSource
 }
 
