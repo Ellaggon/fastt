@@ -1,0 +1,18 @@
+---
+interface Props {
+	canManageFiscality: boolean
+}
+
+const { canManageFiscality } = Astro.props
+---
+
+{
+	!canManageFiscality ? (
+		<div
+			class="border-b border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900 sm:px-6"
+			role="status"
+		>
+			Modo consulta. Solo miembros con permiso de fiscalidad pueden publicar o modificar reglas.
+		</div>
+	) : null
+}

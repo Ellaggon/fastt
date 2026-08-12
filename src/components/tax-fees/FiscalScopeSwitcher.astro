@@ -1,0 +1,41 @@
+---
+interface ScopeOption {
+	id: string
+	label: string
+}
+
+interface Props {
+	options?: ScopeOption[]
+	selectedId?: string | null
+}
+
+const { options = [], selectedId = null } = Astro.props
+---
+
+{
+	options.length > 1 ? (
+		<form method="get" class="flex min-w-0 items-center gap-2" aria-label="Contexto fiscal">
+			{[...Astro.url.searchParams.entries()]
+				.filter(([key]) => key !== "scope")
+				.map(([key, value]) => (
+					<input type="hidden" name={key} value={value} />
+				))}
+			<label class="sr-only" for="fiscal-scope">
+				Producto
+			</label>
+			<select
+				id="fiscal-scope"
+				name="scope"
+				class="fastt-field h-9 max-w-56 border border-slate-300 px-3 text-sm font-medium text-slate-700 outline-none focus:border-slate-950 focus:ring-2 focus:ring-slate-950/10"
+				onchange="this.form.requestSubmit()"
+			>
+				<option value="">Toda la cuenta</option>
+				{options.map((option) => (
+					<option value={option.id} selected={option.id === selectedId}>
+						{option.label}
+					</option>
+				))}
+			</select>
+		</form>
+	) : null
+}

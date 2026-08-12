@@ -1,0 +1,38 @@
+---
+interface Props {
+	identityLabel: string
+	isIdentityConfigured: boolean
+	conflictCount?: number
+	pendingSyncCount?: number
+}
+
+const { identityLabel, isIdentityConfigured, conflictCount = 0, pendingSyncCount = 0 } = Astro.props
+---
+
+<div
+	class="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-200 bg-slate-50 px-4 py-2.5 text-xs sm:px-6"
+>
+	<a
+		href="/provider/settings/verification/fiscal"
+		class="inline-flex items-center gap-2 font-medium text-slate-700 hover:text-slate-950"
+	>
+		<span
+			class={`size-1.5 rounded-full ${isIdentityConfigured ? "bg-emerald-600" : "bg-amber-500"}`}
+		></span>
+		Identidad fiscal: {identityLabel}
+	</a>
+	{
+		conflictCount > 0 ? (
+			<span class="fastt-notice inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 font-semibold text-amber-800">
+				{conflictCount} {conflictCount === 1 ? "conflicto" : "conflictos"}
+			</span>
+		) : null
+	}
+	{
+		pendingSyncCount > 0 ? (
+			<span class="fastt-notice inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 font-semibold text-sky-800">
+				{pendingSyncCount} sincronizaciones pendientes
+			</span>
+		) : null
+	}
+</div>

@@ -7,6 +7,7 @@ type CalculationType = "percentage" | "fixed"
 type AppliesPer = "stay" | "night" | "guest" | "guest_night"
 type InclusionType = "included" | "excluded"
 type ScopeType = "product" | "variant" | "rate_plan" | "provider"
+type CollectionResponsibility = "provider" | "platform" | "marketplace"
 
 export type DefinitionSummary = {
 	id: string
@@ -19,9 +20,36 @@ export type DefinitionSummary = {
 	inclusionType: InclusionType
 	appliesPer: AppliesPer
 	priority: number
+	jurisdictionJson?: unknown | null
 	effectiveFrom: string | null
 	effectiveTo: string | null
 	status: "active" | "archived"
+	operationalStatus?:
+		| "draft"
+		| "scheduled"
+		| "active"
+		| "paused"
+		| "expired"
+		| "conflict"
+		| "archived"
+	revision?: number
+	currentVersion?: {
+		id: string
+		version: number
+		publicationState: "published" | "scheduled"
+		createdAt: string
+		createdByUserId?: string | null
+	} | null
+	lastChangedAt?: string | null
+	assignments?: Array<{
+		id: string
+		scope: ScopeType
+		scopeId: string | null
+		channel: string | null
+		status: "active" | "archived"
+		createdAt: string
+	}>
+	auditTrail?: Array<{ action: string; createdAt: string }>
 }
 
 export type ApiWarning = {
@@ -51,6 +79,12 @@ type PreviewResult = {
 		hasIncluded: boolean
 		hasExcluded: boolean
 	}
+	context?: {
+		productId: string
+		variantId: string | null
+		ratePlanId: string | null
+		channel: string
+	}
 }
 
 type WarningGroup = {
@@ -73,17 +107,34 @@ export type TaxFeeScopeResources = {
 	}>
 }
 
+export type TaxFeeSuggestedDraft = {
+	id: string
+	title: string
+	reviewNote: string
+	draft: {
+		kind: TaxFeeKind
+		name: string
+		code: string
+		calculationType: CalculationType
+		appliesPer: AppliesPer
+		inclusionType: InclusionType
+		collectionResponsibility: CollectionResponsibility
+		country: string
+	}
+}
+
 type TaxFeeWizardProps = {
 	initialDefinitions: DefinitionSummary[]
 	initialWarnings: ApiWarning[]
 	initialMode?: TaxFeeWizardMode
 	initialDefinitionId?: string | null
+	initialDuplicateDefinitionId?: string | null
 	initialResources: TaxFeeScopeResources
 	showDefinitionsSidebar?: boolean
 	onDefinitionsChange?: (definitions: DefinitionSummary[], warnings: ApiWarning[]) => void
-	onAssignmentSuccess?: (message: string) => void
 	onEditingComplete?: (message: string) => void
 	onCancel?: () => void
+	initialSuggestion?: TaxFeeSuggestedDraft | null
 }
 
 type DraftState = {
@@ -102,6 +153,15 @@ type DraftState = {
 	channel: string
 	effectiveFrom: string
 	effectiveTo: string
+	jurisdictionCountry: string
+	guestResidenceExempt: string
+	collectionResponsibility: CollectionResponsibility
+	taxableBase: "booking_base" | "base_plus_included"
+	maxAmount: string
+	maxNights: string
+	seasonFrom: string
+	seasonTo: string
+	seasonValue: string
 	base: string
 	checkIn: string
 	checkOut: string
@@ -174,12 +234,11 @@ const PRESETS: Preset[] = [
 ]
 
 const STEP_LABELS = [
-	{ id: 1, title: "Tipo" },
-	{ id: 2, title: "Preset" },
-	{ id: 3, title: "Monto" },
-	{ id: 4, title: "Alcance" },
-	{ id: 5, title: "Revisión" },
-	{ id: 6, title: "Vista previa" },
+	{ id: 1, title: "Identidad" },
+	{ id: 2, title: "Cálculo" },
+	{ id: 3, title: "Jurisdicción" },
+	{ id: 4, title: "Recaudación y vigencia" },
+	{ id: 5, title: "Revisión y publicación" },
 ]
 
 const APPLIES_PER_OPTIONS: Array<{ value: AppliesPer; label: string }> = [
@@ -261,6 +320,15 @@ const initialDraft: DraftState = {
 	channel: "",
 	effectiveFrom: "",
 	effectiveTo: "",
+	jurisdictionCountry: "",
+	guestResidenceExempt: "",
+	collectionResponsibility: "provider",
+	taxableBase: "booking_base",
+	maxAmount: "",
+	maxNights: "",
+	seasonFrom: "",
+	seasonTo: "",
+	seasonValue: "",
 	base: "100",
 	checkIn: makeTomorrow(7),
 	checkOut: makeTomorrow(8),
@@ -319,6 +387,13 @@ function formatDateForInput(value: string | null) {
 }
 
 function mapDefinitionToDraft(definition: DefinitionSummary): DraftState {
+	const rule =
+		definition.jurisdictionJson && typeof definition.jurisdictionJson === "object"
+			? (definition.jurisdictionJson as Record<string, unknown>)
+			: {}
+	const seasons = Array.isArray(rule.seasons) ? rule.seasons : []
+	const season =
+		seasons[0] && typeof seasons[0] === "object" ? (seasons[0] as Record<string, unknown>) : {}
 	return {
 		...initialDraft,
 		kind: definition.kind,
@@ -334,6 +409,21 @@ function mapDefinitionToDraft(definition: DefinitionSummary): DraftState {
 		inclusionType: definition.inclusionType,
 		effectiveFrom: formatDateForInput(definition.effectiveFrom),
 		effectiveTo: formatDateForInput(definition.effectiveTo),
+		jurisdictionCountry: String(rule.country ?? ""),
+		guestResidenceExempt: Array.isArray(rule.exemptGuestResidenceCountries)
+			? rule.exemptGuestResidenceCountries.map(String).join(", ")
+			: "",
+		collectionResponsibility:
+			rule.collectionResponsibility === "platform" ||
+			rule.collectionResponsibility === "marketplace"
+				? rule.collectionResponsibility
+				: "provider",
+		taxableBase: rule.taxableBase === "base_plus_included" ? "base_plus_included" : "booking_base",
+		maxAmount: rule.maxAmount == null ? "" : String(rule.maxAmount),
+		maxNights: rule.maxNights == null ? "" : String(rule.maxNights),
+		seasonFrom: String(season.from ?? ""),
+		seasonTo: String(season.to ?? ""),
+		seasonValue: season.value == null ? "" : String(season.value),
 	}
 }
 
@@ -375,7 +465,6 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 	const [hasSuccessfulPreview, setHasSuccessfulPreview] = useState(false)
 	const [isSavingDefinition, setIsSavingDefinition] = useState(false)
 	const [isPreviewLoading, setIsPreviewLoading] = useState(false)
-	const [isSavingAssignment, setIsSavingAssignment] = useState(false)
 	const [errorMessage, setErrorMessage] = useState<string | null>(null)
 	const [successMessage, setSuccessMessage] = useState<string | null>(null)
 	const [isRefreshingDefinitions, setIsRefreshingDefinitions] = useState(false)
@@ -400,7 +489,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 	const excludedLines = previewResult
 		? [...previewResult.breakdown.taxes.excluded, ...previewResult.breakdown.fees.excluded]
 		: []
-	const showDefinitionsSidebar = props.showDefinitionsSidebar !== false
+	const showDefinitionsSidebar = false
 	const selectableVariants = useMemo(
 		() =>
 			props.initialResources.variants.filter((variant) => variant.productId === draft.productId),
@@ -418,6 +507,18 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 			),
 		[props.initialResources.ratePlans, selectedVariantId]
 	)
+	const changedFields = useMemo(() => {
+		const current = editingDefinitionId
+			? definitions.find((definition) => definition.id === editingDefinitionId)
+			: null
+		if (!current) return ["Nueva regla"]
+		const changes: string[] = []
+		if (current.name !== draft.name) changes.push("nombre")
+		if (current.value !== Number(draft.value)) changes.push("monto")
+		if (current.appliesPer !== draft.appliesPer) changes.push("frecuencia")
+		if (current.inclusionType !== draft.inclusionType) changes.push("presentación al huésped")
+		return changes.length ? changes : ["Sin cambios materiales"]
+	}, [definitions, draft, editingDefinitionId])
 
 	useEffect(() => {
 		setDraft((current) => {
@@ -444,21 +545,37 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 		setListWarnings(props.initialWarnings)
 	}, [props.initialWarnings])
 
+	useEffect(() => {
+		const suggestion = props.initialSuggestion
+		if (!suggestion || props.initialMode !== "creating") return
+		setDraft({
+			...initialDraft,
+			kind: suggestion.draft.kind,
+			presetKey: "CUSTOM",
+			name: suggestion.draft.name,
+			code: suggestion.draft.code,
+			calculationType: suggestion.draft.calculationType,
+			appliesPer: suggestion.draft.appliesPer,
+			inclusionType: suggestion.draft.inclusionType,
+			jurisdictionCountry: suggestion.draft.country,
+			collectionResponsibility: suggestion.draft.collectionResponsibility,
+		})
+		setStep(2)
+	}, [props.initialMode, props.initialSuggestion])
+
 	const stepValid =
 		step === 1
 			? !!draft.kind
 			: step === 2
-				? !!draft.presetKey
+				? draft.calculationType !== null &&
+					Number(draft.value) > 0 &&
+					(draft.calculationType === "percentage" || draft.currency.trim().length > 0)
 				: step === 3
-					? draft.calculationType !== null &&
-						Number(draft.value) > 0 &&
-						(draft.calculationType === "percentage" || draft.currency.trim().length > 0)
+					? draft.scopeId.trim().length > 0 && draft.productId.trim().length > 0
 					: step === 4
-						? draft.scopeId.trim().length > 0 && draft.productId.trim().length > 0
-						: step === 5
-							? draft.name.trim().length > 0 &&
-								isValidDateRange(draft.effectiveFrom, draft.effectiveTo)
-							: hasSuccessfulPreview
+						? draft.name.trim().length > 0 &&
+							isValidDateRange(draft.effectiveFrom, draft.effectiveTo)
+						: hasSuccessfulPreview
 
 	function invalidatePreview() {
 		setPreviewResult(null)
@@ -520,6 +637,15 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 			}
 		}
 	}, [props.initialMode, props.initialDefinitionId, definitions, editingDefinitionId, definitionId])
+
+	useEffect(() => {
+		if (props.initialMode !== "creating" || !props.initialDuplicateDefinitionId) return
+		const source = definitions.find((item) => item.id === props.initialDuplicateDefinitionId)
+		if (!source) return
+		const duplicate = mapDefinitionToDraft(source)
+		setDraft({ ...duplicate, name: `Copia de ${source.name}`, code: "" })
+		setStep(1)
+	}, [props.initialMode, props.initialDuplicateDefinitionId, definitions])
 
 	function changeScope(scope: ScopeType) {
 		setDraft((current) => {
@@ -640,7 +766,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 		invalidatePreview()
 	}
 
-	async function persistDefinition() {
+	async function persistDefinition(publicationMode: "draft" | "publish" | "schedule" = "draft") {
 		setIsSavingDefinition(true)
 		setErrorMessage(null)
 		setSuccessMessage(null)
@@ -657,7 +783,32 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 			if (draft.calculationType === "fixed") form.set("currency", draft.currency)
 			form.set("inclusionType", draft.inclusionType)
 			form.set("appliesPer", draft.appliesPer)
-			form.set("status", "active")
+			form.set("status", publicationMode === "draft" ? "archived" : "active")
+			form.set("publicationMode", publicationMode)
+			const jurisdictionJson = {
+				...(draft.jurisdictionCountry.trim()
+					? { country: draft.jurisdictionCountry.trim().toUpperCase() }
+					: {}),
+				collectionResponsibility: draft.collectionResponsibility,
+				taxableBase: draft.taxableBase,
+				exemptGuestResidenceCountries: draft.guestResidenceExempt
+					.split(",")
+					.map((country) => country.trim().toUpperCase())
+					.filter(Boolean),
+				...(Number(draft.maxAmount) > 0 ? { maxAmount: Number(draft.maxAmount) } : {}),
+				...(Number(draft.maxNights) > 0 ? { maxNights: Number(draft.maxNights) } : {}),
+				seasons:
+					draft.seasonFrom && draft.seasonTo
+						? [
+								{
+									from: draft.seasonFrom,
+									to: draft.seasonTo,
+									...(Number(draft.seasonValue) > 0 ? { value: Number(draft.seasonValue) } : {}),
+								},
+							]
+						: [],
+			}
+			form.set("jurisdictionJson", JSON.stringify(jurisdictionJson))
 			if (draft.effectiveFrom) form.set("effectiveFrom", draft.effectiveFrom)
 			if (draft.effectiveTo) form.set("effectiveTo", draft.effectiveTo)
 
@@ -679,11 +830,13 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 			setPreviewWarnings(Array.isArray(body?.warnings) ? body.warnings : [])
 			await refreshDefinitions()
 			setSuccessMessage(
-				editingDefinitionId
-					? "Definición actualizada. Ejecuta una vista previa antes de asignar."
-					: "Definición guardada. Ejecuta una vista previa antes de asignar."
+				publicationMode === "draft"
+					? "Borrador guardado. Ejecuta una simulación antes de publicar."
+					: publicationMode === "schedule"
+						? "Versión programada correctamente."
+						: "Versión publicada correctamente."
 			)
-			setStep(6)
+			setStep(5)
 		} catch (error) {
 			setErrorMessage(error instanceof Error ? error.message : "No se pudo guardar la definición")
 		} finally {
@@ -698,6 +851,11 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 		try {
 			const form = new FormData()
 			form.set("productId", draft.productId.trim())
+			if (definitionId) form.set("taxFeeDefinitionId", definitionId)
+			if (draft.scope === "variant") form.set("variantId", draft.scopeId.trim())
+			if (draft.scope === "rate_plan") form.set("ratePlanId", draft.scopeId.trim())
+			if (draft.channel.trim()) form.set("channel", draft.channel.trim())
+			if (draft.jurisdictionCountry.trim()) form.set("country", draft.jurisdictionCountry.trim())
 			form.set("base", draft.base || "100")
 			form.set("checkIn", draft.checkIn)
 			form.set("checkOut", draft.checkOut)
@@ -730,48 +888,13 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 		}
 	}
 
-	async function saveAssignment() {
-		if (!definitionId) return
-		setIsSavingAssignment(true)
-		setErrorMessage(null)
-		setSuccessMessage(null)
-		try {
-			const form = new FormData()
-			form.set("taxFeeDefinitionId", definitionId)
-			form.set("scope", draft.scope)
-			form.set("scopeId", draft.scopeId.trim())
-			if (draft.channel.trim()) form.set("channel", draft.channel.trim())
-
-			const response = await fetch("/api/provider/tax-fees/assignments", {
-				method: "POST",
-				body: form,
-			})
-			const body = await readJsonSafe(response)
-			if (!response.ok) {
-				throw new Error(
-					readableApiError(body?.message || body?.error, "No se pudo guardar la asignación")
-				)
-			}
-
-			setListWarnings(Array.isArray(body?.warnings) ? body.warnings : [])
-			await refreshDefinitions()
-			setSuccessMessage("Definición asignada correctamente.")
-			resetWizard()
-			props.onAssignmentSuccess?.("Impuesto o cargo asignado correctamente.")
-		} catch (error) {
-			setErrorMessage(error instanceof Error ? error.message : "No se pudo guardar la asignación")
-		} finally {
-			setIsSavingAssignment(false)
-		}
-	}
-
 	function nextStep() {
-		if (!stepValid || step >= 6) return
-		if (step === 5) {
-			void persistDefinition()
+		if (!stepValid || step >= 5) return
+		if (step === 4) {
+			void persistDefinition("draft")
 			return
 		}
-		setStep((current) => Math.min(current + 1, 6))
+		setStep((current) => Math.min(current + 1, 5))
 	}
 
 	function previousStep() {
@@ -867,7 +990,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 					</Card>
 				)}
 
-				<Card as="section">
+				<section>
 					<div className="mb-6 flex flex-wrap gap-3">
 						{STEP_LABELS.map((item) => {
 							const active = item.id === step
@@ -876,12 +999,12 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 								<div
 									key={item.id}
 									className={[
-										"flex items-center gap-3 rounded-full border px-4 py-2 text-sm",
+										"flex items-center gap-2 border-b-2 px-2 py-2 text-sm",
 										active
-											? "border-slate-950 bg-slate-950 text-white"
+											? "border-slate-950 text-slate-950"
 											: complete
-												? "border-slate-300 bg-slate-100 text-slate-700"
-												: "border-slate-200 bg-white text-slate-500",
+												? "border-slate-400 text-slate-700"
+												: "border-transparent text-slate-500",
 									].join(" ")}
 								>
 									<span className="font-semibold">{item.id}</span>
@@ -900,6 +1023,16 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 					{successMessage && (
 						<Notice variant="success" className="mb-4">
 							{successMessage}
+						</Notice>
+					)}
+
+					{props.initialSuggestion && !editingDefinitionId && (
+						<Notice
+							variant="warning"
+							title={`Borrador sugerido: ${props.initialSuggestion.title}`}
+							className="mb-4"
+						>
+							{props.initialSuggestion.reviewNote}
 						</Notice>
 					)}
 
@@ -940,34 +1073,27 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 									</ChoiceCard>
 								))}
 							</div>
+							{draft.kind ? (
+								<div className="border-t border-slate-200 pt-5">
+									<p className="text-sm font-semibold text-slate-900">Configuración inicial</p>
+									<div className="mt-3 grid gap-3 md:grid-cols-2">
+										{filteredPresets.map((preset) => (
+											<ChoiceCard
+												key={preset.key}
+												selected={draft.presetKey === preset.key}
+												onClick={() => selectPreset(preset)}
+											>
+												<div className="text-sm font-semibold text-slate-950">{preset.label}</div>
+												<p className="mt-1 text-sm text-slate-600">{preset.description}</p>
+											</ChoiceCard>
+										))}
+									</div>
+								</div>
+							) : null}
 						</div>
 					)}
 
 					{step === 2 && (
-						<div className="space-y-4">
-							<div>
-								<h2 className="text-2xl font-semibold text-slate-950">Elige un preset inicial</h2>
-								<p className="mt-2 text-sm text-slate-600">
-									Parte desde la opción más cercana. El asistente completa la configuración común
-									para que solo confirmes los detalles importantes.
-								</p>
-							</div>
-							<div className="grid gap-4 md:grid-cols-2">
-								{filteredPresets.map((preset) => (
-									<ChoiceCard
-										key={preset.key}
-										selected={draft.presetKey === preset.key}
-										onClick={() => selectPreset(preset)}
-									>
-										<div className="text-base font-semibold text-slate-950">{preset.label}</div>
-										<p className="mt-2 text-sm text-slate-600">{preset.description}</p>
-									</ChoiceCard>
-								))}
-							</div>
-						</div>
-					)}
-
-					{step === 3 && (
 						<div className="space-y-6">
 							<div>
 								<h2 className="text-2xl font-semibold text-slate-950">Define el monto</h2>
@@ -1078,7 +1204,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 						</div>
 					)}
 
-					{step === 4 && (
+					{step === 3 && (
 						<div className="space-y-6">
 							<div>
 								<h2 className="text-2xl font-semibold text-slate-950">Elige dónde se aplicará</h2>
@@ -1185,7 +1311,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 						</div>
 					)}
 
-					{step === 5 && (
+					{step === 4 && (
 						<div className="space-y-6">
 							<div>
 								<h2 className="text-2xl font-semibold text-slate-950">Detalles de revisión</h2>
@@ -1249,6 +1375,94 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 								</label>
 							</div>
 
+							<div className="border-t border-slate-200 pt-5">
+								<p className="text-sm font-semibold text-slate-900">Regla fiscal avanzada</p>
+								<p className="mt-1 text-sm text-slate-600">
+									Configura solo los límites que correspondan a tu obligación local.
+								</p>
+								<div className="mt-4 grid gap-4 md:grid-cols-2">
+									<label className="flex flex-col gap-2">
+										<span className="text-sm font-medium text-slate-700">País de jurisdicción</span>
+										<Input
+											placeholder="CL"
+											maxLength={2}
+											value={draft.jurisdictionCountry}
+											onChange={(event) => updateDraft({ jurisdictionCountry: event.target.value })}
+										/>
+									</label>
+									<label className="flex flex-col gap-2">
+										<span className="text-sm font-medium text-slate-700">
+											Responsable de recaudar
+										</span>
+										<Select
+											value={draft.collectionResponsibility}
+											onChange={(event) =>
+												updateDraft({
+													collectionResponsibility: event.target.value as CollectionResponsibility,
+												})
+											}
+										>
+											<option value="provider">Proveedor</option>
+											<option value="platform">Plataforma</option>
+											<option value="marketplace">Marketplace</option>
+										</Select>
+									</label>
+									<label className="flex flex-col gap-2">
+										<span className="text-sm font-medium text-slate-700">Tope por reserva</span>
+										<Input
+											type="number"
+											min="0"
+											step="0.01"
+											value={draft.maxAmount}
+											onChange={(event) => updateDraft({ maxAmount: event.target.value })}
+										/>
+									</label>
+									<label className="flex flex-col gap-2">
+										<span className="text-sm font-medium text-slate-700">
+											Máximo de noches cobrables
+										</span>
+										<Input
+											type="number"
+											min="0"
+											step="1"
+											value={draft.maxNights}
+											onChange={(event) => updateDraft({ maxNights: event.target.value })}
+										/>
+									</label>
+									<label className="flex flex-col gap-2 md:col-span-2">
+										<span className="text-sm font-medium text-slate-700">
+											Excepción por residencia
+										</span>
+										<Input
+											placeholder="CL, AR"
+											value={draft.guestResidenceExempt}
+											onChange={(event) =>
+												updateDraft({ guestResidenceExempt: event.target.value })
+											}
+										/>
+										<p className="text-xs text-slate-500">
+											Códigos de país de huéspedes exentos, separados por coma.
+										</p>
+									</label>
+									<label className="flex flex-col gap-2">
+										<span className="text-sm font-medium text-slate-700">Temporada desde</span>
+										<Input
+											placeholder="AAAA-MM-DD"
+											value={draft.seasonFrom}
+											onChange={(event) => updateDraft({ seasonFrom: event.target.value })}
+										/>
+									</label>
+									<label className="flex flex-col gap-2">
+										<span className="text-sm font-medium text-slate-700">Temporada hasta</span>
+										<Input
+											placeholder="AAAA-MM-DD"
+											value={draft.seasonTo}
+											onChange={(event) => updateDraft({ seasonTo: event.target.value })}
+										/>
+									</label>
+								</div>
+							</div>
+
 							<div className="fastt-soft-box rounded-[var(--fastt-radius-card)] border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
 								<p className="font-medium text-slate-900">
 									Los campos internos se gestionan automáticamente
@@ -1261,15 +1475,15 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 						</div>
 					)}
 
-					{step === 6 && (
+					{step === 5 && (
 						<div className="space-y-6">
 							<div>
 								<h2 className="text-2xl font-semibold text-slate-950">
 									Ejecuta una vista previa real
 								</h2>
 								<p className="mt-2 text-sm text-slate-600">
-									La simulación usa el backend real para revisar cómo verá el huésped el precio
-									antes de asignar la regla.
+									La simulación usa el cálculo real y la definición actual, incluso antes de
+									publicarla en un alcance.
 								</p>
 							</div>
 
@@ -1340,9 +1554,19 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 									</Badge>
 								)}
 							</div>
+							<div className="border-l-2 border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+								<p className="font-semibold text-slate-950">Cambios por publicar</p>
+								<p className="mt-1">
+									{changedFields.join(" · ")}. Se generará una versión inmutable al publicar.
+								</p>
+							</div>
 
 							{previewResult && (
 								<div className="fastt-soft-box space-y-4 rounded-[var(--fastt-radius-card)] border border-slate-200 bg-slate-50 p-5">
+									<p className="text-xs font-medium text-slate-500">
+										Contexto: {draft.scope === "provider" ? "Toda la cuenta" : draft.scope}
+										{draft.channel.trim() ? ` · ${draft.channel.trim()}` : " · web"}
+									</p>
 									<div className="rounded-[var(--fastt-radius-card)] bg-white p-4">
 										<p className="text-sm font-medium text-slate-700">Precio</p>
 										<p className="mt-1 text-2xl font-semibold text-slate-950">
@@ -1441,9 +1665,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 							<Button
 								type="button"
 								onClick={previousStep}
-								disabled={
-									step === 1 || isSavingDefinition || isPreviewLoading || isSavingAssignment
-								}
+								disabled={step === 1 || isSavingDefinition || isPreviewLoading}
 								variant="secondary"
 							>
 								Volver
@@ -1451,10 +1673,14 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 							<Button
 								type="button"
 								onClick={() => {
+									if (
+										!window.confirm("Se descartarán los cambios sin publicar. ¿Quieres continuar?")
+									)
+										return
 									resetWizard()
 									props.onCancel?.()
 								}}
-								disabled={isSavingDefinition || isPreviewLoading || isSavingAssignment}
+								disabled={isSavingDefinition || isPreviewLoading}
 								variant="secondary"
 							>
 								Reiniciar
@@ -1462,48 +1688,43 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 						</div>
 
 						<div className="flex gap-3">
-							{step < 6 && (
+							{step < 5 && (
 								<Button
 									type="button"
 									onClick={nextStep}
 									disabled={!stepValid || isSavingDefinition}
 								>
-									{step === 5
+									{step === 4
 										? isSavingDefinition
 											? "Guardando..."
-											: "Guardar definición"
+											: "Guardar borrador y revisar"
 										: "Siguiente"}
 								</Button>
 							)}
 
-							{step === 6 && !editingDefinitionId && (
-								<Button
-									type="button"
-									onClick={() => void saveAssignment()}
-									disabled={!hasSuccessfulPreview || !definitionId || isSavingAssignment}
-									variant="success"
-								>
-									{isSavingAssignment ? "Guardando..." : "Guardar y asignar"}
-								</Button>
-							)}
-
-							{step === 6 && editingDefinitionId && (
-								<Button
-									type="button"
-									onClick={() => {
-										setSuccessMessage("Cambios guardados.")
-										void refreshDefinitions()
-										props.onEditingComplete?.("Impuesto o cargo actualizado correctamente.")
-									}}
-									disabled={!hasSuccessfulPreview}
-									variant="success"
-								>
-									Finalizar edición
-								</Button>
+							{step === 5 && (
+								<>
+									<Button
+										type="button"
+										onClick={() => void persistDefinition("publish")}
+										disabled={!hasSuccessfulPreview || isSavingDefinition}
+										variant="success"
+									>
+										{isSavingDefinition ? "Publicando..." : "Publicar ahora"}
+									</Button>
+									<Button
+										type="button"
+										onClick={() => void persistDefinition("schedule")}
+										disabled={!hasSuccessfulPreview || isSavingDefinition || !draft.effectiveFrom}
+										variant="secondary"
+									>
+										Programar
+									</Button>
+								</>
 							)}
 						</div>
 					</div>
-				</Card>
+				</section>
 			</section>
 		</div>
 	)
