@@ -2043,6 +2043,105 @@ export const TaxFeeDefinitionVersion = pgTable(
 	]
 )
 
+/** Append-only fiscal operations ledger. It never backs an editable UI surface. */
+export const FiscalActivityEvent = pgTable(
+	"FiscalActivityEvent",
+	{
+		id: pk(),
+		providerId: txt("providerId").references(() => Provider.id),
+		eventType: txt("eventType"),
+		definitionId: txtOpt("definitionId").references(() => TaxFeeDefinition.id),
+		definitionVersionId: txtOpt("definitionVersionId").references(() => TaxFeeDefinitionVersion.id),
+		productId: txtOpt("productId").references(() => Product.id),
+		channel: txtOpt("channel"),
+		syncRunId: txtOpt("syncRunId").references(() => ProviderIntegrationSyncRun.id),
+		actorUserId: txtOpt("actorUserId").references(() => User.id),
+		actorRole: txtOpt("actorRole"),
+		correlationId: txtOpt("correlationId"),
+		result: text("result").default("succeeded").notNull(),
+		riskLevel: text("riskLevel").default("low").notNull(),
+		beforeJson: jsonb("beforeJson"),
+		afterJson: jsonb("afterJson"),
+		contextJson: jsonb("contextJson"),
+		createdAt: now("createdAt"),
+	},
+	(table) => [
+		index("FiscalActivityEvent_provider_created_idx").on(table.providerId, table.createdAt),
+		index("FiscalActivityEvent_provider_type_created_idx").on(
+			table.providerId,
+			table.eventType,
+			table.createdAt
+		),
+		index("FiscalActivityEvent_correlation_idx").on(table.correlationId),
+	]
+)
+
+export const FiscalExportJob = pgTable(
+	"FiscalExportJob",
+	{
+		id: pk(),
+		providerId: txt("providerId").references(() => Provider.id),
+		requestedByUserId: txtOpt("requestedByUserId").references(() => User.id),
+		format: txt("format"),
+		status: text("status").default("requested").notNull(),
+		from: day("from"),
+		to: day("to"),
+		correlationId: txt("correlationId"),
+		createdAt: now("createdAt"),
+		completedAt: ts("completedAt"),
+	},
+	(table) => [index("FiscalExportJob_provider_created_idx").on(table.providerId, table.createdAt)]
+)
+
+export const FiscalReconciliationCase = pgTable(
+	"FiscalReconciliationCase",
+	{
+		id: pk(),
+		providerId: txt("providerId").references(() => Provider.id),
+		bookingId: txt("bookingId").references(() => Booking.id),
+		status: text("status").default("open").notNull(),
+		assigneeUserId: txtOpt("assigneeUserId").references(() => User.id),
+		resolutionComment: txtOpt("resolutionComment"),
+		evidenceJson: jsonb("evidenceJson").notNull(),
+		openedAt: now("openedAt"),
+		resolvedAt: ts("resolvedAt"),
+		resolvedByUserId: txtOpt("resolvedByUserId").references(() => User.id),
+	},
+	(table) => [
+		index("FiscalReconciliationCase_provider_status_idx").on(table.providerId, table.status),
+		uniqueIndex("FiscalReconciliationCase_provider_booking_unique").on(
+			table.providerId,
+			table.bookingId
+		),
+	]
+)
+
+export const FiscalChannelPublication = pgTable(
+	"FiscalChannelPublication",
+	{
+		id: pk(),
+		providerId: txt("providerId").references(() => Provider.id),
+		definitionId: txt("definitionId").references(() => TaxFeeDefinition.id),
+		definitionVersionId: txtOpt("definitionVersionId").references(() => TaxFeeDefinitionVersion.id),
+		connectionId: txt("connectionId").references(() => ProviderIntegrationConnection.id),
+		channel: txt("channel"),
+		syncRunId: txtOpt("syncRunId").references(() => ProviderIntegrationSyncRun.id),
+		status: text("status").default("pending").notNull(),
+		divergenceJson: jsonb("divergenceJson"),
+		payloadJson: jsonb("payloadJson"),
+		confirmedAt: ts("confirmedAt"),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		uniqueIndex("FiscalChannelPublication_version_connection_unique").on(
+			table.definitionVersionId,
+			table.connectionId
+		),
+		index("FiscalChannelPublication_provider_status_idx").on(table.providerId, table.status),
+	]
+)
+
 export const TaxFeeAssignment = pgTable(
 	"TaxFeeAssignment",
 	{

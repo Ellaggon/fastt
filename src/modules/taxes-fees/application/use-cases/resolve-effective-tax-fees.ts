@@ -12,6 +12,7 @@ const VALID_INCLUSION = ["included", "excluded"] as const
 
 function isValidDefinition(def: TaxFeeDefinition, now: Date): boolean {
 	if (def.status !== "active") return false
+	if (def.editingState === "draft") return false
 	if (def.effectiveFrom && def.effectiveFrom > now) return false
 	if (def.effectiveTo && def.effectiveTo < now) return false
 	if (!VALID_KINDS.includes(def.kind)) return false

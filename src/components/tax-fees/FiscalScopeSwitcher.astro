@@ -1,41 +1,139 @@
 ---
+import { ChevronDown } from "@lucide/astro"
+
 interface ScopeOption {
 	id: string
 	label: string
 }
-
 interface Props {
 	options?: ScopeOption[]
 	selectedId?: string | null
 }
-
 const { options = [], selectedId = null } = Astro.props
+const selected = options.find((option) => option.id === selectedId)
+const currentLabel = selected?.label ?? "Toda la cuenta"
+const hrefFor = (scopeId: string | null) => {
+	const search = new URLSearchParams(Astro.url.searchParams)
+	if (scopeId) search.set("scope", scopeId)
+	else search.delete("scope")
+	const query = search.toString()
+	return `${Astro.url.pathname}${query ? `?${query}` : ""}`
+}
 ---
 
-{
-	options.length > 1 ? (
-		<form method="get" class="flex min-w-0 items-center gap-2" aria-label="Contexto fiscal">
-			{[...Astro.url.searchParams.entries()]
-				.filter(([key]) => key !== "scope")
-				.map(([key, value]) => (
-					<input type="hidden" name={key} value={value} />
-				))}
-			<label class="sr-only" for="fiscal-scope">
-				Producto
-			</label>
-			<select
-				id="fiscal-scope"
-				name="scope"
-				class="fastt-field h-9 max-w-56 border border-slate-300 px-3 text-sm font-medium text-slate-700 outline-none focus:border-slate-950 focus:ring-2 focus:ring-slate-950/10"
-				onchange="this.form.requestSubmit()"
-			>
-				<option value="">Toda la cuenta</option>
-				{options.map((option) => (
-					<option value={option.id} selected={option.id === selectedId}>
-						{option.label}
-					</option>
-				))}
-			</select>
-		</form>
-	) : null
-}
+<details class="fiscal-context-switcher" data-fiscal-context-switcher>
+	<summary class="fiscal-context-switcher__trigger" aria-label="Cambiar contexto comercial">
+		<ChevronDown class="h-4 w-4 shrink-0" aria-hidden="true" />
+		<span class="truncate text-xs font-semibold tracking-wide uppercase">{currentLabel}</span>
+	</summary>
+	<div class="fiscal-context-switcher__menu">
+		<p class="px-2 pb-2 text-xs font-semibold tracking-wide text-slate-400 uppercase">
+			Contexto comercial
+		</p>
+		<a
+			href={hrefFor(null)}
+			aria-current={!selectedId ? "page" : undefined}
+			class={`fiscal-context-switcher__option ${!selectedId ? "fiscal-context-switcher__option--active" : ""}`}
+			><span>Toda la cuenta</span>{
+				!selectedId ? <span class="fiscal-context-switcher__current">Actual</span> : null
+			}</a
+		>
+		{
+			options.map((option) => (
+				<a
+					href={hrefFor(option.id)}
+					aria-current={option.id === selectedId ? "page" : undefined}
+					class={`fiscal-context-switcher__option ${option.id === selectedId ? "fiscal-context-switcher__option--active" : ""}`}
+				>
+					<span class="truncate">{option.label}</span>
+					{option.id === selectedId ? (
+						<span class="fiscal-context-switcher__current">Actual</span>
+					) : null}
+				</a>
+			))
+		}
+	</div>
+</details>
+
+<style is:global>
+	.fiscal-context-switcher {
+		position: relative;
+		max-width: min(100%, 24rem);
+	}
+	.fiscal-context-switcher__trigger {
+		display: inline-flex;
+		min-height: 2.125rem;
+		max-width: min(100vw - 2rem, 24rem);
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		cursor: pointer;
+		list-style: none;
+		border: 1px solid rgb(0 0 0);
+		border-radius: var(--fastt-radius-pill);
+		background: rgb(0 0 0);
+		padding: 0.38rem 0.6rem 0.38rem 0.38rem;
+		color: rgb(241 245 249);
+		font-size: 0.875rem;
+		font-weight: 650;
+		transition:
+			border-color var(--fastt-motion-standard) ease,
+			background-color var(--fastt-motion-standard) ease,
+			box-shadow var(--fastt-motion-standard) ease;
+	}
+	.fiscal-context-switcher__trigger::-webkit-details-marker {
+		display: none;
+	}
+	.fiscal-context-switcher__trigger:focus-visible {
+		outline: 2px solid rgb(255 255 255 / 0.92);
+		outline-offset: 2px;
+	}
+	.fiscal-context-switcher[open] > .fiscal-context-switcher__trigger,
+	.fiscal-context-switcher__trigger:hover {
+		border-color: rgb(15 23 42);
+		background: rgb(15 23 42);
+		box-shadow: 0 10px 24px rgb(0 0 0 / 0.16);
+	}
+	.fiscal-context-switcher__menu {
+		position: absolute;
+		top: calc(100% + 0.5rem);
+		left: 0;
+		z-index: 30;
+		width: min(22rem, calc(100vw - 2rem));
+		border: 1px solid rgb(226 232 240 / 0.9);
+		border-radius: 1.1rem;
+		background: rgb(255 255 255 / 0.98);
+		padding: 0.65rem;
+		box-shadow: 0 22px 55px rgb(15 23 42 / 0.16);
+		backdrop-filter: blur(18px);
+	}
+	.fiscal-context-switcher__option {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		border-radius: 0.8rem;
+		padding: 0.65rem 0.7rem;
+		color: rgb(71 85 105);
+		font-size: 0.875rem;
+		font-weight: 600;
+		text-decoration: none;
+	}
+	.fiscal-context-switcher__option:hover {
+		background: rgb(248 250 252);
+		color: rgb(15 23 42);
+	}
+	.fiscal-context-switcher__option--active {
+		background: rgb(241 245 249);
+		color: rgb(15 23 42);
+	}
+	.fiscal-context-switcher__current {
+		flex: none;
+		border-radius: var(--fastt-radius-pill);
+		background: rgb(15 23 42 / 0.08);
+		padding: 0.16rem 0.45rem;
+		font-size: 0.6875rem;
+		font-weight: 700;
+		color: rgb(51 65 85);
+	}
+</style>

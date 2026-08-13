@@ -28,6 +28,7 @@ function definition(partial: Partial<TaxFeeDefinition>): TaxFeeDefinition {
 		effectiveFrom: partial.effectiveFrom ?? null,
 		effectiveTo: partial.effectiveTo ?? null,
 		status: partial.status ?? "active",
+		editingState: partial.editingState,
 		createdAt: partial.createdAt ?? now,
 		updatedAt: partial.updatedAt ?? now,
 	}
@@ -116,6 +117,37 @@ describe("fiscality phase 0 contract", () => {
 		])
 		expect(activeUnassigned.status).toBe("active")
 		expect(duplicateAssignments).toHaveLength(2)
+	})
+
+	it("does not report missing sales coverage for a draft", () => {
+		const draft = definition({
+			id: "draft",
+			status: "active",
+			editingState: "draft",
+			jurisdictionJson: null,
+		})
+		const audit = auditFiscalityConfiguration({ definitions: [draft], assignments: [], now })
+
+		expect(audit.summary.activeWithoutAssignment).toBe(0)
+		expect(audit.findings.map((finding) => finding.code)).toEqual(["missing_jurisdiction"])
+	})
+
+	it("never resolves a draft into a sellable fiscal result", async () => {
+		const { resolveEffectiveTaxFees } = await import(
+			"@/modules/taxes-fees/application/use-cases/resolve-effective-tax-fees"
+		)
+		const draft = definition({ id: "draft", editingState: "draft" })
+		const result = await resolveEffectiveTaxFees(
+			{
+				repo: {
+					getProviderIdByProductId: async () => "provider-1",
+					listActiveAssignments: async () => [assignment({ taxFeeDefinitionId: "draft" })],
+					listDefinitionsByIds: async () => [draft],
+				},
+			},
+			{ providerId: "provider-1" }
+		)
+		expect(result.definitions).toEqual([])
 	})
 
 	it("only accepts a two-letter jurisdiction country", () => {

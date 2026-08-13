@@ -93,7 +93,13 @@ export function auditFiscalityConfiguration(input: {
 			now,
 		})
 		lifecycle[status] = (lifecycle[status] ?? 0) + 1
-		if (definition.status === "active" && activeAssignments.length === 0) {
+		// Legacy drafts can retain an old technical status. They are never
+		// sellable before publication, so an absent assignment is expected.
+		if (
+			definition.status === "active" &&
+			definition.editingState !== "draft" &&
+			activeAssignments.length === 0
+		) {
 			activeWithoutAssignment += 1
 			findings.push({
 				code: "active_without_assignment",

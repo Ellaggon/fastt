@@ -1,13 +1,11 @@
 ---
 import TaxFeePage from "@/components/tax-fees/TaxFeePage"
-import { variantManagementRepository } from "@/container"
 import FiscalWorkspaceLayout from "@/layouts/FiscalWorkspaceLayout.astro"
 import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
 import { getProviderTaxConfiguration } from "@/lib/provider-tax-configuration"
 import { routes } from "@/lib/routes"
-import { listRatePlansByProvider } from "@/modules/pricing/public"
+import { getFiscalWorkspaceResources } from "@/lib/taxes-fees/fiscal-workspace-resources"
 import { getJurisdictionTaxRuleSuggestion } from "@/modules/taxes-fees/public"
-import { db, eq, Product } from "@/shared/infrastructure/db/compat"
 
 const auth = await requireProviderSessionSurface(Astro.request).catch((e: any) => {
 	if (e instanceof Response && e.status === 401) return "__REDIRECT_LOGIN__"
@@ -30,15 +28,10 @@ const cookie = Astro.request.headers.get("cookie") ?? ""
 const providerId = typeof auth === "string" ? "" : auth.provider.providerId
 const canManageFiscality =
 	typeof auth === "string" ? false : auth.provider.permissions.canManageFiscality
-const [defsRes, taxConfiguration, productRows, ratePlans] = await Promise.all([
+const [defsRes, taxConfiguration, initialResources] = await Promise.all([
 	fetch(new URL("/api/provider/tax-fees/definitions", Astro.url), { headers: { cookie } }),
 	getProviderTaxConfiguration(providerId).catch(() => null),
-	db
-		.select({ id: Product.id, name: Product.name, productType: Product.productType })
-		.from(Product)
-		.where(eq(Product.providerId, providerId))
-		.catch(() => []),
-	listRatePlansByProvider(providerId).catch(() => []),
+	getFiscalWorkspaceResources(providerId),
 ])
 const defsBody = defsRes.ok ? await defsRes.json() : null
 const initialDefinitions = Array.isArray(defsBody?.definitions) ? defsBody.definitions : []
@@ -52,38 +45,14 @@ const activeCount = initialDefinitions.filter(
 const conflictCount = auditFindings.filter(
 	(finding: any) => finding.code === "duplicate_active_assignment"
 ).length
-const selectedScopeId = Astro.url.searchParams.get("scope") || null
-const variantsByProduct = await Promise.all(
-	productRows.map(async (product) => ({
-		productId: String(product.id),
-		variants: await variantManagementRepository
-			.listVariantsByProductId(String(product.id))
-			.catch(() => []),
-	}))
+const assignmentCount = initialDefinitions.reduce(
+	(total: number, definition: any) =>
+		total +
+		(definition.assignments?.filter((assignment: any) => assignment.status === "active").length ??
+			0),
+	0
 )
-const initialResources = {
-	providerId,
-	products: productRows.map((product) => ({
-		id: String(product.id),
-		label: String(product.name || "Producto sin nombre"),
-		kind: String(product.productType || "Producto"),
-	})),
-	variants: variantsByProduct.flatMap(({ productId, variants }) =>
-		variants.map((variant) => ({
-			id: String(variant.id),
-			productId,
-			label: String(variant.name || "Unidad sin nombre"),
-			kind: String(variant.kind || "Unidad"),
-		}))
-	),
-	ratePlans: (ratePlans as Array<any>).map((ratePlan) => ({
-		id: String(ratePlan.ratePlanId),
-		productId: String(ratePlan.productId),
-		variantId: String(ratePlan.variantId),
-		label: String(ratePlan.ratePlanName || "Tarifa sin nombre"),
-		isActive: Boolean(ratePlan.isActive),
-	})),
-}
+const selectedScopeId = Astro.url.searchParams.get("scope") || null
 ---
 
 <FiscalWorkspaceLayout
@@ -99,6 +68,7 @@ const initialResources = {
 	selectedScopeId={selectedScopeId}
 	primaryLabel="Nueva definición"
 	primaryHref={`${routes.providerSettingsTaxFees()}?create=1${selectedScopeId ? `&scope=${encodeURIComponent(selectedScopeId)}` : ""}`}
+	tabCounts={{ definitions: definitionCount, assignments: assignmentCount }}
 >
 	<TaxFeePage
 		client:load
