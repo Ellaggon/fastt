@@ -52,7 +52,12 @@ describe("ui/rateplan-first modern surfaces", () => {
 		const controller = read("src/lib/rates/ratePlanTabsClient.ts")
 
 		expect(manage).toContain("data-rate-plan-tab")
+		expect(manage).toContain("tabHref(")
 		expect(responsiveTable).toContain("data-rate-plan-row")
+		expect(responsiveTable).toContain(".rate-plan-responsive-row.hidden")
+		expect(responsiveTable).toMatch(
+			/\.rate-plan-responsive-row\.hidden\s*\{[^}]*display:\s*none/
+		)
 		expect(manage).toContain("installRatePlanTabsController")
 		expect(controller).toContain("renderRatePlanView")
 		expect(controller).toContain('document.addEventListener("astro:page-load"')
