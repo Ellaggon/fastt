@@ -4,6 +4,8 @@ import Card from "@/components/ui/Card.astro"
 import Dialog from "@/components/ui/Dialog.astro"
 import Input from "@/components/ui/Input.astro"
 import ProgressBar from "@/components/ui/ProgressBar.astro"
+import WorkspaceMetricStat from "@/components/ui/WorkspaceMetricStat.astro"
+import WorkspaceMetricStats from "@/components/ui/WorkspaceMetricStats.astro"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
@@ -194,26 +196,14 @@ function preparationSupport(
 					</Card>
 				) : (
 					<>
-						<div class="grid gap-3 sm:grid-cols-3">
-							<div class="rounded-[var(--fastt-radius-card)] bg-slate-900 p-4 text-slate-100 ring-1 ring-slate-800">
-								<p class="text-xs font-medium text-slate-400">Servicios</p>
-								<p class="mt-1 text-2xl font-semibold">{products.length}</p>
-							</div>
-							<div class="rounded-[var(--fastt-radius-card)] bg-slate-900 p-4 text-slate-100 ring-1 ring-slate-800">
-								<p class="text-xs font-medium text-slate-400">Hotel</p>
-								<p class="mt-1 text-2xl font-semibold">{hotelProducts.length}</p>
-							</div>
-							<div class="rounded-[var(--fastt-radius-card)] bg-slate-900 p-4 text-slate-100 ring-1 ring-slate-800">
-								<p class="text-xs font-medium text-slate-400">Tours</p>
-								<p class="mt-1 text-2xl font-semibold">
-									{tourProducts.length}
-									<span class="text-sm font-medium text-slate-400">
-										{" "}
-										· {tourDepartures} salidas
-									</span>
-								</p>
-							</div>
-						</div>
+						<WorkspaceMetricStats>
+							<WorkspaceMetricStat label="Servicios">{products.length}</WorkspaceMetricStat>
+							<WorkspaceMetricStat label="Hotel">{hotelProducts.length}</WorkspaceMetricStat>
+							<WorkspaceMetricStat label="Tours">
+								{tourProducts.length}
+								<span class="text-sm font-medium text-slate-500"> · {tourDepartures} salidas</span>
+							</WorkspaceMetricStat>
+						</WorkspaceMetricStats>
 
 						<div class="grid gap-4">
 							{products.map((product) => {

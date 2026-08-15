@@ -1,7 +1,7 @@
 ---
 const { className = "", class: classProp = "", ...props } = Astro.props
 const finalClass =
-	`fastt-tabs-inside-panel inline-flex gap-1 overflow-x-auto rounded-[20px] p-1 text-sm font-semibold text-slate-300 ring-1 ring-slate-800 ${className} ${classProp}`.trim()
+	`fastt-tabs-inside-panel inline-flex items-center gap-1 overflow-x-auto rounded-[20px] p-1 text-sm font-semibold text-slate-300 ring-1 ring-slate-800 ${className} ${classProp}`.trim()
 ---
 
 <nav class={finalClass} {...props}>
@@ -10,6 +10,8 @@ const finalClass =
 
 <style is:global>
 	.fastt-tabs-inside-panel__item {
+		display: inline-flex;
+		align-items: center;
 		border: 0 !important;
 		border-radius: 16px;
 		box-shadow: none;
