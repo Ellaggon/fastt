@@ -1,7 +1,16 @@
-import { useMemo, useState } from "react"
+import {
+	cloneElement,
+	isValidElement,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+	type ReactNode,
+} from "react"
 
 import { Button, Input, Notice, Select } from "../ui-react"
 import type { DefinitionSummary, TaxFeeScopeResources } from "./TaxFeeWizard"
+import type { FiscalSimulationContext } from "@/lib/taxes-fees/fiscal-workspace-resources"
 
 type Quote = {
 	quoteId: string
@@ -43,9 +52,23 @@ type Props = {
 	definitions: DefinitionSummary[]
 	resources: TaxFeeScopeResources
 	canManage?: boolean
+	initialDefinitionId?: string | null
+	initialProductId?: string | null
+	recommendedContext?: FiscalSimulationContext | null
+	returnTo?: string | null
 }
+type FieldErrors = Partial<Record<"product" | "rate" | "checkIn" | "checkOut" | "base", string>>
 
 const currencies = ["USD", "CLP", "EUR", "BOB"]
+const countries = [
+	{ code: "AR", label: "Argentina" },
+	{ code: "BO", label: "Bolivia" },
+	{ code: "BR", label: "Brasil" },
+	{ code: "CL", label: "Chile" },
+	{ code: "CO", label: "Colombia" },
+	{ code: "PE", label: "Perú" },
+	{ code: "UY", label: "Uruguay" },
+]
 const scopeLabel: Record<string, string> = {
 	provider: "Proveedor",
 	product: "Producto",
@@ -53,28 +76,79 @@ const scopeLabel: Record<string, string> = {
 	rate_plan: "Tarifa",
 }
 
-export default function FiscalSimulator({ definitions, resources, canManage = false }: Props) {
-	const [productId, setProductId] = useState(resources.products[0]?.id ?? "")
-	const [variantId, setVariantId] = useState("")
-	const [ratePlanId, setRatePlanId] = useState("")
-	const [definitionId, setDefinitionId] = useState("")
-	const [base, setBase] = useState("100")
-	const [checkIn, setCheckIn] = useState("")
-	const [checkOut, setCheckOut] = useState("")
-	const [adults, setAdults] = useState("2")
-	const [children, setChildren] = useState("0")
+function jurisdictionCountry(definition: DefinitionSummary | undefined) {
+	if (!definition?.jurisdictionJson || typeof definition.jurisdictionJson !== "object") return ""
+	const country = (definition.jurisdictionJson as { country?: unknown }).country
+	return typeof country === "string" ? country.toUpperCase() : ""
+}
+
+function countryLabel(country: string) {
+	const found = countries.find((item) => item.code === country)
+	return found ? `${found.label} (${found.code})` : country || "Sin definir"
+}
+
+function appliesPerLabel(value: DefinitionSummary["appliesPer"]) {
+	return value === "stay"
+		? "por estadía"
+		: value === "night"
+			? "por noche"
+			: value === "guest"
+				? "por huésped"
+				: "por huésped por noche"
+}
+
+function responsibilityLabel(definition: DefinitionSummary) {
+	const jurisdiction = definition.jurisdictionJson as { collectionResponsibility?: string } | null
+	return (
+		{ provider: "Proveedor", platform: "Plataforma", marketplace: "Marketplace" }[
+			jurisdiction?.collectionResponsibility ?? "provider"
+		] ?? "Proveedor"
+	)
+}
+
+export default function FiscalSimulator({
+	definitions,
+	resources,
+	canManage = false,
+	initialDefinitionId = null,
+	initialProductId = null,
+	recommendedContext = null,
+	returnTo = null,
+}: Props) {
+	const [productId, setProductId] = useState(
+		recommendedContext?.productId ??
+			(initialProductId && resources.products.some((product) => product.id === initialProductId)
+				? initialProductId
+				: "")
+	)
+	const [variantId, setVariantId] = useState(recommendedContext?.variantId ?? "")
+	const [ratePlanId, setRatePlanId] = useState(recommendedContext?.ratePlanId ?? "")
+	const [definitionId, setDefinitionId] = useState(initialDefinitionId ?? "")
+	const [base, setBase] = useState(recommendedContext ? String(recommendedContext.baseAmount) : "")
+	const [checkIn, setCheckIn] = useState(recommendedContext?.checkIn ?? "")
+	const [checkOut, setCheckOut] = useState(recommendedContext?.checkOut ?? "")
+	const [adults, setAdults] = useState(String(recommendedContext?.adults ?? 2))
+	const [children, setChildren] = useState(String(recommendedContext?.children ?? 0))
 	const [childrenAges, setChildrenAges] = useState("")
-	const [rooms, setRooms] = useState("1")
-	const [country, setCountry] = useState("")
+	const [rooms, setRooms] = useState(String(recommendedContext?.rooms ?? 1))
+	const [country, setCountry] = useState(() =>
+		jurisdictionCountry(definitions.find((definition) => definition.id === initialDefinitionId))
+	)
 	const [residence, setResidence] = useState("")
-	const [currency, setCurrency] = useState("USD")
-	const [channel, setChannel] = useState("web")
+	const [currency, setCurrency] = useState(recommendedContext?.currency ?? "USD")
+	const [channel, setChannel] = useState<string>(recommendedContext?.channel ?? "web")
+	const [editingContext, setEditingContext] = useState(
+		Boolean(initialDefinitionId) && !recommendedContext ? true : !Boolean(initialDefinitionId)
+	)
+	const [useManualPrice, setUseManualPrice] = useState(!recommendedContext)
 	const [preview, setPreview] = useState<Preview | null>(null)
 	const [published, setPublished] = useState<Preview | null>(null)
 	const [compare, setCompare] = useState(false)
 	const [technicalOpen, setTechnicalOpen] = useState(false)
 	const [error, setError] = useState<string | null>(null)
+	const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
 	const [loading, setLoading] = useState(false)
+	const resultRef = useRef<HTMLDivElement>(null)
 
 	const variants = useMemo(
 		() => resources.variants.filter((variant) => variant.productId === productId),
@@ -88,8 +162,65 @@ export default function FiscalSimulator({ definitions, resources, canManage = fa
 		[resources, productId, variantId]
 	)
 	const selectedDefinition = definitions.find((definition) => definition.id === definitionId)
+	const selectedJurisdictionCountry = jurisdictionCountry(selectedDefinition)
+	const simulationCountry = selectedJurisdictionCountry || country
+	const canCompare = Boolean(selectedDefinition?.currentVersion)
+	const showingPreparedContext = Boolean(
+		selectedDefinition && recommendedContext && !editingContext
+	)
+	const childrenCount = Math.max(0, Number(children) || 0)
 	const money = (value: number, selectedCurrency = currency) =>
 		new Intl.NumberFormat("es-CL", { style: "currency", currency: selectedCurrency }).format(value)
+
+	useEffect(() => {
+		if (preview) resultRef.current?.focus()
+	}, [preview])
+
+	useEffect(() => {
+		if (!canCompare) setCompare(false)
+	}, [canCompare])
+
+	function clearPreview() {
+		setPreview(null)
+		setPublished(null)
+	}
+
+	function restoreRecommendedContext() {
+		if (!recommendedContext) return
+		setProductId(recommendedContext.productId)
+		setVariantId(recommendedContext.variantId)
+		setRatePlanId(recommendedContext.ratePlanId)
+		setBase(String(recommendedContext.baseAmount))
+		setCheckIn(recommendedContext.checkIn)
+		setCheckOut(recommendedContext.checkOut)
+		setAdults(String(recommendedContext.adults))
+		setChildren(String(recommendedContext.children))
+		setRooms(String(recommendedContext.rooms))
+		setCurrency(recommendedContext.currency)
+		setChannel(recommendedContext.channel)
+		setUseManualPrice(false)
+		clearPreview()
+	}
+
+	function selectDefinition(nextDefinitionId: string) {
+		const nextDefinition = definitions.find((definition) => definition.id === nextDefinitionId)
+		setDefinitionId(nextDefinitionId)
+		setCountry(jurisdictionCountry(nextDefinition))
+		clearPreview()
+	}
+
+	function selectProduct(nextProductId: string) {
+		setProductId(nextProductId)
+		setVariantId("")
+		setRatePlanId("")
+		clearPreview()
+	}
+
+	function selectVariant(nextVariantId: string) {
+		setVariantId(nextVariantId)
+		setRatePlanId("")
+		clearPreview()
+	}
 
 	async function request(selectedRule = definitionId) {
 		const form = new FormData()
@@ -98,14 +229,15 @@ export default function FiscalSimulator({ definitions, resources, canManage = fa
 			variantId,
 			ratePlanId,
 			taxFeeDefinitionId: selectedRule,
-			base,
+			base: useManualPrice ? base : "",
+			pricingMode: useManualPrice ? "manual" : "effective",
 			checkIn,
 			checkOut,
 			adults,
 			children,
 			childrenAges,
 			rooms,
-			country,
+			country: simulationCountry,
 			guestResidenceCountry: residence,
 			currency,
 			channel,
@@ -117,12 +249,31 @@ export default function FiscalSimulator({ definitions, resources, canManage = fa
 		if (!response.ok) throw new Error(body?.message ?? "No se pudo crear la cotización.")
 		return body as Preview
 	}
+
+	function validate() {
+		const nextErrors: FieldErrors = {}
+		if (!productId) nextErrors.product = "Selecciona el producto de la reserva de prueba."
+		if (!ratePlanId) nextErrors.rate = "Selecciona una tarifa para usar su contexto comercial."
+		if (!checkIn) nextErrors.checkIn = "Indica la fecha de entrada."
+		if (!checkOut) nextErrors.checkOut = "Indica la fecha de salida."
+		if (checkIn && checkOut && checkOut <= checkIn) {
+			nextErrors.checkOut = "La salida debe ser posterior a la entrada."
+		}
+		if (useManualPrice && (!base || Number(base) <= 0)) {
+			nextErrors.base = "Indica un importe de prueba mayor que cero."
+		}
+		setFieldErrors(nextErrors)
+		return nextErrors
+	}
+
 	async function simulate() {
 		setError(null)
-		setPreview(null)
-		setPublished(null)
-		if (!productId || !checkIn || !checkOut || !ratePlanId) {
-			setError("Selecciona producto, unidad, tarifa y un rango de fechas válido.")
+		clearPreview()
+		const nextErrors = validate()
+		if (Object.keys(nextErrors).length) {
+			setError("Completa los datos marcados para comprobar la cotización.")
+			const firstField = Object.keys(nextErrors)[0]
+			window.setTimeout(() => document.getElementById(`simulator-${firstField}`)?.focus(), 0)
 			return
 		}
 		setLoading(true)
@@ -136,6 +287,7 @@ export default function FiscalSimulator({ definitions, resources, canManage = fa
 			setLoading(false)
 		}
 	}
+
 	function exportSimulation() {
 		if (!preview) return
 		const blob = new Blob([JSON.stringify(preview, null, 2)], { type: "application/json" })
@@ -146,6 +298,7 @@ export default function FiscalSimulator({ definitions, resources, canManage = fa
 		anchor.click()
 		URL.revokeObjectURL(url)
 	}
+
 	async function share() {
 		if (!preview) return
 		await navigator.clipboard?.writeText(
@@ -153,6 +306,7 @@ export default function FiscalSimulator({ definitions, resources, canManage = fa
 		)
 		setError("Enlace interno copiado.")
 	}
+
 	const lines = preview
 		? [
 				...preview.quote.taxesAndFees.taxes.included,
@@ -161,188 +315,406 @@ export default function FiscalSimulator({ definitions, resources, canManage = fa
 				...preview.quote.taxesAndFees.fees.excluded,
 			]
 		: []
+	const ruleValue = selectedDefinition
+		? selectedDefinition.calculationType === "percentage"
+			? `${selectedDefinition.value}%`
+			: `${selectedDefinition.currency ?? "USD"} ${selectedDefinition.value}`
+		: ""
 
 	return (
-		<section aria-labelledby="simulator-heading" className="space-y-5">
-			<div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 pb-4">
+		<section aria-labelledby="simulator-heading" className="space-y-0">
+			<div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 pb-5">
 				<div>
 					<p className="text-xs font-semibold tracking-[0.08em] text-slate-500 uppercase">
 						Certificación
 					</p>
 					<h2 id="simulator-heading" className="mt-1 text-lg font-semibold text-slate-950">
-						Simulador de cotización fiscal
+						{selectedDefinition
+							? `Comprobar ${selectedDefinition.name}`
+							: "Simulador de cotización fiscal"}
 					</h2>
+					<p className="mt-1 text-sm text-slate-600">
+						No modifica reglas, asignaciones ni reservas.
+					</p>
 				</div>
-				<p className="text-sm text-slate-500">No modifica reglas ni reservas.</p>
+				<p className="max-w-xs text-sm text-slate-500">
+					Utiliza el mismo contrato de PriceQuote que búsqueda y checkout.
+				</p>
 			</div>
-			<div className="grid gap-x-4 gap-y-4 border-b border-slate-200 pb-5 md:grid-cols-2 xl:grid-cols-4">
-				<Field label="Producto">
-					<Select
-						value={productId}
-						onChange={(event) => {
-							setProductId(event.target.value)
-							setVariantId("")
-							setRatePlanId("")
-						}}
+
+			{selectedDefinition ? (
+				<div className="-mx-4 grid gap-3 border-b border-slate-200 px-4 py-5 sm:-mx-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-6">
+					<div>
+						<p className="text-sm font-semibold text-slate-950">Regla que se comprueba</p>
+						<p className="mt-1 text-sm text-slate-600">
+							{selectedDefinition.name} <span className="text-slate-300">·</span>{" "}
+							{selectedDefinition.operationalStatus === "draft" ? "Borrador" : "Publicada"}
+						</p>
+					</div>
+					<div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600 sm:justify-end">
+						<span>
+							{ruleValue} {appliesPerLabel(selectedDefinition.appliesPer)}
+						</span>
+						<span>{countryLabel(selectedJurisdictionCountry)}</span>
+						<span>Recauda {responsibilityLabel(selectedDefinition).toLowerCase()}</span>
+					</div>
+				</div>
+			) : (
+				<Section
+					title="Regla a comprobar"
+					description="Selecciona un borrador o deja el campo vacío para revisar únicamente las reglas publicadas aplicables."
+				>
+					<Field label="Regla publicada o borrador" id="simulator-definition">
+						<Select value={definitionId} onChange={(event) => selectDefinition(event.target.value)}>
+							<option value="">Solo reglas publicadas aplicables</option>
+							{definitions.map((definition) => (
+								<option key={definition.id} value={definition.id}>
+									{definition.name}
+									{definition.operationalStatus === "draft" ? " · Borrador" : ""}
+								</option>
+							))}
+						</Select>
+					</Field>
+				</Section>
+			)}
+
+			{selectedDefinition && !recommendedContext ? (
+				<Notice variant="info">
+					No encontramos una combinación con precio y disponibilidad para preparar esta
+					comprobación. Elige el contexto de reserva que quieras revisar.
+				</Notice>
+			) : null}
+
+			{showingPreparedContext && recommendedContext ? (
+				<PreparedContext
+					context={recommendedContext}
+					jurisdiction={countryLabel(selectedJurisdictionCountry)}
+					residence={residence ? countryLabel(residence) : "No especificada"}
+					money={money}
+					onEdit={() => setEditingContext(true)}
+				/>
+			) : (
+				<>
+					<Section
+						title="Contexto comercial"
+						description="Define la venta representativa sobre la que se comprobará el cálculo."
 					>
-						<option value="">Selecciona</option>
-						{resources.products.map((product) => (
-							<option key={product.id} value={product.id}>
-								{product.label}
-							</option>
-						))}
-					</Select>
-				</Field>
-				<Field label="Unidad o salida">
-					<Select
-						value={variantId}
-						onChange={(event) => {
-							setVariantId(event.target.value)
-							setRatePlanId("")
-						}}
+						<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1.35fr_1.15fr_1.15fr_0.9fr]">
+							<Field label="Producto" id="simulator-product" error={fieldErrors.product} required>
+								<Select
+									value={productId}
+									onChange={(event) => selectProduct(event.target.value)}
+									aria-invalid={Boolean(fieldErrors.product)}
+								>
+									<option value="">Selecciona un producto</option>
+									{resources.products.map((product) => (
+										<option key={product.id} value={product.id}>
+											{product.label}
+										</option>
+									))}
+								</Select>
+							</Field>
+							<Field
+								label="Unidad o salida"
+								id="simulator-variant"
+								description={
+									!productId
+										? "Selecciona primero un producto."
+										: variants.length
+											? undefined
+											: "Este producto no tiene unidades configuradas."
+								}
+							>
+								<Select
+									value={variantId}
+									disabled={!productId || !variants.length}
+									onChange={(event) => selectVariant(event.target.value)}
+								>
+									<option value="">{variants.length ? "Todas las unidades" : "No aplica"}</option>
+									{variants.map((variant) => (
+										<option key={variant.id} value={variant.id}>
+											{variant.label}
+										</option>
+									))}
+								</Select>
+							</Field>
+							<Field label="Tarifa" id="simulator-rate" error={fieldErrors.rate} required>
+								<Select
+									value={ratePlanId}
+									disabled={!productId || !plans.length}
+									onChange={(event) => {
+										setRatePlanId(event.target.value)
+										clearPreview()
+									}}
+									aria-invalid={Boolean(fieldErrors.rate)}
+								>
+									<option value="">
+										{productId ? "Selecciona una tarifa" : "Selecciona primero un producto"}
+									</option>
+									{plans.map((plan) => (
+										<option key={plan.id} value={plan.id}>
+											{plan.label}
+										</option>
+									))}
+								</Select>
+							</Field>
+							<Field label="Canal" id="simulator-channel">
+								<Select
+									value={channel}
+									onChange={(event) => {
+										setChannel(event.target.value)
+										clearPreview()
+									}}
+								>
+									<option value="web">Web directa</option>
+									<option value="channel_manager">Canal conectado</option>
+								</Select>
+							</Field>
+						</div>
+					</Section>
+
+					<Section
+						title="Reserva de prueba"
+						description="Usa fechas y ocupación que representen una reserva real."
 					>
-						<option value="">Selecciona</option>
-						{variants.map((variant) => (
-							<option key={variant.id} value={variant.id}>
-								{variant.label}
-							</option>
-						))}
-					</Select>
-				</Field>
-				<Field label="Tarifa">
-					<Select value={ratePlanId} onChange={(event) => setRatePlanId(event.target.value)}>
-						<option value="">Selecciona</option>
-						{plans.map((plan) => (
-							<option key={plan.id} value={plan.id}>
-								{plan.label}
-							</option>
-						))}
-					</Select>
-				</Field>
-				<Field label="Canal">
-					<Select value={channel} onChange={(event) => setChannel(event.target.value)}>
-						<option value="web">Web directa</option>
-						<option value="channel_manager">Canal conectado</option>
-					</Select>
-				</Field>
-				<Field label="Entrada">
-					<Input
-						type="date"
-						value={checkIn}
-						onChange={(event) => setCheckIn(event.target.value)}
-						className="h-10"
-					/>
-				</Field>
-				<Field label="Salida">
-					<Input
-						type="date"
-						value={checkOut}
-						onChange={(event) => setCheckOut(event.target.value)}
-						className="h-10"
-					/>
-				</Field>
-				<Field label="Habitaciones o cantidad">
-					<Input
-						min="1"
-						type="number"
-						value={rooms}
-						onChange={(event) => setRooms(event.target.value)}
-						className="h-10"
-					/>
-				</Field>
-				<Field label="Precio base">
-					<Input
-						inputMode="decimal"
-						value={base}
-						onChange={(event) => setBase(event.target.value)}
-						className="h-10"
-					/>
-				</Field>
-				<Field label="Adultos">
-					<Input
-						min="1"
-						type="number"
-						value={adults}
-						onChange={(event) => setAdults(event.target.value)}
-						className="h-10"
-					/>
-				</Field>
-				<Field label="Niños">
-					<Input
-						min="0"
-						type="number"
-						value={children}
-						onChange={(event) => setChildren(event.target.value)}
-						className="h-10"
-					/>
-				</Field>
-				<Field label="Edades de niños">
-					<Input
-						placeholder="6, 11"
-						value={childrenAges}
-						onChange={(event) => setChildrenAges(event.target.value)}
-						className="h-10"
-					/>
-				</Field>
-				<Field label="Residencia del huésped">
-					<Input
-						maxLength={2}
-						placeholder="CL"
-						value={residence}
-						onChange={(event) => setResidence(event.target.value.toUpperCase())}
-						className="h-10"
-					/>
-				</Field>
-				<Field label="Jurisdicción">
-					<Input
-						maxLength={2}
-						placeholder="CL"
-						value={country}
-						onChange={(event) => setCountry(event.target.value.toUpperCase())}
-						className="h-10"
-					/>
-				</Field>
-				<Field label="Moneda">
-					<Select value={currency} onChange={(event) => setCurrency(event.target.value)}>
-						{currencies.map((item) => (
-							<option key={item}>{item}</option>
-						))}
-					</Select>
-				</Field>
-				<Field label="Regla publicada o borrador">
-					<Select value={definitionId} onChange={(event) => setDefinitionId(event.target.value)}>
-						<option value="">Solo reglas publicadas aplicables</option>
-						{definitions.map((definition) => (
-							<option key={definition.id} value={definition.id}>
-								{definition.name}
-								{definition.operationalStatus === "draft" ? " · Borrador" : ""}
-							</option>
-						))}
-					</Select>
-				</Field>
-				<label className="flex items-center gap-2 self-end pb-2 text-sm text-slate-700">
-					<input
-						type="checkbox"
-						checked={compare}
-						onChange={(event) => setCompare(event.target.checked)}
-						disabled={!definitionId}
-					/>
-					Comparar contra publicada
-				</label>
-			</div>
-			<div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
-				<p className="text-sm text-slate-600">
+						<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+							<div className="grid gap-4 sm:grid-cols-2 xl:col-span-2">
+								<Field label="Entrada" id="simulator-checkIn" error={fieldErrors.checkIn} required>
+									<Input
+										type="date"
+										value={checkIn}
+										onChange={(event) => {
+											setCheckIn(event.target.value)
+											clearPreview()
+										}}
+										aria-invalid={Boolean(fieldErrors.checkIn)}
+									/>
+								</Field>
+								<Field label="Salida" id="simulator-checkOut" error={fieldErrors.checkOut} required>
+									<Input
+										type="date"
+										min={checkIn || undefined}
+										value={checkOut}
+										onChange={(event) => {
+											setCheckOut(event.target.value)
+											clearPreview()
+										}}
+										aria-invalid={Boolean(fieldErrors.checkOut)}
+									/>
+								</Field>
+							</div>
+							<Field label="Habitaciones o cantidad" id="simulator-rooms">
+								<Input
+									min="1"
+									type="number"
+									value={rooms}
+									onChange={(event) => {
+										setRooms(event.target.value)
+										clearPreview()
+									}}
+								/>
+							</Field>
+							<Field label="Adultos" id="simulator-adults">
+								<Input
+									min="1"
+									type="number"
+									value={adults}
+									onChange={(event) => {
+										setAdults(event.target.value)
+										clearPreview()
+									}}
+								/>
+							</Field>
+							<Field label="Niños" id="simulator-children">
+								<Input
+									min="0"
+									type="number"
+									value={children}
+									onChange={(event) => {
+										setChildren(event.target.value)
+										clearPreview()
+									}}
+								/>
+							</Field>
+							{useManualPrice ? (
+								<Field
+									label="Importe base de prueba"
+									id="simulator-base"
+									error={fieldErrors.base}
+									description="Usa este importe solo para una hipótesis; no modifica el precio comercial de la tarifa."
+									required
+								>
+									<Input
+										inputMode="decimal"
+										value={base}
+										onChange={(event) => {
+											setBase(event.target.value)
+											clearPreview()
+										}}
+										aria-invalid={Boolean(fieldErrors.base)}
+									/>
+								</Field>
+							) : null}
+						</div>
+						{childrenCount > 0 ? (
+							<div className="mt-4 max-w-sm">
+								<Field
+									label="Edades de niños"
+									id="simulator-childrenAges"
+									description="Separa las edades con comas, por ejemplo: 6, 11."
+								>
+									<Input
+										placeholder="6, 11"
+										value={childrenAges}
+										onChange={(event) => {
+											setChildrenAges(event.target.value)
+											clearPreview()
+										}}
+									/>
+								</Field>
+							</div>
+						) : null}
+					</Section>
+
+					<Section
+						title="Condiciones fiscales"
+						description="Solo añade los datos del huésped que puedan cambiar la aplicación de la regla."
+					>
+						<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+							<Field
+								label="Residencia del huésped"
+								id="simulator-residence"
+								description="Opcional. Puede activar una exención por residencia."
+							>
+								<Select
+									value={residence}
+									onChange={(event) => {
+										setResidence(event.target.value)
+										clearPreview()
+									}}
+								>
+									<option value="">No especificada</option>
+									{countries.map((item) => (
+										<option key={item.code} value={item.code}>
+											{item.label} ({item.code})
+										</option>
+									))}
+								</Select>
+							</Field>
+							{selectedDefinition ? (
+								<ReadOnlyField
+									label="Jurisdicción de la regla"
+									value={countryLabel(selectedJurisdictionCountry)}
+									description="Se toma de la definición seleccionada."
+								/>
+							) : (
+								<Field
+									label="Jurisdicción de la reserva"
+									id="simulator-country"
+									description="País donde se realiza la reserva de prueba."
+								>
+									<Select
+										value={country}
+										onChange={(event) => {
+											setCountry(event.target.value)
+											clearPreview()
+										}}
+									>
+										<option value="">Selecciona un país</option>
+										{countries.map((item) => (
+											<option key={item.code} value={item.code}>
+												{item.label} ({item.code})
+											</option>
+										))}
+									</Select>
+								</Field>
+							)}
+							<Field label="Moneda de la prueba" id="simulator-currency">
+								<Select
+									value={currency}
+									onChange={(event) => {
+										setCurrency(event.target.value)
+										clearPreview()
+									}}
+								>
+									{currencies.map((item) => (
+										<option key={item}>{item}</option>
+									))}
+								</Select>
+							</Field>
+						</div>
+					</Section>
+
+					<div className="-mx-4 border-b border-slate-200 px-4 py-5 sm:-mx-6 sm:px-6">
+						<details className="group">
+							<summary className="cursor-pointer text-sm font-semibold text-slate-800 marker:text-slate-400">
+								Opciones avanzadas
+							</summary>
+							<div className="mt-4">
+								<label className="flex min-h-11 items-center gap-2 text-sm text-slate-700">
+									<input
+										type="checkbox"
+										checked={useManualPrice}
+										onChange={(event) => {
+											setUseManualPrice(event.target.checked)
+											clearPreview()
+										}}
+									/>
+									Usar un importe de prueba en lugar del precio efectivo
+								</label>
+								{canCompare ? (
+									<label className="mt-2 flex min-h-11 items-center gap-2 text-sm text-slate-700">
+										<input
+											type="checkbox"
+											checked={compare}
+											onChange={(event) => setCompare(event.target.checked)}
+										/>
+										Comparar este borrador con la versión publicada
+									</label>
+								) : selectedDefinition ? (
+									<p className="text-sm text-slate-500">
+										Esta es la primera publicación; aún no hay una versión anterior para comparar.
+									</p>
+								) : null}
+							</div>
+						</details>
+						{recommendedContext ? (
+							<div className="mt-4 flex justify-end">
+								<Button
+									type="button"
+									variant="ghost"
+									size="sm"
+									onClick={() => {
+										restoreRecommendedContext()
+										setEditingContext(false)
+									}}
+								>
+									Volver al escenario recomendado
+								</Button>
+							</div>
+						) : null}
+					</div>
+				</>
+			)}
+
+			<div className="flex flex-wrap items-center justify-between gap-4 py-5">
+				<p className="max-w-2xl text-sm text-slate-600">
 					{selectedDefinition?.operationalStatus === "draft"
-						? "El borrador se evalúa solo dentro de esta cotización."
-						: "La cotización usa las reglas operativas y el mismo contrato de PriceQuote."}
+						? "El borrador se evalúa solo en esta cotización; no queda disponible para ventas."
+						: "La cotización aplica las reglas operativas al contexto que seleccionaste."}
 				</p>
 				<Button type="button" onClick={simulate} disabled={loading}>
-					{loading ? "Calculando" : "Simular"}
+					{loading ? "Calculando cotización" : "Simular cotización"}
 				</Button>
 			</div>
+
 			{error && <Notice variant={error.includes("copiado") ? "info" : "error"}>{error}</Notice>}
 			{preview && (
-				<div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
+				<div
+					ref={resultRef}
+					tabIndex={-1}
+					className="grid gap-6 border-t border-slate-200 pt-6 outline-none xl:grid-cols-[minmax(0,1fr)_300px]"
+				>
 					<div className="border-y border-slate-200">
 						<div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 py-4">
 							<div>
@@ -423,13 +795,17 @@ export default function FiscalSimulator({ definitions, resources, canManage = fa
 									Abrir definición
 								</Button>
 							)}
-							{canManage && selectedDefinition?.operationalStatus === "draft" && (
-								<Button
-									href={`/provider/settings/tax-fees?edit=${selectedDefinition.id}&publishAfterSimulation=1`}
-									variant="ghost"
-								>
-									Publicar
-								</Button>
+							{returnTo ? (
+								<Button href={returnTo}>Continuar a publicación</Button>
+							) : (
+								canManage &&
+								selectedDefinition?.operationalStatus === "draft" && (
+									<Button
+										href={`/provider/settings/tax-fees?edit=${selectedDefinition.id}&review=1`}
+									>
+										Revisar y publicar
+									</Button>
+								)
 							)}
 						</div>
 					</div>
@@ -521,14 +897,189 @@ export default function FiscalSimulator({ definitions, resources, canManage = fa
 	)
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function PreparedContext({
+	context,
+	jurisdiction,
+	residence,
+	money,
+	onEdit,
+}: {
+	context: FiscalSimulationContext
+	jurisdiction: string
+	residence: string
+	money: (value: number, currency?: string) => string
+	onEdit: () => void
+}) {
+	const dateFormat = new Intl.DateTimeFormat("es-CL", { day: "numeric", month: "short" })
+	const checkIn = dateFormat.format(new Date(`${context.checkIn}T00:00:00.000Z`))
+	const checkOut = dateFormat.format(new Date(`${context.checkOut}T00:00:00.000Z`))
 	return (
-		<label className="grid gap-1.5 text-sm font-medium text-slate-700">
-			{label}
+		<section className="border-b border-slate-200 py-6" aria-label="Escenario recomendado">
+			<div className="flex flex-wrap items-end justify-between gap-3">
+				<div>
+					<p className="text-xs font-semibold tracking-[0.08em] text-slate-500 uppercase">
+						Escenario recomendado
+					</p>
+					<p className="mt-1 text-sm text-slate-600">
+						Elegido por disponibilidad y precio para comprobar esta regla rápidamente.
+					</p>
+				</div>
+				<Button type="button" variant="ghost" size="sm" onClick={onEdit}>
+					Cambiar datos
+				</Button>
+			</div>
+			<dl className="mt-5 divide-y divide-slate-200 border-y border-slate-200">
+				<ScenarioRow
+					label="Venta"
+					value={context.productLabel}
+					detail={`${context.variantLabel} · ${context.ratePlanLabel}`}
+					onEdit={onEdit}
+				/>
+				<ScenarioRow
+					label="Reserva"
+					value={`${checkIn} – ${checkOut}`}
+					detail={`${context.rooms} habitación · ${context.adults} adultos${context.children ? ` · ${context.children} niños` : ""}`}
+					onEdit={onEdit}
+				/>
+				<ScenarioRow
+					label="Canal"
+					value="Web directa"
+					detail="Canal de venta de esta prueba"
+					onEdit={onEdit}
+				/>
+				<ScenarioRow
+					label="Condiciones fiscales"
+					value={jurisdiction}
+					detail={`Residencia del huésped: ${residence}`}
+					onEdit={onEdit}
+				/>
+				<ScenarioRow
+					label="Precio de la estancia"
+					value={money(context.baseAmount, context.currency)}
+					detail={
+						context.pricingSource === "effective_pricing_v2"
+							? "Precio efectivo para estas fechas"
+							: "Precio disponible para estas fechas"
+					}
+					onEdit={onEdit}
+				/>
+			</dl>
+		</section>
+	)
+}
+
+function ScenarioRow({
+	label,
+	value,
+	detail,
+	onEdit,
+}: {
+	label: string
+	value: string
+	detail: string
+	onEdit: () => void
+}) {
+	return (
+		<div className="grid gap-2 py-4 sm:grid-cols-[10rem_minmax(0,1fr)_auto] sm:items-center">
+			<dt className="text-sm text-slate-500">{label}</dt>
+			<dd className="min-w-0">
+				<p className="truncate text-sm font-semibold text-slate-950">{value}</p>
+				<p className="mt-0.5 truncate text-sm text-slate-500">{detail}</p>
+			</dd>
+			<Button type="button" variant="ghost" size="sm" className="w-fit" onClick={onEdit}>
+				Cambiar
+			</Button>
+		</div>
+	)
+}
+
+function Section({
+	title,
+	description,
+	children,
+}: {
+	title: string
+	description: string
+	children: ReactNode
+}) {
+	return (
+		<section className="border-b border-slate-200 py-5" aria-label={title}>
+			<div className="mb-4">
+				<h3 className="text-sm font-semibold text-slate-950">{title}</h3>
+				<p className="mt-1 text-sm text-slate-600">{description}</p>
+			</div>
 			{children}
+		</section>
+	)
+}
+
+function Field({
+	label,
+	id,
+	children,
+	description,
+	error,
+	required = false,
+}: {
+	label: string
+	id?: string
+	children: ReactNode
+	description?: string
+	error?: string
+	required?: boolean
+}) {
+	const message = error ?? description
+	const control = isValidElement<{ "id"?: string; "aria-describedby"?: string }>(children)
+		? cloneElement(children, {
+				id,
+				"aria-describedby": message && id ? `${id}-message` : undefined,
+			})
+		: children
+	return (
+		<label className="grid gap-1.5 text-sm font-medium text-slate-700" htmlFor={id}>
+			<span>
+				{label}
+				{required ? (
+					<span className="ml-1 text-slate-400" aria-hidden="true">
+						*
+					</span>
+				) : null}
+			</span>
+			{control}
+			{message ? (
+				<span
+					id={id ? `${id}-message` : undefined}
+					className={
+						error ? "text-xs font-normal text-red-600" : "text-xs font-normal text-slate-500"
+					}
+				>
+					{message}
+				</span>
+			) : null}
 		</label>
 	)
 }
+
+function ReadOnlyField({
+	label,
+	value,
+	description,
+}: {
+	label: string
+	value: string
+	description: string
+}) {
+	return (
+		<div className="grid gap-1.5 text-sm font-medium text-slate-700">
+			<span>{label}</span>
+			<div className="fastt-soft-box flex h-11 items-center rounded-[var(--fastt-radius-control)] border border-slate-200 bg-slate-50 px-3 text-slate-700">
+				{value}
+			</div>
+			<span className="text-xs font-normal text-slate-500">{description}</span>
+		</div>
+	)
+}
+
 function ReceiptRow({
 	label,
 	value,
@@ -549,6 +1100,7 @@ function ReceiptRow({
 		</div>
 	)
 }
+
 function Metric({ label, value }: { label: string; value: string }) {
 	return (
 		<div className="flex items-center justify-between gap-3">
@@ -557,6 +1109,7 @@ function Metric({ label, value }: { label: string; value: string }) {
 		</div>
 	)
 }
+
 function sum(lines: Line[]) {
 	return lines.reduce((total, line) => total + line.amount, 0)
 }

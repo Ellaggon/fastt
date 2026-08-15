@@ -18,6 +18,7 @@ if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerSetti
 const create = Astro.url.searchParams.get("create")
 const edit = Astro.url.searchParams.get("edit")
 const duplicate = Astro.url.searchParams.get("duplicate")
+const review = Astro.url.searchParams.get("review") === "1"
 const initialSuggestion = getJurisdictionTaxRuleSuggestion(Astro.url.searchParams.get("suggestion"))
 const result = Astro.url.searchParams.get("result")
 if (result === "tax_profile_saved") {
@@ -78,6 +79,7 @@ const selectedScopeId = Astro.url.searchParams.get("scope") || null
 		initialDefinitionId={edit}
 		initialDuplicateDefinitionId={duplicate}
 		initialSuggestion={initialSuggestion}
+		initialReview={review}
 		canManageFiscality={canManageFiscality}
 		initialResources={initialResources}
 	/>

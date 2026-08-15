@@ -41,6 +41,7 @@ function readRule(value: unknown): TaxFeeJurisdictionRule {
 			: [],
 		maxAmount: Number.isFinite(Number(raw.maxAmount)) ? Math.max(0, Number(raw.maxAmount)) : null,
 		maxNights: Number.isFinite(Number(raw.maxNights)) ? Math.max(0, Number(raw.maxNights)) : null,
+		seasonalMode: raw.seasonalMode === "override" ? "override" : "restrict",
 		seasons,
 	}
 }
@@ -112,7 +113,7 @@ export function computeTaxBreakdown(params: {
 					return checkIn >= season.from && checkIn <= season.to
 				})
 			: undefined
-		if (rule.seasons?.length && !activeSeason) continue
+		if (rule.seasons?.length && rule.seasonalMode !== "override" && !activeSeason) continue
 		const value = activeSeason?.value ?? def.value
 		let amount: number
 		if (def.calculationType === "percentage") {

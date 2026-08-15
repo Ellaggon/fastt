@@ -18,12 +18,15 @@ import {
 import { writeProviderAuditLog } from "@/lib/provider-audit"
 import { getAggregateCache, setAggregateCache } from "@/lib/cache/ssrAggregateCache"
 import { publishTaxFeeDefinitionVersion } from "@/lib/taxes-fees/tax-fee-versioning"
+import { taxFeeDefinitionFingerprint } from "@/lib/taxes-fees/tax-fee-simulation-certification"
 import {
+	and,
 	db,
 	desc,
 	eq,
 	inArray,
 	ProviderAuditLog,
+	FiscalActivityEvent,
 	TaxFeeAssignment,
 	TaxFeeDefinition,
 	TaxFeeDefinitionVersion,
@@ -56,6 +59,7 @@ const jurisdictionSchema = z.object({
 	exemptGuestResidenceCountries: z.array(z.string().trim().length(2)).default([]),
 	maxAmount: z.number().positive().nullable().optional(),
 	maxNights: z.number().int().positive().nullable().optional(),
+	seasonalMode: z.enum(["restrict", "override"]).optional(),
 	seasons: z
 		.array(
 			z.object({
@@ -108,6 +112,47 @@ function buildWarningDefinition(
 		status: parsed.status,
 		createdAt: now,
 		updatedAt: now,
+	}
+}
+
+async function requireCurrentSimulation(input: {
+	providerId: string
+	definitionId: string
+	definition: z.infer<typeof createSchema>
+	jurisdictionJson: unknown | null
+}) {
+	const fingerprint = taxFeeDefinitionFingerprint({
+		id: input.definitionId,
+		code: input.definition.code,
+		name: input.definition.name,
+		kind: input.definition.kind,
+		calculationType: input.definition.calculationType,
+		value: input.definition.value,
+		currency: input.definition.currency ?? null,
+		inclusionType: input.definition.inclusionType,
+		appliesPer: input.definition.appliesPer,
+		effectiveFrom: input.definition.effectiveFrom ?? null,
+		effectiveTo: input.definition.effectiveTo ?? null,
+		jurisdictionJson: input.jurisdictionJson,
+	})
+	const simulations = await db
+		.select({ context: FiscalActivityEvent.contextJson })
+		.from(FiscalActivityEvent)
+		.where(
+			and(
+				eq(FiscalActivityEvent.providerId, input.providerId),
+				eq(FiscalActivityEvent.definitionId, input.definitionId),
+				eq(FiscalActivityEvent.eventType, "simulation_executed"),
+				eq(FiscalActivityEvent.result, "succeeded")
+			)
+		)
+	const isCertified = simulations.some(
+		(item) =>
+			(item.context as { definitionFingerprint?: string } | null)?.definitionFingerprint ===
+			fingerprint
+	)
+	if (!isCertified) {
+		throw new Error("Debes ejecutar una simulación vigente antes de publicar esta versión.")
 	}
 }
 
@@ -391,6 +436,14 @@ export const PUT: APIRoute = async ({ request }) => {
 				headers: { "Content-Type": "application/json" },
 			})
 		}
+		if (parsed.publicationMode === "publish" || parsed.publicationMode === "schedule") {
+			await requireCurrentSimulation({
+				providerId,
+				definitionId: parsed.id,
+				definition: parsed,
+				jurisdictionJson,
+			})
+		}
 		const before = await db
 			.select()
 			.from(TaxFeeDefinition)
@@ -459,5 +512,79 @@ export const PUT: APIRoute = async ({ request }) => {
 			status,
 			headers: { "Content-Type": "application/json" },
 		})
+	}
+}
+
+export const DELETE: APIRoute = async ({ request }) => {
+	try {
+		const { providerId, user } = await requireProviderFiscalityManager(request)
+		const id = new URL(request.url).searchParams.get("id")?.trim()
+		if (!id)
+			return Response.json({ error: "validation_error", message: "Missing id" }, { status: 400 })
+
+		const definition = await db
+			.select()
+			.from(TaxFeeDefinition)
+			.where(and(eq(TaxFeeDefinition.id, id), eq(TaxFeeDefinition.providerId, providerId)))
+			.then((rows) => rows[0] ?? null)
+		if (!definition) return Response.json({ error: "not_found" }, { status: 404 })
+		if (definition.editingState !== "draft" || definition.currentVersionId) {
+			return Response.json(
+				{ error: "validation_error", message: "Solo se pueden eliminar borradores sin publicar." },
+				{ status: 409 }
+			)
+		}
+
+		const [assignments, versions, simulations] = await Promise.all([
+			db
+				.select({ id: TaxFeeAssignment.id })
+				.from(TaxFeeAssignment)
+				.where(eq(TaxFeeAssignment.taxFeeDefinitionId, id))
+				.limit(1),
+			db
+				.select({ id: TaxFeeDefinitionVersion.id })
+				.from(TaxFeeDefinitionVersion)
+				.where(eq(TaxFeeDefinitionVersion.taxFeeDefinitionId, id))
+				.limit(1),
+			db
+				.select({ id: FiscalActivityEvent.id })
+				.from(FiscalActivityEvent)
+				.where(eq(FiscalActivityEvent.definitionId, id))
+				.limit(1),
+		])
+		if (assignments.length || versions.length || simulations.length) {
+			return Response.json(
+				{
+					error: "validation_error",
+					message:
+						"Este borrador tiene actividad o dependencias y debe archivarse para conservar su trazabilidad.",
+				},
+				{ status: 409 }
+			)
+		}
+
+		await db.delete(TaxFeeDefinition).where(eq(TaxFeeDefinition.id, id))
+		await writeProviderAuditLog({
+			providerId,
+			actorUserId: user.id,
+			action: "tax_fee_definition_draft_deleted",
+			entityType: "TaxFeeDefinition",
+			entityId: id,
+			beforeJson: definition,
+			afterJson: null,
+			riskLevel: "medium",
+		})
+		await invalidateProvider(providerId)
+		await invalidateProviderGovernance(providerId, "provider_tax_fee_definition_draft_deleted")
+		return new Response(null, { status: 204 })
+	} catch (err: any) {
+		if (err instanceof Response) return err
+		return Response.json(
+			{
+				error: "validation_error",
+				message: String(err?.message || "No se pudo eliminar el borrador."),
+			},
+			{ status: 400 }
+		)
 	}
 }

@@ -74,6 +74,31 @@ describe("advanced tax fee rules", () => {
 		).toBe(100)
 	})
 
+	it("keeps the regular amount outside an explicit seasonal override", () => {
+		const definition = resolved({
+			seasonalMode: "override",
+			seasons: [{ from: "2026-12-01", to: "2027-02-28", value: 15 }],
+		})
+		expect(
+			computeTaxBreakdown({
+				base: 100,
+				definitions: [definition],
+				nights: 1,
+				guests: 1,
+				context: { checkIn: "2026-08-10" },
+			}).total
+		).toBe(110)
+		expect(
+			computeTaxBreakdown({
+				base: 100,
+				definitions: [definition],
+				nights: 1,
+				guests: 1,
+				context: { checkIn: "2026-12-10" },
+			}).total
+		).toBe(115)
+	})
+
 	it("uses included lines when the taxable base requires them", () => {
 		const included = resolved({})
 		included.definition.calculationType = "percentage"

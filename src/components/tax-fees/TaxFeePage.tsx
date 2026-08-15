@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 
 import TaxFeeWizard, {
 	type ApiWarning,
@@ -19,9 +19,16 @@ type TaxFeePageProps = {
 	canManageFiscality: boolean
 	initialResources: TaxFeeScopeResources
 	initialSuggestion?: TaxFeeSuggestedDraft | null
+	initialReview?: boolean
 }
 
 type PageMode = "idle" | "creating" | "editing"
+type SavedDraftSummary = { id: string; name: string }
+type SimulationCertification = {
+	isCurrent: boolean
+	quoteId: string | null
+	issuedAt: string | null
+}
 
 function formatDefinitionValue(definition: DefinitionSummary) {
 	if (definition.calculationType === "percentage") return `${definition.value}%`
@@ -92,6 +99,18 @@ function jurisdictionLabel(definition: DefinitionSummary) {
 	)
 }
 
+function definitionSubtitle(definition: DefinitionSummary) {
+	return `${definition.kind === "tax" ? "Impuesto" : "Cargo"} · ${formatDefinitionValue(definition)} · ${formatAppliesPer(definition.appliesPer)}`
+}
+
+function canDeleteDraft(definition: DefinitionSummary) {
+	return (
+		definition.operationalStatus === "draft" &&
+		!definition.currentVersion &&
+		(definition.assignments?.length ?? 0) === 0
+	)
+}
+
 function responsibilityLabel(definition: DefinitionSummary) {
 	const jurisdiction = definition.jurisdictionJson as { collectionResponsibility?: string } | null
 	return (
@@ -125,9 +144,56 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 	const [responsibilityFilter, setResponsibilityFilter] = useState("all")
 	const [validityFilter, setValidityFilter] = useState("all")
 	const [filtersOpen, setFiltersOpen] = useState(false)
+	const [savedDraftSummary, setSavedDraftSummary] = useState<SavedDraftSummary | null>(null)
+	const [simulationCertification, setSimulationCertification] =
+		useState<SimulationCertification | null>(null)
+	const [isCheckingSimulationCertification, setIsCheckingSimulationCertification] = useState(false)
 
 	const hasDefinitions = Array.isArray(definitions) && definitions.length > 0
 	const wizardMode: TaxFeeWizardMode = mode === "editing" ? "editing" : "creating"
+	const inspectedRuleIsComplete = Boolean(
+		inspectedDefinition &&
+		inspectedDefinition.name.trim() &&
+		inspectedDefinition.calculationType &&
+		Number(inspectedDefinition.value) > 0 &&
+		jurisdictionLabel(inspectedDefinition) !== "Sin definir"
+	)
+	const inspectedSimulatorHref = inspectedDefinition
+		? `/provider/settings/tax-fees/simulator?definitionId=${encodeURIComponent(inspectedDefinition.id)}&returnTo=${encodeURIComponent(`/provider/settings/tax-fees?edit=${inspectedDefinition.id}&review=1`)}`
+		: ""
+	const inspectedReviewHref = inspectedDefinition
+		? `/provider/settings/tax-fees?edit=${encodeURIComponent(inspectedDefinition.id)}&review=1`
+		: ""
+
+	useEffect(() => {
+		if (!inspectedDefinition || inspectedDefinition.operationalStatus !== "draft") {
+			setSimulationCertification(null)
+			setIsCheckingSimulationCertification(false)
+			return
+		}
+		let cancelled = false
+		setSimulationCertification(null)
+		setIsCheckingSimulationCertification(true)
+		void fetch(
+			`/api/provider/tax-fees/simulation-certification?definitionId=${encodeURIComponent(inspectedDefinition.id)}`
+		)
+			.then(async (response) => {
+				if (!response.ok) throw new Error("No se pudo consultar la certificación")
+				return (await response.json()) as SimulationCertification
+			})
+			.then((result) => {
+				if (!cancelled) setSimulationCertification(result)
+			})
+			.catch(() => {
+				if (!cancelled) setSimulationCertification(null)
+			})
+			.finally(() => {
+				if (!cancelled) setIsCheckingSimulationCertification(false)
+			})
+		return () => {
+			cancelled = true
+		}
+	}, [inspectedDefinition?.id, inspectedDefinition?.operationalStatus])
 	const availableJurisdictions = useMemo(
 		() => [
 			...new Set(definitions.map(jurisdictionLabel).filter((value) => value !== "Sin definir")),
@@ -173,6 +239,7 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 		if (!props.canManageFiscality) return
 		setSelectedDefinition(null)
 		setSuccessMessage(null)
+		setSavedDraftSummary(null)
 		setMode("creating")
 	}
 
@@ -189,6 +256,7 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 		if (!props.canManageFiscality) return
 		setSelectedDefinition(definition)
 		setSuccessMessage(null)
+		setSavedDraftSummary(null)
 		setMode("editing")
 	}
 
@@ -196,6 +264,7 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 		if (!props.canManageFiscality) return
 		setSelectedDefinition(definition)
 		setInspectedDefinition(null)
+		setSavedDraftSummary(null)
 		setMode("creating")
 	}
 
@@ -268,6 +337,8 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 			form.set("appliesPer", definition.appliesPer)
 			form.set("priority", String(definition.priority))
 			form.set("status", status)
+			if (definition.jurisdictionJson)
+				form.set("jurisdictionJson", JSON.stringify(definition.jurisdictionJson))
 			if (definition.effectiveFrom) form.set("effectiveFrom", definition.effectiveFrom)
 			if (definition.effectiveTo) form.set("effectiveTo", definition.effectiveTo)
 			const response = await fetch("/api/provider/tax-fees/definitions", {
@@ -305,16 +376,51 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 		}
 	}
 
+	async function deleteDraft(definition: DefinitionSummary) {
+		if (!props.canManageFiscality || !canDeleteDraft(definition)) return
+		if (
+			!window.confirm(
+				`Eliminar el borrador “${definition.name}”? No tiene versiones publicadas ni asignaciones. Esta acción no modificará ventas ni reservas.`
+			)
+		)
+			return
+		setIsUpdatingAssignment(`definition:${definition.id}`)
+		setSuccessMessage(null)
+		setOperationError(null)
+		try {
+			const response = await fetch(
+				`/api/provider/tax-fees/definitions?id=${encodeURIComponent(definition.id)}`,
+				{ method: "DELETE" }
+			)
+			if (!response.ok) {
+				const body = await response.json().catch(() => null)
+				throw new Error(body?.message ?? "No se pudo eliminar el borrador.")
+			}
+			setDefinitions((current) => current.filter((item) => item.id !== definition.id))
+			setInspectedDefinition(null)
+			setSuccessMessage("Borrador eliminado.")
+		} catch (error) {
+			setOperationError(error instanceof Error ? error.message : "No se pudo eliminar el borrador.")
+		} finally {
+			setIsUpdatingAssignment(null)
+		}
+	}
+
 	if (mode !== "idle") {
 		return (
 			<section className="min-w-0">
 				<div className="mb-5 flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 pb-4">
 					<div>
 						<p className="text-xs font-semibold tracking-[0.08em] text-slate-500 uppercase">
-							{mode === "creating" ? "Nueva definición" : "Editar definición"}
+							{savedDraftSummary
+								? "Definición guardada"
+								: mode === "creating"
+									? "Nueva definición"
+									: "Editar definición"}
 						</p>
 						<h2 className="mt-1 text-lg font-semibold text-slate-950">
-							{mode === "creating" ? "Configura una regla fiscal" : selectedDefinition?.name}
+							{savedDraftSummary?.name ??
+								(mode === "creating" ? "Configura una regla fiscal" : selectedDefinition?.name)}
 						</h2>
 					</div>
 					<Button
@@ -323,6 +429,7 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 						onClick={() => {
 							setMode("idle")
 							setSelectedDefinition(null)
+							setSavedDraftSummary(null)
 						}}
 					>
 						Volver a definiciones
@@ -339,6 +446,7 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 					initialMode={wizardMode}
 					initialResources={props.initialResources}
 					initialSuggestion={props.initialSuggestion}
+					initialReview={props.initialReview}
 					initialDefinitionId={selectedDefinition?.id ?? null}
 					initialDuplicateDefinitionId={
 						mode === "creating" && selectedDefinition ? selectedDefinition.id : null
@@ -351,11 +459,15 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 					onEditingComplete={(message) => {
 						setMode("idle")
 						setSelectedDefinition(null)
+						setSavedDraftSummary(null)
 						setSuccessMessage(message)
 					}}
+					onDraftSaved={setSavedDraftSummary}
+					onResumeEditing={() => setSavedDraftSummary(null)}
 					onCancel={() => {
 						setMode("idle")
 						setSelectedDefinition(null)
+						setSavedDraftSummary(null)
 					}}
 				/>
 			</section>
@@ -548,7 +660,9 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 									>
 										<td className="px-4 py-4">
 											<p className="font-semibold text-slate-950">{definition.name}</p>
-											<p className="mt-1 text-xs text-slate-500">{definition.code}</p>
+											<p className="mt-1 text-xs text-slate-500">
+												{definitionSubtitle(definition)}
+											</p>
 										</td>
 										<td className="px-3 py-4 text-slate-600">
 											{definition.kind === "tax" ? "Impuesto" : "Cargo"}
@@ -635,8 +749,9 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 									{inspectedDefinition.name}
 								</h2>
 								<p className="mt-1 text-sm text-slate-500">
-									{inspectedDefinition.code} · Revisión v
-									{inspectedDefinition.currentVersion?.version ?? "sin publicar"}
+									{inspectedDefinition.currentVersion
+										? `Versión ${inspectedDefinition.currentVersion.version}`
+										: "Borrador sin publicar"}
 								</p>
 							</div>
 							<IconButton
@@ -648,6 +763,84 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 								×
 							</IconButton>
 						</div>
+						{inspectedDefinition.operationalStatus === "draft" && (
+							<section className="border-b border-slate-200 py-5" aria-live="polite">
+								<p className="text-xs font-semibold tracking-[0.08em] text-slate-500 uppercase">
+									Siguiente paso
+								</p>
+								{!inspectedRuleIsComplete ? (
+									<>
+										<h3 className="mt-2 text-base font-semibold text-slate-950">
+											Completa la definición
+										</h3>
+										<p className="mt-1 text-sm text-slate-600">
+											Agrega la jurisdicción antes de comprobar cómo se aplicará esta regla.
+										</p>
+										<div className="mt-4">
+											<Button
+												type="button"
+												onClick={() => {
+													startEditing(inspectedDefinition)
+													setInspectedDefinition(null)
+												}}
+											>
+												Completar definición
+											</Button>
+										</div>
+									</>
+								) : isCheckingSimulationCertification ? (
+									<p className="mt-2 text-sm text-slate-600">
+										Comprobando el estado de la simulación...
+									</p>
+								) : simulationCertification?.isCurrent ? (
+									<>
+										<h3 className="mt-2 text-base font-semibold text-slate-950">
+											Lista para publicar
+										</h3>
+										<p className="mt-1 text-sm text-slate-600">
+											La simulación vigente confirmó el cálculo de esta versión
+											{simulationCertification.quoteId
+												? ` · ${simulationCertification.quoteId}`
+												: ""}
+											.
+										</p>
+										<div className="mt-4">
+											<Button href={inspectedReviewHref}>Revisar y publicar</Button>
+										</div>
+									</>
+								) : (
+									<>
+										<h3 className="mt-2 text-base font-semibold text-slate-950">
+											Comprueba cómo se cobrará al huésped
+										</h3>
+										<p className="mt-1 text-sm text-slate-600">
+											Usa una reserva de ejemplo para confirmar el importe, cuándo se cobra y quién
+											lo recauda. La simulación no modifica ventas.
+										</p>
+										<div className="mt-4">
+											<Button href={inspectedSimulatorHref}>Comprobar en Simulador</Button>
+										</div>
+									</>
+								)}
+								<ol
+									className="mt-5 grid gap-2 border-t border-slate-100 pt-4 text-xs sm:grid-cols-4"
+									aria-label="Progreso de esta regla"
+								>
+									<li className="font-medium text-emerald-700">✓ Definida</li>
+									<li
+										className={
+											simulationCertification?.isCurrent
+												? "font-medium text-emerald-700"
+												: "font-medium text-slate-950"
+										}
+									>
+										{simulationCertification?.isCurrent ? "✓ Comprobada" : "● Comprobar"}
+									</li>
+									<li className="text-slate-500">○ Publicar</li>
+									<li className="text-slate-500">○ Asignar</li>
+								</ol>
+							</section>
+						)}
 						<div className="divide-y divide-slate-200">
 							<section className="py-5">
 								<h3 className="font-semibold text-slate-950">Cálculo</h3>
@@ -674,8 +867,9 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 									<div>
 										<dt className="text-slate-500">Vigencia</dt>
 										<dd className="mt-1 font-medium">
-											{inspectedDefinition.effectiveFrom ?? "Ahora"} -{" "}
-											{inspectedDefinition.effectiveTo ?? "Sin fin"}
+											{inspectedDefinition.effectiveFrom || inspectedDefinition.effectiveTo
+												? `${inspectedDefinition.effectiveFrom ?? "Desde ahora"} · ${inspectedDefinition.effectiveTo ?? "Sin fecha de finalización"}`
+												: "Sin fecha de finalización"}
 										</dd>
 									</div>
 								</dl>
@@ -699,10 +893,29 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 								</p>
 								<p className="mt-1 text-sm text-slate-600">
 									Temporadas:{" "}
-									{((inspectedDefinition.jurisdictionJson as any)?.seasons ?? []).length ||
-										"Sin temporadas"}
+									{((inspectedDefinition.jurisdictionJson as any)?.seasons ?? []).length
+										? (inspectedDefinition.jurisdictionJson as any).seasons
+												.map((season: any) => `${season.from} a ${season.to}`)
+												.join(", ")
+										: "Sin temporadas"}
 								</p>
 							</section>
+							<details className="py-5">
+								<summary className="cursor-pointer text-sm font-medium text-slate-600">
+									Información técnica
+								</summary>
+								<div className="mt-3 flex items-center justify-between gap-3 text-sm">
+									<code className="break-all text-slate-600">{inspectedDefinition.code}</code>
+									<Button
+										type="button"
+										size="sm"
+										variant="ghost"
+										onClick={() => void navigator.clipboard?.writeText(inspectedDefinition.code)}
+									>
+										Copiar código
+									</Button>
+								</div>
+							</details>
 							<section className="py-5">
 								<h3 className="font-semibold text-slate-950">Asignaciones y canales</h3>
 								{inspectedDefinition.assignments?.length ? (
@@ -760,7 +973,9 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 									)) ?? <p>Sin actividad registrada.</p>}
 								</div>
 								<p className="mt-3 text-sm text-slate-500">
-									La última simulación se consulta en Simulador usando esta regla.
+									{simulationCertification?.isCurrent
+										? "La simulación vigente corresponde a la configuración actual."
+										: "Una modificación de la regla requiere volver a comprobar su cálculo antes de publicarla."}
 								</p>
 							</section>
 						</div>
@@ -783,18 +998,29 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 								>
 									Editar
 								</Button>
-								<Button
-									type="button"
-									variant="secondary"
-									onClick={() =>
-										void updateDefinitionStatus(
-											inspectedDefinition,
-											inspectedDefinition.status === "active" ? "archived" : "active"
-										)
-									}
-								>
-									{inspectedDefinition.status === "active" ? "Archivar" : "Reactivar"}
-								</Button>
+								{canDeleteDraft(inspectedDefinition) ? (
+									<Button
+										type="button"
+										variant="danger"
+										disabled={isUpdatingAssignment === `definition:${inspectedDefinition.id}`}
+										onClick={() => void deleteDraft(inspectedDefinition)}
+									>
+										Eliminar borrador
+									</Button>
+								) : inspectedDefinition.operationalStatus === "draft" ? null : (
+									<Button
+										type="button"
+										variant="secondary"
+										onClick={() =>
+											void updateDefinitionStatus(
+												inspectedDefinition,
+												inspectedDefinition.status === "active" ? "archived" : "active"
+											)
+										}
+									>
+										{inspectedDefinition.status === "active" ? "Archivar" : "Reactivar"}
+									</Button>
+								)}
 							</div>
 						) : null}
 					</aside>

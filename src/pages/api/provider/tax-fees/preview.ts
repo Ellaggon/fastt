@@ -16,6 +16,8 @@ import { buildTaxFeeWarnings, computeTaxBreakdown } from "@/modules/taxes-fees/p
 import type { TaxFeeDefinition } from "@/modules/taxes-fees/public"
 import { buildPriceQuote } from "@/modules/pricing/public"
 import { writeFiscalActivity } from "@/lib/taxes-fees/fiscal-activity"
+import { taxFeeDefinitionFingerprint } from "@/lib/taxes-fees/tax-fee-simulation-certification"
+import { resolveFiscalSimulationPricing } from "@/lib/taxes-fees/fiscal-workspace-resources"
 
 const schema = z.object({
 	productId: z.string().min(1),
@@ -25,7 +27,8 @@ const schema = z.object({
 	channel: z.string().min(1).optional().nullable(),
 	country: z.string().trim().length(2).optional().nullable(),
 	guestResidenceCountry: z.string().trim().length(2).optional().nullable(),
-	base: z.coerce.number(),
+	base: z.coerce.number().positive().optional(),
+	pricingMode: z.enum(["effective", "manual"]).optional().default("manual"),
 	checkIn: z.string().optional().nullable(),
 	checkOut: z.string().optional().nullable(),
 	nights: z.coerce.number().int().min(1).optional(),
@@ -85,6 +88,7 @@ export const POST: APIRoute = async ({ request }) => {
 			country: form.get("country") || undefined,
 			guestResidenceCountry: form.get("guestResidenceCountry") || undefined,
 			base: form.get("base"),
+			pricingMode: form.get("pricingMode") ?? undefined,
 			checkIn: form.get("checkIn"),
 			checkOut: form.get("checkOut"),
 			nights: form.get("nights") ?? undefined,
@@ -127,6 +131,39 @@ export const POST: APIRoute = async ({ request }) => {
 			})
 		}
 
+		const effectivePricing =
+			parsed.pricingMode === "effective" &&
+			parsed.variantId &&
+			parsed.ratePlanId &&
+			parsed.checkIn &&
+			parsed.checkOut
+				? await resolveFiscalSimulationPricing({
+						variantId: parsed.variantId,
+						ratePlanId: parsed.ratePlanId,
+						checkIn: parsed.checkIn,
+						checkOut: parsed.checkOut,
+						adults: parsed.adults ?? 2,
+						children: parsed.children ?? 0,
+					})
+				: null
+		if (parsed.pricingMode === "effective" && !effectivePricing) {
+			return new Response(
+				JSON.stringify({
+					error: "simulation_context_unavailable",
+					message: "No hay precio y disponibilidad efectivos para este contexto.",
+				}),
+				{ status: 409, headers: { "Content-Type": "application/json" } }
+			)
+		}
+		const base = effectivePricing?.baseAmount ?? parsed.base
+		if (!base || base <= 0) {
+			return new Response(
+				JSON.stringify({ error: "validation_error", message: "Base price is required" }),
+				{ status: 400, headers: { "Content-Type": "application/json" } }
+			)
+		}
+		const currency = effectivePricing?.currency ?? parsed.currency
+
 		const guests = parsed.guests ?? Math.max(0, (parsed.adults ?? 0) + (parsed.children ?? 0)) ?? 1
 
 		const resolved = await resolveEffectiveTaxFeesUseCase({
@@ -138,6 +175,7 @@ export const POST: APIRoute = async ({ request }) => {
 		})
 
 		let definitions = resolved.definitions
+		let selectedDefinitionFingerprint: string | null = null
 		if (parsed.taxFeeDefinitionId) {
 			const selected = await db
 				.select()
@@ -150,6 +188,7 @@ export const POST: APIRoute = async ({ request }) => {
 					headers: { "Content-Type": "application/json" },
 				})
 			}
+			selectedDefinitionFingerprint = taxFeeDefinitionFingerprint(selected)
 			const selectedDefinition = {
 				id: selected.id,
 				providerId: selected.providerId,
@@ -207,7 +246,7 @@ export const POST: APIRoute = async ({ request }) => {
 		const warnings = buildTaxFeeWarnings(definitions.map((d) => d.definition))
 
 		const breakdown = computeTaxBreakdown({
-			base: parsed.base,
+			base,
 			definitions,
 			nights,
 			guests: guests || 1,
@@ -232,21 +271,23 @@ export const POST: APIRoute = async ({ request }) => {
 				occupancy: { adults: parsed.adults ?? guests, children: parsed.children ?? 0, infants: 0 },
 				channel: parsed.channel ?? "web",
 			},
-			currency: parsed.currency,
+			currency,
 			nights,
-			baseAmount: parsed.base,
+			baseAmount: base,
 			taxesAndFees: breakdown,
 			pricing: {
-				days: Array.from({ length: nights }, (_, index) => ({
-					date: new Date(
-						(parsed.checkIn ? parseISODate(parsed.checkIn)! : new Date()).getTime() +
-							index * 86400000
-					)
-						.toISOString()
-						.slice(0, 10),
-					price: Number((parsed.base / nights).toFixed(2)),
-				})),
-				source: "legacy",
+				days:
+					effectivePricing?.days ??
+					Array.from({ length: nights }, (_, index) => ({
+						date: new Date(
+							(parsed.checkIn ? parseISODate(parsed.checkIn)! : new Date()).getTime() +
+								index * 86400000
+						)
+							.toISOString()
+							.slice(0, 10),
+						price: Number((base / nights).toFixed(2)),
+					})),
+				source: effectivePricing ? "materialized_search_view" : "legacy",
 			},
 		})
 		await writeFiscalActivity({
@@ -260,6 +301,7 @@ export const POST: APIRoute = async ({ request }) => {
 			context: {
 				quoteId: quote.quoteId,
 				ratePlanId: parsed.ratePlanId ?? null,
+				definitionFingerprint: selectedDefinitionFingerprint,
 				draft: Boolean(parsed.taxFeeDefinitionId),
 			},
 		})
@@ -277,7 +319,7 @@ export const POST: APIRoute = async ({ request }) => {
 
 		console.info("tax.preview", {
 			productId: parsed.productId,
-			base: parsed.base,
+			base,
 			nights,
 			guests: guests || 1,
 			definitions: definitions.length,
@@ -304,6 +346,7 @@ export const POST: APIRoute = async ({ request }) => {
 					country: parsed.country ?? null,
 					guestResidenceCountry: parsed.guestResidenceCountry ?? null,
 				},
+				pricingSource: effectivePricing?.pricingSource ?? "manual",
 				warnings,
 				technical: appliedLines.map((line) => ({
 					definitionId: line.definitionId,
