@@ -776,6 +776,14 @@ export default function SingleCalendarWorkspace({
 					: readySurface.conditions.complete
 						? "Condiciones completas"
 						: readySurface.conditions.missingSummary
+	const summaryIsHealthy =
+		mode === "price"
+			? missingPriceDays === 0
+			: mode === "availability"
+				? noInventoryDays === 0
+				: mode === "sellability"
+					? closedDays === 0
+					: readySurface.conditions.complete
 	const guidedNights = guidedNightCount()
 
 	return (
@@ -1018,41 +1026,13 @@ export default function SingleCalendarWorkspace({
 										</p>
 									)}
 								</div>
-								<div className="hidden flex-wrap gap-1.5 sm:flex" aria-label="Atajos de rango">
-									{RANGE_PRESETS.map(([id, label]) => (
-										<Button
-											key={id}
-											type="button"
-											onClick={() => applyPreset(id)}
-											variant="secondary"
-											size="sm"
-										>
-											{label}
-										</Button>
-									))}
-								</div>
-								<details className="relative sm:hidden">
-									<summary className="fastt-button inline-flex min-h-8 cursor-pointer list-none items-center rounded-full border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600">
-										Rangos
-									</summary>
-									<div className="fastt-soft-box absolute top-full left-0 z-30 mt-2 w-44 space-y-1 border border-slate-200 bg-white p-1.5 shadow-lg">
-										{RANGE_PRESETS.map(([id, label]) => (
-											<Button
-												key={id}
-												type="button"
-												onClick={(event) => {
-													applyPreset(id)
-													event.currentTarget.closest("details")?.removeAttribute("open")
-												}}
-												variant="ghost"
-												size="sm"
-												className="w-full justify-start"
-											>
-												{label}
-											</Button>
-										))}
-									</div>
-								</details>
+								<p
+									className={`text-xs font-medium ${
+										summaryIsHealthy ? "text-slate-500" : "text-amber-700"
+									}`}
+								>
+									{summary}
+								</p>
 							</div>
 
 							<SegmentedControl className="mt-3" role="tablist">
@@ -1155,9 +1135,52 @@ export default function SingleCalendarWorkspace({
 							›
 						</IconButton>
 					</div>
-					<span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
-						{summary}
-					</span>
+					{isGuidedAvailability ? (
+						<p
+							className={`text-xs font-medium ${
+								summaryIsHealthy ? "text-slate-500" : "text-amber-700"
+							}`}
+						>
+							{summary}
+						</p>
+					) : (
+						<>
+							<div className="hidden flex-wrap gap-1.5 sm:flex" aria-label="Atajos de rango">
+								{RANGE_PRESETS.map(([id, label]) => (
+									<button
+										key={id}
+										type="button"
+										onClick={() => applyPreset(id)}
+										className="inline-flex h-8 items-center rounded-full px-2.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+									>
+										{label}
+									</button>
+								))}
+							</div>
+							<details className="relative sm:hidden">
+								<summary className="fastt-button inline-flex min-h-8 cursor-pointer list-none items-center rounded-full border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600">
+									Rangos
+								</summary>
+								<div className="fastt-soft-box absolute top-full right-0 z-30 mt-2 w-44 space-y-1 border border-slate-200 bg-white p-1.5 shadow-lg">
+									{RANGE_PRESETS.map(([id, label]) => (
+										<Button
+											key={id}
+											type="button"
+											onClick={(event) => {
+												applyPreset(id)
+												event.currentTarget.closest("details")?.removeAttribute("open")
+											}}
+											variant="ghost"
+											size="sm"
+											className="w-full justify-start"
+										>
+											{label}
+										</Button>
+									))}
+								</div>
+							</details>
+						</>
+					)}
 				</div>
 				{(externalDays.length > 0 || conflictDays.length > 0) && (
 					<div

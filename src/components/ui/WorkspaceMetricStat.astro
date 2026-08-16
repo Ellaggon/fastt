@@ -1,0 +1,26 @@
+---
+interface Props {
+	label: string
+	tone?: "default" | "warning"
+	class?: string
+}
+
+const { label, tone = "default", class: classProp = "" } = Astro.props
+---
+
+<div
+	class:list={[
+		"fastt-soft-box rounded-[var(--fastt-radius-card)] border border-slate-700 bg-slate-900/60 p-4",
+		classProp,
+	]}
+>
+	<p class="text-xs tracking-[0.12em] text-slate-500 uppercase">{label}</p>
+	<p
+		class:list={[
+			"mt-2 text-2xl font-semibold",
+			tone === "warning" ? "text-amber-300" : "text-white",
+		]}
+	>
+		<slot />
+	</p>
+</div>

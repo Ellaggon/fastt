@@ -5,6 +5,8 @@ import Button from "@/components/ui/Button.astro"
 import Input from "@/components/ui/Input.astro"
 import Notice from "@/components/ui/Notice.astro"
 import Select from "@/components/ui/Select.astro"
+import WorkspaceMetricStat from "@/components/ui/WorkspaceMetricStat.astro"
+import WorkspaceMetricStats from "@/components/ui/WorkspaceMetricStats.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import {
@@ -147,29 +149,16 @@ const localTabs = [
 			) : null
 		}
 
-		<section
-			class="fastt-notice grid gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 text-slate-900 sm:grid-cols-3"
-			aria-label="Estado de calendarios externos"
-		>
-			<div class="bg-white p-4">
-				<p class="text-xs font-semibold text-slate-500">Feeds activos</p>
-				<p class="mt-1 text-2xl font-semibold text-slate-950">{activeCalendars.length}</p>
-			</div>
-			<div class="bg-white p-4">
-				<p class="text-xs font-semibold text-slate-500">Bloqueos importados</p>
-				<p class="mt-1 text-2xl font-semibold text-slate-950">{importedEvents}</p>
-			</div>
-			<div class={openConflicts.length ? "bg-amber-50 p-4" : "bg-white p-4"}>
-				<p class="text-xs font-semibold text-slate-500">Conflictos abiertos</p>
-				<p
-					class={`mt-1 text-2xl font-semibold ${
-						openConflicts.length ? "text-amber-950" : "text-slate-950"
-					}`}
-				>
-					{openConflicts.length}
-				</p>
-			</div>
-		</section>
+		<WorkspaceMetricStats aria-label="Estado de calendarios externos">
+			<WorkspaceMetricStat label="Feeds activos">{activeCalendars.length}</WorkspaceMetricStat>
+			<WorkspaceMetricStat label="Bloqueos importados">{importedEvents}</WorkspaceMetricStat>
+			<WorkspaceMetricStat
+				label="Conflictos abiertos"
+				tone={openConflicts.length ? "warning" : "default"}
+			>
+				{openConflicts.length}
+			</WorkspaceMetricStat>
+		</WorkspaceMetricStats>
 
 		<section
 			class="fastt-notice overflow-hidden rounded-lg border border-slate-200 bg-white text-slate-900 shadow-[var(--fastt-shadow-row)]"
