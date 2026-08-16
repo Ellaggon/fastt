@@ -17,6 +17,7 @@ export type TaxFeeJurisdictionRule = {
 	exemptGuestResidenceCountries?: string[]
 	maxAmount?: number | null
 	maxNights?: number | null
+	seasonalMode?: "restrict" | "override"
 	seasons?: Array<{ from: string; to: string; value?: number | null }>
 }
 

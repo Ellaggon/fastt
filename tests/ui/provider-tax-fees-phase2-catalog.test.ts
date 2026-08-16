@@ -15,6 +15,9 @@ test("Fase 2 delivers a searchable fiscal definition catalogue and rule detail",
 	expect(page).toContain("Duplicar")
 	expect(page).toContain("Asignaciones y canales")
 	expect(page).toContain("Versión y actividad")
+	expect(page).toContain("simulation-certification?definitionId")
+	expect(page).toContain("Comprobar en Simulador")
+	expect(page).toContain("Revisar y publicar")
 })
 
 test("Fase 2 separates draft editing from immutable publication versions", () => {
@@ -29,7 +32,8 @@ test("Fase 2 separates draft editing from immutable publication versions", () =>
 	expect(api).toContain("publishTaxFeeDefinitionVersion")
 	expect(api).toContain('publicationMode: z.enum(["draft", "publish", "schedule"])')
 	expect(wizard).toContain('persistDefinition("draft")')
-	expect(wizard).toContain('persistDefinition("publish")')
+	expect(wizard).toContain("void persistDefinition(intent)")
+	expect(wizard).toContain("Comprobar en Simulador")
 	expect(wizard).not.toContain('fetch("/api/provider/tax-fees/assignments", {')
 	expect(migration).toContain('CREATE TABLE IF NOT EXISTS "TaxFeeDefinitionVersion"')
 })

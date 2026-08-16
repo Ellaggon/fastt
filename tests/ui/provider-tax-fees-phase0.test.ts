@@ -30,16 +30,13 @@ describe("Fiscalidad Fase 0", () => {
 		expect(assignmentsApi).toContain("requireProviderFiscalityManager")
 	})
 
-	it("keeps the creation flow stable and resolves scope through catalog resources", () => {
+	it("keeps creation separate from commercial scope selection", () => {
 		const wizard = read("src/components/tax-fees/TaxFeeWizard.tsx")
 
-		expect(wizard).not.toContain('if (props.initialMode === "creating")')
 		expect(wizard).toContain("TaxFeeScopeResources")
-		expect(wizard).toContain("Selecciona un producto")
-		expect(wizard).toContain("Selecciona una unidad")
-		expect(wizard).toContain("Selecciona una tarifa")
-		expect(wizard).toContain("const productId = current.productId")
-		expect(wizard).toContain("value={selectedVariantId}")
+		expect(wizard).toContain("El alcance comercial se define después")
+		expect(wizard).toContain("Guardar esta definición no la aplica a ninguna venta")
+		expect(wizard).toContain("Comprobar en Simulador")
 		expect(wizard).not.toContain("ID del alcance")
 		expect(wizard).not.toContain("ID de producto para vista previa")
 	})

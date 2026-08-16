@@ -1,6 +1,7 @@
 ---
 import TabsInsidePanel from "@/components/ui/TabsInsidePanel.astro"
 import { routes } from "@/lib/routes"
+import { Calculator, History, Link2, ReceiptText } from "@lucide/astro"
 
 type FiscalTab = "definitions" | "assignments" | "simulator" | "activity"
 
@@ -12,11 +13,31 @@ interface Props {
 
 const { active, search = new URLSearchParams(), counts = {} } = Astro.props
 const suffix = search.toString() ? `?${search.toString()}` : ""
-const tabs: Array<{ id: FiscalTab; label: string; href: string }> = [
-	{ id: "definitions", label: "Definiciones", href: routes.providerSettingsTaxFees() },
-	{ id: "assignments", label: "Asignaciones", href: routes.providerSettingsTaxAssignments() },
-	{ id: "simulator", label: "Simulador", href: routes.providerSettingsTaxSimulator() },
-	{ id: "activity", label: "Actividad", href: routes.providerSettingsTaxActivity() },
+const tabs: Array<{
+	id: FiscalTab
+	label: string
+	href: string
+	icon: typeof ReceiptText
+}> = [
+	{
+		id: "definitions",
+		label: "Definiciones",
+		href: routes.providerSettingsTaxFees(),
+		icon: ReceiptText,
+	},
+	{
+		id: "simulator",
+		label: "Simulador",
+		href: routes.providerSettingsTaxSimulator(),
+		icon: Calculator,
+	},
+	{
+		id: "assignments",
+		label: "Asignaciones",
+		href: routes.providerSettingsTaxAssignments(),
+		icon: Link2,
+	},
+	{ id: "activity", label: "Actividad", href: routes.providerSettingsTaxActivity(), icon: History },
 ]
 ---
 
@@ -24,6 +45,7 @@ const tabs: Array<{ id: FiscalTab; label: string; href: string }> = [
 	{
 		tabs.map((tab) => {
 			const selected = tab.id === active
+			const Icon = tab.icon
 			return (
 				<a
 					href={`${tab.href}${suffix}`}
@@ -32,6 +54,7 @@ const tabs: Array<{ id: FiscalTab; label: string; href: string }> = [
 					data-active={selected ? "true" : "false"}
 					class="fastt-tabs-inside-panel__item"
 				>
+					<Icon class="mr-2 h-4 w-4 shrink-0" aria-hidden="true" />
 					{tab.label}
 					{counts[tab.id] !== undefined ? (
 						<span class="ml-1 text-xs opacity-70">{counts[tab.id]}</span>

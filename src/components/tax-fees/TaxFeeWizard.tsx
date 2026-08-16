@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 
-import { Badge, Button, Card, ChoiceCard, Input, Notice, Select } from "../ui-react"
+import { Badge, Button, Card, Checkbox, ChoiceCard, Input, Notice, Select } from "../ui-react"
 
 type TaxFeeKind = "tax" | "fee"
 type CalculationType = "percentage" | "fixed"
@@ -8,6 +8,7 @@ type AppliesPer = "stay" | "night" | "guest" | "guest_night"
 type InclusionType = "included" | "excluded"
 type ScopeType = "product" | "variant" | "rate_plan" | "provider"
 type CollectionResponsibility = "provider" | "platform" | "marketplace"
+type ApplicationPeriod = "always" | "from" | "range"
 
 export type DefinitionSummary = {
 	id: string
@@ -59,15 +60,37 @@ export type ApiWarning = {
 }
 
 type PreviewLine = {
+	definitionId: string
 	code: string
 	name: string
 	amount: number
 	currency: string | null
 	inclusionType: InclusionType
 	appliesPer: AppliesPer
+	collectionResponsibility: CollectionResponsibility
+	source: { scope: string; scopeId: string | null }
 }
 
 type PreviewResult = {
+	quote: {
+		quoteId: string
+		issuedAt: string
+		currency: string
+		baseAmount: number
+		totalAmount: number
+		nights: number
+		context: {
+			productId: string
+			variantId: string
+			ratePlanId: string
+			checkIn: string
+			checkOut: string
+			rooms: number
+			occupancy: { adults: number; children: number; infants: number }
+			channel: string
+		}
+		pricing: { source: "v2" | "materialized_search_view" | "legacy" }
+	}
 	breakdown: {
 		base: number
 		taxes: { included: PreviewLine[]; excluded: PreviewLine[] }
@@ -79,12 +102,31 @@ type PreviewResult = {
 		hasIncluded: boolean
 		hasExcluded: boolean
 	}
+	settlement: { paidNow: number; pendingAtProperty: number }
+	technical: Array<{
+		definitionId: string
+		definitionVersionId: string | null
+		name: string
+		source: { scope: string; scopeId: string | null }
+		taxableBase: string
+		multiplier: number
+		amount: number
+		rounding: string
+		channel: string
+	}>
 	context?: {
 		productId: string
 		variantId: string | null
 		ratePlanId: string | null
 		channel: string
 	}
+}
+
+type SimulationCertificate = {
+	isCurrent: boolean
+	quoteId: string | null
+	issuedAt: string | null
+	context: { productId: string | null; ratePlanId: string | null; channel: string | null } | null
 }
 
 type WarningGroup = {
@@ -134,7 +176,10 @@ type TaxFeeWizardProps = {
 	onDefinitionsChange?: (definitions: DefinitionSummary[], warnings: ApiWarning[]) => void
 	onEditingComplete?: (message: string) => void
 	onCancel?: () => void
+	onDraftSaved?: (definition: { id: string; name: string }) => void
+	onResumeEditing?: () => void
 	initialSuggestion?: TaxFeeSuggestedDraft | null
+	initialReview?: boolean
 }
 
 type DraftState = {
@@ -151,9 +196,15 @@ type DraftState = {
 	scopeId: string
 	productId: string
 	channel: string
+	applicationPeriod: ApplicationPeriod
 	effectiveFrom: string
 	effectiveTo: string
 	jurisdictionCountry: string
+	showSpecialConditions: boolean
+	hasResidenceExemption: boolean
+	hasMaxAmount: boolean
+	hasMaxNights: boolean
+	hasSeasonalOverride: boolean
 	guestResidenceExempt: string
 	collectionResponsibility: CollectionResponsibility
 	taxableBase: "booking_base" | "base_plus_included"
@@ -163,6 +214,8 @@ type DraftState = {
 	seasonTo: string
 	seasonValue: string
 	base: string
+	rooms: string
+	guestResidenceCountry: string
 	checkIn: string
 	checkOut: string
 	adults: string
@@ -234,12 +287,30 @@ const PRESETS: Preset[] = [
 ]
 
 const STEP_LABELS = [
-	{ id: 1, title: "Identidad" },
+	{ id: 1, title: "Tipo y nombre" },
 	{ id: 2, title: "Cálculo" },
-	{ id: 3, title: "Jurisdicción" },
-	{ id: 4, title: "Recaudación y vigencia" },
-	{ id: 5, title: "Revisión y publicación" },
+	{ id: 3, title: "Jurisdicción y condiciones" },
+	{ id: 4, title: "Revisar y guardar" },
 ]
+
+const JURISDICTION_OPTIONS = [
+	{ value: "AR", label: "Argentina" },
+	{ value: "BO", label: "Bolivia" },
+	{ value: "BR", label: "Brasil" },
+	{ value: "CL", label: "Chile" },
+	{ value: "CO", label: "Colombia" },
+	{ value: "CR", label: "Costa Rica" },
+	{ value: "EC", label: "Ecuador" },
+	{ value: "ES", label: "España" },
+	{ value: "MX", label: "México" },
+	{ value: "PA", label: "Panamá" },
+	{ value: "PE", label: "Perú" },
+	{ value: "PY", label: "Paraguay" },
+	{ value: "US", label: "Estados Unidos" },
+	{ value: "UY", label: "Uruguay" },
+]
+
+const CREATION_DRAFT_STORAGE_KEY = "fastt:fiscal-definition-draft:v1"
 
 const APPLIES_PER_OPTIONS: Array<{ value: AppliesPer; label: string }> = [
 	{ value: "stay", label: "Por estadía" },
@@ -287,17 +358,6 @@ const KIND_OPTIONS: Array<{ value: TaxFeeKind; label: string; description: strin
 	},
 ]
 
-const SCOPE_OPTIONS: Array<{ value: ScopeType; label: string; helper: string }> = [
-	{ value: "product", label: "Producto", helper: "Aplicar a un hotel o servicio completo." },
-	{ value: "variant", label: "Unidad", helper: "Aplicar solo a una habitación o unidad vendible." },
-	{ value: "rate_plan", label: "Tarifa", helper: "Aplicar solo a una tarifa específica." },
-	{
-		value: "provider",
-		label: "Proveedor",
-		helper: "Aplicar de forma amplia a la cuenta del proveedor.",
-	},
-]
-
 function makeTomorrow(offsetDays: number) {
 	const date = new Date()
 	date.setDate(date.getDate() + offsetDays)
@@ -318,9 +378,15 @@ const initialDraft: DraftState = {
 	scopeId: "",
 	productId: "",
 	channel: "",
+	applicationPeriod: "always",
 	effectiveFrom: "",
 	effectiveTo: "",
 	jurisdictionCountry: "",
+	showSpecialConditions: false,
+	hasResidenceExemption: false,
+	hasMaxAmount: false,
+	hasMaxNights: false,
+	hasSeasonalOverride: false,
 	guestResidenceExempt: "",
 	collectionResponsibility: "provider",
 	taxableBase: "booking_base",
@@ -330,6 +396,8 @@ const initialDraft: DraftState = {
 	seasonTo: "",
 	seasonValue: "",
 	base: "100",
+	rooms: "1",
+	guestResidenceCountry: "",
 	checkIn: makeTomorrow(7),
 	checkOut: makeTomorrow(8),
 	adults: "2",
@@ -347,8 +415,7 @@ function sanitizeCode(input: string) {
 function buildDefinitionCode(draft: DraftState) {
 	if (draft.code) return draft.code
 	const presetBase = draft.presetKey && draft.presetKey !== "CUSTOM" ? draft.presetKey : draft.name
-	const scopeBase = draft.scope ? `${draft.scope}_${draft.scopeId || "PENDING"}` : "DRAFT"
-	return sanitizeCode(`${presetBase}_${scopeBase}`) || "CUSTOM_TAX_FEE"
+	return sanitizeCode(presetBase) || "CUSTOM_TAX_FEE"
 }
 
 function formatMoney(amount: number, currency: string) {
@@ -386,6 +453,18 @@ function formatDateForInput(value: string | null) {
 	return value.slice(0, 10)
 }
 
+function formatDateForSummary(value: string) {
+	if (!value) return ""
+	const [year, month, day] = value.split("-").map(Number)
+	if (!year || !month || !day) return value
+	return new Intl.DateTimeFormat("es-CL", {
+		day: "numeric",
+		month: "long",
+		year: "numeric",
+		timeZone: "UTC",
+	}).format(new Date(Date.UTC(year, month - 1, day)))
+}
+
 function mapDefinitionToDraft(definition: DefinitionSummary): DraftState {
 	const rule =
 		definition.jurisdictionJson && typeof definition.jurisdictionJson === "object"
@@ -407,9 +486,28 @@ function mapDefinitionToDraft(definition: DefinitionSummary): DraftState {
 		currency: definition.currency ?? "USD",
 		appliesPer: definition.appliesPer,
 		inclusionType: definition.inclusionType,
+		applicationPeriod:
+			definition.effectiveFrom && definition.effectiveTo
+				? "range"
+				: definition.effectiveFrom
+					? "from"
+					: "always",
 		effectiveFrom: formatDateForInput(definition.effectiveFrom),
 		effectiveTo: formatDateForInput(definition.effectiveTo),
 		jurisdictionCountry: String(rule.country ?? ""),
+		showSpecialConditions: Boolean(
+			(Array.isArray(rule.exemptGuestResidenceCountries) &&
+				rule.exemptGuestResidenceCountries.length) ||
+			rule.maxAmount != null ||
+			rule.maxNights != null ||
+			seasons.length
+		),
+		hasResidenceExemption: Boolean(
+			Array.isArray(rule.exemptGuestResidenceCountries) && rule.exemptGuestResidenceCountries.length
+		),
+		hasMaxAmount: rule.maxAmount != null,
+		hasMaxNights: rule.maxNights != null,
+		hasSeasonalOverride: seasons.length > 0,
 		guestResidenceExempt: Array.isArray(rule.exemptGuestResidenceCountries)
 			? rule.exemptGuestResidenceCountries.map(String).join(", ")
 			: "",
@@ -429,7 +527,30 @@ function mapDefinitionToDraft(definition: DefinitionSummary): DraftState {
 
 function isValidDateRange(from: string, to: string) {
 	if (!from || !to) return true
-	return new Date(from).getTime() < new Date(to).getTime()
+	return new Date(from).getTime() <= new Date(to).getTime()
+}
+
+function hasValidApplicationPeriod(draft: DraftState) {
+	if (draft.applicationPeriod === "always") return true
+	if (!draft.effectiveFrom) return false
+	return draft.applicationPeriod === "from" || Boolean(draft.effectiveTo)
+}
+
+function hasValidSpecialConditions(draft: DraftState) {
+	if (draft.hasResidenceExemption && !draft.guestResidenceExempt.trim()) return false
+	if (draft.hasMaxAmount && Number(draft.maxAmount) <= 0) return false
+	if (draft.hasMaxNights && Number(draft.maxNights) <= 0) return false
+	if (!draft.hasSeasonalOverride) return true
+	if (!draft.seasonFrom || !draft.seasonTo || Number(draft.seasonValue) <= 0) return false
+	if (!isValidDateRange(draft.seasonFrom, draft.seasonTo)) return false
+	if (draft.effectiveFrom && draft.seasonFrom < draft.effectiveFrom) return false
+	if (
+		draft.applicationPeriod === "range" &&
+		draft.effectiveTo &&
+		draft.seasonTo > draft.effectiveTo
+	)
+		return false
+	return true
 }
 
 async function readJsonSafe(response: Response) {
@@ -468,6 +589,18 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 	const [errorMessage, setErrorMessage] = useState<string | null>(null)
 	const [successMessage, setSuccessMessage] = useState<string | null>(null)
 	const [isRefreshingDefinitions, setIsRefreshingDefinitions] = useState(false)
+	const [baselineDefinition, setBaselineDefinition] = useState<DefinitionSummary | null>(null)
+	const [technicalOpen, setTechnicalOpen] = useState(false)
+	const [publicationIntent, setPublicationIntent] = useState<"publish" | "schedule" | null>(null)
+	const [simulationVariantId, setSimulationVariantId] = useState("")
+	const [simulationRatePlanId, setSimulationRatePlanId] = useState("")
+	const [simulationCertificate, setSimulationCertificate] = useState<SimulationCertificate | null>(
+		null
+	)
+	const [isCheckingSimulation, setIsCheckingSimulation] = useState(false)
+	const [savedDraftId, setSavedDraftId] = useState<string | null>(null)
+	const [storageReady, setStorageReady] = useState(false)
+	const [recoveredProgress, setRecoveredProgress] = useState(false)
 
 	const filteredPresets = useMemo(() => {
 		if (!draft.kind) return []
@@ -478,6 +611,37 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 		() => filteredPresets.find((preset) => preset.key === draft.presetKey) ?? null,
 		[filteredPresets, draft.presetKey]
 	)
+	const applicationSummary = useMemo(() => {
+		if (draft.applicationPeriod === "from" && draft.effectiveFrom)
+			return `Se aplicará a las entradas desde el ${formatDateForSummary(draft.effectiveFrom)}.`
+		if (draft.applicationPeriod === "range" && draft.effectiveFrom && draft.effectiveTo)
+			return `Se aplicará a las entradas entre el ${formatDateForSummary(draft.effectiveFrom)} y el ${formatDateForSummary(draft.effectiveTo)}.`
+		return "Se aplicará a todas las entradas, sin fecha de finalización."
+	}, [draft.applicationPeriod, draft.effectiveFrom, draft.effectiveTo])
+	const jurisdictionLabel = useMemo(
+		() =>
+			JURISDICTION_OPTIONS.find((country) => country.value === draft.jurisdictionCountry)?.label ??
+			draft.jurisdictionCountry,
+		[draft.jurisdictionCountry]
+	)
+	const potentialDuplicates = useMemo(() => {
+		const normalizedName = draft.name.trim().toLocaleLowerCase("es")
+		if (!normalizedName || !draft.kind || !draft.calculationType) return []
+		return definitions.filter((definition) => {
+			if (definition.id === editingDefinitionId) return false
+			const rule =
+				definition.jurisdictionJson && typeof definition.jurisdictionJson === "object"
+					? (definition.jurisdictionJson as Record<string, unknown>)
+					: {}
+			return (
+				definition.name.trim().toLocaleLowerCase("es") === normalizedName &&
+				definition.kind === draft.kind &&
+				definition.calculationType === draft.calculationType &&
+				definition.value === Number(draft.value) &&
+				String(rule.country ?? "").toUpperCase() === draft.jurisdictionCountry.toUpperCase()
+			)
+		})
+	}, [definitions, draft, editingDefinitionId])
 
 	const warningGroups = useMemo(() => groupWarnings(previewWarnings), [previewWarnings])
 	const listWarningGroups = useMemo(() => groupWarnings(listWarnings), [listWarnings])
@@ -503,22 +667,48 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 	const selectableRatePlans = useMemo(
 		() =>
 			props.initialResources.ratePlans.filter(
-				(ratePlan) => ratePlan.variantId === selectedVariantId && ratePlan.isActive
+				(ratePlan) =>
+					ratePlan.variantId === (simulationVariantId || selectedVariantId) && ratePlan.isActive
 			),
-		[props.initialResources.ratePlans, selectedVariantId]
+		[props.initialResources.ratePlans, selectedVariantId, simulationVariantId]
 	)
 	const changedFields = useMemo(() => {
-		const current = editingDefinitionId
-			? definitions.find((definition) => definition.id === editingDefinitionId)
-			: null
-		if (!current) return ["Nueva regla"]
+		const current = baselineDefinition
+		if (!current) return ["Primera publicación"]
 		const changes: string[] = []
 		if (current.name !== draft.name) changes.push("nombre")
 		if (current.value !== Number(draft.value)) changes.push("monto")
 		if (current.appliesPer !== draft.appliesPer) changes.push("frecuencia")
 		if (current.inclusionType !== draft.inclusionType) changes.push("presentación al huésped")
+		if (
+			formatDateForInput(current.effectiveFrom) !== draft.effectiveFrom ||
+			formatDateForInput(current.effectiveTo) !== draft.effectiveTo
+		)
+			changes.push("periodo de aplicación")
+		const rule =
+			current.jurisdictionJson && typeof current.jurisdictionJson === "object"
+				? (current.jurisdictionJson as Record<string, unknown>)
+				: {}
+		if (String(rule.country ?? "") !== draft.jurisdictionCountry.toUpperCase())
+			changes.push("jurisdicción")
+		if (String(rule.collectionResponsibility ?? "provider") !== draft.collectionResponsibility)
+			changes.push("responsable de cobro")
+		if (
+			JSON.stringify(rule.exemptGuestResidenceCountries ?? []) !==
+			JSON.stringify(
+				draft.guestResidenceExempt
+					.split(",")
+					.map((country) => country.trim().toUpperCase())
+					.filter(Boolean)
+			)
+		)
+			changes.push("exenciones")
+		if (Number(rule.maxAmount ?? 0) !== (draft.hasMaxAmount ? Number(draft.maxAmount || 0) : 0))
+			changes.push("tope por reserva")
+		if (Number(rule.maxNights ?? 0) !== (draft.hasMaxNights ? Number(draft.maxNights || 0) : 0))
+			changes.push("límite de noches")
 		return changes.length ? changes : ["Sin cambios materiales"]
-	}, [definitions, draft, editingDefinitionId])
+	}, [baselineDefinition, draft])
 
 	useEffect(() => {
 		setDraft((current) => {
@@ -563,18 +753,84 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 		setStep(2)
 	}, [props.initialMode, props.initialSuggestion])
 
+	useEffect(() => {
+		if (
+			props.initialMode !== "creating" ||
+			props.initialSuggestion ||
+			props.initialDuplicateDefinitionId
+		) {
+			setStorageReady(true)
+			return
+		}
+		try {
+			const stored = window.sessionStorage.getItem(CREATION_DRAFT_STORAGE_KEY)
+			if (stored) {
+				const parsed = JSON.parse(stored) as { draft?: Partial<DraftState>; step?: number }
+				if (parsed.draft && typeof parsed.draft === "object") {
+					setDraft({ ...initialDraft, ...parsed.draft })
+					setStep(Math.min(Math.max(Number(parsed.step) || 1, 1), 4))
+					setRecoveredProgress(true)
+				}
+			}
+		} catch {
+			window.sessionStorage.removeItem(CREATION_DRAFT_STORAGE_KEY)
+		} finally {
+			setStorageReady(true)
+		}
+	}, [props.initialDuplicateDefinitionId, props.initialMode, props.initialSuggestion])
+
+	useEffect(() => {
+		if (
+			!storageReady ||
+			props.initialMode !== "creating" ||
+			props.initialSuggestion ||
+			props.initialDuplicateDefinitionId ||
+			savedDraftId ||
+			step > 4
+		)
+			return
+		const hasMeaningfulProgress = Boolean(
+			draft.kind ||
+			draft.presetKey ||
+			draft.name.trim() ||
+			draft.value.trim() ||
+			draft.jurisdictionCountry.trim()
+		)
+		if (!hasMeaningfulProgress) {
+			window.sessionStorage.removeItem(CREATION_DRAFT_STORAGE_KEY)
+			return
+		}
+		window.sessionStorage.setItem(
+			CREATION_DRAFT_STORAGE_KEY,
+			JSON.stringify({ draft, step, updatedAt: new Date().toISOString() })
+		)
+	}, [
+		draft,
+		props.initialDuplicateDefinitionId,
+		props.initialMode,
+		props.initialSuggestion,
+		savedDraftId,
+		step,
+		storageReady,
+	])
+
 	const stepValid =
 		step === 1
-			? !!draft.kind
+			? !!draft.kind && !!draft.presetKey && draft.name.trim().length > 0
 			: step === 2
 				? draft.calculationType !== null &&
 					Number(draft.value) > 0 &&
 					(draft.calculationType === "percentage" || draft.currency.trim().length > 0)
 				: step === 3
-					? draft.scopeId.trim().length > 0 && draft.productId.trim().length > 0
+					? draft.jurisdictionCountry.trim().length === 2 &&
+						hasValidApplicationPeriod(draft) &&
+						isValidDateRange(draft.effectiveFrom, draft.effectiveTo) &&
+						hasValidSpecialConditions(draft)
 					: step === 4
 						? draft.name.trim().length > 0 &&
-							isValidDateRange(draft.effectiveFrom, draft.effectiveTo)
+							draft.jurisdictionCountry.trim().length === 2 &&
+							hasValidApplicationPeriod(draft) &&
+							hasValidSpecialConditions(draft)
 						: hasSuccessfulPreview
 
 	function invalidatePreview() {
@@ -588,6 +844,14 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 		setErrorMessage(null)
 		setSuccessMessage(null)
 		invalidatePreview()
+	}
+
+	function setApplicationPeriod(applicationPeriod: ApplicationPeriod) {
+		updateDraft({
+			applicationPeriod,
+			effectiveFrom: applicationPeriod === "always" ? "" : draft.effectiveFrom,
+			effectiveTo: applicationPeriod === "range" ? draft.effectiveTo : "",
+		})
 	}
 
 	async function refreshDefinitions() {
@@ -620,6 +884,8 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 	function resetWizard() {
 		setStep(1)
 		setDraft(initialDraft)
+		setSavedDraftId(null)
+		setRecoveredProgress(false)
 		setEditingDefinitionId(null)
 		setDefinitionId(null)
 		setPreviewResult(null)
@@ -627,6 +893,12 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 		setHasSuccessfulPreview(false)
 		setErrorMessage(null)
 		setSuccessMessage(null)
+		setBaselineDefinition(null)
+		setPublicationIntent(null)
+		setSimulationVariantId("")
+		setSimulationRatePlanId("")
+		setSimulationCertificate(null)
+		if (typeof window !== "undefined") window.sessionStorage.removeItem(CREATION_DRAFT_STORAGE_KEY)
 	}
 
 	useEffect(() => {
@@ -647,26 +919,6 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 		setStep(1)
 	}, [props.initialMode, props.initialDuplicateDefinitionId, definitions])
 
-	function changeScope(scope: ScopeType) {
-		setDraft((current) => {
-			const productId = current.productId
-			return {
-				...current,
-				scope,
-				productId,
-				scopeId:
-					scope === "provider"
-						? props.initialResources.providerId
-						: scope === "product"
-							? productId
-							: "",
-			}
-		})
-		setErrorMessage(null)
-		setSuccessMessage(null)
-		invalidatePreview()
-	}
-
 	function selectProduct(productId: string) {
 		setDraft((current) => ({
 			...current,
@@ -677,30 +929,6 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 					: current.scope === "provider"
 						? props.initialResources.providerId
 						: "",
-		}))
-		setErrorMessage(null)
-		setSuccessMessage(null)
-		invalidatePreview()
-	}
-
-	function selectVariant(variantId: string) {
-		const variant = props.initialResources.variants.find((item) => item.id === variantId)
-		setDraft((current) => ({
-			...current,
-			productId: variant?.productId ?? current.productId,
-			scopeId: variantId,
-		}))
-		setErrorMessage(null)
-		setSuccessMessage(null)
-		invalidatePreview()
-	}
-
-	function selectRatePlan(ratePlanId: string) {
-		const ratePlan = props.initialResources.ratePlans.find((item) => item.id === ratePlanId)
-		setDraft((current) => ({
-			...current,
-			productId: ratePlan?.productId ?? current.productId,
-			scopeId: ratePlanId,
 		}))
 		setErrorMessage(null)
 		setSuccessMessage(null)
@@ -757,14 +985,43 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 	}
 
 	function startEdit(definition: DefinitionSummary) {
+		setSavedDraftId(null)
 		setEditingDefinitionId(definition.id)
 		setDefinitionId(definition.id)
 		setDraft(mapDefinitionToDraft(definition))
-		setStep(1)
+		setBaselineDefinition(definition.currentVersion ? definition : null)
+		setSimulationVariantId("")
+		setSimulationRatePlanId("")
+		setStep(props.initialReview ? 5 : 1)
 		setSuccessMessage(null)
 		setErrorMessage(null)
 		invalidatePreview()
 	}
+
+	useEffect(() => {
+		if (step !== 5 || !definitionId) {
+			setSimulationCertificate(null)
+			return
+		}
+		let cancelled = false
+		setIsCheckingSimulation(true)
+		void fetch(
+			`/api/provider/tax-fees/simulation-certification?definitionId=${encodeURIComponent(definitionId)}`
+		)
+			.then(readJsonSafe)
+			.then((result) => {
+				if (!cancelled) setSimulationCertificate(result as SimulationCertificate)
+			})
+			.catch(() => {
+				if (!cancelled) setSimulationCertificate(null)
+			})
+			.finally(() => {
+				if (!cancelled) setIsCheckingSimulation(false)
+			})
+		return () => {
+			cancelled = true
+		}
+	}, [definitionId, step])
 
 	async function persistDefinition(publicationMode: "draft" | "publish" | "schedule" = "draft") {
 		setIsSavingDefinition(true)
@@ -795,22 +1052,29 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 					.split(",")
 					.map((country) => country.trim().toUpperCase())
 					.filter(Boolean),
-				...(Number(draft.maxAmount) > 0 ? { maxAmount: Number(draft.maxAmount) } : {}),
-				...(Number(draft.maxNights) > 0 ? { maxNights: Number(draft.maxNights) } : {}),
+				...(draft.hasMaxAmount && Number(draft.maxAmount) > 0
+					? { maxAmount: Number(draft.maxAmount) }
+					: {}),
+				...(draft.hasMaxNights && Number(draft.maxNights) > 0
+					? { maxNights: Number(draft.maxNights) }
+					: {}),
+				...(draft.hasSeasonalOverride ? { seasonalMode: "override" as const } : {}),
 				seasons:
-					draft.seasonFrom && draft.seasonTo
+					draft.hasSeasonalOverride && draft.seasonFrom && draft.seasonTo
 						? [
 								{
 									from: draft.seasonFrom,
 									to: draft.seasonTo,
-									...(Number(draft.seasonValue) > 0 ? { value: Number(draft.seasonValue) } : {}),
+									value: Number(draft.seasonValue),
 								},
 							]
 						: [],
 			}
 			form.set("jurisdictionJson", JSON.stringify(jurisdictionJson))
-			if (draft.effectiveFrom) form.set("effectiveFrom", draft.effectiveFrom)
-			if (draft.effectiveTo) form.set("effectiveTo", draft.effectiveTo)
+			if (draft.applicationPeriod !== "always" && draft.effectiveFrom)
+				form.set("effectiveFrom", draft.effectiveFrom)
+			if (draft.applicationPeriod === "range" && draft.effectiveTo)
+				form.set("effectiveTo", draft.effectiveTo)
 
 			const response = await fetch("/api/provider/tax-fees/definitions", {
 				method: editingDefinitionId ? "PUT" : "POST",
@@ -831,12 +1095,19 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 			await refreshDefinitions()
 			setSuccessMessage(
 				publicationMode === "draft"
-					? "Borrador guardado. Ejecuta una simulación antes de publicar."
+					? "La definición se guardó como borrador."
 					: publicationMode === "schedule"
 						? "Versión programada correctamente."
 						: "Versión publicada correctamente."
 			)
-			setStep(5)
+			if (publicationMode === "draft") {
+				setSavedDraftId(nextId)
+				setRecoveredProgress(false)
+				window.sessionStorage.removeItem(CREATION_DRAFT_STORAGE_KEY)
+				props.onDraftSaved?.({ id: nextId, name: draft.name.trim() })
+			} else {
+				setStep(5)
+			}
 		} catch (error) {
 			setErrorMessage(error instanceof Error ? error.message : "No se pudo guardar la definición")
 		} finally {
@@ -852,11 +1123,16 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 			const form = new FormData()
 			form.set("productId", draft.productId.trim())
 			if (definitionId) form.set("taxFeeDefinitionId", definitionId)
-			if (draft.scope === "variant") form.set("variantId", draft.scopeId.trim())
-			if (draft.scope === "rate_plan") form.set("ratePlanId", draft.scopeId.trim())
+			if (simulationVariantId || draft.scope === "variant")
+				form.set("variantId", simulationVariantId || draft.scopeId.trim())
+			if (simulationRatePlanId || draft.scope === "rate_plan")
+				form.set("ratePlanId", simulationRatePlanId || draft.scopeId.trim())
 			if (draft.channel.trim()) form.set("channel", draft.channel.trim())
 			if (draft.jurisdictionCountry.trim()) form.set("country", draft.jurisdictionCountry.trim())
+			if (draft.guestResidenceCountry.trim())
+				form.set("guestResidenceCountry", draft.guestResidenceCountry.trim())
 			form.set("base", draft.base || "100")
+			form.set("rooms", draft.rooms || "1")
 			form.set("checkIn", draft.checkIn)
 			form.set("checkOut", draft.checkOut)
 			form.set("adults", draft.adults || "2")
@@ -876,6 +1152,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 			setPreviewResult(body)
 			setPreviewWarnings(Array.isArray(body?.warnings) ? body.warnings : [])
 			setHasSuccessfulPreview(true)
+			setTechnicalOpen(false)
 		} catch (error) {
 			setHasSuccessfulPreview(false)
 			setPreviewResult(null)
@@ -888,19 +1165,115 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 		}
 	}
 
+	function confirmPublication(intent: "publish" | "schedule") {
+		if (!simulationCertificate?.isCurrent || isSavingDefinition) return
+		setPublicationIntent(intent)
+	}
+
+	function finishPublication() {
+		if (!publicationIntent) return
+		const intent = publicationIntent
+		setPublicationIntent(null)
+		void persistDefinition(intent)
+	}
+
 	function nextStep() {
 		if (!stepValid || step >= 5) return
 		if (step === 4) {
 			void persistDefinition("draft")
 			return
 		}
-		setStep((current) => Math.min(current + 1, 5))
+		setStep((current) => Math.min(current + 1, 4))
 	}
 
 	function previousStep() {
 		setErrorMessage(null)
 		setSuccessMessage(null)
 		setStep((current) => Math.max(current - 1, 1))
+	}
+
+	if (savedDraftId) {
+		const simulatorHref = `/provider/settings/tax-fees/simulator?definitionId=${encodeURIComponent(savedDraftId)}&returnTo=${encodeURIComponent(`/provider/settings/tax-fees?edit=${savedDraftId}&review=1`)}`
+		return (
+			<section className="mx-auto max-w-3xl py-2">
+				<div className="border-b border-slate-200 pb-6">
+					<p className="text-sm font-semibold text-emerald-700">
+						Definición guardada como borrador
+					</p>
+					<p className="mt-2 max-w-2xl text-sm text-slate-600">
+						Todavía no afecta precios ni reservas.
+					</p>
+				</div>
+
+				<ol
+					className="grid gap-3 border-b border-slate-200 py-5 text-sm sm:grid-cols-4"
+					aria-label="Progreso de publicación"
+				>
+					<li className="flex items-center gap-2 text-emerald-700">
+						<span
+							aria-hidden="true"
+							className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold"
+						>
+							✓
+						</span>
+						<span className="font-medium">Definición creada</span>
+					</li>
+					<li className="flex items-center gap-2 text-slate-950">
+						<span aria-hidden="true" className="h-2 w-2 rounded-full bg-slate-950" />
+						<span className="font-semibold">Comprobar cálculo</span>
+					</li>
+					<li className="flex items-center gap-2 text-slate-500">
+						<span aria-hidden="true" className="h-2 w-2 rounded-full border border-slate-400" />
+						<span>Publicar</span>
+					</li>
+					<li className="flex items-center gap-2 text-slate-500">
+						<span aria-hidden="true" className="h-2 w-2 rounded-full border border-slate-400" />
+						<span>Asignar</span>
+					</li>
+				</ol>
+
+				<div className="py-6">
+					<p className="text-xs font-semibold tracking-[0.08em] text-slate-500 uppercase">
+						Siguiente paso
+					</p>
+					<h2 className="mt-2 text-2xl font-semibold text-slate-950">
+						Comprueba cómo se cobrará al huésped
+					</h2>
+					<p className="mt-2 max-w-2xl text-sm text-slate-600">
+						Usa una reserva de ejemplo para confirmar el importe, cuándo se cobra y quién lo
+						recauda. La simulación no modifica ventas.
+					</p>
+					<div className="mt-5 flex flex-wrap items-center gap-3">
+						<Button href={simulatorHref}>Comprobar en Simulador</Button>
+						<span className="text-xs text-slate-500">
+							Después podrás publicar y asignar la definición.
+						</span>
+					</div>
+				</div>
+
+				<div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-5">
+					<Button
+						type="button"
+						variant="ghost"
+						onClick={() => props.onEditingComplete?.("Borrador guardado.")}
+					>
+						Volver a definiciones
+					</Button>
+					<Button
+						type="button"
+						size="sm"
+						variant="ghost"
+						onClick={() => {
+							setSavedDraftId(null)
+							setStep(1)
+							props.onResumeEditing?.()
+						}}
+					>
+						Editar definición
+					</Button>
+				</div>
+			</section>
+		)
 	}
 
 	return (
@@ -991,28 +1364,34 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 				)}
 
 				<section>
-					<div className="mb-6 flex flex-wrap gap-3">
-						{STEP_LABELS.map((item) => {
-							const active = item.id === step
-							const complete = item.id < step
-							return (
-								<div
-									key={item.id}
-									className={[
-										"flex items-center gap-2 border-b-2 px-2 py-2 text-sm",
-										active
-											? "border-slate-950 text-slate-950"
-											: complete
-												? "border-slate-400 text-slate-700"
-												: "border-transparent text-slate-500",
-									].join(" ")}
-								>
-									<span className="font-semibold">{item.id}</span>
-									<span>{item.title}</span>
-								</div>
-							)
-						})}
-					</div>
+					{step <= 4 ? (
+						<div className="mb-6 flex flex-wrap gap-3" aria-label="Progreso de la definición">
+							{STEP_LABELS.map((item) => {
+								const active = item.id === step
+								const complete = item.id < step
+								return (
+									<div
+										key={item.id}
+										className={[
+											"flex items-center gap-2 border-b-2 px-2 py-2 text-sm",
+											active
+												? "border-slate-950 text-slate-950"
+												: complete
+													? "border-slate-400 text-slate-700"
+													: "border-transparent text-slate-500",
+										].join(" ")}
+									>
+										<span className="font-semibold">{item.id}</span>
+										<span>{item.title}</span>
+									</div>
+								)
+							})}
+						</div>
+					) : (
+						<div className="mb-6 border-b border-slate-200 pb-3 text-sm font-semibold text-slate-700">
+							Publicación de la definición
+						</div>
+					)}
 
 					{errorMessage && (
 						<Notice variant="error" className="mb-4">
@@ -1023,6 +1402,20 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 					{successMessage && (
 						<Notice variant="success" className="mb-4">
 							{successMessage}
+						</Notice>
+					)}
+
+					{recoveredProgress && step <= 4 && (
+						<Notice variant="neutral" title="Recuperamos tu progreso" className="mb-4">
+							<div className="flex flex-wrap items-center justify-between gap-3">
+								<p>
+									Este formulario se conservó temporalmente en este navegador y aún no creó una
+									definición.
+								</p>
+								<Button type="button" size="sm" variant="ghost" onClick={resetWizard}>
+									Descartar progreso
+								</Button>
+							</div>
 						</Notice>
 					)}
 
@@ -1088,6 +1481,18 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 											</ChoiceCard>
 										))}
 									</div>
+									<label className="mt-5 flex max-w-xl flex-col gap-2">
+										<span className="text-sm font-medium text-slate-700">
+											Nombre que verá el huésped
+										</span>
+										<Input
+											value={draft.name}
+											onChange={(event) => updateDraft({ name: event.target.value, code: "" })}
+										/>
+										<p className="text-xs text-slate-500">
+											Puedes conservar el nombre sugerido o adaptarlo a tu operación.
+										</p>
+									</label>
 								</div>
 							) : null}
 						</div>
@@ -1155,6 +1560,27 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 								)}
 							</div>
 
+							<label className="flex max-w-md flex-col gap-2">
+								<span className="text-sm font-medium text-slate-700">
+									¿Con qué frecuencia se cobra?
+								</span>
+								<Select
+									value={draft.appliesPer}
+									onChange={(event) =>
+										updateDraft({ appliesPer: event.target.value as AppliesPer })
+									}
+								>
+									{APPLIES_PER_OPTIONS.map((option) => (
+										<option key={option.value} value={option.value}>
+											{option.label}
+										</option>
+									))}
+								</Select>
+								<p className="text-xs text-slate-500">
+									La frecuencia determina si se cobra una vez, por noche o según cada huésped.
+								</p>
+							</label>
+
 							<div className="grid gap-4 md:grid-cols-2">
 								<div className="space-y-2">
 									<span className="text-sm font-medium text-slate-700">
@@ -1197,7 +1623,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 										</div>
 									</dl>
 									<p className="mt-4 text-xs text-slate-500">
-										Si necesitas cambiar la frecuencia, puedes ajustarla en el paso de revisión.
+										Puedes volver a este paso para ajustar el cálculo antes de guardar.
 									</p>
 								</div>
 							</div>
@@ -1207,73 +1633,665 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 					{step === 3 && (
 						<div className="space-y-6">
 							<div>
-								<h2 className="text-2xl font-semibold text-slate-950">Elige dónde se aplicará</h2>
+								<h2 className="text-2xl font-semibold text-slate-950">
+									Jurisdicción y condiciones
+								</h2>
 								<p className="mt-2 text-sm text-slate-600">
-									Selecciona recursos de tu catálogo. La regla se aplicará solo en el alcance que
-									confirmes.
+									Indica dónde se regula el cobro, quién lo recauda y durante qué reservas debe
+									aplicarse.
+								</p>
+							</div>
+							<label className="flex max-w-md flex-col gap-2">
+								<span className="text-sm font-medium text-slate-700">País de jurisdicción</span>
+								<Select
+									value={draft.jurisdictionCountry}
+									onChange={(event) => updateDraft({ jurisdictionCountry: event.target.value })}
+								>
+									<option value="">Selecciona un país</option>
+									{draft.jurisdictionCountry &&
+									!JURISDICTION_OPTIONS.some(
+										(country) => country.value === draft.jurisdictionCountry
+									) ? (
+										<option value={draft.jurisdictionCountry}>{draft.jurisdictionCountry}</option>
+									) : null}
+									{JURISDICTION_OPTIONS.map((country) => (
+										<option key={country.value} value={country.value}>
+											{country.label}
+										</option>
+									))}
+								</Select>
+								<p className="text-xs text-slate-500">
+									Selecciona el país cuya normativa origina este impuesto o cargo.
+								</p>
+							</label>
+						</div>
+					)}
+
+					{step === 3 && (
+						<div className="space-y-6">
+							<section className="border-t border-slate-200 pt-6">
+								<h3 className="text-base font-semibold text-slate-950">
+									¿Quién cobrará este importe?
+								</h3>
+								<p className="mt-1 text-sm text-slate-600">
+									Indica quién recibe y liquida este cobro frente al huésped.
+								</p>
+								<div className="mt-4 grid gap-3 md:grid-cols-3">
+									<ChoiceCard
+										selected={draft.collectionResponsibility === "provider"}
+										onClick={() => updateDraft({ collectionResponsibility: "provider" })}
+									>
+										<div className="text-sm font-semibold text-slate-950">Mi negocio</div>
+										<p className="mt-1 text-sm text-slate-600">
+											El proveedor cobra el importe al huésped.
+										</p>
+									</ChoiceCard>
+									<ChoiceCard
+										selected={draft.collectionResponsibility === "platform"}
+										onClick={() => updateDraft({ collectionResponsibility: "platform" })}
+									>
+										<div className="text-sm font-semibold text-slate-950">Fastt</div>
+										<p className="mt-1 text-sm text-slate-600">
+											La plataforma recauda y lo refleja en la liquidación.
+										</p>
+									</ChoiceCard>
+									<ChoiceCard
+										selected={draft.collectionResponsibility === "marketplace"}
+										onClick={() => updateDraft({ collectionResponsibility: "marketplace" })}
+									>
+										<div className="text-sm font-semibold text-slate-950">Canal de venta</div>
+										<p className="mt-1 text-sm text-slate-600">
+											Un canal compatible recauda el importe por cuenta del negocio.
+										</p>
+									</ChoiceCard>
+								</div>
+							</section>
+
+							<section className="border-t border-slate-200 pt-6">
+								<h3 className="text-base font-semibold text-slate-950">¿Cuándo debe aplicarse?</h3>
+								<p className="mt-1 text-sm text-slate-600">
+									Las fechas se evalúan según la fecha de entrada de la reserva.
+								</p>
+								<div className="mt-4 grid gap-3 md:grid-cols-3">
+									<ChoiceCard
+										selected={draft.applicationPeriod === "always"}
+										onClick={() => setApplicationPeriod("always")}
+									>
+										<div className="text-sm font-semibold text-slate-950">Siempre</div>
+										<p className="mt-1 text-sm text-slate-600">
+											Sin fecha de inicio ni finalización.
+										</p>
+									</ChoiceCard>
+									<ChoiceCard
+										selected={draft.applicationPeriod === "from"}
+										onClick={() => setApplicationPeriod("from")}
+									>
+										<div className="text-sm font-semibold text-slate-950">Desde una fecha</div>
+										<p className="mt-1 text-sm text-slate-600">
+											Comienza a cobrarse a partir de una fecha.
+										</p>
+									</ChoiceCard>
+									<ChoiceCard
+										selected={draft.applicationPeriod === "range"}
+										onClick={() => setApplicationPeriod("range")}
+									>
+										<div className="text-sm font-semibold text-slate-950">Durante un periodo</div>
+										<p className="mt-1 text-sm text-slate-600">Solo se cobra entre dos fechas.</p>
+									</ChoiceCard>
+								</div>
+								{draft.applicationPeriod !== "always" && (
+									<div className="mt-4 grid max-w-2xl gap-4 md:grid-cols-2">
+										<label className="flex flex-col gap-2">
+											<span className="text-sm font-medium text-slate-700">Fecha de inicio</span>
+											<Input
+												type="date"
+												value={draft.effectiveFrom}
+												max={
+													draft.applicationPeriod === "range"
+														? draft.effectiveTo || undefined
+														: undefined
+												}
+												onChange={(event) => updateDraft({ effectiveFrom: event.target.value })}
+											/>
+										</label>
+										{draft.applicationPeriod === "range" && (
+											<label className="flex flex-col gap-2">
+												<span className="text-sm font-medium text-slate-700">
+													Fecha de finalización
+												</span>
+												<Input
+													type="date"
+													min={draft.effectiveFrom || undefined}
+													value={draft.effectiveTo}
+													onChange={(event) => updateDraft({ effectiveTo: event.target.value })}
+												/>
+											</label>
+										)}
+									</div>
+								)}
+								<Notice variant="neutral" className="mt-4">
+									{applicationSummary}
+								</Notice>
+							</section>
+
+							<section className="border-t border-slate-200 pt-5">
+								<div className="flex flex-wrap items-center justify-between gap-3">
+									<div>
+										<h3 className="text-base font-semibold text-slate-950">
+											Condiciones especiales
+										</h3>
+										<p className="mt-1 text-sm text-slate-600">
+											Exenciones, límites y variaciones de importe.
+										</p>
+									</div>
+									<Button
+										type="button"
+										size="sm"
+										variant="secondary"
+										onClick={() =>
+											updateDraft({ showSpecialConditions: !draft.showSpecialConditions })
+										}
+									>
+										{draft.showSpecialConditions ? "Ocultar" : "Configurar"}
+									</Button>
+								</div>
+								{draft.showSpecialConditions && (
+									<div className="mt-5 space-y-5 border-t border-slate-100 pt-5">
+										<div className="space-y-3">
+											<Checkbox
+												checked={draft.hasResidenceExemption}
+												onChange={(event) =>
+													updateDraft({
+														hasResidenceExemption: event.target.checked,
+														guestResidenceExempt: event.target.checked
+															? draft.guestResidenceExempt
+															: "",
+													})
+												}
+											>
+												Excluir huéspedes según su país de residencia
+											</Checkbox>
+											{draft.hasResidenceExemption && (
+												<label className="flex max-w-xl flex-col gap-2">
+													<span className="text-sm font-medium text-slate-700">
+														Países de residencia exentos
+													</span>
+													<Input
+														placeholder="Ej. CL, AR"
+														value={draft.guestResidenceExempt}
+														onChange={(event) =>
+															updateDraft({
+																guestResidenceExempt: event.target.value.toUpperCase(),
+															})
+														}
+													/>
+													<p className="text-xs text-slate-500">
+														Ingresa códigos ISO de dos letras separados por coma.
+													</p>
+												</label>
+											)}
+										</div>
+										<div className="space-y-3">
+											<Checkbox
+												checked={draft.hasMaxAmount}
+												onChange={(event) =>
+													updateDraft({
+														hasMaxAmount: event.target.checked,
+														maxAmount: event.target.checked ? draft.maxAmount : "",
+													})
+												}
+											>
+												Limitar el importe máximo por reserva
+											</Checkbox>
+											{draft.hasMaxAmount && (
+												<label className="flex max-w-sm flex-col gap-2">
+													<span className="text-sm font-medium text-slate-700">
+														Tope por reserva
+													</span>
+													<Input
+														type="number"
+														min="0"
+														step="0.01"
+														value={draft.maxAmount}
+														onChange={(event) => updateDraft({ maxAmount: event.target.value })}
+													/>
+													<p className="text-xs text-slate-500">
+														Nunca se cobrará más de este importe por reserva.
+													</p>
+												</label>
+											)}
+										</div>
+										{["night", "guest_night"].includes(draft.appliesPer) && (
+											<div className="space-y-3">
+												<Checkbox
+													checked={draft.hasMaxNights}
+													onChange={(event) =>
+														updateDraft({
+															hasMaxNights: event.target.checked,
+															maxNights: event.target.checked ? draft.maxNights : "",
+														})
+													}
+												>
+													Limitar las noches cobrables
+												</Checkbox>
+												{draft.hasMaxNights && (
+													<label className="flex max-w-sm flex-col gap-2">
+														<span className="text-sm font-medium text-slate-700">
+															Máximo de noches
+														</span>
+														<Input
+															type="number"
+															min="1"
+															step="1"
+															value={draft.maxNights}
+															onChange={(event) => updateDraft({ maxNights: event.target.value })}
+														/>
+														<p className="text-xs text-slate-500">
+															El cargo se aplicará solo a las primeras noches indicadas.
+														</p>
+													</label>
+												)}
+											</div>
+										)}
+										<div className="space-y-3">
+											<Checkbox
+												checked={draft.hasSeasonalOverride}
+												onChange={(event) =>
+													updateDraft({
+														hasSeasonalOverride: event.target.checked,
+														seasonFrom: event.target.checked ? draft.seasonFrom : "",
+														seasonTo: event.target.checked ? draft.seasonTo : "",
+														seasonValue: event.target.checked ? draft.seasonValue : "",
+													})
+												}
+											>
+												Cambiar el importe durante una temporada
+											</Checkbox>
+											{draft.hasSeasonalOverride && (
+												<div className="grid max-w-3xl gap-4 md:grid-cols-3">
+													<label className="flex flex-col gap-2">
+														<span className="text-sm font-medium text-slate-700">
+															Inicio de temporada
+														</span>
+														<Input
+															type="date"
+															value={draft.seasonFrom}
+															max={draft.seasonTo || undefined}
+															onChange={(event) => updateDraft({ seasonFrom: event.target.value })}
+														/>
+													</label>
+													<label className="flex flex-col gap-2">
+														<span className="text-sm font-medium text-slate-700">
+															Fin de temporada
+														</span>
+														<Input
+															type="date"
+															min={draft.seasonFrom || undefined}
+															value={draft.seasonTo}
+															onChange={(event) => updateDraft({ seasonTo: event.target.value })}
+														/>
+													</label>
+													<label className="flex flex-col gap-2">
+														<span className="text-sm font-medium text-slate-700">
+															{draft.calculationType === "percentage"
+																? "Porcentaje durante la temporada"
+																: "Importe durante la temporada"}
+														</span>
+														<Input
+															type="number"
+															min="0"
+															step="0.01"
+															value={draft.seasonValue}
+															onChange={(event) => updateDraft({ seasonValue: event.target.value })}
+														/>
+													</label>
+												</div>
+											)}
+											<p className="text-xs text-slate-500">
+												Fuera de esas fechas se mantiene el importe habitual de la regla.
+											</p>
+										</div>
+									</div>
+								)}
+							</section>
+							<Notice variant="neutral" title="El alcance comercial se define después">
+								Guardar esta definición no la aplica a ninguna venta. Después de simularla y
+								publicarla podrás elegir cuenta, producto, unidad, tarifa y canal desde
+								Asignaciones.
+							</Notice>
+						</div>
+					)}
+
+					{step === 4 && (
+						<div className="space-y-6">
+							<div>
+								<h2 className="text-2xl font-semibold text-slate-950">Revisa antes de guardar</h2>
+								<p className="mt-2 text-sm text-slate-600">
+									Confirma la definición. Al guardarla quedará como borrador, sin publicarse ni
+									asignarse a ventas.
 								</p>
 							</div>
 
-							<div className="grid gap-3 md:grid-cols-2">
-								{SCOPE_OPTIONS.map((option) => (
-									<ChoiceCard
-										key={option.value}
-										selected={draft.scope === option.value}
-										onClick={() => changeScope(option.value)}
-									>
-										<div className="text-base font-semibold text-slate-950">{option.label}</div>
-										<p className="mt-2 text-sm text-slate-600">{option.helper}</p>
-									</ChoiceCard>
-								))}
+							{potentialDuplicates.length > 0 && (
+								<Notice variant="warning" title="Puede que esta definición ya exista">
+									<p>
+										Encontramos{" "}
+										{potentialDuplicates.length === 1
+											? "una regla"
+											: `${potentialDuplicates.length} reglas`}{" "}
+										con el mismo nombre, cálculo, importe y jurisdicción:{" "}
+										{potentialDuplicates.map((item) => item.name).join(", ")}.
+									</p>
+									<p className="mt-2">
+										Revisa el catálogo antes de guardar si no deseas crear un duplicado.
+									</p>
+								</Notice>
+							)}
+
+							<dl className="divide-y divide-slate-200 border-y border-slate-200 text-sm">
+								<div className="grid gap-3 py-4 sm:grid-cols-[180px_minmax(0,1fr)_auto] sm:items-center">
+									<dt className="font-medium text-slate-950">Tipo y nombre</dt>
+									<dd className="text-slate-700">
+										{draft.name} · {draft.kind === "tax" ? "Impuesto" : "Cargo"}
+									</dd>
+									<Button type="button" size="sm" variant="ghost" onClick={() => setStep(1)}>
+										Editar
+									</Button>
+								</div>
+								<div className="grid gap-3 py-4 sm:grid-cols-[180px_minmax(0,1fr)_auto] sm:items-center">
+									<dt className="font-medium text-slate-950">Cálculo</dt>
+									<dd className="text-slate-700">
+										{draft.calculationType === "percentage"
+											? `${draft.value}%`
+											: `${draft.currency} ${draft.value}`}{" "}
+										·{" "}
+										{APPLIES_PER_OPTIONS.find((option) => option.value === draft.appliesPer)?.label}{" "}
+										·{" "}
+										{draft.inclusionType === "included"
+											? "Incluido en el precio"
+											: "Agregado al confirmar"}
+									</dd>
+									<Button type="button" size="sm" variant="ghost" onClick={() => setStep(2)}>
+										Editar
+									</Button>
+								</div>
+								<div className="grid gap-3 py-4 sm:grid-cols-[180px_minmax(0,1fr)_auto] sm:items-center">
+									<dt className="font-medium text-slate-950">Jurisdicción</dt>
+									<dd className="text-slate-700">
+										{jurisdictionLabel} · Recauda:{" "}
+										{draft.collectionResponsibility === "provider"
+											? "mi negocio"
+											: draft.collectionResponsibility === "platform"
+												? "Fastt"
+												: "canal de venta"}
+									</dd>
+									<Button type="button" size="sm" variant="ghost" onClick={() => setStep(3)}>
+										Editar
+									</Button>
+								</div>
+								<div className="grid gap-3 py-4 sm:grid-cols-[180px_minmax(0,1fr)_auto] sm:items-center">
+									<dt className="font-medium text-slate-950">Aplicación</dt>
+									<dd className="text-slate-700">{applicationSummary}</dd>
+									<Button type="button" size="sm" variant="ghost" onClick={() => setStep(3)}>
+										Editar
+									</Button>
+								</div>
+								<div className="grid gap-3 py-4 sm:grid-cols-[180px_minmax(0,1fr)]">
+									<dt className="font-medium text-slate-950">Condiciones especiales</dt>
+									<dd className="text-slate-700">
+										{[
+											draft.hasResidenceExemption && "Exenciones por residencia",
+											draft.hasMaxAmount && "Tope por reserva",
+											draft.hasMaxNights && "Límite de noches",
+											draft.hasSeasonalOverride && "Importe de temporada",
+										]
+											.filter(Boolean)
+											.join(" · ") || "Ninguna"}
+									</dd>
+								</div>
+							</dl>
+
+							<Notice variant="neutral" title="Qué ocurrirá al guardar">
+								Se creará una definición en estado borrador. No cambiará precios, reservas, canales
+								ni asignaciones. La simulación y la publicación se realizan después.
+							</Notice>
+						</div>
+					)}
+
+					{step === 5 && (
+						<div className="space-y-6">
+							<div>
+								<h2 className="text-2xl font-semibold text-slate-950">Revisión y publicación</h2>
+								<p className="mt-2 text-sm text-slate-600">
+									Comprueba la configuración, resuelve los controles pendientes y publica una nueva
+									versión.
+								</p>
 							</div>
 
-							{props.initialResources.products.length === 0 ? (
-								<Notice variant="warning" title="No hay recursos para asignar">
-									Crea primero un alojamiento, tour o servicio. Luego podrás aplicar esta regla a
-									sus tarifas.
-								</Notice>
-							) : (
-								<div className="grid gap-4 md:grid-cols-2">
-									<label className="flex flex-col gap-2">
-										<span className="text-sm font-medium text-slate-700">
-											{draft.scope === "provider" ? "Producto para la vista previa" : "Producto"}
-										</span>
-										<Select
-											value={draft.productId}
-											onChange={(event) => selectProduct(event.target.value)}
-										>
-											<option value="">Selecciona un producto</option>
-											{props.initialResources.products.map((product) => (
-												<option key={product.id} value={product.id}>
-													{product.label} · {product.kind}
-												</option>
-											))}
-										</Select>
-									</label>
+							<section className="divide-y divide-slate-200 border-y border-slate-200">
+								<div className="grid gap-4 py-4 md:grid-cols-[160px_minmax(0,1fr)_auto] md:items-center">
+									<div>
+										<p className="text-sm font-semibold text-slate-950">Configuración</p>
+										<p className="mt-1 text-sm text-slate-600">Regla y aplicación completas.</p>
+									</div>
+									<p className="text-sm text-slate-700">
+										{draft.jurisdictionCountry
+											? `Jurisdicción ${draft.jurisdictionCountry} definida.`
+											: "Falta la jurisdicción."}
+									</p>
+									<Button type="button" size="sm" variant="ghost" onClick={() => setStep(3)}>
+										Editar
+									</Button>
+								</div>
+								<div className="grid gap-4 py-4 md:grid-cols-[160px_minmax(0,1fr)_auto] md:items-center">
+									<div>
+										<p className="text-sm font-semibold text-slate-950">Simulación</p>
+										<p className="mt-1 text-sm text-slate-600">
+											La simulación usa el cálculo real y certifica esta versión.
+										</p>
+									</div>
+									{isCheckingSimulation ? (
+										<p className="text-sm text-slate-600">Comprobando simulación vigente...</p>
+									) : simulationCertificate?.isCurrent ? (
+										<p className="text-sm text-slate-700">
+											Simulación vigente
+											{simulationCertificate.quoteId ? ` · ${simulationCertificate.quoteId}` : ""}
+											{simulationCertificate.issuedAt
+												? ` · ${new Intl.DateTimeFormat("es-CL", { dateStyle: "medium" }).format(new Date(simulationCertificate.issuedAt))}`
+												: ""}
+											.
+										</p>
+									) : (
+										<p className="text-sm text-amber-800">
+											Simulación pendiente para esta versión.
+										</p>
+									)}
+									<Button
+										href={`/provider/settings/tax-fees/simulator?definitionId=${encodeURIComponent(definitionId ?? "")}&returnTo=${encodeURIComponent(`/provider/settings/tax-fees?edit=${definitionId ?? ""}&review=1`)}`}
+										size="sm"
+										variant={simulationCertificate?.isCurrent ? "ghost" : "secondary"}
+									>
+										{simulationCertificate?.isCurrent ? "Ver simulador" : "Abrir simulador"}
+									</Button>
+								</div>
+								<div className="grid gap-4 py-4 md:grid-cols-[160px_minmax(0,1fr)_auto] md:items-center">
+									<div>
+										<p className="text-sm font-semibold text-slate-950">Asignaciones</p>
+										<p className="mt-1 text-sm text-slate-600">Dónde se aplicará la regla.</p>
+									</div>
+									<p className="text-sm text-slate-700">
+										{baselineDefinition?.assignments?.some(
+											(assignment) => assignment.status === "active"
+										)
+											? "La definición conserva asignaciones activas."
+											: "Aún no tiene asignaciones; publicar no modificará ventas."}
+									</p>
+									<Button href="/provider/settings/tax-fees/assignments" size="sm" variant="ghost">
+										Ver asignaciones
+									</Button>
+								</div>
+							</section>
 
-									{(draft.scope === "variant" || draft.scope === "rate_plan") && (
+							<section className="border-b border-slate-200 pb-5">
+								<p className="text-xs font-semibold tracking-[0.08em] text-slate-500 uppercase">
+									Versión que se publicará
+								</p>
+								<dl className="mt-3 divide-y divide-slate-100 border-y border-slate-200 text-sm">
+									<div className="grid gap-2 py-3 md:grid-cols-[150px_1fr]">
+										<dt className="text-slate-500">Identidad</dt>
+										<dd className="font-medium text-slate-950">
+											{draft.name} · {draft.kind === "tax" ? "Impuesto" : "Cargo"} ·{" "}
+											{draft.code || "Código al publicar"}
+										</dd>
+									</div>
+									<div className="grid gap-2 py-3 md:grid-cols-[150px_1fr]">
+										<dt className="text-slate-500">Cálculo</dt>
+										<dd className="font-medium text-slate-950">
+											{draft.calculationType === "percentage"
+												? `${draft.value}%`
+												: `${draft.currency} ${draft.value}`}{" "}
+											·{" "}
+											{APPLIES_PER_OPTIONS.find(
+												(option) => option.value === draft.appliesPer
+											)?.label.toLowerCase()}{" "}
+											· {draft.inclusionType === "included" ? "incluido" : "agregado"}
+										</dd>
+									</div>
+									<div className="grid gap-2 py-3 md:grid-cols-[150px_1fr]">
+										<dt className="text-slate-500">Aplicación</dt>
+										<dd className="font-medium text-slate-950">
+											{applicationSummary} Recauda:{" "}
+											{draft.collectionResponsibility === "provider"
+												? "mi negocio"
+												: draft.collectionResponsibility === "platform"
+													? "Fastt"
+													: "canal de venta"}
+											.
+										</dd>
+									</div>
+								</dl>
+							</section>
+
+							<section className="border-l-2 border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+								<p className="font-semibold text-slate-950">
+									{baselineDefinition
+										? `Cambios respecto de la versión ${baselineDefinition.revision ?? 0}`
+										: "Primera publicación"}
+								</p>
+								<p className="mt-1">
+									{changedFields.join(" · ")}.{" "}
+									{baselineDefinition
+										? `Se creará la versión ${(baselineDefinition.revision ?? 0) + 1}.`
+										: "Se creará la versión 1."}{" "}
+									Las reservas históricas no cambiarán.
+								</p>
+							</section>
+
+							{isPreviewLoading && previewResult && (
+								<>
+									<div className="grid gap-4 border-y border-slate-200 py-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+										<div>
+											<p className="text-xs font-semibold tracking-[0.08em] text-slate-500 uppercase">
+												Versión que se publicará
+											</p>
+											<p className="mt-2 text-sm font-semibold text-slate-950">
+												{draft.name} ·{" "}
+												{draft.calculationType === "percentage"
+													? `${draft.value}%`
+													: `${draft.currency} ${draft.value}`}{" "}
+												·{" "}
+												{APPLIES_PER_OPTIONS.find(
+													(option) => option.value === draft.appliesPer
+												)?.label.toLowerCase()}
+											</p>
+											<p className="mt-1 text-sm text-slate-600">
+												{applicationSummary} Recauda:{" "}
+												{draft.collectionResponsibility === "provider"
+													? "mi negocio"
+													: draft.collectionResponsibility === "platform"
+														? "Fastt"
+														: "canal de venta"}
+												.
+											</p>
+										</div>
+										<div className="md:border-l md:border-slate-200 md:pl-4">
+											<p className="text-xs font-semibold tracking-[0.08em] text-slate-500 uppercase">
+												Alcance comercial
+											</p>
+											<p className="mt-2 text-sm font-semibold text-slate-950">
+												{draft.scope === "provider"
+													? "Toda la cuenta"
+													: draft.scope === "rate_plan"
+														? "Tarifa seleccionada"
+														: draft.scope === "variant"
+															? "Unidad seleccionada"
+															: "Producto seleccionado"}
+											</p>
+											<p className="mt-1 text-sm text-slate-600">
+												{baselineDefinition?.assignments?.some(
+													(assignment) => assignment.status === "active"
+												)
+													? "La definición tiene asignaciones activas."
+													: "Publicar no asigna la regla a ventas. La asignación se realiza después."}
+											</p>
+										</div>
+									</div>
+
+									<div className="border-b border-slate-200 pb-5">
+										<div className="flex flex-wrap items-end justify-between gap-3">
+											<div>
+												<p className="text-sm font-semibold text-slate-950">
+													Contexto de simulación
+												</p>
+												<p className="mt-1 text-sm text-slate-600">
+													Selecciona una reserva representativa para comprobar el cálculo.
+												</p>
+											</div>
+											<Badge variant="neutral">No modifica ventas ni asignaciones</Badge>
+										</div>
+									</div>
+
+									<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
 										<label className="flex flex-col gap-2">
-											<span className="text-sm font-medium text-slate-700">Unidad</span>
+											<span className="text-sm font-medium text-slate-700">Producto</span>
 											<Select
-												value={selectedVariantId}
-												onChange={(event) => selectVariant(event.target.value)}
+												value={draft.productId}
+												onChange={(event) => {
+													selectProduct(event.target.value)
+													setSimulationVariantId("")
+													setSimulationRatePlanId("")
+												}}
 											>
-												<option value="">Selecciona una unidad</option>
-												{selectableVariants.map((variant) => (
-													<option key={variant.id} value={variant.id}>
-														{variant.label} · {variant.kind}
+												<option value="">Selecciona un producto</option>
+												{props.initialResources.products.map((product) => (
+													<option key={product.id} value={product.id}>
+														{product.label}
 													</option>
 												))}
 											</Select>
 										</label>
-									)}
-
-									{draft.scope === "rate_plan" && (
+										<label className="flex flex-col gap-2">
+											<span className="text-sm font-medium text-slate-700">Unidad o salida</span>
+											<Select
+												value={simulationVariantId}
+												onChange={(event) => {
+													setSimulationVariantId(event.target.value)
+													setSimulationRatePlanId("")
+												}}
+											>
+												<option value="">Selecciona una unidad</option>
+												{selectableVariants.map((variant) => (
+													<option key={variant.id} value={variant.id}>
+														{variant.label}
+													</option>
+												))}
+											</Select>
+										</label>
 										<label className="flex flex-col gap-2">
 											<span className="text-sm font-medium text-slate-700">Tarifa</span>
 											<Select
-												value={draft.scopeId}
-												onChange={(event) => selectRatePlan(event.target.value)}
+												value={simulationRatePlanId}
+												onChange={(event) => setSimulationRatePlanId(event.target.value)}
 											>
 												<option value="">Selecciona una tarifa</option>
 												{selectableRatePlans.map((ratePlan) => (
@@ -1283,381 +2301,365 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 												))}
 											</Select>
 										</label>
-									)}
+										<label className="flex flex-col gap-2">
+											<span className="text-sm font-medium text-slate-700">Canal</span>
+											<Select
+												value={draft.channel || "web"}
+												onChange={(event) => updateDraft({ channel: event.target.value })}
+											>
+												<option value="web">Web directa</option>
+												<option value="channel_manager">Canal conectado</option>
+											</Select>
+										</label>
+										<label className="flex flex-col gap-2">
+											<span className="text-sm font-medium text-slate-700">Entrada</span>
+											<Input
+												type="date"
+												value={draft.checkIn}
+												max={draft.checkOut || undefined}
+												onChange={(event) => updateDraft({ checkIn: event.target.value })}
+											/>
+										</label>
+										<label className="flex flex-col gap-2">
+											<span className="text-sm font-medium text-slate-700">Salida</span>
+											<Input
+												type="date"
+												min={draft.checkIn || undefined}
+												value={draft.checkOut}
+												onChange={(event) => updateDraft({ checkOut: event.target.value })}
+											/>
+										</label>
+										<label className="flex flex-col gap-2">
+											<span className="text-sm font-medium text-slate-700">
+												Residencia del huésped
+											</span>
+											<Input
+												type="text"
+												placeholder="Ej. AR"
+												maxLength={2}
+												value={draft.guestResidenceCountry}
+												onChange={(event) =>
+													updateDraft({ guestResidenceCountry: event.target.value.toUpperCase() })
+												}
+											/>
+										</label>
+										<div className="grid gap-4 sm:grid-cols-2">
+											<label className="flex flex-col gap-2">
+												<span className="text-sm font-medium text-slate-700">Adultos</span>
+												<Input
+													type="number"
+													min="0"
+													value={draft.adults}
+													onChange={(event) => updateDraft({ adults: event.target.value })}
+												/>
+											</label>
+											<label className="flex flex-col gap-2">
+												<span className="text-sm font-medium text-slate-700">Niños</span>
+												<Input
+													type="number"
+													min="0"
+													value={draft.children}
+													onChange={(event) => updateDraft({ children: event.target.value })}
+												/>
+											</label>
+										</div>
+										<label className="flex flex-col gap-2">
+											<span className="text-sm font-medium text-slate-700">
+												Habitaciones o cantidad
+											</span>
+											<Input
+												type="number"
+												min="1"
+												value={draft.rooms}
+												onChange={(event) => updateDraft({ rooms: event.target.value })}
+											/>
+										</label>
+									</div>
 
-									<label className="flex flex-col gap-2 md:col-span-2">
-										<span className="text-sm font-medium text-slate-700">Canal de venta</span>
-										<Select
-											value={draft.channel}
-											onChange={(event) => updateDraft({ channel: event.target.value })}
-										>
-											<option value="">Todos los canales</option>
-											<option value="web">Sitio web Fastt</option>
-										</Select>
-										<p className="text-xs text-slate-500">
-											Los canales externos se incorporarán cuando sus integraciones estén
-											certificadas.
-										</p>
-									</label>
-								</div>
-							)}
-
-							{draft.scope === "provider" && (
-								<p className="fastt-soft-box rounded-[var(--fastt-radius-card)] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-									La regla se aplicará a toda la cuenta del proveedor. Elige un producto arriba para
-									simular el precio antes de activarla.
-								</p>
-							)}
-						</div>
-					)}
-
-					{step === 4 && (
-						<div className="space-y-6">
-							<div>
-								<h2 className="text-2xl font-semibold text-slate-950">Detalles de revisión</h2>
-								<p className="mt-2 text-sm text-slate-600">
-									Ajusta estos campos solo si necesitas una regla más específica. Primero se guarda
-									la definición y luego se ejecuta una vista previa real antes de asignar.
-								</p>
-							</div>
-
-							<div className="grid gap-4 md:grid-cols-2">
-								<label className="flex flex-col gap-2">
-									<span className="text-sm font-medium text-slate-700">Nombre del cargo</span>
-									<Input
-										value={draft.name}
-										onChange={(event) => updateDraft({ name: event.target.value, code: "" })}
-									/>
-								</label>
-
-								<label className="flex flex-col gap-2">
-									<span className="text-sm font-medium text-slate-700">
-										¿Con qué frecuencia aplica?
-									</span>
-									<Select
-										value={draft.appliesPer}
-										onChange={(event) =>
-											updateDraft({ appliesPer: event.target.value as AppliesPer })
-										}
-									>
-										{APPLIES_PER_OPTIONS.map((option) => (
-											<option key={option.value} value={option.value}>
-												{option.label}
-											</option>
-										))}
-									</Select>
+									<details className="border-y border-slate-200 py-4">
+										<summary className="cursor-pointer text-sm font-semibold text-slate-800">
+											Usar importe de prueba
+										</summary>
+										<div className="mt-4 grid max-w-md gap-2">
+											<label className="flex flex-col gap-2">
+												<span className="text-sm font-medium text-slate-700">
+													Importe base manual
+												</span>
+												<Input
+													type="number"
+													min="0"
+													step="0.01"
+													value={draft.base}
+													onChange={(event) => updateDraft({ base: event.target.value })}
+												/>
+											</label>
+											<p className="text-xs text-amber-800">
+												Este modo verifica la fórmula fiscal. No certifica el precio comercial de
+												una tarifa.
+											</p>
+										</div>
+									</details>
 									<p className="text-xs text-slate-500">
-										La mayoría de presets ya define esto correctamente. Cámbialo solo si tu cargo
-										funciona distinto.
+										La unidad, la tarifa y el canal delimitan las reglas que se prueban. Mientras el
+										importe provenga de la prueba manual, no representa una cotización comercial de
+										esa tarifa.
 									</p>
-								</label>
 
-								<label className="flex flex-col gap-2">
-									<span className="text-sm font-medium text-slate-700">Vigente desde opcional</span>
-									<Input
-										type="text"
-										placeholder="AAAA-MM-DD"
-										pattern="\\d{4}-\\d{2}-\\d{2}"
-										value={draft.effectiveFrom}
-										onChange={(event) => updateDraft({ effectiveFrom: event.target.value })}
-									/>
-								</label>
-
-								<label className="flex flex-col gap-2">
-									<span className="text-sm font-medium text-slate-700">Vigente hasta opcional</span>
-									<Input
-										type="text"
-										placeholder="AAAA-MM-DD"
-										pattern="\\d{4}-\\d{2}-\\d{2}"
-										value={draft.effectiveTo}
-										onChange={(event) => updateDraft({ effectiveTo: event.target.value })}
-									/>
-								</label>
-							</div>
-
-							<div className="border-t border-slate-200 pt-5">
-								<p className="text-sm font-semibold text-slate-900">Regla fiscal avanzada</p>
-								<p className="mt-1 text-sm text-slate-600">
-									Configura solo los límites que correspondan a tu obligación local.
-								</p>
-								<div className="mt-4 grid gap-4 md:grid-cols-2">
-									<label className="flex flex-col gap-2">
-										<span className="text-sm font-medium text-slate-700">País de jurisdicción</span>
-										<Input
-											placeholder="CL"
-											maxLength={2}
-											value={draft.jurisdictionCountry}
-											onChange={(event) => updateDraft({ jurisdictionCountry: event.target.value })}
-										/>
-									</label>
-									<label className="flex flex-col gap-2">
-										<span className="text-sm font-medium text-slate-700">
-											Responsable de recaudar
-										</span>
-										<Select
-											value={draft.collectionResponsibility}
-											onChange={(event) =>
-												updateDraft({
-													collectionResponsibility: event.target.value as CollectionResponsibility,
-												})
-											}
+									<div className="flex flex-wrap gap-3">
+										<Button
+											type="button"
+											onClick={() => void runPreview()}
+											disabled={isPreviewLoading || !definitionId || !draft.productId.trim()}
 										>
-											<option value="provider">Proveedor</option>
-											<option value="platform">Plataforma</option>
-											<option value="marketplace">Marketplace</option>
-										</Select>
-									</label>
-									<label className="flex flex-col gap-2">
-										<span className="text-sm font-medium text-slate-700">Tope por reserva</span>
-										<Input
-											type="number"
-											min="0"
-											step="0.01"
-											value={draft.maxAmount}
-											onChange={(event) => updateDraft({ maxAmount: event.target.value })}
-										/>
-									</label>
-									<label className="flex flex-col gap-2">
-										<span className="text-sm font-medium text-slate-700">
-											Máximo de noches cobrables
-										</span>
-										<Input
-											type="number"
-											min="0"
-											step="1"
-											value={draft.maxNights}
-											onChange={(event) => updateDraft({ maxNights: event.target.value })}
-										/>
-									</label>
-									<label className="flex flex-col gap-2 md:col-span-2">
-										<span className="text-sm font-medium text-slate-700">
-											Excepción por residencia
-										</span>
-										<Input
-											placeholder="CL, AR"
-											value={draft.guestResidenceExempt}
-											onChange={(event) =>
-												updateDraft({ guestResidenceExempt: event.target.value })
-											}
-										/>
-										<p className="text-xs text-slate-500">
-											Códigos de país de huéspedes exentos, separados por coma.
+											{isPreviewLoading ? "Calculando cotización..." : "Simular cotización"}
+										</Button>
+										{editingDefinitionId && (
+											<Badge variant="neutral" className="px-4 py-2 text-sm">
+												La versión se publica por separado de sus asignaciones comerciales.
+											</Badge>
+										)}
+									</div>
+									<div className="border-l-2 border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+										<p className="font-semibold text-slate-950">
+											Cambios respecto de la versión publicada
 										</p>
-									</label>
-									<label className="flex flex-col gap-2">
-										<span className="text-sm font-medium text-slate-700">Temporada desde</span>
-										<Input
-											placeholder="AAAA-MM-DD"
-											value={draft.seasonFrom}
-											onChange={(event) => updateDraft({ seasonFrom: event.target.value })}
-										/>
-									</label>
-									<label className="flex flex-col gap-2">
-										<span className="text-sm font-medium text-slate-700">Temporada hasta</span>
-										<Input
-											placeholder="AAAA-MM-DD"
-											value={draft.seasonTo}
-											onChange={(event) => updateDraft({ seasonTo: event.target.value })}
-										/>
-									</label>
-								</div>
-							</div>
+										<p className="mt-1">
+											{changedFields.join(" · ")}.{" "}
+											{baselineDefinition
+												? `Se creará la versión ${(baselineDefinition?.revision ?? 0) + 1}.`
+												: "Se creará la versión 1."}
+										</p>
+									</div>
 
-							<div className="fastt-soft-box rounded-[var(--fastt-radius-card)] border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-								<p className="font-medium text-slate-900">
-									Los campos internos se gestionan automáticamente
-								</p>
-								<p className="mt-1">
-									El código y la prioridad se generan internamente. Solo confirma cómo debe ver el
-									huésped este cargo.
-								</p>
-							</div>
+									{previewResult && (
+										<div className="space-y-5 border-y border-slate-200 py-5" aria-live="polite">
+											<div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-4">
+												<div>
+													<p className="text-xs font-semibold tracking-[0.08em] text-slate-500 uppercase">
+														{previewResult.quote.pricing.source === "legacy"
+															? "Prueba de cálculo fiscal"
+															: "Cotización verificada"}
+													</p>
+													<p className="mt-1 text-2xl font-semibold text-slate-950">
+														{formatMoney(
+															previewResult.quote.totalAmount,
+															previewResult.quote.currency
+														)}
+													</p>
+												</div>
+												<div className="text-right text-xs text-slate-500">
+													<p>{previewResult.quote.quoteId}</p>
+													<p className="mt-1">
+														{new Intl.DateTimeFormat("es-CL", {
+															dateStyle: "medium",
+															timeStyle: "short",
+														}).format(new Date(previewResult.quote.issuedAt))}
+													</p>
+												</div>
+											</div>
+											{previewResult.quote.pricing.source === "legacy" && (
+												<p className="border-l-2 border-amber-400 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+													El total usa el importe base manual. La simulación valida el cálculo
+													fiscal, no el precio comercial de la tarifa.
+												</p>
+											)}
+											<div className="grid gap-4 border-b border-slate-200 pb-4 md:grid-cols-3">
+												<div>
+													<p className="text-xs font-medium text-slate-500">Precio base</p>
+													<p className="mt-1 text-lg font-semibold text-slate-950">
+														{formatMoney(
+															previewResult.breakdown.base,
+															previewResult.quote.currency
+														)}
+													</p>
+												</div>
+												<div>
+													<p className="text-xs font-medium text-slate-500">Pagado ahora</p>
+													<p className="mt-1 text-lg font-semibold text-slate-950">
+														{formatMoney(
+															previewResult.settlement.paidNow,
+															previewResult.quote.currency
+														)}
+													</p>
+												</div>
+												<div>
+													<p className="text-xs font-medium text-slate-500">
+														Pendiente en propiedad
+													</p>
+													<p className="mt-1 text-lg font-semibold text-slate-950">
+														{formatMoney(
+															previewResult.settlement.pendingAtProperty,
+															previewResult.quote.currency
+														)}
+													</p>
+												</div>
+											</div>
+											<div className="flex flex-wrap gap-2">
+												{previewResult.flags.hasIncluded && (
+													<Badge variant="success">Incluye cargos</Badge>
+												)}
+												{previewResult.flags.hasExcluded && (
+													<Badge variant="warning">Cargos adicionales al confirmar</Badge>
+												)}
+											</div>
+
+											<div className="grid gap-4 md:grid-cols-2">
+												<div>
+													<h3 className="text-sm font-semibold text-slate-900">
+														Incluidos en el precio
+													</h3>
+													<ul className="mt-2 space-y-2 text-sm text-slate-700">
+														{includedLines.length === 0 ? (
+															<li className="border-b border-slate-100 py-2">
+																No hay cargos incluidos adicionales.
+															</li>
+														) : (
+															includedLines.map((line, index) => (
+																<li
+																	key={`${line.code}-included-${index}`}
+																	className="flex items-center justify-between gap-4 border-b border-slate-100 py-2"
+																>
+																	<div>
+																		<p className="font-medium text-slate-900">{line.name}</p>
+																		<p className="text-xs text-slate-500">
+																			{
+																				APPLIES_PER_OPTIONS.find(
+																					(item) => item.value === line.appliesPer
+																				)?.label
+																			}
+																		</p>
+																	</div>
+																	<strong>
+																		{formatMoney(line.amount, line.currency ?? previewCurrency)}
+																	</strong>
+																</li>
+															))
+														)}
+													</ul>
+												</div>
+												<div>
+													<h3 className="text-sm font-semibold text-slate-900">
+														Cargos adicionales
+													</h3>
+													<ul className="mt-2 space-y-2 text-sm text-slate-700">
+														{excludedLines.length === 0 ? (
+															<li className="border-b border-slate-100 py-2">
+																No se agregarán cargos extra después.
+															</li>
+														) : (
+															excludedLines.map((line, index) => (
+																<li
+																	key={`${line.code}-excluded-${index}`}
+																	className="flex items-center justify-between gap-4 border-b border-slate-100 py-2"
+																>
+																	<div>
+																		<p className="font-medium text-slate-900">{line.name}</p>
+																		<p className="text-xs text-slate-500">
+																			{
+																				APPLIES_PER_OPTIONS.find(
+																					(item) => item.value === line.appliesPer
+																				)?.label
+																			}
+																		</p>
+																	</div>
+																	<strong>
+																		{formatMoney(line.amount, line.currency ?? previewCurrency)}
+																	</strong>
+																</li>
+															))
+														)}
+													</ul>
+												</div>
+											</div>
+
+											<div className="flex items-end justify-between border-t border-slate-300 pt-4">
+												<p className="text-sm font-medium text-slate-700">Total</p>
+												<p className="text-2xl font-semibold text-slate-950">
+													{formatMoney(previewResult.total, previewResult.quote.currency)}
+												</p>
+											</div>
+											<details
+												className="border-t border-slate-200 pt-4"
+												open={technicalOpen}
+												onToggle={(event) =>
+													setTechnicalOpen((event.target as HTMLDetailsElement).open)
+												}
+											>
+												<summary className="cursor-pointer text-sm font-semibold text-slate-800">
+													Cómo se calculó
+												</summary>
+												<div className="mt-4 overflow-x-auto">
+													<table className="w-full min-w-[700px] text-left text-sm">
+														<thead className="border-b border-slate-200 text-xs tracking-[0.08em] text-slate-500 uppercase">
+															<tr>
+																<th className="pb-2">Regla y versión</th>
+																<th className="pb-2">Origen</th>
+																<th className="pb-2">Base</th>
+																<th className="pb-2">Multiplicador</th>
+																<th className="pb-2">Redondeo</th>
+																<th className="pb-2 text-right">Importe</th>
+															</tr>
+														</thead>
+														<tbody className="divide-y divide-slate-100">
+															{previewResult.technical.map((line) => (
+																<tr key={line.definitionId}>
+																	<td className="py-3 font-medium text-slate-900">
+																		{line.name}
+																		<span className="block text-xs font-normal text-slate-500">
+																			{line.definitionVersionId ?? "Borrador sin publicar"}
+																		</span>
+																	</td>
+																	<td className="py-3">{line.source.scope}</td>
+																	<td className="py-3">
+																		{line.taxableBase === "booking_base"
+																			? "Precio base"
+																			: "Base + incluidos"}
+																	</td>
+																	<td className="py-3">{line.multiplier}</td>
+																	<td className="py-3">Redondeo a 2 decimales</td>
+																	<td className="py-3 text-right font-medium">
+																		{formatMoney(line.amount, previewResult.quote.currency)}
+																	</td>
+																</tr>
+															))}
+														</tbody>
+													</table>
+												</div>
+											</details>
+										</div>
+									)}
+								</>
+							)}
 						</div>
 					)}
 
-					{step === 5 && (
-						<div className="space-y-6">
-							<div>
-								<h2 className="text-2xl font-semibold text-slate-950">
-									Ejecuta una vista previa real
-								</h2>
-								<p className="mt-2 text-sm text-slate-600">
-									La simulación usa el cálculo real y la definición actual, incluso antes de
-									publicarla en un alcance.
-								</p>
-							</div>
-
-							<div className="grid gap-4 md:grid-cols-2">
-								<label className="flex flex-col gap-2">
-									<span className="text-sm font-medium text-slate-700">Monto base</span>
-									<Input
-										type="number"
-										step="0.01"
-										value={draft.base}
-										onChange={(event) => updateDraft({ base: event.target.value })}
-									/>
-								</label>
-								<label className="flex flex-col gap-2">
-									<span className="text-sm font-medium text-slate-700">Ingreso</span>
-									<Input
-										type="text"
-										placeholder="AAAA-MM-DD"
-										pattern="\\d{4}-\\d{2}-\\d{2}"
-										value={draft.checkIn}
-										onChange={(event) => updateDraft({ checkIn: event.target.value })}
-									/>
-								</label>
-								<label className="flex flex-col gap-2">
-									<span className="text-sm font-medium text-slate-700">Salida</span>
-									<Input
-										type="text"
-										placeholder="AAAA-MM-DD"
-										pattern="\\d{4}-\\d{2}-\\d{2}"
-										value={draft.checkOut}
-										onChange={(event) => updateDraft({ checkOut: event.target.value })}
-									/>
-								</label>
-								<div className="grid gap-4 sm:grid-cols-2">
-									<label className="flex flex-col gap-2">
-										<span className="text-sm font-medium text-slate-700">Adultos</span>
-										<Input
-											type="number"
-											min="0"
-											value={draft.adults}
-											onChange={(event) => updateDraft({ adults: event.target.value })}
-										/>
-									</label>
-									<label className="flex flex-col gap-2">
-										<span className="text-sm font-medium text-slate-700">Niños</span>
-										<Input
-											type="number"
-											min="0"
-											value={draft.children}
-											onChange={(event) => updateDraft({ children: event.target.value })}
-										/>
-									</label>
-								</div>
-							</div>
-
-							<div className="flex flex-wrap gap-3">
+					{publicationIntent && step === 5 && (
+						<Notice variant="warning" title="Confirmar publicación de versión">
+							<p>
+								{publicationIntent === "schedule"
+									? `La versión quedará publicada con estado programado y se aplicará desde ${draft.effectiveFrom ? formatDateForSummary(draft.effectiveFrom) : "la fecha configurada"}.`
+									: "Esta versión quedará disponible inmediatamente para sus asignaciones activas."}
+							</p>
+							<p className="mt-2">
+								{baselineDefinition?.assignments?.some(
+									(assignment) => assignment.status === "active"
+								)
+									? "Las asignaciones activas podrán usar esta versión. Las reservas históricas no cambian."
+									: "No hay asignaciones activas: la versión no afectará ventas hasta que asignes la regla."}
+							</p>
+							<div className="mt-4 flex flex-wrap gap-3">
 								<Button
 									type="button"
-									onClick={() => void runPreview()}
-									disabled={isPreviewLoading || !definitionId || !draft.productId.trim()}
+									variant="secondary"
+									onClick={() => setPublicationIntent(null)}
 								>
-									{isPreviewLoading ? "Ejecutando..." : "Ejecutar vista previa"}
+									Cancelar
 								</Button>
-								{editingDefinitionId && (
-									<Badge variant="neutral" className="px-4 py-2 text-sm">
-										Modo edición: se actualiza la definición. La asignación se gestiona por
-										separado.
-									</Badge>
-								)}
+								<Button type="button" variant="success" onClick={finishPublication}>
+									Confirmar publicación
+								</Button>
 							</div>
-							<div className="border-l-2 border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-								<p className="font-semibold text-slate-950">Cambios por publicar</p>
-								<p className="mt-1">
-									{changedFields.join(" · ")}. Se generará una versión inmutable al publicar.
-								</p>
-							</div>
-
-							{previewResult && (
-								<div className="fastt-soft-box space-y-4 rounded-[var(--fastt-radius-card)] border border-slate-200 bg-slate-50 p-5">
-									<p className="text-xs font-medium text-slate-500">
-										Contexto: {draft.scope === "provider" ? "Toda la cuenta" : draft.scope}
-										{draft.channel.trim() ? ` · ${draft.channel.trim()}` : " · web"}
-									</p>
-									<div className="rounded-[var(--fastt-radius-card)] bg-white p-4">
-										<p className="text-sm font-medium text-slate-700">Precio</p>
-										<p className="mt-1 text-2xl font-semibold text-slate-950">
-											{formatMoney(previewResult.breakdown.base, previewCurrency)}
-										</p>
-										<div className="mt-3 flex flex-wrap gap-2">
-											{previewResult.flags.hasIncluded && (
-												<Badge variant="success">Incluye cargos</Badge>
-											)}
-											{previewResult.flags.hasExcluded && (
-												<Badge variant="warning">Cargos adicionales al confirmar</Badge>
-											)}
-										</div>
-									</div>
-
-									<div className="grid gap-4 md:grid-cols-2">
-										<div>
-											<h3 className="text-sm font-semibold text-slate-900">
-												Incluidos en el precio
-											</h3>
-											<ul className="mt-2 space-y-2 text-sm text-slate-700">
-												{includedLines.length === 0 ? (
-													<li className="rounded-[var(--fastt-radius-card)] bg-white px-3 py-2">
-														No hay cargos incluidos adicionales.
-													</li>
-												) : (
-													includedLines.map((line, index) => (
-														<li
-															key={`${line.code}-included-${index}`}
-															className="flex items-center justify-between gap-4 rounded-[var(--fastt-radius-card)] bg-white px-3 py-2"
-														>
-															<div>
-																<p className="font-medium text-slate-900">{line.name}</p>
-																<p className="text-xs text-slate-500">
-																	{
-																		APPLIES_PER_OPTIONS.find(
-																			(item) => item.value === line.appliesPer
-																		)?.label
-																	}
-																</p>
-															</div>
-															<strong>
-																{formatMoney(line.amount, line.currency ?? previewCurrency)}
-															</strong>
-														</li>
-													))
-												)}
-											</ul>
-										</div>
-										<div>
-											<h3 className="text-sm font-semibold text-slate-900">Cargos adicionales</h3>
-											<ul className="mt-2 space-y-2 text-sm text-slate-700">
-												{excludedLines.length === 0 ? (
-													<li className="rounded-[var(--fastt-radius-card)] bg-white px-3 py-2">
-														No se agregarán cargos extra después.
-													</li>
-												) : (
-													excludedLines.map((line, index) => (
-														<li
-															key={`${line.code}-excluded-${index}`}
-															className="flex items-center justify-between gap-4 rounded-[var(--fastt-radius-card)] bg-white px-3 py-2"
-														>
-															<div>
-																<p className="font-medium text-slate-900">{line.name}</p>
-																<p className="text-xs text-slate-500">
-																	{
-																		APPLIES_PER_OPTIONS.find(
-																			(item) => item.value === line.appliesPer
-																		)?.label
-																	}
-																</p>
-															</div>
-															<strong>
-																{formatMoney(line.amount, line.currency ?? previewCurrency)}
-															</strong>
-														</li>
-													))
-												)}
-											</ul>
-										</div>
-									</div>
-
-									<div className="rounded-[var(--fastt-radius-card)] bg-white p-4">
-										<p className="text-sm font-medium text-slate-700">Total</p>
-										<p className="mt-1 text-2xl font-semibold text-slate-950">
-											{formatMoney(previewResult.total, previewCurrency)}
-										</p>
-									</div>
-								</div>
-							)}
-						</div>
+						</Notice>
 					)}
 
 					<div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-5">
@@ -1674,16 +2676,18 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 								type="button"
 								onClick={() => {
 									if (
-										!window.confirm("Se descartarán los cambios sin publicar. ¿Quieres continuar?")
+										step <= 4 &&
+										!window.confirm(
+											"Tu progreso quedará guardado temporalmente en este navegador. ¿Quieres salir?"
+										)
 									)
 										return
-									resetWizard()
 									props.onCancel?.()
 								}}
 								disabled={isSavingDefinition || isPreviewLoading}
 								variant="secondary"
 							>
-								Reiniciar
+								{step <= 4 ? "Salir" : "Volver a definiciones"}
 							</Button>
 						</div>
 
@@ -1697,30 +2701,26 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 									{step === 4
 										? isSavingDefinition
 											? "Guardando..."
-											: "Guardar borrador y revisar"
-										: "Siguiente"}
+											: "Guardar borrador"
+										: "Continuar"}
 								</Button>
 							)}
 
 							{step === 5 && (
-								<>
-									<Button
-										type="button"
-										onClick={() => void persistDefinition("publish")}
-										disabled={!hasSuccessfulPreview || isSavingDefinition}
-										variant="success"
-									>
-										{isSavingDefinition ? "Publicando..." : "Publicar ahora"}
-									</Button>
-									<Button
-										type="button"
-										onClick={() => void persistDefinition("schedule")}
-										disabled={!hasSuccessfulPreview || isSavingDefinition || !draft.effectiveFrom}
-										variant="secondary"
-									>
-										Programar
-									</Button>
-								</>
+								<Button
+									type="button"
+									onClick={() =>
+										confirmPublication(
+											draft.applicationPeriod === "always" ? "publish" : "schedule"
+										)
+									}
+									disabled={
+										!simulationCertificate?.isCurrent || isCheckingSimulation || isSavingDefinition
+									}
+									variant="success"
+								>
+									{isSavingDefinition ? "Publicando..." : "Publicar versión"}
+								</Button>
 							)}
 						</div>
 					</div>

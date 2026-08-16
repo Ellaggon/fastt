@@ -23,6 +23,6 @@ test("Fase 2 exposes operational fiscal controls instead of a definitions-only s
 	expect(previewApi).toContain("previewedDefinitionId")
 	expect(page).toContain("Pausar")
 	expect(page).toContain("Archivar")
-	expect(page).toContain("Revisión")
+	expect(page).toContain("Borrador")
 	expect(wizard).toContain("La simulación usa el cálculo real")
 })
