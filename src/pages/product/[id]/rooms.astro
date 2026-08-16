@@ -197,15 +197,10 @@ const layoutProps = addRoomPlaybook.active
 
 		<section class="space-y-6 md:space-y-8">
 			<div class="flex flex-wrap items-center justify-between gap-3">
-				<TabsInsidePanel
-					class="rooms-status-tabs max-w-full flex-nowrap bg-black"
-					aria-label="Filtrar habitaciones"
-				>
+				<TabsInsidePanel aria-label="Filtrar habitaciones">
 					<button
 						type="button"
-						class:list={[
-							"fastt-tabs-inside-panel__item px-4 py-2 text-sm font-semibold whitespace-nowrap",
-						]}
+						class="fastt-tabs-inside-panel__item"
 						data-room-filter="attention"
 						data-active="true"
 						aria-pressed="true"
@@ -214,9 +209,7 @@ const layoutProps = addRoomPlaybook.active
 					</button>
 					<button
 						type="button"
-						class:list={[
-							"fastt-tabs-inside-panel__item px-4 py-2 text-sm font-semibold text-slate-300 whitespace-nowrap hover:bg-slate-800 hover:text-white",
-						]}
+						class="fastt-tabs-inside-panel__item"
 						data-room-filter="ready"
 						data-active="false"
 						aria-pressed="false"
@@ -225,9 +218,7 @@ const layoutProps = addRoomPlaybook.active
 					</button>
 					<button
 						type="button"
-						class:list={[
-							"fastt-tabs-inside-panel__item px-4 py-2 text-sm font-semibold text-slate-300 whitespace-nowrap hover:bg-slate-800 hover:text-white",
-						]}
+						class="fastt-tabs-inside-panel__item"
 						data-room-filter="no-rate"
 						data-active="false"
 						aria-pressed="false"
@@ -236,9 +227,7 @@ const layoutProps = addRoomPlaybook.active
 					</button>
 					<button
 						type="button"
-						class:list={[
-							"fastt-tabs-inside-panel__item px-4 py-2 text-sm font-semibold text-slate-300 whitespace-nowrap hover:bg-slate-800 hover:text-white",
-						]}
+						class="fastt-tabs-inside-panel__item"
 						data-room-filter="no-availability"
 						data-active="false"
 						aria-pressed="false"
@@ -249,9 +238,7 @@ const layoutProps = addRoomPlaybook.active
 					</button>
 					<button
 						type="button"
-						class:list={[
-							"fastt-tabs-inside-panel__item px-4 py-2 text-sm font-semibold text-slate-300 whitespace-nowrap hover:bg-slate-800 hover:text-white",
-						]}
+						class="fastt-tabs-inside-panel__item"
 						data-room-filter="all"
 						data-active="false"
 						aria-pressed="false"

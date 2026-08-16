@@ -45,10 +45,7 @@ const isActive = (item: (typeof items)[number]) => {
 }
 ---
 
-<TabsInsidePanel
-	class="provider-settings-subnav max-w-full flex-nowrap bg-black"
-	aria-label="Navegación de configuración del proveedor"
->
+<TabsInsidePanel aria-label="Navegación de configuración del proveedor">
 	{
 		items.map((item) => {
 			const active = isActive(item)
@@ -59,9 +56,7 @@ const isActive = (item: (typeof items)[number]) => {
 					data-astro-prefetch="viewport"
 					data-active={active ? "true" : "false"}
 					aria-current={active ? "page" : undefined}
-					class={`fastt-tabs-inside-panel__item inline-flex min-w-max shrink-0 items-center px-4 py-2 text-sm font-semibold whitespace-nowrap ${
-						active ? "" : "bg-black text-slate-300 hover:bg-slate-800 hover:text-white"
-					}`}
+					class="fastt-tabs-inside-panel__item"
 				>
 					{item.label}
 				</a>
@@ -69,14 +64,3 @@ const isActive = (item: (typeof items)[number]) => {
 		})
 	}
 </TabsInsidePanel>
-
-<style>
-	.provider-settings-subnav {
-		-webkit-overflow-scrolling: touch;
-		scrollbar-width: none;
-	}
-
-	.provider-settings-subnav::-webkit-scrollbar {
-		display: none;
-	}
-</style>
