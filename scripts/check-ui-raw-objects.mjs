@@ -109,7 +109,7 @@ const wrapperSurfaceFiles = [
 ]
 
 const allowedClassTokens = {
-	button: ["fastt-button", "calendar-control"],
+	button: ["fastt-button", "calendar-control", "fastt-tabs-inside-panel__item"],
 	input: ["fastt-field", "fastt-check-input", "calendar-control"],
 	select: ["fastt-field", "calendar-control"],
 	textarea: ["fastt-field", "calendar-control"],

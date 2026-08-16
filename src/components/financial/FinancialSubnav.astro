@@ -22,10 +22,7 @@ const compactLabelByLabel: Record<string, string> = {
 }
 ---
 
-<TabsInsidePanel
-	class="financial-subnav max-w-full flex-nowrap bg-black"
-	aria-label="Navegación financiera"
->
+<TabsInsidePanel class="max-w-full flex-nowrap" aria-label="Navegación financiera">
 	{
 		financialNavigationItems.map((item) => {
 			const active = isActive(item.href)
@@ -39,8 +36,8 @@ const compactLabelByLabel: Record<string, string> = {
 					aria-current={active ? "page" : undefined}
 					aria-label={item.label}
 					title={item.label}
-					class={`fastt-tabs-inside-panel__item inline-flex min-w-max shrink-0 items-center px-4 py-2 text-sm font-semibold whitespace-nowrap ${
-						active ? "" : "bg-black text-slate-300 hover:bg-slate-800 hover:text-white"
+					class={`fastt-tabs-inside-panel__item px-4 py-2 text-sm font-semibold whitespace-nowrap ${
+						active ? "" : "text-slate-400 hover:bg-slate-800 hover:text-slate-100"
 					}`}
 				>
 					{compactLabelByLabel[item.label] ?? item.label}
@@ -49,22 +46,3 @@ const compactLabelByLabel: Record<string, string> = {
 		})
 	}
 </TabsInsidePanel>
-
-<style>
-	.financial-subnav {
-		-webkit-overflow-scrolling: touch;
-		scrollbar-width: none;
-	}
-
-	.financial-subnav::-webkit-scrollbar {
-		display: none;
-	}
-
-	.financial-subnav {
-		background: #000;
-	}
-
-	.financial-subnav .fastt-tabs-inside-panel__item[data-active="false"] {
-		background: #000;
-	}
-</style>

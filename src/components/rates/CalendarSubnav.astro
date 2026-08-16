@@ -1,37 +1,58 @@
 ---
+import TabsInsidePanel from "@/components/ui/TabsInsidePanel.astro"
 import { routes } from "@/lib/routes"
+import { CalendarDays, Link2 } from "@lucide/astro"
 
 const pathname = Astro.url.pathname.replace(/\/+$/, "") || "/"
 const tabs = [
-	{ label: "Calendario", href: routes.calendar(), active: pathname === routes.calendar() },
+	{
+		label: "Calendario",
+		href: routes.calendar(),
+		active: pathname === routes.calendar(),
+		icon: CalendarDays,
+	},
 	{
 		label: "Conexiones iCal",
 		href: routes.ratesCalendarConnections(),
 		active: pathname === routes.ratesCalendarConnections(),
+		icon: Link2,
 	},
 ]
 ---
 
-<nav aria-label="Navegación del calendario" class="overflow-x-auto">
-	<div
-		class="fastt-notice inline-flex min-w-max rounded-lg border border-slate-700 bg-slate-950 p-1"
-		data-calendar-subnav
-	>
-		{
-			tabs.map((tab) => (
+<TabsInsidePanel
+	class="calendar-subnav max-w-full flex-nowrap bg-slate-900/60 border-0 backdrop-blur-sm"
+	aria-label="Navegación del calendario"
+	data-calendar-subnav
+>
+	{
+		tabs.map((tab) => {
+			const Icon = tab.icon
+			return (
 				<a
 					href={tab.href}
 					aria-current={tab.active ? "page" : undefined}
 					data-astro-prefetch="hover"
-					class={`inline-flex h-9 items-center justify-center rounded-md px-4 text-sm font-semibold transition ${
-						tab.active
-							? "bg-white text-slate-950 shadow-sm"
-							: "text-slate-300 hover:bg-slate-900 hover:text-white"
+					data-active={tab.active ? "true" : "false"}
+					class={`fastt-tabs-inside-panel__item px-4 py-2 text-sm font-semibold whitespace-nowrap ${
+						tab.active ? "" : "text-slate-400 hover:bg-slate-800 hover:text-slate-100"
 					}`}
 				>
+					<Icon class="mr-2 h-4 w-4 shrink-0" aria-hidden="true" />
 					{tab.label}
 				</a>
-			))
-		}
-	</div>
-</nav>
+			)
+		})
+	}
+</TabsInsidePanel>
+
+<style>
+	.calendar-subnav {
+		-webkit-overflow-scrolling: touch;
+		scrollbar-width: none;
+	}
+
+	.calendar-subnav::-webkit-scrollbar {
+		display: none;
+	}
+</style>
