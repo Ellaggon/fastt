@@ -20,7 +20,7 @@ const tabs: Array<{ id: FiscalTab; label: string; href: string }> = [
 ]
 ---
 
-<TabsInsidePanel class="max-w-full flex-nowrap bg-black" aria-label="Secciones de fiscalidad">
+<TabsInsidePanel aria-label="Secciones de fiscalidad">
 	{
 		tabs.map((tab) => {
 			const selected = tab.id === active
@@ -30,7 +30,7 @@ const tabs: Array<{ id: FiscalTab; label: string; href: string }> = [
 					data-astro-prefetch="viewport"
 					aria-current={selected ? "page" : undefined}
 					data-active={selected ? "true" : "false"}
-					class="fastt-tabs-inside-panel__item px-4 py-2 text-sm font-semibold whitespace-nowrap text-slate-300 hover:bg-slate-800 hover:text-white"
+					class="fastt-tabs-inside-panel__item"
 				>
 					{tab.label}
 					{counts[tab.id] !== undefined ? (

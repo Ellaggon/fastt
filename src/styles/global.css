@@ -263,6 +263,57 @@ body {
 	box-shadow: none;
 }
 
+/* Workspace navigation shared by Calendar, Financial, Fiscal, and provider settings. */
+.fastt-tabs-inside-panel {
+	-webkit-overflow-scrolling: touch;
+	scrollbar-width: none;
+}
+
+.fastt-tabs-inside-panel::-webkit-scrollbar {
+	display: none;
+}
+
+.fastt-tabs-inside-panel__item {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	border: 0 !important;
+	border-radius: 16px !important;
+	box-shadow: none;
+	padding: 0.5rem 1rem;
+	color: rgb(148 163 184);
+	font-size: 0.875rem;
+	font-weight: 600;
+	line-height: 1.25rem;
+	white-space: nowrap;
+	text-decoration: none;
+	transition:
+		background-color var(--fastt-motion-fast) ease,
+		color var(--fastt-motion-fast) ease;
+}
+
+.fastt-tabs-inside-panel__item[data-active="false"]:hover,
+.fastt-tabs-inside-panel__item:not([data-active="true"]):hover {
+	background: rgb(30 41 59);
+	color: rgb(241 245 249);
+}
+
+.fastt-tabs-inside-panel__item[data-active="true"] {
+	background: rgb(255 255 255);
+	color: rgb(15 23 42);
+}
+
+.fastt-tabs-inside-panel__item[data-active="true"]:hover {
+	background: rgb(255 255 255);
+	color: rgb(15 23 42);
+}
+
+.fastt-tabs-inside-panel__item:focus-visible {
+	outline: 2px solid rgb(125 211 252);
+	outline-offset: -2px;
+}
+
 .fastt-dialog {
 	border-color: var(--fastt-color-border);
 	border-radius: var(--fastt-radius-dialog);

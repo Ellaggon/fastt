@@ -37,10 +37,7 @@ const items = [
 ]
 ---
 
-<TabsInsidePanel
-	class="provider-integrations-subnav max-w-full flex-nowrap bg-black"
-	aria-label="Navegación de integraciones"
->
+<TabsInsidePanel aria-label="Navegación de integraciones">
 	{
 		items.map((item) => (
 			<a
@@ -49,23 +46,10 @@ const items = [
 				data-astro-prefetch="viewport"
 				data-active={item.active ? "true" : "false"}
 				aria-current={item.active ? "page" : undefined}
-				class={`fastt-tabs-inside-panel__item inline-flex min-w-max shrink-0 items-center px-4 py-2 text-sm font-semibold whitespace-nowrap ${
-					item.active ? "" : "bg-black text-slate-300 hover:bg-slate-800 hover:text-white"
-				}`}
+				class="fastt-tabs-inside-panel__item"
 			>
 				{item.label}
 			</a>
 		))
 	}
 </TabsInsidePanel>
-
-<style>
-	.provider-integrations-subnav {
-		-webkit-overflow-scrolling: touch;
-		scrollbar-width: none;
-	}
-
-	.provider-integrations-subnav::-webkit-scrollbar {
-		display: none;
-	}
-</style>

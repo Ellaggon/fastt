@@ -41,9 +41,7 @@ function applyFinancialView(view: FinancialViewId): void {
 		const active = linkView === view
 		link.toggleAttribute("aria-current", active)
 		link.dataset.active = active ? "true" : "false"
-		link.className = `fastt-tabs-inside-panel__item inline-flex min-w-max shrink-0 items-center px-4 py-2 text-sm font-semibold whitespace-nowrap ${
-			active ? "" : "bg-black text-slate-300 hover:bg-slate-800 hover:text-white"
-		}`
+		link.className = "fastt-tabs-inside-panel__item"
 	})
 	document.title = viewTitles[view]
 }
