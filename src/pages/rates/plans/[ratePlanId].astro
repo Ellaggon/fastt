@@ -20,7 +20,7 @@ import {
 import { getNextTourLaunchStep, resolveTourLaunchPlaybookFromUrl } from "@/lib/playbook/launch-tour"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
-import { getProfessionalModeCookiePreference } from "@/lib/dashboard/professionalModeCookie"
+import { getProviderUserWorkspacePreferenceRead } from "@/lib/providerUserWorkspacePreference"
 import { getProviderSidebarData } from "@/lib/dashboard/providerSidebarReadiness"
 import { loadRatePlanPoliciesData } from "@/lib/policies/loadRatePlanPoliciesData"
 import { loadRatePlanPricingData } from "@/lib/pricing/loadRatePlanPricingData"
@@ -37,11 +37,15 @@ const auth = await requireProvider(Astro.request).catch((e: any) => {
 if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
 if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerSettingsProfile())
 
-const professionalModeCookie = getProfessionalModeCookiePreference(Astro.request)
+const workspacePreference = await getProviderUserWorkspacePreferenceRead({
+	providerId: auth.providerId,
+	userId: auth.user.id,
+})
 const sidebarData = await getProviderSidebarData(auth.providerId, {
 	userId: auth.user.id,
-	professionalToolsEnabled:
-		typeof professionalModeCookie === "boolean" ? professionalModeCookie : undefined,
+	workspaceExperience: workspacePreference.schemaAvailable
+		? workspacePreference.experience
+		: undefined,
 })
 const isProfessionalMode = sidebarData.disclosureMode !== "small-provider"
 

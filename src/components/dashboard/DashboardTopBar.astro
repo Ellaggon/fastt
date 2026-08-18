@@ -21,18 +21,9 @@ const email = user?.email?.trim() || "Sin sesión"
 const accountInitial = email.slice(0, 1).toUpperCase()
 const returnTo = `${Astro.url.pathname}${Astro.url.search}`
 const showProfessionalToggle = workspaceContext.showProfessionalToggle
-const professionalToolsEnabled = workspaceContext.professionalToolsEnabled
+const isProfessionalExperience = workspaceContext.effectiveWorkspaceExperience === "professional"
+const lockedReason = workspaceContext.workspaceExperienceLockedReason ?? ""
 const disclosureMode: SidebarDisclosureMode = workspaceContext.disclosureMode
-let lockedReason = ""
-if (disclosureMode === "scaled-provider") {
-	lockedReason = "Vista profesional activada por escala operativa."
-} else if (disclosureMode === "revenue-ops") {
-	lockedReason = "Vista profesional activada por rol de revenue."
-} else if (disclosureMode === "internal-admin") {
-	lockedReason = "Vista profesional activada por rol interno."
-} else if (disclosureMode === "professional-tools" && !professionalToolsEnabled) {
-	lockedReason = "Vista profesional activada por rol operativo."
-}
 
 const accountLinks = [
 	{
@@ -114,7 +105,7 @@ const scopeHref = (vertical: "hotel" | "tour" | null) =>
 			showProfessionalToggle ? (
 				<div class="hidden min-w-0 flex-1 items-center justify-center gap-2 sm:flex lg:mr-auto lg:flex-none">
 					<ProfessionalModeToggle
-						enabled={professionalToolsEnabled}
+						enabled={isProfessionalExperience}
 						disclosureMode={disclosureMode}
 						lockedReason={lockedReason}
 						returnTo={returnTo}
@@ -148,7 +139,7 @@ const scopeHref = (vertical: "hotel" | "tour" | null) =>
 					showProfessionalToggle ? (
 						<div class="border-b border-white/[0.08] py-3 sm:hidden">
 							<ProfessionalModeToggle
-								enabled={professionalToolsEnabled}
+								enabled={isProfessionalExperience}
 								disclosureMode={disclosureMode}
 								lockedReason={lockedReason}
 								returnTo={returnTo}

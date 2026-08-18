@@ -33,7 +33,8 @@ const auth = {
 	user: workspaceContext.user,
 	providerId: workspaceContext.provider.providerId,
 }
-const isProfessionalCalendar = workspaceContext.professionalToolsEnabled
+const sidebarData = await sidebarTimingPromise
+const isProfessionalCalendar = sidebarData?.experience?.effective === "professional"
 const requestedFocus = String(Astro.url.searchParams.get("focus") ?? "price")
 const initialMode =
 	requestedFocus === "availability"
