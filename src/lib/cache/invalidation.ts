@@ -91,6 +91,22 @@ export async function invalidateProvider(providerId: string): Promise<void> {
 	console.debug("cache invalidated", { scope: "provider", id: providerId })
 }
 
+/** Invalidates presentation caches only; it never refreshes commercial state. */
+export async function invalidateProviderWorkspaceExperience(params: {
+	providerId: string
+	userId: string
+}): Promise<void> {
+	const providerId = String(params.providerId ?? "").trim()
+	const userId = String(params.userId ?? "").trim()
+	if (!providerId || !userId) return
+	await delByPrefix(`ws:provider:${providerId}:sidebar:v2:${userId}:`)
+	console.debug("cache invalidated", {
+		scope: "provider_workspace_experience",
+		providerId,
+		userId,
+	})
+}
+
 export async function invalidateProviderGovernance(
 	providerId: string,
 	source = "provider_governance_mutation"

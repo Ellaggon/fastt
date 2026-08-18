@@ -56,7 +56,8 @@ providers redefine the fact.
 | Table             | Owner          | Role                                                                                                    |
 | ----------------- | -------------- | ------------------------------------------------------------------------------------------------------- |
 | `Provider`        | Catalog        | Commercial identity: legal name, display name, lifecycle status.                                        |
-| `ProviderProfile` | Settings / Ops | Operational defaults only: timezone, default currency, support contacts, professional-tools preference. |
+| `ProviderProfile` | Settings / Ops | Operational defaults only: timezone, default currency and support contacts.                              |
+| `ProviderUser`    | Settings / Ops | Provider membership, role, grants and the member's Esencial/Profesional workspace preference.             |
 
 `ProviderProfile` must **not** store fiscal identity, payout readiness or
 integration readiness. Those belong to the tables below.

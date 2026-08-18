@@ -1,11 +1,4 @@
-import {
-	first,
-	and,
-	db,
-	eq,
-	ProviderProfile,
-	ProviderUser,
-} from "@/shared/infrastructure/db/compat"
+import { first, and, db, eq, ProviderUser } from "@/shared/infrastructure/db/compat"
 import { cacheKeys } from "@/lib/cache/cacheKeys"
 import * as persistentCache from "@/lib/cache/persistentCache"
 import { providerRepository } from "@/container"
@@ -51,10 +44,8 @@ async function readProviderSessionSurfaceByProviderId(params: {
 			providerId: ProviderUser.providerId,
 			role: ProviderUser.role,
 			permissionsJson: ProviderUser.permissionsJson,
-			professionalToolsEnabled: ProviderProfile.professionalToolsEnabled,
 		})
 		.from(ProviderUser)
-		.leftJoin(ProviderProfile, eq(ProviderProfile.providerId, ProviderUser.providerId))
 		.where(
 			and(eq(ProviderUser.providerId, params.providerId), eq(ProviderUser.userId, params.userId))
 		)
@@ -69,7 +60,6 @@ async function readProviderSessionSurfaceByProviderId(params: {
 			role,
 			permissionsJson: row.permissionsJson,
 		}),
-		professionalToolsEnabled: Boolean(row.professionalToolsEnabled),
 	}
 }
 
@@ -107,12 +97,7 @@ async function localQaSurface(
 	if (!qaUser?.id) return null
 	const providerId = String(process.env.LOCAL_QA_PROVIDER_ID ?? "").trim()
 	if (!providerId) return null
-	const cacheKey = [
-		qaUser.id,
-		providerId,
-		process.env.LOCAL_QA_PROVIDER_ROLE ?? "owner",
-		process.env.LOCAL_QA_PROFESSIONAL_TOOLS ?? "false",
-	].join(":")
+	const cacheKey = [qaUser.id, providerId, process.env.LOCAL_QA_PROVIDER_ROLE ?? "owner"].join(":")
 	if (localQaSurfaceCache?.key === cacheKey && localQaSurfaceCache.expiresAt > Date.now()) {
 		return localQaSurfaceCache.surface
 	}
@@ -129,11 +114,7 @@ async function localQaSurface(
 		skipHeal: true,
 	})
 	if (healed) {
-		const surface = {
-			...healed,
-			professionalToolsEnabled:
-				healed.professionalToolsEnabled || process.env.LOCAL_QA_PROFESSIONAL_TOOLS === "true",
-		}
+		const surface = healed
 		localQaSurfaceCache = {
 			key: cacheKey,
 			surface,
@@ -148,7 +129,6 @@ async function localQaSurface(
 		providerId,
 		role,
 		permissions: resolveProviderPermissions({ role }),
-		professionalToolsEnabled: process.env.LOCAL_QA_PROFESSIONAL_TOOLS === "true",
 	}
 	localQaSurfaceCache = {
 		key: cacheKey,
