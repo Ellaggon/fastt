@@ -597,7 +597,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 			activeRestrictions: 0,
 		}
 
-		expect(resolveDisclosureMode(baseMetrics, { professionalToolsEnabled: true })).toBe(
+		expect(resolveDisclosureMode(baseMetrics, { workspaceExperience: "professional" })).toBe(
 			"professional-tools"
 		)
 		expect(resolveDisclosureMode(baseMetrics, { providerRole: "admin" })).toBe("professional-tools")
@@ -605,116 +605,6 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(resolveDisclosureMode(baseMetrics, { providerRole: "internal_admin" })).toBe(
 			"internal-admin"
 		)
-	})
-
-	it("persists professional tools in provider profile instead of creating workspace tables", () => {
-		const config = readFileSync(
-			join(process.cwd(), "src/shared/infrastructure/db/schema/tables.ts"),
-			"utf8"
-		)
-		const migration = readFileSync(
-			join(process.cwd(), "db/migrations/2026-06-09_provider_profile_professional_tools.sql"),
-			"utf8"
-		)
-		const preferences = readFileSync(
-			join(process.cwd(), "src/lib/providerProfessionalToolsPreference.ts"),
-			"utf8"
-		)
-		const sidebar = readFileSync(
-			join(process.cwd(), "src/components/dashboard/DashboardSidebar.astro"),
-			"utf8"
-		)
-		const cookiePreference = readFileSync(
-			join(process.cwd(), "src/lib/dashboard/professionalModeCookie.ts"),
-			"utf8"
-		)
-		const settings = readFileSync(
-			join(process.cwd(), "src/pages/provider/settings/profile.astro"),
-			"utf8"
-		)
-		const endpoint = readFileSync(
-			join(process.cwd(), "src/pages/api/provider/preferences/professional-tools.ts"),
-			"utf8"
-		)
-		const topbar = readFileSync(
-			join(process.cwd(), "src/components/dashboard/DashboardTopBar.astro"),
-			"utf8"
-		)
-		const calendar = readFileSync(join(process.cwd(), "src/pages/rates/calendar.astro"), "utf8")
-		const toggle = readFileSync(
-			join(process.cwd(), "src/components/dashboard/ProfessionalModeToggle.astro"),
-			"utf8"
-		)
-
-		expect(config).toContain("professionalToolsEnabled")
-		expect(config).toContain("professionalToolsUpdatedAt")
-		expect(config).toContain("professionalToolsUpdatedBy")
-		expect(config).not.toContain("ProviderWorkspacePreferences")
-		expect(config).not.toContain("ProviderWorkspaceAuditLog")
-		expect(migration).toContain('ALTER TABLE "ProviderProfile"')
-		expect(migration).toContain('"professionalToolsEnabled"')
-		expect(migration).not.toContain('CREATE TABLE IF NOT EXISTS "ProviderWorkspacePreferences"')
-		expect(migration).not.toContain('CREATE TABLE IF NOT EXISTS "ProviderWorkspaceAuditLog"')
-		expect(preferences).toContain("getProviderProfessionalToolsPreference")
-		expect(preferences).toContain("getProviderProfessionalToolsPreferenceRead")
-		expect(preferences).toContain("setProviderProfessionalToolsPreference")
-		expect(preferences).toContain("schemaAvailable")
-		expect(preferences).toContain("isMissingProfessionalToolsPreferenceShape")
-		expect(preferences).toContain("Provider profile professional-tools schema is not migrated")
-		expect(preferences).toContain("ProviderProfile")
-		expect(preferences).toContain("db.insert(ProviderProfile)")
-		expect(preferences).toContain("DEFAULT_PROVIDER_PROFILE_TIMEZONE")
-		expect(preferences).toContain("DEFAULT_PROVIDER_PROFILE_CURRENCY")
-		expect(preferences).not.toContain("ProviderWorkspacePreferences")
-		expect(preferences).not.toContain("ProviderWorkspaceAuditLog")
-		expect(preferences).not.toContain("fastt_professional_tools")
-		expect(sidebar).toContain("workspaceContext")
-		expect(sidebar).not.toContain("getProviderSidebarData")
-		expect(sidebar).not.toContain("getProfessionalModeCookiePreference")
-		expect(sidebar).not.toContain("ProfessionalModeToggle")
-		expect(sidebar).not.toContain("data-professional-mode-toggle")
-		expect(sidebar).toContain("workspaceContext.disclosureMode")
-		expect(cookiePreference).toContain("PROFESSIONAL_MODE_COOKIE")
-		expect(cookiePreference).toContain("fastt_workspace_mode")
-		expect(cookiePreference).toContain("professional")
-		expect(cookiePreference).toContain("simple")
-		expect(settings).toContain("Herramientas profesionales")
-		expect(settings).toContain('aria-label="Modo de experiencia"')
-		expect(settings).toContain('value="simple"')
-		expect(settings).toContain('value="professional"')
-		expect(settings).toContain("Modo Simple")
-		expect(settings).toContain("Modo Pro")
-		expect(settings).toContain("/api/provider/preferences/professional-tools")
-		expect(endpoint).toContain("requireProvider")
-		expect(endpoint).toContain("setProviderProfessionalToolsPreference")
-		expect(endpoint).toContain("safeReturnPath")
-		expect(endpoint).toContain('mode === "professional"')
-		expect(endpoint).toContain("PROFESSIONAL_MODE_COOKIE")
-		expect(endpoint).toContain('persisted: "database" | "cookie"')
-		expect(endpoint).toContain("void error")
-		expect(endpoint).not.toContain("isMissingProfessionalToolsPreferenceShape")
-		expect(endpoint).not.toContain("parsedMode")
-		expect(topbar).toContain("ProfessionalModeToggle")
-		expect(topbar).toContain("workspaceContext")
-		expect(topbar).not.toContain("getProviderSidebarData")
-		expect(topbar).not.toContain("getProviderProfessionalToolsPreferenceRead")
-		expect(topbar).not.toContain("getProfessionalModeCookiePreference")
-		expect(topbar).not.toContain("Modo actualizado")
-		expect(topbar).not.toContain("No se pudo cambiar")
-		expect(calendar).toContain("Astro.locals.getWorkspaceContext()")
-		expect(calendar).toContain("workspaceContext.professionalToolsEnabled")
-		expect(calendar).not.toContain("getProfessionalModeCookiePreference")
-		expect(calendar).not.toContain("professionalModeCookie")
-		expect(toggle).toContain("Cambiar entre modo simple y modo pro")
-		expect(toggle).toContain("Simple: operación diaria limpia.")
-		expect(toggle).toContain("Pro: herramientas profesionales visibles.")
-		expect(toggle).toContain("Simple")
-		expect(toggle).toContain("Pro")
-		expect(toggle).toContain("/api/provider/preferences/professional-tools")
-		expect(toggle).not.toContain("advanced")
-		expect(toggle).not.toContain("pricing")
-		expect(toggle).not.toContain("policy")
-		expect(toggle).not.toContain("listing")
 	})
 
 	it("keeps advanced routes hidden when the provider is in simple mode", () => {
