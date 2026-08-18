@@ -3,6 +3,7 @@ import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import Notice from "@/components/ui/Notice.astro"
+import ProductContextSwitcher from "@/components/product/ProductContextSwitcher.astro"
 import Textarea from "@/components/ui/Textarea.astro"
 import { productRepository } from "@/container"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
@@ -102,9 +103,13 @@ const requestCards = rows.map((row) => {
 <WorkspaceLayout title="Solicitudes de salida privada">
 	<section class="space-y-6" data-private-requests-root>
 		<header class="space-y-2">
-			<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-				{owned.name ?? "Tour"}
-			</p>
+			<ProductContextSwitcher
+				providerId={providerId}
+				productId={productId}
+				productType={owned.productType}
+				currentName={owned.name ?? "Tour"}
+				target="departures"
+			/>
 			<h1 class="text-3xl font-semibold text-slate-950">Salidas privadas · solicitudes</h1>
 			<p class="max-w-2xl text-sm leading-6 text-slate-600">
 				Cotizaciones on-request. No se reserva inventario hasta que aceptes y armes la tarifa. SLA

@@ -1,0 +1,72 @@
+---
+import ContextSwitcher from "@/components/ui/ContextSwitcher.astro"
+import { routes } from "@/lib/routes"
+import { and, db, eq, Product, sql } from "@/shared/infrastructure/db/compat"
+
+interface Props {
+	providerId: string
+	productId?: string
+	productType?: string | null
+	currentName?: string
+	target?: "detail" | "rooms" | "house-rules" | "financial" | "departures"
+	variant?: "surface" | "topbar"
+	selectable?: boolean
+}
+
+const {
+	providerId,
+	productId: productIdProp,
+	productType = "",
+	currentName = "Servicio",
+	target = "detail",
+	variant = "surface",
+	selectable = true,
+} = Astro.props
+const productId = String(productIdProp ?? Astro.url.searchParams.get("productId") ?? "").trim()
+const type = String(productType).trim().toLowerCase()
+const isHotel = type === "hotel"
+const isTour = type === "tour"
+const label = isHotel ? "Alojamiento" : isTour ? "Tour" : "Servicio"
+const icon = isHotel ? "accommodation" : isTour ? "tour" : "service"
+const hrefFor = (id: string) =>
+	target === "rooms"
+		? routes.productRoomsForProduct(id)
+		: target === "departures"
+			? routes.productDeparturesForProduct(id)
+			: target === "house-rules"
+				? `${routes.providerHouseRules()}?productId=${encodeURIComponent(id)}`
+				: target === "financial"
+					? `${Astro.url.pathname}?${new URLSearchParams({ ...Object.fromEntries(Astro.url.searchParams), productId: id })}`
+					: routes.productDetail(id)
+const products =
+	selectable && providerId && type
+		? (
+				await db
+					.select({ id: Product.id, name: Product.name })
+					.from(Product)
+					.where(
+						and(eq(Product.providerId, providerId), sql`lower(${Product.productType}) = ${type}`)
+					)
+			)
+				.map((item) => ({
+					id: String(item.id),
+					label: String(item.name || label),
+					href: hrefFor(String(item.id)),
+				}))
+				.sort((a, b) => a.label.localeCompare(b.label, "es"))
+		: []
+const current = products.find((item) => item.id === productId) ??
+	products[0] ?? { id: productId, label: currentName, href: hrefFor(productId) }
+---
+
+<ContextSwitcher
+	label={label}
+	value={current.label}
+	options={products}
+	selectedId={current.id}
+	icon={icon}
+	menuLabel={`Cambiar ${label.toLowerCase()}`}
+	emptyMessage={`No hay otros ${label.toLowerCase()}s disponibles.`}
+	ariaLabel={`Cambiar ${label.toLowerCase()} actual`}
+	variant={variant}
+/>

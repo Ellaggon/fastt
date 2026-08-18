@@ -1,4 +1,5 @@
 ---
+import ProductContextSwitcher from "@/components/product/ProductContextSwitcher.astro"
 import TourSlotProfileEditor from "@/components/tours/TourSlotProfileEditor.astro"
 import { productRepository } from "@/container"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
@@ -8,7 +9,6 @@ import { buildTourPlaybookHref, resolveTourLaunchPlaybookFromUrl } from "@/lib/p
 import { isTourProductType } from "@/lib/productVerticalRegistry"
 import { routes } from "@/lib/routes"
 import { getProductAggregate } from "@/modules/catalog/public"
-import { Clock } from "@lucide/astro"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
@@ -42,12 +42,13 @@ const tourRateHref = buildTourPlaybookHref(
 >
 	<section class="space-y-5">
 		<header class="space-y-1.5 border-b border-slate-200 pb-5">
-			<p
-				class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500"
-			>
-				<Clock class="h-4 w-4" />
-				{product.displayName} · Nueva salida
-			</p>
+			<ProductContextSwitcher
+				providerId={providerId}
+				productId={productId}
+				productType={owned.productType}
+				currentName={product.displayName}
+				selectable={false}
+			/>
 			<h1 class="text-3xl font-semibold text-slate-950">Crea una salida</h1>
 			<p class="max-w-2xl text-sm leading-6 text-slate-600">
 				Primero define la plantilla operativa: hora, cupo máximo, idioma y modalidad. Todavía no

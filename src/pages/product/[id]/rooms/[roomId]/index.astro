@@ -1,7 +1,7 @@
 ---
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
-import AccommodationContextSwitcher from "@/components/product/AccommodationContextSwitcher.astro"
+import ProductContextSwitcher from "@/components/product/ProductContextSwitcher.astro"
 import GuestRoomPreviewCards from "@/components/productUI/GuestRoomPreviewCards.astro"
 import TabsInsidePanel from "@/components/ui/TabsInsidePanel.astro"
 import { productRepository, variantManagementRepository } from "@/container"
@@ -89,9 +89,10 @@ const previewHref = `${routes.productRoomDetail(productId, roomId)}#previsualiza
 	>
 		<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
 			<div class="space-y-2">
-				<AccommodationContextSwitcher
+				<ProductContextSwitcher
 					providerId={providerId}
 					productId={productId}
+					productType={owned.productType}
 					currentName={owned.name}
 					target="rooms"
 				/>

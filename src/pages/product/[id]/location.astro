@@ -1,6 +1,7 @@
 ---
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
+import ProductContextSwitcher from "@/components/product/ProductContextSwitcher.astro"
 import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
@@ -54,7 +55,14 @@ const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.
 >
 	<section class="space-y-8">
 		<section class="space-y-4">
-			<header class="space-y-1">
+			<header class="space-y-1.5">
+				<ProductContextSwitcher
+					providerId={providerId}
+					productId={productId}
+					productType={product.productType}
+					currentName={product.displayName}
+					selectable={false}
+				/>
 				<h1 class="text-3xl font-semibold text-slate-100">Ubicación</h1>
 				<p class="max-w-3xl text-sm leading-6 text-slate-400">
 					{
