@@ -787,7 +787,7 @@ export default function SingleCalendarWorkspace({
 	const guidedNights = guidedNightCount()
 
 	return (
-		<div className="space-y-4" aria-busy={loading}>
+		<div className="space-y-5" aria-busy={loading}>
 			{isGuidedAvailability && guidedAvailability && (
 				<Card as="section" className="fastt-workspace-panel overflow-hidden p-0 text-slate-900">
 					<div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -1011,20 +1011,24 @@ export default function SingleCalendarWorkspace({
 					) : (
 						<>
 							<div className="flex flex-wrap items-center justify-between gap-3">
-								<div className="min-w-0">
-									<p className="font-semibold text-slate-950">
-										{selection.count
-											? formatRange(selection.from, selection.to, true)
-											: mode === "conditions"
-												? readySurface.conditions.summary
-												: "Selecciona una fecha o rango"}
-									</p>
-									{selection.count > 0 && (
-										<p className="text-xs text-slate-500">
-											{selection.count} {selection.count === 1 ? "noche" : "noches"} ·{" "}
-											{readySurface.selectedRatePlanName}
-										</p>
-									)}
+								<div className="flex items-center gap-2">
+									<IconButton
+										onClick={() => void loadSurface({ month: readySurface.previousMonth })}
+										label="Mes anterior"
+										size="sm"
+									>
+										‹
+									</IconButton>
+									<h2 className="text-base font-semibold text-slate-950">
+										{monthLabel(readySurface.month)}
+									</h2>
+									<IconButton
+										onClick={() => void loadSurface({ month: readySurface.nextMonth })}
+										label="Mes siguiente"
+										size="sm"
+									>
+										›
+									</IconButton>
 								</div>
 								<p
 									className={`text-xs font-medium ${
@@ -1114,27 +1118,47 @@ export default function SingleCalendarWorkspace({
 						</Button>
 					</Notice>
 				)}
+			</Card>
 
-				<div className="mt-5 flex items-center justify-between gap-3 border-b border-slate-200 pb-3">
-					<div className="flex items-center gap-2">
-						<IconButton
-							onClick={() => void loadSurface({ month: readySurface.previousMonth })}
-							label="Mes anterior"
-							size="sm"
-						>
-							‹
-						</IconButton>
-						<h2 className="text-base font-semibold text-slate-950">
-							{monthLabel(readySurface.month)}
-						</h2>
-						<IconButton
-							onClick={() => void loadSurface({ month: readySurface.nextMonth })}
-							label="Mes siguiente"
-							size="sm"
-						>
-							›
-						</IconButton>
-					</div>
+			<Card as="section" className="fastt-workspace-panel overflow-hidden p-0 text-slate-900">
+				<div className="flex flex-wrap items-center gap-3 px-4 pt-4 pb-2 sm:justify-between">
+					{isGuidedAvailability ? (
+						<div className="flex items-center gap-2">
+							<IconButton
+								onClick={() => void loadSurface({ month: readySurface.previousMonth })}
+								label="Mes anterior"
+								size="sm"
+							>
+								‹
+							</IconButton>
+							<h2 className="text-base font-semibold text-slate-950">
+								{monthLabel(readySurface.month)}
+							</h2>
+							<IconButton
+								onClick={() => void loadSurface({ month: readySurface.nextMonth })}
+								label="Mes siguiente"
+								size="sm"
+							>
+								›
+							</IconButton>
+						</div>
+					) : (
+						<div className="min-w-0">
+							<p className="font-semibold text-slate-950">
+								{selection.count
+									? formatRange(selection.from, selection.to, true)
+									: mode === "conditions"
+										? readySurface.conditions.summary
+										: "Selecciona una fecha o rango"}
+							</p>
+							{selection.count > 0 && (
+								<p className="text-xs text-slate-500">
+									{selection.count} {selection.count === 1 ? "noche" : "noches"} ·{" "}
+									{readySurface.selectedRatePlanName}
+								</p>
+							)}
+						</div>
+					)}
 					{isGuidedAvailability ? (
 						<p
 							className={`text-xs font-medium ${
@@ -1182,106 +1206,111 @@ export default function SingleCalendarWorkspace({
 						</>
 					)}
 				</div>
-				{(externalDays.length > 0 || conflictDays.length > 0) && (
-					<div
-						className="mt-3 flex flex-wrap items-center gap-4 text-xs text-slate-600"
-						aria-label="Leyenda de calendarios externos"
-					>
-						<span className="inline-flex items-center gap-2">
-							<span className="size-2 rounded-full bg-sky-500" aria-hidden="true" />
-							Bloqueo externo
-						</span>
-						{conflictDays.length > 0 && (
+				<div className="px-4 pb-4">
+					{(externalDays.length > 0 || conflictDays.length > 0) && (
+						<div
+							className="mt-3 flex flex-wrap items-center gap-4 text-xs text-slate-600"
+							aria-label="Leyenda de calendarios externos"
+						>
 							<span className="inline-flex items-center gap-2">
-								<span className="size-2 rounded-full bg-amber-500" aria-hidden="true" />
-								Conflicto por revisar
+								<span className="size-2 rounded-full bg-sky-500" aria-hidden="true" />
+								Bloqueo externo
 							</span>
-						)}
-					</div>
-				)}
+							{conflictDays.length > 0 && (
+								<span className="inline-flex items-center gap-2">
+									<span className="size-2 rounded-full bg-amber-500" aria-hidden="true" />
+									Conflicto por revisar
+								</span>
+							)}
+						</div>
+					)}
 
-				<div className="mt-3 grid grid-cols-7 gap-1 text-center text-[10px] font-semibold text-slate-400 md:gap-2 md:text-xs">
-					{WEEKDAYS.map((weekday) => (
-						<div key={weekday}>{weekday}</div>
-					))}
-				</div>
-				<div
-					key={`${readySurface.selectedRatePlanId}:${readySurface.month}`}
-					data-direction={gridDirection}
-					className="calendar-grid-enter mt-1 grid grid-cols-7 gap-1 md:gap-2"
-				>
-					{Array.from({ length: readySurface.leadingBlankDays }).map((_, index) => (
-						<div key={`blank-${index}`} className="min-h-20 md:min-h-28" />
-					))}
-					{readySurface.days.map((day) => {
-						const presentation = cellPresentation(mode, day, showComparison, showInventoryDetail)
-						const external = day.externalCalendar
-						const isSelected = selectedDates.has(day.date)
-						const isToday = day.date === today
-						const selectionEdge = !isSelected
-							? undefined
-							: selection.count === 1
-								? "single"
-								: day.date === selection.from
-									? "start"
-									: day.date === selection.to
-										? "end"
-										: "middle"
-						return (
-							<button
-								key={day.date}
-								type="button"
-								disabled={day.isPast}
-								onClick={() => selectDate(day)}
-								aria-label={`${formatDate(day.date, true)}${presentation.primary ? ` · ${presentation.primary}` : ""}${external?.eventCount ? ` · ${external.eventCount} bloqueo externo` : ""}${external?.conflictCount ? ` · ${external.conflictCount} conflicto` : ""}`}
-								aria-pressed={isSelected}
-								data-external-calendar-day={external?.eventCount ? "true" : undefined}
-								data-external-calendar-conflict={external?.conflictCount ? "true" : undefined}
-								data-selected={isSelected}
-								data-selection-edge={selectionEdge}
-								data-today={isToday}
-								className={`calendar-cell fastt-calendar-cell min-h-20 border p-1.5 text-left disabled:cursor-default md:min-h-28 md:p-2 ${updatedDates.has(day.date) ? "calendar-updated" : ""} ${external?.conflictCount ? "ring-1 ring-amber-400" : external?.eventCount ? "border-sky-300" : ""} ${toneClass(presentation.tone)}`}
-							>
-								<div className="flex items-start justify-end gap-1.5">
-									{isToday && (
-										<span className="mt-1.5 size-1.5 rounded-full bg-slate-950" aria-label="Hoy" />
-									)}
-									<span
-										className={`text-sm font-semibold md:text-base ${isToday ? "text-sky-700" : ""}`}
-									>
-										{day.day}
-									</span>
-								</div>
-								{!day.isPast && presentation.primary && (
-									<div key={mode} className="calendar-cell-content">
-										<p className="mt-2 truncate text-[11px] font-semibold md:text-sm">
-											{presentation.primary}
-										</p>
-										{presentation.secondary && (
-											<p className="mt-1 line-clamp-2 hidden text-[9px] leading-4 opacity-65 sm:block md:text-[11px]">
-												{presentation.secondary}
-											</p>
+					<div className="mt-3 grid grid-cols-7 gap-1 text-center text-[10px] font-semibold text-slate-400 md:gap-2 md:text-xs">
+						{WEEKDAYS.map((weekday) => (
+							<div key={weekday}>{weekday}</div>
+						))}
+					</div>
+					<div
+						key={`${readySurface.selectedRatePlanId}:${readySurface.month}`}
+						data-direction={gridDirection}
+						className="calendar-grid-enter mt-1 grid grid-cols-7 gap-1 md:gap-2"
+					>
+						{Array.from({ length: readySurface.leadingBlankDays }).map((_, index) => (
+							<div key={`blank-${index}`} className="min-h-20 md:min-h-28" />
+						))}
+						{readySurface.days.map((day) => {
+							const presentation = cellPresentation(mode, day, showComparison, showInventoryDetail)
+							const external = day.externalCalendar
+							const isSelected = selectedDates.has(day.date)
+							const isToday = day.date === today
+							const selectionEdge = !isSelected
+								? undefined
+								: selection.count === 1
+									? "single"
+									: day.date === selection.from
+										? "start"
+										: day.date === selection.to
+											? "end"
+											: "middle"
+							return (
+								<button
+									key={day.date}
+									type="button"
+									disabled={day.isPast}
+									onClick={() => selectDate(day)}
+									aria-label={`${formatDate(day.date, true)}${presentation.primary ? ` · ${presentation.primary}` : ""}${external?.eventCount ? ` · ${external.eventCount} bloqueo externo` : ""}${external?.conflictCount ? ` · ${external.conflictCount} conflicto` : ""}`}
+									aria-pressed={isSelected}
+									data-external-calendar-day={external?.eventCount ? "true" : undefined}
+									data-external-calendar-conflict={external?.conflictCount ? "true" : undefined}
+									data-selected={isSelected}
+									data-selection-edge={selectionEdge}
+									data-today={isToday}
+									className={`calendar-cell fastt-calendar-cell min-h-20 border p-1.5 text-left disabled:cursor-default md:min-h-28 md:p-2 ${updatedDates.has(day.date) ? "calendar-updated" : ""} ${external?.conflictCount ? "ring-1 ring-amber-400" : external?.eventCount ? "border-sky-300" : ""} ${toneClass(presentation.tone)}`}
+								>
+									<div className="flex items-start justify-end gap-1.5">
+										{isToday && (
+											<span
+												className="mt-1.5 size-1.5 rounded-full bg-slate-950"
+												aria-label="Hoy"
+											/>
 										)}
-									</div>
-								)}
-								{!day.isPast && external?.eventCount ? (
-									<div className="mt-1 flex items-center gap-1 overflow-hidden">
 										<span
-											className={`size-1.5 shrink-0 rounded-full ${
-												external.conflictCount ? "bg-amber-500" : "bg-sky-500"
-											}`}
-											aria-hidden="true"
-										/>
-										<span className="truncate text-[9px] font-semibold text-slate-600 md:text-[10px]">
-											{external.conflictCount
-												? `${external.conflictCount} conflicto${external.conflictCount === 1 ? "" : "s"}`
-												: `${external.eventCount} externo${external.eventCount === 1 ? "" : "s"}`}
+											className={`text-sm font-semibold md:text-base ${isToday ? "text-sky-700" : ""}`}
+										>
+											{day.day}
 										</span>
 									</div>
-								) : null}
-							</button>
-						)
-					})}
+									{!day.isPast && presentation.primary && (
+										<div key={mode} className="calendar-cell-content">
+											<p className="mt-2 truncate text-[11px] font-semibold md:text-sm">
+												{presentation.primary}
+											</p>
+											{presentation.secondary && (
+												<p className="mt-1 line-clamp-2 hidden text-[9px] leading-4 opacity-65 sm:block md:text-[11px]">
+													{presentation.secondary}
+												</p>
+											)}
+										</div>
+									)}
+									{!day.isPast && external?.eventCount ? (
+										<div className="mt-1 flex items-center gap-1 overflow-hidden">
+											<span
+												className={`size-1.5 shrink-0 rounded-full ${
+													external.conflictCount ? "bg-amber-500" : "bg-sky-500"
+												}`}
+												aria-hidden="true"
+											/>
+											<span className="truncate text-[9px] font-semibold text-slate-600 md:text-[10px]">
+												{external.conflictCount
+													? `${external.conflictCount} conflicto${external.conflictCount === 1 ? "" : "s"}`
+													: `${external.eventCount} externo${external.eventCount === 1 ? "" : "s"}`}
+											</span>
+										</div>
+									) : null}
+								</button>
+							)
+						})}
+					</div>
 				</div>
 			</Card>
 

@@ -1,5 +1,6 @@
 import {
 	activeProductVerticals,
+	getProductVerticalEntry,
 	normalizeProductVertical,
 	type ProductVertical,
 } from "@/lib/catalog/productVerticalRegistry"
@@ -14,9 +15,20 @@ export type ProviderWorkspaceContext = {
 	productId: string | null
 }
 
+/**
+ * URL-scoped operational context. It never decides permissions or the
+ * workspace experience; it only establishes the business slice being viewed.
+ */
+export type WorkspaceOperationalContext = ProviderWorkspaceContext
+
 export type WorkspaceNavigationScope = {
 	vertical: ActiveWorkspaceVertical | null
 	productId: string | null
+}
+
+export type WorkspaceScopeOption = {
+	vertical: ActiveWorkspaceVertical
+	label: string
 }
 
 function isActiveWorkspaceVertical(value: ProductVertical): value is ActiveWorkspaceVertical {
@@ -39,7 +51,10 @@ export function resolveProviderWorkspaceContext(input: {
 		),
 	]
 	const requestedVertical = normalizeProductVertical(input.vertical)
-	const vertical = isActiveWorkspaceVertical(requestedVertical) ? requestedVertical : null
+	const vertical =
+		isActiveWorkspaceVertical(requestedVertical) && availableVerticals.includes(requestedVertical)
+			? requestedVertical
+			: null
 	const productId = String(input.productId ?? "").trim() || null
 
 	if (productId) {
@@ -64,14 +79,56 @@ export function resolveWorkspaceNavigationScope(input: {
 	return { vertical: context.vertical, productId: context.productId }
 }
 
+export function resolveWorkspaceOperationalContext(input: {
+	productTypes?: readonly unknown[]
+	searchParams: URLSearchParams
+}): WorkspaceOperationalContext {
+	return resolveProviderWorkspaceContext({
+		productTypes: input.productTypes,
+		vertical: input.searchParams.get("scope") ?? input.searchParams.get("vertical"),
+		productId: input.searchParams.get("productId"),
+	})
+}
+
+/**
+ * Builds the scope options exposed by the workspace shell. The current provider
+ * membership grants catalog visibility at the provider level; allowedVerticals
+ * keeps this boundary ready for future product or vertical-specific grants.
+ */
+export function resolveWorkspaceScopeOptions(input: {
+	productTypes?: readonly unknown[]
+	canAccessWorkspace: boolean
+	allowedVerticals?: readonly unknown[]
+}): WorkspaceScopeOption[] {
+	if (!input.canAccessWorkspace) return []
+
+	const availableVerticals = resolveProviderWorkspaceContext({
+		productTypes: input.productTypes,
+	}).availableVerticals
+	const allowedVerticals = input.allowedVerticals
+		? new Set(
+				input.allowedVerticals.map(normalizeProductVertical).filter(isActiveWorkspaceVertical)
+			)
+		: null
+
+	return availableVerticals
+		.filter((vertical) => !allowedVerticals || allowedVerticals.has(vertical))
+		.map((vertical) => ({
+			vertical,
+			label: getProductVerticalEntry(vertical).labels.workspacePlural,
+		}))
+}
+
 export function withWorkspaceNavigationScope(
 	href: string,
 	scope: WorkspaceNavigationScope
 ): string {
-	if (!scope.vertical && !scope.productId) return href
 	const [path, hash = ""] = href.split("#", 2)
 	const [pathname, rawQuery = ""] = path.split("?", 2)
 	const query = new URLSearchParams(rawQuery)
+	query.delete("scope")
+	query.delete("vertical")
+	query.delete("productId")
 	if (scope.vertical) query.set("scope", scope.vertical)
 	if (scope.productId) query.set("productId", scope.productId)
 	const encoded = query.toString()

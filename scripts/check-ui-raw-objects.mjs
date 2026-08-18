@@ -1,5 +1,5 @@
 import { execSync } from "node:child_process"
-import { readFileSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 const args = process.argv.slice(2)
 const mode =
 	args.find((arg) => arg === "--changed" || arg === "--all" || arg === "--staged") ?? "--all"
@@ -32,7 +32,6 @@ const targetFiles = files
 
 const legacyCardSurfaceFiles = new Set([
 	"src/components/dashboard/DashboardTopBar.astro",
-	"src/components/dashboard/ProfessionalModeToggle.astro",
 	"src/components/financial/FinancialPlaceholderPage.astro",
 	"src/components/financial/FinancialSubnav.astro",
 	"src/components/financial/FinancialUnifiedWorkspace.astro",
@@ -164,6 +163,7 @@ function collectClassLikeAssignments(source) {
 const violations = []
 
 for (const file of targetFiles) {
+	if (!existsSync(file)) continue
 	const source = readFileSync(file, "utf8")
 	const allowWrapperSurface = isWrapperSurface(file)
 	const allowLegacyCards = legacyCardSurfaceFiles.has(file)

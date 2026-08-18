@@ -20,7 +20,7 @@ import {
 	type FinancialHumanContext,
 } from "../../_client/financial-human-display"
 import {
-	financialSegmentClass,
+	applyFinancialSegmentTabState,
 	financialSegmentMarkup,
 	financialUi,
 } from "../../_client/financial-ui-classes"
@@ -277,12 +277,8 @@ function renderSegments(): void {
 		.forEach((button) => {
 			const segment = button.dataset.providerPayablesSegment as ProviderPayablesSegment
 			const active = segment === state.segment
-			button.innerHTML = financialSegmentMarkup(
-				segmentLabels[segment],
-				segmentCount(segment),
-				active
-			)
-			button.className = financialSegmentClass(active)
+			button.innerHTML = financialSegmentMarkup(segmentLabels[segment], segmentCount(segment))
+			applyFinancialSegmentTabState(button, active)
 		})
 }
 

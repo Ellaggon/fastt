@@ -1,29 +1,23 @@
 ---
-import { LogOut, Settings, ShieldCheck } from "@lucide/astro"
+import { ChevronRight, LogOut, Settings, ShieldCheck, SlidersHorizontal } from "@lucide/astro"
 
-import ProfessionalModeToggle from "@/components/dashboard/ProfessionalModeToggle.astro"
-import type { SidebarDisclosureMode } from "@/lib/backoffice-governance"
+import WorkspacePreferencesDrawer from "@/components/dashboard/WorkspacePreferencesDrawer.astro"
+import AccommodationContextSwitcher from "@/components/product/AccommodationContextSwitcher.astro"
+import Button from "@/components/ui/Button.astro"
 import type { WorkspaceShellContext } from "@/lib/dashboard/workspaceRequestContext"
 import { routes } from "@/lib/routes"
-import {
-	type WorkspaceNavigationScope,
-	withWorkspaceNavigationScope,
-} from "@/lib/workspace/verticalContext"
 
 interface Props {
 	workspaceContext: WorkspaceShellContext
-	workspaceScope: WorkspaceNavigationScope
 }
 
-const { workspaceContext, workspaceScope } = Astro.props
+const { workspaceContext } = Astro.props
 const user = workspaceContext.user
 const email = user?.email?.trim() || "Sin sesión"
 const accountInitial = email.slice(0, 1).toUpperCase()
 const returnTo = `${Astro.url.pathname}${Astro.url.search}`
 const showProfessionalToggle = workspaceContext.showProfessionalToggle
-const isProfessionalExperience = workspaceContext.effectiveWorkspaceExperience === "professional"
 const lockedReason = workspaceContext.workspaceExperienceLockedReason ?? ""
-const disclosureMode: SidebarDisclosureMode = workspaceContext.disclosureMode
 
 const accountLinks = [
 	{
@@ -37,17 +31,15 @@ const accountLinks = [
 		Icon: ShieldCheck,
 	},
 ]
-const availableVerticals = workspaceContext.sidebarData?.productTypes ?? []
-const hasHotel = availableVerticals.some((type) => String(type).toLowerCase() === "hotel")
-const hasTours = availableVerticals.some((type) => String(type).toLowerCase() === "tour")
-const scopeHref = (vertical: "hotel" | "tour" | null) =>
-	withWorkspaceNavigationScope(returnTo, { vertical, productId: null })
+const currentExperienceLabel =
+	workspaceContext.effectiveWorkspaceExperience === "professional" ? "Profesional" : "Esencial"
+const isFinancialWorkspace =
+	Astro.url.pathname === "/financial" || Astro.url.pathname.startsWith("/financial/")
+const providerId = workspaceContext.provider?.providerId ?? ""
 ---
 
 <header class="bg-black">
-	<div
-		class="mx-auto flex min-h-14 max-w-7xl items-center gap-3 px-4 py-2.5 sm:px-6 lg:justify-end"
-	>
+	<div class="relative mx-auto flex min-h-14 max-w-7xl items-center gap-3 px-4 py-2.5 sm:px-6">
 		<a
 			href={routes.providerSettings()}
 			class="min-w-0 shrink-0 text-base font-semibold tracking-tight text-slate-100 lg:hidden"
@@ -55,60 +47,13 @@ const scopeHref = (vertical: "hotel" | "tour" | null) =>
 		>
 			Fastt
 		</a>
-		<div
-			class="hidden min-w-0 items-center gap-1 rounded-lg border border-white/[0.08] p-1 sm:flex"
-		>
-			<a
-				data-workspace-scope="all"
-				class:list={[
-					"rounded px-2 py-1 text-xs font-semibold",
-					!workspaceScope.vertical
-						? "bg-white text-slate-950"
-						: "text-slate-300 hover:bg-white/[0.08]",
-				]}
-				href={scopeHref(null)}>Todo</a
-			>
-			{
-				hasHotel ? (
-					<a
-						data-workspace-scope="hotel"
-						class:list={[
-							"rounded px-2 py-1 text-xs font-semibold",
-							workspaceScope.vertical === "hotel"
-								? "bg-white text-slate-950"
-								: "text-slate-300 hover:bg-white/[0.08]",
-						]}
-						href={scopeHref("hotel")}
-					>
-						Hotel
-					</a>
-				) : null
-			}
-			{
-				hasTours ? (
-					<a
-						data-workspace-scope="tour"
-						class:list={[
-							"rounded px-2 py-1 text-xs font-semibold",
-							workspaceScope.vertical === "tour"
-								? "bg-white text-slate-950"
-								: "text-slate-300 hover:bg-white/[0.08]",
-						]}
-						href={scopeHref("tour")}
-					>
-						Tours
-					</a>
-				) : null
-			}
-		</div>
 		{
-			showProfessionalToggle ? (
-				<div class="hidden min-w-0 flex-1 items-center justify-center gap-2 sm:flex lg:mr-auto lg:flex-none">
-					<ProfessionalModeToggle
-						enabled={isProfessionalExperience}
-						disclosureMode={disclosureMode}
-						lockedReason={lockedReason}
-						returnTo={returnTo}
+			isFinancialWorkspace && providerId ? (
+				<div class="hidden min-w-0 items-center sm:flex">
+					<AccommodationContextSwitcher
+						providerId={providerId}
+						target="financial"
+						variant="topbar"
 					/>
 				</div>
 			) : null
@@ -117,6 +62,7 @@ const scopeHref = (vertical: "hotel" | "tour" | null) =>
 			<summary
 				class="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-full border border-white/[0.08] bg-black text-sm font-semibold text-white transition hover:bg-white/[0.08] [&::-webkit-details-marker]:hidden"
 				aria-label="Cuenta"
+				data-workspace-account-trigger
 			>
 				{accountInitial}
 			</summary>
@@ -137,13 +83,34 @@ const scopeHref = (vertical: "hotel" | "tour" | null) =>
 				</div>
 				{
 					showProfessionalToggle ? (
-						<div class="border-b border-white/[0.08] py-3 sm:hidden">
-							<ProfessionalModeToggle
-								enabled={isProfessionalExperience}
-								disclosureMode={disclosureMode}
-								lockedReason={lockedReason}
-								returnTo={returnTo}
-							/>
+						<div class="border-b border-white/[0.08] py-2">
+							<Button
+								type="button"
+								variant="ghost"
+								class="h-auto w-full justify-start gap-3 rounded-md px-2.5 py-2.5 text-left text-slate-200 hover:bg-white/[0.08] hover:text-white focus:ring-white focus:ring-offset-slate-950"
+								data-workspace-preferences-open
+								aria-controls="workspace-preferences-drawer"
+								aria-expanded="false"
+							>
+								<SlidersHorizontal
+									size={17}
+									stroke-width={1.9}
+									class="shrink-0 text-slate-400"
+									aria-hidden="true"
+								/>
+								<span class="min-w-0 flex-1">
+									<span class="block text-sm font-medium">Preferencias de trabajo</span>
+									<span class="mt-0.5 block text-xs font-normal text-slate-400">
+										{currentExperienceLabel}
+									</span>
+								</span>
+								<ChevronRight
+									size={17}
+									stroke-width={1.9}
+									class="shrink-0 text-slate-500"
+									aria-hidden="true"
+								/>
+							</Button>
 						</div>
 					) : null
 				}
@@ -170,17 +137,16 @@ const scopeHref = (vertical: "hotel" | "tour" | null) =>
 				</a>
 			</div>
 		</details>
+		{
+			showProfessionalToggle ? (
+				<WorkspacePreferencesDrawer
+					preference={workspaceContext.workspaceExperience}
+					effectiveExperience={workspaceContext.effectiveWorkspaceExperience}
+					capabilities={workspaceContext.workspaceCapabilities}
+					lockedReason={lockedReason}
+					returnTo={returnTo}
+				/>
+			) : null
+		}
 	</div>
 </header>
-<script is:inline>
-	document.querySelectorAll("[data-workspace-scope]").forEach((link) => {
-		link.addEventListener("click", () => {
-			try {
-				localStorage.setItem(
-					"fastt.workspace.scope",
-					link.getAttribute("data-workspace-scope") || "all"
-				)
-			} catch {}
-		})
-	})
-</script>

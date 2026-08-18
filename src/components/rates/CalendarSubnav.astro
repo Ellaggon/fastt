@@ -21,7 +21,7 @@ const tabs = [
 ---
 
 <TabsInsidePanel
-	class="calendar-subnav max-w-full flex-nowrap bg-slate-900/60 border-0 backdrop-blur-sm"
+	class="calendar-subnav max-w-full"
 	aria-label="Navegación del calendario"
 	data-calendar-subnav
 >
@@ -34,12 +34,10 @@ const tabs = [
 					aria-current={tab.active ? "page" : undefined}
 					data-astro-prefetch="hover"
 					data-active={tab.active ? "true" : "false"}
-					class={`fastt-tabs-inside-panel__item px-4 py-2 text-sm font-semibold whitespace-nowrap ${
-						tab.active ? "" : "text-slate-400 hover:bg-slate-800 hover:text-slate-100"
-					}`}
+					class="fastt-tabs-inside-panel__item"
 				>
-					<Icon class="mr-2 h-4 w-4 shrink-0" aria-hidden="true" />
-					{tab.label}
+					<Icon class="h-4 w-4 shrink-0" aria-hidden="true" />
+					<span class="fastt-tabs-inside-panel__label">{tab.label}</span>
 				</a>
 			)
 		})

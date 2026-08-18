@@ -9,9 +9,10 @@ interface Props {
 	active: FiscalTab
 	search?: URLSearchParams
 	counts?: Partial<Record<FiscalTab, number>>
+	class?: string
 }
 
-const { active, search = new URLSearchParams(), counts = {} } = Astro.props
+const { active, search = new URLSearchParams(), counts = {}, class: classProp = "" } = Astro.props
 const suffix = search.toString() ? `?${search.toString()}` : ""
 const tabs: Array<{
 	id: FiscalTab
@@ -41,7 +42,7 @@ const tabs: Array<{
 ]
 ---
 
-<TabsInsidePanel aria-label="Secciones de fiscalidad">
+<TabsInsidePanel class={classProp} aria-label="Secciones de fiscalidad">
 	{
 		tabs.map((tab) => {
 			const selected = tab.id === active
@@ -54,11 +55,13 @@ const tabs: Array<{
 					data-active={selected ? "true" : "false"}
 					class="fastt-tabs-inside-panel__item"
 				>
-					<Icon class="mr-2 h-4 w-4 shrink-0" aria-hidden="true" />
-					{tab.label}
-					{counts[tab.id] !== undefined ? (
-						<span class="ml-1 text-xs opacity-70">{counts[tab.id]}</span>
-					) : null}
+					<Icon class="h-4 w-4 shrink-0" aria-hidden="true" />
+					<span class="fastt-tabs-inside-panel__label">
+						{tab.label}
+						{counts[tab.id] !== undefined ? (
+							<span class="fastt-tabs-inside-panel__meta">{counts[tab.id]}</span>
+						) : null}
+					</span>
 				</a>
 			)
 		})

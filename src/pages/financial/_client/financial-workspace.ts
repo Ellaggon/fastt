@@ -215,8 +215,8 @@ export function initFinancialWorkspace(): void {
 			.map((metric) => {
 				const active = metric.queue === inboxState.segment
 				const buttonClass = financialSummaryClass(active)
-				return `<button type="button" data-queue="${metric.queue}" class="${buttonClass}">
-					${financialSegmentMarkup(metric.label, metric.value, active)}
+				return `<button type="button" data-queue="${metric.queue}" data-active="${active ? "true" : "false"}" class="${buttonClass}">
+					${financialSegmentMarkup(metric.label, metric.value)}
 				</button>`
 			})
 			.join("")

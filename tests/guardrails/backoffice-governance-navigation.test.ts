@@ -16,6 +16,10 @@ import {
 	SIDEBAR_DISCLOSURE_THRESHOLDS,
 	resolveDisclosureMode,
 } from "../../src/lib/dashboard/providerSidebarReadiness"
+import {
+	resolveProviderWorkspaceCapabilities,
+	resolveWorkspaceExperience,
+} from "../../src/lib/workspace/providerWorkspaceCapabilities"
 
 function toPosix(value: string): string {
 	return value.replace(/\\/g, "/")
@@ -607,6 +611,141 @@ describe("Guardrail: backoffice governance navigation", () => {
 		)
 	})
 
+	it("keeps enterprise capabilities, member preference, and role enforcement separate", () => {
+		const smallCapabilities = resolveProviderWorkspaceCapabilities({
+			ratePlanCount: 1,
+			variantCount: 1,
+			activePriceRuleCount: 0,
+			activeRestrictionCount: 0,
+		})
+		expect(smallCapabilities.requiresProfessionalExperience).toBe(false)
+		expect(
+			resolveWorkspaceExperience({
+				preference: "professional",
+				capabilities: smallCapabilities,
+			})
+		).toMatchObject({ effective: "professional", source: "preference", lockedReason: null })
+
+		const scaledCapabilities = resolveProviderWorkspaceCapabilities({
+			ratePlanCount: SIDEBAR_DISCLOSURE_THRESHOLDS.ratePlans,
+			variantCount: 1,
+			activePriceRuleCount: 0,
+			activeRestrictionCount: 0,
+		})
+		expect(scaledCapabilities.canUseMultiCalendar).toBe(true)
+		expect(
+			resolveWorkspaceExperience({
+				preference: "essential",
+				capabilities: scaledCapabilities,
+			})
+		).toMatchObject({ effective: "professional", source: "enterprise-scale" })
+		expect(
+			resolveWorkspaceExperience({
+				preference: "essential",
+				providerRole: "revenue_ops",
+				capabilities: smallCapabilities,
+			})
+		).toMatchObject({ effective: "professional", source: "role" })
+	})
+
+	it("persists workspace experience per provider member", () => {
+		const config = readFileSync(
+			join(process.cwd(), "src/shared/infrastructure/db/schema/tables.ts"),
+			"utf8"
+		)
+		const migration = readFileSync(
+			join(process.cwd(), "db/migrations/2026-08-17_provider_user_workspace_experience.sql"),
+			"utf8"
+		)
+		const preferences = readFileSync(
+			join(process.cwd(), "src/lib/providerUserWorkspacePreference.ts"),
+			"utf8"
+		)
+		const sidebar = readFileSync(
+			join(process.cwd(), "src/components/dashboard/DashboardSidebar.astro"),
+			"utf8"
+		)
+		const endpoint = readFileSync(
+			join(process.cwd(), "src/pages/api/provider/preferences/professional-tools.ts"),
+			"utf8"
+		)
+		const topbar = readFileSync(
+			join(process.cwd(), "src/components/dashboard/DashboardTopBar.astro"),
+			"utf8"
+		)
+		const calendar = readFileSync(join(process.cwd(), "src/pages/rates/calendar.astro"), "utf8")
+		const drawer = readFileSync(
+			join(process.cwd(), "src/components/dashboard/WorkspacePreferencesDrawer.astro"),
+			"utf8"
+		)
+
+		expect(config).toContain("workspaceExperience")
+		expect(config).toContain("workspaceExperienceUpdatedAt")
+		expect(migration).toContain('ALTER TABLE "ProviderUser"')
+		expect(migration).toContain('"workspaceExperience"')
+		expect(migration).toContain('"ProviderUser_workspaceExperience_check"')
+		expect(preferences).toContain("getProviderUserWorkspacePreferenceRead")
+		expect(preferences).toContain("setProviderUserWorkspaceExperience")
+		expect(preferences).toContain("schemaAvailable")
+		expect(preferences).toContain("ProviderUser")
+		expect(preferences).toContain("experience: WorkspaceExperience")
+		expect(sidebar).toContain("workspaceContext")
+		expect(sidebar).not.toContain("getProviderSidebarData")
+		expect(sidebar).not.toContain("getProfessionalModeCookiePreference")
+		expect(sidebar).not.toContain("ProfessionalModeToggle")
+		expect(sidebar).not.toContain("data-professional-mode-toggle")
+		expect(sidebar).toContain("workspaceContext.disclosureMode")
+		expect(endpoint).toContain("requireProvider")
+		expect(endpoint).toContain("setProviderUserWorkspaceExperience")
+		expect(endpoint).toContain("safeReturnPath")
+		expect(endpoint).toContain('mode === "professional"')
+		expect(endpoint).not.toContain("ProviderProfile")
+		expect(endpoint).not.toContain("PROFESSIONAL_MODE_COOKIE")
+		expect(endpoint).toContain('persisted: "member_preference"')
+		expect(topbar).toContain("WorkspacePreferencesDrawer")
+		expect(topbar).toContain("workspaceContext")
+		expect(topbar).not.toContain("getProviderSidebarData")
+		expect(topbar).not.toContain("getProviderProfessionalToolsPreferenceRead")
+		expect(topbar).not.toContain("getProfessionalModeCookiePreference")
+		expect(topbar).not.toContain("Modo actualizado")
+		expect(topbar).not.toContain("No se pudo cambiar")
+		expect(calendar).toContain("Astro.locals.getWorkspaceContext()")
+		expect(calendar).toContain("sidebarData?.experience?.effective")
+		expect(calendar).not.toContain("getProfessionalModeCookiePreference")
+		expect(calendar).not.toContain("professionalModeCookie")
+		expect(drawer).toContain("solo a tu usuario en esta cuenta de proveedor")
+		expect(drawer).toContain("Esencial")
+		expect(drawer).toContain("Profesional")
+		expect(drawer).toContain("/api/provider/preferences/professional-tools")
+	})
+
+	it("treats workspace experience as a member-only presentation preference", () => {
+		const preferences = readFileSync(
+			join(process.cwd(), "src/lib/providerUserWorkspacePreference.ts"),
+			"utf8"
+		)
+		const legacyWriterPath = join(
+			process.cwd(),
+			"src/lib/providerProfessionalToolsPreference.ts"
+		)
+		const invalidation = readFileSync(
+			join(process.cwd(), "src/lib/cache/invalidation.ts"),
+			"utf8"
+		)
+
+		expect(preferences).toContain('entity: "ProviderUser"')
+		expect(preferences).toContain('"workspaceExperience"')
+		expect(preferences).toContain('"workspaceExperienceUpdatedAt"')
+		expect(preferences).toContain('"TaxFeeAssignment"')
+		expect(preferences).not.toContain("ProviderProfile)")
+		expect(preferences).not.toContain("invalidateProvider(providerId)")
+		expect(invalidation).toContain("invalidateProviderWorkspaceExperience")
+		expect(existsSync(legacyWriterPath)).toBe(false)
+		expect(
+			existsSync(join(process.cwd(), "src/lib/dashboard/professionalModeCookie.ts"))
+		).toBe(false)
+	})
+
 	it("keeps advanced routes hidden when the provider is in simple mode", () => {
 		const visible = filterEnterpriseNavigationForDisclosure(enterpriseNavigation, {
 			mode: "small-provider",
@@ -794,14 +933,6 @@ describe("Guardrail: backoffice governance navigation", () => {
 			join(process.cwd(), "src/components/dashboard/DashboardSidebarSection.astro"),
 			"utf8"
 		)
-		const professionalModeToggleSource = readFileSync(
-			join(process.cwd(), "src/components/dashboard/ProfessionalModeToggle.astro"),
-			"utf8"
-		)
-		const workspaceCapabilitiesSource = readFileSync(
-			join(process.cwd(), "src/lib/workspace/providerWorkspaceCapabilities.ts"),
-			"utf8"
-		)
 
 		expect(workspaceSource).not.toContain("getBackofficeRouteClassification")
 		expect(workspaceSource).not.toContain("getEnterpriseNavigationSection")
@@ -809,12 +940,8 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(workspaceSource).not.toContain("isTransitionalSurface")
 		expect(workspaceSource).not.toContain("activeSection?.nextMaturity")
 		expect(workspaceSource).not.toContain("activeSection?.operationalIntent")
-		expect(topbarSource).toContain("ProfessionalModeToggle")
-		expect(topbarSource).toContain("lockedReason={lockedReason}")
-		expect(professionalModeToggleSource).toContain("lockedReason")
-		expect(workspaceCapabilitiesSource).toContain(
-			"Vista profesional activada por la escala operativa de esta cuenta."
-		)
+		expect(topbarSource).toContain("WorkspacePreferencesDrawer")
+		expect(topbarSource).toContain("workspaceExperienceLockedReason")
 		expect(topbarSource).not.toContain("getOperationalContextMetadata")
 		expect(topbarSource).not.toContain("classification.context")
 		expect(topbarSource).not.toContain("{title}")

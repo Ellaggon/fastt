@@ -9,6 +9,8 @@ import { routes } from "@/lib/routes"
 
 type FiscalTab = "definitions" | "assignments" | "simulator" | "activity"
 
+type ContentLayout = "card" | "stacked"
+
 interface Props {
 	title?: string
 	activeTab: FiscalTab
@@ -22,6 +24,8 @@ interface Props {
 	selectedScopeId?: string | null
 	primaryLabel?: string
 	primaryHref?: string
+	primaryButtonClass?: string
+	contentLayout?: ContentLayout
 }
 
 const {
@@ -37,7 +41,12 @@ const {
 	selectedScopeId = null,
 	primaryLabel,
 	primaryHref,
+	primaryButtonClass = "",
+	contentLayout = "card",
 } = Astro.props
+
+const showStackedNotices =
+	contentLayout === "stacked" && (conflictCount > 0 || pendingSyncCount > 0 || !canManageFiscality)
 
 const secondaryLinks = [
 	{ label: "Identidad fiscal", href: routes.providerSettingsVerificationFiscal() },
@@ -87,34 +96,63 @@ const secondaryLinks = [
 				</details>
 				{
 					primaryLabel && primaryHref && canManageFiscality ? (
-						<Button href={primaryHref}>{primaryLabel}</Button>
+						<Button href={primaryHref} class={primaryButtonClass}>
+							{primaryLabel}
+						</Button>
 					) : null
 				}
 			</div>
 		</header>
-		<div class="flex max-w-full flex-wrap items-center justify-between gap-3">
-			<FiscalWorkspaceTabs active={activeTab} search={Astro.url.searchParams} counts={tabCounts} />
+		<div class="flex max-w-full flex-wrap items-center gap-x-3 border-b border-slate-800">
+			<div class="w-full sm:min-w-0 sm:flex-1">
+				<FiscalWorkspaceTabs
+					active={activeTab}
+					search={Astro.url.searchParams}
+					counts={tabCounts}
+					class="border-b-0"
+				/>
+			</div>
 			<a
 				href={routes.providerSettingsVerificationFiscal()}
-				class="inline-flex shrink-0 items-center gap-2 border-b border-transparent py-1 text-sm font-medium text-slate-300 hover:border-slate-300 hover:text-white focus:border-slate-300 focus:text-white focus:outline-none"
+				class="inline-flex shrink-0 items-center gap-2 self-stretch border-b-2 border-transparent px-1 text-sm font-medium text-slate-300 hover:border-slate-300 hover:text-white focus:border-slate-300 focus:text-white focus:outline-none"
 			>
 				<span class="size-1.5 rounded-full bg-emerald-400"></span>
 				Identidad fiscal: {identityLabel}
 			</a>
 		</div>
 
-		<div
-			class="fastt-card overflow-hidden rounded-lg border border-slate-200 bg-white text-slate-900"
-		>
-			<FiscalStatusBar
-				identityLabel={identityLabel}
-				isIdentityConfigured={isIdentityConfigured}
-				conflictCount={conflictCount}
-				pendingSyncCount={pendingSyncCount}
-				showIdentity={false}
-			/>
-			<FiscalPermissionNotice canManageFiscality={canManageFiscality} />
-			<div class="min-w-0 p-4 sm:p-6"><slot /></div>
-		</div>
+		{
+			contentLayout === "stacked" ? (
+				<div class="space-y-5">
+					{showStackedNotices ? (
+						<div class="fastt-workspace-panel overflow-hidden p-0 text-slate-900">
+							<FiscalStatusBar
+								identityLabel={identityLabel}
+								isIdentityConfigured={isIdentityConfigured}
+								conflictCount={conflictCount}
+								pendingSyncCount={pendingSyncCount}
+								showIdentity={false}
+							/>
+							<FiscalPermissionNotice canManageFiscality={canManageFiscality} />
+						</div>
+					) : null}
+					<slot />
+				</div>
+			) : (
+				<div class="fastt-card overflow-hidden rounded-lg border border-slate-200 bg-white text-slate-900">
+					<FiscalStatusBar
+						identityLabel={identityLabel}
+						isIdentityConfigured={isIdentityConfigured}
+						conflictCount={conflictCount}
+						pendingSyncCount={pendingSyncCount}
+						showIdentity={false}
+					/>
+					<FiscalPermissionNotice canManageFiscality={canManageFiscality} />
+					<div class="min-w-0 p-4 sm:p-6">
+						<slot />
+					</div>
+				</div>
+			)
+		}
 	</section>
 </WorkspaceLayout>

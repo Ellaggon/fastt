@@ -1,6 +1,7 @@
 ---
 import DashboardSidebarItem from "@/components/dashboard/DashboardSidebarItem.astro"
 import DashboardSidebarSection from "@/components/dashboard/DashboardSidebarSection.astro"
+import WorkspaceScopeSwitcher from "@/components/dashboard/WorkspaceScopeSwitcher.astro"
 import {
 	enterpriseNavigation,
 	filterEnterpriseNavigationForDisclosure,
@@ -182,6 +183,7 @@ function shouldShowNavGroupHeading(
 ---
 
 <nav class="space-y-4 pb-5" aria-label="Navegación principal del proveedor">
+	<WorkspaceScopeSwitcher workspaceContext={workspaceContext} workspaceScope={workspaceScope} />
 	{
 		navigationGroups.map((group) => (
 			<DashboardSidebarSection

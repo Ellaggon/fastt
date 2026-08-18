@@ -274,14 +274,19 @@ body {
 }
 
 .fastt-tabs-inside-panel__item {
+	position: relative;
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
 	flex-shrink: 0;
+	gap: 0.5rem;
 	border: 0 !important;
-	border-radius: 16px !important;
+	border-bottom: 2px solid transparent !important;
+	border-radius: 0 !important;
 	box-shadow: none;
-	padding: 0.5rem 1rem;
+	margin-bottom: -1px;
+	padding: 1rem 1.125rem 0.875rem;
+	background: transparent;
 	color: rgb(148 163 184);
 	font-size: 0.875rem;
 	font-weight: 600;
@@ -293,20 +298,39 @@ body {
 		color var(--fastt-motion-fast) ease;
 }
 
+.fastt-tabs-inside-panel__item svg {
+	display: block;
+	flex-shrink: 0;
+}
+
+.fastt-tabs-inside-panel__label {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+	line-height: 1;
+}
+
+.fastt-tabs-inside-panel__meta {
+	display: inline-flex;
+	align-items: center;
+	font-size: inherit;
+	line-height: inherit;
+	opacity: 0.7;
+	font-variant-numeric: tabular-nums;
+}
+
 .fastt-tabs-inside-panel__item[data-active="false"]:hover,
 .fastt-tabs-inside-panel__item:not([data-active="true"]):hover {
-	background: rgb(30 41 59);
 	color: rgb(241 245 249);
 }
 
 .fastt-tabs-inside-panel__item[data-active="true"] {
-	background: rgb(255 255 255);
-	color: rgb(15 23 42);
+	border-bottom-color: rgb(255 255 255) !important;
+	color: rgb(248 250 252);
 }
 
 .fastt-tabs-inside-panel__item[data-active="true"]:hover {
-	background: rgb(255 255 255);
-	color: rgb(15 23 42);
+	color: rgb(255 255 255);
 }
 
 .fastt-tabs-inside-panel__item:focus-visible {

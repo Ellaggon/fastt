@@ -8,7 +8,7 @@ import TaxFeeWizard, {
 	type TaxFeeSuggestedDraft,
 } from "./TaxFeeWizard"
 import FiscalReviewCenter from "./FiscalReviewCenter"
-import { Badge, Button, IconButton, Input, Notice, Select } from "../ui-react"
+import { Badge, Button, Card, IconButton, Input, Notice, Select } from "../ui-react"
 
 type TaxFeePageProps = {
 	initialDefinitions: DefinitionSummary[]
@@ -475,48 +475,59 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 	}
 
 	return (
-		<section className="min-w-0">
-			<div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 pb-4">
-				<div>
-					<p className="text-xs font-semibold tracking-[0.08em] text-slate-500 uppercase">
-						Definiciones
-					</p>
-					<h2 className="mt-1 text-lg font-semibold text-slate-950">
-						Impuestos y cargos existentes
-					</h2>
-					<p className="mt-1 text-sm text-slate-600">
-						{definitions.length} total ·{" "}
-						{definitions.filter((definition) => definition.operationalStatus === "active").length}{" "}
-						activas
-					</p>
+		<section className="min-w-0 space-y-5">
+			{(operationError || successMessage) && (
+				<div className="space-y-4">
+					{operationError && <Notice variant="error">{operationError}</Notice>}
+					{successMessage && <Notice variant="success">{successMessage}</Notice>}
 				</div>
-				{hasDefinitions && props.canManageFiscality && (
-					<Button type="button" onClick={startCreating}>
-						Crear
-					</Button>
-				)}
-			</div>
+			)}
 
-			<FiscalReviewCenter
-				definitions={definitions}
-				warnings={warnings}
-				canManageFiscality={props.canManageFiscality}
-				onResolveDefinition={startEditing}
-			/>
+			<Card as="section" className="fastt-workspace-panel overflow-hidden p-4 text-slate-900">
+				<div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 pb-4">
+					<div>
+						<p className="text-xs font-semibold tracking-[0.08em] text-slate-500 uppercase">
+							Definiciones
+						</p>
+						<h2 className="mt-1 text-lg font-semibold text-slate-950">
+							Impuestos y cargos existentes
+						</h2>
+						<p className="mt-1 text-sm text-slate-600">
+							{definitions.length} total ·{" "}
+							{definitions.filter((definition) => definition.operationalStatus === "active").length}{" "}
+							activas
+						</p>
+					</div>
+					{hasDefinitions && props.canManageFiscality && (
+						<Button type="button" onClick={startCreating}>
+							Crear
+						</Button>
+					)}
+				</div>
+
+				<FiscalReviewCenter
+					definitions={definitions}
+					warnings={warnings}
+					canManageFiscality={props.canManageFiscality}
+					onResolveDefinition={startEditing}
+				/>
+			</Card>
 
 			{!hasDefinitions ? (
-				<div className="fastt-empty-state mt-4 border border-dashed border-slate-300 bg-slate-50 p-5">
-					<h3 className="text-lg font-semibold text-slate-950">
-						Aún no hay impuestos ni cargos configurados
-					</h3>
-					<p className="mt-2 text-sm leading-6 text-slate-600">
-						Agrega impuestos o cargos para que los huéspedes vean precios correctos antes de
-						reservar.
-					</p>
-				</div>
+				<Card as="section" className="fastt-workspace-panel overflow-hidden p-4 text-slate-900">
+					<div className="fastt-empty-state border border-dashed border-slate-300 bg-slate-50 p-5">
+						<h3 className="text-lg font-semibold text-slate-950">
+							Aún no hay impuestos ni cargos configurados
+						</h3>
+						<p className="mt-2 text-sm leading-6 text-slate-600">
+							Agrega impuestos o cargos para que los huéspedes vean precios correctos antes de
+							reservar.
+						</p>
+					</div>
+				</Card>
 			) : (
-				<>
-					<div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
+				<Card as="section" className="fastt-workspace-panel overflow-hidden p-0 text-slate-900">
+					<div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-4">
 						<div className="min-w-56 flex-1">
 							<Input
 								className="h-9 w-full"
@@ -544,7 +555,7 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 						</button>
 					</div>
 					{filtersOpen && (
-						<div className="grid gap-3 border-b border-slate-200 bg-slate-50 px-3 py-4 sm:grid-cols-2 lg:grid-cols-3">
+						<div className="grid gap-3 border-b border-slate-200 bg-slate-50 px-4 py-4 sm:grid-cols-2 lg:grid-cols-3">
 							<div className="flex flex-wrap items-start justify-between gap-3 sm:col-span-2 lg:col-span-3">
 								<div>
 									<p className="text-sm font-semibold text-slate-950">
@@ -729,7 +740,7 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 							No hay definiciones con estos filtros.
 						</p>
 					) : null}
-				</>
+				</Card>
 			)}
 
 			{inspectedDefinition ? (
@@ -1026,19 +1037,6 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 					</aside>
 				</div>
 			) : null}
-
-			<div className="mt-5">
-				{operationError && (
-					<Notice variant="error" className="mb-4">
-						{operationError}
-					</Notice>
-				)}
-				{successMessage && (
-					<Notice variant="success" className="mb-4">
-						{successMessage}
-					</Notice>
-				)}
-			</div>
 		</section>
 	)
 }

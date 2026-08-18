@@ -1,6 +1,14 @@
 ---
 import TabsInsidePanel from "@/components/ui/TabsInsidePanel.astro"
 import { financialNavigationItems } from "@/lib/financial/financialNavigation"
+import {
+	CircleDollarSign,
+	HandCoins,
+	ReceiptText,
+	RotateCcw,
+	TriangleAlert,
+	WalletCards,
+} from "@lucide/astro"
 
 interface Props {
 	pathname?: string
@@ -20,12 +28,21 @@ const compactLabelByLabel: Record<string, string> = {
 	"Bandeja financiera": "Bandeja",
 	"Pagos a proveedores": "Proveedores",
 }
+const iconByLabel = {
+	"Bandeja financiera": WalletCards,
+	"Cobros": CircleDollarSign,
+	"Liquidaciones": ReceiptText,
+	"Pagos a proveedores": HandCoins,
+	"Reembolsos": RotateCcw,
+	"Excepciones": TriangleAlert,
+} as const
 ---
 
 <TabsInsidePanel class="max-w-full flex-nowrap" aria-label="Navegación financiera">
 	{
 		financialNavigationItems.map((item) => {
 			const active = isActive(item.href)
+			const Icon = iconByLabel[item.label as keyof typeof iconByLabel]
 			return (
 				<a
 					href={scopedHref(item.href)}
@@ -36,11 +53,12 @@ const compactLabelByLabel: Record<string, string> = {
 					aria-current={active ? "page" : undefined}
 					aria-label={item.label}
 					title={item.label}
-					class={`fastt-tabs-inside-panel__item px-4 py-2 text-sm font-semibold whitespace-nowrap ${
-						active ? "" : "text-slate-400 hover:bg-slate-800 hover:text-slate-100"
-					}`}
+					class="fastt-tabs-inside-panel__item"
 				>
-					{compactLabelByLabel[item.label] ?? item.label}
+					<Icon class="h-4 w-4 shrink-0" aria-hidden="true" />
+					<span class="fastt-tabs-inside-panel__label">
+						{compactLabelByLabel[item.label] ?? item.label}
+					</span>
 				</a>
 			)
 		})

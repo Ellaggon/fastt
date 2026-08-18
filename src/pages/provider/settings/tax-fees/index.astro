@@ -57,6 +57,7 @@ const selectedScopeId = Astro.url.searchParams.get("scope") || null
 ---
 
 <FiscalWorkspaceLayout
+	contentLayout="stacked"
 	activeTab="definitions"
 	identityLabel={taxConfiguration?.statusLabel ?? "No configurada"}
 	isIdentityConfigured={Boolean(taxConfiguration?.isConfigured)}
@@ -68,6 +69,7 @@ const selectedScopeId = Astro.url.searchParams.get("scope") || null
 	}))}
 	selectedScopeId={selectedScopeId}
 	primaryLabel="Nueva definición"
+	primaryButtonClass="!bg-[#171717] hover:!bg-[#262626] focus:ring-[#171717]"
 	primaryHref={`${routes.providerSettingsTaxFees()}?create=1${selectedScopeId ? `&scope=${encodeURIComponent(selectedScopeId)}` : ""}`}
 	tabCounts={{ definitions: definitionCount, assignments: assignmentCount }}
 >

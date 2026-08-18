@@ -86,6 +86,13 @@ const TABS: Array<{ key: MultiCalendarTab; label: string; helper: string }> = [
 	{ key: "rules", label: "Reglas aplicadas", helper: "Automatizaciones activas y conflictos." },
 ]
 
+const RANGE_PRESETS = [
+	["visible_weekend", "Fin de semana"],
+	["visible_month", "Vista visible"],
+	["next_7", "Prox. 7 días"],
+	["next_30", "Prox. 30 días"],
+] as const
+
 const ACTIONS: Record<MultiCalendarTab, Array<{ id: string; label: string }>> = {
 	price: [
 		{ id: "price_base", label: "Ajuste de precio" },
@@ -1056,53 +1063,6 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 						<Button disabled={loading}>Filtrar</Button>
 					</form>
 				</details>
-				<div className="mt-4 flex flex-wrap items-center gap-3 border-t border-slate-200 pt-4 sm:justify-between">
-					<div className="flex w-full min-w-0 items-center justify-center gap-2 sm:w-auto sm:justify-start">
-						<IconButton
-							disabled={!surface.previousMonth || loading}
-							onClick={() => void loadWorkspace({ month: surface.previousMonth })}
-							label="Mes anterior"
-						>
-							‹
-						</IconButton>
-						<div className="min-w-0 text-center">
-							<p className="font-semibold whitespace-nowrap text-slate-950">
-								{formatRange(surface.startDate, surface.endDate)}
-							</p>
-							<p className="text-xs whitespace-nowrap text-slate-500">
-								{surface.stats.totalRows} tarifas · {surface.stats.attentionRows} con pendientes
-							</p>
-						</div>
-						<IconButton
-							disabled={loading}
-							onClick={() => void loadWorkspace({ month: surface.nextMonth })}
-							label="Mes siguiente"
-						>
-							›
-						</IconButton>
-					</div>
-					<div
-						className="hidden flex-wrap justify-end gap-1.5 sm:flex"
-						data-multi-calendar-range-presets
-					>
-						{[
-							["visible_weekend", "Fin de semana"],
-							["visible_month", "Vista visible"],
-							["next_7", "Prox. 7 días"],
-							["next_30", "Prox. 30 días"],
-						].map(([id, label]) => (
-							<Button
-								key={id}
-								type="button"
-								onClick={() => applyPreset(id)}
-								variant="secondary"
-								size="sm"
-							>
-								{label}
-							</Button>
-						))}
-					</div>
-				</div>
 				<SegmentedControl className="mt-4" role="tablist">
 					{TABS.map((tab) => (
 						<SegmentedItem
@@ -1161,22 +1121,84 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 			</Card>
 
 			<Card as="section" className="fastt-workspace-panel overflow-hidden p-0 text-slate-900">
-				<div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-					<div>
-						<h2 className="font-semibold text-slate-950">Operación por tarifa</h2>
-						<p className="text-sm text-slate-500">
-							Selecciona fechas o tarifas para operar en escala.
-						</p>
+				<div className="flex flex-wrap items-center gap-3 px-4 pt-4 pb-2 sm:justify-between">
+					<div className="flex w-full min-w-0 items-center justify-center gap-2 sm:w-auto sm:justify-start">
+						<IconButton
+							disabled={!surface.previousMonth || loading}
+							onClick={() => void loadWorkspace({ month: surface.previousMonth })}
+							label="Mes anterior"
+						>
+							‹
+						</IconButton>
+						<div className="min-w-0 text-center">
+							<p className="font-semibold whitespace-nowrap text-slate-950">
+								{formatRange(surface.startDate, surface.endDate)}
+							</p>
+							<p className="text-xs whitespace-nowrap text-slate-500">
+								{surface.stats.totalRows} tarifas · {surface.stats.attentionRows} con pendientes
+							</p>
+						</div>
+						<IconButton
+							disabled={loading}
+							onClick={() => void loadWorkspace({ month: surface.nextMonth })}
+							label="Mes siguiente"
+						>
+							›
+						</IconButton>
 					</div>
-					{loading && <span className="text-xs font-semibold text-slate-500">Actualizando...</span>}
+					<>
+						<div
+							className="hidden flex-wrap justify-end gap-1.5 sm:flex"
+							data-multi-calendar-range-presets
+							aria-label="Atajos de rango"
+						>
+							{RANGE_PRESETS.map(([id, label]) => (
+								<button
+									key={id}
+									type="button"
+									onClick={() => applyPreset(id)}
+									className="inline-flex h-8 items-center rounded-full px-2.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+								>
+									{label}
+								</button>
+							))}
+						</div>
+						<details className="relative sm:hidden">
+							<summary className="fastt-button inline-flex min-h-8 cursor-pointer list-none items-center rounded-full border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600">
+								Rangos
+							</summary>
+							<div className="fastt-soft-box absolute top-full right-0 z-30 mt-2 w-44 space-y-1 border border-slate-200 bg-white p-1.5 shadow-lg">
+								{RANGE_PRESETS.map(([id, label]) => (
+									<Button
+										key={id}
+										type="button"
+										onClick={(event) => {
+											applyPreset(id)
+											event.currentTarget.closest("details")?.removeAttribute("open")
+										}}
+										variant="ghost"
+										size="sm"
+										className="w-full justify-start"
+									>
+										{label}
+									</Button>
+								))}
+							</div>
+						</details>
+					</>
+					{loading && (
+						<span className="w-full text-right text-xs font-semibold text-slate-500 sm:w-auto">
+							Actualizando...
+						</span>
+					)}
 				</div>
 				{surface.rows.length === 0 ? (
 					<div className="p-10 text-center text-sm text-slate-500">
 						No hay tarifas para esta vista.
 					</div>
 				) : (
-					<>
-						<label className="block border-b border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-600 sm:hidden">
+					<div className="px-4 pb-4">
+						<label className="mb-3 block rounded-[var(--fastt-radius-card)] border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-600 sm:hidden">
 							Tarifa visible
 							<Select
 								value={mobileRatePlanId}
@@ -1254,7 +1276,7 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 								))}
 							</div>
 						</div>
-					</>
+					</div>
 				)}
 			</Card>
 

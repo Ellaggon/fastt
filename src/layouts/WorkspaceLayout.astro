@@ -4,7 +4,10 @@ import DashboardTopBar from "@/components/dashboard/DashboardTopBar.astro"
 import WorkspaceNavigationPending from "@/components/dashboard/WorkspaceNavigationPending.astro"
 import Layout from "@/layouts/Layout.astro"
 import { resolveWorkspaceShellContext } from "@/lib/dashboard/workspaceRequestContext"
-import { resolveWorkspaceNavigationScope } from "@/lib/workspace/verticalContext"
+import {
+	resolveWorkspaceNavigationScope,
+	resolveWorkspaceOperationalContext,
+} from "@/lib/workspace/verticalContext"
 
 interface Props {
 	title?: string
@@ -20,10 +23,19 @@ const workspaceScope = resolveWorkspaceNavigationScope({
 	productTypes: workspaceContext.sidebarData?.productTypes,
 	searchParams: Astro.url.searchParams,
 })
+const operationalContext = resolveWorkspaceOperationalContext({
+	productTypes: workspaceContext.sidebarData?.productTypes,
+	searchParams: Astro.url.searchParams,
+})
 ---
 
 <Layout title={title}>
-	<div class="min-h-screen bg-black text-slate-100">
+	<div
+		class="min-h-screen bg-black text-slate-100"
+		data-workspace-context-level={operationalContext.level}
+		data-workspace-context-vertical={operationalContext.vertical ?? undefined}
+		data-workspace-context-product={operationalContext.productId ?? undefined}
+	>
 		<div class="flex min-h-screen">
 			<aside
 				class="sticky top-0 hidden h-screen w-68 shrink-0 overflow-y-auto bg-black px-3 py-4 text-slate-100 lg:block xl:w-72"
@@ -40,7 +52,7 @@ const workspaceScope = resolveWorkspaceNavigationScope({
 			</aside>
 
 			<div class="flex min-h-screen min-w-0 flex-1 flex-col">
-				<DashboardTopBar workspaceContext={workspaceContext} workspaceScope={workspaceScope} />
+				<DashboardTopBar workspaceContext={workspaceContext} />
 				<main class="relative min-w-0 flex-1" data-workspace-main>
 					<WorkspaceNavigationPending />
 					<div class="mx-auto max-w-7xl min-w-0 px-3 py-4 sm:px-6 sm:py-8">
