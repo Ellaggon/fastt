@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 
 import type { ApiWarning, DefinitionSummary } from "./TaxFeeWizard"
-import { Badge, Button, IconButton } from "../ui-react"
+import { Badge, Button, Card, IconButton } from "../ui-react"
 
 type Suggestion = {
 	id: string
@@ -136,7 +136,10 @@ export default function FiscalReviewCenter({
 
 	return (
 		<>
-			<section className="mt-4 flex flex-wrap items-center justify-between gap-3 border-y border-slate-200 bg-slate-50 px-4 py-3">
+			<Card
+				as="section"
+				className="mt-4 flex flex-wrap items-center justify-between gap-3 border-slate-200 bg-slate-50/80 p-4 shadow-none"
+			>
 				<div className="min-w-0">
 					<p className="text-sm font-semibold text-slate-950">Revisión pendiente</p>
 					<p className="mt-0.5 text-sm text-slate-600">
@@ -152,7 +155,7 @@ export default function FiscalReviewCenter({
 				>
 					Abrir revisión
 				</Button>
-			</section>
+			</Card>
 
 			{open ? (
 				<div

@@ -19,7 +19,7 @@ import {
 	type FinancialHumanContext,
 } from "../../_client/financial-human-display"
 import {
-	financialSegmentClass,
+	applyFinancialSegmentTabState,
 	financialSegmentMarkup,
 	financialUi,
 } from "../../_client/financial-ui-classes"
@@ -255,8 +255,8 @@ function renderSegments(): void {
 	document.querySelectorAll<HTMLButtonElement>("[data-exceptions-segment]").forEach((button) => {
 		const segment = button.dataset.exceptionsSegment as ExceptionSegment
 		const active = segment === state.segment
-		button.innerHTML = financialSegmentMarkup(segmentLabels[segment], segmentCount(segment), active)
-		button.className = financialSegmentClass(active)
+		button.innerHTML = financialSegmentMarkup(segmentLabels[segment], segmentCount(segment))
+		applyFinancialSegmentTabState(button, active)
 	})
 }
 

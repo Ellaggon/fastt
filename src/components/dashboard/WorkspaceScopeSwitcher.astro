@@ -1,0 +1,88 @@
+---
+import { ChevronDown } from "@lucide/astro"
+
+import type { WorkspaceShellContext } from "@/lib/dashboard/workspaceRequestContext"
+import {
+	resolveWorkspaceScopeOptions,
+	type WorkspaceNavigationScope,
+	withWorkspaceNavigationScope,
+} from "@/lib/workspace/verticalContext"
+
+interface Props {
+	workspaceContext: WorkspaceShellContext
+	workspaceScope: WorkspaceNavigationScope
+}
+
+const { workspaceContext, workspaceScope } = Astro.props
+const scopeOptions = resolveWorkspaceScopeOptions({
+	productTypes: workspaceContext.sidebarData?.productTypes,
+	canAccessWorkspace: Boolean(workspaceContext.provider?.providerId),
+})
+const currentOption = scopeOptions.find((option) => option.vertical === workspaceScope.vertical)
+const returnTo = `${Astro.url.pathname}${Astro.url.search}`
+const scopeHref = (vertical: WorkspaceNavigationScope["vertical"]) =>
+	withWorkspaceNavigationScope(returnTo, { vertical, productId: null })
+---
+
+{
+	scopeOptions.length > 1 ? (
+		<section class="mb-2.5" data-workspace-scope-switcher>
+			<details class="group relative">
+				<summary class="fastt-soft-box flex min-h-11 w-full cursor-pointer list-none items-center justify-between gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 text-sm font-semibold text-slate-100 transition hover:border-white/[0.14] hover:bg-white/[0.07] focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:outline-none [&::-webkit-details-marker]:hidden">
+					<span class="truncate">{currentOption?.label ?? "Toda la operación"}</span>
+					<ChevronDown
+						size={15}
+						stroke-width={2}
+						class="shrink-0 text-slate-400 transition group-open:rotate-180"
+						aria-hidden="true"
+					/>
+				</summary>
+				<div class="fastt-soft-box mt-1 w-full overflow-hidden rounded-lg border border-white/[0.12] bg-[#0b0b0c] py-1 shadow-xl">
+					<a
+						data-workspace-scope="all"
+						aria-current={!workspaceScope.vertical ? "page" : undefined}
+						class:list={[
+							"flex min-h-10 items-center px-3 text-sm font-medium transition",
+							!workspaceScope.vertical
+								? "bg-white/[0.1] text-white"
+								: "text-slate-300 hover:bg-white/[0.08] hover:text-white",
+						]}
+						href={scopeHref(null)}
+					>
+						Toda la operación
+					</a>
+					{scopeOptions.map((option) => (
+						<a
+							data-workspace-scope={option.vertical}
+							aria-current={workspaceScope.vertical === option.vertical ? "page" : undefined}
+							class:list={[
+								"flex min-h-10 items-center px-3 text-sm font-medium transition",
+								workspaceScope.vertical === option.vertical
+									? "bg-white/[0.1] text-white"
+									: "text-slate-300 hover:bg-white/[0.08] hover:text-white",
+							]}
+							href={scopeHref(option.vertical)}
+						>
+							{option.label}
+						</a>
+					))}
+				</div>
+			</details>
+		</section>
+	) : null
+}
+
+<script>
+	document.querySelectorAll("[data-workspace-scope-switcher]").forEach((switcher) => {
+		switcher.querySelectorAll("[data-workspace-scope]").forEach((link) => {
+			link.addEventListener("click", () => {
+				try {
+					localStorage.setItem(
+						"fastt.workspace.scope",
+						link.getAttribute("data-workspace-scope") || "all"
+					)
+				} catch {}
+			})
+		})
+	})
+</script>

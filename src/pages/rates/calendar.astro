@@ -28,12 +28,11 @@ const workspaceContext = await timing.time<WorkspaceRequestContext>("authProvide
 )
 if (!workspaceContext.user) return Astro.redirect("/SignInPage")
 if (!workspaceContext.provider) return Astro.redirect(routes.providerSettingsProfile())
-const sidebarTimingPromise = timing.time("sidebar", () => workspaceContext.sidebarDataPromise)
+const sidebarData = await timing.time("sidebar", () => workspaceContext.sidebarDataPromise)
 const auth = {
 	user: workspaceContext.user,
 	providerId: workspaceContext.provider.providerId,
 }
-const sidebarData = await sidebarTimingPromise
 const isProfessionalCalendar = sidebarData?.experience?.effective === "professional"
 const requestedFocus = String(Astro.url.searchParams.get("focus") ?? "price")
 const initialMode =
@@ -181,7 +180,6 @@ const layoutProps =
 					}
 				: { title: "Calendario" }
 
-await sidebarTimingPromise
 for (const name of ["pricing", "inventory", "restrictions", "searchFreshness", "ical"]) {
 	if (!timing.metrics.some((metric) => metric.name === name)) {
 		timing.add(name, 0, "deferred_calendar_api")

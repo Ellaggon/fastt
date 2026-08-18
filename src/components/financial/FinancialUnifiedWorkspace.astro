@@ -1,16 +1,16 @@
 ---
 import FinancialWorkspaceShell from "@/components/financial/FinancialWorkspaceShell.astro"
 import FinancialCompactSearch from "@/components/financial/FinancialCompactSearch.astro"
-import AccommodationContextSwitcher from "@/components/product/AccommodationContextSwitcher.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import Select from "@/components/ui/Select.astro"
+import TabsOutsidePanel from "@/components/ui/TabsOutsidePanel.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { getProviderUserWorkspacePreferenceRead } from "@/lib/providerUserWorkspacePreference"
 import { getProviderSidebarData } from "@/lib/dashboard/providerSidebarReadiness"
+import { getProviderUserWorkspacePreferenceRead } from "@/lib/providerUserWorkspacePreference"
 import { actorFilterOptions } from "@/pages/financial/_client/financial-actor-filters"
-import { and, db, eq, Product, sql } from "@/shared/infrastructure/db/compat"
+import { db, eq, Product } from "@/shared/infrastructure/db/compat"
 
 type FinancialViewId =
 	| "inbox"
@@ -34,6 +34,18 @@ const initialView = routeToView[normalizedPath] || "inbox"
 const viewClass = (view: FinancialViewId) =>
 	view === initialView ? "space-y-6 md:space-y-8" : "hidden space-y-6 md:space-y-8"
 
+const inboxSummaryLabels = [
+	"Requieren atención",
+	"Bloqueados",
+	"Esperando respuesta",
+	"Listos para cerrar",
+	"Cerrados recientemente",
+] as const
+
+const segmentTabItemActive =
+	"fastt-tabs-outside-panel__item px-3 py-2 text-sm font-semibold whitespace-nowrap"
+const segmentTabItemInactive = `${segmentTabItemActive} text-slate-600 hover:bg-sky-100/80 hover:text-sky-950`
+
 let isSimpleFinancialView = true
 let providerId = ""
 let selectedAccommodation: { id: string; name: string } | null = null
@@ -41,13 +53,12 @@ try {
 	const user = await getUserFromRequest(Astro.request)
 	providerId = (await getProviderIdFromRequest(Astro.request, user)) ?? ""
 	if (providerId) {
-		const workspacePreference = await getProviderUserWorkspacePreferenceRead({
-			providerId,
-			userId: user?.id ?? "",
-		})
+		const workspacePreference = user?.id
+			? await getProviderUserWorkspacePreferenceRead({ providerId, userId: user.id })
+			: null
 		const sidebarData = await getProviderSidebarData(providerId, {
 			userId: user?.id,
-			workspaceExperience: workspacePreference.schemaAvailable
+			workspaceExperience: workspacePreference?.schemaAvailable
 				? workspacePreference.experience
 				: undefined,
 		})
@@ -79,48 +90,38 @@ try {
 >
 	{
 		selectedAccommodation ? (
-			<Fragment slot="context">
-				<AccommodationContextSwitcher
-					providerId={providerId}
-					productId={selectedAccommodation.id}
-					currentName={selectedAccommodation.name}
-					target="financial"
-				/>
-				<div
-					id="financialAccommodationContext"
-					class="hidden"
-					data-product-id={selectedAccommodation.id}
-					data-product-name={selectedAccommodation.name}
-				/>
-			</Fragment>
+			<div
+				id="financialAccommodationContext"
+				class="hidden"
+				data-product-id={selectedAccommodation.id}
+				data-product-name={selectedAccommodation.name}
+			/>
 		) : null
 	}
 	<section data-financial-view="inbox" class={viewClass("inbox")}>
-		<Card class="fastt-workspace-panel overflow-visible p-0">
-			<div class="p-5 md:p-6">
-				<div class="space-y-5 md:space-y-6">
+		<Card variant="flush" class="fastt-workspace-panel overflow-visible">
+			<div class="border-b border-slate-200 p-4">
+				<div class="space-y-4">
 					<div class="financial-controls">
-						<div
+						<TabsOutsidePanel
 							id="financialSummary"
 							data-financial-summary
-							class="financial-summary-list financial-summary-list--desktop flex min-w-0 max-w-full flex-wrap gap-1.5 sm:gap-2"
+							class="financial-summary-list financial-summary-list--desktop"
 							aria-label="Estado de casos financieros"
 						>
 							{
-								[
-									"Requieren atención",
-									"Bloqueados",
-									"Esperando respuesta",
-									"Listos para cerrar",
-									"Cerrados recientemente",
-								].map((label) => (
-									<div class="rounded-full border border-slate-200 bg-white px-2.5 py-1.5 text-xs sm:px-3 sm:py-2">
-										<span class="text-xs font-semibold text-slate-700">0</span>
-										<span class="ml-1">{label}</span>
-									</div>
+								inboxSummaryLabels.map((label, index) => (
+									<button
+										type="button"
+										class={index === 0 ? segmentTabItemActive : segmentTabItemInactive}
+										data-active={index === 0 ? "true" : "false"}
+										disabled
+									>
+										{label} <span class="ml-1 text-xs opacity-70">0</span>
+									</button>
 								))
 							}
-						</div>
+						</TabsOutsidePanel>
 						<details class="financial-status-popover group" data-financial-popover>
 							<summary
 								class="financial-mobile-control financial-icon-trigger"
@@ -150,26 +151,24 @@ try {
 										Cerrar
 									</Button>
 								</div>
-								<div
+								<TabsOutsidePanel
 									data-financial-summary
-									class="financial-summary-list flex max-w-full flex-wrap gap-1.5"
+									class="financial-summary-list flex max-w-full flex-wrap"
 									aria-label="Estado de casos financieros"
 								>
 									{
-										[
-											"Requieren atención",
-											"Bloqueados",
-											"Esperando respuesta",
-											"Listos para cerrar",
-											"Cerrados recientemente",
-										].map((label) => (
-											<div class="rounded-full border border-slate-200 bg-white px-2.5 py-1.5 text-xs">
-												<span class="text-xs font-semibold text-slate-700">0</span>
-												<span class="ml-1">{label}</span>
-											</div>
+										inboxSummaryLabels.map((label, index) => (
+											<button
+												type="button"
+												class={index === 0 ? segmentTabItemActive : segmentTabItemInactive}
+												data-active={index === 0 ? "true" : "false"}
+												disabled
+											>
+												{label} <span class="ml-1 text-xs opacity-70">0</span>
+											</button>
 										))
 									}
-								</div>
+								</TabsOutsidePanel>
 							</div>
 						</details>
 						<details class="financial-filter-popover group" data-financial-popover>
@@ -263,7 +262,7 @@ try {
 							placeholder="Buscar reserva, alojamiento, proveedor o referencia..."
 						/>
 					</div>
-					<div class="border-t border-slate-200 pt-5 md:pt-6">
+					<div>
 						<p id="financialListSummary" class="text-sm leading-6 text-slate-700">
 							Cargando casos que requieren atención, espera o cierre...
 						</p>
@@ -277,9 +276,7 @@ try {
 				id="financialRows"
 				class="space-y-2 overflow-hidden border-t border-slate-200 bg-slate-50/80 p-2 sm:space-y-2.5"
 			>
-				<div class="px-3 py-6 text-center text-sm text-slate-500 sm:px-4 sm:py-8">
-					Cargando casos...
-				</div>
+				<div class="px-4 py-8 text-center text-sm text-slate-500">Cargando casos...</div>
 			</div>
 			<div
 				id="financialLoadMoreWrap"
@@ -293,27 +290,47 @@ try {
 	</section>
 
 	<section data-financial-view="collections" class={viewClass("collections")}>
-		<Card class="fastt-workspace-panel overflow-hidden p-0 text-slate-900">
+		<Card variant="flush" class="fastt-workspace-panel overflow-hidden text-slate-900">
 			<div class="border-b border-slate-200 p-4">
 				<div class="space-y-4">
-					<div
+					<TabsOutsidePanel
 						id="collectionsSegments"
-						class="flex flex-wrap gap-2"
+						class="flex-wrap"
 						aria-label="Segmentos de cobros"
 					>
-						<Button type="button" data-collections-segment="requires_proof" size="sm"
-							>Requieren comprobante</Button
+						<button
+							type="button"
+							data-collections-segment="requires_proof"
+							data-active="true"
+							class={segmentTabItemActive}
 						>
-						<Button type="button" data-collections-segment="unmatched" variant="secondary" size="sm"
-							>Sin reserva asociada</Button
+							Requieren comprobante <span class="ml-1 text-xs opacity-70">0</span>
+						</button>
+						<button
+							type="button"
+							data-collections-segment="unmatched"
+							data-active="false"
+							class={segmentTabItemInactive}
 						>
-						<Button type="button" data-collections-segment="duplicate" variant="secondary" size="sm"
-							>Referencias duplicadas</Button
+							Sin reserva asociada <span class="ml-1 text-xs opacity-70">0</span>
+						</button>
+						<button
+							type="button"
+							data-collections-segment="duplicate"
+							data-active="false"
+							class={segmentTabItemInactive}
 						>
-						<Button type="button" data-collections-segment="in_review" variant="secondary" size="sm"
-							>En revisión</Button
+							Referencias duplicadas <span class="ml-1 text-xs opacity-70">0</span>
+						</button>
+						<button
+							type="button"
+							data-collections-segment="in_review"
+							data-active="false"
+							class={segmentTabItemInactive}
 						>
-					</div>
+							En revisión <span class="ml-1 text-xs opacity-70">0</span>
+						</button>
+					</TabsOutsidePanel>
 					<div>
 						<p id="collectionsSummary" class="text-sm leading-6 text-slate-700">
 							Cargando cobros...
@@ -338,38 +355,55 @@ try {
 	</section>
 
 	<section data-financial-view="settlements" class={viewClass("settlements")}>
-		<Card class="fastt-workspace-panel overflow-hidden p-0 text-slate-900">
+		<Card variant="flush" class="fastt-workspace-panel overflow-hidden text-slate-900">
 			<div class="border-b border-slate-200 p-4">
 				<div class="space-y-4">
-					<div
+					<TabsOutsidePanel
 						id="settlementsSegments"
-						class="flex flex-wrap gap-2"
+						class="flex-wrap"
 						aria-label="Segmentos de liquidaciones"
 					>
-						<Button type="button" data-settlements-segment="amount_mismatch" size="sm"
-							>Montos diferentes</Button
-						><Button
+						<button
+							type="button"
+							data-settlements-segment="amount_mismatch"
+							data-active="true"
+							class={segmentTabItemActive}
+						>
+							Montos diferentes <span class="ml-1 text-xs opacity-70">0</span>
+						</button>
+						<button
 							type="button"
 							data-settlements-segment="missing_payment"
-							variant="secondary"
-							size="sm">Falta cobro</Button
-						><Button
+							data-active="false"
+							class={segmentTabItemInactive}
+						>
+							Falta cobro <span class="ml-1 text-xs opacity-70">0</span>
+						</button>
+						<button
 							type="button"
 							data-settlements-segment="missing_settlement"
-							variant="secondary"
-							size="sm">Falta liquidación</Button
-						><Button
+							data-active="false"
+							class={segmentTabItemInactive}
+						>
+							Falta liquidación <span class="ml-1 text-xs opacity-70">0</span>
+						</button>
+						<button
 							type="button"
 							data-settlements-segment="duplicate_reference"
-							variant="secondary"
-							size="sm">Referencia duplicada</Button
-						><Button
+							data-active="false"
+							class={segmentTabItemInactive}
+						>
+							Referencia duplicada <span class="ml-1 text-xs opacity-70">0</span>
+						</button>
+						<button
 							type="button"
 							data-settlements-segment="no_difference"
-							variant="secondary"
-							size="sm">Sin diferencia</Button
+							data-active="false"
+							class={segmentTabItemInactive}
 						>
-					</div>
+							Sin diferencia <span class="ml-1 text-xs opacity-70">0</span>
+						</button>
+					</TabsOutsidePanel>
 					<div>
 						<p id="settlementsSummary" class="text-sm leading-6 text-slate-700">
 							Cargando diferencias...
@@ -394,38 +428,55 @@ try {
 	</section>
 
 	<section data-financial-view="provider-payables" class={viewClass("provider-payables")}>
-		<Card class="fastt-workspace-panel overflow-hidden p-0 text-slate-900">
+		<Card variant="flush" class="fastt-workspace-panel overflow-hidden text-slate-900">
 			<div class="border-b border-slate-200 p-4">
 				<div class="space-y-4">
-					<div
+					<TabsOutsidePanel
 						id="providerPayablesSegments"
-						class="flex flex-wrap gap-2"
+						class="flex-wrap"
 						aria-label="Segmentos de pagos pendientes a proveedores"
 					>
-						<Button type="button" data-provider-payables-segment="blocked" size="sm"
-							>Bloqueados</Button
-						><Button
+						<button
+							type="button"
+							data-provider-payables-segment="blocked"
+							data-active="true"
+							class={segmentTabItemActive}
+						>
+							Bloqueados <span class="ml-1 text-xs opacity-70">0</span>
+						</button>
+						<button
 							type="button"
 							data-provider-payables-segment="commission_missing"
-							variant="secondary"
-							size="sm">Falta comisión acordada</Button
-						><Button
+							data-active="false"
+							class={segmentTabItemInactive}
+						>
+							Falta comisión acordada <span class="ml-1 text-xs opacity-70">0</span>
+						</button>
+						<button
 							type="button"
 							data-provider-payables-segment="review_amounts"
-							variant="secondary"
-							size="sm">Revisar importes</Button
-						><Button
+							data-active="false"
+							class={segmentTabItemInactive}
+						>
+							Revisar importes <span class="ml-1 text-xs opacity-70">0</span>
+						</button>
+						<button
 							type="button"
 							data-provider-payables-segment="statement_review"
-							variant="secondary"
-							size="sm">Resumen del proveedor pendiente</Button
-						><Button
+							data-active="false"
+							class={segmentTabItemInactive}
+						>
+							Resumen del proveedor pendiente <span class="ml-1 text-xs opacity-70">0</span>
+						</button>
+						<button
 							type="button"
 							data-provider-payables-segment="ready"
-							variant="secondary"
-							size="sm">Sin acción urgente</Button
+							data-active="false"
+							class={segmentTabItemInactive}
 						>
-					</div>
+							Sin acción urgente <span class="ml-1 text-xs opacity-70">0</span>
+						</button>
+					</TabsOutsidePanel>
 					<div>
 						<p id="providerPayablesSummary" class="text-sm leading-6 text-slate-700">
 							Cargando pagos pendientes...
@@ -450,38 +501,55 @@ try {
 	</section>
 
 	<section data-financial-view="refunds" class={viewClass("refunds")}>
-		<Card class="fastt-workspace-panel overflow-hidden p-0 text-slate-900">
+		<Card variant="flush" class="fastt-workspace-panel overflow-hidden text-slate-900">
 			<div class="border-b border-slate-200 p-4">
 				<div class="space-y-4">
-					<div
+					<TabsOutsidePanel
 						id="refundsSegments"
-						class="flex flex-wrap gap-2"
+						class="flex-wrap"
 						aria-label="Segmentos de reembolsos"
 					>
-						<Button type="button" data-refunds-segment="needs_review" size="sm"
-							>Requieren revisión</Button
-						><Button
+						<button
+							type="button"
+							data-refunds-segment="needs_review"
+							data-active="true"
+							class={segmentTabItemActive}
+						>
+							Requieren revisión <span class="ml-1 text-xs opacity-70">0</span>
+						</button>
+						<button
 							type="button"
 							data-refunds-segment="waiting_response"
-							variant="secondary"
-							size="sm">Esperando respuesta</Button
-						><Button
+							data-active="false"
+							class={segmentTabItemInactive}
+						>
+							Esperando respuesta <span class="ml-1 text-xs opacity-70">0</span>
+						</button>
+						<button
 							type="button"
 							data-refunds-segment="missing_proof"
-							variant="secondary"
-							size="sm">Comprobante faltante</Button
-						><Button
+							data-active="false"
+							class={segmentTabItemInactive}
+						>
+							Comprobante faltante <span class="ml-1 text-xs opacity-70">0</span>
+						</button>
+						<button
 							type="button"
 							data-refunds-segment="proof_received"
-							variant="secondary"
-							size="sm">Comprobante recibido</Button
-						><Button
+							data-active="false"
+							class={segmentTabItemInactive}
+						>
+							Comprobante recibido <span class="ml-1 text-xs opacity-70">0</span>
+						</button>
+						<button
 							type="button"
 							data-refunds-segment="ready_to_close"
-							variant="secondary"
-							size="sm">Listos para cerrar</Button
+							data-active="false"
+							class={segmentTabItemInactive}
 						>
-					</div>
+							Listos para cerrar <span class="ml-1 text-xs opacity-70">0</span>
+						</button>
+					</TabsOutsidePanel>
 					<div>
 						<p id="refundsSummary" class="text-sm leading-6 text-slate-700">
 							Cargando reembolsos...
@@ -506,35 +574,55 @@ try {
 	</section>
 
 	<section data-financial-view="exceptions" class={viewClass("exceptions")}>
-		<Card class="fastt-workspace-panel overflow-hidden p-0 text-slate-900">
+		<Card variant="flush" class="fastt-workspace-panel overflow-hidden text-slate-900">
 			<div class="border-b border-slate-200 p-4">
 				<div class="space-y-4">
-					<div
+					<TabsOutsidePanel
 						id="financialExceptionsSegments"
-						class="flex flex-wrap gap-2"
+						class="flex-wrap"
 						aria-label="Segmentos de excepciones financieras"
 					>
-						<Button type="button" data-exceptions-segment="needs_review" size="sm"
-							>Requieren revisión</Button
-						><Button
+						<button
+							type="button"
+							data-exceptions-segment="needs_review"
+							data-active="true"
+							class={segmentTabItemActive}
+						>
+							Requieren revisión <span class="ml-1 text-xs opacity-70">0</span>
+						</button>
+						<button
 							type="button"
 							data-exceptions-segment="missing_data"
-							variant="secondary"
-							size="sm">Datos faltantes</Button
-						><Button
+							data-active="false"
+							class={segmentTabItemInactive}
+						>
+							Datos faltantes <span class="ml-1 text-xs opacity-70">0</span>
+						</button>
+						<button
 							type="button"
 							data-exceptions-segment="reference_issue"
-							variant="secondary"
-							size="sm">Referencia inconsistente</Button
-						><Button
+							data-active="false"
+							class={segmentTabItemInactive}
+						>
+							Referencia inconsistente <span class="ml-1 text-xs opacity-70">0</span>
+						</button>
+						<button
 							type="button"
 							data-exceptions-segment="review_overdue"
-							variant="secondary"
-							size="sm">Revisión vencida</Button
-						><Button type="button" data-exceptions-segment="closed" variant="secondary" size="sm"
-							>Cerradas</Button
+							data-active="false"
+							class={segmentTabItemInactive}
 						>
-					</div>
+							Revisión vencida <span class="ml-1 text-xs opacity-70">0</span>
+						</button>
+						<button
+							type="button"
+							data-exceptions-segment="closed"
+							data-active="false"
+							class={segmentTabItemInactive}
+						>
+							Cerradas <span class="ml-1 text-xs opacity-70">0</span>
+						</button>
+					</TabsOutsidePanel>
 					<div>
 						<p id="financialExceptionsSummary" class="text-sm leading-6 text-slate-700">
 							Cargando excepciones...
@@ -577,6 +665,9 @@ try {
 
 	.financial-summary-list--desktop {
 		grid-area: summary;
+		justify-self: start;
+		width: max-content;
+		max-width: 100%;
 	}
 
 	.financial-status-popover {

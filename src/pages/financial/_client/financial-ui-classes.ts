@@ -1,8 +1,10 @@
+export const financialSegmentTabPanelClass =
+	"fastt-tabs-outside-panel inline-flex min-w-0 max-w-full gap-1 overflow-x-auto rounded-[var(--fastt-radius-pill)] bg-sky-50 p-1 text-sm font-semibold text-slate-600 ring-1 ring-sky-100"
+
+export const financialSegmentTabItemClass =
+	"fastt-tabs-outside-panel__item px-3 py-2 text-sm font-semibold whitespace-nowrap"
+
 export const financialUi = {
-	summaryActive:
-		"fastt-button h-auto rounded-full border border-slate-950 bg-slate-950 px-3 py-2 text-left text-xs font-semibold text-white transition",
-	summaryInactive:
-		"fastt-button h-auto rounded-full border border-slate-200 bg-white px-3 py-2 text-left text-xs font-semibold text-slate-600 transition hover:border-slate-400 hover:bg-white",
 	buttonPrimarySm:
 		"fastt-button h-auto rounded-full bg-slate-950 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800",
 	buttonSecondarySm:
@@ -29,12 +31,18 @@ export function financialSegmentClass(active: boolean): string {
 }
 
 export function financialSummaryClass(active: boolean): string {
-	return active ? financialUi.summaryActive : financialUi.summaryInactive
+	return active
+		? financialSegmentTabItemClass
+		: `${financialSegmentTabItemClass} text-slate-600 hover:bg-sky-100/80 hover:text-sky-950`
 }
 
-export function financialSegmentMarkup(label: string, count: number, active: boolean): string {
-	const countClass = active ? "font-bold text-white" : "font-bold text-slate-950"
-	return `<span class="${countClass}">${count}</span><span class="ml-1">${label}</span>`
+export function applyFinancialSegmentTabState(button: HTMLElement, active: boolean): void {
+	button.className = financialSummaryClass(active)
+	button.setAttribute("data-active", active ? "true" : "false")
+}
+
+export function financialSegmentMarkup(label: string, count: number): string {
+	return `${label} <span class="ml-1 text-xs opacity-70">${count}</span>`
 }
 
 export function financialMetricCard(label: string, value: string): string {
