@@ -1,7 +1,7 @@
 ---
 import { db, eq, Product } from "@/shared/infrastructure/db/compat"
 
-import AccommodationContextSwitcher from "@/components/product/AccommodationContextSwitcher.astro"
+import ProductContextSwitcher from "@/components/product/ProductContextSwitcher.astro"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
@@ -433,9 +433,10 @@ const successMessage =
 			<div class="space-y-1.5">
 				{
 					selectedProduct ? (
-						<AccommodationContextSwitcher
+						<ProductContextSwitcher
 							providerId={auth.providerId}
 							productId={selectedProduct.id}
+							productType={selectedProduct.productType}
 							currentName={selectedProduct.name}
 							target="house-rules"
 						/>

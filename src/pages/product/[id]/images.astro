@@ -1,4 +1,5 @@
 ---
+import ProductContextSwitcher from "@/components/product/ProductContextSwitcher.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import FormField from "@/components/ui/FormField.astro"
@@ -50,7 +51,14 @@ const existingImages = product.images || []
 >
 	<section class="space-y-8">
 		<section class="space-y-4">
-			<header class="space-y-1">
+			<header class="space-y-1.5">
+				<ProductContextSwitcher
+					providerId={providerId}
+					productId={productId}
+					productType={product.productType}
+					currentName={product.displayName}
+					selectable={false}
+				/>
 				<h1 class="text-3xl font-semibold text-slate-100">Fotos</h1>
 				<p class="max-w-3xl text-sm leading-6 text-slate-400">
 					{
