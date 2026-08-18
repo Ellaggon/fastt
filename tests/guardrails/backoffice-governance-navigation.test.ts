@@ -794,6 +794,14 @@ describe("Guardrail: backoffice governance navigation", () => {
 			join(process.cwd(), "src/components/dashboard/DashboardSidebarSection.astro"),
 			"utf8"
 		)
+		const professionalModeToggleSource = readFileSync(
+			join(process.cwd(), "src/components/dashboard/ProfessionalModeToggle.astro"),
+			"utf8"
+		)
+		const workspaceCapabilitiesSource = readFileSync(
+			join(process.cwd(), "src/lib/workspace/providerWorkspaceCapabilities.ts"),
+			"utf8"
+		)
 
 		expect(workspaceSource).not.toContain("getBackofficeRouteClassification")
 		expect(workspaceSource).not.toContain("getEnterpriseNavigationSection")
@@ -802,7 +810,11 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(workspaceSource).not.toContain("activeSection?.nextMaturity")
 		expect(workspaceSource).not.toContain("activeSection?.operationalIntent")
 		expect(topbarSource).toContain("ProfessionalModeToggle")
-		expect(topbarSource).toContain("Vista profesional activada por escala operativa")
+		expect(topbarSource).toContain("lockedReason={lockedReason}")
+		expect(professionalModeToggleSource).toContain("lockedReason")
+		expect(workspaceCapabilitiesSource).toContain(
+			"Vista profesional activada por la escala operativa de esta cuenta."
+		)
 		expect(topbarSource).not.toContain("getOperationalContextMetadata")
 		expect(topbarSource).not.toContain("classification.context")
 		expect(topbarSource).not.toContain("{title}")
