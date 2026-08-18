@@ -374,6 +374,8 @@ CREATE TABLE "ProviderUser" (
 	"userId" text NOT NULL,
 	"role" text NOT NULL DEFAULT 'owner',
 	"permissionsJson" jsonb,
+	"workspaceExperience" text NOT NULL DEFAULT 'essential',
+	"workspaceExperienceUpdatedAt" timestamp with time zone,
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 

@@ -1,11 +1,7 @@
 import type { APIRoute } from "astro"
 
 import { requireProvider } from "@/lib/auth/requireProvider"
-import {
-	PROFESSIONAL_MODE_COOKIE,
-	type ProfessionalModeCookieValue,
-} from "@/lib/dashboard/professionalModeCookie"
-import { setProviderProfessionalToolsPreference } from "@/lib/providerProfessionalToolsPreference"
+import { setProviderUserWorkspaceExperience } from "@/lib/providerUserWorkspacePreference"
 
 function safeReturnPath(value: unknown): string {
 	const candidate = String(value ?? "").trim()
@@ -15,12 +11,8 @@ function safeReturnPath(value: unknown): string {
 
 function redirectAfterSave(request: Request, status: "saved" | "error", returnTo?: unknown) {
 	const url = new URL(safeReturnPath(returnTo), request.url)
-	url.searchParams.set("professionalTools", status)
+	url.searchParams.set("workspaceExperience", status)
 	return Response.redirect(url, 303)
-}
-
-function modeFromEnabled(enabled: boolean): ProfessionalModeCookieValue {
-	return enabled ? "professional" : "simple"
 }
 
 async function readPreferenceRequest(request: Request): Promise<{
@@ -59,7 +51,7 @@ async function readPreferenceRequest(request: Request): Promise<{
 	}
 }
 
-export const POST: APIRoute = async ({ request, cookies }) => {
+export const POST: APIRoute = async ({ request }) => {
 	let returnTo: unknown = null
 	let enabled = false
 	let contentType = request.headers.get("content-type") ?? ""
@@ -69,48 +61,20 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 		returnTo = parsed.returnTo
 		contentType = parsed.contentType
 
-		cookies.set(PROFESSIONAL_MODE_COOKIE, modeFromEnabled(enabled), {
-			path: "/",
-			httpOnly: true,
-			sameSite: "lax",
-			secure: process.env.NODE_ENV === "production",
-			maxAge: 60 * 60 * 24 * 365,
+		const { user, providerId } = await requireProvider(request)
+		const preferences = await setProviderUserWorkspaceExperience({
+			providerId,
+			userId: user.id,
+			experience: enabled ? "professional" : "essential",
 		})
 
-		let persisted: "database" | "cookie" = "cookie"
-		let preferences: {
-			providerId: string
-			professionalToolsEnabled: boolean
-			updatedAt: Date | null
-			updatedBy: string | null
-		} = {
-			providerId: "",
-			professionalToolsEnabled: enabled,
-			updatedAt: null,
-			updatedBy: null,
-		}
-
-		try {
-			const { user, providerId } = await requireProvider(request)
-			preferences = await setProviderProfessionalToolsPreference({
-				providerId,
-				actorUserId: user.id,
-				enabled,
-			})
-			persisted = "database"
-		} catch (error) {
-			void error
-			preferences = {
-				...preferences,
-				professionalToolsEnabled: enabled,
-				updatedAt: null,
-			}
-		}
-
 		if (contentType.includes("application/json")) {
-			return new Response(JSON.stringify({ ok: true, preferences, persisted }), {
-				headers: { "Content-Type": "application/json" },
-			})
+			return new Response(
+				JSON.stringify({ ok: true, preferences, persisted: "member_preference" }),
+				{
+					headers: { "Content-Type": "application/json" },
+				}
+			)
 		}
 		return redirectAfterSave(request, "saved", returnTo)
 	} catch (error) {

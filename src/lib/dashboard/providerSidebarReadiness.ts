@@ -19,12 +19,22 @@ import { cacheKeys, cacheTtls } from "@/lib/cache/cacheKeys"
 import { readThrough } from "@/lib/cache/readThrough"
 import { routes } from "@/lib/routes"
 import { getProviderPolicyReadiness } from "@/lib/policies/providerPolicyReadiness"
-import { getProviderProfessionalToolsPreferenceRead } from "@/lib/providerProfessionalToolsPreference"
+import { getProviderUserWorkspacePreferenceRead } from "@/lib/providerUserWorkspacePreference"
+import type { WorkspaceExperience } from "@/lib/providerUserWorkspacePreference"
+import {
+	resolveProviderWorkspaceCapabilities,
+	resolveWorkspaceExperience,
+	type ProviderWorkspaceCapabilities,
+	type WorkspaceExperienceResolution,
+	WORKSPACE_CAPABILITY_THRESHOLDS,
+} from "@/lib/workspace/providerWorkspaceCapabilities"
 
 export type ProviderSidebarReadiness = Partial<Record<string, string>>
 
 export type ProviderSidebarData = {
 	disclosureMode: SidebarDisclosureMode
+	capabilities: ProviderWorkspaceCapabilities
+	experience: WorkspaceExperienceResolution
 	summaries: ProviderSidebarReadiness
 	productTypes: string[]
 	primaryAccommodationHref?: string | null
@@ -43,15 +53,16 @@ type ProviderSidebarMetrics = {
 type ProviderAdvancedDisclosureContext = {
 	userId?: string | null
 	providerRole?: string | null
-	professionalToolsEnabled?: boolean
+	workspaceExperience?: WorkspaceExperience
 }
 
-export const SIDEBAR_DISCLOSURE_THRESHOLDS = {
-	ratePlans: 10,
-	variants: 8,
-	activePriceRules: 5,
-	activeRestrictions: 5,
-} as const
+export const SIDEBAR_DISCLOSURE_THRESHOLDS = WORKSPACE_CAPABILITY_THRESHOLDS
+const EMPTY_WORKSPACE_CAPABILITIES = resolveProviderWorkspaceCapabilities({
+	ratePlanCount: 0,
+	variantCount: 0,
+	activePriceRuleCount: 0,
+	activeRestrictionCount: 0,
+})
 
 const ADVANCED_PROVIDER_ROLES = new Set(["admin", "revenue_ops", "operations_manager"])
 
@@ -217,15 +228,6 @@ async function getRestrictionsSummary(
 	return plural(activeRestrictions, "regla activa", "reglas activas")
 }
 
-function hasScaleForAdvancedTools(metrics: ProviderSidebarMetrics): boolean {
-	return (
-		metrics.ratePlanIds.length >= SIDEBAR_DISCLOSURE_THRESHOLDS.ratePlans ||
-		metrics.variantIds.length >= SIDEBAR_DISCLOSURE_THRESHOLDS.variants ||
-		metrics.activePriceRules >= SIDEBAR_DISCLOSURE_THRESHOLDS.activePriceRules ||
-		metrics.activeRestrictions >= SIDEBAR_DISCLOSURE_THRESHOLDS.activeRestrictions
-	)
-}
-
 function normalizeProviderRole(role: unknown): string {
 	return String(role ?? "")
 		.trim()
@@ -239,9 +241,21 @@ export function resolveDisclosureMode(
 	const role = normalizeProviderRole(context.providerRole)
 	if (role === "internal_admin") return "internal-admin"
 	if (role === "revenue_ops") return "revenue-ops"
-	if (ADVANCED_PROVIDER_ROLES.has(role)) return "professional-tools"
-	if (context.professionalToolsEnabled) return "professional-tools"
-	if (hasScaleForAdvancedTools(metrics)) return "scaled-provider"
+	const capabilities = resolveProviderWorkspaceCapabilities({
+		ratePlanCount: metrics.ratePlanIds.length,
+		variantCount: metrics.variantIds.length,
+		activePriceRuleCount: metrics.activePriceRules,
+		activeRestrictionCount: metrics.activeRestrictions,
+	})
+	const experience = resolveWorkspaceExperience({
+		preference: context.workspaceExperience ?? "essential",
+		providerRole: role,
+		capabilities,
+	})
+	if (experience.source === "enterprise-scale") return "scaled-provider"
+	if (ADVANCED_PROVIDER_ROLES.has(role) || experience.effective === "professional") {
+		return "professional-tools"
+	}
 	return "small-provider"
 }
 
@@ -279,6 +293,11 @@ export async function getProviderSidebarData(
 	if (!normalizedProviderId)
 		return {
 			disclosureMode: "small-provider",
+			capabilities: EMPTY_WORKSPACE_CAPABILITIES,
+			experience: resolveWorkspaceExperience({
+				preference: "essential",
+				capabilities: EMPTY_WORKSPACE_CAPABILITIES,
+			}),
 			summaries: {},
 			productTypes: [],
 			primaryAccommodationHref: null,
@@ -287,29 +306,30 @@ export async function getProviderSidebarData(
 			accommodationCount: 0,
 		}
 
-	const [resolvedRole, professionalToolsPreference] = await Promise.all([
+	const [resolvedRole, workspacePreference] = await Promise.all([
 		context.providerRole
 			? Promise.resolve(normalizeProviderRole(context.providerRole))
 			: getProviderUserRole(normalizedProviderId, context.userId),
-		typeof context.professionalToolsEnabled === "boolean"
+		context.workspaceExperience
 			? Promise.resolve(null)
-			: getProviderProfessionalToolsPreferenceRead(normalizedProviderId),
+			: context.userId
+				? getProviderUserWorkspacePreferenceRead({
+						providerId: normalizedProviderId,
+						userId: context.userId,
+					})
+				: Promise.resolve(null),
 	])
 	const effectiveContext: ProviderAdvancedDisclosureContext = {
 		...context,
 		providerRole: normalizeProviderRole(resolvedRole) || "provider-role-none",
-		professionalToolsEnabled:
-			typeof context.professionalToolsEnabled === "boolean"
-				? context.professionalToolsEnabled
-				: Boolean(
-						professionalToolsPreference?.schemaAvailable &&
-						professionalToolsPreference.professionalToolsEnabled
-					),
+		workspaceExperience:
+			context.workspaceExperience ??
+			(workspacePreference?.schemaAvailable ? workspacePreference.experience : "essential"),
 	}
 	const cacheKey = cacheKeys.providerSidebar(
 		normalizedProviderId,
 		String(context.userId ?? "anonymous"),
-		Boolean(effectiveContext.professionalToolsEnabled),
+		effectiveContext.workspaceExperience ?? "essential",
 		String(effectiveContext.providerRole)
 	)
 	return readThrough(cacheKey, cacheTtls.providerSidebar, async () =>
@@ -344,7 +364,17 @@ async function loadProviderSidebarData(
 		countActivePriceRules(ratePlanIds),
 		countActiveRestrictions(scopeIds),
 	])
-	const professionalToolsEnabled = Boolean(context.professionalToolsEnabled)
+	const capabilities = resolveProviderWorkspaceCapabilities({
+		ratePlanCount: ratePlanIds.length,
+		variantCount: variantIds.length,
+		activePriceRuleCount: activePriceRules,
+		activeRestrictionCount: activeRestrictions,
+	})
+	const experience = resolveWorkspaceExperience({
+		preference: context.workspaceExperience ?? "essential",
+		providerRole: context.providerRole,
+		capabilities,
+	})
 
 	const [ratesSummary, pricingSummary, restrictionsSummary] = await Promise.all([
 		getRatesSummary(ratePlanIds, policyReadiness),
@@ -362,10 +392,12 @@ async function loadProviderSidebarData(
 			},
 			{
 				providerRole: context.providerRole,
-				professionalToolsEnabled,
+				workspaceExperience: experience.preference,
 				userId: context.userId,
 			}
 		),
+		capabilities,
+		experience,
 		summaries: {
 			[routes.ratePlansList()]: ratesSummary,
 			[routes.calendar()]: pricingSummary,

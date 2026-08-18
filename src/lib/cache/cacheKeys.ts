@@ -14,11 +14,11 @@ export const cacheKeys = {
 	providerSidebar(
 		providerId: string,
 		userId: string,
-		professionalToolsEnabled: boolean,
+		workspaceExperience: "essential" | "professional",
 		providerRole: string
 	): string {
-		const mode = professionalToolsEnabled ? "professional" : "standard"
-		return `ws:provider:${providerId}:sidebar:${userId}:${mode}:${providerRole}`
+		const mode = workspaceExperience === "professional" ? "professional" : "essential"
+		return `ws:provider:${providerId}:sidebar:v2:${userId}:${mode}:${providerRole}`
 	},
 	providerRatePlansSurface(providerId: string, checkIn: string, checkOut: string): string {
 		return `ws:provider:${providerId}:rates:surface:${checkIn}:${checkOut}`

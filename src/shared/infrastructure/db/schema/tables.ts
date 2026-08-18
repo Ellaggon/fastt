@@ -695,6 +695,8 @@ export const ProviderUser = pgTable(
 		userId: txt("userId").references(() => User.id),
 		role: text("role").default("owner").notNull(),
 		permissionsJson: jsonb("permissionsJson"),
+		workspaceExperience: text("workspaceExperience").default("essential").notNull(),
+		workspaceExperienceUpdatedAt: ts("workspaceExperienceUpdatedAt"),
 		createdAt: now("createdAt"),
 	},
 	(table) => [

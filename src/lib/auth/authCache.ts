@@ -13,7 +13,6 @@ export type ProviderSessionSurface = {
 	providerId: string
 	role: ProviderRole
 	permissions: ProviderPermissions
-	professionalToolsEnabled: boolean
 }
 
 function normalizeUser(value: unknown): AuthUser | null {
@@ -99,7 +98,6 @@ function normalizeProviderSessionSurface(value: unknown): ProviderSessionSurface
 		providerId,
 		role,
 		permissions,
-		professionalToolsEnabled: Boolean(raw.professionalToolsEnabled),
 	}
 }
 
