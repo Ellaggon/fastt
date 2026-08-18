@@ -10,7 +10,10 @@ import {
 
 import { Button, Input, Notice, Select } from "../ui-react"
 import type { DefinitionSummary, TaxFeeScopeResources } from "./TaxFeeWizard"
-import type { FiscalSimulationContext } from "@/lib/taxes-fees/fiscal-workspace-resources"
+import type {
+	FiscalSimulationContext,
+	FiscalSimulationIssue,
+} from "@/lib/taxes-fees/fiscal-workspace-resources"
 
 type Quote = {
 	quoteId: string
@@ -55,6 +58,7 @@ type Props = {
 	initialDefinitionId?: string | null
 	initialProductId?: string | null
 	recommendedContext?: FiscalSimulationContext | null
+	simulationIssues?: FiscalSimulationIssue[]
 	returnTo?: string | null
 }
 type FieldErrors = Partial<Record<"product" | "rate" | "checkIn" | "checkOut" | "base", string>>
@@ -113,6 +117,7 @@ export default function FiscalSimulator({
 	initialDefinitionId = null,
 	initialProductId = null,
 	recommendedContext = null,
+	simulationIssues = [],
 	returnTo = null,
 }: Props) {
 	const [productId, setProductId] = useState(
@@ -378,10 +383,31 @@ export default function FiscalSimulator({
 				</Section>
 			)}
 
-			{selectedDefinition && !recommendedContext ? (
-				<Notice variant="info">
-					No encontramos una combinación con precio y disponibilidad para preparar esta
-					comprobación. Elige el contexto de reserva que quieras revisar.
+			{selectedDefinition && !recommendedContext && simulationIssues.length ? (
+				<Notice variant="warning" title="Falta preparar una cotización real">
+					<p>
+						Para precargar una comprobación certificable, completa estas condiciones comerciales:
+					</p>
+					<ul className="mt-3 space-y-3">
+						{simulationIssues.map((issue) => (
+							<li
+								key={issue.id}
+								className="flex flex-wrap items-center justify-between gap-3 border-t border-amber-200/80 pt-3 first:border-t-0 first:pt-0"
+							>
+								<div className="min-w-0">
+									<p className="font-semibold text-amber-950">{issue.title}</p>
+									<p>{issue.description}</p>
+								</div>
+								<Button href={issue.href} variant="secondary" size="sm">
+									{issue.actionLabel}
+								</Button>
+							</li>
+						))}
+					</ul>
+					<p className="mt-4 border-t border-amber-200/80 pt-3">
+						También puedes usar un importe de prueba para revisar solo el cálculo de este borrador;
+						esa opción no certifica búsqueda ni checkout.
+					</p>
 				</Notice>
 			) : null}
 

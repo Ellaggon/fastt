@@ -45,6 +45,26 @@ export type FiscalSimulationContext = {
 	pricingSource: "effective_pricing_v2" | "materialized_search_view"
 }
 
+export type FiscalSimulationIssue = {
+	id:
+		| "missing_product"
+		| "missing_variant"
+		| "missing_active_rate_plan"
+		| "missing_calendar"
+		| "missing_availability"
+		| "missing_price"
+		| "no_matching_stay"
+	title: string
+	description: string
+	actionLabel: string
+	href: string
+}
+
+export type FiscalSimulationRecommendation = {
+	context: FiscalSimulationContext | null
+	issues: FiscalSimulationIssue[]
+}
+
 type SimulationPricing = Pick<
 	FiscalSimulationContext,
 	"currency" | "baseAmount" | "pricingSource"
@@ -73,6 +93,19 @@ function nextFriday() {
 		new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())),
 		daysUntilFriday
 	)
+}
+
+function calendarHref(ratePlanId: string, variantId: string, focus: "price" | "availability") {
+	const params = new URLSearchParams({ ratePlanId, variantId, focus })
+	return `/rates/calendar?${params.toString()}`
+}
+
+function productSetupHref(product: FiscalWorkspaceResources["products"][number]) {
+	const productId = encodeURIComponent(product.id)
+	const kind = product.kind.toLocaleLowerCase()
+	if (kind.includes("hotel")) return `/product/${productId}/rooms`
+	if (kind.includes("tour")) return `/product/${productId}/departures`
+	return `/product/${productId}`
 }
 
 /** Resolves an actual two-night price from the same materialized pricing and availability data used by sales surfaces. */
@@ -167,16 +200,62 @@ export async function resolveFiscalSimulationPricing(input: {
 export async function getRecommendedFiscalSimulationContext(input: {
 	resources: FiscalWorkspaceResources
 	preferredProductId?: string | null
-}): Promise<FiscalSimulationContext | null> {
+}): Promise<FiscalSimulationRecommendation> {
 	const start = nextFriday()
 	const windowEnd = dayString(addUtcDays(start, 32))
 	const productRank = (productId: string) => (productId === input.preferredProductId ? 0 : 1)
+	const preferredProduct = input.resources.products.find(
+		(product) => product.id === input.preferredProductId
+	)
+	const targetProduct = preferredProduct ?? input.resources.products[0] ?? null
+	if (!targetProduct) {
+		return {
+			context: null,
+			issues: [
+				{
+					id: "missing_product",
+					title: "No hay un producto para usar en la comprobación",
+					description: "Crea o termina de configurar un producto antes de certificar esta regla.",
+					actionLabel: "Crear producto",
+					href: "/product/create",
+				},
+			],
+		}
+	}
+
+	const targetVariants = input.resources.variants.filter(
+		(variant) => variant.productId === targetProduct.id
+	)
+	const activePlansForTarget = input.resources.ratePlans.filter(
+		(plan) => plan.productId === targetProduct.id && plan.isActive
+	)
 	const candidates = input.resources.ratePlans
 		.filter((plan) => plan.isActive && Boolean(plan.variantId))
 		.sort((left, right) => productRank(left.productId) - productRank(right.productId))
 		.slice(0, 24)
 	const candidateIds = candidates.map((plan) => plan.id)
-	if (!candidateIds.length) return null
+	if (!candidateIds.length) {
+		const issues: FiscalSimulationIssue[] = []
+		if (!targetVariants.length) {
+			issues.push({
+				id: "missing_variant",
+				title: `${targetProduct.label} no tiene una unidad o salida configurada`,
+				description: "La cotización real necesita una unidad vendible a la que asociar la tarifa.",
+				actionLabel: "Configurar unidad o salida",
+				href: productSetupHref(targetProduct),
+			})
+		}
+		if (!activePlansForTarget.length) {
+			issues.push({
+				id: "missing_active_rate_plan",
+				title: `${targetProduct.label} no tiene una tarifa activa`,
+				description: "Crea o activa una tarifa para obtener un precio comercial verificable.",
+				actionLabel: "Gestionar tarifas",
+				href: `/rates/plans/manage?productId=${encodeURIComponent(targetProduct.id)}`,
+			})
+		}
+		return { context: null, issues }
+	}
 	const occupancyKey = buildOccupancyKey({ adults: 2, children: 0 })
 	const [inventoryRows, effectiveRows] = await Promise.all([
 		db
@@ -250,27 +329,100 @@ export async function getRecommendedFiscalSimulationContext(input: {
 			if (days.some((day) => !day)) continue
 			const pricedDays = days as Array<{ price: number; currency: string; effective: boolean }>
 			return {
-				productId: product.id,
-				productLabel: product.label,
-				variantId: variant.id,
-				variantLabel: variant.label,
-				ratePlanId: plan.id,
-				ratePlanLabel: plan.label,
-				channel: "web",
-				checkIn,
-				checkOut,
-				rooms: 1,
-				adults: 2,
-				children: 0,
-				currency: pricedDays[0].currency,
-				baseAmount: Number(pricedDays.reduce((total, day) => total + day.price, 0).toFixed(2)),
-				pricingSource: pricedDays.every((day) => day.effective)
-					? "effective_pricing_v2"
-					: "materialized_search_view",
+				context: {
+					productId: product.id,
+					productLabel: product.label,
+					variantId: variant.id,
+					variantLabel: variant.label,
+					ratePlanId: plan.id,
+					ratePlanLabel: plan.label,
+					channel: "web",
+					checkIn,
+					checkOut,
+					rooms: 1,
+					adults: 2,
+					children: 0,
+					currency: pricedDays[0].currency,
+					baseAmount: Number(pricedDays.reduce((total, day) => total + day.price, 0).toFixed(2)),
+					pricingSource: pricedDays.every((day) => day.effective)
+						? "effective_pricing_v2"
+						: "materialized_search_view",
+				},
+				issues: [],
 			}
 		}
 	}
-	return null
+
+	const targetPlan = candidates[0]!
+	const targetInventory = inventoryRows.filter((row) => row.ratePlanId === targetPlan.id)
+	const targetEffectivePricing = effectiveRows.filter((row) => row.ratePlanId === targetPlan.id)
+	const targetInventoryByDate = new Map(
+		targetInventory.map((row) => [normalizedDay(row.date), row])
+	)
+	const targetPricingByDate = new Map(
+		targetEffectivePricing.map((row) => [normalizedDay(row.date), row])
+	)
+	const candidateDates = Array.from({ length: 31 }, (_, index) =>
+		dayString(addUtcDays(start, index))
+	)
+	const hasTwoAvailableNights = candidateDates.slice(0, -1).some((date, index) => {
+		const nextDate = candidateDates[index + 1]!
+		return [targetInventoryByDate.get(date), targetInventoryByDate.get(nextDate)].every(
+			(row) =>
+				row &&
+				row.isAvailable &&
+				row.hasAvailability &&
+				Number(row.availableUnits ?? 0) > 0 &&
+				!String(row.primaryBlocker ?? "").trim()
+		)
+	})
+	const hasTwoPricedNights = candidateDates.slice(0, -1).some((date, index) => {
+		const nextDate = candidateDates[index + 1]!
+		return [date, nextDate].every((day) => {
+			const inventory = targetInventoryByDate.get(day)
+			const effective = targetPricingByDate.get(day)
+			return Boolean(inventory?.hasPrice && Number(effective?.price ?? inventory.price ?? 0) > 0)
+		})
+	})
+	const issues: FiscalSimulationIssue[] = []
+	if (!targetInventory.length) {
+		issues.push({
+			id: "missing_calendar",
+			title: `${targetPlan.label} no tiene calendario preparado`,
+			description: "No hay fechas materializadas con precio y disponibilidad para esta tarifa.",
+			actionLabel: "Abrir calendario",
+			href: calendarHref(targetPlan.id, targetPlan.variantId, "price"),
+		})
+	} else {
+		if (!hasTwoAvailableNights) {
+			issues.push({
+				id: "missing_availability",
+				title: `${targetPlan.label} no tiene dos noches vendibles consecutivas`,
+				description: "Añade cupo o elimina el bloqueo de venta para al menos dos noches futuras.",
+				actionLabel: "Revisar disponibilidad",
+				href: calendarHref(targetPlan.id, targetPlan.variantId, "availability"),
+			})
+		}
+		if (!hasTwoPricedNights) {
+			issues.push({
+				id: "missing_price",
+				title: `${targetPlan.label} no tiene precio para dos noches consecutivas`,
+				description: "Introduce un precio mayor que cero en las fechas que quieres certificar.",
+				actionLabel: "Configurar precios",
+				href: calendarHref(targetPlan.id, targetPlan.variantId, "price"),
+			})
+		}
+		if (hasTwoAvailableNights && hasTwoPricedNights) {
+			issues.push({
+				id: "no_matching_stay",
+				title: `${targetPlan.label} no reúne precio y disponibilidad en las mismas fechas`,
+				description: "Alinea el precio y el cupo en un mismo tramo de dos noches consecutivas.",
+				actionLabel: "Revisar calendario",
+				href: calendarHref(targetPlan.id, targetPlan.variantId, "availability"),
+			})
+		}
+	}
+	return { context: null, issues }
 }
 
 /** Short-lived workspace catalog shared by Definitions and Simulator route transitions. */
