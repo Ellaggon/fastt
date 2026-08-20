@@ -7,6 +7,7 @@ import {
 	Button,
 	Card,
 	ChoiceCard,
+	FloatingPopover,
 	IconButton,
 	Input,
 	Notice,
@@ -243,6 +244,8 @@ export default function SingleCalendarWorkspace({
 	const [reviewed, setReviewed] = useState(false)
 	const [loading, setLoading] = useState(!surface)
 	const [feedback, setFeedback] = useState("")
+	const [selectionHint, setSelectionHint] = useState("")
+	const [selectionHintAction, setSelectionHintAction] = useState("")
 	const [guidedFeedback, setGuidedFeedback] = useState("")
 	const [guidedInventoryDays, setGuidedInventoryDays] = useState(
 		Math.max(0, Number(guidedAvailability?.initialInventoryDays ?? 0))
@@ -268,6 +271,15 @@ export default function SingleCalendarWorkspace({
 	const guidedIsReady = guidedInventoryDays >= requiredGuidedDays
 
 	const selected = useMemo(() => [...selectedDates].sort(), [selectedDates])
+
+	useEffect(() => {
+		if (!selectionHint) return
+		const timeout = window.setTimeout(() => {
+			setSelectionHint("")
+			setSelectionHintAction("")
+		}, 6000)
+		return () => window.clearTimeout(timeout)
+	}, [selectionHint])
 
 	async function loadSurface(
 		params: { ratePlanId?: string; variantId?: string; month?: string } = {},
@@ -468,6 +480,8 @@ export default function SingleCalendarWorkspace({
 
 	function selectDate(day: SingleCalendarDay) {
 		if (day.isPast) return
+		setSelectionHint("")
+		setSelectionHintAction("")
 		if (!rangeAnchor || selectedDates.size !== 1) {
 			setSelectedDates(new Set([day.date]))
 			setRangeAnchor(day.date)
@@ -486,6 +500,8 @@ export default function SingleCalendarWorkspace({
 	}
 
 	function applyPreset(kind: string) {
+		setSelectionHint("")
+		setSelectionHintAction("")
 		const today = new Date().toISOString().slice(0, 10)
 		const max =
 			kind === "next_7" ? addDays(today, 6) : kind === "next_30" ? addDays(today, 29) : "9999-12-31"
@@ -625,7 +641,17 @@ export default function SingleCalendarWorkspace({
 			)
 			return
 		}
-		if (!selection.count) return setFeedback("Selecciona una fecha o rango primero.")
+		if (!selection.count) {
+			setSelectionHint(
+				id === "manual_price"
+					? "Selecciona una fecha o rango para cambiar el precio."
+					: "Selecciona una fecha o rango antes de aplicar este cambio."
+			)
+			setSelectionHintAction(id)
+			return
+		}
+		setSelectionHint("")
+		setSelectionHintAction("")
 		setValue(id === "min_los" ? "2" : "")
 		setReviewed(false)
 		setFeedback("")
@@ -954,7 +980,7 @@ export default function SingleCalendarWorkspace({
 
 			<Card
 				as="section"
-				className="fastt-workspace-panel relative overflow-hidden p-4 text-slate-900"
+				className="fastt-workspace-panel relative z-10 !overflow-visible p-4 text-slate-900"
 			>
 				{loading && <span className="calendar-loading-bar" aria-hidden="true" />}
 				{!isGuidedAvailability && (
@@ -1059,19 +1085,31 @@ export default function SingleCalendarWorkspace({
 
 							<div className="mt-3 flex flex-wrap gap-2">
 								{actions.map((action) => (
-									<Button
-										key={action.id}
-										type="button"
-										onClick={() => openAction(action.id)}
-										variant={action.kind === "mutation" ? "primary" : "secondary"}
-										size="sm"
-									>
-										{action.id === "price_comparison" && showComparison
-											? "Ocultar base y final"
-											: action.id === "inventory_detail" && showInventoryDetail
-												? "Ocultar detalle físico"
-												: action.label}
-									</Button>
+									<div key={action.id} className="relative">
+										<Button
+											type="button"
+											onClick={() => openAction(action.id)}
+											variant={action.kind === "mutation" ? "primary" : "secondary"}
+											size="sm"
+											aria-describedby={
+												selectionHintAction === action.id ? "calendar-selection-hint" : undefined
+											}
+										>
+											{action.id === "price_comparison" && showComparison
+												? "Ocultar base y final"
+												: action.id === "inventory_detail" && showInventoryDetail
+													? "Ocultar detalle físico"
+													: action.label}
+										</Button>
+										{selectionHintAction === action.id && selectionHint ? (
+											<FloatingPopover
+												id="calendar-selection-hint"
+												title="Selecciona fechas para continuar"
+											>
+												<p>{selectionHint} Usa una fecha del calendario o un rango rápido.</p>
+											</FloatingPopover>
+										) : null}
+									</div>
 								))}
 								{selection.count > 0 && (
 									<Button
@@ -1079,6 +1117,8 @@ export default function SingleCalendarWorkspace({
 										onClick={() => {
 											setSelectedDates(new Set())
 											setRangeAnchor("")
+											setSelectionHint("")
+											setSelectionHintAction("")
 										}}
 										variant="ghost"
 										size="sm"
