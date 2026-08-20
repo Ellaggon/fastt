@@ -26,15 +26,17 @@ const conflicts = Array.isArray(body.audit?.findings)
 const initialDefinitionId =
 	Astro.url.searchParams.get("definitionId") ?? Astro.url.searchParams.get("edit")
 const requestedScopeId = Astro.url.searchParams.get("scope")
+const manualMode = Astro.url.searchParams.get("mode") === "manual"
 const initialProductId = resources.products.some((product) => product.id === requestedScopeId)
 	? requestedScopeId
 	: null
-const recommendation = initialDefinitionId
-	? await getRecommendedFiscalSimulationContext({
-			resources,
-			preferredProductId: initialProductId,
-		}).catch(() => null)
-	: null
+const recommendation =
+	initialDefinitionId && !manualMode
+		? await getRecommendedFiscalSimulationContext({
+				resources,
+				preferredProductId: initialProductId,
+			}).catch(() => null)
+		: null
 const recommendedContext = recommendation?.context ?? null
 const requestedReturnTo = Astro.url.searchParams.get("returnTo")
 const returnTo = requestedReturnTo?.startsWith("/provider/settings/tax-fees")

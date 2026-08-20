@@ -384,27 +384,27 @@ export default function FiscalSimulator({
 			)}
 
 			{selectedDefinition && !recommendedContext && simulationIssues.length ? (
-				<Notice variant="warning" title="Falta preparar una cotización real">
-					<p>
+				<Notice className="mt-5 p-5" variant="warning" title="Falta preparar una cotización real">
+					<p className="max-w-2xl">
 						Para precargar una comprobación certificable, completa estas condiciones comerciales:
 					</p>
-					<ul className="mt-3 space-y-3">
+					<ul className="mt-4 divide-y divide-amber-200/80">
 						{simulationIssues.map((issue) => (
 							<li
 								key={issue.id}
-								className="flex flex-wrap items-center justify-between gap-3 border-t border-amber-200/80 pt-3 first:border-t-0 first:pt-0"
+								className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
 							>
 								<div className="min-w-0">
 									<p className="font-semibold text-amber-950">{issue.title}</p>
 									<p>{issue.description}</p>
 								</div>
-								<Button href={issue.href} variant="secondary" size="sm">
+								<Button href={issue.href} variant="secondary" size="sm" className="shrink-0">
 									{issue.actionLabel}
 								</Button>
 							</li>
 						))}
 					</ul>
-					<p className="mt-4 border-t border-amber-200/80 pt-3">
+					<p className="mt-4 border-t border-amber-200/80 pt-4">
 						También puedes usar un importe de prueba para revisar solo el cálculo de este borrador;
 						esa opción no certifica búsqueda ni checkout.
 					</p>
@@ -425,7 +425,7 @@ export default function FiscalSimulator({
 						title="Contexto comercial"
 						description="Define la venta representativa sobre la que se comprobará el cálculo."
 					>
-						<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1.35fr_1.15fr_1.15fr_0.9fr]">
+						<div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-[1.35fr_1.15fr_1.15fr_0.9fr]">
 							<Field label="Producto" id="simulator-product" error={fieldErrors.product} required>
 								<Select
 									value={productId}
@@ -503,32 +503,30 @@ export default function FiscalSimulator({
 						title="Reserva de prueba"
 						description="Usa fechas y ocupación que representen una reserva real."
 					>
-						<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-							<div className="grid gap-4 sm:grid-cols-2 xl:col-span-2">
-								<Field label="Entrada" id="simulator-checkIn" error={fieldErrors.checkIn} required>
-									<Input
-										type="date"
-										value={checkIn}
-										onChange={(event) => {
-											setCheckIn(event.target.value)
-											clearPreview()
-										}}
-										aria-invalid={Boolean(fieldErrors.checkIn)}
-									/>
-								</Field>
-								<Field label="Salida" id="simulator-checkOut" error={fieldErrors.checkOut} required>
-									<Input
-										type="date"
-										min={checkIn || undefined}
-										value={checkOut}
-										onChange={(event) => {
-											setCheckOut(event.target.value)
-											clearPreview()
-										}}
-										aria-invalid={Boolean(fieldErrors.checkOut)}
-									/>
-								</Field>
-							</div>
+						<div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+							<Field label="Entrada" id="simulator-checkIn" error={fieldErrors.checkIn} required>
+								<Input
+									type="date"
+									value={checkIn}
+									onChange={(event) => {
+										setCheckIn(event.target.value)
+										clearPreview()
+									}}
+									aria-invalid={Boolean(fieldErrors.checkIn)}
+								/>
+							</Field>
+							<Field label="Salida" id="simulator-checkOut" error={fieldErrors.checkOut} required>
+								<Input
+									type="date"
+									min={checkIn || undefined}
+									value={checkOut}
+									onChange={(event) => {
+										setCheckOut(event.target.value)
+										clearPreview()
+									}}
+									aria-invalid={Boolean(fieldErrors.checkOut)}
+								/>
+							</Field>
 							<Field label="Habitaciones o cantidad" id="simulator-rooms">
 								<Input
 									min="1"
@@ -606,7 +604,7 @@ export default function FiscalSimulator({
 						title="Condiciones fiscales"
 						description="Solo añade los datos del huésped que puedan cambiar la aplicación de la regla."
 					>
-						<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+						<div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
 							<Field
 								label="Residencia del huésped"
 								id="simulator-residence"
@@ -1062,7 +1060,10 @@ function Field({
 			})
 		: children
 	return (
-		<label className="grid gap-1.5 text-sm font-medium text-slate-700" htmlFor={id}>
+		<label
+			className="grid content-start gap-1.5 self-start text-sm font-medium text-slate-700"
+			htmlFor={id}
+		>
 			<span>
 				{label}
 				{required ? (
