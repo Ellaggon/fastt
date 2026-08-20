@@ -28,7 +28,8 @@ export const GET: APIRoute = async ({ request }) => {
 	const url = new URL(request.url)
 	const channel = url.searchParams.get("channel") || null
 	const selectedScopeId = String(url.searchParams.get("scope") ?? "").trim() || null
-	const cacheKey = `fiscal:assignment-tree:${providerId}:${selectedScopeId ?? "all"}:${channel ?? "all"}`
+	const requestedDefinitionId = String(url.searchParams.get("definitionId") ?? "").trim() || null
+	const cacheKey = `fiscal:assignment-tree:${providerId}:${selectedScopeId ?? "all"}:${channel ?? "all"}:${requestedDefinitionId ?? "default"}`
 	const { getAggregateCache, setAggregateCache } = await import("@/lib/cache/ssrAggregateCache")
 	const cached = getAggregateCache<Record<string, unknown>>(cacheKey)
 	if (cached) return Response.json(cached)
@@ -69,6 +70,12 @@ export const GET: APIRoute = async ({ request }) => {
 			id: TaxFeeDefinition.id,
 			name: TaxFeeDefinition.name,
 			code: TaxFeeDefinition.code,
+			kind: TaxFeeDefinition.kind,
+			calculationType: TaxFeeDefinition.calculationType,
+			value: TaxFeeDefinition.value,
+			currency: TaxFeeDefinition.currency,
+			appliesPer: TaxFeeDefinition.appliesPer,
+			inclusionType: TaxFeeDefinition.inclusionType,
 			status: TaxFeeDefinition.status,
 			editingState: TaxFeeDefinition.editingState,
 			jurisdictionJson: TaxFeeDefinition.jurisdictionJson,
