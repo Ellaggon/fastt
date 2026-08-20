@@ -10,16 +10,20 @@ describe("ui/calendar operational workspace", () => {
 	it("keeps one-rate daily mutations in Calendar and scale operations in Multicalendario", () => {
 		const calendar = read("src/pages/rates/calendar.astro")
 		const workspace = read("src/components/rates/SingleCalendarWorkspace.tsx")
+		const floatingPopover = read("src/components/ui-react/FloatingPopover.tsx")
 		const catalog = read("src/lib/rates/calendarControlCatalog.ts")
 		const source = `${calendar}\n${workspace}\n${catalog}`
 
 		expect(calendar).toContain("SingleCalendarWorkspace")
-		expect(calendar).toContain("client:load")
+		expect(calendar).toContain('client:only="react"')
 		expect(catalog).toContain("Cambiar precio")
 		expect(catalog).toContain("Cambiar cupo")
 		expect(catalog).toContain("Cerrar venta")
 		expect(catalog).toContain("Ver condiciones")
 		expect(workspace).toContain("Multicalendario")
+		expect(workspace).toContain("FloatingPopover")
+		expect(floatingPopover).toContain("absolute z-30")
+		expect(floatingPopover).toContain("bottom-start")
 		expect(catalog).toContain("professionalOnly")
 		expect(source).not.toContain("Extender cambio")
 		expect(source).not.toContain('key: "pro"')
