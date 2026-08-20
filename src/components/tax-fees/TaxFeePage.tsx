@@ -20,6 +20,7 @@ type TaxFeePageProps = {
 	initialResources: TaxFeeScopeResources
 	initialSuggestion?: TaxFeeSuggestedDraft | null
 	initialReview?: boolean
+	initialScopeId?: string | null
 }
 
 type PageMode = "idle" | "creating" | "editing"
@@ -28,6 +29,19 @@ type SimulationCertification = {
 	isCurrent: boolean
 	quoteId: string | null
 	issuedAt: string | null
+}
+
+type SimulationReadinessIssue = {
+	id: string
+	title: string
+	description: string
+	actionLabel: string
+	href: string
+}
+
+type SimulationReadiness = {
+	context: unknown | null
+	issues: SimulationReadinessIssue[]
 }
 
 function formatDefinitionValue(definition: DefinitionSummary) {
@@ -148,6 +162,8 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 	const [simulationCertification, setSimulationCertification] =
 		useState<SimulationCertification | null>(null)
 	const [isCheckingSimulationCertification, setIsCheckingSimulationCertification] = useState(false)
+	const [simulationReadiness, setSimulationReadiness] = useState<SimulationReadiness | null>(null)
+	const [isCheckingSimulationReadiness, setIsCheckingSimulationReadiness] = useState(false)
 
 	const hasDefinitions = Array.isArray(definitions) && definitions.length > 0
 	const wizardMode: TaxFeeWizardMode = mode === "editing" ? "editing" : "creating"
@@ -159,7 +175,10 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 		jurisdictionLabel(inspectedDefinition) !== "Sin definir"
 	)
 	const inspectedSimulatorHref = inspectedDefinition
-		? `/provider/settings/tax-fees/simulator?definitionId=${encodeURIComponent(inspectedDefinition.id)}&returnTo=${encodeURIComponent(`/provider/settings/tax-fees?edit=${inspectedDefinition.id}&review=1`)}`
+		? `/provider/settings/tax-fees/simulator?definitionId=${encodeURIComponent(inspectedDefinition.id)}${props.initialScopeId ? `&scope=${encodeURIComponent(props.initialScopeId)}` : ""}&returnTo=${encodeURIComponent(`/provider/settings/tax-fees?edit=${inspectedDefinition.id}&review=1${props.initialScopeId ? `&scope=${encodeURIComponent(props.initialScopeId)}` : ""}`)}`
+		: ""
+	const inspectedManualSimulatorHref = inspectedDefinition
+		? `/provider/settings/tax-fees/simulator?definitionId=${encodeURIComponent(inspectedDefinition.id)}&mode=manual${props.initialScopeId ? `&scope=${encodeURIComponent(props.initialScopeId)}` : ""}&returnTo=${encodeURIComponent(`/provider/settings/tax-fees?edit=${inspectedDefinition.id}&review=1${props.initialScopeId ? `&scope=${encodeURIComponent(props.initialScopeId)}` : ""}`)}`
 		: ""
 	const inspectedReviewHref = inspectedDefinition
 		? `/provider/settings/tax-fees?edit=${encodeURIComponent(inspectedDefinition.id)}&review=1`
@@ -194,6 +213,45 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 			cancelled = true
 		}
 	}, [inspectedDefinition?.id, inspectedDefinition?.operationalStatus])
+
+	useEffect(() => {
+		if (
+			!inspectedDefinition ||
+			inspectedDefinition.operationalStatus !== "draft" ||
+			!inspectedRuleIsComplete
+		) {
+			setSimulationReadiness(null)
+			setIsCheckingSimulationReadiness(false)
+			return
+		}
+		let cancelled = false
+		setSimulationReadiness(null)
+		setIsCheckingSimulationReadiness(true)
+		const params = new URLSearchParams({ definitionId: inspectedDefinition.id })
+		if (props.initialScopeId) params.set("scope", props.initialScopeId)
+		void fetch(`/api/provider/tax-fees/simulation-readiness?${params.toString()}`)
+			.then(async (response) => {
+				if (!response.ok) throw new Error("No se pudo revisar la preparación comercial")
+				return (await response.json()) as SimulationReadiness
+			})
+			.then((result) => {
+				if (!cancelled) setSimulationReadiness(result)
+			})
+			.catch(() => {
+				if (!cancelled) setSimulationReadiness(null)
+			})
+			.finally(() => {
+				if (!cancelled) setIsCheckingSimulationReadiness(false)
+			})
+		return () => {
+			cancelled = true
+		}
+	}, [
+		inspectedDefinition?.id,
+		inspectedDefinition?.operationalStatus,
+		inspectedRuleIsComplete,
+		props.initialScopeId,
+	])
 	const availableJurisdictions = useMemo(
 		() => [
 			...new Set(definitions.map(jurisdictionLabel).filter((value) => value !== "Sin definir")),
@@ -409,67 +467,69 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 	if (mode !== "idle") {
 		return (
 			<section className="min-w-0">
-				<div className="mb-5 flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 pb-4">
-					<div>
-						<p className="text-xs font-semibold tracking-[0.08em] text-slate-500 uppercase">
-							{savedDraftSummary
-								? "Definición guardada"
-								: mode === "creating"
-									? "Nueva definición"
-									: "Editar definición"}
-						</p>
-						<h2 className="mt-1 text-lg font-semibold text-slate-950">
-							{savedDraftSummary?.name ??
-								(mode === "creating" ? "Configura una regla fiscal" : selectedDefinition?.name)}
-						</h2>
+				<Card className="fastt-workspace-panel overflow-hidden p-5 text-slate-900 sm:p-6">
+					<div className="mb-5 flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 pb-4">
+						<div>
+							<p className="text-xs font-semibold tracking-[0.08em] text-slate-500 uppercase">
+								{savedDraftSummary
+									? "Definición guardada"
+									: mode === "creating"
+										? "Nueva definición"
+										: "Editar definición"}
+							</p>
+							<h2 className="mt-1 text-lg font-semibold text-slate-950">
+								{savedDraftSummary?.name ??
+									(mode === "creating" ? "Configura una regla fiscal" : selectedDefinition?.name)}
+							</h2>
+						</div>
+						<Button
+							type="button"
+							variant="ghost"
+							onClick={() => {
+								setMode("idle")
+								setSelectedDefinition(null)
+								setSavedDraftSummary(null)
+							}}
+						>
+							Volver a definiciones
+						</Button>
 					</div>
-					<Button
-						type="button"
-						variant="ghost"
-						onClick={() => {
+					{operationError && (
+						<Notice variant="error" className="mb-4">
+							{operationError}
+						</Notice>
+					)}
+					<TaxFeeWizard
+						initialDefinitions={definitions}
+						initialWarnings={warnings}
+						initialMode={wizardMode}
+						initialResources={props.initialResources}
+						initialSuggestion={props.initialSuggestion}
+						initialReview={props.initialReview}
+						initialDefinitionId={selectedDefinition?.id ?? null}
+						initialDuplicateDefinitionId={
+							mode === "creating" && selectedDefinition ? selectedDefinition.id : null
+						}
+						showDefinitionsSidebar={false}
+						onDefinitionsChange={(nextDefinitions, nextWarnings) => {
+							setDefinitions(nextDefinitions)
+							setWarnings(nextWarnings)
+						}}
+						onEditingComplete={(message) => {
+							setMode("idle")
+							setSelectedDefinition(null)
+							setSavedDraftSummary(null)
+							setSuccessMessage(message)
+						}}
+						onDraftSaved={setSavedDraftSummary}
+						onResumeEditing={() => setSavedDraftSummary(null)}
+						onCancel={() => {
 							setMode("idle")
 							setSelectedDefinition(null)
 							setSavedDraftSummary(null)
 						}}
-					>
-						Volver a definiciones
-					</Button>
-				</div>
-				{operationError && (
-					<Notice variant="error" className="mb-4">
-						{operationError}
-					</Notice>
-				)}
-				<TaxFeeWizard
-					initialDefinitions={definitions}
-					initialWarnings={warnings}
-					initialMode={wizardMode}
-					initialResources={props.initialResources}
-					initialSuggestion={props.initialSuggestion}
-					initialReview={props.initialReview}
-					initialDefinitionId={selectedDefinition?.id ?? null}
-					initialDuplicateDefinitionId={
-						mode === "creating" && selectedDefinition ? selectedDefinition.id : null
-					}
-					showDefinitionsSidebar={false}
-					onDefinitionsChange={(nextDefinitions, nextWarnings) => {
-						setDefinitions(nextDefinitions)
-						setWarnings(nextWarnings)
-					}}
-					onEditingComplete={(message) => {
-						setMode("idle")
-						setSelectedDefinition(null)
-						setSavedDraftSummary(null)
-						setSuccessMessage(message)
-					}}
-					onDraftSaved={setSavedDraftSummary}
-					onResumeEditing={() => setSavedDraftSummary(null)}
-					onCancel={() => {
-						setMode("idle")
-						setSelectedDefinition(null)
-						setSavedDraftSummary(null)
-					}}
-				/>
+					/>
+				</Card>
 			</section>
 		)
 	}
@@ -750,7 +810,7 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 					aria-modal="true"
 					aria-label={`Detalle de ${inspectedDefinition.name}`}
 				>
-					<aside className="h-full w-full max-w-xl overflow-y-auto bg-white p-5 shadow-xl sm:p-6">
+					<aside className="h-full w-full max-w-xl overflow-y-auto bg-white p-5 text-slate-900 shadow-xl sm:p-6">
 						<div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
 							<div>
 								<p className="text-xs font-semibold tracking-[0.08em] text-slate-500 uppercase">
@@ -816,7 +876,12 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 											.
 										</p>
 										<div className="mt-4">
-											<Button href={inspectedReviewHref}>Revisar y publicar</Button>
+											<Button
+												href={inspectedReviewHref}
+												onClick={() => setInspectedDefinition(null)}
+											>
+												Revisar y publicar
+											</Button>
 										</div>
 									</>
 								) : (
@@ -828,9 +893,75 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 											Usa una reserva de ejemplo para confirmar el importe, cuándo se cobra y quién
 											lo recauda. La simulación no modifica ventas.
 										</p>
-										<div className="mt-4">
-											<Button href={inspectedSimulatorHref}>Comprobar en Simulador</Button>
-										</div>
+										{isCheckingSimulationReadiness ? (
+											<p className="mt-4 text-sm text-slate-500">
+												Revisando precio, disponibilidad y calendario...
+											</p>
+										) : simulationReadiness?.issues.length ? (
+											<div
+												className="mt-4 space-y-3"
+												aria-label="Requisitos para una comprobación real"
+											>
+												<Notice variant="warning" title="Prepara una cotización real">
+													<p>Completa estos puntos antes de certificar búsqueda y checkout.</p>
+													<ul className="mt-3 space-y-3">
+														{simulationReadiness.issues.map((issue) => (
+															<li
+																key={issue.id}
+																className="border-t border-amber-200/80 pt-3 first:border-t-0 first:pt-0"
+															>
+																<p className="font-semibold text-amber-950">{issue.title}</p>
+																<p>{issue.description}</p>
+																<Button
+																	href={issue.href}
+																	variant="secondary"
+																	size="sm"
+																	className="mt-2"
+																	onClick={() => setInspectedDefinition(null)}
+																>
+																	{issue.actionLabel}
+																</Button>
+															</li>
+														))}
+													</ul>
+												</Notice>
+												<div className="flex flex-wrap gap-2">
+													<Button
+														href={inspectedSimulatorHref}
+														onClick={() => setInspectedDefinition(null)}
+													>
+														Abrir comprobación
+													</Button>
+													<Button
+														href={inspectedManualSimulatorHref}
+														variant="secondary"
+														onClick={() => setInspectedDefinition(null)}
+													>
+														Usar escenario manual
+													</Button>
+												</div>
+												<p className="text-xs text-slate-500">
+													El escenario manual revisa el cálculo, pero no certifica la disponibilidad
+													ni el precio comercial.
+												</p>
+											</div>
+										) : (
+											<div className="mt-4 flex flex-wrap gap-2">
+												<Button
+													href={inspectedSimulatorHref}
+													onClick={() => setInspectedDefinition(null)}
+												>
+													Comprobar en Simulador
+												</Button>
+												<Button
+													href={inspectedManualSimulatorHref}
+													variant="secondary"
+													onClick={() => setInspectedDefinition(null)}
+												>
+													Usar escenario manual
+												</Button>
+											</div>
+										)}
 									</>
 								)}
 								<ol
@@ -858,13 +989,13 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 								<dl className="mt-3 grid grid-cols-2 gap-y-3 text-sm">
 									<div>
 										<dt className="text-slate-500">Monto</dt>
-										<dd className="mt-1 font-medium">
+										<dd className="mt-1 font-medium text-slate-950">
 											{formatDefinitionValue(inspectedDefinition)}
 										</dd>
 									</div>
 									<div>
 										<dt className="text-slate-500">Base imponible</dt>
-										<dd className="mt-1 font-medium">
+										<dd className="mt-1 font-medium text-slate-950">
 											{(inspectedDefinition.jurisdictionJson as any)?.taxableBase ===
 											"base_plus_included"
 												? "Base + incluidos"
@@ -873,11 +1004,13 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 									</div>
 									<div>
 										<dt className="text-slate-500">Recauda</dt>
-										<dd className="mt-1 font-medium">{responsibilityLabel(inspectedDefinition)}</dd>
+										<dd className="mt-1 font-medium text-slate-950">
+											{responsibilityLabel(inspectedDefinition)}
+										</dd>
 									</div>
 									<div>
 										<dt className="text-slate-500">Vigencia</dt>
-										<dd className="mt-1 font-medium">
+										<dd className="mt-1 font-medium text-slate-950">
 											{inspectedDefinition.effectiveFrom || inspectedDefinition.effectiveTo
 												? `${inspectedDefinition.effectiveFrom ?? "Desde ahora"} · ${inspectedDefinition.effectiveTo ?? "Sin fecha de finalización"}`
 												: "Sin fecha de finalización"}
