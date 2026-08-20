@@ -1,6 +1,5 @@
 ---
 import FiscalAssignmentsMatrix from "@/components/tax-fees/FiscalAssignmentsMatrix"
-import FiscalChannelSync from "@/components/tax-fees/FiscalChannelSync"
 import FiscalWorkspaceLayout from "@/layouts/FiscalWorkspaceLayout.astro"
 import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
 import { getAggregateCache } from "@/lib/cache/ssrAggregateCache"
@@ -25,9 +24,9 @@ const conflictCount = Array.isArray(cachedDefinitions?.audit?.findings)
 			(finding) => finding.code === "duplicate_active_assignment"
 		).length
 	: 0
-const resources = new Map(
-	products.map((product) => [String(product.id), String(product.name || "Producto")])
-)
+const selectedDefinitionId = Astro.url.searchParams.get("definitionId")?.trim() || null
+const initialTargetScope = Astro.url.searchParams.get("targetScope")?.trim() || null
+const initialTargetId = Astro.url.searchParams.get("targetId")?.trim() || null
 ---
 
 <FiscalWorkspaceLayout
@@ -46,6 +45,8 @@ const resources = new Map(
 		client:load
 		canManage={auth.provider.permissions.canManageFiscality}
 		selectedScopeId={Astro.url.searchParams.get("scope")}
+		initialDefinitionId={selectedDefinitionId}
+		initialTargetScope={initialTargetScope}
+		initialTargetId={initialTargetId}
 	/>
-	<FiscalChannelSync client:visible />
 </FiscalWorkspaceLayout>

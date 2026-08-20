@@ -26,15 +26,21 @@ const targetSchema = z.object({
 })
 const schema = z
 	.object({
-		operation: z.enum(["assign", "pause", "inherit"]),
+		operation: z.enum(["assign", "pause", "inherit", "preview"]),
 		taxFeeDefinitionId: z.string().min(1).optional(),
 		targets: z.array(targetSchema).min(1).max(100),
 	})
 	.superRefine((value, ctx) => {
-		if (value.operation === "assign" && !value.taxFeeDefinitionId) {
+		if (
+			(value.operation === "assign" || value.operation === "preview") &&
+			!value.taxFeeDefinitionId
+		) {
 			ctx.addIssue({ code: z.ZodIssueCode.custom, message: "A rule is required" })
 		}
-		if (value.operation !== "assign" && value.targets.some((target) => !target.assignmentId)) {
+		if (
+			(value.operation === "pause" || value.operation === "inherit") &&
+			value.targets.some((target) => !target.assignmentId)
+		) {
 			ctx.addIssue({ code: z.ZodIssueCode.custom, message: "An assignment is required" })
 		}
 	})
@@ -111,7 +117,7 @@ export const POST: APIRoute = async ({ request }) => {
 			}
 			await ensureOwned(providerId, target.scope, target.scopeId)
 		}
-		if (input.operation === "assign") {
+		if (input.operation === "assign" || input.operation === "preview") {
 			const definition = await db
 				.select()
 				.from(TaxFeeDefinition)
@@ -127,6 +133,61 @@ export const POST: APIRoute = async ({ request }) => {
 				)
 			)
 				throw new Error("Not found")
+		}
+		if (input.operation === "preview") {
+			const findings = await Promise.all(
+				input.targets.map(async (target) => {
+					const existing = await db
+						.select({
+							definitionId: TaxFeeAssignment.taxFeeDefinitionId,
+							definitionName: TaxFeeDefinition.name,
+						})
+						.from(TaxFeeAssignment)
+						.innerJoin(
+							TaxFeeDefinition,
+							eq(TaxFeeAssignment.taxFeeDefinitionId, TaxFeeDefinition.id)
+						)
+						.where(
+							and(
+								eq(TaxFeeDefinition.providerId, providerId),
+								eq(TaxFeeAssignment.scope, target.scope),
+								eq(TaxFeeAssignment.scopeId, target.scopeId),
+								target.channel
+									? eq(TaxFeeAssignment.channel, target.channel)
+									: isNull(TaxFeeAssignment.channel),
+								eq(TaxFeeAssignment.status, "active")
+							)
+						)
+					const duplicate = existing.some(
+						(assignment) => assignment.definitionId === input.taxFeeDefinitionId
+					)
+					const existingNames = existing
+						.filter((assignment) => assignment.definitionId !== input.taxFeeDefinitionId)
+						.map((assignment) => assignment.definitionName)
+					return {
+						target: { scope: target.scope, scopeId: target.scopeId },
+						duplicate,
+						existingNames,
+					}
+				})
+			)
+			const blockers = findings
+				.filter((finding) => finding.duplicate)
+				.map(
+					(finding) =>
+						`La regla ya está asignada directamente en ${finding.target.scope} ${finding.target.scopeId}.`
+				)
+			const warnings = findings
+				.filter((finding) => finding.existingNames.length > 0)
+				.map(
+					(finding) =>
+						`Se acumulará con ${finding.existingNames.join(", ")} en ${finding.target.scope} ${finding.target.scopeId}.`
+				)
+			return Response.json({
+				canApply: blockers.length === 0,
+				blockers,
+				warnings,
+			})
 		}
 
 		const result = await db.transaction(async (tx) => {
