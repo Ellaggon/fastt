@@ -30,3 +30,17 @@ test("the wizard protects unfinished work and warns about likely duplicates", ()
 	expect(wizard).toContain("Puede que esta definición ya exista")
 	expect(wizard).toContain("Selecciona un país")
 })
+
+test("a published fiscal version leads into assignment without assigning it automatically", () => {
+	const wizard = read("src/components/tax-fees/TaxFeeWizard.tsx")
+	const assignments = read("src/pages/provider/settings/tax-fees/assignments.astro")
+
+	expect(wizard).toContain("publicationCompletion")
+	expect(wizard).toContain("Asignar esta regla")
+	expect(wizard).toContain("Publicar no aplica la regla automáticamente.")
+	expect(wizard).toContain("new URLSearchParams")
+	expect(wizard).toContain("definitionId: publicationCompletion.definitionId")
+	expect(wizard).toContain('assignmentsSearch.set("scope", draft.productId)')
+	expect(assignments).toContain("selectedDefinitionId")
+	expect(assignments).toContain("initialDefinitionId={selectedDefinitionId}")
+})

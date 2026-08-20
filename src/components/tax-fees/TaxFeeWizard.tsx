@@ -182,6 +182,13 @@ type TaxFeeWizardProps = {
 	initialReview?: boolean
 }
 
+type PublicationCompletion = {
+	definitionId: string
+	version: number
+	publicationState: "published" | "scheduled"
+	hasActiveAssignments: boolean
+}
+
 type DraftState = {
 	kind: TaxFeeKind | null
 	presetKey: string | null
@@ -599,6 +606,9 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 	)
 	const [isCheckingSimulation, setIsCheckingSimulation] = useState(false)
 	const [savedDraftId, setSavedDraftId] = useState<string | null>(null)
+	const [publicationCompletion, setPublicationCompletion] = useState<PublicationCompletion | null>(
+		null
+	)
 	const [storageReady, setStorageReady] = useState(false)
 	const [recoveredProgress, setRecoveredProgress] = useState(false)
 
@@ -872,6 +882,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 			setDefinitions(nextDefinitions)
 			setListWarnings(nextWarnings)
 			props.onDefinitionsChange?.(nextDefinitions, nextWarnings)
+			return nextDefinitions as DefinitionSummary[]
 		} catch (error) {
 			setErrorMessage(
 				error instanceof Error ? error.message : "No se pudieron actualizar las definiciones"
@@ -895,6 +906,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 		setSuccessMessage(null)
 		setBaselineDefinition(null)
 		setPublicationIntent(null)
+		setPublicationCompletion(null)
 		setSimulationVariantId("")
 		setSimulationRatePlanId("")
 		setSimulationCertificate(null)
@@ -1092,20 +1104,25 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 			setEditingDefinitionId(nextId)
 			setDraft((current) => ({ ...current, code }))
 			setPreviewWarnings(Array.isArray(body?.warnings) ? body.warnings : [])
-			await refreshDefinitions()
-			setSuccessMessage(
-				publicationMode === "draft"
-					? "La definición se guardó como borrador."
-					: publicationMode === "schedule"
-						? "Versión programada correctamente."
-						: "Versión publicada correctamente."
-			)
+			const refreshedDefinitions = await refreshDefinitions()
 			if (publicationMode === "draft") {
+				setSuccessMessage("La definición se guardó como borrador.")
 				setSavedDraftId(nextId)
 				setRecoveredProgress(false)
 				window.sessionStorage.removeItem(CREATION_DRAFT_STORAGE_KEY)
 				props.onDraftSaved?.({ id: nextId, name: draft.name.trim() })
 			} else {
+				const refreshedDefinition = refreshedDefinitions?.find(
+					(definition) => definition.id === nextId
+				)
+				setPublicationCompletion({
+					definitionId: nextId,
+					version: Number(body?.publication?.version ?? refreshedDefinition?.revision ?? 1),
+					publicationState: publicationMode === "schedule" ? "scheduled" : "published",
+					hasActiveAssignments: Boolean(
+						refreshedDefinition?.assignments?.some((assignment) => assignment.status === "active")
+					),
+				})
 				setStep(5)
 			}
 		} catch (error) {
@@ -1190,6 +1207,125 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 		setErrorMessage(null)
 		setSuccessMessage(null)
 		setStep((current) => Math.max(current - 1, 1))
+	}
+
+	if (publicationCompletion) {
+		const assignmentsSearch = new URLSearchParams({
+			definitionId: publicationCompletion.definitionId,
+		})
+		if (draft.productId) assignmentsSearch.set("scope", draft.productId)
+		if (draft.scope !== "provider" && draft.scopeId) {
+			assignmentsSearch.set("targetScope", draft.scope)
+			assignmentsSearch.set("targetId", draft.scopeId)
+		}
+		const assignmentsHref = `/provider/settings/tax-fees/assignments?${assignmentsSearch.toString()}`
+		const published = publicationCompletion.publicationState === "published"
+		return (
+			<section className="mx-auto max-w-3xl py-2">
+				<div className="border-b border-slate-200 pb-6">
+					<p className="text-sm font-semibold text-emerald-700">
+						{published ? "Versión publicada" : "Versión programada"}
+					</p>
+					<h2 className="mt-2 text-2xl font-semibold text-slate-950">
+						{draft.name} · versión {publicationCompletion.version}
+					</h2>
+					<p className="mt-2 max-w-2xl text-sm text-slate-600">
+						{published
+							? "La versión quedó disponible para usarse en nuevas coberturas."
+							: "La versión se activará en la fecha programada."}
+					</p>
+				</div>
+
+				<ol
+					className="grid gap-3 border-b border-slate-200 py-5 text-sm sm:grid-cols-3"
+					aria-label="Progreso de publicación"
+				>
+					<li className="flex items-center gap-2 text-emerald-700">
+						<span
+							aria-hidden="true"
+							className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold"
+						>
+							✓
+						</span>
+						<span className="font-medium">Definición certificada</span>
+					</li>
+					<li className="flex items-center gap-2 text-emerald-700">
+						<span
+							aria-hidden="true"
+							className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold"
+						>
+							✓
+						</span>
+						<span className="font-medium">Versión publicada</span>
+					</li>
+					<li
+						className={
+							publicationCompletion.hasActiveAssignments
+								? "flex items-center gap-2 text-emerald-700"
+								: "flex items-center gap-2 text-slate-700"
+						}
+					>
+						<span
+							aria-hidden="true"
+							className={
+								publicationCompletion.hasActiveAssignments
+									? "flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold"
+									: "h-2 w-2 rounded-full bg-slate-950"
+							}
+						>
+							{publicationCompletion.hasActiveAssignments ? "✓" : null}
+						</span>
+						<span
+							className={
+								publicationCompletion.hasActiveAssignments ? "font-medium" : "font-semibold"
+							}
+						>
+							{publicationCompletion.hasActiveAssignments
+								? "Cobertura activa"
+								: "Asignar cobertura"}
+						</span>
+					</li>
+				</ol>
+
+				<div className="py-6">
+					<p className="text-xs font-semibold tracking-[0.08em] text-slate-500 uppercase">
+						Siguiente paso
+					</p>
+					<h3 className="mt-2 text-xl font-semibold text-slate-950">
+						{publicationCompletion.hasActiveAssignments
+							? "Revisa dónde se aplica esta versión"
+							: "Asigna la regla a la cobertura de venta"}
+					</h3>
+					<p className="mt-2 max-w-2xl text-sm text-slate-600">
+						{publicationCompletion.hasActiveAssignments
+							? "Puedes revisar las propiedades, unidades, tarifas y canales que ya utilizan esta regla."
+							: "Publicar no aplica la regla automáticamente. Selecciona los productos, unidades o tarifas donde debe cobrarse."}
+					</p>
+					<div className="mt-5 flex flex-wrap items-center gap-3">
+						<Button href={assignmentsHref}>
+							{publicationCompletion.hasActiveAssignments
+								? "Ver asignaciones"
+								: "Asignar esta regla"}
+						</Button>
+						<span className="text-xs text-slate-500">
+							La regla ya está seleccionada al abrir la cobertura.
+						</span>
+					</div>
+				</div>
+
+				<div className="flex justify-end border-t border-slate-200 pt-5">
+					<Button
+						type="button"
+						variant="ghost"
+						onClick={() =>
+							props.onEditingComplete?.(`Versión ${publicationCompletion.version} publicada.`)
+						}
+					>
+						Volver a definiciones
+					</Button>
+				</div>
+			</section>
+		)
 	}
 
 	if (savedDraftId) {
@@ -1387,11 +1523,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 								)
 							})}
 						</div>
-					) : (
-						<div className="mb-6 border-b border-slate-200 pb-3 text-sm font-semibold text-slate-700">
-							Publicación de la definición
-						</div>
-					)}
+					) : null}
 
 					{errorMessage && (
 						<Notice variant="error" className="mb-4">
@@ -2063,8 +2195,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 							<div>
 								<h2 className="text-2xl font-semibold text-slate-950">Revisión y publicación</h2>
 								<p className="mt-2 text-sm text-slate-600">
-									Comprueba la configuración, resuelve los controles pendientes y publica una nueva
-									versión.
+									Confirma la información certificada antes de publicar esta versión.
 								</p>
 							</div>
 
@@ -2076,7 +2207,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 									</div>
 									<p className="text-sm text-slate-700">
 										{draft.jurisdictionCountry
-											? `Jurisdicción ${draft.jurisdictionCountry} definida.`
+											? `Jurisdicción: ${draft.jurisdictionCountry}.`
 											: "Falta la jurisdicción."}
 									</p>
 									<Button type="button" size="sm" variant="ghost" onClick={() => setStep(3)}>
@@ -2087,17 +2218,16 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 									<div>
 										<p className="text-sm font-semibold text-slate-950">Simulación</p>
 										<p className="mt-1 text-sm text-slate-600">
-											La simulación usa el cálculo real y certifica esta versión.
+											Certifica esta versión con el cálculo real.
 										</p>
 									</div>
 									{isCheckingSimulation ? (
 										<p className="text-sm text-slate-600">Comprobando simulación vigente...</p>
 									) : simulationCertificate?.isCurrent ? (
 										<p className="text-sm text-slate-700">
-											Simulación vigente
-											{simulationCertificate.quoteId ? ` · ${simulationCertificate.quoteId}` : ""}
+											Simulación certificada
 											{simulationCertificate.issuedAt
-												? ` · ${new Intl.DateTimeFormat("es-CL", { dateStyle: "medium" }).format(new Date(simulationCertificate.issuedAt))}`
+												? ` el ${new Intl.DateTimeFormat("es-CL", { dateStyle: "medium" }).format(new Date(simulationCertificate.issuedAt))}`
 												: ""}
 											.
 										</p>
@@ -2111,7 +2241,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 										size="sm"
 										variant={simulationCertificate?.isCurrent ? "ghost" : "secondary"}
 									>
-										{simulationCertificate?.isCurrent ? "Ver simulador" : "Abrir simulador"}
+										{simulationCertificate?.isCurrent ? "Ver simulación" : "Abrir simulador"}
 									</Button>
 								</div>
 								<div className="grid gap-4 py-4 md:grid-cols-[160px_minmax(0,1fr)_auto] md:items-center">
@@ -2124,7 +2254,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 											(assignment) => assignment.status === "active"
 										)
 											? "La definición conserva asignaciones activas."
-											: "Aún no tiene asignaciones; publicar no modificará ventas."}
+											: "No afectará ventas hasta que asignes una cobertura."}
 									</p>
 									<Button href="/provider/settings/tax-fees/assignments" size="sm" variant="ghost">
 										Ver asignaciones
@@ -2140,8 +2270,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 									<div className="grid gap-2 py-3 md:grid-cols-[150px_1fr]">
 										<dt className="text-slate-500">Identidad</dt>
 										<dd className="font-medium text-slate-950">
-											{draft.name} · {draft.kind === "tax" ? "Impuesto" : "Cargo"} ·{" "}
-											{draft.code || "Código al publicar"}
+											{draft.name} · {draft.kind === "tax" ? "Impuesto" : "Cargo"}
 										</dd>
 									</div>
 									<div className="grid gap-2 py-3 md:grid-cols-[150px_1fr]">
@@ -2160,7 +2289,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 									<div className="grid gap-2 py-3 md:grid-cols-[150px_1fr]">
 										<dt className="text-slate-500">Aplicación</dt>
 										<dd className="font-medium text-slate-950">
-											{applicationSummary} Recauda:{" "}
+											{applicationSummary} Responsable de recaudo:{" "}
 											{draft.collectionResponsibility === "provider"
 												? "mi negocio"
 												: draft.collectionResponsibility === "platform"
@@ -2170,6 +2299,25 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 										</dd>
 									</div>
 								</dl>
+								<details className="mt-4 border-t border-slate-100 pt-3">
+									<summary className="cursor-pointer text-sm font-medium text-slate-600">
+										Información técnica
+									</summary>
+									<dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+										<div>
+											<dt className="text-slate-500">Código interno</dt>
+											<dd className="mt-1 font-mono text-xs break-all text-slate-700">
+												{draft.code || "Se asignará al publicar"}
+											</dd>
+										</div>
+										<div>
+											<dt className="text-slate-500">Cotización certificada</dt>
+											<dd className="mt-1 font-mono text-xs break-all text-slate-700">
+												{simulationCertificate?.quoteId ?? "Pendiente"}
+											</dd>
+										</div>
+									</dl>
+								</details>
 							</section>
 
 							<section className="border-l-2 border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-700">
@@ -2179,9 +2327,8 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 										: "Primera publicación"}
 								</p>
 								<p className="mt-1">
-									{changedFields.join(" · ")}.{" "}
 									{baselineDefinition
-										? `Se creará la versión ${(baselineDefinition.revision ?? 0) + 1}.`
+										? `${changedFields.join(" · ")}. Se creará la versión ${(baselineDefinition.revision ?? 0) + 1}.`
 										: "Se creará la versión 1."}{" "}
 									Las reservas históricas no cambiarán.
 								</p>
@@ -2672,23 +2819,25 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 							>
 								Volver
 							</Button>
-							<Button
-								type="button"
-								onClick={() => {
-									if (
-										step <= 4 &&
-										!window.confirm(
-											"Tu progreso quedará guardado temporalmente en este navegador. ¿Quieres salir?"
+							{step < 5 ? (
+								<Button
+									type="button"
+									onClick={() => {
+										if (
+											step <= 4 &&
+											!window.confirm(
+												"Tu progreso quedará guardado temporalmente en este navegador. ¿Quieres salir?"
+											)
 										)
-									)
-										return
-									props.onCancel?.()
-								}}
-								disabled={isSavingDefinition || isPreviewLoading}
-								variant="secondary"
-							>
-								{step <= 4 ? "Salir" : "Volver a definiciones"}
-							</Button>
+											return
+										props.onCancel?.()
+									}}
+									disabled={isSavingDefinition || isPreviewLoading}
+									variant="secondary"
+								>
+									Salir
+								</Button>
+							) : null}
 						</div>
 
 						<div className="flex gap-3">
@@ -2719,7 +2868,9 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 									}
 									variant="success"
 								>
-									{isSavingDefinition ? "Publicando..." : "Publicar versión"}
+									{isSavingDefinition
+										? "Publicando..."
+										: `Publicar versión ${(baselineDefinition?.revision ?? 0) + 1}`}
 								</Button>
 							)}
 						</div>
