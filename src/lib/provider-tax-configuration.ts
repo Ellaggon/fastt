@@ -119,6 +119,35 @@ const statusLabels = Object.fromEntries(
 	providerTaxConfigurationStatuses.map((item) => [item.value, item.label])
 ) as Record<ProviderTaxConfigurationStatus, string>
 
+export function providerTaxIdentityPresentation(status: ProviderTaxConfigurationStatus) {
+	if (status === "verified") {
+		return {
+			label: statusLabels.verified,
+			badge: "success" as const,
+			darkBadge: "darkSuccess" as const,
+		}
+	}
+	if (status === "pending") {
+		return {
+			label: statusLabels.pending,
+			badge: "warning" as const,
+			darkBadge: "darkWarning" as const,
+		}
+	}
+	if (status === "requires_attention") {
+		return {
+			label: statusLabels.requires_attention,
+			badge: "error" as const,
+			darkBadge: "darkError" as const,
+		}
+	}
+	return {
+		label: statusLabels.not_configured,
+		badge: "neutral" as const,
+		darkBadge: "darkNeutral" as const,
+	}
+}
+
 const invoicingLabels = Object.fromEntries(
 	providerInvoicingModes.map((item) => [item.value, item.label])
 ) as Record<ProviderInvoicingMode, string>

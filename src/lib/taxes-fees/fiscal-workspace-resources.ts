@@ -45,15 +45,24 @@ export type FiscalSimulationContext = {
 	pricingSource: "effective_pricing_v2" | "materialized_search_view"
 }
 
+export type FiscalSimulationIssueKind = "fiscal" | "commercial" | "coverage"
+
+export type FiscalSimulationIssueId =
+	| "missing_product"
+	| "missing_variant"
+	| "missing_active_rate_plan"
+	| "missing_calendar"
+	| "missing_availability"
+	| "missing_price"
+	| "no_matching_stay"
+	| "missing_jurisdiction"
+	| "incomplete_definition"
+	| "unassigned"
+	| "coverage_other_product"
+
 export type FiscalSimulationIssue = {
-	id:
-		| "missing_product"
-		| "missing_variant"
-		| "missing_active_rate_plan"
-		| "missing_calendar"
-		| "missing_availability"
-		| "missing_price"
-		| "no_matching_stay"
+	id: FiscalSimulationIssueId
+	kind: FiscalSimulationIssueKind
 	title: string
 	description: string
 	actionLabel: string
@@ -100,12 +109,34 @@ function calendarHref(ratePlanId: string, variantId: string, focus: "price" | "a
 	return `/rates/calendar?${params.toString()}`
 }
 
+export function fiscalRatePlanDisplayLabel(planLabel: string, variantLabel?: string | null) {
+	const plan = String(planLabel || "Tarifa").trim()
+	const variant = String(variantLabel ?? "").trim()
+	if (!variant || variant === plan) return plan
+	return `${plan} · ${variant}`
+}
+
+export function selectFiscalSimulationDiagnosticPlan<T extends { id: string }>(
+	plans: T[],
+	scoreByPlanId: Map<string, number>
+) {
+	return [...plans].sort((left, right) => {
+		const scoreDelta = (scoreByPlanId.get(right.id) ?? 0) - (scoreByPlanId.get(left.id) ?? 0)
+		if (scoreDelta !== 0) return scoreDelta
+		return left.id.localeCompare(right.id)
+	})[0]
+}
+
 function productSetupHref(product: FiscalWorkspaceResources["products"][number]) {
 	const productId = encodeURIComponent(product.id)
 	const kind = product.kind.toLocaleLowerCase()
 	if (kind.includes("hotel")) return `/product/${productId}/rooms`
 	if (kind.includes("tour")) return `/product/${productId}/departures`
 	return `/product/${productId}`
+}
+
+function commercialIssue(issue: Omit<FiscalSimulationIssue, "kind">): FiscalSimulationIssue {
+	return { ...issue, kind: "commercial" }
 }
 
 /** Resolves an actual two-night price from the same materialized pricing and availability data used by sales surfaces. */
@@ -196,63 +227,91 @@ export async function resolveFiscalSimulationPricing(input: {
 	}
 }
 
-/** Chooses the first genuinely sellable Friday-to-Sunday context, preferring the current product scope. */
+/** Chooses the first genuinely sellable Friday-to-Sunday context for the requested commercial target. */
 export async function getRecommendedFiscalSimulationContext(input: {
 	resources: FiscalWorkspaceResources
 	preferredProductId?: string | null
+	preferredVariantId?: string | null
+	preferredRatePlanId?: string | null
 }): Promise<FiscalSimulationRecommendation> {
 	const start = nextFriday()
 	const windowEnd = dayString(addUtcDays(start, 32))
-	const productRank = (productId: string) => (productId === input.preferredProductId ? 0 : 1)
+	const preferredPlan = input.resources.ratePlans.find(
+		(plan) => plan.id === input.preferredRatePlanId
+	)
+	const preferredVariant = input.resources.variants.find(
+		(variant) => variant.id === input.preferredVariantId
+	)
 	const preferredProduct = input.resources.products.find(
-		(product) => product.id === input.preferredProductId
+		(product) =>
+			product.id ===
+			(preferredPlan?.productId ?? preferredVariant?.productId ?? input.preferredProductId)
 	)
 	const targetProduct = preferredProduct ?? input.resources.products[0] ?? null
 	if (!targetProduct) {
 		return {
 			context: null,
 			issues: [
-				{
+				commercialIssue({
 					id: "missing_product",
-					title: "No hay un producto para usar en la comprobación",
-					description: "Crea o termina de configurar un producto antes de certificar esta regla.",
+					title: "No hay un producto para probar",
+					description: "Crea un producto antes de comprobar esta regla.",
 					actionLabel: "Crear producto",
 					href: "/product/create",
-				},
+				}),
 			],
 		}
 	}
 
-	const targetVariants = input.resources.variants.filter(
-		(variant) => variant.productId === targetProduct.id
+	const restrictToTarget = Boolean(
+		input.preferredProductId || input.preferredVariantId || input.preferredRatePlanId
 	)
-	const activePlansForTarget = input.resources.ratePlans.filter(
-		(plan) => plan.productId === targetProduct.id && plan.isActive
+	const targetVariants = input.resources.variants.filter((variant) =>
+		input.preferredVariantId
+			? variant.id === input.preferredVariantId
+			: variant.productId === targetProduct.id
 	)
-	const candidates = input.resources.ratePlans
-		.filter((plan) => plan.isActive && Boolean(plan.variantId))
-		.sort((left, right) => productRank(left.productId) - productRank(right.productId))
-		.slice(0, 24)
+	const activePlansForTarget = input.resources.ratePlans.filter((plan) => {
+		if (!plan.isActive) return false
+		if (input.preferredRatePlanId) return plan.id === input.preferredRatePlanId
+		if (input.preferredVariantId) return plan.variantId === input.preferredVariantId
+		return plan.productId === targetProduct.id
+	})
+	const candidates = (
+		restrictToTarget
+			? activePlansForTarget.filter((plan) => Boolean(plan.variantId))
+			: input.resources.ratePlans
+					.filter((plan) => plan.isActive && Boolean(plan.variantId))
+					.sort(
+						(left, right) =>
+							Number(right.productId === targetProduct.id) -
+							Number(left.productId === targetProduct.id)
+					)
+	).slice(0, 24)
 	const candidateIds = candidates.map((plan) => plan.id)
 	if (!candidateIds.length) {
 		const issues: FiscalSimulationIssue[] = []
 		if (!targetVariants.length) {
-			issues.push({
-				id: "missing_variant",
-				title: `${targetProduct.label} no tiene una unidad o salida configurada`,
-				description: "La cotización real necesita una unidad vendible a la que asociar la tarifa.",
-				actionLabel: "Configurar unidad o salida",
-				href: productSetupHref(targetProduct),
-			})
+			issues.push(
+				commercialIssue({
+					id: "missing_variant",
+					title: `${targetProduct.label} no tiene una unidad`,
+					description: "Asocia una habitación o salida a una tarifa para probar el cobro.",
+					actionLabel: "Configurar unidad",
+					href: productSetupHref(targetProduct),
+				})
+			)
 		}
 		if (!activePlansForTarget.length) {
-			issues.push({
-				id: "missing_active_rate_plan",
-				title: `${targetProduct.label} no tiene una tarifa activa`,
-				description: "Crea o activa una tarifa para obtener un precio comercial verificable.",
-				actionLabel: "Gestionar tarifas",
-				href: `/rates/plans/manage?productId=${encodeURIComponent(targetProduct.id)}`,
-			})
+			issues.push(
+				commercialIssue({
+					id: "missing_active_rate_plan",
+					title: `${targetProduct.label} no tiene una tarifa activa`,
+					description: "Activa o crea una tarifa para obtener un precio de prueba.",
+					actionLabel: "Ver tarifas",
+					href: `/rates/plans/manage?productId=${encodeURIComponent(targetProduct.id)}`,
+				})
+			)
 		}
 		return { context: null, issues }
 	}
@@ -353,7 +412,46 @@ export async function getRecommendedFiscalSimulationContext(input: {
 		}
 	}
 
-	const targetPlan = candidates[0]!
+	const candidateDates = Array.from({ length: 31 }, (_, index) =>
+		dayString(addUtcDays(start, index))
+	)
+	const scoreByPlanId = new Map<string, number>()
+	for (const plan of candidates) {
+		const planInventory = inventoryRows.filter((row) => row.ratePlanId === plan.id)
+		const planPricing = effectiveRows.filter((row) => row.ratePlanId === plan.id)
+		const inventoryByDate = new Map(planInventory.map((row) => [normalizedDay(row.date), row]))
+		const pricingByDate = new Map(planPricing.map((row) => [normalizedDay(row.date), row]))
+		const hasTwoAvailableNights = candidateDates.slice(0, -1).some((date, index) => {
+			const nextDate = candidateDates[index + 1]!
+			return [inventoryByDate.get(date), inventoryByDate.get(nextDate)].every(
+				(row) =>
+					row &&
+					row.isAvailable &&
+					row.hasAvailability &&
+					Number(row.availableUnits ?? 0) > 0 &&
+					!String(row.primaryBlocker ?? "").trim()
+			)
+		})
+		const hasTwoPricedNights = candidateDates.slice(0, -1).some((date, index) => {
+			const nextDate = candidateDates[index + 1]!
+			return [date, nextDate].every((day) => {
+				const inventory = inventoryByDate.get(day)
+				const effective = pricingByDate.get(day)
+				return Boolean(inventory?.hasPrice && Number(effective?.price ?? inventory.price ?? 0) > 0)
+			})
+		})
+		scoreByPlanId.set(
+			plan.id,
+			(hasTwoAvailableNights ? 8 : 0) +
+				(hasTwoPricedNights ? 8 : 0) +
+				Math.min(planInventory.length, 8) +
+				Math.min(planPricing.length, 4)
+		)
+	}
+	const targetPlan =
+		selectFiscalSimulationDiagnosticPlan(candidates, scoreByPlanId) ?? candidates[0]!
+	const targetVariant = input.resources.variants.find((item) => item.id === targetPlan.variantId)
+	const targetLabel = fiscalRatePlanDisplayLabel(targetPlan.label, targetVariant?.label)
 	const targetInventory = inventoryRows.filter((row) => row.ratePlanId === targetPlan.id)
 	const targetEffectivePricing = effectiveRows.filter((row) => row.ratePlanId === targetPlan.id)
 	const targetInventoryByDate = new Map(
@@ -361,9 +459,6 @@ export async function getRecommendedFiscalSimulationContext(input: {
 	)
 	const targetPricingByDate = new Map(
 		targetEffectivePricing.map((row) => [normalizedDay(row.date), row])
-	)
-	const candidateDates = Array.from({ length: 31 }, (_, index) =>
-		dayString(addUtcDays(start, index))
 	)
 	const hasTwoAvailableNights = candidateDates.slice(0, -1).some((date, index) => {
 		const nextDate = candidateDates[index + 1]!
@@ -386,40 +481,52 @@ export async function getRecommendedFiscalSimulationContext(input: {
 	})
 	const issues: FiscalSimulationIssue[] = []
 	if (!targetInventory.length) {
-		issues.push({
-			id: "missing_calendar",
-			title: `${targetPlan.label} no tiene calendario preparado`,
-			description: "No hay fechas materializadas con precio y disponibilidad para esta tarifa.",
-			actionLabel: "Abrir calendario",
-			href: calendarHref(targetPlan.id, targetPlan.variantId, "price"),
-		})
-	} else {
-		if (!hasTwoAvailableNights) {
-			issues.push({
-				id: "missing_availability",
-				title: `${targetPlan.label} no tiene dos noches vendibles consecutivas`,
-				description: "Añade cupo o elimina el bloqueo de venta para al menos dos noches futuras.",
-				actionLabel: "Revisar disponibilidad",
-				href: calendarHref(targetPlan.id, targetPlan.variantId, "availability"),
-			})
-		}
-		if (!hasTwoPricedNights) {
-			issues.push({
-				id: "missing_price",
-				title: `${targetPlan.label} no tiene precio para dos noches consecutivas`,
-				description: "Introduce un precio mayor que cero en las fechas que quieres certificar.",
-				actionLabel: "Configurar precios",
+		issues.push(
+			commercialIssue({
+				id: "missing_calendar",
+				title: `Sin calendario en ${targetLabel}`,
+				description:
+					"Esta tarifa aún no tiene fechas con precio y cupo en las próximas cuatro semanas.",
+				actionLabel: "Abrir calendario",
 				href: calendarHref(targetPlan.id, targetPlan.variantId, "price"),
 			})
+		)
+	} else {
+		if (!hasTwoAvailableNights) {
+			issues.push(
+				commercialIssue({
+					id: "missing_availability",
+					title: `Sin fechas libres en ${targetLabel}`,
+					description:
+						"Necesitas dos noches seguidas con cupo en las próximas cuatro semanas, a partir del próximo viernes.",
+					actionLabel: "Abrir calendario",
+					href: calendarHref(targetPlan.id, targetPlan.variantId, "availability"),
+				})
+			)
+		}
+		if (!hasTwoPricedNights) {
+			issues.push(
+				commercialIssue({
+					id: "missing_price",
+					title: `Sin precio en ${targetLabel}`,
+					description:
+						"Pon un precio mayor que cero en las mismas dos noches seguidas de las próximas cuatro semanas.",
+					actionLabel: "Poner precios",
+					href: calendarHref(targetPlan.id, targetPlan.variantId, "price"),
+				})
+			)
 		}
 		if (hasTwoAvailableNights && hasTwoPricedNights) {
-			issues.push({
-				id: "no_matching_stay",
-				title: `${targetPlan.label} no reúne precio y disponibilidad en las mismas fechas`,
-				description: "Alinea el precio y el cupo en un mismo tramo de dos noches consecutivas.",
-				actionLabel: "Revisar calendario",
-				href: calendarHref(targetPlan.id, targetPlan.variantId, "availability"),
-			})
+			issues.push(
+				commercialIssue({
+					id: "no_matching_stay",
+					title: `Precio y cupo no coinciden en ${targetLabel}`,
+					description:
+						"Pon precio y cupo en las mismas dos noches seguidas de las próximas cuatro semanas.",
+					actionLabel: "Abrir calendario",
+					href: calendarHref(targetPlan.id, targetPlan.variantId, "availability"),
+				})
+			)
 		}
 	}
 	return { context: null, issues }

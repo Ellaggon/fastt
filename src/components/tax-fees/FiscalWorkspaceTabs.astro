@@ -1,21 +1,22 @@
 ---
 import TabsInsidePanel from "@/components/ui/TabsInsidePanel.astro"
 import { routes } from "@/lib/routes"
+import {
+	fiscalWorkspaceTabHref,
+	type FiscalWorkspaceTab,
+} from "@/lib/taxes-fees/fiscal-workspace-navigation"
 import { Calculator, History, Link2, ReceiptText } from "@lucide/astro"
 
-type FiscalTab = "definitions" | "assignments" | "simulator" | "activity"
-
 interface Props {
-	active: FiscalTab
+	active: FiscalWorkspaceTab
 	search?: URLSearchParams
-	counts?: Partial<Record<FiscalTab, number>>
+	counts?: Partial<Record<FiscalWorkspaceTab, number>>
 	class?: string
 }
 
 const { active, search = new URLSearchParams(), counts = {}, class: classProp = "" } = Astro.props
-const suffix = search.toString() ? `?${search.toString()}` : ""
 const tabs: Array<{
-	id: FiscalTab
+	id: FiscalWorkspaceTab
 	label: string
 	href: string
 	icon: typeof ReceiptText
@@ -49,7 +50,7 @@ const tabs: Array<{
 			const Icon = tab.icon
 			return (
 				<a
-					href={`${tab.href}${suffix}`}
+					href={fiscalWorkspaceTabHref({ href: tab.href, tab: tab.id, active, search })}
 					data-astro-prefetch="viewport"
 					aria-current={selected ? "page" : undefined}
 					data-active={selected ? "true" : "false"}

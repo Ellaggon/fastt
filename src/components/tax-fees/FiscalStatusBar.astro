@@ -1,7 +1,14 @@
 ---
+import Badge from "@/components/ui/Badge.astro"
+import {
+	providerTaxIdentityPresentation,
+	type ProviderTaxConfigurationStatus,
+} from "@/lib/provider-tax-configuration"
+
 interface Props {
 	identityLabel: string
 	isIdentityConfigured: boolean
+	identityStatus?: ProviderTaxConfigurationStatus | null
 	conflictCount?: number
 	pendingSyncCount?: number
 	showIdentity?: boolean
@@ -10,11 +17,15 @@ interface Props {
 const {
 	identityLabel,
 	isIdentityConfigured,
+	identityStatus = null,
 	conflictCount = 0,
 	pendingSyncCount = 0,
 	showIdentity = true,
 } = Astro.props
 const hasStatus = showIdentity || conflictCount > 0 || pendingSyncCount > 0
+const identity = providerTaxIdentityPresentation(
+	identityStatus ?? (isIdentityConfigured ? "pending" : "not_configured")
+)
 ---
 
 {
@@ -25,10 +36,8 @@ const hasStatus = showIdentity || conflictCount > 0 || pendingSyncCount > 0
 					href="/provider/settings/verification/fiscal"
 					class="inline-flex items-center gap-2 font-medium text-slate-700 hover:text-slate-950"
 				>
-					<span
-						class={`size-1.5 rounded-full ${isIdentityConfigured ? "bg-emerald-600" : "bg-amber-500"}`}
-					/>
-					Identidad fiscal: {identityLabel}
+					Identidad fiscal
+					<Badge variant={identity.badge}>{identity.label}</Badge>
 				</a>
 			) : null}
 			{conflictCount > 0 ? (

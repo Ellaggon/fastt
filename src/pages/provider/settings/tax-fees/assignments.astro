@@ -4,18 +4,10 @@ import FiscalWorkspaceLayout from "@/layouts/FiscalWorkspaceLayout.astro"
 import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
 import { getAggregateCache } from "@/lib/cache/ssrAggregateCache"
 import { getProviderTaxConfiguration } from "@/lib/provider-tax-configuration"
-import { db, eq, Product } from "@/shared/infrastructure/db/compat"
 
 const auth = await requireProviderSessionSurface(Astro.request).catch(() => "__DENIED__" as const)
 if (auth === "__DENIED__") return Astro.redirect("/SignInPage")
-const [configuration, products] = await Promise.all([
-	getProviderTaxConfiguration(auth.provider.providerId).catch(() => null),
-	db
-		.select({ id: Product.id, name: Product.name })
-		.from(Product)
-		.where(eq(Product.providerId, auth.provider.providerId))
-		.catch(() => []),
-])
+const configuration = await getProviderTaxConfiguration(auth.provider.providerId).catch(() => null)
 const cachedDefinitions = getAggregateCache<{ audit?: { findings?: Array<{ code?: string }> } }>(
 	`fiscal:definitions:${auth.provider.providerId}`
 )
@@ -31,15 +23,11 @@ const initialTargetId = Astro.url.searchParams.get("targetId")?.trim() || null
 
 <FiscalWorkspaceLayout
 	activeTab="assignments"
-	identityLabel={configuration?.statusLabel ?? "No configurada"}
+	identityLabel={configuration?.statusLabel ?? "No configurado"}
 	isIdentityConfigured={Boolean(configuration?.isConfigured)}
+	identityStatus={configuration?.status ?? "not_configured"}
 	canManageFiscality={auth.provider.permissions.canManageFiscality}
 	conflictCount={conflictCount}
-	scopeOptions={products.map((product) => ({
-		id: String(product.id),
-		label: String(product.name || "Producto"),
-	}))}
-	selectedScopeId={Astro.url.searchParams.get("scope")}
 >
 	<FiscalAssignmentsMatrix
 		client:load
