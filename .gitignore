@@ -19,6 +19,7 @@ artifacts/
 
 # environment variables
 .env
+.env.test
 .env.production
 
 # macOS-specific files

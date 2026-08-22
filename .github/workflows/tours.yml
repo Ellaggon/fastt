@@ -65,9 +65,8 @@ jobs:
   tours:
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      DIRECT_URL: ${{ secrets.DIRECT_URL }}
-      SUPABASE_DB_POOLER_URL: ${{ secrets.SUPABASE_DB_POOLER_URL }}
+      DATABASE_URL_TEST: ${{ secrets.DATABASE_URL_TEST }}
+      FASTT_TEST_DATABASE: "1"
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
       TOURS_CHECKOUT_ENABLED: "true"
@@ -129,13 +128,13 @@ jobs:
           exit "$code"
 
       - name: Tour migration validators (idempotent apply)
-        if: ${{ env.DATABASE_URL != '' || env.SUPABASE_DB_POOLER_URL != '' || env.DIRECT_URL != '' }}
+        if: ${{ env.DATABASE_URL_TEST != '' }}
         run: |
           pnpm run db:validate:tour-category-backfill
           pnpm run db:validate:tour-p2-trust
 
       - name: Tour migration SQL presence (no DB)
-        if: ${{ env.DATABASE_URL == '' && env.SUPABASE_DB_POOLER_URL == '' && env.DIRECT_URL == '' }}
+        if: ${{ env.DATABASE_URL_TEST == '' }}
         run: |
           test -f db/migrations/2026-08-19_tour_category_link_backfill.sql
           test -f db/migrations/2026-08-20_tour_p2_trust_quality_private.sql
@@ -152,7 +151,7 @@ jobs:
 
       - name: Tours phase6 suite
         # Catalog/guardrail/policy contracts always run. Postgres integration suites
-        # skip cleanly when DATABASE_URL / pooler secrets are unset.
+        # only run with the isolated DATABASE_URL_TEST secret.
         run: pnpm run test:tours:phase6
 
       - name: Canary observation snapshot (local dry-run)

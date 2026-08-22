@@ -1,4 +1,7 @@
-import { isValidPostgresConnectionUrl } from "@/shared/infrastructure/db/clean-db-env"
+import {
+	assertTestDatabaseAccess,
+	isValidPostgresConnectionUrl,
+} from "@/shared/infrastructure/db/clean-db-env"
 
 export type PostgresConnectionMode = "runtime" | "direct"
 
@@ -33,6 +36,7 @@ export function getPostgresConnectionUrl(
 	mode: PostgresConnectionMode = "runtime",
 	env: NodeJS.ProcessEnv = process.env
 ): string {
+	assertTestDatabaseAccess(env)
 	const cfg = readPostgresDatabaseEnv(env)
 	const url = mode === "direct" ? (cfg.directUrl ?? cfg.runtimeUrl) : cfg.runtimeUrl
 	if (!url) {

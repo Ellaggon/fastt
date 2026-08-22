@@ -1,3 +1,3 @@
-import { ensureCleanPostgresEnv } from "@/shared/infrastructure/db/clean-db-env"
+import { ensureTestPostgresEnv } from "@/shared/infrastructure/db/clean-db-env"
 
-ensureCleanPostgresEnv()
+ensureTestPostgresEnv()
