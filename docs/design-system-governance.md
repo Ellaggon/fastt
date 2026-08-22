@@ -9,6 +9,7 @@ Use `src/components/ui/*` for:
 - Buttons and links that behave as actions: `Button`
 - Inputs, selects, textareas and labeled fields: `Input`, `Select`, `Textarea`, `FormField`
 - Modal/dialog shells: `Dialog`
+- Side sheets: `Drawer`, `DrawerHeader`, `DrawerFact` (Astro) or `SideSheet` (React)
 - Cards and repeated panels: `Card`
 - Status labels: `Badge`
 - Tabs, filters and mode switches: `SegmentedControl`
@@ -27,5 +28,6 @@ They should not define a new visual language for controls, cards, modals or repe
 - Does every repeated action use `Button`?
 - Does every form field use `FormField` with `Input`, `Select` or `Textarea`?
 - Does every modal use `Dialog` or `fastt-dialog` through a shared component?
+- Does every side sheet use `Drawer` / `SideSheet`, with `DrawerHeader` (or the React equivalent), overlay dismiss, and an `IconButton` close control?
 - Does every repeated panel/card use `Card`, `fastt-card`, `fastt-row-card` or `fastt-soft-box`?
 - Are new tokens named `fastt-*`, not after external references?

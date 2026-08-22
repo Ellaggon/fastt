@@ -3,6 +3,7 @@ const {
 	side = "right",
 	open = false,
 	label,
+	id,
 	className = "",
 	class: classProp = "",
 	overlayClass = "",
@@ -18,10 +19,139 @@ const stateClass = open
 const finalClass =
 	`fastt-side-sheet fixed top-0 z-50 flex h-dvh w-full max-w-xl flex-col border-slate-200 transition-transform duration-200 ${sideClass} ${stateClass} ${className} ${classProp}`.trim()
 const finalOverlayClass =
-	`fixed inset-0 z-40 bg-slate-950/35 backdrop-blur-sm transition-opacity ${open ? "opacity-100" : "pointer-events-none opacity-0"} ${overlayClass}`.trim()
+	`fastt-modal-backdrop fastt-drawer-overlay fixed inset-0 z-40 transition-opacity ${open ? "opacity-100" : "pointer-events-none opacity-0"} ${overlayClass}`.trim()
 ---
 
-<div class={finalOverlayClass} data-drawer-overlay aria-hidden="true"></div>
-<aside class={finalClass} aria-label={label} aria-hidden={open ? "false" : "true"} {...props}>
+<button
+	type="button"
+	class={finalOverlayClass}
+	data-drawer-overlay
+	tabindex="-1"
+	aria-hidden={open ? "false" : "true"}
+	aria-label={`Cerrar ${label}`}
+	aria-controls={id}></button>
+<aside
+	id={id}
+	class={finalClass}
+	role="dialog"
+	aria-modal="true"
+	aria-label={label}
+	aria-hidden={open ? "false" : "true"}
+	data-drawer={id}
+	data-drawer-side={side}
+	{...props}
+>
 	<slot />
 </aside>
+
+<script>
+	function overlayFor(drawer: HTMLElement): HTMLElement | null {
+		const previous = drawer.previousElementSibling
+		if (previous instanceof HTMLElement && previous.hasAttribute("data-drawer-overlay")) {
+			return previous
+		}
+		return null
+	}
+
+	function resolveDrawer(target: string | HTMLElement | null): HTMLElement | null {
+		if (!target) return null
+		if (typeof target !== "string") {
+			return target.closest<HTMLElement>("[data-drawer], .fastt-side-sheet")
+		}
+		return (
+			document.getElementById(target) ??
+			document.querySelector<HTMLElement>(`[data-drawer="${CSS.escape(target)}"]`)
+		)
+	}
+
+	function anyDrawerOpen() {
+		return Boolean(document.querySelector(".fastt-side-sheet.translate-x-0"))
+	}
+
+	function setDrawerOpen(
+		target: string | HTMLElement | null,
+		open: boolean,
+		opener?: HTMLElement | null
+	) {
+		const drawer = resolveDrawer(target)
+		if (!drawer?.hasAttribute("data-drawer-side")) return
+
+		const side = drawer.getAttribute("data-drawer-side") === "left" ? "left" : "right"
+		drawer.classList.toggle("translate-x-0", open)
+		drawer.classList.toggle("translate-x-full", !open && side === "right")
+		drawer.classList.toggle("-translate-x-full", !open && side === "left")
+		drawer.setAttribute("aria-hidden", open ? "false" : "true")
+
+		const overlay = overlayFor(drawer)
+		if (overlay) {
+			overlay.classList.toggle("pointer-events-none", !open)
+			overlay.classList.toggle("opacity-0", !open)
+			overlay.classList.toggle("opacity-100", open)
+			overlay.setAttribute("aria-hidden", open ? "false" : "true")
+		}
+
+		const drawerId = drawer.id
+		if (drawerId) {
+			document
+				.querySelectorAll<HTMLElement>(`[data-drawer-open="${CSS.escape(drawerId)}"]`)
+				.forEach((button) => button.setAttribute("aria-expanded", open ? "true" : "false"))
+		}
+
+		document.documentElement.classList.toggle("overflow-hidden", open || anyDrawerOpen())
+
+		if (open) {
+			opener?.closest("details")?.removeAttribute("open")
+			requestAnimationFrame(() => drawer.querySelector<HTMLElement>("[data-drawer-close]")?.focus())
+			return
+		}
+
+		const returnFocus = drawer.getAttribute("data-drawer-return-focus")
+		if (returnFocus) {
+			document.querySelector<HTMLElement>(returnFocus)?.focus({ preventScroll: true })
+		}
+	}
+
+	if (!window.__fasttDrawerController) {
+		window.__fasttDrawerController = true
+
+		document.addEventListener("click", (event) => {
+			const target = event.target
+			if (!(target instanceof Element)) return
+
+			const openButton = target.closest<HTMLElement>("[data-drawer-open]")
+			if (openButton) {
+				const drawerId = openButton.getAttribute("data-drawer-open")
+				if (
+					drawerId &&
+					drawerId !== "true" &&
+					drawerId !== "false" &&
+					resolveDrawer(drawerId)?.hasAttribute("data-drawer-side")
+				) {
+					setDrawerOpen(drawerId, true, openButton)
+					return
+				}
+			}
+
+			if (target.closest("[data-drawer-close]")) {
+				const drawer = target.closest<HTMLElement>("[data-drawer-side]")
+				if (drawer) setDrawerOpen(drawer, false)
+				return
+			}
+
+			const overlay = target.closest<HTMLElement>("[data-drawer-overlay]")
+			if (overlay) {
+				const drawer = overlay.nextElementSibling
+				if (drawer instanceof HTMLElement && drawer.hasAttribute("data-drawer-side")) {
+					setDrawerOpen(drawer, false)
+				}
+			}
+		})
+
+		document.addEventListener("keydown", (event) => {
+			if (event.key !== "Escape") return
+			document
+				.querySelectorAll<HTMLElement>(".fastt-side-sheet.translate-x-0")
+				.forEach((drawer) => setDrawerOpen(drawer, false))
+		})
+	}
+</script>

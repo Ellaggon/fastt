@@ -198,6 +198,101 @@ body {
 	box-shadow: 0 0 0 2px var(--fastt-color-focus);
 }
 
+.fastt-prompt-field {
+	display: flex;
+	min-height: 3.75rem;
+	cursor: pointer;
+	align-items: center;
+	padding: 0.55rem 0.8rem;
+	border: 1px solid var(--fastt-color-border-strong);
+	border-radius: var(--fastt-radius-field);
+	background: rgb(255 255 255);
+	transition:
+		border-color var(--fastt-motion-fast) ease,
+		box-shadow var(--fastt-motion-fast) ease,
+		background-color var(--fastt-motion-fast) ease;
+}
+
+.fastt-prompt-field--compact {
+	min-height: 3.25rem;
+	padding: 0.4rem 0.7rem;
+}
+
+.fastt-prompt-field:focus-within {
+	border-color: var(--fastt-color-focus);
+	background: rgb(248 250 252);
+	box-shadow: 0 0 0 2px var(--fastt-color-focus);
+}
+
+.fastt-prompt-field--invalid {
+	border-color: rgb(239 68 68);
+	background: rgb(254 242 242);
+}
+
+.fastt-prompt-field--readonly {
+	cursor: default;
+	background: rgb(248 250 252);
+}
+
+.fastt-prompt-field__copy {
+	display: grid;
+	min-width: 0;
+	flex: 1;
+	gap: 0.15rem;
+}
+
+.fastt-prompt-field__label {
+	font-size: 0.75rem;
+	font-weight: 650;
+	line-height: 1.2;
+	color: rgb(100 116 139);
+}
+
+.fastt-prompt-field__required {
+	margin-left: 0.2rem;
+	color: rgb(148 163 184);
+}
+
+.fastt-prompt-field__value {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 0.875rem;
+	font-weight: 650;
+	color: rgb(15 23 42);
+}
+
+.fastt-prompt-field .fastt-field {
+	height: auto !important;
+	min-height: 1.375rem !important;
+	padding: 0 !important;
+	border: 0 !important;
+	border-radius: 0 !important;
+	background: transparent !important;
+	box-shadow: none !important;
+	font-size: 0.875rem;
+	font-weight: 650;
+	color: rgb(15 23 42);
+}
+
+.fastt-prompt-field .fastt-field:focus {
+	border: 0 !important;
+	box-shadow: none !important;
+}
+
+.fastt-section-icon {
+	display: inline-flex;
+	width: 2.25rem;
+	height: 2.25rem;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	border-radius: var(--fastt-radius-control);
+	background: rgb(241 245 249 / 92%);
+	color: rgb(51 65 85);
+	box-shadow: inset 0 0 0 1px rgb(148 163 184 / 16%);
+}
+
 .fastt-card {
 	border-color: var(--fastt-color-border);
 	border-radius: var(--fastt-radius-panel);
@@ -409,10 +504,89 @@ body {
 	backdrop-filter: blur(22px);
 }
 
+.fastt-side-sheet.fastt-side-sheet--dark {
+	border-color: rgb(255 255 255 / 0.08);
+	background: #000;
+	box-shadow: none;
+	backdrop-filter: none;
+}
+
+.fastt-side-sheet.translate-x-full,
+.fastt-side-sheet.-translate-x-full,
+.fastt-side-sheet[aria-hidden="true"] {
+	box-shadow: none;
+	border-color: transparent;
+}
+
 .fastt-side-sheet-header {
 	border-bottom: 1px solid var(--fastt-color-border);
 	background: rgb(248 250 252 / 88%);
 	backdrop-filter: blur(18px);
+}
+
+.fastt-drawer-overlay {
+	border: 0;
+	padding: 0;
+	background: rgb(15 23 42 / 35%);
+	backdrop-filter: blur(10px);
+	cursor: pointer;
+}
+
+.fastt-drawer-overlay.opacity-0,
+.fastt-drawer-overlay[aria-hidden="true"] {
+	visibility: hidden;
+	backdrop-filter: none;
+}
+
+.fastt-drawer-body {
+	flex: 1;
+	overflow-y: auto;
+	padding: 1.25rem;
+}
+
+@media (min-width: 640px) {
+	.fastt-drawer-body {
+		padding: 1.5rem;
+	}
+}
+
+.fastt-drawer-facts {
+	display: grid;
+}
+
+.fastt-drawer-fact {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.75rem;
+	padding: 0.9rem 0;
+	border-bottom: 1px solid rgb(226 232 240 / 80%);
+}
+
+.fastt-drawer-facts > .fastt-drawer-fact:first-child {
+	padding-top: 0;
+}
+
+.fastt-drawer-facts > .fastt-drawer-fact:last-child {
+	padding-bottom: 0;
+	border-bottom: 0;
+}
+
+.fastt-drawer-fact__icon {
+	display: inline-flex;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	width: 2.25rem;
+	height: 2.25rem;
+	border-radius: var(--fastt-radius-control);
+	background: rgb(241 245 249 / 92%);
+	color: rgb(51 65 85);
+	box-shadow: inset 0 0 0 1px rgb(148 163 184 / 16%);
+}
+
+.fastt-drawer-fact--muted .fastt-drawer-fact__icon {
+	background: rgb(248 250 252 / 90%);
+	color: rgb(71 85 105);
 }
 
 .fastt-drawer-section {
@@ -654,6 +828,28 @@ body {
 }
 
 @media (max-width: 639px) {
+	.fastt-prompt-field {
+		min-height: 3.25rem;
+		padding: 0.45rem 0.7rem;
+	}
+	.fastt-prompt-field__label {
+		font-size: 0.6875rem;
+	}
+	.fastt-prompt-field__value {
+		font-size: 0.9375rem;
+	}
+	.fastt-prompt-field .fastt-field {
+		font-size: 1rem;
+	}
+	.fastt-section-icon {
+		width: 1.875rem;
+		height: 1.875rem;
+	}
+	.fastt-tabs-inside-panel__item {
+		gap: 0.35rem;
+		padding: 0.7rem 0.7rem 0.55rem;
+		font-size: 0.8125rem;
+	}
 	.calendar-drawer {
 		inset: auto 0 0;
 		width: 100%;
