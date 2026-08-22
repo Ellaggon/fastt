@@ -717,6 +717,9 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(drawer).toContain("Esencial")
 		expect(drawer).toContain("Profesional")
 		expect(drawer).toContain("/api/provider/preferences/professional-tools")
+		expect(drawer).toContain("DrawerHeader")
+		expect(drawer).toContain("DrawerFact")
+		expect(topbar).toContain('data-drawer-open="workspace-preferences-drawer"')
 	})
 
 	it("treats workspace experience as a member-only presentation preference", () => {
