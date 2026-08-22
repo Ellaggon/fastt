@@ -3,10 +3,8 @@ import FiscalSimulator from "@/components/tax-fees/FiscalSimulator"
 import FiscalWorkspaceLayout from "@/layouts/FiscalWorkspaceLayout.astro"
 import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
 import { getProviderTaxConfiguration } from "@/lib/provider-tax-configuration"
-import {
-	getFiscalWorkspaceResources,
-	getRecommendedFiscalSimulationContext,
-} from "@/lib/taxes-fees/fiscal-workspace-resources"
+import { getFiscalSimulationReadiness } from "@/lib/taxes-fees/fiscal-simulation-readiness"
+import { getFiscalWorkspaceResources } from "@/lib/taxes-fees/fiscal-workspace-resources"
 
 const auth = await requireProviderSessionSurface(Astro.request).catch(() => "__DENIED__" as const)
 if (auth === "__DENIED__") return Astro.redirect("/SignInPage")
@@ -21,23 +19,22 @@ const conflicts = Array.isArray(body.audit?.findings)
 	? body.audit.findings.filter((finding: any) => finding.code === "duplicate_active_assignment")
 			.length
 	: 0
-// `edit` was used by older fiscal links. Keep it as an alias so certification always
-// opens the intended rule while new links use the explicit definitionId contract.
-const initialDefinitionId =
-	Astro.url.searchParams.get("definitionId") ?? Astro.url.searchParams.get("edit")
+const initialDefinitionId = Astro.url.searchParams.get("definitionId")
 const requestedScopeId = Astro.url.searchParams.get("scope")
 const manualMode = Astro.url.searchParams.get("mode") === "manual"
 const initialProductId = resources.products.some((product) => product.id === requestedScopeId)
 	? requestedScopeId
 	: null
-const recommendation =
-	initialDefinitionId && !manualMode
-		? await getRecommendedFiscalSimulationContext({
-				resources,
-				preferredProductId: initialProductId,
-			}).catch(() => null)
-		: null
-const recommendedContext = recommendation?.context ?? null
+const readiness = initialDefinitionId
+	? await getFiscalSimulationReadiness({
+			providerId: auth.provider.providerId,
+			definitionId: initialDefinitionId,
+			resources,
+			workspaceProductId: initialProductId,
+			manualMode,
+		}).catch(() => null)
+	: null
+const recommendedContext = manualMode ? null : (readiness?.context ?? null)
 const requestedReturnTo = Astro.url.searchParams.get("returnTo")
 const returnTo = requestedReturnTo?.startsWith("/provider/settings/tax-fees")
 	? requestedReturnTo
@@ -46,12 +43,11 @@ const returnTo = requestedReturnTo?.startsWith("/provider/settings/tax-fees")
 
 <FiscalWorkspaceLayout
 	activeTab="simulator"
-	identityLabel={configuration?.statusLabel ?? "No configurada"}
+	identityLabel={configuration?.statusLabel ?? "No configurado"}
 	isIdentityConfigured={Boolean(configuration?.isConfigured)}
+	identityStatus={configuration?.status ?? "not_configured"}
 	canManageFiscality={auth.provider.permissions.canManageFiscality}
 	conflictCount={conflicts}
-	scopeOptions={resources.products.map((product) => ({ id: product.id, label: product.label }))}
-	selectedScopeId={requestedScopeId}
 >
 	<FiscalSimulator
 		client:load
@@ -61,7 +57,9 @@ const returnTo = requestedReturnTo?.startsWith("/provider/settings/tax-fees")
 		initialDefinitionId={initialDefinitionId}
 		initialProductId={initialProductId}
 		recommendedContext={recommendedContext}
-		simulationIssues={recommendation?.issues ?? []}
+		simulationIssues={readiness?.issues ?? []}
+		coverageIssues={readiness?.coverageIssues ?? []}
+		simulationNotice={readiness?.notice ?? null}
 		returnTo={returnTo}
 	/>
 </FiscalWorkspaceLayout>

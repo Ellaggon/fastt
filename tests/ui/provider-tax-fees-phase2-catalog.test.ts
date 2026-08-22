@@ -16,7 +16,7 @@ test("Fase 2 delivers a searchable fiscal definition catalogue and rule detail",
 	expect(page).toContain("Asignaciones y canales")
 	expect(page).toContain("Versión y actividad")
 	expect(page).toContain("simulation-certification?definitionId")
-	expect(page).toContain("Comprobar en Simulador")
+	expect(page).toContain("Comprobar cobro")
 	expect(page).toContain("Revisar y publicar")
 })
 

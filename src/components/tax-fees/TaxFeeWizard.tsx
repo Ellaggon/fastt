@@ -1,6 +1,17 @@
 import { useEffect, useMemo, useState } from "react"
 
-import { Badge, Button, Card, Checkbox, ChoiceCard, Input, Notice, Select } from "../ui-react"
+import {
+	Badge,
+	Button,
+	Card,
+	Checkbox,
+	ChoiceCard,
+	DrawerFact,
+	Input,
+	Notice,
+	Select,
+} from "../ui-react"
+import { fiscalIcons } from "./fiscal-icons"
 
 type TaxFeeKind = "tax" | "fee"
 type CalculationType = "percentage" | "fixed"
@@ -1229,7 +1240,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 					<h2 className="mt-2 text-2xl font-semibold text-slate-950">
 						{draft.name} · versión {publicationCompletion.version}
 					</h2>
-					<p className="mt-2 max-w-2xl text-sm text-slate-600">
+					<p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
 						{published
 							? "La versión quedó disponible para usarse en nuevas coberturas."
 							: "La versión se activará en la fecha programada."}
@@ -1237,93 +1248,112 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 				</div>
 
 				<ol
-					className="grid gap-3 border-b border-slate-200 py-5 text-sm sm:grid-cols-3"
+					className="grid gap-3 border-b border-slate-200 py-5 sm:grid-cols-3"
 					aria-label="Progreso de publicación"
 				>
-					<li className="flex items-center gap-2 text-emerald-700">
+					<li className="flex items-start gap-3 text-emerald-800">
 						<span
+							className="fastt-drawer-fact__icon bg-emerald-50 text-emerald-700"
 							aria-hidden="true"
-							className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold"
 						>
-							✓
+							{fiscalIcons.shield}
 						</span>
-						<span className="font-medium">Definición certificada</span>
+						<div className="min-w-0">
+							<p className="text-sm font-semibold">Definición certificada</p>
+							<p className="mt-0.5 text-xs leading-5 text-emerald-800/80">
+								El cálculo ya está comprobado.
+							</p>
+						</div>
 					</li>
-					<li className="flex items-center gap-2 text-emerald-700">
+					<li className="flex items-start gap-3 text-emerald-800">
 						<span
+							className="fastt-drawer-fact__icon bg-emerald-50 text-emerald-700"
 							aria-hidden="true"
-							className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold"
 						>
-							✓
+							{fiscalIcons.file}
 						</span>
-						<span className="font-medium">Versión publicada</span>
+						<div className="min-w-0">
+							<p className="text-sm font-semibold">Versión publicada</p>
+							<p className="mt-0.5 text-xs leading-5 text-emerald-800/80">
+								Ya se puede usar en coberturas.
+							</p>
+						</div>
 					</li>
 					<li
 						className={
 							publicationCompletion.hasActiveAssignments
-								? "flex items-center gap-2 text-emerald-700"
-								: "flex items-center gap-2 text-slate-700"
+								? "flex items-start gap-3 text-emerald-800"
+								: "flex items-start gap-3 text-slate-800"
 						}
 					>
 						<span
-							aria-hidden="true"
 							className={
 								publicationCompletion.hasActiveAssignments
-									? "flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold"
-									: "h-2 w-2 rounded-full bg-slate-950"
+									? "fastt-drawer-fact__icon bg-emerald-50 text-emerald-700"
+									: "fastt-drawer-fact__icon"
 							}
+							aria-hidden="true"
 						>
-							{publicationCompletion.hasActiveAssignments ? "✓" : null}
+							{fiscalIcons.link}
 						</span>
-						<span
-							className={
-								publicationCompletion.hasActiveAssignments ? "font-medium" : "font-semibold"
-							}
-						>
-							{publicationCompletion.hasActiveAssignments
-								? "Cobertura activa"
-								: "Asignar cobertura"}
-						</span>
+						<div className="min-w-0">
+							<p className="text-sm font-semibold">
+								{publicationCompletion.hasActiveAssignments
+									? "Cobertura activa"
+									: "Asignar cobertura"}
+							</p>
+							<p
+								className={
+									publicationCompletion.hasActiveAssignments
+										? "mt-0.5 text-xs leading-5 text-emerald-800/80"
+										: "mt-0.5 text-xs leading-5 text-slate-500"
+								}
+							>
+								{publicationCompletion.hasActiveAssignments
+									? "La regla ya cobra en al menos un alcance."
+									: "Elige dónde debe cobrarse."}
+							</p>
+						</div>
 					</li>
 				</ol>
 
-				<div className="py-6">
-					<p className="text-xs font-semibold tracking-[0.08em] text-slate-500 uppercase">
+				<section className="fastt-drawer-section my-6 p-5" aria-labelledby="publication-next-step">
+					<p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
 						Siguiente paso
 					</p>
-					<h3 className="mt-2 text-xl font-semibold text-slate-950">
+					<h3 id="publication-next-step" className="mt-1 text-xl font-semibold text-slate-950">
 						{publicationCompletion.hasActiveAssignments
 							? "Revisa dónde se aplica esta versión"
 							: "Asigna la regla a la cobertura de venta"}
 					</h3>
-					<p className="mt-2 max-w-2xl text-sm text-slate-600">
+					<p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
 						{publicationCompletion.hasActiveAssignments
 							? "Puedes revisar las propiedades, unidades, tarifas y canales que ya utilizan esta regla."
 							: "Publicar no aplica la regla automáticamente. Selecciona los productos, unidades o tarifas donde debe cobrarse."}
 					</p>
+
+					<div className="fastt-drawer-facts mt-5">
+						<DrawerFact title="No se cobra sola" icon={fiscalIcons.info}>
+							Publicar deja la versión lista, pero no la activa en una venta hasta asignarla.
+						</DrawerFact>
+						<DrawerFact title="Elige el alcance" icon={fiscalIcons.link}>
+							Puedes asignarla a productos, unidades o tarifas. Al abrir cobertura, esta regla ya
+							queda seleccionada.
+						</DrawerFact>
+					</div>
+
 					<div className="mt-5 flex flex-wrap items-center gap-3">
 						<Button href={assignmentsHref}>
+							{fiscalIcons.arrow}
 							{publicationCompletion.hasActiveAssignments
 								? "Ver asignaciones"
 								: "Asignar esta regla"}
 						</Button>
-						<span className="text-xs text-slate-500">
+						<span className="text-xs leading-5 text-slate-500">
 							La regla ya está seleccionada al abrir la cobertura.
 						</span>
 					</div>
-				</div>
-
-				<div className="flex justify-end border-t border-slate-200 pt-5">
-					<Button
-						type="button"
-						variant="ghost"
-						onClick={() =>
-							props.onEditingComplete?.(`Versión ${publicationCompletion.version} publicada.`)
-						}
-					>
-						Volver a definiciones
-					</Button>
-				</div>
+				</section>
 			</section>
 		)
 	}
@@ -2202,7 +2232,12 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 							<section className="divide-y divide-slate-200 border-y border-slate-200">
 								<div className="grid gap-4 py-4 md:grid-cols-[160px_minmax(0,1fr)_auto] md:items-center">
 									<div>
-										<p className="text-sm font-semibold text-slate-950">Configuración</p>
+										<p className="flex items-center gap-2 text-sm font-semibold text-slate-950">
+											<span className="text-slate-500" aria-hidden="true">
+												{fiscalIcons.sliders}
+											</span>
+											Configuración
+										</p>
 										<p className="mt-1 text-sm text-slate-600">Regla y aplicación completas.</p>
 									</div>
 									<p className="text-sm text-slate-700">
@@ -2216,7 +2251,17 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 								</div>
 								<div className="grid gap-4 py-4 md:grid-cols-[160px_minmax(0,1fr)_auto] md:items-center">
 									<div>
-										<p className="text-sm font-semibold text-slate-950">Simulación</p>
+										<p className="flex items-center gap-2 text-sm font-semibold text-slate-950">
+											<span
+												className={
+													simulationCertificate?.isCurrent ? "text-emerald-700" : "text-slate-500"
+												}
+												aria-hidden="true"
+											>
+												{simulationCertificate?.isCurrent ? fiscalIcons.shield : fiscalIcons.info}
+											</span>
+											Simulación
+										</p>
 										<p className="mt-1 text-sm text-slate-600">
 											Certifica esta versión con el cálculo real.
 										</p>
@@ -2246,7 +2291,12 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 								</div>
 								<div className="grid gap-4 py-4 md:grid-cols-[160px_minmax(0,1fr)_auto] md:items-center">
 									<div>
-										<p className="text-sm font-semibold text-slate-950">Asignaciones</p>
+										<p className="flex items-center gap-2 text-sm font-semibold text-slate-950">
+											<span className="text-slate-500" aria-hidden="true">
+												{fiscalIcons.link}
+											</span>
+											Asignaciones
+										</p>
 										<p className="mt-1 text-sm text-slate-600">Dónde se aplicará la regla.</p>
 									</div>
 									<p className="text-sm text-slate-700">
@@ -2263,42 +2313,33 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 							</section>
 
 							<section className="border-b border-slate-200 pb-5">
-								<p className="text-xs font-semibold tracking-[0.08em] text-slate-500 uppercase">
+								<p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
 									Versión que se publicará
 								</p>
-								<dl className="mt-3 divide-y divide-slate-100 border-y border-slate-200 text-sm">
-									<div className="grid gap-2 py-3 md:grid-cols-[150px_1fr]">
-										<dt className="text-slate-500">Identidad</dt>
-										<dd className="font-medium text-slate-950">
-											{draft.name} · {draft.kind === "tax" ? "Impuesto" : "Cargo"}
-										</dd>
-									</div>
-									<div className="grid gap-2 py-3 md:grid-cols-[150px_1fr]">
-										<dt className="text-slate-500">Cálculo</dt>
-										<dd className="font-medium text-slate-950">
-											{draft.calculationType === "percentage"
-												? `${draft.value}%`
-												: `${draft.currency} ${draft.value}`}{" "}
-											·{" "}
-											{APPLIES_PER_OPTIONS.find(
-												(option) => option.value === draft.appliesPer
-											)?.label.toLowerCase()}{" "}
-											· {draft.inclusionType === "included" ? "incluido" : "agregado"}
-										</dd>
-									</div>
-									<div className="grid gap-2 py-3 md:grid-cols-[150px_1fr]">
-										<dt className="text-slate-500">Aplicación</dt>
-										<dd className="font-medium text-slate-950">
-											{applicationSummary} Responsable de recaudo:{" "}
-											{draft.collectionResponsibility === "provider"
-												? "mi negocio"
-												: draft.collectionResponsibility === "platform"
-													? "Fastt"
-													: "canal de venta"}
-											.
-										</dd>
-									</div>
-								</dl>
+								<div className="fastt-drawer-facts mt-3">
+									<DrawerFact title="Identidad" icon={fiscalIcons.file}>
+										{draft.name} · {draft.kind === "tax" ? "Impuesto" : "Cargo"}
+									</DrawerFact>
+									<DrawerFact title="Cálculo" icon={fiscalIcons.percent}>
+										{draft.calculationType === "percentage"
+											? `${draft.value}%`
+											: `${draft.currency} ${draft.value}`}{" "}
+										·{" "}
+										{APPLIES_PER_OPTIONS.find(
+											(option) => option.value === draft.appliesPer
+										)?.label.toLowerCase()}{" "}
+										· {draft.inclusionType === "included" ? "incluido" : "agregado"}
+									</DrawerFact>
+									<DrawerFact title="Aplicación" icon={fiscalIcons.calendar}>
+										{applicationSummary} Responsable de recaudo:{" "}
+										{draft.collectionResponsibility === "provider"
+											? "mi negocio"
+											: draft.collectionResponsibility === "platform"
+												? "Fastt"
+												: "canal de venta"}
+										.
+									</DrawerFact>
+								</div>
 								<details className="mt-4 border-t border-slate-100 pt-3">
 									<summary className="cursor-pointer text-sm font-medium text-slate-600">
 										Información técnica
@@ -2320,18 +2361,23 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 								</details>
 							</section>
 
-							<section className="border-l-2 border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-								<p className="font-semibold text-slate-950">
-									{baselineDefinition
-										? `Cambios respecto de la versión ${baselineDefinition.revision ?? 0}`
-										: "Primera publicación"}
-								</p>
-								<p className="mt-1">
-									{baselineDefinition
-										? `${changedFields.join(" · ")}. Se creará la versión ${(baselineDefinition.revision ?? 0) + 1}.`
-										: "Se creará la versión 1."}{" "}
-									Las reservas históricas no cambiarán.
-								</p>
+							<section className="flex items-start gap-3 border-l-2 border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+								<span className="fastt-drawer-fact__icon mt-0.5 shrink-0" aria-hidden="true">
+									{fiscalIcons.info}
+								</span>
+								<div className="min-w-0">
+									<p className="font-semibold text-slate-950">
+										{baselineDefinition
+											? `Cambios respecto de la versión ${baselineDefinition.revision ?? 0}`
+											: "Primera publicación"}
+									</p>
+									<p className="mt-1">
+										{baselineDefinition
+											? `${changedFields.join(" · ")}. Se creará la versión ${(baselineDefinition.revision ?? 0) + 1}.`
+											: "Se creará la versión 1."}{" "}
+										Las reservas históricas no cambiarán.
+									</p>
+								</div>
 							</section>
 
 							{isPreviewLoading && previewResult && (
@@ -2802,7 +2848,12 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 								>
 									Cancelar
 								</Button>
-								<Button type="button" variant="success" onClick={finishPublication}>
+								<Button
+									type="button"
+									variant="success"
+									className="!bg-sky-600 hover:!bg-sky-700 focus:!ring-sky-600"
+									onClick={finishPublication}
+								>
 									Confirmar publicación
 								</Button>
 							</div>
@@ -2867,6 +2918,7 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 										!simulationCertificate?.isCurrent || isCheckingSimulation || isSavingDefinition
 									}
 									variant="success"
+									className="!bg-sky-600 hover:!bg-sky-700 focus:!ring-sky-600"
 								>
 									{isSavingDefinition
 										? "Publicando..."

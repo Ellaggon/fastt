@@ -1,15 +1,12 @@
 import type { APIRoute } from "astro"
 
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
-import {
-	getFiscalWorkspaceResources,
-	getRecommendedFiscalSimulationContext,
-} from "@/lib/taxes-fees/fiscal-workspace-resources"
-import { and, db, eq, TaxFeeDefinition } from "@/shared/infrastructure/db/compat"
+import { getFiscalSimulationReadiness } from "@/lib/taxes-fees/fiscal-simulation-readiness"
+import { getFiscalWorkspaceResources } from "@/lib/taxes-fees/fiscal-workspace-resources"
 
 /**
- * Keeps the Definitions detail panel honest about whether it can open a real,
- * prefilled PriceQuote without making the definitions catalogue do this work.
+ * Keeps Definitions and Simulator honest about what this specific rule still
+ * needs before a real, prefilled PriceQuote can certify it.
  */
 export const GET: APIRoute = async ({ request }) => {
 	const providerId = await getProviderIdFromRequest(request)
@@ -19,22 +16,19 @@ export const GET: APIRoute = async ({ request }) => {
 	const definitionId = url.searchParams.get("definitionId")?.trim()
 	if (!definitionId) return Response.json({ error: "validation_error" }, { status: 400 })
 
-	const definition = await db
-		.select({ id: TaxFeeDefinition.id })
-		.from(TaxFeeDefinition)
-		.where(and(eq(TaxFeeDefinition.id, definitionId), eq(TaxFeeDefinition.providerId, providerId)))
-		.then((rows) => rows[0] ?? null)
-	if (!definition) return Response.json({ error: "not_found" }, { status: 404 })
-
 	const resources = await getFiscalWorkspaceResources(providerId)
 	const scopeId = url.searchParams.get("scope")?.trim() || null
-	const preferredProductId = resources.products.some((product) => product.id === scopeId)
+	const workspaceProductId = resources.products.some((product) => product.id === scopeId)
 		? scopeId
 		: null
-	const recommendation = await getRecommendedFiscalSimulationContext({
+	const readiness = await getFiscalSimulationReadiness({
+		providerId,
+		definitionId,
 		resources,
-		preferredProductId,
+		workspaceProductId,
+		manualMode: url.searchParams.get("mode") === "manual",
 	})
+	if (!readiness) return Response.json({ error: "not_found" }, { status: 404 })
 
-	return Response.json(recommendation)
+	return Response.json(readiness)
 }
