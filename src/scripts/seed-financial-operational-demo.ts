@@ -213,9 +213,12 @@ async function seedCatalog(userId: string): Promise<void> {
 				legalName: "Fastt Demo S.R.L.",
 				displayName: "Hotel Sol",
 				status: "active",
+				dataClassification: "demo",
 				createdAt: NOW,
 			})
 			.onConflictDoNothing()
+	} else {
+		await db.update(Provider).set({ dataClassification: "demo" }).where(eq(Provider.id, providerId))
 	}
 
 	await db

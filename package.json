@@ -30,6 +30,7 @@
     "db:backfill:surfaces": "tsx scripts/db/backfill-performance-surfaces.ts",
     "db:search:retention": "tsx scripts/db/apply-search-retention.ts",
     "db:verify:surfaces": "tsx scripts/db/verify-performance-surfaces.ts",
+    "db:audit:marketplace-classification": "tsx scripts/db/audit-marketplace-data-classification.ts",
     "check:ui": "node scripts/check-ui-raw-objects.mjs --all",
     "check:ui:staged": "node scripts/check-ui-raw-objects.mjs --staged",
     "prepare": "husky",

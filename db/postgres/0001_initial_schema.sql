@@ -16,6 +16,7 @@ CREATE TABLE "Provider" (
 	"displayName" text,
 	"status" text,
 	"accountPurpose" text NOT NULL DEFAULT 'commercial',
+	"dataClassification" text NOT NULL DEFAULT 'production',
 	"createdAt" timestamp with time zone
 );
 
@@ -2549,6 +2550,7 @@ ALTER TABLE "FinancialProviderSummary"
 
 
 CREATE INDEX "ProviderDocument_providerId_type_idx" ON "ProviderDocument" ("providerId", "type");
+CREATE INDEX "Provider_dataClassification_idx" ON "Provider" ("dataClassification");
 
 CREATE INDEX "ProviderDocument_providerId_status_idx" ON "ProviderDocument" ("providerId", "status");
 
@@ -3003,6 +3005,7 @@ CREATE INDEX "PayoutRecord_payoutReference_idx" ON "PayoutRecord" ("payoutRefere
 
 
 ALTER TABLE "Provider" ADD CONSTRAINT "Provider_accountPurpose_check" CHECK ("accountPurpose" IN ('commercial', 'internal_qa', 'integration_certification'));
+ALTER TABLE "Provider" ADD CONSTRAINT "Provider_dataClassification_check" CHECK ("dataClassification" IN ('production', 'demo', 'fixture'));
 
 ALTER TABLE "ProviderIntegrationConnection" ADD CONSTRAINT "ProviderIntegrationConnection_status_check" CHECK ("status" IN ('not_configured', 'pending', 'connected', 'requires_attention', 'syncing', 'error', 'revoked'));
 

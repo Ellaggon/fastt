@@ -15,6 +15,7 @@ export async function upsertProvider(row: {
 	legalName?: string | null
 	displayName?: string | null
 	ownerEmail?: string | null
+	dataClassification?: "production" | "demo" | "fixture"
 }) {
 	const legalName = String(row.legalName ?? row.displayName ?? `Provider ${row.id}`).trim()
 	const displayName = String(row.displayName ?? row.legalName ?? `Provider ${row.id}`).trim()
@@ -26,12 +27,14 @@ export async function upsertProvider(row: {
 			legalName,
 			displayName,
 			status: "draft",
+			dataClassification: row.dataClassification ?? "fixture",
 		})
 		.onConflictDoUpdate({
 			target: [Provider.id],
 			set: {
 				legalName,
 				displayName,
+				dataClassification: row.dataClassification ?? "fixture",
 			},
 		})
 
