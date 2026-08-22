@@ -50,8 +50,6 @@ const returnTo = requestedReturnTo?.startsWith("/provider/settings/tax-fees")
 	isIdentityConfigured={Boolean(configuration?.isConfigured)}
 	canManageFiscality={auth.provider.permissions.canManageFiscality}
 	conflictCount={conflicts}
-	scopeOptions={resources.products.map((product) => ({ id: product.id, label: product.label }))}
-	selectedScopeId={requestedScopeId}
 >
 	<FiscalSimulator
 		client:load
