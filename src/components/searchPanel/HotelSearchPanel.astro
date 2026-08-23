@@ -7,7 +7,7 @@ import Input from "@/components/ui/Input.astro"
 <div class="sticky top-0 mx-auto w-full max-w-4xl">
 	<form
 		id="searchForm"
-		action="/hotels/search"
+		action="/buscar/alojamientos"
 		method="get"
 		class="fastt-card grid grid-cols-1 items-end gap-3 border bg-white p-4 md:grid-cols-3"
 	>
@@ -20,12 +20,13 @@ import Input from "@/components/ui/Input.astro"
 			<div class="relative text-slate-500">
 				<Input
 					id="destinationInput"
-					name="destinationQuery"
+					name="destino"
 					autocomplete="off"
 					type="search"
 					placeholder="Ciudad, departamento..."
 				/>
-				<input type="hidden" name="destinationId" id="destinationId" />
+				<input type="hidden" id="destinationId" />
+				<input type="hidden" id="destinationSlug" />
 				<ul
 					id="destinationsList"
 					class="fastt-soft-box absolute left-0 right-0 z-50 mt-1 hidden max-h-56 overflow-auto border border-slate-200 bg-white text-sm"
@@ -174,6 +175,7 @@ import Input from "@/components/ui/Input.astro"
 		const destInput = qs("#destinationInput")
 		const destList = qs("#destinationsList")
 		const destIdInput = qs("#destinationId")
+		const destSlugInput = qs("#destinationSlug")
 		const checkin = qs("#checkin")
 		const checkout = qs("#checkout")
 
@@ -252,6 +254,7 @@ import Input from "@/components/ui/Input.astro"
 			const name = li.textContent
 			destInput.value = name
 			destIdInput.value = id
+			destSlugInput.value = li.dataset.slug || ""
 			destList.classList.add("hidden")
 		}
 
@@ -266,6 +269,7 @@ import Input from "@/components/ui/Input.astro"
 
 		destInput.addEventListener("input", (e) => {
 			destIdInput.value = "" // clear selection if user types
+			destSlugInput.value = ""
 			debouncedSearch(e.target.value)
 		})
 

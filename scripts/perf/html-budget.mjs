@@ -11,6 +11,13 @@ const rawBudgets = process.env.FASTT_HTML_BUDGET_ROUTES?.trim()
 const maxTtfbMs = Math.max(1, Number(process.env.FASTT_HTML_BUDGET_MAX_TTFB_MS ?? 1000))
 
 const defaultBudgets = [
+	{ path: "/", maxBytes: 135_000 },
+	{ path: "/hotels", maxBytes: 160_000 },
+	{ path: "/tours", maxBytes: 175_000 },
+	{ path: "/destinos/la-paz/alojamientos", maxBytes: 175_000 },
+	{ path: "/destinos/la-paz/tours", maxBytes: 175_000 },
+	{ path: "/buscar/alojamientos", maxBytes: 180_000 },
+	{ path: "/buscar/tours", maxBytes: 180_000 },
 	{ path: "/provider/settings", maxBytes: 145_000 },
 	{ path: "/provider/settings/integrations", maxBytes: 100_000 },
 	{ path: "/provider/settings/integrations/catalog", maxBytes: 100_000 },

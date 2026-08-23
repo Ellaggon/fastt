@@ -5,16 +5,27 @@ import { ClientRouter } from "astro:transitions"
 
 interface Props {
 	title: string
+	description?: string
+	canonicalPath?: string
+	noindex?: boolean
 }
-const { title } = Astro.props
+const {
+	title,
+	description = "Encuentra alojamientos y experiencias para viajar por Bolivia.",
+	canonicalPath,
+	noindex = false,
+} = Astro.props
+const canonicalHref = canonicalPath ? new URL(canonicalPath, Astro.url.origin).href : null
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang="es">
 	<head>
 		<meta charset="UTF-8" />
-		<meta name="description" content="Astro description" />
+		<meta name="description" content={description} />
 		<meta name="viewport" content="width=device-width" />
+		{canonicalHref ? <link rel="canonical" href={canonicalHref} /> : null}
+		{noindex ? <meta name="robots" content="noindex,follow" /> : null}
 		<link rel="icon" type="image/svg+xml" href="/favicon-sbg.webp" />
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
@@ -32,6 +43,12 @@ const { title } = Astro.props
 		<ClientRouter />
 	</head>
 	<body class="font-sans">
+		<a
+			href="#content"
+			class="sr-only fixed left-4 top-4 z-[100] rounded-md bg-slate-950 px-4 py-2 text-sm font-semibold text-white focus:not-sr-only focus:outline-none focus:ring-2 focus:ring-white"
+		>
+			Ir al contenido principal
+		</a>
 		<slot />
 		<script>
 			const bootPageWorkspaces = () => {

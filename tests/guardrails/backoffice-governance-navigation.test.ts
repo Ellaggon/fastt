@@ -97,7 +97,11 @@ function shellViolationForPage(route: string, relativePath: string): string | nu
 	const usesWorkspace = source.includes("WorkspaceLayout")
 	const usesInternalAdmin = source.includes("InternalAdminLayout")
 	const usesLegacyDashboard = source.includes("DashboardLayout")
-	const usesPublicShell = source.includes("SearchLayout") || source.includes("UILayout")
+	const usesPublicShell =
+		source.includes("SearchLayout") ||
+		source.includes("UILayout") ||
+		source.includes("MarketplaceListingSurface") ||
+		source.includes("MarketplaceDestinationResults")
 	const usesBaseLayout = source.includes("@/layouts/Layout.astro")
 
 	if (usesLegacyDashboard) return `${relativePath}: uses legacy DashboardLayout`
