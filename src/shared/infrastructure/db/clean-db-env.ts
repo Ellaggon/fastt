@@ -7,6 +7,8 @@
  */
 import { config as loadDotenv } from "dotenv"
 
+import { getFasttDataEnvironment } from "./runtime-environment"
+
 const POSTGRES_URL_KEYS = [
 	"DATABASE_URL",
 	"DIRECT_URL",
@@ -52,6 +54,7 @@ export function ensureCleanPostgresEnv(options?: {
 	testDotenvPath?: string
 }): { stripped: string[]; loaded: boolean } {
 	const env = options?.env ?? process.env
+	getFasttDataEnvironment(env)
 	const stripped = stripInvalidPostgresEnv(env)
 	const result = loadDotenv({
 		path: options?.dotenvPath,

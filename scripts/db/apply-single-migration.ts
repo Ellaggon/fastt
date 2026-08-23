@@ -2,11 +2,31 @@ import { createHash } from "node:crypto"
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 
+import { config as loadDotenv } from "dotenv"
 import postgres from "postgres"
 
 import { ensureCleanPostgresEnv } from "../../src/shared/infrastructure/db/clean-db-env"
+import {
+	getFasttDataEnvironment,
+	prepareIsolatedTestDatabase,
+} from "../../src/shared/infrastructure/db/data-environment"
 
-ensureCleanPostgresEnv()
+function prepareMigrationDatabaseEnvironment() {
+	const dataEnvironment = getFasttDataEnvironment()
+	if (dataEnvironment !== "test") {
+		ensureCleanPostgresEnv()
+		return
+	}
+
+	loadDotenv({ path: ".env.test", override: false })
+	const isolated = prepareIsolatedTestDatabase()
+	if (!isolated.configured) {
+		throw new Error("A migration in test requires FASTT_TEST_DATABASE_URL.")
+	}
+	process.env.DIRECT_URL = isolated.directUrl ?? isolated.runtimeUrl
+}
+
+prepareMigrationDatabaseEnvironment()
 
 const MIGRATIONS_DIR = path.resolve("db/migrations")
 const LOCK_KEY = 8_370_202_607_22

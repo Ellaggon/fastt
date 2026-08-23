@@ -40,4 +40,5 @@ blob-report/
 .vercel
 .env.local
 .env*.local
+.env.test
 !.env.example
