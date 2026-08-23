@@ -1,0 +1,167 @@
+---
+import ProductCard from "@/components/productUI/ProductCard.astro"
+import Notice from "@/components/ui/Notice.astro"
+import SearchLayout from "@/layouts/SearchLayout.astro"
+import {
+	canonicalPublicPlaceSlug,
+	publicSearchHref,
+} from "@/lib/marketplace/publicDestinationRoutes"
+import { tourDifficultyLabel } from "@/lib/tours/tourDifficulty"
+import { getTourSearchSurface } from "@/lib/tours/tourSearchSurface"
+import { db, Destination, eq, or } from "@/shared/infrastructure/db/compat"
+
+const params = Astro.url.searchParams
+const legacyDestination =
+	params.get("destinationId") || params.get("destinationSlug") || params.get("destinationQuery")
+const canonicalSlug = canonicalPublicPlaceSlug(params.get("destino") || legacyDestination)
+if (canonicalSlug && params.get("destino") !== canonicalSlug) {
+	return Astro.redirect(publicSearchHref("tours", params), 308)
+}
+
+const startDate = params.get("startDate") || params.get("checkin") || null
+const effectiveStartDate = startDate && /^\d{4}-\d{2}-\d{2}$/.test(startDate) ? startDate : null
+const durationBucket = params.get("duration") || null
+const level = params.get("level") || null
+const categorySlugs = params
+	.getAll("category")
+	.map((value: string) => value.trim().toLowerCase())
+	.filter(Boolean)
+const sort = String(params.get("sort") ?? "relevance").trim()
+const priceMin = Number(params.get("priceMin"))
+const priceMax = Number(params.get("priceMax"))
+
+let destination: { id: string; name: string; department: string | null } | null = null
+if (canonicalSlug) {
+	const legacyLookupSlug = canonicalSlug.replace(/-department$/, "")
+	destination =
+		(await db
+			.select({ id: Destination.id, name: Destination.name, department: Destination.department })
+			.from(Destination)
+			.where(
+				or(eq(Destination.slug, legacyLookupSlug), eq(Destination.department, legacyLookupSlug))
+			)
+			.limit(1)
+			.then((rows) => rows[0] ?? null)) ?? null
+}
+
+const COOKIE_NAME = "fastt_tour_canary"
+let sessionSubjectId = Astro.cookies.get(COOKIE_NAME)?.value?.trim() || ""
+if (!sessionSubjectId) {
+	sessionSubjectId = crypto.randomUUID()
+	Astro.cookies.set(COOKIE_NAME, sessionSubjectId, {
+		path: "/",
+		httpOnly: true,
+		sameSite: "lax",
+		maxAge: 60 * 60 * 24 * 180,
+	})
+}
+
+let tours: Awaited<ReturnType<typeof getTourSearchSurface>>["cards"] = []
+let availability: Awaited<ReturnType<typeof getTourSearchSurface>>["meta"]["availability"] | null =
+	null
+let loadError: string | null = null
+if (effectiveStartDate) {
+	try {
+		const surface = await getTourSearchSurface({
+			startDate: effectiveStartDate,
+			destinationRowId: destination?.id ?? null,
+			destinationDepartment: destination?.department ?? null,
+			categorySlugs,
+			durationBucket,
+			level,
+			priceMin: Number.isFinite(priceMin) ? priceMin : null,
+			priceMax: Number.isFinite(priceMax) ? priceMax : null,
+			sort,
+			limit: 50,
+			sessionSubjectId,
+			host: Astro.url.host,
+		})
+		tours = surface.cards
+		availability = surface.meta.availability
+	} catch (error) {
+		console.error("canonical tour search failed", error)
+		loadError = "No se pudo cargar la disponibilidad de tours."
+	}
+}
+
+const levelLabel = level ? tourDifficultyLabel(level) || level : null
+---
+
+<SearchLayout
+	title="Buscar tours"
+	producType="tours"
+	description="Busca tours disponibles por fecha, duración, nivel y destino en Bolivia."
+	canonicalPath="/buscar/tours"
+>
+	<main class="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
+		<header class="border-b border-slate-200 pb-5">
+			<p class="text-sm font-semibold text-slate-500">Resultados de tours</p>
+			<h1 class="mt-1 text-3xl font-semibold text-slate-950">
+				{destination?.name ? `Tours en ${destination.name}` : "Encuentra un tour"}
+			</h1>
+			<p class="mt-2 text-sm text-slate-600">
+				{
+					effectiveStartDate
+						? `Salida: ${effectiveStartDate}`
+						: "Selecciona una fecha para ver salidas disponibles"
+				}
+				{durationBucket ? ` · ${durationBucket}` : ""}
+				{levelLabel ? ` · ${levelLabel}` : ""}
+			</p>
+		</header>
+
+		{
+			!effectiveStartDate ? (
+				<Notice variant="warning" title="Selecciona una fecha">
+					Mostramos solo tours con salida y precio disponibles para la fecha que elijas.
+				</Notice>
+			) : null
+		}
+		{
+			loadError || availability === "error" ? (
+				<Notice variant="error" title="No se pudo cargar">
+					{loadError ?? "Intenta de nuevo en unos minutos."}
+				</Notice>
+			) : null
+		}
+		{
+			!loadError && availability === "disabled" ? (
+				<Notice variant="info" title="Búsqueda de tours no disponible">
+					La reserva pública de tours no está abierta en este momento.
+				</Notice>
+			) : null
+		}
+		{
+			!loadError &&
+			availability !== "disabled" &&
+			availability !== "error" &&
+			effectiveStartDate ? (
+				<div class="grid grid-cols-1 gap-4">
+					{tours.length ? (
+						tours.map((tour) => (
+							<ProductCard
+								vertical="tour"
+								name={tour.name}
+								href={`/tours/${tour.productId}?departure=${encodeURIComponent(tour.departureDate)}&adults=1`}
+								image={tour.imageUrl || "/favicon-sbg.webp"}
+								alt={tour.name}
+								duration={tour.duration || ""}
+								difficultyLevel={tour.difficultyLevel || ""}
+								description={tour.description || ""}
+								priceUSD={tour.currency === "USD" ? tour.fromPrice : 0}
+								priceBOB={tour.currency === "BOB" ? tour.fromPrice : 0}
+								stars={tour.avgRating ?? 0}
+								reviewCount={tour.reviewCount}
+								services={[]}
+							/>
+						))
+					) : (
+						<Notice variant="info" title="Sin salidas para estos filtros">
+							Prueba otra fecha o amplía tus filtros.
+						</Notice>
+					)}
+				</div>
+			) : null
+		}
+	</main>
+</SearchLayout>

@@ -1,0 +1,66 @@
+import { readFileSync } from "node:fs"
+
+import { describe, expect, it } from "vitest"
+
+const read = (path: string) => readFileSync(path, "utf8")
+
+describe("public marketplace certification", () => {
+	it("provides Spanish metadata, canonical URLs and a skip link", () => {
+		const layout = read("src/layouts/Layout.astro")
+		const uiLayout = read("src/layouts/UILayout.astro")
+
+		expect(layout).toContain('<html lang="es">')
+		expect(layout).toContain('name="description"')
+		expect(layout).toContain('rel="canonical"')
+		expect(layout).toContain('href="#content"')
+		expect(uiLayout).toContain("canonicalPath={canonicalPath}")
+	})
+
+	it("keeps public landings semantically navigable and vertically isolated", () => {
+		const surface = read("src/components/marketplace/MarketplaceListingSurface.astro")
+		const hotels = read("src/pages/hotels/index.astro")
+		const tours = read("src/pages/tours/index.astro")
+
+		expect(surface).toContain('id="content"')
+		expect(surface).toContain("aria-labelledby")
+		expect(surface).toContain("aria-label={`Destinos populares")
+		expect(surface).toContain("isHotels ? <HotelSearchPanel /> : <TourSearchPanel />")
+		expect(hotels).toContain('vertical="hotels"')
+		expect(hotels).toContain('canonicalPath="/hotels"')
+		expect(tours).toContain('vertical="tours"')
+		expect(tours).toContain('canonicalPath="/tours"')
+	})
+
+	it("uses the canonical price and availability engines for searches", () => {
+		const accommodations = read("src/pages/buscar/alojamientos.astro")
+		const tours = read("src/pages/buscar/tours.astro")
+		const hotelSurface = read("src/lib/search/publicSearchSurface.ts")
+
+		expect(accommodations).toContain("getPublicSearchSurface")
+		expect(accommodations).toContain("result.totalPrice")
+		expect(accommodations).toContain("validStay")
+		expect(tours).toContain("getTourSearchSurface")
+		expect(tours).toContain("availability")
+		expect(hotelSurface).toContain("buildPriceQuote")
+		expect(hotelSurface).toContain("row.isAvailable")
+		expect(hotelSurface).toContain("row.hasPrice")
+	})
+
+	it("keeps redirects permanent and includes public routes in the performance budget", () => {
+		const hotelRedirect = read("src/pages/hotels/search.astro")
+		const tourRedirect = read("src/pages/tours/search.astro")
+		const budget = read("scripts/perf/html-budget.mjs")
+
+		expect(hotelRedirect).toMatch(/,\s*308\s*\)/)
+		expect(tourRedirect).toMatch(/,\s*308\s*\)/)
+		for (const path of [
+			'path: "/"',
+			'path: "/hotels"',
+			'path: "/tours"',
+			'path: "/buscar/alojamientos"',
+			'path: "/buscar/tours"',
+		]) {
+			expect(budget).toContain(path)
+		}
+	})
+})
