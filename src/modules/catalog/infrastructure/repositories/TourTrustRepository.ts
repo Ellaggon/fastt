@@ -9,6 +9,7 @@ import {
 	MarketplaceEvent,
 	Product,
 	ProductReview,
+	ProductStatus,
 	TourPrivateRequest,
 	TourSlotProfile,
 	Variant,
@@ -179,12 +180,15 @@ export class TourTrustRepository implements TourTrustRepositoryPort {
 			})
 			.from(Variant)
 			.innerJoin(Product, eq(Product.id, Variant.productId))
+			.innerJoin(ProductStatus, eq(ProductStatus.productId, Product.id))
 			.leftJoin(TourSlotProfile, eq(TourSlotProfile.variantId, Variant.id))
 			.where(
 				and(
 					eq(Variant.id, params.variantId),
 					eq(Variant.productId, params.productId),
-					eq(Variant.kind, "tour_slot")
+					eq(Variant.kind, "tour_slot"),
+					eq(Product.dataClass, "production"),
+					eq(ProductStatus.state, "published")
 				)
 			)
 			.then(first)

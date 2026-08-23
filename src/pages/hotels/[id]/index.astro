@@ -296,7 +296,7 @@ try {
 		.from(Product)
 		.leftJoin(Destination, eq(Destination.id, Product.destinationId))
 		.leftJoin(ProductLocation, eq(ProductLocation.productId, Product.id))
-		.where(eq(Product.id, productId))
+		.where(and(eq(Product.id, productId), eq(Product.dataClass, "production")))
 		.then(first)
 
 	if (!productResult) {
