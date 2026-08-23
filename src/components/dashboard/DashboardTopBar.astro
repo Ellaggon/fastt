@@ -1,17 +1,33 @@
 ---
-import { ChevronRight, LogOut, Settings, ShieldCheck, SlidersHorizontal } from "@lucide/astro"
+import {
+	ChevronRight,
+	LogOut,
+	Menu,
+	Settings,
+	ShieldCheck,
+	SlidersHorizontal,
+	X,
+} from "@lucide/astro"
 
+import DashboardSidebar from "@/components/dashboard/DashboardSidebar.astro"
 import WorkspacePreferencesDrawer from "@/components/dashboard/WorkspacePreferencesDrawer.astro"
 import AccommodationContextSwitcher from "@/components/product/AccommodationContextSwitcher.astro"
+import FiscalScopeSwitcher from "@/components/tax-fees/FiscalScopeSwitcher.astro"
 import Button from "@/components/ui/Button.astro"
+import Drawer from "@/components/ui/Drawer.astro"
+import IconButton from "@/components/ui/IconButton.astro"
 import type { WorkspaceShellContext } from "@/lib/dashboard/workspaceRequestContext"
 import { routes } from "@/lib/routes"
+import type { WorkspaceNavigationScope } from "@/lib/workspace/verticalContext"
 
 interface Props {
 	workspaceContext: WorkspaceShellContext
+	workspaceScope: WorkspaceNavigationScope
+	pathname: string
+	currentPath: string
 }
 
-const { workspaceContext } = Astro.props
+const { workspaceContext, workspaceScope, pathname, currentPath } = Astro.props
 const user = workspaceContext.user
 const email = user?.email?.trim() || "Sin sesión"
 const accountInitial = email.slice(0, 1).toUpperCase()
@@ -35,30 +51,18 @@ const currentExperienceLabel =
 	workspaceContext.effectiveWorkspaceExperience === "professional" ? "Profesional" : "Esencial"
 const isFinancialWorkspace =
 	Astro.url.pathname === "/financial" || Astro.url.pathname.startsWith("/financial/")
+const isFiscalWorkspace =
+	Astro.url.pathname === "/provider/settings/tax-fees" ||
+	Astro.url.pathname.startsWith("/provider/settings/tax-fees/")
 const providerId = workspaceContext.provider?.providerId ?? ""
+const showContextSwitcher = Boolean(providerId) && (isFinancialWorkspace || isFiscalWorkspace)
 ---
 
-<header class="bg-black">
-	<div class="relative mx-auto flex min-h-14 max-w-7xl items-center gap-3 px-4 py-2.5 sm:px-6">
-		<a
-			href={routes.providerSettings()}
-			class="min-w-0 shrink-0 text-base font-semibold tracking-tight text-slate-100 lg:hidden"
-			data-astro-prefetch
-		>
-			Fastt
-		</a>
-		{
-			isFinancialWorkspace && providerId ? (
-				<div class="hidden min-w-0 items-center sm:flex">
-					<AccommodationContextSwitcher
-						providerId={providerId}
-						target="financial"
-						variant="topbar"
-					/>
-				</div>
-			) : null
-		}
-		<details class="relative ml-auto">
+<header class="relative z-40 bg-black">
+	<div
+		class="relative mx-auto grid min-h-14 max-w-7xl grid-cols-[2.25rem_minmax(0,1fr)_2.25rem] items-center gap-3 px-4 py-2.5 sm:px-6 lg:flex"
+	>
+		<details class="relative justify-self-start lg:order-last lg:ml-auto">
 			<summary
 				class="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-full border border-white/[0.08] bg-black text-sm font-semibold text-white transition hover:bg-white/[0.08] [&::-webkit-details-marker]:hidden"
 				aria-label="Cuenta"
@@ -67,7 +71,7 @@ const providerId = workspaceContext.provider?.providerId ?? ""
 				{accountInitial}
 			</summary>
 			<div
-				class="absolute right-0 z-50 mt-2 w-72 rounded-xl border border-white/[0.08] bg-black p-3 shadow-2xl"
+				class="absolute left-0 z-50 mt-2 w-72 rounded-xl border border-white/[0.08] bg-black p-3 shadow-2xl lg:left-auto lg:right-0"
 			>
 				<div class="flex items-center gap-3 border-b border-white/[0.08] pb-3">
 					<span
@@ -89,6 +93,7 @@ const providerId = workspaceContext.provider?.providerId ?? ""
 								variant="ghost"
 								class="h-auto w-full justify-start gap-3 rounded-md px-2.5 py-2.5 text-left text-slate-200 hover:bg-white/[0.08] hover:text-white focus:ring-white focus:ring-offset-slate-950"
 								data-workspace-preferences-open
+								data-drawer-open="workspace-preferences-drawer"
 								aria-controls="workspace-preferences-drawer"
 								aria-expanded="false"
 							>
@@ -137,16 +142,81 @@ const providerId = workspaceContext.provider?.providerId ?? ""
 				</a>
 			</div>
 		</details>
-		{
-			showProfessionalToggle ? (
-				<WorkspacePreferencesDrawer
-					preference={workspaceContext.workspaceExperience}
-					effectiveExperience={workspaceContext.effectiveWorkspaceExperience}
-					capabilities={workspaceContext.workspaceCapabilities}
-					lockedReason={lockedReason}
-					returnTo={returnTo}
-				/>
-			) : null
-		}
+
+		<div class="flex min-w-0 items-center justify-center lg:order-first lg:flex-1 lg:justify-start">
+			{
+				showContextSwitcher && isFinancialWorkspace ? (
+					<AccommodationContextSwitcher
+						providerId={providerId}
+						target="financial"
+						variant="topbar"
+					/>
+				) : showContextSwitcher ? (
+					<FiscalScopeSwitcher providerId={providerId} variant="topbar" />
+				) : (
+					<a
+						href={routes.providerSettings()}
+						class="truncate text-base font-semibold tracking-tight text-slate-100 lg:hidden"
+						data-astro-prefetch
+					>
+						Fastt
+					</a>
+				)
+			}
+		</div>
+
+		<IconButton
+			type="button"
+			variant="ghost"
+			size="sm"
+			label="Abrir menú"
+			class="size-9 justify-self-end rounded-full border border-white/[0.08] text-white hover:bg-white/[0.08] focus:ring-white focus:ring-offset-slate-950 lg:hidden"
+			data-drawer-open="workspace-mobile-nav"
+			aria-controls="workspace-mobile-nav"
+			aria-expanded="false"
+		>
+			<Menu size={18} stroke-width={2} aria-hidden="true" />
+		</IconButton>
 	</div>
+
+	{
+		showProfessionalToggle ? (
+			<WorkspacePreferencesDrawer
+				preference={workspaceContext.workspaceExperience}
+				effectiveExperience={workspaceContext.effectiveWorkspaceExperience}
+				capabilities={workspaceContext.workspaceCapabilities}
+				lockedReason={lockedReason}
+				returnTo={returnTo}
+			/>
+		) : null
+	}
+
+	<Drawer
+		id="workspace-mobile-nav"
+		side="right"
+		label="Menú"
+		class="fastt-side-sheet--dark max-w-80 text-slate-100"
+	>
+		<div class="flex items-center justify-between gap-3 border-b border-white/[0.08] px-4 py-3">
+			<p class="truncate text-base font-semibold text-white">Fastt</p>
+			<IconButton
+				type="button"
+				variant="ghost"
+				size="sm"
+				label="Cerrar menú"
+				class="fastt-modal-close size-9 rounded-full text-white hover:bg-white/[0.08] focus:ring-white focus:ring-offset-slate-950"
+				data-drawer-close
+			>
+				<X size={16} aria-hidden="true" />
+			</IconButton>
+		</div>
+		<div class="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+			<DashboardSidebar
+				pathname={pathname}
+				currentPath={currentPath}
+				workspaceContext={workspaceContext}
+				workspaceScope={workspaceScope}
+			/>
+		</div>
+	</Drawer>
 </header>

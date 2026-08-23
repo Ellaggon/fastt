@@ -23,7 +23,7 @@ const canonicalHref = canonicalPath ? new URL(canonicalPath, Astro.url.origin).h
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="description" content={description} />
-		<meta name="viewport" content="width=device-width" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		{canonicalHref ? <link rel="canonical" href={canonicalHref} /> : null}
 		{noindex ? <meta name="robots" content="noindex,follow" /> : null}
 		<link rel="icon" type="image/svg+xml" href="/favicon-sbg.webp" />

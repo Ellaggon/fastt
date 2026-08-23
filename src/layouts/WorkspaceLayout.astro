@@ -52,25 +52,15 @@ const operationalContext = resolveWorkspaceOperationalContext({
 			</aside>
 
 			<div class="flex min-h-screen min-w-0 flex-1 flex-col">
-				<DashboardTopBar workspaceContext={workspaceContext} />
+				<DashboardTopBar
+					workspaceContext={workspaceContext}
+					workspaceScope={workspaceScope}
+					pathname={pathname}
+					currentPath={currentPath}
+				/>
 				<main class="relative min-w-0 flex-1" data-workspace-main>
 					<WorkspaceNavigationPending />
-					<div class="mx-auto max-w-7xl min-w-0 px-3 py-4 sm:px-6 sm:py-8">
-						<div class="mb-4 sm:mb-6 lg:hidden">
-							<details
-								class="max-w-full overflow-hidden rounded-xl border border-white/[0.08] bg-black p-3 text-slate-100"
-							>
-								<summary class="cursor-pointer text-sm font-semibold text-white"> Menú </summary>
-								<div class="mt-4">
-									<DashboardSidebar
-										pathname={pathname}
-										currentPath={currentPath}
-										workspaceContext={workspaceContext}
-										workspaceScope={workspaceScope}
-									/>
-								</div>
-							</details>
-						</div>
+					<div class="mx-auto max-w-7xl min-w-0 px-4 py-4 sm:px-6 sm:py-8">
 						<slot />
 					</div>
 				</main>

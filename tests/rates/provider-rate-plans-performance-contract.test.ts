@@ -126,7 +126,7 @@ describe("provider rate plans performance contract", () => {
 
 		expect(middleware).toContain("workspaceContextPromise ??=")
 		expect(layout.match(/getWorkspaceContext\(\)/g)).toHaveLength(1)
-		expect(layout.match(/workspaceContext=\{workspaceContext\}/g)).toHaveLength(3)
+		expect(layout.match(/workspaceContext=\{workspaceContext\}/g)).toHaveLength(2)
 		expect(sidebar).not.toContain("getUserFromRequest")
 		expect(sidebar).not.toContain("getProviderSidebarData")
 		expect(topbar).not.toContain("getUserFromRequest")
