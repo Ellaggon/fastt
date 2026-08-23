@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 
 import TaxFeeWizard, {
 	type ApiWarning,
@@ -8,7 +8,7 @@ import TaxFeeWizard, {
 	type TaxFeeSuggestedDraft,
 } from "./TaxFeeWizard"
 import FiscalReviewCenter from "./FiscalReviewCenter"
-import { Badge, Button, Card, IconButton, Input, Notice, Select } from "../ui-react"
+import { Badge, Button, Card, DrawerFact, Input, Notice, Select, SideSheet } from "../ui-react"
 
 type TaxFeePageProps = {
 	initialDefinitions: DefinitionSummary[]
@@ -29,19 +29,6 @@ type SimulationCertification = {
 	isCurrent: boolean
 	quoteId: string | null
 	issuedAt: string | null
-}
-
-type SimulationReadinessIssue = {
-	id: string
-	title: string
-	description: string
-	actionLabel: string
-	href: string
-}
-
-type SimulationReadiness = {
-	context: unknown | null
-	issues: SimulationReadinessIssue[]
 }
 
 function formatDefinitionValue(definition: DefinitionSummary) {
@@ -134,6 +121,110 @@ function responsibilityLabel(definition: DefinitionSummary) {
 	)
 }
 
+function jurisdictionDetails(definition: DefinitionSummary) {
+	return (definition.jurisdictionJson ?? {}) as {
+		taxableBase?: string
+		exemptGuestResidenceCountries?: string[]
+		maxAmount?: number | string
+		maxNights?: number | string
+		seasons?: Array<{ from: string; to: string }>
+	}
+}
+
+function SheetIcon({ children }: { children: ReactNode }) {
+	return (
+		<svg
+			viewBox="0 0 24 24"
+			className="size-[18px]"
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="1.9"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+			aria-hidden="true"
+		>
+			{children}
+		</svg>
+	)
+}
+
+const sheetIcons = {
+	percent: (
+		<SheetIcon>
+			<circle cx="17" cy="7" r="2.2" />
+			<circle cx="7" cy="17" r="2.2" />
+			<path d="M19 5 5 19" />
+		</SheetIcon>
+	),
+	receipt: (
+		<SheetIcon>
+			<path d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12.5l-2-1-2 1-2-1-2 1-2-1-2 1-2-1z" />
+			<path d="M8 10h8M8 14h5" />
+		</SheetIcon>
+	),
+	wallet: (
+		<SheetIcon>
+			<rect x="3" y="6" width="18" height="13" rx="2" />
+			<path d="M3 10h18" />
+			<circle cx="16" cy="14.5" r="1" />
+		</SheetIcon>
+	),
+	calendar: (
+		<SheetIcon>
+			<rect x="3" y="5" width="18" height="16" rx="2" />
+			<path d="M8 3v4M16 3v4M3 11h18" />
+		</SheetIcon>
+	),
+	pin: (
+		<SheetIcon>
+			<path d="M12 21s7-5.3 7-11a7 7 0 1 0-14 0c0 5.7 7 11 7 11z" />
+			<circle cx="12" cy="10" r="2.2" />
+		</SheetIcon>
+	),
+	ban: (
+		<SheetIcon>
+			<circle cx="12" cy="12" r="9" />
+			<path d="m6 6 12 12" />
+		</SheetIcon>
+	),
+	gauge: (
+		<SheetIcon>
+			<path d="M5 19a9 9 0 1 1 14 0" />
+			<path d="M12 13v-3" />
+			<path d="m16 11-2.2 2.2" />
+		</SheetIcon>
+	),
+	moon: (
+		<SheetIcon>
+			<path d="M21 14.5A8.5 8.5 0 1 1 9.5 3 7 7 0 0 0 21 14.5z" />
+		</SheetIcon>
+	),
+	sun: (
+		<SheetIcon>
+			<circle cx="12" cy="12" r="4" />
+			<path d="M12 3v2M12 19v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M3 12h2M19 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4" />
+		</SheetIcon>
+	),
+	link: (
+		<SheetIcon>
+			<path d="M10 13a5 5 0 0 0 7.07 0l1.41-1.41a5 5 0 0 0-7.07-7.07L10 5.93" />
+			<path d="M14 11a5 5 0 0 0-7.07 0L5.52 12.4a5 5 0 0 0 7.07 7.07L14 18.07" />
+		</SheetIcon>
+	),
+	history: (
+		<SheetIcon>
+			<path d="M3 12a9 9 0 1 0 3-6.7" />
+			<path d="M3 4v5h5" />
+			<path d="M12 7v5l3 2" />
+		</SheetIcon>
+	),
+	list: (
+		<SheetIcon>
+			<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+		</SheetIcon>
+	),
+}
+
 export default function TaxFeePage(props: TaxFeePageProps) {
 	const [mode, setMode] = useState<PageMode>(
 		props.canManageFiscality ? (props.initialMode ?? "idle") : "idle"
@@ -162,8 +253,6 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 	const [simulationCertification, setSimulationCertification] =
 		useState<SimulationCertification | null>(null)
 	const [isCheckingSimulationCertification, setIsCheckingSimulationCertification] = useState(false)
-	const [simulationReadiness, setSimulationReadiness] = useState<SimulationReadiness | null>(null)
-	const [isCheckingSimulationReadiness, setIsCheckingSimulationReadiness] = useState(false)
 
 	const hasDefinitions = Array.isArray(definitions) && definitions.length > 0
 	const wizardMode: TaxFeeWizardMode = mode === "editing" ? "editing" : "creating"
@@ -176,9 +265,6 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 	)
 	const inspectedSimulatorHref = inspectedDefinition
 		? `/provider/settings/tax-fees/simulator?definitionId=${encodeURIComponent(inspectedDefinition.id)}${props.initialScopeId ? `&scope=${encodeURIComponent(props.initialScopeId)}` : ""}&returnTo=${encodeURIComponent(`/provider/settings/tax-fees?edit=${inspectedDefinition.id}&review=1${props.initialScopeId ? `&scope=${encodeURIComponent(props.initialScopeId)}` : ""}`)}`
-		: ""
-	const inspectedManualSimulatorHref = inspectedDefinition
-		? `/provider/settings/tax-fees/simulator?definitionId=${encodeURIComponent(inspectedDefinition.id)}&mode=manual${props.initialScopeId ? `&scope=${encodeURIComponent(props.initialScopeId)}` : ""}&returnTo=${encodeURIComponent(`/provider/settings/tax-fees?edit=${inspectedDefinition.id}&review=1${props.initialScopeId ? `&scope=${encodeURIComponent(props.initialScopeId)}` : ""}`)}`
 		: ""
 	const inspectedReviewHref = inspectedDefinition
 		? `/provider/settings/tax-fees?edit=${encodeURIComponent(inspectedDefinition.id)}&review=1`
@@ -213,45 +299,6 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 			cancelled = true
 		}
 	}, [inspectedDefinition?.id, inspectedDefinition?.operationalStatus])
-
-	useEffect(() => {
-		if (
-			!inspectedDefinition ||
-			inspectedDefinition.operationalStatus !== "draft" ||
-			!inspectedRuleIsComplete
-		) {
-			setSimulationReadiness(null)
-			setIsCheckingSimulationReadiness(false)
-			return
-		}
-		let cancelled = false
-		setSimulationReadiness(null)
-		setIsCheckingSimulationReadiness(true)
-		const params = new URLSearchParams({ definitionId: inspectedDefinition.id })
-		if (props.initialScopeId) params.set("scope", props.initialScopeId)
-		void fetch(`/api/provider/tax-fees/simulation-readiness?${params.toString()}`)
-			.then(async (response) => {
-				if (!response.ok) throw new Error("No se pudo revisar la preparación comercial")
-				return (await response.json()) as SimulationReadiness
-			})
-			.then((result) => {
-				if (!cancelled) setSimulationReadiness(result)
-			})
-			.catch(() => {
-				if (!cancelled) setSimulationReadiness(null)
-			})
-			.finally(() => {
-				if (!cancelled) setIsCheckingSimulationReadiness(false)
-			})
-		return () => {
-			cancelled = true
-		}
-	}, [
-		inspectedDefinition?.id,
-		inspectedDefinition?.operationalStatus,
-		inspectedRuleIsComplete,
-		props.initialScopeId,
-	])
 	const availableJurisdictions = useMemo(
 		() => [
 			...new Set(definitions.map(jurisdictionLabel).filter((value) => value !== "Sin definir")),
@@ -544,22 +591,22 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 			)}
 
 			<Card as="section" className="fastt-workspace-panel overflow-hidden p-4 text-slate-900">
-				<div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 pb-4">
-					<div>
-						<p className="text-xs font-semibold tracking-[0.08em] text-slate-500 uppercase">
+				<div className="flex flex-col gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+					<div className="min-w-0">
+						<p className="text-[0.6875rem] font-semibold tracking-[0.06em] text-slate-500 uppercase sm:text-xs sm:tracking-[0.08em]">
 							Definiciones
 						</p>
-						<h2 className="mt-1 text-lg font-semibold text-slate-950">
+						<h2 className="mt-1 text-base font-semibold text-slate-950 sm:text-lg">
 							Impuestos y cargos existentes
 						</h2>
-						<p className="mt-1 text-sm text-slate-600">
+						<p className="mt-1 text-sm leading-5 text-slate-600 sm:leading-6">
 							{definitions.length} total ·{" "}
 							{definitions.filter((definition) => definition.operationalStatus === "active").length}{" "}
 							activas
 						</p>
 					</div>
 					{hasDefinitions && props.canManageFiscality && (
-						<Button type="button" onClick={startCreating}>
+						<Button type="button" className="w-full sm:w-auto" onClick={startCreating}>
 							Crear
 						</Button>
 					)}
@@ -576,7 +623,7 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 			{!hasDefinitions ? (
 				<Card as="section" className="fastt-workspace-panel overflow-hidden p-4 text-slate-900">
 					<div className="fastt-empty-state border border-dashed border-slate-300 bg-slate-50 p-5">
-						<h3 className="text-lg font-semibold text-slate-950">
+						<h3 className="text-base font-semibold text-slate-950 sm:text-lg">
 							Aún no hay impuestos ni cargos configurados
 						</h3>
 						<p className="mt-2 text-sm leading-6 text-slate-600">
@@ -804,39 +851,22 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 			)}
 
 			{inspectedDefinition ? (
-				<div
-					className="fastt-modal-backdrop fixed inset-0 z-50 flex justify-end bg-slate-950/30"
-					role="dialog"
-					aria-modal="true"
-					aria-label={`Detalle de ${inspectedDefinition.name}`}
+				<SideSheet
+					className="!max-w-xl"
+					eyebrow="Detalle de regla"
+					title={inspectedDefinition.name}
+					description={
+						inspectedDefinition.currentVersion
+							? `Versión ${inspectedDefinition.currentVersion.version}`
+							: "Borrador sin publicar"
+					}
+					closeLabel="Cerrar detalle"
+					onClose={() => setInspectedDefinition(null)}
 				>
-					<aside className="h-full w-full max-w-xl overflow-y-auto bg-white p-5 text-slate-900 shadow-xl sm:p-6">
-						<div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
-							<div>
-								<p className="text-xs font-semibold tracking-[0.08em] text-slate-500 uppercase">
-									Detalle de regla
-								</p>
-								<h2 className="mt-1 text-xl font-semibold text-slate-950">
-									{inspectedDefinition.name}
-								</h2>
-								<p className="mt-1 text-sm text-slate-500">
-									{inspectedDefinition.currentVersion
-										? `Versión ${inspectedDefinition.currentVersion.version}`
-										: "Borrador sin publicar"}
-								</p>
-							</div>
-							<IconButton
-								label="Cerrar detalle"
-								size="sm"
-								variant="secondary"
-								onClick={() => setInspectedDefinition(null)}
-							>
-								×
-							</IconButton>
-						</div>
+					<div className="space-y-4">
 						{inspectedDefinition.operationalStatus === "draft" && (
-							<section className="border-b border-slate-200 py-5" aria-live="polite">
-								<p className="text-xs font-semibold tracking-[0.08em] text-slate-500 uppercase">
+							<section className="fastt-drawer-section p-5" aria-live="polite">
+								<p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
 									Siguiente paso
 								</p>
 								{!inspectedRuleIsComplete ? (
@@ -844,8 +874,8 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 										<h3 className="mt-2 text-base font-semibold text-slate-950">
 											Completa la definición
 										</h3>
-										<p className="mt-1 text-sm text-slate-600">
-											Agrega la jurisdicción antes de comprobar cómo se aplicará esta regla.
+										<p className="mt-1 text-sm leading-6 text-slate-600">
+											Falta la jurisdicción para poder comprobar cuánto se cobra.
 										</p>
 										<div className="mt-4">
 											<Button
@@ -860,108 +890,54 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 										</div>
 									</>
 								) : isCheckingSimulationCertification ? (
-									<p className="mt-2 text-sm text-slate-600">
-										Comprobando el estado de la simulación...
+									<p className="mt-2 text-sm leading-6 text-slate-600">
+										Revisando la comprobación...
 									</p>
 								) : simulationCertification?.isCurrent ? (
 									<>
 										<h3 className="mt-2 text-base font-semibold text-slate-950">
 											Lista para publicar
 										</h3>
-										<p className="mt-1 text-sm text-slate-600">
-											La simulación vigente confirmó el cálculo de esta versión
+										<p className="mt-1 text-sm leading-6 text-slate-600">
+											El cobro ya se comprobó
 											{simulationCertification.quoteId
 												? ` · ${simulationCertification.quoteId}`
 												: ""}
 											.
 										</p>
-										<div className="mt-4">
+										<div className="mt-4 flex flex-wrap gap-2">
 											<Button
 												href={inspectedReviewHref}
 												onClick={() => setInspectedDefinition(null)}
 											>
 												Revisar y publicar
 											</Button>
+											<Button
+												href={inspectedSimulatorHref}
+												variant="secondary"
+												onClick={() => setInspectedDefinition(null)}
+											>
+												Ver simulación
+											</Button>
 										</div>
 									</>
 								) : (
 									<>
 										<h3 className="mt-2 text-base font-semibold text-slate-950">
-											Comprueba cómo se cobrará al huésped
+											Comprueba el cobro
 										</h3>
-										<p className="mt-1 text-sm text-slate-600">
-											Usa una reserva de ejemplo para confirmar el importe, cuándo se cobra y quién
-											lo recauda. La simulación no modifica ventas.
+										<p className="mt-1 text-sm leading-6 text-slate-600">
+											Usa el simulador para ver cuánto pagaría el huésped sobre una tarifa y unas
+											fechas. No cambia reservas ni precios.
 										</p>
-										{isCheckingSimulationReadiness ? (
-											<p className="mt-4 text-sm text-slate-500">
-												Revisando precio, disponibilidad y calendario...
-											</p>
-										) : simulationReadiness?.issues.length ? (
-											<div
-												className="mt-4 space-y-3"
-												aria-label="Requisitos para una comprobación real"
+										<div className="mt-4">
+											<Button
+												href={inspectedSimulatorHref}
+												onClick={() => setInspectedDefinition(null)}
 											>
-												<Notice variant="warning" title="Prepara una cotización real">
-													<p>Completa estos puntos antes de certificar búsqueda y checkout.</p>
-													<ul className="mt-3 space-y-3">
-														{simulationReadiness.issues.map((issue) => (
-															<li
-																key={issue.id}
-																className="border-t border-amber-200/80 pt-3 first:border-t-0 first:pt-0"
-															>
-																<p className="font-semibold text-amber-950">{issue.title}</p>
-																<p>{issue.description}</p>
-																<Button
-																	href={issue.href}
-																	variant="secondary"
-																	size="sm"
-																	className="mt-2"
-																	onClick={() => setInspectedDefinition(null)}
-																>
-																	{issue.actionLabel}
-																</Button>
-															</li>
-														))}
-													</ul>
-												</Notice>
-												<div className="flex flex-wrap gap-2">
-													<Button
-														href={inspectedSimulatorHref}
-														onClick={() => setInspectedDefinition(null)}
-													>
-														Abrir comprobación
-													</Button>
-													<Button
-														href={inspectedManualSimulatorHref}
-														variant="secondary"
-														onClick={() => setInspectedDefinition(null)}
-													>
-														Usar escenario manual
-													</Button>
-												</div>
-												<p className="text-xs text-slate-500">
-													El escenario manual revisa el cálculo, pero no certifica la disponibilidad
-													ni el precio comercial.
-												</p>
-											</div>
-										) : (
-											<div className="mt-4 flex flex-wrap gap-2">
-												<Button
-													href={inspectedSimulatorHref}
-													onClick={() => setInspectedDefinition(null)}
-												>
-													Comprobar en Simulador
-												</Button>
-												<Button
-													href={inspectedManualSimulatorHref}
-													variant="secondary"
-													onClick={() => setInspectedDefinition(null)}
-												>
-													Usar escenario manual
-												</Button>
-											</div>
-										)}
+												Comprobar cobro
+											</Button>
+										</div>
 									</>
 								)}
 								<ol
@@ -983,148 +959,143 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 								</ol>
 							</section>
 						)}
-						<div className="divide-y divide-slate-200">
-							<section className="py-5">
-								<h3 className="font-semibold text-slate-950">Cálculo</h3>
-								<dl className="mt-3 grid grid-cols-2 gap-y-3 text-sm">
-									<div>
-										<dt className="text-slate-500">Monto</dt>
-										<dd className="mt-1 font-medium text-slate-950">
-											{formatDefinitionValue(inspectedDefinition)}
-										</dd>
-									</div>
-									<div>
-										<dt className="text-slate-500">Base imponible</dt>
-										<dd className="mt-1 font-medium text-slate-950">
-											{(inspectedDefinition.jurisdictionJson as any)?.taxableBase ===
-											"base_plus_included"
-												? "Base + incluidos"
-												: "Base de reserva"}
-										</dd>
-									</div>
-									<div>
-										<dt className="text-slate-500">Recauda</dt>
-										<dd className="mt-1 font-medium text-slate-950">
-											{responsibilityLabel(inspectedDefinition)}
-										</dd>
-									</div>
-									<div>
-										<dt className="text-slate-500">Vigencia</dt>
-										<dd className="mt-1 font-medium text-slate-950">
-											{inspectedDefinition.effectiveFrom || inspectedDefinition.effectiveTo
-												? `${inspectedDefinition.effectiveFrom ?? "Desde ahora"} · ${inspectedDefinition.effectiveTo ?? "Sin fecha de finalización"}`
-												: "Sin fecha de finalización"}
-										</dd>
-									</div>
-								</dl>
-							</section>
-							<section className="py-5">
-								<h3 className="font-semibold text-slate-950">Jurisdicción y excepciones</h3>
-								<p className="mt-2 text-sm text-slate-600">
+
+						<section className="fastt-drawer-section p-5">
+							<h3 className="text-base font-semibold text-slate-950">Cálculo</h3>
+							<div className="fastt-drawer-facts mt-4">
+								<DrawerFact title="Monto" icon={sheetIcons.percent}>
+									{formatDefinitionValue(inspectedDefinition)}
+								</DrawerFact>
+								<DrawerFact title="Base imponible" icon={sheetIcons.receipt}>
+									{jurisdictionDetails(inspectedDefinition).taxableBase === "base_plus_included"
+										? "Base + incluidos"
+										: "Base de reserva"}
+								</DrawerFact>
+								<DrawerFact title="Quién recauda" icon={sheetIcons.wallet}>
+									{responsibilityLabel(inspectedDefinition)}
+								</DrawerFact>
+								<DrawerFact title="Vigencia" icon={sheetIcons.calendar}>
+									{inspectedDefinition.effectiveFrom || inspectedDefinition.effectiveTo
+										? `${inspectedDefinition.effectiveFrom ?? "Desde ahora"} · ${inspectedDefinition.effectiveTo ?? "Sin fecha de finalización"}`
+										: "Sin fecha de finalización"}
+								</DrawerFact>
+							</div>
+						</section>
+
+						<section className="fastt-drawer-section p-5">
+							<h3 className="text-base font-semibold text-slate-950">Jurisdicción y excepciones</h3>
+							<div className="fastt-drawer-facts mt-4">
+								<DrawerFact title="Dónde aplica" icon={sheetIcons.pin}>
 									{jurisdictionLabel(inspectedDefinition)}
-								</p>
-								<p className="mt-3 text-sm text-slate-600">
-									Exenciones:{" "}
+								</DrawerFact>
+								<DrawerFact title="Exenciones" icon={sheetIcons.ban}>
 									{(
-										(inspectedDefinition.jurisdictionJson as any)?.exemptGuestResidenceCountries ??
-										[]
+										jurisdictionDetails(inspectedDefinition).exemptGuestResidenceCountries ?? []
 									).join(", ") || "Ninguna"}
-								</p>
-								<p className="mt-1 text-sm text-slate-600">
-									Tope: {(inspectedDefinition.jurisdictionJson as any)?.maxAmount ?? "No definido"}{" "}
-									· Noches:{" "}
-									{(inspectedDefinition.jurisdictionJson as any)?.maxNights ?? "Sin límite"}
-								</p>
-								<p className="mt-1 text-sm text-slate-600">
-									Temporadas:{" "}
-									{((inspectedDefinition.jurisdictionJson as any)?.seasons ?? []).length
-										? (inspectedDefinition.jurisdictionJson as any).seasons
-												.map((season: any) => `${season.from} a ${season.to}`)
+								</DrawerFact>
+								<DrawerFact title="Tope" icon={sheetIcons.gauge}>
+									{jurisdictionDetails(inspectedDefinition).maxAmount ?? "No definido"}
+								</DrawerFact>
+								<DrawerFact title="Noches" icon={sheetIcons.moon}>
+									{jurisdictionDetails(inspectedDefinition).maxNights ?? "Sin límite"}
+								</DrawerFact>
+								<DrawerFact title="Temporadas" icon={sheetIcons.sun}>
+									{(jurisdictionDetails(inspectedDefinition).seasons ?? []).length
+										? (jurisdictionDetails(inspectedDefinition).seasons ?? [])
+												.map((season) => `${season.from} a ${season.to}`)
 												.join(", ")
 										: "Sin temporadas"}
-								</p>
-							</section>
-							<details className="py-5">
-								<summary className="cursor-pointer text-sm font-medium text-slate-600">
-									Información técnica
-								</summary>
-								<div className="mt-3 flex items-center justify-between gap-3 text-sm">
-									<code className="break-all text-slate-600">{inspectedDefinition.code}</code>
-									<Button
-										type="button"
-										size="sm"
-										variant="ghost"
-										onClick={() => void navigator.clipboard?.writeText(inspectedDefinition.code)}
-									>
-										Copiar código
-									</Button>
+								</DrawerFact>
+							</div>
+						</section>
+
+						<section className="fastt-drawer-section p-5">
+							<h3 className="text-base font-semibold text-slate-950">Asignaciones y canales</h3>
+							{inspectedDefinition.assignments?.length ? (
+								<div className="fastt-drawer-facts mt-4">
+									{inspectedDefinition.assignments.map((assignment) => (
+										<DrawerFact
+											key={assignment.id}
+											title={`${scopeLabel(assignment, props.initialResources)} · ${assignment.channel ?? "Todos los canales"}`}
+											icon={sheetIcons.link}
+										>
+											{props.canManageFiscality ? (
+												<Button
+													type="button"
+													size="sm"
+													variant="ghost"
+													disabled={isUpdatingAssignment === assignment.id}
+													onClick={() =>
+														void updateAssignmentStatus(
+															assignment.id,
+															assignment.status === "active" ? "archived" : "active"
+														)
+													}
+												>
+													{assignment.status === "active" ? "Pausar" : "Reactivar"}
+												</Button>
+											) : assignment.status === "active" ? (
+												"Activa"
+											) : (
+												"Pausada"
+											)}
+										</DrawerFact>
+									))}
 								</div>
-							</details>
-							<section className="py-5">
-								<h3 className="font-semibold text-slate-950">Asignaciones y canales</h3>
-								{inspectedDefinition.assignments?.length ? (
-									<div className="mt-3 divide-y divide-slate-100 border-y border-slate-200">
-										{inspectedDefinition.assignments.map((assignment) => (
-											<div
-												className="flex items-center justify-between gap-3 py-2 text-sm"
-												key={assignment.id}
-											>
-												<span>
-													{scopeLabel(assignment, props.initialResources)} ·{" "}
-													{assignment.channel ?? "Todos los canales"}
-												</span>
-												{props.canManageFiscality ? (
-													<Button
-														type="button"
-														size="sm"
-														variant="ghost"
-														disabled={isUpdatingAssignment === assignment.id}
-														onClick={() =>
-															void updateAssignmentStatus(
-																assignment.id,
-																assignment.status === "active" ? "archived" : "active"
-															)
-														}
-													>
-														{assignment.status === "active" ? "Pausar" : "Reactivar"}
-													</Button>
-												) : (
-													<span className="text-slate-500">
-														{assignment.status === "active" ? "Activa" : "Pausada"}
-													</span>
-												)}
-											</div>
-										))}
-									</div>
-								) : (
-									<p className="mt-2 text-sm text-amber-700">No tiene asignaciones activas.</p>
-								)}
-							</section>
-							<section className="py-5">
-								<h3 className="font-semibold text-slate-950">Versión y actividad</h3>
-								<p className="mt-2 text-sm text-slate-600">
-									Última versión:{" "}
+							) : (
+								<div className="fastt-drawer-facts mt-4">
+									<DrawerFact title="Sin asignaciones" icon={sheetIcons.link}>
+										Esta regla todavía no se cobra en ningún producto, unidad o tarifa.
+									</DrawerFact>
+								</div>
+							)}
+						</section>
+
+						<section className="fastt-drawer-section p-5">
+							<h3 className="text-base font-semibold text-slate-950">Versión y actividad</h3>
+							<div className="fastt-drawer-facts mt-4">
+								<DrawerFact title="Última versión" icon={sheetIcons.history}>
 									{inspectedDefinition.currentVersion
 										? `v${inspectedDefinition.currentVersion.version} · ${new Date(inspectedDefinition.currentVersion.createdAt).toLocaleDateString("es-CL")}`
 										: "Aún no publicada"}
-								</p>
-								<div className="mt-3 space-y-1 text-sm text-slate-600">
-									{inspectedDefinition.auditTrail?.map((event, index) => (
-										<p key={`${event.action}-${index}`}>
-											{auditLabel(event.action)} ·{" "}
-											{new Date(event.createdAt).toLocaleDateString("es-CL")}
-										</p>
-									)) ?? <p>Sin actividad registrada.</p>}
-								</div>
-								<p className="mt-3 text-sm text-slate-500">
-									{simulationCertification?.isCurrent
-										? "La simulación vigente corresponde a la configuración actual."
-										: "Una modificación de la regla requiere volver a comprobar su cálculo antes de publicarla."}
-								</p>
-							</section>
-						</div>
+								</DrawerFact>
+								<DrawerFact title="Actividad" icon={sheetIcons.list} muted>
+									{inspectedDefinition.auditTrail?.length
+										? inspectedDefinition.auditTrail
+												.map(
+													(event) =>
+														`${auditLabel(event.action)} · ${new Date(event.createdAt).toLocaleDateString("es-CL")}`
+												)
+												.join(" · ")
+										: "Sin actividad registrada."}
+								</DrawerFact>
+							</div>
+							<p className="mt-4 text-sm leading-6 text-slate-500">
+								{simulationCertification?.isCurrent
+									? "La comprobación vigente corresponde a esta configuración."
+									: "Si cambias la regla, vuelve a comprobar el cobro antes de publicarla."}
+							</p>
+						</section>
+
+						<details className="fastt-drawer-section p-5">
+							<summary className="cursor-pointer text-sm font-medium text-slate-600">
+								Información técnica
+							</summary>
+							<div className="mt-3 flex items-center justify-between gap-3 text-sm">
+								<code className="break-all text-slate-600">{inspectedDefinition.code}</code>
+								<Button
+									type="button"
+									size="sm"
+									variant="ghost"
+									onClick={() => void navigator.clipboard?.writeText(inspectedDefinition.code)}
+								>
+									Copiar código
+								</Button>
+							</div>
+						</details>
+
 						{props.canManageFiscality ? (
-							<div className="flex flex-wrap gap-2 border-t border-slate-200 pt-4">
+							<div className="flex flex-wrap gap-2 pb-2">
 								<Button
 									type="button"
 									variant="secondary"
@@ -1167,8 +1138,8 @@ export default function TaxFeePage(props: TaxFeePageProps) {
 								)}
 							</div>
 						) : null}
-					</aside>
-				</div>
+					</div>
+				</SideSheet>
 			) : null}
 		</section>
 	)

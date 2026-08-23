@@ -8,12 +8,28 @@ import {
 	type ReactNode,
 } from "react"
 
-import { Button, Input, Notice, Select } from "../ui-react"
-import type { DefinitionSummary, TaxFeeScopeResources } from "./TaxFeeWizard"
+import { Button, Checkbox, DatesModal, Input, Notice, Select, TravelersPicker } from "../ui-react"
+import { fiscalIcons } from "./fiscal-icons"
 import type {
 	FiscalSimulationContext,
 	FiscalSimulationIssue,
 } from "@/lib/taxes-fees/fiscal-workspace-resources"
+import type { DefinitionSummary, TaxFeeScopeResources } from "./TaxFeeWizard"
+
+type SimulationNotice = {
+	variant: "warning" | "info" | "neutral"
+	title: string
+	intro: string
+	footer: string | null
+	allowsManualFallback: boolean
+}
+type ReadinessPayload = {
+	context: FiscalSimulationContext | null
+	issues: FiscalSimulationIssue[]
+	coverageIssues?: FiscalSimulationIssue[]
+	notice?: SimulationNotice | null
+	target?: { preferredProductId: string | null }
+}
 
 type Quote = {
 	quoteId: string
@@ -59,6 +75,8 @@ type Props = {
 	initialProductId?: string | null
 	recommendedContext?: FiscalSimulationContext | null
 	simulationIssues?: FiscalSimulationIssue[]
+	coverageIssues?: FiscalSimulationIssue[]
+	simulationNotice?: SimulationNotice | null
 	returnTo?: string | null
 }
 type FieldErrors = Partial<Record<"product" | "rate" | "checkIn" | "checkOut" | "base", string>>
@@ -118,6 +136,8 @@ export default function FiscalSimulator({
 	initialProductId = null,
 	recommendedContext = null,
 	simulationIssues = [],
+	coverageIssues = [],
+	simulationNotice = null,
 	returnTo = null,
 }: Props) {
 	const [productId, setProductId] = useState(
@@ -142,6 +162,10 @@ export default function FiscalSimulator({
 	const [residence, setResidence] = useState("")
 	const [currency, setCurrency] = useState(recommendedContext?.currency ?? "USD")
 	const [channel, setChannel] = useState<string>(recommendedContext?.channel ?? "web")
+	const [preparedContext, setPreparedContext] = useState(recommendedContext)
+	const [blockingIssues, setBlockingIssues] = useState(simulationIssues)
+	const [coverage, setCoverage] = useState(coverageIssues)
+	const [notice, setNotice] = useState(simulationNotice)
 	const [editingContext, setEditingContext] = useState(
 		Boolean(initialDefinitionId) && !recommendedContext ? true : !Boolean(initialDefinitionId)
 	)
@@ -153,7 +177,11 @@ export default function FiscalSimulator({
 	const [error, setError] = useState<string | null>(null)
 	const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
 	const [loading, setLoading] = useState(false)
+	const [isCheckingReadiness, setIsCheckingReadiness] = useState(false)
 	const resultRef = useRef<HTMLDivElement>(null)
+	const skipInitialReadinessFetch = useRef(true)
+	const productIdRef = useRef(productId)
+	productIdRef.current = productId
 
 	const variants = useMemo(
 		() => resources.variants.filter((variant) => variant.productId === productId),
@@ -170,9 +198,10 @@ export default function FiscalSimulator({
 	const selectedJurisdictionCountry = jurisdictionCountry(selectedDefinition)
 	const simulationCountry = selectedJurisdictionCountry || country
 	const canCompare = Boolean(selectedDefinition?.currentVersion)
-	const showingPreparedContext = Boolean(
-		selectedDefinition && recommendedContext && !editingContext
+	const ruleLockedFromDefinitions = Boolean(
+		returnTo && initialDefinitionId && selectedDefinition?.id === initialDefinitionId
 	)
+	const showingPreparedContext = Boolean(selectedDefinition && preparedContext && !editingContext)
 	const childrenCount = Math.max(0, Number(children) || 0)
 	const money = (value: number, selectedCurrency = currency) =>
 		new Intl.NumberFormat("es-CL", { style: "currency", currency: selectedCurrency }).format(value)
@@ -185,26 +214,100 @@ export default function FiscalSimulator({
 		if (!canCompare) setCompare(false)
 	}, [canCompare])
 
+	useEffect(() => {
+		const url = new URL(window.location.href)
+		if (definitionId) url.searchParams.set("definitionId", definitionId)
+		else url.searchParams.delete("definitionId")
+		window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`)
+	}, [definitionId])
+
+	useEffect(() => {
+		if (skipInitialReadinessFetch.current && definitionId === (initialDefinitionId ?? "")) {
+			skipInitialReadinessFetch.current = false
+			return
+		}
+		skipInitialReadinessFetch.current = false
+		if (!definitionId) {
+			setPreparedContext(null)
+			setBlockingIssues([])
+			setCoverage([])
+			setNotice(null)
+			setEditingContext(true)
+			setIsCheckingReadiness(false)
+			return
+		}
+		let cancelled = false
+		setIsCheckingReadiness(true)
+		setNotice(null)
+		setBlockingIssues([])
+		setCoverage([])
+		setPreparedContext(null)
+		const params = new URLSearchParams({ definitionId })
+		if (initialProductId) params.set("scope", initialProductId)
+		if (new URL(window.location.href).searchParams.get("mode") === "manual") {
+			params.set("mode", "manual")
+		}
+		void fetch(`/api/provider/tax-fees/simulation-readiness?${params.toString()}`)
+			.then(async (response) => {
+				if (!response.ok) throw new Error("No se pudo revisar esta regla")
+				return (await response.json()) as ReadinessPayload
+			})
+			.then((result) => {
+				if (cancelled) return
+				setPreparedContext(result.context)
+				setBlockingIssues(result.issues ?? [])
+				setCoverage(result.coverageIssues ?? [])
+				setNotice(result.notice ?? null)
+				if (result.context) applyPreparedContext(result.context)
+				else {
+					setEditingContext(true)
+					const nextProductId = result.target?.preferredProductId
+					if (nextProductId && nextProductId !== productIdRef.current) {
+						setProductId(nextProductId)
+						setVariantId("")
+						setRatePlanId("")
+					}
+				}
+			})
+			.catch(() => {
+				if (cancelled) return
+				setBlockingIssues([])
+				setCoverage([])
+				setNotice(null)
+			})
+			.finally(() => {
+				if (!cancelled) setIsCheckingReadiness(false)
+			})
+		return () => {
+			cancelled = true
+		}
+	}, [definitionId, initialProductId])
+
 	function clearPreview() {
 		setPreview(null)
 		setPublished(null)
 	}
 
-	function restoreRecommendedContext() {
-		if (!recommendedContext) return
-		setProductId(recommendedContext.productId)
-		setVariantId(recommendedContext.variantId)
-		setRatePlanId(recommendedContext.ratePlanId)
-		setBase(String(recommendedContext.baseAmount))
-		setCheckIn(recommendedContext.checkIn)
-		setCheckOut(recommendedContext.checkOut)
-		setAdults(String(recommendedContext.adults))
-		setChildren(String(recommendedContext.children))
-		setRooms(String(recommendedContext.rooms))
-		setCurrency(recommendedContext.currency)
-		setChannel(recommendedContext.channel)
+	function applyPreparedContext(context: FiscalSimulationContext) {
+		setProductId(context.productId)
+		setVariantId(context.variantId)
+		setRatePlanId(context.ratePlanId)
+		setBase(String(context.baseAmount))
+		setCheckIn(context.checkIn)
+		setCheckOut(context.checkOut)
+		setAdults(String(context.adults))
+		setChildren(String(context.children))
+		setRooms(String(context.rooms))
+		setCurrency(context.currency)
+		setChannel(context.channel)
 		setUseManualPrice(false)
+		setEditingContext(false)
 		clearPreview()
+	}
+
+	function restoreRecommendedContext() {
+		if (!preparedContext) return
+		applyPreparedContext(preparedContext)
 	}
 
 	function selectDefinition(nextDefinitionId: string) {
@@ -328,48 +431,44 @@ export default function FiscalSimulator({
 
 	return (
 		<section aria-labelledby="simulator-heading" className="space-y-0">
-			<div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 pb-5">
-				<div>
-					<p className="text-xs font-semibold tracking-[0.08em] text-slate-500 uppercase">
-						Certificación
-					</p>
-					<h2 id="simulator-heading" className="mt-1 text-lg font-semibold text-slate-950">
-						{selectedDefinition
-							? `Comprobar ${selectedDefinition.name}`
-							: "Simulador de cotización fiscal"}
-					</h2>
-					<p className="mt-1 text-sm text-slate-600">
-						No modifica reglas, asignaciones ni reservas.
-					</p>
-				</div>
-				<p className="max-w-xs text-sm text-slate-500">
-					Utiliza el mismo contrato de PriceQuote que búsqueda y checkout.
+			<div className="border-b border-slate-200 pb-8 sm:pb-12">
+				<p className="text-[0.6875rem] font-semibold tracking-[0.06em] text-slate-500 uppercase sm:text-xs sm:tracking-[0.08em]">
+					Certificación
 				</p>
-			</div>
-
-			{selectedDefinition ? (
-				<div className="-mx-4 grid gap-3 border-b border-slate-200 px-4 py-5 sm:-mx-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-6">
-					<div>
-						<p className="text-sm font-semibold text-slate-950">Regla que se comprueba</p>
-						<p className="mt-1 text-sm text-slate-600">
-							{selectedDefinition.name} <span className="text-slate-300">·</span>{" "}
-							{selectedDefinition.operationalStatus === "draft" ? "Borrador" : "Publicada"}
-						</p>
-					</div>
-					<div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600 sm:justify-end">
+				<h2
+					id="simulator-heading"
+					className="mt-1 text-base font-semibold text-slate-950 sm:text-lg"
+				>
+					{selectedDefinition
+						? `Comprobar ${selectedDefinition.name}`
+						: "Simulador de cotización fiscal"}
+				</h2>
+				{ruleLockedFromDefinitions && selectedDefinition ? (
+					<p className="mt-2 flex max-w-2xl flex-wrap gap-x-3 gap-y-1 text-sm text-slate-600">
 						<span>
 							{ruleValue} {appliesPerLabel(selectedDefinition.appliesPer)}
 						</span>
 						<span>{countryLabel(selectedJurisdictionCountry)}</span>
 						<span>Recauda {responsibilityLabel(selectedDefinition).toLowerCase()}</span>
-					</div>
-				</div>
-			) : (
+					</p>
+				) : null}
+				<p
+					className={`max-w-2xl text-sm leading-5 text-slate-600 sm:leading-6 ${
+						ruleLockedFromDefinitions ? "mt-2" : "mt-1"
+					}`}
+				>
+					Esta prueba no cambia reglas, asignaciones ni reservas. El precio se calcula igual que
+					cuando el huésped busca y reserva.
+				</p>
+			</div>
+
+			{ruleLockedFromDefinitions ? null : (
 				<Section
+					icon={fiscalIcons.file}
 					title="Regla a comprobar"
 					description="Selecciona un borrador o deja el campo vacío para revisar únicamente las reglas publicadas aplicables."
 				>
-					<Field label="Regla publicada o borrador" id="simulator-definition">
+					<Field label="Regla publicada o borrador" id="simulator-definition" className="max-w-2xl">
 						<Select value={definitionId} onChange={(event) => selectDefinition(event.target.value)}>
 							<option value="">Solo reglas publicadas aplicables</option>
 							{definitions.map((definition) => (
@@ -380,22 +479,47 @@ export default function FiscalSimulator({
 							))}
 						</Select>
 					</Field>
+					{selectedDefinition ? (
+						<p className="mt-3 flex max-w-2xl flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
+							<span>
+								{ruleValue} {appliesPerLabel(selectedDefinition.appliesPer)}
+							</span>
+							<span>{countryLabel(selectedJurisdictionCountry)}</span>
+							<span>Recauda {responsibilityLabel(selectedDefinition).toLowerCase()}</span>
+						</p>
+					) : null}
 				</Section>
 			)}
 
-			{selectedDefinition && !recommendedContext && simulationIssues.length ? (
-				<Notice className="mt-5 p-5" variant="warning" title="Falta preparar una cotización real">
-					<p className="max-w-2xl">
-						Para precargar una comprobación certificable, completa estas condiciones comerciales:
-					</p>
-					<ul className="mt-4 divide-y divide-amber-200/80">
-						{simulationIssues.map((issue) => (
+			{selectedDefinition && isCheckingReadiness ? (
+				<p className="mt-5 text-sm text-slate-500">
+					Revisando qué falta para comprobar esta regla...
+				</p>
+			) : null}
+
+			{selectedDefinition && notice && blockingIssues.length ? (
+				<Notice className="mt-5 p-5" variant={notice.variant} title={notice.title}>
+					<p className="max-w-2xl">{notice.intro}</p>
+					<ul
+						className={`mt-4 divide-y ${
+							notice.variant === "warning" ? "divide-amber-200/80" : "divide-slate-200"
+						}`}
+					>
+						{blockingIssues.map((issue) => (
 							<li
 								key={issue.id}
 								className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
 							>
 								<div className="min-w-0">
-									<p className="font-semibold text-amber-950">{issue.title}</p>
+									<p
+										className={
+											notice.variant === "warning"
+												? "font-semibold text-amber-950"
+												: "font-semibold text-slate-950"
+										}
+									>
+										{issue.title}
+									</p>
 									<p>{issue.description}</p>
 								</div>
 								<Button href={issue.href} variant="secondary" size="sm" className="shrink-0">
@@ -404,16 +528,45 @@ export default function FiscalSimulator({
 							</li>
 						))}
 					</ul>
-					<p className="mt-4 border-t border-amber-200/80 pt-4">
-						También puedes usar un importe de prueba para revisar solo el cálculo de este borrador;
-						esa opción no certifica búsqueda ni checkout.
-					</p>
+					{notice.footer ? (
+						<p
+							className={`mt-4 border-t pt-4 ${
+								notice.variant === "warning" ? "border-amber-200/80" : "border-slate-200"
+							}`}
+						>
+							{notice.footer}
+						</p>
+					) : null}
 				</Notice>
 			) : null}
 
-			{showingPreparedContext && recommendedContext ? (
+			{selectedDefinition && coverage.length ? (
+				<Notice className="mt-5 p-5" variant="neutral" title={coverage[0]?.title}>
+					<ul className="divide-y divide-slate-200">
+						{coverage.map((issue) => (
+							<li
+								key={issue.id}
+								className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
+							>
+								<div className="min-w-0">
+									{coverage.length > 1 ? (
+										<p className="font-semibold text-slate-950">{issue.title}</p>
+									) : null}
+									<p>{issue.description}</p>
+								</div>
+								<Button href={issue.href} variant="secondary" size="sm" className="shrink-0">
+									{issue.actionLabel}
+								</Button>
+							</li>
+						))}
+					</ul>
+				</Notice>
+			) : null}
+
+			{showingPreparedContext && preparedContext ? (
 				<PreparedContext
-					context={recommendedContext}
+					context={preparedContext}
+					definitionName={selectedDefinition?.name ?? "esta regla"}
 					jurisdiction={countryLabel(selectedJurisdictionCountry)}
 					residence={residence ? countryLabel(residence) : "No especificada"}
 					money={money}
@@ -422,10 +575,11 @@ export default function FiscalSimulator({
 			) : (
 				<>
 					<Section
+						icon={fiscalIcons.layers}
 						title="Contexto comercial"
 						description="Define la venta representativa sobre la que se comprobará el cálculo."
 					>
-						<div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-[1.35fr_1.15fr_1.15fr_0.9fr]">
+						<div className="grid items-start gap-3 md:grid-cols-2">
 							<Field label="Producto" id="simulator-product" error={fieldErrors.product} required>
 								<Select
 									value={productId}
@@ -500,66 +654,52 @@ export default function FiscalSimulator({
 					</Section>
 
 					<Section
+						icon={fiscalIcons.calendar}
 						title="Reserva de prueba"
 						description="Usa fechas y ocupación que representen una reserva real."
 					>
-						<div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
-							<Field label="Entrada" id="simulator-checkIn" error={fieldErrors.checkIn} required>
-								<Input
-									type="date"
-									value={checkIn}
-									onChange={(event) => {
-										setCheckIn(event.target.value)
-										clearPreview()
-									}}
-									aria-invalid={Boolean(fieldErrors.checkIn)}
-								/>
-							</Field>
-							<Field label="Salida" id="simulator-checkOut" error={fieldErrors.checkOut} required>
-								<Input
-									type="date"
-									min={checkIn || undefined}
-									value={checkOut}
-									onChange={(event) => {
-										setCheckOut(event.target.value)
-										clearPreview()
-									}}
-									aria-invalid={Boolean(fieldErrors.checkOut)}
-								/>
-							</Field>
-							<Field label="Habitaciones o cantidad" id="simulator-rooms">
-								<Input
-									min="1"
-									type="number"
-									value={rooms}
-									onChange={(event) => {
-										setRooms(event.target.value)
-										clearPreview()
-									}}
-								/>
-							</Field>
-							<Field label="Adultos" id="simulator-adults">
-								<Input
-									min="1"
-									type="number"
-									value={adults}
-									onChange={(event) => {
-										setAdults(event.target.value)
-										clearPreview()
-									}}
-								/>
-							</Field>
-							<Field label="Niños" id="simulator-children">
-								<Input
-									min="0"
-									type="number"
-									value={children}
-									onChange={(event) => {
-										setChildren(event.target.value)
-										clearPreview()
-									}}
-								/>
-							</Field>
+						<div className="grid items-start gap-3 sm:grid-cols-2 xl:grid-cols-3">
+							<DatesModal
+								id="simulator-checkIn"
+								label="Entrada"
+								value={checkIn}
+								required
+								error={fieldErrors.checkIn}
+								onChange={(next) => {
+									setCheckIn(next)
+									clearPreview()
+								}}
+							/>
+							<DatesModal
+								id="simulator-checkOut"
+								label="Salida"
+								value={checkOut}
+								min={checkIn || undefined}
+								required
+								error={fieldErrors.checkOut}
+								onChange={(next) => {
+									setCheckOut(next)
+									clearPreview()
+								}}
+							/>
+							<TravelersPicker
+								id="simulator-guests"
+								adults={Math.max(1, Number(adults) || 1)}
+								childrenCount={Math.max(0, Number(children) || 0)}
+								rooms={Math.max(1, Number(rooms) || 1)}
+								onAdultsChange={(value) => {
+									setAdults(String(value))
+									clearPreview()
+								}}
+								onChildrenChange={(value) => {
+									setChildren(String(value))
+									clearPreview()
+								}}
+								onRoomsChange={(value) => {
+									setRooms(String(value))
+									clearPreview()
+								}}
+							/>
 							{useManualPrice ? (
 								<Field
 									label="Importe base de prueba"
@@ -579,9 +719,7 @@ export default function FiscalSimulator({
 									/>
 								</Field>
 							) : null}
-						</div>
-						{childrenCount > 0 ? (
-							<div className="mt-4 max-w-sm">
+							{childrenCount > 0 ? (
 								<Field
 									label="Edades de niños"
 									id="simulator-childrenAges"
@@ -596,15 +734,16 @@ export default function FiscalSimulator({
 										}}
 									/>
 								</Field>
-							</div>
-						) : null}
+							) : null}
+						</div>
 					</Section>
 
 					<Section
+						icon={fiscalIcons.percent}
 						title="Condiciones fiscales"
 						description="Solo añade los datos del huésped que puedan cambiar la aplicación de la regla."
 					>
-						<div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+						<div className="grid items-start gap-3 md:grid-cols-2">
 							<Field
 								label="Residencia del huésped"
 								id="simulator-residence"
@@ -669,40 +808,32 @@ export default function FiscalSimulator({
 						</div>
 					</Section>
 
-					<div className="-mx-4 border-b border-slate-200 px-4 py-5 sm:-mx-6 sm:px-6">
-						<details className="group">
-							<summary className="cursor-pointer text-sm font-semibold text-slate-800 marker:text-slate-400">
-								Opciones avanzadas
-							</summary>
-							<div className="mt-4">
-								<label className="flex min-h-11 items-center gap-2 text-sm text-slate-700">
-									<input
-										type="checkbox"
-										checked={useManualPrice}
-										onChange={(event) => {
-											setUseManualPrice(event.target.checked)
-											clearPreview()
-										}}
-									/>
-									Usar un importe de prueba en lugar del precio efectivo
-								</label>
-								{canCompare ? (
-									<label className="mt-2 flex min-h-11 items-center gap-2 text-sm text-slate-700">
-										<input
-											type="checkbox"
-											checked={compare}
-											onChange={(event) => setCompare(event.target.checked)}
-										/>
-										Comparar este borrador con la versión publicada
-									</label>
-								) : selectedDefinition ? (
-									<p className="text-sm text-slate-500">
-										Esta es la primera publicación; aún no hay una versión anterior para comparar.
-									</p>
-								) : null}
-							</div>
-						</details>
-						{recommendedContext ? (
+					<Section
+						icon={fiscalIcons.sliders}
+						title="Opciones avanzadas"
+						description="Ajustes opcionales de esta comprobación."
+					>
+						<div className="flex flex-wrap gap-2">
+							<Checkbox
+								checked={useManualPrice}
+								onChange={(event) => {
+									setUseManualPrice(event.target.checked)
+									clearPreview()
+								}}
+							>
+								Usar un importe de prueba en lugar del precio efectivo
+							</Checkbox>
+							{canCompare ? (
+								<Checkbox checked={compare} onChange={(event) => setCompare(event.target.checked)}>
+									Comparar este borrador con la versión publicada
+								</Checkbox>
+							) : selectedDefinition ? (
+								<p className="self-center text-sm text-slate-500">
+									Esta es la primera publicación; aún no hay una versión anterior para comparar.
+								</p>
+							) : null}
+						</div>
+						{preparedContext ? (
 							<div className="mt-4 flex justify-end">
 								<Button
 									type="button"
@@ -717,17 +848,17 @@ export default function FiscalSimulator({
 								</Button>
 							</div>
 						) : null}
-					</div>
+					</Section>
 				</>
 			)}
 
-			<div className="flex flex-wrap items-center justify-between gap-4 py-5">
-				<p className="max-w-2xl text-sm text-slate-600">
+			<div className="flex flex-col-reverse gap-3 py-8 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-4 sm:py-12">
+				<p className="max-w-xl text-sm leading-5 text-slate-500 sm:mr-auto sm:leading-6">
 					{selectedDefinition?.operationalStatus === "draft"
 						? "El borrador se evalúa solo en esta cotización; no queda disponible para ventas."
 						: "La cotización aplica las reglas operativas al contexto que seleccionaste."}
 				</p>
-				<Button type="button" onClick={simulate} disabled={loading}>
+				<Button type="button" className="w-full sm:w-auto" onClick={simulate} disabled={loading}>
 					{loading ? "Calculando cotización" : "Simular cotización"}
 				</Button>
 			</div>
@@ -740,16 +871,16 @@ export default function FiscalSimulator({
 					className="grid gap-6 border-t border-slate-200 pt-6 outline-none xl:grid-cols-[minmax(0,1fr)_300px]"
 				>
 					<div className="border-y border-slate-200">
-						<div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 py-4">
-							<div>
-								<p className="text-xs font-semibold tracking-[0.08em] text-slate-500 uppercase">
+						<div className="flex flex-col gap-2 border-b border-slate-200 py-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-3">
+							<div className="min-w-0">
+								<p className="text-[0.6875rem] font-semibold tracking-[0.06em] text-slate-500 uppercase sm:text-xs sm:tracking-[0.08em]">
 									Recibo de simulación
 								</p>
-								<p className="mt-1 text-2xl font-semibold text-slate-950">
+								<p className="mt-1 text-xl font-semibold text-slate-950 sm:text-2xl">
 									{money(preview.quote.totalAmount, preview.quote.currency)}
 								</p>
 							</div>
-							<div className="text-right text-xs text-slate-500">
+							<div className="text-xs break-all text-slate-500 sm:text-right">
 								{preview.quote.quoteId}
 								<br />
 								{new Intl.DateTimeFormat("es", { dateStyle: "medium", timeStyle: "short" }).format(
@@ -923,12 +1054,14 @@ export default function FiscalSimulator({
 
 function PreparedContext({
 	context,
+	definitionName,
 	jurisdiction,
 	residence,
 	money,
 	onEdit,
 }: {
 	context: FiscalSimulationContext
+	definitionName: string
 	jurisdiction: string
 	residence: string
 	money: (value: number, currency?: string) => string
@@ -938,14 +1071,14 @@ function PreparedContext({
 	const checkIn = dateFormat.format(new Date(`${context.checkIn}T00:00:00.000Z`))
 	const checkOut = dateFormat.format(new Date(`${context.checkOut}T00:00:00.000Z`))
 	return (
-		<section className="border-b border-slate-200 py-6" aria-label="Escenario recomendado">
+		<section className="border-b border-slate-200 py-8 sm:py-12" aria-label="Escenario recomendado">
 			<div className="flex flex-wrap items-end justify-between gap-3">
 				<div>
 					<p className="text-xs font-semibold tracking-[0.08em] text-slate-500 uppercase">
 						Escenario recomendado
 					</p>
 					<p className="mt-1 text-sm text-slate-600">
-						Elegido por disponibilidad y precio para comprobar esta regla rápidamente.
+						Elegido por disponibilidad y precio para comprobar {definitionName} rápidamente.
 					</p>
 				</div>
 				<Button type="button" variant="ghost" size="sm" onClick={onEdit}>
@@ -1020,17 +1153,28 @@ function ScenarioRow({
 function Section({
 	title,
 	description,
+	icon,
 	children,
 }: {
 	title: string
 	description: string
+	icon?: ReactNode
 	children: ReactNode
 }) {
 	return (
-		<section className="border-b border-slate-200 py-5" aria-label={title}>
-			<div className="mb-4">
-				<h3 className="text-sm font-semibold text-slate-950">{title}</h3>
-				<p className="mt-1 text-sm text-slate-600">{description}</p>
+		<section className="border-b border-slate-200 py-8 sm:py-12" aria-label={title}>
+			<div className="mb-5 flex items-start gap-2.5 sm:mb-6 sm:gap-3">
+				{icon ? (
+					<span className="fastt-section-icon mt-0.5" aria-hidden="true">
+						{icon}
+					</span>
+				) : null}
+				<div className="min-w-0">
+					<h3 className="text-sm font-semibold text-slate-950">{title}</h3>
+					<p className="mt-1 text-xs leading-5 text-slate-600 sm:text-sm sm:leading-6">
+						{description}
+					</p>
+				</div>
 			</div>
 			{children}
 		</section>
@@ -1044,6 +1188,8 @@ function Field({
 	description,
 	error,
 	required = false,
+	compact = false,
+	className = "",
 }: {
 	label: string
 	id?: string
@@ -1051,6 +1197,8 @@ function Field({
 	description?: string
 	error?: string
 	required?: boolean
+	compact?: boolean
+	className?: string
 }) {
 	const message = error ?? description
 	const control = isValidElement<{ "id"?: string; "aria-describedby"?: string }>(children)
@@ -1060,30 +1208,38 @@ function Field({
 			})
 		: children
 	return (
-		<label
-			className="grid content-start gap-1.5 self-start text-sm font-medium text-slate-700"
-			htmlFor={id}
-		>
-			<span>
-				{label}
-				{required ? (
-					<span className="ml-1 text-slate-400" aria-hidden="true">
-						*
+		<div className={`min-w-0 ${className}`.trim()}>
+			<label
+				className={[
+					"fastt-prompt-field h-full",
+					compact ? "fastt-prompt-field--compact" : "",
+					error ? "fastt-prompt-field--invalid" : "",
+				]
+					.filter(Boolean)
+					.join(" ")}
+				htmlFor={id}
+			>
+				<span className="fastt-prompt-field__copy">
+					<span className="fastt-prompt-field__label">
+						{label}
+						{required ? (
+							<span className="fastt-prompt-field__required" aria-hidden="true">
+								*
+							</span>
+						) : null}
 					</span>
-				) : null}
-			</span>
-			{control}
+					{control}
+				</span>
+			</label>
 			{message ? (
-				<span
+				<p
 					id={id ? `${id}-message` : undefined}
-					className={
-						error ? "text-xs font-normal text-red-600" : "text-xs font-normal text-slate-500"
-					}
+					className={error ? "mt-1.5 text-xs text-red-600" : "mt-1.5 text-xs text-slate-500"}
 				>
 					{message}
-				</span>
+				</p>
 			) : null}
-		</label>
+		</div>
 	)
 }
 
@@ -1097,12 +1253,14 @@ function ReadOnlyField({
 	description: string
 }) {
 	return (
-		<div className="grid gap-1.5 text-sm font-medium text-slate-700">
-			<span>{label}</span>
-			<div className="fastt-soft-box flex h-11 items-center rounded-[var(--fastt-radius-control)] border border-slate-200 bg-slate-50 px-3 text-slate-700">
-				{value}
+		<div className="min-w-0">
+			<div className="fastt-prompt-field fastt-prompt-field--readonly">
+				<span className="fastt-prompt-field__copy">
+					<span className="fastt-prompt-field__label">{label}</span>
+					<span className="fastt-prompt-field__value">{value}</span>
+				</span>
 			</div>
-			<span className="text-xs font-normal text-slate-500">{description}</span>
+			<p className="mt-1.5 text-xs text-slate-500">{description}</p>
 		</div>
 	)
 }
