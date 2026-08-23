@@ -167,7 +167,8 @@ async function resolveHoldabilityFromView(params: {
 			primaryBlocker: SearchUnitView.primaryBlocker,
 		})
 		.from(SearchUnitView)
-		.where(and(...predicates))
+		.innerJoin(Product, eq(Product.id, SearchUnitView.productId))
+		.where(and(...predicates, eq(Product.dataClass, "production")))
 
 	let v2Rows: Array<{
 		variantId: string

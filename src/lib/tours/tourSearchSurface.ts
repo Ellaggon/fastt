@@ -235,6 +235,7 @@ async function loadTourSearchSurfaceCards(params: {
 				and(
 					eq(ProductCategory.vertical, "tour"),
 					eq(ProductCategory.isActive, true),
+					eq(ProductCategory.dataClass, "production"),
 					inArray(ProductCategory.slug, categorySlugs)
 				)
 			)
@@ -246,6 +247,7 @@ async function loadTourSearchSurfaceCards(params: {
 
 	const whereParts = [
 		sql`lower(${Product.productType}) = 'tour'`,
+		eq(Product.dataClass, "production"),
 		eq(ProductStatus.state, "published"),
 		eq(Variant.kind, "tour_slot"),
 		eq(Variant.isActive, true),
@@ -324,7 +326,10 @@ async function loadTourSearchSurfaceCards(params: {
 			TourSlotProfile,
 			and(eq(TourSlotProfile.variantId, Variant.id), eq(TourSlotProfile.isActive, true))
 		)
-		.leftJoin(ProductContent, eq(ProductContent.productId, Product.id))
+		.leftJoin(
+			ProductContent,
+			and(eq(ProductContent.productId, Product.id), eq(ProductContent.dataClass, "production"))
+		)
 		.leftJoin(Tour, eq(Tour.productId, Product.id))
 		.leftJoin(Destination, eq(Destination.id, Product.destinationId))
 		.leftJoin(Image, and(eq(Image.entityId, Product.id), eq(Image.isPrimary, true)))

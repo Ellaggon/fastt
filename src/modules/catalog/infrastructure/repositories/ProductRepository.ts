@@ -5,6 +5,8 @@ import {
 	eq,
 	inArray,
 	Product,
+	ProductGeoPlace,
+	LegacyDestinationGeoPlaceMap,
 	ProductContent,
 	ProductLocation,
 	ProductPreparationSnapshot,
@@ -66,13 +68,42 @@ export class ProductRepository implements ProductRepositoryPort {
 		productType: string
 		providerId?: string | null
 		destinationId: string
+		dataClass?: "production" | "demo" | "fixture" | "sandbox"
 	}): Promise<void> {
-		await db.insert(Product).values({
-			id: params.id,
-			name: params.name,
-			productType: params.productType,
-			providerId: params.providerId ?? null,
-			destinationId: params.destinationId,
+		await db.transaction(async (tx) => {
+			await tx.insert(Product).values({
+				id: params.id,
+				name: params.name,
+				productType: params.productType,
+				providerId: params.providerId ?? null,
+				destinationId: params.destinationId,
+				dataClass: params.dataClass ?? "production",
+			})
+
+			const mappedPlace = await tx
+				.select({ placeId: LegacyDestinationGeoPlaceMap.placeId })
+				.from(LegacyDestinationGeoPlaceMap)
+				.where(
+					and(
+						eq(LegacyDestinationGeoPlaceMap.legacyDestinationId, params.destinationId),
+						inArray(LegacyDestinationGeoPlaceMap.resolutionStatus, ["auto_matched", "confirmed"])
+					)
+				)
+				.then(first)
+
+			if (mappedPlace?.placeId) {
+				await tx
+					.insert(ProductGeoPlace)
+					.values({
+						id: `geo:product-place:${params.id}`,
+						productId: params.id,
+						placeId: mappedPlace.placeId,
+						role: "primary_discovery",
+						isPrimary: true,
+						source: "dual_write_legacy_destination",
+					})
+					.onConflictDoNothing()
+			}
 		})
 	}
 
@@ -85,6 +116,7 @@ export class ProductRepository implements ProductRepositoryPort {
 				productType: Product.productType,
 				providerId: Product.providerId,
 				destinationId: Product.destinationId,
+				dataClass: Product.dataClass,
 			})
 			.from(Product)
 			.where(eq(Product.id, productId))
@@ -101,6 +133,7 @@ export class ProductRepository implements ProductRepositoryPort {
 				productType: Product.productType,
 				providerId: Product.providerId,
 				destinationId: Product.destinationId,
+				dataClass: Product.dataClass,
 			})
 			.from(Product)
 			.where(and(eq(Product.id, productId), eq(Product.providerId, providerId)))
@@ -114,11 +147,19 @@ export class ProductRepository implements ProductRepositoryPort {
 		highlightsJson?: unknown | null
 		seoJson?: unknown | null
 	}): Promise<void> {
-		const existing = await db
-			.select({ productId: ProductContent.productId })
-			.from(ProductContent)
-			.where(eq(ProductContent.productId, params.productId))
-			.then(first)
+		const [existing, product] = await Promise.all([
+			db
+				.select({ productId: ProductContent.productId })
+				.from(ProductContent)
+				.where(eq(ProductContent.productId, params.productId))
+				.then(first),
+			db
+				.select({ dataClass: Product.dataClass })
+				.from(Product)
+				.where(eq(Product.id, params.productId))
+				.then(first),
+		])
+		if (!product) throw new Error("PRODUCT_NOT_FOUND")
 
 		if (!existing) {
 			await db.insert(ProductContent).values({
@@ -126,6 +167,7 @@ export class ProductRepository implements ProductRepositoryPort {
 				description: params.description ?? null,
 				highlightsJson: params.highlightsJson ?? null,
 				seoJson: params.seoJson ?? null,
+				dataClass: product.dataClass,
 			})
 			return
 		}
@@ -136,6 +178,7 @@ export class ProductRepository implements ProductRepositoryPort {
 				description: params.description ?? null,
 				highlightsJson: params.highlightsJson ?? null,
 				seoJson: params.seoJson ?? null,
+				dataClass: product.dataClass,
 			})
 			.where(eq(ProductContent.productId, params.productId))
 	}

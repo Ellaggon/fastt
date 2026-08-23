@@ -2,6 +2,7 @@
 import Breadcrumbs from "@/components/Breadcrumbs.astro"
 import SearchLayout from "@/layouts/SearchLayout.astro"
 import {
+	and,
 	asc,
 	db,
 	Destination,
@@ -35,10 +36,13 @@ const packages = await db
 	})
 	.from(Product)
 	.leftJoin(Destination, eq(Destination.id, Product.destinationId))
-	.leftJoin(ProductContent, eq(ProductContent.productId, Product.id))
+	.leftJoin(
+		ProductContent,
+		and(eq(ProductContent.productId, Product.id), eq(ProductContent.dataClass, "production"))
+	)
 	.leftJoin(ProductLocation, eq(ProductLocation.productId, Product.id))
 	.leftJoin(Package, eq(Package.productId, Product.id))
-	.where(sql`lower(${Product.productType}) = 'package'`)
+	.where(and(sql`lower(${Product.productType}) = 'package'`, eq(Product.dataClass, "production")))
 	.groupBy(Product.id)
 	.orderBy(asc(Product.name))
 	.limit(60)
