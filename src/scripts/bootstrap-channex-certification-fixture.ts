@@ -155,6 +155,7 @@ async function ensureFixtureIdentity() {
 			displayName: "Channex certification fixture",
 			status: "internal",
 			accountPurpose: "integration_certification",
+			dataClassification: "fixture",
 			createdAt: now,
 		})
 		.onConflictDoUpdate({
@@ -164,6 +165,7 @@ async function ensureFixtureIdentity() {
 				displayName: "Channex certification fixture",
 				status: "internal",
 				accountPurpose: "integration_certification",
+				dataClassification: "fixture",
 			},
 		})
 

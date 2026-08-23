@@ -1,167 +1,54 @@
 ---
-import Breadcrumbs from "@/components/Breadcrumbs.astro"
-import DepartmentCard from "@/components/DepartmentCard.astro"
-import { DEPARTMENTS } from "@/data/departments"
-import SearchLayout from "@/layouts/SearchLayout.astro"
+import MarketplaceListingSurface from "@/components/marketplace/MarketplaceListingSurface.astro"
 
-const breadcrumbsItems = [
-	{ name: "Home", href: "/" },
-	{ name: "Tours", href: "/tours", current: true },
+const popularDestinations = [
+	{ label: "La Paz", href: "/destinos/la-paz/tours" },
+	{ label: "Uyuni", href: "/destinos/uyuni/tours" },
+	{ label: "Santa Cruz", href: "/destinos/santa-cruz/tours" },
+	{ label: "Copacabana", href: "/destinos/copacabana/tours" },
+	{ label: "Cochabamba", href: "/destinos/cochabamba/tours" },
+]
+
+const exploreGroups = [
+	{
+		title: "Naturaleza",
+		links: [
+			{ label: "Salares y desiertos", href: "/destinos/uyuni/tours" },
+			{ label: "Selva y biodiversidad", href: "/destinos/beni/tours" },
+			{ label: "Montaña y altiplano", href: "/destinos/la-paz/tours" },
+		],
+	},
+	{
+		title: "Cultura",
+		links: [
+			{ label: "Historia y patrimonio", href: "/destinos/sucre/tours" },
+			{ label: "Gastronomía local", href: "/destinos/cochabamba/tours" },
+			{ label: "Experiencias urbanas", href: "/destinos/la-paz/tours" },
+		],
+	},
+	{
+		title: "Por duración",
+		links: [
+			{ label: "Medio día", href: "/buscar/tours?duration=lt1" },
+			{ label: "Día completo", href: "/buscar/tours?duration=1" },
+			{ label: "Varios días", href: "/buscar/tours?duration=2-3" },
+		],
+	},
+	{
+		title: "Antes de reservar",
+		links: [
+			{ label: "Cómo elegir un tour", href: "/help" },
+			{ label: "Tus viajes", href: "/trips" },
+		],
+	},
 ]
 ---
 
-<SearchLayout title="Tours en Bolivia" producType="tours">
-	<main
-		role="main"
-		id="content"
-		class="mx-auto my-8 max-w-7xl rounded-[var(--fastt-radius-card)] p-8 leading-relaxed shadow-lg"
-	>
-		<Breadcrumbs items={breadcrumbsItems} />
-
-		<h1 class="mb-5 mt-8 text-4xl font-bold text-gray-100">Tours en Bolivia</h1>
-		<p class="mb-8 text-gray-100">
-			Encuentra tours con duración, punto de encuentro, guía e inclusiones claras para tu aventura
-			en Bolivia.
-		</p>
-
-		<div class="flex flex-col gap-8 md:flex-row">
-			<ul
-				id="zonas-bolivia"
-				class="sidebar flex-shrink-0 rounded-[var(--fastt-radius-card)] bg-gray-50 p-6 shadow-md md:w-64"
-			>
-				<li class="mb-4 flex items-center text-lg font-semibold text-gray-900">
-					<i class="fi fi-up-dir mr-2 text-slate-700"></i> Zonas populares
-				</li>
-				<li>
-					<a
-						href="/tours/search?destinationQuery=la-paz"
-						class="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:text-slate-700"
-						>La Paz</a
-					>
-				</li>
-				<li>
-					<a
-						href="/tours/search?destinationQuery=uyuni"
-						class="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:text-slate-700"
-						>Uyuni</a
-					>
-				</li>
-				<li>
-					<a
-						href="/tours/search?destinationQuery=santa-cruz"
-						class="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:text-slate-700"
-						>Santa Cruz</a
-					>
-				</li>
-				<li>
-					<a
-						href="/tours/search?destinationQuery=copacabana"
-						class="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:text-slate-700"
-						>Copacabana</a
-					>
-				</li>
-				<li>
-					<a
-						href="/tours/search?destinationQuery=cochabamba"
-						class="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:text-slate-700"
-						>Cochabamba</a
-					>
-				</li>
-			</ul>
-
-			<!-- departamentos -->
-			<section class="listado mini flex-grow">
-				<ul class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-					{
-						DEPARTMENTS.map((dept, i) => (
-							<li>
-								<DepartmentCard
-									id={dept.id}
-									name={dept.name}
-									description={`Descubre tours y experiencias en ${dept.name}.`}
-									imageUrl={
-										dept.imageUrl ? dept.imageUrl : `https://picsum.photos/290/183?random=${i + 20}`
-									}
-									producType="tours"
-								/>
-							</li>
-						))
-					}
-				</ul>
-			</section>
-		</div>
-
-		<article class="links mt-12">
-			<h2 class="mb-6 text-3xl font-bold text-gray-100">Tours por tipo de experiencia</h2>
-			<div class="grid grid-cols-1 gap-8 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-				<section>
-					<h3 class="mb-4 text-xl font-semibold text-gray-100">Naturaleza</h3>
-					<ul class="m-0 list-none space-y-2 p-0">
-						<li>
-							<a href="/tours/search?destinationQuery=uyuni" class="text-slate-700 hover:underline"
-								>Salares y desiertos</a
-							>
-						</li>
-						<li>
-							<a
-								href="/tours/search?destinationQuery=amazonas"
-								class="text-slate-700 hover:underline">Selva y biodiversidad</a
-							>
-						</li>
-						<li>
-							<a
-								href="/tours/search?destinationQuery=altiplano"
-								class="text-slate-700 hover:underline">Altiplano</a
-							>
-						</li>
-					</ul>
-				</section>
-
-				<section>
-					<h3 class="mb-4 text-xl font-semibold text-gray-100">Cultura</h3>
-					<ul class="m-0 list-none space-y-2 p-0">
-						<li>
-							<a href="/tours/search?destinationQuery=la-paz" class="text-slate-700 hover:underline"
-								>City tours</a
-							>
-						</li>
-						<li>
-							<a href="/tours/search?destinationQuery=sucre" class="text-slate-700 hover:underline"
-								>Patrimonio histórico</a
-							>
-						</li>
-					</ul>
-				</section>
-
-				<section>
-					<h3 class="mb-4 text-xl font-semibold text-gray-100">Aventura</h3>
-					<ul class="m-0 list-none space-y-2 p-0">
-						<li>
-							<a
-								href="/tours/search?destinationQuery=cochabamba"
-								class="text-slate-700 hover:underline">Trekking</a
-							>
-						</li>
-						<li>
-							<a href="/tours/search?destinationQuery=la-paz" class="text-slate-700 hover:underline"
-								>Bicicleta y montaña</a
-							>
-						</li>
-					</ul>
-				</section>
-
-				<section>
-					<h3 class="mb-4 text-xl font-semibold text-gray-100">Duración</h3>
-					<ul class="m-0 list-none space-y-2 p-0">
-						<li>
-							<a href="/tours/search" class="text-slate-700 hover:underline">Medio día</a>
-						</li>
-						<li>
-							<a href="/tours/search" class="text-slate-700 hover:underline">Día completo</a>
-						</li>
-					</ul>
-				</section>
-			</div>
-		</article>
-	</main>
-</SearchLayout>
+<MarketplaceListingSurface
+	vertical="tours"
+	title="Tours y experiencias en Bolivia"
+	description="Descubre experiencias con información clara sobre duración, punto de encuentro e inclusiones."
+	canonicalPath="/tours"
+	popularDestinations={popularDestinations}
+	exploreGroups={exploreGroups}
+/>

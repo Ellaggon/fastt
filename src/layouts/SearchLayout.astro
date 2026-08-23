@@ -3,10 +3,10 @@ import HotelSearchPanel from "@/components/searchPanel/HotelSearchPanel.astro"
 import TourSearchPanel from "@/components/searchPanel/TourSearchPanel.astro"
 import UILayout from "@/layouts/UILayout.astro"
 
-const { title, producType } = Astro.props
+const { title, producType, description, canonicalPath } = Astro.props
 ---
 
-<UILayout title={title}>
+<UILayout title={title} description={description} canonicalPath={canonicalPath}>
 	<div id="intro" class="flex flex-col items-center justify-center gap-5 bg-white p-10 text-center">
 		<div class="w-full max-w-4xl">
 			{producType === "hotels" ? <HotelSearchPanel /> : null}

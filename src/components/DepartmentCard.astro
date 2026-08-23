@@ -5,9 +5,12 @@ interface Props {
 	description: string
 	imageUrl?: string
 	producType?: string
+	ctaLabel?: string
+	href?: string
 }
 
-const { id, name, description, imageUrl, producType } = Astro.props
+const { id, name, description, imageUrl, producType, ctaLabel, href: explicitHref } = Astro.props
+const href = explicitHref ?? `/${producType}/depts/${id}`
 ---
 
 <figure
@@ -22,15 +25,15 @@ const { id, name, description, imageUrl, producType } = Astro.props
 	/>
 	<figcaption class="p-4">
 		<h2 class="mb-2 text-xl font-semibold text-gray-900">
-			<a href={`/${producType}/depts/${id}`} class="transition hover:text-slate-950">{name}</a>
+			<a href={href} class="transition hover:text-slate-950">{name}</a>
 		</h2>
 		<p class="desc mb-4 line-clamp-3 text-sm text-gray-700">{description}</p>
 		<ul class="flex justify-end">
 			<li>
 				<a
-					href={`/${producType}/depts/${id}`}
+					href={href}
 					class="fastt-button inline-flex h-9 items-center justify-center rounded-[var(--fastt-radius-pill)] bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
-					>Ver {producType}</a
+					>{ctaLabel ?? `Ver ${producType}`}</a
 				>
 			</li>
 		</ul>

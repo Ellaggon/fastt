@@ -70,6 +70,7 @@ jobs:
       SUPABASE_DB_POOLER_URL: ${{ secrets.SUPABASE_DB_POOLER_URL }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      FASTT_DATA_ENV: test
       TOURS_CHECKOUT_ENABLED: "true"
       TOURS_CHECKIN_ENABLED: "true"
       TOURS_PUBLIC_SEARCH_ENABLED: "true"

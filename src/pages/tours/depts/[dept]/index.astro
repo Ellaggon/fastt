@@ -1,5 +1,9 @@
 ---
-return Astro.redirect(
-	`/tours/search?destinationQuery=${encodeURIComponent(Astro.params.dept || "")}`
-)
+import {
+	canonicalPublicDepartmentSlug,
+	publicDestinationHref,
+} from "@/lib/marketplace/publicDestinationRoutes"
+
+const canonicalSlug = canonicalPublicDepartmentSlug(Astro.params.dept)
+return Astro.redirect(canonicalSlug ? publicDestinationHref(canonicalSlug, "tours") : "/tours", 308)
 ---

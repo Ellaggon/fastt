@@ -7,6 +7,7 @@ export type ProductAggregate = {
 		productType: string
 		providerId?: string | null
 		destinationId: string
+		dataClass?: string
 	}
 	imagesCount: number
 	subtypeExists: boolean
@@ -68,6 +69,7 @@ export interface ProductRepositoryPort {
 		productType: string
 		providerId?: string | null
 		destinationId: string
+		dataClass?: string
 	}): Promise<void>
 
 	upsertProductContent(params: {

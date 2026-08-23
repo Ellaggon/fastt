@@ -1,3 +1,3 @@
-import { ensureCleanPostgresEnv } from "@/shared/infrastructure/db/clean-db-env"
-
-ensureCleanPostgresEnv()
+// Kept as the stable Vitest setup entrypoint for existing tooling.
+// Test database setup intentionally never loads .env.
+import "./isolated-test-data-env"

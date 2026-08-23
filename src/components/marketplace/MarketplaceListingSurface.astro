@@ -1,0 +1,152 @@
+---
+import { Compass, MapPin } from "@lucide/astro"
+
+import DepartmentCard from "@/components/DepartmentCard.astro"
+import HotelSearchPanel from "@/components/searchPanel/HotelSearchPanel.astro"
+import TourSearchPanel from "@/components/searchPanel/TourSearchPanel.astro"
+import { DEPARTMENTS } from "@/data/departments"
+import UILayout from "@/layouts/UILayout.astro"
+import {
+	canonicalPublicDepartmentSlug,
+	publicDestinationHref,
+} from "@/lib/marketplace/publicDestinationRoutes"
+
+type Vertical = "hotels" | "tours"
+
+interface LinkItem {
+	label: string
+	href: string
+}
+
+interface Props {
+	vertical: Vertical
+	title: string
+	description: string
+	canonicalPath: string
+	popularDestinations: LinkItem[]
+	exploreGroups: Array<{ title: string; links: LinkItem[] }>
+}
+
+const { vertical, title, description, canonicalPath, popularDestinations, exploreGroups } =
+	Astro.props as Props
+const isHotels = vertical === "hotels"
+const verticalLabel = isHotels ? "Alojamientos" : "Experiencias"
+const departmentDescription = (departmentName: string) =>
+	isHotels
+		? `Alojamientos para conocer ${departmentName} con calma y a tu ritmo.`
+		: `Tours y experiencias para descubrir ${departmentName} desde otra perspectiva.`
+const departmentCta = isHotels ? "Ver alojamientos" : "Ver experiencias"
+---
+
+<UILayout title={title} description={description} canonicalPath={canonicalPath}>
+	<div class="min-h-screen bg-slate-50 text-slate-950">
+		<header class="border-b border-slate-200 bg-white">
+			<div class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
+				<div class="grid gap-8 lg:grid-cols-[minmax(0,0.78fr)_minmax(34rem,1.22fr)] lg:items-end">
+					<div class="max-w-xl">
+						<div class="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-600">
+							<Compass class="h-4 w-4" aria-hidden="true" />
+							<span>{verticalLabel} en Bolivia</span>
+						</div>
+						<h1 class="text-3xl font-semibold tracking-normal text-slate-950 sm:text-4xl">
+							{title}
+						</h1>
+						<p class="mt-3 max-w-lg text-base leading-7 text-slate-600">{description}</p>
+					</div>
+					<div class="w-full">
+						{isHotels ? <HotelSearchPanel /> : <TourSearchPanel />}
+					</div>
+				</div>
+			</div>
+		</header>
+
+		<main id="content" class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
+			<section aria-labelledby="popular-title" class="border-b border-slate-200 pb-10">
+				<div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+					<div>
+						<p class="text-sm font-semibold text-slate-500">Empieza por un destino</p>
+						<h2 id="popular-title" class="mt-1 text-2xl font-semibold text-slate-950">
+							Destinos populares
+						</h2>
+					</div>
+					<p class="text-sm text-slate-500">Explora por ciudad, región o tipo de viaje.</p>
+				</div>
+				<nav aria-label={`Destinos populares de ${verticalLabel.toLowerCase()}`} class="mt-6">
+					<ul
+						class="grid grid-cols-1 divide-y divide-slate-200 border-y border-slate-200 sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-5"
+					>
+						{
+							popularDestinations.map((destination) => (
+								<li>
+									<a
+										href={destination.href}
+										class="group flex items-center justify-between gap-3 px-4 py-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-950"
+									>
+										<span>{destination.label}</span>
+										<MapPin
+											class="h-4 w-4 text-slate-400 transition-colors group-hover:text-slate-800"
+											aria-hidden="true"
+										/>
+									</a>
+								</li>
+							))
+						}
+					</ul>
+				</nav>
+			</section>
+
+			<section aria-labelledby="departments-title" class="pt-10 lg:pt-14">
+				<p class="text-sm font-semibold text-slate-500">Explora Bolivia</p>
+				<h2 id="departments-title" class="mt-1 text-2xl font-semibold text-slate-950">
+					{isHotels ? "Alojamientos por departamento" : "Experiencias por departamento"}
+				</h2>
+				<div class="mt-7 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+					{
+						DEPARTMENTS.map((department) => (
+							<DepartmentCard
+								id={department.id}
+								name={department.name}
+								description={departmentDescription(department.name)}
+								imageUrl={department.imageUrl}
+								producType={vertical}
+								ctaLabel={departmentCta}
+								href={publicDestinationHref(
+									canonicalPublicDepartmentSlug(department.id) ?? department.id,
+									isHotels ? "alojamientos" : "tours"
+								)}
+							/>
+						))
+					}
+				</div>
+			</section>
+
+			<section
+				aria-labelledby="explore-title"
+				class="mt-12 border-t border-slate-200 pt-10 lg:mt-14 lg:pt-12"
+			>
+				<h2 id="explore-title" class="text-2xl font-semibold text-slate-950">Sigue explorando</h2>
+				<div class="mt-6 grid grid-cols-1 gap-x-8 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
+					{
+						exploreGroups.map((group) => (
+							<section>
+								<h3 class="text-sm font-semibold text-slate-950">{group.title}</h3>
+								<ul class="mt-3 space-y-2 text-sm">
+									{group.links.map((link) => (
+										<li>
+											<a
+												href={link.href}
+												class="text-slate-600 hover:text-slate-950 hover:underline"
+											>
+												{link.label}
+											</a>
+										</li>
+									))}
+								</ul>
+							</section>
+						))
+					}
+				</div>
+			</section>
+		</main>
+	</div>
+</UILayout>

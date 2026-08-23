@@ -124,6 +124,7 @@ async function loadPublicSearchSurface(params: {
 		.where(
 			and(
 				eq(Product.destinationId, params.destinationId),
+				eq(Product.dataClass, "production"),
 				eq(SearchUnitView.occupancyKey, occupancyKey),
 				eq(SearchUnitView.currency, params.currency),
 				gte(SearchUnitView.date, params.checkIn),
