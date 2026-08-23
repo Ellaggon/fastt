@@ -936,6 +936,20 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		rationale: "Consumer hotel discovery and detail routes.",
 	},
 	{
+		pattern: "/destinos/**",
+		status: "public",
+		context: "public-marketplace",
+		owner: "Public Marketplace",
+		rationale: "Canonical destination-scoped marketplace discovery.",
+	},
+	{
+		pattern: "/buscar/**",
+		status: "public",
+		context: "public-marketplace",
+		owner: "Public Marketplace",
+		rationale: "Canonical marketplace search results.",
+	},
+	{
 		pattern: "/tours/**",
 		status: "public",
 		context: "public-marketplace",

@@ -1,0 +1,160 @@
+---
+import Notice from "@/components/ui/Notice.astro"
+import SearchLayout from "@/layouts/SearchLayout.astro"
+import {
+	canonicalPublicPlaceSlug,
+	publicSearchHref,
+} from "@/lib/marketplace/publicDestinationRoutes"
+import { getPublicSearchSurface } from "@/lib/search/publicSearchSurface"
+import { db, Destination, eq, or } from "@/shared/infrastructure/db/compat"
+
+const params = Astro.url.searchParams
+const legacyDestination =
+	params.get("destinationId") || params.get("destinationSlug") || params.get("destinationQuery")
+const canonicalSlug = canonicalPublicPlaceSlug(params.get("destino") || legacyDestination)
+if (canonicalSlug && params.get("destino") !== canonicalSlug) {
+	return Astro.redirect(publicSearchHref("alojamientos", params), 308)
+}
+
+const checkIn = (params.get("checkIn") || params.get("checkin") || "").trim()
+const checkOut = (params.get("checkOut") || params.get("checkout") || "").trim()
+const rooms = Math.max(1, Number(params.get("rooms") || 1))
+const adults = Math.max(1, Number(params.get("adults") || 2))
+const children = Math.max(0, Number(params.get("children") || 0))
+const validStay =
+	/^\d{4}-\d{2}-\d{2}$/.test(checkIn) && /^\d{4}-\d{2}-\d{2}$/.test(checkOut) && checkIn < checkOut
+
+let destination: { id: string; name: string } | null = null
+if (canonicalSlug) {
+	const legacyLookupSlug = canonicalSlug.replace(/-department$/, "")
+	destination =
+		(await db
+			.select({ id: Destination.id, name: Destination.name })
+			.from(Destination)
+			.where(
+				or(eq(Destination.slug, legacyLookupSlug), eq(Destination.department, legacyLookupSlug))
+			)
+			.limit(1)
+			.then((rows) => rows[0] ?? null)) ?? null
+}
+
+let results: Awaited<ReturnType<typeof getPublicSearchSurface>>["results"] = []
+let loadError: string | null = null
+if (destination && validStay) {
+	try {
+		results = (
+			await getPublicSearchSurface({
+				destinationId: destination.id,
+				checkIn,
+				checkOut,
+				rooms,
+				adults,
+				children,
+			})
+		).results
+	} catch (error) {
+		console.error("canonical accommodation search failed", error)
+		loadError = "No pudimos comprobar precios y disponibilidad en este momento."
+	}
+}
+
+const hasSearchContext = Boolean(destination && validStay)
+const formatMoney = (amount: number, currency: string) =>
+	new Intl.NumberFormat("es-BO", { style: "currency", currency }).format(amount)
+---
+
+<SearchLayout
+	title={destination ? `Alojamientos en ${destination.name}` : "Buscar alojamientos"}
+	producType="hotels"
+	description="Busca alojamientos con precio y disponibilidad para las fechas de tu viaje."
+	canonicalPath="/buscar/alojamientos"
+>
+	<main id="content" class="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
+		<header class="border-b border-slate-200 pb-5">
+			<p class="text-sm font-semibold text-slate-500">Resultados de alojamientos</p>
+			<h1 class="mt-1 text-3xl font-semibold text-slate-950">
+				{destination ? `Alojamientos en ${destination.name}` : "Encuentra dónde quedarte"}
+			</h1>
+			<p class="mt-2 text-sm text-slate-600">
+				{
+					hasSearchContext
+						? `${checkIn} a ${checkOut} · ${adults} adulto${adults === 1 ? "" : "s"} · ${rooms} habitación${rooms === 1 ? "" : "es"}`
+						: "Elige un destino y unas fechas para mostrar solo opciones vendibles."
+				}
+			</p>
+		</header>
+
+		{
+			!hasSearchContext ? (
+				<Notice variant="info" title="Completa destino y fechas">
+					Necesitamos un destino y una estancia válida para comprobar precio y disponibilidad.
+				</Notice>
+			) : null
+		}
+		{
+			loadError ? (
+				<Notice variant="error" title="No se pudo cargar">
+					{loadError}
+				</Notice>
+			) : null
+		}
+		{
+			hasSearchContext && !loadError && results.length === 0 ? (
+				<Notice variant="neutral" title="Sin opciones vendibles para estas fechas">
+					Prueba otras fechas, reduce el número de habitaciones o elige otro destino.
+				</Notice>
+			) : null
+		}
+		{
+			results.length ? (
+				<div class="divide-y divide-slate-200 border-y border-slate-200">
+					{results.map((result) => (
+						<article class="grid gap-5 py-6 sm:grid-cols-[12rem_minmax(0,1fr)_auto] sm:items-center">
+							{result.heroImage ? (
+								<img
+									src={result.heroImage}
+									alt={result.name}
+									class="aspect-[4/3] w-full object-cover"
+									loading="lazy"
+								/>
+							) : (
+								<div class="aspect-[4/3] bg-slate-100" aria-hidden="true" />
+							)}
+							<div>
+								<h2 class="text-xl font-semibold text-slate-950">
+									<a
+										href={`/hotels/${result.productId}?checkin=${encodeURIComponent(checkIn)}&checkout=${encodeURIComponent(checkOut)}&adults=${adults}&children=${children}&rooms=${rooms}`}
+										class="hover:underline"
+									>
+										{result.name}
+									</a>
+								</h2>
+								<p class="mt-2 text-sm text-slate-600">
+									{result.availableVariants} opción{result.availableVariants === 1 ? "" : "es"}{" "}
+									vendible{result.availableVariants === 1 ? "" : "s"}
+								</p>
+								<p class="mt-2 text-xs text-slate-500">
+									{result.taxes.hasExcluded
+										? "Impuestos o cargos pueden añadirse al total."
+										: "Impuestos y cargos incluidos cuando corresponda."}
+								</p>
+							</div>
+							<div class="sm:text-right">
+								<p class="text-xs font-medium text-slate-500">Total de la estancia</p>
+								<p class="mt-1 text-xl font-semibold text-slate-950">
+									{formatMoney(result.totalPrice, result.currency)}
+								</p>
+								<a
+									href={`/hotels/${result.productId}?checkin=${encodeURIComponent(checkIn)}&checkout=${encodeURIComponent(checkOut)}&adults=${adults}&children=${children}&rooms=${rooms}`}
+									class="mt-3 inline-flex text-sm font-semibold text-slate-950 hover:underline"
+								>
+									Ver alojamiento
+								</a>
+							</div>
+						</article>
+					))}
+				</div>
+			) : null
+		}
+	</main>
+</SearchLayout>

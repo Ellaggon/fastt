@@ -1,0 +1,35 @@
+---
+import MarketplaceDestinationResults from "@/components/marketplace/MarketplaceDestinationResults.astro"
+import { getPublicDestinationListings } from "@/lib/marketplace/publicDestinationListings"
+import {
+	canonicalPublicPlaceSlug,
+	publicSearchHref,
+	type PublicMarketplaceVertical,
+} from "@/lib/marketplace/publicDestinationRoutes"
+
+const rawVertical = Astro.params.vertical ?? ""
+const vertical: PublicMarketplaceVertical | null =
+	rawVertical === "alojamientos" || rawVertical === "tours" ? rawVertical : null
+if (!vertical) return Astro.redirect("/", 308)
+
+const sourceDestination =
+	Astro.url.searchParams.get("destino") ||
+	Astro.url.searchParams.get("destinationSlug") ||
+	Astro.url.searchParams.get("destinationQuery") ||
+	Astro.url.searchParams.get("destinationId")
+const canonicalSlug = canonicalPublicPlaceSlug(sourceDestination)
+if (canonicalSlug && Astro.url.searchParams.get("destino") !== canonicalSlug) {
+	return Astro.redirect(publicSearchHref(vertical, Astro.url.searchParams), 308)
+}
+
+const { destination, listings } = canonicalSlug
+	? await getPublicDestinationListings({ slug: canonicalSlug, vertical })
+	: { destination: null, listings: [] }
+---
+
+<MarketplaceDestinationResults
+	vertical={vertical}
+	destination={destination}
+	listings={listings}
+	searchParams={Astro.url.searchParams}
+/>
