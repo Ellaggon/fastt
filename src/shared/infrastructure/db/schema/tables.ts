@@ -46,6 +46,8 @@ export const Provider = pgTable(
 		status: txtOpt("status"),
 		/** Separates real commercial tenants from deliberately non-commercial QA tenants. */
 		accountPurpose: text("accountPurpose").default("commercial").notNull(),
+		/** Dataset ownership, independent from the tenant's commercial integration purpose. */
+		dataClassification: text("dataClassification").default("production").notNull(),
 		createdAt: ts("createdAt"),
 	},
 	(table) => [
@@ -53,6 +55,11 @@ export const Provider = pgTable(
 			"Provider_accountPurpose_check",
 			sql`${table.accountPurpose} IN ('commercial', 'internal_qa', 'integration_certification')`
 		),
+		check(
+			"Provider_dataClassification_check",
+			sql`${table.dataClassification} IN ('production', 'demo', 'fixture')`
+		),
+		index("Provider_dataClassification_idx").on(table.dataClassification),
 	]
 )
 
