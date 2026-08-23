@@ -7,11 +7,14 @@ import {
 	jsonb,
 	numeric,
 	pgTableCreator,
+	primaryKey,
 	real,
 	text,
 	timestamp,
+	unique,
 	uniqueIndex,
 } from "drizzle-orm/pg-core"
+import type { AnyPgColumn } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 const pgTable = pgTableCreator((name) => name)
@@ -66,6 +69,157 @@ export const Destination = pgTable(
 		slug: txt("slug"),
 	},
 	(table) => [uniqueIndex("Destination_slug_unique").on(table.slug)]
+)
+
+/**
+ * Canonical geographic catalog for marketplace discovery. Destination remains
+ * the legacy compatibility model until the dual-read migration is complete.
+ */
+export const GeoPlace = pgTable(
+	"GeoPlace",
+	{
+		id: pk(),
+		canonicalName: txt("canonicalName"),
+		normalizedName: txt("normalizedName"),
+		slug: txt("slug"),
+		placeType: txt("placeType"),
+		countryCode: txt("countryCode"),
+		parentId: txtOpt("parentId").references((): AnyPgColumn => GeoPlace.id),
+		mergedIntoId: txtOpt("mergedIntoId").references((): AnyPgColumn => GeoPlace.id),
+		centroidLat: real("centroidLat"),
+		centroidLng: real("centroidLng"),
+		boundingBoxJson: jsonb("boundingBoxJson"),
+		timezone: txtOpt("timezone"),
+		status: text("status").default("active").notNull(),
+		source: text("source").default("manual").notNull(),
+		sourceRef: txtOpt("sourceRef"),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		unique("GeoPlace_country_parent_type_normalized_unique")
+			.on(table.countryCode, table.parentId, table.placeType, table.normalizedName)
+			.nullsNotDistinct(),
+		uniqueIndex("GeoPlace_slug_unique").on(table.slug),
+		index("GeoPlace_parent_type_status_idx").on(table.parentId, table.placeType, table.status),
+		index("GeoPlace_country_type_status_idx").on(table.countryCode, table.placeType, table.status),
+		index("GeoPlace_mergedIntoId_idx").on(table.mergedIntoId),
+		check(
+			"GeoPlace_placeType_check",
+			sql`${table.placeType} IN ('country', 'admin_area_1', 'admin_area_2', 'city', 'locality', 'neighborhood', 'poi', 'natural_area')`
+		),
+		check("GeoPlace_countryCode_check", sql`${table.countryCode} ~ '^[A-Z]{2}$'`),
+		check("GeoPlace_status_check", sql`${table.status} IN ('active', 'hidden', 'merged')`),
+		check(
+			"GeoPlace_coordinates_check",
+			sql`(${table.centroidLat} IS NULL AND ${table.centroidLng} IS NULL) OR (${table.centroidLat} BETWEEN -90 AND 90 AND ${table.centroidLng} BETWEEN -180 AND 180)`
+		),
+		check(
+			"GeoPlace_parent_not_self_check",
+			sql`${table.parentId} IS NULL OR ${table.parentId} <> ${table.id}`
+		),
+		check(
+			"GeoPlace_merge_not_self_check",
+			sql`${table.mergedIntoId} IS NULL OR ${table.mergedIntoId} <> ${table.id}`
+		),
+	]
+)
+
+/** Materialized transitive hierarchy; phase 3 owns its backfill and maintenance. */
+export const GeoPlaceClosure = pgTable(
+	"GeoPlaceClosure",
+	{
+		ancestorId: txt("ancestorId").references(() => GeoPlace.id, { onDelete: "cascade" }),
+		descendantId: txt("descendantId").references(() => GeoPlace.id, { onDelete: "cascade" }),
+		depth: int("depth"),
+		createdAt: now("createdAt"),
+	},
+	(table) => [
+		primaryKey({ name: "GeoPlaceClosure_pkey", columns: [table.ancestorId, table.descendantId] }),
+		index("GeoPlaceClosure_descendant_depth_idx").on(table.descendantId, table.depth),
+		check("GeoPlaceClosure_depth_check", sql`${table.depth} >= 0`),
+		check(
+			"GeoPlaceClosure_self_depth_check",
+			sql`(${table.ancestorId} = ${table.descendantId} AND ${table.depth} = 0) OR (${table.ancestorId} <> ${table.descendantId} AND ${table.depth} > 0)`
+		),
+	]
+)
+
+/** Localized and historical search names for a canonical geographic place. */
+export const GeoPlaceAlias = pgTable(
+	"GeoPlaceAlias",
+	{
+		id: pk(),
+		placeId: txt("placeId").references(() => GeoPlace.id, { onDelete: "cascade" }),
+		locale: text("locale").default("es").notNull(),
+		alias: txt("alias"),
+		normalizedAlias: txt("normalizedAlias"),
+		aliasType: text("aliasType").default("alternate").notNull(),
+		isPreferred: boolDefault("isPreferred", false),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		uniqueIndex("GeoPlaceAlias_place_locale_normalized_unique").on(
+			table.placeId,
+			table.locale,
+			table.normalizedAlias
+		),
+		index("GeoPlaceAlias_normalized_locale_idx").on(table.normalizedAlias, table.locale),
+		check(
+			"GeoPlaceAlias_aliasType_check",
+			sql`${table.aliasType} IN ('primary', 'alternate', 'historic', 'transliteration', 'search')`
+		),
+	]
+)
+
+/** Editorial presentation by locale, distinct from the geographic identity. */
+export const GeoPlaceContent = pgTable(
+	"GeoPlaceContent",
+	{
+		id: pk(),
+		placeId: txt("placeId").references(() => GeoPlace.id, { onDelete: "cascade" }),
+		locale: text("locale").default("es").notNull(),
+		title: txtOpt("title"),
+		summary: txtOpt("summary"),
+		seoJson: jsonb("seoJson"),
+		heroImageId: txtOpt("heroImageId").references(() => Image.id, { onDelete: "set null" }),
+		publicationStatus: text("publicationStatus").default("draft").notNull(),
+		featuredRank: intOpt("featuredRank"),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		uniqueIndex("GeoPlaceContent_place_locale_unique").on(table.placeId, table.locale),
+		index("GeoPlaceContent_status_rank_idx").on(table.publicationStatus, table.featuredRank),
+		check(
+			"GeoPlaceContent_publicationStatus_check",
+			sql`${table.publicationStatus} IN ('draft', 'published', 'archived')`
+		),
+	]
+)
+
+/** Stable mappings to authoritative geocoders, suppliers and marketplace feeds. */
+export const GeoPlaceExternalId = pgTable(
+	"GeoPlaceExternalId",
+	{
+		id: pk(),
+		placeId: txt("placeId").references(() => GeoPlace.id, { onDelete: "cascade" }),
+		source: txt("source"),
+		externalId: txt("externalId"),
+		externalUrl: txtOpt("externalUrl"),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		uniqueIndex("GeoPlaceExternalId_source_external_unique").on(table.source, table.externalId),
+		uniqueIndex("GeoPlaceExternalId_place_source_external_unique").on(
+			table.placeId,
+			table.source,
+			table.externalId
+		),
+		index("GeoPlaceExternalId_place_source_idx").on(table.placeId, table.source),
+	]
 )
 
 export const RoomType = pgTable("RoomType", {
@@ -741,10 +895,150 @@ export const Product = pgTable(
 		lastUpdated: now("lastUpdated"),
 		providerId: txtOpt("providerId").references(() => Provider.id),
 		destinationId: txt("destinationId").references(() => Destination.id),
+		dataClass: text("dataClass").default("production").notNull(),
 	},
 	(table) => [
 		index("Product_providerId_productType_idx").on(table.providerId, table.productType),
 		index("Product_providerId_idx").on(table.providerId),
+	]
+)
+
+/**
+ * Product discovery geography. Product.destinationId remains available to the
+ * compatibility layer while phase 5 dual-read coverage is rolled out.
+ */
+export const ProductGeoPlace = pgTable(
+	"ProductGeoPlace",
+	{
+		id: pk(),
+		productId: txt("productId").references(() => Product.id, { onDelete: "cascade" }),
+		placeId: txt("placeId").references(() => GeoPlace.id),
+		role: text("role").default("primary_discovery").notNull(),
+		isPrimary: boolDefault("isPrimary", false),
+		source: text("source").default("manual").notNull(),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		uniqueIndex("ProductGeoPlace_product_place_role_unique").on(
+			table.productId,
+			table.placeId,
+			table.role
+		),
+		uniqueIndex("ProductGeoPlace_one_primary_product_unique")
+			.on(table.productId)
+			.where(sql`${table.isPrimary} = true`),
+		index("ProductGeoPlace_place_role_product_idx").on(table.placeId, table.role, table.productId),
+		index("ProductGeoPlace_product_role_idx").on(table.productId, table.role),
+		check(
+			"ProductGeoPlace_role_check",
+			sql`${table.role} IN ('primary_discovery', 'secondary_discovery', 'service_area', 'meeting_area')`
+		),
+		check(
+			"ProductGeoPlace_primary_role_check",
+			sql`${table.isPrimary} = false OR ${table.role} = 'primary_discovery'`
+		),
+	]
+)
+
+/**
+ * Evidence-backed equivalence from the legacy destination catalogue to the
+ * canonical geography. Legacy Destination rows are never deleted by a backfill.
+ */
+export const LegacyDestinationGeoPlaceMap = pgTable(
+	"LegacyDestinationGeoPlaceMap",
+	{
+		id: pk(),
+		legacyDestinationId: txt("legacyDestinationId").references(() => Destination.id),
+		placeId: txtOpt("placeId").references(() => GeoPlace.id),
+		resolutionStatus: text("resolutionStatus").default("unmatched").notNull(),
+		matchMethod: text("matchMethod").default("unmatched").notNull(),
+		confidence: intDefault("confidence", 0),
+		distanceMeters: intOpt("distanceMeters"),
+		evidenceJson: jsonb("evidenceJson"),
+		catalogVersion: txtOpt("catalogVersion"),
+		reviewedByUserId: txtOpt("reviewedByUserId").references(() => User.id),
+		reviewedAt: ts("reviewedAt"),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		uniqueIndex("LegacyDestinationGeoPlaceMap_legacyDestination_unique").on(
+			table.legacyDestinationId
+		),
+		index("LegacyDestinationGeoPlaceMap_place_status_idx").on(
+			table.placeId,
+			table.resolutionStatus
+		),
+		index("LegacyDestinationGeoPlaceMap_status_confidence_idx").on(
+			table.resolutionStatus,
+			table.confidence
+		),
+		check(
+			"LegacyDestinationGeoPlaceMap_resolutionStatus_check",
+			sql`${table.resolutionStatus} IN ('auto_matched', 'review_required', 'confirmed', 'unmatched', 'rejected')`
+		),
+		check(
+			"LegacyDestinationGeoPlaceMap_matchMethod_check",
+			sql`${table.matchMethod} IN ('name_department', 'coordinates', 'name_coordinates', 'manual', 'unmatched')`
+		),
+		check(
+			"LegacyDestinationGeoPlaceMap_confidence_check",
+			sql`${table.confidence} BETWEEN 0 AND 100`
+		),
+		check(
+			"LegacyDestinationGeoPlaceMap_resolved_place_check",
+			sql`${table.resolutionStatus} IN ('unmatched', 'rejected') OR ${table.placeId} IS NOT NULL`
+		),
+	]
+)
+
+/**
+ * Immutable-style operational evidence for the product geography backfill.
+ * ProductGeoPlace remains the serving relation; this table explains its origin
+ * and keeps unresolved rows available for a later human review workflow.
+ */
+export const ProductGeoPlaceBackfill = pgTable(
+	"ProductGeoPlaceBackfill",
+	{
+		id: pk(),
+		productId: txt("productId").references(() => Product.id, { onDelete: "cascade" }),
+		placeId: txtOpt("placeId").references(() => GeoPlace.id),
+		legacyDestinationMapId: txtOpt("legacyDestinationMapId").references(
+			() => LegacyDestinationGeoPlaceMap.id
+		),
+		resolutionStatus: text("resolutionStatus").default("unmatched").notNull(),
+		matchMethod: text("matchMethod").default("unmatched").notNull(),
+		confidence: intDefault("confidence", 0),
+		distanceMeters: intOpt("distanceMeters"),
+		evidenceJson: jsonb("evidenceJson"),
+		catalogVersion: txtOpt("catalogVersion"),
+		appliedProductGeoPlaceId: txtOpt("appliedProductGeoPlaceId").references(
+			() => ProductGeoPlace.id
+		),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		uniqueIndex("ProductGeoPlaceBackfill_product_unique").on(table.productId),
+		index("ProductGeoPlaceBackfill_place_status_idx").on(table.placeId, table.resolutionStatus),
+		index("ProductGeoPlaceBackfill_status_confidence_idx").on(
+			table.resolutionStatus,
+			table.confidence
+		),
+		check(
+			"ProductGeoPlaceBackfill_resolutionStatus_check",
+			sql`${table.resolutionStatus} IN ('auto_matched', 'review_required', 'confirmed', 'unmatched', 'superseded')`
+		),
+		check(
+			"ProductGeoPlaceBackfill_matchMethod_check",
+			sql`${table.matchMethod} IN ('legacy_destination', 'coordinates', 'address_coordinates', 'manual', 'unmatched')`
+		),
+		check("ProductGeoPlaceBackfill_confidence_check", sql`${table.confidence} BETWEEN 0 AND 100`),
+		check(
+			"ProductGeoPlaceBackfill_resolved_place_check",
+			sql`${table.resolutionStatus} IN ('unmatched', 'superseded') OR ${table.placeId} IS NOT NULL`
+		),
 	]
 )
 
@@ -797,6 +1091,7 @@ export const ProductCategory = pgTable(
 		vertical: txt("vertical"),
 		sortOrder: intDefault("sortOrder", 0),
 		isActive: boolDefault("isActive", true),
+		dataClass: text("dataClass").default("production").notNull(),
 		createdAt: now("createdAt"),
 	},
 	(table) => [
@@ -955,6 +1250,7 @@ export const ProductContent = pgTable("ProductContent", {
 	description: txtOpt("description"),
 	highlightsJson: jsonb("highlightsJson"),
 	seoJson: jsonb("seoJson"),
+	dataClass: text("dataClass").default("production").notNull(),
 })
 
 export const ProductLocation = pgTable("ProductLocation", {

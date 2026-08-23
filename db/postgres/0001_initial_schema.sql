@@ -135,6 +135,24 @@ CREATE TABLE "ProviderIntegrationMapping" (
 	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
+CREATE TABLE "ProviderIntegrationCertification" (
+	"id" text PRIMARY KEY,
+	"providerId" text NOT NULL,
+	"connectionId" text NOT NULL,
+	"vendorKey" text NOT NULL,
+	"fixtureProductId" text,
+	"status" text NOT NULL DEFAULT 'draft',
+	"suiteVersion" text,
+	"createdBy" text,
+	"activatedBy" text,
+	"startedAt" timestamp with time zone,
+	"completedAt" timestamp with time zone,
+	"expiresAt" timestamp with time zone,
+	"evidenceManifestJson" jsonb,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
 CREATE TABLE "ProviderIntegrationSyncRun" (
 	"id" text PRIMARY KEY,
 	"providerId" text NOT NULL,
@@ -157,24 +175,6 @@ CREATE TABLE "ProviderIntegrationSyncRun" (
 	"startedAt" timestamp with time zone NOT NULL DEFAULT now(),
 	"finishedAt" timestamp with time zone,
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
-);
-
-CREATE TABLE "ProviderIntegrationCertification" (
-	"id" text PRIMARY KEY,
-	"providerId" text NOT NULL,
-	"connectionId" text NOT NULL,
-	"vendorKey" text NOT NULL,
-	"fixtureProductId" text,
-	"status" text NOT NULL DEFAULT 'draft',
-	"suiteVersion" text,
-	"createdBy" text,
-	"activatedBy" text,
-	"startedAt" timestamp with time zone,
-	"completedAt" timestamp with time zone,
-	"expiresAt" timestamp with time zone,
-	"evidenceManifestJson" jsonb,
-	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
-	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
 CREATE TABLE "ProviderIntegrationSyncJob" (
@@ -457,6 +457,69 @@ CREATE TABLE "Destination" (
 	"slug" text NOT NULL
 );
 
+CREATE TABLE "GeoPlace" (
+	"id" text PRIMARY KEY,
+	"canonicalName" text NOT NULL,
+	"normalizedName" text NOT NULL,
+	"slug" text NOT NULL,
+	"placeType" text NOT NULL,
+	"countryCode" text NOT NULL,
+	"parentId" text,
+	"mergedIntoId" text,
+	"centroidLat" real,
+	"centroidLng" real,
+	"boundingBoxJson" jsonb,
+	"timezone" text,
+	"status" text NOT NULL DEFAULT 'active',
+	"source" text NOT NULL DEFAULT 'manual',
+	"sourceRef" text,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "GeoPlaceClosure" (
+	"ancestorId" text NOT NULL,
+	"descendantId" text NOT NULL,
+	"depth" integer NOT NULL,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "GeoPlaceAlias" (
+	"id" text PRIMARY KEY,
+	"placeId" text NOT NULL,
+	"locale" text NOT NULL DEFAULT 'es',
+	"alias" text NOT NULL,
+	"normalizedAlias" text NOT NULL,
+	"aliasType" text NOT NULL DEFAULT 'alternate',
+	"isPreferred" boolean NOT NULL DEFAULT false,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "GeoPlaceContent" (
+	"id" text PRIMARY KEY,
+	"placeId" text NOT NULL,
+	"locale" text NOT NULL DEFAULT 'es',
+	"title" text,
+	"summary" text,
+	"seoJson" jsonb,
+	"heroImageId" text,
+	"publicationStatus" text NOT NULL DEFAULT 'draft',
+	"featuredRank" integer,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "GeoPlaceExternalId" (
+	"id" text PRIMARY KEY,
+	"placeId" text NOT NULL,
+	"source" text NOT NULL,
+	"externalId" text NOT NULL,
+	"externalUrl" text,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
 CREATE TABLE "RoomType" (
 	"id" text PRIMARY KEY,
 	"name" text NOT NULL,
@@ -509,7 +572,51 @@ CREATE TABLE "Product" (
 	"creationDate" timestamp with time zone NOT NULL DEFAULT now(),
 	"lastUpdated" timestamp with time zone NOT NULL DEFAULT now(),
 	"providerId" text,
-	"destinationId" text NOT NULL
+	"destinationId" text NOT NULL,
+	"dataClass" text NOT NULL DEFAULT 'production'
+);
+
+CREATE TABLE "ProductGeoPlace" (
+	"id" text PRIMARY KEY,
+	"productId" text NOT NULL,
+	"placeId" text NOT NULL,
+	"role" text NOT NULL DEFAULT 'primary_discovery',
+	"isPrimary" boolean NOT NULL DEFAULT false,
+	"source" text NOT NULL DEFAULT 'manual',
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "LegacyDestinationGeoPlaceMap" (
+	"id" text PRIMARY KEY,
+	"legacyDestinationId" text NOT NULL,
+	"placeId" text,
+	"resolutionStatus" text NOT NULL DEFAULT 'unmatched',
+	"matchMethod" text NOT NULL DEFAULT 'unmatched',
+	"confidence" integer NOT NULL DEFAULT 0,
+	"distanceMeters" integer,
+	"evidenceJson" jsonb,
+	"catalogVersion" text,
+	"reviewedByUserId" text,
+	"reviewedAt" timestamp with time zone,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "ProductGeoPlaceBackfill" (
+	"id" text PRIMARY KEY,
+	"productId" text NOT NULL,
+	"placeId" text,
+	"legacyDestinationMapId" text,
+	"resolutionStatus" text NOT NULL DEFAULT 'unmatched',
+	"matchMethod" text NOT NULL DEFAULT 'unmatched',
+	"confidence" integer NOT NULL DEFAULT 0,
+	"distanceMeters" integer,
+	"evidenceJson" jsonb,
+	"catalogVersion" text,
+	"appliedProductGeoPlaceId" text,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
 CREATE TABLE "ProductOperationalSurface" (
@@ -536,73 +643,6 @@ CREATE TABLE "HouseRule" (
 	"type" text NOT NULL,
 	"payloadJson" jsonb NOT NULL,
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
-);
-
-CREATE TABLE "ProductCategory" (
-	"id" text PRIMARY KEY,
-	"slug" text NOT NULL,
-	"name" text NOT NULL,
-	"vertical" text NOT NULL,
-	"sortOrder" integer NOT NULL DEFAULT 0,
-	"isActive" boolean NOT NULL DEFAULT true,
-	"createdAt" timestamp with time zone DEFAULT now()
-);
-
-CREATE TABLE "ProductCategoryLink" (
-	"id" text PRIMARY KEY,
-	"productId" text NOT NULL,
-	"categoryId" text NOT NULL,
-	"createdAt" timestamp with time zone DEFAULT now()
-);
-
-CREATE TABLE "ProductReview" (
-	"id" text PRIMARY KEY,
-	"productId" text NOT NULL,
-	"userId" text,
-	"bookingId" text,
-	"rating" integer NOT NULL,
-	"body" text,
-	"status" text NOT NULL DEFAULT 'pending',
-	"createdAt" timestamp with time zone DEFAULT now(),
-	"updatedAt" timestamp with time zone DEFAULT now(),
-	CONSTRAINT "ProductReview_rating_check" CHECK ("rating" >= 1 AND "rating" <= 5),
-	CONSTRAINT "ProductReview_status_check" CHECK ("status" IN ('published', 'pending', 'rejected', 'hidden'))
-);
-
-CREATE TABLE "MarketplaceEvent" (
-	"id" text PRIMARY KEY,
-	"eventType" text NOT NULL,
-	"surface" text NOT NULL,
-	"sourceProductId" text,
-	"targetProductId" text,
-	"destinationId" text,
-	"bookingId" text,
-	"sessionId" text,
-	"metaJson" jsonb,
-	"createdAt" timestamp with time zone DEFAULT now(),
-	CONSTRAINT "MarketplaceEvent_eventType_check"
-		CHECK ("eventType" IN ('impression', 'click', 'booking_attributed'))
-);
-
-CREATE TABLE "TourPrivateRequest" (
-	"id" text PRIMARY KEY,
-	"productId" text NOT NULL,
-	"variantId" text NOT NULL,
-	"providerId" text NOT NULL,
-	"userId" text,
-	"departureDate" date NOT NULL,
-	"partyJson" jsonb NOT NULL,
-	"contactName" text NOT NULL,
-	"contactEmail" text NOT NULL,
-	"contactPhone" text,
-	"message" text,
-	"status" text NOT NULL DEFAULT 'pending',
-	"slaDueAt" timestamp with time zone,
-	"providerNote" text,
-	"createdAt" timestamp with time zone DEFAULT now(),
-	"updatedAt" timestamp with time zone DEFAULT now(),
-	CONSTRAINT "TourPrivateRequest_status_check"
-		CHECK ("status" IN ('pending', 'accepted', 'declined', 'expired', 'cancelled'))
 );
 
 CREATE TABLE "ProductStatus" (
@@ -632,7 +672,8 @@ CREATE TABLE "ProductContent" (
 	"productId" text PRIMARY KEY,
 	"description" text,
 	"highlightsJson" jsonb,
-	"seoJson" jsonb
+	"seoJson" jsonb,
+	"dataClass" text NOT NULL DEFAULT 'production'
 );
 
 CREATE TABLE "ProductLocation" (
@@ -663,6 +704,102 @@ CREATE TABLE "Tour" (
 	"excludesJson" jsonb,
 	"categoriesJson" jsonb,
 	"pickupJson" jsonb
+);
+
+CREATE TABLE "TourSlotProfile" (
+	"variantId" text PRIMARY KEY,
+	"departureTime" text NOT NULL,
+	"durationMinutes" integer,
+	"maxPax" integer NOT NULL,
+	"languageCode" text NOT NULL,
+	"bookingMode" text NOT NULL DEFAULT 'shared',
+	"meetingPointOverrideJson" jsonb,
+	"isActive" boolean NOT NULL DEFAULT true,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "TourDepartureInstance" (
+	"id" text PRIMARY KEY,
+	"providerId" text NOT NULL,
+	"variantId" text NOT NULL,
+	"date" date NOT NULL,
+	"departureTimeOverride" text,
+	"meetingPointOverrideJson" jsonb,
+	"notes" text,
+	"isCancelled" boolean NOT NULL DEFAULT false,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "TourOperationalResource" (
+	"id" text PRIMARY KEY,
+	"providerId" text NOT NULL,
+	"userId" text,
+	"type" text NOT NULL,
+	"name" text NOT NULL,
+	"status" text NOT NULL DEFAULT 'active',
+	"languagesJson" jsonb,
+	"capacity" integer,
+	"credentialsJson" jsonb,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "TourResourceAssignment" (
+	"id" text PRIMARY KEY,
+	"providerId" text NOT NULL,
+	"variantId" text NOT NULL,
+	"date" date NOT NULL,
+	"resourceId" text NOT NULL,
+	"role" text NOT NULL,
+	"status" text NOT NULL DEFAULT 'assigned',
+	"assignedBy" text,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "TourTicketType" (
+	"id" text PRIMARY KEY,
+	"productId" text NOT NULL,
+	"code" text NOT NULL,
+	"label" text NOT NULL,
+	"minAge" integer,
+	"maxAge" integer,
+	"sortOrder" integer NOT NULL DEFAULT 0,
+	"isActive" boolean NOT NULL DEFAULT true,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "TourBookingQuestion" (
+	"id" text PRIMARY KEY,
+	"productId" text NOT NULL,
+	"code" text NOT NULL,
+	"label" text NOT NULL,
+	"isRequired" boolean NOT NULL DEFAULT false,
+	"sortOrder" integer NOT NULL DEFAULT 0,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "TourPrivateRequest" (
+	"id" text PRIMARY KEY,
+	"productId" text NOT NULL,
+	"variantId" text NOT NULL,
+	"providerId" text NOT NULL,
+	"userId" text,
+	"departureDate" date NOT NULL,
+	"partyJson" jsonb,
+	"contactName" text NOT NULL,
+	"contactEmail" text NOT NULL,
+	"contactPhone" text,
+	"message" text,
+	"status" text NOT NULL DEFAULT 'pending',
+	"slaDueAt" timestamp with time zone,
+	"providerNote" text,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
 CREATE TABLE "Package" (
@@ -717,86 +854,6 @@ CREATE TABLE "VariantRoomProfile" (
 	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
-CREATE TABLE "TourSlotProfile" (
-	"variantId" text PRIMARY KEY,
-	"departureTime" text NOT NULL,
-	"durationMinutes" integer,
-	"maxPax" integer NOT NULL,
-	"languageCode" text NOT NULL,
-	"bookingMode" text NOT NULL DEFAULT 'shared',
-	"meetingPointOverrideJson" jsonb,
-	"isActive" boolean NOT NULL DEFAULT true,
-	"createdAt" timestamp with time zone DEFAULT now(),
-	"updatedAt" timestamp with time zone DEFAULT now(),
-	CONSTRAINT "TourSlotProfile_bookingMode_check" CHECK ("bookingMode" IN ('shared', 'private')),
-	CONSTRAINT "TourSlotProfile_maxPax_check" CHECK ("maxPax" >= 1)
-);
-
-CREATE TABLE "TourTicketType" (
-	"id" text PRIMARY KEY,
-	"productId" text NOT NULL,
-	"code" text NOT NULL,
-	"label" text NOT NULL,
-	"minAge" integer,
-	"maxAge" integer,
-	"sortOrder" integer NOT NULL DEFAULT 0,
-	"isActive" boolean NOT NULL DEFAULT true,
-	"createdAt" timestamp with time zone DEFAULT now(),
-	"updatedAt" timestamp with time zone DEFAULT now(),
-	CONSTRAINT "TourTicketType_code_check" CHECK ("code" IN ('adult', 'child', 'infant', 'custom'))
-);
-
-CREATE TABLE "TourDepartureInstance" (
-	"id" text PRIMARY KEY,
-	"providerId" text,
-	"variantId" text,
-	"date" date,
-	"departureTimeOverride" text,
-	"meetingPointOverrideJson" jsonb,
-	"notes" text,
-	"isCancelled" boolean DEFAULT false,
-	"createdAt" timestamp with time zone DEFAULT now(),
-	"updatedAt" timestamp with time zone DEFAULT now()
-);
-
-CREATE TABLE "TourOperationalResource" (
-	"id" text PRIMARY KEY,
-	"providerId" text,
-	"userId" text,
-	"type" text,
-	"name" text,
-	"status" text DEFAULT 'active' NOT NULL,
-	"languagesJson" jsonb,
-	"capacity" integer,
-	"credentialsJson" jsonb,
-	"createdAt" timestamp with time zone DEFAULT now(),
-	"updatedAt" timestamp with time zone DEFAULT now()
-);
-
-CREATE TABLE "TourResourceAssignment" (
-	"id" text PRIMARY KEY,
-	"providerId" text,
-	"variantId" text,
-	"date" date,
-	"resourceId" text,
-	"role" text,
-	"status" text DEFAULT 'assigned' NOT NULL,
-	"assignedBy" text,
-	"createdAt" timestamp with time zone DEFAULT now(),
-	"updatedAt" timestamp with time zone DEFAULT now()
-);
-
-CREATE TABLE "TourBookingQuestion" (
-	"id" text PRIMARY KEY,
-	"productId" text,
-	"code" text,
-	"label" text,
-	"isRequired" boolean DEFAULT false,
-	"sortOrder" integer DEFAULT 0,
-	"createdAt" timestamp with time zone DEFAULT now(),
-	"updatedAt" timestamp with time zone DEFAULT now()
-);
-
 CREATE TABLE "VariantRoomBed" (
 	"id" text PRIMARY KEY,
 	"variantId" text NOT NULL,
@@ -837,6 +894,49 @@ CREATE TABLE "ProductServiceAttribute" (
 	"productServiceId" text NOT NULL,
 	"key" text NOT NULL,
 	"value" text NOT NULL
+);
+
+CREATE TABLE "ProductCategory" (
+	"id" text PRIMARY KEY,
+	"slug" text NOT NULL,
+	"name" text NOT NULL,
+	"vertical" text NOT NULL,
+	"sortOrder" integer NOT NULL DEFAULT 0,
+	"isActive" boolean NOT NULL DEFAULT true,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"dataClass" text NOT NULL DEFAULT 'production'
+);
+
+CREATE TABLE "ProductCategoryLink" (
+	"id" text PRIMARY KEY,
+	"productId" text NOT NULL,
+	"categoryId" text NOT NULL,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "ProductReview" (
+	"id" text PRIMARY KEY,
+	"productId" text NOT NULL,
+	"userId" text,
+	"bookingId" text,
+	"rating" integer NOT NULL,
+	"body" text,
+	"status" text NOT NULL DEFAULT 'pending',
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "MarketplaceEvent" (
+	"id" text PRIMARY KEY,
+	"eventType" text NOT NULL,
+	"surface" text NOT NULL,
+	"sourceProductId" text,
+	"targetProductId" text,
+	"destinationId" text,
+	"bookingId" text,
+	"sessionId" text,
+	"metaJson" jsonb,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
 CREATE TABLE "PolicyGroup" (
@@ -1307,13 +1407,12 @@ CREATE TABLE "BookingVoucher" (
 	"bookingId" text NOT NULL,
 	"code" text NOT NULL,
 	"status" text NOT NULL,
-	"issuedAt" timestamp with time zone DEFAULT now(),
+	"issuedAt" timestamp with time zone NOT NULL DEFAULT now(),
 	"redeemedAt" timestamp with time zone,
 	"instructionsJson" jsonb,
 	"qrPayload" text,
-	"createdAt" timestamp with time zone DEFAULT now(),
-	"updatedAt" timestamp with time zone DEFAULT now(),
-	CONSTRAINT "BookingVoucher_status_check" CHECK ("status" IN ('issued', 'redeemed', 'void'))
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
 CREATE TABLE "BookingRoomDetail" (
@@ -1891,6 +1990,60 @@ ALTER TABLE "ProviderFinancialProfile"
 	REFERENCES "Provider" ("id")
 ;
 
+ALTER TABLE "GeoPlace"
+	ADD CONSTRAINT "GeoPlace_parentId_fk"
+	FOREIGN KEY ("parentId")
+	REFERENCES "GeoPlace" ("id")
+;
+
+ALTER TABLE "GeoPlace"
+	ADD CONSTRAINT "GeoPlace_mergedIntoId_fk"
+	FOREIGN KEY ("mergedIntoId")
+	REFERENCES "GeoPlace" ("id")
+;
+
+ALTER TABLE "GeoPlaceClosure"
+	ADD CONSTRAINT "GeoPlaceClosure_ancestorId_fk"
+	FOREIGN KEY ("ancestorId")
+	REFERENCES "GeoPlace" ("id")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "GeoPlaceClosure"
+	ADD CONSTRAINT "GeoPlaceClosure_descendantId_fk"
+	FOREIGN KEY ("descendantId")
+	REFERENCES "GeoPlace" ("id")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "GeoPlaceAlias"
+	ADD CONSTRAINT "GeoPlaceAlias_placeId_fk"
+	FOREIGN KEY ("placeId")
+	REFERENCES "GeoPlace" ("id")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "GeoPlaceContent"
+	ADD CONSTRAINT "GeoPlaceContent_placeId_fk"
+	FOREIGN KEY ("placeId")
+	REFERENCES "GeoPlace" ("id")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "GeoPlaceContent"
+	ADD CONSTRAINT "GeoPlaceContent_heroImageId_fk"
+	FOREIGN KEY ("heroImageId")
+	REFERENCES "Image" ("id")
+	ON DELETE SET NULL
+;
+
+ALTER TABLE "GeoPlaceExternalId"
+	ADD CONSTRAINT "GeoPlaceExternalId_placeId_fk"
+	FOREIGN KEY ("placeId")
+	REFERENCES "GeoPlace" ("id")
+	ON DELETE CASCADE
+;
+
 ALTER TABLE "ImageUpload"
 	ADD CONSTRAINT "ImageUpload_imageId_fk"
 	FOREIGN KEY ("imageId")
@@ -1907,6 +2060,62 @@ ALTER TABLE "Product"
 	ADD CONSTRAINT "Product_destinationId_fk"
 	FOREIGN KEY ("destinationId")
 	REFERENCES "Destination" ("id")
+;
+
+ALTER TABLE "ProductGeoPlace"
+	ADD CONSTRAINT "ProductGeoPlace_productId_fk"
+	FOREIGN KEY ("productId")
+	REFERENCES "Product" ("id")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "ProductGeoPlace"
+	ADD CONSTRAINT "ProductGeoPlace_placeId_fk"
+	FOREIGN KEY ("placeId")
+	REFERENCES "GeoPlace" ("id")
+;
+
+ALTER TABLE "LegacyDestinationGeoPlaceMap"
+	ADD CONSTRAINT "LegacyDestinationGeoPlaceMap_legacyDestinationId_fk"
+	FOREIGN KEY ("legacyDestinationId")
+	REFERENCES "Destination" ("id")
+;
+
+ALTER TABLE "LegacyDestinationGeoPlaceMap"
+	ADD CONSTRAINT "LegacyDestinationGeoPlaceMap_placeId_fk"
+	FOREIGN KEY ("placeId")
+	REFERENCES "GeoPlace" ("id")
+;
+
+ALTER TABLE "LegacyDestinationGeoPlaceMap"
+	ADD CONSTRAINT "LegacyDestinationGeoPlaceMap_reviewedByUserId_fk"
+	FOREIGN KEY ("reviewedByUserId")
+	REFERENCES "User" ("id")
+;
+
+ALTER TABLE "ProductGeoPlaceBackfill"
+	ADD CONSTRAINT "ProductGeoPlaceBackfill_productId_fk"
+	FOREIGN KEY ("productId")
+	REFERENCES "Product" ("id")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "ProductGeoPlaceBackfill"
+	ADD CONSTRAINT "ProductGeoPlaceBackfill_placeId_fk"
+	FOREIGN KEY ("placeId")
+	REFERENCES "GeoPlace" ("id")
+;
+
+ALTER TABLE "ProductGeoPlaceBackfill"
+	ADD CONSTRAINT "ProductGeoPlaceBackfill_legacyDestinationMapId_fk"
+	FOREIGN KEY ("legacyDestinationMapId")
+	REFERENCES "LegacyDestinationGeoPlaceMap" ("id")
+;
+
+ALTER TABLE "ProductGeoPlaceBackfill"
+	ADD CONSTRAINT "ProductGeoPlaceBackfill_appliedProductGeoPlaceId_fk"
+	FOREIGN KEY ("appliedProductGeoPlaceId")
+	REFERENCES "ProductGeoPlace" ("id")
 ;
 
 ALTER TABLE "ProductOperationalSurface"
@@ -1969,42 +2178,6 @@ ALTER TABLE "Tour"
 	REFERENCES "Product" ("id")
 ;
 
-ALTER TABLE "Package"
-	ADD CONSTRAINT "Package_productId_fk"
-	FOREIGN KEY ("productId")
-	REFERENCES "Product" ("id")
-;
-
-ALTER TABLE "Limousine"
-	ADD CONSTRAINT "Limousine_productId_fk"
-	FOREIGN KEY ("productId")
-	REFERENCES "Product" ("id")
-;
-
-ALTER TABLE "Variant"
-	ADD CONSTRAINT "Variant_productId_fk"
-	FOREIGN KEY ("productId")
-	REFERENCES "Product" ("id")
-;
-
-ALTER TABLE "VariantCapacity"
-	ADD CONSTRAINT "VariantCapacity_variantId_fk"
-	FOREIGN KEY ("variantId")
-	REFERENCES "Variant" ("id")
-;
-
-ALTER TABLE "VariantRoomProfile"
-	ADD CONSTRAINT "VariantRoomProfile_variantId_fk"
-	FOREIGN KEY ("variantId")
-	REFERENCES "Variant" ("id")
-;
-
-ALTER TABLE "VariantRoomProfile"
-	ADD CONSTRAINT "VariantRoomProfile_roomTypeId_fk"
-	FOREIGN KEY ("roomTypeId")
-	REFERENCES "RoomType" ("id")
-;
-
 ALTER TABLE "TourSlotProfile"
 	ADD CONSTRAINT "TourSlotProfile_variantId_fk"
 	FOREIGN KEY ("variantId")
@@ -2059,10 +2232,76 @@ ALTER TABLE "TourResourceAssignment"
 	REFERENCES "User" ("id")
 ;
 
+ALTER TABLE "TourTicketType"
+	ADD CONSTRAINT "TourTicketType_productId_fk"
+	FOREIGN KEY ("productId")
+	REFERENCES "Product" ("id")
+;
+
 ALTER TABLE "TourBookingQuestion"
 	ADD CONSTRAINT "TourBookingQuestion_productId_fk"
 	FOREIGN KEY ("productId")
 	REFERENCES "Product" ("id")
+;
+
+ALTER TABLE "TourPrivateRequest"
+	ADD CONSTRAINT "TourPrivateRequest_productId_fk"
+	FOREIGN KEY ("productId")
+	REFERENCES "Product" ("id")
+;
+
+ALTER TABLE "TourPrivateRequest"
+	ADD CONSTRAINT "TourPrivateRequest_variantId_fk"
+	FOREIGN KEY ("variantId")
+	REFERENCES "Variant" ("id")
+;
+
+ALTER TABLE "TourPrivateRequest"
+	ADD CONSTRAINT "TourPrivateRequest_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
+;
+
+ALTER TABLE "TourPrivateRequest"
+	ADD CONSTRAINT "TourPrivateRequest_userId_fk"
+	FOREIGN KEY ("userId")
+	REFERENCES "User" ("id")
+;
+
+ALTER TABLE "Package"
+	ADD CONSTRAINT "Package_productId_fk"
+	FOREIGN KEY ("productId")
+	REFERENCES "Product" ("id")
+;
+
+ALTER TABLE "Limousine"
+	ADD CONSTRAINT "Limousine_productId_fk"
+	FOREIGN KEY ("productId")
+	REFERENCES "Product" ("id")
+;
+
+ALTER TABLE "Variant"
+	ADD CONSTRAINT "Variant_productId_fk"
+	FOREIGN KEY ("productId")
+	REFERENCES "Product" ("id")
+;
+
+ALTER TABLE "VariantCapacity"
+	ADD CONSTRAINT "VariantCapacity_variantId_fk"
+	FOREIGN KEY ("variantId")
+	REFERENCES "Variant" ("id")
+;
+
+ALTER TABLE "VariantRoomProfile"
+	ADD CONSTRAINT "VariantRoomProfile_variantId_fk"
+	FOREIGN KEY ("variantId")
+	REFERENCES "Variant" ("id")
+;
+
+ALTER TABLE "VariantRoomProfile"
+	ADD CONSTRAINT "VariantRoomProfile_roomTypeId_fk"
+	FOREIGN KEY ("roomTypeId")
+	REFERENCES "RoomType" ("id")
 ;
 
 ALTER TABLE "VariantRoomBed"
@@ -2105,6 +2344,60 @@ ALTER TABLE "ProductServiceAttribute"
 	ADD CONSTRAINT "ProductServiceAttribute_productServiceId_fk"
 	FOREIGN KEY ("productServiceId")
 	REFERENCES "ProductService" ("id")
+;
+
+ALTER TABLE "ProductCategoryLink"
+	ADD CONSTRAINT "ProductCategoryLink_productId_fk"
+	FOREIGN KEY ("productId")
+	REFERENCES "Product" ("id")
+;
+
+ALTER TABLE "ProductCategoryLink"
+	ADD CONSTRAINT "ProductCategoryLink_categoryId_fk"
+	FOREIGN KEY ("categoryId")
+	REFERENCES "ProductCategory" ("id")
+;
+
+ALTER TABLE "ProductReview"
+	ADD CONSTRAINT "ProductReview_productId_fk"
+	FOREIGN KEY ("productId")
+	REFERENCES "Product" ("id")
+;
+
+ALTER TABLE "ProductReview"
+	ADD CONSTRAINT "ProductReview_userId_fk"
+	FOREIGN KEY ("userId")
+	REFERENCES "User" ("id")
+;
+
+ALTER TABLE "ProductReview"
+	ADD CONSTRAINT "ProductReview_bookingId_fk"
+	FOREIGN KEY ("bookingId")
+	REFERENCES "Booking" ("id")
+;
+
+ALTER TABLE "MarketplaceEvent"
+	ADD CONSTRAINT "MarketplaceEvent_sourceProductId_fk"
+	FOREIGN KEY ("sourceProductId")
+	REFERENCES "Product" ("id")
+;
+
+ALTER TABLE "MarketplaceEvent"
+	ADD CONSTRAINT "MarketplaceEvent_targetProductId_fk"
+	FOREIGN KEY ("targetProductId")
+	REFERENCES "Product" ("id")
+;
+
+ALTER TABLE "MarketplaceEvent"
+	ADD CONSTRAINT "MarketplaceEvent_destinationId_fk"
+	FOREIGN KEY ("destinationId")
+	REFERENCES "Destination" ("id")
+;
+
+ALTER TABLE "MarketplaceEvent"
+	ADD CONSTRAINT "MarketplaceEvent_bookingId_fk"
+	FOREIGN KEY ("bookingId")
+	REFERENCES "Booking" ("id")
 ;
 
 ALTER TABLE "PolicyGroup"
@@ -2510,6 +2803,12 @@ ALTER TABLE "Booking"
 	ON DELETE SET NULL
 ;
 
+ALTER TABLE "BookingVoucher"
+	ADD CONSTRAINT "BookingVoucher_bookingId_fk"
+	FOREIGN KEY ("bookingId")
+	REFERENCES "Booking" ("id")
+;
+
 ALTER TABLE "BookingRoomDetail"
 	ADD CONSTRAINT "BookingRoomDetail_bookingId_fk"
 	FOREIGN KEY ("bookingId")
@@ -2594,7 +2893,7 @@ CREATE INDEX "ProviderIntegrationSyncRun_connection_started_idx" ON "ProviderInt
 
 CREATE INDEX "ProviderIntegrationSyncRun_provider_status_started_idx" ON "ProviderIntegrationSyncRun" ("providerId", "status", "startedAt");
 
-CREATE INDEX "ProviderIntegrationSyncRun_certification_started_idx" ON "ProviderIntegrationSyncRun" ("certificationId", "startedAt" DESC);
+CREATE INDEX "ProviderIntegrationSyncRun_certification_started_idx" ON "ProviderIntegrationSyncRun" ("certificationId", "startedAt");
 
 CREATE INDEX "ProviderIntegrationSyncRun_terminal_retention_idx" ON "ProviderIntegrationSyncRun" ("status", "finishedAt") WHERE "status" <> 'running' AND "finishedAt" IS NOT NULL;
 
@@ -2696,6 +2995,30 @@ CREATE INDEX "ProviderStatement_statementReference_idx" ON "ProviderStatement" (
 
 CREATE UNIQUE INDEX "Destination_slug_unique" ON "Destination" ("slug");
 
+CREATE UNIQUE INDEX "GeoPlace_slug_unique" ON "GeoPlace" ("slug");
+
+CREATE INDEX "GeoPlace_parent_type_status_idx" ON "GeoPlace" ("parentId", "placeType", "status");
+
+CREATE INDEX "GeoPlace_country_type_status_idx" ON "GeoPlace" ("countryCode", "placeType", "status");
+
+CREATE INDEX "GeoPlace_mergedIntoId_idx" ON "GeoPlace" ("mergedIntoId");
+
+CREATE INDEX "GeoPlaceClosure_descendant_depth_idx" ON "GeoPlaceClosure" ("descendantId", "depth");
+
+CREATE UNIQUE INDEX "GeoPlaceAlias_place_locale_normalized_unique" ON "GeoPlaceAlias" ("placeId", "locale", "normalizedAlias");
+
+CREATE INDEX "GeoPlaceAlias_normalized_locale_idx" ON "GeoPlaceAlias" ("normalizedAlias", "locale");
+
+CREATE UNIQUE INDEX "GeoPlaceContent_place_locale_unique" ON "GeoPlaceContent" ("placeId", "locale");
+
+CREATE INDEX "GeoPlaceContent_status_rank_idx" ON "GeoPlaceContent" ("publicationStatus", "featuredRank");
+
+CREATE UNIQUE INDEX "GeoPlaceExternalId_source_external_unique" ON "GeoPlaceExternalId" ("source", "externalId");
+
+CREATE UNIQUE INDEX "GeoPlaceExternalId_place_source_external_unique" ON "GeoPlaceExternalId" ("placeId", "source", "externalId");
+
+CREATE INDEX "GeoPlaceExternalId_place_source_idx" ON "GeoPlaceExternalId" ("placeId", "source");
+
 CREATE INDEX "Image_entityType_entityId_idx" ON "Image" ("entityType", "entityId");
 
 CREATE INDEX "Image_entityId_idx" ON "Image" ("entityId");
@@ -2707,6 +3030,26 @@ CREATE UNIQUE INDEX "Translation_record_language_unique" ON "Translation" ("tabl
 CREATE INDEX "Product_providerId_productType_idx" ON "Product" ("providerId", "productType");
 
 CREATE INDEX "Product_providerId_idx" ON "Product" ("providerId");
+
+CREATE UNIQUE INDEX "ProductGeoPlace_product_place_role_unique" ON "ProductGeoPlace" ("productId", "placeId", "role");
+
+CREATE UNIQUE INDEX "ProductGeoPlace_one_primary_product_unique" ON "ProductGeoPlace" ("productId") WHERE "isPrimary" = true;
+
+CREATE INDEX "ProductGeoPlace_place_role_product_idx" ON "ProductGeoPlace" ("placeId", "role", "productId");
+
+CREATE INDEX "ProductGeoPlace_product_role_idx" ON "ProductGeoPlace" ("productId", "role");
+
+CREATE UNIQUE INDEX "LegacyDestinationGeoPlaceMap_legacyDestination_unique" ON "LegacyDestinationGeoPlaceMap" ("legacyDestinationId");
+
+CREATE INDEX "LegacyDestinationGeoPlaceMap_place_status_idx" ON "LegacyDestinationGeoPlaceMap" ("placeId", "resolutionStatus");
+
+CREATE INDEX "LegacyDestinationGeoPlaceMap_status_confidence_idx" ON "LegacyDestinationGeoPlaceMap" ("resolutionStatus", "confidence");
+
+CREATE UNIQUE INDEX "ProductGeoPlaceBackfill_product_unique" ON "ProductGeoPlaceBackfill" ("productId");
+
+CREATE INDEX "ProductGeoPlaceBackfill_place_status_idx" ON "ProductGeoPlaceBackfill" ("placeId", "resolutionStatus");
+
+CREATE INDEX "ProductGeoPlaceBackfill_status_confidence_idx" ON "ProductGeoPlaceBackfill" ("resolutionStatus", "confidence");
 
 CREATE INDEX "ProductOperationalSurface_provider_updated_idx" ON "ProductOperationalSurface" ("providerId", "updatedAt");
 
@@ -2720,14 +3063,41 @@ CREATE INDEX "ProductPreparationSnapshot_provider_ready_idx" ON "ProductPreparat
 
 CREATE INDEX "ProductPreparationSnapshot_provider_status_idx" ON "ProductPreparationSnapshot" ("providerId", "status");
 
+CREATE INDEX "Tour_durationMinutes_idx" ON "Tour" ("durationMinutes");
+
+CREATE INDEX "Tour_difficultyLevel_idx" ON "Tour" ("difficultyLevel");
+
+CREATE INDEX "TourSlotProfile_departureTime_idx" ON "TourSlotProfile" ("departureTime");
+
+CREATE INDEX "TourSlotProfile_languageCode_idx" ON "TourSlotProfile" ("languageCode");
+
+CREATE INDEX "TourSlotProfile_bookingMode_idx" ON "TourSlotProfile" ("bookingMode");
+
+CREATE UNIQUE INDEX "TourDepartureInstance_variant_date_unique" ON "TourDepartureInstance" ("variantId", "date");
+
+CREATE INDEX "TourDepartureInstance_provider_date_idx" ON "TourDepartureInstance" ("providerId", "date");
+
+CREATE INDEX "TourOperationalResource_provider_type_status_idx" ON "TourOperationalResource" ("providerId", "type", "status");
+
+CREATE UNIQUE INDEX "TourResourceAssignment_variant_date_role_unique" ON "TourResourceAssignment" ("variantId", "date", "role");
+
+CREATE UNIQUE INDEX "TourResourceAssignment_resource_date_unique" ON "TourResourceAssignment" ("resourceId", "date");
+
+CREATE UNIQUE INDEX "TourTicketType_product_code_unique" ON "TourTicketType" ("productId", "code");
+
+CREATE INDEX "TourTicketType_productId_idx" ON "TourTicketType" ("productId");
+
+CREATE INDEX "TourBookingQuestion_product_sort_idx" ON "TourBookingQuestion" ("productId", "sortOrder");
+
+CREATE INDEX "TourPrivateRequest_provider_status_idx" ON "TourPrivateRequest" ("providerId", "status", "createdAt");
+
+CREATE INDEX "TourPrivateRequest_product_idx" ON "TourPrivateRequest" ("productId", "departureDate");
+
 CREATE INDEX "Variant_productId_isActive_idx" ON "Variant" ("productId", "isActive");
 
 CREATE INDEX "Variant_productId_kind_idx" ON "Variant" ("productId", "kind");
 
 CREATE INDEX "VariantRoomProfile_roomTypeId_idx" ON "VariantRoomProfile" ("roomTypeId");
-CREATE INDEX "TourSlotProfile_departureTime_idx" ON "TourSlotProfile" ("departureTime");
-CREATE INDEX "TourSlotProfile_languageCode_idx" ON "TourSlotProfile" ("languageCode");
-CREATE INDEX "TourSlotProfile_bookingMode_idx" ON "TourSlotProfile" ("bookingMode");
 
 CREATE INDEX "VariantRoomBed_variantId_idx" ON "VariantRoomBed" ("variantId");
 
@@ -2736,6 +3106,28 @@ CREATE UNIQUE INDEX "VariantRoomAmenity_variantId_amenityId_unique" ON "VariantR
 CREATE UNIQUE INDEX "ProductService_productId_serviceId_unique" ON "ProductService" ("productId", "serviceId");
 
 CREATE INDEX "ProductServiceAttribute_productServiceId_key_idx" ON "ProductServiceAttribute" ("productServiceId", "key");
+
+CREATE UNIQUE INDEX "ProductCategory_slug_unique" ON "ProductCategory" ("slug");
+
+CREATE INDEX "ProductCategory_vertical_idx" ON "ProductCategory" ("vertical");
+
+CREATE UNIQUE INDEX "ProductCategoryLink_product_category_unique" ON "ProductCategoryLink" ("productId", "categoryId");
+
+CREATE INDEX "ProductCategoryLink_categoryId_idx" ON "ProductCategoryLink" ("categoryId");
+
+CREATE INDEX "ProductCategoryLink_productId_idx" ON "ProductCategoryLink" ("productId");
+
+CREATE INDEX "ProductReview_product_status_idx" ON "ProductReview" ("productId", "status");
+
+CREATE INDEX "ProductReview_product_rating_idx" ON "ProductReview" ("productId", "rating");
+
+CREATE INDEX "ProductReview_bookingId_idx" ON "ProductReview" ("bookingId");
+
+CREATE UNIQUE INDEX "ProductReview_bookingId_unique" ON "ProductReview" ("bookingId");
+
+CREATE INDEX "MarketplaceEvent_surface_created_idx" ON "MarketplaceEvent" ("surface", "createdAt");
+
+CREATE INDEX "MarketplaceEvent_target_created_idx" ON "MarketplaceEvent" ("targetProductId", "createdAt");
 
 CREATE INDEX "PolicyGroup_ownerProviderId_category_idx" ON "PolicyGroup" ("ownerProviderId", "category");
 
@@ -2756,6 +3148,8 @@ CREATE INDEX "PolicyAssignment_effective_range_idx" ON "PolicyAssignment" ("effe
 CREATE INDEX "PolicyAssignment_group_active_idx" ON "PolicyAssignment" ("policyGroupId", "isActive");
 
 CREATE UNIQUE INDEX "CancellationTier_policyId_daysBeforeArrival_unique" ON "CancellationTier" ("policyId", "daysBeforeArrival");
+
+CREATE INDEX "CancellationTier_hoursBeforeDeparture_idx" ON "CancellationTier" ("hoursBeforeDeparture");
 
 CREATE UNIQUE INDEX "PolicyRule_policyId_ruleKey_unique" ON "PolicyRule" ("policyId", "ruleKey");
 
@@ -2857,30 +3251,31 @@ CREATE INDEX "TaxFeeDefinition_provider_status_priority_idx" ON "TaxFeeDefinitio
 
 CREATE INDEX "TaxFeeDefinition_provider_code_status_idx" ON "TaxFeeDefinition" ("providerId", "code", "status");
 
-CREATE UNIQUE INDEX "TaxFeeDefinitionVersion_definition_version_unique"
-	ON "TaxFeeDefinitionVersion" ("taxFeeDefinitionId", "version");
-CREATE INDEX "TaxFeeDefinitionVersion_definition_created_idx"
-	ON "TaxFeeDefinitionVersion" ("taxFeeDefinitionId", "createdAt");
+CREATE UNIQUE INDEX "TaxFeeDefinitionVersion_definition_version_unique" ON "TaxFeeDefinitionVersion" ("taxFeeDefinitionId", "version");
+
+CREATE INDEX "TaxFeeDefinitionVersion_definition_created_idx" ON "TaxFeeDefinitionVersion" ("taxFeeDefinitionId", "createdAt");
 
 CREATE INDEX "TaxFeeAssignment_scope_active_channel_idx" ON "TaxFeeAssignment" ("scope", "scopeId", "status", "channel");
 
 CREATE INDEX "TaxFeeAssignment_definition_scope_active_idx" ON "TaxFeeAssignment" ("taxFeeDefinitionId", "scope", "scopeId", "status", "channel");
 
+CREATE INDEX "TaxFeeAssignment_effective_range_idx" ON "TaxFeeAssignment" ("status", "effectiveFrom", "effectiveTo");
+
 CREATE INDEX "FiscalActivityEvent_provider_created_idx" ON "FiscalActivityEvent" ("providerId", "createdAt");
+
 CREATE INDEX "FiscalActivityEvent_provider_type_created_idx" ON "FiscalActivityEvent" ("providerId", "eventType", "createdAt");
+
 CREATE INDEX "FiscalActivityEvent_correlation_idx" ON "FiscalActivityEvent" ("correlationId");
 
 CREATE INDEX "FiscalExportJob_provider_created_idx" ON "FiscalExportJob" ("providerId", "createdAt");
 
-CREATE UNIQUE INDEX "FiscalReconciliationCase_provider_booking_unique"
-	ON "FiscalReconciliationCase" ("providerId", "bookingId");
-CREATE INDEX "FiscalReconciliationCase_provider_status_idx"
-	ON "FiscalReconciliationCase" ("providerId", "status");
+CREATE INDEX "FiscalReconciliationCase_provider_status_idx" ON "FiscalReconciliationCase" ("providerId", "status");
 
-CREATE UNIQUE INDEX "FiscalChannelPublication_version_connection_unique"
-	ON "FiscalChannelPublication" ("definitionVersionId", "connectionId");
-CREATE INDEX "FiscalChannelPublication_provider_status_idx"
-	ON "FiscalChannelPublication" ("providerId", "status");
+CREATE UNIQUE INDEX "FiscalReconciliationCase_provider_booking_unique" ON "FiscalReconciliationCase" ("providerId", "bookingId");
+
+CREATE UNIQUE INDEX "FiscalChannelPublication_version_connection_unique" ON "FiscalChannelPublication" ("definitionVersionId", "connectionId");
+
+CREATE INDEX "FiscalChannelPublication_provider_status_idx" ON "FiscalChannelPublication" ("providerId", "status");
 
 CREATE INDEX "BookingTaxFee_bookingId_idx" ON "BookingTaxFee" ("bookingId");
 
@@ -2894,7 +3289,13 @@ CREATE UNIQUE INDEX "Booking_connection_external_booking_unique" ON "Booking" ("
 
 CREATE UNIQUE INDEX "Booking_connection_external_revision_unique" ON "Booking" ("integrationConnectionId", "externalRevisionId") WHERE "integrationConnectionId" IS NOT NULL AND "externalRevisionId" IS NOT NULL;
 
-CREATE INDEX "Booking_provider_source_booking_date_idx" ON "Booking" ("providerId", "source", "bookingDate" DESC);
+CREATE INDEX "Booking_provider_source_booking_date_idx" ON "Booking" ("providerId", "source", "bookingDate");
+
+CREATE UNIQUE INDEX "BookingVoucher_bookingId_unique" ON "BookingVoucher" ("bookingId");
+
+CREATE UNIQUE INDEX "BookingVoucher_code_unique" ON "BookingVoucher" ("code");
+
+CREATE INDEX "BookingVoucher_status_idx" ON "BookingVoucher" ("status");
 
 CREATE INDEX "BookingRoomDetail_bookingId_idx" ON "BookingRoomDetail" ("bookingId");
 
@@ -3030,6 +3431,62 @@ ALTER TABLE "ProviderExternalCalendarConflict" ADD CONSTRAINT "ProviderExternalC
 
 ALTER TABLE "ProviderExternalCalendarExport" ADD CONSTRAINT "ProviderExternalCalendarExport_status_check" CHECK ("status" IN ('active', 'revoked'));
 
+ALTER TABLE "GeoPlace" ADD CONSTRAINT "GeoPlace_placeType_check" CHECK ("placeType" IN ('country', 'admin_area_1', 'admin_area_2', 'city', 'locality', 'neighborhood', 'poi', 'natural_area'));
+
+ALTER TABLE "GeoPlace" ADD CONSTRAINT "GeoPlace_countryCode_check" CHECK ("countryCode" ~ '^[A-Z]{2}$');
+
+ALTER TABLE "GeoPlace" ADD CONSTRAINT "GeoPlace_status_check" CHECK ("status" IN ('active', 'hidden', 'merged'));
+
+ALTER TABLE "GeoPlace" ADD CONSTRAINT "GeoPlace_coordinates_check" CHECK (("centroidLat" IS NULL AND "centroidLng" IS NULL) OR ("centroidLat" BETWEEN -90 AND 90 AND "centroidLng" BETWEEN -180 AND 180));
+
+ALTER TABLE "GeoPlace" ADD CONSTRAINT "GeoPlace_parent_not_self_check" CHECK ("parentId" IS NULL OR "parentId" <> "id");
+
+ALTER TABLE "GeoPlace" ADD CONSTRAINT "GeoPlace_merge_not_self_check" CHECK ("mergedIntoId" IS NULL OR "mergedIntoId" <> "id");
+
+ALTER TABLE "GeoPlaceClosure" ADD CONSTRAINT "GeoPlaceClosure_depth_check" CHECK ("depth" >= 0);
+
+ALTER TABLE "GeoPlaceClosure" ADD CONSTRAINT "GeoPlaceClosure_self_depth_check" CHECK (("ancestorId" = "descendantId" AND "depth" = 0) OR ("ancestorId" <> "descendantId" AND "depth" > 0));
+
+ALTER TABLE "GeoPlaceAlias" ADD CONSTRAINT "GeoPlaceAlias_aliasType_check" CHECK ("aliasType" IN ('primary', 'alternate', 'historic', 'transliteration', 'search'));
+
+ALTER TABLE "GeoPlaceContent" ADD CONSTRAINT "GeoPlaceContent_publicationStatus_check" CHECK ("publicationStatus" IN ('draft', 'published', 'archived'));
+
+ALTER TABLE "ProductGeoPlace" ADD CONSTRAINT "ProductGeoPlace_role_check" CHECK ("role" IN ('primary_discovery', 'secondary_discovery', 'service_area', 'meeting_area'));
+
+ALTER TABLE "ProductGeoPlace" ADD CONSTRAINT "ProductGeoPlace_primary_role_check" CHECK ("isPrimary" = false OR "role" = 'primary_discovery');
+
+ALTER TABLE "LegacyDestinationGeoPlaceMap" ADD CONSTRAINT "LegacyDestinationGeoPlaceMap_resolutionStatus_check" CHECK ("resolutionStatus" IN ('auto_matched', 'review_required', 'confirmed', 'unmatched', 'rejected'));
+
+ALTER TABLE "LegacyDestinationGeoPlaceMap" ADD CONSTRAINT "LegacyDestinationGeoPlaceMap_matchMethod_check" CHECK ("matchMethod" IN ('name_department', 'coordinates', 'name_coordinates', 'manual', 'unmatched'));
+
+ALTER TABLE "LegacyDestinationGeoPlaceMap" ADD CONSTRAINT "LegacyDestinationGeoPlaceMap_confidence_check" CHECK ("confidence" BETWEEN 0 AND 100);
+
+ALTER TABLE "LegacyDestinationGeoPlaceMap" ADD CONSTRAINT "LegacyDestinationGeoPlaceMap_resolved_place_check" CHECK ("resolutionStatus" IN ('unmatched', 'rejected') OR "placeId" IS NOT NULL);
+
+ALTER TABLE "ProductGeoPlaceBackfill" ADD CONSTRAINT "ProductGeoPlaceBackfill_resolutionStatus_check" CHECK ("resolutionStatus" IN ('auto_matched', 'review_required', 'confirmed', 'unmatched', 'superseded'));
+
+ALTER TABLE "ProductGeoPlaceBackfill" ADD CONSTRAINT "ProductGeoPlaceBackfill_matchMethod_check" CHECK ("matchMethod" IN ('legacy_destination', 'coordinates', 'address_coordinates', 'manual', 'unmatched'));
+
+ALTER TABLE "ProductGeoPlaceBackfill" ADD CONSTRAINT "ProductGeoPlaceBackfill_confidence_check" CHECK ("confidence" BETWEEN 0 AND 100);
+
+ALTER TABLE "ProductGeoPlaceBackfill" ADD CONSTRAINT "ProductGeoPlaceBackfill_resolved_place_check" CHECK ("resolutionStatus" IN ('unmatched', 'superseded') OR "placeId" IS NOT NULL);
+
+ALTER TABLE "TourSlotProfile" ADD CONSTRAINT "TourSlotProfile_bookingMode_check" CHECK ("bookingMode" in ('shared', 'private'));
+
+ALTER TABLE "TourSlotProfile" ADD CONSTRAINT "TourSlotProfile_maxPax_check" CHECK ("maxPax" >= 1);
+
+ALTER TABLE "TourTicketType" ADD CONSTRAINT "TourTicketType_code_check" CHECK ("code" in ('adult', 'child', 'infant', 'custom'));
+
+ALTER TABLE "TourPrivateRequest" ADD CONSTRAINT "TourPrivateRequest_status_check" CHECK ("status" in ('pending', 'accepted', 'declined', 'expired', 'cancelled'));
+
+ALTER TABLE "ProductReview" ADD CONSTRAINT "ProductReview_rating_check" CHECK ("rating" >= 1 AND "rating" <= 5);
+
+ALTER TABLE "ProductReview" ADD CONSTRAINT "ProductReview_status_check" CHECK ("status" in ('published', 'pending', 'rejected', 'hidden'));
+
+ALTER TABLE "MarketplaceEvent" ADD CONSTRAINT "MarketplaceEvent_eventType_check" CHECK ("eventType" in ('impression', 'click', 'booking_attributed'));
+
+ALTER TABLE "BookingVoucher" ADD CONSTRAINT "BookingVoucher_status_check" CHECK ("status" in ('issued', 'redeemed', 'void'));
+
 
 
 -- Native PostgreSQL constraints, partial indexes and triggers.
@@ -3155,10 +3612,11 @@ BEGIN
 		'ProductPreparationSnapshot',
 		'VariantRoomProfile',
 		'TourSlotProfile',
-		'TourDepartureInstance',
-		'TourOperationalResource',
-		'TourResourceAssignment',
-		'TourBookingQuestion',
+		'TourTicketType',
+		'BookingVoucher',
+		'ProductCategory',
+		'ProductCategoryLink',
+		'ProductReview',
 		'VariantReadiness',
 		'DailyInventory',
 		'RatePlanConditionState',
@@ -3324,9 +3782,6 @@ CREATE INDEX IF NOT EXISTS "TaxFeeAssignment_scope_active_channel_idx"
 
 CREATE INDEX IF NOT EXISTS "TaxFeeAssignment_definition_scope_active_idx"
 	ON "TaxFeeAssignment" ("taxFeeDefinitionId", "scope", "scopeId", "status", "channel");
-
-CREATE INDEX IF NOT EXISTS "TaxFeeAssignment_effective_range_idx"
-	ON "TaxFeeAssignment" ("status", "effectiveFrom", "effectiveTo");
 
 DROP TRIGGER IF EXISTS "trg_PolicyAssignment_category_match_insert" ON "PolicyAssignment";
 CREATE TRIGGER "trg_PolicyAssignment_category_match_insert"
