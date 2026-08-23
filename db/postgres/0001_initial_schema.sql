@@ -572,7 +572,8 @@ CREATE TABLE "Product" (
 	"creationDate" timestamp with time zone NOT NULL DEFAULT now(),
 	"lastUpdated" timestamp with time zone NOT NULL DEFAULT now(),
 	"providerId" text,
-	"destinationId" text NOT NULL
+	"destinationId" text NOT NULL,
+	"dataClass" text NOT NULL DEFAULT 'production'
 );
 
 CREATE TABLE "ProductGeoPlace" (
@@ -671,7 +672,8 @@ CREATE TABLE "ProductContent" (
 	"productId" text PRIMARY KEY,
 	"description" text,
 	"highlightsJson" jsonb,
-	"seoJson" jsonb
+	"seoJson" jsonb,
+	"dataClass" text NOT NULL DEFAULT 'production'
 );
 
 CREATE TABLE "ProductLocation" (
@@ -901,7 +903,8 @@ CREATE TABLE "ProductCategory" (
 	"vertical" text NOT NULL,
 	"sortOrder" integer NOT NULL DEFAULT 0,
 	"isActive" boolean NOT NULL DEFAULT true,
-	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"dataClass" text NOT NULL DEFAULT 'production'
 );
 
 CREATE TABLE "ProductCategoryLink" (
