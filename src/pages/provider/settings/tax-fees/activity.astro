@@ -16,8 +16,9 @@ const view =
 
 <FiscalWorkspaceLayout
 	activeTab="activity"
-	identityLabel={configuration?.statusLabel ?? "No configurada"}
+	identityLabel={configuration?.statusLabel ?? "No configurado"}
 	isIdentityConfigured={Boolean(configuration?.isConfigured)}
+	identityStatus={configuration?.status ?? "not_configured"}
 	canManageFiscality={auth.provider.permissions.canManageFiscality}
 	primaryLabel="Exportar"
 	primaryHref="/api/provider/tax-fees/reports?format=csv"
@@ -34,7 +35,8 @@ const view =
 			href="?view=reconciliation">Conciliación</a
 		><a
 			class={`pb-3 ${view === "exports" ? "border-b-2 border-slate-950 font-semibold text-slate-950" : "text-slate-600"}`}
-			href="?view=exports">Exportaciones</a>
+			href="?view=exports">Exportaciones</a
+		>
 	</nav>
 	{
 		view === "activity" ? (

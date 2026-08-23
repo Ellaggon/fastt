@@ -38,7 +38,9 @@ const selectable = options.length > 0
 	class:list={["fastt-context-switcher", variant === "topbar" && "fastt-context-switcher--topbar"]}
 >
 	<span class="fastt-context-switcher__label"
-		><Icon class="h-4 w-4 shrink-0" aria-hidden="true" />{label}</span
+		><Icon class="h-4 w-4 shrink-0" aria-hidden="true" /><span
+			class="fastt-context-switcher__label-text">{label}</span
+		></span
 	>
 	{
 		selectable ? (
@@ -145,7 +147,7 @@ const selectable = options.length > 0
 		position: absolute;
 		top: calc(100% + 0.5rem);
 		left: 0;
-		z-index: 30;
+		z-index: 50;
 		width: min(22rem, calc(100vw - 2rem));
 		border: 1px solid rgb(226 232 240 / 0.9);
 		border-radius: 1.1rem;
@@ -188,9 +190,9 @@ const selectable = options.length > 0
 		gap: 0.5rem;
 	}
 	.fastt-context-switcher--topbar .fastt-context-switcher__select {
-		display: inline-flex;
-		align-items: center;
+		display: inline-block;
 		max-width: min(100%, 18rem);
+		vertical-align: middle;
 	}
 	.fastt-context-switcher--topbar .fastt-context-switcher__trigger {
 		max-width: 100%;
@@ -206,26 +208,49 @@ const selectable = options.length > 0
 		> .fastt-context-switcher__trigger {
 		background: transparent;
 	}
-	@media (max-width: 639px) {
+	@media (max-width: 1023px) {
 		.fastt-context-switcher__trigger {
 			max-width: min(100%, 18rem);
+		}
+		.fastt-context-switcher--topbar {
+			min-width: 0;
+			width: 100%;
+			max-width: 100%;
+			justify-content: center;
+			gap: 0.35rem;
+		}
+		.fastt-context-switcher--topbar .fastt-context-switcher__label-text {
+			display: none;
+		}
+		.fastt-context-switcher--topbar .fastt-context-switcher__select {
+			min-width: 0;
+			max-width: min(100%, 14rem);
+		}
+		.fastt-context-switcher--topbar .fastt-context-switcher__menu {
+			left: 50%;
+			width: min(22rem, calc(100vw - 2rem));
+			transform: translateX(-50%);
 		}
 	}
 </style>
 
 <script>
-	const closeSwitchers = () =>
-		document
-			.querySelectorAll("[data-context-switcher]")
-			.forEach((item) => item.removeAttribute("open"))
-	document.addEventListener(
-		"click",
-		(event) => {
-			if (event.target instanceof Element && !event.target.closest("[data-context-switcher]"))
-				closeSwitchers()
-		},
-		true
-	)
+	const closeSwitchers = (except?: Element | null) =>
+		document.querySelectorAll("[data-context-switcher]").forEach((item) => {
+			if (item !== except) item.removeAttribute("open")
+		})
+	document.addEventListener("click", (event) => {
+		const target = event.target
+		const path = typeof event.composedPath === "function" ? event.composedPath() : []
+		const switcher =
+			(target instanceof Element ? target.closest("[data-context-switcher]") : null) ??
+			path.find((node) => node instanceof Element && node.matches("[data-context-switcher]"))
+		if (switcher instanceof Element) {
+			closeSwitchers(switcher)
+			return
+		}
+		closeSwitchers()
+	})
 	document.addEventListener("keydown", (event) => {
 		if (event.key === "Escape") closeSwitchers()
 	})
