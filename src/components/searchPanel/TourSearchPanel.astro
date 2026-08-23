@@ -4,7 +4,7 @@ import DatesModal from "@/components/ui/DatesModal.astro"
 import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
 import { TOUR_DIFFICULTY_OPTIONS } from "@/lib/tours/tourDifficulty"
-import { asc, db, eq, ProductCategory } from "@/shared/infrastructure/db/compat"
+import { and, asc, db, eq, ProductCategory } from "@/shared/infrastructure/db/compat"
 
 const durationOptions = [
 	{ value: "lt1", label: "Medio día / <1 día" },
@@ -31,7 +31,13 @@ try {
 			name: ProductCategory.name,
 		})
 		.from(ProductCategory)
-		.where(eq(ProductCategory.vertical, "tour"))
+		.where(
+			and(
+				eq(ProductCategory.vertical, "tour"),
+				eq(ProductCategory.isActive, true),
+				eq(ProductCategory.dataClass, "production")
+			)
+		)
 		.orderBy(asc(ProductCategory.sortOrder), asc(ProductCategory.name))
 } catch {
 	categories = []
@@ -41,7 +47,7 @@ try {
 <div class="sticky top-0 z-40 mx-auto w-full max-w-4xl">
 	<form
 		id="tourSearchForm"
-		action="/tours/search"
+		action="/buscar/tours"
 		method="get"
 		class="fastt-card grid grid-cols-1 gap-3 border bg-white p-4 md:grid-cols-3"
 	>
@@ -52,12 +58,13 @@ try {
 			<div class="relative text-slate-900">
 				<Input
 					id="destinationInput"
-					name="destinationQuery"
+					name="destino"
 					autocomplete="off"
 					type="search"
 					placeholder="Ciudad, región o parque..."
 				/>
-				<input type="hidden" name="destinationId" id="destinationId" />
+				<input type="hidden" id="destinationId" />
+				<input type="hidden" id="destinationSlug" />
 				<ul
 					id="destinationsList"
 					class="fastt-soft-box absolute left-0 right-0 z-50 mt-1 hidden max-h-56 overflow-auto border border-slate-200 bg-white text-sm"
@@ -168,6 +175,7 @@ try {
 		const destInput = qs("#destinationInput")
 		const destList = qs("#destinationsList")
 		const destId = qs("#destinationId")
+		const destinationSlug = qs("#destinationSlug")
 
 		const debouncedSearch = debounce(async (val) => {
 			if (!val || val.trim().length < 1) {
@@ -179,6 +187,8 @@ try {
 		}, 180)
 
 		destInput?.addEventListener("input", (e) => {
+			destId.value = ""
+			destinationSlug.value = ""
 			debouncedSearch(e.target.value)
 		})
 
@@ -187,6 +197,7 @@ try {
 			if (!li) return
 			destInput.value = li.textContent
 			destId.value = li.dataset.id
+			destinationSlug.value = li.dataset.slug || ""
 			destList.classList.add("hidden")
 		})
 	})

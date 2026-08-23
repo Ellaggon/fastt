@@ -24,11 +24,12 @@ describe("tours P0A broken-flow remediations", () => {
 	})
 
 	it("search page distinguishes rollout off from commercial empty", () => {
-		const search = read("src/pages/tours/search.astro")
+		const search = read("src/pages/buscar/tours.astro")
 		expect(search).toContain('availability === "disabled"')
-		expect(search).toContain("Búsqueda de tours temporalmente no disponible")
+		expect(search).toContain("Búsqueda de tours no disponible")
+		expect(search).toContain("La reserva pública de tours no está abierta en este momento.")
 		expect(search).toContain("Sin salidas para estos filtros")
-		expect(search).toContain("No hay salidas disponibles")
+		expect(search).toContain("Selecciona una fecha")
 		expect(search).not.toContain("<code>tour_slot</code>")
 	})
 
