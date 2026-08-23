@@ -3,16 +3,23 @@ import { resolve } from "node:path"
 import { describe, expect, it } from "vitest"
 
 describe("tour public surfaces (fase 0+1)", () => {
-	it("search links to /tours and filters by duration/level copy", () => {
-		const source = readFileSync(resolve("src/pages/tours/search.astro"), "utf8")
+	it("legacy search redirects to canonical buscar route", () => {
+		const legacySearch = readFileSync(resolve("src/pages/tours/search.astro"), "utf8")
+		expect(legacySearch).toContain("publicSearchHref")
+		expect(legacySearch).toContain('publicSearchHref("tours"')
+		expect(legacySearch).toContain("Astro.redirect")
+	})
+
+	it("canonical buscar route renders tour discovery cards", () => {
+		const source = readFileSync(resolve("src/pages/buscar/tours.astro"), "utf8")
 		expect(source).toContain("getTourSearchSurface")
-		expect(source).toContain("href={`/tours/${t.productId}")
+		expect(source).toContain("href={`/tours/${tour.productId}")
 		expect(source).not.toContain("href={`/hotels/${t.id}`}")
-		expect(source).toContain("No hay salidas disponibles")
-		expect(source).toContain("Búsqueda de tours temporalmente no disponible")
+		expect(source).toContain("Sin salidas para estos filtros")
+		expect(source).toContain("Búsqueda de tours no disponible")
 		expect(source).toContain('availability === "disabled"')
 		expect(source).not.toContain("No se encontraron hoteles")
-		expect(source).toContain("error querying tour discovery")
+		expect(source).toContain("canonical tour search failed")
 	})
 
 	it("tour PDP renders tour fields instead of hotel check-in leftovers", () => {
