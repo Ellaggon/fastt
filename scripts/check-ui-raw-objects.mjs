@@ -114,7 +114,7 @@ const allowedClassTokens = {
 	textarea: ["fastt-field", "calendar-control"],
 	dialog: ["fastt-dialog"],
 	card: ["fastt-card", "fastt-row-card", "fastt-soft-box", "fastt-notice", "fastt-empty-state"],
-	modal: ["fastt-modal-backdrop", "modal-overlay", "calendar-backdrop"],
+	modal: ["fastt-modal-backdrop", "modal-overlay", "calendar-backdrop", "fastt-drawer-overlay"],
 }
 
 const legacyColorPattern =

@@ -3,6 +3,7 @@
 Use these components for all new UI work:
 
 - `FormField` + `Input` / `Select` for form controls
+- `DatesModal` for calendar date picking
 - `FormSection` for grouped form blocks
 - `Card` + `Section` for page layout blocks
 - `Button` and `Badge` for actions and statuses
@@ -14,10 +15,13 @@ Use these components for all new UI work:
 - `EmptyState` for empty lists, missing results, and setup prompts
 - `ProgressBar` for completion/readiness meters
 - `Drawer` for side sheets and repeated lateral panels
+- `DrawerHeader` for the standard side-sheet header, close control, and overlay dismiss
+- `DrawerFact` for explanatory icon + title + description rows inside drawers
 
 React islands use the matching primitives exported by `src/components/ui-react`:
 `Button`, `Card`, `Input`, `Select`, `Badge`, `Notice`, `Checkbox`, `IconButton`,
-`SegmentedControl`, and `SegmentedItem`.
+`SegmentedControl`, `SegmentedItem`, `SideSheet`, `DrawerFact`, `TravelersPicker`,
+and `DatesModal`.
 
 Do not build ad-hoc raw buttons, form controls, cards, dialogs, or segmented controls in
 pages for new work. Tailwind utility classes are fine for one-off layout, spacing, and
@@ -42,3 +46,11 @@ Pattern:
   </FormField>
 </FormSection>
 ```
+
+Side sheets:
+
+- Use `Drawer` + `DrawerHeader` + `DrawerFact` for Astro surfaces.
+- Use `SideSheet` for React islands.
+- Open with `data-drawer-open="<id>"`. Close with `data-drawer-close`, overlay click, or Escape.
+- The close control is an `IconButton` `secondary` with `fastt-modal-close`.
+- Do not hand-roll overlay, X button, or open/close script for a new panel.

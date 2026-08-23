@@ -1,0 +1,45 @@
+---
+import { X } from "@lucide/astro"
+
+import IconButton from "@/components/ui/IconButton.astro"
+
+interface Props {
+	eyebrow?: string
+	title: string
+	description?: string
+	closeLabel?: string
+	titleId?: string
+}
+
+const { eyebrow, title, description, closeLabel = "Cerrar panel", titleId } = Astro.props
+---
+
+<header
+	class="fastt-side-sheet-header sticky top-0 z-10 flex items-start justify-between gap-4 px-5 py-5 sm:px-6"
+>
+	<div class="min-w-0">
+		{
+			eyebrow ? (
+				<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">{eyebrow}</p>
+			) : null
+		}
+		<h2 id={titleId} class:list={["text-xl font-semibold text-slate-950", eyebrow ? "mt-1" : ""]}>
+			{title}
+		</h2>
+		{
+			description ? (
+				<p class="mt-1 max-w-xl text-sm leading-6 text-slate-600">{description}</p>
+			) : null
+		}
+	</div>
+	<IconButton
+		type="button"
+		variant="secondary"
+		size="sm"
+		class="fastt-modal-close shrink-0"
+		label={closeLabel}
+		data-drawer-close
+	>
+		<X size={16} aria-hidden="true" />
+	</IconButton>
+</header>

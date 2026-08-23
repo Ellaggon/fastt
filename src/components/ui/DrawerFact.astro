@@ -1,0 +1,20 @@
+---
+interface Props {
+	title: string
+	muted?: boolean
+}
+
+const { title, muted = false } = Astro.props
+---
+
+<div class:list={["fastt-drawer-fact", muted && "fastt-drawer-fact--muted"]}>
+	<span class="fastt-drawer-fact__icon" aria-hidden="true">
+		<slot name="icon" />
+	</span>
+	<div class="min-w-0">
+		<p class="text-sm font-semibold text-slate-950">{title}</p>
+		<p class="mt-0.5 text-sm leading-6 text-slate-600">
+			<slot />
+		</p>
+	</div>
+</div>

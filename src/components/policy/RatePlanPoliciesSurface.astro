@@ -1,8 +1,9 @@
 ---
-import Drawer from "@/components/ui/Drawer.astro"
 import PolicyAssignmentFlow from "@/components/policy/PolicyAssignmentFlow.astro"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
+import Drawer from "@/components/ui/Drawer.astro"
+import DrawerHeader from "@/components/ui/DrawerHeader.astro"
 import { POLICY_CATEGORY_OPTIONS } from "@/data/policy/policy-categories"
 import { routes } from "@/lib/routes"
 import {
@@ -14,7 +15,6 @@ import {
 	History,
 	ShieldCheck,
 	TriangleAlert,
-	X,
 } from "@lucide/astro"
 
 interface PolicyPlanView {
@@ -190,6 +190,7 @@ function arrivalStatus(missing: boolean): { label: string; variant: "neutral" | 
 											type="button"
 											variant="ghost"
 											size="sm"
+											data-drawer-open={technicalDrawerId}
 											data-policy-technical-open={technicalDrawerId}
 										>
 											<History class="h-4 w-4" />
@@ -411,28 +412,14 @@ function arrivalStatus(missing: boolean): { label: string; variant: "neutral" | 
 							id={technicalDrawerId}
 							label={`Historial y detalle técnico de ${plan.ratePlanName}`}
 						>
-							<header class="fastt-side-sheet-header sticky top-0 z-10 flex items-start justify-between gap-4 px-5 py-5">
-								<div>
-									<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-										Herramientas profesionales
-									</p>
-									<h3 class="mt-1 text-xl font-semibold text-slate-950">
-										Historial y detalle técnico
-									</h3>
-									<p class="mt-1 text-sm text-slate-500">{plan.ratePlanName}</p>
-								</div>
-								<Button
-									type="button"
-									variant="ghost"
-									size="sm"
-									aria-label="Cerrar detalle técnico"
-									data-policy-technical-close={technicalDrawerId}
-								>
-									<X class="h-5 w-5" />
-								</Button>
-							</header>
+							<DrawerHeader
+								eyebrow="Herramientas profesionales"
+								title="Historial y detalle técnico"
+								description={plan.ratePlanName}
+								closeLabel="Cerrar detalle técnico"
+							/>
 
-							<div class="space-y-4 overflow-y-auto p-5" data-role="contract-readiness">
+							<div class="fastt-drawer-body space-y-4" data-role="contract-readiness">
 								<section class="fastt-drawer-section p-5">
 									<h4 class="font-semibold text-slate-950">Resolución contractual</h4>
 									<dl class="mt-4 grid gap-4 sm:grid-cols-2">
@@ -515,41 +502,3 @@ function arrivalStatus(missing: boolean): { label: string; variant: "neutral" | 
 </section>
 
 <PolicyAssignmentFlow defaultScope="rate_plan" isProfessionalMode={isProfessionalMode} />
-
-<script>
-	function setTechnicalDrawer(drawerId: string, open: boolean) {
-		const drawer = document.getElementById(drawerId)
-		if (!drawer) return
-		const overlay = drawer.previousElementSibling
-		drawer.classList.toggle("translate-x-0", open)
-		drawer.classList.toggle("translate-x-full", !open)
-		drawer.setAttribute("aria-hidden", open ? "false" : "true")
-		if (overlay instanceof HTMLElement && overlay.hasAttribute("data-drawer-overlay")) {
-			overlay.classList.toggle("pointer-events-none", !open)
-			overlay.classList.toggle("opacity-0", !open)
-			overlay.classList.toggle("opacity-100", open)
-			overlay.onclick = () => setTechnicalDrawer(drawerId, false)
-		}
-		document.documentElement.classList.toggle("overflow-hidden", open)
-	}
-
-	document.addEventListener("click", (event) => {
-		const target = event.target
-		if (!(target instanceof Element)) return
-		const openButton = target.closest<HTMLElement>("[data-policy-technical-open]")
-		const closeButton = target.closest<HTMLElement>("[data-policy-technical-close]")
-		if (openButton?.dataset.policyTechnicalOpen) {
-			setTechnicalDrawer(openButton.dataset.policyTechnicalOpen, true)
-		}
-		if (closeButton?.dataset.policyTechnicalClose) {
-			setTechnicalDrawer(closeButton.dataset.policyTechnicalClose, false)
-		}
-	})
-
-	document.addEventListener("keydown", (event) => {
-		if (event.key !== "Escape") return
-		document
-			.querySelectorAll<HTMLElement>("[id^='policy-technical-'][aria-hidden='false']")
-			.forEach((drawer) => setTechnicalDrawer(drawer.id, false))
-	})
-</script>

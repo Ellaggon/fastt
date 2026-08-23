@@ -12,4 +12,5 @@ declare namespace App {
 
 interface Window {
 	__fasttWorkspacePendingInstalled?: boolean
+	__fasttDrawerController?: boolean
 }

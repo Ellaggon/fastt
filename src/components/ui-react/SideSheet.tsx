@@ -1,16 +1,27 @@
 import { type ReactNode, useEffect, useId, useState } from "react"
 
-import Button from "./Button"
+import IconButton from "./IconButton"
+import { cn } from "./utils"
 
 type Props = {
 	eyebrow?: string
 	title: string
 	description?: string
+	closeLabel?: string
+	className?: string
 	children: ReactNode
 	onClose: () => void
 }
 
-export default function SideSheet({ eyebrow, title, description, children, onClose }: Props) {
+export default function SideSheet({
+	eyebrow,
+	title,
+	description,
+	closeLabel = "Cerrar panel",
+	className,
+	children,
+	onClose,
+}: Props) {
 	const titleId = useId()
 	const [closing, setClosing] = useState(false)
 
@@ -38,9 +49,9 @@ export default function SideSheet({ eyebrow, title, description, children, onClo
 		<>
 			<button
 				type="button"
-				aria-label="Cerrar panel"
+				aria-label={closeLabel}
 				data-closing={closing}
-				className="calendar-backdrop fixed inset-0 z-40 bg-slate-950/40"
+				className="fastt-modal-backdrop fastt-drawer-overlay calendar-backdrop fixed inset-0 z-40"
 				onClick={requestClose}
 			/>
 			<aside
@@ -48,32 +59,46 @@ export default function SideSheet({ eyebrow, title, description, children, onClo
 				aria-modal="true"
 				aria-labelledby={titleId}
 				data-closing={closing}
-				className="calendar-drawer fastt-side-sheet fixed top-0 right-0 z-50 h-full w-full max-w-md overflow-y-auto p-5 text-slate-900"
+				className={cn(
+					"calendar-drawer fastt-side-sheet fixed top-0 right-0 z-50 flex h-full w-full max-w-md flex-col overflow-hidden text-slate-900",
+					className
+				)}
 			>
 				<span className="calendar-drawer-handle" aria-hidden="true" />
-				<header className="fastt-side-sheet-header -mx-5 -mt-5 flex items-start justify-between gap-4 px-5 py-5">
+				<header className="fastt-side-sheet-header flex items-start justify-between gap-4 px-5 py-5">
 					<div className="min-w-0">
 						{eyebrow ? (
-							<p className="text-xs font-semibold tracking-[0.08em] text-slate-500 uppercase">
+							<p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
 								{eyebrow}
 							</p>
 						) : null}
-						<h2 id={titleId} className="mt-1 text-xl font-semibold text-slate-950">
+						<h2
+							id={titleId}
+							className={
+								eyebrow
+									? "mt-1 text-xl font-semibold text-slate-950"
+									: "text-xl font-semibold text-slate-950"
+							}
+						>
 							{title}
 						</h2>
-						{description ? <p className="mt-1 text-sm text-slate-600">{description}</p> : null}
+						{description ? (
+							<p className="mt-1 text-sm leading-6 text-slate-600">{description}</p>
+						) : null}
 					</div>
-					<Button
-						type="button"
+					<IconButton
+						label={closeLabel}
 						variant="secondary"
 						size="sm"
+						className="fastt-modal-close shrink-0"
+						data-drawer-close
 						data-side-sheet-close
 						onClick={requestClose}
 					>
-						Cerrar
-					</Button>
+						×
+					</IconButton>
 				</header>
-				<div className="py-5">{children}</div>
+				<div className="fastt-drawer-body">{children}</div>
 			</aside>
 		</>
 	)
