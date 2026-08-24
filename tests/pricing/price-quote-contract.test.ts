@@ -101,4 +101,53 @@ describe("PriceQuote contract", () => {
 			build("2026-02-01T00:00:00.000Z").quoteId
 		)
 	})
+
+	it("keeps the same quote id across search and hold representations", () => {
+		const terms = {
+			context: {
+				productId: "p",
+				variantId: "v",
+				ratePlanId: "r",
+				checkIn: "2026-09-10",
+				checkOut: "2026-09-12",
+				rooms: 1,
+				occupancy: { adults: 2, children: 0, infants: 0 },
+				channel: "web",
+			},
+			currency: "USD",
+			nights: 2,
+			baseAmount: 200,
+			taxesAndFees: {
+				base: 200,
+				taxes: { included: [], excluded: [] },
+				fees: { included: [], excluded: [] },
+				total: 200,
+			},
+		}
+		const fromSearch = buildPriceQuote({
+			...terms,
+			source: "search",
+			pricing: {
+				days: [
+					{ date: "2026-09-10", price: 100 },
+					{ date: "2026-09-11", price: 100 },
+				],
+				source: "materialized_search_view",
+			},
+		})
+		const fromHold = buildPriceQuote({
+			...terms,
+			source: "hold",
+			pricing: {
+				days: [
+					{ date: "2026-09-10", price: 100 },
+					{ date: "2026-09-11", price: 100 },
+				],
+				breakdownV2: { base: 200, occupancyAdjustment: 0, rules: 0, final: 200 },
+				source: "v2",
+			},
+		})
+
+		expect(fromHold.quoteId).toBe(fromSearch.quoteId)
+	})
 })
