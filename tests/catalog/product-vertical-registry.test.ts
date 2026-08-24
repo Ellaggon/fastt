@@ -27,10 +27,10 @@ describe("catalog/product vertical registry", () => {
 	})
 
 	it("normalizes productType values to canonical DB casing", () => {
-		expect(normalizeProductTypeValue("hotel")).toBe("Hotel")
-		expect(normalizeProductTypeValue("TOUR")).toBe("Tour")
-		expect(normalizeProductTypeValue("paquete")).toBe("Package")
-		expect(normalizeProductTypeValue("limusina")).toBe("Limousine")
+		expect(normalizeProductTypeValue("hotel")).toBe("hotel")
+		expect(normalizeProductTypeValue("TOUR")).toBe("tour")
+		expect(normalizeProductTypeValue("paquete")).toBe("package")
+		expect(normalizeProductTypeValue("limusina")).toBe("limousine")
 		expect(normalizeProductTypeValue("unknown")).toBeNull()
 	})
 
@@ -38,10 +38,10 @@ describe("catalog/product vertical registry", () => {
 		const active = listActiveProductVerticalEntries()
 
 		expect(active.map((entry) => entry.productType)).toEqual([
-			"Hotel",
-			"Tour",
-			"Package",
-			"Limousine",
+			"hotel",
+			"tour",
+			"package",
+			"limousine",
 		])
 		expect(active.map((entry) => entry.creation.typeOptionLabel)).toEqual([
 			"Alojamiento",

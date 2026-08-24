@@ -12,7 +12,8 @@ import {
 	BookingRoomDetail,
 	DailyInventory,
 	db,
-	Destination,
+	GeoPlace,
+	ProductGeoPlace,
 	EffectiveAvailability,
 	eq,
 	InventoryLock,
@@ -30,7 +31,7 @@ import {
 describe.sequential("provider booking revision feed", () => {
 	const providerId = "provider_booking_revision_feed"
 	const connectionId = "connection_booking_revision_feed"
-	const destinationId = "destination_booking_revision_feed"
+	const geoPlaceId = "destination_booking_revision_feed"
 	const productId = "product_booking_revision_feed"
 	const variantId = "variant_booking_revision_feed"
 	const ratePlanId = "rate_booking_revision_feed"
@@ -204,7 +205,7 @@ describe.sequential("provider booking revision feed", () => {
 		await db.delete(RatePlan).where(eq(RatePlan.id, ratePlanId))
 		await db.delete(Variant).where(eq(Variant.id, variantId))
 		await db.delete(Product).where(eq(Product.id, productId))
-		await db.delete(Destination).where(eq(Destination.id, destinationId))
+		await db.delete(GeoPlace).where(eq(GeoPlace.id, geoPlaceId))
 		await db.delete(Provider).where(eq(Provider.id, providerId))
 	}
 
@@ -216,19 +217,27 @@ describe.sequential("provider booking revision feed", () => {
 			displayName: "Booking Revision QA",
 			status: "active",
 		})
-		await db.insert(Destination).values({
-			id: destinationId,
-			name: "Santiago",
-			type: "city",
-			country: "CL",
-			slug: destinationId,
+		await db.insert(GeoPlace).values({
+			id: geoPlaceId,
+			canonicalName: "Santiago",
+			normalizedName: "santiago",
+			placeType: "city",
+			countryCode: "CL",
+			slug: geoPlaceId,
 		} as any)
 		await db.insert(Product).values({
 			id: productId,
 			name: "Hotel Revision QA",
 			productType: "Hotel",
 			providerId,
-			destinationId,
+		} as any)
+		await db.insert(ProductGeoPlace).values({
+			id: `test-primary-${productId}`,
+			productId,
+			placeId: geoPlaceId,
+			role: "primary_discovery",
+			isPrimary: true,
+			source: "test_fixture",
 		} as any)
 		expect(
 			await db.select({ id: Product.id }).from(Product).where(eq(Product.id, productId))

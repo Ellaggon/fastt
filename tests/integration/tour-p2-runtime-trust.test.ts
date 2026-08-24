@@ -7,7 +7,8 @@ import {
 	BookingVoucher,
 	DailyInventory,
 	db,
-	Destination,
+	GeoPlace,
+	ProductGeoPlace,
 	EffectiveAvailability,
 	EffectivePricingV2,
 	eq,
@@ -103,23 +104,24 @@ async function readJson(res: Response) {
 
 async function seedPrivateVariant(suffix: string) {
 	const productId = `prod_priv_${suffix}`
-	const destinationId = `dest_priv_${suffix}`
+	const geoPlaceId = `dest_priv_${suffix}`
 	const variantId = `var_priv_${suffix}`
 	await db.insert(Provider).values({ id: "prov_test", legalName: "Provider prov_test" }).onConflictDoNothing()
-	await db.insert(Destination).values({
-		id: destinationId,
-		name: "Private Dest",
-		type: "city",
-		country: "BO",
-		slug: `priv-${destinationId}`,
+	await db.insert(GeoPlace).values({
+		id: geoPlaceId,
+		canonicalName: "Private Dest",
+		normalizedName: "private dest",
+		placeType: "city",
+		countryCode: "BO",
+		slug: `priv-${geoPlaceId}`,
 	} as any)
 	await db.insert(Product).values({
 		id: productId,
 		name: "Private Tour",
 		productType: "Tour",
-		destinationId,
 		providerId: "prov_test",
 	} as any)
+	await db.insert(ProductGeoPlace).values({ id: `test-primary-${productId}`, productId, placeId: geoPlaceId, role: "primary_discovery", isPrimary: true, source: "test_fixture" } as any)
 	await db.insert(Variant).values({
 		id: variantId,
 		productId,
@@ -290,7 +292,7 @@ describe("integration/tour P2 runtime trust (review, private, cross-sell, cancel
 			const providerUserId = `u_prov_${suffix}`
 			const bookingId = crypto.randomUUID()
 			const productId = `prod_rev_${suffix}`
-			const destinationId = `dest_rev_${suffix}`
+			const geoPlaceId = `dest_rev_${suffix}`
 			const variantId = `var_rev_${suffix}`
 			const ratePlanId = `rp_rev_${suffix}`
 
@@ -307,20 +309,21 @@ describe("integration/tour P2 runtime trust (review, private, cross-sell, cancel
 				userId: providerUserId,
 				role: "owner",
 			} as any)
-			await db.insert(Destination).values({
-				id: destinationId,
-				name: "Rev Dest",
-				type: "city",
-				country: "BO",
-				slug: `rev-${destinationId}`,
+			await db.insert(GeoPlace).values({
+				id: geoPlaceId,
+				canonicalName: "Rev Dest",
+				normalizedName: "rev dest",
+				placeType: "city",
+				countryCode: "BO",
+				slug: `rev-${geoPlaceId}`,
 			} as any)
 			await db.insert(Product).values({
 				id: productId,
 				name: "Review Tour",
 				productType: "Tour",
-				destinationId,
 				providerId: "prov_test",
 			} as any)
+			await db.insert(ProductGeoPlace).values({ id: `test-primary-${productId}`, productId, placeId: geoPlaceId, role: "primary_discovery", isPrimary: true, source: "test_fixture" } as any)
 			await db.insert(Variant).values({
 				id: variantId,
 				productId,
@@ -480,7 +483,7 @@ describe("integration/tour P2 runtime trust (review, private, cross-sell, cancel
 			const guestId = `u_guest_${suffix}`
 			const hotelProductId = `prod_hotel_xs_${suffix}`
 			const tourProductId = `prod_tour_xs_${suffix}`
-			const destinationId = `dest_xs_${suffix}`
+			const geoPlaceId = `dest_xs_${suffix}`
 			const variantId = `var_xs_${suffix}`
 			const ratePlanId = `rp_xs_${suffix}`
 			const bookingId = crypto.randomUUID()
@@ -490,27 +493,28 @@ describe("integration/tour P2 runtime trust (review, private, cross-sell, cancel
 
 			await db.insert(Provider).values({ id: "prov_test", legalName: "P" }).onConflictDoNothing()
 			await db.insert(User).values({ id: guestId, email: `xs-${suffix}@ex.com` } as any)
-			await db.insert(Destination).values({
-				id: destinationId,
-				name: "XS Dest",
-				type: "city",
-				country: "BO",
-				slug: `xs-${destinationId}`,
+			await db.insert(GeoPlace).values({
+				id: geoPlaceId,
+				canonicalName: "XS Dest",
+				normalizedName: "xs dest",
+				placeType: "city",
+				countryCode: "BO",
+				slug: `xs-${geoPlaceId}`,
 			} as any)
 			await db.insert(Product).values({
 				id: hotelProductId,
 				name: "Hotel XS",
 				productType: "Hotel",
-				destinationId,
 				providerId: "prov_test",
 			} as any)
+			await db.insert(ProductGeoPlace).values({ id: `test-primary-${hotelProductId}`, productId: hotelProductId, placeId: geoPlaceId, role: "primary_discovery", isPrimary: true, source: "test_fixture" } as any)
 			await db.insert(Product).values({
 				id: tourProductId,
 				name: "Tour XS",
 				productType: "Tour",
-				destinationId,
 				providerId: "prov_test",
 			} as any)
+			await db.insert(ProductGeoPlace).values({ id: `test-primary-${tourProductId}`, productId: tourProductId, placeId: geoPlaceId, role: "primary_discovery", isPrimary: true, source: "test_fixture" } as any)
 			await db.insert(ProductStatus).values({
 				productId: tourProductId,
 				state: "published",
@@ -586,7 +590,7 @@ describe("integration/tour P2 runtime trust (review, private, cross-sell, cancel
 			} as any)
 
 			const crossSell = await loadHotelTourCrossSell({
-				destinationId,
+				geoPlaceId,
 				checkIn: departure,
 				surface: "hotel_pdp",
 				excludeProductId: hotelProductId,
@@ -600,7 +604,7 @@ describe("integration/tour P2 runtime trust (review, private, cross-sell, cancel
 						eventType: "impression",
 						surface: "hotel_pdp",
 						sourceProductId: hotelProductId,
-						destinationId,
+						geoPlaceId,
 						sessionId: `sess_${suffix}`,
 					},
 				}),
@@ -615,7 +619,7 @@ describe("integration/tour P2 runtime trust (review, private, cross-sell, cancel
 						surface: "hotel_pdp",
 						sourceProductId: hotelProductId,
 						targetProductId: tourProductId,
-						destinationId,
+						geoPlaceId,
 						sessionId: `sess_${suffix}`,
 					},
 				}),
@@ -649,7 +653,7 @@ describe("integration/tour P2 runtime trust (review, private, cross-sell, cancel
 								surface: "hotel_pdp",
 								sourceProductId: hotelProductId,
 								targetProductId: tourProductId,
-								destinationId,
+								geoPlaceId,
 								bookingId,
 								sessionId: `sess_${suffix}`,
 							},
@@ -707,7 +711,7 @@ describe("integration/tour P2 runtime trust (review, private, cross-sell, cancel
 			const foreignUserId = `u_foreign_${suffix}`
 			const foreignProviderId = `prov_foreign_${suffix}`
 			const productId = `prod_void_${suffix}`
-			const destinationId = `dest_void_${suffix}`
+			const geoPlaceId = `dest_void_${suffix}`
 			const variantId = `var_void_${suffix}`
 			const ratePlanId = `rp_void_${suffix}`
 			const departure = "2026-10-25"
@@ -739,20 +743,21 @@ describe("integration/tour P2 runtime trust (review, private, cross-sell, cancel
 				userId: foreignUserId,
 				role: "owner",
 			} as any)
-			await db.insert(Destination).values({
-				id: destinationId,
-				name: "Void Dest",
-				type: "city",
-				country: "BO",
-				slug: `void-${destinationId}`,
+			await db.insert(GeoPlace).values({
+				id: geoPlaceId,
+				canonicalName: "Void Dest",
+				normalizedName: "void dest",
+				placeType: "city",
+				countryCode: "BO",
+				slug: `void-${geoPlaceId}`,
 			} as any)
 			await db.insert(Product).values({
 				id: productId,
 				name: "Void Tour",
 				productType: "Tour",
-				destinationId,
 				providerId: "prov_test",
 			} as any)
+			await db.insert(ProductGeoPlace).values({ id: `test-primary-${productId}`, productId, placeId: geoPlaceId, role: "primary_discovery", isPrimary: true, source: "test_fixture" } as any)
 			await db.insert(Tour).values({
 				productId,
 				durationMinutes: 90,

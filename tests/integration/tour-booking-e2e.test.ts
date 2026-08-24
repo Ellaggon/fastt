@@ -8,7 +8,8 @@ import {
 	BookingVoucher,
 	db,
 	DailyInventory,
-	Destination,
+	GeoPlace,
+	ProductGeoPlace,
 	EffectiveAvailability,
 	EffectivePricingV2,
 	eq,
@@ -95,7 +96,7 @@ async function readJson(res: Response) {
 
 async function seedTourCommercialReady(params: {
 	productId: string
-	destinationId: string
+	geoPlaceId: string
 	variantId: string
 	ratePlanId: string
 	departureTime: string
@@ -114,13 +115,14 @@ async function seedTourCommercialReady(params: {
 		.onConflictDoNothing()
 
 	await db
-		.insert(Destination)
+		.insert(GeoPlace)
 		.values({
-			id: params.destinationId,
-			name: "Tour Dest",
-			type: "city",
-			country: "BO",
-			slug: `tour-${params.destinationId}`,
+			id: params.geoPlaceId,
+			canonicalName: "Tour Dest",
+			normalizedName: "tour dest",
+			placeType: "city",
+			countryCode: "BO",
+			slug: `tour-${params.geoPlaceId}`,
 		} as any)
 		.onConflictDoNothing()
 
@@ -130,8 +132,18 @@ async function seedTourCommercialReady(params: {
 			id: params.productId,
 			name: "City Tour",
 			productType: "Tour",
-			destinationId: params.destinationId,
 			providerId: "prov_test",
+		} as any)
+		.onConflictDoNothing()
+	await db
+		.insert(ProductGeoPlace)
+		.values({
+			id: `test-primary-${params.productId}`,
+			productId: params.productId,
+			placeId: params.geoPlaceId,
+			role: "primary_discovery",
+			isPrimary: true,
+			source: "test_fixture",
 		} as any)
 		.onConflictDoNothing()
 
@@ -313,7 +325,7 @@ describe("integration/tour booking E2E (P0 1.1)", () => {
 			const userId = `u_tour_e2e_${suffix}`
 			const email = `tour-e2e-${suffix}@example.com`
 			const productId = `prod_tour_${suffix}`
-			const destinationId = `dest_tour_${suffix}`
+			const geoPlaceId = `dest_tour_${suffix}`
 			const morningId = `var_tour_am_${suffix}`
 			const afternoonId = `var_tour_pm_${suffix}`
 			const morningRp = `rp_tour_am_${suffix}`
@@ -347,7 +359,7 @@ describe("integration/tour booking E2E (P0 1.1)", () => {
 
 			await seedTourCommercialReady({
 				productId,
-				destinationId,
+				geoPlaceId,
 				variantId: morningId,
 				ratePlanId: morningRp,
 				departureTime: "09:00",
@@ -358,7 +370,7 @@ describe("integration/tour booking E2E (P0 1.1)", () => {
 			})
 			await seedTourCommercialReady({
 				productId,
-				destinationId,
+				geoPlaceId,
 				variantId: afternoonId,
 				ratePlanId: afternoonRp,
 				departureTime: "15:30",

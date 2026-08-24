@@ -1,0 +1,57 @@
+---
+import { ImageOff } from "@lucide/astro"
+
+interface Props {
+	src: string | null | undefined
+	alt: string
+	class?: string
+	priority?: boolean
+}
+
+const { src, alt, class: className = "", priority = false } = Astro.props as Props
+---
+
+<span class={`relative block overflow-hidden bg-slate-100 ${className}`} data-public-image>
+	{
+		src ? (
+			<img
+				src={src}
+				alt={alt}
+				class="h-full w-full object-cover"
+				loading={priority ? "eager" : "lazy"}
+				fetchpriority={priority ? "high" : "auto"}
+				data-public-image-source
+			/>
+		) : null
+	}
+	<span
+		class:list={{
+			"absolute inset-0 flex items-center justify-center bg-slate-100 text-slate-500": true,
+			"hidden": Boolean(src),
+		}}
+		data-public-image-fallback
+	>
+		<ImageOff class="h-6 w-6" aria-label="Imagen no disponible" />
+	</span>
+</span>
+
+<script>
+	const bindPublicImages = () => {
+		document.querySelectorAll("[data-public-image]").forEach((root) => {
+			if (!(root instanceof HTMLElement) || root.dataset.imageBound === "true") return
+			root.dataset.imageBound = "true"
+			const image = root.querySelector("[data-public-image-source]")
+			const fallback = root.querySelector("[data-public-image-fallback]")
+			if (!(image instanceof HTMLImageElement) || !(fallback instanceof HTMLElement)) return
+			const revealFallback = () => {
+				image.hidden = true
+				fallback.classList.remove("hidden")
+			}
+			image.addEventListener("error", revealFallback)
+			if (image.complete && image.naturalWidth === 0) revealFallback()
+		})
+	}
+
+	bindPublicImages()
+	document.addEventListener("astro:page-load", bindPublicImages)
+</script>

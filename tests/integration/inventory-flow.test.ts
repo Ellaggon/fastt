@@ -8,7 +8,7 @@ describe("integration/inventory flow", () => {
 		const { variantId } = await seedTestProductVariant({
 			variantId: "variant_int_inventory",
 			productId: "prod_int_inventory",
-			destinationId: "dest_int_inventory",
+			geoPlaceId: "dest_int_inventory",
 			basePrice: 100,
 		})
 

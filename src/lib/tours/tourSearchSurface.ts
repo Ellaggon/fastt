@@ -24,7 +24,6 @@ import {
 	avg,
 	count,
 	db,
-	Destination,
 	eq,
 	gt,
 	gte,
@@ -34,6 +33,7 @@ import {
 	lt,
 	or,
 	Product,
+	ProductGeoPlace,
 	ProductCategory,
 	ProductCategoryLink,
 	ProductContent,
@@ -132,10 +132,7 @@ export const TOUR_DISCOVERY_OCCUPANCY = { adults: 1, children: 0, infants: 0 } a
 
 export async function getTourSearchSurface(params: {
 	startDate: string
-	destinationId?: string | null
-	/** Resolved Destination row id (preferred over free-text). */
-	destinationRowId?: string | null
-	destinationDepartment?: string | null
+	geoPlaceId?: string | null
 	categorySlugs?: string[]
 	durationBucket?: string | null
 	level?: string | null
@@ -201,9 +198,7 @@ export async function getTourSearchSurface(params: {
 async function loadTourSearchSurfaceCards(params: {
 	startDate: string
 	departureDate: string
-	destinationId?: string | null
-	destinationRowId?: string | null
-	destinationDepartment?: string | null
+	geoPlaceId?: string | null
 	categorySlugs?: string[]
 	durationBucket?: string | null
 	level?: string | null
@@ -262,17 +257,8 @@ async function loadTourSearchSurfaceCards(params: {
 		or(isNull(SearchUnitView.primaryBlocker), eq(SearchUnitView.primaryBlocker, "")),
 	]
 
-	if (params.destinationRowId) {
-		if (params.destinationDepartment) {
-			whereParts.push(
-				or(
-					eq(Product.destinationId, params.destinationRowId),
-					eq(Destination.department, params.destinationDepartment)
-				)!
-			)
-		} else {
-			whereParts.push(eq(Product.destinationId, params.destinationRowId))
-		}
+	if (params.geoPlaceId) {
+		whereParts.push(eq(ProductGeoPlace.placeId, params.geoPlaceId))
 	}
 
 	if (categoryProductIds) {
@@ -320,6 +306,14 @@ async function loadTourSearchSurfaceCards(params: {
 		})
 		.from(SearchUnitView)
 		.innerJoin(Product, eq(Product.id, SearchUnitView.productId))
+		.innerJoin(
+			ProductGeoPlace,
+			and(
+				eq(ProductGeoPlace.productId, Product.id),
+				eq(ProductGeoPlace.role, "primary_discovery"),
+				eq(ProductGeoPlace.isPrimary, true)
+			)
+		)
 		.innerJoin(ProductStatus, eq(ProductStatus.productId, Product.id))
 		.innerJoin(Variant, eq(Variant.id, SearchUnitView.variantId))
 		.innerJoin(
@@ -331,7 +325,6 @@ async function loadTourSearchSurfaceCards(params: {
 			and(eq(ProductContent.productId, Product.id), eq(ProductContent.dataClass, "production"))
 		)
 		.leftJoin(Tour, eq(Tour.productId, Product.id))
-		.leftJoin(Destination, eq(Destination.id, Product.destinationId))
 		.leftJoin(Image, and(eq(Image.entityId, Product.id), eq(Image.isPrimary, true)))
 		.where(and(...whereParts))
 

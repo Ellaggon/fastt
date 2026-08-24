@@ -6,7 +6,7 @@ export type ProductRow = {
 	description?: string | null
 	productType: string | null
 	providerId: string | null
-	destinationId?: string | null
+	geoPlaceId?: string | null
 }
 
 export type ProductBundle = {

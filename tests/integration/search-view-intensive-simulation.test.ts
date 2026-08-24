@@ -14,7 +14,7 @@ import { materializeSearchUnitRange } from "@/modules/search/public"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
 import { readCounter, readTimingQuantile } from "@/lib/observability/metrics"
 import {
-	upsertDestination,
+	upsertGeoPlace,
 	upsertProduct,
 	upsertRatePlan,
 	upsertRatePlanTemplate,
@@ -96,13 +96,13 @@ async function seedDataset(): Promise<{ variants: VariantSeed[]; products: strin
 		ownerEmail: "sim-search@example.com",
 	})
 
-	const destinationId = `dest_sim_${crypto.randomUUID()}`
-	await upsertDestination({
-		id: destinationId,
+	const geoPlaceId = `dest_sim_${crypto.randomUUID()}`
+	await upsertGeoPlace({
+		id: geoPlaceId,
 		name: "Simulation City",
 		type: "city",
 		country: "CL",
-		slug: `sim-${destinationId}`,
+		slug: `sim-${geoPlaceId}`,
 	})
 
 	const dates = dateRange(START_DATE, DAYS)
@@ -117,7 +117,7 @@ async function seedDataset(): Promise<{ variants: VariantSeed[]; products: strin
 			id: productId,
 			name: `Hotel Sim ${p + 1}`,
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 
@@ -364,17 +364,17 @@ async function validateAutoBackfill() {
 	const variantId = `var_auto_${crypto.randomUUID()}`
 	const templateId = `rpt_auto_${crypto.randomUUID()}`
 	const ratePlanId = `rp_auto_${crypto.randomUUID()}`
-	const destinationId = `dest_auto_${crypto.randomUUID()}`
+	const geoPlaceId = `dest_auto_${crypto.randomUUID()}`
 	const providerId = `prov_auto_${crypto.randomUUID()}`
 	const start = "2026-09-01"
 	const end = "2026-09-03"
 
-	await upsertDestination({
-		id: destinationId,
+	await upsertGeoPlace({
+		id: geoPlaceId,
 		name: "AutoBackfill Dest",
 		type: "city",
 		country: "CL",
-		slug: `auto-${destinationId}`,
+		slug: `auto-${geoPlaceId}`,
 	})
 	await upsertProvider({
 		id: providerId,
@@ -385,7 +385,7 @@ async function validateAutoBackfill() {
 		id: productId,
 		name: "AutoBackfill Product",
 		productType: "Hotel",
-		destinationId,
+		geoPlaceId,
 		providerId,
 	})
 	await upsertVariant({
@@ -520,17 +520,17 @@ async function validateMutations() {
 	const variantId = `var_mut_${crypto.randomUUID()}`
 	const templateId = `rpt_mut_${crypto.randomUUID()}`
 	const ratePlanId = `rp_mut_${crypto.randomUUID()}`
-	const destinationId = `dest_mut_${crypto.randomUUID()}`
+	const geoPlaceId = `dest_mut_${crypto.randomUUID()}`
 	const providerId = `prov_mut_${crypto.randomUUID()}`
 	const day = addDays(START_DATE, 10)
 	const afterDay = addDays(day, 1)
 
-	await upsertDestination({
-		id: destinationId,
+	await upsertGeoPlace({
+		id: geoPlaceId,
 		name: "Mutation Dest",
 		type: "city",
 		country: "CL",
-		slug: `mut-${destinationId}`,
+		slug: `mut-${geoPlaceId}`,
 	})
 	await upsertProvider({
 		id: providerId,
@@ -541,7 +541,7 @@ async function validateMutations() {
 		id: productId,
 		name: "Mutation Product",
 		productType: "Hotel",
-		destinationId,
+		geoPlaceId,
 		providerId,
 	})
 	await upsertVariant({

@@ -8,7 +8,7 @@ export type RecordMarketplaceEventInput = {
 	surface: string
 	sourceProductId?: string | null
 	targetProductId?: string | null
-	destinationId?: string | null
+	geoPlaceId?: string | null
 	bookingId?: string | null
 	sessionId?: string | null
 	meta?: Record<string, unknown> | null
@@ -39,7 +39,7 @@ export async function recordMarketplaceEvent(
 
 	const sourceProductId = String(input.sourceProductId ?? "").trim() || null
 	const targetProductId = String(input.targetProductId ?? "").trim() || null
-	const destinationId = String(input.destinationId ?? "").trim() || null
+	const geoPlaceId = String(input.geoPlaceId ?? "").trim() || null
 	const bookingId = String(input.bookingId ?? "").trim() || null
 	const sessionId = String(input.sessionId ?? "").trim() || null
 	const userId = String(input.userId ?? "").trim() || null
@@ -75,7 +75,7 @@ export async function recordMarketplaceEvent(
 		surface,
 		sourceProductId,
 		targetProductId,
-		destinationId,
+		geoPlaceId,
 		bookingId,
 		sessionId,
 		metaJson: input.meta ?? null,

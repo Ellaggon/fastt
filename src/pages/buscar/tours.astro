@@ -8,11 +8,11 @@ import {
 } from "@/lib/marketplace/publicDestinationRoutes"
 import { tourDifficultyLabel } from "@/lib/tours/tourDifficulty"
 import { getTourSearchSurface } from "@/lib/tours/tourSearchSurface"
-import { db, Destination, eq, or } from "@/shared/infrastructure/db/compat"
+import { db, eq, GeoPlace } from "@/shared/infrastructure/db/compat"
 
 const params = Astro.url.searchParams
 const legacyDestination =
-	params.get("destinationId") || params.get("destinationSlug") || params.get("destinationQuery")
+	params.get("geoPlaceId") || params.get("geoPlaceSlug") || params.get("destinationQuery")
 const canonicalSlug = canonicalPublicPlaceSlug(params.get("destino") || legacyDestination)
 if (canonicalSlug && params.get("destino") !== canonicalSlug) {
 	return Astro.redirect(publicSearchHref("tours", params), 308)
@@ -30,16 +30,13 @@ const sort = String(params.get("sort") ?? "relevance").trim()
 const priceMin = Number(params.get("priceMin"))
 const priceMax = Number(params.get("priceMax"))
 
-let destination: { id: string; name: string; department: string | null } | null = null
+let destination: { id: string; name: string } | null = null
 if (canonicalSlug) {
-	const legacyLookupSlug = canonicalSlug.replace(/-department$/, "")
 	destination =
 		(await db
-			.select({ id: Destination.id, name: Destination.name, department: Destination.department })
-			.from(Destination)
-			.where(
-				or(eq(Destination.slug, legacyLookupSlug), eq(Destination.department, legacyLookupSlug))
-			)
+			.select({ id: GeoPlace.id, name: GeoPlace.canonicalName })
+			.from(GeoPlace)
+			.where(eq(GeoPlace.slug, canonicalSlug))
 			.limit(1)
 			.then((rows) => rows[0] ?? null)) ?? null
 }
@@ -64,8 +61,7 @@ if (effectiveStartDate) {
 	try {
 		const surface = await getTourSearchSurface({
 			startDate: effectiveStartDate,
-			destinationRowId: destination?.id ?? null,
-			destinationDepartment: destination?.department ?? null,
+			geoPlaceId: destination?.id ?? null,
 			categorySlugs,
 			durationBucket,
 			level,

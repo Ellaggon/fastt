@@ -6,7 +6,8 @@ import {
 	inArray,
 	Product,
 	ProductGeoPlace,
-	LegacyDestinationGeoPlaceMap,
+	ProductGeoPlaceActivity,
+	GeoPlace,
 	ProductContent,
 	ProductLocation,
 	ProductPreparationSnapshot,
@@ -52,12 +53,21 @@ import type {
 import { tourHasMeetingPoint } from "@/lib/tours/tourAdminQuality"
 import type { RatePlanCommandRepositoryPort } from "../../../pricing/application/ports/RatePlanCommandRepositoryPort"
 import { RatePlanCommandRepository } from "../../../pricing/infrastructure/repositories/RatePlanCommandRepository"
+import { normalizeProductTypeForStorage } from "@/lib/productVerticalRegistry"
+import { geoPlaceCompatibilityError } from "../../domain/geo-place-compatibility"
 
 export class ProductRepository implements ProductRepositoryPort {
 	constructor(
 		private r2?: S3Client,
 		private readonly ratePlanCommands: RatePlanCommandRepositoryPort = new RatePlanCommandRepository()
 	) {}
+
+	private async assertCompatiblePrimaryGeoPlace(productType: string, geoPlaceId: string) {
+		const place = await db.select({ status: GeoPlace.status, placeType: GeoPlace.placeType }).from(GeoPlace).where(eq(GeoPlace.id, geoPlaceId)).then(first)
+		if (!place || place.status !== "active") throw new Error("GEO_PLACE_NOT_ACTIVE")
+		const error = geoPlaceCompatibilityError({ productType, placeType: place.placeType })
+		if (error) throw new Error(`GEO_PLACE_INCOMPATIBLE:${error}`)
+	}
 
 	// INVARIANT:
 	// Product persists identity only.
@@ -67,43 +77,29 @@ export class ProductRepository implements ProductRepositoryPort {
 		name: string
 		productType: string
 		providerId?: string | null
-		destinationId: string
+		geoPlaceId: string
 		dataClass?: "production" | "demo" | "fixture" | "sandbox"
 	}): Promise<void> {
+		const productType = normalizeProductTypeForStorage(params.productType)
+		if (!productType) throw new Error("Unsupported product type")
+		await this.assertCompatiblePrimaryGeoPlace(productType, params.geoPlaceId)
 		await db.transaction(async (tx) => {
 			await tx.insert(Product).values({
 				id: params.id,
 				name: params.name,
-				productType: params.productType,
+				productType,
 				providerId: params.providerId ?? null,
-				destinationId: params.destinationId,
 				dataClass: params.dataClass ?? "production",
 			})
 
-			const mappedPlace = await tx
-				.select({ placeId: LegacyDestinationGeoPlaceMap.placeId })
-				.from(LegacyDestinationGeoPlaceMap)
-				.where(
-					and(
-						eq(LegacyDestinationGeoPlaceMap.legacyDestinationId, params.destinationId),
-						inArray(LegacyDestinationGeoPlaceMap.resolutionStatus, ["auto_matched", "confirmed"])
-					)
-				)
-				.then(first)
-
-			if (mappedPlace?.placeId) {
-				await tx
-					.insert(ProductGeoPlace)
-					.values({
-						id: `geo:product-place:${params.id}`,
-						productId: params.id,
-						placeId: mappedPlace.placeId,
-						role: "primary_discovery",
-						isPrimary: true,
-						source: "dual_write_legacy_destination",
-					})
-					.onConflictDoNothing()
-			}
+			await tx.insert(ProductGeoPlace).values({
+				id: `geo:product-place:${params.id}`,
+				productId: params.id,
+				placeId: params.geoPlaceId,
+				role: "primary_discovery",
+				isPrimary: true,
+				source: "product_create",
+			})
 		})
 	}
 
@@ -115,10 +111,11 @@ export class ProductRepository implements ProductRepositoryPort {
 				name: Product.name,
 				productType: Product.productType,
 				providerId: Product.providerId,
-				destinationId: Product.destinationId,
+				geoPlaceId: ProductGeoPlace.placeId,
 				dataClass: Product.dataClass,
 			})
 			.from(Product)
+			.innerJoin(ProductGeoPlace, and(eq(ProductGeoPlace.productId, Product.id), eq(ProductGeoPlace.role, "primary_discovery"), eq(ProductGeoPlace.isPrimary, true)))
 			.where(eq(Product.id, productId))
 			.then(first)
 		return row ?? null
@@ -132,10 +129,11 @@ export class ProductRepository implements ProductRepositoryPort {
 				name: Product.name,
 				productType: Product.productType,
 				providerId: Product.providerId,
-				destinationId: Product.destinationId,
+				geoPlaceId: ProductGeoPlace.placeId,
 				dataClass: Product.dataClass,
 			})
 			.from(Product)
+			.innerJoin(ProductGeoPlace, and(eq(ProductGeoPlace.productId, Product.id), eq(ProductGeoPlace.role, "primary_discovery"), eq(ProductGeoPlace.isPrimary, true)))
 			.where(and(eq(Product.id, productId), eq(Product.providerId, providerId)))
 			.then(first)
 		return row ?? null
@@ -215,6 +213,34 @@ export class ProductRepository implements ProductRepositoryPort {
 			.where(eq(ProductLocation.productId, params.productId))
 	}
 
+	async setProductGeoPlace(params: {
+		productId: string
+		geoPlaceId: string
+		actorId?: string | null
+		source: string
+	}): Promise<void> {
+		const product = await db.select({ productType: Product.productType }).from(Product).where(eq(Product.id, params.productId)).then(first)
+		if (!product) throw new Error("PRODUCT_NOT_FOUND")
+		await this.assertCompatiblePrimaryGeoPlace(product.productType, params.geoPlaceId)
+		await db.transaction(async (tx) => {
+			const current = await tx
+				.select({ id: ProductGeoPlace.id, placeId: ProductGeoPlace.placeId })
+				.from(ProductGeoPlace)
+				.where(and(eq(ProductGeoPlace.productId, params.productId), eq(ProductGeoPlace.role, "primary_discovery"), eq(ProductGeoPlace.isPrimary, true)))
+				.then(first)
+			if (current?.placeId === params.geoPlaceId) return
+			if (current) {
+				await tx.update(ProductGeoPlace).set({ placeId: params.geoPlaceId, updatedAt: new Date() }).where(eq(ProductGeoPlace.id, current.id))
+			} else {
+				await tx.insert(ProductGeoPlace).values({ id: `geo:product-place:${params.productId}`, productId: params.productId, placeId: params.geoPlaceId, role: "primary_discovery", isPrimary: true, source: params.source })
+			}
+			await tx.insert(ProductGeoPlaceActivity).values({
+				id: crypto.randomUUID(), productId: params.productId, previousPlaceId: current?.placeId ?? null,
+				placeId: params.geoPlaceId, actorId: params.actorId ?? null, source: params.source,
+			})
+		})
+	}
+
 	async upsertProductStatus(params: {
 		productId: string
 		state: "draft" | "ready" | "published"
@@ -251,9 +277,10 @@ export class ProductRepository implements ProductRepositoryPort {
 				name: Product.name,
 				productType: Product.productType,
 				providerId: Product.providerId,
-				destinationId: Product.destinationId,
+				geoPlaceId: ProductGeoPlace.placeId,
 			})
 			.from(Product)
+			.innerJoin(ProductGeoPlace, and(eq(ProductGeoPlace.productId, Product.id), eq(ProductGeoPlace.role, "primary_discovery"), eq(ProductGeoPlace.isPrimary, true)))
 			.where(eq(Product.id, productId))
 			.then(first)
 

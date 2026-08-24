@@ -9,6 +9,7 @@ import {
 	ImageUpload,
 	InventoryLock,
 	Product,
+	ProductGeoPlace,
 	RatePlan,
 	RatePlanOccupancyPolicy,
 	SearchUnitView,
@@ -22,17 +23,17 @@ import {
 } from "@/shared/infrastructure/db/compat"
 
 import { r2, variantManagementRepository } from "@/container"
-import { upsertDestination } from "@/shared/infrastructure/test-support/db-test-data"
+import { upsertGeoPlace } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
 
 async function rowsFor(table: any, column: any, value: string) {
 	return db.select().from(table).where(eq(column, value))
 }
 
-async function seedProduct(params: { suffix: string; providerId: string; destinationId: string }) {
+async function seedProduct(params: { suffix: string; providerId: string; geoPlaceId: string }) {
 	const productId = `prod_room_delete_${params.suffix}`
-	await upsertDestination({
-		id: params.destinationId,
+	await upsertGeoPlace({
+		id: params.geoPlaceId,
 		name: "Delete Room Destination",
 		type: "city",
 		country: "BO",
@@ -48,8 +49,8 @@ async function seedProduct(params: { suffix: string; providerId: string; destina
 		name: "Hotel con habitación temporal",
 		productType: "Hotel",
 		providerId: params.providerId,
-		destinationId: params.destinationId,
 	})
+	await db.insert(ProductGeoPlace).values({ id: `geo:product-place:${productId}`, productId, placeId: params.geoPlaceId, role: "primary_discovery", isPrimary: true, source: "test_fixture" })
 	return productId
 }
 
@@ -219,7 +220,7 @@ describe("integration/catalog delete variant cascade", () => {
 		const productId = await seedProduct({
 			suffix,
 			providerId: `prov_room_delete_${suffix}`,
-			destinationId: `dest_room_delete_${suffix}`,
+			geoPlaceId: `dest_room_delete_${suffix}`,
 		})
 		const { variantId, ratePlanId, imageId } = await seedSellableRoom({ productId, suffix })
 
@@ -279,7 +280,7 @@ describe("integration/catalog delete variant cascade", () => {
 		const productId = await seedProduct({
 			suffix,
 			providerId: `prov_room_delete_block_${suffix}`,
-			destinationId: `dest_room_delete_block_${suffix}`,
+			geoPlaceId: `dest_room_delete_block_${suffix}`,
 		})
 		const { variantId } = await seedSellableRoom({ productId, suffix })
 		await db.insert(InventoryLock).values({

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { GET as listRatePlansGet } from "@/pages/api/rates/plans"
 import {
-	upsertDestination,
+	upsertGeoPlace,
 	upsertProduct,
 	upsertRatePlan,
 	upsertRatePlanTemplate,
@@ -76,14 +76,14 @@ async function seedProviderRatePlan(params: {
 	variantName: string
 	ratePlanName: string
 }) {
-	const destinationId = `dest_rates_plans_${params.suffix}`
+	const geoPlaceId = `dest_rates_plans_${params.suffix}`
 	const productId = `prod_rates_plans_${params.suffix}`
 	const variantId = `var_rates_plans_${params.suffix}`
 	const templateId = `rpt_rates_plans_${params.suffix}`
 	const ratePlanId = `rp_rates_plans_${params.suffix}`
 
-	await upsertDestination({
-		id: destinationId,
+	await upsertGeoPlace({
+		id: geoPlaceId,
 		name: `Destino ${params.suffix}`,
 		type: "city",
 		country: "CL",
@@ -98,7 +98,7 @@ async function seedProviderRatePlan(params: {
 		id: productId,
 		name: params.productName,
 		productType: "Hotel",
-		destinationId,
+		geoPlaceId,
 		providerId: params.providerId,
 	})
 	await upsertVariant({

@@ -13,7 +13,7 @@ import {
 } from "@/shared/infrastructure/db/compat"
 
 import { POST as saveRoomProfilePost } from "@/pages/api/variant/room-profile"
-import { upsertDestination, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
+import { upsertGeoPlace, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
 
 type SupabaseTestUser = { id: string; email: string }
@@ -142,12 +142,12 @@ describe("integration/room profile editor", () => {
 		const token = `token_${suffix}`
 		const email = `room-profile-${suffix}@example.com`
 		const providerId = `provider_${suffix}`
-		const destinationId = `destination_${suffix}`
+		const geoPlaceId = `destination_${suffix}`
 		const productId = `product_${suffix}`
 		const { roomTypeId, amenityId } = await seedRoomMasterData(suffix)
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Room Profile City",
 			type: "city",
 			country: "CL",
@@ -162,7 +162,7 @@ describe("integration/room profile editor", () => {
 			id: productId,
 			name: "Room Profile Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 
@@ -240,12 +240,12 @@ describe("integration/room profile editor", () => {
 		const token = `token_dup_code_${suffix}`
 		const email = `room-code-${suffix}@example.com`
 		const providerId = `provider_code_${suffix}`
-		const destinationId = `destination_code_${suffix}`
+		const geoPlaceId = `destination_code_${suffix}`
 		const productId = `product_code_${suffix}`
 		const { roomTypeId, amenityId } = await seedRoomMasterData(`code_${suffix}`)
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Room Code City",
 			type: "city",
 			country: "CL",
@@ -256,7 +256,7 @@ describe("integration/room profile editor", () => {
 			id: productId,
 			name: "Room Code Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 
@@ -300,12 +300,12 @@ describe("integration/room profile editor", () => {
 		const intruderEmail = `intruder-${suffix}@example.com`
 		const providerId = `provider_owner_${suffix}`
 		const intruderProviderId = `provider_intruder_${suffix}`
-		const destinationId = `destination_owner_${suffix}`
+		const geoPlaceId = `destination_owner_${suffix}`
 		const productId = `product_owner_${suffix}`
 		const { roomTypeId, amenityId } = await seedRoomMasterData(`own_${suffix}`)
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Ownership City",
 			type: "city",
 			country: "CL",
@@ -321,7 +321,7 @@ describe("integration/room profile editor", () => {
 			id: productId,
 			name: "Owner Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 

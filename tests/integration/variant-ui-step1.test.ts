@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest"
 
-import { upsertDestination, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
+import { upsertGeoPlace, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
 
 import { POST as createVariantPost } from "@/pages/api/variant/create"
@@ -68,11 +68,11 @@ describe("integration/variants UI Step 1 (create variant) - simulated", () => {
 		const token = "t_ui_v1"
 		const email = "ui-v1@example.com"
 		const providerId = "prov_ui_v1"
-		const destinationId = "dest_ui_v1"
+		const geoPlaceId = "dest_ui_v1"
 		const productId = `prod_ui_v1_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "UI Dest",
 			type: "city",
 			country: "CL",
@@ -83,7 +83,7 @@ describe("integration/variants UI Step 1 (create variant) - simulated", () => {
 			id: productId,
 			name: "UI Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 

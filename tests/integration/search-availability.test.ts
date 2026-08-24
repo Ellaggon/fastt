@@ -7,7 +7,7 @@ import { POST as bookingConfirmPost } from "@/pages/api/booking/confirm"
 import { replacePolicyAssignmentCapa6, createPolicyCapa6 } from "@/modules/policies/public"
 
 import {
-	upsertDestination,
+	upsertGeoPlace,
 	upsertProduct,
 	upsertVariant,
 	upsertRatePlanTemplate,
@@ -90,7 +90,7 @@ async function readJson(res: Response) {
 async function seedSearchableVariant(params: {
 	email: string
 	providerId: string
-	destinationId: string
+	geoPlaceId: string
 	productId: string
 	variantId: string
 	ratePlanTemplateId: string
@@ -102,19 +102,19 @@ async function seedSearchableVariant(params: {
 	variantIsActive?: boolean
 	variantStatus?: "draft" | "ready" | "sellable" | "archived"
 }) {
-	await upsertDestination({
-		id: params.destinationId,
+	await upsertGeoPlace({
+		id: params.geoPlaceId,
 		name: "Dest",
 		type: "city",
 		country: "CL",
-		slug: `dest-${params.destinationId}`,
+		slug: `dest-${params.geoPlaceId}`,
 	})
 	await upsertProvider({ id: params.providerId, displayName: "Prov", ownerEmail: params.email })
 	await upsertProduct({
 		id: params.productId,
 		name: "Hotel",
 		productType: "Hotel",
-		destinationId: params.destinationId,
+		geoPlaceId: params.geoPlaceId,
 		providerId: params.providerId,
 	})
 	await upsertVariant({
@@ -288,7 +288,7 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 	it("status-ready variant remains searchable even if legacy isActive=false", async () => {
 		const email = "search-status-ready@example.com"
 		const providerId = "prov_search_status_ready"
-		const destinationId = "dest_search_status_ready"
+		const geoPlaceId = "dest_search_status_ready"
 		const productId = `prod_search_status_ready_${crypto.randomUUID()}`
 		const variantId = `var_search_status_ready_${crypto.randomUUID()}`
 		const templateId = `rpt_search_status_ready_${crypto.randomUUID()}`
@@ -297,7 +297,7 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 		await seedSearchableVariant({
 			email,
 			providerId,
-			destinationId,
+			geoPlaceId,
 			productId,
 			variantId,
 			ratePlanTemplateId: templateId,
@@ -325,7 +325,7 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 	it("valid available range: sellable with correct nights and aggregated total without checkout-day row", async () => {
 		const email = "search-range@example.com"
 		const providerId = "prov_search_range"
-		const destinationId = "dest_search_range"
+		const geoPlaceId = "dest_search_range"
 		const productId = `prod_search_range_${crypto.randomUUID()}`
 		const variantId = `var_search_range_${crypto.randomUUID()}`
 		const templateId = `rpt_search_range_${crypto.randomUUID()}`
@@ -334,7 +334,7 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 		await seedSearchableVariant({
 			email,
 			providerId,
-			destinationId,
+			geoPlaceId,
 			productId,
 			variantId,
 			ratePlanTemplateId: templateId,
@@ -363,7 +363,7 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 	it("materialized rows remain searchable even when computedAt is old", async () => {
 		const email = "search-stale-view@example.com"
 		const providerId = "prov_search_stale_view"
-		const destinationId = "dest_search_stale_view"
+		const geoPlaceId = "dest_search_stale_view"
 		const productId = `prod_search_stale_view_${crypto.randomUUID()}`
 		const variantId = `var_search_stale_view_${crypto.randomUUID()}`
 		const templateId = `rpt_search_stale_view_${crypto.randomUUID()}`
@@ -372,7 +372,7 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 		await seedSearchableVariant({
 			email,
 			providerId,
-			destinationId,
+			geoPlaceId,
 			productId,
 			variantId,
 			ratePlanTemplateId: templateId,
@@ -409,7 +409,7 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 	it("quantity-aware: rooms=1/2 available, rooms=3 not available (totalInventory=2)", async () => {
 		const email = "search-qty@example.com"
 		const providerId = "prov_search_qty"
-		const destinationId = "dest_search_qty"
+		const geoPlaceId = "dest_search_qty"
 		const productId = `prod_search_qty_${crypto.randomUUID()}`
 		const variantId = `var_search_qty_${crypto.randomUUID()}`
 		const templateId = `rpt_search_qty_${crypto.randomUUID()}`
@@ -418,7 +418,7 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 		await seedSearchableVariant({
 			email,
 			providerId,
-			destinationId,
+			geoPlaceId,
 			productId,
 			variantId,
 			ratePlanTemplateId: templateId,
@@ -461,7 +461,7 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 	it("full stay strict: if any night is unavailable, reject entire stay", async () => {
 		const email = "search-stay@example.com"
 		const providerId = "prov_search_stay"
-		const destinationId = "dest_search_stay"
+		const geoPlaceId = "dest_search_stay"
 		const productId = `prod_search_stay_${crypto.randomUUID()}`
 		const variantId = `var_search_stay_${crypto.randomUUID()}`
 		const templateId = `rpt_search_stay_${crypto.randomUUID()}`
@@ -470,7 +470,7 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 		await seedSearchableVariant({
 			email,
 			providerId,
-			destinationId,
+			geoPlaceId,
 			productId,
 			variantId,
 			ratePlanTemplateId: templateId,
@@ -552,7 +552,7 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 	it("missing day: if EffectiveAvailability is missing one day, Search rejects the full stay", async () => {
 		const email = "search-missing@example.com"
 		const providerId = "prov_search_missing"
-		const destinationId = "dest_search_missing"
+		const geoPlaceId = "dest_search_missing"
 		const productId = `prod_search_missing_${crypto.randomUUID()}`
 		const variantId = `var_search_missing_${crypto.randomUUID()}`
 		const templateId = `rpt_search_missing_${crypto.randomUUID()}`
@@ -561,7 +561,7 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 		await seedSearchableVariant({
 			email,
 			providerId,
-			destinationId,
+			geoPlaceId,
 			productId,
 			variantId,
 			ratePlanTemplateId: templateId,
@@ -586,7 +586,7 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 		const token = "t_search_hold"
 		const email = "search-hold@example.com"
 		const providerId = "prov_search_hold"
-		const destinationId = "dest_search_hold"
+		const geoPlaceId = "dest_search_hold"
 		const productId = `prod_search_hold_${crypto.randomUUID()}`
 		const variantId = `var_search_hold_${crypto.randomUUID()}`
 		const templateId = `rpt_search_hold_${crypto.randomUUID()}`
@@ -595,7 +595,7 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 		await seedSearchableVariant({
 			email,
 			providerId,
-			destinationId,
+			geoPlaceId,
 			productId,
 			variantId,
 			ratePlanTemplateId: templateId,
@@ -635,7 +635,7 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 		const token = "t_search_booking"
 		const email = "search-booking@example.com"
 		const providerId = "prov_search_booking"
-		const destinationId = "dest_search_booking"
+		const geoPlaceId = "dest_search_booking"
 		const productId = `prod_search_booking_${crypto.randomUUID()}`
 		const variantId = `var_search_booking_${crypto.randomUUID()}`
 		const templateId = `rpt_search_booking_${crypto.randomUUID()}`
@@ -644,7 +644,7 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 		await seedSearchableVariant({
 			email,
 			providerId,
-			destinationId,
+			geoPlaceId,
 			productId,
 			variantId,
 			ratePlanTemplateId: templateId,
@@ -691,7 +691,7 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 	it("stop sell restriction: if any stop_sell applies at variant scope, Search rejects", async () => {
 		const email = "search-stopsell@example.com"
 		const providerId = "prov_search_stopsell"
-		const destinationId = "dest_search_stopsell"
+		const geoPlaceId = "dest_search_stopsell"
 		const productId = `prod_search_stopsell_${crypto.randomUUID()}`
 		const variantId = `var_search_stopsell_${crypto.randomUUID()}`
 		const templateId = `rpt_search_stopsell_${crypto.randomUUID()}`
@@ -700,7 +700,7 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 		await seedSearchableVariant({
 			email,
 			providerId,
-			destinationId,
+			geoPlaceId,
 			productId,
 			variantId,
 			ratePlanTemplateId: templateId,
@@ -775,7 +775,7 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 	it("invalid range: checkOut <= checkIn returns empty offers", async () => {
 		const email = "search-invalid-range@example.com"
 		const providerId = "prov_search_invalid_range"
-		const destinationId = "dest_search_invalid_range"
+		const geoPlaceId = "dest_search_invalid_range"
 		const productId = `prod_search_invalid_range_${crypto.randomUUID()}`
 		const variantId = `var_search_invalid_range_${crypto.randomUUID()}`
 		const templateId = `rpt_search_invalid_range_${crypto.randomUUID()}`
@@ -784,7 +784,7 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 		await seedSearchableVariant({
 			email,
 			providerId,
-			destinationId,
+			geoPlaceId,
 			productId,
 			variantId,
 			ratePlanTemplateId: templateId,

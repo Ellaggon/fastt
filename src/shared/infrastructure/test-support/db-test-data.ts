@@ -1,6 +1,7 @@
 import {
 	db,
-	Destination,
+	GeoPlace,
+	ProductGeoPlace,
 	Provider,
 	Product,
 	Variant,
@@ -14,22 +15,34 @@ import { createCommercialPriceRule } from "@/lib/commercial-rules/commercialRule
 
 const ratePlanTemplateFixtures = new Map<string, { name: string; description: string | null }>()
 
-export async function upsertDestination(row: {
+export async function upsertGeoPlace(row: {
 	id: string
-	name: string
-	type: string
-	country: string
+	canonicalName?: string
+	placeType?: string
+	countryCode?: string
 	slug: string
+	/** Fixture shorthand, normalized before persistence. */
+	name?: string
+	type?: string
+	country?: string
 }) {
+	const canonicalName = row.canonicalName ?? row.name ?? row.id
+	const placeType = row.placeType ?? row.type ?? "locality"
+	const countryCode = (row.countryCode ?? row.country ?? "BO").toUpperCase().slice(0, 2)
+	const normalizedName = canonicalName
+		.normalize("NFD")
+		.replace(/[\u0300-\u036f]/g, "")
+		.toLowerCase()
+		.trim()
 	await db
-		.insert(Destination)
-		.values(row)
+		.insert(GeoPlace)
+		.values({ id: row.id, canonicalName, normalizedName, placeType, countryCode, slug: row.slug, status: "active", source: "test_fixture" })
 		.onConflictDoUpdate({
-			target: [Destination.id],
+			target: [GeoPlace.id],
 			set: {
-				name: row.name,
-				type: row.type,
-				country: row.country,
+				canonicalName,
+				placeType,
+				countryCode,
 				slug: row.slug,
 			},
 		})
@@ -39,7 +52,7 @@ export async function upsertProduct(row: {
 	id: string
 	name: string
 	productType: string
-	destinationId: string
+	geoPlaceId: string
 	providerId?: string | null
 }) {
 	const providerId = row.providerId === undefined ? "prov_test" : row.providerId
@@ -55,7 +68,6 @@ export async function upsertProduct(row: {
 			id: row.id,
 			name: row.name,
 			productType: row.productType,
-			destinationId: row.destinationId,
 			providerId,
 		})
 		.onConflictDoUpdate({
@@ -63,11 +75,11 @@ export async function upsertProduct(row: {
 			set: {
 				name: row.name,
 				productType: row.productType,
-				destinationId: row.destinationId,
 				providerId,
 				lastUpdated: new Date(),
 			},
 		})
+	await db.insert(ProductGeoPlace).values({ id: `geo:product-place:${row.id}`, productId: row.id, placeId: row.geoPlaceId, role: "primary_discovery", isPrimary: true, source: "test_fixture" }).onConflictDoUpdate({ target: [ProductGeoPlace.productId, ProductGeoPlace.placeId, ProductGeoPlace.role], set: { isPrimary: true, updatedAt: new Date() } })
 }
 
 export async function upsertVariant(row: {
@@ -175,22 +187,22 @@ export async function upsertVariant(row: {
 }
 
 export async function seedTestProductVariant(params?: {
-	destinationId?: string
+	geoPlaceId?: string
 	productId?: string
 	variantId?: string
 	basePrice?: number
 	minOccupancy?: number
 	maxOccupancy?: number
 }) {
-	const destinationId = params?.destinationId ?? "dest_test"
+	const geoPlaceId = params?.geoPlaceId ?? "place_test"
 	const productId = params?.productId ?? "prod_test"
 	const variantId = params?.variantId ?? "variant_test"
 
-	await upsertDestination({
-		id: destinationId,
-		name: "Test Destination",
-		type: "city",
-		country: "CL",
+	await upsertGeoPlace({
+		id: geoPlaceId,
+		canonicalName: "Test place",
+		placeType: "locality",
+		countryCode: "CL",
 		slug: "test-destination",
 	})
 
@@ -198,7 +210,7 @@ export async function seedTestProductVariant(params?: {
 		id: productId,
 		name: "Test Product",
 		productType: "hotel",
-		destinationId,
+		geoPlaceId,
 	})
 
 	await upsertVariant({
@@ -213,7 +225,7 @@ export async function seedTestProductVariant(params?: {
 		isActive: true,
 	})
 
-	return { destinationId, productId, variantId }
+	return { geoPlaceId, productId, variantId }
 }
 
 export async function upsertRatePlanTemplate(row: {

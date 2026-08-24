@@ -63,8 +63,8 @@ try {
 					type="search"
 					placeholder="Ciudad, región o parque..."
 				/>
-				<input type="hidden" id="destinationId" />
-				<input type="hidden" id="destinationSlug" />
+				<input type="hidden" id="geoPlaceId" />
+				<input type="hidden" id="geoPlaceSlug" />
 				<ul
 					id="destinationsList"
 					class="fastt-soft-box absolute left-0 right-0 z-50 mt-1 hidden max-h-56 overflow-auto border border-slate-200 bg-white text-sm"
@@ -81,7 +81,7 @@ try {
 		</div>
 
 		<div class="col-span-1 md:col-span-1">
-			<label class="mb-1 block text-sm font-semibold text-slate-800">Duración</label>
+			<label for="duration" class="mb-1 block text-sm font-semibold text-slate-800">Duración</label>
 			<Select name="duration" id="duration">
 				<option value="">Cualquiera</option>
 				{durationOptions.map((d) => <option value={d.value}>{d.label}</option>)}
@@ -107,7 +107,7 @@ try {
 		</div>
 
 		<div class="col-span-1 md:col-span-1">
-			<label class="mb-1 block text-sm font-semibold text-slate-800">Nivel</label>
+			<label for="level" class="mb-1 block text-sm font-semibold text-slate-800">Nivel</label>
 			<Select name="level" id="level">
 				<option value="">Cualquiera</option>
 				{TOUR_DIFFICULTY_OPTIONS.map((level) => <option value={level.value}>{level.label}</option>)}
@@ -123,7 +123,7 @@ try {
 		</div>
 
 		<div class="col-span-1 md:col-span-1">
-			<label class="mb-1 block text-sm font-semibold text-slate-800">Orden</label>
+			<label for="sort" class="mb-1 block text-sm font-semibold text-slate-800">Orden</label>
 			<Select name="sort" id="sort">
 				{sortOptions.map((s) => <option value={s.value}>{s.label}</option>)}
 			</Select>
@@ -174,8 +174,8 @@ try {
 	document.addEventListener("DOMContentLoaded", () => {
 		const destInput = qs("#destinationInput")
 		const destList = qs("#destinationsList")
-		const destId = qs("#destinationId")
-		const destinationSlug = qs("#destinationSlug")
+		const destId = qs("#geoPlaceId")
+		const geoPlaceSlug = qs("#geoPlaceSlug")
 
 		const debouncedSearch = debounce(async (val) => {
 			if (!val || val.trim().length < 1) {
@@ -188,7 +188,7 @@ try {
 
 		destInput?.addEventListener("input", (e) => {
 			destId.value = ""
-			destinationSlug.value = ""
+			geoPlaceSlug.value = ""
 			debouncedSearch(e.target.value)
 		})
 
@@ -197,7 +197,7 @@ try {
 			if (!li) return
 			destInput.value = li.textContent
 			destId.value = li.dataset.id
-			destinationSlug.value = li.dataset.slug || ""
+			geoPlaceSlug.value = li.dataset.slug || ""
 			destList.classList.add("hidden")
 		})
 	})

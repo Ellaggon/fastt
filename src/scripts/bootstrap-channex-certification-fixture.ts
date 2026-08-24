@@ -3,7 +3,8 @@ import "dotenv/config"
 import {
 	and,
 	db,
-	Destination,
+	GeoPlace,
+	ProductGeoPlace,
 	DailyInventory,
 	eq,
 	EffectiveAvailability,
@@ -38,7 +39,7 @@ import { buildOccupancyKey } from "@/shared/domain/occupancy"
 const PROVIDER_ID = "fastt-channex-certification-provider-v1"
 const ACTOR_USER_ID = "fastt-channex-certification-operator-v1"
 const ACTOR_EMAIL = "channex-certification@fastt.invalid"
-const DESTINATION_ID = "fastt-channex-certification-lab-v1"
+const GEO_PLACE_ID = "fastt-channex-certification-lab-v1"
 const PRODUCT_ID = "fastt-channex-certification-hotel-v1"
 const CERTIFICATION_ID = "fastt-channex-certification-session-v1"
 const DAYS = 500
@@ -220,13 +221,13 @@ async function ensureFixtureIdentity() {
 async function ensureLocalFixtureData() {
 	const now = new Date()
 	await db
-		.insert(Destination)
+		.insert(GeoPlace)
 		.values({
-			id: DESTINATION_ID,
-			name: "Fastt Certification Lab",
-			type: "city",
-			country: "united states",
-			department: "qa",
+			id: GEO_PLACE_ID,
+			canonicalName: "Fastt Certification Lab",
+			normalizedName: "fastt certification lab",
+			placeType: "locality",
+			countryCode: "US",
 			slug: "fastt-channex-certification-lab-v1",
 		})
 		.onConflictDoNothing()
@@ -237,7 +238,6 @@ async function ensureLocalFixtureData() {
 			name: "Hotel de certificación Channex (no comercial)",
 			productType: "hotel",
 			providerId: PROVIDER_ID,
-			destinationId: DESTINATION_ID,
 			creationDate: now,
 			lastUpdated: now,
 		})
@@ -246,10 +246,10 @@ async function ensureLocalFixtureData() {
 			set: {
 				name: "Hotel de certificación Channex (no comercial)",
 				providerId: PROVIDER_ID,
-				destinationId: DESTINATION_ID,
 				lastUpdated: now,
 			},
 		})
+	await db.insert(ProductGeoPlace).values({ id: `geo:product-place:${PRODUCT_ID}`, productId: PRODUCT_ID, placeId: GEO_PLACE_ID, role: "primary_discovery", isPrimary: true, source: "certification_fixture" }).onConflictDoUpdate({ target: [ProductGeoPlace.productId, ProductGeoPlace.placeId, ProductGeoPlace.role], set: { isPrimary: true, updatedAt: now } })
 	await db
 		.insert(Hotel)
 		.values({ productId: PRODUCT_ID, stars: 3, email: ACTOR_EMAIL })

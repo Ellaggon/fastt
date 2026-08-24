@@ -8,7 +8,7 @@ type Props = {
 	cards: TourSearchCard[]
 	surface: string
 	sourceProductId?: string | null
-	destinationId?: string | null
+	geoPlaceId?: string | null
 	emptyHint?: string
 }
 
@@ -18,7 +18,7 @@ const {
 	cards = [],
 	surface,
 	sourceProductId = null,
-	destinationId = null,
+	geoPlaceId = null,
 	emptyHint = "No hay salidas disponibles cerca para esas fechas.",
 } = Astro.props as Props
 ---
@@ -28,7 +28,7 @@ const {
 	data-tour-cross-sell
 	data-surface={surface}
 	data-source-product={sourceProductId ?? ""}
-	data-destination={destinationId ?? ""}
+	data-destination={geoPlaceId ?? ""}
 >
 	<header class="space-y-1">
 		<h2 class="text-xl font-semibold tracking-tight text-slate-950 md:text-2xl">{title}</h2>
@@ -70,7 +70,7 @@ const {
 	if (root) {
 		const surface = String(root.dataset.surface ?? "")
 		const sourceProductId = String(root.dataset.sourceProduct ?? "") || null
-		const destinationId = String(root.dataset.destination ?? "") || null
+		const geoPlaceId = String(root.dataset.destination ?? "") || null
 		const sessionKey = "fastt_mkt_session"
 		let sessionId = ""
 		try {
@@ -92,7 +92,7 @@ const {
 					surface,
 					sourceProductId,
 					targetProductId,
-					destinationId,
+					geoPlaceId,
 					sessionId,
 				}),
 				keepalive: true,

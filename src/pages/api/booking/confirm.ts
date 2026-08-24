@@ -47,7 +47,7 @@ const schema = z.object({
 			surface: z.string().trim().min(1).max(80),
 			sourceProductId: z.string().trim().min(1).optional().nullable(),
 			targetProductId: z.string().trim().min(1).optional().nullable(),
-			destinationId: z.string().trim().min(1).optional().nullable(),
+			geoPlaceId: z.string().trim().min(1).optional().nullable(),
 			sessionId: z.string().trim().min(1).max(120).optional().nullable(),
 		})
 		.optional()
@@ -271,7 +271,7 @@ export const POST: APIRoute = async ({ request }) => {
 						surface: attribution.surface,
 						sourceProductId: attribution.sourceProductId ?? null,
 						targetProductId: attribution.targetProductId ?? result.productId,
-						destinationId: attribution.destinationId ?? null,
+						geoPlaceId: attribution.geoPlaceId ?? null,
 						bookingId: result.bookingId,
 						sessionId: attribution.sessionId ?? null,
 						userId: user.id,

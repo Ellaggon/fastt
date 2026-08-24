@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest"
 
-import { upsertDestination, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
+import { upsertGeoPlace, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider, upsertRoomType } from "../test-support/catalog-db-test-data"
 
 import { POST as createVariantPost } from "@/pages/api/variant/create"
@@ -93,11 +93,11 @@ describe("integration/variant (CAPA 3)", () => {
 		const token = "t_a"
 		const email = "va@example.com"
 		const providerId = "prov_variant_a"
-		const destinationId = "dest_variant_a"
+		const geoPlaceId = "dest_variant_a"
 		const productId = `prod_variant_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "V Dest",
 			type: "city",
 			country: "CL",
@@ -109,7 +109,7 @@ describe("integration/variant (CAPA 3)", () => {
 			id: productId,
 			name: "V Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 
@@ -177,11 +177,11 @@ describe("integration/variant (CAPA 3)", () => {
 		const token = "t_b"
 		const email = "vb@example.com"
 		const providerId = "prov_variant_b"
-		const destinationId = "dest_variant_b"
+		const geoPlaceId = "dest_variant_b"
 		const productId = `prod_variant_b_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "V Dest B",
 			type: "city",
 			country: "CL",
@@ -193,7 +193,7 @@ describe("integration/variant (CAPA 3)", () => {
 			id: productId,
 			name: "V Hotel B",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 
@@ -236,11 +236,11 @@ describe("integration/variant (CAPA 3)", () => {
 		const token = "t_c"
 		const email = "vc@example.com"
 		const providerId = "prov_variant_c"
-		const destinationId = "dest_variant_c"
+		const geoPlaceId = "dest_variant_c"
 		const productId = `prod_variant_c_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "V Dest C",
 			type: "city",
 			country: "CL",
@@ -251,7 +251,7 @@ describe("integration/variant (CAPA 3)", () => {
 			id: productId,
 			name: "V Hotel C",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 
@@ -293,11 +293,11 @@ describe("integration/variant (CAPA 3)", () => {
 		const token = "t_sellable"
 		const email = "sellable@example.com"
 		const providerId = "prov_variant_sellable"
-		const destinationId = "dest_variant_sellable"
+		const geoPlaceId = "dest_variant_sellable"
 		const productId = `prod_variant_sellable_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Sell Dest",
 			type: "city",
 			country: "CL",
@@ -308,7 +308,7 @@ describe("integration/variant (CAPA 3)", () => {
 			id: productId,
 			name: "Sell Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 
@@ -339,11 +339,11 @@ describe("integration/variant (CAPA 3)", () => {
 		const token = "t_cap_over"
 		const email = "capover@example.com"
 		const providerId = "prov_variant_cap_over"
-		const destinationId = "dest_variant_cap_over"
+		const geoPlaceId = "dest_variant_cap_over"
 		const productId = `prod_variant_cap_over_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Cap Dest",
 			type: "city",
 			country: "CL",
@@ -354,7 +354,7 @@ describe("integration/variant (CAPA 3)", () => {
 			id: productId,
 			name: "Cap Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 
@@ -408,11 +408,11 @@ describe("integration/variant (CAPA 3)", () => {
 		const token = "t_dupsub"
 		const email = "dupsub@example.com"
 		const providerId = "prov_variant_dupsub"
-		const destinationId = "dest_variant_dupsub"
+		const geoPlaceId = "dest_variant_dupsub"
 		const productId = `prod_variant_dupsub_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Dup Dest",
 			type: "city",
 			country: "CL",
@@ -424,7 +424,7 @@ describe("integration/variant (CAPA 3)", () => {
 			id: productId,
 			name: "Dup Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 
@@ -477,11 +477,11 @@ describe("integration/variant (CAPA 3)", () => {
 		const emailB = "ownb@example.com"
 		const providerA = "prov_own_a"
 		const providerB = "prov_own_b"
-		const destinationId = "dest_own"
+		const geoPlaceId = "dest_own"
 		const productId = `prod_own_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Own Dest",
 			type: "city",
 			country: "CL",
@@ -493,7 +493,7 @@ describe("integration/variant (CAPA 3)", () => {
 			id: productId,
 			name: "Own Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId: providerA,
 		})
 
@@ -533,11 +533,11 @@ describe("integration/variant (CAPA 3)", () => {
 		const token = "t_m"
 		const email = "m@example.com"
 		const providerId = "prov_m"
-		const destinationId = "dest_m"
+		const geoPlaceId = "dest_m"
 		const productId = `prod_m_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "M Dest",
 			type: "city",
 			country: "CL",
@@ -548,7 +548,7 @@ describe("integration/variant (CAPA 3)", () => {
 			id: productId,
 			name: "M Tour",
 			productType: "Tour",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 
@@ -570,11 +570,11 @@ describe("integration/variant (CAPA 3)", () => {
 		const token = "t_occ"
 		const email = "occ@example.com"
 		const providerId = "prov_occ"
-		const destinationId = "dest_occ"
+		const geoPlaceId = "dest_occ"
 		const productId = `prod_occ_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Occ Dest",
 			type: "city",
 			country: "CL",
@@ -585,7 +585,7 @@ describe("integration/variant (CAPA 3)", () => {
 			id: productId,
 			name: "Occ Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 

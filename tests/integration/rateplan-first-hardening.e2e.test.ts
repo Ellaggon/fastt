@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import { POST as setBaseRatePost } from "@/pages/api/pricing/base-rate"
 import { GET as resolvePoliciesGet } from "@/pages/api/policies/resolve"
 import {
-	upsertDestination,
+	upsertGeoPlace,
 	upsertProduct,
 	upsertRatePlan,
 	upsertRatePlanTemplate,
@@ -88,14 +88,14 @@ describe("integration/ratePlan-first hardening e2e", () => {
 		const token = `t_rpf_hard_${suffix}`
 		const email = `rpf-hard-${suffix}@example.com`
 		const providerId = `prov_rpf_hard_${suffix}`
-		const destinationId = `dest_rpf_hard_${suffix}`
+		const geoPlaceId = `dest_rpf_hard_${suffix}`
 		const productId = `prod_rpf_hard_${suffix}`
 		const variantId = `var_rpf_hard_${suffix}`
 		const ratePlanTemplateId = `rpt_rpf_hard_${suffix}`
 		const ratePlanId = `rp_rpf_hard_${suffix}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "RatePlan Hardening Dest",
 			type: "city",
 			country: "CL",
@@ -106,7 +106,7 @@ describe("integration/ratePlan-first hardening e2e", () => {
 			id: productId,
 			name: "Product Hardening",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 		await upsertVariant({

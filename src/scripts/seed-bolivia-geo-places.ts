@@ -4,6 +4,7 @@ import {
 	GeoPlace,
 	GeoPlaceAlias,
 	GeoPlaceClosure,
+	GeoPlaceContent,
 	GeoPlaceExternalId,
 	inArray,
 } from "@/shared/infrastructure/db/compat"
@@ -11,6 +12,7 @@ import {
 	BOLIVIA_ADMINISTRATIVE_SOURCE,
 	BOLIVIA_COORDINATE_SOURCE,
 	BOLIVIA_MARKETPLACE_CATALOG_VERSION,
+	BOLIVIA_GEO_PLACE_CONTENT,
 	BOLIVIA_MARKETPLACE_GEO_PLACES,
 	type BoliviaGeoPlaceSeed,
 } from "@/data/geography/bolivia-marketplace-catalog"
@@ -137,6 +139,33 @@ async function seed() {
 			})
 	}
 
+	for (const content of BOLIVIA_GEO_PLACE_CONTENT) {
+		await db
+			.insert(GeoPlaceContent)
+			.values({
+				id: `geo:content:${content.placeId}:es-BO`,
+				placeId: content.placeId,
+				locale: "es-BO",
+				title: content.title,
+				summary: content.summary,
+				seoJson: content.seoJson,
+				publicationStatus: "published",
+				featuredRank: null,
+				createdAt: now,
+				updatedAt: now,
+			})
+			.onConflictDoUpdate({
+				target: [GeoPlaceContent.placeId, GeoPlaceContent.locale],
+				set: {
+					title: content.title,
+					summary: content.summary,
+					seoJson: content.seoJson,
+					publicationStatus: "published",
+					updatedAt: now,
+				},
+			})
+	}
+
 	await db
 		.insert(GeoPlaceExternalId)
 		.values({
@@ -162,6 +191,7 @@ async function seed() {
 		cities: BOLIVIA_MARKETPLACE_GEO_PLACES.filter((place) => place.placeType === "city").length,
 		closures: closureRows(BOLIVIA_MARKETPLACE_GEO_PLACES).length,
 		aliases: aliasRows(BOLIVIA_MARKETPLACE_GEO_PLACES).length,
+		content: BOLIVIA_GEO_PLACE_CONTENT.length,
 	}
 }
 

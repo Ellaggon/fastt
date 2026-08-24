@@ -6,7 +6,8 @@ import {
 	BookingVoucher,
 	db,
 	DailyInventory,
-	Destination,
+	GeoPlace,
+	ProductGeoPlace,
 	EffectiveAvailability,
 	EffectivePricingV2,
 	eq,
@@ -103,7 +104,7 @@ async function seedTourBookingReady(params: {
 	providerUserId: string
 }) {
 	const productId = `prod_tour_day_${params.suffix}`
-	const destinationId = `dest_tour_day_${params.suffix}`
+	const geoPlaceId = `dest_tour_day_${params.suffix}`
 	const variantId = `var_tour_day_${params.suffix}`
 	const ratePlanId = `rp_tour_day_${params.suffix}`
 	const departure = "2026-10-20"
@@ -149,19 +150,27 @@ async function seedTourBookingReady(params: {
 		} as any)
 		.onConflictDoNothing()
 
-	await db.insert(Destination).values({
-		id: destinationId,
-		name: "DayOf Dest",
-		type: "city",
-		country: "BO",
-		slug: `day-${destinationId}`,
+	await db.insert(GeoPlace).values({
+		id: geoPlaceId,
+		canonicalName: "DayOf Dest",
+		normalizedName: "dayof dest",
+		placeType: "city",
+		countryCode: "BO",
+		slug: `day-${geoPlaceId}`,
 	} as any)
 	await db.insert(Product).values({
 		id: productId,
 		name: "Mirador Tour",
 		productType: "Tour",
-		destinationId,
 		providerId: "prov_test",
+	} as any)
+	await db.insert(ProductGeoPlace).values({
+		id: `test-primary-${productId}`,
+		productId,
+		placeId: geoPlaceId,
+		role: "primary_discovery",
+		isPrimary: true,
+		source: "test_fixture",
 	} as any)
 	await db.insert(Tour).values({
 		productId,
@@ -312,26 +321,34 @@ async function seedHotelBookingForProvider(params: {
 }): Promise<{ bookingId: string }> {
 	const bookingId = crypto.randomUUID()
 	const productId = `prod_hotel_chk_${params.suffix}`
-	const destinationId = `dest_hotel_chk_${params.suffix}`
+	const geoPlaceId = `dest_hotel_chk_${params.suffix}`
 	const variantId = `var_hotel_chk_${params.suffix}`
 	const ratePlanId = `rp_hotel_chk_${params.suffix}`
 
 	await db
-		.insert(Destination)
+		.insert(GeoPlace)
 		.values({
-			id: destinationId,
-			name: "Hotel Dest",
-			type: "city",
-			country: "BO",
-			slug: `hotel-${destinationId}`,
+			id: geoPlaceId,
+			canonicalName: "Hotel Dest",
+			normalizedName: "hotel dest",
+			placeType: "city",
+			countryCode: "BO",
+			slug: `hotel-${geoPlaceId}`,
 		} as any)
 		.onConflictDoNothing()
 	await db.insert(Product).values({
 		id: productId,
 		name: "Hotel Checkin Guard",
 		productType: "Hotel",
-		destinationId,
 		providerId: params.providerId,
+	} as any)
+	await db.insert(ProductGeoPlace).values({
+		id: `test-primary-${productId}`,
+		productId,
+		placeId: geoPlaceId,
+		role: "primary_discovery",
+		isPrimary: true,
+		source: "test_fixture",
 	} as any)
 	await db.insert(Variant).values({
 		id: variantId,

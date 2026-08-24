@@ -13,7 +13,7 @@ import { ensurePricingCoverageForRequestRuntime } from "@/modules/pricing/public
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
 
 import {
-	upsertDestination,
+	upsertGeoPlace,
 	upsertProduct,
 	upsertVariant,
 	upsertRatePlanTemplate,
@@ -28,7 +28,7 @@ function makeGetRequest(path: string): Request {
 async function seedHotelVariant(params: {
 	email: string
 	providerId: string
-	destinationId: string
+	geoPlaceId: string
 	destinationSlug: string
 	productId: string
 	variantId: string
@@ -39,8 +39,8 @@ async function seedHotelVariant(params: {
 	ratePlanTemplateId: string
 	ratePlanId: string
 }) {
-	await upsertDestination({
-		id: params.destinationId,
+	await upsertGeoPlace({
+		id: params.geoPlaceId,
 		slug: params.destinationSlug,
 		name: "Dest",
 		type: "city",
@@ -51,7 +51,7 @@ async function seedHotelVariant(params: {
 		id: params.productId,
 		name: `Hotel ${params.productId}`,
 		productType: "Hotel",
-		destinationId: params.destinationId,
+		geoPlaceId: params.geoPlaceId,
 		providerId: params.providerId,
 	})
 	await upsertVariant({
@@ -189,7 +189,7 @@ describe("integration/search-v2 marketplace search", () => {
 	it("product with availability appears and fromPrice is the cheapest across variants", async () => {
 		const email = "user@example.com"
 		const providerId = "prov_search_v2"
-		const destinationId = "la-paz"
+		const geoPlaceId = "la-paz"
 		const destinationSlug = "la-paz"
 		const date = "2026-03-10"
 
@@ -197,7 +197,7 @@ describe("integration/search-v2 marketplace search", () => {
 		await seedHotelVariant({
 			email,
 			providerId,
-			destinationId,
+			geoPlaceId,
 			destinationSlug,
 			productId: "prod_a",
 			variantId: "var_a1",
@@ -210,7 +210,7 @@ describe("integration/search-v2 marketplace search", () => {
 		await seedHotelVariant({
 			email,
 			providerId,
-			destinationId,
+			geoPlaceId,
 			destinationSlug,
 			productId: "prod_a",
 			variantId: "var_a2",
@@ -225,7 +225,7 @@ describe("integration/search-v2 marketplace search", () => {
 		await seedHotelVariant({
 			email,
 			providerId,
-			destinationId,
+			geoPlaceId,
 			destinationSlug,
 			productId: "prod_b",
 			variantId: "var_b1",
@@ -238,7 +238,7 @@ describe("integration/search-v2 marketplace search", () => {
 		})
 
 		const req = makeGetRequest(
-			`/api/search-v2?destinationId=${encodeURIComponent(destinationId)}&checkIn=${encodeURIComponent(
+			`/api/search-v2?geoPlaceId=${encodeURIComponent(geoPlaceId)}&checkIn=${encodeURIComponent(
 				date
 			)}&checkOut=${encodeURIComponent("2026-03-11")}&rooms=1&adults=2&children=0`
 		)
@@ -258,14 +258,14 @@ describe("integration/search-v2 marketplace search", () => {
 	it("rooms > availability excludes product", async () => {
 		const email = "user@example.com"
 		const providerId = "prov_search_v2_qty"
-		const destinationId = "dest_qty"
+		const geoPlaceId = "dest_qty"
 		const destinationSlug = "dest-qty"
 		const date = "2026-03-10"
 
 		await seedHotelVariant({
 			email,
 			providerId,
-			destinationId,
+			geoPlaceId,
 			destinationSlug,
 			productId: "prod_qty",
 			variantId: "var_qty_1",
@@ -277,7 +277,7 @@ describe("integration/search-v2 marketplace search", () => {
 		})
 
 		const req = makeGetRequest(
-			`/api/search-v2?destinationId=${encodeURIComponent(destinationId)}&checkIn=${encodeURIComponent(
+			`/api/search-v2?geoPlaceId=${encodeURIComponent(geoPlaceId)}&checkIn=${encodeURIComponent(
 				date
 			)}&checkOut=${encodeURIComponent("2026-03-11")}&rooms=3&adults=2&children=0`
 		)
@@ -290,7 +290,7 @@ describe("integration/search-v2 marketplace search", () => {
 	it("without legacy base-rate write, product remains sellable when policy base exists", async () => {
 		const email = "user@example.com"
 		const providerId = "prov_search_v2_nobase"
-		const destinationId = "dest_nobase"
+		const geoPlaceId = "dest_nobase"
 		const destinationSlug = "dest-nobase"
 		const date = "2026-03-10"
 
@@ -298,7 +298,7 @@ describe("integration/search-v2 marketplace search", () => {
 		await seedHotelVariant({
 			email,
 			providerId,
-			destinationId,
+			geoPlaceId,
 			destinationSlug,
 			productId: "prod_c",
 			variantId: "var_c1",
@@ -310,7 +310,7 @@ describe("integration/search-v2 marketplace search", () => {
 		})
 
 		const req = makeGetRequest(
-			`/api/search-v2?destinationId=${encodeURIComponent(destinationId)}&checkIn=${encodeURIComponent(
+			`/api/search-v2?geoPlaceId=${encodeURIComponent(geoPlaceId)}&checkIn=${encodeURIComponent(
 				date
 			)}&checkOut=${encodeURIComponent("2026-03-11")}&rooms=1&adults=2&children=0`
 		)

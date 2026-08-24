@@ -1,5 +1,4 @@
 ---
-import ProductContextSwitcher from "@/components/product/ProductContextSwitcher.astro"
 import RoomProfileEditor from "@/components/rooms/RoomProfileEditor.astro"
 import Button from "@/components/ui/Button.astro"
 import {
@@ -83,29 +82,25 @@ const selectedAmenityIds = selectedAmenityRows.map((row) => String(row.amenityId
 ---
 
 <WorkspaceLayout title="Contenido del alojamiento · Ficha de habitación">
-	<section class="space-y-8 text-slate-100">
-		<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
-			<div class="space-y-2">
-				<ProductContextSwitcher
-					providerId={providerId}
-					productId={productId}
-					productType={owned.productType}
-					currentName={owned.name}
-					selectable={false}
-				/>
-				<h1 class="text-3xl font-semibold text-slate-100">Editar {variant.name}</h1>
-				<p class="max-w-3xl text-sm leading-6 text-slate-400">
-					Actualiza la información física que verá el huésped: nombre, capacidad, camas, baño, vista
-					y comodidades.
-				</p>
+	<section class="space-y-6 md:space-y-8 text-slate-100">
+		<header class="flex flex-col gap-2">
+			<div class="flex flex-wrap items-start justify-between gap-3">
+				<h1 class="text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl">
+					Editar {variant.name}
+				</h1>
+				<Button
+					href={routes.productRoomDetail(productId, variantId)}
+					data-astro-prefetch
+					variant="secondary"
+					class="shrink-0"
+				>
+					Ver habitación
+				</Button>
 			</div>
-			<Button
-				href={routes.productRoomDetail(productId, variantId)}
-				data-astro-prefetch
-				variant="secondary"
-			>
-				Ver habitación
-			</Button>
+			<p class="max-w-3xl text-sm leading-5 text-slate-300 sm:leading-6">
+				Actualiza la información física que verá el huésped: nombre, capacidad, camas, baño, vista
+				y comodidades.
+			</p>
 		</header>
 
 		<RoomProfileEditor

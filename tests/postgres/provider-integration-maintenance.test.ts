@@ -37,7 +37,7 @@ describePostgres("provider integration operational maintenance", () => {
 		await sql`delete from "ProviderIntegrationConnection" where "providerId" = ${ids.provider}`
 		await sql`delete from "Variant" where "id" = ${ids.variant}`
 		await sql`delete from "Product" where "id" = ${ids.product}`
-		await sql`delete from "Destination" where "id" = ${ids.destination}`
+		await sql`delete from "GeoPlace" where "id" = ${ids.destination}`
 		await sql`delete from "Provider" where "id" = ${ids.provider}`
 	}
 
@@ -49,12 +49,16 @@ describePostgres("provider integration operational maintenance", () => {
 			values (${ids.provider}, 'Maintenance Provider', 'Maintenance Provider', 'active', now())
 		`
 		await sql`
-			insert into "Destination" ("id", "name", "type", "country", "slug")
-			values (${ids.destination}, 'Maintenance', 'city', 'CL', ${ids.destination})
+			insert into "GeoPlace" ("id", "canonicalName", "normalizedName", "placeType", "countryCode", "slug")
+			values (${ids.destination}, 'Maintenance', 'maintenance', 'city', 'CL', ${ids.destination})
 		`
 		await sql`
-			insert into "Product" ("id", "name", "productType", "providerId", "destinationId")
-			values (${ids.product}, 'Maintenance Hotel', 'hotel', ${ids.provider}, ${ids.destination})
+			insert into "Product" ("id", "name", "productType", "providerId")
+			values (${ids.product}, 'Maintenance Hotel', 'hotel', ${ids.provider})
+		`
+		await sql`
+			insert into "ProductGeoPlace" ("id", "productId", "placeId", "role", "isPrimary", "source")
+			values (${`${ids.product}-place`}, ${ids.product}, ${ids.destination}, 'primary_discovery', true, 'test_fixture')
 		`
 		await sql`
 			insert into "Variant" ("id", "productId", "name", "kind", "status", "isActive")

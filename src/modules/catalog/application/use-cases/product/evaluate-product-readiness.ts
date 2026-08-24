@@ -24,6 +24,9 @@ export async function evaluateProductReadiness(
 	if (!agg.product.productType || String(agg.product.productType).trim().length < 1) {
 		errors.push({ code: "missing_product_type", message: "Product type is required" })
 	}
+	if (!agg.product.geoPlaceId) {
+		errors.push({ code: "missing_primary_geo_place", message: "A canonical primary location is required" })
+	}
 
 	// Content checks
 	const highlights = (agg.content?.highlightsJson as unknown) ?? null

@@ -4,11 +4,38 @@ import {
 	and,
 	db,
 	eq,
+	GeoPlace,
 	Provider,
 	ProviderUser,
 	RoomType,
 	User,
 } from "@/shared/infrastructure/db/compat"
+
+export async function upsertGeoPlace(row: {
+	id: string
+	canonicalName: string
+	slug: string
+	countryCode?: string
+	placeType?: "city" | "locality"
+	latitude?: number | null
+	longitude?: number | null
+}) {
+	await db
+		.insert(GeoPlace)
+		.values({
+			id: row.id,
+			canonicalName: row.canonicalName,
+			normalizedName: row.canonicalName.toLocaleLowerCase("es").trim(),
+			slug: row.slug,
+			countryCode: row.countryCode ?? "CL",
+			placeType: row.placeType ?? "city",
+			centroidLat: row.latitude ?? null,
+			centroidLng: row.longitude ?? null,
+			status: "active",
+			source: "test",
+		})
+		.onConflictDoNothing()
+}
 
 export async function upsertProvider(row: {
 	id: string

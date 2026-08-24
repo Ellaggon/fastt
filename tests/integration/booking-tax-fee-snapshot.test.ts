@@ -9,7 +9,7 @@ import {
 	type TaxFeeLine,
 } from "@/modules/taxes-fees/public"
 import {
-	upsertDestination,
+	upsertGeoPlace,
 	upsertProduct,
 	upsertRatePlan,
 	upsertRatePlanTemplate,
@@ -53,25 +53,25 @@ describe("integration/booking tax/fee snapshot", () => {
 	it("stores computed tax/fee lines and breakdown immutably", async () => {
 		const bookingId = `booking_tax_${crypto.randomUUID()}`
 		const providerId = `prov_tax_${crypto.randomUUID()}`
-		const destinationId = `dest_tax_${crypto.randomUUID()}`
+		const geoPlaceId = `dest_tax_${crypto.randomUUID()}`
 		const productId = `prod_tax_${crypto.randomUUID()}`
 		const variantId = `var_tax_${crypto.randomUUID()}`
 		const templateId = `rpt_tax_${crypto.randomUUID()}`
 		const ratePlanId = `rp_tax_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Dest",
 			type: "city",
 			country: "CL",
-			slug: `dest-${destinationId}`,
+			slug: `dest-${geoPlaceId}`,
 		})
 		await upsertProvider({ id: providerId, displayName: "Prov", ownerEmail: "tax@example.com" })
 		await upsertProduct({
 			id: productId,
 			name: "Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 		await upsertVariant({
@@ -139,25 +139,25 @@ describe("integration/booking tax/fee snapshot", () => {
 	it("stores mixed included/excluded tax breakdown for realistic booking", async () => {
 		const bookingId = `booking_tax_${crypto.randomUUID()}`
 		const providerId = `prov_tax_${crypto.randomUUID()}`
-		const destinationId = `dest_tax_${crypto.randomUUID()}`
+		const geoPlaceId = `dest_tax_${crypto.randomUUID()}`
 		const productId = `prod_tax_${crypto.randomUUID()}`
 		const variantId = `var_tax_${crypto.randomUUID()}`
 		const templateId = `rpt_tax_${crypto.randomUUID()}`
 		const ratePlanId = `rp_tax_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Dest",
 			type: "city",
 			country: "CL",
-			slug: `dest-${destinationId}`,
+			slug: `dest-${geoPlaceId}`,
 		})
 		await upsertProvider({ id: providerId, displayName: "Prov", ownerEmail: "tax2@example.com" })
 		await upsertProduct({
 			id: productId,
 			name: "Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 		await upsertVariant({

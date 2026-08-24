@@ -17,7 +17,7 @@ import {
 } from "@/modules/policies/public"
 
 import {
-	upsertDestination,
+	upsertGeoPlace,
 	upsertProduct,
 	upsertVariant,
 	upsertRatePlanTemplate,
@@ -48,12 +48,12 @@ describe("integration/policies CAPA 6 Step 4 (write path)", () => {
 	})
 
 	it("assigns by scope and replaces the active slot atomically and idempotently", async () => {
-		const destinationId = `dest_pol_${crypto.randomUUID()}`
+		const geoPlaceId = `dest_pol_${crypto.randomUUID()}`
 		const productId = `prod_pol_${crypto.randomUUID()}`
 		const variantId = `var_pol_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Policy Destination",
 			type: "city",
 			country: "CL",
@@ -63,7 +63,7 @@ describe("integration/policies CAPA 6 Step 4 (write path)", () => {
 			id: productId,
 			name: "Policy Product",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 		})
 		await upsertVariant({
 			id: variantId,
@@ -208,11 +208,11 @@ describe("integration/policies CAPA 6 Step 4 (write path)", () => {
 
 	it("deactivates only assignments owned by the requesting provider and audits the change", async () => {
 		const suffix = crypto.randomUUID()
-		const destinationId = `dest_deactivate_${suffix}`
+		const geoPlaceId = `dest_deactivate_${suffix}`
 		const productId = `prod_deactivate_${suffix}`
 		const providerId = `prov_deactivate_${suffix}`
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Deactivate destination",
 			type: "city",
 			country: "CL",
@@ -222,7 +222,7 @@ describe("integration/policies CAPA 6 Step 4 (write path)", () => {
 			id: productId,
 			name: "Deactivate hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 		const policy = await createPolicyCapa6({

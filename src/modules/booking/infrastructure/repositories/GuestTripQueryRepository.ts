@@ -7,6 +7,7 @@ import {
 	eq,
 	first,
 	Product,
+	ProductGeoPlace,
 	ProductReview,
 	Variant,
 } from "@/shared/infrastructure/db/compat"
@@ -52,12 +53,20 @@ export class GuestTripQueryRepository implements GuestTripQueryRepositoryPort {
 				pricingBreakdownJson: BookingLineItem.pricingBreakdownJson,
 				occupancySnapshotJson: BookingLineItem.occupancySnapshotJson,
 				productId: Product.id,
-				destinationId: Product.destinationId,
+				geoPlaceId: ProductGeoPlace.placeId,
 				productType: Product.productType,
 			})
 			.from(BookingLineItem)
 			.leftJoin(Variant, eq(Variant.id, BookingLineItem.variantId))
 			.leftJoin(Product, eq(Product.id, Variant.productId))
+			.leftJoin(
+				ProductGeoPlace,
+				and(
+					eq(ProductGeoPlace.productId, Product.id),
+					eq(ProductGeoPlace.role, "primary_discovery"),
+					eq(ProductGeoPlace.isPrimary, true)
+				)
+			)
 			.where(eq(BookingLineItem.bookingId, params.bookingId))
 			.then(first)
 
@@ -109,7 +118,7 @@ export class GuestTripQueryRepository implements GuestTripQueryRepositoryPort {
 						pricingBreakdownJson: line.pricingBreakdownJson ?? null,
 						occupancySnapshotJson: line.occupancySnapshotJson ?? null,
 						productId: line.productId == null ? null : String(line.productId),
-						destinationId: line.destinationId == null ? null : String(line.destinationId),
+						geoPlaceId: line.geoPlaceId == null ? null : String(line.geoPlaceId),
 						productType: line.productType == null ? null : String(line.productType),
 					}
 				: null,

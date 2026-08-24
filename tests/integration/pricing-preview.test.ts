@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest"
 
 import {
-	upsertDestination,
+	upsertGeoPlace,
 	upsertProduct,
 	upsertVariant,
 	upsertRatePlanTemplate,
@@ -77,12 +77,12 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 		const token = "t_prev_base"
 		const email = "prev-base@example.com"
 		const providerId = "prov_prev_base"
-		const destinationId = "dest_prev_base"
+		const geoPlaceId = "dest_prev_base"
 		const productId = `prod_prev_base_${crypto.randomUUID()}`
 		const variantId = `var_prev_base_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Prev Dest",
 			type: "city",
 			country: "CL",
@@ -93,7 +93,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			id: productId,
 			name: "Prev Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 		await upsertVariant({
@@ -122,12 +122,12 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 		const token = "t_prev_nodef"
 		const email = "prev-nodef@example.com"
 		const providerId = "prov_prev_nodef"
-		const destinationId = "dest_prev_nodef"
+		const geoPlaceId = "dest_prev_nodef"
 		const productId = `prod_prev_nodef_${crypto.randomUUID()}`
 		const variantId = `var_prev_nodef_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Prev NoDef Dest",
 			type: "city",
 			country: "CL",
@@ -138,7 +138,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			id: productId,
 			name: "Prev NoDef Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 		await upsertVariant({
@@ -198,12 +198,12 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 		const token = "t_prev_pct"
 		const email = "prev-pct@example.com"
 		const providerId = "prov_prev_pct"
-		const destinationId = "dest_prev_pct"
+		const geoPlaceId = "dest_prev_pct"
 		const productId = `prod_prev_pct_${crypto.randomUUID()}`
 		const variantId = `var_prev_pct_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Prev Pct Dest",
 			type: "city",
 			country: "CL",
@@ -214,7 +214,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			id: productId,
 			name: "Prev Pct Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 		await upsertVariant({
@@ -266,12 +266,12 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 		const token = "t_prev_order"
 		const email = "prev-order@example.com"
 		const providerId = "prov_prev_order"
-		const destinationId = "dest_prev_order"
+		const geoPlaceId = "dest_prev_order"
 		const productId = `prod_prev_order_${crypto.randomUUID()}`
 		const variantId = `var_prev_order_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Prev Order Dest",
 			type: "city",
 			country: "CL",
@@ -282,7 +282,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			id: productId,
 			name: "Prev Order Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 		await upsertVariant({
@@ -348,12 +348,12 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 		const token = "t_prev_negpct"
 		const email = "prev-negpct@example.com"
 		const providerId = "prov_prev_negpct"
-		const destinationId = "dest_prev_negpct"
+		const geoPlaceId = "dest_prev_negpct"
 		const productId = `prod_prev_negpct_${crypto.randomUUID()}`
 		const variantId = `var_prev_negpct_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Prev Neg Dest",
 			type: "city",
 			country: "CL",
@@ -364,7 +364,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			id: productId,
 			name: "Prev Neg Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 		await upsertVariant({
@@ -415,12 +415,12 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 		const token = "t_prev_badtype"
 		const email = "prev-badtype@example.com"
 		const providerId = "prov_prev_badtype"
-		const destinationId = "dest_prev_badtype"
+		const geoPlaceId = "dest_prev_badtype"
 		const productId = `prod_prev_badtype_${crypto.randomUUID()}`
 		const variantId = `var_prev_badtype_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Prev BadType Dest",
 			type: "city",
 			country: "CL",
@@ -435,7 +435,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			id: productId,
 			name: "Prev BadType Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 		await upsertVariant({
@@ -485,12 +485,12 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 		const token = "t_prev_fixed"
 		const email = "prev-fixed@example.com"
 		const providerId = "prov_prev_fixed"
-		const destinationId = "dest_prev_fixed"
+		const geoPlaceId = "dest_prev_fixed"
 		const productId = `prod_prev_fixed_${crypto.randomUUID()}`
 		const variantId = `var_prev_fixed_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Prev Fix Dest",
 			type: "city",
 			country: "CL",
@@ -501,7 +501,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			id: productId,
 			name: "Prev Fix Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 		await upsertVariant({
@@ -556,12 +556,12 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 		const emailB = "prev-ob@example.com"
 		const providerA = "prov_prev_own_a"
 		const providerB = "prov_prev_own_b"
-		const destinationId = "dest_prev_own"
+		const geoPlaceId = "dest_prev_own"
 		const productId = `prod_prev_own_${crypto.randomUUID()}`
 		const variantId = `var_prev_own_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Prev Own Dest",
 			type: "city",
 			country: "CL",
@@ -573,7 +573,7 @@ describe("integration/pricing preview (CAPA 4B minimal)", () => {
 			id: productId,
 			name: "Prev Own Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId: providerA,
 		})
 		await upsertVariant({

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest"
 
 import {
-	upsertDestination,
+	upsertGeoPlace,
 	upsertProduct,
 	upsertRatePlan,
 	upsertRatePlanTemplate,
@@ -91,14 +91,14 @@ async function seedRatePlanFixture(params?: { ownerEmail?: string }) {
 	const suffix = crypto.randomUUID()
 	const ownerEmail = params?.ownerEmail ?? `br-${suffix}@example.com`
 	const providerId = `prov_br_${suffix}`
-	const destinationId = `dest_br_${suffix}`
+	const geoPlaceId = `dest_br_${suffix}`
 	const productId = `prod_br_${suffix}`
 	const variantId = `var_br_${suffix}`
 	const ratePlanTemplateId = `rpt_br_${suffix}`
 	const ratePlanId = `rp_br_${suffix}`
 
-	await upsertDestination({
-		id: destinationId,
+	await upsertGeoPlace({
+		id: geoPlaceId,
 		name: "BR Dest",
 		type: "city",
 		country: "CL",
@@ -109,7 +109,7 @@ async function seedRatePlanFixture(params?: { ownerEmail?: string }) {
 		id: productId,
 		name: "BR Hotel",
 		productType: "Hotel",
-		destinationId,
+		geoPlaceId,
 		providerId,
 	})
 	await upsertVariant({
@@ -283,11 +283,11 @@ describe("integration/pricing base rate (ratePlan-first)", () => {
 		const token = "t_br_ready"
 		const email = "br-ready@example.com"
 		const providerId = "prov_br_ready"
-		const destinationId = "dest_br_ready"
+		const geoPlaceId = "dest_br_ready"
 		const productId = `prod_br_ready_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Ready Dest",
 			type: "city",
 			country: "CL",
@@ -298,7 +298,7 @@ describe("integration/pricing base rate (ratePlan-first)", () => {
 			id: productId,
 			name: "Ready Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 		await upsertRoomType({ id: "rt_br_ready", name: "Double", maxOccupancy: 2 })

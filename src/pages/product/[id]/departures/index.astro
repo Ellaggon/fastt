@@ -1,5 +1,4 @@
 ---
-import ProductContextSwitcher from "@/components/product/ProductContextSwitcher.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import { productRepository } from "@/container"
@@ -60,33 +59,28 @@ const createdId = String(Astro.url.searchParams.get("created") ?? "").trim()
 ---
 
 <WorkspaceLayout title={`${product.displayName} · Salidas`}>
-	<section class="space-y-5">
-		<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 pb-5">
-			<div class="space-y-1.5">
-				<ProductContextSwitcher
-					providerId={providerId}
-					productId={productId}
-					productType={owned.productType}
-					currentName={product.displayName}
-					target="departures"
-				/>
-				<h1 class="text-3xl font-semibold text-slate-950">Salidas del tour</h1>
-				<p class="max-w-2xl text-sm leading-6 text-slate-600">
-					Cada salida es un horario con cupo propio. Crea al menos dos salidas con horas distintas
-					para vender opciones.
-				</p>
+	<section class="space-y-6 md:space-y-8">
+		<header class="flex flex-col gap-2">
+			<div class="flex flex-wrap items-start justify-between gap-3">
+				<h1 class="text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl">
+					Salidas del tour
+				</h1>
+				<div class="flex flex-wrap gap-2">
+					<Button href={`/product/${productId}/private-requests`} variant="secondary" class="shrink-0">
+						Solicitudes privadas
+					</Button>
+					<Button href={routes.productDepartureNew(productId)} class="shrink-0">
+						<span class="inline-flex items-center gap-2">
+							<Plus class="h-4 w-4" />
+							Nueva salida
+						</span>
+					</Button>
+				</div>
 			</div>
-			<div class="flex flex-wrap gap-2">
-				<Button href={`/product/${productId}/private-requests`} variant="secondary">
-					Solicitudes privadas
-				</Button>
-				<Button href={routes.productDepartureNew(productId)}>
-					<span class="inline-flex items-center gap-2">
-						<Plus class="h-4 w-4" />
-						Nueva salida
-					</span>
-				</Button>
-			</div>
+			<p class="max-w-3xl text-sm leading-5 text-slate-300 sm:leading-6">
+				Cada salida es un horario con cupo propio. Crea al menos dos salidas con horas distintas
+				para vender opciones.
+			</p>
 		</header>
 
 		{

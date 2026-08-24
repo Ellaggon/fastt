@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest"
 
-import { upsertDestination, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
+import { upsertGeoPlace, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
 
 import { POST as createVariantPost } from "@/pages/api/variant/create"
@@ -76,11 +76,11 @@ describe("integration/api/variant/list", () => {
 		const token = "t_list_ok"
 		const email = "listok@example.com"
 		const providerId = "prov_list_ok"
-		const destinationId = "dest_list_ok"
+		const geoPlaceId = "dest_list_ok"
 		const productId = `prod_list_ok_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "List Dest",
 			type: "city",
 			country: "CL",
@@ -91,7 +91,7 @@ describe("integration/api/variant/list", () => {
 			id: productId,
 			name: "List Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 
@@ -133,11 +133,11 @@ describe("integration/api/variant/list", () => {
 		const token = "t_list_empty"
 		const email = "listempty@example.com"
 		const providerId = "prov_list_empty"
-		const destinationId = "dest_list_empty"
+		const geoPlaceId = "dest_list_empty"
 		const productId = `prod_list_empty_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Empty Dest",
 			type: "city",
 			country: "CL",
@@ -148,7 +148,7 @@ describe("integration/api/variant/list", () => {
 			id: productId,
 			name: "Empty Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 
@@ -172,11 +172,11 @@ describe("integration/api/variant/list", () => {
 		const emailB = "listb@example.com"
 		const providerA = "prov_list_own_a"
 		const providerB = "prov_list_own_b"
-		const destinationId = "dest_list_own"
+		const geoPlaceId = "dest_list_own"
 		const productId = `prod_list_own_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Own Dest",
 			type: "city",
 			country: "CL",
@@ -188,7 +188,7 @@ describe("integration/api/variant/list", () => {
 			id: productId,
 			name: "Own Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId: providerA,
 		})
 

@@ -13,7 +13,7 @@ import { HotelAmenityQueryRepository } from "../modules/catalog/infrastructure/r
 import { VariantRoomProfileRepository } from "../modules/catalog/infrastructure/repositories/VariantRoomProfileRepository"
 import { ImageQueryRepository } from "../modules/catalog/infrastructure/repositories/ImageQueryRepository"
 import { ProductServiceQueryRepository } from "../modules/catalog/infrastructure/repositories/ProductServiceQueryRepository"
-import { DestinationQueryRepository } from "../modules/catalog/infrastructure/repositories/DestinationQueryRepository"
+import { GeoPlaceQueryRepository } from "../modules/catalog/infrastructure/repositories/GeoPlaceQueryRepository"
 import { MarketplaceHotelSearchRepository } from "../modules/catalog/infrastructure/repositories/MarketplaceHotelSearchRepository"
 import { CatalogReadModelRepository } from "../modules/catalog/infrastructure/repositories/CatalogReadModelRepository"
 import { TourTrustRepository } from "../modules/catalog/infrastructure/repositories/TourTrustRepository"
@@ -28,7 +28,7 @@ import {
 	createListProductServiceConfigsQuery,
 	createGetProductServiceConfigQuery,
 	createSearchDestinationsQuery,
-	createListMarketplaceHotelsByDestinationQuery,
+	createListMarketplaceHotelsByGeoPlaceQuery,
 	createGetProductAggregateQuery,
 	createGetProductFullAggregateQuery,
 	createGetProductVariantsAggregateQuery,
@@ -66,7 +66,7 @@ export const hotelAmenityQueryRepository = new HotelAmenityQueryRepository()
 export const variantRoomProfileRepository = new VariantRoomProfileRepository()
 export const imageQueryRepository = new ImageQueryRepository()
 export const productServiceQueryRepository = new ProductServiceQueryRepository()
-export const destinationQueryRepository = new DestinationQueryRepository()
+export const destinationQueryRepository = new GeoPlaceQueryRepository()
 export const marketplaceHotelSearchRepository = new MarketplaceHotelSearchRepository()
 export const catalogReadModelRepository = new CatalogReadModelRepository()
 export const tourTrustRepository = new TourTrustRepository()
@@ -95,7 +95,7 @@ export const searchDestinations = createSearchDestinationsQuery({
 	repo: destinationQueryRepository,
 })
 
-export const listMarketplaceHotelsByDestination = createListMarketplaceHotelsByDestinationQuery({
+export const listMarketplaceHotelsByGeoPlace = createListMarketplaceHotelsByGeoPlaceQuery({
 	repo: marketplaceHotelSearchRepository,
 })
 

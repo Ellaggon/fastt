@@ -11,7 +11,7 @@ import { describe, expect, it } from "vitest"
 
 import { syncHotelArrivalPolicy } from "@/lib/policies/syncHotelArrivalPolicy"
 import type { HouseRule } from "@/modules/house-rules/public"
-import { upsertDestination, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
+import { upsertGeoPlace, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
 
 function arrivalRules(productId: string, checkInFrom: string): HouseRule[] {
@@ -42,15 +42,15 @@ describe("hotel arrival policy synchronization", () => {
 	it("creates one product-level contract and versions subsequent schedule changes", async () => {
 		const suffix = crypto.randomUUID()
 		const providerId = `provider_arrival_${suffix}`
-		const destinationId = `destination_arrival_${suffix}`
+		const geoPlaceId = `destination_arrival_${suffix}`
 		const productId = `product_arrival_${suffix}`
 		await upsertProvider({
 			id: providerId,
 			displayName: "Arrival provider",
 			ownerEmail: `arrival-${suffix}@example.com`,
 		})
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Arrival destination",
 			type: "city",
 			country: "BO",
@@ -60,7 +60,7 @@ describe("hotel arrival policy synchronization", () => {
 			id: productId,
 			name: "Arrival hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 

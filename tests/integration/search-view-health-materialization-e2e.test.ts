@@ -13,7 +13,7 @@ import { GET as getSearchViewHealth } from "@/pages/api/internal/search/search-v
 import { materializeSearchUnitRange, SEARCH_VIEW_REASON_CODES } from "@/modules/search/public"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
 import {
-	upsertDestination,
+	upsertGeoPlace,
 	upsertProduct,
 	upsertRatePlan,
 	upsertRatePlanTemplate,
@@ -56,7 +56,7 @@ async function readHealth(params: {
 describe("search view health endpoint (e2e via real materialization)", () => {
 	it("reflects deterministic health state from effective tables through materialization", async () => {
 		const seed = `svh_e2e_${Date.now()}`
-		const destinationId = `dest_${seed}`
+		const geoPlaceId = `dest_${seed}`
 		const productId = `prod_${seed}`
 		const variantId = `var_${seed}`
 		const templateId = `rpt_${seed}`
@@ -65,8 +65,8 @@ describe("search view health endpoint (e2e via real materialization)", () => {
 		const to = "2026-11-13"
 		const dates = enumerateDates(from, to)
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "SVH E2E Destination",
 			type: "city",
 			country: "CL",
@@ -76,7 +76,7 @@ describe("search view health endpoint (e2e via real materialization)", () => {
 			id: productId,
 			name: "SVH E2E Product",
 			productType: "hotel",
-			destinationId,
+			geoPlaceId,
 		})
 		await upsertVariant({
 			id: variantId,

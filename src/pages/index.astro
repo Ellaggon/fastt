@@ -1,6 +1,7 @@
 ---
 import { ArrowRight, Building2, Compass } from "@lucide/astro"
 
+import PublicListingImage from "@/components/marketplace/PublicListingImage.astro"
 import UILayout from "@/layouts/UILayout.astro"
 ---
 
@@ -8,14 +9,21 @@ import UILayout from "@/layouts/UILayout.astro"
 	title="Fastt | Viajes en Bolivia"
 	description="Encuentra alojamientos y experiencias para viajar por Bolivia."
 	canonicalPath="/"
+	structuredData={{
+		"@context": "https://schema.org",
+		"@type": "WebSite",
+		"name": "Fastt",
+		"url": Astro.url.origin,
+		"inLanguage": "es-BO",
+	}}
 >
 	<main class="bg-slate-50 text-slate-950">
 		<section class="relative min-h-[calc(100vh-3rem)] overflow-hidden bg-slate-950">
-			<img
+			<PublicListingImage
 				src="https://pub-de0b5a27b1424d99afa6c7b2fe2f02dc.r2.dev/la-paz.webp"
 				alt="Paisaje de La Paz, Bolivia"
-				class="absolute inset-0 h-full w-full object-cover"
-				fetchpriority="high"
+				priority
+				class="absolute inset-0 h-full w-full"
 			/>
 			<div class="absolute inset-0 bg-slate-950/65"></div>
 			<div

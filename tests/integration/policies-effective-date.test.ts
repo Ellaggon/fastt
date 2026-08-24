@@ -7,15 +7,15 @@ import {
 	PolicyValidationError,
 	resolveEffectivePolicies,
 } from "@/modules/policies/public"
-import { upsertDestination, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
+import { upsertGeoPlace, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
 
 describe("integration/policies effective date filtering", () => {
 	it("stores date-only ranges and resolves both inclusive boundaries", async () => {
-		const destinationId = `dest_pol_iso_${crypto.randomUUID()}`
+		const geoPlaceId = `dest_pol_iso_${crypto.randomUUID()}`
 		const productId = `prod_pol_iso_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Policy ISO Destination",
 			type: "city",
 			country: "CL",
@@ -25,7 +25,7 @@ describe("integration/policies effective date filtering", () => {
 			id: productId,
 			name: "Policy ISO Product",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 		})
 
 		const created = await createPolicyCapa6({

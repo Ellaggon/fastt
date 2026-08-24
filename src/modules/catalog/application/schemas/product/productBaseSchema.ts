@@ -11,7 +11,7 @@ export const productBaseSchema = z.object({
 			message: "Unsupported product type",
 		}),
 	providerId: z.string().trim().optional(),
-	destinationId: z.string().trim().min(1),
+	geoPlaceId: z.string().trim().min(1),
 })
 
 export type ProductBaseInput = z.infer<typeof productBaseSchema>

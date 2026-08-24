@@ -6,7 +6,7 @@ export type ProductAggregate = {
 		name: string
 		productType: string
 		providerId?: string | null
-		destinationId: string
+		geoPlaceId: string | null
 		dataClass?: string
 	}
 	imagesCount: number
@@ -68,7 +68,7 @@ export interface ProductRepositoryPort {
 		name: string
 		productType: string
 		providerId?: string | null
-		destinationId: string
+		geoPlaceId: string
 		dataClass?: string
 	}): Promise<void>
 
@@ -86,6 +86,13 @@ export interface ProductRepositoryPort {
 		lng?: number | null
 	}): Promise<void>
 
+	setProductGeoPlace?(params: {
+		productId: string
+		geoPlaceId: string
+		actorId?: string | null
+		source: string
+	}): Promise<void>
+
 	upsertProductStatus(params: {
 		productId: string
 		state: ProductStatusState
@@ -98,6 +105,6 @@ export interface ProductRepositoryPort {
 		name: string
 		productType: string
 		providerId?: string | null
-		destinationId: string
+		geoPlaceId: string | null
 	} | null>
 }

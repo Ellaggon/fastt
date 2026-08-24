@@ -23,6 +23,16 @@ export type BoliviaGeoPlaceSeed = {
 	aliases?: readonly { value: string; type?: "historic" | "alternate" | "search" }[]
 }
 
+export type BoliviaGeoPlaceContentSeed = {
+	placeId: string
+	title: string
+	summary: string
+	seoJson: {
+		metaTitle: string
+		metaDescription: string
+	}
+}
+
 const country: BoliviaGeoPlaceSeed = {
 	id: "geo:bo",
 	slug: "bolivia",
@@ -337,3 +347,48 @@ const cities: readonly BoliviaGeoPlaceSeed[] = [
 ]
 
 export const BOLIVIA_MARKETPLACE_GEO_PLACES = [country, ...departments, ...cities] as const
+
+const departmentSummaries: Record<string, string> = {
+	"geo:bo:beni":
+		"Llanos, ríos y naturaleza para viajes de ritmo tranquilo y experiencias al aire libre.",
+	"geo:bo:chuquisaca":
+		"Historia, arquitectura y cultura viva alrededor de Sucre y sus paisajes cercanos.",
+	"geo:bo:cochabamba":
+		"Valles, gastronomía y una base cómoda para descubrir el centro de Bolivia.",
+	"geo:bo:la-paz-department":
+		"Altiplano, ciudad, lago y montaña en una región de contrastes para cada tipo de viaje.",
+	"geo:bo:oruro":
+		"Tradición, altiplano y paisajes abiertos con una identidad cultural propia.",
+	"geo:bo:potosi":
+		"Historia minera, rutas andinas y el salar de Uyuni para viajes de gran escala.",
+	"geo:bo:tarija":
+		"Valles, viñedos y gastronomía en un destino sereno del sur de Bolivia.",
+	"geo:bo:santa-cruz":
+		"Ciudad, naturaleza y escapadas tropicales desde el oriente boliviano.",
+	"geo:bo:pando":
+		"Amazonía, biodiversidad y recorridos de naturaleza en el norte del país.",
+}
+
+function defaultSummary(place: BoliviaGeoPlaceSeed): string {
+	if (place.placeType === "country") {
+		return "Encuentra alojamientos y experiencias para organizar tu viaje por Bolivia."
+	}
+	if (place.placeType === "admin_area_1") {
+		return departmentSummaries[place.id] ?? `Explora alojamientos y experiencias en ${place.canonicalName}.`
+	}
+	return `Encuentra alojamientos y experiencias para conocer ${place.canonicalName}.`
+}
+
+export const BOLIVIA_GEO_PLACE_CONTENT: readonly BoliviaGeoPlaceContentSeed[] =
+	BOLIVIA_MARKETPLACE_GEO_PLACES.map((place) => {
+		const summary = defaultSummary(place)
+		return {
+			placeId: place.id,
+			title: place.canonicalName,
+			summary,
+			seoJson: {
+				metaTitle: `${place.canonicalName} | Alojamientos y experiencias en Fastt`,
+				metaDescription: summary,
+			},
+		}
+	})

@@ -5,7 +5,8 @@ import {
 	CommissionSnapshot,
 	DailyInventory,
 	db,
-	Destination,
+	GeoPlace,
+	ProductGeoPlace,
 	EffectiveAvailability,
 	EffectivePricingV2,
 	FinancialExceptionRecord,
@@ -47,7 +48,7 @@ let providerId = QA_PROVIDER_ID
 const PRODUCT_ID = "qa-financial-hotel-sol"
 const VARIANT_ID = "qa-financial-suite-norte"
 const RATE_PLAN_ID = "qa-financial-plan-flexible"
-const DESTINATION_ID = "qa-financial-santa-cruz"
+const GEO_PLACE_ID = "qa-financial-santa-cruz"
 const NOW = new Date("2026-06-30T12:00:00.000Z")
 const DEFAULT_OCCUPANCY_KEY = buildOccupancyKey(
 	normalizeOccupancy({ adults: 2, children: 0, infants: 0 })
@@ -177,16 +178,16 @@ async function keepOnlyLocalQaProviderLink(userId: string): Promise<void> {
 
 	try {
 		await db.execute(sql`
-			DELETE FROM ProviderUser
-			WHERE userId = ${userId}
-				AND providerId <> ${providerId}
+			DELETE FROM "ProviderUser"
+			WHERE "userId" = ${userId}
+				AND "providerId" <> ${providerId}
 		`)
 		await db.execute(sql`
-			DELETE FROM Provider
-			WHERE id = 'qa-financial-provider-ellaggon'
-				AND id <> ${providerId}
-				AND id NOT IN (SELECT providerId FROM Booking WHERE providerId IS NOT NULL)
-				AND id NOT IN (SELECT providerId FROM Product WHERE providerId IS NOT NULL)
+			DELETE FROM "Provider"
+			WHERE "id" = 'qa-financial-provider-ellaggon'
+				AND "id" <> ${providerId}
+				AND "id" NOT IN (SELECT "providerId" FROM "Booking" WHERE "providerId" IS NOT NULL)
+				AND "id" NOT IN (SELECT "providerId" FROM "Product" WHERE "providerId" IS NOT NULL)
 		`)
 	} catch {
 		// Best-effort cleanup for local QA only. Never block the demo seed.
@@ -233,22 +234,22 @@ async function seedCatalog(userId: string): Promise<void> {
 		.onConflictDoNothing()
 
 	await db
-		.insert(Destination)
+		.insert(GeoPlace)
 		.values({
-			id: DESTINATION_ID,
-			name: "Santa Cruz de la Sierra",
-			type: "city",
-			country: "bolivia",
-			department: "santa-cruz",
+			id: GEO_PLACE_ID,
+			canonicalName: "Santa Cruz de la Sierra",
+			normalizedName: "santa cruz de la sierra",
+			placeType: "locality",
+			countryCode: "BO",
 			slug: "santa-cruz-de-la-sierra",
 		})
 		.onConflictDoUpdate({
-			target: [Destination.id],
+			target: [GeoPlace.id],
 			set: {
-				name: "Santa Cruz de la Sierra",
-				type: "city",
-				country: "bolivia",
-				department: "santa-cruz",
+				canonicalName: "Santa Cruz de la Sierra",
+				normalizedName: "santa cruz de la sierra",
+				placeType: "locality",
+				countryCode: "BO",
 				slug: "santa-cruz-de-la-sierra",
 			},
 		})
@@ -260,7 +261,6 @@ async function seedCatalog(userId: string): Promise<void> {
 			name: "Hotel Sol",
 			productType: "hotel",
 			providerId,
-			destinationId: DESTINATION_ID,
 			creationDate: NOW,
 			lastUpdated: NOW,
 		})
@@ -270,10 +270,10 @@ async function seedCatalog(userId: string): Promise<void> {
 				name: "Hotel Sol",
 				productType: "hotel",
 				providerId,
-				destinationId: DESTINATION_ID,
 				lastUpdated: NOW,
 			},
 		})
+	await db.insert(ProductGeoPlace).values({ id: `geo:product-place:${PRODUCT_ID}`, productId: PRODUCT_ID, placeId: GEO_PLACE_ID, role: "primary_discovery", isPrimary: true, source: "financial_demo" }).onConflictDoUpdate({ target: [ProductGeoPlace.productId, ProductGeoPlace.placeId, ProductGeoPlace.role], set: { isPrimary: true, updatedAt: NOW } })
 
 	await db
 		.insert(ProductStatus)

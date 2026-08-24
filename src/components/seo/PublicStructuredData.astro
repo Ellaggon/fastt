@@ -1,0 +1,10 @@
+---
+interface Props {
+	value: Record<string, unknown> | Array<Record<string, unknown>>
+}
+
+const { value } = Astro.props as Props
+const payload = JSON.stringify(value).replace(/</g, "\\u003c")
+---
+
+<script type="application/ld+json" set:html={payload} />

@@ -11,7 +11,7 @@ import { snapshotPoliciesForBookingUseCase } from "@/container/booking-policy-sn
 import { getPoliciesForBookingUseCase } from "@/container/booking-policy-read.container"
 
 import {
-	upsertDestination,
+	upsertGeoPlace,
 	upsertProduct,
 	upsertVariant,
 	upsertRatePlanTemplate,
@@ -20,21 +20,21 @@ import {
 
 describe("integration/booking policy read path (CAPA 6 Step 6)", () => {
 	it("returns policies from snapshot only (multiple categories)", async () => {
-		const destinationId = `dest_bpr_${crypto.randomUUID()}`
+		const geoPlaceId = `dest_bpr_${crypto.randomUUID()}`
 		const productId = `prod_bpr_${crypto.randomUUID()}`
 		const variantId = `var_bpr_${crypto.randomUUID()}`
 		const rptId = `rpt_bpr_${crypto.randomUUID()}`
 		const ratePlanId = `rp_bpr_${crypto.randomUUID()}`
 		const bookingId = `bk_bpr_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "BPR Dest",
 			type: "city",
 			country: "CL",
 			slug: "bpr-dest",
 		})
-		await upsertProduct({ id: productId, name: "BPR Product", productType: "Hotel", destinationId })
+		await upsertProduct({ id: productId, name: "BPR Product", productType: "Hotel", geoPlaceId })
 		await upsertVariant({
 			id: variantId,
 			productId,
@@ -109,15 +109,15 @@ describe("integration/booking policy read path (CAPA 6 Step 6)", () => {
 	})
 
 	it("throws booking_policy_snapshot_missing when no snapshot exists", async () => {
-		const destinationId = `dest_missing_${crypto.randomUUID()}`
+		const geoPlaceId = `dest_missing_${crypto.randomUUID()}`
 		const productId = `prod_missing_${crypto.randomUUID()}`
 		const variantId = `var_missing_${crypto.randomUUID()}`
 		const rptId = `rpt_missing_${crypto.randomUUID()}`
 		const ratePlanId = `rp_missing_${crypto.randomUUID()}`
 		const bookingId = `bk_missing_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Missing Dest",
 			type: "city",
 			country: "CL",
@@ -127,7 +127,7 @@ describe("integration/booking policy read path (CAPA 6 Step 6)", () => {
 			id: productId,
 			name: "Missing Product",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 		})
 		await upsertVariant({
 			id: variantId,
@@ -170,15 +170,15 @@ describe("integration/booking policy read path (CAPA 6 Step 6)", () => {
 	})
 
 	it("does not drift: later policy updates do not affect snapshot read", async () => {
-		const destinationId = `dest_bprd_${crypto.randomUUID()}`
+		const geoPlaceId = `dest_bprd_${crypto.randomUUID()}`
 		const productId = `prod_bprd_${crypto.randomUUID()}`
 		const variantId = `var_bprd_${crypto.randomUUID()}`
 		const rptId = `rpt_bprd_${crypto.randomUUID()}`
 		const ratePlanId = `rp_bprd_${crypto.randomUUID()}`
 		const bookingId = `bk_bprd_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "BPRD Dest",
 			type: "city",
 			country: "CL",
@@ -188,7 +188,7 @@ describe("integration/booking policy read path (CAPA 6 Step 6)", () => {
 			id: productId,
 			name: "BPRD Product",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 		})
 		await upsertVariant({
 			id: variantId,

@@ -1,5 +1,6 @@
 export type ProductVertical = "hotel" | "tour" | "package" | "limousine"
-export type ProductTypeStorage = "Hotel" | "Tour" | "Package" | "Limousine"
+/** Canonical database representation. Labels belong to the UI registry, not persisted data. */
+export type ProductTypeStorage = ProductVertical
 export type VariantKindForVertical =
 	| "hotel_room"
 	| "tour_slot"
@@ -36,7 +37,7 @@ export type ProductVerticalDefinition = {
 export const PRODUCT_VERTICALS: Record<ProductVertical, ProductVerticalDefinition> = {
 	hotel: {
 		vertical: "hotel",
-		storageType: "Hotel",
+		storageType: "hotel",
 		variantKind: "hotel_room",
 		labels: {
 			singular: "Alojamiento",
@@ -63,7 +64,7 @@ export const PRODUCT_VERTICALS: Record<ProductVertical, ProductVerticalDefinitio
 	},
 	tour: {
 		vertical: "tour",
-		storageType: "Tour",
+		storageType: "tour",
 		variantKind: "tour_slot",
 		labels: {
 			singular: "Tour",
@@ -90,7 +91,7 @@ export const PRODUCT_VERTICALS: Record<ProductVertical, ProductVerticalDefinitio
 	},
 	package: {
 		vertical: "package",
-		storageType: "Package",
+		storageType: "package",
 		variantKind: "package_base",
 		labels: {
 			singular: "Paquete",
@@ -117,7 +118,7 @@ export const PRODUCT_VERTICALS: Record<ProductVertical, ProductVerticalDefinitio
 	},
 	limousine: {
 		vertical: "limousine",
-		storageType: "Limousine",
+		storageType: "limousine",
 		variantKind: "limousine_service",
 		labels: {
 			singular: "Traslado",

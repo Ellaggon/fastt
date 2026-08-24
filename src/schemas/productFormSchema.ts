@@ -15,7 +15,7 @@ export const productFormSchema = z.object({
 		.max(500, "La descripcion no debe superar los 500 caracteres")
 		.optional()
 		.or(z.literal("")),
-	destinationId: z.string().min(1, "Selecciona una ciudad o localidad"),
+	geoPlaceId: z.string().min(1, "Selecciona una ciudad o localidad"),
 	// imágenes: validamos en cliente con la metadata y en server por seguridad
 	imagesMeta: z
 		.array(

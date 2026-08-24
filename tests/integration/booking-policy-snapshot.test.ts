@@ -10,7 +10,7 @@ import {
 import { snapshotPoliciesForBookingUseCase } from "@/container/booking-policy-snapshot.container"
 
 import {
-	upsertDestination,
+	upsertGeoPlace,
 	upsertProduct,
 	upsertVariant,
 	upsertRatePlanTemplate,
@@ -19,21 +19,21 @@ import {
 
 describe("integration/booking policy snapshot (CAPA 6 Step 5)", () => {
 	it("creates immutable snapshots; later policy changes do not affect stored snapshot JSON", async () => {
-		const destinationId = `dest_bps_${crypto.randomUUID()}`
+		const geoPlaceId = `dest_bps_${crypto.randomUUID()}`
 		const productId = `prod_bps_${crypto.randomUUID()}`
 		const variantId = `var_bps_${crypto.randomUUID()}`
 		const rptId = `rpt_bps_${crypto.randomUUID()}`
 		const ratePlanId = `rp_bps_${crypto.randomUUID()}`
 		const bookingId = `bk_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "BP Dest",
 			type: "city",
 			country: "CL",
 			slug: "bp-dest",
 		})
-		await upsertProduct({ id: productId, name: "BP Product", productType: "Hotel", destinationId })
+		await upsertProduct({ id: productId, name: "BP Product", productType: "Hotel", geoPlaceId })
 		await upsertVariant({
 			id: variantId,
 			productId,
@@ -115,21 +115,21 @@ describe("integration/booking policy snapshot (CAPA 6 Step 5)", () => {
 	})
 
 	it("snapshots multiple categories", async () => {
-		const destinationId = `dest_bps2_${crypto.randomUUID()}`
+		const geoPlaceId = `dest_bps2_${crypto.randomUUID()}`
 		const productId = `prod_bps2_${crypto.randomUUID()}`
 		const variantId = `var_bps2_${crypto.randomUUID()}`
 		const rptId = `rpt_bps2_${crypto.randomUUID()}`
 		const ratePlanId = `rp_bps2_${crypto.randomUUID()}`
 		const bookingId = `bk2_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "BP2 Dest",
 			type: "city",
 			country: "CL",
 			slug: "bp2-dest",
 		})
-		await upsertProduct({ id: productId, name: "BP2 Product", productType: "Hotel", destinationId })
+		await upsertProduct({ id: productId, name: "BP2 Product", productType: "Hotel", geoPlaceId })
 		await upsertVariant({
 			id: variantId,
 			productId,

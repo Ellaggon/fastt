@@ -1,6 +1,6 @@
 export type ProductVertical = "hotel" | "tour" | "package" | "limousine" | "rental" | "generic"
 
-export type ProductTypeValue = "Hotel" | "Tour" | "Package" | "Limousine"
+export type ProductTypeValue = "hotel" | "tour" | "package" | "limousine"
 
 export type ProductVerticalSectionKey =
 	| "identity"
@@ -142,7 +142,7 @@ const commonCatalogSections: ProductVerticalSection[] = [
 export const productVerticalRegistry = {
 	hotel: {
 		vertical: "hotel",
-		productType: "Hotel",
+		productType: "hotel",
 		status: "active",
 		labels: {
 			singular: "alojamiento",
@@ -217,7 +217,7 @@ export const productVerticalRegistry = {
 	},
 	tour: {
 		vertical: "tour",
-		productType: "Tour",
+		productType: "tour",
 		status: "active",
 		labels: {
 			singular: "tour",
@@ -295,7 +295,7 @@ export const productVerticalRegistry = {
 	},
 	package: {
 		vertical: "package",
-		productType: "Package",
+		productType: "package",
 		status: "active",
 		labels: {
 			singular: "paquete",
@@ -370,7 +370,7 @@ export const productVerticalRegistry = {
 	},
 	limousine: {
 		vertical: "limousine",
-		productType: "Limousine",
+		productType: "limousine",
 		status: "active",
 		labels: {
 			singular: "traslado",

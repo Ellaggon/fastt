@@ -3,6 +3,7 @@ import {
 	db,
 	eq,
 	gte,
+	ProductGeoPlace,
 	lt,
 	Product,
 	SearchUnitView,
@@ -20,7 +21,7 @@ import { resolveEffectiveTaxFeesUseCase } from "@/container/taxes-fees.container
 export type PublicSearchResult = {
 	productId: string
 	name: string
-	destinationId: string
+	geoPlaceId: string
 	heroImage?: string
 	fromPrice: number
 	basePrice: number
@@ -78,7 +79,7 @@ function normalizeCurrency(value: string | null | undefined): string {
 }
 
 async function loadPublicSearchSurface(params: {
-	destinationId: string
+	geoPlaceId: string
 	checkIn: string
 	checkOut: string
 	rooms: number
@@ -109,7 +110,7 @@ async function loadPublicSearchSurface(params: {
 			primaryBlocker: SearchUnitView.primaryBlocker,
 			computedAt: SearchUnitView.computedAt,
 			name: Product.name,
-			destinationId: Product.destinationId,
+			geoPlaceId: ProductGeoPlace.placeId,
 			heroImageUrl: sql<string | null>`(
 				SELECT url
 				FROM "Image"
@@ -121,9 +122,17 @@ async function loadPublicSearchSurface(params: {
 		})
 		.from(SearchUnitView)
 		.innerJoin(Product, eq(Product.id, SearchUnitView.productId))
+		.innerJoin(
+			ProductGeoPlace,
+			and(
+				eq(ProductGeoPlace.productId, Product.id),
+				eq(ProductGeoPlace.role, "primary_discovery"),
+				eq(ProductGeoPlace.isPrimary, true)
+			)
+		)
 		.where(
 			and(
-				eq(Product.destinationId, params.destinationId),
+				eq(ProductGeoPlace.placeId, params.geoPlaceId),
 				eq(Product.dataClass, "production"),
 				eq(SearchUnitView.occupancyKey, occupancyKey),
 				eq(SearchUnitView.currency, params.currency),
@@ -171,8 +180,12 @@ async function loadPublicSearchSurface(params: {
 			ratePlanId,
 			channel: "web",
 		})
-		const taxJurisdiction = await (jurisdictionByProduct.get(productId) ??
-			jurisdictionByProduct.set(productId, getProductTaxJurisdictionContext(productId)))
+		let taxJurisdictionPromise = jurisdictionByProduct.get(productId)
+		if (!taxJurisdictionPromise) {
+			taxJurisdictionPromise = getProductTaxJurisdictionContext(productId)
+			jurisdictionByProduct.set(productId, taxJurisdictionPromise)
+		}
+		const taxJurisdiction = await taxJurisdictionPromise
 		const taxesAndFees = computeTaxBreakdown({
 			base: baseAmount,
 			definitions: taxResolved.definitions,
@@ -225,7 +238,7 @@ async function loadPublicSearchSurface(params: {
 		byProduct.set(productId, {
 			productId,
 			name: String(first.name ?? ""),
-			destinationId: String(first.destinationId ?? params.destinationId),
+			geoPlaceId: String(first.geoPlaceId ?? params.geoPlaceId),
 			heroImage: first.heroImageUrl ? String(first.heroImageUrl) : undefined,
 			fromPrice: totalPrice,
 			basePrice: baseAmount,
@@ -252,7 +265,7 @@ async function loadPublicSearchSurface(params: {
 }
 
 export async function getPublicSearchSurface(params: {
-	destinationId: string
+	geoPlaceId: string
 	checkIn: string
 	checkOut: string
 	rooms: number

@@ -38,7 +38,6 @@ export const databaseTablesByDomain = {
 		"ProviderStatement",
 	],
 	catalog: [
-		"Destination",
 		"GeoPlace",
 		"GeoPlaceClosure",
 		"GeoPlaceAlias",
@@ -52,8 +51,6 @@ export const databaseTablesByDomain = {
 		"Translation",
 		"Product",
 		"ProductGeoPlace",
-		"LegacyDestinationGeoPlaceMap",
-		"ProductGeoPlaceBackfill",
 		"ProductOperationalSurface",
 		"HouseRule",
 		"ProductStatus",

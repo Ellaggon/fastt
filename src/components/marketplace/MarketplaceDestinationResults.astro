@@ -1,6 +1,7 @@
 ---
-import { ArrowLeft, ImageOff, MapPin } from "@lucide/astro"
+import { ArrowLeft, MapPin } from "@lucide/astro"
 
+import PublicListingImage from "@/components/marketplace/PublicListingImage.astro"
 import HotelSearchPanel from "@/components/searchPanel/HotelSearchPanel.astro"
 import TourSearchPanel from "@/components/searchPanel/TourSearchPanel.astro"
 import UILayout from "@/layouts/UILayout.astro"
@@ -30,16 +31,36 @@ const canonicalPath = destination
 	? publicDestinationHref(destination.slug, vertical)
 	: `/buscar/${vertical}`
 const description = destination
-	? `Explora ${verticalLabel.toLowerCase()} en ${destination.name} con información clara antes de reservar.`
+	? (destination.seoDescription ??
+		`Explora ${verticalLabel.toLowerCase()} en ${destination.name} con información clara antes de reservar.`)
 	: `Busca ${verticalLabel.toLowerCase()} para tu viaje por Bolivia.`
 const listingHref = (listing: PublicDestinationListing) => {
 	const params = new URLSearchParams(searchParams)
 	params.delete("destino")
 	return `${isHotels ? "/hotels" : "/tours"}/${listing.id}${params.size ? `?${params}` : ""}`
 }
+const structuredData = destination
+	? {
+			"@context": "https://schema.org",
+			"@type": "ItemList",
+			"name": searchLabel,
+			"url": new URL(canonicalPath, Astro.url.origin).href,
+			"itemListElement": listings.map((listing, index) => ({
+				"@type": "ListItem",
+				"position": index + 1,
+				"url": new URL(listingHref(listing), Astro.url.origin).href,
+				"name": listing.name,
+			})),
+		}
+	: undefined
 ---
 
-<UILayout title={searchLabel} description={description} canonicalPath={canonicalPath}>
+<UILayout
+	title={destination?.seoTitle ?? searchLabel}
+	description={description}
+	canonicalPath={canonicalPath}
+	structuredData={structuredData}
+>
 	<div class="min-h-screen bg-slate-50 text-slate-950">
 		<header class="border-b border-slate-200 bg-white">
 			<div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -100,18 +121,11 @@ const listingHref = (listing: PublicDestinationListing) => {
 									href={listingHref(listing)}
 									class="relative aspect-[4/3] overflow-hidden bg-slate-200"
 								>
-									{listing.imageUrl ? (
-										<img
-											src={listing.imageUrl}
-											alt={listing.name}
-											class="absolute inset-0 h-full w-full object-cover"
-											loading="lazy"
-										/>
-									) : (
-										<span class="absolute inset-0 flex items-center justify-center text-slate-500">
-											<ImageOff class="h-6 w-6" aria-label="Imagen no disponible" />
-										</span>
-									)}
+									<PublicListingImage
+										src={listing.imageUrl}
+										alt={listing.name}
+										class="absolute inset-0"
+									/>
 								</a>
 								<div class="flex min-w-0 flex-col justify-between gap-4 py-1">
 									<div>
@@ -155,6 +169,12 @@ const listingHref = (listing: PublicDestinationListing) => {
 						<p class="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-600">
 							Prueba otro destino, cambia las fechas o vuelve a la exploración general.
 						</p>
+						<a
+							href={isHotels ? "/hotels" : "/tours"}
+							class="mt-5 inline-flex text-sm font-semibold text-slate-950 underline underline-offset-4"
+						>
+							Explorar {verticalLabel.toLowerCase()}
+						</a>
 					</section>
 				)
 			}

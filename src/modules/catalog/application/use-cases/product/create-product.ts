@@ -9,14 +9,14 @@ export async function createProduct(
 		name: string
 		productType: string
 		providerId?: string | null
-		destinationId: string
+		geoPlaceId: string
 	}
 ): Promise<{ id: string }> {
 	const parsed = productBaseSchema.parse({
 		name: params.name,
 		productType: params.productType,
 		providerId: params.providerId ?? undefined,
-		destinationId: params.destinationId,
+		geoPlaceId: params.geoPlaceId,
 	})
 	const productType = normalizeProductTypeForStorage(parsed.productType)
 	if (!productType) throw new Error("Unsupported product type")
@@ -26,7 +26,7 @@ export async function createProduct(
 		name: parsed.name,
 		productType,
 		providerId: parsed.providerId ?? null,
-		destinationId: parsed.destinationId,
+		geoPlaceId: parsed.geoPlaceId,
 	})
 
 	await deps.repo.upsertProductStatus({

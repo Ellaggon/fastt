@@ -44,7 +44,7 @@ export type InsertMarketplaceEventParams = {
 	surface: string
 	sourceProductId: string | null
 	targetProductId: string | null
-	destinationId: string | null
+	geoPlaceId: string | null
 	bookingId: string | null
 	sessionId: string | null
 	metaJson: Record<string, unknown> | null

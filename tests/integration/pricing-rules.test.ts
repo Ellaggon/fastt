@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest"
 
 import {
-	upsertDestination,
+	upsertGeoPlace,
 	upsertProduct,
 	upsertRatePlan,
 	upsertRatePlanTemplate,
@@ -104,14 +104,14 @@ async function seedRulesFixture(params?: { ownerEmail?: string }) {
 	const suffix = crypto.randomUUID()
 	const ownerEmail = params?.ownerEmail ?? `rules-${suffix}@example.com`
 	const providerId = `prov_rules_${suffix}`
-	const destinationId = `dest_rules_${suffix}`
+	const geoPlaceId = `dest_rules_${suffix}`
 	const productId = `prod_rules_${suffix}`
 	const variantId = `var_rules_${suffix}`
 	const ratePlanTemplateId = `rpt_rules_${suffix}`
 	const ratePlanId = `rp_rules_${suffix}`
 
-	await upsertDestination({
-		id: destinationId,
+	await upsertGeoPlace({
+		id: geoPlaceId,
 		name: "Rules Dest",
 		type: "city",
 		country: "CL",
@@ -122,7 +122,7 @@ async function seedRulesFixture(params?: { ownerEmail?: string }) {
 		id: productId,
 		name: "Rules Hotel",
 		productType: "Hotel",
-		destinationId,
+		geoPlaceId,
 		providerId,
 	})
 	await upsertVariant({

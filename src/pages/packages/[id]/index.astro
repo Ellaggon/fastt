@@ -5,12 +5,13 @@ import {
 	and,
 	asc,
 	db,
-	Destination,
 	eq,
+	GeoPlace,
 	first,
 	Image,
 	Package,
 	Product,
+	ProductGeoPlace,
 	ProductContent,
 	ProductLocation,
 	sql,
@@ -24,7 +25,7 @@ const row = await db
 		id: Product.id,
 		name: Product.name,
 		productType: Product.productType,
-		destinationName: Destination.name,
+		destinationName: GeoPlace.canonicalName,
 		description: ProductContent.description,
 		address: ProductLocation.address,
 		lat: ProductLocation.lat,
@@ -36,7 +37,15 @@ const row = await db
 		excludes: Package.excludesJson,
 	})
 	.from(Product)
-	.leftJoin(Destination, eq(Destination.id, Product.destinationId))
+	.leftJoin(
+		ProductGeoPlace,
+		and(
+			eq(ProductGeoPlace.productId, Product.id),
+			eq(ProductGeoPlace.role, "primary_discovery"),
+			eq(ProductGeoPlace.isPrimary, true)
+		)
+	)
+	.leftJoin(GeoPlace, eq(GeoPlace.id, ProductGeoPlace.placeId))
 	.leftJoin(
 		ProductContent,
 		and(eq(ProductContent.productId, Product.id), eq(ProductContent.dataClass, "production"))

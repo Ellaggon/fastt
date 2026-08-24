@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest"
 
-import { upsertDestination, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
+import { upsertGeoPlace, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
 
 import { POST as createVariantPost } from "@/pages/api/variant/create"
@@ -69,11 +69,11 @@ describe("integration/variants UI Step 2 (capacity) - simulated", () => {
 		const token = "t_ui_cap_ok"
 		const email = "ui-cap-ok@example.com"
 		const providerId = "prov_ui_cap_ok"
-		const destinationId = "dest_ui_cap_ok"
+		const geoPlaceId = "dest_ui_cap_ok"
 		const productId = `prod_ui_cap_ok_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Cap Dest",
 			type: "city",
 			country: "CL",
@@ -84,7 +84,7 @@ describe("integration/variants UI Step 2 (capacity) - simulated", () => {
 			id: productId,
 			name: "Cap Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 
@@ -123,11 +123,11 @@ describe("integration/variants UI Step 2 (capacity) - simulated", () => {
 		const token = "t_ui_cap_bad"
 		const email = "ui-cap-bad@example.com"
 		const providerId = "prov_ui_cap_bad"
-		const destinationId = "dest_ui_cap_bad"
+		const geoPlaceId = "dest_ui_cap_bad"
 		const productId = `prod_ui_cap_bad_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Bad Dest",
 			type: "city",
 			country: "CL",
@@ -138,7 +138,7 @@ describe("integration/variants UI Step 2 (capacity) - simulated", () => {
 			id: productId,
 			name: "Bad Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 
@@ -173,11 +173,11 @@ describe("integration/variants UI Step 2 (capacity) - simulated", () => {
 		const emailB = "ui-cap-own-b@example.com"
 		const providerA = "prov_ui_cap_own_a"
 		const providerB = "prov_ui_cap_own_b"
-		const destinationId = "dest_ui_cap_own"
+		const geoPlaceId = "dest_ui_cap_own"
 		const productId = `prod_ui_cap_own_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Own Dest C",
 			type: "city",
 			country: "CL",
@@ -189,7 +189,7 @@ describe("integration/variants UI Step 2 (capacity) - simulated", () => {
 			id: productId,
 			name: "Own Cap Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId: providerA,
 		})
 

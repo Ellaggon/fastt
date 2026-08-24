@@ -8,7 +8,7 @@ import {
 	SEARCH_VIEW_SLA,
 } from "@/modules/search/public"
 import {
-	upsertDestination,
+	upsertGeoPlace,
 	upsertProduct,
 	upsertVariant,
 } from "@/shared/infrastructure/test-support/db-test-data"
@@ -102,9 +102,9 @@ function buildScenario(seed: number): SeedScenario {
 }
 
 async function seedScenario(scenario: SeedScenario): Promise<void> {
-	const destinationId = `dest_svh_${scenario.seed}`
-	await upsertDestination({
-		id: destinationId,
+	const geoPlaceId = `dest_svh_${scenario.seed}`
+	await upsertGeoPlace({
+		id: geoPlaceId,
 		name: `Destination SVH ${scenario.seed}`,
 		type: "city",
 		country: "CL",
@@ -114,7 +114,7 @@ async function seedScenario(scenario: SeedScenario): Promise<void> {
 		id: scenario.productId,
 		name: `Product SVH ${scenario.seed}`,
 		productType: "hotel",
-		destinationId,
+		geoPlaceId,
 	})
 	await upsertVariant({
 		id: scenario.variantId,

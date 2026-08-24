@@ -21,7 +21,7 @@ import {
 import { GET, POST } from "@/pages/api/admin/policies/exceptions"
 import { PATCH } from "@/pages/api/admin/policies/exceptions/[id]"
 import {
-	upsertDestination,
+	upsertGeoPlace,
 	upsertProduct,
 	upsertRatePlan,
 	upsertRatePlanTemplate,
@@ -105,22 +105,22 @@ async function seedBookableRatePlan(params: {
 	variantId: string
 	ratePlanId: string
 	templateId: string
-	destinationId: string
+	geoPlaceId: string
 	checkIn: string
 	checkOut: string
 }) {
-	await upsertDestination({
-		id: params.destinationId,
+	await upsertGeoPlace({
+		id: params.geoPlaceId,
 		name: "Policy Override Destination",
 		type: "city",
 		country: "CL",
-		slug: `policy-override-${params.destinationId}`,
+		slug: `policy-override-${params.geoPlaceId}`,
 	})
 	await upsertProduct({
 		id: params.productId,
 		name: "Policy Override Product",
 		productType: "Hotel",
-		destinationId: params.destinationId,
+		geoPlaceId: params.geoPlaceId,
 	})
 	await upsertVariant({
 		id: params.variantId,
@@ -159,7 +159,7 @@ describe("integration/policy exception rules CAPA6", () => {
 		const suffix = crypto.randomUUID()
 		const token = `token_per_${suffix}`
 		const adminEmail = "ellaggon@proton.me"
-		const destinationId = `dest_per_${suffix}`
+		const geoPlaceId = `dest_per_${suffix}`
 		const productId = `prod_per_${suffix}`
 		const variantId = `var_per_${suffix}`
 		const templateId = `rpt_per_${suffix}`
@@ -173,7 +173,7 @@ describe("integration/policy exception rules CAPA6", () => {
 			variantId,
 			ratePlanId,
 			templateId,
-			destinationId,
+			geoPlaceId,
 			checkIn,
 			checkOut,
 		})

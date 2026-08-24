@@ -447,17 +447,6 @@ CREATE TABLE "ProviderStatement" (
 	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
-CREATE TABLE "Destination" (
-	"id" text PRIMARY KEY,
-	"name" text NOT NULL,
-	"type" text NOT NULL,
-	"country" text NOT NULL,
-	"department" text,
-	"latitude" real,
-	"longitude" real,
-	"slug" text NOT NULL
-);
-
 CREATE TABLE "GeoPlace" (
 	"id" text PRIMARY KEY,
 	"canonicalName" text NOT NULL,
@@ -573,7 +562,6 @@ CREATE TABLE "Product" (
 	"creationDate" timestamp with time zone NOT NULL DEFAULT now(),
 	"lastUpdated" timestamp with time zone NOT NULL DEFAULT now(),
 	"providerId" text,
-	"destinationId" text NOT NULL,
 	"dataClass" text NOT NULL DEFAULT 'production'
 );
 
@@ -584,38 +572,6 @@ CREATE TABLE "ProductGeoPlace" (
 	"role" text NOT NULL DEFAULT 'primary_discovery',
 	"isPrimary" boolean NOT NULL DEFAULT false,
 	"source" text NOT NULL DEFAULT 'manual',
-	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
-	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
-);
-
-CREATE TABLE "LegacyDestinationGeoPlaceMap" (
-	"id" text PRIMARY KEY,
-	"legacyDestinationId" text NOT NULL,
-	"placeId" text,
-	"resolutionStatus" text NOT NULL DEFAULT 'unmatched',
-	"matchMethod" text NOT NULL DEFAULT 'unmatched',
-	"confidence" integer NOT NULL DEFAULT 0,
-	"distanceMeters" integer,
-	"evidenceJson" jsonb,
-	"catalogVersion" text,
-	"reviewedByUserId" text,
-	"reviewedAt" timestamp with time zone,
-	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
-	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
-);
-
-CREATE TABLE "ProductGeoPlaceBackfill" (
-	"id" text PRIMARY KEY,
-	"productId" text NOT NULL,
-	"placeId" text,
-	"legacyDestinationMapId" text,
-	"resolutionStatus" text NOT NULL DEFAULT 'unmatched',
-	"matchMethod" text NOT NULL DEFAULT 'unmatched',
-	"confidence" integer NOT NULL DEFAULT 0,
-	"distanceMeters" integer,
-	"evidenceJson" jsonb,
-	"catalogVersion" text,
-	"appliedProductGeoPlaceId" text,
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
 	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
 );
@@ -904,8 +860,8 @@ CREATE TABLE "ProductCategory" (
 	"vertical" text NOT NULL,
 	"sortOrder" integer NOT NULL DEFAULT 0,
 	"isActive" boolean NOT NULL DEFAULT true,
-	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
-	"dataClass" text NOT NULL DEFAULT 'production'
+	"dataClass" text NOT NULL DEFAULT 'production',
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
 CREATE TABLE "ProductCategoryLink" (
@@ -933,7 +889,7 @@ CREATE TABLE "MarketplaceEvent" (
 	"surface" text NOT NULL,
 	"sourceProductId" text,
 	"targetProductId" text,
-	"destinationId" text,
+	"geoPlaceId" text,
 	"bookingId" text,
 	"sessionId" text,
 	"metaJson" jsonb,
@@ -2057,12 +2013,6 @@ ALTER TABLE "Product"
 	REFERENCES "Provider" ("id")
 ;
 
-ALTER TABLE "Product"
-	ADD CONSTRAINT "Product_destinationId_fk"
-	FOREIGN KEY ("destinationId")
-	REFERENCES "Destination" ("id")
-;
-
 ALTER TABLE "ProductGeoPlace"
 	ADD CONSTRAINT "ProductGeoPlace_productId_fk"
 	FOREIGN KEY ("productId")
@@ -2074,49 +2024,6 @@ ALTER TABLE "ProductGeoPlace"
 	ADD CONSTRAINT "ProductGeoPlace_placeId_fk"
 	FOREIGN KEY ("placeId")
 	REFERENCES "GeoPlace" ("id")
-;
-
-ALTER TABLE "LegacyDestinationGeoPlaceMap"
-	ADD CONSTRAINT "LegacyDestinationGeoPlaceMap_legacyDestinationId_fk"
-	FOREIGN KEY ("legacyDestinationId")
-	REFERENCES "Destination" ("id")
-;
-
-ALTER TABLE "LegacyDestinationGeoPlaceMap"
-	ADD CONSTRAINT "LegacyDestinationGeoPlaceMap_placeId_fk"
-	FOREIGN KEY ("placeId")
-	REFERENCES "GeoPlace" ("id")
-;
-
-ALTER TABLE "LegacyDestinationGeoPlaceMap"
-	ADD CONSTRAINT "LegacyDestinationGeoPlaceMap_reviewedByUserId_fk"
-	FOREIGN KEY ("reviewedByUserId")
-	REFERENCES "User" ("id")
-;
-
-ALTER TABLE "ProductGeoPlaceBackfill"
-	ADD CONSTRAINT "ProductGeoPlaceBackfill_productId_fk"
-	FOREIGN KEY ("productId")
-	REFERENCES "Product" ("id")
-	ON DELETE CASCADE
-;
-
-ALTER TABLE "ProductGeoPlaceBackfill"
-	ADD CONSTRAINT "ProductGeoPlaceBackfill_placeId_fk"
-	FOREIGN KEY ("placeId")
-	REFERENCES "GeoPlace" ("id")
-;
-
-ALTER TABLE "ProductGeoPlaceBackfill"
-	ADD CONSTRAINT "ProductGeoPlaceBackfill_legacyDestinationMapId_fk"
-	FOREIGN KEY ("legacyDestinationMapId")
-	REFERENCES "LegacyDestinationGeoPlaceMap" ("id")
-;
-
-ALTER TABLE "ProductGeoPlaceBackfill"
-	ADD CONSTRAINT "ProductGeoPlaceBackfill_appliedProductGeoPlaceId_fk"
-	FOREIGN KEY ("appliedProductGeoPlaceId")
-	REFERENCES "ProductGeoPlace" ("id")
 ;
 
 ALTER TABLE "ProductOperationalSurface"
@@ -2390,9 +2297,9 @@ ALTER TABLE "MarketplaceEvent"
 ;
 
 ALTER TABLE "MarketplaceEvent"
-	ADD CONSTRAINT "MarketplaceEvent_destinationId_fk"
-	FOREIGN KEY ("destinationId")
-	REFERENCES "Destination" ("id")
+	ADD CONSTRAINT "MarketplaceEvent_geoPlaceId_fk"
+	FOREIGN KEY ("geoPlaceId")
+	REFERENCES "GeoPlace" ("id")
 ;
 
 ALTER TABLE "MarketplaceEvent"
@@ -2848,8 +2755,9 @@ ALTER TABLE "FinancialProviderSummary"
 
 
 
-CREATE INDEX "ProviderDocument_providerId_type_idx" ON "ProviderDocument" ("providerId", "type");
 CREATE INDEX "Provider_dataClassification_idx" ON "Provider" ("dataClassification");
+
+CREATE INDEX "ProviderDocument_providerId_type_idx" ON "ProviderDocument" ("providerId", "type");
 
 CREATE INDEX "ProviderDocument_providerId_status_idx" ON "ProviderDocument" ("providerId", "status");
 
@@ -2995,8 +2903,6 @@ CREATE INDEX "ProviderStatement_provider_status_idx" ON "ProviderStatement" ("pr
 
 CREATE INDEX "ProviderStatement_statementReference_idx" ON "ProviderStatement" ("statementReference");
 
-CREATE UNIQUE INDEX "Destination_slug_unique" ON "Destination" ("slug");
-
 CREATE UNIQUE INDEX "GeoPlace_slug_unique" ON "GeoPlace" ("slug");
 
 CREATE INDEX "GeoPlace_parent_type_status_idx" ON "GeoPlace" ("parentId", "placeType", "status");
@@ -3040,18 +2946,6 @@ CREATE UNIQUE INDEX "ProductGeoPlace_one_primary_product_unique" ON "ProductGeoP
 CREATE INDEX "ProductGeoPlace_place_role_product_idx" ON "ProductGeoPlace" ("placeId", "role", "productId");
 
 CREATE INDEX "ProductGeoPlace_product_role_idx" ON "ProductGeoPlace" ("productId", "role");
-
-CREATE UNIQUE INDEX "LegacyDestinationGeoPlaceMap_legacyDestination_unique" ON "LegacyDestinationGeoPlaceMap" ("legacyDestinationId");
-
-CREATE INDEX "LegacyDestinationGeoPlaceMap_place_status_idx" ON "LegacyDestinationGeoPlaceMap" ("placeId", "resolutionStatus");
-
-CREATE INDEX "LegacyDestinationGeoPlaceMap_status_confidence_idx" ON "LegacyDestinationGeoPlaceMap" ("resolutionStatus", "confidence");
-
-CREATE UNIQUE INDEX "ProductGeoPlaceBackfill_product_unique" ON "ProductGeoPlaceBackfill" ("productId");
-
-CREATE INDEX "ProductGeoPlaceBackfill_place_status_idx" ON "ProductGeoPlaceBackfill" ("placeId", "resolutionStatus");
-
-CREATE INDEX "ProductGeoPlaceBackfill_status_confidence_idx" ON "ProductGeoPlaceBackfill" ("resolutionStatus", "confidence");
 
 CREATE INDEX "ProductOperationalSurface_provider_updated_idx" ON "ProductOperationalSurface" ("providerId", "updatedAt");
 
@@ -3406,6 +3300,7 @@ CREATE INDEX "PayoutRecord_payoutReference_idx" ON "PayoutRecord" ("payoutRefere
 
 
 ALTER TABLE "Provider" ADD CONSTRAINT "Provider_accountPurpose_check" CHECK ("accountPurpose" IN ('commercial', 'internal_qa', 'integration_certification'));
+
 ALTER TABLE "Provider" ADD CONSTRAINT "Provider_dataClassification_check" CHECK ("dataClassification" IN ('production', 'demo', 'fixture'));
 
 ALTER TABLE "ProviderIntegrationConnection" ADD CONSTRAINT "ProviderIntegrationConnection_status_check" CHECK ("status" IN ('not_configured', 'pending', 'connected', 'requires_attention', 'syncing', 'error', 'revoked'));
@@ -3457,22 +3352,6 @@ ALTER TABLE "GeoPlaceContent" ADD CONSTRAINT "GeoPlaceContent_publicationStatus_
 ALTER TABLE "ProductGeoPlace" ADD CONSTRAINT "ProductGeoPlace_role_check" CHECK ("role" IN ('primary_discovery', 'secondary_discovery', 'service_area', 'meeting_area'));
 
 ALTER TABLE "ProductGeoPlace" ADD CONSTRAINT "ProductGeoPlace_primary_role_check" CHECK ("isPrimary" = false OR "role" = 'primary_discovery');
-
-ALTER TABLE "LegacyDestinationGeoPlaceMap" ADD CONSTRAINT "LegacyDestinationGeoPlaceMap_resolutionStatus_check" CHECK ("resolutionStatus" IN ('auto_matched', 'review_required', 'confirmed', 'unmatched', 'rejected'));
-
-ALTER TABLE "LegacyDestinationGeoPlaceMap" ADD CONSTRAINT "LegacyDestinationGeoPlaceMap_matchMethod_check" CHECK ("matchMethod" IN ('name_department', 'coordinates', 'name_coordinates', 'manual', 'unmatched'));
-
-ALTER TABLE "LegacyDestinationGeoPlaceMap" ADD CONSTRAINT "LegacyDestinationGeoPlaceMap_confidence_check" CHECK ("confidence" BETWEEN 0 AND 100);
-
-ALTER TABLE "LegacyDestinationGeoPlaceMap" ADD CONSTRAINT "LegacyDestinationGeoPlaceMap_resolved_place_check" CHECK ("resolutionStatus" IN ('unmatched', 'rejected') OR "placeId" IS NOT NULL);
-
-ALTER TABLE "ProductGeoPlaceBackfill" ADD CONSTRAINT "ProductGeoPlaceBackfill_resolutionStatus_check" CHECK ("resolutionStatus" IN ('auto_matched', 'review_required', 'confirmed', 'unmatched', 'superseded'));
-
-ALTER TABLE "ProductGeoPlaceBackfill" ADD CONSTRAINT "ProductGeoPlaceBackfill_matchMethod_check" CHECK ("matchMethod" IN ('legacy_destination', 'coordinates', 'address_coordinates', 'manual', 'unmatched'));
-
-ALTER TABLE "ProductGeoPlaceBackfill" ADD CONSTRAINT "ProductGeoPlaceBackfill_confidence_check" CHECK ("confidence" BETWEEN 0 AND 100);
-
-ALTER TABLE "ProductGeoPlaceBackfill" ADD CONSTRAINT "ProductGeoPlaceBackfill_resolved_place_check" CHECK ("resolutionStatus" IN ('unmatched', 'superseded') OR "placeId" IS NOT NULL);
 
 ALTER TABLE "TourSlotProfile" ADD CONSTRAINT "TourSlotProfile_bookingMode_check" CHECK ("bookingMode" in ('shared', 'private'));
 

@@ -13,7 +13,7 @@ import { POST as bulkPost } from "@/pages/api/inventory/bulk-update"
 import { POST as dayPost } from "@/pages/api/inventory/update-day"
 
 import {
-	upsertDestination,
+	upsertGeoPlace,
 	upsertProduct,
 	upsertVariant,
 } from "@/shared/infrastructure/test-support/db-test-data"
@@ -88,20 +88,20 @@ async function seedVariantOwnedByProvider(params: {
 	productId: string
 	variantId: string
 }) {
-	const destinationId = `dest_inv_${crypto.randomUUID()}`
-	await upsertDestination({
-		id: destinationId,
+	const geoPlaceId = `dest_inv_${crypto.randomUUID()}`
+	await upsertGeoPlace({
+		id: geoPlaceId,
 		name: "Dest",
 		type: "city",
 		country: "CL",
-		slug: `dest-${destinationId}`,
+		slug: `dest-${geoPlaceId}`,
 	})
 	await upsertProvider({ id: params.providerId, displayName: "Prov", ownerEmail: params.email })
 	await upsertProduct({
 		id: params.productId,
 		name: "Hotel",
 		productType: "Hotel",
-		destinationId,
+		geoPlaceId,
 		providerId: params.providerId,
 	})
 	await upsertVariant({

@@ -6,7 +6,8 @@ import { invalidateProvider } from "@/lib/cache/invalidation"
 import { refreshProductPreparationSnapshotAfterMutation } from "@/lib/playbook/summarize-product-preparation"
 import { createProduct } from "@/modules/catalog/public"
 import { productRepository } from "@/container"
-import { db, Destination, eq, first } from "@/shared/infrastructure/db/compat"
+import { and, db, eq, first, GeoPlace } from "@/shared/infrastructure/db/compat"
+import { geoPlaceCompatibilityError } from "@/modules/catalog/domain/geo-place-compatibility"
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
@@ -30,25 +31,29 @@ export const POST: APIRoute = async ({ request }) => {
 		const raw = {
 			name: String(form.get("name") ?? ""),
 			productType: String(form.get("productType") ?? ""),
-			destinationId: String(form.get("destinationId") ?? ""),
+			geoPlaceId: String(form.get("geoPlaceId") ?? ""),
 		}
 		const playbook = String(form.get("playbook") ?? "").trim()
 		const wantsJson = String(form.get("_response") ?? "").trim() !== "redirect"
-		const destination = raw.destinationId
+		const geoPlace = raw.geoPlaceId
 			? await db
-					.select({ id: Destination.id })
-					.from(Destination)
-					.where(eq(Destination.id, raw.destinationId))
+					.select({ id: GeoPlace.id, placeType: GeoPlace.placeType })
+					.from(GeoPlace)
+					.where(and(eq(GeoPlace.id, raw.geoPlaceId), eq(GeoPlace.status, "active")))
 					.then(first)
 			: null
-		if (!destination) {
+		if (!geoPlace) {
 			return new Response(
 				JSON.stringify({
 					error: "validation_error",
-					details: { fieldErrors: { destinationId: ["Selecciona un destino válido."] } },
+					details: { fieldErrors: { geoPlaceId: ["Selecciona un lugar válido."] } },
 				}),
 				{ status: 400, headers: { "Content-Type": "application/json" } }
 			)
+		}
+		const compatibilityError = geoPlaceCompatibilityError({ productType: raw.productType, placeType: geoPlace.placeType })
+		if (compatibilityError) {
+			return new Response(JSON.stringify({ error: "validation_error", details: { fieldErrors: { geoPlaceId: [compatibilityError] } } }), { status: 400, headers: { "Content-Type": "application/json" } })
 		}
 
 		const id = crypto.randomUUID()
@@ -59,7 +64,7 @@ export const POST: APIRoute = async ({ request }) => {
 				providerId,
 				name: raw.name,
 				productType: raw.productType,
-				destinationId: raw.destinationId,
+				geoPlaceId: raw.geoPlaceId,
 			}
 		)
 		await refreshProductPreparationSnapshotAfterMutation({

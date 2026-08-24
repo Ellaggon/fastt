@@ -5,7 +5,8 @@ import {
 	Booking,
 	db,
 	DailyInventory,
-	Destination,
+	GeoPlace,
+	ProductGeoPlace,
 	EffectiveAvailability,
 	EffectivePricingV2,
 	eq,
@@ -95,26 +96,34 @@ async function seedBookingReadyVariant(params: {
 	totalUnits: number
 	dates: string[]
 }) {
-	const destinationId = `dest_bk_inv_${crypto.randomUUID()}`
+	const geoPlaceId = `dest_bk_inv_${crypto.randomUUID()}`
 	await db
 		.insert(Provider)
 		.values({ id: "prov_test", legalName: "Provider prov_test" })
 		.onConflictDoNothing()
 
-	await db.insert(Destination).values({
-		id: destinationId,
-		name: "Booking Inv Dest",
-		type: "city",
-		country: "CL",
-		slug: `bk-inv-${destinationId}`,
+	await db.insert(GeoPlace).values({
+		id: geoPlaceId,
+		canonicalName: "Booking Inv Dest",
+		normalizedName: "booking inv dest",
+		placeType: "city",
+		countryCode: "CL",
+		slug: `bk-inv-${geoPlaceId}`,
 	} as any)
 
 	await db.insert(Product).values({
 		id: params.productId,
 		name: "Booking Inv Product",
 		productType: "Hotel",
-		destinationId,
 		providerId: "prov_test",
+	} as any)
+	await db.insert(ProductGeoPlace).values({
+		id: `test-primary-${params.productId}`,
+		productId: params.productId,
+		placeId: geoPlaceId,
+		role: "primary_discovery",
+		isPrimary: true,
+		source: "test_fixture",
 	} as any)
 
 	await db.insert(Variant).values({

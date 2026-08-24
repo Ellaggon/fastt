@@ -3,10 +3,10 @@ import { expect, test } from "@playwright/test"
 const enabled = process.env.PLAYWRIGHT_TOUR_WIZARD === "1"
 const accessToken = process.env.PLAYWRIGHT_ACCESS_TOKEN ?? ""
 const refreshToken = process.env.PLAYWRIGHT_REFRESH_TOKEN ?? ""
-const destinationId = process.env.PLAYWRIGHT_DESTINATION_ID ?? ""
+const geoPlaceId = process.env.PLAYWRIGHT_GEO_PLACE_ID ?? ""
 
 test.describe("Tour wizard create, error, refresh and resume", () => {
-	test.skip(!enabled || !accessToken || !refreshToken || !destinationId)
+	test.skip(!enabled || !accessToken || !refreshToken || !geoPlaceId)
 
 	test.beforeEach(async ({ context, baseURL }) => {
 		const origin = new URL(baseURL ?? "http://127.0.0.1:4321")
@@ -37,7 +37,7 @@ test.describe("Tour wizard create, error, refresh and resume", () => {
 		await page.goto("/product/create?type=Tour&playbook=launch-tour&step=create&flow=create")
 		await expect(page.getByRole("heading", { name: /tour/i })).toBeVisible()
 		await page.locator("#name").fill("Explora la ciudad a pie")
-		await page.locator("#destinationId").fill(destinationId)
+		await page.locator("#geoPlaceId").fill(geoPlaceId)
 		await page.locator("#submitBtn").click()
 		await expect(page).toHaveURL(/\/product\/[^/]+\/content\?playbook=launch-tour&step=content&flow=create/)
 
@@ -46,7 +46,7 @@ test.describe("Tour wizard create, error, refresh and resume", () => {
 		await page.goBack()
 		await expect(page.locator("#createForm")).toBeVisible()
 		await page.locator("#name").fill("Descubre el mercado local")
-		await page.locator("#destinationId").fill(destinationId)
+		await page.locator("#geoPlaceId").fill(geoPlaceId)
 		await page.locator("#submitBtn").click()
 		await expect.poll(() => createCalls).toBe(2)
 	})
@@ -58,16 +58,16 @@ test.describe("Tour wizard create, error, refresh and resume", () => {
 				contentType: "application/json",
 				body: JSON.stringify({
 					error: "validation_error",
-					details: { fieldErrors: { destinationId: ["Selecciona un destino válido."] } },
+					details: { fieldErrors: { geoPlaceId: ["Selecciona un destino válido."] } },
 				}),
 			})
 		})
 		await page.goto("/product/create?type=Tour&playbook=launch-tour&step=create&flow=create")
 		await page.locator("#name").fill("Tour con destino inválido")
-		await page.locator("#destinationId").fill("invalid")
+		await page.locator("#geoPlaceId").fill("invalid")
 		await page.locator("#submitBtn").click()
 		await expect(page.locator("#destinationError")).toContainText("Selecciona un destino válido")
-		await expect(page.locator("#destinationId")).toBeFocused()
+		await expect(page.locator("#geoPlaceId")).toBeFocused()
 		await expect(page).toHaveURL(/playbook=launch-tour/)
 	})
 })
