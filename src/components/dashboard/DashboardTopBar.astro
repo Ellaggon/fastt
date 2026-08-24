@@ -12,7 +12,9 @@ import {
 import DashboardSidebar from "@/components/dashboard/DashboardSidebar.astro"
 import WorkspacePreferencesDrawer from "@/components/dashboard/WorkspacePreferencesDrawer.astro"
 import AccommodationContextSwitcher from "@/components/product/AccommodationContextSwitcher.astro"
+import ProductContextSwitcher from "@/components/product/ProductContextSwitcher.astro"
 import FiscalScopeSwitcher from "@/components/tax-fees/FiscalScopeSwitcher.astro"
+import ProviderAccountSwitcher from "@/components/provider/ProviderAccountSwitcher.astro"
 import Button from "@/components/ui/Button.astro"
 import Drawer from "@/components/ui/Drawer.astro"
 import IconButton from "@/components/ui/IconButton.astro"
@@ -55,7 +57,37 @@ const isFiscalWorkspace =
 	Astro.url.pathname === "/provider/settings/tax-fees" ||
 	Astro.url.pathname.startsWith("/provider/settings/tax-fees/")
 const providerId = workspaceContext.provider?.providerId ?? ""
-const showContextSwitcher = Boolean(providerId) && (isFinancialWorkspace || isFiscalWorkspace)
+const productIdFromPath = (() => {
+	const raw = pathname.match(/^\/product\/([^/]+)/)?.[1] ?? ""
+	return raw && raw !== "create" ? decodeURIComponent(raw) : ""
+})()
+const isPlaybookSurface = Boolean(Astro.url.searchParams.get("playbook"))
+const isProductWorkspace = Boolean(productIdFromPath) && !isPlaybookSurface
+const isHouseRulesWorkspace =
+	(pathname === "/provider/house-rules" || pathname.startsWith("/provider/house-rules/")) &&
+	!isPlaybookSurface
+const houseRulesProductId = String(Astro.url.searchParams.get("productId") ?? "").trim()
+const productSwitcherTarget = /\/rooms(?:\/|$)/.test(pathname)
+	? "rooms"
+	: /\/departures(?:\/|$)|\/private-requests(?:\/|$)/.test(pathname)
+		? "departures"
+		: "detail"
+const workspacePath = pathname.replace(/\/$/, "") || "/"
+const isVerificationWorkspace =
+	workspacePath === "/provider/settings/verification" ||
+	workspacePath.startsWith("/provider/settings/verification/")
+const isAccountSettingsWorkspace =
+	workspacePath === "/provider/settings" ||
+	workspacePath.startsWith("/provider/settings/profile") ||
+	workspacePath.startsWith("/provider/settings/team") ||
+	isVerificationWorkspace
+const showContextSwitcher =
+	Boolean(providerId) &&
+	(isFinancialWorkspace ||
+		isFiscalWorkspace ||
+		isProductWorkspace ||
+		isHouseRulesWorkspace ||
+		isAccountSettingsWorkspace)
 ---
 
 <header class="relative z-40 bg-black">
@@ -151,8 +183,24 @@ const showContextSwitcher = Boolean(providerId) && (isFinancialWorkspace || isFi
 						target="financial"
 						variant="topbar"
 					/>
-				) : showContextSwitcher ? (
+				) : showContextSwitcher && isFiscalWorkspace ? (
 					<FiscalScopeSwitcher providerId={providerId} variant="topbar" />
+				) : showContextSwitcher && isAccountSettingsWorkspace ? (
+					<ProviderAccountSwitcher variant="topbar" />
+				) : showContextSwitcher && isHouseRulesWorkspace ? (
+					<ProductContextSwitcher
+						providerId={providerId}
+						productId={houseRulesProductId}
+						target="house-rules"
+						variant="topbar"
+					/>
+				) : showContextSwitcher && isProductWorkspace ? (
+					<ProductContextSwitcher
+						providerId={providerId}
+						productId={productIdFromPath}
+						target={productSwitcherTarget}
+						variant="topbar"
+					/>
 				) : (
 					<a
 						href={routes.providerSettings()}

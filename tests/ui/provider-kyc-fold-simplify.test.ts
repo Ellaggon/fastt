@@ -40,7 +40,8 @@ describe("KYC fold simplify (elevated one composition)", () => {
 	it("rail stays quiet without badge chrome", () => {
 		const rail = read("src/components/provider/ProviderTrustMapRail.astro")
 		expect(rail).toContain('data-trust-map-quiet="true"')
-		expect(rail).toContain('data-trust-map-on-light="true"')
+		expect(rail).toContain("TabsInsidePanel")
+		expect(rail).not.toContain("data-trust-map-on-light")
 		expect(rail).not.toContain("sr-only")
 		expect(rail).not.toContain("En foco")
 	})

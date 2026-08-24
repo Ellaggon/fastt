@@ -9,7 +9,6 @@ import {
 } from "@/lib/backoffice-governance"
 import type { ProviderSidebarReadiness } from "@/lib/dashboard/providerSidebarReadiness"
 import type { WorkspaceShellContext } from "@/lib/dashboard/workspaceRequestContext"
-import { routes } from "@/lib/routes"
 import {
 	resolveProviderWorkspaceContext,
 	withWorkspaceNavigationScope,
@@ -41,11 +40,7 @@ const activeHref =
 		.sort((a, b) => b.length - a.length)[0] ?? ""
 
 const sidebarData = workspaceContext.sidebarData
-const sidebarReadiness: ProviderSidebarReadiness = sidebarData?.summaries ?? {
-	[routes.ratePlansList()]: "Estado no disponible",
-	[routes.calendar()]: "Estado no disponible",
-	[routes.ratesMultiCalendar()]: "Estado no disponible",
-}
+const sidebarReadiness: ProviderSidebarReadiness = sidebarData?.summaries ?? {}
 const disclosureMode: SidebarDisclosureMode = workspaceContext.disclosureMode
 const serviceProductTypes = sidebarData?.productTypes ?? []
 const primaryAccommodationHref = sidebarData?.primaryAccommodationHref ?? null
