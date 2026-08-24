@@ -30,8 +30,10 @@ const { src, alt, class: className = "", priority = false } = Astro.props as Pro
 			"hidden": Boolean(src),
 		}}
 		data-public-image-fallback
+		role="img"
+		aria-label="Imagen no disponible"
 	>
-		<ImageOff class="h-6 w-6" aria-label="Imagen no disponible" />
+		<ImageOff class="h-6 w-6" aria-hidden="true" />
 	</span>
 </span>
 

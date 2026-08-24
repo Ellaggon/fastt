@@ -65,7 +65,7 @@ describe("tour wizard create endpoint", () => {
 		const jsonResponse = await createProductPost({ request: request(token, jsonForm) } as any)
 		expect(jsonResponse.status).toBe(200)
 		const created = (await jsonResponse.json()) as { id: string }
-		expect((await productRepository.getProductAggregate(created.id))?.product.productType).toBe("Tour")
+		expect((await productRepository.getProductAggregate(created.id))?.product.productType).toBe("tour")
 
 		const nativeForm = new FormData()
 		nativeForm.set("name", "Descubre el mercado local")

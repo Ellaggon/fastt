@@ -2,13 +2,11 @@ import AxeBuilder from "@axe-core/playwright"
 import { expect, test } from "@playwright/test"
 
 const enabled = process.env.PLAYWRIGHT_PUBLIC_CERTIFICATION === "1"
-const publicRoutes = [
-	"/",
-	"/hotels",
-	"/tours",
-	"/destinos/la-paz/alojamientos",
-	"/destinos/la-paz/tours",
-]
+const publicRoutes = (process.env.PLAYWRIGHT_PUBLIC_ROUTES ??
+	"/,/hotels,/tours,/destinos/la-paz/alojamientos,/destinos/la-paz/tours")
+	.split(",")
+	.map((route) => route.trim())
+	.filter(Boolean)
 const viewports = [
 	{ width: 390, height: 844 },
 	{ width: 768, height: 1024 },
