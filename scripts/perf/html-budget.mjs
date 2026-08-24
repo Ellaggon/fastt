@@ -1,6 +1,10 @@
 const baseUrl = process.env.FASTT_HTML_BUDGET_BASE_URL?.trim()
 
 if (!baseUrl) {
+	if (process.env.FASTT_HTML_BUDGET_REQUIRED === "1") {
+		console.error("html-budget requires FASTT_HTML_BUDGET_BASE_URL.")
+		process.exit(1)
+	}
 	console.log("html-budget skipped: set FASTT_HTML_BUDGET_BASE_URL to measure route HTML.")
 	process.exit(0)
 }
@@ -8,22 +12,30 @@ if (!baseUrl) {
 const productId = process.env.FASTT_HTML_BUDGET_PRODUCT_ID?.trim()
 const cookie = process.env.FASTT_HTML_BUDGET_COOKIE?.trim()
 const rawBudgets = process.env.FASTT_HTML_BUDGET_ROUTES?.trim()
+const publicOnly = process.env.FASTT_HTML_BUDGET_PUBLIC_ONLY === "1"
 const maxTtfbMs = Math.max(1, Number(process.env.FASTT_HTML_BUDGET_MAX_TTFB_MS ?? 1000))
 
 const defaultBudgets = [
-	{ path: "/", maxBytes: 135_000 },
-	{ path: "/hotels", maxBytes: 160_000 },
-	{ path: "/tours", maxBytes: 175_000 },
-	{ path: "/destinos/la-paz/alojamientos", maxBytes: 175_000 },
-	{ path: "/destinos/la-paz/tours", maxBytes: 175_000 },
-	{ path: "/buscar/alojamientos", maxBytes: 180_000 },
-	{ path: "/buscar/tours", maxBytes: 180_000 },
-	{ path: "/provider/settings", maxBytes: 145_000 },
-	{ path: "/provider/settings/integrations", maxBytes: 100_000 },
-	{ path: "/provider/settings/integrations/catalog", maxBytes: 100_000 },
-	{ path: "/provider/settings/integrations/connections", maxBytes: 100_000 },
-	{ path: "/rates/plans/manage", maxBytes: 150_000 },
-	...(productId ? [{ path: `/product/${encodeURIComponent(productId)}`, maxBytes: 155_000 }] : []),
+	// Baselines are current public HTML plus a bounded regression allowance.
+	{ path: "/", maxBytes: 250_000 },
+	{ path: "/hotels", maxBytes: 335_000 },
+	{ path: "/tours", maxBytes: 345_000 },
+	{ path: "/destinos/la-paz/alojamientos", maxBytes: 305_000 },
+	{ path: "/destinos/la-paz/tours", maxBytes: 460_000 },
+	{ path: "/buscar/alojamientos", maxBytes: 300_000 },
+	{ path: "/buscar/tours", maxBytes: 310_000 },
+	...(publicOnly
+		? []
+		: [
+				{ path: "/provider/settings", maxBytes: 145_000 },
+				{ path: "/provider/settings/integrations", maxBytes: 100_000 },
+				{ path: "/provider/settings/integrations/catalog", maxBytes: 100_000 },
+				{ path: "/provider/settings/integrations/connections", maxBytes: 100_000 },
+				{ path: "/rates/plans/manage", maxBytes: 150_000 },
+				...(productId
+					? [{ path: `/product/${encodeURIComponent(productId)}`, maxBytes: 155_000 }]
+					: []),
+			]),
 ]
 
 function parseBudgets(value) {

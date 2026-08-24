@@ -1,6 +1,10 @@
 import { defineConfig, devices } from "@playwright/test"
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL?.trim() || "http://127.0.0.1:4177"
+const useBrave = process.env.PLAYWRIGHT_BROWSER === "brave"
+const braveExecutablePath =
+	process.env.PLAYWRIGHT_BRAVE_EXECUTABLE?.trim() ||
+	"/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"
 
 export default defineConfig({
 	testDir: "tests/e2e",
@@ -16,10 +20,18 @@ export default defineConfig({
 		screenshot: "only-on-failure",
 	},
 	projects: [
-		{
-			name: "chromium",
-			use: { ...devices["Desktop Chrome"] },
-		},
+		useBrave
+			? {
+					name: "brave",
+					use: {
+						...devices["Desktop Chrome"],
+						launchOptions: { executablePath: braveExecutablePath },
+					},
+				}
+			: {
+					name: "chromium",
+					use: { ...devices["Desktop Chrome"] },
+				},
 	],
 	webServer: process.env.PLAYWRIGHT_BASE_URL
 		? undefined
