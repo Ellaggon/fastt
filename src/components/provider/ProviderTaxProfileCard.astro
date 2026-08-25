@@ -30,19 +30,23 @@ const status = taxConfiguration?.status ?? "not_configured"
 const country = taxConfiguration?.taxResidenceCountry ?? ""
 const regime = taxConfiguration?.taxRegime ?? ""
 const invoicingMode = taxConfiguration?.invoicingMode ?? "platform_receipt"
+const actionLead =
+	status === "verified"
+		? "Tu identidad fiscal está lista para liquidaciones."
+		: status === "requires_attention"
+			? "Corrige el país, el NIT o la facturación y vuelve a enviar a revisión."
+			: status === "pending"
+				? "Ya enviamos tu registro. Si un dato está mal, corrígelo y vuelve a enviar."
+				: "Aquí debes completar el país de residencia, el NIT o registro comercial y quién factura al huésped."
 ---
 
 <Card>
 	<div class="space-y-5">
 		<div class="flex flex-wrap items-start justify-between gap-3">
 			<div>
-				<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">
-					Bloque 1 · Identidad fiscal
-				</p>
-				<h2 class="mt-2 text-xl font-semibold text-slate-950">Perfil fiscal del proveedor</h2>
-				<p class="mt-2 text-sm leading-6 text-slate-600">
-					Datos fiscales del proveedor para liquidaciones y retenciones. No definen qué impuestos
-					cobras al huésped.
+				<h2 class="text-xl font-semibold text-slate-950">Identidad fiscal</h2>
+				<p class="mt-2 text-sm leading-6 text-slate-600" data-fiscal-action-lead>
+					{actionLead}
 				</p>
 			</div>
 			<Badge
@@ -60,15 +64,7 @@ const invoicingMode = taxConfiguration?.invoicingMode ?? "platform_receipt"
 
 		{
 			status === "pending" ? (
-				<ProviderReviewWaitNotice domain="fiscal" assignment={reviewAssignment} />
-			) : null
-		}
-		{
-			status === "requires_attention" ? (
-				<Card variant="soft" class="text-sm leading-6 text-slate-600">
-					La identidad fiscal requiere corrección. Actualiza los campos y vuelve a guardar para
-					reenviar a revisión.
-				</Card>
+				<ProviderReviewWaitNotice domain="fiscal" assignment={reviewAssignment} compact />
 			) : null
 		}
 
@@ -87,7 +83,9 @@ const invoicingMode = taxConfiguration?.invoicingMode ?? "platform_receipt"
 						</Badge>
 					</div>
 					<p class="text-sm leading-6 text-slate-600">
-						{taxConfiguration.tinBureau.hostNarrative || taxConfiguration.tinBureau.message}
+						{taxConfiguration.tinBureau.matchStatus === "format_ok"
+							? "El formato es válido. El equipo Fastt confirmará que coincida con la razón social."
+							: taxConfiguration.tinBureau.hostNarrative || taxConfiguration.tinBureau.message}
 					</p>
 				</Card>
 			) : null
@@ -98,11 +96,7 @@ const invoicingMode = taxConfiguration?.invoicingMode ?? "platform_receipt"
 				<form method="post" action="/api/provider/settings/tax-configuration" class="space-y-4">
 					<input type="hidden" name="returnTo" value={formReturnTo} />
 					<div class="grid gap-4 md:grid-cols-2">
-						<FormField
-							label="País de residencia fiscal"
-							htmlFor="taxResidenceCountry"
-							description="País donde tributa el proveedor (código de 2 letras)."
-						>
+						<FormField label="País de residencia fiscal" htmlFor="taxResidenceCountry">
 							<Select id="taxResidenceCountry" name="taxResidenceCountry">
 								<option value="">Sin definir</option>
 								<option value="BO" selected={country === "BO"}>
@@ -126,11 +120,7 @@ const invoicingMode = taxConfiguration?.invoicingMode ?? "platform_receipt"
 							</Select>
 						</FormField>
 
-						<FormField
-							label="NIT / registro mercantil"
-							htmlFor="businessRegistrationNumber"
-							description="Identificador fiscal o número de registro comercial."
-						>
+						<FormField label="NIT / registro mercantil" htmlFor="businessRegistrationNumber">
 							<Input
 								id="businessRegistrationNumber"
 								name="businessRegistrationNumber"
@@ -152,11 +142,7 @@ const invoicingMode = taxConfiguration?.invoicingMode ?? "platform_receipt"
 						</FormField>
 					</div>
 
-					<FormField
-						label="Modo de facturación"
-						htmlFor="invoicingMode"
-						description="Define quién emite el comprobante al huésped; no cambia los impuestos de venta."
-					>
+					<FormField label="Modo de facturación" htmlFor="invoicingMode">
 						<Select id="invoicingMode" name="invoicingMode" required>
 							{providerInvoicingModes.map((item) => (
 								<option value={item.value} selected={invoicingMode === item.value}>
@@ -166,14 +152,21 @@ const invoicingMode = taxConfiguration?.invoicingMode ?? "platform_receipt"
 						</Select>
 					</FormField>
 
+					<div class="flex justify-end">
+						<Button type="submit">Enviar identidad fiscal</Button>
+					</div>
+
 					<details
 						class="fastt-notice rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-600"
 						data-fiscal-long-copy-collapsed="true"
 					>
 						<summary class="cursor-pointer font-semibold text-slate-900">
-							Ver cómo se usa la facturación
+							Cómo se usa la facturación
 						</summary>
 						<div class="mt-3 border-t border-slate-200 pt-3">
+							<p class="mb-2">
+								Quién emite el comprobante al huésped. No cambia los impuestos de venta.
+							</p>
 							<ul class="list-disc space-y-1 pl-4">
 								{providerInvoicingModes.map((item) => (
 									<li>
@@ -189,9 +182,39 @@ const invoicingMode = taxConfiguration?.invoicingMode ?? "platform_receipt"
 						</div>
 					</details>
 
-					<div class="flex justify-end">
-						<Button type="submit">Enviar identidad fiscal</Button>
-					</div>
+					<details
+						class="fastt-notice rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-600"
+						data-fiscal-withhold-explainer
+						data-long-copy-collapsed="true"
+					>
+						<summary class="cursor-pointer font-semibold text-slate-900">
+							Retenciones y liquidaciones
+							<span class="mt-0.5 block text-xs font-normal text-slate-500">
+								Qué pasa con tus cobros si falta el registro
+							</span>
+						</summary>
+						<div class="mt-3 border-t border-slate-200 pt-3">
+							<p class="mb-2">
+								Sin NIT/registro y residencia fiscal verificados, Fastt puede{" "}
+								<strong>retener o retrasar liquidaciones</strong> hasta confirmar tu identidad
+								tributaria. Esto no define los impuestos que cobras al huésped.
+							</p>
+							<ul class="list-disc space-y-1 pl-4">
+								<li>
+									<strong>Con registro verificado:</strong> las liquidaciones a tu cuenta de cobros
+									pueden seguir el calendario normal tras payout verificado.
+								</li>
+								<li>
+									<strong>Sin registro o en revisión:</strong> los cobros a huéspedes pueden
+									continuar, pero el desembolso al proveedor queda sujeto a retención o espera de
+									cumplimiento.
+								</li>
+								<li>
+									La retención se aplica a <em>tu</em> liquidación, no al precio de la reserva.
+								</li>
+							</ul>
+						</div>
+					</details>
 				</form>
 			) : (
 				<div class="space-y-3 text-sm leading-6 text-slate-600">

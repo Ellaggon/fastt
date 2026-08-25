@@ -61,6 +61,7 @@ describe("S1-3 / S2-4 review wait-state + SLA mirror", () => {
 		expect(taxCard).toContain('domain="fiscal"')
 		expect(taxCard).toContain("PROVIDER_REVIEW_WAIT_LABEL")
 		expect(taxCard).toContain("assignment={reviewAssignment}")
+		expect(taxCard).toContain("compact")
 		expect(kycCard).toContain("ProviderReviewWaitNotice")
 		expect(kycCard).toContain('domain="document"')
 		expect(verification).toContain("Quedó como Enviado")

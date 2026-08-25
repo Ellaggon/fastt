@@ -350,6 +350,8 @@ export type KycCaptureGuide = {
 	/** Visual tips unique to this document type */
 	tips: KycCaptureTip[]
 	example: string
+	/** One-line job on the upload fold: what to attach, in which format. */
+	actionLead: string
 	/** Mobile-first coaching line */
 	mobileHint: string
 	acceptHint: string
@@ -388,6 +390,8 @@ export const kycCaptureGuideByType: Record<RequiredKycDocumentType, KycCaptureGu
 		],
 		example:
 			"Ejemplo: foto frontal de la cédula con los cuatro bordes visibles (ambos lados si aplica).",
+		actionLead:
+			"Aquí debes adjuntar un PDF o una foto de la cédula o pasaporte, con nombre y número legibles (ambos lados si aplica).",
 		mobileHint:
 			"En el móvil: usa la cámara trasera o elige una foto de la galería. Evita capturas desde otra pantalla.",
 		acceptHint: "PDF o foto · máx. 12 MB",
@@ -419,6 +423,8 @@ export const kycCaptureGuideByType: Record<RequiredKycDocumentType, KycCaptureGu
 			},
 		],
 		example: "Ejemplo: página del registro donde se lea la razón social y el número de registro.",
+		actionLead:
+			"Aquí debes adjuntar el PDF del registro mercantil o una foto de la página donde se lea la razón social y el número de registro.",
 		mobileHint:
 			"En el móvil: si tienes el PDF del registro, elígelo desde Archivos; si es papel, fotografía la página completa.",
 		acceptHint: "PDF preferido · foto aceptada · máx. 12 MB",
@@ -450,6 +456,8 @@ export const kycCaptureGuideByType: Record<RequiredKycDocumentType, KycCaptureGu
 			},
 		],
 		example: "Ejemplo: certificado o constancia con el NIT/TIN completo y legible.",
+		actionLead:
+			"Aquí debes adjuntar el PDF de la constancia fiscal o una foto donde se lea el NIT/TIN completo.",
 		mobileHint: "En el móvil: prefiere el PDF oficial. Si fotografías, encuadra el sello y el NIT.",
 		acceptHint: "PDF preferido · foto aceptada · máx. 12 MB",
 		preferCameraCapture: false,
