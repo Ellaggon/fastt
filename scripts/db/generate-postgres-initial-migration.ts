@@ -3,6 +3,7 @@ import path from "node:path"
 import { PgDialect } from "drizzle-orm/pg-core"
 
 import * as schema from "../../src/shared/infrastructure/db/schema/tables"
+import { canonicalDatabaseTableNames } from "../../src/shared/infrastructure/db/schema/canonical-schema"
 import { databaseTableNames } from "../../src/shared/infrastructure/db/schema/registry"
 
 const OUT_FILE = "db/postgres/0001_initial_schema.sql"
@@ -75,23 +76,8 @@ function tableColumns(table: DrizzleTable): DrizzleColumn[] {
 	return Object.values(columns)
 }
 
-function exportedSchemaTableNames(): string[] {
-	const names = new Set<string>()
-	for (const value of Object.values(schema)) {
-		if (!value || typeof value !== "object") continue
-		try {
-			const table = value as unknown as DrizzleTable
-			const name = tableName(table)
-			if (tableColumns(table).length > 0) names.add(name)
-		} catch {
-			// tables.ts may export non-table runtime values; only Drizzle tables have these symbols.
-		}
-	}
-	return [...names].sort()
-}
-
 function assertRegistryCoversSchema() {
-	const exported = exportedSchemaTableNames()
+	const exported = canonicalDatabaseTableNames()
 	const registered = [...databaseTableNames].sort()
 	const missing = exported.filter((name) => !registered.includes(name))
 	const unknown = registered.filter((name) => !exported.includes(name))
