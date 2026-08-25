@@ -38,15 +38,19 @@ precio donde corresponda.
 ## Migración y saneamiento
 
 La migración `2026-08-26_marketplace_data_isolation.sql` es aditiva y no borra
-filas. Registra categorías UUID y duplicadas en
-`MarketplaceCatalogSanitationAudit`, inactiva las que no pertenecen a una
-taxonomía controlada y conserva enlaces para investigación histórica.
+filas. Durante el saneamiento registra categorías UUID y duplicadas en una
+tabla temporal de auditoría, inactiva las que no pertenecen a una taxonomía
+controlada y conserva enlaces para investigación histórica. La evidencia
+operativa se revisa antes de ejecutar la retirada final
+`2026-09-11_retire_historical_backfill_artifacts.sql`, que retira esos
+artefactos de backfill de la base runtime.
 
 Antes de desplegarla:
 
 1. Configurar una base `fastt_test` aislada y sus fingerprints.
 2. Aplicar la migración allí con `FASTT_DATA_ENV=test pnpm db:migrate:apply-one --file db/migrations/2026-08-26_marketplace_data_isolation.sql`.
-3. Revisar `MarketplaceCatalogSanitationAudit` y los enlaces reasignados.
+3. Revisar la auditoría de saneamiento y los enlaces reasignados antes de la
+   reconciliación final.
 4. Confirmar que categorías, búsqueda, hold y solicitudes privadas no devuelven
    registros `demo`, `fixture` ni `sandbox`.
 5. Repetir el proceso en staging antes de producción.
