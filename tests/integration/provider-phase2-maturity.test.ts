@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import {
 	db,
 	eq,
@@ -99,13 +99,19 @@ describe("P2 maturity — micro-deposit / smoke / TIN / ops SLA", () => {
 	})
 
 	it("runs endpoint smoke and rejects non-HTTPS endpoints", async () => {
+		const fetchImpl = vi.fn(async () => new Response(null, { status: 204 })) as typeof fetch
 		const ok = await runConnectorSmokeTest({
 			connectorKey: "channel_manager",
 			endpointUrl: "https://provider.test/channel-manager",
 			mode: "sandbox",
+			fetchImpl,
 		})
 		expect(ok.ok).toBe(true)
 		expect(ok.probe).toBe("https")
+		expect(fetchImpl).toHaveBeenCalledWith(
+			"https://provider.test/channel-manager",
+			expect.objectContaining({ method: "GET" })
+		)
 
 		const harness = await runConnectorSmokeTest({
 			connectorKey: "channel_manager",
