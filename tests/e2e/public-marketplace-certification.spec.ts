@@ -42,9 +42,11 @@ test.describe("certificación pública de marketplace", () => {
 	})
 
 	test("muestra una alternativa cuando la imagen principal no carga", async ({ page }) => {
-		await page.route("**/la-paz.webp", (route) => route.abort("failed"))
+		await page.route("**/la-paz.webp", (route) => route.fulfill({ status: 404, body: "" }))
 		await page.goto("/", { waitUntil: "networkidle" })
-		await expect(page.getByLabel("Imagen no disponible")).toBeVisible()
+		const fallback = page.locator("[data-public-image][data-state='fallback'] [data-public-image-fallback]")
+		await expect(fallback).toBeVisible()
+		await expect(fallback).toHaveAttribute("aria-label", "Imagen no disponible")
 	})
 
 	test("mantiene el contenido de la portada disponible con una imagen lenta", async ({ page }) => {

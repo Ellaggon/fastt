@@ -14,6 +14,11 @@ describe("public marketplace certification", () => {
 		expect(layout).toContain('rel="canonical"')
 		expect(layout).toContain('href="#content"')
 		expect(uiLayout).toContain("canonicalPath={canonicalPath}")
+		expect(read("src/pages/index.astro")).toContain('id="content"')
+		expect(read("src/components/marketplace/PublicListingImage.astro")).toContain(
+			'aria-label="Imagen no disponible"'
+		)
+		expect(read("src/components/marketplace/PublicListingImage.astro")).toContain('data-state={src ? "source" : "fallback"}')
 	})
 
 	it("keeps public landings semantically navigable and vertically isolated", () => {

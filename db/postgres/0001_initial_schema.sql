@@ -576,6 +576,33 @@ CREATE TABLE "ProductGeoPlace" (
 	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
+CREATE TABLE "ProductGeoPlaceActivity" (
+	"id" text PRIMARY KEY,
+	"productId" text NOT NULL,
+	"previousPlaceId" text,
+	"placeId" text NOT NULL,
+	"actorId" text,
+	"source" text NOT NULL,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "MarketplaceCommercialCertificationRun" (
+	"id" text PRIMARY KEY,
+	"suiteVersion" text NOT NULL,
+	"status" text NOT NULL DEFAULT 'prepared',
+	"providerId" text,
+	"hotelProductId" text,
+	"tourProductId" text,
+	"checkIn" date,
+	"checkOut" date,
+	"evidenceJson" jsonb NOT NULL,
+	"failureJson" jsonb,
+	"startedAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"completedAt" timestamp with time zone,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
 CREATE TABLE "ProductOperationalSurface" (
 	"productId" text PRIMARY KEY,
 	"providerId" text NOT NULL,
@@ -2026,6 +2053,49 @@ ALTER TABLE "ProductGeoPlace"
 	REFERENCES "GeoPlace" ("id")
 ;
 
+ALTER TABLE "ProductGeoPlaceActivity"
+	ADD CONSTRAINT "ProductGeoPlaceActivity_productId_fk"
+	FOREIGN KEY ("productId")
+	REFERENCES "Product" ("id")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "ProductGeoPlaceActivity"
+	ADD CONSTRAINT "ProductGeoPlaceActivity_previousPlaceId_fk"
+	FOREIGN KEY ("previousPlaceId")
+	REFERENCES "GeoPlace" ("id")
+;
+
+ALTER TABLE "ProductGeoPlaceActivity"
+	ADD CONSTRAINT "ProductGeoPlaceActivity_placeId_fk"
+	FOREIGN KEY ("placeId")
+	REFERENCES "GeoPlace" ("id")
+;
+
+ALTER TABLE "ProductGeoPlaceActivity"
+	ADD CONSTRAINT "ProductGeoPlaceActivity_actorId_fk"
+	FOREIGN KEY ("actorId")
+	REFERENCES "User" ("id")
+;
+
+ALTER TABLE "MarketplaceCommercialCertificationRun"
+	ADD CONSTRAINT "MarketplaceCommercialCertificationRun_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
+;
+
+ALTER TABLE "MarketplaceCommercialCertificationRun"
+	ADD CONSTRAINT "MarketplaceCommercialCertificationRun_hotelProductId_fk"
+	FOREIGN KEY ("hotelProductId")
+	REFERENCES "Product" ("id")
+;
+
+ALTER TABLE "MarketplaceCommercialCertificationRun"
+	ADD CONSTRAINT "MarketplaceCommercialCertificationRun_tourProductId_fk"
+	FOREIGN KEY ("tourProductId")
+	REFERENCES "Product" ("id")
+;
+
 ALTER TABLE "ProductOperationalSurface"
 	ADD CONSTRAINT "ProductOperationalSurface_productId_fk"
 	FOREIGN KEY ("productId")
@@ -2947,6 +3017,12 @@ CREATE INDEX "ProductGeoPlace_place_role_product_idx" ON "ProductGeoPlace" ("pla
 
 CREATE INDEX "ProductGeoPlace_product_role_idx" ON "ProductGeoPlace" ("productId", "role");
 
+CREATE INDEX "ProductGeoPlaceActivity_product_created_idx" ON "ProductGeoPlaceActivity" ("productId", "createdAt");
+
+CREATE UNIQUE INDEX "MarketplaceCommercialCertificationRun_suite_started_unique" ON "MarketplaceCommercialCertificationRun" ("suiteVersion", "startedAt");
+
+CREATE INDEX "MarketplaceCommercialCertificationRun_status_started_idx" ON "MarketplaceCommercialCertificationRun" ("status", "startedAt");
+
 CREATE INDEX "ProductOperationalSurface_provider_updated_idx" ON "ProductOperationalSurface" ("providerId", "updatedAt");
 
 CREATE INDEX "ProductOperationalSurface_provider_status_idx" ON "ProductOperationalSurface" ("providerId", "status");
@@ -3352,6 +3428,8 @@ ALTER TABLE "GeoPlaceContent" ADD CONSTRAINT "GeoPlaceContent_publicationStatus_
 ALTER TABLE "ProductGeoPlace" ADD CONSTRAINT "ProductGeoPlace_role_check" CHECK ("role" IN ('primary_discovery', 'secondary_discovery', 'service_area', 'meeting_area'));
 
 ALTER TABLE "ProductGeoPlace" ADD CONSTRAINT "ProductGeoPlace_primary_role_check" CHECK ("isPrimary" = false OR "role" = 'primary_discovery');
+
+ALTER TABLE "MarketplaceCommercialCertificationRun" ADD CONSTRAINT "MarketplaceCommercialCertificationRun_status_check" CHECK ("status" IN ('prepared', 'running', 'passed', 'failed'));
 
 ALTER TABLE "TourSlotProfile" ADD CONSTRAINT "TourSlotProfile_bookingMode_check" CHECK ("bookingMode" in ('shared', 'private'));
 

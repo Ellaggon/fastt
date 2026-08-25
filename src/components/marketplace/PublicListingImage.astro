@@ -11,7 +11,11 @@ interface Props {
 const { src, alt, class: className = "", priority = false } = Astro.props as Props
 ---
 
-<span class={`relative block overflow-hidden bg-slate-100 ${className}`} data-public-image>
+<span
+	class={`relative block overflow-hidden bg-slate-100 ${className}`}
+	data-public-image
+	data-state={src ? "source" : "fallback"}
+>
 	{
 		src ? (
 			<img
@@ -25,13 +29,11 @@ const { src, alt, class: className = "", priority = false } = Astro.props as Pro
 		) : null
 	}
 	<span
-		class:list={{
-			"absolute inset-0 flex items-center justify-center bg-slate-100 text-slate-500": true,
-			"hidden": Boolean(src),
-		}}
+		class="absolute inset-0 z-[1] flex items-center justify-center bg-slate-100 text-slate-500"
 		data-public-image-fallback
 		role="img"
 		aria-label="Imagen no disponible"
+		hidden={Boolean(src)}
 	>
 		<ImageOff class="h-6 w-6" aria-hidden="true" />
 	</span>
@@ -46,8 +48,9 @@ const { src, alt, class: className = "", priority = false } = Astro.props as Pro
 			const fallback = root.querySelector("[data-public-image-fallback]")
 			if (!(image instanceof HTMLImageElement) || !(fallback instanceof HTMLElement)) return
 			const revealFallback = () => {
-				image.hidden = true
-				fallback.classList.remove("hidden")
+				image.classList.add("invisible")
+				fallback.hidden = false
+				root.dataset.state = "fallback"
 			}
 			image.addEventListener("error", revealFallback)
 			if (image.complete && image.naturalWidth === 0) revealFallback()
