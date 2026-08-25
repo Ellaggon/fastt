@@ -100,7 +100,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Generate canonical initial schema
-        run: pnpm run db:pg:generate-initial
+        run: |
+          pnpm run db:pg:generate-initial
+          git diff --exit-code -- db/postgres/0001_initial_schema.sql
 
       - name: Install clean schema
         run: psql "$DIRECT_URL" -v ON_ERROR_STOP=1 -f db/postgres/0001_initial_schema.sql
@@ -121,6 +123,14 @@ jobs:
         run: pnpm exec vitest run tests/integration/product-api.test.ts tests/integration/tour-wizard-create.test.ts
 
       - name: Certify marketplace commercial journey
+        env:
+          FASTT_DATA_ENV: test
+          DATABASE_URL: ""
+          DIRECT_URL: ""
+          FASTT_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/fastt
+          FASTT_TEST_DIRECT_URL: postgresql://postgres:postgres@localhost:5432/fastt
+          FASTT_TEST_DATABASE_FINGERPRINT: dbfp_80c3df721bfbe036eaf8
+          FASTT_PRODUCTION_DATABASE_FINGERPRINTS: dbfp_production_not_local
         run: pnpm run certify:marketplace:commercial -- --apply
 
       - name: Verify irreversible geography retirement
@@ -128,8 +138,25 @@ jobs:
 
   public-certification:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fastt
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d fastt"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
-      FASTT_HTML_BUDGET_BASE_URL: ${{ vars.FASTT_PUBLIC_CERTIFICATION_URL }}
+      FASTT_DATA_ENV: development
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/fastt
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/fastt
+      CONFIRM_MARKETPLACE_COMMERCIAL_CERTIFICATION: apply
       FASTT_HTML_BUDGET_REQUIRED: "1"
       FASTT_HTML_BUDGET_PUBLIC_ONLY: "1"
       FASTT_HTML_BUDGET_MAX_TTFB_MS: "1200"
@@ -153,15 +180,35 @@ jobs:
       - name: Install Playwright Chromium
         run: pnpm exec playwright install --with-deps chromium
 
+      - name: Prepare isolated public catalog
+        run: |
+          psql "$DIRECT_URL" -v ON_ERROR_STOP=1 -f db/postgres/0001_initial_schema.sql
+          pnpm run seed:geo:bolivia
+
+      - name: Prepare and certify commercial fixtures
+        env:
+          FASTT_DATA_ENV: test
+          DATABASE_URL: ""
+          DIRECT_URL: ""
+          FASTT_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/fastt
+          FASTT_TEST_DIRECT_URL: postgresql://postgres:postgres@localhost:5432/fastt
+          FASTT_TEST_DATABASE_FINGERPRINT: dbfp_80c3df721bfbe036eaf8
+          FASTT_PRODUCTION_DATABASE_FINGERPRINTS: dbfp_production_not_local
+        run: pnpm run certify:marketplace:commercial -- --apply
+
       - name: Build public app
         run: pnpm build
 
-      - name: Public DOM and accessibility certification
+      - name: Public browser, accessibility, HTML and render budget
         env:
           PLAYWRIGHT_BASE_URL: http://127.0.0.1:4178
-          PLAYWRIGHT_PUBLIC_ROUTES: /
+          PLAYWRIGHT_PUBLIC_ROUTES: "/,/hotels,/tours,/destinos/la-paz/alojamientos,/destinos/la-paz/tours"
+          FASTT_HTML_BUDGET_BASE_URL: http://127.0.0.1:4178
+          FASTT_HTML_BUDGET_ROUTES: "/:250000,/hotels:335000,/tours:345000,/destinos/la-paz/alojamientos:305000,/destinos/la-paz/tours:460000"
         run: |
           pnpm exec astro preview --host 127.0.0.1 --port 4178 &
+          preview_pid=$!
+          trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
           for _ in $(seq 1 40); do
             if curl -sf http://127.0.0.1:4178/ >/dev/null; then
               break
@@ -170,20 +217,4 @@ jobs:
           done
           curl -sf http://127.0.0.1:4178/ >/dev/null
           pnpm run test:marketplace:public-browser
-
-      - name: Public HTML and TTFB budget
-        env:
-          FASTT_HTML_BUDGET_BASE_URL: http://127.0.0.1:4178
-          FASTT_HTML_BUDGET_ROUTES: "/:250000,/hotels:335000,/tours:345000"
-        run: |
-          if ! curl -sf http://127.0.0.1:4178/ >/dev/null; then
-            pnpm exec astro preview --host 127.0.0.1 --port 4178 &
-            for _ in $(seq 1 40); do
-              if curl -sf http://127.0.0.1:4178/ >/dev/null; then
-                break
-              fi
-              sleep 1
-            done
-          fi
-          curl -sf http://127.0.0.1:4178/ >/dev/null
           pnpm run perf:html-budget

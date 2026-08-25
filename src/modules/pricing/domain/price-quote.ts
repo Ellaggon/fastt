@@ -44,17 +44,34 @@ function normalizeLine(line: TaxFeeLine) {
 	return {
 		definitionId: String(line.definitionId),
 		code: String(line.code),
+		name: String(line.name),
 		kind: String(line.kind),
+		calculationType: String(line.calculationType),
+		value: money(line.value),
+		currency: line.currency == null ? null : String(line.currency).toUpperCase(),
 		inclusionType: String(line.inclusionType),
+		appliesPer: String(line.appliesPer),
+		priority: Number(line.priority),
 		collectionResponsibility: String(line.collectionResponsibility),
 		taxableBase: String(line.taxableBase),
 		amount: money(line.amount),
+		source: {
+			scope: String(line.source.scope),
+			scopeId: line.source.scopeId == null ? null : String(line.source.scopeId),
+			definitionVersionId:
+				line.source.definitionVersionId == null ? null : String(line.source.definitionVersionId),
+		},
 	}
 }
 
-function stableQuotePayload(quote: Omit<PriceQuote, "quoteId" | "issuedAt" | "source">) {
+/**
+ * Guest-facing commercial terms that define quote identity. Engine provenance
+ * remains on PriceQuote for auditability but cannot make search and hold disagree.
+ */
+function commercialQuotePayload(quote: Omit<PriceQuote, "quoteId" | "issuedAt" | "source">) {
 	return {
 		version: quote.version,
+		identityVersion: "commercial_terms_v1",
 		context: quote.context,
 		currency: quote.currency,
 		nights: quote.nights,
@@ -62,7 +79,9 @@ function stableQuotePayload(quote: Omit<PriceQuote, "quoteId" | "issuedAt" | "so
 		totalAmount: quote.totalAmount,
 		// Search and hold may differ on engine source/breakdown without changing guest terms.
 		pricing: {
-			days: quote.pricing.days.map((day) => ({ date: String(day.date), price: money(day.price) })),
+			days: quote.pricing.days
+				.map((day) => ({ date: String(day.date), price: money(day.price) }))
+				.sort((a, b) => a.date.localeCompare(b.date)),
 		},
 		taxesAndFees: {
 			base: money(quote.taxesAndFees.base),
@@ -119,7 +138,7 @@ export function buildPriceQuote(
 		},
 	} satisfies Omit<PriceQuote, "quoteId" | "issuedAt" | "source">
 	const quoteId = createHash("sha256")
-		.update(JSON.stringify(stableQuotePayload(quote)))
+		.update(JSON.stringify(commercialQuotePayload(quote)))
 		.digest("hex")
 		.slice(0, 32)
 

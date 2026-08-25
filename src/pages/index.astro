@@ -23,16 +23,12 @@ import UILayout from "@/layouts/UILayout.astro"
 				src="https://pub-de0b5a27b1424d99afa6c7b2fe2f02dc.r2.dev/la-paz.webp"
 				alt="Paisaje de La Paz, Bolivia"
 				priority
-				class="absolute inset-0"
+				fill
 			/>
 			<div class="pointer-events-none absolute inset-0 z-[1] bg-slate-950/65" data-hero-scrim></div>
-			<style is:global>
-				main [data-public-image][data-state="fallback"] ~ [data-hero-scrim] {
-					display: none;
-				}
-			</style>
 			<div
 				class="relative z-[2] mx-auto flex min-h-[calc(100vh-3rem)] max-w-7xl flex-col justify-center px-4 pb-28 pt-20 sm:px-6 lg:px-8"
+				data-hero-content
 			>
 				<p class="text-sm font-semibold text-slate-200">FASTT · BOLIVIA</p>
 				<h1 class="mt-4 max-w-3xl text-4xl font-semibold leading-tight text-white sm:text-5xl">

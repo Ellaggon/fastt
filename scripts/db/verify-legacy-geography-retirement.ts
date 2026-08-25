@@ -70,13 +70,31 @@ async function databaseState(final: boolean) {
 				(select count(*) from information_schema.tables where table_schema = 'public' and table_name = 'ProductGeoPlaceBackfill')::int as backfill_table,
 				(select count(*) from information_schema.columns where table_schema = 'public' and column_name = 'destinationId')::int as destination_id_columns
 		`
+		const legacyColumns = await sql<{ table_name: string }[]>`
+			select table_name
+			from information_schema.columns
+			where table_schema = 'public'
+				and column_name = 'destinationId'
+				and table_name in ('Product', 'MarketplaceEvent')
+		`
+		const legacyColumnTables = new Set(legacyColumns.map((column) => column.table_name))
+
 		if (!final) {
-			const [legacyValues] = await sql`
-				select
-					(select count(*) from "Product" where "destinationId" is not null)::int as products_with_destination,
-					(select count(*) from "MarketplaceEvent" where "destinationId" is not null)::int as events_with_destination
-			`
-			return { ...state, ...legacyValues }
+			// The verifier also runs after the destructive migration. Query each legacy
+			// column only while it exists so an audit can never fail merely because the
+			// retirement it is checking has already completed.
+			const productsWithDestination = legacyColumnTables.has("Product")
+				? Number((await sql`select count(*)::int as count from "Product" where "destinationId" is not null`)[0]?.count ?? 0)
+				: 0
+			const eventsWithDestination = legacyColumnTables.has("MarketplaceEvent")
+				? Number((await sql`select count(*)::int as count from "MarketplaceEvent" where "destinationId" is not null`)[0]?.count ?? 0)
+				: 0
+
+			return {
+				...state,
+				products_with_destination: productsWithDestination,
+				events_with_destination: eventsWithDestination,
+			}
 		}
 		return state
 	} finally {

@@ -34,7 +34,6 @@ import {
 	VariantInventoryConfig,
 	lt,
 } from "@/shared/infrastructure/db/compat"
-import { getFasttDataEnvironment } from "@/shared/infrastructure/db/data-environment"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
 import { getPublicDestinationListings } from "@/lib/marketplace/publicDestinationListings"
 import { getPublicSearchSurface } from "@/lib/search/publicSearchSurface"
@@ -42,6 +41,7 @@ import { GET as receiptGet } from "@/pages/api/booking/[bookingId]/receipt"
 import { POST as bookingConfirmPost } from "@/pages/api/booking/confirm"
 import { POST as holdPost } from "@/pages/api/inventory/hold"
 import type { PriceQuote } from "@/modules/pricing/public"
+import { prepareMarketplaceCertificationEnvironment } from "./marketplace-certification-environment"
 
 const APPLY = process.argv.includes("--apply")
 const CONFIRMED = process.env.CONFIRM_MARKETPLACE_COMMERCIAL_CERTIFICATION === "apply"
@@ -144,10 +144,18 @@ function localQaEnvironment() {
 	}
 }
 
-async function upsertFixture(params: { hotelCheckIn: string; hotelCheckOut: string; tourCheckIn: string }) {
+async function upsertFixture(params: {
+	hotelCheckIn: string
+	hotelCheckOut: string
+	tourCheckIn: string
+}) {
 	const now = new Date()
 	const occupancyKey = buildOccupancyKey({ adults: 2, children: 0, infants: 0 })
-	const hotelDates = [params.hotelCheckIn, nextDate(params.hotelCheckIn), nextDate(nextDate(params.hotelCheckIn))]
+	const hotelDates = [
+		params.hotelCheckIn,
+		nextDate(params.hotelCheckIn),
+		nextDate(nextDate(params.hotelCheckIn)),
+	]
 
 	await db
 		.insert(Provider)
@@ -189,7 +197,10 @@ async function upsertFixture(params: { hotelCheckIn: string; hotelCheckOut: stri
 			workspaceExperience: "professional",
 			createdAt: now,
 		})
-		.onConflictDoUpdate({ target: [ProviderUser.providerId, ProviderUser.userId], set: { role: "owner" } })
+		.onConflictDoUpdate({
+			target: [ProviderUser.providerId, ProviderUser.userId],
+			set: { role: "owner" },
+		})
 	await db
 		.insert(ProviderProfile)
 		.values({
@@ -263,7 +274,13 @@ async function upsertFixture(params: { hotelCheckIn: string; hotelCheckOut: stri
 		})
 		.onConflictDoUpdate({
 			target: GeoPlace.id,
-			set: { canonicalName: "La Paz", normalizedName: "la paz", countryCode: "BO", centroidLat: -16.5, centroidLng: -68.15 },
+			set: {
+				canonicalName: "La Paz",
+				normalizedName: "la paz",
+				countryCode: "BO",
+				centroidLat: -16.5,
+				centroidLng: -68.15,
+			},
 		})
 
 	for (const product of [
@@ -283,12 +300,20 @@ async function upsertFixture(params: { hotelCheckIn: string; hotelCheckOut: stri
 			})
 			.onConflictDoUpdate({
 				target: Product.id,
-				set: { name: product.name, productType: product.type, dataClass: "production", lastUpdated: now },
+				set: {
+					name: product.name,
+					productType: product.type,
+					dataClass: "production",
+					lastUpdated: now,
+				},
 			})
 		await db
 			.insert(ProductStatus)
 			.values({ productId: product.id, state: "published", validationErrorsJson: null })
-			.onConflictDoUpdate({ target: ProductStatus.productId, set: { state: "published", validationErrorsJson: null } })
+			.onConflictDoUpdate({
+				target: ProductStatus.productId,
+				set: { state: "published", validationErrorsJson: null },
+			})
 		await db
 			.insert(ProductContent)
 			.values({
@@ -305,7 +330,10 @@ async function upsertFixture(params: { hotelCheckIn: string; hotelCheckOut: stri
 		await db
 			.insert(ProductLocation)
 			.values({ productId: product.id, address: "La Paz, Bolivia", lat: -16.5, lng: -68.15 })
-			.onConflictDoUpdate({ target: ProductLocation.productId, set: { address: "La Paz, Bolivia", lat: -16.5, lng: -68.15 } })
+			.onConflictDoUpdate({
+				target: ProductLocation.productId,
+				set: { address: "La Paz, Bolivia", lat: -16.5, lng: -68.15 },
+			})
 		await db
 			.insert(ProductGeoPlace)
 			.values({
@@ -326,7 +354,11 @@ async function upsertFixture(params: { hotelCheckIn: string; hotelCheckOut: stri
 
 	await db
 		.insert(Hotel)
-		.values({ productId: HOTEL_PRODUCT_ID, stars: 4, email: "marketplace-certification@fastt.local" })
+		.values({
+			productId: HOTEL_PRODUCT_ID,
+			stars: 4,
+			email: "marketplace-certification@fastt.local",
+		})
 		.onConflictDoUpdate({ target: Hotel.productId, set: { stars: 4 } })
 	await db
 		.insert(Tour)
@@ -335,76 +367,297 @@ async function upsertFixture(params: { hotelCheckIn: string; hotelCheckOut: stri
 			duration: "3 horas",
 			durationMinutes: 180,
 			difficultyLevel: "easy",
-			meetingPointJson: { address: "Plaza Murillo, La Paz", instructions: "Fixture de certificación" },
+			meetingPointJson: {
+				address: "Plaza Murillo, La Paz",
+				instructions: "Fixture de certificación",
+			},
 			itineraryJson: ["Centro histórico"],
 			includesJson: ["Guía"],
 		})
-		.onConflictDoUpdate({ target: Tour.productId, set: { duration: "3 horas", durationMinutes: 180 } })
+		.onConflictDoUpdate({
+			target: Tour.productId,
+			set: { duration: "3 horas", durationMinutes: 180 },
+		})
 
 	const commercialUnits = [
-		{ variantId: HOTEL_VARIANT_ID, productId: HOTEL_PRODUCT_ID, ratePlanId: HOTEL_RATE_PLAN_ID, name: "Habitación certificación", kind: "hotel_room", capacity: 20, price: 120, dates: hotelDates },
-		{ variantId: TOUR_VARIANT_ID, productId: TOUR_PRODUCT_ID, ratePlanId: TOUR_RATE_PLAN_ID, name: "Salida certificación 09:00", kind: "tour_slot", capacity: 20, price: 80, dates: [params.tourCheckIn] },
+		{
+			variantId: HOTEL_VARIANT_ID,
+			productId: HOTEL_PRODUCT_ID,
+			ratePlanId: HOTEL_RATE_PLAN_ID,
+			name: "Habitación certificación",
+			kind: "hotel_room",
+			capacity: 20,
+			price: 120,
+			dates: hotelDates,
+		},
+		{
+			variantId: TOUR_VARIANT_ID,
+			productId: TOUR_PRODUCT_ID,
+			ratePlanId: TOUR_RATE_PLAN_ID,
+			name: "Salida certificación 09:00",
+			kind: "tour_slot",
+			capacity: 20,
+			price: 80,
+			dates: [params.tourCheckIn],
+		},
 	] as const
 
 	for (const unit of commercialUnits) {
 		await db
 			.insert(Variant)
-			.values({ id: unit.variantId, productId: unit.productId, name: unit.name, kind: unit.kind, status: "ready", isActive: true, createdAt: now })
+			.values({
+				id: unit.variantId,
+				productId: unit.productId,
+				name: unit.name,
+				kind: unit.kind,
+				status: "ready",
+				isActive: true,
+				createdAt: now,
+			})
 			.onConflictDoUpdate({ target: Variant.id, set: { status: "ready", isActive: true } })
 		await db
 			.insert(VariantCapacity)
-			.values({ variantId: unit.variantId, minOccupancy: 1, maxOccupancy: unit.capacity, maxAdults: unit.capacity })
-			.onConflictDoUpdate({ target: VariantCapacity.variantId, set: { minOccupancy: 1, maxOccupancy: unit.capacity, maxAdults: unit.capacity } })
+			.values({
+				variantId: unit.variantId,
+				minOccupancy: 1,
+				maxOccupancy: unit.capacity,
+				maxAdults: unit.capacity,
+			})
+			.onConflictDoUpdate({
+				target: VariantCapacity.variantId,
+				set: { minOccupancy: 1, maxOccupancy: unit.capacity, maxAdults: unit.capacity },
+			})
 		await db
 			.insert(VariantInventoryConfig)
-			.values({ variantId: unit.variantId, defaultTotalUnits: unit.capacity, horizonDays: 365, createdAt: now })
-			.onConflictDoUpdate({ target: VariantInventoryConfig.variantId, set: { defaultTotalUnits: unit.capacity, horizonDays: 365 } })
+			.values({
+				variantId: unit.variantId,
+				defaultTotalUnits: unit.capacity,
+				horizonDays: 365,
+				createdAt: now,
+			})
+			.onConflictDoUpdate({
+				target: VariantInventoryConfig.variantId,
+				set: { defaultTotalUnits: unit.capacity, horizonDays: 365 },
+			})
 		await db
 			.insert(RatePlan)
-			.values({ id: unit.ratePlanId, variantId: unit.variantId, name: "Web certificación", isDefault: true, isActive: true, createdAt: now })
-			.onConflictDoUpdate({ target: RatePlan.id, set: { name: "Web certificación", isDefault: true, isActive: true } })
+			.values({
+				id: unit.ratePlanId,
+				variantId: unit.variantId,
+				name: "Web certificación",
+				isDefault: true,
+				isActive: true,
+				createdAt: now,
+			})
+			.onConflictDoUpdate({
+				target: RatePlan.id,
+				set: { name: "Web certificación", isDefault: true, isActive: true },
+			})
 		for (const date of unit.dates) {
 			await db
 				.insert(DailyInventory)
-				.values({ id: `inventory_${unit.variantId}_${date}`, variantId: unit.variantId, date, totalInventory: unit.capacity, reservedCount: 0, createdAt: now, updatedAt: now })
-				.onConflictDoUpdate({ target: [DailyInventory.variantId, DailyInventory.date], set: { totalInventory: unit.capacity, updatedAt: now } })
+				.values({
+					id: `inventory_${unit.variantId}_${date}`,
+					variantId: unit.variantId,
+					date,
+					totalInventory: unit.capacity,
+					reservedCount: 0,
+					createdAt: now,
+					updatedAt: now,
+				})
+				.onConflictDoUpdate({
+					target: [DailyInventory.variantId, DailyInventory.date],
+					set: { totalInventory: unit.capacity, updatedAt: now },
+				})
 			await db
 				.insert(EffectiveAvailability)
-				.values({ id: `availability_${unit.variantId}_${date}`, variantId: unit.variantId, date, totalUnits: unit.capacity, heldUnits: 0, bookedUnits: 0, externalBlockedUnits: 0, availableUnits: unit.capacity, computedAt: now })
-				.onConflictDoUpdate({ target: [EffectiveAvailability.variantId, EffectiveAvailability.date], set: { totalUnits: unit.capacity, availableUnits: unit.capacity, computedAt: now } })
+				.values({
+					id: `availability_${unit.variantId}_${date}`,
+					variantId: unit.variantId,
+					date,
+					totalUnits: unit.capacity,
+					heldUnits: 0,
+					bookedUnits: 0,
+					externalBlockedUnits: 0,
+					availableUnits: unit.capacity,
+					computedAt: now,
+				})
+				.onConflictDoUpdate({
+					target: [EffectiveAvailability.variantId, EffectiveAvailability.date],
+					set: { totalUnits: unit.capacity, availableUnits: unit.capacity, computedAt: now },
+				})
 			await db
 				.insert(EffectivePricingV2)
-				.values({ id: `pricing_${unit.variantId}_${date}`, variantId: unit.variantId, ratePlanId: unit.ratePlanId, date, occupancyKey, baseComponent: unit.price, occupancyAdjustment: 0, ruleAdjustment: 0, finalBasePrice: unit.price, currency: "USD", computedAt: now, sourceVersion: SUITE_VERSION })
-				.onConflictDoUpdate({ target: [EffectivePricingV2.variantId, EffectivePricingV2.ratePlanId, EffectivePricingV2.date, EffectivePricingV2.occupancyKey], set: { finalBasePrice: unit.price, computedAt: now, sourceVersion: SUITE_VERSION } })
+				.values({
+					id: `pricing_${unit.variantId}_${date}`,
+					variantId: unit.variantId,
+					ratePlanId: unit.ratePlanId,
+					date,
+					occupancyKey,
+					baseComponent: unit.price,
+					occupancyAdjustment: 0,
+					ruleAdjustment: 0,
+					finalBasePrice: unit.price,
+					currency: "USD",
+					computedAt: now,
+					sourceVersion: SUITE_VERSION,
+				})
+				.onConflictDoUpdate({
+					target: [
+						EffectivePricingV2.variantId,
+						EffectivePricingV2.ratePlanId,
+						EffectivePricingV2.date,
+						EffectivePricingV2.occupancyKey,
+					],
+					set: { finalBasePrice: unit.price, computedAt: now, sourceVersion: SUITE_VERSION },
+				})
 			await db
 				.insert(SearchUnitView)
-				.values({ id: `search_${unit.variantId}_${date}`, variantId: unit.variantId, productId: unit.productId, ratePlanId: unit.ratePlanId, date, occupancyKey, totalGuests: 2, hasAvailability: true, hasPrice: true, isAvailable: true, availableUnits: unit.capacity, pricePerNight: unit.price, currency: "USD", primaryBlocker: null, minStay: 1, maxStay: null, minLeadTime: null, maxLeadTime: null, cta: false, ctd: false, computedAt: now, sourceVersion: SUITE_VERSION })
-				.onConflictDoUpdate({ target: [SearchUnitView.variantId, SearchUnitView.ratePlanId, SearchUnitView.date, SearchUnitView.occupancyKey], set: { hasAvailability: true, hasPrice: true, isAvailable: true, availableUnits: unit.capacity, pricePerNight: unit.price, primaryBlocker: null, computedAt: now, sourceVersion: SUITE_VERSION } })
+				.values({
+					id: `search_${unit.variantId}_${date}`,
+					variantId: unit.variantId,
+					productId: unit.productId,
+					ratePlanId: unit.ratePlanId,
+					date,
+					occupancyKey,
+					totalGuests: 2,
+					hasAvailability: true,
+					hasPrice: true,
+					isAvailable: true,
+					availableUnits: unit.capacity,
+					pricePerNight: unit.price,
+					currency: "USD",
+					primaryBlocker: null,
+					minStay: 1,
+					maxStay: null,
+					minLeadTime: null,
+					maxLeadTime: null,
+					cta: false,
+					ctd: false,
+					computedAt: now,
+					sourceVersion: SUITE_VERSION,
+				})
+				.onConflictDoUpdate({
+					target: [
+						SearchUnitView.variantId,
+						SearchUnitView.ratePlanId,
+						SearchUnitView.date,
+						SearchUnitView.occupancyKey,
+					],
+					set: {
+						hasAvailability: true,
+						hasPrice: true,
+						isAvailable: true,
+						availableUnits: unit.capacity,
+						pricePerNight: unit.price,
+						primaryBlocker: null,
+						computedAt: now,
+						sourceVersion: SUITE_VERSION,
+					},
+				})
 		}
 	}
 
 	await db
 		.insert(TourSlotProfile)
-		.values({ variantId: TOUR_VARIANT_ID, departureTime: "09:00", maxPax: 20, languageCode: "es", bookingMode: "shared", isActive: true, createdAt: now, updatedAt: now })
-		.onConflictDoUpdate({ target: TourSlotProfile.variantId, set: { departureTime: "09:00", maxPax: 20, isActive: true, updatedAt: now } })
+		.values({
+			variantId: TOUR_VARIANT_ID,
+			departureTime: "09:00",
+			maxPax: 20,
+			languageCode: "es",
+			bookingMode: "shared",
+			isActive: true,
+			createdAt: now,
+			updatedAt: now,
+		})
+		.onConflictDoUpdate({
+			target: TourSlotProfile.variantId,
+			set: { departureTime: "09:00", maxPax: 20, isActive: true, updatedAt: now },
+		})
 
-	const taxSnapshot = { code: "VAT_CERTIFICATION_10", value: 10, jurisdiction: "BO", suiteVersion: SUITE_VERSION }
+	const taxSnapshot = {
+		code: "VAT_CERTIFICATION_10",
+		value: 10,
+		jurisdiction: "BO",
+		suiteVersion: SUITE_VERSION,
+	}
 	await db
 		.insert(TaxFeeDefinition)
-		.values({ id: TAX_DEFINITION_ID, providerId: PROVIDER_ID, code: "VAT_CERTIFICATION_10", name: "IVA certificación 10%", kind: "tax", calculationType: "percentage", value: 10, currency: null, inclusionType: "excluded", appliesPer: "stay", priority: 0, jurisdictionJson: { country: "BO", collectionResponsibility: "provider", taxableBase: "booking_base" }, effectiveFrom: null, effectiveTo: null, status: "active", editingState: "published", currentVersionId: null, createdAt: now, updatedAt: now })
-		.onConflictDoUpdate({ target: TaxFeeDefinition.id, set: { value: 10, status: "active", editingState: "published", jurisdictionJson: { country: "BO", collectionResponsibility: "provider", taxableBase: "booking_base" }, updatedAt: now } })
+		.values({
+			id: TAX_DEFINITION_ID,
+			providerId: PROVIDER_ID,
+			code: "VAT_CERTIFICATION_10",
+			name: "IVA certificación 10%",
+			kind: "tax",
+			calculationType: "percentage",
+			value: 10,
+			currency: null,
+			inclusionType: "excluded",
+			appliesPer: "stay",
+			priority: 0,
+			jurisdictionJson: {
+				country: "BO",
+				collectionResponsibility: "provider",
+				taxableBase: "booking_base",
+			},
+			effectiveFrom: null,
+			effectiveTo: null,
+			status: "active",
+			editingState: "published",
+			currentVersionId: null,
+			createdAt: now,
+			updatedAt: now,
+		})
+		.onConflictDoUpdate({
+			target: TaxFeeDefinition.id,
+			set: {
+				value: 10,
+				status: "active",
+				editingState: "published",
+				jurisdictionJson: {
+					country: "BO",
+					collectionResponsibility: "provider",
+					taxableBase: "booking_base",
+				},
+				updatedAt: now,
+			},
+		})
 	await db
 		.insert(TaxFeeDefinitionVersion)
-		.values({ id: TAX_VERSION_ID, taxFeeDefinitionId: TAX_DEFINITION_ID, version: 1, publicationState: "published", snapshotJson: taxSnapshot, createdByUserId: USER_ID, createdAt: now })
-		.onConflictDoUpdate({ target: [TaxFeeDefinitionVersion.taxFeeDefinitionId, TaxFeeDefinitionVersion.version], set: { publicationState: "published", snapshotJson: taxSnapshot, createdByUserId: USER_ID } })
+		.values({
+			id: TAX_VERSION_ID,
+			taxFeeDefinitionId: TAX_DEFINITION_ID,
+			version: 1,
+			publicationState: "published",
+			snapshotJson: taxSnapshot,
+			createdByUserId: USER_ID,
+			createdAt: now,
+		})
+		.onConflictDoUpdate({
+			target: [TaxFeeDefinitionVersion.taxFeeDefinitionId, TaxFeeDefinitionVersion.version],
+			set: { publicationState: "published", snapshotJson: taxSnapshot, createdByUserId: USER_ID },
+		})
 	await db
 		.update(TaxFeeDefinition)
 		.set({ currentVersionId: TAX_VERSION_ID, updatedAt: now })
 		.where(eq(TaxFeeDefinition.id, TAX_DEFINITION_ID))
 	await db
 		.insert(TaxFeeAssignment)
-		.values({ id: TAX_ASSIGNMENT_ID, taxFeeDefinitionId: TAX_DEFINITION_ID, scope: "provider", scopeId: PROVIDER_ID, channel: "web", status: "active", effectiveFrom: null, effectiveTo: null, createdAt: now })
-		.onConflictDoUpdate({ target: TaxFeeAssignment.id, set: { status: "active", channel: "web", effectiveFrom: null, effectiveTo: null } })
+		.values({
+			id: TAX_ASSIGNMENT_ID,
+			taxFeeDefinitionId: TAX_DEFINITION_ID,
+			scope: "provider",
+			scopeId: PROVIDER_ID,
+			channel: "web",
+			status: "active",
+			effectiveFrom: null,
+			effectiveTo: null,
+			createdAt: now,
+		})
+		.onConflictDoUpdate({
+			target: TaxFeeAssignment.id,
+			set: { status: "active", channel: "web", effectiveFrom: null, effectiveTo: null },
+		})
 }
 
 async function certifyFlow(input: {
@@ -422,11 +675,22 @@ async function certifyFlow(input: {
 		throw new Error(`CERTIFICATION_LANDING_MISSING:${input.label}`)
 	}
 	const destination = await getPublicDestinationListings({ slug: "la-paz", vertical, limit: 100 })
-	if (!destination.destination || !destination.listings.some((listing) => listing.id === input.productId)) {
+	if (
+		!destination.destination ||
+		!destination.listings.some((listing) => listing.id === input.productId)
+	) {
 		throw new Error(`CERTIFICATION_DESTINATION_MISSING:${input.label}`)
 	}
 
-	const search = await getPublicSearchSurface({ geoPlaceId: LA_PAZ_GEO_PLACE_ID, checkIn: input.checkIn, checkOut: input.checkOut, rooms: input.rooms, adults: 2, children: 0, currency: "USD" })
+	const search = await getPublicSearchSurface({
+		geoPlaceId: LA_PAZ_GEO_PLACE_ID,
+		checkIn: input.checkIn,
+		checkOut: input.checkOut,
+		rooms: input.rooms,
+		adults: 2,
+		children: 0,
+		currency: "USD",
+	})
 	const searchResult = search.results.find((result) => result.productId === input.productId)
 	if (!searchResult) throw new Error(`CERTIFICATION_SEARCH_MISSING:${input.label}`)
 	const searchTerms = commerceTerms(searchResult.priceQuote)
@@ -435,7 +699,15 @@ async function certifyFlow(input: {
 		request: new Request("http://localhost:4321/api/inventory/hold", {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ variantId: input.variantId, ratePlanId: input.ratePlanId, dateRange: { from: input.checkIn, to: input.checkOut }, rooms: input.rooms, occupancyDetail: { adults: 2, children: 0, infants: 0 }, sessionId: `marketplace-certification-${input.label}-${crypto.randomUUID()}`, quoteId: searchTerms.quoteId }),
+			body: JSON.stringify({
+				variantId: input.variantId,
+				ratePlanId: input.ratePlanId,
+				dateRange: { from: input.checkIn, to: input.checkOut },
+				rooms: input.rooms,
+				occupancyDetail: { adults: 2, children: 0, infants: 0 },
+				sessionId: `marketplace-certification-${input.label}-${crypto.randomUUID()}`,
+				quoteId: searchTerms.quoteId,
+			}),
 		}),
 	} as any)
 	const holdPayload = await readJson(holdResponse)
@@ -454,7 +726,9 @@ async function certifyFlow(input: {
 	} as any)
 	const checkoutPayload = await readJson(checkoutResponse)
 	if (checkoutResponse.status !== 200 || !checkoutPayload?.bookingId) {
-		throw new Error(`CERTIFICATION_CHECKOUT_FAILED:${input.label}:${JSON.stringify(checkoutPayload)}`)
+		throw new Error(
+			`CERTIFICATION_CHECKOUT_FAILED:${input.label}:${JSON.stringify(checkoutPayload)}`
+		)
 	}
 	if (checkoutPayload.priceQuoteId !== searchTerms.quoteId) {
 		throw new Error(`CERTIFICATION_QUOTE_MISMATCH:${input.label}:checkout:quoteId`)
@@ -465,7 +739,8 @@ async function certifyFlow(input: {
 		.from(BookingRoomDetail)
 		.where(eq(BookingRoomDetail.bookingId, checkoutPayload.bookingId))
 		.then(first)
-	const bookingQuote = (booking?.pricingBreakdownJson as { priceQuote?: PriceQuote } | null)?.priceQuote
+	const bookingQuote = (booking?.pricingBreakdownJson as { priceQuote?: PriceQuote } | null)
+		?.priceQuote
 	if (!bookingQuote) throw new Error(`CERTIFICATION_BOOKING_QUOTE_MISSING:${input.label}`)
 	const bookingTerms = commerceTerms(bookingQuote)
 	assertSameTerms(searchTerms, bookingTerms, `${input.label}:booking`)
@@ -476,7 +751,24 @@ async function certifyFlow(input: {
 	} as any)
 	const receipt = await readJson(receiptResponse)
 	if (receiptResponse.status !== 200) throw new Error(`CERTIFICATION_RECEIPT_FAILED:${input.label}`)
-	const receiptTerms: CommerceTerms = { quoteId: receipt.priceQuoteId, currency: receipt.currency, baseAmount: Number(receipt.baseAmount), taxAmount: Number([...receipt.included, ...receipt.added].filter((line: { kind: string }) => line.kind === "tax").reduce((sum: number, line: { amount: number }) => sum + Number(line.amount), 0).toFixed(2)), feeAmount: Number([...receipt.included, ...receipt.added].filter((line: { kind: string }) => line.kind === "fee").reduce((sum: number, line: { amount: number }) => sum + Number(line.amount), 0).toFixed(2)), totalAmount: Number(receipt.totalAmount) }
+	const receiptTerms: CommerceTerms = {
+		quoteId: receipt.priceQuoteId,
+		currency: receipt.currency,
+		baseAmount: Number(receipt.baseAmount),
+		taxAmount: Number(
+			[...receipt.included, ...receipt.added]
+				.filter((line: { kind: string }) => line.kind === "tax")
+				.reduce((sum: number, line: { amount: number }) => sum + Number(line.amount), 0)
+				.toFixed(2)
+		),
+		feeAmount: Number(
+			[...receipt.included, ...receipt.added]
+				.filter((line: { kind: string }) => line.kind === "fee")
+				.reduce((sum: number, line: { amount: number }) => sum + Number(line.amount), 0)
+				.toFixed(2)
+		),
+		totalAmount: Number(receipt.totalAmount),
+	}
 	assertSameTerms(searchTerms, receiptTerms, `${input.label}:receipt`)
 
 	return {
@@ -491,21 +783,27 @@ async function certifyFlow(input: {
 }
 
 async function run() {
-	if (getFasttDataEnvironment() === "test") {
-		throw new Error("MARKETPLACE_CERTIFICATION_REFUSES_TEST_ENV")
-	}
-	if (getFasttDataEnvironment() !== "development") {
-		throw new Error("MARKETPLACE_CERTIFICATION_REQUIRES_DEVELOPMENT_ENV")
-	}
-	if (APPLY && !CONFIRMED) {
-		throw new Error("MARKETPLACE_CERTIFICATION_CONFIRMATION_REQUIRED")
-	}
+	prepareMarketplaceCertificationEnvironment({ apply: APPLY, confirmed: CONFIRMED })
 	const hotelCheckIn = addDays(21)
 	const hotelCheckOut = addDays(24)
 	const tourCheckIn = addDays(28)
 	const tourCheckOut = nextDate(tourCheckIn)
 	if (!APPLY) {
-		console.log(JSON.stringify({ action: "marketplace_commercial_certification", mode: "dry_run", suiteVersion: SUITE_VERSION, hotelCheckIn, hotelCheckOut, tourCheckIn, tourCheckOut }, null, 2))
+		console.log(
+			JSON.stringify(
+				{
+					action: "marketplace_commercial_certification",
+					mode: "dry_run",
+					suiteVersion: SUITE_VERSION,
+					hotelCheckIn,
+					hotelCheckOut,
+					tourCheckIn,
+					tourCheckOut,
+				},
+				null,
+				2
+			)
+		)
 		return
 	}
 
@@ -544,18 +842,62 @@ async function run() {
 	})
 	const restoreEnvironment = localQaEnvironment()
 	try {
-		const hotel = await certifyFlow({ label: "hotel", productId: HOTEL_PRODUCT_ID, variantId: HOTEL_VARIANT_ID, ratePlanId: HOTEL_RATE_PLAN_ID, checkIn: hotelCheckIn, checkOut: hotelCheckOut, rooms: 1 })
+		const hotel = await certifyFlow({
+			label: "hotel",
+			productId: HOTEL_PRODUCT_ID,
+			variantId: HOTEL_VARIANT_ID,
+			ratePlanId: HOTEL_RATE_PLAN_ID,
+			checkIn: hotelCheckIn,
+			checkOut: hotelCheckOut,
+			rooms: 1,
+		})
 		await db
 			.update(MarketplaceCommercialCertificationRun)
 			.set({ evidenceJson: { stage: "hotel_passed", hotel }, updatedAt: new Date() })
 			.where(eq(MarketplaceCommercialCertificationRun.id, runId))
-		const tour = await certifyFlow({ label: "tour", productId: TOUR_PRODUCT_ID, variantId: TOUR_VARIANT_ID, ratePlanId: TOUR_RATE_PLAN_ID, checkIn: tourCheckIn, checkOut: tourCheckOut, rooms: 2 })
+		const tour = await certifyFlow({
+			label: "tour",
+			productId: TOUR_PRODUCT_ID,
+			variantId: TOUR_VARIANT_ID,
+			ratePlanId: TOUR_RATE_PLAN_ID,
+			checkIn: tourCheckIn,
+			checkOut: tourCheckOut,
+			rooms: 2,
+		})
 		const evidence = { suiteVersion: SUITE_VERSION, providerId: PROVIDER_ID, hotel, tour }
-		await db.update(MarketplaceCommercialCertificationRun).set({ status: "passed", evidenceJson: evidence, completedAt: new Date(), updatedAt: new Date() }).where(eq(MarketplaceCommercialCertificationRun.id, runId))
-		console.log(JSON.stringify({ action: "marketplace_commercial_certification", mode: "applied", status: "passed", runId, evidence }, null, 2))
+		await db
+			.update(MarketplaceCommercialCertificationRun)
+			.set({
+				status: "passed",
+				evidenceJson: evidence,
+				completedAt: new Date(),
+				updatedAt: new Date(),
+			})
+			.where(eq(MarketplaceCommercialCertificationRun.id, runId))
+		console.log(
+			JSON.stringify(
+				{
+					action: "marketplace_commercial_certification",
+					mode: "applied",
+					status: "passed",
+					runId,
+					evidence,
+				},
+				null,
+				2
+			)
+		)
 	} catch (error) {
 		const failure = { message: error instanceof Error ? error.message : String(error) }
-		await db.update(MarketplaceCommercialCertificationRun).set({ status: "failed", failureJson: failure, completedAt: new Date(), updatedAt: new Date() }).where(eq(MarketplaceCommercialCertificationRun.id, runId))
+		await db
+			.update(MarketplaceCommercialCertificationRun)
+			.set({
+				status: "failed",
+				failureJson: failure,
+				completedAt: new Date(),
+				updatedAt: new Date(),
+			})
+			.where(eq(MarketplaceCommercialCertificationRun.id, runId))
 		throw error
 	} finally {
 		restoreEnvironment()

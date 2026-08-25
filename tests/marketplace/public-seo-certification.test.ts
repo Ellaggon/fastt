@@ -21,12 +21,14 @@ describe("public SEO and browser certification contract", () => {
 		)
 	})
 
-	it("requires an external public target when the HTML budget is mandatory", () => {
+	it("certifies a deterministic local preview when the HTML budget is mandatory", () => {
 		const budget = read("scripts/perf/html-budget.mjs")
 		expect(budget).toContain('FASTT_HTML_BUDGET_REQUIRED === "1"')
 		const workflow = read(".github/workflows/architecture-guardrails.yml")
 		expect(workflow).toContain("public-certification:")
-		expect(workflow).toContain("FASTT_PUBLIC_CERTIFICATION_URL")
+		expect(workflow).toContain("Prepare isolated public catalog")
+		expect(workflow).toContain("PLAYWRIGHT_PUBLIC_ROUTES")
+		expect(workflow).toContain("/destinos/la-paz/tours")
 		expect(workflow).toContain("test:marketplace:public-browser")
 		expect(workflow).toContain("http://127.0.0.1:4178")
 	})

@@ -59,6 +59,7 @@ export type TaxFeeSource = {
 	scope: TaxFeeScope
 	scopeId: string | null
 	definitionId: string
+	definitionVersionId?: string | null
 }
 
 export type ResolvedTaxFeeDefinition = {

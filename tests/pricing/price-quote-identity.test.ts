@@ -50,24 +50,56 @@ const days = [
 	{ date: "2026-09-17", price: 120 },
 ]
 
+function buildSearchQuote(overrides?: {
+	days?: typeof days
+	taxName?: string
+	taxValue?: number
+	definitionVersionId?: string | null
+}) {
+	return buildPriceQuote({
+		source: "search",
+		context,
+		currency: "USD",
+		nights: 3,
+		baseAmount: 360,
+		taxesAndFees: {
+			...taxesAndFees,
+			taxes: {
+				included: [],
+				excluded: taxesAndFees.taxes.excluded.map((line) => ({
+					...line,
+					name: overrides?.taxName ?? line.name,
+					value: overrides?.taxValue ?? line.value,
+					source: {
+						...line.source,
+						definitionVersionId: overrides?.definitionVersionId ?? "tax_version_1",
+					},
+				})),
+			},
+		},
+		pricing: { days: overrides?.days ?? days, source: "materialized_search_view" },
+	})
+}
+
 describe("PriceQuote identity", () => {
 	it("keeps the same id from search and hold when guest terms match", () => {
-		const search = buildPriceQuote({
-			source: "search",
-			context,
-			currency: "USD",
-			nights: 3,
-			baseAmount: 360,
-			taxesAndFees,
-			pricing: { days, source: "materialized_search_view" },
-		})
+		const search = buildSearchQuote()
 		const hold = buildPriceQuote({
 			source: "hold",
 			context,
 			currency: "USD",
 			nights: 3,
 			baseAmount: 360,
-			taxesAndFees,
+			taxesAndFees: {
+				...taxesAndFees,
+				taxes: {
+					included: [],
+					excluded: taxesAndFees.taxes.excluded.map((line) => ({
+						...line,
+						source: { ...line.source, definitionVersionId: "tax_version_1" },
+					})),
+				},
+			},
 			pricing: {
 				days,
 				breakdownV2: { base: 360, occupancyAdjustment: 0, rules: 0, final: 360 },
@@ -77,5 +109,25 @@ describe("PriceQuote identity", () => {
 
 		expect(search.quoteId).toBe(hold.quoteId)
 		expect(search.totalAmount).toBe(hold.totalAmount)
+	})
+
+	it("normalizes day ordering without weakening the commercial fingerprint", () => {
+		expect(buildSearchQuote().quoteId).toBe(
+			buildSearchQuote({ days: [...days].reverse() }).quoteId
+		)
+		expect(buildSearchQuote().quoteId).not.toBe(
+			buildSearchQuote({
+				days: days.map((day, index) => (index === 0 ? { ...day, price: 121 } : day)),
+			}).quoteId
+		)
+	})
+
+	it("changes identity when a displayed tax term or immutable version changes", () => {
+		const quote = buildSearchQuote()
+		expect(quote.quoteId).not.toBe(buildSearchQuote({ taxName: "IVA actualizado" }).quoteId)
+		expect(quote.quoteId).not.toBe(buildSearchQuote({ taxValue: 11 }).quoteId)
+		expect(quote.quoteId).not.toBe(
+			buildSearchQuote({ definitionVersionId: "tax_version_2" }).quoteId
+		)
 	})
 })

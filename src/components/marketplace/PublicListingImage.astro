@@ -6,15 +6,21 @@ interface Props {
 	alt: string
 	class?: string
 	priority?: boolean
+	fill?: boolean
 }
 
-const { src, alt, class: className = "", priority = false } = Astro.props as Props
+const { src, alt, class: className = "", priority = false, fill = false } = Astro.props as Props
 ---
 
 <span
-	class={`relative block overflow-hidden bg-slate-100 ${className}`}
+	class:list={[
+		"block overflow-hidden bg-slate-100",
+		fill ? "absolute inset-0" : "relative",
+		className,
+	]}
 	data-public-image
 	data-state={src ? "source" : "fallback"}
+	data-fill={fill ? "true" : undefined}
 >
 	{
 		src ? (
