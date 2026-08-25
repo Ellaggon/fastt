@@ -96,8 +96,9 @@ describe("P0 hero CTA aligned to permission", () => {
 		expect(next).not.toContain("data-next-step-cta-relocated")
 
 		const page = read("src/pages/provider/settings/verification.astro")
-		expect(page).toContain("data-cta-kind")
-		expect(page).toContain('data-next-step-cta')
+		expect(page).not.toContain("data-cta-kind")
+		expect(page).not.toContain("data-next-step-cta")
+		expect(page).not.toContain('slot="actions"')
 
 		expect(access).toContain('id="documents-access-status"')
 	})

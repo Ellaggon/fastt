@@ -1,7 +1,6 @@
 ---
 import ProviderPaymentAccountsCard from "@/components/provider/ProviderPaymentAccountsCard.astro"
 import ProviderTrustMapRail from "@/components/provider/ProviderTrustMapRail.astro"
-import Button from "@/components/ui/Button.astro"
 import Notice from "@/components/ui/Notice.astro"
 import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
 import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
@@ -121,12 +120,6 @@ const errorMessages: Record<string, { title: string; body: string; variant: "war
 	progressTotal={trustLinks.length ? trustLinks.length : null}
 	progressPercent={trustLinks.length ? wizardProgressPercent : null}
 >
-	<div slot="actions" class="flex flex-wrap items-center gap-3">
-		<Button href={routes.providerSettingsVerification()} variant="secondary" size="sm">
-			Volver a verificación
-		</Button>
-	</div>
-
 	<div
 		class="space-y-4"
 		data-verification-payments-page
@@ -165,11 +158,6 @@ const errorMessages: Record<string, { title: string; body: string; variant: "war
 		<div data-verification-trust-nav>
 			<ProviderTrustMapRail links={trustLinks} activeId="payments" />
 		</div>
-
-		<Notice variant="info" title="Pagos">
-			Agrega una cuenta bancaria y completa la verificación de titularidad. Este es el requisito que
-			habilita liquidaciones cuando Identidad, Negocio y Fiscal también estén listos.
-		</Notice>
 
 		<ProviderPaymentAccountsCard
 			accounts={accounts}

@@ -51,6 +51,12 @@ test("workspace subnavigation uses the Calendar/iCal standard from one component
 	expect(calendar).toContain("Link2")
 	expect(calendar).toContain('class="fastt-tabs-inside-panel__item"')
 
+	const settings = read("src/components/provider/ProviderSettingsSubnav.astro")
+	expect(settings).toContain("LayoutDashboard")
+	expect(settings).toContain("UserRound")
+	expect(settings).toContain("Users")
+	expect(settings).toContain("fastt-tabs-inside-panel__label")
+
 	const financial = read("src/components/financial/FinancialSubnav.astro")
 	expect(financial).toContain("max-w-full flex-nowrap")
 	expect(financial).toContain("WalletCards")

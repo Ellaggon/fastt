@@ -4,6 +4,7 @@ const badgeClasses = {
 	success: "border-emerald-200 bg-emerald-50 text-emerald-800",
 	warning: "border-amber-200 bg-amber-50 text-amber-900",
 	error: "border-red-200 bg-red-50 text-red-800",
+	info: "border-sky-200 bg-sky-50 text-sky-800",
 }
 const darkBadgeClasses = {
 	neutral: "border-white/15 bg-white/10 text-slate-200",
@@ -91,11 +92,70 @@ function areaStatus(item, risks) {
 		item.id === "verification" ||
 		/pendiente de validación|en revisión|enviado/i.test(String(risk?.label || ""))
 	) {
-		return { label: "En revisión", variant: "warning" }
+		return { label: "En revisión", variant: "info" }
 	}
 	if (risk?.severity === "high") return { label: "Acción necesaria", variant: "error" }
 	return { label: "Pendiente", variant: "warning" }
 }
+
+function readinessRowClass(status, complete = false) {
+	const base = "fastt-row-card group flex flex-wrap items-center gap-3 p-4 transition"
+	if (complete) return base
+	if (status.variant === "error") return `${base} fastt-row-card-danger`
+	if (status.variant === "warning") return `${base} fastt-row-card-alert`
+	return `${base} fastt-row-card-info`
+}
+
+function lucideIcon(paths) {
+	return `<svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`
+}
+
+const areaIcons = {
+	identity: lucideIcon(
+		'<path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/>'
+	),
+	operations: lucideIcon(
+		'<path d="M3 11h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-5Zm0 0a9 9 0 0 1 18 0m0 0v5a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3Z"/><path d="M21 16v2a4 4 0 0 1-4 4h-5"/>'
+	),
+	verification: lucideIcon(
+		'<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>'
+	),
+	documents: lucideIcon(
+		'<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>'
+	),
+	fiscality: lucideIcon(
+		'<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M14 8H8"/><path d="M16 12H8"/><path d="M13 16H8"/>'
+	),
+	payments: lucideIcon(
+		'<circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/>'
+	),
+	integrations: lucideIcon(
+		'<path d="M6.3 20.3a2.4 2.4 0 0 0 3.4 0L12 18l-6-6-2.3 2.3a2.4 2.4 0 0 0 0 3.4Z"/><path d="m2 22 3-3"/><path d="M7.5 13.5 10 11"/><path d="M10.5 16.5 13 14"/><path d="m18 3-4 4h6l-4 4"/>'
+	),
+	team: lucideIcon(
+		'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'
+	),
+}
+
+function readinessAreaIcon(id) {
+	return areaIcons[id] || areaIcons.verification
+}
+
+function readinessIconWellClass(status, complete = false) {
+	if (complete || status.variant === "success") {
+		return "flex size-9 shrink-0 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700"
+	}
+	if (status.variant === "error") {
+		return "flex size-9 shrink-0 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-700"
+	}
+	if (status.variant === "warning") {
+		return "flex size-9 shrink-0 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-800"
+	}
+	return "flex size-9 shrink-0 items-center justify-center rounded-lg border border-sky-200 bg-sky-50 text-sky-700"
+}
+
+const rowChevron = `<svg class="size-4 shrink-0 text-slate-400 transition group-hover:text-[var(--fastt-color-selection)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>`
+const completeAreasIcon = lucideIcon('<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>')
 
 function renderReadinessRow(item, risks, options = {}) {
 	const status = areaStatus(item, risks)
@@ -104,13 +164,15 @@ function renderReadinessRow(item, risks, options = {}) {
 	const href = complete ? item.href : primaryRiskForArea(item, risks)?.href || item.href
 	const copy = complete ? "Sin bloqueos directos" : impactLabel(item)
 	return `
-		<a href="${escapeHtml(href || "#")}" class="${complete ? "flex flex-wrap items-center justify-between" : "grid sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center border-l-2 border-l-transparent hover:border-l-amber-300"} gap-3 border-b border-neutral-800 px-4 py-4 transition last:border-b-0 hover:bg-neutral-900 sm:px-5" data-settings-checklist-row>
-			<div class="min-w-0">
-				<p class="text-sm font-semibold text-white">${escapeHtml(label)}</p>
-				<p class="mt-1 text-sm text-neutral-400">${escapeHtml(copy)}</p>
+		<a href="${escapeHtml(href || "#")}" class="${readinessRowClass(status, complete)}" data-settings-checklist-row>
+			<span class="${readinessIconWellClass(status, complete)}" data-settings-row-icon="${escapeHtml(item.id || "")}">${readinessAreaIcon(item.id)}</span>
+			<div class="min-w-0 flex-1">
+				<p class="text-sm font-semibold text-slate-950">${escapeHtml(label)}</p>
+				<p class="mt-1 text-sm leading-5 text-slate-500">${escapeHtml(copy)}</p>
 			</div>
 			<div class="flex flex-wrap items-center gap-2 sm:justify-end">
 				<span class="${badgeBase} ${badgeClasses[status.variant] || badgeClasses.neutral}" data-settings-row-status>${escapeHtml(status.label)}</span>
+				${rowChevron}
 			</div>
 		</a>`
 }
@@ -119,23 +181,34 @@ function renderReadiness(items, risks = []) {
 	const container = document.querySelector("[data-settings-readiness]")
 	if (!container) return
 	if (!items.length) {
-		container.innerHTML = `<div class="px-5 py-4 text-sm text-neutral-400">Aún no hay estado de tu cuenta disponible.</div>`
+		container.innerHTML = `<div class="px-5 py-6 text-sm text-slate-500">Aún no hay estado de tu cuenta disponible.</div>`
 		return
 	}
 	const incomplete = items.filter((item) => !item.complete)
 	const complete = items.filter((item) => item.complete)
 	const completeHtml = complete.length
 		? `
-			<details class="group" ${incomplete.length ? "" : "open"} data-settings-complete-areas>
-				<summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-4 text-sm font-semibold text-neutral-300 transition hover:bg-neutral-900 sm:px-5">
-					<span>Áreas completadas (${complete.length})</span>
-					<span class="text-xs font-medium text-neutral-500 group-open:hidden">Mostrar</span>
-					<span class="hidden text-xs font-medium text-neutral-500 group-open:inline">Ocultar</span>
+			<details class="fastt-soft-box group border border-slate-200 bg-white" ${incomplete.length ? "" : "open"} data-settings-complete-areas>
+				<summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-sky-50">
+					<span class="inline-flex items-center gap-2"><span class="text-emerald-600">${completeAreasIcon}</span><span>Áreas completadas (${complete.length})</span></span>
+					<span class="text-xs font-medium text-slate-500 group-open:hidden">Mostrar</span>
+					<span class="hidden text-xs font-medium text-slate-500 group-open:inline">Ocultar</span>
 				</summary>
-				<div class="border-t border-neutral-800">${complete.map((item) => renderReadinessRow(item, risks, { complete: true })).join("")}</div>
+				<div class="space-y-3 border-t border-slate-100 p-3">${complete.map((item) => renderReadinessRow(item, risks, { complete: true })).join("")}</div>
 			</details>`
 		: ""
-	container.innerHTML = `${incomplete.map((item) => renderReadinessRow(item, risks)).join("")}${completeHtml}`
+	container.innerHTML = `
+		<header class="border-b border-sky-100 bg-sky-50/80 px-5 py-4">
+			<div class="flex flex-wrap items-center justify-between gap-3">
+				<h2 class="text-lg font-semibold text-slate-950">Pendientes</h2>
+				<span class="${badgeBase} ${incomplete.length ? badgeClasses.info : badgeClasses.success}">${incomplete.length ? incomplete.length : "Listo"}</span>
+			</div>
+			<p class="mt-1 max-w-2xl text-sm leading-6 text-slate-600">Un requisito a la vez. El detalle de cada revisión permanece en su propia sección.</p>
+		</header>
+		<div class="space-y-3 bg-slate-50/90 p-4 sm:p-5">
+			${incomplete.map((item) => renderReadinessRow(item, risks)).join("")}
+			${completeHtml}
+		</div>`
 }
 
 function hydrateSummary(summary) {
@@ -147,7 +220,7 @@ function hydrateSummary(summary) {
 	setText("[data-settings-provider-name]", summary.provider?.displayName || "Proveedor")
 	setText(
 		"[data-settings-progress-label]",
-		`${Number(progress.completed || 0)} de ${Number(progress.total || 0)} requisitos completados`
+		`${Number(progress.completed || 0)} de ${Number(progress.total || 0)}`
 	)
 	setText("[data-settings-activation-title]", activationTitle(capabilities))
 	const progressBar = document.querySelector("[data-settings-progress-bar]")
@@ -158,7 +231,7 @@ function hydrateSummary(summary) {
 	setBadge(
 		document.querySelector("[data-settings-base-badge]"),
 		blockers.length ? "warning" : "success",
-		blockers.length ? "Con bloqueos" : "Base lista"
+		blockers.length ? "En curso" : "Lista"
 	)
 
 	const nextStepLabel =
@@ -174,7 +247,16 @@ function hydrateSummary(summary) {
 	const cta = document.querySelector("[data-settings-primary-cta]")
 	if (cta && summary.actions?.primaryCtaAction) {
 		cta.setAttribute("href", summary.actions.primaryCtaAction)
-		cta.textContent = summary.actions.primaryCtaLabel || "Continuar configuración"
+		const ctaLabel = document.querySelector("[data-settings-primary-cta-label]")
+		if (ctaLabel) {
+			ctaLabel.textContent = summary.actions.primaryCtaLabel || "Continuar configuración"
+		} else {
+			cta.textContent = summary.actions.primaryCtaLabel || "Continuar configuración"
+		}
+	}
+	const nextStepIcon = document.querySelector("[data-settings-next-step-icon]")
+	if (nextStepIcon) {
+		nextStepIcon.innerHTML = blockers[0]?.id ? readinessAreaIcon(blockers[0].id) : completeAreasIcon
 	}
 	const nextStep = document.querySelector("[data-settings-next-step]")
 	const primaryBlockerId = blockers[0]?.id || ""

@@ -330,6 +330,18 @@ body {
 		linear-gradient(90deg, rgb(254 243 199 / 62%), transparent 18%), rgb(255 255 255 / 92%);
 }
 
+.fastt-row-card-info {
+	border-color: rgb(37 99 235 / 28%);
+	background:
+		linear-gradient(90deg, var(--fastt-color-selection-soft), transparent 18%), rgb(255 255 255 / 92%);
+}
+
+.fastt-row-card-danger {
+	border-color: rgb(248 113 113 / 40%);
+	background:
+		linear-gradient(90deg, rgb(254 226 226 / 70%), transparent 18%), rgb(255 255 255 / 92%);
+}
+
 .fastt-tabs {
 	border-radius: var(--fastt-radius-pill);
 }

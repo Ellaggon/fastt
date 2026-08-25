@@ -32,7 +32,7 @@ const domainCopy: Record<ProviderReviewWaitDomain, { body: string }> = {
 		body: "Te avisamos aquí cuando termine la revisión.",
 	},
 	payment: {
-		body: "Tu cuenta de payout fue enviada. Fastt está esperando/revisando los depósitos de prueba antes de habilitar liquidaciones.",
+		body: "Te avisamos aquí cuando los depósitos de prueba estén listos para confirmar.",
 	},
 }
 

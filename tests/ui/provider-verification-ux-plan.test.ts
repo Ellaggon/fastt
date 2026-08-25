@@ -51,10 +51,11 @@ describe("UX plan — guided verification (V1–V4)", () => {
 		expect(page).toContain("progressStep=")
 		expect(page).toContain("progressTotal={showWizardProgress ? trustLinks.length : null}")
 		expect(page).toContain("showSettingsTabs={false}")
-		expect(page).toContain('form="kyc-inline-upload-form"')
+		expect(page).not.toContain('href={nextStep.ctaHref}')
+		expect(page).not.toContain("Continuar a Negocio")
+		expect(page).not.toContain('slot="actions"')
 		expect(page).toContain("data-verification-docs-fold")
 		expect(page).toContain("copyOnly")
-		expect(page).toContain("data-kyc-submit")
 	})
 
 	it("V1 collapses matrix and optionals; no ops jerga residual", () => {

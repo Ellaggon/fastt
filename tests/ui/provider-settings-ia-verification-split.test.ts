@@ -75,18 +75,24 @@ describe("Settings IA: Verificación outside settings tabs", () => {
 		expect(nav).not.toContain('label: "Impuestos y cargos"')
 	})
 
-	it("wires return-to-verification CTAs on profile and fiscal; legacy payments redirects", () => {
+	it("wires return-to-verification CTAs off the trust rail; legacy payments redirects", () => {
 		const glossary = read("src/lib/provider-trust-map.ts")
 		const profile = read("src/pages/provider/settings/profile.astro")
 		const fiscal = read("src/pages/provider/settings/tax-fees/identity.astro")
 		const verificationFiscal = read("src/pages/provider/settings/verification/fiscal.astro")
+		const verificationPayments = read("src/pages/provider/settings/verification/payments.astro")
+		const documents = read("src/pages/provider/settings/verification/documents.astro")
 		const payments = read("src/pages/provider/settings/payments.astro")
 
 		expect(glossary).toContain("returnToVerification")
 		expect(glossary).toContain("Volver a Verificación")
 		expect(profile).toContain("TRUST_GLOSSARY.returnToVerification")
+		expect(documents).toContain("Volver a verificación")
 		expect(fiscal).toContain("Astro.redirect(routes.providerSettingsVerificationFiscal())")
-		expect(verificationFiscal).toContain("TRUST_GLOSSARY.returnToVerification")
+		expect(verificationFiscal).not.toContain("TRUST_GLOSSARY.returnToVerification")
+		expect(verificationFiscal).not.toContain('slot="actions"')
+		expect(verificationPayments).not.toContain('slot="actions"')
+		expect(verificationPayments).not.toContain("Volver a verificación")
 		expect(payments).toContain('Astro.redirect("/provider/settings/verification/payments")')
 		expect(payments).not.toContain("ProviderPaymentAccountsCard")
 	})
