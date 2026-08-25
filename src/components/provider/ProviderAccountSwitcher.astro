@@ -1,0 +1,38 @@
+---
+import ContextSwitcher from "@/components/ui/ContextSwitcher.astro"
+import { TRUST_GLOSSARY } from "@/lib/provider-trust-map"
+import { routes } from "@/lib/routes"
+
+interface Props {
+	variant?: "surface" | "topbar"
+}
+
+const { variant = "topbar" } = Astro.props
+const pathname = Astro.url.pathname.replace(/\/$/, "") || "/"
+const options = [
+	{ id: "summary", label: "Resumen", href: routes.providerSettings() },
+	{ id: "verification", label: TRUST_GLOSSARY.page.heading, href: routes.verification() },
+	{ id: "profile", label: "Perfil", href: routes.providerSettingsProfile() },
+	{ id: "team", label: "Equipo", href: routes.providerSettingsTeam() },
+]
+const selectedId = pathname.startsWith("/provider/settings/verification")
+	? "verification"
+	: pathname.startsWith("/provider/settings/profile")
+		? "profile"
+		: pathname.startsWith("/provider/settings/team")
+			? "team"
+			: "summary"
+const selected = options.find((option) => option.id === selectedId) ?? options[0]
+---
+
+<ContextSwitcher
+	label={TRUST_GLOSSARY.page.eyebrow}
+	value={selected.label}
+	options={options}
+	selectedId={selected.id}
+	icon="service"
+	menuLabel="Cambiar superficie de cuenta"
+	emptyMessage="No hay otras superficies de cuenta."
+	ariaLabel="Cambiar superficie de cuenta"
+	variant={variant}
+/>

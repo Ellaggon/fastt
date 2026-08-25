@@ -428,57 +428,69 @@ const successMessage =
 	continueDisabled={isGuidedRules && !selectedReady}
 	continueDisabledTitle={guidedContinueDisabledTitle}
 >
-	<div class="space-y-5">
-		<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
-			<div class="space-y-1.5">
-				{
-					selectedProduct ? (
-						<ProductContextSwitcher
-							providerId={auth.providerId}
-							productId={selectedProduct.id}
-							productType={selectedProduct.productType}
-							currentName={selectedProduct.name}
-							target="house-rules"
-						/>
-					) : null
-				}
-				<h1 class="text-3xl font-semibold text-slate-100">Reglas para huéspedes</h1>
-				<p class="max-w-2xl text-sm leading-6 text-slate-300">
+	<section class="space-y-6 md:space-y-8">
+		<header class="flex flex-col gap-2">
+			<div class="flex flex-wrap items-start justify-between gap-3">
+				<div class="min-w-0 space-y-2">
 					{
-						isLaunchWizard
-							? "Configura las reglas básicas que el huésped debe aceptar antes de reservar. Podrás revisar cómo se ven en el siguiente paso."
-							: isCompleteWizard
-								? "Completa las reglas pendientes para poder publicar este alojamiento."
-								: showProductIndex
-									? "Configura expectativas de estadía por alojamiento. Las habitaciones describen espacios; las tarifas definen condiciones comerciales."
-									: "Define comportamiento, llegada y salida para que el huésped sepa qué esperar antes de reservar."
+						playbook.active && selectedProduct ? (
+							<ProductContextSwitcher
+								providerId={auth.providerId}
+								productId={selectedProduct.id}
+								productType={selectedProduct.productType}
+								currentName={selectedProduct.name}
+								target="house-rules"
+							/>
+						) : null
 					}
-				</p>
+					<h1 class="text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl">
+						Reglas para huéspedes
+					</h1>
+				</div>
+				{
+					isGuidedRules ? null : (
+						<div class="flex flex-wrap items-center gap-2">
+							{showProductIndex ? null : safeReturnTo ? (
+								<Button href={safeReturnTo} variant="secondary" class="shrink-0">
+									Volver a condiciones
+								</Button>
+							) : hasProductContext && selectedProduct ? (
+								<Button
+									href={routes.productDetail(selectedProduct.id)}
+									variant="secondary"
+									class="shrink-0"
+								>
+									Volver a la ficha
+								</Button>
+							) : (
+								<Button href={routes.accommodations()} variant="secondary" class="shrink-0">
+									Alojamientos
+								</Button>
+							)}
+							{!showProductIndex && selectedProduct ? (
+								<Button
+									href={routes.productPreview(selectedProduct.id)}
+									variant="secondary"
+									class="shrink-0"
+								>
+									Vista previa
+								</Button>
+							) : null}
+						</div>
+					)
+				}
 			</div>
-			{
-				isGuidedRules ? null : (
-					<div class="flex flex-wrap items-center gap-2">
-						{showProductIndex ? null : safeReturnTo ? (
-							<Button href={safeReturnTo} variant="secondary">
-								Volver a condiciones
-							</Button>
-						) : hasProductContext && selectedProduct ? (
-							<Button href={routes.productDetail(selectedProduct.id)} variant="secondary">
-								Volver a la ficha
-							</Button>
-						) : (
-							<Button href={routes.accommodations()} variant="secondary">
-								Alojamientos
-							</Button>
-						)}
-						{!showProductIndex && selectedProduct ? (
-							<Button href={routes.productPreview(selectedProduct.id)} variant="secondary">
-								Vista previa
-							</Button>
-						) : null}
-					</div>
-				)
-			}
+			<p class="max-w-3xl text-sm leading-5 text-slate-300 sm:leading-6">
+				{
+					isLaunchWizard
+						? "Configura las reglas básicas que el huésped debe aceptar antes de reservar. Podrás revisar cómo se ven en el siguiente paso."
+						: isCompleteWizard
+							? "Completa las reglas pendientes para poder publicar este alojamiento."
+							: showProductIndex
+								? "Configura expectativas de estadía por alojamiento. Las habitaciones describen espacios; las tarifas definen condiciones comerciales."
+								: "Define comportamiento, llegada y salida para que el huésped sepa qué esperar antes de reservar."
+				}
+			</p>
 		</header>
 
 		{
@@ -1220,5 +1232,5 @@ const successMessage =
 				</div>
 			)
 		}
-	</div>
+	</section>
 </PlaybookLayout>

@@ -25,7 +25,6 @@ describe("Guardrail: Property Content operational semantics", () => {
 		const requiredSignals: Record<string, string[]> = {
 			"src/pages/product/index.astro": ["Astro.redirect", "routes.catalogAccommodations"],
 			"src/pages/dashboard/index.astro": [
-				"Inicio",
 				"Resumen Operativo",
 				"¿Administras otro servicio?",
 				"Agregar otro servicio",
@@ -252,7 +251,7 @@ describe("Guardrail: Property Content operational semantics", () => {
 		expect(productCreate).toContain("¿Qué quieres ofrecer?")
 		expect(productCreate).toContain("Tipo de servicio")
 		expect(roomsAggregate).toContain('product.type.toLowerCase() === "hotel"')
-		expect(roomsAggregate).toContain("Inicio")
+		expect(roomsAggregate).toContain("Resumen Operativo")
 		expect(roomsAggregate).toContain("buildAddRoomHref")
 		expect(roomsAggregate).toContain("¿Administras otro servicio?")
 		expect(roomsByProduct).toContain("isHotelProductType")

@@ -4,6 +4,34 @@ const root = new URL("../../", import.meta.url)
 const read = (path: string) => readFileSync(new URL(path, root), "utf8")
 test("fiscality uses a contextual header, segmented navigation and progressive filters", () => {
 	expect(read("src/components/dashboard/DashboardTopBar.astro")).toContain("FiscalScopeSwitcher")
+	expect(read("src/components/dashboard/DashboardTopBar.astro")).toContain("ProductContextSwitcher")
+	expect(read("src/pages/dashboard/index.astro")).toContain("flex flex-col gap-2")
+	expect(read("src/pages/dashboard/index.astro")).toContain(
+		"text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl"
+	)
+	expect(read("src/pages/dashboard/index.astro")).not.toContain("border-b border-slate-800 pb-5")
+	expect(read("src/pages/product/[id]/index.astro")).toContain("flex flex-col gap-2")
+	expect(read("src/pages/product/[id]/index.astro")).toContain(
+		"text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl"
+	)
+	expect(read("src/pages/product/[id]/index.astro")).not.toContain("ProductContextSwitcher")
+	expect(read("src/pages/product/[id]/index.astro")).not.toContain("border-b border-slate-800 pb-5")
+	expect(read("src/pages/provider/house-rules.astro")).toContain("flex flex-col gap-2")
+	expect(read("src/pages/provider/house-rules.astro")).toContain(
+		"text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl"
+	)
+	expect(read("src/pages/provider/house-rules.astro")).not.toContain("border-b border-slate-800 pb-5")
+	expect(read("src/layouts/ProviderSettingsLayout.astro")).toContain("flex flex-col gap-2")
+	expect(read("src/layouts/ProviderSettingsLayout.astro")).toContain(
+		"text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl"
+	)
+	expect(read("src/layouts/ProviderSettingsLayout.astro")).not.toContain("border-b border-slate-800")
+	expect(read("src/components/dashboard/DashboardTopBar.astro")).toContain("isHouseRulesWorkspace")
+	expect(read("src/components/dashboard/DashboardTopBar.astro")).toContain("ProviderAccountSwitcher")
+	expect(read("src/components/provider/ProviderAccountSwitcher.astro")).toContain("TRUST_GLOSSARY.page.eyebrow")
+	expect(read("src/components/provider/ProviderAccountSwitcher.astro")).toContain("TRUST_GLOSSARY.page.heading")
+	expect(read("src/lib/provider-trust-map.ts")).toContain('eyebrow: "Cuenta del proveedor"')
+	expect(read("src/lib/provider-trust-map.ts")).toContain('heading: "Verificación"')
 	expect(read("src/components/tax-fees/FiscalScopeSwitcher.astro")).toContain("Configuración comercial")
 	expect(read("src/components/tax-fees/FiscalScopeSwitcher.astro")).toContain("Toda la cuenta")
 	expect(read("src/components/tax-fees/FiscalScopeSwitcher.astro")).toContain("ContextSwitcher")

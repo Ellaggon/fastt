@@ -28,6 +28,7 @@ import {
 	type WorkspaceExperienceResolution,
 	WORKSPACE_CAPABILITY_THRESHOLDS,
 } from "@/lib/workspace/providerWorkspaceCapabilities"
+import { normalizeProductVertical, type ProductVertical } from "@/lib/productVerticalRegistry"
 
 export type ProviderSidebarReadiness = Partial<Record<string, string>>
 
@@ -65,6 +66,16 @@ const EMPTY_WORKSPACE_CAPABILITIES = resolveProviderWorkspaceCapabilities({
 })
 
 const ADVANCED_PROVIDER_ROLES = new Set(["admin", "revenue_ops", "operations_manager"])
+
+function canonicalProductTypes(rows: Array<{ productType: unknown }>): string[] {
+	return [
+		...new Set(
+			rows
+				.map((row) => normalizeProductVertical(row.productType))
+				.filter((productType): productType is ProductVertical => productType !== null)
+		),
+	]
+}
 
 function plural(value: number, singular: string, pluralLabel: string = `${singular}s`) {
 	return `${value} ${value === 1 ? singular : pluralLabel}`
@@ -337,6 +348,61 @@ export async function getProviderSidebarData(
 	)
 }
 
+/**
+ * Keeps the navigation useful when an optional readiness metric fails. Product
+ * scope is essential navigation context; pricing summaries are not.
+ */
+export async function getProviderSidebarFallbackData(
+	providerId: string,
+	context: ProviderAdvancedDisclosureContext = {}
+): Promise<ProviderSidebarData> {
+	const normalizedProviderId = String(providerId ?? "").trim()
+	if (!normalizedProviderId) {
+		return {
+			disclosureMode: "small-provider",
+			capabilities: EMPTY_WORKSPACE_CAPABILITIES,
+			experience: resolveWorkspaceExperience({
+				preference: context.workspaceExperience ?? "essential",
+				providerRole: context.providerRole,
+				capabilities: EMPTY_WORKSPACE_CAPABILITIES,
+			}),
+			summaries: {},
+			productTypes: [],
+			primaryAccommodationHref: null,
+			primaryAccommodationRoomsHref: null,
+			primaryAccommodationHouseRulesHref: null,
+			accommodationCount: 0,
+		}
+	}
+
+	const [productRows, primaryAccommodationLinks] = await Promise.all([
+		db
+			.select({ productType: Product.productType })
+			.from(Product)
+			.where(eq(Product.providerId, normalizedProviderId)),
+		getPrimaryAccommodationLinks(normalizedProviderId),
+	])
+	const productTypes = canonicalProductTypes(productRows)
+	const experience = resolveWorkspaceExperience({
+		preference: context.workspaceExperience ?? "essential",
+		providerRole: context.providerRole,
+		capabilities: EMPTY_WORKSPACE_CAPABILITIES,
+	})
+
+	return {
+		disclosureMode:
+		experience.effective === "professional" ? "professional-tools" : "small-provider",
+		capabilities: EMPTY_WORKSPACE_CAPABILITIES,
+		experience,
+		summaries: {},
+		productTypes,
+		primaryAccommodationHref: primaryAccommodationLinks.href,
+		primaryAccommodationRoomsHref: primaryAccommodationLinks.roomsHref,
+		primaryAccommodationHouseRulesHref: primaryAccommodationLinks.houseRulesHref,
+		accommodationCount: primaryAccommodationLinks.count,
+	}
+}
+
 async function loadProviderSidebarData(
 	normalizedProviderId: string,
 	context: ProviderAdvancedDisclosureContext
@@ -357,9 +423,7 @@ async function loadProviderSidebarData(
 		...variantIds,
 		...productRows.map((row) => String(row.productId)),
 	].filter(Boolean)
-	const productTypes = [
-		...new Set(productRows.map((row) => String(row.productType ?? "").trim()).filter(Boolean)),
-	]
+	const productTypes = canonicalProductTypes(productRows)
 	const [activePriceRules, activeRestrictions] = await Promise.all([
 		countActivePriceRules(ratePlanIds),
 		countActiveRestrictions(scopeIds),

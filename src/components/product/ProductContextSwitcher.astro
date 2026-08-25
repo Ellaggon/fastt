@@ -1,7 +1,7 @@
 ---
 import ContextSwitcher from "@/components/ui/ContextSwitcher.astro"
 import { routes } from "@/lib/routes"
-import { and, db, eq, Product, sql } from "@/shared/infrastructure/db/compat"
+import { and, db, eq, first, Product, sql } from "@/shared/infrastructure/db/compat"
 
 interface Props {
 	providerId: string
@@ -23,7 +23,23 @@ const {
 	selectable = true,
 } = Astro.props
 const productId = String(productIdProp ?? Astro.url.searchParams.get("productId") ?? "").trim()
-const type = String(productType).trim().toLowerCase()
+const currentRow =
+	providerId && productId
+		? await db
+				.select({ name: Product.name, productType: Product.productType })
+				.from(Product)
+				.where(and(eq(Product.providerId, providerId), eq(Product.id, productId)))
+				.then(first)
+		: null
+const type = String(
+	productType || currentRow?.productType || (target === "house-rules" ? "hotel" : "")
+)
+	.trim()
+	.toLowerCase()
+const resolvedName =
+	currentName && currentName !== "Servicio"
+		? currentName
+		: String(currentRow?.name || currentName || "Servicio")
 const isHotel = type === "hotel"
 const isTour = type === "tour"
 const label = isHotel ? "Alojamiento" : isTour ? "Tour" : "Servicio"
@@ -38,7 +54,7 @@ const hrefFor = (id: string) =>
 				: target === "financial"
 					? `${Astro.url.pathname}?${new URLSearchParams({ ...Object.fromEntries(Astro.url.searchParams), productId: id })}`
 					: routes.productDetail(id)
-const products =
+const productOptions =
 	selectable && providerId && type
 		? (
 				await db
@@ -55,8 +71,20 @@ const products =
 				}))
 				.sort((a, b) => a.label.localeCompare(b.label, "es"))
 		: []
-const current = products.find((item) => item.id === productId) ??
-	products[0] ?? { id: productId, label: currentName, href: hrefFor(productId) }
+const allHouseRulesOption =
+	target === "house-rules"
+		? {
+				id: "all",
+				label: "Todos los alojamientos",
+				href: routes.providerHouseRules(),
+			}
+		: null
+const products = allHouseRulesOption ? [allHouseRulesOption, ...productOptions] : productOptions
+const current =
+	target === "house-rules" && !productId && allHouseRulesOption
+		? allHouseRulesOption
+		: (products.find((item) => item.id === productId) ??
+			productOptions[0] ?? { id: productId, label: resolvedName, href: hrefFor(productId) })
 ---
 
 <ContextSwitcher

@@ -15,6 +15,10 @@ test("workspace subnavigation uses the Calendar/iCal standard from one component
 	expect(globalStyles).toContain(".fastt-tabs-inside-panel__item")
 	expect(globalStyles).toContain(".fastt-tabs-inside-panel__label")
 	expect(globalStyles).toContain(".fastt-tabs-inside-panel__meta")
+	expect(globalStyles).toContain(".fastt-tabs-inside-panel__status")
+	expect(globalStyles).toContain(".fastt-tabs-inside-panel__status-dot")
+	expect(globalStyles).toContain('data-trust-link-status-state="in_review"')
+	expect(globalStyles).toContain('data-trust-link-status-state="action_needed"')
 	expect(globalStyles).toContain("font-size: inherit")
 	expect(globalStyles).toContain("line-height: inherit")
 	expect(globalStyles).toContain('data-active="true"')
@@ -31,6 +35,7 @@ test("workspace subnavigation uses the Calendar/iCal standard from one component
 		"src/components/tax-fees/FiscalWorkspaceTabs.astro",
 		"src/components/provider/ProviderSettingsSubnav.astro",
 		"src/components/provider/integrations/ProviderIntegrationsSubnav.astro",
+		"src/components/provider/ProviderTrustMapRail.astro",
 	]) {
 		const source = read(path)
 		expect(source).toContain("TabsInsidePanel")
@@ -53,4 +58,13 @@ test("workspace subnavigation uses the Calendar/iCal standard from one component
 	expect(financial).toContain("HandCoins")
 	expect(financial).toContain("RotateCcw")
 	expect(financial).toContain("TriangleAlert")
+
+	const verification = read("src/components/provider/ProviderTrustMapRail.astro")
+	expect(verification).toContain("ShieldCheck")
+	expect(verification).toContain("Briefcase")
+	expect(verification).toContain("ReceiptText")
+	expect(verification).toContain("CircleDollarSign")
+	expect(verification).toContain("fastt-tabs-inside-panel__status")
+	expect(verification).toContain("statusBadgeByState")
+	expect(verification).toContain("link.stateLabel")
 })

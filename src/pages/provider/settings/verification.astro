@@ -389,7 +389,7 @@ const initialTrustPanel = requestedType ? "business" : "identity"
 			) : null
 		}
 
-		<div class="fastt-card border border-slate-200 bg-white p-3" data-verification-trust-nav>
+		<div data-verification-trust-nav>
 			<ProviderTrustMapRail
 				links={trustLinks}
 				activeId={initialTrustPanel === "business" ? "business" : "identity"}

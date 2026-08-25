@@ -60,9 +60,9 @@ export const TRUST_GLOSSARY = {
 	trustLink: {
 		ready: "Listo",
 		inReview: "En revisión",
-		actionNeeded: "Acción necesaria",
-		notStarted: "Por empezar",
-		blocked: "Bloqueado",
+		actionNeeded: "Completar",
+		notStarted: "Por hacer",
+		blocked: "En espera",
 	},
 	links: {
 		identity: {
@@ -83,7 +83,7 @@ export const TRUST_GLOSSARY = {
 		},
 	},
 	page: {
-		eyebrow: "Confianza del proveedor",
+		eyebrow: "Cuenta del proveedor",
 		heading: "Verificación",
 		description:
 			"Cuatro eslabones de confianza. Completa el próximo paso: la cuenta y los documentos son cosas distintas.",
