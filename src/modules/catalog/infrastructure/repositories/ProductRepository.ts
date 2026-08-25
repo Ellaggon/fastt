@@ -42,6 +42,7 @@ import {
 	ProviderExternalCalendar,
 	ProviderExternalCalendarEvent,
 	ProviderIntegrationMapping,
+	Provider,
 } from "@/shared/infrastructure/db/compat"
 import { DeleteObjectCommand } from "@aws-sdk/client-s3"
 import type { S3Client } from "@aws-sdk/client-s3"
@@ -63,7 +64,11 @@ export class ProductRepository implements ProductRepositoryPort {
 	) {}
 
 	private async assertCompatiblePrimaryGeoPlace(productType: string, geoPlaceId: string) {
-		const place = await db.select({ status: GeoPlace.status, placeType: GeoPlace.placeType }).from(GeoPlace).where(eq(GeoPlace.id, geoPlaceId)).then(first)
+		const place = await db
+			.select({ status: GeoPlace.status, placeType: GeoPlace.placeType })
+			.from(GeoPlace)
+			.where(eq(GeoPlace.id, geoPlaceId))
+			.then(first)
 		if (!place || place.status !== "active") throw new Error("GEO_PLACE_NOT_ACTIVE")
 		const error = geoPlaceCompatibilityError({ productType, placeType: place.placeType })
 		if (error) throw new Error(`GEO_PLACE_INCOMPATIBLE:${error}`)
@@ -115,10 +120,42 @@ export class ProductRepository implements ProductRepositoryPort {
 				dataClass: Product.dataClass,
 			})
 			.from(Product)
-			.innerJoin(ProductGeoPlace, and(eq(ProductGeoPlace.productId, Product.id), eq(ProductGeoPlace.role, "primary_discovery"), eq(ProductGeoPlace.isPrimary, true)))
+			.innerJoin(
+				ProductGeoPlace,
+				and(
+					eq(ProductGeoPlace.productId, Product.id),
+					eq(ProductGeoPlace.role, "primary_discovery"),
+					eq(ProductGeoPlace.isPrimary, true)
+				)
+			)
 			.where(eq(Product.id, productId))
 			.then(first)
 		return row ?? null
+	}
+
+	async getProductPublicationEligibility(productId: string) {
+		const row = await db
+			.select({
+				productId: Product.id,
+				productDataClass: Product.dataClass,
+				providerId: Provider.id,
+				providerAccountPurpose: Provider.accountPurpose,
+				providerDataClassification: Provider.dataClassification,
+			})
+			.from(Product)
+			.leftJoin(Provider, eq(Provider.id, Product.providerId))
+			.where(eq(Product.id, productId))
+			.then(first)
+
+		if (!row) return { eligible: false, reason: "missing_product" as const }
+		if (!row.providerId) return { eligible: false, reason: "missing_provider" as const }
+		if (row.productDataClass !== "production" || row.providerDataClassification !== "production") {
+			return { eligible: false, reason: "not_production" as const }
+		}
+		if (row.providerAccountPurpose !== "commercial") {
+			return { eligible: false, reason: "provider_not_commercial" as const }
+		}
+		return { eligible: true, reason: null }
 	}
 
 	async ensureProductOwnedByProvider(productId: string, providerId: string) {
@@ -133,7 +170,14 @@ export class ProductRepository implements ProductRepositoryPort {
 				dataClass: Product.dataClass,
 			})
 			.from(Product)
-			.innerJoin(ProductGeoPlace, and(eq(ProductGeoPlace.productId, Product.id), eq(ProductGeoPlace.role, "primary_discovery"), eq(ProductGeoPlace.isPrimary, true)))
+			.innerJoin(
+				ProductGeoPlace,
+				and(
+					eq(ProductGeoPlace.productId, Product.id),
+					eq(ProductGeoPlace.role, "primary_discovery"),
+					eq(ProductGeoPlace.isPrimary, true)
+				)
+			)
 			.where(and(eq(Product.id, productId), eq(Product.providerId, providerId)))
 			.then(first)
 		return row ?? null
@@ -219,24 +263,48 @@ export class ProductRepository implements ProductRepositoryPort {
 		actorId?: string | null
 		source: string
 	}): Promise<void> {
-		const product = await db.select({ productType: Product.productType }).from(Product).where(eq(Product.id, params.productId)).then(first)
+		const product = await db
+			.select({ productType: Product.productType })
+			.from(Product)
+			.where(eq(Product.id, params.productId))
+			.then(first)
 		if (!product) throw new Error("PRODUCT_NOT_FOUND")
 		await this.assertCompatiblePrimaryGeoPlace(product.productType, params.geoPlaceId)
 		await db.transaction(async (tx) => {
 			const current = await tx
 				.select({ id: ProductGeoPlace.id, placeId: ProductGeoPlace.placeId })
 				.from(ProductGeoPlace)
-				.where(and(eq(ProductGeoPlace.productId, params.productId), eq(ProductGeoPlace.role, "primary_discovery"), eq(ProductGeoPlace.isPrimary, true)))
+				.where(
+					and(
+						eq(ProductGeoPlace.productId, params.productId),
+						eq(ProductGeoPlace.role, "primary_discovery"),
+						eq(ProductGeoPlace.isPrimary, true)
+					)
+				)
 				.then(first)
 			if (current?.placeId === params.geoPlaceId) return
 			if (current) {
-				await tx.update(ProductGeoPlace).set({ placeId: params.geoPlaceId, updatedAt: new Date() }).where(eq(ProductGeoPlace.id, current.id))
+				await tx
+					.update(ProductGeoPlace)
+					.set({ placeId: params.geoPlaceId, updatedAt: new Date() })
+					.where(eq(ProductGeoPlace.id, current.id))
 			} else {
-				await tx.insert(ProductGeoPlace).values({ id: `geo:product-place:${params.productId}`, productId: params.productId, placeId: params.geoPlaceId, role: "primary_discovery", isPrimary: true, source: params.source })
+				await tx.insert(ProductGeoPlace).values({
+					id: `geo:product-place:${params.productId}`,
+					productId: params.productId,
+					placeId: params.geoPlaceId,
+					role: "primary_discovery",
+					isPrimary: true,
+					source: params.source,
+				})
 			}
 			await tx.insert(ProductGeoPlaceActivity).values({
-				id: crypto.randomUUID(), productId: params.productId, previousPlaceId: current?.placeId ?? null,
-				placeId: params.geoPlaceId, actorId: params.actorId ?? null, source: params.source,
+				id: crypto.randomUUID(),
+				productId: params.productId,
+				previousPlaceId: current?.placeId ?? null,
+				placeId: params.geoPlaceId,
+				actorId: params.actorId ?? null,
+				source: params.source,
 			})
 		})
 	}
@@ -280,7 +348,14 @@ export class ProductRepository implements ProductRepositoryPort {
 				geoPlaceId: ProductGeoPlace.placeId,
 			})
 			.from(Product)
-			.innerJoin(ProductGeoPlace, and(eq(ProductGeoPlace.productId, Product.id), eq(ProductGeoPlace.role, "primary_discovery"), eq(ProductGeoPlace.isPrimary, true)))
+			.innerJoin(
+				ProductGeoPlace,
+				and(
+					eq(ProductGeoPlace.productId, Product.id),
+					eq(ProductGeoPlace.role, "primary_discovery"),
+					eq(ProductGeoPlace.isPrimary, true)
+				)
+			)
 			.where(eq(Product.id, productId))
 			.then(first)
 

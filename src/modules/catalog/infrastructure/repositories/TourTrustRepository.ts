@@ -10,10 +10,12 @@ import {
 	Product,
 	ProductReview,
 	ProductStatus,
+	Provider,
 	TourPrivateRequest,
 	TourSlotProfile,
 	Variant,
 } from "@/shared/infrastructure/db/compat"
+import { publicCatalogProductEligibility } from "@/lib/marketplace/public-catalog-eligibility"
 import type {
 	InsertMarketplaceEventParams,
 	InsertPrivateRequestParams,
@@ -180,6 +182,7 @@ export class TourTrustRepository implements TourTrustRepositoryPort {
 			})
 			.from(Variant)
 			.innerJoin(Product, eq(Product.id, Variant.productId))
+			.innerJoin(Provider, eq(Provider.id, Product.providerId))
 			.innerJoin(ProductStatus, eq(ProductStatus.productId, Product.id))
 			.leftJoin(TourSlotProfile, eq(TourSlotProfile.variantId, Variant.id))
 			.where(
@@ -187,7 +190,7 @@ export class TourTrustRepository implements TourTrustRepositoryPort {
 					eq(Variant.id, params.variantId),
 					eq(Variant.productId, params.productId),
 					eq(Variant.kind, "tour_slot"),
-					eq(Product.dataClass, "production"),
+					publicCatalogProductEligibility(),
 					eq(ProductStatus.state, "published")
 				)
 			)

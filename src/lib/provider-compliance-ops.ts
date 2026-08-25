@@ -287,7 +287,7 @@ export function buildProviderComplianceSlaMirror(
 		return {
 			dueLabel: null,
 			state: null,
-			footnote: "Sin plazo fijo publicado: te avisamos en esta página cuando termine la revisión.",
+			footnote: "Sin plazo fijo publicado. Te avisamos aquí al terminar.",
 			hasPublishedSla: false,
 		}
 	}

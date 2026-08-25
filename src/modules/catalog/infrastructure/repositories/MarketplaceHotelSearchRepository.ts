@@ -5,9 +5,12 @@ import {
 	GeoPlace,
 	or,
 	Product,
+	Provider,
 	ProductGeoPlace,
+	ProductStatus,
 	sql,
 } from "@/shared/infrastructure/db/compat"
+import { publicCatalogProductEligibility } from "@/lib/marketplace/public-catalog-eligibility"
 import type {
 	MarketplaceHotelCandidate,
 	MarketplaceHotelSearchRepositoryPort,
@@ -43,6 +46,8 @@ export class MarketplaceHotelSearchRepository implements MarketplaceHotelSearchR
 		const rows = await db
 			.select(candidateFields)
 			.from(Product)
+			.innerJoin(Provider, eq(Provider.id, Product.providerId))
+			.innerJoin(ProductStatus, eq(ProductStatus.productId, Product.id))
 			.innerJoin(
 				ProductGeoPlace,
 				and(
@@ -55,7 +60,8 @@ export class MarketplaceHotelSearchRepository implements MarketplaceHotelSearchR
 				and(
 					sql`lower(${Product.productType}) = 'hotel'`,
 					eq(ProductGeoPlace.placeId, place.id),
-					eq(Product.dataClass, "production")
+					publicCatalogProductEligibility(),
+					eq(ProductStatus.state, "published")
 				)
 			)
 			.limit(Math.min(Math.max(1, Number(params.limit ?? 50)), 200))

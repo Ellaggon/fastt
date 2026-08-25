@@ -9,6 +9,7 @@ import {
 	ProductGeoPlace,
 	ProductLocation,
 	ProductStatus,
+	Provider,
 	sql,
 	Tour,
 	Hotel,
@@ -20,6 +21,7 @@ import {
 	normalizePublicPlace,
 	type PublicMarketplaceVertical,
 } from "@/lib/marketplace/publicDestinationRoutes"
+import { publicCatalogProductEligibility } from "@/lib/marketplace/public-catalog-eligibility"
 
 export type PublicDestination = {
 	slug: string
@@ -109,7 +111,10 @@ async function displayDestination(slug: string): Promise<PublicDestination | nul
 	}
 }
 
-function recordGeoDiscoveryRead(input: { vertical: PublicMarketplaceVertical; canonicalRows: number }) {
+function recordGeoDiscoveryRead(input: {
+	vertical: PublicMarketplaceVertical
+	canonicalRows: number
+}) {
 	incrementCounter("marketplace_geo_discovery_reads_total", {
 		vertical: input.vertical,
 		strategy: input.canonicalRows > 0 ? "canonical" : "canonical_empty",
@@ -171,6 +176,7 @@ export async function getPublicDestinationListings(params: {
 			canonicalRows = await db
 				.select(listingFields)
 				.from(Product)
+				.innerJoin(Provider, eq(Provider.id, Product.providerId))
 				.innerJoin(ProductGeoPlace, eq(ProductGeoPlace.productId, Product.id))
 				.innerJoin(ProductStatus, eq(ProductStatus.productId, Product.id))
 				.leftJoin(
@@ -183,7 +189,7 @@ export async function getPublicDestinationListings(params: {
 				.where(
 					and(
 						sql`lower(${Product.productType}) = ${productType}`,
-						eq(Product.dataClass, "production"),
+						publicCatalogProductEligibility(),
 						eq(ProductStatus.state, "published"),
 						eq(ProductGeoPlace.placeId, geoPlace.id),
 						eq(ProductGeoPlace.role, "primary_discovery"),
@@ -191,7 +197,6 @@ export async function getPublicDestinationListings(params: {
 					)
 				)
 				.limit(limit)
-
 		}
 	} catch {
 		canonicalRows = []

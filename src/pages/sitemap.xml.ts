@@ -5,9 +5,11 @@ import {
 	eq,
 	GeoPlace,
 	Product,
+	Provider,
 	ProductGeoPlace,
 	ProductStatus,
 } from "@/shared/infrastructure/db/compat"
+import { publicCatalogProductEligibility } from "@/lib/marketplace/public-catalog-eligibility"
 
 const escapeXml = (value: string) =>
 	value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
@@ -23,21 +25,23 @@ export const GET: APIRoute = async ({ url }) => {
 			.from(GeoPlace)
 			.innerJoin(ProductGeoPlace, eq(ProductGeoPlace.placeId, GeoPlace.id))
 			.innerJoin(Product, eq(Product.id, ProductGeoPlace.productId))
+			.innerJoin(Provider, eq(Provider.id, Product.providerId))
 			.innerJoin(ProductStatus, eq(ProductStatus.productId, Product.id))
 			.where(
 				and(
 					eq(GeoPlace.status, "active"),
 					eq(ProductGeoPlace.role, "primary_discovery"),
 					eq(ProductGeoPlace.isPrimary, true),
-					eq(Product.dataClass, "production"),
+					publicCatalogProductEligibility(),
 					eq(ProductStatus.state, "published")
 				)
 			),
 		db
 			.select({ id: Product.id, productType: Product.productType, updatedAt: Product.lastUpdated })
 			.from(Product)
+			.innerJoin(Provider, eq(Provider.id, Product.providerId))
 			.innerJoin(ProductStatus, eq(ProductStatus.productId, Product.id))
-			.where(and(eq(Product.dataClass, "production"), eq(ProductStatus.state, "published"))),
+			.where(and(publicCatalogProductEligibility(), eq(ProductStatus.state, "published"))),
 	])
 	const destinationUrls = new Map<string, Date | null>()
 	for (const row of discoveryRows) {

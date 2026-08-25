@@ -1,113 +1,156 @@
 import "dotenv/config"
 
+import { getTableColumns } from "drizzle-orm"
 import postgres from "postgres"
 
-import { getPostgresConnectionUrl } from "../../src/shared/infrastructure/db/env"
-import { databaseTableNames } from "../../src/shared/infrastructure/db/schema/registry"
-import * as schema from "../../src/shared/infrastructure/db/schema/tables"
+import { canonicalDatabaseTables } from "../../src/shared/infrastructure/db/schema/canonical-schema"
 
-type DrizzleTable = Record<string | symbol, unknown>
-type DrizzleColumn = { name: string }
-
-function drizzleSymbol(target: object, marker: string): symbol {
-	const symbol = Object.getOwnPropertySymbols(target).find((candidate) =>
-		String(candidate).includes(marker)
-	)
-	if (!symbol) throw new Error(`Missing Drizzle symbol ${marker}`)
-	return symbol
+type ColumnRow = {
+	table_name: string
+	column_name: string
+	data_type: string
+	is_nullable: "YES" | "NO"
 }
 
-function tableColumns(table: DrizzleTable): DrizzleColumn[] {
-	return Object.values(table[drizzleSymbol(table, "Columns")] as Record<string, DrizzleColumn>)
+type SchemaColumn = {
+	name: string
+	notNull: boolean
+	getSQLType(): string
 }
 
-function tableName(table: DrizzleTable): string {
-	return table[drizzleSymbol(table, "Name")] as string
+function baseSqlType(column: SchemaColumn) {
+	return column.getSQLType().replace(/\(.+\)$/, "")
 }
 
-function canonicalInventory() {
-	const tables = new Map<string, { name: string; columns: string[] }>()
-	for (const value of Object.values(schema)) {
-		if (!value || typeof value !== "object") continue
-		try {
-			const table = value as unknown as DrizzleTable
-			const name = tableName(table)
-			const columns = tableColumns(table)
-				.map((column) => column.name)
-				.sort()
-			if (columns.length > 0) tables.set(name, { name, columns })
-		} catch {
-			// tables.ts also exports type-adjacent runtime values; Drizzle tables carry both symbols.
-		}
-	}
+function requireDirectUrl() {
+	const value = process.env.DIRECT_URL?.trim()
+	if (!value) throw new Error("Missing required env DIRECT_URL")
+	return value
+}
 
-	const exportedNames = [...tables.keys()].sort()
-	const registeredNames = [...databaseTableNames].sort()
-	const missingFromRegistry = exportedNames.filter((name) => !registeredNames.includes(name))
-	const unknownInRegistry = registeredNames.filter((name) => !exportedNames.includes(name))
-	if (missingFromRegistry.length || unknownInRegistry.length) {
-		throw new Error(
-			`Schema registry drift. Missing: ${missingFromRegistry.join(", ") || "none"}. Unknown: ${unknownInRegistry.join(", ") || "none"}.`
-		)
-	}
-
-	return [...tables.values()].sort((left, right) => left.name.localeCompare(right.name))
+function argValue(name: string) {
+	const inline = process.argv.find((arg) => arg.startsWith(`${name}=`))
+	if (inline) return inline.slice(name.length + 1)
+	const index = process.argv.indexOf(name)
+	return index >= 0 ? process.argv[index + 1] : undefined
 }
 
 async function main() {
-	const sql = postgres(getPostgresConnectionUrl("direct"), {
+	const fresh = process.argv.includes("--fresh")
+	const sql = postgres(requireDirectUrl(), {
 		max: 1,
 		prepare: false,
 		idle_timeout: 5,
 		connect_timeout: 15,
 	})
+
 	try {
-		const expected = canonicalInventory()
-		const actualTables = new Set(
-			(
-				await sql<{ table_name: string }[]>`
-					select table_name
-					from information_schema.tables
-					where table_schema = 'public' and table_type = 'BASE TABLE'
-				`
-			).map((row) => row.table_name)
+		const allExpected = canonicalDatabaseTables()
+		const selectedNames = argValue("--tables")
+			?.split(",")
+			.map((name) => name.trim())
+			.filter(Boolean)
+		const knownNames = new Set(allExpected.map(({ name }) => name))
+		const unknownNames = selectedNames?.filter((name) => !knownNames.has(name)) ?? []
+		if (unknownNames.length) {
+			throw new Error(`Unknown canonical table(s): ${unknownNames.join(", ")}`)
+		}
+		const expected = selectedNames
+			? allExpected.filter(({ name }) => selectedNames.includes(name))
+			: allExpected
+		const expectedNames = new Set(expected.map(({ name }) => name))
+		const expectedColumns = new Map(
+			expected.map(({ name, table }) => [
+				name,
+				new Map(
+					Object.values(getTableColumns(table) as Record<string, SchemaColumn>).map((column) => [
+						column.name,
+						{ sqlType: baseSqlType(column), notNull: column.notNull },
+					])
+				),
+			])
 		)
-		const actualColumns = await sql<{ table_name: string; column_name: string }[]>`
-			select table_name, column_name
-			from information_schema.columns
-			where table_schema = 'public'
-		`
-		const columnsByTable = new Map<string, Set<string>>()
-		for (const row of actualColumns) {
-			const columns = columnsByTable.get(row.table_name) ?? new Set<string>()
-			columns.add(row.column_name)
-			columnsByTable.set(row.table_name, columns)
+		const rows = selectedNames
+			? await sql<ColumnRow[]>`
+				select table_name, column_name, data_type, is_nullable
+				from information_schema.columns
+				where table_schema = 'public' and table_name = any(${selectedNames})
+				order by table_name, ordinal_position
+			`
+			: await sql<ColumnRow[]>`
+				select table_name, column_name, data_type, is_nullable
+				from information_schema.columns
+				where table_schema = 'public'
+				order by table_name, ordinal_position
+			`
+		const actualColumns = new Map<string, Map<string, ColumnRow>>()
+		for (const row of rows) {
+			const columns = actualColumns.get(row.table_name) ?? new Map<string, ColumnRow>()
+			columns.set(row.column_name, row)
+			actualColumns.set(row.table_name, columns)
 		}
 
-		const missingTables = expected
-			.filter((table) => !actualTables.has(table.name))
-			.map((table) => table.name)
-		const missingColumns = expected.flatMap((table) => {
-			const actual = columnsByTable.get(table.name) ?? new Set<string>()
-			return table.columns
-				.filter((column) => !actual.has(column))
-				.map((column) => `${table.name}.${column}`)
-		})
-		const unexpectedTables = process.argv.includes("--fresh")
-			? [...actualTables].filter((name) => !expected.some((table) => table.name === name)).sort()
-			: []
-		const ready =
-			missingTables.length === 0 && missingColumns.length === 0 && unexpectedTables.length === 0
-
-		console.log(
-			JSON.stringify(
-				{ ready, expectedTables: expected.length, missingTables, missingColumns, unexpectedTables },
-				null,
-				2
+		const actualNames = new Set(actualColumns.keys())
+		const missingTables = [...expectedNames].filter((name) => !actualNames.has(name))
+		const unmanagedTables = [...actualNames].filter((name) => !expectedNames.has(name))
+		const columnDrift = expected.flatMap(({ name }) => {
+			const expectedForTable = expectedColumns.get(name) ?? new Map()
+			const actualForTable = actualColumns.get(name) ?? new Map()
+			const missing = [...expectedForTable.keys()].filter((column) => !actualForTable.has(column))
+			const unexpected = [...actualForTable.keys()].filter(
+				(column) => !expectedForTable.has(column)
 			)
-		)
-		if (!ready)
-			throw new Error("PostgreSQL initial schema does not match the canonical Drizzle inventory.")
+			return missing.length || unexpected.length ? [{ table: name, missing, unexpected }] : []
+		})
+		const definitionDrift = expected.flatMap(({ name }) => {
+			const expectedForTable = expectedColumns.get(name) ?? new Map()
+			const actualForTable = actualColumns.get(name) ?? new Map()
+			return [...expectedForTable.entries()].flatMap(([columnName, expectedColumn]) => {
+				const actualColumn = actualForTable.get(columnName)
+				if (
+					!actualColumn ||
+					(actualColumn.data_type === expectedColumn.sqlType &&
+						(actualColumn.is_nullable === "NO") === expectedColumn.notNull)
+				) {
+					return []
+				}
+				return [
+					{
+						table: name,
+						column: columnName,
+						expectedType: expectedColumn.sqlType,
+						actualType: actualColumn.data_type,
+						expectedNotNull: expectedColumn.notNull,
+						actualNotNull: actualColumn.is_nullable === "NO",
+					},
+				]
+			})
+		})
+
+		const report = {
+			phase: "postgres-initial-schema",
+			mode: fresh ? "fresh-install" : "operational-audit",
+			scope: selectedNames ?? "all",
+			ready:
+				missingTables.length === 0 &&
+				columnDrift.length === 0 &&
+				definitionDrift.length === 0 &&
+				(!fresh || unmanagedTables.length === 0),
+			expectedTableCount: expected.length,
+			actualTableCount: actualNames.size,
+			missingTables,
+			unmanagedTables,
+			columnDrift,
+			definitionDrift,
+		}
+		console.log(JSON.stringify(report, null, 2))
+		if (!report.ready) {
+			throw new Error(
+				fresh
+					? "Fresh PostgreSQL installation does not match the canonical Drizzle schema."
+					: "Operational PostgreSQL database is missing canonical tables or columns."
+			)
+		}
 	} finally {
 		await sql.end()
 	}
