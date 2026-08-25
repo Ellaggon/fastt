@@ -100,6 +100,15 @@ export interface ProductRepositoryPort {
 	}): Promise<void>
 
 	getProductAggregate(productId: string): Promise<ProductAggregate | null>
+	getProductPublicationEligibility?(productId: string): Promise<{
+		eligible: boolean
+		reason:
+			| "missing_product"
+			| "missing_provider"
+			| "provider_not_commercial"
+			| "not_production"
+			| null
+	}>
 	getProductById?(productId: string): Promise<{
 		id: string
 		name: string
