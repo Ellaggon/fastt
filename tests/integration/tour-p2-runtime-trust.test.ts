@@ -41,6 +41,7 @@ import { loadHotelTourCrossSell } from "@/lib/tours/hotelTourCrossSell"
 import { tourDepartureToStay } from "@/lib/tours/tourSemantics"
 import { createPolicyCapa6, replacePolicyAssignmentCapa6 } from "@/modules/policies/public"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
+import { upsertPublishedProductStatus } from "../test-support/catalog-db-test-data"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -761,6 +762,7 @@ describe("integration/tour P2 runtime trust (review, private, cross-sell, cancel
 				providerId: "prov_test",
 			} as any)
 			await db.insert(ProductGeoPlace).values({ id: `test-primary-${productId}`, productId, placeId: geoPlaceId, role: "primary_discovery", isPrimary: true, source: "test_fixture" } as any)
+			await upsertPublishedProductStatus(productId)
 			await db.insert(Tour).values({
 				productId,
 				durationMinutes: 90,
