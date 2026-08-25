@@ -34,7 +34,8 @@ describe("Guardrail: booking uses hold snapshot pricing only", () => {
 		}
 
 		expect(source).toContain("buildSnapshotFromHoldLifecycle")
-		expect(source).toContain("Pricing total is sourced from the hold snapshot")
+		expect(source).toContain("commercialSnapshotJson")
+		expect(source).toContain("priceQuoteId")
 		expect(
 			violations,
 			`Found forbidden pricing recompute/fallback in booking materialization:\n${violations.join("\n")}`

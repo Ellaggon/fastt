@@ -1,5 +1,6 @@
 import { z } from "zod"
 import type { InventoryHoldRepositoryPort } from "../ports/InventoryHoldRepositoryPort"
+import { isHoldCommercialSnapshot, type HoldCommercialSnapshot } from "../hold-commercial-snapshot"
 
 const holdInventorySchema = z.object({
 	variantId: z.string().min(1),
@@ -12,6 +13,7 @@ const holdInventorySchema = z.object({
 	channel: z.string().trim().min(1).nullable().optional(),
 	policySnapshotJson: z.unknown(),
 	guestExpectationsSnapshotJson: z.unknown().nullable().optional(),
+	commercialSnapshot: z.unknown(),
 })
 
 export async function holdInventory(
@@ -27,6 +29,7 @@ export async function holdInventory(
 		channel?: string | null
 		policySnapshotJson: unknown
 		guestExpectationsSnapshotJson?: unknown | null
+		commercialSnapshot: HoldCommercialSnapshot
 	}
 ) {
 	const parsed = holdInventorySchema.parse(params)
@@ -34,10 +37,14 @@ export async function holdInventory(
 	if (parsed.checkOut.getTime() <= parsed.checkIn.getTime()) {
 		return { success: false as const, reason: "not_available" as const }
 	}
+	if (!isHoldCommercialSnapshot(params.commercialSnapshot)) {
+		throw new Error("PRICING_SNAPSHOT_INVALID")
+	}
 
 	return deps.repo.holdInventory({
 		...parsed,
 		policySnapshotJson: params.policySnapshotJson,
 		guestExpectationsSnapshotJson: params.guestExpectationsSnapshotJson ?? null,
+		commercialSnapshot: params.commercialSnapshot,
 	})
 }

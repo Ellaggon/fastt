@@ -1067,6 +1067,9 @@ CREATE TABLE "Hold" (
 	"expiresAt" timestamp with time zone NOT NULL,
 	"policySnapshotJson" jsonb NOT NULL,
 	"guestExpectationsSnapshotJson" jsonb,
+	"commercialSnapshotVersion" text NOT NULL,
+	"priceQuoteId" text,
+	"commercialSnapshotJson" jsonb,
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
@@ -3155,6 +3158,8 @@ CREATE INDEX "Hold_variantId_checkIn_idx" ON "Hold" ("variantId", "checkIn");
 
 CREATE INDEX "Hold_expiresAt_idx" ON "Hold" ("expiresAt");
 
+CREATE INDEX "Hold_priceQuoteId_idx" ON "Hold" ("priceQuoteId");
+
 CREATE UNIQUE INDEX "SearchUnitView_variant_rate_date_occupancy_unique" ON "SearchUnitView" ("variantId", "ratePlanId", "date", "occupancyKey");
 
 CREATE INDEX "SearchUnitView_product_date_occupancy_idx" ON "SearchUnitView" ("productId", "date", "occupancyKey");
@@ -3444,6 +3449,8 @@ ALTER TABLE "ProductReview" ADD CONSTRAINT "ProductReview_rating_check" CHECK ("
 ALTER TABLE "ProductReview" ADD CONSTRAINT "ProductReview_status_check" CHECK ("status" in ('published', 'pending', 'rejected', 'hidden'));
 
 ALTER TABLE "MarketplaceEvent" ADD CONSTRAINT "MarketplaceEvent_eventType_check" CHECK ("eventType" in ('impression', 'click', 'booking_attributed'));
+
+ALTER TABLE "Hold" ADD CONSTRAINT "Hold_commercial_snapshot_check" CHECK (("commercialSnapshotVersion" = 'legacy' AND "priceQuoteId" IS NULL AND "commercialSnapshotJson" IS NULL) OR ("commercialSnapshotVersion" = 'hold_commercial_snapshot_v1' AND "priceQuoteId" IS NOT NULL AND "commercialSnapshotJson" IS NOT NULL AND ("commercialSnapshotJson" -> 'priceQuote' ->> 'quoteId') = "priceQuoteId"));
 
 ALTER TABLE "BookingVoucher" ADD CONSTRAINT "BookingVoucher_status_check" CHECK ("status" in ('issued', 'redeemed', 'void'));
 

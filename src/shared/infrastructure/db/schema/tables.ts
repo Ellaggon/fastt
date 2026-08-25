@@ -2574,11 +2574,19 @@ export const Hold = pgTable(
 		expiresAt: tsReq("expiresAt"),
 		policySnapshotJson: jsonb("policySnapshotJson").notNull(),
 		guestExpectationsSnapshotJson: jsonb("guestExpectationsSnapshotJson"),
+		commercialSnapshotVersion: text("commercialSnapshotVersion").notNull(),
+		priceQuoteId: txtOpt("priceQuoteId"),
+		commercialSnapshotJson: jsonb("commercialSnapshotJson"),
 		createdAt: now("createdAt"),
 	},
 	(table) => [
 		index("Hold_variantId_checkIn_idx").on(table.variantId, table.checkIn),
 		index("Hold_expiresAt_idx").on(table.expiresAt),
+		index("Hold_priceQuoteId_idx").on(table.priceQuoteId),
+		check(
+			"Hold_commercial_snapshot_check",
+			sql`(${table.commercialSnapshotVersion} = 'legacy' AND ${table.priceQuoteId} IS NULL AND ${table.commercialSnapshotJson} IS NULL) OR (${table.commercialSnapshotVersion} = 'hold_commercial_snapshot_v1' AND ${table.priceQuoteId} IS NOT NULL AND ${table.commercialSnapshotJson} IS NOT NULL AND (${table.commercialSnapshotJson} -> 'priceQuote' ->> 'quoteId') = ${table.priceQuoteId})`
+		),
 	]
 )
 

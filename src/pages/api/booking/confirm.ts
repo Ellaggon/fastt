@@ -19,7 +19,6 @@ import { createBookingFromHold } from "@/modules/booking/public"
 import { bookingFromHoldRepository } from "@/container/booking.container"
 import { tourTrustRepository } from "@/container"
 import { applyInventoryMutation } from "@/modules/inventory/public"
-import { resolveEffectiveTaxFeesUseCase } from "@/container/taxes-fees.container"
 import { logger } from "@/lib/observability/logger"
 import { incrementCounter } from "@/lib/observability/metrics"
 import { getFeatureFlags } from "@/config/featureFlags"
@@ -212,7 +211,6 @@ export const POST: APIRoute = async ({ request }) => {
 					createBookingFromHold(
 						{
 							repository: bookingFromHoldRepository,
-							resolveEffectiveTaxFees: (params) => resolveEffectiveTaxFeesUseCase(params),
 						},
 						{
 							holdId: parsed.holdId,
@@ -405,6 +403,7 @@ export const POST: APIRoute = async ({ request }) => {
 			code === "HOLD_NOT_FOUND" ||
 			code === "HOLD_EXPIRED" ||
 			code === "HOLD_ALREADY_CONFIRMED" ||
+			code === "HOLD_COMMERCIAL_SNAPSHOT_MISSING" ||
 			code === "PRICE_QUOTE_MISMATCH" ||
 			code === "INVENTORY_CONFLICT"
 		) {

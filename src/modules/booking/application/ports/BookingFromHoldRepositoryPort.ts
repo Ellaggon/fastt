@@ -1,5 +1,3 @@
-import type { ResolvedTaxFeeDefinition } from "@/modules/taxes-fees/public"
-
 export type CreateBookingFromHoldInput = {
 	holdId: string
 	priceQuoteId?: string | null
@@ -19,19 +17,6 @@ export type CreateBookingFromHoldResult = {
 	}
 }
 
-export type ResolveEffectiveTaxFeesFn = (params: {
-	providerId?: string
-	productId?: string
-	variantId?: string
-	ratePlanId?: string
-	channel?: string | null
-}) => Promise<{
-	definitions: ResolvedTaxFeeDefinition[]
-}>
-
 export type BookingFromHoldRepositoryPort = {
-	createBookingFromHold(params: {
-		resolveEffectiveTaxFees: ResolveEffectiveTaxFeesFn
-		input: CreateBookingFromHoldInput
-	}): Promise<CreateBookingFromHoldResult>
+	createBookingFromHold(input: CreateBookingFromHoldInput): Promise<CreateBookingFromHoldResult>
 }

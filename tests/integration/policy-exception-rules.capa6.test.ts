@@ -11,13 +11,14 @@ import {
 import { inventoryHoldRepository } from "@/container"
 import { snapshotPoliciesForBookingUseCase } from "@/container/booking-policy-snapshot.container"
 import { resolvePolicyExceptionRulesUseCase } from "@/container/policy-exceptions.container"
-import { createInventoryHold } from "@/modules/inventory/public"
+import { createInventoryHold, HOLD_COMMERCIAL_SNAPSHOT_VERSION } from "@/modules/inventory/public"
 import {
 	replacePolicyAssignmentCapa6,
 	createPolicyCapa6,
 	resolveEffectivePolicies,
 	type HoldPolicySnapshot,
 } from "@/modules/policies/public"
+import { buildPriceQuote } from "@/modules/pricing/public"
 import { GET, POST } from "@/pages/api/admin/policies/exceptions"
 import { PATCH } from "@/pages/api/admin/policies/exceptions/[id]"
 import {
@@ -29,6 +30,57 @@ import {
 } from "@/shared/infrastructure/test-support/db-test-data"
 
 type SupabaseTestUser = { id: string; email: string }
+
+function buildCommercialSnapshot(params: {
+	productId: string
+	variantId: string
+	ratePlanId: string
+	from: string
+	to: string
+	totalPrice: number
+}) {
+	const days = [
+		{ date: params.from, price: params.totalPrice / 2 },
+		{ date: "2030-04-11", price: params.totalPrice / 2 },
+	]
+	const priceQuote = buildPriceQuote({
+		context: {
+			productId: params.productId,
+			variantId: params.variantId,
+			ratePlanId: params.ratePlanId,
+			checkIn: params.from,
+			checkOut: params.to,
+			rooms: 1,
+			occupancy: { adults: 1, children: 0, infants: 0 },
+			channel: "web",
+		},
+		currency: "USD",
+		nights: 2,
+		baseAmount: params.totalPrice,
+		taxesAndFees: {
+			base: params.totalPrice,
+			total: params.totalPrice,
+			taxes: { included: [], excluded: [] },
+			fees: { included: [], excluded: [] },
+		},
+		pricing: { days, source: "v2" },
+	})
+	return {
+		version: HOLD_COMMERCIAL_SNAPSHOT_VERSION,
+		ratePlanId: params.ratePlanId,
+		currency: "USD",
+		rooms: 1,
+		occupancy: 1,
+		occupancyDetail: { adults: 1, children: 0, infants: 0 },
+		from: params.from,
+		to: params.to,
+		nights: 2,
+		totalPrice: params.totalPrice,
+		days,
+		pricingSource: "v2" as const,
+		priceQuote,
+	}
+}
 
 function withSupabaseAuthStub<T>(
 	usersByToken: Record<string, SupabaseTestUser>,
@@ -288,20 +340,15 @@ describe("integration/policy exception rules CAPA6", () => {
 					ratePlanId,
 					channel: "web",
 				},
-				resolvePricingSnapshot: async () => ({
-					ratePlanId,
-					currency: "USD",
-					occupancy: 1,
-					occupancyDetail: { adults: 1, children: 0, infants: 0 },
-					from: checkIn,
-					to: checkOut,
-					nights: 2,
-					totalPrice: 400,
-					days: [
-						{ date: "2030-04-10", price: 200 },
-						{ date: "2030-04-11", price: 200 },
-					],
-				}),
+				resolvePricingSnapshot: async () =>
+					buildCommercialSnapshot({
+						productId,
+						variantId,
+						ratePlanId,
+						from: checkIn,
+						to: checkOut,
+						totalPrice: 400,
+					}),
 			},
 			{
 				variantId,

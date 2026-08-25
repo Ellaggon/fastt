@@ -16,17 +16,19 @@ import {
 } from "@/shared/infrastructure/db/compat"
 
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { cacheKeys } from "@/lib/cache/cacheKeys"
 import { invalidateVariant } from "@/lib/cache/invalidation"
-import * as persistentCache from "@/lib/cache/persistentCache"
 import { recordTourHold, toursCheckoutEnabled } from "@/lib/tours/tourObservability"
-import { applyInventoryMutation, createInventoryHold } from "@/modules/inventory/public"
+import {
+	applyInventoryMutation,
+	createInventoryHold,
+	HOLD_COMMERCIAL_SNAPSHOT_VERSION,
+} from "@/modules/inventory/public"
 import { resolveEffectivePolicies } from "@/modules/policies/public"
 import { buildGuestStayExpectationsSnapshot } from "@/modules/house-rules/public"
 import { inventoryHoldRepository, variantManagementRepository } from "@/container"
 import { resolvePolicyExceptionRulesUseCase } from "@/container/policy-exceptions.container"
 import { resolveEffectiveTaxFeesUseCase } from "@/container/taxes-fees.container"
-import { buildPriceQuote, isPriceQuote, type PriceQuote } from "@/modules/pricing/public"
+import { buildPriceQuote } from "@/modules/pricing/public"
 import { computeTaxBreakdown } from "@/modules/taxes-fees/public"
 import { getProductTaxJurisdictionContext } from "@/lib/taxes-fees/jurisdiction-context"
 import {
@@ -393,7 +395,6 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
 		const contentType = request.headers.get("content-type") ?? ""
 		let payload: unknown
-		let resolvedPriceQuote: PriceQuote | null = null
 		let usedLegacyNumericOccupancy = false
 		if (contentType.includes("application/json")) {
 			const raw = (await request.json().catch(() => ({}))) as Record<string, unknown>
@@ -651,8 +652,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 								;(error as any).details = { priceQuote }
 								throw error
 							}
-							resolvedPriceQuote = priceQuote
 							return {
+								version: HOLD_COMMERCIAL_SNAPSHOT_VERSION,
 								ratePlanId: holdability.ratePlanId,
 								currency: "USD",
 								occupancy: Math.max(
@@ -717,12 +718,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 			durationMs: Number((performance.now() - startedAt).toFixed(1)),
 		})
 
-		const cachedPricingSnapshot = (await persistentCache
-			.get(cacheKeys.holdPricingSnapshot(result.holdId))
-			.catch(() => null)) as { priceQuote?: unknown } | null
-		const boundPriceQuote =
-			resolvedPriceQuote ??
-			(isPriceQuote(cachedPricingSnapshot?.priceQuote) ? cachedPricingSnapshot.priceQuote : null)
+		const boundPriceQuote = result.priceQuote
 
 		if (parsed.quoteId && boundPriceQuote?.quoteId !== parsed.quoteId) {
 			return new Response(

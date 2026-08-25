@@ -19,6 +19,10 @@ import type {
 	HoldInventoryResult,
 	InventoryHoldRepositoryPort,
 } from "../../application/ports/InventoryHoldRepositoryPort"
+import {
+	HOLD_COMMERCIAL_SNAPSHOT_VERSION,
+	type HoldCommercialSnapshot,
+} from "../../application/hold-commercial-snapshot"
 
 class NotAvailableError extends Error {
 	constructor() {
@@ -66,16 +70,19 @@ function toExclusiveDate(isoDate: string): string {
 }
 
 export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
-	async findActiveHold(params: {
+	async findActiveHold(params: { holdId: string; now: Date }): Promise<{
 		holdId: string
-		now: Date
-	}): Promise<{ holdId: string; expiresAt: Date } | null> {
+		expiresAt: Date
+		commercialSnapshotJson: HoldCommercialSnapshot | null
+	} | null> {
 		const row = await db
 			.select({
 				holdId: InventoryLock.holdId,
 				expiresAt: InventoryLock.expiresAt,
+				commercialSnapshotJson: Hold.commercialSnapshotJson,
 			})
 			.from(InventoryLock)
+			.innerJoin(Hold, eq(Hold.id, InventoryLock.holdId))
 			.where(
 				and(
 					eq(InventoryLock.holdId, params.holdId),
@@ -89,6 +96,7 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 		return {
 			holdId: String(row.holdId),
 			expiresAt: new Date(row.expiresAt),
+			commercialSnapshotJson: row.commercialSnapshotJson as HoldCommercialSnapshot | null,
 		}
 	}
 
@@ -103,6 +111,7 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 		channel?: string | null
 		policySnapshotJson: unknown
 		guestExpectationsSnapshotJson?: unknown | null
+		commercialSnapshot: HoldCommercialSnapshot
 	}): Promise<HoldInventoryResult> {
 		const maxAttempts = 5
 		for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -121,6 +130,9 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 							channel: params.channel == null ? null : String(params.channel),
 							expiresAt: params.expiresAt,
 							policySnapshotJson: params.policySnapshotJson as any,
+							commercialSnapshotVersion: HOLD_COMMERCIAL_SNAPSHOT_VERSION,
+							priceQuoteId: params.commercialSnapshot.priceQuote.quoteId,
+							commercialSnapshotJson: params.commercialSnapshot as any,
 							guestExpectationsSnapshotJson:
 								params.guestExpectationsSnapshotJson == null
 									? null
@@ -261,21 +273,37 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 	async findHoldSnapshot(params: { holdId: string }): Promise<{
 		policySnapshotJson: unknown
 		guestExpectationsSnapshotJson?: unknown | null
+		commercialSnapshotJson: HoldCommercialSnapshot | null
+		priceQuoteId: string | null
 	} | null> {
 		const id = String(params.holdId ?? "").trim()
 		if (!id) return null
 		let row:
-			| { policySnapshotJson: unknown; guestExpectationsSnapshotJson?: unknown | null }
+			| {
+					policySnapshotJson: unknown
+					guestExpectationsSnapshotJson?: unknown | null
+					commercialSnapshotJson: HoldCommercialSnapshot | null
+					priceQuoteId: string | null
+			  }
 			| undefined
 		try {
-			row = await db
+			row = (await db
 				.select({
 					policySnapshotJson: Hold.policySnapshotJson,
 					guestExpectationsSnapshotJson: Hold.guestExpectationsSnapshotJson,
+					commercialSnapshotJson: Hold.commercialSnapshotJson,
+					priceQuoteId: Hold.priceQuoteId,
 				})
 				.from(Hold)
 				.where(eq(Hold.id, id))
-				.then(first)
+				.then(first)) as
+				| {
+						policySnapshotJson: unknown
+						guestExpectationsSnapshotJson?: unknown | null
+						commercialSnapshotJson: HoldCommercialSnapshot | null
+						priceQuoteId: string | null
+				  }
+				| undefined
 		} catch (e) {
 			if (!isMissingHoldTableError(e)) throw e
 			return null
@@ -284,6 +312,8 @@ export class InventoryHoldRepository implements InventoryHoldRepositoryPort {
 		return {
 			policySnapshotJson: row.policySnapshotJson,
 			guestExpectationsSnapshotJson: row.guestExpectationsSnapshotJson ?? null,
+			commercialSnapshotJson: row.commercialSnapshotJson as HoldCommercialSnapshot | null,
+			priceQuoteId: row.priceQuoteId ?? null,
 		}
 	}
 
