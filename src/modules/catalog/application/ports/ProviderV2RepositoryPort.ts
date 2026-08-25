@@ -32,7 +32,8 @@ export interface ProviderV2RepositoryPort {
 		providerId: string
 		status: ProviderVerificationStatus
 		reason?: string | null
-		reviewedBy?: string | null
+		/** Stable internal actor identity; persisted as ProviderVerification.reviewedBy FK. */
+		reviewedByUserId?: string | null
 		metadataJson?: unknown
 	}): Promise<void>
 }

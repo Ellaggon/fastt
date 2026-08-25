@@ -65,7 +65,7 @@ export const POST: APIRoute = async ({ request }) => {
 				providerId: payload.providerId,
 				status: payload.status,
 				reason: payload.reason ?? null,
-				reviewedBy: user.email,
+				reviewedByUserId: user.id,
 				metadataJson: null,
 			}
 		)

@@ -175,7 +175,7 @@ export class ProviderV2Repository implements ProviderV2RepositoryPort {
 		providerId: string
 		status: ProviderVerificationStatus
 		reason?: string | null
-		reviewedBy?: string | null
+		reviewedByUserId?: string | null
 		metadataJson?: unknown
 	}): Promise<void> {
 		// Store the latest decision as an append-only record (new id each time).
@@ -185,7 +185,7 @@ export class ProviderV2Repository implements ProviderV2RepositoryPort {
 			status: params.status,
 			reason: params.reason ?? null,
 			reviewedAt: new Date(),
-			reviewedBy: params.reviewedBy ?? null,
+			reviewedBy: params.reviewedByUserId ?? null,
 			metadataJson: params.metadataJson ?? null,
 		})
 	}
