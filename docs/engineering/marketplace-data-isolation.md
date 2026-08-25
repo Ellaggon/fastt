@@ -43,7 +43,9 @@ tabla temporal de auditoría, inactiva las que no pertenecen a una taxonomía
 controlada y conserva enlaces para investigación histórica. La evidencia
 operativa se revisa antes de ejecutar la retirada final
 `2026-09-11_retire_historical_backfill_artifacts.sql`, que retira esos
-artefactos de backfill de la base runtime.
+artefactos de backfill de la base runtime. La retirada valida que no queden
+etiquetas sin mapear, mueve los enlaces de categorías duplicadas hacia su
+categoría canónica y elimina las categorías fixture obsoletas.
 
 Antes de desplegarla:
 

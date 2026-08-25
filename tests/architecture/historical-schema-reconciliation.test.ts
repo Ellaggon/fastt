@@ -27,8 +27,13 @@ describe("historical PostgreSQL schema reconciliation", () => {
 			expect(migration).toContain(`ALTER TABLE "${table}"`)
 		}
 		const retirement = read("db/migrations/2026-09-11_retire_historical_backfill_artifacts.sql")
-		expect(retirement).toContain('DROP TABLE IF EXISTS "MarketplaceCatalogSanitationAudit"')
-		expect(retirement).toContain('DROP TABLE IF EXISTS "TourCategoryBackfillUnmapped"')
+		expect(retirement).toContain("TOUR_CATEGORY_BACKFILL_REQUIRES_REVIEW")
+		expect(retirement).toContain("DUPLICATE_CATEGORY_CANONICAL_TARGET_INVALID")
+		expect(retirement).toContain('INSERT INTO "ProductCategoryLink"')
+		expect(retirement).toContain('DELETE FROM "ProductCategoryLink"')
+		expect(retirement).toContain('DELETE FROM "ProductCategory"')
+		expect(retirement).toContain('DROP TABLE "MarketplaceCatalogSanitationAudit"')
+		expect(retirement).toContain('DROP TABLE "TourCategoryBackfillUnmapped"')
 	})
 
 	it("does not mistake the migration ledger for an unmanaged domain table", () => {
