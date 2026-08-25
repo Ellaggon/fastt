@@ -9,6 +9,7 @@ import ServiceDetailsModal from "@/components/productUI/ServiceDetailsModal.astr
 import TourCrossSellRail from "@/components/tours/TourCrossSellRail.astro"
 import { searchOffers } from "@/container"
 import { loadHotelTourCrossSell } from "@/lib/tours/hotelTourCrossSell"
+import { publicCatalogProductEligibility } from "@/lib/marketplace/public-catalog-eligibility"
 import { POLICY_CATEGORY_ORDER, POLICY_UI_GROUPS } from "@/data/policy/policy-categories"
 import UILayout from "@/layouts/UILayout.astro"
 import { ensureObjectKey } from "@/lib/images/objectKey"
@@ -37,8 +38,10 @@ import {
 	Image,
 	inArray,
 	Product,
+	Provider,
 	ProductGeoPlace,
 	ProductLocation,
+	ProductStatus,
 } from "@/shared/infrastructure/db/compat"
 
 const url = Astro.url
@@ -295,6 +298,8 @@ try {
 	const productResult = await db
 		.select()
 		.from(Product)
+		.innerJoin(Provider, eq(Provider.id, Product.providerId))
+		.innerJoin(ProductStatus, eq(ProductStatus.productId, Product.id))
 		.leftJoin(
 			ProductGeoPlace,
 			and(
@@ -305,7 +310,13 @@ try {
 		)
 		.leftJoin(GeoPlace, eq(GeoPlace.id, ProductGeoPlace.placeId))
 		.leftJoin(ProductLocation, eq(ProductLocation.productId, Product.id))
-		.where(and(eq(Product.id, productId), eq(Product.dataClass, "production")))
+		.where(
+			and(
+				eq(Product.id, productId),
+				publicCatalogProductEligibility(),
+				eq(ProductStatus.state, "published")
+			)
+		)
 		.then(first)
 
 	if (!productResult) {

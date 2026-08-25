@@ -6,6 +6,8 @@ import {
 	ProductGeoPlace,
 	lt,
 	Product,
+	Provider,
+	ProductStatus,
 	SearchUnitView,
 	sql,
 } from "@/shared/infrastructure/db/compat"
@@ -17,6 +19,7 @@ import { buildPriceQuote, type PriceQuote } from "@/modules/pricing/public"
 import { getProductTaxJurisdictionContext } from "@/lib/taxes-fees/jurisdiction-context"
 import { computeTaxBreakdown } from "@/modules/taxes-fees/public"
 import { resolveEffectiveTaxFeesUseCase } from "@/container/taxes-fees.container"
+import { publicCatalogProductEligibility } from "@/lib/marketplace/public-catalog-eligibility"
 
 export type PublicSearchResult = {
 	productId: string
@@ -122,6 +125,8 @@ async function loadPublicSearchSurface(params: {
 		})
 		.from(SearchUnitView)
 		.innerJoin(Product, eq(Product.id, SearchUnitView.productId))
+		.innerJoin(Provider, eq(Provider.id, Product.providerId))
+		.innerJoin(ProductStatus, eq(ProductStatus.productId, Product.id))
 		.innerJoin(
 			ProductGeoPlace,
 			and(
@@ -133,7 +138,8 @@ async function loadPublicSearchSurface(params: {
 		.where(
 			and(
 				eq(ProductGeoPlace.placeId, params.geoPlaceId),
-				eq(Product.dataClass, "production"),
+				publicCatalogProductEligibility(),
+				eq(ProductStatus.state, "published"),
 				eq(SearchUnitView.occupancyKey, occupancyKey),
 				eq(SearchUnitView.currency, params.currency),
 				gte(SearchUnitView.date, params.checkIn),

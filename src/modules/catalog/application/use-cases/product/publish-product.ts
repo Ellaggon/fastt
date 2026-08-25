@@ -20,6 +20,22 @@ export async function publishProduct(
 		}
 	}
 
+	const eligibility = await deps.repo.getProductPublicationEligibility?.(params.productId)
+	if (eligibility && !eligibility.eligible) {
+		return {
+			ok: false,
+			productId: params.productId,
+			state: "ready",
+			validationErrors: [
+				{
+					code: "PUBLICATION_OWNER_INELIGIBLE",
+					message:
+						"Solo los productos de producción de un proveedor comercial de producción pueden publicarse.",
+				},
+			],
+		}
+	}
+
 	await deps.repo.upsertProductStatus({
 		productId: params.productId,
 		state: "published",

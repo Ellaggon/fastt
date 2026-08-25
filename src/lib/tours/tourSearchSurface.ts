@@ -33,6 +33,7 @@ import {
 	lt,
 	or,
 	Product,
+	Provider,
 	ProductGeoPlace,
 	ProductCategory,
 	ProductCategoryLink,
@@ -45,6 +46,7 @@ import {
 	TourSlotProfile,
 	Variant,
 } from "@/shared/infrastructure/db/compat"
+import { publicCatalogProductEligibility } from "@/lib/marketplace/public-catalog-eligibility"
 
 export type TourSearchCard = {
 	productId: string
@@ -242,7 +244,7 @@ async function loadTourSearchSurfaceCards(params: {
 
 	const whereParts = [
 		sql`lower(${Product.productType}) = 'tour'`,
-		eq(Product.dataClass, "production"),
+		publicCatalogProductEligibility(),
 		eq(ProductStatus.state, "published"),
 		eq(Variant.kind, "tour_slot"),
 		eq(Variant.isActive, true),
@@ -306,6 +308,7 @@ async function loadTourSearchSurfaceCards(params: {
 		})
 		.from(SearchUnitView)
 		.innerJoin(Product, eq(Product.id, SearchUnitView.productId))
+		.innerJoin(Provider, eq(Provider.id, Product.providerId))
 		.innerJoin(
 			ProductGeoPlace,
 			and(

@@ -111,7 +111,13 @@ describe("integration/catalog Product V2 API", () => {
 			country: "CL",
 			slug: "product-v2-api-destination",
 		})
-		await upsertProvider({ id: providerA, displayName: "Provider A", ownerEmail: emailA })
+		await upsertProvider({
+			id: providerA,
+			displayName: "Provider A",
+			ownerEmail: emailA,
+			accountPurpose: "commercial",
+			dataClassification: "production",
+		})
 
 		await withSupabaseAuthStub(
 			{

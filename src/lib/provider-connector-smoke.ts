@@ -27,12 +27,18 @@ function isHttpsUrl(value: string): boolean {
 	}
 }
 
-async function probeHttps(url: string, timeoutMs: number): Promise<ConnectorSmokeResult> {
+type ConnectorFetch = typeof globalThis.fetch
+
+async function probeHttps(
+	url: string,
+	timeoutMs: number,
+	fetchImpl: ConnectorFetch
+): Promise<ConnectorSmokeResult> {
 	const started = Date.now()
 	const controller = new AbortController()
 	const timer = setTimeout(() => controller.abort(), timeoutMs)
 	try {
-		const response = await fetch(url, {
+		const response = await fetchImpl(url, {
 			method: "GET",
 			redirect: "manual",
 			signal: controller.signal,
@@ -81,9 +87,11 @@ export async function runConnectorSmokeTest(params: {
 	endpointUrl: string
 	mode?: string
 	timeoutMs?: number
+	fetchImpl?: ConnectorFetch
 }): Promise<ConnectorSmokeResult> {
 	const endpointUrl = String(params.endpointUrl ?? "").trim()
 	const timeoutMs = params.timeoutMs ?? DEFAULT_TIMEOUT_MS
+	const fetchImpl = params.fetchImpl ?? globalThis.fetch
 	if (!endpointUrl) {
 		return {
 			ok: false,
@@ -109,7 +117,7 @@ export async function runConnectorSmokeTest(params: {
 	}
 
 	if (isHttpsUrl(endpointUrl)) {
-		return probeHttps(endpointUrl, timeoutMs)
+		return probeHttps(endpointUrl, timeoutMs, fetchImpl)
 	}
 
 	return {

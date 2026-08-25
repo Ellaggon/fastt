@@ -7,6 +7,7 @@ import { searchOffers } from "@/container"
 import Layout from "@/layouts/Layout.astro"
 import { tourDifficultyLabel } from "@/lib/tours/tourDifficulty"
 import { tourDepartureToStay } from "@/lib/tours/tourSemantics"
+import { publicCatalogProductEligibility } from "@/lib/marketplace/public-catalog-eligibility"
 import {
 	buildAgeBandPriceBreakdown,
 	parseTourTicketQuantitiesFromSearchParams,
@@ -35,7 +36,9 @@ import {
 	or,
 	isNull,
 	Product,
+	Provider,
 	ProductGeoPlace,
+	ProductStatus,
 	ProductCategory,
 	ProductCategoryLink,
 	ProductContent,
@@ -157,6 +160,8 @@ try {
 	const productResult = await db
 		.select()
 		.from(Product)
+		.innerJoin(Provider, eq(Provider.id, Product.providerId))
+		.innerJoin(ProductStatus, eq(ProductStatus.productId, Product.id))
 		.leftJoin(
 			ProductGeoPlace,
 			and(
@@ -171,7 +176,13 @@ try {
 			ProductContent,
 			and(eq(ProductContent.productId, Product.id), eq(ProductContent.dataClass, "production"))
 		)
-		.where(and(eq(Product.id, productId), eq(Product.dataClass, "production")))
+		.where(
+			and(
+				eq(Product.id, productId),
+				publicCatalogProductEligibility(),
+				eq(ProductStatus.state, "published")
+			)
+		)
 		.then(first)
 
 	if (!productResult) return Astro.redirect("/tours")

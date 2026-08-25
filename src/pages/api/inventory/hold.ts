@@ -9,6 +9,8 @@ import {
 	gte,
 	lt,
 	Product,
+	Provider,
+	ProductStatus,
 	SearchUnitView,
 	TourSlotProfile,
 } from "@/shared/infrastructure/db/compat"
@@ -34,6 +36,7 @@ import {
 } from "@/modules/search/public"
 import { toISODate } from "@/shared/domain/date/date.utils"
 import { normalizeOccupancy } from "@/shared/domain/occupancy"
+import { publicCatalogProductEligibility } from "@/lib/marketplace/public-catalog-eligibility"
 
 const schema = z.object({
 	variantId: z.string().min(1),
@@ -168,7 +171,11 @@ async function resolveHoldabilityFromView(params: {
 		})
 		.from(SearchUnitView)
 		.innerJoin(Product, eq(Product.id, SearchUnitView.productId))
-		.where(and(...predicates, eq(Product.dataClass, "production")))
+		.innerJoin(Provider, eq(Provider.id, Product.providerId))
+		.innerJoin(ProductStatus, eq(ProductStatus.productId, Product.id))
+		.where(
+			and(...predicates, publicCatalogProductEligibility(), eq(ProductStatus.state, "published"))
+		)
 
 	let v2Rows: Array<{
 		variantId: string
