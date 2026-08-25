@@ -28,5 +28,6 @@ describe("public SEO and browser certification contract", () => {
 		expect(workflow).toContain("public-certification:")
 		expect(workflow).toContain("FASTT_PUBLIC_CERTIFICATION_URL")
 		expect(workflow).toContain("test:marketplace:public-browser")
+		expect(workflow).toContain("http://127.0.0.1:4178")
 	})
 })

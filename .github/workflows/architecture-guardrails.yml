@@ -172,4 +172,18 @@ jobs:
           pnpm run test:marketplace:public-browser
 
       - name: Public HTML and TTFB budget
-        run: pnpm run perf:html-budget
+        env:
+          FASTT_HTML_BUDGET_BASE_URL: http://127.0.0.1:4178
+          FASTT_HTML_BUDGET_ROUTES: "/:250000,/hotels:335000,/tours:345000"
+        run: |
+          if ! curl -sf http://127.0.0.1:4178/ >/dev/null; then
+            pnpm exec astro preview --host 127.0.0.1 --port 4178 &
+            for _ in $(seq 1 40); do
+              if curl -sf http://127.0.0.1:4178/ >/dev/null; then
+                break
+              fi
+              sleep 1
+            done
+          fi
+          curl -sf http://127.0.0.1:4178/ >/dev/null
+          pnpm run perf:html-budget

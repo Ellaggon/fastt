@@ -60,7 +60,10 @@ function stableQuotePayload(quote: Omit<PriceQuote, "quoteId" | "issuedAt" | "so
 		nights: quote.nights,
 		baseAmount: quote.baseAmount,
 		totalAmount: quote.totalAmount,
-		pricing: quote.pricing,
+		// Search and hold may differ on engine source/breakdown without changing guest terms.
+		pricing: {
+			days: quote.pricing.days.map((day) => ({ date: String(day.date), price: money(day.price) })),
+		},
 		taxesAndFees: {
 			base: money(quote.taxesAndFees.base),
 			total: money(quote.taxesAndFees.total),
