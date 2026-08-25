@@ -101,6 +101,22 @@ function sortLines(a: ReturnType<typeof normalizeLine>, b: ReturnType<typeof nor
 	return `${a.code}:${a.definitionId}`.localeCompare(`${b.code}:${b.definitionId}`)
 }
 
+/**
+ * PostgreSQL jsonb canonicalizes object key order. Quote identity must use a
+ * deterministic representation so a persisted quote verifies exactly as it
+ * did at hold creation. Arrays retain their order because their order is
+ * commercial data (stay days and price lines).
+ */
+function stableJson(value: unknown): string {
+	if (value === null || typeof value !== "object") return JSON.stringify(value)
+	if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`
+	const record = value as Record<string, unknown>
+	return `{${Object.keys(record)
+		.sort((left, right) => left.localeCompare(right))
+		.map((key) => `${JSON.stringify(key)}:${stableJson(record[key])}`)
+		.join(",")}}`
+}
+
 export function buildPriceQuote(
 	input: Omit<PriceQuote, "version" | "quoteId" | "issuedAt" | "source" | "totalAmount"> & {
 		source?: PriceQuote["source"]
@@ -137,7 +153,7 @@ export function buildPriceQuote(
 		},
 	} satisfies Omit<PriceQuote, "quoteId" | "issuedAt" | "source">
 	const quoteId = createHash("sha256")
-		.update(JSON.stringify(commercialQuotePayload(quote)))
+		.update(stableJson(commercialQuotePayload(quote)))
 		.digest("hex")
 		.slice(0, 32)
 

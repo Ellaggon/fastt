@@ -1,9 +1,52 @@
 import { describe, expect, it } from "vitest"
 
 import { buildBookingReceipt } from "@/modules/booking/public"
-import { buildPriceQuote, isPriceQuote, quoteExtraAmount } from "@/modules/pricing/public"
+import {
+	buildPriceQuote,
+	hasCanonicalPriceQuoteIdentity,
+	isPriceQuote,
+	quoteExtraAmount,
+} from "@/modules/pricing/public"
+
+function reorderObjectKeys(value: unknown): unknown {
+	if (Array.isArray(value)) return value.map(reorderObjectKeys)
+	if (!value || typeof value !== "object") return value
+	return Object.fromEntries(
+		Object.entries(value as Record<string, unknown>)
+			.sort(([left], [right]) => right.localeCompare(left))
+			.map(([key, item]) => [key, reorderObjectKeys(item)])
+	)
+}
 
 describe("PriceQuote contract", () => {
+	it("preserves quote identity after JSONB-style object key reordering", () => {
+		const quote = buildPriceQuote({
+			context: {
+				productId: "product_1",
+				variantId: "variant_1",
+				ratePlanId: "rate_1",
+				checkIn: "2026-09-10",
+				checkOut: "2026-09-11",
+				rooms: 1,
+				occupancy: { adults: 2, children: 0, infants: 0 },
+				channel: "web",
+			},
+			currency: "USD",
+			nights: 1,
+			baseAmount: 100,
+			taxesAndFees: {
+				base: 100,
+				total: 100,
+				taxes: { included: [], excluded: [] },
+				fees: { included: [], excluded: [] },
+			},
+			pricing: { days: [{ date: "2026-09-10", price: 100 }], source: "v2" },
+		})
+
+		const persistedQuote = JSON.parse(JSON.stringify(reorderObjectKeys(quote)))
+		expect(hasCanonicalPriceQuoteIdentity(persistedQuote)).toBe(true)
+	})
+
 	it("keeps the guest total and receipt immutable across lifecycle reads", () => {
 		const quote = buildPriceQuote({
 			issuedAt: "2026-08-11T00:00:00.000Z",

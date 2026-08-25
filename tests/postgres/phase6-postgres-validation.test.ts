@@ -5,7 +5,10 @@ import { randomUUID } from "node:crypto"
 import postgres from "postgres"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
-import { HOLD_COMMERCIAL_SNAPSHOT_VERSION } from "@/modules/inventory/public"
+import {
+	HOLD_COMMERCIAL_SNAPSHOT_VERSION,
+	isHoldCommercialSnapshot,
+} from "@/modules/inventory/public"
 import { BookingFromHoldRepository } from "@/modules/booking/infrastructure/repositories/BookingFromHoldRepository"
 import { buildPriceQuote } from "@/modules/pricing/public"
 import { ensureUserForSession } from "@/modules/identity/application/use-cases/ensure-user-for-session"
@@ -236,6 +239,14 @@ describePostgres("phase 6 Postgres double validation", () => {
 			insert into "InventoryLock" ("id", "holdId", "variantId", "date", "quantity", "expiresAt")
 			values (${id(`${scope}-lock-confirm`)}, ${holdId}, ${fixture.variantId}, ${date}, 1, ${expiresAt})
 		`
+		const [persistedHold] = await sql`
+			select "commercialSnapshotVersion", "priceQuoteId", "commercialSnapshotJson"
+			from "Hold"
+			where "id" = ${holdId}
+		`
+		expect(persistedHold.commercialSnapshotVersion).toBe(HOLD_COMMERCIAL_SNAPSHOT_VERSION)
+		expect(persistedHold.priceQuoteId).toBe(priceQuote.quoteId)
+		expect(isHoldCommercialSnapshot(persistedHold.commercialSnapshotJson)).toBe(true)
 
 		const repository = new BookingFromHoldRepository()
 		const first = await repository.createBookingFromHold({
