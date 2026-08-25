@@ -238,6 +238,7 @@ async function ensureLocalFixtureData() {
 			name: "Hotel de certificación Channex (no comercial)",
 			productType: "hotel",
 			providerId: PROVIDER_ID,
+			dataClass: "fixture",
 			creationDate: now,
 			lastUpdated: now,
 		})
@@ -246,10 +247,24 @@ async function ensureLocalFixtureData() {
 			set: {
 				name: "Hotel de certificación Channex (no comercial)",
 				providerId: PROVIDER_ID,
+				dataClass: "fixture",
 				lastUpdated: now,
 			},
 		})
-	await db.insert(ProductGeoPlace).values({ id: `geo:product-place:${PRODUCT_ID}`, productId: PRODUCT_ID, placeId: GEO_PLACE_ID, role: "primary_discovery", isPrimary: true, source: "certification_fixture" }).onConflictDoUpdate({ target: [ProductGeoPlace.productId, ProductGeoPlace.placeId, ProductGeoPlace.role], set: { isPrimary: true, updatedAt: now } })
+	await db
+		.insert(ProductGeoPlace)
+		.values({
+			id: `geo:product-place:${PRODUCT_ID}`,
+			productId: PRODUCT_ID,
+			placeId: GEO_PLACE_ID,
+			role: "primary_discovery",
+			isPrimary: true,
+			source: "certification_fixture",
+		})
+		.onConflictDoUpdate({
+			target: [ProductGeoPlace.productId, ProductGeoPlace.placeId, ProductGeoPlace.role],
+			set: { isPrimary: true, updatedAt: now },
+		})
 	await db
 		.insert(Hotel)
 		.values({ productId: PRODUCT_ID, stars: 3, email: ACTOR_EMAIL })

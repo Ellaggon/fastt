@@ -164,7 +164,7 @@ async function upsertFixture(params: {
 			legalName: "Fastt Marketplace Certification",
 			displayName: "Fastt Certification",
 			status: "active",
-			accountPurpose: "integration_certification",
+			accountPurpose: "commercial",
 			dataClassification: "production",
 			createdAt: now,
 		})
@@ -174,7 +174,7 @@ async function upsertFixture(params: {
 				legalName: "Fastt Marketplace Certification",
 				displayName: "Fastt Certification",
 				status: "active",
-				accountPurpose: "integration_certification",
+				accountPurpose: "commercial",
 				dataClassification: "production",
 			},
 		})

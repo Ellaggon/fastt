@@ -1,19 +1,22 @@
 ---
 import Breadcrumbs from "@/components/Breadcrumbs.astro"
 import Layout from "@/layouts/Layout.astro"
+import { publicCatalogProductEligibility } from "@/lib/marketplace/public-catalog-eligibility"
 import {
 	and,
 	asc,
 	db,
 	eq,
-	GeoPlace,
 	first,
+	GeoPlace,
 	Image,
 	Package,
 	Product,
-	ProductGeoPlace,
 	ProductContent,
+	ProductGeoPlace,
 	ProductLocation,
+	ProductStatus,
+	Provider,
 	sql,
 } from "@/shared/infrastructure/db/compat"
 
@@ -37,6 +40,8 @@ const row = await db
 		excludes: Package.excludesJson,
 	})
 	.from(Product)
+	.innerJoin(Provider, eq(Provider.id, Product.providerId))
+	.innerJoin(ProductStatus, eq(ProductStatus.productId, Product.id))
 	.leftJoin(
 		ProductGeoPlace,
 		and(
@@ -56,7 +61,8 @@ const row = await db
 		and(
 			eq(Product.id, productId),
 			sql`lower(${Product.productType}) = 'package'`,
-			eq(Product.dataClass, "production")
+			publicCatalogProductEligibility(),
+			eq(ProductStatus.state, "published")
 		)
 	)
 	.then(first)
