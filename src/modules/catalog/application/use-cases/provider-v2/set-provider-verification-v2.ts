@@ -11,14 +11,14 @@ export async function setProviderVerificationV2(
 		providerId: string
 		status: unknown
 		reason?: string | null
-		reviewedBy?: string | null
+		reviewedByUserId?: string | null
 		metadataJson?: string | null
 	}
 ): Promise<{ providerId: string }> {
 	const result = providerVerificationSchema.safeParse({
 		status: params.status,
 		reason: params.reason ?? undefined,
-		reviewedBy: params.reviewedBy ?? undefined,
+		reviewedByUserId: params.reviewedByUserId ?? undefined,
 		metadataJson: params.metadataJson ?? undefined,
 	})
 	if (!result.success) {
@@ -35,7 +35,7 @@ export async function setProviderVerificationV2(
 		providerId,
 		status: parsed.status satisfies ProviderVerificationStatus,
 		reason: parsed.reason ?? null,
-		reviewedBy: parsed.reviewedBy ?? null,
+		reviewedByUserId: parsed.reviewedByUserId ?? null,
 		metadataJson: metadata,
 	})
 

@@ -64,13 +64,24 @@ on:
 jobs:
   tours:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fastt
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d fastt"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      DIRECT_URL: ${{ secrets.DIRECT_URL }}
-      SUPABASE_DB_POOLER_URL: ${{ secrets.SUPABASE_DB_POOLER_URL }}
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-      FASTT_DATA_ENV: test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/fastt
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/fastt
+      FASTT_DATA_ENV: development
       TOURS_CHECKOUT_ENABLED: "true"
       TOURS_CHECKIN_ENABLED: "true"
       TOURS_PUBLIC_SEARCH_ENABLED: "true"
@@ -93,6 +104,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Install canonical schema
+        run: psql "$DIRECT_URL" -v ON_ERROR_STOP=1 -f db/postgres/0001_initial_schema.sql
+
       - name: Generate Astro types
         run: pnpm exec astro sync
 
@@ -112,9 +126,25 @@ jobs:
         run: pnpm run check:ui
 
       - name: Postgres schema parity
+        env:
+          FASTT_DATA_ENV: test
+          DATABASE_URL: ""
+          DIRECT_URL: ""
+          FASTT_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/fastt
+          FASTT_TEST_DIRECT_URL: postgresql://postgres:postgres@localhost:5432/fastt
+          FASTT_TEST_DATABASE_FINGERPRINT: dbfp_80c3df721bfbe036eaf8
+          FASTT_PRODUCTION_DATABASE_FINGERPRINTS: dbfp_production_not_local
         run: pnpm exec vitest run tests/architecture/postgres-schema-parity.test.ts
 
       - name: P0 gates (slot-profile + occupancy key)
+        env:
+          FASTT_DATA_ENV: test
+          DATABASE_URL: ""
+          DIRECT_URL: ""
+          FASTT_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/fastt
+          FASTT_TEST_DIRECT_URL: postgresql://postgres:postgres@localhost:5432/fastt
+          FASTT_TEST_DATABASE_FINGERPRINT: dbfp_80c3df721bfbe036eaf8
+          FASTT_PRODUCTION_DATABASE_FINGERPRINTS: dbfp_production_not_local
         run: pnpm exec vitest run tests/catalog/tour-slot-profile.test.ts tests/guardrails/no-manual-occupancy-key.test.ts
 
       - name: Prometheus rules + Alertmanager fragments
@@ -130,19 +160,19 @@ jobs:
           exit "$code"
 
       - name: Tour migration validators (idempotent apply)
-        if: ${{ env.DATABASE_URL != '' || env.SUPABASE_DB_POOLER_URL != '' || env.DIRECT_URL != '' }}
         run: |
           pnpm run db:validate:tour-category-backfill
           pnpm run db:validate:tour-p2-trust
 
-      - name: Tour migration SQL presence (no DB)
-        if: ${{ env.DATABASE_URL == '' && env.SUPABASE_DB_POOLER_URL == '' && env.DIRECT_URL == '' }}
-        run: |
-          test -f db/migrations/2026-08-19_tour_category_link_backfill.sql
-          test -f db/migrations/2026-08-20_tour_p2_trust_quality_private.sql
-          grep -E "IF NOT EXISTS|ON CONFLICT|idempotent" db/migrations/2026-08-19_tour_category_link_backfill.sql db/migrations/2026-08-20_tour_p2_trust_quality_private.sql
-
       - name: Tours browser-surface contracts
+        env:
+          FASTT_DATA_ENV: test
+          DATABASE_URL: ""
+          DIRECT_URL: ""
+          FASTT_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/fastt
+          FASTT_TEST_DIRECT_URL: postgresql://postgres:postgres@localhost:5432/fastt
+          FASTT_TEST_DATABASE_FINGERPRINT: dbfp_80c3df721bfbe036eaf8
+          FASTT_PRODUCTION_DATABASE_FINGERPRINTS: dbfp_production_not_local
         run: pnpm exec vitest run tests/catalog/tour-pdp-browser-surface.test.ts tests/catalog/tour-ticket-occupancy.test.ts tests/catalog/tour-canary-observation.test.ts
 
       - name: Install Playwright Chromium
@@ -152,8 +182,14 @@ jobs:
         run: pnpm run test:tours:playwright
 
       - name: Tours phase6 suite
-        # Catalog/guardrail/policy contracts always run. Postgres integration suites
-        # skip cleanly when DATABASE_URL / pooler secrets are unset.
+        env:
+          FASTT_DATA_ENV: test
+          DATABASE_URL: ""
+          DIRECT_URL: ""
+          FASTT_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/fastt
+          FASTT_TEST_DIRECT_URL: postgresql://postgres:postgres@localhost:5432/fastt
+          FASTT_TEST_DATABASE_FINGERPRINT: dbfp_80c3df721bfbe036eaf8
+          FASTT_PRODUCTION_DATABASE_FINGERPRINTS: dbfp_production_not_local
         run: pnpm run test:tours:phase6
 
       - name: Canary observation snapshot (local dry-run)

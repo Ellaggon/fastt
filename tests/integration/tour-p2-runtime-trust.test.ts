@@ -41,6 +41,7 @@ import { loadHotelTourCrossSell } from "@/lib/tours/hotelTourCrossSell"
 import { tourDepartureToStay } from "@/lib/tours/tourSemantics"
 import { createPolicyCapa6, replacePolicyAssignmentCapa6 } from "@/modules/policies/public"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
+import { upsertPublishedProductStatus } from "../test-support/catalog-db-test-data"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -120,8 +121,11 @@ async function seedPrivateVariant(suffix: string) {
 		name: "Private Tour",
 		productType: "Tour",
 		providerId: "prov_test",
+		dataClass: "production",
 	} as any)
 	await db.insert(ProductGeoPlace).values({ id: `test-primary-${productId}`, productId, placeId: geoPlaceId, role: "primary_discovery", isPrimary: true, source: "test_fixture" } as any)
+	// The public request endpoint only resolves published marketplace inventory.
+	await db.insert(ProductStatus).values({ productId, state: "published" } as any)
 	await db.insert(Variant).values({
 		id: variantId,
 		productId,
@@ -155,6 +159,7 @@ describe("integration/tour P2 runtime trust (review, private, cross-sell, cancel
 			const providerUserId = `u_prov_${suffix}`
 			const foreignUserId = `u_foreign_${suffix}`
 			const foreignProviderId = `prov_foreign_${suffix}`
+			const seeded = await seedPrivateVariant(suffix)
 
 			await db.insert(User).values({
 				id: providerUserId,
@@ -178,7 +183,6 @@ describe("integration/tour P2 runtime trust (review, private, cross-sell, cancel
 				role: "owner",
 			} as any)
 
-			const seeded = await seedPrivateVariant(suffix)
 			const contactEmail = `guest-priv-${suffix}@example.com`
 
 			await withSupabaseAuthStub(
@@ -758,6 +762,7 @@ describe("integration/tour P2 runtime trust (review, private, cross-sell, cancel
 				providerId: "prov_test",
 			} as any)
 			await db.insert(ProductGeoPlace).values({ id: `test-primary-${productId}`, productId, placeId: geoPlaceId, role: "primary_discovery", isPrimary: true, source: "test_fixture" } as any)
+			await upsertPublishedProductStatus(productId)
 			await db.insert(Tour).values({
 				productId,
 				durationMinutes: 90,

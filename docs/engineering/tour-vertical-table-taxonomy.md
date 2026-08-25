@@ -142,13 +142,12 @@ pnpm db:migrate:apply-one --file db/migrations/2026-08-20_tour_p2_trust_quality_
 Idempotency validation (applies SQL twice inside a rolled-back transaction):
 
 ```bash
-pnpm db:validate:tour-category-backfill
 pnpm db:validate:tour-p2-trust
 ```
 
 Rollback (manual; not wired into `apply-one`):
 
-- **08-19**: delete backfill links only if you tracked them; otherwise leave `ProductCategoryLink` rows. Optional: `DROP TABLE IF EXISTS "TourCategoryBackfillUnmapped";` and remove the matching `fastt_schema_migrations` row to re-apply.
+- **08-19**: delete backfill links only if you tracked them; otherwise leave `ProductCategoryLink` rows. `TourCategoryBackfillUnmapped` is a one-off reconciliation artifact and is retired by `2026-09-11_retire_historical_backfill_artifacts.sql`; do not remove migration ledger rows to re-run historical backfills.
 - **08-20**:
   ```sql
   DROP TABLE IF EXISTS "TourPrivateRequest";

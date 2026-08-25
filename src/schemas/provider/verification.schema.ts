@@ -6,7 +6,11 @@ export const providerVerificationSchema = z
 			error: "Status must be pending, approved, or rejected",
 		}),
 		reason: z.string().trim().min(2, "Reason must be at least 2 characters").optional(),
-		reviewedBy: z.string().trim().min(2, "Reviewer name must be at least 2 characters").optional(),
+		reviewedByUserId: z
+			.string()
+			.trim()
+			.min(2, "Reviewer user id must be at least 2 characters")
+			.optional(),
 		metadataJson: z.string().trim().optional(),
 	})
 	.superRefine((val, ctx) => {

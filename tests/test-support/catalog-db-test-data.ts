@@ -5,6 +5,7 @@ import {
 	db,
 	eq,
 	GeoPlace,
+	ProductStatus,
 	Provider,
 	ProviderUser,
 	RoomType,
@@ -96,6 +97,16 @@ export async function upsertProvider(row: {
 		userId,
 		role: "owner",
 	})
+}
+
+export async function upsertPublishedProductStatus(productId: string) {
+	await db
+		.insert(ProductStatus)
+		.values({ productId, state: "published" })
+		.onConflictDoUpdate({
+			target: [ProductStatus.productId],
+			set: { state: "published" },
+		})
 }
 
 export async function upsertRoomType(row: {

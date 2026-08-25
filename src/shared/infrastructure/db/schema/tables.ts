@@ -940,7 +940,9 @@ export const ProductGeoPlaceActivity = pgTable(
 		source: txt("source"),
 		createdAt: now("createdAt"),
 	},
-	(table) => [index("ProductGeoPlaceActivity_product_created_idx").on(table.productId, table.createdAt)]
+	(table) => [
+		index("ProductGeoPlaceActivity_product_created_idx").on(table.productId, table.createdAt),
+	]
 )
 
 /** Immutable operational evidence for the controlled public-to-receipt certification suite. */
@@ -1116,7 +1118,8 @@ export const TourPrivateRequest = pgTable(
 		providerId: txt("providerId").references(() => Provider.id),
 		userId: txtOpt("userId").references(() => User.id),
 		departureDate: day("departureDate"),
-		partyJson: jsonb("partyJson"),
+		// A private request cannot be priced or accepted without the requested party.
+		partyJson: jsonb("partyJson").notNull(),
 		contactName: txt("contactName"),
 		contactEmail: txt("contactEmail"),
 		contactPhone: txtOpt("contactPhone"),

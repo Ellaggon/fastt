@@ -18,6 +18,11 @@ type SchemaColumn = {
 	getSQLType(): string
 }
 
+// The migration runner owns this ledger outside Drizzle's domain schema. It is
+// created lazily when the first tracked migration is applied and is never a
+// business table or a fresh-install requirement.
+const operationalInfrastructureTables = new Set(["fastt_schema_migrations"])
+
 function baseSqlType(column: SchemaColumn) {
 	return column.getSQLType().replace(/\(.+\)$/, "")
 }
@@ -91,8 +96,14 @@ async function main() {
 		}
 
 		const actualNames = new Set(actualColumns.keys())
-		const missingTables = [...expectedNames].filter((name) => !actualNames.has(name))
-		const unmanagedTables = [...actualNames].filter((name) => !expectedNames.has(name))
+		const operationalTables = [...actualNames].filter((name) =>
+			operationalInfrastructureTables.has(name)
+		)
+		const managedActualNames = new Set(
+			[...actualNames].filter((name) => !operationalInfrastructureTables.has(name))
+		)
+		const missingTables = [...expectedNames].filter((name) => !managedActualNames.has(name))
+		const unmanagedTables = [...managedActualNames].filter((name) => !expectedNames.has(name))
 		const columnDrift = expected.flatMap(({ name }) => {
 			const expectedForTable = expectedColumns.get(name) ?? new Map()
 			const actualForTable = actualColumns.get(name) ?? new Map()
@@ -137,7 +148,8 @@ async function main() {
 				definitionDrift.length === 0 &&
 				(!fresh || unmanagedTables.length === 0),
 			expectedTableCount: expected.length,
-			actualTableCount: actualNames.size,
+			actualTableCount: managedActualNames.size,
+			operationalTables,
 			missingTables,
 			unmanagedTables,
 			columnDrift,

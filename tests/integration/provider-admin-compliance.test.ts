@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest"
-import { db, eq, ProviderAuditLog, User } from "@/shared/infrastructure/db/compat"
+import {
+	db,
+	eq,
+	ProviderAuditLog,
+	ProviderVerification,
+	User,
+} from "@/shared/infrastructure/db/compat"
 import {
 	loadProviderComplianceConsole,
 	parseProviderComplianceQueueFilter,
@@ -195,6 +201,12 @@ describe("provider admin unified compliance console", () => {
 			.where(eq(ProviderAuditLog.providerId, providerId))
 
 		expect(auditRows.some((row) => row.action === "provider.verification.review")).toBe(true)
+		const verificationRow = await db
+			.select({ reviewedBy: ProviderVerification.reviewedBy })
+			.from(ProviderVerification)
+			.where(eq(ProviderVerification.providerId, providerId))
+			.limit(1)
+		expect(verificationRow[0]?.reviewedBy).toBe(adminId)
 		expect(auditRows.some((row) => row.action === "provider.tax_configuration.upsert")).toBe(true)
 		expect(auditRows.some((row) => row.action === "provider.document.submit")).toBe(true)
 		expect(auditRows.some((row) => row.action === "provider.payment_account.create")).toBe(true)

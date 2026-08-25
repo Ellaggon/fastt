@@ -774,7 +774,7 @@ CREATE TABLE "TourPrivateRequest" (
 	"providerId" text NOT NULL,
 	"userId" text,
 	"departureDate" date NOT NULL,
-	"partyJson" jsonb,
+	"partyJson" jsonb NOT NULL,
 	"contactName" text NOT NULL,
 	"contactEmail" text NOT NULL,
 	"contactPhone" text,
