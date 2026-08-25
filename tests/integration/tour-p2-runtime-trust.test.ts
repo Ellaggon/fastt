@@ -120,8 +120,11 @@ async function seedPrivateVariant(suffix: string) {
 		name: "Private Tour",
 		productType: "Tour",
 		providerId: "prov_test",
+		dataClass: "production",
 	} as any)
 	await db.insert(ProductGeoPlace).values({ id: `test-primary-${productId}`, productId, placeId: geoPlaceId, role: "primary_discovery", isPrimary: true, source: "test_fixture" } as any)
+	// The public request endpoint only resolves published marketplace inventory.
+	await db.insert(ProductStatus).values({ productId, state: "published" } as any)
 	await db.insert(Variant).values({
 		id: variantId,
 		productId,
