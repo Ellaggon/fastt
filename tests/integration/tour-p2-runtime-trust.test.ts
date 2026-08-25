@@ -158,6 +158,7 @@ describe("integration/tour P2 runtime trust (review, private, cross-sell, cancel
 			const providerUserId = `u_prov_${suffix}`
 			const foreignUserId = `u_foreign_${suffix}`
 			const foreignProviderId = `prov_foreign_${suffix}`
+			const seeded = await seedPrivateVariant(suffix)
 
 			await db.insert(User).values({
 				id: providerUserId,
@@ -181,7 +182,6 @@ describe("integration/tour P2 runtime trust (review, private, cross-sell, cancel
 				role: "owner",
 			} as any)
 
-			const seeded = await seedPrivateVariant(suffix)
 			const contactEmail = `guest-priv-${suffix}@example.com`
 
 			await withSupabaseAuthStub(
