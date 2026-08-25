@@ -91,8 +91,7 @@ export const TRUST_GLOSSARY = {
 		railHint: "",
 		railComplete: "Cuenta lista",
 		deferOtherSlot: "En espera — termina primero el documento en foco.",
-		accountVsDocs:
-			"La cuenta en revisión no sustituye los documentos. Sin los mínimos verificados no puedes cobrar con confianza.",
+		accountVsDocs: "Revisar la cuenta no reemplaza enviar los documentos.",
 		readyEyebrow: "Lista",
 		readyTitle: "Confianza del proveedor lista",
 		readyBody:
@@ -646,9 +645,9 @@ export function buildDocumentsUploadNextStep(params: {
 			? "El NIT ya está en Fiscalidad. Usa el envío opcional debajo solo si el equipo o el bureau lo requieren."
 			: needsResubmit || accountRejected
 				? rejectCategoryLabel
-					? `${rejectCategoryLabel}. Completa el envío en foco y pulsa Enviar a revisión.`
-					: "Este documento requiere cambios. Completa el envío en foco y pulsa Enviar a revisión."
-				: "Un documento a la vez. Completa el envío en foco y pulsa Enviar a revisión.",
+					? `${rejectCategoryLabel}. Elige el archivo y pulsa Enviar a revisión.`
+					: "Este documento requiere cambios. Elige el archivo y pulsa Enviar a revisión."
+				: "Elige el archivo y pulsa Enviar a revisión.",
 		ctaLabel: optionalConstancia
 			? "Enviar constancia"
 			: accountRejected || needsResubmit

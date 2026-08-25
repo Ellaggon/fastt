@@ -5,12 +5,14 @@ import type { VerificationCrossLink, VerificationNextStep } from "@/lib/provider
 type Props = {
 	nextStep?: VerificationNextStep | null
 	crossLinks?: VerificationCrossLink[]
-	/** Hide title + progressLabel (0/3 / «Sube…»); keep body + consequence. */
+	/** Hide title + progressLabel (0/3 / «Sube…»). Upload folds keep copy for screen readers. */
 	copyOnly?: boolean
 }
 
 const { nextStep = null, copyOnly = false } = Astro.props as Props
 const isSuccess = nextStep?.tone === "success"
+/** Elevated KYC fold: the form is the instruction; keep lecture for screen readers. */
+const quietUploadCopy = Boolean(copyOnly && nextStep?.ctaKind === "upload")
 ---
 
 {
@@ -45,7 +47,7 @@ const isSuccess = nextStep?.tone === "success"
 				</header>
 			) : null}
 
-			<div class="space-y-2" data-next-step-copy>
+			<div class={quietUploadCopy ? "sr-only" : "space-y-2"} data-next-step-copy>
 				<p class="max-w-2xl text-sm leading-6 text-slate-600">{nextStep.body}</p>
 				{nextStep.consequenceLine && !isSuccess ? (
 					<p class="max-w-2xl text-sm leading-6 text-slate-500" data-next-step-consequence>

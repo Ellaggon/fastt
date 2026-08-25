@@ -74,6 +74,14 @@ const showWarningConsequence =
 const accountWait = buildProviderReviewWaitState("verification", { assignment: reviewAssignment })
 /** Compact one-line wait when upload/access is the active job (no yellow essay). */
 const useCompactWait = Boolean(suppressConsequence)
+const hasReviewNote = Boolean(
+	String(latestVerification?.reason ?? "").trim() || rejectCategory?.matched
+)
+const statusLead = isApproved
+	? "La cuenta está lista para operar."
+	: status === "rejected"
+		? "Hay que corregir datos antes de operar."
+		: "Estamos revisando tu cuenta."
 
 const accountConsequence = isApproved
 	? "La cuenta lista habilita publicar y operar con los controles actuales."
@@ -117,7 +125,7 @@ const listaConsequence =
 					<div class="flex flex-wrap items-center justify-between gap-3">
 						<div>
 							<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">
-								Estado de la cuenta (Identidad)
+								Estado de la cuenta
 							</p>
 							<p class="mt-1 text-lg font-semibold text-slate-950">{statusLabel}</p>
 						</div>
@@ -125,25 +133,17 @@ const listaConsequence =
 					</div>
 					{isPending ? (
 						<p class="mt-2 text-sm text-slate-600" data-verification-wait-summary>
-							{accountWait.label}
 							{accountWait.sla.hasPublishedSla
-								? ` · ${accountWait.footnote}`
-								: " · El resultado aparecerá aquí"}
+								? accountWait.footnote
+								: "Te avisamos aquí al terminar."}
 						</p>
 					) : (
-						<p class="mt-2 text-sm text-slate-600">
-							Notas de revisión de cuenta. Negocio, Fiscal y Pagos se siguen en el progreso de
-							arriba.
-						</p>
+						<p class="mt-2 text-sm text-slate-600">{statusLead}</p>
 					)}
 				</summary>
 				<div class="mt-5 space-y-6 border-t border-slate-200 pt-5">
-					<p class="text-sm leading-6 text-slate-600" data-trust-progress-pointer>
-						El{" "}
-						<a class="font-semibold underline" href="#trust-map-rail">
-							progreso de arriba
-						</a>{" "}
-						es la única lectura de camino. Este panel solo detalla Identidad (revisión de cuenta).
+					<p class="sr-only" data-trust-progress-pointer>
+						El avance de Identidad, negocio, fiscal y pagos está en Tu progreso, arriba.
 					</p>
 
 					{suppressConsequence ? null : (
@@ -178,25 +178,26 @@ const listaConsequence =
 							<p class="mt-1 text-sm text-slate-950">{reviewedLabel}</p>
 						</Card>
 						<Card variant="soft">
-							<p class="text-sm font-medium text-slate-700">Documentos en archivo</p>
+							<p class="text-sm font-medium text-slate-700">Documentos</p>
 							<p class="mt-1 text-sm text-slate-950">
 								{verifiedDocuments.length} verificados · {pendingDocuments.length} enviados
 							</p>
 						</Card>
 					</div>
 
-					<Card variant="plain">
-						<p class="text-sm font-medium text-slate-700">Motivo o nota de revisión</p>
-						{rejectCategory?.matched ? (
-							<Badge variant="error" class="mt-2" data-reject-category>
-								{rejectCategory.label}
-							</Badge>
-						) : null}
-						<p class="mt-1 text-sm leading-6 text-slate-600">
-							{latestVerification?.reason ||
-								"No hay observaciones registradas por revisión de cuenta."}
-						</p>
-					</Card>
+					{hasReviewNote ? (
+						<Card variant="plain">
+							<p class="text-sm font-medium text-slate-700">Nota de revisión</p>
+							{rejectCategory?.matched ? (
+								<Badge variant="error" class="mt-2" data-reject-category>
+									{rejectCategory.label}
+								</Badge>
+							) : null}
+							{latestVerification?.reason ? (
+								<p class="mt-1 text-sm leading-6 text-slate-600">{latestVerification.reason}</p>
+							) : null}
+						</Card>
+					) : null}
 
 					{isPending && !useCompactWait ? (
 						<ProviderReviewWaitNotice domain="verification" assignment={reviewAssignment} />
@@ -206,7 +207,7 @@ const listaConsequence =
 							data-verification-wait-compact
 							data-sla-mirror={accountWait.sla.hasPublishedSla ? "published" : "none"}
 						>
-							{accountWait.body} {accountWait.footnote}
+							{accountWait.sla.hasPublishedSla ? accountWait.footnote : accountWait.body}
 						</p>
 					) : null}
 
@@ -222,23 +223,14 @@ const listaConsequence =
 				<div class="space-y-6">
 					<div class="flex flex-wrap items-start justify-between gap-4">
 						<div class="space-y-2">
-							<p class="text-sm font-medium text-slate-500">Estado de la cuenta (Identidad)</p>
+							<p class="text-sm font-medium text-slate-500">Estado de la cuenta</p>
 							<h3 class="text-2xl font-semibold text-slate-950">{statusLabel}</h3>
-							<p class="text-sm leading-6 text-slate-600">
-								{isApproved
-									? "La cuenta está lista para operar con los controles actuales."
-									: status === "rejected"
-										? "La cuenta requiere cambios antes de considerarse confiable."
-										: "La cuenta está en revisión. Esto no sustituye el envío de documentos mínimos."}
+							<p class="text-sm leading-6 text-slate-600" data-trust-progress-pointer>
+								{statusLead}
 							</p>
 						</div>
 						<Badge variant={accountLabel.tone}>{statusLabel}</Badge>
 					</div>
-
-					<p class="text-sm leading-6 text-slate-600" data-trust-progress-pointer>
-						El progreso completo (Identidad → Negocio → Fiscal → Pagos) vive arriba en «Tu progreso»
-						— no hay una segunda matriz de revisión.
-					</p>
 
 					{suppressConsequence ? null : (
 						<p class="text-sm leading-6 text-slate-600" data-trust-account-vs-docs>
@@ -272,25 +264,26 @@ const listaConsequence =
 							<p class="mt-1 text-sm text-slate-950">{reviewedLabel}</p>
 						</Card>
 						<Card variant="soft">
-							<p class="text-sm font-medium text-slate-700">Documentos en archivo</p>
+							<p class="text-sm font-medium text-slate-700">Documentos</p>
 							<p class="mt-1 text-sm text-slate-950">
 								{verifiedDocuments.length} verificados · {pendingDocuments.length} enviados
 							</p>
 						</Card>
 					</div>
 
-					<Card variant="plain">
-						<p class="text-sm font-medium text-slate-700">Motivo o nota de revisión</p>
-						{rejectCategory?.matched ? (
-							<Badge variant="error" class="mt-2" data-reject-category>
-								{rejectCategory.label}
-							</Badge>
-						) : null}
-						<p class="mt-1 text-sm leading-6 text-slate-600">
-							{latestVerification?.reason ||
-								"No hay observaciones registradas por revisión de cuenta."}
-						</p>
-					</Card>
+					{hasReviewNote ? (
+						<Card variant="plain">
+							<p class="text-sm font-medium text-slate-700">Nota de revisión</p>
+							{rejectCategory?.matched ? (
+								<Badge variant="error" class="mt-2" data-reject-category>
+									{rejectCategory.label}
+								</Badge>
+							) : null}
+							{latestVerification?.reason ? (
+								<p class="mt-1 text-sm leading-6 text-slate-600">{latestVerification.reason}</p>
+							) : null}
+						</Card>
+					) : null}
 
 					{isPending && !useCompactWait ? (
 						<ProviderReviewWaitNotice domain="verification" assignment={reviewAssignment} />
@@ -300,7 +293,7 @@ const listaConsequence =
 							data-verification-wait-compact
 							data-sla-mirror={accountWait.sla.hasPublishedSla ? "published" : "none"}
 						>
-							{accountWait.body} {accountWait.footnote}
+							{accountWait.sla.hasPublishedSla ? accountWait.footnote : accountWait.body}
 						</p>
 					) : null}
 

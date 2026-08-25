@@ -59,6 +59,7 @@ describe("V2 KYC capture polish (tips + mobile file UX)", () => {
 		expect(file).toContain("data-kyc-file-guide-mobile-hint")
 		expect(file).toContain("{guide.mobileHint}")
 		expect(file).toContain("data-kyc-file-dropzone")
+		expect(file).not.toContain("Qué subir")
 		expect(file.indexOf("data-kyc-file-before-pick")).toBeLessThan(
 			file.indexOf("data-kyc-file-dropzone")
 		)
