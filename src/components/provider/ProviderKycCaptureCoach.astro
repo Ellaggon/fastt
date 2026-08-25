@@ -15,17 +15,21 @@ const guide = getKycCaptureGuide(documentType)
 	data-kyc-capture-frame={guide.frameKind}
 	data-kyc-capture-collapsed="true"
 >
-	<summary
-		class="cursor-pointer touch-manipulation list-none px-4 py-3 text-sm font-semibold text-slate-900"
-	>
+	<summary class="cursor-pointer touch-manipulation px-4 py-3 text-sm font-semibold text-slate-900">
 		Consejos de captura
-		<span class="ml-2 text-xs font-normal text-slate-500" data-kyc-capture-accept-hint>
-			{guide.acceptHint}
+		<span class="mt-0.5 block text-xs font-normal text-slate-500">
+			Qué debe verse en el PDF o la foto
 		</span>
 	</summary>
 
 	<div class="space-y-3 border-t border-slate-200 px-4 py-3">
-		<p class="text-sm font-medium text-slate-800">{guide.frameLabel}</p>
+		<p class="text-sm leading-6 text-slate-700">
+			Qué debe verse en {guide.frameLabel.toLowerCase()}, cómo encuadrarlo y qué archivo elegir en
+			el móvil.
+		</p>
+		<p class="sr-only" data-kyc-capture-accept-hint>
+			{guide.acceptHint}
+		</p>
 
 		{/* Keep markers for contracts; silhouette stays inside collapsed details. */}
 		<div
@@ -76,6 +80,9 @@ const guide = getKycCaptureGuide(documentType)
 		</p>
 		<p class="text-sm leading-6 text-slate-600" data-kyc-capture-mobile-hint>
 			{guide.mobileHint}
+		</p>
+		<p class="text-sm leading-6 text-slate-600">
+			Hasta que este documento esté verificado, no puedes liquidar cobros ni publicar con confianza.
 		</p>
 		<p class="sr-only" data-kyc-capture-desktop-hint>
 			{guide.example}

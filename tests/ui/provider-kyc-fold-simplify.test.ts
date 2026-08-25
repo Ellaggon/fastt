@@ -22,11 +22,13 @@ describe("KYC fold simplify (elevated one composition)", () => {
 		expect(coach).toContain("data-kyc-capture-collapsed")
 		expect(coach).toContain("<details")
 		expect(coach).toContain("Consejos de captura")
+		expect(coach).toContain("Qué debe verse en el PDF o la foto")
 		expect(coach).toContain("data-kyc-capture-example")
 	})
 
 	it("form opens dropzone+submit; notes optional details", () => {
 		const form = read("src/components/provider/ProviderKycUploadForm.astro")
+		const next = read("src/components/provider/ProviderVerificationNextStep.astro")
 		const fileIdx = form.indexOf("<ProviderKycFileField")
 		const submitIdx = form.indexOf('data-kyc-submit')
 		const notesIdx = form.indexOf("data-kyc-submission-notes")
@@ -35,6 +37,8 @@ describe("KYC fold simplify (elevated one composition)", () => {
 		expect(submitIdx).toBeGreaterThan(fileIdx)
 		expect(notesIdx).toBeGreaterThan(submitIdx)
 		expect(coachIdx).toBeGreaterThan(notesIdx)
+		expect(next).toContain("quietUploadCopy")
+		expect(next).toContain('nextStep?.ctaKind === "upload"')
 	})
 
 	it("rail stays quiet without badge chrome", () => {
