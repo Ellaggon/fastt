@@ -121,7 +121,8 @@ describe("P1 verification density", () => {
 		expect(page).toContain("onlyOffPage: true")
 		expect(page).toContain("ctaKind: nextStep.ctaKind")
 		expect(page).toContain("data-verification-docs-fold")
-		expect(page).toContain('form="kyc-inline-upload-form"')
+		expect(page).not.toContain('href={nextStep.ctaHref}')
+		expect(page).not.toContain('slot="actions"')
 
 		expect(next).not.toContain("crossLinks.length")
 		expect(next).not.toContain("También conecta")

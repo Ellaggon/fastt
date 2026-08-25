@@ -1,7 +1,6 @@
 ---
 import ProviderTaxProfileCard from "@/components/provider/ProviderTaxProfileCard.astro"
 import ProviderTrustMapRail from "@/components/provider/ProviderTrustMapRail.astro"
-import Button from "@/components/ui/Button.astro"
 import Notice from "@/components/ui/Notice.astro"
 import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
 import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
@@ -57,12 +56,6 @@ const taxConfiguration = trustSnapshot?.taxConfiguration ?? null
 	progressTotal={trustLinks.length ? trustLinks.length : null}
 	progressPercent={trustLinks.length ? wizardProgressPercent : null}
 >
-	<div slot="actions" class="flex flex-wrap items-center gap-3">
-		<Button href={routes.providerSettingsVerification()} variant="secondary" size="sm">
-			{TRUST_GLOSSARY.returnToVerification.label}
-		</Button>
-	</div>
-
 	<div
 		class="space-y-4"
 		data-verification-fiscal-page

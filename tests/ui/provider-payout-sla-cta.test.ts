@@ -13,7 +13,7 @@ describe("S3-2 payout SLA mirror + post-save CTAs", () => {
 	it("builds payment wait-state with SLA mirror parity", () => {
 		const without = buildProviderReviewWaitState("payment")
 		expect(without.title).toBe("En revisión")
-		expect(without.body).toContain("payout")
+		expect(without.body).toMatch(/depósitos|extracto/i)
 		expect(without.sla.hasPublishedSla).toBe(false)
 		expect(without.footnote).toContain("Sin plazo fijo publicado")
 
@@ -57,7 +57,8 @@ describe("S3-2 payout SLA mirror + post-save CTAs", () => {
 		expect(verification).toContain("Continuar a registro fiscal")
 		expect(verification).toContain("Continuar a pagos")
 		expect(taxIdentity).toContain("data-post-save-cta")
-		expect(taxIdentity).toContain("TRUST_GLOSSARY.returnToVerification")
+		expect(taxIdentity).not.toContain("TRUST_GLOSSARY.returnToVerification")
+		expect(taxIdentity).not.toContain('slot="actions"')
 		expect(taxIdentity).toContain("Continuar a pagos")
 	})
 })

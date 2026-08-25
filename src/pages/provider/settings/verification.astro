@@ -5,7 +5,6 @@ import ProviderKycSlotsCard from "@/components/provider/ProviderKycSlotsCard.ast
 import ProviderTrustMapRail from "@/components/provider/ProviderTrustMapRail.astro"
 import ProviderVerificationNextStep from "@/components/provider/ProviderVerificationNextStep.astro"
 import ProviderVerificationView from "@/components/provider/ProviderVerificationView.astro"
-import Button from "@/components/ui/Button.astro"
 import Notice from "@/components/ui/Notice.astro"
 import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
 import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
@@ -300,51 +299,6 @@ const initialTrustPanel = requestedType ? "business" : "identity"
 	progressTotal={showWizardProgress ? trustLinks.length : null}
 	progressPercent={showWizardProgress ? wizardProgressPercent : null}
 >
-	<div slot="actions" class="flex flex-wrap items-center gap-3">
-		<Button
-			href={routes.providerSettings()}
-			variant="secondary"
-			size="sm"
-			data-funnel-cta="secondary"
-			data-funnel-domain="verification"
-			data-funnel-surface="verification"
-		>
-			Ir a configuración
-		</Button>
-		{
-			nextStep && nextStep.ctaKind === "upload" && canManageDocuments && !listaReady ? (
-				<Button
-					type="submit"
-					form="kyc-inline-upload-form"
-					size="sm"
-					variant="secondary"
-					className="border-white/20 bg-white text-slate-950 hover:bg-slate-100"
-					data-next-step-cta
-					data-kyc-submit
-					data-cta-kind="upload"
-					data-funnel-cta="primary"
-					data-funnel-domain="verification"
-					data-funnel-surface="verification"
-				>
-					{nextStep.ctaLabel}
-				</Button>
-			) : nextStep && !listaReady ? (
-				<Button
-					href={nextStep.ctaHref}
-					size="sm"
-					variant="secondary"
-					className="border-white/20 bg-white text-slate-950 hover:bg-slate-100"
-					data-next-step-cta
-					data-cta-kind={nextStep.ctaKind ?? "navigate"}
-					data-funnel-cta="primary"
-					data-funnel-domain="verification"
-					data-funnel-surface="verification"
-				>
-					{nextStep.ctaLabel}
-				</Button>
-			) : null
-		}
-	</div>
 	<div
 		class="space-y-4"
 		data-verification-page

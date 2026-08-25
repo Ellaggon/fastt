@@ -114,7 +114,10 @@ export const TRUST_GLOSSARY = {
 			hint: "Cuenta de cobro",
 		},
 	},
-	/** Post-save on data surfaces → return to the verification wizard. */
+	/**
+	 * Surfaces outside the 4 trust tabs (Perfil, documentos adicionales).
+	 * Identidad / Negocio / Fiscal / Pagos navigate via the rail + account switcher.
+	 */
 	returnToVerification: {
 		label: "Volver a Verificación",
 		hint: "Sigue el mapa de confianza y los documentos mínimos.",

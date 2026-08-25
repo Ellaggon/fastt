@@ -8,6 +8,19 @@ import { logRoutePerformance } from "@/lib/observability/performanceLog"
 import { createServerTimingRecorder } from "@/lib/observability/serverTiming"
 import { buildProviderSettingsSummary } from "@/lib/provider-settings-summary"
 import { routes } from "@/lib/routes"
+import {
+	ArrowRight,
+	Building2,
+	ChevronRight,
+	CircleCheck,
+	CircleDollarSign,
+	FileText,
+	Headset,
+	PlugZap,
+	ReceiptText,
+	ShieldCheck,
+	Users,
+} from "@lucide/astro"
 
 const startedAt = performance.now()
 const timing = createServerTimingRecorder()
@@ -110,10 +123,45 @@ const areaStatus = (item: { id?: string; complete?: boolean }) => {
 		item.id === "verification" ||
 		/pendiente de validación|en revisión|enviado/i.test(String(risk?.label || ""))
 	) {
-		return { label: "En revisión", variant: "warning" as const }
+		return { label: "En revisión", variant: "info" as const }
 	}
 	if (risk?.severity === "high") return { label: "Acción necesaria", variant: "error" as const }
 	return { label: "Pendiente", variant: "warning" as const }
+}
+const readinessRowClass = (
+	status: { variant: "success" | "info" | "error" | "warning" },
+	complete = false
+) => {
+	const base = "fastt-row-card group flex flex-wrap items-center gap-3 p-4 transition"
+	if (complete) return base
+	if (status.variant === "error") return `${base} fastt-row-card-danger`
+	if (status.variant === "warning") return `${base} fastt-row-card-alert`
+	return `${base} fastt-row-card-info`
+}
+const readinessAreaIcon = {
+	identity: Building2,
+	operations: Headset,
+	verification: ShieldCheck,
+	documents: FileText,
+	fiscality: ReceiptText,
+	payments: CircleDollarSign,
+	integrations: PlugZap,
+	team: Users,
+} as const
+const readinessIconWellClass = (
+	status: { variant: "success" | "info" | "error" | "warning" },
+	complete = false
+) => {
+	if (complete || status.variant === "success") {
+		return "flex size-9 shrink-0 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700"
+	}
+	if (status.variant === "error") {
+		return "flex size-9 shrink-0 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-700"
+	}
+	if (status.variant === "warning") {
+		return "flex size-9 shrink-0 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-800"
+	}
+	return "flex size-9 shrink-0 items-center justify-center rounded-lg border border-sky-200 bg-sky-50 text-sky-700"
 }
 const activationTitle =
 	capabilities.publish && capabilities.payments
@@ -121,6 +169,11 @@ const activationTitle =
 		: capabilities.publish
 			? "Completa la activación para cobrar"
 			: "Completa la activación para publicar y cobrar"
+const NextStepIcon = hasBlockers
+	? (readinessAreaIcon[String(blockers[0]?.id) as keyof typeof readinessAreaIcon] ?? ShieldCheck)
+	: CircleCheck
+const completedCount = Number(summary?.progress?.completed ?? 0)
+const totalCount = Number(summary?.progress?.total ?? 0)
 
 const summaryBootstrap = summary ? JSON.stringify(summary).replace(/</g, "\\u003c") : "null"
 
@@ -149,156 +202,203 @@ logRoutePerformance({
 		data-settings-hub-density={hasBlockers ? "blocker" : "clear"}
 	>
 		<Card variant="dark" class="!border-neutral-800 !bg-black">
-			<div class="space-y-5">
-				<div class="flex flex-wrap items-start justify-between gap-4">
-					<div>
-						<p class="text-xs font-semibold tracking-[0.14em] text-neutral-500 uppercase">
-							Proveedor
-						</p>
-						<h2 class="mt-1 text-2xl font-semibold text-white" data-settings-provider-name>
-							{providerName}
-						</h2>
+			<div class="space-y-6">
+				<div class="flex items-start justify-between gap-4">
+					<div class="flex min-w-0 items-start gap-3">
+						<span class="fastt-section-icon">
+							<Building2 class="size-4" aria-hidden="true" />
+						</span>
+						<div class="min-w-0">
+							<p class="text-xs font-semibold tracking-[0.14em] text-neutral-500 uppercase">
+								Proveedor
+							</p>
+							<h2
+								class="mt-1 truncate text-xl font-semibold text-white"
+								data-settings-provider-name
+							>
+								{providerName}
+							</h2>
+							<p class="sr-only" data-settings-activation-title>
+								{activationTitle}
+							</p>
+						</div>
 					</div>
 					<Badge
 						variant={hasBlockers ? "darkWarning" : "darkSuccess"}
 						data-settings-base-badge
 						data-settings-dark-badge
 					>
-						{hasBlockers ? "Con bloqueos" : "Base lista"}
+						{hasBlockers ? "En curso" : "Lista"}
 					</Badge>
 				</div>
 
-				<div>
-					<h2 class="text-2xl font-semibold text-white" data-settings-activation-title>
-						{activationTitle}
-					</h2>
-					<p class="mt-2 text-sm leading-6 text-neutral-400" data-settings-next-step-body>
-						{nextStepBody}
+				<div class="flex items-center gap-3">
+					<div class="h-1 flex-1 overflow-hidden rounded-full bg-white/10">
+						<div
+							class="h-full rounded-full"
+							style={`width: ${Math.max(0, Math.min(100, progressPercent))}%; background-color: var(--fastt-color-selection);`}
+							data-settings-progress-bar
+						>
+						</div>
+					</div>
+					<p
+						class="shrink-0 text-xs font-medium tabular-nums text-neutral-400"
+						data-settings-progress-label
+					>
+						{completedCount} de {totalCount}
 					</p>
 				</div>
 
-				<div class="h-1.5 overflow-hidden rounded-full bg-neutral-800">
-					<div
-						class="h-full bg-amber-300"
-						style={`width: ${Math.max(0, Math.min(100, progressPercent))}%`}
-						data-settings-progress-bar
-					>
-					</div>
-				</div>
-				<p class="text-sm text-neutral-400" data-settings-progress-label>
-					{Number(summary?.progress?.completed ?? 0)} de {Number(summary?.progress?.total ?? 0)} requisitos
-					completados
-				</p>
-
 				<div
-					class="flex flex-wrap items-center justify-between gap-4 border-t border-neutral-800 pt-5"
+					class="flex flex-col gap-4 border-t border-white/10 pt-5 sm:flex-row sm:items-center sm:justify-between"
 					data-settings-blockers-notice
 					data-settings-next-step
 					data-funnel-blocker-id={blockers[0]?.id || undefined}
 					data-funnel-domain={blockers[0]?.id || undefined}
 					data-funnel-surface="hub_coach"
 				>
-					<div>
-						<p class="text-xs font-semibold tracking-[0.14em] text-neutral-500 uppercase">
-							Siguiente requisito
-						</p>
-						<p class="mt-1 text-sm font-semibold text-white" data-settings-next-step-label>
-							{nextStepLabel}
-						</p>
+					<div class="flex min-w-0 items-start gap-3">
+						<span class="fastt-section-icon" data-settings-next-step-icon>
+							<NextStepIcon class="size-4" aria-hidden="true" />
+						</span>
+						<div class="min-w-0">
+							<p class="text-xs font-semibold tracking-[0.14em] text-neutral-500 uppercase">
+								Siguiente requisito
+							</p>
+							<p class="mt-1 text-base font-semibold text-white" data-settings-next-step-label>
+								{nextStepLabel}
+							</p>
+							<p
+								class="mt-1 max-w-xl text-sm leading-6 text-neutral-400"
+								data-settings-next-step-body
+							>
+								{nextStepBody}
+							</p>
+						</div>
 					</div>
-					<div class="flex flex-wrap gap-3">
-						<Button
-							href={primaryCtaHref}
-							variant="onDark"
-							data-settings-primary-cta
-							data-funnel-cta="primary"
-							data-funnel-domain={blockers[0]?.id || undefined}
-							data-funnel-blocker-id={blockers[0]?.id || undefined}
-							data-funnel-surface="hub_coach"
-						>
-							{primaryCtaLabel}
-						</Button>
-					</div>
+					<Button
+						href={primaryCtaHref}
+						variant="onDark"
+						className="shrink-0"
+						data-settings-primary-cta
+						data-funnel-cta="primary"
+						data-funnel-domain={blockers[0]?.id || undefined}
+						data-funnel-blocker-id={blockers[0]?.id || undefined}
+						data-funnel-surface="hub_coach"
+					>
+						<span data-settings-primary-cta-label>{primaryCtaLabel}</span>
+						<ArrowRight class="size-4" aria-hidden="true" />
+					</Button>
 				</div>
 			</div>
 		</Card>
 	</section>
 
-	<section
-		id="estado-cuenta"
-		class="scroll-mt-24 border-t border-neutral-800 pt-7"
-		data-settings-estado-min
-	>
-		<div>
-			<div>
-				<h2 class="text-xl font-semibold text-white">Pendientes</h2>
-				<p class="mt-2 max-w-2xl text-sm leading-6 text-neutral-400">
-					Un requisito a la vez. El detalle de cada revisión permanece en su propia sección.
-				</p>
-			</div>
-		</div>
-
-		<Card
-			variant="dark"
-			className="mt-5 overflow-hidden border-neutral-800 bg-black p-0"
-			data-settings-readiness
-		>
+	<section id="estado-cuenta" class="scroll-mt-24" data-settings-estado-min>
+		<Card variant="flush" className="overflow-hidden" data-settings-readiness>
 			{
 				readiness.length ? (
 					<>
-						{incompleteAreas.map((item) => {
-							const status = areaStatus(item)
-							return (
-								<a
-									href={activationHref(item)}
-									class="group grid gap-3 border-b border-l-2 border-neutral-800 border-l-transparent px-4 py-4 transition hover:border-l-amber-300 hover:bg-neutral-900 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-5"
-									data-settings-checklist-row
-								>
-									<div class="min-w-0">
-										<p class="text-sm font-semibold text-white">{activationLabel(item)}</p>
-										<p class="mt-1 text-sm text-neutral-400">{impactLabel(item)}</p>
-									</div>
-									<div class="flex flex-wrap items-center gap-2 sm:justify-end">
-										<Badge variant={status.variant} data-settings-row-status>
-											{status.label}
-										</Badge>
-									</div>
-								</a>
-							)
-						})}
-						{completeAreas.length ? (
-							<details class="group" open={!incompleteAreas.length} data-settings-complete-areas>
-								<summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-4 text-sm font-semibold text-neutral-300 transition hover:bg-neutral-900 sm:px-5">
-									<span>Áreas completadas ({completeAreas.length})</span>
-									<span class="text-xs font-medium text-neutral-500 group-open:hidden">
-										Mostrar
-									</span>
-									<span class="hidden text-xs font-medium text-neutral-500 group-open:inline">
-										Ocultar
-									</span>
-								</summary>
-								<div class="border-t border-neutral-800">
-									{completeAreas.map((item) => (
-										<a
-											href={item.href || "#"}
-											class="group flex flex-wrap items-center justify-between gap-3 border-b border-neutral-800 px-4 py-4 transition last:border-b-0 hover:bg-neutral-900 sm:px-5"
-											data-settings-checklist-row
-										>
-											<div>
-												<p class="text-sm font-semibold text-white">{item.label}</p>
-												<p class="mt-1 text-sm text-neutral-400">Sin bloqueos directos</p>
-											</div>
-											<Badge variant="darkSuccess" data-settings-row-status>
-												Completo
+						<header class="border-b border-sky-100 bg-sky-50/80 px-5 py-4">
+							<div class="flex flex-wrap items-center justify-between gap-3">
+								<h2 class="text-lg font-semibold text-slate-950">Pendientes</h2>
+								<Badge variant={incompleteAreas.length ? "info" : "success"}>
+									{incompleteAreas.length ? incompleteAreas.length : "Listo"}
+								</Badge>
+							</div>
+							<p class="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
+								Un requisito a la vez. El detalle de cada revisión permanece en su propia sección.
+							</p>
+						</header>
+						<div class="space-y-3 bg-slate-50/90 p-4 sm:p-5">
+							{incompleteAreas.map((item) => {
+								const status = areaStatus(item)
+								const Icon =
+									readinessAreaIcon[item.id as keyof typeof readinessAreaIcon] ?? ShieldCheck
+								return (
+									<a
+										href={activationHref(item)}
+										class={readinessRowClass(status)}
+										data-settings-checklist-row
+									>
+										<span class={readinessIconWellClass(status)} data-settings-row-icon={item.id}>
+											<Icon class="size-4" aria-hidden="true" />
+										</span>
+										<div class="min-w-0 flex-1">
+											<p class="text-sm font-semibold text-slate-950">{activationLabel(item)}</p>
+											<p class="mt-1 text-sm leading-5 text-slate-500">{impactLabel(item)}</p>
+										</div>
+										<div class="flex flex-wrap items-center gap-2 sm:justify-end">
+											<Badge variant={status.variant} data-settings-row-status>
+												{status.label}
 											</Badge>
-										</a>
-									))}
-								</div>
-							</details>
-						) : null}
+											<ChevronRight
+												class="size-4 shrink-0 text-slate-400 transition group-hover:text-[var(--fastt-color-selection)]"
+												aria-hidden="true"
+											/>
+										</div>
+									</a>
+								)
+							})}
+							{completeAreas.length ? (
+								<details
+									class="fastt-soft-box group border border-slate-200 bg-white"
+									open={!incompleteAreas.length}
+									data-settings-complete-areas
+								>
+									<summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-sky-50">
+										<span class="inline-flex items-center gap-2">
+											<CircleCheck class="size-4 text-emerald-600" aria-hidden="true" />
+											Áreas completadas ({completeAreas.length})
+										</span>
+										<span class="text-xs font-medium text-slate-500 group-open:hidden">
+											Mostrar
+										</span>
+										<span class="hidden text-xs font-medium text-slate-500 group-open:inline">
+											Ocultar
+										</span>
+									</summary>
+									<div class="space-y-3 border-t border-slate-100 p-3">
+										{completeAreas.map((item) => {
+											const Icon =
+												readinessAreaIcon[item.id as keyof typeof readinessAreaIcon] ?? CircleCheck
+											return (
+												<a
+													href={item.href || "#"}
+													class={readinessRowClass({ variant: "success" }, true)}
+													data-settings-checklist-row
+												>
+													<span
+														class={readinessIconWellClass({ variant: "success" }, true)}
+														data-settings-row-icon={item.id}
+													>
+														<Icon class="size-4" aria-hidden="true" />
+													</span>
+													<div class="min-w-0 flex-1">
+														<p class="text-sm font-semibold text-slate-950">{item.label}</p>
+														<p class="mt-1 text-sm leading-5 text-slate-500">
+															Sin bloqueos directos
+														</p>
+													</div>
+													<div class="flex flex-wrap items-center gap-2 sm:justify-end">
+														<Badge variant="success" data-settings-row-status>
+															Completo
+														</Badge>
+														<ChevronRight
+															class="size-4 shrink-0 text-slate-400 transition group-hover:text-[var(--fastt-color-selection)]"
+															aria-hidden="true"
+														/>
+													</div>
+												</a>
+											)
+										})}
+									</div>
+								</details>
+							) : null}
+						</div>
 					</>
 				) : (
-					<div class="px-5 py-4 text-sm text-neutral-400">
+					<div class="px-5 py-6 text-sm text-slate-500">
 						Aún no hay estado de tu cuenta disponible.
 					</div>
 				)
