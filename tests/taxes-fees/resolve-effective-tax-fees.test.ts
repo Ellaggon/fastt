@@ -90,6 +90,32 @@ describe("taxes-fees/resolveEffectiveTaxFees", () => {
 		expect(res.definitions.map((d) => d.definition.id)).toEqual(["d4", "d5"])
 	})
 
+	it("passes both the scope chain and requested channels to the repository", async () => {
+		const definition = def({ id: "scoped-web" })
+		let received: { scopeChain?: unknown; channels?: unknown } | null = null
+		const repo = {
+			listActiveAssignments: async (params: {
+				scopeChain: unknown
+				channels: unknown
+			}) => {
+				received = params
+				return [assign({ definitionId: "scoped-web", scope: "provider", scopeId: "prov1", channel: "web" })]
+			},
+			listDefinitionsByIds: async () => [definition],
+			getProviderIdByProductId: async () => "prov1",
+		}
+
+		await resolveEffectiveTaxFees({ repo: repo as any }, { productId: "product1", channel: "web" })
+		expect(received).toEqual({
+			scopeChain: [
+				{ scope: "global", scopeId: null },
+				{ scope: "provider", scopeId: "prov1" },
+				{ scope: "product", scopeId: "product1" },
+			],
+			channels: ["web", null],
+		})
+	})
+
 	it("keeps all matching scopes additive while the fiscality migration is in progress", async () => {
 		const provider = def({ id: "provider", priority: 4 })
 		const product = def({ id: "product", priority: 3 })

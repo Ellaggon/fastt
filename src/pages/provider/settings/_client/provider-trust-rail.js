@@ -19,13 +19,12 @@ function syncTrustRailActiveTab() {
 		rail.querySelectorAll("[data-trust-link]").forEach((link) => {
 			const active = link.getAttribute("data-trust-link") === activeId
 			link.setAttribute("data-active", active ? "true" : "false")
-			link.setAttribute("aria-selected", active ? "true" : "false")
 			if (active) {
 				link.setAttribute("data-trust-link-active", "true")
-				link.classList.remove("text-slate-600", "hover:bg-sky-100/80", "hover:text-sky-950")
+				link.setAttribute("aria-current", "page")
 			} else {
 				link.removeAttribute("data-trust-link-active")
-				link.classList.add("text-slate-600", "hover:bg-sky-100/80", "hover:text-sky-950")
+				link.removeAttribute("aria-current")
 			}
 		})
 	})

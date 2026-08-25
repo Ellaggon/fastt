@@ -129,6 +129,9 @@ export async function applyInventoryMutation<T>(params: {
 	}
 
 	const mutationResult = await runMutationWithRetry()
+	// A recomputation budget belongs to the derived availability work only. The
+	// mutation may legitimately include pricing and policy validation beforehand.
+	const recomputeStartedAt = Date.now()
 	const recomputeValue =
 		typeof params.recompute === "function" ? params.recompute(mutationResult) : params.recompute
 	const instructions = Array.isArray(recomputeValue) ? recomputeValue : [recomputeValue]
@@ -147,7 +150,7 @@ export async function applyInventoryMutation<T>(params: {
 
 	for (const instruction of instructions) {
 		try {
-			if (Date.now() - startedAt >= recomputeTimeoutMs) {
+			if (Date.now() - recomputeStartedAt >= recomputeTimeoutMs) {
 				throw new Error("recompute_chain_timeout")
 			}
 			// Serialize recomputes for the same variant/range to reduce SQLITE contention.

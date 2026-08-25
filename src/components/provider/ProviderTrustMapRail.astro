@@ -1,6 +1,7 @@
 ---
+import { Briefcase, CircleDollarSign, ReceiptText, ShieldCheck } from "@lucide/astro"
 import Badge from "@/components/ui/Badge.astro"
-import TabsOutsidePanel from "@/components/ui/TabsOutsidePanel.astro"
+import TabsInsidePanel from "@/components/ui/TabsInsidePanel.astro"
 import {
 	isProviderTrustMapComplete,
 	TRUST_GLOSSARY,
@@ -15,6 +16,19 @@ type Props = {
 
 const { links = [], activeId = null } = Astro.props as Props
 const complete = isProviderTrustMapComplete(links)
+const iconByLinkId = {
+	identity: ShieldCheck,
+	business: Briefcase,
+	fiscal: ReceiptText,
+	payments: CircleDollarSign,
+} as const
+const statusBadgeByState = {
+	ready: "darkSuccess",
+	in_review: "darkWarning",
+	action_needed: "darkError",
+	not_started: "darkNeutral",
+	blocked: "darkNeutral",
+} as const
 
 function resolveInitialActiveId(): TrustLinkId {
 	if (activeId) return activeId
@@ -27,32 +41,15 @@ function resolveInitialActiveId(): TrustLinkId {
 }
 
 const currentActiveId = resolveInitialActiveId()
-
-function statusClassForLink(link: ProviderTrustLink) {
-	if (link.uiState === "ready") {
-		return "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
-	}
-	if (link.uiState === "in_review") {
-		return "bg-amber-50 text-amber-700 ring-1 ring-amber-200"
-	}
-	if (link.uiState === "action_needed") {
-		return "bg-rose-50 text-rose-700 ring-1 ring-rose-200"
-	}
-	if (link.uiState === "blocked") {
-		return "bg-slate-100 text-slate-600 ring-1 ring-slate-200"
-	}
-	return "bg-sky-50 text-sky-700 ring-1 ring-sky-200"
-}
 ---
 
 {
 	links.length ? (
 		<div
-			class={`scroll-mt-24 ${complete ? "rounded-lg border border-emerald-200 bg-emerald-50/40 px-3 py-2" : ""}`}
+			class="scroll-mt-24"
 			data-trust-map-rail
 			data-trust-map-compact="true"
 			data-trust-map-quiet="true"
-			data-trust-map-on-light="true"
 			data-trust-map-complete={complete ? "true" : undefined}
 			id="trust-map-rail"
 		>
@@ -63,43 +60,38 @@ function statusClassForLink(link: ProviderTrustLink) {
 					</Badge>
 				</div>
 			) : null}
-			<TabsOutsidePanel
-				aria-label={TRUST_GLOSSARY.page.railTitle}
-				class="max-w-full flex-wrap"
-				role="tablist"
-				data-trust-tabs-style="rates"
-			>
+			<TabsInsidePanel aria-label={TRUST_GLOSSARY.page.railTitle} class="max-w-full flex-nowrap">
 				{links.map((link) => {
 					const active = link.id === currentActiveId
+					const Icon = iconByLinkId[link.id]
 					return (
-						<span class="inline-flex" role="presentation">
-							<a
-								href={link.href}
-								data-astro-prefetch="hover"
-								data-trust-link={link.id}
-								data-trust-link-state={link.uiState}
-								data-trust-link-focus={link.isFocus ? "true" : undefined}
-								data-trust-link-active={active ? "true" : undefined}
-								data-active={active ? "true" : "false"}
-								role="tab"
-								aria-selected={active ? "true" : "false"}
-								class={`fastt-tabs-outside-panel__item px-3 py-2 text-sm font-semibold whitespace-nowrap ${
-									active ? "" : "text-slate-600 hover:bg-sky-100/80 hover:text-sky-950"
-								}`}
+						<a
+							href={link.href}
+							data-astro-prefetch="viewport"
+							data-trust-link={link.id}
+							data-trust-link-state={link.uiState}
+							data-trust-link-focus={link.isFocus ? "true" : undefined}
+							data-trust-link-active={active ? "true" : undefined}
+							data-active={active ? "true" : "false"}
+							aria-current={active ? "page" : undefined}
+							aria-label={`${link.label}: ${link.stateLabel}`}
+							class="fastt-tabs-inside-panel__item"
+						>
+							<Icon class="h-4 w-4 shrink-0" aria-hidden="true" />
+							<span class="fastt-tabs-inside-panel__label">{link.label}</span>
+							<Badge
+								variant={statusBadgeByState[link.uiState]}
+								class="fastt-tabs-inside-panel__status"
+								data-trust-link-status
+								data-trust-link-status-state={link.uiState}
 							>
-								<span>{link.label}</span>
-								<span
-									class={`ml-2 rounded-[var(--fastt-radius-pill)] px-2 py-0.5 text-xs font-semibold ${statusClassForLink(link)}`}
-									data-trust-link-status
-									data-trust-link-status-state={link.uiState}
-								>
-									{link.stateLabel}
-								</span>
-							</a>
-						</span>
+								<span class="fastt-tabs-inside-panel__status-dot" aria-hidden="true" />
+								{link.stateLabel}
+							</Badge>
+						</a>
 					)
 				})}
-			</TabsOutsidePanel>
+			</TabsInsidePanel>
 		</div>
 	) : null
 }

@@ -6,6 +6,7 @@ import { getProviderUserWorkspacePreferenceRead } from "@/lib/providerUserWorksp
 import type { ProviderWorkspaceCapabilities } from "@/lib/workspace/providerWorkspaceCapabilities"
 import { resolveProviderWorkspaceCapabilities } from "@/lib/workspace/providerWorkspaceCapabilities"
 import {
+	getProviderSidebarFallbackData,
 	getProviderSidebarData,
 	type ProviderSidebarData,
 } from "@/lib/dashboard/providerSidebarReadiness"
@@ -50,9 +51,17 @@ export async function buildWorkspaceRequestContext(
 				userId: user?.id,
 				providerRole: provider.role,
 				workspaceExperience,
+			}).catch(async (error) => {
+				console.error("Provider sidebar readiness failed; using navigation fallback.", error)
+				return getProviderSidebarFallbackData(provider.providerId, {
+					userId: user?.id,
+					providerRole: provider.role,
+					workspaceExperience,
+				}).catch((fallbackError) => {
+					console.error("Provider sidebar navigation fallback failed.", fallbackError)
+					return null
+				})
 			})
-				.then((value) => value)
-				.catch(() => null)
 		: Promise.resolve(null)
 
 	return {

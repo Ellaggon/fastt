@@ -77,7 +77,6 @@ function commercialQuotePayload(quote: Omit<PriceQuote, "quoteId" | "issuedAt" |
 		nights: quote.nights,
 		baseAmount: quote.baseAmount,
 		totalAmount: quote.totalAmount,
-		// Search and hold may differ on engine source/breakdown without changing guest terms.
 		pricing: {
 			days: quote.pricing.days
 				.map((day) => ({ date: String(day.date), price: money(day.price) }))
