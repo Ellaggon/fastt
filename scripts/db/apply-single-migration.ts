@@ -30,6 +30,10 @@ prepareMigrationDatabaseEnvironment()
 
 const MIGRATIONS_DIR = path.resolve("db/migrations")
 const LOCK_KEY = 8_370_202_607_22
+const SUPERSEDED_MIGRATIONS: Record<string, string> = {
+	"2026-08-22_tour_operational_resources": "2026-09-08_reconcile_tour_operational_schema",
+	"2026-08-23_tour_booking_questions": "2026-09-08_reconcile_tour_operational_schema",
+}
 
 function requireEnv(name: string): string {
 	const value = process.env[name]?.trim()
@@ -182,6 +186,12 @@ async function main() {
 	const id = path.basename(file, ".sql")
 	const filename = path.relative(process.cwd(), file)
 	const hash = checksum(source)
+	const replacement = SUPERSEDED_MIGRATIONS[id]
+	if (replacement) {
+		throw new Error(
+			`Migration ${id} is superseded by ${replacement}; apply the reconciliation migration instead.`
+		)
+	}
 
 	if (statements.length === 0) throw new Error(`Migration has no SQL statements: ${filename}`)
 
