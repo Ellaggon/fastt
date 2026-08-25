@@ -19,18 +19,18 @@ import {
 	Variant,
 } from "@/shared/infrastructure/db/compat"
 
-import { cacheKeys } from "@/lib/cache/cacheKeys"
-import * as persistentCache from "@/lib/cache/persistentCache"
 import { resolveRatePlanNameColumn } from "@/lib/rates/ratePlanSchemaCompat"
 import type {
 	BookingFromHoldRepositoryPort,
 	CreateBookingFromHoldInput,
 	CreateBookingFromHoldResult,
-	ResolveEffectiveTaxFeesFn,
 } from "@/modules/booking/application/ports/BookingFromHoldRepositoryPort"
 import type { HoldPolicySnapshot } from "@/modules/policies/public"
-import { computeTaxBreakdown } from "@/modules/taxes-fees/public"
-import { isPriceQuote, quoteExtraAmount, type PriceQuote } from "@/modules/pricing/public"
+import { quoteExtraAmount, type PriceQuote } from "@/modules/pricing/public"
+import {
+	HOLD_COMMERCIAL_SNAPSHOT_VERSION,
+	isHoldCommercialSnapshot,
+} from "@/modules/inventory/public"
 
 type BookingPricingSnapshot = {
 	ratePlanId: string
@@ -63,12 +63,7 @@ type BookingPricingSnapshot = {
 		final: number
 	}
 	pricingSource?: "v2"
-	priceQuote?: PriceQuote
-}
-
-function isMissingHoldTableError(error: unknown): boolean {
-	const message = error instanceof Error ? error.message : String(error)
-	return message.includes("no such table: Hold")
+	priceQuote: PriceQuote
 }
 
 function compactName(parts: Array<string | null | undefined>): string | null {
@@ -94,13 +89,26 @@ function resolveHoldDateRange(
 	return { from, to: checkOutDate.toISOString().slice(0, 10) }
 }
 
-async function buildSnapshotFromHoldLifecycle(params: {
-	holdId: string
+function buildSnapshotFromHoldLifecycle(params: {
+	commercialSnapshotJson: unknown
+	priceQuoteId: string | null
+	variantId: string
+	ratePlanId: string
+	checkIn: string
+	checkOut: string
 	holdRows: Array<{ date: string; quantity: number }>
-}): Promise<BookingPricingSnapshot | null> {
-	const snapshotRaw = await persistentCache.get(cacheKeys.holdPricingSnapshot(params.holdId))
-	if (!snapshotRaw || typeof snapshotRaw !== "object") return null
-	const snapshot = snapshotRaw as Partial<BookingPricingSnapshot>
+}): BookingPricingSnapshot | null {
+	if (!isHoldCommercialSnapshot(params.commercialSnapshotJson)) return null
+	const snapshot = params.commercialSnapshotJson
+	if (
+		snapshot.priceQuote.quoteId !== params.priceQuoteId ||
+		snapshot.priceQuote.context.variantId !== params.variantId ||
+		snapshot.priceQuote.context.ratePlanId !== params.ratePlanId ||
+		snapshot.priceQuote.context.checkIn !== params.checkIn ||
+		snapshot.priceQuote.context.checkOut !== params.checkOut
+	) {
+		return null
+	}
 
 	const ratePlanId = String(snapshot.ratePlanId ?? "").trim()
 	const currency = String(snapshot.currency ?? "USD").trim() || "USD"
@@ -149,15 +157,7 @@ async function buildSnapshotFromHoldLifecycle(params: {
 	if (!Number.isFinite(nights) || nights < 1) return null
 	if (!Number.isFinite(totalPrice) || totalPrice <= 0) return null
 	if (!days.length) return null
-	const priceQuote = isPriceQuote(snapshot.priceQuote) ? snapshot.priceQuote : undefined
-	if (
-		priceQuote &&
-		(priceQuote.context.ratePlanId !== ratePlanId ||
-			priceQuote.context.checkIn !== from ||
-			priceQuote.context.checkOut !== to)
-	) {
-		return null
-	}
+	const priceQuote = snapshot.priceQuote
 
 	const lockDates = new Set(params.holdRows.map((row) => String(row.date)))
 	const snapshotDates = new Set(days.map((day) => day.date))
@@ -177,7 +177,7 @@ async function buildSnapshotFromHoldLifecycle(params: {
 		from,
 		to,
 		nights: Math.max(1, Math.round(nights)),
-		totalPrice: Number((priceQuote?.totalAmount ?? totalPrice).toFixed(2)),
+		totalPrice: Number(priceQuote.totalAmount.toFixed(2)),
 		days: days.map((day) => ({
 			date: day.date,
 			price: Number(day.price.toFixed(2)),
@@ -212,11 +212,10 @@ async function buildSnapshotFromHoldLifecycle(params: {
 }
 
 export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort {
-	async createBookingFromHold(params: {
-		resolveEffectiveTaxFees: ResolveEffectiveTaxFeesFn
+	async createBookingFromHold(
 		input: CreateBookingFromHoldInput
-	}): Promise<CreateBookingFromHoldResult> {
-		const holdId = String(params.input.holdId ?? "").trim()
+	): Promise<CreateBookingFromHoldResult> {
+		const holdId = String(input.holdId ?? "").trim()
 		if (!holdId) throw new Error("HOLD_NOT_FOUND")
 
 		return db.transaction(async (tx) => {
@@ -296,56 +295,57 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 			if (!product) throw new Error("HOLD_NOT_FOUND")
 			if (!product.providerId) throw new Error("PROVIDER_OWNERSHIP_REQUIRED")
 
-			let holdSnapshot: HoldPolicySnapshot | null | undefined = null
-			try {
-				const hold = await tx
-					.select({ policySnapshotJson: Hold.policySnapshotJson })
-					.from(Hold)
-					.where(eq(Hold.id, holdId))
-					.then(first)
-				holdSnapshot = hold?.policySnapshotJson as HoldPolicySnapshot | null | undefined
-			} catch (error) {
-				if (!isMissingHoldTableError(error)) throw error
-			}
-			if (!holdSnapshot || typeof holdSnapshot !== "object") {
-				const cached = await persistentCache.get(cacheKeys.holdPolicySnapshot(holdId))
-				if (cached && typeof cached === "object") {
-					holdSnapshot = cached as HoldPolicySnapshot
-				}
-			}
+			const hold = await tx
+				.select({
+					variantId: Hold.variantId,
+					ratePlanId: Hold.ratePlanId,
+					checkIn: Hold.checkIn,
+					checkOut: Hold.checkOut,
+					policySnapshotJson: Hold.policySnapshotJson,
+					commercialSnapshotVersion: Hold.commercialSnapshotVersion,
+					commercialSnapshotJson: Hold.commercialSnapshotJson,
+					priceQuoteId: Hold.priceQuoteId,
+				})
+				.from(Hold)
+				.where(eq(Hold.id, holdId))
+				.then(first)
+			const holdSnapshot = hold?.policySnapshotJson as HoldPolicySnapshot | null | undefined
 			if (!holdSnapshot || typeof holdSnapshot !== "object") {
 				throw new Error("INVENTORY_CONFLICT")
 			}
 
-			const snapshot = await buildSnapshotFromHoldLifecycle({
-				holdId,
+			const snapshot = buildSnapshotFromHoldLifecycle({
+				commercialSnapshotJson: hold?.commercialSnapshotJson,
+				priceQuoteId: hold?.priceQuoteId ?? null,
+				variantId,
+				ratePlanId: String(hold?.ratePlanId ?? ""),
+				checkIn: String(hold?.checkIn ?? ""),
+				checkOut: String(hold?.checkOut ?? ""),
 				holdRows: holdRows.map((row) => ({
 					date: String(row.date),
 					quantity: Number(row.quantity ?? 1),
 				})),
 			})
-			if (!snapshot) throw new Error("INVENTORY_CONFLICT")
-			if (
-				params.input.priceQuoteId &&
-				(!snapshot.priceQuote || snapshot.priceQuote.quoteId !== params.input.priceQuoteId)
-			) {
+			if (hold?.commercialSnapshotVersion !== HOLD_COMMERCIAL_SNAPSHOT_VERSION || !snapshot) {
+				throw new Error("HOLD_COMMERCIAL_SNAPSHOT_MISSING")
+			}
+			if (input.priceQuoteId && snapshot.priceQuote.quoteId !== input.priceQuoteId) {
 				throw new Error("PRICE_QUOTE_MISMATCH")
 			}
 
 			const adults = Number(snapshot.occupancyDetail.adults ?? 1)
 			const children = Number(snapshot.occupancyDetail.children ?? 0)
 			const infants = Number(snapshot.occupancyDetail.infants ?? 0)
-			const guests = Math.max(1, adults + children)
 			const bookingId = crypto.randomUUID()
 			const priceQuote = snapshot.priceQuote
-			const baseTotal = Number(priceQuote?.baseAmount ?? snapshot.totalPrice)
+			const baseTotal = Number(priceQuote.baseAmount)
 			const ratePlanName = await resolveRatePlanNameColumn()
 			const ratePlan = await tx
 				.select({ name: ratePlanName })
 				.from(RatePlan)
 				.where(eq(RatePlan.id, snapshot.ratePlanId))
 				.then(first)
-			const guest = params.input.userId
+			const guest = input.userId
 				? await tx
 						.select({
 							email: User.email,
@@ -353,7 +353,7 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 							lastName: User.lastName,
 						})
 						.from(User)
-						.where(eq(User.id, params.input.userId))
+						.where(eq(User.id, input.userId))
 						.then(first)
 				: null
 			const guestNameSnapshot = guest ? compactName([guest.firstName, guest.lastName]) : null
@@ -397,33 +397,16 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 				reason: "Booking confirmation does not create a refund workflow.",
 			}
 
-			const taxBreakdown = priceQuote
-				? priceQuote.taxesAndFees
-				: computeTaxBreakdown({
-						base: baseTotal,
-						definitions: (
-							await params.resolveEffectiveTaxFees({
-								productId: variant.productId,
-								variantId,
-								ratePlanId: snapshot.ratePlanId,
-								channel: "web",
-							})
-						).definitions,
-						nights: snapshot.nights,
-						guests,
-					})
-			const taxesAmount = priceQuote
-				? quoteExtraAmount(priceQuote)
-				: Number((taxBreakdown.total - taxBreakdown.base).toFixed(2))
-			// Pricing total is sourced from the hold snapshot and must remain stable end-to-end.
-			// The bound PriceQuote on that snapshot is the guest total; legacy holds keep the
-			// former snapshot path only so in-flight reservations remain recoverable.
-			const finalTotal = Number((priceQuote?.totalAmount ?? taxBreakdown.total).toFixed(2))
+			const taxBreakdown = priceQuote.taxesAndFees
+			const taxesAmount = quoteExtraAmount(priceQuote)
+			// A hold is commercial evidence, not a hint. Confirmation materializes its
+			// immutable PriceQuote rather than consulting current pricing or tax rules.
+			const finalTotal = Number(priceQuote.totalAmount.toFixed(2))
 
 			await tx.insert(Booking).values({
 				id: bookingId,
 				providerId: product.providerId,
-				userId: params.input.userId ?? null,
+				userId: input.userId ?? null,
 				ratePlanId: snapshot.ratePlanId,
 				bookingDate: now,
 				checkInDate: snapshot.from,
@@ -434,14 +417,14 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 				status: "confirmed",
 				operationalStatus: "pending_arrival",
 				currency: snapshot.currency,
-				source: String(params.input.source ?? "web"),
+				source: String(input.source ?? "web"),
 				confirmedAt: now,
 				guestEmailSnapshot,
 				guestNameSnapshot,
 				guestContactSnapshotJson: {
 					email: guestEmailSnapshot,
 					name: guestNameSnapshot,
-					userId: params.input.userId ?? null,
+					userId: input.userId ?? null,
 					...(isTourSlot
 						? {
 								productName: product.productName,
@@ -473,7 +456,7 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 					nights: snapshot.days.map((day) => ({ date: day.date, price: day.price })),
 					totalPrice: finalTotal,
 					currency: snapshot.currency,
-					priceQuote: priceQuote ?? null,
+					priceQuote,
 					ratePlanId: snapshot.ratePlanId,
 					occupancyDetail: {
 						adults: Math.max(1, adults),

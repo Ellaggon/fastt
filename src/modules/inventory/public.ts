@@ -7,6 +7,11 @@ export { holdInventory } from "./application/use-cases/hold-inventory"
 export { createInventoryHold } from "./application/use-cases/create-inventory-hold"
 export { releaseInventoryHold } from "./application/use-cases/release-inventory-hold"
 export { releaseExpiredHolds } from "./application/use-cases/release-expired-holds"
+export {
+	HOLD_COMMERCIAL_SNAPSHOT_VERSION,
+	isHoldCommercialSnapshot,
+	type HoldCommercialSnapshot,
+} from "./application/hold-commercial-snapshot"
 export type {
 	RecomputeEffectiveAvailabilityRangeResult,
 	RecomputeDeps,

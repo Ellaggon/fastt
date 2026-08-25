@@ -133,12 +133,6 @@ export const cacheKeys = {
 	financialProviderSummaryPrefix(providerId: string): string {
 		return `ws:financial:provider:${providerId}:`
 	},
-	holdPricingSnapshot(holdId: string): string {
-		return `ws:hold:${holdId}:pricing`
-	},
-	holdPolicySnapshot(holdId: string): string {
-		return `ws:hold:${holdId}:policy`
-	},
 	authProviderBySession(sessionId: string): string {
 		return `ws:auth:user:${sessionId}:providerId`
 	},

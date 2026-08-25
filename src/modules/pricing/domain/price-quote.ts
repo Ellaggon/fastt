@@ -165,6 +165,26 @@ export function isPriceQuote(value: unknown): value is PriceQuote {
 	)
 }
 
+/**
+ * Verifies that a persisted quote still matches the commercial identity encoded
+ * in its quoteId. Use this at durable lifecycle boundaries such as a hold.
+ */
+export function hasCanonicalPriceQuoteIdentity(value: unknown): value is PriceQuote {
+	if (!isPriceQuote(value)) return false
+	const quote = value
+	const rebuilt = buildPriceQuote({
+		context: quote.context,
+		currency: quote.currency,
+		nights: quote.nights,
+		baseAmount: quote.baseAmount,
+		taxesAndFees: quote.taxesAndFees,
+		pricing: quote.pricing,
+		source: quote.source,
+		issuedAt: quote.issuedAt,
+	})
+	return rebuilt.quoteId === quote.quoteId
+}
+
 export function quoteExtraAmount(quote: PriceQuote): number {
 	return money(quote.totalAmount - quote.baseAmount)
 }

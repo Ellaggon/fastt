@@ -6,6 +6,7 @@ import {
 	DailyInventory,
 	EffectivePricingV2,
 	eq,
+	Hold,
 	RatePlan,
 	Variant,
 } from "@/shared/infrastructure/db/compat"
@@ -17,8 +18,6 @@ import { materializeSearchUnitRange, resolveSearchOffers } from "@/modules/searc
 import { createSearchOffersRepositoryForTests } from "@/modules/search/testing-public"
 import { ensurePricingCoverageForRequestRuntime } from "@/modules/pricing/public"
 import { upsertGeoPlace, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
-import * as persistentCache from "@/lib/cache/persistentCache"
-import { cacheKeys } from "@/lib/cache/cacheKeys"
 import { createPolicyCapa6, replacePolicyAssignmentCapa6 } from "@/modules/policies/public"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
 
@@ -74,6 +73,14 @@ function makeAuthedFormRequest(params: { path: string; token?: string; form: For
 async function readJson(res: Response) {
 	const txt = await res.text()
 	return txt ? JSON.parse(txt) : null
+}
+
+async function readHoldCommercialSnapshot(holdId: string) {
+	return db
+		.select({ commercialSnapshotJson: Hold.commercialSnapshotJson })
+		.from(Hold)
+		.where(eq(Hold.id, holdId))
+		.then((rows) => rows[0]?.commercialSnapshotJson as any)
 }
 
 async function seedFixture(params: {
@@ -254,7 +261,7 @@ describe("integration/hold pricing V2 snapshot", () => {
 			expect(holdId.length).toBeGreaterThan(0)
 			expect(body?.warnings).toEqual([])
 
-			const snapshot = (await persistentCache.get(cacheKeys.holdPricingSnapshot(holdId))) as any
+			const snapshot = await readHoldCommercialSnapshot(holdId)
 			expect(snapshot?.pricingBreakdownV2).toBeTruthy()
 			expect(snapshot?.pricingBreakdownV2?.final).toBe(210)
 			expect(snapshot?.occupancyDetail).toEqual({ adults: 2, children: 0, infants: 0 })
@@ -377,7 +384,7 @@ describe("integration/hold pricing V2 snapshot", () => {
 		const body = await readJson(response)
 		const holdId = String(body?.holdId ?? "")
 		expect(body?.warnings).toEqual([])
-		const snapshot = (await persistentCache.get(cacheKeys.holdPricingSnapshot(holdId))) as any
+		const snapshot = await readHoldCommercialSnapshot(holdId)
 		expect(snapshot?.days?.every((day: any) => day?.pricingSource === "v2")).toBe(true)
 		expect(snapshot?.totalPrice).toBeGreaterThan(0)
 	})
@@ -421,20 +428,14 @@ describe("integration/hold pricing V2 snapshot", () => {
 		const holdId = String(holdBody?.holdId ?? "")
 		expect(holdId.length).toBeGreaterThan(0)
 
-		const legacySnapshot = {
-			ratePlanId,
-			currency: "USD",
-			occupancy: 2,
-			from: "2026-12-01",
-			to: "2026-12-03",
-			nights: 2,
-			totalPrice: 200,
-			days: [
-				{ date: "2026-12-01", price: 100 },
-				{ date: "2026-12-02", price: 100 },
-			],
-		}
-		await persistentCache.set(cacheKeys.holdPricingSnapshot(holdId), legacySnapshot, 10 * 60)
+		await db
+			.update(Hold)
+			.set({
+				commercialSnapshotVersion: "legacy",
+				priceQuoteId: null,
+				commercialSnapshotJson: null,
+			} as any)
+			.where(eq(Hold.id, holdId))
 
 		const confirmForm = new FormData()
 		confirmForm.set("holdId", holdId)
@@ -453,7 +454,7 @@ describe("integration/hold pricing V2 snapshot", () => {
 		)
 		expect(confirmResponse.status).toBe(409)
 		const confirmBody = await readJson(confirmResponse)
-		expect(String((confirmBody as any)?.error ?? "")).toBe("INVENTORY_CONFLICT")
+		expect(String((confirmBody as any)?.error ?? "")).toBe("HOLD_COMMERCIAL_SNAPSHOT_MISSING")
 	})
 
 	it("preserves real multi-occupancy detail in hold snapshot and booking materialization", async () => {
@@ -499,7 +500,7 @@ describe("integration/hold pricing V2 snapshot", () => {
 		expect(holdResponse.status).toBe(200)
 		const holdBody = await readJson(holdResponse)
 		const holdId = String(holdBody?.holdId ?? "")
-		const snapshot = (await persistentCache.get(cacheKeys.holdPricingSnapshot(holdId))) as any
+		const snapshot = await readHoldCommercialSnapshot(holdId)
 		expect(snapshot?.occupancyDetail).toEqual({ adults: 1, children: 1, infants: 0 })
 
 		const confirmForm = new FormData()

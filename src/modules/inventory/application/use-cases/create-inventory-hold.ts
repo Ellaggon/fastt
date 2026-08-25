@@ -2,13 +2,12 @@ import { createHash } from "node:crypto"
 import { z } from "zod"
 
 import type { InventoryHoldRepositoryPort } from "../ports/InventoryHoldRepositoryPort"
-import * as persistentCache from "@/lib/cache/persistentCache"
-import { cacheKeys } from "@/lib/cache/cacheKeys"
 import {
 	buildPolicySnapshot,
 	type PolicyExceptionRule,
 	type ResolveEffectivePoliciesResult,
 } from "@/modules/policies/public"
+import { isHoldCommercialSnapshot, type HoldCommercialSnapshot } from "../hold-commercial-snapshot"
 
 const createInventoryHoldSchema = z.object({
 	variantId: z.string().min(1),
@@ -57,7 +56,7 @@ export async function createInventoryHold(
 			from: string
 			to: string
 			rooms: number
-		}) => Promise<unknown | null>
+		}) => Promise<HoldCommercialSnapshot | null>
 		resolveEffectivePolicies: (ctx: {
 			productId: string
 			variantId?: string
@@ -96,7 +95,7 @@ export async function createInventoryHold(
 		}
 	},
 	input: CreateInventoryHoldInput
-): Promise<{ holdId: string; expiresAt: Date }> {
+): Promise<{ holdId: string; expiresAt: Date; priceQuote: HoldCommercialSnapshot["priceQuote"] }> {
 	const parsed = createInventoryHoldSchema.parse(input)
 	const requestedRooms = Number(parsed.rooms ?? parsed.occupancy ?? 0)
 	if (!Number.isFinite(requestedRooms) || requestedRooms < 1) {
@@ -141,19 +140,26 @@ export async function createInventoryHold(
 
 	const existing = await deps.repo.findActiveHold({ holdId, now })
 	if (existing) {
+		if (!isHoldCommercialSnapshot(existing.commercialSnapshotJson)) {
+			throw new Error("HOLD_COMMERCIAL_SNAPSHOT_MISSING")
+		}
 		return {
 			holdId: existing.holdId,
 			expiresAt: existing.expiresAt,
+			priceQuote: existing.commercialSnapshotJson.priceQuote,
 		}
 	}
 
 	const expiresAt = new Date(now.getTime() + 10 * 60 * 1000)
-	const pricingSnapshot = await deps.resolvePricingSnapshot({
+	const commercialSnapshot = await deps.resolvePricingSnapshot({
 		variantId: parsed.variantId,
 		from: parsed.dateRange.from,
 		to: parsed.dateRange.to,
 		rooms: requestedRooms,
 	})
+	if (!isHoldCommercialSnapshot(commercialSnapshot)) {
+		throw new Error("PRICING_SNAPSHOT_INVALID")
+	}
 	const resolvedPolicies = await deps.resolveEffectivePolicies({
 		productId: deps.policyContext.productId,
 		variantId: parsed.variantId,
@@ -238,25 +244,16 @@ export async function createInventoryHold(
 		channel: deps.policyContext.channel,
 		policySnapshotJson: policySnapshot,
 		guestExpectationsSnapshotJson: guestExpectationsSnapshot,
+		commercialSnapshot,
 	})
 
 	if (!created.success) {
 		throw new Error("not_available")
 	}
 
-	// Await snapshot persistence so confirm can read pricing even when recompute is slow
-	// and L1/memory is the active cache backend.
-	if (pricingSnapshot) {
-		await persistentCache
-			.set(cacheKeys.holdPricingSnapshot(created.holdId), pricingSnapshot, 10 * 60)
-			.catch(() => {})
-	}
-	await persistentCache
-		.set(cacheKeys.holdPolicySnapshot(created.holdId), policySnapshot, 10 * 60)
-		.catch(() => {})
-
 	return {
 		holdId: created.holdId,
 		expiresAt: created.expiresAt,
+		priceQuote: commercialSnapshot.priceQuote,
 	}
 }

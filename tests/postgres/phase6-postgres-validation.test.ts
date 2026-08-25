@@ -5,9 +5,9 @@ import { randomUUID } from "node:crypto"
 import postgres from "postgres"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
-import { cacheKeys } from "@/lib/cache/cacheKeys"
-import * as persistentCache from "@/lib/cache/persistentCache"
+import { HOLD_COMMERCIAL_SNAPSHOT_VERSION } from "@/modules/inventory/public"
 import { BookingFromHoldRepository } from "@/modules/booking/infrastructure/repositories/BookingFromHoldRepository"
+import { buildPriceQuote } from "@/modules/pricing/public"
 import { ensureUserForSession } from "@/modules/identity/application/use-cases/ensure-user-for-session"
 import { UserRepository } from "@/modules/identity/infrastructure/repositories/UserRepository"
 import { closePostgresClients } from "@/shared/infrastructure/db/client"
@@ -176,6 +176,7 @@ describePostgres("phase 6 Postgres double validation", () => {
 		const pricingSnapshot = {
 			ratePlanId: fixture.ratePlanId,
 			currency: "USD",
+			rooms: 1,
 			occupancy: 3,
 			occupancyDetail: { adults: 2, children: 1, infants: 0 },
 			from: date,
@@ -191,32 +192,61 @@ describePostgres("phase 6 Postgres double validation", () => {
 			no_show: null,
 			check_in: null,
 		}
+		const priceQuote = buildPriceQuote({
+			context: {
+				productId: fixture.productId,
+				variantId: fixture.variantId,
+				ratePlanId: fixture.ratePlanId,
+				checkIn: date,
+				checkOut: "2027-03-03",
+				rooms: 1,
+				occupancy: { adults: 2, children: 1, infants: 0 },
+				channel: "web",
+			},
+			currency: "USD",
+			nights: 1,
+			baseAmount: 120,
+			taxesAndFees: {
+				base: 120,
+				total: 120,
+				taxes: { included: [], excluded: [] },
+				fees: { included: [], excluded: [] },
+			},
+			pricing: { days: [{ date, price: 120 }], source: "v2" },
+		})
+		const commercialSnapshot = {
+			version: HOLD_COMMERCIAL_SNAPSHOT_VERSION,
+			...pricingSnapshot,
+			priceQuote,
+		}
 
 		await sql`
 			insert into "Hold" (
 				"id", "variantId", "ratePlanId", "checkIn", "checkOut", "expiresAt",
-				"policySnapshotJson", "guestExpectationsSnapshotJson"
+				"policySnapshotJson", "guestExpectationsSnapshotJson", "commercialSnapshotVersion",
+				"priceQuoteId", "commercialSnapshotJson"
 			)
 			values (
 				${holdId}, ${fixture.variantId}, ${fixture.ratePlanId}, ${date}, '2027-03-03',
-				${expiresAt}, ${sql.json(policySnapshot)}, ${sql.json({})}
+				${expiresAt}, ${sql.json(policySnapshot)}, ${sql.json({})}, ${HOLD_COMMERCIAL_SNAPSHOT_VERSION},
+				${priceQuote.quoteId}, ${sql.json(commercialSnapshot)}
 			)
 		`
 		await sql`
 			insert into "InventoryLock" ("id", "holdId", "variantId", "date", "quantity", "expiresAt")
 			values (${id(`${scope}-lock-confirm`)}, ${holdId}, ${fixture.variantId}, ${date}, 1, ${expiresAt})
 		`
-		await persistentCache.set(cacheKeys.holdPricingSnapshot(holdId), pricingSnapshot, 600)
-		await persistentCache.set(cacheKeys.holdPolicySnapshot(holdId), policySnapshot, 600)
 
 		const repository = new BookingFromHoldRepository()
 		const first = await repository.createBookingFromHold({
-			input: { holdId, userId: null, source: "web" },
-			resolveEffectiveTaxFees: async () => ({ definitions: [], assignments: [] }),
+			holdId,
+			userId: null,
+			source: "web",
 		})
 		const second = await repository.createBookingFromHold({
-			input: { holdId, userId: null, source: "web" },
-			resolveEffectiveTaxFees: async () => ({ definitions: [], assignments: [] }),
+			holdId,
+			userId: null,
+			source: "web",
 		})
 
 		const [booking] = await sql`

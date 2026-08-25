@@ -20,6 +20,7 @@ import {
 } from "@/modules/policies/public"
 import {
 	createInventoryHold,
+	HOLD_COMMERCIAL_SNAPSHOT_VERSION,
 	recomputeEffectiveAvailabilityRange,
 } from "@/modules/inventory/public"
 import { createBookingFromHold } from "@/modules/booking/public"
@@ -37,10 +38,61 @@ import {
 import type { HoldPolicySnapshot } from "@/modules/policies/public"
 import { buildGuestStayExpectationsSnapshot } from "@/modules/house-rules/public"
 import { materializeSearchUnitRange } from "@/modules/search/public"
-import { ensurePricingCoverageForRequestRuntime } from "@/modules/pricing/public"
+import { buildPriceQuote, ensurePricingCoverageForRequestRuntime } from "@/modules/pricing/public"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
 
 type SupabaseTestUser = { id: string; email: string }
+
+function buildCommercialSnapshot(params: {
+	productId: string
+	variantId: string
+	ratePlanId: string
+	from: string
+	to: string
+	totalPrice: number
+}) {
+	const days = [
+		{ date: params.from, price: params.totalPrice / 2 },
+		{ date: "2030-02-02", price: params.totalPrice / 2 },
+	]
+	const priceQuote = buildPriceQuote({
+		context: {
+			productId: params.productId,
+			variantId: params.variantId,
+			ratePlanId: params.ratePlanId,
+			checkIn: params.from,
+			checkOut: params.to,
+			rooms: 1,
+			occupancy: { adults: 1, children: 0, infants: 0 },
+			channel: "web",
+		},
+		currency: "USD",
+		nights: 2,
+		baseAmount: params.totalPrice,
+		taxesAndFees: {
+			base: params.totalPrice,
+			total: params.totalPrice,
+			taxes: { included: [], excluded: [] },
+			fees: { included: [], excluded: [] },
+		},
+		pricing: { days, source: "v2" },
+	})
+	return {
+		version: HOLD_COMMERCIAL_SNAPSHOT_VERSION,
+		ratePlanId: params.ratePlanId,
+		currency: "USD",
+		rooms: 1,
+		occupancy: 1,
+		occupancyDetail: { adults: 1, children: 0, infants: 0 },
+		from: params.from,
+		to: params.to,
+		nights: 2,
+		totalPrice: params.totalPrice,
+		days,
+		pricingSource: "v2" as const,
+		priceQuote,
+	}
+}
 
 function withSupabaseAuthStub<T>(
 	usersByToken: Record<string, SupabaseTestUser>,
@@ -214,20 +266,15 @@ describe("integration/hold policy snapshot", () => {
 					ratePlanId,
 					channel: "web",
 				},
-				resolvePricingSnapshot: async () => ({
-					ratePlanId,
-					currency: "USD",
-					occupancy: 1,
-					occupancyDetail: { adults: 1, children: 0, infants: 0 },
-					from: checkIn,
-					to: checkOut,
-					nights: 2,
-					totalPrice: 200,
-					days: [
-						{ date: "2030-02-01", price: 100 },
-						{ date: "2030-02-02", price: 100 },
-					],
-				}),
+				resolvePricingSnapshot: async () =>
+					buildCommercialSnapshot({
+						productId,
+						variantId,
+						ratePlanId,
+						from: checkIn,
+						to: checkOut,
+						totalPrice: 200,
+					}),
 			},
 			{
 				variantId,
@@ -295,7 +342,6 @@ describe("integration/hold policy snapshot", () => {
 		const booking = await createBookingFromHold(
 			{
 				repository: bookingFromHoldRepository,
-				resolveEffectiveTaxFees: async () => ({ definitions: [] }),
 			},
 			{
 				holdId: hold.holdId,

@@ -3,9 +3,7 @@ import { ZodError, z } from "zod"
 import { db, eq, InventoryLock } from "@/shared/infrastructure/db/compat"
 
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { cacheKeys } from "@/lib/cache/cacheKeys"
 import { invalidateVariant } from "@/lib/cache/invalidation"
-import * as persistentCache from "@/lib/cache/persistentCache"
 import { applyInventoryMutation, releaseInventoryHold } from "@/modules/inventory/public"
 import { inventoryHoldRepository, variantManagementRepository } from "@/container"
 
@@ -64,10 +62,6 @@ export const POST: APIRoute = async ({ request }) => {
 			recompute: recomputeInstructions,
 			logContext: { action: "hold_release", holdId: parsed.holdId },
 		})
-		if (result.released) {
-			void persistentCache.del(cacheKeys.holdPricingSnapshot(parsed.holdId)).catch(() => {})
-		}
-
 		if (result.released && existingLocks.length > 0) {
 			const variantIds = [
 				...new Set(existingLocks.map((lock) => String(lock.variantId)).filter(Boolean)),
