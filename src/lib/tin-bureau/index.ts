@@ -167,8 +167,8 @@ function narrate(params: {
 			return {
 				hostNarrative:
 					params.mode === "format_only" || params.mode === "not_configured"
-						? "El formato del registro es válido. La coincidencia con razón social (bureau) no está activa en este entorno; el equipo Fastt lo revisará."
-						: "El formato del registro es válido. La verificación bureau aún no pudo confirmar el match; sigue en revisión.",
+						? "El formato del registro es válido. El equipo Fastt confirmará que coincida con la razón social."
+						: "El formato del registro es válido. Sigue en revisión para confirmar que coincida con la razón social.",
 				adminNarrative: `Formato OK; sin match bureau (${params.mode})${countryBit}. ${params.message}`,
 			}
 		case "not_checked":

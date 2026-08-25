@@ -11,7 +11,6 @@ const guide = getKycCaptureGuide(documentType)
 const fieldId = `${inputId}-${documentType}`
 const cameraId = `${fieldId}-camera`
 const preferCamera = guide.preferCameraCapture
-const uploadLead = guide.example.replace(/^Ejemplo:\s*/i, "")
 ---
 
 <div
@@ -29,7 +28,7 @@ const uploadLead = guide.example.replace(/^Ejemplo:\s*/i, "")
 			{guide.example}
 		</p>
 		<p class="text-sm leading-6 text-slate-600" data-kyc-file-guide-example>
-			{uploadLead}
+			{guide.actionLead}
 		</p>
 		{/* Tips and mobile hint live in Consejos de captura; markers stay for contracts. */}
 		<ul class="sr-only" aria-hidden="true" data-kyc-file-guide-tips>

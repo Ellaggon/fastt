@@ -27,14 +27,16 @@ describe("S4-6 fiscal withhold explainer + Pro docs-lite", () => {
 			"src/pages/provider/settings/integrations/connect/channel-manager.astro"
 		)
 
-		expect(identity).toContain("data-fiscal-withhold-explainer")
-		expect(identity).toContain('data-long-copy-collapsed="true"')
-		expect(identity).toContain("<details")
-		expect(identity).toContain("Retenciones y liquidaciones")
-		expect(identity).toContain("retener o retrasar")
 		expect(identity).not.toContain("Ir a cuentas de liquidación")
 		expect(identity).not.toContain("Resumen fiscal</Button>")
-		expect(identity).toContain("retener o retrasar liquidaciones")
+		expect(identity).toContain("ProviderTaxProfileCard")
+		expect(taxCard).toContain("data-fiscal-withhold-explainer")
+		expect(taxCard).toContain('data-long-copy-collapsed="true"')
+		expect(taxCard).toContain("Retenciones y liquidaciones")
+		expect(taxCard).toContain("retener o retrasar")
+		expect(taxCard).toContain("retener o retrasar liquidaciones")
+		expect(taxCard).toContain("data-fiscal-action-lead")
+		expect(taxCard).toContain("Aquí debes completar")
 		expect(taxCard).toContain('data-fiscal-long-copy-collapsed="true"')
 
 		expect(integrations).toContain('data-channel-wizard-step="provider"')

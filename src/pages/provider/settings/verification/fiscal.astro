@@ -94,43 +94,6 @@ const taxConfiguration = trustSnapshot?.taxConfiguration ?? null
 			<ProviderTrustMapRail links={trustLinks} activeId="fiscal" />
 		</div>
 
-		<Notice variant="info" title="Fiscal">
-			Completa residencia fiscal, NIT/TIN o registro comercial y modo de facturación. Esto permite
-			revisar tu identidad tributaria para liquidaciones; no define los impuestos que cobras al
-			huésped.
-		</Notice>
-
-		<details
-			class="fastt-notice rounded-[var(--fastt-radius-card)] border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950"
-			data-fiscal-withhold-explainer
-			data-long-copy-collapsed="true"
-		>
-			<summary class="cursor-pointer font-semibold">Retenciones y liquidaciones</summary>
-			<div class="mt-3 text-amber-950/85">
-				<p class="mb-2">
-					Sin NIT/registro y residencia fiscal verificados, Fastt puede <strong
-						>retener o retrasar liquidaciones</strong
-					> hasta confirmar tu identidad tributaria.
-				</p>
-				<ul class="list-disc space-y-1 pl-5 text-sm leading-6">
-					<li>
-						<strong>Con registro verificado:</strong> las liquidaciones a tu cuenta de cobros pueden seguir
-						el calendario normal tras payout verificado.
-					</li>
-					<li>
-						<strong>Sin registro o en revisión:</strong> los cobros a huéspedes pueden continuar, pero
-						el desembolso al proveedor queda sujeto a retención o espera de cumplimiento.
-					</li>
-					<li>
-						Esto es independiente de los impuestos al huésped: la retención se aplica a <em>tu</em>{
-							" "
-						}
-						liquidación, no al precio de la reserva.
-					</li>
-				</ul>
-			</div>
-		</details>
-
 		<ProviderTaxProfileCard
 			taxConfiguration={taxConfiguration}
 			canManageFiscality={canManageFiscality}

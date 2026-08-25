@@ -56,6 +56,6 @@ describe("S0-3 provider settings copy without schema jargon", () => {
 		expect(sources[3]).toContain("Probar conexión")
 		expect(sources[3]).toContain("Autorizar acceso")
 		expect(sources[3]).toContain("data-channel-wizard-steps")
-		expect(sources[1]).toContain("Retenciones y liquidaciones")
+		expect(sources[5]).toContain("Retenciones y liquidaciones")
 	})
 })

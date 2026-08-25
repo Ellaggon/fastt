@@ -23,7 +23,7 @@ export const PROVIDER_REVIEW_WAIT_LABEL = "En revisión"
 
 const domainCopy: Record<ProviderReviewWaitDomain, { body: string }> = {
 	fiscal: {
-		body: "Tu registro fiscal fue enviado. El equipo Fastt lo está revisando antes de habilitar cobros y liquidaciones.",
+		body: "Te avisamos aquí cuando termine la revisión.",
 	},
 	document: {
 		body: "El documento fue enviado. El equipo Fastt lo está revisando; el resultado (verificado o rechazado) aparecerá aquí.",
