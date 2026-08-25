@@ -1,11 +1,9 @@
 import {
 	and,
 	db,
-	Destination,
 	eq,
 	GeoPlace,
-	inArray,
-	LegacyDestinationGeoPlaceMap,
+	GeoPlaceContent,
 	Product,
 	ProductContent,
 	ProductGeoPlace,
@@ -16,20 +14,20 @@ import {
 	Hotel,
 } from "@/shared/infrastructure/db/compat"
 import { BOLIVIA_MARKETPLACE_GEO_PLACES } from "@/data/geography/bolivia-marketplace-catalog"
-import { DEPARTMENTS, getDepartment } from "@/data/departments"
+import { incrementCounter } from "@/lib/observability/metrics"
 import {
 	canonicalPublicPlaceSlug,
 	normalizePublicPlace,
 	type PublicMarketplaceVertical,
 } from "@/lib/marketplace/publicDestinationRoutes"
 
-const RESOLVED_STATUSES = ["auto_matched", "confirmed"] as const
-
 export type PublicDestination = {
 	slug: string
 	name: string
 	placeType: "department" | "city"
 	description: string
+	seoTitle: string | null
+	seoDescription: string | null
 }
 
 export type PublicDestinationListing = {
@@ -47,35 +45,80 @@ function productTypeFor(vertical: PublicMarketplaceVertical) {
 	return vertical === "alojamientos" ? "hotel" : "tour"
 }
 
-function displayDestination(slug: string): PublicDestination | null {
+function fallbackDestination(slug: string): PublicDestination | null {
 	const canonicalSlug = canonicalPublicPlaceSlug(slug)
 	if (!canonicalSlug) return null
 	const place = BOLIVIA_MARKETPLACE_GEO_PLACES.find((candidate) => candidate.slug === canonicalSlug)
-	if (!place) {
-		const department = getDepartment(canonicalSlug)
-		if (!department) return null
-		return {
-			slug: canonicalSlug,
-			name: department.name,
-			placeType: "department",
-			description: department.description,
-		}
-	}
-	const department =
-		place.placeType === "admin_area_1"
-			? DEPARTMENTS.find(
-					(candidate) =>
-						normalizePublicPlace(candidate.name) === normalizePublicPlace(place.canonicalName)
-				)
-			: null
+	if (!place) return null
 	return {
 		slug: place.slug,
 		name: place.canonicalName,
 		placeType: place.placeType === "admin_area_1" ? "department" : "city",
-		description:
-			department?.description ??
-			`Encuentra alojamientos y experiencias para conocer ${place.canonicalName}.`,
+		description: `Encuentra alojamientos y experiencias para conocer ${place.canonicalName}.`,
+		seoTitle: null,
+		seoDescription: null,
 	}
+}
+
+function parseSeoContent(value: unknown): { title: string | null; description: string | null } {
+	const source = value && typeof value === "object" ? (value as Record<string, unknown>) : {}
+	const title = String(source.metaTitle ?? "").trim() || null
+	const description = String(source.metaDescription ?? "").trim() || null
+	return { title, description }
+}
+
+async function displayDestination(slug: string): Promise<PublicDestination | null> {
+	const fallback = fallbackDestination(slug)
+	if (!fallback) return null
+
+	try {
+		const row = await db
+			.select({
+				slug: GeoPlace.slug,
+				canonicalName: GeoPlace.canonicalName,
+				placeType: GeoPlace.placeType,
+				summary: GeoPlaceContent.summary,
+				seoJson: GeoPlaceContent.seoJson,
+			})
+			.from(GeoPlace)
+			.leftJoin(
+				GeoPlaceContent,
+				and(
+					eq(GeoPlaceContent.placeId, GeoPlace.id),
+					eq(GeoPlaceContent.locale, "es-BO"),
+					eq(GeoPlaceContent.publicationStatus, "published")
+				)
+			)
+			.where(eq(GeoPlace.slug, fallback.slug))
+			.limit(1)
+			.then((rows) => rows[0] ?? null)
+		if (!row) return fallback
+
+		const seo = parseSeoContent(row.seoJson)
+		return {
+			slug: row.slug,
+			name: row.canonicalName,
+			placeType: row.placeType === "admin_area_1" ? "department" : "city",
+			description: row.summary?.trim() || fallback.description,
+			seoTitle: seo.title,
+			seoDescription: seo.description,
+		}
+	} catch {
+		// A temporary fallback keeps canonical public routes live during staged rollouts.
+		return fallback
+	}
+}
+
+function recordGeoDiscoveryRead(input: { vertical: PublicMarketplaceVertical; canonicalRows: number }) {
+	incrementCounter("marketplace_geo_discovery_reads_total", {
+		vertical: input.vertical,
+		strategy: input.canonicalRows > 0 ? "canonical" : "canonical_empty",
+	})
+	incrementCounter(
+		"marketplace_geo_discovery_rows_total",
+		{ vertical: input.vertical, source: "canonical" },
+		input.canonicalRows
+	)
 }
 
 const listingFields = {
@@ -109,14 +152,12 @@ export async function getPublicDestinationListings(params: {
 	vertical: PublicMarketplaceVertical
 	limit?: number
 }): Promise<{ destination: PublicDestination | null; listings: PublicDestinationListing[] }> {
-	const destination = displayDestination(params.slug)
+	const destination = await displayDestination(params.slug)
 	if (!destination) return { destination: null, listings: [] }
 
 	const limit = Math.min(Math.max(1, params.limit ?? 36), 100)
 	const productType = productTypeFor(params.vertical)
-	const legacyLookupSlug = destination.slug.replace(/-department$/, "")
 	let canonicalRows: PublicDestinationListing[] = []
-	let legacyDestinationIds: string[] = []
 
 	try {
 		const geoPlace = await db
@@ -151,55 +192,17 @@ export async function getPublicDestinationListings(params: {
 				)
 				.limit(limit)
 
-			legacyDestinationIds = await db
-				.select({ id: LegacyDestinationGeoPlaceMap.legacyDestinationId })
-				.from(LegacyDestinationGeoPlaceMap)
-				.where(
-					and(
-						eq(LegacyDestinationGeoPlaceMap.placeId, geoPlace.id),
-						inArray(LegacyDestinationGeoPlaceMap.resolutionStatus, RESOLVED_STATUSES)
-					)
-				)
-				.then((rows) => rows.map((row) => row.id))
 		}
 	} catch {
-		// The fallback below keeps public routes available until geography migrations are deployed.
+		canonicalRows = []
 	}
 
-	if (legacyDestinationIds.length === 0) {
-		const legacyDestinations = await db
-			.select({ id: Destination.id })
-			.from(Destination)
-			.where(
-				sql`lower(${Destination.slug}) = ${legacyLookupSlug} OR lower(${Destination.department}) = ${legacyLookupSlug}`
-			)
-		legacyDestinationIds = legacyDestinations.map((row) => row.id)
-	}
+	recordGeoDiscoveryRead({
+		vertical: params.vertical,
+		canonicalRows: canonicalRows.length,
+	})
 
-	const legacyRows = legacyDestinationIds.length
-		? await db
-				.select(listingFields)
-				.from(Product)
-				.innerJoin(ProductStatus, eq(ProductStatus.productId, Product.id))
-				.leftJoin(
-					ProductContent,
-					and(eq(ProductContent.productId, Product.id), eq(ProductContent.dataClass, "production"))
-				)
-				.leftJoin(ProductLocation, eq(ProductLocation.productId, Product.id))
-				.leftJoin(Hotel, eq(Hotel.productId, Product.id))
-				.leftJoin(Tour, eq(Tour.productId, Product.id))
-				.where(
-					and(
-						sql`lower(${Product.productType}) = ${productType}`,
-						eq(Product.dataClass, "production"),
-						eq(ProductStatus.state, "published"),
-						inArray(Product.destinationId, legacyDestinationIds)
-					)
-				)
-				.limit(limit)
-		: []
-
-	return { destination, listings: uniqueListings([...canonicalRows, ...legacyRows], limit) }
+	return { destination, listings: uniqueListings(canonicalRows, limit) }
 }
 
 export function resolvePublicDestinationFromSearch(

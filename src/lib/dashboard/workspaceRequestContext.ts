@@ -51,18 +51,17 @@ export async function buildWorkspaceRequestContext(
 				userId: user?.id,
 				providerRole: provider.role,
 				workspaceExperience,
-			})
-				.catch(async (error) => {
-					console.error("Provider sidebar readiness failed; using navigation fallback.", error)
-					return getProviderSidebarFallbackData(provider.providerId, {
-						userId: user?.id,
-						providerRole: provider.role,
-						workspaceExperience,
-					}).catch((fallbackError) => {
-						console.error("Provider sidebar navigation fallback failed.", fallbackError)
-						return null
-					})
+			}).catch(async (error) => {
+				console.error("Provider sidebar readiness failed; using navigation fallback.", error)
+				return getProviderSidebarFallbackData(provider.providerId, {
+					userId: user?.id,
+					providerRole: provider.role,
+					workspaceExperience,
+				}).catch((fallbackError) => {
+					console.error("Provider sidebar navigation fallback failed.", fallbackError)
+					return null
 				})
+			})
 		: Promise.resolve(null)
 
 	return {

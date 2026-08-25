@@ -9,7 +9,7 @@ import {
 	simulateBulkInventoryOperation,
 } from "@/modules/inventory/public"
 import {
-	upsertDestination,
+	upsertGeoPlace,
 	upsertProduct,
 	upsertVariant,
 } from "@/shared/infrastructure/test-support/db-test-data"
@@ -93,20 +93,20 @@ async function seedVariantOwnedByProvider(params: {
 	productId: string
 	variantId: string
 }) {
-	const destinationId = `dest_inv_bulk_${crypto.randomUUID()}`
-	await upsertDestination({
-		id: destinationId,
+	const geoPlaceId = `dest_inv_bulk_${crypto.randomUUID()}`
+	await upsertGeoPlace({
+		id: geoPlaceId,
 		name: "Dest Bulk Inventory",
 		type: "city",
 		country: "CL",
-		slug: `dest-bulk-inv-${destinationId}`,
+		slug: `dest-bulk-inv-${geoPlaceId}`,
 	})
 	await upsertProvider({ id: params.providerId, displayName: "Prov", ownerEmail: params.email })
 	await upsertProduct({
 		id: params.productId,
 		name: "Hotel Bulk Inventory",
 		productType: "Hotel",
-		destinationId,
+		geoPlaceId,
 		providerId: params.providerId,
 	})
 	await upsertVariant({

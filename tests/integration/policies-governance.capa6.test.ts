@@ -8,7 +8,7 @@ import {
 	PolicyValidationError,
 } from "@/modules/policies/public"
 import {
-	upsertDestination,
+	upsertGeoPlace,
 	upsertProduct,
 	upsertVariant,
 	upsertRatePlanTemplate,
@@ -17,16 +17,16 @@ import {
 
 describe("integration/policies governance CAPA6", () => {
 	it("rejects overlapping effective ranges when creating policy versions", async () => {
-		const destinationId = `dest_gov_${crypto.randomUUID()}`
+		const geoPlaceId = `dest_gov_${crypto.randomUUID()}`
 		const productId = `prod_gov_${crypto.randomUUID()}`
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Gov Dest",
 			type: "city",
 			country: "CL",
 			slug: `gov-dest-${crypto.randomUUID()}`,
 		})
-		await upsertProduct({ id: productId, name: "Gov Product", productType: "Hotel", destinationId })
+		await upsertProduct({ id: productId, name: "Gov Product", productType: "Hotel", geoPlaceId })
 
 		const v1 = await createPolicyCapa6({
 			ownerProviderId: "prov_test",
@@ -99,14 +99,14 @@ describe("integration/policies governance CAPA6", () => {
 	})
 
 	it("replaces assignment and records audit entry", async () => {
-		const destinationId = `dest_gov2_${crypto.randomUUID()}`
+		const geoPlaceId = `dest_gov2_${crypto.randomUUID()}`
 		const productId = `prod_gov2_${crypto.randomUUID()}`
 		const variantId = `var_gov2_${crypto.randomUUID()}`
 		const ratePlanTemplateId = `rpt_gov2_${crypto.randomUUID()}`
 		const ratePlanId = `rp_gov2_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Gov Dest 2",
 			type: "city",
 			country: "CL",
@@ -116,7 +116,7 @@ describe("integration/policies governance CAPA6", () => {
 			id: productId,
 			name: "Gov Product 2",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 		})
 		await upsertVariant({ id: variantId, productId, name: "Room Gov", kind: "hotel_room" })
 		await upsertRatePlanTemplate({

@@ -31,12 +31,13 @@ import {
 	and,
 	asc,
 	db,
-	Destination,
 	eq,
+	GeoPlace,
 	Hotel,
 	Image,
 	inArray,
 	Product,
+	ProductGeoPlace,
 	ProductLocation,
 } from "@/shared/infrastructure/db/compat"
 
@@ -294,7 +295,15 @@ try {
 	const productResult = await db
 		.select()
 		.from(Product)
-		.leftJoin(Destination, eq(Destination.id, Product.destinationId))
+		.leftJoin(
+			ProductGeoPlace,
+			and(
+				eq(ProductGeoPlace.productId, Product.id),
+				eq(ProductGeoPlace.role, "primary_discovery"),
+				eq(ProductGeoPlace.isPrimary, true)
+			)
+		)
+		.leftJoin(GeoPlace, eq(GeoPlace.id, ProductGeoPlace.placeId))
 		.leftJoin(ProductLocation, eq(ProductLocation.productId, Product.id))
 		.where(and(eq(Product.id, productId), eq(Product.dataClass, "production")))
 		.then(first)
@@ -304,7 +313,9 @@ try {
 	} else {
 		hotelProduct = {
 			...productResult.Product,
-			destination: productResult.Destination,
+			destination: productResult.GeoPlace
+				? { ...productResult.GeoPlace, name: productResult.GeoPlace.canonicalName }
+				: null,
 			location: productResult.ProductLocation,
 		}
 		hotelSubtype = await db.select().from(Hotel).where(eq(Hotel.productId, productId)).then(first)
@@ -316,17 +327,30 @@ try {
 
 const tourCrossSell = hotelProduct
 	? await loadHotelTourCrossSell({
-			destinationId: hotelProduct.destinationId ?? hotelProduct.destination?.id,
+			geoPlaceId: hotelProduct.destination?.id,
 			checkIn: checkInStr,
 			checkOut: checkOutStr,
 			surface: "hotel_pdp",
 			excludeProductId: productId,
 			limit: 4,
 		})
-	: { cards: [], departureDate: checkInStr, destinationId: null, surface: "hotel_pdp" as const }
+	: { cards: [], departureDate: checkInStr, geoPlaceId: null, surface: "hotel_pdp" as const }
 ---
 
-<UILayout title={hotelProduct?.name || "Producto"}>
+<UILayout
+	title={hotelProduct?.name || "Producto"}
+	description={`Información y disponibilidad de ${hotelProduct?.name || "este alojamiento"}.`}
+	canonicalPath={hotelProduct ? `/hotels/${encodeURIComponent(productId)}` : undefined}
+	structuredData={hotelProduct
+		? {
+				"@context": "https://schema.org",
+				"@type": "Hotel",
+				"name": hotelProduct.name,
+				"url": new URL(`/hotels/${encodeURIComponent(productId)}`, Astro.url.origin).href,
+				"address": hotelProduct.location?.address || undefined,
+			}
+		: undefined}
+>
 	<main
 		class="mx-auto min-h-screen w-[96%] max-w-7xl space-y-7 overflow-x-hidden py-3 md:space-y-20 md:py-7 lg:p-12"
 	>
@@ -582,7 +606,7 @@ const tourCrossSell = hotelProduct
 								cards={tourCrossSell.cards}
 								surface="hotel_pdp"
 								sourceProductId={productId}
-								destinationId={tourCrossSell.destinationId}
+								geoPlaceId={tourCrossSell.geoPlaceId}
 							/>
 						</section>
 					) : null}

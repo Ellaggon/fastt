@@ -1,7 +1,7 @@
 import type {
-	DestinationQueryRepositoryPort,
-	DestinationRow,
-} from "../ports/DestinationQueryRepositoryPort"
+	GeoPlaceQueryRepositoryPort,
+	GeoPlaceRow,
+} from "../ports/GeoPlaceQueryRepositoryPort"
 
 function capitalizeWords(text: string | null | undefined): string {
 	if (!text) return ""
@@ -12,7 +12,7 @@ function capitalizeWords(text: string | null | undefined): string {
 		.join(" ")
 }
 
-function formatDestinationRow(r: DestinationRow): DestinationRow {
+function formatGeoPlaceRow(r: GeoPlaceRow): GeoPlaceRow {
 	return {
 		...r,
 		department: capitalizeWords(r.department),
@@ -21,20 +21,20 @@ function formatDestinationRow(r: DestinationRow): DestinationRow {
 	}
 }
 
-export function createSearchDestinationsQuery(deps: { repo: DestinationQueryRepositoryPort }) {
+export function createSearchDestinationsQuery(deps: { repo: GeoPlaceQueryRepositoryPort }) {
 	return async function searchDestinations(params: { q: string; limit: number }) {
 		const q = (params.q || "").trim()
 		const limit = Math.min(Number(params.limit || 10), 50)
 
 		const results = q ? await deps.repo.search({ q, limit }) : await deps.repo.list({ limit })
-		return results.map(formatDestinationRow)
+		return results.map(formatGeoPlaceRow)
 	}
 }
 
 // import type {
-// 	DestinationQueryRepositoryPort,
-// 	DestinationRow,
-// } from "../ports/DestinationQueryRepositoryPort"
+// 	GeoPlaceQueryRepositoryPort,
+// 	GeoPlaceRow,
+// } from "../ports/GeoPlaceQueryRepositoryPort"
 
 // function capitalizeWords(text: string | null | undefined): string {
 // 	if (!text) return ""
@@ -45,7 +45,7 @@ export function createSearchDestinationsQuery(deps: { repo: DestinationQueryRepo
 // 		.join(" ")
 // }
 
-// function formatDestinationRow(r: DestinationRow): DestinationRow {
+// function formatGeoPlaceRow(r: GeoPlaceRow): GeoPlaceRow {
 // 	return {
 // 		...r,
 // 		department: capitalizeWords(r.department),
@@ -54,7 +54,7 @@ export function createSearchDestinationsQuery(deps: { repo: DestinationQueryRepo
 // 	}
 // }
 
-// export function createSearchDestinationsQuery(deps: { repo: DestinationQueryRepositoryPort }) {
+// export function createSearchDestinationsQuery(deps: { repo: GeoPlaceQueryRepositoryPort }) {
 // 	return async function searchDestinations(params: { q: string; limit: number }) {
 // 		const q = (params.q || "").trim()
 // 		const limit = Math.min(Number(params.limit || 10), 50)
@@ -77,6 +77,6 @@ export function createSearchDestinationsQuery(deps: { repo: DestinationQueryRepo
 // 			console.info("[destinations] raw_count", results.length)
 // 			console.info("[destinations] raw_sample", results.slice(0, 5))
 // 		}
-// 		return results.map(formatDestinationRow)
+// 		return results.map(formatGeoPlaceRow)
 // 	}
 // }

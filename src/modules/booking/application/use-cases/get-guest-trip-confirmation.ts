@@ -8,7 +8,7 @@ export type GuestTripConfirmation = {
 	operationalStatus: string
 	checkedInAt: string | null
 	productId: string | null
-	destinationId: string | null
+	geoPlaceId: string | null
 	productName: string
 	salidaName: string
 	departureDate: string
@@ -98,7 +98,7 @@ export async function getGuestTripConfirmation(
 		operationalStatus: String(booking.operationalStatus ?? ""),
 		checkedInAt: booking.checkedInAt ? new Date(booking.checkedInAt).toISOString() : null,
 		productId,
-		destinationId: line?.destinationId == null ? null : String(line.destinationId),
+		geoPlaceId: line?.geoPlaceId == null ? null : String(line.geoPlaceId),
 		productName: String(
 			contact.productName ?? line?.productNameSnapshot ?? instructions.productName ?? "Experiencia"
 		).trim(),

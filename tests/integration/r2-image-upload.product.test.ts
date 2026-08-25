@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest"
 import { and, db, eq, Image, ImageUpload, Variant } from "@/shared/infrastructure/db/compat"
 
-import { upsertDestination, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
+import { upsertGeoPlace, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
 
 import { productImageRepository, productRepository, r2 } from "@/container"
@@ -83,14 +83,14 @@ async function readJson(res: Response) {
 describe("integration/r2 image upload system (Product V2)", () => {
 	it("Product V2 images endpoint: sets gallery by imageIds, and replacement deletes previous DB rows + triggers R2 deletion (objectKey only)", async () => {
 		process.env.R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || "test-bucket"
-		const destinationId = "dest_int_r2_prod_v2"
+		const geoPlaceId = "dest_int_r2_prod_v2"
 		const providerId = "prov_int_r2_prod_v2"
 		const email = "provider-r2@example.com"
 		const token = "token_r2"
 		const productId = `prod_int_r2_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "R2 Test Destination",
 			type: "city",
 			country: "CL",
@@ -101,7 +101,7 @@ describe("integration/r2 image upload system (Product V2)", () => {
 			id: productId,
 			name: "R2 Product",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 
@@ -191,15 +191,15 @@ describe("integration/r2 image upload system (Product V2)", () => {
 
 	it("Variant images use tracked uploads and removed gallery images are deleted from R2", async () => {
 		process.env.R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || "test-bucket"
-		const destinationId = "dest_int_r2_variant"
+		const geoPlaceId = "dest_int_r2_variant"
 		const providerId = "prov_int_r2_variant"
 		const email = "provider-r2-variant@example.com"
 		const token = "token_r2_variant"
 		const productId = `prod_int_r2_variant_${crypto.randomUUID()}`
 		const variantId = `variant_int_r2_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "R2 Variant Destination",
 			type: "city",
 			country: "CL",
@@ -210,7 +210,7 @@ describe("integration/r2 image upload system (Product V2)", () => {
 			id: productId,
 			name: "R2 Variant Product",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 		await db.insert(Variant).values({
@@ -295,12 +295,12 @@ describe("integration/r2 image upload system (Product V2)", () => {
 	})
 
 	it("Reorder flow (use-case): updates order persistently using existing ids", async () => {
-		const destinationId = "dest_int_r2_reorder"
+		const geoPlaceId = "dest_int_r2_reorder"
 		const providerId = "prov_int_r2_reorder"
 		const productId = `prod_int_r2_reorder_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "R2 Reorder Destination",
 			type: "city",
 			country: "CL",
@@ -315,7 +315,7 @@ describe("integration/r2 image upload system (Product V2)", () => {
 			id: productId,
 			name: "R2 Product Reorder",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest"
 
 import {
-	upsertDestination,
+	upsertGeoPlace,
 	upsertProduct,
 	upsertVariant,
 	upsertRatePlanTemplate,
@@ -80,12 +80,12 @@ describe("integration/pricing preview vs search parity", () => {
 		const token = "t_prev_vs_search"
 		const email = "prev-vs-search@example.com"
 		const providerId = "prov_prev_vs_search"
-		const destinationId = "dest_prev_vs_search"
+		const geoPlaceId = "dest_prev_vs_search"
 		const productId = `prod_prev_vs_search_${crypto.randomUUID()}`
 		const variantId = `var_prev_vs_search_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Dest",
 			type: "city",
 			country: "CL",
@@ -96,7 +96,7 @@ describe("integration/pricing preview vs search parity", () => {
 			id: productId,
 			name: "Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 		await upsertVariant({

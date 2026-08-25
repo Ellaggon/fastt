@@ -391,7 +391,7 @@ export async function getProviderSidebarFallbackData(
 
 	return {
 		disclosureMode:
-		experience.effective === "professional" ? "professional-tools" : "small-provider",
+			experience.effective === "professional" ? "professional-tools" : "small-provider",
 		capabilities: EMPTY_WORKSPACE_CAPABILITIES,
 		experience,
 		summaries: {},

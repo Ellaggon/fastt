@@ -16,7 +16,7 @@ import { recomputeEffectiveAvailabilityRange } from "@/modules/inventory/public"
 import { materializeSearchUnitRange, resolveSearchOffers } from "@/modules/search/public"
 import { createSearchOffersRepositoryForTests } from "@/modules/search/testing-public"
 import { ensurePricingCoverageForRequestRuntime } from "@/modules/pricing/public"
-import { upsertDestination, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
+import { upsertGeoPlace, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
 import * as persistentCache from "@/lib/cache/persistentCache"
 import { cacheKeys } from "@/lib/cache/cacheKeys"
 import { createPolicyCapa6, replacePolicyAssignmentCapa6 } from "@/modules/policies/public"
@@ -83,19 +83,19 @@ async function seedFixture(params: {
 	dates: string[]
 	includeV2Rows?: boolean
 }) {
-	const destinationId = `dest_hold_v2_${crypto.randomUUID()}`
-	await upsertDestination({
-		id: destinationId,
+	const geoPlaceId = `dest_hold_v2_${crypto.randomUUID()}`
+	await upsertGeoPlace({
+		id: geoPlaceId,
 		name: "Hold V2 Dest",
 		type: "city",
 		country: "CL",
-		slug: `hold-v2-${destinationId}`,
+		slug: `hold-v2-${geoPlaceId}`,
 	})
 	await upsertProduct({
 		id: params.productId,
 		name: "Hold V2 Product",
 		productType: "Hotel",
-		destinationId,
+		geoPlaceId,
 		providerId: "prov_test",
 	})
 

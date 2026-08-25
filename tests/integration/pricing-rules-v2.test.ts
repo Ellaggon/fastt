@@ -10,7 +10,7 @@ import { POST as previewRulesV2Post } from "@/pages/api/pricing/rules/v2/preview
 import { POST as generateEffectiveV2Post } from "@/pages/api/pricing/rules/v2/generate-effective"
 
 import {
-	upsertDestination,
+	upsertGeoPlace,
 	upsertProduct,
 	upsertRatePlan,
 	upsertRatePlanTemplate,
@@ -100,7 +100,7 @@ async function seedRatePlanV2Fixture() {
 	const token = `t_pr_v2_${suffix}`
 	const email = `pr-v2-${suffix}@example.com`
 	const providerId = `prov_pr_v2_${suffix}`
-	const destinationId = `dest_pr_v2_${suffix}`
+	const geoPlaceId = `dest_pr_v2_${suffix}`
 	const productId = `prod_pr_v2_${suffix}`
 	const variantAId = `var_pr_v2_a_${suffix}`
 	const variantBId = `var_pr_v2_b_${suffix}`
@@ -109,8 +109,8 @@ async function seedRatePlanV2Fixture() {
 	const ratePlanAId = `rp_pr_v2_a_${suffix}`
 	const ratePlanBId = `rp_pr_v2_b_${suffix}`
 
-	await upsertDestination({
-		id: destinationId,
+	await upsertGeoPlace({
+		id: geoPlaceId,
 		name: "Pricing V2 Dest",
 		type: "city",
 		country: "CL",
@@ -121,7 +121,7 @@ async function seedRatePlanV2Fixture() {
 		id: productId,
 		name: "Pricing V2 Product",
 		productType: "Hotel",
-		destinationId,
+		geoPlaceId,
 		providerId,
 	})
 	await upsertVariant({

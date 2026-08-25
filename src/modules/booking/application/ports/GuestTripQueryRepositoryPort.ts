@@ -23,7 +23,7 @@ export type GuestTripLineRow = {
 	pricingBreakdownJson: unknown
 	occupancySnapshotJson: unknown
 	productId: string | null
-	destinationId: string | null
+	geoPlaceId: string | null
 	productType: string | null
 }
 

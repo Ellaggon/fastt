@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { GET as resolvePoliciesGet } from "@/pages/api/policies/resolve"
 import {
-	upsertDestination,
+	upsertGeoPlace,
 	upsertProduct,
 	upsertRatePlan,
 	upsertRatePlanTemplate,
@@ -25,14 +25,14 @@ function createCookiesStub() {
 
 async function seedRatePlanContext() {
 	const suffix = crypto.randomUUID()
-	const destinationId = `dest_prf_${suffix}`
+	const geoPlaceId = `dest_prf_${suffix}`
 	const productId = `prod_prf_${suffix}`
 	const variantId = `var_prf_${suffix}`
 	const ratePlanTemplateId = `rpt_prf_${suffix}`
 	const ratePlanId = `rp_prf_${suffix}`
 
-	await upsertDestination({
-		id: destinationId,
+	await upsertGeoPlace({
+		id: geoPlaceId,
 		name: "RatePlan First Dest",
 		type: "city",
 		country: "CL",
@@ -42,7 +42,7 @@ async function seedRatePlanContext() {
 		id: productId,
 		name: "RatePlan First Product",
 		productType: "Hotel",
-		destinationId,
+		geoPlaceId,
 	})
 	await upsertVariant({
 		id: variantId,

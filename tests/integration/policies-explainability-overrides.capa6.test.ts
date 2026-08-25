@@ -8,7 +8,7 @@ import {
 } from "@/modules/policies/public"
 
 import {
-	upsertDestination,
+	upsertGeoPlace,
 	upsertProduct,
 	upsertVariant,
 	upsertRatePlanTemplate,
@@ -17,11 +17,11 @@ import {
 
 describe("integration/policies CAPA 6 Step 8 (explainability + overrides)", () => {
 	it("missing policies => resolver returns empty + UI mapping is []", async () => {
-		const destinationId = `dest_pol8_${crypto.randomUUID()}`
+		const geoPlaceId = `dest_pol8_${crypto.randomUUID()}`
 		const productId = `prod_pol8_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Policy Destination",
 			type: "city",
 			country: "CL",
@@ -31,7 +31,7 @@ describe("integration/policies CAPA 6 Step 8 (explainability + overrides)", () =
 			id: productId,
 			name: "Policy Product",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 		})
 
 		const resolved = await resolveEffectivePolicies({ productId })
@@ -40,12 +40,12 @@ describe("integration/policies CAPA 6 Step 8 (explainability + overrides)", () =
 	})
 
 	it("rate_plan overrides inherited policy, and change uses replacement semantics", async () => {
-		const destinationId = `dest_pol8_${crypto.randomUUID()}`
+		const geoPlaceId = `dest_pol8_${crypto.randomUUID()}`
 		const productId = `prod_pol8_${crypto.randomUUID()}`
 		const variantId = `var_pol8_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Policy Destination",
 			type: "city",
 			country: "CL",
@@ -55,7 +55,7 @@ describe("integration/policies CAPA 6 Step 8 (explainability + overrides)", () =
 			id: productId,
 			name: "Policy Product",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 		})
 		await upsertVariant({
 			id: variantId,

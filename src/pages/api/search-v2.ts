@@ -4,7 +4,7 @@ import { ZodError, z } from "zod"
 import { getPublicSearchSurface, type PublicSearchResult } from "@/lib/search/publicSearchSurface"
 
 const schema = z.object({
-	destinationId: z.string().trim().min(1),
+	geoPlaceId: z.string().trim().min(1),
 	checkIn: z.string().trim().min(1),
 	checkOut: z.string().trim().min(1),
 	currency: z.string().trim().length(3).optional(),
@@ -24,7 +24,7 @@ export const GET: APIRoute = async ({ request }) => {
 	try {
 		const url = new URL(request.url)
 		const parsed = schema.parse({
-			destinationId: url.searchParams.get("destinationId") ?? "",
+			geoPlaceId: url.searchParams.get("geoPlaceId") ?? "",
 			checkIn: url.searchParams.get("checkIn") ?? url.searchParams.get("checkin") ?? "",
 			checkOut: url.searchParams.get("checkOut") ?? url.searchParams.get("checkout") ?? "",
 			currency: url.searchParams.get("currency") ?? undefined,
@@ -46,7 +46,7 @@ export const GET: APIRoute = async ({ request }) => {
 		}
 
 		const surface = await getPublicSearchSurface({
-			destinationId: parsed.destinationId,
+			geoPlaceId: parsed.geoPlaceId,
 			checkIn: parsed.checkIn,
 			checkOut: parsed.checkOut,
 			rooms: parsed.rooms,

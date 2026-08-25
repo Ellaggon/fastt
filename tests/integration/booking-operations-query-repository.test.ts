@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest"
 
 import { bookingOperationsQueryRepository } from "@/modules/booking/public"
 import {
-	upsertDestination,
+	upsertGeoPlace,
 	upsertProduct,
 	upsertRatePlan,
 	upsertRatePlanTemplate,
@@ -21,15 +21,15 @@ describe("BookingOperationsQueryRepository", () => {
 	it("reads provider-owned contract, operations, payments and snapshots from one boundary", async () => {
 		const suffix = crypto.randomUUID()
 		const providerId = `provider_booking_ops_${suffix}`
-		const destinationId = `destination_booking_ops_${suffix}`
+		const geoPlaceId = `destination_booking_ops_${suffix}`
 		const productId = `product_booking_ops_${suffix}`
 		const variantId = `variant_booking_ops_${suffix}`
 		const templateId = `template_booking_ops_${suffix}`
 		const ratePlanId = `rate_booking_ops_${suffix}`
 		const bookingId = `booking_ops_${suffix}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Santiago",
 			type: "city",
 			country: "CL",
@@ -39,7 +39,7 @@ describe("BookingOperationsQueryRepository", () => {
 			id: productId,
 			name: "Hotel Operaciones",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 		await upsertVariant({ id: variantId, productId, name: "Suite" })

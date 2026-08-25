@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest"
 
-import { upsertDestination, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
+import { upsertGeoPlace, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider, upsertRoomType } from "../test-support/catalog-db-test-data"
 
 import { POST as createVariantPost } from "@/pages/api/variant/create"
@@ -74,11 +74,11 @@ describe("integration/variants UI Step 3 (subtype room type) - simulated", () =>
 		const token = "t_ui_sub_ok"
 		const email = "ui-sub-ok@example.com"
 		const providerId = "prov_ui_sub_ok"
-		const destinationId = "dest_ui_sub_ok"
+		const geoPlaceId = "dest_ui_sub_ok"
 		const productId = `prod_ui_sub_ok_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Sub Dest",
 			type: "city",
 			country: "CL",
@@ -89,7 +89,7 @@ describe("integration/variants UI Step 3 (subtype room type) - simulated", () =>
 			id: productId,
 			name: "Sub Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 		await upsertRoomType({ id: "rt_ui_sub_ok", name: "Double", maxOccupancy: 2 })
@@ -140,11 +140,11 @@ describe("integration/variants UI Step 3 (subtype room type) - simulated", () =>
 		const token = "t_ui_sub_dup"
 		const email = "ui-sub-dup@example.com"
 		const providerId = "prov_ui_sub_dup"
-		const destinationId = "dest_ui_sub_dup"
+		const geoPlaceId = "dest_ui_sub_dup"
 		const productId = `prod_ui_sub_dup_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Dup Dest",
 			type: "city",
 			country: "CL",
@@ -155,7 +155,7 @@ describe("integration/variants UI Step 3 (subtype room type) - simulated", () =>
 			id: productId,
 			name: "Dup Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 		await upsertRoomType({ id: "rt_ui_sub_dup", name: "Suite", maxOccupancy: 3 })
@@ -219,11 +219,11 @@ describe("integration/variants UI Step 3 (subtype room type) - simulated", () =>
 		const emailB = "ui-sub-own-b@example.com"
 		const providerA = "prov_ui_sub_own_a"
 		const providerB = "prov_ui_sub_own_b"
-		const destinationId = "dest_ui_sub_own"
+		const geoPlaceId = "dest_ui_sub_own"
 		const productId = `prod_ui_sub_own_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Own Dest",
 			type: "city",
 			country: "CL",
@@ -235,7 +235,7 @@ describe("integration/variants UI Step 3 (subtype room type) - simulated", () =>
 			id: productId,
 			name: "Own Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId: providerA,
 		})
 		await upsertRoomType({ id: "rt_ui_sub_own", name: "Single", maxOccupancy: 1 })

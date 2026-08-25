@@ -63,24 +63,8 @@ export const Provider = pgTable(
 	]
 )
 
-export const Destination = pgTable(
-	"Destination",
-	{
-		id: pk(),
-		name: txt("name"),
-		type: txt("type"),
-		country: txt("country"),
-		department: txtOpt("department"),
-		latitude: real("latitude"),
-		longitude: real("longitude"),
-		slug: txt("slug"),
-	},
-	(table) => [uniqueIndex("Destination_slug_unique").on(table.slug)]
-)
-
 /**
- * Canonical geographic catalog for marketplace discovery. Destination remains
- * the legacy compatibility model until the dual-read migration is complete.
+ * Canonical geographic catalog for marketplace discovery.
  */
 export const GeoPlace = pgTable(
 	"GeoPlace",
@@ -901,7 +885,6 @@ export const Product = pgTable(
 		creationDate: now("creationDate"),
 		lastUpdated: now("lastUpdated"),
 		providerId: txtOpt("providerId").references(() => Provider.id),
-		destinationId: txt("destinationId").references(() => Destination.id),
 		dataClass: text("dataClass").default("production").notNull(),
 	},
 	(table) => [
@@ -910,10 +893,7 @@ export const Product = pgTable(
 	]
 )
 
-/**
- * Product discovery geography. Product.destinationId remains available to the
- * compatibility layer while phase 5 dual-read coverage is rolled out.
- */
+/** Product discovery geography. */
 export const ProductGeoPlace = pgTable(
 	"ProductGeoPlace",
 	{
@@ -948,103 +928,52 @@ export const ProductGeoPlace = pgTable(
 	]
 )
 
-/**
- * Evidence-backed equivalence from the legacy destination catalogue to the
- * canonical geography. Legacy Destination rows are never deleted by a backfill.
- */
-export const LegacyDestinationGeoPlaceMap = pgTable(
-	"LegacyDestinationGeoPlaceMap",
-	{
-		id: pk(),
-		legacyDestinationId: txt("legacyDestinationId").references(() => Destination.id),
-		placeId: txtOpt("placeId").references(() => GeoPlace.id),
-		resolutionStatus: text("resolutionStatus").default("unmatched").notNull(),
-		matchMethod: text("matchMethod").default("unmatched").notNull(),
-		confidence: intDefault("confidence", 0),
-		distanceMeters: intOpt("distanceMeters"),
-		evidenceJson: jsonb("evidenceJson"),
-		catalogVersion: txtOpt("catalogVersion"),
-		reviewedByUserId: txtOpt("reviewedByUserId").references(() => User.id),
-		reviewedAt: ts("reviewedAt"),
-		createdAt: now("createdAt"),
-		updatedAt: now("updatedAt"),
-	},
-	(table) => [
-		uniqueIndex("LegacyDestinationGeoPlaceMap_legacyDestination_unique").on(
-			table.legacyDestinationId
-		),
-		index("LegacyDestinationGeoPlaceMap_place_status_idx").on(
-			table.placeId,
-			table.resolutionStatus
-		),
-		index("LegacyDestinationGeoPlaceMap_status_confidence_idx").on(
-			table.resolutionStatus,
-			table.confidence
-		),
-		check(
-			"LegacyDestinationGeoPlaceMap_resolutionStatus_check",
-			sql`${table.resolutionStatus} IN ('auto_matched', 'review_required', 'confirmed', 'unmatched', 'rejected')`
-		),
-		check(
-			"LegacyDestinationGeoPlaceMap_matchMethod_check",
-			sql`${table.matchMethod} IN ('name_department', 'coordinates', 'name_coordinates', 'manual', 'unmatched')`
-		),
-		check(
-			"LegacyDestinationGeoPlaceMap_confidence_check",
-			sql`${table.confidence} BETWEEN 0 AND 100`
-		),
-		check(
-			"LegacyDestinationGeoPlaceMap_resolved_place_check",
-			sql`${table.resolutionStatus} IN ('unmatched', 'rejected') OR ${table.placeId} IS NOT NULL`
-		),
-	]
-)
-
-/**
- * Immutable-style operational evidence for the product geography backfill.
- * ProductGeoPlace remains the serving relation; this table explains its origin
- * and keeps unresolved rows available for a later human review workflow.
- */
-export const ProductGeoPlaceBackfill = pgTable(
-	"ProductGeoPlaceBackfill",
+/** Immutable record of administrative changes to canonical product geography. */
+export const ProductGeoPlaceActivity = pgTable(
+	"ProductGeoPlaceActivity",
 	{
 		id: pk(),
 		productId: txt("productId").references(() => Product.id, { onDelete: "cascade" }),
-		placeId: txtOpt("placeId").references(() => GeoPlace.id),
-		legacyDestinationMapId: txtOpt("legacyDestinationMapId").references(
-			() => LegacyDestinationGeoPlaceMap.id
-		),
-		resolutionStatus: text("resolutionStatus").default("unmatched").notNull(),
-		matchMethod: text("matchMethod").default("unmatched").notNull(),
-		confidence: intDefault("confidence", 0),
-		distanceMeters: intOpt("distanceMeters"),
-		evidenceJson: jsonb("evidenceJson"),
-		catalogVersion: txtOpt("catalogVersion"),
-		appliedProductGeoPlaceId: txtOpt("appliedProductGeoPlaceId").references(
-			() => ProductGeoPlace.id
-		),
+		previousPlaceId: txtOpt("previousPlaceId").references(() => GeoPlace.id),
+		placeId: txt("placeId").references(() => GeoPlace.id),
+		actorId: txtOpt("actorId").references(() => User.id),
+		source: txt("source"),
+		createdAt: now("createdAt"),
+	},
+	(table) => [index("ProductGeoPlaceActivity_product_created_idx").on(table.productId, table.createdAt)]
+)
+
+/** Immutable operational evidence for the controlled public-to-receipt certification suite. */
+export const MarketplaceCommercialCertificationRun = pgTable(
+	"MarketplaceCommercialCertificationRun",
+	{
+		id: pk(),
+		suiteVersion: txt("suiteVersion"),
+		status: text("status").default("prepared").notNull(),
+		providerId: txtOpt("providerId").references(() => Provider.id),
+		hotelProductId: txtOpt("hotelProductId").references(() => Product.id),
+		tourProductId: txtOpt("tourProductId").references(() => Product.id),
+		checkIn: dayOpt("checkIn"),
+		checkOut: dayOpt("checkOut"),
+		evidenceJson: jsonb("evidenceJson").notNull(),
+		failureJson: jsonb("failureJson"),
+		startedAt: now("startedAt"),
+		completedAt: ts("completedAt"),
 		createdAt: now("createdAt"),
 		updatedAt: now("updatedAt"),
 	},
 	(table) => [
-		uniqueIndex("ProductGeoPlaceBackfill_product_unique").on(table.productId),
-		index("ProductGeoPlaceBackfill_place_status_idx").on(table.placeId, table.resolutionStatus),
-		index("ProductGeoPlaceBackfill_status_confidence_idx").on(
-			table.resolutionStatus,
-			table.confidence
+		uniqueIndex("MarketplaceCommercialCertificationRun_suite_started_unique").on(
+			table.suiteVersion,
+			table.startedAt
+		),
+		index("MarketplaceCommercialCertificationRun_status_started_idx").on(
+			table.status,
+			table.startedAt.desc()
 		),
 		check(
-			"ProductGeoPlaceBackfill_resolutionStatus_check",
-			sql`${table.resolutionStatus} IN ('auto_matched', 'review_required', 'confirmed', 'unmatched', 'superseded')`
-		),
-		check(
-			"ProductGeoPlaceBackfill_matchMethod_check",
-			sql`${table.matchMethod} IN ('legacy_destination', 'coordinates', 'address_coordinates', 'manual', 'unmatched')`
-		),
-		check("ProductGeoPlaceBackfill_confidence_check", sql`${table.confidence} BETWEEN 0 AND 100`),
-		check(
-			"ProductGeoPlaceBackfill_resolved_place_check",
-			sql`${table.resolutionStatus} IN ('unmatched', 'superseded') OR ${table.placeId} IS NOT NULL`
+			"MarketplaceCommercialCertificationRun_status_check",
+			sql`${table.status} IN ('prepared', 'running', 'passed', 'failed')`
 		),
 	]
 )
@@ -1161,7 +1090,7 @@ export const MarketplaceEvent = pgTable(
 		surface: txt("surface"),
 		sourceProductId: txtOpt("sourceProductId").references(() => Product.id),
 		targetProductId: txtOpt("targetProductId").references(() => Product.id),
-		destinationId: txtOpt("destinationId").references(() => Destination.id),
+		geoPlaceId: txtOpt("geoPlaceId").references(() => GeoPlace.id),
 		bookingId: txtOpt("bookingId").references(() => Booking.id),
 		sessionId: txtOpt("sessionId"),
 		metaJson: jsonb("metaJson"),

@@ -105,7 +105,7 @@ export const cacheKeys = {
 		return `ws:availability:${variantId}:surface:${from}:${to}:${occupancyKey}`
 	},
 	publicSearchQuery(params: {
-		destinationId: string
+		geoPlaceId: string
 		checkIn: string
 		checkOut: string
 		rooms: number
@@ -115,7 +115,7 @@ export const cacheKeys = {
 	}): string {
 		return [
 			"ws:search:public",
-			params.destinationId,
+			params.geoPlaceId,
 			params.checkIn,
 			params.checkOut,
 			params.rooms,

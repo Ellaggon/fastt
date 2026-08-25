@@ -68,7 +68,12 @@ export async function resolveEffectiveTaxFees(
 		if (!isValidDefinition(def, now)) continue
 		resolved.push({
 			definition: def,
-			source: { scope: a.scope, scopeId: a.scopeId, definitionId: def.id },
+			source: {
+				scope: a.scope,
+				scopeId: a.scopeId,
+				definitionId: def.id,
+				definitionVersionId: def.currentVersionId ?? null,
+			},
 		})
 	}
 

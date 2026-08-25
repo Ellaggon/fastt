@@ -162,7 +162,7 @@ export class TourTrustRepository implements TourTrustRepositoryPort {
 			surface: params.surface,
 			sourceProductId: params.sourceProductId,
 			targetProductId: params.targetProductId,
-			destinationId: params.destinationId,
+			geoPlaceId: params.geoPlaceId,
 			bookingId: params.bookingId,
 			sessionId: params.sessionId,
 			metaJson: params.metaJson,

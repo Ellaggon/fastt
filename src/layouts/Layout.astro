@@ -1,6 +1,7 @@
 ---
 import "@/styles/modals.css"
 import "@/styles/global.css"
+import PublicStructuredData from "@/components/seo/PublicStructuredData.astro"
 import { ClientRouter } from "astro:transitions"
 
 interface Props {
@@ -8,12 +9,14 @@ interface Props {
 	description?: string
 	canonicalPath?: string
 	noindex?: boolean
+	structuredData?: Record<string, unknown> | Array<Record<string, unknown>>
 }
 const {
 	title,
 	description = "Encuentra alojamientos y experiencias para viajar por Bolivia.",
 	canonicalPath,
 	noindex = false,
+	structuredData,
 } = Astro.props
 const canonicalHref = canonicalPath ? new URL(canonicalPath, Astro.url.origin).href : null
 ---
@@ -26,6 +29,7 @@ const canonicalHref = canonicalPath ? new URL(canonicalPath, Astro.url.origin).h
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		{canonicalHref ? <link rel="canonical" href={canonicalHref} /> : null}
 		{noindex ? <meta name="robots" content="noindex,follow" /> : null}
+		{structuredData ? <PublicStructuredData value={structuredData} /> : null}
 		<link rel="icon" type="image/svg+xml" href="/favicon-sbg.webp" />
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />

@@ -25,7 +25,7 @@ describe("catalog/product/createProduct (unit)", () => {
 					id: "prod_1",
 					name: "",
 					productType: "Hotel",
-					destinationId: "dest_1",
+					geoPlaceId: "geo_1",
 				}
 			)
 		).rejects.toBeInstanceOf(ZodError)
@@ -44,7 +44,7 @@ describe("catalog/product/createProduct (unit)", () => {
 				name: "QA Product",
 				productType: "Hotel",
 				providerId: "prov_1",
-				destinationId: "dest_1",
+				geoPlaceId: "geo_1",
 			}
 		)
 
@@ -52,9 +52,9 @@ describe("catalog/product/createProduct (unit)", () => {
 		expect(repo.createProductBase).toHaveBeenCalledWith({
 			id: "prod_abc",
 			name: "QA Product",
-			productType: "Hotel",
+			productType: "hotel",
 			providerId: "prov_1",
-			destinationId: "dest_1",
+			geoPlaceId: "geo_1",
 		})
 		expect(repo.upsertProductStatus).toHaveBeenCalledTimes(1)
 		expect(repo.upsertProductStatus).toHaveBeenCalledWith({
@@ -65,7 +65,7 @@ describe("catalog/product/createProduct (unit)", () => {
 		expect(res).toEqual({ id: "prod_abc" })
 	})
 
-	it("stores productType with canonical casing even when the form sends a vertical alias", async () => {
+	it("stores productType in its canonical database representation", async () => {
 		const repo = makeRepo({
 			createProductBase: vi.fn(async () => {}),
 			upsertProductStatus: vi.fn(async () => {}),
@@ -78,16 +78,16 @@ describe("catalog/product/createProduct (unit)", () => {
 				name: "QA Product",
 				productType: "hotel",
 				providerId: "prov_1",
-				destinationId: "dest_1",
+				geoPlaceId: "geo_1",
 			}
 		)
 
 		expect(repo.createProductBase).toHaveBeenCalledWith({
 			id: "prod_lower",
 			name: "QA Product",
-			productType: "Hotel",
+			productType: "hotel",
 			providerId: "prov_1",
-			destinationId: "dest_1",
+				geoPlaceId: "geo_1",
 		})
 	})
 })

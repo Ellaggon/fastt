@@ -7,9 +7,10 @@ import { tourDepartureToStay } from "@/lib/tours/tourSemantics"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
 import {
 	db,
-	Destination,
 	eq,
+	GeoPlace,
 	Product,
+	ProductGeoPlace,
 	ProductCategory,
 	ProductCategoryLink,
 	ProductReview,
@@ -25,7 +26,7 @@ import {
 async function seedSellableTour(params: {
 	suffix: string
 	productId: string
-	destinationId: string
+	geoPlaceId: string
 	variantId: string
 	ratePlanId: string
 	departureDate: string
@@ -51,14 +52,16 @@ async function seedSellableTour(params: {
 		.onConflictDoNothing()
 
 	await db
-		.insert(Destination)
+		.insert(GeoPlace)
 		.values({
-			id: params.destinationId,
-			name: "La Paz",
-			type: "city",
-			country: "BO",
-			slug: `dest-${params.destinationId}`,
-			department: "La Paz",
+			id: params.geoPlaceId,
+			canonicalName: "La Paz",
+			normalizedName: "la paz",
+			slug: `dest-${params.geoPlaceId}`,
+			placeType: "city",
+			countryCode: "BO",
+			status: "active",
+			source: "test",
 		} as any)
 		.onConflictDoNothing()
 
@@ -68,9 +71,20 @@ async function seedSellableTour(params: {
 			id: params.productId,
 			name: `Tour ${params.suffix}`,
 			productType: "Tour",
-			destinationId: params.destinationId,
 			providerId: "prov_test",
 		} as any)
+		.onConflictDoNothing()
+
+	await db
+		.insert(ProductGeoPlace)
+		.values({
+			id: `pgp_${params.productId}`,
+			productId: params.productId,
+			placeId: params.geoPlaceId,
+			role: "primary_discovery",
+			isPrimary: true,
+			source: "test",
+		})
 		.onConflictDoNothing()
 
 	await db
@@ -225,7 +239,7 @@ describe("integration/tour discovery filters (phase 6 / P1 discovery)", () => {
 		process.env.TOURS_PUBLIC_SEARCH_ENABLED = "true"
 		const suffix = crypto.randomUUID().slice(0, 8)
 		const departure = "2026-10-20"
-		const destinationId = `dest_disc_${suffix}`
+		const geoPlaceId = `geo_disc_${suffix}`
 
 		const citySlug = `city-tour-${suffix}`
 		const trekSlug = `trekking-${suffix}`
@@ -234,7 +248,7 @@ describe("integration/tour discovery filters (phase 6 / P1 discovery)", () => {
 		await seedSellableTour({
 			suffix: `${suffix}_a`,
 			productId: `prod_disc_a_${suffix}`,
-			destinationId,
+			geoPlaceId,
 			variantId: `var_disc_a_${suffix}`,
 			ratePlanId: `rp_disc_a_${suffix}`,
 			departureDate: departure,
@@ -248,7 +262,7 @@ describe("integration/tour discovery filters (phase 6 / P1 discovery)", () => {
 		await seedSellableTour({
 			suffix: `${suffix}_b`,
 			productId: `prod_disc_b_${suffix}`,
-			destinationId,
+			geoPlaceId,
 			variantId: `var_disc_b_${suffix}`,
 			ratePlanId: `rp_disc_b_${suffix}`,
 			departureDate: departure,
@@ -262,7 +276,7 @@ describe("integration/tour discovery filters (phase 6 / P1 discovery)", () => {
 		await seedSellableTour({
 			suffix: `${suffix}_draft`,
 			productId: `prod_disc_draft_${suffix}`,
-			destinationId,
+			geoPlaceId,
 			variantId: `var_disc_draft_${suffix}`,
 			ratePlanId: `rp_disc_draft_${suffix}`,
 			departureDate: departure,
@@ -275,7 +289,7 @@ describe("integration/tour discovery filters (phase 6 / P1 discovery)", () => {
 		await seedSellableTour({
 			suffix: `${suffix}_inactive_cat`,
 			productId: `prod_disc_inact_${suffix}`,
-			destinationId,
+			geoPlaceId,
 			variantId: `var_disc_inact_${suffix}`,
 			ratePlanId: `rp_disc_inact_${suffix}`,
 			departureDate: departure,
@@ -289,7 +303,7 @@ describe("integration/tour discovery filters (phase 6 / P1 discovery)", () => {
 		await seedSellableTour({
 			suffix: `${suffix}_dedupe`,
 			productId: `prod_disc_dedupe_${suffix}`,
-			destinationId,
+			geoPlaceId,
 			variantId: `var_disc_dedupe_${suffix}`,
 			ratePlanId: `rp_disc_dedupe_${suffix}`,
 			departureDate: departure,
@@ -302,7 +316,7 @@ describe("integration/tour discovery filters (phase 6 / P1 discovery)", () => {
 
 		const byCategory = await getTourSearchSurface({
 			startDate: departure,
-			destinationRowId: destinationId,
+			geoPlaceId,
 			categorySlugs: [citySlug],
 			sort: "price_asc",
 		})
@@ -312,21 +326,21 @@ describe("integration/tour discovery filters (phase 6 / P1 discovery)", () => {
 
 		const inactiveCategory = await getTourSearchSurface({
 			startDate: departure,
-			destinationRowId: destinationId,
+			geoPlaceId,
 			categorySlugs: [inactiveSlug],
 		})
 		expect(inactiveCategory.cards).toEqual([])
 
 		const byLevel = await getTourSearchSurface({
 			startDate: departure,
-			destinationRowId: destinationId,
+			geoPlaceId,
 			level: "hard",
 		})
 		expect(byLevel.cards.map((c) => c.productId)).toEqual([`prod_disc_b_${suffix}`])
 
 		const byLevelSpanish = await getTourSearchSurface({
 			startDate: departure,
-			destinationRowId: destinationId,
+			geoPlaceId,
 			level: "Difícil",
 		})
 		expect(byLevelSpanish.cards.map((c) => c.productId)).toEqual([`prod_disc_b_${suffix}`])
@@ -335,7 +349,7 @@ describe("integration/tour discovery filters (phase 6 / P1 discovery)", () => {
 		// Price filter after aggregation + limit only at the end → expensive match survives limit=1.
 		const byPrice = await getTourSearchSurface({
 			startDate: departure,
-			destinationRowId: destinationId,
+			geoPlaceId,
 			priceMin: 100,
 			limit: 1,
 			sort: "price_asc",
@@ -344,7 +358,7 @@ describe("integration/tour discovery filters (phase 6 / P1 discovery)", () => {
 
 		const publishedOnly = await getTourSearchSurface({
 			startDate: departure,
-			destinationRowId: destinationId,
+			geoPlaceId,
 			sort: "price_asc",
 		})
 		expect(publishedOnly.cards.map((c) => c.productId)).not.toContain(
@@ -359,7 +373,7 @@ describe("integration/tour discovery filters (phase 6 / P1 discovery)", () => {
 
 		const byRating = await getTourSearchSurface({
 			startDate: departure,
-			destinationRowId: destinationId,
+			geoPlaceId,
 			sort: "rating_desc",
 		})
 		expect(byRating.cards[0]?.productId).toBe(`prod_disc_a_${suffix}`)
@@ -373,7 +387,7 @@ describe("integration/tour discovery filters (phase 6 / P1 discovery)", () => {
 			.where(eq(Variant.id, `var_disc_a_${suffix}`))
 		const afterInactiveVariant = await getTourSearchSurface({
 			startDate: departure,
-			destinationRowId: destinationId,
+			geoPlaceId,
 			categorySlugs: [citySlug],
 		})
 		expect(afterInactiveVariant.cards).toEqual([])

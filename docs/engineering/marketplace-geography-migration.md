@@ -132,19 +132,18 @@ y sus equivalencias aprobadas. Si todavía no existe cobertura, hacen fallback a
 `Product.destinationId`. Ese fallback es deliberado y no debe retirarse hasta
 que los informes de backfill estén revisados y la migración esté desplegada.
 
-## Próximas fases
+## Estado de cierre
 
-1. Revisar manualmente los registros `review_required` y confirmar o rechazar
-   las equivalencias antes de activar sus asociaciones comerciales.
-2. Ampliar de forma controlada municipios, localidades, barrios y POIs de Bolivia.
-3. Medir cobertura y divergencia de las rutas canónicas frente al fallback
-   legacy, incluyendo búsquedas con fecha de tours.
-4. Ejecutar `pnpm audit:geo:retirement -- --database` contra una réplica
-   aislada y exigir cero consumidores de ejecución y cero filas dependientes.
-5. Retirar gradualmente el fallback a `Product.destinationId` solo cuando la
-   cobertura sea completa y los enlaces históricos tengan redirección estable.
-6. Solamente entonces crear y aplicar una migración destructiva que elimine
-   `Destination`, `Product.destinationId` y las tablas de evidencia legacy.
+La retirada de `Destination` ya es irreversible: el runtime, los fixtures y el
+esquema físico usan exclusivamente `GeoPlace` y `ProductGeoPlace`. El gate
+`pnpm run audit:geo:retirement -- --final` exige cero tablas, columnas,
+escritores y productos sin geografía primaria. El generador del baseline exige
+además que toda tabla Drizzle esté registrada, por lo que una tabla omitida no
+puede producir silenciosamente una instalación incompleta.
+
+La ampliación futura de municipios, barrios y POIs debe ser aditiva sobre
+`GeoPlace`; no debe reintroducir lecturas duales, tablas de equivalencia ni
+campos geográficos directos en `Product`.
 
 ## Certificación de superficie pública
 
@@ -155,13 +154,17 @@ contenido principal. La búsqueda canónica de alojamientos se conecta a
 `getPublicSearchSurface`, que solo devuelve ofertas con precio y disponibilidad
 materializados, y la de tours conserva `getTourSearchSurface`.
 
-`pnpm run perf:html-budget` mide las rutas públicas cuando
-`FASTT_HTML_BUDGET_BASE_URL` apunta a un entorno de certificación. Esa medición
-es deliberadamente externa al build: no debe convertir una compilación local en
-una consulta a una base o servicio operativo.
+En pull requests, `pnpm run perf:html-budget` mide el preview generado por la
+propia rama contra una base PostgreSQL efímera y un catálogo comercial
+controlado. El mismo proceso ejecuta las pruebas DOM y de accesibilidad sobre
+portada, hoteles, tours y las dos landings de La Paz. No depende de una URL
+externa ni puede escribir fixtures en una base operativa.
+
+La latencia de red, CDN y región se certifica por separado contra staging. El
+TTFB del preview local sigue siendo un presupuesto de renderizado del servidor,
+no una afirmación sobre el rendimiento de producción.
 
 La comprobación local repetible es `pnpm test:marketplace:certification`. Antes
-de un release se deben ejecutar también `pnpm test:search` y el presupuesto HTML
-contra una base de pruebas aislada y un servidor de staging. En esta sesión esos
-tests de integración no pudieron conectarse al pool externo, por lo que no se
-debe interpretar la certificación local como una medición de datos reales.
+de un release se deben ejecutar también `pnpm test:search` y la certificación de
+staging. La certificación comercial con `--apply` exige `FASTT_DATA_ENV=test`,
+una URL de pruebas con fingerprint verificado y confirmación explícita.

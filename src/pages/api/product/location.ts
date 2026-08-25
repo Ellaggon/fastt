@@ -6,6 +6,8 @@ import { invalidateProduct } from "@/lib/cache/invalidation"
 import { refreshProductPreparationSnapshotAfterMutation } from "@/lib/playbook/summarize-product-preparation"
 import { upsertProductLocation } from "@/modules/catalog/public"
 import { productRepository } from "@/container"
+import { and, db, eq, first, GeoPlace } from "@/shared/infrastructure/db/compat"
+import { geoPlaceCompatibilityError } from "@/modules/catalog/domain/geo-place-compatibility"
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
@@ -28,6 +30,7 @@ export const POST: APIRoute = async ({ request }) => {
 		const form = await request.formData()
 		const raw = {
 			productId: String(form.get("productId") ?? ""),
+			geoPlaceId: String(form.get("geoPlaceId") ?? "").trim(),
 			address: String(form.get("address") ?? ""),
 			lat: form.get("lat"),
 			lng: form.get("lng"),
@@ -39,6 +42,21 @@ export const POST: APIRoute = async ({ request }) => {
 				status: 404,
 				headers: { "Content-Type": "application/json" },
 			})
+		}
+		if (raw.geoPlaceId) {
+			const geoPlace = await db
+				.select({ id: GeoPlace.id, placeType: GeoPlace.placeType })
+				.from(GeoPlace)
+				.where(and(eq(GeoPlace.id, raw.geoPlaceId), eq(GeoPlace.status, "active")))
+				.then(first)
+			if (!geoPlace) {
+				return new Response(JSON.stringify({ error: "validation_error", details: { fieldErrors: { geoPlaceId: ["Selecciona un lugar activo."] } } }), { status: 400, headers: { "Content-Type": "application/json" } })
+			}
+			const compatibilityError = geoPlaceCompatibilityError({ productType: owned.productType, placeType: geoPlace.placeType })
+			if (compatibilityError) {
+				return new Response(JSON.stringify({ error: "validation_error", details: { fieldErrors: { geoPlaceId: [compatibilityError] } } }), { status: 400, headers: { "Content-Type": "application/json" } })
+			}
+			await productRepository.setProductGeoPlace({ productId: raw.productId, geoPlaceId: raw.geoPlaceId, actorId: user.id ?? null, source: "product.location.update" })
 		}
 
 		const result = await upsertProductLocation(

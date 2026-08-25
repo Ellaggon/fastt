@@ -10,7 +10,6 @@ export * from "./application/use-cases/delete-product-service"
 export * from "./application/use-cases/sync-product-services"
 export * from "./application/use-cases/update-product-service"
 export * from "./application/use-cases/update-product-subtype"
-export * from "./application/services/geo-backfill-resolution"
 
 // Provider V2 (parallel system)
 export { registerProviderV2 } from "./application/use-cases/provider-v2/register-provider-v2"
@@ -142,10 +141,10 @@ export async function searchDestinations(params: { q: string; limit: number }) {
 	return searchDestinations(params)
 }
 
-export async function listMarketplaceHotelsByDestination(params: {
-	destinationId: string
+export async function listMarketplaceHotelsByGeoPlace(params: {
+	geoPlaceId: string
 	limit?: number
 }) {
-	const { listMarketplaceHotelsByDestination } = await import("@/container")
-	return listMarketplaceHotelsByDestination(params)
+	const { listMarketplaceHotelsByGeoPlace } = await import("@/container")
+	return listMarketplaceHotelsByGeoPlace(params)
 }

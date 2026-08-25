@@ -9,21 +9,21 @@ import {
 	resolveEffectivePolicies,
 } from "@/modules/policies/public"
 
-import { upsertDestination, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
+import { upsertGeoPlace, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
 
 describe("integration/policies versioning (CAPA 6 Step 7)", () => {
 	it("creates v2 without changing assignment; resolver picks latest active version", async () => {
-		const destinationId = `dest_ver_${crypto.randomUUID()}`
+		const geoPlaceId = `dest_ver_${crypto.randomUUID()}`
 		const productId = `prod_ver_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Ver Dest",
 			type: "city",
 			country: "CL",
 			slug: "ver-dest",
 		})
-		await upsertProduct({ id: productId, name: "Ver Product", productType: "Hotel", destinationId })
+		await upsertProduct({ id: productId, name: "Ver Product", productType: "Hotel", geoPlaceId })
 
 		const v1 = await createPolicyCapa6({
 			ownerProviderId: "prov_test",
@@ -74,11 +74,11 @@ describe("integration/policies versioning (CAPA 6 Step 7)", () => {
 	})
 
 	it("version uses max(group)+1 (not previous.version+1)", async () => {
-		const destinationId = `dest_ver2_${crypto.randomUUID()}`
+		const geoPlaceId = `dest_ver2_${crypto.randomUUID()}`
 		const productId = `prod_ver2_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Ver2 Dest",
 			type: "city",
 			country: "CL",
@@ -88,7 +88,7 @@ describe("integration/policies versioning (CAPA 6 Step 7)", () => {
 			id: productId,
 			name: "Ver2 Product",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 		})
 
 		const v1 = await createPolicyCapa6({

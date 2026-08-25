@@ -12,7 +12,7 @@ import {
 import { POST as executeCancellationPost } from "@/pages/api/booking/cancel"
 import { POST as refundQuotePost } from "@/pages/api/internal/financial/refund-quotes"
 import {
-	upsertDestination,
+	upsertGeoPlace,
 	upsertProduct,
 	upsertRatePlan,
 	upsertRatePlanTemplate,
@@ -167,7 +167,7 @@ describe("integration/refund cancellation engine", () => {
 		const email = `refund-${suffix}@example.test`
 		const token = `token_refund_${suffix}`
 		const userId = `user_${email}`
-		const destinationId = `dest_refund_${suffix}`
+		const geoPlaceId = `dest_refund_${suffix}`
 		const productId = `prod_refund_${suffix}`
 		const variantId = `var_refund_${suffix}`
 		const templateId = `rpt_refund_${suffix}`
@@ -176,8 +176,8 @@ describe("integration/refund cancellation engine", () => {
 		const snapshot = policySnapshot()
 
 		await upsertProvider({ id: providerId, displayName: "Refund Provider", ownerEmail: email })
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Refund Destination",
 			type: "city",
 			country: "CL",
@@ -187,7 +187,7 @@ describe("integration/refund cancellation engine", () => {
 			id: productId,
 			name: "Refund Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 		await upsertVariant({ id: variantId, productId, kind: "hotel_room", name: "Refund Room" })

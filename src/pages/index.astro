@@ -1,6 +1,7 @@
 ---
 import { ArrowRight, Building2, Compass } from "@lucide/astro"
 
+import PublicListingImage from "@/components/marketplace/PublicListingImage.astro"
 import UILayout from "@/layouts/UILayout.astro"
 ---
 
@@ -8,18 +9,26 @@ import UILayout from "@/layouts/UILayout.astro"
 	title="Fastt | Viajes en Bolivia"
 	description="Encuentra alojamientos y experiencias para viajar por Bolivia."
 	canonicalPath="/"
+	structuredData={{
+		"@context": "https://schema.org",
+		"@type": "WebSite",
+		"name": "Fastt",
+		"url": Astro.url.origin,
+		"inLanguage": "es-BO",
+	}}
 >
-	<main class="bg-slate-50 text-slate-950">
+	<main id="content" class="bg-slate-50 text-slate-950">
 		<section class="relative min-h-[calc(100vh-3rem)] overflow-hidden bg-slate-950">
-			<img
+			<PublicListingImage
 				src="https://pub-de0b5a27b1424d99afa6c7b2fe2f02dc.r2.dev/la-paz.webp"
 				alt="Paisaje de La Paz, Bolivia"
-				class="absolute inset-0 h-full w-full object-cover"
-				fetchpriority="high"
+				priority
+				fill
 			/>
-			<div class="absolute inset-0 bg-slate-950/65"></div>
+			<div class="pointer-events-none absolute inset-0 z-[1] bg-slate-950/65" data-hero-scrim></div>
 			<div
-				class="relative mx-auto flex min-h-[calc(100vh-3rem)] max-w-7xl flex-col justify-center px-4 pb-28 pt-20 sm:px-6 lg:px-8"
+				class="relative z-[2] mx-auto flex min-h-[calc(100vh-3rem)] max-w-7xl flex-col justify-center px-4 pb-28 pt-20 sm:px-6 lg:px-8"
+				data-hero-content
 			>
 				<p class="text-sm font-semibold text-slate-200">FASTT · BOLIVIA</p>
 				<h1 class="mt-4 max-w-3xl text-4xl font-semibold leading-tight text-white sm:text-5xl">

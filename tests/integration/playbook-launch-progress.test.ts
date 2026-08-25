@@ -7,7 +7,7 @@ import { upsertProductContent, upsertProductLocation } from "@/modules/catalog/p
 import { createPolicyCapa6, replacePolicyAssignmentCapa6 } from "@/modules/policies/public"
 import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
 import {
-	upsertDestination,
+	upsertGeoPlace,
 	upsertProduct,
 	upsertRatePlan,
 	upsertRatePlanTemplate,
@@ -90,7 +90,7 @@ describe("integration/playbook launch progress", () => {
 	it("marks rate, conditions and calendar complete for a hotel with variant, tariff, pricing and inventory", async () => {
 		const suffix = crypto.randomUUID()
 		const providerId = `prov_launch_${suffix}`
-		const destinationId = `dest_launch_${suffix}`
+		const geoPlaceId = `dest_launch_${suffix}`
 		const productId = `prod_launch_${suffix}`
 		const variantId = `var_launch_${suffix}`
 		const templateId = `rpt_launch_${suffix}`
@@ -99,8 +99,8 @@ describe("integration/playbook launch progress", () => {
 			normalizeOccupancy({ adults: 2, children: 0, infants: 0 })
 		)
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Launch Test Destination",
 			type: "city",
 			country: "CL",
@@ -115,7 +115,7 @@ describe("integration/playbook launch progress", () => {
 			id: productId,
 			name: "Launch Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 		await upsertProductContent(

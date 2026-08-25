@@ -19,7 +19,7 @@ describe("rooms db hardening", () => {
 	it("reads room profile and beds from rooms v2 tables", async () => {
 		const variantId = `variant_room_${crypto.randomUUID()}`
 		await seedTestProductVariant({
-			destinationId: `dest_${variantId}`,
+			geoPlaceId: `dest_${variantId}`,
 			productId: `product_${variantId}`,
 			variantId,
 			maxOccupancy: 3,
@@ -93,7 +93,7 @@ describe("rooms db hardening", () => {
 		const variantId = `variant_amenity_${crypto.randomUUID()}`
 		const amenityId = `amenity_${variantId}`
 		await seedTestProductVariant({
-			destinationId: `dest_${variantId}`,
+			geoPlaceId: `dest_${variantId}`,
 			productId: `product_${variantId}`,
 			variantId,
 		})

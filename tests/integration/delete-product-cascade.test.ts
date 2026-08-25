@@ -10,6 +10,7 @@ import {
 	Image,
 	ImageUpload,
 	Product,
+	ProductGeoPlace,
 	ProductContent,
 	ProductLocation,
 	ProductStatus,
@@ -26,7 +27,7 @@ import {
 } from "@/shared/infrastructure/db/compat"
 
 import { productRepository, r2 } from "@/container"
-import { upsertDestination } from "@/shared/infrastructure/test-support/db-test-data"
+import { upsertGeoPlace } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
 
 async function rowsFor(table: any, column: any, value: string) {
@@ -46,7 +47,7 @@ describe("integration/catalog delete product cascade", () => {
 
 		const suffix = crypto.randomUUID()
 		const providerId = `prov_delete_${suffix}`
-		const destinationId = `dest_delete_${suffix}`
+		const geoPlaceId = `dest_delete_${suffix}`
 		const productId = `prod_delete_${suffix}`
 		const variantId = `variant_delete_${suffix}`
 		const ratePlanId = `rate_delete_${suffix}`
@@ -55,8 +56,8 @@ describe("integration/catalog delete product cascade", () => {
 		const pendingImageId = `img_pending_${suffix}`
 
 		try {
-			await upsertDestination({
-				id: destinationId,
+			await upsertGeoPlace({
+				id: geoPlaceId,
 				name: "Delete Cascade Destination",
 				type: "city",
 				country: "BO",
@@ -73,8 +74,8 @@ describe("integration/catalog delete product cascade", () => {
 				name: "Delete Cascade Hotel",
 				productType: "Hotel",
 				providerId,
-				destinationId,
 			})
+			await db.insert(ProductGeoPlace).values({ id: `geo:product-place:${productId}`, productId, placeId: geoPlaceId, role: "primary_discovery", isPrimary: true, source: "test_fixture" })
 			await db.insert(ProductContent).values({
 				productId,
 				description: "Temporary hotel",

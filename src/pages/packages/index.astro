@@ -5,10 +5,11 @@ import {
 	and,
 	asc,
 	db,
-	Destination,
 	eq,
+	GeoPlace,
 	Package,
 	Product,
+	ProductGeoPlace,
 	ProductContent,
 	ProductLocation,
 	sql,
@@ -18,16 +19,16 @@ const packages = await db
 	.select({
 		id: Product.id,
 		name: Product.name,
-		destinationName: Destination.name,
+		destinationName: GeoPlace.canonicalName,
 		description: ProductContent.description,
 		address: ProductLocation.address,
 		includes: Package.includesJson,
 		excludes: Package.excludesJson,
 		imageUrl: sql<string>`(
-			SELECT url
-			FROM Image
-			WHERE entityId = ${Product.id}
-			ORDER BY isPrimary DESC, "order" ASC
+			SELECT "url"
+			FROM "Image"
+			WHERE "entityId" = ${Product.id}
+			ORDER BY "isPrimary" DESC, "order" ASC
 			LIMIT 1
 		)`.as("imageUrl"),
 		itinerary: Package.itineraryJson,
@@ -35,7 +36,15 @@ const packages = await db
 		nights: Package.nights,
 	})
 	.from(Product)
-	.leftJoin(Destination, eq(Destination.id, Product.destinationId))
+	.leftJoin(
+		ProductGeoPlace,
+		and(
+			eq(ProductGeoPlace.productId, Product.id),
+			eq(ProductGeoPlace.role, "primary_discovery"),
+			eq(ProductGeoPlace.isPrimary, true)
+		)
+	)
+	.leftJoin(GeoPlace, eq(GeoPlace.id, ProductGeoPlace.placeId))
 	.leftJoin(
 		ProductContent,
 		and(eq(ProductContent.productId, Product.id), eq(ProductContent.dataClass, "production"))
@@ -43,7 +52,6 @@ const packages = await db
 	.leftJoin(ProductLocation, eq(ProductLocation.productId, Product.id))
 	.leftJoin(Package, eq(Package.productId, Product.id))
 	.where(and(sql`lower(${Product.productType}) = 'package'`, eq(Product.dataClass, "production")))
-	.groupBy(Product.id)
 	.orderBy(asc(Product.name))
 	.limit(60)
 

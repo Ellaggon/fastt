@@ -17,20 +17,17 @@ import {
 	evaluateProductReadiness,
 } from "@/modules/catalog/public"
 
-import { upsertDestination } from "@/shared/infrastructure/test-support/db-test-data"
-import { upsertProvider } from "../test-support/catalog-db-test-data"
+import { upsertGeoPlace, upsertProvider } from "../test-support/catalog-db-test-data"
 
 describe("integration/catalog Product V2 flow", () => {
 	it("create -> content -> location -> images -> subtype -> evaluate => ready", async () => {
-		const destinationId = "dest_int_product_v2"
+		const geoPlaceId = "geo_int_product_v2"
 		const providerId = "prov_int_product_v2"
 		const productId = `prod_int_product_v2_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
-			name: "Product V2 Test Destination",
-			type: "city",
-			country: "CL",
+		await upsertGeoPlace({
+			id: geoPlaceId,
+			canonicalName: "Product V2 Test Destination",
 			slug: "product-v2-test-destination",
 		})
 
@@ -47,7 +44,7 @@ describe("integration/catalog Product V2 flow", () => {
 				name: "Product V2 Integration",
 				productType: "Hotel",
 				providerId,
-				destinationId,
+				geoPlaceId,
 			}
 		)
 
@@ -136,15 +133,13 @@ describe("integration/catalog Product V2 flow", () => {
 	})
 
 	it("missing content => draft", async () => {
-		const destinationId = "dest_int_product_v2"
+		const geoPlaceId = "geo_int_product_v2"
 		const providerId = "prov_int_product_v2"
 		const productId = `prod_int_product_v2_missing_content_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
-			name: "Product V2 Test Destination",
-			type: "city",
-			country: "CL",
+		await upsertGeoPlace({
+			id: geoPlaceId,
+			canonicalName: "Product V2 Test Destination",
 			slug: "product-v2-test-destination",
 		})
 
@@ -161,7 +156,7 @@ describe("integration/catalog Product V2 flow", () => {
 				name: "Product V2 Missing Content",
 				productType: "Hotel",
 				providerId,
-				destinationId,
+				geoPlaceId,
 			}
 		)
 
@@ -190,15 +185,13 @@ describe("integration/catalog Product V2 flow", () => {
 	})
 
 	it("missing location => draft", async () => {
-		const destinationId = "dest_int_product_v2"
+		const geoPlaceId = "geo_int_product_v2"
 		const providerId = "prov_int_product_v2"
 		const productId = `prod_int_product_v2_missing_location_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
-			name: "Product V2 Test Destination",
-			type: "city",
-			country: "CL",
+		await upsertGeoPlace({
+			id: geoPlaceId,
+			canonicalName: "Product V2 Test Destination",
 			slug: "product-v2-test-destination",
 		})
 
@@ -215,7 +208,7 @@ describe("integration/catalog Product V2 flow", () => {
 				name: "Product V2 Missing Location",
 				productType: "Hotel",
 				providerId,
-				destinationId,
+				geoPlaceId,
 			}
 		)
 
@@ -242,15 +235,13 @@ describe("integration/catalog Product V2 flow", () => {
 	})
 
 	it("missing images => draft", async () => {
-		const destinationId = "dest_int_product_v2"
+		const geoPlaceId = "geo_int_product_v2"
 		const providerId = "prov_int_product_v2"
 		const productId = `prod_int_product_v2_missing_images_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
-			name: "Product V2 Test Destination",
-			type: "city",
-			country: "CL",
+		await upsertGeoPlace({
+			id: geoPlaceId,
+			canonicalName: "Product V2 Test Destination",
 			slug: "product-v2-test-destination",
 		})
 
@@ -267,7 +258,7 @@ describe("integration/catalog Product V2 flow", () => {
 				name: "Product V2 Missing Images",
 				productType: "Hotel",
 				providerId,
-				destinationId,
+				geoPlaceId,
 			}
 		)
 
@@ -297,15 +288,13 @@ describe("integration/catalog Product V2 flow", () => {
 	})
 
 	it("missing subtype => draft", async () => {
-		const destinationId = "dest_int_product_v2"
+		const geoPlaceId = "geo_int_product_v2"
 		const providerId = "prov_int_product_v2"
 		const productId = `prod_int_product_v2_missing_subtype_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
-			name: "Product V2 Test Destination",
-			type: "city",
-			country: "CL",
+		await upsertGeoPlace({
+			id: geoPlaceId,
+			canonicalName: "Product V2 Test Destination",
 			slug: "product-v2-test-destination",
 		})
 
@@ -322,7 +311,7 @@ describe("integration/catalog Product V2 flow", () => {
 				name: "Product V2 Missing Subtype",
 				productType: "Hotel",
 				providerId,
-				destinationId,
+				geoPlaceId,
 			}
 		)
 

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { productRepository } from "@/container"
 import { POST as createProductPost } from "@/pages/api/product/create"
-import { upsertDestination } from "@/shared/infrastructure/test-support/db-test-data"
+import { upsertGeoPlace } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
 
 const previousFetch = globalThis.fetch
@@ -45,9 +45,9 @@ describe("tour wizard create endpoint", () => {
 		const token = "tour_wizard_token"
 		const email = "tour-wizard@example.com"
 		const providerId = "prov_tour_wizard_create"
-		const destinationId = "dest_tour_wizard_create"
-		await upsertDestination({
-			id: destinationId,
+		const geoPlaceId = "dest_tour_wizard_create"
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Destino Tour Wizard",
 			type: "city",
 			country: "BO",
@@ -59,18 +59,18 @@ describe("tour wizard create endpoint", () => {
 		const jsonForm = new FormData()
 		jsonForm.set("name", "Explora el centro histórico")
 		jsonForm.set("productType", "Tour")
-		jsonForm.set("destinationId", destinationId)
+		jsonForm.set("geoPlaceId", geoPlaceId)
 		jsonForm.set("playbook", "launch-tour")
 		jsonForm.set("_response", "json")
 		const jsonResponse = await createProductPost({ request: request(token, jsonForm) } as any)
 		expect(jsonResponse.status).toBe(200)
 		const created = (await jsonResponse.json()) as { id: string }
-		expect((await productRepository.getProductAggregate(created.id))?.product.productType).toBe("Tour")
+		expect((await productRepository.getProductAggregate(created.id))?.product.productType).toBe("tour")
 
 		const nativeForm = new FormData()
 		nativeForm.set("name", "Descubre el mercado local")
 		nativeForm.set("productType", "Tour")
-		nativeForm.set("destinationId", destinationId)
+		nativeForm.set("geoPlaceId", geoPlaceId)
 		nativeForm.set("playbook", "launch-tour")
 		nativeForm.set("_response", "redirect")
 		const nativeResponse = await createProductPost({ request: request(token, nativeForm) } as any)

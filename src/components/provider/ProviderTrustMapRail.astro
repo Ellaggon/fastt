@@ -60,10 +60,7 @@ const currentActiveId = resolveInitialActiveId()
 					</Badge>
 				</div>
 			) : null}
-			<TabsInsidePanel
-				aria-label={TRUST_GLOSSARY.page.railTitle}
-				class="max-w-full flex-nowrap"
-			>
+			<TabsInsidePanel aria-label={TRUST_GLOSSARY.page.railTitle} class="max-w-full flex-nowrap">
 				{links.map((link) => {
 					const active = link.id === currentActiveId
 					const Icon = iconByLinkId[link.id]
@@ -88,7 +85,7 @@ const currentActiveId = resolveInitialActiveId()
 								data-trust-link-status
 								data-trust-link-status-state={link.uiState}
 							>
-								<span class="fastt-tabs-inside-panel__status-dot" aria-hidden="true"></span>
+								<span class="fastt-tabs-inside-panel__status-dot" aria-hidden="true" />
 								{link.stateLabel}
 							</Badge>
 						</a>

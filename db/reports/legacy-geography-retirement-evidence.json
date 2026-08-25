@@ -1,0 +1,12 @@
+{
+  "exportedAt": "2026-08-24T21:00:00.000Z",
+  "schemaVersion": "geo-retirement-v1",
+  "destinationMaps": [],
+  "backfillEvidence": [],
+  "eventSummary": {
+    "total": 0,
+    "resolved": 0,
+    "unresolved": 0
+  },
+  "sha256": "08ec1854f8b25fc7593a66ed3813d1104c33546230030e296b47a063ddab4371"
+}

@@ -1,4 +1,4 @@
-export type DestinationRow = {
+export type GeoPlaceRow = {
 	// We keep this shape open because the API returns the full DB row.
 	// These fields are required for response formatting.
 	name?: string | null
@@ -8,7 +8,7 @@ export type DestinationRow = {
 	[key: string]: unknown
 }
 
-export interface DestinationQueryRepositoryPort {
-	search(params: { q: string; limit: number }): Promise<DestinationRow[]>
-	list(params: { limit: number }): Promise<DestinationRow[]>
+export interface GeoPlaceQueryRepositoryPort {
+	search(params: { q: string; limit: number }): Promise<GeoPlaceRow[]>
+	list(params: { limit: number }): Promise<GeoPlaceRow[]>
 }

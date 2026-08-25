@@ -6,9 +6,11 @@
   "scripts": {
     "dev": "astro dev",
     "seed:room-types": "tsx src/scripts/seed-room-types.ts",
-    "seed:geo:bolivia": "tsx src/scripts/seed-bolivia-geo-places.ts",
-    "backfill:geo:bolivia": "tsx src/scripts/backfill-bolivia-product-geography.ts",
+    "seed:geo:bolivia": "node --import dotenv/config --import tsx src/scripts/seed-bolivia-geo-places.ts",
+    "certify:marketplace:commercial": "node --import dotenv/config --import tsx src/scripts/certify-marketplace-commercialization.ts",
     "audit:geo:retirement": "tsx scripts/db/verify-legacy-geography-retirement.ts",
+    "audit:geo:legacy-products": "node --import dotenv/config --import tsx scripts/db/audit-legacy-geography-products.ts",
+    "purge:geo:legacy-products": "node --import dotenv/config --import tsx scripts/db/purge-legacy-geography-products.ts",
     "seed:financial:demo": "tsx src/scripts/seed-financial-operational-demo.ts",
     "audit:r2-images": "tsx src/scripts/audit-r2-image-orphans.ts",
     "start": "astro dev",
@@ -25,6 +27,7 @@
     "ops:tours-redis-multipod": "tsx scripts/ops/tours-redis-multipod-check.ts",
     "test:tours:playwright": "FASTT_DATA_ENV=test playwright test",
     "test:tours:playwright:ui": "FASTT_DATA_ENV=test playwright test --ui",
+    "test:marketplace:public-browser": "PLAYWRIGHT_PUBLIC_CERTIFICATION=1 playwright test tests/e2e/public-marketplace-certification.spec.ts",
     "format": "prettier --write src",
     "format:check": "prettier --check src",
     "db:pg:generate-initial": "tsx scripts/db/generate-postgres-initial-migration.ts",
@@ -85,6 +88,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "1.59.1",
     "@tailwindcss/vite": "^4.2.4",
     "@types/leaflet": "^1.9.21",

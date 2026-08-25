@@ -32,7 +32,7 @@ function dateOnly(value: unknown) {
 async function seedCatalog(sql: Sql, scope = randomUUID().slice(0, 8)) {
 	const ids = {
 		providerId: id(`${scope}-provider`),
-		destinationId: id(`${scope}-destination`),
+		geoPlaceId: id(`${scope}-destination`),
 		productId: id(`${scope}-product`),
 		variantId: id(`${scope}-variant`),
 		ratePlanId: id(`${scope}-rate-plan`),
@@ -43,12 +43,16 @@ async function seedCatalog(sql: Sql, scope = randomUUID().slice(0, 8)) {
 		values (${ids.providerId}, 'Phase 6 Provider', 'Phase 6 Provider', 'active', now())
 	`
 	await sql`
-		insert into "Destination" ("id", "name", "type", "country", "slug")
-		values (${ids.destinationId}, 'Phase 6 Destination', 'city', 'BO', ${ids.destinationId})
+		insert into "GeoPlace" ("id", "canonicalName", "normalizedName", "placeType", "countryCode", "slug")
+		values (${ids.geoPlaceId}, 'Phase 6 GeoPlace', 'phase 6 geoplace', 'city', 'BO', ${ids.geoPlaceId})
 	`
 	await sql`
-		insert into "Product" ("id", "name", "productType", "providerId", "destinationId")
-		values (${ids.productId}, 'Phase 6 Hotel', 'hotel', ${ids.providerId}, ${ids.destinationId})
+		insert into "Product" ("id", "name", "productType", "providerId")
+		values (${ids.productId}, 'Phase 6 Hotel', 'hotel', ${ids.providerId})
+	`
+	await sql`
+		insert into "ProductGeoPlace" ("id", "productId", "placeId", "role", "isPrimary", "source")
+		values (${id(`${scope}-product-place`)}, ${ids.productId}, ${ids.geoPlaceId}, 'primary_discovery', true, 'test_fixture')
 	`
 	await sql`
 		insert into "Variant" ("id", "productId", "name", "kind", "status", "isActive")
@@ -94,7 +98,7 @@ async function cleanup(sql: Sql) {
 	await sql`delete from "Variant" where "id" like ${`${prefix}%`}`
 	await sql`delete from "Tour" where "productId" like ${`${prefix}%`}`
 	await sql`delete from "Product" where "id" like ${`${prefix}%`}`
-	await sql`delete from "Destination" where "id" like ${`${prefix}%`}`
+	await sql`delete from "GeoPlace" where "id" like ${`${prefix}%`}`
 	await sql`delete from "Provider" where "id" like ${`${prefix}%`}`
 	await sql`delete from "User" where "email" like ${`${prefix}%@phase6.test`}`
 }

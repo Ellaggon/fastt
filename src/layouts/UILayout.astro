@@ -3,10 +3,16 @@ import Sidebar from "@/components/nav/NavBurger.astro"
 import NavLayout from "@/components/nav/NavLayout.astro"
 import Layout from "@/layouts/Layout.astro"
 
-const { title, description, canonicalPath, noindex } = Astro.props
+const { title, description, canonicalPath, noindex, structuredData } = Astro.props
 ---
 
-<Layout title={title} description={description} canonicalPath={canonicalPath} noindex={noindex}>
+<Layout
+	title={title}
+	description={description}
+	canonicalPath={canonicalPath}
+	noindex={noindex}
+	structuredData={structuredData}
+>
 	<div class="pt-12">
 		<NavLayout />
 		<Sidebar />

@@ -14,9 +14,9 @@ if (!vertical) return Astro.redirect("/", 308)
 
 const sourceDestination =
 	Astro.url.searchParams.get("destino") ||
-	Astro.url.searchParams.get("destinationSlug") ||
+	Astro.url.searchParams.get("geoPlaceSlug") ||
 	Astro.url.searchParams.get("destinationQuery") ||
-	Astro.url.searchParams.get("destinationId")
+	Astro.url.searchParams.get("geoPlaceId")
 const canonicalSlug = canonicalPublicPlaceSlug(sourceDestination)
 if (canonicalSlug && Astro.url.searchParams.get("destino") !== canonicalSlug) {
 	return Astro.redirect(publicSearchHref(vertical, Astro.url.searchParams), 308)

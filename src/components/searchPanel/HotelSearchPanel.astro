@@ -25,8 +25,8 @@ import Input from "@/components/ui/Input.astro"
 					type="search"
 					placeholder="Ciudad, departamento..."
 				/>
-				<input type="hidden" id="destinationId" />
-				<input type="hidden" id="destinationSlug" />
+				<input type="hidden" id="geoPlaceId" />
+				<input type="hidden" id="geoPlaceSlug" />
 				<ul
 					id="destinationsList"
 					class="fastt-soft-box absolute left-0 right-0 z-50 mt-1 hidden max-h-56 overflow-auto border border-slate-200 bg-white text-sm"
@@ -174,8 +174,8 @@ import Input from "@/components/ui/Input.astro"
 	document.addEventListener("DOMContentLoaded", () => {
 		const destInput = qs("#destinationInput")
 		const destList = qs("#destinationsList")
-		const destIdInput = qs("#destinationId")
-		const destSlugInput = qs("#destinationSlug")
+		const destIdInput = qs("#geoPlaceId")
+		const destSlugInput = qs("#geoPlaceSlug")
 		const checkin = qs("#checkin")
 		const checkout = qs("#checkout")
 

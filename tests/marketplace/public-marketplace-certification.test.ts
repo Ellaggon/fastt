@@ -14,6 +14,11 @@ describe("public marketplace certification", () => {
 		expect(layout).toContain('rel="canonical"')
 		expect(layout).toContain('href="#content"')
 		expect(uiLayout).toContain("canonicalPath={canonicalPath}")
+		expect(read("src/pages/index.astro")).toContain('id="content"')
+		expect(read("src/components/marketplace/PublicListingImage.astro")).toContain(
+			'aria-label="Imagen no disponible"'
+		)
+		expect(read("src/components/marketplace/PublicListingImage.astro")).toContain('data-state={src ? "source" : "fallback"}')
 	})
 
 	it("keeps public landings semantically navigable and vertically isolated", () => {
@@ -29,6 +34,20 @@ describe("public marketplace certification", () => {
 		expect(hotels).toContain('canonicalPath="/hotels"')
 		expect(tours).toContain('vertical="tours"')
 		expect(tours).toContain('canonicalPath="/tours"')
+	})
+
+	it("reads published destination copy and discovery rows from canonical geography", () => {
+		const destinationListings = read("src/lib/marketplace/publicDestinationListings.ts")
+		const geoSeed = read("src/scripts/seed-bolivia-geo-places.ts")
+
+		expect(destinationListings).toContain("GeoPlaceContent")
+		expect(destinationListings).toContain('marketplace_geo_discovery_reads_total')
+		expect(destinationListings).toContain('marketplace_geo_discovery_rows_total')
+		expect(destinationListings).toContain('strategy: input.canonicalRows > 0 ? "canonical" : "canonical_empty"')
+		expect(destinationListings).not.toContain("LegacyDestinationGeoPlaceMap")
+		expect(destinationListings).not.toContain('from "@/data/departments"')
+		expect(geoSeed).toContain("BOLIVIA_GEO_PLACE_CONTENT")
+		expect(geoSeed).toContain('publicationStatus: "published"')
 	})
 
 	it("uses the canonical price and availability engines for searches", () => {

@@ -66,13 +66,13 @@ export function publicSearchHref(
 	const params = new URLSearchParams(search)
 	const candidate =
 		params.get("destino") ||
-		params.get("destinationSlug") ||
+		params.get("geoPlaceSlug") ||
 		params.get("destinationQuery") ||
-		params.get("destinationId")
+		params.get("geoPlaceId")
 	const canonicalSlug = canonicalPublicPlaceSlug(candidate)
 
-	params.delete("destinationId")
-	params.delete("destinationSlug")
+	params.delete("geoPlaceId")
+	params.delete("geoPlaceSlug")
 	params.delete("destinationQuery")
 	if (canonicalSlug) params.set("destino", canonicalSlug)
 	const query = params.toString()

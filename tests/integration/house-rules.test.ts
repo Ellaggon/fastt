@@ -7,15 +7,15 @@ import {
 	deleteHouseRule,
 	listHouseRulesByProduct,
 } from "@/modules/house-rules/public"
-import { upsertDestination, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
+import { upsertGeoPlace, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
 
 describe("integration/house-rules (CAPA 6.5)", () => {
 	it("create + listByProduct + delete", async () => {
-		const destinationId = `dest_hr_${crypto.randomUUID()}`
+		const geoPlaceId = `dest_hr_${crypto.randomUUID()}`
 		const productId = `prod_hr_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "House Rules Destination",
 			type: "city",
 			country: "CL",
@@ -25,7 +25,7 @@ describe("integration/house-rules (CAPA 6.5)", () => {
 			id: productId,
 			name: "House Rules Product",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 		})
 
 		const r1 = await createHouseRule({

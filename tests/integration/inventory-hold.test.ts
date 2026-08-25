@@ -24,7 +24,7 @@ import { inventoryHoldRepository } from "@/container"
 import { materializeSearchUnitRange } from "@/modules/search/public"
 import { ensurePricingCoverageForRequestRuntime } from "@/modules/pricing/public"
 import { replacePolicyAssignmentCapa6, createPolicyCapa6 } from "@/modules/policies/public"
-import { upsertDestination, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
+import { upsertGeoPlace, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
 
 type SupabaseTestUser = { id: string; email: string }
@@ -92,19 +92,19 @@ async function seedVariantWithInventory(params: {
 	totalInventory: number
 	dates: string[]
 }) {
-	const destinationId = `dest_hold_${crypto.randomUUID()}`
-	await upsertDestination({
-		id: destinationId,
+	const geoPlaceId = `dest_hold_${crypto.randomUUID()}`
+	await upsertGeoPlace({
+		id: geoPlaceId,
 		name: "Hold Dest",
 		type: "city",
 		country: "CL",
-		slug: `hold-dest-${destinationId}`,
+		slug: `hold-dest-${geoPlaceId}`,
 	})
 	await upsertProduct({
 		id: params.productId,
 		name: "Hold Product",
 		productType: "Hotel",
-		destinationId,
+		geoPlaceId,
 		providerId: "prov_test",
 	})
 

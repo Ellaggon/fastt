@@ -26,8 +26,8 @@ import {
 	count,
 	db,
 	desc,
-	Destination,
 	eq,
+	GeoPlace,
 	first,
 	Image,
 	inArray,
@@ -35,6 +35,7 @@ import {
 	or,
 	isNull,
 	Product,
+	ProductGeoPlace,
 	ProductCategory,
 	ProductCategoryLink,
 	ProductContent,
@@ -156,7 +157,15 @@ try {
 	const productResult = await db
 		.select()
 		.from(Product)
-		.leftJoin(Destination, eq(Destination.id, Product.destinationId))
+		.leftJoin(
+			ProductGeoPlace,
+			and(
+				eq(ProductGeoPlace.productId, Product.id),
+				eq(ProductGeoPlace.role, "primary_discovery"),
+				eq(ProductGeoPlace.isPrimary, true)
+			)
+		)
+		.leftJoin(GeoPlace, eq(GeoPlace.id, ProductGeoPlace.placeId))
 		.leftJoin(ProductLocation, eq(ProductLocation.productId, Product.id))
 		.leftJoin(
 			ProductContent,
@@ -174,7 +183,9 @@ try {
 
 	product = {
 		...productResult.Product,
-		destination: productResult.Destination,
+		destination: productResult.GeoPlace
+			? { ...productResult.GeoPlace, name: productResult.GeoPlace.canonicalName }
+			: null,
 		location: productResult.ProductLocation,
 	}
 	description = productResult.ProductContent?.description ?? null
@@ -449,7 +460,21 @@ const mapEmbed =
 			: null
 ---
 
-<Layout title={productData?.name || "Tour"}>
+<Layout
+	title={productData?.name || "Tour"}
+	description={description ||
+		`Información de la experiencia ${productData?.name || "seleccionada"}.`}
+	canonicalPath={productData ? `/tours/${encodeURIComponent(productId)}` : undefined}
+	structuredData={productData
+		? {
+				"@context": "https://schema.org",
+				"@type": "TouristTrip",
+				"name": productData.name,
+				"url": new URL(`/tours/${encodeURIComponent(productId)}`, Astro.url.origin).href,
+				"description": description || undefined,
+			}
+		: undefined}
+>
 	<main class="mx-auto min-h-screen max-w-7xl space-y-10 p-4 lg:p-12">
 		<Breadcrumbs items={breadcrumbItems} />
 

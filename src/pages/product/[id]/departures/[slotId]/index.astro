@@ -1,7 +1,6 @@
 ---
 import TourSlotProfileEditor from "@/components/tours/TourSlotProfileEditor.astro"
 import Card from "@/components/ui/Card.astro"
-import ProductContextSwitcher from "@/components/product/ProductContextSwitcher.astro"
 import { productRepository, variantManagementRepository } from "@/container"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
@@ -54,16 +53,11 @@ const override =
 ---
 
 <WorkspaceLayout title={`${product.displayName} · Editar salida`}>
-	<section class="space-y-5">
-		<header class="space-y-1.5 border-b border-slate-200 pb-5">
-			<ProductContextSwitcher
-				providerId={providerId}
-				productId={productId}
-				productType={owned.productType}
-				currentName={product.displayName}
-				selectable={false}
-			/>
-			<h1 class="text-3xl font-semibold text-slate-950">{variant.name}</h1>
+	<section class="space-y-6 md:space-y-8">
+		<header class="flex flex-col gap-2">
+			<h1 class="text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl">
+				{variant.name}
+			</h1>
 		</header>
 
 		<TourSlotProfileEditor

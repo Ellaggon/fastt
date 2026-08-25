@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest"
 
-import { upsertDestination, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
+import { upsertGeoPlace, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
 
 import { r2, productImageRepository, cleanupStaleUploads, imageUploadRepository } from "@/container"
@@ -81,13 +81,13 @@ describe("integration/r2 upload hardening", () => {
 	it("cleanupStaleUploads deletes pending upload objects + DB rows", async () => {
 		process.env.R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || "test-bucket"
 
-		const destinationId = "dest_int_cleanup"
+		const geoPlaceId = "dest_int_cleanup"
 		const providerId = "prov_int_cleanup"
 		const email = "cleanup@example.com"
 		const productId = `prod_int_cleanup_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Cleanup Destination",
 			type: "city",
 			country: "CL",
@@ -98,7 +98,7 @@ describe("integration/r2 upload hardening", () => {
 			id: productId,
 			name: "Cleanup Product",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 
@@ -129,11 +129,11 @@ describe("integration/r2 upload hardening", () => {
 		const token = "t_missing"
 		const email = "missing@example.com"
 		const providerId = "prov_missing"
-		const destinationId = "dest_missing"
+		const geoPlaceId = "dest_missing"
 		const productId = `prod_missing_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Missing",
 			type: "city",
 			country: "CL",
@@ -144,7 +144,7 @@ describe("integration/r2 upload hardening", () => {
 			id: productId,
 			name: "Missing Product",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 
@@ -181,11 +181,11 @@ describe("integration/r2 upload hardening", () => {
 		const token = "t_ct"
 		const email = "ct@example.com"
 		const providerId = "prov_ct"
-		const destinationId = "dest_ct"
+		const geoPlaceId = "dest_ct"
 		const productId = `prod_ct_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "CT",
 			type: "city",
 			country: "CL",
@@ -196,7 +196,7 @@ describe("integration/r2 upload hardening", () => {
 			id: productId,
 			name: "CT Product",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 
@@ -234,11 +234,11 @@ describe("integration/r2 upload hardening", () => {
 		const token = "t_limit"
 		const email = "limit@example.com"
 		const providerId = "prov_limit"
-		const destinationId = "dest_limit"
+		const geoPlaceId = "dest_limit"
 		const productId = `prod_limit_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Limit",
 			type: "city",
 			country: "CL",
@@ -249,7 +249,7 @@ describe("integration/r2 upload hardening", () => {
 			id: productId,
 			name: "Limit Product",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 
@@ -282,11 +282,11 @@ describe("integration/r2 upload hardening", () => {
 		const token = "t_dup"
 		const email = "dup@example.com"
 		const providerId = "prov_dup"
-		const destinationId = "dest_dup"
+		const geoPlaceId = "dest_dup"
 		const productId = `prod_dup_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Dup",
 			type: "city",
 			country: "CL",
@@ -297,7 +297,7 @@ describe("integration/r2 upload hardening", () => {
 			id: productId,
 			name: "Dup Product",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 

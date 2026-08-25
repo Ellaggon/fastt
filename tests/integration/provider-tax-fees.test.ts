@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest"
 
 import { upsertProvider } from "../test-support/catalog-db-test-data"
 import {
-	upsertDestination,
+	upsertGeoPlace,
 	upsertProduct,
 	upsertVariant,
 	upsertRatePlan,
@@ -79,7 +79,7 @@ describe("integration/provider tax-fees API", () => {
 		const emailB = "prov-b@example.com"
 		const providerA = "prov_a"
 		const providerB = "prov_b"
-		const destinationId = "dest_a"
+		const geoPlaceId = "dest_a"
 		const productId = "prod_a"
 		const variantId = "var_a"
 		const templateId = "rpt_a"
@@ -87,8 +87,8 @@ describe("integration/provider tax-fees API", () => {
 
 		await upsertProvider({ id: providerA, displayName: "ProvA", ownerEmail: emailA })
 		await upsertProvider({ id: providerB, displayName: "ProvB", ownerEmail: emailB })
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Dest",
 			type: "city",
 			country: "CL",
@@ -98,7 +98,7 @@ describe("integration/provider tax-fees API", () => {
 			id: productId,
 			name: "Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId: providerA,
 		})
 		await upsertVariant({
@@ -185,15 +185,15 @@ describe("integration/provider tax-fees API", () => {
 		const token = "t_preview"
 		const email = "preview@example.com"
 		const providerId = "prov_preview"
-		const destinationId = "dest_preview"
+		const geoPlaceId = "dest_preview"
 		const productId = "prod_preview"
 		const variantId = "var_preview"
 		const templateId = "rpt_preview"
 		const ratePlanId = "rp_preview"
 
 		await upsertProvider({ id: providerId, displayName: "Prov", ownerEmail: email })
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Dest",
 			type: "city",
 			country: "CL",
@@ -203,7 +203,7 @@ describe("integration/provider tax-fees API", () => {
 			id: productId,
 			name: "Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 		await upsertVariant({

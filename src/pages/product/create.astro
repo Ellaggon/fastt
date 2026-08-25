@@ -14,7 +14,7 @@ import {
 	productVerticalRegistry,
 } from "@/lib/catalog/productVerticalRegistry"
 import { routes } from "@/lib/routes"
-import { asc, db, Destination } from "@/shared/infrastructure/db/compat"
+import { asc, db, eq, GeoPlace } from "@/shared/infrastructure/db/compat"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
@@ -53,9 +53,10 @@ const isLaunchHotelFlow = isHotelLaunch
 const destinations = isChooser
 	? []
 	: await db
-			.select({ id: Destination.id, name: Destination.name, country: Destination.country })
-			.from(Destination)
-			.orderBy(asc(Destination.name))
+			.select({ id: GeoPlace.id, name: GeoPlace.canonicalName, country: GeoPlace.countryCode })
+			.from(GeoPlace)
+			.where(eq(GeoPlace.status, "active"))
+			.orderBy(asc(GeoPlace.canonicalName))
 ---
 
 <PlaybookLayout
@@ -145,10 +146,10 @@ const destinations = isChooser
 									</p>
 								</FormField>
 
-								<FormField label={createCopy.destinationLabel} htmlFor="destinationId" required>
+								<FormField label={createCopy.destinationLabel} htmlFor="geoPlaceId" required>
 									<Input
-										id="destinationId"
-										name="destinationId"
+										id="geoPlaceId"
+										name="geoPlaceId"
 										list="destinationOptions"
 										required
 										placeholder="Busca por nombre y selecciona un destino"
@@ -204,7 +205,7 @@ const destinations = isChooser
 			const btnText = btn?.textContent || "Crear producto"
 			const stateLabel = document.getElementById("stateLabel")
 			const stateDetail = document.getElementById("stateDetail")
-			const destinationInput = document.getElementById("destinationId")
+							const destinationInput = document.getElementById("geoPlaceId")
 			const destinationError = document.getElementById("destinationError")
 			const isLaunch = form.dataset.isLaunch === "true"
 			const isTourLaunch = form.dataset.isTourLaunch === "true"
@@ -258,7 +259,7 @@ const destinations = isChooser
 								return null
 							}
 						})()
-						const destinationMessage = payload?.details?.fieldErrors?.destinationId?.[0]
+							const destinationMessage = payload?.details?.fieldErrors?.geoPlaceId?.[0]
 						if (destinationMessage && destinationError) {
 							destinationError.textContent = destinationMessage
 							destinationError.classList.remove("hidden")

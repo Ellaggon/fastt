@@ -14,7 +14,7 @@ import { ensurePricingCoverageForRequestRuntime } from "@/modules/pricing/public
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
 import { POST as holdPost } from "@/pages/api/inventory/hold"
 import {
-	upsertDestination,
+	upsertGeoPlace,
 	upsertProduct,
 	upsertVariant,
 	upsertRatePlanTemplate,
@@ -86,7 +86,7 @@ describe("integration/search policy blocker", () => {
 		const prevFlag = process.env.SEARCH_POLICY_BLOCKER_ENABLED
 		process.env.SEARCH_POLICY_BLOCKER_ENABLED = "true"
 		try {
-			const destinationId = `dest_spb_${crypto.randomUUID()}`
+			const geoPlaceId = `dest_spb_${crypto.randomUUID()}`
 			const providerId = `prov_spb_${crypto.randomUUID()}`
 			const productId = `prod_spb_${crypto.randomUUID()}`
 			const variantId = `var_spb_${crypto.randomUUID()}`
@@ -95,8 +95,8 @@ describe("integration/search policy blocker", () => {
 			const date = "2030-06-10"
 			const checkout = "2030-06-11"
 
-			await upsertDestination({
-				id: destinationId,
+			await upsertGeoPlace({
+				id: geoPlaceId,
 				name: "SPB Dest",
 				type: "city",
 				country: "CL",
@@ -111,7 +111,7 @@ describe("integration/search policy blocker", () => {
 				id: productId,
 				name: "Policy Blocked Product",
 				productType: "Hotel",
-				destinationId,
+				geoPlaceId,
 				providerId,
 			})
 			await upsertVariant({

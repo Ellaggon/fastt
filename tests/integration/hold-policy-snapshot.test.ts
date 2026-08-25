@@ -28,7 +28,7 @@ import { bookingFromHoldRepository } from "@/container/booking.container"
 import { POST as holdPost } from "@/pages/api/inventory/hold"
 import { POST as bookingConfirmPost } from "@/pages/api/booking/confirm"
 import {
-	upsertDestination,
+	upsertGeoPlace,
 	upsertProduct,
 	upsertRatePlan,
 	upsertRatePlanTemplate,
@@ -115,7 +115,7 @@ function addDays(dateOnly: string, days: number): string {
 
 describe("integration/hold policy snapshot", () => {
 	it("creates immutable hold snapshot and booking persists the same contract", async () => {
-		const destinationId = `dest_hps_${crypto.randomUUID()}`
+		const geoPlaceId = `dest_hps_${crypto.randomUUID()}`
 		const productId = `prod_hps_${crypto.randomUUID()}`
 		const variantId = `var_hps_${crypto.randomUUID()}`
 		const templateId = `rpt_hps_${crypto.randomUUID()}`
@@ -123,18 +123,18 @@ describe("integration/hold policy snapshot", () => {
 		const checkIn = "2030-02-01"
 		const checkOut = "2030-02-03"
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "HPS Dest",
 			type: "city",
 			country: "CL",
-			slug: `hps-${destinationId}`,
+			slug: `hps-${geoPlaceId}`,
 		})
 		await upsertProduct({
 			id: productId,
 			name: "HPS Product",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 		})
 		await upsertVariant({ id: variantId, productId, kind: "hotel_room", name: "Room" })
 		await upsertRatePlanTemplate({
@@ -330,7 +330,7 @@ describe("integration/hold policy snapshot", () => {
 	it("enforces ratePlan context and keeps hold->booking contract aligned to selected rate plan", async () => {
 		const token = "t_hold_ctx"
 		const email = "hold-ctx@example.com"
-		const destinationId = `dest_hps_ctx_${crypto.randomUUID()}`
+		const geoPlaceId = `dest_hps_ctx_${crypto.randomUUID()}`
 		const productId = `prod_hps_ctx_${crypto.randomUUID()}`
 		const variantId = `var_hps_ctx_${crypto.randomUUID()}`
 		const templateId = `rpt_hps_ctx_${crypto.randomUUID()}`
@@ -339,18 +339,18 @@ describe("integration/hold policy snapshot", () => {
 		const checkIn = "2030-03-10"
 		const checkOut = "2030-03-12"
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "HPS Ctx Dest",
 			type: "city",
 			country: "CL",
-			slug: `hps-ctx-${destinationId}`,
+			slug: `hps-ctx-${geoPlaceId}`,
 		})
 		await upsertProduct({
 			id: productId,
 			name: "HPS Ctx Product",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 		})
 		await upsertVariant({ id: variantId, productId, kind: "hotel_room", name: "Room" })
 		await upsertRatePlanTemplate({

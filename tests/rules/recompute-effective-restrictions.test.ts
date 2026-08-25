@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto"
 import { describe, expect, it } from "vitest"
 import {
 	db,
-	Destination,
+	GeoPlace,
+	ProductGeoPlace,
 	EffectiveRestriction,
 	eq,
 	Product,
@@ -25,7 +26,7 @@ import {
 async function seedVariant() {
 	const suffix = randomUUID()
 	const providerId = `prov_${suffix}`
-	const destinationId = `dest_${suffix}`
+	const geoPlaceId = `dest_${suffix}`
 	const productId = `prod_${suffix}`
 	const variantId = `var_${suffix}`
 	const ratePlanId = `rp_${suffix}`
@@ -37,19 +38,27 @@ async function seedVariant() {
 		status: "active",
 		createdAt: new Date(),
 	} as any)
-	await db.insert(Destination).values({
-		id: destinationId,
-		name: "Commercial Rules Destination",
-		type: "city",
-		country: "CL",
+	await db.insert(GeoPlace).values({
+		id: geoPlaceId,
+		canonicalName: "Commercial Rules GeoPlace",
+		normalizedName: "commercial rules geoplace",
+		placeType: "city",
+		countryCode: "CL",
 		slug: `restriction-${suffix}`,
 	} as any)
 	await db.insert(Product).values({
 		id: productId,
 		name: "Commercial Rules Product",
 		productType: "Hotel",
-		destinationId,
 		providerId,
+	} as any)
+	await db.insert(ProductGeoPlace).values({
+		id: `test-primary-${productId}`,
+		productId,
+		placeId: geoPlaceId,
+		role: "primary_discovery",
+		isPrimary: true,
+		source: "test_fixture",
 	} as any)
 	await db.insert(Variant).values({
 		id: variantId,

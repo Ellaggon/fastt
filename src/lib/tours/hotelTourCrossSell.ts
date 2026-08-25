@@ -6,7 +6,7 @@ import { getTourSearchSurface, type TourSearchCard } from "@/lib/tours/tourSearc
 export type TourCrossSellResult = {
 	cards: TourSearchCard[]
 	departureDate: string
-	destinationId: string | null
+	geoPlaceId: string | null
 	surface: "hotel_pdp" | "guest_trip" | "hotel_confirmation"
 }
 
@@ -40,7 +40,7 @@ export function resolveCrossSellDepartureDate(params: {
 }
 
 export async function loadHotelTourCrossSell(params: {
-	destinationId: string | null | undefined
+	geoPlaceId: string | null | undefined
 	checkIn?: string | Date | null
 	checkOut?: string | Date | null
 	preferredDate?: string | Date | null
@@ -48,15 +48,15 @@ export async function loadHotelTourCrossSell(params: {
 	limit?: number
 	excludeProductId?: string | null
 }): Promise<TourCrossSellResult> {
-	const destinationId = String(params.destinationId ?? "").trim() || null
+	const geoPlaceId = String(params.geoPlaceId ?? "").trim() || null
 	const departureDate = resolveCrossSellDepartureDate(params)
-	if (!destinationId) {
-		return { cards: [], departureDate, destinationId: null, surface: params.surface }
+	if (!geoPlaceId) {
+		return { cards: [], departureDate, geoPlaceId: null, surface: params.surface }
 	}
 
 	const surface = await getTourSearchSurface({
 		startDate: departureDate,
-		destinationRowId: destinationId,
+		geoPlaceId,
 		sort: "rating_desc",
 		limit: Math.max(1, Math.min(Number(params.limit ?? 4) || 4, 8)),
 	})
@@ -67,7 +67,7 @@ export async function loadHotelTourCrossSell(params: {
 	return {
 		cards,
 		departureDate,
-		destinationId,
+		geoPlaceId,
 		surface: params.surface,
 	}
 }

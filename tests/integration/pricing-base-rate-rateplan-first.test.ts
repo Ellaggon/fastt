@@ -10,7 +10,7 @@ import {
 
 import { POST as setBaseRatePost } from "@/pages/api/pricing/base-rate"
 import {
-	upsertDestination,
+	upsertGeoPlace,
 	upsertProduct,
 	upsertRatePlan,
 	upsertRatePlanTemplate,
@@ -93,15 +93,15 @@ async function seedRatePlanContext(): Promise<RatePlanContextIds> {
 	const token = `t_br_rpf_${suffix}`
 	const email = `br-rpf-${suffix}@example.com`
 	const providerId = `prov_br_rpf_${suffix}`
-	const destinationId = `dest_br_rpf_${suffix}`
+	const geoPlaceId = `dest_br_rpf_${suffix}`
 	const productId = `prod_br_rpf_${suffix}`
 	const variantId = `var_br_rpf_${suffix}`
 	const otherVariantId = `var_br_rpf_other_${suffix}`
 	const ratePlanTemplateId = `rpt_br_rpf_${suffix}`
 	const ratePlanId = `rp_br_rpf_${suffix}`
 
-	await upsertDestination({
-		id: destinationId,
+	await upsertGeoPlace({
+		id: geoPlaceId,
 		name: "RatePlan First Dest",
 		type: "city",
 		country: "CL",
@@ -112,7 +112,7 @@ async function seedRatePlanContext(): Promise<RatePlanContextIds> {
 		id: productId,
 		name: "Product RPF",
 		productType: "Hotel",
-		destinationId,
+		geoPlaceId,
 		providerId,
 	})
 	await upsertVariant({

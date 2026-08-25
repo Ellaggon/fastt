@@ -9,7 +9,7 @@ import {
 	VariantRoomProfile,
 } from "@/shared/infrastructure/db/compat"
 
-import { upsertDestination } from "@/shared/infrastructure/test-support/db-test-data"
+import { upsertGeoPlace } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
 import { productImageRepository, productRepository, subtypeRepository } from "@/container"
 
@@ -102,10 +102,10 @@ describe("integration/catalog Product V2 API", () => {
 		const tokenA = "token_a"
 		const emailA = "usera@example.com"
 		const providerA = "prov_int_product_v2_api_a"
-		const destinationId = "dest_int_product_v2_api"
+		const geoPlaceId = "dest_int_product_v2_api"
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Product V2 API Destination",
 			type: "city",
 			country: "CL",
@@ -130,7 +130,7 @@ describe("integration/catalog Product V2 API", () => {
 				const createForm = new FormData()
 				createForm.set("name", "API Product V2")
 				createForm.set("productType", "Hotel")
-				createForm.set("destinationId", destinationId)
+				createForm.set("geoPlaceId", geoPlaceId)
 
 				const createRes = await createProductPost({
 					request: makeAuthedFormRequest({
@@ -328,10 +328,10 @@ describe("integration/catalog Product V2 API", () => {
 		const tokenA = "token_plain"
 		const emailA = "plain@example.com"
 		const providerA = "prov_int_product_v2_api_plain"
-		const destinationId = "dest_int_product_v2_api_plain"
+		const geoPlaceId = "dest_int_product_v2_api_plain"
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Product V2 API Destination Plain",
 			type: "city",
 			country: "CL",
@@ -347,7 +347,7 @@ describe("integration/catalog Product V2 API", () => {
 				const createForm = new FormData()
 				createForm.set("name", "API Product V2 Plain")
 				createForm.set("productType", "Hotel")
-				createForm.set("destinationId", destinationId)
+				createForm.set("geoPlaceId", geoPlaceId)
 
 				const createRes = await createProductPost({
 					request: makeAuthedFormRequest({
@@ -385,10 +385,10 @@ describe("integration/catalog Product V2 API", () => {
 		const emailB = "userb_own@example.com"
 		const providerA = "prov_int_product_v2_api_own_a"
 		const providerB = "prov_int_product_v2_api_own_b"
-		const destinationId = "dest_int_product_v2_api_own"
+		const geoPlaceId = "dest_int_product_v2_api_own"
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Product V2 API Destination Own",
 			type: "city",
 			country: "CL",
@@ -406,7 +406,7 @@ describe("integration/catalog Product V2 API", () => {
 				const createForm = new FormData()
 				createForm.set("name", "Owned Product")
 				createForm.set("productType", "Hotel")
-				createForm.set("destinationId", destinationId)
+				createForm.set("geoPlaceId", geoPlaceId)
 
 				const createRes = await createProductPost({
 					request: makeAuthedFormRequest({
@@ -443,10 +443,10 @@ describe("integration/catalog Product V2 API", () => {
 		const emailB = "userb_edit_own@example.com"
 		const providerA = "prov_int_product_v2_api_edit_own_a"
 		const providerB = "prov_int_product_v2_api_edit_own_b"
-		const destinationId = "dest_int_product_v2_api_edit_own"
+		const geoPlaceId = "dest_int_product_v2_api_edit_own"
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Product V2 API Edit Ownership",
 			type: "city",
 			country: "CL",
@@ -464,7 +464,7 @@ describe("integration/catalog Product V2 API", () => {
 				const createForm = new FormData()
 				createForm.set("name", "Provider A Edit Owned Product")
 				createForm.set("productType", "Hotel")
-				createForm.set("destinationId", destinationId)
+				createForm.set("geoPlaceId", geoPlaceId)
 
 				const createRes = await createProductPost({
 					request: makeAuthedFormRequest({
@@ -544,10 +544,10 @@ describe("integration/catalog Product V2 API", () => {
 		const tokenA = "token_a"
 		const emailA = "usera_idem@example.com"
 		const providerA = "prov_int_product_v2_api_idem"
-		const destinationId = "dest_int_product_v2_api_idem"
+		const geoPlaceId = "dest_int_product_v2_api_idem"
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Product V2 API Destination Idem",
 			type: "city",
 			country: "CL",
@@ -563,7 +563,7 @@ describe("integration/catalog Product V2 API", () => {
 				const createForm = new FormData()
 				createForm.set("name", "Idempotent Product")
 				createForm.set("productType", "Hotel")
-				createForm.set("destinationId", destinationId)
+				createForm.set("geoPlaceId", geoPlaceId)
 				const createRes = await createProductPost({
 					request: makeAuthedFormRequest({
 						path: "/api/product/create",
@@ -635,10 +635,10 @@ describe("integration/catalog Product V2 API", () => {
 		const tokenA = "token_a"
 		const emailA = "usera_consistency@example.com"
 		const providerA = "prov_int_product_v2_api_consistency"
-		const destinationId = "dest_int_product_v2_api_consistency"
+		const geoPlaceId = "dest_int_product_v2_api_consistency"
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Product V2 API Destination Consistency",
 			type: "city",
 			country: "CL",
@@ -654,7 +654,7 @@ describe("integration/catalog Product V2 API", () => {
 				const createForm = new FormData()
 				createForm.set("name", "Consistency Product")
 				createForm.set("productType", "Hotel")
-				createForm.set("destinationId", destinationId)
+				createForm.set("geoPlaceId", geoPlaceId)
 				const createRes = await createProductPost({
 					request: makeAuthedFormRequest({
 						path: "/api/product/create",
@@ -689,10 +689,10 @@ describe("integration/catalog Product V2 API", () => {
 		const tokenA = "token_a"
 		const emailA = "usera_invalid@example.com"
 		const providerA = "prov_int_product_v2_api_invalid"
-		const destinationId = "dest_int_product_v2_api_invalid"
+		const geoPlaceId = "dest_int_product_v2_api_invalid"
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Product V2 API Destination Invalid",
 			type: "city",
 			country: "CL",
@@ -709,7 +709,7 @@ describe("integration/catalog Product V2 API", () => {
 				const createForm = new FormData()
 				createForm.set("name", "")
 				createForm.set("productType", "Hotel")
-				createForm.set("destinationId", destinationId)
+				createForm.set("geoPlaceId", geoPlaceId)
 				const createRes = await createProductPost({
 					request: makeAuthedFormRequest({
 						path: "/api/product/create",
@@ -726,7 +726,7 @@ describe("integration/catalog Product V2 API", () => {
 				const okForm = new FormData()
 				okForm.set("name", "OK")
 				okForm.set("productType", "Hotel")
-				okForm.set("destinationId", destinationId)
+				okForm.set("geoPlaceId", geoPlaceId)
 				const okRes = await createProductPost({
 					request: makeAuthedFormRequest({
 						path: "/api/product/create",

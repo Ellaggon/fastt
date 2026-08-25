@@ -72,7 +72,7 @@ describe("debug/provider update read-after-write consistency", () => {
 		const email = "provider.debug@example.com"
 		const providerByEmailId = "prov_by_email"
 
-		await db.execute(sql`INSERT INTO User (id, email) VALUES (${userId}, ${email})`)
+		await db.execute(sql`INSERT INTO "User" ("id", "email") VALUES (${userId}, ${email})`)
 
 		await db.insert(Provider).values({
 			id: providerByEmailId,

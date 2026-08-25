@@ -60,7 +60,7 @@ describe("public destination routes", () => {
 
 		for (const panel of [hotelSearchPanel, tourSearchPanel]) {
 			expect(panel).toContain('name="destino"')
-			expect(panel).not.toContain('name="destinationId"')
+			expect(panel).not.toContain('name="geoPlaceId"')
 			expect(panel).not.toContain('name="destinationSlug"')
 		}
 	})

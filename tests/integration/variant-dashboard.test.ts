@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest"
 
-import { upsertDestination, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
+import { upsertGeoPlace, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider, upsertRoomType } from "../test-support/catalog-db-test-data"
 
 import { GET as listVariantsGet } from "@/pages/api/variant/list"
@@ -100,11 +100,11 @@ describe("integration/variant dashboard behavior (API + routing decisions)", () 
 		const token = "t_dash_empty"
 		const email = "dash-empty@example.com"
 		const providerId = "prov_dash_empty"
-		const destinationId = "dest_dash_empty"
+		const geoPlaceId = "dest_dash_empty"
 		const productId = `prod_dash_empty_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Dash Dest",
 			type: "city",
 			country: "CL",
@@ -115,7 +115,7 @@ describe("integration/variant dashboard behavior (API + routing decisions)", () 
 			id: productId,
 			name: "Dash Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 
@@ -135,11 +135,11 @@ describe("integration/variant dashboard behavior (API + routing decisions)", () 
 		const token = "t_dash_route"
 		const email = "dash-route@example.com"
 		const providerId = "prov_dash_route"
-		const destinationId = "dest_dash_route"
+		const geoPlaceId = "dest_dash_route"
 		const productId = `prod_dash_route_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Route Dest",
 			type: "city",
 			country: "CL",
@@ -150,7 +150,7 @@ describe("integration/variant dashboard behavior (API + routing decisions)", () 
 			id: productId,
 			name: "Route Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 		await upsertRoomType({ id: "rt_dash_route", name: "Double", maxOccupancy: 2 })
@@ -242,11 +242,11 @@ describe("integration/variant dashboard behavior (API + routing decisions)", () 
 		const token = "t_dash_eval"
 		const email = "dash-eval@example.com"
 		const providerId = "prov_dash_eval"
-		const destinationId = "dest_dash_eval"
+		const geoPlaceId = "dest_dash_eval"
 		const productId = `prod_dash_eval_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Eval Dest",
 			type: "city",
 			country: "CL",
@@ -257,7 +257,7 @@ describe("integration/variant dashboard behavior (API + routing decisions)", () 
 			id: productId,
 			name: "Eval Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 		await upsertRoomType({ id: "rt_dash_eval", name: "Suite", maxOccupancy: 3 })
@@ -319,11 +319,11 @@ describe("integration/variant dashboard behavior (API + routing decisions)", () 
 		const emailB = "dash-own-b@example.com"
 		const providerA = "prov_dash_own_a"
 		const providerB = "prov_dash_own_b"
-		const destinationId = "dest_dash_own"
+		const geoPlaceId = "dest_dash_own"
 		const productId = `prod_dash_own_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Own Dest",
 			type: "city",
 			country: "CL",
@@ -335,7 +335,7 @@ describe("integration/variant dashboard behavior (API + routing decisions)", () 
 			id: productId,
 			name: "Own Dash Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId: providerA,
 		})
 

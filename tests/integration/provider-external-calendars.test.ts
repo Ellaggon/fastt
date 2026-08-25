@@ -4,7 +4,8 @@ import {
 	BookingRoomDetail,
 	DailyInventory,
 	db,
-	Destination,
+	GeoPlace,
+	ProductGeoPlace,
 	EffectiveAvailability,
 	eq,
 	InventoryResource,
@@ -33,7 +34,7 @@ import { runScheduledExternalCalendarSync } from "@/lib/provider-external-calend
 
 const ids = {
 	providerId: "",
-	destinationId: "",
+	geoPlaceId: "",
 	productId: "",
 	variantId: "",
 	ratePlanId: "",
@@ -110,7 +111,7 @@ afterEach(async () => {
 	await db.delete(RatePlan).where(eq(RatePlan.id, ids.ratePlanId))
 	await db.delete(Variant).where(eq(Variant.id, ids.variantId))
 	await db.delete(Product).where(eq(Product.id, ids.productId))
-	await db.delete(Destination).where(eq(Destination.id, ids.destinationId))
+	await db.delete(GeoPlace).where(eq(GeoPlace.id, ids.geoPlaceId))
 	await db.delete(Provider).where(eq(Provider.id, ids.providerId))
 	ids.providerId = ""
 })
@@ -119,7 +120,7 @@ describe("integration/provider external calendars", () => {
 	it("imports multiple feeds, applies availability, reports conflicts and removes revoked blocks", async () => {
 		const suffix = crypto.randomUUID()
 		ids.providerId = `provider_ical_${suffix}`
-		ids.destinationId = `destination_ical_${suffix}`
+		ids.geoPlaceId = `destination_ical_${suffix}`
 		ids.productId = `product_ical_${suffix}`
 		ids.variantId = `variant_ical_${suffix}`
 		ids.ratePlanId = `rate_plan_ical_${suffix}`
@@ -128,13 +129,10 @@ describe("integration/provider external calendars", () => {
 		ids.resourceBId = `resource_b_${suffix}`
 
 		await db.insert(Provider).values({ id: ids.providerId, displayName: "Provider iCal" })
-		await db.insert(Destination).values({
-			id: ids.destinationId,
-			name: "Destino iCal",
-			type: "city",
-			country: "CL",
-			latitude: 0,
-			longitude: 0,
+		await db.insert(GeoPlace).values({
+			id: ids.geoPlaceId,
+			canonicalName: "Lugar iCal", normalizedName: "lugar ical", placeType: "locality", countryCode: "CL",
+			centroidLat: 0, centroidLng: 0,
 			slug: `destino-ical-${suffix}`,
 		})
 		await db.insert(Product).values({
@@ -142,8 +140,8 @@ describe("integration/provider external calendars", () => {
 			name: "Hotel iCal",
 			productType: "Hotel",
 			providerId: ids.providerId,
-			destinationId: ids.destinationId,
 		})
+		await db.insert(ProductGeoPlace).values({ id: `geo:product-place:${ids.productId}`, productId: ids.productId, placeId: ids.geoPlaceId, role: "primary_discovery", isPrimary: true, source: "test_fixture" })
 		await db.insert(Variant).values({
 			id: ids.variantId,
 			productId: ids.productId,

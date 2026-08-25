@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs"
 
-import { getTableColumns, type Table } from "drizzle-orm"
+import { getTableColumns, getTableName, type Table } from "drizzle-orm"
 import { describe, expect, it } from "vitest"
 
 import { databaseTableNames } from "@/shared/infrastructure/db/schema/registry"
@@ -39,5 +39,21 @@ describe("PostgreSQL canonical schema parity", () => {
 				.sort()
 			expect(baseline.get(tableName)?.sort(), tableName).toEqual(expectedColumns)
 		}
+	})
+
+	it("registers every exported Drizzle table in the canonical baseline", () => {
+		const exportedTables = new Set<string>()
+		for (const value of Object.values(schema)) {
+			if (!value || typeof value !== "object") continue
+			try {
+				if (Object.keys(getTableColumns(value as Table)).length > 0) {
+					exportedTables.add(getTableName(value as Table))
+				}
+			} catch {
+				// Ignore runtime exports that are not Drizzle tables.
+			}
+		}
+
+		expect([...databaseTableNames].sort()).toEqual([...exportedTables].sort())
 	})
 })

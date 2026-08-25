@@ -21,7 +21,7 @@ import { GET as getSearchShadowSummary } from "@/pages/api/internal/observabilit
 import { searchOffers } from "@/container"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
 import {
-	upsertDestination,
+	upsertGeoPlace,
 	upsertProduct,
 	upsertRatePlan,
 	upsertRatePlanTemplate,
@@ -195,18 +195,18 @@ async function createReusablePolicies(providerId: string): Promise<Array<{ polic
 
 async function seedSyntheticHotels(): Promise<HotelSeed[]> {
 	const providerId = `prov_synth_${crypto.randomUUID()}`
-	const destinationId = `dest_synth_${crypto.randomUUID()}`
+	const geoPlaceId = `dest_synth_${crypto.randomUUID()}`
 	await upsertProvider({
 		id: providerId,
 		displayName: "Synthetic Provider",
 		ownerEmail: "synthetic-search@example.com",
 	})
-	await upsertDestination({
-		id: destinationId,
+	await upsertGeoPlace({
+		id: geoPlaceId,
 		name: "Synthetic City",
 		type: "city",
 		country: "CL",
-		slug: `synthetic-${destinationId}`,
+		slug: `synthetic-${geoPlaceId}`,
 	})
 
 	const profiles: Profile[] = [
@@ -231,7 +231,7 @@ async function seedSyntheticHotels(): Promise<HotelSeed[]> {
 				id: productId,
 				name: `Synthetic Hotel ${profile} ${i + 1}`,
 				productType: "Hotel",
-				destinationId,
+				geoPlaceId,
 				providerId,
 			})
 			await upsertVariant({

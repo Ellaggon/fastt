@@ -23,25 +23,25 @@ import { PRODUCT_VERTICALS, normalizeProductTypeForStorage } from "@/lib/product
 import { productRepository } from "@/container"
 import { evaluateProductReadiness } from "@/modules/catalog/public"
 import { SubtypeRepository } from "@/modules/catalog/infrastructure/repositories/SubtypeRepository"
-import { upsertDestination, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
+import { upsertGeoPlace, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
 
 async function seedReadyCatalogBase(params: {
 	productId: string
 	productType: string
-	destinationId: string
+	geoPlaceId: string
 }) {
-	await upsertDestination({
-		id: params.destinationId,
-		name: `Destination ${params.destinationId}`,
+	await upsertGeoPlace({
+		id: params.geoPlaceId,
+		name: `Destination ${params.geoPlaceId}`,
 		type: "city",
 		country: "BO",
-		slug: params.destinationId,
+		slug: params.geoPlaceId,
 	})
 	await upsertProduct({
 		id: params.productId,
 		name: `Oferta ${params.productType}`,
 		productType: params.productType,
-		destinationId: params.destinationId,
+		geoPlaceId: params.geoPlaceId,
 	})
 	await db.insert(ProductContent).values({
 		productId: params.productId,
@@ -69,7 +69,7 @@ describe("vertical maturity", () => {
 	it("stores Package itinerary/includes/excludes as structured JSON", async () => {
 		const suffix = crypto.randomUUID()
 		const productId = `pkg_${suffix}`
-		await upsertDestination({
+		await upsertGeoPlace({
 			id: `dest_${suffix}`,
 			name: "La Paz",
 			type: "city",
@@ -80,7 +80,7 @@ describe("vertical maturity", () => {
 			id: productId,
 			name: "Paquete Andes",
 			productType: "Package",
-			destinationId: `dest_${suffix}`,
+			geoPlaceId: `dest_${suffix}`,
 		})
 
 		const repo = new SubtypeRepository()
@@ -106,7 +106,7 @@ describe("vertical maturity", () => {
 	it("stores Tour meeting point, itinerary, safety and guide as structured JSON", async () => {
 		const suffix = crypto.randomUUID()
 		const productId = `tour_${suffix}`
-		await upsertDestination({
+		await upsertGeoPlace({
 			id: `dest_${suffix}`,
 			name: "Uyuni",
 			type: "city",
@@ -117,7 +117,7 @@ describe("vertical maturity", () => {
 			id: productId,
 			name: "Tour Salar",
 			productType: "Tour",
-			destinationId: `dest_${suffix}`,
+			geoPlaceId: `dest_${suffix}`,
 		})
 
 		const repo = new SubtypeRepository()
@@ -155,7 +155,7 @@ describe("vertical maturity", () => {
 	it("adds Limousine as a first-class vertical with vehicle and capacity profile", async () => {
 		const suffix = crypto.randomUUID()
 		const productId = `limo_${suffix}`
-		await upsertDestination({
+		await upsertGeoPlace({
 			id: `dest_${suffix}`,
 			name: "Santa Cruz",
 			type: "city",
@@ -166,7 +166,7 @@ describe("vertical maturity", () => {
 			id: productId,
 			name: "Limusina aeropuerto",
 			productType: "Limousine",
-			destinationId: `dest_${suffix}`,
+			geoPlaceId: `dest_${suffix}`,
 		})
 
 		const repo = new SubtypeRepository()
@@ -184,7 +184,7 @@ describe("vertical maturity", () => {
 			.from(Limousine)
 			.where(eq(Limousine.productId, productId))
 			.then((rows) => rows[0])
-		expect(normalizeProductTypeForStorage("limusina")).toBe("Limousine")
+		expect(normalizeProductTypeForStorage("limusina")).toBe("limousine")
 		expect(PRODUCT_VERTICALS.limousine.variantKind).toBe("limousine_service")
 		expect(row?.vehicleProfileJson).toMatchObject({ model: "Clase S" })
 		expect(row?.passengerCapacity).toBe(3)
@@ -199,7 +199,7 @@ describe("vertical maturity", () => {
 		await seedReadyCatalogBase({
 			productId,
 			productType: "Tour",
-			destinationId: `dest_tour_ready_${suffix}`,
+			geoPlaceId: `dest_tour_ready_${suffix}`,
 		})
 		// Start at 4 photos (seedReadyCatalogBase inserts 1) — below publish floor.
 		for (let i = 1; i < TOUR_QUALITY_MIN_IMAGES - 1; i += 1) {
@@ -334,7 +334,7 @@ describe("vertical maturity", () => {
 		await seedReadyCatalogBase({
 			productId,
 			productType: "Package",
-			destinationId: `dest_package_ready_${suffix}`,
+			geoPlaceId: `dest_package_ready_${suffix}`,
 		})
 		const repo = new SubtypeRepository()
 		await repo.insertPackageStandalone({
@@ -357,7 +357,7 @@ describe("vertical maturity", () => {
 		await seedReadyCatalogBase({
 			productId,
 			productType: "Limousine",
-			destinationId: `dest_limousine_ready_${suffix}`,
+			geoPlaceId: `dest_limousine_ready_${suffix}`,
 		})
 		const repo = new SubtypeRepository()
 		await repo.insertLimousineStandalone({

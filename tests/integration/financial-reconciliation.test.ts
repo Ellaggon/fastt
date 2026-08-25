@@ -21,7 +21,7 @@ import { ensurePricingCoverageForRequestRuntime } from "@/modules/pricing/public
 import { replacePolicyAssignmentCapa6, createPolicyCapa6 } from "@/modules/policies/public"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
 import {
-	upsertDestination,
+	upsertGeoPlace,
 	upsertProduct,
 	upsertVariant,
 } from "@/shared/infrastructure/test-support/db-test-data"
@@ -112,14 +112,14 @@ async function seedBookingReadyVariant(params: {
 	totalUnits: number
 	dates: string[]
 }) {
-	const destinationId = `dest_finrec_${crypto.randomUUID()}`
+	const geoPlaceId = `dest_finrec_${crypto.randomUUID()}`
 
-	await upsertDestination({
-		id: destinationId,
+	await upsertGeoPlace({
+		id: geoPlaceId,
 		name: "Financial Reconciliation Destination",
 		type: "city",
 		country: "CL",
-		slug: `finrec-${destinationId}`,
+		slug: `finrec-${geoPlaceId}`,
 	})
 
 	await upsertProvider({
@@ -132,7 +132,7 @@ async function seedBookingReadyVariant(params: {
 		id: params.productId,
 		name: "Financial Reconciliation Product",
 		productType: "Hotel",
-		destinationId,
+		geoPlaceId,
 		providerId: params.providerId,
 	})
 

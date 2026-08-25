@@ -391,22 +391,38 @@ export async function materializeSearchUnitRange(
 	let rows = 0
 	let coveredRows = 0
 	let gapRows = 0
-	for (const ratePlanId of normalizedRatePlanIds) {
-		for (const date of dates) {
-			for (const occupancy of occupancyCombinations) {
-				const result = await materializeSearchUnit({
-					variantId: parsed.variantId,
-					ratePlanId,
-					date,
-					occupancy,
-					currency: parsed.currency,
-				})
-				if (hasGapReason(result.blocker)) gapRows += 1
-				else coveredRows += 1
-				rows += 1
-			}
+	const work = normalizedRatePlanIds.flatMap((ratePlanId) =>
+		dates.flatMap((date) =>
+			occupancyCombinations.map((occupancy) => ({ ratePlanId, date, occupancy }))
+		)
+	)
+	const configuredConcurrency = Number(process.env.SEARCH_UNIT_MATERIALIZATION_CONCURRENCY ?? 4)
+	const concurrency = Math.max(
+		1,
+		Math.min(8, Number.isFinite(configuredConcurrency) ? Math.floor(configuredConcurrency) : 4, work.length)
+	)
+	let nextWorkIndex = 0
+
+	// Each row is independent; bounded workers reduce remote round trips without
+	// exhausting the database connection pool during a mutation fan-out.
+	const materializeWorker = async () => {
+		while (nextWorkIndex < work.length) {
+			const item = work[nextWorkIndex]
+			nextWorkIndex += 1
+			const result = await materializeSearchUnit({
+				variantId: parsed.variantId,
+				ratePlanId: item.ratePlanId,
+				date: item.date,
+				occupancy: item.occupancy,
+				currency: parsed.currency,
+			})
+			if (hasGapReason(result.blocker)) gapRows += 1
+			else coveredRows += 1
+			rows += 1
 		}
 	}
+
+	await Promise.all(Array.from({ length: concurrency }, () => materializeWorker()))
 	const rangeState = evaluateSearchViewState({
 		totalExpectedRows: rows,
 		coveredRows,

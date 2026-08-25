@@ -12,7 +12,7 @@ import { snapshotPoliciesForBookingUseCase } from "@/container/booking-policy-sn
 import { getPoliciesForBookingUseCase } from "@/container/booking-policy-read.container"
 
 import {
-	upsertDestination,
+	upsertGeoPlace,
 	upsertProduct,
 	upsertVariant,
 	upsertRatePlanTemplate,
@@ -21,13 +21,13 @@ import {
 
 describe("integration/policies CAPA 6 Step 9 (full flow + booking snapshot immutability)", () => {
 	it("create→assign→resolve→snapshot→read; new version changes resolver but NOT booking snapshot", async () => {
-		const destinationId = `dest_pol9_${crypto.randomUUID()}`
+		const geoPlaceId = `dest_pol9_${crypto.randomUUID()}`
 		const productId = `prod_pol9_${crypto.randomUUID()}`
 		const variantId = `var_pol9_${crypto.randomUUID()}`
 		const bookingId = `book_pol9_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Policy Destination",
 			type: "city",
 			country: "CL",
@@ -37,7 +37,7 @@ describe("integration/policies CAPA 6 Step 9 (full flow + booking snapshot immut
 			id: productId,
 			name: "Policy Product",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 		})
 		await upsertVariant({
 			id: variantId,

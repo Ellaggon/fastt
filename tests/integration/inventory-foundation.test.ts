@@ -12,7 +12,7 @@ import {
 	Variant,
 } from "@/shared/infrastructure/db/compat"
 
-import { upsertDestination, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
+import { upsertGeoPlace, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
 
 import { POST as createVariantPost } from "@/pages/api/variant/create"
@@ -82,11 +82,11 @@ describe("CAPA 5 / Phase 1 inventory foundation", () => {
 		const token = "t_inv_boot"
 		const email = "inv-boot@example.com"
 		const providerId = "prov_inv_boot"
-		const destinationId = "dest_inv_boot"
+		const geoPlaceId = "dest_inv_boot"
 		const productId = `prod_inv_boot_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Inv Dest",
 			type: "city",
 			country: "CL",
@@ -97,7 +97,7 @@ describe("CAPA 5 / Phase 1 inventory foundation", () => {
 			id: productId,
 			name: "Inv Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 
@@ -132,13 +132,13 @@ describe("CAPA 5 / Phase 1 inventory foundation", () => {
 	})
 
 	it("recomputeEffectiveAvailabilityRange materializes full date range (missing dates synthesized as unavailable)", async () => {
-		const destinationId = "dest_inv_range"
+		const geoPlaceId = "dest_inv_range"
 		const providerId = "prov_inv_range"
 		const productId = `prod_inv_range_${crypto.randomUUID()}`
 		const variantId = `var_inv_range_${crypto.randomUUID()}`
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Range Dest",
 			type: "city",
 			country: "CL",
@@ -153,7 +153,7 @@ describe("CAPA 5 / Phase 1 inventory foundation", () => {
 			id: productId,
 			name: "Range Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 
@@ -207,15 +207,15 @@ describe("CAPA 5 / Phase 1 inventory foundation", () => {
 	})
 
 	it("inventory/set-default creates config + inventory for variants missing DailyInventory", async () => {
-		const destinationId = "dest_inv_backfill"
+		const geoPlaceId = "dest_inv_backfill"
 		const providerId = "prov_inv_backfill"
 		const productId = `prod_inv_backfill_${crypto.randomUUID()}`
 		const variantId = `var_inv_backfill_${crypto.randomUUID()}`
 		const token = "t_inv_backfill"
 		const email = "backfill@example.com"
 
-		await upsertDestination({
-			id: destinationId,
+		await upsertGeoPlace({
+			id: geoPlaceId,
 			name: "Backfill Dest",
 			type: "city",
 			country: "CL",
@@ -230,7 +230,7 @@ describe("CAPA 5 / Phase 1 inventory foundation", () => {
 			id: productId,
 			name: "Backfill Hotel",
 			productType: "Hotel",
-			destinationId,
+			geoPlaceId,
 			providerId,
 		})
 

@@ -53,7 +53,7 @@ const voucherLabel =
 				: "Sin voucher"
 
 const crossSell = await loadHotelTourCrossSell({
-	destinationId: trip.destinationId,
+	geoPlaceId: trip.geoPlaceId,
 	preferredDate: trip.departureDate,
 	surface: "guest_trip",
 	excludeProductId: trip.productId,
@@ -293,7 +293,7 @@ const crossSell = await loadHotelTourCrossSell({
 							cards={crossSell.cards}
 							surface="guest_trip"
 							sourceProductId={trip.productId}
-							destinationId={crossSell.destinationId}
+							geoPlaceId={crossSell.geoPlaceId}
 						/>
 					</section>
 				) : null

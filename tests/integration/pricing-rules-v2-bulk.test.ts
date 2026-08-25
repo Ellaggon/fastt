@@ -10,7 +10,7 @@ import { POST as bulkApplyPost } from "@/pages/api/pricing/rules/v2/bulk-apply"
 import { POST as bulkPreviewPost } from "@/pages/api/pricing/rules/v2/bulk-preview"
 import { GET as listRulesV2Get } from "@/pages/api/pricing/rules/v2/list"
 import {
-	upsertDestination,
+	upsertGeoPlace,
 	upsertProduct,
 	upsertRatePlan,
 	upsertRatePlanTemplate,
@@ -103,7 +103,7 @@ async function seedBulkFixture() {
 	const token = `t_pr_v2_bulk_${suffix}`
 	const email = `pr-v2-bulk-${suffix}@example.com`
 	const providerId = `prov_pr_v2_bulk_${suffix}`
-	const destinationId = `dest_pr_v2_bulk_${suffix}`
+	const geoPlaceId = `dest_pr_v2_bulk_${suffix}`
 	const productId = `prod_pr_v2_bulk_${suffix}`
 	const variantAId = `var_pr_v2_bulk_a_${suffix}`
 	const variantBId = `var_pr_v2_bulk_b_${suffix}`
@@ -112,8 +112,8 @@ async function seedBulkFixture() {
 	const ratePlanAId = `rp_pr_v2_bulk_a_${suffix}`
 	const ratePlanBId = `rp_pr_v2_bulk_b_${suffix}`
 
-	await upsertDestination({
-		id: destinationId,
+	await upsertGeoPlace({
+		id: geoPlaceId,
 		name: "Pricing V2 Bulk Dest",
 		type: "city",
 		country: "CL",
@@ -128,7 +128,7 @@ async function seedBulkFixture() {
 		id: productId,
 		name: "Pricing V2 Bulk Product",
 		productType: "Hotel",
-		destinationId,
+		geoPlaceId,
 		providerId,
 	})
 	await upsertVariant({
@@ -570,14 +570,14 @@ describe("integration/pricing rules v2 bulk orchestration", () => {
 
 		const result = await (db as any).run(sql`
 			SELECT
-				rs.status AS ruleSetStatus,
-				r.isActive AS ruleActive,
-				r.configJson AS configJson,
-				a.isActive AS applicationActive
-			FROM CommercialRule r
-			INNER JOIN CommercialRuleSet rs ON rs.id = r.ruleSetId
-			INNER JOIN CommercialRuleApplication a ON a.ruleId = r.id
-			WHERE r.id = ${created.ruleId}
+				rs."status" AS "ruleSetStatus",
+				r."isActive" AS "ruleActive",
+				r."configJson" AS "configJson",
+				a."isActive" AS "applicationActive"
+			FROM "CommercialRule" r
+			INNER JOIN "CommercialRuleSet" rs ON rs."id" = r."ruleSetId"
+			INNER JOIN "CommercialRuleApplication" a ON a."ruleId" = r."id"
+			WHERE r."id" = ${created.ruleId}
 		`)
 		const row = result.rows?.[0]
 		const config = JSON.parse(String(row?.configJson ?? "{}"))
