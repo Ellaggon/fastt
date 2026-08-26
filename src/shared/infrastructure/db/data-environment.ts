@@ -5,6 +5,7 @@ import { getFasttDataEnvironment } from "./runtime-environment"
 
 export {
 	FASTT_DATA_ENVIRONMENTS,
+	deriveFasttDataEnvironment,
 	getFasttDataEnvironment,
 	type FasttDataEnvironment,
 } from "./runtime-environment"

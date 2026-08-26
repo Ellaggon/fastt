@@ -10,12 +10,35 @@ const testUrl = "postgresql://tester:secret@db.test.fastt.internal:5432/fastt_te
 const productionUrl = "postgresql://operator:secret@db.prod.fastt.internal:5432/fastt"
 
 describe("data environment isolation", () => {
-	it("requires an explicit Fastt data environment", () => {
-		expect(() => getFasttDataEnvironment({})).toThrow("FASTT_DATA_ENV is required")
+	it("prefers an explicit Fastt data environment", () => {
+		expect(getFasttDataEnvironment({ FASTT_DATA_ENV: "staging", VERCEL_ENV: "production" })).toBe(
+			"staging"
+		)
 		expect(() => getFasttDataEnvironment({ FASTT_DATA_ENV: "preview" })).toThrow(
 			"FASTT_DATA_ENV must be one of"
 		)
-		expect(getFasttDataEnvironment({ FASTT_DATA_ENV: "staging" })).toBe("staging")
+	})
+
+	it("derives local and Vercel classification when FASTT_DATA_ENV is unset", () => {
+		expect(getFasttDataEnvironment({ NODE_ENV: "development" })).toBe("development")
+		expect(getFasttDataEnvironment({})).toBe("development")
+		expect(getFasttDataEnvironment({ VERCEL_ENV: "production" })).toBe("production")
+		expect(getFasttDataEnvironment({ VERCEL_ENV: "preview" })).toBe("staging")
+		expect(getFasttDataEnvironment({ VERCEL_ENV: "development" })).toBe("development")
+	})
+
+	it("records a derived classification so later reads in the same process stay stable", () => {
+		const env: NodeJS.ProcessEnv = { NODE_ENV: "development" }
+		expect(getFasttDataEnvironment(env)).toBe("development")
+		expect(env.FASTT_DATA_ENV).toBe("development")
+	})
+
+	it("refuses unlabeled test and production processes", () => {
+		expect(() => getFasttDataEnvironment({ NODE_ENV: "test" })).toThrow("FASTT_DATA_ENV is required")
+		expect(() => getFasttDataEnvironment({ VITEST: "true" })).toThrow("FASTT_DATA_ENV is required")
+		expect(() => getFasttDataEnvironment({ NODE_ENV: "production" })).toThrow(
+			"FASTT_DATA_ENV is required"
+		)
 	})
 
 	it("fingerprints connection identity without passwords or query parameters", () => {
