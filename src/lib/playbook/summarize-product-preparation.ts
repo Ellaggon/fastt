@@ -10,8 +10,8 @@ import {
 	db,
 	eq,
 	inArray,
+	Product,
 	ProductPreparationSnapshot,
-	ProductStatus,
 } from "@/shared/infrastructure/db/compat"
 
 export type ProductPreparationSummary = {
@@ -277,9 +277,9 @@ export async function refreshProductPreparationSnapshotForProduct(params: {
 	if (!productId || !providerId) return null
 
 	const status = await db
-		.select({ state: ProductStatus.state })
-		.from(ProductStatus)
-		.where(eq(ProductStatus.productId, productId))
+		.select({ state: Product.publicationState })
+		.from(Product)
+		.where(eq(Product.id, productId))
 		.then(first)
 
 	return refreshProductPreparationSnapshot({

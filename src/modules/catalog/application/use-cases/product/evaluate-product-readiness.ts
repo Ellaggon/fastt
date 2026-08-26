@@ -1,4 +1,7 @@
-import type { ProductRepositoryPort, ProductStatusState } from "../../ports/ProductRepositoryPort"
+import type {
+	ProductPublicationState,
+	ProductRepositoryPort,
+} from "../../ports/ProductRepositoryPort"
 import { normalizeProductVertical } from "@/lib/catalog/productVerticalRegistry"
 import { tourPublicationValidationErrors } from "@/lib/tours/tourAdminQuality"
 
@@ -9,7 +12,7 @@ export async function evaluateProductReadiness(
 	params: { productId: string }
 ): Promise<{
 	productId: string
-	state: ProductStatusState
+	state: ProductPublicationState
 	validationErrors: ValidationError[]
 }> {
 	const agg = await deps.repo.getProductAggregate(params.productId)
@@ -79,7 +82,7 @@ export async function evaluateProductReadiness(
 		// Admin quality score and publish readiness share one blocker set.
 		errors.push(
 			...tourPublicationValidationErrors({
-				status: agg.status?.state ?? "draft",
+				status: agg.publication.state,
 				imageCount: Number(tour?.imageCount ?? agg.imagesCount ?? 0),
 				itinerarySteps: Number(tour?.itinerarySteps ?? 0),
 				hasMeetingPoint: Boolean(tour?.hasMeetingPoint),
@@ -131,9 +134,9 @@ export async function evaluateProductReadiness(
 		}
 	}
 
-	const state: ProductStatusState = errors.length === 0 ? "ready" : "draft"
+	const state: ProductPublicationState = errors.length === 0 ? "ready" : "draft"
 
-	await deps.repo.upsertProductStatus({
+	await deps.repo.setProductPublication({
 		productId: params.productId,
 		state,
 		validationErrorsJson: errors.length === 0 ? null : errors,

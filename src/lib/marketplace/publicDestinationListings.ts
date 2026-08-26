@@ -8,7 +8,6 @@ import {
 	ProductContent,
 	ProductGeoPlace,
 	ProductLocation,
-	ProductStatus,
 	Provider,
 	sql,
 	Tour,
@@ -170,7 +169,6 @@ export async function getPublicDestinationListings(params: {
 				.from(Product)
 				.innerJoin(Provider, eq(Provider.id, Product.providerId))
 				.innerJoin(ProductGeoPlace, eq(ProductGeoPlace.productId, Product.id))
-				.innerJoin(ProductStatus, eq(ProductStatus.productId, Product.id))
 				.leftJoin(
 					ProductContent,
 					and(eq(ProductContent.productId, Product.id), eq(ProductContent.dataClass, "production"))
@@ -182,7 +180,7 @@ export async function getPublicDestinationListings(params: {
 					and(
 						sql`lower(${Product.productType}) = ${productType}`,
 						publicCatalogProductEligibility(),
-						eq(ProductStatus.state, "published"),
+						eq(Product.publicationState, "published"),
 						eq(ProductGeoPlace.placeId, geoPlace.id),
 						eq(ProductGeoPlace.role, "primary_discovery"),
 						eq(ProductGeoPlace.isPrimary, true)

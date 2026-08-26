@@ -15,7 +15,6 @@ import {
 	ProductContent,
 	ProductGeoPlace,
 	ProductLocation,
-	ProductStatus,
 	Provider,
 	ProviderProfile,
 	ProviderUser,
@@ -48,14 +47,13 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 				displayName: Product.name,
 				productType: Product.productType,
 				contentDescription: ProductContent.description,
-				status: ProductStatus.state,
+				status: Product.publicationState,
 				contentHighlights: ProductContent.highlightsJson,
 				address: ProductLocation.address,
 				lat: ProductLocation.lat,
 				lng: ProductLocation.lng,
 			})
 			.from(Product)
-			.leftJoin(ProductStatus, eq(ProductStatus.productId, Product.id))
 			.leftJoin(ProductContent, eq(ProductContent.productId, Product.id))
 			.leftJoin(ProductLocation, eq(ProductLocation.productId, Product.id))
 			.where(eq(Product.id, productId))
@@ -117,7 +115,7 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 				id: Product.id,
 				displayName: Product.name,
 				productType: Product.productType,
-				status: ProductStatus.state,
+				status: Product.publicationState,
 				geoPlaceId: GeoPlace.id,
 				geoPlaceCanonicalName: GeoPlace.canonicalName,
 				geoPlaceCanonicalPath: GeoPlace.canonicalPath,
@@ -154,7 +152,6 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 				limousineLuggageCapacity: Limousine.luggageCapacity,
 			})
 			.from(Product)
-			.leftJoin(ProductStatus, eq(ProductStatus.productId, Product.id))
 			.leftJoin(
 				ProductGeoPlace,
 				and(
@@ -281,7 +278,7 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 			.select({
 				productId: Product.id,
 				displayName: Product.name,
-				productStatus: ProductStatus.state,
+				productStatus: Product.publicationState,
 				variantId: Variant.id,
 				variantName: Variant.name,
 				variantKind: Variant.kind,
@@ -297,7 +294,6 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 				roomTypeName: RoomType.name,
 			})
 			.from(Product)
-			.leftJoin(ProductStatus, eq(ProductStatus.productId, Product.id))
 			.leftJoin(Variant, eq(Variant.productId, Product.id))
 			.leftJoin(VariantCapacity, eq(VariantCapacity.variantId, Variant.id))
 			.leftJoin(VariantRoomProfile, eq(VariantRoomProfile.variantId, Variant.id))

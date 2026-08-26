@@ -7,7 +7,7 @@ describe("public SEO and browser certification contract", () => {
 	it("serves robots, sitemap and reusable structured data", () => {
 		expect(read("src/pages/robots.txt.ts")).toContain("Sitemap:")
 		const sitemap = read("src/pages/sitemap.xml.ts")
-		expect(sitemap).toContain("ProductStatus")
+		expect(sitemap).toContain("Product.publicationState")
 		expect(sitemap).toContain("/destinos/")
 		const layout = read("src/layouts/Layout.astro")
 		expect(layout).toContain("PublicStructuredData")

@@ -12,7 +12,6 @@ import {
 	ProviderIntegrationSyncJob,
 	ProviderIntegrationSyncRun,
 	Product,
-	ProductStatus,
 	RatePlan,
 	sql,
 	TaxFeeDefinition,
@@ -1047,11 +1046,10 @@ export async function listProviderIntegrationMappingCatalog(
 				name: Variant.name,
 				productId: Product.id,
 				productName: Product.name,
-				productState: ProductStatus.state,
+				productState: Product.publicationState,
 			})
 			.from(Variant)
 			.innerJoin(Product, eq(Product.id, Variant.productId))
-			.leftJoin(ProductStatus, eq(ProductStatus.productId, Product.id))
 			.where(and(eq(Product.providerId, providerId), eq(Variant.isActive, true)))
 			.orderBy(Product.name, Variant.name),
 		db
@@ -1064,12 +1062,11 @@ export async function listProviderIntegrationMappingCatalog(
 				productName: Product.name,
 				isDefault: RatePlan.isDefault,
 				variantActive: Variant.isActive,
-				productState: ProductStatus.state,
+				productState: Product.publicationState,
 			})
 			.from(RatePlan)
 			.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
 			.innerJoin(Product, eq(Product.id, Variant.productId))
-			.leftJoin(ProductStatus, eq(ProductStatus.productId, Product.id))
 			.where(and(eq(Product.providerId, providerId), eq(RatePlan.isActive, true)))
 			.orderBy(Product.name, Variant.name, RatePlan.name),
 		db

@@ -29,11 +29,5 @@ export async function createProduct(
 		geoPlaceId: parsed.geoPlaceId,
 	})
 
-	await deps.repo.upsertProductStatus({
-		productId: params.id,
-		state: "draft",
-		validationErrorsJson: null,
-	})
-
 	return { id: params.id }
 }

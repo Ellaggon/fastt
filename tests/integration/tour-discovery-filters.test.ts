@@ -14,7 +14,6 @@ import {
 	ProductCategory,
 	ProductCategoryLink,
 	ProductReview,
-	ProductStatus,
 	Provider,
 	RatePlan,
 	SearchUnitView,
@@ -82,13 +81,9 @@ async function seedSellableTour(params: {
 		.onConflictDoNothing()
 
 	await db
-		.insert(ProductStatus)
-		.values({
-			productId: params.productId,
-			state: productStatus,
-			validationErrorsJson: null,
-		} as any)
-		.onConflictDoNothing()
+		.update(Product)
+		.set({ publicationState: productStatus, publicationUpdatedAt: new Date() })
+		.where(eq(Product.id, params.productId))
 
 	await db
 		.insert(Tour)
@@ -374,7 +369,7 @@ describe("integration/tour discovery filters (phase 6 / P1 discovery)", () => {
 		expect(byRating.cards[0]?.avgRating).toBe(5)
 		expect(byRating.cards[0]?.reviewCount).toBeGreaterThanOrEqual(1)
 
-		// Inactive variant must not surface even if ProductStatus is published.
+		// Inactive variant must not surface even if the product is published.
 		await db
 			.update(Variant)
 			.set({ isActive: false } as any)

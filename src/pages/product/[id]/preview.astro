@@ -53,7 +53,6 @@ import {
 	gt,
 	Image,
 	inArray,
-	ProductStatus,
 	TourBookingQuestion,
 	TourSlotProfile,
 	TourTicketType,
@@ -84,9 +83,9 @@ const isTour = vertical.vertical === "tour"
 const publicDetailHref = vertical.routes.publicDetailHref(productId)
 
 const statusRow = await db
-	.select({ state: ProductStatus.state })
-	.from(ProductStatus)
-	.where(eq(ProductStatus.productId, productId))
+	.select({ state: Product.publicationState })
+	.from(Product)
+	.where(eq(Product.id, productId))
 	.then(first)
 const productStatus = String(statusRow?.state ?? "draft")
 	.trim()

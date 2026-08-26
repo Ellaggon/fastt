@@ -126,8 +126,8 @@ describe("integration/catalog Product V2 flow", () => {
 
 		const agg = await productRepository.getProductAggregate(productId)
 		expect(agg).not.toBeNull()
-		expect(agg!.status?.state).toBe("ready")
-		expect(agg!.status?.validationErrorsJson).toBeNull()
+		expect(agg!.publication.state).toBe("ready")
+		expect(agg!.publication.validationErrorsJson).toBeNull()
 		expect(agg!.imagesCount).toBeGreaterThanOrEqual(1)
 		expect(agg!.subtypeExists).toBe(true)
 	})

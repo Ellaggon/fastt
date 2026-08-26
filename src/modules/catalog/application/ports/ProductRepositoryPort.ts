@@ -1,4 +1,4 @@
-export type ProductStatusState = "draft" | "ready" | "published"
+export type ProductPublicationState = "draft" | "ready" | "published"
 
 export type ProductAggregate = {
 	product: {
@@ -23,11 +23,11 @@ export type ProductAggregate = {
 		lat?: number | null
 		lng?: number | null
 	} | null
-	status: {
-		productId: string
-		state: ProductStatusState
+	publication: {
+		state: ProductPublicationState
 		validationErrorsJson?: unknown | null
-	} | null
+		updatedAt?: Date | null
+	}
 	verticalReadiness?: {
 		kind: "hotel" | "tour" | "package" | "limousine" | "unknown"
 		subtypeExists: boolean
@@ -93,9 +93,9 @@ export interface ProductRepositoryPort {
 		source: string
 	}): Promise<void>
 
-	upsertProductStatus(params: {
+	setProductPublication(params: {
 		productId: string
-		state: ProductStatusState
+		state: ProductPublicationState
 		validationErrorsJson?: unknown | null
 	}): Promise<void>
 

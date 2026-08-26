@@ -32,7 +32,7 @@ import { tourDepartureToStay } from "@/lib/tours/tourSemantics"
 import { deriveBookingLifecycle } from "@/modules/booking/public"
 import { replacePolicyAssignmentCapa6, createPolicyCapa6 } from "@/modules/policies/public"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
-import { upsertPublishedProductStatus } from "../test-support/catalog-db-test-data"
+import { markProductPublished } from "../test-support/catalog-db-test-data"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -174,7 +174,7 @@ async function seedTourBookingReady(params: {
 		isPrimary: true,
 		source: "test_fixture",
 	} as any)
-	await upsertPublishedProductStatus(productId)
+	await markProductPublished(productId)
 	await db.insert(Tour).values({
 		productId,
 		duration: "2h",

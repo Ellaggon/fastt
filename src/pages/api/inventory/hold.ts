@@ -10,7 +10,6 @@ import {
 	lt,
 	Product,
 	Provider,
-	ProductStatus,
 	SearchUnitView,
 	TourSlotProfile,
 } from "@/shared/infrastructure/db/compat"
@@ -174,9 +173,12 @@ async function resolveHoldabilityFromView(params: {
 		.from(SearchUnitView)
 		.innerJoin(Product, eq(Product.id, SearchUnitView.productId))
 		.innerJoin(Provider, eq(Provider.id, Product.providerId))
-		.innerJoin(ProductStatus, eq(ProductStatus.productId, Product.id))
 		.where(
-			and(...predicates, publicCatalogProductEligibility(), eq(ProductStatus.state, "published"))
+			and(
+				...predicates,
+				publicCatalogProductEligibility(),
+				eq(Product.publicationState, "published")
+			)
 		)
 
 	let v2Rows: Array<{

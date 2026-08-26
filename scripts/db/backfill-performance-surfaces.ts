@@ -98,7 +98,6 @@ async function backfillProductOperationalSurface(sql: QuerySql) {
 					'updatedAt', now()
 				) as "policyCoverageStateJson"
 			from "Product" p
-			left join "ProductStatus" ps on ps."productId" = p.id
 			left join "ProductPreparationSnapshot" prep on prep."productId" = p.id
 			left join "Hotel" h on h."productId" = p.id
 			left join "Tour" t on t."productId" = p.id

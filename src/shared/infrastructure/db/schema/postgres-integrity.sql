@@ -182,15 +182,15 @@ BEGIN
 		RETURN NEW;
 	END IF;
 
-	IF TG_TABLE_NAME = 'ProductStatus' THEN
-		IF NEW."state" <> 'published' THEN
+	IF TG_TABLE_NAME = 'Product' THEN
+		IF NEW."publicationState" <> 'published' THEN
 			RETURN NEW;
 		END IF;
 		IF NOT EXISTS (
 			SELECT 1
 			FROM "Product" product
 			INNER JOIN "Provider" provider ON provider."id" = product."providerId"
-			WHERE product."id" = NEW."productId"
+			WHERE product."id" = NEW."id"
 				AND product."dataClass" = 'production'
 				AND provider."accountPurpose" = 'commercial'
 				AND provider."dataClassification" = 'production'
@@ -205,10 +205,9 @@ BEGIN
 			AND EXISTS (
 				SELECT 1
 				FROM "Product" product
-				INNER JOIN "ProductStatus" status ON status."productId" = product."id"
 				WHERE product."providerId" = NEW."id"
 					AND product."dataClass" = 'production'
-					AND status."state" = 'published'
+					AND product."publicationState" = 'published'
 			) THEN
 			RAISE EXCEPTION 'PROVIDER_HAS_PUBLISHED_PRODUCTION_PRODUCTS';
 		END IF;
@@ -465,9 +464,9 @@ BEFORE INSERT OR UPDATE OF "productId", "dataClass" ON "ProductContent"
 FOR EACH ROW
 EXECUTE FUNCTION fastt_enforce_marketplace_publication_boundary();
 
-DROP TRIGGER IF EXISTS "trg_ProductStatus_publication_boundary" ON "ProductStatus";
-CREATE TRIGGER "trg_ProductStatus_publication_boundary"
-BEFORE INSERT OR UPDATE OF "state", "productId" ON "ProductStatus"
+DROP TRIGGER IF EXISTS "trg_Product_publication_boundary" ON "Product";
+CREATE TRIGGER "trg_Product_publication_boundary"
+BEFORE INSERT OR UPDATE OF "publicationState", "providerId", "dataClass" ON "Product"
 FOR EACH ROW
 EXECUTE FUNCTION fastt_enforce_marketplace_publication_boundary();
 

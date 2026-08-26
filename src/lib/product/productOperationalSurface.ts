@@ -6,7 +6,6 @@ import {
 	Product,
 	ProductOperationalSurface,
 	ProductPreparationSnapshot,
-	ProductStatus,
 } from "@/shared/infrastructure/db/compat"
 import { routes } from "@/lib/routes"
 import {
@@ -273,9 +272,9 @@ export async function refreshProductOperationalSurface(params: {
 		getProductFullAggregate(params.productId, params.providerId),
 		getProductVariantsAggregate(params.productId, params.providerId),
 		db
-			.select({ state: ProductStatus.state })
-			.from(ProductStatus)
-			.where(eq(ProductStatus.productId, params.productId))
+			.select({ state: Product.publicationState })
+			.from(Product)
+			.where(eq(Product.id, params.productId))
 			.then(first),
 	])
 	if (!aggregate) return null

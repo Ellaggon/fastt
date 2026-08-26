@@ -8,7 +8,7 @@ function makeRepo(overrides?: Partial<ProductRepositoryPort>): ProductRepository
 		createProductBase: vi.fn(async () => {}),
 		upsertProductContent: vi.fn(async () => {}),
 		upsertProductLocation: vi.fn(async () => {}),
-		upsertProductStatus: vi.fn(async () => {}),
+		setProductPublication: vi.fn(async () => {}),
 		getProductAggregate: vi.fn(async () => null),
 		getProductById: vi.fn(async () => null),
 		...overrides,
@@ -31,10 +31,9 @@ describe("catalog/product/createProduct (unit)", () => {
 		).rejects.toBeInstanceOf(ZodError)
 	})
 
-	it("creates product base and sets draft status", async () => {
+	it("creates product base with the required draft publication state", async () => {
 		const repo = makeRepo({
 			createProductBase: vi.fn(async () => {}),
-			upsertProductStatus: vi.fn(async () => {}),
 		})
 
 		const res = await createProduct(
@@ -56,19 +55,13 @@ describe("catalog/product/createProduct (unit)", () => {
 			providerId: "prov_1",
 			geoPlaceId: "geo_1",
 		})
-		expect(repo.upsertProductStatus).toHaveBeenCalledTimes(1)
-		expect(repo.upsertProductStatus).toHaveBeenCalledWith({
-			productId: "prod_abc",
-			state: "draft",
-			validationErrorsJson: null,
-		})
+		expect(repo.setProductPublication).not.toHaveBeenCalled()
 		expect(res).toEqual({ id: "prod_abc" })
 	})
 
 	it("stores productType in its canonical database representation", async () => {
 		const repo = makeRepo({
 			createProductBase: vi.fn(async () => {}),
-			upsertProductStatus: vi.fn(async () => {}),
 		})
 
 		await createProduct(

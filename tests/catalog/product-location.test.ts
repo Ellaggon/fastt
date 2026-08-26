@@ -8,7 +8,7 @@ function makeRepo(overrides?: Partial<ProductRepositoryPort>): ProductRepository
 		createProductBase: vi.fn(async () => {}),
 		upsertProductContent: vi.fn(async () => {}),
 		upsertProductLocation: vi.fn(async () => {}),
-		upsertProductStatus: vi.fn(async () => {}),
+		setProductPublication: vi.fn(async () => {}),
 		getProductAggregate: vi.fn(async () => null),
 		...overrides,
 	}

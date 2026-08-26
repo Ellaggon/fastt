@@ -12,7 +12,6 @@ import {
 	EffectiveRestriction,
 	Hotel,
 	Product,
-	ProductStatus,
 	Provider,
 	ProviderIntegrationCertification,
 	ProviderIntegrationConnection,
@@ -271,12 +270,13 @@ async function ensureLocalFixtureData() {
 		.values({ productId: PRODUCT_ID, stars: 3, email: ACTOR_EMAIL })
 		.onConflictDoUpdate({ target: [Hotel.productId], set: { stars: 3, email: ACTOR_EMAIL } })
 	await db
-		.insert(ProductStatus)
-		.values({ productId: PRODUCT_ID, state: "draft", validationErrorsJson: [] })
-		.onConflictDoUpdate({
-			target: [ProductStatus.productId],
-			set: { state: "draft", validationErrorsJson: [] },
+		.update(Product)
+		.set({
+			publicationState: "draft",
+			publicationValidationErrorsJson: [],
+			publicationUpdatedAt: new Date(),
 		})
+		.where(eq(Product.id, PRODUCT_ID))
 
 	for (const room of rooms) {
 		await db

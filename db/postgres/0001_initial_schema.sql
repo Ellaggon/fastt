@@ -563,7 +563,10 @@ CREATE TABLE "Product" (
 	"creationDate" timestamp with time zone NOT NULL DEFAULT now(),
 	"lastUpdated" timestamp with time zone NOT NULL DEFAULT now(),
 	"providerId" text,
-	"dataClass" text NOT NULL DEFAULT 'production'
+	"dataClass" text NOT NULL DEFAULT 'production',
+	"publicationState" text NOT NULL DEFAULT 'draft',
+	"publicationValidationErrorsJson" jsonb,
+	"publicationUpdatedAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
 CREATE TABLE "ProductGeoPlace" (
@@ -628,12 +631,6 @@ CREATE TABLE "HouseRule" (
 	"type" text NOT NULL,
 	"payloadJson" jsonb NOT NULL,
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
-);
-
-CREATE TABLE "ProductStatus" (
-	"productId" text PRIMARY KEY,
-	"state" text NOT NULL DEFAULT 'draft',
-	"validationErrorsJson" jsonb
 );
 
 CREATE TABLE "ProductPreparationSnapshot" (
@@ -2118,12 +2115,6 @@ ALTER TABLE "HouseRule"
 	REFERENCES "Product" ("id")
 ;
 
-ALTER TABLE "ProductStatus"
-	ADD CONSTRAINT "ProductStatus_productId_fk"
-	FOREIGN KEY ("productId")
-	REFERENCES "Product" ("id")
-;
-
 ALTER TABLE "ProductPreparationSnapshot"
 	ADD CONSTRAINT "ProductPreparationSnapshot_productId_fk"
 	FOREIGN KEY ("productId")
@@ -3019,6 +3010,10 @@ CREATE INDEX "Product_providerId_productType_idx" ON "Product" ("providerId", "p
 
 CREATE INDEX "Product_providerId_idx" ON "Product" ("providerId");
 
+CREATE INDEX "Product_provider_publication_idx" ON "Product" ("providerId", "publicationState");
+
+CREATE INDEX "Product_publication_discovery_idx" ON "Product" ("publicationState", "dataClass");
+
 CREATE UNIQUE INDEX "ProductGeoPlace_product_place_role_unique" ON "ProductGeoPlace" ("productId", "placeId", "role");
 
 CREATE UNIQUE INDEX "ProductGeoPlace_one_primary_product_unique" ON "ProductGeoPlace" ("productId") WHERE "isPrimary" = true;
@@ -3439,6 +3434,8 @@ ALTER TABLE "GeoPlaceAlias" ADD CONSTRAINT "GeoPlaceAlias_aliasType_check" CHECK
 
 ALTER TABLE "GeoPlaceContent" ADD CONSTRAINT "GeoPlaceContent_publicationStatus_check" CHECK ("publicationStatus" IN ('draft', 'published', 'archived'));
 
+ALTER TABLE "Product" ADD CONSTRAINT "Product_publicationState_check" CHECK ("publicationState" IN ('draft', 'ready', 'published'));
+
 ALTER TABLE "ProductGeoPlace" ADD CONSTRAINT "ProductGeoPlace_role_check" CHECK ("role" IN ('primary_discovery', 'secondary_discovery', 'service_area', 'meeting_area'));
 
 ALTER TABLE "ProductGeoPlace" ADD CONSTRAINT "ProductGeoPlace_primary_role_check" CHECK ("isPrimary" = false OR "role" = 'primary_discovery');
@@ -3651,15 +3648,15 @@ BEGIN
 		RETURN NEW;
 	END IF;
 
-	IF TG_TABLE_NAME = 'ProductStatus' THEN
-		IF NEW."state" <> 'published' THEN
+	IF TG_TABLE_NAME = 'Product' THEN
+		IF NEW."publicationState" <> 'published' THEN
 			RETURN NEW;
 		END IF;
 		IF NOT EXISTS (
 			SELECT 1
 			FROM "Product" product
 			INNER JOIN "Provider" provider ON provider."id" = product."providerId"
-			WHERE product."id" = NEW."productId"
+			WHERE product."id" = NEW."id"
 				AND product."dataClass" = 'production'
 				AND provider."accountPurpose" = 'commercial'
 				AND provider."dataClassification" = 'production'
@@ -3674,10 +3671,9 @@ BEGIN
 			AND EXISTS (
 				SELECT 1
 				FROM "Product" product
-				INNER JOIN "ProductStatus" status ON status."productId" = product."id"
 				WHERE product."providerId" = NEW."id"
 					AND product."dataClass" = 'production'
-					AND status."state" = 'published'
+					AND product."publicationState" = 'published'
 			) THEN
 			RAISE EXCEPTION 'PROVIDER_HAS_PUBLISHED_PRODUCTION_PRODUCTS';
 		END IF;
@@ -3934,9 +3930,9 @@ BEFORE INSERT OR UPDATE OF "productId", "dataClass" ON "ProductContent"
 FOR EACH ROW
 EXECUTE FUNCTION fastt_enforce_marketplace_publication_boundary();
 
-DROP TRIGGER IF EXISTS "trg_ProductStatus_publication_boundary" ON "ProductStatus";
-CREATE TRIGGER "trg_ProductStatus_publication_boundary"
-BEFORE INSERT OR UPDATE OF "state", "productId" ON "ProductStatus"
+DROP TRIGGER IF EXISTS "trg_Product_publication_boundary" ON "Product";
+CREATE TRIGGER "trg_Product_publication_boundary"
+BEFORE INSERT OR UPDATE OF "publicationState", "providerId", "dataClass" ON "Product"
 FOR EACH ROW
 EXECUTE FUNCTION fastt_enforce_marketplace_publication_boundary();
 

@@ -36,7 +36,7 @@ export async function publishProduct(
 		}
 	}
 
-	await deps.repo.upsertProductStatus({
+	await deps.repo.setProductPublication({
 		productId: params.productId,
 		state: "published",
 		validationErrorsJson: null,

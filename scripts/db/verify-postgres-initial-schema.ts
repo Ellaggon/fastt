@@ -1,10 +1,22 @@
-import "dotenv/config"
+import { config as loadDotenv } from "dotenv"
 
 import { getTableColumns } from "drizzle-orm"
 import postgres from "postgres"
 
 import { canonicalDatabaseTables } from "../../src/shared/infrastructure/db/schema/canonical-schema"
 import { getPostgresConnectionUrl } from "../../src/shared/infrastructure/db/env"
+
+// This audit is used both against development and the isolated test database.
+// Loading `.env` unconditionally would reintroduce a development URL into a
+// test process before the isolation guard can replace it.
+if (process.env.FASTT_DATA_ENV === "test") {
+	loadDotenv({ path: ".env.test", override: false })
+	delete process.env.DATABASE_URL
+	delete process.env.DIRECT_URL
+	delete process.env.SUPABASE_DB_POOLER_URL
+} else {
+	loadDotenv({ path: ".env", override: false })
+}
 
 type ColumnRow = {
 	table_name: string

@@ -6,7 +6,7 @@ import {
 	db,
 	eq,
 	GeoPlace,
-	ProductStatus,
+	Product,
 	Provider,
 	ProviderUser,
 	RoomType,
@@ -110,14 +110,15 @@ export async function upsertProvider(row: {
 	})
 }
 
-export async function upsertPublishedProductStatus(productId: string) {
+export async function markProductPublished(productId: string) {
 	await db
-		.insert(ProductStatus)
-		.values({ productId, state: "published" })
-		.onConflictDoUpdate({
-			target: [ProductStatus.productId],
-			set: { state: "published" },
+		.update(Product)
+		.set({
+			publicationState: "published",
+			publicationValidationErrorsJson: null,
+			publicationUpdatedAt: new Date(),
 		})
+		.where(eq(Product.id, productId))
 }
 
 export async function upsertRoomType(row: {
