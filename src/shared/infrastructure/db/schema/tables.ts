@@ -894,10 +894,21 @@ export const Product = pgTable(
 		lastUpdated: now("lastUpdated"),
 		providerId: txtOpt("providerId").references(() => Provider.id),
 		dataClass: text("dataClass").default("production").notNull(),
+		/** Canonical lifecycle for marketplace availability; never stored in a side table. */
+		publicationState: text("publicationState").default("draft").notNull(),
+		/** Last evaluated blockers for the current product aggregate. */
+		publicationValidationErrorsJson: jsonb("publicationValidationErrorsJson"),
+		publicationUpdatedAt: now("publicationUpdatedAt"),
 	},
 	(table) => [
 		index("Product_providerId_productType_idx").on(table.providerId, table.productType),
 		index("Product_providerId_idx").on(table.providerId),
+		index("Product_provider_publication_idx").on(table.providerId, table.publicationState),
+		index("Product_publication_discovery_idx").on(table.publicationState, table.dataClass),
+		check(
+			"Product_publicationState_check",
+			sql`${table.publicationState} IN ('draft', 'ready', 'published')`
+		),
 	]
 )
 
@@ -1151,14 +1162,6 @@ export const TourPrivateRequest = pgTable(
 		),
 	]
 )
-
-export const ProductStatus = pgTable("ProductStatus", {
-	productId: text("productId")
-		.primaryKey()
-		.references(() => Product.id),
-	state: text("state").default("draft").notNull(),
-	validationErrorsJson: jsonb("validationErrorsJson"),
-})
 
 export const ProductPreparationSnapshot = pgTable(
 	"ProductPreparationSnapshot",

@@ -108,10 +108,9 @@ async function main() {
 			explain(
 				"product ownership + full aggregate joins",
 				`
-				select p.id, p.name, p."productType", ps.state, pc.description, pl.address,
+				select p.id, p.name, p."productType", p."publicationState", pc.description, pl.address,
 					h.stars, t.duration, pkg.days, l."passengerCapacity"
 				from "Product" p
-				left join "ProductStatus" ps on ps."productId" = p.id
 				left join "ProductContent" pc on pc."productId" = p.id
 				left join "ProductLocation" pl on pl."productId" = p.id
 				left join "Hotel" h on h."productId" = p.id
@@ -126,10 +125,9 @@ async function main() {
 			explain(
 				"product variants aggregate",
 				`
-				select p.id, p.name, ps.state, v.id, v.name, v.kind, v.status, rp.id as "defaultRatePlanId",
+				select p.id, p.name, p."publicationState", v.id, v.name, v.kind, v.status, rp.id as "defaultRatePlanId",
 					vc."minOccupancy", vc."maxOccupancy", vrp."roomTypeId", rt.name as "roomTypeName"
 				from "Product" p
-				left join "ProductStatus" ps on ps."productId" = p.id
 				left join "Variant" v on v."productId" = p.id
 				left join "VariantCapacity" vc on vc."variantId" = v.id
 				left join "VariantRoomProfile" vrp on vrp."variantId" = v.id
