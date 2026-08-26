@@ -229,6 +229,7 @@ async function ensureLocalFixtureData() {
 			placeType: "locality",
 			countryCode: "US",
 			slug: "fastt-channex-certification-lab-v1",
+			canonicalPath: "fastt-channex-certification-lab-v1",
 		})
 		.onConflictDoNothing()
 	await db

@@ -46,6 +46,27 @@ function closureRows(places: readonly BoliviaGeoPlaceSeed[]) {
 	})
 }
 
+function canonicalPaths(places: readonly BoliviaGeoPlaceSeed[]) {
+	const byId = new Map(places.map((place) => [place.id, place]))
+	const paths = new Map<string, string>()
+	const resolve = (place: BoliviaGeoPlaceSeed): string => {
+		const existing = paths.get(place.id)
+		if (existing) return existing
+		const segment = place.slug.trim().toLowerCase()
+		if (!place.parentId) {
+			paths.set(place.id, segment)
+			return segment
+		}
+		const parent = byId.get(place.parentId)
+		if (!parent) throw new Error(`BOLIVIA_GEO_PLACE_PARENT_MISSING:${place.id}:${place.parentId}`)
+		const path = `${resolve(parent)}/${segment}`
+		paths.set(place.id, path)
+		return path
+	}
+	for (const place of places) resolve(place)
+	return paths
+}
+
 function aliasRows(places: readonly BoliviaGeoPlaceSeed[]) {
 	return places.flatMap((place) => {
 		const aliases = [
@@ -73,11 +94,13 @@ function aliasRows(places: readonly BoliviaGeoPlaceSeed[]) {
 async function seed() {
 	const now = new Date()
 	const placeIds = BOLIVIA_MARKETPLACE_GEO_PLACES.map((place) => place.id)
+	const paths = canonicalPaths(BOLIVIA_MARKETPLACE_GEO_PLACES)
 	const places = BOLIVIA_MARKETPLACE_GEO_PLACES.map((place) => ({
 		id: place.id,
 		canonicalName: place.canonicalName,
 		normalizedName: normalizeName(place.canonicalName),
 		slug: place.slug,
+		canonicalPath: paths.get(place.id) ?? place.slug,
 		placeType: place.placeType,
 		countryCode: "BO",
 		parentId: place.parentId,
@@ -103,6 +126,7 @@ async function seed() {
 					canonicalName: place.canonicalName,
 					normalizedName: place.normalizedName,
 					slug: place.slug,
+					canonicalPath: place.canonicalPath,
 					placeType: place.placeType,
 					countryCode: place.countryCode,
 					parentId: place.parentId,

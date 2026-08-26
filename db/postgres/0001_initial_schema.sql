@@ -452,6 +452,7 @@ CREATE TABLE "GeoPlace" (
 	"canonicalName" text NOT NULL,
 	"normalizedName" text NOT NULL,
 	"slug" text NOT NULL,
+	"canonicalPath" text NOT NULL,
 	"placeType" text NOT NULL,
 	"countryCode" text NOT NULL,
 	"parentId" text,
@@ -2828,6 +2829,12 @@ ALTER TABLE "FinancialProviderSummary"
 
 
 
+ALTER TABLE "GeoPlace" ADD CONSTRAINT "GeoPlace_country_parent_type_normalized_unique" UNIQUE NULLS NOT DISTINCT ("countryCode", "parentId", "placeType", "normalizedName");
+
+ALTER TABLE "GeoPlace" ADD CONSTRAINT "GeoPlace_parent_slug_unique" UNIQUE NULLS NOT DISTINCT ("parentId", "slug");
+
+
+
 CREATE INDEX "Provider_dataClassification_idx" ON "Provider" ("dataClassification");
 
 CREATE INDEX "ProviderDocument_providerId_type_idx" ON "ProviderDocument" ("providerId", "type");
@@ -2976,7 +2983,7 @@ CREATE INDEX "ProviderStatement_provider_status_idx" ON "ProviderStatement" ("pr
 
 CREATE INDEX "ProviderStatement_statementReference_idx" ON "ProviderStatement" ("statementReference");
 
-CREATE UNIQUE INDEX "GeoPlace_slug_unique" ON "GeoPlace" ("slug");
+CREATE UNIQUE INDEX "GeoPlace_canonicalPath_unique" ON "GeoPlace" ("canonicalPath");
 
 CREATE INDEX "GeoPlace_parent_type_status_idx" ON "GeoPlace" ("parentId", "placeType", "status");
 
@@ -3414,6 +3421,8 @@ ALTER TABLE "GeoPlace" ADD CONSTRAINT "GeoPlace_placeType_check" CHECK ("placeTy
 
 ALTER TABLE "GeoPlace" ADD CONSTRAINT "GeoPlace_countryCode_check" CHECK ("countryCode" ~ '^[A-Z]{2}$');
 
+ALTER TABLE "GeoPlace" ADD CONSTRAINT "GeoPlace_canonicalPath_format_check" CHECK ("canonicalPath" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*(?:/[a-z0-9]+(?:-[a-z0-9]+)*)*$');
+
 ALTER TABLE "GeoPlace" ADD CONSTRAINT "GeoPlace_status_check" CHECK ("status" IN ('active', 'hidden', 'merged'));
 
 ALTER TABLE "GeoPlace" ADD CONSTRAINT "GeoPlace_coordinates_check" CHECK (("centroidLat" IS NULL AND "centroidLng" IS NULL) OR ("centroidLat" BETWEEN -90 AND 90 AND "centroidLng" BETWEEN -180 AND 180));
@@ -3559,6 +3568,68 @@ BEGIN
 	END IF;
 
 	RETURN NEW;
+END;
+$$;
+
+-- GeoPlace.slug is a local segment. canonicalPath is always derived from the
+-- hierarchy so direct writes cannot recreate a globally-unique-slug model.
+CREATE OR REPLACE FUNCTION fastt_derive_geo_place_canonical_path()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+	parent_path text;
+BEGIN
+	NEW."slug" := trim(BOTH '-' FROM regexp_replace(lower(trim(NEW."slug")), '[^a-z0-9]+', '-', 'g'));
+	IF NEW."slug" !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' THEN
+		RAISE EXCEPTION 'GEO_PLACE_INVALID_ROUTE_SEGMENT';
+	END IF;
+
+	IF NEW."parentId" IS NULL THEN
+		NEW."canonicalPath" := NEW."slug";
+	ELSE
+		IF NEW."parentId" = NEW."id" THEN
+			RAISE EXCEPTION 'GEO_PLACE_PARENT_CANNOT_BE_SELF';
+		END IF;
+
+		IF TG_OP = 'UPDATE' AND EXISTS (
+			WITH RECURSIVE descendants AS (
+				SELECT "id" FROM "GeoPlace" WHERE "parentId" = NEW."id"
+				UNION ALL
+				SELECT child."id"
+				FROM "GeoPlace" child
+				INNER JOIN descendants parent ON child."parentId" = parent."id"
+			)
+			SELECT 1 FROM descendants WHERE "id" = NEW."parentId"
+		) THEN
+			RAISE EXCEPTION 'GEO_PLACE_HIERARCHY_CYCLE';
+		END IF;
+
+		SELECT "canonicalPath" INTO parent_path
+		FROM "GeoPlace"
+		WHERE "id" = NEW."parentId";
+		IF parent_path IS NULL THEN
+			RAISE EXCEPTION 'GEO_PLACE_PARENT_NOT_FOUND';
+		END IF;
+		NEW."canonicalPath" := parent_path || '/' || NEW."slug";
+	END IF;
+
+	RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION fastt_propagate_geo_place_canonical_path()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+	IF OLD."canonicalPath" IS DISTINCT FROM NEW."canonicalPath" THEN
+		UPDATE "GeoPlace" child
+		SET "canonicalPath" = NEW."canonicalPath" || '/' || child."slug"
+		WHERE child."parentId" = NEW."id"
+			AND child."canonicalPath" IS DISTINCT FROM NEW."canonicalPath" || '/' || child."slug";
+	END IF;
+	RETURN NULL;
 END;
 $$;
 
@@ -3874,6 +3945,19 @@ CREATE TRIGGER "trg_Provider_publication_boundary"
 BEFORE UPDATE OF "accountPurpose", "dataClassification" ON "Provider"
 FOR EACH ROW
 EXECUTE FUNCTION fastt_enforce_marketplace_publication_boundary();
+
+DROP TRIGGER IF EXISTS "trg_GeoPlace_derive_canonical_path" ON "GeoPlace";
+CREATE TRIGGER "trg_GeoPlace_derive_canonical_path"
+BEFORE INSERT OR UPDATE OF "slug", "parentId", "canonicalPath" ON "GeoPlace"
+FOR EACH ROW
+EXECUTE FUNCTION fastt_derive_geo_place_canonical_path();
+
+DROP TRIGGER IF EXISTS "trg_GeoPlace_propagate_canonical_path" ON "GeoPlace";
+CREATE TRIGGER "trg_GeoPlace_propagate_canonical_path"
+AFTER UPDATE ON "GeoPlace"
+FOR EACH ROW
+WHEN (OLD."canonicalPath" IS DISTINCT FROM NEW."canonicalPath")
+EXECUTE FUNCTION fastt_propagate_geo_place_canonical_path();
 
 
 

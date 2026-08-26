@@ -1,29 +1,35 @@
 ---
 import MarketplaceListingSurface from "@/components/marketplace/MarketplaceListingSurface.astro"
+import {
+	publicDestinationHref,
+	publicGeoPlacePath,
+} from "@/lib/marketplace/publicDestinationRoutes"
+
+const destinationHref = (place: string) => publicDestinationHref(publicGeoPlacePath(place), "tours")
 
 const popularDestinations = [
-	{ label: "La Paz", href: "/destinos/la-paz/tours" },
-	{ label: "Uyuni", href: "/destinos/uyuni/tours" },
-	{ label: "Santa Cruz", href: "/destinos/santa-cruz/tours" },
-	{ label: "Copacabana", href: "/destinos/copacabana/tours" },
-	{ label: "Cochabamba", href: "/destinos/cochabamba/tours" },
+	{ label: "La Paz", href: destinationHref("geo:bo:la-paz-city") },
+	{ label: "Uyuni", href: destinationHref("geo:bo:uyuni") },
+	{ label: "Santa Cruz", href: destinationHref("geo:bo:santa-cruz-de-la-sierra") },
+	{ label: "Copacabana", href: destinationHref("geo:bo:copacabana") },
+	{ label: "Cochabamba", href: destinationHref("geo:bo:cochabamba-city") },
 ]
 
 const exploreGroups = [
 	{
 		title: "Naturaleza",
 		links: [
-			{ label: "Salares y desiertos", href: "/destinos/uyuni/tours" },
-			{ label: "Selva y biodiversidad", href: "/destinos/beni/tours" },
-			{ label: "Montaña y altiplano", href: "/destinos/la-paz/tours" },
+			{ label: "Salares y desiertos", href: destinationHref("geo:bo:uyuni") },
+			{ label: "Selva y biodiversidad", href: destinationHref("geo:bo:beni") },
+			{ label: "Montaña y altiplano", href: destinationHref("geo:bo:la-paz-city") },
 		],
 	},
 	{
 		title: "Cultura",
 		links: [
-			{ label: "Historia y patrimonio", href: "/destinos/sucre/tours" },
-			{ label: "Gastronomía local", href: "/destinos/cochabamba/tours" },
-			{ label: "Experiencias urbanas", href: "/destinos/la-paz/tours" },
+			{ label: "Historia y patrimonio", href: destinationHref("geo:bo:sucre") },
+			{ label: "Gastronomía local", href: destinationHref("geo:bo:cochabamba-city") },
+			{ label: "Experiencias urbanas", href: destinationHref("geo:bo:la-paz-city") },
 		],
 	},
 	{

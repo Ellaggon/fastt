@@ -2,20 +2,17 @@
 import ProductCard from "@/components/productUI/ProductCard.astro"
 import Notice from "@/components/ui/Notice.astro"
 import SearchLayout from "@/layouts/SearchLayout.astro"
-import {
-	canonicalPublicPlaceSlug,
-	publicSearchHref,
-} from "@/lib/marketplace/publicDestinationRoutes"
+import { resolvePublicDestination } from "@/lib/marketplace/publicDestinationListings"
+import { publicSearchHref } from "@/lib/marketplace/publicDestinationRoutes"
 import { tourDifficultyLabel } from "@/lib/tours/tourDifficulty"
 import { getTourSearchSurface } from "@/lib/tours/tourSearchSurface"
 import { db, eq, GeoPlace } from "@/shared/infrastructure/db/compat"
 
 const params = Astro.url.searchParams
-const legacyDestination =
-	params.get("geoPlaceId") || params.get("geoPlaceSlug") || params.get("destinationQuery")
-const canonicalSlug = canonicalPublicPlaceSlug(params.get("destino") || legacyDestination)
-if (canonicalSlug && params.get("destino") !== canonicalSlug) {
-	return Astro.redirect(publicSearchHref("tours", params), 308)
+const resolvedDestination = await resolvePublicDestination(params.get("destino"))
+const canonicalPath = resolvedDestination?.canonicalPath ?? null
+if (canonicalPath && params.get("destino") !== canonicalPath) {
+	return Astro.redirect(publicSearchHref("tours", params, canonicalPath), 308)
 }
 
 const startDate = params.get("startDate") || params.get("checkin") || null
@@ -31,12 +28,12 @@ const priceMin = Number(params.get("priceMin"))
 const priceMax = Number(params.get("priceMax"))
 
 let destination: { id: string; name: string } | null = null
-if (canonicalSlug) {
+if (canonicalPath) {
 	destination =
 		(await db
 			.select({ id: GeoPlace.id, name: GeoPlace.canonicalName })
 			.from(GeoPlace)
-			.where(eq(GeoPlace.slug, canonicalSlug))
+			.where(eq(GeoPlace.canonicalPath, canonicalPath))
 			.limit(1)
 			.then((rows) => rows[0] ?? null)) ?? null
 }

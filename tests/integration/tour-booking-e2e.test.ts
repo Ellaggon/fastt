@@ -8,7 +8,6 @@ import {
 	BookingVoucher,
 	db,
 	DailyInventory,
-	GeoPlace,
 	ProductGeoPlace,
 	EffectiveAvailability,
 	EffectivePricingV2,
@@ -32,6 +31,7 @@ import { tourDepartureToStay } from "@/lib/tours/tourSemantics"
 import { replacePolicyAssignmentCapa6, createPolicyCapa6 } from "@/modules/policies/public"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
 import { upsertPublishedProductStatus } from "../test-support/catalog-db-test-data"
+import { upsertGeoPlace } from "@/shared/infrastructure/test-support/db-test-data"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -115,17 +115,13 @@ async function seedTourCommercialReady(params: {
 		.values({ id: "prov_test", legalName: "Provider prov_test" })
 		.onConflictDoNothing()
 
-	await db
-		.insert(GeoPlace)
-		.values({
-			id: params.geoPlaceId,
-			canonicalName: "Tour Dest",
-			normalizedName: "tour dest",
-			placeType: "city",
-			countryCode: "BO",
-			slug: `tour-${params.geoPlaceId}`,
-		} as any)
-		.onConflictDoNothing()
+	await upsertGeoPlace({
+		id: params.geoPlaceId,
+		canonicalName: `Tour Dest ${params.geoPlaceId}`,
+		placeType: "city",
+		countryCode: "BO",
+		slug: params.geoPlaceId,
+	})
 
 	await db
 		.insert(Product)

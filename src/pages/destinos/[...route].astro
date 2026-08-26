@@ -2,27 +2,26 @@
 import MarketplaceDestinationResults from "@/components/marketplace/MarketplaceDestinationResults.astro"
 import { getPublicDestinationListings } from "@/lib/marketplace/publicDestinationListings"
 import {
-	canonicalPublicPlaceSlug,
 	publicDestinationHref,
 	type PublicMarketplaceVertical,
 } from "@/lib/marketplace/publicDestinationRoutes"
 
-const rawSlug = Astro.params.slug ?? ""
-const rawVertical = Astro.params.vertical ?? ""
+const routeParts = (Astro.params.route ?? "").split("/").filter(Boolean)
+const rawVertical = routeParts.pop() ?? ""
 const vertical: PublicMarketplaceVertical | null =
 	rawVertical === "alojamientos" || rawVertical === "tours" ? rawVertical : null
-if (!vertical) return Astro.redirect("/", 308)
+if (!vertical || routeParts.length === 0) return Astro.redirect("/", 308)
 
-const canonicalSlug = canonicalPublicPlaceSlug(rawSlug)
-if (!canonicalSlug) return Astro.redirect(vertical === "alojamientos" ? "/hotels" : "/tours", 302)
-if (canonicalSlug !== rawSlug)
-	return Astro.redirect(publicDestinationHref(canonicalSlug, vertical), 308)
-
+const requestedPath = routeParts.join("/")
 const { destination, listings } = await getPublicDestinationListings({
-	slug: canonicalSlug,
+	path: requestedPath,
 	vertical,
 })
 if (!destination) return Astro.redirect(vertical === "alojamientos" ? "/hotels" : "/tours", 302)
+
+if (requestedPath !== destination.canonicalPath) {
+	return Astro.redirect(publicDestinationHref(destination.canonicalPath, vertical), 308)
+}
 ---
 
 <MarketplaceDestinationResults

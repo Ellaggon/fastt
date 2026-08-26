@@ -18,7 +18,7 @@ export const GET: APIRoute = async ({ url }) => {
 	const [discoveryRows, products] = await Promise.all([
 		db
 			.select({
-				slug: GeoPlace.slug,
+				canonicalPath: GeoPlace.canonicalPath,
 				productType: Product.productType,
 				updatedAt: GeoPlace.updatedAt,
 			})
@@ -48,7 +48,11 @@ export const GET: APIRoute = async ({ url }) => {
 		const type = String(row.productType ?? "").toLowerCase()
 		const surface = type === "hotel" ? "alojamientos" : type === "tour" ? "tours" : null
 		if (!surface) continue
-		const path = `/destinos/${encodeURIComponent(row.slug)}/${surface}`
+		const encodedPath = row.canonicalPath
+			.split("/")
+			.map((segment) => encodeURIComponent(segment))
+			.join("/")
+		const path = `/destinos/${encodedPath}/${surface}`
 		const previous = destinationUrls.get(path)
 		if (!previous || (row.updatedAt && row.updatedAt > previous)) {
 			destinationUrls.set(path, row.updatedAt)

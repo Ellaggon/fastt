@@ -110,7 +110,7 @@ Close-out migration: `db/migrations/2026-08-18_tour_slot_profile_closeout.sql`.
 | `TourPrivateRequest`  | Private salida quote requests (no hold until provider accepts)                                           |
 | Indexes               | `Tour.durationMinutes`, `Tour.difficultyLevel`, category/review indexes                                  |
 
-Search `/tours/search` requires `startDate` and reads sellable `tour_slot` rows from `SearchUnitView` via `getTourSearchSurface` (min available price, published ratings, applicable salida). Category/duration/difficulty stay query-backed; `priceMin`/`priceMax` apply after the materialized from-price. Categories are edited only on `/product/[id]/tickets` (`ProductCategoryLink`).
+Search `/buscar/tours` requires `startDate` and reads sellable `tour_slot` rows from `SearchUnitView` via `getTourSearchSurface` (min available price, published ratings, applicable salida). Category/duration/difficulty stay query-backed; `priceMin`/`priceMax` apply after the materialized from-price. Categories are edited only on `/product/[id]/tickets` (`ProductCategoryLink`).
 
 ## Ops clarity (Fase 6)
 
@@ -241,7 +241,7 @@ Kill-switches default **off** (opt-in via env only). Guest `x-flag-*` / query ov
 | `TOURS_CHECKOUT_ENABLED`      | hold + confirm for `tour_slot`                              | `tours_hold_total`, `tours_confirm_total`                    |
 | `TOURS_REFUND_HOURS_ENABLED`  | hour-based cancel deadlines in policy calculation snapshots | refund quote discrepancies vs day cutoffs                    |
 | `TOURS_CHECKIN_ENABLED`       | `/api/booking/check-in`                                     | `tours_checkin_total`, `tours_voucher_total{event=redeemed}` |
-| `TOURS_PUBLIC_SEARCH_ENABLED` | `getTourSearchSurface` / `/tours/search`                    | `tours_search_total`                                         |
+| `TOURS_PUBLIC_SEARCH_ENABLED` | `getTourSearchSurface` / `/buscar/tours`                    | `tours_search_total`                                         |
 
 Deploy checkout / refunds / permissions behind these flags. After flip, watch hold failures (`outcome=not_holdable|failure`), confirm conversion (`tours_confirm_total`), voucher redeem/void, and refund amount mismatches when hours flag is toggled.
 
