@@ -15,7 +15,6 @@ import {
 	ProductContent,
 	ProductGeoPlace,
 	ProductLocation,
-	ProductStatus,
 	Provider,
 	ProviderProfile,
 	ProviderTaxConfiguration,
@@ -310,12 +309,13 @@ async function upsertFixture(params: {
 				},
 			})
 		await db
-			.insert(ProductStatus)
-			.values({ productId: product.id, state: "published", validationErrorsJson: null })
-			.onConflictDoUpdate({
-				target: ProductStatus.productId,
-				set: { state: "published", validationErrorsJson: null },
+			.update(Product)
+			.set({
+				publicationState: "published",
+				publicationValidationErrorsJson: null,
+				publicationUpdatedAt: new Date(),
 			})
+			.where(eq(Product.id, product.id))
 		await db
 			.insert(ProductContent)
 			.values({

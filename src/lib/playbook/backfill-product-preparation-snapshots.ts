@@ -6,7 +6,6 @@ import {
 	inArray,
 	Product,
 	ProductPreparationSnapshot,
-	ProductStatus,
 	sql,
 } from "@/shared/infrastructure/db/compat"
 import {
@@ -78,9 +77,9 @@ export async function backfillProductPreparationSnapshots(
 	const productIds = products.map((product) => product.id)
 	const statuses = productIds.length
 		? await db
-				.select({ productId: ProductStatus.productId, state: ProductStatus.state })
-				.from(ProductStatus)
-				.where(inArray(ProductStatus.productId, productIds))
+				.select({ productId: Product.id, state: Product.publicationState })
+				.from(Product)
+				.where(inArray(Product.id, productIds))
 		: []
 	const statusByProduct = new Map(statuses.map((row) => [String(row.productId), row.state]))
 

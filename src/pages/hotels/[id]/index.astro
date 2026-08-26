@@ -41,7 +41,6 @@ import {
 	Provider,
 	ProductGeoPlace,
 	ProductLocation,
-	ProductStatus,
 } from "@/shared/infrastructure/db/compat"
 
 const url = Astro.url
@@ -299,7 +298,6 @@ try {
 		.select()
 		.from(Product)
 		.innerJoin(Provider, eq(Provider.id, Product.providerId))
-		.innerJoin(ProductStatus, eq(ProductStatus.productId, Product.id))
 		.leftJoin(
 			ProductGeoPlace,
 			and(
@@ -314,7 +312,7 @@ try {
 			and(
 				eq(Product.id, productId),
 				publicCatalogProductEligibility(),
-				eq(ProductStatus.state, "published")
+				eq(Product.publicationState, "published")
 			)
 		)
 		.then(first)

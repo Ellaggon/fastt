@@ -7,7 +7,6 @@ import {
 	inArray,
 	Product,
 	ProductCategoryLink,
-	ProductStatus,
 	RatePlan,
 	Tour,
 	TourSlotProfile,
@@ -299,7 +298,7 @@ export async function loadTourAdminQualityQueue(params?: {
 			productId: Product.id,
 			name: Product.name,
 			providerId: Product.providerId,
-			status: ProductStatus.state,
+			status: Product.publicationState,
 			itineraryJson: Tour.itineraryJson,
 			meetingPointJson: Tour.meetingPointJson,
 			durationMinutes: Tour.durationMinutes,
@@ -307,7 +306,6 @@ export async function loadTourAdminQualityQueue(params?: {
 		})
 		.from(Tour)
 		.innerJoin(Product, eq(Product.id, Tour.productId))
-		.leftJoin(ProductStatus, eq(ProductStatus.productId, Tour.productId))
 		.orderBy(Product.name)
 		.limit(limit)
 

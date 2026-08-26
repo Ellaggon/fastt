@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro"
-import { db, eq, inArray, Product, ProductStatus } from "@/shared/infrastructure/db/compat"
+import { db, eq, inArray, Product } from "@/shared/infrastructure/db/compat"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { listProductPreparationSnapshots } from "@/lib/playbook/summarize-product-preparation"
@@ -46,9 +46,9 @@ export const GET: APIRoute = async ({ request }) => {
 
 	const statuses = productIds.length
 		? await db
-				.select({ productId: ProductStatus.productId, state: ProductStatus.state })
-				.from(ProductStatus)
-				.where(inArray(ProductStatus.productId, productIds))
+				.select({ productId: Product.id, state: Product.publicationState })
+				.from(Product)
+				.where(inArray(Product.id, productIds))
 		: []
 
 	const statusMap = new Map(

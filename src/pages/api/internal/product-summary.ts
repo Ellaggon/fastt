@@ -9,15 +9,7 @@ import { routes } from "@/lib/routes"
 import { getProductFullAggregate, getProductVariantsAggregate } from "@/modules/catalog/public"
 import { buildGuestStayExpectationsSnapshot } from "@/modules/house-rules/public"
 import { essentialHouseRuleTypes } from "@/modules/house-rules/presentation/houseRulePresentation"
-import {
-	first,
-	db,
-	eq,
-	Hotel,
-	Package,
-	ProductStatus,
-	Tour,
-} from "@/shared/infrastructure/db/compat"
+import { first, db, eq, Hotel, Package, Product, Tour } from "@/shared/infrastructure/db/compat"
 
 function toLowerTrim(value: string | null | undefined): string {
 	return String(value ?? "")
@@ -85,11 +77,11 @@ export const GET: APIRoute = async ({ request, url }) => {
 	const [aggregate, variantsAggregate, statusRow, operationalSurface] = await Promise.all([
 		timing.time("productAggregate", () => getProductFullAggregate(productId, providerId)),
 		timing.time("variantsAggregate", () => getProductVariantsAggregate(productId, providerId)),
-		timing.time("productStatus", () =>
+		timing.time("productPublication", () =>
 			db
-				.select({ state: ProductStatus.state })
-				.from(ProductStatus)
-				.where(eq(ProductStatus.productId, productId))
+				.select({ state: Product.publicationState })
+				.from(Product)
+				.where(eq(Product.id, productId))
 				.then(first)
 		),
 		timing.time("productOperationalSurface", () =>

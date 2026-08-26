@@ -3,7 +3,7 @@
  * One batched SearchUnitView query → min available price, rating, applicable salida.
  * Avoids N+1 rate-plan lookups on /buscar/tours.
  *
- * Publish gate: ProductStatus=published, active variant/profile/category.
+ * Publish gate: Product.publicationState=published, active variant/profile/category.
  * Filters (level/duration) run in SQL before any row cap; price band after
  * per-product min price; card `limit` only after sort.
  */
@@ -39,7 +39,6 @@ import {
 	ProductCategoryLink,
 	ProductContent,
 	ProductReview,
-	ProductStatus,
 	sql,
 	SearchUnitView,
 	Tour,
@@ -245,7 +244,7 @@ async function loadTourSearchSurfaceCards(params: {
 	const whereParts = [
 		sql`lower(${Product.productType}) = 'tour'`,
 		publicCatalogProductEligibility(),
-		eq(ProductStatus.state, "published"),
+		eq(Product.publicationState, "published"),
 		eq(Variant.kind, "tour_slot"),
 		eq(Variant.isActive, true),
 		eq(TourSlotProfile.isActive, true),
@@ -317,7 +316,6 @@ async function loadTourSearchSurfaceCards(params: {
 				eq(ProductGeoPlace.isPrimary, true)
 			)
 		)
-		.innerJoin(ProductStatus, eq(ProductStatus.productId, Product.id))
 		.innerJoin(Variant, eq(Variant.id, SearchUnitView.variantId))
 		.innerJoin(
 			TourSlotProfile,

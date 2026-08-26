@@ -13,7 +13,6 @@ import {
 	ProductContent,
 	ProductGeoPlace,
 	ProductLocation,
-	ProductStatus,
 	Provider,
 	sql,
 } from "@/shared/infrastructure/db/compat"
@@ -40,7 +39,6 @@ const packages = await db
 	})
 	.from(Product)
 	.innerJoin(Provider, eq(Provider.id, Product.providerId))
-	.innerJoin(ProductStatus, eq(ProductStatus.productId, Product.id))
 	.leftJoin(
 		ProductGeoPlace,
 		and(
@@ -60,7 +58,7 @@ const packages = await db
 		and(
 			sql`lower(${Product.productType}) = 'package'`,
 			publicCatalogProductEligibility(),
-			eq(ProductStatus.state, "published")
+			eq(Product.publicationState, "published")
 		)
 	)
 	.orderBy(asc(Product.name))

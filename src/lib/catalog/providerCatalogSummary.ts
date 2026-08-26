@@ -1,13 +1,4 @@
-import {
-	and,
-	db,
-	eq,
-	inArray,
-	Product,
-	ProductStatus,
-	sql,
-	Variant,
-} from "@/shared/infrastructure/db/compat"
+import { and, db, eq, inArray, Product, sql, Variant } from "@/shared/infrastructure/db/compat"
 
 import {
 	PRODUCT_VERTICAL_OPTIONS,
@@ -119,12 +110,9 @@ export async function getProviderCatalogSummary(
 	}
 	const statuses = productIds.length
 		? await db
-				.select({
-					productId: ProductStatus.productId,
-					state: ProductStatus.state,
-				})
-				.from(ProductStatus)
-				.where(inArray(ProductStatus.productId, productIds))
+				.select({ productId: Product.id, state: Product.publicationState })
+				.from(Product)
+				.where(inArray(Product.id, productIds))
 		: []
 	const statusMap = new Map(
 		statuses.map((status) => [status.productId, String(status.state ?? "draft")])
@@ -155,12 +143,9 @@ export async function getProviderCatalogSummary(
 	const allProductIds = allRows.map((product) => product.id)
 	const allStatuses = allProductIds.length
 		? await db
-				.select({
-					productId: ProductStatus.productId,
-					state: ProductStatus.state,
-				})
-				.from(ProductStatus)
-				.where(inArray(ProductStatus.productId, allProductIds))
+				.select({ productId: Product.id, state: Product.publicationState })
+				.from(Product)
+				.where(inArray(Product.id, allProductIds))
 		: []
 	const allStatusMap = new Map(
 		allStatuses.map((status) => [status.productId, String(status.state ?? "draft")])

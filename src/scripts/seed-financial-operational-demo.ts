@@ -18,7 +18,6 @@ import {
 	Product,
 	ProductContent,
 	ProductLocation,
-	ProductStatus,
 	Provider,
 	ProviderFinancialProfile,
 	ProviderPayableSnapshot,
@@ -291,19 +290,13 @@ async function seedCatalog(userId: string): Promise<void> {
 		})
 
 	await db
-		.insert(ProductStatus)
-		.values({
-			productId: PRODUCT_ID,
-			state: "published",
-			validationErrorsJson: [],
+		.update(Product)
+		.set({
+			publicationState: "published",
+			publicationValidationErrorsJson: [],
+			publicationUpdatedAt: new Date(),
 		})
-		.onConflictDoUpdate({
-			target: [ProductStatus.productId],
-			set: {
-				state: "published",
-				validationErrorsJson: [],
-			},
-		})
+		.where(eq(Product.id, PRODUCT_ID))
 
 	await db
 		.insert(ProductContent)

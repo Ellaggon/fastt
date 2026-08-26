@@ -7,7 +7,6 @@ import {
 	lt,
 	Product,
 	Provider,
-	ProductStatus,
 	SearchUnitView,
 	sql,
 } from "@/shared/infrastructure/db/compat"
@@ -126,7 +125,6 @@ async function loadPublicSearchSurface(params: {
 		.from(SearchUnitView)
 		.innerJoin(Product, eq(Product.id, SearchUnitView.productId))
 		.innerJoin(Provider, eq(Provider.id, Product.providerId))
-		.innerJoin(ProductStatus, eq(ProductStatus.productId, Product.id))
 		.innerJoin(
 			ProductGeoPlace,
 			and(
@@ -139,7 +137,7 @@ async function loadPublicSearchSurface(params: {
 			and(
 				eq(ProductGeoPlace.placeId, params.geoPlaceId),
 				publicCatalogProductEligibility(),
-				eq(ProductStatus.state, "published"),
+				eq(Product.publicationState, "published"),
 				eq(SearchUnitView.occupancyKey, occupancyKey),
 				eq(SearchUnitView.currency, params.currency),
 				gte(SearchUnitView.date, params.checkIn),
