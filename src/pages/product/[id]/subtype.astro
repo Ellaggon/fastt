@@ -14,7 +14,7 @@ import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
 import { playbookRedirectHrefFor } from "@/lib/playbook/playbook-nav"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { getProductVerticalDefinition } from "@/lib/productVerticalRegistry"
+import { getProductVerticalDefinition } from "@/lib/catalog/productVerticalRegistry"
 import { routes } from "@/lib/routes"
 import { getProductById } from "@/modules/catalog/public"
 import { first, db, eq, Hotel, Limousine, Package, Tour } from "@/shared/infrastructure/db/compat"
@@ -47,7 +47,7 @@ const vertical = getProductVerticalDefinition(product.productType)
 const verticalLabel = vertical?.labels.singular.toLowerCase() ?? "oferta"
 const detailTitle = vertical?.labels.detailTitle ?? "Detalles de la oferta"
 const subtypeHeading = pt === "hotel" ? "Detalles del alojamiento" : `Detalles del ${verticalLabel}`
-const workspacePlural = vertical?.labels.plural ?? "Ofertas"
+const workspacePlural = vertical?.labels.workspacePlural ?? "Ofertas"
 
 function listToText(value: unknown, key = "description") {
 	if (!Array.isArray(value)) return ""

@@ -1,5 +1,5 @@
 ---
-import { normalizeProductTypeForStorage } from "@/lib/productVerticalRegistry"
+import { normalizeProductTypeForStorage } from "@/lib/catalog/productVerticalRegistry"
 import { routes } from "@/lib/routes"
 
 const requestedType = String(Astro.url.searchParams.get("type") ?? "").trim()

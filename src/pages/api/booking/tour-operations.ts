@@ -3,7 +3,7 @@ import { ZodError, z } from "zod"
 
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { isTourProductType } from "@/lib/productVerticalRegistry"
+import { isTourProductType } from "@/lib/catalog/productVerticalRegistry"
 import {
 	Booking,
 	db,

@@ -28,7 +28,10 @@ import {
 	type WorkspaceExperienceResolution,
 	WORKSPACE_CAPABILITY_THRESHOLDS,
 } from "@/lib/workspace/providerWorkspaceCapabilities"
-import { normalizeProductVertical, type ProductVertical } from "@/lib/productVerticalRegistry"
+import {
+	normalizeProductVertical,
+	type ProductVertical,
+} from "@/lib/catalog/productVerticalRegistry"
 
 export type ProviderSidebarReadiness = Partial<Record<string, string>>
 

@@ -7,8 +7,8 @@ import Card from "@/components/ui/Card.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
 import { getProviderCatalogSummary } from "@/lib/catalog/providerCatalogSummary"
-import { PRODUCT_VERTICALS } from "@/lib/productVerticalRegistry"
 import { routes } from "@/lib/routes"
 
 const user = await getUserFromRequest(Astro.request)
@@ -17,8 +17,8 @@ if (!user) return Astro.redirect("/SignInPage")
 const providerId = (await getProviderIdFromRequest(Astro.request)) ?? ""
 if (!providerId) return Astro.redirect(routes.providerSettingsProfile())
 
-const vertical = PRODUCT_VERTICALS.limousine
-const catalog = await getProviderCatalogSummary(providerId, vertical.storageType)
+const vertical = getProductVerticalEntry("limousine")
+const catalog = await getProviderCatalogSummary(providerId, vertical.productType)
 ---
 
 <WorkspaceLayout title="Traslados">
@@ -47,7 +47,7 @@ const catalog = await getProviderCatalogSummary(providerId, vertical.storageType
 					</div>
 				</div>
 				<Button
-					href={vertical.providerRoutes.create}
+					href={vertical.routes.workspaceCreateHref}
 					class="bg-white text-slate-950 hover:bg-slate-100"
 				>
 					<Plus class="h-4 w-4" aria-hidden="true" />
@@ -101,7 +101,7 @@ const catalog = await getProviderCatalogSummary(providerId, vertical.storageType
 								Crea una ficha inicial para preparar vehículo, zonas, fotos y disponibilidad.
 							</p>
 						</div>
-						<Button href={vertical.providerRoutes.create}>Crear traslado</Button>
+						<Button href={vertical.routes.workspaceCreateHref}>Crear traslado</Button>
 					</Card>
 				) : (
 					<div class="grid gap-3">
