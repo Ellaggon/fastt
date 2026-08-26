@@ -1,6 +1,11 @@
-export type ProductVertical = "hotel" | "tour" | "package" | "limousine" | "rental" | "generic"
-
 export type ProductTypeValue = "hotel" | "tour" | "package" | "limousine"
+export type ProductTypeStorage = ProductTypeValue
+export type ProductVertical = ProductTypeValue | "rental" | "generic"
+export type VariantKindForVertical =
+	| "hotel_room"
+	| "tour_slot"
+	| "package_base"
+	| "limousine_service"
 
 export type ProductVerticalSectionKey =
 	| "identity"
@@ -52,12 +57,14 @@ export type ProductVerticalRoutes = {
 	workspaceCreateHref: string
 	workspaceFilteredHref: string
 	publicCollectionHref: string | null
+	publicSearchHref: string | null
 	publicDetailHref: (productId: string) => string | null
 }
 
 export type ProductVerticalLabels = {
 	singular: string
 	plural: string
+	detailTitle: string
 	workspaceSingular: string
 	workspacePlural: string
 	publicSingular: string
@@ -74,6 +81,7 @@ export type ProductVerticalLabels = {
 export type ProductVerticalRegistryEntry = {
 	vertical: ProductVertical
 	productType: ProductTypeValue | null
+	variantKind: VariantKindForVertical | null
 	status: "active" | "planned" | "fallback"
 	labels: ProductVerticalLabels
 	routes: ProductVerticalRoutes
@@ -143,10 +151,12 @@ export const productVerticalRegistry = {
 	hotel: {
 		vertical: "hotel",
 		productType: "hotel",
+		variantKind: "hotel_room",
 		status: "active",
 		labels: {
 			singular: "alojamiento",
 			plural: "alojamientos",
+			detailTitle: "Ficha del alojamiento",
 			workspaceSingular: "Alojamiento",
 			workspacePlural: "Alojamientos",
 			publicSingular: "Hotel",
@@ -164,6 +174,7 @@ export const productVerticalRegistry = {
 			workspaceCreateHref: "/product/create?playbook=launch&step=create&flow=create",
 			workspaceFilteredHref: "/dashboard",
 			publicCollectionHref: "/hotels",
+			publicSearchHref: "/buscar/alojamientos",
 			publicDetailHref: (productId: string) => `/hotels/${encodeId(productId)}`,
 		},
 		creation: {
@@ -218,10 +229,12 @@ export const productVerticalRegistry = {
 	tour: {
 		vertical: "tour",
 		productType: "tour",
+		variantKind: "tour_slot",
 		status: "active",
 		labels: {
 			singular: "tour",
 			plural: "tours",
+			detailTitle: "Ficha del tour",
 			workspaceSingular: "Tour",
 			workspacePlural: "Tours",
 			publicSingular: "Tour",
@@ -239,6 +252,7 @@ export const productVerticalRegistry = {
 			workspaceCreateHref: "/product/create?type=Tour&playbook=launch-tour&step=create&flow=create",
 			workspaceFilteredHref: "/catalog/tours",
 			publicCollectionHref: "/tours",
+			publicSearchHref: "/buscar/tours",
 			publicDetailHref: (productId: string) => `/tours/${encodeId(productId)}`,
 		},
 		creation: {
@@ -296,10 +310,12 @@ export const productVerticalRegistry = {
 	package: {
 		vertical: "package",
 		productType: "package",
+		variantKind: "package_base",
 		status: "active",
 		labels: {
 			singular: "paquete",
 			plural: "paquetes",
+			detailTitle: "Ficha del paquete",
 			workspaceSingular: "Paquete",
 			workspacePlural: "Paquetes",
 			publicSingular: "Paquete",
@@ -317,6 +333,7 @@ export const productVerticalRegistry = {
 			workspaceCreateHref: "/product/create?type=Package",
 			workspaceFilteredHref: "/catalog/packages",
 			publicCollectionHref: "/packages",
+			publicSearchHref: "/packages",
 			publicDetailHref: (productId: string) => `/packages/${encodeId(productId)}`,
 		},
 		creation: {
@@ -371,10 +388,12 @@ export const productVerticalRegistry = {
 	limousine: {
 		vertical: "limousine",
 		productType: "limousine",
+		variantKind: "limousine_service",
 		status: "active",
 		labels: {
 			singular: "traslado",
 			plural: "traslados",
+			detailTitle: "Ficha del traslado",
 			workspaceSingular: "Traslado",
 			workspacePlural: "Traslados",
 			publicSingular: "Traslado",
@@ -392,6 +411,7 @@ export const productVerticalRegistry = {
 			workspaceCreateHref: "/product/create?type=Limousine",
 			workspaceFilteredHref: "/catalog/limousines",
 			publicCollectionHref: "/limousines",
+			publicSearchHref: "/limousines/search",
 			publicDetailHref: (productId: string) => `/limousines/${encodeId(productId)}`,
 		},
 		creation: {
@@ -438,10 +458,12 @@ export const productVerticalRegistry = {
 	rental: {
 		vertical: "rental",
 		productType: null,
+		variantKind: null,
 		status: "planned",
 		labels: {
 			singular: "propiedad",
 			plural: "propiedades",
+			detailTitle: "Ficha de la propiedad",
 			workspaceSingular: "Propiedad",
 			workspacePlural: "Propiedades",
 			publicSingular: "Propiedad",
@@ -459,6 +481,7 @@ export const productVerticalRegistry = {
 			workspaceCreateHref: "/product/create?type=Rental",
 			workspaceFilteredHref: "/dashboard",
 			publicCollectionHref: null,
+			publicSearchHref: null,
 			publicDetailHref: () => null,
 		},
 		creation: {
@@ -485,10 +508,12 @@ export const productVerticalRegistry = {
 	generic: {
 		vertical: "generic",
 		productType: null,
+		variantKind: null,
 		status: "fallback",
 		labels: {
 			singular: "producto",
 			plural: "productos",
+			detailTitle: "Detalles de la oferta",
 			workspaceSingular: "Producto",
 			workspacePlural: "Productos",
 			publicSingular: "Producto",
@@ -506,6 +531,7 @@ export const productVerticalRegistry = {
 			workspaceCreateHref: "/product/create",
 			workspaceFilteredHref: "/dashboard",
 			publicCollectionHref: null,
+			publicSearchHref: null,
 			publicDetailHref: () => null,
 		},
 		creation: {
@@ -533,39 +559,38 @@ export const productVerticalRegistry = {
 
 export const activeProductVerticals = ["hotel", "tour", "package", "limousine"] as const
 
+const PRODUCT_TYPE_ALIASES: Record<string, ProductVertical> = {
+	accommodation: "hotel",
+	accommodations: "hotel",
+	alojamiento: "hotel",
+	alojamientos: "hotel",
+	hotel: "hotel",
+	hotels: "hotel",
+	lodging: "hotel",
+	package: "package",
+	packages: "package",
+	paquete: "package",
+	paquetes: "package",
+	tour: "tour",
+	tours: "tour",
+	experience: "tour",
+	experiences: "tour",
+	limo: "limousine",
+	limos: "limousine",
+	limousine: "limousine",
+	limousines: "limousine",
+	limusina: "limousine",
+	limusinas: "limousine",
+	rental: "rental",
+	rentals: "rental",
+	vacation_rental: "rental",
+}
+
 export function normalizeProductVertical(value: unknown): ProductVertical {
 	const raw = String(value ?? "")
 		.trim()
 		.toLowerCase()
-	if (
-		raw === "hotel" ||
-		raw === "hotels" ||
-		raw === "lodging" ||
-		raw === "accommodation" ||
-		raw === "accommodations" ||
-		raw === "alojamiento" ||
-		raw === "alojamientos"
-	) {
-		return "hotel"
-	}
-	if (raw === "tour" || raw === "tours" || raw === "experience" || raw === "experiences") {
-		return "tour"
-	}
-	if (raw === "package" || raw === "packages" || raw === "paquete" || raw === "paquetes") {
-		return "package"
-	}
-	if (
-		raw === "limousine" ||
-		raw === "limousines" ||
-		raw === "limusina" ||
-		raw === "limusinas" ||
-		raw === "limo" ||
-		raw === "limos"
-	) {
-		return "limousine"
-	}
-	if (raw === "rental" || raw === "rentals" || raw === "vacation_rental") return "rental"
-	return "generic"
+	return PRODUCT_TYPE_ALIASES[raw] ?? "generic"
 }
 
 export function getProductVerticalEntry(value: unknown): ProductVerticalRegistryEntry {
@@ -590,3 +615,39 @@ export function getProductTypeFromVertical(vertical: ProductVertical): ProductTy
 export function normalizeProductTypeValue(value: unknown): ProductTypeValue | null {
 	return getProductTypeFromVertical(normalizeProductVertical(value))
 }
+
+/** Canonical storage name for a persisted product type. */
+export function normalizeProductTypeForStorage(value: unknown): ProductTypeStorage | null {
+	return normalizeProductTypeValue(value)
+}
+
+/** Returns null for unsupported and non-persistable verticals. */
+export function getProductVerticalDefinition(value: unknown): ProductVerticalRegistryEntry | null {
+	const entry = productVerticalRegistry[normalizeProductVertical(value)]
+	return entry.productType ? entry : null
+}
+
+export function isHotelProductType(value: unknown): boolean {
+	return normalizeProductVertical(value) === "hotel"
+}
+
+export function isTourProductType(value: unknown): boolean {
+	return normalizeProductVertical(value) === "tour"
+}
+
+export function productTypeLabel(value: unknown, fallback = "Oferta"): string {
+	return getProductVerticalDefinition(value)?.labels.workspaceSingular ?? fallback
+}
+
+export function productTypePluralLabel(value: unknown, fallback = "Servicios"): string {
+	return getProductVerticalDefinition(value)?.labels.workspacePlural ?? fallback
+}
+
+export function variantKindForProductType(value: unknown): VariantKindForVertical | null {
+	return getProductVerticalDefinition(value)?.variantKind ?? null
+}
+
+/** Active, persistable verticals shown in provider catalog controls. */
+export const PRODUCT_VERTICAL_OPTIONS = activeProductVerticals.map(
+	(vertical) => productVerticalRegistry[vertical]
+)
