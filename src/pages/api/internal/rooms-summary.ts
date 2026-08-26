@@ -184,7 +184,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 		return {
 			id: variant.id,
 			name: variant.name,
-			status: String(variant.status ?? "draft")
+			status: String(variant.lifecycleState ?? "draft")
 				.trim()
 				.toLowerCase(),
 			kindLabel: kindLabel(variant.kind),

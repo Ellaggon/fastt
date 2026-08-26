@@ -335,7 +335,8 @@ export async function loadTourAdminQualityQueue(params?: {
 				and(
 					inArray(Variant.productId, productIds),
 					eq(Variant.kind, "tour_slot"),
-					eq(Variant.isActive, true)
+					eq(Variant.salesEnabled, true),
+					eq(Variant.lifecycleState, "ready")
 				)
 			)
 			.groupBy(Variant.productId),
@@ -359,7 +360,8 @@ export async function loadTourAdminQualityQueue(params?: {
 				and(
 					inArray(Variant.productId, productIds),
 					eq(Variant.kind, "tour_slot"),
-					eq(Variant.isActive, true)
+					eq(Variant.salesEnabled, true),
+					eq(Variant.lifecycleState, "ready")
 				)
 			)
 			.groupBy(Variant.productId),

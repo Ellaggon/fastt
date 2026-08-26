@@ -109,7 +109,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 		aggregate.images.find((image) => image.isPrimary) ?? aggregate.images[0] ?? null
 	const variants = Array.isArray(variantsAggregate?.variants) ? variantsAggregate.variants : []
 	const activeVariants = variants.filter((variant) => {
-		const status = toLowerTrim(variant.status)
+		const status = toLowerTrim(variant.lifecycleState)
 		return status !== "archived"
 	})
 	const hasContent = Boolean(aggregate.content.description?.trim())

@@ -97,7 +97,8 @@ async function getProviderRatePlanIds(providerId: string): Promise<string[]> {
 		.where(
 			and(
 				eq(Product.providerId, providerId),
-				eq(Variant.isActive, true),
+				eq(Variant.salesEnabled, true),
+				eq(Variant.lifecycleState, "ready"),
 				eq(RatePlan.isActive, true)
 			)
 		)
@@ -110,7 +111,13 @@ async function getProviderVariantIds(providerId: string): Promise<string[]> {
 		.select({ variantId: Variant.id })
 		.from(Variant)
 		.innerJoin(Product, eq(Product.id, Variant.productId))
-		.where(and(eq(Product.providerId, providerId), eq(Variant.isActive, true)))
+		.where(
+			and(
+				eq(Product.providerId, providerId),
+				eq(Variant.salesEnabled, true),
+				eq(Variant.lifecycleState, "ready")
+			)
+		)
 
 	return rows.map((row) => String(row.variantId))
 }

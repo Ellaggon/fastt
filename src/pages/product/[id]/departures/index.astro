@@ -39,8 +39,6 @@ const rows = await db
 	.select({
 		id: Variant.id,
 		name: Variant.name,
-		status: Variant.status,
-		isActive: Variant.isActive,
 		departureTime: TourSlotProfile.departureTime,
 		durationMinutes: TourSlotProfile.durationMinutes,
 		maxPax: TourSlotProfile.maxPax,

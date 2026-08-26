@@ -97,7 +97,7 @@ async function stepCompletionFlags(
 
 	const variants = Array.isArray(variantsAggregate?.variants) ? variantsAggregate.variants : []
 	const activeVariants = variants.filter((variant) => {
-		const status = String(variant.status ?? "")
+		const status = String(variant.lifecycleState ?? "")
 			.trim()
 			.toLowerCase()
 		return status !== "archived"

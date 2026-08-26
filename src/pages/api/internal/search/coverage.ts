@@ -46,7 +46,7 @@ export const GET: APIRoute = async ({ url }) => {
 	const activeVariants = await db
 		.select({ id: Variant.id, productId: Variant.productId })
 		.from(Variant)
-		.where(eq(Variant.isActive, true))
+		.where(and(eq(Variant.salesEnabled, true), eq(Variant.lifecycleState, "ready")))
 
 	const rows = await db
 		.select({

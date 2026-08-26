@@ -412,11 +412,14 @@ async function upsertFixture(params: {
 				productId: unit.productId,
 				name: unit.name,
 				kind: unit.kind,
-				status: "ready",
-				isActive: true,
+				lifecycleState: "ready",
+				salesEnabled: true,
 				createdAt: now,
 			})
-			.onConflictDoUpdate({ target: Variant.id, set: { status: "ready", isActive: true } })
+			.onConflictDoUpdate({
+				target: Variant.id,
+				set: { lifecycleState: "ready", salesEnabled: true },
+			})
 		await db
 			.insert(VariantCapacity)
 			.values({
