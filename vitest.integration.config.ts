@@ -13,9 +13,10 @@ export default defineConfig({
 		setupFiles: [path.resolve(__dirname, "tests/setup/clean-db-env.ts")],
 		fileParallelism: false,
 		maxWorkers: 1,
-		// The isolated Supabase instance is a real network dependency. Five seconds
-		// is appropriate for unit work but flakes valid aggregate certification.
-		testTimeout: 15_000,
+		// The isolated Supabase instance is a real network dependency. A workflow
+		// may include several aggregate refreshes, so retain a bounded but realistic
+		// budget instead of treating normal network latency as a regression.
+		testTimeout: 30_000,
 	},
 	resolve: {
 		alias: {

@@ -32,7 +32,6 @@ import {
 	Variant,
 	VariantCapacity,
 	VariantInventoryConfig,
-	VariantReadiness,
 	VariantRoomAmenity,
 	VariantRoomBed,
 	VariantRoomProfile,
@@ -403,10 +402,10 @@ async function seedCatalog(userId: string): Promise<void> {
 			name: "Suite Norte",
 			description: "Suite demo para QA operacional de finanzas.",
 			kind: "hotel_room",
-			status: "sellable",
+			lifecycleState: "ready",
 			createdAt: NOW,
 			confirmationType: "instant",
-			isActive: true,
+			salesEnabled: true,
 		})
 		.onConflictDoUpdate({
 			target: [Variant.id],
@@ -415,9 +414,9 @@ async function seedCatalog(userId: string): Promise<void> {
 				name: "Suite Norte",
 				description: "Suite demo para QA operacional de finanzas.",
 				kind: "hotel_room",
-				status: "sellable",
+				lifecycleState: "ready",
 				confirmationType: "instant",
-				isActive: true,
+				salesEnabled: true,
 			},
 		})
 
@@ -516,21 +515,14 @@ async function seedCatalog(userId: string): Promise<void> {
 	}
 
 	await db
-		.insert(VariantReadiness)
-		.values({
-			variantId: VARIANT_ID,
-			state: "ready",
-			validationErrorsJson: [],
-			updatedAt: NOW,
+		.update(Variant)
+		.set({
+			lifecycleState: "ready",
+			salesEnabled: true,
+			lifecycleValidationErrorsJson: [],
+			lifecycleEvaluatedAt: NOW,
 		})
-		.onConflictDoUpdate({
-			target: [VariantReadiness.variantId],
-			set: {
-				state: "ready",
-				validationErrorsJson: [],
-				updatedAt: NOW,
-			},
-		})
+		.where(eq(Variant.id, VARIANT_ID))
 
 	const variantImages = [
 		{

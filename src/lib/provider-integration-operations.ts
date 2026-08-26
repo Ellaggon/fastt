@@ -1050,7 +1050,13 @@ export async function listProviderIntegrationMappingCatalog(
 			})
 			.from(Variant)
 			.innerJoin(Product, eq(Product.id, Variant.productId))
-			.where(and(eq(Product.providerId, providerId), eq(Variant.isActive, true)))
+			.where(
+				and(
+					eq(Product.providerId, providerId),
+					eq(Variant.salesEnabled, true),
+					eq(Variant.lifecycleState, "ready")
+				)
+			)
 			.orderBy(Product.name, Variant.name),
 		db
 			.select({
@@ -1061,13 +1067,21 @@ export async function listProviderIntegrationMappingCatalog(
 				productId: Product.id,
 				productName: Product.name,
 				isDefault: RatePlan.isDefault,
-				variantActive: Variant.isActive,
+				variantSalesEnabled: Variant.salesEnabled,
+				variantLifecycleState: Variant.lifecycleState,
 				productState: Product.publicationState,
 			})
 			.from(RatePlan)
 			.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
 			.innerJoin(Product, eq(Product.id, Variant.productId))
-			.where(and(eq(Product.providerId, providerId), eq(RatePlan.isActive, true)))
+			.where(
+				and(
+					eq(Product.providerId, providerId),
+					eq(RatePlan.isActive, true),
+					eq(Variant.salesEnabled, true),
+					eq(Variant.lifecycleState, "ready")
+				)
+			)
 			.orderBy(Product.name, Variant.name, RatePlan.name),
 		db
 			.select({
@@ -1109,7 +1123,10 @@ export async function listProviderIntegrationMappingCatalog(
 			variantName: ratePlan.variantName,
 			isDefault: Boolean(ratePlan.isDefault),
 			productPublished: ratePlan.productState === "published",
-			sellable: ratePlan.productState === "published" && Boolean(ratePlan.variantActive),
+			sellable:
+				ratePlan.productState === "published" &&
+				Boolean(ratePlan.variantSalesEnabled) &&
+				ratePlan.variantLifecycleState === "ready",
 			certificationEligible:
 				Boolean(certificationFixtureProductId) &&
 				ratePlan.productId === certificationFixtureProductId,

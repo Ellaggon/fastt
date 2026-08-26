@@ -34,7 +34,7 @@ const rows = await db
 		variantId: Variant.id,
 		variantName: Variant.name,
 		variantKind: Variant.kind,
-		variantActive: Variant.isActive,
+		variantActive: Variant.salesEnabled,
 	})
 	.from(Product)
 	.leftJoin(Variant, eq(Variant.productId, Product.id))

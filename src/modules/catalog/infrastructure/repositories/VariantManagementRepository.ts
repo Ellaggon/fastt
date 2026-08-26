@@ -4,7 +4,6 @@ import {
 	Variant,
 	VariantCapacity,
 	VariantRoomProfile,
-	VariantReadiness,
 	Product,
 	RoomType,
 	RatePlan,
@@ -35,14 +34,19 @@ import {
 import { DeleteObjectCommand } from "@aws-sdk/client-s3"
 import type { S3Client } from "@aws-sdk/client-s3"
 import type {
-	VariantLifecycleStatus,
+	VariantLifecycleState,
 	VariantManagementRepositoryPort,
-	VariantReadinessSnapshot,
+	VariantLifecycleEvaluation,
 } from "../../application/ports/VariantManagementRepositoryPort"
 import type { RatePlanPricingReadRepositoryPort } from "../../../pricing/application/ports/RatePlanPricingReadRepositoryPort"
 import { RatePlanPricingReadRepository } from "../../../pricing/infrastructure/repositories/RatePlanPricingReadRepository"
 import type { RatePlanCommandRepositoryPort } from "../../../pricing/application/ports/RatePlanCommandRepositoryPort"
 import { RatePlanCommandRepository } from "../../../pricing/infrastructure/repositories/RatePlanCommandRepository"
+
+function toLifecycleState(value: string | null | undefined): VariantLifecycleState {
+	if (value === "ready" || value === "archived") return value
+	return "draft"
+}
 
 export class VariantManagementRepository implements VariantManagementRepositoryPort {
 	constructor(
@@ -56,7 +60,7 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 			id: string
 			name: string
 			kind: string | null
-			status: string | null
+			lifecycleState: VariantLifecycleState
 			pricing: { hasBaseRate: boolean; hasDefaultRatePlan: boolean }
 			capacity: {
 				minOccupancy: number
@@ -72,7 +76,7 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 				id: Variant.id,
 				name: Variant.name,
 				kind: Variant.kind,
-				status: Variant.status,
+				lifecycleState: Variant.lifecycleState,
 				defaultRatePlanId: RatePlan.id,
 				capVariantId: VariantCapacity.variantId,
 				minOccupancy: VariantCapacity.minOccupancy,
@@ -105,7 +109,7 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 					id: r.id,
 					name: r.name,
 					kind: r.kind ?? null,
-					status: r.status ?? null,
+					lifecycleState: toLifecycleState(r.lifecycleState),
 					pricing: {
 						hasBaseRate: pricingSummary != null,
 						hasDefaultRatePlan: pricingSummary != null,
@@ -145,13 +149,19 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 				name: Variant.name,
 				description: Variant.description,
 				externalCode: Variant.externalCode,
-				status: Variant.status,
-				isActive: Variant.isActive,
+				lifecycleState: Variant.lifecycleState,
+				salesEnabled: Variant.salesEnabled,
 			})
 			.from(Variant)
 			.where(eq(Variant.id, variantId))
 			.then(first)
-		return row ?? null
+		return row
+			? {
+					...row,
+					lifecycleState: toLifecycleState(row.lifecycleState),
+					salesEnabled: Boolean(row.salesEnabled),
+				}
+			: null
 	}
 
 	async createVariant(params: {
@@ -160,9 +170,9 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 		kind: "hotel_room" | "tour_slot" | "package_base" | "limousine_service"
 		name: string
 		description?: string | null
-		status: VariantLifecycleStatus
+		lifecycleState: VariantLifecycleState
 		createdAt: Date
-		isActive: boolean
+		salesEnabled: boolean
 	}) {
 		await db.insert(Variant).values({
 			id: params.id,
@@ -170,11 +180,10 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 			name: params.name,
 			description: params.description ?? null,
 			kind: params.kind,
-			status: params.status,
+			lifecycleState: params.lifecycleState,
 			createdAt: params.createdAt,
-			isActive: params.isActive,
-			// Legacy fields remain defaulted by DB.
-		} as any)
+			salesEnabled: params.salesEnabled,
+		})
 	}
 
 	async upsertCapacity(params: {
@@ -274,66 +283,65 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 		return rows.length > 0
 	}
 
-	async upsertReadiness(params: VariantReadinessSnapshot) {
-		const existing = await db
-			.select({ variantId: VariantReadiness.variantId })
-			.from(VariantReadiness)
-			.where(eq(VariantReadiness.variantId, params.variantId))
-			.then(first)
-
-		if (!existing) {
-			await db.insert(VariantReadiness).values({
-				variantId: params.variantId,
-				state: params.state,
-				validationErrorsJson: params.validationErrorsJson ?? null,
-				updatedAt: new Date(),
-			})
-			return
-		}
-
-		await db
-			.update(VariantReadiness)
+	async persistLifecycleEvaluation(params: VariantLifecycleEvaluation) {
+		const evaluatedAt = new Date()
+		const updated = await db
+			.update(Variant)
 			.set({
-				state: params.state,
-				validationErrorsJson: params.validationErrorsJson ?? null,
-				updatedAt: new Date(),
+				lifecycleState: params.lifecycleState,
+				lifecycleValidationErrorsJson: params.validationErrorsJson ?? null,
+				lifecycleEvaluatedAt: evaluatedAt,
+				// A failed validation always removes sale intent; a successful check preserves it.
+				salesEnabled: params.lifecycleState === "draft" ? false : undefined,
 			})
-			.where(eq(VariantReadiness.variantId, params.variantId))
+			.where(eq(Variant.id, params.variantId))
+			.returning({ id: Variant.id })
+		if (!updated[0]) throw new Error("VARIANT_NOT_FOUND")
 	}
 
-	async getReadiness(variantId: string) {
+	async getLifecycleEvaluation(variantId: string) {
 		const row = await db
 			.select({
-				variantId: VariantReadiness.variantId,
-				state: VariantReadiness.state,
-				validationErrorsJson: VariantReadiness.validationErrorsJson,
+				variantId: Variant.id,
+				lifecycleState: Variant.lifecycleState,
+				validationErrorsJson: Variant.lifecycleValidationErrorsJson,
 			})
-			.from(VariantReadiness)
-			.where(eq(VariantReadiness.variantId, variantId))
+			.from(Variant)
+			.where(eq(Variant.id, variantId))
 			.then(first)
 
 		if (!row) return null
 
-		// We only ever write "draft"|"ready" from application use-cases.
 		return {
 			variantId: row.variantId,
-			state: row.state as VariantReadinessSnapshot["state"],
+			lifecycleState:
+				toLifecycleState(row.lifecycleState) === "ready" ? ("ready" as const) : ("draft" as const),
 			validationErrorsJson: row.validationErrorsJson ?? null,
 		}
 	}
 
-	async updateVariantStatus(params: {
+	async updateVariantLifecycle(params: {
 		variantId: string
-		status: VariantLifecycleStatus
-		isActive?: boolean
+		lifecycleState: VariantLifecycleState
 	}) {
+		const lifecycleEvaluatedAt = new Date()
 		await db
 			.update(Variant)
 			.set({
-				status: params.status,
-				isActive: params.isActive ?? undefined,
-			} as any)
+				lifecycleState: params.lifecycleState,
+				lifecycleEvaluatedAt,
+				salesEnabled: params.lifecycleState === "ready" ? undefined : false,
+			})
 			.where(eq(Variant.id, params.variantId))
+	}
+
+	async setVariantSalesEnabled(params: { variantId: string; salesEnabled: boolean }) {
+		const updated = await db
+			.update(Variant)
+			.set({ salesEnabled: params.salesEnabled })
+			.where(eq(Variant.id, params.variantId))
+			.returning({ id: Variant.id })
+		if (!updated[0]) throw new Error("VARIANT_NOT_FOUND")
 	}
 
 	async deleteVariantCascade(variantId: string) {
@@ -431,7 +439,6 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 		await db.delete(VariantRoomBed).where(eq(VariantRoomBed.variantId, variantId))
 		await db.delete(VariantRoomProfile).where(eq(VariantRoomProfile.variantId, variantId))
 		await db.delete(VariantCapacity).where(eq(VariantCapacity.variantId, variantId))
-		await db.delete(VariantReadiness).where(eq(VariantReadiness.variantId, variantId))
 		await db.delete(Variant).where(eq(Variant.id, variantId))
 
 		if (!this.r2 || !process.env.R2_BUCKET_NAME) return

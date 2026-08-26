@@ -287,19 +287,19 @@ async function ensureLocalFixtureData() {
 				name: room.name,
 				description: "Datos sintéticos para certificación de Channex; no vendible.",
 				kind: "hotel_room",
-				status: "sellable",
+				lifecycleState: "ready",
 				createdAt: now,
 				confirmationType: "instant",
 				externalCode: `cert-${room.id.slice(-16)}`,
-				isActive: true,
+				salesEnabled: true,
 			})
 			.onConflictDoUpdate({
 				target: [Variant.id],
 				set: {
 					productId: PRODUCT_ID,
 					name: room.name,
-					status: "sellable",
-					isActive: true,
+					lifecycleState: "ready",
+					salesEnabled: true,
 				},
 			})
 		await db

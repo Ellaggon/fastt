@@ -1,6 +1,6 @@
 import type {
 	VariantKind,
-	VariantLifecycleStatus,
+	VariantLifecycleState,
 	VariantManagementRepositoryPort,
 } from "../../ports/VariantManagementRepositoryPort"
 import { createVariantSchema } from "../../schemas/variant/variantSchemas"
@@ -35,7 +35,7 @@ export async function createVariant(
 		/** Inventory cupo bootstrap; tour_slot should pass maxPax. Default 1 (hotel rooms). */
 		defaultTotalUnits?: number
 	}
-): Promise<{ variantId: string; status: VariantLifecycleStatus }> {
+): Promise<{ variantId: string; lifecycleState: VariantLifecycleState }> {
 	const parsed = createVariantSchema.parse({
 		productId: params.productId,
 		name: params.name,
@@ -54,8 +54,8 @@ export async function createVariant(
 	const variantId = crypto.randomUUID()
 	const createdAt = new Date()
 
-	// Start inactive until it becomes ready/sellable.
-	const status: VariantLifecycleStatus = "draft"
+	// A new unit is not validated and never enters sales implicitly.
+	const lifecycleState: VariantLifecycleState = "draft"
 
 	await deps.repo.createVariant({
 		id: variantId,
@@ -63,9 +63,9 @@ export async function createVariant(
 		kind: parsed.kind,
 		name: parsed.name,
 		description: parsed.description ?? null,
-		status,
+		lifecycleState,
 		createdAt,
-		isActive: false,
+		salesEnabled: false,
 	})
 
 	const defaultTotalUnits = Math.max(1, Math.floor(Number(params.defaultTotalUnits ?? 1)) || 1)
@@ -82,5 +82,5 @@ export async function createVariant(
 		days: 365,
 	})
 
-	return { variantId, status }
+	return { variantId, lifecycleState }
 }

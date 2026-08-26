@@ -1,5 +1,5 @@
 export type VariantKind = "hotel_room" | "tour_slot" | "package_base" | "limousine_service"
-export type VariantLifecycleStatus = "draft" | "ready" | "sellable" | "archived"
+export type VariantLifecycleState = "draft" | "ready" | "archived"
 
 export type VariantCore = {
 	id: string
@@ -7,9 +7,9 @@ export type VariantCore = {
 	kind: VariantKind
 	name: string
 	description?: string | null
-	status: VariantLifecycleStatus
+	lifecycleState: VariantLifecycleState
 	createdAt: Date
-	isActive: boolean
+	salesEnabled: boolean
 }
 
 export type VariantCapacity = {
@@ -20,9 +20,9 @@ export type VariantCapacity = {
 	maxChildren?: number | null
 }
 
-export type VariantReadinessSnapshot = {
+export type VariantLifecycleEvaluation = {
 	variantId: string
-	state: "draft" | "ready"
+	lifecycleState: "draft" | "ready"
 	validationErrorsJson: unknown | null
 }
 
@@ -37,8 +37,8 @@ export interface VariantManagementRepositoryPort {
 		name: string
 		description?: string | null
 		externalCode?: string | null
-		status?: string | null
-		isActive: boolean
+		lifecycleState: VariantLifecycleState
+		salesEnabled: boolean
 	} | null>
 
 	createVariant(params: {
@@ -47,9 +47,9 @@ export interface VariantManagementRepositoryPort {
 		kind: VariantKind
 		name: string
 		description?: string | null
-		status: VariantLifecycleStatus
+		lifecycleState: VariantLifecycleState
 		createdAt: Date
-		isActive: boolean
+		salesEnabled: boolean
 	}): Promise<void>
 
 	upsertCapacity(params: VariantCapacity): Promise<void>
@@ -62,14 +62,14 @@ export interface VariantManagementRepositoryPort {
 		roomTypeId: string
 	}): Promise<boolean>
 
-	upsertReadiness(params: VariantReadinessSnapshot): Promise<void>
-	getReadiness(variantId: string): Promise<VariantReadinessSnapshot | null>
+	persistLifecycleEvaluation(params: VariantLifecycleEvaluation): Promise<void>
+	getLifecycleEvaluation(variantId: string): Promise<VariantLifecycleEvaluation | null>
 
-	updateVariantStatus(params: {
+	updateVariantLifecycle(params: {
 		variantId: string
-		status: VariantLifecycleStatus
-		isActive?: boolean
+		lifecycleState: VariantLifecycleState
 	}): Promise<void>
+	setVariantSalesEnabled(params: { variantId: string; salesEnabled: boolean }): Promise<void>
 	deleteVariantCascade(variantId: string): Promise<void>
 
 	countDailyInventoryDays(variantId: string): Promise<number>

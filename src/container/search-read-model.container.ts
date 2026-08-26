@@ -124,7 +124,8 @@ export const searchReadModelRepository = {
 			filters.push(eq(Variant.productId, params.productId))
 		}
 		if (activeOnly) {
-			filters.push(eq(Variant.isActive, true))
+			filters.push(eq(Variant.salesEnabled, true))
+			filters.push(eq(Variant.lifecycleState, "ready"))
 		}
 		const whereClause =
 			filters.length === 0 ? undefined : filters.length === 1 ? filters[0] : and(...filters)
@@ -132,14 +133,14 @@ export const searchReadModelRepository = {
 			.select({
 				variantId: Variant.id,
 				productId: Variant.productId,
-				isActive: Variant.isActive,
+				salesEnabled: Variant.salesEnabled,
 			})
 			.from(Variant)
 		const rows = whereClause ? await query.where(whereClause) : await query
 		return rows.map((row) => ({
 			variantId: String(row.variantId),
 			productId: String(row.productId),
-			isActive: Boolean(row.isActive),
+			isActive: Boolean(row.salesEnabled),
 		}))
 	},
 

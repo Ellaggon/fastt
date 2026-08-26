@@ -73,12 +73,18 @@ export const POST: APIRoute = async ({ request }) => {
 			variantRows = await db
 				.select({ id: Variant.id })
 				.from(Variant)
-				.where(and(eq(Variant.productId, parsed.productId), eq(Variant.isActive, true)))
+				.where(
+					and(
+						eq(Variant.productId, parsed.productId),
+						eq(Variant.salesEnabled, true),
+						eq(Variant.lifecycleState, "ready")
+					)
+				)
 		} else {
 			variantRows = await db
 				.select({ id: Variant.id })
 				.from(Variant)
-				.where(eq(Variant.isActive, true))
+				.where(and(eq(Variant.salesEnabled, true), eq(Variant.lifecycleState, "ready")))
 		}
 
 		const variantIds = variantRows.map((row) => String(row.id)).filter(Boolean)

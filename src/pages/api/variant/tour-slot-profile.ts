@@ -176,8 +176,6 @@ export const POST: APIRoute = async ({ request }) => {
 			maxChildren: null,
 		})
 
-		await db.update(Variant).set({ isActive: parsed.isActive }).where(eq(Variant.id, variantId))
-
 		await invalidateVariant(variantId, parsed.productId)
 		await refreshProductPreparationSnapshotAfterMutation({
 			productId: parsed.productId,

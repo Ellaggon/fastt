@@ -247,8 +247,8 @@ describe.sequential("provider booking revision feed", () => {
 			productId,
 			name: "Habitación doble",
 			kind: "hotel_room",
-			status: "ready",
-			isActive: true,
+			lifecycleState: "ready",
+			salesEnabled: true,
 			createdAt: new Date(),
 		})
 		await db.insert(RatePlan).values({

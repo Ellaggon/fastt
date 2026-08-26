@@ -130,6 +130,8 @@ export async function upsertVariant(row: {
 	// Legacy aliases kept only for test fixture compatibility.
 	currency?: string
 	basePrice?: number | null
+	lifecycleState?: "draft" | "ready" | "archived"
+	salesEnabled?: boolean
 	isActive?: boolean
 	minOccupancy?: number
 	maxOccupancy?: number
@@ -142,7 +144,9 @@ export async function upsertVariant(row: {
 			kind: row.kind ?? "hotel_room",
 			name: row.name,
 			description: row.description ?? null,
-			isActive: row.isActive ?? true,
+			lifecycleState:
+				row.lifecycleState ?? ((row.salesEnabled ?? row.isActive ?? true) ? "ready" : "draft"),
+			salesEnabled: row.salesEnabled ?? row.isActive ?? true,
 		})
 		.onConflictDoUpdate({
 			target: [Variant.id],
@@ -151,7 +155,9 @@ export async function upsertVariant(row: {
 				kind: row.kind ?? "hotel_room",
 				name: row.name,
 				description: row.description ?? null,
-				isActive: row.isActive ?? true,
+				lifecycleState:
+					row.lifecycleState ?? ((row.salesEnabled ?? row.isActive ?? true) ? "ready" : "draft"),
+				salesEnabled: row.salesEnabled ?? row.isActive ?? true,
 			},
 		})
 

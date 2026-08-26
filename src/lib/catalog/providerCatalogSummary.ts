@@ -95,7 +95,8 @@ export async function getProviderCatalogSummary(
 				.select({
 					productId: Variant.productId,
 					variantId: Variant.id,
-					isActive: Variant.isActive,
+					salesEnabled: Variant.salesEnabled,
+					lifecycleState: Variant.lifecycleState,
 				})
 				.from(Variant)
 				.where(inArray(Variant.productId, productIds))
@@ -105,7 +106,7 @@ export async function getProviderCatalogSummary(
 		const productId = String(room.productId)
 		const current = roomCounts.get(productId) ?? { total: 0, active: 0 }
 		current.total += 1
-		if (room.isActive !== false) current.active += 1
+		if (room.salesEnabled && room.lifecycleState === "ready") current.active += 1
 		roomCounts.set(productId, current)
 	}
 	const statuses = productIds.length

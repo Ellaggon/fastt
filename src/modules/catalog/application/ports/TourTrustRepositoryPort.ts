@@ -15,7 +15,7 @@ export type TourTrustLineRow = {
 
 export type TourPrivateSlotRow = {
 	variantId: string
-	isActive: boolean | null
+	salesEnabled: boolean | null
 	productId: string
 	providerId: string | null
 	bookingMode: string | null

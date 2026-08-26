@@ -120,12 +120,12 @@ export const GET: APIRoute = async ({ request, url }) => {
 		})
 	}
 
-	const status = String(aggregate.variant.status ?? "draft")
+	const status = String(aggregate.variant.lifecycleState ?? "draft")
 		.trim()
 		.toLowerCase()
 	const statusLabel =
-		status === "published" ? "Publicada" : status === "ready" ? "Lista" : "Borrador"
-	const statusVariant = status === "published" ? "success" : status === "ready" ? "info" : "warning"
+		status === "archived" ? "Archivada" : status === "ready" ? "Lista" : "Borrador"
+	const statusVariant = status === "archived" ? "neutral" : status === "ready" ? "info" : "warning"
 
 	const capacityComplete = Boolean(aggregate.capacity)
 	// roomType is temporarily optional to avoid blocking rooms in environments
@@ -295,7 +295,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 	const pendingBlocks = totalBlocks - completedBlocks
 	const progressPercent = Math.round((completedBlocks / totalBlocks) * 100)
 
-	const errors = normalizeErrors(aggregate.readiness?.validationErrorsJson)
+	const errors = normalizeErrors(aggregate.variant.lifecycleValidationErrorsJson)
 	const syntheticBlockingErrors: Array<{ code: string; message: string }> = []
 	if (!pricingComplete) {
 		syntheticBlockingErrors.push({

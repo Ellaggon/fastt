@@ -72,7 +72,7 @@ const override =
 			languageCode={profile?.languageCode ?? "es"}
 			bookingMode={(profile?.bookingMode as "shared" | "private") ?? "shared"}
 			meetingPointOverride={override}
-			isActive={profile?.isActive ?? variant.isActive ?? true}
+			isActive={profile?.isActive ?? variant.salesEnabled}
 			redirectOnSuccess={routes.productDeparturesForProduct(productId)}
 		/>
 

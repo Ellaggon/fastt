@@ -7,7 +7,7 @@ import { POST as createVariantPost } from "@/pages/api/variant/create"
 import { POST as setCapacityPost } from "@/pages/api/variant/capacity"
 import { POST as attachHotelRoomSubtypePost } from "@/pages/api/variant/subtype/hotel-room"
 import { POST as evaluateVariantPost } from "@/pages/api/variant/evaluate"
-import { POST as updateVariantStatusPost } from "@/pages/api/variant/status"
+import { POST as setVariantSalesPost } from "@/pages/api/variant/sales"
 
 import { variantManagementRepository } from "@/container"
 import { db, Image, VariantCapacity, eq } from "@/shared/infrastructure/db/compat"
@@ -161,15 +161,15 @@ describe("integration/variant (CAPA 3)", () => {
 			} as any)
 			expect(evalRes.status).toBe(200)
 			const ev = (await readJson(evalRes)) as any
-			expect(ev.state).toBe("ready")
+			expect(ev.lifecycleState).toBe("ready")
 			expect(Array.isArray(ev.validationErrors)).toBe(true)
 			expect(ev.validationErrors.some((e: any) => e.code === "pricing_missing")).toBe(true)
 			expect(ev.validationErrors.some((e: any) => e.code === "inventory_missing")).toBe(true)
 			expect(ev.validationErrors.some((e: any) => e.code === "missing_room_photo")).toBe(false)
 
 			const v = await variantManagementRepository.getVariantById(variantId)
-			expect(v?.status).toBe("ready")
-			expect(v?.isActive).toBe(true)
+			expect(v?.lifecycleState).toBe("ready")
+			expect(v?.salesEnabled).toBe(false)
 		})
 	})
 
@@ -224,7 +224,7 @@ describe("integration/variant (CAPA 3)", () => {
 				request: makeAuthedFormRequest({ path: "/api/variant/evaluate", token, form: evalFd }),
 			} as any)
 			const ev = (await readJson(evalRes)) as any
-			expect(ev.state).toBe("draft")
+			expect(ev.lifecycleState).toBe("draft")
 			expect(ev.validationErrors.some((e: any) => e.code === "missing_capacity")).toBe(true)
 			expect(ev.validationErrors.some((e: any) => e.code === "missing_room_photo")).toBe(true)
 			expect(ev.validationErrors.some((e: any) => e.code === "pricing_missing")).toBe(true)
@@ -281,7 +281,7 @@ describe("integration/variant (CAPA 3)", () => {
 				request: makeAuthedFormRequest({ path: "/api/variant/evaluate", token, form: evalFd }),
 			} as any)
 			const ev = (await readJson(evalRes)) as any
-			expect(ev.state).toBe("ready")
+			expect(ev.lifecycleState).toBe("ready")
 			expect(ev.validationErrors.some((e: any) => e.code === "missing_subtype")).toBe(false)
 			expect(ev.validationErrors.some((e: any) => e.code === "missing_room_photo")).toBe(false)
 			expect(ev.validationErrors.some((e: any) => e.code === "pricing_missing")).toBe(true)
@@ -289,7 +289,7 @@ describe("integration/variant (CAPA 3)", () => {
 		})
 	})
 
-	it("cannot set sellable (reserved until CAPA 4/5)", async () => {
+	it("cannot enable sales before lifecycle validation is ready", async () => {
 		const token = "t_sellable"
 		const email = "sellable@example.com"
 		const providerId = "prov_variant_sellable"
@@ -323,15 +323,15 @@ describe("integration/variant (CAPA 3)", () => {
 			expect(res.status).toBe(200)
 			const { variantId } = (await readJson(res)) as any
 
-			const st = new FormData()
-			st.set("variantId", variantId)
-			st.set("status", "sellable")
-			const stRes = await updateVariantStatusPost({
-				request: makeAuthedFormRequest({ path: "/api/variant/status", token, form: st }),
+			const sales = new FormData()
+			sales.set("variantId", variantId)
+			sales.set("salesEnabled", "true")
+			const salesRes = await setVariantSalesPost({
+				request: makeAuthedFormRequest({ path: "/api/variant/sales", token, form: sales }),
 			} as any)
-			expect(stRes.status).toBe(400)
-			const body = (await readJson(stRes)) as any
-			expect(body?.error).toBe("validation_error")
+			expect(salesRes.status).toBe(409)
+			const body = (await readJson(salesRes)) as any
+			expect(body?.error).toBe("VARIANT_NOT_READY_FOR_SALES")
 		})
 	})
 

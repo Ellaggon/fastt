@@ -74,7 +74,6 @@ export const databaseTablesByDomain = {
 		"VariantRoomProfile",
 		"VariantRoomBed",
 		"VariantRoomAmenity",
-		"VariantReadiness",
 		"ProductService",
 		"ProductServiceAttribute",
 		"ProductCategory",

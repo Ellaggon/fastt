@@ -218,8 +218,8 @@ describe("integration/r2 image upload system (Product V2)", () => {
 			productId,
 			name: "Habitación R2",
 			kind: "hotel_room",
-			status: "ready",
-			isActive: true,
+			lifecycleState: "ready",
+			salesEnabled: true,
 		})
 
 		const { POST: setVariantImagesPost } = await import("@/pages/api/variant/images")

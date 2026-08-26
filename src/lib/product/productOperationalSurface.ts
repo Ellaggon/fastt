@@ -304,7 +304,7 @@ export async function refreshProductOperationalSurface(params: {
 
 	const variants = Array.isArray(variantsAggregate?.variants) ? variantsAggregate.variants : []
 	const activeVariants = variants.filter(
-		(variant: any) => String(variant.status ?? "") !== "archived"
+		(variant: any) => String(variant.lifecycleState ?? "") !== "archived"
 	)
 	const defaultRatePlanIds = [
 		...new Set(

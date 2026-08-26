@@ -6,7 +6,7 @@ export const variantKindSchema = z.enum([
 	"package_base",
 	"limousine_service",
 ])
-export const variantLifecycleStatusSchema = z.enum(["draft", "ready", "sellable", "archived"])
+export const variantLifecycleStateSchema = z.enum(["draft", "ready", "archived"])
 
 export const createVariantSchema = z.object({
 	productId: z.string().trim().min(1),
@@ -32,7 +32,12 @@ export const evaluateVariantReadinessSchema = z.object({
 	variantId: z.string().trim().min(1),
 })
 
-export const updateVariantStatusSchema = z.object({
+export const updateVariantLifecycleSchema = z.object({
 	variantId: z.string().trim().min(1),
-	status: variantLifecycleStatusSchema,
+	lifecycleState: variantLifecycleStateSchema,
+})
+
+export const setVariantSalesEnabledSchema = z.object({
+	variantId: z.string().trim().min(1),
+	salesEnabled: z.boolean(),
 })

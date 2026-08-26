@@ -8,7 +8,6 @@ import {
 	gt,
 	inArray,
 	lte,
-	or,
 	RatePlan,
 	RatePlanOccupancyPolicy,
 	Variant,
@@ -21,8 +20,6 @@ import type {
 } from "../../application/ports/VariantRepositoryPort"
 
 const VARIANT_KINDS = ["hotel_room", "tour_slot", "package_base", "limousine_service"] as const
-const SEARCHABLE_VARIANT_STATUSES = ["ready", "sellable", "published"] as const
-
 function assertVariantKind(kind: string | null): VariantKind {
 	if (kind && VARIANT_KINDS.includes(kind as VariantKind)) {
 		return kind as VariantKind
@@ -82,7 +79,8 @@ export class VariantRepository implements VariantRepositoryPort {
 		return !!row
 	}
 
-	// Still used by non-ported legacy code paths.
+	// A unit is commercially addressable only after it passed lifecycle validation
+	// and an operator explicitly enabled sales.
 	async getActiveByProduct(productId: string): Promise<VariantSnapshot[]> {
 		const rows = await db
 			.select({
@@ -98,7 +96,8 @@ export class VariantRepository implements VariantRepositoryPort {
 			.where(
 				and(
 					eq(Variant.productId, productId),
-					or(eq(Variant.isActive, true), inArray(Variant.status, SEARCHABLE_VARIANT_STATUSES))
+					eq(Variant.salesEnabled, true),
+					eq(Variant.lifecycleState, "ready")
 				)
 			)
 

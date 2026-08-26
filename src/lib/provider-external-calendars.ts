@@ -1564,7 +1564,13 @@ export async function listProviderExternalCalendars(providerId: string): Promise
 				})
 				.from(Variant)
 				.innerJoin(Product, eq(Product.id, Variant.productId))
-				.where(and(eq(Product.providerId, providerId), eq(Variant.isActive, true))),
+				.where(
+					and(
+						eq(Product.providerId, providerId),
+						eq(Variant.salesEnabled, true),
+						eq(Variant.lifecycleState, "ready")
+					)
+				),
 			db
 				.select({
 					id: InventoryResource.id,
