@@ -19,7 +19,6 @@ import {
 	Variant,
 	VariantCapacity,
 	VariantInventoryConfig,
-	VariantReadiness,
 	VariantRoomBed,
 	VariantRoomProfile,
 	eq,
@@ -155,8 +154,8 @@ describe("integration/catalog delete product cascade", () => {
 				productId,
 				name: "Suite temporal",
 				kind: "hotel_room",
-				status: "ready",
-				isActive: true,
+				lifecycleState: "ready",
+				salesEnabled: true,
 			})
 			await db.insert(VariantCapacity).values({
 				variantId,
@@ -177,11 +176,6 @@ describe("integration/catalog delete product cascade", () => {
 				bedType: "queen",
 				count: 1,
 				sortOrder: 0,
-			})
-			await db.insert(VariantReadiness).values({
-				variantId,
-				state: "ready",
-				validationErrorsJson: [],
 			})
 			await db.insert(VariantInventoryConfig).values({
 				variantId,

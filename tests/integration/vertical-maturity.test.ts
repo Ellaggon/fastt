@@ -263,8 +263,8 @@ describe("vertical maturity", () => {
 			productId,
 			name: "Salida 09:00",
 			kind: "tour_slot",
-			status: "draft",
-			isActive: false,
+			lifecycleState: "draft",
+			salesEnabled: false,
 		})
 
 		// Bare / incomplete / inactive salida is not enough (aligned with admin quality).
@@ -303,7 +303,7 @@ describe("vertical maturity", () => {
 
 		await db
 			.update(Variant)
-			.set({ isActive: true, status: "ready" } as any)
+			.set({ lifecycleState: "ready", salesEnabled: true })
 			.where(eq(Variant.id, slotId))
 
 		// 4 photos + full content/salida still blocks (shared quality floor).

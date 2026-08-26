@@ -161,7 +161,8 @@ describe("integration/provider external calendars", () => {
 			productId: ids.productId,
 			name: "Suite iCal",
 			kind: "hotel_room",
-			isActive: true,
+			lifecycleState: "ready",
+			salesEnabled: true,
 		})
 		await db.insert(RatePlan).values({
 			id: ids.ratePlanId,

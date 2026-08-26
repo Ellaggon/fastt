@@ -16,7 +16,6 @@ import {
 	Variant,
 	VariantCapacity,
 	VariantInventoryConfig,
-	VariantReadiness,
 	VariantRoomBed,
 	VariantRoomProfile,
 	eq,
@@ -64,8 +63,8 @@ async function seedSellableRoom(params: { productId: string; suffix: string }) {
 		productId: params.productId,
 		name: "Habitación temporal",
 		kind: "hotel_room",
-		status: "ready",
-		isActive: true,
+		lifecycleState: "ready",
+		salesEnabled: true,
 	})
 	await db.insert(VariantCapacity).values({
 		variantId,
@@ -86,11 +85,6 @@ async function seedSellableRoom(params: { productId: string; suffix: string }) {
 		bedType: "queen",
 		count: 1,
 		sortOrder: 0,
-	})
-	await db.insert(VariantReadiness).values({
-		variantId,
-		state: "ready",
-		validationErrorsJson: [],
 	})
 	await db.insert(VariantInventoryConfig).values({
 		variantId,
@@ -237,9 +231,6 @@ describe("integration/catalog delete variant cascade", () => {
 			).resolves.toHaveLength(0)
 			await expect(
 				rowsFor(VariantRoomBed, VariantRoomBed.variantId, variantId)
-			).resolves.toHaveLength(0)
-			await expect(
-				rowsFor(VariantReadiness, VariantReadiness.variantId, variantId)
 			).resolves.toHaveLength(0)
 			await expect(
 				rowsFor(VariantInventoryConfig, VariantInventoryConfig.variantId, variantId)

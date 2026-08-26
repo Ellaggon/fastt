@@ -99,8 +99,8 @@ async function seedSearchableVariant(params: {
 	totalInventory: number
 	stopSell?: boolean
 	materializeCheckoutDay?: boolean
-	variantIsActive?: boolean
-	variantStatus?: "draft" | "ready" | "sellable" | "archived"
+	salesEnabled?: boolean
+	lifecycleState?: "draft" | "ready" | "archived"
 }) {
 	await upsertGeoPlace({
 		id: params.geoPlaceId,
@@ -124,14 +124,15 @@ async function seedSearchableVariant(params: {
 		name: "Room",
 		currency: "USD",
 		basePrice: 999,
-		isActive: params.variantIsActive ?? true,
+		salesEnabled: params.salesEnabled ?? true,
+		lifecycleState: params.lifecycleState ?? "ready",
 	})
-	if (params.variantStatus) {
+	if (params.lifecycleState) {
 		await db
 			.update(Variant)
 			.set({
-				status: params.variantStatus,
-			} as any)
+				lifecycleState: params.lifecycleState,
+			})
 			.where(and(eq(Variant.id, params.variantId), eq(Variant.productId, params.productId)))
 	}
 
@@ -285,7 +286,7 @@ async function seedSearchableVariant(params: {
 }
 
 describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
-	it("status-ready variant remains searchable even if legacy isActive=false", async () => {
+	it("ready variant with sales enabled remains searchable", async () => {
 		const email = "search-status-ready@example.com"
 		const providerId = "prov_search_status_ready"
 		const geoPlaceId = "dest_search_status_ready"
@@ -304,8 +305,8 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 			ratePlanId,
 			inventoryDates: ["2026-04-21", "2026-04-22", "2026-04-23"],
 			totalInventory: 1,
-			variantIsActive: false,
-			variantStatus: "ready",
+			salesEnabled: true,
+			lifecycleState: "ready",
 		})
 
 		const offers = await searchOffers({

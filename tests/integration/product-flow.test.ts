@@ -89,8 +89,8 @@ describe("integration/catalog Product V2 flow", () => {
 			productId,
 			name: "Suite",
 			kind: "hotel_room",
-			status: "ready",
-			isActive: true,
+			lifecycleState: "ready",
+			salesEnabled: true,
 		})
 		await db.insert(VariantCapacity).values({
 			variantId,
