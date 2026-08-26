@@ -37,24 +37,23 @@ function matchesView(state: string, view: string) {
 const hasVisibleRows = rows.some((row) => matchesView(row.stateKey, activeView))
 ---
 
-<div class={`px-6 py-12 text-center ${hasVisibleRows ? "hidden" : ""}`} data-rate-plan-empty>
-	<p class="font-semibold text-slate-950">No hay tarifas en esta vista.</p>
-	<p class="mt-1 text-sm text-slate-500">Cambia de estado o crea una nueva tarifa.</p>
-</div>
+<div class="rate-plan-responsive-table" role="table" aria-label="Tarifas del proveedor">
+	<div class="rate-plan-responsive-header" role="row">
+		<span role="columnheader">Tarifa</span>
+		<span role="columnheader">Precio base</span>
+		<span role="columnheader">Condiciones</span>
+		<span role="columnheader">Calendario</span>
+		<span role="columnheader">Estado</span>
+		<span role="columnheader" class="text-right"> Acciones </span>
+	</div>
 
-{
-	rows.length ? (
-		<div class="rate-plan-responsive-table" role="table" aria-label="Tarifas del proveedor">
-			<div class="rate-plan-responsive-header" role="row">
-				<span role="columnheader">Tarifa</span>
-				<span role="columnheader">Precio base</span>
-				<span role="columnheader">Condiciones</span>
-				<span role="columnheader">Calendario</span>
-				<span role="columnheader">Estado</span>
-				<span role="columnheader" class="text-right">
-					Acciones
-				</span>
-			</div>
+	<div class={`px-6 py-12 text-center ${hasVisibleRows ? "hidden" : ""}`} data-rate-plan-empty>
+		<p class="font-semibold text-slate-950">No hay tarifas en esta vista.</p>
+		<p class="mt-1 text-sm text-slate-500">Cambia de estado o crea una nueva tarifa.</p>
+	</div>
+
+	{
+		rows.length ? (
 			<div class="divide-y divide-slate-100" role="rowgroup">
 				{rows.map((row) => {
 					const detailsId = `rate-plan-details-${row.id}`
@@ -133,9 +132,9 @@ const hasVisibleRows = rows.some((row) => matchesView(row.stateKey, activeView))
 					)
 				})}
 			</div>
-		</div>
-	) : null
-}
+		) : null
+	}
+</div>
 
 <style>
 	.rate-plan-responsive-header {
