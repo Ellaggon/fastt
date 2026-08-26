@@ -12,6 +12,8 @@ import {
 	summarizeProductPreparation,
 	type ProductPreparationSummary,
 } from "@/lib/playbook/summarize-product-preparation"
+
+export type { ProductPreparationSummary }
 import { getProductFullAggregate, getProductVariantsAggregate } from "@/modules/catalog/public"
 import {
 	derivePolicySummaryFromResolvedPolicies,
