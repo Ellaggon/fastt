@@ -7,7 +7,6 @@ import {
 	Product,
 	Provider,
 	ProductGeoPlace,
-	ProductStatus,
 	sql,
 } from "@/shared/infrastructure/db/compat"
 import { publicCatalogProductEligibility } from "@/lib/marketplace/public-catalog-eligibility"
@@ -47,7 +46,6 @@ export class MarketplaceHotelSearchRepository implements MarketplaceHotelSearchR
 			.select(candidateFields)
 			.from(Product)
 			.innerJoin(Provider, eq(Provider.id, Product.providerId))
-			.innerJoin(ProductStatus, eq(ProductStatus.productId, Product.id))
 			.innerJoin(
 				ProductGeoPlace,
 				and(
@@ -61,7 +59,7 @@ export class MarketplaceHotelSearchRepository implements MarketplaceHotelSearchR
 					sql`lower(${Product.productType}) = 'hotel'`,
 					eq(ProductGeoPlace.placeId, place.id),
 					publicCatalogProductEligibility(),
-					eq(ProductStatus.state, "published")
+					eq(Product.publicationState, "published")
 				)
 			)
 			.limit(Math.min(Math.max(1, Number(params.limit ?? 50)), 200))

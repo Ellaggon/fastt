@@ -11,7 +11,6 @@ import {
 	ProductContent,
 	ProductLocation,
 	ProductPreparationSnapshot,
-	ProductStatus,
 	HouseRule,
 	Image,
 	ImageUpload,
@@ -49,7 +48,7 @@ import type { S3Client } from "@aws-sdk/client-s3"
 import type {
 	ProductAggregate,
 	ProductRepositoryPort,
-	ProductStatusState,
+	ProductPublicationState,
 } from "../../application/ports/ProductRepositoryPort"
 import { tourHasMeetingPoint } from "@/lib/tours/tourAdminQuality"
 import type { RatePlanCommandRepositoryPort } from "../../../pricing/application/ports/RatePlanCommandRepositoryPort"
@@ -75,8 +74,7 @@ export class ProductRepository implements ProductRepositoryPort {
 	}
 
 	// INVARIANT:
-	// Product persists identity only.
-	// Content, location and status are stored in their dedicated tables.
+	// Product owns identity and publication lifecycle. Content and location remain dedicated aggregates.
 	async createProductBase(params: {
 		id: string
 		name: string
@@ -309,33 +307,23 @@ export class ProductRepository implements ProductRepositoryPort {
 		})
 	}
 
-	async upsertProductStatus(params: {
+	async setProductPublication(params: {
 		productId: string
 		state: "draft" | "ready" | "published"
 		validationErrorsJson?: unknown | null
 	}): Promise<void> {
-		const existing = await db
-			.select({ productId: ProductStatus.productId })
-			.from(ProductStatus)
-			.where(eq(ProductStatus.productId, params.productId))
-			.then(first)
-
-		if (!existing) {
-			await db.insert(ProductStatus).values({
-				productId: params.productId,
-				state: params.state,
-				validationErrorsJson: params.validationErrorsJson ?? null,
-			})
-			return
-		}
-
-		await db
-			.update(ProductStatus)
+		const updatedAt = new Date()
+		const updated = await db
+			.update(Product)
 			.set({
-				state: params.state,
-				validationErrorsJson: params.validationErrorsJson ?? null,
+				publicationState: params.state,
+				publicationValidationErrorsJson: params.validationErrorsJson ?? null,
+				publicationUpdatedAt: updatedAt,
+				lastUpdated: updatedAt,
 			})
-			.where(eq(ProductStatus.productId, params.productId))
+			.where(eq(Product.id, params.productId))
+			.returning({ id: Product.id })
+		if (!updated[0]) throw new Error("PRODUCT_NOT_FOUND")
 	}
 
 	async getProductAggregate(productId: string): Promise<ProductAggregate | null> {
@@ -346,6 +334,9 @@ export class ProductRepository implements ProductRepositoryPort {
 				productType: Product.productType,
 				providerId: Product.providerId,
 				geoPlaceId: ProductGeoPlace.placeId,
+				publicationState: Product.publicationState,
+				publicationValidationErrorsJson: Product.publicationValidationErrorsJson,
+				publicationUpdatedAt: Product.publicationUpdatedAt,
 			})
 			.from(Product)
 			.innerJoin(
@@ -381,16 +372,6 @@ export class ProductRepository implements ProductRepositoryPort {
 			})
 			.from(ProductLocation)
 			.where(eq(ProductLocation.productId, productId))
-			.then(first)
-
-		const status = await db
-			.select({
-				productId: ProductStatus.productId,
-				state: ProductStatus.state,
-				validationErrorsJson: ProductStatus.validationErrorsJson,
-			})
-			.from(ProductStatus)
-			.where(eq(ProductStatus.productId, productId))
 			.then(first)
 
 		const images = await db
@@ -550,9 +531,9 @@ export class ProductRepository implements ProductRepositoryPort {
 			}
 		}
 
-		const rawState = status?.state ?? null
-		const statusState: ProductStatusState | null =
-			rawState === "draft" || rawState === "ready" || rawState === "published" ? rawState : null
+		const rawState = product.publicationState
+		const publicationState: ProductPublicationState =
+			rawState === "ready" || rawState === "published" ? rawState : "draft"
 
 		return {
 			product,
@@ -560,14 +541,11 @@ export class ProductRepository implements ProductRepositoryPort {
 			subtypeExists,
 			content: content ?? null,
 			location: location ?? null,
-			status:
-				status && statusState
-					? {
-							productId: status.productId,
-							state: statusState,
-							validationErrorsJson: status.validationErrorsJson ?? null,
-						}
-					: null,
+			publication: {
+				state: publicationState,
+				validationErrorsJson: product.publicationValidationErrorsJson ?? null,
+				updatedAt: product.publicationUpdatedAt ?? null,
+			},
 			verticalReadiness,
 		}
 	}
@@ -721,7 +699,6 @@ export class ProductRepository implements ProductRepositoryPort {
 				.delete(ProductPreparationSnapshot)
 				.where(eq(ProductPreparationSnapshot.productId, productId))
 		}
-		await db.delete(ProductStatus).where(eq(ProductStatus.productId, productId))
 
 		const pt = String(product.productType || "").toLowerCase()
 		if (pt === "hotel") {
