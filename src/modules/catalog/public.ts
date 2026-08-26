@@ -18,6 +18,9 @@ export { updateProviderIdentityV2 } from "./application/use-cases/provider-v2/up
 export { setProviderVerificationV2 } from "./application/use-cases/provider-v2/set-provider-verification-v2"
 
 // Product (canonical system)
+export { geoPlaceCompatibilityError, isGeoPlaceCompatible } from "./domain/geo-place-compatibility"
+export type { GeoPlaceType } from "./domain/geo-place-compatibility"
+
 export { createProduct } from "./application/use-cases/product/create-product"
 export { upsertProductContent } from "./application/use-cases/product/upsert-product-content"
 export { upsertProductLocation } from "./application/use-cases/product/upsert-product-location"

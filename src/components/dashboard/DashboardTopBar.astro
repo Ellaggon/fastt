@@ -64,8 +64,7 @@ const productIdFromPath = (() => {
 const isPlaybookSurface = Boolean(Astro.url.searchParams.get("playbook"))
 const isProductWorkspace = Boolean(productIdFromPath) && !isPlaybookSurface
 const isHouseRulesWorkspace =
-	(pathname === "/provider/house-rules" || pathname.startsWith("/provider/house-rules/")) &&
-	!isPlaybookSurface
+	pathname === "/provider/house-rules" || pathname.startsWith("/provider/house-rules/")
 const houseRulesProductId = String(Astro.url.searchParams.get("productId") ?? "").trim()
 const productSwitcherTarget = /\/rooms(?:\/|$)/.test(pathname)
 	? "rooms"

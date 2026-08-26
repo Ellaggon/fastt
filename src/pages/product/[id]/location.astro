@@ -4,6 +4,7 @@ import Card from "@/components/ui/Card.astro"
 import ProductContextSwitcher from "@/components/product/ProductContextSwitcher.astro"
 import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
+import Select from "@/components/ui/Select.astro"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import { buildCompleteToPublishHref } from "@/lib/playbook/complete-to-publish"
 import { buildPlaybookHref } from "@/lib/playbook/launch-accommodation"
@@ -13,7 +14,8 @@ import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { routes } from "@/lib/routes"
-import { getProductFullAggregate } from "@/modules/catalog/public"
+import { getProductFullAggregate, isGeoPlaceCompatible } from "@/modules/catalog/public"
+import { asc, db, eq, GeoPlace } from "@/shared/infrastructure/db/compat"
 import "leaflet/dist/leaflet.css"
 
 const user = await getUserFromRequest(Astro.request)
@@ -40,6 +42,19 @@ const isHotel = vertical.vertical === "hotel"
 const isTour = vertical.vertical === "tour"
 const playbook = resolvePlaybookFromUrl(Astro.url, { isHotel })
 const existingLocation = product.location
+const geoPlaces = await db
+	.select({
+		id: GeoPlace.id,
+		name: GeoPlace.canonicalName,
+		country: GeoPlace.countryCode,
+		placeType: GeoPlace.placeType,
+	})
+	.from(GeoPlace)
+	.where(eq(GeoPlace.status, "active"))
+	.orderBy(asc(GeoPlace.canonicalName))
+const compatibleGeoPlaces = geoPlaces.filter((place) =>
+	isGeoPlaceCompatible({ productType: product.productType, placeType: place.placeType })
+)
 
 const initialLat = typeof existingLocation?.lat === "number" ? existingLocation.lat : -16.495905
 const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.lng : -68.133623
@@ -118,6 +133,25 @@ const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.
 								value={existingLocation?.address ?? ""}
 								placeholder={isTour ? "Ej: Centro histórico, La Paz" : "Av. Ejemplo 123"}
 							/>
+						</FormField>
+
+						<FormField label="Ubicación de discovery" htmlFor="geoPlaceId" required>
+							<Select id="geoPlaceId" name="geoPlaceId" required>
+								<option value="" disabled selected={!product.geoPlace}>
+									Selecciona una ciudad, localidad o zona compatible
+								</option>
+								{
+									compatibleGeoPlaces.map((place) => (
+										<option value={place.id} selected={place.id === product.geoPlace?.id}>
+											{place.name} · {place.country} · {place.placeType}
+										</option>
+									))
+								}
+							</Select>
+							<p class="mt-1 text-sm text-slate-600">
+								Esta ubicación organiza la publicación y las búsquedas. El punto exacto se define en
+								el mapa.
+							</p>
 						</FormField>
 
 						<FormField

@@ -4,10 +4,9 @@ import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { invalidateProduct } from "@/lib/cache/invalidation"
 import { refreshProductPreparationSnapshotAfterMutation } from "@/lib/playbook/summarize-product-preparation"
-import { upsertProductLocation } from "@/modules/catalog/public"
+import { geoPlaceCompatibilityError, upsertProductLocation } from "@/modules/catalog/public"
 import { productRepository } from "@/container"
 import { and, db, eq, first, GeoPlace } from "@/shared/infrastructure/db/compat"
-import { geoPlaceCompatibilityError } from "@/modules/catalog/domain/geo-place-compatibility"
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
@@ -43,21 +42,41 @@ export const POST: APIRoute = async ({ request }) => {
 				headers: { "Content-Type": "application/json" },
 			})
 		}
-		if (raw.geoPlaceId) {
-			const geoPlace = await db
-				.select({ id: GeoPlace.id, placeType: GeoPlace.placeType })
-				.from(GeoPlace)
-				.where(and(eq(GeoPlace.id, raw.geoPlaceId), eq(GeoPlace.status, "active")))
-				.then(first)
-			if (!geoPlace) {
-				return new Response(JSON.stringify({ error: "validation_error", details: { fieldErrors: { geoPlaceId: ["Selecciona un lugar activo."] } } }), { status: 400, headers: { "Content-Type": "application/json" } })
-			}
-			const compatibilityError = geoPlaceCompatibilityError({ productType: owned.productType, placeType: geoPlace.placeType })
-			if (compatibilityError) {
-				return new Response(JSON.stringify({ error: "validation_error", details: { fieldErrors: { geoPlaceId: [compatibilityError] } } }), { status: 400, headers: { "Content-Type": "application/json" } })
-			}
-			await productRepository.setProductGeoPlace({ productId: raw.productId, geoPlaceId: raw.geoPlaceId, actorId: user.id ?? null, source: "product.location.update" })
+		const geoPlace = raw.geoPlaceId
+			? await db
+					.select({ id: GeoPlace.id, placeType: GeoPlace.placeType })
+					.from(GeoPlace)
+					.where(and(eq(GeoPlace.id, raw.geoPlaceId), eq(GeoPlace.status, "active")))
+					.then(first)
+			: null
+		if (!geoPlace) {
+			return new Response(
+				JSON.stringify({
+					error: "validation_error",
+					details: { fieldErrors: { geoPlaceId: ["Selecciona un lugar activo."] } },
+				}),
+				{ status: 400, headers: { "Content-Type": "application/json" } }
+			)
 		}
+		const compatibilityError = geoPlaceCompatibilityError({
+			productType: owned.productType,
+			placeType: geoPlace.placeType,
+		})
+		if (compatibilityError) {
+			return new Response(
+				JSON.stringify({
+					error: "validation_error",
+					details: { fieldErrors: { geoPlaceId: [compatibilityError] } },
+				}),
+				{ status: 400, headers: { "Content-Type": "application/json" } }
+			)
+		}
+		await productRepository.setProductGeoPlace({
+			productId: raw.productId,
+			geoPlaceId: raw.geoPlaceId,
+			actorId: user.id ?? null,
+			source: "product.location.update",
+		})
 
 		const result = await upsertProductLocation(
 			{ repo: productRepository },

@@ -37,9 +37,13 @@ describe("Guardrail: Property Content operational semantics", () => {
 			"src/pages/product/[id]/index.astro": [
 				"Ficha del alojamiento",
 				"Descripción",
-				"Habitaciones",
 				"Tipo y características",
+			],
+			"src/pages/product/_client/product-summary-hydration.ts": [
 				"Acciones principales",
+				"Habitaciones",
+				"Abrir habitaciones",
+				"astro:page-load",
 			],
 			"src/pages/product/[id]/preview.astro": [
 				"Vista previa",
@@ -292,6 +296,9 @@ describe("Guardrail: Property Content operational semantics", () => {
 		expect(houseRules).toContain("requestedProductId")
 		expect(houseRules).toContain("visibleProducts")
 		expect(houseRules).toContain("Ver ficha completa")
+		expect(houseRules).toContain("TabsOutsidePanel")
+		expect(houseRules).toContain("fastt-tabs-outside-panel__item")
+		expect(houseRules).not.toContain("SegmentedControl")
 		expect(houseRules).toContain("syncHotelArrivalPolicy")
 		expect(houseRules).toContain('name="checkInFrom"')
 		expect(houseRules).toContain('name="checkInUntil"')

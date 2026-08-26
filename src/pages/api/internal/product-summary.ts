@@ -275,9 +275,13 @@ export const GET: APIRoute = async ({ request, url }) => {
 						blockerCount: preparation.blockerCount,
 						blockerPreview: preparation.blockerPreview,
 						readyToPublish: preparation.readyToPublish,
+						completedChecks: preparation.completedChecks,
+						totalChecks: preparation.totalChecks,
 						continuePreparationHref: preparation.continuePreparationHref,
 						previewHref: preparation.previewHref,
 						nextStepLabel: preparation.nextStepLabel,
+						nextStepBody: preparation.nextStepBody,
+						nextStepCta: preparation.nextStepCta,
 						isPublished: preparation.isPublished,
 					}
 				: null,
