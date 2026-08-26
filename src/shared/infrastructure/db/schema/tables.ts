@@ -1276,15 +1276,31 @@ export const Variant = pgTable(
 		name: txt("name"),
 		description: txtOpt("description"),
 		kind: txt("kind"),
-		status: txtOpt("status"),
 		createdAt: ts("createdAt"),
 		confirmationType: text("confirmationType").default("instant").notNull(),
 		externalCode: txtOpt("externalCode"),
-		isActive: boolDefault("isActive", true),
+		/** Readiness lifecycle for this inventory unit; separate from its sale intent. */
+		lifecycleState: text("lifecycleState").default("draft").notNull(),
+		/** Explicit commercial intent. Effective sellability also requires price and inventory. */
+		salesEnabled: boolDefault("salesEnabled", false),
+		lifecycleValidationErrorsJson: jsonb("lifecycleValidationErrorsJson"),
+		lifecycleEvaluatedAt: now("lifecycleEvaluatedAt"),
 	},
 	(table) => [
-		index("Variant_productId_isActive_idx").on(table.productId, table.isActive),
+		index("Variant_product_sales_lifecycle_idx").on(
+			table.productId,
+			table.salesEnabled,
+			table.lifecycleState
+		),
 		index("Variant_productId_kind_idx").on(table.productId, table.kind),
+		check(
+			"Variant_lifecycleState_check",
+			sql`${table.lifecycleState} IN ('draft', 'ready', 'archived')`
+		),
+		check(
+			"Variant_sales_requires_ready_check",
+			sql`NOT ${table.salesEnabled} OR ${table.lifecycleState} = 'ready'`
+		),
 	]
 )
 
@@ -1674,15 +1690,6 @@ export const VariantRoomAmenity = pgTable(
 		),
 	]
 )
-
-export const VariantReadiness = pgTable("VariantReadiness", {
-	variantId: text("variantId")
-		.primaryKey()
-		.references(() => Variant.id),
-	state: text("state").default("draft").notNull(),
-	validationErrorsJson: jsonb("validationErrorsJson"),
-	updatedAt: now("updatedAt"),
-})
 
 export const ProductService = pgTable(
 	"ProductService",

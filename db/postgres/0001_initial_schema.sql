@@ -808,11 +808,13 @@ CREATE TABLE "Variant" (
 	"name" text NOT NULL,
 	"description" text,
 	"kind" text NOT NULL,
-	"status" text,
 	"createdAt" timestamp with time zone,
 	"confirmationType" text NOT NULL DEFAULT 'instant',
 	"externalCode" text,
-	"isActive" boolean NOT NULL DEFAULT true
+	"lifecycleState" text NOT NULL DEFAULT 'draft',
+	"salesEnabled" boolean NOT NULL DEFAULT false,
+	"lifecycleValidationErrorsJson" jsonb,
+	"lifecycleEvaluatedAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
 CREATE TABLE "VariantCapacity" (
@@ -851,13 +853,6 @@ CREATE TABLE "VariantRoomAmenity" (
 	"amenityId" text NOT NULL,
 	"isAvailable" boolean NOT NULL DEFAULT true,
 	"notes" text
-);
-
-CREATE TABLE "VariantReadiness" (
-	"variantId" text PRIMARY KEY,
-	"state" text NOT NULL DEFAULT 'draft',
-	"validationErrorsJson" jsonb,
-	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
 CREATE TABLE "ProductService" (
@@ -2295,12 +2290,6 @@ ALTER TABLE "VariantRoomAmenity"
 	REFERENCES "AmenityRoom" ("id")
 ;
 
-ALTER TABLE "VariantReadiness"
-	ADD CONSTRAINT "VariantReadiness_variantId_fk"
-	FOREIGN KEY ("variantId")
-	REFERENCES "Variant" ("id")
-;
-
 ALTER TABLE "ProductService"
 	ADD CONSTRAINT "ProductService_productId_fk"
 	FOREIGN KEY ("productId")
@@ -3070,7 +3059,7 @@ CREATE INDEX "TourPrivateRequest_provider_status_idx" ON "TourPrivateRequest" ("
 
 CREATE INDEX "TourPrivateRequest_product_idx" ON "TourPrivateRequest" ("productId", "departureDate");
 
-CREATE INDEX "Variant_productId_isActive_idx" ON "Variant" ("productId", "isActive");
+CREATE INDEX "Variant_product_sales_lifecycle_idx" ON "Variant" ("productId", "salesEnabled", "lifecycleState");
 
 CREATE INDEX "Variant_productId_kind_idx" ON "Variant" ("productId", "kind");
 
@@ -3450,6 +3439,10 @@ ALTER TABLE "TourTicketType" ADD CONSTRAINT "TourTicketType_code_check" CHECK ("
 
 ALTER TABLE "TourPrivateRequest" ADD CONSTRAINT "TourPrivateRequest_status_check" CHECK ("status" in ('pending', 'accepted', 'declined', 'expired', 'cancelled'));
 
+ALTER TABLE "Variant" ADD CONSTRAINT "Variant_lifecycleState_check" CHECK ("lifecycleState" IN ('draft', 'ready', 'archived'));
+
+ALTER TABLE "Variant" ADD CONSTRAINT "Variant_sales_requires_ready_check" CHECK (NOT "salesEnabled" OR "lifecycleState" = 'ready');
+
 ALTER TABLE "ProductReview" ADD CONSTRAINT "ProductReview_rating_check" CHECK ("rating" >= 1 AND "rating" <= 5);
 
 ALTER TABLE "ProductReview" ADD CONSTRAINT "ProductReview_status_check" CHECK ("status" in ('published', 'pending', 'rejected', 'hidden'));
@@ -3706,7 +3699,6 @@ BEGIN
 		'ProductCategory',
 		'ProductCategoryLink',
 		'ProductReview',
-		'VariantReadiness',
 		'DailyInventory',
 		'RatePlanConditionState',
 		'CommercialRuleSet',

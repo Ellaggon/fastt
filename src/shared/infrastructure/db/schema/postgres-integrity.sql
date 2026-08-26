@@ -240,7 +240,6 @@ BEGIN
 		'ProductCategory',
 		'ProductCategoryLink',
 		'ProductReview',
-		'VariantReadiness',
 		'DailyInventory',
 		'RatePlanConditionState',
 		'CommercialRuleSet',
