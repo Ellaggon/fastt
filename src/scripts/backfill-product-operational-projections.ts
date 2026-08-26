@@ -1,4 +1,4 @@
-import { backfillProductPreparationSnapshots as runProductPreparationSnapshotBackfill } from "@/lib/playbook/backfill-product-preparation-snapshots"
+import { backfillProductOperationalProjections as runBackfillProductOperationalProjections } from "@/lib/product/backfill-product-operational-projections"
 
 function optionalEnv(name: string): string {
 	return String(process.env[name] ?? "").trim()
@@ -10,8 +10,8 @@ function limitFromEnv(): number {
 	return Math.floor(parsed)
 }
 
-export default async function backfillProductPreparationSnapshots(): Promise<void> {
-	const result = await runProductPreparationSnapshotBackfill({
+export default async function backfillProductOperationalProjections(): Promise<void> {
+	const result = await runBackfillProductOperationalProjections({
 		providerId: optionalEnv("PROVIDER_ID") || null,
 		productId: optionalEnv("PRODUCT_ID") || null,
 		limit: limitFromEnv(),
@@ -20,7 +20,7 @@ export default async function backfillProductPreparationSnapshots(): Promise<voi
 	console.log(
 		JSON.stringify(
 			{
-				action: "product_preparation_snapshot_backfill",
+				action: "product_operational_projection_backfill",
 				...result,
 			},
 			null,

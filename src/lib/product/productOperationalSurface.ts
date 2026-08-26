@@ -2,15 +2,13 @@ import {
 	and,
 	db,
 	eq,
+	inArray,
 	first,
 	Product,
 	ProductOperationalSurface,
-	ProductPreparationSnapshot,
 } from "@/shared/infrastructure/db/compat"
 import { routes } from "@/lib/routes"
 import {
-	productPreparationSummaryFromSnapshot,
-	refreshProductPreparationSnapshotForProduct,
 	summarizeProductPreparation,
 	type ProductPreparationSummary,
 } from "@/lib/playbook/summarize-product-preparation"
@@ -23,9 +21,6 @@ import {
 import { listRatePlansByProvider } from "@/modules/pricing/public"
 
 const SURFACE_MAX_AGE_MS = Number(process.env.FASTT_PRODUCT_SURFACE_MAX_AGE_MS ?? 10 * 60 * 1000)
-const SNAPSHOT_MAX_AGE_MS = Number(
-	process.env.FASTT_PRODUCT_PREPARATION_SNAPSHOT_MAX_AGE_MS ?? 30 * 60 * 1000
-)
 
 export type ProductPolicyCoverageState = {
 	totalCategories: number
@@ -72,9 +67,40 @@ function asStringArray(value: unknown): string[] {
 	return value.map((item) => String(item ?? "").trim()).filter(Boolean)
 }
 
-function normalizeReadiness(value: unknown): ProductPreparationSummary | null {
-	if (!value || typeof value !== "object") return null
-	return value as ProductPreparationSummary
+function normalizeBlockerPreview(value: unknown): string[] {
+	if (!Array.isArray(value)) return []
+	return value.map((item) => String(item ?? "").trim()).filter(Boolean)
+}
+
+function normalizePreparationVariant(value: unknown): "success" | "info" | "warning" {
+	return value === "success" || value === "info" || value === "warning" ? value : "warning"
+}
+
+function preparationFromRow(row: any): ProductPreparationSummary {
+	const productId = String(row.productId ?? "")
+	const status = String(row.status ?? "draft")
+		.trim()
+		.toLowerCase()
+	return {
+		productId,
+		status,
+		statusLabel: String(row.preparationStatusLabel ?? "En preparación"),
+		statusVariant: normalizePreparationVariant(row.preparationStatusVariant),
+		isPublished: Boolean(row.isPublished),
+		readinessPercent: Math.max(0, Math.min(100, Number(row.readinessPercent ?? 0))),
+		blockerCount: Math.max(0, Number(row.blockerCount ?? 0)),
+		blockerPreview: normalizeBlockerPreview(row.blockerPreviewJson),
+		readyToPublish: Boolean(row.readyToPublish),
+		completedChecks: null,
+		totalChecks: null,
+		continuePreparationHref: String(
+			row.continuePreparationHref ?? `/product/${productId}/complete-to-publish`
+		),
+		previewHref: String(row.previewHref ?? routes.productPreview(productId)),
+		nextStepLabel: row.nextStepLabel ? String(row.nextStepLabel) : null,
+		nextStepBody: null,
+		nextStepCta: null,
+	}
 }
 
 function normalizeImagePreviews(value: unknown): Array<{ id: string; url: string }> {
@@ -117,7 +143,7 @@ function surfaceFromRow(row: any): ProductOperationalSurfaceRead {
 		productName: String(row.productName ?? ""),
 		productType: String(row.productType ?? ""),
 		status: String(row.status ?? "draft"),
-		readiness: normalizeReadiness(row.readinessJson),
+		readiness: preparationFromRow(row),
 		subtypeSummary: String(row.subtypeSummary ?? ""),
 		imagePreviews: normalizeImagePreviews(row.imagePreviewJson),
 		coverImage: normalizeCoverImage(row.coverImageJson),
@@ -153,37 +179,24 @@ async function readSurface(params: {
 	return surfaceFromRow(row)
 }
 
-async function readFreshPreparationSnapshot(params: {
-	productId: string
-	providerId: string
-	status: string
-}): Promise<ProductPreparationSummary | null> {
-	const snapshot = ProductPreparationSnapshot as any
-	if (!snapshot?.productId) return null
-	const row = await db
-		.select({
-			productId: snapshot.productId,
-			status: snapshot.status,
-			statusLabel: snapshot.statusLabel,
-			statusVariant: snapshot.statusVariant,
-			isPublished: snapshot.isPublished,
-			readinessPercent: snapshot.readinessPercent,
-			blockerCount: snapshot.blockerCount,
-			blockerPreviewJson: snapshot.blockerPreviewJson,
-			readyToPublish: snapshot.readyToPublish,
-			continuePreparationHref: snapshot.continuePreparationHref,
-			previewHref: snapshot.previewHref,
-			nextStepLabel: snapshot.nextStepLabel,
-			updatedAt: snapshot.updatedAt,
-		})
-		.from(snapshot)
+export async function listProductOperationalPreparation(
+	providerId: string,
+	productIds: string[]
+): Promise<Map<string, ProductPreparationSummary>> {
+	const ids = Array.from(new Set(productIds.map((id) => String(id ?? "").trim()).filter(Boolean)))
+	if (!providerId || ids.length === 0) return new Map()
+	const rows = await db
+		.select()
+		.from(ProductOperationalSurface)
 		.where(
-			and(eq(snapshot.productId, params.productId), eq(snapshot.providerId, params.providerId))
+			and(
+				eq(ProductOperationalSurface.providerId, providerId),
+				inArray(ProductOperationalSurface.productId, ids)
+			)
 		)
-		.then(first)
-	if (!row || !isFresh(row.updatedAt, SNAPSHOT_MAX_AGE_MS)) return null
-	const summary = productPreparationSummaryFromSnapshot(row)
-	return summary.status === params.status ? summary : null
+	const result = new Map<string, ProductPreparationSummary>()
+	for (const row of rows) result.set(String(row.productId), preparationFromRow(row))
+	return result
 }
 
 async function resolvePolicyCoverageState(params: {
@@ -282,25 +295,13 @@ export async function refreshProductOperationalSurface(params: {
 	const status = String(statusRow?.state ?? "draft")
 		.trim()
 		.toLowerCase()
-	const readiness =
-		(await readFreshPreparationSnapshot({
-			productId: params.productId,
-			providerId: params.providerId,
-			status,
-		})) ??
-		(await refreshProductPreparationSnapshotForProduct({
-			productId: params.productId,
-			providerId: params.providerId,
-			request: params.request,
-			url: params.url,
-		})) ??
-		(await summarizeProductPreparation({
-			productId: params.productId,
-			providerId: params.providerId,
-			status,
-			request: params.request,
-			url: params.url,
-		}))
+	const readiness = await summarizeProductPreparation({
+		productId: params.productId,
+		providerId: params.providerId,
+		status,
+		request: params.request,
+		url: params.url,
+	})
 
 	const variants = Array.isArray(variantsAggregate?.variants) ? variantsAggregate.variants : []
 	const activeVariants = variants.filter(
@@ -354,7 +355,18 @@ export async function refreshProductOperationalSurface(params: {
 			productName: aggregate.displayName,
 			productType: aggregate.productType,
 			status,
-			readinessJson: readiness,
+			preparationStatusLabel: readiness?.statusLabel ?? "En preparación",
+			preparationStatusVariant: readiness?.statusVariant ?? "warning",
+			isPublished: readiness?.isPublished ?? false,
+			readinessPercent: readiness?.readinessPercent ?? 0,
+			blockerCount: readiness?.blockerCount ?? 0,
+			blockerPreviewJson: readiness?.blockerPreview ?? [],
+			readyToPublish: readiness?.readyToPublish ?? false,
+			continuePreparationHref:
+				readiness?.continuePreparationHref ?? routes.productDetail(params.productId),
+			previewHref: readiness?.previewHref ?? routes.productPreview(params.productId),
+			nextStepLabel: readiness?.nextStepLabel ?? null,
+			preparationUpdatedAt: now,
 			subtypeSummary: subtypeSummary(aggregate),
 			imagePreviewJson: imagePreviews,
 			coverImageJson: coverImage,
@@ -372,7 +384,18 @@ export async function refreshProductOperationalSurface(params: {
 				productName: aggregate.displayName,
 				productType: aggregate.productType,
 				status,
-				readinessJson: readiness,
+				preparationStatusLabel: readiness?.statusLabel ?? "En preparación",
+				preparationStatusVariant: readiness?.statusVariant ?? "warning",
+				isPublished: readiness?.isPublished ?? false,
+				readinessPercent: readiness?.readinessPercent ?? 0,
+				blockerCount: readiness?.blockerCount ?? 0,
+				blockerPreviewJson: readiness?.blockerPreview ?? [],
+				readyToPublish: readiness?.readyToPublish ?? false,
+				continuePreparationHref:
+					readiness?.continuePreparationHref ?? routes.productDetail(params.productId),
+				previewHref: readiness?.previewHref ?? routes.productPreview(params.productId),
+				nextStepLabel: readiness?.nextStepLabel ?? null,
+				preparationUpdatedAt: now,
 				subtypeSummary: subtypeSummary(aggregate),
 				imagePreviewJson: imagePreviews,
 				coverImageJson: coverImage,

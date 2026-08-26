@@ -5,31 +5,29 @@ import {
 	eq,
 	inArray,
 	Product,
-	ProductPreparationSnapshot,
+	ProductOperationalSurface,
 	sql,
 } from "@/shared/infrastructure/db/compat"
-import {
-	refreshProductPreparationSnapshot,
-	type ProductPreparationSummary,
-} from "@/lib/playbook/summarize-product-preparation"
+import { refreshProductOperationalSurface } from "@/lib/product/productOperationalSurface"
+import type { ProductPreparationSummary } from "@/lib/playbook/summarize-product-preparation"
 
 type ProductRow = {
 	id: string
 	providerId: string | null
 }
 
-export type ProductPreparationSnapshotBackfillParams = {
+export type ProductOperationalProjectionBackfillParams = {
 	providerId?: string | null
 	productId?: string | null
 	limit?: number | null
 }
 
-export type ProductPreparationSnapshotBackfillResult = {
+export type ProductOperationalProjectionBackfillResult = {
 	ok: boolean
 	candidates: number
 	updated: number
 	failed: number
-	totalSnapshots: number
+	totalProjections: number
 	readyToPublish: number
 	blockerCount: number
 	durationMs: number
@@ -47,9 +45,9 @@ function normalizeLimit(raw: number | null | undefined): number {
 	return Math.floor(parsed)
 }
 
-export async function backfillProductPreparationSnapshots(
-	params: ProductPreparationSnapshotBackfillParams = {}
-): Promise<ProductPreparationSnapshotBackfillResult> {
+export async function backfillProductOperationalProjections(
+	params: ProductOperationalProjectionBackfillParams = {}
+): Promise<ProductOperationalProjectionBackfillResult> {
 	const startedAt = performance.now()
 	const filters = {
 		productId: String(params.productId ?? "").trim(),
@@ -74,15 +72,6 @@ export async function backfillProductPreparationSnapshots(
 	const rows = Number.isFinite(limit) ? await baseQuery.limit(limit) : await baseQuery
 
 	const products = rows.filter((row) => Boolean(row.id && row.providerId)) as ProductRow[]
-	const productIds = products.map((product) => product.id)
-	const statuses = productIds.length
-		? await db
-				.select({ productId: Product.id, state: Product.publicationState })
-				.from(Product)
-				.where(inArray(Product.id, productIds))
-		: []
-	const statusByProduct = new Map(statuses.map((row) => [String(row.productId), row.state]))
-
 	let updated = 0
 	let failed = 0
 	const failures: Array<{ productId: string; error: string }> = []
@@ -90,14 +79,13 @@ export async function backfillProductPreparationSnapshots(
 
 	for (const product of products) {
 		try {
-			const summary = await refreshProductPreparationSnapshot({
+			const projection = await refreshProductOperationalSurface({
 				productId: product.id,
 				providerId: String(product.providerId),
-				status: statusByProduct.get(product.id),
 			})
-			if (summary) {
+			if (projection?.readiness) {
 				updated += 1
-				summaries.push(summary)
+				summaries.push(projection.readiness)
 			}
 		} catch (error) {
 			failed += 1
@@ -108,9 +96,9 @@ export async function backfillProductPreparationSnapshots(
 		}
 	}
 
-	const totalSnapshots = await db
+	const totalProjections = await db
 		.select({ count: sql<number>`count(*)` })
-		.from(ProductPreparationSnapshot)
+		.from(ProductOperationalSurface)
 		.then(first)
 	const durationMs = Number((performance.now() - startedAt).toFixed(1))
 
@@ -119,7 +107,7 @@ export async function backfillProductPreparationSnapshots(
 		candidates: products.length,
 		updated,
 		failed,
-		totalSnapshots: Number(totalSnapshots?.count ?? 0),
+		totalProjections: Number(totalProjections?.count ?? 0),
 		readyToPublish: summaries.filter((summary) => summary.readyToPublish).length,
 		blockerCount: summaries.reduce((sum, summary) => sum + summary.blockerCount, 0),
 		durationMs,
