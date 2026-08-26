@@ -24,6 +24,16 @@ describe("canonical database architecture", () => {
 		}
 	})
 
+	it("keeps Astro config as a static object loaded with dotenv, not a Vite factory", () => {
+		const config = read("astro.config.mjs")
+		expect(config).not.toMatch(/from ["']vite["']/)
+		expect(config).toContain('from "dotenv"')
+		expect(config).not.toMatch(/defineConfig\(\s*\(/)
+		expect(config).toContain("adapter:")
+		expect(config).toContain("vercel()")
+		expect(config).toContain("standalone")
+	})
+
 	it("keeps integration credentials exclusively in the encrypted credential table", () => {
 		const schema = read("src/shared/infrastructure/db/schema/tables.ts")
 		const baseline = read("db/postgres/0001_initial_schema.sql")
