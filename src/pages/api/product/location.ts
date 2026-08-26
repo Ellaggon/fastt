@@ -3,7 +3,7 @@ import { ZodError } from "zod"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { invalidateProduct } from "@/lib/cache/invalidation"
-import { refreshProductPreparationSnapshotAfterMutation } from "@/lib/playbook/summarize-product-preparation"
+import { refreshProductOperationalSurfaceAfterMutation } from "@/lib/product/productOperationalSurface"
 import { geoPlaceCompatibilityError, upsertProductLocation } from "@/modules/catalog/public"
 import { productRepository } from "@/container"
 import { and, db, eq, first, GeoPlace } from "@/shared/infrastructure/db/compat"
@@ -88,7 +88,7 @@ export const POST: APIRoute = async ({ request }) => {
 			}
 		)
 		await invalidateProduct(raw.productId)
-		await refreshProductPreparationSnapshotAfterMutation({
+		await refreshProductOperationalSurfaceAfterMutation({
 			productId: raw.productId,
 			providerId,
 			request,

@@ -9,7 +9,7 @@ import {
 	productRepository,
 	ratePlanPricingReadRepository,
 } from "@/container"
-import { refreshProductPreparationSnapshotAfterMutation } from "@/lib/playbook/summarize-product-preparation"
+import { refreshProductOperationalSurfaceAfterMutation } from "@/lib/product/productOperationalSurface"
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
@@ -42,7 +42,7 @@ export const POST: APIRoute = async ({ request }) => {
 			{ repo: variantManagementRepository, pricingReadRepo: ratePlanPricingReadRepository },
 			{ variantId }
 		)
-		await refreshProductPreparationSnapshotAfterMutation({
+		await refreshProductOperationalSurfaceAfterMutation({
 			productId: v.productId,
 			providerId,
 			request,

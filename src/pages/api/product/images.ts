@@ -2,7 +2,7 @@ import type { APIRoute } from "astro"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { invalidateProduct } from "@/lib/cache/invalidation"
-import { refreshProductPreparationSnapshotAfterMutation } from "@/lib/playbook/summarize-product-preparation"
+import { refreshProductOperationalSurfaceAfterMutation } from "@/lib/product/productOperationalSurface"
 import { updateProductImages } from "@/modules/catalog/public"
 import { productImageRepository, productRepository } from "@/container"
 
@@ -108,7 +108,7 @@ export const POST: APIRoute = async ({ request }) => {
 		})
 		if (response.ok) {
 			await invalidateProduct(productId)
-			await refreshProductPreparationSnapshotAfterMutation({
+			await refreshProductOperationalSurfaceAfterMutation({
 				productId,
 				providerId,
 				request,

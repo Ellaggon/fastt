@@ -3,11 +3,10 @@ import { ZodError } from "zod"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { invalidateProvider } from "@/lib/cache/invalidation"
-import { refreshProductPreparationSnapshotAfterMutation } from "@/lib/playbook/summarize-product-preparation"
-import { createProduct } from "@/modules/catalog/public"
+import { refreshProductOperationalSurfaceAfterMutation } from "@/lib/product/productOperationalSurface"
+import { createProduct, geoPlaceCompatibilityError } from "@/modules/catalog/public"
 import { productRepository } from "@/container"
 import { and, db, eq, first, GeoPlace } from "@/shared/infrastructure/db/compat"
-import { geoPlaceCompatibilityError } from "@/modules/catalog/domain/geo-place-compatibility"
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
@@ -51,9 +50,18 @@ export const POST: APIRoute = async ({ request }) => {
 				{ status: 400, headers: { "Content-Type": "application/json" } }
 			)
 		}
-		const compatibilityError = geoPlaceCompatibilityError({ productType: raw.productType, placeType: geoPlace.placeType })
+		const compatibilityError = geoPlaceCompatibilityError({
+			productType: raw.productType,
+			placeType: geoPlace.placeType,
+		})
 		if (compatibilityError) {
-			return new Response(JSON.stringify({ error: "validation_error", details: { fieldErrors: { geoPlaceId: [compatibilityError] } } }), { status: 400, headers: { "Content-Type": "application/json" } })
+			return new Response(
+				JSON.stringify({
+					error: "validation_error",
+					details: { fieldErrors: { geoPlaceId: [compatibilityError] } },
+				}),
+				{ status: 400, headers: { "Content-Type": "application/json" } }
+			)
 		}
 
 		const id = crypto.randomUUID()
@@ -67,7 +75,7 @@ export const POST: APIRoute = async ({ request }) => {
 				geoPlaceId: raw.geoPlaceId,
 			}
 		)
-		await refreshProductPreparationSnapshotAfterMutation({
+		await refreshProductOperationalSurfaceAfterMutation({
 			productId: id,
 			providerId,
 			request,

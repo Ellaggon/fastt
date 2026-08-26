@@ -22,7 +22,7 @@ async function countAll(sql: QuerySql) {
 			(select count(*) from "Product")::int as products,
 			(select count(*) from "Provider")::int as providers,
 			(select count(*) from "RatePlan")::int as "ratePlans",
-			(select count(*) from "Variant" where "isActive" = true)::int as "activeVariants",
+			(select count(*) from "Variant" where "salesEnabled" = true)::int as "activeVariants",
 			(select count(*) from "ProductOperationalSurface")::int as "productSurfaces",
 			(select count(*) from "ProviderConfigurationState")::int as "providerStates",
 			(select count(*) from "RatePlanConditionState")::int as "conditionStates",
@@ -40,40 +40,22 @@ async function backfillProductOperationalSurface(sql: QuerySql) {
 				p."providerId",
 				p.name as "productName",
 				p."productType",
-				coalesce(ps.state, 'draft') as status,
+				coalesce(p."publicationState", 'draft') as status,
 				coalesce(v.count_all, 0)::int as "variantCount",
 				coalesce(v.count_active, 0)::int as "activeVariantCount",
 				coalesce(rp.default_rate_plan_ids, '[]'::jsonb) as "defaultRatePlanIdsJson",
 				coalesce(img.previews, '[]'::jsonb) as "imagePreviewJson",
 				img.cover as "coverImageJson",
-				coalesce(
-					jsonb_build_object(
-						'status', prep.status,
-						'statusLabel', prep."statusLabel",
-						'statusVariant', prep."statusVariant",
-						'isPublished', prep."isPublished",
-						'readinessPercent', prep."readinessPercent",
-						'blockerCount', prep."blockerCount",
-						'blockerPreview', coalesce(prep."blockerPreviewJson", '[]'::jsonb),
-						'readyToPublish', prep."readyToPublish",
-						'continuePreparationHref', prep."continuePreparationHref",
-						'previewHref', prep."previewHref",
-						'nextStepLabel', prep."nextStepLabel"
-					),
-					jsonb_build_object(
-						'status', coalesce(ps.state, 'draft'),
-						'statusLabel', 'En preparación',
-						'statusVariant', 'warning',
-						'isPublished', coalesce(ps.state, 'draft') = 'published',
-						'readinessPercent', 0,
-						'blockerCount', 0,
-						'blockerPreview', '[]'::jsonb,
-						'readyToPublish', false,
-						'continuePreparationHref', '/product/' || p.id || '/complete-to-publish',
-						'previewHref', '/product/' || p.id || '/preview',
-						'nextStepLabel', null
-					)
-				) as "readinessJson",
+				case when p."publicationState" = 'published' then 'Publicado' else 'En preparación' end as "preparationStatusLabel",
+				case when p."publicationState" = 'published' then 'success' else 'warning' end as "preparationStatusVariant",
+				(p."publicationState" = 'published') as "isPublished",
+				case when p."publicationState" = 'published' then 100 else 0 end as "readinessPercent",
+				0::int as "blockerCount",
+				'[]'::jsonb as "blockerPreviewJson",
+				false as "readyToPublish",
+				'/product/' || p.id || '/complete-to-publish' as "continuePreparationHref",
+				'/product/' || p.id || '/preview' as "previewHref",
+				null::text as "nextStepLabel",
 				case
 					when h."productId" is not null then 'Hotel' || case when h.stars is not null then ' · ' || h.stars::text || ' estrellas' else '' end
 					when t."productId" is not null then 'Tour' || case when nullif(t.duration, '') is not null then ' · ' || t.duration else '' end
@@ -98,14 +80,13 @@ async function backfillProductOperationalSurface(sql: QuerySql) {
 					'updatedAt', now()
 				) as "policyCoverageStateJson"
 			from "Product" p
-			left join "ProductPreparationSnapshot" prep on prep."productId" = p.id
 			left join "Hotel" h on h."productId" = p.id
 			left join "Tour" t on t."productId" = p.id
 			left join "Package" pkg on pkg."productId" = p.id
 			left join lateral (
 				select
 					count(*) as count_all,
-					count(*) filter (where coalesce(v."isActive", true) = true and coalesce(v.status, '') <> 'archived') as count_active
+					count(*) filter (where v."salesEnabled" = true and v."lifecycleState" <> 'archived') as count_active
 				from "Variant" v
 				where v."productId" = p.id
 			) v on true
@@ -113,7 +94,7 @@ async function backfillProductOperationalSurface(sql: QuerySql) {
 				select jsonb_agg(rp.id order by rp."isDefault" desc, rp."createdAt" desc) filter (where rp.id is not null) as default_rate_plan_ids
 				from "Variant" v
 				join "RatePlan" rp on rp."variantId" = v.id and rp."isActive" = true
-				where v."productId" = p.id and coalesce(v."isActive", true) = true
+				where v."productId" = p.id and v."salesEnabled" = true
 			) rp on true
 			left join lateral (
 				select
@@ -150,7 +131,16 @@ async function backfillProductOperationalSurface(sql: QuerySql) {
 			"productName",
 			"productType",
 			"status",
-			"readinessJson",
+			"preparationStatusLabel",
+			"preparationStatusVariant",
+			"isPublished",
+			"readinessPercent",
+			"blockerCount",
+			"blockerPreviewJson",
+			"readyToPublish",
+			"continuePreparationHref",
+			"previewHref",
+			"nextStepLabel",
 			"subtypeSummary",
 			"imagePreviewJson",
 			"coverImageJson",
@@ -167,7 +157,16 @@ async function backfillProductOperationalSurface(sql: QuerySql) {
 			"productName",
 			"productType",
 			status,
-			"readinessJson",
+			"preparationStatusLabel",
+			"preparationStatusVariant",
+			"isPublished",
+			"readinessPercent",
+			"blockerCount",
+			"blockerPreviewJson",
+			"readyToPublish",
+			"continuePreparationHref",
+			"previewHref",
+			"nextStepLabel",
 			"subtypeSummary",
 			"imagePreviewJson",
 			"coverImageJson",
@@ -183,7 +182,16 @@ async function backfillProductOperationalSurface(sql: QuerySql) {
 			"productName" = excluded."productName",
 			"productType" = excluded."productType",
 			"status" = excluded."status",
-			"readinessJson" = excluded."readinessJson",
+			"preparationStatusLabel" = excluded."preparationStatusLabel",
+			"preparationStatusVariant" = excluded."preparationStatusVariant",
+			"isPublished" = excluded."isPublished",
+			"readinessPercent" = excluded."readinessPercent",
+			"blockerCount" = excluded."blockerCount",
+			"blockerPreviewJson" = excluded."blockerPreviewJson",
+			"readyToPublish" = excluded."readyToPublish",
+			"continuePreparationHref" = excluded."continuePreparationHref",
+			"previewHref" = excluded."previewHref",
+			"nextStepLabel" = excluded."nextStepLabel",
 			"subtypeSummary" = excluded."subtypeSummary",
 			"imagePreviewJson" = excluded."imagePreviewJson",
 			"coverImageJson" = excluded."coverImageJson",
@@ -212,7 +220,7 @@ async function backfillRatePlanConditionState(sql: QuerySql) {
 			from "RatePlan" rp
 			join "Variant" v on v.id = rp."variantId"
 			join "Product" p on p.id = v."productId"
-			where rp."isActive" = true and coalesce(v."isActive", true) = true and p."providerId" is not null
+			where rp."isActive" = true and v."salesEnabled" = true and p."providerId" is not null
 		),
 		coverage as (
 			select
@@ -618,7 +626,7 @@ async function backfillEffectivePricingV2(sql: QuerySql, horizonDays: number) {
 				order by pol."effectiveFrom" desc, pol.id desc
 				limit 1
 			) policy on true
-			where coalesce(v."isActive", true) = true
+			where v."salesEnabled" = true
 				and coalesce(rp."isActive", true) = true
 				and p."providerId" is not null
 		),
@@ -739,7 +747,7 @@ async function backfillSearchUnitView(sql: QuerySql, horizonDays: number) {
 				on legacy_er."variantId" = ep."variantId"
 				and legacy_er."ratePlanId" is null
 				and legacy_er.date = ep.date
-			where coalesce(v."isActive", true) = true
+			where v."salesEnabled" = true
 				and coalesce(rp."isActive", true) = true
 				and p."providerId" is not null
 				and ep.date >= current_date
@@ -896,7 +904,7 @@ async function recordSearchMaterializationLog(
 			current_date + (${params.horizonDays}::int * interval '1 day'),
 			${params.horizonDays},
 			'USD',
-			(select count(*) from "Variant" where "isActive" = true),
+			(select count(*) from "Variant" where "salesEnabled" = true),
 			${params.rowsMaterialized},
 			0,
 			${Math.round(params.durationMs)},
