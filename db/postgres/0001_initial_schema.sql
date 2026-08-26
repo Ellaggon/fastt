@@ -613,7 +613,17 @@ CREATE TABLE "ProductOperationalSurface" (
 	"productName" text NOT NULL,
 	"productType" text NOT NULL,
 	"status" text NOT NULL DEFAULT 'draft',
-	"readinessJson" jsonb,
+	"preparationStatusLabel" text NOT NULL DEFAULT 'En preparación',
+	"preparationStatusVariant" text NOT NULL DEFAULT 'warning',
+	"isPublished" boolean NOT NULL DEFAULT false,
+	"readinessPercent" integer NOT NULL DEFAULT 0,
+	"blockerCount" integer NOT NULL DEFAULT 0,
+	"blockerPreviewJson" jsonb,
+	"readyToPublish" boolean NOT NULL DEFAULT false,
+	"continuePreparationHref" text NOT NULL,
+	"previewHref" text NOT NULL,
+	"nextStepLabel" text,
+	"preparationUpdatedAt" timestamp with time zone NOT NULL DEFAULT now(),
 	"subtypeSummary" text,
 	"imagePreviewJson" jsonb,
 	"coverImageJson" jsonb,
@@ -631,23 +641,6 @@ CREATE TABLE "HouseRule" (
 	"type" text NOT NULL,
 	"payloadJson" jsonb NOT NULL,
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
-);
-
-CREATE TABLE "ProductPreparationSnapshot" (
-	"productId" text PRIMARY KEY,
-	"providerId" text NOT NULL,
-	"status" text NOT NULL DEFAULT 'draft',
-	"statusLabel" text NOT NULL DEFAULT 'En preparación',
-	"statusVariant" text NOT NULL DEFAULT 'warning',
-	"isPublished" boolean NOT NULL DEFAULT false,
-	"readinessPercent" integer NOT NULL DEFAULT 0,
-	"blockerCount" integer NOT NULL DEFAULT 0,
-	"blockerPreviewJson" jsonb,
-	"readyToPublish" boolean NOT NULL DEFAULT false,
-	"continuePreparationHref" text NOT NULL,
-	"previewHref" text NOT NULL,
-	"nextStepLabel" text,
-	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
 CREATE TABLE "ProductContent" (
@@ -2110,18 +2103,6 @@ ALTER TABLE "HouseRule"
 	REFERENCES "Product" ("id")
 ;
 
-ALTER TABLE "ProductPreparationSnapshot"
-	ADD CONSTRAINT "ProductPreparationSnapshot_productId_fk"
-	FOREIGN KEY ("productId")
-	REFERENCES "Product" ("id")
-;
-
-ALTER TABLE "ProductPreparationSnapshot"
-	ADD CONSTRAINT "ProductPreparationSnapshot_providerId_fk"
-	FOREIGN KEY ("providerId")
-	REFERENCES "Provider" ("id")
-;
-
 ALTER TABLE "ProductContent"
 	ADD CONSTRAINT "ProductContent_productId_fk"
 	FOREIGN KEY ("productId")
@@ -3021,13 +3002,9 @@ CREATE INDEX "ProductOperationalSurface_provider_updated_idx" ON "ProductOperati
 
 CREATE INDEX "ProductOperationalSurface_provider_status_idx" ON "ProductOperationalSurface" ("providerId", "status");
 
+CREATE INDEX "ProductOperationalSurface_provider_ready_idx" ON "ProductOperationalSurface" ("providerId", "readyToPublish");
+
 CREATE INDEX "HouseRule_productId_type_idx" ON "HouseRule" ("productId", "type");
-
-CREATE INDEX "ProductPreparationSnapshot_provider_updated_idx" ON "ProductPreparationSnapshot" ("providerId", "updatedAt");
-
-CREATE INDEX "ProductPreparationSnapshot_provider_ready_idx" ON "ProductPreparationSnapshot" ("providerId", "readyToPublish");
-
-CREATE INDEX "ProductPreparationSnapshot_provider_status_idx" ON "ProductPreparationSnapshot" ("providerId", "status");
 
 CREATE INDEX "Tour_durationMinutes_idx" ON "Tour" ("durationMinutes");
 
@@ -3431,6 +3408,12 @@ ALTER TABLE "ProductGeoPlace" ADD CONSTRAINT "ProductGeoPlace_primary_role_check
 
 ALTER TABLE "MarketplaceCommercialCertificationRun" ADD CONSTRAINT "MarketplaceCommercialCertificationRun_status_check" CHECK ("status" IN ('prepared', 'running', 'passed', 'failed'));
 
+ALTER TABLE "ProductOperationalSurface" ADD CONSTRAINT "ProductOperationalSurface_preparation_status_variant_check" CHECK ("preparationStatusVariant" IN ('success', 'info', 'warning'));
+
+ALTER TABLE "ProductOperationalSurface" ADD CONSTRAINT "ProductOperationalSurface_readiness_percent_check" CHECK ("readinessPercent" BETWEEN 0 AND 100);
+
+ALTER TABLE "ProductOperationalSurface" ADD CONSTRAINT "ProductOperationalSurface_blocker_count_check" CHECK ("blockerCount" >= 0);
+
 ALTER TABLE "TourSlotProfile" ADD CONSTRAINT "TourSlotProfile_bookingMode_check" CHECK ("bookingMode" in ('shared', 'private'));
 
 ALTER TABLE "TourSlotProfile" ADD CONSTRAINT "TourSlotProfile_maxPax_check" CHECK ("maxPax" >= 1);
@@ -3691,7 +3674,6 @@ BEGIN
 		'ProviderConfigurationState',
 		'ProviderInvitation',
 		'ProductOperationalSurface',
-		'ProductPreparationSnapshot',
 		'VariantRoomProfile',
 		'TourSlotProfile',
 		'TourTicketType',
