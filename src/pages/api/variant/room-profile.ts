@@ -22,7 +22,7 @@ import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { invalidateVariant } from "@/lib/cache/invalidation"
 import { refreshProductPreparationSnapshotAfterMutation } from "@/lib/playbook/summarize-product-preparation"
-import { isHotelProductType } from "@/lib/productVerticalRegistry"
+import { isHotelProductType } from "@/lib/catalog/productVerticalRegistry"
 import { createVariant } from "@/modules/catalog/public"
 
 const nullableNumber = z.preprocess((value) => {

@@ -1,6 +1,6 @@
 import type { ProductRepositoryPort } from "../../ports/ProductRepositoryPort"
 import { productBaseSchema } from "../../schemas/product/productBaseSchema"
-import { normalizeProductTypeForStorage } from "@/lib/productVerticalRegistry"
+import { normalizeProductTypeForStorage } from "@/lib/catalog/productVerticalRegistry"
 
 export async function createProduct(
 	deps: { repo: ProductRepositoryPort },

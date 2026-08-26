@@ -64,6 +64,10 @@ describe("catalog/product vertical registry", () => {
 		expect(productVerticalRegistry.limousine.routes.workspaceFilteredHref).toBe(
 			"/catalog/limousines"
 		)
+		expect(productVerticalRegistry.hotel.routes.publicSearchHref).toBe("/buscar/alojamientos")
+		expect(productVerticalRegistry.tour.routes.publicSearchHref).toBe("/buscar/tours")
+		expect(productVerticalRegistry.hotel.variantKind).toBe("hotel_room")
+		expect(productVerticalRegistry.tour.variantKind).toBe("tour_slot")
 
 		expect(productVerticalRegistry.hotel.creation.heading).toBe("Crear alojamiento")
 		expect(productVerticalRegistry.tour.creation.namePlaceholder).toContain("City Tour")
@@ -110,6 +114,7 @@ describe("catalog/product vertical registry", () => {
 		for (const file of legacyFormFiles) {
 			expect(existsSync(file)).toBe(false)
 		}
+		expect(existsSync("src/lib/productVerticalRegistry.ts")).toBe(false)
 	})
 
 	it("keeps existing verticalVocabulary consumers compatible", () => {

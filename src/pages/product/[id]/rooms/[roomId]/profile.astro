@@ -9,7 +9,7 @@ import {
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { isHotelProductType } from "@/lib/productVerticalRegistry"
+import { isHotelProductType } from "@/lib/catalog/productVerticalRegistry"
 import { routes } from "@/lib/routes"
 import {
 	AmenityRoom,
@@ -98,8 +98,8 @@ const selectedAmenityIds = selectedAmenityRows.map((row) => String(row.amenityId
 				</Button>
 			</div>
 			<p class="max-w-3xl text-sm leading-5 text-slate-300 sm:leading-6">
-				Actualiza la información física que verá el huésped: nombre, capacidad, camas, baño, vista
-				y comodidades.
+				Actualiza la información física que verá el huésped: nombre, capacidad, camas, baño, vista y
+				comodidades.
 			</p>
 		</header>
 

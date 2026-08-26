@@ -54,7 +54,7 @@ import type {
 import { tourHasMeetingPoint } from "@/lib/tours/tourAdminQuality"
 import type { RatePlanCommandRepositoryPort } from "../../../pricing/application/ports/RatePlanCommandRepositoryPort"
 import { RatePlanCommandRepository } from "../../../pricing/infrastructure/repositories/RatePlanCommandRepository"
-import { normalizeProductTypeForStorage } from "@/lib/productVerticalRegistry"
+import { normalizeProductTypeForStorage } from "@/lib/catalog/productVerticalRegistry"
 import { geoPlaceCompatibilityError } from "../../domain/geo-place-compatibility"
 
 export class ProductRepository implements ProductRepositoryPort {

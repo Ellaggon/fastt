@@ -12,8 +12,7 @@ import {
 import {
 	PRODUCT_VERTICAL_OPTIONS,
 	type ProductTypeStorage,
-	productTypeLabel,
-} from "@/lib/productVerticalRegistry"
+} from "@/lib/catalog/productVerticalRegistry"
 
 export type CatalogProductRow = {
 	id: string
@@ -178,15 +177,15 @@ export async function getProviderCatalogSummary(
 	const verticals = PRODUCT_VERTICAL_OPTIONS.map((vertical) => {
 		const verticalProducts = allProducts.filter(
 			(product) =>
-				String(product.productType ?? "").toLowerCase() === vertical.storageType.toLowerCase()
+				String(product.productType ?? "").toLowerCase() === vertical.productType.toLowerCase()
 		)
 		return {
-			storageType: vertical.storageType,
-			label: vertical.labels.plural,
-			singularLabel: productTypeLabel(vertical.storageType),
-			createCta: vertical.labels.createCta,
-			listHref: vertical.providerRoutes.list,
-			createHref: vertical.providerRoutes.create,
+			storageType: vertical.productType,
+			label: vertical.labels.workspacePlural,
+			singularLabel: vertical.labels.workspaceSingular,
+			createCta: vertical.creation.submitLabel,
+			listHref: vertical.routes.workspaceListHref,
+			createHref: vertical.routes.workspaceCreateHref,
 			summary: summarizeProducts(verticalProducts),
 		}
 	})

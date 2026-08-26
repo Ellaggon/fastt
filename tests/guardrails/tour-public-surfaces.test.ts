@@ -5,8 +5,8 @@ import { describe, expect, it } from "vitest"
 describe("tour public surfaces (fase 0+1)", () => {
 	it("uses the canonical buscar route without a legacy wrapper", () => {
 		expect(() => readFileSync(resolve("src/pages/tours/search.astro"), "utf8")).toThrow()
-		expect(readFileSync(resolve("src/lib/productVerticalRegistry.ts"), "utf8")).toContain(
-		'search: "/buscar/tours"'
+		expect(readFileSync(resolve("src/lib/catalog/productVerticalRegistry.ts"), "utf8")).toContain(
+		'publicSearchHref: "/buscar/tours"'
 	)
 	})
 

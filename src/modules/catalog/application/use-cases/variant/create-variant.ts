@@ -8,10 +8,13 @@ import type {
 	InventoryBootstrapPort,
 	VariantInventoryConfigRepositoryPort,
 } from "@/modules/inventory/public"
-import { normalizeProductVertical, variantKindForProductType } from "@/lib/productVerticalRegistry"
+import {
+	normalizeProductTypeForStorage,
+	variantKindForProductType,
+} from "@/lib/catalog/productVerticalRegistry"
 
 function normalizeProductType(raw: string): "hotel" | "tour" | "package" | "limousine" | "unknown" {
-	return normalizeProductVertical(raw) ?? "unknown"
+	return normalizeProductTypeForStorage(raw) ?? "unknown"
 }
 
 function expectedKindForProductType(pt: string): VariantKind | null {

@@ -12,7 +12,7 @@ import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { invalidateVariant } from "@/lib/cache/invalidation"
 import { refreshProductPreparationSnapshotAfterMutation } from "@/lib/playbook/summarize-product-preparation"
-import { isTourProductType } from "@/lib/productVerticalRegistry"
+import { isTourProductType } from "@/lib/catalog/productVerticalRegistry"
 import { createVariant } from "@/modules/catalog/public"
 
 const requiredPositiveNumber = z.preprocess((value) => Number(value), z.number().int().min(1))

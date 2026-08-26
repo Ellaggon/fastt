@@ -19,7 +19,7 @@ import {
 } from "@/shared/infrastructure/db/compat"
 import { TOUR_QUALITY_MIN_IMAGES } from "@/lib/tours/tourAdminQuality"
 
-import { PRODUCT_VERTICALS, normalizeProductTypeForStorage } from "@/lib/productVerticalRegistry"
+import { productVerticalRegistry, normalizeProductTypeForStorage } from "@/lib/catalog/productVerticalRegistry"
 import { productRepository } from "@/container"
 import { evaluateProductReadiness } from "@/modules/catalog/public"
 import { SubtypeRepository } from "@/modules/catalog/infrastructure/repositories/SubtypeRepository"
@@ -185,7 +185,7 @@ describe("vertical maturity", () => {
 			.where(eq(Limousine.productId, productId))
 			.then((rows) => rows[0])
 		expect(normalizeProductTypeForStorage("limusina")).toBe("limousine")
-		expect(PRODUCT_VERTICALS.limousine.variantKind).toBe("limousine_service")
+		expect(productVerticalRegistry.limousine.variantKind).toBe("limousine_service")
 		expect(row?.vehicleProfileJson).toMatchObject({ model: "Clase S" })
 		expect(row?.passengerCapacity).toBe(3)
 		expect(row?.luggageCapacity).toBe(2)

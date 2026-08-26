@@ -8,7 +8,7 @@ import { productRepository } from "@/container"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { isTourProductType } from "@/lib/productVerticalRegistry"
+import { isTourProductType } from "@/lib/catalog/productVerticalRegistry"
 import { routes } from "@/lib/routes"
 import {
 	and,
@@ -107,10 +107,20 @@ const requestCards = rows.map((row) => {
 					Salidas privadas · solicitudes
 				</h1>
 				<div class="flex flex-wrap gap-2">
-					<Button href={routes.productDetail(productId)} variant="secondary" size="sm" class="shrink-0">
+					<Button
+						href={routes.productDetail(productId)}
+						variant="secondary"
+						size="sm"
+						class="shrink-0"
+					>
 						Volver al producto
 					</Button>
-					<Button href={`/product/${productId}/departures`} variant="secondary" size="sm" class="shrink-0">
+					<Button
+						href={`/product/${productId}/departures`}
+						variant="secondary"
+						size="sm"
+						class="shrink-0"
+					>
 						Salidas
 					</Button>
 				</div>

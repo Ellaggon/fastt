@@ -1,5 +1,5 @@
 import type { ProductRepositoryPort, ProductStatusState } from "../../ports/ProductRepositoryPort"
-import { normalizeProductVertical } from "@/lib/productVerticalRegistry"
+import { normalizeProductVertical } from "@/lib/catalog/productVerticalRegistry"
 import { tourPublicationValidationErrors } from "@/lib/tours/tourAdminQuality"
 
 type ValidationError = { code: string; message: string }
@@ -25,7 +25,10 @@ export async function evaluateProductReadiness(
 		errors.push({ code: "missing_product_type", message: "Product type is required" })
 	}
 	if (!agg.product.geoPlaceId) {
-		errors.push({ code: "missing_primary_geo_place", message: "A canonical primary location is required" })
+		errors.push({
+			code: "missing_primary_geo_place",
+			message: "A canonical primary location is required",
+		})
 	}
 
 	// Content checks

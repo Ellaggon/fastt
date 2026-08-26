@@ -5,7 +5,7 @@ import { asc, db, eq, Tour, TourTicketType } from "@/shared/infrastructure/db/co
 import { productRepository } from "@/container"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { isTourProductType } from "@/lib/productVerticalRegistry"
+import { isTourProductType } from "@/lib/catalog/productVerticalRegistry"
 
 const DEFAULT_TICKETS = [
 	{ code: "adult" as const, label: "Adulto", minAge: 12, maxAge: null, sortOrder: 10 },

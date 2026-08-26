@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { normalizeProductVertical } from "@/lib/productVerticalRegistry"
+import { normalizeProductTypeForStorage } from "@/lib/catalog/productVerticalRegistry"
 import { canonicalizeTourDifficultyForStorage } from "@/lib/tours/tourDifficulty"
 
 /**
@@ -102,5 +102,5 @@ export const limousineSchema = z.object({
 export function normalizeProductType(
 	raw: unknown
 ): "hotel" | "tour" | "package" | "limousine" | "unknown" {
-	return normalizeProductVertical(raw) ?? "unknown"
+	return normalizeProductTypeForStorage(raw) ?? "unknown"
 }

@@ -1,4 +1,4 @@
-import { normalizeProductVertical } from "@/lib/productVerticalRegistry"
+import { normalizeProductVertical } from "@/lib/catalog/productVerticalRegistry"
 
 export type ProviderVertical = "hotel" | "tour" | "rental" | "package" | "limousine" | "generic"
 

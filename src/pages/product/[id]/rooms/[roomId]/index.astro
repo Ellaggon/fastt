@@ -10,7 +10,7 @@ import { getNextAddRoomStep, resolveAddRoomPlaybookFromUrl } from "@/lib/playboo
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { isHotelProductType } from "@/lib/productVerticalRegistry"
+import { isHotelProductType } from "@/lib/catalog/productVerticalRegistry"
 import { routes } from "@/lib/routes"
 import { Camera, ImagePlus, RefreshCw, Sparkles } from "@lucide/astro"
 
@@ -121,10 +121,7 @@ const previewHref = `${routes.productRoomDetail(productId, roomId)}#previsualiza
 					) : null
 				}
 			</div>
-			<p
-				id="roomHeaderDescription"
-				class="max-w-3xl text-sm leading-5 text-slate-300 sm:leading-6"
-			>
+			<p id="roomHeaderDescription" class="max-w-3xl text-sm leading-5 text-slate-300 sm:leading-6">
 				{
 					isRoomPhotosPlaybook
 						? "Agrega imágenes claras de la cama, el baño y la distribución real. La primera foto será la referencia principal para huéspedes."

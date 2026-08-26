@@ -238,7 +238,7 @@ describe("Guardrail: Property Content operational semantics", () => {
 	})
 
 	it("keeps Product as generic catalog while rooms stay Hotel-only", () => {
-		const registry = read("src/lib/productVerticalRegistry.ts")
+		const registry = read("src/lib/catalog/productVerticalRegistry.ts")
 		const productCreate = read("src/pages/product/create.astro")
 		const roomsAggregate = read("src/pages/dashboard/index.astro")
 		const roomsByProduct = read("src/pages/product/[id]/rooms.astro")
@@ -246,10 +246,10 @@ describe("Guardrail: Property Content operational semantics", () => {
 		const roomProfileEditor = read("src/components/rooms/RoomProfileEditor.astro")
 		const roomProfileApi = read("src/pages/api/variant/room-profile.ts")
 
-		expect(registry).toContain('storageType: "hotel"')
-		expect(registry).toContain('storageType: "tour"')
-		expect(registry).toContain('storageType: "package"')
-		expect(registry).toContain('storageType: "limousine"')
+		expect(registry).toContain('productType: "hotel"')
+		expect(registry).toContain('productType: "tour"')
+		expect(registry).toContain('productType: "package"')
+		expect(registry).toContain('productType: "limousine"')
 		expect(registry).toContain("normalizeProductTypeForStorage")
 		expect(productCreate).toContain("listActiveProductVerticalEntries")
 		expect(productCreate).toContain("¿Qué quieres ofrecer?")
