@@ -12,7 +12,7 @@ import { CircleCheck, ClipboardList } from "@lucide/astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { buildPlaybookHref } from "@/lib/playbook/launch-accommodation"
 import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
-import { refreshProductOperationalSurfaceAfterMutation } from "@/lib/product/productOperationalSurface"
+import { refreshProductPreparationSnapshotAfterMutation } from "@/lib/playbook/summarize-product-preparation"
 import { syncHotelArrivalPolicy } from "@/lib/policies/syncHotelArrivalPolicy"
 import { routes } from "@/lib/routes"
 import {
@@ -205,7 +205,7 @@ if (Astro.request.method === "POST") {
 					rules: (await listHouseRulesByProduct(productId)) as HouseRule[],
 				})
 			}
-			await refreshProductOperationalSurfaceAfterMutation({
+			await refreshProductPreparationSnapshotAfterMutation({
 				productId,
 				providerId: auth.providerId,
 				request: Astro.request,
@@ -236,7 +236,7 @@ if (Astro.request.method === "POST") {
 				actorUserId: auth.user.id,
 				rules: (await listHouseRulesByProduct(productId)) as HouseRule[],
 			})
-			await refreshProductOperationalSurfaceAfterMutation({
+			await refreshProductPreparationSnapshotAfterMutation({
 				productId,
 				providerId: auth.providerId,
 				request: Astro.request,
@@ -261,7 +261,7 @@ if (Astro.request.method === "POST") {
 					rules: (await listHouseRulesByProduct(ownedRule.productId)) as HouseRule[],
 				})
 			}
-			await refreshProductOperationalSurfaceAfterMutation({
+			await refreshProductPreparationSnapshotAfterMutation({
 				productId: ownedRule.productId,
 				providerId: auth.providerId,
 				request: Astro.request,
