@@ -32,7 +32,6 @@ interface Props {
 	isEssential: boolean
 	isGuidedRules: boolean
 	isComplete: boolean
-	openByDefault?: boolean
 	actionHref: string
 	vista: string
 	hasProductContext: boolean
@@ -46,7 +45,6 @@ const {
 	isEssential,
 	isGuidedRules,
 	isComplete,
-	openByDefault = false,
 	actionHref,
 	vista,
 	hasProductContext,
@@ -75,7 +73,7 @@ const status = isComplete
 		? { label: "Pendiente", variant: "warning" as const }
 		: { label: "Opcional", variant: "info" as const }
 const rowClass = [
-	"fastt-row-card group overflow-hidden bg-white text-slate-900 transition",
+	"fastt-row-card group scroll-mt-24 overflow-hidden bg-white text-slate-900 transition",
 	isComplete ? "" : status.variant === "warning" ? "fastt-row-card-alert" : "fastt-row-card-info",
 ].join(" ")
 const wellClass = isComplete
@@ -92,8 +90,8 @@ const impact = isComplete
 ---
 
 <details
+	id={`house-rule-${vista}-${type}`}
 	class={rowClass}
-	open={openByDefault ? true : undefined}
 	data-house-rule-type={type}
 	data-house-rule-complete={isComplete ? "true" : "false"}
 >

@@ -7,7 +7,7 @@ import Card from "@/components/ui/Card.astro"
 import HouseRuleEditorRow from "@/components/house-rules/HouseRuleEditorRow.astro"
 import TabsOutsidePanel from "@/components/ui/TabsOutsidePanel.astro"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
-import { CircleCheck } from "@lucide/astro"
+import { CircleCheck, ClipboardList } from "@lucide/astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { buildPlaybookHref } from "@/lib/playbook/launch-accommodation"
 import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
@@ -378,6 +378,23 @@ function productHouseRulesHref(productId: string) {
 	return `${routes.providerHouseRules()}?${params.toString()}`
 }
 
+const missingEssentials = selectedState?.missingEssentials ?? [...essentialHouseRuleTypes]
+const houseRulesProgressPercent = Math.max(
+	0,
+	Math.min(100, (essentialReadyCount / essentialHouseRuleTypes.length) * 100)
+)
+const houseRulesLead = selectedReady
+	? "Las expectativas principales ya están listas para mostrarse al huésped."
+	: "El huésped las ve antes de reservar. Sin ellas la ficha queda a medias."
+
+function essentialRuleHref(type: HouseRuleType) {
+	const view: HouseRuleView =
+		(type === "CheckIn" || type === "Checkout") && activeView === "arrival"
+			? "arrival"
+			: "essential"
+	return `${houseRulesViewHref(view)}#house-rule-${view}-${type}`
+}
+
 const ruleTabs = [
 	{
 		id: "essential",
@@ -607,300 +624,331 @@ const successMessage =
 					</div>
 				</section>
 			) : (
-				<div class={isGuidedRules ? "space-y-3" : "grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]"}>
-					<section class={isGuidedRules ? "flex flex-col gap-3" : "space-y-3"}>
-						{isGuidedRules ? null : (
-							<div class="order-2">
-								<Card className="bg-white text-slate-900">
-									<div class="flex flex-wrap items-start justify-between gap-3">
-										<div class="space-y-1">
-											<p class="text-lg font-semibold text-slate-950">
-												{`${essentialReadyCount} de ${essentialHouseRuleTypes.length} reglas esenciales listas`}
-											</p>
-											<p class="max-w-2xl text-sm leading-6 text-slate-600">
-												{selectedReady
-													? "Las expectativas principales ya están listas para mostrarse al huésped."
-													: "Completa las expectativas básicas de comportamiento, llegada y salida antes de publicar."}
-											</p>
+				<div class="space-y-6">
+					{isGuidedRules ? null : (
+						<section class="space-y-4" data-house-rules-coach>
+							<Card variant="dark" class="!border-neutral-800 !bg-black">
+								<div class="space-y-5">
+									<div class="flex items-start justify-between gap-4">
+										<div class="flex min-w-0 items-start gap-3">
+											<span class="fastt-section-icon">
+												{selectedReady ? (
+													<CircleCheck class="size-4" aria-hidden="true" />
+												) : (
+													<ClipboardList class="size-4" aria-hidden="true" />
+												)}
+											</span>
+											<div class="min-w-0">
+												<p class="text-xs font-semibold tracking-[0.14em] text-neutral-500 uppercase">
+													En la ficha
+												</p>
+												<h2 class="mt-1 text-xl font-semibold text-white">Reglas esenciales</h2>
+												<p class="mt-1 max-w-xl text-sm leading-6 text-neutral-400">
+													{houseRulesLead}
+												</p>
+											</div>
 										</div>
-										<Badge variant={selectedReady ? "success" : "warning"}>
-											{selectedReady ? "Listo para revisar" : `Faltan ${missingCount}`}
+										<Badge variant={selectedReady ? "darkSuccess" : "darkWarning"}>
+											{selectedReady ? "Listas" : "Pendiente"}
 										</Badge>
 									</div>
-									<div class="mt-4">
-										<div class="h-1.5 overflow-hidden rounded-full bg-slate-100">
+
+									<div class="flex items-center gap-3">
+										<div class="h-1 flex-1 overflow-hidden rounded-full bg-white/10">
 											<div
 												class="h-full rounded-full"
-												style={`width: ${(essentialReadyCount / essentialHouseRuleTypes.length) * 100}%; background-color: var(--fastt-color-selection);`}
-											/>
+												style={`width: ${houseRulesProgressPercent}%; background-color: var(--fastt-color-selection);`}
+											></div>
 										</div>
+										<p class="shrink-0 text-xs font-medium text-neutral-400 tabular-nums">
+											{essentialReadyCount} de {essentialHouseRuleTypes.length}
+										</p>
 									</div>
-									{missingCount > 0 ? (
-										<div class="mt-4 space-y-2">
-											<div class="flex flex-wrap gap-2">
-												{selectedState?.missingEssentials.map((type) => (
-													<Badge variant="neutral">{houseRuleCopy[type].label}</Badge>
-												))}
-											</div>
+
+									{missingEssentials.length ? (
+										<div class="flex flex-wrap gap-2">
+											{missingEssentials.map((type) => (
+												<a href={essentialRuleHref(type)}>
+													<Badge
+														variant="darkNeutral"
+														class="transition hover:border-white/30 hover:bg-white/15 hover:text-white"
+													>
+														{houseRuleCopy[type].label}
+													</Badge>
+												</a>
+											))}
 										</div>
 									) : null}
+
 									{focus === "arrival" ? (
-										<p class="mt-4 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">
-											Estos horarios pertenecen al alojamiento y se heredan en las condiciones de
-											tarifa.
+										<p class="text-sm leading-6 text-neutral-500">
+											Estos horarios se heredan en las condiciones de tarifa.
 										</p>
 									) : null}
-								</Card>
-							</div>
-						)}
-
-						<div class={isGuidedRules ? "order-1" : ""}>
-							<Card className="bg-white text-slate-900">
-								<div class="space-y-1">
-									<p class="text-base font-semibold text-slate-950">
-										{isGuidedRules ? "Elige una base para empezar" : "Plantillas rápidas"}
-									</p>
-									{isGuidedRules ? (
-										<p class="max-w-2xl text-sm leading-6 text-slate-600">
-											Puedes ajustar cualquier regla después. Esto carga una base clara para avanzar
-											hacia la publicación.
-										</p>
-									) : (
-										<p class="text-sm leading-6 text-slate-600">
-											Aplica una base común y ajusta solo lo que cambia para este alojamiento.
-										</p>
-									)}
-								</div>
-								<div class="mt-4 grid gap-3 md:grid-cols-2">
-									{houseRuleQuickSetups.map((preset, index) => (
-										<form
-											action={houseRulesViewHref(activeView)}
-											method="POST"
-											class={`bg-slate-50 ring-1 ring-slate-900/[0.06] transition hover:bg-white hover:shadow-[var(--fastt-shadow-row)] ${
-												isGuidedRules
-													? index === 0
-														? "rounded-xl p-3 ring-[var(--fastt-color-selection)]"
-														: "rounded-xl p-3"
-													: "rounded-2xl p-4"
-											}`}
-										>
-											<input type="hidden" name="action" value="apply-quick-setup" />
-											<input type="hidden" name="presetKey" value={preset.key} />
-											<input type="hidden" name="productId" value={selectedProductId} />
-											<input type="hidden" name="vista" value={activeView} data-house-rules-vista />
-											<div class="flex flex-wrap items-center gap-2">
-												<p class="text-sm font-semibold text-slate-950">{preset.title}</p>
-												{isGuidedRules && index === 0 ? (
-													<Badge variant="neutral">Recomendado</Badge>
-												) : null}
-											</div>
-											<p
-												class={`mt-1 text-sm leading-5 text-slate-600 ${isGuidedRules ? "" : "min-h-10"}`}
-											>
-												{preset.description}
-											</p>
-											<div class="mt-4 flex justify-end">
-												<Button type="submit" variant="secondary" size="sm">
-													{isGuidedRules ? "Usar esta base" : "Aplicar base"}
-												</Button>
-											</div>
-										</form>
-									))}
 								</div>
 							</Card>
-						</div>
+						</section>
+					)}
 
-						<div class={isGuidedRules ? "order-3" : ""}>
-							<Card
-								variant="flush"
-								className="overflow-hidden bg-white text-slate-900"
-								data-house-rules-tabs
-							>
-								<div class="flex flex-wrap items-center justify-between gap-3 border-b border-sky-100 bg-white px-4 pt-4">
-									<TabsOutsidePanel class="mb-3" aria-label="Secciones de reglas">
-										{ruleTabs.map((tab) => (
-											<a
-												href={houseRulesViewHref(tab.id)}
-												data-house-rules-tab={tab.id}
-												aria-current={activeView === tab.id ? "page" : undefined}
-												data-active={activeView === tab.id ? "true" : "false"}
-												class={`fastt-tabs-outside-panel__item px-3 py-2 text-sm font-semibold whitespace-nowrap ${
-													activeView === tab.id
-														? ""
-														: "text-slate-600 hover:bg-sky-100/80 hover:text-sky-950"
+					<div
+						class={isGuidedRules ? "space-y-3" : "grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]"}
+					>
+						<section class={isGuidedRules ? "flex flex-col gap-3" : "space-y-3"}>
+							<div class={isGuidedRules ? "order-1" : ""}>
+								<Card className="bg-white text-slate-900">
+									<div class="space-y-1">
+										<p class="text-base font-semibold text-slate-950">
+											{isGuidedRules ? "Elige una base para empezar" : "Plantillas rápidas"}
+										</p>
+										{isGuidedRules ? (
+											<p class="max-w-2xl text-sm leading-6 text-slate-600">
+												Puedes ajustar cualquier regla después. Esto carga una base clara para
+												avanzar hacia la publicación.
+											</p>
+										) : (
+											<p class="text-sm leading-6 text-slate-600">
+												Aplica una base común y ajusta solo lo que cambia para este alojamiento.
+											</p>
+										)}
+									</div>
+									<div class="mt-4 grid gap-3 md:grid-cols-2">
+										{houseRuleQuickSetups.map((preset, index) => (
+											<form
+												action={houseRulesViewHref(activeView)}
+												method="POST"
+												class={`bg-slate-50 ring-1 ring-slate-900/[0.06] transition hover:bg-white hover:shadow-[var(--fastt-shadow-row)] ${
+													isGuidedRules
+														? index === 0
+															? "rounded-xl p-3 ring-[var(--fastt-color-selection)]"
+															: "rounded-xl p-3"
+														: "rounded-2xl p-4"
 												}`}
 											>
-												{tab.label} <span class="ml-1 text-xs opacity-70">{tab.meta}</span>
-											</a>
-										))}
-									</TabsOutsidePanel>
-									{isGuidedRules ? (
-										<div class="mb-3">
-											<Badge variant={selectedReady ? "success" : "warning"}>
-												{`${essentialReadyCount} de ${essentialHouseRuleTypes.length} listas`}
-											</Badge>
-										</div>
-									) : null}
-								</div>
-								<div>
-									{isGuidedRules ? null : (
-										<div data-house-rules-panel="preview" hidden={activeView !== "preview"}>
-											<div class="p-4 sm:p-5">
-												<div class="rounded-2xl bg-slate-50 p-5">
-													<p class="text-base font-semibold text-slate-950">Vista huésped</p>
-													<p class="mt-1 text-sm leading-6 text-slate-600">
-														Revisa en el panel lateral el resumen agrupado tal como acompañará la
-														ficha pública.
-													</p>
-												</div>
-											</div>
-										</div>
-									)}
-
-									{houseRuleEditorViews.map((view) => {
-										const types = ruleTypesByView[view]
-										const pendingTypes = types.filter(
-											(type) => (selectedRulesByType.get(type) ?? []).length === 0
-										)
-										const completeTypes = types.filter(
-											(type) => (selectedRulesByType.get(type) ?? []).length > 0
-										)
-										return (
-											<div data-house-rules-panel={view} hidden={activeView !== view}>
-												<header class="border-b border-sky-100 bg-sky-50/80 px-5 py-4">
-													<div class="flex flex-wrap items-center justify-between gap-3">
-														<h2 class="text-lg font-semibold text-slate-950">Pendientes</h2>
-														<Badge variant={pendingTypes.length ? "info" : "success"}>
-															{pendingTypes.length ? pendingTypes.length : "Listo"}
-														</Badge>
-													</div>
-													<p class="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
-														Una regla a la vez. El huésped las verá antes de reservar.
-													</p>
-												</header>
-												<div class="space-y-3 bg-slate-50/90 p-4 sm:p-5">
-													{pendingTypes.map((type, index) => (
-														<HouseRuleEditorRow
-															type={type}
-															rules={selectedRulesByType.get(type) ?? []}
-															isEssential={essentialHouseRuleTypes.includes(type)}
-															isGuidedRules={isGuidedRules}
-															isComplete={false}
-															openByDefault={index === 0}
-															actionHref={houseRulesViewHref(view)}
-															vista={view}
-															hasProductContext={hasProductContext}
-															selectedProductId={selectedProductId}
-															visibleProducts={visibleProducts}
-														/>
-													))}
-													{completeTypes.length ? (
-														<details
-															class="fastt-soft-box group border border-slate-200 bg-white"
-															open={!pendingTypes.length}
-															data-house-rules-complete-areas
-														>
-															<summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-sky-50 [&::-webkit-details-marker]:hidden">
-																<span class="inline-flex items-center gap-2">
-																	<CircleCheck class="size-4 text-emerald-600" aria-hidden="true" />
-																	Áreas completadas ({completeTypes.length})
-																</span>
-																<span class="text-xs font-medium text-slate-500 group-open:hidden">
-																	Mostrar
-																</span>
-																<span class="hidden text-xs font-medium text-slate-500 group-open:inline">
-																	Ocultar
-																</span>
-															</summary>
-															<div class="space-y-3 border-t border-slate-100 p-3">
-																{completeTypes.map((type) => (
-																	<HouseRuleEditorRow
-																		type={type}
-																		rules={selectedRulesByType.get(type) ?? []}
-																		isEssential={essentialHouseRuleTypes.includes(type)}
-																		isGuidedRules={isGuidedRules}
-																		isComplete={true}
-																		actionHref={houseRulesViewHref(view)}
-																		vista={view}
-																		hasProductContext={hasProductContext}
-																		selectedProductId={selectedProductId}
-																		visibleProducts={visibleProducts}
-																	/>
-																))}
-															</div>
-														</details>
+												<input type="hidden" name="action" value="apply-quick-setup" />
+												<input type="hidden" name="presetKey" value={preset.key} />
+												<input type="hidden" name="productId" value={selectedProductId} />
+												<input
+													type="hidden"
+													name="vista"
+													value={activeView}
+													data-house-rules-vista
+												/>
+												<div class="flex flex-wrap items-center gap-2">
+													<p class="text-sm font-semibold text-slate-950">{preset.title}</p>
+													{isGuidedRules && index === 0 ? (
+														<Badge variant="neutral">Recomendado</Badge>
 													) : null}
 												</div>
-											</div>
-										)
-									})}
-								</div>
-							</Card>
-						</div>
-					</section>
-
-					<aside class={isGuidedRules ? "hidden" : "hidden space-y-4 xl:order-none xl:block"}>
-						<Card className="bg-white text-slate-900 xl:sticky xl:top-6">
-							<div class="flex flex-wrap items-start justify-between gap-3">
-								<div>
-									<p class="text-base font-semibold text-slate-950">Así lo verá el huésped</p>
-									<p class="mt-1 text-sm text-slate-600">
-										Resumen visible antes de reservar en {selectedProduct?.name ?? "el alojamiento"}
-										.
-									</p>
-								</div>
-								<Badge variant={selectedReady ? "success" : "warning"}>
-									{selectedReady ? "Listo" : `Faltan ${missingCount}`}
-								</Badge>
+												<p
+													class={`mt-1 text-sm leading-5 text-slate-600 ${isGuidedRules ? "" : "min-h-10"}`}
+												>
+													{preset.description}
+												</p>
+												<div class="mt-4 flex justify-end">
+													<Button type="submit" variant="secondary" size="sm">
+														{isGuidedRules ? "Usar esta base" : "Aplicar base"}
+													</Button>
+												</div>
+											</form>
+										))}
+									</div>
+								</Card>
 							</div>
 
-							{selectedProduct ? (
-								<div class="mt-4">
-									<Button
-										href={routes.productPreview(selectedProduct.id)}
-										variant="secondary"
-										size="sm"
-									>
-										Ver ficha completa
-									</Button>
-								</div>
-							) : null}
-
-							{previewRules.length ? (
-								<div class="mt-5 space-y-4">
-									{previewRulesByGroup.map((group) => {
-										if (!group.rules.length) return null
-										return (
-											<div>
-												<p class="text-sm font-semibold text-slate-950">{group.label}</p>
-												<ul class="mt-2 space-y-2 text-sm leading-6 text-slate-700">
-													{group.rules.map((rule) => {
-														const type = String(rule.type ?? "Other") as HouseRuleType
-														const summary = buildHouseRuleGuestSummary(type, rule.payloadJson)
-														return (
-															<li class="rounded-2xl bg-slate-50 px-3 py-2.5">
-																<span class="font-medium text-slate-900">
-																	{houseRuleCopy[type]?.label ?? "Otra regla"}:
-																</span>{" "}
-																{summary}
-															</li>
-														)
-													})}
-												</ul>
+							<div class={isGuidedRules ? "order-3" : ""}>
+								<Card
+									variant="flush"
+									className="overflow-hidden bg-white text-slate-900"
+									data-house-rules-tabs
+								>
+									<div class="flex flex-wrap items-center justify-between gap-3 border-b border-sky-100 bg-white px-4 pt-4">
+										<TabsOutsidePanel class="mb-3" aria-label="Secciones de reglas">
+											{ruleTabs.map((tab) => (
+												<a
+													href={houseRulesViewHref(tab.id)}
+													data-house-rules-tab={tab.id}
+													aria-current={activeView === tab.id ? "page" : undefined}
+													data-active={activeView === tab.id ? "true" : "false"}
+													class={`fastt-tabs-outside-panel__item px-3 py-2 text-sm font-semibold whitespace-nowrap ${
+														activeView === tab.id
+															? ""
+															: "text-slate-600 hover:bg-sky-100/80 hover:text-sky-950"
+													}`}
+												>
+													{tab.label} <span class="ml-1 text-xs opacity-70">{tab.meta}</span>
+												</a>
+											))}
+										</TabsOutsidePanel>
+										{isGuidedRules ? (
+											<div class="mb-3">
+												<Badge variant={selectedReady ? "success" : "warning"}>
+													{`${essentialReadyCount} de ${essentialHouseRuleTypes.length} listas`}
+												</Badge>
 											</div>
-										)
-									})}
+										) : null}
+									</div>
+									<div>
+										{isGuidedRules ? null : (
+											<div data-house-rules-panel="preview" hidden={activeView !== "preview"}>
+												<div class="p-4 sm:p-5">
+													<div class="rounded-2xl bg-slate-50 p-5">
+														<p class="text-base font-semibold text-slate-950">Vista huésped</p>
+														<p class="mt-1 text-sm leading-6 text-slate-600">
+															Revisa en el panel lateral el resumen agrupado tal como acompañará la
+															ficha pública.
+														</p>
+													</div>
+												</div>
+											</div>
+										)}
+
+										{houseRuleEditorViews.map((view) => {
+											const types = ruleTypesByView[view]
+											const pendingTypes = types.filter(
+												(type) => (selectedRulesByType.get(type) ?? []).length === 0
+											)
+											const completeTypes = types.filter(
+												(type) => (selectedRulesByType.get(type) ?? []).length > 0
+											)
+											return (
+												<div data-house-rules-panel={view} hidden={activeView !== view}>
+													<header class="border-b border-sky-100 bg-sky-50/80 px-5 py-4">
+														<div class="flex flex-wrap items-center justify-between gap-3">
+															<h2 class="text-lg font-semibold text-slate-950">Pendientes</h2>
+															<Badge variant={pendingTypes.length ? "info" : "success"}>
+																{pendingTypes.length ? pendingTypes.length : "Listo"}
+															</Badge>
+														</div>
+														<p class="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
+															Una regla a la vez. El huésped las verá antes de reservar.
+														</p>
+													</header>
+													<div class="space-y-3 bg-slate-50/90 p-4 sm:p-5">
+														{pendingTypes.map((type) => (
+															<HouseRuleEditorRow
+																type={type}
+																rules={selectedRulesByType.get(type) ?? []}
+																isEssential={essentialHouseRuleTypes.includes(type)}
+																isGuidedRules={isGuidedRules}
+																isComplete={false}
+																actionHref={houseRulesViewHref(view)}
+																vista={view}
+																hasProductContext={hasProductContext}
+																selectedProductId={selectedProductId}
+																visibleProducts={visibleProducts}
+															/>
+														))}
+														{completeTypes.length ? (
+															<details
+																class="fastt-soft-box group border border-slate-200 bg-white"
+																open={!pendingTypes.length}
+																data-house-rules-complete-areas
+															>
+																<summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-sky-50 [&::-webkit-details-marker]:hidden">
+																	<span class="inline-flex items-center gap-2">
+																		<CircleCheck
+																			class="size-4 text-emerald-600"
+																			aria-hidden="true"
+																		/>
+																		Áreas completadas ({completeTypes.length})
+																	</span>
+																	<span class="text-xs font-medium text-slate-500 group-open:hidden">
+																		Mostrar
+																	</span>
+																	<span class="hidden text-xs font-medium text-slate-500 group-open:inline">
+																		Ocultar
+																	</span>
+																</summary>
+																<div class="space-y-3 border-t border-slate-100 p-3">
+																	{completeTypes.map((type) => (
+																		<HouseRuleEditorRow
+																			type={type}
+																			rules={selectedRulesByType.get(type) ?? []}
+																			isEssential={essentialHouseRuleTypes.includes(type)}
+																			isGuidedRules={isGuidedRules}
+																			isComplete={true}
+																			actionHref={houseRulesViewHref(view)}
+																			vista={view}
+																			hasProductContext={hasProductContext}
+																			selectedProductId={selectedProductId}
+																			visibleProducts={visibleProducts}
+																		/>
+																	))}
+																</div>
+															</details>
+														) : null}
+													</div>
+												</div>
+											)
+										})}
+									</div>
+								</Card>
+							</div>
+						</section>
+
+						<aside class={isGuidedRules ? "hidden" : "hidden space-y-4 xl:order-none xl:block"}>
+							<Card className="bg-white text-slate-900 xl:sticky xl:top-6">
+								<div class="flex flex-wrap items-start justify-between gap-3">
+									<div>
+										<p class="text-base font-semibold text-slate-950">Así lo verá el huésped</p>
+										<p class="mt-1 text-sm text-slate-600">
+											Resumen visible antes de reservar en{" "}
+											{selectedProduct?.name ?? "el alojamiento"}.
+										</p>
+									</div>
+									<Badge variant={selectedReady ? "success" : "warning"}>
+										{selectedReady ? "Listo" : `Faltan ${missingCount}`}
+									</Badge>
 								</div>
-							) : (
-								<div class="mt-5 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4">
-									<p class="text-sm font-semibold text-slate-900">Aún no hay reglas visibles.</p>
-									<p class="mt-1 text-sm text-slate-600">
-										Agrega las reglas principales para que la ficha sea clara.
-									</p>
-								</div>
-							)}
-						</Card>
-					</aside>
+
+								{selectedProduct ? (
+									<div class="mt-4">
+										<Button
+											href={routes.productPreview(selectedProduct.id)}
+											variant="secondary"
+											size="sm"
+										>
+											Ver ficha completa
+										</Button>
+									</div>
+								) : null}
+
+								{previewRules.length ? (
+									<div class="mt-5 space-y-4">
+										{previewRulesByGroup.map((group) => {
+											if (!group.rules.length) return null
+											return (
+												<div>
+													<p class="text-sm font-semibold text-slate-950">{group.label}</p>
+													<ul class="mt-2 space-y-2 text-sm leading-6 text-slate-700">
+														{group.rules.map((rule) => {
+															const type = String(rule.type ?? "Other") as HouseRuleType
+															const summary = buildHouseRuleGuestSummary(type, rule.payloadJson)
+															return (
+																<li class="rounded-2xl bg-slate-50 px-3 py-2.5">
+																	<span class="font-medium text-slate-900">
+																		{houseRuleCopy[type]?.label ?? "Otra regla"}:
+																	</span>{" "}
+																	{summary}
+																</li>
+															)
+														})}
+													</ul>
+												</div>
+											)
+										})}
+									</div>
+								) : (
+									<div class="mt-5 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4">
+										<p class="text-sm font-semibold text-slate-900">Aún no hay reglas visibles.</p>
+										<p class="mt-1 text-sm text-slate-600">
+											Agrega las reglas principales para que la ficha sea clara.
+										</p>
+									</div>
+								)}
+							</Card>
+						</aside>
+					</div>
 				</div>
 			)
 		}
