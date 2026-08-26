@@ -1,6 +1,5 @@
 ---
 import { CircleAlert, CircleCheck, CircleX, TriangleAlert, X } from "@lucide/astro"
-import { installBottomToastController } from "@/lib/ui/bottomToastClient"
 
 type BottomToastVariant = "success" | "info" | "warning" | "error"
 
@@ -100,5 +99,7 @@ const finalClass = ["fastt-bottom-toast-host", className].filter(Boolean).join("
 </style>
 
 <script>
+	import { installBottomToastController } from "@/lib/ui/bottomToastClient"
+
 	installBottomToastController()
 </script>
