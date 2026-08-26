@@ -20,7 +20,7 @@ const readyAggregate: ProductAggregate = {
 		subtypeExists: true,
 		hotel: { variantCount: 1, completeRoomCount: 1 },
 	},
-	status: null,
+	publication: { state: "draft", validationErrorsJson: null },
 }
 
 function makeRepo(eligible: boolean): ProductRepositoryPort {
@@ -28,7 +28,7 @@ function makeRepo(eligible: boolean): ProductRepositoryPort {
 		createProductBase: vi.fn(async () => {}),
 		upsertProductContent: vi.fn(async () => {}),
 		upsertProductLocation: vi.fn(async () => {}),
-		upsertProductStatus: vi.fn(async () => {}),
+		setProductPublication: vi.fn(async () => {}),
 		getProductAggregate: vi.fn(async () => readyAggregate),
 		getProductPublicationEligibility: vi.fn(async () => ({
 			eligible,
@@ -47,10 +47,10 @@ describe("catalog/product/publishProduct", () => {
 		expect(result.validationErrors).toEqual([
 			expect.objectContaining({ code: "PUBLICATION_OWNER_INELIGIBLE" }),
 		])
-		expect(repo.upsertProductStatus).toHaveBeenCalledWith(
+		expect(repo.setProductPublication).toHaveBeenCalledWith(
 			expect.objectContaining({ state: "ready" })
 		)
-		expect(repo.upsertProductStatus).not.toHaveBeenCalledWith(
+		expect(repo.setProductPublication).not.toHaveBeenCalledWith(
 			expect.objectContaining({ state: "published" })
 		)
 	})
@@ -61,7 +61,7 @@ describe("catalog/product/publishProduct", () => {
 		const result = await publishProduct({ repo }, { productId: "product_1" })
 
 		expect(result.ok).toBe(true)
-		expect(repo.upsertProductStatus).toHaveBeenLastCalledWith({
+		expect(repo.setProductPublication).toHaveBeenLastCalledWith({
 			productId: "product_1",
 			state: "published",
 			validationErrorsJson: null,

@@ -20,14 +20,14 @@ describe("public marketplace data isolation", () => {
 			expect(source).toContain("innerJoin(Provider")
 		}
 		expect(destinationListings).toContain('eq(ProductContent.dataClass, "production")')
-		expect(destinationListings).toContain('eq(ProductStatus.state, "published")')
+		expect(destinationListings).toContain('eq(Product.publicationState, "published")')
 		expect(tourSearch).toContain('eq(ProductContent.dataClass, "production")')
 		expect(tourSearch).toContain('eq(ProductCategory.dataClass, "production")')
 		expect(tourPanel).toContain("eq(ProductCategory.isActive, true)")
 		expect(tourPanel).toContain('eq(ProductCategory.dataClass, "production")')
 		expect(inventoryHold).toContain("publicCatalogProductEligibility")
 		expect(inventoryHold).toContain("innerJoin(Provider")
-		expect(privateTourRequest).toContain('eq(ProductStatus.state, "published")')
+		expect(privateTourRequest).toContain('eq(Product.publicationState, "published")')
 	})
 
 	it("migrates provenance and quarantines malformed or duplicate categories without deleting rows", () => {

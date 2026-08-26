@@ -322,8 +322,8 @@ describe("integration/catalog Product V2 API", () => {
 				expect(published.state).toBe("published")
 
 				const agg = await productRepository.getProductAggregate(productId)
-				expect(agg?.status?.state).toBe("published")
-				expect(agg?.status?.validationErrorsJson).toBeNull()
+				expect(agg?.publication.state).toBe("published")
+				expect(agg?.publication.validationErrorsJson).toBeNull()
 				expect(agg?.imagesCount).toBeGreaterThanOrEqual(1)
 				expect(agg?.subtypeExists).toBe(true)
 				;(r2 as any).send = prevSend

@@ -7,7 +7,7 @@ function makeRepo(agg: ProductAggregate | null): ProductRepositoryPort {
 		createProductBase: vi.fn(async () => {}),
 		upsertProductContent: vi.fn(async () => {}),
 		upsertProductLocation: vi.fn(async () => {}),
-		upsertProductStatus: vi.fn(async () => {}),
+		setProductPublication: vi.fn(async () => {}),
 		getProductAggregate: vi.fn(async () => agg),
 	}
 }
@@ -26,7 +26,7 @@ describe("catalog/product/evaluateProductReadiness (unit)", () => {
 			subtypeExists: false,
 			content: null,
 			location: null,
-			status: null,
+			publication: { state: "draft", validationErrorsJson: null },
 		}
 		const repo = makeRepo(agg)
 
@@ -34,7 +34,7 @@ describe("catalog/product/evaluateProductReadiness (unit)", () => {
 
 		expect(res.state).toBe("draft")
 		expect(res.validationErrors.length).toBeGreaterThan(0)
-		expect(repo.upsertProductStatus).toHaveBeenCalledWith({
+		expect(repo.setProductPublication).toHaveBeenCalledWith({
 			productId: "prod_1",
 			state: "draft",
 			validationErrorsJson: expect.any(Array),
@@ -71,7 +71,7 @@ describe("catalog/product/evaluateProductReadiness (unit)", () => {
 					completeRoomCount: 1,
 				},
 			},
-			status: null,
+			publication: { state: "draft", validationErrorsJson: null },
 		}
 		const repo = makeRepo(agg)
 
@@ -79,7 +79,7 @@ describe("catalog/product/evaluateProductReadiness (unit)", () => {
 
 		expect(res.state).toBe("ready")
 		expect(res.validationErrors).toEqual([])
-		expect(repo.upsertProductStatus).toHaveBeenCalledWith({
+		expect(repo.setProductPublication).toHaveBeenCalledWith({
 			productId: "prod_1",
 			state: "ready",
 			validationErrorsJson: null,
@@ -116,7 +116,7 @@ describe("catalog/product/evaluateProductReadiness (unit)", () => {
 					completeRoomCount: 0,
 				},
 			},
-			status: null,
+			publication: { state: "draft", validationErrorsJson: null },
 		}
 		const repo = makeRepo(agg)
 

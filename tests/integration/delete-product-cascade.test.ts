@@ -13,7 +13,6 @@ import {
 	ProductGeoPlace,
 	ProductContent,
 	ProductLocation,
-	ProductStatus,
 	RatePlan,
 	RatePlanOccupancyPolicy,
 	SearchUnitView,
@@ -87,7 +86,6 @@ describe("integration/catalog delete product cascade", () => {
 				lat: -17.7,
 				lng: -63.1,
 			})
-			await db.insert(ProductStatus).values({ productId, state: "draft" })
 			await db.insert(Hotel).values({ productId, stars: 3 })
 			await db.insert(HouseRule).values({
 				id: `rule_${suffix}`,
@@ -287,9 +285,6 @@ describe("integration/catalog delete product cascade", () => {
 			).resolves.toHaveLength(0)
 			await expect(
 				rowsFor(ProductLocation, ProductLocation.productId, productId)
-			).resolves.toHaveLength(0)
-			await expect(
-				rowsFor(ProductStatus, ProductStatus.productId, productId)
 			).resolves.toHaveLength(0)
 			await expect(rowsFor(Hotel, Hotel.productId, productId)).resolves.toHaveLength(0)
 			await expect(rowsFor(HouseRule, HouseRule.productId, productId)).resolves.toHaveLength(0)

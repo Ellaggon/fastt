@@ -15,7 +15,6 @@ import {
 	MarketplaceEvent,
 	Product,
 	ProductReview,
-	ProductStatus,
 	Provider,
 	ProviderUser,
 	RatePlan,
@@ -41,7 +40,7 @@ import { loadHotelTourCrossSell } from "@/lib/tours/hotelTourCrossSell"
 import { tourDepartureToStay } from "@/lib/tours/tourSemantics"
 import { createPolicyCapa6, replacePolicyAssignmentCapa6 } from "@/modules/policies/public"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
-import { upsertPublishedProductStatus } from "../test-support/catalog-db-test-data"
+import { markProductPublished } from "../test-support/catalog-db-test-data"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -126,7 +125,10 @@ async function seedPrivateVariant(suffix: string) {
 	} as any)
 	await db.insert(ProductGeoPlace).values({ id: `test-primary-${productId}`, productId, placeId: geoPlaceId, role: "primary_discovery", isPrimary: true, source: "test_fixture" } as any)
 	// The public request endpoint only resolves published marketplace inventory.
-	await db.insert(ProductStatus).values({ productId, state: "published" } as any)
+	await db
+		.update(Product)
+		.set({ publicationState: "published", publicationUpdatedAt: new Date() })
+		.where(eq(Product.id, productId))
 	await db.insert(Variant).values({
 		id: variantId,
 		productId,
@@ -522,10 +524,10 @@ describe("integration/tour P2 runtime trust (review, private, cross-sell, cancel
 				providerId: "prov_test",
 			} as any)
 			await db.insert(ProductGeoPlace).values({ id: `test-primary-${tourProductId}`, productId: tourProductId, placeId: geoPlaceId, role: "primary_discovery", isPrimary: true, source: "test_fixture" } as any)
-			await db.insert(ProductStatus).values({
-				productId: tourProductId,
-				state: "published",
-			} as any)
+			await db
+				.update(Product)
+				.set({ publicationState: "published", publicationUpdatedAt: new Date() })
+				.where(eq(Product.id, tourProductId))
 			await db.insert(Tour).values({
 				productId: tourProductId,
 				durationMinutes: 120,
@@ -766,7 +768,7 @@ describe("integration/tour P2 runtime trust (review, private, cross-sell, cancel
 				providerId: "prov_test",
 			} as any)
 			await db.insert(ProductGeoPlace).values({ id: `test-primary-${productId}`, productId, placeId: geoPlaceId, role: "primary_discovery", isPrimary: true, source: "test_fixture" } as any)
-			await upsertPublishedProductStatus(productId)
+			await markProductPublished(productId)
 			await db.insert(Tour).values({
 				productId,
 				durationMinutes: 90,
