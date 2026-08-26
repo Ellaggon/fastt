@@ -4,7 +4,7 @@ import { ZodError } from "zod"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { invalidateProvider, invalidateVariant } from "@/lib/cache/invalidation"
-import { refreshProductPreparationSnapshotAfterMutation } from "@/lib/playbook/summarize-product-preparation"
+import { refreshProductOperationalSurfaceAfterMutation } from "@/lib/product/productOperationalSurface"
 import { createVariant } from "@/modules/catalog/public"
 import {
 	variantManagementRepository,
@@ -55,7 +55,7 @@ export const POST: APIRoute = async ({ request }) => {
 		)
 		await invalidateVariant(result.variantId, productId)
 		await invalidateProvider(providerId)
-		await refreshProductPreparationSnapshotAfterMutation({
+		await refreshProductOperationalSurfaceAfterMutation({
 			productId,
 			providerId,
 			request,

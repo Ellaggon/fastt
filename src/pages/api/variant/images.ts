@@ -15,7 +15,7 @@ import { productRepository, r2, variantManagementRepository } from "@/container"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { ensureObjectKey } from "@/lib/images/objectKey"
-import { refreshProductPreparationSnapshotAfterMutation } from "@/lib/playbook/summarize-product-preparation"
+import { refreshProductOperationalSurfaceAfterMutation } from "@/lib/product/productOperationalSurface"
 
 function normalizeUrls(values: FormDataEntryValue[]): string[] {
 	const seen = new Set<string>()
@@ -183,7 +183,7 @@ export const POST: APIRoute = async ({ request }) => {
 			.where(and(inArray(Image.entityType, ["variant", "Variant"]), eq(Image.entityId, variantId)))
 			.orderBy(asc(Image.order), asc(Image.id))
 
-		await refreshProductPreparationSnapshotAfterMutation({
+		await refreshProductOperationalSurfaceAfterMutation({
 			productId: variant.productId,
 			providerId,
 			request,

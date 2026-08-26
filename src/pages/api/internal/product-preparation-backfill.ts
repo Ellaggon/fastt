@@ -1,7 +1,7 @@
 import type { APIRoute } from "astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { backfillProductPreparationSnapshots } from "@/lib/playbook/backfill-product-preparation-snapshots"
+import { backfillProductOperationalProjections } from "@/lib/product/backfill-product-operational-projections"
 
 export const POST: APIRoute = async ({ request }) => {
 	const user = await getUserFromRequest(request)
@@ -26,7 +26,7 @@ export const POST: APIRoute = async ({ request }) => {
 	}
 	const requestedProductId = String(body.productId ?? "").trim()
 	const requestedLimit = Number(body.limit)
-	const result = await backfillProductPreparationSnapshots({
+	const result = await backfillProductOperationalProjections({
 		providerId,
 		productId: requestedProductId || null,
 		limit: Number.isFinite(requestedLimit) ? requestedLimit : null,

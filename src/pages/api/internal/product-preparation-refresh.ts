@@ -2,7 +2,7 @@ import type { APIRoute } from "astro"
 import { and, db, eq, inArray, Product } from "@/shared/infrastructure/db/compat"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { refreshProductPreparationSnapshot } from "@/lib/playbook/summarize-product-preparation"
+import { refreshProductOperationalSurface } from "@/lib/product/productOperationalSurface"
 
 export const POST: APIRoute = async ({ request, url }) => {
 	const startedAt = performance.now()
@@ -40,27 +40,11 @@ export const POST: APIRoute = async ({ request, url }) => {
 		.where(and(eq(Product.providerId, providerId), inArray(Product.id, productIds)))
 
 	const ownedProductIds = ownedProducts.map((product) => String(product.id))
-	const statuses = ownedProductIds.length
-		? await db
-				.select({ productId: Product.id, state: Product.publicationState })
-				.from(Product)
-				.where(inArray(Product.id, ownedProductIds))
-		: []
-	const statusMap = new Map(
-		statuses.map((row) => [
-			String(row.productId),
-			String(row.state ?? "")
-				.trim()
-				.toLowerCase(),
-		])
-	)
-
 	const products = await Promise.all(
 		ownedProductIds.map((productId) =>
-			refreshProductPreparationSnapshot({
+			refreshProductOperationalSurface({
 				productId,
 				providerId,
-				status: statusMap.get(productId),
 				request,
 				url,
 			})

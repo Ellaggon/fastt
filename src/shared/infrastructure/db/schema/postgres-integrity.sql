@@ -232,7 +232,6 @@ BEGIN
 		'ProviderConfigurationState',
 		'ProviderInvitation',
 		'ProductOperationalSurface',
-		'ProductPreparationSnapshot',
 		'VariantRoomProfile',
 		'TourSlotProfile',
 		'TourTicketType',

@@ -55,7 +55,6 @@ export const databaseTablesByDomain = {
 		"MarketplaceCommercialCertificationRun",
 		"ProductOperationalSurface",
 		"HouseRule",
-		"ProductPreparationSnapshot",
 		"ProductContent",
 		"ProductLocation",
 		"Hotel",

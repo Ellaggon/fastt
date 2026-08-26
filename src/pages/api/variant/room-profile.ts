@@ -21,7 +21,7 @@ import {
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { invalidateVariant } from "@/lib/cache/invalidation"
-import { refreshProductPreparationSnapshotAfterMutation } from "@/lib/playbook/summarize-product-preparation"
+import { refreshProductOperationalSurfaceAfterMutation } from "@/lib/product/productOperationalSurface"
 import { isHotelProductType } from "@/lib/catalog/productVerticalRegistry"
 import { createVariant } from "@/modules/catalog/public"
 
@@ -298,7 +298,7 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 
 		await invalidateVariant(variantId, parsed.productId)
-		await refreshProductPreparationSnapshotAfterMutation({
+		await refreshProductOperationalSurfaceAfterMutation({
 			productId: parsed.productId,
 			providerId,
 			request,

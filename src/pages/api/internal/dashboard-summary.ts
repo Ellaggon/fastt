@@ -2,7 +2,7 @@ import type { APIRoute } from "astro"
 import { db, eq, inArray, Product } from "@/shared/infrastructure/db/compat"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { listProductPreparationSnapshots } from "@/lib/playbook/summarize-product-preparation"
+import { listProductOperationalPreparation } from "@/lib/product/productOperationalSurface"
 import { routes } from "@/lib/routes"
 
 export const GET: APIRoute = async ({ request }) => {
@@ -68,7 +68,7 @@ export const GET: APIRoute = async ({ request }) => {
 	const inPreparationProducts = Math.max(0, totalProducts - publishedProducts - readyProducts)
 
 	const listProducts = products.slice(0, 5)
-	const preparationByProduct = await listProductPreparationSnapshots(
+	const preparationByProduct = await listProductOperationalPreparation(
 		providerId,
 		listProducts.map((product) => product.id)
 	)

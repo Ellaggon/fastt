@@ -12,7 +12,7 @@ import {
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { ensureObjectKey } from "@/lib/images/objectKey"
-import { refreshProductPreparationSnapshotAfterMutation } from "@/lib/playbook/summarize-product-preparation"
+import { refreshProductOperationalSurfaceAfterMutation } from "@/lib/product/productOperationalSurface"
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
@@ -254,7 +254,7 @@ export const POST: APIRoute = async ({ request }) => {
 				ok: true,
 			})
 		)
-		await refreshProductPreparationSnapshotAfterMutation({
+		await refreshProductOperationalSurfaceAfterMutation({
 			productId: owningProductId,
 			providerId,
 			request,

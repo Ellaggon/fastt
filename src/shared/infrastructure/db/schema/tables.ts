@@ -1009,7 +1009,17 @@ export const ProductOperationalSurface = pgTable(
 		productName: txt("productName"),
 		productType: txt("productType"),
 		status: text("status").default("draft").notNull(),
-		readinessJson: jsonb("readinessJson"),
+		preparationStatusLabel: text("preparationStatusLabel").default("En preparación").notNull(),
+		preparationStatusVariant: text("preparationStatusVariant").default("warning").notNull(),
+		isPublished: boolDefault("isPublished", false),
+		readinessPercent: intDefault("readinessPercent", 0),
+		blockerCount: intDefault("blockerCount", 0),
+		blockerPreviewJson: jsonb("blockerPreviewJson"),
+		readyToPublish: boolDefault("readyToPublish", false),
+		continuePreparationHref: txt("continuePreparationHref"),
+		previewHref: txt("previewHref"),
+		nextStepLabel: txtOpt("nextStepLabel"),
+		preparationUpdatedAt: now("preparationUpdatedAt"),
 		subtypeSummary: txtOpt("subtypeSummary"),
 		imagePreviewJson: jsonb("imagePreviewJson"),
 		coverImageJson: jsonb("coverImageJson"),
@@ -1023,6 +1033,19 @@ export const ProductOperationalSurface = pgTable(
 	(table) => [
 		index("ProductOperationalSurface_provider_updated_idx").on(table.providerId, table.updatedAt),
 		index("ProductOperationalSurface_provider_status_idx").on(table.providerId, table.status),
+		index("ProductOperationalSurface_provider_ready_idx").on(
+			table.providerId,
+			table.readyToPublish
+		),
+		check(
+			"ProductOperationalSurface_preparation_status_variant_check",
+			sql`${table.preparationStatusVariant} IN ('success', 'info', 'warning')`
+		),
+		check(
+			"ProductOperationalSurface_readiness_percent_check",
+			sql`${table.readinessPercent} BETWEEN 0 AND 100`
+		),
+		check("ProductOperationalSurface_blocker_count_check", sql`${table.blockerCount} >= 0`),
 	]
 )
 
@@ -1160,36 +1183,6 @@ export const TourPrivateRequest = pgTable(
 			"TourPrivateRequest_status_check",
 			sql`${table.status} in ('pending', 'accepted', 'declined', 'expired', 'cancelled')`
 		),
-	]
-)
-
-export const ProductPreparationSnapshot = pgTable(
-	"ProductPreparationSnapshot",
-	{
-		productId: text("productId")
-			.primaryKey()
-			.references(() => Product.id),
-		providerId: txt("providerId").references(() => Provider.id),
-		status: text("status").default("draft").notNull(),
-		statusLabel: text("statusLabel").default("En preparación").notNull(),
-		statusVariant: text("statusVariant").default("warning").notNull(),
-		isPublished: boolDefault("isPublished", false),
-		readinessPercent: intDefault("readinessPercent", 0),
-		blockerCount: intDefault("blockerCount", 0),
-		blockerPreviewJson: jsonb("blockerPreviewJson"),
-		readyToPublish: boolDefault("readyToPublish", false),
-		continuePreparationHref: txt("continuePreparationHref"),
-		previewHref: txt("previewHref"),
-		nextStepLabel: txtOpt("nextStepLabel"),
-		updatedAt: now("updatedAt"),
-	},
-	(table) => [
-		index("ProductPreparationSnapshot_provider_updated_idx").on(table.providerId, table.updatedAt),
-		index("ProductPreparationSnapshot_provider_ready_idx").on(
-			table.providerId,
-			table.readyToPublish
-		),
-		index("ProductPreparationSnapshot_provider_status_idx").on(table.providerId, table.status),
 	]
 )
 
