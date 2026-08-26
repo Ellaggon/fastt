@@ -43,7 +43,8 @@ export * from "./application/use-cases/variant/create-variant"
 export * from "./application/use-cases/variant/set-variant-capacity"
 export * from "./application/use-cases/variant/attach-hotel-room-subtype"
 export * from "./application/use-cases/variant/evaluate-variant-readiness"
-export * from "./application/use-cases/variant/update-variant-status"
+export * from "./application/use-cases/variant/update-variant-lifecycle"
+export * from "./application/use-cases/variant/set-variant-sales-enabled"
 export * from "./application/use-cases/variant/delete-variant"
 
 // Application ports (types/interfaces)

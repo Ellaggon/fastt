@@ -1,7 +1,4 @@
-import type {
-	VariantLifecycleStatus,
-	VariantManagementRepositoryPort,
-} from "../../ports/VariantManagementRepositoryPort"
+import type { VariantManagementRepositoryPort } from "../../ports/VariantManagementRepositoryPort"
 import { evaluateVariantReadinessSchema } from "../../schemas/variant/variantSchemas"
 
 type ValidationError = { code: string; message: string }
@@ -18,7 +15,11 @@ export async function evaluateVariantReadiness(
 		pricingReadRepo: VariantPricingReadPort
 	},
 	params: { variantId: string }
-): Promise<{ variantId: string; state: "draft" | "ready"; validationErrors: ValidationError[] }> {
+): Promise<{
+	variantId: string
+	lifecycleState: "draft" | "ready"
+	validationErrors: ValidationError[]
+}> {
 	const parsed = evaluateVariantReadinessSchema.parse(params)
 
 	const v = await deps.repo.getVariantById(parsed.variantId)
@@ -81,21 +82,13 @@ export async function evaluateVariantReadiness(
 		message: "Inventory not configured (reserved for CAPA 5)",
 	})
 
-	const state: "draft" | "ready" = blockingErrors.length === 0 ? "ready" : "draft"
+	const lifecycleState: "draft" | "ready" = blockingErrors.length === 0 ? "ready" : "draft"
 
-	await deps.repo.upsertReadiness({
+	await deps.repo.persistLifecycleEvaluation({
 		variantId: parsed.variantId,
-		state,
+		lifecycleState,
 		validationErrorsJson: allErrors,
 	})
 
-	// Keep lifecycle aligned for now: ready <-> draft. Sellable is handled separately later.
-	const nextStatus: VariantLifecycleStatus = state === "ready" ? "ready" : "draft"
-	await deps.repo.updateVariantStatus({
-		variantId: parsed.variantId,
-		status: nextStatus,
-		isActive: state === "ready",
-	})
-
-	return { variantId: parsed.variantId, state, validationErrors: allErrors }
+	return { variantId: parsed.variantId, lifecycleState, validationErrors: allErrors }
 }

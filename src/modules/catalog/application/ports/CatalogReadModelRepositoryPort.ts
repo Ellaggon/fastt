@@ -99,7 +99,8 @@ export type ProductVariantsAggregate = {
 		id: string
 		name: string
 		kind: string | null
-		status: string | null
+		lifecycleState: "draft" | "ready" | "archived"
+		salesEnabled: boolean
 		defaultRatePlanId: string | null
 		pricing: { hasBaseRate: boolean; hasDefaultRatePlan: boolean }
 		capacity: {
@@ -118,7 +119,10 @@ export type VariantFullAggregate = {
 		productId: string
 		name: string
 		kind: string | null
-		status: string | null
+		lifecycleState: "draft" | "ready" | "archived"
+		salesEnabled: boolean
+		lifecycleValidationErrorsJson: unknown | null
+		lifecycleEvaluatedAt: Date | null
 	}
 	capacity: {
 		minOccupancy: number
@@ -129,7 +133,6 @@ export type VariantFullAggregate = {
 	subtype: { roomTypeId: string; name: string | null } | null
 	baseRate: { currency: string; basePrice: number } | null
 	defaultRatePlan: { ratePlanId: string } | null
-	readiness: { state: "draft" | "ready"; validationErrorsJson: unknown | null } | null
 }
 
 export type ProviderFullAggregate = {

@@ -25,7 +25,6 @@ import {
 	Variant,
 	VariantCapacity,
 	VariantRoomProfile,
-	VariantReadiness,
 	RoomType,
 } from "@/shared/infrastructure/db/compat"
 
@@ -35,6 +34,11 @@ import type {
 	VariantFullAggregate,
 } from "@/modules/catalog/application/ports/CatalogReadModelRepositoryPort"
 import { RatePlanPricingReadRepository } from "../../../pricing/infrastructure/repositories/RatePlanPricingReadRepository"
+
+function toVariantLifecycleState(value: string | null | undefined): "draft" | "ready" | "archived" {
+	return value === "ready" || value === "archived" ? value : "draft"
+}
+
 export class CatalogReadModelRepository implements CatalogReadModelRepositoryPort {
 	private readonly pricingReadRepository = new RatePlanPricingReadRepository()
 
@@ -282,7 +286,8 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 				variantId: Variant.id,
 				variantName: Variant.name,
 				variantKind: Variant.kind,
-				variantStatus: Variant.status,
+				variantLifecycleState: Variant.lifecycleState,
+				variantSalesEnabled: Variant.salesEnabled,
 				defaultRatePlanId: RatePlan.id,
 				capVariantId: VariantCapacity.variantId,
 				minOccupancy: VariantCapacity.minOccupancy,
@@ -326,7 +331,8 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 				id: row.variantId as string,
 				name: row.variantName as string,
 				kind: row.variantKind ?? null,
-				status: row.variantStatus ?? null,
+				lifecycleState: toVariantLifecycleState(row.variantLifecycleState),
+				salesEnabled: Boolean(row.variantSalesEnabled),
 				defaultRatePlanId: row.defaultRatePlanId ? String(row.defaultRatePlanId) : null,
 				pricing: {
 					hasBaseRate: Boolean(
@@ -371,7 +377,8 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 				variantProductId: Variant.productId,
 				variantName: Variant.name,
 				variantKind: Variant.kind,
-				variantStatus: Variant.status,
+				variantLifecycleState: Variant.lifecycleState,
+				variantSalesEnabled: Variant.salesEnabled,
 				capVariantId: VariantCapacity.variantId,
 				minOccupancy: VariantCapacity.minOccupancy,
 				maxOccupancy: VariantCapacity.maxOccupancy,
@@ -381,8 +388,8 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 				roomTypeId: VariantRoomProfile.roomTypeId,
 				roomTypeName: RoomType.name,
 				defaultRatePlanId: RatePlan.id,
-				readinessState: VariantReadiness.state,
-				readinessErrors: VariantReadiness.validationErrorsJson,
+				lifecycleValidationErrors: Variant.lifecycleValidationErrorsJson,
+				lifecycleEvaluatedAt: Variant.lifecycleEvaluatedAt,
 			})
 			.from(Variant)
 			.innerJoin(Product, eq(Product.id, Variant.productId))
@@ -397,7 +404,6 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 					eq(RatePlan.isActive, true)
 				)
 			)
-			.leftJoin(VariantReadiness, eq(VariantReadiness.variantId, Variant.id))
 			.where(
 				and(
 					eq(Variant.id, variantId),
@@ -413,21 +419,16 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 				? await this.pricingReadRepository.getRatePlanPricingSummary(row.defaultRatePlanId)
 				: null
 
-		const readiness =
-			row.readinessState != null
-				? {
-						state: (row.readinessState === "ready" ? "ready" : "draft") as "ready" | "draft",
-						validationErrorsJson: row.readinessErrors ?? null,
-					}
-				: null
-
 		return {
 			variant: {
 				id: row.variantId,
 				productId: row.variantProductId,
 				name: row.variantName,
 				kind: row.variantKind ?? null,
-				status: row.variantStatus ?? null,
+				lifecycleState: toVariantLifecycleState(row.variantLifecycleState),
+				salesEnabled: Boolean(row.variantSalesEnabled),
+				lifecycleValidationErrorsJson: row.lifecycleValidationErrors ?? null,
+				lifecycleEvaluatedAt: row.lifecycleEvaluatedAt ?? null,
 			},
 			capacity: row.capVariantId
 				? {
@@ -449,7 +450,6 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 						}
 					: null,
 			defaultRatePlan: row.defaultRatePlanId ? { ratePlanId: row.defaultRatePlanId } : null,
-			readiness,
 		}
 	}
 

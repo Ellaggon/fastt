@@ -174,7 +174,8 @@ export class TourTrustRepository implements TourTrustRepositoryPort {
 		const row = await db
 			.select({
 				variantId: Variant.id,
-				isActive: Variant.isActive,
+				salesEnabled: Variant.salesEnabled,
+				lifecycleState: Variant.lifecycleState,
 				productId: Product.id,
 				providerId: Product.providerId,
 				bookingMode: TourSlotProfile.bookingMode,
@@ -188,6 +189,8 @@ export class TourTrustRepository implements TourTrustRepositoryPort {
 					eq(Variant.id, params.variantId),
 					eq(Variant.productId, params.productId),
 					eq(Variant.kind, "tour_slot"),
+					eq(Variant.lifecycleState, "ready"),
+					eq(Variant.salesEnabled, true),
 					publicCatalogProductEligibility(),
 					eq(Product.publicationState, "published")
 				)
@@ -196,7 +199,7 @@ export class TourTrustRepository implements TourTrustRepositoryPort {
 		if (!row) return null
 		return {
 			variantId: String(row.variantId),
-			isActive: row.isActive ?? null,
+			salesEnabled: row.salesEnabled ?? null,
 			productId: String(row.productId),
 			providerId: row.providerId == null ? null : String(row.providerId),
 			bookingMode: row.bookingMode == null ? null : String(row.bookingMode),

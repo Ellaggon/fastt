@@ -24,7 +24,6 @@ import {
 	Variant,
 	VariantCapacity,
 	VariantInventoryConfig,
-	VariantReadiness,
 	VariantRoomAmenity,
 	VariantRoomBed,
 	VariantRoomProfile,
@@ -429,7 +428,8 @@ export class ProductRepository implements ProductRepositoryPort {
 			const schedules = await db
 				.select({
 					id: Variant.id,
-					isActive: Variant.isActive,
+					salesEnabled: Variant.salesEnabled,
+					lifecycleState: Variant.lifecycleState,
 					profileVariantId: TourSlotProfile.variantId,
 					capacityVariantId: VariantCapacity.variantId,
 					defaultRatePlanId: RatePlan.id,
@@ -447,15 +447,18 @@ export class ProductRepository implements ProductRepositoryPort {
 				)
 				.where(and(eq(Variant.productId, productId), eq(Variant.kind, "tour_slot")))
 
-			// Align with admin quality: complete salida = active + profile + capacity + default rate.
+			// Align with admin quality: complete salida = commercially enabled + profile + capacity + default rate.
 			const completeSlotCount = schedules.filter(
 				(row) =>
-					row.isActive === true &&
+					row.salesEnabled === true &&
+					row.lifecycleState === "ready" &&
 					Boolean(row.profileVariantId) &&
 					Boolean(row.capacityVariantId) &&
 					Boolean(row.defaultRatePlanId)
 			).length
-			const activeSlotCount = schedules.filter((row) => row.isActive === true).length
+			const activeSlotCount = schedules.filter(
+				(row) => row.salesEnabled === true && row.lifecycleState === "ready"
+			).length
 			const itinerarySteps = Array.isArray(tour?.itineraryJson) ? tour.itineraryJson.length : 0
 			const [categoryRow, ticketRow] = await Promise.all([
 				db
@@ -652,7 +655,6 @@ export class ProductRepository implements ProductRepositoryPort {
 			await db.delete(VariantRoomBed).where(inArray(VariantRoomBed.variantId, variantIds))
 			await db.delete(VariantRoomProfile).where(inArray(VariantRoomProfile.variantId, variantIds))
 			await db.delete(VariantCapacity).where(inArray(VariantCapacity.variantId, variantIds))
-			await db.delete(VariantReadiness).where(inArray(VariantReadiness.variantId, variantIds))
 			await db.delete(Variant).where(inArray(Variant.id, variantIds))
 		}
 

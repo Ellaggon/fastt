@@ -50,7 +50,7 @@ export async function createTourPrivateRequest(
 
 	const row = await deps.repo.findPrivateTourSlot({ productId, variantId })
 	if (!row?.providerId) return { ok: false, error: "not_found" }
-	if (row.isActive === false) return { ok: false, error: "variant_inactive" }
+	if (row.salesEnabled !== true) return { ok: false, error: "variant_inactive" }
 	if (String(row.bookingMode ?? "shared").toLowerCase() !== "private") {
 		return { ok: false, error: "not_private" }
 	}

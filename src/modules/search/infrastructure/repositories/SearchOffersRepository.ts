@@ -30,8 +30,8 @@ export class SearchOffersRepository implements SearchOffersRepositoryPort {
 					id: Variant.id,
 					productId: Variant.productId,
 					kind: Variant.kind,
-					isActive: Variant.isActive,
-					status: Variant.status,
+					salesEnabled: Variant.salesEnabled,
+					lifecycleState: Variant.lifecycleState,
 				})
 				.from(Variant)
 				.where(eq(Variant.productId, productId)),
@@ -56,8 +56,7 @@ export class SearchOffersRepository implements SearchOffersRepositoryPort {
 
 		return variants
 			.filter((variant) => {
-				const status = String(variant.status ?? "").toLowerCase()
-				return Boolean(variant.isActive) || status === "ready"
+				return Boolean(variant.salesEnabled) && variant.lifecycleState === "ready"
 			})
 			.filter((variant) => isUnitType(String(variant.kind)))
 			.map((variant) => {
