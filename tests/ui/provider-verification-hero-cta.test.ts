@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { readFileSync } from "node:fs"
+import { readVerificationSurface } from "./read-verification-surface"
 
 import { buildRequiredKycSlots } from "@/lib/provider-documents"
 import {
@@ -95,7 +96,7 @@ describe("P0 hero CTA aligned to permission", () => {
 		expect(next).toContain("data-next-step-cta-kind")
 		expect(next).not.toContain("data-next-step-cta-relocated")
 
-		const page = read("src/pages/provider/settings/verification.astro")
+		const page = readVerificationSurface("src/pages/provider/settings/verification.astro")
 		expect(page).not.toContain("data-cta-kind")
 		expect(page).not.toContain("data-next-step-cta")
 		expect(page).not.toContain('slot="actions"')

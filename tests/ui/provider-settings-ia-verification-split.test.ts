@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { readFileSync } from "node:fs"
+import { readVerificationSurface } from "./read-verification-surface"
 
 const root = new URL("../../", import.meta.url)
 
@@ -22,10 +23,10 @@ describe("Settings IA: Verificación outside settings tabs", () => {
 
 	it("hides settings tabs on verification wizard + optionals pages", () => {
 		const layout = read("src/layouts/ProviderSettingsLayout.astro")
-		const verification = read("src/pages/provider/settings/verification.astro")
+		const verification = readVerificationSurface("src/pages/provider/settings/verification.astro")
 		const optionals = read("src/pages/provider/settings/verification/documents.astro")
-		const fiscalVerification = read("src/pages/provider/settings/verification/fiscal.astro")
-		const paymentsVerification = read("src/pages/provider/settings/verification/payments.astro")
+		const fiscalVerification = readVerificationSurface("src/pages/provider/settings/verification/fiscal.astro")
+		const paymentsVerification = readVerificationSurface("src/pages/provider/settings/verification/payments.astro")
 
 		expect(layout).toContain("showSettingsTabs")
 		expect(layout).toContain("showSettingsTabs ? <ProviderSettingsSubnav")
@@ -38,22 +39,23 @@ describe("Settings IA: Verificación outside settings tabs", () => {
 		expect(optionals).toContain("showSettingsTabs={false}")
 		expect(fiscalVerification).toContain("showSettingsTabs={false}")
 		expect(fiscalVerification).toContain("ProviderTrustMapRail")
-		expect(fiscalVerification).toContain('activeId="fiscal"')
+		expect(fiscalVerification).toContain("activeId={initialPanel}")
 		expect(fiscalVerification).toContain("buildProviderVerificationTrustSnapshot")
 		expect(fiscalVerification).not.toContain("/api/provider/settings/summary")
 		expect(fiscalVerification).not.toContain("getProviderFullAggregate")
 		expect(paymentsVerification).toContain("showSettingsTabs={false}")
 		expect(paymentsVerification).toContain("ProviderTrustMapRail")
-		expect(paymentsVerification).toContain('activeId="payments"')
+		expect(paymentsVerification).toContain("activeId={initialPanel}")
 		expect(paymentsVerification).toContain("buildProviderVerificationTrustSnapshot")
 		expect(paymentsVerification).not.toContain("/api/provider/settings/summary")
 		expect(paymentsVerification).not.toContain("getProviderFullAggregate")
 	})
 
 	it("stacks verification sections with explicit gap (not display:contents)", () => {
-		const page = read("src/pages/provider/settings/verification.astro")
+		const page = readVerificationSurface("src/pages/provider/settings/verification.astro")
 		expect(page).toContain("data-verification-page")
-		expect(page).toContain('class="space-y-4"')
+		expect(page).toContain('class="space-y-6 md:space-y-8"')
+		expect(page).toMatch(/class="space-y-6 md:space-y-8"\s+data-verification-workspace/)
 		expect(page).not.toMatch(/data-verification-page[\s\S]{0,80}class="contents"/)
 		expect(page).not.toMatch(/class="contents"[\s\S]{0,80}data-verification-page/)
 	})
@@ -79,8 +81,8 @@ describe("Settings IA: Verificación outside settings tabs", () => {
 		const glossary = read("src/lib/provider-trust-map.ts")
 		const profile = read("src/pages/provider/settings/profile.astro")
 		const fiscal = read("src/pages/provider/settings/tax-fees/identity.astro")
-		const verificationFiscal = read("src/pages/provider/settings/verification/fiscal.astro")
-		const verificationPayments = read("src/pages/provider/settings/verification/payments.astro")
+		const verificationFiscal = readVerificationSurface("src/pages/provider/settings/verification/fiscal.astro")
+		const verificationPayments = readVerificationSurface("src/pages/provider/settings/verification/payments.astro")
 		const documents = read("src/pages/provider/settings/verification/documents.astro")
 		const payments = read("src/pages/provider/settings/payments.astro")
 

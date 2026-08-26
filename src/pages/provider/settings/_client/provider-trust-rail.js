@@ -4,9 +4,12 @@ function resolveTrustRailActiveId() {
 	if (pathname.includes("/provider/settings/verification/payments")) return "payments"
 	if (pathname.includes("/provider/settings/tax-fees/identity")) return "fiscal"
 	if (pathname.includes("/provider/settings/payments")) return "payments"
+	if (pathname.includes("/provider/settings/verification/documents")) return "identity"
 	if (
 		pathname.includes("/provider/settings/verification") &&
-		(window.location.hash === "#kyc-slots" || window.location.hash.startsWith("#kyc-slot-"))
+		(new URLSearchParams(window.location.search).get("type") ||
+			window.location.hash === "#kyc-slots" ||
+			window.location.hash.startsWith("#kyc-slot-"))
 	) {
 		return "business"
 	}

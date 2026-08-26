@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs"
 import { describe, expect, it } from "vitest"
 
 import { buildPayoutVerificationTimeline } from "@/lib/provider-payment-accounts"
+import { readVerificationSurface } from "./read-verification-surface"
 
 const root = new URL("../../", import.meta.url)
 
@@ -34,7 +35,7 @@ describe("S4-4 guided payouts: one account + micro-deposit education", () => {
 	})
 
 	it("wires one-account-first UX and API guard", () => {
-		const page = read("src/pages/provider/settings/verification/payments.astro")
+		const page = readVerificationSurface("src/pages/provider/settings/verification/payments.astro")
 		const card = read("src/components/provider/ProviderPaymentAccountsCard.astro")
 		const api = read("src/pages/api/provider/settings/payment-accounts.ts")
 		const lib = read("src/lib/provider-payment-accounts.ts")

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { readFileSync } from "node:fs"
+import { readVerificationSurface } from "./read-verification-surface"
 
 import {
 	buildProviderTrustMap,
@@ -76,7 +77,7 @@ describe("V2 Lista — trust map complete success state", () => {
 	})
 
 	it("wires Lista UI without yellow consequence", () => {
-		const page = read("src/pages/provider/settings/verification.astro")
+		const page = readVerificationSurface("src/pages/provider/settings/verification.astro")
 		const next = read("src/components/provider/ProviderVerificationNextStep.astro")
 		const rail = read("src/components/provider/ProviderTrustMapRail.astro")
 		const view = read("src/components/provider/ProviderVerificationView.astro")

@@ -11,6 +11,7 @@ import {
 	VERIFICATION_PUBLISH_HREF,
 } from "@/lib/provider-trust-map"
 import { routes } from "@/lib/routes"
+import { readVerificationSurface } from "./read-verification-surface"
 
 const root = new URL("../../", import.meta.url)
 
@@ -142,7 +143,7 @@ describe("P2 Lista end-to-end after completing trust map", () => {
 	})
 
 	it("wires Lista page: no KYC upload journey, lista markers, publish CTAs", () => {
-		const page = read("src/pages/provider/settings/verification.astro")
+		const page = readVerificationSurface("src/pages/provider/settings/verification.astro")
 		const next = read("src/components/provider/ProviderVerificationNextStep.astro")
 		const rail = read("src/components/provider/ProviderTrustMapRail.astro")
 

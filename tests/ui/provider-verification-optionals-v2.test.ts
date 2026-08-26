@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import { readFileSync } from "node:fs"
 
 import { routes } from "@/lib/routes"
+import { readVerificationSurface } from "./read-verification-surface"
 
 const root = new URL("../../", import.meta.url)
 
@@ -17,7 +18,7 @@ describe("V2 optionals subroute — verification = mínimos + wait", () => {
 	})
 
 	it("keeps verification page free of optional upload form", () => {
-		const page = read("src/pages/provider/settings/verification.astro")
+		const page = readVerificationSurface("src/pages/provider/settings/verification.astro")
 		expect(page).toContain("data-verification-optionals-entry")
 		expect(page).toContain("Documentos adicionales si te los pedimos")
 		expect(page).toContain("data-verification-optionals-collapsed")

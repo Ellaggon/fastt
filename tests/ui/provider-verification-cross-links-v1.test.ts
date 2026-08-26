@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { readFileSync } from "node:fs"
+import { readVerificationSurface } from "./read-verification-surface"
 
 import {
 	buildProviderTrustMap,
@@ -85,7 +86,7 @@ describe("V1 verification cross-links + hub coach alignment", () => {
 	})
 
 	it("wires cross-links into verification next-step surface", () => {
-		const page = read("src/pages/provider/settings/verification.astro")
+		const page = readVerificationSurface("src/pages/provider/settings/verification.astro")
 		const next = read("src/components/provider/ProviderVerificationNextStep.astro")
 		const cross = read("src/components/provider/ProviderVerificationCrossLinks.astro")
 		const register = read("src/components/provider/ProviderRegisterForm.astro")

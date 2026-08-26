@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import { readFileSync } from "node:fs"
 
 import { inferDocumentMimeType, validateDocumentFile } from "@/lib/provider-documents"
+import { readVerificationSurface } from "./read-verification-surface"
 
 const root = new URL("../../", import.meta.url)
 
@@ -41,7 +42,7 @@ describe("provider document mime inference + storage", () => {
 	})
 
 	it("verification page maps upload error codes", () => {
-		const page = read("src/pages/provider/settings/verification.astro")
+		const page = readVerificationSurface("src/pages/provider/settings/verification.astro")
 		expect(page).toContain("uploadErrorMessages")
 		expect(page).toContain("document_file_meta_required")
 		expect(page).toContain("document_storage_upload_failed")

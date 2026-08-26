@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { readFileSync } from "node:fs"
+import { readVerificationSurface } from "./read-verification-surface"
 
 import {
 	formatProviderRoleLabel,
@@ -89,7 +90,7 @@ describe("P0 provider role normalize + heal", () => {
 		const permissions = read("src/lib/provider-permissions.ts")
 		const repo = read("src/modules/catalog/infrastructure/repositories/ProviderRepository.ts")
 		const session = read("src/lib/auth/providerSessionSurface.ts")
-		const page = read("src/pages/provider/settings/verification.astro")
+		const page = readVerificationSurface("src/pages/provider/settings/verification.astro")
 		const cache = read("src/lib/auth/authCache.ts")
 
 		expect(permissions).toContain("export function normalizeProviderRole")
@@ -104,7 +105,7 @@ describe("P0 provider role normalize + heal", () => {
 		expect(session).toContain('cached.role === "owner" || cached.role === "admin"')
 
 		expect(page).toContain("requireProviderSessionSurface")
-		expect(page).toContain("sessionPermissions ?? summary?.permissions")
+		expect(page).toContain("sessionPermissions")
 		expect(page).not.toContain("const permissions = summary?.permissions ?? {}")
 
 		const optionals = read("src/pages/provider/settings/verification/documents.astro")

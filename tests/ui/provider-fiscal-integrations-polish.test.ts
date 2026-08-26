@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import { readFileSync } from "node:fs"
 
 import { listProviderConnectorCatalog } from "@/lib/provider-integrations"
+import { readVerificationSurface } from "./read-verification-surface"
 
 const root = new URL("../../", import.meta.url)
 
@@ -21,7 +22,7 @@ describe("S4-6 fiscal withhold explainer + Pro docs-lite", () => {
 	})
 
 	it("wires withhold explainer on fiscal identity and docs-lite in Simple+Pro integrations", () => {
-		const identity = read("src/pages/provider/settings/verification/fiscal.astro")
+		const identity = readVerificationSurface("src/pages/provider/settings/verification/fiscal.astro")
 		const taxCard = read("src/components/provider/ProviderTaxProfileCard.astro")
 		const integrations = read(
 			"src/pages/provider/settings/integrations/connect/channel-manager.astro"

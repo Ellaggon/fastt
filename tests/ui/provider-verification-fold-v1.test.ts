@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest"
 import { readFileSync } from "node:fs"
+import { readVerificationSurface } from "./read-verification-surface"
 
 import { buildRequiredKycSlots } from "@/lib/provider-documents"
 import {
 	buildProviderTrustMap,
 	resolveVerificationNextStep,
 } from "@/lib/provider-trust-map"
+import {
+	isVerificationWorkspacePath,
+	resolveVerificationTrustPanelFromUrl,
+} from "@/lib/provider-verification-workspace"
 
 const root = new URL("../../", import.meta.url)
 
@@ -37,7 +42,7 @@ describe("V1 verification fold reorder (action-first)", () => {
 	})
 
 	it("orders page: trust nav → identity panel → business docs panel → optionals entry", () => {
-		const page = read("src/pages/provider/settings/verification.astro")
+		const page = readVerificationSurface("src/pages/provider/settings/verification.astro")
 		const card = read("src/components/provider/ProviderKycSlotsCard.astro")
 		const panelClient = read("src/pages/provider/settings/_client/verification-trust-panels.js")
 		const navIdx = page.indexOf("data-verification-trust-nav")
@@ -76,6 +81,25 @@ describe("V1 verification fold reorder (action-first)", () => {
 		expect(page).toContain("resolveVerificationNextStep")
 		expect(page).toContain("providerSettingsVerificationDocuments")
 		expect(page).not.toContain("data-optional-upload-form")
+		expect(page).toContain("data-verification-workspace")
+		expect(page).toContain('data-verification-trust-panel="fiscal"')
+		expect(page).toContain('data-verification-trust-panel="payments"')
+		expect(panelClient).toContain("isVerificationWorkspacePath")
+		expect(panelClient).toContain("/provider/settings/verification/fiscal")
+		expect(panelClient).toContain("/provider/settings/verification/payments")
+		expect(isVerificationWorkspacePath("/provider/settings/verification/payments")).toBe(true)
+		expect(isVerificationWorkspacePath("/provider/settings/verification/fiscal")).toBe(true)
+		expect(isVerificationWorkspacePath("/provider/settings/verification/documents")).toBe(false)
+		expect(
+			resolveVerificationTrustPanelFromUrl(
+				new URL("https://fastt.test/provider/settings/verification/payments")
+			)
+		).toBe("payments")
+		expect(
+			resolveVerificationTrustPanelFromUrl(
+				new URL("https://fastt.test/provider/settings/verification/fiscal")
+			)
+		).toBe("fiscal")
 	})
 
 	it("wires elevated upload + collapsed status panel", () => {
@@ -93,7 +117,7 @@ describe("V1 verification fold reorder (action-first)", () => {
 
 		expect(next).toContain("data-verification-next-step")
 		expect(next).not.toContain("data-next-step-cta-relocated")
-		const page = read("src/pages/provider/settings/verification.astro")
+		const page = readVerificationSurface("src/pages/provider/settings/verification.astro")
 		expect(page).not.toContain("data-next-step-cta")
 		expect(page).not.toContain("Continuar a Negocio")
 		expect(page).not.toContain('slot="actions"')

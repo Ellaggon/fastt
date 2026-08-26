@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { readFileSync } from "node:fs"
+import { readVerificationSurface } from "./read-verification-surface"
 
 import {
 	buildRequiredKycSlots,
@@ -125,7 +126,7 @@ describe("V1.1 tax_document ↔ Fiscalidad bridge", () => {
 	})
 
 	it("wires bridge UI into verification KYC card + page", () => {
-		const page = read("src/pages/provider/settings/verification.astro")
+		const page = readVerificationSurface("src/pages/provider/settings/verification.astro")
 		const card = read("src/components/provider/ProviderKycSlotsCard.astro")
 		const taxCard = read("src/components/provider/ProviderTaxProfileCard.astro")
 		const governance = read("src/lib/provider-governance.ts")

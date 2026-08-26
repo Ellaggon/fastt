@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs"
+import { readVerificationSurface } from "./read-verification-surface"
 import { describe, expect, it } from "vitest"
 
 import {
@@ -35,8 +36,8 @@ describe("S2-4 admin SLA/assignee + provider mirror", () => {
 	it("wires SLA assign UI on verification/fiscal/docs/payments and mirrors on provider pages", () => {
 		const admin = read("src/pages/admin/providers.astro")
 		const assign = read("src/components/admin/AdminComplianceSlaAssign.astro")
-		const verification = read("src/pages/provider/settings/verification.astro")
-		const identity = read("src/pages/provider/settings/verification/fiscal.astro")
+		const verification = readVerificationSurface("src/pages/provider/settings/verification.astro")
+		const identity = readVerificationSurface("src/pages/provider/settings/verification/fiscal.astro")
 		const view = read("src/components/provider/ProviderVerificationView.astro")
 		const ops = read("src/lib/provider-compliance-ops.ts")
 

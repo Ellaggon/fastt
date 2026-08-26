@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { readFileSync } from "node:fs"
+import { readVerificationSurface } from "./read-verification-surface"
 
 import {
 	buildRequiredKycSlots,
@@ -94,7 +95,7 @@ describe("S1-1 KYC slots + reject reason", () => {
 	})
 
 	it("wires verification page to slots card, reject reason and type preselect", () => {
-		const page = read("src/pages/provider/settings/verification.astro")
+		const page = readVerificationSurface("src/pages/provider/settings/verification.astro")
 		const card = read("src/components/provider/ProviderKycSlotsCard.astro")
 		const view = read("src/components/provider/ProviderVerificationView.astro")
 

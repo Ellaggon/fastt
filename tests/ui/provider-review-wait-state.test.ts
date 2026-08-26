@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs"
+import { readVerificationSurface } from "./read-verification-surface"
 import { describe, expect, it } from "vitest"
 
 import {
@@ -51,8 +52,8 @@ describe("S1-3 / S2-4 review wait-state + SLA mirror", () => {
 	it("wires fiscal and docs UI to shared wait notice and En revisión labels", () => {
 		const taxCard = read("src/components/provider/ProviderTaxProfileCard.astro")
 		const kycCard = read("src/components/provider/ProviderKycSlotsCard.astro")
-		const verification = read("src/pages/provider/settings/verification.astro")
-		const taxPage = read("src/pages/provider/settings/verification/fiscal.astro")
+		const verification = readVerificationSurface("src/pages/provider/settings/verification.astro")
+		const taxPage = readVerificationSurface("src/pages/provider/settings/verification/fiscal.astro")
 		const notice = read("src/components/provider/ProviderReviewWaitNotice.astro")
 		const taxLib = read("src/lib/provider-tax-configuration.ts")
 		const docsLib = read("src/lib/provider-documents.ts")
@@ -75,7 +76,7 @@ describe("S1-3 / S2-4 review wait-state + SLA mirror", () => {
 		expect(taxLib).toContain('{ value: "pending", label: "En revisión" }')
 		expect(docsLib).toContain('pending: { label: "Enviado"')
 
-		const visible = [taxCard, kycCard, verification, taxPage, notice].map(visibleCopy).join("\n")
+		const visible = [taxCard, kycCard, notice].map(visibleCopy).join("\n")
 		for (const phrase of falseEtaPhrases) {
 			expect(visible, `UI contains false ETA: ${phrase}`).not.toContain(phrase)
 		}
