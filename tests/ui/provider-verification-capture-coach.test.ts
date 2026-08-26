@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs"
+import { readVerificationSurface } from "./read-verification-surface"
 import { describe, expect, it } from "vitest"
 
 import {
@@ -50,7 +51,7 @@ describe("S5-3 verification capture coach", () => {
 		const card = read("src/components/provider/ProviderKycSlotsCard.astro")
 		const form = read("src/components/provider/ProviderKycUploadForm.astro")
 		const coach = read("src/components/provider/ProviderKycCaptureCoach.astro")
-		const page = read("src/pages/provider/settings/verification.astro")
+		const page = readVerificationSurface("src/pages/provider/settings/verification.astro")
 
 		expect(card).toContain("resolveKycUploadFocusType")
 		expect(card).toContain("focusTypeResolved")

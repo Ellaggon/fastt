@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { readFileSync } from "node:fs"
+import { readVerificationSurface } from "./read-verification-surface"
 
 import { buildRequiredKycSlots } from "@/lib/provider-documents"
 import {
@@ -36,7 +37,7 @@ describe("UX plan — guided verification (V1–V4)", () => {
 
 		const hero = read("src/components/provider/ProviderVerificationNextStep.astro")
 		const layout = read("src/layouts/ProviderSettingsLayout.astro")
-		const page = read("src/pages/provider/settings/verification.astro")
+		const page = readVerificationSurface("src/pages/provider/settings/verification.astro")
 		expect(hero).toContain('data-verification-hero="wizard"')
 		expect(hero).not.toContain("data-verification-wizard-steps")
 		expect(hero).not.toContain("SegmentedControl")
@@ -59,7 +60,7 @@ describe("UX plan — guided verification (V1–V4)", () => {
 	})
 
 	it("V1 collapses matrix and optionals; no ops jerga residual", () => {
-		const page = read("src/pages/provider/settings/verification.astro")
+		const page = readVerificationSurface("src/pages/provider/settings/verification.astro")
 		const view = read("src/components/provider/ProviderVerificationView.astro")
 
 		expect(page).toContain("data-verification-optionals-collapsed")
@@ -101,7 +102,7 @@ describe("UX plan — guided verification (V1–V4)", () => {
 	})
 
 	it("V4 trust stepper + fiscal bridge + account rejected prioritizes docs", () => {
-		const page = read("src/pages/provider/settings/verification.astro")
+		const page = readVerificationSurface("src/pages/provider/settings/verification.astro")
 		expect(page).toContain("ProviderTrustMapRail")
 		expect(page).toContain("accountRejectCategoryLabel")
 

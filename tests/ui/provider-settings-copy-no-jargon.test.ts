@@ -32,7 +32,7 @@ describe("S0-3 provider settings copy without schema jargon", () => {
 	it("keeps tax, payments and integrations notices host-facing", () => {
 		const sources = [
 			read("src/pages/provider/settings/tax-fees/index.astro"),
-			read("src/pages/provider/settings/verification/fiscal.astro"),
+			read("src/components/provider/ProviderVerificationWorkspace.astro"),
 			read("src/pages/provider/settings/verification/payments.astro"),
 			read("src/pages/provider/settings/integrations/connect/channel-manager.astro"),
 			read("src/pages/provider/settings/verification.astro"),
@@ -46,8 +46,12 @@ describe("S0-3 provider settings copy without schema jargon", () => {
 			}
 		}
 
-		expect(sources[0]).toContain("Impuestos y cargos")
-		expect(sources[0]).toContain("Acceso de consulta")
+		expect(visibleCopy(read("src/components/tax-fees/FiscalPermissionNotice.astro"))).toContain(
+			"Modo consulta"
+		)
+		expect(visibleCopy(read("src/layouts/FiscalWorkspaceLayout.astro"))).toContain(
+			"Impuestos y cargos"
+		)
 		expect(sources[1]).toContain("Guardamos tu registro fiscal")
 		expect(sources[6]).toContain("envía → espera depósitos")
 		expect(sources[6]).toContain("Confirmar montos")

@@ -1,38 +1,12 @@
 ---
-import ProviderDocumentsAccessDenied from "@/components/provider/ProviderDocumentsAccessDenied.astro"
-import ProviderIdentityVendorCard from "@/components/provider/ProviderIdentityVendorCard.astro"
-import ProviderKycSlotsCard from "@/components/provider/ProviderKycSlotsCard.astro"
-import ProviderTrustMapRail from "@/components/provider/ProviderTrustMapRail.astro"
-import ProviderVerificationNextStep from "@/components/provider/ProviderVerificationNextStep.astro"
-import ProviderVerificationView from "@/components/provider/ProviderVerificationView.astro"
-import Notice from "@/components/ui/Notice.astro"
+import ProviderVerificationWorkspace from "@/components/provider/ProviderVerificationWorkspace.astro"
 import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
 import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
-import { getIdentityVendorStatus } from "@/lib/identity-vendor"
-import { listOpenComplianceAssignments } from "@/lib/provider-compliance-ops"
-import {
-	buildRequiredKycSlots,
-	evaluateRequiredKycDocumentsComplete,
-	isTaxDocumentSatisfiedByFiscal,
-	listProviderDocuments,
-	providerDocumentTypes,
-	requiredKycDocumentTypes,
-	resolveKycUploadFocusType,
-} from "@/lib/provider-documents"
+import { providerDocumentTypes, requiredKycDocumentTypes } from "@/lib/provider-documents"
 import { formatProviderRoleLabel } from "@/lib/provider-permissions"
-import { resolveProviderRejectCategory } from "@/lib/provider-reject-categories"
-import { getProviderTaxConfiguration } from "@/lib/provider-tax-configuration"
-import {
-	buildProviderTrustMap,
-	buildVerificationCrossLinks,
-	isProviderTrustMapComplete,
-	isVerificationListaReady,
-	resolveVerificationNextStep,
-	shouldSuppressVerificationStatusWarning,
-	TRUST_GLOSSARY,
-} from "@/lib/provider-trust-map"
+import { TRUST_GLOSSARY } from "@/lib/provider-trust-map"
+import { loadProviderVerificationWorkspace } from "@/lib/provider-verification-workspace"
 import { routes } from "@/lib/routes"
-import { getProviderFullAggregate } from "@/modules/catalog/public"
 
 const auth = await requireProviderSessionSurface(Astro.request).catch((e: any) => {
 	if (e instanceof Response && e.status === 401) return "__REDIRECT_LOGIN__"
@@ -43,13 +17,10 @@ if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
 if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerSettingsProfile())
 
 const providerId = typeof auth === "string" ? null : auth.provider.providerId
-const userId = typeof auth === "string" ? null : auth.user.id
 const sessionPermissions = typeof auth === "string" ? null : auth.provider.permissions
 const providerRoleLabel =
 	typeof auth === "string" ? "Operaciones" : formatProviderRoleLabel(auth.provider.role)
 
-const result = Astro.url.searchParams.get("result")
-const uploadErrorCode = String(Astro.url.searchParams.get("error") ?? "").trim()
 const requestedType = String(Astro.url.searchParams.get("type") ?? "").trim()
 const optionalTypeValues = new Set<string>(
 	providerDocumentTypes
@@ -63,230 +34,16 @@ if (requestedType && optionalTypeValues.has(requestedType)) {
 	return Astro.redirect(target.pathname + target.search)
 }
 
-const summaryPromise = fetch(new URL("/api/provider/settings/summary", Astro.url), {
-	headers: { cookie: Astro.request.headers.get("cookie") ?? "" },
-})
-	.then((res) => (res.ok ? res.json() : null))
-	.catch(() => null)
-const aggregatePromise =
-	providerId && userId ? getProviderFullAggregate(providerId, userId).catch(() => null) : null
-const documentsPromise = providerId ? listProviderDocuments(providerId).catch(() => []) : []
-const openAssignmentsPromise = providerId
-	? listOpenComplianceAssignments({ providerId }).catch(() => [])
-	: []
-const taxConfigurationPromise = providerId
-	? getProviderTaxConfiguration(providerId).catch(() => null)
-	: null
+if (!providerId) return Astro.redirect(routes.providerSettingsProfile())
 
-const [aggregate, summary, documents, openAssignments, taxConfiguration] = await Promise.all([
-	aggregatePromise,
-	summaryPromise,
-	documentsPromise,
-	openAssignmentsPromise,
-	taxConfigurationPromise,
-])
-// Session surface is source of truth for upload gates (matches documents API).
-const permissions = sessionPermissions ?? summary?.permissions ?? {}
-const canManageDocuments = Boolean(permissions.canManageDocuments)
-const verificationAssignment = providerId
-	? (openAssignments.find((row) => row.domain === "verification" && row.entityId === providerId) ??
-		null)
-	: null
-const documentAssignmentById = new Map(
-	openAssignments
-		.filter((row) => row.domain === "documents")
-		.map((row) => [row.entityId, row] as const)
-)
-
-const kycSlots = buildRequiredKycSlots({
-	documents,
-	uploadBasePath: routes.providerSettingsVerification(),
-	taxFiscal: taxConfiguration
-		? {
-				businessRegistrationNumber: taxConfiguration.businessRegistrationNumber,
-				status: taxConfiguration.status,
-				statusLabel: taxConfiguration.statusLabel,
-				tinBureau: taxConfiguration.tinBureau
-					? {
-							matchStatus: taxConfiguration.tinBureau.matchStatus,
-							matchLabel: taxConfiguration.tinBureau.matchLabel,
-							hostNarrative: taxConfiguration.tinBureau.hostNarrative,
-							message: taxConfiguration.tinBureau.message,
-						}
-					: null,
-			}
-		: null,
+const model = await loadProviderVerificationWorkspace({
+	providerId,
+	sessionPermissions,
+	providerRoleLabel,
+	url: Astro.url,
 })
-const taxDocSatisfiedByFiscal = isTaxDocumentSatisfiedByFiscal({
-	businessRegistrationNumber: taxConfiguration?.businessRegistrationNumber,
-	fiscalStatus: taxConfiguration?.status,
-})
-const kycEval = evaluateRequiredKycDocumentsComplete(documents, {
-	taxDocumentSatisfiedByFiscal: taxDocSatisfiedByFiscal,
-})
-const optionalDocumentsCount = documents.filter(
-	(doc) => !(requiredKycDocumentTypes as readonly string[]).includes(doc.type)
-).length
-const optionalPendingCount = documents.filter(
-	(doc) =>
-		!(requiredKycDocumentTypes as readonly string[]).includes(doc.type) && doc.status === "pending"
-).length
-
-const paymentCounts = {
-	verified: Number(summary?.counts?.verifiedPaymentAccounts ?? 0),
-	pending: Math.max(
-		0,
-		Number(summary?.counts?.paymentAccounts ?? 0) -
-			Number(summary?.counts?.verifiedPaymentAccounts ?? 0)
-	),
-}
-const legalNameComplete = Boolean(
-	String(aggregate?.provider?.legalName ?? "").trim() &&
-	String(aggregate?.provider?.displayName ?? "").trim()
-)
-const trustLinks = buildProviderTrustMap({
-	accountStatus: aggregate?.latestVerification?.status,
-	documentsComplete: kycEval.complete,
-	hasRejectedDocs: kycSlots.some((slot) => slot.state === "rejected"),
-	hasSubmittedDocs: kycSlots.some((slot) => slot.state === "pending"),
-	hasMissingDocs: kycSlots.some((slot) => slot.state === "missing"),
-	fiscalStatus: taxConfiguration?.status ?? null,
-	verifiedPaymentAccounts: paymentCounts.verified,
-	pendingPaymentAccounts: paymentCounts.pending,
-	legalNameComplete,
-})
-const trustMapComplete = isProviderTrustMapComplete(trustLinks)
-const listaReady = isVerificationListaReady({
-	trustLinks,
-	legalNameComplete,
-})
-const identityVendorStatus = getIdentityVendorStatus()
-
-const focusTypeResolved = resolveKycUploadFocusType({
-	slots: kycSlots,
-	focusType: requestedType,
-})
-const uploadFocusSlot = focusTypeResolved
-	? (kycSlots.find((slot) => slot.type === focusTypeResolved) ?? null)
-	: null
-const taxSlot = kycSlots.find((slot) => slot.type === "tax_document") ?? null
-const focusSlot =
-	uploadFocusSlot ??
-	(taxSlot &&
-	taxSlot.state !== "verified" &&
-	taxSlot.fiscalBridge &&
-	(taxSlot.fiscalBridge.suppressBlindUpload || taxSlot.fiscalBridge.allowOptionalUpload)
-		? taxSlot
-		: null) ??
-	kycSlots.find((slot) => slot.state === "missing" || slot.state === "rejected") ??
-	null
-
-// Page progress follows the 4 trust-map eslabones (Identidad→Negocio→Fiscal→Pagos),
-// not the 3 KYC docs (those are the work inside Negocio).
-const trustFocusIndex = Math.max(
-	0,
-	trustLinks.findIndex((link) => link.isFocus)
-)
-const trustReadyCount = trustLinks.filter((link) => link.uiState === "ready").length
-const wizardStepNumber =
-	trustLinks.length > 0 ? (trustMapComplete ? trustLinks.length : trustFocusIndex + 1) : 0
-const wizardProgressPercent =
-	trustLinks.length > 0 ? Math.round((trustReadyCount / trustLinks.length) * 100) : 0
+const { trustLinks, listaReady, trustMapComplete, wizardStepNumber, wizardProgressPercent } = model
 const showWizardProgress = trustLinks.length > 0
-const accountRejectCategory = resolveProviderRejectCategory(
-	aggregate?.latestVerification?.reason,
-	"verification"
-)
-const nextStep = resolveVerificationNextStep({
-	trustLinks,
-	focusSlot: focusSlot
-		? {
-				type: focusSlot.type,
-				label: focusSlot.label,
-				state: focusSlot.state,
-				fiscalBridge: focusSlot.fiscalBridge
-					? {
-							mode: focusSlot.fiscalBridge.mode,
-							fiscalHref: focusSlot.fiscalBridge.fiscalHref,
-							title: focusSlot.fiscalBridge.title,
-							body: focusSlot.fiscalBridge.body,
-							ctaLabel: focusSlot.fiscalBridge.ctaLabel,
-							suppressBlindUpload: focusSlot.fiscalBridge.suppressBlindUpload,
-						}
-					: null,
-				rejectCategoryLabel: focusSlot.rejectCategoryLabel,
-			}
-		: null,
-	canManageDocuments,
-	legalNameComplete,
-	roleLabel: providerRoleLabel,
-	kycProgress: {
-		ready: kycSlots.filter((s) => s.state === "verified").length,
-		total: kycSlots.length,
-	},
-	accountStatus: aggregate?.latestVerification?.status,
-	accountRejectCategoryLabel: accountRejectCategory?.matched ? accountRejectCategory.label : null,
-})
-const crossLinks = buildVerificationCrossLinks({
-	legalNameComplete,
-	nextStepLinkId: nextStep.linkId,
-	fiscalReady: trustLinks.find((link) => link.id === "fiscal")?.uiState === "ready",
-	paymentsReady: trustLinks.find((link) => link.id === "payments")?.uiState === "ready",
-	onlyOffPage: true,
-	ctaKind: nextStep.ctaKind ?? null,
-})
-const hasActionableDocumentGaps = kycSlots.some(
-	(slot) => slot.state === "missing" || slot.state === "rejected"
-)
-const suppressStatusConsequence = shouldSuppressVerificationStatusWarning({
-	ctaKind: nextStep.ctaKind ?? null,
-	anchorsKyc: nextStep.anchorsKyc,
-	hasActionableDocumentGaps,
-})
-
-const uploadErrorMessages: Record<string, string> = {
-	document_file_meta_required:
-		"Faltó el tipo o nombre del archivo. Vuelve a elegir el PDF o la foto.",
-	document_file_required: "No se recibió el archivo. Elige de nuevo el PDF o la imagen.",
-	unsupported_mime_type: "Formato no permitido. Usa PDF, JPG, PNG, WEBP o HEIC.",
-	file_too_large: "El archivo supera 12 MB. Sube una versión más liviana.",
-	empty_file: "El archivo está vacío. Elige otro PDF o foto.",
-	document_storage_upload_failed:
-		"No se pudo guardar en el almacenamiento de documentos. Inténtalo de nuevo en unos minutos.",
-	document_storage_not_configured: "El almacenamiento de documentos no está configurado.",
-	local_document_url_not_allowed: "Este entorno requiere almacenamiento en la nube (R2).",
-	validation_error: "Los datos del envío no son válidos. Revisa el tipo de documento y el archivo.",
-	forbidden: "Tu rol no puede enviar documentos. Pide acceso a Documentos en Equipo.",
-}
-
-const resultMessages: Record<
-	string,
-	{ title: string; body: string; variant: "success" | "warning" }
-> = {
-	submitted: {
-		title: "Documento enviado",
-		body: "Quedó como Enviado. El resultado aparecerá en esta página cuando el equipo Fastt termine.",
-		variant: "success",
-	},
-	verified: {
-		title: "Documento verificado",
-		body: "Este respaldo ya cuenta para los documentos mínimos de Negocio.",
-		variant: "success",
-	},
-	rejected: {
-		title: "Documento requiere cambios",
-		body: "Revisa el motivo en el documento mínimo y envía una versión corregida.",
-		variant: "warning",
-	},
-	error: {
-		title: "No se pudo enviar el documento",
-		body:
-			uploadErrorMessages[uploadErrorCode] ||
-			"Revisa el archivo (PDF o imagen, máx. 12 MB) e inténtalo de nuevo. Si el problema sigue, contacta a soporte.",
-		variant: "warning",
-	},
-}
-const initialTrustPanel = requestedType ? "business" : "identity"
 ---
 
 <ProviderSettingsLayout
@@ -300,164 +57,11 @@ const initialTrustPanel = requestedType ? "business" : "identity"
 	progressPercent={showWizardProgress ? wizardProgressPercent : null}
 >
 	<div
-		class="space-y-4"
+		class="space-y-6 md:space-y-8"
 		data-verification-page
 		data-verification-lista={listaReady ? "true" : "false"}
 		data-trust-map-complete={trustMapComplete ? "true" : "false"}
 	>
-		{
-			result && resultMessages[result] ? (
-				<Notice variant={resultMessages[result].variant} title={resultMessages[result].title}>
-					<p>{resultMessages[result].body}</p>
-					<div
-						class="mt-3 flex flex-wrap gap-3"
-						data-post-save-cta
-						data-funnel-domain="verification"
-						data-funnel-surface="verification"
-					>
-						<a
-							class="font-semibold underline"
-							href={routes.providerSettingsVerificationFiscal()}
-							data-funnel-cta="post_save"
-						>
-							Continuar a registro fiscal
-						</a>
-						<a
-							class="font-semibold underline"
-							href={routes.providerSettingsVerificationPayments()}
-							data-funnel-cta="post_save"
-						>
-							Continuar a pagos
-						</a>
-					</div>
-				</Notice>
-			) : null
-		}
-
-		{
-			!listaReady &&
-			identityVendorStatus.selfieLive &&
-			identityVendorStatus.surfaceEnabled &&
-			canManageDocuments ? (
-				<ProviderIdentityVendorCard status={identityVendorStatus} />
-			) : null
-		}
-
-		<div data-verification-trust-nav>
-			<ProviderTrustMapRail
-				links={trustLinks}
-				activeId={initialTrustPanel === "business" ? "business" : "identity"}
-			/>
-		</div>
-
-		<section
-			data-verification-trust-panel="identity"
-			data-active={initialTrustPanel === "identity" ? "true" : "false"}
-			hidden={initialTrustPanel !== "identity" ? true : undefined}
-		>
-			<ProviderVerificationView
-				latestVerification={aggregate?.latestVerification}
-				documents={documents}
-				showHeader={false}
-				placement="primary"
-				reviewAssignment={verificationAssignment}
-				trustMapComplete={listaReady}
-				suppressConsequence={suppressStatusConsequence}
-			/>
-		</section>
-
-		<section
-			data-verification-trust-panel="business"
-			data-active={initialTrustPanel === "business" ? "true" : "false"}
-			hidden={initialTrustPanel !== "business" ? true : undefined}
-		>
-			{
-				!listaReady ? (
-					canManageDocuments ? (
-						<div data-verification-docs-fold>
-							<ProviderKycSlotsCard
-								slots={kycSlots}
-								canManageDocuments={canManageDocuments}
-								documentAssignments={Object.fromEntries(documentAssignmentById)}
-								focusType={requestedType}
-								elevated
-							>
-								<ProviderVerificationNextStep
-									slot="intro"
-									nextStep={nextStep}
-									crossLinks={crossLinks}
-									copyOnly
-								/>
-							</ProviderKycSlotsCard>
-						</div>
-					) : (
-						<div
-							class="fastt-card space-y-6 border border-slate-200 bg-white p-4 text-slate-900 sm:p-5"
-							data-verification-docs-fold
-						>
-							<div>
-								<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">
-									Negocio
-								</p>
-								<h2 class="mt-2 text-xl font-semibold text-slate-950">Documentos mínimos</h2>
-							</div>
-							<ProviderVerificationNextStep nextStep={nextStep} crossLinks={crossLinks} copyOnly />
-							<ProviderDocumentsAccessDenied roleLabel={providerRoleLabel} slots={kycSlots} />
-						</div>
-					)
-				) : (
-					<div
-						class="fastt-notice space-y-4 rounded-[var(--fastt-radius-card)] border border-emerald-200 bg-emerald-50/50 px-5 py-4"
-						data-verification-lista-docs
-					>
-						<p class="text-sm font-semibold text-slate-950">Documentos mínimos listos</p>
-						<p class="mt-1 text-sm leading-6 text-slate-600">
-							Negocio está completo en el mapa. Usa Publicar o Pagos arriba; el respaldo adicional
-							sigue disponible abajo.
-						</p>
-					</div>
-				)
-			}
-		</section>
-
-		<details
-			class="fastt-notice rounded-[var(--fastt-radius-card)] border border-slate-200 bg-slate-50 px-5 py-4"
-			data-verification-optionals-entry
-			data-verification-optionals="entry"
-			data-verification-optionals-collapsed="true"
-		>
-			<summary class="cursor-pointer list-none">
-				<div class="flex flex-wrap items-center justify-between gap-3">
-					<div>
-						<p class="text-sm font-semibold text-slate-950">
-							Documentos adicionales si te los pedimos
-						</p>
-						<p class="mt-1 text-sm leading-6 text-slate-600">
-							Propiedad, licencias y domicilio no desbloquean los mínimos.
-							{
-								optionalDocumentsCount
-									? ` ${optionalDocumentsCount} documento${optionalDocumentsCount === 1 ? "" : "s"} en archivo${
-											optionalPendingCount ? ` · ${optionalPendingCount} en espera` : ""
-										}.`
-									: " Aún no hay opcionales cargados."
-							}
-						</p>
-					</div>
-					<span class="text-sm font-semibold text-slate-700">Ver detalle</span>
-				</div>
-			</summary>
-			<div class="mt-4 border-t border-slate-200 pt-4">
-				<a
-					href={routes.providerSettingsVerificationDocuments()}
-					class="inline-flex text-sm font-semibold text-slate-900 underline underline-offset-2"
-					data-verification-optionals-open
-				>
-					Abrir archivo de opcionales →
-				</a>
-			</div>
-		</details>
+		<ProviderVerificationWorkspace model={model} />
 	</div>
-	<script>
-		import "@/pages/provider/settings/_client/verification-trust-panels.js"
-	</script>
 </ProviderSettingsLayout>

@@ -1,0 +1,399 @@
+---
+import ProviderDocumentsAccessDenied from "@/components/provider/ProviderDocumentsAccessDenied.astro"
+import ProviderIdentityVendorCard from "@/components/provider/ProviderIdentityVendorCard.astro"
+import ProviderKycSlotsCard from "@/components/provider/ProviderKycSlotsCard.astro"
+import ProviderPaymentAccountsCard from "@/components/provider/ProviderPaymentAccountsCard.astro"
+import ProviderTaxProfileCard from "@/components/provider/ProviderTaxProfileCard.astro"
+import ProviderTrustMapRail from "@/components/provider/ProviderTrustMapRail.astro"
+import ProviderVerificationNextStep from "@/components/provider/ProviderVerificationNextStep.astro"
+import ProviderVerificationView from "@/components/provider/ProviderVerificationView.astro"
+import Notice from "@/components/ui/Notice.astro"
+import type { ProviderVerificationWorkspaceModel } from "@/lib/provider-verification-workspace"
+import { routes } from "@/lib/routes"
+
+type Props = {
+	model: ProviderVerificationWorkspaceModel
+}
+
+const { model } = Astro.props as Props
+const {
+	initialPanel,
+	listaReady,
+	trustLinks,
+	canManageDocuments,
+	canManageFiscality,
+	canManagePayments,
+	providerRoleLabel,
+	requestedType,
+	documents,
+	kycSlots,
+	latestVerification,
+	verificationAssignment,
+	documentAssignments,
+	fiscalAssignment,
+	paymentAssignments,
+	taxConfiguration,
+	paymentAccounts,
+	defaultCurrency,
+	payoutRail,
+	identityVendorStatus,
+	nextStep,
+	crossLinks,
+	suppressStatusConsequence,
+	optionalDocumentsCount,
+	optionalPendingCount,
+	result,
+	uploadErrorCode,
+	error,
+} = model
+
+const hubActive = initialPanel === "identity" || initialPanel === "business"
+const documentResult = hubActive ? result : ""
+const fiscalResult = initialPanel === "fiscal" ? result : ""
+const paymentResult = initialPanel === "payments" ? result : ""
+const paymentError = initialPanel === "payments" ? error : ""
+
+const uploadErrorMessages: Record<string, string> = {
+	document_file_meta_required:
+		"Faltó el tipo o nombre del archivo. Vuelve a elegir el PDF o la foto.",
+	document_file_required: "No se recibió el archivo. Elige de nuevo el PDF o la imagen.",
+	unsupported_mime_type: "Formato no permitido. Usa PDF, JPG, PNG, WEBP o HEIC.",
+	file_too_large: "El archivo supera 12 MB. Sube una versión más liviana.",
+	empty_file: "El archivo está vacío. Elige otro PDF o foto.",
+	document_storage_upload_failed:
+		"No se pudo guardar en el almacenamiento de documentos. Inténtalo de nuevo en unos minutos.",
+	document_storage_not_configured: "El almacenamiento de documentos no está configurado.",
+	local_document_url_not_allowed: "Este entorno requiere almacenamiento en la nube (R2).",
+	validation_error: "Los datos del envío no son válidos. Revisa el tipo de documento y el archivo.",
+	forbidden: "Tu rol no puede enviar documentos. Pide acceso a Documentos en Equipo.",
+}
+
+const documentResultMessages: Record<
+	string,
+	{ title: string; body: string; variant: "success" | "warning" }
+> = {
+	submitted: {
+		title: "Documento enviado",
+		body: "Quedó como Enviado. El resultado aparecerá en esta página cuando el equipo Fastt termine.",
+		variant: "success",
+	},
+	verified: {
+		title: "Documento verificado",
+		body: "Este respaldo ya cuenta para los documentos mínimos de Negocio.",
+		variant: "success",
+	},
+	rejected: {
+		title: "Documento requiere cambios",
+		body: "Revisa el motivo en el documento mínimo y envía una versión corregida.",
+		variant: "warning",
+	},
+	error: {
+		title: "No se pudo enviar el documento",
+		body:
+			uploadErrorMessages[uploadErrorCode] ||
+			"Revisa el archivo (PDF o imagen, máx. 12 MB) e inténtalo de nuevo. Si el problema sigue, contacta a soporte.",
+		variant: "warning",
+	},
+}
+
+const paymentResultMessages: Record<
+	string,
+	{ title: string; body: string; variant: "success" | "info" }
+> = {
+	submitted: {
+		title: "Cuenta enviada",
+		body: "Paso 1 listo. Revisa el extracto en 1-2 días hábiles: verás dos depósitos pequeños. Esta pantalla te guía hasta confirmar montos.",
+		variant: "success",
+	},
+	micro_deposit_confirmed: {
+		title: "Cuenta lista",
+		body: "Confirmaste los montos del extracto. La cuenta quedó verificada para liquidaciones.",
+		variant: "success",
+	},
+}
+
+const paymentErrorMessages: Record<
+	string,
+	{ title: string; body: string; variant: "warning" | "error" }
+> = {
+	micro_deposit_mismatch: {
+		title: "Montos incorrectos",
+		body: "Los montos no coinciden con el extracto. Revisa los dos créditos pequeños e inténtalo de nuevo.",
+		variant: "warning",
+	},
+	micro_deposit_failed: {
+		title: "Intentos agotados",
+		body: "Se agotaron los intentos de confirmación. Envía una cuenta nueva o contacta a soporte Fastt.",
+		variant: "error",
+	},
+	micro_deposit_expired: {
+		title: "Depósitos vencidos",
+		body: "El plazo para confirmar los montos venció. El equipo Fastt puede reiniciar la verificación.",
+		variant: "warning",
+	},
+	micro_deposit_not_initiated: {
+		title: "Aún no hay depósitos",
+		body: "La verificación de titularidad todavía no está lista para confirmar. Espera el paso “Esperando depósitos”.",
+		variant: "warning",
+	},
+	invalid_micro_deposit_amounts: {
+		title: "Montos inválidos",
+		body: "Ingresa dos montos enteros entre 1 y 99 centavos.",
+		variant: "warning",
+	},
+	pending_account_in_progress: {
+		title: "Ya hay una cuenta en curso",
+		body: "Termina la verificación de la cuenta pendiente antes de enviar otra.",
+		variant: "warning",
+	},
+}
+---
+
+<div class="space-y-6 md:space-y-8" data-verification-workspace>
+	{
+		hubActive && documentResult && documentResultMessages[documentResult] ? (
+			<div data-verification-hub-chrome>
+				<Notice
+					variant={documentResultMessages[documentResult].variant}
+					title={documentResultMessages[documentResult].title}
+				>
+					<p>{documentResultMessages[documentResult].body}</p>
+					<div
+						class="mt-3 flex flex-wrap gap-3"
+						data-post-save-cta
+						data-funnel-domain="verification"
+						data-funnel-surface="verification"
+					>
+						<a
+							class="font-semibold underline"
+							href={routes.providerSettingsVerificationFiscal()}
+							data-funnel-cta="post_save"
+						>
+							Continuar a registro fiscal
+						</a>
+						<a
+							class="font-semibold underline"
+							href={routes.providerSettingsVerificationPayments()}
+							data-funnel-cta="post_save"
+						>
+							Continuar a pagos
+						</a>
+					</div>
+				</Notice>
+			</div>
+		) : null
+	}
+
+	{
+		!listaReady &&
+		identityVendorStatus.selfieLive &&
+		identityVendorStatus.surfaceEnabled &&
+		canManageDocuments ? (
+			<div data-verification-hub-chrome hidden={hubActive ? undefined : true}>
+				<ProviderIdentityVendorCard status={identityVendorStatus} />
+			</div>
+		) : null
+	}
+
+	<div data-verification-trust-nav>
+		<ProviderTrustMapRail links={trustLinks} activeId={initialPanel} />
+	</div>
+
+	<section
+		class="space-y-6 md:space-y-8"
+		data-verification-trust-panel="identity"
+		data-active={initialPanel === "identity" ? "true" : "false"}
+		hidden={initialPanel !== "identity" ? true : undefined}
+	>
+		<ProviderVerificationView
+			latestVerification={latestVerification}
+			documents={documents}
+			showHeader={false}
+			placement="primary"
+			reviewAssignment={verificationAssignment}
+			trustMapComplete={listaReady}
+			suppressConsequence={suppressStatusConsequence}
+		/>
+	</section>
+
+	<section
+		class="space-y-6 md:space-y-8"
+		data-verification-trust-panel="business"
+		data-active={initialPanel === "business" ? "true" : "false"}
+		hidden={initialPanel !== "business" ? true : undefined}
+	>
+		{
+			!listaReady ? (
+				canManageDocuments ? (
+					<div data-verification-docs-fold>
+						<ProviderKycSlotsCard
+							slots={kycSlots}
+							canManageDocuments={canManageDocuments}
+							documentAssignments={documentAssignments}
+							focusType={requestedType}
+							elevated
+						>
+							<ProviderVerificationNextStep
+								slot="intro"
+								nextStep={nextStep}
+								crossLinks={crossLinks}
+								copyOnly
+							/>
+						</ProviderKycSlotsCard>
+					</div>
+				) : (
+					<div
+						class="fastt-card space-y-6 border border-slate-200 bg-white p-4 text-slate-900 sm:p-5"
+						data-verification-docs-fold
+					>
+						<div>
+							<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">
+								Negocio
+							</p>
+							<h2 class="mt-2 text-xl font-semibold text-slate-950">Documentos mínimos</h2>
+						</div>
+						<ProviderVerificationNextStep nextStep={nextStep} crossLinks={crossLinks} copyOnly />
+						<ProviderDocumentsAccessDenied roleLabel={providerRoleLabel} slots={kycSlots} />
+					</div>
+				)
+			) : (
+				<div
+					class="fastt-notice space-y-4 rounded-[var(--fastt-radius-card)] border border-emerald-200 bg-emerald-50/50 px-5 py-4"
+					data-verification-lista-docs
+				>
+					<p class="text-sm font-semibold text-slate-950">Documentos mínimos listos</p>
+					<p class="mt-1 text-sm leading-6 text-slate-600">
+						Negocio está completo en el mapa. Usa Publicar o Pagos arriba; el respaldo adicional
+						sigue disponible abajo.
+					</p>
+				</div>
+			)
+		}
+	</section>
+
+	<section
+		class="space-y-6 md:space-y-8"
+		data-verification-trust-panel="fiscal"
+		data-active={initialPanel === "fiscal" ? "true" : "false"}
+		hidden={initialPanel !== "fiscal" ? true : undefined}
+	>
+		{
+			fiscalResult === "tax_profile_saved" ? (
+				<Notice variant="success" title="Identidad fiscal enviada">
+					<p>
+						Guardamos tu registro fiscal. Quedó en revisión; el resultado aparecerá en este eslabón
+						cuando el equipo Fastt termine.
+					</p>
+					<p
+						class="mt-3 flex flex-wrap gap-3"
+						data-post-save-cta
+						data-funnel-domain="fiscality"
+						data-funnel-surface="verification_fiscal"
+					>
+						<a class="font-semibold underline" href={routes.providerSettingsVerificationPayments()}>
+							Continuar a pagos
+						</a>
+					</p>
+				</Notice>
+			) : null
+		}
+		<ProviderTaxProfileCard
+			taxConfiguration={taxConfiguration}
+			canManageFiscality={canManageFiscality}
+			reviewAssignment={fiscalAssignment}
+			formReturnTo="verificationFiscal"
+		/>
+	</section>
+
+	<section
+		class="space-y-6 md:space-y-8"
+		data-verification-trust-panel="payments"
+		data-active={initialPanel === "payments" ? "true" : "false"}
+		hidden={initialPanel !== "payments" ? true : undefined}
+	>
+		{
+			paymentResult && paymentResultMessages[paymentResult] ? (
+				<Notice
+					variant={paymentResultMessages[paymentResult].variant}
+					title={paymentResultMessages[paymentResult].title}
+				>
+					<p>{paymentResultMessages[paymentResult].body}</p>
+					<p
+						class="mt-3"
+						data-post-save-cta
+						data-funnel-domain="payments"
+						data-funnel-surface="verification_payments"
+					>
+						<a
+							class="font-semibold underline"
+							href={routes.providerSettingsVerification()}
+							data-funnel-cta="post_save"
+						>
+							Volver al mapa de Verificación
+						</a>
+					</p>
+				</Notice>
+			) : null
+		}
+		{
+			paymentError && paymentErrorMessages[paymentError] ? (
+				<Notice
+					variant={paymentErrorMessages[paymentError].variant}
+					title={paymentErrorMessages[paymentError].title}
+				>
+					{paymentErrorMessages[paymentError].body}
+				</Notice>
+			) : null
+		}
+		<ProviderPaymentAccountsCard
+			accounts={paymentAccounts}
+			canManagePayments={canManagePayments}
+			defaultCurrency={defaultCurrency}
+			paymentAssignments={paymentAssignments}
+			payoutRail={payoutRail}
+			formReturnTo="verificationPayments"
+		/>
+	</section>
+
+	<details
+		class="fastt-notice rounded-[var(--fastt-radius-card)] border border-slate-200 bg-slate-50 px-5 py-4"
+		data-verification-hub-chrome
+		data-verification-optionals-entry
+		data-verification-optionals="entry"
+		data-verification-optionals-collapsed="true"
+		hidden={hubActive ? undefined : true}
+	>
+		<summary class="cursor-pointer list-none">
+			<div class="flex flex-wrap items-center justify-between gap-3">
+				<div>
+					<p class="text-sm font-semibold text-slate-950">
+						Documentos adicionales si te los pedimos
+					</p>
+					<p class="mt-1 text-sm leading-6 text-slate-600">
+						Propiedad, licencias y domicilio no desbloquean los mínimos.
+						{
+							optionalDocumentsCount
+								? ` ${optionalDocumentsCount} documento${optionalDocumentsCount === 1 ? "" : "s"} en archivo${
+										optionalPendingCount ? ` · ${optionalPendingCount} en espera` : ""
+									}.`
+								: " Aún no hay opcionales cargados."
+						}
+					</p>
+				</div>
+				<span class="text-sm font-semibold text-slate-700">Ver detalle</span>
+			</div>
+		</summary>
+		<div class="mt-4 border-t border-slate-200 pt-4">
+			<a
+				href={routes.providerSettingsVerificationDocuments()}
+				class="inline-flex text-sm font-semibold text-slate-900 underline underline-offset-2"
+				data-verification-optionals-open
+			>
+				Abrir archivo de opcionales →
+			</a>
+		</div>
+	</details>
+</div>
+<script>
+	import "@/pages/provider/settings/_client/verification-trust-panels.js"
+</script>

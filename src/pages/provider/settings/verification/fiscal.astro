@@ -1,12 +1,10 @@
 ---
-import ProviderTaxProfileCard from "@/components/provider/ProviderTaxProfileCard.astro"
-import ProviderTrustMapRail from "@/components/provider/ProviderTrustMapRail.astro"
-import Notice from "@/components/ui/Notice.astro"
+import ProviderVerificationWorkspace from "@/components/provider/ProviderVerificationWorkspace.astro"
 import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
 import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
-import { listOpenComplianceAssignments } from "@/lib/provider-compliance-ops"
+import { formatProviderRoleLabel } from "@/lib/provider-permissions"
 import { TRUST_GLOSSARY } from "@/lib/provider-trust-map"
-import { buildProviderVerificationTrustSnapshot } from "@/lib/provider-verification-trust-snapshot"
+import { loadProviderVerificationWorkspace } from "@/lib/provider-verification-workspace"
 import { routes } from "@/lib/routes"
 
 const auth = await requireProviderSessionSurface(Astro.request).catch((e: any) => {
@@ -19,31 +17,19 @@ if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerSetti
 
 const providerId = typeof auth === "string" ? null : auth.provider.providerId
 const sessionPermissions = typeof auth === "string" ? null : auth.provider.permissions
-const result = Astro.url.searchParams.get("result")
+const providerRoleLabel =
+	typeof auth === "string" ? "Operaciones" : formatProviderRoleLabel(auth.provider.role)
 
-const trustSnapshotPromise = providerId
-	? buildProviderVerificationTrustSnapshot({ providerId }).catch(() => null)
-	: null
-const openAssignmentsPromise = providerId
-	? listOpenComplianceAssignments({ providerId }).catch(() => [])
-	: []
+if (!providerId) return Astro.redirect(routes.providerSettingsProfile())
 
-const [trustSnapshot, openAssignments] = await Promise.all([
-	trustSnapshotPromise,
-	openAssignmentsPromise,
-])
-
-const permissions = (sessionPermissions ?? {}) as { canManageFiscality?: boolean }
-const canManageFiscality = Boolean(permissions.canManageFiscality)
-const fiscalAssignment = providerId
-	? (openAssignments.find((row) => row.domain === "fiscal" && row.entityId === providerId) ?? null)
-	: null
-const trustLinks = trustSnapshot?.trustLinks ?? []
-const trustMapComplete = Boolean(trustSnapshot?.trustMapComplete)
-const listaReady = Boolean(trustSnapshot?.listaReady)
-const wizardStepNumber = trustSnapshot?.wizardStepNumber ?? 0
-const wizardProgressPercent = trustSnapshot?.wizardProgressPercent ?? 0
-const taxConfiguration = trustSnapshot?.taxConfiguration ?? null
+const model = await loadProviderVerificationWorkspace({
+	providerId,
+	sessionPermissions,
+	providerRoleLabel,
+	url: Astro.url,
+})
+const { trustLinks, listaReady, trustMapComplete, wizardStepNumber, wizardProgressPercent } = model
+const showWizardProgress = trustLinks.length > 0
 ---
 
 <ProviderSettingsLayout
@@ -57,41 +43,11 @@ const taxConfiguration = trustSnapshot?.taxConfiguration ?? null
 	progressPercent={trustLinks.length ? wizardProgressPercent : null}
 >
 	<div
-		class="space-y-4"
+		class="space-y-6 md:space-y-8"
 		data-verification-fiscal-page
 		data-verification-lista={listaReady ? "true" : "false"}
 		data-trust-map-complete={trustMapComplete ? "true" : "false"}
 	>
-		{
-			result === "tax_profile_saved" ? (
-				<Notice variant="success" title="Identidad fiscal enviada">
-					<p>
-						Guardamos tu registro fiscal. Quedó en revisión; el resultado aparecerá en este eslabón
-						cuando el equipo Fastt termine.
-					</p>
-					<p
-						class="mt-3 flex flex-wrap gap-3"
-						data-post-save-cta
-						data-funnel-domain="fiscality"
-						data-funnel-surface="verification_fiscal"
-					>
-						<a class="font-semibold underline" href={routes.providerSettingsVerificationPayments()}>
-							Continuar a pagos
-						</a>
-					</p>
-				</Notice>
-			) : null
-		}
-
-		<div data-verification-trust-nav>
-			<ProviderTrustMapRail links={trustLinks} activeId="fiscal" />
-		</div>
-
-		<ProviderTaxProfileCard
-			taxConfiguration={taxConfiguration}
-			canManageFiscality={canManageFiscality}
-			reviewAssignment={fiscalAssignment}
-			formReturnTo="verificationFiscal"
-		/>
+		<ProviderVerificationWorkspace model={model} />
 	</div>
 </ProviderSettingsLayout>
