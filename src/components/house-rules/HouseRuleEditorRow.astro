@@ -1,0 +1,377 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Input from "@/components/ui/Input.astro"
+import Select from "@/components/ui/Select.astro"
+import Textarea from "@/components/ui/Textarea.astro"
+import { houseRuleCopy } from "@/modules/house-rules/presentation/houseRulePresentation"
+import {
+	buildHouseRuleGuestSummary,
+	type HouseRule,
+	type HouseRuleType,
+} from "@/modules/house-rules/public"
+import {
+	Baby,
+	BedDouble,
+	CarFront,
+	ChevronRight,
+	Cigarette,
+	KeyRound,
+	ListPlus,
+	LogIn,
+	LogOut,
+	Moon,
+	PartyPopper,
+	PawPrint,
+	Shield,
+} from "@lucide/astro"
+
+interface Props {
+	type: HouseRuleType
+	rules: HouseRule[]
+	isEssential: boolean
+	isGuidedRules: boolean
+	isComplete: boolean
+	openByDefault?: boolean
+	actionHref: string
+	vista: string
+	hasProductContext: boolean
+	selectedProductId: string
+	visibleProducts: Array<{ id: string; name: string }>
+}
+
+const {
+	type,
+	rules,
+	isEssential,
+	isGuidedRules,
+	isComplete,
+	openByDefault = false,
+	actionHref,
+	vista,
+	hasProductContext,
+	selectedProductId,
+	visibleProducts,
+} = Astro.props
+
+const copy = houseRuleCopy[type]
+const Icon = {
+	Pets: PawPrint,
+	Children: Baby,
+	Smoking: Cigarette,
+	Parties: PartyPopper,
+	QuietHours: Moon,
+	Parking: CarFront,
+	CheckIn: LogIn,
+	Checkout: LogOut,
+	Safety: Shield,
+	ExtraBeds: BedDouble,
+	Access: KeyRound,
+	Other: ListPlus,
+}[type]
+const status = isComplete
+	? { label: "Completo", variant: "success" as const }
+	: isEssential
+		? { label: "Pendiente", variant: "warning" as const }
+		: { label: "Opcional", variant: "info" as const }
+const rowClass = [
+	"fastt-row-card group overflow-hidden bg-white text-slate-900 transition",
+	isComplete ? "" : status.variant === "warning" ? "fastt-row-card-alert" : "fastt-row-card-info",
+].join(" ")
+const wellClass = isComplete
+	? "flex size-9 shrink-0 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700"
+	: status.variant === "warning"
+		? "flex size-9 shrink-0 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-800"
+		: "flex size-9 shrink-0 items-center justify-center rounded-lg border border-sky-200 bg-sky-50 text-sky-700"
+const guestSummary = rules[0] ? buildHouseRuleGuestSummary(type, rules[0].payloadJson) : ""
+const impact = isComplete
+	? guestSummary || "Visible antes de reservar"
+	: isEssential
+		? copy.pendingImpact
+		: "No bloquea publicar"
+---
+
+<details
+	class={rowClass}
+	open={openByDefault ? true : undefined}
+	data-house-rule-type={type}
+	data-house-rule-complete={isComplete ? "true" : "false"}
+>
+	<summary
+		class="flex cursor-pointer list-none flex-wrap items-center gap-3 p-4 [&::-webkit-details-marker]:hidden"
+	>
+		<span class={wellClass}>
+			<Icon class="size-4" aria-hidden="true" />
+		</span>
+		<div class="min-w-0 flex-1">
+			<p class="text-sm font-semibold text-slate-950">{copy.label}</p>
+			<p class="mt-1 text-sm leading-5 text-slate-500">{impact}</p>
+		</div>
+		<div class="flex flex-wrap items-center gap-2 sm:justify-end">
+			<Badge variant={status.variant}>{status.label}</Badge>
+			<ChevronRight
+				class="size-4 shrink-0 text-slate-400 transition group-open:rotate-90 group-open:text-[var(--fastt-color-selection)]"
+				aria-hidden="true"
+			/>
+		</div>
+	</summary>
+
+	<div class="space-y-4 border-t border-slate-100 px-4 pb-4 pt-4">
+		<p class="text-sm leading-6 text-slate-600">{copy.intent}</p>
+		{
+			rules.length ? (
+				<div class="grid gap-2">
+					{rules.map((rule) => {
+						const summary = buildHouseRuleGuestSummary(type, rule.payloadJson)
+						return (
+							<div class="fastt-row-card flex flex-wrap items-start justify-between gap-3 p-3">
+								<p class="max-w-2xl text-sm leading-6 text-slate-700">{summary}</p>
+								<form method="POST" action={actionHref}>
+									<input type="hidden" name="action" value="delete-house-rule" />
+									<input type="hidden" name="ruleId" value={rule.id} />
+									<input type="hidden" name="vista" value={vista} />
+									<Button type="submit" variant="secondary" size="sm">
+										Eliminar
+									</Button>
+								</form>
+							</div>
+						)
+					})}
+				</div>
+			) : null
+		}
+
+		{
+			isGuidedRules && isComplete ? (
+				<p class="rounded-xl bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-600">
+					Si necesitas cambiarla, elimina esta regla y agrega una nueva versión.
+				</p>
+			) : (
+				<form method="POST" action={actionHref} class="grid gap-3 sm:grid-cols-2">
+					<input type="hidden" name="action" value="create-house-rule" />
+					<input type="hidden" name="type" value={type} />
+					<input type="hidden" name="vista" value={vista} />
+					{hasProductContext && selectedProductId ? (
+						<input type="hidden" name="productId" value={selectedProductId} />
+					) : (
+						<label class="space-y-1 text-sm sm:col-span-2">
+							<span class="font-medium text-slate-700">Alojamiento</span>
+							<Select name="productId">
+								{visibleProducts.map((product) => (
+									<option value={product.id} selected={product.id === selectedProductId}>
+										{product.name}
+									</option>
+								))}
+							</Select>
+						</label>
+					)}
+
+					{type === "Pets" ? (
+						<>
+							<fieldset class="space-y-2 rounded-xl border border-slate-200 p-3 text-sm">
+								<legend class="px-1 font-medium text-slate-700">Mascotas</legend>
+								<label class="mr-4">
+									<input type="radio" name="allowed" value="true" /> Sí
+								</label>
+								<label>
+									<input type="radio" name="allowed" value="false" checked /> No
+								</label>
+							</fieldset>
+							<label class="space-y-1 text-sm">
+								<span class="font-medium text-slate-700">Nota breve</span>
+								<Input name="feeNote" placeholder="Ej. una mascota pequeña con aprobación previa" />
+							</label>
+						</>
+					) : null}
+
+					{type === "Children" ? (
+						<>
+							<fieldset class="space-y-2 rounded-xl border border-slate-200 p-3 text-sm">
+								<legend class="px-1 font-medium text-slate-700">Niños</legend>
+								<label class="mr-4">
+									<input type="radio" name="allowed" value="true" checked /> Sí
+								</label>
+								<label>
+									<input type="radio" name="allowed" value="false" /> No
+								</label>
+							</fieldset>
+							<label class="space-y-1 text-sm">
+								<span class="font-medium text-slate-700">Cuidado importante</span>
+								<Input name="conditions" placeholder="Ej. supervisión en piscina" />
+							</label>
+						</>
+					) : null}
+
+					{type === "Smoking" ? (
+						<>
+							<fieldset class="space-y-2 rounded-xl border border-slate-200 p-3 text-sm">
+								<legend class="px-1 font-medium text-slate-700">Fumar</legend>
+								<label class="mr-4">
+									<input type="radio" name="allowed" value="true" /> Permitido con límites
+								</label>
+								<label>
+									<input type="radio" name="allowed" value="false" checked /> No permitido
+								</label>
+							</fieldset>
+							<label class="space-y-1 text-sm">
+								<span class="font-medium text-slate-700">Dónde aplica</span>
+								<Select name="smokingArea">
+									<option value="not_allowed">No permitido</option>
+									<option value="designated_areas">Áreas designadas</option>
+									<option value="outdoors">Solo al aire libre</option>
+									<option value="rooms">Habitaciones designadas</option>
+									<option value="other">Otra indicación</option>
+								</Select>
+							</label>
+						</>
+					) : null}
+
+					{type === "Parties" ? (
+						<fieldset class="space-y-2 rounded-xl border border-slate-200 p-3 text-sm sm:col-span-2">
+							<legend class="px-1 font-medium text-slate-700">Fiestas y eventos</legend>
+							<label class="mr-4">
+								<input type="radio" name="allowed" value="true" /> Permitidos con guía
+							</label>
+							<label>
+								<input type="radio" name="allowed" value="false" checked /> No permitidos
+							</label>
+						</fieldset>
+					) : null}
+
+					{type === "QuietHours" ? (
+						<>
+							<label class="space-y-1 text-sm">
+								<span class="font-medium text-slate-700">Silencio desde</span>
+								<Input type="time" name="quietStart" value="22:00" />
+							</label>
+							<label class="space-y-1 text-sm">
+								<span class="font-medium text-slate-700">Silencio hasta</span>
+								<Input type="time" name="quietEnd" value="08:00" />
+							</label>
+						</>
+					) : null}
+
+					{type === "Parking" ? (
+						<>
+							<fieldset class="space-y-2 rounded-xl border border-slate-200 p-3 text-sm">
+								<legend class="px-1 font-medium text-slate-700">Estacionamiento</legend>
+								<label class="mr-4">
+									<input type="radio" name="available" value="true" checked /> Disponible
+								</label>
+								<label>
+									<input type="radio" name="available" value="false" /> No disponible
+								</label>
+							</fieldset>
+							<label class="space-y-1 text-sm">
+								<span class="font-medium text-slate-700">Tipo</span>
+								<Select name="parkingType">
+									<option value="free">Gratuito</option>
+									<option value="paid">Pagado</option>
+									<option value="street">En la calle</option>
+									<option value="assigned">Espacio asignado</option>
+									<option value="nearby">Cercano</option>
+									<option value="none">Sin estacionamiento</option>
+								</Select>
+							</label>
+						</>
+					) : null}
+
+					{type === "CheckIn" || type === "Access" ? (
+						<>
+							<label class="space-y-1 text-sm">
+								<span class="font-medium text-slate-700">Llegada desde</span>
+								<Input type="time" name="checkInFrom" value="15:00" required={type === "CheckIn"} />
+							</label>
+							<label class="space-y-1 text-sm">
+								<span class="font-medium text-slate-700">Llegada hasta</span>
+								<Input
+									type="time"
+									name="checkInUntil"
+									value="22:00"
+									required={type === "CheckIn"}
+								/>
+							</label>
+							<label class="space-y-1 text-sm">
+								<span class="font-medium text-slate-700">Cómo entra el huésped</span>
+								<Select name="checkInMethod">
+									<option value="self">Llegada autónoma</option>
+									<option value="host">Con anfitrión o personal</option>
+									<option value="front_desk">Recepción</option>
+									<option value="lockbox">Caja de seguridad</option>
+									<option value="smart_lock">Cerradura o código</option>
+									<option value="manual">Entrega manual</option>
+								</Select>
+							</label>
+							<div class="space-y-2 rounded-xl border border-slate-200 p-3 text-sm">
+								<p class="font-medium text-slate-700">Al llegar</p>
+								<label class="block">
+									<input type="checkbox" name="idRequired" /> Puede pedirse documento
+								</label>
+								<label class="block">
+									<input type="checkbox" name="cardRequired" /> Puede pedirse tarjeta
+								</label>
+							</div>
+						</>
+					) : null}
+
+					{type === "Checkout" ? (
+						<>
+							<label class="space-y-1 text-sm">
+								<span class="font-medium text-slate-700">Hora de salida</span>
+								<Input type="time" name="checkoutTime" value="11:00" />
+							</label>
+							<div class="space-y-2 rounded-xl border border-slate-200 p-3 text-sm">
+								<p class="font-medium text-slate-700">Antes de salir</p>
+								<label class="block">
+									<input
+										type="checkbox"
+										name="checkoutTasks"
+										value="devolver llaves o dispositivos de acceso"
+									/>{" "}
+									Devolver llaves o acceso
+								</label>
+								<label class="block">
+									<input type="checkbox" name="checkoutTasks" value="cerrar puertas y ventanas" />{" "}
+									Cerrar puertas y ventanas
+								</label>
+								<label class="block">
+									<input
+										type="checkbox"
+										name="checkoutTasks"
+										value="dejar la basura en el lugar indicado"
+									/>{" "}
+									Dejar basura donde corresponde
+								</label>
+								<label class="block">
+									<input
+										type="checkbox"
+										name="checkoutTasks"
+										value="apagar luces y electrodomésticos"
+									/>{" "}
+									Apagar luces y electrodomésticos
+								</label>
+							</div>
+						</>
+					) : null}
+
+					{type === "Safety" || type === "ExtraBeds" || type === "Other" ? (
+						<label class="space-y-1 text-sm sm:col-span-2">
+							<span class="font-medium text-slate-700">Indicación para huéspedes</span>
+							<Textarea
+								name="instructions"
+								rows={3}
+								placeholder="Ej. no ingresar a zonas de personal."
+							/>
+						</label>
+					) : null}
+
+					<div class="sm:col-span-2">
+						<Button type="submit" variant="primary" size="sm">
+							{`Guardar ${copy.label.toLowerCase()}`}
+						</Button>
+					</div>
+				</form>
+			)
+		}
+	</div>
+</details>

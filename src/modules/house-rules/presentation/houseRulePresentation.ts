@@ -11,6 +11,7 @@ export type HouseRuleCopy = {
 	label: string
 	intent: string
 	guestFacing: string
+	pendingImpact: string
 }
 
 export const houseRuleTypes: HouseRuleType[] = [
@@ -69,61 +70,73 @@ export const houseRuleCopy: Record<HouseRuleType, HouseRuleCopy> = {
 		label: "Niños",
 		intent: "Indica si aceptas niños y cualquier cuidado importante.",
 		guestFacing: "¿Pueden alojarse niños?",
+		pendingImpact: "El huésped no sabrá si pueden alojarse niños",
 	},
 	Pets: {
 		label: "Mascotas",
 		intent: "Aclara si aceptas mascotas y condiciones básicas.",
 		guestFacing: "¿Pueden traer mascotas?",
+		pendingImpact: "El huésped no sabrá si puede traer mascotas",
 	},
 	Smoking: {
 		label: "Fumar",
 		intent: "Define si se permite fumar y dónde.",
 		guestFacing: "¿Se permite fumar?",
+		pendingImpact: "El huésped no sabrá si se permite fumar",
 	},
 	Parties: {
 		label: "Fiestas y eventos",
 		intent: "Aclara reuniones, eventos y uso responsable.",
 		guestFacing: "¿Se permiten fiestas o eventos?",
+		pendingImpact: "El huésped no sabrá si se permiten fiestas",
 	},
 	QuietHours: {
 		label: "Horario de silencio",
 		intent: "Evita ruido en horarios sensibles.",
 		guestFacing: "¿Cuándo deben mantener silencio?",
+		pendingImpact: "El huésped no sabrá cuándo debe haber silencio",
 	},
 	Parking: {
 		label: "Estacionamiento",
 		intent: "Explica si hay estacionamiento y cómo usarlo.",
 		guestFacing: "¿Dónde pueden estacionar?",
+		pendingImpact: "El huésped no sabrá si hay estacionamiento",
 	},
 	CheckIn: {
 		label: "Llegada",
 		intent: "Indica cómo entran y qué necesitan al llegar.",
 		guestFacing: "¿Cómo será la llegada?",
+		pendingImpact: "El huésped no sabrá cómo entrar al alojamiento",
 	},
 	Checkout: {
 		label: "Salida",
 		intent: "Define hora de salida y tareas simples.",
 		guestFacing: "¿Qué deben hacer antes de salir?",
+		pendingImpact: "El huésped no sabrá a qué hora salir",
 	},
 	Safety: {
 		label: "Seguridad y espacios",
 		intent: "Aclara zonas compartidas, restringidas o de cuidado.",
 		guestFacing: "¿Cómo deben usar el alojamiento de forma segura?",
+		pendingImpact: "El huésped no sabrá cómo usar el espacio con cuidado",
 	},
 	ExtraBeds: {
 		label: "Camas adicionales",
 		intent: "Aclara cunas, camas extra o arreglos para dormir.",
 		guestFacing: "¿Hay camas extra o cunas?",
+		pendingImpact: "El huésped no sabrá si hay camas extra",
 	},
 	Access: {
 		label: "Acceso",
 		intent: "Explica llaves, códigos o dispositivos de entrada.",
 		guestFacing: "¿Cómo se accede al alojamiento?",
+		pendingImpact: "El huésped no sabrá cómo se accede al alojamiento",
 	},
 	Other: {
 		label: "Otra regla",
 		intent: "Agrega una expectativa de estadía que no encaja arriba.",
 		guestFacing: "¿Qué más debe saber el huésped?",
+		pendingImpact: "Aún no hay una expectativa extra para el huésped",
 	},
 }
 

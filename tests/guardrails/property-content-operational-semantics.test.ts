@@ -300,8 +300,16 @@ describe("Guardrail: Property Content operational semantics", () => {
 		expect(houseRules).toContain("fastt-tabs-outside-panel__item")
 		expect(houseRules).not.toContain("SegmentedControl")
 		expect(houseRules).toContain("syncHotelArrivalPolicy")
-		expect(houseRules).toContain('name="checkInFrom"')
-		expect(houseRules).toContain('name="checkInUntil"')
+		const houseRuleEditor = read(
+			"src/components/house-rules/HouseRuleEditorRow.astro"
+		)
+		expect(houseRules).toContain("HouseRuleEditorRow")
+		expect(houseRules).toContain("Pendientes")
+		expect(houseRules).toContain("Áreas completadas")
+		expect(houseRules).toContain("data-house-rules-complete-areas")
+		expect(houseRuleEditor).toContain("fastt-row-card")
+		expect(`${houseRules}\n${houseRuleEditor}`).toContain('name="checkInFrom"')
+		expect(`${houseRules}\n${houseRuleEditor}`).toContain('name="checkInUntil"')
 		expect(arrivalSync).toContain('scope: "product"')
 		expect(arrivalSync).toContain('category: "CheckIn"')
 		expect(arrivalSync).toContain("replacePolicyAssignmentCapa6")
