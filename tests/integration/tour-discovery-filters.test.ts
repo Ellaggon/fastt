@@ -3,12 +3,12 @@ import { expect, it } from "vitest"
 import { describePostgres as describe } from "../setup/postgres-suite"
 
 import { getTourSearchSurface } from "@/lib/tours/tourSearchSurface"
+import { upsertGeoPlace } from "@/shared/infrastructure/test-support/db-test-data"
 import { tourDepartureToStay } from "@/lib/tours/tourSemantics"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
 import {
 	db,
 	eq,
-	GeoPlace,
 	Product,
 	ProductGeoPlace,
 	ProductCategory,
@@ -51,19 +51,13 @@ async function seedSellableTour(params: {
 		.values({ id: "prov_test", legalName: "Provider prov_test" })
 		.onConflictDoNothing()
 
-	await db
-		.insert(GeoPlace)
-		.values({
-			id: params.geoPlaceId,
-			canonicalName: "La Paz",
-			normalizedName: "la paz",
-			slug: `dest-${params.geoPlaceId}`,
-			placeType: "city",
-			countryCode: "BO",
-			status: "active",
-			source: "test",
-		} as any)
-		.onConflictDoNothing()
+	await upsertGeoPlace({
+		id: params.geoPlaceId,
+		canonicalName: `La Paz ${params.geoPlaceId}`,
+		placeType: "city",
+		countryCode: "BO",
+		slug: params.geoPlaceId,
+	})
 
 	await db
 		.insert(Product)

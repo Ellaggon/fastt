@@ -15,6 +15,17 @@ import { createCommercialPriceRule } from "@/lib/commercial-rules/commercialRule
 
 const ratePlanTemplateFixtures = new Map<string, { name: string; description: string | null }>()
 
+/** GeoPlace.canonicalPath rejects underscores and other punctuation. */
+export function geoPlaceFixturePath(value: string) {
+	return value
+		.toLowerCase()
+		.replace(/_/g, "-")
+		.replace(/[^a-z0-9/-]+/g, "-")
+		.replace(/-+/g, "-")
+		.replace(/\/+/g, "/")
+		.replace(/^[-/]+|[-/]+$/g, "")
+}
+
 export async function upsertGeoPlace(row: {
 	id: string
 	canonicalName?: string
@@ -29,6 +40,7 @@ export async function upsertGeoPlace(row: {
 	const canonicalName = row.canonicalName ?? row.name ?? row.id
 	const placeType = row.placeType ?? row.type ?? "locality"
 	const countryCode = (row.countryCode ?? row.country ?? "BO").toUpperCase().slice(0, 2)
+	const slug = geoPlaceFixturePath(row.slug)
 	const normalizedName = canonicalName
 		.normalize("NFD")
 		.replace(/[\u0300-\u036f]/g, "")
@@ -42,8 +54,8 @@ export async function upsertGeoPlace(row: {
 			normalizedName,
 			placeType,
 			countryCode,
-			slug: row.slug,
-			canonicalPath: row.slug,
+			slug,
+			canonicalPath: slug,
 			status: "active",
 			source: "test_fixture",
 		})
@@ -51,10 +63,11 @@ export async function upsertGeoPlace(row: {
 			target: [GeoPlace.id],
 			set: {
 				canonicalName,
+				normalizedName,
 				placeType,
 				countryCode,
-				slug: row.slug,
-				canonicalPath: row.slug,
+				slug,
+				canonicalPath: slug,
 			},
 		})
 }

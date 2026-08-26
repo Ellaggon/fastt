@@ -1,5 +1,6 @@
 // Integration-test-only helpers. Tests use the canonical PostgreSQL schema;
 // this file centralizes minimal seeding needed for catalog flows.
+import { geoPlaceFixturePath } from "@/shared/infrastructure/test-support/db-test-data"
 import {
 	and,
 	db,
@@ -21,14 +22,15 @@ export async function upsertGeoPlace(row: {
 	latitude?: number | null
 	longitude?: number | null
 }) {
+	const slug = geoPlaceFixturePath(row.slug)
 	await db
 		.insert(GeoPlace)
 		.values({
 			id: row.id,
 			canonicalName: row.canonicalName,
 			normalizedName: row.canonicalName.toLocaleLowerCase("es").trim(),
-			slug: row.slug,
-			canonicalPath: row.slug,
+			slug,
+			canonicalPath: slug,
 			countryCode: row.countryCode ?? "CL",
 			placeType: row.placeType ?? "city",
 			centroidLat: row.latitude ?? null,
@@ -36,7 +38,15 @@ export async function upsertGeoPlace(row: {
 			status: "active",
 			source: "test",
 		})
-		.onConflictDoNothing()
+		.onConflictDoUpdate({
+			target: [GeoPlace.id],
+			set: {
+				canonicalName: row.canonicalName,
+				normalizedName: row.canonicalName.toLocaleLowerCase("es").trim(),
+				slug,
+				canonicalPath: slug,
+			},
+		})
 }
 
 export async function upsertProvider(row: {
