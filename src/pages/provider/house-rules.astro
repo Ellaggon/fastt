@@ -2,6 +2,7 @@
 import { db, eq, Product } from "@/shared/infrastructure/db/compat"
 
 import Badge from "@/components/ui/Badge.astro"
+import BottomToast from "@/components/ui/BottomToast.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import HouseRuleEditorRow from "@/components/house-rules/HouseRuleEditorRow.astro"
@@ -420,23 +421,15 @@ const guidedContinueDisabledTitle = isLaunchWizard
 	: "Completa las reglas esenciales para continuar la preparación."
 const successMessage =
 	success === "created"
-		? {
-				title: "Regla guardada",
-				detail:
-					missingCount > 0
-						? `Faltan ${missingCount} regla${missingCount === 1 ? "" : "s"} esencial${missingCount === 1 ? "" : "es"}.`
-						: "Las reglas esenciales están listas.",
-			}
+		? missingCount > 0
+			? `Cambio guardado. Quedan ${missingCount} regla${missingCount === 1 ? "" : "s"} esencial${missingCount === 1 ? "" : "es"} por definir.`
+			: "Cambio guardado. Las reglas esenciales están completas."
 		: success === "preset-applied"
-			? {
-					title: "Base aplicada",
-					detail:
-						missingCount > 0
-							? `Se completaron las categorías disponibles. Faltan ${missingCount}.`
-							: "Las reglas esenciales están listas para revisar.",
-				}
+			? missingCount > 0
+				? `Base aplicada. Quedan ${missingCount} regla${missingCount === 1 ? "" : "s"} por completar en otras categorías.`
+				: "Base aplicada. Las reglas esenciales están listas para revisar."
 			: success === "deleted"
-				? { title: "Regla eliminada", detail: "Puedes agregar una nueva versión cuando quieras." }
+				? "Regla eliminada. Puedes definir una nueva versión cuando lo necesites."
 				: null
 ---
 
@@ -511,27 +504,6 @@ const successMessage =
 					<p class="mt-1 text-sm">{actionError}</p>
 				</Card>
 			)
-		}
-		{
-			successMessage ? (
-				isGuidedRules ? (
-					<div
-						role="status"
-						class="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-white px-4 py-3 text-sm text-slate-700 ring-1 ring-slate-200"
-					>
-						<p>
-							<span class="font-semibold text-slate-950">{successMessage.title}.</span>{" "}
-							{successMessage.detail}
-						</p>
-						<span class="text-xs font-semibold text-[var(--fastt-color-selection)]">Guardado</span>
-					</div>
-				) : (
-					<Card className="border-green-200 bg-green-50 text-green-900">
-						<p class="text-sm font-semibold">{successMessage.title}</p>
-						<p class="mt-1 text-sm">{successMessage.detail}</p>
-					</Card>
-				)
-			) : null
 		}
 
 		{
@@ -658,7 +630,7 @@ const successMessage =
 											<div
 												class="h-full rounded-full"
 												style={`width: ${houseRulesProgressPercent}%; background-color: var(--fastt-color-selection);`}
-											></div>
+											/>
 										</div>
 										<p class="shrink-0 text-xs font-medium text-neutral-400 tabular-nums">
 											{essentialReadyCount} de {essentialHouseRuleTypes.length}
@@ -953,6 +925,12 @@ const successMessage =
 			)
 		}
 	</section>
+
+	{
+		successMessage ? (
+			<BottomToast message={successMessage} variant="success" clearQueryParam="success" />
+		) : null
+	}
 </PlaybookLayout>
 
 <style>

@@ -70,4 +70,16 @@ describe("ui/house-rules tabs", () => {
 		expect(page).not.toContain("Ver mascotas")
 		expect(page).not.toContain("Completa las expectativas básicas de comportamiento")
 	})
+
+	it("usa BottomToast reutilizable para confirmaciones de guardado", () => {
+		const page = read("src/pages/provider/house-rules.astro")
+		const toast = read("src/components/ui/BottomToast.astro")
+
+		expect(page).toContain("BottomToast")
+		expect(page).toContain('clearQueryParam="success"')
+		expect(page).toContain("Cambio guardado. Quedan")
+		expect(toast).toContain("data-bottom-toast-dismiss")
+		expect(page).not.toContain("border-green-200 bg-green-50")
+		expect(page).not.toContain("house-rules-feedback-toast")
+	})
 })
