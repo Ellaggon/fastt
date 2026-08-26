@@ -2,9 +2,20 @@
 
 ## Contrato de entorno
 
-Todo proceso que conecte con datos Fastt debe declarar `FASTT_DATA_ENV` como
-`development`, `test`, `staging` o `production`. No existe un valor implícito.
+Todo proceso que conecte con datos Fastt declara `FASTT_DATA_ENV` como
+`development`, `test`, `staging` o `production`. El valor explícito siempre gana.
 
+Si falta, el runtime clasifica el plano de datos con señales del host:
+
+- `VERCEL_ENV=production|preview|development` → `production`, `staging`, `development`
+- `NODE_ENV=development` o un proceso local sin `NODE_ENV` → `development`
+
+Vitest y un Node `production` sin `VERCEL_ENV` siguen exigiendo el valor explícito.
+`astro.config.mjs` carga `.env` con `dotenv` y exporta un objeto estático:
+Astro `defineConfig` no ejecuta un factory `({ mode }) => …` (a diferencia de
+Vite), así que un callback oculta `adapter`/`output` y `astro build` falla con
+`NoAdapterInstalled`. Tampoco se importa `vite` desde el config: bajo pnpm
+Vite no puede resolverse a sí mismo desde ese archivo.
 Vitest solo acepta `FASTT_DATA_ENV=test`. Además, Vitest nunca usa
 `DATABASE_URL`, `DIRECT_URL` ni `SUPABASE_DB_POOLER_URL` heredados del shell o
 de `.env`. Una suite con PostgreSQL debe configurar exclusivamente:

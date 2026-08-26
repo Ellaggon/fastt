@@ -16,6 +16,7 @@ import {
 	ProductGeoPlace,
 	ProductLocation,
 	ProductStatus,
+	GeoPlace,
 	Provider,
 	ProviderProfile,
 	ProviderUser,
@@ -118,6 +119,11 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 				displayName: Product.name,
 				productType: Product.productType,
 				status: ProductStatus.state,
+				geoPlaceId: GeoPlace.id,
+				geoPlaceCanonicalName: GeoPlace.canonicalName,
+				geoPlaceCanonicalPath: GeoPlace.canonicalPath,
+				geoPlaceType: GeoPlace.placeType,
+				geoPlaceCountryCode: GeoPlace.countryCode,
 				contentDescription: ProductContent.description,
 				contentHighlights: ProductContent.highlightsJson,
 				address: ProductLocation.address,
@@ -154,6 +160,15 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 			})
 			.from(Product)
 			.leftJoin(ProductStatus, eq(ProductStatus.productId, Product.id))
+			.leftJoin(
+				ProductGeoPlace,
+				and(
+					eq(ProductGeoPlace.productId, Product.id),
+					eq(ProductGeoPlace.role, "primary_discovery"),
+					eq(ProductGeoPlace.isPrimary, true)
+				)
+			)
+			.leftJoin(GeoPlace, eq(GeoPlace.id, ProductGeoPlace.placeId))
 			.leftJoin(ProductContent, eq(ProductContent.productId, Product.id))
 			.leftJoin(ProductLocation, eq(ProductLocation.productId, Product.id))
 			.leftJoin(
@@ -238,6 +253,15 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 			displayName: row.displayName,
 			productType: row.productType,
 			status: row.status || "draft",
+			geoPlace: row.geoPlaceId
+				? {
+						id: row.geoPlaceId,
+						canonicalName: row.geoPlaceCanonicalName ?? row.geoPlaceId,
+						canonicalPath: row.geoPlaceCanonicalPath ?? row.geoPlaceId,
+						placeType: row.geoPlaceType ?? "",
+						countryCode: row.geoPlaceCountryCode ?? "",
+					}
+				: null,
 			content: {
 				description: row.contentDescription ? String(row.contentDescription).trim() : null,
 				highlights: row.contentHighlights ?? [],

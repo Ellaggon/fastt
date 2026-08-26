@@ -240,9 +240,9 @@ jobs:
       - name: Public browser, accessibility, HTML and render budget
         env:
           PLAYWRIGHT_BASE_URL: http://127.0.0.1:4178
-          PLAYWRIGHT_PUBLIC_ROUTES: "/,/hotels,/tours,/destinos/la-paz/alojamientos,/destinos/la-paz/tours"
+          PLAYWRIGHT_PUBLIC_ROUTES: "/,/hotels,/tours,/destinos/bolivia/la-paz-department/la-paz/alojamientos,/destinos/bolivia/la-paz-department/la-paz/tours"
           FASTT_HTML_BUDGET_BASE_URL: http://127.0.0.1:4178
-          FASTT_HTML_BUDGET_ROUTES: "/:250000,/hotels:335000,/tours:345000,/destinos/la-paz/alojamientos:305000,/destinos/la-paz/tours:460000"
+          FASTT_HTML_BUDGET_ROUTES: "/:250000,/hotels:335000,/tours:345000,/destinos/bolivia/la-paz-department/la-paz/alojamientos:305000,/destinos/bolivia/la-paz-department/la-paz/tours:460000"
         run: |
           pnpm exec astro preview --host 127.0.0.1 --port 4178 &
           preview_pid=$!

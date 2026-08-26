@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { readFileSync } from "node:fs"
+import { readVerificationSurface } from "./read-verification-surface"
 
 import { buildRequiredKycSlots } from "@/lib/provider-documents"
 import {
@@ -81,7 +82,7 @@ describe("V0 trust map IA + glossary (cuenta vs docs)", () => {
 	})
 
 	it("wires trust rail + glossary into verification surfaces", () => {
-		const page = read("src/pages/provider/settings/verification.astro")
+		const page = readVerificationSurface("src/pages/provider/settings/verification.astro")
 		const view = read("src/components/provider/ProviderVerificationView.astro")
 		const card = read("src/components/provider/ProviderKycSlotsCard.astro")
 		const rail = read("src/components/provider/ProviderTrustMapRail.astro")

@@ -131,9 +131,14 @@ describe("integration/provider external calendars", () => {
 		await db.insert(Provider).values({ id: ids.providerId, displayName: "Provider iCal" })
 		await db.insert(GeoPlace).values({
 			id: ids.geoPlaceId,
-			canonicalName: "Lugar iCal", normalizedName: "lugar ical", placeType: "locality", countryCode: "CL",
-			centroidLat: 0, centroidLng: 0,
+			canonicalName: "Lugar iCal",
+			normalizedName: "lugar ical",
+			placeType: "locality",
+			countryCode: "CL",
+			centroidLat: 0,
+			centroidLng: 0,
 			slug: `destino-ical-${suffix}`,
+			canonicalPath: `destino-ical-${suffix}`,
 		})
 		await db.insert(Product).values({
 			id: ids.productId,
@@ -141,7 +146,16 @@ describe("integration/provider external calendars", () => {
 			productType: "Hotel",
 			providerId: ids.providerId,
 		})
-		await db.insert(ProductGeoPlace).values({ id: `geo:product-place:${ids.productId}`, productId: ids.productId, placeId: ids.geoPlaceId, role: "primary_discovery", isPrimary: true, source: "test_fixture" })
+		await db
+			.insert(ProductGeoPlace)
+			.values({
+				id: `geo:product-place:${ids.productId}`,
+				productId: ids.productId,
+				placeId: ids.geoPlaceId,
+				role: "primary_discovery",
+				isPrimary: true,
+				source: "test_fixture",
+			})
 		await db.insert(Variant).values({
 			id: ids.variantId,
 			productId: ids.productId,

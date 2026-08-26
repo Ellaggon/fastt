@@ -102,6 +102,68 @@ BEGIN
 END;
 $$;
 
+-- GeoPlace.slug is a local segment. canonicalPath is always derived from the
+-- hierarchy so direct writes cannot recreate a globally-unique-slug model.
+CREATE OR REPLACE FUNCTION fastt_derive_geo_place_canonical_path()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+	parent_path text;
+BEGIN
+	NEW."slug" := trim(BOTH '-' FROM regexp_replace(lower(trim(NEW."slug")), '[^a-z0-9]+', '-', 'g'));
+	IF NEW."slug" !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' THEN
+		RAISE EXCEPTION 'GEO_PLACE_INVALID_ROUTE_SEGMENT';
+	END IF;
+
+	IF NEW."parentId" IS NULL THEN
+		NEW."canonicalPath" := NEW."slug";
+	ELSE
+		IF NEW."parentId" = NEW."id" THEN
+			RAISE EXCEPTION 'GEO_PLACE_PARENT_CANNOT_BE_SELF';
+		END IF;
+
+		IF TG_OP = 'UPDATE' AND EXISTS (
+			WITH RECURSIVE descendants AS (
+				SELECT "id" FROM "GeoPlace" WHERE "parentId" = NEW."id"
+				UNION ALL
+				SELECT child."id"
+				FROM "GeoPlace" child
+				INNER JOIN descendants parent ON child."parentId" = parent."id"
+			)
+			SELECT 1 FROM descendants WHERE "id" = NEW."parentId"
+		) THEN
+			RAISE EXCEPTION 'GEO_PLACE_HIERARCHY_CYCLE';
+		END IF;
+
+		SELECT "canonicalPath" INTO parent_path
+		FROM "GeoPlace"
+		WHERE "id" = NEW."parentId";
+		IF parent_path IS NULL THEN
+			RAISE EXCEPTION 'GEO_PLACE_PARENT_NOT_FOUND';
+		END IF;
+		NEW."canonicalPath" := parent_path || '/' || NEW."slug";
+	END IF;
+
+	RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION fastt_propagate_geo_place_canonical_path()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+	IF OLD."canonicalPath" IS DISTINCT FROM NEW."canonicalPath" THEN
+		UPDATE "GeoPlace" child
+		SET "canonicalPath" = NEW."canonicalPath" || '/' || child."slug"
+		WHERE child."parentId" = NEW."id"
+			AND child."canonicalPath" IS DISTINCT FROM NEW."canonicalPath" || '/' || child."slug";
+	END IF;
+	RETURN NULL;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION fastt_enforce_marketplace_publication_boundary()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -414,3 +476,16 @@ CREATE TRIGGER "trg_Provider_publication_boundary"
 BEFORE UPDATE OF "accountPurpose", "dataClassification" ON "Provider"
 FOR EACH ROW
 EXECUTE FUNCTION fastt_enforce_marketplace_publication_boundary();
+
+DROP TRIGGER IF EXISTS "trg_GeoPlace_derive_canonical_path" ON "GeoPlace";
+CREATE TRIGGER "trg_GeoPlace_derive_canonical_path"
+BEFORE INSERT OR UPDATE OF "slug", "parentId", "canonicalPath" ON "GeoPlace"
+FOR EACH ROW
+EXECUTE FUNCTION fastt_derive_geo_place_canonical_path();
+
+DROP TRIGGER IF EXISTS "trg_GeoPlace_propagate_canonical_path" ON "GeoPlace";
+CREATE TRIGGER "trg_GeoPlace_propagate_canonical_path"
+AFTER UPDATE ON "GeoPlace"
+FOR EACH ROW
+WHEN (OLD."canonicalPath" IS DISTINCT FROM NEW."canonicalPath")
+EXECUTE FUNCTION fastt_propagate_geo_place_canonical_path();

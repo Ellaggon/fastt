@@ -271,6 +271,7 @@ async function upsertFixture(params: {
 			centroidLat: -16.5,
 			centroidLng: -68.15,
 			slug: "marketplace-certification-la-paz",
+			canonicalPath: "marketplace-certification-la-paz",
 		})
 		.onConflictDoUpdate({
 			target: GeoPlace.id,
@@ -280,6 +281,7 @@ async function upsertFixture(params: {
 				countryCode: "BO",
 				centroidLat: -16.5,
 				centroidLng: -68.15,
+				canonicalPath: "marketplace-certification-la-paz",
 			},
 		})
 
@@ -670,11 +672,19 @@ async function certifyFlow(input: {
 	rooms: number
 }) {
 	const vertical = input.label === "hotel" ? "alojamientos" : "tours"
-	const landing = await getPublicDestinationListings({ slug: "la-paz", vertical, limit: 100 })
+	const landing = await getPublicDestinationListings({
+		path: "bolivia/la-paz-department/la-paz",
+		vertical,
+		limit: 100,
+	})
 	if (!landing.listings.some((listing) => listing.id === input.productId)) {
 		throw new Error(`CERTIFICATION_LANDING_MISSING:${input.label}`)
 	}
-	const destination = await getPublicDestinationListings({ slug: "la-paz", vertical, limit: 100 })
+	const destination = await getPublicDestinationListings({
+		path: "bolivia/la-paz-department/la-paz",
+		vertical,
+		limit: 100,
+	})
 	if (
 		!destination.destination ||
 		!destination.listings.some((listing) => listing.id === input.productId)

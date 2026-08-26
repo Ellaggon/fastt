@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs"
 import { describe, expect, it } from "vitest"
 
 import { buildRequiredKycSlots } from "@/lib/provider-documents"
+import { readVerificationSurface } from "./read-verification-surface"
 
 const root = new URL("../../", import.meta.url)
 
@@ -26,7 +27,7 @@ describe("S4-3 verification guided density", () => {
 	})
 
 	it("wires consequence, inline upload, and collapsed matrix/optionals", () => {
-		const page = read("src/pages/provider/settings/verification.astro")
+		const page = readVerificationSurface("src/pages/provider/settings/verification.astro")
 		const card = read("src/components/provider/ProviderKycSlotsCard.astro")
 		const view = read("src/components/provider/ProviderVerificationView.astro")
 

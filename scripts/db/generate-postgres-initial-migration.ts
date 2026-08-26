@@ -34,6 +34,8 @@ type ExtraConfigItem = {
 	}
 	name?: string
 	value?: unknown
+	columns?: { name: string }[]
+	nullsNotDistinctConfig?: boolean
 }
 
 const dialect = new PgDialect()
@@ -209,6 +211,22 @@ function indexSql(table: DrizzleTable): string[] {
 		})
 }
 
+function uniqueConstraintSql(table: DrizzleTable): string[] {
+	return extraConfig(table)
+		.filter(
+			(item) =>
+				item.constructor?.name === "UniqueConstraintBuilder" &&
+				item.name &&
+				item.columns &&
+				item.columns.length > 0
+		)
+		.map((constraint) => {
+			const nulls = constraint.nullsNotDistinctConfig ? " NULLS NOT DISTINCT" : ""
+			const columns = constraint.columns!.map((column) => q(column.name)).join(", ")
+			return `ALTER TABLE ${q(tableName(table))} ADD CONSTRAINT ${q(constraint.name!)} UNIQUE${nulls} (${columns});`
+		})
+}
+
 function checkSql(table: DrizzleTable): string[] {
 	return extraConfig(table)
 		.filter((item) => item.constructor?.name === "CheckBuilder" && item.name && item.value)
@@ -237,6 +255,8 @@ async function main() {
 		...tables.map(createTableSql),
 		"",
 		...tables.flatMap(foreignKeySql),
+		"",
+		...tables.flatMap(uniqueConstraintSql),
 		"",
 		...tables.flatMap(indexSql),
 		"",

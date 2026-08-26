@@ -47,7 +47,7 @@ export const PRODUCT_VERTICALS: Record<ProductVertical, ProductVerticalDefinitio
 		},
 		publicRoutes: {
 			index: "/hotels",
-			search: "/hotels/search",
+			search: "/buscar/alojamientos",
 		},
 		providerRoutes: {
 			list: "/dashboard",
@@ -74,7 +74,7 @@ export const PRODUCT_VERTICALS: Record<ProductVertical, ProductVerticalDefinitio
 		},
 		publicRoutes: {
 			index: "/tours",
-			search: "/tours/search",
+			search: "/buscar/tours",
 		},
 		providerRoutes: {
 			list: "/catalog/tours",

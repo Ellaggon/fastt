@@ -110,11 +110,12 @@ async function seedPrivateVariant(suffix: string) {
 	await db.insert(Provider).values({ id: "prov_test", legalName: "Provider prov_test" }).onConflictDoNothing()
 	await db.insert(GeoPlace).values({
 		id: geoPlaceId,
-		canonicalName: "Private Dest",
-		normalizedName: "private dest",
+		canonicalName: `Private Dest ${geoPlaceId}`,
+		normalizedName: `private dest ${geoPlaceId}`.replace(/_/g, "-"),
 		placeType: "city",
 		countryCode: "BO",
-		slug: `priv-${geoPlaceId}`,
+		slug: geoPlaceId.replace(/_/g, "-"),
+		canonicalPath: geoPlaceId.replace(/_/g, "-"),
 	} as any)
 	await db.insert(Product).values({
 		id: productId,
@@ -315,11 +316,12 @@ describe("integration/tour P2 runtime trust (review, private, cross-sell, cancel
 			} as any)
 			await db.insert(GeoPlace).values({
 				id: geoPlaceId,
-				canonicalName: "Rev Dest",
-				normalizedName: "rev dest",
+				canonicalName: `Rev Dest ${geoPlaceId}`,
+				normalizedName: `rev dest ${geoPlaceId}`.replace(/_/g, "-"),
 				placeType: "city",
 				countryCode: "BO",
-				slug: `rev-${geoPlaceId}`,
+				slug: geoPlaceId.replace(/_/g, "-"),
+				canonicalPath: geoPlaceId.replace(/_/g, "-"),
 			} as any)
 			await db.insert(Product).values({
 				id: productId,
@@ -499,11 +501,12 @@ describe("integration/tour P2 runtime trust (review, private, cross-sell, cancel
 			await db.insert(User).values({ id: guestId, email: `xs-${suffix}@ex.com` } as any)
 			await db.insert(GeoPlace).values({
 				id: geoPlaceId,
-				canonicalName: "XS Dest",
-				normalizedName: "xs dest",
+				canonicalName: `XS Dest ${geoPlaceId}`,
+				normalizedName: `xs dest ${geoPlaceId}`.replace(/_/g, "-"),
 				placeType: "city",
 				countryCode: "BO",
-				slug: `xs-${geoPlaceId}`,
+				slug: geoPlaceId.replace(/_/g, "-"),
+				canonicalPath: geoPlaceId.replace(/_/g, "-"),
 			} as any)
 			await db.insert(Product).values({
 				id: hotelProductId,
@@ -749,11 +752,12 @@ describe("integration/tour P2 runtime trust (review, private, cross-sell, cancel
 			} as any)
 			await db.insert(GeoPlace).values({
 				id: geoPlaceId,
-				canonicalName: "Void Dest",
-				normalizedName: "void dest",
+				canonicalName: `Void Dest ${geoPlaceId}`,
+				normalizedName: `void dest ${geoPlaceId}`.replace(/_/g, "-"),
 				placeType: "city",
 				countryCode: "BO",
-				slug: `void-${geoPlaceId}`,
+				slug: geoPlaceId.replace(/_/g, "-"),
+				canonicalPath: geoPlaceId.replace(/_/g, "-"),
 			} as any)
 			await db.insert(Product).values({
 				id: productId,

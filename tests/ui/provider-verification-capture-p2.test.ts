@@ -7,6 +7,7 @@ import {
 	requiredKycDocumentTypes,
 } from "@/lib/provider-documents"
 import { SETTINGS_FUNNEL_EVENTS } from "@/lib/provider-settings-funnel"
+import { readVerificationSurface } from "./read-verification-surface"
 
 const root = new URL("../../", import.meta.url)
 
@@ -48,7 +49,7 @@ describe("P2 KYC capture — mobile file UX + time-to-upload", () => {
 		const form = read("src/components/provider/ProviderKycUploadForm.astro")
 		const beacon = read("src/pages/provider/settings/_client/settings-funnel-beacon.js")
 		const funnel = read("src/lib/provider-settings-funnel.ts")
-		const page = read("src/pages/provider/settings/verification.astro")
+		const page = readVerificationSurface("src/pages/provider/settings/verification.astro")
 		const card = read("src/components/provider/ProviderKycSlotsCard.astro")
 
 		expect(file).toContain('data-kyc-capture-mobile="v3"')

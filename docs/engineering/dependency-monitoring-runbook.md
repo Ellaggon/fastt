@@ -59,7 +59,7 @@ If any command fails:
 2. Validate preview endpoint smoke:
    - `/api/internal/observability/search-view-health`
    - `/api/internal/observability/search-decision`
-   - `/hotels/search-v2`
+   - `/buscar/alojamientos`
 3. If any contract drift appears, keep override and document.
 
 ## Severity handling policy

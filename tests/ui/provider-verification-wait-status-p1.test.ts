@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import { readFileSync } from "node:fs"
 
 import { shouldSuppressVerificationStatusWarning } from "@/lib/provider-trust-map"
+import { readVerificationSurface } from "./read-verification-surface"
 
 const root = new URL("../../", import.meta.url)
 
@@ -47,7 +48,7 @@ describe("P1 verification wait/status", () => {
 	})
 
 	it("wires compact wait, collapsed matrix, and suppress helper on verification page", () => {
-		const page = read("src/pages/provider/settings/verification.astro")
+		const page = readVerificationSurface("src/pages/provider/settings/verification.astro")
 		const view = read("src/components/provider/ProviderVerificationView.astro")
 
 		expect(page).toContain("shouldSuppressVerificationStatusWarning")

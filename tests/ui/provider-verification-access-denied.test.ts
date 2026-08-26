@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { readFileSync } from "node:fs"
+import { readVerificationSurface } from "./read-verification-surface"
 
 import { buildRequiredKycSlots } from "@/lib/provider-documents"
 import {
@@ -72,7 +73,7 @@ describe("P0 verification documents access-denied UX", () => {
 	})
 
 	it("wires verification pages to access card instead of empty upload journey", () => {
-		const page = read("src/pages/provider/settings/verification.astro")
+		const page = readVerificationSurface("src/pages/provider/settings/verification.astro")
 		const optionals = read("src/pages/provider/settings/verification/documents.astro")
 		const card = read("src/components/provider/ProviderDocumentsAccessDenied.astro")
 		const kyc = read("src/components/provider/ProviderKycSlotsCard.astro")
@@ -88,7 +89,7 @@ describe("P0 verification documents access-denied UX", () => {
 
 		expect(page).toContain("ProviderDocumentsAccessDenied")
 		expect(page).toContain("formatProviderRoleLabel")
-		expect(page).toContain("roleLabel: providerRoleLabel")
+		expect(page).toContain("roleLabel: params.providerRoleLabel")
 		expect(page).toContain("canManageDocuments ? (")
 		expect(page).toContain("<ProviderKycSlotsCard")
 		expect(page).not.toContain("Pide a un administrador del proveedor")

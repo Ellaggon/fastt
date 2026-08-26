@@ -2,8 +2,10 @@ import AxeBuilder from "@axe-core/playwright"
 import { expect, test } from "@playwright/test"
 
 const enabled = process.env.PLAYWRIGHT_PUBLIC_CERTIFICATION === "1"
-const publicRoutes = (process.env.PLAYWRIGHT_PUBLIC_ROUTES ??
-	"/,/hotels,/tours,/destinos/la-paz/alojamientos,/destinos/la-paz/tours")
+const publicRoutes = (
+	process.env.PLAYWRIGHT_PUBLIC_ROUTES ??
+	"/,/hotels,/tours,/destinos/bolivia/la-paz-department/la-paz/alojamientos,/destinos/bolivia/la-paz-department/la-paz/tours"
+)
 	.split(",")
 	.map((route) => route.trim())
 	.filter(Boolean)
@@ -45,7 +47,9 @@ test.describe("certificación pública de marketplace", () => {
 		await page.route("**/la-paz.webp", (route) => route.fulfill({ status: 404, body: "" }))
 		await page.goto("/", { waitUntil: "networkidle" })
 		const imageSurface = page.locator("[data-public-image]").first()
-		const fallback = page.locator("[data-public-image][data-state='fallback'] [data-public-image-fallback]")
+		const fallback = page.locator(
+			"[data-public-image][data-state='fallback'] [data-public-image-fallback]"
+		)
 		await expect(fallback).toBeVisible()
 		await expect(fallback).toHaveAttribute("aria-label", "Imagen no disponible")
 		await expect(page.locator("[data-hero-scrim]")).toBeVisible()

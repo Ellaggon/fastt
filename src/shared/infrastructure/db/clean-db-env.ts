@@ -54,7 +54,6 @@ export function ensureCleanPostgresEnv(options?: {
 	testDotenvPath?: string
 }): { stripped: string[]; loaded: boolean } {
 	const env = options?.env ?? process.env
-	getFasttDataEnvironment(env)
 	const stripped = stripInvalidPostgresEnv(env)
 	const result = loadDotenv({
 		path: options?.dotenvPath,
@@ -68,5 +67,6 @@ export function ensureCleanPostgresEnv(options?: {
 	})
 	// If something still invalid after load, strip again (do not keep junk).
 	stripInvalidPostgresEnv(env)
+	getFasttDataEnvironment(env)
 	return { stripped, loaded: !result.error }
 }

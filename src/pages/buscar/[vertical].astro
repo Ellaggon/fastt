@@ -1,8 +1,10 @@
 ---
 import MarketplaceDestinationResults from "@/components/marketplace/MarketplaceDestinationResults.astro"
-import { getPublicDestinationListings } from "@/lib/marketplace/publicDestinationListings"
 import {
-	canonicalPublicPlaceSlug,
+	getPublicDestinationListings,
+	resolvePublicDestination,
+} from "@/lib/marketplace/publicDestinationListings"
+import {
 	publicSearchHref,
 	type PublicMarketplaceVertical,
 } from "@/lib/marketplace/publicDestinationRoutes"
@@ -12,18 +14,15 @@ const vertical: PublicMarketplaceVertical | null =
 	rawVertical === "alojamientos" || rawVertical === "tours" ? rawVertical : null
 if (!vertical) return Astro.redirect("/", 308)
 
-const sourceDestination =
-	Astro.url.searchParams.get("destino") ||
-	Astro.url.searchParams.get("geoPlaceSlug") ||
-	Astro.url.searchParams.get("destinationQuery") ||
-	Astro.url.searchParams.get("geoPlaceId")
-const canonicalSlug = canonicalPublicPlaceSlug(sourceDestination)
-if (canonicalSlug && Astro.url.searchParams.get("destino") !== canonicalSlug) {
-	return Astro.redirect(publicSearchHref(vertical, Astro.url.searchParams), 308)
+const sourceDestination = Astro.url.searchParams.get("destino")
+const resolvedDestination = await resolvePublicDestination(sourceDestination)
+const canonicalPath = resolvedDestination?.canonicalPath ?? null
+if (canonicalPath && Astro.url.searchParams.get("destino") !== canonicalPath) {
+	return Astro.redirect(publicSearchHref(vertical, Astro.url.searchParams, canonicalPath), 308)
 }
 
-const { destination, listings } = canonicalSlug
-	? await getPublicDestinationListings({ slug: canonicalSlug, vertical })
+const { destination, listings } = canonicalPath
+	? await getPublicDestinationListings({ path: canonicalPath, vertical })
 	: { destination: null, listings: [] }
 ---
 

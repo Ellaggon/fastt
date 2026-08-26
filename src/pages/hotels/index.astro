@@ -1,12 +1,19 @@
 ---
 import MarketplaceListingSurface from "@/components/marketplace/MarketplaceListingSurface.astro"
+import {
+	publicDestinationHref,
+	publicGeoPlacePath,
+} from "@/lib/marketplace/publicDestinationRoutes"
+
+const destinationHref = (place: string) =>
+	publicDestinationHref(publicGeoPlacePath(place), "alojamientos")
 
 const popularDestinations = [
-	{ label: "La Paz", href: "/destinos/la-paz/alojamientos" },
-	{ label: "Uyuni", href: "/destinos/uyuni/alojamientos" },
-	{ label: "Santa Cruz", href: "/destinos/santa-cruz/alojamientos" },
-	{ label: "Copacabana", href: "/destinos/copacabana/alojamientos" },
-	{ label: "Cochabamba", href: "/destinos/cochabamba/alojamientos" },
+	{ label: "La Paz", href: destinationHref("geo:bo:la-paz-city") },
+	{ label: "Uyuni", href: destinationHref("geo:bo:uyuni") },
+	{ label: "Santa Cruz", href: destinationHref("geo:bo:santa-cruz-de-la-sierra") },
+	{ label: "Copacabana", href: destinationHref("geo:bo:copacabana") },
+	{ label: "Cochabamba", href: destinationHref("geo:bo:cochabamba-city") },
 ]
 
 const exploreGroups = [
@@ -29,9 +36,9 @@ const exploreGroups = [
 	{
 		title: "Regiones",
 		links: [
-			{ label: "Altiplano", href: "/destinos/la-paz-department/alojamientos" },
-			{ label: "Valles", href: "/destinos/cochabamba/alojamientos" },
-			{ label: "Amazonía", href: "/destinos/beni/alojamientos" },
+			{ label: "Altiplano", href: destinationHref("geo:bo:la-paz-department") },
+			{ label: "Valles", href: destinationHref("geo:bo:cochabamba") },
+			{ label: "Amazonía", href: destinationHref("geo:bo:beni") },
 		],
 	},
 	{

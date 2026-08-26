@@ -38,7 +38,7 @@ export class MarketplaceHotelSearchRepository implements MarketplaceHotelSearchR
 		const place = await db
 			.select({ id: GeoPlace.id })
 			.from(GeoPlace)
-			.where(or(eq(GeoPlace.id, lookup), eq(GeoPlace.slug, lookup)))
+			.where(or(eq(GeoPlace.id, lookup), eq(GeoPlace.canonicalPath, lookup)))
 			.limit(1)
 			.then((rows) => rows[0] ?? null)
 		if (!place) return []

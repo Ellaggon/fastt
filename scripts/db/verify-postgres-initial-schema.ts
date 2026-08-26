@@ -4,6 +4,7 @@ import { getTableColumns } from "drizzle-orm"
 import postgres from "postgres"
 
 import { canonicalDatabaseTables } from "../../src/shared/infrastructure/db/schema/canonical-schema"
+import { getPostgresConnectionUrl } from "../../src/shared/infrastructure/db/env"
 
 type ColumnRow = {
 	table_name: string
@@ -28,9 +29,7 @@ function baseSqlType(column: SchemaColumn) {
 }
 
 function requireDirectUrl() {
-	const value = process.env.DIRECT_URL?.trim()
-	if (!value) throw new Error("Missing required env DIRECT_URL")
-	return value
+	return getPostgresConnectionUrl("direct")
 }
 
 function argValue(name: string) {

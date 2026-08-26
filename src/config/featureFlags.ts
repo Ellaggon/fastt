@@ -9,7 +9,7 @@ export const FEATURE_FLAG_DEFAULTS = {
 	TOURS_REFUND_HOURS_ENABLED: false,
 	/** Provider day-of check-in + voucher redeem. Env-only; default off. */
 	TOURS_CHECKIN_ENABLED: false,
-	/** Public `/tours/search` SearchUnitView discovery surface. Env-only; default off. */
+	/** Public `/buscar/tours` SearchUnitView discovery surface. Env-only; default off. */
 	TOURS_PUBLIC_SEARCH_ENABLED: false,
 } as const
 

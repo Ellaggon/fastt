@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest"
 import { readFileSync } from "node:fs"
+import { readVerificationSurface } from "./read-verification-surface"
 
 import {
 	getIdentityVendorStatus,
@@ -93,7 +94,7 @@ describe("V3 identity vendor (Jumio/Persona scaffold)", () => {
 	})
 
 	it("wires optional vendor card + API without forcing it on verification fold", () => {
-		const page = read("src/pages/provider/settings/verification.astro")
+		const page = readVerificationSurface("src/pages/provider/settings/verification.astro")
 		const card = read("src/components/provider/ProviderIdentityVendorCard.astro")
 		const api = read("src/pages/api/provider/settings/identity-vendor.ts")
 		const lib = read("src/lib/identity-vendor/index.ts")

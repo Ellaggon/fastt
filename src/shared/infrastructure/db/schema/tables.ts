@@ -72,7 +72,10 @@ export const GeoPlace = pgTable(
 		id: pk(),
 		canonicalName: txt("canonicalName"),
 		normalizedName: txt("normalizedName"),
+		/** Segment unique only among siblings; no longer a global place identity. */
 		slug: txt("slug"),
+		/** Stable public path built from the active geographic hierarchy. */
+		canonicalPath: txt("canonicalPath"),
 		placeType: txt("placeType"),
 		countryCode: txt("countryCode"),
 		parentId: txtOpt("parentId").references((): AnyPgColumn => GeoPlace.id),
@@ -91,7 +94,8 @@ export const GeoPlace = pgTable(
 		unique("GeoPlace_country_parent_type_normalized_unique")
 			.on(table.countryCode, table.parentId, table.placeType, table.normalizedName)
 			.nullsNotDistinct(),
-		uniqueIndex("GeoPlace_slug_unique").on(table.slug),
+		uniqueIndex("GeoPlace_canonicalPath_unique").on(table.canonicalPath),
+		unique("GeoPlace_parent_slug_unique").on(table.parentId, table.slug).nullsNotDistinct(),
 		index("GeoPlace_parent_type_status_idx").on(table.parentId, table.placeType, table.status),
 		index("GeoPlace_country_type_status_idx").on(table.countryCode, table.placeType, table.status),
 		index("GeoPlace_mergedIntoId_idx").on(table.mergedIntoId),
@@ -100,6 +104,10 @@ export const GeoPlace = pgTable(
 			sql`${table.placeType} IN ('country', 'admin_area_1', 'admin_area_2', 'city', 'locality', 'neighborhood', 'poi', 'natural_area')`
 		),
 		check("GeoPlace_countryCode_check", sql`${table.countryCode} ~ '^[A-Z]{2}$'`),
+		check(
+			"GeoPlace_canonicalPath_format_check",
+			sql`${table.canonicalPath} ~ '^[a-z0-9]+(?:-[a-z0-9]+)*(?:/[a-z0-9]+(?:-[a-z0-9]+)*)*$'`
+		),
 		check("GeoPlace_status_check", sql`${table.status} IN ('active', 'hidden', 'merged')`),
 		check(
 			"GeoPlace_coordinates_check",

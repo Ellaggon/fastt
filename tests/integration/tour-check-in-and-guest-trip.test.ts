@@ -153,11 +153,12 @@ async function seedTourBookingReady(params: {
 
 	await db.insert(GeoPlace).values({
 		id: geoPlaceId,
-		canonicalName: "DayOf Dest",
-		normalizedName: "dayof dest",
+		canonicalName: `DayOf Dest ${geoPlaceId}`,
+		normalizedName: `dayof dest ${geoPlaceId}`.replace(/_/g, "-"),
 		placeType: "city",
 		countryCode: "BO",
-		slug: `day-${geoPlaceId}`,
+		slug: geoPlaceId.replace(/_/g, "-"),
+		canonicalPath: geoPlaceId.replace(/_/g, "-"),
 	} as any)
 	await db.insert(Product).values({
 		id: productId,
@@ -331,11 +332,12 @@ async function seedHotelBookingForProvider(params: {
 		.insert(GeoPlace)
 		.values({
 			id: geoPlaceId,
-			canonicalName: "Hotel Dest",
-			normalizedName: "hotel dest",
+			canonicalName: `Hotel Dest ${geoPlaceId}`,
+			normalizedName: `hotel dest ${geoPlaceId}`.replace(/_/g, "-"),
 			placeType: "city",
 			countryCode: "BO",
-			slug: `hotel-${geoPlaceId}`,
+			slug: geoPlaceId.replace(/_/g, "-"),
+			canonicalPath: geoPlaceId.replace(/_/g, "-"),
 		} as any)
 		.onConflictDoNothing()
 	await db.insert(Product).values({

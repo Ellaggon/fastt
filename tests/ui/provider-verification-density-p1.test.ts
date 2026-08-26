@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { readFileSync } from "node:fs"
+import { readVerificationSurface } from "./read-verification-surface"
 
 import { buildRequiredKycSlots } from "@/lib/provider-documents"
 import {
@@ -94,7 +95,7 @@ describe("P1 verification density", () => {
 	})
 
 	it("wires compact rail, one-job slots, suppress status consequence, and no main cross-links", () => {
-		const page = read("src/pages/provider/settings/verification.astro")
+		const page = readVerificationSurface("src/pages/provider/settings/verification.astro")
 		const rail = read("src/components/provider/ProviderTrustMapRail.astro")
 		const card = read("src/components/provider/ProviderKycSlotsCard.astro")
 		const view = read("src/components/provider/ProviderVerificationView.astro")
