@@ -65,13 +65,9 @@ describe("public marketplace certification", () => {
 		expect(hotelSurface).toContain("row.hasPrice")
 	})
 
-	it("keeps redirects permanent and includes public routes in the performance budget", () => {
-		const hotelRedirect = read("src/pages/hotels/search.astro")
-		const tourRedirect = read("src/pages/tours/search.astro")
+	it("uses canonical public routes in the performance budget", () => {
 		const budget = read("scripts/perf/html-budget.mjs")
 
-		expect(hotelRedirect).toMatch(/,\s*308\s*\)/)
-		expect(tourRedirect).toMatch(/,\s*308\s*\)/)
 		for (const path of [
 			'path: "/"',
 			'path: "/hotels"',

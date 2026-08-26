@@ -20,13 +20,11 @@ import Input from "@/components/ui/Input.astro"
 			<div class="relative text-slate-500">
 				<Input
 					id="destinationInput"
-					name="destino"
 					autocomplete="off"
 					type="search"
 					placeholder="Ciudad, departamento..."
 				/>
-				<input type="hidden" id="geoPlaceId" />
-				<input type="hidden" id="geoPlaceSlug" />
+				<input type="hidden" id="destinationPath" name="destino" />
 				<ul
 					id="destinationsList"
 					class="fastt-soft-box absolute left-0 right-0 z-50 mt-1 hidden max-h-56 overflow-auto border border-slate-200 bg-white text-sm"
@@ -174,8 +172,7 @@ import Input from "@/components/ui/Input.astro"
 	document.addEventListener("DOMContentLoaded", () => {
 		const destInput = qs("#destinationInput")
 		const destList = qs("#destinationsList")
-		const destIdInput = qs("#geoPlaceId")
-		const destSlugInput = qs("#geoPlaceSlug")
+		const destinationPathInput = qs("#destinationPath")
 		const checkin = qs("#checkin")
 		const checkout = qs("#checkout")
 
@@ -226,8 +223,7 @@ import Input from "@/components/ui/Input.astro"
 				li.tabIndex = 0
 				li.className =
 					"cursor-pointer whitespace-pre-line px-3 py-2 text-slate-800 hover:bg-slate-100"
-				li.dataset.id = d.id
-				li.dataset.slug = d.slug || ""
+				li.dataset.canonicalPath = d.canonicalPath || ""
 				li.dataset.latitude = d.latitude || ""
 				li.dataset.longitude = d.longitude || ""
 				li.textContent = `${d.name}  ${d.department ? "\n" + d.department : ""}${d.country ? " · " + d.country : ""}`
@@ -250,11 +246,9 @@ import Input from "@/components/ui/Input.astro"
 		})
 
 		function chooseDestination(li) {
-			const id = li.dataset.id
 			const name = li.textContent
 			destInput.value = name
-			destIdInput.value = id
-			destSlugInput.value = li.dataset.slug || ""
+			destinationPathInput.value = li.dataset.canonicalPath || ""
 			destList.classList.add("hidden")
 		}
 
@@ -268,8 +262,7 @@ import Input from "@/components/ui/Input.astro"
 		}, 180)
 
 		destInput.addEventListener("input", (e) => {
-			destIdInput.value = "" // clear selection if user types
-			destSlugInput.value = ""
+			destinationPathInput.value = "" // Clear the canonical selection if the visible text changes.
 			debouncedSearch(e.target.value)
 		})
 

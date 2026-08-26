@@ -28,7 +28,7 @@ const searchLabel = destination
 	? `${verticalLabel} en ${destination.name}`
 	: `Buscar ${verticalLabel.toLowerCase()}`
 const canonicalPath = destination
-	? publicDestinationHref(destination.slug, vertical)
+	? publicDestinationHref(destination.canonicalPath, vertical)
 	: `/buscar/${vertical}`
 const description = destination
 	? (destination.seoDescription ??
@@ -103,7 +103,7 @@ const structuredData = destination
 				{
 					destination ? (
 						<a
-							href={publicDestinationHref(destination.slug, vertical)}
+							href={publicDestinationHref(destination.canonicalPath, vertical)}
 							class="text-sm font-medium text-slate-700 hover:text-slate-950 hover:underline"
 						>
 							Ver destino

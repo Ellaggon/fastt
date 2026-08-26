@@ -7,8 +7,8 @@ import TourSearchPanel from "@/components/searchPanel/TourSearchPanel.astro"
 import { DEPARTMENTS } from "@/data/departments"
 import UILayout from "@/layouts/UILayout.astro"
 import {
-	canonicalPublicDepartmentSlug,
 	publicDestinationHref,
+	publicGeoPlacePath,
 } from "@/lib/marketplace/publicDestinationRoutes"
 
 type Vertical = "hotels" | "tours"
@@ -124,7 +124,7 @@ const structuredData = {
 								producType={vertical}
 								ctaLabel={departmentCta}
 								href={publicDestinationHref(
-									canonicalPublicDepartmentSlug(department.id) ?? department.id,
+									publicGeoPlacePath(department.geoPlaceId),
 									isHotels ? "alojamientos" : "tours"
 								)}
 							/>

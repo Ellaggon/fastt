@@ -26,6 +26,13 @@ export type ProductFullAggregate = {
 	displayName: string
 	productType: string
 	status: string
+	geoPlace: {
+		id: string
+		canonicalName: string
+		canonicalPath: string
+		placeType: string
+		countryCode: string
+	} | null
 	content: {
 		description: string | null
 		highlights: unknown

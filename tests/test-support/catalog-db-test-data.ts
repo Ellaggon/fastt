@@ -28,6 +28,7 @@ export async function upsertGeoPlace(row: {
 			canonicalName: row.canonicalName,
 			normalizedName: row.canonicalName.toLocaleLowerCase("es").trim(),
 			slug: row.slug,
+			canonicalPath: row.slug,
 			countryCode: row.countryCode ?? "CL",
 			placeType: row.placeType ?? "city",
 			centroidLat: row.latitude ?? null,

@@ -20,8 +20,8 @@ const defaultBudgets = [
 	{ path: "/", maxBytes: 250_000 },
 	{ path: "/hotels", maxBytes: 335_000 },
 	{ path: "/tours", maxBytes: 345_000 },
-	{ path: "/destinos/la-paz/alojamientos", maxBytes: 305_000 },
-	{ path: "/destinos/la-paz/tours", maxBytes: 460_000 },
+	{ path: "/destinos/bolivia/la-paz-department/la-paz/alojamientos", maxBytes: 305_000 },
+	{ path: "/destinos/bolivia/la-paz-department/la-paz/tours", maxBytes: 460_000 },
 	{ path: "/buscar/alojamientos", maxBytes: 300_000 },
 	{ path: "/buscar/tours", maxBytes: 310_000 },
 	...(publicOnly

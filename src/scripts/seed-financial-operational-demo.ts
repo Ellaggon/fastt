@@ -242,6 +242,7 @@ async function seedCatalog(userId: string): Promise<void> {
 			placeType: "locality",
 			countryCode: "BO",
 			slug: "santa-cruz-de-la-sierra",
+			canonicalPath: "santa-cruz-de-la-sierra",
 		})
 		.onConflictDoUpdate({
 			target: [GeoPlace.id],
@@ -251,6 +252,7 @@ async function seedCatalog(userId: string): Promise<void> {
 				placeType: "locality",
 				countryCode: "BO",
 				slug: "santa-cruz-de-la-sierra",
+				canonicalPath: "santa-cruz-de-la-sierra",
 			},
 		})
 
@@ -273,7 +275,20 @@ async function seedCatalog(userId: string): Promise<void> {
 				lastUpdated: NOW,
 			},
 		})
-	await db.insert(ProductGeoPlace).values({ id: `geo:product-place:${PRODUCT_ID}`, productId: PRODUCT_ID, placeId: GEO_PLACE_ID, role: "primary_discovery", isPrimary: true, source: "financial_demo" }).onConflictDoUpdate({ target: [ProductGeoPlace.productId, ProductGeoPlace.placeId, ProductGeoPlace.role], set: { isPrimary: true, updatedAt: NOW } })
+	await db
+		.insert(ProductGeoPlace)
+		.values({
+			id: `geo:product-place:${PRODUCT_ID}`,
+			productId: PRODUCT_ID,
+			placeId: GEO_PLACE_ID,
+			role: "primary_discovery",
+			isPrimary: true,
+			source: "financial_demo",
+		})
+		.onConflictDoUpdate({
+			target: [ProductGeoPlace.productId, ProductGeoPlace.placeId, ProductGeoPlace.role],
+			set: { isPrimary: true, updatedAt: NOW },
+		})
 
 	await db
 		.insert(ProductStatus)

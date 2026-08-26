@@ -1,7 +1,7 @@
 /**
  * Tour marketplace discovery read model.
  * One batched SearchUnitView query → min available price, rating, applicable salida.
- * Avoids N+1 rate-plan lookups on /tours/search.
+ * Avoids N+1 rate-plan lookups on /buscar/tours.
  *
  * Publish gate: ProductStatus=published, active variant/profile/category.
  * Filters (level/duration) run in SQL before any row cap; price band after

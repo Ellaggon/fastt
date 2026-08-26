@@ -58,13 +58,11 @@ try {
 			<div class="relative text-slate-900">
 				<Input
 					id="destinationInput"
-					name="destino"
 					autocomplete="off"
 					type="search"
 					placeholder="Ciudad, región o parque..."
 				/>
-				<input type="hidden" id="geoPlaceId" />
-				<input type="hidden" id="geoPlaceSlug" />
+				<input type="hidden" id="destinationPath" name="destino" />
 				<ul
 					id="destinationsList"
 					class="fastt-soft-box absolute left-0 right-0 z-50 mt-1 hidden max-h-56 overflow-auto border border-slate-200 bg-white text-sm"
@@ -163,8 +161,7 @@ try {
 			const li = document.createElement("li")
 			li.tabIndex = 0
 			li.className = "cursor-pointer px-3 py-2 text-slate-800 hover:bg-slate-100"
-			li.dataset.id = d.id
-			li.dataset.slug = d.slug || ""
+			li.dataset.canonicalPath = d.canonicalPath || ""
 			li.textContent = `${d.name}${d.department ? ", " + d.department : ""}${d.country ? " — " + d.country : ""}`
 			listEl.appendChild(li)
 		}
@@ -174,8 +171,7 @@ try {
 	document.addEventListener("DOMContentLoaded", () => {
 		const destInput = qs("#destinationInput")
 		const destList = qs("#destinationsList")
-		const destId = qs("#geoPlaceId")
-		const geoPlaceSlug = qs("#geoPlaceSlug")
+		const destinationPath = qs("#destinationPath")
 
 		const debouncedSearch = debounce(async (val) => {
 			if (!val || val.trim().length < 1) {
@@ -187,8 +183,7 @@ try {
 		}, 180)
 
 		destInput?.addEventListener("input", (e) => {
-			destId.value = ""
-			geoPlaceSlug.value = ""
+			destinationPath.value = ""
 			debouncedSearch(e.target.value)
 		})
 
@@ -196,8 +191,7 @@ try {
 			const li = e.target.closest("li")
 			if (!li) return
 			destInput.value = li.textContent
-			destId.value = li.dataset.id
-			geoPlaceSlug.value = li.dataset.slug || ""
+			destinationPath.value = li.dataset.canonicalPath || ""
 			destList.classList.add("hidden")
 		})
 	})

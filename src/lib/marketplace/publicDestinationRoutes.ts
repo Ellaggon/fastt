@@ -1,80 +1,49 @@
 import { BOLIVIA_MARKETPLACE_GEO_PLACES } from "@/data/geography/bolivia-marketplace-catalog"
-import { DEPARTMENTS } from "@/data/departments"
 
 export type PublicMarketplaceVertical = "alojamientos" | "tours"
 
-export function normalizePublicPlace(value: string | null | undefined): string {
-	return String(value ?? "")
-		.normalize("NFD")
-		.replace(/[\u0300-\u036f]/g, "")
-		.toLocaleLowerCase("es-BO")
-		.replace(/[^a-z0-9]+/g, "-")
-		.replace(/^-+|-+$/g, "")
+const placesById = new Map(BOLIVIA_MARKETPLACE_GEO_PLACES.map((place) => [place.id, place]))
+
+function pathForSeed(id: string): string | null {
+	const parts: string[] = []
+	let place = placesById.get(id)
+	while (place) {
+		parts.unshift(place.slug)
+		place = place.parentId ? placesById.get(place.parentId) : undefined
+	}
+	return parts.length ? parts.join("/") : null
 }
 
-export function canonicalPublicPlaceSlug(value: string | null | undefined): string | null {
-	const normalized = normalizePublicPlace(value)
-	if (!normalized) return null
-
-	const place =
-		BOLIVIA_MARKETPLACE_GEO_PLACES.find(
-			(candidate) => candidate.id === value || candidate.slug === normalized
-		) ??
-		BOLIVIA_MARKETPLACE_GEO_PLACES.find(
-			(candidate) =>
-				candidate.placeType === "city" &&
-				(normalizePublicPlace(candidate.canonicalName) === normalized ||
-					(candidate.aliases ?? []).some(
-						(alias) => normalizePublicPlace(alias.value) === normalized
-					))
-		) ??
-		BOLIVIA_MARKETPLACE_GEO_PLACES.find(
-			(candidate) =>
-				normalizePublicPlace(candidate.canonicalName) === normalized ||
-				(candidate.aliases ?? []).some((alias) => normalizePublicPlace(alias.value) === normalized)
-		)
-	if (place) return place.slug
-
-	return DEPARTMENTS.some((department) => department.id === normalized) ? normalized : null
+/**
+ * Resolves an internal, canonical GeoPlace ID to its public route path.
+ * It deliberately does not accept a short slug or display name: those values are
+ * ambiguous and must first be resolved through GeoPlace search.
+ */
+export function publicGeoPlacePath(geoPlaceId: string): string {
+	const path = pathForSeed(geoPlaceId)
+	if (!path) throw new Error(`Unknown canonical GeoPlace: ${geoPlaceId}`)
+	return path
 }
 
-/** Legacy department ids occasionally collide with a city slug (notably La Paz). */
-export function canonicalPublicDepartmentSlug(value: string | null | undefined): string | null {
-	const normalized = normalizePublicPlace(value)
-	const department = DEPARTMENTS.find(
-		(candidate) =>
-			candidate.id === normalized || normalizePublicPlace(candidate.name) === normalized
-	)
-	if (!department) return null
-	return (
-		BOLIVIA_MARKETPLACE_GEO_PLACES.find(
-			(candidate) =>
-				candidate.placeType === "admin_area_1" &&
-				normalizePublicPlace(candidate.canonicalName) === normalizePublicPlace(department.name)
-		)?.slug ?? department.id
-	)
-}
-
-export function publicDestinationHref(slug: string, vertical: PublicMarketplaceVertical): string {
-	return `/destinos/${encodeURIComponent(slug)}/${vertical}`
+export function publicDestinationHref(path: string, vertical: PublicMarketplaceVertical): string {
+	const encodedPath = String(path)
+		.split("/")
+		.filter(Boolean)
+		.map((segment) => encodeURIComponent(segment))
+		.join("/")
+	return `/destinos/${encodedPath}/${vertical}`
 }
 
 export function publicSearchHref(
 	vertical: PublicMarketplaceVertical,
-	search: URLSearchParams
+	search: URLSearchParams,
+	canonicalPath?: string | null
 ): string {
 	const params = new URLSearchParams(search)
-	const candidate =
-		params.get("destino") ||
-		params.get("geoPlaceSlug") ||
-		params.get("destinationQuery") ||
-		params.get("geoPlaceId")
-	const canonicalSlug = canonicalPublicPlaceSlug(candidate)
-
 	params.delete("geoPlaceId")
 	params.delete("geoPlaceSlug")
 	params.delete("destinationQuery")
-	if (canonicalSlug) params.set("destino", canonicalSlug)
+	if (canonicalPath) params.set("destino", canonicalPath)
 	const query = params.toString()
 	return `/buscar/${vertical}${query ? `?${query}` : ""}`
 }

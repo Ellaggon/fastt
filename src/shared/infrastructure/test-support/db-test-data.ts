@@ -36,7 +36,17 @@ export async function upsertGeoPlace(row: {
 		.trim()
 	await db
 		.insert(GeoPlace)
-		.values({ id: row.id, canonicalName, normalizedName, placeType, countryCode, slug: row.slug, status: "active", source: "test_fixture" })
+		.values({
+			id: row.id,
+			canonicalName,
+			normalizedName,
+			placeType,
+			countryCode,
+			slug: row.slug,
+			canonicalPath: row.slug,
+			status: "active",
+			source: "test_fixture",
+		})
 		.onConflictDoUpdate({
 			target: [GeoPlace.id],
 			set: {
@@ -44,6 +54,7 @@ export async function upsertGeoPlace(row: {
 				placeType,
 				countryCode,
 				slug: row.slug,
+				canonicalPath: row.slug,
 			},
 		})
 }
@@ -79,7 +90,20 @@ export async function upsertProduct(row: {
 				lastUpdated: new Date(),
 			},
 		})
-	await db.insert(ProductGeoPlace).values({ id: `geo:product-place:${row.id}`, productId: row.id, placeId: row.geoPlaceId, role: "primary_discovery", isPrimary: true, source: "test_fixture" }).onConflictDoUpdate({ target: [ProductGeoPlace.productId, ProductGeoPlace.placeId, ProductGeoPlace.role], set: { isPrimary: true, updatedAt: new Date() } })
+	await db
+		.insert(ProductGeoPlace)
+		.values({
+			id: `geo:product-place:${row.id}`,
+			productId: row.id,
+			placeId: row.geoPlaceId,
+			role: "primary_discovery",
+			isPrimary: true,
+			source: "test_fixture",
+		})
+		.onConflictDoUpdate({
+			target: [ProductGeoPlace.productId, ProductGeoPlace.placeId, ProductGeoPlace.role],
+			set: { isPrimary: true, updatedAt: new Date() },
+		})
 }
 
 export async function upsertVariant(row: {

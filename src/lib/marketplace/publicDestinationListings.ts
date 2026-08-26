@@ -14,17 +14,13 @@ import {
 	Tour,
 	Hotel,
 } from "@/shared/infrastructure/db/compat"
-import { BOLIVIA_MARKETPLACE_GEO_PLACES } from "@/data/geography/bolivia-marketplace-catalog"
 import { incrementCounter } from "@/lib/observability/metrics"
-import {
-	canonicalPublicPlaceSlug,
-	normalizePublicPlace,
-	type PublicMarketplaceVertical,
-} from "@/lib/marketplace/publicDestinationRoutes"
+import { type PublicMarketplaceVertical } from "@/lib/marketplace/publicDestinationRoutes"
 import { publicCatalogProductEligibility } from "@/lib/marketplace/public-catalog-eligibility"
 
 export type PublicDestination = {
 	slug: string
+	canonicalPath: string
 	name: string
 	placeType: "department" | "city"
 	description: string
@@ -47,21 +43,6 @@ function productTypeFor(vertical: PublicMarketplaceVertical) {
 	return vertical === "alojamientos" ? "hotel" : "tour"
 }
 
-function fallbackDestination(slug: string): PublicDestination | null {
-	const canonicalSlug = canonicalPublicPlaceSlug(slug)
-	if (!canonicalSlug) return null
-	const place = BOLIVIA_MARKETPLACE_GEO_PLACES.find((candidate) => candidate.slug === canonicalSlug)
-	if (!place) return null
-	return {
-		slug: place.slug,
-		name: place.canonicalName,
-		placeType: place.placeType === "admin_area_1" ? "department" : "city",
-		description: `Encuentra alojamientos y experiencias para conocer ${place.canonicalName}.`,
-		seoTitle: null,
-		seoDescription: null,
-	}
-}
-
 function parseSeoContent(value: unknown): { title: string | null; description: string | null } {
 	const source = value && typeof value === "object" ? (value as Record<string, unknown>) : {}
 	const title = String(source.metaTitle ?? "").trim() || null
@@ -69,14 +50,15 @@ function parseSeoContent(value: unknown): { title: string | null; description: s
 	return { title, description }
 }
 
-async function displayDestination(slug: string): Promise<PublicDestination | null> {
-	const fallback = fallbackDestination(slug)
-	if (!fallback) return null
+async function displayDestination(value: string): Promise<PublicDestination | null> {
+	const rawValue = String(value).trim()
+	const normalizedPath = rawValue.replace(/^\/+|\/+$/g, "").toLowerCase()
 
 	try {
 		const row = await db
 			.select({
 				slug: GeoPlace.slug,
+				canonicalPath: GeoPlace.canonicalPath,
 				canonicalName: GeoPlace.canonicalName,
 				placeType: GeoPlace.placeType,
 				summary: GeoPlaceContent.summary,
@@ -91,24 +73,34 @@ async function displayDestination(slug: string): Promise<PublicDestination | nul
 					eq(GeoPlaceContent.publicationStatus, "published")
 				)
 			)
-			.where(eq(GeoPlace.slug, fallback.slug))
+			.where(eq(GeoPlace.canonicalPath, normalizedPath))
 			.limit(1)
 			.then((rows) => rows[0] ?? null)
-		if (!row) return fallback
+		if (!row) return null
 
 		const seo = parseSeoContent(row.seoJson)
 		return {
 			slug: row.slug,
+			canonicalPath: row.canonicalPath,
 			name: row.canonicalName,
 			placeType: row.placeType === "admin_area_1" ? "department" : "city",
-			description: row.summary?.trim() || fallback.description,
+			description:
+				row.summary?.trim() ||
+				`Encuentra alojamientos y experiencias para conocer ${row.canonicalName}.`,
 			seoTitle: seo.title,
 			seoDescription: seo.description,
 		}
 	} catch {
-		// A temporary fallback keeps canonical public routes live during staged rollouts.
-		return fallback
+		return null
 	}
+}
+
+/** Resolves only a canonical public path. */
+export async function resolvePublicDestination(
+	value: string | null | undefined
+): Promise<PublicDestination | null> {
+	const candidate = String(value ?? "").trim()
+	return candidate ? displayDestination(candidate) : null
 }
 
 function recordGeoDiscoveryRead(input: {
@@ -153,11 +145,11 @@ function uniqueListings(rows: PublicDestinationListing[], limit: number) {
 }
 
 export async function getPublicDestinationListings(params: {
-	slug: string
+	path: string
 	vertical: PublicMarketplaceVertical
 	limit?: number
 }): Promise<{ destination: PublicDestination | null; listings: PublicDestinationListing[] }> {
-	const destination = await displayDestination(params.slug)
+	const destination = await resolvePublicDestination(params.path)
 	if (!destination) return { destination: null, listings: [] }
 
 	const limit = Math.min(Math.max(1, params.limit ?? 36), 100)
@@ -168,7 +160,7 @@ export async function getPublicDestinationListings(params: {
 		const geoPlace = await db
 			.select({ id: GeoPlace.id })
 			.from(GeoPlace)
-			.where(eq(GeoPlace.slug, destination.slug))
+			.where(eq(GeoPlace.canonicalPath, destination.canonicalPath))
 			.limit(1)
 			.then((rows) => rows[0] ?? null)
 
@@ -208,10 +200,4 @@ export async function getPublicDestinationListings(params: {
 	})
 
 	return { destination, listings: uniqueListings(canonicalRows, limit) }
-}
-
-export function resolvePublicDestinationFromSearch(
-	value: string | null | undefined
-): string | null {
-	return (canonicalPublicPlaceSlug(value) ?? normalizePublicPlace(value)) || null
 }

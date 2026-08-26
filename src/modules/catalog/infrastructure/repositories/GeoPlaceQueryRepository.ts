@@ -1,11 +1,4 @@
-import {
-	and,
-	db,
-	eq,
-	GeoPlace,
-	GeoPlaceAlias,
-	sql,
-} from "@/shared/infrastructure/db/compat"
+import { and, db, eq, GeoPlace, GeoPlaceAlias, sql } from "@/shared/infrastructure/db/compat"
 import type {
 	GeoPlaceQueryRepositoryPort,
 	GeoPlaceRow,
@@ -29,8 +22,11 @@ export class GeoPlaceQueryRepository implements GeoPlaceQueryRepositoryPort {
 				geoPlaceId: GeoPlace.id,
 				name: GeoPlace.canonicalName,
 				slug: GeoPlace.slug,
+				canonicalPath: GeoPlace.canonicalPath,
 				country: GeoPlace.countryCode,
-				department: sql<string | null>`CASE WHEN ${GeoPlace.placeType} = 'admin_area_1' THEN ${GeoPlace.canonicalName} ELSE NULL END`,
+				department: sql<
+					string | null
+				>`CASE WHEN ${GeoPlace.placeType} = 'admin_area_1' THEN ${GeoPlace.canonicalName} ELSE NULL END`,
 				latitude: GeoPlace.centroidLat,
 				longitude: GeoPlace.centroidLng,
 			})
@@ -40,7 +36,7 @@ export class GeoPlaceQueryRepository implements GeoPlaceQueryRepositoryPort {
 				and(
 					eq(GeoPlace.status, "active"),
 					pattern
-						? sql`(${GeoPlace.normalizedName} LIKE ${pattern} OR lower(${GeoPlace.slug}) LIKE ${pattern} OR ${GeoPlaceAlias.normalizedAlias} LIKE ${pattern})`
+						? sql`(${GeoPlace.normalizedName} LIKE ${pattern} OR lower(${GeoPlace.slug}) LIKE ${pattern} OR lower(${GeoPlace.canonicalPath}) LIKE ${pattern} OR ${GeoPlaceAlias.normalizedAlias} LIKE ${pattern})`
 						: undefined
 				)
 			)
