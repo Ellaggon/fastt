@@ -35,6 +35,12 @@ export type ProductFullAggregate = {
 		lat: number | null
 		lng: number | null
 	}
+	geoPlace: {
+		id: string
+		canonicalName: string
+		countryCode: string
+		placeType: string
+	} | null
 	images: Array<{
 		id: string
 		url: string

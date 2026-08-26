@@ -60,7 +60,6 @@ const destinations = isChooser
 				name: GeoPlace.canonicalName,
 				country: GeoPlace.countryCode,
 				placeType: GeoPlace.placeType,
-				canonicalPath: GeoPlace.canonicalPath,
 			})
 			.from(GeoPlace)
 			.where(eq(GeoPlace.status, "active"))
