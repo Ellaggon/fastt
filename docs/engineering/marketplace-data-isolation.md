@@ -11,6 +11,9 @@ Si falta, el runtime clasifica el plano de datos con señales del host:
 - `NODE_ENV=development` o un proceso local sin `NODE_ENV` → `development`
 
 Vitest y un Node `production` sin `VERCEL_ENV` siguen exigiendo el valor explícito.
+`astro.config.mjs` copia `.env*` a `process.env` con `dotenv`, no con
+`import { loadEnv } from "vite"`: ese import rompe `astro sync`/`astro build`
+bajo pnpm porque Vite no puede resolverse a sí mismo desde el config.
 Vitest solo acepta `FASTT_DATA_ENV=test`. Además, Vitest nunca usa
 `DATABASE_URL`, `DIRECT_URL` ni `SUPABASE_DB_POOLER_URL` heredados del shell o
 de `.env`. Una suite con PostgreSQL debe configurar exclusivamente:

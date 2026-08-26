@@ -5,14 +5,17 @@ import dotenv from "dotenv"
 import path from "path"
 import react from "@astrojs/react"
 import tailwindcss from "@tailwindcss/vite"
-import { loadEnv } from "vite"
 
 function applyProcessEnvFromFiles(mode) {
-	dotenv.config()
-	const fileEnv = loadEnv(mode, process.cwd(), "")
-	for (const [key, value] of Object.entries(fileEnv)) {
-		if (process.env[key] === undefined) process.env[key] = value
-	}
+	// Vite later files override earlier ones; real process.env still wins.
+	// Load with dotenv (a direct dependency). Importing `vite` from this file
+	// makes Vite's module runner fetch itself and fails under pnpm:
+	// "Cannot find module 'vite' imported from astro.config.mjs".
+	dotenv.config({
+		path: [`.env.${mode}.local`, `.env.${mode}`, ".env.local", ".env"],
+		override: false,
+		quiet: true,
+	})
 }
 
 const reactDevelopmentRuntime = {
