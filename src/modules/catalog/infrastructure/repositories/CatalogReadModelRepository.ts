@@ -16,7 +16,6 @@ import {
 	ProductGeoPlace,
 	ProductLocation,
 	ProductStatus,
-	GeoPlace,
 	Provider,
 	ProviderProfile,
 	ProviderUser,
@@ -129,10 +128,6 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 				address: ProductLocation.address,
 				lat: ProductLocation.lat,
 				lng: ProductLocation.lng,
-				geoPlaceId: GeoPlace.id,
-				geoPlaceName: GeoPlace.canonicalName,
-				geoPlaceCountry: GeoPlace.countryCode,
-				geoPlaceType: GeoPlace.placeType,
 				hotelStars: Hotel.stars,
 				hotelPhone: Hotel.phone,
 				hotelEmail: Hotel.email,
@@ -171,15 +166,6 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 			.leftJoin(GeoPlace, eq(GeoPlace.id, ProductGeoPlace.placeId))
 			.leftJoin(ProductContent, eq(ProductContent.productId, Product.id))
 			.leftJoin(ProductLocation, eq(ProductLocation.productId, Product.id))
-			.leftJoin(
-				ProductGeoPlace,
-				and(
-					eq(ProductGeoPlace.productId, Product.id),
-					eq(ProductGeoPlace.role, "primary_discovery"),
-					eq(ProductGeoPlace.isPrimary, true)
-				)
-			)
-			.leftJoin(GeoPlace, eq(GeoPlace.id, ProductGeoPlace.placeId))
 			.leftJoin(Hotel, eq(Hotel.productId, Product.id))
 			.leftJoin(Tour, eq(Tour.productId, Product.id))
 			.leftJoin(Package, eq(Package.productId, Product.id))
@@ -271,14 +257,6 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 				lat: row.lat ?? null,
 				lng: row.lng ?? null,
 			},
-			geoPlace: row.geoPlaceId
-				? {
-						id: row.geoPlaceId,
-						canonicalName: String(row.geoPlaceName ?? ""),
-						countryCode: String(row.geoPlaceCountry ?? ""),
-						placeType: String(row.geoPlaceType ?? ""),
-					}
-				: null,
 			images: images.map((image) => ({
 				id: image.id,
 				url: image.url,
