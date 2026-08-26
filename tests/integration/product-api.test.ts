@@ -168,6 +168,7 @@ describe("integration/catalog Product V2 API", () => {
 				// 3) location
 				const locForm = new FormData()
 				locForm.set("productId", productId)
+				locForm.set("geoPlaceId", geoPlaceId)
 				locForm.set("address", "API Address")
 				locForm.set("lat", "-16.4958")
 				locForm.set("lng", "-68.1333")
@@ -605,6 +606,7 @@ describe("integration/catalog Product V2 API", () => {
 
 				const locForm1 = new FormData()
 				locForm1.set("productId", productId)
+				locForm1.set("geoPlaceId", geoPlaceId)
 				locForm1.set("lat", "1")
 				locForm1.set("lng", "2")
 				const locRes1 = await upsertLocationPost({
@@ -618,6 +620,7 @@ describe("integration/catalog Product V2 API", () => {
 
 				const locForm2 = new FormData()
 				locForm2.set("productId", productId)
+				locForm2.set("geoPlaceId", geoPlaceId)
 				locForm2.set("lat", "3")
 				locForm2.set("lng", "4")
 				const locRes2 = await upsertLocationPost({
@@ -775,6 +778,7 @@ describe("integration/catalog Product V2 API", () => {
 				// invalid lat/lng
 				const locForm = new FormData()
 				locForm.set("productId", productId)
+				locForm.set("geoPlaceId", geoPlaceId)
 				locForm.set("lat", "NaN")
 				locForm.set("lng", "NaN")
 				const locRes = await upsertLocationPost({

@@ -24,9 +24,13 @@ export type ProductPreparationSummary = {
 	blockerCount: number
 	blockerPreview: string[]
 	readyToPublish: boolean
+	completedChecks: number | null
+	totalChecks: number | null
 	continuePreparationHref: string
 	previewHref: string
 	nextStepLabel: string | null
+	nextStepBody: string | null
+	nextStepCta: string | null
 }
 
 function normalizeStatus(raw: string | undefined): string {
@@ -86,11 +90,15 @@ export function productPreparationSummaryFromSnapshot(row: {
 		blockerCount: Math.max(0, Number(row.blockerCount ?? 0)),
 		blockerPreview: normalizeBlockerPreview(row.blockerPreviewJson),
 		readyToPublish: Boolean(row.readyToPublish),
+		completedChecks: null,
+		totalChecks: null,
 		continuePreparationHref: String(
 			row.continuePreparationHref ?? buildCompleteToPublishEntryHref(productId)
 		),
 		previewHref: String(row.previewHref ?? routes.productPreview(productId)),
 		nextStepLabel: row.nextStepLabel ? String(row.nextStepLabel) : null,
+		nextStepBody: null,
+		nextStepCta: null,
 	}
 }
 
@@ -163,9 +171,13 @@ export async function summarizeProductPreparation(params: {
 			blockerCount: 0,
 			blockerPreview: [],
 			readyToPublish: false,
+			completedChecks: null,
+			totalChecks: null,
 			continuePreparationHref: routes.productDetail(productId),
 			previewHref,
 			nextStepLabel: null,
+			nextStepBody: null,
+			nextStepCta: null,
 		}
 	}
 
@@ -190,9 +202,13 @@ export async function summarizeProductPreparation(params: {
 		blockerCount: blockers.length,
 		blockerPreview: blockers.slice(0, 3).map((check) => check.label),
 		readyToPublish: publishState.readyToPublish,
+		completedChecks: publishState.completedChecks,
+		totalChecks: publishState.totalChecks,
 		continuePreparationHref: buildCompleteToPublishResumeHref(productId, publishState.checks),
 		previewHref,
 		nextStepLabel: nextBlocker?.label ?? null,
+		nextStepBody: nextBlocker?.guestImpact ?? null,
+		nextStepCta: nextBlocker?.cta ?? (publishState.readyToPublish ? "Ir a vista previa" : null),
 	}
 }
 

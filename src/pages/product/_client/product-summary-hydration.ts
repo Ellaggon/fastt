@@ -1,3 +1,5 @@
+import { resolveProductPreparationCoach } from "@/lib/playbook/product-preparation-coach"
+
 type ProductSummaryConfig = {
 	productId: string
 	isHotel: boolean
@@ -153,9 +155,82 @@ function setText(id: string, value: string): void {
 	if (element) element.textContent = value
 }
 
+function setTextSelector(selector: string, value: string): void {
+	const element = document.querySelector(selector)
+	if (element) element.textContent = value
+}
+
+function setPreparationBadge(ready: boolean, label: string): void {
+	const badgeElement = document.querySelector<HTMLElement>("[data-product-prep-badge]")
+	if (!badgeElement) return
+	badgeElement.className = ready
+		? "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold border-emerald-300/30 bg-emerald-400/10 text-emerald-100"
+		: "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold border-amber-300/30 bg-amber-400/10 text-amber-100"
+	badgeElement.textContent = label
+}
+
+function hydratePreparationCard(
+	config: ProductSummaryConfig,
+	payload: {
+		preparation?: {
+			readinessPercent?: number
+			blockerCount?: number
+			readyToPublish?: boolean
+			continuePreparationHref?: string
+			previewHref?: string
+			nextStepLabel?: string | null
+			nextStepBody?: string | null
+			nextStepCta?: string | null
+			completedChecks?: number | null
+			totalChecks?: number | null
+		} | null
+		progress?: {
+			completedSteps?: number
+			totalSteps?: number
+			progressPercent?: number
+		}
+	}
+): void {
+	const preparation = payload.preparation ?? null
+	if (!document.querySelector("[data-product-preparation]")) return
+
+	const percent = Number(preparation?.readinessPercent ?? payload.progress?.progressPercent ?? 0)
+	const completed = Number(preparation?.completedChecks ?? 0)
+	const total = Number(preparation?.totalChecks ?? 0)
+	const progressBar = document.querySelector<HTMLElement>("[data-product-progress-bar]")
+	if (progressBar) progressBar.style.width = `${Math.max(0, Math.min(100, percent))}%`
+	if (total > 0) {
+		setTextSelector("[data-product-progress-label]", `${completed} de ${total}`)
+	}
+
+	if (!preparation) return
+
+	const coach = resolveProductPreparationCoach({
+		readyToPublish: Boolean(preparation.readyToPublish),
+		nextStepLabel: preparation.nextStepLabel,
+		nextStepBody: preparation.nextStepBody,
+		nextStepCta: preparation.nextStepCta,
+		continuePreparationHref: String(preparation.continuePreparationHref || ""),
+		previewHref: String(preparation.previewHref || config.previewHref),
+	})
+	setPreparationBadge(coach.ready, coach.badge)
+	setTextSelector("[data-product-next-step-label]", coach.label)
+	setTextSelector("[data-product-next-step-body]", coach.body)
+	const cta = document.querySelector<HTMLAnchorElement>("[data-product-primary-cta]")
+	if (cta && coach.href) cta.setAttribute("href", coach.href)
+	const ctaLabel = document.querySelector("[data-product-primary-cta-label]")
+	if (ctaLabel) ctaLabel.textContent = coach.cta
+}
+
+let activeProductSummaryRequest: AbortController | null = null
+
 export function initProductSummaryHydration(): void {
 	const configRoot = document.querySelector<HTMLElement>("[data-product-summary-config]")
-	if (!configRoot || configRoot.dataset.hydrationReady === "true") return
+	if (!configRoot) {
+		activeProductSummaryRequest?.abort()
+		return
+	}
+	if (configRoot.dataset.hydrationReady === "true") return
 	configRoot.dataset.hydrationReady = "true"
 	const config = configFromRoot(configRoot)
 	if (!config.productId) return
@@ -170,25 +245,26 @@ export function initProductSummaryHydration(): void {
 	if (document.readyState === "complete" || document.readyState === "interactive") logShellVisible()
 	else document.addEventListener("DOMContentLoaded", logShellVisible, { once: true })
 
+	ensureProductShell(config)
+
+	activeProductSummaryRequest?.abort()
+	const controller = new AbortController()
+	activeProductSummaryRequest = controller
 	const hydrationStart = performance.now()
 	fetch(`/api/internal/product-summary?productId=${encodeURIComponent(config.productId)}`, {
 		headers: { accept: "application/json" },
 		cache: "no-store",
+		signal: controller.signal,
 	})
 		.then(async (response) => {
 			if (!response.ok) throw new Error(`summary_${response.status}`)
 			return await response.json()
 		})
 		.then((payload) => {
-			ensureProductShell(config)
-
-			const preparation = payload?.preparation ?? null
-			const missing = Number(preparation?.blockerCount ?? payload?.progress?.missingSteps ?? 0)
-			const percent = Number(
-				preparation?.readinessPercent ?? payload?.progress?.progressPercent ?? 0
-			)
-			const completed = Number(payload?.progress?.completedSteps ?? 0)
-			const total = Number(payload?.progress?.totalSteps ?? 0)
+			if (controller.signal.aborted) return
+			if (String(payload?.productId || "") && String(payload.productId) !== config.productId) {
+				return
+			}
 			const address = String(payload?.location?.address || "Ubicación pendiente")
 			const productType = String(payload?.vertical?.label || config.workspaceSingularLabel)
 			const subtypeSummary = String(payload?.subtype?.summary || "Características pendientes")
@@ -197,36 +273,7 @@ export function initProductSummaryHydration(): void {
 			const hasVariants = Boolean(payload?.checks?.hasVariants)
 			const hasHouseRules = Boolean(payload?.checks?.hasHouseRules)
 
-			const missingStepsText = document.getElementById("productMissingStepsText")
-			const progressBar = document.getElementById("productProgressBar")
-			const progressText = document.getElementById("productProgressText")
-			if (missingStepsText) {
-				if (preparation?.readyToPublish) {
-					missingStepsText.textContent =
-						"Todo listo. Revisa la vista previa y confirma la publicación."
-				} else if (preparation?.blockerCount > 0) {
-					const preview = Array.isArray(preparation.blockerPreview)
-						? preparation.blockerPreview
-								.map((label: unknown) => String(label).toLowerCase())
-								.join(", ")
-						: ""
-					missingStepsText.textContent = `Faltan ${preparation.blockerCount} paso${preparation.blockerCount === 1 ? "" : "s"} del playbook${preview ? `: ${preview}` : ""}.`
-				} else {
-					missingStepsText.textContent =
-						missing === 0
-							? "La ficha está lista para revisión final."
-							: `Faltan ${missing} puntos para completar la ficha.`
-				}
-			}
-			if (progressBar) {
-				const progressValue = progressBar.querySelector<HTMLElement>(".fastt-progress-value")
-				if (progressValue) progressValue.style.width = `${Math.max(0, Math.min(100, percent))}%`
-			}
-			if (progressText) {
-				progressText.textContent = preparation
-					? `${percent}% de preparación completada`
-					: `${completed} de ${total} puntos internos listos.`
-			}
+			hydratePreparationCard(config, payload)
 			setText("productHeaderMeta", address)
 			setText(
 				"productHeaderSummary",
@@ -364,12 +411,18 @@ export function initProductSummaryHydration(): void {
 			})
 		})
 		.catch(() => {
-			const progressText = document.getElementById("productProgressText")
+			if (controller.signal.aborted) return
+			const progressText = document.querySelector("[data-product-progress-label]")
 			if (progressText) progressText.textContent = "No se pudo cargar el progreso en este momento."
 			const keys = ["content", "location", "images", "subtype"]
 			if (config.isHotel) keys.push("variants", "houseRules")
 			keys.forEach((key) => setBadgeState(key, false))
 		})
+}
+
+if (document.documentElement.dataset.productSummaryHydrationBound !== "true") {
+	document.documentElement.dataset.productSummaryHydrationBound = "true"
+	document.addEventListener("astro:page-load", initProductSummaryHydration)
 }
 
 if (document.readyState === "loading") {

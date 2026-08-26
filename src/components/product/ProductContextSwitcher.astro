@@ -44,16 +44,22 @@ const isHotel = type === "hotel"
 const isTour = type === "tour"
 const label = isHotel ? "Alojamiento" : isTour ? "Tour" : "Servicio"
 const icon = isHotel ? "accommodation" : isTour ? "tour" : "service"
-const hrefFor = (id: string) =>
-	target === "rooms"
-		? routes.productRoomsForProduct(id)
-		: target === "departures"
-			? routes.productDeparturesForProduct(id)
-			: target === "house-rules"
-				? `${routes.providerHouseRules()}?productId=${encodeURIComponent(id)}`
-				: target === "financial"
-					? `${Astro.url.pathname}?${new URLSearchParams({ ...Object.fromEntries(Astro.url.searchParams), productId: id })}`
-					: routes.productDetail(id)
+const hrefFor = (id: string) => {
+	if (target === "rooms") return routes.productRoomsForProduct(id)
+	if (target === "departures") return routes.productDeparturesForProduct(id)
+	if (target === "house-rules") {
+		const params = new URLSearchParams(Astro.url.search)
+		params.set("productId", id)
+		return `${routes.providerHouseRules()}?${params.toString()}`
+	}
+	if (target === "financial") {
+		const params = new URLSearchParams(Astro.url.search)
+		params.set("productId", id)
+		const query = params.toString()
+		return `${Astro.url.pathname}${query ? `?${query}` : ""}`
+	}
+	return routes.productDetail(id)
+}
 const productOptions =
 	selectable && providerId && type
 		? (
@@ -72,7 +78,7 @@ const productOptions =
 				.sort((a, b) => a.label.localeCompare(b.label, "es"))
 		: []
 const allHouseRulesOption =
-	target === "house-rules"
+	target === "house-rules" && !Astro.url.searchParams.get("playbook")
 		? {
 				id: "all",
 				label: "Todos los alojamientos",

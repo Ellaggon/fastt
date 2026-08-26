@@ -1,7 +1,7 @@
 ---
+import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
-import ProgressBar from "@/components/ui/ProgressBar.astro"
 import { productRepository } from "@/container"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderSessionSurfaceFromRequest } from "@/lib/auth/providerSessionSurface"
@@ -9,9 +9,18 @@ import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
 import { logRoutePerformance } from "@/lib/observability/performanceLog"
 import { createServerTimingRecorder } from "@/lib/observability/serverTiming"
 import { buildCompleteToPublishEntryHref } from "@/lib/playbook/complete-to-publish"
+import { resolveProductPreparationCoach } from "@/lib/playbook/product-preparation-coach"
 import { getProductOperationalSurface } from "@/lib/product/productOperationalSurface"
 import { routes } from "@/lib/routes"
-import { CalendarDays, CircleCheck } from "@lucide/astro"
+import {
+	ArrowRight,
+	BedDouble,
+	CalendarDays,
+	CircleCheck,
+	ClipboardList,
+	Map,
+	Package,
+} from "@lucide/astro"
 
 const startedAt = performance.now()
 const timing = createServerTimingRecorder()
@@ -69,14 +78,32 @@ const publishState =
 		? {
 				readyToPublish: readiness.readyToPublish,
 				readinessPercent: readiness.readinessPercent,
-				completedChecks: Math.round(
-					(readiness.readinessPercent / 100) * requiredPreparationSections
-				),
-				totalChecks: requiredPreparationSections,
+				completedChecks:
+					readiness.completedChecks ??
+					Math.round((readiness.readinessPercent / 100) * requiredPreparationSections),
+				totalChecks: readiness.totalChecks ?? requiredPreparationSections,
 			}
 		: null
 const completePreparationHref =
 	readiness?.continuePreparationHref ?? buildCompleteToPublishEntryHref(productId)
+const previewHref = readiness?.previewHref ?? routes.productPreview(productId)
+const preparationCoach = publishState
+	? resolveProductPreparationCoach({
+			readyToPublish: publishState.readyToPublish,
+			nextStepLabel: readiness?.nextStepLabel,
+			nextStepBody: readiness?.nextStepBody,
+			nextStepCta: readiness?.nextStepCta,
+			continuePreparationHref: completePreparationHref,
+			previewHref,
+		})
+	: null
+const PreparationEyebrowIcon = isHotel
+	? BedDouble
+	: isTour
+		? Map
+		: isPackage
+			? Package
+			: ClipboardList
 const preparationBlockerCount = readiness?.blockerCount ?? 0
 const hasIncompletePreparation = status !== "published" && preparationBlockerCount > 0
 const conditionsHref = isHotel
@@ -123,12 +150,24 @@ logRoutePerformance({
 					)
 				}
 			</div>
-			<p id="productHeaderMeta" class="max-w-3xl text-sm leading-5 text-slate-300 sm:leading-6">
-				Cargando ubicación y tipo de oferta...
-			</p>
-			<p id="productHeaderSummary" class="max-w-3xl text-sm leading-5 text-slate-400 sm:leading-6">
-				{productHeaderSummary}
-			</p>
+			{
+				preparationCoach ? null : (
+					<>
+						<p
+							id="productHeaderMeta"
+							class="max-w-3xl text-sm leading-5 text-slate-300 sm:leading-6"
+						>
+							Cargando ubicación y tipo de oferta...
+						</p>
+						<p
+							id="productHeaderSummary"
+							class="max-w-3xl text-sm leading-5 text-slate-400 sm:leading-6"
+						>
+							{productHeaderSummary}
+						</p>
+					</>
+				)
+			}
 		</header>
 
 		{
@@ -166,46 +205,93 @@ logRoutePerformance({
 		}
 
 		{
-			status !== "published" && publishState ? (
-				<Card class="bg-white p-4 sm:p-5 md:p-6">
-					<div class="flex flex-col gap-4 sm:gap-5 lg:flex-row lg:items-start lg:justify-between">
-						<div class="min-w-0 flex-1 space-y-3">
-							<div class="space-y-1">
-								<p class="text-sm font-semibold text-slate-950">Preparación para publicar</p>
-								<p id="productMissingStepsText" class="text-sm leading-6 text-slate-600">
-									{publishState.readyToPublish
-										? "Todo listo. Revisa la vista previa y confirma la publicación."
-										: preparationBlockerCount > 0
-											? `Faltan ${preparationBlockerCount} paso${preparationBlockerCount === 1 ? "" : "s"} del playbook.`
-											: "Completa los bloques pendientes para publicar."}
+			status !== "published" && publishState && preparationCoach ? (
+				<div class="space-y-6" data-product-preparation>
+					<div class="flex items-start justify-between gap-4">
+						<div class="flex min-w-0 items-start gap-3">
+							<span class="fastt-section-icon">
+								<PreparationEyebrowIcon class="size-4" aria-hidden="true" />
+							</span>
+							<div class="min-w-0">
+								<p id="productHeaderMeta" class="text-xl font-semibold text-white">
+									Cargando ubicación...
 								</p>
-							</div>
-							<div class="space-y-2">
-								<ProgressBar
-									id="productProgressBar"
-									value={publishState.readinessPercent}
-									class="w-full lg:max-w-xl"
-								/>
-								<p id="productProgressText" class="text-sm text-slate-500">
-									{publishState.completedChecks} de {publishState.totalChecks} pasos listos ·{" "}
-									{publishState.readinessPercent}% completado
+								<p
+									id="productHeaderSummary"
+									class="mt-1 max-w-3xl text-sm leading-6 text-neutral-400"
+								>
+									{isHotel
+										? "Administra la ficha pública, habitaciones y reglas. Las tarifas y el calendario se gestionan desde Venta."
+										: productHeaderSummary}
 								</p>
 							</div>
 						</div>
-						<div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row lg:pt-0.5">
-							<Button href={completePreparationHref} class="w-full sm:w-auto">
-								{publishState.readyToPublish ? "Ir a vista previa" : "Continuar preparación"}
-							</Button>
-							<Button
-								href={routes.productPreview(productId)}
-								variant="secondary"
-								class="w-full sm:w-auto"
-							>
-								Ver qué falta
-							</Button>
-						</div>
+						<Badge
+							variant={preparationCoach.ready ? "darkSuccess" : "darkWarning"}
+							data-product-prep-badge
+							data-product-dark-badge
+						>
+							{preparationCoach.badge}
+						</Badge>
 					</div>
-				</Card>
+
+					<div class="flex items-center gap-3">
+						<div class="h-1 flex-1 overflow-hidden rounded-full bg-white/10">
+							<div
+								id="productProgressBar"
+								class="h-full rounded-full"
+								style={`width: ${Math.max(0, Math.min(100, publishState.readinessPercent))}%; background-color: var(--fastt-color-selection);`}
+								data-product-progress-bar
+							></div>
+						</div>
+						<p
+							id="productProgressText"
+							class="shrink-0 text-xs font-medium text-neutral-400 tabular-nums"
+							data-product-progress-label
+						>
+							{publishState.completedChecks} de {publishState.totalChecks}
+						</p>
+					</div>
+
+					<div class="flex flex-col gap-4 border-t border-white/10 pt-5 sm:flex-row sm:items-center sm:justify-between">
+						<div class="flex min-w-0 items-start gap-3">
+							<span class="fastt-section-icon">
+								{preparationCoach.ready ? (
+									<CircleCheck class="size-4" aria-hidden="true" />
+								) : (
+									<ClipboardList class="size-4" aria-hidden="true" />
+								)}
+							</span>
+							<div class="min-w-0">
+								<p class="text-xs font-semibold tracking-[0.14em] text-neutral-500 uppercase">
+									Siguiente requisito
+								</p>
+								<p
+									id="productMissingStepsText"
+									class="mt-1 text-base font-semibold text-white"
+									data-product-next-step-label
+								>
+									{preparationCoach.label}
+								</p>
+								<p
+									class="mt-1 max-w-xl text-sm leading-6 text-neutral-400"
+									data-product-next-step-body
+								>
+									{preparationCoach.body}
+								</p>
+							</div>
+						</div>
+						<Button
+							href={preparationCoach.href}
+							variant="onDark"
+							className="shrink-0"
+							data-product-primary-cta
+						>
+							<span data-product-primary-cta-label>{preparationCoach.cta}</span>
+							<ArrowRight class="size-4" aria-hidden="true" />
+						</Button>
+					</div>
+				</div>
 			) : null
 		}
 
@@ -228,67 +314,6 @@ logRoutePerformance({
 			hidden
 		>
 		</div>
-
-		<Card class="bg-white">
-			<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-				<div>
-					<p class="text-sm font-semibold text-slate-950">Acciones principales</p>
-					<p class="mt-1 text-sm leading-6 text-slate-500">
-						El detalle de ficha se carga después del shell inicial.
-					</p>
-				</div>
-				<div class="flex flex-wrap gap-2">
-					<Button href={routes.productPreview(productId)} data-astro-prefetch>Vista previa</Button>
-					{
-						isHotel ? (
-							<Button
-								href={routes.productRoomsForProduct(productId)}
-								data-astro-prefetch
-								variant="secondary"
-							>
-								Habitaciones
-							</Button>
-						) : null
-					}
-					{
-						isTour ? (
-							<Button
-								href={routes.productDeparturesForProduct(productId)}
-								data-astro-prefetch
-								variant="secondary"
-							>
-								Salidas
-							</Button>
-						) : null
-					}
-					{
-						isTour ? (
-							<Button
-								href={routes.productTourTickets(productId)}
-								data-astro-prefetch
-								variant="secondary"
-							>
-								Tickets
-							</Button>
-						) : null
-					}
-					{
-						isHotel || isTour ? (
-							<Button href={routes.rates()} data-astro-prefetch variant="secondary">
-								Tarifas
-							</Button>
-						) : null
-					}
-					{
-						isHotel || isTour ? (
-							<Button href={routes.calendar()} data-astro-prefetch variant="secondary">
-								Calendario
-							</Button>
-						) : null
-					}
-				</div>
-			</div>
-		</Card>
 
 		{
 			/* Client hydration fills these shells using payload?.variants?.count and payload?.images?.cover?.url */

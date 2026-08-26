@@ -48,8 +48,13 @@ describe("tour slot profile (fase 2)", () => {
 
 		const hub = read("src/pages/product/[id]/index.astro")
 		expect(hub).toContain("productDeparturesForProduct")
-		expect(hub).toContain("Salidas")
-		expect(hub).toContain("isHotel || isTour")
+		expect(hub).toContain("data-is-tour")
+		expect(hub).toContain("isTour")
+
+		const hydration = read("src/pages/product/_client/product-summary-hydration.ts")
+		expect(hydration).toContain("Salidas")
+		expect(hydration).toContain("config.isTour")
+		expect(hydration).toContain("Gestionar salidas")
 	})
 
 	it("requires profile + capacity + default rate for tour product readiness", () => {

@@ -3,6 +3,7 @@ import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
+import Select from "@/components/ui/Select.astro"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import { LAUNCH_TOUR_PLAYBOOK_ID } from "@/lib/playbook/launch-tour"
 import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
@@ -14,6 +15,7 @@ import {
 	productVerticalRegistry,
 } from "@/lib/catalog/productVerticalRegistry"
 import { routes } from "@/lib/routes"
+import { isGeoPlaceCompatible } from "@/modules/catalog/public"
 import { asc, db, eq, GeoPlace } from "@/shared/infrastructure/db/compat"
 
 const user = await getUserFromRequest(Astro.request)
@@ -53,10 +55,18 @@ const isLaunchHotelFlow = isHotelLaunch
 const destinations = isChooser
 	? []
 	: await db
-			.select({ id: GeoPlace.id, name: GeoPlace.canonicalName, country: GeoPlace.countryCode })
+			.select({
+				id: GeoPlace.id,
+				name: GeoPlace.canonicalName,
+				country: GeoPlace.countryCode,
+				placeType: GeoPlace.placeType,
+			})
 			.from(GeoPlace)
 			.where(eq(GeoPlace.status, "active"))
 			.orderBy(asc(GeoPlace.canonicalName))
+const compatibleGeoPlaces = destinations.filter((place) =>
+	isGeoPlaceCompatible({ productType: selectedProductType, placeType: place.placeType })
+)
 ---
 
 <PlaybookLayout
@@ -147,23 +157,19 @@ const destinations = isChooser
 								</FormField>
 
 								<FormField label={createCopy.destinationLabel} htmlFor="geoPlaceId" required>
-									<Input
-										id="geoPlaceId"
-										name="geoPlaceId"
-										list="destinationOptions"
-										required
-										placeholder="Busca por nombre y selecciona un destino"
-									/>
-									<datalist id="destinationOptions">
-										{destinations.map((destination) => (
-											<option value={destination.id}>
-												{destination.name}
-												{destination.country ? ` · ${destination.country}` : ""}
+									<Select id="geoPlaceId" name="geoPlaceId" required>
+										<option value="" disabled selected>
+											Selecciona una ciudad, localidad o zona compatible
+										</option>
+										{compatibleGeoPlaces.map((place) => (
+											<option value={place.id}>
+												{place.name} · {place.country} · {place.placeType}
 											</option>
 										))}
-									</datalist>
+									</Select>
 									<p class="mt-1 text-sm text-slate-600">
-										Selecciona un destino existente; podrás precisar el punto en el mapa después.
+										Selecciona una ubicación de discovery compatible; podrás precisar el punto en el
+										mapa después.
 									</p>
 									<p id="destinationError" class="hidden text-sm text-red-600" />
 								</FormField>
@@ -205,7 +211,7 @@ const destinations = isChooser
 			const btnText = btn?.textContent || "Crear producto"
 			const stateLabel = document.getElementById("stateLabel")
 			const stateDetail = document.getElementById("stateDetail")
-							const destinationInput = document.getElementById("geoPlaceId")
+			const destinationInput = document.getElementById("geoPlaceId")
 			const destinationError = document.getElementById("destinationError")
 			const isLaunch = form.dataset.isLaunch === "true"
 			const isTourLaunch = form.dataset.isTourLaunch === "true"
@@ -259,7 +265,7 @@ const destinations = isChooser
 								return null
 							}
 						})()
-							const destinationMessage = payload?.details?.fieldErrors?.geoPlaceId?.[0]
+						const destinationMessage = payload?.details?.fieldErrors?.geoPlaceId?.[0]
 						if (destinationMessage && destinationError) {
 							destinationError.textContent = destinationMessage
 							destinationError.classList.remove("hidden")
