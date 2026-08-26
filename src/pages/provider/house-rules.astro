@@ -152,12 +152,20 @@ const focus = String(Astro.url.searchParams.get("focus") ?? "").trim()
 const requestedReturnTo = String(Astro.url.searchParams.get("returnTo") ?? "").trim()
 const safeReturnTo =
 	requestedReturnTo.startsWith("/") && !requestedReturnTo.startsWith("//") ? requestedReturnTo : ""
+const houseRuleViews = ["essential", "arrival", "optional", "preview"] as const
+type HouseRuleView = (typeof houseRuleViews)[number]
+const houseRuleEditorViews = ["essential", "arrival", "optional"] as const
 
-function redirectToHouseRules(success: string, productId?: string) {
+function redirectToHouseRules(success: string, productId?: string, view?: string) {
 	const params = new URLSearchParams({ success })
 	const contextualProductId = String(productId ?? "").trim()
 	if (contextualProductId) params.set("productId", contextualProductId)
-	if (focus === "arrival") params.set("focus", "arrival")
+	const vista = String(view ?? Astro.url.searchParams.get("vista") ?? "").trim()
+	if (houseRuleViews.includes(vista as HouseRuleView)) {
+		params.set("vista", vista)
+	} else if (focus === "arrival") {
+		params.set("focus", "arrival")
+	}
 	if (safeReturnTo) params.set("returnTo", safeReturnTo)
 	const activePlaybook = resolvePlaybookFromUrl(Astro.url, { isHotel: true })
 	if (activePlaybook.playbookId === "launch") {
@@ -175,6 +183,7 @@ function redirectToHouseRules(success: string, productId?: string) {
 if (Astro.request.method === "POST") {
 	const form = await Astro.request.formData()
 	const action = String(form.get("action") ?? "").trim()
+	const postedView = String(form.get("vista") ?? Astro.url.searchParams.get("vista") ?? "").trim()
 	try {
 		const products = await loadProviderProducts(auth.providerId)
 		const ownedProductIds = new Set(products.map((product) => product.id))
@@ -200,7 +209,7 @@ if (Astro.request.method === "POST") {
 				url: Astro.url,
 				source: "provider.house-rules.create",
 			})
-			return redirectToHouseRules("created", productId)
+			return redirectToHouseRules("created", productId, postedView)
 		}
 		if (action === "apply-quick-setup") {
 			const productId = String(form.get("productId") ?? "").trim()
@@ -231,7 +240,7 @@ if (Astro.request.method === "POST") {
 				url: Astro.url,
 				source: "provider.house-rules.quick-setup",
 			})
-			return redirectToHouseRules("preset-applied", productId)
+			return redirectToHouseRules("preset-applied", productId, postedView)
 		}
 		if (action === "delete-house-rule") {
 			const ruleId = String(form.get("ruleId") ?? "").trim()
@@ -256,7 +265,7 @@ if (Astro.request.method === "POST") {
 				url: Astro.url,
 				source: "provider.house-rules.delete",
 			})
-			return redirectToHouseRules("deleted", ownedRule.productId)
+			return redirectToHouseRules("deleted", ownedRule.productId, postedView)
 		}
 	} catch (error) {
 		actionError = error instanceof Error ? error.message : "No se pudo actualizar la regla"
@@ -273,8 +282,6 @@ const isCompleteWizard =
 	playbook.playbookId === "complete-to-publish" &&
 	(playbook.stepId === "houseRules" || playbook.stepId === "house-rules")
 const isGuidedRules = isLaunchWizard || isCompleteWizard
-const houseRuleViews = ["essential", "arrival", "optional", "preview"] as const
-type HouseRuleView = (typeof houseRuleViews)[number]
 const requestedView = String(Astro.url.searchParams.get("vista") ?? "").trim()
 const activeView: HouseRuleView =
 	focus === "arrival"
@@ -344,7 +351,6 @@ const ruleTypesByView: Record<HouseRuleView, HouseRuleType[]> = {
 	optional: ["Children", "Safety", "ExtraBeds", "Other"],
 	preview: [],
 }
-const activeEditorTypes = ruleTypesByView[activeView]
 const optionalReadyCount = ruleTypesByView.optional.filter(
 	(type) => (selectedRulesByType.get(type) ?? []).length > 0
 ).length
@@ -679,6 +685,7 @@ const successMessage =
 											<input type="hidden" name="action" value="apply-quick-setup" />
 											<input type="hidden" name="presetKey" value={preset.key} />
 											<input type="hidden" name="productId" value={selectedProductId} />
+											<input type="hidden" name="vista" value={activeView} data-house-rules-vista />
 											<div class="flex flex-wrap items-center gap-2">
 												<p class="text-sm font-semibold text-slate-950">{preset.title}</p>
 												{isGuidedRules && index === 0 ? (
@@ -702,12 +709,13 @@ const successMessage =
 						</div>
 
 						<div class={isGuidedRules ? "order-3" : ""}>
-							<Card className="bg-white p-0 text-slate-900">
+							<Card className="bg-white p-0 text-slate-900" data-house-rules-tabs>
 								<div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 pt-4">
 									<TabsOutsidePanel class="mb-3" aria-label="Secciones de reglas">
 										{ruleTabs.map((tab) => (
 											<a
 												href={houseRulesViewHref(tab.id)}
+												data-house-rules-tab={tab.id}
 												aria-current={activeView === tab.id ? "page" : undefined}
 												data-active={activeView === tab.id ? "true" : "false"}
 												class={`fastt-tabs-outside-panel__item px-3 py-2 text-sm font-semibold whitespace-nowrap ${
@@ -729,425 +737,467 @@ const successMessage =
 									) : null}
 								</div>
 								<div class="space-y-3 p-4">
-									{activeView === "preview" ? (
-										<div class="rounded-2xl bg-slate-50 p-5">
-											<p class="text-base font-semibold text-slate-950">Vista huésped</p>
-											<p class="mt-1 text-sm leading-6 text-slate-600">
-												Revisa en el panel lateral el resumen agrupado tal como acompañará la ficha
-												pública.
-											</p>
+									{isGuidedRules ? null : (
+										<div data-house-rules-panel="preview" hidden={activeView !== "preview"}>
+											<div class="rounded-2xl bg-slate-50 p-5">
+												<p class="text-base font-semibold text-slate-950">Vista huésped</p>
+												<p class="mt-1 text-sm leading-6 text-slate-600">
+													Revisa en el panel lateral el resumen agrupado tal como acompañará la
+													ficha pública.
+												</p>
+											</div>
 										</div>
-									) : null}
+									)}
 
-									<div class="grid gap-3">
-										{activeEditorTypes.map((type) => {
-											const copy = houseRuleCopy[type]
-											const rules = selectedRulesByType.get(type) ?? []
-											const isEssential = essentialHouseRuleTypes.includes(type)
-											const isComplete = rules.length > 0
-											return (
-												<Card className="bg-white text-slate-800" data-house-rule-type={type}>
-													<details class="group">
-														<summary class="flex cursor-pointer list-none flex-wrap items-start justify-between gap-3">
-															<div class="min-w-0">
-																<div class="flex flex-wrap items-center gap-2">
-																	<p class="text-base font-semibold text-slate-950">{copy.label}</p>
-																	<Badge
-																		variant={
-																			isComplete ? "success" : isEssential ? "warning" : "neutral"
-																		}
-																	>
+									{houseRuleEditorViews.map((view) => (
+										<div data-house-rules-panel={view} hidden={activeView !== view}>
+											<div class="grid gap-3">
+												{ruleTypesByView[view].map((type) => {
+													const copy = houseRuleCopy[type]
+													const rules = selectedRulesByType.get(type) ?? []
+													const isEssential = essentialHouseRuleTypes.includes(type)
+													const isComplete = rules.length > 0
+													return (
+														<Card className="bg-white text-slate-800" data-house-rule-type={type}>
+															<details class="group">
+																<summary class="flex cursor-pointer list-none flex-wrap items-start justify-between gap-3">
+																	<div class="min-w-0">
+																		<div class="flex flex-wrap items-center gap-2">
+																			<p class="text-base font-semibold text-slate-950">
+																				{copy.label}
+																			</p>
+																			<Badge
+																				variant={
+																					isComplete
+																						? "success"
+																						: isEssential
+																							? "warning"
+																							: "neutral"
+																				}
+																			>
+																				{isComplete
+																					? isGuidedRules
+																						? "Listo"
+																						: "Visible"
+																					: isEssential
+																						? "Falta"
+																						: "Opcional"}
+																			</Badge>
+																		</div>
+																		<p class="mt-1 text-sm text-slate-600">{copy.intent}</p>
+																	</div>
+																	<span class="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-500 group-open:bg-slate-100">
 																		{isComplete
 																			? isGuidedRules
-																				? "Listo"
-																				: "Visible"
-																			: isEssential
-																				? "Falta"
-																				: "Opcional"}
-																	</Badge>
-																</div>
-																<p class="mt-1 text-sm text-slate-600">{copy.intent}</p>
-															</div>
-															<span class="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-500 group-open:bg-slate-100">
-																{isComplete ? (isGuidedRules ? "Revisar" : "Editar") : "Agregar"}
-															</span>
-														</summary>
+																				? "Revisar"
+																				: "Editar"
+																			: "Agregar"}
+																	</span>
+																</summary>
 
-														<div class="mt-4 space-y-4 border-t border-slate-100 pt-4">
-															{rules.length ? (
-																<div class="grid gap-2">
-																	{rules.map((rule) => {
-																		const summary = buildHouseRuleGuestSummary(
-																			type,
-																			rule.payloadJson
-																		)
-																		return (
-																			<div class="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-																				<p class="max-w-2xl text-sm leading-6 text-slate-700">
-																					{summary}
-																				</p>
-																				<form method="POST" action={houseRulesViewHref(activeView)}>
-																					<input
-																						type="hidden"
-																						name="action"
-																						value="delete-house-rule"
-																					/>
-																					<input type="hidden" name="ruleId" value={rule.id} />
-																					<Button type="submit" variant="secondary" size="sm">
-																						Eliminar
-																					</Button>
-																				</form>
-																			</div>
-																		)
-																	})}
-																</div>
-															) : null}
+																<div class="mt-4 space-y-4 border-t border-slate-100 pt-4">
+																	{rules.length ? (
+																		<div class="grid gap-2">
+																			{rules.map((rule) => {
+																				const summary = buildHouseRuleGuestSummary(
+																					type,
+																					rule.payloadJson
+																				)
+																				return (
+																					<div class="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+																						<p class="max-w-2xl text-sm leading-6 text-slate-700">
+																							{summary}
+																						</p>
+																						<form method="POST" action={houseRulesViewHref(view)}>
+																							<input
+																								type="hidden"
+																								name="action"
+																								value="delete-house-rule"
+																							/>
+																							<input type="hidden" name="ruleId" value={rule.id} />
+																							<input type="hidden" name="vista" value={view} />
+																							<Button type="submit" variant="secondary" size="sm">
+																								Eliminar
+																							</Button>
+																						</form>
+																					</div>
+																				)
+																			})}
+																		</div>
+																	) : null}
 
-															{isGuidedRules && isComplete ? (
-																<p class="rounded-xl bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-600">
-																	Si necesitas cambiarla, elimina esta regla y agrega una nueva
-																	versión.
-																</p>
-															) : (
-																<form
-																	method="POST"
-																	action={houseRulesViewHref(activeView)}
-																	class="grid gap-3 sm:grid-cols-2"
-																>
-																	<input type="hidden" name="action" value="create-house-rule" />
-																	<input type="hidden" name="type" value={type} />
-																	{hasProductContext && selectedProduct ? (
-																		<input
-																			type="hidden"
-																			name="productId"
-																			value={selectedProduct.id}
-																		/>
+																	{isGuidedRules && isComplete ? (
+																		<p class="rounded-xl bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-600">
+																			Si necesitas cambiarla, elimina esta regla y agrega una nueva
+																			versión.
+																		</p>
 																	) : (
-																		<label class="space-y-1 text-sm sm:col-span-2">
-																			<span class="font-medium text-slate-700">Alojamiento</span>
-																			<select
-																				name="productId"
-																				class="w-full rounded-lg border border-slate-300 px-3 py-2"
-																			>
-																				{visibleProducts.map((product) => (
-																					<option
-																						value={product.id}
-																						selected={product.id === selectedProductId}
-																					>
-																						{product.name}
-																					</option>
-																				))}
-																			</select>
-																		</label>
-																	)}
-
-																	{type === "Pets" ? (
-																		<>
-																			<fieldset class="space-y-2 rounded-xl border border-slate-200 p-3 text-sm">
-																				<legend class="px-1 font-medium text-slate-700">
-																					Mascotas
-																				</legend>
-																				<label class="mr-4">
-																					<input type="radio" name="allowed" value="true" /> Sí
-																				</label>
-																				<label>
-																					<input
-																						type="radio"
-																						name="allowed"
-																						value="false"
-																						checked
-																					/>{" "}
-																					No
-																				</label>
-																			</fieldset>
-																			<label class="space-y-1 text-sm">
-																				<span class="font-medium text-slate-700">Nota breve</span>
-																				<input
-																					name="feeNote"
-																					class="w-full rounded-lg border border-slate-300 px-3 py-2"
-																					placeholder="Ej. una mascota pequeña con aprobación previa"
-																				/>
-																			</label>
-																		</>
-																	) : null}
-
-																	{type === "Children" ? (
-																		<>
-																			<fieldset class="space-y-2 rounded-xl border border-slate-200 p-3 text-sm">
-																				<legend class="px-1 font-medium text-slate-700">
-																					Niños
-																				</legend>
-																				<label class="mr-4">
-																					<input type="radio" name="allowed" value="true" checked />{" "}
-																					Sí
-																				</label>
-																				<label>
-																					<input type="radio" name="allowed" value="false" /> No
-																				</label>
-																			</fieldset>
-																			<label class="space-y-1 text-sm">
-																				<span class="font-medium text-slate-700">
-																					Cuidado importante
-																				</span>
-																				<input
-																					name="conditions"
-																					class="w-full rounded-lg border border-slate-300 px-3 py-2"
-																					placeholder="Ej. supervisión en piscina"
-																				/>
-																			</label>
-																		</>
-																	) : null}
-
-																	{type === "Smoking" ? (
-																		<>
-																			<fieldset class="space-y-2 rounded-xl border border-slate-200 p-3 text-sm">
-																				<legend class="px-1 font-medium text-slate-700">
-																					Fumar
-																				</legend>
-																				<label class="mr-4">
-																					<input type="radio" name="allowed" value="true" />{" "}
-																					Permitido con límites
-																				</label>
-																				<label>
-																					<input
-																						type="radio"
-																						name="allowed"
-																						value="false"
-																						checked
-																					/>{" "}
-																					No permitido
-																				</label>
-																			</fieldset>
-																			<label class="space-y-1 text-sm">
-																				<span class="font-medium text-slate-700">Dónde aplica</span>
-																				<select
-																					name="smokingArea"
-																					class="w-full rounded-lg border border-slate-300 px-3 py-2"
-																				>
-																					<option value="not_allowed">No permitido</option>
-																					<option value="designated_areas">Áreas designadas</option>
-																					<option value="outdoors">Solo al aire libre</option>
-																					<option value="rooms">Habitaciones designadas</option>
-																					<option value="other">Otra indicación</option>
-																				</select>
-																			</label>
-																		</>
-																	) : null}
-
-																	{type === "Parties" ? (
-																		<fieldset class="space-y-2 rounded-xl border border-slate-200 p-3 text-sm sm:col-span-2">
-																			<legend class="px-1 font-medium text-slate-700">
-																				Fiestas y eventos
-																			</legend>
-																			<label class="mr-4">
-																				<input type="radio" name="allowed" value="true" />{" "}
-																				Permitidos con guía
-																			</label>
-																			<label>
-																				<input type="radio" name="allowed" value="false" checked />{" "}
-																				No permitidos
-																			</label>
-																		</fieldset>
-																	) : null}
-
-																	{type === "QuietHours" ? (
-																		<>
-																			<label class="space-y-1 text-sm">
-																				<span class="font-medium text-slate-700">
-																					Silencio desde
-																				</span>
-																				<input
-																					type="time"
-																					name="quietStart"
-																					value="22:00"
-																					class="w-full rounded-lg border border-slate-300 px-3 py-2"
-																				/>
-																			</label>
-																			<label class="space-y-1 text-sm">
-																				<span class="font-medium text-slate-700">
-																					Silencio hasta
-																				</span>
-																				<input
-																					type="time"
-																					name="quietEnd"
-																					value="08:00"
-																					class="w-full rounded-lg border border-slate-300 px-3 py-2"
-																				/>
-																			</label>
-																		</>
-																	) : null}
-
-																	{type === "Parking" ? (
-																		<>
-																			<fieldset class="space-y-2 rounded-xl border border-slate-200 p-3 text-sm">
-																				<legend class="px-1 font-medium text-slate-700">
-																					Estacionamiento
-																				</legend>
-																				<label class="mr-4">
-																					<input
-																						type="radio"
-																						name="available"
-																						value="true"
-																						checked
-																					/>{" "}
-																					Disponible
-																				</label>
-																				<label>
-																					<input type="radio" name="available" value="false" /> No
-																					disponible
-																				</label>
-																			</fieldset>
-																			<label class="space-y-1 text-sm">
-																				<span class="font-medium text-slate-700">Tipo</span>
-																				<select
-																					name="parkingType"
-																					class="w-full rounded-lg border border-slate-300 px-3 py-2"
-																				>
-																					<option value="free">Gratuito</option>
-																					<option value="paid">Pagado</option>
-																					<option value="street">En la calle</option>
-																					<option value="assigned">Espacio asignado</option>
-																					<option value="nearby">Cercano</option>
-																					<option value="none">Sin estacionamiento</option>
-																				</select>
-																			</label>
-																		</>
-																	) : null}
-
-																	{type === "CheckIn" || type === "Access" ? (
-																		<>
-																			<label class="space-y-1 text-sm">
-																				<span class="font-medium text-slate-700">
-																					Llegada desde
-																				</span>
-																				<input
-																					type="time"
-																					name="checkInFrom"
-																					value="15:00"
-																					class="w-full rounded-lg border border-slate-300 px-3 py-2"
-																					required={type === "CheckIn"}
-																				/>
-																			</label>
-																			<label class="space-y-1 text-sm">
-																				<span class="font-medium text-slate-700">
-																					Llegada hasta
-																				</span>
-																				<input
-																					type="time"
-																					name="checkInUntil"
-																					value="22:00"
-																					class="w-full rounded-lg border border-slate-300 px-3 py-2"
-																					required={type === "CheckIn"}
-																				/>
-																			</label>
-																			<label class="space-y-1 text-sm">
-																				<span class="font-medium text-slate-700">
-																					Cómo entra el huésped
-																				</span>
-																				<select
-																					name="checkInMethod"
-																					class="w-full rounded-lg border border-slate-300 px-3 py-2"
-																				>
-																					<option value="self">Llegada autónoma</option>
-																					<option value="host">Con anfitrión o personal</option>
-																					<option value="front_desk">Recepción</option>
-																					<option value="lockbox">Caja de seguridad</option>
-																					<option value="smart_lock">Cerradura o código</option>
-																					<option value="manual">Entrega manual</option>
-																				</select>
-																			</label>
-																			<div class="space-y-2 rounded-xl border border-slate-200 p-3 text-sm">
-																				<p class="font-medium text-slate-700">Al llegar</p>
-																				<label class="block">
-																					<input type="checkbox" name="idRequired" /> Puede pedirse
-																					documento
-																				</label>
-																				<label class="block">
-																					<input type="checkbox" name="cardRequired" /> Puede
-																					pedirse tarjeta
-																				</label>
-																			</div>
-																		</>
-																	) : null}
-
-																	{type === "Checkout" ? (
-																		<>
-																			<label class="space-y-1 text-sm">
-																				<span class="font-medium text-slate-700">
-																					Hora de salida
-																				</span>
-																				<input
-																					type="time"
-																					name="checkoutTime"
-																					value="11:00"
-																					class="w-full rounded-lg border border-slate-300 px-3 py-2"
-																				/>
-																			</label>
-																			<div class="space-y-2 rounded-xl border border-slate-200 p-3 text-sm">
-																				<p class="font-medium text-slate-700">Antes de salir</p>
-																				<label class="block">
-																					<input
-																						type="checkbox"
-																						name="checkoutTasks"
-																						value="devolver llaves o dispositivos de acceso"
-																					/>{" "}
-																					Devolver llaves o acceso
-																				</label>
-																				<label class="block">
-																					<input
-																						type="checkbox"
-																						name="checkoutTasks"
-																						value="cerrar puertas y ventanas"
-																					/>{" "}
-																					Cerrar puertas y ventanas
-																				</label>
-																				<label class="block">
-																					<input
-																						type="checkbox"
-																						name="checkoutTasks"
-																						value="dejar la basura en el lugar indicado"
-																					/>{" "}
-																					Dejar basura donde corresponde
-																				</label>
-																				<label class="block">
-																					<input
-																						type="checkbox"
-																						name="checkoutTasks"
-																						value="apagar luces y electrodomésticos"
-																					/>{" "}
-																					Apagar luces y electrodomésticos
-																				</label>
-																			</div>
-																		</>
-																	) : null}
-
-																	{type === "Safety" || type === "ExtraBeds" || type === "Other" ? (
-																		<label class="space-y-1 text-sm sm:col-span-2">
-																			<span class="font-medium text-slate-700">
-																				Indicación para huéspedes
-																			</span>
-																			<textarea
-																				name="instructions"
-																				rows="3"
-																				class="w-full rounded-lg border border-slate-300 px-3 py-2"
-																				placeholder="Ej. no ingresar a zonas de personal."
+																		<form
+																			method="POST"
+																			action={houseRulesViewHref(view)}
+																			class="grid gap-3 sm:grid-cols-2"
+																		>
+																			<input
+																				type="hidden"
+																				name="action"
+																				value="create-house-rule"
 																			/>
-																		</label>
-																	) : null}
+																			<input type="hidden" name="type" value={type} />
+																			<input type="hidden" name="vista" value={view} />
+																			{hasProductContext && selectedProduct ? (
+																				<input
+																					type="hidden"
+																					name="productId"
+																					value={selectedProduct.id}
+																				/>
+																			) : (
+																				<label class="space-y-1 text-sm sm:col-span-2">
+																					<span class="font-medium text-slate-700">
+																						Alojamiento
+																					</span>
+																					<select
+																						name="productId"
+																						class="w-full rounded-lg border border-slate-300 px-3 py-2"
+																					>
+																						{visibleProducts.map((product) => (
+																							<option
+																								value={product.id}
+																								selected={product.id === selectedProductId}
+																							>
+																								{product.name}
+																							</option>
+																						))}
+																					</select>
+																				</label>
+																			)}
 
-																	<div class="sm:col-span-2">
-																		<Button type="submit" variant="primary" size="sm">
-																			{`Guardar ${copy.label.toLowerCase()}`}
-																		</Button>
-																	</div>
-																</form>
-															)}
-														</div>
-													</details>
-												</Card>
-											)
-										})}
-									</div>
+																			{type === "Pets" ? (
+																				<>
+																					<fieldset class="space-y-2 rounded-xl border border-slate-200 p-3 text-sm">
+																						<legend class="px-1 font-medium text-slate-700">
+																							Mascotas
+																						</legend>
+																						<label class="mr-4">
+																							<input type="radio" name="allowed" value="true" /> Sí
+																						</label>
+																						<label>
+																							<input
+																								type="radio"
+																								name="allowed"
+																								value="false"
+																								checked
+																							/>{" "}
+																							No
+																						</label>
+																					</fieldset>
+																					<label class="space-y-1 text-sm">
+																						<span class="font-medium text-slate-700">
+																							Nota breve
+																						</span>
+																						<input
+																							name="feeNote"
+																							class="w-full rounded-lg border border-slate-300 px-3 py-2"
+																							placeholder="Ej. una mascota pequeña con aprobación previa"
+																						/>
+																					</label>
+																				</>
+																			) : null}
+
+																			{type === "Children" ? (
+																				<>
+																					<fieldset class="space-y-2 rounded-xl border border-slate-200 p-3 text-sm">
+																						<legend class="px-1 font-medium text-slate-700">
+																							Niños
+																						</legend>
+																						<label class="mr-4">
+																							<input
+																								type="radio"
+																								name="allowed"
+																								value="true"
+																								checked
+																							/>{" "}
+																							Sí
+																						</label>
+																						<label>
+																							<input type="radio" name="allowed" value="false" /> No
+																						</label>
+																					</fieldset>
+																					<label class="space-y-1 text-sm">
+																						<span class="font-medium text-slate-700">
+																							Cuidado importante
+																						</span>
+																						<input
+																							name="conditions"
+																							class="w-full rounded-lg border border-slate-300 px-3 py-2"
+																							placeholder="Ej. supervisión en piscina"
+																						/>
+																					</label>
+																				</>
+																			) : null}
+
+																			{type === "Smoking" ? (
+																				<>
+																					<fieldset class="space-y-2 rounded-xl border border-slate-200 p-3 text-sm">
+																						<legend class="px-1 font-medium text-slate-700">
+																							Fumar
+																						</legend>
+																						<label class="mr-4">
+																							<input type="radio" name="allowed" value="true" />{" "}
+																							Permitido con límites
+																						</label>
+																						<label>
+																							<input
+																								type="radio"
+																								name="allowed"
+																								value="false"
+																								checked
+																							/>{" "}
+																							No permitido
+																						</label>
+																					</fieldset>
+																					<label class="space-y-1 text-sm">
+																						<span class="font-medium text-slate-700">
+																							Dónde aplica
+																						</span>
+																						<select
+																							name="smokingArea"
+																							class="w-full rounded-lg border border-slate-300 px-3 py-2"
+																						>
+																							<option value="not_allowed">No permitido</option>
+																							<option value="designated_areas">
+																								Áreas designadas
+																							</option>
+																							<option value="outdoors">Solo al aire libre</option>
+																							<option value="rooms">Habitaciones designadas</option>
+																							<option value="other">Otra indicación</option>
+																						</select>
+																					</label>
+																				</>
+																			) : null}
+
+																			{type === "Parties" ? (
+																				<fieldset class="space-y-2 rounded-xl border border-slate-200 p-3 text-sm sm:col-span-2">
+																					<legend class="px-1 font-medium text-slate-700">
+																						Fiestas y eventos
+																					</legend>
+																					<label class="mr-4">
+																						<input type="radio" name="allowed" value="true" />{" "}
+																						Permitidos con guía
+																					</label>
+																					<label>
+																						<input
+																							type="radio"
+																							name="allowed"
+																							value="false"
+																							checked
+																						/>{" "}
+																						No permitidos
+																					</label>
+																				</fieldset>
+																			) : null}
+
+																			{type === "QuietHours" ? (
+																				<>
+																					<label class="space-y-1 text-sm">
+																						<span class="font-medium text-slate-700">
+																							Silencio desde
+																						</span>
+																						<input
+																							type="time"
+																							name="quietStart"
+																							value="22:00"
+																							class="w-full rounded-lg border border-slate-300 px-3 py-2"
+																						/>
+																					</label>
+																					<label class="space-y-1 text-sm">
+																						<span class="font-medium text-slate-700">
+																							Silencio hasta
+																						</span>
+																						<input
+																							type="time"
+																							name="quietEnd"
+																							value="08:00"
+																							class="w-full rounded-lg border border-slate-300 px-3 py-2"
+																						/>
+																					</label>
+																				</>
+																			) : null}
+
+																			{type === "Parking" ? (
+																				<>
+																					<fieldset class="space-y-2 rounded-xl border border-slate-200 p-3 text-sm">
+																						<legend class="px-1 font-medium text-slate-700">
+																							Estacionamiento
+																						</legend>
+																						<label class="mr-4">
+																							<input
+																								type="radio"
+																								name="available"
+																								value="true"
+																								checked
+																							/>{" "}
+																							Disponible
+																						</label>
+																						<label>
+																							<input type="radio" name="available" value="false" />{" "}
+																							No disponible
+																						</label>
+																					</fieldset>
+																					<label class="space-y-1 text-sm">
+																						<span class="font-medium text-slate-700">Tipo</span>
+																						<select
+																							name="parkingType"
+																							class="w-full rounded-lg border border-slate-300 px-3 py-2"
+																						>
+																							<option value="free">Gratuito</option>
+																							<option value="paid">Pagado</option>
+																							<option value="street">En la calle</option>
+																							<option value="assigned">Espacio asignado</option>
+																							<option value="nearby">Cercano</option>
+																							<option value="none">Sin estacionamiento</option>
+																						</select>
+																					</label>
+																				</>
+																			) : null}
+
+																			{type === "CheckIn" || type === "Access" ? (
+																				<>
+																					<label class="space-y-1 text-sm">
+																						<span class="font-medium text-slate-700">
+																							Llegada desde
+																						</span>
+																						<input
+																							type="time"
+																							name="checkInFrom"
+																							value="15:00"
+																							class="w-full rounded-lg border border-slate-300 px-3 py-2"
+																							required={type === "CheckIn"}
+																						/>
+																					</label>
+																					<label class="space-y-1 text-sm">
+																						<span class="font-medium text-slate-700">
+																							Llegada hasta
+																						</span>
+																						<input
+																							type="time"
+																							name="checkInUntil"
+																							value="22:00"
+																							class="w-full rounded-lg border border-slate-300 px-3 py-2"
+																							required={type === "CheckIn"}
+																						/>
+																					</label>
+																					<label class="space-y-1 text-sm">
+																						<span class="font-medium text-slate-700">
+																							Cómo entra el huésped
+																						</span>
+																						<select
+																							name="checkInMethod"
+																							class="w-full rounded-lg border border-slate-300 px-3 py-2"
+																						>
+																							<option value="self">Llegada autónoma</option>
+																							<option value="host">Con anfitrión o personal</option>
+																							<option value="front_desk">Recepción</option>
+																							<option value="lockbox">Caja de seguridad</option>
+																							<option value="smart_lock">Cerradura o código</option>
+																							<option value="manual">Entrega manual</option>
+																						</select>
+																					</label>
+																					<div class="space-y-2 rounded-xl border border-slate-200 p-3 text-sm">
+																						<p class="font-medium text-slate-700">Al llegar</p>
+																						<label class="block">
+																							<input type="checkbox" name="idRequired" /> Puede
+																							pedirse documento
+																						</label>
+																						<label class="block">
+																							<input type="checkbox" name="cardRequired" /> Puede
+																							pedirse tarjeta
+																						</label>
+																					</div>
+																				</>
+																			) : null}
+
+																			{type === "Checkout" ? (
+																				<>
+																					<label class="space-y-1 text-sm">
+																						<span class="font-medium text-slate-700">
+																							Hora de salida
+																						</span>
+																						<input
+																							type="time"
+																							name="checkoutTime"
+																							value="11:00"
+																							class="w-full rounded-lg border border-slate-300 px-3 py-2"
+																						/>
+																					</label>
+																					<div class="space-y-2 rounded-xl border border-slate-200 p-3 text-sm">
+																						<p class="font-medium text-slate-700">Antes de salir</p>
+																						<label class="block">
+																							<input
+																								type="checkbox"
+																								name="checkoutTasks"
+																								value="devolver llaves o dispositivos de acceso"
+																							/>{" "}
+																							Devolver llaves o acceso
+																						</label>
+																						<label class="block">
+																							<input
+																								type="checkbox"
+																								name="checkoutTasks"
+																								value="cerrar puertas y ventanas"
+																							/>{" "}
+																							Cerrar puertas y ventanas
+																						</label>
+																						<label class="block">
+																							<input
+																								type="checkbox"
+																								name="checkoutTasks"
+																								value="dejar la basura en el lugar indicado"
+																							/>{" "}
+																							Dejar basura donde corresponde
+																						</label>
+																						<label class="block">
+																							<input
+																								type="checkbox"
+																								name="checkoutTasks"
+																								value="apagar luces y electrodomésticos"
+																							/>{" "}
+																							Apagar luces y electrodomésticos
+																						</label>
+																					</div>
+																				</>
+																			) : null}
+
+																			{type === "Safety" ||
+																			type === "ExtraBeds" ||
+																			type === "Other" ? (
+																				<label class="space-y-1 text-sm sm:col-span-2">
+																					<span class="font-medium text-slate-700">
+																						Indicación para huéspedes
+																					</span>
+																					<textarea
+																						name="instructions"
+																						rows="3"
+																						class="w-full rounded-lg border border-slate-300 px-3 py-2"
+																						placeholder="Ej. no ingresar a zonas de personal."
+																					/>
+																				</label>
+																			) : null}
+
+																			<div class="sm:col-span-2">
+																				<Button type="submit" variant="primary" size="sm">
+																					{`Guardar ${copy.label.toLowerCase()}`}
+																				</Button>
+																			</div>
+																		</form>
+																	)}
+																</div>
+															</details>
+														</Card>
+													)
+												})}
+											</div>
+										</div>
+									))}
 								</div>
 							</Card>
 						</div>
@@ -1220,3 +1270,15 @@ const successMessage =
 		}
 	</section>
 </PlaybookLayout>
+
+<style>
+	[data-house-rules-panel][hidden] {
+		display: none !important;
+	}
+</style>
+
+<script>
+	import { installHouseRulesTabsController } from "./_client/house-rules-tabs"
+
+	installHouseRulesTabsController()
+</script>
