@@ -23,7 +23,7 @@ Defines how lodging-shaped columns map to tours/experiences without a second boo
 | `Tour.duration`                                                        | Display label (legacy free text)                                                                         |
 | `Tour.durationMinutes`                                                 | Queryable duration in minutes                                                                            |
 | `Tour.includesJson` / `excludesJson`                                   | Aligned with Package                                                                                     |
-| `Tour.categoriesJson`                                                  | Legacy free-text tags; **canonical taxonomy is `ProductCategoryLink`** (editor: `/product/[id]/tickets`) |
+| `ProductCategory` + `ProductCategoryLink`                              | Canonical discovery taxonomy; managed in `/product/[id]/tickets`                                          |
 | `Tour.pickupJson`                                                      | Optional pickup logistics (Limousine pattern)                                                            |
 | `Tour.meetingPointJson` / `itineraryJson` / `safetyJson` / `guideJson` | Existing structured JSON                                                                                 |
 
@@ -42,7 +42,6 @@ the de-facto contract, pinned by `tests/catalog/tour-semantics.test.ts`.
 | `guideJson`        | `{ languages?: string (comma-joined, e.g. "es, en"), guideType?: string }`                           | `guideLanguages` (list), `guideType`              |
 | `includesJson`     | `string[]`                                                                                           | `tourIncludes` (one per line)                     |
 | `excludesJson`     | `string[]`                                                                                           | `tourExcludes` (one per line)                     |
-| `categoriesJson`   | `string[]` legacy only (no longer written from subtype forms; backfilled into `ProductCategoryLink`) | — (edit via tickets → ProductCategoryLink)        |
 | `pickupJson`       | `{ defaultArea?: string, instructions?: string }`                                                    | `pickupDefaultArea`, `pickupInstructions`         |
 
 Notes:

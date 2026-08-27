@@ -1,6 +1,10 @@
 /**
  * Applies 2026-08-19_tour_category_link_backfill.sql twice in one session
  * (outside fastt_schema_migrations skip) and asserts stable category links.
+ *
+ * After Tour.categoriesJson retirement, greenfield baselines omit the column.
+ * In that case the legacy backfill is a no-op and this validator succeeds by
+ * confirming the column is already gone.
  */
 import { readFile } from "node:fs/promises"
 import path from "node:path"
@@ -28,6 +32,19 @@ async function countRows(sql: postgres.Sql, table: string): Promise<number> {
 	return Number(rows[0]?.n ?? 0)
 }
 
+async function hasTourCategoriesJson(sql: postgres.Sql): Promise<boolean> {
+	const rows = await sql<{ exists: boolean }[]>`
+		select exists (
+			select 1
+			from information_schema.columns
+			where table_schema = 'public'
+				and table_name = 'Tour'
+				and column_name = 'categoriesJson'
+		) as exists
+	`
+	return Boolean(rows[0]?.exists)
+}
+
 async function main() {
 	const source = await readFile(MIGRATION, "utf8")
 	const sql = postgres(connectionUrl(), {
@@ -38,6 +55,21 @@ async function main() {
 	})
 
 	try {
+		if (!(await hasTourCategoriesJson(sql))) {
+			console.log(
+				JSON.stringify(
+					{
+						action: "skipped_categories_json_retired",
+						ok: true,
+						reason: "Tour.categoriesJson absent; legacy backfill no longer applicable",
+					},
+					null,
+					2
+				)
+			)
+			return
+		}
+
 		await sql.begin(async (tx) => {
 			await tx.unsafe(source)
 			const linksAfterFirst = await countRows(tx as unknown as postgres.Sql, "ProductCategoryLink")

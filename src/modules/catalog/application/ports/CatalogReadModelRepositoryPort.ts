@@ -67,7 +67,7 @@ export type ProductFullAggregate = {
 				guide: unknown
 				includes: unknown
 				excludes: unknown
-				categories: unknown
+				categories: Array<{ id: string; slug: string; name: string }>
 				pickup: unknown
 		  }
 		| {

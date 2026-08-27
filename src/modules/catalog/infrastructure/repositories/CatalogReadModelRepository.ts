@@ -12,6 +12,8 @@ import {
 	Limousine,
 	Package,
 	Product,
+	ProductCategory,
+	ProductCategoryLink,
 	ProductContent,
 	ProductGeoPlace,
 	ProductImage,
@@ -144,7 +146,6 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 				tourGuide: Tour.guideJson,
 				tourIncludes: Tour.includesJson,
 				tourExcludes: Tour.excludesJson,
-				tourCategories: Tour.categoriesJson,
 				tourPickup: Tour.pickupJson,
 				packageDays: Package.days,
 				packageNights: Package.nights,
@@ -178,18 +179,33 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 
 		if (!row) return null
 
-		const images = await db
-			.select({
-				id: Image.id,
-				url: Image.url,
-				objectKey: Image.objectKey,
-				isPrimary: ProductImage.isPrimary,
-				order: ProductImage.sortOrder,
-			})
-			.from(ProductImage)
-			.innerJoin(Image, eq(Image.id, ProductImage.imageId))
-			.where(eq(ProductImage.productId, productId))
-			.orderBy(asc(ProductImage.sortOrder))
+		const [images, tourCategories] = await Promise.all([
+			db
+				.select({
+					id: Image.id,
+					url: Image.url,
+					objectKey: Image.objectKey,
+					isPrimary: ProductImage.isPrimary,
+					order: ProductImage.sortOrder,
+				})
+				.from(ProductImage)
+				.innerJoin(Image, eq(Image.id, ProductImage.imageId))
+				.where(eq(ProductImage.productId, productId))
+				.orderBy(asc(ProductImage.sortOrder)),
+			db
+				.select({
+					id: ProductCategory.id,
+					slug: ProductCategory.slug,
+					name: ProductCategory.name,
+					sortOrder: ProductCategory.sortOrder,
+				})
+				.from(ProductCategoryLink)
+				.innerJoin(ProductCategory, eq(ProductCategory.id, ProductCategoryLink.categoryId))
+				.where(
+					and(eq(ProductCategoryLink.productId, productId), eq(ProductCategory.vertical, "tour"))
+				)
+				.orderBy(asc(ProductCategory.sortOrder), asc(ProductCategory.name)),
+		])
 
 		const normalizedType = String(row.productType ?? "")
 			.trim()
@@ -215,7 +231,7 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 							guide: row.tourGuide ?? null,
 							includes: row.tourIncludes ?? null,
 							excludes: row.tourExcludes ?? null,
-							categories: row.tourCategories ?? null,
+							categories: tourCategories.map(({ id, slug, name }) => ({ id, slug, name })),
 							pickup: row.tourPickup ?? null,
 						}
 					: normalizedType === "package"

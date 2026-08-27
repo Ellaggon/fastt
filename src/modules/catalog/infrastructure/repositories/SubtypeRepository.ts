@@ -18,7 +18,6 @@ export type TourPayload = {
 	guideJson?: unknown | null
 	includesJson?: unknown | null
 	excludesJson?: unknown | null
-	categoriesJson?: unknown | null
 	pickupJson?: unknown | null
 }
 export type PackagePayload = {
@@ -101,7 +100,6 @@ export class SubtypeRepository {
 			guideJson: data.guideJson ?? null,
 			includesJson: data.includesJson ?? null,
 			excludesJson: data.excludesJson ?? null,
-			categoriesJson: data.categoriesJson ?? null,
 			pickupJson: data.pickupJson ?? null,
 		})
 	}
@@ -118,11 +116,6 @@ export class SubtypeRepository {
 			includesJson: data.includesJson ?? null,
 			excludesJson: data.excludesJson ?? null,
 			pickupJson: data.pickupJson ?? null,
-		}
-		// Legacy Tour.categoriesJson is read-only after ProductCategoryLink became canonical.
-		// Only overwrite when an explicit value is provided (tests / rare admin tools).
-		if (Object.prototype.hasOwnProperty.call(data, "categoriesJson")) {
-			patch.categoriesJson = data.categoriesJson ?? null
 		}
 		await dbOrTx
 			.update(Tour)

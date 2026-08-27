@@ -194,7 +194,6 @@ export const GET: APIRoute = async ({ request, url }) => {
 					guideJson: Tour.guideJson,
 					includesJson: Tour.includesJson,
 					excludesJson: Tour.excludesJson,
-					categoriesJson: Tour.categoriesJson,
 					pickupJson: Tour.pickupJson,
 				})
 				.from(Tour)
@@ -211,7 +210,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 			guide: row?.guideJson ?? aggregate.subtype.guide ?? null,
 			includes: row?.includesJson ?? null,
 			excludes: row?.excludesJson ?? null,
-			categories: row?.categoriesJson ?? null,
+			categories: aggregate.subtype.categories,
 			pickup: row?.pickupJson ?? null,
 		}
 	}
