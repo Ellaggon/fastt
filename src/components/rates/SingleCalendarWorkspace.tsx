@@ -11,12 +11,9 @@ import {
 	IconButton,
 	Input,
 	Notice,
-	SegmentedControl,
-	SegmentedItem,
 	Select,
 } from "@/components/ui-react"
 import {
-	CALENDAR_CONTROL_MODES,
 	type CalendarControlMode,
 	visibleCalendarActions,
 } from "@/lib/rates/calendarControlCatalog"
@@ -259,9 +256,6 @@ export default function SingleCalendarWorkspace({
 	const activeRequest = useRef<AbortController | null>(null)
 	const requestSequence = useRef(0)
 	const today = localIsoDate()
-	const visibleControlModes = isProfessional
-		? CALENDAR_CONTROL_MODES
-		: CALENDAR_CONTROL_MODES.filter((item) => item.key !== "conditions")
 	const isGuidedAvailability = Boolean(guidedAvailability)
 	const requiredGuidedDays = Math.max(1, Number(guidedAvailability?.requiredDays ?? 30))
 	const guidedProgressPercent = Math.min(
@@ -280,6 +274,77 @@ export default function SingleCalendarWorkspace({
 		}, 6000)
 		return () => window.clearTimeout(timeout)
 	}, [selectionHint])
+
+	useEffect(() => {
+		function onCalendarMode(event: Event) {
+			const nextMode = String((event as CustomEvent<{ mode?: string }>).detail?.mode ?? "").trim()
+			if (
+				nextMode !== "price" &&
+				nextMode !== "availability" &&
+				nextMode !== "sellability" &&
+				nextMode !== "conditions"
+			) {
+				return
+			}
+			if (!isProfessional && nextMode === "conditions") {
+				setMode("price")
+				return
+			}
+			setMode(nextMode)
+		}
+		window.addEventListener("fastt:calendar-mode", onCalendarMode)
+		return () => window.removeEventListener("fastt:calendar-mode", onCalendarMode)
+	}, [isProfessional])
+
+	useEffect(() => {
+		if (!surface) return
+		const activeDays = surface.days.filter((day) => !day.isPast)
+		const missingPriceDays = activeDays.filter((day) => day.finalPrice == null).length
+		const noInventoryDays = activeDays.filter((day) => day.availableUnits <= 0).length
+		const closedDays = activeDays.filter(
+			(day) => day.restrictionSignals.hasCommercialBlocker
+		).length
+		const conflictDays = activeDays.filter(
+			(day) => Number(day.externalCalendar?.conflictCount ?? 0) > 0
+		).length
+
+		// ready = green, in_review = yellow (vacío/incompleto), action_needed = red (problema)
+		const statuses: Record<
+			CalendarControlMode,
+			"ready" | "in_review" | "action_needed" | "not_started"
+		> = {
+			price:
+				activeDays.length === 0 || missingPriceDays === activeDays.length
+					? "in_review"
+					: missingPriceDays === 0
+						? "ready"
+						: "in_review",
+			availability:
+				conflictDays > 0
+					? "action_needed"
+					: activeDays.length === 0 || noInventoryDays === activeDays.length
+						? "in_review"
+						: noInventoryDays === 0
+							? "ready"
+							: "in_review",
+			sellability:
+				activeDays.length === 0
+					? "in_review"
+					: closedDays === activeDays.length
+						? "action_needed"
+						: closedDays === 0
+							? "ready"
+							: "in_review",
+			conditions: surface.conditions.complete ? "ready" : "in_review",
+		}
+
+		document.querySelectorAll<HTMLElement>("[data-calendar-mode]").forEach((button) => {
+			const modeKey = String(button.dataset.calendarMode ?? "").trim() as CalendarControlMode
+			if (!(modeKey in statuses)) return
+			const badge = button.querySelector<HTMLElement>("[data-calendar-mode-status]")
+			badge?.setAttribute("data-trust-link-status-state", statuses[modeKey])
+		})
+	}, [surface])
 
 	async function loadSurface(
 		params: { ratePlanId?: string; variantId?: string; month?: string } = {},
@@ -1046,76 +1111,58 @@ export default function SingleCalendarWorkspace({
 						</div>
 					) : (
 						<>
-							<div className="flex flex-wrap items-end justify-between gap-3">
-								<SegmentedControl role="tablist">
-									{visibleControlModes.map((item) => (
-										<SegmentedItem
-											key={item.key}
-											role="tab"
-											aria-selected={mode === item.key}
-											active={mode === item.key}
-											onClick={() => setMode(item.key)}
-											className="min-w-28 py-2 text-left"
-										>
-											<span className="block font-semibold">{item.label}</span>
-											<span className="mt-0.5 block text-[10px] font-medium text-slate-500">
-												{item.helper}
-											</span>
-										</SegmentedItem>
+							<div className="flex flex-wrap items-center justify-between gap-3">
+								<div className="flex flex-wrap gap-2">
+									{actions.map((action) => (
+										<div key={action.id} className="relative">
+											<Button
+												type="button"
+												onClick={() => openAction(action.id)}
+												variant={action.kind === "mutation" ? "primary" : "secondary"}
+												size="sm"
+												aria-describedby={
+													selectionHintAction === action.id ? "calendar-selection-hint" : undefined
+												}
+											>
+												{action.id === "price_comparison" && showComparison
+													? "Ocultar base y final"
+													: action.id === "inventory_detail" && showInventoryDetail
+														? "Ocultar detalle físico"
+														: action.label}
+											</Button>
+											{selectionHintAction === action.id && selectionHint ? (
+												<FloatingPopover
+													id="calendar-selection-hint"
+													title="Selecciona fechas para continuar"
+												>
+													<p>{selectionHint} Usa una fecha del calendario o un rango rápido.</p>
+												</FloatingPopover>
+											) : null}
+										</div>
 									))}
-								</SegmentedControl>
+									{selection.count > 0 && (
+										<Button
+											type="button"
+											onClick={() => {
+												setSelectedDates(new Set())
+												setRangeAnchor("")
+												setSelectionHint("")
+												setSelectionHintAction("")
+											}}
+											variant="ghost"
+											size="sm"
+										>
+											Limpiar
+										</Button>
+									)}
+								</div>
 								<p
-									className={`pb-1 text-xs font-medium ${
+									className={`shrink-0 text-xs font-medium ${
 										summaryIsHealthy ? "text-slate-500" : "text-amber-700"
 									}`}
 								>
 									{summary}
 								</p>
-							</div>
-
-							<div className="mt-3 flex flex-wrap gap-2">
-								{actions.map((action) => (
-									<div key={action.id} className="relative">
-										<Button
-											type="button"
-											onClick={() => openAction(action.id)}
-											variant={action.kind === "mutation" ? "primary" : "secondary"}
-											size="sm"
-											aria-describedby={
-												selectionHintAction === action.id ? "calendar-selection-hint" : undefined
-											}
-										>
-											{action.id === "price_comparison" && showComparison
-												? "Ocultar base y final"
-												: action.id === "inventory_detail" && showInventoryDetail
-													? "Ocultar detalle físico"
-													: action.label}
-										</Button>
-										{selectionHintAction === action.id && selectionHint ? (
-											<FloatingPopover
-												id="calendar-selection-hint"
-												title="Selecciona fechas para continuar"
-											>
-												<p>{selectionHint} Usa una fecha del calendario o un rango rápido.</p>
-											</FloatingPopover>
-										) : null}
-									</div>
-								))}
-								{selection.count > 0 && (
-									<Button
-										type="button"
-										onClick={() => {
-											setSelectedDates(new Set())
-											setRangeAnchor("")
-											setSelectionHint("")
-											setSelectionHintAction("")
-										}}
-										variant="ghost"
-										size="sm"
-									>
-										Limpiar
-									</Button>
-								)}
 							</div>
 						</>
 					)}

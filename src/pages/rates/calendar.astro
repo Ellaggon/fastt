@@ -191,34 +191,26 @@ timing.setHeader(Astro.response.headers)
 
 <Layout {...layoutProps}>
 	<div class="space-y-5">
-		<header class="flex flex-wrap items-start justify-between gap-4">
-			<div class="space-y-2">
-				<p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-					{
-						isGuidedAvailabilityStep && matchedRow
-							? activePlaybook === "launch-tour"
-								? `${matchedRow.productName} · Primera salida`
-								: `${matchedRow.productName} · Nueva habitación`
-							: activePlaybook === "launch-tour"
-								? "Tour y salidas"
-								: "Habitaciones y tarifas"
-					}
-				</p>
-				<h1 class="text-3xl font-semibold text-slate-100">
-					{isGuidedAvailabilityStep ? "Disponibilidad inicial" : "Calendario"}
-				</h1>
-				<p class="max-w-3xl text-sm leading-6 text-slate-300">
-					{
-						isGuidedAvailabilityStep
-							? activePlaybook === "launch-tour"
+		{
+			isGuidedAvailabilityStep ? (
+				<header class="flex flex-wrap items-start justify-between gap-4">
+					<div class="space-y-2">
+						<p class="text-xs font-semibold tracking-wide text-slate-400 uppercase">
+							{activePlaybook === "launch-tour"
+								? `${matchedRow?.productName ?? ""} · Primera salida`
+								: `${matchedRow?.productName ?? ""} · Nueva habitación`}
+						</p>
+						<h1 class="text-3xl font-semibold text-slate-100">Disponibilidad inicial</h1>
+						<p class="max-w-3xl text-sm leading-6 text-slate-300">
+							{activePlaybook === "launch-tour"
 								? "Abre al menos una fecha futura con cupo para participantes. Esa será la primera salida que podrán reservar los viajeros."
-								: "Elige las primeras fechas en las que esta habitación podrá recibir reservas. Después podrás operar el calendario completo."
-							: "Opera una tarifa por fecha. Selecciona noches y cambia precio, cupo o venta desde un solo lugar."
-					}
-				</p>
-			</div>
-		</header>
-		{!activePlaybook ? <CalendarSubnav /> : null}
+								: "Elige las primeras fechas en las que esta habitación podrá recibir reservas. Después podrás operar el calendario completo."}
+						</p>
+					</div>
+				</header>
+			) : null
+		}
+		{!activePlaybook ? <CalendarSubnav isProfessional={isProfessionalCalendar} /> : null}
 
 		<SingleCalendarWorkspace
 			client:only="react"

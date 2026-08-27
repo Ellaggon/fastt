@@ -14,6 +14,7 @@ import WorkspacePreferencesDrawer from "@/components/dashboard/WorkspacePreferen
 import AccommodationContextSwitcher from "@/components/product/AccommodationContextSwitcher.astro"
 import ProductContextSwitcher from "@/components/product/ProductContextSwitcher.astro"
 import ProviderAccountSwitcher from "@/components/provider/ProviderAccountSwitcher.astro"
+import SalesContextSwitcher from "@/components/rates/SalesContextSwitcher.astro"
 import FiscalScopeSwitcher from "@/components/tax-fees/FiscalScopeSwitcher.astro"
 import Button from "@/components/ui/Button.astro"
 import ContextSwitcher from "@/components/ui/ContextSwitcher.astro"
@@ -74,6 +75,7 @@ const productSwitcherTarget = /\/rooms(?:\/|$)/.test(pathname)
 		: "detail"
 const workspacePath = pathname.replace(/\/$/, "") || "/"
 const isDashboardWorkspace = workspacePath === "/dashboard"
+const isRatesWorkspace = workspacePath === "/rates" || workspacePath.startsWith("/rates/")
 const isVerificationWorkspace =
 	workspacePath === "/provider/settings/verification" ||
 	workspacePath.startsWith("/provider/settings/verification/")
@@ -85,6 +87,7 @@ const isAccountSettingsWorkspace =
 const showContextSwitcher =
 	Boolean(providerId) &&
 	(isDashboardWorkspace ||
+		isRatesWorkspace ||
 		isFinancialWorkspace ||
 		isFiscalWorkspace ||
 		isProductWorkspace ||
@@ -187,6 +190,11 @@ const showContextSwitcher =
 						icon="dashboard"
 						variant="topbar"
 						ariaLabel="Resumen operativo"
+					/>
+				) : showContextSwitcher && isRatesWorkspace ? (
+					<SalesContextSwitcher
+						variant="topbar"
+						includeMultiCalendar={workspaceContext.effectiveWorkspaceExperience === "professional"}
 					/>
 				) : showContextSwitcher && isFinancialWorkspace ? (
 					<AccommodationContextSwitcher

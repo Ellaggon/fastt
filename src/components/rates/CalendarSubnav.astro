@@ -1,56 +1,108 @@
 ---
+import Badge from "@/components/ui/Badge.astro"
 import TabsInsidePanel from "@/components/ui/TabsInsidePanel.astro"
-import { routes } from "@/lib/routes"
-import { CalendarDays, Link2 } from "@lucide/astro"
+import {
+	CALENDAR_CONTROL_MODES,
+	type CalendarControlMode,
+} from "@/lib/rates/calendarControlCatalog"
+import { Boxes, CircleDollarSign, FileText, Store } from "@lucide/astro"
 
-const pathname = Astro.url.pathname.replace(/\/+$/, "") || "/"
-const tabs = [
-	{
-		label: "Calendario",
-		href: routes.calendar(),
-		active: pathname === routes.calendar(),
-		icon: CalendarDays,
-	},
-	{
-		label: "Conexiones iCal",
-		href: routes.ratesCalendarConnections(),
-		active: pathname === routes.ratesCalendarConnections(),
-		icon: Link2,
-	},
-]
+interface Props {
+	isProfessional?: boolean
+}
+
+const { isProfessional = false } = Astro.props
+const modes = isProfessional
+	? CALENDAR_CONTROL_MODES
+	: CALENDAR_CONTROL_MODES.filter((mode) => mode.key !== "conditions")
+const requestedFocus = String(Astro.url.searchParams.get("focus") ?? "price").trim()
+const activeFocus = (
+	modes.some((mode) => mode.key === requestedFocus) ? requestedFocus : "price"
+) as CalendarControlMode
+
+const iconByMode = {
+	price: CircleDollarSign,
+	availability: Boxes,
+	sellability: Store,
+	conditions: FileText,
+} as const
 ---
 
 <TabsInsidePanel
-	class="calendar-subnav max-w-full"
-	aria-label="Navegación del calendario"
+	class="calendar-subnav max-w-full flex-nowrap"
+	aria-label="Modos del calendario"
 	data-calendar-subnav
+	data-calendar-mode-subnav
 >
 	{
-		tabs.map((tab) => {
-			const Icon = tab.icon
+		modes.map((mode) => {
+			const active = mode.key === activeFocus
+			const Icon = iconByMode[mode.key]
 			return (
-				<a
-					href={tab.href}
-					aria-current={tab.active ? "page" : undefined}
-					data-astro-prefetch="hover"
-					data-active={tab.active ? "true" : "false"}
+				<button
+					type="button"
+					data-calendar-mode={mode.key}
+					data-active={active ? "true" : "false"}
+					aria-pressed={active ? "true" : "false"}
 					class="fastt-tabs-inside-panel__item"
 				>
 					<Icon class="h-4 w-4 shrink-0" aria-hidden="true" />
-					<span class="fastt-tabs-inside-panel__label">{tab.label}</span>
-				</a>
+					<span class="fastt-tabs-inside-panel__label">{mode.label}</span>
+					<Badge
+						variant="darkNeutral"
+						class="fastt-tabs-inside-panel__status"
+						data-calendar-mode-status
+						data-trust-link-status
+						data-trust-link-status-state="not_started"
+					>
+						<span class="fastt-tabs-inside-panel__status-dot" aria-hidden="true" />
+						<span data-calendar-mode-status-label>{mode.helper.replace(/\.$/, "")}</span>
+					</Badge>
+				</button>
 			)
 		})
 	}
 </TabsInsidePanel>
 
-<style>
+<style is:global>
 	.calendar-subnav {
-		-webkit-overflow-scrolling: touch;
 		scrollbar-width: none;
 	}
-
 	.calendar-subnav::-webkit-scrollbar {
 		display: none;
 	}
+	.calendar-subnav .fastt-tabs-inside-panel__item {
+		cursor: pointer;
+	}
 </style>
+
+<script>
+	const MODE_EVENT = "fastt:calendar-mode"
+
+	function bindCalendarModeSubnav(root: ParentNode = document) {
+		const nav = root.querySelector<HTMLElement>("[data-calendar-mode-subnav]")
+		if (!nav || nav.dataset.bound === "true") return
+		nav.dataset.bound = "true"
+
+		nav.querySelectorAll<HTMLButtonElement>("[data-calendar-mode]").forEach((button) => {
+			button.addEventListener("click", () => {
+				const mode = String(button.dataset.calendarMode ?? "").trim()
+				if (!mode) return
+
+				nav.querySelectorAll<HTMLButtonElement>("[data-calendar-mode]").forEach((item) => {
+					const active = item === button
+					item.dataset.active = active ? "true" : "false"
+					item.setAttribute("aria-pressed", active ? "true" : "false")
+				})
+
+				const nextUrl = new URL(window.location.href)
+				nextUrl.searchParams.set("focus", mode)
+				window.history.replaceState(null, "", nextUrl)
+				window.dispatchEvent(new CustomEvent(MODE_EVENT, { detail: { mode } }))
+			})
+		})
+	}
+
+	bindCalendarModeSubnav()
+	document.addEventListener("astro:page-load", () => bindCalendarModeSubnav())
+</script>
