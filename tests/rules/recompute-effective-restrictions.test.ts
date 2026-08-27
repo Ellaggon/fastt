@@ -65,8 +65,8 @@ async function seedVariant() {
 		productId,
 		name: "Commercial Rules Room",
 		kind: "hotel_room",
-		status: "ready",
-		isActive: true,
+		lifecycleState: "ready",
+		salesEnabled: true,
 		createdAt: new Date(),
 	} as any)
 	await db.insert(RatePlan).values({

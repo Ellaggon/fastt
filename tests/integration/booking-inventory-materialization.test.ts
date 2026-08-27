@@ -131,8 +131,8 @@ async function seedBookingReadyVariant(params: {
 		productId: params.productId,
 		kind: "hotel_room",
 		name: "Booking Inv Room",
-		status: "ready",
-		isActive: true,
+		lifecycleState: "ready",
+		salesEnabled: true,
 		createdAt: new Date(),
 	} as any)
 

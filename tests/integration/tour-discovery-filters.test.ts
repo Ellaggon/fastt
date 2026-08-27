@@ -102,8 +102,8 @@ async function seedSellableTour(params: {
 		productId: params.productId,
 		kind: "tour_slot",
 		name: "Salida 09:00",
-		status: "ready",
-		isActive: variantActive,
+		lifecycleState: "ready",
+		salesEnabled: variantActive,
 		createdAt: new Date(),
 	} as any)
 
