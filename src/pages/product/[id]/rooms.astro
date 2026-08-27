@@ -705,6 +705,13 @@ const layoutProps = addRoomPlaybook.active
 						? `Se vende con: ${tariffNames.slice(0, 3).join(", ")}${tariffNames.length > 3 ? "..." : ""}`
 						: "Agrega una tarifa para definir cómo se vende esta habitación."
 
+				const houseRulesStrip = document.createElement("a")
+				houseRulesStrip.href = text(room?.actions?.houseRulesHref, "#")
+				houseRulesStrip.className =
+					"fastt-soft-box flex items-center justify-between gap-3 border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 hover:border-slate-300 hover:bg-white"
+				const overrideCount = Number(room?.houseRules?.overrideCount ?? 0)
+				houseRulesStrip.innerHTML = `<span><strong class="font-semibold text-slate-950">Reglas para huéspedes</strong><span class="ml-2">${overrideCount > 0 ? `${overrideCount} ${overrideCount === 1 ? "excepción" : "excepciones"}` : "Hereda las del alojamiento"}</span></span><span aria-hidden="true">›</span>`
+
 				const missing = []
 				if (!room?.states?.capacityComplete) missing.push("perfil")
 				if (photosCount <= 0) missing.push("fotos")
@@ -771,7 +778,7 @@ const layoutProps = addRoomPlaybook.active
 				actionRow.append(more)
 				footer.append(nextStep, actionRow)
 
-				body.append(top, checklist, tariffSummary, footer)
+				body.append(top, checklist, tariffSummary, houseRulesStrip, footer)
 				layout.append(imageSlot, body)
 				card.append(layout)
 				return card

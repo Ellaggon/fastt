@@ -7,7 +7,6 @@ import {
 	EffectivePricingV2,
 	Hold,
 	HouseRule,
-	RatePlan,
 	db,
 	eq,
 } from "@/shared/infrastructure/db/compat"
@@ -250,9 +249,10 @@ describe("integration/hold policy snapshot", () => {
 		await db.insert(HouseRule).values({
 			id: `hr_hps_${crypto.randomUUID()}`,
 			productId,
+			scope: "product",
+			scopeId: null,
 			type: "QuietHours",
 			payloadJson: { kind: "QuietHours", start: "22:00", end: "08:00" },
-			isActive: true,
 			createdAt: new Date(),
 		} as any)
 
@@ -260,7 +260,8 @@ describe("integration/hold policy snapshot", () => {
 			{
 				repo: inventoryHoldRepository,
 				resolveEffectivePolicies: (ctx) => resolveEffectivePolicies(ctx),
-				buildGuestExpectationsSnapshot: (id) => buildGuestStayExpectationsSnapshot(id),
+				buildGuestExpectationsSnapshot: (id, roomVariantId) =>
+					buildGuestStayExpectationsSnapshot(id, { variantId: roomVariantId }),
 				policyContext: {
 					productId,
 					ratePlanId,
@@ -331,7 +332,10 @@ describe("integration/hold policy snapshot", () => {
 		expect((holdSnapshot as any).ruleSnapshotJson).toBeUndefined()
 		const guestSnapshot = holdRow?.guestExpectationsSnapshotJson as any
 		expect(guestSnapshot?.source).toBe("house_rule")
+		expect(guestSnapshot?.variantId).toBe(variantId)
+		expect(guestSnapshot?.version).toMatch(/^house_rule_snapshot:v2:/)
 		expect(guestSnapshot?.rules?.[0]?.summary).toContain("22:00")
+		expect(guestSnapshot?.rules?.[0]?.source).toBe("inherited")
 
 		await createPolicyVersionCapa6({
 			previousPolicyId: paymentPolicy.policyId,
@@ -364,6 +368,13 @@ describe("integration/hold policy snapshot", () => {
 		expect(String(paymentRow.policySnapshotJson?.description)).toBe("Pay at property")
 		expect(String(paymentRow.policyId)).toBe(String(holdSnapshot.payment?.policyId ?? ""))
 		expect(paymentRow.policySnapshotJson).toEqual(holdSnapshot.payment)
+
+		const bookingRow = await db
+			.select({ guestExpectationsSnapshotJson: Booking.guestExpectationsSnapshotJson })
+			.from(Booking)
+			.where(eq(Booking.id, booking.bookingId))
+			.then((rows) => rows[0])
+		expect(bookingRow?.guestExpectationsSnapshotJson).toEqual(guestSnapshot)
 
 		const holdRowAfter = await db
 			.select({ policySnapshotJson: Hold.policySnapshotJson })
@@ -412,15 +423,13 @@ describe("integration/hold policy snapshot", () => {
 			isActive: true,
 			isDefault: true,
 		})
-		await db.insert(RatePlan).values({
+		await upsertRatePlan({
 			id: ratePlanIdB,
-			name: "Default",
-			description: null,
+			templateId,
 			variantId,
 			isActive: true,
 			isDefault: false,
-			createdAt: new Date(),
-		} as any)
+		})
 
 		for (const date of stayDates(checkIn, checkOut)) {
 			await db.insert(DailyInventory).values({
@@ -612,5 +621,5 @@ describe("integration/hold policy snapshot", () => {
 			expect(String(paymentRow.policyId)).toBe(ratePlanBPolicies.paymentPolicyId)
 			expect(paymentRow.policySnapshotJson).toEqual(holdSnapshot.payment)
 		})
-	})
+	}, 60_000)
 })

@@ -6,6 +6,7 @@ import {
 	PolicyAssignment,
 	PolicyGroup,
 	PolicyRule,
+	User,
 } from "@/shared/infrastructure/db/compat"
 import { describe, expect, it } from "vitest"
 
@@ -19,6 +20,8 @@ function arrivalRules(productId: string, checkInFrom: string): HouseRule[] {
 		{
 			id: crypto.randomUUID(),
 			productId,
+			scope: "product",
+			scopeId: null,
 			type: "CheckIn",
 			payloadJson: {
 				kind: "CheckIn",
@@ -31,6 +34,8 @@ function arrivalRules(productId: string, checkInFrom: string): HouseRule[] {
 		{
 			id: crypto.randomUUID(),
 			productId,
+			scope: "product",
+			scopeId: null,
 			type: "Checkout",
 			payloadJson: { kind: "Checkout", time: "11:00" },
 			createdAt: new Date().toISOString(),
@@ -44,6 +49,14 @@ describe("hotel arrival policy synchronization", () => {
 		const providerId = `provider_arrival_${suffix}`
 		const geoPlaceId = `destination_arrival_${suffix}`
 		const productId = `product_arrival_${suffix}`
+		const actorUserId = `user_arrival_${suffix}`
+		await db
+			.insert(User)
+			.values({
+				id: actorUserId,
+				email: `arrival-actor-${suffix}@example.com`,
+			})
+			.onConflictDoNothing()
 		await upsertProvider({
 			id: providerId,
 			displayName: "Arrival provider",
@@ -67,7 +80,7 @@ describe("hotel arrival policy synchronization", () => {
 		const first = await syncHotelArrivalPolicy({
 			providerId,
 			productId,
-			actorUserId: `user_${suffix}`,
+			actorUserId,
 			rules: arrivalRules(productId, "15:00"),
 		})
 		expect(first.synced).toBe(true)
@@ -95,7 +108,7 @@ describe("hotel arrival policy synchronization", () => {
 		await syncHotelArrivalPolicy({
 			providerId,
 			productId,
-			actorUserId: `user_${suffix}`,
+			actorUserId,
 			rules: arrivalRules(productId, "14:00"),
 		})
 

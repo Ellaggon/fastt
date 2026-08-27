@@ -98,7 +98,7 @@ const viewTitles = {
 } as const
 const viewDescriptions = {
 	conditions:
-		"Define lo que verá y aceptará el huésped antes de reservar. Los cambios se aplican a reservas futuras.",
+		"Cancelación, pago y no presentación de esta tarifa. La llegada y salida se heredan del alojamiento. Los cambios se aplican a reservas futuras.",
 	price: "Ajusta el precio base de referencia. Los cambios por fecha se hacen desde el calendario.",
 	details: "Gestiona el nombre visible, estado comercial y configuración principal de esta tarifa.",
 } as const
@@ -310,8 +310,8 @@ const layoutProps =
 				<RatePlanPoliciesSurface
 					title={viewTitles.conditions}
 					description={isPlaybookMode
-						? "Revisa cancelación, pago, no presentación y confirmación antes de abrir fechas."
-						: "Define lo que verá y aceptará el viajero antes de reservar. Los cambios se aplican a reservas futuras."}
+						? "Revisa cancelación, pago y no presentación de esta tarifa. La llegada se hereda del alojamiento."
+						: "Cancelación, pago y no presentación de esta tarifa. La llegada y salida se heredan del alojamiento."}
 					policyPlans={policyPlans}
 					checkIn={checkIn}
 					checkOut={checkOut}
@@ -320,6 +320,7 @@ const layoutProps =
 					isProfessionalMode={isProfessionalMode}
 					showPlanSummary={false}
 					showHeader={false}
+					inlineHotelArrival={isPlaybookMode}
 				/>
 				{
 					activePlaybook === "launch-tour" ? (

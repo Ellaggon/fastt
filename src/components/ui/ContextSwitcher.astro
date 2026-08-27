@@ -5,12 +5,20 @@ export interface ContextSwitcherOption {
 	id: string
 	label: string
 	href: string
+	nested?: boolean
+	meta?: string
+}
+
+export interface ContextSwitcherGroup {
+	heading?: string
+	options: ContextSwitcherOption[]
 }
 
 interface Props {
 	label: string
 	value: string
 	options?: ContextSwitcherOption[]
+	groups?: ContextSwitcherGroup[]
 	selectedId?: string
 	icon?: "accommodation" | "tour" | "service"
 	menuLabel?: string
@@ -23,6 +31,7 @@ const {
 	label,
 	value,
 	options = [],
+	groups,
 	selectedId,
 	icon = "service",
 	menuLabel = "Cambiar selección",
@@ -31,7 +40,9 @@ const {
 	variant = "surface",
 } = Astro.props
 const Icon = icon === "accommodation" ? Hotel : icon === "tour" ? MapPinned : Building2
-const selectable = options.length > 0
+const resolvedGroups: ContextSwitcherGroup[] = groups && groups.length > 0 ? groups : [{ options }]
+const flatOptions = resolvedGroups.flatMap((group) => group.options)
+const selectable = flatOptions.length > 0
 ---
 
 <div
@@ -53,26 +64,45 @@ const selectable = options.length > 0
 					<p class="px-2 pb-2 text-xs font-semibold tracking-wide text-slate-400 uppercase">
 						{menuLabel}
 					</p>
-					<div class="space-y-1">
-						{options.map((option) => {
-							const active = option.id === selectedId
-							return (
-								<a
-									href={option.href}
-									data-workspace-nav
-									data-astro-prefetch="viewport"
-									aria-current={active ? "page" : undefined}
-									class:list={[
-										"fastt-context-switcher__option",
-										active && "fastt-context-switcher__option--active",
-									]}
-								>
-									<span class="truncate">{option.label}</span>
-									{active ? <span class="fastt-context-switcher__current">Actual</span> : null}
-								</a>
-							)
-						})}
-						{options.every((option) => option.id === selectedId) ? (
+					<div class="space-y-3">
+						{resolvedGroups.map((group) =>
+							group.options.length ? (
+								<div class="space-y-1" data-context-switcher-group={group.heading || undefined}>
+									{group.heading ? (
+										<p class="fastt-context-switcher__group">{group.heading}</p>
+									) : null}
+									{group.options.map((option) => {
+										const active = option.id === selectedId
+										return (
+											<a
+												href={option.href}
+												data-workspace-nav
+												data-astro-prefetch="viewport"
+												aria-current={active ? "page" : undefined}
+												class:list={[
+													"fastt-context-switcher__option",
+													option.nested && "fastt-context-switcher__option--nested",
+													active && "fastt-context-switcher__option--active",
+												]}
+											>
+												<span class="min-w-0">
+													<span class="block truncate">{option.label}</span>
+													{option.meta ? (
+														<span class="mt-0.5 block truncate text-[0.6875rem] font-medium text-slate-400">
+															{option.meta}
+														</span>
+													) : null}
+												</span>
+												{active ? (
+													<span class="fastt-context-switcher__current">Actual</span>
+												) : null}
+											</a>
+										)
+									})}
+								</div>
+							) : null
+						)}
+						{flatOptions.length > 0 && flatOptions.every((option) => option.id === selectedId) ? (
 							<p class="px-2 py-2 text-xs leading-5 text-slate-500">{emptyMessage}</p>
 						) : null}
 					</div>
@@ -175,6 +205,21 @@ const selectable = options.length > 0
 	.fastt-context-switcher__option--active {
 		background: rgb(241 245 249);
 		color: rgb(15 23 42);
+	}
+	.fastt-context-switcher__group {
+		margin: 0;
+		padding: 0.35rem 0.7rem 0.15rem;
+		color: rgb(148 163 184);
+		font-size: 0.6875rem;
+		font-weight: 700;
+		letter-spacing: 0.08em;
+		line-height: 1.2;
+		text-transform: uppercase;
+	}
+	.fastt-context-switcher__option--nested {
+		padding-left: 1.35rem;
+		font-size: 0.8125rem;
+		font-weight: 550;
 	}
 	.fastt-context-switcher__current {
 		border-radius: var(--fastt-radius-pill);

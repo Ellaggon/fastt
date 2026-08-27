@@ -1,11 +1,13 @@
 ---
-import { db, eq, Product } from "@/shared/infrastructure/db/compat"
+import { and, db, eq, first, ne, Product, Variant } from "@/shared/infrastructure/db/compat"
 
 import Badge from "@/components/ui/Badge.astro"
 import BottomToast from "@/components/ui/BottomToast.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import HouseRuleEditorRow from "@/components/house-rules/HouseRuleEditorRow.astro"
+import HouseRuleVariantOverrideRow from "@/components/house-rules/HouseRuleVariantOverrideRow.astro"
+import RatePlanArrivalExceptionPanel from "@/components/house-rules/RatePlanArrivalExceptionPanel.astro"
 import TabsOutsidePanel from "@/components/ui/TabsOutsidePanel.astro"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import { CircleCheck, ClipboardList } from "@lucide/astro"
@@ -14,6 +16,11 @@ import { buildPlaybookHref } from "@/lib/playbook/launch-accommodation"
 import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
 import { refreshProductOperationalSurfaceAfterMutation } from "@/lib/product/productOperationalSurface"
 import { syncHotelArrivalPolicy } from "@/lib/policies/syncHotelArrivalPolicy"
+import {
+	getRatePlanArrivalContext,
+	removeRatePlanArrivalException,
+	upsertRatePlanArrivalException,
+} from "@/lib/policies/ratePlanArrivalException"
 import { routes } from "@/lib/routes"
 import {
 	essentialHouseRuleTypes,
@@ -21,11 +28,14 @@ import {
 	houseRuleGroups,
 	houseRuleQuickSetups,
 	houseRuleTypes,
+	spaceVariantEditorTypes,
 } from "@/modules/house-rules/presentation/houseRulePresentation"
 import {
 	buildHouseRuleGuestSummary,
 	createHouseRule,
 	deleteHouseRule,
+	isVariantOverrideHouseRuleType,
+	listEffectiveHouseRules,
 	listHouseRulesByProduct,
 	listHouseRulesByProductIds,
 	type HouseRule,
@@ -69,6 +79,26 @@ async function loadRulesByProduct(products: ProductOption[]) {
 		string,
 		HouseRule[]
 	>
+}
+
+async function findOwnedHouseRule(
+	products: ProductOption[],
+	rulesByProduct: Map<string, HouseRule[]>,
+	ruleId: string,
+	variantId?: string
+): Promise<HouseRule | null> {
+	for (const rules of rulesByProduct.values()) {
+		const found = rules.find((rule) => rule.id === ruleId)
+		if (found) return found
+	}
+	const roomId = String(variantId ?? "").trim()
+	if (!roomId) return null
+	for (const product of products) {
+		const effective = await listEffectiveHouseRules(product.id, roomId)
+		const found = effective.find((rule) => rule.id === ruleId && rule.source === "override")
+		if (found) return found
+	}
+	return null
 }
 
 function boolFromForm(form: FormData, key: string): boolean | undefined {
@@ -151,6 +181,8 @@ function payloadFromForm(type: HouseRuleType, form: FormData): HouseRulePayload 
 
 let actionError: string | null = null
 const requestedProductId = String(Astro.url.searchParams.get("productId") ?? "").trim()
+const requestedVariantId = String(Astro.url.searchParams.get("variantId") ?? "").trim()
+const requestedRatePlanId = String(Astro.url.searchParams.get("ratePlanId") ?? "").trim()
 const focus = String(Astro.url.searchParams.get("focus") ?? "").trim()
 const requestedReturnTo = String(Astro.url.searchParams.get("returnTo") ?? "").trim()
 const safeReturnTo =
@@ -171,6 +203,23 @@ function redirectToHouseRules(success: string, productId?: string, view?: string
 	}
 	if (safeReturnTo) params.set("returnTo", safeReturnTo)
 	const activePlaybook = resolvePlaybookFromUrl(Astro.url, { isHotel: true })
+	const contextualVariantId = String(Astro.url.searchParams.get("variantId") ?? "").trim()
+	const contextualRatePlanId = String(Astro.url.searchParams.get("ratePlanId") ?? "").trim()
+	if (
+		contextualRatePlanId &&
+		activePlaybook.playbookId !== "launch" &&
+		activePlaybook.playbookId !== "complete-to-publish"
+	) {
+		params.set("ratePlanId", contextualRatePlanId)
+		params.set("focus", "arrival")
+		params.delete("variantId")
+	} else if (
+		contextualVariantId &&
+		activePlaybook.playbookId !== "launch" &&
+		activePlaybook.playbookId !== "complete-to-publish"
+	) {
+		params.set("variantId", contextualVariantId)
+	}
 	if (activePlaybook.playbookId === "launch") {
 		params.set("playbook", "launch")
 		params.set("step", "house-rules")
@@ -193,26 +242,53 @@ if (Astro.request.method === "POST") {
 		if (action === "create-house-rule") {
 			const productId = String(form.get("productId") ?? "").trim()
 			const type = String(form.get("type") ?? "").trim() as HouseRuleType
+			const variantId = String(form.get("variantId") ?? "").trim()
+			const scope =
+				variantId && String(form.get("scope") ?? "").trim() === "variant" ? "variant" : "product"
 			const payload = payloadFromForm(type, form)
 			if (!ownedProductIds.has(productId)) throw new Error("El alojamiento no está disponible")
 			if (!houseRuleTypes.includes(type)) throw new Error("Tipo de regla no compatible")
-			await createHouseRule({ productId, type, payload })
-			if (type === "CheckIn" || type === "Checkout") {
-				await syncHotelArrivalPolicy({
-					providerId: auth.providerId,
+			if (scope === "variant") {
+				if (!variantId) throw new Error("La habitación no está disponible")
+				if (!isVariantOverrideHouseRuleType(type)) {
+					throw new Error("Este tipo de regla no admite excepciones por habitación")
+				}
+				if (!spaceVariantEditorTypes.includes(type)) {
+					throw new Error("Este tipo de regla no se edita en este espacio")
+				}
+				await createHouseRule({
 					productId,
-					actorUserId: auth.user.id,
-					rules: (await listHouseRulesByProduct(productId)) as HouseRule[],
+					type,
+					payload,
+					scope: "variant",
+					scopeId: variantId,
 				})
+			} else {
+				await createHouseRule({ productId, type, payload })
+				if (type === "CheckIn" || type === "Checkout") {
+					await syncHotelArrivalPolicy({
+						providerId: auth.providerId,
+						productId,
+						actorUserId: auth.user.id,
+						rules: (await listHouseRulesByProduct(productId)) as HouseRule[],
+					})
+				}
 			}
 			await refreshProductOperationalSurfaceAfterMutation({
 				productId,
 				providerId: auth.providerId,
 				request: Astro.request,
 				url: Astro.url,
-				source: "provider.house-rules.create",
+				source:
+					scope === "variant"
+						? "provider.house-rules.create-variant-override"
+						: "provider.house-rules.create",
 			})
-			return redirectToHouseRules("created", productId, postedView)
+			return redirectToHouseRules(
+				scope === "variant" ? "override-saved" : "created",
+				productId,
+				postedView
+			)
 		}
 		if (action === "apply-quick-setup") {
 			const productId = String(form.get("productId") ?? "").trim()
@@ -247,13 +323,20 @@ if (Astro.request.method === "POST") {
 		}
 		if (action === "delete-house-rule") {
 			const ruleId = String(form.get("ruleId") ?? "").trim()
+			const variantId = String(form.get("variantId") ?? "").trim()
 			const rulesByProduct = await loadRulesByProduct(products)
-			const ownedRule = Array.from(rulesByProduct.values())
-				.flat()
-				.find((rule) => String(rule.id) === ruleId)
+			const ownedRule = await findOwnedHouseRule(products, rulesByProduct, ruleId, variantId)
 			if (!ownedRule) throw new Error("La regla no está disponible")
+			if (ownedRule.scope === "variant") {
+				if (!variantId || ownedRule.scopeId !== variantId) {
+					throw new Error("La excepción no pertenece a este espacio")
+				}
+			}
 			await deleteHouseRule(ruleId)
-			if (ownedRule.type === "CheckIn" || ownedRule.type === "Checkout") {
+			if (
+				ownedRule.scope === "product" &&
+				(ownedRule.type === "CheckIn" || ownedRule.type === "Checkout")
+			) {
 				await syncHotelArrivalPolicy({
 					providerId: auth.providerId,
 					productId: ownedRule.productId,
@@ -266,9 +349,61 @@ if (Astro.request.method === "POST") {
 				providerId: auth.providerId,
 				request: Astro.request,
 				url: Astro.url,
-				source: "provider.house-rules.delete",
+				source:
+					ownedRule.scope === "variant"
+						? "provider.house-rules.delete-variant-override"
+						: "provider.house-rules.delete",
 			})
-			return redirectToHouseRules("deleted", ownedRule.productId, postedView)
+			return redirectToHouseRules(
+				ownedRule.scope === "variant" ? "override-removed" : "deleted",
+				ownedRule.productId,
+				postedView
+			)
+		}
+		if (action === "upsert-rate-arrival-exception") {
+			const productId = String(form.get("productId") ?? "").trim()
+			const ratePlanId = String(form.get("ratePlanId") ?? "").trim()
+			if (!ownedProductIds.has(productId)) throw new Error("El alojamiento no está disponible")
+			const context = await getRatePlanArrivalContext({ productId, ratePlanId })
+			if (!context) throw new Error("La tarifa no está disponible")
+			await upsertRatePlanArrivalException({
+				providerId: auth.providerId,
+				ratePlanId,
+				actorUserId: auth.user.id,
+				schedule: {
+					checkInFrom: String(form.get("checkInFrom") ?? "").trim(),
+					checkInUntil: String(form.get("checkInUntil") ?? "").trim(),
+					checkOutUntil: String(form.get("checkOutUntil") ?? "").trim(),
+				},
+			})
+			await refreshProductOperationalSurfaceAfterMutation({
+				productId,
+				providerId: auth.providerId,
+				request: Astro.request,
+				url: Astro.url,
+				source: "provider.house-rules.rate-arrival-upsert",
+			})
+			return redirectToHouseRules("rate-arrival-saved", productId, "arrival")
+		}
+		if (action === "remove-rate-arrival-exception") {
+			const productId = String(form.get("productId") ?? "").trim()
+			const ratePlanId = String(form.get("ratePlanId") ?? "").trim()
+			if (!ownedProductIds.has(productId)) throw new Error("El alojamiento no está disponible")
+			const context = await getRatePlanArrivalContext({ productId, ratePlanId })
+			if (!context) throw new Error("La tarifa no está disponible")
+			await removeRatePlanArrivalException({
+				providerId: auth.providerId,
+				ratePlanId,
+				actorUserId: auth.user.id,
+			})
+			await refreshProductOperationalSurfaceAfterMutation({
+				productId,
+				providerId: auth.providerId,
+				request: Astro.request,
+				url: Astro.url,
+				source: "provider.house-rules.rate-arrival-remove",
+			})
+			return redirectToHouseRules("rate-arrival-removed", productId, "arrival")
 		}
 	} catch (error) {
 		actionError = error instanceof Error ? error.message : "No se pudo actualizar la regla"
@@ -298,6 +433,44 @@ const selectedProduct =
 	products.find((product) => product.id === requestedProductId) ?? products[0] ?? null
 const selectedProductId = selectedProduct?.id ?? ""
 const hasProductContext = Boolean(requestedProductId && selectedProduct)
+const rateArrivalContext =
+	!isGuidedRules && selectedProductId && requestedRatePlanId
+		? await getRatePlanArrivalContext({
+				productId: selectedProductId,
+				ratePlanId: requestedRatePlanId,
+			})
+		: null
+const isRateContext = Boolean(rateArrivalContext)
+const spaceRoom =
+	!isGuidedRules && !isRateContext && selectedProductId && requestedVariantId
+		? await db
+				.select({ id: Variant.id, name: Variant.name })
+				.from(Variant)
+				.where(
+					and(
+						eq(Variant.id, requestedVariantId),
+						eq(Variant.productId, selectedProductId),
+						eq(Variant.kind, "hotel_room"),
+						ne(Variant.lifecycleState, "archived")
+					)
+				)
+				.then(first)
+		: null
+const spaceContext = spaceRoom
+	? { id: String(spaceRoom.id), name: String(spaceRoom.name || "Habitación") }
+	: null
+const isSpaceContext = Boolean(spaceContext) && !isRateContext
+const spaceEffectiveRules =
+	isSpaceContext && selectedProductId && spaceContext
+		? await listEffectiveHouseRules(selectedProductId, spaceContext.id)
+		: []
+const spaceOverrideCount = spaceEffectiveRules.filter((rule) => rule.source === "override").length
+const spaceOverrideByType = new Map<HouseRuleType, HouseRule>()
+for (const rule of spaceEffectiveRules) {
+	if (rule.source === "override") {
+		spaceOverrideByType.set(String(rule.type ?? "Other") as HouseRuleType, rule)
+	}
+}
 const visibleProducts = hasProductContext && selectedProduct ? [selectedProduct] : products
 const stateByProduct = products.map((product) => {
 	const rules = rulesByProduct.get(product.id) ?? []
@@ -316,6 +489,10 @@ const selectedState =
 		? stateByProduct.find((item) => item.product.id === selectedProductId)
 		: stateByProduct.find((item) => item.rules.length)) ?? stateByProduct[0]
 const previewRules = selectedState?.rules ?? []
+const productRulesByType = new Map<HouseRuleType, HouseRule>()
+for (const rule of previewRules) {
+	productRulesByType.set(String(rule.type ?? "Other") as HouseRuleType, rule)
+}
 const previewRulesByGroup = houseRuleGroups.map((group) => ({
 	...group,
 	rules: previewRules.filter((rule) =>
@@ -333,6 +510,18 @@ for (const rule of previewRules) {
 	selectedRulesByType.set(type, rules)
 }
 const flow = Astro.url.searchParams.get("flow") === "create" ? "create" : "edit"
+if (Astro.request.method === "GET" && requestedRatePlanId && !rateArrivalContext) {
+	const params = new URLSearchParams(Astro.url.searchParams)
+	params.delete("ratePlanId")
+	const query = params.toString()
+	return Astro.redirect(`${routes.providerHouseRules()}${query ? `?${query}` : ""}`)
+}
+if (Astro.request.method === "GET" && requestedVariantId && !spaceContext && !isRateContext) {
+	const params = new URLSearchParams(Astro.url.searchParams)
+	params.delete("variantId")
+	const query = params.toString()
+	return Astro.redirect(`${routes.providerHouseRules()}${query ? `?${query}` : ""}`)
+}
 if (Astro.request.method === "GET" && !requestedProductId && products.length === 1) {
 	const params = new URLSearchParams(Astro.url.searchParams)
 	params.set("productId", products[0].id)
@@ -361,6 +550,12 @@ function houseRulesViewHref(view: HouseRuleView) {
 	const params = new URLSearchParams()
 	if (selectedProductId) params.set("productId", selectedProductId)
 	params.set("vista", view)
+	if (rateArrivalContext) {
+		params.set("ratePlanId", rateArrivalContext.ratePlanId)
+		params.set("focus", "arrival")
+	} else if (spaceContext) {
+		params.set("variantId", spaceContext.id)
+	}
 	if (safeReturnTo) params.set("returnTo", safeReturnTo)
 	if (isLaunchWizard) {
 		params.set("playbook", "launch")
@@ -384,9 +579,58 @@ const houseRulesProgressPercent = Math.max(
 	0,
 	Math.min(100, (essentialReadyCount / essentialHouseRuleTypes.length) * 100)
 )
-const houseRulesLead = selectedReady
-	? "Las expectativas principales ya están listas para mostrarse al huésped."
-	: "El huésped las ve antes de reservar. Sin ellas la ficha queda a medias."
+const houseRulesEyebrow = isRateContext
+	? "Horario de esta tarifa"
+	: isSpaceContext
+		? "Este espacio"
+		: "Reglas del alojamiento"
+const houseRulesTitle = isRateContext
+	? rateArrivalContext?.ratePlanName
+	: isSpaceContext
+		? spaceContext?.name
+		: "Reglas esenciales"
+const houseRulesLead = isRateContext
+	? rateArrivalContext?.hasException
+		? `Esta tarifa tiene un horario distinto. El resto de reglas sigue viniendo de ${selectedProduct?.name ?? "el alojamiento"}.`
+		: `El horario se hereda de ${selectedProduct?.name ?? "el alojamiento"}. Puedes definir una excepción solo para llegada y salida.`
+	: isSpaceContext
+		? spaceOverrideCount > 0
+			? `Hereda las reglas de ${selectedProduct?.name ?? "el alojamiento"}. ${spaceOverrideCount} excepción${spaceOverrideCount === 1 ? "" : "es"} activa${spaceOverrideCount === 1 ? "" : "s"} en este espacio.`
+			: `Hereda las reglas de ${selectedProduct?.name ?? "el alojamiento"}. Puedes definir excepciones puntuales abajo.`
+		: selectedReady
+			? "Las expectativas principales ya están listas para mostrarse al huésped."
+			: "El huésped las ve antes de reservar. Sin ellas la ficha queda a medias."
+const hotelRulesHref = (() => {
+	const params = new URLSearchParams()
+	if (selectedProductId) params.set("productId", selectedProductId)
+	params.set("vista", isRateContext ? "arrival" : activeView)
+	if (safeReturnTo) params.set("returnTo", safeReturnTo)
+	return `${routes.providerHouseRules()}?${params.toString()}`
+})()
+const commercialConditionsHref = rateArrivalContext
+	? routes.ratePlanPolicies(rateArrivalContext.ratePlanId)
+	: selectedProductId
+		? `${routes.rates()}?productId=${encodeURIComponent(selectedProductId)}`
+		: routes.rates()
+
+function spaceVariantActionHref() {
+	const params = new URLSearchParams()
+	if (selectedProductId) params.set("productId", selectedProductId)
+	if (spaceContext) params.set("variantId", spaceContext.id)
+	if (safeReturnTo) params.set("returnTo", safeReturnTo)
+	return `${routes.providerHouseRules()}?${params.toString()}`
+}
+
+function rateArrivalActionHref() {
+	const params = new URLSearchParams()
+	if (selectedProductId) params.set("productId", selectedProductId)
+	if (rateArrivalContext) {
+		params.set("ratePlanId", rateArrivalContext.ratePlanId)
+		params.set("focus", "arrival")
+	}
+	if (safeReturnTo) params.set("returnTo", safeReturnTo)
+	return `${routes.providerHouseRules()}?${params.toString()}`
+}
 
 function essentialRuleHref(type: HouseRuleType) {
 	const view: HouseRuleView =
@@ -430,7 +674,15 @@ const successMessage =
 				: "Base aplicada. Las reglas esenciales están listas para revisar."
 			: success === "deleted"
 				? "Regla eliminada. Puedes definir una nueva versión cuando lo necesites."
-				: null
+				: success === "override-saved"
+					? "Excepción guardada. El huésped verá este espacio con la regla personalizada."
+					: success === "override-removed"
+						? "Excepción eliminada. Este espacio vuelve a heredar del alojamiento."
+						: success === "rate-arrival-saved"
+							? "Horario de la tarifa guardado. Solo afecta llegada y salida de esta tarifa."
+							: success === "rate-arrival-removed"
+								? "Excepción de horario eliminada. Esta tarifa vuelve a heredar del alojamiento."
+								: null
 ---
 
 <PlaybookLayout
@@ -445,7 +697,7 @@ const successMessage =
 	continueDisabled={isGuidedRules && !selectedReady}
 	continueDisabledTitle={guidedContinueDisabledTitle}
 >
-	<section class="space-y-6 md:space-y-8">
+	<section class="space-y-6 md:space-y-8" data-house-rules-workspace>
 		<header class="flex flex-col gap-2">
 			<div class="flex flex-wrap items-start justify-between gap-3">
 				<h1 class="text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl">
@@ -492,7 +744,11 @@ const successMessage =
 							? "Completa las reglas pendientes para poder publicar este alojamiento."
 							: showProductIndex
 								? "Configura expectativas de estadía por alojamiento. Las habitaciones describen espacios; las tarifas definen condiciones comerciales."
-								: "Define comportamiento, llegada y salida para que el huésped sepa qué esperar antes de reservar."
+								: isRateContext
+									? "Horario de esta tarifa. Cancelación, pago y no presentación siguen en Condiciones."
+									: isSpaceContext
+										? "Este espacio hereda las reglas del alojamiento. Cancelación, pago y no presentación siguen en cada tarifa, en Condiciones."
+										: "Define comportamiento, llegada y salida del alojamiento. Cancelación, pago y no presentación se editan en Condiciones de cada tarifa."
 				}
 			</p>
 		</header>
@@ -598,13 +854,17 @@ const successMessage =
 			) : (
 				<div class="space-y-6">
 					{isGuidedRules ? null : (
-						<section class="space-y-4" data-house-rules-coach>
+						<section
+							class="space-y-4"
+							data-house-rules-coach
+							data-house-rules-scope={isRateContext ? "rate" : isSpaceContext ? "space" : "hotel"}
+						>
 							<Card variant="dark" class="!border-neutral-800 !bg-black">
 								<div class="space-y-5">
 									<div class="flex items-start justify-between gap-4">
 										<div class="flex min-w-0 items-start gap-3">
 											<span class="fastt-section-icon">
-												{selectedReady ? (
+												{selectedReady || isRateContext || isSpaceContext ? (
 													<CircleCheck class="size-4" aria-hidden="true" />
 												) : (
 													<ClipboardList class="size-4" aria-hidden="true" />
@@ -612,32 +872,82 @@ const successMessage =
 											</span>
 											<div class="min-w-0">
 												<p class="text-xs font-semibold tracking-[0.14em] text-neutral-500 uppercase">
-													En la ficha
+													{houseRulesEyebrow}
 												</p>
-												<h2 class="mt-1 text-xl font-semibold text-white">Reglas esenciales</h2>
+												<h2 class="mt-1 truncate text-xl font-semibold text-white">
+													{houseRulesTitle}
+												</h2>
 												<p class="mt-1 max-w-xl text-sm leading-6 text-neutral-400">
 													{houseRulesLead}
 												</p>
 											</div>
 										</div>
-										<Badge variant={selectedReady ? "darkSuccess" : "darkWarning"}>
-											{selectedReady ? "Listas" : "Pendiente"}
+										<Badge
+											variant={
+												isRateContext
+													? rateArrivalContext?.hasException
+														? "darkSuccess"
+														: "darkNeutral"
+													: isSpaceContext
+														? spaceOverrideCount > 0
+															? "darkSuccess"
+															: "darkNeutral"
+														: selectedReady
+															? "darkSuccess"
+															: "darkWarning"
+											}
+										>
+											{isRateContext
+												? rateArrivalContext?.hasException
+													? "Excepción de horario"
+													: "Hereda horario"
+												: isSpaceContext
+													? spaceOverrideCount > 0
+														? `${spaceOverrideCount} excepción${spaceOverrideCount === 1 ? "" : "es"}`
+														: "Hereda"
+													: selectedReady
+														? "Listas"
+														: "Pendiente"}
 										</Badge>
 									</div>
 
-									<div class="flex items-center gap-3">
-										<div class="h-1 flex-1 overflow-hidden rounded-full bg-white/10">
-											<div
-												class="h-full rounded-full"
-												style={`width: ${houseRulesProgressPercent}%; background-color: var(--fastt-color-selection);`}
-											/>
-										</div>
-										<p class="shrink-0 text-xs font-medium text-neutral-400 tabular-nums">
-											{essentialReadyCount} de {essentialHouseRuleTypes.length}
+									{isRateContext ? (
+										<p class="text-sm leading-6 text-neutral-500">
+											Cancelación, pago y no presentación se editan en{" "}
+											<a
+												href={commercialConditionsHref}
+												class="font-medium text-neutral-300 underline-offset-2 hover:text-white hover:underline"
+											>
+												Condiciones de la tarifa
+											</a>
+											. Aquí solo llegada y salida.
 										</p>
-									</div>
+									) : !isSpaceContext ? (
+										<div class="flex items-center gap-3">
+											<div class="h-1 flex-1 overflow-hidden rounded-full bg-white/10">
+												<div
+													class="h-full rounded-full"
+													style={`width: ${houseRulesProgressPercent}%; background-color: var(--fastt-color-selection);`}
+												/>
+											</div>
+											<p class="shrink-0 text-xs font-medium text-neutral-400 tabular-nums">
+												{essentialReadyCount} de {essentialHouseRuleTypes.length}
+											</p>
+										</div>
+									) : (
+										<p class="text-sm leading-6 text-neutral-500">
+											Horarios, silencio y llegada se editan en{" "}
+											<a
+												href={hotelRulesHref}
+												class="font-medium text-neutral-300 underline-offset-2 hover:text-white hover:underline"
+											>
+												Reglas del alojamiento
+											</a>
+											. Aquí solo excepciones puntuales de este espacio.
+										</p>
+									)}
 
-									{missingEssentials.length ? (
+									{!isSpaceContext && !isRateContext && missingEssentials.length ? (
 										<div class="flex flex-wrap gap-2">
 											{missingEssentials.map((type) => (
 												<a href={essentialRuleHref(type)}>
@@ -652,10 +962,37 @@ const successMessage =
 										</div>
 									) : null}
 
-									{focus === "arrival" ? (
+									{focus === "arrival" && !isSpaceContext && !isRateContext ? (
 										<p class="text-sm leading-6 text-neutral-500">
 											Estos horarios se heredan en las condiciones de tarifa.
 										</p>
+									) : null}
+									{!isSpaceContext && !isRateContext ? (
+										<p
+											class="text-sm leading-6 text-neutral-500"
+											data-house-rules-commercial-boundary
+										>
+											Cancelación, pago y no presentación no se editan aquí. Van en cada tarifa, en{" "}
+											<a
+												href={commercialConditionsHref}
+												class="font-medium text-neutral-300 underline-offset-2 hover:text-white hover:underline"
+											>
+												Condiciones
+											</a>
+											.
+										</p>
+									) : null}
+									{isSpaceContext || isRateContext ? (
+										<div class="flex flex-wrap gap-2">
+											<Button href={hotelRulesHref} variant="onDark" size="sm">
+												Reglas del alojamiento
+											</Button>
+											{isRateContext ? (
+												<Button href={commercialConditionsHref} variant="onDark" size="sm">
+													Condiciones de la tarifa
+												</Button>
+											) : null}
+										</div>
 									) : null}
 								</div>
 							</Card>
@@ -666,196 +1003,249 @@ const successMessage =
 						class={isGuidedRules ? "space-y-3" : "grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]"}
 					>
 						<section class={isGuidedRules ? "flex flex-col gap-3" : "space-y-3"}>
-							<div class={isGuidedRules ? "order-1" : ""}>
-								<Card className="bg-white text-slate-900">
-									<div class="space-y-1">
+							{isRateContext && rateArrivalContext ? (
+								<Card className="bg-white text-slate-900" data-house-rules-rate-editor>
+									<div class="space-y-1 border-b border-slate-100 px-5 py-4">
 										<p class="text-base font-semibold text-slate-950">
-											{isGuidedRules ? "Elige una base para empezar" : "Plantillas rápidas"}
+											Horario de {rateArrivalContext.ratePlanName}
 										</p>
-										{isGuidedRules ? (
-											<p class="max-w-2xl text-sm leading-6 text-slate-600">
-												Puedes ajustar cualquier regla después. Esto carga una base clara para
-												avanzar hacia la publicación.
-											</p>
-										) : (
-											<p class="text-sm leading-6 text-slate-600">
-												Aplica una base común y ajusta solo lo que cambia para este alojamiento.
-											</p>
-										)}
+										<p class="max-w-2xl text-sm leading-6 text-slate-600">
+											Solo llegada y salida. Se guarda como PolicyAssignment de esta tarifa; no crea
+											house rules nuevas ni toca mascotas, fumar o silencio.
+										</p>
 									</div>
-									<div class="mt-4 grid gap-3 md:grid-cols-2">
-										{houseRuleQuickSetups.map((preset, index) => (
-											<form
-												action={houseRulesViewHref(activeView)}
-												method="POST"
-												class={`bg-slate-50 ring-1 ring-slate-900/[0.06] transition hover:bg-white hover:shadow-[var(--fastt-shadow-row)] ${
-													isGuidedRules
-														? index === 0
-															? "rounded-xl p-3 ring-[var(--fastt-color-selection)]"
-															: "rounded-xl p-3"
-														: "rounded-2xl p-4"
-												}`}
-											>
-												<input type="hidden" name="action" value="apply-quick-setup" />
-												<input type="hidden" name="presetKey" value={preset.key} />
-												<input type="hidden" name="productId" value={selectedProductId} />
-												<input
-													type="hidden"
-													name="vista"
-													value={activeView}
-													data-house-rules-vista
-												/>
-												<div class="flex flex-wrap items-center gap-2">
-													<p class="text-sm font-semibold text-slate-950">{preset.title}</p>
-													{isGuidedRules && index === 0 ? (
-														<Badge variant="neutral">Recomendado</Badge>
-													) : null}
-												</div>
-												<p
-													class={`mt-1 text-sm leading-5 text-slate-600 ${isGuidedRules ? "" : "min-h-10"}`}
-												>
-													{preset.description}
-												</p>
-												<div class="mt-4 flex justify-end">
-													<Button type="submit" variant="secondary" size="sm">
-														{isGuidedRules ? "Usar esta base" : "Aplicar base"}
-													</Button>
-												</div>
-											</form>
+									<div class="bg-slate-50/90 p-4 sm:p-5">
+										<RatePlanArrivalExceptionPanel
+											actionHref={rateArrivalActionHref()}
+											productId={selectedProductId}
+											ratePlanId={rateArrivalContext.ratePlanId}
+											ratePlanName={rateArrivalContext.ratePlanName}
+											hotelSchedule={rateArrivalContext.hotelSchedule}
+											rateSchedule={rateArrivalContext.rateSchedule}
+											hotelRulesHref={hotelRulesHref}
+											conditionsHref={commercialConditionsHref}
+										/>
+									</div>
+								</Card>
+							) : isSpaceContext && spaceContext ? (
+								<Card className="bg-white text-slate-900" data-house-rules-variant-editor>
+									<div class="space-y-1 border-b border-slate-100 px-5 py-4">
+										<p class="text-base font-semibold text-slate-950">
+											Excepciones de {spaceContext.name}
+										</p>
+										<p class="max-w-2xl text-sm leading-6 text-slate-600">
+											Cada fila muestra lo heredado del alojamiento y, si hace falta, una excepción
+											solo para este espacio. Cancelación, pago y no presentación siguen en
+											Condiciones de cada tarifa.
+										</p>
+									</div>
+									<div class="space-y-3 bg-slate-50/90 p-4 sm:p-5">
+										{spaceVariantEditorTypes.map((type) => (
+											<HouseRuleVariantOverrideRow
+												type={type}
+												inheritedRule={productRulesByType.get(type) ?? null}
+												overrideRule={spaceOverrideByType.get(type) ?? null}
+												actionHref={spaceVariantActionHref()}
+												productId={selectedProductId}
+												variantId={spaceContext.id}
+											/>
 										))}
 									</div>
 								</Card>
-							</div>
-
-							<div class={isGuidedRules ? "order-3" : ""}>
-								<Card
-									variant="flush"
-									className="overflow-hidden bg-white text-slate-900"
-									data-house-rules-tabs
-								>
-									<div class="flex flex-wrap items-center justify-between gap-3 border-b border-sky-100 bg-white px-4 pt-4">
-										<TabsOutsidePanel class="mb-3" aria-label="Secciones de reglas">
-											{ruleTabs.map((tab) => (
-												<a
-													href={houseRulesViewHref(tab.id)}
-													data-house-rules-tab={tab.id}
-													aria-current={activeView === tab.id ? "page" : undefined}
-													data-active={activeView === tab.id ? "true" : "false"}
-													class={`fastt-tabs-outside-panel__item px-3 py-2 text-sm font-semibold whitespace-nowrap ${
-														activeView === tab.id
-															? ""
-															: "text-slate-600 hover:bg-sky-100/80 hover:text-sky-950"
-													}`}
-												>
-													{tab.label} <span class="ml-1 text-xs opacity-70">{tab.meta}</span>
-												</a>
-											))}
-										</TabsOutsidePanel>
-										{isGuidedRules ? (
-											<div class="mb-3">
-												<Badge variant={selectedReady ? "success" : "warning"}>
-													{`${essentialReadyCount} de ${essentialHouseRuleTypes.length} listas`}
-												</Badge>
+							) : (
+								<>
+									<div class={isGuidedRules ? "order-1" : ""}>
+										<Card className="bg-white text-slate-900">
+											<div class="space-y-1">
+												<p class="text-base font-semibold text-slate-950">
+													{isGuidedRules ? "Elige una base para empezar" : "Plantillas rápidas"}
+												</p>
+												{isGuidedRules ? (
+													<p class="max-w-2xl text-sm leading-6 text-slate-600">
+														Puedes ajustar cualquier regla después. Esto carga una base clara para
+														avanzar hacia la publicación.
+													</p>
+												) : (
+													<p class="text-sm leading-6 text-slate-600">
+														Aplica una base común y ajusta solo lo que cambia para este alojamiento.
+													</p>
+												)}
 											</div>
-										) : null}
-									</div>
-									<div>
-										{isGuidedRules ? null : (
-											<div data-house-rules-panel="preview" hidden={activeView !== "preview"}>
-												<div class="p-4 sm:p-5">
-													<div class="rounded-2xl bg-slate-50 p-5">
-														<p class="text-base font-semibold text-slate-950">Vista huésped</p>
-														<p class="mt-1 text-sm leading-6 text-slate-600">
-															Revisa en el panel lateral el resumen agrupado tal como acompañará la
-															ficha pública.
-														</p>
-													</div>
-												</div>
-											</div>
-										)}
-
-										{houseRuleEditorViews.map((view) => {
-											const types = ruleTypesByView[view]
-											const pendingTypes = types.filter(
-												(type) => (selectedRulesByType.get(type) ?? []).length === 0
-											)
-											const completeTypes = types.filter(
-												(type) => (selectedRulesByType.get(type) ?? []).length > 0
-											)
-											return (
-												<div data-house-rules-panel={view} hidden={activeView !== view}>
-													<header class="border-b border-sky-100 bg-sky-50/80 px-5 py-4">
-														<div class="flex flex-wrap items-center justify-between gap-3">
-															<h2 class="text-lg font-semibold text-slate-950">Pendientes</h2>
-															<Badge variant={pendingTypes.length ? "info" : "success"}>
-																{pendingTypes.length ? pendingTypes.length : "Listo"}
-															</Badge>
+											<div class="mt-4 grid gap-3 md:grid-cols-2">
+												{houseRuleQuickSetups.map((preset, index) => (
+													<form
+														action={houseRulesViewHref(activeView)}
+														method="POST"
+														class={`bg-slate-50 ring-1 ring-slate-900/[0.06] transition hover:bg-white hover:shadow-[var(--fastt-shadow-row)] ${
+															isGuidedRules
+																? index === 0
+																	? "rounded-xl p-3 ring-[var(--fastt-color-selection)]"
+																	: "rounded-xl p-3"
+																: "rounded-2xl p-4"
+														}`}
+													>
+														<input type="hidden" name="action" value="apply-quick-setup" />
+														<input type="hidden" name="presetKey" value={preset.key} />
+														<input type="hidden" name="productId" value={selectedProductId} />
+														<input
+															type="hidden"
+															name="vista"
+															value={activeView}
+															data-house-rules-vista
+														/>
+														<div class="flex flex-wrap items-center gap-2">
+															<p class="text-sm font-semibold text-slate-950">{preset.title}</p>
+															{isGuidedRules && index === 0 ? (
+																<Badge variant="neutral">Recomendado</Badge>
+															) : null}
 														</div>
-														<p class="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
-															Una regla a la vez. El huésped las verá antes de reservar.
+														<p
+															class={`mt-1 text-sm leading-5 text-slate-600 ${isGuidedRules ? "" : "min-h-10"}`}
+														>
+															{preset.description}
 														</p>
-													</header>
-													<div class="space-y-3 bg-slate-50/90 p-4 sm:p-5">
-														{pendingTypes.map((type) => (
-															<HouseRuleEditorRow
-																type={type}
-																rules={selectedRulesByType.get(type) ?? []}
-																isEssential={essentialHouseRuleTypes.includes(type)}
-																isGuidedRules={isGuidedRules}
-																isComplete={false}
-																actionHref={houseRulesViewHref(view)}
-																vista={view}
-																hasProductContext={hasProductContext}
-																selectedProductId={selectedProductId}
-																visibleProducts={visibleProducts}
-															/>
-														))}
-														{completeTypes.length ? (
-															<details
-																class="fastt-soft-box group border border-slate-200 bg-white"
-																open={!pendingTypes.length}
-																data-house-rules-complete-areas
-															>
-																<summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-sky-50 [&::-webkit-details-marker]:hidden">
-																	<span class="inline-flex items-center gap-2">
-																		<CircleCheck
-																			class="size-4 text-emerald-600"
-																			aria-hidden="true"
-																		/>
-																		Áreas completadas ({completeTypes.length})
-																	</span>
-																	<span class="text-xs font-medium text-slate-500 group-open:hidden">
-																		Mostrar
-																	</span>
-																	<span class="hidden text-xs font-medium text-slate-500 group-open:inline">
-																		Ocultar
-																	</span>
-																</summary>
-																<div class="space-y-3 border-t border-slate-100 p-3">
-																	{completeTypes.map((type) => (
-																		<HouseRuleEditorRow
-																			type={type}
-																			rules={selectedRulesByType.get(type) ?? []}
-																			isEssential={essentialHouseRuleTypes.includes(type)}
-																			isGuidedRules={isGuidedRules}
-																			isComplete={true}
-																			actionHref={houseRulesViewHref(view)}
-																			vista={view}
-																			hasProductContext={hasProductContext}
-																			selectedProductId={selectedProductId}
-																			visibleProducts={visibleProducts}
-																		/>
-																	))}
-																</div>
-															</details>
-														) : null}
-													</div>
-												</div>
-											)
-										})}
+														<div class="mt-4 flex justify-end">
+															<Button type="submit" variant="secondary" size="sm">
+																{isGuidedRules ? "Usar esta base" : "Aplicar base"}
+															</Button>
+														</div>
+													</form>
+												))}
+											</div>
+										</Card>
 									</div>
-								</Card>
-							</div>
+
+									<div class={isGuidedRules ? "order-3" : ""}>
+										<Card
+											variant="flush"
+											className="overflow-hidden bg-white text-slate-900"
+											data-house-rules-tabs
+										>
+											<div class="flex flex-wrap items-center justify-between gap-3 border-b border-sky-100 bg-white px-4 pt-4">
+												<TabsOutsidePanel class="mb-3" aria-label="Secciones de reglas">
+													{ruleTabs.map((tab) => (
+														<a
+															href={houseRulesViewHref(tab.id)}
+															data-house-rules-tab={tab.id}
+															aria-current={activeView === tab.id ? "page" : undefined}
+															data-active={activeView === tab.id ? "true" : "false"}
+															class={`fastt-tabs-outside-panel__item px-3 py-2 text-sm font-semibold whitespace-nowrap ${
+																activeView === tab.id
+																	? ""
+																	: "text-slate-600 hover:bg-sky-100/80 hover:text-sky-950"
+															}`}
+														>
+															{tab.label} <span class="ml-1 text-xs opacity-70">{tab.meta}</span>
+														</a>
+													))}
+												</TabsOutsidePanel>
+												{isGuidedRules ? (
+													<div class="mb-3">
+														<Badge variant={selectedReady ? "success" : "warning"}>
+															{`${essentialReadyCount} de ${essentialHouseRuleTypes.length} listas`}
+														</Badge>
+													</div>
+												) : null}
+											</div>
+											<div>
+												{isGuidedRules ? null : (
+													<div data-house-rules-panel="preview" hidden={activeView !== "preview"}>
+														<div class="p-4 sm:p-5">
+															<div class="rounded-2xl bg-slate-50 p-5">
+																<p class="text-base font-semibold text-slate-950">Vista huésped</p>
+																<p class="mt-1 text-sm leading-6 text-slate-600">
+																	Revisa en el panel lateral el resumen agrupado tal como acompañará
+																	la ficha pública.
+																</p>
+															</div>
+														</div>
+													</div>
+												)}
+
+												{houseRuleEditorViews.map((view) => {
+													const types = ruleTypesByView[view]
+													const pendingTypes = types.filter(
+														(type) => (selectedRulesByType.get(type) ?? []).length === 0
+													)
+													const completeTypes = types.filter(
+														(type) => (selectedRulesByType.get(type) ?? []).length > 0
+													)
+													return (
+														<div data-house-rules-panel={view} hidden={activeView !== view}>
+															<header class="border-b border-sky-100 bg-sky-50/80 px-5 py-4">
+																<div class="flex flex-wrap items-center justify-between gap-3">
+																	<h2 class="text-lg font-semibold text-slate-950">Pendientes</h2>
+																	<Badge variant={pendingTypes.length ? "info" : "success"}>
+																		{pendingTypes.length ? pendingTypes.length : "Listo"}
+																	</Badge>
+																</div>
+																<p class="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
+																	Una regla a la vez. El huésped las verá antes de reservar.
+																</p>
+															</header>
+															<div class="space-y-3 bg-slate-50/90 p-4 sm:p-5">
+																{pendingTypes.map((type) => (
+																	<HouseRuleEditorRow
+																		type={type}
+																		rules={selectedRulesByType.get(type) ?? []}
+																		isEssential={essentialHouseRuleTypes.includes(type)}
+																		isGuidedRules={isGuidedRules}
+																		isComplete={false}
+																		actionHref={houseRulesViewHref(view)}
+																		vista={view}
+																		hasProductContext={hasProductContext}
+																		selectedProductId={selectedProductId}
+																		visibleProducts={visibleProducts}
+																	/>
+																))}
+																{completeTypes.length ? (
+																	<details
+																		class="fastt-soft-box group border border-slate-200 bg-white"
+																		open={!pendingTypes.length}
+																		data-house-rules-complete-areas
+																	>
+																		<summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-sky-50 [&::-webkit-details-marker]:hidden">
+																			<span class="inline-flex items-center gap-2">
+																				<CircleCheck
+																					class="size-4 text-emerald-600"
+																					aria-hidden="true"
+																				/>
+																				Áreas completadas ({completeTypes.length})
+																			</span>
+																			<span class="text-xs font-medium text-slate-500 group-open:hidden">
+																				Mostrar
+																			</span>
+																			<span class="hidden text-xs font-medium text-slate-500 group-open:inline">
+																				Ocultar
+																			</span>
+																		</summary>
+																		<div class="space-y-3 border-t border-slate-100 p-3">
+																			{completeTypes.map((type) => (
+																				<HouseRuleEditorRow
+																					type={type}
+																					rules={selectedRulesByType.get(type) ?? []}
+																					isEssential={essentialHouseRuleTypes.includes(type)}
+																					isGuidedRules={isGuidedRules}
+																					isComplete={true}
+																					actionHref={houseRulesViewHref(view)}
+																					vista={view}
+																					hasProductContext={hasProductContext}
+																					selectedProductId={selectedProductId}
+																					visibleProducts={visibleProducts}
+																				/>
+																			))}
+																		</div>
+																	</details>
+																) : null}
+															</div>
+														</div>
+													)
+												})}
+											</div>
+										</Card>
+									</div>
+								</>
+							)}
 						</section>
 
 						<aside class={isGuidedRules ? "hidden" : "hidden space-y-4 xl:order-none xl:block"}>
@@ -864,28 +1254,86 @@ const successMessage =
 									<div>
 										<p class="text-base font-semibold text-slate-950">Así lo verá el huésped</p>
 										<p class="mt-1 text-sm text-slate-600">
-											Resumen visible antes de reservar en{" "}
-											{selectedProduct?.name ?? "el alojamiento"}.
+											{isSpaceContext
+												? `Resumen efectivo para ${spaceContext?.name ?? "este espacio"}.`
+												: `Resumen visible antes de reservar en ${selectedProduct?.name ?? "el alojamiento"}.`}
 										</p>
 									</div>
-									<Badge variant={selectedReady ? "success" : "warning"}>
-										{selectedReady ? "Listo" : `Faltan ${missingCount}`}
+									<Badge
+										variant={
+											isSpaceContext
+												? spaceOverrideCount
+													? "info"
+													: "neutral"
+												: selectedReady
+													? "success"
+													: "warning"
+										}
+									>
+										{isSpaceContext
+											? spaceOverrideCount
+												? `${spaceOverrideCount} excepción${spaceOverrideCount === 1 ? "" : "es"}`
+												: "Hereda todo"
+											: selectedReady
+												? "Listo"
+												: `Faltan ${missingCount}`}
 									</Badge>
 								</div>
 
 								{selectedProduct ? (
 									<div class="mt-4">
 										<Button
-											href={routes.productPreview(selectedProduct.id)}
+											href={
+												isSpaceContext && spaceContext
+													? routes.productRoomDetail(selectedProduct.id, spaceContext.id)
+													: routes.productPreview(selectedProduct.id)
+											}
 											variant="secondary"
 											size="sm"
 										>
-											Ver ficha completa
+											{isSpaceContext ? "Ver ficha del espacio" : "Ver ficha completa"}
 										</Button>
 									</div>
 								) : null}
 
-								{previewRules.length ? (
+								{isSpaceContext ? (
+									spaceEffectiveRules.filter((rule) =>
+										spaceVariantEditorTypes.includes(String(rule.type) as HouseRuleType)
+									).length ? (
+										<div class="mt-5 space-y-2">
+											{spaceEffectiveRules
+												.filter((rule) =>
+													spaceVariantEditorTypes.includes(String(rule.type) as HouseRuleType)
+												)
+												.map((rule) => {
+													const type = String(rule.type ?? "Other") as HouseRuleType
+													const summary = buildHouseRuleGuestSummary(type, rule.payloadJson)
+													return (
+														<div class="rounded-2xl bg-slate-50 px-3 py-2.5 text-sm leading-6 text-slate-700">
+															<div class="flex flex-wrap items-center gap-2">
+																<span class="font-medium text-slate-900">
+																	{houseRuleCopy[type]?.label ?? "Regla"}:
+																</span>
+																<Badge variant={rule.source === "override" ? "info" : "neutral"}>
+																	{rule.source === "override" ? "Excepción" : "Heredada"}
+																</Badge>
+															</div>
+															<p class="mt-1">{summary}</p>
+														</div>
+													)
+												})}
+										</div>
+									) : (
+										<div class="mt-5 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4">
+											<p class="text-sm font-semibold text-slate-900">
+												Sin excepciones en este espacio.
+											</p>
+											<p class="mt-1 text-sm text-slate-600">
+												El huésped verá las reglas del alojamiento para estas categorías.
+											</p>
+										</div>
+									)
+								) : previewRules.length ? (
 									<div class="mt-5 space-y-4">
 										{previewRulesByGroup.map((group) => {
 											if (!group.rules.length) return null
@@ -940,7 +1388,40 @@ const successMessage =
 </style>
 
 <script>
+	import { navigate } from "astro:transitions/client"
 	import { installHouseRulesTabsController } from "./_client/house-rules-tabs"
 
 	installHouseRulesTabsController()
+
+	if (!document.documentElement.dataset.houseRulesMutationsBound) {
+		document.documentElement.dataset.houseRulesMutationsBound = "true"
+		document.addEventListener("submit", async (event) => {
+			const form = event.target
+			if (!(form instanceof HTMLFormElement)) return
+			if (!form.closest("[data-house-rules-workspace]") || form.method.toLowerCase() !== "post")
+				return
+			event.preventDefault()
+			const submitter = event.submitter instanceof HTMLButtonElement ? event.submitter : null
+			const previousLabel = submitter?.textContent ?? ""
+			if (submitter) {
+				submitter.disabled = true
+				submitter.textContent = "Guardando…"
+			}
+			try {
+				const response = await fetch(form.action || window.location.href, {
+					method: "POST",
+					body: new FormData(form),
+					headers: { Accept: "text/html" },
+				})
+				if (!response.ok) throw new Error(`house_rules_${response.status}`)
+				await navigate(response.url || window.location.href, { history: "replace" })
+			} catch {
+				if (submitter) {
+					submitter.disabled = false
+					submitter.textContent = previousLabel
+				}
+				window.alert("No se pudo guardar el cambio. Inténtalo nuevamente.")
+			}
+		})
+	}
 </script>

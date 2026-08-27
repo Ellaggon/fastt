@@ -1,0 +1,146 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Input from "@/components/ui/Input.astro"
+import {
+	formatArrivalSchedule,
+	type ArrivalScheduleTimes,
+} from "@/lib/policies/ratePlanArrivalException"
+import { CalendarClock } from "@lucide/astro"
+
+interface Props {
+	actionHref: string
+	productId: string
+	ratePlanId: string
+	ratePlanName: string
+	hotelSchedule: ArrivalScheduleTimes | null
+	rateSchedule: ArrivalScheduleTimes | null
+	hotelRulesHref: string
+	conditionsHref: string
+}
+
+const {
+	actionHref,
+	productId,
+	ratePlanId,
+	ratePlanName,
+	hotelSchedule,
+	rateSchedule,
+	hotelRulesHref,
+	conditionsHref,
+} = Astro.props
+
+const hasException = Boolean(rateSchedule)
+const formSchedule = rateSchedule ?? hotelSchedule
+---
+
+<article
+	class="fastt-row-card overflow-hidden bg-white text-slate-900"
+	data-house-rules-rate-arrival
+	data-house-rules-rate-mode={hasException ? "exception" : "inherited"}
+>
+	<header class="flex flex-wrap items-start gap-3 border-b border-slate-100 p-4">
+		<span
+			class="fastt-soft-box flex size-9 shrink-0 items-center justify-center border border-sky-200 bg-sky-50 text-sky-700"
+		>
+			<CalendarClock class="size-4" aria-hidden="true" />
+		</span>
+		<div class="min-w-0 flex-1">
+			<p class="text-sm font-semibold text-slate-950">Llegada y salida · {ratePlanName}</p>
+			<p class="mt-1 text-sm leading-5 text-slate-500">
+				Solo el horario de esta tarifa. Cancelación, pago y no presentación siguen en Condiciones.
+			</p>
+		</div>
+		<Badge variant={hasException ? "info" : "neutral"}>
+			{hasException ? "Excepción de horario" : "Hereda del hotel"}
+		</Badge>
+	</header>
+
+	<div class="space-y-4 p-4">
+		<section class="rounded-xl bg-slate-50 p-3" data-rate-arrival-hotel-block>
+			<p class="text-xs font-semibold tracking-[0.12em] text-slate-500 uppercase">
+				Horario del alojamiento
+			</p>
+			<p class="mt-2 text-sm leading-6 text-slate-700">{formatArrivalSchedule(hotelSchedule)}</p>
+			<div class="mt-3">
+				<a
+					href={hotelRulesHref}
+					class="text-sm font-medium text-slate-700 underline-offset-2 hover:text-slate-950 hover:underline"
+				>
+					Editar reglas del alojamiento
+				</a>
+			</div>
+		</section>
+
+		{
+			hasException ? (
+				<section
+					class="fastt-soft-box border border-sky-200 bg-sky-50/70 p-3"
+					data-rate-arrival-exception-block
+				>
+					<p class="text-xs font-semibold tracking-[0.12em] text-sky-800 uppercase">
+						Excepción de esta tarifa
+					</p>
+					<p class="mt-2 text-sm leading-6 text-slate-800">{formatArrivalSchedule(rateSchedule)}</p>
+					<form method="POST" action={actionHref} class="mt-3">
+						<input type="hidden" name="action" value="remove-rate-arrival-exception" />
+						<input type="hidden" name="productId" value={productId} />
+						<input type="hidden" name="ratePlanId" value={ratePlanId} />
+						<Button type="submit" variant="secondary" size="sm">
+							Quitar excepción
+						</Button>
+					</form>
+				</section>
+			) : null
+		}
+
+		<section class="space-y-3" data-rate-arrival-exception-form>
+			<p class="text-xs font-semibold tracking-[0.12em] text-slate-500 uppercase">
+				{hasException ? "Actualizar horario de la tarifa" : "Definir horario distinto"}
+			</p>
+			<form method="POST" action={actionHref} class="grid gap-3 sm:grid-cols-3">
+				<input type="hidden" name="action" value="upsert-rate-arrival-exception" />
+				<input type="hidden" name="productId" value={productId} />
+				<input type="hidden" name="ratePlanId" value={ratePlanId} />
+				<label class="space-y-1 text-sm">
+					<span class="font-medium text-slate-700">Llegada desde</span>
+					<Input
+						type="time"
+						name="checkInFrom"
+						value={formSchedule?.checkInFrom ?? "15:00"}
+						required
+					/>
+				</label>
+				<label class="space-y-1 text-sm">
+					<span class="font-medium text-slate-700">Llegada hasta</span>
+					<Input
+						type="time"
+						name="checkInUntil"
+						value={formSchedule?.checkInUntil ?? "22:00"}
+						required
+					/>
+				</label>
+				<label class="space-y-1 text-sm">
+					<span class="font-medium text-slate-700">Salida hasta</span>
+					<Input
+						type="time"
+						name="checkOutUntil"
+						value={formSchedule?.checkOutUntil ?? "11:00"}
+						required
+					/>
+				</label>
+				<div class="flex flex-wrap items-center gap-3 sm:col-span-3">
+					<Button type="submit" variant="primary" size="sm">
+						{hasException ? "Guardar excepción" : "Crear excepción de horario"}
+					</Button>
+					<a
+						href={conditionsHref}
+						class="text-sm font-medium text-slate-600 underline-offset-2 hover:text-slate-950 hover:underline"
+					>
+						Volver a Condiciones
+					</a>
+				</div>
+			</form>
+		</section>
+	</div>
+</article>

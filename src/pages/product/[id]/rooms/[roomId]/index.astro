@@ -2,6 +2,7 @@
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import ProductContextSwitcher from "@/components/product/ProductContextSwitcher.astro"
+import RoomInheritedHouseRulesCard from "@/components/house-rules/RoomInheritedHouseRulesCard.astro"
 import GuestRoomPreviewCards from "@/components/productUI/GuestRoomPreviewCards.astro"
 import TabsInsidePanel from "@/components/ui/TabsInsidePanel.astro"
 import { productRepository, variantManagementRepository } from "@/container"
@@ -13,6 +14,8 @@ import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { isHotelProductType } from "@/lib/catalog/productVerticalRegistry"
 import { routes } from "@/lib/routes"
 import { Camera, ImagePlus, RefreshCw, Sparkles } from "@lucide/astro"
+import { essentialHouseRuleTypes } from "@/modules/house-rules/presentation/houseRulePresentation"
+import { listEffectiveHouseRules, listHouseRulesByProduct } from "@/modules/house-rules/public"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
@@ -75,6 +78,20 @@ const layoutProps = addRoomPlaybook.active
 			continueHref: addRoomContinueHref,
 		}
 	: { title: "Contenido del alojamiento · Habitación" }
+
+const houseRuleRows = addRoomPlaybook.active
+	? []
+	: ((await listHouseRulesByProduct(productId)) as Array<{ type?: string }>)
+const inheritedHouseRuleTypes = new Set(houseRuleRows.map((rule) => String(rule.type ?? "")))
+const inheritedEssentialReadyCount = essentialHouseRuleTypes.filter((type) =>
+	inheritedHouseRuleTypes.has(type)
+).length
+const inheritedHouseRulesReady = inheritedEssentialReadyCount === essentialHouseRuleTypes.length
+const inheritedHouseRulesHref = `${routes.providerHouseRules()}?productId=${encodeURIComponent(productId)}&variantId=${encodeURIComponent(roomId)}`
+const spaceOverrideCount = addRoomPlaybook.active
+	? 0
+	: (await listEffectiveHouseRules(productId, roomId)).filter((rule) => rule.source === "override")
+			.length
 
 const photosHref = `${routes.productRoomDetail(productId, roomId)}#fotos`
 const previewHref = `${routes.productRoomDetail(productId, roomId)}#previsualizacion`
@@ -169,6 +186,18 @@ const previewHref = `${routes.productRoomDetail(productId, roomId)}#previsualiza
 				data-room-panel="resumen"
 				class:list={["space-y-6", isRoomPhotosPlaybook ? "hidden" : ""]}
 			>
+				{
+					addRoomPlaybook.active ? null : (
+						<RoomInheritedHouseRulesCard
+							productName={owned.name}
+							essentialReadyCount={inheritedEssentialReadyCount}
+							essentialTotal={essentialHouseRuleTypes.length}
+							overrideCount={spaceOverrideCount}
+							editHref={inheritedHouseRulesHref}
+							ready={inheritedHouseRulesReady}
+						/>
+					)
+				}
 				<Card class="overflow-hidden p-0">
 					<div id="overviewPrimaryStatus" class="border-b border-slate-200 bg-slate-50 p-5 md:p-6">
 						<div class="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">

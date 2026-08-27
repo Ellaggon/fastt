@@ -1,0 +1,57 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import { ClipboardList } from "@lucide/astro"
+
+interface Props {
+	productName: string
+	essentialReadyCount: number
+	essentialTotal: number
+	overrideCount?: number
+	editHref: string
+	ready: boolean
+}
+
+const {
+	productName,
+	essentialReadyCount,
+	essentialTotal,
+	overrideCount = 0,
+	editHref,
+	ready,
+} = Astro.props
+---
+
+<Card className="bg-white text-slate-900" data-room-house-rules-inheritance>
+	<div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+		<div class="flex min-w-0 items-start gap-3">
+			<span
+				class="fastt-soft-box flex size-9 shrink-0 items-center justify-center border border-sky-200 bg-sky-50 text-sky-700"
+			>
+				<ClipboardList class="size-4" aria-hidden="true" />
+			</span>
+			<div class="min-w-0">
+				<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">
+					Expectativas de este espacio
+				</p>
+				<p class="mt-1 text-base font-semibold text-slate-950">
+					Hereda las reglas de {productName}
+				</p>
+				<p class="mt-1 max-w-xl text-sm leading-6 text-slate-600">
+					{
+						overrideCount > 0
+							? `El huésped ve las reglas del alojamiento, con ${overrideCount} excepción${overrideCount === 1 ? "" : "es"} de este espacio.`
+							: "El huésped ve las reglas del alojamiento. Aún no se personalizan por habitación."
+					}
+				</p>
+			</div>
+		</div>
+		<div class="flex flex-wrap items-center gap-2 sm:justify-end">
+			<Badge variant={ready ? "success" : "warning"}>
+				{ready ? "Listas en el hotel" : `${essentialReadyCount} de ${essentialTotal} en el hotel`}
+			</Badge>
+			<Button href={editHref} variant="secondary" size="sm">Editar reglas</Button>
+		</div>
+	</div>
+</Card>
