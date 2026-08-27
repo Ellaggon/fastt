@@ -638,9 +638,14 @@ CREATE TABLE "ProductOperationalSurface" (
 CREATE TABLE "HouseRule" (
 	"id" text PRIMARY KEY,
 	"productId" text NOT NULL,
+	"scope" text NOT NULL DEFAULT 'product',
+	"scopeId" text,
 	"type" text NOT NULL,
 	"payloadJson" jsonb NOT NULL,
-	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	CONSTRAINT "HouseRule_scope_check" CHECK ("scope" IN ('product', 'variant')),
+	CONSTRAINT "HouseRule_scope_shape_check" CHECK (("scope" = 'product' AND "scopeId" IS NULL) OR ("scope" = 'variant' AND "scopeId" IS NOT NULL)),
+	CONSTRAINT "HouseRule_variant_type_check" CHECK ("scope" = 'product' OR "type" IN ('Pets', 'Smoking', 'Access', 'Safety', 'ExtraBeds'))
 );
 
 CREATE TABLE "ProductContent" (
@@ -1368,6 +1373,7 @@ CREATE TABLE "Booking" (
 	"guestContactSnapshotJson" jsonb,
 	"lifecycleAuditJson" jsonb,
 	"refundHandoffSnapshotJson" jsonb,
+	"guestExpectationsSnapshotJson" jsonb,
 	"contractSnapshotVersion" text,
 	"integrationConnectionId" text,
 	"externalBookingId" text,
@@ -2101,6 +2107,13 @@ ALTER TABLE "HouseRule"
 	ADD CONSTRAINT "HouseRule_productId_fk"
 	FOREIGN KEY ("productId")
 	REFERENCES "Product" ("id")
+;
+
+ALTER TABLE "HouseRule"
+	ADD CONSTRAINT "HouseRule_scopeId_fk"
+	FOREIGN KEY ("scopeId")
+	REFERENCES "Variant" ("id")
+	ON DELETE CASCADE
 ;
 
 ALTER TABLE "ProductContent"
@@ -3004,7 +3017,11 @@ CREATE INDEX "ProductOperationalSurface_provider_status_idx" ON "ProductOperatio
 
 CREATE INDEX "ProductOperationalSurface_provider_ready_idx" ON "ProductOperationalSurface" ("providerId", "readyToPublish");
 
-CREATE INDEX "HouseRule_productId_type_idx" ON "HouseRule" ("productId", "type");
+CREATE INDEX "HouseRule_productId_scope_idx" ON "HouseRule" ("productId", "scope");
+
+CREATE UNIQUE INDEX "HouseRule_product_type_unique" ON "HouseRule" ("productId", "type") WHERE "scope" = 'product';
+
+CREATE UNIQUE INDEX "HouseRule_variant_type_unique" ON "HouseRule" ("scopeId", "type") WHERE "scope" = 'variant';
 
 CREATE INDEX "Tour_durationMinutes_idx" ON "Tour" ("durationMinutes");
 

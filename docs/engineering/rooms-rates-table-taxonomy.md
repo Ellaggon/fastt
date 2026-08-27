@@ -23,6 +23,7 @@ read them, but must not replace them as the place where providers define the bus
 | `CommercialRuleSet`         | Rooms & Rates Pro          | Reusable commercial automation group such as season, event, last-minute or weekend.   |
 | `CommercialRule`            | Rooms & Rates Pro          | Atomic price or sellability rule inside a commercial rule set.                        |
 | `CommercialRuleApplication` | Rooms & Rates Pro          | Scope/date/channel application of commercial rules to hotel, room, rate or selection. |
+| `HouseRule`                 | House rules                | Guest stay expectations: `scope=product` (property default) or `scope=variant` (unit exception, e.g. smoking). Not Cancellation/Payment/NoShow. |
 | `PolicyGroup`               | Conditions                 | Provider-owned condition group/library item and canonical category.                   |
 | `Policy`                    | Conditions                 | Immutable version content; its dates delimit content validity.                        |
 | `PolicyAssignment`          | Conditions                 | Scope/channel selection; its dates delimit applicable guest arrivals.                 |
