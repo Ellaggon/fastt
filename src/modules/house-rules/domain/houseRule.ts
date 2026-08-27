@@ -55,7 +55,7 @@ export const HOUSE_RULE_TYPES: HouseRuleType[] = [
 	"Other",
 ]
 
-/** Physical-space exceptions a hotel room may override. */
+/** Physical-space exceptions a hotel room may override (channel unit layer). */
 export const VARIANT_OVERRIDE_HOUSE_RULE_TYPES: readonly HouseRuleType[] = [
 	"Pets",
 	"Smoking",

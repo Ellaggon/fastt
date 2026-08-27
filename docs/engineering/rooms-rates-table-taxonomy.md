@@ -89,3 +89,8 @@ edited to change future behavior.
   creation fields such as `createdAt` remain timestamps.
 - Legal, platform and support overrides belong in `PolicyExceptionRule`; do not add JSON
   override flags back to `Policy`.
+- Channel content layers (Channex / Expedia-via-CM) must follow
+  [`adr/0005-channel-content-ownership.md`](./adr/0005-channel-content-ownership.md):
+  property policies ← product `HouseRule`; unit smoking ← variant `HouseRule`;
+  rate cancellation ← `PolicyAssignment` rate_plan commercial; rate arrival exception ←
+  rate_plan `CheckIn`. Do not map policies through ARI room_type/rate_plan ID rows alone.

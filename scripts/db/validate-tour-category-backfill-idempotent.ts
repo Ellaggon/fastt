@@ -1,9 +1,6 @@
 /**
  * Applies 2026-08-19_tour_category_link_backfill.sql twice in one session
- * (outside fastt_schema_migrations skip) and asserts:
- * - both runs succeed
- * - ProductCategoryLink / TourCategoryBackfillUnmapped counts are stable
- * - no duplicate (productId, categoryId) or unmapped ids
+ * (outside fastt_schema_migrations skip) and asserts stable category links.
  */
 import { readFile } from "node:fs/promises"
 import path from "node:path"
@@ -100,7 +97,6 @@ async function main() {
 			}
 
 			console.log(JSON.stringify({ action: "validated_idempotent", ...report }, null, 2))
-			// Roll back seed/mutation side-effects from this validation transaction.
 			throw new Error("__VALIDATE_ROLLBACK__")
 		})
 	} catch (error) {
