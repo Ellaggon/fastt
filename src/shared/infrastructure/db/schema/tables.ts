@@ -1216,7 +1216,6 @@ export const Tour = pgTable(
 		guideJson: jsonb("guideJson"),
 		includesJson: jsonb("includesJson"),
 		excludesJson: jsonb("excludesJson"),
-		categoriesJson: jsonb("categoriesJson"),
 		pickupJson: jsonb("pickupJson"),
 	},
 	(table) => [

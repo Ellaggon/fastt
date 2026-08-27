@@ -682,7 +682,6 @@ CREATE TABLE "Tour" (
 	"guideJson" jsonb,
 	"includesJson" jsonb,
 	"excludesJson" jsonb,
-	"categoriesJson" jsonb,
 	"pickupJson" jsonb
 );
 

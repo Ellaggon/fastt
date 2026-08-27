@@ -22,7 +22,7 @@ import { TOUR_QUALITY_MIN_IMAGES } from "@/lib/tours/tourAdminQuality"
 
 import { productVerticalRegistry, normalizeProductTypeForStorage } from "@/lib/catalog/productVerticalRegistry"
 import { productRepository } from "@/container"
-import { evaluateProductReadiness } from "@/modules/catalog/public"
+import { evaluateProductReadiness, getProductFullAggregate } from "@/modules/catalog/public"
 import { SubtypeRepository } from "@/modules/catalog/infrastructure/repositories/SubtypeRepository"
 import { upsertGeoPlace, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
 
@@ -136,7 +136,6 @@ describe("vertical maturity", () => {
 			guideJson: { languages: "es, en", guideType: "Guia local" },
 			includesJson: ["Transporte", "Guia"],
 			excludesJson: ["Propinas"],
-			categoriesJson: ["Adventure", "Wildlife"],
 			pickupJson: { defaultArea: "Hoteles centro", instructions: "Recojo 07:30" },
 		})
 
@@ -152,8 +151,30 @@ describe("vertical maturity", () => {
 		expect(row?.durationMinutes).toBe(1440)
 		expect(row?.includesJson).toEqual(["Transporte", "Guia"])
 		expect(row?.excludesJson).toEqual(["Propinas"])
-		expect(row?.categoriesJson).toEqual(["Adventure", "Wildlife"])
 		expect(row?.pickupJson).toMatchObject({ defaultArea: "Hoteles centro" })
+
+		const categoryId = `cat_${suffix}`
+		await db.insert(ProductCategory).values({
+			id: categoryId,
+			slug: `adventure-${suffix}`,
+			name: "Adventure",
+			vertical: "tour",
+			sortOrder: 0,
+			isActive: true,
+			createdAt: new Date(),
+		})
+		await db.insert(ProductCategoryLink).values({
+			id: `pcl_${suffix}`,
+			productId,
+			categoryId,
+			createdAt: new Date(),
+		})
+
+		const aggregate = await getProductFullAggregate(productId, "prov_test")
+		expect(aggregate?.subtype).toMatchObject({
+			kind: "tour",
+			categories: [{ id: categoryId, slug: `adventure-${suffix}`, name: "Adventure" }],
+		})
 	})
 
 	it("adds Limousine as a first-class vertical with vehicle and capacity profile", async () => {

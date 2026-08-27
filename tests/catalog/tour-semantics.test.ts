@@ -78,11 +78,11 @@ describe("tour JSON shapes contract (fase 0 inventory)", () => {
 			expect(source).toContain("step: index + 1")
 			// guideJson.languages is a comma-joined string (not an array)
 			expect(source).toContain('listFromForm(form.get("guideLanguages")).join(", ")')
-			// includes/excludes: string[]; categories moved to ProductCategoryLink
+			// includes/excludes: string[]; categories are deliberately absent from subtype persistence.
 			expect(source).toContain('includesJson: listFromForm(form.get("tourIncludes"))')
 			expect(source).toContain('excludesJson: listFromForm(form.get("tourExcludes"))')
 			expect(source).not.toContain('categoriesJson: listFromForm(form.get("tourCategories"))')
-			expect(source).toContain("ProductCategoryLink")
+			expect(source).not.toContain("categoriesJson")
 			// pickupJson: { defaultArea, instructions }
 			expect(source).toContain('defaultArea: form.get("pickupDefaultArea")')
 		}
@@ -109,6 +109,19 @@ describe("tour content backfill contract (fase 1)", () => {
 		expect(migration).toContain('"pickupJson" jsonb')
 		expect(migration).toContain('"Tour_durationMinutes_idx"')
 		expect(migration).toContain('"Tour_difficultyLevel_idx"')
+	})
+
+	it("retires legacy Tour.categoriesJson only after canonical category links are materialized", () => {
+		const schema = read("src/shared/infrastructure/db/schema/tables.ts")
+		const baseline = read("db/postgres/0001_initial_schema.sql")
+		const retirement = read("db/migrations/2026-09-28_retire_tour_categories_json.sql")
+
+		expect(schema).not.toContain('categoriesJson: jsonb("categoriesJson")')
+		expect(baseline).not.toContain('"categoriesJson" jsonb')
+		expect(retirement).toContain('TOUR_CATEGORIES_JSON_INVALID_SHAPE')
+		expect(retirement).toContain('INSERT INTO "ProductCategoryLink"')
+		expect(retirement).toContain('TOUR_CATEGORY_BACKFILL_INCOMPLETE')
+		expect(retirement).toContain('ALTER TABLE "Tour" DROP COLUMN "categoriesJson"')
 	})
 
 	it("backfill migration derives durationMinutes and includes from legacy data", () => {

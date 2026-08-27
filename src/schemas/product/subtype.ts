@@ -58,7 +58,6 @@ export const tourSchema = z.object({
 	guideJson: z.unknown().optional().nullable(),
 	includesJson: z.array(z.string().trim().min(1)).min(1, "Agrega al menos una inclusión."),
 	excludesJson: z.unknown().optional().nullable(),
-	categoriesJson: z.unknown().optional().nullable(),
 	pickupJson: z.unknown().optional().nullable(),
 })
 
