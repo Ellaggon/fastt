@@ -115,6 +115,7 @@ describe("tour content backfill contract (fase 1)", () => {
 		const schema = read("src/shared/infrastructure/db/schema/tables.ts")
 		const baseline = read("db/postgres/0001_initial_schema.sql")
 		const retirement = read("db/migrations/2026-09-28_retire_tour_categories_json.sql")
+		const backfillValidator = read("scripts/db/validate-tour-category-backfill-idempotent.ts")
 
 		expect(schema).not.toContain('categoriesJson: jsonb("categoriesJson")')
 		expect(baseline).not.toContain('"categoriesJson" jsonb')
@@ -122,6 +123,9 @@ describe("tour content backfill contract (fase 1)", () => {
 		expect(retirement).toContain('INSERT INTO "ProductCategoryLink"')
 		expect(retirement).toContain('TOUR_CATEGORY_BACKFILL_INCOMPLETE')
 		expect(retirement).toContain('ALTER TABLE "Tour" DROP COLUMN "categoriesJson"')
+		expect(backfillValidator).toContain("skipped_categories_json_retired")
+		expect(backfillValidator).toContain("information_schema.columns")
+		expect(backfillValidator).toContain("categoriesJson")
 	})
 
 	it("backfill migration derives durationMinutes and includes from legacy data", () => {
