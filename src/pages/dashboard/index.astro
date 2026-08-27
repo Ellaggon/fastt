@@ -143,16 +143,20 @@ function preparationSupport(
 <Layout {...layoutProps}>
 	<section class="space-y-6 md:space-y-8">
 		<header class="flex flex-col gap-2">
-			<h1 class="text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl">
-				{isChoosingForAddRoom ? "Elige dónde crear la habitación" : "Resumen Operativo"}
-			</h1>
-			<p class="max-w-3xl text-sm leading-5 text-slate-300 sm:leading-6">
-				{
-					isChoosingForAddRoom
-						? "Selecciona el alojamiento donde agregarás una nueva habitación."
-						: "Revisa el estado de tus servicios, continúa pendientes y abre las herramientas clave de operación desde un solo lugar."
-				}
-			</p>
+			{
+				isChoosingForAddRoom ? (
+					<>
+						<h1 class="text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl">
+							Elige dónde crear la habitación
+						</h1>
+						<p class="max-w-3xl text-sm leading-5 text-slate-300 sm:leading-6">
+							Selecciona el alojamiento donde agregarás una nueva habitación.
+						</p>
+					</>
+				) : (
+					<h1 class="sr-only">Resumen Operativo</h1>
+				)
+			}
 		</header>
 
 		<div class="space-y-5">
