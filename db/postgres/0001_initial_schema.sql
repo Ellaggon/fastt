@@ -642,10 +642,7 @@ CREATE TABLE "HouseRule" (
 	"scopeId" text,
 	"type" text NOT NULL,
 	"payloadJson" jsonb NOT NULL,
-	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
-	CONSTRAINT "HouseRule_scope_check" CHECK ("scope" IN ('product', 'variant')),
-	CONSTRAINT "HouseRule_scope_shape_check" CHECK (("scope" = 'product' AND "scopeId" IS NULL) OR ("scope" = 'variant' AND "scopeId" IS NOT NULL)),
-	CONSTRAINT "HouseRule_variant_type_check" CHECK ("scope" = 'product' OR "type" IN ('Pets', 'Smoking', 'Access', 'Safety', 'ExtraBeds'))
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
 CREATE TABLE "ProductContent" (
@@ -3431,6 +3428,12 @@ ALTER TABLE "ProductOperationalSurface" ADD CONSTRAINT "ProductOperationalSurfac
 
 ALTER TABLE "ProductOperationalSurface" ADD CONSTRAINT "ProductOperationalSurface_blocker_count_check" CHECK ("blockerCount" >= 0);
 
+ALTER TABLE "HouseRule" ADD CONSTRAINT "HouseRule_scope_check" CHECK ("scope" IN ('product', 'variant'));
+
+ALTER TABLE "HouseRule" ADD CONSTRAINT "HouseRule_scope_shape_check" CHECK (("scope" = 'product' AND "scopeId" IS NULL) OR ("scope" = 'variant' AND "scopeId" IS NOT NULL));
+
+ALTER TABLE "HouseRule" ADD CONSTRAINT "HouseRule_variant_type_check" CHECK ("scope" = 'product' OR "type" IN ('Pets', 'Smoking', 'Access', 'Safety', 'ExtraBeds'));
+
 ALTER TABLE "TourSlotProfile" ADD CONSTRAINT "TourSlotProfile_bookingMode_check" CHECK ("bookingMode" in ('shared', 'private'));
 
 ALTER TABLE "TourSlotProfile" ADD CONSTRAINT "TourSlotProfile_maxPax_check" CHECK ("maxPax" >= 1);
@@ -3945,6 +3948,51 @@ AFTER UPDATE ON "GeoPlace"
 FOR EACH ROW
 WHEN (OLD."canonicalPath" IS DISTINCT FROM NEW."canonicalPath")
 EXECUTE FUNCTION fastt_propagate_geo_place_canonical_path();
+
+CREATE OR REPLACE FUNCTION fastt_house_rule_variant_belongs_to_product()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+	IF NEW."scope" = 'variant' THEN
+		IF NOT EXISTS (
+			SELECT 1
+			FROM "Variant"
+			WHERE "Variant"."id" = NEW."scopeId"
+				AND "Variant"."productId" = NEW."productId"
+				AND "Variant"."kind" = 'hotel_room'
+		) THEN
+			RAISE EXCEPTION 'HOUSE_RULE_VARIANT_SCOPE_MISMATCH';
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS "trg_HouseRule_variant_product" ON "HouseRule";
+CREATE TRIGGER "trg_HouseRule_variant_product"
+BEFORE INSERT OR UPDATE OF "scope", "scopeId", "productId" ON "HouseRule"
+FOR EACH ROW
+EXECUTE FUNCTION fastt_house_rule_variant_belongs_to_product();
+
+ALTER TABLE "HouseRule"
+	DROP CONSTRAINT IF EXISTS "HouseRule_scope_check",
+	DROP CONSTRAINT IF EXISTS "HouseRule_scope_shape_check",
+	DROP CONSTRAINT IF EXISTS "HouseRule_variant_type_check";
+
+ALTER TABLE "HouseRule"
+	ADD CONSTRAINT "HouseRule_scope_check"
+	CHECK ("scope" IN ('product', 'variant')),
+	ADD CONSTRAINT "HouseRule_scope_shape_check"
+	CHECK (
+		("scope" = 'product' AND "scopeId" IS NULL)
+		OR ("scope" = 'variant' AND "scopeId" IS NOT NULL)
+	),
+	ADD CONSTRAINT "HouseRule_variant_type_check"
+	CHECK (
+		"scope" = 'product'
+		OR "type" IN ('Pets', 'Smoking', 'Access', 'Safety', 'ExtraBeds')
+	);
 
 
 
