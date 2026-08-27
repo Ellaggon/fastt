@@ -15,7 +15,8 @@ test("fiscality uses a contextual header, segmented navigation and progressive f
 	expect(read("src/components/dashboard/DashboardTopBar.astro")).not.toContain('label="Panel"')
 	expect(read("src/components/ui/ContextSwitcher.astro")).toContain("fastt-context-switcher--title-only")
 	expect(read("src/pages/product/[id]/index.astro")).toContain("flex flex-col gap-2")
-	expect(read("src/pages/product/[id]/index.astro")).toContain(
+	expect(read("src/pages/product/[id]/index.astro")).toContain('class="sr-only">{owned.name}')
+	expect(read("src/pages/product/[id]/index.astro")).not.toContain(
 		"text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl"
 	)
 	expect(read("src/pages/product/[id]/index.astro")).not.toContain("ProductContextSwitcher")
