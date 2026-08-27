@@ -14,6 +14,7 @@ import {
 	FinancialSettlementRecord,
 	Hotel,
 	Image,
+	ProductImage,
 	PaymentTransaction,
 	Product,
 	ProductContent,
@@ -30,6 +31,7 @@ import {
 	SearchUnitView,
 	User,
 	Variant,
+	VariantImage,
 	VariantCapacity,
 	VariantInventoryConfig,
 	VariantRoomAmenity,
@@ -376,21 +378,28 @@ async function seedCatalog(userId: string): Promise<void> {
 		await db
 			.insert(Image)
 			.values({
-				...image,
-				entityType: "product",
-				entityId: PRODUCT_ID,
+				id: image.id,
 				objectKey: `demo/${image.id}.jpg`,
+				url: image.url,
 			})
 			.onConflictDoUpdate({
 				target: [Image.id],
 				set: {
-					entityType: "product",
-					entityId: PRODUCT_ID,
 					objectKey: `demo/${image.id}.jpg`,
 					url: image.url,
-					order: image.order,
-					isPrimary: image.isPrimary,
 				},
+			})
+		await db
+			.insert(ProductImage)
+			.values({
+				productId: PRODUCT_ID,
+				imageId: image.id,
+				sortOrder: image.order,
+				isPrimary: image.isPrimary,
+			})
+			.onConflictDoUpdate({
+				target: [ProductImage.productId, ProductImage.imageId],
+				set: { sortOrder: image.order, isPrimary: image.isPrimary },
 			})
 	}
 
@@ -542,21 +551,28 @@ async function seedCatalog(userId: string): Promise<void> {
 		await db
 			.insert(Image)
 			.values({
-				...image,
-				entityType: "variant",
-				entityId: VARIANT_ID,
+				id: image.id,
 				objectKey: `demo/${image.id}.jpg`,
+				url: image.url,
 			})
 			.onConflictDoUpdate({
 				target: [Image.id],
 				set: {
-					entityType: "variant",
-					entityId: VARIANT_ID,
 					objectKey: `demo/${image.id}.jpg`,
 					url: image.url,
-					order: image.order,
-					isPrimary: image.isPrimary,
 				},
+			})
+		await db
+			.insert(VariantImage)
+			.values({
+				variantId: VARIANT_ID,
+				imageId: image.id,
+				sortOrder: image.order,
+				isPrimary: image.isPrimary,
+			})
+			.onConflictDoUpdate({
+				target: [VariantImage.variantId, VariantImage.imageId],
+				set: { sortOrder: image.order, isPrimary: image.isPrimary },
 			})
 	}
 

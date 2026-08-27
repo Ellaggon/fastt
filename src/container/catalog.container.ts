@@ -11,7 +11,6 @@ import { ImageUploadRepository } from "../modules/catalog/infrastructure/reposit
 import { VariantManagementRepository } from "../modules/catalog/infrastructure/repositories/VariantManagementRepository"
 import { HotelAmenityQueryRepository } from "../modules/catalog/infrastructure/repositories/HotelAmenityQueryRepository"
 import { VariantRoomProfileRepository } from "../modules/catalog/infrastructure/repositories/VariantRoomProfileRepository"
-import { ImageQueryRepository } from "../modules/catalog/infrastructure/repositories/ImageQueryRepository"
 import { ProductServiceQueryRepository } from "../modules/catalog/infrastructure/repositories/ProductServiceQueryRepository"
 import { GeoPlaceQueryRepository } from "../modules/catalog/infrastructure/repositories/GeoPlaceQueryRepository"
 import { MarketplaceHotelSearchRepository } from "../modules/catalog/infrastructure/repositories/MarketplaceHotelSearchRepository"
@@ -23,7 +22,6 @@ import {
 	createResolveHotelTypeQuery,
 	createResolveProductImagesQuery,
 	createResolveProductServicesQuery,
-	createResolveRoomImagesQuery,
 	createGetProductByIdQuery,
 	createListProductServiceConfigsQuery,
 	createGetProductServiceConfigQuery,
@@ -64,7 +62,6 @@ export async function cleanupStaleUploads(params: { olderThanMinutes: number }) 
 
 export const hotelAmenityQueryRepository = new HotelAmenityQueryRepository()
 export const variantRoomProfileRepository = new VariantRoomProfileRepository()
-export const imageQueryRepository = new ImageQueryRepository()
 export const productServiceQueryRepository = new ProductServiceQueryRepository()
 export const destinationQueryRepository = new GeoPlaceQueryRepository()
 export const marketplaceHotelSearchRepository = new MarketplaceHotelSearchRepository()
@@ -82,7 +79,6 @@ export const resolveProductImages = createResolveProductImagesQuery({
 export const resolveProductServices = createResolveProductServicesQuery({
 	repo: productServiceQueryRepository,
 })
-export const resolveRoomImages = createResolveRoomImagesQuery({ repo: imageQueryRepository })
 
 export const getProductById = createGetProductByIdQuery({ repo: productRepository })
 export const listProductServiceConfigs = createListProductServiceConfigsQuery({

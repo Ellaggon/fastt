@@ -547,6 +547,41 @@ BEFORE INSERT OR UPDATE OF "scope", "scopeId", "productId" ON "HouseRule"
 FOR EACH ROW
 EXECUTE FUNCTION fastt_house_rule_variant_belongs_to_product();
 
+-- Catalog media has typed ownership. A stored asset can belong to one catalog
+-- gallery only; location content may still reference it independently as a hero.
+CREATE OR REPLACE FUNCTION fastt_prevent_catalog_image_owner_overlap()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+	IF TG_TABLE_NAME = 'ProductImage' AND EXISTS (
+		SELECT 1 FROM "VariantImage" WHERE "imageId" = NEW."imageId"
+	) THEN
+		RAISE EXCEPTION 'CATALOG_IMAGE_ALREADY_LINKED_TO_VARIANT';
+	END IF;
+
+	IF TG_TABLE_NAME = 'VariantImage' AND EXISTS (
+		SELECT 1 FROM "ProductImage" WHERE "imageId" = NEW."imageId"
+	) THEN
+		RAISE EXCEPTION 'CATALOG_IMAGE_ALREADY_LINKED_TO_PRODUCT';
+	END IF;
+
+	RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS "trg_ProductImage_single_catalog_owner" ON "ProductImage";
+CREATE TRIGGER "trg_ProductImage_single_catalog_owner"
+BEFORE INSERT OR UPDATE OF "imageId" ON "ProductImage"
+FOR EACH ROW
+EXECUTE FUNCTION fastt_prevent_catalog_image_owner_overlap();
+
+DROP TRIGGER IF EXISTS "trg_VariantImage_single_catalog_owner" ON "VariantImage";
+CREATE TRIGGER "trg_VariantImage_single_catalog_owner"
+BEFORE INSERT OR UPDATE OF "imageId" ON "VariantImage"
+FOR EACH ROW
+EXECUTE FUNCTION fastt_prevent_catalog_image_owner_overlap();
+
 ALTER TABLE "HouseRule"
 	DROP CONSTRAINT IF EXISTS "HouseRule_scope_check",
 	DROP CONSTRAINT IF EXISTS "HouseRule_scope_shape_check",

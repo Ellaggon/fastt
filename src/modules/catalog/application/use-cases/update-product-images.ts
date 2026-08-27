@@ -28,17 +28,16 @@ export async function updateProductImages(params: {
 	if (!images.some((i) => i.isPrimary) && images.length > 0) {
 		images[0].isPrimary = true
 	}
+	// The partial unique index allows exactly one primary image. Clear it once
+	// before applying a reordered gallery so transitions remain atomic in intent.
+	await repo.clearPrimary(productId)
 
 	// update existing ones (order, isPrimary, maybe url) and insert new ones
 	for (let i = 0; i < images.length; i++) {
 		const img = images[i]
 		if (img.id) {
-			// update order + isPrimary (and url if changed)
+			// Gallery metadata is mutable; the stored asset URL is not.
 			const updates: Record<string, any> = { order: i, isPrimary: !!img.isPrimary }
-			const match = existing.find((e) => (e as any).id === img.id) as any
-			if (match && match.url !== img.url) {
-				updates.url = img.url
-			}
 			try {
 				await repo.updateImage(img.id, updates)
 			} catch (e) {

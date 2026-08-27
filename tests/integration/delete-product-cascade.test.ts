@@ -13,6 +13,7 @@ import {
 	ProductGeoPlace,
 	ProductContent,
 	ProductLocation,
+	ProductImage,
 	RatePlan,
 	RatePlanOccupancyPolicy,
 	SearchUnitView,
@@ -21,6 +22,7 @@ import {
 	VariantInventoryConfig,
 	VariantRoomBed,
 	VariantRoomProfile,
+	VariantImage,
 	eq,
 } from "@/shared/infrastructure/db/compat"
 
@@ -98,32 +100,32 @@ describe("integration/catalog delete product cascade", () => {
 			await db.insert(Image).values([
 				{
 					id: productImageId,
-					entityType: "product",
-					entityId: productId,
 					objectKey: `products/${productId}/cover.png`,
 					url: `https://cdn.test/products/${productId}/cover.png`,
-					order: 0,
-					isPrimary: true,
 				},
 				{
 					id: variantImageId,
-					entityType: "variant",
-					entityId: variantId,
 					objectKey: `products/${productId}/rooms/${variantId}.png`,
 					url: `https://cdn.test/products/${productId}/rooms/${variantId}.png`,
-					order: 0,
-					isPrimary: true,
 				},
 				{
 					id: pendingImageId,
-					entityType: "pending",
-					entityId: pendingImageId,
 					objectKey: `products/${productId}/pending.png`,
 					url: `https://cdn.test/products/${productId}/pending.png`,
-					order: 0,
-					isPrimary: false,
 				},
 			])
+			await db.insert(ProductImage).values({
+				productId,
+				imageId: productImageId,
+				sortOrder: 0,
+				isPrimary: true,
+			})
+			await db.insert(VariantImage).values({
+				variantId,
+				imageId: variantImageId,
+				sortOrder: 0,
+				isPrimary: true,
+			})
 			await db.insert(ImageUpload).values([
 				{
 					id: productImageId,

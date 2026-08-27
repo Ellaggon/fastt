@@ -15,7 +15,7 @@ import { POST as setCapacityPost } from "@/pages/api/variant/capacity"
 import { POST as attachSubtypePost } from "@/pages/api/variant/subtype/hotel-room"
 import { POST as evaluateVariantPost } from "@/pages/api/variant/evaluate"
 
-import { and, asc, db, eq, Image, RatePlanOccupancyPolicy } from "@/shared/infrastructure/db/compat"
+import { and, asc, db, eq, Image, RatePlanOccupancyPolicy, VariantImage } from "@/shared/infrastructure/db/compat"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -76,15 +76,13 @@ async function readJson(res: Response) {
 }
 
 async function insertVariantImage(variantId: string) {
+	const imageId = `img_${crypto.randomUUID()}`
 	await db.insert(Image).values({
-		id: `img_${crypto.randomUUID()}`,
-		entityType: "variant",
-		entityId: variantId,
+		id: imageId,
 		objectKey: `rooms/${variantId}/main.jpg`,
 		url: `https://example.com/rooms/${variantId}/main.jpg`,
-		order: 0,
-		isPrimary: true,
 	})
+	await db.insert(VariantImage).values({ variantId, imageId, sortOrder: 0, isPrimary: true })
 }
 
 async function seedRatePlanFixture(params?: { ownerEmail?: string }) {

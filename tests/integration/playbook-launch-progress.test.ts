@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { db, DailyInventory, EffectivePricingV2, Image } from "@/shared/infrastructure/db/compat"
+import { db, DailyInventory, EffectivePricingV2, Image, VariantImage } from "@/shared/infrastructure/db/compat"
 
 import { productImageRepository, productRepository, subtypeRepository } from "@/container"
 import { evaluateLaunchProgress } from "@/lib/playbook/evaluate-launch-progress"
@@ -22,15 +22,13 @@ function addDaysIso(start: string, offset: number) {
 }
 
 async function insertVariantImage(variantId: string) {
+	const imageId = `img_launch_${crypto.randomUUID()}`
 	await db.insert(Image).values({
-		id: `img_launch_${crypto.randomUUID()}`,
-		entityType: "variant",
-		entityId: variantId,
+		id: imageId,
 		objectKey: `rooms/${variantId}/main.jpg`,
 		url: `https://example.com/rooms/${variantId}/main.jpg`,
-		order: 0,
-		isPrimary: true,
 	})
+	await db.insert(VariantImage).values({ variantId, imageId, sortOrder: 0, isPrimary: true })
 }
 
 async function assignRequiredPolicies(params: { providerId: string; ratePlanId: string }) {

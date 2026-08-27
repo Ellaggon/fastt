@@ -950,8 +950,8 @@ const previewHref = `${routes.productRoomDetail(productId, roomId)}#previsualiza
 							completeData.set("productId", productId)
 							completeData.set("imageId", String(initPayload.imageId))
 							completeData.set("objectKey", String(initPayload.objectKey))
-							completeData.set("entityType", "variant")
-							completeData.set("entityId", roomId)
+							completeData.set("target", "variant")
+							completeData.set("targetId", roomId)
 							const completeResponse = await fetch("/api/uploads/complete", {
 								method: "POST",
 								body: completeData,

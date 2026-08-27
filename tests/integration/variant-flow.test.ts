@@ -10,7 +10,7 @@ import { POST as evaluateVariantPost } from "@/pages/api/variant/evaluate"
 import { POST as setVariantSalesPost } from "@/pages/api/variant/sales"
 
 import { variantManagementRepository } from "@/container"
-import { db, Image, VariantCapacity, eq } from "@/shared/infrastructure/db/compat"
+import { db, Image, VariantCapacity, VariantImage, eq } from "@/shared/infrastructure/db/compat"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -77,15 +77,13 @@ async function readJson(res: Response) {
 }
 
 async function insertVariantImage(variantId: string) {
+	const imageId = `img_${crypto.randomUUID()}`
 	await db.insert(Image).values({
-		id: `img_${crypto.randomUUID()}`,
-		entityType: "variant",
-		entityId: variantId,
+		id: imageId,
 		objectKey: `rooms/${variantId}/main.jpg`,
 		url: `https://example.com/rooms/${variantId}/main.jpg`,
-		order: 0,
-		isPrimary: true,
 	})
+	await db.insert(VariantImage).values({ variantId, imageId, sortOrder: 0, isPrimary: true })
 }
 
 describe("integration/variant (CAPA 3)", () => {

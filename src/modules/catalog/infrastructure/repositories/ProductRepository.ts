@@ -14,6 +14,8 @@ import {
 	HouseRule,
 	Image,
 	ImageUpload,
+	ProductImage,
+	VariantImage,
 	Hotel,
 	Limousine,
 	Tour,
@@ -375,8 +377,9 @@ export class ProductRepository implements ProductRepositoryPort {
 
 		const images = await db
 			.select({ id: Image.id })
-			.from(Image)
-			.where(eq(Image.entityId, productId))
+			.from(ProductImage)
+			.innerJoin(Image, eq(Image.id, ProductImage.imageId))
+			.where(eq(ProductImage.productId, productId))
 
 		const pt = String(product.productType || "")
 			.trim()
@@ -570,9 +573,17 @@ export class ProductRepository implements ProductRepositoryPort {
 			.where(eq(ProductService.productId, productId))
 
 		const serviceIds = serviceRows.map((service) => String(service.id))
-		const productImages = await db.select().from(Image).where(eq(Image.entityId, productId))
+		const productImages = await db
+			.select({ id: Image.id, objectKey: Image.objectKey, url: Image.url })
+			.from(ProductImage)
+			.innerJoin(Image, eq(Image.id, ProductImage.imageId))
+			.where(eq(ProductImage.productId, productId))
 		const variantImages = variantIds.length
-			? await db.select().from(Image).where(inArray(Image.entityId, variantIds))
+			? await db
+					.select({ id: Image.id, objectKey: Image.objectKey, url: Image.url })
+					.from(VariantImage)
+					.innerJoin(Image, eq(Image.id, VariantImage.imageId))
+					.where(inArray(VariantImage.variantId, variantIds))
 			: []
 		const productObjectPrefix = `products/${productId}/`
 		const pendingProductImages = (await db.select().from(Image)).filter((image) =>
@@ -625,7 +636,7 @@ export class ProductRepository implements ProductRepositoryPort {
 				.where(
 					and(eq(PolicyAssignment.scope, "variant"), inArray(PolicyAssignment.scopeId, variantIds))
 				)
-			await db.delete(Image).where(inArray(Image.entityId, variantIds))
+			await db.delete(VariantImage).where(inArray(VariantImage.variantId, variantIds))
 			await db.delete(SearchUnitView).where(inArray(SearchUnitView.variantId, variantIds))
 			await db
 				.delete(EffectiveRestriction)
@@ -688,7 +699,7 @@ export class ProductRepository implements ProductRepositoryPort {
 			.delete(PolicyAssignment)
 			.where(and(eq(PolicyAssignment.scope, "product"), eq(PolicyAssignment.scopeId, productId)))
 
-		await db.delete(Image).where(eq(Image.entityId, productId))
+		await db.delete(ProductImage).where(eq(ProductImage.productId, productId))
 		if (imageIds.length) {
 			await db.delete(Image).where(inArray(Image.id, imageIds))
 		}

@@ -28,6 +28,7 @@ import {
 	gt,
 	gte,
 	Image,
+	ProductImage,
 	inArray,
 	isNull,
 	lt,
@@ -327,7 +328,11 @@ async function loadTourSearchSurfaceCards(params: {
 			and(eq(ProductContent.productId, Product.id), eq(ProductContent.dataClass, "production"))
 		)
 		.leftJoin(Tour, eq(Tour.productId, Product.id))
-		.leftJoin(Image, and(eq(Image.entityId, Product.id), eq(Image.isPrimary, true)))
+		.leftJoin(
+			ProductImage,
+			and(eq(ProductImage.productId, Product.id), eq(ProductImage.isPrimary, true))
+		)
+		.leftJoin(Image, eq(Image.id, ProductImage.imageId))
 		.where(and(...whereParts))
 
 	type Acc = {

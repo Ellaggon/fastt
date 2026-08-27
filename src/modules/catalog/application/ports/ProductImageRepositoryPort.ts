@@ -9,6 +9,7 @@ export type ProductImageRow = {
 export interface ProductImageRepositoryPort {
 	listByProduct(productId: string): Promise<ProductImageRow[]>
 	updateImage(id: string, patch: Record<string, unknown>): Promise<void>
+	clearPrimary(productId: string): Promise<void>
 	insertImage(params: {
 		productId: string
 		url: string

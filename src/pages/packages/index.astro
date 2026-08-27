@@ -27,10 +27,11 @@ const packages = await db
 		includes: Package.includesJson,
 		excludes: Package.excludesJson,
 		imageUrl: sql<string>`(
-			SELECT "url"
-			FROM "Image"
-			WHERE "entityId" = ${Product.id}
-			ORDER BY "isPrimary" DESC, "order" ASC
+			SELECT image."url"
+			FROM "ProductImage" link
+			JOIN "Image" image ON image."id" = link."imageId"
+			WHERE link."productId" = ${Product.id}
+			ORDER BY link."isPrimary" DESC, link."sortOrder" ASC
 			LIMIT 1
 		)`.as("imageUrl"),
 		itinerary: Package.itineraryJson,

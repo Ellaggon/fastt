@@ -43,6 +43,7 @@ import {
 	ProductContent,
 	ProductLocation,
 	ProductReview,
+	ProductImage,
 	ProductService,
 	RatePlanOccupancyPolicy,
 	gt,
@@ -218,10 +219,17 @@ try {
 		})
 
 	images = await db
-		.select()
-		.from(Image)
-		.where(eq(Image.entityId, productId))
-		.orderBy(asc(Image.order))
+		.select({
+			id: Image.id,
+			url: Image.url,
+			objectKey: Image.objectKey,
+			isPrimary: ProductImage.isPrimary,
+			order: ProductImage.sortOrder,
+		})
+		.from(ProductImage)
+		.innerJoin(Image, eq(Image.id, ProductImage.imageId))
+		.where(eq(ProductImage.productId, productId))
+		.orderBy(asc(ProductImage.sortOrder))
 
 	subtype = await db.select().from(Tour).where(eq(Tour.productId, productId)).then(first)
 } catch (e) {

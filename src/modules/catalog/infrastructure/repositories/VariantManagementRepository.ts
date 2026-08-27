@@ -12,6 +12,7 @@ import {
 	EffectiveRestriction,
 	Image,
 	ImageUpload,
+	VariantImage,
 	SearchUnitView,
 	CommercialRuleApplication,
 	TaxFeeAssignment,
@@ -372,9 +373,10 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 
 		const ratePlanIds = ratePlans.map((ratePlan) => String(ratePlan.id))
 		const images = await db
-			.select()
-			.from(Image)
-			.where(and(inArray(Image.entityType, ["variant", "Variant"]), eq(Image.entityId, variantId)))
+			.select({ id: Image.id, objectKey: Image.objectKey, url: Image.url })
+			.from(VariantImage)
+			.innerJoin(Image, eq(Image.id, VariantImage.imageId))
+			.where(eq(VariantImage.variantId, variantId))
 
 		const imageIds = images.map((image) => String(image.id))
 		const imageObjectKeys = [
@@ -413,9 +415,10 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 		await db
 			.delete(PolicyAssignment)
 			.where(and(eq(PolicyAssignment.scope, "variant"), eq(PolicyAssignment.scopeId, variantId)))
-		await db
-			.delete(Image)
-			.where(and(inArray(Image.entityType, ["variant", "Variant"]), eq(Image.entityId, variantId)))
+		if (imageIds.length) {
+			await db.delete(VariantImage).where(eq(VariantImage.variantId, variantId))
+			await db.delete(Image).where(inArray(Image.id, imageIds))
+		}
 		await db.delete(SearchUnitView).where(eq(SearchUnitView.variantId, variantId))
 		await db.delete(EffectiveRestriction).where(eq(EffectiveRestriction.variantId, variantId))
 		await db.delete(EffectiveAvailability).where(eq(EffectiveAvailability.variantId, variantId))
@@ -468,8 +471,8 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 	async countVariantImages(variantId: string): Promise<number> {
 		const row = await db
 			.select({ value: count() })
-			.from(Image)
-			.where(and(inArray(Image.entityType, ["variant", "Variant"]), eq(Image.entityId, variantId)))
+			.from(VariantImage)
+			.where(eq(VariantImage.variantId, variantId))
 			.then(first)
 		return Number(row?.value ?? 0)
 	}

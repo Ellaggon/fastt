@@ -19,11 +19,16 @@ const candidateFields = {
 	productId: Product.id,
 	name: Product.name,
 	geoPlaceId: ProductGeoPlace.placeId,
-	heroImageUrl: sql<string | null>`(
-		SELECT url FROM "Image"
-		WHERE ("entityType" = 'Product' AND "entityId" = ${Product.id})
-		   OR ("entityType" = 'Variant' AND "entityId" IN (SELECT id FROM "Variant" WHERE "productId" = ${Product.id}))
-		ORDER BY "isPrimary" DESC, "order" ASC LIMIT 1
+	heroImageUrl: sql<string | null>`COALESCE(
+		(SELECT image."url" FROM "ProductImage" link
+			JOIN "Image" image ON image."id" = link."imageId"
+			WHERE link."productId" = ${Product.id}
+			ORDER BY link."isPrimary" DESC, link."sortOrder" ASC LIMIT 1),
+		(SELECT image."url" FROM "VariantImage" link
+			JOIN "Image" image ON image."id" = link."imageId"
+			JOIN "Variant" variant ON variant."id" = link."variantId"
+			WHERE variant."productId" = ${Product.id}
+			ORDER BY link."isPrimary" DESC, link."sortOrder" ASC LIMIT 1)
 	)`.as("heroImageUrl"),
 }
 

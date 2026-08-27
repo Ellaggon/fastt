@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest"
-import { and, db, eq, Image, ImageUpload, Variant } from "@/shared/infrastructure/db/compat"
+import { and, db, eq, Image, ImageUpload, Variant, VariantImage } from "@/shared/infrastructure/db/compat"
 
 import { upsertGeoPlace, upsertProduct } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
@@ -249,8 +249,8 @@ describe("integration/r2 image upload system (Product V2)", () => {
 			completeFd.set("productId", productId)
 			completeFd.set("imageId", initJson.imageId)
 			completeFd.set("objectKey", initJson.objectKey)
-			completeFd.set("entityType", "variant")
-			completeFd.set("entityId", variantId)
+			completeFd.set("target", "variant")
+			completeFd.set("targetId", variantId)
 			const completeRes = await uploadCompletePost({
 				request: makeAuthedFormRequest({ path: "/api/uploads/complete", token, form: completeFd }),
 			} as any)
@@ -258,8 +258,8 @@ describe("integration/r2 image upload system (Product V2)", () => {
 
 			const attached = await db
 				.select()
-				.from(Image)
-				.where(and(eq(Image.id, initJson.imageId), eq(Image.entityId, variantId)))
+				.from(VariantImage)
+				.where(and(eq(VariantImage.imageId, initJson.imageId), eq(VariantImage.variantId, variantId)))
 
 			expect(attached).toHaveLength(1)
 			const upload = await db

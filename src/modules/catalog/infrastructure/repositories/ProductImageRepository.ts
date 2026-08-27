@@ -2,11 +2,11 @@ import {
 	db,
 	Image,
 	ImageUpload,
+	ProductImage,
 	eq,
 	asc,
 	desc,
 	and,
-	inArray,
 	or,
 } from "@/shared/infrastructure/db/compat"
 import { ensureObjectKey } from "@/lib/images/objectKey"
@@ -16,19 +16,44 @@ import type {
 } from "../../application/ports/ProductImageRepositoryPort"
 
 export class ProductImageRepository implements ProductImageRepositoryPort {
+	private selectGallery(productId: string) {
+		return db
+			.select({
+				id: Image.id,
+				url: Image.url,
+				objectKey: Image.objectKey,
+				order: ProductImage.sortOrder,
+				isPrimary: ProductImage.isPrimary,
+			})
+			.from(ProductImage)
+			.innerJoin(Image, eq(Image.id, ProductImage.imageId))
+			.where(eq(ProductImage.productId, productId))
+	}
+
 	async listByProduct(productId: string): Promise<ProductImageRow[]> {
-		return (await db
-			.select()
-			.from(Image)
-			.where(and(eq(Image.entityId, productId), inArray(Image.entityType, ["product", "Product"])))
-			.orderBy(asc(Image.order), asc(Image.id))) as any
+		return (await this.selectGallery(productId).orderBy(
+			asc(ProductImage.sortOrder),
+			asc(Image.id)
+		)) as any
 	}
 
 	async updateImage(id: string, patch: Record<string, unknown>): Promise<void> {
+		const galleryPatch: Record<string, unknown> = {}
+		if (typeof patch.order === "number") galleryPatch.sortOrder = patch.order
+		if (typeof patch.isPrimary === "boolean") galleryPatch.isPrimary = patch.isPrimary
+		if (Object.keys(galleryPatch).length) {
+			await db
+				.update(ProductImage)
+				.set(galleryPatch as any)
+				.where(eq(ProductImage.imageId, id))
+		}
+	}
+
+	async clearPrimary(productId: string): Promise<void> {
 		await db
-			.update(Image)
-			.set(patch as any)
-			.where(eq(Image.id, id))
+			.update(ProductImage)
+			.set({ isPrimary: false })
+			.where(and(eq(ProductImage.productId, productId), eq(ProductImage.isPrimary, true)))
 	}
 
 	async insertImage(params: {
@@ -47,14 +72,22 @@ export class ProductImageRepository implements ProductImageRepositoryPort {
 			imageId,
 		})
 		if (!objectKey) throw new Error("objectKey_required")
-		await db.insert(Image).values({
-			id: imageId,
-			entityId: params.productId,
-			entityType: "product",
-			objectKey,
-			url: params.url,
-			order: params.order,
-			isPrimary: params.isPrimary,
+		await db.transaction(async (tx) => {
+			if (params.isPrimary) {
+				await tx
+					.update(ProductImage)
+					.set({ isPrimary: false })
+					.where(
+						and(eq(ProductImage.productId, params.productId), eq(ProductImage.isPrimary, true))
+					)
+			}
+			await tx.insert(Image).values({ id: imageId, objectKey, url: params.url })
+			await tx.insert(ProductImage).values({
+				productId: params.productId,
+				imageId,
+				sortOrder: params.order,
+				isPrimary: params.isPrimary,
+			})
 		})
 	}
 
@@ -64,18 +97,16 @@ export class ProductImageRepository implements ProductImageRepositoryPort {
 	}
 
 	async listOrderedByProduct(productId: string): Promise<ProductImageRow[]> {
-		return (await db
-			.select()
-			.from(Image)
-			.where(and(eq(Image.entityId, productId), inArray(Image.entityType, ["product", "Product"])))
-			.orderBy(asc(Image.order), asc(Image.id))) as any
+		return (await this.selectGallery(productId).orderBy(
+			asc(ProductImage.sortOrder),
+			asc(Image.id)
+		)) as any
 	}
 
 	async listGalleryByProduct(productId: string): Promise<ProductImageRow[]> {
-		return (await db
-			.select()
-			.from(Image)
-			.where(and(eq(Image.entityId, productId), inArray(Image.entityType, ["product", "Product"])))
-			.orderBy(desc(Image.isPrimary), asc(Image.order))) as any
+		return (await this.selectGallery(productId).orderBy(
+			desc(ProductImage.isPrimary),
+			asc(ProductImage.sortOrder)
+		)) as any
 	}
 }

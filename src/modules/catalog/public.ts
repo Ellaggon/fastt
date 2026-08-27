@@ -50,7 +50,6 @@ export * from "./application/use-cases/variant/delete-variant"
 // Application ports (types/interfaces)
 export * from "./application/ports/HotelAmenityQueryRepositoryPort"
 export * from "./application/ports/VariantRoomProfileRepositoryPort"
-export * from "./application/ports/ImageQueryRepositoryPort"
 export * from "./application/ports/ProductImageRepositoryPort"
 export * from "./application/ports/ProductRepositoryPort"
 export * from "./application/ports/ProductServiceQueryRepositoryPort"
@@ -89,11 +88,6 @@ export async function resolveProductImages(productId: string) {
 export async function resolveProductServices(productId: string) {
 	const { resolveProductServices } = await import("@/container")
 	return resolveProductServices(productId)
-}
-
-export async function resolveRoomImages(roomTypeIds: string[]) {
-	const { resolveRoomImages } = await import("@/container")
-	return resolveRoomImages(roomTypeIds)
 }
 
 export async function getProductById(productId: string) {

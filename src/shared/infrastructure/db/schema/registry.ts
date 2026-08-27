@@ -48,6 +48,8 @@ export const databaseTablesByDomain = {
 		"Service",
 		"Image",
 		"ImageUpload",
+		"ProductImage",
+		"VariantImage",
 		"Product",
 		"ProductGeoPlace",
 		"ProductGeoPlaceActivity",
