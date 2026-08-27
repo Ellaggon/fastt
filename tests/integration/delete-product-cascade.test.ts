@@ -120,12 +120,6 @@ describe("integration/catalog delete product cascade", () => {
 				sortOrder: 0,
 				isPrimary: true,
 			})
-			await db.insert(VariantImage).values({
-				variantId,
-				imageId: variantImageId,
-				sortOrder: 0,
-				isPrimary: true,
-			})
 			await db.insert(ImageUpload).values([
 				{
 					id: productImageId,
@@ -160,6 +154,12 @@ describe("integration/catalog delete product cascade", () => {
 				kind: "hotel_room",
 				lifecycleState: "ready",
 				salesEnabled: true,
+			})
+			await db.insert(VariantImage).values({
+				variantId,
+				imageId: variantImageId,
+				sortOrder: 0,
+				isPrimary: true,
 			})
 			await db.insert(VariantCapacity).values({
 				variantId,
