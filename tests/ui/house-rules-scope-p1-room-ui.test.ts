@@ -38,6 +38,13 @@ describe("ui/house-rules P1 room editor", () => {
 		expect(row).toContain("Crear excepción")
 		expect(row).toContain('name="scope" value="variant"')
 		expect(row).toContain('data-house-rule-variant-mode={hasOverride ? "override" : "inherited"}')
+		expect(row).toContain("data-house-rule-exception-form")
+		expect(row).toContain("<details")
+		expect(row).toContain("fastt-row-card group scroll-mt-24")
+		expect(row).toContain("group-open:rotate-90")
+		expect(row).toContain('[&::-webkit-details-marker]:hidden')
+		expect(row).not.toContain("openByDefault")
+		expect(row).not.toMatch(/<details[^>]*\sopen[\s>]/)
 	})
 
 	it("keeps hotel editor and quick setups out of space context", () => {
