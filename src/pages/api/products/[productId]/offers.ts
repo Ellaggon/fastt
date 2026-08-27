@@ -1,5 +1,14 @@
 import type { APIRoute } from "astro"
-import { and, asc, db, eq, Image, inArray } from "@/shared/infrastructure/db/compat"
+import {
+	and,
+	asc,
+	db,
+	eq,
+	Image,
+	inArray,
+	ProductImage,
+	VariantImage,
+} from "@/shared/infrastructure/db/compat"
 import { z, ZodError } from "zod"
 
 import { searchOffers } from "@/container"
@@ -66,35 +75,27 @@ export const POST: APIRoute = async ({ request, params }) => {
 					id: Image.id,
 					url: Image.url,
 					objectKey: Image.objectKey,
-					isPrimary: Image.isPrimary,
-					order: Image.order,
+					isPrimary: ProductImage.isPrimary,
+					order: ProductImage.sortOrder,
 				})
-				.from(Image)
-				.where(
-					and(
-						inArray(Image.entityType, ["product", "Product"]),
-						eq(Image.entityId, parsed.productId)
-					)
-				)
-				.orderBy(asc(Image.order)),
+				.from(ProductImage)
+				.innerJoin(Image, eq(Image.id, ProductImage.imageId))
+				.where(eq(ProductImage.productId, parsed.productId))
+				.orderBy(asc(ProductImage.sortOrder)),
 			variantIds.length > 0
 				? db
 						.select({
 							id: Image.id,
-							entityId: Image.entityId,
+							variantId: VariantImage.variantId,
 							url: Image.url,
 							objectKey: Image.objectKey,
-							isPrimary: Image.isPrimary,
-							order: Image.order,
+							isPrimary: VariantImage.isPrimary,
+							order: VariantImage.sortOrder,
 						})
-						.from(Image)
-						.where(
-							and(
-								inArray(Image.entityType, ["variant", "Variant"]),
-								inArray(Image.entityId, variantIds)
-							)
-						)
-						.orderBy(asc(Image.order))
+						.from(VariantImage)
+						.innerJoin(Image, eq(Image.id, VariantImage.imageId))
+						.where(inArray(VariantImage.variantId, variantIds))
+						.orderBy(asc(VariantImage.sortOrder))
 				: Promise.resolve([] as any[]),
 		])
 
@@ -122,7 +123,7 @@ export const POST: APIRoute = async ({ request, params }) => {
 			}>
 		>()
 		for (const image of variantImageRows) {
-			const variantId = String(image.entityId ?? "")
+			const variantId = String(image.variantId ?? "")
 			if (!variantId) continue
 			const images = variantImagesByVariantId.get(variantId) ?? []
 			images.push({

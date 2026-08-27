@@ -238,28 +238,17 @@ export const Service = pgTable("Service", {
 	id: pk(),
 })
 
-export const Image = pgTable(
-	"Image",
-	{
-		id: pk(),
-		entityType: txtOpt("entityType"),
-		entityId: txtOpt("entityId"),
-		objectKey: txt("objectKey"),
-		url: txt("url"),
-		order: intDefault("order", 0),
-		isPrimary: boolDefault("isPrimary", false),
-	},
-	(table) => [
-		index("Image_entityType_entityId_idx").on(table.entityType, table.entityId),
-		index("Image_entityId_idx").on(table.entityId),
-	]
-)
+export const Image = pgTable("Image", {
+	id: pk(),
+	objectKey: txt("objectKey"),
+	url: txt("url"),
+})
 
 export const ImageUpload = pgTable(
 	"ImageUpload",
 	{
 		id: pk(),
-		imageId: txt("imageId").references(() => Image.id),
+		imageId: txt("imageId").references(() => Image.id, { onDelete: "cascade" }),
 		objectKey: txt("objectKey"),
 		status: text("status").default("pending").notNull(),
 		createdAt: now("createdAt"),
@@ -1291,6 +1280,54 @@ export const Variant = pgTable(
 			"Variant_sales_requires_ready_check",
 			sql`NOT ${table.salesEnabled} OR ${table.lifecycleState} = 'ready'`
 		),
+	]
+)
+
+/** Ordered gallery membership for a product. Image remains the stored asset. */
+export const ProductImage = pgTable(
+	"ProductImage",
+	{
+		productId: txt("productId").references(() => Product.id, { onDelete: "cascade" }),
+		imageId: txt("imageId").references(() => Image.id, { onDelete: "cascade" }),
+		sortOrder: intDefault("sortOrder", 0),
+		isPrimary: boolDefault("isPrimary", false),
+		createdAt: now("createdAt"),
+	},
+	(table) => [
+		primaryKey({
+			columns: [table.productId, table.imageId],
+			name: "ProductImage_product_image_pk",
+		}),
+		uniqueIndex("ProductImage_imageId_unique").on(table.imageId),
+		uniqueIndex("ProductImage_one_primary_product_unique")
+			.on(table.productId)
+			.where(sql`${table.isPrimary} = true`),
+		index("ProductImage_product_sort_idx").on(table.productId, table.sortOrder, table.imageId),
+		check("ProductImage_sortOrder_nonnegative", sql`${table.sortOrder} >= 0`),
+	]
+)
+
+/** Ordered gallery membership for a sellable unit or tour departure variant. */
+export const VariantImage = pgTable(
+	"VariantImage",
+	{
+		variantId: txt("variantId").references(() => Variant.id, { onDelete: "cascade" }),
+		imageId: txt("imageId").references(() => Image.id, { onDelete: "cascade" }),
+		sortOrder: intDefault("sortOrder", 0),
+		isPrimary: boolDefault("isPrimary", false),
+		createdAt: now("createdAt"),
+	},
+	(table) => [
+		primaryKey({
+			columns: [table.variantId, table.imageId],
+			name: "VariantImage_variant_image_pk",
+		}),
+		uniqueIndex("VariantImage_imageId_unique").on(table.imageId),
+		uniqueIndex("VariantImage_one_primary_variant_unique")
+			.on(table.variantId)
+			.where(sql`${table.isPrimary} = true`),
+		index("VariantImage_variant_sort_idx").on(table.variantId, table.sortOrder, table.imageId),
+		check("VariantImage_sortOrder_nonnegative", sql`${table.sortOrder} >= 0`),
 	]
 )
 

@@ -58,6 +58,7 @@ import {
 	DailyInventory,
 	RatePlan,
 	RatePlanOccupancyPolicy,
+	VariantImage,
 } from "@/shared/infrastructure/db/compat"
 
 const user = await getUserFromRequest(Astro.request)
@@ -280,24 +281,20 @@ if (isHotel) {
 				db
 					.select({
 						id: Image.id,
-						entityId: Image.entityId,
+						variantId: VariantImage.variantId,
 						url: Image.url,
-						order: Image.order,
-						isPrimary: Image.isPrimary,
+						order: VariantImage.sortOrder,
+						isPrimary: VariantImage.isPrimary,
 					})
-					.from(Image)
-					.where(
-						and(
-							inArray(Image.entityType, ["variant", "Variant"]),
-							inArray(Image.entityId, roomVariantIds)
-						)
-					)
-					.orderBy(asc(Image.order), asc(Image.id)),
+					.from(VariantImage)
+					.innerJoin(Image, eq(Image.id, VariantImage.imageId))
+					.where(inArray(VariantImage.variantId, roomVariantIds))
+					.orderBy(asc(VariantImage.sortOrder), asc(Image.id)),
 			])
 		: [[], [], []]
 	const imagesByVariant = new Map<string, any[]>()
 	for (const image of variantImageRows) {
-		const variantId = String(image.entityId ?? "")
+		const variantId = String(image.variantId ?? "")
 		if (!imagesByVariant.has(variantId)) imagesByVariant.set(variantId, [])
 		imagesByVariant.get(variantId)?.push({
 			id: String(image.id),

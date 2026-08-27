@@ -7,8 +7,8 @@ import {
 	eq,
 	Image,
 	ImageUpload,
-	inArray,
 	or,
+	VariantImage,
 } from "@/shared/infrastructure/db/compat"
 
 import { productRepository, r2, variantManagementRepository } from "@/container"
@@ -89,8 +89,9 @@ export const POST: APIRoute = async ({ request }) => {
 				url: Image.url,
 				objectKey: Image.objectKey,
 			})
-			.from(Image)
-			.where(and(inArray(Image.entityType, ["variant", "Variant"]), eq(Image.entityId, variantId)))
+			.from(VariantImage)
+			.innerJoin(Image, eq(Image.id, VariantImage.imageId))
+			.where(eq(VariantImage.variantId, variantId))
 
 		const existingByUrl = new Map(existing.map((row) => [String(row.url), String(row.id)]))
 		const incomingSet = new Set(incomingUrls)
@@ -109,6 +110,9 @@ export const POST: APIRoute = async ({ request }) => {
 							eq(ImageUpload.objectKey, objectKey)
 						)
 					)
+				await db
+					.delete(VariantImage)
+					.where(and(eq(VariantImage.variantId, variantId), eq(VariantImage.imageId, imageId)))
 				await db.delete(Image).where(eq(Image.id, imageId))
 				if (objectKey && process.env.R2_BUCKET_NAME) {
 					try {
@@ -124,6 +128,11 @@ export const POST: APIRoute = async ({ request }) => {
 				}
 			}
 		}
+
+		await db
+			.update(VariantImage)
+			.set({ isPrimary: false })
+			.where(and(eq(VariantImage.variantId, variantId), eq(VariantImage.isPrimary, true)))
 
 		for (const [index, url] of incomingUrls.entries()) {
 			const maybeObjectKey = incomingObjectKeys[index] ?? null
@@ -147,27 +156,28 @@ export const POST: APIRoute = async ({ request }) => {
 			const imageId = existingByUrl.get(url)
 			if (imageId) {
 				await db
-					.update(Image)
+					.update(VariantImage)
 					.set({
-						order: index,
+						sortOrder: index,
 						isPrimary: index === 0,
-						entityType: "variant",
-						entityId: variantId,
-						objectKey: normalizedObjectKey,
-						url,
 					})
-					.where(eq(Image.id, imageId))
+					.where(and(eq(VariantImage.variantId, variantId), eq(VariantImage.imageId, imageId)))
 				continue
 			}
 
-			await db.insert(Image).values({
-				id: crypto.randomUUID(),
-				entityType: "variant",
-				entityId: variantId,
-				objectKey: normalizedObjectKey,
-				url,
-				order: index,
-				isPrimary: index === 0,
+			const newImageId = crypto.randomUUID()
+			await db.transaction(async (tx) => {
+				await tx.insert(Image).values({
+					id: newImageId,
+					objectKey: normalizedObjectKey,
+					url,
+				})
+				await tx.insert(VariantImage).values({
+					variantId,
+					imageId: newImageId,
+					sortOrder: index,
+					isPrimary: index === 0,
+				})
 			})
 		}
 
@@ -176,12 +186,13 @@ export const POST: APIRoute = async ({ request }) => {
 				id: Image.id,
 				url: Image.url,
 				objectKey: Image.objectKey,
-				order: Image.order,
-				isPrimary: Image.isPrimary,
+				order: VariantImage.sortOrder,
+				isPrimary: VariantImage.isPrimary,
 			})
-			.from(Image)
-			.where(and(inArray(Image.entityType, ["variant", "Variant"]), eq(Image.entityId, variantId)))
-			.orderBy(asc(Image.order), asc(Image.id))
+			.from(VariantImage)
+			.innerJoin(Image, eq(Image.id, VariantImage.imageId))
+			.where(eq(VariantImage.variantId, variantId))
+			.orderBy(asc(VariantImage.sortOrder), asc(Image.id))
 
 		await refreshProductOperationalSurfaceAfterMutation({
 			productId: variant.productId,

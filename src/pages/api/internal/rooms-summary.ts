@@ -6,6 +6,7 @@ import {
 	eq,
 	HouseRule,
 	Image,
+	VariantImage,
 	inArray,
 	RatePlan,
 	db,
@@ -88,19 +89,15 @@ export const GET: APIRoute = async ({ request, url }) => {
 				db
 					.select({
 						id: Image.id,
-						entityId: Image.entityId,
+						variantId: VariantImage.variantId,
 						url: Image.url,
-						order: Image.order,
-						isPrimary: Image.isPrimary,
+						order: VariantImage.sortOrder,
+						isPrimary: VariantImage.isPrimary,
 					})
-					.from(Image)
-					.where(
-						and(
-							inArray(Image.entityType, ["variant", "Variant"]),
-							inArray(Image.entityId, variantIds)
-						)
-					)
-					.orderBy(asc(Image.order), asc(Image.id)),
+					.from(VariantImage)
+					.innerJoin(Image, eq(Image.id, VariantImage.imageId))
+					.where(inArray(VariantImage.variantId, variantIds))
+					.orderBy(asc(VariantImage.sortOrder), asc(Image.id)),
 				db
 					.select({
 						id: RatePlan.id,
@@ -144,7 +141,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 		Array<{ id: string; url: string; order: number; isPrimary: boolean }>
 	>()
 	for (const row of imageRows) {
-		const id = String(row.entityId)
+		const id = String(row.variantId)
 		const images = imagesByVariant.get(id) ?? []
 		images.push({
 			id: String(row.id),

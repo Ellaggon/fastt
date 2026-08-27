@@ -4,6 +4,7 @@ import {
 	db,
 	eq,
 	Image,
+	ProductImage,
 	inArray,
 	Product,
 	ProductCategoryLink,
@@ -317,14 +318,13 @@ export async function loadTourAdminQualityQueue(params?: {
 	const [imageRows, salidaRows, completeRows, categoryRows, ticketRows] = await Promise.all([
 		db
 			.select({
-				productId: Image.entityId,
+				productId: ProductImage.productId,
 				imageCount: count(Image.id),
 			})
-			.from(Image)
-			.where(
-				and(inArray(Image.entityId, productIds), inArray(Image.entityType, ["product", "Product"]))
-			)
-			.groupBy(Image.entityId),
+			.from(ProductImage)
+			.innerJoin(Image, eq(Image.id, ProductImage.imageId))
+			.where(inArray(ProductImage.productId, productIds))
+			.groupBy(ProductImage.productId),
 		db
 			.select({
 				productId: Variant.productId,

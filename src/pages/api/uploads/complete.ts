@@ -1,5 +1,13 @@
 import type { APIRoute } from "astro"
-import { first, and, db, eq, Image } from "@/shared/infrastructure/db/compat"
+import {
+	and,
+	db,
+	eq,
+	Image,
+	ImageUpload,
+	ProductImage,
+	VariantImage,
+} from "@/shared/infrastructure/db/compat"
 import { HeadObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3"
 
 import {
@@ -41,10 +49,8 @@ export const POST: APIRoute = async ({ request }) => {
 
 		const form = await request.formData()
 		const productId = String(form.get("productId") ?? "").trim()
-		const entityTypeRaw = String(form.get("entityType") ?? "")
-			.trim()
-			.toLowerCase()
-		const entityIdRaw = String(form.get("entityId") ?? "").trim()
+		const target = String(form.get("target") ?? "product").trim()
+		const targetId = String(form.get("targetId") ?? "").trim()
 		const imageId = String(form.get("imageId") ?? "").trim()
 		const objectKeyRaw = String(form.get("objectKey") ?? "").trim()
 		if (!imageId || !objectKeyRaw) {
@@ -57,21 +63,29 @@ export const POST: APIRoute = async ({ request }) => {
 			)
 		}
 
-		const normalizedEntityType = entityTypeRaw === "variant" ? "variant" : "product"
-		let normalizedEntityId = entityIdRaw
+		if (target !== "product" && target !== "variant") {
+			return new Response(
+				JSON.stringify({
+					error: "validation_error",
+					details: [{ path: ["target"], message: "target must be product or variant" }],
+				}),
+				{ status: 400, headers: { "Content-Type": "application/json" } }
+			)
+		}
+
 		let owningProductId = productId
 
-		if (normalizedEntityType === "variant") {
-			if (!normalizedEntityId) {
+		if (target === "variant") {
+			if (!targetId) {
 				return new Response(
 					JSON.stringify({
 						error: "validation_error",
-						details: [{ path: ["entityId"], message: "entityId is required for variant images" }],
+						details: [{ path: ["targetId"], message: "targetId is required for variant images" }],
 					}),
 					{ status: 400, headers: { "Content-Type": "application/json" } }
 				)
 			}
-			const variant = await variantManagementRepository.getVariantById(normalizedEntityId)
+			const variant = await variantManagementRepository.getVariantById(targetId)
 			if (!variant) {
 				return new Response(JSON.stringify({ error: "Not found" }), {
 					status: 404,
@@ -89,7 +103,6 @@ export const POST: APIRoute = async ({ request }) => {
 					{ status: 400, headers: { "Content-Type": "application/json" } }
 				)
 			}
-			normalizedEntityId = owningProductId
 		}
 
 		const owned = await productRepository.ensureProductOwnedByProvider(owningProductId, providerId)
@@ -195,32 +208,51 @@ export const POST: APIRoute = async ({ request }) => {
 			)
 		}
 
-		const existingProductImages = await productImageRepository.listByProduct(owningProductId)
-		const order = normalizedEntityType === "product" ? existingProductImages.length : 0
+		const existingProductImages =
+			target === "product" ? await productImageRepository.listByProduct(owningProductId) : []
+		const order = existingProductImages.length
+		const variantHasImages =
+			target === "variant"
+				? await db
+						.select({ imageId: VariantImage.imageId })
+						.from(VariantImage)
+						.where(eq(VariantImage.variantId, targetId))
+						.limit(1)
+						.then((rows) => rows.length > 0)
+				: false
+		const isPrimary = target === "product" ? order === 0 : !variantHasImages
 		try {
-			await db
-				.insert(Image)
-				.values({
-					id: imageId,
-					entityType: normalizedEntityType,
-					entityId: normalizedEntityId,
-					objectKey: normalizedObjectKey,
-					url: publicUrl,
-					order,
-					isPrimary: false,
-				})
-				.onConflictDoUpdate({
-					target: [Image.id],
-					set: {
-						entityType: normalizedEntityType,
-						entityId: normalizedEntityId,
-						objectKey: normalizedObjectKey,
-						url: publicUrl,
-						order,
-						isPrimary: false,
-					},
-				})
-			await imageUploadRepository.markCompleted(imageId, normalizedObjectKey)
+			await db.transaction(async (tx) => {
+				await tx
+					.update(Image)
+					.set({ objectKey: normalizedObjectKey, url: publicUrl })
+					.where(eq(Image.id, imageId))
+				if (target === "product") {
+					await tx
+						.insert(ProductImage)
+						.values({
+							productId: owningProductId,
+							imageId,
+							sortOrder: order,
+							isPrimary,
+						})
+						.onConflictDoNothing()
+				} else {
+					await tx
+						.insert(VariantImage)
+						.values({
+							variantId: targetId,
+							imageId,
+							sortOrder: 0,
+							isPrimary,
+						})
+						.onConflictDoNothing()
+				}
+				await tx
+					.update(ImageUpload)
+					.set({ status: "completed", completedAt: new Date(), objectKey: normalizedObjectKey })
+					.where(eq(ImageUpload.id, imageId))
+			})
 		} catch (err) {
 			// Compensation: if DB write fails after upload, clean the storage object.
 			try {
@@ -231,24 +263,12 @@ export const POST: APIRoute = async ({ request }) => {
 			throw err
 		}
 
-		const image = await db
-			.select()
-			.from(Image)
-			.where(and(eq(Image.id, imageId), eq(Image.entityType, normalizedEntityType)))
-			.then(first)
-		if (!image) {
-			return new Response(JSON.stringify({ error: "internal_error" }), {
-				status: 500,
-				headers: { "Content-Type": "application/json" },
-			})
-		}
-
 		console.log(
 			JSON.stringify({
 				action: "upload_complete",
 				productId: owningProductId,
-				entityType: normalizedEntityType,
-				entityId: normalizedEntityId,
+				target,
+				targetId: target === "product" ? owningProductId : targetId,
 				imageId,
 				objectKey: normalizedObjectKey,
 				ok: true,

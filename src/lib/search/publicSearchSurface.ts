@@ -114,11 +114,11 @@ async function loadPublicSearchSurface(params: {
 			name: Product.name,
 			geoPlaceId: ProductGeoPlace.placeId,
 			heroImageUrl: sql<string | null>`(
-				SELECT url
-				FROM "Image"
-				WHERE "entityType" = 'Product'
-				  AND "entityId" = ${Product.id}
-				ORDER BY "isPrimary" DESC, "order" ASC
+				SELECT image."url"
+				FROM "ProductImage" link
+				JOIN "Image" image ON image."id" = link."imageId"
+				WHERE link."productId" = ${Product.id}
+				ORDER BY link."isPrimary" DESC, link."sortOrder" ASC
 				LIMIT 1
 			)`,
 		})

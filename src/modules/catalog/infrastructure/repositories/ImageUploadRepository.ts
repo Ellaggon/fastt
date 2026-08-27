@@ -1,4 +1,14 @@
-import { first, db, ImageUpload, eq, and, lt, Image } from "@/shared/infrastructure/db/compat"
+import {
+	and,
+	db,
+	eq,
+	first,
+	Image,
+	ImageUpload,
+	lt,
+	ProductImage,
+	VariantImage,
+} from "@/shared/infrastructure/db/compat"
 
 export type ImageUploadRow = {
 	id: string
@@ -24,18 +34,12 @@ export class ImageUploadRepository {
 			.insert(Image)
 			.values({
 				id: imageId,
-				entityType: "pending",
-				entityId: imageId,
 				objectKey: params.objectKey,
 				url: `${base}/${params.objectKey}`,
-				order: 0,
-				isPrimary: false,
 			})
 			.onConflictDoUpdate({
 				target: [Image.id],
 				set: {
-					entityType: "pending",
-					entityId: imageId,
 					objectKey: params.objectKey,
 					url: `${base}/${params.objectKey}`,
 				},
@@ -74,7 +78,32 @@ export class ImageUploadRepository {
 	}
 
 	async deleteById(id: string): Promise<void> {
-		await db.delete(ImageUpload).where(eq(ImageUpload.id, id))
+		await db.transaction(async (tx) => {
+			const upload = await tx
+				.select({ imageId: ImageUpload.imageId })
+				.from(ImageUpload)
+				.where(eq(ImageUpload.id, id))
+				.then(first)
+			if (!upload) return
+
+			await tx.delete(ImageUpload).where(eq(ImageUpload.id, id))
+			const imageId = String(upload.imageId)
+			const [productLink, variantLink] = await Promise.all([
+				tx
+					.select({ imageId: ProductImage.imageId })
+					.from(ProductImage)
+					.where(eq(ProductImage.imageId, imageId))
+					.then(first),
+				tx
+					.select({ imageId: VariantImage.imageId })
+					.from(VariantImage)
+					.where(eq(VariantImage.imageId, imageId))
+					.then(first),
+			])
+			if (!productLink && !variantLink) {
+				await tx.delete(Image).where(eq(Image.id, imageId))
+			}
+		})
 	}
 
 	async countPendingByObjectKeyPrefix(prefix: string): Promise<number> {

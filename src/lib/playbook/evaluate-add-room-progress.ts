@@ -5,6 +5,7 @@ import {
 	EffectivePricingV2,
 	eq,
 	Image,
+	VariantImage,
 	inArray,
 	RatePlan,
 	db,
@@ -97,8 +98,9 @@ export async function loadVariantCompletion(
 			.where(eq(DailyInventory.variantId, variantId)),
 		db
 			.select({ id: Image.id })
-			.from(Image)
-			.where(and(inArray(Image.entityType, ["variant", "Variant"]), eq(Image.entityId, variantId))),
+			.from(VariantImage)
+			.innerJoin(Image, eq(Image.id, VariantImage.imageId))
+			.where(eq(VariantImage.variantId, variantId)),
 		db
 			.select({
 				id: RatePlan.id,

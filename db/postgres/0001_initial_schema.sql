@@ -530,12 +530,8 @@ CREATE TABLE "Service" (
 
 CREATE TABLE "Image" (
 	"id" text PRIMARY KEY,
-	"entityType" text,
-	"entityId" text,
 	"objectKey" text NOT NULL,
-	"url" text NOT NULL,
-	"order" integer NOT NULL DEFAULT 0,
-	"isPrimary" boolean NOT NULL DEFAULT false
+	"url" text NOT NULL
 );
 
 CREATE TABLE "ImageUpload" (
@@ -545,6 +541,22 @@ CREATE TABLE "ImageUpload" (
 	"status" text NOT NULL DEFAULT 'pending',
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
 	"completedAt" timestamp with time zone
+);
+
+CREATE TABLE "ProductImage" (
+	"productId" text NOT NULL,
+	"imageId" text NOT NULL,
+	"sortOrder" integer NOT NULL DEFAULT 0,
+	"isPrimary" boolean NOT NULL DEFAULT false,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "VariantImage" (
+	"variantId" text NOT NULL,
+	"imageId" text NOT NULL,
+	"sortOrder" integer NOT NULL DEFAULT 0,
+	"isPrimary" boolean NOT NULL DEFAULT false,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
 CREATE TABLE "Product" (
@@ -2015,6 +2027,35 @@ ALTER TABLE "ImageUpload"
 	ADD CONSTRAINT "ImageUpload_imageId_fk"
 	FOREIGN KEY ("imageId")
 	REFERENCES "Image" ("id")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "ProductImage"
+	ADD CONSTRAINT "ProductImage_productId_fk"
+	FOREIGN KEY ("productId")
+	REFERENCES "Product" ("id")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "ProductImage"
+	ADD CONSTRAINT "ProductImage_imageId_fk"
+	FOREIGN KEY ("imageId")
+	REFERENCES "Image" ("id")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "VariantImage"
+	ADD CONSTRAINT "VariantImage_variantId_fk"
+	FOREIGN KEY ("variantId")
+	REFERENCES "Variant" ("id")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "VariantImage"
+	ADD CONSTRAINT "VariantImage_imageId_fk"
+	FOREIGN KEY ("imageId")
+	REFERENCES "Image" ("id")
+	ON DELETE CASCADE
 ;
 
 ALTER TABLE "Product"
@@ -2969,11 +3010,19 @@ CREATE UNIQUE INDEX "GeoPlaceExternalId_place_source_external_unique" ON "GeoPla
 
 CREATE INDEX "GeoPlaceExternalId_place_source_idx" ON "GeoPlaceExternalId" ("placeId", "source");
 
-CREATE INDEX "Image_entityType_entityId_idx" ON "Image" ("entityType", "entityId");
-
-CREATE INDEX "Image_entityId_idx" ON "Image" ("entityId");
-
 CREATE INDEX "ImageUpload_objectKey_status_idx" ON "ImageUpload" ("objectKey", "status");
+
+CREATE UNIQUE INDEX "ProductImage_imageId_unique" ON "ProductImage" ("imageId");
+
+CREATE UNIQUE INDEX "ProductImage_one_primary_product_unique" ON "ProductImage" ("productId") WHERE "isPrimary" = true;
+
+CREATE INDEX "ProductImage_product_sort_idx" ON "ProductImage" ("productId", "sortOrder", "imageId");
+
+CREATE UNIQUE INDEX "VariantImage_imageId_unique" ON "VariantImage" ("imageId");
+
+CREATE UNIQUE INDEX "VariantImage_one_primary_variant_unique" ON "VariantImage" ("variantId") WHERE "isPrimary" = true;
+
+CREATE INDEX "VariantImage_variant_sort_idx" ON "VariantImage" ("variantId", "sortOrder", "imageId");
 
 CREATE INDEX "Product_providerId_productType_idx" ON "Product" ("providerId", "productType");
 
@@ -3402,6 +3451,10 @@ ALTER TABLE "GeoPlaceClosure" ADD CONSTRAINT "GeoPlaceClosure_self_depth_check" 
 ALTER TABLE "GeoPlaceAlias" ADD CONSTRAINT "GeoPlaceAlias_aliasType_check" CHECK ("aliasType" IN ('primary', 'alternate', 'historic', 'transliteration', 'search'));
 
 ALTER TABLE "GeoPlaceContent" ADD CONSTRAINT "GeoPlaceContent_publicationStatus_check" CHECK ("publicationStatus" IN ('draft', 'published', 'archived'));
+
+ALTER TABLE "ProductImage" ADD CONSTRAINT "ProductImage_sortOrder_nonnegative" CHECK ("sortOrder" >= 0);
+
+ALTER TABLE "VariantImage" ADD CONSTRAINT "VariantImage_sortOrder_nonnegative" CHECK ("sortOrder" >= 0);
 
 ALTER TABLE "Product" ADD CONSTRAINT "Product_publicationState_check" CHECK ("publicationState" IN ('draft', 'ready', 'published'));
 
@@ -4001,6 +4054,41 @@ CREATE TRIGGER "trg_HouseRule_variant_product"
 BEFORE INSERT OR UPDATE OF "scope", "scopeId", "productId" ON "HouseRule"
 FOR EACH ROW
 EXECUTE FUNCTION fastt_house_rule_variant_belongs_to_product();
+
+-- Catalog media has typed ownership. A stored asset can belong to one catalog
+-- gallery only; location content may still reference it independently as a hero.
+CREATE OR REPLACE FUNCTION fastt_prevent_catalog_image_owner_overlap()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+	IF TG_TABLE_NAME = 'ProductImage' AND EXISTS (
+		SELECT 1 FROM "VariantImage" WHERE "imageId" = NEW."imageId"
+	) THEN
+		RAISE EXCEPTION 'CATALOG_IMAGE_ALREADY_LINKED_TO_VARIANT';
+	END IF;
+
+	IF TG_TABLE_NAME = 'VariantImage' AND EXISTS (
+		SELECT 1 FROM "ProductImage" WHERE "imageId" = NEW."imageId"
+	) THEN
+		RAISE EXCEPTION 'CATALOG_IMAGE_ALREADY_LINKED_TO_PRODUCT';
+	END IF;
+
+	RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS "trg_ProductImage_single_catalog_owner" ON "ProductImage";
+CREATE TRIGGER "trg_ProductImage_single_catalog_owner"
+BEFORE INSERT OR UPDATE OF "imageId" ON "ProductImage"
+FOR EACH ROW
+EXECUTE FUNCTION fastt_prevent_catalog_image_owner_overlap();
+
+DROP TRIGGER IF EXISTS "trg_VariantImage_single_catalog_owner" ON "VariantImage";
+CREATE TRIGGER "trg_VariantImage_single_catalog_owner"
+BEFORE INSERT OR UPDATE OF "imageId" ON "VariantImage"
+FOR EACH ROW
+EXECUTE FUNCTION fastt_prevent_catalog_image_owner_overlap();
 
 ALTER TABLE "HouseRule"
 	DROP CONSTRAINT IF EXISTS "HouseRule_scope_check",

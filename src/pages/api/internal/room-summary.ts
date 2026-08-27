@@ -10,6 +10,7 @@ import {
 	desc,
 	asc,
 	Image,
+	VariantImage,
 	inArray,
 	AmenityRoom,
 	RoomType,
@@ -194,12 +195,13 @@ export const GET: APIRoute = async ({ request, url }) => {
 			id: Image.id,
 			url: Image.url,
 			objectKey: Image.objectKey,
-			order: Image.order,
-			isPrimary: Image.isPrimary,
+			order: VariantImage.sortOrder,
+			isPrimary: VariantImage.isPrimary,
 		})
-		.from(Image)
-		.where(and(inArray(Image.entityType, ["variant", "Variant"]), eq(Image.entityId, variantId)))
-		.orderBy(asc(Image.order), asc(Image.id))
+		.from(VariantImage)
+		.innerJoin(Image, eq(Image.id, VariantImage.imageId))
+		.where(eq(VariantImage.variantId, variantId))
+		.orderBy(asc(VariantImage.sortOrder), asc(Image.id))
 
 	const roomProfile = await db
 		.select({

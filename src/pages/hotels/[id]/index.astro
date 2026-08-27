@@ -38,6 +38,7 @@ import {
 	Provider,
 	ProductGeoPlace,
 	ProductLocation,
+	VariantImage,
 } from "@/shared/infrastructure/db/compat"
 
 const url = Astro.url
@@ -100,27 +101,23 @@ const variantImageRows =
 		? await db
 				.select({
 					id: Image.id,
-					entityId: Image.entityId,
+					variantId: VariantImage.variantId,
 					url: Image.url,
 					objectKey: Image.objectKey,
-					isPrimary: Image.isPrimary,
-					order: Image.order,
+					isPrimary: VariantImage.isPrimary,
+					order: VariantImage.sortOrder,
 				})
-				.from(Image)
-				.where(
-					and(
-						inArray(Image.entityType, ["variant", "Variant"]),
-						inArray(Image.entityId, variantIds)
-					)
-				)
-				.orderBy(asc(Image.order))
+				.from(VariantImage)
+				.innerJoin(Image, eq(Image.id, VariantImage.imageId))
+				.where(inArray(VariantImage.variantId, variantIds))
+				.orderBy(asc(VariantImage.sortOrder))
 		: []
 const variantImagesByVariantId = new Map<
 	string,
 	Array<{ id: string; url: string; objectKey: string; isPrimary: boolean; order: number }>
 >()
 for (const image of variantImageRows) {
-	const variantId = String(image.entityId ?? "")
+	const variantId = String(image.variantId ?? "")
 	if (!variantId) continue
 	const bucket = variantImagesByVariantId.get(variantId) ?? []
 	bucket.push({

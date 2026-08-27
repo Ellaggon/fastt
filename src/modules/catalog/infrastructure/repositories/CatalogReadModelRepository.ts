@@ -14,6 +14,7 @@ import {
 	Product,
 	ProductContent,
 	ProductGeoPlace,
+	ProductImage,
 	ProductLocation,
 	Provider,
 	ProviderProfile,
@@ -71,12 +72,13 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 				id: Image.id,
 				url: Image.url,
 				objectKey: Image.objectKey,
-				isPrimary: Image.isPrimary,
-				order: Image.order,
+				isPrimary: ProductImage.isPrimary,
+				order: ProductImage.sortOrder,
 			})
-			.from(Image)
-			.where(and(eq(Image.entityId, productId), inArray(Image.entityType, ["product", "Product"])))
-			.orderBy(asc(Image.order))
+			.from(ProductImage)
+			.innerJoin(Image, eq(Image.id, ProductImage.imageId))
+			.where(eq(ProductImage.productId, productId))
+			.orderBy(asc(ProductImage.sortOrder))
 
 		const modernDescription = row.contentDescription ? String(row.contentDescription).trim() : null
 		const description: string | null = modernDescription || null
@@ -181,12 +183,13 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 				id: Image.id,
 				url: Image.url,
 				objectKey: Image.objectKey,
-				isPrimary: Image.isPrimary,
-				order: Image.order,
+				isPrimary: ProductImage.isPrimary,
+				order: ProductImage.sortOrder,
 			})
-			.from(Image)
-			.where(and(eq(Image.entityId, productId), inArray(Image.entityType, ["product", "Product"])))
-			.orderBy(asc(Image.order))
+			.from(ProductImage)
+			.innerJoin(Image, eq(Image.id, ProductImage.imageId))
+			.where(eq(ProductImage.productId, productId))
+			.orderBy(asc(ProductImage.sortOrder))
 
 		const normalizedType = String(row.productType ?? "")
 			.trim()

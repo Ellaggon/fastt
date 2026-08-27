@@ -16,6 +16,7 @@ import {
 	Variant,
 	VariantCapacity,
 	VariantInventoryConfig,
+	VariantImage,
 	VariantRoomBed,
 	VariantRoomProfile,
 	eq,
@@ -113,13 +114,10 @@ async function seedSellableRoom(params: { productId: string; suffix: string }) {
 	})
 	await db.insert(Image).values({
 		id: imageId,
-		entityType: "variant",
-		entityId: variantId,
 		objectKey: `rooms/${variantId}/cover.png`,
 		url: `https://cdn.test/rooms/${variantId}/cover.png`,
-		order: 0,
-		isPrimary: true,
 	})
+	await db.insert(VariantImage).values({ variantId, imageId, sortOrder: 0, isPrimary: true })
 	await db.insert(ImageUpload).values({
 		id: imageId,
 		imageId,

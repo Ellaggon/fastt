@@ -3,6 +3,7 @@ import { describePostgres as describe } from "../setup/postgres-suite"
 import {
 	db,
 	Image,
+	ProductImage,
 	Limousine,
 	Package,
 	ProductCategory,
@@ -54,14 +55,17 @@ async function seedReadyCatalogBase(params: {
 		lat: -16.5,
 		lng: -68.13,
 	})
+	const imageId = `img_${params.productId}`
 	await db.insert(Image).values({
-		id: `img_${params.productId}`,
-		entityType: "product",
-		entityId: params.productId,
+		id: imageId,
 		objectKey: `products/${params.productId}.jpg`,
 		url: "https://example.com/image.jpg",
+	})
+	await db.insert(ProductImage).values({
+		productId: params.productId,
+		imageId,
+		sortOrder: 0,
 		isPrimary: true,
-		order: 0,
 	})
 }
 
@@ -203,15 +207,13 @@ describe("vertical maturity", () => {
 		})
 		// Start at 4 photos (seedReadyCatalogBase inserts 1) — below publish floor.
 		for (let i = 1; i < TOUR_QUALITY_MIN_IMAGES - 1; i += 1) {
+			const imageId = `img_${productId}_${i}`
 			await db.insert(Image).values({
-				id: `img_${productId}_${i}`,
-				entityType: "product",
-				entityId: productId,
+				id: imageId,
 				objectKey: `products/${productId}_${i}.jpg`,
 				url: `https://example.com/image-${i}.jpg`,
-				isPrimary: false,
-				order: i,
 			})
+			await db.insert(ProductImage).values({ productId, imageId, sortOrder: i, isPrimary: false })
 		}
 		const repo = new SubtypeRepository()
 		await repo.insertTourStandalone({
@@ -312,15 +314,13 @@ describe("vertical maturity", () => {
 		expect(evaluated.validationErrors.some((e) => e.code === "missing_tour_images")).toBe(true)
 		expect(evaluated.validationErrors.some((e) => e.code === "missing_tour_schedule")).toBe(false)
 
+		const imageId = `img_${productId}_5`
 		await db.insert(Image).values({
-			id: `img_${productId}_5`,
-			entityType: "product",
-			entityId: productId,
+			id: imageId,
 			objectKey: `products/${productId}_5.jpg`,
 			url: "https://example.com/image-5.jpg",
-			isPrimary: false,
-			order: 4,
 		})
+		await db.insert(ProductImage).values({ productId, imageId, sortOrder: 4, isPrimary: false })
 
 		// 5 photos + 3 steps + includes/category/tickets/active salida → ready.
 		evaluated = await evaluateProductReadiness({ repo: productRepository }, { productId })
