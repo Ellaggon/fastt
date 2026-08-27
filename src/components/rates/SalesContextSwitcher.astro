@@ -1,0 +1,47 @@
+---
+import ContextSwitcher from "@/components/ui/ContextSwitcher.astro"
+import { routes } from "@/lib/routes"
+
+interface Props {
+	variant?: "surface" | "topbar"
+	includeMultiCalendar?: boolean
+}
+
+const { variant = "topbar", includeMultiCalendar = true } = Astro.props
+const path = Astro.url.pathname.replace(/\/$/, "") || "/"
+
+const options = [
+	{ id: "calendar", label: "Calendario", href: routes.calendar() },
+	{ id: "rates", label: "Tarifas", href: routes.rates() },
+	{ id: "ical", label: "Conexiones iCal", href: routes.ratesCalendarConnections() },
+	...(includeMultiCalendar
+		? [{ id: "multi", label: "Multicalendario", href: routes.ratesMultiCalendar() }]
+		: []),
+]
+
+const selectedId = path.startsWith("/rates/calendar/connections")
+	? "ical"
+	: path.startsWith("/rates/multi-calendar")
+		? "multi"
+		: path.startsWith("/rates/plans")
+			? "rates"
+			: path.startsWith("/rates/calendar")
+				? "calendar"
+				: path.startsWith("/rates/")
+					? "rates"
+					: "calendar"
+
+const selected = options.find((option) => option.id === selectedId) ?? options[0]
+---
+
+<ContextSwitcher
+	label="Venta"
+	value={selected.label}
+	options={options}
+	selectedId={selected.id}
+	icon="sales"
+	menuLabel="Cambiar superficie de venta"
+	emptyMessage="No hay otras superficies de venta."
+	ariaLabel="Cambiar superficie de venta"
+	variant={variant}
+/>

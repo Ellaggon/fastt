@@ -24,8 +24,10 @@ describe("calendar progressive navigation contract", () => {
 	it("does not compete with the initial surface by eagerly loading iCal connections", () => {
 		const subnav = read("src/components/rates/CalendarSubnav.astro")
 
-		expect(subnav).toContain('data-astro-prefetch="hover"')
+		expect(subnav).toContain('type="button"')
+		expect(subnav).toContain("history.replaceState")
 		expect(subnav).not.toContain('data-astro-prefetch="viewport"')
+		expect(subnav).not.toContain("<a")
 	})
 
 	it("prefetches Calendar from Rates only after explicit pointer intent", () => {

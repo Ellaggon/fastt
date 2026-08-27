@@ -1,5 +1,12 @@
 ---
-import { Building2, ChevronDown, Hotel, LayoutDashboard, MapPinned } from "@lucide/astro"
+import {
+	Building2,
+	CalendarDays,
+	ChevronDown,
+	Hotel,
+	LayoutDashboard,
+	MapPinned,
+} from "@lucide/astro"
 
 export interface ContextSwitcherOption {
 	id: string
@@ -20,7 +27,7 @@ interface Props {
 	options?: ContextSwitcherOption[]
 	groups?: ContextSwitcherGroup[]
 	selectedId?: string
-	icon?: "accommodation" | "tour" | "service" | "dashboard"
+	icon?: "accommodation" | "tour" | "service" | "dashboard" | "sales"
 	menuLabel?: string
 	emptyMessage?: string
 	ariaLabel?: string
@@ -46,7 +53,9 @@ const Icon =
 			? MapPinned
 			: icon === "dashboard"
 				? LayoutDashboard
-				: Building2
+				: icon === "sales"
+					? CalendarDays
+					: Building2
 const resolvedGroups: ContextSwitcherGroup[] = groups && groups.length > 0 ? groups : [{ options }]
 const flatOptions = resolvedGroups.flatMap((group) => group.options)
 const selectable = flatOptions.length > 0
