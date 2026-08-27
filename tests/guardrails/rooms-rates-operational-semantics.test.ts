@@ -404,6 +404,7 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 
 	it("keeps Calendar as an interactive single-rate workspace with contextual Pro handoffs", () => {
 		const calendar = read("src/pages/rates/calendar.astro")
+		const subnav = read("src/components/rates/CalendarSubnav.astro")
 		const workspace = read("src/components/rates/SingleCalendarWorkspace.tsx")
 		const endpoint = read("src/pages/api/rates/calendar.ts")
 		const surface = read("src/lib/rates/singleCalendarSurface.ts")
@@ -413,6 +414,8 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 		expect(calendar).toContain("SingleCalendarWorkspace")
 		expect(calendar).toContain('client:only="react"')
 		expect(calendar).toContain("CalendarWorkspaceSkeleton")
+		expect(calendar).toContain("<CalendarSubnav")
+		expect(calendar).toContain("isProfessional={isProfessionalCalendar}")
 		expect(calendar).not.toContain("buildSingleCalendarSurface")
 		expect(endpoint).toContain("loadSingleCalendarSurface")
 		expect(calendar).toContain('requestedFocus === "availability"')
@@ -421,17 +424,20 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 		expect(calendar).not.toContain("initRatesCalendar")
 		expect(workspace).toContain("fetch(`/api/rates/calendar?")
 		expect(workspace).toContain("window.history.replaceState")
-		expect(workspace).toContain('role="tablist"')
-		expect(workspace).toContain('role="tab"')
-		expect(workspace).toContain("CALENDAR_CONTROL_MODES")
+		expect(workspace).toContain("fastt:calendar-mode")
 		expect(workspace).toContain("visibleCalendarActions")
+		expect(subnav).toContain("CALENDAR_CONTROL_MODES")
+		expect(subnav).toContain(
+			'CALENDAR_CONTROL_MODES.filter((mode) => mode.key !== "conditions")'
+		)
+		expect(subnav).toContain("fastt:calendar-mode")
+		expect(subnav).toContain('type="button"')
+		expect(subnav).toContain("aria-pressed")
+		expect(subnav).toContain("history.replaceState")
 		expect(catalog).toContain('{ key: "price", label: "Precio"')
 		expect(catalog).toContain('{ key: "availability", label: "Disponibilidad"')
 		expect(catalog).toContain('{ key: "sellability", label: "Venta"')
 		expect(catalog).toContain('{ key: "conditions", label: "Condiciones"')
-		expect(workspace).toContain(
-			'CALENDAR_CONTROL_MODES.filter((item) => item.key !== "conditions")'
-		)
 		expect(workspace).not.toContain('"Completar contrato"')
 		expect(workspace).not.toContain('"Ver contrato"')
 		expect(catalog).not.toContain('key: "pro"')
