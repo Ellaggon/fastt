@@ -372,7 +372,7 @@ describe("integration/tour discovery filters (phase 6 / P1 discovery)", () => {
 		// Inactive variant must not surface even if the product is published.
 		await db
 			.update(Variant)
-			.set({ isActive: false } as any)
+			.set({ salesEnabled: false })
 			.where(eq(Variant.id, `var_disc_a_${suffix}`))
 		const afterInactiveVariant = await getTourSearchSurface({
 			startDate: departure,
