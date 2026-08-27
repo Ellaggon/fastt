@@ -1,5 +1,5 @@
 ---
-import { Building2, ChevronDown, Hotel, MapPinned } from "@lucide/astro"
+import { Building2, ChevronDown, Hotel, LayoutDashboard, MapPinned } from "@lucide/astro"
 
 export interface ContextSwitcherOption {
 	id: string
@@ -20,7 +20,7 @@ interface Props {
 	options?: ContextSwitcherOption[]
 	groups?: ContextSwitcherGroup[]
 	selectedId?: string
-	icon?: "accommodation" | "tour" | "service"
+	icon?: "accommodation" | "tour" | "service" | "dashboard"
 	menuLabel?: string
 	emptyMessage?: string
 	ariaLabel?: string
@@ -39,14 +39,27 @@ const {
 	ariaLabel = `Cambiar ${label.toLowerCase()} actual`,
 	variant = "surface",
 } = Astro.props
-const Icon = icon === "accommodation" ? Hotel : icon === "tour" ? MapPinned : Building2
+const Icon =
+	icon === "accommodation"
+		? Hotel
+		: icon === "tour"
+			? MapPinned
+			: icon === "dashboard"
+				? LayoutDashboard
+				: Building2
 const resolvedGroups: ContextSwitcherGroup[] = groups && groups.length > 0 ? groups : [{ options }]
 const flatOptions = resolvedGroups.flatMap((group) => group.options)
 const selectable = flatOptions.length > 0
+const staticValue = String(value ?? "").trim()
+const titleOnly = !selectable && !staticValue
 ---
 
 <div
-	class:list={["fastt-context-switcher", variant === "topbar" && "fastt-context-switcher--topbar"]}
+	class:list={[
+		"fastt-context-switcher",
+		variant === "topbar" && "fastt-context-switcher--topbar",
+		titleOnly && "fastt-context-switcher--title-only",
+	]}
 >
 	<span class="fastt-context-switcher__label"
 		><Icon class="h-4 w-4 shrink-0" aria-hidden="true" /><span
@@ -108,9 +121,9 @@ const selectable = flatOptions.length > 0
 					</div>
 				</div>
 			</details>
-		) : (
-			<p class="fastt-context-switcher__static">{value}</p>
-		)
+		) : staticValue ? (
+			<p class="fastt-context-switcher__static">{staticValue}</p>
+		) : null
 	}
 </div>
 
@@ -266,6 +279,10 @@ const selectable = flatOptions.length > 0
 		}
 		.fastt-context-switcher--topbar .fastt-context-switcher__label-text {
 			display: none;
+		}
+		.fastt-context-switcher--topbar.fastt-context-switcher--title-only
+			.fastt-context-switcher__label-text {
+			display: inline;
 		}
 		.fastt-context-switcher--topbar .fastt-context-switcher__select {
 			min-width: 0;

@@ -6,10 +6,14 @@ test("fiscality uses a contextual header, segmented navigation and progressive f
 	expect(read("src/components/dashboard/DashboardTopBar.astro")).toContain("FiscalScopeSwitcher")
 	expect(read("src/components/dashboard/DashboardTopBar.astro")).toContain("ProductContextSwitcher")
 	expect(read("src/pages/dashboard/index.astro")).toContain("flex flex-col gap-2")
-	expect(read("src/pages/dashboard/index.astro")).toContain(
-		"text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl"
-	)
+	expect(read("src/pages/dashboard/index.astro")).toContain('class="sr-only">Resumen Operativo')
 	expect(read("src/pages/dashboard/index.astro")).not.toContain("border-b border-slate-800 pb-5")
+	expect(read("src/components/dashboard/DashboardTopBar.astro")).toContain("isDashboardWorkspace")
+	expect(read("src/components/dashboard/DashboardTopBar.astro")).toContain('label="Resumen Operativo"')
+	expect(read("src/components/dashboard/DashboardTopBar.astro")).toContain('value=""')
+	expect(read("src/components/dashboard/DashboardTopBar.astro")).toContain('icon="dashboard"')
+	expect(read("src/components/dashboard/DashboardTopBar.astro")).not.toContain('label="Panel"')
+	expect(read("src/components/ui/ContextSwitcher.astro")).toContain("fastt-context-switcher--title-only")
 	expect(read("src/pages/product/[id]/index.astro")).toContain("flex flex-col gap-2")
 	expect(read("src/pages/product/[id]/index.astro")).toContain(
 		"text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl"

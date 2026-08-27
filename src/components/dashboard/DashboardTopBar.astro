@@ -16,6 +16,7 @@ import ProductContextSwitcher from "@/components/product/ProductContextSwitcher.
 import ProviderAccountSwitcher from "@/components/provider/ProviderAccountSwitcher.astro"
 import FiscalScopeSwitcher from "@/components/tax-fees/FiscalScopeSwitcher.astro"
 import Button from "@/components/ui/Button.astro"
+import ContextSwitcher from "@/components/ui/ContextSwitcher.astro"
 import Drawer from "@/components/ui/Drawer.astro"
 import IconButton from "@/components/ui/IconButton.astro"
 import type { WorkspaceShellContext } from "@/lib/dashboard/workspaceRequestContext"
@@ -72,6 +73,7 @@ const productSwitcherTarget = /\/rooms(?:\/|$)/.test(pathname)
 		? "departures"
 		: "detail"
 const workspacePath = pathname.replace(/\/$/, "") || "/"
+const isDashboardWorkspace = workspacePath === "/dashboard"
 const isVerificationWorkspace =
 	workspacePath === "/provider/settings/verification" ||
 	workspacePath.startsWith("/provider/settings/verification/")
@@ -82,7 +84,8 @@ const isAccountSettingsWorkspace =
 	isVerificationWorkspace
 const showContextSwitcher =
 	Boolean(providerId) &&
-	(isFinancialWorkspace ||
+	(isDashboardWorkspace ||
+		isFinancialWorkspace ||
 		isFiscalWorkspace ||
 		isProductWorkspace ||
 		isHouseRulesWorkspace ||
@@ -176,7 +179,16 @@ const showContextSwitcher =
 
 		<div class="flex min-w-0 items-center justify-center lg:order-first lg:flex-1 lg:justify-start">
 			{
-				showContextSwitcher && isFinancialWorkspace ? (
+				showContextSwitcher && isDashboardWorkspace ? (
+					<ContextSwitcher
+						label="Resumen Operativo"
+						value=""
+						options={[]}
+						icon="dashboard"
+						variant="topbar"
+						ariaLabel="Resumen operativo"
+					/>
+				) : showContextSwitcher && isFinancialWorkspace ? (
 					<AccommodationContextSwitcher
 						providerId={providerId}
 						target="financial"
