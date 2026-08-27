@@ -202,3 +202,21 @@ identity and stay data are stored, but card number, CVV, expiry and cardholder
 authentication data must never enter application logs, run summaries, incidents
 or booking snapshots. Adding payment-card retrieval requires a separate PCI
 architecture and security review.
+
+## Content layers vs ARI
+
+ARI sync (`ChannelManagerAdapter`) pushes availability, rates and restrictions using
+`ProviderIntegrationMapping` rows for `property`, `room_type` and `rate_plan` **IDs**.
+
+Guest-facing **content** is a separate contract (deferred HTTP push):
+
+| Channel layer | Fastt source | Must not |
+| ------------- | ------------ | -------- |
+| Property policies | `HouseRule` product (+ product `CheckIn` Policy) | Live on rate_plan cancellation |
+| Unit smoking / space | `HouseRule` variant Smoking (etc.) | Overwrite property pets/quiet hours |
+| Rate commercial | `PolicyAssignment` rate_plan Cancellation/Payment/NoShow | Be stored as HouseRule |
+| Rate schedule exception | `PolicyAssignment` rate_plan CheckIn | PATCH property check-in defaults |
+
+Ownership SoT: `src/lib/channel-manager/content/` and
+[`adr/0005-channel-content-ownership.md`](./adr/0005-channel-content-ownership.md).
+`createChannelManagerContentAdapter()` returns `null` until content certification.

@@ -37,6 +37,34 @@ export type HouseRulePayload = {
 	tasks?: string[]
 }
 
+export const HOUSE_RULE_TYPES: HouseRuleType[] = [
+	"Children",
+	"Pets",
+	"Smoking",
+	"Parties",
+	"QuietHours",
+	"Parking",
+	"CheckIn",
+	"Checkout",
+	"Safety",
+	"ExtraBeds",
+	"Access",
+	"Other",
+]
+
+/** Physical-space exceptions a hotel room may override (channel unit layer). */
+export const VARIANT_OVERRIDE_HOUSE_RULE_TYPES: readonly HouseRuleType[] = [
+	"Pets",
+	"Smoking",
+	"Access",
+	"Safety",
+	"ExtraBeds",
+]
+
+export function isVariantOverrideHouseRuleType(type: HouseRuleType): boolean {
+	return VARIANT_OVERRIDE_HOUSE_RULE_TYPES.includes(type)
+}
+
 export interface HouseRule {
 	id: string
 	productId: string
