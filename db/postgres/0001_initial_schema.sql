@@ -547,14 +547,6 @@ CREATE TABLE "ImageUpload" (
 	"completedAt" timestamp with time zone
 );
 
-CREATE TABLE "Translation" (
-	"id" text PRIMARY KEY,
-	"tableRef" text NOT NULL,
-	"columnRef" text NOT NULL,
-	"recordId" text NOT NULL,
-	"languageCode" text NOT NULL,
-	"translatedText" text NOT NULL
-);
 
 CREATE TABLE "Product" (
 	"id" text PRIMARY KEY,
@@ -2974,7 +2966,6 @@ CREATE INDEX "Image_entityId_idx" ON "Image" ("entityId");
 
 CREATE INDEX "ImageUpload_objectKey_status_idx" ON "ImageUpload" ("objectKey", "status");
 
-CREATE UNIQUE INDEX "Translation_record_language_unique" ON "Translation" ("tableRef", "columnRef", "recordId", "languageCode");
 
 CREATE INDEX "Product_providerId_productType_idx" ON "Product" ("providerId", "productType");
 
@@ -3050,9 +3041,13 @@ CREATE UNIQUE INDEX "ProductService_productId_serviceId_unique" ON "ProductServi
 
 CREATE INDEX "ProductServiceAttribute_productServiceId_key_idx" ON "ProductServiceAttribute" ("productServiceId", "key");
 
-CREATE UNIQUE INDEX "ProductCategory_slug_unique" ON "ProductCategory" ("slug");
+CREATE UNIQUE INDEX "ProductCategory_vertical_slug_unique" ON "ProductCategory" ("vertical", "slug");
 
 CREATE INDEX "ProductCategory_vertical_idx" ON "ProductCategory" ("vertical");
+ALTER TABLE "ProductCategory" ADD CONSTRAINT "ProductCategory_slug_format_check" CHECK ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$');
+
+ALTER TABLE "ProductCategory" ADD CONSTRAINT "ProductCategory_vertical_format_check" CHECK ("vertical" ~ '^[a-z][a-z0-9_]*$');
+
 
 CREATE UNIQUE INDEX "ProductCategoryLink_product_category_unique" ON "ProductCategoryLink" ("productId", "categoryId");
 
@@ -3932,3 +3927,38 @@ EXECUTE FUNCTION fastt_propagate_geo_place_canonical_path();
 
 
 COMMIT;
+
+-- Category slugs are scoped by vertical. Category links must stay in the
+-- same vertical as the product, even when data is written outside the API.
+CREATE OR REPLACE FUNCTION fastt_validate_product_category_vertical()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+	product_vertical text;
+	category_vertical text;
+BEGIN
+	SELECT lower(trim(product."productType")), lower(trim(category.vertical))
+	INTO product_vertical, category_vertical
+	FROM "Product" product
+	JOIN "ProductCategory" category ON category.id = NEW."categoryId"
+	WHERE product.id = NEW."productId";
+
+	IF product_vertical IS NULL OR category_vertical IS NULL THEN
+		RAISE EXCEPTION 'PRODUCT_CATEGORY_LINK_REFERENCES_MISSING_RESOURCE';
+	END IF;
+
+	IF product_vertical <> category_vertical THEN
+		RAISE EXCEPTION 'PRODUCT_CATEGORY_VERTICAL_MISMATCH: product %, category %',
+			product_vertical, category_vertical;
+	END IF;
+
+	RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS "trg_ProductCategoryLink_vertical_match" ON "ProductCategoryLink";
+CREATE TRIGGER "trg_ProductCategoryLink_vertical_match"
+BEFORE INSERT OR UPDATE OF "productId", "categoryId" ON "ProductCategoryLink"
+FOR EACH ROW
+EXECUTE FUNCTION fastt_validate_product_category_vertical();

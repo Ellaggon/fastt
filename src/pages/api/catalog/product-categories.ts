@@ -6,11 +6,10 @@ import {
 	db,
 	eq,
 	inArray,
+	Product,
 	ProductCategory,
 	ProductCategoryLink,
 } from "@/shared/infrastructure/db/compat"
-
-import { productRepository } from "@/container"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 
@@ -34,7 +33,13 @@ export const GET: APIRoute = async ({ url }) => {
 			sortOrder: ProductCategory.sortOrder,
 		})
 		.from(ProductCategory)
-		.where(and(eq(ProductCategory.vertical, vertical), eq(ProductCategory.isActive, true)))
+		.where(
+			and(
+				eq(ProductCategory.vertical, vertical),
+				eq(ProductCategory.isActive, true),
+				eq(ProductCategory.dataClass, "production")
+			)
+		)
 		.orderBy(asc(ProductCategory.sortOrder), asc(ProductCategory.name))
 
 	const productId = String(url.searchParams.get("productId") ?? "").trim()
@@ -68,9 +73,19 @@ export const POST: APIRoute = async ({ request }) => {
 
 		const body = await request.json().catch(() => ({}))
 		const parsed = linkSchema.parse(body)
-		const owned = await productRepository.ensureProductOwnedByProvider(parsed.productId, providerId)
-		if (!owned) {
+		const product = await db
+			.select({ id: Product.id, productType: Product.productType })
+			.from(Product)
+			.where(and(eq(Product.id, parsed.productId), eq(Product.providerId, providerId)))
+			.then((rows) => rows[0])
+		if (!product) {
 			return new Response(JSON.stringify({ error: "Not found" }), { status: 404 })
+		}
+		const vertical = String(product.productType ?? "")
+			.trim()
+			.toLowerCase()
+		if (!vertical) {
+			return new Response(JSON.stringify({ error: "invalid_product_vertical" }), { status: 409 })
 		}
 
 		const uniqueIds = [...new Set(parsed.categoryIds.map((id) => id.trim()).filter(Boolean))]
@@ -78,7 +93,14 @@ export const POST: APIRoute = async ({ request }) => {
 			const valid = await db
 				.select({ id: ProductCategory.id })
 				.from(ProductCategory)
-				.where(inArray(ProductCategory.id, uniqueIds))
+				.where(
+					and(
+						inArray(ProductCategory.id, uniqueIds),
+						eq(ProductCategory.vertical, vertical),
+						eq(ProductCategory.isActive, true),
+						eq(ProductCategory.dataClass, "production")
+					)
+				)
 			const validSet = new Set(valid.map((row) => String(row.id)))
 			for (const id of uniqueIds) {
 				if (!validSet.has(id)) {
@@ -89,16 +111,21 @@ export const POST: APIRoute = async ({ request }) => {
 			}
 		}
 
-		await db.delete(ProductCategoryLink).where(eq(ProductCategoryLink.productId, parsed.productId))
-		const now = new Date()
-		for (const categoryId of uniqueIds) {
-			await db.insert(ProductCategoryLink).values({
-				id: crypto.randomUUID(),
-				productId: parsed.productId,
-				categoryId,
-				createdAt: now,
-			})
-		}
+		await db.transaction(async (tx) => {
+			await tx
+				.delete(ProductCategoryLink)
+				.where(eq(ProductCategoryLink.productId, parsed.productId))
+			if (uniqueIds.length === 0) return
+			const now = new Date()
+			await tx.insert(ProductCategoryLink).values(
+				uniqueIds.map((categoryId) => ({
+					id: crypto.randomUUID(),
+					productId: parsed.productId,
+					categoryId,
+					createdAt: now,
+				}))
+			)
+		})
 
 		return new Response(JSON.stringify({ ok: true, linkedIds: uniqueIds }), {
 			status: 200,
