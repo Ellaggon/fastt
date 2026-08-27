@@ -129,13 +129,11 @@ logRoutePerformance({
 	<section class="space-y-6 md:space-y-8">
 		<header class="flex flex-col gap-2">
 			<div class="flex flex-wrap items-start justify-between gap-3">
-				<h1 class="text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl">
-					{owned.name}
-				</h1>
+				<h1 class="sr-only">{owned.name}</h1>
 				{
 					hasIncompletePreparation ? null : status !== "published" &&
 					  publishState?.readyToPublish ? (
-						<Button href={routes.productPreview(productId)} class="shrink-0">
+						<Button href={routes.productPreview(productId)} class="ml-auto shrink-0">
 							Ir a vista previa
 						</Button>
 					) : (
@@ -143,7 +141,7 @@ logRoutePerformance({
 							href={routes.productPreview(productId)}
 							data-astro-prefetch
 							variant="secondary"
-							class="shrink-0"
+							class="ml-auto shrink-0"
 						>
 							Vista previa
 						</Button>
@@ -242,7 +240,7 @@ logRoutePerformance({
 								class="h-full rounded-full"
 								style={`width: ${Math.max(0, Math.min(100, publishState.readinessPercent))}%; background-color: var(--fastt-color-selection);`}
 								data-product-progress-bar
-							></div>
+							/>
 						</div>
 						<p
 							id="productProgressText"
