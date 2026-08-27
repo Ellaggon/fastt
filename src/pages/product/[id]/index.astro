@@ -204,92 +204,96 @@ logRoutePerformance({
 
 		{
 			status !== "published" && publishState && preparationCoach ? (
-				<div class="space-y-6" data-product-preparation>
-					<div class="flex items-start justify-between gap-4">
-						<div class="flex min-w-0 items-start gap-3">
-							<span class="fastt-section-icon">
-								<PreparationEyebrowIcon class="size-4" aria-hidden="true" />
-							</span>
-							<div class="min-w-0">
-								<p id="productHeaderMeta" class="text-xl font-semibold text-white">
-									Cargando ubicación...
-								</p>
-								<p
-									id="productHeaderSummary"
-									class="mt-1 max-w-3xl text-sm leading-6 text-neutral-400"
+				<section class="space-y-4" data-product-preparation>
+					<Card variant="dark" class="!border-neutral-800 !bg-black">
+						<div class="space-y-6">
+							<div class="flex items-start justify-between gap-4">
+								<div class="flex min-w-0 items-start gap-3">
+									<span class="fastt-section-icon">
+										<PreparationEyebrowIcon class="size-4" aria-hidden="true" />
+									</span>
+									<div class="min-w-0">
+										<p id="productHeaderMeta" class="text-xl font-semibold text-white">
+											Cargando ubicación...
+										</p>
+										<p
+											id="productHeaderSummary"
+											class="mt-1 max-w-3xl text-sm leading-6 text-neutral-400"
+										>
+											{isHotel
+												? "Administra la ficha pública, habitaciones y reglas. Las tarifas y el calendario se gestionan desde Venta."
+												: productHeaderSummary}
+										</p>
+									</div>
+								</div>
+								<Badge
+									variant={preparationCoach.ready ? "darkSuccess" : "darkWarning"}
+									data-product-prep-badge
+									data-product-dark-badge
 								>
-									{isHotel
-										? "Administra la ficha pública, habitaciones y reglas. Las tarifas y el calendario se gestionan desde Venta."
-										: productHeaderSummary}
+									{preparationCoach.badge}
+								</Badge>
+							</div>
+
+							<div class="flex items-center gap-3">
+								<div class="h-1 flex-1 overflow-hidden rounded-full bg-white/10">
+									<div
+										id="productProgressBar"
+										class="h-full rounded-full"
+										style={`width: ${Math.max(0, Math.min(100, publishState.readinessPercent))}%; background-color: var(--fastt-color-selection);`}
+										data-product-progress-bar
+									/>
+								</div>
+								<p
+									id="productProgressText"
+									class="shrink-0 text-xs font-medium text-neutral-400 tabular-nums"
+									data-product-progress-label
+								>
+									{publishState.completedChecks} de {publishState.totalChecks}
 								</p>
 							</div>
-						</div>
-						<Badge
-							variant={preparationCoach.ready ? "darkSuccess" : "darkWarning"}
-							data-product-prep-badge
-							data-product-dark-badge
-						>
-							{preparationCoach.badge}
-						</Badge>
-					</div>
 
-					<div class="flex items-center gap-3">
-						<div class="h-1 flex-1 overflow-hidden rounded-full bg-white/10">
-							<div
-								id="productProgressBar"
-								class="h-full rounded-full"
-								style={`width: ${Math.max(0, Math.min(100, publishState.readinessPercent))}%; background-color: var(--fastt-color-selection);`}
-								data-product-progress-bar
-							/>
-						</div>
-						<p
-							id="productProgressText"
-							class="shrink-0 text-xs font-medium text-neutral-400 tabular-nums"
-							data-product-progress-label
-						>
-							{publishState.completedChecks} de {publishState.totalChecks}
-						</p>
-					</div>
-
-					<div class="flex flex-col gap-4 border-t border-white/10 pt-5 sm:flex-row sm:items-center sm:justify-between">
-						<div class="flex min-w-0 items-start gap-3">
-							<span class="fastt-section-icon">
-								{preparationCoach.ready ? (
-									<CircleCheck class="size-4" aria-hidden="true" />
-								) : (
-									<ClipboardList class="size-4" aria-hidden="true" />
-								)}
-							</span>
-							<div class="min-w-0">
-								<p class="text-xs font-semibold tracking-[0.14em] text-neutral-500 uppercase">
-									Siguiente requisito
-								</p>
-								<p
-									id="productMissingStepsText"
-									class="mt-1 text-base font-semibold text-white"
-									data-product-next-step-label
+							<div class="flex flex-col gap-4 border-t border-white/10 pt-5 sm:flex-row sm:items-center sm:justify-between">
+								<div class="flex min-w-0 items-start gap-3">
+									<span class="fastt-section-icon">
+										{preparationCoach.ready ? (
+											<CircleCheck class="size-4" aria-hidden="true" />
+										) : (
+											<ClipboardList class="size-4" aria-hidden="true" />
+										)}
+									</span>
+									<div class="min-w-0">
+										<p class="text-xs font-semibold tracking-[0.14em] text-neutral-500 uppercase">
+											Siguiente requisito
+										</p>
+										<p
+											id="productMissingStepsText"
+											class="mt-1 text-base font-semibold text-white"
+											data-product-next-step-label
+										>
+											{preparationCoach.label}
+										</p>
+										<p
+											class="mt-1 max-w-xl text-sm leading-6 text-neutral-400"
+											data-product-next-step-body
+										>
+											{preparationCoach.body}
+										</p>
+									</div>
+								</div>
+								<Button
+									href={preparationCoach.href}
+									variant="onDark"
+									className="shrink-0"
+									data-product-primary-cta
 								>
-									{preparationCoach.label}
-								</p>
-								<p
-									class="mt-1 max-w-xl text-sm leading-6 text-neutral-400"
-									data-product-next-step-body
-								>
-									{preparationCoach.body}
-								</p>
+									<span data-product-primary-cta-label>{preparationCoach.cta}</span>
+									<ArrowRight class="size-4" aria-hidden="true" />
+								</Button>
 							</div>
 						</div>
-						<Button
-							href={preparationCoach.href}
-							variant="onDark"
-							className="shrink-0"
-							data-product-primary-cta
-						>
-							<span data-product-primary-cta-label>{preparationCoach.cta}</span>
-							<ArrowRight class="size-4" aria-hidden="true" />
-						</Button>
-					</div>
-				</div>
+					</Card>
+				</section>
 			) : null
 		}
 
