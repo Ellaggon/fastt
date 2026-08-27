@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest"
+import { notInArray } from "drizzle-orm"
+
 import {
 	and,
 	CommercialRule,
 	CommercialRuleApplication,
 	db,
 	eq,
-	notInArray,
 	sql,
 	RatePlan,
 	Variant,
@@ -47,7 +48,7 @@ describe("audit/rateplan data (read-only)", () => {
 			.select({
 				variantId: RatePlan.variantId,
 				totalPlans: sql<number>`count(*)`,
-				defaultPlans: sql<number>`sum(case when ${RatePlan.isDefault} = 1 then 1 else 0 end)`,
+				defaultPlans: sql<number>`sum(case when ${RatePlan.isDefault} then 1 else 0 end)`,
 			})
 			.from(RatePlan)
 			.groupBy(RatePlan.variantId)
@@ -98,8 +99,8 @@ describe("audit/rateplan data (read-only)", () => {
 				commercialRules: toInt(commercialRuleCount),
 				commercialRuleApplications: toInt(commercialRuleApplicationCount),
 			},
-			legacyDetections: {
-				invalidPriceRuleTypes: invalidRuleTypes.map((r: any) => ({
+			ratePlanTopology: {
+				unsupportedCommercialRuleTypes: invalidRuleTypes.map((r: any) => ({
 					type: String(r.type),
 					count: toInt(r.n),
 				})),
