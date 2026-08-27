@@ -162,8 +162,8 @@ async function seedTourCommercialReady(params: {
 		productId: params.productId,
 		kind: "tour_slot",
 		name: `Salida ${params.departureTime}`,
-		status: "ready",
-		isActive: true,
+		lifecycleState: "ready",
+		salesEnabled: true,
 		createdAt: new Date(),
 	} as any)
 
