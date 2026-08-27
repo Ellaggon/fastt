@@ -292,6 +292,11 @@ if (!bookingId) return Astro.redirect("/booking")
 				const booking = payload.booking || {}
 				const allocations = Array.isArray(payload.allocations) ? payload.allocations : []
 				const policies = Array.isArray(payload.policies) ? payload.policies : []
+				const guestExpectations =
+					booking.guestExpectations && typeof booking.guestExpectations === "object"
+						? booking.guestExpectations
+						: null
+				const guestRules = Array.isArray(guestExpectations?.rules) ? guestExpectations.rules : []
 				const taxes = Array.isArray(payload.taxes) ? payload.taxes : []
 				const payments = Array.isArray(payload.payments) ? payload.payments : []
 				const [status, action] = lifecycleCopy(booking)
@@ -423,8 +428,8 @@ if (!bookingId) return Astro.redirect("/booking")
 					return
 				}
 				if (state.activeTab === "policies") {
-					panel.innerHTML = section(
-						"Condiciones contratadas",
+					panel.innerHTML = `<div class="space-y-4">${section(
+						"Condiciones comerciales contratadas",
 						policies.length
 							? `<div class="grid gap-3 md:grid-cols-2">${policies
 									.map(
@@ -436,8 +441,22 @@ if (!bookingId) return Astro.redirect("/booking")
 										</article>`
 									)
 									.join("")}</div>`
-							: '<p class="text-sm text-slate-500">No hay condiciones congeladas para esta reserva.</p>'
-					)
+							: '<p class="text-sm text-slate-500">No hay condiciones comerciales congeladas para esta reserva.</p>'
+					)}${section(
+						"Reglas para huéspedes aceptadas",
+						guestRules.length
+							? `<div class="grid gap-3 md:grid-cols-2">${guestRules
+									.map(
+										(
+											rule
+										) => `<article class="fastt-row-card rounded-[var(--fastt-radius-card)] border border-slate-200 bg-slate-50 p-4">
+											<p class="text-sm font-semibold text-slate-950">${escapeHtml(rule.type || "Regla de estadía")}</p>
+											<p class="mt-2 text-sm leading-6 text-slate-600">${escapeHtml(rule.summary || "Regla aceptada al reservar.")}</p>
+										</article>`
+									)
+									.join("")}</div>`
+							: '<p class="text-sm text-slate-500">Esta reserva no contiene un snapshot de reglas para huéspedes.</p>'
+					)}</div>`
 					return
 				}
 				if (state.activeTab === "payments") {

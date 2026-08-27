@@ -1030,11 +1030,30 @@ export const HouseRule = pgTable(
 	{
 		id: pk(),
 		productId: txt("productId").references(() => Product.id),
+		scope: text("scope").default("product").notNull(),
+		scopeId: txtOpt("scopeId").references(() => Variant.id, { onDelete: "cascade" }),
 		type: txt("type"),
 		payloadJson: jsonb("payloadJson").notNull(),
 		createdAt: now("createdAt"),
 	},
-	(table) => [index("HouseRule_productId_type_idx").on(table.productId, table.type)]
+	(table) => [
+		index("HouseRule_productId_scope_idx").on(table.productId, table.scope),
+		uniqueIndex("HouseRule_product_type_unique")
+			.on(table.productId, table.type)
+			.where(sql`${table.scope} = 'product'`),
+		uniqueIndex("HouseRule_variant_type_unique")
+			.on(table.scopeId, table.type)
+			.where(sql`${table.scope} = 'variant'`),
+		check("HouseRule_scope_check", sql`${table.scope} IN ('product', 'variant')`),
+		check(
+			"HouseRule_scope_shape_check",
+			sql`(${table.scope} = 'product' AND ${table.scopeId} IS NULL) OR (${table.scope} = 'variant' AND ${table.scopeId} IS NOT NULL)`
+		),
+		check(
+			"HouseRule_variant_type_check",
+			sql`${table.scope} = 'product' OR ${table.type} IN ('Pets', 'Smoking', 'Access', 'Safety', 'ExtraBeds')`
+		),
+	]
 )
 
 /** Marketplace category taxonomy (Things to Do / Experiences discovery). */
@@ -2433,6 +2452,7 @@ export const Booking = pgTable(
 		guestContactSnapshotJson: jsonb("guestContactSnapshotJson"),
 		lifecycleAuditJson: jsonb("lifecycleAuditJson"),
 		refundHandoffSnapshotJson: jsonb("refundHandoffSnapshotJson"),
+		guestExpectationsSnapshotJson: jsonb("guestExpectationsSnapshotJson"),
 		contractSnapshotVersion: txtOpt("contractSnapshotVersion"),
 		integrationConnectionId: txtOpt("integrationConnectionId").references(
 			() => ProviderIntegrationConnection.id,

@@ -89,6 +89,8 @@ describe("integration/catalog delete product cascade", () => {
 			await db.insert(HouseRule).values({
 				id: `rule_${suffix}`,
 				productId,
+				scope: "product",
+				scopeId: null,
 				type: "Smoking",
 				payloadJson: { allowed: false },
 			})

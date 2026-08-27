@@ -1,6 +1,7 @@
 import { buildGuestStayExpectationsSnapshot } from "@/modules/house-rules/application/use-cases/build-guest-stay-expectations-snapshot"
 import { createHouseRule } from "@/modules/house-rules/application/use-cases/create-house-rule"
 import { deleteHouseRule } from "@/modules/house-rules/application/use-cases/delete-house-rule"
+import { listEffectiveHouseRules } from "@/modules/house-rules/application/use-cases/list-effective-house-rules"
 import {
 	listHouseRulesByProduct,
 	listHouseRulesByProductIds,
@@ -21,9 +22,13 @@ export async function listHouseRulesByProductIdsUseCase(productIds: string[]) {
 	return listHouseRulesByProductIds({ repo }, productIds)
 }
 
+export async function listEffectiveHouseRulesUseCase(productId: string, variantId?: string | null) {
+	return listEffectiveHouseRules({ repo }, productId, variantId)
+}
+
 export async function buildGuestStayExpectationsSnapshotUseCase(
 	productId: string,
-	options?: { capturedAt?: Date }
+	options?: { capturedAt?: Date; variantId?: string | null }
 ) {
 	return buildGuestStayExpectationsSnapshot({ repo }, productId, options)
 }

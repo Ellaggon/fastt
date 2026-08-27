@@ -237,13 +237,7 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
 		icon: serviceIcons.elevator,
 	},
 
-	// ─── Familias y mascotas ───────────────────────────────
-	{
-		id: "pet-friendly",
-		name: "Acepta mascotas",
-		category: "Mascotas",
-		icon: serviceIcons["pet-friendly"],
-	},
+	// ─── Familias ──────────────────────────────────────────
 	{
 		id: "kids-club",
 		name: "Club infantil",
@@ -264,18 +258,6 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
 	},
 
 	// ─── Habitaciones ──────────────────────────────────────
-	{
-		id: "smoking-rooms",
-		name: "Habitaciones para fumadores",
-		category: "Habitación",
-		icon: serviceIcons["smoking-rooms"],
-	},
-	{
-		id: "nonsmoking",
-		name: "Habitaciones no fumadores",
-		category: "Habitación",
-		icon: serviceIcons.nonsmoking,
-	},
 	{
 		id: "fridge",
 		name: "Frigorífico",

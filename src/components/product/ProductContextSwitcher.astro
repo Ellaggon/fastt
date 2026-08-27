@@ -1,7 +1,22 @@
 ---
-import ContextSwitcher from "@/components/ui/ContextSwitcher.astro"
+import ContextSwitcher, {
+	type ContextSwitcherGroup,
+	type ContextSwitcherOption,
+} from "@/components/ui/ContextSwitcher.astro"
+import { listRatePlansWithArrivalException } from "@/lib/policies/ratePlanArrivalException"
 import { routes } from "@/lib/routes"
-import { and, db, eq, first, Product, sql } from "@/shared/infrastructure/db/compat"
+import {
+	and,
+	db,
+	eq,
+	first,
+	HouseRule,
+	inArray,
+	ne,
+	Product,
+	sql,
+	Variant,
+} from "@/shared/infrastructure/db/compat"
 
 interface Props {
 	providerId: string
@@ -23,6 +38,9 @@ const {
 	selectable = true,
 } = Astro.props
 const productId = String(productIdProp ?? Astro.url.searchParams.get("productId") ?? "").trim()
+const requestedVariantId = String(Astro.url.searchParams.get("variantId") ?? "").trim()
+const requestedRatePlanId = String(Astro.url.searchParams.get("ratePlanId") ?? "").trim()
+const isPlaybook = Boolean(Astro.url.searchParams.get("playbook"))
 const currentRow =
 	providerId && productId
 		? await db
@@ -50,6 +68,8 @@ const hrefFor = (id: string) => {
 	if (target === "house-rules") {
 		const params = new URLSearchParams(Astro.url.search)
 		params.set("productId", id)
+		params.delete("variantId")
+		params.delete("ratePlanId")
 		return `${routes.providerHouseRules()}?${params.toString()}`
 	}
 	if (target === "financial") {
@@ -60,7 +80,7 @@ const hrefFor = (id: string) => {
 	}
 	return routes.productDetail(id)
 }
-const productOptions =
+const productOptions: ContextSwitcherOption[] =
 	selectable && providerId && type
 		? (
 				await db
@@ -78,29 +98,150 @@ const productOptions =
 				.sort((a, b) => a.label.localeCompare(b.label, "es"))
 		: []
 const allHouseRulesOption =
-	target === "house-rules" && !Astro.url.searchParams.get("playbook")
+	target === "house-rules" && !isPlaybook
 		? {
 				id: "all",
 				label: "Todos los alojamientos",
 				href: routes.providerHouseRules(),
 			}
 		: null
+const canNestRooms =
+	target === "house-rules" && isHotel && Boolean(productId) && !isPlaybook && selectable
+// Solo tarifas con excepción de llegada/salida: el resto se edita en Condiciones.
+const roomRows = canNestRooms
+	? await db
+			.select({ id: Variant.id, name: Variant.name })
+			.from(Variant)
+			.where(
+				and(
+					eq(Variant.productId, productId),
+					eq(Variant.kind, "hotel_room"),
+					ne(Variant.lifecycleState, "archived")
+				)
+			)
+	: []
+const roomIds = roomRows.map((row) => String(row.id))
+const roomOverrideRows = roomIds.length
+	? await db
+			.select({ scopeId: HouseRule.scopeId })
+			.from(HouseRule)
+			.where(
+				and(
+					eq(HouseRule.productId, productId),
+					eq(HouseRule.scope, "variant"),
+					inArray(HouseRule.scopeId, roomIds)
+				)
+			)
+	: []
+const roomOverrideCount = new Map<string, number>()
+for (const row of roomOverrideRows) {
+	const roomId = String(row.scopeId ?? "")
+	roomOverrideCount.set(roomId, (roomOverrideCount.get(roomId) ?? 0) + 1)
+}
+const rooms = roomRows
+	.map((row) => ({
+		id: String(row.id),
+		name: String(row.name || "Habitación"),
+		overrideCount: roomOverrideCount.get(String(row.id)) ?? 0,
+	}))
+	.sort((a, b) => a.name.localeCompare(b.name, "es"))
+const rateArrivalExceptions = canNestRooms ? await listRatePlansWithArrivalException(productId) : []
+const nestRooms = canNestRooms && (rooms.length > 0 || rateArrivalExceptions.length > 0)
+const selectedRoom = rooms.find((room) => room.id === requestedVariantId) ?? null
+const selectedRate =
+	rateArrivalExceptions.find((plan) => plan.ratePlanId === requestedRatePlanId) ?? null
+function houseRulesSpaceHref(nextProductId: string, variantId: string) {
+	const params = new URLSearchParams(Astro.url.search)
+	params.set("productId", nextProductId)
+	params.set("variantId", variantId)
+	params.delete("ratePlanId")
+	return `${routes.providerHouseRules()}?${params.toString()}`
+}
+function houseRulesRateHref(nextProductId: string, ratePlanId: string) {
+	const params = new URLSearchParams(Astro.url.search)
+	params.set("productId", nextProductId)
+	params.set("ratePlanId", ratePlanId)
+	params.delete("variantId")
+	params.set("focus", "arrival")
+	return `${routes.providerHouseRules()}?${params.toString()}`
+}
+const otherHotels = productOptions.filter((item) => item.id !== productId)
+const groups: ContextSwitcherGroup[] | undefined = nestRooms
+	? [
+			...(allHouseRulesOption ? [{ options: [allHouseRulesOption] }] : []),
+			...(otherHotels.length ? [{ options: otherHotels }] : []),
+			{
+				heading: resolvedName,
+				options: [
+					{
+						id: `product:${productId}`,
+						label: "Reglas del alojamiento",
+						href: hrefFor(productId),
+					},
+				],
+			},
+			...(rooms.length
+				? [
+						{
+							heading: "Habitaciones",
+							options: rooms.map((room) => ({
+								id: `room:${room.id}`,
+								label: room.name,
+								meta:
+									room.overrideCount > 0
+										? `${room.overrideCount} ${room.overrideCount === 1 ? "excepción" : "excepciones"}`
+										: "Hereda todo",
+								href: houseRulesSpaceHref(productId, room.id),
+								nested: true,
+							})),
+						},
+					]
+				: []),
+			...(rateArrivalExceptions.length
+				? [
+						{
+							heading: "Tarifas con horario distinto",
+							options: rateArrivalExceptions.map((plan) => ({
+								id: `rate:${plan.ratePlanId}`,
+								label: plan.ratePlanName,
+								href: houseRulesRateHref(productId, plan.ratePlanId),
+								nested: true,
+							})),
+						},
+					]
+				: []),
+		]
+	: undefined
 const products = allHouseRulesOption ? [allHouseRulesOption, ...productOptions] : productOptions
+const selectedId = nestRooms
+	? selectedRate
+		? `rate:${selectedRate.ratePlanId}`
+		: selectedRoom
+			? `room:${selectedRoom.id}`
+			: `product:${productId}`
+	: target === "house-rules" && !productId && allHouseRulesOption
+		? "all"
+		: productId
 const current =
-	target === "house-rules" && !productId && allHouseRulesOption
-		? allHouseRulesOption
-		: (products.find((item) => item.id === productId) ??
-			productOptions[0] ?? { id: productId, label: resolvedName, href: hrefFor(productId) })
+	nestRooms && selectedRate
+		? { id: `rate:${selectedRate.ratePlanId}`, label: selectedRate.ratePlanName, href: "" }
+		: nestRooms && selectedRoom
+			? { id: `room:${selectedRoom.id}`, label: selectedRoom.name, href: "" }
+			: target === "house-rules" && !productId && allHouseRulesOption
+				? allHouseRulesOption
+				: (products.find((item) => item.id === productId) ??
+					productOptions[0] ?? { id: productId, label: resolvedName, href: hrefFor(productId) })
 ---
 
 <ContextSwitcher
 	label={label}
 	value={current.label}
 	options={products}
-	selectedId={current.id}
+	groups={groups}
+	selectedId={selectedId}
 	icon={icon}
-	menuLabel={`Cambiar ${label.toLowerCase()}`}
+	menuLabel={nestRooms ? "Cambiar contexto" : `Cambiar ${label.toLowerCase()}`}
 	emptyMessage={`No hay otros ${label.toLowerCase()}s disponibles.`}
-	ariaLabel={`Cambiar ${label.toLowerCase()} actual`}
+	ariaLabel={nestRooms ? "Cambiar contexto de reglas" : `Cambiar ${label.toLowerCase()} actual`}
 	variant={variant}
 />

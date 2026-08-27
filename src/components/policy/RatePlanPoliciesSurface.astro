@@ -55,6 +55,7 @@ interface Props {
 	isProfessionalMode?: boolean
 	showPlanSummary?: boolean
 	showHeader?: boolean
+	inlineHotelArrival?: boolean
 }
 
 const {
@@ -65,9 +66,10 @@ const {
 	isProfessionalMode: requestedProfessionalMode = false,
 	showPlanSummary = true,
 	showHeader = true,
+	inlineHotelArrival = false,
 } = Astro.props
 const isProfessionalMode = requestedProfessionalMode && (showHeader || showPlanSummary)
-const isGuidedSurface = !showHeader && !showPlanSummary
+const isGuidedSurface = inlineHotelArrival
 
 const technicalCategories = POLICY_CATEGORY_OPTIONS.map((category) => ({
 	key: category.value,
@@ -83,11 +85,21 @@ function formattedResolvedAt(value: string): string {
 	}).format(date)
 }
 
-function providerHouseRulesHref(productId?: string, ratePlanId?: string): string {
+function providerHouseRulesHref(
+	productId?: string,
+	ratePlanId?: string,
+	focus?: "arrival",
+	mode?: "hotel" | "rate-exception"
+): string {
 	const params = new URLSearchParams()
 	if (productId) params.set("productId", productId)
-	params.set("focus", "arrival")
-	if (ratePlanId) params.set("returnTo", routes.ratePlanPolicies(ratePlanId))
+	if (focus) params.set("focus", focus)
+	if (mode === "rate-exception" && ratePlanId) {
+		params.set("ratePlanId", ratePlanId)
+		params.set("focus", "arrival")
+	} else if (ratePlanId) {
+		params.set("returnTo", routes.ratePlanPolicies(ratePlanId))
+	}
 	const query = params.toString()
 	return query ? `${routes.providerHouseRules()}?${query}` : routes.providerHouseRules()
 }
@@ -101,8 +113,12 @@ function guidedStatus(missing: boolean): {
 	return { label: "Completa", variant: "success" }
 }
 
-function arrivalStatus(missing: boolean): { label: string; variant: "neutral" | "warning" } {
-	if (missing) return { label: "Pendiente", variant: "warning" }
+function arrivalStatus(params: { missing: boolean; source: string }): {
+	label: string
+	variant: "neutral" | "info" | "warning"
+} {
+	if (params.missing) return { label: "Pendiente", variant: "warning" }
+	if (params.source === "Tarifa") return { label: "Excepción de esta tarifa", variant: "info" }
 	return { label: "Heredada del hotel", variant: "neutral" }
 }
 ---
@@ -134,11 +150,14 @@ function arrivalStatus(missing: boolean): { label: string; variant: "neutral" | 
 			const cancellationBlockComplete = !cancellationMissing && !noShowMissing
 			const cancellationStatus = guidedStatus(!cancellationBlockComplete)
 			const paymentStatus = guidedStatus(paymentMissing)
-			const arrivalStatusValue = arrivalStatus(arrivalMissing)
 			const arrivalSourceLabel =
 				isGuidedSurface && plan.contractFacts.arrivalSource === "Tarifa"
 					? "Condición inicial"
 					: plan.contractFacts.arrivalSource
+			const arrivalStatusValue = arrivalStatus({
+				missing: arrivalMissing,
+				source: plan.contractFacts.arrivalSource,
+			})
 			const technicalDrawerId = `policy-technical-${plan.ratePlanId}`
 
 			return (
@@ -202,6 +221,22 @@ function arrivalStatus(missing: boolean): { label: string; variant: "neutral" | 
 						)}
 
 						<div class="divide-y divide-slate-200">
+							{isGuidedSurface ? null : (
+								<p
+									class="px-1 py-4 text-sm leading-6 text-slate-500 sm:px-4"
+									data-rate-conditions-boundary
+								>
+									Cancelación, pago y no presentación son de esta tarifa. Mascotas, fumar y fiestas
+									se editan en las{" "}
+									<a
+										href={providerHouseRulesHref(productId, plan.ratePlanId)}
+										class="font-medium text-slate-700 underline-offset-2 hover:text-slate-950 hover:underline"
+									>
+										reglas del alojamiento
+									</a>
+									.
+								</p>
+							)}
 							<section class="py-5" data-contract-block="cancellation-no-show">
 								<div class="grid gap-4 lg:grid-cols-[minmax(220px,0.75fr)_minmax(0,1.4fr)]">
 									<div class="flex min-w-0 items-start gap-3 px-1 sm:px-4">
@@ -352,7 +387,9 @@ function arrivalStatus(missing: boolean): { label: string; variant: "neutral" | 
 												</Badge>
 											</div>
 											<p class="mt-1 text-sm leading-5 text-slate-500">
-												Horarios compartidos por las tarifas del alojamiento.
+												{plan.contractFacts.arrivalSource === "Tarifa"
+													? "Esta tarifa tiene un horario distinto al del alojamiento."
+													: "Horarios compartidos por las tarifas del alojamiento. Se editan en las reglas del hotel; aquí solo puedes crear una excepción de horario."}
 											</p>
 										</div>
 									</div>
@@ -374,13 +411,28 @@ function arrivalStatus(missing: boolean): { label: string; variant: "neutral" | 
 										</div>
 									) : (
 										<div class="px-1 sm:px-4">
-											<div class="flex justify-end">
+											<div class="flex flex-wrap justify-end gap-2">
 												<Button
-													href={providerHouseRulesHref(productId, plan.ratePlanId)}
-													variant={arrivalMissing ? "primary" : "secondary"}
+													href={providerHouseRulesHref(productId, plan.ratePlanId, "arrival")}
+													variant="secondary"
 													size="sm"
 												>
-													{arrivalMissing ? "Configurar llegada" : "Editar en alojamiento"}
+													Editar en alojamiento
+												</Button>
+												<Button
+													href={providerHouseRulesHref(
+														productId,
+														plan.ratePlanId,
+														"arrival",
+														"rate-exception"
+													)}
+													variant={arrivalMissing ? "primary" : "secondary"}
+													size="sm"
+													data-rate-arrival-exception-cta
+												>
+													{plan.contractFacts.arrivalSource === "Tarifa"
+														? "Editar excepción de horario"
+														: "Excepción de esta tarifa"}
 													{arrivalMissing && <ArrowRight class="h-4 w-4" />}
 												</Button>
 											</div>

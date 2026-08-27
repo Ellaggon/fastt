@@ -13,7 +13,7 @@ import Button from "@/components/ui/Button.astro"
 import Input from "@/components/ui/Input.astro"
 import { buildGuestRoomPreviews } from "@/components/productUI/room-section.viewmodel"
 import { resolveVariantRef } from "@/shared/domain/variant-ref"
-import { Bath, BedDouble, User } from "@lucide/astro"
+import { Bath, BedDouble, Clock3, User } from "@lucide/astro"
 import DatesModal from "./DatesModal.astro"
 
 const variants = (offers ?? []).map((room: any) => ({
@@ -325,7 +325,9 @@ function policyStatusClass(status: string): string {
 									const finalPrice = rp.finalPrice ?? rp.price ?? 0
 									const ratePlanId = ratePlanIdOf(rp)
 									const contract = policiesByRatePlanId[ratePlanId] ?? null
-									const visibleCards = (contract?.cards ?? []).slice(0, 4)
+									const visibleCards = (contract?.cards ?? [])
+										.filter((card: any) => card.category !== "CheckIn")
+										.slice(0, 3)
 
 									return (
 										<div
@@ -365,6 +367,20 @@ function policyStatusClass(status: string): string {
 													{contract?.summary ?? "Sin condiciones para esta tarifa."}
 												</p>
 											</div>
+
+											{contract?.arrival ? (
+												<div class="fastt-soft-box flex items-start gap-2 border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-950">
+													<Clock3 class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+													<div>
+														<p class="font-semibold">
+															{contract.arrival.isRateException
+																? "Horario de esta tarifa"
+																: "Horario del alojamiento"}
+														</p>
+														<p class="mt-1">{contract.arrival.description}</p>
+													</div>
+												</div>
+											) : null}
 
 											<div class="grid gap-2 text-xs text-slate-700">
 												{visibleCards.map((card: any) => (

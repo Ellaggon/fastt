@@ -1,0 +1,97 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import { buildGuestHouseRulesDisplay } from "@/modules/house-rules/presentation/guestHouseRulesDisplay"
+import {
+	houseRuleGroups,
+	houseRuleLabels,
+} from "@/modules/house-rules/presentation/houseRulePresentation"
+import type { GuestStayExpectationsSnapshot, HouseRuleType } from "@/modules/house-rules/public"
+
+interface Props {
+	hotelSnapshot: GuestStayExpectationsSnapshot | null
+	roomSnapshot?: GuestStayExpectationsSnapshot | null
+	roomLabel?: string | null
+	surface?: "public" | "preview"
+}
+
+const { hotelSnapshot, roomSnapshot = null, roomLabel = null, surface = "public" } = Astro.props
+
+const display = buildGuestHouseRulesDisplay({ hotelSnapshot, roomSnapshot })
+const labelByType = houseRuleLabels as Record<string, string>
+const cardClass =
+	surface === "preview"
+		? "rounded-xl border border-slate-200 bg-white p-4"
+		: "fastt-row-card rounded-[var(--fastt-radius-card)] border border-neutral-200 bg-white p-4"
+const titleClass =
+	surface === "preview"
+		? "text-sm font-semibold text-slate-900"
+		: "text-base font-semibold text-neutral-900"
+const bodyClass =
+	surface === "preview"
+		? "text-sm leading-6 text-slate-700"
+		: "text-sm leading-6 text-neutral-700 md:text-base"
+const mutedClass = surface === "preview" ? "text-sm text-slate-500" : "text-sm text-neutral-500"
+
+function rulesForGroup(rules: typeof display.rules, types: HouseRuleType[]) {
+	const allowed = new Set(types)
+	return rules.filter((rule) => allowed.has(rule.type))
+}
+---
+
+<div class="space-y-4" data-guest-house-rules-panel>
+	{
+		display.rules.length ? (
+			<section class={cardClass} data-guest-house-rules-effective-block>
+				<div class="flex flex-wrap items-center gap-2">
+					<p class={titleClass}>
+						{display.hasRoomContext
+							? `Reglas para ${roomLabel ?? "esta habitación"}`
+							: "Reglas del alojamiento"}
+					</p>
+					{display.hasRoomContext ? (
+						<Badge variant={display.hasRoomOverrides ? "info" : "neutral"}>
+							{display.hasRoomOverrides
+								? `${display.overrideTypes.size} ${display.overrideTypes.size === 1 ? "excepción" : "excepciones"}`
+								: "Sin excepciones"}
+						</Badge>
+					) : null}
+				</div>
+				<p class={`mt-1 ${mutedClass}`}>
+					{display.hasRoomContext
+						? "Estas son las reglas que aplican al reservar este espacio."
+						: "Expectativas de comportamiento, llegada y estadía."}
+				</p>
+				<div class="mt-4 grid gap-4 md:grid-cols-2">
+					{houseRuleGroups.map((group) => {
+						const items = rulesForGroup(display.rules, group.types)
+						if (!items.length) return null
+						return (
+							<div>
+								<p class={`${titleClass} text-sm`}>{group.label}</p>
+								<ul class={`mt-3 space-y-3 ${bodyClass}`}>
+									{items.map((rule) => (
+										<li class="rounded-lg bg-slate-50 px-3 py-2">
+											<div class="flex flex-wrap items-center gap-2">
+												<span class="font-medium text-neutral-900">
+													{labelByType[rule.type] ?? "Otra regla"}:
+												</span>
+												{display.overrideTypes.has(rule.type) ? (
+													<Badge variant="info">Esta habitación</Badge>
+												) : null}
+											</div>
+											<p class="mt-1">{rule.summary}</p>
+										</li>
+									))}
+								</ul>
+							</div>
+						)
+					})}
+				</div>
+			</section>
+		) : (
+			<p class={`${cardClass} ${mutedClass}`}>
+				El alojamiento aún no agregó reglas visibles para huéspedes.
+			</p>
+		)
+	}
+</div>

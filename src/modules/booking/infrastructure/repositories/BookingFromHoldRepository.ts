@@ -302,6 +302,7 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 					checkIn: Hold.checkIn,
 					checkOut: Hold.checkOut,
 					policySnapshotJson: Hold.policySnapshotJson,
+					guestExpectationsSnapshotJson: Hold.guestExpectationsSnapshotJson,
 					commercialSnapshotVersion: Hold.commercialSnapshotVersion,
 					commercialSnapshotJson: Hold.commercialSnapshotJson,
 					priceQuoteId: Hold.priceQuoteId,
@@ -437,6 +438,7 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 				},
 				lifecycleAuditJson: lifecycleAuditSnapshot,
 				refundHandoffSnapshotJson: refundHandoffSnapshot,
+				guestExpectationsSnapshotJson: hold?.guestExpectationsSnapshotJson ?? null,
 				contractSnapshotVersion: "reservations_contract_snapshot_v1",
 			} as any)
 

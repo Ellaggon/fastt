@@ -1,4 +1,5 @@
 ---
+import GuestHouseRulesPanel from "@/components/house-rules/GuestHouseRulesPanel.astro"
 import GuestRoomPreviewCards from "@/components/productUI/GuestRoomPreviewCards.astro"
 import ProductContextSwitcher from "@/components/product/ProductContextSwitcher.astro"
 import { buildGuestRoomPreviews } from "@/components/productUI/room-section.viewmodel"
@@ -38,10 +39,6 @@ import {
 	resolveHotelType,
 } from "@/modules/catalog/public"
 import { ArrowRight, BedDouble, CircleCheck, ShieldCheck } from "@lucide/astro"
-import {
-	houseRuleGroups,
-	houseRuleLabels,
-} from "@/modules/house-rules/presentation/houseRulePresentation"
 import { buildGuestStayExpectationsSnapshot } from "@/modules/house-rules/public"
 import { mapResolvedPoliciesToUI, resolveEffectivePolicies } from "@/modules/policies/public"
 import {
@@ -262,17 +259,11 @@ const tourExcludes = Array.isArray(tourSubtype?.excludes)
 	? tourSubtype.excludes.map((item) => String(item ?? "").trim()).filter(Boolean)
 	: []
 
-const guestExpectationsSnapshot = isHotel
+const previewVariantId = String(Astro.url.searchParams.get("variantId") ?? "").trim()
+
+const hotelGuestExpectationsSnapshot = isHotel
 	? await buildGuestStayExpectationsSnapshot(productId)
 	: null
-const houseRules = guestExpectationsSnapshot?.rules ?? []
-const houseRuleLabelByType = houseRuleLabels as Record<string, string>
-const houseRulesByType = houseRules.reduce((acc: Record<string, any[]>, rule: any) => {
-	const type = String(rule.type ?? "Other")
-	if (!acc[type]) acc[type] = []
-	acc[type].push(rule)
-	return acc
-}, {})
 
 let guestRoomPreviews: ReturnType<typeof buildGuestRoomPreviews> = []
 let conditionsHref = routes.rates()
@@ -333,6 +324,21 @@ if (isHotel) {
 	})
 
 	conditionsHref = await resolveReservationConditionsHref({ productId, variantIds: roomVariantIds })
+}
+
+const roomGuestExpectationsSnapshot =
+	isHotel && previewVariantId
+		? await buildGuestStayExpectationsSnapshot(productId, { variantId: previewVariantId })
+		: null
+const previewRoomLabel =
+	guestRoomPreviews.find((preview) => preview.variantId === previewVariantId)?.roomName ?? null
+
+function previewHouseRulesHref(variantId?: string | null) {
+	const params = new URLSearchParams(Astro.url.searchParams)
+	if (variantId) params.set("variantId", variantId)
+	else params.delete("variantId")
+	const query = params.toString()
+	return `${routes.productPreview(productId)}${query ? `?${query}` : ""}#guest-house-rules`
 }
 
 const requiredPolicyCategories = ["Cancellation", "Payment", "CheckIn", "NoShow"]
@@ -894,55 +900,40 @@ try {
 
 		{
 			isHotel ? (
-				<section class="space-y-4">
+				<section id="guest-house-rules" class="space-y-4">
 					<header class="flex flex-wrap items-end justify-between gap-3">
 						<div class="space-y-1">
 							<h2 class="text-lg font-semibold text-slate-100">Reglas para huéspedes</h2>
 							<p class="text-sm leading-6 text-slate-400">
-								Comportamiento, llegada y operación de estadía que el huésped verá antes de
-								reservar.
+								Comportamiento, llegada y operación de estadía
+								{previewVariantId ? " para el espacio seleccionado" : " del alojamiento"}.
 							</p>
 						</div>
 						<Button href={routes.providerHouseRules()} variant="secondary" size="sm">
 							Editar reglas
 						</Button>
 					</header>
+					{guestRoomPreviews.length ? (
+						<div class="flex flex-wrap gap-2">
+							<a href={previewHouseRulesHref()}>
+								<Badge variant={previewVariantId ? "neutral" : "info"}>Todo el alojamiento</Badge>
+							</a>
+							{guestRoomPreviews.map((preview) => (
+								<a href={previewHouseRulesHref(preview.variantId)}>
+									<Badge variant={previewVariantId === preview.variantId ? "info" : "neutral"}>
+										{preview.roomName}
+									</Badge>
+								</a>
+							))}
+						</div>
+					) : null}
 					<Card className="bg-white text-slate-800">
-						{houseRules.length ? (
-							<div class="grid gap-4 lg:grid-cols-2">
-								{houseRuleGroups.map((group) => {
-									const items = group.types.flatMap((type) => houseRulesByType[type] ?? [])
-									if (!items.length) return null
-									return (
-										<div class="space-y-2">
-											<p class="text-sm font-semibold text-slate-900">{group.label}</p>
-											<ul class="space-y-2 text-sm leading-6 text-slate-700">
-												{items.map((rule: any) => {
-													const type = String(rule.type ?? "Other")
-													return (
-														<li class="rounded-xl bg-slate-50 px-3 py-2">
-															<span class="font-medium text-slate-900">
-																{houseRuleLabelByType[type] ?? "Otra regla"}:
-															</span>{" "}
-															{rule.summary}
-														</li>
-													)
-												})}
-											</ul>
-										</div>
-									)
-								})}
-							</div>
-						) : (
-							<div class="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5">
-								<p class="text-sm font-semibold text-slate-900">
-									Aún no hay reglas para huéspedes.
-								</p>
-								<p class="mt-1 text-sm text-slate-600">
-									Agrega reglas para que el huésped entienda comportamiento, llegada y salida.
-								</p>
-							</div>
-						)}
+						<GuestHouseRulesPanel
+							hotelSnapshot={hotelGuestExpectationsSnapshot}
+							roomSnapshot={roomGuestExpectationsSnapshot}
+							roomLabel={previewVariantId ? previewRoomLabel : null}
+							surface="preview"
+						/>
 					</Card>
 				</section>
 			) : null

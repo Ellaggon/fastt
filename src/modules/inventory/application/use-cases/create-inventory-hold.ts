@@ -84,7 +84,10 @@ export async function createInventoryHold(
 			channel?: string | null
 			after?: unknown
 		}) => Promise<void>
-		buildGuestExpectationsSnapshot?: (productId: string) => Promise<unknown | null>
+		buildGuestExpectationsSnapshot?: (
+			productId: string,
+			variantId?: string
+		) => Promise<unknown | null>
 		policyContext: {
 			productId: string
 			ratePlanId: string
@@ -231,7 +234,7 @@ export async function createInventoryHold(
 		}
 	}
 	const guestExpectationsSnapshot = deps.buildGuestExpectationsSnapshot
-		? await deps.buildGuestExpectationsSnapshot(deps.policyContext.productId)
+		? await deps.buildGuestExpectationsSnapshot(deps.policyContext.productId, parsed.variantId)
 		: null
 	const created = await deps.repo.holdInventory({
 		holdId,

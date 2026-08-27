@@ -1,0 +1,312 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Input from "@/components/ui/Input.astro"
+import Select from "@/components/ui/Select.astro"
+import Textarea from "@/components/ui/Textarea.astro"
+import { houseRuleCopy } from "@/modules/house-rules/presentation/houseRulePresentation"
+import {
+	buildHouseRuleGuestSummary,
+	type HouseRule,
+	type HouseRulePayload,
+	type HouseRuleType,
+} from "@/modules/house-rules/public"
+import { BedDouble, Cigarette, KeyRound, PawPrint, Shield } from "@lucide/astro"
+
+interface Props {
+	type: HouseRuleType
+	inheritedRule: HouseRule | null
+	overrideRule: HouseRule | null
+	actionHref: string
+	productId: string
+	variantId: string
+}
+
+const { type, inheritedRule, overrideRule, actionHref, productId, variantId } = Astro.props
+
+const copy = houseRuleCopy[type]
+const iconByType = {
+	Pets: PawPrint,
+	Smoking: Cigarette,
+	Safety: Shield,
+	ExtraBeds: BedDouble,
+	Access: KeyRound,
+} as const
+const Icon = iconByType[type as keyof typeof iconByType] ?? Shield
+const inheritedSummary = inheritedRule
+	? buildHouseRuleGuestSummary(type, inheritedRule.payloadJson)
+	: null
+const overrideSummary = overrideRule
+	? buildHouseRuleGuestSummary(type, overrideRule.payloadJson)
+	: null
+const payload = (overrideRule?.payloadJson ?? {}) as HouseRulePayload
+const hasOverride = Boolean(overrideRule)
+---
+
+<article
+	class="fastt-row-card overflow-hidden bg-white text-slate-900"
+	data-house-rule-variant-override={type}
+	data-house-rule-variant-mode={hasOverride ? "override" : "inherited"}
+>
+	<header class="flex flex-wrap items-start gap-3 border-b border-slate-100 p-4">
+		<span
+			class="fastt-soft-box flex size-9 shrink-0 items-center justify-center border border-sky-200 bg-sky-50 text-sky-700"
+		>
+			<Icon class="size-4" aria-hidden="true" />
+		</span>
+		<div class="min-w-0 flex-1">
+			<p class="text-sm font-semibold text-slate-950">{copy.label}</p>
+			<p class="mt-1 text-sm leading-5 text-slate-500">{copy.intent}</p>
+		</div>
+		<Badge variant={hasOverride ? "info" : "neutral"}>
+			{hasOverride ? "Excepción" : "Heredada"}
+		</Badge>
+	</header>
+
+	<div class="space-y-4 p-4">
+		<section class="rounded-xl bg-slate-50 p-3" data-house-rule-inherited-block>
+			<p class="text-xs font-semibold tracking-[0.12em] text-slate-500 uppercase">
+				Heredada del alojamiento
+			</p>
+			<p class="mt-2 text-sm leading-6 text-slate-700">
+				{
+					inheritedSummary ??
+						"Sin definir en el alojamiento. Completa esta regla a nivel hotel o define una excepción aquí."
+				}
+			</p>
+		</section>
+
+		{
+			hasOverride ? (
+				<section
+					class="fastt-soft-box border border-sky-200 bg-sky-50/70 p-3"
+					data-house-rule-override-block
+				>
+					<p class="text-xs font-semibold tracking-[0.12em] text-sky-800 uppercase">
+						Excepción de este espacio
+					</p>
+					<p class="mt-2 text-sm leading-6 text-slate-800">{overrideSummary}</p>
+					<form method="POST" action={actionHref} class="mt-3">
+						<input type="hidden" name="action" value="delete-house-rule" />
+						<input type="hidden" name="ruleId" value={overrideRule?.id ?? ""} />
+						<input type="hidden" name="productId" value={productId} />
+						<input type="hidden" name="variantId" value={variantId} />
+						<Button type="submit" variant="secondary" size="sm">
+							Quitar excepción
+						</Button>
+					</form>
+				</section>
+			) : null
+		}
+
+		<section class="space-y-3" data-house-rule-exception-form>
+			<p class="text-xs font-semibold tracking-[0.12em] text-slate-500 uppercase">
+				{hasOverride ? "Actualizar excepción" : "Definir excepción"}
+			</p>
+			<form
+				method="POST"
+				action={actionHref}
+				class="grid gap-3 sm:grid-cols-2"
+				data-house-rule-variant-form
+			>
+				<input type="hidden" name="action" value="create-house-rule" />
+				<input type="hidden" name="type" value={type} />
+				<input type="hidden" name="productId" value={productId} />
+				<input type="hidden" name="variantId" value={variantId} />
+				<input type="hidden" name="scope" value="variant" />
+
+				{
+					type === "Pets" ? (
+						<>
+							<fieldset class="space-y-2 rounded-xl border border-slate-200 p-3 text-sm">
+								<legend class="px-1 font-medium text-slate-700">Mascotas en este espacio</legend>
+								<label class="mr-4">
+									<input
+										type="radio"
+										name="allowed"
+										value="true"
+										checked={payload.allowed === true}
+									/>{" "}
+									Sí
+								</label>
+								<label>
+									<input
+										type="radio"
+										name="allowed"
+										value="false"
+										checked={payload.allowed !== true}
+									/>{" "}
+									No
+								</label>
+							</fieldset>
+							<label class="space-y-1 text-sm">
+								<span class="font-medium text-slate-700">Nota breve</span>
+								<Input
+									name="feeNote"
+									value={payload.feeNote ?? ""}
+									placeholder="Ej. solo una mascota pequeña"
+								/>
+							</label>
+						</>
+					) : null
+				}
+
+				{
+					type === "Smoking" ? (
+						<>
+							<fieldset class="space-y-2 rounded-xl border border-slate-200 p-3 text-sm">
+								<legend class="px-1 font-medium text-slate-700">Fumar en este espacio</legend>
+								<label class="mr-4">
+									<input
+										type="radio"
+										name="allowed"
+										value="true"
+										checked={payload.allowed === true}
+									/>{" "}
+									Permitido con límites
+								</label>
+								<label>
+									<input
+										type="radio"
+										name="allowed"
+										value="false"
+										checked={payload.allowed !== true}
+									/>{" "}
+									No permitido
+								</label>
+							</fieldset>
+							<label class="space-y-1 text-sm" data-smoking-area-field>
+								<span class="font-medium text-slate-700">Dónde aplica</span>
+								<Select name="smokingArea">
+									<option
+										value="designated_areas"
+										selected={
+											!payload.area ||
+											payload.area === "not_allowed" ||
+											payload.area === "designated_areas"
+										}
+									>
+										Áreas designadas
+									</option>
+									<option value="outdoors" selected={payload.area === "outdoors"}>
+										Solo al aire libre
+									</option>
+									<option value="rooms" selected={payload.area === "rooms"}>
+										Habitaciones designadas
+									</option>
+									<option value="other" selected={payload.area === "other"}>
+										Otra indicación
+									</option>
+								</Select>
+							</label>
+						</>
+					) : null
+				}
+
+				{
+					type === "Access" ? (
+						<>
+							<label class="space-y-1 text-sm">
+								<span class="font-medium text-slate-700">Llegada desde</span>
+								<Input type="time" name="checkInFrom" value={payload.checkInFrom ?? "15:00"} />
+							</label>
+							<label class="space-y-1 text-sm">
+								<span class="font-medium text-slate-700">Llegada hasta</span>
+								<Input type="time" name="checkInUntil" value={payload.checkInUntil ?? "22:00"} />
+							</label>
+							<label class="space-y-1 text-sm sm:col-span-2">
+								<span class="font-medium text-slate-700">Cómo entra el huésped</span>
+								<Select name="checkInMethod">
+									<option value="self" selected={!payload.method || payload.method === "self"}>
+										Llegada autónoma
+									</option>
+									<option value="host" selected={payload.method === "host"}>
+										Con anfitrión o personal
+									</option>
+									<option value="front_desk" selected={payload.method === "front_desk"}>
+										Recepción
+									</option>
+									<option value="lockbox" selected={payload.method === "lockbox"}>
+										Caja de seguridad
+									</option>
+									<option value="smart_lock" selected={payload.method === "smart_lock"}>
+										Cerradura o código
+									</option>
+									<option value="manual" selected={payload.method === "manual"}>
+										Entrega manual
+									</option>
+								</Select>
+							</label>
+							<label class="space-y-1 text-sm sm:col-span-2">
+								<span class="font-medium text-slate-700">Instrucciones de acceso</span>
+								<Textarea
+									name="instructions"
+									rows={3}
+									value={payload.instructions ?? ""}
+									placeholder="Ej. código en la puerta lateral"
+								/>
+							</label>
+							<div class="space-y-2 rounded-xl border border-slate-200 p-3 text-sm sm:col-span-2">
+								<p class="font-medium text-slate-700">Al llegar</p>
+								<label class="block">
+									<input type="checkbox" name="idRequired" checked={payload.idRequired === true} />{" "}
+									Puede pedirse documento
+								</label>
+								<label class="block">
+									<input
+										type="checkbox"
+										name="cardRequired"
+										checked={payload.cardRequired === true}
+									/>{" "}
+									Puede pedirse tarjeta
+								</label>
+							</div>
+						</>
+					) : null
+				}
+
+				{
+					type === "Safety" || type === "ExtraBeds" ? (
+						<label class="space-y-1 text-sm sm:col-span-2">
+							<span class="font-medium text-slate-700">Indicación para huéspedes</span>
+							<Textarea
+								name="instructions"
+								rows={3}
+								value={payload.instructions ?? ""}
+								placeholder={
+									type === "ExtraBeds"
+										? "Ej. cuna bajo solicitud con 24 h de aviso"
+										: "Ej. no ingresar a zonas de personal"
+								}
+							/>
+						</label>
+					) : null
+				}
+
+				<div class="sm:col-span-2">
+					<Button type="submit" variant="primary" size="sm">
+						{hasOverride ? "Guardar excepción" : "Crear excepción"}
+					</Button>
+				</div>
+			</form>
+		</section>
+	</div>
+</article>
+
+<script>
+	document.querySelectorAll<HTMLFormElement>("[data-house-rule-variant-form]").forEach((form) => {
+		const areaField = form.querySelector<HTMLElement>("[data-smoking-area-field]")
+		if (!areaField) return
+		const areaSelect = areaField.querySelector<HTMLSelectElement>('select[name="smokingArea"]')
+		const syncSmokingArea = () => {
+			const allowed =
+				form.querySelector<HTMLInputElement>('input[name="allowed"]:checked')?.value === "true"
+			areaField.hidden = !allowed
+			if (areaSelect) areaSelect.disabled = !allowed
+		}
+		form.querySelectorAll<HTMLInputElement>('input[name="allowed"]').forEach((radio) => {
+			radio.addEventListener("change", syncSmokingArea)
+		})
+		syncSmokingArea()
+	})
+</script>

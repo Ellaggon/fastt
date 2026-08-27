@@ -486,7 +486,6 @@ AFTER UPDATE ON "GeoPlace"
 FOR EACH ROW
 WHEN (OLD."canonicalPath" IS DISTINCT FROM NEW."canonicalPath")
 EXECUTE FUNCTION fastt_propagate_geo_place_canonical_path();
-
 -- Category slugs are scoped by vertical. Category links must stay in the
 -- same vertical as the product, even when data is written outside the API.
 CREATE OR REPLACE FUNCTION fastt_validate_product_category_vertical()
@@ -521,3 +520,48 @@ CREATE TRIGGER "trg_ProductCategoryLink_vertical_match"
 BEFORE INSERT OR UPDATE OF "productId", "categoryId" ON "ProductCategoryLink"
 FOR EACH ROW
 EXECUTE FUNCTION fastt_validate_product_category_vertical();
+
+CREATE OR REPLACE FUNCTION fastt_house_rule_variant_belongs_to_product()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+	IF NEW."scope" = 'variant' THEN
+		IF NOT EXISTS (
+			SELECT 1
+			FROM "Variant"
+			WHERE "Variant"."id" = NEW."scopeId"
+				AND "Variant"."productId" = NEW."productId"
+				AND "Variant"."kind" = 'hotel_room'
+		) THEN
+			RAISE EXCEPTION 'HOUSE_RULE_VARIANT_SCOPE_MISMATCH';
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS "trg_HouseRule_variant_product" ON "HouseRule";
+CREATE TRIGGER "trg_HouseRule_variant_product"
+BEFORE INSERT OR UPDATE OF "scope", "scopeId", "productId" ON "HouseRule"
+FOR EACH ROW
+EXECUTE FUNCTION fastt_house_rule_variant_belongs_to_product();
+
+ALTER TABLE "HouseRule"
+	DROP CONSTRAINT IF EXISTS "HouseRule_scope_check",
+	DROP CONSTRAINT IF EXISTS "HouseRule_scope_shape_check",
+	DROP CONSTRAINT IF EXISTS "HouseRule_variant_type_check";
+
+ALTER TABLE "HouseRule"
+	ADD CONSTRAINT "HouseRule_scope_check"
+	CHECK ("scope" IN ('product', 'variant')),
+	ADD CONSTRAINT "HouseRule_scope_shape_check"
+	CHECK (
+		("scope" = 'product' AND "scopeId" IS NULL)
+		OR ("scope" = 'variant' AND "scopeId" IS NOT NULL)
+	),
+	ADD CONSTRAINT "HouseRule_variant_type_check"
+	CHECK (
+		"scope" = 'product'
+		OR "type" IN ('Pets', 'Smoking', 'Access', 'Safety', 'ExtraBeds')
+	);

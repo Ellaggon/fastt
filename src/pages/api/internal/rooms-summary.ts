@@ -3,6 +3,8 @@ import {
 	and,
 	asc,
 	DailyInventory,
+	eq,
+	HouseRule,
 	Image,
 	inArray,
 	RatePlan,
@@ -75,7 +77,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 
 	const variantIds = aggregate.variants.map((variant) => String(variant.id)).filter(Boolean)
 	const ratePlanName = await resolveRatePlanNameColumn()
-	const [inventoryRows, imageRows, tariffRows] = variantIds.length
+	const [inventoryRows, imageRows, tariffRows, houseRuleRows] = variantIds.length
 		? await Promise.all([
 				db
 					.select({
@@ -110,8 +112,27 @@ export const GET: APIRoute = async ({ request, url }) => {
 					.from(RatePlan)
 					.where(inArray(RatePlan.variantId, variantIds))
 					.orderBy(asc(ratePlanName), asc(RatePlan.id)),
+				db
+					.select({ scopeId: HouseRule.scopeId })
+					.from(HouseRule)
+					.where(
+						and(
+							eq(HouseRule.productId, productId),
+							eq(HouseRule.scope, "variant"),
+							inArray(HouseRule.scopeId, variantIds)
+						)
+					),
 			])
-		: [[], [], []]
+		: [[], [], [], []]
+
+	const houseRuleOverrideCountByVariant = new Map<string, number>()
+	for (const row of houseRuleRows) {
+		const variantId = String(row.scopeId ?? "")
+		houseRuleOverrideCountByVariant.set(
+			variantId,
+			Number(houseRuleOverrideCountByVariant.get(variantId) ?? 0) + 1
+		)
+	}
 
 	const inventoryCountByVariant = new Map<string, number>()
 	for (const row of inventoryRows) {
@@ -208,6 +229,9 @@ export const GET: APIRoute = async ({ request, url }) => {
 				label: inventoryLabel,
 				minimumDays: readinessInventoryMinDays,
 			},
+			houseRules: {
+				overrideCount: Number(houseRuleOverrideCountByVariant.get(String(variant.id)) ?? 0),
+			},
 			tariffs: {
 				count: activeTariffs.length,
 				names: activeTariffs.map((tariff) => tariff.name),
@@ -238,6 +262,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 					? `/rates/calendar?ratePlanId=${encodeURIComponent(String(defaultTariff.id))}&variantId=${encodeURIComponent(String(variant.id))}`
 					: `/rates/calendar?variantId=${encodeURIComponent(String(variant.id))}`,
 				inventoryHref: `/rates/calendar?variantId=${encodeURIComponent(String(variant.id))}&focus=availability`,
+				houseRulesHref: `/provider/house-rules?productId=${encodeURIComponent(productId)}&variantId=${encodeURIComponent(String(variant.id))}`,
 			},
 		}
 	})
