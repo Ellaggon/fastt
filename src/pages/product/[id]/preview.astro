@@ -1,7 +1,6 @@
 ---
 import GuestHouseRulesPanel from "@/components/house-rules/GuestHouseRulesPanel.astro"
 import GuestRoomPreviewCards from "@/components/productUI/GuestRoomPreviewCards.astro"
-import ProductContextSwitcher from "@/components/product/ProductContextSwitcher.astro"
 import { buildGuestRoomPreviews } from "@/components/productUI/room-section.viewmodel"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
@@ -376,12 +375,6 @@ try {
 	<section class="space-y-7">
 		<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
 			<div class="max-w-3xl space-y-1.5">
-				<ProductContextSwitcher
-					providerId={providerId}
-					productId={productId}
-					productType={aggregate.productType}
-					currentName={aggregate.displayName}
-				/>
 				<h1 class="text-3xl font-semibold tracking-tight text-slate-100">Revisa y publica</h1>
 				<p class="max-w-2xl text-sm leading-6 text-slate-400">
 					{

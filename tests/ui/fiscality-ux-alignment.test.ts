@@ -22,8 +22,13 @@ test("fiscality uses a contextual header, segmented navigation and progressive f
 	expect(read("src/pages/product/[id]/index.astro")).not.toContain("ProductContextSwitcher")
 	expect(read("src/pages/product/[id]/index.astro")).not.toContain("border-b border-slate-800 pb-5")
 	expect(read("src/pages/provider/house-rules.astro")).toContain("flex flex-col gap-2")
-	expect(read("src/pages/provider/house-rules.astro")).toContain(
+	expect(read("src/pages/provider/house-rules.astro")).toContain('class="sr-only">Reglas para huéspedes')
+	expect(read("src/pages/provider/house-rules.astro")).not.toContain(
 		"text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl"
+	)
+	expect(read("src/pages/provider/house-rules.astro")).not.toContain("Volver a la ficha")
+	expect(read("src/pages/provider/house-rules.astro")).not.toContain(
+		"Define comportamiento, llegada y salida del alojamiento. Cancelación, pago y no presentación se editan en Condiciones de cada tarifa."
 	)
 	expect(read("src/pages/provider/house-rules.astro")).not.toContain("ProductContextSwitcher")
 	expect(read("src/pages/provider/house-rules.astro")).not.toContain("border-b border-slate-800 pb-5")
