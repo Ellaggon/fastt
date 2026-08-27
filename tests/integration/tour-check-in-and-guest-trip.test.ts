@@ -187,8 +187,8 @@ async function seedTourBookingReady(params: {
 		productId,
 		kind: "tour_slot",
 		name: "Salida 10:00",
-		status: "ready",
-		isActive: true,
+		lifecycleState: "ready",
+		salesEnabled: true,
 		createdAt: new Date(),
 	} as any)
 	await db.insert(TourSlotProfile).values({
@@ -359,8 +359,8 @@ async function seedHotelBookingForProvider(params: {
 		productId,
 		kind: "hotel_room",
 		name: "Standard Room",
-		status: "ready",
-		isActive: true,
+		lifecycleState: "ready",
+		salesEnabled: true,
 		createdAt: new Date(),
 	} as any)
 	await db.insert(RatePlan).values({

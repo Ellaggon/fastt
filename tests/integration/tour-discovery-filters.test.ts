@@ -102,8 +102,8 @@ async function seedSellableTour(params: {
 		productId: params.productId,
 		kind: "tour_slot",
 		name: "Salida 09:00",
-		status: "ready",
-		isActive: variantActive,
+		lifecycleState: variantActive ? "ready" : "draft",
+		salesEnabled: variantActive,
 		createdAt: new Date(),
 	} as any)
 
@@ -372,7 +372,7 @@ describe("integration/tour discovery filters (phase 6 / P1 discovery)", () => {
 		// Inactive variant must not surface even if the product is published.
 		await db
 			.update(Variant)
-			.set({ isActive: false } as any)
+			.set({ salesEnabled: false })
 			.where(eq(Variant.id, `var_disc_a_${suffix}`))
 		const afterInactiveVariant = await getTourSearchSurface({
 			startDate: departure,

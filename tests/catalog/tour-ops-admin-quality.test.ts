@@ -23,7 +23,7 @@ describe("tour ops clarity (fase 6)", () => {
 		const tables = read("src/shared/infrastructure/db/schema/tables.ts")
 		expect(tables).toContain("export const BookingLineItem = BookingRoomDetail")
 		expect(tables).not.toMatch(/pgTable\(\s*"BookingLineItem"/)
-		expect(tables).toContain("Deprecated / unused localization table")
+		expect(tables).not.toContain('pgTable(\n\t"Translation"')
 	})
 
 	it("uses tour ops vocabulary for lifecycle and finance labels", () => {

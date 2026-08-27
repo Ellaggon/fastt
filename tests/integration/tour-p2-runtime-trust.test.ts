@@ -134,8 +134,8 @@ async function seedPrivateVariant(suffix: string) {
 		productId,
 		kind: "tour_slot",
 		name: "Privada",
-		status: "ready",
-		isActive: true,
+		lifecycleState: "ready",
+		salesEnabled: true,
 		createdAt: new Date(),
 	} as any)
 	await db.insert(TourSlotProfile).values({
@@ -337,8 +337,8 @@ describe("integration/tour P2 runtime trust (review, private, cross-sell, cancel
 				productId,
 				kind: "tour_slot",
 				name: "AM",
-				status: "ready",
-				isActive: true,
+				lifecycleState: "ready",
+				salesEnabled: true,
 				createdAt: new Date(),
 			} as any)
 			await db.insert(RatePlan).values({
@@ -540,8 +540,8 @@ describe("integration/tour P2 runtime trust (review, private, cross-sell, cancel
 				productId: tourProductId,
 				kind: "tour_slot",
 				name: "AM",
-				status: "ready",
-				isActive: true,
+				lifecycleState: "ready",
+				salesEnabled: true,
 				createdAt: new Date(),
 			} as any)
 			await db.insert(TourSlotProfile).values({
@@ -780,8 +780,8 @@ describe("integration/tour P2 runtime trust (review, private, cross-sell, cancel
 				productId,
 				kind: "tour_slot",
 				name: "AM",
-				status: "ready",
-				isActive: true,
+				lifecycleState: "ready",
+				salesEnabled: true,
 				createdAt: new Date(),
 			} as any)
 			await db.insert(TourSlotProfile).values({

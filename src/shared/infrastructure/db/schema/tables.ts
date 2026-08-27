@@ -268,30 +268,6 @@ export const ImageUpload = pgTable(
 	(table) => [index("ImageUpload_objectKey_status_idx").on(table.objectKey, table.status)]
 )
 
-/**
- * Deprecated / unused localization table.
- * Keep physical table for compatibility; do not build new features on it (Fase 6).
- */
-export const Translation = pgTable(
-	"Translation",
-	{
-		id: pk(),
-		tableRef: txt("tableRef"),
-		columnRef: txt("columnRef"),
-		recordId: txt("recordId"),
-		languageCode: txt("languageCode"),
-		translatedText: txt("translatedText"),
-	},
-	(table) => [
-		uniqueIndex("Translation_record_language_unique").on(
-			table.tableRef,
-			table.columnRef,
-			table.recordId,
-			table.languageCode
-		),
-	]
-)
-
 export const User = pgTable(
 	"User",
 	{
@@ -1075,8 +1051,10 @@ export const ProductCategory = pgTable(
 		createdAt: now("createdAt"),
 	},
 	(table) => [
-		uniqueIndex("ProductCategory_slug_unique").on(table.slug),
+		uniqueIndex("ProductCategory_vertical_slug_unique").on(table.vertical, table.slug),
 		index("ProductCategory_vertical_idx").on(table.vertical),
+		check("ProductCategory_slug_format_check", sql`${table.slug} ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'`),
+		check("ProductCategory_vertical_format_check", sql`${table.vertical} ~ '^[a-z][a-z0-9_]*$'`),
 	]
 )
 

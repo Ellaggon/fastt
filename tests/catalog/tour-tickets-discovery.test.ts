@@ -70,16 +70,11 @@ describe("tour discovery schema contracts (architectural)", () => {
 		expect(panel).toContain("ProductCategory")
 		expect(panel).not.toContain("activitiesList = [")
 
-		const backfill = read("db/migrations/2026-08-19_tour_category_link_backfill.sql")
-		expect(backfill).toContain("ProductCategoryLink")
-		expect(backfill).toContain("TourCategoryBackfillUnmapped")
-		// Both INSERTs must share a materialized mapped set (CTE scope is one statement).
-		expect(backfill).toContain('CREATE TEMP TABLE "_TourCategoryBackfillMapped"')
-		expect(backfill).toContain('FROM "_TourCategoryBackfillMapped" m')
-		expect(backfill.match(/FROM "_TourCategoryBackfillMapped" m/g)?.length).toBe(2)
-		expect(backfill).toContain('ON CONFLICT ("productId", "categoryId") DO NOTHING')
-		expect(backfill).toContain('ON CONFLICT ("id") DO NOTHING')
-		// Regression: bare FROM mapped outside its WITH fails at apply time.
-		expect(backfill).not.toMatch(/FROM mapped m\s*\nWHERE m\."categoryId" IS NULL/)
+		const categoryBoundary = read(
+			"db/migrations/2026-09-21_scope_product_category_slug_by_vertical.sql"
+		)
+		expect(categoryBoundary).toContain("ProductCategoryLink")
+		expect(categoryBoundary).toContain("PRODUCT_CATEGORY_CROSS_VERTICAL_LINKS_EXIST")
+		expect(categoryBoundary).toContain('"ProductCategory_vertical_slug_unique"')
 	})
 })
