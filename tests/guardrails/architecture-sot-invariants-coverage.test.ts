@@ -100,6 +100,13 @@ const MATRIX: InvariantCoverage[] = [
 		invariant: "Reservations lifecycle snapshot ownership",
 		files: ["tests/guardrails/reservations-lifecycle-semantics.test.ts"],
 	},
+	{
+		invariant: "Channel content ownership (property / unit / rate)",
+		files: [
+			"tests/guardrails/channel-content-ownership.test.ts",
+			"tests/channel-manager/channel-content-projection.test.ts",
+		],
+	},
 ]
 
 describe("Architecture SoT invariants enforcement matrix", () => {

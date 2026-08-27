@@ -13,6 +13,9 @@ migration + drizzle schema land. This includes, at minimum:
 | Date-level salida overrides | `TourDepartureInstance` | [0003](./0003-tour-departure-instance.md) |
 | Viator / channel sync | Channel mapping + sync runs (no parallel bookings) | [0004](./0004-viator-channel-sync.md) |
 
+Hotel channel **content** ownership (property / unit / rate; ARI unchanged):
+[0005](./0005-channel-content-ownership.md).
+
 Umbrella deferral policy: [0001](./0001-deferred-tour-p3-capabilities.md).
 
 ## Required sections (every ADR)
