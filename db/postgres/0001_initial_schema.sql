@@ -547,7 +547,6 @@ CREATE TABLE "ImageUpload" (
 	"completedAt" timestamp with time zone
 );
 
-
 CREATE TABLE "Product" (
 	"id" text PRIMARY KEY,
 	"name" text NOT NULL,
@@ -2966,7 +2965,6 @@ CREATE INDEX "Image_entityId_idx" ON "Image" ("entityId");
 
 CREATE INDEX "ImageUpload_objectKey_status_idx" ON "ImageUpload" ("objectKey", "status");
 
-
 CREATE INDEX "Product_providerId_productType_idx" ON "Product" ("providerId", "productType");
 
 CREATE INDEX "Product_providerId_idx" ON "Product" ("providerId");
@@ -3044,10 +3042,6 @@ CREATE INDEX "ProductServiceAttribute_productServiceId_key_idx" ON "ProductServi
 CREATE UNIQUE INDEX "ProductCategory_vertical_slug_unique" ON "ProductCategory" ("vertical", "slug");
 
 CREATE INDEX "ProductCategory_vertical_idx" ON "ProductCategory" ("vertical");
-ALTER TABLE "ProductCategory" ADD CONSTRAINT "ProductCategory_slug_format_check" CHECK ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$');
-
-ALTER TABLE "ProductCategory" ADD CONSTRAINT "ProductCategory_vertical_format_check" CHECK ("vertical" ~ '^[a-z][a-z0-9_]*$');
-
 
 CREATE UNIQUE INDEX "ProductCategoryLink_product_category_unique" ON "ProductCategoryLink" ("productId", "categoryId");
 
@@ -3420,6 +3414,10 @@ ALTER TABLE "TourPrivateRequest" ADD CONSTRAINT "TourPrivateRequest_status_check
 ALTER TABLE "Variant" ADD CONSTRAINT "Variant_lifecycleState_check" CHECK ("lifecycleState" IN ('draft', 'ready', 'archived'));
 
 ALTER TABLE "Variant" ADD CONSTRAINT "Variant_sales_requires_ready_check" CHECK (NOT "salesEnabled" OR "lifecycleState" = 'ready');
+
+ALTER TABLE "ProductCategory" ADD CONSTRAINT "ProductCategory_slug_format_check" CHECK ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$');
+
+ALTER TABLE "ProductCategory" ADD CONSTRAINT "ProductCategory_vertical_format_check" CHECK ("vertical" ~ '^[a-z][a-z0-9_]*$');
 
 ALTER TABLE "ProductReview" ADD CONSTRAINT "ProductReview_rating_check" CHECK ("rating" >= 1 AND "rating" <= 5);
 
@@ -3924,10 +3922,6 @@ FOR EACH ROW
 WHEN (OLD."canonicalPath" IS DISTINCT FROM NEW."canonicalPath")
 EXECUTE FUNCTION fastt_propagate_geo_place_canonical_path();
 
-
-
-COMMIT;
-
 -- Category slugs are scoped by vertical. Category links must stay in the
 -- same vertical as the product, even when data is written outside the API.
 CREATE OR REPLACE FUNCTION fastt_validate_product_category_vertical()
@@ -3962,3 +3956,7 @@ CREATE TRIGGER "trg_ProductCategoryLink_vertical_match"
 BEFORE INSERT OR UPDATE OF "productId", "categoryId" ON "ProductCategoryLink"
 FOR EACH ROW
 EXECUTE FUNCTION fastt_validate_product_category_vertical();
+
+
+
+COMMIT;
