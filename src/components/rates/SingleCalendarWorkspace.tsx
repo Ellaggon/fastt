@@ -983,36 +983,46 @@ export default function SingleCalendarWorkspace({
 				className="fastt-workspace-panel relative z-10 !overflow-visible p-4 text-slate-900"
 			>
 				{loading && <span className="calendar-loading-bar" aria-hidden="true" />}
-				{!isGuidedAvailability && (
-					<div className="grid gap-3 lg:grid-cols-[minmax(18rem,1fr)_auto] lg:items-end">
-						<label className="space-y-1 text-sm">
-							<span className="text-xs font-semibold text-slate-500">Tarifa</span>
-							<Select
-								value={readySurface.selectedRatePlanId}
-								onChange={(event) => void loadSurface({ ratePlanId: event.target.value })}
+
+				{!isGuidedAvailability ? (
+					<div className="flex flex-wrap items-center gap-3 lg:gap-4">
+						<div className="flex shrink-0 items-center gap-2">
+							<IconButton
+								onClick={() => void loadSurface({ month: readySurface.previousMonth })}
+								label="Mes anterior"
+								size="sm"
 							>
-								{readySurface.ratePlans.map((ratePlan) => (
-									<option key={ratePlan.id} value={ratePlan.id}>
-										{ratePlan.context} · {ratePlan.name}
-									</option>
-								))}
-							</Select>
-						</label>
-						<div className="flex flex-wrap gap-2">
-							<Button href="/rates/calendar/connections" variant="secondary">
-								Conexiones iCal
-							</Button>
-							{isProfessional && (
-								<Button
-									href={multiCalendarHref(mode === "sellability" ? "sellability" : mode)}
-									variant="secondary"
-								>
-									Multicalendario
-								</Button>
-							)}
+								‹
+							</IconButton>
+							<h2 className="min-w-[10rem] text-center text-base font-semibold text-slate-950">
+								{monthLabel(readySurface.month)}
+							</h2>
+							<IconButton
+								onClick={() => void loadSurface({ month: readySurface.nextMonth })}
+								label="Mes siguiente"
+								size="sm"
+							>
+								›
+							</IconButton>
 						</div>
+						<label className="fastt-prompt-field min-w-0 flex-1" htmlFor="calendar-rate-plan">
+							<span className="fastt-prompt-field__copy">
+								<span className="fastt-prompt-field__label">Tarifa</span>
+								<Select
+									id="calendar-rate-plan"
+									value={readySurface.selectedRatePlanId}
+									onChange={(event) => void loadSurface({ ratePlanId: event.target.value })}
+								>
+									{readySurface.ratePlans.map((ratePlan) => (
+										<option key={ratePlan.id} value={ratePlan.id}>
+											{ratePlan.context} · {ratePlan.name}
+										</option>
+									))}
+								</Select>
+							</span>
+						</label>
 					</div>
-				)}
+				) : null}
 
 				<div className="fastt-calendar-toolbar sticky top-3 z-20 mt-4 p-3">
 					{isGuidedAvailability ? (
@@ -1036,52 +1046,32 @@ export default function SingleCalendarWorkspace({
 						</div>
 					) : (
 						<>
-							<div className="flex flex-wrap items-center justify-between gap-3">
-								<div className="flex items-center gap-2">
-									<IconButton
-										onClick={() => void loadSurface({ month: readySurface.previousMonth })}
-										label="Mes anterior"
-										size="sm"
-									>
-										‹
-									</IconButton>
-									<h2 className="text-base font-semibold text-slate-950">
-										{monthLabel(readySurface.month)}
-									</h2>
-									<IconButton
-										onClick={() => void loadSurface({ month: readySurface.nextMonth })}
-										label="Mes siguiente"
-										size="sm"
-									>
-										›
-									</IconButton>
-								</div>
+							<div className="flex flex-wrap items-end justify-between gap-3">
+								<SegmentedControl role="tablist">
+									{visibleControlModes.map((item) => (
+										<SegmentedItem
+											key={item.key}
+											role="tab"
+											aria-selected={mode === item.key}
+											active={mode === item.key}
+											onClick={() => setMode(item.key)}
+											className="min-w-28 py-2 text-left"
+										>
+											<span className="block font-semibold">{item.label}</span>
+											<span className="mt-0.5 block text-[10px] font-medium text-slate-500">
+												{item.helper}
+											</span>
+										</SegmentedItem>
+									))}
+								</SegmentedControl>
 								<p
-									className={`text-xs font-medium ${
+									className={`pb-1 text-xs font-medium ${
 										summaryIsHealthy ? "text-slate-500" : "text-amber-700"
 									}`}
 								>
 									{summary}
 								</p>
 							</div>
-
-							<SegmentedControl className="mt-3" role="tablist">
-								{visibleControlModes.map((item) => (
-									<SegmentedItem
-										key={item.key}
-										role="tab"
-										aria-selected={mode === item.key}
-										active={mode === item.key}
-										onClick={() => setMode(item.key)}
-										className="min-w-28 py-2 text-left"
-									>
-										<span className="block font-semibold">{item.label}</span>
-										<span className="mt-0.5 block text-[10px] font-medium text-slate-500">
-											{item.helper}
-										</span>
-									</SegmentedItem>
-								))}
-							</SegmentedControl>
 
 							<div className="mt-3 flex flex-wrap gap-2">
 								{actions.map((action) => (
