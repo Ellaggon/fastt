@@ -21,10 +21,7 @@ import {
 	HeartHandshake,
 	Accessibility,
 	BetweenVerticalEnd,
-	PawPrint,
 	Baby,
-	Cigarette,
-	Ban,
 	Refrigerator,
 	Shield,
 	Tv,
@@ -97,14 +94,11 @@ export const serviceIcons = {
 	"elevator": BetweenVerticalEnd,
 
 	// --- Familias y niños ---
-	"pet-friendly": PawPrint,
 	"kids-club": Baby,
 	"babysitting": Baby,
 	"highchair": Highlighter,
 
 	// --- Habitaciones ---
-	"smoking-rooms": Cigarette,
-	"nonsmoking": Ban,
 	"fridge": Refrigerator,
 	"inroom-safe": Shield,
 	"ironing": Anvil,

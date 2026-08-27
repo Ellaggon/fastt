@@ -549,6 +549,7 @@ export class BookingOperationsQueryRepository {
 				guestEmailSnapshot: Booking.guestEmailSnapshot,
 				guestNameSnapshot: Booking.guestNameSnapshot,
 				guestContactSnapshotJson: Booking.guestContactSnapshotJson,
+				guestExpectationsSnapshotJson: Booking.guestExpectationsSnapshotJson,
 				lifecycleAuditJson: Booking.lifecycleAuditJson,
 				refundHandoffSnapshotJson: Booking.refundHandoffSnapshotJson,
 				contractSnapshotVersion: Booking.contractSnapshotVersion,
@@ -814,6 +815,11 @@ export class BookingOperationsQueryRepository {
 							},
 				contractSnapshotVersion:
 					booking.contractSnapshotVersion ?? "missing_contract_snapshot_version",
+				guestExpectations:
+					booking.guestExpectationsSnapshotJson &&
+					typeof booking.guestExpectationsSnapshotJson === "object"
+						? booking.guestExpectationsSnapshotJson
+						: null,
 				payment: paymentAmounts(transactions, totalAmount),
 			},
 			allocations,

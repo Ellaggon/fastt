@@ -37,9 +37,46 @@ export type HouseRulePayload = {
 	tasks?: string[]
 }
 
+export const HOUSE_RULE_SCOPES = ["product", "variant"] as const
+export type HouseRuleScope = (typeof HOUSE_RULE_SCOPES)[number]
+
+export const HOUSE_RULE_TYPES: HouseRuleType[] = [
+	"Children",
+	"Pets",
+	"Smoking",
+	"Parties",
+	"QuietHours",
+	"Parking",
+	"CheckIn",
+	"Checkout",
+	"Safety",
+	"ExtraBeds",
+	"Access",
+	"Other",
+]
+
+/** Physical-space exceptions a hotel room may override. */
+export const VARIANT_OVERRIDE_HOUSE_RULE_TYPES: readonly HouseRuleType[] = [
+	"Pets",
+	"Smoking",
+	"Access",
+	"Safety",
+	"ExtraBeds",
+]
+
+export function isHouseRuleScope(value: unknown): value is HouseRuleScope {
+	return HOUSE_RULE_SCOPES.includes(String(value ?? "").trim() as HouseRuleScope)
+}
+
+export function isVariantOverrideHouseRuleType(type: HouseRuleType): boolean {
+	return VARIANT_OVERRIDE_HOUSE_RULE_TYPES.includes(type)
+}
+
 export interface HouseRule {
 	id: string
 	productId: string
+	scope: HouseRuleScope
+	scopeId: string | null
 	type: HouseRuleType
 	payloadJson: HouseRulePayload
 	createdAt: string
@@ -106,6 +143,12 @@ export function normalizeHouseRulePayload(
 			if (text) {
 				;(payload as any)[key] = text
 			}
+		}
+	}
+	if (type === "Smoking") {
+		if (payload.allowed === false) payload.area = "not_allowed"
+		if (payload.allowed === true && (!payload.area || payload.area === "not_allowed")) {
+			payload.area = "designated_areas"
 		}
 	}
 	return payload

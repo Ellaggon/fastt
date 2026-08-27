@@ -144,6 +144,15 @@ export const houseRuleLabels = Object.fromEntries(
 	Object.entries(houseRuleCopy).map(([type, copy]) => [type, copy.label])
 ) as Record<HouseRuleType, string>
 
+/** Room-level overrides shown when ?variantId= is present on house-rules. */
+export const spaceVariantEditorTypes: HouseRuleType[] = [
+	"Smoking",
+	"Access",
+	"ExtraBeds",
+	"Safety",
+	"Pets",
+]
+
 export const houseRuleEditorTypes: HouseRuleType[] = [
 	"Pets",
 	"Smoking",

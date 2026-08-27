@@ -352,41 +352,7 @@ export const SERVICE_ATTRIBUTES: Record<string, ServiceAttributeDefinition[]> = 
 	],
 	"elevator": [],
 
-	// ─── Familias & Mascotas ──────────────────
-	"pet-friendly": [
-		{
-			key: "pet_type",
-			label: "Tipo de mascota",
-			type: "select",
-			options: [
-				{ value: "dog", label: "Perros" },
-				{ value: "cat", label: "Gatos" },
-				{ value: "both", label: "Ambos" },
-			],
-		},
-		{
-			key: "max_weight",
-			label: "Peso máximo (kg)",
-			type: "number",
-		},
-		{
-			key: "restrictions",
-			label: "Restricciones",
-			type: "text",
-			placeholder: "No razas peligrosas, máximo 2 mascotas…",
-		},
-		{
-			key: "pets_policy",
-			label: "Condición de mascotas",
-			type: "select",
-			options: [
-				{ value: "allowed", label: "Permitidas" },
-				{ value: "on_request", label: "Bajo petición" },
-				{ value: "not_allowed", label: "No permitidas" },
-			],
-		},
-	],
-
+	// ─── Familias ─────────────────────────────
 	"kids-club": [
 		{
 			key: "age_range",
@@ -409,8 +375,6 @@ export const SERVICE_ATTRIBUTES: Record<string, ServiceAttributeDefinition[]> = 
 	"highchair": [],
 
 	// ─── Habitaciones ─────────────────────────
-	"smoking-rooms": [],
-	"nonsmoking": [],
 	"fridge": [],
 	"inroom-safe": [],
 	"ironing": [],

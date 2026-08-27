@@ -575,8 +575,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 					{
 						repo: inventoryHoldRepository,
 						resolveEffectivePolicies: (ctx) => resolveEffectivePolicies(ctx),
-						buildGuestExpectationsSnapshot: (productId) =>
-							buildGuestStayExpectationsSnapshot(productId),
+						buildGuestExpectationsSnapshot: (productId, variantId) =>
+							buildGuestStayExpectationsSnapshot(productId, { variantId }),
 						resolvePolicyExceptionRules: (ctx) => resolvePolicyExceptionRulesUseCase(ctx),
 						policyContext: {
 							productId: variant.productId,
