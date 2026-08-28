@@ -1,7 +1,13 @@
 import { serviceIcons } from "./service-icons"
+import { SERVICE_CODES } from "./service-registry"
 import type { ServiceDefinition } from "./service-types"
 
-export const SERVICE_CATALOG: ServiceDefinition[] = [
+/**
+ * Canonical, versioned registry for selectable product services.
+ * Persistence stores only these stable codes; labels, categories, icons and
+ * attribute definitions are application-owned presentation metadata.
+ */
+export const SERVICE_CATALOG = [
 	// ─── Internet & Tecnología ─────────────────────────────
 	{
 		id: "wifi",
@@ -340,7 +346,19 @@ export const SERVICE_CATALOG: ServiceDefinition[] = [
 		category: "Otros",
 		icon: serviceIcons["safety-railings"],
 	},
-]
+] as const satisfies readonly ServiceDefinition[]
 
-export const SERVICE_CATALOG_BY_ID = Object.fromEntries(SERVICE_CATALOG.map((s) => [s.id, s]))
-export type ServiceId = keyof typeof SERVICE_CATALOG_BY_ID
+export const SERVICE_CATALOG_BY_ID = Object.freeze(
+	Object.fromEntries(SERVICE_CATALOG.map((service) => [service.id, service])) as Record<
+		(typeof SERVICE_CODES)[number],
+		(typeof SERVICE_CATALOG)[number]
+	>
+)
+
+const catalogCodes = new Set(SERVICE_CATALOG.map((service) => service.id))
+if (
+	catalogCodes.size !== SERVICE_CODES.length ||
+	SERVICE_CODES.some((serviceId) => !catalogCodes.has(serviceId))
+) {
+	throw new Error("SERVICE_CATALOG_REGISTRY_MISMATCH")
+}

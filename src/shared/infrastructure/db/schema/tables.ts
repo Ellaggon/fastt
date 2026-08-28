@@ -234,10 +234,6 @@ export const AmenityRoom = pgTable("AmenityRoom", {
 	category: txtOpt("category"),
 })
 
-export const Service = pgTable("Service", {
-	id: pk(),
-})
-
 export const Image = pgTable("Image", {
 	id: pk(),
 	objectKey: txt("objectKey"),
@@ -1722,7 +1718,8 @@ export const ProductService = pgTable(
 	{
 		id: pk(),
 		productId: txt("productId").references(() => Product.id),
-		serviceId: txt("serviceId").references(() => Service.id),
+		/** Versioned code from the canonical service registry. */
+		serviceId: txt("serviceId"),
 		price: amountOpt("price"),
 		currency: txtOpt("currency"),
 		priceUnit: txtOpt("priceUnit"),

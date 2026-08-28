@@ -6,7 +6,6 @@ import {
 	and,
 	ProductService,
 	ProductServiceAttribute,
-	Service,
 } from "@/shared/infrastructure/db/compat"
 import type {
 	ProductServiceQueryRepositoryPort,
@@ -17,18 +16,13 @@ import type {
 
 export class ProductServiceQueryRepository implements ProductServiceQueryRepositoryPort {
 	async listServiceLinks(productId: string): Promise<ProductServiceLinkRow[]> {
-		const rows = (
-			await db
-				.select({
-					serviceId: Service.id,
-					productServiceId: ProductService.id,
-				})
-				.from(ProductService)
-				.leftJoin(Service, eq(ProductService.serviceId, Service.id))
-				.where(eq(ProductService.productId, productId))
-		).filter((r): r is { serviceId: string; productServiceId: string } => r.serviceId !== null)
-
-		return rows
+		return db
+			.select({
+				serviceId: ProductService.serviceId,
+				productServiceId: ProductService.id,
+			})
+			.from(ProductService)
+			.where(eq(ProductService.productId, productId))
 	}
 
 	async listServiceConfigs(productId: string): Promise<ProductServiceConfigRow[]> {

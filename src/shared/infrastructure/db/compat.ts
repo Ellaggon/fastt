@@ -123,7 +123,6 @@ export {
 	RoomType,
 	SearchMaterializationLog,
 	SearchUnitView,
-	Service,
 	TaxFeeAssignment,
 	TaxFeeDefinition,
 	TaxFeeDefinitionVersion,

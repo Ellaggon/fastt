@@ -1,4 +1,5 @@
 import type { ProductServiceRepositoryPort } from "../ports/ProductServiceRepositoryPort"
+import { unknownServiceIds } from "@/data/service/service-registry"
 
 export async function syncProductServices(params: {
 	ensureOwned: (productId: string, providerId: string) => Promise<any>
@@ -12,6 +13,15 @@ export async function syncProductServices(params: {
 	const product = await ensureOwned(productId, providerId)
 	if (!product) {
 		return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403 })
+	}
+	const unknownIds = unknownServiceIds(services.map((service) => service.serviceId))
+	if (unknownIds.length) {
+		return new Response(
+			JSON.stringify({ error: "Unknown service codes", serviceIds: unknownIds }),
+			{
+				status: 400,
+			}
+		)
 	}
 
 	await repo.syncProductServices({ productId, services })

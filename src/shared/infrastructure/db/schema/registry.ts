@@ -45,7 +45,6 @@ export const databaseTablesByDomain = {
 		"GeoPlaceExternalId",
 		"RoomType",
 		"AmenityRoom",
-		"Service",
 		"Image",
 		"ImageUpload",
 		"ProductImage",
