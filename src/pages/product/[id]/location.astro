@@ -1,7 +1,6 @@
 ---
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
-import ProductContextSwitcher from "@/components/product/ProductContextSwitcher.astro"
 import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
@@ -70,30 +69,12 @@ const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.
 >
 	<section class="space-y-8">
 		<section class="space-y-4">
-			<header class="space-y-1.5">
-				<ProductContextSwitcher
-					providerId={providerId}
-					productId={productId}
-					productType={product.productType}
-					currentName={product.displayName}
-					selectable={false}
-				/>
-				<h1 class="text-3xl font-semibold text-slate-100">Ubicación</h1>
-				<p class="max-w-3xl text-sm leading-6 text-slate-400">
-					{
-						isTour
-							? "Indica dónde se descubre este tour en búsquedas y mapas."
-							: `Define ubicación, coordenadas y contexto geográfico de ${vertical.labels.singular}.`
-					}
-				</p>
-			</header>
-
 			<Card class="rounded-lg border-slate-200 bg-slate-100 shadow-none">
 				<form
 					id="locationForm"
 					method="POST"
 					action="/api/product/location"
-					class="max-w-3xl space-y-6"
+					class="max-w-3xl space-y-8"
 				>
 					<Input type="hidden" name="productId" value={productId} />
 					<Input
@@ -109,106 +90,109 @@ const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.
 					<Input id="lat" type="hidden" name="lat" value={String(initialLat)} />
 					<Input id="lng" type="hidden" name="lng" value={String(initialLng)} />
 
-					<div class="space-y-4">
-						<div class="space-y-1">
-							<h2 class="text-xl font-semibold text-slate-900">
-								{isTour ? "Ubicación para discovery" : "Metadata geográfica"}
-							</h2>
-							<p class="text-sm text-slate-600">
-								{
-									isTour
-										? "Selecciona la zona que representa el destino o atractivo principal. El punto exacto donde empieza el tour se solicita después en Detalles del tour."
-										: "Selecciona el punto en el mapa y guarda."
-								}
-							</p>
-						</div>
+					<header class="space-y-1.5">
+						<h2 class="text-xl font-semibold text-slate-900">
+							{isTour ? "Ubicación para discovery" : "Metadata geográfica"}
+						</h2>
+						<p class="text-sm leading-6 text-slate-600">
+							{
+								isTour
+									? "Selecciona la zona que representa el destino o atractivo principal. El punto exacto donde empieza el tour se solicita después en Detalles del tour."
+									: `Define ubicación, coordenadas y contexto geográfico de ${vertical.labels.singular}.`
+							}
+						</p>
+					</header>
 
-						<FormField
-							label={isTour ? "Zona o dirección de discovery (opcional)" : "Dirección (opcional)"}
-							htmlFor="address"
-						>
-							<Input
-								id="address"
-								name="address"
-								value={existingLocation?.address ?? ""}
-								placeholder={isTour ? "Ej: Centro histórico, La Paz" : "Av. Ejemplo 123"}
-							/>
-						</FormField>
+					<FormField
+						label={isTour ? "Zona o dirección de discovery (opcional)" : "Dirección (opcional)"}
+						htmlFor="address"
+					>
+						<Input
+							id="address"
+							name="address"
+							value={existingLocation?.address ?? ""}
+							placeholder={isTour ? "Ej: Centro histórico, La Paz" : "Av. Ejemplo 123"}
+						/>
+					</FormField>
 
-						<FormField label="Ubicación de discovery" htmlFor="geoPlaceId" required>
-							<Select id="geoPlaceId" name="geoPlaceId" required>
-								<option value="" disabled selected={!product.geoPlace}>
-									Selecciona una ciudad, localidad o zona compatible
-								</option>
-								{
-									compatibleGeoPlaces.map((place) => (
-										<option value={place.id} selected={place.id === product.geoPlace?.id}>
-											{place.name} · {place.country} · {place.placeType}
-										</option>
-									))
-								}
-							</Select>
-							<p class="mt-1 text-sm text-slate-600">
-								Esta ubicación organiza la publicación y las búsquedas. El punto exacto se define en
-								el mapa.
-							</p>
-						</FormField>
+					<FormField label="Ubicación de discovery" htmlFor="geoPlaceId" required>
+						<Select id="geoPlaceId" name="geoPlaceId" required>
+							<option value="" disabled selected={!product.geoPlace}>
+								Selecciona una ciudad, localidad o zona compatible
+							</option>
+							{
+								compatibleGeoPlaces.map((place) => (
+									<option value={place.id} selected={place.id === product.geoPlace?.id}>
+										{place.name} · {place.country} · {place.placeType}
+									</option>
+								))
+							}
+						</Select>
+						<p class="mt-2 text-sm leading-6 text-slate-600">
+							Esta ubicación organiza la publicación y las búsquedas. El punto exacto se define en
+							el mapa.
+						</p>
+					</FormField>
 
+					<section class="border-t border-slate-200 pt-8">
 						<FormField
 							label="Ubicación de la oferta"
 							htmlFor="map"
 							required
 							description="Haz clic en el mapa para seleccionar la ubicación"
 						>
-							<p id="mapInstructions" class="text-xs leading-5 text-slate-500">
-								También puedes enfocar el mapa y usar las flechas del teclado para ajustar el punto.
-							</p>
-							<div
-								id="map"
-								class="h-72 w-full overflow-hidden rounded-lg border border-slate-300"
-								data-lat={initialLat}
-								data-lng={initialLng}
-								tabindex="0"
-								aria-label={isTour
-									? "Mapa para elegir la ubicación de discovery del tour"
-									: "Mapa para elegir la ubicación de la oferta"}
-								aria-describedby="mapInstructions coordsText"
-							>
+							<div class="space-y-3">
+								<p id="mapInstructions" class="text-xs leading-5 text-slate-500">
+									También puedes enfocar el mapa y usar las flechas del teclado para ajustar el
+									punto.
+								</p>
+								<div
+									id="map"
+									class="h-72 w-full overflow-hidden rounded-lg border border-slate-300"
+									data-lat={initialLat}
+									data-lng={initialLng}
+									tabindex="0"
+									aria-label={isTour
+										? "Mapa para elegir la ubicación de discovery del tour"
+										: "Mapa para elegir la ubicación de la oferta"}
+									aria-describedby="mapInstructions coordsText"
+								>
+								</div>
+								<p id="coordsText" class="text-sm text-slate-600" aria-live="polite"></p>
 							</div>
-							<p id="coordsText" class="mt-2 text-sm text-slate-600" aria-live="polite"></p>
 						</FormField>
-					</div>
+					</section>
 
-					<div class="space-y-1">
+					<div class="space-y-4 border-t border-slate-200 pt-8">
 						<p id="stateLabel" class="text-sm text-slate-600" aria-live="polite">
 							Vacío: sin cambios guardados.
 						</p>
 						<p id="stateDetail" class="whitespace-pre-wrap text-sm text-slate-600"></p>
-					</div>
 
-					<div class="flex items-center justify-end gap-3">
-						<Button
-							href={playbook.active && playbook.playbookId
-								? playbookRedirectHrefFor(
-										playbook.playbookId,
-										`/product/${productId}/content`,
-										"content",
-										productId
-									)
-								: playbook.active && playbook.playbookId === "complete-to-publish"
-									? buildCompleteToPublishHref(`/product/${productId}/preview`, "preview")
-									: `/product/${encodeURIComponent(productId)}/content`}
-							variant="secondary"
-						>
-							Volver
-						</Button>
-						<Button
-							id="submitBtn"
-							type="submit"
-							className={playbook.active ? "fastt-playbook-cta" : ""}
-						>
-							{playbook.active ? "Guardar y continuar" : "Guardar ubicación"}
-						</Button>
+						<div class="flex items-center justify-end gap-3 pt-2">
+							<Button
+								href={playbook.active && playbook.playbookId
+									? playbookRedirectHrefFor(
+											playbook.playbookId,
+											`/product/${productId}/content`,
+											"content",
+											productId
+										)
+									: playbook.active && playbook.playbookId === "complete-to-publish"
+										? buildCompleteToPublishHref(`/product/${productId}/preview`, "preview")
+										: `/product/${encodeURIComponent(productId)}/content`}
+								variant="secondary"
+							>
+								Volver
+							</Button>
+							<Button
+								id="submitBtn"
+								type="submit"
+								className={playbook.active ? "fastt-playbook-cta" : ""}
+							>
+								{playbook.active ? "Guardar y continuar" : "Guardar ubicación"}
+							</Button>
+						</div>
 					</div>
 				</form>
 			</Card>
