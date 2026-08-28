@@ -45,7 +45,7 @@ Coverage:
 
 - Booking confirmation:
   - Confirms a booking from a held inventory snapshot.
-  - Persists `Booking`, `BookingRoomDetail` and `BookingTaxFee`.
+  - Persists `Booking`, `BookingLineItem` and `BookingTaxFee`.
   - Links `InventoryLock.bookingId`.
   - Re-confirming the same hold returns the original booking idempotently.
 

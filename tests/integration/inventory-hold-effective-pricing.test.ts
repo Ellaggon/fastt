@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
 	Booking,
-	BookingRoomDetail,
+	BookingLineItem,
 	db,
 	DailyInventory,
 	EffectivePricing,
@@ -305,12 +305,12 @@ describe("integration/hold effective-pricing snapshot", () => {
 
 			const detail = await db
 				.select({
-					totalPrice: BookingRoomDetail.totalAmount,
-					basePrice: BookingRoomDetail.subtotalAmount,
-					pricingBreakdownJson: BookingRoomDetail.pricingBreakdownJson,
+					totalPrice: BookingLineItem.totalAmount,
+					basePrice: BookingLineItem.subtotalAmount,
+					pricingBreakdownJson: BookingLineItem.pricingBreakdownJson,
 				})
-				.from(BookingRoomDetail)
-				.where(eq(BookingRoomDetail.bookingId, bookingId))
+				.from(BookingLineItem)
+				.where(eq(BookingLineItem.bookingId, bookingId))
 				.then((rows) => rows[0])
 			expect(detail).toBeTruthy()
 			expect(Number(detail?.basePrice ?? 0)).toBe(snapshot.totalPrice)
@@ -522,9 +522,9 @@ describe("integration/hold effective-pricing snapshot", () => {
 		const confirmBody = await readJson(confirmResponse)
 		const bookingId = String(confirmBody?.bookingId ?? "")
 		const detail = await db
-			.select({ pricingBreakdownJson: BookingRoomDetail.pricingBreakdownJson })
-			.from(BookingRoomDetail)
-			.where(eq(BookingRoomDetail.bookingId, bookingId))
+			.select({ pricingBreakdownJson: BookingLineItem.pricingBreakdownJson })
+			.from(BookingLineItem)
+			.where(eq(BookingLineItem.bookingId, bookingId))
 			.then((rows) => rows[0])
 		expect((detail as any)?.pricingBreakdownJson?.occupancyDetail).toEqual({
 			adults: 1,

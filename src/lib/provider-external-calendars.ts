@@ -14,7 +14,7 @@ import { invalidateProviderIntegrations } from "@/lib/cache/invalidation"
 import {
 	and,
 	Booking,
-	BookingRoomDetail,
+	BookingLineItem,
 	db,
 	desc,
 	eq,
@@ -1271,20 +1271,20 @@ export async function renderProviderExternalCalendarExport(params: {
 	const now = params.now ?? new Date()
 	const rows = await db
 		.select({
-			bookingId: BookingRoomDetail.bookingId,
-			roomDetailId: BookingRoomDetail.id,
-			startDate: BookingRoomDetail.checkIn,
-			endDate: BookingRoomDetail.checkOut,
+			bookingId: BookingLineItem.bookingId,
+			lineItemId: BookingLineItem.id,
+			startDate: BookingLineItem.checkIn,
+			endDate: BookingLineItem.checkOut,
 			bookingStatus: Booking.status,
 		})
-		.from(BookingRoomDetail)
-		.innerJoin(Booking, eq(Booking.id, BookingRoomDetail.bookingId))
+		.from(BookingLineItem)
+		.innerJoin(Booking, eq(Booking.id, BookingLineItem.bookingId))
 		.where(
 			and(
 				eq(Booking.providerId, exportRow.providerId),
-				eq(BookingRoomDetail.variantId, exportRow.variantId),
+				eq(BookingLineItem.variantId, exportRow.variantId),
 				ne(Booking.status, "cancelled"),
-				gt(BookingRoomDetail.checkOut, dateOnly(now))
+				gt(BookingLineItem.checkOut, dateOnly(now))
 			)
 		)
 
@@ -1303,7 +1303,7 @@ export async function renderProviderExternalCalendarExport(params: {
 	for (const row of rows) {
 		lines.push(
 			"BEGIN:VEVENT",
-			`UID:fastt-${row.roomDetailId}@${FASTT_ICAL_UID_HOST}`,
+			`UID:fastt-${row.lineItemId}@${FASTT_ICAL_UID_HOST}`,
 			`DTSTAMP:${stamp}`,
 			`DTSTART;VALUE=DATE:${icalDate(row.startDate)}`,
 			`DTEND;VALUE=DATE:${icalDate(row.endDate)}`,
@@ -1491,11 +1491,15 @@ export async function resolveProviderExternalCalendarConflict(params: {
 	return conflict.calendarId
 }
 
-export async function listProviderExternalCalendars(providerId: string): Promise<{
+export async function listProviderExternalCalendars(
+	providerId: string,
+	options: { now?: Date } = {}
+): Promise<{
 	calendars: ProviderExternalCalendarCard[]
 	variants: ProviderExternalCalendarVariantOption[]
 	exports: ProviderExternalCalendarExportLink[]
 }> {
+	const today = dateOnly(options.now ?? new Date())
 	const [calendarRows, eventRows, bookingRows, variantRows, resourceRows, exportRows] =
 		await Promise.all([
 			db
@@ -1537,23 +1541,23 @@ export async function listProviderExternalCalendars(providerId: string): Promise
 					and(
 						eq(ProviderExternalCalendarEvent.providerId, providerId),
 						eq(ProviderExternalCalendarEvent.isActive, true),
-						gt(ProviderExternalCalendarEvent.endDate, dateOnly(new Date()))
+						gt(ProviderExternalCalendarEvent.endDate, today)
 					)
 				),
 			db
 				.select({
-					bookingId: BookingRoomDetail.bookingId,
-					variantId: BookingRoomDetail.variantId,
-					startDate: BookingRoomDetail.checkIn,
-					endDate: BookingRoomDetail.checkOut,
+					bookingId: BookingLineItem.bookingId,
+					variantId: BookingLineItem.variantId,
+					startDate: BookingLineItem.checkIn,
+					endDate: BookingLineItem.checkOut,
 				})
-				.from(BookingRoomDetail)
-				.innerJoin(Booking, eq(Booking.id, BookingRoomDetail.bookingId))
+				.from(BookingLineItem)
+				.innerJoin(Booking, eq(Booking.id, BookingLineItem.bookingId))
 				.where(
 					and(
 						eq(Booking.providerId, providerId),
 						ne(Booking.status, "cancelled"),
-						gt(BookingRoomDetail.checkOut, dateOnly(new Date()))
+						gt(BookingLineItem.checkOut, today)
 					)
 				),
 			db

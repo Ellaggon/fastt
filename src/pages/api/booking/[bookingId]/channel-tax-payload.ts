@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro"
 
-import { Booking, BookingRoomDetail, db, eq, first } from "@/shared/infrastructure/db/compat"
+import { Booking, BookingLineItem, db, eq, first } from "@/shared/infrastructure/db/compat"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { assertProviderCapability } from "@/lib/provider-governance"
 import { buildChannelTaxFeePayload } from "@/modules/taxes-fees/public"
@@ -29,9 +29,9 @@ export const GET: APIRoute = async ({ params, request }) => {
 		return new Response(JSON.stringify({ error: "forbidden" }), { status: 403 })
 	}
 	const line = await db
-		.select({ pricingBreakdownJson: BookingRoomDetail.pricingBreakdownJson })
-		.from(BookingRoomDetail)
-		.where(eq(BookingRoomDetail.bookingId, bookingId))
+		.select({ pricingBreakdownJson: BookingLineItem.pricingBreakdownJson })
+		.from(BookingLineItem)
+		.where(eq(BookingLineItem.bookingId, bookingId))
 		.then(first)
 	const quote = (line?.pricingBreakdownJson as any)?.priceQuote
 	if (!isPriceQuote(quote)) {

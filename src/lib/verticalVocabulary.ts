@@ -87,7 +87,7 @@ const VOCABULARY: Record<ProviderVertical, VerticalVocabulary> = {
 			searchPlaceholder: "Buscar huésped o reserva",
 			pageIntro:
 				"Gestiona llegadas, estadías, salidas, pagos y cancelaciones desde una sola cola de trabajo.",
-			financeGrossSourceLabel: "Línea de reserva (BookingRoomDetail)",
+			financeGrossSourceLabel: "Líneas de reserva consolidadas",
 		},
 		card: {
 			viewCta: "Ver hotel",
@@ -130,7 +130,7 @@ const VOCABULARY: Record<ProviderVertical, VerticalVocabulary> = {
 			searchPlaceholder: "Buscar participante o reserva",
 			pageIntro:
 				"Gestiona salidas, presentaciones, vouchers, pagos y cancelaciones desde una sola cola de trabajo.",
-			financeGrossSourceLabel: "Línea de reserva / BookingLineItem (tabla BookingRoomDetail)",
+			financeGrossSourceLabel: "Líneas de reserva consolidadas",
 		},
 		card: {
 			viewCta: "Ver tour",
@@ -173,7 +173,7 @@ const VOCABULARY: Record<ProviderVertical, VerticalVocabulary> = {
 			searchPlaceholder: "Buscar huésped o reserva",
 			pageIntro:
 				"Gestiona llegadas, estadías, salidas, pagos y cancelaciones desde una sola cola de trabajo.",
-			financeGrossSourceLabel: "Línea de reserva (BookingRoomDetail)",
+			financeGrossSourceLabel: "Líneas de reserva consolidadas",
 		},
 		card: {
 			viewCta: "Ver propiedad",
@@ -216,7 +216,7 @@ const VOCABULARY: Record<ProviderVertical, VerticalVocabulary> = {
 			searchPlaceholder: "Buscar viajero o reserva",
 			pageIntro:
 				"Gestiona inicios, viajes, cierres, pagos y cancelaciones desde una sola cola de trabajo.",
-			financeGrossSourceLabel: "Línea de reserva (BookingRoomDetail)",
+			financeGrossSourceLabel: "Líneas de reserva consolidadas",
 		},
 		card: {
 			viewCta: "Ver paquete",
@@ -259,7 +259,7 @@ const VOCABULARY: Record<ProviderVertical, VerticalVocabulary> = {
 			searchPlaceholder: "Buscar pasajero o reserva",
 			pageIntro:
 				"Gestiona servicios, presentaciones, cierres, pagos y cancelaciones desde una sola cola de trabajo.",
-			financeGrossSourceLabel: "Línea de reserva (BookingRoomDetail)",
+			financeGrossSourceLabel: "Líneas de reserva consolidadas",
 		},
 		card: {
 			viewCta: "Ver servicio",
@@ -302,7 +302,7 @@ const VOCABULARY: Record<ProviderVertical, VerticalVocabulary> = {
 			searchPlaceholder: "Buscar cliente o reserva",
 			pageIntro:
 				"Gestiona inicios, actividad, cierres, pagos y cancelaciones desde una sola cola de trabajo.",
-			financeGrossSourceLabel: "Línea de reserva / BookingLineItem (tabla BookingRoomDetail)",
+			financeGrossSourceLabel: "Líneas de reserva consolidadas",
 		},
 		card: {
 			viewCta: "Ver oferta",

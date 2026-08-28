@@ -16,7 +16,7 @@ export type ProviderPayableSnapshot = {
 	taxAmount: number
 	netPayable: number
 	currency: string
-	basis: "booking_room_detail_snapshot_commission_snapshot"
+	basis: "booking_line_item_snapshot_commission_snapshot"
 	snapshotAt: Date
 	createdAt: Date
 	updatedAt: Date

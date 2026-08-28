@@ -330,10 +330,10 @@ ALTER TABLE "Booking"
 	ADD CONSTRAINT "Booking_total_nonnegative_check"
 	CHECK ("totalAmount" >= 0);
 
-ALTER TABLE "BookingRoomDetail"
-	ADD CONSTRAINT "BookingRoomDetail_guest_counts_check"
+ALTER TABLE "BookingLineItem"
+	ADD CONSTRAINT "BookingLineItem_guest_counts_check"
 	CHECK ("adults" >= 0 AND "children" >= 0 AND ("adults" + "children") > 0),
-	ADD CONSTRAINT "BookingRoomDetail_amounts_nonnegative_check"
+	ADD CONSTRAINT "BookingLineItem_amounts_nonnegative_check"
 	CHECK ("subtotalAmount" >= 0 AND "taxAmount" >= 0 AND "totalAmount" >= 0);
 
 ALTER TABLE "RatePlanOccupancyPolicy"
@@ -367,6 +367,19 @@ ALTER TABLE "TaxFeeDefinition"
 	CHECK ("value" >= 0),
 	ADD CONSTRAINT "TaxFeeDefinition_effective_range_check"
 	CHECK ("effectiveFrom" IS NULL OR "effectiveTo" IS NULL OR "effectiveFrom" <= "effectiveTo");
+
+-- A current fiscal version is an immutable release of the same definition.
+-- The composite, deferred FK protects both facts: the referenced version exists
+-- and it belongs to this definition. Drafts intentionally retain a NULL pointer.
+ALTER TABLE "TaxFeeDefinitionVersion"
+	ADD CONSTRAINT "TaxFeeDefinitionVersion_definition_id_unique"
+	UNIQUE ("taxFeeDefinitionId", "id");
+
+ALTER TABLE "TaxFeeDefinition"
+	ADD CONSTRAINT "TaxFeeDefinition_currentVersion_same_definition_fk"
+	FOREIGN KEY ("id", "currentVersionId")
+	REFERENCES "TaxFeeDefinitionVersion" ("taxFeeDefinitionId", "id")
+	DEFERRABLE INITIALLY DEFERRED;
 
 CREATE UNIQUE INDEX IF NOT EXISTS "RatePlan_one_default_active_per_variant_idx"
 	ON "RatePlan" ("variantId")
@@ -442,10 +455,10 @@ ON "Hold"
 FOR EACH ROW
 EXECUTE FUNCTION fastt_assert_positive_stay_range();
 
-DROP TRIGGER IF EXISTS "trg_BookingRoomDetail_positive_range" ON "BookingRoomDetail";
-CREATE TRIGGER "trg_BookingRoomDetail_positive_range"
+DROP TRIGGER IF EXISTS "trg_BookingLineItem_positive_range" ON "BookingLineItem";
+CREATE TRIGGER "trg_BookingLineItem_positive_range"
 BEFORE INSERT OR UPDATE OF "checkIn", "checkOut"
-ON "BookingRoomDetail"
+ON "BookingLineItem"
 FOR EACH ROW
 EXECUTE FUNCTION fastt_assert_positive_stay_range();
 

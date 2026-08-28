@@ -2,7 +2,7 @@ import type { APIRoute } from "astro"
 import {
 	and,
 	Booking,
-	BookingRoomDetail,
+	BookingLineItem,
 	BookingTaxFee,
 	db,
 	desc,
@@ -130,14 +130,14 @@ export const GET: APIRoute = async ({ request, url }) => {
 				checkOutDate: Booking.checkOutDate,
 				refundHandoffSnapshotJson: Booking.refundHandoffSnapshotJson,
 				contractSnapshotVersion: Booking.contractSnapshotVersion,
-				detailId: BookingRoomDetail.id,
-				detailTotalAmount: BookingRoomDetail.totalAmount,
-				detailTaxAmount: BookingRoomDetail.taxAmount,
-				providerIdSnapshot: BookingRoomDetail.providerIdSnapshot,
-				productIdSnapshot: BookingRoomDetail.productIdSnapshot,
-				productNameSnapshot: BookingRoomDetail.productNameSnapshot,
-				variantNameSnapshot: BookingRoomDetail.variantNameSnapshot,
-				ratePlanNameSnapshot: BookingRoomDetail.ratePlanNameSnapshot,
+				detailId: BookingLineItem.id,
+				detailTotalAmount: BookingLineItem.totalAmount,
+				detailTaxAmount: BookingLineItem.taxAmount,
+				providerIdSnapshot: BookingLineItem.providerIdSnapshot,
+				productIdSnapshot: BookingLineItem.productIdSnapshot,
+				productNameSnapshot: BookingLineItem.productNameSnapshot,
+				variantNameSnapshot: BookingLineItem.variantNameSnapshot,
+				ratePlanNameSnapshot: BookingLineItem.ratePlanNameSnapshot,
 				productId: Product.id,
 				providerDisplayName: Provider.displayName,
 				providerLegalName: Provider.legalName,
@@ -145,9 +145,9 @@ export const GET: APIRoute = async ({ request, url }) => {
 				variantName: Variant.name,
 			})
 			.from(Booking)
-			.leftJoin(BookingRoomDetail, eq(BookingRoomDetail.bookingId, Booking.id))
+			.leftJoin(BookingLineItem, eq(BookingLineItem.bookingId, Booking.id))
 			.leftJoin(Provider, eq(Provider.id, Booking.providerId))
-			.leftJoin(Variant, eq(Variant.id, BookingRoomDetail.variantId))
+			.leftJoin(Variant, eq(Variant.id, BookingLineItem.variantId))
 			.leftJoin(Product, eq(Product.id, Variant.productId))
 			.where(and(eq(Booking.providerId, providerId), inArray(Booking.id, pagedBookingIds)))
 			.orderBy(desc(Booking.confirmedAt), desc(Booking.id))

@@ -41,7 +41,7 @@ describe("Guardrail: financial Stage 2 write boundaries", () => {
 	it("blocks financial route handlers from writing external OTA ownership tables", () => {
 		const forbiddenTables = new Set([
 			"Booking",
-			"BookingRoomDetail",
+			"BookingLineItem",
 			"BookingTaxFee",
 			"Payment",
 			"ProviderPayout",

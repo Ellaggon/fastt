@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
-import { BookingLineItem, BookingRoomDetail } from "@/shared/infrastructure/db/schema/tables"
+import { BookingLineItem } from "@/shared/infrastructure/db/schema/tables"
 import { TOUR_SEMANTICS } from "@/lib/tours/tourSemantics"
 import {
 	scoreTourQuality,
@@ -15,14 +15,13 @@ function read(rel: string) {
 }
 
 describe("tour ops clarity (fase 6)", () => {
-	it("aliases BookingLineItem to BookingRoomDetail without physical rename", () => {
-		expect(BookingLineItem).toBe(BookingRoomDetail)
-		expect(TOUR_SEMANTICS.bookingLineItemTable).toBe("BookingRoomDetail")
-		expect(TOUR_SEMANTICS.bookingLineItemAlias).toBe("BookingLineItem")
+	it("uses BookingLineItem as the physical cross-vertical reservation contract", () => {
+		expect(BookingLineItem).toBeDefined()
+		expect(TOUR_SEMANTICS.bookingLineItemTable).toBe("BookingLineItem")
 
 		const tables = read("src/shared/infrastructure/db/schema/tables.ts")
-		expect(tables).toContain("export const BookingLineItem = BookingRoomDetail")
-		expect(tables).not.toMatch(/pgTable\(\s*"BookingLineItem"/)
+		expect(tables).toContain('export const BookingLineItem = pgTable(\n\t"BookingLineItem"')
+		expect(tables).not.toContain("BookingRoomDetail")
 		expect(tables).not.toContain('pgTable(\n\t"Translation"')
 	})
 
@@ -31,7 +30,7 @@ describe("tour ops clarity (fase 6)", () => {
 		expect(tourOps.upcomingState).toBe("Próxima salida")
 		expect(tourOps.confirmArrivalAction).toBe("Registrar presentación")
 		expect(tourOps.guest).toBe("participante")
-		expect(tourOps.financeGrossSourceLabel).toContain("BookingLineItem")
+		expect(tourOps.financeGrossSourceLabel).toBe("Líneas de reserva consolidadas")
 
 		const hotel = deriveBookingLifecycle({
 			status: "confirmed",

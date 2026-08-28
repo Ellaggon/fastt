@@ -1,6 +1,6 @@
 import { closePostgresClients } from "@/shared/infrastructure/db/client"
 import {
-	BookingRoomDetail,
+	BookingLineItem,
 	db,
 	DailyInventory,
 	GeoPlace,
@@ -748,9 +748,9 @@ async function certifyFlow(input: {
 	}
 
 	const booking = await db
-		.select({ pricingBreakdownJson: BookingRoomDetail.pricingBreakdownJson })
-		.from(BookingRoomDetail)
-		.where(eq(BookingRoomDetail.bookingId, checkoutPayload.bookingId))
+		.select({ pricingBreakdownJson: BookingLineItem.pricingBreakdownJson })
+		.from(BookingLineItem)
+		.where(eq(BookingLineItem.bookingId, checkoutPayload.bookingId))
 		.then(first)
 	const bookingQuote = (booking?.pricingBreakdownJson as { priceQuote?: PriceQuote } | null)
 		?.priceQuote

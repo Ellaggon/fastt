@@ -358,7 +358,7 @@ historical Runs or completed Jobs.
 **Export scope (Phase 7 honesty)**
 
 - Outbound ICS (`ProviderExternalCalendarExport`) is **variant-scoped only**.
-  `BookingRoomDetail` has no `resourceId`, so the render path cannot honestly filter
+  `BookingLineItem` has no `resourceId`, so the render path cannot honestly filter
   by physical unit.
 - Export no longer has `resourceId`. Do not reintroduce that column or a “Unidad
   física” control until bookings can bind to `InventoryResource` and the renderer

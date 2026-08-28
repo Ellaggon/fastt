@@ -77,15 +77,15 @@ export type ProviderFinanceReviewItem = {
 		productName?: string | null
 		grossAmount: number
 		taxAmount: number
-		roomSnapshotCount: number
-		basis: "booking_room_detail_snapshot"
+		lineItemSnapshotCount: number
+		basis: "booking_line_item_snapshot"
 	}
 	commission: {
 		snapshot: CommissionSnapshot | null
 		missing: boolean
 		basis: "commission_snapshot" | "missing_commission_snapshot"
 		provenance: {
-			basis: "booking_room_detail_snapshot" | "missing_commission_snapshot"
+			basis: "booking_line_item_snapshot" | "missing_commission_snapshot"
 			contractFingerprint: string
 			snapshotAt: Date | null
 			freshness: ProviderFinanceReviewItem["snapshotLifecycle"]["freshness"]
@@ -97,7 +97,7 @@ export type ProviderFinanceReviewItem = {
 		netPayable: number | null
 		basis: "provider_payable_snapshot" | "pending_commission_snapshot"
 		provenance: {
-			basis: "booking_room_detail_snapshot_commission_snapshot" | "pending_commission_snapshot"
+			basis: "booking_line_item_snapshot_commission_snapshot" | "pending_commission_snapshot"
 			contractFingerprint: string
 			commissionFingerprint: string | null
 			reconciliationStatus: string | null
@@ -400,8 +400,8 @@ export function buildProviderFinanceSummary(params: {
 				productName: String(rows[0]?.productNameSnapshot ?? "").trim() || null,
 				grossAmount,
 				taxAmount,
-				roomSnapshotCount: rows.filter((row) => row.detailId != null).length,
-				basis: "booking_room_detail_snapshot" as const,
+				lineItemSnapshotCount: rows.filter((row) => row.detailId != null).length,
+				basis: "booking_line_item_snapshot" as const,
 			},
 			commission: {
 				snapshot: commission,
@@ -411,7 +411,7 @@ export function buildProviderFinanceSummary(params: {
 					: ("missing_commission_snapshot" as const),
 				provenance: {
 					basis: commission
-						? ("booking_room_detail_snapshot" as const)
+						? ("booking_line_item_snapshot" as const)
 						: ("missing_commission_snapshot" as const),
 					contractFingerprint,
 					snapshotAt: commission?.snapshotAt ?? null,
@@ -427,7 +427,7 @@ export function buildProviderFinanceSummary(params: {
 					: ("pending_commission_snapshot" as const),
 				provenance: {
 					basis: payable
-						? ("booking_room_detail_snapshot_commission_snapshot" as const)
+						? ("booking_line_item_snapshot_commission_snapshot" as const)
 						: ("pending_commission_snapshot" as const),
 					contractFingerprint,
 					commissionFingerprint,
@@ -474,8 +474,8 @@ export function buildProviderFinanceSummary(params: {
 				freshness,
 			},
 			explainability: materialized?.explainability ?? {
-				grossAmountSource: "BookingRoomDetail.totalAmount",
-				taxAmountSource: "BookingRoomDetail.taxAmount",
+				grossAmountSource: "BookingLineItem.totalAmount",
+				taxAmountSource: "BookingLineItem.taxAmount",
 				commissionSource: "missing_commission_snapshot",
 				payableSource: "pending_provider_payable_snapshot",
 				reconciliationSource: "ReconciliationMatch",

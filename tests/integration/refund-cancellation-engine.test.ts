@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
 	Booking,
 	BookingPolicySnapshot,
-	BookingRoomDetail,
+	BookingLineItem,
 	db,
 	eq,
 	RefundLedger,
@@ -214,7 +214,7 @@ describe("integration/refund cancellation engine", () => {
 			source: "web",
 			confirmedAt: new Date("2030-01-01T00:00:00.000Z"),
 		} as any)
-		await db.insert(BookingRoomDetail).values({
+		await db.insert(BookingLineItem).values({
 			id: `brd_refund_${suffix}`,
 			bookingId,
 			variantId,

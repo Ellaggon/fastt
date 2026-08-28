@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest"
 import {
 	Booking,
-	BookingRoomDetail,
+	BookingLineItem,
 	DailyInventory,
 	db,
 	GeoPlace,
@@ -106,7 +106,7 @@ afterEach(async () => {
 	await db.delete(EffectiveAvailability).where(eq(EffectiveAvailability.variantId, ids.variantId))
 	await db.delete(DailyInventory).where(eq(DailyInventory.variantId, ids.variantId))
 	await db.delete(InventoryResource).where(eq(InventoryResource.providerId, ids.providerId))
-	await db.delete(BookingRoomDetail).where(eq(BookingRoomDetail.bookingId, ids.bookingId))
+	await db.delete(BookingLineItem).where(eq(BookingLineItem.bookingId, ids.bookingId))
 	await db.delete(Booking).where(eq(Booking.id, ids.bookingId))
 	await db.delete(RatePlan).where(eq(RatePlan.id, ids.ratePlanId))
 	await db.delete(Variant).where(eq(Variant.id, ids.variantId))
@@ -237,7 +237,7 @@ describe("integration/provider external calendars", () => {
 			status: "confirmed",
 			currency: "USD",
 		})
-		await db.insert(BookingRoomDetail).values({
+		await db.insert(BookingLineItem).values({
 			id: `booking_room_ical_${suffix}`,
 			bookingId: ids.bookingId,
 			variantId: ids.variantId,
@@ -292,7 +292,8 @@ describe("integration/provider external calendars", () => {
 		expect(august11?.externalBlockedUnits).toBe(2)
 		expect(august11?.availableUnits).toBe(1)
 
-		const listed = await listProviderExternalCalendars(ids.providerId)
+		const conflictClock = { now: new Date("2026-08-01T00:00:00.000Z") }
+		const listed = await listProviderExternalCalendars(ids.providerId, conflictClock)
 		expect(listed.calendars).toHaveLength(2)
 		expect(listed.calendars.every((calendar) => calendar.status === "active")).toBe(true)
 		expect(listed.calendars.some((calendar) => calendar.resourceLabel === "Habitación 201")).toBe(
@@ -321,7 +322,7 @@ describe("integration/provider external calendars", () => {
 			action: "ignore",
 			currentUserId: null,
 		})
-		const ignored = await listProviderExternalCalendars(ids.providerId)
+		const ignored = await listProviderExternalCalendars(ids.providerId, conflictClock)
 		expect(
 			ignored.calendars
 				.find((calendar) => calendar.id === firstId)

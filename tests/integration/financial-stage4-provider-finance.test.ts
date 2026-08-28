@@ -68,7 +68,7 @@ function commission(overrides: Partial<CommissionSnapshot> = {}): CommissionSnap
 		providerId,
 		commissionRate: 0.15,
 		commissionAmount: 30,
-		basis: "booking_room_detail_snapshot",
+		basis: "booking_line_item_snapshot",
 		currency: "USD",
 		snapshotAt: now,
 		createdAt: now,
@@ -86,7 +86,7 @@ function payable(overrides: Partial<ProviderPayableSnapshot> = {}): ProviderPaya
 		taxAmount: 20,
 		netPayable: 150,
 		currency: "USD",
-		basis: "booking_room_detail_snapshot_commission_snapshot",
+		basis: "booking_line_item_snapshot_commission_snapshot",
 		snapshotAt: now,
 		createdAt: now,
 		updatedAt: now,
@@ -105,7 +105,7 @@ function match(overrides: Partial<ReconciliationMatch> = {}): ReconciliationMatc
 		differenceAmount: 0,
 		status: "matched",
 		mismatchReasons: [],
-		basis: "booking_room_detail_snapshot:stage3_payment_transaction:stage3_settlement_record",
+		basis: "booking_line_item_snapshot:stage3_payment_transaction:stage3_settlement_record",
 		comparisonFingerprint: "fingerprint_fresh",
 		reviewStatus: "unreviewed",
 		reviewState: "fresh",
@@ -292,7 +292,7 @@ describe("integration/financial Stage 4 provider finance foundation", () => {
 		expect(summary.statementDraft.provenance).toEqual(
 			expect.objectContaining({
 				aggregationSource: "ProviderPayableSnapshot",
-				contractSource: "BookingRoomDetail",
+				contractSource: "BookingLineItem",
 				reconciliationSource: "ReconciliationMatch",
 				includedBookingIds: [],
 				excludedBookingIds: [bookingId],
@@ -358,7 +358,7 @@ describe("integration/financial Stage 4 provider finance foundation", () => {
 		expect(materialization.statement.provenance).toEqual(
 			expect.objectContaining({
 				aggregationSource: "ProviderPayableSnapshot",
-				contractSource: "BookingRoomDetail",
+				contractSource: "BookingLineItem",
 				taxSource: "BookingTaxFee",
 				reconciliationSource: "ReconciliationMatch",
 				statementSource: "ProviderStatement",
@@ -368,7 +368,7 @@ describe("integration/financial Stage 4 provider finance foundation", () => {
 		)
 		expect(materialization.statement.dependencies).toEqual(
 			expect.arrayContaining([
-				expect.objectContaining({ source: "BookingRoomDetail", state: "fresh", count: 2 }),
+				expect.objectContaining({ source: "BookingLineItem", state: "fresh", count: 2 }),
 				expect.objectContaining({ source: "ProviderPayableSnapshot", state: "fresh", count: 1 }),
 				expect.objectContaining({ source: "ReconciliationMatch", state: "fresh", count: 1 }),
 				expect.objectContaining({ source: "ProviderStatement", state: "missing", count: 0 }),

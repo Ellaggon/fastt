@@ -26,10 +26,10 @@ export type DetectFinancialExceptionsInput = {
 	hasPaymentReference: boolean
 	hasSettlementReference: boolean
 	hasRefundReference: boolean
-	hasRoomSnapshots: boolean
+	hasLineItemSnapshots: boolean
 	hasTaxFeeSnapshots: boolean
 	taxesTotal: number
-	multiRoomAllocationCount: number
+	lineItemAllocationCount: number
 	snapshotVersion: string
 }
 
@@ -97,7 +97,7 @@ export function detectFinancialExceptions(
 			basis: "refund_handoff",
 		})
 	}
-	if (!input.hasRoomSnapshots || (input.taxesTotal > 0 && !input.hasTaxFeeSnapshots)) {
+	if (!input.hasLineItemSnapshots || (input.taxesTotal > 0 && !input.hasTaxFeeSnapshots)) {
 		exceptions.push({
 			...base,
 			code: "incomplete_contract_snapshot",
@@ -107,7 +107,7 @@ export function detectFinancialExceptions(
 			basis: "contract_snapshot",
 		})
 	}
-	if (input.multiRoomAllocationCount > 1) {
+	if (input.lineItemAllocationCount > 1) {
 		exceptions.push({
 			...base,
 			code: "multi_room_review",

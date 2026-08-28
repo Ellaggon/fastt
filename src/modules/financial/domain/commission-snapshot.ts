@@ -13,7 +13,7 @@ export type CommissionSnapshot = {
 	providerId: string
 	commissionRate: number
 	commissionAmount: number
-	basis: "booking_room_detail_snapshot"
+	basis: "booking_line_item_snapshot"
 	currency: string
 	snapshotAt: Date
 	createdAt: Date

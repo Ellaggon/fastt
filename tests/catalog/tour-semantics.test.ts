@@ -15,7 +15,7 @@ import {
 describe("tour semantics mapping contract", () => {
 	it("maps tour_slot and lodging column aliases", () => {
 		expect(TOUR_SEMANTICS.variantKind).toBe("tour_slot")
-		expect(TOUR_SEMANTICS.bookingLineItemTable).toBe("BookingRoomDetail")
+		expect(TOUR_SEMANTICS.bookingLineItemTable).toBe("BookingLineItem")
 		expect(TOUR_SEMANTICS.pricePerUnitColumn).toBe("pricePerNight")
 		expect(TOUR_SEMANTICS.departureDateColumn).toBe("checkInDate")
 		expect(isTourSlotKind("tour_slot")).toBe(true)

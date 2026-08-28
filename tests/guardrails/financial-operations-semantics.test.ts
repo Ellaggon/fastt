@@ -152,7 +152,7 @@ describe("Guardrail: Financial Operations enterprise semantics", () => {
 			"hasPaymentReference",
 			"hasSettlementReference",
 			"hasRefundReference",
-			"multiRoomAllocationCount",
+			"lineItemAllocationCount",
 			"refund_handoff_visibility",
 			"settlement_evidence_context_visible",
 			"visibility_not_psp_orchestration",
@@ -188,7 +188,7 @@ describe("Guardrail: Financial Operations enterprise semantics", () => {
 			page.includes("operation?.operationalException?.all")
 				? null
 				: `${financialPage}: financial table must preserve derived operational exception fallback`,
-			page.includes("operation?.snapshotIntegrity?.multiRoomAllocationCount")
+			page.includes("operation?.snapshotIntegrity?.lineItemAllocationCount")
 				? null
 				: `${financialPage}: tax/invoice column must expose snapshot allocation completeness`,
 		].filter(Boolean)
