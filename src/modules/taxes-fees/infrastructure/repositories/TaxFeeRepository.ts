@@ -10,6 +10,7 @@ import {
 	isNull,
 	or,
 } from "@/shared/infrastructure/db/compat"
+import { typedAssignmentTarget } from "@/shared/domain/assignment-target"
 import type { TaxFeeCommandRepositoryPort } from "../../application/ports/TaxFeeCommandRepositoryPort"
 import type { TaxFeeResolutionRepositoryPort } from "../../application/ports/TaxFeeResolutionRepositoryPort"
 import type { TaxFeeQueryRepositoryPort } from "../../application/ports/TaxFeeQueryRepositoryPort"
@@ -104,11 +105,20 @@ export class TaxFeeRepository
 	}
 
 	async createAssignment(params: Omit<TaxFeeAssignment, "createdAt">): Promise<void> {
+		const target =
+			params.scope === "global"
+				? {
+						providerTargetId: null,
+						productTargetId: null,
+						variantTargetId: null,
+						ratePlanTargetId: null,
+					}
+				: typedAssignmentTarget(params.scope, String(params.scopeId ?? ""))
 		await db.insert(TaxFeeAssignmentTable).values({
 			id: params.id,
 			taxFeeDefinitionId: params.taxFeeDefinitionId,
 			scope: params.scope,
-			scopeId: params.scopeId ?? null,
+			...target,
 			channel: params.channel ?? null,
 			status: params.status,
 			effectiveFrom: params.effectiveFrom ?? null,

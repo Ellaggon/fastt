@@ -13,6 +13,7 @@ import {
 	PolicyAuditLog,
 	PolicyGroup,
 } from "@/shared/infrastructure/db/compat"
+import { typedCatalogAssignmentTarget } from "@/shared/domain/assignment-target"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { invalidatePolicyConditions } from "@/lib/cache/invalidation"
 import { getOrCreateProviderPresetPolicy } from "@/lib/policies/getOrCreateProviderPresetPolicy"
@@ -157,7 +158,7 @@ export const POST: APIRoute = async ({ request }) => {
 					policyGroupId: segment.policyGroupId,
 					category: "Cancellation",
 					scope: "rate_plan",
-					scopeId: ratePlanId,
+					...typedCatalogAssignmentTarget("rate_plan", ratePlanId),
 					channel,
 					effectiveFrom: segment.effectiveFrom,
 					effectiveTo: segment.effectiveTo,
@@ -176,7 +177,7 @@ export const POST: APIRoute = async ({ request }) => {
 					policyGroupId: plan.replacement.policyGroupId,
 					category: "Cancellation",
 					scope: "rate_plan",
-					scopeId: ratePlanId,
+					...typedCatalogAssignmentTarget("rate_plan", ratePlanId),
 					channel,
 					effectiveFrom: plan.replacement.effectiveFrom,
 					effectiveTo: plan.replacement.effectiveTo,

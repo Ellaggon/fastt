@@ -18,7 +18,9 @@ import {
 	updateRestrictionsSurfaceRule,
 } from "@/lib/rates/restrictionsSurface"
 import { routes } from "@/lib/routes"
-import { POST as createPricingRulePost } from "@/pages/api/pricing/rules/v2/create"
+import { pricingRuleCommandService } from "@/container"
+import { normalizedPricingRuleCommandFromPayload } from "@/lib/pricing/rules-v2"
+import { resolveRatePlanOwnerContext } from "@/modules/pricing/public"
 import { POST as deletePricingRulePost } from "@/pages/api/pricing/rules/v2/delete"
 import { POST as updatePricingRulePost } from "@/pages/api/pricing/rules/v2/update"
 
@@ -101,7 +103,7 @@ async function ownedPriceRule(providerId: string, ruleId: string, ratePlanId: st
 }
 
 async function runPricingMutation(
-	handler: typeof createPricingRulePost,
+	handler: APIRoute,
 	request: Request,
 	path: string,
 	body: Record<string, unknown>
@@ -364,14 +366,14 @@ export const POST: APIRoute = async ({ request }) => {
 			if (dateTo) body.dateTo = dateTo
 			Object.assign(body, eligibilityForForm(kind, form))
 
-			const response = await createPricingRulePost({
-				request: jsonRequest(request, "/api/pricing/rules/v2/create", body),
-				url: new URL("/api/pricing/rules/v2/create", request.url),
-			} as any)
-			if (!response.ok) {
-				const payload = await response.json().catch(() => null)
-				throw new Error(String(payload?.error ?? "No se pudo crear la regla de precio"))
+			const ownerContext = await resolveRatePlanOwnerContext(ratePlanId)
+			if (!ownerContext || ownerContext.providerId !== auth.providerId) {
+				throw new Error("La tarifa no esta disponible para este proveedor")
 			}
+			await pricingRuleCommandService.createRule(
+				{ ...ownerContext, providerId: auth.providerId },
+				normalizedPricingRuleCommandFromPayload(body)
+			)
 			return redirectToMultiCalendar(request, { tab: "rules", success: "price-created" })
 		}
 

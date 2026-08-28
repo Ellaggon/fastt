@@ -5,6 +5,7 @@ import {
 	db,
 	sql,
 } from "@/shared/infrastructure/db/compat"
+import { typedCatalogAssignmentTarget } from "@/shared/domain/assignment-target"
 import { randomUUID } from "node:crypto"
 
 export type CommercialRuleScope = "product" | "variant" | "rate_plan"
@@ -320,7 +321,7 @@ export async function createCommercialPriceRule(params: {
 				ruleSetId,
 				ruleId,
 				scope: "rate_plan",
-				scopeId: params.ratePlanId,
+				...typedCatalogAssignmentTarget("rate_plan", params.ratePlanId),
 				startDate,
 				endDate,
 				isActive,
@@ -525,16 +526,19 @@ export async function createCommercialSellabilityRule(params: {
 			true
 		)
 	`)
+	const target = typedCatalogAssignmentTarget(params.scope, params.scopeId)
 	await run(sql`
 		INSERT INTO "CommercialRuleApplication" (
-			"id", "providerId", "ruleSetId", "ruleId", "scope", "scopeId", "startDate", "endDate", "validDays", "isActive"
+			"id", "providerId", "ruleSetId", "ruleId", "scope", "productTargetId", "variantTargetId", "ratePlanTargetId", "startDate", "endDate", "validDays", "isActive"
 		) VALUES (
 			${randomUUID()},
 			${params.providerId},
 			${ruleSetId},
 			${ruleId},
 			${params.scope},
-			${params.scopeId},
+			${target.productTargetId},
+			${target.variantTargetId},
+			${target.ratePlanTargetId},
 			${params.startDate},
 			${params.endDate},
 			${params.validDays?.length ? toJson(params.validDays) : null}::jsonb,
