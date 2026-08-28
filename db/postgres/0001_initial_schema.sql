@@ -524,10 +524,6 @@ CREATE TABLE "AmenityRoom" (
 	"category" text
 );
 
-CREATE TABLE "Service" (
-	"id" text PRIMARY KEY
-);
-
 CREATE TABLE "Image" (
 	"id" text PRIMARY KEY,
 	"objectKey" text NOT NULL,
@@ -2316,12 +2312,6 @@ ALTER TABLE "ProductService"
 	ADD CONSTRAINT "ProductService_productId_fk"
 	FOREIGN KEY ("productId")
 	REFERENCES "Product" ("id")
-;
-
-ALTER TABLE "ProductService"
-	ADD CONSTRAINT "ProductService_serviceId_fk"
-	FOREIGN KEY ("serviceId")
-	REFERENCES "Service" ("id")
 ;
 
 ALTER TABLE "ProductServiceAttribute"

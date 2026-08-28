@@ -1,4 +1,5 @@
 import { serviceIcons } from "@/data/service/service-icons"
+import type { ServiceId } from "./service-registry"
 
 export type ServiceCategory =
 	| "Internet"
@@ -17,7 +18,7 @@ export type ServiceCategory =
 export type ServiceIcon = (typeof serviceIcons)[keyof typeof serviceIcons]
 
 export interface ServiceDefinition {
-	id: string
+	id: ServiceId
 	category: ServiceCategory
 	name: string
 	description?: string

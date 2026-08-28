@@ -40,7 +40,9 @@ const renderStars = (count: number) => {
 	return starIcons
 }
 
-const serviceMap = new Map(SERVICE_CATALOG.map((s) => [s.id, s]))
+const serviceMap = new Map<string, (typeof SERVICE_CATALOG)[number]>(
+	SERVICE_CATALOG.map((service) => [service.id, service])
+)
 const services = (
 	Array.isArray(props.services) ? props.services : JSON.parse(props.services || "[]")
 )

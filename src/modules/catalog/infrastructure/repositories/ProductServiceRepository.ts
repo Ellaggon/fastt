@@ -4,10 +4,10 @@ import {
 	eq,
 	inArray,
 	and,
-	Service,
 	ProductService,
 	ProductServiceAttribute,
 } from "@/shared/infrastructure/db/compat"
+import { isServiceId, unknownServiceIds } from "@/data/service/service-registry"
 import type { ProductServiceRepositoryPort } from "../../application/ports/ProductServiceRepositoryPort"
 
 export class ProductServiceRepository implements ProductServiceRepositoryPort {
@@ -15,19 +15,16 @@ export class ProductServiceRepository implements ProductServiceRepositoryPort {
 		const { productId, services } = params
 
 		await db.transaction(async (tx) => {
-			const requestedIds = services.map((s) => s.serviceId)
+			const requestedIds = [...new Set(services.map((service) => service.serviceId.trim()))]
+			const unknownIds = unknownServiceIds(requestedIds)
+			if (unknownIds.length) {
+				throw new Error(`UNKNOWN_SERVICE_CODES:${unknownIds.join(",")}`)
+			}
 
 			if (requestedIds.length === 0) {
 				await tx.delete(ProductService).where(eq(ProductService.productId, productId))
 				return
 			}
-
-			const validServices = await tx
-				.select({ id: Service.id })
-				.from(Service)
-				.where(inArray(Service.id, requestedIds))
-
-			const validIds = new Set(validServices.map((s) => s.id))
 
 			const existing = await tx
 				.select({ serviceId: ProductService.serviceId })
@@ -36,7 +33,7 @@ export class ProductServiceRepository implements ProductServiceRepositoryPort {
 
 			const existingIds = new Set(existing.map((s) => s.serviceId))
 
-			for (const serviceId of validIds) {
+			for (const serviceId of requestedIds) {
 				if (!existingIds.has(serviceId)) {
 					await tx.insert(ProductService).values({
 						id: crypto.randomUUID(),
@@ -46,7 +43,7 @@ export class ProductServiceRepository implements ProductServiceRepositoryPort {
 				}
 			}
 
-			const toDelete = [...existingIds].filter((id) => !validIds.has(id))
+			const toDelete = [...existingIds].filter((id) => !requestedIds.includes(id))
 
 			if (toDelete.length > 0) {
 				await tx
@@ -62,6 +59,9 @@ export class ProductServiceRepository implements ProductServiceRepositoryPort {
 	}
 
 	async ensureProductService(params: { productId: string; serviceId: string; appliesTo?: string }) {
+		if (!isServiceId(params.serviceId)) {
+			throw new Error(`UNKNOWN_SERVICE_CODE:${params.serviceId}`)
+		}
 		const existing = await db
 			.select({ id: ProductService.id })
 			.from(ProductService)

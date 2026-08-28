@@ -5,6 +5,7 @@ export function createResolveProductServicesQuery(deps: {
 }) {
 	return async function resolveProductServices(productId: string) {
 		const { SERVICE_CATALOG_BY_ID } = await import("@/data/service/service-catalog")
+		const { isServiceId } = await import("@/data/service/service-registry")
 		const rows = await deps.repo.listServiceLinks(productId)
 
 		if (!rows.length) return []
@@ -27,8 +28,8 @@ export function createResolveProductServicesQuery(deps: {
 
 		return rows
 			.map((r) => {
+				if (!isServiceId(r.serviceId)) return null
 				const def = SERVICE_CATALOG_BY_ID[r.serviceId]
-				if (!def) return null
 
 				return {
 					...def,

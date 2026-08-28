@@ -205,7 +205,9 @@ try {
 		.from(ProductService)
 		.where(eq(ProductService.productId, productId))
 
-	const catalogById = new Map(SERVICE_CATALOG.map((s) => [s.id, s]))
+	const catalogById = new Map<string, (typeof SERVICE_CATALOG)[number]>(
+		SERVICE_CATALOG.map((service) => [service.id, service])
+	)
 
 	services = (servicesResult ?? [])
 		.filter((s) => s.id)

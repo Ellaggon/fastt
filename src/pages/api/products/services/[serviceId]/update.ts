@@ -2,6 +2,7 @@ import type { APIRoute } from "astro"
 import { productRepository, productServiceRepository } from "@/container"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { updateProductService } from "@/modules/catalog/public"
+import { isServiceId } from "@/data/service/service-registry"
 
 export const POST: APIRoute = async ({ request, params }) => {
 	try {
@@ -9,6 +10,9 @@ export const POST: APIRoute = async ({ request, params }) => {
 		const providerId = await getProviderIdFromRequest(request)
 		if (!providerId || !serviceId) {
 			return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 })
+		}
+		if (!isServiceId(serviceId)) {
+			return new Response(JSON.stringify({ error: "Unknown service code" }), { status: 400 })
 		}
 
 		const formData = await request.formData()
