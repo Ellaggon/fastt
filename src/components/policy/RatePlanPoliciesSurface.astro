@@ -221,24 +221,8 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 						)}
 
 						<div class="divide-y divide-slate-200">
-							{isGuidedSurface ? null : (
-								<p
-									class="px-1 py-4 text-sm leading-6 text-slate-500 sm:px-4"
-									data-rate-conditions-boundary
-								>
-									Cancelación, pago y no presentación son de esta tarifa. Mascotas, fumar y fiestas
-									se editan en las{" "}
-									<a
-										href={providerHouseRulesHref(productId, plan.ratePlanId)}
-										class="font-medium text-slate-700 underline-offset-2 hover:text-slate-950 hover:underline"
-									>
-										reglas del alojamiento
-									</a>
-									.
-								</p>
-							)}
 							<section class="py-5" data-contract-block="cancellation-no-show">
-								<div class="grid gap-4 lg:grid-cols-[minmax(220px,0.75fr)_minmax(0,1.4fr)]">
+								<div class="grid gap-6 lg:grid-cols-[minmax(220px,0.75fr)_minmax(0,1.4fr)]">
 									<div class="flex min-w-0 items-start gap-3 px-1 sm:px-4">
 										<span class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
 											<ShieldCheck class="h-5 w-5" />
@@ -286,7 +270,7 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 										</div>
 									</div>
 
-									<dl class="grid gap-x-8 gap-y-4 px-1 sm:grid-cols-2 sm:px-4 lg:col-start-2 xl:grid-cols-4">
+									<dl class="mt-2 grid gap-x-8 gap-y-4 px-1 sm:grid-cols-2 sm:px-4 lg:col-start-2 lg:mt-4 xl:grid-cols-4">
 										<div>
 											<dt class="text-xs font-medium text-slate-500">Plantilla</dt>
 											<dd class="mt-1 text-sm font-semibold text-slate-900">
@@ -316,7 +300,7 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 							</section>
 
 							<section class="py-5" data-contract-block="payment-guarantee">
-								<div class="grid gap-4 lg:grid-cols-[minmax(220px,0.75fr)_minmax(0,1.4fr)]">
+								<div class="grid gap-6 lg:grid-cols-[minmax(220px,0.75fr)_minmax(0,1.4fr)]">
 									<div class="flex min-w-0 items-start gap-3 px-1 sm:px-4">
 										<span class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
 											<CreditCard class="h-5 w-5" />
@@ -350,7 +334,7 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 										</div>
 									</div>
 
-									<dl class="grid gap-x-8 gap-y-4 px-1 sm:grid-cols-3 sm:px-4 lg:col-start-2">
+									<dl class="mt-2 grid gap-x-8 gap-y-4 px-1 sm:grid-cols-3 sm:px-4 lg:col-start-2 lg:mt-4">
 										<div>
 											<dt class="text-xs font-medium text-slate-500">Cuándo paga</dt>
 											<dd class="mt-1 text-sm font-semibold text-slate-900">
@@ -374,7 +358,7 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 							</section>
 
 							<section class="py-5" data-contract-block="arrival-departure">
-								<div class="grid gap-4 lg:grid-cols-[minmax(220px,0.75fr)_minmax(0,1.4fr)]">
+								<div class="grid gap-6 lg:grid-cols-[minmax(220px,0.75fr)_minmax(0,1.4fr)]">
 									<div class="flex min-w-0 items-start gap-3 px-1 sm:px-4">
 										<span class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
 											<CalendarClock class="h-5 w-5" />
@@ -439,7 +423,7 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 										</div>
 									)}
 
-									<dl class="grid gap-x-8 gap-y-4 px-1 sm:grid-cols-[minmax(0,1.4fr)_minmax(180px,0.6fr)] sm:px-4 lg:col-start-2">
+									<dl class="mt-2 grid gap-x-8 gap-y-4 px-1 sm:grid-cols-[minmax(0,1.4fr)_minmax(180px,0.6fr)] sm:px-4 lg:col-start-2 lg:mt-4">
 										<div>
 											<dt class="text-xs font-medium text-slate-500">Horario</dt>
 											<dd class="mt-1 text-sm font-semibold text-slate-900">
@@ -458,6 +442,23 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 							</section>
 						</div>
 					</article>
+
+					{isGuidedSurface ? null : (
+						<p
+							class="mt-10 px-1 pb-2 text-sm leading-6 text-slate-500 sm:px-4"
+							data-rate-conditions-boundary
+						>
+							Cancelación, pago y no presentación son de esta tarifa. Mascotas, fumar y fiestas se
+							editan en las{" "}
+							<a
+								href={providerHouseRulesHref(productId, plan.ratePlanId)}
+								class="font-medium text-slate-700 underline-offset-2 hover:text-slate-950 hover:underline"
+							>
+								reglas del alojamiento
+							</a>
+							.
+						</p>
+					)}
 
 					{isProfessionalMode && (
 						<Drawer
