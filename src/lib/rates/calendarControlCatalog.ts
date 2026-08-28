@@ -11,11 +11,36 @@ export const CALENDAR_CONTROL_MODES: Array<{
 	key: CalendarControlMode
 	label: string
 	helper: string
+	workspaceDescription: string
 }> = [
-	{ key: "price", label: "Precio", helper: "Precio final y ajustes." },
-	{ key: "availability", label: "Disponibilidad", helper: "Cupos físicos." },
-	{ key: "sellability", label: "Venta", helper: "Apertura y reglas." },
-	{ key: "conditions", label: "Condiciones", helper: "Contrato de la tarifa." },
+	{
+		key: "price",
+		label: "Precio",
+		helper: "Precio final y ajustes.",
+		workspaceDescription:
+			"Selecciona fechas y ajusta el precio final de esta tarifa. Los cambios y el resumen permanecen en pantalla mientras trabajas.",
+	},
+	{
+		key: "availability",
+		label: "Disponibilidad",
+		helper: "Cupos físicos.",
+		workspaceDescription:
+			"Gestiona cupos y bloqueos por día para la tarifa visible. La selección y las acciones quedan en el mismo calendario.",
+	},
+	{
+		key: "sellability",
+		label: "Venta",
+		helper: "Apertura y reglas.",
+		workspaceDescription:
+			"Controla apertura, cierre y reglas comerciales por fecha en una sola tarifa.",
+	},
+	{
+		key: "conditions",
+		label: "Condiciones",
+		helper: "Contrato de la tarifa.",
+		workspaceDescription:
+			"Revisa el contrato de la tarifa y completa condiciones pendientes sin cambiar de superficie.",
+	},
 ]
 
 export const CALENDAR_CONTROL_ACTIONS: Record<CalendarControlMode, CalendarControlAction[]> = {

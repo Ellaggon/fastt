@@ -1,5 +1,6 @@
 ---
 import CalendarSubnav from "@/components/rates/CalendarSubnav.astro"
+import CalendarWorkspaceHeader from "@/components/rates/CalendarWorkspaceHeader"
 import CalendarWorkspaceSkeleton from "@/components/rates/CalendarWorkspaceSkeleton.astro"
 import SingleCalendarWorkspace from "@/components/rates/SingleCalendarWorkspace"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
@@ -210,7 +211,14 @@ timing.setHeader(Astro.response.headers)
 				</header>
 			) : null
 		}
-		{!activePlaybook ? <CalendarSubnav isProfessional={isProfessionalCalendar} /> : null}
+		{
+			!isGuidedAvailabilityStep && !activePlaybook ? (
+				<>
+					<CalendarWorkspaceHeader client:load initialMode={initialMode} />
+					<CalendarSubnav isProfessional={isProfessionalCalendar} />
+				</>
+			) : null
+		}
 
 		<SingleCalendarWorkspace
 			client:only="react"
