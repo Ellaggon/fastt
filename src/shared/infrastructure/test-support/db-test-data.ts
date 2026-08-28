@@ -4,6 +4,7 @@ import {
 	ProductGeoPlace,
 	Provider,
 	Product,
+	User,
 	Variant,
 	VariantCapacity,
 	RatePlan,
@@ -14,6 +15,25 @@ import {
 import { createCommercialPriceRule } from "@/lib/commercial-rules/commercialRulesRepository"
 
 const ratePlanTemplateFixtures = new Map<string, { name: string; description: string | null }>()
+
+/**
+ * Audit trails reference the canonical application user, never an email label
+ * or a synthetic value that cannot exist in the User table.
+ */
+export async function upsertTestUser(row: { id: string; email?: string | null }) {
+	const id = String(row.id ?? "").trim()
+	if (!id) throw new Error("TEST_USER_ID_REQUIRED")
+	const email = String(row.email ?? `${id}@example.test`)
+		.trim()
+		.toLowerCase()
+	await db
+		.insert(User)
+		.values({ id, email })
+		.onConflictDoUpdate({
+			target: [User.id],
+			set: { email },
+		})
+}
 
 /** GeoPlace.canonicalPath rejects underscores and other punctuation. */
 export function geoPlaceFixturePath(value: string) {

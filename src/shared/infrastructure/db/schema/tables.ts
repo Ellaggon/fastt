@@ -1797,7 +1797,13 @@ export const PolicyAssignment = pgTable(
 		policyGroupId: txt("policyGroupId").references(() => PolicyGroup.id),
 		category: txt("category"),
 		scope: txt("scope"),
-		scopeId: txt("scopeId"),
+		productTargetId: txtOpt("productTargetId").references(() => Product.id),
+		variantTargetId: txtOpt("variantTargetId").references(() => Variant.id),
+		ratePlanTargetId: txtOpt("ratePlanTargetId").references(() => RatePlan.id),
+		/** Read model for scope-chain queries; PostgreSQL derives it from the typed target. */
+		scopeId: txtOpt("scopeId").generatedAlwaysAs(
+			sql`coalesce("productTargetId", "variantTargetId", "ratePlanTargetId")`
+		),
 		channel: txtOpt("channel"),
 		effectiveFrom: dayOpt("effectiveFrom"),
 		effectiveTo: dayOpt("effectiveTo"),
@@ -1822,6 +1828,14 @@ export const PolicyAssignment = pgTable(
 		),
 		index("PolicyAssignment_effective_range_idx").on(table.effectiveFrom, table.effectiveTo),
 		index("PolicyAssignment_group_active_idx").on(table.policyGroupId, table.isActive),
+		check(
+			"PolicyAssignment_typed_target_check",
+			sql`(
+				(${table.scope} = 'product' AND ${table.productTargetId} IS NOT NULL AND ${table.variantTargetId} IS NULL AND ${table.ratePlanTargetId} IS NULL)
+				OR (${table.scope} = 'variant' AND ${table.productTargetId} IS NULL AND ${table.variantTargetId} IS NOT NULL AND ${table.ratePlanTargetId} IS NULL)
+				OR (${table.scope} = 'rate_plan' AND ${table.productTargetId} IS NULL AND ${table.variantTargetId} IS NULL AND ${table.ratePlanTargetId} IS NOT NULL)
+			)`
+		),
 	]
 )
 
@@ -2174,7 +2188,13 @@ export const CommercialRuleApplication = pgTable(
 		ruleSetId: txt("ruleSetId").references(() => CommercialRuleSet.id),
 		ruleId: txt("ruleId").references(() => CommercialRule.id),
 		scope: txt("scope"),
-		scopeId: txt("scopeId"),
+		productTargetId: txtOpt("productTargetId").references(() => Product.id),
+		variantTargetId: txtOpt("variantTargetId").references(() => Variant.id),
+		ratePlanTargetId: txtOpt("ratePlanTargetId").references(() => RatePlan.id),
+		/** Read model for rule resolution; its value cannot diverge from the typed target. */
+		scopeId: txtOpt("scopeId").generatedAlwaysAs(
+			sql`coalesce("productTargetId", "variantTargetId", "ratePlanTargetId")`
+		),
 		startDate: dayOpt("startDate"),
 		endDate: dayOpt("endDate"),
 		validDays: jsonb("validDays"),
@@ -2191,6 +2211,14 @@ export const CommercialRuleApplication = pgTable(
 		),
 		index("CommercialRuleApplication_rule_scope_idx").on(table.ruleId, table.scope, table.scopeId),
 		index("CommercialRuleApplication_ruleSet_active_idx").on(table.ruleSetId, table.isActive),
+		check(
+			"CommercialRuleApplication_typed_target_check",
+			sql`(
+				(${table.scope} = 'product' AND ${table.productTargetId} IS NOT NULL AND ${table.variantTargetId} IS NULL AND ${table.ratePlanTargetId} IS NULL)
+				OR (${table.scope} = 'variant' AND ${table.productTargetId} IS NULL AND ${table.variantTargetId} IS NOT NULL AND ${table.ratePlanTargetId} IS NULL)
+				OR (${table.scope} = 'rate_plan' AND ${table.productTargetId} IS NULL AND ${table.variantTargetId} IS NULL AND ${table.ratePlanTargetId} IS NOT NULL)
+			)`
+		),
 	]
 )
 
@@ -2426,7 +2454,14 @@ export const TaxFeeAssignment = pgTable(
 		id: pk(),
 		taxFeeDefinitionId: txt("taxFeeDefinitionId").references(() => TaxFeeDefinition.id),
 		scope: txt("scope"),
-		scopeId: txtOpt("scopeId"),
+		providerTargetId: txtOpt("providerTargetId").references(() => Provider.id),
+		productTargetId: txtOpt("productTargetId").references(() => Product.id),
+		variantTargetId: txtOpt("variantTargetId").references(() => Variant.id),
+		ratePlanTargetId: txtOpt("ratePlanTargetId").references(() => RatePlan.id),
+		/** Derived projection for inheritance queries; never writable application state. */
+		scopeId: txtOpt("scopeId").generatedAlwaysAs(
+			sql`coalesce("providerTargetId", "productTargetId", "variantTargetId", "ratePlanTargetId")`
+		),
 		channel: txtOpt("channel"),
 		status: text("status").default("active").notNull(),
 		effectiveFrom: ts("effectiveFrom"),
@@ -2451,6 +2486,16 @@ export const TaxFeeAssignment = pgTable(
 			table.status,
 			table.effectiveFrom,
 			table.effectiveTo
+		),
+		check(
+			"TaxFeeAssignment_typed_target_check",
+			sql`(
+				(${table.scope} = 'global' AND ${table.providerTargetId} IS NULL AND ${table.productTargetId} IS NULL AND ${table.variantTargetId} IS NULL AND ${table.ratePlanTargetId} IS NULL)
+				OR (${table.scope} = 'provider' AND ${table.providerTargetId} IS NOT NULL AND ${table.productTargetId} IS NULL AND ${table.variantTargetId} IS NULL AND ${table.ratePlanTargetId} IS NULL)
+				OR (${table.scope} = 'product' AND ${table.providerTargetId} IS NULL AND ${table.productTargetId} IS NOT NULL AND ${table.variantTargetId} IS NULL AND ${table.ratePlanTargetId} IS NULL)
+				OR (${table.scope} = 'variant' AND ${table.providerTargetId} IS NULL AND ${table.productTargetId} IS NULL AND ${table.variantTargetId} IS NOT NULL AND ${table.ratePlanTargetId} IS NULL)
+				OR (${table.scope} = 'rate_plan' AND ${table.providerTargetId} IS NULL AND ${table.productTargetId} IS NULL AND ${table.variantTargetId} IS NULL AND ${table.ratePlanTargetId} IS NOT NULL)
+			)`
 		),
 	]
 )

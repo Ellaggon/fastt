@@ -443,7 +443,7 @@ EXECUTE FUNCTION fastt_prevent_policy_assignment_overlap();
 
 DROP TRIGGER IF EXISTS "trg_PolicyAssignment_overlap_update" ON "PolicyAssignment";
 CREATE TRIGGER "trg_PolicyAssignment_overlap_update"
-BEFORE UPDATE OF "scope", "scopeId", "category", "channel", "effectiveFrom", "effectiveTo", "isActive"
+BEFORE UPDATE OF "scope", "productTargetId", "variantTargetId", "ratePlanTargetId", "category", "channel", "effectiveFrom", "effectiveTo", "isActive"
 ON "PolicyAssignment"
 FOR EACH ROW
 EXECUTE FUNCTION fastt_prevent_policy_assignment_overlap();
