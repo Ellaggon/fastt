@@ -24,6 +24,16 @@ import type {
 	MultiCalendarTab,
 } from "@/lib/rates/multiCalendarSurface"
 import type { MultiCalendarAppliedRule } from "@/lib/rates/loadMultiCalendarWorkspace"
+import {
+	Boxes,
+	CalendarClock,
+	CircleDollarSign,
+	FileText,
+	ListChecks,
+	Moon,
+	Store,
+	type LucideIcon,
+} from "lucide-react"
 
 type Props = {
 	initialSurface: MultiCalendarSurface
@@ -63,6 +73,16 @@ type Selection = {
 	productIds: string[]
 	from: string
 	to: string
+}
+
+const TAB_ICONS: Record<MultiCalendarTab, LucideIcon> = {
+	price: CircleDollarSign,
+	availability: Boxes,
+	sellability: Store,
+	stay: Moon,
+	arrival_departure: CalendarClock,
+	conditions: FileText,
+	rules: ListChecks,
 }
 
 const TABS: Array<{ key: MultiCalendarTab; label: string; helper: string }> = [
@@ -986,9 +1006,22 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 		...row,
 		cells: row.cells.filter((cell) => visibleDateSet.has(cell.date)),
 	}))
+	const activeTabMeta = TABS.find((tab) => tab.key === activeTab) ?? TABS[0]
+	const headerTitle = activeTabMeta.helper.replace(/\.$/, "")
+	const HeaderIcon = TAB_ICONS[activeTab]
 
 	return (
 		<div className="space-y-5" aria-busy={loading}>
+			<header className="space-y-2">
+				<h1 className="flex items-center gap-2.5 text-3xl font-semibold text-slate-100">
+					<HeaderIcon className="h-7 w-7 shrink-0" aria-hidden="true" />
+					{headerTitle}
+				</h1>
+				<p className="max-w-3xl text-sm leading-6 text-slate-300">
+					Opera varias tarifas por fecha sin entrar una por una. La selección, los controles y los
+					resultados permanecen en pantalla mientras trabajas.
+				</p>
+			</header>
 			<Card
 				as="section"
 				className="fastt-workspace-panel relative overflow-hidden p-4 text-slate-900"
@@ -1016,71 +1049,85 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 						}}
 						className="grid gap-3 border-t border-slate-200 bg-white p-3 lg:grid-cols-[1fr_1fr_1fr_0.8fr_auto] lg:items-end"
 					>
-						{(["productId", "variantId", "ratePlanId"] as const).map((key) => (
-							<label key={key} className="space-y-1 text-sm">
-								<span className="text-xs font-semibold text-slate-500">
-									{key === "productId" ? "Hotel" : key === "variantId" ? "Habitación" : "Tarifa"}
-								</span>
+						{(["productId", "variantId", "ratePlanId"] as const).map((key) => {
+							const fieldId =
+								key === "productId"
+									? "multi-calendar-filter-product"
+									: key === "variantId"
+										? "multi-calendar-filter-variant"
+										: "multi-calendar-filter-rate-plan"
+							const label =
+								key === "productId" ? "Hotel" : key === "variantId" ? "Habitación" : "Tarifa"
+							const placeholder =
+								key === "productId"
+									? "Todos los hoteles"
+									: key === "variantId"
+										? "Todas las habitaciones"
+										: "Todas las tarifas"
+
+							return (
+								<label key={key} className="fastt-prompt-field min-w-0" htmlFor={fieldId}>
+									<span className="fastt-prompt-field__copy">
+										<span className="fastt-prompt-field__label">{label}</span>
+										<Select
+											id={fieldId}
+											value={filters[key]}
+											onChange={(event) => setFilters({ ...filters, [key]: event.target.value })}
+										>
+											<option value="">{placeholder}</option>
+											{(key === "productId"
+												? surface.options.products
+												: key === "variantId"
+													? surface.options.variants
+													: surface.options.ratePlans
+											).map((option) => (
+												<option key={option.id} value={option.id}>
+													{"productName" in option
+														? `${option.productName} · ${option.name}`
+														: option.name}
+												</option>
+											))}
+										</Select>
+									</span>
+								</label>
+							)
+						})}
+						<label className="fastt-prompt-field min-w-0" htmlFor="multi-calendar-filter-status">
+							<span className="fastt-prompt-field__copy">
+								<span className="fastt-prompt-field__label">Estado</span>
 								<Select
-									value={filters[key]}
-									onChange={(event) => setFilters({ ...filters, [key]: event.target.value })}
+									id="multi-calendar-filter-status"
+									value={filters.status}
+									onChange={(event) =>
+										setFilters({ ...filters, status: event.target.value as typeof filters.status })
+									}
 								>
-									<option value="">
-										{key === "productId"
-											? "Todos los hoteles"
-											: key === "variantId"
-												? "Todas las habitaciones"
-												: "Todas las tarifas"}
-									</option>
-									{(key === "productId"
-										? surface.options.products
-										: key === "variantId"
-											? surface.options.variants
-											: surface.options.ratePlans
-									).map((option) => (
-										<option key={option.id} value={option.id}>
-											{"productName" in option
-												? `${option.productName} · ${option.name}`
-												: option.name}
-										</option>
-									))}
+									<option value="all">Todas</option>
+									<option value="ready">Listas</option>
+									<option value="attention">Con pendientes</option>
 								</Select>
-							</label>
-						))}
-						<label className="space-y-1 text-sm">
-							<span className="text-xs font-semibold text-slate-500">Estado</span>
-							<Select
-								value={filters.status}
-								onChange={(event) =>
-									setFilters({ ...filters, status: event.target.value as typeof filters.status })
-								}
-							>
-								<option value="all">Todas</option>
-								<option value="ready">Listas</option>
-								<option value="attention">Con pendientes</option>
-							</Select>
+							</span>
 						</label>
 						<Button disabled={loading}>Filtrar</Button>
 					</form>
 				</details>
 				<SegmentedControl className="mt-4" role="tablist">
-					{TABS.map((tab) => (
-						<SegmentedItem
-							key={tab.key}
-							role="tab"
-							onClick={() => changeTab(tab.key)}
-							aria-selected={activeTab === tab.key}
-							active={activeTab === tab.key}
-							className="min-w-max py-2 text-left"
-						>
-							<span className="block font-semibold">{tab.label}</span>
-							{activeTab === tab.key && (
-								<span className="mt-0.5 hidden text-[10px] font-medium text-slate-500 lg:block">
-									{tab.helper}
-								</span>
-							)}
-						</SegmentedItem>
-					))}
+					{TABS.map((tab) => {
+						const TabIcon = TAB_ICONS[tab.key]
+						return (
+							<SegmentedItem
+								key={tab.key}
+								role="tab"
+								onClick={() => changeTab(tab.key)}
+								aria-selected={activeTab === tab.key}
+								active={activeTab === tab.key}
+								className="inline-flex min-w-max items-center gap-1.5"
+							>
+								<TabIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+								{tab.label}
+							</SegmentedItem>
+						)
+					})}
 				</SegmentedControl>
 				{selection.cells.length > 0 && (
 					<div className="fastt-calendar-toolbar mt-4 flex flex-wrap items-center justify-between gap-3 px-4 py-3">

@@ -17,6 +17,7 @@ import {
 	type CalendarControlMode,
 	visibleCalendarActions,
 } from "@/lib/rates/calendarControlCatalog"
+import { CALENDAR_ACTION_ICONS } from "@/lib/rates/calendarActionIcons"
 import { createBoundedClientCache } from "@/lib/rates/calendarSurfaceClientCache"
 import type { SingleCalendarDay, SingleCalendarSurface } from "@/lib/rates/singleCalendarSurface"
 
@@ -295,56 +296,6 @@ export default function SingleCalendarWorkspace({
 		window.addEventListener("fastt:calendar-mode", onCalendarMode)
 		return () => window.removeEventListener("fastt:calendar-mode", onCalendarMode)
 	}, [isProfessional])
-
-	useEffect(() => {
-		if (!surface) return
-		const activeDays = surface.days.filter((day) => !day.isPast)
-		const missingPriceDays = activeDays.filter((day) => day.finalPrice == null).length
-		const noInventoryDays = activeDays.filter((day) => day.availableUnits <= 0).length
-		const closedDays = activeDays.filter(
-			(day) => day.restrictionSignals.hasCommercialBlocker
-		).length
-		const conflictDays = activeDays.filter(
-			(day) => Number(day.externalCalendar?.conflictCount ?? 0) > 0
-		).length
-
-		// ready = green, in_review = yellow (vacío/incompleto), action_needed = red (problema)
-		const statuses: Record<
-			CalendarControlMode,
-			"ready" | "in_review" | "action_needed" | "not_started"
-		> = {
-			price:
-				activeDays.length === 0 || missingPriceDays === activeDays.length
-					? "in_review"
-					: missingPriceDays === 0
-						? "ready"
-						: "in_review",
-			availability:
-				conflictDays > 0
-					? "action_needed"
-					: activeDays.length === 0 || noInventoryDays === activeDays.length
-						? "in_review"
-						: noInventoryDays === 0
-							? "ready"
-							: "in_review",
-			sellability:
-				activeDays.length === 0
-					? "in_review"
-					: closedDays === activeDays.length
-						? "action_needed"
-						: closedDays === 0
-							? "ready"
-							: "in_review",
-			conditions: surface.conditions.complete ? "ready" : "in_review",
-		}
-
-		document.querySelectorAll<HTMLElement>("[data-calendar-mode]").forEach((button) => {
-			const modeKey = String(button.dataset.calendarMode ?? "").trim() as CalendarControlMode
-			if (!(modeKey in statuses)) return
-			const badge = button.querySelector<HTMLElement>("[data-calendar-mode-status]")
-			badge?.setAttribute("data-trust-link-status-state", statuses[modeKey])
-		})
-	}, [surface])
 
 	async function loadSurface(
 		params: { ratePlanId?: string; variantId?: string; month?: string } = {},
@@ -1113,33 +1064,43 @@ export default function SingleCalendarWorkspace({
 						<>
 							<div className="flex flex-wrap items-center justify-between gap-3">
 								<div className="flex flex-wrap gap-2">
-									{actions.map((action) => (
-										<div key={action.id} className="relative">
-											<Button
-												type="button"
-												onClick={() => openAction(action.id)}
-												variant={action.kind === "mutation" ? "primary" : "secondary"}
-												size="sm"
-												aria-describedby={
-													selectionHintAction === action.id ? "calendar-selection-hint" : undefined
-												}
-											>
-												{action.id === "price_comparison" && showComparison
-													? "Ocultar base y final"
-													: action.id === "inventory_detail" && showInventoryDetail
-														? "Ocultar detalle físico"
-														: action.label}
-											</Button>
-											{selectionHintAction === action.id && selectionHint ? (
-												<FloatingPopover
-													id="calendar-selection-hint"
-													title="Selecciona fechas para continuar"
+									{actions.map((action) => {
+										const ActionIcon = CALENDAR_ACTION_ICONS[action.id]
+										const actionLabel =
+											action.id === "price_comparison" && showComparison
+												? "Ocultar base y final"
+												: action.id === "inventory_detail" && showInventoryDetail
+													? "Ocultar detalle físico"
+													: action.label
+										return (
+											<div key={action.id} className="relative">
+												<Button
+													type="button"
+													onClick={() => openAction(action.id)}
+													variant={action.kind === "mutation" ? "primary" : "secondary"}
+													size="sm"
+													aria-describedby={
+														selectionHintAction === action.id
+															? "calendar-selection-hint"
+															: undefined
+													}
 												>
-													<p>{selectionHint} Usa una fecha del calendario o un rango rápido.</p>
-												</FloatingPopover>
-											) : null}
-										</div>
-									))}
+													{ActionIcon ? (
+														<ActionIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+													) : null}
+													{actionLabel}
+												</Button>
+												{selectionHintAction === action.id && selectionHint ? (
+													<FloatingPopover
+														id="calendar-selection-hint"
+														title="Selecciona fechas para continuar"
+													>
+														<p>{selectionHint} Usa una fecha del calendario o un rango rápido.</p>
+													</FloatingPopover>
+												) : null}
+											</div>
+										)
+									})}
 									{selection.count > 0 && (
 										<Button
 											type="button"

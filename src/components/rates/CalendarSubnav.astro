@@ -1,5 +1,4 @@
 ---
-import Badge from "@/components/ui/Badge.astro"
 import TabsInsidePanel from "@/components/ui/TabsInsidePanel.astro"
 import {
 	CALENDAR_CONTROL_MODES,
@@ -48,16 +47,6 @@ const iconByMode = {
 				>
 					<Icon class="h-4 w-4 shrink-0" aria-hidden="true" />
 					<span class="fastt-tabs-inside-panel__label">{mode.label}</span>
-					<Badge
-						variant="darkNeutral"
-						class="fastt-tabs-inside-panel__status"
-						data-calendar-mode-status
-						data-trust-link-status
-						data-trust-link-status-state="not_started"
-					>
-						<span class="fastt-tabs-inside-panel__status-dot" aria-hidden="true" />
-						<span data-calendar-mode-status-label>{mode.helper.replace(/\.$/, "")}</span>
-					</Badge>
 				</button>
 			)
 		})
