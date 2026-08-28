@@ -399,7 +399,11 @@ export async function materializeSearchUnitRange(
 	const configuredConcurrency = Number(process.env.SEARCH_UNIT_MATERIALIZATION_CONCURRENCY ?? 4)
 	const concurrency = Math.max(
 		1,
-		Math.min(8, Number.isFinite(configuredConcurrency) ? Math.floor(configuredConcurrency) : 4, work.length)
+		Math.min(
+			8,
+			Number.isFinite(configuredConcurrency) ? Math.floor(configuredConcurrency) : 4,
+			work.length
+		)
 	)
 	let nextWorkIndex = 0
 
@@ -423,10 +427,11 @@ export async function materializeSearchUnitRange(
 	}
 
 	await Promise.all(Array.from({ length: concurrency }, () => materializeWorker()))
+	const completedAt = new Date()
 	const rangeState = evaluateSearchViewState({
 		totalExpectedRows: rows,
 		coveredRows,
-		lastMaterializedAt: null,
+		lastMaterializedAt: completedAt,
 	})
 
 	logger.info("search_unit_view_materialized_range", {

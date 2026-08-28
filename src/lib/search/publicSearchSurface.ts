@@ -249,7 +249,9 @@ async function loadPublicSearchSurface(params: {
 			totalPrice,
 			currency: String(first.currency ?? params.currency).toUpperCase(),
 			available: true,
-			availableVariants: Math.max(1, existing?.availableVariants ?? 1),
+			// A cheaper variant replaces the commercial price shown to the guest,
+			// but it does not erase the other sellable variants of the product.
+			availableVariants: (existing?.availableVariants ?? 0) + 1,
 			priceQuote,
 			taxes: {
 				hasIncluded:
