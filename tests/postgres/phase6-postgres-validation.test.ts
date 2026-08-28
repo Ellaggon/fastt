@@ -81,7 +81,7 @@ async function cleanup(sql: Sql) {
 			or "bookingId" in (select "id" from "Booking" where "providerId" like ${`${prefix}%`})
 	`
 	await sql`
-		delete from "BookingRoomDetail"
+		delete from "BookingLineItem"
 		where "bookingId" like ${`${prefix}%`}
 			or "bookingId" in (select "id" from "Booking" where "providerId" like ${`${prefix}%`})
 	`
@@ -271,7 +271,7 @@ describePostgres("phase 6 Postgres double validation", () => {
 			where "holdId" = ${holdId}
 		`
 		const [roomDetailCount] = await sql`
-			select count(*)::int as count from "BookingRoomDetail" where "bookingId" = ${first.bookingId}
+			select count(*)::int as count from "BookingLineItem" where "bookingId" = ${first.bookingId}
 		`
 		const [taxSnapshotCount] = await sql`
 			select count(*)::int as count from "BookingTaxFee" where "bookingId" = ${first.bookingId}
