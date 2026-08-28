@@ -568,7 +568,7 @@ describe("integration/pricing rules v2 bulk orchestration", () => {
 			sourceRuleId,
 		})
 
-		const result = await (db as any).run(sql`
+		const result = await db.execute(sql`
 			SELECT
 				rs."status" AS "ruleSetStatus",
 				r."isActive" AS "ruleActive",
@@ -579,7 +579,7 @@ describe("integration/pricing rules v2 bulk orchestration", () => {
 			INNER JOIN "CommercialRuleApplication" a ON a."ruleId" = r."id"
 			WHERE r."id" = ${created.ruleId}
 		`)
-		const row = result.rows?.[0]
+		const row = (result as any).rows?.[0] ?? (result as any)[0]
 		const config = JSON.parse(String(row?.configJson ?? "{}"))
 
 		expect(row?.ruleSetStatus).toBe("paused")
