@@ -30,6 +30,7 @@ export * from "./application/use-cases/preview-pricing-rules"
 export type { RatePlanPricingContext } from "./application/use-cases/rate-plan-pricing-surface"
 export * from "./application/use-cases/get-rateplan-owner-context"
 export * from "./application/use-cases/bulk-pricing-service"
+export * from "./application/use-cases/pricing-rule-command-service"
 export * from "./application/schemas/commercial-rate-plan.schemas"
 export * from "./application/schemas/pricing-baseline.schemas"
 
@@ -90,6 +91,7 @@ export async function ensurePricingCoverageRuntime(params: {
 	}
 	fallbackCurrency?: string
 	enqueueIncremental?: boolean
+	invalidateCaches?: boolean
 }) {
 	const { ensurePricingCoverage } = await import("./application/use-cases/ensure-pricing-coverage")
 	const { pricingRepository, effectivePricingRepository, variantManagementRepository } =
@@ -103,11 +105,13 @@ export async function ensurePricingCoverageRuntime(params: {
 		params
 	)
 	if (result.generatedDatesCount > 0) {
-		const { invalidatePricing } = await import("@/lib/cache/invalidation")
-		await invalidatePricing({
-			ratePlanId: params.ratePlanId,
-			variantId: params.variantId,
-		})
+		if (params.invalidateCaches !== false) {
+			const { invalidatePricing } = await import("@/lib/cache/invalidation")
+			await invalidatePricing({
+				ratePlanId: params.ratePlanId,
+				variantId: params.variantId,
+			})
+		}
 		if (params.enqueueIncremental !== false) {
 			const { enqueueProviderIncrementalAriChangeSoft } =
 				await import("@/lib/channel-manager/channel-manager-incremental-queue")

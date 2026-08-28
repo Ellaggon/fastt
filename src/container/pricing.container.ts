@@ -1,4 +1,8 @@
-import { adaptPriceRule, PromotionEngine } from "@/modules/pricing/public"
+import {
+	adaptPriceRule,
+	PromotionEngine,
+	ensurePricingCoverageRuntime,
+} from "@/modules/pricing/public"
 
 import {
 	createGetVariantByIdQuery,
@@ -20,6 +24,11 @@ import { PriceRuleQueryRepository } from "../modules/pricing/infrastructure/repo
 import { RatePlanOwnerContextRepository } from "../modules/pricing/infrastructure/repositories/RatePlanOwnerContextRepository"
 import { RatePlanPricingContextRepository } from "../modules/pricing/infrastructure/repositories/RatePlanPricingContextRepository"
 import { RatePlanPricingReadRepository } from "../modules/pricing/infrastructure/repositories/RatePlanPricingReadRepository"
+import { PricingRuleCommandService } from "../modules/pricing/application/use-cases/pricing-rule-command-service"
+import { createCommercialPriceRule } from "@/lib/commercial-rules/commercialRulesRepository"
+import { listRulesByRatePlan } from "@/lib/pricing/rules-v2"
+import { invalidatePricing } from "@/lib/cache/invalidation"
+import { enqueueProviderIncrementalAriChangeSoft } from "@/lib/channel-manager/channel-manager-incremental-queue"
 
 // ---- Infrastructure singletons ----
 export const pricingRepository = new PricingRepository()
@@ -35,6 +44,35 @@ export const priceRuleQueryRepository = new PriceRuleQueryRepository()
 export const ratePlanOwnerContextRepository = new RatePlanOwnerContextRepository()
 export const ratePlanPricingContextRepository = new RatePlanPricingContextRepository()
 export const ratePlanPricingReadRepository = new RatePlanPricingReadRepository()
+
+export const pricingRuleCommandService = new PricingRuleCommandService({
+	getPricingSummary: (ratePlanId) =>
+		ratePlanPricingReadRepository.getRatePlanPricingSummary(ratePlanId),
+	getFallbackCurrency: (ratePlanId) => effectivePricingRepository.getFallbackCurrency(ratePlanId),
+	listRules: listRulesByRatePlan,
+	createRule: createCommercialPriceRule,
+	rematerialize: ({ variantId, ratePlanId, from, to, occupancy, fallbackCurrency }) =>
+		ensurePricingCoverageRuntime({
+			variantId,
+			ratePlanId,
+			from,
+			to,
+			recomputeExisting: true,
+			occupancy,
+			fallbackCurrency,
+			enqueueIncremental: false,
+			invalidateCaches: false,
+		}),
+	invalidatePricing: ({ variantId, ratePlanId }) => invalidatePricing({ variantId, ratePlanId }),
+	enqueueAri: ({ variantId, ratePlanId, from, toExclusive }) =>
+		enqueueProviderIncrementalAriChangeSoft({
+			domain: "rates_restrictions",
+			variantIds: [variantId],
+			ratePlanIds: [ratePlanId],
+			from,
+			toExclusive,
+		}),
+})
 
 // ---- Engine singletons ----
 export const promotionEngine = new PromotionEngine()

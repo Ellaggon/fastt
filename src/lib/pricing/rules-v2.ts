@@ -7,6 +7,8 @@ import {
 } from "@/lib/commercial-rules/commercialRulesRepository"
 import {
 	formatPricingRuleEligibilityLabel,
+	PricingRuleCommandError,
+	type NormalizedPricingRuleCommand,
 	type PricingRuleEligibility,
 	resolveRatePlanOwnerContext,
 } from "@/modules/pricing/public"
@@ -170,6 +172,35 @@ export function isValidDateOnly(value: string): boolean {
 	)
 }
 
+export function normalizedPricingRuleCommandFromPayload(
+	payload: Record<string, unknown>
+): NormalizedPricingRuleCommand {
+	const value = parseNumber(payload, "value", Number.NaN)
+	if (!Number.isFinite(value)) throw new PricingRuleCommandError("invalid_value")
+	const contextKey = optionalText(payload, "contextKey")
+	const eligibility = parsePricingRuleEligibility(payload)
+	const eligibilityError = validatePricingRuleEligibility({ contextKey, eligibility })
+	if (eligibilityError) throw new PricingRuleCommandError(eligibilityError)
+	return {
+		type: normalizeRuleType(requireText(payload, "type")),
+		value,
+		priority: parseNumber(payload, "priority", 10),
+		dateFrom: optionalText(payload, "dateFrom"),
+		dateTo: optionalText(payload, "dateTo"),
+		dayOfWeek: parseDayOfWeek(optionalText(payload, "dayOfWeek")),
+		contextKey,
+		occupancyKey: normalizeOccupancyKey(optionalText(payload, "occupancyKey") ?? contextKey),
+		currency: optionalText(payload, "currency")?.toUpperCase(),
+		previewFrom: optionalText(payload, "previewFrom"),
+		previewDays: parseNumber(payload, "previewDays", 30),
+		requestDate: optionalText(payload, "requestDate"),
+		checkIn: optionalText(payload, "checkIn"),
+		checkOut: optionalText(payload, "checkOut"),
+		nights: parseNumber(payload, "nights", Number.NaN),
+		eligibility,
+	}
+}
+
 export async function resolveOwnedRatePlanContext(
 	request: Request,
 	ratePlanId: string
@@ -237,13 +268,6 @@ export async function ensureRuleBelongsToRatePlan(
 ): Promise<boolean> {
 	const row = await getCommercialPriceRule({ ruleId, ratePlanId })
 	return Boolean(row?.id)
-}
-
-export function buildProxyHeadersFromRequest(request: Request): Headers {
-	const headers = new Headers()
-	const cookie = request.headers.get("cookie")
-	if (cookie) headers.set("cookie", cookie)
-	return headers
 }
 
 export function toDateOnly(value: Date): string {
