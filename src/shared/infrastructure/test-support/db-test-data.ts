@@ -78,6 +78,8 @@ export async function upsertProduct(row: {
 	productType: string
 	geoPlaceId: string
 	providerId?: string | null
+	dataClass?: "production" | "demo" | "fixture"
+	publicationState?: "draft" | "published" | "archived"
 }) {
 	const providerId = row.providerId === undefined ? "prov_test" : row.providerId
 	if (providerId) {
@@ -93,6 +95,8 @@ export async function upsertProduct(row: {
 			name: row.name,
 			productType: row.productType,
 			providerId,
+			dataClass: row.dataClass,
+			publicationState: row.publicationState,
 		})
 		.onConflictDoUpdate({
 			target: [Product.id],
@@ -100,6 +104,8 @@ export async function upsertProduct(row: {
 				name: row.name,
 				productType: row.productType,
 				providerId,
+				dataClass: row.dataClass,
+				publicationState: row.publicationState,
 				lastUpdated: new Date(),
 			},
 		})

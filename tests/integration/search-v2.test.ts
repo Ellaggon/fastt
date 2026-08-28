@@ -2,15 +2,9 @@ import { describe, it, expect } from "vitest"
 
 import { baseRateRepository, dailyInventoryRepository } from "@/container"
 import { GET as searchV2Get } from "@/pages/api/search-v2"
-import {
-	db,
-	EffectiveAvailability,
-	EffectivePricing,
-	EffectiveRestriction,
-} from "@/shared/infrastructure/db/compat"
+import { db, EffectiveAvailability, EffectiveRestriction } from "@/shared/infrastructure/db/compat"
 import { materializeSearchUnitRange } from "@/modules/search/public"
 import { ensurePricingCoverageForRequestRuntime } from "@/modules/pricing/public"
-import { buildOccupancyKey } from "@/shared/domain/occupancy"
 
 import {
 	upsertGeoPlace,
@@ -20,6 +14,14 @@ import {
 	upsertRatePlan,
 } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
+
+const PUBLIC_TEST_CHECK_IN = "2030-06-10"
+
+function addDays(dateOnly: string, days: number): string {
+	const date = new Date(`${dateOnly}T00:00:00.000Z`)
+	date.setUTCDate(date.getUTCDate() + days)
+	return date.toISOString().slice(0, 10)
+}
 
 function makeGetRequest(path: string): Request {
 	return new Request(`http://localhost:4321${path}`, { method: "GET" })
@@ -46,13 +48,21 @@ async function seedHotelVariant(params: {
 		type: "city",
 		country: "CL",
 	})
-	await upsertProvider({ id: params.providerId, displayName: "Prov", ownerEmail: params.email })
+	await upsertProvider({
+		id: params.providerId,
+		displayName: "Prov",
+		ownerEmail: params.email,
+		accountPurpose: "commercial",
+		dataClassification: "production",
+	})
 	await upsertProduct({
 		id: params.productId,
 		name: `Hotel ${params.productId}`,
 		productType: "Hotel",
 		geoPlaceId: params.geoPlaceId,
 		providerId: params.providerId,
+		dataClass: "production",
+		publicationState: "published",
 	})
 	await upsertVariant({
 		id: params.variantId,
@@ -60,7 +70,6 @@ async function seedHotelVariant(params: {
 		kind: "hotel_room",
 		name: `Room ${params.variantId}`,
 		currency: "USD",
-		basePrice: params.baseRate ?? null, // legacy field, not used by search-v2 filtering (we use baseRateRepository below)
 		isActive: true,
 	})
 
@@ -116,52 +125,18 @@ async function seedHotelVariant(params: {
 		basePrice: params.baseRate ?? 100,
 	})
 
-	if (params.baseRate !== undefined) {
-		const occupancyKey = buildOccupancyKey({ adults: 2, children: 0, infants: 0 })
-		await db
-			.insert(EffectivePricing)
-			.values({
-				id: `ep_${params.variantId}_${params.ratePlanId}_${params.date}_${occupancyKey}`,
-				variantId: params.variantId,
-				ratePlanId: params.ratePlanId,
-				date: params.date,
-				occupancyKey,
-				baseComponent: params.baseRate,
-				occupancyAdjustment: 0,
-				ruleAdjustment: 0,
-				finalBasePrice: params.baseRate,
-
-				computedAt: new Date(),
-			} as any)
-			.onConflictDoUpdate({
-				target: [
-					EffectivePricing.variantId,
-					EffectivePricing.ratePlanId,
-					EffectivePricing.date,
-					EffectivePricing.occupancyKey,
-				],
-				set: {
-					baseComponent: params.baseRate,
-					finalBasePrice: params.baseRate,
-					computedAt: new Date(),
-				},
-			})
-	}
-
-	const checkOut = new Date(new Date(`${params.date}T00:00:00.000Z`).getTime() + 86400000 * 2)
-		.toISOString()
-		.slice(0, 10)
-	for (const adults of [1, 2]) {
-		await ensurePricingCoverageForRequestRuntime({
-			variantId: params.variantId,
-			ratePlanId: params.ratePlanId,
-			checkIn: params.date,
-			checkOut,
-			occupancy: { adults, children: 0, infants: 0 },
-		})
-	}
-	if (params.stopSell) {
-		await db.insert(EffectiveRestriction).values({
+	const checkOut = addDays(params.date, 1)
+	const occupancy = { adults: 2, children: 0, infants: 0 }
+	await ensurePricingCoverageForRequestRuntime({
+		variantId: params.variantId,
+		ratePlanId: params.ratePlanId,
+		checkIn: params.date,
+		checkOut,
+		occupancy,
+	})
+	await db
+		.insert(EffectiveRestriction)
+		.values({
 			id: `er_${params.variantId}_${params.ratePlanId}_${params.date}`,
 			variantId: params.variantId,
 			ratePlanId: params.ratePlanId,
@@ -172,27 +147,41 @@ async function seedHotelVariant(params: {
 			maxLeadTime: null,
 			cta: false,
 			ctd: false,
-			stopSell: true,
-			priority: 100,
+			stopSell: Boolean(params.stopSell),
+			priority: params.stopSell ? 100 : 0,
 			computedAt: new Date(),
 		} as any)
-	}
+		.onConflictDoUpdate({
+			target: [
+				EffectiveRestriction.variantId,
+				EffectiveRestriction.ratePlanId,
+				EffectiveRestriction.date,
+			],
+			set: {
+				stopSell: Boolean(params.stopSell),
+				priority: params.stopSell ? 100 : 0,
+				computedAt: new Date(),
+			},
+		})
 	await materializeSearchUnitRange({
 		variantId: params.variantId,
 		ratePlanId: params.ratePlanId,
 		from: params.date,
 		to: checkOut,
+		occupancies: [occupancy],
 		currency: "USD",
 	})
 }
 
 describe("integration/search-v2 marketplace search", () => {
 	it("product with availability appears and fromPrice is the cheapest across variants", async () => {
-		const email = "user@example.com"
-		const providerId = "prov_search_v2"
-		const geoPlaceId = "la-paz"
-		const destinationSlug = "la-paz"
-		const date = "2026-03-10"
+		const scope = crypto.randomUUID()
+		const email = `search-${scope}@example.com`
+		const providerId = `prov_search_${scope}`
+		const geoPlaceId = `place_search_${scope}`
+		const destinationSlug = `search-${scope}`
+		const productId = `prod_search_${scope}`
+		const date = PUBLIC_TEST_CHECK_IN
 
 		// Product A: two variants, cheapest should win.
 		await seedHotelVariant({
@@ -200,26 +189,26 @@ describe("integration/search-v2 marketplace search", () => {
 			providerId,
 			geoPlaceId,
 			destinationSlug,
-			productId: "prod_a",
-			variantId: "var_a1",
+			productId,
+			variantId: `var_a1_${scope}`,
 			baseRate: 120,
 			date,
 			totalInventory: 2,
-			ratePlanTemplateId: "rpt_a1",
-			ratePlanId: "rp_a1",
+			ratePlanTemplateId: `rpt_a1_${scope}`,
+			ratePlanId: `rp_a1_${scope}`,
 		})
 		await seedHotelVariant({
 			email,
 			providerId,
 			geoPlaceId,
 			destinationSlug,
-			productId: "prod_a",
-			variantId: "var_a2",
+			productId,
+			variantId: `var_a2_${scope}`,
 			baseRate: 80,
 			date,
 			totalInventory: 2,
-			ratePlanTemplateId: "rpt_a2",
-			ratePlanId: "rp_a2",
+			ratePlanTemplateId: `rpt_a2_${scope}`,
+			ratePlanId: `rp_a2_${scope}`,
 		})
 
 		// Product B: canonical restriction stop_sell => excluded.
@@ -228,20 +217,20 @@ describe("integration/search-v2 marketplace search", () => {
 			providerId,
 			geoPlaceId,
 			destinationSlug,
-			productId: "prod_b",
-			variantId: "var_b1",
+			productId: `prod_blocked_${scope}`,
+			variantId: `var_blocked_${scope}`,
 			baseRate: 50,
 			date,
 			totalInventory: 2,
 			stopSell: true,
-			ratePlanTemplateId: "rpt_b1",
-			ratePlanId: "rp_b1",
+			ratePlanTemplateId: `rpt_blocked_${scope}`,
+			ratePlanId: `rp_blocked_${scope}`,
 		})
 
 		const req = makeGetRequest(
 			`/api/search-v2?geoPlaceId=${encodeURIComponent(geoPlaceId)}&checkIn=${encodeURIComponent(
 				date
-			)}&checkOut=${encodeURIComponent("2026-03-11")}&rooms=1&adults=2&children=0`
+			)}&checkOut=${encodeURIComponent(addDays(date, 1))}&rooms=1&adults=2&children=0`
 		)
 		const res = await searchV2Get({ request: req } as any)
 		expect(res.status).toBe(200)
@@ -251,36 +240,37 @@ describe("integration/search-v2 marketplace search", () => {
 
 		// Only Product A should appear.
 		expect(json.results.length).toBe(1)
-		expect(json.results[0].productId).toBe("prod_a")
+		expect(json.results[0].productId).toBe(productId)
 		expect(json.results[0].fromPrice).toBe(80)
 		expect(json.results[0].availableVariants).toBe(2)
 	})
 
 	it("rooms > availability excludes product", async () => {
-		const email = "user@example.com"
-		const providerId = "prov_search_v2_qty"
-		const geoPlaceId = "dest_qty"
-		const destinationSlug = "dest-qty"
-		const date = "2026-03-10"
+		const scope = crypto.randomUUID()
+		const email = `search-quantity-${scope}@example.com`
+		const providerId = `prov_search_quantity_${scope}`
+		const geoPlaceId = `place_search_quantity_${scope}`
+		const destinationSlug = `search-quantity-${scope}`
+		const date = PUBLIC_TEST_CHECK_IN
 
 		await seedHotelVariant({
 			email,
 			providerId,
 			geoPlaceId,
 			destinationSlug,
-			productId: "prod_qty",
-			variantId: "var_qty_1",
+			productId: `prod_quantity_${scope}`,
+			variantId: `var_quantity_${scope}`,
 			baseRate: 100,
 			date,
 			totalInventory: 2,
-			ratePlanTemplateId: "rpt_qty_1",
-			ratePlanId: "rp_qty_1",
+			ratePlanTemplateId: `rpt_quantity_${scope}`,
+			ratePlanId: `rp_quantity_${scope}`,
 		})
 
 		const req = makeGetRequest(
 			`/api/search-v2?geoPlaceId=${encodeURIComponent(geoPlaceId)}&checkIn=${encodeURIComponent(
 				date
-			)}&checkOut=${encodeURIComponent("2026-03-11")}&rooms=3&adults=2&children=0`
+			)}&checkOut=${encodeURIComponent(addDays(date, 1))}&rooms=3&adults=2&children=0`
 		)
 		const res = await searchV2Get({ request: req } as any)
 		expect(res.status).toBe(200)
@@ -289,31 +279,33 @@ describe("integration/search-v2 marketplace search", () => {
 	})
 
 	it("without legacy base-rate write, product remains sellable when policy base exists", async () => {
-		const email = "user@example.com"
-		const providerId = "prov_search_v2_nobase"
-		const geoPlaceId = "dest_nobase"
-		const destinationSlug = "dest-nobase"
-		const date = "2026-03-10"
+		const scope = crypto.randomUUID()
+		const email = `search-policy-${scope}@example.com`
+		const providerId = `prov_search_policy_${scope}`
+		const geoPlaceId = `place_search_policy_${scope}`
+		const destinationSlug = `search-policy-${scope}`
+		const productId = `prod_policy_${scope}`
+		const date = PUBLIC_TEST_CHECK_IN
 
-		// Product C: has inventory + rate plan and V2 policy base from rate plan setup.
+		// The rate plan policy, not a legacy variant field, establishes the base price.
 		await seedHotelVariant({
 			email,
 			providerId,
 			geoPlaceId,
 			destinationSlug,
-			productId: "prod_c",
-			variantId: "var_c1",
+			productId,
+			variantId: `var_policy_${scope}`,
 			baseRate: undefined,
 			date,
 			totalInventory: 2,
-			ratePlanTemplateId: "rpt_c1",
-			ratePlanId: "rp_c1",
+			ratePlanTemplateId: `rpt_policy_${scope}`,
+			ratePlanId: `rp_policy_${scope}`,
 		})
 
 		const req = makeGetRequest(
 			`/api/search-v2?geoPlaceId=${encodeURIComponent(geoPlaceId)}&checkIn=${encodeURIComponent(
 				date
-			)}&checkOut=${encodeURIComponent("2026-03-11")}&rooms=1&adults=2&children=0`
+			)}&checkOut=${encodeURIComponent(addDays(date, 1))}&rooms=1&adults=2&children=0`
 		)
 		const res = await searchV2Get({ request: req } as any)
 		expect(res.status).toBe(200)
@@ -321,7 +313,7 @@ describe("integration/search-v2 marketplace search", () => {
 
 		expect(Array.isArray(json.results)).toBe(true)
 		expect(json.results.length).toBe(1)
-		expect(json.results[0].productId).toBe("prod_c")
+		expect(json.results[0].productId).toBe(productId)
 		expect(json.results[0].fromPrice).toBe(100)
 	})
 })
