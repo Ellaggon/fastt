@@ -164,7 +164,7 @@ Taxes and fees:
 Booking:
 
 - `Booking`
-- `BookingRoomDetail`
+- `BookingLineItem`
 - `BookingPolicySnapshot`
 
 Financial operations:
@@ -187,7 +187,7 @@ High-dependency entity chains:
 
 - Provider ownership: `Provider -> Product -> Variant -> RatePlan`.
 - Availability: `Variant -> DailyInventory -> EffectiveAvailability -> SearchUnitView`.
-- Booking: `Hold -> InventoryLock -> Booking -> BookingRoomDetail -> BookingPolicySnapshot -> BookingTaxFee`.
+- Booking: `Hold -> InventoryLock -> Booking -> BookingLineItem -> BookingPolicySnapshot -> BookingTaxFee`.
 - Policy resolution: `PolicyGroup -> Policy -> PolicyRule/CancellationTier -> PolicyAssignment -> BookingPolicySnapshot`.
 - Pricing materialization: `RatePlan -> RatePlanOccupancyPolicy -> EffectivePricingV2 -> SearchUnitView`.
 - Commercial rules: `CommercialRuleSet -> CommercialRule -> CommercialRuleApplication -> EffectiveRestriction/EffectivePricingV2`.

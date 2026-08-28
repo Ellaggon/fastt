@@ -97,7 +97,7 @@ EffectiveAvailability:397, InventoryLock:5, SearchUnitView:1531,
 RatePlan:4, RatePlanOccupancyPolicy:2, CommercialRuleSet:6,
 CommercialRule:6, CommercialRuleApplication:6,
 EffectivePricingV2:328, BookingTaxFee:1, Booking:1,
-BookingRoomDetail:1
+BookingLineItem:1
 ```
 
 Generated local artifacts:

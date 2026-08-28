@@ -183,9 +183,9 @@ Processing ownership is intentionally narrow:
   reservation; `externalRevisionId` makes a retried revision idempotent.
 - A PostgreSQL advisory transaction lock serializes workers for the same remote
   reservation.
-- `Booking`, `BookingRoomDetail`, `InventoryLock` and `DailyInventory` change in
-  one database transaction. A modification replaces current room details and
-  inventory locks. A cancellation releases inventory but retains the last room
+- `Booking`, `BookingLineItem`, `InventoryLock` and `DailyInventory` change in
+  one database transaction. A modification replaces current reservation lines and
+  inventory locks. A cancellation releases inventory but retains the last line-item
   detail as operational history.
 - Effective availability is recomputed after commit and enters the incremental
   ARI availability path.

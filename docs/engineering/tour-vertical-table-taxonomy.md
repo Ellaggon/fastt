@@ -11,7 +11,7 @@ Defines how lodging-shaped columns map to tours/experiences without a second boo
 | `DailyInventory.date`                | Departure calendar date                                                      |
 | `Booking.checkInDate`                | `departureDate`                                                              |
 | `Booking.checkOutDate`               | End of activity window (`departureDate + 1` for day tours, or multi-day end) |
-| `BookingRoomDetail`                  | Booking line item (not a hotel room) — app alias `BookingLineItem`           |
+| `BookingLineItem`                  | Línea de reserva compartida (no una habitación de hotel)                     |
 | `SearchUnitView.pricePerNight`       | Price per participant / unit                                                 |
 | `CancellationTier.daysBeforeArrival` | Days before departure (MVP)                                                  |
 | `VariantCapacity.maxOccupancy`       | Max participants (pax) on the salida                                         |
@@ -55,7 +55,7 @@ Notes:
 
 ## Shared spine (reuse)
 
-`Product` → `Variant` → `RatePlan` → `DailyInventory` → `Hold` → `Booking` / `BookingRoomDetail` remains the commercial spine for hotels and tours.
+`Product` → `Variant` → `RatePlan` → `DailyInventory` → `Hold` → `Booking` / `BookingLineItem` remains the commercial spine for hotels and tours.
 
 ## TourSlotProfile (Fase 2)
 
@@ -115,7 +115,7 @@ Search `/buscar/tours` requires `startDate` and reads sellable `tour_slot` rows 
 
 | App alias / surface        | Physical truth                                                                                           |
 | -------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `BookingLineItem`          | `BookingRoomDetail` (drizzle export alias; **no** table rename)                                          |
+| `BookingLineItem`          | Tabla física canónica de líneas de reserva para todas las verticales                                    |
 | Ops vocab by `productType` | `verticalVocabulary.ops` — llegada→salida, habitación→línea, huésped→participante for tours              |
 | Booking lifecycle labels   | `deriveBookingLifecycle({ productType })`                                                                |
 | Admin quality queue        | `/admin/tours/quality` — score from images, itinerary, meeting point, duration, includes, active salidas |
@@ -213,7 +213,7 @@ Tour content JSON shapes (same maturity suite, not the quality-floor claim):
 | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------- |
 | Public search/PDP copy + this taxonomy mapping doc                                    | [`tour-public-surfaces.test.ts`](../../tests/guardrails/tour-public-surfaces.test.ts)                                                                                                                                                                                                                                                                                                                                                                                                      | Guardrail                                    |
 | P3 tables deferred (no Guide / TourGuideAssignment / TourDepartureInstance in schema) | [`tour-p3-deferred-capabilities.test.ts`](../../tests/guardrails/tour-p3-deferred-capabilities.test.ts)                                                                                                                                                                                                                                                                                                                                                                                    | Guardrail                                    |
-| `BookingLineItem` alias without physical rename                                       | [`tour-ops-admin-quality.test.ts`](../../tests/catalog/tour-ops-admin-quality.test.ts) → `aliases BookingLineItem to BookingRoomDetail without physical rename`                                                                                                                                                                                                                                                                                                                            | Guardrail                                    |
+| `BookingLineItem` como contrato físico transversal                                    | [`booking-line-item-physical-contract.test.ts`](../../tests/postgres/booking-line-item-physical-contract.test.ts) → `uses the cross-vertical table name across table, constraints, indexes and trigger`                                                                                                                                                                                                                                                                                  | Guardrail                                    |
 | Schema / semantics contracts (outside phase6 command unless added)                    | [`tour-tickets-discovery.test.ts`](../../tests/catalog/tour-tickets-discovery.test.ts), [`tour-semantics.test.ts`](../../tests/catalog/tour-semantics.test.ts), [`tour-slot-profile.test.ts`](../../tests/catalog/tour-slot-profile.test.ts), [`tour-ticket-occupancy.test.ts`](../../tests/catalog/tour-ticket-occupancy.test.ts), [`tour-search-surface.test.ts`](../../tests/catalog/tour-search-surface.test.ts), [`tour-p2-trust.test.ts`](../../tests/catalog/tour-p2-trust.test.ts) | Guardrail / unit (not phase6 runtime matrix) |
 
 `pnpm test:tours:phase6` file list (must stay in sync with the Closed rows above):
@@ -288,6 +288,6 @@ Policy umbrella: [ADR 0001](./adr/0001-deferred-tour-p3-capabilities.md).
 - Encode clock time inside `DailyInventory.date`
 - Drop `VariantRoom*` (hotel-only, still required)
 - Create a parallel Experiences booking schema
-- Rename physical columns (`checkInDate`, `BookingRoomDetail`, `pricePerNight`) until financial/booking cost justifies it
+- Renombrar columnas físicas compartidas (`checkInDate`, `pricePerNight`) sin una migración de dominio y evidencia de coste/beneficio
 - Introduce `Guide` / `TourGuideAssignment` / `TourDepartureInstance` without an accepted ADR + evidence
 - Build Viator/channel bookings outside Hold → Booking → BookingVoucher

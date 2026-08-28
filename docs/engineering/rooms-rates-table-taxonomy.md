@@ -57,7 +57,7 @@ edited to change future behavior.
 | ----------------------- | --------------------------------------------------- | ------------------------------------------------------------ |
 | `Hold`                  | Temporary inventory hold plus policy snapshot       | Pre-booking contract and inventory lock context.             |
 | `Booking`               | Provider, stay dates, total, currency and lifecycle | Contract header plus persisted check-in/check-out/no-show.   |
-| `BookingRoomDetail`     | Room/rate/occupancy/pricing labels and amounts      | Immutable multi-room line-item snapshot.                     |
+| `BookingLineItem`     | Room/rate/occupancy/pricing labels and amounts      | Immutable multi-room line-item snapshot.                     |
 | `BookingPolicySnapshot` | One frozen condition per booking/category           | Immutable condition snapshot with booking FK and uniqueness. |
 | `BookingTaxFee`         | Tax/fee breakdown at booking time                   | Immutable tax/fee snapshot with booking FK.                  |
 
