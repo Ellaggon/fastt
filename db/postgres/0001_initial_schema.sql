@@ -1389,7 +1389,7 @@ CREATE TABLE "BookingVoucher" (
 	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
-CREATE TABLE "BookingRoomDetail" (
+CREATE TABLE "BookingLineItem" (
 	"id" text PRIMARY KEY,
 	"bookingId" text NOT NULL,
 	"variantId" text NOT NULL,
@@ -2783,20 +2783,20 @@ ALTER TABLE "BookingVoucher"
 	REFERENCES "Booking" ("id")
 ;
 
-ALTER TABLE "BookingRoomDetail"
-	ADD CONSTRAINT "BookingRoomDetail_bookingId_fk"
+ALTER TABLE "BookingLineItem"
+	ADD CONSTRAINT "BookingLineItem_bookingId_fk"
 	FOREIGN KEY ("bookingId")
 	REFERENCES "Booking" ("id")
 ;
 
-ALTER TABLE "BookingRoomDetail"
-	ADD CONSTRAINT "BookingRoomDetail_variantId_fk"
+ALTER TABLE "BookingLineItem"
+	ADD CONSTRAINT "BookingLineItem_variantId_fk"
 	FOREIGN KEY ("variantId")
 	REFERENCES "Variant" ("id")
 ;
 
-ALTER TABLE "BookingRoomDetail"
-	ADD CONSTRAINT "BookingRoomDetail_ratePlanId_fk"
+ALTER TABLE "BookingLineItem"
+	ADD CONSTRAINT "BookingLineItem_ratePlanId_fk"
 	FOREIGN KEY ("ratePlanId")
 	REFERENCES "RatePlan" ("id")
 ;
@@ -3283,11 +3283,11 @@ CREATE UNIQUE INDEX "BookingVoucher_code_unique" ON "BookingVoucher" ("code");
 
 CREATE INDEX "BookingVoucher_status_idx" ON "BookingVoucher" ("status");
 
-CREATE INDEX "BookingRoomDetail_bookingId_idx" ON "BookingRoomDetail" ("bookingId");
+CREATE INDEX "BookingLineItem_bookingId_idx" ON "BookingLineItem" ("bookingId");
 
-CREATE INDEX "BookingRoomDetail_variantId_idx" ON "BookingRoomDetail" ("variantId");
+CREATE INDEX "BookingLineItem_variantId_idx" ON "BookingLineItem" ("variantId");
 
-CREATE INDEX "BookingRoomDetail_ratePlanId_idx" ON "BookingRoomDetail" ("ratePlanId");
+CREATE INDEX "BookingLineItem_ratePlanId_idx" ON "BookingLineItem" ("ratePlanId");
 
 CREATE UNIQUE INDEX "BookingPolicySnapshot_bookingId_category_unique" ON "BookingPolicySnapshot" ("bookingId", "category");
 
@@ -3827,10 +3827,10 @@ ALTER TABLE "Booking"
 	ADD CONSTRAINT "Booking_total_nonnegative_check"
 	CHECK ("totalAmount" >= 0);
 
-ALTER TABLE "BookingRoomDetail"
-	ADD CONSTRAINT "BookingRoomDetail_guest_counts_check"
+ALTER TABLE "BookingLineItem"
+	ADD CONSTRAINT "BookingLineItem_guest_counts_check"
 	CHECK ("adults" >= 0 AND "children" >= 0 AND ("adults" + "children") > 0),
-	ADD CONSTRAINT "BookingRoomDetail_amounts_nonnegative_check"
+	ADD CONSTRAINT "BookingLineItem_amounts_nonnegative_check"
 	CHECK ("subtotalAmount" >= 0 AND "taxAmount" >= 0 AND "totalAmount" >= 0);
 
 ALTER TABLE "RatePlanOccupancyPolicy"
@@ -3864,6 +3864,19 @@ ALTER TABLE "TaxFeeDefinition"
 	CHECK ("value" >= 0),
 	ADD CONSTRAINT "TaxFeeDefinition_effective_range_check"
 	CHECK ("effectiveFrom" IS NULL OR "effectiveTo" IS NULL OR "effectiveFrom" <= "effectiveTo");
+
+-- A current fiscal version is an immutable release of the same definition.
+-- The composite, deferred FK protects both facts: the referenced version exists
+-- and it belongs to this definition. Drafts intentionally retain a NULL pointer.
+ALTER TABLE "TaxFeeDefinitionVersion"
+	ADD CONSTRAINT "TaxFeeDefinitionVersion_definition_id_unique"
+	UNIQUE ("taxFeeDefinitionId", "id");
+
+ALTER TABLE "TaxFeeDefinition"
+	ADD CONSTRAINT "TaxFeeDefinition_currentVersion_same_definition_fk"
+	FOREIGN KEY ("id", "currentVersionId")
+	REFERENCES "TaxFeeDefinitionVersion" ("taxFeeDefinitionId", "id")
+	DEFERRABLE INITIALLY DEFERRED;
 
 CREATE UNIQUE INDEX IF NOT EXISTS "RatePlan_one_default_active_per_variant_idx"
 	ON "RatePlan" ("variantId")
@@ -3939,10 +3952,10 @@ ON "Hold"
 FOR EACH ROW
 EXECUTE FUNCTION fastt_assert_positive_stay_range();
 
-DROP TRIGGER IF EXISTS "trg_BookingRoomDetail_positive_range" ON "BookingRoomDetail";
-CREATE TRIGGER "trg_BookingRoomDetail_positive_range"
+DROP TRIGGER IF EXISTS "trg_BookingLineItem_positive_range" ON "BookingLineItem";
+CREATE TRIGGER "trg_BookingLineItem_positive_range"
 BEFORE INSERT OR UPDATE OF "checkIn", "checkOut"
-ON "BookingRoomDetail"
+ON "BookingLineItem"
 FOR EACH ROW
 EXECUTE FUNCTION fastt_assert_positive_stay_range();
 
