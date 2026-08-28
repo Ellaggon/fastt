@@ -4,7 +4,7 @@ import Button from "@/components/ui/Button.astro"
 import Input from "@/components/ui/Input.astro"
 import RatePlanPoliciesSurface from "@/components/policy/RatePlanPoliciesSurface.astro"
 import RatePlanPricingSurface from "@/components/pricing/RatePlanPricingSurface.astro"
-import SegmentedControl from "@/components/ui/SegmentedControl.astro"
+import TabsOutsidePanel from "@/components/ui/TabsOutsidePanel.astro"
 import Textarea from "@/components/ui/Textarea.astro"
 import { Hotel, Ticket } from "@lucide/astro"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
@@ -111,8 +111,6 @@ const tabs = [
 	},
 	{ id: "details", label: "Datos de tarifa", meta: row.isActive ? "Activa" : "Inactiva" },
 ]
-const calendarHref = `${routes.calendar()}?ratePlanId=${encodeURIComponent(ratePlanId)}&focus=price`
-
 const addRoomPlaybook = resolveAddRoomPlaybookFromUrl(Astro.url)
 const launchPlaybook = resolveLaunchPlaybookFromUrl(Astro.url)
 const tourLaunchPlaybook = resolveTourLaunchPlaybookFromUrl(Astro.url)
@@ -217,28 +215,18 @@ const layoutProps =
 	<div class="space-y-5">
 		<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
 			<div class="space-y-1.5">
-				<p
-					class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400"
-				>
-					{
-						isPlaybookMode ? (
-							<>
-								{activePlaybook === "launch-tour" ? (
-									<Ticket class="h-4 w-4" />
-								) : (
-									<Hotel class="h-4 w-4" />
-								)}
-								{row.productName} ·{" "}
-								{activePlaybook === "launch-tour" ? "Salida" : "Nueva habitación"}
-							</>
-						) : (
-							<>
+				{
+					isPlaybookMode ? (
+						<p class="flex items-center gap-2 text-xs font-semibold tracking-wide text-slate-400 uppercase">
+							{activePlaybook === "launch-tour" ? (
+								<Ticket class="h-4 w-4" />
+							) : (
 								<Hotel class="h-4 w-4" />
-								{row.productName} · {row.variantName}
-							</>
-						)
-					}
-				</p>
+							)}
+							{row.productName} · {activePlaybook === "launch-tour" ? "Salida" : "Nueva habitación"}
+						</p>
+					) : null
+				}
 				<h1 class="text-3xl font-semibold text-slate-100">
 					{isPlaybookMode ? "Condiciones de la tarifa" : viewTitles[effectiveActiveView]}
 				</h1>
@@ -255,9 +243,6 @@ const layoutProps =
 					<div class="flex flex-wrap gap-2">
 						<Button href={routes.rates()} variant="secondary">
 							Volver a tarifas
-						</Button>
-						<Button href={calendarHref} variant="primary">
-							Calendario
 						</Button>
 					</div>
 				)
@@ -277,24 +262,23 @@ const layoutProps =
 						aria-label="Configurar tarifa"
 						data-rate-plan-tabs
 					>
-						<SegmentedControl class="mb-3" aria-label="Configurar tarifa">
+						<TabsOutsidePanel class="mb-3" aria-label="Configurar tarifa" data-rate-plan-tabs>
 							{tabs.map((tab) => (
 								<a
 									href={`?vista=${tab.id}`}
 									data-rate-plan-tab={tab.id}
 									aria-current={effectiveActiveView === tab.id ? "page" : undefined}
 									data-active={effectiveActiveView === tab.id ? "true" : "false"}
-									class={`fastt-segmented-item px-3 py-2 text-sm font-semibold whitespace-nowrap ${
+									class={`fastt-tabs-outside-panel__item px-3 py-2 text-sm font-semibold whitespace-nowrap ${
 										effectiveActiveView === tab.id
 											? ""
-											: "text-slate-500 hover:bg-white/70 hover:text-slate-900"
+											: "text-slate-600 hover:bg-sky-100/80 hover:text-sky-950"
 									}`}
 								>
 									{tab.label} <span class="ml-1 text-xs opacity-70">{tab.meta}</span>
 								</a>
 							))}
-						</SegmentedControl>
-						<p class="pb-3 text-xs text-slate-500">Configuración de la tarifa</p>
+						</TabsOutsidePanel>
 					</div>
 				)
 			}
@@ -412,14 +396,8 @@ const layoutProps =
 							data-rate-plan-id={String(row.ratePlanId)}
 						>
 							<input type="hidden" name="isActive" value={row.isActive ? "true" : ""} />
-							<div>
-								<h2 class="text-xl font-semibold text-slate-950">Editar datos de tarifa</h2>
-								<p class="mt-1 text-sm text-slate-500">
-									Identidad y estado comercial de esta tarifa.
-								</p>
-							</div>
 							<label class="block space-y-1.5 text-sm">
-								<span class="font-medium text-slate-700">Nombre visible</span>
+								<span class="font-medium text-slate-700">Nombre de la Tarifa</span>
 								<Input name="name" value={row.ratePlanName} required />
 							</label>
 							<label class="block space-y-1.5 text-sm">
@@ -568,9 +546,9 @@ const layoutProps =
 		for (const tab of ratePlanTabs) {
 			const active = tab.dataset.ratePlanTab === view
 			tab.dataset.active = active ? "true" : "false"
-			tab.classList.toggle("text-slate-500", !active)
-			tab.classList.toggle("hover:bg-white/70", !active)
-			tab.classList.toggle("hover:text-slate-900", !active)
+			tab.classList.toggle("text-slate-600", !active)
+			tab.classList.toggle("hover:bg-sky-100/80", !active)
+			tab.classList.toggle("hover:text-sky-950", !active)
 			if (active) tab.setAttribute("aria-current", "page")
 			else tab.removeAttribute("aria-current")
 		}

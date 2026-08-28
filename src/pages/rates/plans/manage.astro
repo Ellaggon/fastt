@@ -325,25 +325,19 @@ logRoutePerformance({
 	<div class="rate-plans-manage space-y-5" data-rate-plan-view-controller>
 		<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
 			<div class="space-y-1.5">
-				<p
-					class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400"
-				>
-					{
-						isPlaybookRateStep ? (
-							<>
-								{isTourPlaybookRateStep ? (
-									<CalendarDays class="h-4 w-4" />
-								) : (
-									<Hotel class="h-4 w-4" />
-								)}
-								{playbookProductLabel} ·{" "}
-								{isTourPlaybookRateStep ? "Primera salida" : "Nueva habitación"}
-							</>
-						) : (
-							"Habitaciones y tarifas"
-						)
-					}
-				</p>
+				{
+					isPlaybookRateStep ? (
+						<p class="flex items-center gap-2 text-xs font-semibold tracking-wide text-slate-400 uppercase">
+							{isTourPlaybookRateStep ? (
+								<CalendarDays class="h-4 w-4" />
+							) : (
+								<Hotel class="h-4 w-4" />
+							)}
+							{playbookProductLabel} ·{" "}
+							{isTourPlaybookRateStep ? "Primera salida" : "Nueva habitación"}
+						</p>
+					) : null
+				}
 				<h1 class="text-3xl font-semibold text-slate-100">
 					{
 						isPlaybookRateStep
@@ -363,14 +357,9 @@ logRoutePerformance({
 			</div>
 			{
 				isPlaybookRateStep ? null : (
-					<div class="flex flex-wrap gap-2">
-						<Button href={routes.calendar()} variant="secondary" data-astro-prefetch="hover">
-							<CalendarDays class="mr-2 size-4" /> Calendario
-						</Button>
-						<Button type="button" variant="primary" data-open-rate-plan-dialog>
-							<Plus class="mr-2 size-4" /> Nueva tarifa
-						</Button>
-					</div>
+					<Button type="button" variant="secondary" data-open-rate-plan-dialog>
+						<Plus class="mr-2 size-4" /> Nueva tarifa
+					</Button>
 				)
 			}
 		</header>
