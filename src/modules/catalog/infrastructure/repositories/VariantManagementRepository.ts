@@ -20,7 +20,7 @@ import {
 	VariantInventoryConfig,
 	VariantRoomAmenity,
 	VariantRoomBed,
-	BookingRoomDetail,
+	BookingLineItem,
 	InventoryLock,
 	Hold,
 	ProviderExternalCalendar,
@@ -351,9 +351,9 @@ export class VariantManagementRepository implements VariantManagementRepositoryP
 		if (!variant) return
 
 		const bookingRows = await db
-			.select({ id: BookingRoomDetail.id })
-			.from(BookingRoomDetail)
-			.where(eq(BookingRoomDetail.variantId, variantId))
+			.select({ id: BookingLineItem.id })
+			.from(BookingLineItem)
+			.where(eq(BookingLineItem.variantId, variantId))
 
 		const lockRows = await db
 			.select({ id: InventoryLock.id })

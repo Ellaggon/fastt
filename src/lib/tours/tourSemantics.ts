@@ -1,6 +1,6 @@
 /**
  * Tour vertical semantic adapters.
- * Maps lodging-shaped persistence columns to tour domain language without renaming DB.
+ * Maps shared reservation line columns to tour domain language.
  */
 
 export type TourBookingDates = {
@@ -16,7 +16,6 @@ export type TourSearchStay = {
 
 /**
  * Domain shape for a booking line item.
- * Persistence table remains `BookingRoomDetail`; drizzle export alias is `BookingLineItem`.
  */
 export type BookingLineItem = {
 	id: string
@@ -34,9 +33,7 @@ export type BookingLineItem = {
 
 export const TOUR_SEMANTICS = {
 	variantKind: "tour_slot",
-	/** Physical table name — never renamed (Fase 6 soft alias). */
-	bookingLineItemTable: "BookingRoomDetail",
-	bookingLineItemAlias: "BookingLineItem",
+	bookingLineItemTable: "BookingLineItem",
 	pricePerUnitColumn: "pricePerNight",
 	departureDateColumn: "checkInDate",
 	endDateColumn: "checkOutDate",

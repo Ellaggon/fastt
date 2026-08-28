@@ -20,7 +20,7 @@ import { recomputeEffectiveAvailabilityRange } from "@/modules/inventory/public"
 import {
 	and,
 	Booking,
-	BookingRoomDetail,
+	BookingLineItem,
 	db,
 	DailyInventory,
 	eq,
@@ -315,12 +315,12 @@ async function persistBookingRevision(params: {
 		if (existing?.externalRevisionId === params.revision.id) {
 			const details = await tx
 				.select({
-					variantId: BookingRoomDetail.variantId,
-					checkIn: BookingRoomDetail.checkIn,
-					checkOut: BookingRoomDetail.checkOut,
+					variantId: BookingLineItem.variantId,
+					checkIn: BookingLineItem.checkIn,
+					checkOut: BookingLineItem.checkOut,
 				})
-				.from(BookingRoomDetail)
-				.where(eq(BookingRoomDetail.bookingId, existing.id))
+				.from(BookingLineItem)
+				.where(eq(BookingLineItem.bookingId, existing.id))
 			return {
 				bookingId: existing.id,
 				idempotent: true,
@@ -488,7 +488,7 @@ async function persistBookingRevision(params: {
 		}
 		if (existing) {
 			await tx.update(Booking).set(bookingValues).where(eq(Booking.id, bookingId))
-			await tx.delete(BookingRoomDetail).where(eq(BookingRoomDetail.bookingId, bookingId))
+			await tx.delete(BookingLineItem).where(eq(BookingLineItem.bookingId, bookingId))
 		} else {
 			await tx.insert(Booking).values({
 				id: bookingId,
@@ -496,7 +496,7 @@ async function persistBookingRevision(params: {
 				...bookingValues,
 			})
 		}
-		await tx.insert(BookingRoomDetail).values(
+		await tx.insert(BookingLineItem).values(
 			params.rooms.map((room) => {
 				const variant = variantById.get(room.variantId)
 				return {

@@ -3,7 +3,7 @@ import {
 	and,
 	Booking,
 	BookingPolicySnapshot,
-	BookingRoomDetail,
+	BookingLineItem,
 	BookingTaxFee,
 	BookingVoucher,
 	db,
@@ -442,7 +442,7 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 				contractSnapshotVersion: "reservations_contract_snapshot_v1",
 			} as any)
 
-			await tx.insert(BookingRoomDetail).values({
+			await tx.insert(BookingLineItem).values({
 				id: crypto.randomUUID(),
 				bookingId,
 				variantId,

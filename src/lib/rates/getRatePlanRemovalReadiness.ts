@@ -1,7 +1,7 @@
 import {
 	and,
 	Booking,
-	BookingRoomDetail,
+	BookingLineItem,
 	CommercialRuleApplication,
 	db,
 	eq,
@@ -42,8 +42,8 @@ export async function getRatePlanRemovalReadiness(params: {
 			safeCount(() =>
 				db
 					.select({ value: countExpression })
-					.from(BookingRoomDetail)
-					.where(eq(BookingRoomDetail.ratePlanId, params.ratePlanId))
+					.from(BookingLineItem)
+					.where(eq(BookingLineItem.ratePlanId, params.ratePlanId))
 					.then(first)
 			),
 			safeCount(() =>
