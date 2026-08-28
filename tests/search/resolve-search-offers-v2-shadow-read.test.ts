@@ -35,7 +35,7 @@ function buildRepo(params: { v1Price: number; v2Price?: number }): SearchOffersR
 				},
 			]
 		},
-		async listEffectivePricingV2Rows() {
+		async listEffectivePricingRows() {
 			if (params.v2Price == null) return []
 			return [
 				{

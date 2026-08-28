@@ -8,7 +8,7 @@ import {
 	DailyInventory,
 	eq,
 	EffectiveAvailability,
-	EffectivePricingV2,
+	EffectivePricing,
 	EffectiveRestriction,
 	Hotel,
 	Product,
@@ -471,14 +471,14 @@ async function ensureLocalFixtureData() {
 		}))
 		for (const batch of inBatches(pricing)) {
 			await db
-				.insert(EffectivePricingV2)
+				.insert(EffectivePricing)
 				.values(batch)
 				.onConflictDoUpdate({
 					target: [
-						EffectivePricingV2.variantId,
-						EffectivePricingV2.ratePlanId,
-						EffectivePricingV2.date,
-						EffectivePricingV2.occupancyKey,
+						EffectivePricing.variantId,
+						EffectivePricing.ratePlanId,
+						EffectivePricing.date,
+						EffectivePricing.occupancyKey,
 					],
 					set: {
 						baseComponent: sql`excluded."baseComponent"`,

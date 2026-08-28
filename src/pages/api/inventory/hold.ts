@@ -3,7 +3,7 @@ import { ZodError, z } from "zod"
 import {
 	and,
 	db,
-	EffectivePricingV2,
+	EffectivePricing,
 	eq,
 	first,
 	gte,
@@ -190,26 +190,26 @@ async function resolveHoldabilityFromView(params: {
 		occupancyAdjustment: number
 		ruleAdjustment: number
 	}> = []
-	if (EffectivePricingV2 && (EffectivePricingV2 as any).variantId) {
+	if (EffectivePricing && (EffectivePricing as any).variantId) {
 		try {
 			const effectivePricingRows = await db
 				.select({
-					variantId: EffectivePricingV2.variantId,
-					ratePlanId: EffectivePricingV2.ratePlanId,
-					date: EffectivePricingV2.date,
-					finalBasePrice: EffectivePricingV2.finalBasePrice,
-					baseComponent: EffectivePricingV2.baseComponent,
-					occupancyAdjustment: EffectivePricingV2.occupancyAdjustment,
-					ruleAdjustment: EffectivePricingV2.ruleAdjustment,
+					variantId: EffectivePricing.variantId,
+					ratePlanId: EffectivePricing.ratePlanId,
+					date: EffectivePricing.date,
+					finalBasePrice: EffectivePricing.finalBasePrice,
+					baseComponent: EffectivePricing.baseComponent,
+					occupancyAdjustment: EffectivePricing.occupancyAdjustment,
+					ruleAdjustment: EffectivePricing.ruleAdjustment,
 				})
-				.from(EffectivePricingV2)
+				.from(EffectivePricing)
 				.where(
 					and(
-						eq(EffectivePricingV2.variantId, params.variantId),
-						eq(EffectivePricingV2.ratePlanId, params.ratePlanId),
-						eq(EffectivePricingV2.occupancyKey, occupancyKey),
-						gte(EffectivePricingV2.date, params.checkIn),
-						lt(EffectivePricingV2.date, addDays(params.checkOut, 1))
+						eq(EffectivePricing.variantId, params.variantId),
+						eq(EffectivePricing.ratePlanId, params.ratePlanId),
+						eq(EffectivePricing.occupancyKey, occupancyKey),
+						gte(EffectivePricing.date, params.checkIn),
+						lt(EffectivePricing.date, addDays(params.checkOut, 1))
 					)
 				)
 			v2Rows = effectivePricingRows.map((row) => ({

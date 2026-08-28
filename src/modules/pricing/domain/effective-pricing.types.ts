@@ -1,13 +1,13 @@
 import type { Occupancy } from "@/shared/domain/occupancy"
 
-export type PricingBreakdownV2 = {
+export type PricingBreakdown = {
 	base: number
 	occupancyAdjustment: number
 	rules: number
 	final: number
 }
 
-export type EffectivePricingV2ComputationInput = {
+export type EffectivePricingComputationInput = {
 	variantId: string
 	ratePlanId: string
 	date: string

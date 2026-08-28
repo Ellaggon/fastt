@@ -2,7 +2,7 @@ import {
 	and,
 	asc,
 	DailyInventory,
-	EffectivePricingV2,
+	EffectivePricing,
 	eq,
 	Image,
 	VariantImage,
@@ -83,13 +83,13 @@ export async function loadVariantCompletion(
 	const [effectiveRows, inventoryRows, imageRows, tariffRows] = await Promise.all([
 		db
 			.select({ variantId: RatePlan.variantId })
-			.from(EffectivePricingV2)
-			.innerJoin(RatePlan, eq(RatePlan.id, EffectivePricingV2.ratePlanId))
+			.from(EffectivePricing)
+			.innerJoin(RatePlan, eq(RatePlan.id, EffectivePricing.ratePlanId))
 			.where(
 				and(
 					eq(RatePlan.variantId, variantId),
 					eq(RatePlan.isDefault, true),
-					eq(EffectivePricingV2.occupancyKey, INTERNAL_DEFAULT_OCCUPANCY_KEY)
+					eq(EffectivePricing.occupancyKey, INTERNAL_DEFAULT_OCCUPANCY_KEY)
 				)
 			),
 		db

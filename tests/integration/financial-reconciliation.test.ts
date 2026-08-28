@@ -5,7 +5,7 @@ import {
 	Booking,
 	DailyInventory,
 	db,
-	EffectivePricingV2,
+	EffectivePricing,
 	eq,
 	InventoryLock,
 	RatePlan,
@@ -215,23 +215,26 @@ async function seedBookingReadyVariant(params: {
 		} as any)
 
 		await db
-			.insert(EffectivePricingV2)
+			.insert(EffectivePricing)
 			.values({
+				id: `ep_${params.variantId}_${params.ratePlanId}_${date}_${buildOccupancyKey({ adults: 2, children: 0, infants: 0 })}`,
 				variantId: params.variantId,
 				ratePlanId: params.ratePlanId,
 				date,
 				occupancyKey: buildOccupancyKey({ adults: 2, children: 0, infants: 0 }),
 				baseComponent: 100,
+				occupancyAdjustment: 0,
+				ruleAdjustment: 0,
 				finalBasePrice: 100,
 
 				computedAt: new Date(),
 			} as any)
 			.onConflictDoUpdate({
 				target: [
-					EffectivePricingV2.variantId,
-					EffectivePricingV2.ratePlanId,
-					EffectivePricingV2.date,
-					EffectivePricingV2.occupancyKey,
+					EffectivePricing.variantId,
+					EffectivePricing.ratePlanId,
+					EffectivePricing.date,
+					EffectivePricing.occupancyKey,
 				],
 				set: {
 					baseComponent: 100,

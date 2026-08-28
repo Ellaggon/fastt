@@ -10,7 +10,7 @@ import {
 	GeoPlace,
 	ProductGeoPlace,
 	EffectiveAvailability,
-	EffectivePricingV2,
+	EffectivePricing,
 	eq,
 	MarketplaceEvent,
 	Product,
@@ -850,7 +850,7 @@ describe("integration/tour P2 runtime trust (review, private, cross-sell, cancel
 				})
 			}
 
-			await db.insert(EffectivePricingV2).values({
+			await db.insert(EffectivePricing).values({
 				id: `ep_${suffix}`,
 				variantId,
 				ratePlanId,

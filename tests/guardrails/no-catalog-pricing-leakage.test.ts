@@ -8,9 +8,9 @@ function listCatalogFiles(): string[] {
 }
 
 const BANNED: Array<{ name: string; pattern: RegExp }> = [
-	{ name: "EffectivePricingV2 access", pattern: /\bEffectivePricingV2\b/g },
+	{ name: "EffectivePricing access", pattern: /\bEffectivePricing\b/g },
 	{ name: "PriceRule access", pattern: /\bPriceRule\b/g },
-	{ name: "computeEffectivePricingV2 call", pattern: /\bcomputeEffectivePricingV2\s*\(/g },
+	{ name: "computeEffectivePricing call", pattern: /\bcomputeEffectivePricing\s*\(/g },
 	{ name: "computePricePreview call", pattern: /\bcomputePricePreview\s*\(/g },
 	{ name: "previewPricingRules call", pattern: /\bpreviewPricingRules\s*\(/g },
 ]

@@ -8,7 +8,7 @@ import {
 	GeoPlace,
 	ProductGeoPlace,
 	EffectiveAvailability,
-	EffectivePricingV2,
+	EffectivePricing,
 	FinancialExceptionRecord,
 	FinancialReviewEvent,
 	FinancialSettlementRecord,
@@ -669,7 +669,7 @@ async function seedCatalog(userId: string): Promise<void> {
 			})
 
 		await db
-			.insert(EffectivePricingV2)
+			.insert(EffectivePricing)
 			.values({
 				id: `qa-financial-pricing-${date}-${DEFAULT_OCCUPANCY_KEY}`,
 				variantId: VARIANT_ID,
@@ -685,7 +685,7 @@ async function seedCatalog(userId: string): Promise<void> {
 				sourceVersion: "financial-demo-seed",
 			})
 			.onConflictDoUpdate({
-				target: [EffectivePricingV2.id],
+				target: [EffectivePricing.id],
 				set: {
 					variantId: VARIANT_ID,
 					ratePlanId: RATE_PLAN_ID,

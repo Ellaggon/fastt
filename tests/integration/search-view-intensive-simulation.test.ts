@@ -4,7 +4,7 @@ import {
 	db,
 	eq,
 	EffectiveAvailability,
-	EffectivePricingV2,
+	EffectivePricing,
 } from "@/shared/infrastructure/db/compat"
 
 import { searchOffers } from "@/container"
@@ -185,7 +185,7 @@ async function seedDataset(): Promise<{ variants: VariantSeed[]; products: strin
 					})
 
 				await db
-					.insert(EffectivePricingV2)
+					.insert(EffectivePricing)
 					.values({
 						id: `ep_sim_${variantId}_${ratePlanId}_${date}`,
 						variantId,
@@ -199,10 +199,10 @@ async function seedDataset(): Promise<{ variants: VariantSeed[]; products: strin
 					} as any)
 					.onConflictDoUpdate({
 						target: [
-							EffectivePricingV2.variantId,
-							EffectivePricingV2.ratePlanId,
-							EffectivePricingV2.date,
-							EffectivePricingV2.occupancyKey,
+							EffectivePricing.variantId,
+							EffectivePricing.ratePlanId,
+							EffectivePricing.date,
+							EffectivePricing.occupancyKey,
 						],
 						set: {
 							baseComponent: basePrice,
@@ -436,7 +436,7 @@ async function validateAutoBackfill() {
 				},
 			})
 		await db
-			.insert(EffectivePricingV2)
+			.insert(EffectivePricing)
 			.values({
 				id: `ep_auto_${variantId}_${ratePlanId}_${date}`,
 				variantId,
@@ -450,10 +450,10 @@ async function validateAutoBackfill() {
 			} as any)
 			.onConflictDoUpdate({
 				target: [
-					EffectivePricingV2.variantId,
-					EffectivePricingV2.ratePlanId,
-					EffectivePricingV2.date,
-					EffectivePricingV2.occupancyKey,
+					EffectivePricing.variantId,
+					EffectivePricing.ratePlanId,
+					EffectivePricing.date,
+					EffectivePricing.occupancyKey,
 				],
 				set: {
 					baseComponent: 120,
@@ -590,7 +590,7 @@ async function validateMutations() {
 			},
 		})
 	await db
-		.insert(EffectivePricingV2)
+		.insert(EffectivePricing)
 		.values({
 			id: `ep_mut_${variantId}_${ratePlanId}_${day}`,
 			variantId,
@@ -604,10 +604,10 @@ async function validateMutations() {
 		} as any)
 		.onConflictDoUpdate({
 			target: [
-				EffectivePricingV2.variantId,
-				EffectivePricingV2.ratePlanId,
-				EffectivePricingV2.date,
-				EffectivePricingV2.occupancyKey,
+				EffectivePricing.variantId,
+				EffectivePricing.ratePlanId,
+				EffectivePricing.date,
+				EffectivePricing.occupancyKey,
 			],
 			set: {
 				baseComponent: 140,
@@ -664,18 +664,18 @@ async function validateMutations() {
 		.where(and(eq(EffectiveAvailability.variantId, variantId), eq(EffectiveAvailability.date, day)))
 
 	await db
-		.update(EffectivePricingV2)
+		.update(EffectivePricing)
 		.set({
 			finalBasePrice: beforePrice + 37,
 			computedAt: new Date(),
 		} as any)
 		.where(
 			and(
-				eq(EffectivePricingV2.variantId, variantId),
-				eq(EffectivePricingV2.ratePlanId, ratePlanId),
-				eq(EffectivePricingV2.date, day),
+				eq(EffectivePricing.variantId, variantId),
+				eq(EffectivePricing.ratePlanId, ratePlanId),
+				eq(EffectivePricing.date, day),
 				eq(
-					EffectivePricingV2.occupancyKey,
+					EffectivePricing.occupancyKey,
 					buildOccupancyKey({ adults: 2, children: 0, infants: 0 })
 				)
 			)
@@ -710,18 +710,18 @@ async function validateMutations() {
 		.where(and(eq(EffectiveAvailability.variantId, variantId), eq(EffectiveAvailability.date, day)))
 
 	await db
-		.update(EffectivePricingV2)
+		.update(EffectivePricing)
 		.set({
 			finalBasePrice: beforePrice + 37,
 			computedAt: new Date(),
 		} as any)
 		.where(
 			and(
-				eq(EffectivePricingV2.variantId, variantId),
-				eq(EffectivePricingV2.ratePlanId, ratePlanId),
-				eq(EffectivePricingV2.date, day),
+				eq(EffectivePricing.variantId, variantId),
+				eq(EffectivePricing.ratePlanId, ratePlanId),
+				eq(EffectivePricing.date, day),
 				eq(
-					EffectivePricingV2.occupancyKey,
+					EffectivePricing.occupancyKey,
 					buildOccupancyKey({ adults: 2, children: 0, infants: 0 })
 				)
 			)

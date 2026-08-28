@@ -4,7 +4,7 @@ import {
 	db,
 	eq,
 	EffectiveAvailability,
-	EffectivePricingV2,
+	EffectivePricing,
 	SearchUnitView,
 } from "@/shared/infrastructure/db/compat"
 
@@ -161,23 +161,26 @@ describe("integration/search policy blocker", () => {
 				})
 
 			await db
-				.insert(EffectivePricingV2)
+				.insert(EffectivePricing)
 				.values({
+					id: `ep_${variantId}_${ratePlanId}_${date}_${occupancyKey}`,
 					variantId,
 					ratePlanId,
 					date,
 					occupancyKey,
 					baseComponent: 120,
+					occupancyAdjustment: 0,
+					ruleAdjustment: 0,
 					finalBasePrice: 120,
 
 					computedAt: new Date(),
 				} as any)
 				.onConflictDoUpdate({
 					target: [
-						EffectivePricingV2.variantId,
-						EffectivePricingV2.ratePlanId,
-						EffectivePricingV2.date,
-						EffectivePricingV2.occupancyKey,
+						EffectivePricing.variantId,
+						EffectivePricing.ratePlanId,
+						EffectivePricing.date,
+						EffectivePricing.occupancyKey,
 					],
 					set: {
 						baseComponent: 120,

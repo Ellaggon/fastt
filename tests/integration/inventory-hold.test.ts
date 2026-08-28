@@ -4,7 +4,7 @@ import {
 	db,
 	DailyInventory,
 	EffectiveAvailability,
-	EffectivePricingV2,
+	EffectivePricing,
 	EffectiveRestriction,
 	InventoryLock,
 	RatePlan,
@@ -170,7 +170,7 @@ async function seedVariantWithInventory(params: {
 			reservedCount: 0,
 			createdAt: new Date(),
 		} as any)
-		await db.insert(EffectivePricingV2).values({
+		await db.insert(EffectivePricing).values({
 			id: `ep_hold_${crypto.randomUUID()}`,
 			variantId: params.variantId,
 			ratePlanId: params.ratePlanId,

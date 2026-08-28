@@ -2,9 +2,9 @@ import { createHash } from "node:crypto"
 
 import { evaluatePricingRules } from "../../domain/evaluatePricingRules"
 import type {
-	EffectivePricingV2ComputationInput,
-	PricingBreakdownV2,
-} from "../../domain/pricing-v2.types"
+	EffectivePricingComputationInput,
+	PricingBreakdown,
+} from "../../domain/effective-pricing.types"
 import type { Occupancy } from "@/shared/domain/occupancy"
 import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
 
@@ -29,14 +29,14 @@ type PreviewRule = {
 	createdAt: Date
 }
 
-export type ComputeEffectivePricingV2Result = {
+export type ComputeEffectivePricingResult = {
 	occupancyKey: string
-	breakdown: PricingBreakdownV2
+	breakdown: PricingBreakdown
 	currency: string
 	sourceVersion: string
 }
 
-export async function computeEffectivePricingV2(
+export async function computeEffectivePricing(
 	deps: {
 		getBaseFromPolicy: (params: {
 			ratePlanId: string
@@ -53,8 +53,8 @@ export async function computeEffectivePricingV2(
 		getPreviewRules: (ratePlanId: string) => Promise<PreviewRule[]>
 		getFallbackCurrency?: (ratePlanId: string) => Promise<string>
 	},
-	input: EffectivePricingV2ComputationInput
-): Promise<ComputeEffectivePricingV2Result> {
+	input: EffectivePricingComputationInput
+): Promise<ComputeEffectivePricingResult> {
 	const occupancy = normalizeOccupancy(input.occupancy as Occupancy)
 	const occupancyKey = buildOccupancyKey(occupancy)
 
@@ -150,7 +150,7 @@ export async function computeEffectivePricingV2(
 	const sourceVersion = createHash("sha1")
 		.update(
 			JSON.stringify({
-				engine: "pricing_v2_shadow",
+				engine: "effective_pricing",
 				variantId: input.variantId,
 				ratePlanId: input.ratePlanId,
 				date: input.date,

@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro"
-import { first, and, db, EffectivePricingV2, eq } from "@/shared/infrastructure/db/compat"
+import { first, and, db, EffectivePricing, eq } from "@/shared/infrastructure/db/compat"
 
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
@@ -92,14 +92,14 @@ export const GET: APIRoute = async ({ request, url }) => {
 		})
 
 		const effective = await db
-			.select({ finalBasePrice: EffectivePricingV2.finalBasePrice })
-			.from(EffectivePricingV2)
+			.select({ finalBasePrice: EffectivePricing.finalBasePrice })
+			.from(EffectivePricing)
 			.where(
 				and(
-					eq(EffectivePricingV2.variantId, variantId),
-					eq(EffectivePricingV2.ratePlanId, String(pricingSummary.ratePlanId)),
-					eq(EffectivePricingV2.date, date),
-					eq(EffectivePricingV2.occupancyKey, occupancyKey)
+					eq(EffectivePricing.variantId, variantId),
+					eq(EffectivePricing.ratePlanId, String(pricingSummary.ratePlanId)),
+					eq(EffectivePricing.date, date),
+					eq(EffectivePricing.occupancyKey, occupancyKey)
 				)
 			)
 			.then(first)

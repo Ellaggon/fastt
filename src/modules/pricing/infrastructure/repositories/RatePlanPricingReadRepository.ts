@@ -5,7 +5,7 @@ import {
 	count,
 	db,
 	desc,
-	EffectivePricingV2,
+	EffectivePricing,
 	eq,
 	gt,
 	inArray,
@@ -85,17 +85,17 @@ export class RatePlanPricingReadRepository implements RatePlanPricingReadReposit
 			? null
 			: await db
 					.select({
-						currency: EffectivePricingV2.currency,
-						basePrice: EffectivePricingV2.baseComponent,
+						currency: EffectivePricing.currency,
+						basePrice: EffectivePricing.baseComponent,
 					})
-					.from(EffectivePricingV2)
+					.from(EffectivePricing)
 					.where(
 						and(
-							eq(EffectivePricingV2.ratePlanId, normalizedRatePlanId),
-							eq(EffectivePricingV2.occupancyKey, CANONICAL_OCCUPANCY_KEY)
+							eq(EffectivePricing.ratePlanId, normalizedRatePlanId),
+							eq(EffectivePricing.occupancyKey, CANONICAL_OCCUPANCY_KEY)
 						)
 					)
-					.orderBy(desc(EffectivePricingV2.date), desc(EffectivePricingV2.computedAt))
+					.orderBy(desc(EffectivePricing.date), desc(EffectivePricing.computedAt))
 					.limit(1)
 					.then(first)
 		const baseSource = policy ?? fallbackEffective
@@ -105,11 +105,11 @@ export class RatePlanPricingReadRepository implements RatePlanPricingReadReposit
 			(
 				await db
 					.select({ value: count() })
-					.from(EffectivePricingV2)
+					.from(EffectivePricing)
 					.where(
 						and(
-							eq(EffectivePricingV2.ratePlanId, normalizedRatePlanId),
-							eq(EffectivePricingV2.occupancyKey, CANONICAL_OCCUPANCY_KEY)
+							eq(EffectivePricing.ratePlanId, normalizedRatePlanId),
+							eq(EffectivePricing.occupancyKey, CANONICAL_OCCUPANCY_KEY)
 						)
 					)
 					.then(first)
@@ -161,7 +161,7 @@ export class RatePlanPricingReadRepository implements RatePlanPricingReadReposit
 					currency,
 					"baseComponent" as "basePrice",
 					date
-				from "EffectivePricingV2"
+				from "EffectivePricing"
 				where "ratePlanId" in (${sql.join(
 					ids.map((id) => sql`${id}`),
 					sql`, `
@@ -177,15 +177,15 @@ export class RatePlanPricingReadRepository implements RatePlanPricingReadReposit
 				}>
 			>,
 			db
-				.select({ ratePlanId: EffectivePricingV2.ratePlanId, value: count() })
-				.from(EffectivePricingV2)
+				.select({ ratePlanId: EffectivePricing.ratePlanId, value: count() })
+				.from(EffectivePricing)
 				.where(
 					and(
-						inArray(EffectivePricingV2.ratePlanId, ids),
-						eq(EffectivePricingV2.occupancyKey, CANONICAL_OCCUPANCY_KEY)
+						inArray(EffectivePricing.ratePlanId, ids),
+						eq(EffectivePricing.occupancyKey, CANONICAL_OCCUPANCY_KEY)
 					)
 				)
-				.groupBy(EffectivePricingV2.ratePlanId),
+				.groupBy(EffectivePricing.ratePlanId),
 			readRatePlanConditionSummaries(ids),
 		])
 

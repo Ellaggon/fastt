@@ -33,7 +33,7 @@ import {
 	asc,
 	db,
 	EffectiveAvailability,
-	EffectivePricingV2,
+	EffectivePricing,
 	EffectiveRestriction,
 	eq,
 	gte,
@@ -221,18 +221,18 @@ async function buildRatesAndRestrictions(params: {
 	const [prices, restrictions] = await Promise.all([
 		db
 			.select({
-				ratePlanId: EffectivePricingV2.ratePlanId,
-				date: EffectivePricingV2.date,
-				finalBasePrice: EffectivePricingV2.finalBasePrice,
-				currency: EffectivePricingV2.currency,
+				ratePlanId: EffectivePricing.ratePlanId,
+				date: EffectivePricing.date,
+				finalBasePrice: EffectivePricing.finalBasePrice,
+				currency: EffectivePricing.currency,
 			})
-			.from(EffectivePricingV2)
+			.from(EffectivePricing)
 			.where(
 				and(
-					inArray(EffectivePricingV2.ratePlanId, ratePlanIds),
-					eq(EffectivePricingV2.occupancyKey, CANONICAL_OCCUPANCY_KEY),
-					gte(EffectivePricingV2.date, params.payload.from),
-					lt(EffectivePricingV2.date, params.payload.toExclusive)
+					inArray(EffectivePricing.ratePlanId, ratePlanIds),
+					eq(EffectivePricing.occupancyKey, CANONICAL_OCCUPANCY_KEY),
+					gte(EffectivePricing.date, params.payload.from),
+					lt(EffectivePricing.date, params.payload.toExclusive)
 				)
 			),
 		db

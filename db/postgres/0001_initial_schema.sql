@@ -1214,7 +1214,7 @@ CREATE TABLE "EffectiveRestriction" (
 	"computedAt" timestamp with time zone NOT NULL
 );
 
-CREATE TABLE "EffectivePricingV2" (
+CREATE TABLE "EffectivePricing" (
 	"id" text PRIMARY KEY,
 	"variantId" text NOT NULL,
 	"ratePlanId" text NOT NULL,
@@ -1226,7 +1226,7 @@ CREATE TABLE "EffectivePricingV2" (
 	"finalBasePrice" numeric(14, 2) NOT NULL,
 	"currency" text NOT NULL DEFAULT 'USD',
 	"computedAt" timestamp with time zone NOT NULL,
-	"sourceVersion" text NOT NULL DEFAULT 'v2'
+	"sourceVersion" text NOT NULL DEFAULT 'effective_pricing'
 );
 
 CREATE TABLE "TaxFeeDefinition" (
@@ -2600,14 +2600,14 @@ ALTER TABLE "EffectiveRestriction"
 	REFERENCES "RatePlan" ("id")
 ;
 
-ALTER TABLE "EffectivePricingV2"
-	ADD CONSTRAINT "EffectivePricingV2_variantId_fk"
+ALTER TABLE "EffectivePricing"
+	ADD CONSTRAINT "EffectivePricing_variantId_fk"
 	FOREIGN KEY ("variantId")
 	REFERENCES "Variant" ("id")
 ;
 
-ALTER TABLE "EffectivePricingV2"
-	ADD CONSTRAINT "EffectivePricingV2_ratePlanId_fk"
+ALTER TABLE "EffectivePricing"
+	ADD CONSTRAINT "EffectivePricing_ratePlanId_fk"
 	FOREIGN KEY ("ratePlanId")
 	REFERENCES "RatePlan" ("id")
 ;
@@ -3235,13 +3235,13 @@ CREATE INDEX "EffectiveRestriction_variant_date_idx" ON "EffectiveRestriction" (
 
 CREATE INDEX "EffectiveRestriction_ratePlan_date_idx" ON "EffectiveRestriction" ("ratePlanId", "date");
 
-CREATE UNIQUE INDEX "EffectivePricingV2_variant_rate_date_occupancy_unique" ON "EffectivePricingV2" ("variantId", "ratePlanId", "date", "occupancyKey");
+CREATE UNIQUE INDEX "EffectivePricing_variant_rate_date_occupancy_unique" ON "EffectivePricing" ("variantId", "ratePlanId", "date", "occupancyKey");
 
-CREATE INDEX "EffectivePricingV2_ratePlan_date_idx" ON "EffectivePricingV2" ("ratePlanId", "date");
+CREATE INDEX "EffectivePricing_ratePlan_date_idx" ON "EffectivePricing" ("ratePlanId", "date");
 
-CREATE INDEX "EffectivePricingV2_ratePlan_occupancy_date_idx" ON "EffectivePricingV2" ("ratePlanId", "occupancyKey", "date", "computedAt");
+CREATE INDEX "EffectivePricing_ratePlan_occupancy_date_idx" ON "EffectivePricing" ("ratePlanId", "occupancyKey", "date", "computedAt");
 
-CREATE INDEX "EffectivePricingV2_variant_date_occupancy_idx" ON "EffectivePricingV2" ("variantId", "date", "occupancyKey");
+CREATE INDEX "EffectivePricing_variant_date_occupancy_idx" ON "EffectivePricing" ("variantId", "date", "occupancyKey");
 
 CREATE INDEX "TaxFeeDefinition_provider_status_priority_idx" ON "TaxFeeDefinition" ("providerId", "status", "priority");
 
@@ -3896,8 +3896,8 @@ CREATE INDEX IF NOT EXISTS "ProviderInvitation_providerId_created_idx"
 CREATE INDEX IF NOT EXISTS "RatePlanOccupancyPolicy_ratePlan_current_idx"
 	ON "RatePlanOccupancyPolicy" ("ratePlanId", "effectiveFrom", "id", "effectiveTo");
 
-CREATE INDEX IF NOT EXISTS "EffectivePricingV2_ratePlan_occupancy_date_idx"
-	ON "EffectivePricingV2" ("ratePlanId", "occupancyKey", "date", "computedAt");
+CREATE INDEX IF NOT EXISTS "EffectivePricing_ratePlan_occupancy_date_idx"
+	ON "EffectivePricing" ("ratePlanId", "occupancyKey", "date", "computedAt");
 
 CREATE INDEX IF NOT EXISTS "TaxFeeDefinition_provider_status_priority_idx"
 	ON "TaxFeeDefinition" ("providerId", "status", "priority");

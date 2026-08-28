@@ -41,7 +41,7 @@ export {
 	CommissionSnapshot,
 	DailyInventory,
 	EffectiveAvailability,
-	EffectivePricingV2,
+	EffectivePricing,
 	EffectiveRestriction,
 	FinancialExceptionRecord,
 	FinancialProviderSummary,

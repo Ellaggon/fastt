@@ -16,7 +16,7 @@ const financialReviewBuilder =
 	"src/modules/financial/application/use-cases/build-financial-operation-review.ts"
 
 const bannedRuntimeCalls = new Set([
-	"computeEffectivePricingV2",
+	"computeEffectivePricing",
 	"computePricePreview",
 	"previewPricingRules",
 	"materializeEffectivePricing",

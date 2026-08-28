@@ -3,7 +3,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs"
 import { join, relative } from "node:path"
 
 const RUNTIME_ROOT = join(process.cwd(), "src")
-const BANNED_PATTERNS = [/\bEffectivePricing\b/g, /\bPricingBaseRate\b/g]
+const BANNED_PATTERNS = [/\bEffectivePricingV2\b/g, /\bPricingBaseRate\b/g]
 const EXCLUDED_SEGMENTS = ["/scripts/", "/test-support/", "/__tests__/", "/__mocks__/"]
 
 function isExcluded(path: string): boolean {
@@ -29,8 +29,8 @@ function listSourceFiles(dir: string): string[] {
 	return files
 }
 
-describe("Pricing V1 runtime guardrail", () => {
-	it("blocks EffectivePricing/PricingBaseRate references in src runtime", () => {
+describe("Effective pricing canonical runtime guardrail", () => {
+	it("blocks retired pricing names in src runtime", () => {
 		const violations: string[] = []
 		for (const file of listSourceFiles(RUNTIME_ROOT)) {
 			const content = readFileSync(file, "utf8")
@@ -44,7 +44,7 @@ describe("Pricing V1 runtime guardrail", () => {
 
 		expect(
 			violations,
-			`Found forbidden V1 pricing references in runtime:\n${violations.join("\n")}`
+			`Found retired pricing references in runtime:\n${violations.join("\n")}`
 		).toEqual([])
 	})
 })

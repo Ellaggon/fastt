@@ -94,7 +94,7 @@ async function cleanup(sql: Sql) {
 	await sql`delete from "Hold" where "id" like ${`${prefix}%`}`
 	await sql`delete from "Booking" where "id" like ${`${prefix}%`} or "providerId" like ${`${prefix}%`}`
 	await sql`delete from "SearchUnitView" where "id" like ${`${prefix}%`}`
-	await sql`delete from "EffectivePricingV2" where "id" like ${`${prefix}%`}`
+	await sql`delete from "EffectivePricing" where "id" like ${`${prefix}%`}`
 	await sql`delete from "DailyInventory" where "id" like ${`${prefix}%`}`
 	await sql`delete from "RatePlan" where "id" like ${`${prefix}%`}`
 	await sql`delete from "TourSlotProfile" where "variantId" like ${`${prefix}%`}`
@@ -305,7 +305,7 @@ describePostgres("phase 6 Postgres double validation", () => {
 		const occupancyKey = "adults:2|children:0|infants:0"
 
 		await sql`
-			insert into "EffectivePricingV2" (
+			insert into "EffectivePricing" (
 				"id", "variantId", "ratePlanId", "date", "occupancyKey",
 				"baseComponent", "occupancyAdjustment", "ruleAdjustment", "finalBasePrice",
 				"currency", "computedAt", "sourceVersion"
@@ -338,7 +338,7 @@ describePostgres("phase 6 Postgres double validation", () => {
 				s."pricePerNight",
 				p."finalBasePrice"
 			from "SearchUnitView" s
-			join "EffectivePricingV2" p
+			join "EffectivePricing" p
 				on p."variantId" = s."variantId"
 				and p."ratePlanId" = s."ratePlanId"
 				and p."date" = s."date"

@@ -92,13 +92,13 @@ export async function ensurePricingCoverageRuntime(params: {
 	enqueueIncremental?: boolean
 }) {
 	const { ensurePricingCoverage } = await import("./application/use-cases/ensure-pricing-coverage")
-	const { pricingRepository, pricingV2Repository, variantManagementRepository } =
+	const { pricingRepository, effectivePricingRepository, variantManagementRepository } =
 		await import("@/container")
 	const result = await ensurePricingCoverage(
 		{
 			pricingRepo: pricingRepository,
 			variantRepo: variantManagementRepository,
-			pricingV2Repo: pricingV2Repository,
+			effectivePricingRepo: effectivePricingRepository,
 		},
 		params
 	)
@@ -136,13 +136,13 @@ export async function ensurePricingCoverageForRequestRuntime(params: {
 }) {
 	const { ensurePricingCoverageForRequest } =
 		await import("./application/use-cases/ensure-pricing-coverage-for-request")
-	const { pricingRepository, pricingV2Repository, variantManagementRepository } =
+	const { pricingRepository, effectivePricingRepository, variantManagementRepository } =
 		await import("@/container")
 	return ensurePricingCoverageForRequest(
 		{
 			pricingRepo: pricingRepository,
 			variantRepo: variantManagementRepository,
-			pricingV2Repo: pricingV2Repository,
+			effectivePricingRepo: effectivePricingRepository,
 		},
 		params
 	)

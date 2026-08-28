@@ -109,7 +109,7 @@ export const databaseTablesByDomain = {
 		"CommercialRule",
 		"CommercialRuleApplication",
 		"EffectiveRestriction",
-		"EffectivePricingV2",
+		"EffectivePricing",
 	],
 	taxes: [
 		"TaxFeeDefinition",

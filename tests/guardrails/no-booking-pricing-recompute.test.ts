@@ -6,11 +6,11 @@ const BOOKING_REPO_FILE =
 	"src/modules/booking/infrastructure/repositories/BookingFromHoldRepository.ts"
 
 const BANNED_CALLS = new Set([
-	"computeEffectivePricingV2",
+	"computeEffectivePricing",
 	"ensurePricingCoverage",
 	"ensurePricingCoverageForRequest",
 	"ensurePricingCoverageRuntime",
-	"recomputeEffectivePricingV2",
+	"recomputeEffectivePricing",
 	"previewPricingRules",
 	"computePricePreview",
 ])

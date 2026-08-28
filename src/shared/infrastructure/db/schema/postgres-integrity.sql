@@ -389,8 +389,8 @@ CREATE INDEX IF NOT EXISTS "ProviderInvitation_providerId_created_idx"
 CREATE INDEX IF NOT EXISTS "RatePlanOccupancyPolicy_ratePlan_current_idx"
 	ON "RatePlanOccupancyPolicy" ("ratePlanId", "effectiveFrom", "id", "effectiveTo");
 
-CREATE INDEX IF NOT EXISTS "EffectivePricingV2_ratePlan_occupancy_date_idx"
-	ON "EffectivePricingV2" ("ratePlanId", "occupancyKey", "date", "computedAt");
+CREATE INDEX IF NOT EXISTS "EffectivePricing_ratePlan_occupancy_date_idx"
+	ON "EffectivePricing" ("ratePlanId", "occupancyKey", "date", "computedAt");
 
 CREATE INDEX IF NOT EXISTS "TaxFeeDefinition_provider_status_priority_idx"
 	ON "TaxFeeDefinition" ("providerId", "status", "priority");

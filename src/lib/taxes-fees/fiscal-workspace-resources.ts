@@ -6,7 +6,7 @@ import {
 	and,
 	db,
 	eq,
-	EffectivePricingV2,
+	EffectivePricing,
 	gte,
 	inArray,
 	lt,
@@ -42,7 +42,7 @@ export type FiscalSimulationContext = {
 	children: number
 	currency: string
 	baseAmount: number
-	pricingSource: "effective_pricing_v2" | "materialized_search_view"
+	pricingSource: "effective_pricing" | "materialized_search_view"
 }
 
 export type FiscalSimulationIssueKind = "fiscal" | "commercial" | "coverage"
@@ -175,18 +175,18 @@ export async function resolveFiscalSimulationPricing(input: {
 			.catch(() => []),
 		db
 			.select({
-				date: EffectivePricingV2.date,
-				price: EffectivePricingV2.finalBasePrice,
-				currency: EffectivePricingV2.currency,
+				date: EffectivePricing.date,
+				price: EffectivePricing.finalBasePrice,
+				currency: EffectivePricing.currency,
 			})
-			.from(EffectivePricingV2)
+			.from(EffectivePricing)
 			.where(
 				and(
-					eq(EffectivePricingV2.variantId, input.variantId),
-					eq(EffectivePricingV2.ratePlanId, input.ratePlanId),
-					eq(EffectivePricingV2.occupancyKey, occupancyKey),
-					gte(EffectivePricingV2.date, input.checkIn),
-					lt(EffectivePricingV2.date, input.checkOut)
+					eq(EffectivePricing.variantId, input.variantId),
+					eq(EffectivePricing.ratePlanId, input.ratePlanId),
+					eq(EffectivePricing.occupancyKey, occupancyKey),
+					gte(EffectivePricing.date, input.checkIn),
+					lt(EffectivePricing.date, input.checkOut)
 				)
 			)
 			.catch(() => []),
@@ -223,7 +223,7 @@ export async function resolveFiscalSimulationPricing(input: {
 		days,
 		baseAmount: Number(days.reduce((total, day) => total + day.price, 0).toFixed(2)),
 		currency: String(effectiveRows[0]?.currency ?? "USD"),
-		pricingSource: effective ? "effective_pricing_v2" : "materialized_search_view",
+		pricingSource: effective ? "effective_pricing" : "materialized_search_view",
 	}
 }
 
@@ -339,18 +339,18 @@ export async function getRecommendedFiscalSimulationContext(input: {
 			.catch(() => []),
 		db
 			.select({
-				ratePlanId: EffectivePricingV2.ratePlanId,
-				date: EffectivePricingV2.date,
-				price: EffectivePricingV2.finalBasePrice,
-				currency: EffectivePricingV2.currency,
+				ratePlanId: EffectivePricing.ratePlanId,
+				date: EffectivePricing.date,
+				price: EffectivePricing.finalBasePrice,
+				currency: EffectivePricing.currency,
 			})
-			.from(EffectivePricingV2)
+			.from(EffectivePricing)
 			.where(
 				and(
-					inArray(EffectivePricingV2.ratePlanId, candidateIds),
-					eq(EffectivePricingV2.occupancyKey, occupancyKey),
-					gte(EffectivePricingV2.date, dayString(start)),
-					lt(EffectivePricingV2.date, windowEnd)
+					inArray(EffectivePricing.ratePlanId, candidateIds),
+					eq(EffectivePricing.occupancyKey, occupancyKey),
+					gte(EffectivePricing.date, dayString(start)),
+					lt(EffectivePricing.date, windowEnd)
 				)
 			)
 			.catch(() => []),
@@ -404,7 +404,7 @@ export async function getRecommendedFiscalSimulationContext(input: {
 					currency: pricedDays[0].currency,
 					baseAmount: Number(pricedDays.reduce((total, day) => total + day.price, 0).toFixed(2)),
 					pricingSource: pricedDays.every((day) => day.effective)
-						? "effective_pricing_v2"
+						? "effective_pricing"
 						: "materialized_search_view",
 				},
 				issues: [],

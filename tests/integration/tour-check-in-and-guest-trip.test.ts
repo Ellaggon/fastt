@@ -9,7 +9,7 @@ import {
 	GeoPlace,
 	ProductGeoPlace,
 	EffectiveAvailability,
-	EffectivePricingV2,
+	EffectivePricing,
 	eq,
 	Product,
 	Provider,
@@ -265,7 +265,7 @@ async function seedTourBookingReady(params: {
 		updatedAt: new Date(),
 	} as any)
 	const occupancyKey = buildOccupancyKey(occupancy)
-	await db.insert(EffectivePricingV2).values({
+	await db.insert(EffectivePricing).values({
 		id: `ep_${crypto.randomUUID()}`,
 		variantId,
 		ratePlanId,

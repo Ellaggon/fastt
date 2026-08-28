@@ -34,7 +34,7 @@ import {
 	db,
 	desc,
 	EffectiveAvailability,
-	EffectivePricingV2,
+	EffectivePricing,
 	EffectiveRestriction,
 	eq,
 	gte,
@@ -353,22 +353,22 @@ export async function buildProviderInitialAriSnapshot(params: {
 			.orderBy(asc(EffectiveAvailability.variantId), asc(EffectiveAvailability.date)),
 		db
 			.select({
-				variantId: EffectivePricingV2.variantId,
-				ratePlanId: EffectivePricingV2.ratePlanId,
-				date: EffectivePricingV2.date,
-				finalBasePrice: EffectivePricingV2.finalBasePrice,
-				currency: EffectivePricingV2.currency,
+				variantId: EffectivePricing.variantId,
+				ratePlanId: EffectivePricing.ratePlanId,
+				date: EffectivePricing.date,
+				finalBasePrice: EffectivePricing.finalBasePrice,
+				currency: EffectivePricing.currency,
 			})
-			.from(EffectivePricingV2)
+			.from(EffectivePricing)
 			.where(
 				and(
-					inArray(EffectivePricingV2.ratePlanId, ratePlanIds),
-					eq(EffectivePricingV2.occupancyKey, CANONICAL_OCCUPANCY_KEY),
-					gte(EffectivePricingV2.date, from),
-					lt(EffectivePricingV2.date, toExclusive)
+					inArray(EffectivePricing.ratePlanId, ratePlanIds),
+					eq(EffectivePricing.occupancyKey, CANONICAL_OCCUPANCY_KEY),
+					gte(EffectivePricing.date, from),
+					lt(EffectivePricing.date, toExclusive)
 				)
 			)
-			.orderBy(asc(EffectivePricingV2.ratePlanId), asc(EffectivePricingV2.date)),
+			.orderBy(asc(EffectivePricing.ratePlanId), asc(EffectivePricing.date)),
 		db
 			.select({
 				variantId: EffectiveRestriction.variantId,

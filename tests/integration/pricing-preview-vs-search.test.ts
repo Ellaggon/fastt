@@ -12,7 +12,7 @@ import { upsertProvider } from "../test-support/catalog-db-test-data"
 
 import { POST as previewPost } from "@/pages/api/pricing/preview"
 import { baseRateRepository, searchOffers, dailyInventoryRepository } from "@/container"
-import { db, EffectiveAvailability, EffectivePricingV2 } from "@/shared/infrastructure/db/compat"
+import { db, EffectiveAvailability, EffectivePricing } from "@/shared/infrastructure/db/compat"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
 import { materializeSearchUnitRange } from "@/modules/search/public"
 import { ensurePricingCoverageForRequestRuntime } from "@/modules/pricing/public"
@@ -169,7 +169,8 @@ describe("integration/pricing preview vs search parity", () => {
 			value: 10,
 			isActive: true,
 		})
-		await db.insert(EffectivePricingV2).values({
+		await db.insert(EffectivePricing).values({
+			id: `ep_prev_vs_search_${crypto.randomUUID()}`,
 			variantId,
 			ratePlanId,
 			date: "2026-03-10",

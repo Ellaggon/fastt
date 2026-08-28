@@ -3,7 +3,7 @@ import {
 	db,
 	eq,
 	EffectiveAvailability,
-	EffectivePricingV2,
+	EffectivePricing,
 	gte,
 	lt,
 	SearchUnitView,
@@ -187,7 +187,7 @@ async function seedDataset(): Promise<{
 					})
 
 				await db
-					.insert(EffectivePricingV2)
+					.insert(EffectivePricing)
 					.values({
 						id: `ep_sim_${variantId}_${ratePlanId}_${date}`,
 						variantId,
@@ -200,14 +200,14 @@ async function seedDataset(): Promise<{
 						finalBasePrice: basePrice,
 						currency: "USD",
 						computedAt: new Date(),
-						sourceVersion: "sim_seed_v2",
+						sourceVersion: "sim_seed_effective_pricing",
 					} as any)
 					.onConflictDoUpdate({
 						target: [
-							EffectivePricingV2.variantId,
-							EffectivePricingV2.ratePlanId,
-							EffectivePricingV2.date,
-							EffectivePricingV2.occupancyKey,
+							EffectivePricing.variantId,
+							EffectivePricing.ratePlanId,
+							EffectivePricing.date,
+							EffectivePricing.occupancyKey,
 						],
 						set: {
 							baseComponent: basePrice,
@@ -216,7 +216,7 @@ async function seedDataset(): Promise<{
 							finalBasePrice: basePrice,
 							currency: "USD",
 							computedAt: new Date(),
-							sourceVersion: "sim_seed_v2",
+							sourceVersion: "sim_seed_effective_pricing",
 						},
 					})
 			}
@@ -397,7 +397,7 @@ async function validateAutoBackfill() {
 				},
 			})
 		await db
-			.insert(EffectivePricingV2)
+			.insert(EffectivePricing)
 			.values({
 				id: `ep_auto_${variantId}_${ratePlanId}_${date}`,
 				variantId,
@@ -410,14 +410,14 @@ async function validateAutoBackfill() {
 				finalBasePrice: 120,
 				currency: "USD",
 				computedAt: new Date(),
-				sourceVersion: "sim_seed_v2",
+				sourceVersion: "sim_seed_effective_pricing",
 			} as any)
 			.onConflictDoUpdate({
 				target: [
-					EffectivePricingV2.variantId,
-					EffectivePricingV2.ratePlanId,
-					EffectivePricingV2.date,
-					EffectivePricingV2.occupancyKey,
+					EffectivePricing.variantId,
+					EffectivePricing.ratePlanId,
+					EffectivePricing.date,
+					EffectivePricing.occupancyKey,
 				],
 				set: {
 					baseComponent: 120,
@@ -426,7 +426,7 @@ async function validateAutoBackfill() {
 					finalBasePrice: 120,
 					currency: "USD",
 					computedAt: new Date(),
-					sourceVersion: "sim_seed_v2",
+					sourceVersion: "sim_seed_effective_pricing",
 				},
 			})
 	}

@@ -3,7 +3,7 @@ import {
 	db,
 	DailyInventory,
 	EffectiveAvailability,
-	EffectivePricingV2,
+	EffectivePricing,
 	EffectiveRestriction,
 	Image,
 	ImageUpload,
@@ -161,7 +161,7 @@ async function seedSellableRoom(params: { productId: string; suffix: string }) {
 		priority: 0,
 		computedAt: new Date(),
 	})
-	await db.insert(EffectivePricingV2).values({
+	await db.insert(EffectivePricing).values({
 		id: `pricing_room_delete_${params.suffix}`,
 		variantId,
 		ratePlanId,
@@ -243,7 +243,7 @@ describe("integration/catalog delete variant cascade", () => {
 				rowsFor(EffectiveRestriction, EffectiveRestriction.variantId, variantId)
 			).resolves.toHaveLength(0)
 			await expect(
-				rowsFor(EffectivePricingV2, EffectivePricingV2.variantId, variantId)
+				rowsFor(EffectivePricing, EffectivePricing.variantId, variantId)
 			).resolves.toHaveLength(0)
 			await expect(
 				rowsFor(SearchUnitView, SearchUnitView.variantId, variantId)

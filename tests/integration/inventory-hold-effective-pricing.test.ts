@@ -4,7 +4,7 @@ import {
 	BookingRoomDetail,
 	db,
 	DailyInventory,
-	EffectivePricingV2,
+	EffectivePricing,
 	eq,
 	Hold,
 	RatePlan,
@@ -88,19 +88,19 @@ async function seedFixture(params: {
 	productId: string
 	ratePlanId: string
 	dates: string[]
-	includeV2Rows?: boolean
+	includeAdultTwoRows?: boolean
 }) {
-	const geoPlaceId = `dest_hold_v2_${crypto.randomUUID()}`
+	const geoPlaceId = `place_hold_${crypto.randomUUID()}`
 	await upsertGeoPlace({
 		id: geoPlaceId,
-		name: "Hold V2 Dest",
+		name: "Hold test destination",
 		type: "city",
 		country: "CL",
-		slug: `hold-v2-${geoPlaceId}`,
+		slug: `hold-effective-pricing-${geoPlaceId}`,
 	})
 	await upsertProduct({
 		id: params.productId,
-		name: "Hold V2 Product",
+		name: "Hold test product",
 		productType: "Hotel",
 		geoPlaceId,
 		providerId: "prov_test",
@@ -110,7 +110,7 @@ async function seedFixture(params: {
 		id: params.variantId,
 		productId: params.productId,
 		kind: "hotel_room",
-		name: "Room V2",
+		name: "Hold test room",
 		status: "ready",
 		createdAt: new Date(),
 		isActive: true,
@@ -118,7 +118,7 @@ async function seedFixture(params: {
 	await db.insert(RatePlan).values({
 		id: params.ratePlanId,
 		variantId: params.variantId,
-		name: "Hold V2 Tarifa",
+		name: "Hold test rate",
 		isDefault: true,
 		isActive: true,
 		createdAt: new Date(),
@@ -166,8 +166,8 @@ async function seedFixture(params: {
 			reservedCount: 0,
 			createdAt: new Date(),
 		} as any)
-		await db.insert(EffectivePricingV2).values({
-			id: `epv1_hold_v2_${crypto.randomUUID()}`,
+		await db.insert(EffectivePricing).values({
+			id: `ep_hold_${crypto.randomUUID()}`,
 			variantId: params.variantId,
 			ratePlanId: params.ratePlanId,
 			date,
@@ -180,9 +180,9 @@ async function seedFixture(params: {
 			computedAt: new Date(),
 			sourceVersion: "test",
 		} as any)
-		if (params.includeV2Rows && EffectivePricingV2 && (EffectivePricingV2 as any).variantId) {
-			await db.insert(EffectivePricingV2).values({
-				id: `epv2_hold_v2_${crypto.randomUUID()}`,
+		if (params.includeAdultTwoRows && EffectivePricing && (EffectivePricing as any).variantId) {
+			await db.insert(EffectivePricing).values({
+				id: `ep_hold_${crypto.randomUUID()}`,
 				variantId: params.variantId,
 				ratePlanId: params.ratePlanId,
 				date,
@@ -212,7 +212,7 @@ async function refreshSearchView(
 		from,
 		to,
 		reason: "test_seed",
-		idempotencyKey: `hold_v2:${variantId}:${from}:${to}`,
+		idempotencyKey: `hold_effective_pricing:${variantId}:${from}:${to}`,
 	})
 	await materializeSearchUnitRange({
 		variantId,
@@ -223,18 +223,18 @@ async function refreshSearchView(
 	})
 }
 
-describe("integration/hold pricing V2 snapshot", () => {
-	const supportsV2Table = Boolean(EffectivePricingV2 && (EffectivePricingV2 as any).variantId)
+describe("integration/hold effective-pricing snapshot", () => {
+	const supportsEffectivePricing = Boolean(EffectivePricing && (EffectivePricing as any).variantId)
 
-	;(supportsV2Table ? it : it.skip)(
-		"stores V2 pricing breakdown and keeps Search total aligned with Hold and Booking totals",
+	;(supportsEffectivePricing ? it : it.skip)(
+		"stores the effective-pricing breakdown and keeps Search total aligned with Hold and Booking totals",
 		async () => {
-			const token = "t_hold_v2_ok"
-			const variantId = `var_hold_v2_ok_${crypto.randomUUID()}`
-			const productId = `prod_hold_v2_ok_${crypto.randomUUID()}`
-			const ratePlanId = `rp_hold_v2_ok_${crypto.randomUUID()}`
+			const token = "t_hold_effective_pricing_ok"
+			const variantId = `var_hold_effective_pricing_ok_${crypto.randomUUID()}`
+			const productId = `prod_hold_effective_pricing_ok_${crypto.randomUUID()}`
+			const ratePlanId = `rp_hold_effective_pricing_ok_${crypto.randomUUID()}`
 			const dates = ["2026-11-10", "2026-11-11"]
-			await seedFixture({ variantId, productId, ratePlanId, dates, includeV2Rows: true })
+			await seedFixture({ variantId, productId, ratePlanId, dates, includeAdultTwoRows: true })
 			await refreshSearchView(variantId, ratePlanId, "2026-11-10", "2026-11-12")
 
 			const fd = new FormData()
@@ -352,7 +352,7 @@ describe("integration/hold pricing V2 snapshot", () => {
 		const productId = `prod_hold_v2_fb_${crypto.randomUUID()}`
 		const ratePlanId = `rp_hold_v2_fb_${crypto.randomUUID()}`
 		const dates = ["2026-11-20", "2026-11-21"]
-		await seedFixture({ variantId, productId, ratePlanId, dates, includeV2Rows: false })
+		await seedFixture({ variantId, productId, ratePlanId, dates, includeAdultTwoRows: false })
 		await ensurePricingCoverageForRequestRuntime({
 			variantId,
 			ratePlanId,
@@ -372,7 +372,7 @@ describe("integration/hold pricing V2 snapshot", () => {
 		fd.set("infants", "0")
 		fd.set("sessionId", `s_${crypto.randomUUID()}`)
 		const response = await withSupabaseAuthStub(
-			{ [token]: { id: "user_hold_v2_fb", email: "hold-v2-fallback@example.com" } },
+			{ [token]: { id: "user_hold_v2_fb", email: "hold-effective-pricing-fallback@example.com" } },
 			() =>
 				Promise.resolve(
 					holdPost({
@@ -395,7 +395,7 @@ describe("integration/hold pricing V2 snapshot", () => {
 		const productId = `prod_hold_incomplete_${crypto.randomUUID()}`
 		const ratePlanId = `rp_hold_incomplete_${crypto.randomUUID()}`
 		const dates = ["2026-12-01", "2026-12-02"]
-		await seedFixture({ variantId, productId, ratePlanId, dates, includeV2Rows: false })
+		await seedFixture({ variantId, productId, ratePlanId, dates, includeAdultTwoRows: false })
 		await ensurePricingCoverageForRequestRuntime({
 			variantId,
 			ratePlanId,
@@ -463,7 +463,7 @@ describe("integration/hold pricing V2 snapshot", () => {
 		const productId = `prod_hold_multi_occ_${crypto.randomUUID()}`
 		const ratePlanId = `rp_hold_multi_occ_${crypto.randomUUID()}`
 		const dates = ["2026-12-10", "2026-12-11"]
-		await seedFixture({ variantId, productId, ratePlanId, dates, includeV2Rows: true })
+		await seedFixture({ variantId, productId, ratePlanId, dates, includeAdultTwoRows: true })
 		await ensurePricingCoverageForRequestRuntime({
 			variantId,
 			ratePlanId,

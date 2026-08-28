@@ -39,7 +39,7 @@ vi.mock("@/shared/infrastructure/db/compat", () => ({
 		childMode: "childMode",
 		childValue: "childValue",
 	},
-	EffectivePricingV2: {
+	EffectivePricing: {
 		id: "id",
 		variantId: "variantId",
 		ratePlanId: "ratePlanId",
@@ -51,7 +51,7 @@ vi.mock("@/shared/infrastructure/db/compat", () => ({
 	},
 }))
 
-import { PricingV2Repository } from "@/modules/pricing/infrastructure/repositories/PricingV2Repository"
+import { EffectivePricingRepository } from "@/modules/pricing/infrastructure/repositories/EffectivePricingRepository"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
 
 function wireSelectPipeline(result: any) {
@@ -91,14 +91,14 @@ function wirePolicyMissThenEffectiveFallback(result: any) {
 	return { policyAll, effectiveGet }
 }
 
-describe("PricingV2Repository.getBaseFromPolicy", () => {
+describe("EffectivePricingRepository.getBaseFromPolicy", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
 	})
 
 	it("returns base data when a valid policy exists", async () => {
 		wireSelectPipeline({ baseAmount: "123.45", currency: "EUR" })
-		const repo = new PricingV2Repository()
+		const repo = new EffectivePricingRepository()
 
 		const result = await repo.getBaseFromPolicy({
 			ratePlanId: "rp_1",
@@ -111,7 +111,7 @@ describe("PricingV2Repository.getBaseFromPolicy", () => {
 
 	it("returns null when no policy exists", async () => {
 		wireSelectPipeline(null)
-		const repo = new PricingV2Repository()
+		const repo = new EffectivePricingRepository()
 
 		const result = await repo.getBaseFromPolicy({
 			ratePlanId: "rp_missing",
@@ -124,7 +124,7 @@ describe("PricingV2Repository.getBaseFromPolicy", () => {
 
 	it("falls back to existing effective pricing base when a policy has not been bootstrapped yet", async () => {
 		wirePolicyMissThenEffectiveFallback({ baseAmount: 14.52, currency: "USD" })
-		const repo = new PricingV2Repository()
+		const repo = new EffectivePricingRepository()
 
 		const result = await repo.getBaseFromPolicy({
 			ratePlanId: "rp_effective_only",
@@ -138,7 +138,7 @@ describe("PricingV2Repository.getBaseFromPolicy", () => {
 
 	it("is deterministic for same input", async () => {
 		wireSelectPipeline({ baseAmount: 90, currency: "USD" })
-		const repo = new PricingV2Repository()
+		const repo = new EffectivePricingRepository()
 		const params = {
 			ratePlanId: "rp_det",
 			date: "2026-09-01",
@@ -153,7 +153,7 @@ describe("PricingV2Repository.getBaseFromPolicy", () => {
 
 	it("uses date-range boundaries based on the provided date", async () => {
 		wireSelectPipeline({ id: "p1", baseAmount: 100, currency: "USD" })
-		const repo = new PricingV2Repository()
+		const repo = new EffectivePricingRepository()
 
 		await repo.getBaseFromPolicy({
 			ratePlanId: "rp_dates",
@@ -171,7 +171,7 @@ describe("PricingV2Repository.getBaseFromPolicy", () => {
 
 	it("accepts occupancyKey without affecting base retrieval contract", async () => {
 		wireSelectPipeline({ baseAmount: 77, currency: "CLP" })
-		const repo = new PricingV2Repository()
+		const repo = new EffectivePricingRepository()
 
 		const result = await repo.getBaseFromPolicy({
 			ratePlanId: "rp_occ",
@@ -189,7 +189,7 @@ describe("PricingV2Repository.getBaseFromPolicy", () => {
 			{ id: "newer", baseAmount: 130, currency: "USD" },
 			{ id: "older", baseAmount: 90, currency: "USD" },
 		])
-		const repo = new PricingV2Repository()
+		const repo = new EffectivePricingRepository()
 
 		const result = await repo.getBaseFromPolicy({
 			ratePlanId: "rp_overlap",
@@ -202,7 +202,7 @@ describe("PricingV2Repository.getBaseFromPolicy", () => {
 
 	it("supports open-ended policies (effectiveTo null)", async () => {
 		wireSelectPipeline({ id: "open", baseAmount: 88, currency: "USD" })
-		const repo = new PricingV2Repository()
+		const repo = new EffectivePricingRepository()
 
 		const result = await repo.getBaseFromPolicy({
 			ratePlanId: "rp_open",

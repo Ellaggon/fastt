@@ -7,7 +7,7 @@ const tables = [
 	"ProviderVerification",
 	"ProviderInvitation",
 	"RatePlanOccupancyPolicy",
-	"EffectivePricingV2",
+	"EffectivePricing",
 	"TaxFeeDefinition",
 	"TaxFeeAssignment",
 ]

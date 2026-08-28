@@ -11,7 +11,7 @@ const MATRIX: InvariantCoverage[] = [
 	{
 		invariant: "Search == Hold == Booking",
 		files: [
-			"tests/integration/inventory-hold-pricing-v2.test.ts",
+			"tests/integration/inventory-hold-effective-pricing.test.ts",
 			"tests/integration/booking-inventory-materialization.test.ts",
 			"tests/integration/financial-reconciliation.test.ts",
 		],
@@ -46,8 +46,8 @@ const MATRIX: InvariantCoverage[] = [
 		invariant: "No fallback / no V1",
 		files: [
 			"tests/guardrails/no-pricing-fallback-runtime.test.ts",
-			"tests/guardrails/pricing-v1-runtime-guardrail.test.ts",
-			"tests/guardrails/no-pricing-v1-schema-runtime.test.ts",
+			"tests/guardrails/effective-pricing-canonical-runtime-guardrail.test.ts",
+			"tests/guardrails/effective-pricing-canonical-schema.test.ts",
 			"tests/guardrails/no-pricing-variant-core-fallback.test.ts",
 			"tests/guardrails/no-default-rateplan-fallback-in-pricing-mutations.test.ts",
 			"tests/guardrails/no-variant-first-pricing-mutations.test.ts",

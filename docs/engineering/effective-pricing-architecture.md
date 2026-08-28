@@ -1,8 +1,8 @@
-# Pricing V2 Architecture (Source of Truth)
+# Effective Pricing Architecture (Source of Truth)
 
 ## Canonical identity
 
-Pricing V2 is canonical by:
+Effective pricing is canonical by:
 
 - `(variantId, ratePlanId, date, occupancyKey)` for effective prices
 - `ratePlanId` as the only selector for pricing mutations and previews
@@ -17,10 +17,10 @@ Pricing V2 is canonical by:
 
 Runtime pricing reads use:
 
-- `EffectivePricingV2` for materialized effective pricing
+- `EffectivePricing` for materialized effective pricing
 - `RatePlanOccupancyPolicy` for canonical pricing baseline policy and occupancy policy
 
-Canonical naming policy for Pricing V2:
+Canonical naming policy for effective pricing:
 
 - `ratePlanId` is the commercial selector.
 - pricing baseline is modeled as a **rate-plan pricing baseline**.
@@ -50,14 +50,14 @@ Legacy V1 pricing entities are forbidden at runtime.
 - Pricing mutations without explicit `ratePlanId` are forbidden.
 - `variantId` cannot be used directly or indirectly to select pricing.
 - Implicit default-rate-plan fallback is forbidden in core and API mutation paths.
-- Reintroduction of `PricingBaseRate` or `EffectivePricing` (V1 schema/runtime) is forbidden.
+- Reintroduction of `PricingBaseRate` or a second effective-price materialization is forbidden.
 - Search read paths cannot trigger write-side healing/materialization.
 
 ## Enforcement suite
 
 Architecture invariants are enforced by guardrails in `tests/guardrails/`, including:
 
-- `pricing-v1-runtime-guardrail.test.ts`
+- `effective-pricing-canonical-runtime-guardrail.test.ts`
 - `no-pricing-fallback-runtime.test.ts`
 - `no-manual-occupancy-key.test.ts`
 - `no-read-path-side-effects.test.ts`
@@ -66,7 +66,7 @@ Architecture invariants are enforced by guardrails in `tests/guardrails/`, inclu
 - `no-search-runtime-side-effects.test.ts`
 - `hold-occupancy-detail-contract.test.ts`
 - `no-default-rateplan-fallback-in-pricing-mutations.test.ts`
-- `no-pricing-v1-schema-runtime.test.ts`
+- `effective-pricing-canonical-schema.test.ts`
 - `no-pricing-variant-core-fallback.test.ts`
 - `pricing-baseline-semantic-naming.test.ts`
 

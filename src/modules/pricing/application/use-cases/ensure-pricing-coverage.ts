@@ -2,7 +2,7 @@ import { z } from "zod"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
 
 import type { PricingRepositoryPort } from "../ports/PricingRepositoryPort"
-import { recomputeEffectivePricingV2Range } from "./recompute-effective-pricing-v2"
+import { recomputeEffectivePricingRange } from "./recompute-effective-pricing"
 
 type VariantRepoForCoverage = {
 	getCapacity?(
@@ -33,7 +33,7 @@ export type EnsurePricingCoverageInput = z.infer<typeof ensurePricingCoverageSch
 type EnsurePricingCoverageDeps = {
 	pricingRepo: PricingRepositoryPort
 	variantRepo: VariantRepoForCoverage
-	pricingV2Repo?: {
+	effectivePricingRepo?: {
 		getBaseFromPolicy(params: { ratePlanId: string; date: string; occupancyKey: string }): Promise<{
 			baseAmount: number
 			currency: string
@@ -48,7 +48,7 @@ type EnsurePricingCoverageDeps = {
 			currency: string
 		} | null>
 		getFallbackCurrency?(ratePlanId: string): Promise<string>
-		saveEffectivePricingV2(params: {
+		saveEffectivePricing(params: {
 			id: string
 			variantId: string
 			ratePlanId: string
@@ -62,7 +62,7 @@ type EnsurePricingCoverageDeps = {
 			computedAt: Date
 			sourceVersion: string
 		}): Promise<void>
-		listEffectivePricingV2Combinations?(params: {
+		listEffectivePricingCombinations?(params: {
 			variantId: string
 			ratePlanId: string
 			from: string
@@ -160,7 +160,7 @@ export async function ensurePricingCoverage(
 	if (expectedDates.length === 0) {
 		return { missingDatesCount: 0, generatedDatesCount: 0 }
 	}
-	if (!deps.pricingV2Repo) {
+	if (!deps.effectivePricingRepo) {
 		return {
 			missingDatesCount: expectedDates.length,
 			generatedDatesCount: 0,
@@ -196,8 +196,8 @@ export async function ensurePricingCoverage(
 			expectedCombinations.add(`${date}:${occupancyKey}`)
 		}
 	}
-	const currentRows = deps.pricingV2Repo.listEffectivePricingV2Combinations
-		? await deps.pricingV2Repo.listEffectivePricingV2Combinations({
+	const currentRows = deps.effectivePricingRepo.listEffectivePricingCombinations
+		? await deps.effectivePricingRepo.listEffectivePricingCombinations({
 				variantId: parsed.variantId,
 				ratePlanId: parsed.ratePlanId,
 				from: parsed.from,
@@ -231,16 +231,20 @@ export async function ensurePricingCoverage(
 		const sortedDates = [...datesSet].sort((a, b) => a.localeCompare(b))
 		const dateChunks = chunkArray(sortedDates, parsed.recomputeChunkSizeDays ?? 31)
 		for (const dateChunk of dateChunks) {
-			await recomputeEffectivePricingV2Range(
+			await recomputeEffectivePricingRange(
 				{
-					getBaseFromPolicy: deps.pricingV2Repo.getBaseFromPolicy.bind(deps.pricingV2Repo),
-					getActiveOccupancyPolicy: deps.pricingV2Repo.getActiveOccupancyPolicy.bind(
-						deps.pricingV2Repo
+					getBaseFromPolicy: deps.effectivePricingRepo.getBaseFromPolicy.bind(
+						deps.effectivePricingRepo
+					),
+					getActiveOccupancyPolicy: deps.effectivePricingRepo.getActiveOccupancyPolicy.bind(
+						deps.effectivePricingRepo
 					),
 					getPreviewRules: deps.pricingRepo.getPreviewRules.bind(deps.pricingRepo),
-					getFallbackCurrency: deps.pricingV2Repo.getFallbackCurrency?.bind(deps.pricingV2Repo),
-					saveEffectivePricingV2: deps.pricingV2Repo.saveEffectivePricingV2.bind(
-						deps.pricingV2Repo
+					getFallbackCurrency: deps.effectivePricingRepo.getFallbackCurrency?.bind(
+						deps.effectivePricingRepo
+					),
+					saveEffectivePricing: deps.effectivePricingRepo.saveEffectivePricing.bind(
+						deps.effectivePricingRepo
 					),
 				},
 				{
