@@ -9,7 +9,7 @@ export const STAGE3_FINANCIAL_TRUTH_SOURCES = [
 	"PaymentTransaction",
 	"FinancialSettlementRecord",
 	"ReconciliationMatch",
-	"BookingRoomDetailSnapshotAggregation",
+	"BookingLineItemSnapshotAggregation",
 ] as const
 
 export const STAGE3_COMPATIBILITY_ONLY_SOURCES = [

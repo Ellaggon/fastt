@@ -54,9 +54,9 @@ function operation(params: {
 			})),
 		},
 		snapshotIntegrity: {
-			hasRoomSnapshots: true,
+			hasLineItemSnapshots: true,
 			hasTaxFeeSnapshots: true,
-			multiRoomAllocationCount: 1,
+			lineItemAllocationCount: 1,
 		},
 		transactions: {
 			financialEvidence: {},

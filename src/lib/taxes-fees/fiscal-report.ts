@@ -1,7 +1,7 @@
 import {
 	and,
 	Booking,
-	BookingRoomDetail,
+	BookingLineItem,
 	BookingTaxFee,
 	db,
 	desc,
@@ -33,10 +33,10 @@ export async function getProviderFiscalReport(input: {
 			currency: Booking.currency,
 			confirmedAt: Booking.confirmedAt,
 			totalAmount: Booking.totalAmount,
-			pricingBreakdownJson: BookingRoomDetail.pricingBreakdownJson,
+			pricingBreakdownJson: BookingLineItem.pricingBreakdownJson,
 		})
 		.from(Booking)
-		.leftJoin(BookingRoomDetail, eq(BookingRoomDetail.bookingId, Booking.id))
+		.leftJoin(BookingLineItem, eq(BookingLineItem.bookingId, Booking.id))
 		.where(
 			and(
 				eq(Booking.providerId, input.providerId),

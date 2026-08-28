@@ -78,7 +78,12 @@ export const POST: APIRoute = async ({ request }) => {
 			? await db
 					.select()
 					.from(TaxFeeDefinitionVersion)
-					.where(eq(TaxFeeDefinitionVersion.id, definition.currentVersionId))
+					.where(
+						and(
+							eq(TaxFeeDefinitionVersion.id, definition.currentVersionId),
+							eq(TaxFeeDefinitionVersion.taxFeeDefinitionId, definition.id)
+						)
+					)
 					.then((rows) => rows[0] ?? null)
 			: null
 	const payload = {
@@ -153,22 +158,20 @@ export const POST: APIRoute = async ({ request }) => {
 		.then((rows) => rows[0] ?? null)
 	const runId = existingRun?.id ?? crypto.randomUUID()
 	if (!existingRun)
-		await db
-			.insert(ProviderIntegrationSyncRun)
-			.values({
-				id: runId,
-				providerId,
-				connectionId: connection.id,
-				connectorKey: connection.connectorKey,
-				operation: "tax_fee_publish",
-				trigger: input.action === "retry" ? "manual_retry" : "manual",
-				status: "running",
-				idempotencyKey,
-				requestedBy: user.id,
-				startedAt: new Date(),
-				createdAt: new Date(),
-				summaryJson: { fiscalPayload: payload },
-			})
+		await db.insert(ProviderIntegrationSyncRun).values({
+			id: runId,
+			providerId,
+			connectionId: connection.id,
+			connectorKey: connection.connectorKey,
+			operation: "tax_fee_publish",
+			trigger: input.action === "retry" ? "manual_retry" : "manual",
+			status: "running",
+			idempotencyKey,
+			requestedBy: user.id,
+			startedAt: new Date(),
+			createdAt: new Date(),
+			summaryJson: { fiscalPayload: payload },
+		})
 	const publicationId = crypto.randomUUID()
 	await db
 		.insert(FiscalChannelPublication)

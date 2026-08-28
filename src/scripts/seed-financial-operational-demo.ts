@@ -1,6 +1,6 @@
 import {
 	Booking,
-	BookingRoomDetail,
+	BookingLineItem,
 	BookingTaxFee,
 	CommissionSnapshot,
 	DailyInventory,
@@ -817,7 +817,7 @@ async function seedBookings(): Promise<void> {
 			})
 
 		await db
-			.insert(BookingRoomDetail)
+			.insert(BookingLineItem)
 			.values({
 				id: `detail-${booking.id}`,
 				bookingId: booking.id,
@@ -843,7 +843,7 @@ async function seedBookings(): Promise<void> {
 				createdAt: NOW,
 			})
 			.onConflictDoUpdate({
-				target: [BookingRoomDetail.id],
+				target: [BookingLineItem.id],
 				set: {
 					bookingId: booking.id,
 					variantId: VARIANT_ID,

@@ -39,7 +39,7 @@ export type FinancialReconciliationMatchDraft = {
 	contract: {
 		amount: number
 		currency: string
-		multiRoomAllocationCount: number
+		lineItemAllocationCount: number
 		taxFeeSnapshotLines: number
 	}
 	payment: {
@@ -268,7 +268,7 @@ export function buildFinancialReconciliationMatch(params: {
 		contract: {
 			amount: review.contractTotal,
 			currency: review.currency,
-			multiRoomAllocationCount: review.snapshotIntegrity.multiRoomAllocationCount,
+			lineItemAllocationCount: review.snapshotIntegrity.lineItemAllocationCount,
 			taxFeeSnapshotLines: review.taxFeeVisibility.lines,
 		},
 		payment: {

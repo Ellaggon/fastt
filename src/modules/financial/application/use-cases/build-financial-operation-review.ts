@@ -239,14 +239,14 @@ export function buildFinancialOperationReview(params: {
 	const refundReferences = refundRecords
 		.map((row) => readFinancialEvidenceReference(row.payload))
 		.filter(Boolean)
-	const hasRoomSnapshots = params.group.some(
+	const hasLineItemSnapshots = params.group.some(
 		(row) => row.productNameSnapshot != null && row.variantNameSnapshot != null
 	)
 	const hasTaxFeeSnapshots = params.taxRows.length > 0
 	const hasPaymentReference = paymentReferences.length > 0
 	const hasSettlementReference = settlementReferences.length > 0
 	const hasRefundReference = refundReferences.length > 0 || refundSnapshot != null
-	const multiRoomAllocationCount = params.group.filter((row) => row.detailId != null).length
+	const lineItemAllocationCount = params.group.filter((row) => row.detailId != null).length
 	const snapshotVersion = first.contractSnapshotVersion ?? "missing_contract_snapshot_version"
 	const exceptions: DetectedFinancialException[] = detectFinancialExceptions({
 		bookingId: first.bookingId,
@@ -258,10 +258,10 @@ export function buildFinancialOperationReview(params: {
 		hasPaymentReference,
 		hasSettlementReference,
 		hasRefundReference,
-		hasRoomSnapshots,
+		hasLineItemSnapshots,
 		hasTaxFeeSnapshots,
 		taxesTotal,
-		multiRoomAllocationCount,
+		lineItemAllocationCount,
 		snapshotVersion: String(snapshotVersion),
 	})
 	const primaryException =
@@ -340,12 +340,12 @@ export function buildFinancialOperationReview(params: {
 		},
 		snapshotIntegrity: {
 			contractSnapshotVersion: snapshotVersion,
-			hasRoomSnapshots,
+			hasLineItemSnapshots,
 			hasTaxFeeSnapshots,
 			hasPaymentReference,
 			hasSettlementReference,
 			hasRefundReference,
-			multiRoomAllocationCount,
+			lineItemAllocationCount,
 		},
 		operationalException: {
 			hasOpenException: exceptions.some((entry) => entry.severity === "attention"),

@@ -2,7 +2,7 @@ import type { APIRoute } from "astro"
 import {
 	and,
 	Booking,
-	BookingRoomDetail,
+	BookingLineItem,
 	BookingTaxFee,
 	db,
 	desc,
@@ -102,7 +102,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 			pagination: { limit, returned: 0, hasMore: false, nextCursor: null },
 			readOnly: true,
 			sourceOfTruth: {
-				contractGrossAmount: "BookingRoomDetail snapshot aggregation",
+				contractGrossAmount: "BookingLineItem snapshot aggregation",
 				commissionBasis: "CommissionSnapshot",
 				settlementEvidence: "FinancialSettlementRecord",
 				payableVisibility: "ProviderPayableSnapshot",
@@ -120,20 +120,20 @@ export const GET: APIRoute = async ({ request, url }) => {
 			status: Booking.status,
 			currency: Booking.currency,
 			confirmedAt: Booking.confirmedAt,
-			detailId: BookingRoomDetail.id,
-			detailTotalAmount: BookingRoomDetail.totalAmount,
-			detailTaxAmount: BookingRoomDetail.taxAmount,
-			providerIdSnapshot: BookingRoomDetail.providerIdSnapshot,
-			productIdSnapshot: BookingRoomDetail.productIdSnapshot,
+			detailId: BookingLineItem.id,
+			detailTotalAmount: BookingLineItem.totalAmount,
+			detailTaxAmount: BookingLineItem.taxAmount,
+			providerIdSnapshot: BookingLineItem.providerIdSnapshot,
+			productIdSnapshot: BookingLineItem.productIdSnapshot,
 			productId: Product.id,
-			productNameSnapshot: BookingRoomDetail.productNameSnapshot,
-			variantNameSnapshot: BookingRoomDetail.variantNameSnapshot,
+			productNameSnapshot: BookingLineItem.productNameSnapshot,
+			variantNameSnapshot: BookingLineItem.variantNameSnapshot,
 			productName: Product.name,
 			variantName: Variant.name,
 		})
 		.from(Booking)
-		.leftJoin(BookingRoomDetail, eq(BookingRoomDetail.bookingId, Booking.id))
-		.leftJoin(Variant, eq(Variant.id, BookingRoomDetail.variantId))
+		.leftJoin(BookingLineItem, eq(BookingLineItem.bookingId, Booking.id))
+		.leftJoin(Variant, eq(Variant.id, BookingLineItem.variantId))
 		.leftJoin(Product, eq(Product.id, Variant.productId))
 		.where(and(eq(Booking.providerId, auth.providerId), inArray(Booking.id, pagedBookingIds)))
 		.orderBy(desc(Booking.confirmedAt), desc(Booking.id))
@@ -208,7 +208,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 		},
 		readOnly: true,
 		sourceOfTruth: {
-			contractGrossAmount: "BookingRoomDetail snapshot aggregation",
+			contractGrossAmount: "BookingLineItem snapshot aggregation",
 			commissionBasis: "CommissionSnapshot",
 			settlementEvidence: "FinancialSettlementRecord",
 			payableVisibility: "ProviderPayableSnapshot",

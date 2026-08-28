@@ -12,7 +12,7 @@ export type ProviderFinanceSnapshotState = "missing" | "fresh" | "stale" | "bloc
 export type ProviderFinanceStatementState = "pending" | "fresh" | "stale" | "blocked"
 export type ProviderFinanceStatementDependency = {
 	source:
-		| "BookingRoomDetail"
+		| "BookingLineItem"
 		| "BookingTaxFee"
 		| "CommissionSnapshot"
 		| "ProviderPayableSnapshot"
@@ -30,7 +30,7 @@ export type ProviderFinanceMaterializationItem = {
 	contract: {
 		grossAmount: number
 		taxAmount: number
-		roomSnapshotCount: number
+		lineItemSnapshotCount: number
 		fingerprint: string
 	}
 	commission: {
@@ -58,8 +58,8 @@ export type ProviderFinanceMaterializationItem = {
 		count: number
 	}
 	explainability: {
-		grossAmountSource: "BookingRoomDetail.totalAmount"
-		taxAmountSource: "BookingTaxFee.totalAmount" | "BookingRoomDetail.taxAmount"
+		grossAmountSource: "BookingLineItem.totalAmount"
+		taxAmountSource: "BookingTaxFee.totalAmount" | "BookingLineItem.taxAmount"
 		commissionSource: "CommissionSnapshot" | "missing_commission_snapshot"
 		payableSource: "ProviderPayableSnapshot" | "pending_provider_payable_snapshot"
 		reconciliationSource: "ReconciliationMatch"
@@ -89,8 +89,8 @@ export type ProviderFinanceStatementDraft = {
 	dependencies: ProviderFinanceStatementDependency[]
 	provenance: {
 		aggregationSource: "ProviderPayableSnapshot"
-		contractSource: "BookingRoomDetail"
-		taxSource: "BookingTaxFee" | "BookingRoomDetail"
+		contractSource: "BookingLineItem"
+		taxSource: "BookingTaxFee" | "BookingLineItem"
 		reconciliationSource: "ReconciliationMatch"
 		statementSource: "ProviderStatement"
 		includedBookingIds: string[]
@@ -213,14 +213,14 @@ export function buildProviderFinanceMaterialization(params: {
 		const taxSnapshotTotal = taxRows.reduce((sum, row) => sum + Number(row.totalAmount ?? 0), 0)
 		const detailTaxTotal = rows.reduce((sum, row) => sum + Number(row.detailTaxAmount ?? 0), 0)
 		const taxAmount = roundMoney(hasTaxSnapshot ? taxSnapshotTotal : detailTaxTotal)
-		const roomSnapshotCount = rows.filter((row) => row.detailId != null).length
+		const lineItemSnapshotCount = rows.filter((row) => row.detailId != null).length
 		const contractFingerprint = stableFingerprint({
 			bookingId,
 			providerId: params.providerId,
 			currency,
 			grossAmount,
 			taxAmount,
-			roomSnapshotCount,
+			lineItemSnapshotCount,
 		})
 		const commission = commissionByBooking.get(bookingId) ?? null
 		const expectedCommission =
@@ -230,9 +230,7 @@ export function buildProviderFinanceMaterialization(params: {
 				? []
 				: ([
 						commission.currency !== currency ? "commission_currency_mismatch" : null,
-						commission.basis !== "booking_room_detail_snapshot"
-							? "commission_basis_mismatch"
-							: null,
+						commission.basis !== "booking_line_item_snapshot" ? "commission_basis_mismatch" : null,
 						expectedCommission !== roundMoney(commission.commissionAmount)
 							? "commission_amount_stale"
 							: null,
@@ -276,7 +274,7 @@ export function buildProviderFinanceMaterialization(params: {
 			contract: {
 				grossAmount,
 				taxAmount,
-				roomSnapshotCount,
+				lineItemSnapshotCount,
 				fingerprint: contractFingerprint,
 			},
 			commission: {
@@ -317,10 +315,10 @@ export function buildProviderFinanceMaterialization(params: {
 				count: (settlementByBooking.get(bookingId) ?? []).length,
 			},
 			explainability: {
-				grossAmountSource: "BookingRoomDetail.totalAmount" as const,
+				grossAmountSource: "BookingLineItem.totalAmount" as const,
 				taxAmountSource: hasTaxSnapshot
 					? ("BookingTaxFee.totalAmount" as const)
-					: ("BookingRoomDetail.taxAmount" as const),
+					: ("BookingLineItem.taxAmount" as const),
 				commissionSource: commission
 					? ("CommissionSnapshot" as const)
 					: ("missing_commission_snapshot" as const),
@@ -340,7 +338,7 @@ export function buildProviderFinanceMaterialization(params: {
 		.sort()
 	const currencies = [...new Set(payableItems.map((item) => item.currency))]
 	const statement = latestStatement(params.statements)
-	const taxSource = params.taxRows.length > 0 ? "BookingTaxFee" : "BookingRoomDetail"
+	const taxSource = params.taxRows.length > 0 ? "BookingTaxFee" : "BookingLineItem"
 	const draft = {
 		providerId: params.providerId,
 		currency: currencies.length === 1 ? currencies[0] : null,
@@ -360,8 +358,8 @@ export function buildProviderFinanceMaterialization(params: {
 		basis: "provider_payable_snapshot_aggregation" as const,
 		provenance: {
 			aggregationSource: "ProviderPayableSnapshot" as const,
-			contractSource: "BookingRoomDetail" as const,
-			taxSource: taxSource as "BookingTaxFee" | "BookingRoomDetail",
+			contractSource: "BookingLineItem" as const,
+			taxSource: taxSource as "BookingTaxFee" | "BookingLineItem",
 			reconciliationSource: "ReconciliationMatch" as const,
 			statementSource: "ProviderStatement" as const,
 			includedBookingIds,
@@ -414,9 +412,9 @@ export function buildProviderFinanceMaterialization(params: {
 	].filter((value): value is string => typeof value === "string" && value.length > 0)
 	const dependencies: ProviderFinanceStatementDependency[] = [
 		{
-			source: "BookingRoomDetail",
+			source: "BookingLineItem",
 			state: items.length ? "fresh" : "missing",
-			count: items.reduce((sum, item) => sum + item.contract.roomSnapshotCount, 0),
+			count: items.reduce((sum, item) => sum + item.contract.lineItemSnapshotCount, 0),
 			staleReasons: [],
 		},
 		{

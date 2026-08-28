@@ -3,7 +3,7 @@ import {
 	and,
 	Booking,
 	BookingPolicySnapshot,
-	BookingRoomDetail,
+	BookingLineItem,
 	BookingTaxFee,
 	db,
 	eq,
@@ -114,17 +114,17 @@ export async function loadRefundCancellationContext(params: {
 
 	const roomRows = await db
 		.select({
-			id: BookingRoomDetail.id,
-			basePrice: BookingRoomDetail.subtotalAmount,
-			taxes: BookingRoomDetail.taxAmount,
-			totalPrice: BookingRoomDetail.totalAmount,
-			checkIn: BookingRoomDetail.checkIn,
-			checkOut: BookingRoomDetail.checkOut,
-			providerIdSnapshot: BookingRoomDetail.providerIdSnapshot,
-			pricingBreakdownJson: BookingRoomDetail.pricingBreakdownJson,
+			id: BookingLineItem.id,
+			basePrice: BookingLineItem.subtotalAmount,
+			taxes: BookingLineItem.taxAmount,
+			totalPrice: BookingLineItem.totalAmount,
+			checkIn: BookingLineItem.checkIn,
+			checkOut: BookingLineItem.checkOut,
+			providerIdSnapshot: BookingLineItem.providerIdSnapshot,
+			pricingBreakdownJson: BookingLineItem.pricingBreakdownJson,
 		})
-		.from(BookingRoomDetail)
-		.where(eq(BookingRoomDetail.bookingId, bookingId))
+		.from(BookingLineItem)
+		.where(eq(BookingLineItem.bookingId, bookingId))
 
 	if (!roomRows.length) return null
 
@@ -198,9 +198,9 @@ export async function loadRefundCancellationContext(params: {
 		lines: [
 			{
 				type: "base",
-				label: "Booked room amount",
+				label: "Importe contratado",
 				amount: baseAmount || grossAmount,
-				basis: "booking_room_detail",
+				basis: "booking_line_item",
 			},
 			...(fiscalLines.length
 				? fiscalLines
