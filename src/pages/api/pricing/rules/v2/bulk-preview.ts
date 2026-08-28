@@ -1,7 +1,8 @@
 import type { APIRoute } from "astro"
 import { z } from "zod"
 
-import { simulateBulkOperation } from "@/modules/pricing/public"
+import { requireProvider } from "@/lib/auth/requireProvider"
+import { PricingRuleCommandError, simulateBulkOperation } from "@/modules/pricing/public"
 
 const bulkSchema = z.object({
 	ratePlanIds: z.array(z.string().min(1)).min(1).max(200),
@@ -41,12 +42,22 @@ export const POST: APIRoute = async ({ request }) => {
 			}
 		)
 	}
-	const result = await simulateBulkOperation({
-		request,
-		input: parsed.data,
-	})
-	return new Response(JSON.stringify(result), {
-		status: 200,
-		headers: { "Content-Type": "application/json" },
-	})
+	try {
+		const { providerId } = await requireProvider(request)
+		const result = await simulateBulkOperation({
+			providerId,
+			input: parsed.data,
+		})
+		return new Response(JSON.stringify(result), {
+			status: 200,
+			headers: { "Content-Type": "application/json" },
+		})
+	} catch (error) {
+		if (error instanceof Response) return error
+		if (!(error instanceof PricingRuleCommandError)) throw error
+		return new Response(JSON.stringify({ error: error.code }), {
+			status: error.status,
+			headers: { "Content-Type": "application/json" },
+		})
+	}
 }
