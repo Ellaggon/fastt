@@ -31,7 +31,6 @@ export {
 	Booking,
 	BookingLineItem,
 	BookingPolicySnapshot,
-	BookingRoomDetail,
 	BookingTaxFee,
 	BookingVoucher,
 	CancellationTier,

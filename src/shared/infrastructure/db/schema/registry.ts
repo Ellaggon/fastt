@@ -120,7 +120,7 @@ export const databaseTablesByDomain = {
 		"FiscalChannelPublication",
 		"BookingTaxFee",
 	],
-	booking: ["Booking", "BookingVoucher", "BookingRoomDetail", "BookingPolicySnapshot"],
+	booking: ["Booking", "BookingVoucher", "BookingLineItem", "BookingPolicySnapshot"],
 	financial: [
 		"FinancialExceptionRecord",
 		"FinancialReference",

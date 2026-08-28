@@ -2548,8 +2548,8 @@ export const BookingVoucher = pgTable(
 	]
 )
 
-export const BookingRoomDetail = pgTable(
-	"BookingRoomDetail",
+export const BookingLineItem = pgTable(
+	"BookingLineItem",
 	{
 		id: pk(),
 		bookingId: txt("bookingId").references(() => Booking.id),
@@ -2572,19 +2572,14 @@ export const BookingRoomDetail = pgTable(
 		createdAt: now("createdAt"),
 	},
 	(table) => [
-		index("BookingRoomDetail_bookingId_idx").on(table.bookingId),
-		index("BookingRoomDetail_variantId_idx").on(table.variantId),
-		index("BookingRoomDetail_ratePlanId_idx").on(table.ratePlanId),
+		index("BookingLineItem_bookingId_idx").on(table.bookingId),
+		index("BookingLineItem_variantId_idx").on(table.variantId),
+		index("BookingLineItem_ratePlanId_idx").on(table.ratePlanId),
 	]
 )
 
-/**
- * App-layer alias for BookingRoomDetail (all verticals).
- * Physical table name stays BookingRoomDetail — no schema rename (Fase 6).
- */
-export const BookingLineItem = BookingRoomDetail
-export type BookingLineItemRow = typeof BookingRoomDetail.$inferSelect
-export type BookingLineItemInsert = typeof BookingRoomDetail.$inferInsert
+export type BookingLineItemRow = typeof BookingLineItem.$inferSelect
+export type BookingLineItemInsert = typeof BookingLineItem.$inferInsert
 
 export const InventoryLock = pgTable(
 	"InventoryLock",
