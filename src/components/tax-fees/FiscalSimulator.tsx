@@ -1114,7 +1114,7 @@ function PreparedContext({
 					label="Precio de la estancia"
 					value={money(context.baseAmount, context.currency)}
 					detail={
-						context.pricingSource === "effective_pricing_v2"
+						context.pricingSource === "effective_pricing"
 							? "Precio efectivo para estas fechas"
 							: "Precio disponible para estas fechas"
 					}

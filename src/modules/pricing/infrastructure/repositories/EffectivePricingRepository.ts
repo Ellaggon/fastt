@@ -4,7 +4,7 @@ import {
 	desc,
 	db,
 	eq,
-	EffectivePricingV2,
+	EffectivePricing,
 	gt,
 	gte,
 	inArray,
@@ -27,7 +27,7 @@ type OccupancyPolicyRow = {
 	childValue: number
 }
 
-export class PricingV2Repository {
+export class EffectivePricingRepository {
 	async getFallbackCurrency(_ratePlanId: string): Promise<string> {
 		// A fixed date price can bootstrap coverage before a baseline exists.
 		// Currency remains the platform default until the canonical baseline is configured.
@@ -94,23 +94,23 @@ export class PricingV2Repository {
 		baseAmount: number
 		currency: string
 	} | null> {
-		if (!EffectivePricingV2 || !(EffectivePricingV2 as any).baseComponent) {
+		if (!EffectivePricing || !(EffectivePricing as any).baseComponent) {
 			return null
 		}
 		const row = await db
 			.select({
-				baseAmount: EffectivePricingV2.baseComponent,
-				currency: EffectivePricingV2.currency,
+				baseAmount: EffectivePricing.baseComponent,
+				currency: EffectivePricing.currency,
 			})
-			.from(EffectivePricingV2)
+			.from(EffectivePricing)
 			.where(
 				and(
-					eq(EffectivePricingV2.ratePlanId, params.ratePlanId),
-					eq(EffectivePricingV2.date, params.date),
-					eq(EffectivePricingV2.occupancyKey, params.occupancyKey)
+					eq(EffectivePricing.ratePlanId, params.ratePlanId),
+					eq(EffectivePricing.date, params.date),
+					eq(EffectivePricing.occupancyKey, params.occupancyKey)
 				)
 			)
-			.orderBy(desc(EffectivePricingV2.computedAt), desc(EffectivePricingV2.id))
+			.orderBy(desc(EffectivePricing.computedAt), desc(EffectivePricing.id))
 			.limit(1)
 			.then(first)
 		if (!row) return null
@@ -177,7 +177,7 @@ export class PricingV2Repository {
 		}
 	}
 
-	async saveEffectivePricingV2(params: {
+	async saveEffectivePricing(params: {
 		id: string
 		variantId: string
 		ratePlanId: string
@@ -191,9 +191,9 @@ export class PricingV2Repository {
 		computedAt: Date
 		sourceVersion: string
 	}): Promise<void> {
-		if (!EffectivePricingV2 || !(EffectivePricingV2 as any).variantId) return
+		if (!EffectivePricing || !(EffectivePricing as any).variantId) return
 		await db
-			.insert(EffectivePricingV2)
+			.insert(EffectivePricing)
 			.values({
 				id: params.id,
 				variantId: params.variantId,
@@ -210,10 +210,10 @@ export class PricingV2Repository {
 			})
 			.onConflictDoUpdate({
 				target: [
-					EffectivePricingV2.variantId,
-					EffectivePricingV2.ratePlanId,
-					EffectivePricingV2.date,
-					EffectivePricingV2.occupancyKey,
+					EffectivePricing.variantId,
+					EffectivePricing.ratePlanId,
+					EffectivePricing.date,
+					EffectivePricing.occupancyKey,
 				],
 				set: {
 					baseComponent: params.baseComponent,
@@ -227,30 +227,30 @@ export class PricingV2Repository {
 			})
 	}
 
-	async listEffectivePricingV2Combinations(params: {
+	async listEffectivePricingCombinations(params: {
 		variantId: string
 		ratePlanId: string
 		from: string
 		to: string
 		occupancyKeys?: string[]
 	}): Promise<Array<{ date: string; occupancyKey: string }>> {
-		if (!EffectivePricingV2 || !(EffectivePricingV2 as any).id) return []
+		if (!EffectivePricing || !(EffectivePricing as any).id) return []
 		const occupancyPredicate =
 			params.occupancyKeys && params.occupancyKeys.length > 0
-				? inArray(EffectivePricingV2.occupancyKey, params.occupancyKeys)
+				? inArray(EffectivePricing.occupancyKey, params.occupancyKeys)
 				: undefined
 		const rows = await db
 			.select({
-				date: EffectivePricingV2.date,
-				occupancyKey: EffectivePricingV2.occupancyKey,
+				date: EffectivePricing.date,
+				occupancyKey: EffectivePricing.occupancyKey,
 			})
-			.from(EffectivePricingV2)
+			.from(EffectivePricing)
 			.where(
 				and(
-					eq(EffectivePricingV2.variantId, params.variantId),
-					eq(EffectivePricingV2.ratePlanId, params.ratePlanId),
-					gte(EffectivePricingV2.date, params.from),
-					lt(EffectivePricingV2.date, params.to),
+					eq(EffectivePricing.variantId, params.variantId),
+					eq(EffectivePricing.ratePlanId, params.ratePlanId),
+					gte(EffectivePricing.date, params.from),
+					lt(EffectivePricing.date, params.to),
 					occupancyPredicate
 				)
 			)

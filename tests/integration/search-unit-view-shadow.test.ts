@@ -4,7 +4,7 @@ import {
 	db,
 	eq,
 	EffectiveAvailability,
-	EffectivePricingV2,
+	EffectivePricing,
 	SearchUnitView,
 } from "@/shared/infrastructure/db/compat"
 
@@ -60,7 +60,7 @@ describe("integration/search-unit-view-shadow", () => {
 				})
 
 			await db
-				.insert(EffectivePricingV2)
+				.insert(EffectivePricing)
 				.values({
 					id: `ep_suv_${variantId}_${ratePlanId}_${date}`,
 					variantId,
@@ -74,10 +74,10 @@ describe("integration/search-unit-view-shadow", () => {
 				} as any)
 				.onConflictDoUpdate({
 					target: [
-						EffectivePricingV2.variantId,
-						EffectivePricingV2.ratePlanId,
-						EffectivePricingV2.date,
-						EffectivePricingV2.occupancyKey,
+						EffectivePricing.variantId,
+						EffectivePricing.ratePlanId,
+						EffectivePricing.date,
+						EffectivePricing.occupancyKey,
 					],
 					set: {
 						baseComponent: 120,

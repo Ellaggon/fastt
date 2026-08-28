@@ -20,7 +20,7 @@ const BANNED_IMPORTED_SYMBOLS = new Set([
 	"ensurePricingCoverageForRequest",
 	"ensurePricingCoverageRuntime",
 	"ensurePricingCoverageForRequestRuntime",
-	"recomputeEffectivePricingV2",
+	"recomputeEffectivePricing",
 	"materializeSearchUnitRange",
 	"materializeSearchUnit",
 	"enqueueAutoBackfill",

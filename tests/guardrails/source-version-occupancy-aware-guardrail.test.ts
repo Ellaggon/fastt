@@ -4,7 +4,7 @@ import { join } from "node:path"
 
 const computeFile = join(
 	process.cwd(),
-	"src/modules/pricing/application/use-cases/compute-effective-pricing-v2.ts"
+	"src/modules/pricing/application/use-cases/compute-effective-pricing.ts"
 )
 const materializeFile = join(
 	process.cwd(),
@@ -17,7 +17,7 @@ describe("SourceVersion occupancy-aware guardrail", () => {
 		expect(content.includes("sourceVersion")).toBe(true)
 		expect(content.includes("occupancyKey")).toBe(true)
 		expect(content).toMatch(/createHash\(["']sha1["']\)/)
-		expect(content).toMatch(/engine:\s*["']pricing_v2_shadow["']/)
+		expect(content).toMatch(/engine:\s*["']effective_pricing["']/)
 		expect(content).toMatch(/rules:\s*rules/)
 		expect(content).toMatch(/type:\s*String\(rule\.type\)/)
 		expect(content).toMatch(/value:\s*Number\(rule\.value\)/)

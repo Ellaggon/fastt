@@ -1,7 +1,7 @@
 import {
 	db,
 	EffectiveAvailability,
-	EffectivePricingV2,
+	EffectivePricing,
 	EffectiveRestriction,
 } from "@/shared/infrastructure/db/compat"
 import { describe, expect, it } from "vitest"
@@ -321,7 +321,7 @@ async function seedSyntheticHotels(): Promise<HotelSeed[]> {
 				if (hasPricing) {
 					const occupancyKey = buildOccupancyKey({ adults: 2, children: 0, infants: 0 })
 					await db
-						.insert(EffectivePricingV2)
+						.insert(EffectivePricing)
 						.values({
 							id: `ep_synth_${variantId}_${ratePlanId}_${date}`,
 							variantId,
@@ -335,10 +335,10 @@ async function seedSyntheticHotels(): Promise<HotelSeed[]> {
 						} as any)
 						.onConflictDoUpdate({
 							target: [
-								EffectivePricingV2.variantId,
-								EffectivePricingV2.ratePlanId,
-								EffectivePricingV2.date,
-								EffectivePricingV2.occupancyKey,
+								EffectivePricing.variantId,
+								EffectivePricing.ratePlanId,
+								EffectivePricing.date,
+								EffectivePricing.occupancyKey,
 							],
 							set: {
 								baseComponent: basePrice,

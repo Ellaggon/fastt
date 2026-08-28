@@ -5,7 +5,7 @@ import {
 	CommercialRuleApplication,
 	CommercialRuleSet,
 	db,
-	EffectivePricingV2,
+	EffectivePricing,
 	EffectiveRestriction,
 	eq,
 	inArray,
@@ -234,7 +234,7 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 					}
 				}
 			}
-			await tx.delete(EffectivePricingV2).where(eq(EffectivePricingV2.ratePlanId, ratePlanId))
+			await tx.delete(EffectivePricing).where(eq(EffectivePricing.ratePlanId, ratePlanId))
 			await tx.delete(EffectiveRestriction).where(eq(EffectiveRestriction.ratePlanId, ratePlanId))
 			await tx
 				.delete(RatePlanOccupancyPolicy)
@@ -284,6 +284,6 @@ export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort 
 	async purgeEffectivePricingByVariantIds(variantIds: string[]): Promise<void> {
 		const ids = [...new Set(variantIds.map((id) => String(id ?? "").trim()).filter(Boolean))]
 		if (!ids.length) return
-		await db.delete(EffectivePricingV2).where(inArray(EffectivePricingV2.variantId, ids))
+		await db.delete(EffectivePricing).where(inArray(EffectivePricing.variantId, ids))
 	}
 }

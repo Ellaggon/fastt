@@ -4,7 +4,7 @@ import {
 	db,
 	desc,
 	EffectiveAvailability,
-	EffectivePricingV2,
+	EffectivePricing,
 	EffectiveRestriction,
 	eq,
 	first,
@@ -612,23 +612,23 @@ export async function buildPricingCalendarSurface(input: {
 				selectedRatePlan
 					? db
 							.select({
-								date: EffectivePricingV2.date,
-								finalPrice: EffectivePricingV2.finalBasePrice,
-								currency: EffectivePricingV2.currency,
-								baseComponent: EffectivePricingV2.baseComponent,
-								ruleAdjustment: EffectivePricingV2.ruleAdjustment,
-								computedAt: EffectivePricingV2.computedAt,
+								date: EffectivePricing.date,
+								finalPrice: EffectivePricing.finalBasePrice,
+								currency: EffectivePricing.currency,
+								baseComponent: EffectivePricing.baseComponent,
+								ruleAdjustment: EffectivePricing.ruleAdjustment,
+								computedAt: EffectivePricing.computedAt,
 							})
-							.from(EffectivePricingV2)
+							.from(EffectivePricing)
 							.where(
 								and(
-									eq(EffectivePricingV2.ratePlanId, String(selectedRatePlan.ratePlanId)),
-									eq(EffectivePricingV2.occupancyKey, DEFAULT_OCCUPANCY_KEY),
-									gte(EffectivePricingV2.date, startDate),
-									lt(EffectivePricingV2.date, endDate)
+									eq(EffectivePricing.ratePlanId, String(selectedRatePlan.ratePlanId)),
+									eq(EffectivePricing.occupancyKey, DEFAULT_OCCUPANCY_KEY),
+									gte(EffectivePricing.date, startDate),
+									lt(EffectivePricing.date, endDate)
 								)
 							)
-							.orderBy(asc(EffectivePricingV2.date))
+							.orderBy(asc(EffectivePricing.date))
 					: Promise.resolve([]),
 			])
 		),

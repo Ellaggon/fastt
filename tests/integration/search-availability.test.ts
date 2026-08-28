@@ -21,7 +21,7 @@ import { buildOccupancyKey } from "@/shared/domain/occupancy"
 import {
 	db,
 	EffectiveAvailability,
-	EffectivePricingV2,
+	EffectivePricing,
 	EffectiveRestriction,
 	SearchUnitView,
 	Variant,
@@ -233,23 +233,26 @@ async function seedSearchableVariant(params: {
 		await Promise.all(
 			params.inventoryDates.map(async (date) => {
 				await db
-					.insert(EffectivePricingV2)
+					.insert(EffectivePricing)
 					.values({
+						id: `ep_${params.variantId}_${params.ratePlanId}_${date}_${buildOccupancyKey({ adults: 2, children: 0, infants: 0 })}`,
 						variantId: params.variantId,
 						ratePlanId: params.ratePlanId,
 						date,
 						occupancyKey: buildOccupancyKey({ adults: 2, children: 0, infants: 0 }),
 						baseComponent: nightly,
+						occupancyAdjustment: 0,
+						ruleAdjustment: 0,
 						finalBasePrice: nightly,
 
 						computedAt: new Date(),
 					} as any)
 					.onConflictDoUpdate({
 						target: [
-							EffectivePricingV2.variantId,
-							EffectivePricingV2.ratePlanId,
-							EffectivePricingV2.date,
-							EffectivePricingV2.occupancyKey,
+							EffectivePricing.variantId,
+							EffectivePricing.ratePlanId,
+							EffectivePricing.date,
+							EffectivePricing.occupancyKey,
 						],
 						set: {
 							baseComponent: nightly,

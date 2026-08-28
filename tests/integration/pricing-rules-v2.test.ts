@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { and, db, EffectivePricingV2, eq } from "@/shared/infrastructure/db/compat"
+import { and, db, EffectivePricing, eq } from "@/shared/infrastructure/db/compat"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
 
 import { POST as createRuleV2Post } from "@/pages/api/pricing/rules/v2/create"
@@ -382,14 +382,14 @@ describe("integration/pricing rules v2 (ratePlan-first)", () => {
 
 				const effectiveRow = await db
 					.select()
-					.from(EffectivePricingV2)
+					.from(EffectivePricing)
 					.where(
 						and(
-							eq(EffectivePricingV2.variantId, fixture.variantAId),
-							eq(EffectivePricingV2.ratePlanId, fixture.ratePlanAId),
-							eq(EffectivePricingV2.date, previewFrom),
+							eq(EffectivePricing.variantId, fixture.variantAId),
+							eq(EffectivePricing.ratePlanId, fixture.ratePlanAId),
+							eq(EffectivePricing.date, previewFrom),
 							eq(
-								EffectivePricingV2.occupancyKey,
+								EffectivePricing.occupancyKey,
 								buildOccupancyKey({ adults: 2, children: 0, infants: 0 })
 							)
 						)

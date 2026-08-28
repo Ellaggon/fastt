@@ -2222,8 +2222,8 @@ export const EffectiveRestriction = pgTable(
 	]
 )
 
-export const EffectivePricingV2 = pgTable(
-	"EffectivePricingV2",
+export const EffectivePricing = pgTable(
+	"EffectivePricing",
 	{
 		id: pk(),
 		variantId: txt("variantId").references(() => Variant.id),
@@ -2236,23 +2236,23 @@ export const EffectivePricingV2 = pgTable(
 		finalBasePrice: amount("finalBasePrice"),
 		currency: text("currency").default("USD").notNull(),
 		computedAt: tsReq("computedAt"),
-		sourceVersion: text("sourceVersion").default("v2").notNull(),
+		sourceVersion: text("sourceVersion").default("effective_pricing").notNull(),
 	},
 	(table) => [
-		uniqueIndex("EffectivePricingV2_variant_rate_date_occupancy_unique").on(
+		uniqueIndex("EffectivePricing_variant_rate_date_occupancy_unique").on(
 			table.variantId,
 			table.ratePlanId,
 			table.date,
 			table.occupancyKey
 		),
-		index("EffectivePricingV2_ratePlan_date_idx").on(table.ratePlanId, table.date),
-		index("EffectivePricingV2_ratePlan_occupancy_date_idx").on(
+		index("EffectivePricing_ratePlan_date_idx").on(table.ratePlanId, table.date),
+		index("EffectivePricing_ratePlan_occupancy_date_idx").on(
 			table.ratePlanId,
 			table.occupancyKey,
 			table.date,
 			table.computedAt
 		),
-		index("EffectivePricingV2_variant_date_occupancy_idx").on(
+		index("EffectivePricing_variant_date_occupancy_idx").on(
 			table.variantId,
 			table.date,
 			table.occupancyKey

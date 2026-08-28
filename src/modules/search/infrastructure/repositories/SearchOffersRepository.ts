@@ -84,7 +84,7 @@ export class SearchOffersRepository implements SearchOffersRepositoryPort {
 		return searchReadModelRepository.listSearchUnitViewRows(params)
 	}
 
-	async listEffectivePricingV2Rows(params: {
+	async listEffectivePricingRows(params: {
 		unitIds: string[]
 		ratePlanIds: string[]
 		from: string
@@ -101,6 +101,6 @@ export class SearchOffersRepository implements SearchOffersRepositoryPort {
 			ruleAdjustment?: number
 		}>
 	> {
-		return searchReadModelRepository.listEffectivePricingV2Rows(params)
+		return searchReadModelRepository.listEffectivePricingRows(params)
 	}
 }

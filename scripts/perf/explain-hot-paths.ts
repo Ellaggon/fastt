@@ -157,7 +157,7 @@ async function main() {
 				"effective pricing latest canonical occupancy",
 				`
 				select "ratePlanId", currency, "baseComponent", date
-				from "EffectivePricingV2"
+				from "EffectivePricing"
 				where "ratePlanId" = $1 and "occupancyKey" = $2
 				order by date desc, "computedAt" desc
 				limit 1
@@ -168,7 +168,7 @@ async function main() {
 				"effective pricing coverage count",
 				`
 				select "ratePlanId", count(*) as value
-				from "EffectivePricingV2"
+				from "EffectivePricing"
 				where "ratePlanId" = $1 and "occupancyKey" = $2
 				group by "ratePlanId"
 				`,

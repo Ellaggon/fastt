@@ -5,7 +5,7 @@ import { GET as searchV2Get } from "@/pages/api/search-v2"
 import {
 	db,
 	EffectiveAvailability,
-	EffectivePricingV2,
+	EffectivePricing,
 	EffectiveRestriction,
 } from "@/shared/infrastructure/db/compat"
 import { materializeSearchUnitRange } from "@/modules/search/public"
@@ -110,34 +110,35 @@ async function seedHotelVariant(params: {
 		baseAmount: params.baseRate ?? 100,
 		baseCurrency: "USD",
 	})
-	if (params.baseRate !== undefined) {
-		await baseRateRepository.setCanonicalPricingBaselineForRatePlan({
-			ratePlanId: params.ratePlanId,
-			currency: "USD",
-			basePrice: params.baseRate,
-		})
-	}
+	await baseRateRepository.setCanonicalPricingBaselineForRatePlan({
+		ratePlanId: params.ratePlanId,
+		currency: "USD",
+		basePrice: params.baseRate ?? 100,
+	})
 
 	if (params.baseRate !== undefined) {
 		const occupancyKey = buildOccupancyKey({ adults: 2, children: 0, infants: 0 })
 		await db
-			.insert(EffectivePricingV2)
+			.insert(EffectivePricing)
 			.values({
+				id: `ep_${params.variantId}_${params.ratePlanId}_${params.date}_${occupancyKey}`,
 				variantId: params.variantId,
 				ratePlanId: params.ratePlanId,
 				date: params.date,
 				occupancyKey,
 				baseComponent: params.baseRate,
+				occupancyAdjustment: 0,
+				ruleAdjustment: 0,
 				finalBasePrice: params.baseRate,
 
 				computedAt: new Date(),
 			} as any)
 			.onConflictDoUpdate({
 				target: [
-					EffectivePricingV2.variantId,
-					EffectivePricingV2.ratePlanId,
-					EffectivePricingV2.date,
-					EffectivePricingV2.occupancyKey,
+					EffectivePricing.variantId,
+					EffectivePricing.ratePlanId,
+					EffectivePricing.date,
+					EffectivePricing.occupancyKey,
 				],
 				set: {
 					baseComponent: params.baseRate,

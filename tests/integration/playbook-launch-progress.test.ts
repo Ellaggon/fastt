@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { db, DailyInventory, EffectivePricingV2, Image, VariantImage } from "@/shared/infrastructure/db/compat"
+import { db, DailyInventory, EffectivePricing, Image, VariantImage } from "@/shared/infrastructure/db/compat"
 
 import { productImageRepository, productRepository, subtypeRepository } from "@/container"
 import { evaluateLaunchProgress } from "@/lib/playbook/evaluate-launch-progress"
@@ -168,7 +168,7 @@ describe("integration/playbook launch progress", () => {
 			baseCurrency: "USD",
 		})
 		await assignRequiredPolicies({ providerId, ratePlanId })
-		await db.insert(EffectivePricingV2).values({
+		await db.insert(EffectivePricing).values({
 			id: `ep_launch_${suffix}`,
 			variantId,
 			ratePlanId,

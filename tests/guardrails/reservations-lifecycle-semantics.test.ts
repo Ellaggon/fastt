@@ -22,13 +22,13 @@ const bookingOperationsRepository =
 	"src/modules/booking/infrastructure/repositories/BookingOperationsQueryRepository.ts"
 
 const bannedPricingCalls = new Set([
-	"computeEffectivePricingV2",
+	"computeEffectivePricing",
 	"computePricePreview",
 	"previewPricingRules",
 	"ensurePricingCoverage",
 	"ensurePricingCoverageRuntime",
 	"materializeEffectivePricing",
-	"recomputeEffectivePricingV2",
+	"recomputeEffectivePricing",
 ])
 
 const bannedInventoryCalls = new Set([

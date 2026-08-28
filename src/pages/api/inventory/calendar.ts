@@ -4,7 +4,7 @@ import {
 	and,
 	db,
 	EffectiveAvailability,
-	EffectivePricingV2,
+	EffectivePricing,
 	eq,
 	gte,
 	lt,
@@ -138,16 +138,16 @@ export const GET: APIRoute = async ({ request }) => {
 		const pricingRows = sortedDefaultPlan
 			? await db
 					.select({
-						date: EffectivePricingV2.date,
+						date: EffectivePricing.date,
 					})
-					.from(EffectivePricingV2)
+					.from(EffectivePricing)
 					.where(
 						and(
-							eq(EffectivePricingV2.variantId, parsed.variantId),
-							eq(EffectivePricingV2.ratePlanId, String(sortedDefaultPlan.id)),
-							eq(EffectivePricingV2.occupancyKey, defaultOccupancyKey),
-							gte(EffectivePricingV2.date, parsed.startDate),
-							lt(EffectivePricingV2.date, parsed.endDate)
+							eq(EffectivePricing.variantId, parsed.variantId),
+							eq(EffectivePricing.ratePlanId, String(sortedDefaultPlan.id)),
+							eq(EffectivePricing.occupancyKey, defaultOccupancyKey),
+							gte(EffectivePricing.date, parsed.startDate),
+							lt(EffectivePricing.date, parsed.endDate)
 						)
 					)
 			: []

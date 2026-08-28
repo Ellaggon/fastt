@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro"
-import { evaluatePricingRules } from "@/modules/pricing/public"
-import { pricingV2Repository, ratePlanPricingReadRepository } from "@/container"
+import { evaluatePricingRules, evaluatePricingRuleEligibility } from "@/modules/pricing/public"
+import { effectivePricingRepository, ratePlanPricingReadRepository } from "@/container"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
 
 import {
@@ -18,7 +18,6 @@ import {
 	resolveOwnedRatePlanContext,
 	validatePricingRuleEligibility,
 } from "@/lib/pricing/rules-v2"
-import { evaluatePricingRuleEligibility } from "@/modules/pricing/public"
 
 export const POST: APIRoute = async ({ request }) => {
 	const payload = await readRequestPayload(request)
@@ -42,7 +41,8 @@ export const POST: APIRoute = async ({ request }) => {
 			? {
 					ratePlanId,
 					basePrice: 0,
-					currency: fallbackCurrency || (await pricingV2Repository.getFallbackCurrency(ratePlanId)),
+					currency:
+						fallbackCurrency || (await effectivePricingRepository.getFallbackCurrency(ratePlanId)),
 					effectivePricingDays: 0,
 					coverageOccupancyKey: buildOccupancyKey({
 						adults: 2,

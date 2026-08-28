@@ -3,7 +3,7 @@ import {
 	db,
 	DailyInventory,
 	EffectiveAvailability,
-	EffectivePricingV2,
+	EffectivePricing,
 	EffectiveRestriction,
 	Hotel,
 	HouseRule,
@@ -241,7 +241,7 @@ describe("integration/catalog delete product cascade", () => {
 				priority: 0,
 				computedAt: new Date(),
 			})
-			await db.insert(EffectivePricingV2).values({
+			await db.insert(EffectivePricing).values({
 				id: `pricing_${suffix}`,
 				variantId,
 				ratePlanId,
@@ -289,7 +289,7 @@ describe("integration/catalog delete product cascade", () => {
 			await expect(rowsFor(Variant, Variant.id, variantId)).resolves.toHaveLength(0)
 			await expect(rowsFor(RatePlan, RatePlan.id, ratePlanId)).resolves.toHaveLength(0)
 			await expect(
-				rowsFor(EffectivePricingV2, EffectivePricingV2.ratePlanId, ratePlanId)
+				rowsFor(EffectivePricing, EffectivePricing.ratePlanId, ratePlanId)
 			).resolves.toHaveLength(0)
 			await expect(
 				rowsFor(SearchUnitView, SearchUnitView.productId, productId)

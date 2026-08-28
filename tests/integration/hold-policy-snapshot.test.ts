@@ -4,7 +4,7 @@ import {
 	Booking,
 	BookingPolicySnapshot,
 	DailyInventory,
-	EffectivePricingV2,
+	EffectivePricing,
 	Hold,
 	HouseRule,
 	db,
@@ -441,7 +441,7 @@ describe("integration/hold policy snapshot", () => {
 				createdAt: new Date(),
 				updatedAt: new Date(),
 			} as any)
-			await db.insert(EffectivePricingV2).values({
+			await db.insert(EffectivePricing).values({
 				id: `ep_ctx_a_${date}_${crypto.randomUUID()}`,
 				variantId,
 				ratePlanId: ratePlanIdA,
@@ -456,7 +456,7 @@ describe("integration/hold policy snapshot", () => {
 				sourceVersion: "test",
 			} as any)
 
-			await db.insert(EffectivePricingV2).values({
+			await db.insert(EffectivePricing).values({
 				id: `ep_ctx_b_${date}_${crypto.randomUUID()}`,
 				variantId,
 				ratePlanId: ratePlanIdB,

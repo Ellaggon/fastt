@@ -577,7 +577,7 @@ async function searchFreshness(sql: QuerySql) {
 	return row
 }
 
-async function backfillEffectivePricingV2(sql: QuerySql, horizonDays: number) {
+async function backfillEffectivePricing(sql: QuerySql, horizonDays: number) {
 	const rows = await sql`
 		with dates as (
 			select generate_series(
@@ -632,7 +632,7 @@ async function backfillEffectivePricingV2(sql: QuerySql, horizonDays: number) {
 		),
 		priced as (
 			select
-				'epv2_' || md5(
+				'ep_' || md5(
 					"variantId" || ':' || "ratePlanId" || ':' || date::text || ':' || "occupancyKey"
 				) as id,
 				"variantId",
@@ -661,7 +661,7 @@ async function backfillEffectivePricingV2(sql: QuerySql, horizonDays: number) {
 				currency
 			from active_context
 		)
-		insert into "EffectivePricingV2" (
+		insert into "EffectivePricing" (
 			id,
 			"variantId",
 			"ratePlanId",
@@ -687,7 +687,7 @@ async function backfillEffectivePricingV2(sql: QuerySql, horizonDays: number) {
 			round("baseComponent" + "occupancyAdjustment" + "ruleAdjustment", 2),
 			currency,
 			now(),
-			'postgres-pricing-backfill-v1'
+			'postgres-effective-pricing-backfill'
 		from priced
 		on conflict ("variantId", "ratePlanId", date, "occupancyKey") do update set
 			"baseComponent" = excluded."baseComponent",
@@ -732,7 +732,7 @@ async function backfillSearchUnitView(sql: QuerySql, horizonDays: number) {
 				coalesce(er.cta, legacy_er.cta, false) as cta,
 				coalesce(er.ctd, legacy_er.ctd, false) as ctd,
 				coalesce(er."stopSell", legacy_er."stopSell", false) as "stopSell"
-			from "EffectivePricingV2" ep
+			from "EffectivePricing" ep
 			join "Variant" v on v.id = ep."variantId"
 			join "Product" p on p.id = v."productId"
 			join "RatePlan" rp on rp.id = ep."ratePlanId"
@@ -957,7 +957,7 @@ async function main() {
 					productOperationalSurface: await backfillProductOperationalSurface(sql),
 					providerConfigurationState: await backfillProviderConfigurationState(sql),
 					financialProviderSummary: await backfillFinancialProviderSummary(sql),
-					effectivePricingV2: await backfillEffectivePricingV2(sql, horizonDays),
+					effectivePricingV2: await backfillEffectivePricing(sql, horizonDays),
 					searchUnitView: await backfillSearchUnitView(sql, horizonDays),
 				}))
 		const after = await countAll(db)
@@ -987,7 +987,7 @@ async function main() {
 					search: {
 						before: beforeSearch,
 						after: afterSearch,
-						note: "SearchUnitView refresh uses current EffectivePricingV2 rows for the configured horizon and preserves older/out-of-horizon rows.",
+						note: "SearchUnitView refresh uses current EffectivePricing rows for the configured horizon and preserves older/out-of-horizon rows.",
 					},
 				},
 				null,

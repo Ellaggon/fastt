@@ -4,7 +4,7 @@ import { ensurePricingCoverage } from "@/modules/pricing/application/use-cases/e
 
 describe("ensurePricingCoverage scalability and exactness", () => {
 	it("covers long date ranges without truncating combinations", async () => {
-		const saveEffectivePricingV2 = vi.fn(async () => undefined)
+		const saveEffectivePricing = vi.fn(async () => undefined)
 		const getPreviewRules = vi.fn(async () => [])
 
 		const result = await ensurePricingCoverage(
@@ -16,7 +16,7 @@ describe("ensurePricingCoverage scalability and exactness", () => {
 					getDefaultRatePlanWithRules: vi.fn(),
 					getCapacity: vi.fn(async () => ({ maxOccupancy: 4, maxAdults: 3, maxChildren: 2 })),
 				} as any,
-				pricingV2Repo: {
+				effectivePricingRepo: {
 					getBaseFromPolicy: vi.fn(async () => ({ baseAmount: 100, currency: "USD" })),
 					getActiveOccupancyPolicy: vi.fn(async () => ({
 						baseAdults: 2,
@@ -27,8 +27,8 @@ describe("ensurePricingCoverage scalability and exactness", () => {
 						childValue: 5,
 						currency: "USD",
 					})),
-					saveEffectivePricingV2,
-					listEffectivePricingV2Combinations: vi.fn(async () => []),
+					saveEffectivePricing,
+					listEffectivePricingCombinations: vi.fn(async () => []),
 				} as any,
 			},
 			{
@@ -42,11 +42,11 @@ describe("ensurePricingCoverage scalability and exactness", () => {
 
 		// 45 nights × 8 occupancy combinations (capacity-constrained set)
 		expect(result).toEqual({ missingDatesCount: 0, generatedDatesCount: 45 })
-		expect(saveEffectivePricingV2).toHaveBeenCalledTimes(360)
+		expect(saveEffectivePricing).toHaveBeenCalledTimes(360)
 	})
 
 	it("handles multiple occupancy keys explicitly for same date range", async () => {
-		const saveEffectivePricingV2 = vi.fn(async () => undefined)
+		const saveEffectivePricing = vi.fn(async () => undefined)
 		const getPreviewRules = vi.fn(async () => [])
 
 		await ensurePricingCoverage(
@@ -56,7 +56,7 @@ describe("ensurePricingCoverage scalability and exactness", () => {
 					getDefaultRatePlanWithRules: vi.fn(),
 					getCapacity: vi.fn(async () => ({ maxOccupancy: 6, maxAdults: 6, maxChildren: 4 })),
 				} as any,
-				pricingV2Repo: {
+				effectivePricingRepo: {
 					getBaseFromPolicy: vi.fn(async () => ({ baseAmount: 100, currency: "USD" })),
 					getActiveOccupancyPolicy: vi.fn(async () => ({
 						baseAdults: 2,
@@ -67,8 +67,8 @@ describe("ensurePricingCoverage scalability and exactness", () => {
 						childValue: 5,
 						currency: "USD",
 					})),
-					saveEffectivePricingV2,
-					listEffectivePricingV2Combinations: vi.fn(async () => []),
+					saveEffectivePricing,
+					listEffectivePricingCombinations: vi.fn(async () => []),
 				} as any,
 			},
 			{
@@ -82,12 +82,12 @@ describe("ensurePricingCoverage scalability and exactness", () => {
 		)
 
 		// 2 nights × 4 occupancy combinations (explicit configured cap)
-		expect(saveEffectivePricingV2).toHaveBeenCalledTimes(8)
+		expect(saveEffectivePricing).toHaveBeenCalledTimes(8)
 	})
 
 	it("batches recompute by chunk size while preserving full coverage", async () => {
-		const saveEffectivePricingV2 = vi.fn(async () => undefined)
-		const listEffectivePricingV2Combinations = vi.fn(async () => [])
+		const saveEffectivePricing = vi.fn(async () => undefined)
+		const listEffectivePricingCombinations = vi.fn(async () => [])
 
 		await ensurePricingCoverage(
 			{
@@ -96,7 +96,7 @@ describe("ensurePricingCoverage scalability and exactness", () => {
 					getDefaultRatePlanWithRules: vi.fn(),
 					getCapacity: vi.fn(async () => ({ maxOccupancy: 2, maxAdults: 2, maxChildren: 0 })),
 				} as any,
-				pricingV2Repo: {
+				effectivePricingRepo: {
 					getBaseFromPolicy: vi.fn(async () => ({ baseAmount: 100, currency: "USD" })),
 					getActiveOccupancyPolicy: vi.fn(async () => ({
 						baseAdults: 2,
@@ -107,8 +107,8 @@ describe("ensurePricingCoverage scalability and exactness", () => {
 						childValue: 0,
 						currency: "USD",
 					})),
-					saveEffectivePricingV2,
-					listEffectivePricingV2Combinations,
+					saveEffectivePricing,
+					listEffectivePricingCombinations,
 				} as any,
 			},
 			{
@@ -123,12 +123,12 @@ describe("ensurePricingCoverage scalability and exactness", () => {
 
 		// capacity 2 with maxChildren=0 => combos: (1,0), (2,0) => 2
 		// 10 nights × 2 combos
-		expect(saveEffectivePricingV2).toHaveBeenCalledTimes(20)
-		expect(listEffectivePricingV2Combinations).toHaveBeenCalledTimes(1)
+		expect(saveEffectivePricing).toHaveBeenCalledTimes(20)
+		expect(listEffectivePricingCombinations).toHaveBeenCalledTimes(1)
 	})
 
 	it("recomputes only missing combinations and avoids drift in complete reads", async () => {
-		const saveEffectivePricingV2 = vi.fn(async () => undefined)
+		const saveEffectivePricing = vi.fn(async () => undefined)
 
 		const result = await ensurePricingCoverage(
 			{
@@ -137,7 +137,7 @@ describe("ensurePricingCoverage scalability and exactness", () => {
 					getDefaultRatePlanWithRules: vi.fn(),
 					getCapacity: vi.fn(async () => ({ maxOccupancy: 2, maxAdults: 2, maxChildren: 0 })),
 				} as any,
-				pricingV2Repo: {
+				effectivePricingRepo: {
 					getBaseFromPolicy: vi.fn(async () => ({ baseAmount: 100, currency: "USD" })),
 					getActiveOccupancyPolicy: vi.fn(async () => ({
 						baseAdults: 2,
@@ -148,8 +148,8 @@ describe("ensurePricingCoverage scalability and exactness", () => {
 						childValue: 0,
 						currency: "USD",
 					})),
-					saveEffectivePricingV2,
-					listEffectivePricingV2Combinations: vi.fn(async () => [
+					saveEffectivePricing,
+					listEffectivePricingCombinations: vi.fn(async () => [
 						{ date: "2026-05-01", occupancyKey: "a1_c0_i0" },
 						{ date: "2026-05-01", occupancyKey: "a2_c0_i0" },
 						{ date: "2026-05-01", occupancyKey: "a1_c1_i0" },
@@ -166,6 +166,6 @@ describe("ensurePricingCoverage scalability and exactness", () => {
 		)
 
 		expect(result).toEqual({ missingDatesCount: 0, generatedDatesCount: 0 })
-		expect(saveEffectivePricingV2).not.toHaveBeenCalled()
+		expect(saveEffectivePricing).not.toHaveBeenCalled()
 	})
 })

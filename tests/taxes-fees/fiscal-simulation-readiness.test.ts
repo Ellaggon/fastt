@@ -245,7 +245,7 @@ describe("fiscal simulation readiness", () => {
 					children: 0,
 					currency: "USD",
 					baseAmount: 200,
-					pricingSource: "effective_pricing_v2",
+					pricingSource: "effective_pricing",
 				},
 				issues: [],
 			},

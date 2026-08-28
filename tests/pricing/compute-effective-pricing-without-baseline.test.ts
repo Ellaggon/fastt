@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 
-import { computeEffectivePricingV2 } from "@/modules/pricing/application/use-cases/compute-effective-pricing-v2"
+import { computeEffectivePricing } from "@/modules/pricing/application/use-cases/compute-effective-pricing"
 
 const input = {
 	variantId: "variant-1",
@@ -12,7 +12,7 @@ const input = {
 describe("effective pricing without a baseline", () => {
 	it("materializes a date when an applicable fixed price establishes its final value", async () => {
 		const getFallbackCurrency = vi.fn().mockResolvedValue("BOB")
-		const result = await computeEffectivePricingV2(
+		const result = await computeEffectivePricing(
 			{
 				getBaseFromPolicy: vi.fn().mockResolvedValue(null),
 				getActiveOccupancyPolicy: vi.fn().mockResolvedValue(null),
@@ -40,7 +40,7 @@ describe("effective pricing without a baseline", () => {
 
 	it("keeps rejecting percentage adjustments when no base price exists", async () => {
 		await expect(
-			computeEffectivePricingV2(
+			computeEffectivePricing(
 				{
 					getBaseFromPolicy: vi.fn().mockResolvedValue(null),
 					getActiveOccupancyPolicy: vi.fn().mockResolvedValue(null),

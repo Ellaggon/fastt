@@ -26,7 +26,7 @@ export type SearchOffersRepositoryPort = {
 		to: string
 		occupancyKey: string
 	}): Promise<SearchUnitViewRow[]>
-	listEffectivePricingV2Rows?(params: {
+	listEffectivePricingRows?(params: {
 		unitIds: string[]
 		ratePlanIds: string[]
 		from: string

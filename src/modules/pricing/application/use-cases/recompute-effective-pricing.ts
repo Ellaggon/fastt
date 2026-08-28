@@ -1,5 +1,5 @@
 import type { Occupancy } from "@/shared/domain/occupancy"
-import { computeEffectivePricingV2 } from "./compute-effective-pricing-v2"
+import { computeEffectivePricing } from "./compute-effective-pricing"
 
 export const SHADOW_OCCUPANCIES: Occupancy[] = [
 	{ adults: 1, children: 0, infants: 0 },
@@ -8,7 +8,7 @@ export const SHADOW_OCCUPANCIES: Occupancy[] = [
 	{ adults: 3, children: 0, infants: 0 },
 ]
 
-export async function recomputeEffectivePricingV2Range(
+export async function recomputeEffectivePricingRange(
 	deps: {
 		getBaseFromPolicy: (params: {
 			ratePlanId: string
@@ -40,7 +40,7 @@ export async function recomputeEffectivePricingV2Range(
 			}>
 		>
 		getFallbackCurrency?: (ratePlanId: string) => Promise<string>
-		saveEffectivePricingV2: (params: {
+		saveEffectivePricing: (params: {
 			id: string
 			variantId: string
 			ratePlanId: string
@@ -69,7 +69,7 @@ export async function recomputeEffectivePricingV2Range(
 		input.occupancies && input.occupancies.length > 0 ? input.occupancies : SHADOW_OCCUPANCIES
 	for (const date of input.dates) {
 		for (const occupancy of occupancies) {
-			const result = await computeEffectivePricingV2(
+			const result = await computeEffectivePricing(
 				{
 					getBaseFromPolicy: deps.getBaseFromPolicy,
 					getActiveOccupancyPolicy: deps.getActiveOccupancyPolicy,
@@ -86,8 +86,8 @@ export async function recomputeEffectivePricingV2Range(
 			)
 			const occupancyKey = result.occupancyKey
 			occupancyKeys.add(occupancyKey)
-			await deps.saveEffectivePricingV2({
-				id: `epv2_${input.variantId}_${input.ratePlanId}_${date}_${occupancyKey}`,
+			await deps.saveEffectivePricing({
+				id: `ep_${input.variantId}_${input.ratePlanId}_${date}_${occupancyKey}`,
 				variantId: input.variantId,
 				ratePlanId: input.ratePlanId,
 				date,

@@ -29,7 +29,7 @@ type PricingV2CoverageRepo = {
 		childValue: number
 		currency: string
 	} | null>
-	saveEffectivePricingV2(params: {
+	saveEffectivePricing(params: {
 		id: string
 		variantId: string
 		ratePlanId: string
@@ -43,7 +43,7 @@ type PricingV2CoverageRepo = {
 		computedAt: Date
 		sourceVersion: string
 	}): Promise<void>
-	listEffectivePricingV2Combinations?(params: {
+	listEffectivePricingCombinations?(params: {
 		variantId: string
 		ratePlanId: string
 		from: string
@@ -56,7 +56,7 @@ export async function ensurePricingCoverageForRequest(
 	deps: {
 		pricingRepo: PricingRepositoryPort
 		variantRepo: VariantRepoForCoverage
-		pricingV2Repo: PricingV2CoverageRepo
+		effectivePricingRepo: PricingV2CoverageRepo
 	},
 	params: {
 		variantId: string
@@ -73,7 +73,7 @@ export async function ensurePricingCoverageForRequest(
 		{
 			pricingRepo: deps.pricingRepo,
 			variantRepo: deps.variantRepo,
-			pricingV2Repo: deps.pricingV2Repo,
+			effectivePricingRepo: deps.effectivePricingRepo,
 		},
 		{
 			variantId: parsed.variantId,

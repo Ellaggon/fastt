@@ -43,7 +43,7 @@ wrong, fix the source table or recompute the projection.
 | Table                   | Derived From                                             | Role                                                 |
 | ----------------------- | -------------------------------------------------------- | ---------------------------------------------------- |
 | `EffectiveAvailability` | `DailyInventory`, locks, bookings                        | Daily sellable unit count projection.                |
-| `EffectivePricingV2`    | `RatePlan`, `RatePlanOccupancyPolicy`, `CommercialRule*` | Occupancy-aware daily price projection.              |
+| `EffectivePricing`      | `RatePlan`, `RatePlanOccupancyPolicy`, `CommercialRule*` | Occupancy-aware daily price projection.              |
 | `EffectiveRestriction`  | `CommercialRule*`                                        | Daily restriction projection for search/sellability. |
 | `SearchUnitView`        | Availability, pricing, restrictions, policy signals      | Search-ready sellability read model.                 |
 

@@ -8,12 +8,12 @@ const CATALOG_FILES = [
 	"src/lib/pricing/loadRatePlanPricingData.ts",
 ]
 
-const BANNED_TABLE_IMPORTS = new Set(["RatePlanOccupancyPolicy", "EffectivePricingV2", "PriceRule"])
+const BANNED_TABLE_IMPORTS = new Set(["RatePlanOccupancyPolicy", "EffectivePricing", "PriceRule"])
 const BANNED_ENGINE_CALLS = new Set([
 	"getDefaultRatePlanWithRules",
 	"ensureDefaultRatePlan",
 	"getDefaultByVariant",
-	"computeEffectivePricingV2",
+	"computeEffectivePricing",
 	"previewPricingRules",
 	"computePricePreview",
 ])

@@ -4,7 +4,7 @@ import {
 	db,
 	eq,
 	EffectiveAvailability,
-	EffectivePricingV2,
+	EffectivePricing,
 	EffectiveRestriction,
 	SearchUnitView,
 } from "@/shared/infrastructure/db/compat"
@@ -106,7 +106,7 @@ describe("search view health endpoint (e2e via real materialization)", () => {
 		for (const date of dates) {
 			const occupancyKey = buildOccupancyKey({ adults: 2, children: 0, infants: 0 })
 			await db
-				.insert(EffectivePricingV2)
+				.insert(EffectivePricing)
 				.values({
 					id: `ep_${seed}_${date}`,
 					variantId,
@@ -120,10 +120,10 @@ describe("search view health endpoint (e2e via real materialization)", () => {
 				} as any)
 				.onConflictDoUpdate({
 					target: [
-						EffectivePricingV2.variantId,
-						EffectivePricingV2.ratePlanId,
-						EffectivePricingV2.date,
-						EffectivePricingV2.occupancyKey,
+						EffectivePricing.variantId,
+						EffectivePricing.ratePlanId,
+						EffectivePricing.date,
+						EffectivePricing.occupancyKey,
 					],
 					set: {
 						baseComponent: 100,

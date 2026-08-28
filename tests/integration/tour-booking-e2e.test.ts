@@ -10,7 +10,7 @@ import {
 	DailyInventory,
 	ProductGeoPlace,
 	EffectiveAvailability,
-	EffectivePricingV2,
+	EffectivePricing,
 	eq,
 	Product,
 	Provider,
@@ -251,7 +251,7 @@ async function seedTourCommercialReady(params: {
 		updatedAt: new Date(),
 	} as any)
 
-	await db.insert(EffectivePricingV2).values({
+	await db.insert(EffectivePricing).values({
 		id: `ep_${crypto.randomUUID()}`,
 		variantId: params.variantId,
 		ratePlanId: params.ratePlanId,

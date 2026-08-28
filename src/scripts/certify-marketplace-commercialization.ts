@@ -5,7 +5,7 @@ import {
 	DailyInventory,
 	GeoPlace,
 	EffectiveAvailability,
-	EffectivePricingV2,
+	EffectivePricing,
 	and,
 	eq,
 	first,
@@ -492,7 +492,7 @@ async function upsertFixture(params: {
 					set: { totalUnits: unit.capacity, availableUnits: unit.capacity, computedAt: now },
 				})
 			await db
-				.insert(EffectivePricingV2)
+				.insert(EffectivePricing)
 				.values({
 					id: `pricing_${unit.variantId}_${date}`,
 					variantId: unit.variantId,
@@ -509,10 +509,10 @@ async function upsertFixture(params: {
 				})
 				.onConflictDoUpdate({
 					target: [
-						EffectivePricingV2.variantId,
-						EffectivePricingV2.ratePlanId,
-						EffectivePricingV2.date,
-						EffectivePricingV2.occupancyKey,
+						EffectivePricing.variantId,
+						EffectivePricing.ratePlanId,
+						EffectivePricing.date,
+						EffectivePricing.occupancyKey,
 					],
 					set: { finalBasePrice: unit.price, computedAt: now, sourceVersion: SUITE_VERSION },
 				})

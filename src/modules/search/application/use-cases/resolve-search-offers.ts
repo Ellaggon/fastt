@@ -129,8 +129,8 @@ export async function resolveSearchOffers(
 		const ratePlanIds = Array.from(
 			new Set(rows.map((row) => String(row.ratePlanId)).filter((id) => id.length > 0))
 		)
-		const v2Rows = deps.repo.listEffectivePricingV2Rows
-			? await deps.repo.listEffectivePricingV2Rows({
+		const v2Rows = deps.repo.listEffectivePricingRows
+			? await deps.repo.listEffectivePricingRows({
 					unitIds,
 					ratePlanIds,
 					from,

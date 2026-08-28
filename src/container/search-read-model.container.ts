@@ -3,7 +3,7 @@ import {
 	db,
 	eq,
 	EffectiveAvailability,
-	EffectivePricingV2,
+	EffectivePricing,
 	EffectiveRestriction,
 	gte,
 	inArray,
@@ -36,7 +36,7 @@ export type SearchUnitViewReadRow = {
 	primaryBlocker: string | null
 }
 
-export type EffectivePricingV2ReadRow = {
+export type EffectivePricingReadRow = {
 	variantId: string
 	ratePlanId: string
 	date: string
@@ -238,34 +238,34 @@ export const searchReadModelRepository = {
 		}))
 	},
 
-	async listEffectivePricingV2Rows(params: {
+	async listEffectivePricingRows(params: {
 		unitIds: string[]
 		ratePlanIds: string[]
 		from: string
 		to: string
 		occupancyKey: string
-	}): Promise<EffectivePricingV2ReadRow[]> {
+	}): Promise<EffectivePricingReadRow[]> {
 		if (!params.unitIds.length || !params.ratePlanIds.length) return []
-		if (!EffectivePricingV2 || !(EffectivePricingV2 as any).variantId) return []
+		if (!EffectivePricing || !(EffectivePricing as any).variantId) return []
 		const rows = await db
 			.select({
-				variantId: EffectivePricingV2.variantId,
-				ratePlanId: EffectivePricingV2.ratePlanId,
-				date: EffectivePricingV2.date,
-				occupancyKey: EffectivePricingV2.occupancyKey,
-				finalBasePrice: EffectivePricingV2.finalBasePrice,
-				baseComponent: EffectivePricingV2.baseComponent,
-				occupancyAdjustment: EffectivePricingV2.occupancyAdjustment,
-				ruleAdjustment: EffectivePricingV2.ruleAdjustment,
+				variantId: EffectivePricing.variantId,
+				ratePlanId: EffectivePricing.ratePlanId,
+				date: EffectivePricing.date,
+				occupancyKey: EffectivePricing.occupancyKey,
+				finalBasePrice: EffectivePricing.finalBasePrice,
+				baseComponent: EffectivePricing.baseComponent,
+				occupancyAdjustment: EffectivePricing.occupancyAdjustment,
+				ruleAdjustment: EffectivePricing.ruleAdjustment,
 			})
-			.from(EffectivePricingV2)
+			.from(EffectivePricing)
 			.where(
 				and(
-					inArray(EffectivePricingV2.variantId, params.unitIds),
-					inArray(EffectivePricingV2.ratePlanId, params.ratePlanIds),
-					gte(EffectivePricingV2.date, params.from),
-					lt(EffectivePricingV2.date, params.to),
-					eq(EffectivePricingV2.occupancyKey, params.occupancyKey)
+					inArray(EffectivePricing.variantId, params.unitIds),
+					inArray(EffectivePricing.ratePlanId, params.ratePlanIds),
+					gte(EffectivePricing.date, params.from),
+					lt(EffectivePricing.date, params.to),
+					eq(EffectivePricing.occupancyKey, params.occupancyKey)
 				)
 			)
 
@@ -348,18 +348,18 @@ export const searchReadModelRepository = {
 		occupancyKey: string
 	}) {
 		const pricingReadPromise: Promise<{ finalBasePrice: number | null } | null> =
-			EffectivePricingV2 && (EffectivePricingV2 as any).variantId
+			EffectivePricing && (EffectivePricing as any).variantId
 				? db
 						.select({
-							finalBasePrice: EffectivePricingV2.finalBasePrice,
+							finalBasePrice: EffectivePricing.finalBasePrice,
 						})
-						.from(EffectivePricingV2)
+						.from(EffectivePricing)
 						.where(
 							and(
-								eq(EffectivePricingV2.variantId, params.variantId),
-								eq(EffectivePricingV2.ratePlanId, params.ratePlanId),
-								eq(EffectivePricingV2.date, params.date),
-								eq(EffectivePricingV2.occupancyKey, params.occupancyKey)
+								eq(EffectivePricing.variantId, params.variantId),
+								eq(EffectivePricing.ratePlanId, params.ratePlanId),
+								eq(EffectivePricing.date, params.date),
+								eq(EffectivePricing.occupancyKey, params.occupancyKey)
 							)
 						)
 						.then((rows) => rows[0])
@@ -438,16 +438,16 @@ export const searchReadModelRepository = {
 		occupancyKey: string
 	}): Promise<string> {
 		const pricingVersionPromise =
-			EffectivePricingV2 && (EffectivePricingV2 as any).variantId
+			EffectivePricing && (EffectivePricing as any).variantId
 				? db
-						.select({ computedAt: EffectivePricingV2.computedAt })
-						.from(EffectivePricingV2)
+						.select({ computedAt: EffectivePricing.computedAt })
+						.from(EffectivePricing)
 						.where(
 							and(
-								eq(EffectivePricingV2.variantId, params.variantId),
-								eq(EffectivePricingV2.ratePlanId, params.ratePlanId),
-								eq(EffectivePricingV2.date, params.date),
-								eq(EffectivePricingV2.occupancyKey, params.occupancyKey)
+								eq(EffectivePricing.variantId, params.variantId),
+								eq(EffectivePricing.ratePlanId, params.ratePlanId),
+								eq(EffectivePricing.date, params.date),
+								eq(EffectivePricing.occupancyKey, params.occupancyKey)
 							)
 						)
 						.then((rows) => rows[0])

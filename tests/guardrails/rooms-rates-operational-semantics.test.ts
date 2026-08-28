@@ -132,7 +132,7 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 		]
 		const derivedTables = [
 			"EffectiveAvailability",
-			"EffectivePricingV2",
+			"EffectivePricing",
 			"EffectiveRestriction",
 			"SearchUnitView",
 		]

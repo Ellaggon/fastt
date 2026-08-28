@@ -31,11 +31,11 @@ describe("statement timeout hardening (rate plans hot path)", () => {
 		expect(client).toContain("idle_timeout: 20")
 	})
 
-	it("loads latest EffectivePricingV2 rows with DISTINCT ON instead of full scans", () => {
+	it("loads latest EffectivePricing rows with DISTINCT ON instead of full scans", () => {
 		const repo = read(
 			"src/modules/pricing/infrastructure/repositories/RatePlanPricingReadRepository.ts"
 		)
 		expect(repo).toContain("select distinct on")
-		expect(repo).toContain('"EffectivePricingV2"')
+		expect(repo).toContain('"EffectivePricing"')
 	})
 })

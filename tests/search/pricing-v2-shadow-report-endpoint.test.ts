@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest"
 import { GET as getV2ShadowReport } from "@/pages/api/internal/pricing/v2-shadow-report"
 import { resetMetricsForTests } from "@/lib/observability/metrics"
 import { resolveSearchOffers } from "@/modules/search/application/use-cases/resolve-search-offers"
-import { recomputeEffectivePricingV2Range } from "@/modules/pricing/application/use-cases/recompute-effective-pricing-v2"
+import { recomputeEffectivePricingRange } from "@/modules/pricing/application/use-cases/recompute-effective-pricing"
 import type { SearchOffersRepositoryPort } from "@/modules/search/application/ports/SearchOffersRepository"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
 
@@ -33,7 +33,7 @@ describe("pricing V2 shadow report endpoint", () => {
 				ruleAdjustment: number
 			}
 		>()
-		await recomputeEffectivePricingV2Range(
+		await recomputeEffectivePricingRange(
 			{
 				async getActiveOccupancyPolicy() {
 					return {
@@ -52,7 +52,7 @@ describe("pricing V2 shadow report endpoint", () => {
 				async getPreviewRules() {
 					return []
 				},
-				async saveEffectivePricingV2(row) {
+				async saveEffectivePricing(row) {
 					v2Rows.set(`${row.variantId}:${row.ratePlanId}:${row.date}:${row.occupancyKey}`, {
 						finalBasePrice: row.finalBasePrice,
 						baseComponent: row.baseComponent,
@@ -112,7 +112,7 @@ describe("pricing V2 shadow report endpoint", () => {
 					}
 				})
 			},
-			async listEffectivePricingV2Rows({ from, to, occupancyKey }) {
+			async listEffectivePricingRows({ from, to, occupancyKey }) {
 				return Array.from(v2Rows.entries())
 					.filter(([key]) => key.endsWith(`:${occupancyKey}`))
 					.map(([key, value]) => {
@@ -208,7 +208,7 @@ describe("pricing V2 shadow report endpoint", () => {
 					primaryBlocker: null,
 				}))
 			},
-			async listEffectivePricingV2Rows({ from, to, occupancyKey }) {
+			async listEffectivePricingRows({ from, to, occupancyKey }) {
 				return Array.from(v2Rows.entries())
 					.filter(([key]) => key.endsWith(`:${occupancyKey}`))
 					.map(([key, value]) => {
