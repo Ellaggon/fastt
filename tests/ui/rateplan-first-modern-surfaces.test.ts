@@ -77,7 +77,7 @@ describe("ui/rateplan-first modern surfaces", () => {
 		expect(detail).toContain("data-rate-plan-delete-confirmation")
 		expect(deleteEndpoint).toContain("getRatePlanRemovalReadiness")
 		expect(deleteEndpoint).toContain("readiness.canDelete")
-		expect(readiness).toContain("BookingRoomDetail")
+		expect(readiness).toContain("BookingLineItem")
 		expect(readiness).toContain("Hold")
 		expect(readiness).toContain("Desactiva la tarifa antes de eliminarla")
 	})

@@ -37,7 +37,7 @@ describe("tour public surfaces (fase 0+1)", () => {
 		const doc = readFileSync(resolve("docs/engineering/tour-vertical-table-taxonomy.md"), "utf8")
 		expect(doc).toContain("tour_slot")
 		expect(doc).toContain("departureDate")
-		expect(doc).toContain("BookingRoomDetail")
+		expect(doc).toContain("BookingLineItem")
 		expect(doc).toContain("durationMinutes")
 	})
 

@@ -99,7 +99,7 @@ describe("integration/financial Stage 3 reconciliation builder", () => {
 		expect(match.paymentAmount).toBe(200)
 		expect(match.settlementAmount).toBe(200)
 		expect(match.status).toBe("matched")
-		expect(match.contract.multiRoomAllocationCount).toBe(2)
+		expect(match.contract.lineItemAllocationCount).toBe(2)
 	})
 
 	it("detects missing settlement without using compatibility evidence as source of truth", () => {

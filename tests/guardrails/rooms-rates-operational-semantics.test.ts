@@ -136,7 +136,7 @@ describe("Guardrail: Rooms & Rates operational semantics", () => {
 			"EffectiveRestriction",
 			"SearchUnitView",
 		]
-		const snapshotTables = ["Hold", "BookingRoomDetail", "BookingPolicySnapshot", "BookingTaxFee"]
+		const snapshotTables = ["Hold", "BookingLineItem", "BookingPolicySnapshot", "BookingTaxFee"]
 
 		for (const table of [...sourceTables, ...derivedTables, ...snapshotTables]) {
 			expect(

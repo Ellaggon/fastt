@@ -53,9 +53,9 @@ describe("Guardrail: financial Stage 3 foundation stays evidence-based", () => {
 			builder.includes("buildFinancialOperationReview")
 				? null
 				: "Stage 3 reconciliation must reuse snapshot-safe operation review input",
-			builder.includes("BookingRoomDetail") || route.includes("BookingRoomDetail.totalAmount")
+			builder.includes("BookingLineItem") || route.includes("BookingLineItem.totalAmount")
 				? null
-				: "reconciliation must aggregate BookingRoomDetail snapshots",
+				: "reconciliation must aggregate BookingLineItem snapshots",
 			/pricing\/|modules\/pricing|ensurePricing|EffectivePricing/.test(
 				`${builder}\n${route}\n${queueRoute}`
 			)

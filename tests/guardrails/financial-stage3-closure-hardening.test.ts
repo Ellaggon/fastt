@@ -102,7 +102,7 @@ describe("Guardrail: financial Stage 3.3 closure hardening", () => {
 				const target = dbImports.get(write.target) ?? write.target
 				return [
 					"Booking",
-					"BookingRoomDetail",
+					"BookingLineItem",
 					"BookingTaxFee",
 					"Payment",
 					"ProviderPayout",

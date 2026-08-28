@@ -34,7 +34,7 @@ describe("Guardrail: Stage 3 truth boundary before Provider Finance", () => {
 			"PaymentTransaction",
 			"FinancialSettlementRecord",
 			"ReconciliationMatch",
-			"BookingRoomDetailSnapshotAggregation",
+			"BookingLineItemSnapshotAggregation",
 		]
 		const compatibilityOnly = [
 			"FinancialReference",

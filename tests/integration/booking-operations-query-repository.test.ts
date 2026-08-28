@@ -1,7 +1,7 @@
 import {
 	Booking,
 	BookingPolicySnapshot,
-	BookingRoomDetail,
+	BookingLineItem,
 	BookingTaxFee,
 	db,
 	PaymentTransaction,
@@ -60,7 +60,7 @@ describe("BookingOperationsQueryRepository", () => {
 			guestEmailSnapshot: "ana@example.com",
 			contractSnapshotVersion: "booking-v1",
 		} as any)
-		await db.insert(BookingRoomDetail).values({
+		await db.insert(BookingLineItem).values({
 			id: `detail_${suffix}`,
 			bookingId,
 			variantId,

@@ -9,7 +9,7 @@ import { runProviderBookingRevisionFeed } from "@/lib/channel-manager/channel-ma
 import {
 	and,
 	Booking,
-	BookingRoomDetail,
+	BookingLineItem,
 	DailyInventory,
 	db,
 	GeoPlace,
@@ -182,7 +182,7 @@ describe.sequential("provider booking revision feed", () => {
 			.where(eq(Booking.providerId, providerId))
 		for (const booking of bookings) {
 			await db.delete(InventoryLock).where(eq(InventoryLock.bookingId, booking.id))
-			await db.delete(BookingRoomDetail).where(eq(BookingRoomDetail.bookingId, booking.id))
+			await db.delete(BookingLineItem).where(eq(BookingLineItem.bookingId, booking.id))
 		}
 		await db.delete(Booking).where(eq(Booking.providerId, providerId))
 		await db.delete(EffectiveAvailability).where(eq(EffectiveAvailability.variantId, variantId))
@@ -410,8 +410,8 @@ describe.sequential("provider booking revision feed", () => {
 		expect(
 			await db
 				.select()
-				.from(BookingRoomDetail)
-				.where(eq(BookingRoomDetail.bookingId, bookings[0]!.id))
+				.from(BookingLineItem)
+				.where(eq(BookingLineItem.bookingId, bookings[0]!.id))
 		).toHaveLength(1)
 		const inventory = await db
 			.select({ reservedCount: DailyInventory.reservedCount })
