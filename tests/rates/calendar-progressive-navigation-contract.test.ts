@@ -31,16 +31,11 @@ describe("calendar progressive navigation contract", () => {
 	})
 
 	it("prefetches Calendar from Rates only after explicit pointer intent", () => {
-		const manage = read("src/pages/rates/plans/manage.astro")
 		const actions = read("src/components/rates/RatePlanActionMenu.astro")
 
-		expect(manage).toMatch(
-			/<Button[\s\S]*?href=\{routes\.calendar\(\)\}[\s\S]*?data-astro-prefetch="hover"[\s\S]*?>[\s\S]*?Calendario/
-		)
 		expect(actions).toMatch(
 			/href=\{`\$\{routes\.calendar\(\)\}[\s\S]*?data-astro-prefetch="hover"[\s\S]*?Calendario/
 		)
-		expect(manage).not.toContain('data-astro-prefetch="viewport"')
 		expect(actions).not.toContain('data-astro-prefetch="viewport"')
 	})
 

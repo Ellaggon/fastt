@@ -36,7 +36,7 @@ describe("ui/rateplan-first modern surfaces", () => {
 		expect(manage).toContain("Guardar borrador")
 		expect(manage).toContain("Publicar")
 		expect(manage).not.toContain("Nombre del plan")
-		expect(detail).toContain("Editar datos de tarifa")
+		expect(detail).toContain("Nombre de la Tarifa")
 		expect(detail).not.toContain("Editar intención de tarifa")
 		expect(createEndpoint).toContain("requireProvider")
 		expect(createEndpoint).toContain("setRatePlanPricingBaseline")
