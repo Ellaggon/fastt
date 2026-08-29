@@ -6,7 +6,7 @@ import {
 	sql,
 } from "@/shared/infrastructure/db/compat"
 import { typedCatalogAssignmentTarget } from "@/shared/domain/assignment-target"
-import { randomUUID } from "node:crypto"
+import { createHash, randomUUID } from "node:crypto"
 
 export type CommercialRuleScope = "product" | "variant" | "rate_plan"
 export type CommercialRuleCategory =
@@ -15,6 +15,24 @@ export type CommercialRuleCategory =
 	| "stay"
 	| "arrival_departure"
 	| "booking_window"
+
+export class CommercialRuleIdempotencyConflictError extends Error {
+	readonly code = "commercial_rule_idempotency_conflict"
+
+	constructor(public readonly idempotencyKey: string) {
+		super("A commercial rule already exists for this idempotency key with a different command.")
+		this.name = "CommercialRuleIdempotencyConflictError"
+	}
+}
+
+export class CommercialRuleIdempotencyKeyError extends Error {
+	readonly code = "commercial_rule_idempotency_key_invalid"
+
+	constructor() {
+		super("A commercial rule idempotency key must not exceed 200 characters.")
+		this.name = "CommercialRuleIdempotencyKeyError"
+	}
+}
 
 export type CommercialPriceRule = {
 	id: string
@@ -144,6 +162,32 @@ async function get<T>(query: unknown): Promise<T | null> {
 	return rows[0] ?? null
 }
 
+function stableJson(value: unknown): string {
+	if (value === null || typeof value !== "object") return JSON.stringify(value)
+	if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`
+	const record = value as Record<string, unknown>
+	return `{${Object.keys(record)
+		.sort()
+		.map((key) => `${JSON.stringify(key)}:${stableJson(record[key])}`)
+		.join(",")}}`
+}
+
+function normalizeIdempotencyKey(value: string | null | undefined): string | null {
+	const key = String(value ?? "").trim()
+	if (!key) return null
+	if (key.length > 200) throw new CommercialRuleIdempotencyKeyError()
+	return key
+}
+
+function isUniqueViolation(error: unknown): boolean {
+	let current: unknown = error
+	for (let depth = 0; depth < 4 && current && typeof current === "object"; depth += 1) {
+		if ((current as { code?: unknown }).code === "23505") return true
+		current = (current as { cause?: unknown }).cause
+	}
+	return false
+}
+
 type RawCommercialRuleRow = {
 	rule_id: string
 	rule_ruleSetId: string
@@ -271,65 +315,123 @@ export async function createCommercialPriceRule(params: {
 	occupancyKey?: string | null
 	isActive?: boolean
 	sourceRuleId?: string | null
-}): Promise<{ ruleSetId: string; ruleId: string }> {
+	idempotencyKey?: string | null
+}): Promise<{ ruleSetId: string; ruleId: string; replayed: boolean }> {
 	const isActive = params.isActive !== false
-	const ruleSetId = randomUUID()
-	const ruleId = params.ruleId ?? randomUUID()
+	const idempotencyKey = normalizeIdempotencyKey(params.idempotencyKey)
 	const configPayload = {
 		dateRangeJson: params.dateRangeJson ?? null,
 		dayOfWeekJson: params.dayOfWeekJson ?? [],
 		occupancyKey: params.occupancyKey ?? null,
 		sourceRuleId: params.sourceRuleId ?? null,
 	}
+	const idempotencyPayloadHash = idempotencyKey
+		? createHash("sha256")
+				.update(
+					stableJson({
+						providerId: params.providerId,
+						ratePlanId: params.ratePlanId,
+						category: "price",
+						name: params.name ?? null,
+						type: params.type,
+						value: Number(params.value),
+						priority: params.priority ?? 20,
+						isActive,
+						config: configPayload,
+					})
+				)
+				.digest("hex")
+		: null
 	const startDate = String(params.dateRangeJson?.from ?? "").trim() || null
 	const endDate = String(params.dateRangeJson?.to ?? "").trim() || null
 	await ensureCommercialRuleTables()
-	await serializeCommercialPriceRuleWrite(() =>
-		db.transaction(async (tx) => {
-			await tx.insert(CommercialRuleSet).values({
-				id: ruleSetId,
-				providerId: params.providerId,
-				name: params.name?.startsWith("ctx:")
-					? "Regla automática de precio"
-					: params.name || "Regla automática de precio",
-				status: isActive ? "active" : "paused",
-				priority: params.priority ?? 20,
-				dateFrom: startDate,
-				dateTo: endDate,
-				createdAt: new Date(),
-				updatedAt: new Date(),
-			})
 
-			await tx.insert(CommercialRule).values({
-				id: ruleId,
-				providerId: params.providerId,
-				ruleSetId,
-				category: "price",
-				type: params.type,
-				name: params.name ?? null,
-				value: params.value == null ? null : Number(params.value),
-				configJson: configPayload,
-				priority: params.priority ?? 20,
-				isActive,
-				createdAt: new Date(),
-				updatedAt: new Date(),
-			})
+	type ExistingIdempotentRule = {
+		ruleId: string
+		ruleSetId: string
+		payloadHash: string | null
+	}
+	const findExisting = async (): Promise<ExistingIdempotentRule | null> => {
+		if (!idempotencyKey) return null
+		return get<ExistingIdempotentRule>(sql`
+			SELECT
+				"id" AS "ruleId",
+				"ruleSetId" AS "ruleSetId",
+				"idempotencyPayloadHash" AS "payloadHash"
+			FROM "CommercialRule"
+			WHERE "providerId" = ${params.providerId}
+				AND "idempotencyKey" = ${idempotencyKey}
+			LIMIT 1
+		`)
+	}
+	const replayOrConflict = async () => {
+		const existing = await findExisting()
+		if (!existing) return null
+		if (existing.payloadHash === idempotencyPayloadHash) {
+			return { ruleSetId: existing.ruleSetId, ruleId: existing.ruleId, replayed: true }
+		}
+		throw new CommercialRuleIdempotencyConflictError(idempotencyKey!)
+	}
 
-			await tx.insert(CommercialRuleApplication).values({
-				id: randomUUID(),
-				providerId: params.providerId,
-				ruleSetId,
-				ruleId,
-				scope: "rate_plan",
-				...typedCatalogAssignmentTarget("rate_plan", params.ratePlanId),
-				startDate,
-				endDate,
-				isActive,
-				createdAt: new Date(),
+	return serializeCommercialPriceRuleWrite(async () => {
+		const replay = await replayOrConflict()
+		if (replay) return replay
+		const ruleSetId = randomUUID()
+		const ruleId = params.ruleId ?? randomUUID()
+		try {
+			await db.transaction(async (tx) => {
+				await tx.insert(CommercialRuleSet).values({
+					id: ruleSetId,
+					providerId: params.providerId,
+					name: params.name?.startsWith("ctx:")
+						? "Regla automática de precio"
+						: params.name || "Regla automática de precio",
+					status: isActive ? "active" : "paused",
+					priority: params.priority ?? 20,
+					dateFrom: startDate,
+					dateTo: endDate,
+					createdAt: new Date(),
+					updatedAt: new Date(),
+				})
+
+				await tx.insert(CommercialRule).values({
+					id: ruleId,
+					providerId: params.providerId,
+					ruleSetId,
+					category: "price",
+					type: params.type,
+					name: params.name ?? null,
+					value: params.value == null ? null : Number(params.value),
+					configJson: configPayload,
+					idempotencyKey,
+					idempotencyPayloadHash,
+					priority: params.priority ?? 20,
+					isActive,
+					createdAt: new Date(),
+					updatedAt: new Date(),
+				})
+
+				await tx.insert(CommercialRuleApplication).values({
+					id: randomUUID(),
+					providerId: params.providerId,
+					ruleSetId,
+					ruleId,
+					scope: "rate_plan",
+					...typedCatalogAssignmentTarget("rate_plan", params.ratePlanId),
+					startDate,
+					endDate,
+					isActive,
+					createdAt: new Date(),
+				})
 			})
-		})
-	)
-	return { ruleSetId, ruleId }
+		} catch (error) {
+			if (!idempotencyKey || !isUniqueViolation(error)) throw error
+			const concurrentReplay = await replayOrConflict()
+			if (concurrentReplay) return concurrentReplay
+			throw error
+		}
+		return { ruleSetId, ruleId, replayed: false }
+	})
 }
 
 export async function listCommercialPriceRulesByRatePlan(
@@ -404,7 +506,7 @@ export async function updateCommercialPriceRule(params: {
 						: params.sourceRuleId,
 			})}::jsonb,
 			"isActive" = ${typeof params.isActive === "boolean" ? params.isActive : sql`"isActive"`},
-			"updatedAt" = ${new Date()}
+			"updatedAt" = CURRENT_TIMESTAMP
 		WHERE "id" = ${params.ruleId}
 	`)
 	if (params.dateRangeJson || typeof params.isActive === "boolean") {
@@ -428,7 +530,7 @@ export async function updateCommercialPriceRule(params: {
 	if (typeof params.isActive === "boolean") {
 		await run(sql`
 			UPDATE "CommercialRuleSet"
-			SET "status" = ${params.isActive ? "active" : "paused"}, "updatedAt" = ${new Date()}
+			SET "status" = ${params.isActive ? "active" : "paused"}, "updatedAt" = CURRENT_TIMESTAMP
 			WHERE "id" = (SELECT "ruleSetId" FROM "CommercialRule" WHERE "id" = ${params.ruleId})
 		`)
 	}
@@ -583,7 +685,7 @@ export async function listActiveCommercialSellabilityRulesForContext(params: {
 export async function setCommercialRuleActive(ruleId: string, isActive: boolean) {
 	await run(sql`
 		UPDATE "CommercialRule"
-		SET "isActive" = ${isActive}, "updatedAt" = ${new Date()}
+		SET "isActive" = ${isActive}, "updatedAt" = CURRENT_TIMESTAMP
 		WHERE "id" = ${ruleId}
 	`)
 	await run(sql`
@@ -593,7 +695,7 @@ export async function setCommercialRuleActive(ruleId: string, isActive: boolean)
 	`)
 	await run(sql`
 		UPDATE "CommercialRuleSet"
-		SET "status" = ${isActive ? "active" : "paused"}, "updatedAt" = ${new Date()}
+		SET "status" = ${isActive ? "active" : "paused"}, "updatedAt" = CURRENT_TIMESTAMP
 		WHERE "id" = (SELECT "ruleSetId" FROM "CommercialRule" WHERE "id" = ${ruleId})
 	`)
 }

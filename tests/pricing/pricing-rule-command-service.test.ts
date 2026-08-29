@@ -78,6 +78,24 @@ describe("PricingRuleCommandService", () => {
 		})
 	})
 
+	it("propagates a durable idempotency key and reports a replay", async () => {
+		const deps = dependencies()
+		deps.createRule.mockResolvedValueOnce({ ruleId: "rule-1", replayed: true })
+		const service = new PricingRuleCommandService(deps)
+
+		const result = await service.createRule(context, {
+			type: "percentage_markup",
+			value: 10,
+			priority: 10,
+			idempotencyKey: "pricing-bulk:job-1:rate-plan-1",
+		})
+
+		expect(deps.createRule).toHaveBeenCalledWith(
+			expect.objectContaining({ idempotencyKey: "pricing-bulk:job-1:rate-plan-1" })
+		)
+		expect(result.replayed).toBe(true)
+	})
+
 	it("does not dispatch cache or ARI when rematerialization produced no dates", async () => {
 		const deps = dependencies(0)
 		const service = new PricingRuleCommandService(deps)

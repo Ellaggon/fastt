@@ -2165,6 +2165,10 @@ export const CommercialRule = pgTable(
 		name: txtOpt("name"),
 		value: amountOpt("value"),
 		configJson: jsonb("configJson"),
+		/** Durable write identity for retry-safe command processing. */
+		idempotencyKey: txtOpt("idempotencyKey"),
+		/** SHA-256 of the canonical create command paired with idempotencyKey. */
+		idempotencyPayloadHash: txtOpt("idempotencyPayloadHash"),
 		priority: intDefault("priority", 100),
 		isActive: boolDefault("isActive", true),
 		createdAt: now("createdAt"),
@@ -2177,6 +2181,21 @@ export const CommercialRule = pgTable(
 			table.type
 		),
 		index("CommercialRule_ruleSetId_isActive_idx").on(table.ruleSetId, table.isActive),
+		uniqueIndex("CommercialRule_provider_idempotency_unique")
+			.on(table.providerId, table.idempotencyKey)
+			.where(sql`${table.idempotencyKey} IS NOT NULL`),
+		check(
+			"CommercialRule_idempotency_pair_check",
+			sql`(
+				(${table.idempotencyKey} IS NULL AND ${table.idempotencyPayloadHash} IS NULL)
+				OR (
+					${table.idempotencyKey} IS NOT NULL
+					AND ${table.providerId} IS NOT NULL
+					AND length(trim(${table.idempotencyKey})) > 0
+					AND ${table.idempotencyPayloadHash} ~ '^[a-f0-9]{64}$'
+				)
+			)`
+		),
 	]
 )
 
