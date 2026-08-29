@@ -1,0 +1,27 @@
+---
+import PricingBulkJobOperationPanel from "@/components/pricing/PricingBulkJobOperationPanel"
+import Card from "@/components/ui/Card.astro"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { routes } from "@/lib/routes"
+
+const context = await Astro.locals.getWorkspaceContext()
+if (!context.user) return Astro.redirect("/SignInPage")
+if (!context.provider) return Astro.redirect(routes.providerSettingsProfile())
+const jobId = String(Astro.params.id ?? "").trim()
+if (!jobId) return Astro.redirect(routes.ratesPlansManage())
+---
+
+<WorkspaceLayout title="Actividad de precios">
+	<section class="mx-auto max-w-3xl space-y-5 px-4 py-6 sm:px-6">
+		<div>
+			<p class="text-sm font-semibold text-slate-500">Actividad de precios</p>
+			<h1 class="mt-1 text-2xl font-semibold text-slate-950">Operación por varias tarifas</h1>
+			<p class="mt-2 text-sm text-slate-600">
+				Estado, resultados y trazabilidad de la operación solicitada.
+			</p>
+		</div>
+		<Card class="p-5">
+			<PricingBulkJobOperationPanel client:load jobId={jobId} />
+		</Card>
+	</section>
+</WorkspaceLayout>
