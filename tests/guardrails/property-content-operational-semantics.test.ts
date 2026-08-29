@@ -43,18 +43,19 @@ describe("Guardrail: Property Content operational semantics", () => {
 				"Acciones principales",
 				"Habitaciones",
 				"Abrir habitaciones",
+				"Editar tipo y características",
 				"astro:page-load",
 			],
 			"src/pages/product/[id]/preview.astro": [
 				"Vista previa",
-				"Antes de publicar",
+				"Pendientes para publicar",
 				"Condiciones que verá el huésped",
 				"Reglas para huéspedes",
 			],
 			"src/pages/product/[id]/content.astro": ["Contenido", "Contenido principal"],
 			"src/pages/product/[id]/images.astro": ["Fotos", "Galería del alojamiento"],
 			"src/pages/product/[id]/location.astro": ["Ubicación", "Metadata geográfica"],
-			"src/pages/product/[id]/subtype.astro": ["Detalles del alojamiento", "Detalles específicos"],
+			"src/pages/product/[id]/subtype.astro": ["Detalles del alojamiento"],
 			"src/pages/product/[id]/rooms.astro": [
 				"Experiencia de descanso de",
 				"Nueva habitación",
@@ -131,7 +132,9 @@ describe("Guardrail: Property Content operational semantics", () => {
 			return [
 				...writeHits,
 				...forbiddenOwnershipOutsidePreview.flatMap((pattern) =>
-					pattern.test(source) ? [`${relativePath}: forbidden operational ownership ${pattern}`] : []
+					pattern.test(source)
+						? [`${relativePath}: forbidden operational ownership ${pattern}`]
+						: []
 				),
 			]
 		})
@@ -300,9 +303,7 @@ describe("Guardrail: Property Content operational semantics", () => {
 		expect(houseRules).toContain("fastt-tabs-outside-panel__item")
 		expect(houseRules).not.toContain("SegmentedControl")
 		expect(houseRules).toContain("syncHotelArrivalPolicy")
-		const houseRuleEditor = read(
-			"src/components/house-rules/HouseRuleEditorRow.astro"
-		)
+		const houseRuleEditor = read("src/components/house-rules/HouseRuleEditorRow.astro")
 		expect(houseRules).toContain("HouseRuleEditorRow")
 		expect(houseRules).toContain("Pendientes")
 		expect(houseRules).toContain("Áreas completadas")
@@ -314,7 +315,7 @@ describe("Guardrail: Property Content operational semantics", () => {
 		expect(arrivalSync).toContain('category: "CheckIn"')
 		expect(arrivalSync).toContain("replacePolicyAssignmentCapa6")
 
-		expect(preview).toContain("Antes de publicar")
+		expect(preview).toContain("Pendientes para publicar")
 		expect(preview).toContain("Dónde dormirán los huéspedes")
 		expect(preview).toContain("Condiciones que verá el huésped")
 		expect(preview).toContain("Reglas para huéspedes")
@@ -353,6 +354,19 @@ describe("Guardrail: Property Content operational semantics", () => {
 
 		expect(productSurface).toContain("payload?.variants?.count")
 		expect(productSurface).toContain("payload?.images?.cover?.url")
+	})
+
+	it("uses the complete-to-publish evaluation for preparation totals", () => {
+		const productSurface = read("src/pages/product/[id]/index.astro")
+		const summaryEndpoint = read("src/pages/api/internal/product-summary.ts")
+		const completeToPublishProgress = read(
+			"src/lib/playbook/evaluate-complete-to-publish-progress.ts"
+		)
+
+		expect(productSurface).toContain("summarizeProductPreparation")
+		expect(productSurface).not.toContain("requiredPreparationSections")
+		expect(summaryEndpoint).toContain("canonical playbook totals")
+		expect(completeToPublishProgress).toContain("const orderedSteps = state.checks")
 	})
 
 	it("keeps the room ficha guest-facing while reading operational context through summaries", () => {

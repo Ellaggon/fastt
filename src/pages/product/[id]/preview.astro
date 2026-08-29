@@ -37,7 +37,7 @@ import {
 	resolveHotelAmenities,
 	resolveHotelType,
 } from "@/modules/catalog/public"
-import { ArrowRight, BedDouble, CircleCheck, ShieldCheck } from "@lucide/astro"
+import { ArrowRight, BedDouble, CircleCheck, ClipboardList, ShieldCheck } from "@lucide/astro"
 import { buildGuestStayExpectationsSnapshot } from "@/modules/house-rules/public"
 import { mapResolvedPoliciesToUI, resolveEffectivePolicies } from "@/modules/policies/public"
 import {
@@ -181,6 +181,8 @@ const readinessPercent = publishState.readinessPercent
 const blockerLabels = publishState.blockers
 	.filter((check) => check.sectionKey !== "preview")
 	.map((check) => check.label)
+const nextBlocker =
+	checks.find((check) => !check.complete && check.sectionKey !== "preview") ?? null
 
 const playbook = resolvePlaybookFromUrl(Astro.url, { isHotel })
 const launchPlaybook = resolveLaunchPlaybookFromUrl(Astro.url)
@@ -373,35 +375,31 @@ try {
 	hideFooter={playbook.active && stepId === "preview"}
 >
 	<section class="space-y-7">
-		<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
-			<div class="max-w-3xl space-y-1.5">
-				<h1 class="text-3xl font-semibold tracking-tight text-slate-100">Revisa y publica</h1>
-				<p class="max-w-2xl text-sm leading-6 text-slate-400">
-					{
-						isTour
-							? `Antes de publicar, confirma fotos, itinerario, modalidades, precio y próximas fechas de ${aggregate.displayName}.`
-							: `Antes de publicar, confirma fotos, habitaciones, condiciones y reglas para activar ${aggregate.displayName} para reservas.`
-					}
-				</p>
-			</div>
-			<div class="flex flex-wrap items-center justify-end gap-2">
-				<Button href={routes.productDetail(productId)} variant="secondary"> Volver a ficha </Button>
-				{
-					isPublished && publicDetailHref ? (
-						<Button href={publicDetailHref} variant="secondary">
-							Abrir página pública
-						</Button>
-					) : null
-				}
-			</div>
-		</header>
+		{
+			isPublished && publicDetailHref ? (
+				<div class="flex justify-end">
+					<Button href={publicDetailHref} variant="secondary">
+						Abrir página pública
+					</Button>
+				</div>
+			) : null
+		}
 
-		<Card className="bg-white">
-			<div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
-				<div class="space-y-4">
-					<div class="flex flex-wrap items-start justify-between gap-3">
-						<div class="space-y-1">
-							<p class="text-sm font-semibold text-slate-950">
+		<Card variant="dark" class="!border-neutral-800 !bg-black">
+			<div class="space-y-6">
+				<div class="flex flex-wrap items-start justify-between gap-4">
+					<div class="flex min-w-0 items-start gap-3">
+						<span class="fastt-section-icon">
+							{
+								isPublished || readyToPublish ? (
+									<CircleCheck class="size-4" aria-hidden="true" />
+								) : (
+									<ClipboardList class="size-4" aria-hidden="true" />
+								)
+							}
+						</span>
+						<div class="min-w-0">
+							<p class="text-xl font-semibold text-white">
 								{
 									isPublished
 										? `${vertical.labels.workspaceSingular} publicado`
@@ -410,89 +408,102 @@ try {
 											: "Pendientes para publicar"
 								}
 							</p>
-							<p class="text-sm leading-6 text-slate-600">
+							<p class="mt-1 max-w-3xl text-sm leading-6 text-neutral-400">
 								{
 									isPublished
-										? "La ficha ya está activa. Puedes usar esta pantalla para revisar cómo se presenta al viajero."
+										? "La ficha ya está activa. Usa esta revisión para comprobar cómo la verá el viajero."
 										: readyToPublish
-											? "Todo lo obligatorio está completo. Publica cuando estés listo para recibir reservas."
-											: `${completedChecks} de ${checks.length} bloques principales listos.`
+											? "Todo lo obligatorio está listo. Publica cuando estés preparado para recibir reservas."
+											: `${completedChecks} de ${checks.length} bloques principales listos. ${blockerLabels.length ? `Faltan ${blockerLabels.length} paso${blockerLabels.length === 1 ? "" : "s"}: ${blockerLabels.join(", ")}.` : ""}`
 								}
 							</p>
 						</div>
-						<Badge variant={isPublished ? "success" : readyToPublish ? "success" : "warning"}>
-							{
-								isPublished
-									? "Publicado"
-									: readyToPublish
-										? "Listo para publicar"
-										: `${readinessPercent}% listo`
-							}
-						</Badge>
 					</div>
-					<ProgressBar value={readinessPercent} />
-					<p class="text-sm leading-6 text-slate-600">
-						{
-							isPublished
-								? `${vertical.labels.workspaceSingular} ya está publicado. Usa esta revisión para detectar ajustes de contenido.`
-								: readyToPublish
-									? `Revisa la ficha pública debajo. Si todo representa correctamente tu ${vertical.labels.singular}, puedes publicarlo.`
-									: blockerLabels.length
-										? `Faltan ${blockerLabels.length} paso${blockerLabels.length === 1 ? "" : "s"}: ${blockerLabels.slice(0, 3).join(", ")}${blockerLabels.length > 3 ? "..." : ""}.`
-										: "Revisa lo pendiente antes de publicar."
-						}
+					<Badge variant={isPublished || readyToPublish ? "darkSuccess" : "darkWarning"}>
+						{isPublished ? "Publicado" : readyToPublish ? "Listo" : `${readinessPercent}% listo`}
+					</Badge>
+				</div>
+
+				<div class="flex items-center gap-3">
+					<div class="h-1 flex-1 overflow-hidden rounded-full bg-white/10">
+						<div
+							class="h-full rounded-full"
+							style={`width: ${Math.max(0, Math.min(100, readinessPercent))}%; background-color: var(--fastt-color-selection);`}
+						>
+						</div>
+					</div>
+					<p class="shrink-0 text-xs font-medium text-neutral-400 tabular-nums">
+						{completedChecks} de {checks.length}
 					</p>
-					{
-						!readyToPublish && !isPublished ? (
-							<div class="grid gap-2 pt-1 md:grid-cols-2">
-								{checks
-									.filter((check) => !check.complete)
-									.slice(0, 4)
-									.map((check) => (
-										<a
-											href={checkHref(check)}
-											class="fastt-soft-box flex items-start justify-between gap-3 bg-slate-50 px-3 py-2 text-sm ring-1 ring-slate-200 transition hover:bg-white"
-										>
-											<span>
-												<span class="font-semibold text-slate-950">{check.label}</span>
-												<span class="mt-0.5 block text-xs leading-5 text-slate-500">
-													{check.detail}
-												</span>
-											</span>
-											<Badge variant="warning">Revisar</Badge>
-										</a>
-									))}
-							</div>
-						) : (
-							<div class="flex items-center gap-2 text-sm font-medium text-emerald-700">
-								<CircleCheck class="h-4 w-4" aria-hidden="true" />
-								Todo lo obligatorio está listo.
-							</div>
-						)
-					}
 				</div>
-				<div class="flex flex-wrap gap-2 lg:justify-end">
-					{
-						isPublished ? (
-							<Button href={routes.productDetail(productId)}>Ir a ficha</Button>
-						) : readyToPublish ? (
-							<Button class="publish-product-button" type="button">
-								Publicar {vertical.labels.singular}
-							</Button>
-						) : (
-							<Button href={completePreparationHref}>
-								Completar pendientes
-								<ArrowRight class="h-4 w-4" aria-hidden="true" />
-							</Button>
-						)
-					}
+
+				<div
+					class="flex flex-col gap-4 border-t border-white/10 pt-5 sm:flex-row sm:items-center sm:justify-between"
+				>
+					<div class="flex min-w-0 items-start gap-3">
+						<span class="fastt-section-icon">
+							{
+								isPublished || readyToPublish ? (
+									<CircleCheck class="size-4" aria-hidden="true" />
+								) : (
+									<ClipboardList class="size-4" aria-hidden="true" />
+								)
+							}
+						</span>
+						<div class="min-w-0">
+							<p class="text-xs font-semibold tracking-[0.14em] text-neutral-500 uppercase">
+								{
+									isPublished
+										? "Revisión"
+										: readyToPublish
+											? "Siguiente acción"
+											: "Siguiente requisito"
+								}
+							</p>
+							<p class="mt-1 text-base font-semibold text-white">
+								{
+									isPublished
+										? "La página pública ya está disponible"
+										: readyToPublish
+											? `Publicar ${vertical.labels.singular.toLowerCase()}`
+											: (nextBlocker?.label ?? "Revisa los requisitos pendientes")
+								}
+							</p>
+							<p class="mt-1 max-w-xl text-sm leading-6 text-neutral-400">
+								{
+									isPublished
+										? "Puedes volver a la ficha para operar el alojamiento o revisar el resultado público."
+										: readyToPublish
+											? `Revisa la ficha pública debajo y confirma que representa correctamente tu ${vertical.labels.singular.toLowerCase()}.`
+											: (nextBlocker?.detail ?? "Completa el siguiente requisito para continuar.")
+								}
+							</p>
+						</div>
+					</div>
+					<div class="flex shrink-0 flex-wrap items-center gap-2">
+						<Button href={routes.productDetail(productId)} variant="secondary">
+							Volver a ficha
+						</Button>
+						{
+							isPublished ? null : readyToPublish ? (
+								<Button class="publish-product-button" type="button" variant="onDark">
+									Publicar {vertical.labels.singular}
+								</Button>
+							) : (
+								<Button href={completePreparationHref} variant="onDark">
+									Completar preparación
+									<ArrowRight class="h-4 w-4" aria-hidden="true" />
+								</Button>
+							)
+						}
+					</div>
 				</div>
-			</div>
-			<div
-				id="publishFeedback"
-				class="mt-4 hidden rounded-xl bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600 ring-1 ring-slate-200"
-				role="status"
-			>
+				<div
+					id="publishFeedback"
+					class="hidden rounded-[var(--fastt-radius-control)] bg-white/10 px-4 py-3 text-sm leading-6 text-slate-200"
+					role="status"
+				>
+				</div>
 			</div>
 		</Card>
 

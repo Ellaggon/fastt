@@ -9,7 +9,12 @@ import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
 import { logRoutePerformance } from "@/lib/observability/performanceLog"
 import { createServerTimingRecorder } from "@/lib/observability/serverTiming"
 import { buildCompleteToPublishEntryHref } from "@/lib/playbook/complete-to-publish"
-import { resolveProductPreparationCoach } from "@/lib/playbook/product-preparation-coach"
+import {
+	resolveProductPreparationCoach,
+	resolveProductPreparationHeaderSummary,
+	resolveProductPreparationHeaderTitle,
+} from "@/lib/playbook/product-preparation-coach"
+import { summarizeProductPreparation } from "@/lib/playbook/summarize-product-preparation"
 import { getProductOperationalSurface } from "@/lib/product/productOperationalSurface"
 import { routes } from "@/lib/routes"
 import {
@@ -72,27 +77,38 @@ const status = String(operationalSurface?.status || "draft")
 	.toLowerCase()
 
 const readiness = operationalSurface?.readiness ?? null
-const requiredPreparationSections = vertical.readiness.requiredSections.length
+const canonicalPreparation =
+	status !== "published"
+		? await timing.time("canonicalPreparation", () =>
+				summarizeProductPreparation({
+					productId,
+					providerId,
+					status,
+					request: Astro.request,
+					url: Astro.url,
+				})
+			)
+		: null
+const preparation = canonicalPreparation ?? readiness
 const publishState =
-	status !== "published" && readiness
+	status !== "published" && preparation
 		? {
-				readyToPublish: readiness.readyToPublish,
-				readinessPercent: readiness.readinessPercent,
-				completedChecks:
-					readiness.completedChecks ??
-					Math.round((readiness.readinessPercent / 100) * requiredPreparationSections),
-				totalChecks: readiness.totalChecks ?? requiredPreparationSections,
+				readyToPublish: preparation.readyToPublish,
+				readinessPercent: preparation.readinessPercent,
+				completedChecks: preparation.completedChecks ?? 0,
+				totalChecks: preparation.totalChecks ?? 0,
 			}
 		: null
 const completePreparationHref =
-	readiness?.continuePreparationHref ?? buildCompleteToPublishEntryHref(productId)
-const previewHref = readiness?.previewHref ?? routes.productPreview(productId)
+	preparation?.continuePreparationHref ?? buildCompleteToPublishEntryHref(productId)
+const previewHref = preparation?.previewHref ?? routes.productPreview(productId)
 const preparationCoach = publishState
 	? resolveProductPreparationCoach({
 			readyToPublish: publishState.readyToPublish,
-			nextStepLabel: readiness?.nextStepLabel,
-			nextStepBody: readiness?.nextStepBody,
-			nextStepCta: readiness?.nextStepCta,
+			readinessPercent: publishState.readinessPercent,
+			nextStepLabel: preparation?.nextStepLabel,
+			nextStepBody: preparation?.nextStepBody,
+			nextStepCta: preparation?.nextStepCta,
 			continuePreparationHref: completePreparationHref,
 			previewHref,
 		})
@@ -104,8 +120,23 @@ const PreparationEyebrowIcon = isHotel
 		: isPackage
 			? Package
 			: ClipboardList
-const preparationBlockerCount = readiness?.blockerCount ?? 0
+const preparationBlockerCount = preparation?.blockerCount ?? 0
 const hasIncompletePreparation = status !== "published" && preparationBlockerCount > 0
+const isPublished = status === "published"
+const productHeaderTitle = resolveProductPreparationHeaderTitle({
+	isPublished,
+	readyToPublish: Boolean(publishState?.readyToPublish),
+	workspaceSingularLabel: vertical.labels.workspaceSingular,
+})
+const productHeaderSummaryText = publishState
+	? resolveProductPreparationHeaderSummary({
+			isPublished,
+			readyToPublish: publishState.readyToPublish,
+			completedChecks: publishState.completedChecks,
+			totalChecks: publishState.totalChecks,
+			blockerLabels: preparation?.blockerPreview ?? [],
+		})
+	: productHeaderSummary
 const conditionsHref = isHotel
 	? (operationalSurface?.conditionsHref ?? routes.rates())
 	: routes.rates()
@@ -155,13 +186,13 @@ logRoutePerformance({
 							id="productHeaderMeta"
 							class="max-w-3xl text-sm leading-5 text-slate-300 sm:leading-6"
 						>
-							Cargando ubicación y tipo de oferta...
+							{productHeaderTitle}
 						</p>
 						<p
 							id="productHeaderSummary"
 							class="max-w-3xl text-sm leading-5 text-slate-400 sm:leading-6"
 						>
-							{productHeaderSummary}
+							{productHeaderSummaryText}
 						</p>
 					</>
 				)
@@ -214,15 +245,13 @@ logRoutePerformance({
 									</span>
 									<div class="min-w-0">
 										<p id="productHeaderMeta" class="text-xl font-semibold text-white">
-											Cargando ubicación...
+											{productHeaderTitle}
 										</p>
 										<p
 											id="productHeaderSummary"
 											class="mt-1 max-w-3xl text-sm leading-6 text-neutral-400"
 										>
-											{isHotel
-												? "Administra la ficha pública, habitaciones y reglas. Las tarifas y el calendario se gestionan desde Venta."
-												: productHeaderSummary}
+											{productHeaderSummaryText}
 										</p>
 									</div>
 								</div>

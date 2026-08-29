@@ -440,10 +440,9 @@ export async function evaluateCompleteToPublishProgress(
 	})
 	if (!state) return null
 
-	const orderedSteps = [
-		...state.checks.filter((check) => !check.complete),
-		...state.checks.filter((check) => check.complete),
-	]
+	// Keep the stable readiness order in the shell. Moving blockers to the front made a
+	// partially prepared accommodation look like it had returned to "Paso 1 de N".
+	const orderedSteps = state.checks
 
 	const explicitStep = String(options.currentStepId ?? "").trim() as ProductVerticalSectionKey
 	const currentStepId =

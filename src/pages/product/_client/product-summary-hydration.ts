@@ -1,4 +1,8 @@
-import { resolveProductPreparationCoach } from "@/lib/playbook/product-preparation-coach"
+import {
+	resolveProductPreparationCoach,
+	resolveProductPreparationHeaderSummary,
+	resolveProductPreparationHeaderTitle,
+} from "@/lib/playbook/product-preparation-coach"
 
 type ProductSummaryConfig = {
 	productId: string
@@ -102,7 +106,7 @@ function ensureProductShell(config: ProductSummaryConfig): void {
 	if (config.isHotel) {
 		verticalCards.push(
 			card(
-				`<div class="flex items-start justify-between gap-4"><div><p class="text-sm font-semibold text-slate-950">Tipo y características</p><p id="summaryProductType" class="mt-2 text-sm leading-6 text-slate-600">Cargando tipo...</p><p id="summarySubtype" class="mt-1 text-sm text-slate-500">Características: -</p></div>${badge("blockBadge-subtype")}</div>`
+				`<div class="flex items-start justify-between gap-4"><div><p class="text-sm font-semibold text-slate-950">Tipo y características</p><p id="summaryProductType" class="mt-2 text-sm leading-6 text-slate-600">Cargando tipo...</p><p id="summarySubtype" class="mt-1 text-sm text-slate-500">Características: -</p></div>${badge("blockBadge-subtype")}</div><a href="/product/${encodeURIComponent(config.productId)}/subtype" data-astro-prefetch class="mt-4 inline-flex text-sm font-semibold text-slate-800">Editar tipo y características</a>`
 			)
 		)
 	}
@@ -207,6 +211,7 @@ function hydratePreparationCard(
 
 	const coach = resolveProductPreparationCoach({
 		readyToPublish: Boolean(preparation.readyToPublish),
+		readinessPercent: percent,
 		nextStepLabel: preparation.nextStepLabel,
 		nextStepBody: preparation.nextStepBody,
 		nextStepCta: preparation.nextStepCta,
@@ -274,10 +279,33 @@ export function initProductSummaryHydration(): void {
 			const hasHouseRules = Boolean(payload?.checks?.hasHouseRules)
 
 			hydratePreparationCard(config, payload)
-			setText("productHeaderMeta", address)
+			const preparation = payload.preparation ?? null
+			const isPublished =
+				String(payload?.status ?? "")
+					.trim()
+					.toLowerCase() === "published" || Boolean(preparation?.isPublished)
+			const readyToPublish = Boolean(preparation?.readyToPublish)
+			setText(
+				"productHeaderMeta",
+				resolveProductPreparationHeaderTitle({
+					isPublished,
+					readyToPublish,
+					workspaceSingularLabel: config.workspaceSingularLabel,
+				})
+			)
 			setText(
 				"productHeaderSummary",
-				"Administra la ficha pública, habitaciones y reglas. Las tarifas y el calendario se gestionan desde Venta."
+				resolveProductPreparationHeaderSummary({
+					isPublished,
+					readyToPublish,
+					completedChecks: Number(
+						preparation?.completedChecks ?? payload.progress?.completedSteps ?? 0
+					),
+					totalChecks: Number(preparation?.totalChecks ?? payload.progress?.totalSteps ?? 0),
+					blockerLabels: Array.isArray(preparation?.blockerPreview)
+						? preparation.blockerPreview.map(String)
+						: [],
+				})
 			)
 
 			setBadgeState("content", Boolean(payload?.checks?.hasContent))

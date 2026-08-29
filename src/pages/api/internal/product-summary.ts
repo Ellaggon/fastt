@@ -240,17 +240,17 @@ export const GET: APIRoute = async ({ request, url }) => {
 	const productStatus = String(operationalSurface?.status ?? statusRow?.state ?? "draft")
 		.trim()
 		.toLowerCase()
-	const preparation =
-		operationalSurface?.readiness ??
-		(await timing.time("productPreparation", () =>
-			summarizeProductPreparation({
-				productId,
-				providerId,
-				status: productStatus,
-				request,
-				url,
-			})
-		))
+	// The operational projection intentionally favors fast listing reads. The product detail
+	// needs the canonical playbook totals, including the final preview step.
+	const preparation = await timing.time("productPreparation", () =>
+		summarizeProductPreparation({
+			productId,
+			providerId,
+			status: productStatus,
+			request,
+			url,
+		})
+	)
 
 	timing.addTotal("productSummary")
 	logEndpoint(200)

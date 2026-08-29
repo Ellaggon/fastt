@@ -1,5 +1,4 @@
 ---
-import ProductContextSwitcher from "@/components/product/ProductContextSwitcher.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import FormField from "@/components/ui/FormField.astro"
@@ -51,30 +50,12 @@ const existingImages = product.images || []
 >
 	<section class="space-y-8">
 		<section class="space-y-4">
-			<header class="space-y-1.5">
-				<ProductContextSwitcher
-					providerId={providerId}
-					productId={productId}
-					productType={product.productType}
-					currentName={product.displayName}
-					selectable={false}
-				/>
-				<h1 class="text-3xl font-semibold text-slate-100">Fotos</h1>
-				<p class="max-w-3xl text-sm leading-6 text-slate-400">
-					{
-						isTour
-							? "Muestra el recorrido, sus momentos clave y qué puede esperar el viajero."
-							: `Gestiona la galería visible de ${vertical.labels.singular} y su cobertura visual mínima.`
-					}
-				</p>
-			</header>
-
 			<Card class="rounded-lg border-slate-200 bg-slate-100 shadow-none">
 				<form
 					id="imagesForm"
 					method="POST"
 					action="/api/product/images"
-					class="max-w-3xl space-y-6"
+					class="max-w-3xl space-y-8"
 				>
 					<Input type="hidden" name="productId" value={productId} />
 					<Input
@@ -87,101 +68,97 @@ const existingImages = product.images || []
 							<Input type="hidden" name="playbook" value={playbook.playbookId} />
 						) : null
 					}
-					<div class="space-y-4">
-						<div class="space-y-1">
-							<h2 class="text-xl font-semibold text-slate-900">
-								{
-									isHotel
-										? "Galería del alojamiento"
-										: isTour
-											? "Galería del tour"
-											: "Galería de la oferta"
-								}
-							</h2>
-							<p class="text-sm text-slate-600">
-								{
-									isTour
-										? "Recomendamos 5 fotos: portada, experiencia, entorno y detalles. Puedes continuar con las fotos que ya tengas."
-										: "Arrastra imágenes aquí o haz clic para seleccionarlas."
-								}
-							</p>
-							<p id="imageCount" class="text-sm font-semibold text-slate-800" aria-live="polite">
-								{existingImages.length}/5 fotos recomendadas
-							</p>
-						</div>
-
-						<FormField label="Carga de imágenes" htmlFor="files" required>
-							<Input
-								id="files"
-								type="file"
-								name="files"
-								accept="image/*"
-								multiple
-								required={existingImages.length === 0}
-								className="hidden"
-								aria-describedby="imageUploadHelp imageCount"
-							/>
-							<div
-								id="dropzone"
-								class="fastt-empty-state cursor-pointer rounded-xl border-2 border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-600 transition"
-								role="button"
-								tabindex="0"
-								aria-controls="files"
-								aria-describedby="imageUploadHelp imageCount"
-							>
-								<p class="font-medium text-slate-700">Suelta imágenes aquí</p>
-								<p class="mt-1 text-slate-500">o haz clic para abrir el selector</p>
-								<p id="imageUploadHelp" class="mt-2 text-xs text-slate-500">
-									Usa Enter o Espacio para elegir archivos. Solo se aceptan imágenes.
-								</p>
-							</div>
-						</FormField>
-
-						<div class="space-y-2">
-							<p class="text-sm font-medium text-slate-700">Vista previa</p>
-							<div
-								id="previewGrid"
-								class="grid grid-cols-2 gap-4 sm:grid-cols-3"
-								aria-live="polite"
-							>
-							</div>
-						</div>
-					</div>
-
-					<div class="space-y-1">
-						<p id="stateLabel" class="text-sm text-slate-600" aria-live="polite">
+					<header class="space-y-1.5">
+						<h2 class="text-xl font-semibold text-slate-900">
 							{
-								existingImages.length > 0
-									? "Listo: puedes continuar con las fotos existentes o agregar nuevas."
-									: "Vacío: selecciona imágenes para continuar."
+								isHotel
+									? "Galería del alojamiento"
+									: isTour
+										? "Galería del tour"
+										: "Galería de la oferta"
+							}
+						</h2>
+						<p class="text-sm leading-6 text-slate-600">
+							{
+								isTour
+									? "Recomendamos 5 fotos: portada, experiencia, entorno y detalles. Puedes continuar con las fotos que ya tengas."
+									: "Arrastra imágenes aquí o haz clic para seleccionarlas."
 							}
 						</p>
-						<p id="stateDetail" class="whitespace-pre-wrap text-sm text-slate-600"></p>
+						<p id="imageCount" class="text-sm font-semibold text-slate-800" aria-live="polite">
+							{existingImages.length}/5 fotos recomendadas
+						</p>
+					</header>
+
+					<FormField label="Carga de imágenes" htmlFor="files" required>
+						<Input
+							id="files"
+							type="file"
+							name="files"
+							accept="image/*"
+							multiple
+							required={existingImages.length === 0}
+							className="hidden"
+							aria-describedby="imageUploadHelp imageCount"
+						/>
+						<div
+							id="dropzone"
+							class="fastt-empty-state cursor-pointer rounded-xl border-2 border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-600 transition"
+							role="button"
+							tabindex="0"
+							aria-controls="files"
+							aria-describedby="imageUploadHelp imageCount"
+						>
+							<p class="font-medium text-slate-700">Suelta imágenes aquí</p>
+							<p class="mt-1 text-slate-500">o haz clic para abrir el selector</p>
+							<p id="imageUploadHelp" class="mt-2 text-xs text-slate-500">
+								Usa Enter o Espacio para elegir archivos. Solo se aceptan imágenes.
+							</p>
+						</div>
+					</FormField>
+
+					<div class="space-y-3">
+						<p class="text-sm font-medium text-slate-700">Vista previa</p>
+						<div id="previewGrid" class="grid grid-cols-2 gap-4 sm:grid-cols-3" aria-live="polite">
+						</div>
 					</div>
 
-					<div class="flex items-center justify-end gap-3">
-						<Button
-							href={playbook.active && playbook.playbookId
-								? playbookRedirectHrefFor(
-										playbook.playbookId,
-										`/product/${productId}/location`,
-										"location",
-										productId
-									)
-								: playbook.active && playbook.playbookId === "complete-to-publish"
-									? buildCompleteToPublishHref(`/product/${productId}/preview`, "preview")
-									: `/product/${encodeURIComponent(productId)}/location`}
-							variant="secondary"
-						>
-							Volver
-						</Button>
-						<Button
-							id="submitBtn"
-							type="submit"
-							className={playbook.active ? "fastt-playbook-cta" : ""}
-						>
-							{playbook.active ? "Guardar y continuar" : "Subir y asociar"}
-						</Button>
+					<div class="space-y-4 pt-2">
+						<div class="space-y-1">
+							<p id="stateLabel" class="text-sm text-slate-600" aria-live="polite">
+								{
+									existingImages.length > 0
+										? "Listo: puedes continuar con las fotos existentes o agregar nuevas."
+										: "Vacío: selecciona imágenes para continuar."
+								}
+							</p>
+							<p id="stateDetail" class="whitespace-pre-wrap text-sm text-slate-600"></p>
+						</div>
+
+						<div class="flex items-center justify-end gap-3">
+							<Button
+								href={playbook.active && playbook.playbookId
+									? playbookRedirectHrefFor(
+											playbook.playbookId,
+											`/product/${productId}/location`,
+											"location",
+											productId
+										)
+									: playbook.active && playbook.playbookId === "complete-to-publish"
+										? buildCompleteToPublishHref(`/product/${productId}/preview`, "preview")
+										: `/product/${encodeURIComponent(productId)}/location`}
+								variant="secondary"
+							>
+								Volver
+							</Button>
+							<Button
+								id="submitBtn"
+								type="submit"
+								className={playbook.active ? "fastt-playbook-cta" : ""}
+							>
+								{playbook.active ? "Guardar y continuar" : "Subir y asociar"}
+							</Button>
+						</div>
 					</div>
 				</form>
 			</Card>

@@ -72,7 +72,7 @@ function copyForLabel(label: string): { body: string; cta: string } | null {
 }
 
 export type ProductPreparationCoach = {
-	badge: "En curso" | "Lista"
+	badge: string
 	ready: boolean
 	label: string
 	body: string
@@ -80,8 +80,49 @@ export type ProductPreparationCoach = {
 	href: string
 }
 
+export function resolveProductPreparationBadgeLabel(input: {
+	isPublished: boolean
+	readyToPublish: boolean
+	readinessPercent: number
+}): string {
+	if (input.isPublished) return "Publicado"
+	if (input.readyToPublish) return "Listo"
+	const percent = Math.max(0, Math.min(100, Math.round(input.readinessPercent)))
+	return `${percent}% listo`
+}
+
+export function resolveProductPreparationHeaderTitle(input: {
+	isPublished: boolean
+	readyToPublish: boolean
+	workspaceSingularLabel: string
+}): string {
+	if (input.isPublished) return `${input.workspaceSingularLabel} publicado`
+	if (input.readyToPublish) return "Listo para publicar"
+	return "Pendientes para publicar"
+}
+
+export function resolveProductPreparationHeaderSummary(input: {
+	isPublished: boolean
+	readyToPublish: boolean
+	completedChecks: number
+	totalChecks: number
+	blockerLabels: string[]
+}): string {
+	if (input.isPublished) {
+		return "La ficha ya está activa. Usa esta revisión para comprobar cómo la verá el viajero."
+	}
+	if (input.readyToPublish) {
+		return "Todo lo obligatorio está listo. Publica cuando estés preparado para recibir reservas."
+	}
+	const blockerSuffix = input.blockerLabels.length
+		? ` Faltan ${input.blockerLabels.length} paso${input.blockerLabels.length === 1 ? "" : "s"}: ${input.blockerLabels.join(", ")}.`
+		: ""
+	return `${input.completedChecks} de ${input.totalChecks} bloques principales listos.${blockerSuffix}`
+}
+
 export function resolveProductPreparationCoach(input: {
 	readyToPublish: boolean
+	readinessPercent?: number
 	nextStepLabel?: string | null
 	nextStepBody?: string | null
 	nextStepCta?: string | null
@@ -90,7 +131,7 @@ export function resolveProductPreparationCoach(input: {
 }): ProductPreparationCoach {
 	if (input.readyToPublish) {
 		return {
-			badge: "Lista",
+			badge: "Listo",
 			ready: true,
 			label: "Listo para publicar",
 			body: "Revisa la vista previa y confirma la publicación.",
@@ -102,7 +143,11 @@ export function resolveProductPreparationCoach(input: {
 	const label = String(input.nextStepLabel ?? "").trim() || "Completa el próximo paso"
 	const mapped = copyForLabel(label)
 	return {
-		badge: "En curso",
+		badge: resolveProductPreparationBadgeLabel({
+			isPublished: false,
+			readyToPublish: false,
+			readinessPercent: Number(input.readinessPercent ?? 0),
+		}),
 		ready: false,
 		label,
 		body: asSentence(

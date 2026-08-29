@@ -1,7 +1,6 @@
 ---
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
-import ProductContextSwitcher from "@/components/product/ProductContextSwitcher.astro"
 import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
 import Textarea from "@/components/ui/Textarea.astro"
@@ -58,30 +57,12 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 >
 	<section class="space-y-8">
 		<section class="space-y-4">
-			<header class="space-y-1.5">
-				<ProductContextSwitcher
-					providerId={providerId}
-					productId={productId}
-					productType={aggregate.productType}
-					currentName={aggregate.displayName}
-					selectable={false}
-				/>
-				<h1 class="text-3xl font-semibold text-slate-100">Contenido</h1>
-				<p class="max-w-3xl text-sm leading-6 text-slate-400">
-					{
-						isTour
-							? "Cuenta qué vivirá el viajero y qué hace especial este tour."
-							: "Define la narrativa visible de esta oferta: descripción y destacados."
-					}
-				</p>
-			</header>
-
 			<Card class="rounded-lg border-slate-200 bg-slate-100 shadow-none">
 				<form
 					id="contentForm"
 					method="POST"
 					action="/api/product/content"
-					class="max-w-3xl space-y-6"
+					class="max-w-3xl space-y-8"
 				>
 					<Input type="hidden" name="productId" value={productId} />
 					<Input
@@ -94,94 +75,93 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 							<Input type="hidden" name="playbook" value={playbookResolved.playbookId} />
 						) : null
 					}
-					<div class="space-y-4">
+					<header class="space-y-1.5">
+						<h2 class="text-xl font-semibold text-slate-900">Contenido principal</h2>
+						<p class="text-sm leading-6 text-slate-600">
+							{
+								isTour
+									? "Describe la experiencia para que el viajero pueda decidir si este tour es para él. El itinerario y el punto de encuentro se completan más adelante."
+									: `Este bloque define la información visible de ${vertical.labels.singular}.`
+							}
+						</p>
+					</header>
+
+					<FormField label="Descripción" htmlFor="description" required>
+						<Textarea
+							id="description"
+							name="description"
+							value={descriptionValue}
+							rows="5"
+							required
+							placeholder={isTour
+								? "Explica el recorrido, el ambiente y para quién está pensado."
+								: "Describe la oferta con claridad para el viajero."}
+							aria-describedby="descriptionGuidance descriptionError"
+						/>
+						{
+							isHotel ? (
+								<p class="text-sm leading-6 text-slate-500">
+									Describe la experiencia del alojamiento. Las normas, horarios, mascotas y
+									condiciones de estadía se completan más adelante en su propio paso del asistente.
+								</p>
+							) : null
+						}
+						{
+							isTour ? (
+								<p id="descriptionGuidance" class="text-sm leading-6 text-slate-500">
+									Enfócate en la experiencia. Evita repetir horarios, inclusiones o instrucciones
+									logísticas.
+								</p>
+							) : null
+						}
+						<p id="descriptionError" class="hidden text-sm text-red-600"></p>
+					</FormField>
+
+					<FormField label="Destacados (uno por línea)" htmlFor="highlightsJson" required>
+						<Textarea
+							id="highlightsJson"
+							name="highlightsJson"
+							value={highlightsValue}
+							rows="4"
+							required
+							placeholder={isTour
+								? "Mirador al amanecer\nGuía local experto\nGrupo reducido"
+								: "Ubicación céntrica\nDesayuno incluido"}
+						/>
+						{
+							isTour ? (
+								<p class="text-sm leading-6 text-slate-500">
+									Escribe beneficios concretos y fáciles de escanear, uno por línea.
+								</p>
+							) : null
+						}
+					</FormField>
+
+					<div class="space-y-4 pt-2">
 						<div class="space-y-1">
-							<h2 class="text-xl font-semibold text-slate-900">Contenido principal</h2>
-							<p class="text-sm text-slate-600">
-								{
-									isTour
-										? "Describe la experiencia para que el viajero pueda decidir si este tour es para él. El itinerario y el punto de encuentro se completan más adelante."
-										: `Este bloque define la información visible de ${vertical.labels.singular}.`
-								}
+							<p id="stateLabel" class="text-sm text-slate-600" aria-live="polite">
+								Vacío: sin cambios guardados.
 							</p>
+							<p id="stateDetail" class="whitespace-pre-wrap text-sm text-slate-600"></p>
 						</div>
 
-						<FormField label="Descripción" htmlFor="description" required>
-							<Textarea
-								id="description"
-								name="description"
-								value={descriptionValue}
-								rows="5"
-								required
-								placeholder={isTour
-									? "Explica el recorrido, el ambiente y para quién está pensado."
-									: "Describe la oferta con claridad para el viajero."}
-								aria-describedby="descriptionGuidance descriptionError"
-							/>
-							{
-								isHotel ? (
-									<p class="text-sm leading-6 text-slate-500">
-										Describe la experiencia del alojamiento. Las normas, horarios, mascotas y
-										condiciones de estadía se completan más adelante en su propio paso del
-										asistente.
-									</p>
-								) : null
-							}
-							{
-								isTour ? (
-									<p id="descriptionGuidance" class="text-sm leading-6 text-slate-500">
-										Enfócate en la experiencia. Evita repetir horarios, inclusiones o instrucciones
-										logísticas.
-									</p>
-								) : null
-							}
-							<p id="descriptionError" class="hidden text-sm text-red-600"></p>
-						</FormField>
-
-						<FormField label="Destacados (uno por línea)" htmlFor="highlightsJson" required>
-							<Textarea
-								id="highlightsJson"
-								name="highlightsJson"
-								value={highlightsValue}
-								rows="4"
-								required
-								placeholder={isTour
-									? "Mirador al amanecer\nGuía local experto\nGrupo reducido"
-									: "Ubicación céntrica\nDesayuno incluido"}
-							/>
-							{
-								isTour ? (
-									<p class="text-sm leading-6 text-slate-500">
-										Escribe beneficios concretos y fáciles de escanear, uno por línea.
-									</p>
-								) : null
-							}
-						</FormField>
-					</div>
-
-					<div class="space-y-1">
-						<p id="stateLabel" class="text-sm text-slate-600" aria-live="polite">
-							Vacío: sin cambios guardados.
-						</p>
-						<p id="stateDetail" class="whitespace-pre-wrap text-sm text-slate-600"></p>
-					</div>
-
-					<div class="flex items-center justify-end gap-3">
-						<Button
-							href={playbook.active
-								? `/product/${encodeURIComponent(productId)}`
-								: `/product/${encodeURIComponent(productId)}`}
-							variant="secondary"
-						>
-							Volver
-						</Button>
-						<Button
-							id="submitBtn"
-							type="submit"
-							className={playbookResolved.active ? "fastt-playbook-cta" : ""}
-						>
-							{playbookResolved.active ? "Guardar y continuar" : "Guardar contenido"}
-						</Button>
+						<div class="flex items-center justify-end gap-3">
+							<Button
+								href={playbook.active
+									? `/product/${encodeURIComponent(productId)}`
+									: `/product/${encodeURIComponent(productId)}`}
+								variant="secondary"
+							>
+								Volver
+							</Button>
+							<Button
+								id="submitBtn"
+								type="submit"
+								className={playbookResolved.active ? "fastt-playbook-cta" : ""}
+							>
+								{playbookResolved.active ? "Guardar y continuar" : "Guardar contenido"}
+							</Button>
+						</div>
 					</div>
 				</form>
 			</Card>
