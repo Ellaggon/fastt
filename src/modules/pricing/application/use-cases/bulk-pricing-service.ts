@@ -1,4 +1,17 @@
 import { logger } from "@/lib/observability/logger"
+import { normalizedPricingRuleCommandFromPayload } from "@/lib/pricing/rules-v2"
+import { getRatePlanOwnerContext } from "./get-rateplan-owner-context"
+import { PricingRuleCommandError, type PricingRuleContext } from "./pricing-rule-command-service"
+
+async function resolveRatePlanOwnerContext(ratePlanId: string) {
+	const { ratePlanOwnerContextRepository } = await import("@/container/pricing.container")
+	return getRatePlanOwnerContext({ repo: ratePlanOwnerContextRepository }, { ratePlanId })
+}
+
+async function getPricingRuleCommandService() {
+	const { pricingRuleCommandService } = await import("@/container/pricing.container")
+	return pricingRuleCommandService
+}
 
 type JsonRecord = Record<string, unknown>
 
@@ -129,35 +142,6 @@ function clampConcurrency(value: unknown): number {
 	return Math.max(1, Math.min(10, Math.trunc(parsed)))
 }
 
-function buildHeadersFromSourceRequest(source: Request): Headers {
-	const headers = new Headers({ "Content-Type": "application/json" })
-	const cookie = source.headers.get("cookie")
-	if (cookie) headers.set("cookie", cookie)
-	const authorization = source.headers.get("authorization")
-	if (authorization) headers.set("authorization", authorization)
-	return headers
-}
-
-function buildJsonRequest(source: Request, path: string, body: JsonRecord): Request {
-	return new Request(`http://localhost:4321${path}`, {
-		method: "POST",
-		headers: buildHeadersFromSourceRequest(source),
-		body: JSON.stringify(body),
-	})
-}
-
-function buildGetRequest(source: Request, path: string): Request {
-	return new Request(`http://localhost:4321${path}`, {
-		method: "GET",
-		headers: buildHeadersFromSourceRequest(source),
-	})
-}
-
-async function readJson(response: Response): Promise<unknown> {
-	const text = await response.text()
-	return text ? JSON.parse(text) : null
-}
-
 async function mapLimit<T, R>(
 	items: T[],
 	limit: number,
@@ -177,15 +161,43 @@ async function mapLimit<T, R>(
 	return out
 }
 
+function addDays(date: string, days: number): string {
+	const value = new Date(`${date}T00:00:00.000Z`)
+	value.setUTCDate(value.getUTCDate() + days)
+	return value.toISOString().slice(0, 10)
+}
+
+/**
+ * Bulk controls express when a change becomes commercially effective.  The
+ * single-rule endpoints use dateFrom/dateTo, so normalize that vocabulary once
+ * and share it with preview and apply.  Keeping the two paths aligned prevents
+ * a preview for seven days from materializing a default sixty-day range.
+ */
+function resolveEffectiveDateRange(operation: BulkPricingOperation) {
+	const conditions = operation.conditions ?? {}
+	const today = new Date().toISOString().slice(0, 10)
+	const requestedDays = Number(conditions.effectiveDays)
+	const hasRequestedDuration = Number.isInteger(requestedDays) && requestedDays > 0
+	const dateFrom =
+		conditions.effectiveFrom ?? conditions.dateFrom ?? (hasRequestedDuration ? today : undefined)
+	const rangeStart = dateFrom ?? today
+	const dateTo =
+		conditions.effectiveTo ??
+		conditions.dateTo ??
+		(hasRequestedDuration ? addDays(rangeStart, requestedDays - 1) : undefined)
+	return { dateFrom, dateTo }
+}
+
 function buildPreviewPayload(ratePlanId: string, operation: BulkPricingOperation): JsonRecord {
 	const conditions = operation.conditions ?? {}
+	const effectiveRange = resolveEffectiveDateRange(operation)
 	return {
 		ratePlanId,
 		type: operation.type,
 		value: operation.value,
 		priority: conditions.priority ?? 10,
-		dateFrom: conditions.dateFrom,
-		dateTo: conditions.dateTo,
+		dateFrom: effectiveRange.dateFrom,
+		dateTo: effectiveRange.dateTo,
 		dayOfWeek: Array.isArray(conditions.dayOfWeek)
 			? conditions.dayOfWeek.join(",")
 			: conditions.dayOfWeek,
@@ -199,13 +211,14 @@ function buildPreviewPayload(ratePlanId: string, operation: BulkPricingOperation
 
 function buildCreatePayload(ratePlanId: string, operation: BulkPricingOperation): JsonRecord {
 	const conditions = operation.conditions ?? {}
+	const effectiveRange = resolveEffectiveDateRange(operation)
 	return {
 		ratePlanId,
 		type: operation.type,
 		value: operation.value,
 		priority: conditions.priority ?? 10,
-		dateFrom: conditions.dateFrom,
-		dateTo: conditions.dateTo,
+		dateFrom: effectiveRange.dateFrom,
+		dateTo: effectiveRange.dateTo,
 		dayOfWeek: Array.isArray(conditions.dayOfWeek)
 			? conditions.dayOfWeek.join(",")
 			: conditions.dayOfWeek,
@@ -250,36 +263,42 @@ function computePriceStats(values: number[]): { avg: number; min: number; max: n
 }
 
 async function runPreviewForRatePlan(
-	request: Request,
+	providerId: string,
 	ratePlanId: string,
-	operation: BulkPricingOperation
+	operation: BulkPricingOperation,
+	resolvedContext?: PricingRuleContext
 ): Promise<BulkPreviewSuccess | BulkFailure> {
-	const { GET: listRulesV2Get } = await import("@/pages/api/pricing/rules/v2/list")
-	const { POST: previewRulesV2Post } = await import("@/pages/api/pricing/rules/v2/preview")
-	const listPath = `/api/pricing/rules/v2/list?ratePlanId=${encodeURIComponent(ratePlanId)}`
-	const listResponse = await listRulesV2Get({
-		request: buildGetRequest(request, listPath),
-		url: new URL(`http://localhost:4321${listPath}`),
-	} as any)
-	if (!listResponse.ok) {
-		const body = await readJson(listResponse)
-		return toBulkFailure(ratePlanId, "list", listResponse.status, body)
+	let context = resolvedContext
+	if (!context) {
+		const ownerContext = await resolveRatePlanOwnerContext(ratePlanId)
+		if (!ownerContext || ownerContext.providerId !== providerId) {
+			return toBulkFailure(ratePlanId, "list", 404, { error: "ratePlan_not_found" })
+		}
+		context = { ...ownerContext, providerId }
 	}
-	const listed = (await readJson(listResponse)) as any
-	const currentRuleCount = Array.isArray(listed?.rules) ? listed.rules.length : 0
-
-	const previewResponse = await previewRulesV2Post({
-		request: buildJsonRequest(
-			request,
-			"/api/pricing/rules/v2/preview",
-			buildPreviewPayload(ratePlanId, operation)
-		),
-	} as any)
-	if (!previewResponse.ok) {
-		const body = await readJson(previewResponse)
-		return toBulkFailure(ratePlanId, "preview", previewResponse.status, body)
+	let previewBody: any
+	try {
+		previewBody = await (
+			await getPricingRuleCommandService()
+		).previewCandidate(
+			context,
+			normalizedPricingRuleCommandFromPayload(buildPreviewPayload(ratePlanId, operation))
+		)
+	} catch (error) {
+		logger.warn("bulk_pricing_preview_failed", {
+			ratePlanId,
+			error: error instanceof Error ? error.message : String(error),
+		})
+		return toBulkFailure(
+			ratePlanId,
+			"preview",
+			error instanceof PricingRuleCommandError ? error.status : 500,
+			{
+				error: error instanceof PricingRuleCommandError ? error.code : "preview_failed",
+			}
+		)
 	}
-	const previewBody = (await readJson(previewResponse)) as any
+	const currentRuleCount = Number(previewBody.currentRuleCount ?? 0)
 	const rawDays = Array.isArray(previewBody?.days) ? previewBody.days : []
 	const days = rawDays.map((day: any) => {
 		const date = String(day?.date ?? "")
@@ -365,15 +384,17 @@ async function runPreviewForRatePlan(
 }
 
 export async function simulateBulkOperation(params: {
-	request: Request
+	providerId: string
 	input: BulkPricingInput
 }): Promise<BulkPreviewResult> {
+	const providerId = String(params.providerId ?? "").trim()
+	if (!providerId) throw new PricingRuleCommandError("provider_required", 400)
 	const ratePlanIds = Array.from(
 		new Set((params.input.ratePlanIds ?? []).map((id) => String(id ?? "").trim()).filter(Boolean))
 	)
 	const concurrency = clampConcurrency(params.input.concurrency)
 	const results = await mapLimit(ratePlanIds, concurrency, async (ratePlanId) =>
-		runPreviewForRatePlan(params.request, ratePlanId, params.input.operation)
+		runPreviewForRatePlan(providerId, ratePlanId, params.input.operation)
 	)
 	const successes = results.filter((item): item is BulkPreviewSuccess => item.ok)
 	const failures = results.filter((item): item is BulkFailure => !item.ok)
@@ -397,7 +418,7 @@ export async function simulateBulkOperation(params: {
 }
 
 export async function applyBulkOperation(params: {
-	request: Request
+	providerId: string
 	input: BulkPricingInput
 }): Promise<BulkApplyResult> {
 	const input = params.input
@@ -421,24 +442,35 @@ export async function applyBulkOperation(params: {
 	const ratePlanIds = Array.from(
 		new Set(input.ratePlanIds.map((id) => String(id ?? "").trim()).filter(Boolean))
 	)
+	const providerId = String(params.providerId ?? "").trim()
+	if (!providerId) throw new PricingRuleCommandError("provider_required", 400)
 	const concurrency = clampConcurrency(input.concurrency)
-	const { POST: createRuleV2Post } = await import("@/pages/api/pricing/rules/v2/create")
 	const perRatePlan = await mapLimit(ratePlanIds, concurrency, async (ratePlanId) => {
-		const preview = await runPreviewForRatePlan(params.request, ratePlanId, input.operation)
-		if (!preview.ok) return preview
-
-		const createResponse = await createRuleV2Post({
-			request: buildJsonRequest(
-				params.request,
-				"/api/pricing/rules/v2/create",
-				buildCreatePayload(ratePlanId, input.operation)
-			),
-		} as any)
-		if (!createResponse.ok) {
-			const body = await readJson(createResponse)
-			return toBulkFailure(ratePlanId, "create", createResponse.status, body)
+		const ownerContext = await resolveRatePlanOwnerContext(ratePlanId)
+		if (!ownerContext || ownerContext.providerId !== providerId) {
+			return toBulkFailure(ratePlanId, "list", 404, { error: "ratePlan_not_found" })
 		}
-		const createdBody = (await readJson(createResponse)) as any
+		const context: PricingRuleContext = { ...ownerContext, providerId }
+		const preview = await runPreviewForRatePlan(providerId, ratePlanId, input.operation, context)
+		if (!preview.ok) return preview
+		let createdBody: any
+		try {
+			createdBody = await (
+				await getPricingRuleCommandService()
+			).createRule(
+				context,
+				normalizedPricingRuleCommandFromPayload(buildCreatePayload(ratePlanId, input.operation))
+			)
+		} catch (error) {
+			return toBulkFailure(
+				ratePlanId,
+				"create",
+				error instanceof PricingRuleCommandError ? error.status : 500,
+				{
+					error: error instanceof PricingRuleCommandError ? error.code : "create_failed",
+				}
+			)
+		}
 
 		return {
 			ratePlanId,

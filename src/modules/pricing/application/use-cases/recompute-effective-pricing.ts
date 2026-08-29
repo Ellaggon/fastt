@@ -61,36 +61,43 @@ export async function recomputeEffectivePricingRange(
 		dates: string[]
 		occupancies?: Occupancy[]
 		fallbackCurrency?: string
+		maxConcurrency?: number
 	}
 ): Promise<{ rows: number; occupancyKeys: string[] }> {
-	let rows = 0
-	const occupancyKeys = new Set<string>()
+	const rules = await deps.getPreviewRules(input.ratePlanId)
 	const occupancies =
 		input.occupancies && input.occupancies.length > 0 ? input.occupancies : SHADOW_OCCUPANCIES
-	for (const date of input.dates) {
-		for (const occupancy of occupancies) {
+	const work = input.dates.flatMap((date) => occupancies.map((occupancy) => ({ date, occupancy })))
+	const concurrency = Math.max(1, Math.min(Math.trunc(input.maxConcurrency ?? 4), 8))
+	const occupancyKeys = new Set<string>()
+	let cursor = 0
+	const workers = Array.from({ length: Math.min(concurrency, work.length || 1) }, async () => {
+		while (true) {
+			const index = cursor++
+			const item = work[index]
+			if (!item) return
 			const result = await computeEffectivePricing(
 				{
 					getBaseFromPolicy: deps.getBaseFromPolicy,
 					getActiveOccupancyPolicy: deps.getActiveOccupancyPolicy,
-					getPreviewRules: deps.getPreviewRules,
+					getPreviewRules: async () => rules,
 					getFallbackCurrency: deps.getFallbackCurrency,
 				},
 				{
 					variantId: input.variantId,
 					ratePlanId: input.ratePlanId,
-					date,
-					occupancy,
+					date: item.date,
+					occupancy: item.occupancy,
 					fallbackCurrency: input.fallbackCurrency,
 				}
 			)
 			const occupancyKey = result.occupancyKey
 			occupancyKeys.add(occupancyKey)
 			await deps.saveEffectivePricing({
-				id: `ep_${input.variantId}_${input.ratePlanId}_${date}_${occupancyKey}`,
+				id: `ep_${input.variantId}_${input.ratePlanId}_${item.date}_${occupancyKey}`,
 				variantId: input.variantId,
 				ratePlanId: input.ratePlanId,
-				date,
+				date: item.date,
 				occupancyKey,
 				baseComponent: result.breakdown.base,
 				occupancyAdjustment: result.breakdown.occupancyAdjustment,
@@ -100,8 +107,8 @@ export async function recomputeEffectivePricingRange(
 				computedAt: new Date(),
 				sourceVersion: result.sourceVersion,
 			})
-			rows += 1
 		}
-	}
-	return { rows, occupancyKeys: [...occupancyKeys].sort((a, b) => a.localeCompare(b)) }
+	})
+	await Promise.all(workers)
+	return { rows: work.length, occupancyKeys: [...occupancyKeys].sort((a, b) => a.localeCompare(b)) }
 }

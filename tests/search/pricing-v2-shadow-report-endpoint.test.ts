@@ -24,6 +24,7 @@ describe("pricing V2 shadow report endpoint", () => {
 
 	it("aggregates mismatch/missing metrics and coverage from search shadow read", async () => {
 		const dates = dateRange("2026-09-01", 7)
+		let previewRuleReads = 0
 		const v2Rows = new Map<
 			string,
 			{
@@ -50,6 +51,7 @@ describe("pricing V2 shadow report endpoint", () => {
 					return { baseAmount: 100, currency: "USD" }
 				},
 				async getPreviewRules() {
+					previewRuleReads += 1
 					return []
 				},
 				async saveEffectivePricing(row) {
@@ -67,6 +69,7 @@ describe("pricing V2 shadow report endpoint", () => {
 				dates,
 			}
 		)
+		expect(previewRuleReads).toBe(1)
 
 		const canonicalOccupancyKey = buildOccupancyKey({ adults: 2, children: 0, infants: 0 })
 		// Force one mismatch and one missing for canonical occupancy.

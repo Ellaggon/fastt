@@ -1,4 +1,3 @@
-import { productRepository } from "@/container"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import {
@@ -7,8 +6,9 @@ import {
 } from "@/lib/commercial-rules/commercialRulesRepository"
 import {
 	formatPricingRuleEligibilityLabel,
+	PricingRuleCommandError,
+	type NormalizedPricingRuleCommand,
 	type PricingRuleEligibility,
-	resolveRatePlanOwnerContext,
 } from "@/modules/pricing/public"
 
 export async function readRequestPayload(request: Request): Promise<Record<string, unknown>> {
@@ -170,6 +170,35 @@ export function isValidDateOnly(value: string): boolean {
 	)
 }
 
+export function normalizedPricingRuleCommandFromPayload(
+	payload: Record<string, unknown>
+): NormalizedPricingRuleCommand {
+	const value = parseNumber(payload, "value", Number.NaN)
+	if (!Number.isFinite(value)) throw new PricingRuleCommandError("invalid_value")
+	const contextKey = optionalText(payload, "contextKey")
+	const eligibility = parsePricingRuleEligibility(payload)
+	const eligibilityError = validatePricingRuleEligibility({ contextKey, eligibility })
+	if (eligibilityError) throw new PricingRuleCommandError(eligibilityError)
+	return {
+		type: normalizeRuleType(requireText(payload, "type")),
+		value,
+		priority: parseNumber(payload, "priority", 10),
+		dateFrom: optionalText(payload, "dateFrom"),
+		dateTo: optionalText(payload, "dateTo"),
+		dayOfWeek: parseDayOfWeek(optionalText(payload, "dayOfWeek")),
+		contextKey,
+		occupancyKey: normalizeOccupancyKey(optionalText(payload, "occupancyKey") ?? contextKey),
+		currency: optionalText(payload, "currency")?.toUpperCase(),
+		previewFrom: optionalText(payload, "previewFrom"),
+		previewDays: parseNumber(payload, "previewDays", 30),
+		requestDate: optionalText(payload, "requestDate"),
+		checkIn: optionalText(payload, "checkIn"),
+		checkOut: optionalText(payload, "checkOut"),
+		nights: parseNumber(payload, "nights", Number.NaN),
+		eligibility,
+	}
+}
+
 export async function resolveOwnedRatePlanContext(
 	request: Request,
 	ratePlanId: string
@@ -205,7 +234,13 @@ export async function resolveOwnedRatePlanContext(
 			}),
 		}
 	}
-	const ownerContext = await resolveRatePlanOwnerContext(ratePlanId)
+	const { getRatePlanOwnerContext } =
+		await import("@/modules/pricing/application/use-cases/get-rateplan-owner-context")
+	const { ratePlanOwnerContextRepository } = await import("@/container/pricing.container")
+	const ownerContext = await getRatePlanOwnerContext(
+		{ repo: ratePlanOwnerContextRepository },
+		{ ratePlanId }
+	)
 	if (!ownerContext) {
 		return {
 			ok: false,
@@ -215,6 +250,7 @@ export async function resolveOwnedRatePlanContext(
 			}),
 		}
 	}
+	const { productRepository } = await import("@/container")
 	const owned = await productRepository.ensureProductOwnedByProvider(
 		ownerContext.productId,
 		providerId
@@ -237,13 +273,6 @@ export async function ensureRuleBelongsToRatePlan(
 ): Promise<boolean> {
 	const row = await getCommercialPriceRule({ ruleId, ratePlanId })
 	return Boolean(row?.id)
-}
-
-export function buildProxyHeadersFromRequest(request: Request): Headers {
-	const headers = new Headers()
-	const cookie = request.headers.get("cookie")
-	if (cookie) headers.set("cookie", cookie)
-	return headers
 }
 
 export function toDateOnly(value: Date): string {
