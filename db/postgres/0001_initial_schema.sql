@@ -936,7 +936,10 @@ CREATE TABLE "PolicyAssignment" (
 	"policyGroupId" text NOT NULL,
 	"category" text NOT NULL,
 	"scope" text NOT NULL,
-	"scopeId" text NOT NULL,
+	"productTargetId" text,
+	"variantTargetId" text,
+	"ratePlanTargetId" text,
+	"scopeId" text GENERATED ALWAYS AS (coalesce("productTargetId", "variantTargetId", "ratePlanTargetId")) STORED,
 	"channel" text,
 	"effectiveFrom" date,
 	"effectiveTo" date,
@@ -1185,7 +1188,10 @@ CREATE TABLE "CommercialRuleApplication" (
 	"ruleSetId" text NOT NULL,
 	"ruleId" text NOT NULL,
 	"scope" text NOT NULL,
-	"scopeId" text NOT NULL,
+	"productTargetId" text,
+	"variantTargetId" text,
+	"ratePlanTargetId" text,
+	"scopeId" text GENERATED ALWAYS AS (coalesce("productTargetId", "variantTargetId", "ratePlanTargetId")) STORED,
 	"startDate" date,
 	"endDate" date,
 	"validDays" jsonb,
@@ -1261,7 +1267,11 @@ CREATE TABLE "TaxFeeAssignment" (
 	"id" text PRIMARY KEY,
 	"taxFeeDefinitionId" text NOT NULL,
 	"scope" text NOT NULL,
-	"scopeId" text,
+	"providerTargetId" text,
+	"productTargetId" text,
+	"variantTargetId" text,
+	"ratePlanTargetId" text,
+	"scopeId" text GENERATED ALWAYS AS (coalesce("providerTargetId", "productTargetId", "variantTargetId", "ratePlanTargetId")) STORED,
 	"channel" text,
 	"status" text NOT NULL DEFAULT 'active',
 	"effectiveFrom" timestamp with time zone,
@@ -2392,6 +2402,24 @@ ALTER TABLE "PolicyAssignment"
 	REFERENCES "PolicyGroup" ("id")
 ;
 
+ALTER TABLE "PolicyAssignment"
+	ADD CONSTRAINT "PolicyAssignment_productTargetId_fk"
+	FOREIGN KEY ("productTargetId")
+	REFERENCES "Product" ("id")
+;
+
+ALTER TABLE "PolicyAssignment"
+	ADD CONSTRAINT "PolicyAssignment_variantTargetId_fk"
+	FOREIGN KEY ("variantTargetId")
+	REFERENCES "Variant" ("id")
+;
+
+ALTER TABLE "PolicyAssignment"
+	ADD CONSTRAINT "PolicyAssignment_ratePlanTargetId_fk"
+	FOREIGN KEY ("ratePlanTargetId")
+	REFERENCES "RatePlan" ("id")
+;
+
 ALTER TABLE "CancellationTier"
 	ADD CONSTRAINT "CancellationTier_policyId_fk"
 	FOREIGN KEY ("policyId")
@@ -2578,6 +2606,24 @@ ALTER TABLE "CommercialRuleApplication"
 	REFERENCES "CommercialRule" ("id")
 ;
 
+ALTER TABLE "CommercialRuleApplication"
+	ADD CONSTRAINT "CommercialRuleApplication_productTargetId_fk"
+	FOREIGN KEY ("productTargetId")
+	REFERENCES "Product" ("id")
+;
+
+ALTER TABLE "CommercialRuleApplication"
+	ADD CONSTRAINT "CommercialRuleApplication_variantTargetId_fk"
+	FOREIGN KEY ("variantTargetId")
+	REFERENCES "Variant" ("id")
+;
+
+ALTER TABLE "CommercialRuleApplication"
+	ADD CONSTRAINT "CommercialRuleApplication_ratePlanTargetId_fk"
+	FOREIGN KEY ("ratePlanTargetId")
+	REFERENCES "RatePlan" ("id")
+;
+
 ALTER TABLE "EffectiveRestriction"
 	ADD CONSTRAINT "EffectiveRestriction_variantId_fk"
 	FOREIGN KEY ("variantId")
@@ -2624,6 +2670,30 @@ ALTER TABLE "TaxFeeAssignment"
 	ADD CONSTRAINT "TaxFeeAssignment_taxFeeDefinitionId_fk"
 	FOREIGN KEY ("taxFeeDefinitionId")
 	REFERENCES "TaxFeeDefinition" ("id")
+;
+
+ALTER TABLE "TaxFeeAssignment"
+	ADD CONSTRAINT "TaxFeeAssignment_providerTargetId_fk"
+	FOREIGN KEY ("providerTargetId")
+	REFERENCES "Provider" ("id")
+;
+
+ALTER TABLE "TaxFeeAssignment"
+	ADD CONSTRAINT "TaxFeeAssignment_productTargetId_fk"
+	FOREIGN KEY ("productTargetId")
+	REFERENCES "Product" ("id")
+;
+
+ALTER TABLE "TaxFeeAssignment"
+	ADD CONSTRAINT "TaxFeeAssignment_variantTargetId_fk"
+	FOREIGN KEY ("variantTargetId")
+	REFERENCES "Variant" ("id")
+;
+
+ALTER TABLE "TaxFeeAssignment"
+	ADD CONSTRAINT "TaxFeeAssignment_ratePlanTargetId_fk"
+	FOREIGN KEY ("ratePlanTargetId")
+	REFERENCES "RatePlan" ("id")
 ;
 
 ALTER TABLE "FiscalActivityEvent"
@@ -3487,7 +3557,27 @@ ALTER TABLE "ProductReview" ADD CONSTRAINT "ProductReview_status_check" CHECK ("
 
 ALTER TABLE "MarketplaceEvent" ADD CONSTRAINT "MarketplaceEvent_eventType_check" CHECK ("eventType" in ('impression', 'click', 'booking_attributed'));
 
+ALTER TABLE "PolicyAssignment" ADD CONSTRAINT "PolicyAssignment_typed_target_check" CHECK ((
+				("scope" = 'product' AND "productTargetId" IS NOT NULL AND "variantTargetId" IS NULL AND "ratePlanTargetId" IS NULL)
+				OR ("scope" = 'variant' AND "productTargetId" IS NULL AND "variantTargetId" IS NOT NULL AND "ratePlanTargetId" IS NULL)
+				OR ("scope" = 'rate_plan' AND "productTargetId" IS NULL AND "variantTargetId" IS NULL AND "ratePlanTargetId" IS NOT NULL)
+			));
+
 ALTER TABLE "Hold" ADD CONSTRAINT "Hold_commercial_snapshot_check" CHECK (("commercialSnapshotVersion" = 'legacy' AND "priceQuoteId" IS NULL AND "commercialSnapshotJson" IS NULL) OR ("commercialSnapshotVersion" = 'hold_commercial_snapshot_v1' AND "priceQuoteId" IS NOT NULL AND "commercialSnapshotJson" IS NOT NULL AND ("commercialSnapshotJson" -> 'priceQuote' ->> 'quoteId') = "priceQuoteId"));
+
+ALTER TABLE "CommercialRuleApplication" ADD CONSTRAINT "CommercialRuleApplication_typed_target_check" CHECK ((
+				("scope" = 'product' AND "productTargetId" IS NOT NULL AND "variantTargetId" IS NULL AND "ratePlanTargetId" IS NULL)
+				OR ("scope" = 'variant' AND "productTargetId" IS NULL AND "variantTargetId" IS NOT NULL AND "ratePlanTargetId" IS NULL)
+				OR ("scope" = 'rate_plan' AND "productTargetId" IS NULL AND "variantTargetId" IS NULL AND "ratePlanTargetId" IS NOT NULL)
+			));
+
+ALTER TABLE "TaxFeeAssignment" ADD CONSTRAINT "TaxFeeAssignment_typed_target_check" CHECK ((
+				("scope" = 'global' AND "providerTargetId" IS NULL AND "productTargetId" IS NULL AND "variantTargetId" IS NULL AND "ratePlanTargetId" IS NULL)
+				OR ("scope" = 'provider' AND "providerTargetId" IS NOT NULL AND "productTargetId" IS NULL AND "variantTargetId" IS NULL AND "ratePlanTargetId" IS NULL)
+				OR ("scope" = 'product' AND "providerTargetId" IS NULL AND "productTargetId" IS NOT NULL AND "variantTargetId" IS NULL AND "ratePlanTargetId" IS NULL)
+				OR ("scope" = 'variant' AND "providerTargetId" IS NULL AND "productTargetId" IS NULL AND "variantTargetId" IS NOT NULL AND "ratePlanTargetId" IS NULL)
+				OR ("scope" = 'rate_plan' AND "providerTargetId" IS NULL AND "productTargetId" IS NULL AND "variantTargetId" IS NULL AND "ratePlanTargetId" IS NOT NULL)
+			));
 
 ALTER TABLE "BookingVoucher" ADD CONSTRAINT "BookingVoucher_status_check" CHECK ("status" in ('issued', 'redeemed', 'void'));
 
@@ -3940,7 +4030,7 @@ EXECUTE FUNCTION fastt_prevent_policy_assignment_overlap();
 
 DROP TRIGGER IF EXISTS "trg_PolicyAssignment_overlap_update" ON "PolicyAssignment";
 CREATE TRIGGER "trg_PolicyAssignment_overlap_update"
-BEFORE UPDATE OF "scope", "scopeId", "category", "channel", "effectiveFrom", "effectiveTo", "isActive"
+BEFORE UPDATE OF "scope", "productTargetId", "variantTargetId", "ratePlanTargetId", "category", "channel", "effectiveFrom", "effectiveTo", "isActive"
 ON "PolicyAssignment"
 FOR EACH ROW
 EXECUTE FUNCTION fastt_prevent_policy_assignment_overlap();

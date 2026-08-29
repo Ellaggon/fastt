@@ -17,6 +17,11 @@ type DrizzleColumn = {
 	primary: boolean
 	hasDefault: boolean
 	default: unknown
+	generated?: {
+		as: unknown
+		type: string
+		mode: string
+	}
 	config?: {
 		precision?: number
 		scale?: number
@@ -120,8 +125,13 @@ function columnType(column: DrizzleColumn): string {
 	}
 }
 
-function columnDefinition(column: DrizzleColumn): string {
+function columnDefinition(column: DrizzleColumn, sourceTable: string): string {
 	const parts = [q(column.name), columnType(column)]
+	if (column.generated) {
+		const expression = renderExpression(column.generated.as, sourceTable)
+		parts.push(`GENERATED ALWAYS AS (${expression}) ${column.generated.mode.toUpperCase()}`)
+		return parts.join(" ")
+	}
 	if (column.primary) parts.push("PRIMARY KEY")
 	if (column.notNull && !column.primary) parts.push("NOT NULL")
 	const sqlDefault =
@@ -132,10 +142,11 @@ function columnDefinition(column: DrizzleColumn): string {
 }
 
 function createTableSql(table: DrizzleTable): string {
+	const sourceTable = tableName(table)
 	const body = tableColumns(table)
-		.map((column) => `\t${columnDefinition(column)}`)
+		.map((column) => `\t${columnDefinition(column, sourceTable)}`)
 		.join(",\n")
-	return `CREATE TABLE ${q(tableName(table))} (\n${body}\n);`
+	return `CREATE TABLE ${q(sourceTable)} (\n${body}\n);`
 }
 
 function renderExpression(value: unknown, sourceTable: string): string {

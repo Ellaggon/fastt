@@ -33,6 +33,7 @@ import {
 	VariantInventoryConfig,
 	lt,
 } from "@/shared/infrastructure/db/compat"
+import { typedAssignmentTarget } from "@/shared/domain/assignment-target"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
 import { getPublicDestinationListings } from "@/lib/marketplace/publicDestinationListings"
 import { getPublicSearchSurface } from "@/lib/search/publicSearchSurface"
@@ -652,7 +653,7 @@ async function upsertFixture(params: {
 			id: TAX_ASSIGNMENT_ID,
 			taxFeeDefinitionId: TAX_DEFINITION_ID,
 			scope: "provider",
-			scopeId: PROVIDER_ID,
+			...typedAssignmentTarget("provider", PROVIDER_ID),
 			channel: "web",
 			status: "active",
 			effectiveFrom: null,

@@ -22,6 +22,7 @@ import {
 	upsertVariant,
 	upsertRatePlanTemplate,
 	upsertRatePlan,
+	upsertTestUser,
 } from "@/shared/infrastructure/test-support/db-test-data"
 
 describe("integration/policies CAPA 6 Step 4 (write path)", () => {
@@ -57,7 +58,7 @@ describe("integration/policies CAPA 6 Step 4 (write path)", () => {
 			name: "Policy Destination",
 			type: "city",
 			country: "CL",
-			slug: "policy-destination",
+			slug: `policy-destination-${crypto.randomUUID()}`,
 		})
 		await upsertProduct({
 			id: productId,
@@ -119,12 +120,17 @@ describe("integration/policies CAPA 6 Step 4 (write path)", () => {
 			description: "Prepago total",
 			rules: { paymentType: "prepaid" },
 		})
+		const replacementActorId = `user_policy_replacement_${crypto.randomUUID()}`
+		await upsertTestUser({
+			id: replacementActorId,
+			email: `policy-replacement-${crypto.randomUUID()}@example.test`,
+		})
 		const replacement = await replacePolicyAssignmentCapa6({
 			policyId: replacementPolicy.policyId,
 			scope: "product",
 			scopeId: productId,
 			channel: null,
-			actorUserId: "ops@example.test",
+			actorUserId: replacementActorId,
 		})
 		expect(replacement.replaced).toBe(true)
 
@@ -152,7 +158,7 @@ describe("integration/policies CAPA 6 Step 4 (write path)", () => {
 		expect(audit).toEqual(
 			expect.objectContaining({
 				eventType: "assignment_replaced",
-				actorUserId: "ops@example.test",
+				actorUserId: replacementActorId,
 			})
 		)
 
@@ -251,10 +257,15 @@ describe("integration/policies CAPA 6 Step 4 (write path)", () => {
 			.then((rows) => rows[0])
 		expect(stillActive?.isActive).toBe(true)
 
+		const deactivationActorId = `user_policy_deactivate_${suffix}`
+		await upsertTestUser({
+			id: deactivationActorId,
+			email: `policy-deactivate-${suffix}@example.test`,
+		})
 		const result = await deactivatePolicyAssignmentCapa6({
 			assignmentId: assignment.assignmentId,
 			ownerProviderId: providerId,
-			actorUserId: "ops_deactivate",
+			actorUserId: deactivationActorId,
 		})
 		expect(result).toEqual({
 			assignmentId: assignment.assignmentId,
@@ -269,7 +280,7 @@ describe("integration/policies CAPA 6 Step 4 (write path)", () => {
 			expect.arrayContaining([
 				expect.objectContaining({
 					eventType: "assignment_deactivated",
-					actorUserId: "ops_deactivate",
+					actorUserId: deactivationActorId,
 				}),
 			])
 		)

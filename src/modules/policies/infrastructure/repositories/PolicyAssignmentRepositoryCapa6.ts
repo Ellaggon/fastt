@@ -10,7 +10,9 @@ import {
 	Product,
 	Variant,
 	RatePlan,
+	User,
 } from "@/shared/infrastructure/db/compat"
+import { typedCatalogAssignmentTarget } from "@/shared/domain/assignment-target"
 import type { PolicyCategory } from "../../domain/policy.category"
 import type { PolicyScope } from "../../domain/policy.scope"
 import type { PolicyAssignmentRepositoryPortCapa6 } from "../../application/ports/PolicyAssignmentRepositoryPortCapa6"
@@ -26,7 +28,10 @@ export class PolicyAssignmentRepositoryCapa6 implements PolicyAssignmentReposito
 		channel: string | null
 		actorUserId?: string | null
 	}): Promise<{ assignmentId: string; replaced: boolean }> {
+		if (params.scope === "global") throw new Error("POLICY_ASSIGNMENT_GLOBAL_SCOPE_UNSUPPORTED")
+		const typedTarget = typedCatalogAssignmentTarget(params.scope, params.scopeId)
 		return db.transaction(async (tx) => {
+			await this.assertAuditActorExists(tx, params.actorUserId)
 			const context = await this.resolveScopeContextWith(tx, {
 				scope: params.scope,
 				scopeId: params.scopeId,
@@ -79,7 +84,7 @@ export class PolicyAssignmentRepositoryCapa6 implements PolicyAssignmentReposito
 				policyGroupId: params.policyGroupId,
 				category: params.category,
 				scope: params.scope,
-				scopeId: params.scopeId,
+				...typedTarget,
 				channel: params.channel,
 				effectiveFrom: null,
 				effectiveTo: null,
@@ -123,6 +128,7 @@ export class PolicyAssignmentRepositoryCapa6 implements PolicyAssignmentReposito
 		actorUserId?: string | null
 	}): Promise<{ assignmentId: string; deactivated: boolean }> {
 		return db.transaction(async (tx) => {
+			await this.assertAuditActorExists(tx, params.actorUserId)
 			const assignment = await tx
 				.select({
 					id: PolicyAssignment.id,
@@ -176,6 +182,17 @@ export class PolicyAssignmentRepositoryCapa6 implements PolicyAssignmentReposito
 		ratePlanId?: string
 	} | null> {
 		return this.resolveScopeContextWith(db, params)
+	}
+
+	private async assertAuditActorExists(executor: any, actorUserId?: string | null): Promise<void> {
+		const actorId = String(actorUserId ?? "").trim()
+		if (!actorId) return
+		const actor = await executor
+			.select({ id: User.id })
+			.from(User)
+			.where(eq(User.id, actorId))
+			.then(first)
+		if (!actor) throw new Error("POLICY_AUDIT_ACTOR_NOT_FOUND")
 	}
 
 	private async resolveScopeContextWith(

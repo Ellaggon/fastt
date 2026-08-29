@@ -14,6 +14,7 @@ import {
 	TaxFeeAssignment,
 	TaxFeeDefinition,
 } from "@/shared/infrastructure/db/compat"
+import { typedAssignmentTarget } from "@/shared/domain/assignment-target"
 
 const scopeSchema = z.enum(["provider", "product", "variant", "rate_plan"])
 const targetSchema = z.object({
@@ -216,7 +217,7 @@ export const POST: APIRoute = async ({ request }) => {
 						id: ids[index],
 						taxFeeDefinitionId: input.taxFeeDefinitionId!,
 						scope: target.scope,
-						scopeId: target.scopeId,
+						...typedAssignmentTarget(target.scope, target.scopeId),
 						channel: target.channel ?? null,
 						status: "active",
 						effectiveFrom: target.effectiveFrom ? new Date(target.effectiveFrom) : null,
