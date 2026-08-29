@@ -73,7 +73,7 @@ async function seedBulkFixture() {
 
 	await upsertGeoPlace({
 		id: geoPlaceId,
-		name: "Pricing V2 Bulk Dest",
+		name: `Pricing V2 Bulk Dest ${suffix}`,
 		type: "city",
 		country: "CL",
 		slug: `pricing-v2-bulk-${suffix}`,
