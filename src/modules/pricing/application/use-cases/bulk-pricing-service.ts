@@ -1,8 +1,17 @@
 import { logger } from "@/lib/observability/logger"
-import { pricingRuleCommandService } from "@/container/pricing.container"
 import { normalizedPricingRuleCommandFromPayload } from "@/lib/pricing/rules-v2"
-import { resolveRatePlanOwnerContext } from "@/modules/pricing/public"
+import { getRatePlanOwnerContext } from "./get-rateplan-owner-context"
 import { PricingRuleCommandError, type PricingRuleContext } from "./pricing-rule-command-service"
+
+async function resolveRatePlanOwnerContext(ratePlanId: string) {
+	const { ratePlanOwnerContextRepository } = await import("@/container/pricing.container")
+	return getRatePlanOwnerContext({ repo: ratePlanOwnerContextRepository }, { ratePlanId })
+}
+
+async function getPricingRuleCommandService() {
+	const { pricingRuleCommandService } = await import("@/container/pricing.container")
+	return pricingRuleCommandService
+}
 
 type JsonRecord = Record<string, unknown>
 
@@ -269,7 +278,9 @@ async function runPreviewForRatePlan(
 	}
 	let previewBody: any
 	try {
-		previewBody = await pricingRuleCommandService.previewCandidate(
+		previewBody = await (
+			await getPricingRuleCommandService()
+		).previewCandidate(
 			context,
 			normalizedPricingRuleCommandFromPayload(buildPreviewPayload(ratePlanId, operation))
 		)
@@ -444,7 +455,9 @@ export async function applyBulkOperation(params: {
 		if (!preview.ok) return preview
 		let createdBody: any
 		try {
-			createdBody = await pricingRuleCommandService.createRule(
+			createdBody = await (
+				await getPricingRuleCommandService()
+			).createRule(
 				context,
 				normalizedPricingRuleCommandFromPayload(buildCreatePayload(ratePlanId, input.operation))
 			)

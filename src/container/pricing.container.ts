@@ -1,8 +1,6 @@
-import {
-	adaptPriceRule,
-	PromotionEngine,
-	ensurePricingCoverageRuntime,
-} from "@/modules/pricing/public"
+import { adaptPriceRule } from "../modules/pricing/domain/adapters/adapter.priceRule"
+import { PromotionEngine } from "../modules/pricing/domain/promotions/PromotionEngine"
+import { ensurePricingCoverage } from "../modules/pricing/application/use-cases/ensure-pricing-coverage"
 
 import {
 	createGetVariantByIdQuery,
@@ -51,18 +49,25 @@ export const pricingRuleCommandService = new PricingRuleCommandService({
 	getFallbackCurrency: (ratePlanId) => effectivePricingRepository.getFallbackCurrency(ratePlanId),
 	listRules: listRulesByRatePlan,
 	createRule: createCommercialPriceRule,
-	rematerialize: ({ variantId, ratePlanId, from, to, occupancy, fallbackCurrency }) =>
-		ensurePricingCoverageRuntime({
-			variantId,
-			ratePlanId,
-			from,
-			to,
-			recomputeExisting: true,
-			occupancy,
-			fallbackCurrency,
-			enqueueIncremental: false,
-			invalidateCaches: false,
-		}),
+	rematerialize: async ({ variantId, ratePlanId, from, to, occupancy, fallbackCurrency }) => {
+		const { variantManagementRepository } = await import("./catalog.container")
+		return ensurePricingCoverage(
+			{
+				pricingRepo: pricingRepository,
+				variantRepo: variantManagementRepository,
+				effectivePricingRepo: effectivePricingRepository,
+			},
+			{
+				variantId,
+				ratePlanId,
+				from,
+				to,
+				recomputeExisting: true,
+				occupancy,
+				fallbackCurrency,
+			}
+		)
+	},
 	invalidatePricing: ({ variantId, ratePlanId }) => invalidatePricing({ variantId, ratePlanId }),
 	enqueueAri: ({ variantId, ratePlanId, from, toExclusive }) =>
 		enqueueProviderIncrementalAriChangeSoft({

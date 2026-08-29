@@ -1,4 +1,3 @@
-import { productRepository } from "@/container"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import {
@@ -10,7 +9,6 @@ import {
 	PricingRuleCommandError,
 	type NormalizedPricingRuleCommand,
 	type PricingRuleEligibility,
-	resolveRatePlanOwnerContext,
 } from "@/modules/pricing/public"
 
 export async function readRequestPayload(request: Request): Promise<Record<string, unknown>> {
@@ -236,7 +234,13 @@ export async function resolveOwnedRatePlanContext(
 			}),
 		}
 	}
-	const ownerContext = await resolveRatePlanOwnerContext(ratePlanId)
+	const { getRatePlanOwnerContext } =
+		await import("@/modules/pricing/application/use-cases/get-rateplan-owner-context")
+	const { ratePlanOwnerContextRepository } = await import("@/container/pricing.container")
+	const ownerContext = await getRatePlanOwnerContext(
+		{ repo: ratePlanOwnerContextRepository },
+		{ ratePlanId }
+	)
 	if (!ownerContext) {
 		return {
 			ok: false,
@@ -246,6 +250,7 @@ export async function resolveOwnedRatePlanContext(
 			}),
 		}
 	}
+	const { productRepository } = await import("@/container")
 	const owned = await productRepository.ensureProductOwnedByProvider(
 		ownerContext.productId,
 		providerId
