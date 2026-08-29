@@ -15,11 +15,17 @@ describe("pricing bulk job API boundary", () => {
 
 		expect(enqueue).toContain("requireProvider(request)")
 		expect(enqueue).toContain("requestIdempotencyKey")
+		expect(enqueue).toContain("ratePlanIds_required")
 		expect(enqueue).toContain("pricingBulkJobService.enqueue")
 		expect(enqueue).not.toContain("applyBulkOperation")
 		expect(status).toContain("pricingBulkJobService.get")
 		expect(retry).toContain("pricingBulkJobService.retryFailed")
 		expect(cancel).toContain("pricingBulkJobService.cancelQueued")
+		for (const endpoint of [retry, cancel]) {
+			expect(endpoint).toContain("pricingBulkJobService.get")
+			expect(endpoint).toContain("bulk_job_rate_plan_scope_missing")
+			expect(endpoint).toContain("ratePlanIds")
+		}
 		expect(legacyBulkApply).toContain("pricingBulkJobService.enqueue")
 		expect(legacyBulkApply).toContain("json(202")
 		expect(legacyBulkApply).not.toContain("applyBulkOperation")

@@ -8,12 +8,19 @@ import { PricingBulkJobError } from "@/modules/pricing/public"
 export const POST: APIRoute = async ({ request, params }) => {
 	try {
 		const { providerId, user } = await requireProvider(request)
+		const jobId = String(params.id ?? "")
+		const current = await pricingBulkJobService.get({ providerId, jobId })
+		if (!current) return json(404, { error: "bulk_job_not_found" })
+		const ratePlanIds = [
+			...new Set(current.items.map((item) => String(item.ratePlanId)).filter(Boolean)),
+		]
+		if (!ratePlanIds.length) return json(409, { error: "bulk_job_rate_plan_scope_missing" })
 		const job = await pricingBulkJobService.retryFailed({
 			providerId,
 			requestedByUserId: user.id,
-			jobId: String(params.id ?? ""),
+			jobId,
 		})
-		return json(202, { job })
+		return json(202, { job, ratePlanIds })
 	} catch (error) {
 		if (error instanceof Response) return error
 		if (error instanceof PricingBulkJobError) {

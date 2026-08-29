@@ -14,7 +14,7 @@ describe("pricing rule command boundary", () => {
 		expect(service).toContain("previewCandidate(")
 		expect(service).toContain("createRule(")
 		expect(service).toContain("rematerialize(input:")
-		expect(service).toContain("invalidatePricing(input:")
+		expect(service).toContain("invalidatePricingBatch(input:")
 		expect(service).toContain("enqueueAri(input:")
 	})
 

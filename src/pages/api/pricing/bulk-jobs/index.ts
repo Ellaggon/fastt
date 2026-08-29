@@ -13,6 +13,8 @@ export const POST: APIRoute = async ({ request }) => {
 	const payload = (await request.json().catch(() => ({}))) as unknown
 	const parsed = pricingBulkJobRequestSchema.safeParse(payload)
 	if (!parsed.success) return json(400, { error: "validation_error", details: parsed.error.issues })
+	const ratePlanIds = parsed.data.ratePlanIds
+	if (!ratePlanIds.length) return json(400, { error: "ratePlanIds_required" })
 	const idempotencyKey = requestIdempotencyKey(request, parsed.data.idempotencyKey)
 	if (!idempotencyKey) return json(400, { error: "idempotency_key_required" })
 
@@ -21,7 +23,7 @@ export const POST: APIRoute = async ({ request }) => {
 		const result = await pricingBulkJobService.enqueue({
 			providerId,
 			requestedByUserId: user.id,
-			input: { ...parsed.data, idempotencyKey },
+			input: { ...parsed.data, ratePlanIds, idempotencyKey },
 		})
 		return json(202, { ...result, location: `/api/pricing/bulk-jobs/${result.job.id}` })
 	} catch (error) {
