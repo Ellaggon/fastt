@@ -14,6 +14,7 @@ import WorkspacePreferencesDrawer from "@/components/dashboard/WorkspacePreferen
 import AccommodationContextSwitcher from "@/components/product/AccommodationContextSwitcher.astro"
 import ProductContextSwitcher from "@/components/product/ProductContextSwitcher.astro"
 import ProviderAccountSwitcher from "@/components/provider/ProviderAccountSwitcher.astro"
+import RatePlanContextSwitcher from "@/components/rates/RatePlanContextSwitcher.astro"
 import SalesContextSwitcher from "@/components/rates/SalesContextSwitcher.astro"
 import FiscalScopeSwitcher from "@/components/tax-fees/FiscalScopeSwitcher.astro"
 import Button from "@/components/ui/Button.astro"
@@ -73,8 +74,15 @@ const productSwitcherTarget = /\/rooms(?:\/|$)/.test(pathname)
 	: /\/departures(?:\/|$)|\/private-requests(?:\/|$)/.test(pathname)
 		? "departures"
 		: "detail"
+const ratePlanIdFromPath = (() => {
+	const raw = pathname.match(/^\/rates\/plans\/([^/]+)$/)?.[1] ?? ""
+	return raw && raw !== "manage" ? decodeURIComponent(raw) : ""
+})()
 const workspacePath = pathname.replace(/\/$/, "") || "/"
 const isDashboardWorkspace = workspacePath === "/dashboard"
+const isRatePlanConditionsView =
+	Boolean(ratePlanIdFromPath) &&
+	String(Astro.url.searchParams.get("vista") ?? "conditions") === "conditions"
 const isRatesWorkspace = workspacePath === "/rates" || workspacePath.startsWith("/rates/")
 const isVerificationWorkspace =
 	workspacePath === "/provider/settings/verification" ||
@@ -190,6 +198,12 @@ const showContextSwitcher =
 						icon="dashboard"
 						variant="topbar"
 						ariaLabel="Resumen operativo"
+					/>
+				) : showContextSwitcher && isRatePlanConditionsView ? (
+					<RatePlanContextSwitcher
+						providerId={providerId}
+						ratePlanId={ratePlanIdFromPath}
+						variant="topbar"
 					/>
 				) : showContextSwitcher && isRatesWorkspace ? (
 					<SalesContextSwitcher

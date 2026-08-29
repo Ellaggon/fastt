@@ -1,0 +1,88 @@
+---
+import ContextSwitcher, {
+	type ContextSwitcherGroup,
+	type ContextSwitcherOption,
+} from "@/components/ui/ContextSwitcher.astro"
+import {
+	loadProviderRatePlansReadModel,
+	loadRatePlanReadModelById,
+} from "@/lib/rates/loadRatePlansReadModel"
+import { routes } from "@/lib/routes"
+
+interface Props {
+	providerId: string
+	ratePlanId: string
+	ratePlanName?: string
+	variant?: "surface" | "topbar"
+}
+
+const { providerId, ratePlanId, ratePlanName, variant = "topbar" } = Astro.props
+
+const ratePlans = providerId
+	? await loadProviderRatePlansReadModel({
+			providerId,
+			url: Astro.url,
+		})
+	: []
+
+let current = ratePlans.find((plan) => String(plan.ratePlanId) === ratePlanId)
+if (!current && providerId && ratePlanId) {
+	current =
+		(await loadRatePlanReadModelById({
+			providerId,
+			url: Astro.url,
+			ratePlanId,
+		})) ?? undefined
+}
+
+const resolvedName = String(ratePlanName ?? current?.ratePlanName ?? "").trim() || "Sin nombre"
+const switcherPlans =
+	current && !ratePlans.some((plan) => String(plan.ratePlanId) === ratePlanId)
+		? [...ratePlans, current]
+		: ratePlans
+
+const hrefFor = (id: string) => routes.ratePlanPolicies(id)
+
+const options: ContextSwitcherOption[] = switcherPlans
+	.map((plan) => ({
+		id: String(plan.ratePlanId),
+		label: String(plan.ratePlanName || "Tarifa"),
+		href: hrefFor(String(plan.ratePlanId)),
+	}))
+	.sort((a, b) => a.label.localeCompare(b.label, "es"))
+
+const variantGroups = new Map<string, ContextSwitcherOption[]>()
+for (const plan of switcherPlans) {
+	const heading = String(plan.variantName || plan.productName || "Tarifas")
+	const entry = {
+		id: String(plan.ratePlanId),
+		label: String(plan.ratePlanName || "Tarifa"),
+		href: hrefFor(String(plan.ratePlanId)),
+	}
+	const existing = variantGroups.get(heading) ?? []
+	existing.push(entry)
+	variantGroups.set(heading, existing)
+}
+
+const groups: ContextSwitcherGroup[] = [...variantGroups.entries()]
+	.sort(([left], [right]) => left.localeCompare(right, "es"))
+	.map(([heading, groupOptions]) => ({
+		heading,
+		options: groupOptions.sort((a, b) => a.label.localeCompare(b.label, "es")),
+	}))
+
+const useGroups = groups.length > 1
+---
+
+<ContextSwitcher
+	label="Tarifa"
+	value={resolvedName}
+	options={useGroups ? undefined : options}
+	groups={useGroups ? groups : undefined}
+	selectedId={ratePlanId}
+	icon="rates"
+	menuLabel="Cambiar tarifa"
+	emptyMessage="No hay otras tarifas disponibles."
+	ariaLabel="Cambiar tarifa actual"
+	variant={variant}
+/>

@@ -43,7 +43,7 @@ export default function CalendarWorkspaceHeader({ initialMode }: Props) {
 		CALENDAR_CONTROL_MODES.find((item) => item.key === mode) ?? CALENDAR_CONTROL_MODES[0]
 
 	return (
-		<header className="space-y-2">
+		<header className="space-y-2 pb-8 sm:pb-12">
 			<h1 className="text-3xl font-semibold text-slate-100">
 				{activeMode.helper.replace(/\.$/, "")}
 			</h1>

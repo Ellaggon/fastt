@@ -14,7 +14,12 @@ test("fiscality uses a contextual header, segmented navigation and progressive f
 	expect(read("src/components/dashboard/DashboardTopBar.astro")).toContain('icon="dashboard"')
 	expect(read("src/components/dashboard/DashboardTopBar.astro")).not.toContain('label="Panel"')
 	expect(read("src/components/dashboard/DashboardTopBar.astro")).toContain("isRatesWorkspace")
+	expect(read("src/components/dashboard/DashboardTopBar.astro")).toContain("isRatePlanConditionsView")
+	expect(read("src/components/dashboard/DashboardTopBar.astro")).toContain("RatePlanContextSwitcher")
 	expect(read("src/components/dashboard/DashboardTopBar.astro")).toContain("SalesContextSwitcher")
+	expect(read("src/components/rates/RatePlanContextSwitcher.astro")).toContain('label="Tarifa"')
+	expect(read("src/components/rates/RatePlanContextSwitcher.astro")).toContain('icon="rates"')
+	expect(read("src/components/rates/RatePlanContextSwitcher.astro")).toContain("Cambiar tarifa")
 	expect(read("src/components/rates/SalesContextSwitcher.astro")).toContain('label="Venta"')
 	expect(read("src/components/rates/SalesContextSwitcher.astro")).toContain("Calendario")
 	expect(read("src/components/rates/SalesContextSwitcher.astro")).toContain("Tarifas")
@@ -22,6 +27,11 @@ test("fiscality uses a contextual header, segmented navigation and progressive f
 	expect(read("src/components/rates/SalesContextSwitcher.astro")).toContain("Multicalendario")
 	expect(read("src/components/ui/ContextSwitcher.astro")).toContain("fastt-context-switcher--title-only")
 	expect(read("src/components/ui/ContextSwitcher.astro")).toContain('"sales"')
+	expect(read("src/components/ui/ContextSwitcher.astro")).toContain("data-context-switcher-pending")
+	expect(read("src/components/ui/ContextSwitcher.astro")).toContain("data-context-switcher-value")
+	expect(read("src/components/dashboard/WorkspaceNavigationPending.astro")).toContain(
+		"rate-plan-detail"
+	)
 	expect(read("src/pages/product/[id]/index.astro")).toContain("flex flex-col gap-2")
 	expect(read("src/pages/product/[id]/index.astro")).toContain('class="sr-only">{owned.name}')
 	expect(read("src/pages/product/[id]/index.astro")).not.toContain(

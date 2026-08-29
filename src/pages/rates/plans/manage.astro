@@ -157,7 +157,7 @@ const ratePlanDisplayRows = rows.map((row) => {
 		stateLabel: state.label,
 		stateReason: state.reason,
 		stateBadge: state.badge,
-		resolveHref: state.href,
+		resolveHref: routes.ratePlanPolicies(String(row.ratePlanId)),
 		resolveLabel: state.key === "ready" ? "Ver" : "Resolver",
 		priceLabel: money(row.pricingReadiness?.basePrice, row.pricingReadiness?.currency),
 		policyLabel: shortPolicySummary(row.policySummary),
