@@ -47,6 +47,26 @@ export type NormalizedPricingRuleCommand = {
 	} | null
 }
 
+export type PricingRuleExecutionMode = "immediate" | "deferred"
+
+/** A durable description of the commercial surface that must be rebuilt after a write. */
+export type PricingRuleImpactDescriptor = {
+	ratePlanId: string
+	variantId: string
+	from: string
+	toExclusive: string
+	occupancyKey: string | null
+}
+
+export type PricingRuleCreateResult = {
+	ruleId: string
+	ratePlanId: string
+	replayed: boolean
+	rematerialization: { missingDatesCount: number; generatedDatesCount: number } | null
+	impact: PricingRuleImpactDescriptor
+	rules: StoredPricingRule[]
+}
+
 export class PricingRuleCommandError extends Error {
 	constructor(
 		public readonly code: string,
@@ -81,12 +101,14 @@ type PricingRuleCommandDependencies = {
 		occupancy: { adults: number; children: number; infants: number }
 		fallbackCurrency?: string
 	}): Promise<{ missingDatesCount: number; generatedDatesCount: number }>
-	invalidatePricing(input: { ratePlanId: string; variantId: string }): Promise<void>
+	invalidatePricingBatch(input: { ratePlanIds: string[]; variantIds: string[] }): Promise<void>
 	enqueueAri(input: {
-		variantId: string
-		ratePlanId: string
+		variantIds: string[]
+		ratePlanIds: string[]
 		from: string
 		toExclusive: string
+		idempotencyScope?: string
+		critical?: boolean
 	}): Promise<unknown>
 }
 
@@ -119,6 +141,55 @@ function addDays(value: string, days: number) {
 	const date = new Date(`${value}T00:00:00Z`)
 	date.setUTCDate(date.getUTCDate() + days)
 	return date.toISOString().slice(0, 10)
+}
+
+function unique(values: string[]): string[] {
+	return [...new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean))]
+}
+
+function mergeImpacts(impacts: PricingRuleImpactDescriptor[]): PricingRuleImpactDescriptor[] {
+	const sorted = [...impacts].sort((left, right) =>
+		[left.ratePlanId, left.variantId, left.occupancyKey ?? "", left.from]
+			.join(":")
+			.localeCompare(
+				[right.ratePlanId, right.variantId, right.occupancyKey ?? "", right.from].join(":")
+			)
+	)
+	const merged: PricingRuleImpactDescriptor[] = []
+	for (const impact of sorted) {
+		const current = merged.at(-1)
+		const sameTarget =
+			current &&
+			current.ratePlanId === impact.ratePlanId &&
+			current.variantId === impact.variantId &&
+			current.occupancyKey === impact.occupancyKey
+		if (sameTarget && impact.from <= current.toExclusive) {
+			current.toExclusive =
+				current.toExclusive > impact.toExclusive ? current.toExclusive : impact.toExclusive
+			continue
+		}
+		merged.push({ ...impact })
+	}
+	return merged
+}
+
+async function mapWithConcurrency<T, R>(
+	items: T[],
+	concurrency: number,
+	handler: (item: T) => Promise<R>
+): Promise<R[]> {
+	const results = new Array<R>(items.length)
+	let cursor = 0
+	await Promise.all(
+		Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+			while (true) {
+				const index = cursor++
+				if (index >= items.length) return
+				results[index] = await handler(items[index])
+			}
+		})
+	)
+	return results
 }
 
 export class PricingRuleCommandService {
@@ -226,7 +297,11 @@ export class PricingRuleCommandService {
 		}
 	}
 
-	async createRule(context: PricingRuleContext, command: NormalizedPricingRuleCommand) {
+	async createRule(
+		context: PricingRuleContext,
+		command: NormalizedPricingRuleCommand,
+		options: { executionMode?: PricingRuleExecutionMode } = {}
+	): Promise<PricingRuleCreateResult> {
 		if (!Number.isFinite(command.value)) throw new PricingRuleCommandError("invalid_value")
 		const range = dateRange(command)
 		const created = await this.deps.createRule({
@@ -243,6 +318,24 @@ export class PricingRuleCommandService {
 		})
 		const from = command.dateFrom ?? new Date().toISOString().slice(0, 10)
 		const to = command.dateTo ? addDays(command.dateTo, 1) : addDays(from, 60)
+		const impact: PricingRuleImpactDescriptor = {
+			ratePlanId: context.ratePlanId,
+			variantId: context.variantId,
+			from,
+			toExclusive: to,
+			occupancyKey: command.occupancyKey ?? null,
+		}
+		const rules = await this.deps.listRules(context.ratePlanId)
+		if (options.executionMode === "deferred") {
+			return {
+				ruleId: created.ruleId,
+				ratePlanId: context.ratePlanId,
+				replayed: created.replayed === true,
+				rematerialization: null,
+				impact,
+				rules,
+			}
+		}
 		const rematerialization = await this.deps.rematerialize({
 			variantId: context.variantId,
 			ratePlanId: context.ratePlanId,
@@ -252,24 +345,74 @@ export class PricingRuleCommandService {
 			fallbackCurrency: command.currency,
 		})
 		if (rematerialization.generatedDatesCount > 0) {
-			await this.deps.invalidatePricing({
-				ratePlanId: context.ratePlanId,
-				variantId: context.variantId,
+			await this.deps.invalidatePricingBatch({
+				ratePlanIds: [context.ratePlanId],
+				variantIds: [context.variantId],
 			})
 			await this.deps.enqueueAri({
-				variantId: context.variantId,
-				ratePlanId: context.ratePlanId,
+				variantIds: [context.variantId],
+				ratePlanIds: [context.ratePlanId],
 				from,
 				toExclusive: to,
 			})
 		}
-		const rules = await this.deps.listRules(context.ratePlanId)
 		return {
 			ruleId: created.ruleId,
 			ratePlanId: context.ratePlanId,
 			replayed: created.replayed === true,
 			rematerialization,
+			impact,
 			rules,
 		}
+	}
+
+	async finalizeDeferredImpacts(params: {
+		impacts: PricingRuleImpactDescriptor[]
+		idempotencyScope: string
+	}): Promise<{
+		materializations: Array<{
+			impact: PricingRuleImpactDescriptor
+			missingDatesCount: number
+			generatedDatesCount: number
+		}>
+		cacheInvalidated: boolean
+		ariEnqueued: boolean
+	}> {
+		const impacts = mergeImpacts(params.impacts)
+		const materializations = await mapWithConcurrency(impacts, 3, async (impact) => {
+			const result = await this.deps.rematerialize({
+				variantId: impact.variantId,
+				ratePlanId: impact.ratePlanId,
+				from: impact.from,
+				to: impact.toExclusive,
+				occupancy: occupancyFromKey(impact.occupancyKey ?? undefined),
+			})
+			return { impact, ...result }
+		})
+		const changed = materializations.filter((result) => result.generatedDatesCount > 0)
+		if (!changed.length) return { materializations, cacheInvalidated: false, ariEnqueued: false }
+
+		const ratePlanIds = unique(changed.map((result) => result.impact.ratePlanId))
+		const variantIds = unique(changed.map((result) => result.impact.variantId))
+		const from = changed.reduce(
+			(earliest, result) =>
+				!earliest || result.impact.from < earliest ? result.impact.from : earliest,
+			""
+		)
+		const toExclusive = changed.reduce(
+			(latest, result) =>
+				!latest || result.impact.toExclusive > latest ? result.impact.toExclusive : latest,
+			""
+		)
+		await this.deps.invalidatePricingBatch({ ratePlanIds, variantIds })
+		await this.deps.enqueueAri({
+			variantIds,
+			ratePlanIds,
+			from,
+			toExclusive,
+			idempotencyScope: params.idempotencyScope,
+			critical: true,
+		})
+		return { materializations, cacheInvalidated: true, ariEnqueued: true }
 	}
 }

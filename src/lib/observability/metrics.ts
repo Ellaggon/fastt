@@ -4,6 +4,7 @@ type MetricTags = Record<string, string | number | boolean>
 
 type MetricState = {
 	counters: Map<string, number>
+	gauges: Map<string, number>
 	timings: Map<string, number[]>
 	startedAtMs: number
 }
@@ -13,6 +14,7 @@ function getState(): MetricState {
 	if (!g.__appMetricsState) {
 		g.__appMetricsState = {
 			counters: new Map<string, number>(),
+			gauges: new Map<string, number>(),
 			timings: new Map<string, number[]>(),
 			startedAtMs: Date.now(),
 		}
@@ -58,6 +60,29 @@ export function incrementCounter(name: string, tags?: MetricTags, delta = 1): nu
 export function readCounter(name: string, tags?: MetricTags): number {
 	const state = getState()
 	return Number(state.counters.get(keyFrom(name, tags)) ?? 0)
+}
+
+/** Stores the latest observed value for a bounded operational measurement. */
+export function setGauge(name: string, value: number, tags?: MetricTags): number {
+	const state = getState()
+	const key = keyFrom(name, tags)
+	const normalized = Number.isFinite(value) ? Number(value) : 0
+	state.gauges.set(key, normalized)
+	logger.debug("metric.set_gauge", { name, tags: tags ?? null, value: normalized })
+	return normalized
+}
+
+export function readGauge(name: string, tags?: MetricTags): number | null {
+	const state = getState()
+	const value = state.gauges.get(keyFrom(name, tags))
+	return value == null ? null : Number(value)
+}
+
+export function listAllGauges(): Array<{ key: string; value: number }> {
+	const state = getState()
+	return Array.from(state.gauges.entries())
+		.map(([key, value]) => ({ key, value: Number(value) }))
+		.sort((a, b) => a.key.localeCompare(b.key))
 }
 
 export function observeTiming(name: string, valueMs: number, tags?: MetricTags): void {
@@ -130,6 +155,7 @@ export function getMetricsWindow(): { startedAtMs: number; uptimeMs: number } {
 export function resetMetricsForTests(): void {
 	const state = getState()
 	state.counters.clear()
+	state.gauges.clear()
 	state.timings.clear()
 	state.startedAtMs = Date.now()
 }

@@ -89,7 +89,7 @@ describe("provider incremental ARI queue", () => {
 
 	afterAll(cleanup)
 
-	it("coalesces dirty identities and ranges into one minute bucket", async () => {
+	it("coalesces durable bulk effects into one connection operation", async () => {
 		const now = new Date("2026-08-03T12:34:15.000Z")
 		await enqueueProviderIncrementalAriChange({
 			domain: "availability",
@@ -97,6 +97,7 @@ describe("provider incremental ARI queue", () => {
 			from: "2026-08-10",
 			toExclusive: "2026-08-12",
 			now,
+			idempotencyScope: "pricing-bulk:job-1:effects",
 		})
 		await enqueueProviderIncrementalAriChange({
 			domain: "availability",
@@ -104,6 +105,7 @@ describe("provider incremental ARI queue", () => {
 			from: "2026-08-09",
 			toExclusive: "2026-08-14",
 			now: new Date("2026-08-03T12:34:42.000Z"),
+			idempotencyScope: "pricing-bulk:job-1:effects",
 		})
 		const jobs = await db
 			.select()
@@ -111,6 +113,7 @@ describe("provider incremental ARI queue", () => {
 			.where(eq(ProviderIntegrationSyncJob.providerId, providerId))
 		expect(jobs).toHaveLength(1)
 		expect(jobs[0]?.runAfter.toISOString()).toBe("2026-08-03T12:35:00.000Z")
+		expect(jobs[0]?.idempotencyKey).toContain("pricing-bulk:job-1:effects")
 		expect(parseIncrementalAriJobPayload(jobs[0]?.payloadJson)).toMatchObject({
 			domain: "availability",
 			from: "2026-08-09",

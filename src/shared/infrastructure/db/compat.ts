@@ -75,6 +75,8 @@ export {
 	PolicyExceptionRule,
 	PolicyGroup,
 	PolicyRule,
+	PricingBulkOperationItem,
+	PricingBulkOperationJob,
 	Product,
 	ProductCategory,
 	ProductCategoryLink,

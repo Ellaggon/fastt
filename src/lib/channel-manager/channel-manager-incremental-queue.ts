@@ -93,6 +93,8 @@ export async function enqueueProviderIncrementalAriChange(params: {
 	now?: Date
 	certificationId?: string | null
 	certificationScenario?: ProviderIntegrationCertificationScenarioKey | null
+	/** Stable scope for a durable bulk finalizer. It yields one ARI operation per connection. */
+	idempotencyScope?: string
 }): Promise<{ connections: number; jobs: number }> {
 	const variantIds = uniqueIds(params.variantIds)
 	const ratePlanIds = uniqueIds(params.ratePlanIds)
@@ -144,6 +146,43 @@ export async function enqueueProviderIncrementalAriChange(params: {
 	}
 	let jobs = 0
 	for (const connection of connections) {
+		if (params.idempotencyScope) {
+			const key = `${params.idempotencyScope}:${operation}:${connection.id}`
+			const rows = await db.execute(sql`
+				INSERT INTO "ProviderIntegrationSyncJob" (
+					"id", "providerId", "connectionId", "targetType", "targetId", "connectorKey",
+					"operation", "status", "trigger", "priority", "attempts", "maxAttempts",
+					"runAfter", "idempotencyKey", "payloadJson", "createdAt", "updatedAt"
+				) VALUES (
+					gen_random_uuid()::text, ${connection.providerId}, ${connection.id}, 'connection', ${connection.id},
+					'channel_manager', ${operation}, 'queued', 'webhook', 20, 0, 8,
+					${runAfter.toISOString()}, ${key}, ${JSON.stringify(payload)}::jsonb, ${now.toISOString()}, ${now.toISOString()}
+				)
+				ON CONFLICT ("targetType", "targetId", "idempotencyKey") DO UPDATE SET
+					"payloadJson" = jsonb_build_object(
+						'version', 1,
+						'domain', EXCLUDED."payloadJson"->>'domain',
+						'from', LEAST("ProviderIntegrationSyncJob"."payloadJson"->>'from', EXCLUDED."payloadJson"->>'from'),
+						'toExclusive', GREATEST("ProviderIntegrationSyncJob"."payloadJson"->>'toExclusive', EXCLUDED."payloadJson"->>'toExclusive'),
+						'variantIds', (
+							SELECT COALESCE(jsonb_agg(DISTINCT value ORDER BY value), '[]'::jsonb)
+							FROM jsonb_array_elements_text(COALESCE("ProviderIntegrationSyncJob"."payloadJson"->'variantIds', '[]'::jsonb) || COALESCE(EXCLUDED."payloadJson"->'variantIds', '[]'::jsonb)) AS identities(value)
+						),
+						'ratePlanIds', (
+							SELECT COALESCE(jsonb_agg(DISTINCT value ORDER BY value), '[]'::jsonb)
+							FROM jsonb_array_elements_text(COALESCE("ProviderIntegrationSyncJob"."payloadJson"->'ratePlanIds', '[]'::jsonb) || COALESCE(EXCLUDED."payloadJson"->'ratePlanIds', '[]'::jsonb)) AS identities(value)
+						),
+						'queuedAt', LEAST("ProviderIntegrationSyncJob"."payloadJson"->>'queuedAt', EXCLUDED."payloadJson"->>'queuedAt'),
+						'certificationId', COALESCE(EXCLUDED."payloadJson"->'certificationId', "ProviderIntegrationSyncJob"."payloadJson"->'certificationId'),
+						'certificationScenario', COALESCE(EXCLUDED."payloadJson"->'certificationScenario', "ProviderIntegrationSyncJob"."payloadJson"->'certificationScenario')
+					),
+					"updatedAt" = EXCLUDED."updatedAt"
+				WHERE "ProviderIntegrationSyncJob"."status" = 'queued'
+				RETURNING "id"
+			`)
+			if (Array.from(rows as unknown as Array<{ id: string }>).length > 0) jobs += 1
+			continue
+		}
 		for (let spill = 0; spill < 2; spill += 1) {
 			const scheduledAt = new Date(runAfter.getTime() + spill * 60_000)
 			const key = `incremental-ari:${operation}:${scheduledAt.toISOString()}`

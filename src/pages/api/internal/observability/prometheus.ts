@@ -6,11 +6,13 @@ import {
 } from "@/lib/observability/internalObservabilityAuth"
 import {
 	listAllCounters,
+	listAllGauges,
 	listTimingKeys,
 	readTimingCountByKey,
 	readTimingQuantile,
 } from "@/lib/observability/metrics"
 import { collectProviderIntegrationOperationalMetrics } from "@/lib/provider-integration-operational-metrics"
+import { collectPricingBulkOperationalMetrics } from "@/lib/pricing/pricing-bulk-operational-metrics"
 import { collectTourRolloutPrometheusMetrics } from "@/lib/tours/tourObservability"
 import { syncSharedTourCountersFromRedis } from "@/lib/tours/tourRolloutSharedStore"
 
@@ -61,6 +63,12 @@ export const GET: APIRoute = async ({ request }) => {
 		lines.push(`${name}${labelsToProm(parsed.labels)} ${Number(counter.value)}`)
 	}
 
+	for (const gauge of listAllGauges()) {
+		const parsed = parseMetricKey(gauge.key)
+		const name = sanitizeMetricName(parsed.name)
+		lines.push(`${name}${labelsToProm(parsed.labels)} ${Number(gauge.value)}`)
+	}
+
 	for (const key of listTimingKeys()) {
 		const parsed = parseMetricKey(key)
 		const base = sanitizeMetricName(parsed.name)
@@ -92,6 +100,18 @@ export const GET: APIRoute = async ({ request }) => {
 		lines.push("provider_integration_operational_metrics_collection_error 0")
 	} catch {
 		lines.push("provider_integration_operational_metrics_collection_error 1")
+	}
+
+	try {
+		const operationalMetrics = await collectPricingBulkOperationalMetrics()
+		for (const metric of operationalMetrics) {
+			lines.push(
+				`${sanitizeMetricName(metric.name)}${labelsToProm(metric.labels ?? {})} ${Number(metric.value)}`
+			)
+		}
+		lines.push("pricing_bulk_operational_metrics_collection_error 0")
+	} catch {
+		lines.push("pricing_bulk_operational_metrics_collection_error 1")
 	}
 
 	try {

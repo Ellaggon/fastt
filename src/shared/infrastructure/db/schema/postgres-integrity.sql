@@ -243,6 +243,8 @@ BEGIN
 		'RatePlanConditionState',
 		'CommercialRuleSet',
 		'CommercialRule',
+		'PricingBulkOperationJob',
+		'PricingBulkOperationItem',
 		'TaxFeeDefinition',
 		'FinancialExceptionRecord',
 		'RefundHandoffRecord',
@@ -613,3 +615,29 @@ ALTER TABLE "HouseRule"
 		"scope" = 'product'
 		OR "type" IN ('Pets', 'Smoking', 'Access', 'Safety', 'ExtraBeds')
 	);
+
+-- A bulk command is the audit-grade intent accepted from the administrator.
+-- Workers may update lifecycle/progress fields only; changing the command
+-- would make retries non-reproducible and invalidate the payload hash.
+CREATE OR REPLACE FUNCTION fastt_prevent_pricing_bulk_command_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+	IF NEW."providerId" IS DISTINCT FROM OLD."providerId"
+		OR NEW."requestedByUserId" IS DISTINCT FROM OLD."requestedByUserId"
+		OR NEW."idempotencyKey" IS DISTINCT FROM OLD."idempotencyKey"
+		OR NEW."payloadHash" IS DISTINCT FROM OLD."payloadHash"
+		OR NEW."operationType" IS DISTINCT FROM OLD."operationType"
+		OR NEW."commandJson" IS DISTINCT FROM OLD."commandJson" THEN
+		RAISE EXCEPTION 'PRICING_BULK_OPERATION_COMMAND_IMMUTABLE';
+	END IF;
+	RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS "trg_PricingBulkOperationJob_command_immutable" ON "PricingBulkOperationJob";
+CREATE TRIGGER "trg_PricingBulkOperationJob_command_immutable"
+BEFORE UPDATE ON "PricingBulkOperationJob"
+FOR EACH ROW
+EXECUTE FUNCTION fastt_prevent_pricing_bulk_command_mutation();
