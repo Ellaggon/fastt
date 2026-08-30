@@ -97,7 +97,7 @@ async function readJson(res: Response) {
 }
 
 describe("integration/catalog Product V2 API", () => {
-	it("full API flow => ready", async () => {
+	it("full API flow => draft until commercial readiness is complete", async () => {
 		process.env.R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || "test-bucket"
 		const tokenA = "token_a"
 		const emailA = "usera@example.com"
@@ -301,11 +301,21 @@ describe("integration/catalog Product V2 API", () => {
 				expect(evalRes.status).toBe(200)
 				const evaluated = (await readJson(evalRes)) as {
 					state?: string
-					validationErrors?: unknown[]
+					validationErrors?: Array<{ code?: string; message?: string }>
 				}
-				expect(evaluated.state).toBe("ready")
+				expect(evaluated.state).toBe("draft")
 				expect(Array.isArray(evaluated.validationErrors)).toBe(true)
-				expect((evaluated.validationErrors as any[]).length).toBe(0)
+				const validationCodes = (evaluated.validationErrors ?? []).map((error) => error.code)
+				expect(validationCodes.length).toBeGreaterThan(0)
+				expect(
+					validationCodes.some((code) =>
+						[
+							"missing_sellable_room",
+							"missing_booking_policies",
+							"missing_essential_house_rules",
+						].includes(String(code))
+					)
+				).toBe(true)
 
 				const publishForm = new FormData()
 				publishForm.set("productId", productId)
@@ -317,13 +327,19 @@ describe("integration/catalog Product V2 API", () => {
 					}),
 				} as any)
 				expect(publishRes.status).toBe(200)
-				const published = (await readJson(publishRes)) as { ok?: boolean; state?: string }
-				expect(published.ok).toBe(true)
-				expect(published.state).toBe("published")
+				const published = (await readJson(publishRes)) as {
+					ok?: boolean
+					state?: string
+					validationErrors?: unknown[]
+				}
+				expect(published.ok).toBe(false)
+				expect(published.state).toBe("draft")
+				expect(Array.isArray(published.validationErrors)).toBe(true)
+				expect((published.validationErrors as any[]).length).toBeGreaterThan(0)
 
 				const agg = await productRepository.getProductAggregate(productId)
-				expect(agg?.publication.state).toBe("published")
-				expect(agg?.publication.validationErrorsJson).toBeNull()
+				expect(agg?.publication.state).toBe("draft")
+				expect(agg?.publication.validationErrorsJson).not.toBeNull()
 				expect(agg?.imagesCount).toBeGreaterThanOrEqual(1)
 				expect(agg?.subtypeExists).toBe(true)
 				;(r2 as any).send = prevSend
