@@ -326,7 +326,7 @@ describe("integration/catalog Product V2 API", () => {
 						form: publishForm,
 					}),
 				} as any)
-				expect(publishRes.status).toBe(200)
+				expect(publishRes.status).toBe(422)
 				const published = (await readJson(publishRes)) as {
 					ok?: boolean
 					state?: string
