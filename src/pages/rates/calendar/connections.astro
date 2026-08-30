@@ -4,6 +4,7 @@ import Button from "@/components/ui/Button.astro"
 import Input from "@/components/ui/Input.astro"
 import Notice from "@/components/ui/Notice.astro"
 import Select from "@/components/ui/Select.astro"
+import TabsOutsidePanel from "@/components/ui/TabsOutsidePanel.astro"
 import WorkspaceMetricStat from "@/components/ui/WorkspaceMetricStat.astro"
 import WorkspaceMetricStats from "@/components/ui/WorkspaceMetricStats.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
@@ -17,15 +18,7 @@ import {
 	mapExternalCalendarError,
 } from "@/lib/provider-external-calendars"
 import { routes } from "@/lib/routes"
-import {
-	ArrowLeft,
-	CalendarDays,
-	ExternalLink,
-	Plus,
-	RefreshCw,
-	Trash2,
-	TriangleAlert,
-} from "@lucide/astro"
+import { ArrowLeft, ExternalLink, Plus, RefreshCw, Trash2, TriangleAlert } from "@lucide/astro"
 
 const auth = await requireProvider(Astro.request).catch((error: unknown) => {
 	if (error instanceof Response && error.status === 401) return "__REDIRECT_LOGIN__"
@@ -95,13 +88,7 @@ const localTabs = [
 	<div class="space-y-6 text-slate-200" data-calendar-connections-workspace>
 		<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
 			<div class="max-w-3xl">
-				<p
-					class="flex items-center gap-2 text-xs font-semibold tracking-wide text-slate-400 uppercase"
-				>
-					<CalendarDays class="size-4" aria-hidden="true" />
-					Calendario · Distribución
-				</p>
-				<h1 class="mt-1.5 text-3xl font-semibold text-slate-100">Conexiones iCal</h1>
+				<h1 class="text-3xl font-semibold text-slate-100">Conexiones iCal</h1>
 				<p class="mt-1.5 max-w-2xl text-sm leading-6 text-slate-300">
 					Importa bloqueos de otros canales y comparte las reservas de Fastt sin perder de vista la
 					disponibilidad.
@@ -157,36 +144,28 @@ const localTabs = [
 			</WorkspaceMetricStat>
 		</WorkspaceMetricStats>
 
-		<section
-			class="fastt-notice overflow-hidden rounded-lg border border-slate-200 bg-white text-slate-900 shadow-[var(--fastt-shadow-row)]"
-		>
-			<div class="border-b border-slate-200 px-4 pt-3">
-				<nav class="flex min-w-max gap-1 overflow-x-auto" aria-label="Secciones de iCal">
+		<section class="fastt-card overflow-hidden border bg-white text-slate-900">
+			<div class="border-b border-slate-200 px-4 pt-4">
+				<TabsOutsidePanel
+					class="mb-3"
+					aria-label="Secciones de iCal"
+					data-calendar-connections-tabs
+				>
 					{
 						localTabs.map((tab) => (
 							<a
 								href={`${routes.ratesCalendarConnections()}?view=${tab.id}`}
 								aria-current={view === tab.id ? "page" : undefined}
-								class={`inline-flex min-h-11 items-center gap-2 border-b-2 px-3 py-2 text-sm font-semibold ${
-									view === tab.id
-										? "border-slate-950 text-slate-950"
-										: "border-transparent text-slate-500 hover:text-slate-950"
+								data-active={view === tab.id ? "true" : "false"}
+								class={`fastt-tabs-outside-panel__item px-3 py-2 text-sm font-semibold whitespace-nowrap ${
+									view === tab.id ? "" : "text-slate-600 hover:bg-sky-100/80 hover:text-sky-950"
 								}`}
 							>
-								{tab.label}
-								<span
-									class={`rounded-full px-2 py-0.5 text-xs ${
-										tab.id === "conflicts" && tab.count
-											? "bg-amber-100 text-amber-900"
-											: "bg-slate-100 text-slate-600"
-									}`}
-								>
-									{tab.count}
-								</span>
+								{tab.label} <span class="ml-1 text-xs opacity-70">{tab.count}</span>
 							</a>
 						))
 					}
-				</nav>
+				</TabsOutsidePanel>
 			</div>
 
 			{

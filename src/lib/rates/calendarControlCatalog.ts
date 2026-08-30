@@ -18,7 +18,7 @@ export const CALENDAR_CONTROL_MODES: Array<{
 		label: "Precio",
 		helper: "Precio final y ajustes.",
 		workspaceDescription:
-			"Selecciona fechas y ajusta el precio final de esta tarifa. Los cambios y el resumen permanecen en pantalla mientras trabajas.",
+			"Selecciona fechas y ajusta el precio final de esta tarifa. Los cambios permanecen en pantalla mientras trabajas.",
 	},
 	{
 		key: "availability",

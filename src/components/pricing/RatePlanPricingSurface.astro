@@ -1,7 +1,6 @@
 ---
 import Button from "@/components/ui/Button.astro"
 import FormField from "@/components/ui/FormField.astro"
-import FormSection from "@/components/ui/FormSection.astro"
 import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
 
@@ -22,28 +21,41 @@ const {
 
 <form id="pricingForm" class="mx-auto max-w-3xl space-y-6">
 	<Input type="hidden" name="ratePlanId" value={ratePlanId} />
-	<FormSection title="Precio base">
-		<FormField label="Moneda" htmlFor="currency" required>
-			<Select id="currency" name="currency" value={initialCurrency} required>
-				<option value="USD">USD</option>
-				<option value="BOB">BOB</option>
-			</Select>
-		</FormField>
-		<FormField label="Precio base por noche" htmlFor="basePrice" required>
-			<Input
-				id="basePrice"
-				name="basePrice"
-				type="number"
-				min="0"
-				step="1"
-				value={initialBasePrice}
+	<div class="space-y-5">
+		<div>
+			<h2 class="text-lg font-semibold text-slate-950">Precio base</h2>
+			<p class="mt-1 text-sm leading-6 text-slate-500">
+				Es el precio de referencia por noche. Los ajustes por fecha se hacen desde el calendario.
+			</p>
+		</div>
+		<div class="grid gap-5 sm:grid-cols-[12rem_minmax(0,1fr)]">
+			<FormField label="Moneda" htmlFor="currency" description="Se aplica a esta tarifa." required>
+				<Select id="currency" name="currency" value={initialCurrency} required>
+					<option value="USD">USD</option>
+					<option value="BOB">BOB</option>
+				</Select>
+			</FormField>
+			<FormField
+				label="Precio base por noche"
+				htmlFor="basePrice"
+				description="Antes de impuestos, promociones o cambios por fecha."
 				required
-			/>
-		</FormField>
-	</FormSection>
+			>
+				<Input
+					id="basePrice"
+					name="basePrice"
+					type="number"
+					min="0"
+					step="1"
+					value={initialBasePrice}
+					required
+				/>
+			</FormField>
+		</div>
+	</div>
 	<p id="pricingFeedback" class="whitespace-pre-wrap text-sm text-slate-600"></p>
-	<div class="flex items-center justify-between gap-3">
-		<Button href={backHref} variant="secondary"> Volver </Button>
+	<div class="flex flex-wrap items-center justify-between gap-3 pt-2">
+		<Button href={backHref} variant="ghost"> Volver a tarifas </Button>
 		<Button id="submitBtn" type="submit"> Guardar precio base </Button>
 	</div>
 </form>

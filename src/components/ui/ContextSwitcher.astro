@@ -5,6 +5,7 @@ import {
 	ChevronDown,
 	Hotel,
 	LayoutDashboard,
+	Layers3,
 	MapPinned,
 } from "@lucide/astro"
 
@@ -27,7 +28,7 @@ interface Props {
 	options?: ContextSwitcherOption[]
 	groups?: ContextSwitcherGroup[]
 	selectedId?: string
-	icon?: "accommodation" | "tour" | "service" | "dashboard" | "sales"
+	icon?: "accommodation" | "tour" | "service" | "dashboard" | "sales" | "rates"
 	menuLabel?: string
 	emptyMessage?: string
 	ariaLabel?: string
@@ -55,7 +56,9 @@ const Icon =
 				? LayoutDashboard
 				: icon === "sales"
 					? CalendarDays
-					: Building2
+					: icon === "rates"
+						? Layers3
+						: Building2
 const resolvedGroups: ContextSwitcherGroup[] = groups && groups.length > 0 ? groups : [{ options }]
 const flatOptions = resolvedGroups.flatMap((group) => group.options)
 const selectable = flatOptions.length > 0
@@ -79,8 +82,17 @@ const titleOnly = !selectable && !staticValue
 		selectable ? (
 			<details class="fastt-context-switcher__select" data-context-switcher>
 				<summary class="fastt-context-switcher__trigger" aria-label={ariaLabel}>
-					<ChevronDown class="h-4 w-4 shrink-0" aria-hidden="true" />
-					<span class="truncate text-xs font-semibold tracking-wide uppercase">{value}</span>
+					<ChevronDown
+						class="fastt-context-switcher__chevron h-4 w-4 shrink-0"
+						aria-hidden="true"
+					/>
+					<span class="fastt-context-switcher__spinner" aria-hidden="true" />
+					<span
+						class="fastt-context-switcher__value truncate text-xs font-semibold tracking-wide uppercase"
+						data-context-switcher-value
+					>
+						{value}
+					</span>
 				</summary>
 				<div class="fastt-context-switcher__menu">
 					<p class="px-2 pb-2 text-xs font-semibold tracking-wide text-slate-400 uppercase">
@@ -99,6 +111,8 @@ const titleOnly = !selectable && !staticValue
 											<a
 												href={option.href}
 												data-workspace-nav
+												data-context-switcher-option
+												data-option-label={option.label}
 												data-astro-prefetch="viewport"
 												aria-current={active ? "page" : undefined}
 												class:list={[
@@ -187,6 +201,51 @@ const titleOnly = !selectable && !staticValue
 	.fastt-context-switcher__trigger:focus-visible {
 		outline: 2px solid rgb(255 255 255 / 0.92);
 		outline-offset: 2px;
+	}
+	.fastt-context-switcher__chevron {
+		transition: transform var(--fastt-motion-standard) ease;
+	}
+	.fastt-context-switcher__select[open] .fastt-context-switcher__chevron {
+		transform: rotate(180deg);
+	}
+	.fastt-context-switcher__spinner {
+		display: none;
+		width: 0.875rem;
+		height: 0.875rem;
+		flex-shrink: 0;
+		border: 2px solid rgb(148 163 184 / 0.28);
+		border-top-color: rgb(241 245 249);
+		border-radius: 9999px;
+		animation: fastt-context-switcher-spin 650ms linear infinite;
+	}
+	.fastt-context-switcher[data-context-switcher-pending] .fastt-context-switcher__select {
+		pointer-events: none;
+	}
+	.fastt-context-switcher[data-context-switcher-pending] .fastt-context-switcher__chevron {
+		display: none;
+	}
+	.fastt-context-switcher[data-context-switcher-pending] .fastt-context-switcher__spinner {
+		display: inline-block;
+	}
+	.fastt-context-switcher[data-context-switcher-pending] .fastt-context-switcher__value {
+		opacity: 0.78;
+	}
+	.fastt-context-switcher__option[data-context-switcher-option-pending] {
+		position: relative;
+		pointer-events: none;
+		background: rgb(241 245 249);
+		color: rgb(15 23 42);
+	}
+	.fastt-context-switcher__option[data-context-switcher-option-pending]::after {
+		position: absolute;
+		inset: 0.65rem 0.7rem auto auto;
+		width: 0.875rem;
+		height: 0.875rem;
+		content: "";
+		border: 2px solid rgb(203 213 225);
+		border-top-color: rgb(51 65 85);
+		border-radius: 9999px;
+		animation: fastt-context-switcher-spin 650ms linear infinite;
 	}
 	.fastt-context-switcher__static {
 		margin: 0;
@@ -303,26 +362,93 @@ const titleOnly = !selectable && !staticValue
 			transform: translateX(-50%);
 		}
 	}
+	@keyframes fastt-context-switcher-spin {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.fastt-context-switcher__spinner,
+		.fastt-context-switcher__option[data-context-switcher-option-pending]::after {
+			animation: none;
+		}
+	}
 </style>
 
-<script>
-	const closeSwitchers = (except?: Element | null) =>
-		document.querySelectorAll("[data-context-switcher]").forEach((item) => {
-			if (item !== except) item.removeAttribute("open")
-		})
-	document.addEventListener("click", (event) => {
-		const target = event.target
-		const path = typeof event.composedPath === "function" ? event.composedPath() : []
-		const switcher =
-			(target instanceof Element ? target.closest("[data-context-switcher]") : null) ??
-			path.find((node) => node instanceof Element && node.matches("[data-context-switcher]"))
-		if (switcher instanceof Element) {
-			closeSwitchers(switcher)
-			return
+<script is:inline>
+	;(function () {
+		if (window.__fasttContextSwitcherNavInstalled) return
+		window.__fasttContextSwitcherNavInstalled = true
+
+		const closeSwitchers = (except) =>
+			document.querySelectorAll("[data-context-switcher]").forEach((item) => {
+				if (item !== except) item.removeAttribute("open")
+			})
+
+		const clearSwitcherPending = () => {
+			document.querySelectorAll("[data-context-switcher-pending]").forEach((item) => {
+				item.removeAttribute("data-context-switcher-pending")
+			})
+			document.querySelectorAll("[data-context-switcher-option-pending]").forEach((item) => {
+				item.removeAttribute("data-context-switcher-option-pending")
+			})
 		}
-		closeSwitchers()
-	})
-	document.addEventListener("keydown", (event) => {
-		if (event.key === "Escape") closeSwitchers()
-	})
+
+		const setSwitcherPending = (switcherRoot, option, label) => {
+			const details = switcherRoot.querySelector("[data-context-switcher]")
+			if (details) details.removeAttribute("open")
+			switcherRoot.setAttribute("data-context-switcher-pending", "true")
+			document
+				.querySelectorAll("[data-context-switcher-option-pending]")
+				.forEach((item) => item.removeAttribute("data-context-switcher-option-pending"))
+			option.setAttribute("data-context-switcher-option-pending", "true")
+			const valueEl = switcherRoot.querySelector("[data-context-switcher-value]")
+			if (valueEl && label) valueEl.textContent = label
+		}
+
+		document.addEventListener(
+			"click",
+			(event) => {
+				const target = event.target
+				const option =
+					target instanceof Element
+						? target.closest("[data-context-switcher] [data-context-switcher-option]")
+						: null
+				if (!(option instanceof HTMLAnchorElement)) return
+
+				const details = option.closest("[data-context-switcher]")
+				if (details) details.removeAttribute("open")
+
+				if (option.getAttribute("aria-current") === "page") {
+					event.preventDefault()
+					return
+				}
+
+				const switcherRoot = option.closest(".fastt-context-switcher")
+				if (!switcherRoot) return
+				const label = option.dataset.optionLabel || option.textContent?.trim() || ""
+				setSwitcherPending(switcherRoot, option, label)
+			},
+			true
+		)
+
+		document.addEventListener("click", (event) => {
+			const target = event.target
+			const path = typeof event.composedPath === "function" ? event.composedPath() : []
+			const switcher =
+				(target instanceof Element ? target.closest("[data-context-switcher]") : null) ??
+				path.find((node) => node instanceof Element && node.matches("[data-context-switcher]"))
+			if (switcher instanceof Element) {
+				closeSwitchers(switcher)
+				return
+			}
+			closeSwitchers()
+		})
+		document.addEventListener("keydown", (event) => {
+			if (event.key === "Escape") closeSwitchers()
+		})
+		document.addEventListener("astro:page-load", clearSwitcherPending)
+		document.addEventListener("astro:after-swap", clearSwitcherPending)
+	})()
 </script>

@@ -1,6 +1,7 @@
 ---
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
+import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
 import RatePlanPoliciesSurface from "@/components/policy/RatePlanPoliciesSurface.astro"
 import RatePlanPricingSurface from "@/components/pricing/RatePlanPricingSurface.astro"
@@ -367,12 +368,7 @@ const layoutProps =
 						class={effectiveActiveView === "price" ? "p-5" : "hidden p-5"}
 						data-rate-plan-panel="price"
 					>
-						<div class="mx-auto max-w-2xl space-y-1">
-							<h2 class="text-xl font-semibold text-slate-950">Editar precio base</h2>
-							<p class="pb-4 text-sm text-slate-500">
-								Define el punto de partida de esta tarifa. Los cambios por fecha se hacen en el
-								calendario.
-							</p>
+						<div class="mx-auto max-w-3xl">
 							<RatePlanPricingSurface
 								ratePlanId={String(row.ratePlanId)}
 								initialCurrency={loaded.initialCurrency}
@@ -390,42 +386,66 @@ const layoutProps =
 						class={effectiveActiveView === "details" ? "p-5" : "hidden p-5"}
 						data-rate-plan-panel="details"
 					>
-						<form
-							class="mx-auto max-w-2xl space-y-5"
-							data-rate-plan-edit-form
-							data-rate-plan-id={String(row.ratePlanId)}
-						>
-							<input type="hidden" name="isActive" value={row.isActive ? "true" : ""} />
-							<label class="block space-y-1.5 text-sm">
-								<span class="font-medium text-slate-700">Nombre de la Tarifa</span>
-								<Input name="name" value={row.ratePlanName} required />
-							</label>
-							<label class="block space-y-1.5 text-sm">
-								<span class="font-medium text-slate-700">Descripción interna</span>
-								<Textarea name="description" rows="3" value={row.description ?? ""} />
-							</label>
-							<div class="fastt-soft-box divide-y divide-slate-100 border border-slate-200">
-								<label class="flex items-center justify-between gap-4 p-4 text-sm text-slate-700">
-									<span>
-										<strong class="block text-slate-950">Tarifa principal</strong>Referencia de esta
-										habitación.
-									</span>
-									<input
-										name="isDefault"
-										type="checkbox"
-										class="fastt-field size-4"
-										checked={row.isDefault}
-									/>
-								</label>
-							</div>
-							<div class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
-								<p class="text-sm text-slate-500" data-rate-plan-edit-feedback />
-								<Button type="submit">Guardar cambios</Button>
-							</div>
-						</form>
+						<div class="mx-auto max-w-3xl">
+							<form
+								class="space-y-0"
+								data-rate-plan-edit-form
+								data-rate-plan-id={String(row.ratePlanId)}
+							>
+								<input type="hidden" name="isActive" value={row.isActive ? "true" : ""} />
+								<section class="border-b border-slate-200 pb-8 sm:pb-12">
+									<div class="mb-5 sm:mb-6">
+										<h2 class="text-lg font-semibold text-slate-950">Datos de tarifa</h2>
+										<p class="mt-1 text-sm leading-6 text-slate-500">
+											Define cómo identificas esta opción y cuál será la tarifa de referencia de la
+											habitación.
+										</p>
+									</div>
+									<div class="grid gap-5 md:grid-cols-2">
+										<FormField
+											label="Nombre visible"
+											htmlFor="rate-plan-name"
+											description="Es el nombre que verá el huésped al reservar."
+											required
+										>
+											<Input id="rate-plan-name" name="name" value={row.ratePlanName} required />
+										</FormField>
+										<FormField
+											label="Descripción interna"
+											htmlFor="rate-plan-description"
+											description="Solo para tu equipo; no se muestra al huésped."
+											class="md:col-span-2"
+										>
+											<Textarea
+												id="rate-plan-description"
+												name="description"
+												rows="3"
+												value={row.description ?? ""}
+											/>
+										</FormField>
+									</div>
+									<label class="mt-6 flex items-start justify-between gap-4 text-sm text-slate-700 sm:mt-8">
+										<span>
+											<strong class="block text-slate-950">Tarifa principal</strong>
+											<span class="mt-1 block leading-5 text-slate-500">
+												Úsala como referencia principal de precio para esta habitación.
+											</span>
+										</span>
+										<input
+											name="isDefault"
+											type="checkbox"
+											class="fastt-field mt-0.5 size-4"
+											checked={row.isDefault}
+										/>
+									</label>
+								</section>
+								<div class="flex flex-wrap items-center justify-between gap-3 py-8 sm:py-12">
+									<p class="text-sm text-slate-500" data-rate-plan-edit-feedback />
+									<Button type="submit">Guardar cambios</Button>
+								</div>
+							</form>
 
-						<div class="mx-auto mt-8 max-w-2xl space-y-6 border-t border-slate-200 pt-6">
-							<section class="flex flex-wrap items-center justify-between gap-4">
+							<section class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 py-8 sm:py-12">
 								<div>
 									<div class="flex items-center gap-2">
 										<h3 class="font-semibold text-slate-950">Estado de venta</h3>
@@ -457,18 +477,15 @@ const layoutProps =
 								</Button>
 							</section>
 
-							<section
-								id="eliminar-tarifa"
-								class="fastt-notice rounded-lg border border-rose-200 bg-rose-50 p-4"
-							>
+							<section id="eliminar-tarifa" class="py-8 sm:py-12">
 								<div class="flex flex-wrap items-start justify-between gap-4">
 									<div>
-										<h3 class="font-semibold text-rose-950">Eliminar tarifa</h3>
-										<p class="mt-1 max-w-xl text-sm text-rose-800">
+										<h3 class="font-semibold text-slate-950">Eliminar tarifa</h3>
+										<p class="mt-1 max-w-xl text-sm text-slate-500">
 											Solo puede eliminarse si está inactiva y nunca tuvo reservas ni retenciones.
 										</p>
 										{removalReadiness.blockers.length > 0 && (
-											<ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-rose-800">
+											<ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-500">
 												{removalReadiness.blockers.map((blocker) => (
 													<li>{blocker}</li>
 												))}

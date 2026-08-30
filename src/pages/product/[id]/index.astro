@@ -1,4 +1,5 @@
 ---
+import ProductDeleteControls from "@/components/product/ProductDeleteControls.astro"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
@@ -363,6 +364,13 @@ logRoutePerformance({
 				) : null
 			}
 		</div>
+
+		<ProductDeleteControls
+			productId={productId}
+			productName={owned.name}
+			workspaceSingularLabel={vertical.labels.workspaceSingular}
+			variantsLabel={isTour ? "salidas" : isHotel ? "habitaciones" : "modalidades"}
+		/>
 	</section>
 
 	<script>
