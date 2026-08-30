@@ -5,6 +5,7 @@ import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { evaluateProductReadiness } from "@/modules/catalog/public"
 import { productRepository } from "@/container"
 import { refreshProductOperationalSurfaceAfterMutation } from "@/lib/product/productOperationalSurface"
+import { resolveCanonicalProductPublicationValidationErrors } from "@/lib/product/canonical-product-publication"
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
@@ -37,7 +38,18 @@ export const POST: APIRoute = async ({ request }) => {
 			})
 		}
 
-		const result = await evaluateProductReadiness({ repo: productRepository }, raw)
+		const result = await evaluateProductReadiness(
+			{
+				repo: productRepository,
+				resolvePublicationValidationErrors: ({ productId }) =>
+					resolveCanonicalProductPublicationValidationErrors({
+						productId,
+						providerId,
+						request,
+					}),
+			},
+			raw
+		)
 		await refreshProductOperationalSurfaceAfterMutation({
 			productId: raw.productId,
 			providerId,

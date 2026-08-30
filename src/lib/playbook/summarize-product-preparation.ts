@@ -22,6 +22,16 @@ export type ProductPreparationSummary = {
 	nextStepLabel: string | null
 	nextStepBody: string | null
 	nextStepCta: string | null
+	checks: Array<{
+		sectionKey: string
+		label: string
+		detail: string
+		complete: boolean
+		statusLabel: string
+		completedCount?: number
+		totalCount?: number
+		missingItems?: string[]
+	}>
 }
 
 function normalizeStatus(raw: string | undefined): string {
@@ -72,6 +82,7 @@ export async function summarizeProductPreparation(params: {
 			nextStepLabel: null,
 			nextStepBody: null,
 			nextStepCta: null,
+			checks: [],
 		}
 	}
 
@@ -103,6 +114,16 @@ export async function summarizeProductPreparation(params: {
 		nextStepLabel: nextBlocker?.label ?? null,
 		nextStepBody: nextBlocker?.guestImpact ?? null,
 		nextStepCta: nextBlocker?.cta ?? (publishState.readyToPublish ? "Ir a vista previa" : null),
+		checks: publishState.checks.map((check) => ({
+			sectionKey: check.sectionKey,
+			label: check.label,
+			detail: check.detail,
+			complete: check.complete,
+			statusLabel: check.statusLabel,
+			completedCount: check.completedCount,
+			totalCount: check.totalCount,
+			missingItems: check.missingItems,
+		})),
 	}
 }
 

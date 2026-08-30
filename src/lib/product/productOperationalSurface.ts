@@ -102,6 +102,7 @@ function preparationFromRow(row: any): ProductPreparationSummary {
 		nextStepLabel: row.nextStepLabel ? String(row.nextStepLabel) : null,
 		nextStepBody: null,
 		nextStepCta: null,
+		checks: [],
 	}
 }
 

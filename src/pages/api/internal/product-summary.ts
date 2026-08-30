@@ -251,6 +251,20 @@ export const GET: APIRoute = async ({ request, url }) => {
 			url,
 		})
 	)
+	const canonicalConditionsCheck = preparation?.checks.find(
+		(check) => check.sectionKey === "bookingPolicies"
+	)
+	const canonicalProgress = preparation
+		? {
+				completedSteps: preparation.completedChecks ?? 0,
+				totalSteps: preparation.totalChecks ?? 0,
+				missingSteps: Math.max(
+					0,
+					(preparation.totalChecks ?? 0) - (preparation.completedChecks ?? 0)
+				),
+				progressPercent: preparation.readinessPercent,
+			}
+		: { completedSteps, totalSteps: steps.length, missingSteps, progressPercent }
 
 	timing.addTotal("productSummary")
 	logEndpoint(200)
@@ -274,6 +288,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 						nextStepBody: preparation.nextStepBody,
 						nextStepCta: preparation.nextStepCta,
 						isPublished: preparation.isPublished,
+						checks: preparation.checks,
 					}
 				: null,
 			vertical: {
@@ -285,12 +300,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 				variantPlural: vertical.labels.variantPlural,
 				readinessSummary: vertical.readiness.publishSummary,
 			},
-			progress: {
-				completedSteps,
-				totalSteps: steps.length,
-				missingSteps,
-				progressPercent,
-			},
+			progress: canonicalProgress,
 			checks: {
 				hasContent,
 				hasLocation,
@@ -309,7 +319,17 @@ export const GET: APIRoute = async ({ request, url }) => {
 			},
 			conditions: {
 				href: operationalSurface?.conditionsHref ?? routes.rates(),
-				coverage: operationalSurface?.policyCoverageState ?? null,
+				coverage: canonicalConditionsCheck
+					? {
+							totalCategories: canonicalConditionsCheck.totalCount ?? 0,
+							coveredCategories: canonicalConditionsCheck.completedCount ?? 0,
+							missingCategories: canonicalConditionsCheck.missingItems ?? [],
+							isComplete: canonicalConditionsCheck.complete,
+							summary: canonicalConditionsCheck.detail,
+							ratePlanId: operationalSurface?.policyCoverageState?.ratePlanId ?? null,
+							updatedAt: new Date().toISOString(),
+						}
+					: (operationalSurface?.policyCoverageState ?? null),
 			},
 			content: {
 				descriptionPreview,

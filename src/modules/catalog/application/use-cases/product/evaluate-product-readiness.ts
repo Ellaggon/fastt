@@ -5,20 +5,25 @@ import type {
 import { normalizeProductVertical } from "@/lib/catalog/productVerticalRegistry"
 import { tourPublicationValidationErrors } from "@/lib/tours/tourAdminQuality"
 
-type ValidationError = { code: string; message: string }
+export type ProductReadinessValidationError = { code: string; message: string }
 
 export async function evaluateProductReadiness(
-	deps: { repo: ProductRepositoryPort },
+	deps: {
+		repo: ProductRepositoryPort
+		resolvePublicationValidationErrors?: (params: {
+			productId: string
+		}) => Promise<ProductReadinessValidationError[]>
+	},
 	params: { productId: string }
 ): Promise<{
 	productId: string
 	state: ProductPublicationState
-	validationErrors: ValidationError[]
+	validationErrors: ProductReadinessValidationError[]
 }> {
 	const agg = await deps.repo.getProductAggregate(params.productId)
 	if (!agg) throw new Error("Product not found")
 
-	const errors: ValidationError[] = []
+	const errors: ProductReadinessValidationError[] = []
 
 	// Identity checks (minimal): must have name/productType already, but keep it defensive.
 	if (!agg.product.name || String(agg.product.name).trim().length < 1) {
@@ -69,10 +74,10 @@ export async function evaluateProductReadiness(
 				code: "missing_hotel_rooms",
 				message: "At least one room must be created before publishing",
 			})
-		} else if (room.completeRoomCount < room.variantCount) {
+		} else if (room.completeRoomCount < 1) {
 			errors.push({
 				code: "incomplete_hotel_rooms",
-				message: "All hotel rooms must have profile, capacity and bed setup",
+				message: "At least one hotel room must have profile, capacity and bed setup",
 			})
 		}
 	}
@@ -131,6 +136,15 @@ export async function evaluateProductReadiness(
 				code: "missing_limousine_capacity",
 				message: "Passenger and luggage capacity are required",
 			})
+		}
+	}
+
+	if (deps.resolvePublicationValidationErrors) {
+		const additionalErrors = await deps.resolvePublicationValidationErrors({
+			productId: params.productId,
+		})
+		for (const error of additionalErrors) {
+			if (!errors.some((existing) => existing.code === error.code)) errors.push(error)
 		}
 	}
 
