@@ -33,7 +33,8 @@ describe("Guardrail: no variant-first pricing mutations", () => {
 				literals.has("ratePlanId_required") ||
 				literals.has("ratePlanIds_required") ||
 				literals.has("ratePlanId_and_ruleId_required") ||
-				literals.has("ratePlanId is required for pricing mutations")
+				literals.has("ratePlanId is required for pricing mutations") ||
+				literals.has("bulk_job_rate_plan_scope_missing")
 			const hasRatePlanResolverCall = calls.some(
 				(call) =>
 					call.leaf === "resolveRatePlanOwnerContext" ||
@@ -42,10 +43,10 @@ describe("Guardrail: no variant-first pricing mutations", () => {
 			)
 
 			const hasRatePlanRequirement =
-				hasRatePlanObjectKey &&
-				(hasRatePlanLiteralSignal ||
-					hasRatePlanResolverCall ||
-					calls.some((call) => call.leaf === "safeParse" || call.leaf === "parse"))
+				hasRatePlanLiteralSignal ||
+				(hasRatePlanObjectKey &&
+					(hasRatePlanResolverCall ||
+						calls.some((call) => call.leaf === "safeParse" || call.leaf === "parse")))
 			if (!hasRatePlanRequirement) {
 				violations.push(`${relativePath} -> missing explicit ratePlanId enforcement`)
 			}

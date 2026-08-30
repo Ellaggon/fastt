@@ -2,6 +2,10 @@ import { logger } from "@/lib/observability/logger"
 import { normalizedPricingRuleCommandFromPayload } from "@/lib/pricing/rules-v2"
 import { getRatePlanOwnerContext } from "./get-rateplan-owner-context"
 import { PricingRuleCommandError, type PricingRuleContext } from "./pricing-rule-command-service"
+import {
+	pricingRulePayloadFromBulkOperation,
+	type BulkPricingOperation,
+} from "./pricing-bulk-command"
 
 async function resolveRatePlanOwnerContext(ratePlanId: string) {
 	const { ratePlanOwnerContextRepository } = await import("@/container/pricing.container")
@@ -15,24 +19,7 @@ async function getPricingRuleCommandService() {
 
 type JsonRecord = Record<string, unknown>
 
-export type BulkPricingOperation = {
-	type: string
-	value: number
-	conditions?: {
-		priority?: number
-		dateFrom?: string
-		dateTo?: string
-		dayOfWeek?: number[] | string
-		contextKey?: string
-		occupancyKey?: string
-		currency?: string
-		previewFrom?: string
-		previewDays?: number
-		effectiveFrom?: string
-		effectiveTo?: string
-		effectiveDays?: number
-	}
-}
+export type { BulkPricingOperation } from "./pricing-bulk-command"
 
 export type BulkPricingInput = {
 	ratePlanIds: string[]
@@ -161,70 +148,17 @@ async function mapLimit<T, R>(
 	return out
 }
 
-function addDays(date: string, days: number): string {
-	const value = new Date(`${date}T00:00:00.000Z`)
-	value.setUTCDate(value.getUTCDate() + days)
-	return value.toISOString().slice(0, 10)
-}
-
-/**
- * Bulk controls express when a change becomes commercially effective.  The
- * single-rule endpoints use dateFrom/dateTo, so normalize that vocabulary once
- * and share it with preview and apply.  Keeping the two paths aligned prevents
- * a preview for seven days from materializing a default sixty-day range.
- */
-function resolveEffectiveDateRange(operation: BulkPricingOperation) {
-	const conditions = operation.conditions ?? {}
-	const today = new Date().toISOString().slice(0, 10)
-	const requestedDays = Number(conditions.effectiveDays)
-	const hasRequestedDuration = Number.isInteger(requestedDays) && requestedDays > 0
-	const dateFrom =
-		conditions.effectiveFrom ?? conditions.dateFrom ?? (hasRequestedDuration ? today : undefined)
-	const rangeStart = dateFrom ?? today
-	const dateTo =
-		conditions.effectiveTo ??
-		conditions.dateTo ??
-		(hasRequestedDuration ? addDays(rangeStart, requestedDays - 1) : undefined)
-	return { dateFrom, dateTo }
-}
-
 function buildPreviewPayload(ratePlanId: string, operation: BulkPricingOperation): JsonRecord {
-	const conditions = operation.conditions ?? {}
-	const effectiveRange = resolveEffectiveDateRange(operation)
-	return {
-		ratePlanId,
-		type: operation.type,
-		value: operation.value,
-		priority: conditions.priority ?? 10,
-		dateFrom: effectiveRange.dateFrom,
-		dateTo: effectiveRange.dateTo,
-		dayOfWeek: Array.isArray(conditions.dayOfWeek)
-			? conditions.dayOfWeek.join(",")
-			: conditions.dayOfWeek,
-		contextKey: conditions.contextKey,
-		occupancyKey: conditions.occupancyKey,
-		currency: conditions.currency,
-		previewFrom: conditions.previewFrom,
-		previewDays: conditions.previewDays,
-	}
+	return { ratePlanId, ...pricingRulePayloadFromBulkOperation(operation) }
 }
 
 function buildCreatePayload(ratePlanId: string, operation: BulkPricingOperation): JsonRecord {
-	const conditions = operation.conditions ?? {}
-	const effectiveRange = resolveEffectiveDateRange(operation)
+	const payload = pricingRulePayloadFromBulkOperation(operation)
 	return {
 		ratePlanId,
-		type: operation.type,
-		value: operation.value,
-		priority: conditions.priority ?? 10,
-		dateFrom: effectiveRange.dateFrom,
-		dateTo: effectiveRange.dateTo,
-		dayOfWeek: Array.isArray(conditions.dayOfWeek)
-			? conditions.dayOfWeek.join(",")
-			: conditions.dayOfWeek,
-		contextKey: conditions.contextKey,
-		occupancyKey: conditions.occupancyKey,
-		currency: conditions.currency,
+		...payload,
+		previewFrom: undefined,
+		previewDays: undefined,
 	}
 }
 

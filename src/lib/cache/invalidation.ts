@@ -197,24 +197,45 @@ export async function invalidatePricing(params: {
 	productId?: string | null
 	providerId?: string | null
 }): Promise<void> {
+	return invalidatePricingBatch({
+		ratePlanIds: params.ratePlanId ? [params.ratePlanId] : [],
+		variantIds: params.variantId ? [params.variantId] : [],
+		productIds: params.productId ? [params.productId] : [],
+		providerIds: params.providerId ? [params.providerId] : [],
+	})
+}
+
+/** Invalidates pricing surfaces once for a coherent commercial write set. */
+export async function invalidatePricingBatch(params: {
+	ratePlanIds?: string[]
+	variantIds?: string[]
+	productIds?: string[]
+	providerIds?: string[]
+}): Promise<void> {
+	const ratePlanIds = [...new Set((params.ratePlanIds ?? []).map(String).filter(Boolean))]
+	const variantIds = [...new Set((params.variantIds ?? []).map(String).filter(Boolean))]
+	const productIds = [...new Set((params.productIds ?? []).map(String).filter(Boolean))]
+	const providerIds = [...new Set((params.providerIds ?? []).map(String).filter(Boolean))]
 	const tasks: Array<Promise<unknown>> = [
 		delByPrefix("ws:pricing:rateplans:"),
 		delByPrefix("ws:search:public"),
 	]
-	if (params.ratePlanId) tasks.push(delByPrefix(`ws:pricing:rateplan:${params.ratePlanId}:`))
-	if (params.variantId) tasks.push(delByPrefix(`ws:variant:${params.variantId}`))
-	if (params.productId) tasks.push(delByPrefix(`ws:product:${params.productId}`))
-	if (params.providerId) tasks.push(delByPrefix(`ws:provider:${params.providerId}`))
+	for (const ratePlanId of ratePlanIds)
+		tasks.push(delByPrefix(`ws:pricing:rateplan:${ratePlanId}:`))
+	for (const variantId of variantIds) tasks.push(delByPrefix(`ws:variant:${variantId}`))
+	for (const productId of productIds) tasks.push(delByPrefix(`ws:product:${productId}`))
+	for (const providerId of providerIds) tasks.push(delByPrefix(`ws:provider:${providerId}`))
 	await Promise.all(tasks)
-	await invalidateRatePlanSurfacesByOwnership({
-		providerId: params.providerId,
-		productId: params.productId,
-		variantId: params.variantId,
-		ratePlanIds: params.ratePlanId ? [params.ratePlanId] : [],
+	await invalidateRatePlanSurfacesByOwnership({ ratePlanIds })
+	for (const productId of productIds) refreshProductSurface(productId, "invalidate_pricing")
+	refreshRatePlanConditions(ratePlanIds, "invalidate_pricing")
+	console.debug("cache invalidated", {
+		scope: "pricing",
+		ratePlanIds,
+		variantIds,
+		productIds,
+		providerIds,
 	})
-	if (params.productId) refreshProductSurface(params.productId, "invalidate_pricing")
-	if (params.ratePlanId) refreshRatePlanConditions([params.ratePlanId], "invalidate_pricing")
-	console.debug("cache invalidated", { scope: "pricing", ...params })
 }
 
 export async function invalidatePolicyConditions(params: {

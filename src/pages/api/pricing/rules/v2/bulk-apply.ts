@@ -1,8 +1,10 @@
 import type { APIRoute } from "astro"
 import { z } from "zod"
 
+import { pricingBulkJobService } from "@/container"
 import { requireProvider } from "@/lib/auth/requireProvider"
-import { applyBulkOperation, PricingRuleCommandError } from "@/modules/pricing/public"
+import { json, requestIdempotencyKey } from "@/lib/pricing/bulk-job-http"
+import { PricingBulkJobError, PricingRuleCommandError } from "@/modules/pricing/public"
 
 const bulkSchema = z.object({
 	ratePlanIds: z.array(z.string().min(1)).min(1).max(200),
@@ -43,21 +45,24 @@ export const POST: APIRoute = async ({ request }) => {
 		)
 	}
 	try {
-		const { providerId } = await requireProvider(request)
-		const result = await applyBulkOperation({
+		if (parsed.data.dryRun) return json(400, { error: "use_bulk_preview_for_dry_run" })
+		const idempotencyKey = requestIdempotencyKey(request)
+		if (!idempotencyKey) return json(400, { error: "idempotency_key_required" })
+		const { providerId, user } = await requireProvider(request)
+		const result = await pricingBulkJobService.enqueue({
 			providerId,
-			input: parsed.data,
+			requestedByUserId: user.id,
+			input: {
+				ratePlanIds: parsed.data.ratePlanIds,
+				operation: parsed.data.operation,
+				idempotencyKey,
+			},
 		})
-		return new Response(JSON.stringify(result), {
-			status: 200,
-			headers: { "Content-Type": "application/json" },
-		})
+		return json(202, { ...result, location: `/api/pricing/bulk-jobs/${result.job.id}` })
 	} catch (error) {
 		if (error instanceof Response) return error
-		if (!(error instanceof PricingRuleCommandError)) throw error
-		return new Response(JSON.stringify({ error: error.code }), {
-			status: error.status,
-			headers: { "Content-Type": "application/json" },
-		})
+		if (error instanceof PricingBulkJobError || error instanceof PricingRuleCommandError)
+			return json(error.status, { error: error.code })
+		throw error
 	}
 }

@@ -23,10 +23,15 @@ import { RatePlanOwnerContextRepository } from "../modules/pricing/infrastructur
 import { RatePlanPricingContextRepository } from "../modules/pricing/infrastructure/repositories/RatePlanPricingContextRepository"
 import { RatePlanPricingReadRepository } from "../modules/pricing/infrastructure/repositories/RatePlanPricingReadRepository"
 import { PricingRuleCommandService } from "../modules/pricing/application/use-cases/pricing-rule-command-service"
+import { PricingBulkJobService } from "../modules/pricing/application/use-cases/pricing-bulk-job-service"
+import { PricingBulkJobRepository } from "../modules/pricing/infrastructure/repositories/PricingBulkJobRepository"
 import { createCommercialPriceRule } from "@/lib/commercial-rules/commercialRulesRepository"
 import { listRulesByRatePlan } from "@/lib/pricing/rules-v2"
-import { invalidatePricing } from "@/lib/cache/invalidation"
-import { enqueueProviderIncrementalAriChangeSoft } from "@/lib/channel-manager/channel-manager-incremental-queue"
+import { invalidatePricingBatch } from "@/lib/cache/invalidation"
+import {
+	enqueueProviderIncrementalAriChange,
+	enqueueProviderIncrementalAriChangeSoft,
+} from "@/lib/channel-manager/channel-manager-incremental-queue"
 
 // ---- Infrastructure singletons ----
 export const pricingRepository = new PricingRepository()
@@ -42,6 +47,7 @@ export const priceRuleQueryRepository = new PriceRuleQueryRepository()
 export const ratePlanOwnerContextRepository = new RatePlanOwnerContextRepository()
 export const ratePlanPricingContextRepository = new RatePlanPricingContextRepository()
 export const ratePlanPricingReadRepository = new RatePlanPricingReadRepository()
+export const pricingBulkJobRepository = new PricingBulkJobRepository()
 
 export const pricingRuleCommandService = new PricingRuleCommandService({
 	getPricingSummary: (ratePlanId) =>
@@ -68,16 +74,24 @@ export const pricingRuleCommandService = new PricingRuleCommandService({
 			}
 		)
 	},
-	invalidatePricing: ({ variantId, ratePlanId }) => invalidatePricing({ variantId, ratePlanId }),
-	enqueueAri: ({ variantId, ratePlanId, from, toExclusive }) =>
-		enqueueProviderIncrementalAriChangeSoft({
-			domain: "rates_restrictions",
-			variantIds: [variantId],
-			ratePlanIds: [ratePlanId],
+	invalidatePricingBatch: ({ variantIds, ratePlanIds }) =>
+		invalidatePricingBatch({ variantIds, ratePlanIds }),
+	enqueueAri: ({ variantIds, ratePlanIds, from, toExclusive, idempotencyScope, critical }) => {
+		const input = {
+			domain: "rates_restrictions" as const,
+			variantIds,
+			ratePlanIds,
 			from,
 			toExclusive,
-		}),
+			idempotencyScope,
+		}
+		return critical
+			? enqueueProviderIncrementalAriChange(input)
+			: enqueueProviderIncrementalAriChangeSoft(input)
+	},
 })
+
+export const pricingBulkJobService = new PricingBulkJobService(pricingBulkJobRepository)
 
 // ---- Engine singletons ----
 export const promotionEngine = new PromotionEngine()

@@ -107,6 +107,8 @@ export const databaseTablesByDomain = {
 		"CommercialRuleSet",
 		"CommercialRule",
 		"CommercialRuleApplication",
+		"PricingBulkOperationJob",
+		"PricingBulkOperationItem",
 		"EffectiveRestriction",
 		"EffectivePricing",
 	],

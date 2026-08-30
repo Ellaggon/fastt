@@ -16,3 +16,11 @@ export type {
 } from "./PriceRuleCommandRepositoryPort"
 export type { PriceRuleQueryRepositoryPort } from "./PriceRuleQueryRepositoryPort"
 export type { RatePlanPricingReadRepositoryPort } from "./RatePlanPricingReadRepositoryPort"
+export type {
+	PricingBulkJobRepositoryPort,
+	PricingBulkJobRecord,
+	PricingBulkJobItemRecord,
+	PricingBulkJobStatus,
+	PricingBulkJobItemStatus,
+	PricingBulkOperationType,
+} from "./PricingBulkJobRepositoryPort"

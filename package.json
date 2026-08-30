@@ -53,6 +53,7 @@
     "check:email-staging": "tsx src/scripts/check-email-staging-ready.ts",
     "smoke:invite-resend": "tsx src/scripts/smoke-provider-invitation-resend.ts",
     "query:settings-funnel": "tsx src/scripts/query-settings-funnel.ts",
+    "worker:pricing-bulk": "node --import dotenv/config --import tsx src/scripts/run-pricing-bulk-job-worker.ts",
     "query:integration-ux": "tsx src/scripts/query-provider-integration-ux.ts",
     "bootstrap:channex-staging": "tsx src/scripts/bootstrap-channex-staging.ts",
     "bootstrap:channex-certification": "tsx src/scripts/bootstrap-channex-certification-fixture.ts",

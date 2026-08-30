@@ -19,7 +19,7 @@ function dependencies(generatedDatesCount = 2) {
 			missingDatesCount: generatedDatesCount,
 			generatedDatesCount,
 		}),
-		invalidatePricing: vi.fn().mockResolvedValue(undefined),
+		invalidatePricingBatch: vi.fn().mockResolvedValue(undefined),
 		enqueueAri: vi.fn().mockResolvedValue(undefined),
 	}
 }
@@ -41,7 +41,7 @@ describe("PricingRuleCommandService", () => {
 		expect(result.days[0]).toMatchObject({ before: 100, after: 110, delta: 10 })
 		expect(deps.createRule).not.toHaveBeenCalled()
 		expect(deps.rematerialize).not.toHaveBeenCalled()
-		expect(deps.invalidatePricing).not.toHaveBeenCalled()
+		expect(deps.invalidatePricingBatch).not.toHaveBeenCalled()
 		expect(deps.enqueueAri).not.toHaveBeenCalled()
 	})
 
@@ -66,13 +66,13 @@ describe("PricingRuleCommandService", () => {
 				to: "2026-09-08",
 			})
 		)
-		expect(deps.invalidatePricing).toHaveBeenCalledWith({
-			ratePlanId: context.ratePlanId,
-			variantId: context.variantId,
+		expect(deps.invalidatePricingBatch).toHaveBeenCalledWith({
+			ratePlanIds: [context.ratePlanId],
+			variantIds: [context.variantId],
 		})
 		expect(deps.enqueueAri).toHaveBeenCalledWith({
-			variantId: context.variantId,
-			ratePlanId: context.ratePlanId,
+			variantIds: [context.variantId],
+			ratePlanIds: [context.ratePlanId],
 			from: "2026-09-01",
 			toExclusive: "2026-09-08",
 		})
@@ -106,7 +106,74 @@ describe("PricingRuleCommandService", () => {
 			priority: 10,
 		})
 
-		expect(deps.invalidatePricing).not.toHaveBeenCalled()
+		expect(deps.invalidatePricingBatch).not.toHaveBeenCalled()
 		expect(deps.enqueueAri).not.toHaveBeenCalled()
+	})
+
+	it("defers materialization and effects while preserving a durable impact descriptor", async () => {
+		const deps = dependencies()
+		const service = new PricingRuleCommandService(deps)
+
+		const result = await service.createRule(
+			context,
+			{
+				type: "percentage_markup",
+				value: 10,
+				priority: 10,
+				dateFrom: "2026-09-01",
+				dateTo: "2026-09-07",
+				occupancyKey: "a2_c0_i0",
+			},
+			{ executionMode: "deferred" }
+		)
+
+		expect(result.impact).toEqual({
+			ratePlanId: "rate-plan-1",
+			variantId: "variant-1",
+			from: "2026-09-01",
+			toExclusive: "2026-09-08",
+			occupancyKey: "a2_c0_i0",
+		})
+		expect(result.rematerialization).toBeNull()
+		expect(deps.rematerialize).not.toHaveBeenCalled()
+		expect(deps.invalidatePricingBatch).not.toHaveBeenCalled()
+		expect(deps.enqueueAri).not.toHaveBeenCalled()
+	})
+
+	it("coalesces deferred impacts before invalidating caches and enqueuing ARI", async () => {
+		const deps = dependencies()
+		const service = new PricingRuleCommandService(deps)
+
+		const result = await service.finalizeDeferredImpacts({
+			idempotencyScope: "pricing-bulk:job-1:effects",
+			impacts: [
+				{
+					ratePlanId: "rate-plan-1",
+					variantId: "variant-1",
+					from: "2026-09-01",
+					toExclusive: "2026-09-05",
+					occupancyKey: null,
+				},
+				{
+					ratePlanId: "rate-plan-1",
+					variantId: "variant-1",
+					from: "2026-09-03",
+					toExclusive: "2026-09-10",
+					occupancyKey: null,
+				},
+			],
+		})
+
+		expect(deps.rematerialize).toHaveBeenCalledTimes(1)
+		expect(deps.invalidatePricingBatch).toHaveBeenCalledOnce()
+		expect(deps.enqueueAri).toHaveBeenCalledWith({
+			variantIds: ["variant-1"],
+			ratePlanIds: ["rate-plan-1"],
+			from: "2026-09-01",
+			toExclusive: "2026-09-10",
+			idempotencyScope: "pricing-bulk:job-1:effects",
+			critical: true,
+		})
+		expect(result.materializations).toHaveLength(1)
 	})
 })

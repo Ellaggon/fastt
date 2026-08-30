@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest"
 import { db, eq, RatePlanOccupancyPolicy, sql } from "@/shared/infrastructure/db/compat"
 
+import { pricingBulkJobService } from "@/container"
 import {
 	createCommercialPriceRule,
 	listCommercialPriceRulesByRatePlan,
 } from "@/lib/commercial-rules/commercialRulesRepository"
+import { runPricingBulkJobWorker } from "@/lib/pricing/pricing-bulk-job-worker"
 import { POST as commercialRulesPost } from "@/pages/api/rates/commercial-rules"
 import { POST as bulkApplyPost } from "@/pages/api/pricing/rules/v2/bulk-apply"
 import { POST as bulkPreviewPost } from "@/pages/api/pricing/rules/v2/bulk-preview"
@@ -18,58 +20,19 @@ import {
 } from "@/shared/infrastructure/test-support/db-test-data"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
-
-type SupabaseTestUser = { id: string; email: string }
-
-function withSupabaseAuthStub<T>(
-	usersByToken: Record<string, SupabaseTestUser>,
-	fn: () => Promise<T>
-) {
-	const prevUrl = process.env.SUPABASE_URL
-	const prevAnon = process.env.SUPABASE_ANON_KEY
-	const prevFetch = globalThis.fetch
-
-	process.env.SUPABASE_URL = "https://supabase.test"
-	process.env.SUPABASE_ANON_KEY = "sb_publishable_test"
-
-	globalThis.fetch = (async (input: any, init?: any) => {
-		const url = typeof input === "string" ? input : String(input?.url || "")
-		const expected = `${process.env.SUPABASE_URL}/auth/v1/user`
-		if (url !== expected) return new Response("fetch not mocked", { status: 500 })
-
-		const headers = init?.headers
-		const authHeader =
-			typeof headers?.get === "function"
-				? headers.get("Authorization") || headers.get("authorization")
-				: headers?.Authorization || headers?.authorization
-		const token = typeof authHeader === "string" ? authHeader.replace(/^Bearer\s+/i, "").trim() : ""
-		const user = usersByToken[token]
-		if (!user) return new Response("Unauthorized", { status: 401 })
-
-		return new Response(JSON.stringify({ id: user.id, email: user.email }), {
-			status: 200,
-			headers: { "Content-Type": "application/json" },
-		})
-	}) as any
-
-	return fn().finally(() => {
-		globalThis.fetch = prevFetch
-		if (prevUrl === undefined) delete process.env.SUPABASE_URL
-		else process.env.SUPABASE_URL = prevUrl
-		if (prevAnon === undefined) delete process.env.SUPABASE_ANON_KEY
-		else process.env.SUPABASE_ANON_KEY = prevAnon
-	})
-}
+import { withSupabaseAuthStub } from "../test-support/supabase-auth-stub"
 
 function makeAuthedJsonRequest(params: {
 	path: string
 	token?: string
 	body: Record<string, unknown>
+	idempotencyKey?: string
 }) {
 	const headers = new Headers({ "Content-Type": "application/json" })
 	if (params.token) {
 		headers.set("cookie", `sb-access-token=${encodeURIComponent(params.token)}; sb-refresh-token=r`)
 	}
+	if (params.idempotencyKey) headers.set("idempotency-key", params.idempotencyKey)
 	return new Request(`http://localhost:4321${params.path}`, {
 		method: "POST",
 		headers,
@@ -114,7 +77,7 @@ async function seedBulkFixture() {
 
 	await upsertGeoPlace({
 		id: geoPlaceId,
-		name: "Pricing V2 Bulk Dest",
+		name: `Pricing V2 Bulk Dest ${suffix}`,
 		type: "city",
 		country: "CL",
 		slug: `pricing-v2-bulk-${suffix}`,
@@ -175,6 +138,38 @@ async function seedBulkFixture() {
 	})
 
 	return { token, email, providerId, ratePlanAId, ratePlanBId }
+}
+
+async function submitAndCompleteBulkApply(params: {
+	fixture: Awaited<ReturnType<typeof seedBulkFixture>>
+	body: Record<string, unknown>
+}) {
+	const response = await bulkApplyPost({
+		request: makeAuthedJsonRequest({
+			path: "/api/pricing/rules/v2/bulk-apply",
+			token: params.fixture.token,
+			idempotencyKey: `pricing-bulk-test:${crypto.randomUUID()}`,
+			body: params.body,
+		}),
+	} as any)
+	expect(response.status).toBe(202)
+	const accepted = await readJson(response)
+	const jobId = String(accepted?.job?.id ?? "")
+	expect(jobId).not.toBe("")
+
+	await runPricingBulkJobWorker({
+		jobBatchSize: 1,
+		itemBatchSize: 20,
+		itemConcurrency: 2,
+		timeBudgetMs: 10_000,
+	})
+	const completed = await pricingBulkJobService.get({
+		providerId: params.fixture.providerId,
+		jobId,
+	})
+	if (!completed) throw new Error("pricing_bulk_job_not_found_after_worker")
+	expect(completed.job.status).toBe("succeeded")
+	return completed
 }
 
 describe("integration/pricing rules v2 bulk orchestration", () => {
@@ -301,34 +296,29 @@ describe("integration/pricing rules v2 bulk orchestration", () => {
 		await withSupabaseAuthStub(
 			{ [fixture.token]: { id: "u_pr_v2_bulk_without_base", email: fixture.email } },
 			async () => {
-				const response = await bulkApplyPost({
-					request: makeAuthedJsonRequest({
-						path: "/api/pricing/rules/v2/bulk-apply",
-						token: fixture.token,
-						body: {
-							ratePlanIds: [fixture.ratePlanAId],
-							operation: {
-								type: "fixed_override",
-								value: 10,
-								conditions: {
-									priority: 1000,
-									dateFrom: "2026-06-20",
-									dateTo: "2026-06-22",
-									previewFrom: "2026-06-20",
-									previewDays: 3,
-									effectiveFrom: "2026-06-20",
-									effectiveTo: "2026-06-23",
-									contextKey: "manual",
-								},
+				const completed = await submitAndCompleteBulkApply({
+					fixture,
+					body: {
+						ratePlanIds: [fixture.ratePlanAId],
+						operation: {
+							type: "fixed_override",
+							value: 10,
+							conditions: {
+								priority: 1000,
+								dateFrom: "2026-06-20",
+								dateTo: "2026-06-22",
+								previewFrom: "2026-06-20",
+								previewDays: 3,
+								effectiveFrom: "2026-06-20",
+								effectiveTo: "2026-06-23",
+								contextKey: "manual",
 							},
 						},
-					}),
-				} as any)
-				expect(response.status).toBe(200)
-				const payload = await readJson(response)
-				expect(payload?.summary?.success).toBe(1)
-				expect(payload?.summary?.failed).toBe(0)
-				expect(payload?.results?.[0]?.daysGenerated).toBeGreaterThan(0)
+					},
+				})
+				expect(completed.job.succeededItems).toBe(1)
+				expect(completed.job.failedItems).toBe(0)
+				expect(completed.items[0]?.ruleId).toBeTruthy()
 			}
 		)
 	})
@@ -365,20 +355,14 @@ describe("integration/pricing rules v2 bulk orchestration", () => {
 		await withSupabaseAuthStub(
 			{ [fixture.token]: { id: "u_pr_v2_bulk_iso", email: fixture.email } },
 			async () => {
-				const applyResponse = await bulkApplyPost({
-					request: makeAuthedJsonRequest({
-						path: "/api/pricing/rules/v2/bulk-apply",
-						token: fixture.token,
-						body: {
-							ratePlanIds: [fixture.ratePlanAId],
-							operation: { type: "percentage", value: 15, conditions: { effectiveDays: 7 } },
-						},
-					}),
-				} as any)
-				expect(applyResponse.status).toBe(200)
-				const applyPayload = await readJson(applyResponse)
-				expect(applyPayload?.summary?.success).toBe(1)
-				expect(applyPayload?.summary?.failed).toBe(0)
+				const completed = await submitAndCompleteBulkApply({
+					fixture,
+					body: {
+						ratePlanIds: [fixture.ratePlanAId],
+						operation: { type: "percentage", value: 15, conditions: { effectiveDays: 7 } },
+					},
+				})
+				expect(completed.job.succeededItems).toBe(1)
 
 				const listA = await listRulesV2Get({
 					request: makeAuthedGetRequest({
@@ -415,35 +399,26 @@ describe("integration/pricing rules v2 bulk orchestration", () => {
 		await withSupabaseAuthStub(
 			{ [fixture.token]: { id: "u_pr_v2_bulk_cons", email: fixture.email } },
 			async () => {
-				const response = await bulkApplyPost({
-					request: makeAuthedJsonRequest({
-						path: "/api/pricing/rules/v2/bulk-apply",
-						token: fixture.token,
-						body: {
-							ratePlanIds: [fixture.ratePlanAId, fixture.ratePlanBId],
-							operation: { type: "fixed_adjustment", value: 7, conditions: { effectiveDays: 5 } },
-							concurrency: 2,
-						},
-					}),
-				} as any)
-				expect(response.status).toBe(200)
-				const payload = await readJson(response)
-				expect(payload?.summary?.total).toBe(2)
-				expect(payload?.summary?.success).toBe(2)
-				expect(payload?.summary?.failed).toBe(0)
-				expect(Array.isArray(payload?.results)).toBe(true)
-				expect(payload.results.every((item: any) => typeof item.ratePlanId === "string")).toBe(true)
+				const completed = await submitAndCompleteBulkApply({
+					fixture,
+					body: {
+						ratePlanIds: [fixture.ratePlanAId, fixture.ratePlanBId],
+						operation: { type: "fixed_adjustment", value: 7, conditions: { effectiveDays: 5 } },
+						concurrency: 2,
+					},
+				})
+				expect(completed.job.totalItems).toBe(2)
+				expect(completed.job.succeededItems).toBe(2)
+				expect(completed.job.failedItems).toBe(0)
+				expect(completed.items.every((item) => typeof item.ratePlanId === "string")).toBe(true)
 				expect(
-					payload.results.every(
-						(item: any) => typeof item.ruleId === "string" && item.ruleId.length > 0
-					)
+					completed.items.every((item) => typeof item.ruleId === "string" && item.ruleId.length > 0)
 				).toBe(true)
-				expect(payload.results.every((item: any) => Number(item.daysGenerated) > 0)).toBe(true)
 			}
 		)
 	})
 
-	it("dryRun no persiste reglas nuevas", async () => {
+	it("bulk preview no persiste reglas nuevas", async () => {
 		const fixture = await seedBulkFixture()
 		await withSupabaseAuthStub(
 			{ [fixture.token]: { id: "u_pr_v2_bulk_dry", email: fixture.email } },
@@ -460,9 +435,9 @@ describe("integration/pricing rules v2 bulk orchestration", () => {
 				const beforePayload = await readJson(beforeList)
 				const beforeCount = Array.isArray(beforePayload?.rules) ? beforePayload.rules.length : 0
 
-				const applyResponse = await bulkApplyPost({
+				const previewResponse = await bulkPreviewPost({
 					request: makeAuthedJsonRequest({
-						path: "/api/pricing/rules/v2/bulk-apply",
+						path: "/api/pricing/rules/v2/bulk-preview",
 						token: fixture.token,
 						body: {
 							ratePlanIds: [fixture.ratePlanAId],
@@ -471,9 +446,9 @@ describe("integration/pricing rules v2 bulk orchestration", () => {
 						},
 					}),
 				} as any)
-				expect(applyResponse.status).toBe(200)
-				const applyPayload = await readJson(applyResponse)
-				expect(applyPayload?.dryRun).toBe(true)
+				expect(previewResponse.status).toBe(200)
+				const previewPayload = await readJson(previewResponse)
+				expect(previewPayload?.summary?.success).toBe(1)
 
 				const afterList = await listRulesV2Get({
 					request: makeAuthedGetRequest({
@@ -496,39 +471,30 @@ describe("integration/pricing rules v2 bulk orchestration", () => {
 		await withSupabaseAuthStub(
 			{ [fixture.token]: { id: "u_pr_v2_bulk_occ", email: fixture.email } },
 			async () => {
-				const globalApplyResponse = await bulkApplyPost({
-					request: makeAuthedJsonRequest({
-						path: "/api/pricing/rules/v2/bulk-apply",
-						token: fixture.token,
-						body: {
-							ratePlanIds: [fixture.ratePlanAId],
-							operation: { type: "fixed_adjustment", value: 5, conditions: { effectiveDays: 5 } },
-						},
-					}),
-				} as any)
-				expect(globalApplyResponse.status).toBe(200)
+				const globalCompleted = await submitAndCompleteBulkApply({
+					fixture,
+					body: {
+						ratePlanIds: [fixture.ratePlanAId],
+						operation: { type: "fixed_adjustment", value: 5, conditions: { effectiveDays: 5 } },
+					},
+				})
+				expect(globalCompleted.job.succeededItems).toBe(1)
 
-				const scopedApplyResponse = await bulkApplyPost({
-					request: makeAuthedJsonRequest({
-						path: "/api/pricing/rules/v2/bulk-apply",
-						token: fixture.token,
-						body: {
-							ratePlanIds: [fixture.ratePlanAId],
-							operation: {
-								type: "percentage_markup",
-								value: 10,
-								conditions: {
-									effectiveDays: 5,
-									occupancyKey: buildOccupancyKey({ adults: 3, children: 0, infants: 0 }),
-								},
+				const scopedCompleted = await submitAndCompleteBulkApply({
+					fixture,
+					body: {
+						ratePlanIds: [fixture.ratePlanAId],
+						operation: {
+							type: "percentage_markup",
+							value: 10,
+							conditions: {
+								effectiveDays: 5,
+								occupancyKey: buildOccupancyKey({ adults: 3, children: 0, infants: 0 }),
 							},
 						},
-					}),
-				} as any)
-				expect(scopedApplyResponse.status).toBe(200)
-				const scopedPayload = await readJson(scopedApplyResponse)
-				expect(scopedPayload?.summary?.success).toBe(1)
-				expect(scopedPayload?.summary?.failed).toBe(0)
+					},
+				})
+				expect(scopedCompleted.job.succeededItems).toBe(1)
 
 				const listResponse = await listRulesV2Get({
 					request: makeAuthedGetRequest({
@@ -580,7 +546,10 @@ describe("integration/pricing rules v2 bulk orchestration", () => {
 			WHERE r."id" = ${created.ruleId}
 		`)
 		const row = (result as any).rows?.[0] ?? (result as any)[0]
-		const config = JSON.parse(String(row?.configJson ?? "{}"))
+		const config =
+			row?.configJson && typeof row.configJson === "object"
+				? row.configJson
+				: JSON.parse(String(row?.configJson ?? "{}"))
 
 		expect(row?.ruleSetStatus).toBe("paused")
 		expect(Number(row?.ruleActive)).toBe(0)

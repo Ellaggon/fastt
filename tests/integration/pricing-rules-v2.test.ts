@@ -75,7 +75,7 @@ async function seedRatePlanV2Fixture() {
 
 	await upsertGeoPlace({
 		id: geoPlaceId,
-		name: "Pricing V2 Dest",
+		name: `Pricing V2 Dest ${suffix}`,
 		type: "city",
 		country: "CL",
 		slug: `pricing-v2-${suffix}`,

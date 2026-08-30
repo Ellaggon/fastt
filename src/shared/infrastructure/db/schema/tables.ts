@@ -2241,6 +2241,135 @@ export const CommercialRuleApplication = pgTable(
 	]
 )
 
+/** Durable queue for immutable, provider-scoped bulk pricing commands. */
+export const PricingBulkOperationJob = pgTable(
+	"PricingBulkOperationJob",
+	{
+		id: pk(),
+		providerId: txt("providerId").references(() => Provider.id),
+		requestedByUserId: txt("requestedByUserId").references(() => User.id),
+		idempotencyKey: txt("idempotencyKey"),
+		payloadHash: txt("payloadHash"),
+		operationType: txt("operationType"),
+		commandJson: jsonb("commandJson").notNull(),
+		status: text("status").default("queued").notNull(),
+		totalItems: intDefault("totalItems", 0),
+		pendingItems: intDefault("pendingItems", 0),
+		runningItems: intDefault("runningItems", 0),
+		completedItems: intDefault("completedItems", 0),
+		succeededItems: intDefault("succeededItems", 0),
+		failedItems: intDefault("failedItems", 0),
+		skippedItems: intDefault("skippedItems", 0),
+		cancelledItems: intDefault("cancelledItems", 0),
+		attempts: intDefault("attempts", 0),
+		maxAttempts: intDefault("maxAttempts", 3),
+		runAfter: now("runAfter"),
+		lockedAt: ts("lockedAt"),
+		lockedBy: txtOpt("lockedBy"),
+		finalizationAttempts: intDefault("finalizationAttempts", 0),
+		finalizationErrorCode: txtOpt("finalizationErrorCode"),
+		finalizationErrorDetail: txtOpt("finalizationErrorDetail"),
+		finalizationStartedAt: ts("finalizationStartedAt"),
+		finalizationFinishedAt: ts("finalizationFinishedAt"),
+		finalErrorCode: txtOpt("finalErrorCode"),
+		finalErrorDetail: txtOpt("finalErrorDetail"),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+		startedAt: ts("startedAt"),
+		finishedAt: ts("finishedAt"),
+	},
+	(table) => [
+		uniqueIndex("PricingBulkOperationJob_provider_idempotency_unique").on(
+			table.providerId,
+			table.idempotencyKey
+		),
+		index("PricingBulkOperationJob_claim_due_idx")
+			.on(table.runAfter, table.createdAt, table.providerId)
+			.where(sql`${table.status} = 'queued'`),
+		index("PricingBulkOperationJob_finalization_due_idx")
+			.on(table.runAfter, table.createdAt)
+			.where(sql`${table.status} = 'finalizing' AND ${table.lockedBy} IS NULL`),
+		index("PricingBulkOperationJob_provider_status_idx").on(
+			table.providerId,
+			table.status,
+			table.runAfter
+		),
+		index("PricingBulkOperationJob_terminal_retention_idx")
+			.on(table.status, table.finishedAt)
+			.where(
+				sql`${table.status} IN ('succeeded', 'partial', 'failed', 'cancelled') AND ${table.finishedAt} IS NOT NULL`
+			),
+		check(
+			"PricingBulkOperationJob_status_check",
+			sql`${table.status} IN ('queued', 'running', 'finalizing', 'succeeded', 'partial', 'failed', 'cancelled')`
+		),
+		check(
+			"PricingBulkOperationJob_operationType_check",
+			sql`${table.operationType} IN ('create_pricing_rule', 'preview_pricing_rule', 'update_pricing_rule', 'delete_pricing_rule')`
+		),
+		check(
+			"PricingBulkOperationJob_idempotencyKey_not_blank",
+			sql`length(trim(${table.idempotencyKey})) > 0`
+		),
+		check(
+			"PricingBulkOperationJob_payloadHash_sha256_check",
+			sql`${table.payloadHash} ~ '^[a-f0-9]{64}$'`
+		),
+		check(
+			"PricingBulkOperationJob_attempts_check",
+			sql`${table.attempts} >= 0 AND ${table.maxAttempts} > 0 AND ${table.attempts} <= ${table.maxAttempts}`
+		),
+		check(
+			"PricingBulkOperationJob_finalizationAttempts_check",
+			sql`${table.finalizationAttempts} >= 0`
+		),
+		check(
+			"PricingBulkOperationJob_progress_nonnegative_check",
+			sql`${table.totalItems} >= 0 AND ${table.pendingItems} >= 0 AND ${table.runningItems} >= 0 AND ${table.completedItems} >= 0 AND ${table.succeededItems} >= 0 AND ${table.failedItems} >= 0 AND ${table.skippedItems} >= 0 AND ${table.cancelledItems} >= 0`
+		),
+		check(
+			"PricingBulkOperationJob_progress_balance_check",
+			sql`${table.completedItems} = ${table.succeededItems} + ${table.failedItems} + ${table.skippedItems} + ${table.cancelledItems} AND ${table.totalItems} = ${table.pendingItems} + ${table.runningItems} + ${table.completedItems}`
+		),
+	]
+)
+
+/** Immutable target snapshot and independently retryable result per rate plan. */
+export const PricingBulkOperationItem = pgTable(
+	"PricingBulkOperationItem",
+	{
+		id: pk(),
+		jobId: txt("jobId").references(() => PricingBulkOperationJob.id, { onDelete: "cascade" }),
+		ratePlanId: txt("ratePlanId").references(() => RatePlan.id),
+		productIdSnapshot: txt("productIdSnapshot"),
+		productNameSnapshot: txtOpt("productNameSnapshot"),
+		variantIdSnapshot: txt("variantIdSnapshot"),
+		variantNameSnapshot: txtOpt("variantNameSnapshot"),
+		status: text("status").default("queued").notNull(),
+		attempts: intDefault("attempts", 0),
+		ruleId: txtOpt("ruleId").references(() => CommercialRule.id, { onDelete: "set null" }),
+		previewResultJson: jsonb("previewResultJson"),
+		materializationResultJson: jsonb("materializationResultJson"),
+		errorCode: txtOpt("errorCode"),
+		errorDetail: txtOpt("errorDetail"),
+		commercialImpactJson: jsonb("commercialImpactJson"),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+		startedAt: ts("startedAt"),
+		finishedAt: ts("finishedAt"),
+	},
+	(table) => [
+		uniqueIndex("PricingBulkOperationItem_job_ratePlan_unique").on(table.jobId, table.ratePlanId),
+		index("PricingBulkOperationItem_job_status_idx").on(table.jobId, table.status, table.createdAt),
+		index("PricingBulkOperationItem_ratePlan_status_idx").on(table.ratePlanId, table.status),
+		check(
+			"PricingBulkOperationItem_status_check",
+			sql`${table.status} IN ('queued', 'running', 'succeeded', 'failed', 'skipped', 'cancelled')`
+		),
+		check("PricingBulkOperationItem_attempts_check", sql`${table.attempts} >= 0`),
+	]
+)
+
 export const EffectiveRestriction = pgTable(
 	"EffectiveRestriction",
 	{
