@@ -1,5 +1,5 @@
 ---
-import { Plus, CalendarDays, Hotel, X } from "@lucide/astro"
+import { Plus, X } from "@lucide/astro"
 import Button from "@/components/ui/Button.astro"
 import Dialog from "@/components/ui/Dialog.astro"
 import Input from "@/components/ui/Input.astro"
@@ -235,8 +235,6 @@ const isPlaybookRateStep = Boolean(activePlaybook)
 const isTourPlaybookRateStep = activePlaybook === "launch-tour"
 const playbookVariantLabel =
 	matchedVariant?.variantName ?? (isTourPlaybookRateStep ? "esta salida" : "esta habitación")
-const playbookProductLabel =
-	matchedVariant?.productName ?? (isTourPlaybookRateStep ? "Tour" : "Alojamiento")
 const guidedIntentPresets = isTourPlaybookRateStep
 	? ratePlanIntentPresets.filter((preset) =>
 			["flexible", "non_refundable", "early_booking"].includes(preset.id)
@@ -325,19 +323,6 @@ logRoutePerformance({
 	<div class="rate-plans-manage space-y-5" data-rate-plan-view-controller>
 		<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
 			<div class="space-y-1.5">
-				{
-					isPlaybookRateStep ? (
-						<p class="flex items-center gap-2 text-xs font-semibold tracking-wide text-slate-400 uppercase">
-							{isTourPlaybookRateStep ? (
-								<CalendarDays class="h-4 w-4" />
-							) : (
-								<Hotel class="h-4 w-4" />
-							)}
-							{playbookProductLabel} ·{" "}
-							{isTourPlaybookRateStep ? "Primera salida" : "Nueva habitación"}
-						</p>
-					) : null
-				}
 				<h1 class="text-3xl font-semibold text-slate-100">
 					{
 						isPlaybookRateStep
