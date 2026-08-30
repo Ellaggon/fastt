@@ -8,6 +8,11 @@ import { POST as deleteRuleV2Post } from "@/pages/api/pricing/rules/v2/delete"
 import { GET as listRulesV2Get } from "@/pages/api/pricing/rules/v2/list"
 import { POST as previewRulesV2Post } from "@/pages/api/pricing/rules/v2/preview"
 import { POST as generateEffectiveV2Post } from "@/pages/api/pricing/rules/v2/generate-effective"
+import {
+	createCommercialPriceRule,
+	listCommercialPriceRulesByRatePlan,
+	setCommercialRuleActive,
+} from "@/lib/commercial-rules/commercialRulesRepository"
 
 import {
 	upsertGeoPlace,
@@ -17,48 +22,7 @@ import {
 	upsertVariant,
 } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
-
-type SupabaseTestUser = { id: string; email: string }
-
-function withSupabaseAuthStub<T>(
-	usersByToken: Record<string, SupabaseTestUser>,
-	fn: () => Promise<T>
-) {
-	const prevUrl = process.env.SUPABASE_URL
-	const prevAnon = process.env.SUPABASE_ANON_KEY
-	const prevFetch = globalThis.fetch
-
-	process.env.SUPABASE_URL = "https://supabase.test"
-	process.env.SUPABASE_ANON_KEY = "sb_publishable_test"
-
-	globalThis.fetch = (async (input: any, init?: any) => {
-		const url = typeof input === "string" ? input : String(input?.url || "")
-		const expected = `${process.env.SUPABASE_URL}/auth/v1/user`
-		if (url !== expected) return new Response("fetch not mocked", { status: 500 })
-
-		const headers = init?.headers
-		const authHeader =
-			typeof headers?.get === "function"
-				? headers.get("Authorization") || headers.get("authorization")
-				: headers?.Authorization || headers?.authorization
-		const token = typeof authHeader === "string" ? authHeader.replace(/^Bearer\s+/i, "").trim() : ""
-		const user = usersByToken[token]
-		if (!user) return new Response("Unauthorized", { status: 401 })
-
-		return new Response(JSON.stringify({ id: user.id, email: user.email }), {
-			status: 200,
-			headers: { "Content-Type": "application/json" },
-		})
-	}) as any
-
-	return fn().finally(() => {
-		globalThis.fetch = prevFetch
-		if (prevUrl === undefined) delete process.env.SUPABASE_URL
-		else process.env.SUPABASE_URL = prevUrl
-		if (prevAnon === undefined) delete process.env.SUPABASE_ANON_KEY
-		else process.env.SUPABASE_ANON_KEY = prevAnon
-	})
-}
+import { withSupabaseAuthStub } from "../test-support/supabase-auth-stub"
 
 function makeAuthedJsonRequest(params: {
 	path: string
@@ -167,7 +131,7 @@ async function seedRatePlanV2Fixture() {
 		isDefault: true,
 	})
 
-	return { token, email, productId, variantAId, variantBId, ratePlanAId, ratePlanBId }
+	return { token, email, providerId, productId, variantAId, variantBId, ratePlanAId, ratePlanBId }
 }
 
 describe("integration/pricing rules v2 (ratePlan-first)", () => {
@@ -281,6 +245,25 @@ describe("integration/pricing rules v2 (ratePlan-first)", () => {
 				expect(listA3Body.rules.some((rule: any) => String(rule.id) === ruleAId)).toBe(false)
 			}
 		)
+	}, 120_000)
+
+	it("pausa y reactiva una regla comercial sin interpolar timestamps de JavaScript", async () => {
+		const fixture = await seedRatePlanV2Fixture()
+		const created = await createCommercialPriceRule({
+			providerId: fixture.providerId,
+			ratePlanId: fixture.ratePlanAId,
+			type: "percentage_markup",
+			value: 10,
+			priority: 10,
+		})
+
+		await setCommercialRuleActive(created.ruleId, false)
+		let rules = await listCommercialPriceRulesByRatePlan(fixture.ratePlanAId)
+		expect(rules.find((rule) => rule.id === created.ruleId)?.isActive).toBe(false)
+
+		await setCommercialRuleActive(created.ruleId, true)
+		rules = await listCommercialPriceRulesByRatePlan(fixture.ratePlanAId)
+		expect(rules.find((rule) => rule.id === created.ruleId)?.isActive).toBe(true)
 	})
 
 	it("determinismo: mismas reglas producen mismo preview", async () => {

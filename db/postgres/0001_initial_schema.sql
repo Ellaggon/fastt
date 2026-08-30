@@ -1176,6 +1176,8 @@ CREATE TABLE "CommercialRule" (
 	"name" text,
 	"value" numeric(14, 2),
 	"configJson" jsonb,
+	"idempotencyKey" text,
+	"idempotencyPayloadHash" text,
 	"priority" integer NOT NULL DEFAULT 100,
 	"isActive" boolean NOT NULL DEFAULT true,
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
@@ -3283,6 +3285,8 @@ CREATE INDEX "CommercialRule_provider_category_type_idx" ON "CommercialRule" ("p
 
 CREATE INDEX "CommercialRule_ruleSetId_isActive_idx" ON "CommercialRule" ("ruleSetId", "isActive");
 
+CREATE UNIQUE INDEX "CommercialRule_provider_idempotency_unique" ON "CommercialRule" ("providerId", "idempotencyKey") WHERE "idempotencyKey" IS NOT NULL;
+
 CREATE INDEX "CommercialRuleApplication_provider_scope_active_idx" ON "CommercialRuleApplication" ("providerId", "scope", "scopeId", "isActive");
 
 CREATE INDEX "CommercialRuleApplication_rule_scope_idx" ON "CommercialRuleApplication" ("ruleId", "scope", "scopeId");
@@ -3564,6 +3568,16 @@ ALTER TABLE "PolicyAssignment" ADD CONSTRAINT "PolicyAssignment_typed_target_che
 			));
 
 ALTER TABLE "Hold" ADD CONSTRAINT "Hold_commercial_snapshot_check" CHECK (("commercialSnapshotVersion" = 'legacy' AND "priceQuoteId" IS NULL AND "commercialSnapshotJson" IS NULL) OR ("commercialSnapshotVersion" = 'hold_commercial_snapshot_v1' AND "priceQuoteId" IS NOT NULL AND "commercialSnapshotJson" IS NOT NULL AND ("commercialSnapshotJson" -> 'priceQuote' ->> 'quoteId') = "priceQuoteId"));
+
+ALTER TABLE "CommercialRule" ADD CONSTRAINT "CommercialRule_idempotency_pair_check" CHECK ((
+				("idempotencyKey" IS NULL AND "idempotencyPayloadHash" IS NULL)
+				OR (
+					"idempotencyKey" IS NOT NULL
+					AND "providerId" IS NOT NULL
+					AND length(trim("idempotencyKey")) > 0
+					AND "idempotencyPayloadHash" ~ '^[a-f0-9]{64}$'
+				)
+			));
 
 ALTER TABLE "CommercialRuleApplication" ADD CONSTRAINT "CommercialRuleApplication_typed_target_check" CHECK ((
 				("scope" = 'product' AND "productTargetId" IS NOT NULL AND "variantTargetId" IS NULL AND "ratePlanTargetId" IS NULL)

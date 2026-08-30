@@ -39,6 +39,7 @@ export type NormalizedPricingRuleCommand = {
 	checkIn?: string
 	checkOut?: string
 	nights?: number
+	idempotencyKey?: string
 	eligibility?: {
 		minLeadDays?: number | null
 		maxLeadDays?: number | null
@@ -70,7 +71,8 @@ type PricingRuleCommandDependencies = {
 		dateRangeJson: Record<string, unknown> | null
 		dayOfWeekJson: number[] | null
 		occupancyKey: string | null
-	}): Promise<{ ruleId: string }>
+		idempotencyKey?: string
+	}): Promise<{ ruleId: string; replayed?: boolean }>
 	rematerialize(input: {
 		variantId: string
 		ratePlanId: string
@@ -237,6 +239,7 @@ export class PricingRuleCommandService {
 			dateRangeJson: range,
 			dayOfWeekJson: command.dayOfWeek ?? null,
 			occupancyKey: command.occupancyKey ?? null,
+			idempotencyKey: command.idempotencyKey,
 		})
 		const from = command.dateFrom ?? new Date().toISOString().slice(0, 10)
 		const to = command.dateTo ? addDays(command.dateTo, 1) : addDays(from, 60)
@@ -264,6 +267,7 @@ export class PricingRuleCommandService {
 		return {
 			ruleId: created.ruleId,
 			ratePlanId: context.ratePlanId,
+			replayed: created.replayed === true,
 			rematerialization,
 			rules,
 		}

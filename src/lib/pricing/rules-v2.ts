@@ -176,6 +176,10 @@ export function normalizedPricingRuleCommandFromPayload(
 	const value = parseNumber(payload, "value", Number.NaN)
 	if (!Number.isFinite(value)) throw new PricingRuleCommandError("invalid_value")
 	const contextKey = optionalText(payload, "contextKey")
+	const idempotencyKey = optionalText(payload, "idempotencyKey")
+	if (idempotencyKey && idempotencyKey.length > 200) {
+		throw new PricingRuleCommandError("invalid_idempotency_key")
+	}
 	const eligibility = parsePricingRuleEligibility(payload)
 	const eligibilityError = validatePricingRuleEligibility({ contextKey, eligibility })
 	if (eligibilityError) throw new PricingRuleCommandError(eligibilityError)
@@ -195,6 +199,7 @@ export function normalizedPricingRuleCommandFromPayload(
 		checkIn: optionalText(payload, "checkIn"),
 		checkOut: optionalText(payload, "checkOut"),
 		nights: parseNumber(payload, "nights", Number.NaN),
+		idempotencyKey,
 		eligibility,
 	}
 }

@@ -1,6 +1,6 @@
-import { InventorySeederService } from "@/modules/inventory/public"
 import { and, db, EffectiveAvailability, eq, gte, lt } from "@/shared/infrastructure/db/compat"
 
+import { InventorySeederService } from "../modules/inventory/application/services/InventorySeederService"
 import { DailyInventoryRepository } from "../modules/inventory/infrastructure/repositories/DailyInventoryRepository"
 import { InventoryHoldRepository } from "../modules/inventory/infrastructure/repositories/InventoryHoldRepository"
 import { InventoryRepository } from "../modules/inventory/infrastructure/repositories/InventoryRepository"
