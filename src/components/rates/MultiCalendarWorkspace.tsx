@@ -28,6 +28,11 @@ import {
 } from "@/components/ui-react"
 import { CALENDAR_CONTROL_MODES } from "@/lib/rates/calendarControlCatalog"
 import { createBoundedClientCache } from "@/lib/rates/calendarSurfaceClientCache"
+import {
+	clearPricingBulkClientIntent,
+	getOrCreatePricingBulkClientIntent,
+} from "@/lib/pricing/pricing-bulk-client-intent"
+import { shouldQueuePricingPreview } from "@/modules/pricing/public"
 import type {
 	MultiCalendarCell,
 	MultiCalendarRow,
@@ -472,9 +477,11 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 	const [cancellationSource, setCancellationSource] = useState("")
 	const [cancellationPreview, setCancellationPreview] = useState<CancellationPreviewItem[]>([])
 	const [cancellationPreviewReady, setCancellationPreviewReady] = useState(false)
-	const [pricingJob, setPricingJob] = useState<{ id: string; mode: "apply" | "preview" } | null>(
-		null
-	)
+	const [pricingJob, setPricingJob] = useState<{
+		id: string
+		mode: "apply" | "preview"
+		intentStorageKey: string
+	} | null>(null)
 	const requestRef = useRef<AbortController | null>(null)
 
 	useEffect(() => {
@@ -704,29 +711,29 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 		}
 	}
 
-	function idempotencyKey(mode: "apply" | "preview") {
-		const suffix =
-			globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
-		return `calendar-pricing:${mode}:${suffix}`
-	}
-
 	async function enqueuePricingJob(mode: "apply" | "preview") {
+		const payload = {
+			ratePlanIds: selection.ratePlanIds,
+			operation: pricingOperation(),
+			mode,
+		}
+		const intent = getOrCreatePricingBulkClientIntent({
+			surface: "multi-calendar",
+			mode,
+			payload,
+		})
 		const response = await fetch("/api/pricing/bulk-jobs", {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
-				"Idempotency-Key": idempotencyKey(mode),
+				"Idempotency-Key": intent.idempotencyKey,
 			},
-			body: JSON.stringify({
-				ratePlanIds: selection.ratePlanIds,
-				operation: pricingOperation(),
-				mode,
-			}),
+			body: JSON.stringify(payload),
 		})
 		const body = await response.json().catch(() => ({}))
 		if (!response.ok || !body?.job?.id)
 			throw new Error(body?.error || "No se pudo preparar la operación de precios.")
-		setPricingJob({ id: String(body.job.id), mode })
+		setPricingJob({ id: String(body.job.id), mode, intentStorageKey: intent.storageKey })
 		setFeedback(
 			mode === "preview"
 				? "La vista previa se preparó como una operación en segundo plano."
@@ -736,6 +743,9 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 
 	const onPricingJobTerminal = useCallback(
 		(result: PricingBulkJobView) => {
+			if (result.job.status === "succeeded" || result.job.status === "cancelled") {
+				clearPricingBulkClientIntent(pricingJob?.intentStorageKey)
+			}
 			if (result.job.operationType === "preview_pricing_rule") {
 				setPreviewReady(result.job.status === "succeeded")
 				setFeedback(
@@ -756,7 +766,7 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 				)
 			}
 		},
-		[selected, selection.ratePlanIds]
+		[pricingJob?.intentStorageKey, selected, selection.ratePlanIds]
 	)
 
 	async function reviewPrice() {
@@ -764,7 +774,7 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 		if (!Number.isFinite(numeric) || numeric < 0) return setFeedback("Ingresa un valor válido.")
 		setLoading(true)
 		try {
-			if (selection.ratePlanIds.length > 20) {
+			if (shouldQueuePricingPreview(selection.ratePlanIds.length)) {
 				await enqueuePricingJob("preview")
 				return
 			}

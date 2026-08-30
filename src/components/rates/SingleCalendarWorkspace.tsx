@@ -22,6 +22,10 @@ import {
 } from "@/lib/rates/calendarControlCatalog"
 import { CALENDAR_ACTION_ICONS } from "@/lib/rates/calendarActionIcons"
 import { createBoundedClientCache } from "@/lib/rates/calendarSurfaceClientCache"
+import {
+	clearPricingBulkClientIntent,
+	getOrCreatePricingBulkClientIntent,
+} from "@/lib/pricing/pricing-bulk-client-intent"
 import type { SingleCalendarDay, SingleCalendarSurface } from "@/lib/rates/singleCalendarSurface"
 
 type Props = {
@@ -258,6 +262,7 @@ export default function SingleCalendarWorkspace({
 	const [gridDirection, setGridDirection] = useState<"previous" | "next" | "neutral">("neutral")
 	const [updatedDates, setUpdatedDates] = useState<Set<string>>(new Set())
 	const [pricingJobId, setPricingJobId] = useState<string | null>(null)
+	const [pricingJobIntentStorageKey, setPricingJobIntentStorageKey] = useState<string | null>(null)
 	const activeRequest = useRef<AbortController | null>(null)
 	const requestSequence = useRef(0)
 	const today = localIsoDate()
@@ -680,31 +685,37 @@ export default function SingleCalendarWorkspace({
 	}
 
 	async function enqueueManualPricingJob() {
-		const idempotencyKey = `calendar-pricing:apply:${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`
+		const payload = {
+			ratePlanIds: [readySurface.selectedRatePlanId],
+			operation: {
+				type: "fixed_override",
+				value: Number(value),
+				conditions: {
+					priority: 1000,
+					dateFrom: selection.from,
+					dateTo: selection.to,
+					previewFrom: selection.from,
+					effectiveFrom: selection.from,
+					effectiveTo: addDays(selection.to, 1),
+					contextKey: "manual",
+				},
+			},
+		}
+		const intent = getOrCreatePricingBulkClientIntent({
+			surface: "single-calendar",
+			mode: "apply",
+			payload,
+		})
 		const response = await fetch("/api/pricing/bulk-jobs", {
 			method: "POST",
-			headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
-			body: JSON.stringify({
-				ratePlanIds: [readySurface.selectedRatePlanId],
-				operation: {
-					type: "fixed_override",
-					value: Number(value),
-					conditions: {
-						priority: 1000,
-						dateFrom: selection.from,
-						dateTo: selection.to,
-						previewFrom: selection.from,
-						effectiveFrom: selection.from,
-						effectiveTo: addDays(selection.to, 1),
-						contextKey: "manual",
-					},
-				},
-			}),
+			headers: { "Content-Type": "application/json", "Idempotency-Key": intent.idempotencyKey },
+			body: JSON.stringify(payload),
 		})
 		const body = await response.json().catch(() => ({}))
 		if (!response.ok || !body?.job?.id)
 			throw new Error(body?.error || "No se pudo preparar la operación de precios.")
 		setPricingJobId(String(body.job.id))
+		setPricingJobIntentStorageKey(intent.storageKey)
 		setFeedback("La operación fue preparada y se aplicará en segundo plano.")
 	}
 
@@ -1386,6 +1397,9 @@ export default function SingleCalendarWorkspace({
 							<PricingBulkJobOperationPanel
 								jobId={pricingJobId}
 								onTerminal={(result: PricingBulkJobView) => {
+									if (result.job.status === "succeeded" || result.job.status === "cancelled") {
+										clearPricingBulkClientIntent(pricingJobIntentStorageKey)
+									}
 									if (result.job.status === "succeeded" || result.job.status === "partial") {
 										surfaceCache.clear()
 										void loadSurface({}, { force: true })

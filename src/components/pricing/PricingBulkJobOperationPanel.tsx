@@ -10,6 +10,7 @@ type JobStatus =
 	| "succeeded"
 	| "partial"
 	| "failed"
+	| "requires_attention"
 	| "cancelled"
 
 export type PricingBulkJobView = {
@@ -27,6 +28,9 @@ export type PricingBulkJobView = {
 		cancelledItems: number
 		finalErrorDetail?: string | null
 		finalizationErrorDetail?: string | null
+		materializationCompletedAt?: string | null
+		cacheInvalidationCompletedAt?: string | null
+		ariEnqueueCompletedAt?: string | null
 	}
 	items: Array<{
 		id: string
@@ -44,20 +48,28 @@ type Props = {
 	onTerminal?: (job: PricingBulkJobView) => void
 }
 
-const terminalStatuses = new Set<JobStatus>(["succeeded", "partial", "failed", "cancelled"])
+const terminalStatuses = new Set<JobStatus>([
+	"succeeded",
+	"partial",
+	"failed",
+	"requires_attention",
+	"cancelled",
+])
 
 function operationLabel(operationType: PricingBulkJobView["job"]["operationType"]) {
 	return operationType === "preview_pricing_rule" ? "Vista previa preparada" : "Operación preparada"
 }
 
-function statusLabel(status: JobStatus) {
+function statusLabel(status: JobStatus, operationType: PricingBulkJobView["job"]["operationType"]) {
+	const preview = operationType === "preview_pricing_rule"
 	return {
 		queued: "En cola",
-		running: "Aplicando",
-		finalizing: "Actualizando ventas",
+		running: preview ? "Comprobando" : "Aplicando",
+		finalizing: preview ? "Preparando resultados" : "Actualizando ventas",
 		succeeded: "Completada",
 		partial: "Completada con incidencias",
 		failed: "No completada",
+		requires_attention: "Requiere atención",
 		cancelled: "Cancelada",
 	}[status]
 }
@@ -66,6 +78,17 @@ function itemLabel(item: PricingBulkJobView["items"][number]) {
 	const product = String(item.productNameSnapshot ?? "").trim()
 	const variant = String(item.variantNameSnapshot ?? "").trim()
 	return [product, variant].filter(Boolean).join(" · ") || `Tarifa ${item.ratePlanId}`
+}
+
+function operationErrorMessage(value: unknown, fallback: string) {
+	const code = String(value ?? "").trim()
+	if (code === "bulk_job_not_found") {
+		return "Esta operación no existe o ya no está disponible para tu cuenta."
+	}
+	if (code === "bulk_job_not_retryable") {
+		return "Esta operación ya no admite reintentos. Actualiza la página para consultar su estado."
+	}
+	return code || fallback
 }
 
 export default function PricingBulkJobOperationPanel({ jobId, onTerminal }: Props) {
@@ -90,7 +113,9 @@ export default function PricingBulkJobOperationPanel({ jobId, onTerminal }: Prop
 				})
 				const body = (await response.json().catch(() => ({}))) as PricingBulkJobView
 				if (!response.ok)
-					throw new Error((body as any)?.error || "No se pudo consultar la operación.")
+					throw new Error(
+						operationErrorMessage((body as any)?.error, "No se pudo consultar la operación.")
+					)
 				if (cancelled) return
 				setResult(body)
 				setError("")
@@ -124,7 +149,9 @@ export default function PricingBulkJobOperationPanel({ jobId, onTerminal }: Prop
 			})
 			const body = await response.json().catch(() => ({}))
 			if (!response.ok)
-				throw new Error(body?.error || "No se pudieron reintentar las tarifas fallidas.")
+				throw new Error(
+					operationErrorMessage(body?.error, "No se pudieron reintentar las tarifas fallidas.")
+				)
 			notifiedTerminalRef.current = null
 			setResult((current) =>
 				current ? { ...current, job: { ...current.job, ...body.job } } : current
@@ -141,6 +168,25 @@ export default function PricingBulkJobOperationPanel({ jobId, onTerminal }: Prop
 	}
 
 	if (!result) {
+		if (error) {
+			return (
+				<div className="space-y-3" aria-live="polite">
+					<Notice variant="error" title="No pudimos consultar la operación">
+						{error}
+					</Notice>
+					<Button
+						type="button"
+						variant="secondary"
+						onClick={() => {
+							setError("")
+							setPollCycle((current) => current + 1)
+						}}
+					>
+						Reintentar consulta
+					</Button>
+				</div>
+			)
+		}
 		return (
 			<Notice title="Operación preparada">
 				La operación entró a la cola. Preparando su progreso...
@@ -167,7 +213,14 @@ export default function PricingBulkJobOperationPanel({ jobId, onTerminal }: Prop
 	const failedItems = result.items.filter((item) => item.status === "failed")
 	const isTerminal = terminalStatuses.has(job.status)
 	const hasFailures = liveFailed > 0
-	const noticeVariant = job.status === "failed" ? "error" : hasFailures ? "warning" : "info"
+	const needsFinalizationAttention = job.status === "requires_attention"
+	const noticeVariant =
+		job.status === "failed"
+			? "error"
+			: hasFailures || needsFinalizationAttention
+				? "warning"
+				: "info"
+	const succeededLabel = job.operationType === "preview_pricing_rule" ? "comprobadas" : "aplicadas"
 
 	return (
 		<div className="space-y-4" aria-live="polite">
@@ -175,7 +228,7 @@ export default function PricingBulkJobOperationPanel({ jobId, onTerminal }: Prop
 				<div className="space-y-3">
 					<p>
 						{job.totalItems} {job.totalItems === 1 ? "tarifa" : "tarifas"} ·{" "}
-						{statusLabel(job.status)}
+						{statusLabel(job.status, job.operationType)}
 					</p>
 					<div>
 						<div className="mb-1 flex items-center justify-between gap-3 text-xs font-medium">
@@ -197,7 +250,8 @@ export default function PricingBulkJobOperationPanel({ jobId, onTerminal }: Prop
 					</div>
 					<div className="grid grid-cols-3 gap-2 text-xs">
 						<span>
-							<strong className="block text-sm text-slate-950">{liveSucceeded}</strong>aplicadas
+							<strong className="block text-sm text-slate-950">{liveSucceeded}</strong>
+							{succeededLabel}
 						</span>
 						<span>
 							<strong className="block text-sm text-slate-950">{liveOmitted}</strong>omitidas
@@ -242,6 +296,16 @@ export default function PricingBulkJobOperationPanel({ jobId, onTerminal }: Prop
 							disabled={retrying}
 						>
 							{retrying ? "Reintentando..." : "Reintentar fallidas"}
+						</Button>
+					)}
+					{needsFinalizationAttention && (
+						<Button
+							type="button"
+							variant="secondary"
+							onClick={() => void retryFailed()}
+							disabled={retrying}
+						>
+							{retrying ? "Reintentando..." : "Reintentar finalización"}
 						</Button>
 					)}
 					<a
