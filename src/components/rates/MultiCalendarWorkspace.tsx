@@ -32,7 +32,7 @@ import {
 	clearPricingBulkClientIntent,
 	getOrCreatePricingBulkClientIntent,
 } from "@/lib/pricing/pricing-bulk-client-intent"
-import { shouldQueuePricingPreview } from "@/modules/pricing/public"
+import { shouldQueuePricingPreview } from "@/lib/pricing/pricing-bulk-thresholds"
 import type {
 	MultiCalendarCell,
 	MultiCalendarRow,
