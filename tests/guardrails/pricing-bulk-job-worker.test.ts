@@ -69,7 +69,7 @@ describe("pricing bulk job worker", () => {
 		})
 	})
 
-	it("keeps the scheduler endpoint private and runs pricing work every minute", () => {
+	it("keeps the scheduler endpoint private and runs pricing work on a daily cadence", () => {
 		const endpoint = read("src/pages/api/cron/pricing-bulk-jobs.ts")
 		const vercel = read("vercel.json")
 
@@ -77,6 +77,6 @@ describe("pricing bulk job worker", () => {
 		expect(endpoint).toContain("runPricingBulkJobWorker")
 		expect(vercel).toContain('"path": "/api/cron/pricing-bulk-jobs"')
 		expect(endpoint).toContain("maxDuration = 60")
-		expect(vercel).toContain('"schedule": "* * * * *"')
+		expect(vercel).toContain('"schedule": "37 4 * * *"')
 	})
 })
