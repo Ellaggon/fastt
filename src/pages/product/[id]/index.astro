@@ -1,5 +1,7 @@
 ---
 import ProductDeleteControls from "@/components/product/ProductDeleteControls.astro"
+import ProductLocationPreview from "@/components/product/ProductLocationPreview.astro"
+import ProductStayPreparationRow from "@/components/product/ProductStayPreparationRow.astro"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
@@ -24,8 +26,12 @@ import {
 	CalendarDays,
 	CircleCheck,
 	ClipboardList,
+	Eye,
+	FileText,
+	Images,
 	Map,
 	Package,
+	Tags,
 } from "@lucide/astro"
 
 const startedAt = performance.now()
@@ -141,6 +147,10 @@ const productHeaderSummaryText = publishState
 const conditionsHref = isHotel
 	? (operationalSurface?.conditionsHref ?? routes.rates())
 	: routes.rates()
+const productContentHref = `/product/${encodeURIComponent(productId)}/content`
+const productImagesHref = `/product/${encodeURIComponent(productId)}/images`
+const productLocationHref = `/product/${encodeURIComponent(productId)}/location`
+const productSubtypeHref = `/product/${encodeURIComponent(productId)}/subtype`
 
 timing.addTotal("productPage")
 timing.setHeader(Astro.response.headers)
@@ -159,45 +169,34 @@ logRoutePerformance({
 
 <WorkspaceLayout title={`${detailTitle} · ${owned.name}`}>
 	<section class="space-y-6 md:space-y-8">
-		<header class="flex flex-col gap-2">
-			<div class="flex flex-wrap items-start justify-between gap-3">
+		<header class="flex items-start justify-between gap-4">
+			<div class="min-w-0 space-y-2">
 				<h1 class="sr-only">{owned.name}</h1>
 				{
-					hasIncompletePreparation ? null : status !== "published" &&
-					  publishState?.readyToPublish ? (
-						<Button href={routes.productPreview(productId)} class="ml-auto shrink-0">
-							Ir a vista previa
-						</Button>
-					) : (
-						<Button
-							href={routes.productPreview(productId)}
-							data-astro-prefetch
-							variant="secondary"
-							class="ml-auto shrink-0"
-						>
-							Vista previa
-						</Button>
+					preparationCoach ? null : (
+						<>
+							<p
+								id="productHeaderMeta"
+								class="max-w-3xl text-sm leading-5 text-slate-300 sm:leading-6"
+							>
+								{productHeaderTitle}
+							</p>
+							<p
+								id="productHeaderSummary"
+								class="max-w-3xl text-sm leading-5 text-slate-400 sm:leading-6"
+							>
+								{productHeaderSummaryText}
+							</p>
+						</>
 					)
 				}
 			</div>
-			{
-				preparationCoach ? null : (
-					<>
-						<p
-							id="productHeaderMeta"
-							class="max-w-3xl text-sm leading-5 text-slate-300 sm:leading-6"
-						>
-							{productHeaderTitle}
-						</p>
-						<p
-							id="productHeaderSummary"
-							class="max-w-3xl text-sm leading-5 text-slate-400 sm:leading-6"
-						>
-							{productHeaderSummaryText}
-						</p>
-					</>
-				)
-			}
+			<ProductDeleteControls
+				productId={productId}
+				productName={owned.name}
+				workspaceSingularLabel={vertical.labels.workspaceSingular}
+				variantsLabel={isTour ? "salidas" : isHotel ? "habitaciones" : "modalidades"}
+			/>
 		</header>
 
 		{
@@ -336,41 +335,216 @@ logRoutePerformance({
 			data-singular-label={vertical.labels.singular}
 			data-workspace-singular-label={vertical.labels.workspaceSingular}
 			data-preview-href={routes.productPreview(productId)}
-			data-rooms-href={isTour
-				? routes.productDeparturesForProduct(productId)
-				: routes.productRoomsForProduct(productId)}
-			data-rates-href={routes.rates()}
-			data-conditions-href={conditionsHref}
-			data-calendar-href={routes.calendar()}
-			data-house-rules-href={`${routes.providerHouseRules()}?productId=${encodeURIComponent(productId)}`}
 			hidden
 		>
 		</div>
 
-		{
-			/* Client hydration fills these shells using payload?.variants?.count and payload?.images?.cover?.url */
-		}
-		<div data-product-deferred-root class="space-y-5">
-			<Card class="bg-white">
-				<p class="text-sm font-semibold text-slate-950">Descripción</p>
-				<p class="mt-2 text-sm leading-6 text-slate-500">Cargando descripción...</p>
-			</Card>
-			{
-				isHotel ? (
-					<Card class="bg-white">
-						<p class="text-sm font-semibold text-slate-950">Tipo y características</p>
-						<p class="mt-2 text-sm leading-6 text-slate-500">Cargando tipo...</p>
-					</Card>
-				) : null
-			}
-		</div>
+		<div data-product-deferred-root class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
+			<div class="space-y-5">
+				<Card variant="flush" className="fastt-workspace-panel overflow-hidden">
+					<div class="grid md:grid-cols-[minmax(0,1.15fr)_minmax(17rem,0.85fr)]">
+						<div
+							id="productHeroMedia"
+							class="flex min-h-[250px] items-center justify-center bg-slate-100 px-6 text-center text-sm font-medium text-slate-500 md:min-h-[310px]"
+						>
+							<p data-product-hero-empty>Fotos de {vertical.labels.singular}</p>
+						</div>
+						<div class="flex flex-col justify-between gap-5 p-5 md:p-6">
+							<div class="space-y-4">
+								<div class="flex items-start justify-between gap-4">
+									<div>
+										<div class="flex items-center gap-2">
+											<Images class="size-4 text-slate-400" aria-hidden="true" />
+											<p class="text-sm font-semibold text-slate-950">Fotos principales</p>
+										</div>
+										<p id="summaryImagesCount" class="mt-1 text-sm text-slate-500">
+											Cargando fotos...
+										</p>
+									</div>
+									<Badge id="blockBadge-images" variant="neutral">Cargando...</Badge>
+								</div>
+								<div
+									id="summaryImageGrid"
+									class="grid min-h-16 grid-cols-3 gap-2"
+									aria-live="polite"
+								>
+									<div class="animate-pulse rounded-[var(--fastt-radius-control)] bg-slate-100">
+									</div>
+									<div class="animate-pulse rounded-[var(--fastt-radius-control)] bg-slate-100">
+									</div>
+									<div class="animate-pulse rounded-[var(--fastt-radius-control)] bg-slate-100">
+									</div>
+								</div>
+							</div>
+							<Button href={productImagesHref} variant="ghost" size="sm" className="self-end">
+								Gestionar fotos
+							</Button>
+						</div>
+					</div>
 
-		<ProductDeleteControls
-			productId={productId}
-			productName={owned.name}
-			workspaceSingularLabel={vertical.labels.workspaceSingular}
-			variantsLabel={isTour ? "salidas" : isHotel ? "habitaciones" : "modalidades"}
-		/>
+					<div class="grid border-t border-slate-200 md:grid-cols-2">
+						<section
+							class="flex min-h-56 flex-col justify-between gap-5 p-5 md:border-r md:border-slate-200 md:p-6"
+						>
+							<div>
+								<div class="flex items-start justify-between gap-4">
+									<div class="flex items-center gap-2">
+										<FileText class="size-4 text-slate-400" aria-hidden="true" />
+										<p class="text-sm font-semibold text-slate-950">Descripción</p>
+									</div>
+									<Badge id="blockBadge-content" variant="neutral">Cargando...</Badge>
+								</div>
+								<p id="summaryDescription" class="mt-3 text-sm leading-6 text-slate-600">
+									Cargando descripción...
+								</p>
+								<p id="summaryHighlights" class="mt-3 text-sm text-slate-500">Destacados: -</p>
+							</div>
+							<Button href={productContentHref} variant="ghost" size="sm" className="self-end">
+								Editar descripción
+							</Button>
+						</section>
+
+						<section
+							class="flex min-h-56 flex-col justify-between gap-5 border-t border-slate-200 p-5 md:border-t-0 md:p-6"
+						>
+							<div>
+								<div class="flex items-start justify-between gap-4">
+									<div class="flex items-center gap-2">
+										<BedDouble class="size-4 text-slate-400" aria-hidden="true" />
+										<p class="text-sm font-semibold text-slate-950">
+											{isHotel ? "Tipo y características" : "Detalles de la oferta"}
+										</p>
+									</div>
+									<Badge id="blockBadge-subtype" variant="neutral">Cargando...</Badge>
+								</div>
+								<p id="summaryProductType" class="mt-3 text-sm leading-6 text-slate-600">
+									Cargando detalles...
+								</p>
+								{
+									isTour ? (
+										<p id="summaryTourDetails" class="mt-3 text-sm leading-6 text-slate-500">
+											Cargando duración y guía...
+										</p>
+									) : null
+								}
+								{
+									isPackage ? (
+										<p id="summaryPackageDuration" class="mt-3 text-sm leading-6 text-slate-500">
+											Cargando duración...
+										</p>
+									) : null
+								}
+							</div>
+							<Button href={productSubtypeHref} variant="ghost" size="sm" className="self-end">
+								Editar {isHotel ? "tipo y características" : "detalles"}
+							</Button>
+						</section>
+					</div>
+
+					<section class="border-t border-slate-200">
+						<ProductLocationPreview label={`Ubicación de ${owned.name}`} />
+						<div
+							class="flex flex-col gap-4 bg-white p-5 sm:flex-row sm:items-end sm:justify-between md:p-6"
+						>
+							<div>
+								<div class="flex items-center gap-2">
+									<p class="text-sm font-semibold text-slate-950">Ubicación</p>
+									<Badge id="blockBadge-location" variant="neutral">Cargando...</Badge>
+								</div>
+								<p id="summaryAddress" class="mt-2 text-sm leading-6 text-slate-600">
+									Cargando dirección...
+								</p>
+							</div>
+							<Button href={productLocationHref} variant="ghost" size="sm">
+								Editar ubicación
+							</Button>
+						</div>
+					</section>
+				</Card>
+
+				{
+					isHotel ? (
+						<Card variant="flush" className="overflow-hidden bg-white text-slate-900">
+							<header class="border-b border-sky-100 bg-sky-50/80 px-5 py-4 md:px-6">
+								<h2 class="text-lg font-semibold text-slate-950">Preparación de la estancia</h2>
+								<p class="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
+									Revisa lo que verá y aceptará el huésped antes de reservar.
+								</p>
+							</header>
+							<div class="space-y-3 bg-slate-50/90 p-4 sm:p-5 md:p-6">
+								<ProductStayPreparationRow
+									rowKey="variants"
+									badgeId="blockBadge-variants"
+									summaryId="summaryRooms"
+									label="Habitaciones"
+									loadingSummary="Cargando habitaciones..."
+									href={routes.productRoomsForProduct(productId)}
+									actionLabel="Gestionar habitaciones"
+									Icon={BedDouble}
+								/>
+								<ProductStayPreparationRow
+									rowKey="conditions"
+									badgeId="blockBadge-conditions"
+									summaryId="summaryConditions"
+									label="Condiciones de reserva"
+									loadingSummary="Cargando condiciones..."
+									href={conditionsHref}
+									actionLabel="Gestionar condiciones"
+									Icon={FileText}
+								/>
+								<ProductStayPreparationRow
+									rowKey="houseRules"
+									badgeId="blockBadge-houseRules"
+									summaryId="summaryHouseRules"
+									label="Reglas para huéspedes"
+									loadingSummary="Cargando reglas..."
+									href={`${routes.providerHouseRules()}?productId=${encodeURIComponent(productId)}`}
+									actionLabel="Editar reglas"
+									Icon={ClipboardList}
+								/>
+							</div>
+						</Card>
+					) : null
+				}
+			</div>
+
+			<aside class="space-y-5 xl:sticky xl:top-5 xl:self-start" aria-label="Operación">
+				<Card variant="flush" className="fastt-workspace-panel overflow-hidden">
+					<div class="p-5 md:p-6">
+						<p class="text-sm font-semibold text-slate-950">Operación</p>
+						<p class="mt-1 text-sm leading-6 text-slate-500">
+							Abre las herramientas diarias sin repetir la información de la ficha.
+						</p>
+						<div class="mt-5 grid gap-2">
+							<Button href={routes.productPreview(productId)} className="w-full justify-start">
+								<Eye class="size-4" aria-hidden="true" />
+								Vista previa
+							</Button>
+							{
+								isTour ? (
+									<Button
+										href={routes.productDeparturesForProduct(productId)}
+										variant="secondary"
+										className="w-full justify-start"
+									>
+										<CalendarDays class="size-4" aria-hidden="true" />
+										Abrir salidas
+									</Button>
+								) : null
+							}
+							<Button href={routes.rates()} variant="secondary" className="w-full justify-start">
+								<Tags class="size-4" aria-hidden="true" />
+								Abrir tarifas
+							</Button>
+							<Button href={routes.calendar()} variant="secondary" className="w-full justify-start">
+								<CalendarDays class="size-4" aria-hidden="true" />
+								Abrir calendario
+							</Button>
+						</div>
+					</div>
+				</Card>
+			</aside>
+		</div>
 	</section>
 
 	<script>

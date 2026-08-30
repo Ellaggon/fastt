@@ -1,0 +1,44 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+
+interface Props {
+	rowKey: string
+	badgeId: string
+	summaryId: string
+	label: string
+	loadingSummary: string
+	href: string
+	actionLabel: string
+	// Lucide icon components from @lucide/astro
+	Icon: (props: Record<string, unknown>) => unknown
+}
+
+const { rowKey, badgeId, summaryId, label, loadingSummary, href, actionLabel, Icon } = Astro.props
+---
+
+<article
+	class="fastt-row-card fastt-row-card-info overflow-hidden bg-white text-slate-900 transition"
+	data-stay-prep-row={rowKey}
+>
+	<div class="flex flex-wrap items-center gap-3 p-4">
+		<span
+			class="fastt-soft-box flex size-9 shrink-0 items-center justify-center border border-sky-200 bg-sky-50 text-sky-700"
+			data-stay-prep-icon-well
+		>
+			<Icon class="size-4" aria-hidden="true" />
+		</span>
+		<div class="min-w-0 flex-1">
+			<p class="text-sm font-semibold text-slate-950">{label}</p>
+			<p id={summaryId} class="mt-1 text-sm leading-5 text-slate-500">
+				{loadingSummary}
+			</p>
+		</div>
+		<div class="flex flex-wrap items-center gap-2 sm:justify-end">
+			<Badge id={badgeId} variant="neutral">Cargando...</Badge>
+			<Button href={href} variant="secondary" size="sm">
+				{actionLabel}
+			</Button>
+		</div>
+	</div>
+</article>

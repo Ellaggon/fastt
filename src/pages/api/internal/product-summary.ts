@@ -337,6 +337,8 @@ export const GET: APIRoute = async ({ request, url }) => {
 			},
 			location: {
 				address: aggregate.location.address || "Sin dirección registrada",
+				latitude: aggregate.location.lat,
+				longitude: aggregate.location.lng,
 				coordinates:
 					aggregate.location.lat !== null && aggregate.location.lng !== null
 						? `${aggregate.location.lat.toFixed(6)}, ${aggregate.location.lng.toFixed(6)}`

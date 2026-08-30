@@ -38,13 +38,13 @@ describe("Guardrail: Property Content operational semantics", () => {
 				"Ficha del alojamiento",
 				"Descripción",
 				"Tipo y características",
+				"Preparación de la estancia",
+				"Operación",
 			],
 			"src/pages/product/_client/product-summary-hydration.ts": [
-				"Acciones principales",
-				"Habitaciones",
-				"Abrir habitaciones",
-				"Editar tipo y características",
 				"astro:page-load",
+				"payload?.variants?.count",
+				"payload?.images?.cover?.url",
 			],
 			"src/pages/product/[id]/preview.astro": [
 				"Vista previa",
@@ -344,7 +344,7 @@ describe("Guardrail: Property Content operational semantics", () => {
 
 	it("feeds the product surface with real rooms and an explicit cover image", () => {
 		const summaryEndpoint = read("src/pages/api/internal/product-summary.ts")
-		const productSurface = read("src/pages/product/[id]/index.astro")
+		const productHydration = read("src/pages/product/_client/product-summary-hydration.ts")
 
 		expect(summaryEndpoint).toContain("getProductVariantsAggregate")
 		expect(summaryEndpoint).not.toContain("const hasVariants = false")
@@ -352,8 +352,25 @@ describe("Guardrail: Property Content operational semantics", () => {
 		expect(summaryEndpoint).toContain("coverImage")
 		expect(summaryEndpoint).toContain("variants:")
 
-		expect(productSurface).toContain("payload?.variants?.count")
-		expect(productSurface).toContain("payload?.images?.cover?.url")
+		expect(productHydration).toContain("payload?.variants?.count")
+		expect(productHydration).toContain("payload?.images?.cover?.url")
+	})
+
+	it("keeps the product location preview read-only and navigation-safe", () => {
+		const summaryEndpoint = read("src/pages/api/internal/product-summary.ts")
+		const productSurface = read("src/pages/product/[id]/index.astro")
+		const productHydration = read("src/pages/product/_client/product-summary-hydration.ts")
+		const locationPreview = read("src/components/product/ProductLocationPreview.astro")
+
+		expect(summaryEndpoint).toContain("latitude: aggregate.location.lat")
+		expect(summaryEndpoint).toContain("longitude: aggregate.location.lng")
+		expect(productSurface).toContain("ProductLocationPreview")
+		expect(productHydration).toContain("product-location-preview:update")
+		expect(locationPreview).toContain("IntersectionObserver")
+		expect(locationPreview).toContain("dragging: false")
+		expect(locationPreview).toContain("scrollWheelZoom: false")
+		expect(locationPreview).toContain("astro:before-swap")
+		expect(locationPreview).toContain("destroyPreview")
 	})
 
 	it("uses the complete-to-publish evaluation for preparation totals", () => {
@@ -367,6 +384,33 @@ describe("Guardrail: Property Content operational semantics", () => {
 		expect(productSurface).not.toContain("requiredPreparationSections")
 		expect(summaryEndpoint).toContain("canonical playbook totals")
 		expect(completeToPublishProgress).toContain("const orderedSteps = state.checks")
+	})
+
+	it("uses the same commercial readiness checks when evaluating or publishing a product", () => {
+		const evaluateEndpoint = read("src/pages/api/product/evaluate.ts")
+		const publishEndpoint = read("src/pages/api/product/publish.ts")
+		const publicationReadiness = read("src/lib/product/canonical-product-publication.ts")
+		const completeToPublishProgress = read(
+			"src/lib/playbook/evaluate-complete-to-publish-progress.ts"
+		)
+
+		expect(evaluateEndpoint).toContain("resolveCanonicalProductPublicationValidationErrors")
+		expect(publishEndpoint).toContain("resolveCanonicalProductPublicationValidationErrors")
+		expect(publicationReadiness).toContain("publicationValidationErrorsFromState")
+		expect(completeToPublishProgress).toContain("sellableRoomCount")
+		expect(completeToPublishProgress).toContain("statusLabel")
+	})
+
+	it("keeps product deletion protected but out of the operational surface", () => {
+		const productSurface = read("src/pages/product/[id]/index.astro")
+		const deleteControls = read("src/components/product/ProductDeleteControls.astro")
+
+		expect(productSurface).toContain('<header class="flex items-start justify-between gap-4">')
+		expect(productSurface).not.toContain("Acciones avanzadas")
+		expect(deleteControls).toContain("data-product-action-menu")
+		expect(deleteControls).toContain("data-product-delete-confirmation")
+		expect(deleteControls).toContain("data-confirm-product-delete")
+		expect(deleteControls).toContain("/api/products/${encodeURIComponent(productId)}/delete")
 	})
 
 	it("keeps the room ficha guest-facing while reading operational context through summaries", () => {

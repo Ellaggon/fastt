@@ -1,0 +1,154 @@
+---
+import "leaflet/dist/leaflet.css"
+
+interface Props {
+	label: string
+}
+
+const { label } = Astro.props
+---
+
+<div
+	class="relative min-h-64 overflow-hidden bg-slate-100 md:min-h-72"
+	data-product-location-preview
+	data-state="loading"
+	data-latitude=""
+	data-longitude=""
+>
+	<div class="absolute inset-0 hidden" data-product-location-map aria-label={label} role="img">
+	</div>
+	<div
+		class="absolute inset-0 flex items-center justify-center px-6 text-center text-sm leading-6 text-slate-500"
+		data-product-location-empty
+		aria-live="polite"
+	>
+		Cargando ubicación...
+	</div>
+</div>
+
+<script>
+	import L from "leaflet"
+
+	const maps = new WeakMap<HTMLElement, L.Map>()
+	const markers = new WeakMap<HTMLElement, L.CircleMarker>()
+
+	function coordinates(root: HTMLElement): [number, number] | null {
+		const latitude = Number(root.dataset.latitude)
+		const longitude = Number(root.dataset.longitude)
+		return Number.isFinite(latitude) && Number.isFinite(longitude) ? [latitude, longitude] : null
+	}
+
+	function setEmptyState(root: HTMLElement, message: string) {
+		root.dataset.state = "empty"
+		root.querySelector<HTMLElement>("[data-product-location-map]")?.classList.add("hidden")
+		const empty = root.querySelector<HTMLElement>("[data-product-location-empty]")
+		if (empty) {
+			empty.textContent = message
+			empty.classList.remove("hidden")
+		}
+	}
+
+	function destroyPreview(root: HTMLElement) {
+		const map = maps.get(root)
+		if (!map) return
+		map.remove()
+		maps.delete(root)
+		markers.delete(root)
+	}
+
+	function renderPreview(root: HTMLElement) {
+		const point = coordinates(root)
+		if (!point) {
+			if (root.dataset.locationResolved !== "true") return
+			destroyPreview(root)
+			setEmptyState(root, "Aún no has definido la ubicación exacta del alojamiento.")
+			return
+		}
+
+		const mapElement = root.querySelector<HTMLElement>("[data-product-location-map]")
+		if (!mapElement) return
+		mapElement.classList.remove("hidden")
+		root.querySelector<HTMLElement>("[data-product-location-empty]")?.classList.add("hidden")
+		root.dataset.state = "ready"
+
+		const existingMap = maps.get(root)
+		const existingMarker = markers.get(root)
+		if (existingMap && existingMarker) {
+			existingMap.setView(point, existingMap.getZoom(), { animate: false })
+			existingMarker.setLatLng(point)
+			existingMap.invalidateSize()
+			return
+		}
+
+		const map = L.map(mapElement, {
+			attributionControl: true,
+			zoomControl: false,
+			dragging: false,
+			doubleClickZoom: false,
+			scrollWheelZoom: false,
+			boxZoom: false,
+			keyboard: false,
+			touchZoom: false,
+		}).setView(point, 15)
+
+		L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+			maxZoom: 19,
+			attribution: "&copy; OpenStreetMap",
+		}).addTo(map)
+
+		const marker = L.circleMarker(point, {
+			radius: 8,
+			color: "#ffffff",
+			weight: 3,
+			fillColor: "#2563eb",
+			fillOpacity: 1,
+		}).addTo(map)
+
+		maps.set(root, map)
+		markers.set(root, marker)
+		window.setTimeout(() => map.invalidateSize(), 0)
+	}
+
+	function initializeLocationPreviews() {
+		const roots = Array.from(
+			document.querySelectorAll<HTMLElement>("[data-product-location-preview]")
+		)
+		for (const root of roots) {
+			if (root.dataset.observed === "true") continue
+			root.dataset.observed = "true"
+			const observer = new IntersectionObserver(
+				(entries) => {
+					for (const entry of entries) {
+						if (!entry.isIntersecting) continue
+						root.dataset.visible = "true"
+						renderPreview(root)
+						observer.disconnect()
+					}
+				},
+				{ rootMargin: "160px 0px" }
+			)
+			observer.observe(root)
+		}
+	}
+
+	function refreshLocationPreviews() {
+		document.querySelectorAll<HTMLElement>("[data-product-location-preview]").forEach((root) => {
+			if (root.dataset.visible === "true") renderPreview(root)
+		})
+	}
+
+	function cleanupLocationPreviews() {
+		document
+			.querySelectorAll<HTMLElement>("[data-product-location-preview]")
+			.forEach(destroyPreview)
+	}
+
+	if (document.documentElement.dataset.productLocationPreviewBound !== "true") {
+		document.documentElement.dataset.productLocationPreviewBound = "true"
+		document.addEventListener("product-location-preview:update", refreshLocationPreviews)
+		document.addEventListener("astro:before-swap", cleanupLocationPreviews)
+		document.addEventListener("astro:page-load", initializeLocationPreviews)
+	}
+
+	initializeLocationPreviews()
+</script>
