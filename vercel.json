@@ -21,7 +21,7 @@
     },
     {
       "path": "/api/cron/pricing-bulk-jobs",
-      "schedule": "37 4 * * *"
+      "schedule": "* * * * *"
     }
   ]
 }

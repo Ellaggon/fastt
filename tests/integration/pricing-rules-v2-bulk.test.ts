@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest"
-import { db, eq, RatePlanOccupancyPolicy, sql } from "@/shared/infrastructure/db/compat"
+import { beforeAll, describe, expect, it } from "vitest"
+import {
+	db,
+	eq,
+	RatePlanOccupancyPolicy,
+	sql,
+} from "@/shared/infrastructure/db/compat"
 
 import { pricingBulkJobService } from "@/container"
 import {
@@ -7,6 +12,7 @@ import {
 	listCommercialPriceRulesByRatePlan,
 } from "@/lib/commercial-rules/commercialRulesRepository"
 import { runPricingBulkJobWorker } from "@/lib/pricing/pricing-bulk-job-worker"
+import { deferPricingBulkJobFinalization } from "@/lib/pricing/pricing-bulk-job-queue"
 import { POST as commercialRulesPost } from "@/pages/api/rates/commercial-rules"
 import { POST as bulkApplyPost } from "@/pages/api/pricing/rules/v2/bulk-apply"
 import { POST as bulkPreviewPost } from "@/pages/api/pricing/rules/v2/bulk-preview"
@@ -137,7 +143,7 @@ async function seedBulkFixture() {
 		isDefault: true,
 	})
 
-	return { token, email, providerId, ratePlanAId, ratePlanBId }
+	return { token, email, userId: `user_${email}`, providerId, ratePlanAId, ratePlanBId }
 }
 
 async function submitAndCompleteBulkApply(params: {
@@ -157,26 +163,45 @@ async function submitAndCompleteBulkApply(params: {
 	const jobId = String(accepted?.job?.id ?? "")
 	expect(jobId).not.toBe("")
 
-	await runPricingBulkJobWorker({
-		jobBatchSize: 1,
-		itemBatchSize: 20,
-		itemConcurrency: 2,
-		timeBudgetMs: 10_000,
-	})
-	const completed = await pricingBulkJobService.get({
+	return drainPricingBulkJob({
 		providerId: params.fixture.providerId,
 		jobId,
 	})
-	if (!completed) throw new Error("pricing_bulk_job_not_found_after_worker")
-	expect(completed.job.status).toBe("succeeded")
-	return completed
+}
+
+async function drainPricingBulkJob(params: { providerId: string; jobId: string }) {
+	for (let tick = 0; tick < 5; tick += 1) {
+		await runPricingBulkJobWorker({
+			jobBatchSize: 4,
+			itemBatchSize: 20,
+			itemConcurrency: 2,
+			timeBudgetMs: 30_000,
+		})
+		const current = await pricingBulkJobService.get(params)
+		if (!current) throw new Error("pricing_bulk_job_not_found_after_worker")
+		if (
+			["succeeded", "partial", "failed", "requires_attention", "cancelled"].includes(
+				current.job.status
+			)
+		) {
+			expect(current.job.status).toBe("succeeded")
+			return current
+		}
+	}
+	throw new Error(`pricing_bulk_job_did_not_finish:${params.jobId}`)
 }
 
 describe("integration/pricing rules v2 bulk orchestration", () => {
+	beforeAll(async () => {
+		await db.execute(sql`
+			DELETE FROM "PricingBulkOperationJob"
+			WHERE "providerId" LIKE 'prov_pr_v2_bulk_%'
+		`)
+	})
 	it("bulk endpoints validan payload mínimo", async () => {
 		const fixture = await seedBulkFixture()
 		await withSupabaseAuthStub(
-			{ [fixture.token]: { id: "u_pr_v2_bulk_validation", email: fixture.email } },
+			{ [fixture.token]: { id: fixture.userId, email: fixture.email } },
 			async () => {
 				const response = await bulkPreviewPost({
 					request: makeAuthedJsonRequest({
@@ -198,7 +223,7 @@ describe("integration/pricing rules v2 bulk orchestration", () => {
 	it("preview determinista para mismo input", async () => {
 		const fixture = await seedBulkFixture()
 		await withSupabaseAuthStub(
-			{ [fixture.token]: { id: "u_pr_v2_bulk_det", email: fixture.email } },
+			{ [fixture.token]: { id: fixture.userId, email: fixture.email } },
 			async () => {
 				const body = {
 					ratePlanIds: [fixture.ratePlanAId, fixture.ratePlanBId],
@@ -252,7 +277,7 @@ describe("integration/pricing rules v2 bulk orchestration", () => {
 		})
 
 		await withSupabaseAuthStub(
-			{ [fixture.token]: { id: "u_pr_v2_bulk_calendar_override", email: fixture.email } },
+			{ [fixture.token]: { id: fixture.userId, email: fixture.email } },
 			async () => {
 				const response = await bulkPreviewPost({
 					request: makeAuthedJsonRequest({
@@ -294,7 +319,7 @@ describe("integration/pricing rules v2 bulk orchestration", () => {
 			.where(eq(RatePlanOccupancyPolicy.ratePlanId, fixture.ratePlanAId))
 
 		await withSupabaseAuthStub(
-			{ [fixture.token]: { id: "u_pr_v2_bulk_without_base", email: fixture.email } },
+			{ [fixture.token]: { id: fixture.userId, email: fixture.email } },
 			async () => {
 				const completed = await submitAndCompleteBulkApply({
 					fixture,
@@ -319,6 +344,19 @@ describe("integration/pricing rules v2 bulk orchestration", () => {
 				expect(completed.job.succeededItems).toBe(1)
 				expect(completed.job.failedItems).toBe(0)
 				expect(completed.items[0]?.ruleId).toBeTruthy()
+				expect(completed.items[0]?.materializationResult).toMatchObject({
+					generatedDatesCount: expect.any(Number),
+				})
+				expect(completed.job.materializationCompletedAt).toBeInstanceOf(Date)
+				expect(completed.job.cacheInvalidationCompletedAt).toBeInstanceOf(Date)
+				expect(completed.job.ariEnqueueCompletedAt).toBeInstanceOf(Date)
+				expect(completed.job.finalizationResult).toMatchObject({
+					status: "succeeded",
+					succeededItems: 1,
+					materializationCompleted: true,
+					cacheInvalidationCompleted: true,
+					ariEnqueueCompleted: true,
+				})
 			}
 		)
 	})
@@ -326,7 +364,7 @@ describe("integration/pricing rules v2 bulk orchestration", () => {
 	it("maneja fallos parciales sin romper lote", async () => {
 		const fixture = await seedBulkFixture()
 		await withSupabaseAuthStub(
-			{ [fixture.token]: { id: "u_pr_v2_bulk_partial", email: fixture.email } },
+			{ [fixture.token]: { id: fixture.userId, email: fixture.email } },
 			async () => {
 				const response = await bulkPreviewPost({
 					request: makeAuthedJsonRequest({
@@ -353,7 +391,7 @@ describe("integration/pricing rules v2 bulk orchestration", () => {
 	it("apply mantiene aislamiento entre ratePlans", async () => {
 		const fixture = await seedBulkFixture()
 		await withSupabaseAuthStub(
-			{ [fixture.token]: { id: "u_pr_v2_bulk_iso", email: fixture.email } },
+			{ [fixture.token]: { id: fixture.userId, email: fixture.email } },
 			async () => {
 				const completed = await submitAndCompleteBulkApply({
 					fixture,
@@ -397,7 +435,7 @@ describe("integration/pricing rules v2 bulk orchestration", () => {
 	it("consistencia: apply devuelve resultados trazables por ratePlan", async () => {
 		const fixture = await seedBulkFixture()
 		await withSupabaseAuthStub(
-			{ [fixture.token]: { id: "u_pr_v2_bulk_cons", email: fixture.email } },
+			{ [fixture.token]: { id: fixture.userId, email: fixture.email } },
 			async () => {
 				const completed = await submitAndCompleteBulkApply({
 					fixture,
@@ -418,10 +456,111 @@ describe("integration/pricing rules v2 bulk orchestration", () => {
 		)
 	})
 
+	it("recupera un lease vencido y completa el mismo trabajo sin duplicar reglas", async () => {
+		const fixture = await seedBulkFixture()
+		const { job } = await pricingBulkJobService.enqueue({
+			providerId: fixture.providerId,
+			requestedByUserId: fixture.userId,
+			input: {
+				ratePlanIds: [fixture.ratePlanAId],
+				idempotencyKey: `pricing-bulk-recovery:${crypto.randomUUID()}`,
+				operation: { type: "percentage", value: 9, conditions: { effectiveDays: 3 } },
+			},
+		})
+		const expiredAt = new Date(Date.now() - 120_000).toISOString()
+		await db.execute(sql`
+			UPDATE "PricingBulkOperationJob"
+			SET "status" = 'running', "pendingItems" = 0, "runningItems" = 1,
+				"lockedAt" = ${expiredAt}, "lockedBy" = 'dead-worker', "startedAt" = ${expiredAt}
+			WHERE "id" = ${job.id}
+		`)
+		await db.execute(sql`
+			UPDATE "PricingBulkOperationItem"
+			SET "status" = 'running', "attempts" = 1, "startedAt" = ${expiredAt}
+			WHERE "jobId" = ${job.id}
+		`)
+
+		const worker = await runPricingBulkJobWorker({
+			now: new Date(),
+			leaseMs: 30_000,
+			jobBatchSize: 1,
+			itemBatchSize: 20,
+			itemConcurrency: 2,
+			timeBudgetMs: 20_000,
+		})
+		const completed = await drainPricingBulkJob({
+			providerId: fixture.providerId,
+			jobId: job.id,
+		})
+
+		expect(worker.recoveredJobs).toBe(1)
+		expect(completed?.job.status).toBe("succeeded")
+		expect(completed?.items[0]?.attempts).toBeGreaterThanOrEqual(2)
+		expect(completed?.items[0]?.ruleId).toBeTruthy()
+	})
+
+	it("detiene una finalización agotada en requires_attention y permite reanudarla", async () => {
+		const fixture = await seedBulkFixture()
+		const { job } = await pricingBulkJobService.enqueue({
+			providerId: fixture.providerId,
+			requestedByUserId: fixture.userId,
+			input: {
+				ratePlanIds: [fixture.ratePlanAId],
+				idempotencyKey: `pricing-bulk-attention:${crypto.randomUUID()}`,
+				operation: { type: "percentage", value: 4, conditions: { effectiveDays: 2 } },
+			},
+		})
+		const leaseToken = `test-lease:${crypto.randomUUID()}`
+		await db.execute(sql`
+			UPDATE "PricingBulkOperationJob"
+			SET "status" = 'finalizing', "lockedAt" = CURRENT_TIMESTAMP, "lockedBy" = ${leaseToken},
+				"finalizationAttempts" = 4, "finalizationMaxAttempts" = 5
+			WHERE "id" = ${job.id}
+		`)
+		const claimed = {
+			id: job.id,
+			providerId: fixture.providerId,
+			requestedByUserId: fixture.userId,
+			commandJson: job.command,
+			operationType: "create_pricing_rule" as const,
+			attempts: 0,
+			maxAttempts: 3,
+			finalizationAttempts: 4,
+			finalizationMaxAttempts: 5,
+			materializationCompletedAt: null,
+			cacheInvalidationCompletedAt: null,
+			ariEnqueueCompletedAt: null,
+			status: "finalizing" as const,
+			createdAt: job.createdAt,
+		}
+		expect(
+			await deferPricingBulkJobFinalization({
+				job: claimed,
+				leaseToken,
+				now: new Date(),
+				errorCode: "forced_finalization_failure",
+				errorDetail: "Fallo controlado de certificación.",
+			})
+		).toBe(true)
+		const attention = await pricingBulkJobService.get({
+			providerId: fixture.providerId,
+			jobId: job.id,
+		})
+		expect(attention?.job.status).toBe("requires_attention")
+
+		const resumed = await pricingBulkJobService.retryFailed({
+			providerId: fixture.providerId,
+			requestedByUserId: fixture.userId,
+			jobId: job.id,
+		})
+		expect(resumed.status).toBe("finalizing")
+		expect(resumed.finalizationAttempts).toBe(0)
+	})
+
 	it("bulk preview no persiste reglas nuevas", async () => {
 		const fixture = await seedBulkFixture()
 		await withSupabaseAuthStub(
-			{ [fixture.token]: { id: "u_pr_v2_bulk_dry", email: fixture.email } },
+			{ [fixture.token]: { id: fixture.userId, email: fixture.email } },
 			async () => {
 				const beforeList = await listRulesV2Get({
 					request: makeAuthedGetRequest({
@@ -469,7 +608,7 @@ describe("integration/pricing rules v2 bulk orchestration", () => {
 	it("bulk apply soporta reglas segmentadas por occupancyKey sin romper reglas globales", async () => {
 		const fixture = await seedBulkFixture()
 		await withSupabaseAuthStub(
-			{ [fixture.token]: { id: "u_pr_v2_bulk_occ", email: fixture.email } },
+			{ [fixture.token]: { id: fixture.userId, email: fixture.email } },
 			async () => {
 				const globalCompleted = await submitAndCompleteBulkApply({
 					fixture,
@@ -579,7 +718,7 @@ describe("integration/pricing rules v2 bulk orchestration", () => {
 		form.set("priority", "21")
 
 		await withSupabaseAuthStub(
-			{ [fixture.token]: { id: "u_variant_guard", email: fixture.email } },
+			{ [fixture.token]: { id: fixture.userId, email: fixture.email } },
 			async () => {
 				const response = await commercialRulesPost({
 					request: makeAuthedFormRequest({

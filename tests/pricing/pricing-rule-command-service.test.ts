@@ -176,4 +176,34 @@ describe("PricingRuleCommandService", () => {
 		})
 		expect(result.materializations).toHaveLength(1)
 	})
+
+	it("resumes finalization from durable checkpoints without repeating completed effects", async () => {
+		const deps = dependencies()
+		const service = new PricingRuleCommandService(deps)
+		const onAriEnqueueCompleted = vi.fn().mockResolvedValue(undefined)
+
+		await service.finalizeDeferredImpacts({
+			idempotencyScope: "pricing-bulk:job-1:effects",
+			impacts: [
+				{
+					ratePlanId: "rate-plan-1",
+					variantId: "variant-1",
+					from: "2026-09-01",
+					toExclusive: "2026-09-10",
+					occupancyKey: null,
+				},
+			],
+			checkpoint: {
+				materializationCompleted: true,
+				cacheInvalidationCompleted: true,
+				ariEnqueueCompleted: false,
+				onAriEnqueueCompleted,
+			},
+		})
+
+		expect(deps.rematerialize).not.toHaveBeenCalled()
+		expect(deps.invalidatePricingBatch).not.toHaveBeenCalled()
+		expect(deps.enqueueAri).toHaveBeenCalledOnce()
+		expect(onAriEnqueueCompleted).toHaveBeenCalledOnce()
+	})
 })

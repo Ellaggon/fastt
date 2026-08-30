@@ -23,6 +23,9 @@ describe("pricing bulk job worker", () => {
 		expect(queue).toContain("getPricingBulkQueueSnapshot")
 		expect(queue).toContain("settlePricingBulkJobItems")
 		expect(queue).toContain("completePricingBulkJobFinalization")
+		expect(queue).toContain("checkpointPricingBulkMaterialization")
+		expect(queue).toContain("checkpointPricingBulkEffect")
+		expect(queue).toContain("requires_attention")
 		expect(queue).toContain("finalizing")
 		expect(worker).toContain("PRICING_BULK_WORKER_ITEM_CONCURRENCY, 3, 2, 4")
 		expect(worker).toContain("pricingBulkRetryDelayMs")
@@ -31,6 +34,8 @@ describe("pricing bulk job worker", () => {
 		expect(worker).toContain('executionMode: "deferred"')
 		expect(worker).toContain("finalizeDeferredImpacts")
 		expect(worker).toContain("PRICING_BULK_WORKER_TIME_BUDGET_MS")
+		expect(worker).toContain("FINALIZATION_RESERVE_MS")
+		expect(worker).toContain("error instanceof PricingBulkWorkerBudgetError")
 		expect(worker).toContain("pricing_bulk_job_queue_latency_ms")
 		expect(worker).toContain("pricing_bulk_worker_duration_ms")
 		expect(worker).toContain("pricing_bulk_job_leases_recovered_total")
@@ -64,7 +69,7 @@ describe("pricing bulk job worker", () => {
 		})
 	})
 
-	it("keeps the scheduler endpoint private and compatible with the current Vercel plan", () => {
+	it("keeps the scheduler endpoint private and runs pricing work every minute", () => {
 		const endpoint = read("src/pages/api/cron/pricing-bulk-jobs.ts")
 		const vercel = read("vercel.json")
 
@@ -72,6 +77,6 @@ describe("pricing bulk job worker", () => {
 		expect(endpoint).toContain("runPricingBulkJobWorker")
 		expect(vercel).toContain('"path": "/api/cron/pricing-bulk-jobs"')
 		expect(endpoint).toContain("maxDuration = 60")
-		expect(vercel).toContain('"schedule": "37 4 * * *"')
+		expect(vercel).toContain('"schedule": "* * * * *"')
 	})
 })

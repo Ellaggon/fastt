@@ -33,6 +33,7 @@ export * from "./application/use-cases/bulk-pricing-service"
 export * from "./application/use-cases/pricing-bulk-command"
 export * from "./application/use-cases/pricing-bulk-job-service"
 export * from "./application/use-cases/pricing-rule-command-service"
+export * from "./application/pricing-bulk-policy"
 export * from "./application/schemas/commercial-rate-plan.schemas"
 export * from "./application/schemas/pricing-baseline.schemas"
 

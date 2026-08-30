@@ -11,6 +11,8 @@ import {
 import {
 	claimPricingBulkJobItems,
 	claimQueuedPricingBulkJobs,
+	checkpointPricingBulkEffect,
+	checkpointPricingBulkMaterialization,
 	completePricingBulkJobFinalization,
 	deferPricingBulkJobFinalization,
 	listPricingBulkJobImpacts,
@@ -28,6 +30,11 @@ import {
 
 const DEFAULT_LEASE_MS = 5 * 60_000
 const DEFAULT_TIME_BUDGET_MS = 45_000
+const FINALIZATION_RESERVE_MS = 8_000
+
+class PricingBulkWorkerBudgetError extends Error {
+	readonly code = "pricing_bulk_worker_time_budget_exhausted"
+}
 
 export type PricingBulkWorkerConfiguration = {
 	jobBatchSize: number
@@ -135,6 +142,13 @@ function readableError(error: unknown): {
 	detail: string
 	retryable: boolean
 } {
+	if (error instanceof PricingBulkWorkerBudgetError) {
+		return {
+			code: error.code,
+			detail: "La ejecución continuará en el siguiente ciclo.",
+			retryable: true,
+		}
+	}
 	if (error instanceof PricingRuleCommandError) {
 		return {
 			code: error.code,
@@ -236,6 +250,17 @@ async function processItem(params: {
 			})
 			return "succeeded"
 		}
+		if (params.job.operationType !== "create_pricing_rule") {
+			await markPricingBulkItemFailed({
+				jobId: params.job.id,
+				itemId: params.item.id,
+				leaseToken: params.leaseToken,
+				errorCode: "pricing_bulk_operation_unsupported",
+				errorDetail: "El tipo de operación persistido no está soportado por este worker.",
+				retryAt: null,
+			})
+			return "failed"
+		}
 		const result = await pricingRuleCommandService.createRule(context, command, {
 			executionMode: "deferred",
 		})
@@ -331,7 +356,7 @@ export async function runPricingBulkJobWorker(options?: {
 		incrementCounter("pricing_bulk_job_leases_recovered_total", undefined, recoveredJobs)
 	}
 
-	for (const [index, job] of jobs.entries()) {
+	jobLoop: for (const [index, job] of jobs.entries()) {
 		if (Date.now() >= deadlineMs) {
 			result.timeBudgetExceeded = true
 			for (const claimedButUnstarted of jobs.slice(index)) {
@@ -385,6 +410,21 @@ export async function runPricingBulkJobWorker(options?: {
 			readyForFinalization = settled.readyForFinalization
 		}
 		if (!readyForFinalization) continue
+		if (Date.now() >= deadlineMs - FINALIZATION_RESERVE_MS) {
+			result.timeBudgetExceeded = true
+			for (const claimed of jobs.slice(index)) {
+				if (
+					await releasePricingBulkJobLease({
+						jobId: String(claimed.id),
+						leaseToken,
+						now: new Date(),
+					})
+				) {
+					result.releasedJobs += 1
+				}
+			}
+			break jobLoop
+		}
 		const leaseStillCurrent = await refreshPricingBulkJobLease({
 			jobId: String(job.id),
 			leaseToken,
@@ -407,12 +447,83 @@ export async function runPricingBulkJobWorker(options?: {
 				await pricingRuleCommandService.finalizeDeferredImpacts({
 					impacts,
 					idempotencyScope: `pricing-bulk:${job.id}:effects`,
+					checkpoint: {
+						materializationCompleted: job.materializationCompletedAt != null,
+						cacheInvalidationCompleted: job.cacheInvalidationCompletedAt != null,
+						ariEnqueueCompleted: job.ariEnqueueCompletedAt != null,
+						assertCanContinue: () => {
+							if (Date.now() >= deadlineMs - 1_500) throw new PricingBulkWorkerBudgetError()
+						},
+						onMaterializationCompleted: async (materializations) => {
+							if (
+								!(await checkpointPricingBulkMaterialization({
+									jobId: String(job.id),
+									leaseToken,
+									results: materializations,
+									now: new Date(),
+								}))
+							) {
+								throw new Error("pricing_bulk_job_lease_lost_during_materialization_checkpoint")
+							}
+							job.materializationCompletedAt = new Date()
+						},
+						onCacheInvalidationCompleted: async () => {
+							if (
+								!(await checkpointPricingBulkEffect({
+									jobId: String(job.id),
+									leaseToken,
+									stage: "cache_invalidation",
+									now: new Date(),
+								}))
+							) {
+								throw new Error("pricing_bulk_job_lease_lost_during_cache_checkpoint")
+							}
+							job.cacheInvalidationCompletedAt = new Date()
+						},
+						onAriEnqueueCompleted: async () => {
+							if (
+								!(await checkpointPricingBulkEffect({
+									jobId: String(job.id),
+									leaseToken,
+									stage: "ari_enqueue",
+									now: new Date(),
+								}))
+							) {
+								throw new Error("pricing_bulk_job_lease_lost_during_ari_checkpoint")
+							}
+							job.ariEnqueueCompletedAt = new Date()
+						},
+					},
 				})
 			}
 			if (await completePricingBulkJobFinalization({ job, leaseToken, now: new Date() })) {
 				result.finalizedJobs += 1
 			}
 		} catch (error) {
+			if (error instanceof PricingBulkWorkerBudgetError) {
+				result.timeBudgetExceeded = true
+				if (
+					await releasePricingBulkJobLease({
+						jobId: String(job.id),
+						leaseToken,
+						now: new Date(),
+					})
+				) {
+					result.releasedJobs += 1
+				}
+				for (const claimedButUnstarted of jobs.slice(index + 1)) {
+					if (
+						await releasePricingBulkJobLease({
+							jobId: String(claimedButUnstarted.id),
+							leaseToken,
+							now: new Date(),
+						})
+					) {
+						result.releasedJobs += 1
+					}
+				}
+				break jobLoop
+			}
 			const failure = readableError(error)
 			if (
 				await deferPricingBulkJobFinalization({

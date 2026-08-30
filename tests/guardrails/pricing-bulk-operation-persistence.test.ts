@@ -29,8 +29,14 @@ describe("Pricing bulk operation persistence", () => {
 				"lockedAt",
 				"lockedBy",
 				"finalizationAttempts",
+				"finalizationMaxAttempts",
 				"finalizationErrorCode",
 				"finalizationStartedAt",
+				"materializationCompletedAt",
+				"cacheInvalidationCompletedAt",
+				"ariEnqueueCompletedAt",
+				"finalizationResultJson",
+				"requiresAttentionAt",
 			])
 		)
 		expect(columnNames(PricingBulkOperationItem)).toEqual(
@@ -60,8 +66,11 @@ describe("Pricing bulk operation persistence", () => {
 			'"PricingBulkOperationItem_jobId_fk"',
 			'CREATE TRIGGER "trg_PricingBulkOperationJob_command_immutable"',
 			"'preview_pricing_rule'",
+			"'requires_attention'",
 		]) {
 			expect(baseline).toContain(fragment)
 		}
+		expect(baseline).not.toContain("'update_pricing_rule'")
+		expect(baseline).not.toContain("'delete_pricing_rule'")
 	})
 })

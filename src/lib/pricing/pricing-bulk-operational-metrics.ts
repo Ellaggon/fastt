@@ -28,9 +28,9 @@ export async function collectPricingBulkOperationalMetrics(): Promise<
 				count(*) FILTER (WHERE "attempts" > 0 OR "finalizationAttempts" > 0)::int
 					AS "retryJobs",
 				coalesce(sum("attempts" + "finalizationAttempts"), 0)::int AS "retryAttempts",
-				count(*) FILTER (WHERE "status" IN ('failed', 'partial'))::int AS "failedJobs"
-			FROM "PricingBulkOperationJob"
-			WHERE "status" IN ('queued', 'running', 'finalizing', 'failed', 'partial')
+					count(*) FILTER (WHERE "status" = 'requires_attention')::int AS "failedJobs"
+				FROM "PricingBulkOperationJob"
+				WHERE "status" IN ('queued', 'running', 'finalizing', 'requires_attention')
 			GROUP BY "status"
 		`),
 		db.execute(sql`
@@ -57,7 +57,7 @@ export async function collectPricingBulkOperationalMetrics(): Promise<
 		])
 	)
 	const metrics: PricingBulkOperationalMetric[] = []
-	for (const status of ["queued", "running", "finalizing", "failed", "partial"]) {
+	for (const status of ["queued", "running", "finalizing", "requires_attention"]) {
 		const row = queueByStatus.get(status) ?? {}
 		const labels = { status }
 		metrics.push(

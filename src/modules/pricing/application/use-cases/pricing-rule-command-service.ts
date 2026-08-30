@@ -58,6 +58,22 @@ export type PricingRuleImpactDescriptor = {
 	occupancyKey: string | null
 }
 
+export type PricingRuleMaterializationResult = {
+	impact: PricingRuleImpactDescriptor
+	missingDatesCount: number
+	generatedDatesCount: number
+}
+
+export type PricingRuleFinalizationCheckpoint = {
+	materializationCompleted: boolean
+	cacheInvalidationCompleted: boolean
+	ariEnqueueCompleted: boolean
+	assertCanContinue?: (stage: "materialization" | "cache_invalidation" | "ari_enqueue") => void
+	onMaterializationCompleted?: (results: PricingRuleMaterializationResult[]) => Promise<void>
+	onCacheInvalidationCompleted?: () => Promise<void>
+	onAriEnqueueCompleted?: () => Promise<void>
+}
+
 export type PricingRuleCreateResult = {
 	ruleId: string
 	ratePlanId: string
@@ -369,50 +385,63 @@ export class PricingRuleCommandService {
 	async finalizeDeferredImpacts(params: {
 		impacts: PricingRuleImpactDescriptor[]
 		idempotencyScope: string
+		checkpoint?: PricingRuleFinalizationCheckpoint
 	}): Promise<{
-		materializations: Array<{
-			impact: PricingRuleImpactDescriptor
-			missingDatesCount: number
-			generatedDatesCount: number
-		}>
+		materializations: PricingRuleMaterializationResult[]
 		cacheInvalidated: boolean
 		ariEnqueued: boolean
 	}> {
 		const impacts = mergeImpacts(params.impacts)
-		const materializations = await mapWithConcurrency(impacts, 3, async (impact) => {
-			const result = await this.deps.rematerialize({
-				variantId: impact.variantId,
-				ratePlanId: impact.ratePlanId,
-				from: impact.from,
-				to: impact.toExclusive,
-				occupancy: occupancyFromKey(impact.occupancyKey ?? undefined),
+		let materializations: PricingRuleMaterializationResult[] = []
+		if (!params.checkpoint?.materializationCompleted) {
+			params.checkpoint?.assertCanContinue?.("materialization")
+			materializations = await mapWithConcurrency(impacts, 3, async (impact) => {
+				const result = await this.deps.rematerialize({
+					variantId: impact.variantId,
+					ratePlanId: impact.ratePlanId,
+					from: impact.from,
+					to: impact.toExclusive,
+					occupancy: occupancyFromKey(impact.occupancyKey ?? undefined),
+				})
+				return { impact, ...result }
 			})
-			return { impact, ...result }
-		})
-		const changed = materializations.filter((result) => result.generatedDatesCount > 0)
-		if (!changed.length) return { materializations, cacheInvalidated: false, ariEnqueued: false }
+			await params.checkpoint?.onMaterializationCompleted?.(materializations)
+		}
 
-		const ratePlanIds = unique(changed.map((result) => result.impact.ratePlanId))
-		const variantIds = unique(changed.map((result) => result.impact.variantId))
-		const from = changed.reduce(
-			(earliest, result) =>
-				!earliest || result.impact.from < earliest ? result.impact.from : earliest,
+		if (!impacts.length) {
+			return { materializations, cacheInvalidated: false, ariEnqueued: false }
+		}
+		const ratePlanIds = unique(impacts.map((impact) => impact.ratePlanId))
+		const variantIds = unique(impacts.map((impact) => impact.variantId))
+		const from = impacts.reduce(
+			(earliest, impact) => (!earliest || impact.from < earliest ? impact.from : earliest),
 			""
 		)
-		const toExclusive = changed.reduce(
-			(latest, result) =>
-				!latest || result.impact.toExclusive > latest ? result.impact.toExclusive : latest,
+		const toExclusive = impacts.reduce(
+			(latest, impact) => (!latest || impact.toExclusive > latest ? impact.toExclusive : latest),
 			""
 		)
-		await this.deps.invalidatePricingBatch({ ratePlanIds, variantIds })
-		await this.deps.enqueueAri({
-			variantIds,
-			ratePlanIds,
-			from,
-			toExclusive,
-			idempotencyScope: params.idempotencyScope,
-			critical: true,
-		})
-		return { materializations, cacheInvalidated: true, ariEnqueued: true }
+		let cacheInvalidated = params.checkpoint?.cacheInvalidationCompleted === true
+		if (!cacheInvalidated) {
+			params.checkpoint?.assertCanContinue?.("cache_invalidation")
+			await this.deps.invalidatePricingBatch({ ratePlanIds, variantIds })
+			await params.checkpoint?.onCacheInvalidationCompleted?.()
+			cacheInvalidated = true
+		}
+		let ariEnqueued = params.checkpoint?.ariEnqueueCompleted === true
+		if (!ariEnqueued) {
+			params.checkpoint?.assertCanContinue?.("ari_enqueue")
+			await this.deps.enqueueAri({
+				variantIds,
+				ratePlanIds,
+				from,
+				toExclusive,
+				idempotencyScope: params.idempotencyScope,
+				critical: true,
+			})
+			await params.checkpoint?.onAriEnqueueCompleted?.()
+			ariEnqueued = true
+		}
+		return { materializations, cacheInvalidated, ariEnqueued }
 	}
 }

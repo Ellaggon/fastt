@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto"
 
 import { db, sql } from "@/shared/infrastructure/db/compat"
+import type { PricingRuleMaterializationResult } from "@/modules/pricing/public"
 
 export type ClaimedPricingBulkJob = {
 	id: string
@@ -11,6 +12,10 @@ export type ClaimedPricingBulkJob = {
 	attempts: number
 	maxAttempts: number
 	finalizationAttempts: number
+	finalizationMaxAttempts: number
+	materializationCompletedAt: Date | string | null
+	cacheInvalidationCompletedAt: Date | string | null
+	ariEnqueueCompletedAt: Date | string | null
 	status: "running" | "finalizing"
 	createdAt: Date | string
 }
@@ -39,6 +44,7 @@ export type PricingBulkQueueSnapshot = {
 		due: number
 		running: number
 		finalizing: number
+		requiresAttention: number
 		retrying: number
 	}
 	items: {
@@ -106,10 +112,11 @@ export async function recoverExpiredPricingBulkJobLeases(params: {
 			attempts: number
 			maxAttempts: number
 			finalizationAttempts: number
+			finalizationMaxAttempts: number
 			status: "running" | "finalizing"
 		}>(
 			await tx.execute(sql`
-				SELECT "id", "attempts", "maxAttempts", "finalizationAttempts", "status"
+				SELECT "id", "attempts", "maxAttempts", "finalizationAttempts", "finalizationMaxAttempts", "status"
 				FROM "PricingBulkOperationJob"
 				WHERE "status" IN ('running', 'finalizing') AND "lockedAt" < ${cutoff}
 				ORDER BY "lockedAt" ASC
@@ -118,20 +125,27 @@ export async function recoverExpiredPricingBulkJobLeases(params: {
 		)
 		for (const job of expired) {
 			if (job.status === "finalizing") {
+				const nextFinalizationAttempts = Math.min(
+					Number(job.finalizationAttempts) + 1,
+					Number(job.finalizationMaxAttempts)
+				)
+				const exhausted = nextFinalizationAttempts >= Number(job.finalizationMaxAttempts)
 				const retryAt = new Date(
-					params.now.getTime() + pricingBulkRetryDelayMs(Number(job.finalizationAttempts) + 1)
+					params.now.getTime() + pricingBulkRetryDelayMs(nextFinalizationAttempts)
 				)
 				await tx.execute(sql`
 					UPDATE "PricingBulkOperationJob"
 					SET
+						"status" = ${exhausted ? "requires_attention" : "finalizing"},
 						"lockedAt" = NULL,
 						"lockedBy" = NULL,
-						"runAfter" = ${retryAt.toISOString()},
-						"finalizationAttempts" = "finalizationAttempts" + 1,
+						"runAfter" = ${exhausted ? params.now.toISOString() : retryAt.toISOString()},
+						"finalizationAttempts" = ${nextFinalizationAttempts},
 						"finalizationErrorCode" = 'worker_lease_expired',
 						"finalizationErrorDetail" = 'El proceso de finalización anterior perdió su lease antes de terminar.',
-						"finalErrorCode" = 'pricing_bulk_finalization_retry_pending',
-						"finalErrorDetail" = 'La finalización comercial se reintentará de forma segura.'
+						"finalErrorCode" = ${exhausted ? "pricing_bulk_finalization_requires_attention" : "pricing_bulk_finalization_retry_pending"},
+						"finalErrorDetail" = ${exhausted ? "La finalización agotó sus reintentos y requiere revisión." : "La finalización comercial se reintentará de forma segura."},
+						"requiresAttentionAt" = ${exhausted ? params.now.toISOString() : null}
 					WHERE "id" = ${job.id}
 				`)
 				continue
@@ -187,6 +201,7 @@ export async function getPricingBulkQueueSnapshot(
 				count(*) FILTER (WHERE "status" = 'queued' AND "runAfter" <= ${now.toISOString()}) AS due,
 				count(*) FILTER (WHERE "status" = 'running') AS running,
 				count(*) FILTER (WHERE "status" = 'finalizing') AS finalizing,
+				count(*) FILTER (WHERE "status" = 'requires_attention') AS "requiresAttention",
 				count(*) FILTER (
 					WHERE ("status" = 'queued' AND "attempts" > 0)
 						OR ("status" = 'finalizing' AND "finalizationAttempts" > 0)
@@ -209,6 +224,7 @@ export async function getPricingBulkQueueSnapshot(
 			due: Number(jobRow?.due ?? 0),
 			running: Number(jobRow?.running ?? 0),
 			finalizing: Number(jobRow?.finalizing ?? 0),
+			requiresAttention: Number(jobRow?.requiresAttention ?? 0),
 			retrying: Number(jobRow?.retrying ?? 0),
 		},
 		items: {
@@ -232,7 +248,7 @@ export async function claimQueuedPricingBulkJobs(params: {
 				FROM "PricingBulkOperationJob"
 				WHERE (
 						("status" = 'queued' AND "attempts" < "maxAttempts")
-						OR "status" = 'finalizing'
+						OR ("status" = 'finalizing' AND "finalizationAttempts" < "finalizationMaxAttempts")
 					)
 					AND "lockedBy" IS NULL
 					AND "runAfter" <= ${now}
@@ -249,9 +265,67 @@ export async function claimQueuedPricingBulkJobs(params: {
 				"updatedAt" = ${now}
 			FROM due
 			WHERE job."id" = due."id"
-			RETURNING job."id", job."providerId", job."requestedByUserId", job."commandJson", job."operationType", job."attempts", job."maxAttempts", job."finalizationAttempts", job."status", job."createdAt"
+			RETURNING job."id", job."providerId", job."requestedByUserId", job."commandJson", job."operationType", job."attempts", job."maxAttempts", job."finalizationAttempts", job."finalizationMaxAttempts", job."materializationCompletedAt", job."cacheInvalidationCompletedAt", job."ariEnqueueCompletedAt", job."status", job."createdAt"
 		`)
 	)
+}
+
+export async function checkpointPricingBulkMaterialization(params: {
+	jobId: string
+	leaseToken: string
+	results: PricingRuleMaterializationResult[]
+	now: Date
+}): Promise<boolean> {
+	return db.transaction(async (tx) => {
+		for (const result of params.results) {
+			await tx.execute(sql`
+				UPDATE "PricingBulkOperationItem" AS item
+				SET "materializationResultJson" = ${JSON.stringify({
+					missingDatesCount: result.missingDatesCount,
+					generatedDatesCount: result.generatedDatesCount,
+					impact: result.impact,
+				})}::jsonb,
+					"updatedAt" = CURRENT_TIMESTAMP
+				WHERE item."jobId" = ${params.jobId}
+					AND item."ratePlanId" = ${result.impact.ratePlanId}
+					AND item."status" = 'succeeded'
+			`)
+		}
+		const updated = rows<{ id: string }>(
+			await tx.execute(sql`
+				UPDATE "PricingBulkOperationJob"
+				SET "materializationCompletedAt" = ${params.now.toISOString()}, "updatedAt" = CURRENT_TIMESTAMP
+				WHERE "id" = ${params.jobId}
+					AND "status" = 'finalizing'
+					AND "lockedBy" = ${params.leaseToken}
+				RETURNING "id"
+			`)
+		)
+		return updated.length > 0
+	})
+}
+
+export async function checkpointPricingBulkEffect(params: {
+	jobId: string
+	leaseToken: string
+	stage: "cache_invalidation" | "ari_enqueue"
+	now: Date
+}): Promise<boolean> {
+	const column =
+		params.stage === "cache_invalidation"
+			? sql.raw('"cacheInvalidationCompletedAt"')
+			: sql.raw('"ariEnqueueCompletedAt"')
+	const updated = rows<{ id: string }>(
+		await db.execute(sql`
+			UPDATE "PricingBulkOperationJob"
+			SET ${column} = ${params.now.toISOString()}, "updatedAt" = CURRENT_TIMESTAMP
+			WHERE "id" = ${params.jobId}
+				AND "status" = 'finalizing'
+				AND "lockedBy" = ${params.leaseToken}
+			RETURNING "id"
+		`)
+	)
+	return updated.length > 0
 }
 
 /** Releases work claimed but not started when a bounded cron run reaches its deadline. */
@@ -509,14 +583,26 @@ export async function completePricingBulkJobFinalization(params: {
 	leaseToken: string
 	now: Date
 }): Promise<boolean> {
-	const counts = await countsForJob(params.job.id)
-	const completed = counts.succeeded + counts.failed + counts.skipped + counts.cancelled
-	const status = terminalStatus(counts)
-	const finalErrorCode = counts.failed > 0 ? "pricing_bulk_item_failed" : null
-	const finalErrorDetail =
-		counts.failed > 0 ? `${counts.failed} elemento(s) no pudieron aplicarse.` : null
-	const updated = rows<{ id: string }>(
-		await db.execute(sql`
+	return db.transaction(async (tx) => {
+		const counts = await countsForJob(params.job.id, tx)
+		const completed = counts.succeeded + counts.failed + counts.skipped + counts.cancelled
+		const status = terminalStatus(counts)
+		const finalErrorCode = counts.failed > 0 ? "pricing_bulk_item_failed" : null
+		const finalErrorDetail =
+			counts.failed > 0 ? `${counts.failed} elemento(s) no pudieron aplicarse.` : null
+		const finalizationResult = {
+			status,
+			completedItems: completed,
+			succeededItems: counts.succeeded,
+			failedItems: counts.failed,
+			skippedItems: counts.skipped,
+			cancelledItems: counts.cancelled,
+			materializationCompleted: params.job.materializationCompletedAt != null,
+			cacheInvalidationCompleted: params.job.cacheInvalidationCompletedAt != null,
+			ariEnqueueCompleted: params.job.ariEnqueueCompletedAt != null,
+		}
+		const updated = rows<{ id: string }>(
+			await tx.execute(sql`
 			UPDATE "PricingBulkOperationJob"
 			SET
 				"status" = ${status},
@@ -532,6 +618,8 @@ export async function completePricingBulkJobFinalization(params: {
 				"finalizationErrorCode" = NULL,
 				"finalizationErrorDetail" = NULL,
 				"finalizationFinishedAt" = ${params.now.toISOString()},
+				"finalizationResultJson" = ${JSON.stringify(finalizationResult)}::jsonb,
+				"requiresAttentionAt" = NULL,
 				"finalErrorCode" = ${finalErrorCode},
 				"finalErrorDetail" = ${finalErrorDetail},
 				"finishedAt" = ${params.now.toISOString()},
@@ -541,8 +629,22 @@ export async function completePricingBulkJobFinalization(params: {
 				AND "lockedBy" = ${params.leaseToken}
 			RETURNING "id"
 		`)
-	)
-	return updated.length > 0
+		)
+		if (!updated.length) return false
+		await tx.execute(sql`
+			INSERT INTO "ProviderAuditLog" (
+				"id", "providerId", "actorUserId", "action", "entityType", "entityId",
+				"beforeJson", "afterJson", "riskLevel", "createdAt"
+			) VALUES (
+				${randomUUID()}, ${params.job.providerId}, ${params.job.requestedByUserId},
+				'pricing.bulk_job.completed', 'pricing_bulk_job', ${params.job.id},
+				${JSON.stringify({ status: "finalizing" })}::jsonb,
+				${JSON.stringify(finalizationResult)}::jsonb,
+				${counts.failed > 0 ? "medium" : "low"}, ${params.now.toISOString()}
+			)
+		`)
+		return true
+	})
 }
 
 export async function deferPricingBulkJobFinalization(params: {
@@ -552,21 +654,28 @@ export async function deferPricingBulkJobFinalization(params: {
 	errorCode: string
 	errorDetail: string
 }): Promise<boolean> {
+	const nextAttempts = Math.min(
+		params.job.finalizationAttempts + 1,
+		params.job.finalizationMaxAttempts
+	)
+	const exhausted = nextAttempts >= params.job.finalizationMaxAttempts
 	const retryAt = new Date(
-		params.now.getTime() + pricingBulkRetryDelayMs(Math.max(1, params.job.finalizationAttempts + 1))
+		params.now.getTime() + pricingBulkRetryDelayMs(Math.max(1, nextAttempts))
 	)
 	const updated = rows<{ id: string }>(
 		await db.execute(sql`
 			UPDATE "PricingBulkOperationJob"
 			SET
+				"status" = ${exhausted ? "requires_attention" : "finalizing"},
 				"lockedAt" = NULL,
 				"lockedBy" = NULL,
-				"runAfter" = ${retryAt.toISOString()},
-				"finalizationAttempts" = "finalizationAttempts" + 1,
+				"runAfter" = ${exhausted ? params.now.toISOString() : retryAt.toISOString()},
+				"finalizationAttempts" = ${nextAttempts},
 				"finalizationErrorCode" = ${params.errorCode},
 				"finalizationErrorDetail" = ${params.errorDetail.slice(0, 1000)},
-				"finalErrorCode" = 'pricing_bulk_finalization_retry_pending',
-				"finalErrorDetail" = 'La finalización comercial se reintentará de forma segura.',
+				"finalErrorCode" = ${exhausted ? "pricing_bulk_finalization_requires_attention" : "pricing_bulk_finalization_retry_pending"},
+				"finalErrorDetail" = ${exhausted ? "La finalización agotó sus reintentos y requiere revisión." : "La finalización comercial se reintentará de forma segura."},
+				"requiresAttentionAt" = ${exhausted ? params.now.toISOString() : null},
 				"updatedAt" = CURRENT_TIMESTAMP
 			WHERE "id" = ${params.job.id}
 				AND "status" = 'finalizing'
@@ -574,5 +683,19 @@ export async function deferPricingBulkJobFinalization(params: {
 			RETURNING "id"
 		`)
 	)
+	if (updated.length > 0 && exhausted) {
+		await db.execute(sql`
+			INSERT INTO "ProviderAuditLog" (
+				"id", "providerId", "actorUserId", "action", "entityType", "entityId",
+				"beforeJson", "afterJson", "riskLevel", "createdAt"
+			) VALUES (
+				${randomUUID()}, ${params.job.providerId}, ${params.job.requestedByUserId},
+				'pricing.bulk_job.requires_attention', 'pricing_bulk_job', ${params.job.id},
+				${JSON.stringify({ status: "finalizing", attempts: params.job.finalizationAttempts })}::jsonb,
+				${JSON.stringify({ status: "requires_attention", errorCode: params.errorCode, attempts: nextAttempts })}::jsonb,
+				'high', ${params.now.toISOString()}
+			)
+		`)
+	}
 	return updated.length > 0
 }

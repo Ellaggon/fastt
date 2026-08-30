@@ -1225,10 +1225,16 @@ CREATE TABLE "PricingBulkOperationJob" (
 	"lockedAt" timestamp with time zone,
 	"lockedBy" text,
 	"finalizationAttempts" integer NOT NULL DEFAULT 0,
+	"finalizationMaxAttempts" integer NOT NULL DEFAULT 5,
 	"finalizationErrorCode" text,
 	"finalizationErrorDetail" text,
 	"finalizationStartedAt" timestamp with time zone,
 	"finalizationFinishedAt" timestamp with time zone,
+	"materializationCompletedAt" timestamp with time zone,
+	"cacheInvalidationCompletedAt" timestamp with time zone,
+	"ariEnqueueCompletedAt" timestamp with time zone,
+	"finalizationResultJson" jsonb,
+	"requiresAttentionAt" timestamp with time zone,
 	"finalErrorCode" text,
 	"finalErrorDetail" text,
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
@@ -3390,6 +3396,8 @@ CREATE INDEX "PricingBulkOperationJob_finalization_due_idx" ON "PricingBulkOpera
 
 CREATE INDEX "PricingBulkOperationJob_provider_status_idx" ON "PricingBulkOperationJob" ("providerId", "status", "runAfter");
 
+CREATE INDEX "PricingBulkOperationJob_requires_attention_idx" ON "PricingBulkOperationJob" ("providerId", "requiresAttentionAt") WHERE "status" = 'requires_attention';
+
 CREATE INDEX "PricingBulkOperationJob_terminal_retention_idx" ON "PricingBulkOperationJob" ("status", "finishedAt") WHERE "status" IN ('succeeded', 'partial', 'failed', 'cancelled') AND "finishedAt" IS NOT NULL;
 
 CREATE UNIQUE INDEX "PricingBulkOperationItem_job_ratePlan_unique" ON "PricingBulkOperationItem" ("jobId", "ratePlanId");
@@ -3690,9 +3698,9 @@ ALTER TABLE "CommercialRuleApplication" ADD CONSTRAINT "CommercialRuleApplicatio
 				OR ("scope" = 'rate_plan' AND "productTargetId" IS NULL AND "variantTargetId" IS NULL AND "ratePlanTargetId" IS NOT NULL)
 			));
 
-ALTER TABLE "PricingBulkOperationJob" ADD CONSTRAINT "PricingBulkOperationJob_status_check" CHECK ("status" IN ('queued', 'running', 'finalizing', 'succeeded', 'partial', 'failed', 'cancelled'));
+ALTER TABLE "PricingBulkOperationJob" ADD CONSTRAINT "PricingBulkOperationJob_status_check" CHECK ("status" IN ('queued', 'running', 'finalizing', 'succeeded', 'partial', 'failed', 'requires_attention', 'cancelled'));
 
-ALTER TABLE "PricingBulkOperationJob" ADD CONSTRAINT "PricingBulkOperationJob_operationType_check" CHECK ("operationType" IN ('create_pricing_rule', 'preview_pricing_rule', 'update_pricing_rule', 'delete_pricing_rule'));
+ALTER TABLE "PricingBulkOperationJob" ADD CONSTRAINT "PricingBulkOperationJob_operationType_check" CHECK ("operationType" IN ('create_pricing_rule', 'preview_pricing_rule'));
 
 ALTER TABLE "PricingBulkOperationJob" ADD CONSTRAINT "PricingBulkOperationJob_idempotencyKey_not_blank" CHECK (length(trim("idempotencyKey")) > 0);
 
@@ -3700,7 +3708,7 @@ ALTER TABLE "PricingBulkOperationJob" ADD CONSTRAINT "PricingBulkOperationJob_pa
 
 ALTER TABLE "PricingBulkOperationJob" ADD CONSTRAINT "PricingBulkOperationJob_attempts_check" CHECK ("attempts" >= 0 AND "maxAttempts" > 0 AND "attempts" <= "maxAttempts");
 
-ALTER TABLE "PricingBulkOperationJob" ADD CONSTRAINT "PricingBulkOperationJob_finalizationAttempts_check" CHECK ("finalizationAttempts" >= 0);
+ALTER TABLE "PricingBulkOperationJob" ADD CONSTRAINT "PricingBulkOperationJob_finalizationAttempts_check" CHECK ("finalizationAttempts" >= 0 AND "finalizationMaxAttempts" > 0 AND "finalizationAttempts" <= "finalizationMaxAttempts");
 
 ALTER TABLE "PricingBulkOperationJob" ADD CONSTRAINT "PricingBulkOperationJob_progress_nonnegative_check" CHECK ("totalItems" >= 0 AND "pendingItems" >= 0 AND "runningItems" >= 0 AND "completedItems" >= 0 AND "succeededItems" >= 0 AND "failedItems" >= 0 AND "skippedItems" >= 0 AND "cancelledItems" >= 0);
 
