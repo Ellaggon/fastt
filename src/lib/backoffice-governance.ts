@@ -288,6 +288,14 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		rationale: "Superficies comerciales centradas en tarifas, precios y condiciones.",
 	},
 	{
+		pattern: "/rates/pricing-jobs/**",
+		status: "canonical",
+		context: "enterprise-operations",
+		owner: "Rooms & Rates",
+		rationale:
+			"Detalle operativo y trazabilidad de trabajos asíncronos de precios iniciados desde Calendario o Tarifas.",
+	},
+	{
 		pattern: "/rates/calendar/connections",
 		status: "canonical",
 		context: "enterprise-operations",

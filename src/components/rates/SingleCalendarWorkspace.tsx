@@ -2,6 +2,9 @@
 import React, { startTransition, useEffect, useMemo, useRef, useState } from "react"
 
 import CalendarResponsiveDrawer from "@/components/rates/CalendarResponsiveDrawer"
+import PricingBulkJobOperationPanel, {
+	type PricingBulkJobView,
+} from "@/components/pricing/PricingBulkJobOperationPanel"
 import {
 	Badge,
 	Button,
@@ -254,6 +257,7 @@ export default function SingleCalendarWorkspace({
 	const [guidedUnits, setGuidedUnits] = useState(1)
 	const [gridDirection, setGridDirection] = useState<"previous" | "next" | "neutral">("neutral")
 	const [updatedDates, setUpdatedDates] = useState<Set<string>>(new Set())
+	const [pricingJobId, setPricingJobId] = useState<string | null>(null)
 	const activeRequest = useRef<AbortController | null>(null)
 	const requestSequence = useRef(0)
 	const today = localIsoDate()
@@ -670,8 +674,38 @@ export default function SingleCalendarWorkspace({
 		setSelectionHintAction("")
 		setValue(id === "min_los" ? "2" : "")
 		setReviewed(false)
+		setPricingJobId(null)
 		setFeedback("")
 		setDrawerAction(id as DrawerAction)
+	}
+
+	async function enqueueManualPricingJob() {
+		const idempotencyKey = `calendar-pricing:apply:${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`
+		const response = await fetch("/api/pricing/bulk-jobs", {
+			method: "POST",
+			headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
+			body: JSON.stringify({
+				ratePlanIds: [readySurface.selectedRatePlanId],
+				operation: {
+					type: "fixed_override",
+					value: Number(value),
+					conditions: {
+						priority: 1000,
+						dateFrom: selection.from,
+						dateTo: selection.to,
+						previewFrom: selection.from,
+						effectiveFrom: selection.from,
+						effectiveTo: addDays(selection.to, 1),
+						contextKey: "manual",
+					},
+				},
+			}),
+		})
+		const body = await response.json().catch(() => ({}))
+		if (!response.ok || !body?.job?.id)
+			throw new Error(body?.error || "No se pudo preparar la operación de precios.")
+		setPricingJobId(String(body.job.id))
+		setFeedback("La operación fue preparada y se aplicará en segundo plano.")
 	}
 
 	async function reviewMutation() {
@@ -734,26 +768,8 @@ export default function SingleCalendarWorkspace({
 		try {
 			let response: Response
 			if (drawerAction === "manual_price") {
-				response = await fetch("/api/pricing/rules/v2/bulk-apply", {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({
-						ratePlanIds: [readySurface.selectedRatePlanId],
-						operation: {
-							type: "fixed_override",
-							value: numeric,
-							conditions: {
-								priority: 1000,
-								dateFrom: selection.from,
-								dateTo: selection.to,
-								previewFrom: selection.from,
-								effectiveFrom: selection.from,
-								effectiveTo: addDays(selection.to, 1),
-								contextKey: "manual",
-							},
-						},
-					}),
-				})
+				await enqueueManualPricingJob()
+				return
 			} else if (drawerAction === "inventory_units") {
 				response = await fetch("/api/inventory/bulk-apply", {
 					method: "POST",
@@ -1360,51 +1376,70 @@ export default function SingleCalendarWorkspace({
 				<CalendarResponsiveDrawer
 					title={actionTitle(drawerAction)}
 					meta={`${formatRange(selection.from, selection.to, true)} · ${readySurface.selectedRatePlanName}`}
-					onClose={() => setDrawerAction(null)}
+					onClose={() => {
+						setDrawerAction(null)
+						setPricingJobId(null)
+					}}
 				>
-					<div className="mt-5 space-y-4">
-						{drawerAction === "stop_sell" ? (
-							<Notice variant="warning">
-								Cerrará la venta de esta tarifa durante el rango seleccionado.
-							</Notice>
-						) : (
-							<label className="block text-sm font-medium text-slate-700">
-								{drawerAction === "manual_price"
-									? "Precio final"
-									: drawerAction === "inventory_units"
-										? "Cupo físico total"
-										: "Noches mínimas"}
-								<Input
-									type="number"
-									min="0"
-									value={value}
-									onChange={(event) => {
-										setValue(event.target.value)
+					{pricingJobId ? (
+						<div className="mt-5">
+							<PricingBulkJobOperationPanel
+								jobId={pricingJobId}
+								onTerminal={(result: PricingBulkJobView) => {
+									if (result.job.status === "succeeded" || result.job.status === "partial") {
+										surfaceCache.clear()
+										void loadSurface({}, { force: true })
+										setUpdatedDates(new Set(selectedDates))
 										setReviewed(false)
-									}}
-									className="mt-1.5"
-								/>
-							</label>
-						)}
-						{feedback && <p className="text-sm text-slate-600">{feedback}</p>}
-						<div className="grid grid-cols-2 gap-2 border-t border-slate-200 pt-4">
-							<Button
-								type="button"
-								disabled={loading}
-								onClick={() => void reviewMutation()}
-								variant="secondary"
-							>
-								Revisar
-							</Button>
-							<Button
-								type="button"
-								disabled={loading || !reviewed}
-								onClick={() => void saveMutation()}
-							>
-								Guardar
-							</Button>
+									}
+								}}
+							/>
 						</div>
-					</div>
+					) : (
+						<div className="mt-5 space-y-4">
+							{drawerAction === "stop_sell" ? (
+								<Notice variant="warning">
+									Cerrará la venta de esta tarifa durante el rango seleccionado.
+								</Notice>
+							) : (
+								<label className="block text-sm font-medium text-slate-700">
+									{drawerAction === "manual_price"
+										? "Precio final"
+										: drawerAction === "inventory_units"
+											? "Cupo físico total"
+											: "Noches mínimas"}
+									<Input
+										type="number"
+										min="0"
+										value={value}
+										onChange={(event) => {
+											setValue(event.target.value)
+											setReviewed(false)
+										}}
+										className="mt-1.5"
+									/>
+								</label>
+							)}
+							{feedback && <p className="text-sm text-slate-600">{feedback}</p>}
+							<div className="grid grid-cols-2 gap-2 border-t border-slate-200 pt-4">
+								<Button
+									type="button"
+									disabled={loading}
+									onClick={() => void reviewMutation()}
+									variant="secondary"
+								>
+									Revisar
+								</Button>
+								<Button
+									type="button"
+									disabled={loading || !reviewed}
+									onClick={() => void saveMutation()}
+								>
+									Guardar
+								</Button>
+							</div>
+						</div>
+					)}
 				</CalendarResponsiveDrawer>
 			)}
 		</div>

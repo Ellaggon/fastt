@@ -1,7 +1,18 @@
 /** @jsxRuntime classic */
-import React, { memo, startTransition, useEffect, useMemo, useRef, useState } from "react"
+import React, {
+	memo,
+	startTransition,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react"
 
 import CalendarResponsiveDrawer from "@/components/rates/CalendarResponsiveDrawer"
+import PricingBulkJobOperationPanel, {
+	type PricingBulkJobView,
+} from "@/components/pricing/PricingBulkJobOperationPanel"
 import { getPolicyCategoryLabel } from "@/data/policy/policy-categories"
 import {
 	Badge,
@@ -461,6 +472,9 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 	const [cancellationSource, setCancellationSource] = useState("")
 	const [cancellationPreview, setCancellationPreview] = useState<CancellationPreviewItem[]>([])
 	const [cancellationPreviewReady, setCancellationPreviewReady] = useState(false)
+	const [pricingJob, setPricingJob] = useState<{ id: string; mode: "apply" | "preview" } | null>(
+		null
+	)
 	const requestRef = useRef<AbortController | null>(null)
 
 	useEffect(() => {
@@ -646,6 +660,7 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 		setValue("")
 		setEditingRule(null)
 		setEditingMode("edit")
+		setPricingJob(null)
 		if (PRICE_ACTIONS[id]) {
 			setValue(String(PRICE_ACTIONS[id].defaultValue))
 			setPriceMode(PRICE_ACTIONS[id].fixedMode || "percentage_discount")
@@ -669,6 +684,112 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 			setCancellationPreviewReady(false)
 		}
 		setDrawerOpen(true)
+	}
+
+	function pricingOperation() {
+		const config = PRICE_ACTIONS[activeAction]
+		return {
+			type: priceMode,
+			value: Number(value),
+			conditions: {
+				priority: 1000,
+				dateFrom: selection.from,
+				dateTo: selection.to,
+				previewFrom: selection.from,
+				effectiveFrom: selection.from,
+				effectiveTo: addDays(selection.to, 1),
+				contextKey: config.contextKey,
+				currency: selection.cells[0]?.cell.currency || "USD",
+			},
+		}
+	}
+
+	function idempotencyKey(mode: "apply" | "preview") {
+		const suffix =
+			globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
+		return `calendar-pricing:${mode}:${suffix}`
+	}
+
+	async function enqueuePricingJob(mode: "apply" | "preview") {
+		const response = await fetch("/api/pricing/bulk-jobs", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"Idempotency-Key": idempotencyKey(mode),
+			},
+			body: JSON.stringify({
+				ratePlanIds: selection.ratePlanIds,
+				operation: pricingOperation(),
+				mode,
+			}),
+		})
+		const body = await response.json().catch(() => ({}))
+		if (!response.ok || !body?.job?.id)
+			throw new Error(body?.error || "No se pudo preparar la operación de precios.")
+		setPricingJob({ id: String(body.job.id), mode })
+		setFeedback(
+			mode === "preview"
+				? "La vista previa se preparó como una operación en segundo plano."
+				: "La operación fue preparada y se aplicará en segundo plano."
+		)
+	}
+
+	const onPricingJobTerminal = useCallback(
+		(result: PricingBulkJobView) => {
+			if (result.job.operationType === "preview_pricing_rule") {
+				setPreviewReady(result.job.status === "succeeded")
+				setFeedback(
+					result.job.status === "succeeded"
+						? "La vista previa está lista para revisar y aplicar."
+						: "La vista previa terminó con incidencias. Revisa las tarifas señaladas."
+				)
+				return
+			}
+			if (result.job.status === "succeeded" || result.job.status === "partial") {
+				void loadWorkspace({}, selection.ratePlanIds)
+				setRecentlyUpdated(new Set(selected))
+				setPreviewReady(false)
+				setFeedback(
+					result.job.status === "succeeded"
+						? "Precio actualizado en las tarifas aplicadas."
+						: "La operación terminó con incidencias; revisa las tarifas fallidas."
+				)
+			}
+		},
+		[selected, selection.ratePlanIds]
+	)
+
+	async function reviewPrice() {
+		const numeric = Number(value)
+		if (!Number.isFinite(numeric) || numeric < 0) return setFeedback("Ingresa un valor válido.")
+		setLoading(true)
+		try {
+			if (selection.ratePlanIds.length > 20) {
+				await enqueuePricingJob("preview")
+				return
+			}
+			const response = await fetch("/api/pricing/rules/v2/bulk-preview", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					ratePlanIds: selection.ratePlanIds,
+					operation: pricingOperation(),
+					dryRun: true,
+				}),
+			})
+			const body = await response.json().catch(() => ({}))
+			if (!response.ok || Number(body?.summary?.failed ?? 0) > 0)
+				throw new Error(
+					body?.failures?.[0]?.error || body?.error || "No se pudo revisar el cambio."
+				)
+			setPreviewReady(true)
+			setFeedback(`Vista previa lista para ${selection.ratePlanIds.length} tarifas.`)
+		} catch (error) {
+			setPreviewReady(false)
+			setFeedback(error instanceof Error ? error.message : "No se pudo revisar el cambio.")
+		} finally {
+			setLoading(false)
+		}
 	}
 
 	async function loadCancellationOptions() {
@@ -804,39 +925,9 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 		if (!Number.isFinite(numeric) || numeric < 0) return setFeedback("Ingresa un valor válido.")
 		if (!previewReady) return setFeedback("Revisa el impacto antes de guardar.")
 		setLoading(true)
-		setFeedback("Guardando precio...")
-		const config = PRICE_ACTIONS[activeAction]
+		setFeedback("Preparando operación...")
 		try {
-			const response = await fetch("/api/pricing/rules/v2/bulk-apply", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					ratePlanIds: selection.ratePlanIds,
-					operation: {
-						type: priceMode,
-						value: numeric,
-						conditions: {
-							priority: 1000,
-							dateFrom: selection.from,
-							dateTo: selection.to,
-							previewFrom: selection.from,
-							effectiveFrom: selection.from,
-							effectiveTo: addDays(selection.to, 1),
-							contextKey: config.contextKey,
-							currency: selection.cells[0]?.cell.currency || "USD",
-						},
-					},
-					dryRun: false,
-					concurrency: 3,
-				}),
-			})
-			const body = await response.json().catch(() => ({}))
-			if (!response.ok || Number(body?.summary?.failed || 0) > 0)
-				throw new Error(body?.failures?.[0]?.error || body?.error || "No se pudo guardar")
-			await loadWorkspace({}, selection.ratePlanIds)
-			setRecentlyUpdated(new Set(selected))
-			setFeedback("Precio actualizado.")
-			setPreviewReady(false)
+			await enqueuePricingJob("apply")
 		} catch (error) {
 			setFeedback((error as Error).message)
 		} finally {
@@ -1347,64 +1438,66 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 							{selection.cells.length} noches-tarifa impactadas
 						</p>
 					</div>
-					{PRICE_ACTIONS[activeAction] && (
-						<div className="mt-5 space-y-4">
-							<div className="grid grid-cols-3 gap-2">
-								{(!PRICE_ACTIONS[activeAction].fixedMode
-									? [
-											["percentage_markup", "Subir %"],
-											["percentage_discount", "Bajar %"],
-											["fixed_override", "Precio fijo"],
-										]
-									: [[PRICE_ACTIONS[activeAction].fixedMode!, "% descuento"]]
-								).map(([mode, label]) => (
-									<Button
-										key={mode}
-										type="button"
-										onClick={() => {
-											setPriceMode(mode)
+					{pricingJob ? (
+						<div className="mt-5">
+							<PricingBulkJobOperationPanel
+								jobId={pricingJob.id}
+								onTerminal={onPricingJobTerminal}
+							/>
+						</div>
+					) : (
+						PRICE_ACTIONS[activeAction] && (
+							<div className="mt-5 space-y-4">
+								<div className="grid grid-cols-3 gap-2">
+									{(!PRICE_ACTIONS[activeAction].fixedMode
+										? [
+												["percentage_markup", "Subir %"],
+												["percentage_discount", "Bajar %"],
+												["fixed_override", "Precio fijo"],
+											]
+										: [[PRICE_ACTIONS[activeAction].fixedMode!, "% descuento"]]
+									).map(([mode, label]) => (
+										<Button
+											key={mode}
+											type="button"
+											onClick={() => {
+												setPriceMode(mode)
+												setPreviewReady(false)
+											}}
+											variant={priceMode === mode ? "primary" : "secondary"}
+											size="sm"
+										>
+											{label}
+										</Button>
+									))}
+								</div>
+								<label className="block text-sm font-medium text-slate-700">
+									Valor
+									<Input
+										type="number"
+										min="0"
+										value={value}
+										onChange={(event) => {
+											setValue(event.target.value)
 											setPreviewReady(false)
 										}}
-										variant={priceMode === mode ? "primary" : "secondary"}
-										size="sm"
-									>
-										{label}
+										className="mt-1.5"
+									/>
+								</label>
+								<div className="grid grid-cols-2 gap-2">
+									<Button type="button" onClick={() => void reviewPrice()} variant="secondary">
+										Revisar
 									</Button>
-								))}
+									<Button
+										type="button"
+										disabled={loading || !previewReady}
+										onClick={() => void savePrice()}
+									>
+										Guardar
+									</Button>
+								</div>
 							</div>
-							<label className="block text-sm font-medium text-slate-700">
-								Valor
-								<Input
-									type="number"
-									min="0"
-									value={value}
-									onChange={(event) => {
-										setValue(event.target.value)
-										setPreviewReady(false)
-									}}
-									className="mt-1.5"
-								/>
-							</label>
-							<div className="grid grid-cols-2 gap-2">
-								<Button
-									type="button"
-									onClick={() => {
-										setPreviewReady(true)
-										setFeedback(`Se aplicará a ${selection.cells.length} noches-tarifa.`)
-									}}
-									variant="secondary"
-								>
-									Revisar
-								</Button>
-								<Button
-									type="button"
-									disabled={loading || !previewReady}
-									onClick={() => void savePrice()}
-								>
-									Guardar
-								</Button>
-							</div>
-						</div>
+						)
 					)}
 					{activeAction === "availability_units" && (
 						<div className="mt-5 space-y-4">
