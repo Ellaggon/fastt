@@ -7,6 +7,7 @@ export type PricingBulkJobStatus =
 	| "succeeded"
 	| "partial"
 	| "failed"
+	| "requires_attention"
 	| "cancelled"
 
 export type PricingBulkOperationType = "create_pricing_rule" | "preview_pricing_rule"
@@ -47,6 +48,12 @@ export type PricingBulkJobRecord = {
 	attempts: number
 	maxAttempts: number
 	finalizationAttempts: number
+	finalizationMaxAttempts: number
+	materializationCompletedAt: Date | null
+	cacheInvalidationCompletedAt: Date | null
+	ariEnqueueCompletedAt: Date | null
+	finalizationResult: unknown
+	requiresAttentionAt: Date | null
 	runAfter: Date
 	createdAt: Date
 	updatedAt: Date

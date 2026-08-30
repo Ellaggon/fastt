@@ -53,6 +53,12 @@ function asJob(row: typeof PricingBulkOperationJob.$inferSelect): PricingBulkJob
 		attempts: Number(row.attempts),
 		maxAttempts: Number(row.maxAttempts),
 		finalizationAttempts: Number(row.finalizationAttempts),
+		finalizationMaxAttempts: Number(row.finalizationMaxAttempts),
+		materializationCompletedAt: asNullableDate(row.materializationCompletedAt),
+		cacheInvalidationCompletedAt: asNullableDate(row.cacheInvalidationCompletedAt),
+		ariEnqueueCompletedAt: asNullableDate(row.ariEnqueueCompletedAt),
+		finalizationResult: row.finalizationResultJson,
+		requiresAttentionAt: asNullableDate(row.requiresAttentionAt),
 		runAfter: asDate(row.runAfter),
 		createdAt: asDate(row.createdAt),
 		updatedAt: asDate(row.updatedAt),
@@ -260,6 +266,37 @@ export class PricingBulkJobRepository implements PricingBulkJobRepositoryPort {
 				)
 				.then(first)
 			if (!job) throw new PricingBulkJobError("bulk_job_not_found", 404)
+			if (job.status === "requires_attention") {
+				const [updated] = await tx
+					.update(PricingBulkOperationJob)
+					.set({
+						status: "finalizing",
+						finalizationAttempts: 0,
+						runAfter: new Date(),
+						lockedAt: null,
+						lockedBy: null,
+						requiresAttentionAt: null,
+						finalErrorCode: null,
+						finalErrorDetail: null,
+						finalizationErrorCode: null,
+						finalizationErrorDetail: null,
+						finishedAt: null,
+					})
+					.where(eq(PricingBulkOperationJob.id, input.jobId))
+					.returning()
+				await tx.insert(ProviderAuditLog).values({
+					id: randomUUID(),
+					providerId: input.providerId,
+					actorUserId: input.requestedByUserId,
+					action: "pricing.bulk_job.finalization_retry_requested",
+					entityType: "pricing_bulk_job",
+					entityId: input.jobId,
+					beforeJson: { status: job.status, attempts: Number(job.finalizationAttempts) },
+					afterJson: { status: "finalizing", attempts: 0 },
+					riskLevel: "medium",
+				})
+				return asJob(updated)
+			}
 			if (job.status !== "failed" && job.status !== "partial") {
 				throw new PricingBulkJobError("bulk_job_not_retryable", 409)
 			}

@@ -29,7 +29,7 @@ describe("pricing bulk job API boundary", () => {
 		expect(legacyBulkApply).toContain("pricingBulkJobService.enqueue")
 		expect(legacyBulkApply).toContain("json(202")
 		expect(legacyBulkApply).not.toContain("applyBulkOperation")
-		expect(bulkPreview).toContain("ASYNC_PREVIEW_RATE_PLAN_THRESHOLD")
+		expect(bulkPreview).toContain("shouldQueuePricingPreview")
 		expect(bulkPreview).toContain('mode: "preview"')
 	})
 

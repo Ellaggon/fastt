@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto"
 
 import {
+	PRICING_BULK_DEFAULT_MAX_ATTEMPTS,
+	PRICING_BULK_MAX_RATE_PLANS,
+} from "../pricing-bulk-policy"
+import {
 	normalizedPricingRuleCommandFromBulkOperation,
 	type BulkPricingOperation,
 } from "./pricing-bulk-command"
@@ -40,7 +44,7 @@ function stableJson(value: unknown): string {
 
 function normalizedRatePlanIds(value: string[]): string[] {
 	const ids = Array.from(new Set(value.map((id) => String(id ?? "").trim()).filter(Boolean)))
-	if (!ids.length || ids.length > 200)
+	if (!ids.length || ids.length > PRICING_BULK_MAX_RATE_PLANS)
 		throw new PricingBulkJobError("bulk_job_rate_plan_count_invalid")
 	return ids.sort()
 }
@@ -53,7 +57,7 @@ function requiredIdempotencyKey(value: string | null | undefined): string {
 }
 
 function normalizedAttempts(value: number | undefined): number {
-	if (value == null) return 3
+	if (value == null) return PRICING_BULK_DEFAULT_MAX_ATTEMPTS
 	if (!Number.isInteger(value) || value < 1 || value > 10) {
 		throw new PricingBulkJobError("bulk_job_max_attempts_invalid")
 	}

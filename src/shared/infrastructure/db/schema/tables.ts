@@ -2267,10 +2267,16 @@ export const PricingBulkOperationJob = pgTable(
 		lockedAt: ts("lockedAt"),
 		lockedBy: txtOpt("lockedBy"),
 		finalizationAttempts: intDefault("finalizationAttempts", 0),
+		finalizationMaxAttempts: intDefault("finalizationMaxAttempts", 5),
 		finalizationErrorCode: txtOpt("finalizationErrorCode"),
 		finalizationErrorDetail: txtOpt("finalizationErrorDetail"),
 		finalizationStartedAt: ts("finalizationStartedAt"),
 		finalizationFinishedAt: ts("finalizationFinishedAt"),
+		materializationCompletedAt: ts("materializationCompletedAt"),
+		cacheInvalidationCompletedAt: ts("cacheInvalidationCompletedAt"),
+		ariEnqueueCompletedAt: ts("ariEnqueueCompletedAt"),
+		finalizationResultJson: jsonb("finalizationResultJson"),
+		requiresAttentionAt: ts("requiresAttentionAt"),
 		finalErrorCode: txtOpt("finalErrorCode"),
 		finalErrorDetail: txtOpt("finalErrorDetail"),
 		createdAt: now("createdAt"),
@@ -2294,6 +2300,9 @@ export const PricingBulkOperationJob = pgTable(
 			table.status,
 			table.runAfter
 		),
+		index("PricingBulkOperationJob_requires_attention_idx")
+			.on(table.providerId, table.requiresAttentionAt)
+			.where(sql`${table.status} = 'requires_attention'`),
 		index("PricingBulkOperationJob_terminal_retention_idx")
 			.on(table.status, table.finishedAt)
 			.where(
@@ -2301,11 +2310,11 @@ export const PricingBulkOperationJob = pgTable(
 			),
 		check(
 			"PricingBulkOperationJob_status_check",
-			sql`${table.status} IN ('queued', 'running', 'finalizing', 'succeeded', 'partial', 'failed', 'cancelled')`
+			sql`${table.status} IN ('queued', 'running', 'finalizing', 'succeeded', 'partial', 'failed', 'requires_attention', 'cancelled')`
 		),
 		check(
 			"PricingBulkOperationJob_operationType_check",
-			sql`${table.operationType} IN ('create_pricing_rule', 'preview_pricing_rule', 'update_pricing_rule', 'delete_pricing_rule')`
+			sql`${table.operationType} IN ('create_pricing_rule', 'preview_pricing_rule')`
 		),
 		check(
 			"PricingBulkOperationJob_idempotencyKey_not_blank",
@@ -2321,7 +2330,7 @@ export const PricingBulkOperationJob = pgTable(
 		),
 		check(
 			"PricingBulkOperationJob_finalizationAttempts_check",
-			sql`${table.finalizationAttempts} >= 0`
+			sql`${table.finalizationAttempts} >= 0 AND ${table.finalizationMaxAttempts} > 0 AND ${table.finalizationAttempts} <= ${table.finalizationMaxAttempts}`
 		),
 		check(
 			"PricingBulkOperationJob_progress_nonnegative_check",
