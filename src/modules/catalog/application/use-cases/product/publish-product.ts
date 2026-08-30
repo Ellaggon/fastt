@@ -1,8 +1,14 @@
 import type { ProductRepositoryPort } from "../../ports/ProductRepositoryPort"
 import { evaluateProductReadiness } from "./evaluate-product-readiness"
+import type { ProductReadinessValidationError } from "./evaluate-product-readiness"
 
 export async function publishProduct(
-	deps: { repo: ProductRepositoryPort },
+	deps: {
+		repo: ProductRepositoryPort
+		resolvePublicationValidationErrors?: (params: {
+			productId: string
+		}) => Promise<ProductReadinessValidationError[]>
+	},
 	params: { productId: string }
 ): Promise<{
 	ok: boolean

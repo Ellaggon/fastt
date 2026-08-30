@@ -24,7 +24,10 @@ export type { GeoPlaceType } from "./domain/geo-place-compatibility"
 export { createProduct } from "./application/use-cases/product/create-product"
 export { upsertProductContent } from "./application/use-cases/product/upsert-product-content"
 export { upsertProductLocation } from "./application/use-cases/product/upsert-product-location"
-export { evaluateProductReadiness } from "./application/use-cases/product/evaluate-product-readiness"
+export {
+	evaluateProductReadiness,
+	type ProductReadinessValidationError,
+} from "./application/use-cases/product/evaluate-product-readiness"
 export { publishProduct } from "./application/use-cases/product/publish-product"
 export { createVerifiedProductReview } from "./application/use-cases/create-verified-product-review"
 export { moderateProductReview } from "./application/use-cases/moderate-product-review"

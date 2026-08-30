@@ -4,6 +4,7 @@ import { productRepository } from "@/container"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { refreshProductOperationalSurfaceAfterMutation } from "@/lib/product/productOperationalSurface"
+import { resolveCanonicalProductPublicationValidationErrors } from "@/lib/product/canonical-product-publication"
 import { assertProviderCapability } from "@/lib/provider-governance"
 import { publishProduct } from "@/modules/catalog/public"
 
@@ -47,7 +48,18 @@ export const POST: APIRoute = async ({ request }) => {
 			currentUserId: user.id,
 			capability: "publish",
 		})
-		const result = await publishProduct({ repo: productRepository }, { productId })
+		const result = await publishProduct(
+			{
+				repo: productRepository,
+				resolvePublicationValidationErrors: ({ productId: targetProductId }) =>
+					resolveCanonicalProductPublicationValidationErrors({
+						productId: targetProductId,
+						providerId,
+						request,
+					}),
+			},
+			{ productId }
+		)
 
 		if (!result.ok) {
 			return new Response(JSON.stringify(result), {
