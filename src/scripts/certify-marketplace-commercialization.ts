@@ -208,7 +208,6 @@ async function upsertFixture(params: {
 			timezone: "America/La_Paz",
 			defaultCurrency: "USD",
 			supportEmail: "marketplace-certification@fastt.local",
-			professionalToolsEnabled: true,
 			governanceUpdatedAt: now,
 		})
 		.onConflictDoUpdate({
@@ -217,7 +216,6 @@ async function upsertFixture(params: {
 				timezone: "America/La_Paz",
 				defaultCurrency: "USD",
 				supportEmail: "marketplace-certification@fastt.local",
-				professionalToolsEnabled: true,
 				governanceUpdatedAt: now,
 			},
 		})

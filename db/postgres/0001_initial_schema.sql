@@ -26,10 +26,7 @@ CREATE TABLE "ProviderProfile" (
 	"defaultCurrency" text NOT NULL DEFAULT 'USD',
 	"supportEmail" text,
 	"supportPhone" text,
-	"governanceUpdatedAt" timestamp with time zone,
-	"professionalToolsEnabled" boolean NOT NULL DEFAULT false,
-	"professionalToolsUpdatedAt" timestamp with time zone,
-	"professionalToolsUpdatedBy" text
+	"governanceUpdatedAt" timestamp with time zone
 );
 
 CREATE TABLE "ProviderDocument" (
@@ -1705,12 +1702,6 @@ ALTER TABLE "ProviderProfile"
 	ADD CONSTRAINT "ProviderProfile_providerId_fk"
 	FOREIGN KEY ("providerId")
 	REFERENCES "Provider" ("id")
-;
-
-ALTER TABLE "ProviderProfile"
-	ADD CONSTRAINT "ProviderProfile_professionalToolsUpdatedBy_fk"
-	FOREIGN KEY ("professionalToolsUpdatedBy")
-	REFERENCES "User" ("id")
 ;
 
 ALTER TABLE "ProviderDocument"

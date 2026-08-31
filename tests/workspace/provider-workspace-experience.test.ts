@@ -71,7 +71,7 @@ describe("provider member workspace experience", () => {
 			"utf8"
 		)
 		const endpoint = readFileSync(
-			join(process.cwd(), "src/pages/api/provider/preferences/professional-tools.ts"),
+			join(process.cwd(), "src/pages/api/provider/preferences/workspace-experience.ts"),
 			"utf8"
 		)
 
@@ -85,6 +85,7 @@ describe("provider member workspace experience", () => {
 		expect(preferences).toContain("schemaAvailable")
 		expect(endpoint).toContain("setProviderUserWorkspaceExperience")
 		expect(endpoint).not.toContain("ProviderProfile")
+		expect(endpoint).not.toContain("professionalToolsEnabled")
 		expect(endpoint).not.toContain("PROFESSIONAL_MODE_COOKIE")
 		expect(endpoint).toContain('persisted: "member_preference"')
 	})

@@ -92,7 +92,11 @@ const drawerId = "workspace-preferences-drawer"
 								operaciones masivas.
 							</p>
 						) : null}
-						<form method="post" action="/api/provider/preferences/professional-tools" class="mt-5">
+						<form
+							method="post"
+							action="/api/provider/preferences/workspace-experience"
+							class="mt-5"
+						>
 							<input type="hidden" name="returnTo" value={returnTo} />
 							<SegmentedControl
 								class="w-full border border-slate-200 bg-slate-50 text-slate-700"

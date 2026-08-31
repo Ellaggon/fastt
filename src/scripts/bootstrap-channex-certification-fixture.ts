@@ -176,9 +176,6 @@ async function ensureFixtureIdentity() {
 			timezone: "America/Santiago",
 			defaultCurrency: "USD",
 			supportEmail: ACTOR_EMAIL,
-			professionalToolsEnabled: true,
-			professionalToolsUpdatedAt: now,
-			professionalToolsUpdatedBy: ACTOR_USER_ID,
 		})
 		.onConflictDoUpdate({
 			target: [ProviderProfile.providerId],
@@ -186,9 +183,6 @@ async function ensureFixtureIdentity() {
 				timezone: "America/Santiago",
 				defaultCurrency: "USD",
 				supportEmail: ACTOR_EMAIL,
-				professionalToolsEnabled: true,
-				professionalToolsUpdatedAt: now,
-				professionalToolsUpdatedBy: ACTOR_USER_ID,
 			},
 		})
 
