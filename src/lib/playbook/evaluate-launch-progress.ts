@@ -65,10 +65,10 @@ async function resolveLaunchVariantState(
 
 	for (const variantId of orderedVariantIds) {
 		const completion = await loadVariantCompletion(productId, providerId, variantId)
-		if (completion?.isComplete) return { variantId, completion }
-		if (completion?.tariffsComplete && completion.pricingComplete) return { variantId, completion }
-		if (completion?.tariffsComplete) return { variantId, completion }
-		if (completion?.capacityComplete) return { variantId, completion }
+		if (completion?.sellable) return { variantId, completion }
+		if (completion?.rateConfigured && completion.pricingComplete) return { variantId, completion }
+		if (completion?.rateConfigured) return { variantId, completion }
+		if (completion?.profileComplete) return { variantId, completion }
 	}
 
 	if (!orderedVariantIds.length) return { variantId: null, completion: null }
@@ -109,7 +109,7 @@ async function stepCompletionFlags(
 	const commercialCompletion = variantState.completion
 	const ratePlanId =
 		String(options.ratePlanId ?? "").trim() ||
-		String(commercialCompletion?.defaultRatePlanId ?? "").trim() ||
+		String(commercialCompletion?.selectedRatePlanId ?? "").trim() ||
 		null
 
 	const houseRules = guestExpectationsSnapshot?.rules ?? []
@@ -126,9 +126,9 @@ async function stepCompletionFlags(
 			"images": aggregate.images.length > 0,
 			"subtype": Boolean(aggregate.subtype),
 			"room-profile": isHotel && activeVariants.length > 0,
-			"rate": Boolean(commercialCompletion?.tariffsComplete),
+			"rate": Boolean(commercialCompletion?.rateConfigured && commercialCompletion.pricingComplete),
 			"conditions": Boolean(commercialCompletion?.conditionsComplete),
-			"calendar": Boolean(commercialCompletion?.inventoryComplete),
+			"calendar": Boolean(commercialCompletion?.availabilityComplete),
 			"house-rules": isHotel && completedHouseRuleTypes.length === essentialHouseRuleTypes.length,
 			"preview": false,
 		} satisfies Record<LaunchStepId, boolean>,

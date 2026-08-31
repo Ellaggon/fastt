@@ -13,7 +13,6 @@ import {
 } from "@/shared/infrastructure/db/compat"
 
 import {
-	inventoryBootstrapper,
 	productRepository,
 	variantInventoryConfigRepository,
 	variantManagementRepository,
@@ -23,6 +22,10 @@ import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { invalidateVariant } from "@/lib/cache/invalidation"
 import { refreshProductOperationalSurfaceAfterMutation } from "@/lib/product/productOperationalSurface"
 import { isHotelProductType } from "@/lib/catalog/productVerticalRegistry"
+import {
+	buildAutomaticRoomInternalCode,
+	normalizeRoomInternalCode,
+} from "@/lib/rooms/room-internal-code"
 import { createVariant } from "@/modules/catalog/public"
 
 const nullableNumber = z.preprocess((value) => {
@@ -144,9 +147,8 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 
 		let variantId = String(parsed.variantId ?? "").trim()
-		const roomCodeRaw = String(parsed.roomCode ?? "").trim()
-		const roomCode = roomCodeRaw ? roomCodeRaw.toUpperCase() : null
-		if (roomCode) {
+		const requestedRoomCode = normalizeRoomInternalCode(parsed.roomCode)
+		if (requestedRoomCode) {
 			const roomCodeMatches = await db
 				.select({ id: Variant.id, externalCode: Variant.externalCode })
 				.from(Variant)
@@ -157,7 +159,7 @@ export const POST: APIRoute = async ({ request }) => {
 				const existingCode = String(row.externalCode ?? "")
 					.trim()
 					.toUpperCase()
-				return rowId !== variantId && existingCode === roomCode
+				return rowId !== variantId && existingCode === requestedRoomCode
 			})
 			if (duplicateRoomCode) {
 				return new Response(
@@ -168,6 +170,7 @@ export const POST: APIRoute = async ({ request }) => {
 				)
 			}
 		}
+		let roomCode: string
 		if (variantId) {
 			const existing = await variantManagementRepository.getVariantById(variantId)
 			if (!existing || existing.productId !== parsed.productId) {
@@ -186,6 +189,10 @@ export const POST: APIRoute = async ({ request }) => {
 					headers: { "Content-Type": "application/json" },
 				})
 			}
+			roomCode =
+				normalizeRoomInternalCode(existing.externalCode) ??
+				requestedRoomCode ??
+				buildAutomaticRoomInternalCode({ roomTypeId: parsed.roomTypeId, variantId })
 			await db
 				.update(Variant)
 				.set({
@@ -199,19 +206,20 @@ export const POST: APIRoute = async ({ request }) => {
 				{
 					repo: variantManagementRepository,
 					inventoryConfigRepo: variantInventoryConfigRepository,
-					inventoryBootstrap: inventoryBootstrapper,
 				},
 				{
 					productId: parsed.productId,
 					name: parsed.name,
 					kind: "hotel_room",
 					description: parsed.description ?? null,
+					bootstrapInventory: false,
 				}
 			)
 			variantId = result.variantId
-			if (roomCode) {
-				await db.update(Variant).set({ externalCode: roomCode }).where(eq(Variant.id, variantId))
-			}
+			roomCode =
+				requestedRoomCode ??
+				buildAutomaticRoomInternalCode({ roomTypeId: parsed.roomTypeId, variantId })
+			await db.update(Variant).set({ externalCode: roomCode }).where(eq(Variant.id, variantId))
 		}
 
 		const profileExists = await db
@@ -232,6 +240,8 @@ export const POST: APIRoute = async ({ request }) => {
 			guestFacingNotes: parsed.guestFacingNotes || null,
 			updatedAt: new Date(),
 		}
+		// A room profile represents a concrete sellable configuration, not an abstract capacity.
+		const physicalUnits = parsed.totalRooms
 
 		if (profileExists) {
 			await db
@@ -248,13 +258,8 @@ export const POST: APIRoute = async ({ request }) => {
 
 		await variantInventoryConfigRepository.upsert({
 			variantId,
-			defaultTotalUnits: parsed.totalRooms,
+			defaultTotalUnits: physicalUnits,
 			horizonDays: 365,
-		})
-		await inventoryBootstrapper.bootstrapVariantInventory({
-			variantId,
-			totalInventory: parsed.totalRooms,
-			days: 365,
 		})
 
 		await variantManagementRepository.upsertCapacity({
@@ -305,7 +310,7 @@ export const POST: APIRoute = async ({ request }) => {
 			source: "variant.room-profile",
 		})
 
-		return new Response(JSON.stringify({ ok: true, variantId }), {
+		return new Response(JSON.stringify({ ok: true, variantId, roomCode }), {
 			status: 200,
 			headers: { "Content-Type": "application/json" },
 		})

@@ -25,9 +25,9 @@ export type AddRoomStepDefinition = {
 	appliesTo: (ctx: AddRoomContext) => boolean
 }
 
-export const ADD_ROOM_PLAYBOOK_TITLE = "Nueva habitación vendible"
+export const ADD_ROOM_PLAYBOOK_TITLE = "Preparar habitacion"
 
-export const ADD_ROOM_STEPS: AddRoomStepDefinition[] = [
+export const ADD_ROOM_WORK_STEPS: AddRoomStepDefinition[] = [
 	{
 		id: "choose-accommodation",
 		label: "Elegir alojamiento",
@@ -39,7 +39,14 @@ export const ADD_ROOM_STEPS: AddRoomStepDefinition[] = [
 		id: "create-room",
 		label: "Crear habitación",
 		guestImpact: "El espacio donde descansará el huésped",
-		buildHref: (ctx) => buildAddRoomHref(routes.productRoomNew(ctx.productId), "create-room"),
+		buildHref: (ctx) =>
+			buildAddRoomHref(
+				ctx.variantId
+					? `${routes.productRoomDetail(ctx.productId, ctx.variantId)}/profile`
+					: routes.productRoomNew(ctx.productId),
+				"create-room",
+				ctx
+			),
 		appliesTo: () => true,
 	},
 	{
@@ -49,7 +56,8 @@ export const ADD_ROOM_STEPS: AddRoomStepDefinition[] = [
 		buildHref: (ctx) =>
 			buildAddRoomHref(
 				`${routes.productRoomDetail(ctx.productId, String(ctx.variantId ?? ""))}#fotos`,
-				"room-photos"
+				"room-photos",
+				ctx
 			),
 		appliesTo: (ctx) => Boolean(ctx.variantId),
 	},
@@ -61,7 +69,7 @@ export const ADD_ROOM_STEPS: AddRoomStepDefinition[] = [
 			const params = new URLSearchParams({
 				variantId: String(ctx.variantId ?? ""),
 			})
-			return buildAddRoomHref(`${routes.rates()}?${params.toString()}`, "create-rate")
+			return buildAddRoomHref(`${routes.rates()}?${params.toString()}`, "create-rate", ctx)
 		},
 		appliesTo: (ctx) => Boolean(ctx.variantId),
 	},
@@ -72,7 +80,8 @@ export const ADD_ROOM_STEPS: AddRoomStepDefinition[] = [
 		buildHref: (ctx) =>
 			buildAddRoomHref(
 				`${routes.ratePlanDetail(String(ctx.ratePlanId ?? ""))}?vista=conditions&variantId=${encodeURIComponent(String(ctx.variantId ?? ""))}`,
-				"conditions"
+				"conditions",
+				ctx
 			),
 		appliesTo: (ctx) => Boolean(ctx.variantId && ctx.ratePlanId),
 	},
@@ -86,10 +95,13 @@ export const ADD_ROOM_STEPS: AddRoomStepDefinition[] = [
 				variantId: String(ctx.variantId ?? ""),
 			})
 			if (ctx.ratePlanId) params.set("ratePlanId", ctx.ratePlanId)
-			return buildAddRoomHref(`${routes.calendar()}?${params.toString()}`, "availability")
+			return buildAddRoomHref(`${routes.calendar()}?${params.toString()}`, "availability", ctx)
 		},
 		appliesTo: (ctx) => Boolean(ctx.variantId),
 	},
+]
+
+export const ADD_ROOM_TERMINAL_STEPS: AddRoomStepDefinition[] = [
 	{
 		id: "confirmation",
 		label: "Habitación lista",
@@ -97,18 +109,31 @@ export const ADD_ROOM_STEPS: AddRoomStepDefinition[] = [
 		buildHref: (ctx) => {
 			const params = new URLSearchParams()
 			if (ctx.variantId) params.set("variantId", ctx.variantId)
+			if (ctx.ratePlanId) params.set("ratePlanId", ctx.ratePlanId)
 			const query = params.toString()
 			const base = routes.productRoomsForProduct(ctx.productId)
-			return buildAddRoomHref(query ? `${base}?${query}` : base, "confirmation")
+			return buildAddRoomHref(query ? `${base}?${query}` : base, "confirmation", ctx)
 		},
 		appliesTo: () => true,
 	},
 ]
 
-export function buildAddRoomHref(path: string, step: AddRoomStepId): string {
+/** Complete route registry. Terminal steps are intentionally excluded from progress. */
+export const ADD_ROOM_STEPS: AddRoomStepDefinition[] = [
+	...ADD_ROOM_WORK_STEPS,
+	...ADD_ROOM_TERMINAL_STEPS,
+]
+
+export function buildAddRoomHref(
+	path: string,
+	step: AddRoomStepId,
+	ctx?: Partial<AddRoomContext>
+): string {
 	const [basePath, hash = ""] = path.split("#")
 	const [pathname, existingQuery = ""] = basePath.split("?")
 	const params = new URLSearchParams(existingQuery)
+	if (ctx?.variantId && !params.has("variantId")) params.set("variantId", ctx.variantId)
+	if (ctx?.ratePlanId && !params.has("ratePlanId")) params.set("ratePlanId", ctx.ratePlanId)
 	params.set("playbook", ADD_ROOM_PLAYBOOK_ID)
 	params.set("step", step)
 	params.set("flow", "add-room")
@@ -117,14 +142,18 @@ export function buildAddRoomHref(path: string, step: AddRoomStepId): string {
 }
 
 /**
- * Visible wizard journey (stable total). Independent of whether deep-links
- * can be built yet — that is handled by `appliesTo` / getApplicableAddRoomSteps.
+ * Visible work journey. Terminal screens are routes, not tasks, so they never
+ * affect the step counter or progress percentage.
  */
 export function getAddRoomJourneySteps(ctx: AddRoomContext): AddRoomStepDefinition[] {
 	if (ctx.productId) {
-		return ADD_ROOM_STEPS.filter((step) => step.id !== "choose-accommodation")
+		return ADD_ROOM_WORK_STEPS.filter((step) => step.id !== "choose-accommodation")
 	}
-	return [...ADD_ROOM_STEPS]
+	return [...ADD_ROOM_WORK_STEPS]
+}
+
+export function isAddRoomTerminalStep(stepId: AddRoomStepId | string | null | undefined) {
+	return ADD_ROOM_TERMINAL_STEPS.some((step) => step.id === stepId)
 }
 
 export function getAddRoomStepPosition(
@@ -141,7 +170,7 @@ export function getAddRoomStepPosition(
 
 /** Steps that already have enough IDs for a usable deep-link. */
 export function getApplicableAddRoomSteps(ctx: AddRoomContext): AddRoomStepDefinition[] {
-	return ADD_ROOM_STEPS.filter((step) => {
+	return ADD_ROOM_WORK_STEPS.filter((step) => {
 		if (step.id === "choose-accommodation" && ctx.productId) return false
 		return step.appliesTo(ctx)
 	})
@@ -156,7 +185,10 @@ export function getAddRoomStepById(
 	stepId: AddRoomStepId | string | null | undefined,
 	ctx: AddRoomContext
 ): AddRoomStepDefinition | null {
-	return getAddRoomJourneySteps(ctx).find((step) => step.id === stepId) ?? null
+	const step = ADD_ROOM_STEPS.find((item) => item.id === stepId) ?? null
+	if (!step) return null
+	if (step.id === "choose-accommodation" && ctx.productId) return null
+	return step
 }
 
 export function getNextAddRoomStep(
@@ -165,7 +197,10 @@ export function getNextAddRoomStep(
 ): AddRoomStepDefinition | null {
 	const journey = getAddRoomJourneySteps(ctx)
 	const index = journey.findIndex((step) => step.id === currentStepId)
-	if (index === -1 || index >= journey.length - 1) return null
+	if (index === -1) return null
+	if (index >= journey.length - 1) {
+		return ADD_ROOM_TERMINAL_STEPS[0] ?? null
+	}
 	const next = journey[index + 1]
 	if (!next || !isAddRoomStepLinkable(next, ctx)) return null
 	return next
@@ -176,6 +211,7 @@ export function getPreviousAddRoomStep(
 	ctx: AddRoomContext
 ): AddRoomStepDefinition | null {
 	const journey = getAddRoomJourneySteps(ctx)
+	if (isAddRoomTerminalStep(currentStepId)) return journey.at(-1) ?? null
 	const index = journey.findIndex((step) => step.id === currentStepId)
 	if (index <= 0) return null
 	const previous = journey[index - 1]

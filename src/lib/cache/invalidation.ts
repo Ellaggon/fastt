@@ -144,6 +144,7 @@ export async function invalidateCalendarSurface(providerId: string, source: stri
 }
 
 export async function invalidateProduct(productId: string): Promise<void> {
+	invalidateAggregateCache({ productId })
 	await Promise.all([
 		delByPrefix(`ws:product:${productId}`),
 		delByPrefix("ws:search:public"),
@@ -154,6 +155,7 @@ export async function invalidateProduct(productId: string): Promise<void> {
 }
 
 export async function invalidateVariant(variantId: string, productId: string): Promise<void> {
+	invalidateAggregateCache({ variantId, productId })
 	await Promise.all([
 		delByPrefix(`ws:variant:${variantId}`),
 		delByPrefix(`ws:availability:${variantId}`),

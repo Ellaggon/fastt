@@ -206,7 +206,7 @@ export async function loadCompleteToPublishState(params: {
 		const completions = await Promise.all(
 			activeRoomIds.map((variantId) => loadVariantCompletion(productId, providerId, variantId))
 		)
-		sellableRoomCount = completions.filter((completion) => completion?.isComplete).length
+		sellableRoomCount = completions.filter((completion) => completion?.sellable).length
 	}
 
 	const requiredPolicyCategories = ["Cancellation", "Payment", "CheckIn", "NoShow"]

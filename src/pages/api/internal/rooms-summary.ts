@@ -4,6 +4,7 @@ import {
 	asc,
 	DailyInventory,
 	eq,
+	gt,
 	HouseRule,
 	Image,
 	VariantImage,
@@ -14,6 +15,8 @@ import {
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { resolveRatePlanNameColumn } from "@/lib/rates/ratePlanSchemaCompat"
+import { loadVariantCompletionForAggregateVariant } from "@/lib/playbook/evaluate-add-room-progress"
+import { getAggregateCache, setAggregateCache } from "@/lib/cache/ssrAggregateCache"
 import { getProductVariantsAggregate } from "@/modules/catalog/public"
 
 const kindLabel = (kind: string | null) => {
@@ -28,6 +31,76 @@ const kindLabel = (kind: string | null) => {
 }
 
 const readinessInventoryMinDays = 30
+
+type RoomOperationalCode =
+	| "sellable"
+	| "profile-incomplete"
+	| "photos-pending"
+	| "no-rate"
+	| "price-pending"
+	| "conditions-pending"
+	| "no-availability"
+	| "rate-draft"
+
+const operationalStatus = (input: {
+	profileComplete: boolean
+	photosComplete: boolean
+	rateConfigured: boolean
+	pricingComplete: boolean
+	conditionsComplete: boolean
+	availabilityComplete: boolean
+	rateActive: boolean
+	rateDefault: boolean
+	sellable: boolean
+}): { code: RoomOperationalCode; label: string; tone: "success" | "warning"; nextStep: string } => {
+	if (input.sellable) {
+		return { code: "sellable", label: "Vendible", tone: "success", nextStep: "detail" }
+	}
+	if (!input.profileComplete) {
+		return {
+			code: "profile-incomplete",
+			label: "Perfil incompleto",
+			tone: "warning",
+			nextStep: "profile",
+		}
+	}
+	if (!input.photosComplete) {
+		return {
+			code: "photos-pending",
+			label: "Fotos pendientes",
+			tone: "warning",
+			nextStep: "photos",
+		}
+	}
+	if (!input.rateConfigured) {
+		return { code: "no-rate", label: "Sin tarifa", tone: "warning", nextStep: "rate" }
+	}
+	if (!input.pricingComplete) {
+		return { code: "price-pending", label: "Precio pendiente", tone: "warning", nextStep: "rate" }
+	}
+	if (!input.conditionsComplete) {
+		return {
+			code: "conditions-pending",
+			label: "Condiciones pendientes",
+			tone: "warning",
+			nextStep: "conditions",
+		}
+	}
+	if (!input.availabilityComplete) {
+		return {
+			code: "no-availability",
+			label: "Sin disponibilidad",
+			tone: "warning",
+			nextStep: "availability",
+		}
+	}
+	return {
+		code: "rate-draft",
+		label: "Tarifa en borrador",
+		tone: "warning",
+		nextStep: !input.rateActive || !input.rateDefault ? "availability" : "detail",
+	}
+}
 
 export const GET: APIRoute = async ({ request, url }) => {
 	const startedAt = performance.now()
@@ -66,6 +139,15 @@ export const GET: APIRoute = async ({ request, url }) => {
 			headers: { "Content-Type": "application/json" },
 		})
 	}
+	const cacheKey = `rooms-summary:${providerId}:${productId}`
+	const cached = getAggregateCache<Record<string, unknown>>(cacheKey)
+	if (cached) {
+		logEndpoint()
+		return new Response(JSON.stringify(cached), {
+			status: 200,
+			headers: { "Content-Type": "application/json", "X-Fastt-Cache": "hit" },
+		})
+	}
 
 	const aggregate = await getProductVariantsAggregate(productId, providerId)
 	if (!aggregate) {
@@ -77,6 +159,22 @@ export const GET: APIRoute = async ({ request, url }) => {
 	}
 
 	const variantIds = aggregate.variants.map((variant) => String(variant.id)).filter(Boolean)
+	const todayIso = new Date().toISOString().slice(0, 10)
+	// Keep operational cards aligned with the add-room playbook. A room is sellable
+	// only when the same profile, photo, commercial, policy and inventory checks pass.
+	const completionByVariant = new Map(
+		(
+			await Promise.all(
+				aggregate.variants.map(
+					async (variant) =>
+						[
+							String(variant.id),
+							await loadVariantCompletionForAggregateVariant(productId, variant),
+						] as const
+				)
+			)
+		).filter((entry) => entry[1])
+	)
 	const ratePlanName = await resolveRatePlanNameColumn()
 	const [inventoryRows, imageRows, tariffRows, houseRuleRows] = variantIds.length
 		? await Promise.all([
@@ -85,7 +183,13 @@ export const GET: APIRoute = async ({ request, url }) => {
 						variantId: DailyInventory.variantId,
 					})
 					.from(DailyInventory)
-					.where(inArray(DailyInventory.variantId, variantIds)),
+					.where(
+						and(
+							inArray(DailyInventory.variantId, variantIds),
+							gt(DailyInventory.date, todayIso),
+							gt(DailyInventory.totalInventory, 0)
+						)
+					),
 				db
 					.select({
 						id: Image.id,
@@ -168,19 +272,25 @@ export const GET: APIRoute = async ({ request, url }) => {
 	}
 
 	const variants = aggregate.variants.map((variant) => {
-		const capacityComplete = Boolean(variant.capacity)
+		const completion = completionByVariant.get(String(variant.id))
+		const capacityComplete = completion?.profileComplete ?? Boolean(variant.capacity)
 		const subtypeComplete = Boolean(variant.subtype)
-		const pricingComplete = Boolean(
-			variant.pricing?.hasBaseRate && variant.pricing?.hasDefaultRatePlan
-		)
+		const pricingComplete = completion?.pricingComplete ?? false
 		const inventoryDays = Number(inventoryCountByVariant.get(String(variant.id)) ?? 0)
 		const inventoryComplete = inventoryDays >= readinessInventoryMinDays
 		const images = imagesByVariant.get(String(variant.id)) ?? []
 		const coverImage = images.find((image) => image.isPrimary) ?? images[0] ?? null
 		const tariffs = tariffsByVariant.get(String(variant.id)) ?? []
 		const activeTariffs = tariffs.filter((tariff) => tariff.isActive)
+		const selectedRatePlanId = completion?.selectedRatePlanId ?? null
 		const defaultTariff =
-			activeTariffs.find((tariff) => tariff.isDefault) ?? activeTariffs[0] ?? null
+			(selectedRatePlanId
+				? tariffs.find((tariff) => String(tariff.id) === selectedRatePlanId)
+				: null) ??
+			activeTariffs.find((tariff) => tariff.isDefault) ??
+			activeTariffs[0] ??
+			tariffs[0] ??
+			null
 		const capacityLabel = variant.capacity
 			? variant.capacity.minOccupancy === variant.capacity.maxOccupancy
 				? `${variant.capacity.maxOccupancy} huésped${variant.capacity.maxOccupancy === 1 ? "" : "es"}`
@@ -191,13 +301,26 @@ export const GET: APIRoute = async ({ request, url }) => {
 			inventoryDays > 0
 				? `${inventoryDays} noches con disponibilidad configurada`
 				: "Disponibilidad pendiente"
-		const completedBlocks = [
-			capacityComplete,
-			subtypeComplete,
+		const photosComplete = completion?.photosComplete ?? images.length > 0
+		const rateConfigured = completion?.rateConfigured ?? tariffs.length > 0
+		const rateActive = completion?.rateActive ?? Boolean(defaultTariff?.isActive)
+		const rateDefault = completion?.rateDefault ?? Boolean(defaultTariff?.isDefault)
+		const tariffsComplete = rateConfigured
+		const conditionsComplete = completion?.conditionsComplete ?? false
+		const isComplete = completion?.sellable ?? false
+		const availabilityComplete = completion?.availabilityComplete ?? inventoryComplete
+		const profileComplete = completion?.profileComplete ?? capacityComplete
+		const operational = operationalStatus({
+			profileComplete,
+			photosComplete,
+			rateConfigured,
 			pricingComplete,
-			inventoryComplete,
-		].filter(Boolean).length
-		const isComplete = completedBlocks === 4
+			conditionsComplete,
+			availabilityComplete,
+			rateActive,
+			rateDefault,
+			sellable: isComplete,
+		})
 
 		return {
 			id: variant.id,
@@ -230,20 +353,29 @@ export const GET: APIRoute = async ({ request, url }) => {
 				overrideCount: Number(houseRuleOverrideCountByVariant.get(String(variant.id)) ?? 0),
 			},
 			tariffs: {
-				count: activeTariffs.length,
-				names: activeTariffs.map((tariff) => tariff.name),
+				count: tariffs.length,
+				activeCount: activeTariffs.length,
+				names: tariffs.map((tariff) => tariff.name),
 				defaultName: defaultTariff?.name ?? null,
 				defaultId: defaultTariff?.id ?? null,
 			},
 			states: {
-				capacityComplete,
+				capacityComplete: profileComplete,
 				subtypeComplete,
 				pricingComplete,
-				inventoryComplete,
-				photosComplete: images.length > 0,
-				tariffsComplete: activeTariffs.length > 0,
+				inventoryComplete: availabilityComplete,
+				photosComplete,
+				tariffsComplete,
+				conditionsComplete,
+				rateConfigured,
+				rateActive,
+				rateDefault,
+				inventoryConfigComplete: completion?.inventoryConfigComplete ?? false,
+				setupComplete: completion?.setupComplete ?? false,
+				sellable: completion?.sellable ?? false,
 				isComplete,
 			},
+			operational,
 			actions: {
 				detailHref: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variant.id)}`,
 				capacityHref: `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variant.id)}/profile`,
@@ -277,27 +409,29 @@ export const GET: APIRoute = async ({ request, url }) => {
 	const statusVariant =
 		productStatus === "published" ? "success" : productStatus === "ready" ? "info" : "warning"
 
+	const payload = {
+		product: {
+			id: aggregate.product.id,
+			displayName: aggregate.product.displayName,
+			status: productStatus,
+			statusLabel,
+			statusVariant,
+		},
+		progress: {
+			totalVariants,
+			completedVariants,
+			incompleteVariants,
+			progressPercent,
+		},
+		variants,
+	}
+	setAggregateCache(cacheKey, payload, {
+		tags: [`provider:${providerId}`, `product:${productId}`],
+	})
+
 	logEndpoint()
-	return new Response(
-		JSON.stringify({
-			product: {
-				id: aggregate.product.id,
-				displayName: aggregate.product.displayName,
-				status: productStatus,
-				statusLabel,
-				statusVariant,
-			},
-			progress: {
-				totalVariants,
-				completedVariants,
-				incompleteVariants,
-				progressPercent,
-			},
-			variants,
-		}),
-		{
-			status: 200,
-			headers: { "Content-Type": "application/json" },
-		}
-	)
+	return new Response(JSON.stringify(payload), {
+		status: 200,
+		headers: { "Content-Type": "application/json", "X-Fastt-Cache": "miss" },
+	})
 }
