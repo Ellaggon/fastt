@@ -156,14 +156,17 @@ function cellPresentation(
 ) {
 	if (day.isPast) return { primary: "", secondary: "", tone: "past" }
 	if (mode === "availability") {
+		const hasOpenInventory = day.totalUnits > 0 && day.availableUnits > 0
 		return {
-			primary: `${day.availableUnits}/${day.totalUnits} cupos`,
+			primary: showInventoryDetail
+				? `${day.availableUnits}/${day.totalUnits} libres`
+				: `${day.availableUnits}/${day.totalUnits} cupos`,
 			secondary: showInventoryDetail
 				? `${day.bookedUnits} reservados · ${day.heldUnits} retenidos`
-				: day.availableUnits > 0
-					? "Disponible"
-					: "Sin cupo",
-			tone: day.availableUnits > 0 ? "neutral" : "warning",
+				: hasOpenInventory
+					? "Cupo abierto"
+					: "Sin cupo abierto",
+			tone: hasOpenInventory ? "neutral" : "warning",
 		}
 	}
 	if (mode === "sellability") {
@@ -653,7 +656,7 @@ export default function SingleCalendarWorkspace({
 	async function finalizeGuidedAddRoom() {
 		if (!isAddRoomGuidedAvailability || !guidedIsReady) {
 			setGuidedFeedbackVariant("error")
-			setGuidedFeedback("Abre al menos 30 noches con cupo antes de finalizar.")
+			setGuidedFeedback("Configura inventario inicial para al menos 30 noches antes de finalizar.")
 			return
 		}
 		if (
@@ -932,7 +935,7 @@ export default function SingleCalendarWorkspace({
 									<p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
 										{isTourGuidedAvailability
 											? "Elige una o más fechas futuras y asigna el cupo de participantes. Con al menos una fecha con cupo, la salida queda lista para reservar."
-											: "Configura un primer rango vendible. Esto solo abre cupo; precios y condiciones ya se revisaron en los pasos anteriores."}
+											: "Configura inventario inicial para un primer rango vendible. Precios y condiciones ya se revisaron en los pasos anteriores."}
 									</p>
 								</div>
 								<div className="min-w-36 text-right">
@@ -1137,23 +1140,26 @@ export default function SingleCalendarWorkspace({
 
 				<div className="fastt-calendar-toolbar sticky top-3 z-20 mt-4 p-3">
 					{isGuidedAvailability ? (
-						<div className="flex flex-wrap items-center justify-between gap-3">
+						<div className="space-y-3">
 							<div>
-								<p className="font-semibold text-slate-950">Vista de apoyo</p>
+								<p className="font-semibold text-slate-950">Verificación de disponibilidad</p>
 								<p className="text-xs text-slate-500">
 									{isTourGuidedAvailability
-										? "Revisa visualmente las fechas y los cupos de esta salida."
-										: "Revisa visualmente los cupos abiertos para esta habitación."}
+										? "Confirma que las fechas futuras configuradas ya muestran inventario inicial."
+										: "Confirma que las noches configuradas ya muestran inventario inicial para esta habitación."}
 								</p>
 							</div>
-							<Button
-								type="button"
-								onClick={() => setShowInventoryDetail((current) => !current)}
-								variant="secondary"
-								size="sm"
-							>
-								{showInventoryDetail ? "Ocultar detalle" : "Ver detalle físico"}
-							</Button>
+							{guidedInventoryDays <= 0 ? (
+								<p className="text-xs leading-5 text-slate-500">
+									Todavía no hay inventario inicial guardado. Usa{" "}
+									<strong>Abrir disponibilidad</strong> arriba para actualizar esta verificación.
+								</p>
+							) : (
+								<p className="rounded-lg bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-900 ring-1 ring-emerald-200">
+									El calendario confirma la cobertura inicial guardada. Las reservas, retenidos y
+									bloqueos se gestionan después desde el calendario operativo.
+								</p>
+							)}
 						</div>
 					) : (
 						<>
@@ -1165,7 +1171,7 @@ export default function SingleCalendarWorkspace({
 											action.id === "price_comparison" && showComparison
 												? "Ocultar base y final"
 												: action.id === "inventory_detail" && showInventoryDetail
-													? "Ocultar detalle físico"
+													? "Ocultar desglose"
 													: action.label
 										return (
 											<div key={action.id} className="relative">
@@ -1364,8 +1370,9 @@ export default function SingleCalendarWorkspace({
 						))}
 					</div>
 					<div
-						key={`${readySurface.selectedRatePlanId}:${readySurface.month}`}
+						key={`${readySurface.selectedRatePlanId}:${readySurface.month}:${showInventoryDetail ? "detail" : "summary"}`}
 						data-direction={gridDirection}
+						data-inventory-detail={showInventoryDetail ? "true" : undefined}
 						className="calendar-grid-enter mt-1 grid grid-cols-7 gap-1 md:gap-2"
 					>
 						{Array.from({ length: readySurface.leadingBlankDays }).map((_, index) => (
@@ -1389,8 +1396,10 @@ export default function SingleCalendarWorkspace({
 								<button
 									key={day.date}
 									type="button"
-									disabled={day.isPast}
-									onClick={() => selectDate(day)}
+									disabled={day.isPast || isGuidedAvailability}
+									onClick={() => {
+										if (!isGuidedAvailability) selectDate(day)
+									}}
 									aria-label={`${formatDate(day.date, true)}${presentation.primary ? ` · ${presentation.primary}` : ""}${external?.eventCount ? ` · ${external.eventCount} bloqueo externo` : ""}${external?.conflictCount ? ` · ${external.conflictCount} conflicto` : ""}`}
 									aria-pressed={isSelected}
 									data-external-calendar-day={external?.eventCount ? "true" : undefined}
@@ -1419,7 +1428,13 @@ export default function SingleCalendarWorkspace({
 												{presentation.primary}
 											</p>
 											{presentation.secondary && (
-												<p className="mt-1 line-clamp-2 hidden text-[9px] leading-4 opacity-65 sm:block md:text-[11px]">
+												<p
+													className={`mt-1 line-clamp-2 text-[9px] leading-4 opacity-65 md:text-[11px] ${
+														showInventoryDetail || isGuidedAvailability
+															? "block"
+															: "hidden sm:block"
+													}`}
+												>
 													{presentation.secondary}
 												</p>
 											)}

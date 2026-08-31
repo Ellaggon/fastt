@@ -56,7 +56,7 @@ export const CALENDAR_CONTROL_ACTIONS: Record<CalendarControlMode, CalendarContr
 	],
 	availability: [
 		{ id: "inventory_units", label: "Cambiar cupo", kind: "mutation" },
-		{ id: "inventory_detail", label: "Mostrar detalle físico", kind: "inspect" },
+		{ id: "inventory_detail", label: "Mostrar reservas y retenidos", kind: "inspect" },
 		{
 			id: "availability_scale",
 			label: "Operar varias tarifas",
