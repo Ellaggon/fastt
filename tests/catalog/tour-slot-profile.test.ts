@@ -50,11 +50,12 @@ describe("tour slot profile (fase 2)", () => {
 		expect(hub).toContain("productDeparturesForProduct")
 		expect(hub).toContain("data-is-tour")
 		expect(hub).toContain("isTour")
+		expect(hub).toContain("Abrir salidas")
 
 		const hydration = read("src/pages/product/_client/product-summary-hydration.ts")
-		expect(hydration).toContain("Salidas")
+		expect(hydration).toContain("salidas configuradas")
 		expect(hydration).toContain("config.isTour")
-		expect(hydration).toContain("Gestionar salidas")
+		expect(hydration).toContain('applyCheck("variants", "departure"')
 	})
 
 	it("requires profile + capacity + default rate for tour product readiness", () => {
