@@ -1,117 +1,72 @@
+/**
+ * Amenities that can be truthfully promised for one specific room.
+ * Property-wide facilities (pool, parking, restaurant, reception, etc.) belong
+ * to the accommodation, not to this room profile.
+ */
 export const AMENITY_ROOMS = [
-	// 🛏️ --- Confort y dormitorio ---
+	{ id: "wifi", name: "Wi-Fi en la habitación", category: "Conectividad" },
+	{ id: "workspace", name: "Espacio de trabajo", category: "Conectividad" },
+	{ id: "desk", name: "Escritorio", category: "Conectividad" },
+	{ id: "usb_outlets", name: "Enchufes USB junto a la cama", category: "Conectividad" },
+	{ id: "telephone", name: "Teléfono", category: "Conectividad" },
+
 	{ id: "air_conditioning", name: "Aire acondicionado", category: "Confort" },
 	{ id: "heating", name: "Calefacción", category: "Confort" },
 	{ id: "fan", name: "Ventilador", category: "Confort" },
 	{ id: "soundproofing", name: "Insonorización", category: "Confort" },
-	{ id: "extra_long_beds", name: "Camas extra largas (> 2 metros)", category: "Confort" },
-	{ id: "iron", name: "Plancha para ropa", category: "Confort" },
-	{ id: "closet", name: "Armario o clóset", category: "Confort" },
+	{ id: "blackout_curtains", name: "Cortinas opacas", category: "Confort" },
 	{ id: "mosquito_net", name: "Mosquitero", category: "Confort" },
 
-	// 🚿 --- Baño ---
 	{ id: "private_bathroom", name: "Baño privado", category: "Baño" },
 	{ id: "shared_bathroom", name: "Baño compartido", category: "Baño" },
 	{ id: "shower", name: "Ducha", category: "Baño" },
-	// { id: "bathtub", name: "Bañera", category: "Baño" },
-	// { id: "jacuzzi", name: "Bañera de hidromasaje / jacuzzi", category: "Baño" },
-	// { id: "hairdryer", name: "Secador de pelo", category: "Baño" },
-	// { id: "toiletries", name: "Artículos de aseo gratuitos", category: "Baño" },
-	// { id: "towels", name: "Toallas", category: "Baño" },
-	// { id: "toilet", name: "Inodoro", category: "Baño" },
-	// { id: "bidet", name: "Bidé", category: "Baño" },
-	// { id: "bathrobe", name: "Bata de baño", category: "Baño" },
-	// { id: "slippers", name: "Pantuflas", category: "Baño" },
+	{ id: "bathtub", name: "Bañera", category: "Baño" },
+	{ id: "bidet", name: "Bidé", category: "Baño" },
+	{ id: "hairdryer", name: "Secador de pelo", category: "Baño" },
+	{ id: "towels", name: "Toallas", category: "Baño" },
+	{ id: "toiletries", name: "Artículos de aseo", category: "Baño" },
+	{ id: "bathrobe", name: "Bata de baño", category: "Baño" },
 
-	// 🍽️ --- Cocina ---
-	{ id: "kitchenette", name: "Cocina pequeña", category: "Cocina" },
-	{ id: "full_kitchen", name: "Cocina completa", category: "Cocina" },
-	{ id: "refrigerator", name: "Refrigerador", category: "Cocina" },
-	// { id: "microwave", name: "Microondas", category: "Cocina" },
-	// { id: "stovetop", name: "Cocina o fogones", category: "Cocina" },
-	// { id: "oven", name: "Horno", category: "Cocina" },
-	// { id: "coffee_maker", name: "Cafetera", category: "Cocina" },
-	// { id: "electric_kettle", name: "Hervidor eléctrico", category: "Cocina" },
-	// { id: "minibar", name: "Minibar", category: "Cocina" },
-	// { id: "dishwasher", name: "Lavavajillas", category: "Cocina" },
-	// { id: "kitchenware", name: "Utensilios de cocina", category: "Cocina" },
-	// { id: "dining_area", name: "Zona de comedor", category: "Cocina" },
+	{ id: "closet", name: "Armario o clóset", category: "Dormitorio" },
+	{ id: "linens", name: "Ropa de cama", category: "Dormitorio" },
+	{ id: "extra_pillows_blankets", name: "Almohadas y mantas adicionales", category: "Dormitorio" },
+	{ id: "hangers", name: "Ganchos para ropa", category: "Dormitorio" },
+	{ id: "iron", name: "Plancha para ropa", category: "Dormitorio" },
+	{ id: "ironing_board", name: "Tabla de planchar", category: "Dormitorio" },
+	{ id: "extra_long_beds", name: "Camas extra largas", category: "Dormitorio" },
 
-	// // 📺 --- Entretenimiento ---
-	// { id: "tv", name: "Televisión", category: "Entretenimiento" },
-	// { id: "flat_screen_tv", name: "TV de pantalla plana", category: "Entretenimiento" },
-	// { id: "smart_tv", name: "Smart TV", category: "Entretenimiento" },
-	// { id: "cable_channels", name: "Canales por cable", category: "Entretenimiento" },
-	// {
-	// 	id: "streaming_services",
-	// 	name: "Servicios de streaming (Netflix, etc.)",
-	// 	category: "Entretenimiento",
-	// },
-	// { id: "radio", name: "Radio", category: "Entretenimiento" },
-	// { id: "cd_player", name: "Reproductor de CD", category: "Entretenimiento" },
+	{ id: "tv", name: "Televisión", category: "Entretenimiento" },
+	{ id: "smart_tv", name: "Smart TV", category: "Entretenimiento" },
+	{ id: "cable_channels", name: "Canales por cable", category: "Entretenimiento" },
+	{ id: "streaming_services", name: "Servicios de streaming", category: "Entretenimiento" },
 
-	// // 🌐 --- Tecnología y conectividad ---
-	// { id: "wifi", name: "Wi-Fi gratuito", category: "Tecnología" },
-	// { id: "wifi_paid", name: "Wi-Fi con costo adicional", category: "Tecnología" },
-	// { id: "telephone", name: "Teléfono", category: "Tecnología" },
-	// { id: "usb_outlets", name: "Enchufes USB junto a la cama", category: "Tecnología" },
-	// { id: "power_outlets", name: "Tomas de corriente adicionales", category: "Tecnología" },
+	{ id: "kitchenette", name: "Cocina pequeña", category: "Cocina y comedor" },
+	{ id: "full_kitchen", name: "Cocina completa", category: "Cocina y comedor" },
+	{ id: "refrigerator", name: "Refrigerador", category: "Cocina y comedor" },
+	{ id: "minibar", name: "Minibar", category: "Cocina y comedor" },
+	{ id: "microwave", name: "Microondas", category: "Cocina y comedor" },
+	{ id: "coffee_maker", name: "Cafetera", category: "Cocina y comedor" },
+	{ id: "electric_kettle", name: "Hervidor eléctrico", category: "Cocina y comedor" },
+	{ id: "dining_area", name: "Zona de comedor", category: "Cocina y comedor" },
 
-	// // 🌄 --- Vistas y exteriores ---
-	// { id: "balcony", name: "Balcón", category: "Vista / Exterior" },
-	// { id: "terrace", name: "Terraza", category: "Vista / Exterior" },
-	// { id: "mountain_view", name: "Vista a la montaña", category: "Vista / Exterior" },
-	// { id: "sea_view", name: "Vista al mar", category: "Vista / Exterior" },
-	// { id: "city_view", name: "Vista a la ciudad", category: "Vista / Exterior" },
-	// { id: "garden_view", name: "Vista al jardín", category: "Vista / Exterior" },
-	// { id: "landmark_view", name: "Vista a un lugar de interés", category: "Vista / Exterior" },
+	{ id: "safe", name: "Caja fuerte", category: "Seguridad" },
+	{ id: "smoke_detector", name: "Detector de humo", category: "Seguridad" },
+	{
+		id: "carbon_monoxide_detector",
+		name: "Detector de monóxido de carbono",
+		category: "Seguridad",
+	},
+	{ id: "fire_extinguisher", name: "Extintor", category: "Seguridad" },
+	{ id: "first_aid_kit", name: "Botiquín", category: "Seguridad" },
 
-	// // 🧺 --- Lavandería y limpieza ---
-	// { id: "washing_machine", name: "Lavadora", category: "Lavandería" },
-	// { id: "dryer", name: "Secadora", category: "Lavandería" },
-	// { id: "laundry_service", name: "Servicio de lavandería", category: "Lavandería" },
+	{ id: "step_free_access", name: "Acceso sin escalones", category: "Accesibilidad" },
+	{ id: "accessible_bathroom", name: "Baño accesible", category: "Accesibilidad" },
+	{ id: "shower_grab_bar", name: "Barra de apoyo en la ducha", category: "Accesibilidad" },
+	{ id: "toilet_grab_bar", name: "Barra de apoyo junto al inodoro", category: "Accesibilidad" },
+	{ id: "shower_chair", name: "Silla para ducha", category: "Accesibilidad" },
 
-	// // 🧍 --- Accesibilidad ---
-	// { id: "wheelchair_accessible", name: "Acceso para silla de ruedas", category: "Accesibilidad" },
-	// { id: "elevator_access", name: "Acceso mediante ascensor", category: "Accesibilidad" },
-	// { id: "adapted_bathroom", name: "Baño adaptado", category: "Accesibilidad" },
-	// {
-	// 	id: "visual_aids",
-	// 	name: "Ayudas visuales (señalización táctil / braille)",
-	// 	category: "Accesibilidad",
-	// },
-	// { id: "exterior_corridors", name: "Acceso por pasillos exteriores", category: "Accesibilidad" },
-	// { id: "raised_toilet", name: "Asiento de excusado elevado", category: "Accesibilidad" },
-	// {
-	// 	id: "emergency_alarm_on_bathroom",
-	// 	name: "Baño con alarma para emergencias",
-	// 	category: "Accesibilidad",
-	// },
-	// { id: "toilet_grab_rails", name: "Barra de apoyo cerca del excusado", category: "Accesibilidad" },
-	// { id: "under_basin", name: "Lavabo bajo", category: "Accesibilidad" },
-	// { id: "braille_letters", name: "Letreros en braille", category: "Accesibilidad" },
+	{ id: "crib", name: "Cuna disponible", category: "Familias" },
+	{ id: "high_chair", name: "Silla alta para niños", category: "Familias" },
+] as const
 
-	// // 🔒 --- Seguridad ---
-	// { id: "safe", name: "Caja fuerte", category: "Seguridad" },
-	// { id: "smoke_detector", name: "Detector de humo", category: "Seguridad" },
-	// { id: "fire_extinguisher", name: "Extintor", category: "Seguridad" },
-	// {
-	// 	id: "carbon_monoxide_detector",
-	// 	name: "Detector de monóxido de carbono",
-	// 	category: "Seguridad",
-	// },
-	// { id: "key_card_access", name: "Acceso con tarjeta", category: "Seguridad" },
-	// { id: "security_alarm", name: "Alarma de seguridad", category: "Seguridad" },
-
-	// // 🔒 --- Family ---
-	// { id: "crib", name: "Cuna disponible", category: "Familia" },
-	// { id: "high_chair", name: "Silla alta para niños", category: "Familia" },
-	// { id: "kids_tv_channels", name: "Canales infantiles", category: "Familia" },
-
-	// // 🔒 --- Services ---
-	// { id: "room_service", name: "Servicio a la habitación", category: "Servicios" },
-	// { id: "daily_housekeeping", name: "Limpieza diaria", category: "Servicios" },
-	// { id: "express_checkin", name: "Ingreso exprés", category: "Servicios" },
-	// { id: "express_checkout", name: "Salida exprés", category: "Servicios" },
-	// { id: "wake_up_service", name: "Servicio de despertador", category: "Servicios" },
-]
+export type RoomAmenity = (typeof AMENITY_ROOMS)[number]
