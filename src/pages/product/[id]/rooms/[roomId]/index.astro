@@ -350,8 +350,18 @@ const previewHref = `${routes.productRoomDetail(productId, roomId)}#previsualiza
 					>
 						Agrega al menos 1 foto. La primera imagen aparecerá en Dónde dormirás.
 					</div>
-					<p id="roomImageFeedback" class="text-sm text-slate-600"></p>
-					<div id="roomImageGrid" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+					<p
+						id="roomImageFeedback"
+						class="min-h-5 text-sm text-slate-600"
+						aria-live="polite"
+						aria-atomic="true"
+					>
+					</p>
+					<div
+						id="roomImageGrid"
+						class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+						aria-busy="false"
+					>
 						{
 							Array.from({ length: 3 }).map(() => (
 								<div class="min-h-[180px] animate-pulse rounded-[18px] bg-slate-100" />
@@ -489,6 +499,8 @@ const previewHref = `${routes.productRoomDetail(productId, roomId)}#previsualiza
 			const roomImageFeedback = document.getElementById("roomImageFeedback")
 			const roomImageGrid = document.getElementById("roomImageGrid")
 			let roomImages = []
+			let uploadJobs = []
+			let uploadSessionActive = false
 
 			const isCurrentRoomWorkspace = () => {
 				const root = document.getElementById("roomWorkspaceRoot")
@@ -514,13 +526,181 @@ const previewHref = `${routes.productRoomDetail(productId, roomId)}#previsualiza
 
 			const syncRoomImageSaveState = (options = {}) => {
 				const hasImages = hasPersistableRoomImages()
+				const uploadsBusy =
+					uploadSessionActive || uploadJobs.some((job) => job.state === "uploading")
 				if (roomImageSaveBtn instanceof HTMLButtonElement) {
-					roomImageSaveBtn.disabled = !hasImages
-					roomImageSaveBtn.setAttribute("aria-disabled", hasImages ? "false" : "true")
+					const saveLoading = roomImageSaveBtn.dataset.loading === "true"
+					roomImageSaveBtn.disabled = saveLoading || uploadsBusy || !hasImages
+					roomImageSaveBtn.setAttribute(
+						"aria-disabled",
+						roomImageSaveBtn.disabled ? "true" : "false"
+					)
+				}
+				if (roomImageUploadBtn instanceof HTMLButtonElement) {
+					roomImageUploadBtn.disabled = uploadsBusy
+					roomImageUploadBtn.setAttribute("aria-disabled", uploadsBusy ? "true" : "false")
+				}
+				if (roomImageGrid instanceof HTMLElement) {
+					roomImageGrid.setAttribute("aria-busy", uploadsBusy ? "true" : "false")
 				}
 				if (!hasImages && options.showHint && roomImageFeedback) {
 					roomImageFeedback.textContent = "Sube al menos una foto antes de guardar la galería."
 				}
+			}
+
+			const setRoomImageFeedback = (message) => {
+				if (roomImageFeedback) roomImageFeedback.textContent = String(message ?? "")
+			}
+
+			const setSaveButtonLoading = (loading) => {
+				if (!(roomImageSaveBtn instanceof HTMLButtonElement)) return
+				roomImageSaveBtn.dataset.loading = loading ? "true" : "false"
+				roomImageSaveBtn.textContent = loading
+					? "Guardando galería..."
+					: isRoomPhotosPlaybook
+						? "Guardar y continuar →"
+						: "Guardar galería"
+				syncRoomImageSaveState()
+			}
+
+			const uploadJobStateLabel = (state) => {
+				if (state === "queued") return "En cola"
+				if (state === "uploading") return "Subiendo..."
+				if (state === "success") return "Cargada"
+				return "Error"
+			}
+
+			const createUploadOverlay = (job) => {
+				const overlay = document.createElement("div")
+				overlay.className =
+					"absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-[16px] bg-slate-950/50 px-4 text-center text-white backdrop-blur-[1px]"
+				if (job.state === "uploading") {
+					const spinner = document.createElement("div")
+					spinner.className =
+						"h-8 w-8 animate-spin rounded-full border-2 border-white/30 border-t-white"
+					spinner.setAttribute("aria-hidden", "true")
+					const label = document.createElement("p")
+					label.className = "text-xs font-semibold"
+					label.textContent = "Subiendo..."
+					const track = document.createElement("div")
+					track.className = "h-1.5 w-28 overflow-hidden rounded-full bg-white/20"
+					const bar = document.createElement("div")
+					bar.className = "h-full w-1/2 animate-pulse rounded-full bg-white"
+					track.appendChild(bar)
+					overlay.append(spinner, label, track)
+					return overlay
+				}
+				if (job.state === "queued") {
+					const label = document.createElement("p")
+					label.className = "text-xs font-semibold"
+					label.textContent = "En cola"
+					overlay.appendChild(label)
+					return overlay
+				}
+				if (job.state === "error") {
+					const label = document.createElement("p")
+					label.className = "text-xs font-semibold text-red-100"
+					label.textContent = safeText(job.error, "No se pudo subir")
+					overlay.appendChild(label)
+				}
+				return overlay
+			}
+
+			const uploadRoomImageFile = async (file) => {
+				const initData = new FormData()
+				initData.set("productId", productId)
+				initData.set("file", file)
+				const initResponse = await fetch("/api/uploads/init", {
+					method: "POST",
+					body: initData,
+				})
+				const initPayload = await initResponse.json().catch(() => ({}))
+				if (
+					!initResponse.ok ||
+					!initPayload?.imageId ||
+					!initPayload?.objectKey ||
+					!initPayload?.signedUrl
+				) {
+					throw new Error(String(initPayload?.error ?? "upload_init_failed"))
+				}
+				const uploadResponse = await fetch(String(initPayload.signedUrl), {
+					method: "PUT",
+					headers: { "Content-Type": file.type || "application/octet-stream" },
+					body: file,
+				})
+				if (!uploadResponse.ok) throw new Error(`upload_failed_${uploadResponse.status}`)
+				const completeData = new FormData()
+				completeData.set("productId", productId)
+				completeData.set("imageId", String(initPayload.imageId))
+				completeData.set("objectKey", String(initPayload.objectKey))
+				completeData.set("target", "variant")
+				completeData.set("targetId", roomId)
+				const completeResponse = await fetch("/api/uploads/complete", {
+					method: "POST",
+					body: completeData,
+				})
+				const completePayload = await completeResponse.json().catch(() => ({}))
+				if (!completeResponse.ok) {
+					throw new Error(String(completePayload?.error ?? "upload_complete_failed"))
+				}
+				return {
+					id: String(initPayload.imageId),
+					url: String(initPayload.publicUrl),
+					objectKey: String(initPayload.objectKey),
+					order: roomImages.length,
+					isPrimary: roomImages.length === 0,
+				}
+			}
+
+			const processUploadJob = async (job) => {
+				job.state = "uploading"
+				job.error = ""
+				renderRoomImages()
+				try {
+					const uploaded = await uploadRoomImageFile(job.file)
+					job.state = "success"
+					roomImages.push(uploaded)
+					URL.revokeObjectURL(job.previewUrl)
+					uploadJobs = uploadJobs.filter((item) => item.localId !== job.localId)
+					renderRoomImages()
+					return true
+				} catch (error) {
+					job.state = "error"
+					job.error = String(error)
+					renderRoomImages()
+					return false
+				}
+			}
+
+			const retryUploadJob = async (localId) => {
+				const job = uploadJobs.find((item) => item.localId === localId)
+				if (!job || job.state !== "error") return
+				uploadSessionActive = true
+				syncRoomImageSaveState()
+				await processUploadJob(job)
+				uploadSessionActive = uploadJobs.some(
+					(item) => item.state === "queued" || item.state === "uploading"
+				)
+				syncRoomImageSaveState()
+				const failedCount = uploadJobs.filter((item) => item.state === "error").length
+				if (failedCount > 0) {
+					setRoomImageFeedback(
+						`${failedCount} imagen(es) no se pudieron subir. Reintenta o elimina las fallidas.`
+					)
+				} else if (roomImages.length > 0) {
+					setRoomImageFeedback(
+						"Imágenes cargadas y vinculadas. Guarda la galería para confirmar el orden."
+					)
+				}
+			}
+
+			const removeUploadJob = (localId) => {
+				const job = uploadJobs.find((item) => item.localId === localId)
+				if (!job) return
+				if (job.previewUrl) URL.revokeObjectURL(job.previewUrl)
+				uploadJobs = uploadJobs.filter((item) => item.localId !== localId)
+				renderRoomImages()
+				syncRoomImageSaveState()
 			}
 
 			const tabButtons = Array.from(document.querySelectorAll("[data-room-tab]"))
@@ -795,7 +975,9 @@ const previewHref = `${routes.productRoomDetail(productId, roomId)}#previsualiza
 				syncRoomImageSaveState()
 				if (!roomImageGrid) return
 				roomImageGrid.innerHTML = ""
-				if (!Array.isArray(roomImages) || roomImages.length === 0) {
+				const hasPersistedImages = Array.isArray(roomImages) && roomImages.length > 0
+				const hasUploadJobs = uploadJobs.length > 0
+				if (!hasPersistedImages && !hasUploadJobs) {
 					const empty = document.createElement("div")
 					empty.className = "fastt-empty-state col-span-full p-6 text-sm text-slate-600"
 					empty.textContent =
@@ -806,10 +988,13 @@ const previewHref = `${routes.productRoomDetail(productId, roomId)}#previsualiza
 				roomImages.forEach((image, index) => {
 					const card = document.createElement("article")
 					card.className = "space-y-3 rounded-[20px] bg-slate-50 p-3 ring-1 ring-slate-900/[0.06]"
+					const previewWrap = document.createElement("div")
+					previewWrap.className = "relative overflow-hidden rounded-[16px]"
 					const preview = document.createElement("img")
 					preview.src = String(image.url)
 					preview.alt = `Foto de habitación ${index + 1}`
-					preview.className = "h-40 w-full rounded-[16px] object-cover"
+					preview.className = "h-40 w-full object-cover"
+					previewWrap.appendChild(preview)
 					const meta = document.createElement("div")
 					meta.className = "flex flex-wrap items-center gap-2"
 					const order = document.createElement("span")
@@ -829,7 +1014,7 @@ const previewHref = `${routes.productRoomDetail(productId, roomId)}#previsualiza
 					const makeButton = (label, disabled, onClick, tone = "neutral") => {
 						const button = document.createElement("button")
 						button.type = "button"
-						button.disabled = disabled
+						button.disabled = disabled || uploadSessionActive
 						button.className =
 							tone === "danger"
 								? "fastt-button inline-flex h-8 items-center justify-center rounded bg-red-50 px-2 text-xs font-semibold text-red-700 ring-1 ring-red-200 disabled:opacity-40"
@@ -865,9 +1050,58 @@ const previewHref = `${routes.productRoomDetail(productId, roomId)}#previsualiza
 							"danger"
 						)
 					)
-					card.append(preview, meta, actions)
+					card.append(previewWrap, meta, actions)
 					roomImageGrid.appendChild(card)
 				})
+				for (const job of uploadJobs) {
+					const card = document.createElement("article")
+					card.className = "space-y-3 rounded-[20px] bg-slate-50 p-3 ring-1 ring-slate-900/[0.06]"
+					card.dataset.uploadState = job.state
+					const previewWrap = document.createElement("div")
+					previewWrap.className = "relative overflow-hidden rounded-[16px]"
+					const preview = document.createElement("img")
+					preview.src = job.previewUrl
+					preview.alt = `Vista previa de ${job.file.name}`
+					preview.className = "h-40 w-full object-cover"
+					previewWrap.append(preview, createUploadOverlay(job))
+					const meta = document.createElement("div")
+					meta.className = "space-y-1"
+					const name = document.createElement("p")
+					name.className = "truncate text-xs font-medium text-slate-700"
+					name.textContent = job.file.name
+					const state = document.createElement("p")
+					state.className =
+						job.state === "error"
+							? "text-xs font-medium text-red-600"
+							: job.state === "success"
+								? "text-xs font-medium text-emerald-700"
+								: "text-xs text-slate-500"
+					state.textContent = uploadJobStateLabel(job.state)
+					meta.append(name, state)
+					const actions = document.createElement("div")
+					actions.className = "grid grid-cols-2 gap-2"
+					if (job.state === "error") {
+						const retryButton = document.createElement("button")
+						retryButton.type = "button"
+						retryButton.className =
+							"fastt-button inline-flex h-8 items-center justify-center rounded bg-white px-2 text-xs font-semibold text-slate-700 ring-1 ring-slate-200"
+						retryButton.textContent = "Reintentar"
+						retryButton.addEventListener("click", () => {
+							void retryUploadJob(job.localId)
+						})
+						actions.appendChild(retryButton)
+					}
+					const removeButton = document.createElement("button")
+					removeButton.type = "button"
+					removeButton.disabled = job.state === "uploading"
+					removeButton.className =
+						"fastt-button inline-flex h-8 items-center justify-center rounded bg-red-50 px-2 text-xs font-semibold text-red-700 ring-1 ring-red-200 disabled:opacity-40"
+					removeButton.textContent = "Quitar"
+					removeButton.addEventListener("click", () => removeUploadJob(job.localId))
+					actions.appendChild(removeButton)
+					card.append(previewWrap, meta, actions)
+					roomImageGrid.appendChild(card)
+				}
 			}
 
 			const renderPhotoReadiness = (payload) => {
@@ -949,68 +1183,43 @@ const previewHref = `${routes.productRoomDetail(productId, roomId)}#previsualiza
 				async (event) => {
 					const input = event.currentTarget
 					if (!(input instanceof HTMLInputElement)) return
-					const files = Array.from(input.files ?? [])
+					const files = Array.from(input.files ?? []).filter((file) =>
+						file.type.startsWith("image/")
+					)
 					if (files.length === 0) return
-					if (roomImageSaveBtn instanceof HTMLButtonElement) roomImageSaveBtn.disabled = true
-					if (roomImageFeedback) roomImageFeedback.textContent = "Subiendo imágenes..."
-					try {
-						for (const file of files) {
-							const initData = new FormData()
-							initData.set("productId", productId)
-							initData.set("file", file)
-							const initResponse = await fetch("/api/uploads/init", {
-								method: "POST",
-								body: initData,
-							})
-							const initPayload = await initResponse.json().catch(() => ({}))
-							if (
-								!initResponse.ok ||
-								!initPayload?.imageId ||
-								!initPayload?.objectKey ||
-								!initPayload?.signedUrl
-							) {
-								throw new Error(String(initPayload?.error ?? "upload_init_failed"))
-							}
-							const uploadResponse = await fetch(String(initPayload.signedUrl), {
-								method: "PUT",
-								headers: { "Content-Type": file.type || "application/octet-stream" },
-								body: file,
-							})
-							if (!uploadResponse.ok) throw new Error(`upload_failed_${uploadResponse.status}`)
-							const completeData = new FormData()
-							completeData.set("productId", productId)
-							completeData.set("imageId", String(initPayload.imageId))
-							completeData.set("objectKey", String(initPayload.objectKey))
-							completeData.set("target", "variant")
-							completeData.set("targetId", roomId)
-							const completeResponse = await fetch("/api/uploads/complete", {
-								method: "POST",
-								body: completeData,
-							})
-							const completePayload = await completeResponse.json().catch(() => ({}))
-							if (!completeResponse.ok) {
-								throw new Error(String(completePayload?.error ?? "upload_complete_failed"))
-							}
-							roomImages.push({
-								id: String(initPayload.imageId),
-								url: String(initPayload.publicUrl),
-								objectKey: String(initPayload.objectKey),
-								order: roomImages.length,
-								isPrimary: roomImages.length === 0,
-							})
-						}
-						renderRoomImages()
-						if (roomImageFeedback) {
-							roomImageFeedback.textContent =
-								"Imágenes cargadas y vinculadas. Guarda la galería para confirmar el orden."
-						}
-					} catch (error) {
-						if (roomImageFeedback)
-							roomImageFeedback.textContent = `Error al subir imágenes: ${String(error)}`
-					} finally {
-						input.value = ""
-						syncRoomImageSaveState()
+					for (const file of files) {
+						uploadJobs.push({
+							localId: crypto.randomUUID(),
+							file,
+							previewUrl: URL.createObjectURL(file),
+							state: "queued",
+						})
 					}
+					renderRoomImages()
+					uploadSessionActive = true
+					syncRoomImageSaveState()
+					const batch = uploadJobs.filter((job) => job.state === "queued")
+					let completed = 0
+					for (const job of batch) {
+						setRoomImageFeedback(`Subiendo ${completed + 1} de ${batch.length}...`)
+						await processUploadJob(job)
+						completed += 1
+					}
+					uploadSessionActive = false
+					syncRoomImageSaveState()
+					const failedCount = uploadJobs.filter((job) => job.state === "error").length
+					if (failedCount > 0) {
+						setRoomImageFeedback(
+							`${failedCount} imagen(es) no se pudieron subir. Reintenta o elimina las fallidas.`
+						)
+					} else if (roomImages.length > 0) {
+						setRoomImageFeedback(
+							"Imágenes cargadas y vinculadas. Guarda la galería para confirmar el orden."
+						)
+					} else {
+						setRoomImageFeedback("")
+					}
+					input.value = ""
 				},
 				{ signal: roomWorkspaceSignal }
 			)
@@ -1022,8 +1231,8 @@ const previewHref = `${routes.productRoomDetail(productId, roomId)}#previsualiza
 						syncRoomImageSaveState({ showHint: true })
 						return
 					}
-					if (roomImageSaveBtn instanceof HTMLButtonElement) roomImageSaveBtn.disabled = true
-					if (roomImageFeedback) roomImageFeedback.textContent = "Guardando galería..."
+					setSaveButtonLoading(true)
+					setRoomImageFeedback("Guardando galería...")
 					try {
 						const formData = new FormData()
 						formData.set("variantId", roomId)
@@ -1043,23 +1252,23 @@ const previewHref = `${routes.productRoomDetail(productId, roomId)}#previsualiza
 						const response = await fetch("/api/variant/images", { method: "POST", body: formData })
 						const payload = await response.json().catch(() => ({}))
 						if (!response.ok) {
-							if (roomImageFeedback) {
-								roomImageFeedback.textContent = `No se pudo guardar: ${String(payload?.error ?? response.status)}`
-							}
+							setRoomImageFeedback(
+								`No se pudo guardar: ${String(payload?.error ?? response.status)}`
+							)
 							return
 						}
 						roomImages = Array.isArray(payload?.images) ? payload.images.slice() : roomImages
 						renderRoomImages()
 						await loadRoom()
-						if (roomImageFeedback) roomImageFeedback.textContent = "Galería guardada correctamente."
+						setRoomImageFeedback("Galería guardada correctamente.")
 						if (addRoomPlaybookActive && roomImages.length > 0 && roomPhotosContinueHref) {
 							window.location.href = roomPhotosContinueHref
 							return
 						}
 					} catch (error) {
-						if (roomImageFeedback) roomImageFeedback.textContent = `Error de red: ${String(error)}`
+						setRoomImageFeedback(`Error de red: ${String(error)}`)
 					} finally {
-						syncRoomImageSaveState()
+						setSaveButtonLoading(false)
 					}
 				},
 				{ signal: roomWorkspaceSignal }
