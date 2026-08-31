@@ -370,6 +370,79 @@ body {
 	box-shadow: none;
 }
 
+/* Room wizard guide tabs — subtle underline active state on light panels. */
+.room-guide-tabs {
+	display: flex;
+	flex-wrap: nowrap;
+	gap: 0;
+	margin-bottom: -1px;
+	overflow-x: auto;
+	-webkit-overflow-scrolling: touch;
+	scrollbar-width: none;
+}
+
+.room-guide-tabs::-webkit-scrollbar {
+	display: none;
+}
+
+.room-guide-tabs__item {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	flex-shrink: 0;
+	align-items: flex-start;
+	border: 0;
+	border-bottom: 2px solid transparent;
+	border-radius: 0;
+	margin-bottom: -1px;
+	padding: 0.625rem 0.875rem 0.75rem;
+	background: transparent;
+	color: rgb(148 163 184);
+	font-size: 0.875rem;
+	font-weight: 600;
+	line-height: 1.25rem;
+	white-space: nowrap;
+	cursor: pointer;
+	transition:
+		background-color var(--fastt-motion-fast) ease,
+		border-color var(--fastt-motion-fast) ease,
+		color var(--fastt-motion-fast) ease;
+}
+
+.room-guide-tabs__item:hover:not([data-active="true"]) {
+	color: rgb(100 116 139);
+}
+
+.room-guide-tabs__item[data-active="true"] {
+	border-bottom-color: rgb(71 85 105);
+	background: linear-gradient(to bottom, rgb(248 250 252 / 0.55), rgb(248 250 252 / 0));
+	color: rgb(15 23 42);
+}
+
+.room-guide-tabs__item:focus-visible {
+	outline: 2px solid rgb(125 211 252);
+	outline-offset: -2px;
+}
+
+.room-guide-tabs__label {
+	display: block;
+}
+
+.room-guide-tabs__state {
+	display: block;
+	margin-top: 0.1875rem;
+	font-size: 0.6875rem;
+	font-weight: 600;
+	line-height: 1.125rem;
+	opacity: 0.72;
+	text-align: left;
+	transition: opacity var(--fastt-motion-fast) ease;
+}
+
+.room-guide-tabs__item[data-active="true"] .room-guide-tabs__state {
+	opacity: 0.92;
+}
+
 /* Workspace navigation shared by Calendar, Financial, Fiscal, and provider settings. */
 .fastt-tabs-inside-panel {
 	-webkit-overflow-scrolling: touch;
