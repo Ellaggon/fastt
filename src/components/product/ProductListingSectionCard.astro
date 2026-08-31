@@ -2,7 +2,6 @@
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
-import type { Component } from "astro/components"
 
 interface Props {
 	title: string
@@ -10,7 +9,7 @@ interface Props {
 	badgeId: string
 	editHref: string
 	editLabel: string
-	Icon: Component
+	Icon: (props: Record<string, unknown>) => unknown
 }
 
 const { title, subtitle, badgeId, editHref, editLabel, Icon } = Astro.props
