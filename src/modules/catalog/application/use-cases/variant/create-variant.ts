@@ -25,7 +25,7 @@ export async function createVariant(
 	deps: {
 		repo: VariantManagementRepositoryPort
 		inventoryConfigRepo: VariantInventoryConfigRepositoryPort
-		inventoryBootstrap: InventoryBootstrapPort
+		inventoryBootstrap?: InventoryBootstrapPort
 	},
 	params: {
 		productId: string
@@ -34,6 +34,11 @@ export async function createVariant(
 		kind: VariantKind
 		/** Inventory cupo bootstrap; tour_slot should pass maxPax. Default 1 (hotel rooms). */
 		defaultTotalUnits?: number
+		/**
+		 * A room profile records physical units before the provider intentionally opens
+		 * dates in the calendar. Other variant kinds retain the existing bootstrap.
+		 */
+		bootstrapInventory?: boolean
 	}
 ): Promise<{ variantId: string; lifecycleState: VariantLifecycleState }> {
 	const parsed = createVariantSchema.parse({
@@ -70,17 +75,20 @@ export async function createVariant(
 
 	const defaultTotalUnits = Math.max(1, Math.floor(Number(params.defaultTotalUnits ?? 1)) || 1)
 
-	// CAPA 5: ensure inventory exists; tour_slot uses maxPax as cupo default.
 	await deps.inventoryConfigRepo.upsert({
 		variantId,
 		defaultTotalUnits,
 		horizonDays: 365,
 	})
-	await deps.inventoryBootstrap.bootstrapVariantInventory({
-		variantId,
-		totalInventory: defaultTotalUnits,
-		days: 365,
-	})
+	if (params.bootstrapInventory !== false) {
+		if (!deps.inventoryBootstrap) throw new Error("Inventory bootstrap is required")
+		// CAPA 5: tour and generic variants keep their existing inventory bootstrap.
+		await deps.inventoryBootstrap.bootstrapVariantInventory({
+			variantId,
+			totalInventory: defaultTotalUnits,
+			days: 365,
+		})
+	}
 
 	return { variantId, lifecycleState }
 }

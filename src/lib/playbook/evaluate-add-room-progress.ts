@@ -2,16 +2,18 @@ import {
 	and,
 	asc,
 	DailyInventory,
-	EffectivePricing,
 	eq,
 	Image,
 	VariantImage,
-	inArray,
+	VariantInventoryConfig,
+	VariantRoomBed,
+	VariantRoomProfile,
 	RatePlan,
 	db,
+	gt,
 } from "@/shared/infrastructure/db/compat"
+import { baseRateRepository } from "@/container"
 import { resolveRatePlanNameColumn } from "@/lib/rates/ratePlanSchemaCompat"
-import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
 import { getProductVariantsAggregate } from "@/modules/catalog/public"
 import { REQUIRED_POLICY_CATEGORIES, resolveEffectivePolicies } from "@/modules/policies/public"
 import {
@@ -52,19 +54,79 @@ export type AddRoomProgressResult = {
 }
 
 const readinessInventoryMinDays = 30
-const INTERNAL_DEFAULT_OCCUPANCY_KEY = buildOccupancyKey(
-	normalizeOccupancy({ adults: 2, children: 0, infants: 0 })
-)
 
 export type VariantCompletion = {
-	capacityComplete: boolean
+	profileComplete: boolean
 	photosComplete: boolean
-	tariffsComplete: boolean
+	rateConfigured: boolean
+	rateActive: boolean
+	rateDefault: boolean
 	pricingComplete: boolean
 	conditionsComplete: boolean
-	inventoryComplete: boolean
-	isComplete: boolean
-	defaultRatePlanId: string | null
+	inventoryConfigComplete: boolean
+	availabilityComplete: boolean
+	setupComplete: boolean
+	sellable: boolean
+	selectedRatePlanId: string | null
+}
+
+export type VariantCompletionInput = Omit<VariantCompletion, "setupComplete" | "sellable">
+
+export type RoomProfileReadinessInput = {
+	hasCapacity: boolean
+	hasPhysicalProfile: boolean
+	hasBed: boolean
+	hasPhysicalUnits: boolean
+}
+
+type CompletionAggregateVariant = {
+	id: string
+	capacity: {
+		minOccupancy: number
+		maxOccupancy: number
+		maxAdults: number | null
+		maxChildren: number | null
+	} | null
+}
+
+export function isRoomProfileComplete(input: RoomProfileReadinessInput): boolean {
+	return input.hasCapacity && input.hasPhysicalProfile && input.hasBed && input.hasPhysicalUnits
+}
+
+/**
+ * Keeps setup readiness separate from commercial readiness. A draft tariff can
+ * finish the guided forms, but a room is only sellable once that tariff is
+ * active and primary.
+ */
+export function deriveVariantCompletion(input: VariantCompletionInput): VariantCompletion {
+	const setupComplete =
+		input.profileComplete &&
+		input.photosComplete &&
+		input.rateConfigured &&
+		input.pricingComplete &&
+		input.conditionsComplete &&
+		input.inventoryConfigComplete &&
+		input.availabilityComplete
+
+	return {
+		...input,
+		setupComplete,
+		sellable: setupComplete && input.rateActive && input.rateDefault,
+	}
+}
+
+export function getAddRoomStepCompletion(
+	completion: VariantCompletion
+): Record<AddRoomStepId, boolean> {
+	return {
+		"choose-accommodation": true,
+		"create-room": completion.profileComplete,
+		"room-photos": completion.photosComplete,
+		"create-rate": completion.rateConfigured && completion.pricingComplete,
+		"conditions": completion.conditionsComplete,
+		"availability": completion.availabilityComplete,
+		"confirmation": completion.sellable,
+	}
 }
 
 export async function loadVariantCompletion(
@@ -79,59 +141,87 @@ export async function loadVariantCompletion(
 	const variant = aggregate.variants.find((item) => String(item.id) === variantId)
 	if (!variant) return null
 
-	const ratePlanName = await resolveRatePlanNameColumn()
-	const [effectiveRows, inventoryRows, imageRows, tariffRows] = await Promise.all([
-		db
-			.select({ variantId: RatePlan.variantId })
-			.from(EffectivePricing)
-			.innerJoin(RatePlan, eq(RatePlan.id, EffectivePricing.ratePlanId))
-			.where(
-				and(
-					eq(RatePlan.variantId, variantId),
-					eq(RatePlan.isDefault, true),
-					eq(EffectivePricing.occupancyKey, INTERNAL_DEFAULT_OCCUPANCY_KEY)
-				)
-			),
-		db
-			.select({ variantId: DailyInventory.variantId })
-			.from(DailyInventory)
-			.where(eq(DailyInventory.variantId, variantId)),
-		db
-			.select({ id: Image.id })
-			.from(VariantImage)
-			.innerJoin(Image, eq(Image.id, VariantImage.imageId))
-			.where(eq(VariantImage.variantId, variantId)),
-		db
-			.select({
-				id: RatePlan.id,
-				isActive: RatePlan.isActive,
-				isDefault: RatePlan.isDefault,
-			})
-			.from(RatePlan)
-			.where(eq(RatePlan.variantId, variantId))
-			.orderBy(asc(ratePlanName), asc(RatePlan.id)),
-	])
+	return loadVariantCompletionForAggregateVariant(productId, variant, preferredRatePlanId)
+}
 
-	const activeTariffs = tariffRows.filter((row) => Boolean(row.isActive))
+/** Reuses an already-authorized product aggregate for list surfaces. */
+export async function loadVariantCompletionForAggregateVariant(
+	productId: string,
+	variant: CompletionAggregateVariant,
+	preferredRatePlanId?: string | null
+): Promise<VariantCompletion> {
+	const variantId = String(variant.id)
+
+	const ratePlanName = await resolveRatePlanNameColumn()
+	const todayIso = new Date().toISOString().slice(0, 10)
+	const [inventoryRows, imageRows, inventoryConfigRows, roomProfileRows, bedRows, tariffRows] =
+		await Promise.all([
+			db
+				.select({ variantId: DailyInventory.variantId })
+				.from(DailyInventory)
+				.where(
+					and(
+						eq(DailyInventory.variantId, variantId),
+						gt(DailyInventory.date, todayIso),
+						gt(DailyInventory.totalInventory, 0)
+					)
+				),
+			db
+				.select({ id: Image.id })
+				.from(VariantImage)
+				.innerJoin(Image, eq(Image.id, VariantImage.imageId))
+				.where(eq(VariantImage.variantId, variantId)),
+			db
+				.select({ defaultTotalUnits: VariantInventoryConfig.defaultTotalUnits })
+				.from(VariantInventoryConfig)
+				.where(eq(VariantInventoryConfig.variantId, variantId)),
+			db
+				.select({ variantId: VariantRoomProfile.variantId })
+				.from(VariantRoomProfile)
+				.where(eq(VariantRoomProfile.variantId, variantId)),
+			db
+				.select({ count: VariantRoomBed.count })
+				.from(VariantRoomBed)
+				.where(eq(VariantRoomBed.variantId, variantId)),
+			db
+				.select({
+					id: RatePlan.id,
+					isActive: RatePlan.isActive,
+					isDefault: RatePlan.isDefault,
+				})
+				.from(RatePlan)
+				.where(eq(RatePlan.variantId, variantId))
+				.orderBy(asc(ratePlanName), asc(RatePlan.id)),
+		])
+
 	const preferredTariffId = String(preferredRatePlanId ?? "").trim()
-	const defaultTariff =
-		(preferredTariffId
-			? activeTariffs.find((row) => String(row.id) === preferredTariffId)
-			: null) ??
-		activeTariffs.find((row) => row.isDefault) ??
-		activeTariffs[0] ??
+	const selectedRatePlan =
+		(preferredTariffId ? tariffRows.find((row) => String(row.id) === preferredTariffId) : null) ??
+		tariffRows.find((row) => Boolean(row.isDefault)) ??
+		tariffRows.find((row) => Boolean(row.isActive)) ??
+		tariffRows[0] ??
 		null
-	const capacityComplete = Boolean(variant.capacity)
+	const inventoryConfigComplete = Number(inventoryConfigRows[0]?.defaultTotalUnits ?? 0) > 0
+	const profileComplete = isRoomProfileComplete({
+		hasCapacity: Boolean(variant.capacity),
+		hasPhysicalProfile: roomProfileRows.length > 0,
+		hasBed: bedRows.some((row) => Number(row.count ?? 0) > 0),
+		hasPhysicalUnits: inventoryConfigComplete,
+	})
 	const photosComplete = imageRows.length > 0
-	const tariffsComplete = activeTariffs.length > 0
-	const pricingComplete = Boolean(
-		variant.pricing?.hasBaseRate && variant.pricing?.hasDefaultRatePlan && effectiveRows.length > 0
-	)
-	const resolvedPolicies = defaultTariff
+	const selectedRatePlanId = selectedRatePlan ? String(selectedRatePlan.id) : null
+	const rateConfigured = Boolean(selectedRatePlanId)
+	const rateActive = Boolean(selectedRatePlan?.isActive)
+	const rateDefault = Boolean(selectedRatePlan?.isDefault)
+	const pricingBaseline = selectedRatePlanId
+		? await baseRateRepository.getCanonicalPricingBaselineByRatePlanId(selectedRatePlanId)
+		: null
+	const pricingComplete = Number(pricingBaseline?.basePrice ?? 0) > 0
+	const resolvedPolicies = selectedRatePlanId
 		? await resolveEffectivePolicies({
 				productId,
 				variantId,
-				ratePlanId: String(defaultTariff.id),
+				ratePlanId: selectedRatePlanId,
 				channel: "web",
 				requiredCategories: [...REQUIRED_POLICY_CATEGORIES],
 				onMissingCategory: "return_null",
@@ -140,25 +230,19 @@ export async function loadVariantCompletion(
 	const conditionsComplete = Boolean(
 		resolvedPolicies && resolvedPolicies.missingCategories.length === 0
 	)
-	const inventoryComplete = inventoryRows.length >= readinessInventoryMinDays
-	const isComplete =
-		capacityComplete &&
-		photosComplete &&
-		tariffsComplete &&
-		pricingComplete &&
-		conditionsComplete &&
-		inventoryComplete
-
-	return {
-		capacityComplete,
+	const availabilityComplete = inventoryRows.length >= readinessInventoryMinDays
+	return deriveVariantCompletion({
+		profileComplete,
 		photosComplete,
-		tariffsComplete,
+		rateConfigured,
+		rateActive,
+		rateDefault,
 		pricingComplete,
 		conditionsComplete,
-		inventoryComplete,
-		isComplete,
-		defaultRatePlanId: defaultTariff ? String(defaultTariff.id) : null,
-	}
+		inventoryConfigComplete,
+		availabilityComplete,
+		selectedRatePlanId,
+	})
 }
 
 export async function evaluateAddRoomProgress(
@@ -195,18 +279,10 @@ export async function evaluateAddRoomProgress(
 			ctx.ratePlanId
 		)
 		if (!variantState) return null
-		if (!ctx.ratePlanId && variantState.defaultRatePlanId) {
-			ctx.ratePlanId = variantState.defaultRatePlanId
+		if (!ctx.ratePlanId && variantState.selectedRatePlanId) {
+			ctx.ratePlanId = variantState.selectedRatePlanId
 		}
-		completion = {
-			"choose-accommodation": true,
-			"create-room": variantState.capacityComplete,
-			"room-photos": variantState.photosComplete,
-			"create-rate": variantState.tariffsComplete,
-			"conditions": variantState.conditionsComplete,
-			"availability": variantState.inventoryComplete,
-			"confirmation": variantState.isComplete,
-		}
+		completion = getAddRoomStepCompletion(variantState)
 	}
 
 	const journeySteps = getAddRoomJourneySteps(ctx)

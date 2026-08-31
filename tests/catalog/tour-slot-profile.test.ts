@@ -34,7 +34,8 @@ describe("tour slot profile (fase 2)", () => {
 			"src/modules/catalog/application/use-cases/variant/create-variant.ts"
 		)
 		expect(createVariant).toContain("defaultTotalUnits?: number")
-		expect(createVariant).toContain("tour_slot uses maxPax")
+		expect(createVariant).toContain("tour_slot should pass maxPax")
+		expect(createVariant).toContain("bootstrapInventory")
 
 		const routes = read("src/lib/routes.ts")
 		expect(routes).toContain("productDeparturesForProduct")

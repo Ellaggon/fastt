@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
 	AmenityRoom,
+	DailyInventory,
 	db,
 	eq,
 	RoomType,
@@ -171,7 +172,7 @@ describe("integration/room profile editor", () => {
 				request: makeAuthedFormRequest({
 					path: "/api/variant/room-profile",
 					token,
-					form: buildProfileForm({ productId, roomTypeId, amenityId, roomCode: "jr-101" }),
+					form: buildProfileForm({ productId, roomTypeId, amenityId }),
 				}),
 			} as any)
 			expect(res.status).toBe(200)
@@ -179,37 +180,40 @@ describe("integration/room profile editor", () => {
 			expect(typeof json?.variantId).toBe("string")
 
 			const variantId = json.variantId as string
-			const [variant, capacity, profile, inventoryConfig, beds, amenities] = await Promise.all([
-				db
-					.select()
-					.from(Variant)
-					.where(eq(Variant.id, variantId))
-					.then((rows) => rows[0]),
-				db
-					.select()
-					.from(VariantCapacity)
-					.where(eq(VariantCapacity.variantId, variantId))
-					.then((rows) => rows[0]),
-				db
-					.select()
-					.from(VariantRoomProfile)
-					.where(eq(VariantRoomProfile.variantId, variantId))
-					.then((rows) => rows[0]),
-				db
-					.select()
-					.from(VariantInventoryConfig)
-					.where(eq(VariantInventoryConfig.variantId, variantId))
-					.then((rows) => rows[0]),
-				db.select().from(VariantRoomBed).where(eq(VariantRoomBed.variantId, variantId)),
-				db.select().from(VariantRoomAmenity).where(eq(VariantRoomAmenity.variantId, variantId)),
-			])
+			const [variant, capacity, profile, inventoryConfig, dailyInventory, beds, amenities] =
+				await Promise.all([
+					db
+						.select()
+						.from(Variant)
+						.where(eq(Variant.id, variantId))
+						.then((rows) => rows[0]),
+					db
+						.select()
+						.from(VariantCapacity)
+						.where(eq(VariantCapacity.variantId, variantId))
+						.then((rows) => rows[0]),
+					db
+						.select()
+						.from(VariantRoomProfile)
+						.where(eq(VariantRoomProfile.variantId, variantId))
+						.then((rows) => rows[0]),
+					db
+						.select()
+						.from(VariantInventoryConfig)
+						.where(eq(VariantInventoryConfig.variantId, variantId))
+						.then((rows) => rows[0]),
+					db.select().from(DailyInventory).where(eq(DailyInventory.variantId, variantId)),
+					db.select().from(VariantRoomBed).where(eq(VariantRoomBed.variantId, variantId)),
+					db.select().from(VariantRoomAmenity).where(eq(VariantRoomAmenity.variantId, variantId)),
+				])
 
 			expect(variant).toMatchObject({
 				productId,
 				kind: "hotel_room",
 				name: "Suite vista jardín",
-				externalCode: "JR-101",
 			})
+			expect(variant.externalCode).toMatch(/^ROOM-[A-F0-9]{8}$/)
+			expect(json.roomCode).toBe(variant.externalCode)
 			expect(capacity).toMatchObject({
 				minOccupancy: 1,
 				maxOccupancy: 3,
@@ -229,6 +233,7 @@ describe("integration/room profile editor", () => {
 				defaultTotalUnits: 5,
 				horizonDays: 365,
 			})
+			expect(dailyInventory).toHaveLength(0)
 			expect(beds.map((bed) => bed.bedType).sort()).toEqual(["queen", "sofa_bed"])
 			expect(amenities).toHaveLength(1)
 			expect(amenities[0].amenityId).toBe(amenityId)
