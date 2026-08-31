@@ -71,6 +71,18 @@ describe("calendar progressive navigation contract", () => {
 		expect(single).toContain("/api/rates/calendar?")
 	})
 
+	it("uses a full navigation when the guided conditions step opens the React calendar", () => {
+		const policies = read("src/pages/rates/plans/[ratePlanId].astro")
+		const playbookLayout = read("src/layouts/PlaybookLayout.astro")
+
+		expect(policies).toContain('continueLabel: "Confirmar condiciones y continuar →"')
+		expect(policies).toContain("continueReload: true")
+		expect(playbookLayout).toContain("reload={continueReload}")
+		expect(read("src/components/ui/Button.astro")).toContain(
+			"data-astro-reload={reload || undefined}"
+		)
+	})
+
 	it("uses a neutral, calendar-shaped navigation placeholder", () => {
 		const pending = read("src/components/dashboard/WorkspaceNavigationPending.astro")
 

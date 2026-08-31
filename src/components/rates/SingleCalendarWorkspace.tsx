@@ -36,11 +36,13 @@ type Props = {
 	initialMode?: CalendarControlMode
 	guidedAvailability?: {
 		playbook: "add-room" | "launch" | "launch-tour" | null
+		productId: string
 		productName: string
 		variantName: string
 		ratePlanName: string
 		requiredDays: number
 		initialInventoryDays: number
+		finalizationError?: string
 	}
 }
 
@@ -228,7 +230,8 @@ export default function SingleCalendarWorkspace({
 	guidedAvailability,
 }: Props) {
 	const isTourGuidedAvailability = guidedAvailability?.playbook === "launch-tour"
-	const guidedStartDate = isTourGuidedAvailability ? addDays(localIsoDate(), 1) : localIsoDate()
+	const isAddRoomGuidedAvailability = guidedAvailability?.playbook === "add-room"
+	const guidedStartDate = addDays(localIsoDate(), 1)
 	const initialRequest = {
 		ratePlanId: initialRatePlanId,
 		variantId: initialVariantId,
@@ -251,7 +254,10 @@ export default function SingleCalendarWorkspace({
 	const [feedback, setFeedback] = useState("")
 	const [selectionHint, setSelectionHint] = useState("")
 	const [selectionHintAction, setSelectionHintAction] = useState("")
-	const [guidedFeedback, setGuidedFeedback] = useState("")
+	const [guidedFeedback, setGuidedFeedback] = useState(guidedAvailability?.finalizationError ?? "")
+	const [guidedFeedbackVariant, setGuidedFeedbackVariant] = useState<"info" | "success" | "error">(
+		guidedAvailability?.finalizationError ? "error" : "info"
+	)
 	const [guidedInventoryDays, setGuidedInventoryDays] = useState(
 		Math.max(0, Number(guidedAvailability?.initialInventoryDays ?? 0))
 	)
@@ -259,6 +265,7 @@ export default function SingleCalendarWorkspace({
 	const [guidedFrom, setGuidedFrom] = useState(guidedStartDate)
 	const [guidedTo, setGuidedTo] = useState(addDays(guidedStartDate, 29))
 	const [guidedUnits, setGuidedUnits] = useState(1)
+	const [guidedFinalizing, setGuidedFinalizing] = useState(false)
 	const [gridDirection, setGridDirection] = useState<"previous" | "next" | "neutral">("neutral")
 	const [updatedDates, setUpdatedDates] = useState<Set<string>>(new Set())
 	const [pricingJobId, setPricingJobId] = useState<string | null>(null)
@@ -570,6 +577,7 @@ export default function SingleCalendarWorkspace({
 		const nights = guidedNightCount()
 		const units = Math.trunc(Number(guidedUnits))
 		if (!readySurface.selectedVariantId) {
+			setGuidedFeedbackVariant("error")
 			setGuidedFeedback(
 				isTourGuidedAvailability
 					? "No hay una salida seleccionada para abrir disponibilidad."
@@ -578,14 +586,17 @@ export default function SingleCalendarWorkspace({
 			return
 		}
 		if (!guidedFrom || !guidedTo || guidedTo < guidedFrom || nights <= 0) {
+			setGuidedFeedbackVariant("error")
 			setGuidedFeedback("Elige un rango de fechas válido.")
 			return
 		}
-		if (isTourGuidedAvailability && guidedFrom <= localIsoDate()) {
+		if (guidedFrom <= localIsoDate()) {
+			setGuidedFeedbackVariant("error")
 			setGuidedFeedback("La primera fecha reservable debe ser futura.")
 			return
 		}
 		if (!Number.isFinite(units) || units < 1) {
+			setGuidedFeedbackVariant("error")
 			setGuidedFeedback(
 				isTourGuidedAvailability
 					? "El cupo de participantes debe ser al menos 1."
@@ -595,6 +606,7 @@ export default function SingleCalendarWorkspace({
 		}
 
 		setLoading(true)
+		setGuidedFeedbackVariant("info")
 		setGuidedFeedback("Abriendo disponibilidad inicial...")
 		try {
 			const response = await fetch("/api/inventory/bulk-apply", {
@@ -629,10 +641,54 @@ export default function SingleCalendarWorkspace({
 					? `Disponibilidad abierta para ${nights} ${nights === 1 ? "fecha" : "fechas"} con cupo para ${units} ${units === 1 ? "participante" : "participantes"} por salida.`
 					: `Disponibilidad abierta para ${nights} ${nights === 1 ? "noche" : "noches"} con ${units} ${units === 1 ? "unidad" : "unidades"} por noche.`
 			)
+			setGuidedFeedbackVariant("success")
 		} catch (error) {
+			setGuidedFeedbackVariant("error")
 			setGuidedFeedback(error instanceof Error ? error.message : "No se pudo abrir disponibilidad")
 		} finally {
 			setLoading(false)
+		}
+	}
+
+	async function finalizeGuidedAddRoom() {
+		if (!isAddRoomGuidedAvailability || !guidedIsReady) {
+			setGuidedFeedbackVariant("error")
+			setGuidedFeedback("Abre al menos 30 noches con cupo antes de finalizar.")
+			return
+		}
+		if (
+			!readySurface.selectedRatePlanId ||
+			!readySurface.selectedVariantId ||
+			!guidedAvailability?.productId
+		) {
+			setGuidedFeedbackVariant("error")
+			setGuidedFeedback("No se encontró el contexto completo de la habitación para finalizar.")
+			return
+		}
+
+		setGuidedFinalizing(true)
+		setGuidedFeedbackVariant("info")
+		setGuidedFeedback("Verificando la habitación y activando la tarifa...")
+		try {
+			const response = await fetch("/api/rateplans/activate-guided", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					productId: guidedAvailability.productId,
+					variantId: readySurface.selectedVariantId,
+					ratePlanId: readySurface.selectedRatePlanId,
+				}),
+			})
+			const body = await response.json().catch(() => ({}))
+			if (!response.ok || !body?.terminalHref) {
+				const blockers = Array.isArray(body?.blockers) ? body.blockers.join(" ") : ""
+				throw new Error(body?.error || blockers || "No se pudo finalizar la configuración.")
+			}
+			window.location.assign(String(body.terminalHref))
+		} catch (error) {
+			setGuidedFeedbackVariant("error")
+			setGuidedFeedback(error instanceof Error ? error.message : "No se pudo finalizar.")
+			setGuidedFinalizing(false)
 		}
 	}
 
@@ -977,19 +1033,31 @@ export default function SingleCalendarWorkspace({
 											: `Abrirás ${guidedNights} ${guidedNights === 1 ? "noche" : "noches"} con ${guidedUnits || 0} ${Number(guidedUnits) === 1 ? "unidad" : "unidades"} disponible por noche.`
 										: "Selecciona un rango para calcular la disponibilidad inicial."}
 								</p>
-								<Button
-									type="button"
-									onClick={() => void applyGuidedAvailability()}
-									disabled={loading}
-									className="fastt-playbook-cta"
-								>
-									Abrir disponibilidad
-								</Button>
+								<div className="flex flex-wrap justify-end gap-3">
+									<Button
+										type="button"
+										onClick={() => void applyGuidedAvailability()}
+										disabled={loading || guidedFinalizing}
+										variant={guidedIsReady && isAddRoomGuidedAvailability ? "secondary" : "primary"}
+									>
+										{guidedIsReady && isAddRoomGuidedAvailability
+											? "Actualizar disponibilidad"
+											: "Abrir disponibilidad"}
+									</Button>
+									{isAddRoomGuidedAvailability && guidedIsReady ? (
+										<Button
+											type="button"
+											onClick={() => void finalizeGuidedAddRoom()}
+											disabled={loading || guidedFinalizing}
+											className="fastt-playbook-cta"
+										>
+											{guidedFinalizing ? "Finalizando..." : "Finalizar configuración"}
+										</Button>
+									) : null}
+								</div>
 							</div>
 
-							{guidedFeedback && (
-								<Notice variant={guidedIsReady ? "success" : "info"}>{guidedFeedback}</Notice>
-							)}
+							{guidedFeedback && <Notice variant={guidedFeedbackVariant}>{guidedFeedback}</Notice>}
 						</div>
 
 						<aside className="border-t border-slate-200 bg-slate-50 p-5 md:p-6 lg:border-t-0 lg:border-l">

@@ -71,6 +71,7 @@ const titleOnly = !selectable && !staticValue
 		"fastt-context-switcher",
 		variant === "topbar" && "fastt-context-switcher--topbar",
 		titleOnly && "fastt-context-switcher--title-only",
+		!selectable && staticValue && "fastt-context-switcher--static",
 	]}
 >
 	<span class="fastt-context-switcher__label"
@@ -254,6 +255,16 @@ const titleOnly = !selectable && !staticValue
 		font-weight: 650;
 		line-height: 1;
 	}
+	.fastt-context-switcher--topbar .fastt-context-switcher__static {
+		font-size: 0.75rem;
+		letter-spacing: 0.02em;
+		text-transform: uppercase;
+	}
+	.fastt-context-switcher--topbar.fastt-context-switcher--static
+		.fastt-context-switcher__label::after {
+		content: "·";
+		color: rgb(100 116 139);
+	}
 	.fastt-context-switcher__menu {
 		position: absolute;
 		top: calc(100% + 0.5rem);
@@ -347,6 +358,10 @@ const titleOnly = !selectable && !staticValue
 		}
 		.fastt-context-switcher--topbar .fastt-context-switcher__label-text {
 			display: none;
+		}
+		.fastt-context-switcher--topbar.fastt-context-switcher--static
+			.fastt-context-switcher__label-text {
+			display: inline;
 		}
 		.fastt-context-switcher--topbar.fastt-context-switcher--title-only
 			.fastt-context-switcher__label-text {

@@ -10,6 +10,8 @@ import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { isHotelProductType } from "@/lib/catalog/productVerticalRegistry"
+import { resolveRoomAmenityOptions } from "@/lib/rooms/room-amenity-options"
+import { resolveRoomTypeOptions } from "@/lib/rooms/room-type-options"
 import { routes } from "@/lib/routes"
 import {
 	AmenityRoom,
@@ -48,7 +50,7 @@ if (
 	return Astro.redirect(routes.productRoomsForProduct(productId))
 }
 
-const [capacity, profiles, roomTypes, amenities, selectedAmenityRows] = await Promise.all([
+const [capacity, profiles, roomTypeRows, amenities, selectedAmenityRows] = await Promise.all([
 	variantManagementRepository.getCapacity(variantId),
 	variantRoomProfileRepository.getByIds([variantId]),
 	db
@@ -78,7 +80,9 @@ const profile = rawProfile
 				: [],
 		}
 	: null
+const roomTypes = resolveRoomTypeOptions(roomTypeRows, profile?.roomTypeId)
 const selectedAmenityIds = selectedAmenityRows.map((row) => String(row.amenityId))
+const roomAmenities = resolveRoomAmenityOptions(amenities, selectedAmenityIds)
 ---
 
 <WorkspaceLayout title="Contenido del alojamiento · Ficha de habitación">
@@ -113,7 +117,7 @@ const selectedAmenityIds = selectedAmenityRows.map((row) => String(row.amenityId
 			capacity={capacity}
 			profile={profile}
 			roomTypes={roomTypes}
-			amenities={amenities}
+			amenities={roomAmenities}
 			selectedAmenityIds={selectedAmenityIds}
 			showIntro={false}
 		/>

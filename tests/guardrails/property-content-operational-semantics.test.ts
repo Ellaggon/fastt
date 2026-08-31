@@ -462,7 +462,7 @@ describe("Guardrail: Property Content operational semantics", () => {
 		expect(roomProfileEditor).toContain("presetImpact")
 		expect(roomProfileEditor).toContain("renderGuideProgress")
 		expect(roomProfileEditor).toContain("Código interno")
-		expect(roomProfileEditor).toContain("Unidades disponibles de esta configuración")
+		expect(roomProfileEditor).toContain("Unidades físicas de esta configuración")
 		expect(publicRooms).toContain("Dónde dormirás")
 		expect(publicRooms).toContain("guestRoomPreviews")
 		expect(publicRooms).toContain("GuestRoomPreviewCards")

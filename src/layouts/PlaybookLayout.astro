@@ -8,6 +8,7 @@ import {
 	getAddRoomStepById,
 	getAddRoomStepPosition,
 	getPreviousAddRoomStep,
+	isAddRoomTerminalStep,
 } from "@/lib/playbook/add-room"
 import {
 	buildCompleteToPublishHref,
@@ -46,6 +47,7 @@ interface Props {
 	isHotel?: boolean
 	continueHref?: string | null
 	continueLabel?: string
+	continueReload?: boolean
 	continueDisabled?: boolean
 	continueDisabledTitle?: string
 	hideFooter?: boolean
@@ -62,6 +64,7 @@ const {
 	isHotel = false,
 	continueHref = null,
 	continueLabel = "Continuar →",
+	continueReload = false,
 	continueDisabled = false,
 	continueDisabledTitle = "Completa los pasos requeridos para continuar.",
 	hideFooter = false,
@@ -183,10 +186,6 @@ if (isComplete && active && productId) {
 					: (getPreviousLaunchStep(stepId, launchCtx)?.buildHref(launchCtx) ?? null)
 	}
 
-	if (active && stepNumber && totalSteps > 0) {
-		progressPercent = Math.round(((stepNumber - 1) / totalSteps) * 100)
-	}
-
 	if (active && productId) {
 		const user = await getUserFromRequest(Astro.request)
 		const providerId = user ? await getProviderIdFromRequest(Astro.request, user) : null
@@ -224,22 +223,27 @@ const exitHref = productId
 		: `/product/${encodeURIComponent(productId)}`
 	: "/dashboard"
 const isTerminalStep = isAddRoom
-	? stepId === "confirmation"
+	? isAddRoomTerminalStep(stepId)
 	: isComplete
 		? stepId === "preview"
 		: stepId === "preview"
 const showFooter = active && currentStepKnown && !hideFooter
-const stepPositionPercent =
-	stepNumber && totalSteps ? Math.round((stepNumber / totalSteps) * 100) : 0
-const visualProgressPercent = Math.min(100, Math.max(progressPercent, stepPositionPercent))
+const showProgress = active && currentStepKnown && !isTerminalStep
+const visualProgressPercent = Math.min(100, Math.max(0, progressPercent))
+const progressHeading =
+	isAddRoom && stepNumber && totalSteps
+		? `${playbookTitle} - Paso ${stepNumber} de ${totalSteps}`
+		: stepNumber && totalSteps
+			? `Paso ${stepNumber} de ${totalSteps}`
+			: "Progreso"
 ---
 
 <WorkspaceLayout title={title}>
 	{
-		active && currentStepKnown ? (
+		showProgress ? (
 			<div class="mb-5 space-y-2">
 				<p class="text-xs font-semibold tracking-wide text-slate-400 uppercase">
-					{stepNumber && totalSteps ? `Paso ${stepNumber} de ${totalSteps}` : "Progreso"}
+					{progressHeading}
 				</p>
 				<div
 					class="fastt-progress-track h-1.5 overflow-hidden bg-slate-800"
@@ -291,7 +295,11 @@ const visualProgressPercent = Math.min(100, Math.max(progressPercent, stepPositi
 							{continueLabel}
 						</Button>
 					) : resolvedContinueHref ? (
-						<Button href={resolvedContinueHref} className="fastt-playbook-cta">
+						<Button
+							href={resolvedContinueHref}
+							className="fastt-playbook-cta"
+							reload={continueReload}
+						>
 							{continueLabel}
 						</Button>
 					) : null}

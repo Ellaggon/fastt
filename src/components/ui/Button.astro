@@ -4,6 +4,7 @@ const {
 	size = "md",
 	type = "button",
 	href,
+	reload = false,
 	className = "",
 	class: classProp = "",
 	...props
@@ -40,7 +41,7 @@ const finalClass =
 
 {
 	href ? (
-		<a href={href} class={finalClass} {...props}>
+		<a href={href} class={finalClass} data-astro-reload={reload || undefined} {...props}>
 			<slot />
 		</a>
 	) : (

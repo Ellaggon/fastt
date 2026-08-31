@@ -7,7 +7,7 @@ import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import type { WorkspaceRequestContext } from "@/lib/dashboard/workspaceRequestContext"
 import { createServerTimingRecorder } from "@/lib/observability/serverTiming"
-import { getNextAddRoomStep, resolveAddRoomPlaybookFromUrl } from "@/lib/playbook/add-room"
+import { resolveAddRoomPlaybookFromUrl } from "@/lib/playbook/add-room"
 import {
 	getNextLaunchStep,
 	resolveLaunchPlaybookFromUrl,
@@ -93,11 +93,6 @@ const launchCtx = {
 	variantId: variantIdParam || undefined,
 	ratePlanId: ratePlanIdParam || undefined,
 }
-const addRoomContinueHref = addRoomPlaybook.active
-	? (getNextAddRoomStep(addRoomPlaybook.stepId ?? "availability", addRoomCtx)?.buildHref(
-			addRoomCtx
-		) ?? null)
-	: null
 const launchContinueHref = launchPlaybook.active
 	? (getNextLaunchStep(launchPlaybook.stepId ?? "calendar", launchCtx)?.buildHref(launchCtx) ??
 		null)
@@ -118,6 +113,11 @@ const isGuidedAvailabilityStep = Boolean(
 const guidedVariantId = String(
 	addRoomCtx.variantId || launchCtx.variantId || variantIdParam || ""
 ).trim()
+const guidedFinalizationError =
+	activePlaybook === "add-room" &&
+	Astro.url.searchParams.get("finalizeError") === "activation-pending"
+		? "La habitación está configurada, pero la tarifa todavía no se activó. Revisa y vuelve a finalizar la configuración."
+		: undefined
 const todayIso = new Date().toISOString().slice(0, 10)
 const guidedInventoryDays =
 	isGuidedAvailabilityStep && guidedVariantId
@@ -128,13 +128,11 @@ const guidedInventoryDays =
 							.select({ value: count() })
 							.from(DailyInventory)
 							.where(
-								activePlaybook === "launch-tour"
-									? and(
-											eq(DailyInventory.variantId, guidedVariantId),
-											gt(DailyInventory.date, todayIso),
-											gt(DailyInventory.totalInventory, 0)
-										)
-									: eq(DailyInventory.variantId, guidedVariantId)
+								and(
+									eq(DailyInventory.variantId, guidedVariantId),
+									gt(DailyInventory.date, todayIso),
+									gt(DailyInventory.totalInventory, 0)
+								)
 							)
 							.then(first)
 					)?.value ?? 0
@@ -153,7 +151,7 @@ const layoutProps =
 				variantId: addRoomCtx.variantId ?? "",
 				ratePlanId: addRoomCtx.ratePlanId ?? "",
 				isHotel: true,
-				continueHref: addRoomContinueHref,
+				hideFooter: true,
 			}
 		: activePlaybook === "launch"
 			? {
@@ -196,11 +194,11 @@ timing.setHeader(Astro.response.headers)
 			isGuidedAvailabilityStep ? (
 				<header class="flex flex-wrap items-start justify-between gap-4">
 					<div class="space-y-2">
-						<p class="text-xs font-semibold tracking-wide text-slate-400 uppercase">
-							{activePlaybook === "launch-tour"
-								? `${matchedRow?.productName ?? ""} · Primera salida`
-								: `${matchedRow?.productName ?? ""} · Nueva habitación`}
-						</p>
+						{activePlaybook === "launch-tour" ? (
+							<p class="text-xs font-semibold tracking-wide text-slate-400 uppercase">
+								{matchedRow?.productName ?? ""} · Primera salida
+							</p>
+						) : null}
 						<h1 class="text-3xl font-semibold text-slate-100">Disponibilidad inicial</h1>
 						<p class="max-w-3xl text-sm leading-6 text-slate-300">
 							{activePlaybook === "launch-tour"
@@ -230,11 +228,13 @@ timing.setHeader(Astro.response.headers)
 			guidedAvailability={isGuidedAvailabilityStep
 				? {
 						playbook: activePlaybook,
+						productId: playbookProductId,
 						productName: matchedRow?.productName ?? "",
 						variantName: matchedRow?.variantName ?? "",
 						ratePlanName: matchedRow?.ratePlanName ?? "",
 						requiredDays: activePlaybook === "launch-tour" ? 1 : 30,
 						initialInventoryDays: guidedInventoryDays,
+						finalizationError: guidedFinalizationError,
 					}
 				: undefined}
 		>
