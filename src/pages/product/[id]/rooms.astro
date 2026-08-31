@@ -7,16 +7,14 @@ import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import {
 	buildAddRoomEntryHref,
 	buildAddRoomHref,
-	getAddRoomStepById,
 	resolveAddRoomPlaybookFromUrl,
 } from "@/lib/playbook/add-room"
-import { loadVariantCompletion } from "@/lib/playbook/evaluate-add-room-progress"
+import { resolveAddRoomConfirmationPage } from "@/lib/playbook/resolve-add-room-confirmation"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { isHotelProductType } from "@/lib/catalog/productVerticalRegistry"
 import { routes } from "@/lib/routes"
-import { getProductVariantsAggregate } from "@/modules/catalog/public"
 import {
 	BadgeCheck,
 	BedDouble,
@@ -58,49 +56,16 @@ if (isAddRoomConfirmation) {
 		return Astro.redirect(buildAddRoomHref(routes.productRoomNew(productId), "create-room"))
 	}
 
-	const requestedRatePlanId = String(addRoomPlaybook.ratePlanId ?? "").trim() || undefined
-	const completion = await loadVariantCompletion(
+	const confirmation = await resolveAddRoomConfirmationPage({
 		productId,
 		providerId,
-		highlightVariantId,
-		requestedRatePlanId
-	)
-	if (!completion) {
-		return Astro.redirect(buildAddRoomHref(routes.productRoomNew(productId), "create-room"))
-	}
-
-	const confirmationContext = {
-		productId,
 		variantId: highlightVariantId,
-		ratePlanId: requestedRatePlanId ?? completion.selectedRatePlanId ?? undefined,
+		playbook: addRoomPlaybook,
+	})
+	if (confirmation.kind === "redirect") {
+		return Astro.redirect(confirmation.location)
 	}
-	const redirectToStep = (
-		stepId: "create-room" | "room-photos" | "create-rate" | "conditions" | "availability"
-	) => {
-		const step = getAddRoomStepById(stepId, confirmationContext)
-		return step?.buildHref(confirmationContext) ?? routes.productRoomsForProduct(productId)
-	}
-
-	if (!completion.inventoryConfigComplete || !completion.profileComplete) {
-		return Astro.redirect(redirectToStep("create-room"))
-	}
-	if (!completion.photosComplete) return Astro.redirect(redirectToStep("room-photos"))
-	if (!completion.rateConfigured || !completion.pricingComplete) {
-		return Astro.redirect(redirectToStep("create-rate"))
-	}
-	if (!completion.conditionsComplete) return Astro.redirect(redirectToStep("conditions"))
-	if (!completion.availabilityComplete) return Astro.redirect(redirectToStep("availability"))
-	if (!completion.sellable) {
-		const calendarHref = redirectToStep("availability")
-		const url = new URL(calendarHref, Astro.url.origin)
-		url.searchParams.set("finalizeError", "activation-pending")
-		return Astro.redirect(`${url.pathname}${url.search}${url.hash}`)
-	}
-
-	const aggregate = await getProductVariantsAggregate(productId, providerId)
-	confirmationRoomName =
-		aggregate?.variants.find((variant) => String(variant.id) === highlightVariantId)?.name ??
-		confirmationRoomName
+	confirmationRoomName = confirmation.roomName
 }
 const addRoomEntryHref = buildAddRoomEntryHref(productId)
 const addRoomNewRoomHref = buildAddRoomHref(routes.productRoomNew(productId), "create-room")
