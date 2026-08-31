@@ -44,10 +44,7 @@ async function readPreferenceRequest(request: Request): Promise<{
 	return {
 		contentType,
 		returnTo: formData.get("returnTo"),
-		enabled:
-			mode === "professional" ||
-			formData.get("enabled") === "true" ||
-			formData.get("professionalToolsEnabled") === "on",
+		enabled: mode === "professional" || formData.get("enabled") === "true",
 	}
 }
 

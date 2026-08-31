@@ -670,7 +670,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 			"utf8"
 		)
 		const endpoint = readFileSync(
-			join(process.cwd(), "src/pages/api/provider/preferences/professional-tools.ts"),
+			join(process.cwd(), "src/pages/api/provider/preferences/workspace-experience.ts"),
 			"utf8"
 		)
 		const topbar = readFileSync(
@@ -720,7 +720,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(drawer).toContain("solo a tu usuario en esta cuenta de proveedor")
 		expect(drawer).toContain("Esencial")
 		expect(drawer).toContain("Profesional")
-		expect(drawer).toContain("/api/provider/preferences/professional-tools")
+		expect(drawer).toContain("/api/provider/preferences/workspace-experience")
 		expect(drawer).toContain("DrawerHeader")
 		expect(drawer).toContain("DrawerFact")
 		expect(topbar).toContain('data-drawer-open="workspace-preferences-drawer"')

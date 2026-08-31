@@ -279,9 +279,6 @@ export const ProviderProfile = pgTable("ProviderProfile", {
 	supportEmail: txtOpt("supportEmail"),
 	supportPhone: txtOpt("supportPhone"),
 	governanceUpdatedAt: ts("governanceUpdatedAt"),
-	professionalToolsEnabled: boolDefault("professionalToolsEnabled", false),
-	professionalToolsUpdatedAt: ts("professionalToolsUpdatedAt"),
-	professionalToolsUpdatedBy: txtOpt("professionalToolsUpdatedBy").references(() => User.id),
 })
 
 export const ProviderDocument = pgTable(
