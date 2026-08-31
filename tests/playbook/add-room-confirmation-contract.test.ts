@@ -21,20 +21,39 @@ describe("add-room completion contract", () => {
 		expect(finalizer).toContain("isDefault: true")
 	})
 
+	it("uses the availability step to verify initial inventory without exposing operational controls", () => {
+		const calendar = read("src/components/rates/SingleCalendarWorkspace.tsx")
+		const controls = read("src/lib/rates/calendarControlCatalog.ts")
+		const finalizer = read("src/lib/playbook/finalize-add-room.ts")
+
+		expect(calendar).toContain("Verificación de disponibilidad")
+		expect(calendar).toContain("inventario inicial")
+		expect(calendar).not.toContain("Calendario de apoyo")
+		expect(calendar).not.toContain("Desglose activo")
+		expect(calendar).toContain("disabled={day.isPast || isGuidedAvailability}")
+		expect(calendar).toMatch(
+			/showInventoryDetail \|\| isGuidedAvailability\s*\? "block"\s*: "hidden sm:block"/
+		)
+		expect(controls).toContain('label: "Mostrar reservas y retenidos"')
+		expect(finalizer).toContain("Configura inventario inicial para al menos 30 noches.")
+	})
+
 	it("keeps the final guided step focused on its room instead of rendering the room list", () => {
 		const rooms = read("src/pages/product/[id]/rooms.astro")
 		const layout = read("src/layouts/PlaybookLayout.astro")
+		const resolver = read("src/lib/playbook/resolve-add-room-confirmation.ts")
 
 		expect(rooms).toContain("!isAddRoomConfirmation ? (")
-		expect(rooms).toContain("const completion = await loadVariantCompletion(")
-		expect(rooms).toContain(
+		expect(rooms).toContain("resolveAddRoomConfirmationPage")
+		expect(resolver).toContain("const completion = await loadVariantCompletion(")
+		expect(resolver).toContain(
 			"if (!completion.inventoryConfigComplete || !completion.profileComplete)"
 		)
-		expect(rooms).toContain("if (!completion.photosComplete)")
-		expect(rooms).toContain("if (!completion.rateConfigured || !completion.pricingComplete)")
-		expect(rooms).toContain("if (!completion.conditionsComplete)")
-		expect(rooms).toContain("if (!completion.availabilityComplete)")
-		expect(rooms).toContain('url.searchParams.set("finalizeError", "activation-pending")')
+		expect(resolver).toContain("if (!completion.photosComplete)")
+		expect(resolver).toContain("if (!completion.rateConfigured || !completion.pricingComplete)")
+		expect(resolver).toContain("if (!completion.conditionsComplete)")
+		expect(resolver).toContain("if (!completion.availabilityComplete)")
+		expect(resolver).toContain('url.searchParams.set("finalizeError", "activation-pending")')
 		expect(rooms).toContain("if (isAddRoomConfirmation) return")
 		expect(rooms).not.toContain("requiere una acción")
 		expect(layout).toContain("isAddRoomTerminalStep(stepId)")

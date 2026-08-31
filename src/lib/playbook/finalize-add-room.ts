@@ -73,7 +73,8 @@ export async function finalizeAddRoom(input: FinalizeAddRoomInput): Promise<Fina
 	if (!completion.photosComplete) blockers.push("Agrega al menos una foto de la habitación.")
 	if (!completion.pricingComplete) blockers.push("Define un precio base válido.")
 	if (!completion.conditionsComplete) blockers.push("Completa las condiciones obligatorias.")
-	if (!completion.availabilityComplete) blockers.push("Abre al menos 30 noches con cupo.")
+	if (!completion.availabilityComplete)
+		blockers.push("Configura inventario inicial para al menos 30 noches.")
 
 	const publication = await validateRatePlanPublication({
 		ratePlanId: input.ratePlanId,
