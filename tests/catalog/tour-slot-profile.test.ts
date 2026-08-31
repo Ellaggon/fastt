@@ -34,7 +34,8 @@ describe("tour slot profile (fase 2)", () => {
 			"src/modules/catalog/application/use-cases/variant/create-variant.ts"
 		)
 		expect(createVariant).toContain("defaultTotalUnits?: number")
-		expect(createVariant).toContain("tour_slot uses maxPax")
+		expect(createVariant).toContain("tour_slot should pass maxPax")
+		expect(createVariant).toContain("bootstrapInventory")
 
 		const routes = read("src/lib/routes.ts")
 		expect(routes).toContain("productDeparturesForProduct")
@@ -50,11 +51,12 @@ describe("tour slot profile (fase 2)", () => {
 		expect(hub).toContain("productDeparturesForProduct")
 		expect(hub).toContain("data-is-tour")
 		expect(hub).toContain("isTour")
+		expect(hub).toContain("Abrir salidas")
 
 		const hydration = read("src/pages/product/_client/product-summary-hydration.ts")
-		expect(hydration).toContain("Salidas")
+		expect(hydration).toContain("salidas configuradas")
 		expect(hydration).toContain("config.isTour")
-		expect(hydration).toContain("Gestionar salidas")
+		expect(hydration).toContain('applyCheck("variants", "departure"')
 	})
 
 	it("requires profile + capacity + default rate for tour product readiness", () => {
