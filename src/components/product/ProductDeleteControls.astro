@@ -3,7 +3,7 @@ import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import Dialog from "@/components/ui/Dialog.astro"
 import Input from "@/components/ui/Input.astro"
-import { Ellipsis, Trash2 } from "@lucide/astro"
+import { Trash2 } from "@lucide/astro"
 
 interface Props {
 	productId: string
@@ -21,38 +21,32 @@ const {
 const deleteLabel = `Eliminar ${workspaceSingularLabel.toLowerCase()}`
 ---
 
-<details class="relative" data-product-action-menu>
-	<summary
-		class="fastt-icon-button inline-flex size-8 cursor-pointer list-none items-center justify-center rounded-md bg-transparent text-slate-400 transition hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-slate-950 [&::-webkit-details-marker]:hidden"
-		aria-label={`Más acciones para ${productName}`}
-		title="Más acciones"
-		data-product-action-trigger
-	>
-		<Ellipsis class="size-4" aria-hidden="true" />
-	</summary>
-	<Card
-		variant="flush"
-		className="absolute right-0 z-30 mt-2 w-64 overflow-hidden rounded-md p-1 shadow-lg"
-		data-product-action-panel
-	>
-		<p class="px-3 py-2 text-xs leading-5 text-slate-500">
-			Elimina este {workspaceSingularLabel.toLowerCase()} solo si fue creado por error o ya no forma parte
-			de tu operación.
-		</p>
-		<Button
-			type="button"
-			variant="ghost"
-			size="sm"
-			className="w-full justify-start text-rose-700 hover:bg-rose-50 hover:text-rose-800"
-			data-open-product-delete
-			data-product-id={productId}
-			data-product-name={productName}
-		>
-			<Trash2 class="h-4 w-4" />
-			{deleteLabel}
-		</Button>
+<section class="border-t border-slate-800 pt-6 md:pt-8" data-product-delete-zone>
+	<Card variant="flush" className="overflow-hidden border border-rose-200 bg-white text-slate-900">
+		<div class="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between md:p-6">
+			<div class="min-w-0">
+				<p class="text-sm font-semibold text-slate-950">{deleteLabel}</p>
+				<p class="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
+					Solo si este {workspaceSingularLabel.toLowerCase()} fue creado por error o ya no forma parte
+					de tu operación. Se borrarán la ficha, {variantsLabel}, fotos, tarifas e inventario
+					asociados.
+				</p>
+			</div>
+			<Button
+				type="button"
+				variant="danger"
+				size="sm"
+				className="shrink-0"
+				data-open-product-delete
+				data-product-id={productId}
+				data-product-name={productName}
+			>
+				<Trash2 class="h-4 w-4" aria-hidden="true" />
+				{deleteLabel}
+			</Button>
+		</div>
 	</Card>
-</details>
+</section>
 
 <Dialog class="w-[min(520px,calc(100%-2rem))]" data-product-delete-dialog={productId}>
 	<form
@@ -86,22 +80,16 @@ const deleteLabel = `Eliminar ${workspaceSingularLabel.toLowerCase()}`
 </Dialog>
 
 <script>
-	const actionMenuSelector = "[data-product-action-menu]"
-
 	if (document.documentElement.dataset.productDeleteControlsBound !== "true") {
 		document.documentElement.dataset.productDeleteControlsBound = "true"
 		document.addEventListener("click", (event) => {
 			const target = event.target
 			if (!(target instanceof Element)) return
-			for (const menu of document.querySelectorAll<HTMLDetailsElement>(actionMenuSelector)) {
-				if (!menu.contains(target)) menu.removeAttribute("open")
-			}
 
 			const openButton = target.closest<HTMLButtonElement>("[data-open-product-delete]")
 			if (openButton) {
 				const id = openButton.dataset.productId
 				if (!id) return
-				openButton.closest("details")?.removeAttribute("open")
 				document
 					.querySelector<HTMLDialogElement>(`[data-product-delete-dialog="${CSS.escape(id)}"]`)
 					?.showModal()

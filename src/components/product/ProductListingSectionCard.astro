@@ -1,0 +1,42 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import type { Component } from "astro/components"
+
+interface Props {
+	title: string
+	subtitle: string
+	badgeId: string
+	editHref: string
+	editLabel: string
+	Icon: Component
+}
+
+const { title, subtitle, badgeId, editHref, editLabel, Icon } = Astro.props
+---
+
+<Card variant="flush" className="flex h-full flex-col overflow-hidden bg-white text-slate-900">
+	<div class="border-b border-slate-100 px-5 py-4 md:px-6">
+		<div class="flex items-start justify-between gap-3">
+			<div class="flex min-w-0 items-start gap-3">
+				<span class="fastt-section-icon">
+					<Icon class="size-4" aria-hidden="true" />
+				</span>
+				<div class="min-w-0">
+					<p class="text-sm font-semibold text-slate-950">{title}</p>
+					<p class="mt-0.5 text-xs leading-5 text-slate-500">{subtitle}</p>
+				</div>
+			</div>
+			<Badge id={badgeId} variant="neutral">Cargando...</Badge>
+		</div>
+	</div>
+	<div class="flex flex-1 flex-col justify-between gap-5 p-5 md:p-6">
+		<div class="min-h-[7rem]">
+			<slot />
+		</div>
+		<Button href={editHref} variant="ghost" size="sm" className="self-end">
+			{editLabel}
+		</Button>
+	</div>
+</Card>

@@ -405,9 +405,8 @@ describe("Guardrail: Property Content operational semantics", () => {
 		const productSurface = read("src/pages/product/[id]/index.astro")
 		const deleteControls = read("src/components/product/ProductDeleteControls.astro")
 
-		expect(productSurface).toContain('<header class="flex items-start justify-between gap-4">')
-		expect(productSurface).not.toContain("Acciones avanzadas")
-		expect(deleteControls).toContain("data-product-action-menu")
+		expect(deleteControls).toContain("data-product-delete-zone")
+		expect(productSurface).not.toContain("data-product-action-menu")
 		expect(deleteControls).toContain("data-product-delete-confirmation")
 		expect(deleteControls).toContain("data-confirm-product-delete")
 		expect(deleteControls).toContain("/api/products/${encodeURIComponent(productId)}/delete")
