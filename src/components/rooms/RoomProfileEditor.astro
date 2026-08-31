@@ -3,7 +3,6 @@ import Button from "@/components/ui/Button.astro"
 import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
 import Notice from "@/components/ui/Notice.astro"
-import SegmentedControl from "@/components/ui/SegmentedControl.astro"
 import Select from "@/components/ui/Select.astro"
 import Textarea from "@/components/ui/Textarea.astro"
 import { BED_TYPES } from "@/data/room/room-beds"
@@ -159,9 +158,9 @@ const tabsAriaLabel = isEditMode ? "Secciones de habitación" : "Setup guiado de
 			}
 
 			<div
-				class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 pt-4"
+				class="flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 px-4 pt-4"
 			>
-				<SegmentedControl class="mb-3" aria-label={tabsAriaLabel} data-room-tabs>
+				<nav class="room-guide-tabs" aria-label={tabsAriaLabel} data-room-tabs>
 					{
 						guideSteps.map((step, index) => (
 							<button
@@ -169,25 +168,20 @@ const tabsAriaLabel = isEditMode ? "Secciones de habitación" : "Setup guiado de
 								data-guide-nav={step.id}
 								data-active={index === 0 ? "true" : "false"}
 								aria-current={index === 0 ? "page" : undefined}
-								class={`roomGuideNav fastt-segmented-item px-3 py-2 text-sm font-semibold whitespace-nowrap ${
-									index === 0 ? "" : "text-slate-500 hover:bg-white/70 hover:text-slate-900"
-								}`}
+								class="room-guide-tabs__item roomGuideNav"
 							>
-								<span class="block">
+								<span class="room-guide-tabs__label">
 									{index + 1}. {step.label}
 								</span>
 								{isEditMode ? null : (
-									<span
-										data-guide-state={step.id}
-										class="mt-1 block text-left text-[11px] font-semibold text-slate-500"
-									>
+									<span data-guide-state={step.id} class="room-guide-tabs__state text-slate-500">
 										Pendiente
 									</span>
 								)}
 							</button>
 						))
 					}
-				</SegmentedControl>
+				</nav>
 				<div class="pb-3">
 					<p id="roomGuideProgress" class="text-xs text-slate-500">
 						{isEditMode ? "Edita los campos necesarios" : "0 de 6 completas"}
@@ -1076,8 +1070,8 @@ const tabsAriaLabel = isEditMode ? "Secciones de habitación" : "Setup guiado de
 			const ready = Boolean(state[id])
 			badge.textContent = ready ? "✓ Listo" : "Pendiente"
 			badge.className = ready
-				? "mt-1 block text-left text-[11px] font-semibold text-emerald-700"
-				: "mt-1 block text-left text-[11px] font-semibold text-slate-500"
+				? "room-guide-tabs__state text-emerald-700"
+				: "room-guide-tabs__state text-slate-500"
 		}
 	}
 
@@ -1089,9 +1083,6 @@ const tabsAriaLabel = isEditMode ? "Secciones de habitación" : "Setup guiado de
 		for (const tab of guideNavButtons) {
 			const active = tab.getAttribute("data-guide-nav") === panelId
 			tab.dataset.active = active ? "true" : "false"
-			tab.classList.toggle("text-slate-500", !active)
-			tab.classList.toggle("hover:bg-white/70", !active)
-			tab.classList.toggle("hover:text-slate-900", !active)
 			if (active) tab.setAttribute("aria-current", "page")
 			else tab.removeAttribute("aria-current")
 		}
