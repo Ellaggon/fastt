@@ -101,7 +101,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 	const isHotel = vertical.vertical === "hotel"
 	const productType = toLowerTrim(aggregate.productType)
 	const imagesCount = aggregate.images.length
-	const imagePreviews = aggregate.images.slice(0, 3).map((image) => ({
+	const imagePreviews = aggregate.images.slice(0, 5).map((image) => ({
 		id: image.id,
 		url: image.url,
 	}))

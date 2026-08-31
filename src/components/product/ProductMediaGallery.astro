@@ -1,0 +1,125 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import { Images } from "@lucide/astro"
+
+interface Props {
+	imagesHref: string
+	singularLabel: string
+}
+
+const { imagesHref, singularLabel } = Astro.props
+---
+
+<Card
+	variant="flush"
+	className="overflow-hidden bg-white text-slate-900"
+	data-product-media-gallery-card
+>
+	<div
+		class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 md:px-6"
+	>
+		<div class="min-w-0">
+			<div class="flex flex-wrap items-center gap-2">
+				<span class="fastt-section-icon">
+					<Images class="size-4" aria-hidden="true" />
+				</span>
+				<p class="text-sm font-semibold text-slate-950">Galería de fotos</p>
+				<Badge id="blockBadge-images" variant="neutral">Cargando...</Badge>
+			</div>
+			<p id="summaryImagesCount" class="mt-1 text-sm text-slate-500">Cargando fotos...</p>
+		</div>
+		<Button href={imagesHref} variant="secondary" size="sm"> Gestionar fotos </Button>
+	</div>
+
+	<div class="p-2 md:p-3" data-product-media-gallery>
+		<div class="md:hidden">
+			<div
+				id="productHeroMedia"
+				data-product-media-cover
+				class="relative flex min-h-[220px] items-center justify-center overflow-hidden rounded-[var(--fastt-radius-card)] bg-slate-100 text-sm font-medium text-slate-500"
+			>
+				<p data-product-hero-empty>Fotos de {singularLabel}</p>
+			</div>
+			<div
+				id="summaryImageGrid"
+				class="mt-2 flex gap-2 overflow-x-auto pb-1"
+				aria-live="polite"
+				data-product-media-strip
+			>
+				<div
+					class="h-16 w-20 shrink-0 animate-pulse rounded-[var(--fastt-radius-control)] bg-slate-100"
+				>
+				</div>
+				<div
+					class="h-16 w-20 shrink-0 animate-pulse rounded-[var(--fastt-radius-control)] bg-slate-100"
+				>
+				</div>
+				<div
+					class="h-16 w-20 shrink-0 animate-pulse rounded-[var(--fastt-radius-control)] bg-slate-100"
+				>
+				</div>
+			</div>
+		</div>
+
+		<div class="product-media-mosaic hidden md:grid" aria-label={`Galería de ${singularLabel}`}>
+			<div
+				data-product-media-cover
+				class="product-media-mosaic__cover relative overflow-hidden rounded-[var(--fastt-radius-card)] bg-slate-100"
+			>
+				<div
+					class="flex h-full min-h-[280px] items-center justify-center text-sm font-medium text-slate-500"
+					data-product-media-cover-empty
+				>
+					Foto principal
+				</div>
+			</div>
+			{
+				Array.from({ length: 4 }).map((_, index) => (
+					<div
+						data-product-media-thumb
+						class="product-media-mosaic__thumb relative overflow-hidden rounded-[var(--fastt-radius-card)] bg-slate-100"
+						data-thumb-index={index}
+					>
+						<div class="flex h-full min-h-[136px] items-center justify-center text-xs font-medium text-slate-400">
+							Foto {index + 2}
+						</div>
+					</div>
+				))
+			}
+			<span
+				class="product-media-mosaic__more pointer-events-none absolute right-5 bottom-5 rounded-full bg-slate-950/80 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm"
+				data-product-media-more
+				hidden></span>
+		</div>
+	</div>
+</Card>
+
+<style>
+	.product-media-mosaic {
+		position: relative;
+		grid-template-columns: minmax(0, 1.45fr) repeat(2, minmax(0, 1fr));
+		grid-template-rows: repeat(2, minmax(136px, 1fr));
+		gap: 0.5rem;
+		min-height: 280px;
+	}
+
+	.product-media-mosaic__cover {
+		grid-column: 1;
+		grid-row: 1 / span 2;
+	}
+
+	.product-media-mosaic__thumb :global(img),
+	.product-media-mosaic__cover :global(img) {
+		height: 100%;
+		width: 100%;
+		object-fit: cover;
+		transition: transform 220ms ease;
+	}
+
+	.product-media-mosaic__thumb:hover :global(img),
+	.product-media-mosaic__cover:hover :global(img) {
+		transform: scale(1.03);
+	}
+</style>

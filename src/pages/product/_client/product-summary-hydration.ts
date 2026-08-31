@@ -37,6 +37,92 @@ function configFromRoot(root: HTMLElement): ProductSummaryConfig {
 	}
 }
 
+function renderMediaSlot(element: HTMLElement, url: string | null, emptyLabel: string): void {
+	element.replaceChildren()
+	if (!url) {
+		const empty = document.createElement("div")
+		empty.className =
+			"flex h-full min-h-[inherit] items-center justify-center text-xs font-medium text-slate-400"
+		empty.textContent = emptyLabel
+		element.appendChild(empty)
+		return
+	}
+	const image = document.createElement("img")
+	image.src = url
+	image.alt = "Vista previa"
+	image.className = "h-full w-full object-cover"
+	element.appendChild(image)
+}
+
+function hydrateProductMediaGallery(
+	config: ProductSummaryConfig,
+	payload: {
+		images?: {
+			count?: number
+			cover?: { url?: string }
+			previews?: Array<{ url?: string }>
+		}
+	}
+): void {
+	const coverUrl = payload?.images?.cover?.url ? String(payload.images.cover.url) : ""
+	const previewUrls = (Array.isArray(payload?.images?.previews) ? payload.images.previews : [])
+		.map((item) => String(item?.url ?? "").trim())
+		.filter(Boolean)
+	const galleryUrls: string[] = []
+	if (coverUrl) galleryUrls.push(coverUrl)
+	for (const url of previewUrls) {
+		if (galleryUrls.length >= 5) break
+		if (!galleryUrls.includes(url)) galleryUrls.push(url)
+	}
+	const totalCount = Number(payload?.images?.count ?? galleryUrls.length)
+
+	const mobileCover = document.getElementById("productHeroMedia")
+	if (mobileCover) {
+		renderMediaSlot(mobileCover, galleryUrls[0] ?? null, `Fotos de ${config.singularLabel}`)
+	}
+
+	const mobileStrip = document.getElementById("summaryImageGrid")
+	if (mobileStrip) {
+		mobileStrip.replaceChildren()
+		const stripUrls = galleryUrls.slice(1)
+		if (!stripUrls.length) {
+			const empty = document.createElement("p")
+			empty.className = "text-sm text-slate-500"
+			empty.textContent = galleryUrls.length ? "Solo portada cargada." : "Sin imágenes cargadas."
+			mobileStrip.appendChild(empty)
+		} else {
+			for (const url of stripUrls) {
+				const image = document.createElement("img")
+				image.src = url
+				image.alt = "Vista previa"
+				image.className =
+					"h-16 w-20 shrink-0 rounded-[var(--fastt-radius-control)] object-cover ring-1 ring-slate-900/5"
+				mobileStrip.appendChild(image)
+			}
+		}
+	}
+
+	const mosaic = document.querySelector("[data-product-media-gallery] .product-media-mosaic")
+	if (mosaic) {
+		const coverSlots = mosaic.querySelectorAll<HTMLElement>("[data-product-media-cover]")
+		const thumbSlots = mosaic.querySelectorAll<HTMLElement>("[data-product-media-thumb]")
+		coverSlots.forEach((slot) => renderMediaSlot(slot, galleryUrls[0] ?? null, "Foto principal"))
+		thumbSlots.forEach((slot, index) =>
+			renderMediaSlot(slot, galleryUrls[index + 1] ?? null, `Foto ${index + 2}`)
+		)
+		const moreBadge = mosaic.querySelector<HTMLElement>("[data-product-media-more]")
+		if (moreBadge) {
+			const extraCount = totalCount - 5
+			if (extraCount > 0) {
+				moreBadge.hidden = false
+				moreBadge.textContent = `+${extraCount} fotos`
+			} else {
+				moreBadge.hidden = true
+			}
+		}
+	}
+}
+
 const BADGE_VARIANT_CLASS = {
 	neutral:
 		"inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700",
@@ -362,36 +448,7 @@ export function initProductSummaryHydration(): void {
 				)
 			}
 
-			const summaryImageGrid = document.getElementById("summaryImageGrid")
-			if (summaryImageGrid) {
-				summaryImageGrid.replaceChildren()
-				const previews = Array.isArray(payload?.images?.previews) ? payload.images.previews : []
-				if (previews.length === 0) {
-					const empty = document.createElement("p")
-					empty.className = "col-span-3 text-sm text-slate-500"
-					empty.textContent = "Sin imágenes cargadas."
-					summaryImageGrid.appendChild(empty)
-				} else {
-					for (const item of previews) {
-						const img = document.createElement("img")
-						img.src = String(item.url)
-						img.alt = "Vista previa"
-						img.className = "h-16 w-full rounded-[var(--fastt-radius-control)] object-cover"
-						summaryImageGrid.appendChild(img)
-					}
-				}
-			}
-
-			const productHeroMedia = document.getElementById("productHeroMedia")
-			const coverImage = payload?.images?.cover?.url ? String(payload.images.cover.url) : ""
-			if (productHeroMedia && coverImage) {
-				productHeroMedia.textContent = ""
-				const heroImage = document.createElement("img")
-				heroImage.src = coverImage
-				heroImage.alt = `Foto principal de ${config.singularLabel}`
-				heroImage.className = "h-full min-h-[220px] w-full object-cover"
-				productHeroMedia.appendChild(heroImage)
-			}
+			hydrateProductMediaGallery(config, payload)
 
 			console.debug("data hydrated", {
 				page: "product-surface",
