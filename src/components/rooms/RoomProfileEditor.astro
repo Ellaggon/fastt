@@ -7,6 +7,10 @@ import SegmentedControl from "@/components/ui/SegmentedControl.astro"
 import Select from "@/components/ui/Select.astro"
 import Textarea from "@/components/ui/Textarea.astro"
 import { BED_TYPES } from "@/data/room/room-beds"
+import {
+	buildAutomaticRoomInternalCode,
+	getRoomInternalCodePrefix,
+} from "@/lib/rooms/room-internal-code"
 import { Bath, BedDouble, ClipboardList, Hotel, Sparkles, UserRound } from "@lucide/astro"
 
 type RoomTypeOption = { id: string; name: string; maxOccupancy: number | null }
@@ -77,10 +81,15 @@ const bedRows =
 		? profile.beds
 		: [{ bedType: "queen", count: 1, roomLabel: "" }]
 
+const generatedRoomCode = buildAutomaticRoomInternalCode({
+	roomTypeId: profile?.roomTypeId,
+	variantId: variantId || crypto.randomUUID(),
+})
+
 const initial = {
 	name: String(roomName ?? ""),
 	description: String(roomDescription ?? ""),
-	roomCode: String(roomCode ?? ""),
+	roomCode: String(roomCode ?? "").trim() || generatedRoomCode,
 	minOccupancy: capacity?.minOccupancy != null ? String(capacity.minOccupancy) : "1",
 	maxOccupancy: capacity?.maxOccupancy != null ? String(capacity.maxOccupancy) : "",
 	maxAdults: capacity?.maxAdults != null ? String(capacity.maxAdults) : "",
@@ -110,6 +119,9 @@ const introCopy =
 		? "Define lo que el huésped verá antes de reservar: nombre, capacidad, camas, baño, vista, comodidades y notas importantes."
 		: "Actualiza solo los campos necesarios. Las alertas de completitud ayudan, pero no bloquean la edición."
 const bedTypeLabels = Object.fromEntries(BED_TYPES.map((bedType) => [bedType.id, bedType.name]))
+const roomCodePrefixes = Object.fromEntries(
+	roomTypes.map((roomType) => [roomType.id, getRoomInternalCodePrefix(roomType.id)])
+)
 const guideSteps = [
 	{ id: "capacidad", label: "Capacidad y tipo" },
 	{ id: "nombre-tipo", label: "Nombre" },
@@ -216,11 +228,13 @@ const tabsAriaLabel = isEditMode ? "Secciones de habitación" : "Setup guiado de
 											id="roomCode"
 											name="roomCode"
 											value={initial.roomCode}
-											placeholder="STD-101, DLX-KING, FAM-02..."
+											readonly
+											aria-readonly="true"
+											class="bg-slate-50 font-semibold text-slate-700"
 										/>
 										<p class="text-xs leading-5 text-slate-500">
-											Identificador operativo para recepción, reportes o channel managers. No se
-											muestra al huésped.
+											Fastt genera este identificador para recepción, reportes e integraciones. Se
+											mantiene aunque cambies el nombre y no se muestra al huésped.
 										</p>
 									</FormField>
 								</div>
@@ -525,8 +539,8 @@ const tabsAriaLabel = isEditMode ? "Secciones de habitación" : "Setup guiado de
 									</p>
 								</div>
 								<div class="grid gap-4 md:grid-cols-4">
-									<FormField label="Unidades disponibles" htmlFor="totalRooms" required>
-										<span class="sr-only">Unidades disponibles de esta configuración</span>
+									<FormField label="Unidades físicas" htmlFor="totalRooms" required>
+										<span class="sr-only">Unidades físicas de esta configuración</span>
 										<Input
 											id="totalRooms"
 											name="totalRooms"
@@ -537,8 +551,8 @@ const tabsAriaLabel = isEditMode ? "Secciones de habitación" : "Setup guiado de
 											required
 										/>
 										<p class="text-xs leading-5 text-slate-500">
-											Habitaciones físicas que comparten esta configuración de camas, baño y
-											comodidades.
+											Define cuántas unidades físicas existen para esta habitación. Comparten esta
+											configuración de camas, baño y comodidades.
 										</p>
 									</FormField>
 									<FormField label="Tamaño aprox. (m²)" htmlFor="sizeM2">
@@ -834,6 +848,7 @@ const tabsAriaLabel = isEditMode ? "Secciones de habitación" : "Setup guiado de
 		playbookNextHref: playbookNextHref ?? "",
 		playbookId: playbookId ?? "",
 		isEditMode,
+		roomCodePrefixes,
 	}}
 >
 	const form = document.getElementById("roomProfileForm")
@@ -854,6 +869,7 @@ const tabsAriaLabel = isEditMode ? "Secciones de habitación" : "Setup guiado de
 	const guideProgress = document.getElementById("roomGuideProgress")
 	const guideNavButtons = Array.from(document.querySelectorAll("[data-guide-nav]"))
 	const guideStateBadges = Array.from(document.querySelectorAll("[data-guide-state]"))
+	const roomCodeInput = form?.querySelector('[name="roomCode"]')
 	const roomPanels = Array.from(document.querySelectorAll("[data-room-panel]"))
 	const panelOrder = guideNavButtons
 		.map((button) => String(button.getAttribute("data-guide-nav") ?? ""))
@@ -871,7 +887,10 @@ const tabsAriaLabel = isEditMode ? "Secciones de habitación" : "Setup guiado de
 	function setState(state, detail = "") {
 		const labels = {
 			loading: "Guardando habitación...",
-			success: "Habitación guardada correctamente.",
+			success:
+				playbookId === "add-room" && !isEditMode
+					? "Perfil guardado. Continúa con las fotos."
+					: "Habitación guardada correctamente.",
 			error: "No se pudo guardar la habitación.",
 		}
 		if (feedback) feedback.textContent = `${labels[state] ?? ""}${detail ? `\n${detail}` : ""}`
@@ -910,6 +929,14 @@ const tabsAriaLabel = isEditMode ? "Secciones de habitación" : "Setup guiado de
 		if (field instanceof HTMLSelectElement) {
 			field.value = String(value ?? "")
 		}
+	}
+
+	function updateAutomaticRoomCode() {
+		if (isEditMode || !(roomCodeInput instanceof HTMLInputElement)) return
+		const roomTypeId = getField("roomTypeId")
+		const prefix = roomCodePrefixes[roomTypeId] ?? "ROOM"
+		const token = roomCodeInput.value.split("-").at(-1) || ""
+		if (token) roomCodeInput.value = `${prefix}-${token}`
 	}
 
 	function addBedPresetRow(bedType, count, roomLabel) {
@@ -1141,6 +1168,7 @@ const tabsAriaLabel = isEditMode ? "Secciones de habitación" : "Setup guiado de
 		if (!bedRows) return
 		const presets = {
 			individual: {
+				roomTypeIds: ["single"],
 				maxOccupancy: 1,
 				maxAdults: 1,
 				maxChildren: 0,
@@ -1151,6 +1179,7 @@ const tabsAriaLabel = isEditMode ? "Secciones de habitación" : "Setup guiado de
 				notes: "Habitación individual con cama simple.",
 			},
 			couple: {
+				roomTypeIds: ["double", "queen", "king", "suite"],
 				maxOccupancy: 2,
 				maxAdults: 2,
 				maxChildren: 0,
@@ -1161,6 +1190,7 @@ const tabsAriaLabel = isEditMode ? "Secciones de habitación" : "Setup guiado de
 				notes: "Habitación ideal para parejas, con baño privado.",
 			},
 			twin: {
+				roomTypeIds: ["twin"],
 				maxOccupancy: 2,
 				maxAdults: 2,
 				maxChildren: 0,
@@ -1171,6 +1201,7 @@ const tabsAriaLabel = isEditMode ? "Secciones de habitación" : "Setup guiado de
 				notes: "Habitación con dos camas simples, ideal para dos huéspedes.",
 			},
 			family: {
+				roomTypeIds: ["family_suite", "quad", "triple", "connecting"],
 				maxOccupancy: 4,
 				maxAdults: 2,
 				maxChildren: 2,
@@ -1184,6 +1215,7 @@ const tabsAriaLabel = isEditMode ? "Secciones de habitación" : "Setup guiado de
 				notes: "Habitación pensada para familias o grupos pequeños.",
 			},
 			group: {
+				roomTypeIds: ["connecting", "apartment", "villa", "duplex", "quad"],
 				maxOccupancy: 6,
 				maxAdults: 6,
 				maxChildren: 0,
@@ -1197,6 +1229,7 @@ const tabsAriaLabel = isEditMode ? "Secciones de habitación" : "Setup guiado de
 				notes: "Habitación o unidad pensada para grupos.",
 			},
 			shared: {
+				roomTypeIds: ["dormitory"],
 				maxOccupancy: 1,
 				maxAdults: 1,
 				maxChildren: 0,
@@ -1233,37 +1266,15 @@ const tabsAriaLabel = isEditMode ? "Secciones de habitación" : "Setup guiado de
 		const roomTypeSelect = form?.querySelector('[name="roomTypeId"]')
 		if (roomTypeSelect instanceof HTMLSelectElement) {
 			const options = Array.from(roomTypeSelect.options).filter((option) => option.value)
-			const hints = {
-				individual: ["simple", "single", "individual"],
-				couple: ["pareja", "doble", "double", "queen", "matrimonial", "suite"],
-				twin: ["twin", "doble"],
-				family: ["familiar", "family", "cuadruple", "cuádruple", "triple"],
-				group: [
-					"conectadas",
-					"connecting",
-					"apartamento",
-					"departamento",
-					"villa",
-					"duplex",
-					"dúplex",
-					"cuadruple",
-					"cuádruple",
-					"familiar",
-				],
-				shared: ["dormitorio", "compartido", "shared"],
-			}
-			const normalizedHints = hints[name] ?? []
-			const matchingByName = options.find((option) => {
-				const label = option.textContent?.toLowerCase() ?? ""
-				return normalizedHints.some((hint) => label.includes(hint))
-			})
+			const matchingRoomType = options.find((option) => preset.roomTypeIds.includes(option.value))
 			const matchingByCapacity = options.find((option) => {
 				const label = option.textContent?.toLowerCase() ?? ""
 				const match = label.match(/hasta\s+(\d+)/)
 				return match ? Number(match[1]) >= preset.maxOccupancy : false
 			})
 			roomTypeSelect.value =
-				matchingByName?.value ?? matchingByCapacity?.value ?? options[0]?.value ?? ""
+				matchingRoomType?.value ?? matchingByCapacity?.value ?? options[0]?.value ?? ""
+			updateAutomaticRoomCode()
 		}
 		const notes = form?.querySelector('[name="guestFacingNotes"]')
 		if (notes instanceof HTMLTextAreaElement && !notes.value.trim()) notes.value = preset.notes
@@ -1296,6 +1307,7 @@ const tabsAriaLabel = isEditMode ? "Secciones de habitación" : "Setup guiado de
 	bindRemoveButtons()
 	form?.addEventListener("input", renderEditorPreview)
 	form?.addEventListener("change", renderEditorPreview)
+	form?.querySelector('[name="roomTypeId"]')?.addEventListener("change", updateAutomaticRoomCode)
 	renderEditorPreview()
 
 	for (const preset of document.querySelectorAll(".roomPreset")) {

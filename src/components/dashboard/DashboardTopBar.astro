@@ -24,6 +24,7 @@ import IconButton from "@/components/ui/IconButton.astro"
 import type { WorkspaceShellContext } from "@/lib/dashboard/workspaceRequestContext"
 import { routes } from "@/lib/routes"
 import type { WorkspaceNavigationScope } from "@/lib/workspace/verticalContext"
+import { db, eq, RatePlan, Variant } from "@/shared/infrastructure/db/compat"
 
 interface Props {
 	workspaceContext: WorkspaceShellContext
@@ -66,6 +67,36 @@ const productIdFromPath = (() => {
 })()
 const isPlaybookSurface = Boolean(Astro.url.searchParams.get("playbook"))
 const isProductWorkspace = Boolean(productIdFromPath) && !isPlaybookSurface
+const requestedProductId = String(Astro.url.searchParams.get("productId") ?? "").trim()
+const requestedVariantId = String(Astro.url.searchParams.get("variantId") ?? "").trim()
+const requestedRatePlanId = String(Astro.url.searchParams.get("ratePlanId") ?? "").trim()
+const guidedProductIdFromVariant =
+	isPlaybookSurface && !productIdFromPath && !requestedProductId && requestedVariantId
+		? await db
+				.select({ productId: Variant.productId })
+				.from(Variant)
+				.where(eq(Variant.id, requestedVariantId))
+				.then((rows) => String(rows[0]?.productId ?? ""))
+		: ""
+const guidedProductIdFromRatePlan =
+	isPlaybookSurface &&
+	!productIdFromPath &&
+	!requestedProductId &&
+	!guidedProductIdFromVariant &&
+	requestedRatePlanId
+		? await db
+				.select({ productId: Variant.productId })
+				.from(RatePlan)
+				.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
+				.where(eq(RatePlan.id, requestedRatePlanId))
+				.then((rows) => String(rows[0]?.productId ?? ""))
+		: ""
+const guidedProductId =
+	productIdFromPath ||
+	requestedProductId ||
+	guidedProductIdFromVariant ||
+	guidedProductIdFromRatePlan
+const isGuidedProductWorkspace = isPlaybookSurface && Boolean(guidedProductId)
 const isHouseRulesWorkspace =
 	pathname === "/provider/house-rules" || pathname.startsWith("/provider/house-rules/")
 const houseRulesProductId = String(Astro.url.searchParams.get("productId") ?? "").trim()
@@ -98,6 +129,7 @@ const showContextSwitcher =
 		isRatesWorkspace ||
 		isFinancialWorkspace ||
 		isFiscalWorkspace ||
+		isGuidedProductWorkspace ||
 		isProductWorkspace ||
 		isHouseRulesWorkspace ||
 		isAccountSettingsWorkspace)
@@ -190,7 +222,15 @@ const showContextSwitcher =
 
 		<div class="flex min-w-0 items-center justify-center lg:order-first lg:flex-1 lg:justify-start">
 			{
-				showContextSwitcher && isDashboardWorkspace ? (
+				showContextSwitcher && isGuidedProductWorkspace ? (
+					<ProductContextSwitcher
+						providerId={providerId}
+						productId={guidedProductId}
+						target={productSwitcherTarget}
+						variant="topbar"
+						selectable={false}
+					/>
+				) : showContextSwitcher && isDashboardWorkspace ? (
 					<ContextSwitcher
 						label="Resumen Operativo"
 						value=""

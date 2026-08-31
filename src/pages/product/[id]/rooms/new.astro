@@ -1,5 +1,4 @@
 ---
-import ProductContextSwitcher from "@/components/product/ProductContextSwitcher.astro"
 import RoomProfileEditor from "@/components/rooms/RoomProfileEditor.astro"
 import { productRepository } from "@/container"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
@@ -9,8 +8,9 @@ import { isHotelProductType } from "@/lib/catalog/productVerticalRegistry"
 import { buildAddRoomHref } from "@/lib/playbook/add-room"
 import { buildPlaybookHref } from "@/lib/playbook/launch-accommodation"
 import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
+import { resolveRoomAmenityOptions } from "@/lib/rooms/room-amenity-options"
+import { resolveRoomTypeOptions } from "@/lib/rooms/room-type-options"
 import { routes } from "@/lib/routes"
-import { getProductAggregate } from "@/modules/catalog/public"
 import { AmenityRoom, asc, db, RoomType } from "@/shared/infrastructure/db/compat"
 
 const user = await getUserFromRequest(Astro.request)
@@ -36,10 +36,7 @@ const owned = await productRepository.ensureProductOwnedByProvider(productId, pr
 if (!owned) return Astro.redirect("/product/create")
 if (!isHotelProductType(owned.productType)) return Astro.redirect(routes.productDetail(productId))
 
-const product = await getProductAggregate(productId)
-if (!product) return Astro.redirect("/product/create")
-
-const [roomTypes, amenities] = await Promise.all([
+const [roomTypeRows, amenities] = await Promise.all([
 	db
 		.select({ id: RoomType.id, name: RoomType.name, maxOccupancy: RoomType.maxOccupancy })
 		.from(RoomType)
@@ -49,6 +46,8 @@ const [roomTypes, amenities] = await Promise.all([
 		.from(AmenityRoom)
 		.orderBy(asc(AmenityRoom.category), asc(AmenityRoom.name)),
 ])
+const roomTypes = resolveRoomTypeOptions(roomTypeRows)
+const roomAmenities = resolveRoomAmenityOptions(amenities)
 
 const playbookId = playbook.playbookId
 const isAddRoom = playbookId === "add-room"
@@ -69,13 +68,6 @@ const roomEditorPlaybookId =
 	<section class="space-y-5 text-slate-100">
 		<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
 			<div class="space-y-1.5">
-				<ProductContextSwitcher
-					providerId={providerId}
-					productId={productId}
-					productType={owned.productType}
-					currentName={product.displayName}
-					selectable={false}
-				/>
 				<h1 class="text-3xl font-semibold text-slate-100">Crea una habitación para huéspedes</h1>
 				<p class="max-w-2xl text-sm leading-6 text-slate-300">
 					{
@@ -91,7 +83,7 @@ const roomEditorPlaybookId =
 			productId={productId}
 			mode="create"
 			roomTypes={roomTypes}
-			amenities={amenities}
+			amenities={roomAmenities}
 			playbookId={playbook.active ? roomEditorPlaybookId : null}
 			showIntro={false}
 		/>

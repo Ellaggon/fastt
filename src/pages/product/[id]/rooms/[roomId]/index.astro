@@ -1,13 +1,16 @@
 ---
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
-import ProductContextSwitcher from "@/components/product/ProductContextSwitcher.astro"
 import RoomInheritedHouseRulesCard from "@/components/house-rules/RoomInheritedHouseRulesCard.astro"
 import GuestRoomPreviewCards from "@/components/productUI/GuestRoomPreviewCards.astro"
 import TabsInsidePanel from "@/components/ui/TabsInsidePanel.astro"
 import { productRepository, variantManagementRepository } from "@/container"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
-import { getNextAddRoomStep, resolveAddRoomPlaybookFromUrl } from "@/lib/playbook/add-room"
+import {
+	getNextAddRoomStep,
+	getPreviousAddRoomStep,
+	resolveAddRoomPlaybookFromUrl,
+} from "@/lib/playbook/add-room"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
@@ -64,6 +67,9 @@ const isRoomPhotosPlaybook = addRoomPlaybook.active && activeAddRoomStepId === "
 const addRoomContinueHref = addRoomPlaybook.active
 	? (getNextAddRoomStep(activeAddRoomStepId, addRoomCtx)?.buildHref(addRoomCtx) ?? null)
 	: null
+const addRoomPreviousHref = addRoomPlaybook.active
+	? (getPreviousAddRoomStep(activeAddRoomStepId, addRoomCtx)?.buildHref(addRoomCtx) ?? null)
+	: null
 const Layout = addRoomPlaybook.active ? PlaybookLayout : WorkspaceLayout
 const layoutProps = addRoomPlaybook.active
 	? {
@@ -75,7 +81,8 @@ const layoutProps = addRoomPlaybook.active
 			variantId: roomId,
 			ratePlanId: addRoomPlaybook.ratePlanId,
 			isHotel: true,
-			continueHref: addRoomContinueHref,
+			continueHref: isRoomPhotosPlaybook ? null : addRoomContinueHref,
+			hideFooter: isRoomPhotosPlaybook,
 		}
 	: { title: "Contenido del alojamiento · Habitación" }
 
@@ -107,17 +114,6 @@ const previewHref = `${routes.productRoomDetail(productId, roomId)}#previsualiza
 		<header class="flex flex-col gap-2">
 			<div class="flex flex-wrap items-start justify-between gap-3">
 				<div class="min-w-0 space-y-2">
-					{
-						addRoomPlaybook.active ? (
-							<ProductContextSwitcher
-								providerId={providerId}
-								productId={productId}
-								productType={owned.productType}
-								currentName={owned.name}
-								target="rooms"
-							/>
-						) : null
-					}
 					<h1
 						id="roomTitle"
 						class="text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl"
@@ -339,7 +335,13 @@ const previewHref = `${routes.productRoomDetail(productId, roomId)}#previsualiza
 								<ImagePlus class="mr-2 h-4 w-4" />
 								Subir imágenes
 							</Button>
-							<Button id="roomImageSaveBtn" type="button">Guardar galería</Button>
+							{
+								!isRoomPhotosPlaybook ? (
+									<Button id="roomImageSaveBtn" type="button">
+										Guardar galería
+									</Button>
+								) : null
+							}
 						</div>
 					</div>
 					<div
@@ -357,6 +359,34 @@ const previewHref = `${routes.productRoomDetail(productId, roomId)}#previsualiza
 						}
 					</div>
 				</Card>
+				{
+					isRoomPhotosPlaybook ? (
+						<footer class="fastt-playbook-footer flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+							<div class="min-h-10">
+								{addRoomPreviousHref ? (
+									<Button
+										href={addRoomPreviousHref}
+										variant="ghost"
+										className="text-slate-300 hover:bg-slate-800 hover:text-white"
+									>
+										← Anterior
+									</Button>
+								) : null}
+							</div>
+							<div class="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+								<a
+									href={routes.productRoomsForProduct(productId)}
+									class="inline-flex h-10 items-center justify-center px-2 text-sm font-medium text-slate-500 transition hover:text-slate-200"
+								>
+									Salir del flujo
+								</a>
+								<Button id="roomImageSaveBtn" type="button" disabled className="fastt-playbook-cta">
+									Guardar y continuar →
+								</Button>
+							</div>
+						</footer>
+					) : null
+				}
 			</section>
 
 			<section data-room-panel="previsualizacion" class="hidden space-y-6">
@@ -414,6 +444,7 @@ const previewHref = `${routes.productRoomDetail(productId, roomId)}#previsualiza
 			roomId,
 			addRoomPlaybookActive: addRoomPlaybook.active,
 			isRoomPhotosPlaybook,
+			roomPhotosContinueHref: isRoomPhotosPlaybook ? (addRoomContinueHref ?? "") : "",
 		}}
 	>
 		;(function () {
@@ -1021,14 +1052,8 @@ const previewHref = `${routes.productRoomDetail(productId, roomId)}#previsualiza
 						renderRoomImages()
 						await loadRoom()
 						if (roomImageFeedback) roomImageFeedback.textContent = "Galería guardada correctamente."
-						if (addRoomPlaybookActive && roomImages.length > 0) {
-							const params = new URLSearchParams({
-								playbook: "add-room",
-								step: "create-rate",
-								flow: "add-room",
-								variantId: roomId,
-							})
-							window.location.href = `/rates/plans/manage?${params.toString()}`
+						if (addRoomPlaybookActive && roomImages.length > 0 && roomPhotosContinueHref) {
+							window.location.href = roomPhotosContinueHref
 							return
 						}
 					} catch (error) {

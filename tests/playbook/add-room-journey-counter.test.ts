@@ -1,58 +1,60 @@
 import { describe, expect, it } from "vitest"
 import {
 	getAddRoomJourneySteps,
+	getPreviousAddRoomStep,
 	getAddRoomStepPosition,
 	getApplicableAddRoomSteps,
 	getNextAddRoomStep,
+	buildAddRoomResumeHref,
+	isAddRoomTerminalStep,
 } from "@/lib/playbook/add-room"
 
 describe("add-room playbook stable journey counter", () => {
-	it("shows Paso 1 de 6 on create-room with productId and no variantId", () => {
+	it("shows Paso 1 de 5 on create-room with productId and no variantId", () => {
 		const ctx = { productId: "hotel-1" }
 		const position = getAddRoomStepPosition("create-room", ctx)
-		expect(position).toEqual({ stepNumber: 1, totalSteps: 6 })
+		expect(position).toEqual({ stepNumber: 1, totalSteps: 5 })
 		expect(getAddRoomJourneySteps(ctx).map((step) => step.id)).toEqual([
 			"create-room",
 			"room-photos",
 			"create-rate",
 			"conditions",
 			"availability",
-			"confirmation",
 		])
 	})
 
-	it("keeps denominator at 6 after variantId appears (photos = 2 de 6)", () => {
+	it("keeps denominator at 5 after variantId appears (photos = 2 de 5)", () => {
 		const withoutVariant = getAddRoomStepPosition("create-room", { productId: "hotel-1" })
 		const withVariant = getAddRoomStepPosition("room-photos", {
 			productId: "hotel-1",
 			variantId: "room-1",
 		})
-		expect(withoutVariant.totalSteps).toBe(6)
-		expect(withVariant).toEqual({ stepNumber: 2, totalSteps: 6 })
+		expect(withoutVariant.totalSteps).toBe(5)
+		expect(withVariant).toEqual({ stepNumber: 2, totalSteps: 5 })
 		expect(withVariant.totalSteps).toBe(withoutVariant.totalSteps)
 	})
 
-	it("keeps denominator at 6 when ratePlanId unlocks conditions (4 de 6)", () => {
+	it("keeps denominator at 5 when ratePlanId unlocks conditions (4 de 5)", () => {
 		const position = getAddRoomStepPosition("conditions", {
 			productId: "hotel-1",
 			variantId: "room-1",
 			ratePlanId: "rate-1",
 		})
-		expect(position).toEqual({ stepNumber: 4, totalSteps: 6 })
+		expect(position).toEqual({ stepNumber: 4, totalSteps: 5 })
 	})
 
-	it("shows Paso 1 de 7 when entering from catalog without productId", () => {
+	it("shows Paso 1 de 6 when entering from catalog without productId", () => {
 		const ctx = { productId: "" }
 		const position = getAddRoomStepPosition("choose-accommodation", ctx)
-		expect(position).toEqual({ stepNumber: 1, totalSteps: 7 })
+		expect(position).toEqual({ stepNumber: 1, totalSteps: 6 })
 		expect(getAddRoomJourneySteps(ctx)[0]?.id).toBe("choose-accommodation")
 	})
 
 	it("does not use applicable-only subset for the visible total", () => {
 		const ctx = { productId: "hotel-1" }
-		expect(getApplicableAddRoomSteps(ctx).length).toBe(2)
-		expect(getAddRoomJourneySteps(ctx).length).toBe(6)
-		expect(getAddRoomStepPosition("create-room", ctx).totalSteps).toBe(6)
+		expect(getApplicableAddRoomSteps(ctx).length).toBe(1)
+		expect(getAddRoomJourneySteps(ctx).length).toBe(5)
+		expect(getAddRoomStepPosition("create-room", ctx).totalSteps).toBe(5)
 	})
 
 	it("does not skip ahead to confirmation when next step is not linkable yet", () => {
@@ -66,5 +68,49 @@ describe("add-room playbook stable journey counter", () => {
 			variantId: "room-1",
 		})
 		expect(next?.id).toBe("room-photos")
+	})
+
+	it("resumes a draft room at photos after leaving the guided flow", () => {
+		const href = buildAddRoomResumeHref("hotel-1", {
+			id: "room-1",
+			states: {
+				capacityComplete: true,
+				photosComplete: false,
+			},
+		})
+
+		expect(href).toContain("/product/hotel-1/rooms/room-1")
+		expect(href).toContain("step=room-photos")
+		expect(href).toContain("flow=add-room")
+	})
+
+	it("keeps confirmation as a terminal route outside the visible journey", () => {
+		const ctx = { productId: "hotel-1", variantId: "room-1", ratePlanId: "rate-1" }
+
+		expect(isAddRoomTerminalStep("confirmation")).toBe(true)
+		expect(getAddRoomStepPosition("confirmation", ctx)).toEqual({
+			stepNumber: null,
+			totalSteps: 5,
+		})
+		expect(getNextAddRoomStep("availability", ctx)?.id).toBe("confirmation")
+		expect(getNextAddRoomStep("availability", ctx)?.buildHref(ctx)).toContain("ratePlanId=rate-1")
+	})
+
+	it("preserves the room and selected rate while moving backward through the journey", () => {
+		const ctx = { productId: "hotel-1", variantId: "room-1", ratePlanId: "rate-1" }
+		const previousSteps = [
+			getPreviousAddRoomStep("confirmation", ctx),
+			getPreviousAddRoomStep("availability", ctx),
+			getPreviousAddRoomStep("conditions", ctx),
+			getPreviousAddRoomStep("create-rate", ctx),
+			getPreviousAddRoomStep("room-photos", ctx),
+		]
+
+		for (const step of previousSteps) {
+			expect(step).not.toBeNull()
+			const href = step?.buildHref(ctx) ?? ""
+			expect(href).toContain("variantId=room-1")
+			expect(href).toContain("ratePlanId=rate-1")
+		}
 	})
 })

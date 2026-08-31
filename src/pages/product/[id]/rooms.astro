@@ -7,14 +7,28 @@ import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import {
 	buildAddRoomEntryHref,
 	buildAddRoomHref,
+	getAddRoomStepById,
 	resolveAddRoomPlaybookFromUrl,
 } from "@/lib/playbook/add-room"
+import { loadVariantCompletion } from "@/lib/playbook/evaluate-add-room-progress"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { isHotelProductType } from "@/lib/catalog/productVerticalRegistry"
 import { routes } from "@/lib/routes"
-import { BadgeCheck, BedDouble, CalendarDays, Hotel, Plus } from "@lucide/astro"
+import { getProductVariantsAggregate } from "@/modules/catalog/public"
+import {
+	BadgeCheck,
+	BedDouble,
+	CalendarDays,
+	CalendarOff,
+	CircleDollarSign,
+	FileText,
+	Image,
+	LayoutGrid,
+	Plus,
+	TriangleAlert,
+} from "@lucide/astro"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
@@ -37,6 +51,57 @@ if (!addRoomPlaybook.active && flow === "add-room") {
 const highlightVariantId = String(Astro.url.searchParams.get("variantId") ?? "").trim()
 const isAddRoomConfirmation =
 	addRoomPlaybook.active && (addRoomPlaybook.stepId ?? "confirmation") === "confirmation"
+
+let confirmationRoomName = "Habitación"
+if (isAddRoomConfirmation) {
+	if (!highlightVariantId) {
+		return Astro.redirect(buildAddRoomHref(routes.productRoomNew(productId), "create-room"))
+	}
+
+	const requestedRatePlanId = String(addRoomPlaybook.ratePlanId ?? "").trim() || undefined
+	const completion = await loadVariantCompletion(
+		productId,
+		providerId,
+		highlightVariantId,
+		requestedRatePlanId
+	)
+	if (!completion) {
+		return Astro.redirect(buildAddRoomHref(routes.productRoomNew(productId), "create-room"))
+	}
+
+	const confirmationContext = {
+		productId,
+		variantId: highlightVariantId,
+		ratePlanId: requestedRatePlanId ?? completion.selectedRatePlanId ?? undefined,
+	}
+	const redirectToStep = (
+		stepId: "create-room" | "room-photos" | "create-rate" | "conditions" | "availability"
+	) => {
+		const step = getAddRoomStepById(stepId, confirmationContext)
+		return step?.buildHref(confirmationContext) ?? routes.productRoomsForProduct(productId)
+	}
+
+	if (!completion.inventoryConfigComplete || !completion.profileComplete) {
+		return Astro.redirect(redirectToStep("create-room"))
+	}
+	if (!completion.photosComplete) return Astro.redirect(redirectToStep("room-photos"))
+	if (!completion.rateConfigured || !completion.pricingComplete) {
+		return Astro.redirect(redirectToStep("create-rate"))
+	}
+	if (!completion.conditionsComplete) return Astro.redirect(redirectToStep("conditions"))
+	if (!completion.availabilityComplete) return Astro.redirect(redirectToStep("availability"))
+	if (!completion.sellable) {
+		const calendarHref = redirectToStep("availability")
+		const url = new URL(calendarHref, Astro.url.origin)
+		url.searchParams.set("finalizeError", "activation-pending")
+		return Astro.redirect(`${url.pathname}${url.search}${url.hash}`)
+	}
+
+	const aggregate = await getProductVariantsAggregate(productId, providerId)
+	confirmationRoomName =
+		aggregate?.variants.find((variant) => String(variant.id) === highlightVariantId)?.name ??
+		confirmationRoomName
+}
 const addRoomEntryHref = buildAddRoomEntryHref(productId)
 const addRoomNewRoomHref = buildAddRoomHref(routes.productRoomNew(productId), "create-room")
 const cleanRoomsHref = routes.productRoomsForProduct(productId)
@@ -62,110 +127,113 @@ const layoutProps = addRoomPlaybook.active
 ---
 
 <Layout {...layoutProps}>
-	<section class="space-y-6 md:space-y-8" data-rooms-summary-page data-product-id={productId}>
+	<section
+		class:list={["space-y-6 md:space-y-8", isAddRoomConfirmation && "space-y-10 md:space-y-12"]}
+		data-rooms-summary-page
+		data-product-id={productId}
+	>
 		{
 			isAddRoomConfirmation ? (
-				<section class="fastt-card overflow-hidden border bg-white text-slate-900">
-					<div class="grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]">
-						<div class="space-y-6 p-5 md:p-6">
-							<div class="space-y-3">
-								<p class="flex items-center gap-2 text-sm font-medium text-slate-500">
-									<Hotel class="h-4 w-4" />
-									{owned.name} · Nueva habitación
-								</p>
-								<div class="space-y-2">
-									<h1
-										id="confirmationTitle"
-										class="text-2xl font-semibold text-slate-950 md:text-3xl"
-									>
-										Habitación lista para vender
-									</h1>
-									<p
-										id="confirmationDescription"
-										class="max-w-2xl text-sm leading-6 text-slate-600"
-									>
-										La habitación ya tiene perfil, fotos, tarifa, condiciones y disponibilidad
-										inicial. Ahora puedes revisarla o volver al listado operativo.
-									</p>
-								</div>
-							</div>
+				<Card variant="dark" class="overflow-hidden !border-neutral-800 !bg-black p-0">
+					<div class="space-y-2 p-5 md:p-6">
+						<h1 class="text-2xl font-semibold text-white md:text-3xl">
+							{confirmationRoomName} lista para vender
+						</h1>
+						<p class="max-w-2xl text-sm leading-6 text-neutral-400">
+							La habitación tiene todo lo necesario para recibir reservas.
+						</p>
+					</div>
 
+					<div class="border-t border-neutral-800 bg-white p-5 md:p-6">
+						<div class="space-y-6">
 							<div
 								class="grid overflow-hidden rounded-[var(--fastt-radius-card)] border border-slate-200 bg-slate-50 sm:grid-cols-2 xl:grid-cols-5"
-								aria-label="Resumen del alta de habitación"
+								aria-label="Requisitos confirmados"
 							>
 								<div class="border-b border-slate-200 p-3 sm:border-r xl:border-b-0">
-									<p class="text-xs font-medium text-slate-500">Perfil</p>
-									<p
-										id="confirmationProfileStatus"
-										class="mt-1 text-sm font-semibold text-slate-950"
-									>
-										Listo
-									</p>
+									<div class="flex items-start gap-2.5">
+										<span
+											class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--fastt-radius-control)] bg-slate-100 text-slate-700 ring-1 ring-slate-200/80 ring-inset"
+											aria-hidden="true"
+										>
+											<BedDouble class="size-4" />
+										</span>
+										<div class="min-w-0">
+											<p class="text-xs font-medium text-slate-500">Perfil</p>
+											<p class="mt-1 text-sm font-semibold text-slate-950">Confirmado</p>
+										</div>
+									</div>
 								</div>
 								<div class="border-b border-slate-200 p-3 xl:border-r xl:border-b-0">
-									<p class="text-xs font-medium text-slate-500">Fotos</p>
-									<p
-										id="confirmationPhotosStatus"
-										class="mt-1 text-sm font-semibold text-slate-950"
-									>
-										Listo
-									</p>
+									<div class="flex items-start gap-2.5">
+										<span
+											class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--fastt-radius-control)] bg-slate-100 text-slate-700 ring-1 ring-slate-200/80 ring-inset"
+											aria-hidden="true"
+										>
+											<Image class="size-4" />
+										</span>
+										<div class="min-w-0">
+											<p class="text-xs font-medium text-slate-500">Fotos</p>
+											<p class="mt-1 text-sm font-semibold text-slate-950">Confirmadas</p>
+										</div>
+									</div>
 								</div>
 								<div class="border-b border-slate-200 p-3 sm:border-r xl:border-b-0">
-									<p class="text-xs font-medium text-slate-500">Tarifa</p>
-									<p id="confirmationRateStatus" class="mt-1 text-sm font-semibold text-slate-950">
-										Listo
-									</p>
+									<div class="flex items-start gap-2.5">
+										<span
+											class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--fastt-radius-control)] bg-slate-100 text-slate-700 ring-1 ring-slate-200/80 ring-inset"
+											aria-hidden="true"
+										>
+											<CircleDollarSign class="size-4" />
+										</span>
+										<div class="min-w-0">
+											<p class="text-xs font-medium text-slate-500">Tarifa</p>
+											<p class="mt-1 text-sm font-semibold text-slate-950">Confirmada</p>
+										</div>
+									</div>
 								</div>
 								<div class="border-b border-slate-200 p-3 xl:border-r xl:border-b-0">
-									<p class="text-xs font-medium text-slate-500">Condiciones</p>
-									<p class="mt-1 text-sm font-semibold text-slate-950">Listas</p>
+									<div class="flex items-start gap-2.5">
+										<span
+											class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--fastt-radius-control)] bg-slate-100 text-slate-700 ring-1 ring-slate-200/80 ring-inset"
+											aria-hidden="true"
+										>
+											<FileText class="size-4" />
+										</span>
+										<div class="min-w-0">
+											<p class="text-xs font-medium text-slate-500">Condiciones</p>
+											<p class="mt-1 text-sm font-semibold text-slate-950">Confirmadas</p>
+										</div>
+									</div>
 								</div>
 								<div class="p-3">
-									<p class="text-xs font-medium text-slate-500">Disponibilidad</p>
-									<p
-										id="confirmationAvailabilityStatus"
-										class="mt-1 text-sm font-semibold text-slate-950"
-									>
-										Inicial abierta
-									</p>
+									<div class="flex items-start gap-2.5">
+										<span
+											class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--fastt-radius-control)] bg-slate-100 text-slate-700 ring-1 ring-slate-200/80 ring-inset"
+											aria-hidden="true"
+										>
+											<CalendarDays class="size-4" />
+										</span>
+										<div class="min-w-0">
+											<p class="text-xs font-medium text-slate-500">Disponibilidad</p>
+											<p class="mt-1 text-sm font-semibold text-slate-950">Confirmada</p>
+										</div>
+									</div>
 								</div>
+							</div>
+							<div class="flex flex-wrap items-center justify-end gap-3 border-t border-slate-200 pt-5">
+								<Button href={cleanRoomHref}>Ver habitación</Button>
+								<Button href={cleanRoomsHref} variant="secondary">
+									Ver todas las habitaciones
+								</Button>
+								<Button href={cleanCalendarHref} variant="ghost">
+									<CalendarDays class="h-4 w-4" />
+									Abrir calendario
+								</Button>
 							</div>
 						</div>
-
-						<aside class="border-t border-slate-200 bg-slate-50 p-5 md:p-6 lg:border-t-0 lg:border-l">
-							<div class="flex h-full flex-col justify-between gap-6">
-								<div class="space-y-4">
-									<div class="inline-flex h-11 w-11 items-center justify-center rounded-[var(--fastt-radius-card)] bg-slate-950 text-white">
-										<BadgeCheck class="h-5 w-5" />
-									</div>
-									<div>
-										<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-											Siguiente uso natural
-										</p>
-										<p class="mt-2 text-sm leading-6 text-slate-700">
-											Revisa cómo quedó la habitación o vuelve al listado para operar habitaciones,
-											tarifas y calendario sin el asistente.
-										</p>
-									</div>
-								</div>
-								<div class="flex flex-col gap-2">
-									<Button href={cleanRoomHref} className="fastt-playbook-cta">
-										Ver habitación
-									</Button>
-									<Button href={cleanRoomsHref} variant="secondary">
-										Ver todas las habitaciones
-									</Button>
-									<Button href={cleanCalendarHref} variant="ghost">
-										<CalendarDays class="h-4 w-4" />
-										Abrir calendario
-									</Button>
-								</div>
-							</div>
-						</aside>
 					</div>
-				</section>
+				</Card>
 			) : (
 				<header class="flex flex-col gap-2">
 					<div class="flex flex-wrap items-start justify-between gap-3">
@@ -195,165 +263,185 @@ const layoutProps = addRoomPlaybook.active
 			)
 		}
 
-		<section class="space-y-6 md:space-y-8">
-			<div class="flex flex-wrap items-center justify-between gap-3">
-				<TabsInsidePanel aria-label="Filtrar habitaciones">
-					<button
-						type="button"
-						class="fastt-tabs-inside-panel__item"
-						data-room-filter="attention"
-						data-active="true"
-						aria-pressed="true"
+		{
+			!isAddRoomConfirmation ? (
+				<section class="space-y-6 md:space-y-8">
+					<div
+						class:list={[
+							"flex flex-wrap items-center justify-between gap-3",
+							isAddRoomConfirmation && "pt-4 md:pt-6",
+						]}
 					>
-						<span class="fastt-tabs-inside-panel__label">
-							Requieren atención
-							<span id="roomsTabAttention" class="fastt-tabs-inside-panel__meta">—</span>
-						</span>
-					</button>
-					<button
-						type="button"
-						class="fastt-tabs-inside-panel__item"
-						data-room-filter="ready"
-						data-active="false"
-						aria-pressed="false"
-					>
-						<span class="fastt-tabs-inside-panel__label">
-							Vendibles
-							<span id="roomsTabReady" class="fastt-tabs-inside-panel__meta">—</span>
-						</span>
-					</button>
-					<button
-						type="button"
-						class="fastt-tabs-inside-panel__item"
-						data-room-filter="no-rate"
-						data-active="false"
-						aria-pressed="false"
-					>
-						<span class="fastt-tabs-inside-panel__label">
-							Sin tarifa
-							<span id="roomsTabNoRate" class="fastt-tabs-inside-panel__meta">—</span>
-						</span>
-					</button>
-					<button
-						type="button"
-						class="fastt-tabs-inside-panel__item"
-						data-room-filter="no-availability"
-						data-active="false"
-						aria-pressed="false"
-					>
-						<span class="fastt-tabs-inside-panel__label">
-							Sin disponibilidad
-							<span id="roomsTabNoAvailability" class="fastt-tabs-inside-panel__meta">—</span>
-						</span>
-					</button>
-					<button
-						type="button"
-						class="fastt-tabs-inside-panel__item"
-						data-room-filter="all"
-						data-active="false"
-						aria-pressed="false"
-					>
-						<span class="fastt-tabs-inside-panel__label">
-							Todas
-							<span id="roomsTabAll" class="fastt-tabs-inside-panel__meta">—</span>
-						</span>
-					</button>
-				</TabsInsidePanel>
-				<p class="text-xs text-slate-400">Evaluación: mínimo 30 noches con disponibilidad</p>
-			</div>
-
-			<div id="roomsFilteredEmpty" class="hidden">
-				<Card class="bg-white p-5 text-sm text-slate-600">
-					<p class="font-semibold text-slate-950">No hay habitaciones en esta vista.</p>
-					<p class="mt-1">Cambia el filtro o crea una nueva habitación.</p>
-				</Card>
-			</div>
-
-			<div id="roomsEmptyState" class="hidden">
-				<Card class="overflow-hidden bg-white p-0">
-					<div class="grid gap-0 md:grid-cols-[1fr_0.8fr]">
-						<div class="space-y-5 p-6">
-							<div
-								class="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-800"
+						<TabsInsidePanel aria-label="Filtrar habitaciones" class="gap-2 sm:gap-3">
+							<button
+								type="button"
+								class="fastt-tabs-inside-panel__item"
+								data-room-filter="attention"
+								data-active="true"
+								aria-pressed="true"
 							>
-								<BedDouble class="h-6 w-6" />
-							</div>
-							<div class="space-y-2">
-								<h2 class="text-xl font-semibold text-slate-900">
-									Crea la primera habitación del alojamiento
-								</h2>
-								<p class="text-sm leading-6 text-slate-600">
-									Empieza con una ficha simple: nombre, capacidad, camas, baño y una foto. Luego
-									podrás completar disponibilidad y tarifas.
-								</p>
-							</div>
-							<div class="grid gap-2 text-sm text-slate-700 sm:grid-cols-3">
-								<span class="rounded-lg bg-slate-50 px-3 py-2">Camas y baño</span>
-								<span class="rounded-lg bg-slate-50 px-3 py-2">Fotos reales</span>
-								<span class="rounded-lg bg-slate-50 px-3 py-2">Lista para vender</span>
-							</div>
-							<div class="flex flex-wrap gap-2">
-								<Button href={addRoomEntryHref} data-astro-prefetch>
-									<Plus class="mr-2 h-4 w-4" />
-									Preparar mi primera habitación
-								</Button>
-								<Button
-									href={routes.productRoomNew(productId)}
-									data-astro-prefetch
-									variant="secondary"
-								>
-									Solo crear habitación
-								</Button>
-								<Button
-									href={routes.productDetail(productId)}
-									data-astro-prefetch
-									variant="secondary"
-								>
-									Volver a la ficha
-								</Button>
-							</div>
-						</div>
-						<div class="flex min-h-[260px] items-center justify-center bg-slate-100 p-6">
-							<div class="max-w-xs rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-								<div class="h-36 rounded-xl bg-slate-200"></div>
-								<div class="mt-4 space-y-2">
-									<div class="h-4 w-32 rounded bg-slate-200"></div>
-									<div class="h-3 w-48 rounded bg-slate-100"></div>
-									<div class="flex gap-2">
-										<span class="h-7 w-20 rounded-full bg-slate-100"></span>
-										<span class="h-7 w-24 rounded-full bg-slate-100"></span>
+								<TriangleAlert class="h-4 w-4 shrink-0" aria-hidden="true" />
+								<span class="fastt-tabs-inside-panel__label">
+									Requieren atención
+									<span id="roomsTabAttention" class="fastt-tabs-inside-panel__meta">
+										—
+									</span>
+								</span>
+							</button>
+							<button
+								type="button"
+								class="fastt-tabs-inside-panel__item"
+								data-room-filter="ready"
+								data-active="false"
+								aria-pressed="false"
+							>
+								<BadgeCheck class="h-4 w-4 shrink-0" aria-hidden="true" />
+								<span class="fastt-tabs-inside-panel__label">
+									Vendibles
+									<span id="roomsTabReady" class="fastt-tabs-inside-panel__meta">
+										—
+									</span>
+								</span>
+							</button>
+							<button
+								type="button"
+								class="fastt-tabs-inside-panel__item"
+								data-room-filter="no-rate"
+								data-active="false"
+								aria-pressed="false"
+							>
+								<CircleDollarSign class="h-4 w-4 shrink-0" aria-hidden="true" />
+								<span class="fastt-tabs-inside-panel__label">
+									Sin tarifa
+									<span id="roomsTabNoRate" class="fastt-tabs-inside-panel__meta">
+										—
+									</span>
+								</span>
+							</button>
+							<button
+								type="button"
+								class="fastt-tabs-inside-panel__item"
+								data-room-filter="no-availability"
+								data-active="false"
+								aria-pressed="false"
+							>
+								<CalendarOff class="h-4 w-4 shrink-0" aria-hidden="true" />
+								<span class="fastt-tabs-inside-panel__label">
+									Sin disponibilidad
+									<span id="roomsTabNoAvailability" class="fastt-tabs-inside-panel__meta">
+										—
+									</span>
+								</span>
+							</button>
+							<button
+								type="button"
+								class="fastt-tabs-inside-panel__item"
+								data-room-filter="all"
+								data-active="false"
+								aria-pressed="false"
+							>
+								<LayoutGrid class="h-4 w-4 shrink-0" aria-hidden="true" />
+								<span class="fastt-tabs-inside-panel__label">
+									Todas
+									<span id="roomsTabAll" class="fastt-tabs-inside-panel__meta">
+										—
+									</span>
+								</span>
+							</button>
+						</TabsInsidePanel>
+						<p class="text-xs text-slate-400">Evaluación: mínimo 30 noches con disponibilidad</p>
+					</div>
+
+					<div id="roomsFilteredEmpty" class="hidden">
+						<Card class="bg-white p-5 text-sm text-slate-600">
+							<p class="font-semibold text-slate-950">No hay habitaciones en esta vista.</p>
+							<p class="mt-1">Cambia el filtro o crea una nueva habitación.</p>
+						</Card>
+					</div>
+
+					<div id="roomsEmptyState" class="hidden">
+						<Card class="overflow-hidden bg-white p-0">
+							<div class="grid gap-0 md:grid-cols-[1fr_0.8fr]">
+								<div class="space-y-5 p-6">
+									<div class="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-800">
+										<BedDouble class="h-6 w-6" />
+									</div>
+									<div class="space-y-2">
+										<h2 class="text-xl font-semibold text-slate-900">
+											Crea la primera habitación del alojamiento
+										</h2>
+										<p class="text-sm leading-6 text-slate-600">
+											Empieza con una ficha simple: nombre, capacidad, camas, baño y una foto. Luego
+											podrás completar disponibilidad y tarifas.
+										</p>
+									</div>
+									<div class="grid gap-2 text-sm text-slate-700 sm:grid-cols-3">
+										<span class="rounded-lg bg-slate-50 px-3 py-2">Camas y baño</span>
+										<span class="rounded-lg bg-slate-50 px-3 py-2">Fotos reales</span>
+										<span class="rounded-lg bg-slate-50 px-3 py-2">Lista para vender</span>
+									</div>
+									<div class="flex flex-wrap gap-2">
+										<Button href={addRoomEntryHref} data-astro-prefetch>
+											<Plus class="mr-2 h-4 w-4" />
+											Preparar mi primera habitación
+										</Button>
+										<Button
+											href={routes.productRoomNew(productId)}
+											data-astro-prefetch
+											variant="secondary"
+										>
+											Solo crear habitación
+										</Button>
+										<Button
+											href={routes.productDetail(productId)}
+											data-astro-prefetch
+											variant="secondary"
+										>
+											Volver a la ficha
+										</Button>
 									</div>
 								</div>
-							</div>
-						</div>
-					</div>
-				</Card>
-			</div>
-
-			<div id="roomsSkeleton" class="grid gap-6 lg:grid-cols-2">
-				{
-					Array.from({ length: 2 }).map(() => (
-						<Card class="overflow-hidden rounded-4xl border-0 bg-white p-0 shadow-sm">
-							<div class="grid min-h-[300px] gap-0 md:grid-cols-[180px_1fr]">
-								<div class="animate-pulse bg-slate-100" />
-								<div class="space-y-5 p-5 md:p-6">
-									<div class="h-5 w-40 animate-pulse rounded bg-slate-200/80" />
-									<div class="h-4 w-28 animate-pulse rounded bg-slate-100" />
-									<div class="grid overflow-hidden rounded-[var(--fastt-radius-card)] border border-slate-100 bg-white sm:grid-cols-2">
-										<div class="h-14 animate-pulse border-b border-slate-100 bg-slate-50" />
-										<div class="h-14 animate-pulse border-b border-slate-100 bg-slate-50" />
-										<div class="h-14 animate-pulse border-b border-slate-100 bg-slate-50" />
-										<div class="h-14 animate-pulse bg-slate-50" />
+								<div class="flex min-h-[260px] items-center justify-center bg-slate-100 p-6">
+									<div class="max-w-xs rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+										<div class="h-36 rounded-xl bg-slate-200" />
+										<div class="mt-4 space-y-2">
+											<div class="h-4 w-32 rounded bg-slate-200" />
+											<div class="h-3 w-48 rounded bg-slate-100" />
+											<div class="flex gap-2">
+												<span class="h-7 w-20 rounded-full bg-slate-100" />
+												<span class="h-7 w-24 rounded-full bg-slate-100" />
+											</div>
+										</div>
 									</div>
 								</div>
 							</div>
 						</Card>
-					))
-				}
-			</div>
+					</div>
 
-			<div id="roomsList" class="hidden grid gap-6 lg:grid-cols-2"></div>
-		</section>
+					<div id="roomsSkeleton" class="grid gap-6 lg:grid-cols-2">
+						{Array.from({ length: 2 }).map(() => (
+							<Card class="overflow-hidden rounded-4xl border-0 bg-white p-0 shadow-sm">
+								<div class="grid min-h-[300px] gap-0 md:grid-cols-[180px_1fr]">
+									<div class="animate-pulse bg-slate-100" />
+									<div class="space-y-5 p-5 md:p-6">
+										<div class="h-5 w-40 animate-pulse rounded bg-slate-200/80" />
+										<div class="h-4 w-28 animate-pulse rounded bg-slate-100" />
+										<div class="grid overflow-hidden rounded-[var(--fastt-radius-card)] border border-slate-100 bg-white sm:grid-cols-2">
+											<div class="h-14 animate-pulse border-b border-slate-100 bg-slate-50" />
+											<div class="h-14 animate-pulse border-b border-slate-100 bg-slate-50" />
+											<div class="h-14 animate-pulse border-b border-slate-100 bg-slate-50" />
+											<div class="h-14 animate-pulse bg-slate-50" />
+										</div>
+									</div>
+								</div>
+							</Card>
+						))}
+					</div>
+
+					<div id="roomsList" class="grid hidden gap-6 lg:grid-cols-2" />
+				</section>
+			) : null
+		}
 	</section>
 
 	<style is:global>
@@ -415,6 +503,7 @@ const layoutProps = addRoomPlaybook.active
 	>
 		;(function () {
 			if (!productId) return
+			if (isAddRoomConfirmation) return
 			let activeRoomFilter = "attention"
 
 			const text = (value, fallback) => {
@@ -425,39 +514,6 @@ const layoutProps = addRoomPlaybook.active
 			const setText = (id, value) => {
 				const element = document.getElementById(id)
 				if (element) element.textContent = String(value)
-			}
-
-			const updateConfirmation = (rooms) => {
-				if (!isAddRoomConfirmation || !highlightVariantId) return
-				const room = rooms.find((item) => String(item?.id ?? "") === String(highlightVariantId))
-				if (!room) return
-
-				const roomName = text(room?.name, "Habitación")
-				const photosCount = Number(room?.photos?.count ?? 0)
-				const tariffCount = Number(room?.tariffs?.count ?? 0)
-				const inventoryLabel = text(room?.inventory?.label, "Disponibilidad inicial abierta")
-				const isComplete = Boolean(room?.states?.isComplete)
-
-				setText(
-					"confirmationTitle",
-					isComplete ? `${roomName} lista para vender` : `${roomName} casi lista`
-				)
-				setText(
-					"confirmationDescription",
-					isComplete
-						? `${roomName} ya tiene perfil, fotos, tarifa, condiciones y disponibilidad inicial. Ahora puedes revisarla o volver al listado operativo.`
-						: `${roomName} ya avanzó en el asistente. Revisa los puntos pendientes antes de dejarla como vendible.`
-				)
-				setText("confirmationProfileStatus", room?.states?.capacityComplete ? "Listo" : "Pendiente")
-				setText(
-					"confirmationPhotosStatus",
-					photosCount > 0 ? `${photosCount} foto${photosCount === 1 ? "" : "s"}` : "Pendientes"
-				)
-				setText(
-					"confirmationRateStatus",
-					tariffCount > 0 ? `${tariffCount} tarifa${tariffCount === 1 ? "" : "s"}` : "Pendiente"
-				)
-				setText("confirmationAvailabilityStatus", inventoryLabel)
 			}
 
 			const statusClass = (tone) => {
@@ -519,12 +575,11 @@ const layoutProps = addRoomPlaybook.active
 			}
 
 			const roomState = (room) => {
-				const photosCount = Number(room?.photos?.count ?? 0)
-				const tariffCount = Number(room?.tariffs?.count ?? 0)
-				if (Boolean(room?.states?.isComplete)) return "ready"
-				if (tariffCount <= 0) return "no-rate"
-				if (!room?.states?.inventoryComplete) return "no-availability"
-				if (photosCount <= 0) return "no-photos"
+				const operationalCode = String(room?.operational?.code ?? "")
+				if (operationalCode === "sellable" || Boolean(room?.states?.isComplete)) return "ready"
+				if (operationalCode === "no-rate") return "no-rate"
+				if (operationalCode === "no-availability") return "no-availability"
+				if (operationalCode === "photos-pending") return "no-photos"
 				return "attention"
 			}
 
@@ -578,12 +633,16 @@ const layoutProps = addRoomPlaybook.active
 					highlightVariantId && String(room?.id ?? "") === String(highlightVariantId)
 				const photosCount = Number(room?.photos?.count ?? 0)
 				const tariffCount = Number(room?.tariffs?.count ?? 0)
+				const tariffActiveCount = Number(room?.tariffs?.activeCount ?? 0)
+				const rateConfigured = Boolean(room?.states?.rateConfigured)
+				const pricingComplete = Boolean(room?.states?.pricingComplete)
+				const conditionsComplete = Boolean(room?.states?.conditionsComplete)
 				const isComplete = Boolean(room?.states?.isComplete)
 				const state = roomState(room)
 				card.dataset.roomState = [
 					state,
 					isComplete ? "ready" : "attention",
-					tariffCount <= 0 ? "no-rate" : "",
+					room?.operational?.code === "no-rate" ? "no-rate" : "",
 					!room?.states?.inventoryComplete ? "no-availability" : "",
 					photosCount <= 0 ? "no-photos" : "",
 				]
@@ -632,13 +691,10 @@ const layoutProps = addRoomPlaybook.active
 				type.textContent = text(room?.type?.label, text(room?.kindLabel, "Habitación"))
 				titleBlock.append(name, type)
 				const active = String(room?.status ?? "").toLowerCase() !== "archived"
+				const operationalLabel = text(room?.operational?.label, "Requiere atención")
 				const readiness = isComplete
 					? pill("Vendible", "ok")
-					: state === "no-rate"
-						? pill("Sin tarifa", "warn")
-						: state === "no-availability"
-							? pill("Sin disponibilidad", "warn")
-							: pill(active ? "Requiere atención" : "Pausada", active ? "warn" : "neutral")
+					: pill(active ? operationalLabel : "Pausada", active ? "warn" : "neutral")
 				top.append(titleBlock, readiness)
 
 				const resumeParams = (step, extra = {}) => {
@@ -659,8 +715,11 @@ const layoutProps = addRoomPlaybook.active
 					if (photosCount <= 0) {
 						return `/product/${encodeURIComponent(productId)}/rooms/${encodeURIComponent(variantId)}?${resumeParams("room-photos")}#fotos`
 					}
-					if (tariffCount <= 0) {
+					if (!rateConfigured || !pricingComplete) {
 						return `/rates/plans/manage?${resumeParams("create-rate", { variantId, openDialog: "1" })}`
+					}
+					if (!conditionsComplete) {
+						return text(room?.actions?.conditionsHref, "#")
 					}
 					if (!room?.states?.inventoryComplete) {
 						const params = new URLSearchParams(
@@ -687,8 +746,8 @@ const layoutProps = addRoomPlaybook.active
 					),
 					checklistItem(
 						"Tarifas",
-						tariffCount > 0 ? `${tariffCount} tarifa${tariffCount === 1 ? "" : "s"}` : "Pendientes",
-						tariffCount > 0
+						rateConfigured ? `${tariffCount} tarifa${tariffCount === 1 ? "" : "s"}` : "Pendientes",
+						rateConfigured && pricingComplete
 					),
 					checklistItem(
 						"Disponibilidad",
@@ -702,7 +761,9 @@ const layoutProps = addRoomPlaybook.active
 				tariffSummary.className = "text-sm text-slate-600"
 				tariffSummary.textContent =
 					tariffNames.length > 0
-						? `Se vende con: ${tariffNames.slice(0, 3).join(", ")}${tariffNames.length > 3 ? "..." : ""}`
+						? tariffActiveCount > 0
+							? `Se vende con: ${tariffNames.slice(0, 3).join(", ")}${tariffNames.length > 3 ? "..." : ""}`
+							: `Tarifa en borrador: ${tariffNames.slice(0, 3).join(", ")}${tariffNames.length > 3 ? "..." : ""}`
 						: "Agrega una tarifa para definir cómo se vende esta habitación."
 
 				const houseRulesStrip = document.createElement("a")
@@ -715,7 +776,8 @@ const layoutProps = addRoomPlaybook.active
 				const missing = []
 				if (!room?.states?.capacityComplete) missing.push("perfil")
 				if (photosCount <= 0) missing.push("fotos")
-				if (tariffCount <= 0) missing.push("tarifas")
+				if (!rateConfigured || !pricingComplete) missing.push("tarifas")
+				if (!conditionsComplete) missing.push("condiciones")
 				if (!room?.states?.inventoryComplete) missing.push("calendario")
 
 				let primaryHref = text(room?.actions?.detailHref, "#")
@@ -729,10 +791,14 @@ const layoutProps = addRoomPlaybook.active
 					primaryHref = resumeHref
 					primaryLabel = "Agregar fotos"
 					nextCopy = "Siguiente paso recomendado: agregar fotos."
-				} else if (tariffCount <= 0) {
+				} else if (!rateConfigured || !pricingComplete) {
 					primaryHref = resumeHref
 					primaryLabel = "Crear tarifa"
 					nextCopy = "Siguiente paso recomendado: crear una tarifa."
+				} else if (!conditionsComplete) {
+					primaryHref = resumeHref
+					primaryLabel = "Completar condiciones"
+					nextCopy = "Siguiente paso recomendado: completar condiciones."
 				} else if (!room?.states?.inventoryComplete) {
 					primaryHref = resumeHref
 					primaryLabel = "Abrir disponibilidad"
@@ -811,9 +877,7 @@ const layoutProps = addRoomPlaybook.active
 						const empty = document.getElementById("roomsEmptyState")
 
 						const readyCount = rooms.filter((room) => Boolean(room?.states?.isComplete)).length
-						const noRateCount = rooms.filter(
-							(room) => Number(room?.tariffs?.count ?? 0) <= 0
-						).length
+						const noRateCount = rooms.filter((room) => room?.operational?.code === "no-rate").length
 						const noAvailabilityCount = rooms.filter(
 							(room) => !room?.states?.inventoryComplete
 						).length
@@ -829,7 +893,6 @@ const layoutProps = addRoomPlaybook.active
 							list.innerHTML = ""
 							for (const room of rooms) list.append(roomCard(room))
 						}
-						updateConfirmation(rooms)
 						if (activeRoomFilter === "attention" && attentionCount === 0 && readyCount > 0) {
 							setActiveFilter("ready")
 						}
