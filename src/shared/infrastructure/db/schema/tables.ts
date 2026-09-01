@@ -478,6 +478,21 @@ export const ProviderIntegrationMapping = pgTable(
 			"ProviderIntegrationMapping_status_check",
 			sql`${table.status} IN ('active', 'inactive')`
 		),
+		check(
+			"ProviderIntegrationMapping_local_entity_type_check",
+			sql`${table.localEntityType} IN ('provider', 'product', 'variant', 'rate_plan', 'tax', 'calendar')`
+		),
+		check(
+			"ProviderIntegrationMapping_type_local_entity_pair_check",
+			sql`(
+				(${table.mappingType} = 'property' AND ${table.localEntityType} = 'product')
+				OR (${table.mappingType} = 'room_type' AND ${table.localEntityType} = 'variant')
+				OR (${table.mappingType} = 'rate_plan' AND ${table.localEntityType} = 'rate_plan')
+				OR (${table.mappingType} = 'tax' AND ${table.localEntityType} = 'tax')
+				OR (${table.mappingType} = 'account' AND ${table.localEntityType} = 'provider')
+				OR (${table.mappingType} = 'calendar' AND ${table.localEntityType} = 'calendar')
+			)`
+		),
 	]
 )
 
@@ -494,7 +509,9 @@ export const ProviderIntegrationCertification = pgTable(
 			onDelete: "cascade",
 		}),
 		vendorKey: txt("vendorKey"),
-		fixtureProductId: txtOpt("fixtureProductId"),
+		fixtureProductId: txtOpt("fixtureProductId").references(() => Product.id, {
+			onDelete: "restrict",
+		}),
 		status: text("status").default("draft").notNull(),
 		suiteVersion: txtOpt("suiteVersion"),
 		createdBy: txtOpt("createdBy").references(() => User.id, { onDelete: "set null" }),
@@ -515,6 +532,7 @@ export const ProviderIntegrationCertification = pgTable(
 			table.connectionId,
 			table.status
 		),
+		index("ProviderIntegrationCertification_fixture_product_idx").on(table.fixtureProductId),
 		uniqueIndex("ProviderIntegrationCertification_one_active_connection_unique")
 			.on(table.connectionId)
 			.where(
@@ -2460,7 +2478,7 @@ export const TaxFeeDefinition = pgTable(
 		effectiveFrom: ts("effectiveFrom"),
 		effectiveTo: ts("effectiveTo"),
 		status: text("status").default("active").notNull(),
-		editingState: text("editingState").default("published").notNull(),
+		editingState: text("editingState").default("draft").notNull(),
 		currentVersionId: txtOpt("currentVersionId"),
 		createdAt: now("createdAt"),
 		updatedAt: now("updatedAt"),
@@ -2501,6 +2519,31 @@ export const TaxFeeDefinitionVersion = pgTable(
 			table.createdAt
 		),
 	]
+)
+
+/** Mutable editor state for a released definition. Sales never read this table. */
+export const TaxFeeDefinitionDraft = pgTable(
+	"TaxFeeDefinitionDraft",
+	{
+		definitionId: pk("definitionId").references(() => TaxFeeDefinition.id),
+		baseVersionId: txtOpt("baseVersionId").references(() => TaxFeeDefinitionVersion.id),
+		code: txt("code"),
+		name: txt("name"),
+		kind: txt("kind"),
+		calculationType: txt("calculationType"),
+		value: amount("value"),
+		currency: txtOpt("currency"),
+		inclusionType: txt("inclusionType"),
+		appliesPer: txt("appliesPer"),
+		priority: intDefault("priority", 0),
+		jurisdictionJson: jsonb("jurisdictionJson"),
+		effectiveFrom: ts("effectiveFrom"),
+		effectiveTo: ts("effectiveTo"),
+		updatedByUserId: txtOpt("updatedByUserId").references(() => User.id),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [index("TaxFeeDefinitionDraft_base_version_idx").on(table.baseVersionId)]
 )
 
 /** Append-only fiscal operations ledger. It never backs an editable UI surface. */
@@ -2861,8 +2904,8 @@ export const FinancialExceptionRecord = pgTable(
 	"FinancialExceptionRecord",
 	{
 		id: pk(),
-		bookingId: txt("bookingId"),
-		providerId: txt("providerId"),
+		bookingId: txt("bookingId").references(() => Booking.id),
+		providerId: txt("providerId").references(() => Provider.id),
 		code: txt("code"),
 		severity: txt("severity"),
 		status: txt("status"),
@@ -2900,8 +2943,8 @@ export const FinancialReference = pgTable(
 	"FinancialReference",
 	{
 		id: pk(),
-		bookingId: txt("bookingId"),
-		providerId: txt("providerId"),
+		bookingId: txt("bookingId").references(() => Booking.id),
+		providerId: txt("providerId").references(() => Provider.id),
 		type: txt("type"),
 		referenceValue: txt("referenceValue"),
 		externalSystem: txtOpt("externalSystem"),
@@ -2924,8 +2967,8 @@ export const RefundHandoffRecord = pgTable(
 	"RefundHandoffRecord",
 	{
 		id: pk(),
-		bookingId: txt("bookingId"),
-		providerId: txt("providerId"),
+		bookingId: txt("bookingId").references(() => Booking.id),
+		providerId: txt("providerId").references(() => Provider.id),
 		status: txt("status"),
 		reason: txt("reason"),
 		refundType: txt("refundType"),
@@ -2956,8 +2999,8 @@ export const RefundQuote = pgTable(
 	"RefundQuote",
 	{
 		id: pk(),
-		bookingId: txt("bookingId"),
-		providerId: txt("providerId"),
+		bookingId: txt("bookingId").references(() => Booking.id),
+		providerId: txt("providerId").references(() => Provider.id),
 		status: txt("status"),
 		reason: txt("reason"),
 		currency: txt("currency"),
@@ -2990,14 +3033,14 @@ export const RefundLedger = pgTable(
 	"RefundLedger",
 	{
 		id: pk(),
-		refundQuoteId: txt("refundQuoteId"),
-		bookingId: txt("bookingId"),
-		providerId: txt("providerId"),
+		refundQuoteId: txt("refundQuoteId").references(() => RefundQuote.id),
+		bookingId: txt("bookingId").references(() => Booking.id),
+		providerId: txt("providerId").references(() => Provider.id),
 		status: txt("status"),
 		currency: txt("currency"),
 		refundAmount: amount("refundAmount"),
 		payoutImpactAmount: amount("payoutImpactAmount"),
-		paymentTransactionId: txtOpt("paymentTransactionId"),
+		paymentTransactionId: txtOpt("paymentTransactionId").references(() => PaymentTransaction.id),
 		externalReference: txtOpt("externalReference"),
 		basis: txt("basis"),
 		calculationSnapshotJson: jsonb("calculationSnapshotJson").notNull(),
@@ -3018,12 +3061,14 @@ export const FinancialReviewEvent = pgTable(
 	"FinancialReviewEvent",
 	{
 		id: pk(),
-		bookingId: txt("bookingId"),
-		providerId: txt("providerId"),
-		financialExceptionId: txtOpt("financialExceptionId"),
-		financialReferenceId: txtOpt("financialReferenceId"),
-		refundHandoffId: txtOpt("refundHandoffId"),
-		reconciliationMatchId: txtOpt("reconciliationMatchId"),
+		bookingId: txt("bookingId").references(() => Booking.id),
+		providerId: txt("providerId").references(() => Provider.id),
+		financialExceptionId: txtOpt("financialExceptionId").references(
+			() => FinancialExceptionRecord.id
+		),
+		financialReferenceId: txtOpt("financialReferenceId").references(() => FinancialReference.id),
+		refundHandoffId: txtOpt("refundHandoffId").references(() => RefundHandoffRecord.id),
+		reconciliationMatchId: txtOpt("reconciliationMatchId").references(() => ReconciliationMatch.id),
 		type: txt("type"),
 		actorId: txtOpt("actorId"),
 		actorType: txt("actorType"),
@@ -3044,8 +3089,9 @@ export const PaymentTransaction = pgTable(
 	"PaymentTransaction",
 	{
 		id: pk(),
-		bookingId: txt("bookingId"),
-		providerId: txt("providerId"),
+		// Imported PSP evidence can arrive before it is reconciled to a reservation.
+		bookingId: txtOpt("bookingId").references(() => Booking.id),
+		providerId: txt("providerId").references(() => Provider.id),
 		type: txt("type"),
 		status: txt("status"),
 		amount: amount("amount"),
@@ -3080,8 +3126,9 @@ export const FinancialSettlementRecord = pgTable(
 	"FinancialSettlementRecord",
 	{
 		id: pk(),
-		bookingId: txt("bookingId"),
-		providerId: txt("providerId"),
+		// External settlements can be retained while awaiting a booking match.
+		bookingId: txtOpt("bookingId").references(() => Booking.id),
+		providerId: txt("providerId").references(() => Provider.id),
 		settlementReference: txt("settlementReference"),
 		amount: amount("amount"),
 		currency: txt("currency"),
@@ -3104,8 +3151,8 @@ export const ReconciliationMatch = pgTable(
 	"ReconciliationMatch",
 	{
 		id: pk(),
-		bookingId: txt("bookingId"),
-		providerId: txt("providerId"),
+		bookingId: txt("bookingId").references(() => Booking.id),
+		providerId: txt("providerId").references(() => Provider.id),
 		contractAmount: amount("contractAmount"),
 		paymentAmount: amountOpt("paymentAmount"),
 		settlementAmount: amountOpt("settlementAmount"),
@@ -3178,8 +3225,8 @@ export const CommissionSnapshot = pgTable(
 	"CommissionSnapshot",
 	{
 		id: pk(),
-		bookingId: txt("bookingId"),
-		providerId: txt("providerId"),
+		bookingId: txt("bookingId").references(() => Booking.id),
+		providerId: txt("providerId").references(() => Provider.id),
 		commissionRate: ratioOpt("commissionRate").notNull(),
 		commissionAmount: amount("commissionAmount"),
 		basis: txt("basis"),
@@ -3197,8 +3244,8 @@ export const ProviderPayableSnapshot = pgTable(
 	"ProviderPayableSnapshot",
 	{
 		id: pk(),
-		bookingId: txt("bookingId"),
-		providerId: txt("providerId"),
+		bookingId: txt("bookingId").references(() => Booking.id),
+		providerId: txt("providerId").references(() => Provider.id),
 		grossAmount: amount("grossAmount"),
 		commissionAmount: amount("commissionAmount"),
 		taxAmount: amount("taxAmount"),
@@ -3219,8 +3266,8 @@ export const PayoutRecord = pgTable(
 	"PayoutRecord",
 	{
 		id: pk(),
-		bookingId: txtOpt("bookingId"),
-		providerId: txt("providerId"),
+		bookingId: txtOpt("bookingId").references(() => Booking.id),
+		providerId: txt("providerId").references(() => Provider.id),
 		status: txt("status"),
 		payoutReference: txtOpt("payoutReference"),
 		amount: amountOpt("amount"),
@@ -3241,7 +3288,7 @@ export const ProviderStatement = pgTable(
 	"ProviderStatement",
 	{
 		id: pk(),
-		providerId: txt("providerId"),
+		providerId: txt("providerId").references(() => Provider.id),
 		statementReference: txtOpt("statementReference"),
 		periodStart: ts("periodStart"),
 		periodEnd: ts("periodEnd"),

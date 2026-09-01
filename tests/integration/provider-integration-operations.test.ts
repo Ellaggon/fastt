@@ -13,7 +13,9 @@ import {
 	ProviderIntegrationSyncJob,
 	ProviderIntegrationSyncRun,
 	ProviderUser,
+	Product,
 	User,
+	Variant,
 } from "@/shared/infrastructure/db/compat"
 
 import {
@@ -35,6 +37,8 @@ describe("provider integration operations", () => {
 	const providerId = "provider_integration_operations"
 	const ownerEmail = "integration.operations@example.com"
 	const ownerId = `user_${ownerEmail}`
+	const productId = "product_integration_operations"
+	const variantId = "variant_integration_operations"
 
 	async function cleanup() {
 		await db
@@ -49,6 +53,8 @@ describe("provider integration operations", () => {
 		await db
 			.delete(ProviderIntegrationMapping)
 			.where(eq(ProviderIntegrationMapping.providerId, providerId))
+		await db.delete(Variant).where(eq(Variant.id, variantId))
+		await db.delete(Product).where(eq(Product.id, productId))
 		await db
 			.delete(ProviderIntegrationCredential)
 			.where(eq(ProviderIntegrationCredential.providerId, providerId))
@@ -87,6 +93,27 @@ describe("provider integration operations", () => {
 				role: "owner",
 			})
 			.onConflictDoNothing()
+		await db
+			.insert(Product)
+			.values({
+				id: productId,
+				name: "Integration Operations Hotel",
+				productType: "hotel",
+				providerId,
+				dataClass: "fixture",
+			})
+			.onConflictDoUpdate({ target: Product.id, set: { providerId } })
+		await db
+			.insert(Variant)
+			.values({
+				id: variantId,
+				productId,
+				name: "Integration Operations Room",
+				kind: "hotel_room",
+				lifecycleState: "ready",
+				salesEnabled: true,
+			})
+			.onConflictDoUpdate({ target: Variant.id, set: { productId } })
 
 		const primaryId = await connectProviderIntegration({
 			providerId,
@@ -139,7 +166,7 @@ describe("provider integration operations", () => {
 			input: {
 				mappingType: "room_type",
 				localEntityType: "variant",
-				localEntityId: "variant_local_1",
+				localEntityId: variantId,
 				externalEntityType: "room_type",
 				externalEntityId: "remote_room_1",
 				externalEntityName: "Deluxe King",
@@ -152,7 +179,7 @@ describe("provider integration operations", () => {
 			input: {
 				mappingType: "room_type",
 				localEntityType: "variant",
-				localEntityId: "variant_local_1",
+				localEntityId: variantId,
 				externalEntityType: "room_type",
 				externalEntityId: "remote_room_1",
 				externalEntityName: "Deluxe King actualizada",

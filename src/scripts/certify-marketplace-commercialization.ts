@@ -606,8 +606,8 @@ async function upsertFixture(params: {
 			},
 			effectiveFrom: null,
 			effectiveTo: null,
-			status: "active",
-			editingState: "published",
+			status: "archived",
+			editingState: "draft",
 			currentVersionId: null,
 			createdAt: now,
 			updatedAt: now,
@@ -616,8 +616,9 @@ async function upsertFixture(params: {
 			target: TaxFeeDefinition.id,
 			set: {
 				value: 10,
-				status: "active",
-				editingState: "published",
+				status: "archived",
+				editingState: "draft",
+				currentVersionId: null,
 				jurisdictionJson: {
 					country: "BO",
 					collectionResponsibility: "provider",
@@ -643,7 +644,12 @@ async function upsertFixture(params: {
 		})
 	await db
 		.update(TaxFeeDefinition)
-		.set({ currentVersionId: TAX_VERSION_ID, updatedAt: now })
+		.set({
+			currentVersionId: TAX_VERSION_ID,
+			editingState: "published",
+			status: "active",
+			updatedAt: now,
+		})
 		.where(eq(TaxFeeDefinition.id, TAX_DEFINITION_ID))
 	await db
 		.insert(TaxFeeAssignment)
