@@ -379,6 +379,7 @@ export class BookingOperationsQueryRepository {
 		])
 		const transactionsByBooking = new Map<string, typeof transactions>()
 		for (const row of transactions) {
+			if (!row.bookingId) continue
 			const bucket = transactionsByBooking.get(row.bookingId) ?? []
 			bucket.push(row)
 			transactionsByBooking.set(row.bookingId, bucket)
