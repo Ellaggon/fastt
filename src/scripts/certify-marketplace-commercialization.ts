@@ -3,6 +3,7 @@ import {
 	BookingLineItem,
 	db,
 	DailyInventory,
+	desc,
 	GeoPlace,
 	EffectiveAvailability,
 	EffectivePricing,
@@ -37,6 +38,8 @@ import { typedAssignmentTarget } from "@/shared/domain/assignment-target"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
 import { getPublicDestinationListings } from "@/lib/marketplace/publicDestinationListings"
 import { getPublicSearchSurface } from "@/lib/search/publicSearchSurface"
+import { publishTaxFeeDefinition } from "@/lib/taxes-fees/tax-fee-versioning"
+import { parseTaxFeeDefinitionSnapshot } from "@/lib/taxes-fees/tax-fee-definition-snapshot"
 import { GET as receiptGet } from "@/pages/api/booking/[bookingId]/receipt"
 import { POST as bookingConfirmPost } from "@/pages/api/booking/confirm"
 import { POST as holdPost } from "@/pages/api/inventory/hold"
@@ -56,7 +59,6 @@ const TOUR_VARIANT_ID = "var_marketplace_certification_tour_morning"
 const HOTEL_RATE_PLAN_ID = "rate_marketplace_certification_hotel_web"
 const TOUR_RATE_PLAN_ID = "rate_marketplace_certification_tour_web"
 const TAX_DEFINITION_ID = "tax_marketplace_certification_vat"
-const TAX_VERSION_ID = "tax_version_marketplace_certification_v1"
 const TAX_ASSIGNMENT_ID = "tax_assignment_marketplace_certification_provider_web"
 const LA_PAZ_GEO_PLACE_ID = "geo:bo:la-paz-city"
 
@@ -579,12 +581,6 @@ async function upsertFixture(params: {
 			set: { departureTime: "09:00", maxPax: 20, isActive: true, updatedAt: now },
 		})
 
-	const taxSnapshot = {
-		code: "VAT_CERTIFICATION_10",
-		value: 10,
-		jurisdiction: "BO",
-		suiteVersion: SUITE_VERSION,
-	}
 	await db
 		.insert(TaxFeeDefinition)
 		.values({
@@ -612,45 +608,42 @@ async function upsertFixture(params: {
 			createdAt: now,
 			updatedAt: now,
 		})
-		.onConflictDoUpdate({
-			target: TaxFeeDefinition.id,
-			set: {
-				value: 10,
-				status: "archived",
-				editingState: "draft",
-				currentVersionId: null,
-				jurisdictionJson: {
-					country: "BO",
-					collectionResponsibility: "provider",
-					taxableBase: "booking_base",
-				},
-				updatedAt: now,
-			},
-		})
-	await db
-		.insert(TaxFeeDefinitionVersion)
-		.values({
-			id: TAX_VERSION_ID,
-			taxFeeDefinitionId: TAX_DEFINITION_ID,
-			version: 1,
-			publicationState: "published",
-			snapshotJson: taxSnapshot,
-			createdByUserId: USER_ID,
-			createdAt: now,
-		})
-		.onConflictDoUpdate({
-			target: [TaxFeeDefinitionVersion.taxFeeDefinitionId, TaxFeeDefinitionVersion.version],
-			set: { publicationState: "published", snapshotJson: taxSnapshot, createdByUserId: USER_ID },
-		})
-	await db
-		.update(TaxFeeDefinition)
-		.set({
-			currentVersionId: TAX_VERSION_ID,
-			editingState: "published",
-			status: "active",
-			updatedAt: now,
-		})
+		.onConflictDoNothing()
+
+	const definition = await db
+		.select()
+		.from(TaxFeeDefinition)
 		.where(eq(TaxFeeDefinition.id, TAX_DEFINITION_ID))
+		.then(first)
+	if (!definition) {
+		throw new Error("Marketplace certification tax definition could not be loaded.")
+	}
+
+	const versions = await db
+		.select({
+			id: TaxFeeDefinitionVersion.id,
+			version: TaxFeeDefinitionVersion.version,
+			snapshotJson: TaxFeeDefinitionVersion.snapshotJson,
+		})
+		.from(TaxFeeDefinitionVersion)
+		.where(eq(TaxFeeDefinitionVersion.taxFeeDefinitionId, TAX_DEFINITION_ID))
+		.orderBy(desc(TaxFeeDefinitionVersion.version))
+	const currentVersion = versions.find((version) => version.id === definition.currentVersionId)
+	const currentSnapshotIsCanonical = currentVersion
+		? parseTaxFeeDefinitionSnapshot(currentVersion.snapshotJson) !== null
+		: false
+
+	if (definition.currentVersionId === null || !currentSnapshotIsCanonical) {
+		await publishTaxFeeDefinition({
+			definitionId: TAX_DEFINITION_ID,
+			actorUserId: USER_ID,
+			providerId: PROVIDER_ID,
+			publicationState: "published",
+			operationalStatus: "active",
+			expectedCurrentVersionId: definition.currentVersionId,
+			expectedRevision: versions[0]?.version ?? 0,
+		})
+	}
 	await db
 		.insert(TaxFeeAssignment)
 		.values({

@@ -89,7 +89,7 @@ export async function updateTaxFeeDefinition(
 		effectiveFrom: params.effectiveFrom ?? null,
 		effectiveTo: params.effectiveTo ?? null,
 		status: params.status ?? "active",
-		editingState: params.editingState ?? existing.editingState ?? "published",
+		editingState: params.editingState ?? existing.editingState ?? "draft",
 	}
 
 	await deps.repo.updateDefinition(next)

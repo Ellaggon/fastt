@@ -1,4 +1,4 @@
-import { createTaxesFeesRuntime } from "@/modules/taxes-fees/public"
+import { createTaxesFeesRuntime } from "@/modules/taxes-fees/infrastructure/runtime/create-taxes-fees-runtime"
 
 const runtime = createTaxesFeesRuntime()
 

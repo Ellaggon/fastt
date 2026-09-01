@@ -106,6 +106,7 @@ describe("e2e/provider settings mature experience", () => {
 			inclusionType: "excluded",
 			appliesPer: "stay",
 			status: "active",
+			editingState: "draft",
 			createdAt: now,
 			updatedAt: now,
 		})

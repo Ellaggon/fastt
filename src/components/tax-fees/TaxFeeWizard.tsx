@@ -53,6 +53,23 @@ export type DefinitionSummary = {
 		createdByUserId?: string | null
 	} | null
 	lastChangedAt?: string | null
+	draft?: Partial<
+		Pick<
+			DefinitionSummary,
+			| "code"
+			| "name"
+			| "kind"
+			| "calculationType"
+			| "value"
+			| "currency"
+			| "inclusionType"
+			| "appliesPer"
+			| "priority"
+			| "jurisdictionJson"
+			| "effectiveFrom"
+			| "effectiveTo"
+		>
+	>
 	assignments?: Array<{
 		id: string
 		scope: ScopeType
@@ -484,9 +501,10 @@ function formatDateForSummary(value: string) {
 }
 
 function mapDefinitionToDraft(definition: DefinitionSummary): DraftState {
+	const editableDefinition = definition.draft ? { ...definition, ...definition.draft } : definition
 	const rule =
-		definition.jurisdictionJson && typeof definition.jurisdictionJson === "object"
-			? (definition.jurisdictionJson as Record<string, unknown>)
+		editableDefinition.jurisdictionJson && typeof editableDefinition.jurisdictionJson === "object"
+			? (editableDefinition.jurisdictionJson as Record<string, unknown>)
 			: {}
 	const seasons = Array.isArray(rule.seasons) ? rule.seasons : []
 	const season =
@@ -497,21 +515,21 @@ function mapDefinitionToDraft(definition: DefinitionSummary): DraftState {
 		presetKey:
 			PRESETS.find((preset) => preset.key === definition.code || preset.label === definition.name)
 				?.key ?? "CUSTOM",
-		name: definition.name,
-		code: definition.code,
-		calculationType: definition.calculationType,
-		value: String(definition.value),
-		currency: definition.currency ?? "USD",
-		appliesPer: definition.appliesPer,
-		inclusionType: definition.inclusionType,
+		name: editableDefinition.name,
+		code: editableDefinition.code,
+		calculationType: editableDefinition.calculationType,
+		value: String(editableDefinition.value),
+		currency: editableDefinition.currency ?? "USD",
+		appliesPer: editableDefinition.appliesPer,
+		inclusionType: editableDefinition.inclusionType,
 		applicationPeriod:
 			definition.effectiveFrom && definition.effectiveTo
 				? "range"
 				: definition.effectiveFrom
 					? "from"
 					: "always",
-		effectiveFrom: formatDateForInput(definition.effectiveFrom),
-		effectiveTo: formatDateForInput(definition.effectiveTo),
+		effectiveFrom: formatDateForInput(editableDefinition.effectiveFrom),
+		effectiveTo: formatDateForInput(editableDefinition.effectiveTo),
 		jurisdictionCountry: String(rule.country ?? ""),
 		showSpecialConditions: Boolean(
 			(Array.isArray(rule.exemptGuestResidenceCountries) &&
@@ -1054,7 +1072,11 @@ export default function TaxFeeWizard(props: TaxFeeWizardProps) {
 			const form = new FormData()
 			const code = editingDefinitionId ? draft.code : buildDefinitionCode(draft)
 
-			if (editingDefinitionId) form.set("id", editingDefinitionId)
+			if (editingDefinitionId) {
+				form.set("id", editingDefinitionId)
+				form.set("expectedCurrentVersionId", baselineDefinition?.currentVersion?.id ?? "")
+				form.set("expectedRevision", String(baselineDefinition?.revision ?? 0))
+			}
 			form.set("code", code)
 			form.set("name", draft.name.trim())
 			form.set("kind", draft.kind || "tax")

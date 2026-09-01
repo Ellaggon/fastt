@@ -139,6 +139,7 @@ describe("integration/provider governance", () => {
 			inclusionType: "excluded",
 			appliesPer: "stay",
 			status: "active",
+			editingState: "draft",
 			createdAt: now,
 			updatedAt: now,
 		})
@@ -287,6 +288,7 @@ describe("integration/provider governance", () => {
 			inclusionType: "excluded",
 			appliesPer: "stay",
 			status: "active",
+			editingState: "draft",
 			createdAt: now,
 			updatedAt: now,
 		})
