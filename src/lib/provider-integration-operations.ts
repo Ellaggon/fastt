@@ -7,6 +7,7 @@ import {
 	inArray,
 	ProviderIntegrationConnection,
 	ProviderIntegrationCredential,
+	ProviderExternalCalendar,
 	ProviderIntegrationIncident,
 	ProviderIntegrationMapping,
 	ProviderIntegrationSyncJob,
@@ -32,6 +33,20 @@ export type IntegrationMappingInput = {
 	direction?: "import" | "export" | "bidirectional"
 	metadataJson?: unknown
 }
+
+export const providerIntegrationMappingLocalEntityTypeByMappingType = {
+	property: "product",
+	room_type: "variant",
+	rate_plan: "rate_plan",
+	tax: "tax",
+	account: "provider",
+	calendar: "calendar",
+} as const
+
+export type ProviderIntegrationMappingType =
+	keyof typeof providerIntegrationMappingLocalEntityTypeByMappingType
+export type ProviderIntegrationLocalEntityType =
+	(typeof providerIntegrationMappingLocalEntityTypeByMappingType)[ProviderIntegrationMappingType]
 
 export type IntegrationRunStatus = "running" | "succeeded" | "partial" | "failed" | "cancelled"
 
@@ -90,23 +105,9 @@ export type ProviderIntegrationMappingCatalog = {
 	taxes: Array<{ id: string; label: string; entityType: "tax" }>
 }
 
-const ALLOWED_MAPPING_TYPES = new Set([
-	"property",
-	"room_type",
-	"rate_plan",
-	"tax",
-	"account",
-	"calendar",
-])
-const ALLOWED_ENTITY_TYPES = new Set([
-	"provider",
-	"product",
-	"variant",
-	"rate_plan",
-	"tax",
-	"account",
-	"calendar",
-])
+const ALLOWED_MAPPING_TYPES = new Set<string>(
+	Object.keys(providerIntegrationMappingLocalEntityTypeByMappingType)
+)
 const WORKSPACE_CONNECTOR_KEYS = ["channel_manager", "external_calendars"] as const
 
 function requiredIdentifier(value: unknown, code: string, max = 200): string {
@@ -174,7 +175,7 @@ export async function upsertProviderIntegrationMapping(params: {
 	return ids[0]
 }
 
-function normalizeMappingInput(input: IntegrationMappingInput) {
+export function normalizeProviderIntegrationMappingInput(input: IntegrationMappingInput) {
 	const mappingType = requiredIdentifier(input.mappingType, "MAPPING_TYPE_REQUIRED", 60)
 	const localEntityType = requiredIdentifier(
 		input.localEntityType,
@@ -182,7 +183,13 @@ function normalizeMappingInput(input: IntegrationMappingInput) {
 		60
 	)
 	if (!ALLOWED_MAPPING_TYPES.has(mappingType)) throw new Error("MAPPING_TYPE_INVALID")
-	if (!ALLOWED_ENTITY_TYPES.has(localEntityType)) throw new Error("MAPPING_LOCAL_TYPE_INVALID")
+	const expectedLocalEntityType =
+		providerIntegrationMappingLocalEntityTypeByMappingType[
+			mappingType as ProviderIntegrationMappingType
+		]
+	if (localEntityType !== expectedLocalEntityType) {
+		throw new Error("MAPPING_LOCAL_TYPE_MISMATCH")
+	}
 	const localEntityId = requiredIdentifier(input.localEntityId, "MAPPING_LOCAL_ID_REQUIRED")
 	const externalEntityType = requiredIdentifier(
 		input.externalEntityType,
@@ -207,6 +214,79 @@ function normalizeMappingInput(input: IntegrationMappingInput) {
 	}
 }
 
+async function assertOwnedProviderIntegrationLocalEntity(params: {
+	providerId: string
+	mappingType: ProviderIntegrationMappingType
+	localEntityId: string
+}) {
+	const localEntityId = params.localEntityId
+	const providerId = params.providerId
+	let owned = false
+
+	switch (params.mappingType) {
+		case "property":
+			owned = Boolean(
+				await db
+					.select({ id: Product.id })
+					.from(Product)
+					.where(and(eq(Product.id, localEntityId), eq(Product.providerId, providerId)))
+					.then(first)
+			)
+			break
+		case "room_type":
+			owned = Boolean(
+				await db
+					.select({ id: Variant.id })
+					.from(Variant)
+					.innerJoin(Product, eq(Product.id, Variant.productId))
+					.where(and(eq(Variant.id, localEntityId), eq(Product.providerId, providerId)))
+					.then(first)
+			)
+			break
+		case "rate_plan":
+			owned = Boolean(
+				await db
+					.select({ id: RatePlan.id })
+					.from(RatePlan)
+					.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
+					.innerJoin(Product, eq(Product.id, Variant.productId))
+					.where(and(eq(RatePlan.id, localEntityId), eq(Product.providerId, providerId)))
+					.then(first)
+			)
+			break
+		case "tax":
+			owned = Boolean(
+				await db
+					.select({ id: TaxFeeDefinition.id })
+					.from(TaxFeeDefinition)
+					.where(
+						and(eq(TaxFeeDefinition.id, localEntityId), eq(TaxFeeDefinition.providerId, providerId))
+					)
+					.then(first)
+			)
+			break
+		case "calendar":
+			owned = Boolean(
+				await db
+					.select({ id: ProviderExternalCalendar.id })
+					.from(ProviderExternalCalendar)
+					.where(
+						and(
+							eq(ProviderExternalCalendar.id, localEntityId),
+							eq(ProviderExternalCalendar.providerId, providerId)
+						)
+					)
+					.then(first)
+			)
+			break
+		case "account":
+			owned = localEntityId === providerId
+			break
+	}
+
+	if (!owned) throw new Error("MAPPING_LOCAL_ENTITY_NOT_OWNED")
+}
+
 export async function upsertProviderIntegrationMappings(params: {
 	providerId: string
 	connectionId: string
@@ -216,7 +296,7 @@ export async function upsertProviderIntegrationMappings(params: {
 	if (!params.inputs.length || params.inputs.length > 250) {
 		throw new Error("MAPPING_BATCH_SIZE_INVALID")
 	}
-	const normalized = params.inputs.map(normalizeMappingInput)
+	const normalized = params.inputs.map(normalizeProviderIntegrationMappingInput)
 	const localKeys = new Set<string>()
 	const externalKeys = new Set<string>()
 	for (const input of normalized) {
@@ -241,6 +321,15 @@ export async function upsertProviderIntegrationMappings(params: {
 	}
 
 	const now = new Date()
+	await Promise.all(
+		normalized.map((input) =>
+			assertOwnedProviderIntegrationLocalEntity({
+				providerId: params.providerId,
+				mappingType: input.mappingType as ProviderIntegrationMappingType,
+				localEntityId: input.localEntityId,
+			})
+		)
+	)
 	const ids = await db.transaction(async (tx) => {
 		const ids: string[] = []
 		for (const input of normalized) {

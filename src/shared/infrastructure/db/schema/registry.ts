@@ -115,6 +115,7 @@ export const databaseTablesByDomain = {
 	taxes: [
 		"TaxFeeDefinition",
 		"TaxFeeDefinitionVersion",
+		"TaxFeeDefinitionDraft",
 		"TaxFeeAssignment",
 		"FiscalActivityEvent",
 		"FiscalExportJob",

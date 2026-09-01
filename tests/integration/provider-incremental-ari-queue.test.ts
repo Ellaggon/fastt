@@ -18,11 +18,15 @@ import {
 	ProviderIntegrationMapping,
 	ProviderIntegrationSyncJob,
 	ProviderIntegrationSyncRun,
+	Product,
+	Variant,
 } from "@/shared/infrastructure/db/compat"
 
 describe("provider incremental ARI queue", () => {
 	const providerId = "provider_incremental_ari_queue"
 	const connectionId = "connection_incremental_ari_queue"
+	const productId = "product_incremental_ari_queue"
+	const variantIds = ["room-1", "room-2"] as const
 
 	async function cleanup() {
 		await db
@@ -34,6 +38,8 @@ describe("provider incremental ARI queue", () => {
 		await db
 			.delete(ProviderIntegrationMapping)
 			.where(eq(ProviderIntegrationMapping.providerId, providerId))
+		await db.delete(Variant).where(eq(Variant.productId, productId))
+		await db.delete(Product).where(eq(Product.id, productId))
 		await db
 			.delete(ProviderIntegrationConnection)
 			.where(eq(ProviderIntegrationConnection.providerId, providerId))
@@ -63,6 +69,23 @@ describe("provider incremental ARI queue", () => {
 			lastSyncStatus: "initial_ari_succeeded",
 			syncEnabled: true,
 		})
+		await db.insert(Product).values({
+			id: productId,
+			name: "Incremental ARI QA Hotel",
+			productType: "hotel",
+			providerId,
+			dataClass: "fixture",
+		})
+		await db.insert(Variant).values(
+			variantIds.map((id) => ({
+				id,
+				productId,
+				name: id,
+				kind: "hotel_room",
+				lifecycleState: "ready" as const,
+				salesEnabled: true,
+			}))
+		)
 		await db.insert(ProviderIntegrationMapping).values([
 			{
 				id: "mapping-incremental-room-1",

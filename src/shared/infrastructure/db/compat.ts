@@ -126,6 +126,7 @@ export {
 	SearchUnitView,
 	TaxFeeAssignment,
 	TaxFeeDefinition,
+	TaxFeeDefinitionDraft,
 	TaxFeeDefinitionVersion,
 	Tour,
 	TourBookingQuestion,

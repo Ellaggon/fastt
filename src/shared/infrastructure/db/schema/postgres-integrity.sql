@@ -372,7 +372,7 @@ ALTER TABLE "TaxFeeDefinition"
 
 -- A current fiscal version is an immutable release of the same definition.
 -- The composite, deferred FK protects both facts: the referenced version exists
--- and it belongs to this definition. Drafts intentionally retain a NULL pointer.
+-- and it belongs to this definition. A new draft may legitimately have no pointer.
 ALTER TABLE "TaxFeeDefinitionVersion"
 	ADD CONSTRAINT "TaxFeeDefinitionVersion_definition_id_unique"
 	UNIQUE ("taxFeeDefinitionId", "id");
@@ -382,6 +382,45 @@ ALTER TABLE "TaxFeeDefinition"
 	FOREIGN KEY ("id", "currentVersionId")
 	REFERENCES "TaxFeeDefinitionVersion" ("taxFeeDefinitionId", "id")
 	DEFERRABLE INITIALLY DEFERRED;
+
+-- Fiscal versions are append-only evidence. Definitions can move their current
+-- pointer, but a released snapshot is never rewritten or removed in place.
+CREATE OR REPLACE FUNCTION fastt_prevent_tax_fee_definition_version_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+	RAISE EXCEPTION 'TAX_FEE_DEFINITION_VERSION_IMMUTABLE';
+END;
+$$;
+
+DROP TRIGGER IF EXISTS "trg_TaxFeeDefinitionVersion_immutable" ON "TaxFeeDefinitionVersion";
+CREATE TRIGGER "trg_TaxFeeDefinitionVersion_immutable"
+BEFORE UPDATE OR DELETE ON "TaxFeeDefinitionVersion"
+FOR EACH ROW
+EXECUTE FUNCTION fastt_prevent_tax_fee_definition_version_mutation();
+
+-- A definition is not commercially published until it points at an immutable
+-- version. This must be deferred because the release transaction inserts the
+-- snapshot and advances the pointer before commit.
+CREATE OR REPLACE FUNCTION fastt_validate_tax_fee_definition_publication()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+	IF NEW."editingState" = 'published' AND NEW."currentVersionId" IS NULL THEN
+		RAISE EXCEPTION 'TAX_FEE_PUBLISHED_DEFINITION_REQUIRES_CURRENT_VERSION';
+	END IF;
+	RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS "trg_TaxFeeDefinition_published_version_required" ON "TaxFeeDefinition";
+CREATE CONSTRAINT TRIGGER "trg_TaxFeeDefinition_published_version_required"
+AFTER INSERT OR UPDATE OF "editingState", "currentVersionId" ON "TaxFeeDefinition"
+DEFERRABLE INITIALLY DEFERRED
+FOR EACH ROW
+EXECUTE FUNCTION fastt_validate_tax_fee_definition_publication();
 
 CREATE UNIQUE INDEX IF NOT EXISTS "RatePlan_one_default_active_per_variant_idx"
 	ON "RatePlan" ("variantId")
@@ -591,6 +630,127 @@ BEFORE INSERT OR UPDATE OF "imageId" ON "ProductImage"
 FOR EACH ROW
 EXECUTE FUNCTION fastt_prevent_catalog_image_owner_overlap();
 
+-- Integration mappings are polymorphic for connector interoperability, but
+-- their local identity must still use Fastt's canonical vocabulary and belong
+-- to the same provider. This closes the gap left by a generic localEntityId.
+CREATE OR REPLACE FUNCTION fastt_validate_provider_integration_mapping_local_entity()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+	IF (NEW."mappingType" = 'property' AND NEW."localEntityType" = 'product') THEN
+		IF NOT EXISTS (
+			SELECT 1 FROM "Product"
+			WHERE "id" = NEW."localEntityId" AND "providerId" = NEW."providerId"
+		) THEN RAISE EXCEPTION 'INTEGRATION_MAPPING_LOCAL_ENTITY_NOT_OWNED'; END IF;
+	ELSIF (NEW."mappingType" = 'room_type' AND NEW."localEntityType" = 'variant') THEN
+		IF NOT EXISTS (
+			SELECT 1 FROM "Variant" variant
+			JOIN "Product" product ON product."id" = variant."productId"
+			WHERE variant."id" = NEW."localEntityId" AND product."providerId" = NEW."providerId"
+		) THEN RAISE EXCEPTION 'INTEGRATION_MAPPING_LOCAL_ENTITY_NOT_OWNED'; END IF;
+	ELSIF (NEW."mappingType" = 'rate_plan' AND NEW."localEntityType" = 'rate_plan') THEN
+		IF NOT EXISTS (
+			SELECT 1 FROM "RatePlan" rate_plan
+			JOIN "Variant" variant ON variant."id" = rate_plan."variantId"
+			JOIN "Product" product ON product."id" = variant."productId"
+			WHERE rate_plan."id" = NEW."localEntityId" AND product."providerId" = NEW."providerId"
+		) THEN RAISE EXCEPTION 'INTEGRATION_MAPPING_LOCAL_ENTITY_NOT_OWNED'; END IF;
+	ELSIF (NEW."mappingType" = 'tax' AND NEW."localEntityType" = 'tax') THEN
+		IF NOT EXISTS (
+			SELECT 1 FROM "TaxFeeDefinition"
+			WHERE "id" = NEW."localEntityId" AND "providerId" = NEW."providerId"
+		) THEN RAISE EXCEPTION 'INTEGRATION_MAPPING_LOCAL_ENTITY_NOT_OWNED'; END IF;
+	ELSIF (NEW."mappingType" = 'calendar' AND NEW."localEntityType" = 'calendar') THEN
+		IF NOT EXISTS (
+			SELECT 1 FROM "ProviderExternalCalendar"
+			WHERE "id" = NEW."localEntityId" AND "providerId" = NEW."providerId"
+		) THEN RAISE EXCEPTION 'INTEGRATION_MAPPING_LOCAL_ENTITY_NOT_OWNED'; END IF;
+	ELSIF (NEW."mappingType" = 'account' AND NEW."localEntityType" = 'provider') THEN
+		IF NEW."localEntityId" <> NEW."providerId" THEN
+			RAISE EXCEPTION 'INTEGRATION_MAPPING_LOCAL_ENTITY_NOT_OWNED';
+		END IF;
+	ELSE
+		RAISE EXCEPTION 'INTEGRATION_MAPPING_LOCAL_ENTITY_TYPE_INVALID';
+	END IF;
+	RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS "trg_ProviderIntegrationMapping_local_entity" ON "ProviderIntegrationMapping";
+CREATE TRIGGER "trg_ProviderIntegrationMapping_local_entity"
+BEFORE INSERT OR UPDATE OF "providerId", "mappingType", "localEntityType", "localEntityId"
+ON "ProviderIntegrationMapping"
+FOR EACH ROW
+EXECUTE FUNCTION fastt_validate_provider_integration_mapping_local_entity();
+
+-- A certification fixture is evidence for an isolated provider. The direct FK
+-- prevents orphan products; this trigger also prevents cross-provider or
+-- commercial products from being used as certification inventory.
+CREATE OR REPLACE FUNCTION fastt_validate_provider_integration_certification_fixture()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+	IF NOT EXISTS (
+		SELECT 1 FROM "Provider"
+		WHERE "id" = NEW."providerId" AND "accountPurpose" = 'integration_certification'
+	) THEN RAISE EXCEPTION 'INTEGRATION_CERTIFICATION_PROVIDER_INVALID'; END IF;
+	IF NEW."fixtureProductId" IS NOT NULL AND NOT EXISTS (
+		SELECT 1 FROM "Product"
+		WHERE "id" = NEW."fixtureProductId"
+			AND "providerId" = NEW."providerId"
+			AND "dataClass" = 'fixture'
+	) THEN RAISE EXCEPTION 'INTEGRATION_CERTIFICATION_FIXTURE_PRODUCT_INVALID'; END IF;
+	RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION fastt_prevent_certification_fixture_product_drift()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+	IF EXISTS (
+		SELECT 1 FROM "ProviderIntegrationCertification"
+		WHERE "fixtureProductId" = NEW."id"
+			AND ("providerId" IS DISTINCT FROM NEW."providerId" OR NEW."dataClass" <> 'fixture')
+	) THEN RAISE EXCEPTION 'INTEGRATION_CERTIFICATION_FIXTURE_PRODUCT_DRIFT'; END IF;
+	RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION fastt_prevent_certification_provider_purpose_drift()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+	IF NEW."accountPurpose" <> 'integration_certification' AND EXISTS (
+		SELECT 1 FROM "ProviderIntegrationCertification" WHERE "providerId" = NEW."id"
+	) THEN RAISE EXCEPTION 'INTEGRATION_CERTIFICATION_PROVIDER_PURPOSE_DRIFT'; END IF;
+	RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS "trg_ProviderIntegrationCertification_fixture" ON "ProviderIntegrationCertification";
+CREATE TRIGGER "trg_ProviderIntegrationCertification_fixture"
+BEFORE INSERT OR UPDATE OF "providerId", "fixtureProductId"
+ON "ProviderIntegrationCertification"
+FOR EACH ROW
+EXECUTE FUNCTION fastt_validate_provider_integration_certification_fixture();
+
+DROP TRIGGER IF EXISTS "trg_Product_certification_fixture_drift" ON "Product";
+CREATE TRIGGER "trg_Product_certification_fixture_drift"
+BEFORE UPDATE OF "providerId", "dataClass" ON "Product"
+FOR EACH ROW
+EXECUTE FUNCTION fastt_prevent_certification_fixture_product_drift();
+
+DROP TRIGGER IF EXISTS "trg_Provider_certification_fixture_drift" ON "Provider";
+CREATE TRIGGER "trg_Provider_certification_fixture_drift"
+BEFORE UPDATE OF "accountPurpose" ON "Provider"
+FOR EACH ROW
+EXECUTE FUNCTION fastt_prevent_certification_provider_purpose_drift();
+
 DROP TRIGGER IF EXISTS "trg_VariantImage_single_catalog_owner" ON "VariantImage";
 CREATE TRIGGER "trg_VariantImage_single_catalog_owner"
 BEFORE INSERT OR UPDATE OF "imageId" ON "VariantImage"
@@ -641,3 +801,271 @@ CREATE TRIGGER "trg_PricingBulkOperationJob_command_immutable"
 BEFORE UPDATE ON "PricingBulkOperationJob"
 FOR EACH ROW
 EXECUTE FUNCTION fastt_prevent_pricing_bulk_command_mutation();
+
+-- Financial rows that belong to a reservation must also belong to that
+-- reservation's provider. Independent FKs cannot express this composite rule.
+CREATE OR REPLACE FUNCTION fastt_validate_financial_booking_provider()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+	booking_provider_id text;
+BEGIN
+	IF NEW."bookingId" IS NULL THEN
+		RETURN NEW;
+	END IF;
+
+	SELECT "providerId" INTO booking_provider_id
+	FROM "Booking"
+	WHERE "id" = NEW."bookingId";
+
+	IF booking_provider_id IS NULL OR booking_provider_id <> NEW."providerId" THEN
+		RAISE EXCEPTION 'FINANCIAL_BOOKING_PROVIDER_MISMATCH';
+	END IF;
+	RETURN NEW;
+END;
+$$;
+
+DO $$
+DECLARE
+	table_name text;
+BEGIN
+	FOREACH table_name IN ARRAY ARRAY[
+		'FinancialExceptionRecord',
+		'FinancialReference',
+		'RefundHandoffRecord',
+		'RefundQuote',
+		'RefundLedger',
+		'FinancialReviewEvent',
+		'PaymentTransaction',
+		'FinancialSettlementRecord',
+		'ReconciliationMatch',
+		'CommissionSnapshot',
+		'ProviderPayableSnapshot',
+		'PayoutRecord'
+	]
+	LOOP
+		EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', 'trg_' || table_name || '_booking_provider', table_name);
+		EXECUTE format(
+			'CREATE TRIGGER %I BEFORE INSERT OR UPDATE OF "bookingId", "providerId" ON %I FOR EACH ROW EXECUTE FUNCTION fastt_validate_financial_booking_provider()',
+			'trg_' || table_name || '_booking_provider', table_name
+		);
+	END LOOP;
+END;
+$$;
+
+-- A refund ledger entry is the applied form of one quote. Keeping both IDs
+-- aligned prevents an otherwise valid FK graph from joining different sales.
+CREATE OR REPLACE FUNCTION fastt_validate_refund_ledger_lineage()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+	quote_booking_id text;
+	quote_provider_id text;
+	payment_booking_id text;
+	payment_provider_id text;
+BEGIN
+	SELECT "bookingId", "providerId"
+	INTO quote_booking_id, quote_provider_id
+	FROM "RefundQuote"
+	WHERE "id" = NEW."refundQuoteId";
+
+	IF quote_booking_id IS NULL
+		OR quote_booking_id <> NEW."bookingId"
+		OR quote_provider_id <> NEW."providerId" THEN
+		RAISE EXCEPTION 'REFUND_LEDGER_QUOTE_LINEAGE_MISMATCH';
+	END IF;
+
+	IF NEW."paymentTransactionId" IS NOT NULL THEN
+		SELECT "bookingId", "providerId"
+		INTO payment_booking_id, payment_provider_id
+		FROM "PaymentTransaction"
+		WHERE "id" = NEW."paymentTransactionId";
+
+		IF payment_provider_id IS NULL
+			OR payment_provider_id <> NEW."providerId"
+			OR payment_booking_id IS DISTINCT FROM NEW."bookingId" THEN
+			RAISE EXCEPTION 'REFUND_LEDGER_PAYMENT_LINEAGE_MISMATCH';
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS "trg_RefundLedger_lineage" ON "RefundLedger";
+CREATE TRIGGER "trg_RefundLedger_lineage"
+BEFORE INSERT OR UPDATE OF "refundQuoteId", "bookingId", "providerId", "paymentTransactionId"
+ON "RefundLedger"
+FOR EACH ROW
+EXECUTE FUNCTION fastt_validate_refund_ledger_lineage();
+
+-- Review events are immutable evidence, so their optional related records must
+-- point at the same booking and provider as the event itself.
+CREATE OR REPLACE FUNCTION fastt_validate_financial_review_event_lineage()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+	IF NEW."financialExceptionId" IS NOT NULL AND NOT EXISTS (
+		SELECT 1 FROM "FinancialExceptionRecord"
+		WHERE "id" = NEW."financialExceptionId"
+			AND "bookingId" = NEW."bookingId"
+			AND "providerId" = NEW."providerId"
+	) THEN RAISE EXCEPTION 'FINANCIAL_REVIEW_EXCEPTION_LINEAGE_MISMATCH'; END IF;
+
+	IF NEW."financialReferenceId" IS NOT NULL AND NOT EXISTS (
+		SELECT 1 FROM "FinancialReference"
+		WHERE "id" = NEW."financialReferenceId"
+			AND "bookingId" = NEW."bookingId"
+			AND "providerId" = NEW."providerId"
+	) THEN RAISE EXCEPTION 'FINANCIAL_REVIEW_REFERENCE_LINEAGE_MISMATCH'; END IF;
+
+	IF NEW."refundHandoffId" IS NOT NULL AND NOT EXISTS (
+		SELECT 1 FROM "RefundHandoffRecord"
+		WHERE "id" = NEW."refundHandoffId"
+			AND "bookingId" = NEW."bookingId"
+			AND "providerId" = NEW."providerId"
+	) THEN RAISE EXCEPTION 'FINANCIAL_REVIEW_HANDOFF_LINEAGE_MISMATCH'; END IF;
+
+	IF NEW."reconciliationMatchId" IS NOT NULL AND NOT EXISTS (
+		SELECT 1 FROM "ReconciliationMatch"
+		WHERE "id" = NEW."reconciliationMatchId"
+			AND "bookingId" = NEW."bookingId"
+			AND "providerId" = NEW."providerId"
+	) THEN RAISE EXCEPTION 'FINANCIAL_REVIEW_RECONCILIATION_LINEAGE_MISMATCH'; END IF;
+	RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS "trg_FinancialReviewEvent_lineage" ON "FinancialReviewEvent";
+CREATE TRIGGER "trg_FinancialReviewEvent_lineage"
+BEFORE INSERT OR UPDATE OF "bookingId", "providerId", "financialExceptionId", "financialReferenceId", "refundHandoffId", "reconciliationMatchId"
+ON "FinancialReviewEvent"
+FOR EACH ROW
+EXECUTE FUNCTION fastt_validate_financial_review_event_lineage();
+
+-- Assignment targets are polymorphic only at the domain boundary. Once stored,
+-- their FK is typed and this helper resolves the owning provider from it.
+CREATE OR REPLACE FUNCTION fastt_catalog_assignment_target_provider(
+	product_target_id text,
+	variant_target_id text,
+	rate_plan_target_id text
+)
+RETURNS text
+LANGUAGE plpgsql
+STABLE
+AS $$
+DECLARE target_provider_id text;
+BEGIN
+	IF product_target_id IS NOT NULL THEN
+		SELECT "providerId" INTO target_provider_id FROM "Product" WHERE "id" = product_target_id;
+	ELSIF variant_target_id IS NOT NULL THEN
+		SELECT product."providerId" INTO target_provider_id
+		FROM "Variant" variant JOIN "Product" product ON product."id" = variant."productId"
+		WHERE variant."id" = variant_target_id;
+	ELSIF rate_plan_target_id IS NOT NULL THEN
+		SELECT product."providerId" INTO target_provider_id
+		FROM "RatePlan" rate_plan
+		JOIN "Variant" variant ON variant."id" = rate_plan."variantId"
+		JOIN "Product" product ON product."id" = variant."productId"
+		WHERE rate_plan."id" = rate_plan_target_id;
+	END IF;
+	RETURN target_provider_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION fastt_validate_tax_fee_assignment_owner()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE definition_provider_id text;
+DECLARE target_provider_id text;
+BEGIN
+	SELECT "providerId" INTO definition_provider_id
+	FROM "TaxFeeDefinition" WHERE "id" = NEW."taxFeeDefinitionId";
+
+	IF NEW."scope" = 'global' THEN RETURN NEW; END IF;
+	IF NEW."scope" = 'provider' THEN
+		target_provider_id := NEW."providerTargetId";
+	ELSE
+		target_provider_id := fastt_catalog_assignment_target_provider(
+			NEW."productTargetId", NEW."variantTargetId", NEW."ratePlanTargetId"
+		);
+	END IF;
+
+	IF definition_provider_id IS NULL OR target_provider_id IS NULL
+		OR definition_provider_id <> target_provider_id THEN
+		RAISE EXCEPTION 'TAX_FEE_ASSIGNMENT_PROVIDER_MISMATCH';
+	END IF;
+	RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION fastt_validate_policy_assignment_owner()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE group_provider_id text;
+DECLARE target_provider_id text;
+BEGIN
+	SELECT "ownerProviderId" INTO group_provider_id
+	FROM "PolicyGroup" WHERE "id" = NEW."policyGroupId";
+	target_provider_id := fastt_catalog_assignment_target_provider(
+		NEW."productTargetId", NEW."variantTargetId", NEW."ratePlanTargetId"
+	);
+	IF group_provider_id IS NULL OR target_provider_id IS NULL
+		OR group_provider_id <> target_provider_id THEN
+		RAISE EXCEPTION 'POLICY_ASSIGNMENT_PROVIDER_MISMATCH';
+	END IF;
+	RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION fastt_validate_commercial_rule_application_owner()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE rule_provider_id text;
+DECLARE rule_set_provider_id text;
+DECLARE rule_set_id text;
+DECLARE target_provider_id text;
+BEGIN
+	SELECT "providerId", "ruleSetId" INTO rule_provider_id, rule_set_id
+	FROM "CommercialRule" WHERE "id" = NEW."ruleId";
+	SELECT "providerId" INTO rule_set_provider_id
+	FROM "CommercialRuleSet" WHERE "id" = NEW."ruleSetId";
+	target_provider_id := fastt_catalog_assignment_target_provider(
+		NEW."productTargetId", NEW."variantTargetId", NEW."ratePlanTargetId"
+	);
+	IF rule_provider_id IS NULL OR rule_set_provider_id IS NULL OR target_provider_id IS NULL
+		OR NEW."providerId" <> rule_provider_id
+		OR NEW."providerId" <> rule_set_provider_id
+		OR NEW."ruleSetId" <> rule_set_id
+		OR NEW."providerId" <> target_provider_id THEN
+		RAISE EXCEPTION 'COMMERCIAL_RULE_APPLICATION_PROVIDER_MISMATCH';
+	END IF;
+	RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS "trg_TaxFeeAssignment_owner" ON "TaxFeeAssignment";
+CREATE TRIGGER "trg_TaxFeeAssignment_owner"
+BEFORE INSERT OR UPDATE OF "taxFeeDefinitionId", "scope", "providerTargetId", "productTargetId", "variantTargetId", "ratePlanTargetId"
+ON "TaxFeeAssignment"
+FOR EACH ROW
+EXECUTE FUNCTION fastt_validate_tax_fee_assignment_owner();
+
+DROP TRIGGER IF EXISTS "trg_PolicyAssignment_owner" ON "PolicyAssignment";
+CREATE TRIGGER "trg_PolicyAssignment_owner"
+BEFORE INSERT OR UPDATE OF "policyGroupId", "scope", "productTargetId", "variantTargetId", "ratePlanTargetId"
+ON "PolicyAssignment"
+FOR EACH ROW
+EXECUTE FUNCTION fastt_validate_policy_assignment_owner();
+
+DROP TRIGGER IF EXISTS "trg_CommercialRuleApplication_owner" ON "CommercialRuleApplication";
+CREATE TRIGGER "trg_CommercialRuleApplication_owner"
+BEFORE INSERT OR UPDATE OF "providerId", "ruleSetId", "ruleId", "scope", "productTargetId", "variantTargetId", "ratePlanTargetId"
+ON "CommercialRuleApplication"
+FOR EACH ROW
+EXECUTE FUNCTION fastt_validate_commercial_rule_application_owner();
