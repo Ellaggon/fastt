@@ -320,7 +320,12 @@ export function buildProviderFinanceSummary(params: {
 	const reconciliationByBooking = new Map(
 		params.reconciliationMatches.map((row) => [row.bookingId, row])
 	)
-	const settlementByBooking = groupBy(params.settlementRecords, (row) => row.bookingId)
+	const settlementByBooking = groupBy(
+		params.settlementRecords.filter((row): row is typeof row & { bookingId: string } =>
+			Boolean(row.bookingId)
+		),
+		(row) => row.bookingId
+	)
 	const profileReady = isProfileReady(params.profile)
 	const hasVisibleStatement = params.statements.some(
 		(row) => row.status === "visible" || row.status === "recorded"

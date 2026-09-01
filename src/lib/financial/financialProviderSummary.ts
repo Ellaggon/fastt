@@ -176,8 +176,8 @@ async function computeFinancialProviderSummary(providerId: string): Promise<{
 			.select({
 				count: sql<number>`count(*)`,
 				amount: sql<number>`coalesce(sum(${FinancialSettlementRecord.amount}), 0)`,
-				recorded: sql<number>`coalesce(sum(case when ${FinancialSettlementRecord.bookingId} not like 'unmatched:%' then 1 else 0 end), 0)`,
-				unmatched: sql<number>`coalesce(sum(case when ${FinancialSettlementRecord.bookingId} like 'unmatched:%' then 1 else 0 end), 0)`,
+				recorded: sql<number>`coalesce(sum(case when ${FinancialSettlementRecord.bookingId} is not null then 1 else 0 end), 0)`,
+				unmatched: sql<number>`coalesce(sum(case when ${FinancialSettlementRecord.bookingId} is null then 1 else 0 end), 0)`,
 				currency: sql<string | null>`max(${FinancialSettlementRecord.currency})`,
 				lastAt: sql<Date | null>`max(${FinancialSettlementRecord.settlementDate})`,
 			})

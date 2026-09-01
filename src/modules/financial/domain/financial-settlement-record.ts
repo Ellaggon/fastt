@@ -9,7 +9,8 @@ export type FinancialSettlementRecordSource = "import" | "operator_entry"
 
 export type FinancialSettlementRecord = {
 	id: string
-	bookingId: string
+	/** Null until externally reported settlement evidence is matched to a reservation. */
+	bookingId: string | null
 	providerId: string
 	settlementReference: string
 	amount: number

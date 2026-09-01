@@ -201,7 +201,12 @@ export function buildProviderFinanceMaterialization(params: {
 	const reconciliationByBooking = new Map(
 		params.reconciliationMatches.map((row) => [row.bookingId, row])
 	)
-	const settlementByBooking = groupBy(params.settlementRecords, (row) => row.bookingId)
+	const settlementByBooking = groupBy(
+		params.settlementRecords.filter((row): row is typeof row & { bookingId: string } =>
+			Boolean(row.bookingId)
+		),
+		(row) => row.bookingId
+	)
 
 	const items = [...groupedBookings.entries()].map(([bookingId, rows]) => {
 		const currency = firstCurrency(rows)

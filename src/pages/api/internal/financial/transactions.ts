@@ -73,8 +73,7 @@ export const POST: APIRoute = async ({ request }) => {
 		String(body.idempotencyKey ?? "").trim() ||
 		`payment_transaction:${auth.providerId}:${pspProvider}:${type}:${externalReference}`
 	const result = await paymentTransactionRepository.createIfAbsent({
-		bookingId:
-			bookingId || `unmatched:${auth.providerId}:${pspProvider}:${type}:${externalReference}`,
+		bookingId: bookingId || null,
 		providerId: auth.providerId,
 		type,
 		status,

@@ -198,8 +198,18 @@ export const GET: APIRoute = async ({ request, url }) => {
 	const grouped = groupBy(rows, (row) => String(row.bookingId))
 	const financialEvidenceByBooking = groupBy(financialEvidenceRows, (row) => String(row.bookingId))
 	const taxByBooking = groupBy(taxRows, (row) => String(row.bookingId))
-	const paymentByBooking = groupBy(paymentTransactions, (row) => row.bookingId)
-	const settlementByBooking = groupBy(settlementRecords, (row) => row.bookingId)
+	const paymentByBooking = groupBy(
+		paymentTransactions.filter((row): row is typeof row & { bookingId: string } =>
+			Boolean(row.bookingId)
+		),
+		(row) => row.bookingId
+	)
+	const settlementByBooking = groupBy(
+		settlementRecords.filter((row): row is typeof row & { bookingId: string } =>
+			Boolean(row.bookingId)
+		),
+		(row) => row.bookingId
+	)
 	const referencesByBooking = groupBy(references, (row) => row.bookingId)
 	const persistedByBooking = new Map(persistedMatches.map((row) => [row.bookingId, row]))
 
