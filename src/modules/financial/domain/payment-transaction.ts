@@ -26,7 +26,8 @@ export type PaymentTransactionSource = "import" | "operator_entry"
 
 export type PaymentTransaction = {
 	id: string
-	bookingId: string
+	/** Null until imported PSP evidence is reconciled to a Fastt reservation. */
+	bookingId: string | null
 	providerId: string
 	type: PaymentTransactionType
 	status: PaymentTransactionStatus

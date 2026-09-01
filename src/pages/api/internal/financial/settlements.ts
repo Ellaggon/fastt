@@ -49,7 +49,7 @@ export const POST: APIRoute = async ({ request }) => {
 	if (bookingId && !(await bookingBelongsToProvider(bookingId, auth.providerId)))
 		return json({ error: "not_found" }, 404)
 	const result = await financialSettlementRecordRepository.createIfAbsent({
-		bookingId: bookingId || `unmatched:${auth.providerId}:settlement:${settlementReference}`,
+		bookingId: bookingId || null,
 		providerId: auth.providerId,
 		settlementReference,
 		amount,

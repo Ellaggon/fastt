@@ -18,7 +18,7 @@ import type { FinancialSettlementRecord } from "../../domain/financial-settlemen
 function map(row: any): FinancialSettlementRecord {
 	return {
 		id: String(row.id),
-		bookingId: String(row.bookingId),
+		bookingId: row.bookingId == null ? null : String(row.bookingId),
 		providerId: String(row.providerId),
 		settlementReference: String(row.settlementReference),
 		amount: Number(row.amount ?? 0),
@@ -93,7 +93,7 @@ export class FinancialSettlementRecordRepository implements FinancialSettlementR
 			.where(
 				and(
 					eq(FinancialSettlementRecordTable.providerId, providerId),
-					sql`${FinancialSettlementRecordTable.bookingId} LIKE 'unmatched:%'`
+					sql`${FinancialSettlementRecordTable.bookingId} IS NULL`
 				)
 			)
 			.orderBy(desc(FinancialSettlementRecordTable.settlementDate))

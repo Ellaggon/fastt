@@ -18,7 +18,7 @@ import type { PaymentTransaction, PaymentTransactionType } from "../../domain/pa
 function map(row: any): PaymentTransaction {
 	return {
 		id: String(row.id),
-		bookingId: String(row.bookingId),
+		bookingId: row.bookingId == null ? null : String(row.bookingId),
 		providerId: String(row.providerId),
 		type: String(row.type) as PaymentTransaction["type"],
 		status: String(row.status) as PaymentTransaction["status"],
@@ -103,7 +103,7 @@ export class PaymentTransactionRepository implements PaymentTransactionRepositor
 			.where(
 				and(
 					eq(PaymentTransactionTable.providerId, providerId),
-					sql`${PaymentTransactionTable.bookingId} LIKE 'unmatched:%'`
+					sql`${PaymentTransactionTable.bookingId} IS NULL`
 				)
 			)
 			.orderBy(desc(PaymentTransactionTable.occurredAt))
@@ -159,7 +159,13 @@ export class PaymentTransactionRepository implements PaymentTransactionRepositor
 				pspProvider: bucket[0].pspProvider,
 				externalReference: bucket[0].externalReference,
 				count: bucket.length,
-				bookingIds: [...new Set(bucket.map((row) => row.bookingId))],
+				bookingIds: [
+					...new Set(
+						bucket
+							.map((row) => row.bookingId)
+							.filter((bookingId): bookingId is string => Boolean(bookingId))
+					),
+				],
 			}))
 	}
 }

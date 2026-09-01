@@ -472,7 +472,7 @@ export function buildUnmatchedEvidenceWorkItem(kind: "payment" | "settlement", r
 			? String(row?.externalReference || row?.id || "payment")
 			: String(row?.settlementReference || row?.id || "settlement")
 	const rawBookingId = String(row?.bookingId || "")
-	const bookingId = rawBookingId.startsWith("unmatched:") ? "" : rawBookingId
+	const bookingId = rawBookingId
 	return {
 		id: `evidence-unmatched:${kind}:${reference}`,
 		bookingId,
