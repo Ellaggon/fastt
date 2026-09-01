@@ -86,7 +86,7 @@ describe("taxes-fees/buildFiscalReport", () => {
 
 	it("only exposes jurisdiction templates as reviewable drafts", () => {
 		const [suggestion] = listJurisdictionTaxRuleSuggestions("CL")
-		expect(suggestion).toMatchObject({ country: "CL", id: "CL_REVIEW_TAX_PERCENTAGE" })
+		expect(suggestion).toMatchObject({ country: "CL", id: "CL_REVIEW_TAX_PERCENTAGE_V1" })
 		expect(suggestion.draft.code).toContain("REVIEW")
 	})
 })

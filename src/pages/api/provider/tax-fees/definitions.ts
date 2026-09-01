@@ -17,7 +17,12 @@ import {
 } from "@/modules/taxes-fees/public"
 import { writeProviderAuditLog } from "@/lib/provider-audit"
 import { getAggregateCache, setAggregateCache } from "@/lib/cache/ssrAggregateCache"
-import { publishTaxFeeDefinitionVersion } from "@/lib/taxes-fees/tax-fee-versioning"
+import {
+	publishTaxFeeDefinition,
+	saveTaxFeeDefinitionDraft,
+	TaxFeeDefinitionPublicationConflictError,
+	type TaxFeeDefinitionPublicationPatch,
+} from "@/lib/taxes-fees/tax-fee-versioning"
 import { taxFeeDefinitionFingerprint } from "@/lib/taxes-fees/tax-fee-simulation-certification"
 import {
 	and,
@@ -29,6 +34,7 @@ import {
 	FiscalActivityEvent,
 	TaxFeeAssignment,
 	TaxFeeDefinition,
+	TaxFeeDefinitionDraft,
 	TaxFeeDefinitionVersion,
 } from "@/shared/infrastructure/db/compat"
 
@@ -48,6 +54,8 @@ const createSchema = z.object({
 	status: z.enum(["active", "archived"]).optional().default("active"),
 	jurisdictionJson: z.string().optional().nullable(),
 	publicationMode: z.enum(["draft", "publish", "schedule"]).optional(),
+	expectedCurrentVersionId: z.string().min(1).nullable().optional(),
+	expectedRevision: z.coerce.number().int().min(0).optional(),
 })
 
 const jurisdictionSchema = z.object({
@@ -71,6 +79,22 @@ const jurisdictionSchema = z.object({
 		.default([]),
 })
 
+async function invalidateTaxFeeProviderCaches(providerId: string, source: string) {
+	const results = await Promise.allSettled([
+		invalidateProvider(providerId),
+		invalidateProviderGovernance(providerId, source),
+	])
+	for (const result of results) {
+		if (result.status === "rejected") {
+			console.error("tax_fee.cache_invalidation_failed", {
+				providerId,
+				source,
+				error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+			})
+		}
+	}
+}
+
 function parseJurisdiction(value?: string | null) {
 	if (!value?.trim()) return null
 	const parsed = JSON.parse(value)
@@ -85,6 +109,26 @@ function parseDate(value?: string | null) {
 	if (!value) return null
 	const d = new Date(value)
 	return Number.isNaN(d.getTime()) ? null : d
+}
+
+function publicationPatch(
+	parsed: z.infer<typeof createSchema>,
+	jurisdictionJson: unknown | null
+): TaxFeeDefinitionPublicationPatch {
+	return {
+		code: parsed.code,
+		name: parsed.name,
+		kind: parsed.kind,
+		calculationType: parsed.calculationType,
+		value: parsed.value,
+		currency: parsed.currency ?? null,
+		inclusionType: parsed.inclusionType,
+		appliesPer: parsed.appliesPer,
+		priority: parsed.priority ?? 0,
+		jurisdictionJson,
+		effectiveFrom: parseDate(parsed.effectiveFrom),
+		effectiveTo: parseDate(parsed.effectiveTo),
+	}
 }
 
 function buildWarningDefinition(
@@ -171,7 +215,7 @@ export const GET: APIRoute = async ({ request }) => {
 	const { definitions } = await listTaxFeeDefinitionsByProviderUseCase({ providerId })
 	const warnings = buildTaxFeeWarnings(definitions)
 	const definitionIds = definitions.map((definition) => definition.id)
-	const [assignments, auditEvents, versions] = await Promise.all([
+	const [assignments, auditEvents, versions, drafts] = await Promise.all([
 		definitionIds.length
 			? db
 					.select({
@@ -209,7 +253,14 @@ export const GET: APIRoute = async ({ request }) => {
 					.where(inArray(TaxFeeDefinitionVersion.taxFeeDefinitionId, definitionIds))
 					.orderBy(desc(TaxFeeDefinitionVersion.version))
 			: Promise.resolve([]),
+		definitionIds.length
+			? db
+					.select()
+					.from(TaxFeeDefinitionDraft)
+					.where(inArray(TaxFeeDefinitionDraft.definitionId, definitionIds))
+			: Promise.resolve([]),
 	])
+	const draftsByDefinition = new Map(drafts.map((draft) => [draft.definitionId, draft]))
 	const currentVersions = new Map<string, (typeof versions)[number]>()
 	for (const version of versions) {
 		const id = String(version.taxFeeDefinitionId)
@@ -250,6 +301,27 @@ export const GET: APIRoute = async ({ request }) => {
 	}
 	const now = new Date()
 	const payload = definitions.map((d) => ({
+		...(draftsByDefinition.get(d.id)
+			? {
+					draft: (() => {
+						const draft = draftsByDefinition.get(d.id)!
+						return {
+							code: draft.code,
+							name: draft.name,
+							kind: draft.kind,
+							calculationType: draft.calculationType,
+							value: Number(draft.value),
+							currency: draft.currency,
+							inclusionType: draft.inclusionType,
+							appliesPer: draft.appliesPer,
+							priority: Number(draft.priority),
+							jurisdictionJson: draft.jurisdictionJson,
+							effectiveFrom: draft.effectiveFrom,
+							effectiveTo: draft.effectiveTo,
+						}
+					})(),
+				}
+			: {}),
 		id: d.id,
 		code: d.code,
 		name: d.name,
@@ -353,16 +425,22 @@ export const POST: APIRoute = async ({ request }) => {
 			priority: parsed.priority ?? 0,
 			effectiveFrom: parseDate(parsed.effectiveFrom),
 			effectiveTo: parseDate(parsed.effectiveTo),
-			status: isDraft ? "archived" : parsed.status,
-			editingState: isDraft ? "draft" : "published",
+			// A release only becomes published in publishTaxFeeDefinition(),
+			// where its immutable snapshot and currentVersionId are committed together.
+			status: "archived",
+			editingState: "draft",
 			jurisdictionJson,
 		})
 		const publication = isDraft
 			? null
-			: await publishTaxFeeDefinitionVersion({
+			: await publishTaxFeeDefinition({
 					definitionId: result.id,
 					actorUserId: user.id,
+					providerId,
 					publicationState: isScheduled ? "scheduled" : "published",
+					operationalStatus: parsed.status,
+					expectedCurrentVersionId: null,
+					expectedRevision: 0,
 				})
 
 		const warnings = buildTaxFeeWarnings([
@@ -378,8 +456,7 @@ export const POST: APIRoute = async ({ request }) => {
 			afterJson: buildWarningDefinition(providerId, parsed, result.id, jurisdictionJson),
 			riskLevel: "high",
 		})
-		await invalidateProvider(providerId)
-		await invalidateProviderGovernance(providerId, "provider_tax_fee_definition_created")
+		await invalidateTaxFeeProviderCaches(providerId, "provider_tax_fee_definition_created")
 
 		return new Response(JSON.stringify({ id: result.id, warnings, publication }), {
 			status: 201,
@@ -394,7 +471,10 @@ export const POST: APIRoute = async ({ request }) => {
 			})
 		}
 		const msg = String(err?.message || "Unknown error")
-		const status = msg.includes("Duplicate") ? 409 : 400
+		const status =
+			err instanceof TaxFeeDefinitionPublicationConflictError || msg.includes("Duplicate")
+				? 409
+				: 400
 		return new Response(JSON.stringify({ error: "validation_error", message: msg }), {
 			status,
 			headers: { "Content-Type": "application/json" },
@@ -423,6 +503,8 @@ export const PUT: APIRoute = async ({ request }) => {
 			status: form.get("status") ?? undefined,
 			jurisdictionJson: form.get("jurisdictionJson")?.toString() ?? null,
 			publicationMode: form.get("publicationMode") || undefined,
+			expectedCurrentVersionId: form.get("expectedCurrentVersionId")?.toString() || null,
+			expectedRevision: form.get("expectedRevision") || undefined,
 		})
 		const jurisdictionJson = parseJurisdiction(parsed.jurisdictionJson)
 		const isDraft = parsed.publicationMode === "draft"
@@ -450,31 +532,34 @@ export const PUT: APIRoute = async ({ request }) => {
 			.where(eq(TaxFeeDefinition.id, parsed.id))
 			.then((rows) => rows[0] ?? null)
 
-		const result = await updateTaxFeeDefinitionUseCase({
-			id: parsed.id,
-			providerId,
-			code: parsed.code,
-			name: parsed.name,
-			kind: parsed.kind,
-			calculationType: parsed.calculationType,
-			value: parsed.value,
-			currency: parsed.currency ?? null,
-			inclusionType: parsed.inclusionType,
-			appliesPer: parsed.appliesPer,
-			priority: parsed.priority ?? 0,
-			effectiveFrom: parseDate(parsed.effectiveFrom),
-			effectiveTo: parseDate(parsed.effectiveTo),
-			status: isDraft ? "archived" : parsed.status,
-			editingState: isDraft ? "draft" : "published",
-			jurisdictionJson,
-		})
-		const publication =
-			isDraft || parsed.status === "archived"
-				? null
-				: await publishTaxFeeDefinitionVersion({
-						definitionId: result.id,
+		const shouldPublish = !isDraft && parsed.status !== "archived"
+		const publication = shouldPublish
+			? await publishTaxFeeDefinition({
+					definitionId: parsed.id,
+					actorUserId: user.id,
+					providerId,
+					publicationState: isScheduled ? "scheduled" : "published",
+					operationalStatus: parsed.status,
+					expectedCurrentVersionId: parsed.expectedCurrentVersionId ?? null,
+					expectedRevision: parsed.expectedRevision ?? 0,
+					definitionPatch: publicationPatch(parsed, jurisdictionJson),
+				})
+			: null
+		const result = shouldPublish
+			? { id: parsed.id }
+			: before?.currentVersionId
+				? await saveTaxFeeDefinitionDraft({
+						definitionId: parsed.id,
+						providerId,
 						actorUserId: user.id,
-						publicationState: isScheduled ? "scheduled" : "published",
+						patch: publicationPatch(parsed, jurisdictionJson),
+					})
+				: await updateTaxFeeDefinitionUseCase({
+						id: parsed.id,
+						providerId,
+						...publicationPatch(parsed, jurisdictionJson),
+						status: "archived",
+						editingState: "draft",
 					})
 
 		const warnings = buildTaxFeeWarnings([
@@ -491,8 +576,7 @@ export const PUT: APIRoute = async ({ request }) => {
 			afterJson: buildWarningDefinition(providerId, parsed, result.id, jurisdictionJson),
 			riskLevel: "high",
 		})
-		await invalidateProvider(providerId)
-		await invalidateProviderGovernance(providerId, "provider_tax_fee_definition_updated")
+		await invalidateTaxFeeProviderCaches(providerId, "provider_tax_fee_definition_updated")
 
 		return new Response(JSON.stringify({ id: result.id, warnings, publication }), {
 			status: 200,
@@ -507,7 +591,14 @@ export const PUT: APIRoute = async ({ request }) => {
 			})
 		}
 		const msg = String(err?.message || "Unknown error")
-		const status = msg.includes("Duplicate") ? 409 : msg === "Not found" ? 404 : 400
+		const status =
+			err instanceof TaxFeeDefinitionPublicationConflictError
+				? 409
+				: msg.includes("Duplicate")
+					? 409
+					: msg === "Not found"
+						? 404
+						: 400
 		return new Response(JSON.stringify({ error: "validation_error", message: msg }), {
 			status,
 			headers: { "Content-Type": "application/json" },
@@ -574,8 +665,7 @@ export const DELETE: APIRoute = async ({ request }) => {
 			afterJson: null,
 			riskLevel: "medium",
 		})
-		await invalidateProvider(providerId)
-		await invalidateProviderGovernance(providerId, "provider_tax_fee_definition_draft_deleted")
+		await invalidateTaxFeeProviderCaches(providerId, "provider_tax_fee_definition_draft_deleted")
 		return new Response(null, { status: 204 })
 	} catch (err: any) {
 		if (err instanceof Response) return err

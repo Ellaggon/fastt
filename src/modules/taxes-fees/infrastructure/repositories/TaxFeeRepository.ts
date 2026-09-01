@@ -1,6 +1,7 @@
 import {
 	first,
 	TaxFeeDefinition as TaxFeeDefinitionTable,
+	TaxFeeDefinitionVersion,
 	TaxFeeAssignment as TaxFeeAssignmentTable,
 	Product,
 	db,
@@ -11,6 +12,7 @@ import {
 	or,
 } from "@/shared/infrastructure/db/compat"
 import { typedAssignmentTarget } from "@/shared/domain/assignment-target"
+import { parseTaxFeeDefinitionSnapshot } from "@/lib/taxes-fees/tax-fee-definition-snapshot"
 import type { TaxFeeCommandRepositoryPort } from "../../application/ports/TaxFeeCommandRepositoryPort"
 import type { TaxFeeResolutionRepositoryPort } from "../../application/ports/TaxFeeResolutionRepositoryPort"
 import type { TaxFeeQueryRepositoryPort } from "../../application/ports/TaxFeeQueryRepositoryPort"
@@ -37,6 +39,20 @@ function mapDefinition(row: any): TaxFeeDefinition {
 		currentVersionId: row.currentVersionId ?? null,
 		createdAt: row.createdAt ?? new Date(0),
 		updatedAt: row.updatedAt ?? new Date(0),
+	}
+}
+
+function mapVersionedDefinition(row: any): TaxFeeDefinition | null {
+	const snapshot = parseTaxFeeDefinitionSnapshot(row.snapshotJson)
+	if (!snapshot) return null
+	const definition = mapDefinition(row.definition)
+	return {
+		...definition,
+		...snapshot.rule,
+		value: snapshot.rule.value,
+		jurisdictionJson: snapshot.rule.jurisdiction,
+		effectiveFrom: snapshot.rule.effectiveFrom ? new Date(snapshot.rule.effectiveFrom) : null,
+		effectiveTo: snapshot.rule.effectiveTo ? new Date(snapshot.rule.effectiveTo) : null,
 	}
 }
 
@@ -74,7 +90,7 @@ export class TaxFeeRepository
 			effectiveFrom: params.effectiveFrom ?? null,
 			effectiveTo: params.effectiveTo ?? null,
 			status: params.status,
-			editingState: params.editingState ?? "published",
+			editingState: params.editingState ?? "draft",
 			createdAt: new Date(),
 			updatedAt: new Date(),
 		})
@@ -98,7 +114,7 @@ export class TaxFeeRepository
 				effectiveFrom: params.effectiveFrom ?? null,
 				effectiveTo: params.effectiveTo ?? null,
 				status: params.status,
-				editingState: params.editingState ?? "published",
+				editingState: params.editingState ?? "draft",
 				updatedAt: new Date(),
 			})
 			.where(eq(TaxFeeDefinitionTable.id, params.id))
@@ -240,11 +256,20 @@ export class TaxFeeRepository
 	async listDefinitionsByIds(ids: string[]): Promise<TaxFeeDefinition[]> {
 		if (!ids.length) return []
 		const rows = await db
-			.select()
+			.select({
+				definition: TaxFeeDefinitionTable,
+				snapshotJson: TaxFeeDefinitionVersion.snapshotJson,
+			})
 			.from(TaxFeeDefinitionTable)
+			.innerJoin(
+				TaxFeeDefinitionVersion,
+				eq(TaxFeeDefinitionVersion.id, TaxFeeDefinitionTable.currentVersionId)
+			)
 			.where(inArray(TaxFeeDefinitionTable.id, ids))
 
-		return rows.map(mapDefinition)
+		return rows
+			.map(mapVersionedDefinition)
+			.filter((definition): definition is TaxFeeDefinition => Boolean(definition))
 	}
 
 	async listDefinitionsByProvider(providerId: string): Promise<TaxFeeDefinition[]> {

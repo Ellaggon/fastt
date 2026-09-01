@@ -81,7 +81,10 @@ export async function createTaxFeeDefinition(
 		effectiveFrom: params.effectiveFrom ?? null,
 		effectiveTo: params.effectiveTo ?? null,
 		status: params.status ?? "active",
-		editingState: params.editingState ?? "published",
+		// Definitions are born as drafts. Publication is a separate, transactional
+		// operation because it must create an immutable version and advance the
+		// current pointer in the same commit.
+		editingState: params.editingState ?? "draft",
 	}
 
 	await deps.repo.createDefinition(def)
