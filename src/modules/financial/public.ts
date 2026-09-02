@@ -45,6 +45,7 @@ export * from "./application/use-cases/build-refund-quote"
 export * from "./application/use-cases/create-refund-quote-before-cancellation"
 export * from "./application/use-cases/record-refund-ledger"
 export * from "./application/use-cases/record-refund-ledger-from-quote"
+export * from "./application/use-cases/associate-external-financial-evidence"
 
 // Infrastructure export for composition-root wiring.
 export { RefundCalculationRepository } from "./infrastructure/repositories/RefundCalculationRepository"

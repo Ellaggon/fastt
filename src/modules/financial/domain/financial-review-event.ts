@@ -18,6 +18,7 @@ export const FINANCIAL_REVIEW_EVENT_TYPES = [
 	"reconciliation_match_reviewed",
 	"reconciliation_review_reopened",
 	"reconciliation_review_marked_stale",
+	"external_evidence_associated",
 	"note_added",
 ] as const
 
@@ -32,6 +33,8 @@ export type FinancialReviewEvent = {
 	financialReferenceId?: string | null
 	refundHandoffId?: string | null
 	reconciliationMatchId?: string | null
+	paymentTransactionId?: string | null
+	settlementRecordId?: string | null
 	type: FinancialReviewEventType
 	actorId?: string | null
 	actorType: FinancialReviewActorType

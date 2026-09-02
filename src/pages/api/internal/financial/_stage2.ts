@@ -1,6 +1,7 @@
 import { first, and, Booking, db, eq } from "@/shared/infrastructure/db/compat"
 
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getProviderSessionSurfaceFromRequest } from "@/lib/auth/providerSessionSurface"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { ensureLocalFinancialDemoSeed } from "@/lib/dev/ensureLocalFinancialDemoSeed"
 
@@ -20,6 +21,16 @@ export async function requireFinancialProvider(request: Request): Promise<Financ
 	const providerId = await getProviderIdFromRequest(request, user)
 	if (!providerId) return { ok: false, response: json({ error: "Provider not found" }, 404) }
 	return { ok: true, user, providerId }
+}
+
+export async function requireFinancialManager(request: Request): Promise<FinancialProviderAuth> {
+	const auth = await requireFinancialProvider(request)
+	if (!auth.ok) return auth
+	const provider = await getProviderSessionSurfaceFromRequest(request, auth.user)
+	if (provider?.providerId !== auth.providerId || provider.permissions.canManagePayments !== true) {
+		return { ok: false, response: json({ error: "Forbidden" }, 403) }
+	}
+	return auth
 }
 
 export function json(payload: unknown, status = 200): Response {
