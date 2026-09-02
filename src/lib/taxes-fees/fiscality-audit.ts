@@ -6,9 +6,10 @@ import type {
 } from "@/modules/taxes-fees/public"
 
 function definitionFromRow(row: typeof TaxFeeDefinition.$inferSelect): TaxFeeDefinitionDomain {
+	if (!row.providerId) throw new Error("TAX_FEE_DEFINITION_OWNER_MISSING")
 	return {
 		id: String(row.id),
-		providerId: row.providerId == null ? null : String(row.providerId),
+		providerId: String(row.providerId),
 		code: String(row.code),
 		name: String(row.name),
 		kind: row.kind as TaxFeeDefinitionDomain["kind"],

@@ -16,7 +16,7 @@ export async function updateTaxFeeDefinition(
 	deps: { repo: TaxFeeCommandRepositoryPort },
 	params: {
 		id: string
-		providerId?: string | null
+		providerId: string
 		code: string
 		name: string
 		kind: TaxFeeKind
@@ -33,10 +33,12 @@ export async function updateTaxFeeDefinition(
 		editingState?: "draft" | "published"
 	}
 ): Promise<{ id: string }> {
+	const providerId = String(params.providerId || "").trim()
+	if (!providerId) throw new Error("Provider required")
 	const existing = await deps.repo.getDefinitionById(params.id)
 	if (!existing) throw new Error("Tax/fee definition not found")
 
-	if ((existing.providerId ?? null) !== (params.providerId ?? null)) {
+	if (existing.providerId !== providerId) {
 		throw new Error("Not found")
 	}
 
@@ -67,7 +69,7 @@ export async function updateTaxFeeDefinition(
 
 	const duplicate = await deps.repo.findActiveDefinitionByCodeProvider({
 		code,
-		providerId: params.providerId ?? null,
+		providerId,
 	})
 	if (duplicate && duplicate.id !== params.id) {
 		throw new Error("Duplicate active definition for code")
@@ -75,7 +77,7 @@ export async function updateTaxFeeDefinition(
 
 	const next: Omit<TaxFeeDefinition, "createdAt" | "updatedAt"> = {
 		id: params.id,
-		providerId: params.providerId ?? null,
+		providerId,
 		code,
 		name: params.name,
 		kind: params.kind,

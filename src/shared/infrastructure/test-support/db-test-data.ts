@@ -97,17 +97,15 @@ export async function upsertProduct(row: {
 	name: string
 	productType: string
 	geoPlaceId: string
-	providerId?: string | null
+	providerId?: string
 	dataClass?: "production" | "demo" | "fixture"
 	publicationState?: "draft" | "published" | "archived"
 }) {
-	const providerId = row.providerId === undefined ? "prov_test" : row.providerId
-	if (providerId) {
-		await db
-			.insert(Provider)
-			.values({ id: providerId, legalName: `Provider ${providerId}` })
-			.onConflictDoNothing()
-	}
+	const providerId = row.providerId ?? "prov_test"
+	await db
+		.insert(Provider)
+		.values({ id: providerId, legalName: `Provider ${providerId}` })
+		.onConflictDoNothing()
 	await db
 		.insert(Product)
 		.values({

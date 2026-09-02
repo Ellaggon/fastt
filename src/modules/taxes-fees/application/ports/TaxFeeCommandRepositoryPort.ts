@@ -7,7 +7,7 @@ export interface TaxFeeCommandRepositoryPort {
 	getDefinitionById(id: string): Promise<TaxFeeDefinition | null>
 	findActiveDefinitionByCodeProvider(params: {
 		code: string
-		providerId: string | null
+		providerId: string
 	}): Promise<TaxFeeDefinition | null>
 	findActiveAssignment(params: {
 		definitionId: string

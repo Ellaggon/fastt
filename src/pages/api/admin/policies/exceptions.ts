@@ -190,7 +190,7 @@ export const POST: APIRoute = async ({ request }) => {
 	}
 	const parsed = createSchema.safeParse(await readBody(request))
 	if (!parsed.success) return json({ error: "validation_error", issues: parsed.error.issues }, 400)
-	const created = await createPolicyExceptionRuleUseCase(parsed.data, auth.user.email)
+	const created = await createPolicyExceptionRuleUseCase(parsed.data, auth.user.id)
 	const scope = String(created.scope ?? "")
 	const scopeId = String(created.scopeId ?? "")
 	if (scope && scope !== "global" && scopeId) {

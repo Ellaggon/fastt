@@ -22,7 +22,7 @@ describe("integration/booking tax/fee snapshot", () => {
 	const buildResolved = (partial: Partial<TaxFeeDefinition>): ResolvedTaxFeeDefinition => {
 		const definition: TaxFeeDefinition = {
 			id: partial.id ?? crypto.randomUUID(),
-			providerId: partial.providerId ?? null,
+			providerId: partial.providerId ?? "prov_tax_fixture",
 			code: partial.code ?? "TAX",
 			name: partial.name ?? "Tax",
 			kind: partial.kind ?? "tax",

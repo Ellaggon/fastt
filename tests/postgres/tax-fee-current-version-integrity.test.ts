@@ -34,12 +34,18 @@ describePostgres("Tax fee current version integrity", () => {
 	let sql: postgres.Sql
 
 	async function insertDraftDefinition(tx: postgres.TransactionSql, id: string) {
+		const providerId = `${prefix}-provider`
+		await tx`
+			insert into "Provider" ("id", "accountPurpose", "dataClassification")
+			values (${providerId}, 'internal_qa', 'fixture')
+			on conflict ("id") do nothing
+		`
 		await tx`
 			insert into "TaxFeeDefinition" (
-				"id", "code", "name", "kind", "calculationType", "value",
+				"id", "providerId", "code", "name", "kind", "calculationType", "value",
 				"inclusionType", "appliesPer", "priority", "status", "editingState"
 			)
-			values (${id}, ${id}, 'Version integrity rule', 'tax', 'percentage', 10,
+			values (${id}, ${providerId}, ${id}, 'Version integrity rule', 'tax', 'percentage', 10,
 				'excluded', 'stay', 0, 'archived', 'draft')
 		`
 	}

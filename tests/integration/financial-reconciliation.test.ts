@@ -8,7 +8,6 @@ import {
 	EffectivePricing,
 	eq,
 	InventoryLock,
-	RatePlan,
 	Variant,
 } from "@/shared/infrastructure/db/compat"
 
@@ -23,6 +22,7 @@ import { buildOccupancyKey } from "@/shared/domain/occupancy"
 import {
 	upsertGeoPlace,
 	upsertProduct,
+	upsertRatePlan,
 	upsertVariant,
 } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
@@ -126,6 +126,8 @@ async function seedBookingReadyVariant(params: {
 		id: params.providerId,
 		displayName: "Financial Reconciliation Provider",
 		ownerEmail: params.ownerEmail,
+		accountPurpose: "commercial",
+		dataClassification: "production",
 	})
 
 	await upsertProduct({
@@ -134,6 +136,8 @@ async function seedBookingReadyVariant(params: {
 		productType: "Hotel",
 		geoPlaceId,
 		providerId: params.providerId,
+		dataClass: "production",
+		publicationState: "published",
 	})
 
 	await upsertVariant({
@@ -149,25 +153,27 @@ async function seedBookingReadyVariant(params: {
 	await db
 		.update(Variant)
 		.set({
-			status: "ready",
+			lifecycleState: "ready",
+			salesEnabled: true,
 		} as any)
 		.where(and(eq(Variant.id, params.variantId), eq(Variant.productId, params.productId)))
 
-	await db.insert(RatePlan).values({
+	await upsertRatePlan({
 		id: params.ratePlanId,
 		variantId: params.variantId,
 		name: "Default",
 		isDefault: true,
 		isActive: true,
-		createdAt: new Date(),
-	} as any)
+		baseAmount: 100,
+		baseCurrency: "USD",
+	})
 
 	const cancellation = await createPolicyCapa6({
 		ownerProviderId: params.providerId,
 		category: "Cancellation",
 		description: "Flexible cancellation",
-		effectiveFrom: "2026-01-01",
-		effectiveTo: "2026-12-31",
+		effectiveFrom: "2020-01-01",
+		effectiveTo: "2100-12-31",
 		cancellationTiers: [{ daysBeforeArrival: 1, penaltyType: "percentage", penaltyAmount: 100 }],
 	} as any)
 	const payment = await createPolicyCapa6({
@@ -296,8 +302,8 @@ async function createHold(params: {
 			form: holdForm,
 		}),
 	} as any)
-	expect(holdRes.status).toBe(200)
-	const holdBody = await readJson<{ holdId?: string }>(holdRes)
+	const holdBody = await readJson<{ holdId?: string; error?: string; details?: unknown }>(holdRes)
+	expect(holdRes.status, JSON.stringify(holdBody)).toBe(200)
 	const holdId = String(holdBody?.holdId ?? "")
 	expect(holdId.length).toBeGreaterThan(0)
 	return holdId
@@ -330,13 +336,13 @@ async function callReconciliation(bookingId: string, token: string) {
 describe("integration/financial reconciliation", () => {
 	it("Case 1: does not create legacy financial evidence during booking confirm", async () => {
 		const token = "t_finrec_happy"
-		const email = "finrec-happy@example.com"
+		const email = `finrec-happy-${crypto.randomUUID()}@example.com`
 		const providerId = `prov_finrec_happy_${crypto.randomUUID()}`
 		const productId = `prod_finrec_happy_${crypto.randomUUID()}`
 		const variantId = `var_finrec_happy_${crypto.randomUUID()}`
 		const ratePlanId = `rp_finrec_happy_${crypto.randomUUID()}`
-		const checkIn = "2026-06-10"
-		const checkOut = "2026-06-12"
+		const checkIn = addDays(new Date().toISOString().slice(0, 10), 30)
+		const checkOut = addDays(checkIn, 2)
 
 		await seedBookingReadyVariant({
 			productId,
@@ -345,10 +351,10 @@ describe("integration/financial reconciliation", () => {
 			variantId,
 			ratePlanId,
 			totalUnits: 2,
-			dates: ["2026-06-10", "2026-06-11", "2026-06-12"],
+			dates: [checkIn, addDays(checkIn, 1), checkOut],
 		})
 
-		await withSupabaseAuthStub({ [token]: { id: "u_finrec_happy", email } }, async () => {
+		await withSupabaseAuthStub({ [token]: { id: `user_${email}`, email } }, async () => {
 			const holdId = await createHold({ token, variantId, ratePlanId, checkIn, checkOut })
 			const bookingId = await confirmBooking({ token, holdId })
 			const payload = await callReconciliation(bookingId, token)
@@ -361,17 +367,17 @@ describe("integration/financial reconciliation", () => {
 			expect(payload.financial.paymentIntents.length).toBe(0)
 			expect(payload.financial.settlementRecords.length).toBe(0)
 		})
-	})
+	}, 90_000)
 
 	it("Case 2: returns missing when no external financial evidence exists", async () => {
 		const token = "t_finrec_missing"
-		const email = "finrec-missing@example.com"
+		const email = `finrec-missing-${crypto.randomUUID()}@example.com`
 		const providerId = `prov_finrec_missing_${crypto.randomUUID()}`
 		const productId = `prod_finrec_missing_${crypto.randomUUID()}`
 		const variantId = `var_finrec_missing_${crypto.randomUUID()}`
 		const ratePlanId = `rp_finrec_missing_${crypto.randomUUID()}`
-		const checkIn = "2026-07-03"
-		const checkOut = "2026-07-05"
+		const checkIn = addDays(new Date().toISOString().slice(0, 10), 60)
+		const checkOut = addDays(checkIn, 2)
 
 		await seedBookingReadyVariant({
 			productId,
@@ -380,10 +386,10 @@ describe("integration/financial reconciliation", () => {
 			variantId,
 			ratePlanId,
 			totalUnits: 2,
-			dates: ["2026-07-03", "2026-07-04", "2026-07-05"],
+			dates: [checkIn, addDays(checkIn, 1), checkOut],
 		})
 
-		await withSupabaseAuthStub({ [token]: { id: "u_finrec_missing", email } }, async () => {
+		await withSupabaseAuthStub({ [token]: { id: `user_${email}`, email } }, async () => {
 			const holdId = await createHold({ token, variantId, ratePlanId, checkIn, checkOut })
 			const bookingId = await confirmBooking({ token, holdId })
 			const payload = await callReconciliation(bookingId, token)
@@ -393,17 +399,17 @@ describe("integration/financial reconciliation", () => {
 			expect(payload.financial.paymentIntents.length).toBe(0)
 			expect(payload.financial.settlementRecords.length).toBe(0)
 		})
-	})
+	}, 90_000)
 
 	it("Case 3: remains idempotent on double booking confirm without legacy financial rows", async () => {
 		const token = "t_finrec_idempotent"
-		const email = "finrec-idempotent@example.com"
+		const email = `finrec-idempotent-${crypto.randomUUID()}@example.com`
 		const providerId = `prov_finrec_idempotent_${crypto.randomUUID()}`
 		const productId = `prod_finrec_idempotent_${crypto.randomUUID()}`
 		const variantId = `var_finrec_idempotent_${crypto.randomUUID()}`
 		const ratePlanId = `rp_finrec_idempotent_${crypto.randomUUID()}`
-		const checkIn = "2026-09-01"
-		const checkOut = "2026-09-03"
+		const checkIn = addDays(new Date().toISOString().slice(0, 10), 90)
+		const checkOut = addDays(checkIn, 2)
 
 		await seedBookingReadyVariant({
 			productId,
@@ -412,10 +418,10 @@ describe("integration/financial reconciliation", () => {
 			variantId,
 			ratePlanId,
 			totalUnits: 2,
-			dates: ["2026-09-01", "2026-09-02", "2026-09-03"],
+			dates: [checkIn, addDays(checkIn, 1), checkOut],
 		})
 
-		await withSupabaseAuthStub({ [token]: { id: "u_finrec_idempotent", email } }, async () => {
+		await withSupabaseAuthStub({ [token]: { id: `user_${email}`, email } }, async () => {
 			const holdId = await createHold({ token, variantId, ratePlanId, checkIn, checkOut })
 			const confirmForm = new FormData()
 			confirmForm.set("holdId", holdId)
@@ -447,5 +453,5 @@ describe("integration/financial reconciliation", () => {
 			expect(evidenceComparison.reconciliation.status).toBe("missing")
 			expect(evidenceComparison.match.status).toBe("missing_payment")
 		})
-	})
+	}, 90_000)
 })

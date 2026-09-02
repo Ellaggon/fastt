@@ -20,6 +20,7 @@ import {
 } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
 import type { HoldPolicySnapshot } from "@/modules/policies/public"
+import { createPolicyCapa6 } from "@/modules/policies/public"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -77,18 +78,18 @@ async function readJson<T = any>(response: Response): Promise<T> {
 	return text ? JSON.parse(text) : ({} as T)
 }
 
-function policySnapshot(): HoldPolicySnapshot {
+function policySnapshot(params: { policyId: string; groupId: string }): HoldPolicySnapshot {
 	return {
 		cancellation: {
 			category: "cancellation",
-			policyId: "pol_cancel_refund",
-			groupId: "grp_cancel_refund",
+			policyId: params.policyId,
+			groupId: params.groupId,
 			version: 1,
 			description: "Moderate refund",
 			resolvedFromScope: "rate_plan",
 			source: {
-				policyId: "pol_cancel_refund",
-				groupId: "grp_cancel_refund",
+				policyId: params.policyId,
+				groupId: params.groupId,
 				version: 1,
 				resolvedFromScope: "rate_plan",
 				policyPresetKey: "moderate",
@@ -151,7 +152,7 @@ function policySnapshot(): HoldPolicySnapshot {
 		no_show: null,
 		check_in: null,
 		meta: {
-			policyVersionIds: ["pol_cancel_refund"],
+			policyVersionIds: [params.policyId],
 			resolvedAt: "2030-01-01T00:00:00.000Z",
 			checkIn: "2030-02-10",
 			checkOut: "2030-02-12",
@@ -173,9 +174,23 @@ describe("integration/refund cancellation engine", () => {
 		const templateId = `rpt_refund_${suffix}`
 		const ratePlanId = `rp_refund_${suffix}`
 		const bookingId = `bk_refund_${suffix}`
-		const snapshot = policySnapshot()
 
 		await upsertProvider({ id: providerId, displayName: "Refund Provider", ownerEmail: email })
+		const cancellationPolicy = await createPolicyCapa6({
+			ownerProviderId: providerId,
+			category: "Cancellation",
+			description: "Moderate refund",
+			status: "active",
+			effectiveFrom: "2026-01-01",
+			effectiveTo: "2030-12-31",
+			cancellationTiers: [
+				{ daysBeforeArrival: 7, penaltyType: "percentage", penaltyAmount: 50 },
+			],
+		} as any)
+		const snapshot = policySnapshot({
+			policyId: cancellationPolicy.policyId,
+			groupId: cancellationPolicy.groupId,
+		})
 		await upsertGeoPlace({
 			id: geoPlaceId,
 			name: "Refund Destination",
@@ -238,7 +253,7 @@ describe("integration/refund cancellation engine", () => {
 			id: `bps_refund_${suffix}`,
 			bookingId,
 			category: "cancellation",
-			policyId: "pol_cancel_refund",
+			policyId: cancellationPolicy.policyId,
 			policySnapshotJson: snapshot.cancellation,
 			createdAt: new Date(),
 		} as any)

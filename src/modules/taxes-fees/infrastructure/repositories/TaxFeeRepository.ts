@@ -19,9 +19,10 @@ import type { TaxFeeQueryRepositoryPort } from "../../application/ports/TaxFeeQu
 import type { TaxFeeAssignment, TaxFeeDefinition, TaxFeeScope } from "../../domain/tax-fee.types"
 
 function mapDefinition(row: any): TaxFeeDefinition {
+	if (!row.providerId) throw new Error("TAX_FEE_DEFINITION_OWNER_MISSING")
 	return {
 		id: row.id,
-		providerId: row.providerId ?? null,
+		providerId: row.providerId,
 		code: row.code,
 		name: row.name,
 		kind: row.kind,
@@ -97,10 +98,9 @@ export class TaxFeeRepository
 	}
 
 	async updateDefinition(params: Omit<TaxFeeDefinition, "createdAt" | "updatedAt">): Promise<void> {
-		await db
+		const updated = await db
 			.update(TaxFeeDefinitionTable)
 			.set({
-				providerId: params.providerId,
 				code: params.code,
 				name: params.name,
 				kind: params.kind,
@@ -117,7 +117,14 @@ export class TaxFeeRepository
 				editingState: params.editingState ?? "draft",
 				updatedAt: new Date(),
 			})
-			.where(eq(TaxFeeDefinitionTable.id, params.id))
+			.where(
+				and(
+					eq(TaxFeeDefinitionTable.id, params.id),
+					eq(TaxFeeDefinitionTable.providerId, params.providerId)
+				)
+			)
+			.returning({ id: TaxFeeDefinitionTable.id })
+		if (updated.length !== 1) throw new Error("Tax/fee definition not found")
 	}
 
 	async createAssignment(params: Omit<TaxFeeAssignment, "createdAt">): Promise<void> {
@@ -154,7 +161,7 @@ export class TaxFeeRepository
 
 	async findActiveDefinitionByCodeProvider(params: {
 		code: string
-		providerId: string | null
+		providerId: string
 	}): Promise<TaxFeeDefinition | null> {
 		const row = await db
 			.select()
@@ -162,9 +169,7 @@ export class TaxFeeRepository
 			.where(
 				and(
 					eq(TaxFeeDefinitionTable.code, params.code),
-					params.providerId
-						? eq(TaxFeeDefinitionTable.providerId, params.providerId)
-						: isNull(TaxFeeDefinitionTable.providerId),
+					eq(TaxFeeDefinitionTable.providerId, params.providerId),
 					eq(TaxFeeDefinitionTable.status, "active")
 				)
 			)

@@ -8,6 +8,12 @@ import { databaseTableNames } from "../../src/shared/infrastructure/db/schema/re
 
 const OUT_FILE = "db/postgres/0001_initial_schema.sql"
 const INTEGRITY_FILE = "src/shared/infrastructure/db/schema/postgres-integrity.sql"
+const TYPED_ASSIGNMENT_INTEGRITY_FILE =
+	"src/shared/infrastructure/db/schema/typed-assignment-integrity.sql"
+const FINANCIAL_RELATIONAL_INTEGRITY_FILE =
+	"src/shared/infrastructure/db/schema/financial-relational-integrity.sql"
+const FINANCIAL_BOOKING_CANDIDATE_SEARCH_FILE =
+	"src/shared/infrastructure/db/schema/financial-booking-candidate-search.sql"
 
 type DrizzleTable = Record<string | symbol, unknown>
 type DrizzleColumn = {
@@ -256,6 +262,15 @@ async function main() {
 	})
 
 	const integritySql = await readFile(INTEGRITY_FILE, "utf8")
+	const typedAssignmentIntegritySql = await readFile(TYPED_ASSIGNMENT_INTEGRITY_FILE, "utf8")
+	const financialRelationalIntegritySql = await readFile(
+		FINANCIAL_RELATIONAL_INTEGRITY_FILE,
+		"utf8"
+	)
+	const financialBookingCandidateSearchSql = await readFile(
+		FINANCIAL_BOOKING_CANDIDATE_SEARCH_FILE,
+		"utf8"
+	)
 	const lines = [
 		"-- Fastt Supabase initial schema.",
 		"-- Generated from src/shared/infrastructure/db/schema/tables.ts.",
@@ -275,6 +290,15 @@ async function main() {
 		"",
 		"-- Native PostgreSQL constraints, partial indexes and triggers.",
 		integritySql.trim(),
+		"",
+		"-- Canonical typed assignment ownership invariants.",
+		typedAssignmentIntegritySql.trim(),
+		"",
+		"-- Canonical financial ownership and evidence invariants.",
+		financialRelationalIntegritySql.trim(),
+		"",
+		"-- Financial booking candidate search indexes.",
+		financialBookingCandidateSearchSql.trim(),
 		"",
 		"COMMIT;",
 		"",
