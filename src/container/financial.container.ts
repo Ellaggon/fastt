@@ -12,6 +12,7 @@ import { ReconciliationMatchRepository } from "@/modules/financial/infrastructur
 import { RefundCalculationRepository } from "@/modules/financial/infrastructure/repositories/RefundCalculationRepository"
 import { RefundHandoffRepository } from "@/modules/financial/infrastructure/repositories/RefundHandoffRepository"
 import { ExternalFinancialEvidenceAssociationRepository } from "@/modules/financial/infrastructure/repositories/ExternalFinancialEvidenceAssociationRepository"
+import { FinancialBookingCandidateRepository } from "@/modules/financial/infrastructure/repositories/FinancialBookingCandidateRepository"
 
 export const financialExceptionRepository = new FinancialExceptionRepository()
 export const financialReferenceRepository = new FinancialReferenceRepository()
@@ -28,3 +29,4 @@ export const payoutRecordRepository = new PayoutRecordRepository()
 export const providerStatementRepository = new ProviderStatementRepository()
 export const externalFinancialEvidenceAssociationRepository =
 	new ExternalFinancialEvidenceAssociationRepository()
+export const financialBookingCandidateRepository = new FinancialBookingCandidateRepository()

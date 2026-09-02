@@ -63,3 +63,41 @@ export async function submitReconciliationReviewMarker(params: {
 }): Promise<Response> {
 	return postJson("/api/internal/financial/reconciliation-matches/review", params)
 }
+
+export async function submitExternalEvidenceAssociation(params: {
+	evidenceType: "payment" | "settlement"
+	evidenceId: string
+	bookingId: string
+	reason: string
+}): Promise<Response> {
+	return postJson("/api/internal/financial/evidence/associate", params)
+}
+
+export async function searchFinancialBookingCandidates(
+	query: string,
+	options: { signal?: AbortSignal } = {}
+): Promise<FinancialBookingCandidate[]> {
+	const params = new URLSearchParams({ limit: "10" })
+	if (query.trim()) params.set("q", query.trim())
+	const response = await fetch(`/api/internal/financial/booking-candidates?${params.toString()}`, {
+		headers: { accept: "application/json" },
+		signal: options.signal,
+	})
+	if (!response.ok) throw new Error("financial_booking_candidate_search_failed")
+	const body = await response.json()
+	return Array.isArray(body?.items) ? body.items : []
+}
+
+export type FinancialBookingCandidate = {
+	id: string
+	guestName: string | null
+	guestEmail: string | null
+	productName: string | null
+	variantName: string | null
+	checkIn: string | null
+	checkOut: string | null
+	currency: string
+	totalAmount: number
+	status: string
+	externalBookingId: string | null
+}
