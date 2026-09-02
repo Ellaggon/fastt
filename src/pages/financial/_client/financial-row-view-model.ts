@@ -482,6 +482,8 @@ export function buildUnmatchedEvidenceWorkItem(kind: "payment" | "settlement", r
 		nextOwner: "financial_operations",
 		overlaySource: "visibility_only",
 		evidenceIssue: {
+			evidenceId: String(row?.id || ""),
+			evidenceType: kind,
 			kind: kind === "payment" ? "unmatched_payment" : "unmatched_settlement",
 			title: kind === "payment" ? "Cobro sin reserva asociada" : "Liquidación sin reserva asociada",
 			description: unmatchedEvidenceDescription(kind, row),
