@@ -6,6 +6,9 @@ const read = (path: string) => readFileSync(path, "utf8")
 const schema = read("src/shared/infrastructure/db/schema/tables.ts")
 const integrity = read("src/shared/infrastructure/db/schema/postgres-integrity.sql")
 const migration = read("db/migrations/2026-10-18_harden_financial_relational_integrity.sql")
+const canonicalIntegrity = read(
+	"src/shared/infrastructure/db/schema/financial-relational-integrity.sql"
+)
 
 function tableSource(table: string) {
 	const start = schema.indexOf(`export const ${table} = pgTable(`)
@@ -35,8 +38,8 @@ describe("Guardrail: financial relational integrity", () => {
 	it("models external evidence as unlinked instead of inventing synthetic booking IDs", () => {
 		for (const table of ["PaymentTransaction", "FinancialSettlementRecord"]) {
 			expect(tableSource(table)).toContain(
-			'bookingId: txtOpt("bookingId").references(() => Booking.id)'
-		)
+				'bookingId: txtOpt("bookingId").references(() => Booking.id)'
+			)
 		}
 		for (const path of [
 			"src/pages/api/internal/financial/transactions.ts",
@@ -48,11 +51,36 @@ describe("Guardrail: financial relational integrity", () => {
 		}
 	})
 
-	it("enforces provider, refund and review lineage in PostgreSQL", () => {
-		expect(integrity).toContain("fastt_validate_financial_booking_provider")
-		expect(integrity).toContain("fastt_validate_refund_ledger_lineage")
-		expect(integrity).toContain("fastt_validate_financial_review_event_lineage")
+	it("preserves the sanitation migration without retaining superseded runtime triggers", () => {
 		expect(migration).toContain("FINANCIAL_INTEGRITY_UNCLASSIFIED_REFUND_QUOTES")
 		expect(migration).toContain("FINANCIAL_BOOKING_PROVIDER_MISMATCH")
+		expect(canonicalIntegrity).toContain(
+			"DROP FUNCTION IF EXISTS fastt_validate_financial_booking_provider()"
+		)
+		expect(integrity).not.toContain("fastt_validate_financial_booking_provider")
+	})
+
+	it("enforces ownership and lineage with composite foreign keys", () => {
+		for (const table of [
+			"FinancialExceptionRecord",
+			"FinancialReference",
+			"RefundHandoffRecord",
+			"RefundQuote",
+			"RefundLedger",
+			"FinancialReviewEvent",
+			"PaymentTransaction",
+			"FinancialSettlementRecord",
+			"ReconciliationMatch",
+			"CommissionSnapshot",
+			"ProviderPayableSnapshot",
+			"PayoutRecord",
+		]) {
+			expect(canonicalIntegrity).toContain(`${table}_booking_provider_fk`)
+		}
+		expect(canonicalIntegrity).toContain("RefundLedger_quote_lineage_fk")
+		expect(canonicalIntegrity).toContain("RefundLedger_payment_lineage_fk")
+		expect(canonicalIntegrity).toContain("FinancialReviewEvent_payment_lineage_fk")
+		expect(canonicalIntegrity).toContain("FinancialReviewEvent_settlement_lineage_fk")
+		expect(canonicalIntegrity).toContain("BOOKING_PROVIDER_IDENTITY_IMMUTABLE")
 	})
 })
