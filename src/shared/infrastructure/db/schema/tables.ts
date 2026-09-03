@@ -270,6 +270,101 @@ export const User = pgTable(
 	]
 )
 
+/** Internal IAM: roles are data, never inferred solely from an email allowlist. */
+export const InternalRole = pgTable(
+	"InternalRole",
+	{
+		id: pk(),
+		key: txt("key"),
+		label: txt("label"),
+		description: txtOpt("description"),
+		isSystem: boolDefault("isSystem", true),
+		createdAt: now("createdAt"),
+	},
+	(table) => [
+		uniqueIndex("InternalRole_key_unique").on(table.key),
+		check("InternalRole_key_format_check", sql`${table.key} ~ '^[a-z][a-z0-9_.-]{2,95}$'`),
+	]
+)
+
+export const InternalPermission = pgTable(
+	"InternalPermission",
+	{
+		key: text("key").primaryKey(),
+		label: txt("label"),
+		description: txtOpt("description"),
+		isSensitive: boolDefault("isSensitive", false),
+		createdAt: now("createdAt"),
+	},
+	(table) => [
+		check("InternalPermission_key_format_check", sql`${table.key} ~ '^[a-z][a-z0-9_.-]{2,127}$'`),
+	]
+)
+
+export const InternalRolePermission = pgTable(
+	"InternalRolePermission",
+	{
+		roleId: txt("roleId").references(() => InternalRole.id, { onDelete: "cascade" }),
+		permissionKey: text("permissionKey").references(() => InternalPermission.key, {
+			onDelete: "cascade",
+		}),
+		createdAt: now("createdAt"),
+	},
+	(table) => [primaryKey({ columns: [table.roleId, table.permissionKey] })]
+)
+
+export const InternalUserRole = pgTable(
+	"InternalUserRole",
+	{
+		id: pk(),
+		userId: txt("userId").references(() => User.id, { onDelete: "cascade" }),
+		roleId: txt("roleId").references(() => InternalRole.id, { onDelete: "cascade" }),
+		scopeType: text("scopeType").default("global").notNull(),
+		scopeId: txtOpt("scopeId"),
+		status: text("status").default("active").notNull(),
+		expiresAt: ts("expiresAt"),
+		grantedByUserId: txtOpt("grantedByUserId").references(() => User.id),
+		revokedAt: ts("revokedAt"),
+		revokedByUserId: txtOpt("revokedByUserId").references(() => User.id),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		index("InternalUserRole_user_status_idx").on(table.userId, table.status),
+		index("InternalUserRole_role_status_idx").on(table.roleId, table.status),
+		uniqueIndex("InternalUserRole_active_unique")
+			.on(table.userId, table.roleId, table.scopeType, table.scopeId)
+			.where(sql`${table.status} = 'active'`),
+		check(
+			"InternalUserRole_scope_shape_check",
+			sql`(${table.scopeType} = 'global' AND ${table.scopeId} IS NULL) OR (${table.scopeType} <> 'global' AND ${table.scopeId} IS NOT NULL)`
+		),
+		check(
+			"InternalUserRole_status_check",
+			sql`${table.status} IN ('active', 'revoked', 'expired')`
+		),
+	]
+)
+
+/** Session assurance is written only after a verified MFA or reauthentication ceremony. */
+export const InternalSecuritySession = pgTable(
+	"InternalSecuritySession",
+	{
+		id: pk(),
+		userId: txt("userId").references(() => User.id, { onDelete: "cascade" }),
+		sessionFingerprint: txt("sessionFingerprint"),
+		mfaVerifiedAt: ts("mfaVerifiedAt"),
+		reauthenticatedAt: ts("reauthenticatedAt"),
+		expiresAt: tsReq("expiresAt"),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		uniqueIndex("InternalSecuritySession_fingerprint_unique").on(table.sessionFingerprint),
+		index("InternalSecuritySession_user_expires_idx").on(table.userId, table.expiresAt),
+	]
+)
+
 export const ProviderProfile = pgTable("ProviderProfile", {
 	providerId: text("providerId")
 		.primaryKey()
@@ -743,6 +838,97 @@ export const ProviderAuditLog = pgTable(
 	]
 )
 
+/** Append-only, cross-domain operational audit stream. */
+export const AuditEvent = pgTable(
+	"AuditEvent",
+	{
+		id: pk(),
+		requestId: txt("requestId"),
+		actorUserId: txtOpt("actorUserId").references(() => User.id),
+		actorRoleKeysJson: jsonb("actorRoleKeysJson"),
+		providerId: txtOpt("providerId").references(() => Provider.id),
+		action: txt("action"),
+		entityType: txt("entityType"),
+		entityId: txtOpt("entityId"),
+		outcome: text("outcome").default("succeeded").notNull(),
+		riskLevel: text("riskLevel").default("low").notNull(),
+		beforeJson: jsonb("beforeJson"),
+		afterJson: jsonb("afterJson"),
+		contextJson: jsonb("contextJson"),
+		createdAt: now("createdAt"),
+	},
+	(table) => [
+		index("AuditEvent_request_created_idx").on(table.requestId, table.createdAt),
+		index("AuditEvent_actor_created_idx").on(table.actorUserId, table.createdAt),
+		index("AuditEvent_provider_created_idx").on(table.providerId, table.createdAt),
+		index("AuditEvent_entity_created_idx").on(table.entityType, table.entityId, table.createdAt),
+		check(
+			"AuditEvent_outcome_check",
+			sql`${table.outcome} IN ('attempted', 'succeeded', 'denied', 'failed')`
+		),
+		check(
+			"AuditEvent_risk_check",
+			sql`${table.riskLevel} IN ('low', 'medium', 'high', 'critical')`
+		),
+	]
+)
+
+export const SensitiveDataAccessEvent = pgTable(
+	"SensitiveDataAccessEvent",
+	{
+		id: pk(),
+		auditEventId: txtOpt("auditEventId").references(() => AuditEvent.id),
+		requestId: txt("requestId"),
+		actorUserId: txtOpt("actorUserId").references(() => User.id),
+		providerId: txtOpt("providerId").references(() => Provider.id),
+		resourceType: txt("resourceType"),
+		resourceId: txtOpt("resourceId"),
+		accessType: text("accessType").notNull(),
+		reason: txt("reason"),
+		fieldsJson: jsonb("fieldsJson"),
+		success: boolDefault("success", true),
+		createdAt: now("createdAt"),
+	},
+	(table) => [
+		index("SensitiveDataAccessEvent_actor_created_idx").on(table.actorUserId, table.createdAt),
+		index("SensitiveDataAccessEvent_resource_created_idx").on(
+			table.resourceType,
+			table.resourceId,
+			table.createdAt
+		),
+		check(
+			"SensitiveDataAccessEvent_type_check",
+			sql`${table.accessType} IN ('reveal', 'download', 'export')`
+		),
+	]
+)
+
+/** Cross-domain idempotency record; a key cannot be reused with a different command hash. */
+export const CommandIdempotency = pgTable(
+	"CommandIdempotency",
+	{
+		id: pk(),
+		scope: txt("scope"),
+		key: txt("key"),
+		requestHash: txt("requestHash"),
+		status: text("status").default("started").notNull(),
+		responseJson: jsonb("responseJson"),
+		actorUserId: txtOpt("actorUserId").references(() => User.id),
+		requestId: txt("requestId"),
+		expiresAt: tsReq("expiresAt"),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		uniqueIndex("CommandIdempotency_scope_key_unique").on(table.scope, table.key),
+		index("CommandIdempotency_expires_idx").on(table.expiresAt),
+		check(
+			"CommandIdempotency_status_check",
+			sql`${table.status} IN ('started', 'succeeded', 'failed')`
+		),
+	]
+)
+
 export const ProviderComplianceAssignment = pgTable(
 	"ProviderComplianceAssignment",
 	{
@@ -767,6 +953,18 @@ export const ProviderComplianceAssignment = pgTable(
 		),
 		index("ProviderComplianceAssignment_slaDueAt_idx").on(table.slaDueAt),
 		index("ProviderComplianceAssignment_provider_entity_idx").on(table.providerId, table.entityId),
+		uniqueIndex("ProviderComplianceAssignment_open_unique")
+			.on(table.providerId, table.domain, table.entityId)
+			.where(sql`${table.status} = 'open'`),
+		check(
+			"ProviderComplianceAssignment_domain_check",
+			sql`${table.domain} IN ('verification', 'fiscal', 'documents', 'payments')`
+		),
+		check(
+			"ProviderComplianceAssignment_status_check",
+			sql`${table.status} IN ('open', 'done', 'canceled')`
+		),
+		check("ProviderComplianceAssignment_sla_hours_check", sql`${table.slaHours} BETWEEN 1 AND 168`),
 	]
 )
 

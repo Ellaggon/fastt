@@ -1716,6 +1716,101 @@ CREATE TABLE "PayoutRecord" (
 	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
+CREATE TABLE "InternalRole" (
+	"id" text PRIMARY KEY,
+	"key" text NOT NULL,
+	"label" text NOT NULL,
+	"description" text,
+	"isSystem" boolean NOT NULL DEFAULT true,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "InternalPermission" (
+	"key" text PRIMARY KEY,
+	"label" text NOT NULL,
+	"description" text,
+	"isSensitive" boolean NOT NULL DEFAULT false,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "InternalRolePermission" (
+	"roleId" text NOT NULL,
+	"permissionKey" text,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "InternalUserRole" (
+	"id" text PRIMARY KEY,
+	"userId" text NOT NULL,
+	"roleId" text NOT NULL,
+	"scopeType" text NOT NULL DEFAULT 'global',
+	"scopeId" text,
+	"status" text NOT NULL DEFAULT 'active',
+	"expiresAt" timestamp with time zone,
+	"grantedByUserId" text,
+	"revokedAt" timestamp with time zone,
+	"revokedByUserId" text,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "InternalSecuritySession" (
+	"id" text PRIMARY KEY,
+	"userId" text NOT NULL,
+	"sessionFingerprint" text NOT NULL,
+	"mfaVerifiedAt" timestamp with time zone,
+	"reauthenticatedAt" timestamp with time zone,
+	"expiresAt" timestamp with time zone NOT NULL,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "AuditEvent" (
+	"id" text PRIMARY KEY,
+	"requestId" text NOT NULL,
+	"actorUserId" text,
+	"actorRoleKeysJson" jsonb,
+	"providerId" text,
+	"action" text NOT NULL,
+	"entityType" text NOT NULL,
+	"entityId" text,
+	"outcome" text NOT NULL DEFAULT 'succeeded',
+	"riskLevel" text NOT NULL DEFAULT 'low',
+	"beforeJson" jsonb,
+	"afterJson" jsonb,
+	"contextJson" jsonb,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "SensitiveDataAccessEvent" (
+	"id" text PRIMARY KEY,
+	"auditEventId" text,
+	"requestId" text NOT NULL,
+	"actorUserId" text,
+	"providerId" text,
+	"resourceType" text NOT NULL,
+	"resourceId" text,
+	"accessType" text NOT NULL,
+	"reason" text NOT NULL,
+	"fieldsJson" jsonb,
+	"success" boolean NOT NULL DEFAULT true,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "CommandIdempotency" (
+	"id" text PRIMARY KEY,
+	"scope" text NOT NULL,
+	"key" text NOT NULL,
+	"requestHash" text NOT NULL,
+	"status" text NOT NULL DEFAULT 'started',
+	"responseJson" jsonb,
+	"actorUserId" text,
+	"requestId" text NOT NULL,
+	"expiresAt" timestamp with time zone NOT NULL,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
 
 
 ALTER TABLE "ProviderProfile"
@@ -3208,6 +3303,89 @@ ALTER TABLE "PayoutRecord"
 	REFERENCES "Provider" ("id")
 ;
 
+ALTER TABLE "InternalRolePermission"
+	ADD CONSTRAINT "InternalRolePermission_roleId_fk"
+	FOREIGN KEY ("roleId")
+	REFERENCES "InternalRole" ("id")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "InternalRolePermission"
+	ADD CONSTRAINT "InternalRolePermission_permissionKey_fk"
+	FOREIGN KEY ("permissionKey")
+	REFERENCES "InternalPermission" ("key")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "InternalUserRole"
+	ADD CONSTRAINT "InternalUserRole_userId_fk"
+	FOREIGN KEY ("userId")
+	REFERENCES "User" ("id")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "InternalUserRole"
+	ADD CONSTRAINT "InternalUserRole_roleId_fk"
+	FOREIGN KEY ("roleId")
+	REFERENCES "InternalRole" ("id")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "InternalUserRole"
+	ADD CONSTRAINT "InternalUserRole_grantedByUserId_fk"
+	FOREIGN KEY ("grantedByUserId")
+	REFERENCES "User" ("id")
+;
+
+ALTER TABLE "InternalUserRole"
+	ADD CONSTRAINT "InternalUserRole_revokedByUserId_fk"
+	FOREIGN KEY ("revokedByUserId")
+	REFERENCES "User" ("id")
+;
+
+ALTER TABLE "InternalSecuritySession"
+	ADD CONSTRAINT "InternalSecuritySession_userId_fk"
+	FOREIGN KEY ("userId")
+	REFERENCES "User" ("id")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "AuditEvent"
+	ADD CONSTRAINT "AuditEvent_actorUserId_fk"
+	FOREIGN KEY ("actorUserId")
+	REFERENCES "User" ("id")
+;
+
+ALTER TABLE "AuditEvent"
+	ADD CONSTRAINT "AuditEvent_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
+;
+
+ALTER TABLE "SensitiveDataAccessEvent"
+	ADD CONSTRAINT "SensitiveDataAccessEvent_auditEventId_fk"
+	FOREIGN KEY ("auditEventId")
+	REFERENCES "AuditEvent" ("id")
+;
+
+ALTER TABLE "SensitiveDataAccessEvent"
+	ADD CONSTRAINT "SensitiveDataAccessEvent_actorUserId_fk"
+	FOREIGN KEY ("actorUserId")
+	REFERENCES "User" ("id")
+;
+
+ALTER TABLE "SensitiveDataAccessEvent"
+	ADD CONSTRAINT "SensitiveDataAccessEvent_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
+;
+
+ALTER TABLE "CommandIdempotency"
+	ADD CONSTRAINT "CommandIdempotency_actorUserId_fk"
+	FOREIGN KEY ("actorUserId")
+	REFERENCES "User" ("id")
+;
+
 
 
 ALTER TABLE "GeoPlace" ADD CONSTRAINT "GeoPlace_country_parent_type_normalized_unique" UNIQUE NULLS NOT DISTINCT ("countryCode", "parentId", "placeType", "normalizedName");
@@ -3329,6 +3507,8 @@ CREATE INDEX "ProviderComplianceAssignment_provider_domain_status_idx" ON "Provi
 CREATE INDEX "ProviderComplianceAssignment_slaDueAt_idx" ON "ProviderComplianceAssignment" ("slaDueAt");
 
 CREATE INDEX "ProviderComplianceAssignment_provider_entity_idx" ON "ProviderComplianceAssignment" ("providerId", "entityId");
+
+CREATE UNIQUE INDEX "ProviderComplianceAssignment_open_unique" ON "ProviderComplianceAssignment" ("providerId", "domain", "entityId") WHERE "status" = 'open';
 
 CREATE INDEX "ProviderConfigurationState_canPublish_idx" ON "ProviderConfigurationState" ("canPublish");
 
@@ -3800,6 +3980,34 @@ CREATE INDEX "PayoutRecord_provider_status_idx" ON "PayoutRecord" ("providerId",
 
 CREATE INDEX "PayoutRecord_payoutReference_idx" ON "PayoutRecord" ("payoutReference");
 
+CREATE UNIQUE INDEX "InternalRole_key_unique" ON "InternalRole" ("key");
+
+CREATE INDEX "InternalUserRole_user_status_idx" ON "InternalUserRole" ("userId", "status");
+
+CREATE INDEX "InternalUserRole_role_status_idx" ON "InternalUserRole" ("roleId", "status");
+
+CREATE UNIQUE INDEX "InternalUserRole_active_unique" ON "InternalUserRole" ("userId", "roleId", "scopeType", "scopeId") WHERE "status" = 'active';
+
+CREATE UNIQUE INDEX "InternalSecuritySession_fingerprint_unique" ON "InternalSecuritySession" ("sessionFingerprint");
+
+CREATE INDEX "InternalSecuritySession_user_expires_idx" ON "InternalSecuritySession" ("userId", "expiresAt");
+
+CREATE INDEX "AuditEvent_request_created_idx" ON "AuditEvent" ("requestId", "createdAt");
+
+CREATE INDEX "AuditEvent_actor_created_idx" ON "AuditEvent" ("actorUserId", "createdAt");
+
+CREATE INDEX "AuditEvent_provider_created_idx" ON "AuditEvent" ("providerId", "createdAt");
+
+CREATE INDEX "AuditEvent_entity_created_idx" ON "AuditEvent" ("entityType", "entityId", "createdAt");
+
+CREATE INDEX "SensitiveDataAccessEvent_actor_created_idx" ON "SensitiveDataAccessEvent" ("actorUserId", "createdAt");
+
+CREATE INDEX "SensitiveDataAccessEvent_resource_created_idx" ON "SensitiveDataAccessEvent" ("resourceType", "resourceId", "createdAt");
+
+CREATE UNIQUE INDEX "CommandIdempotency_scope_key_unique" ON "CommandIdempotency" ("scope", "key");
+
+CREATE INDEX "CommandIdempotency_expires_idx" ON "CommandIdempotency" ("expiresAt");
+
 
 
 ALTER TABLE "Provider" ADD CONSTRAINT "Provider_accountPurpose_check" CHECK ("accountPurpose" IN ('commercial', 'internal_qa', 'integration_certification'));
@@ -3842,6 +4050,12 @@ ALTER TABLE "ProviderExternalCalendar" ADD CONSTRAINT "ProviderExternalCalendar_
 ALTER TABLE "ProviderExternalCalendarConflict" ADD CONSTRAINT "ProviderExternalCalendarConflict_status_check" CHECK ("status" IN ('open', 'accepted', 'ignored', 'resolved'));
 
 ALTER TABLE "ProviderExternalCalendarExport" ADD CONSTRAINT "ProviderExternalCalendarExport_status_check" CHECK ("status" IN ('active', 'revoked'));
+
+ALTER TABLE "ProviderComplianceAssignment" ADD CONSTRAINT "ProviderComplianceAssignment_domain_check" CHECK ("domain" IN ('verification', 'fiscal', 'documents', 'payments'));
+
+ALTER TABLE "ProviderComplianceAssignment" ADD CONSTRAINT "ProviderComplianceAssignment_status_check" CHECK ("status" IN ('open', 'done', 'canceled'));
+
+ALTER TABLE "ProviderComplianceAssignment" ADD CONSTRAINT "ProviderComplianceAssignment_sla_hours_check" CHECK ("slaHours" BETWEEN 1 AND 168);
 
 ALTER TABLE "GeoPlace" ADD CONSTRAINT "GeoPlace_placeType_check" CHECK ("placeType" IN ('country', 'admin_area_1', 'admin_area_2', 'city', 'locality', 'neighborhood', 'poi', 'natural_area'));
 
@@ -3964,6 +4178,22 @@ ALTER TABLE "TaxFeeAssignment" ADD CONSTRAINT "TaxFeeAssignment_typed_target_che
 			));
 
 ALTER TABLE "BookingVoucher" ADD CONSTRAINT "BookingVoucher_status_check" CHECK ("status" in ('issued', 'redeemed', 'void'));
+
+ALTER TABLE "InternalRole" ADD CONSTRAINT "InternalRole_key_format_check" CHECK ("key" ~ '^[a-z][a-z0-9_.-]{2,95}$');
+
+ALTER TABLE "InternalPermission" ADD CONSTRAINT "InternalPermission_key_format_check" CHECK ("key" ~ '^[a-z][a-z0-9_.-]{2,127}$');
+
+ALTER TABLE "InternalUserRole" ADD CONSTRAINT "InternalUserRole_scope_shape_check" CHECK (("scopeType" = 'global' AND "scopeId" IS NULL) OR ("scopeType" <> 'global' AND "scopeId" IS NOT NULL));
+
+ALTER TABLE "InternalUserRole" ADD CONSTRAINT "InternalUserRole_status_check" CHECK ("status" IN ('active', 'revoked', 'expired'));
+
+ALTER TABLE "AuditEvent" ADD CONSTRAINT "AuditEvent_outcome_check" CHECK ("outcome" IN ('attempted', 'succeeded', 'denied', 'failed'));
+
+ALTER TABLE "AuditEvent" ADD CONSTRAINT "AuditEvent_risk_check" CHECK ("riskLevel" IN ('low', 'medium', 'high', 'critical'));
+
+ALTER TABLE "SensitiveDataAccessEvent" ADD CONSTRAINT "SensitiveDataAccessEvent_type_check" CHECK ("accessType" IN ('reveal', 'download', 'export'));
+
+ALTER TABLE "CommandIdempotency" ADD CONSTRAINT "CommandIdempotency_status_check" CHECK ("status" IN ('started', 'succeeded', 'failed'));
 
 
 
