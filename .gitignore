@@ -32,6 +32,11 @@ artifacts/
 .obsidian/
 **/.obsidian/
 
+# Generated reports and local tooling (build artefacts, not tracked)
+docs/reports/
+scripts/build-command-center-report-docx.py
+scripts/make-docx-qa-contact-sheets.py
+
 .vitest/
 
 test-results/
