@@ -158,7 +158,9 @@ No se elimina historia. El cierre de duplicados conserva los registros y deja un
 - `astro check` pasó sin errores nuevos; existen advertencias históricas no relacionadas.
 - Pruebas unitarias de IAM, scope, maker-checker, redacción, request ID e idempotencia: 9/9 aprobadas.
 - Prueba de fachada DB: aprobada.
-- La nueva migración pasó el parser del runner en modo `--dry-run` con 25 sentencias.
+- La migración de Fase 1 pasó el parser con 25 sentencias y se aplicó correctamente a la base configurada el 3 de septiembre de 2026.
+- La cuenta operativa única tiene los roles globales `case_agent`, `verification_reviewer`, `fiscal_reviewer` y `payments_reviewer`. No recibió capacidades de payout, administración de accesos ni aprobación de alto riesgo.
+- Se implementó la ceremonia TOTP de Supabase: alta de factor, desafío, verificación, rotación de cookies HTTP-only y escritura de `InternalSecuritySession` con una sesión elevada ligada a su huella.
 - Se regeneró `db/postgres/0001_initial_schema.sql` desde el esquema Drizzle; contiene 125 tablas y las nuevas restricciones.
 
 ## 7. Gate de Fase 1
@@ -171,13 +173,13 @@ No se elimina historia. El cierre de duplicados conserva los registros y deja un
 | una sola asignación abierta             | índice parcial y deduplicación en migración              |
 | auditoría de decisión nueva             | implementada en verificación; adopción gradual pendiente |
 | acceso sensible auditado                | implementado en preview de documentos                    |
-| MFA/reauth verificable                  | tabla y guard implementados; falta ceremonia UI/IdP      |
+| MFA/reauth verificable                  | ceremonia TOTP de Supabase implementada y guard aplicado al preview sensible |
 
 ## 8. Gaps residuales y siguiente trabajo
 
-1. **Aplicar migración:** el código no cambia la base de datos por sí mismo. Debe realizarse en preproducción y producción controlada.
-2. **Asignar roles al responsable actual:** la migración siembra catálogo, no privilegios de usuario. Esto evita escalamientos silenciosos.
-3. **MFA y reauth:** `requireRecentInternalAuthentication` ya valida una sesión elevada, pero aún falta conectar el flujo real de Supabase MFA/reauth que escriba `InternalSecuritySession`. No debe activarse el enforcement de step-up hasta completar ese flujo.
+1. **Despliegue de aplicación:** la base ya está actualizada, pero las rutas MFA y el guard entran en vigor cuando este código se despliegue en el entorno que sirve FASTT. Deben definirse allí `FASTT_INTERNAL_AUTH_ALLOWLIST_FALLBACK=false` tras la prueba de acceso de la cuenta operativa.
+2. **Configuración del proyecto Supabase:** confirmar en Authentication → Multi-factor authentication que challenge y verification no estén deshabilitados. TOTP no requiere secreto de proveedor adicional.
+3. **Inscripción personal:** la cuenta operativa debe iniciar sesión en FASTT y abrir `/auth/mfa`; el escaneo del QR y el código de su aplicación autenticadora son una interacción personal no automatizable.
 4. **Adopción de request ID/auditoría:** verificación y preview documental lo usan; los demás comandos internos deben migrarse por dominio durante Fase 2.
 5. **Idempotencia:** existe el servicio central, pero los comandos heredados continúan con sus propios mecanismos. El primer consumidor natural será `ComplianceCase` en Fase 2.
 6. **Separación dinámica:** el helper está listo, pero solo la futura tabla de propuestas/aprobaciones podrá impedir maker-checker a nivel de persistencia.
@@ -188,4 +190,4 @@ No se elimina historia. El cierre de duplicados conserva los registros y deja un
 
 La Fase 1 ya elimina el principal bloqueo arquitectónico: las nuevas capacidades no tienen por qué crecer sobre el superadmin por email. FASTT dispone de un modelo de autorización granular, trazabilidad transversal y controles de integridad suficientes para comenzar la Fase 2 de casos y políticas de forma segura.
 
-El gate queda **técnicamente preparado pero operacionalmente condicionado** a aplicar la migración, asignar roles explícitos y completar la integración real de MFA/reauth antes de activar acciones sensibles con dinero o alto riesgo.
+El gate queda **técnicamente implantado en la base de datos** y con MFA integrada en el código. Su cierre operativo requiere desplegar la aplicación, confirmar el ajuste MFA en Supabase, inscribir el factor TOTP de la cuenta operativa y desactivar el fallback de allowlist después de una prueba satisfactoria.

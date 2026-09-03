@@ -28,12 +28,17 @@ function readCookieToken(req: Request): string | null {
 	)
 }
 
+/** Returns a session token for server-side Supabase Auth operations only. */
+export function getAccessTokenFromRequest(request: Request): string | null {
+	return readBearerToken(request) || readCookieToken(request)
+}
+
 function hashToken(value: string): string {
 	return createHash("sha256").update(value).digest("hex")
 }
 
 export function getSessionIdFromRequest(request: Request): string | null {
-	const token = readBearerToken(request) || readCookieToken(request)
+	const token = getAccessTokenFromRequest(request)
 	if (!token) return null
 	return hashToken(token)
 }
@@ -95,7 +100,7 @@ export async function resolveLocalQaAuthUser(request: Request): Promise<AuthUser
  * Reads the access token from Authorization header or cookies and validates it with Supabase.
  */
 export async function getUserFromRequest(request: Request): Promise<AuthUser | null> {
-	const token = readBearerToken(request) || readCookieToken(request)
+	const token = getAccessTokenFromRequest(request)
 	const sessionId = token ? hashToken(token) : null
 	// A real session must always win over the local QA fixture. Without this guard,
 	// LOCAL_QA_AUTH_ENABLED silently impersonates the fixture user after sign-in.

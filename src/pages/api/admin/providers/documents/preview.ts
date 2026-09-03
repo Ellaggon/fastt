@@ -2,6 +2,7 @@ import type { APIRoute } from "astro"
 import { first, and, db, eq, ProviderDocument } from "@/shared/infrastructure/db/compat"
 
 import { requireInternalPermission } from "@/lib/auth/internal-authorization"
+import { requireRecentInternalAuthentication } from "@/lib/auth/internal-step-up"
 import { writeSensitiveDataAccessEvent } from "@/lib/audit/audit-events"
 import { createProviderDocumentPreviewUrl } from "@/lib/provider-document-storage"
 import { requestIdFromRequest, withRequestId } from "@/lib/http/request-context"
@@ -23,6 +24,7 @@ export const GET: APIRoute = async ({ request }) => {
 			type: "provider",
 			id: providerId,
 		})
+		await requireRecentInternalAuthentication({ request, user: principal.user })
 		if (!reason) {
 			return new Response(JSON.stringify({ error: "access_reason_required" }), {
 				status: 400,
