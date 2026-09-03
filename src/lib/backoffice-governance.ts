@@ -930,6 +930,14 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		rationale: "Password reset surface reached from recovery email links.",
 	},
 	{
+		pattern: "/auth/mfa",
+		status: "public",
+		context: "public-marketplace",
+		owner: "Identity",
+		rationale:
+			"TOTP enrollment and step-up verification for elevated internal sessions; uses base Layout outside provider/admin shells.",
+	},
+	{
 		pattern: "/",
 		status: "public",
 		context: "public-marketplace",
