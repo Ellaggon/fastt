@@ -1,4 +1,6 @@
 import {
+	searchFinancialBookingCandidates,
+	submitExternalEvidenceAssociation,
 	submitFinancialReference,
 	submitFinancialReviewAction,
 	submitReconciliationReviewMarker,
@@ -351,6 +353,9 @@ export function initFinancialWorkspace(): void {
 				onReferenceAction: () => void submitReference(),
 				onRefundHandoffAction: (action) => void submitRefundHandoffAction(action),
 				onReconciliationAction: () => void submitReconciliationReview(),
+				onEvidenceAssociation: () => void submitEvidenceAssociation(),
+				onEvidenceAssociationSearch: (query, options) =>
+					searchFinancialBookingCandidates(query, options),
 			},
 		})
 	}
@@ -458,6 +463,62 @@ export function initFinancialWorkspace(): void {
 		}
 		await fetchWorkspace()
 		await reopenSelectedOrClose()
+	}
+
+	async function submitEvidenceAssociation(): Promise<void> {
+		const evidenceIssue = workspaceState.selectedItem?.evidenceIssue
+		const bookingId = fieldValue("financialEvidenceBookingId").trim()
+		const reason = fieldValue("financialEvidenceAssociationReason").trim()
+		const errorNotice = document.getElementById("financialEvidenceAssociationError")
+		const submitButton = document.querySelector<HTMLButtonElement>(
+			"[data-evidence-association-action]"
+		)
+		const showError = (message: string) => {
+			if (!errorNotice) return
+			errorNotice.textContent = message
+			errorNotice.classList.remove("hidden")
+			errorNotice.focus({ preventScroll: true })
+		}
+		if (!evidenceIssue?.evidenceId || !bookingId || !reason) {
+			showError("Selecciona una reserva y explica por qué corresponde a este comprobante.")
+			return
+		}
+		errorNotice?.classList.add("hidden")
+		if (submitButton) {
+			submitButton.disabled = true
+			submitButton.setAttribute("aria-disabled", "true")
+			submitButton.textContent = "Asociando…"
+		}
+		try {
+			const response = await submitExternalEvidenceAssociation({
+				evidenceType: evidenceIssue.evidenceType,
+				evidenceId: evidenceIssue.evidenceId,
+				bookingId,
+				reason,
+			})
+			if (!response.ok) {
+				const message =
+					response.status === 409
+						? "Este comprobante ya fue asociado. Actualiza la bandeja para revisar su estado."
+						: response.status === 403
+							? "Tu rol no tiene permiso para asociar comprobantes financieros."
+							: "No pudimos completar la asociación. Verifica que la reserva y el comprobante sigan disponibles."
+				showError(message)
+				return
+			}
+			await fetchWorkspace()
+			await reopenSelectedOrClose()
+		} catch {
+			showError(
+				"La conexión se interrumpió y no pudimos confirmar el estado final. Actualiza la bandeja antes de reintentar."
+			)
+		} finally {
+			if (submitButton?.isConnected) {
+				submitButton.disabled = false
+				submitButton.setAttribute("aria-disabled", "false")
+				submitButton.textContent = "Confirmar asociación"
+			}
+		}
 	}
 
 	function renderFinancialView(): void {
