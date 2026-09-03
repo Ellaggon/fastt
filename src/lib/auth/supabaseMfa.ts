@@ -71,7 +71,9 @@ async function responseError(
 }
 
 export async function listTotpFactors(accessToken: string): Promise<MfaResult<MfaFactor[]>> {
-	const response = await authRequest(accessToken, "/factors", { method: "GET" })
+	// Supabase's client implementation derives a user's factors from /user.
+	// `/factors` only accepts POST (enroll), hence GET there returns 405.
+	const response = await authRequest(accessToken, "/user", { method: "GET" })
 	if (!response?.ok) return responseError(response, "list")
 	const body = (await response.json()) as { factors?: unknown }
 	const factors = Array.isArray(body.factors) ? body.factors : []
