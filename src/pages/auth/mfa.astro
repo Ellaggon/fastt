@@ -1,0 +1,117 @@
+---
+import Layout from "@/layouts/Layout.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import FormField from "@/components/ui/FormField.astro"
+import Input from "@/components/ui/Input.astro"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { sanitizeReturnTo } from "@/lib/auth/returnTo"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage?returnTo=/auth/mfa")
+const returnTo = sanitizeReturnTo(Astro.url.searchParams.get("returnTo"), "/dashboard")
+---
+
+<Layout title="Verificación en dos pasos">
+	<main class="flex min-h-screen items-center justify-center px-4 py-10">
+		<Card class="w-full max-w-lg" variant="plain">
+			<h1 class="text-2xl font-semibold text-slate-950">Protege el Centro de Mando</h1>
+			<p class="mt-2 text-sm leading-6 text-slate-600">
+				Configura o confirma tu código temporal. La sesión elevada dura 15 minutos para acciones
+				sensibles.
+			</p>
+			<div id="mfa-message" class="mt-5 hidden" role="status"></div>
+			<div id="mfa-setup" class="mt-6 hidden space-y-4">
+				<p class="text-sm text-slate-700">Escanea el código con una aplicación autenticadora.</p>
+				<img id="mfa-qr" class="mx-auto h-52 w-52 rounded bg-white p-2" alt="Código QR de MFA" />
+			</div>
+			<div class="mt-6 space-y-4">
+				<Button id="mfa-enroll" class="w-full" type="button" variant="secondary">
+					Configurar nueva aplicación autenticadora
+				</Button>
+				<FormField htmlFor="mfa-code" label="Código temporal">
+					<Input
+						id="mfa-code"
+						autocomplete="one-time-code"
+						class="tracking-[0.3em]"
+						inputmode="numeric"
+						maxlength="8"
+					/>
+				</FormField>
+				<Button id="mfa-verify" class="w-full" type="button" variant="primary">
+					Verificar y continuar
+				</Button>
+			</div>
+		</Card>
+	</main>
+	<script is:inline define:vars={{ returnTo }}>
+		let selectedFactorId = ""
+		const message = document.getElementById("mfa-message")
+		const setup = document.getElementById("mfa-setup")
+		const qr = document.getElementById("mfa-qr")
+		const enrollButton = document.getElementById("mfa-enroll")
+		const verifyButton = document.getElementById("mfa-verify")
+
+		function showMessage(text, error = false) {
+			if (!message) return
+			message.textContent = text
+			message.className = `fastt-notice mt-5 rounded-[var(--fastt-radius-card)] border p-4 text-sm leading-6 ${
+				error ? "border-red-200 bg-red-50 text-red-900" : "border-sky-200 bg-sky-50 text-sky-900"
+			}`
+			message.hidden = false
+		}
+
+		async function loadFactors() {
+			const response = await fetch("/api/auth/mfa/factors", { credentials: "same-origin" })
+			const body = await response.json()
+			if (!response.ok) throw new Error(body.error || "No se pudo consultar MFA")
+			const verified = (body.factors || []).find((factor) => factor.status === "verified")
+			if (verified) {
+				selectedFactorId = verified.id
+				showMessage("Introduce el código de tu aplicación autenticadora.")
+			}
+		}
+
+		enrollButton?.addEventListener("click", async () => {
+			try {
+				const response = await fetch("/api/auth/mfa/enroll", {
+					method: "POST",
+					credentials: "same-origin",
+				})
+				const body = await response.json()
+				if (!response.ok) throw new Error(body.error || "No se pudo iniciar MFA")
+				selectedFactorId = body.factorId
+				if (qr) qr.setAttribute("src", body.qrCode)
+				setup?.classList.remove("hidden")
+				showMessage("Escanea el código y escribe el código temporal para confirmar.")
+			} catch (error) {
+				showMessage(error instanceof Error ? error.message : "No se pudo iniciar MFA", true)
+			}
+		})
+
+		verifyButton?.addEventListener("click", async () => {
+			try {
+				if (!selectedFactorId) throw new Error("Primero configura una aplicación autenticadora.")
+				const codeInput = document.getElementById("mfa-code")
+				const response = await fetch("/api/auth/mfa/verify", {
+					method: "POST",
+					credentials: "same-origin",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						factorId: selectedFactorId,
+						code: codeInput instanceof HTMLInputElement ? codeInput.value : "",
+					}),
+				})
+				const body = await response.json()
+				if (!response.ok) throw new Error(body.error || "El código no pudo verificarse")
+				window.location.assign(returnTo)
+			} catch (error) {
+				showMessage(error instanceof Error ? error.message : "El código no pudo verificarse", true)
+			}
+		})
+
+		loadFactors().catch((error) =>
+			showMessage(error instanceof Error ? error.message : "No se pudo consultar MFA", true)
+		)
+	</script>
+</Layout>
