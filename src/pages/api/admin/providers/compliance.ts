@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro"
 
-import { requireInternalAdmin } from "@/lib/auth/requireInternalAdmin"
+import { requireInternalPermission } from "@/lib/auth/internal-authorization"
 import {
 	loadProviderComplianceConsole,
 	parseProviderComplianceQueueFilter,
@@ -12,7 +12,7 @@ import {
  */
 export const GET: APIRoute = async ({ request }) => {
 	try {
-		await requireInternalAdmin(request)
+		await requireInternalPermission(request, "provider.compliance.read")
 		const url = new URL(request.url)
 		const filter = parseProviderComplianceQueueFilter(url.searchParams.get("filter"))
 		const consolePayload = await loadProviderComplianceConsole({

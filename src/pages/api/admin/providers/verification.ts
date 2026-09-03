@@ -1,7 +1,9 @@
 import type { APIRoute } from "astro"
 import { providerV2Repository } from "@/container"
-import { requireInternalAdmin } from "@/lib/auth/requireInternalAdmin"
+import { requireInternalPermission } from "@/lib/auth/internal-authorization"
+import { writeAuditEvent } from "@/lib/audit/audit-events"
 import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/invalidation"
+import { requestIdFromRequest, withRequestId } from "@/lib/http/request-context"
 import { writeProviderAuditLog } from "@/lib/provider-audit"
 import { getLatestProviderVerificationStatus } from "@/lib/provider-admin-compliance"
 import { ValidationError } from "@/lib/validation/ValidationError"
@@ -32,9 +34,8 @@ async function readPayload(request: Request): Promise<{
 }
 
 export const POST: APIRoute = async ({ request }) => {
+	const requestId = requestIdFromRequest(request)
 	try {
-		const { user } = await requireInternalAdmin(request)
-
 		const payload = await readPayload(request)
 		if (!payload.providerId) {
 			return new Response(JSON.stringify({ error: "providerId is required" }), {
@@ -42,6 +43,11 @@ export const POST: APIRoute = async ({ request }) => {
 				headers: { "Content-Type": "application/json" },
 			})
 		}
+		const principal = await requireInternalPermission(request, "provider.verification.review", {
+			type: "provider",
+			id: payload.providerId,
+		})
+		const { user } = principal
 
 		if (payload.status !== "approved" && payload.status !== "rejected") {
 			return new Response(JSON.stringify({ error: "status must be approved or rejected" }), {
@@ -84,6 +90,18 @@ export const POST: APIRoute = async ({ request }) => {
 			},
 			riskLevel: "high",
 		})
+		await writeAuditEvent({
+			requestId,
+			actorUserId: user.id,
+			actorRoleKeys: principal.roles,
+			providerId: payload.providerId,
+			action: "provider.verification.review",
+			entityType: "ProviderVerification",
+			entityId: payload.providerId,
+			riskLevel: "high",
+			beforeJson: { status: before?.status ?? "pending", reason: before?.reason ?? null },
+			afterJson: { status: payload.status, reason: payload.reason ?? null },
+		})
 
 		const { completeComplianceAssignment } = await import("@/lib/provider-compliance-ops")
 		await completeComplianceAssignment({
@@ -95,10 +113,13 @@ export const POST: APIRoute = async ({ request }) => {
 		await invalidateProvider(payload.providerId)
 		await invalidateProviderGovernance(payload.providerId, "admin_provider_verification_reviewed")
 
-		return new Response(JSON.stringify(result), {
-			status: 200,
-			headers: { "Content-Type": "application/json" },
-		})
+		return withRequestId(
+			new Response(JSON.stringify(result), {
+				status: 200,
+				headers: { "Content-Type": "application/json" },
+			}),
+			requestId
+		)
 	} catch (e) {
 		if (e instanceof Response) return e
 		if (e instanceof ValidationError) {
@@ -108,9 +129,12 @@ export const POST: APIRoute = async ({ request }) => {
 			})
 		}
 		const msg = e instanceof Error ? e.message : "Unknown error"
-		return new Response(JSON.stringify({ error: msg }), {
-			status: 500,
-			headers: { "Content-Type": "application/json" },
-		})
+		return withRequestId(
+			new Response(JSON.stringify({ error: msg }), {
+				status: 500,
+				headers: { "Content-Type": "application/json" },
+			}),
+			requestId
+		)
 	}
 }

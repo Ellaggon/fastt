@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro"
 
-import { requireInternalAdmin } from "@/lib/auth/requireInternalAdmin"
+import { requireInternalPermission } from "@/lib/auth/internal-authorization"
 import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/invalidation"
 import {
 	initiatePaymentAccountMicroDeposit,
@@ -39,7 +39,6 @@ async function readPayload(request: Request): Promise<{
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
-		const { user } = await requireInternalAdmin(request)
 		const payload = await readPayload(request)
 
 		if (!payload.providerId) {
@@ -48,6 +47,10 @@ export const POST: APIRoute = async ({ request }) => {
 				headers: { "Content-Type": "application/json" },
 			})
 		}
+		const { user } = await requireInternalPermission(request, "provider.payment.review", {
+			type: "provider",
+			id: payload.providerId,
+		})
 		if (!payload.accountId) {
 			return new Response(JSON.stringify({ error: "accountId is required" }), {
 				status: 400,
