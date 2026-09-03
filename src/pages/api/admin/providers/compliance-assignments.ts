@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro"
 
-import { requireInternalAdmin } from "@/lib/auth/requireInternalAdmin"
+import { requireInternalPermission } from "@/lib/auth/internal-authorization"
 import {
 	listOpenComplianceAssignments,
 	upsertComplianceAssignment,
@@ -15,7 +15,7 @@ function json(payload: unknown, status = 200) {
 
 export const GET: APIRoute = async ({ request }) => {
 	try {
-		await requireInternalAdmin(request)
+		await requireInternalPermission(request, "provider.compliance.read")
 		const url = new URL(request.url)
 		const providerId = String(url.searchParams.get("providerId") ?? "").trim() || undefined
 		const assignments = await listOpenComplianceAssignments({ providerId })
@@ -28,7 +28,7 @@ export const GET: APIRoute = async ({ request }) => {
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
-		const { user } = await requireInternalAdmin(request)
+		const { user } = await requireInternalPermission(request, "case.assign")
 		const body = (await request.json()) as Record<string, unknown>
 		const providerId = String(body.providerId ?? "").trim()
 		if (!providerId) return json({ error: "providerId is required" }, 400)
