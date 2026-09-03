@@ -69,6 +69,13 @@ const returnTo = sanitizeReturnTo(Astro.url.searchParams.get("returnTo"), "/dash
 			if (verified) {
 				selectedFactorId = verified.id
 				showMessage("Introduce el código de tu aplicación autenticadora.")
+				return
+			}
+			const incomplete = (body.factors || []).some((factor) => factor.status !== "verified")
+			if (incomplete) {
+				showMessage(
+					"Hay una configuración anterior sin confirmar. Puedes iniciar una nueva configuración para generar un QR válido."
+				)
 			}
 		}
 

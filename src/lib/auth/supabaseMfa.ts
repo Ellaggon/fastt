@@ -35,7 +35,17 @@ async function authRequest(
 async function responseError(response: Response | null): Promise<MfaError> {
 	if (!response) return { ok: false, error: "mfa_service_unavailable", status: 503 }
 	const text = await response.text().catch(() => "")
-	return { ok: false, error: text || "mfa_request_failed", status: response.status }
+	try {
+		const parsed = JSON.parse(text) as { error_code?: unknown; msg?: unknown }
+		if (typeof parsed.error_code === "string") {
+			return { ok: false, error: parsed.error_code, status: response.status }
+		}
+		if (typeof parsed.msg === "string")
+			return { ok: false, error: parsed.msg, status: response.status }
+	} catch {
+		// Supabase can return a non-JSON proxy response. Keep the public error generic.
+	}
+	return { ok: false, error: "mfa_request_failed", status: response.status }
 }
 
 export async function listTotpFactors(accessToken: string): Promise<MfaResult<MfaFactor[]>> {
@@ -48,11 +58,17 @@ export async function listTotpFactors(accessToken: string): Promise<MfaResult<Mf
 		value: factors.flatMap((factor) => {
 			if (!factor || typeof factor !== "object") return []
 			const value = factor as Record<string, unknown>
-			if (typeof value.id !== "string" || typeof value.type !== "string") return []
+			const factorType =
+				typeof value.factor_type === "string"
+					? value.factor_type
+					: typeof value.type === "string"
+						? value.type
+						: null
+			if (typeof value.id !== "string" || !factorType) return []
 			return [
 				{
 					id: value.id,
-					type: value.type,
+					type: factorType,
 					status: typeof value.status === "string" ? value.status : "unverified",
 					friendly_name: typeof value.friendly_name === "string" ? value.friendly_name : null,
 				},
@@ -66,7 +82,12 @@ export async function enrollTotpFactor(
 ): Promise<MfaResult<{ factorId: string; qrCode: string }>> {
 	const response = await authRequest(accessToken, "/factors", {
 		method: "POST",
-		body: JSON.stringify({ factor_type: "totp", friendly_name: "FASTT Command Center" }),
+		// Supabase enforces friendly-name uniqueness per user. A completed enrollment
+		// never needs this name again, and an abandoned enrollment must not block recovery.
+		body: JSON.stringify({
+			factor_type: "totp",
+			friendly_name: `FASTT Command Center ${crypto.randomUUID().slice(0, 8)}`,
+		}),
 	})
 	if (!response?.ok) return responseError(response)
 	const body = (await response.json()) as Record<string, unknown>
