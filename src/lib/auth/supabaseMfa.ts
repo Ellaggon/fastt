@@ -10,6 +10,29 @@ type MfaFactor = {
 
 type MfaResult<T> = { ok: true; value: T } | MfaError
 
+/**
+ * GoTrue normally returns an SVG data URI. Re-encode it as base64 so special
+ * characters in the SVG cannot be misread by the browser or a proxy.
+ */
+function normalizeQrCode(value: string): string {
+	if (value.startsWith("data:image/svg+xml;base64,")) return value
+
+	const comma = value.indexOf(",")
+	const isSvgDataUri = value.startsWith("data:image/svg+xml") && comma >= 0
+	const metadata = isSvgDataUri ? value.slice(0, comma).toLowerCase() : ""
+	const payload = isSvgDataUri ? value.slice(comma + 1) : value.trim()
+	const svg = metadata.endsWith(";base64")
+		? Buffer.from(payload, "base64").toString("utf8")
+		: isSvgDataUri
+			? decodeURIComponent(payload)
+			: payload
+	// Supabase may prepend an XML declaration before the <svg> element.
+	if (svg.includes("<svg")) {
+		return `data:image/svg+xml;base64,${Buffer.from(svg, "utf8").toString("base64")}`
+	}
+	return value
+}
+
 async function authRequest(
 	accessToken: string,
 	path: string,
@@ -119,7 +142,7 @@ export async function enrollTotpFactor(
 	if (typeof body.id !== "string" || typeof totp?.qr_code !== "string") {
 		return { ok: false, error: "mfa_invalid_enrollment", status: 502 }
 	}
-	return { ok: true, value: { factorId: body.id, qrCode: totp.qr_code } }
+	return { ok: true, value: { factorId: body.id, qrCode: normalizeQrCode(totp.qr_code) } }
 }
 
 export async function verifyTotpFactor(params: {
