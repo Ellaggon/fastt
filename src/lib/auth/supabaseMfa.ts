@@ -32,25 +32,47 @@ async function authRequest(
 	}
 }
 
-async function responseError(response: Response | null): Promise<MfaError> {
-	if (!response) return { ok: false, error: "mfa_service_unavailable", status: 503 }
+async function responseError(
+	response: Response | null,
+	operation: "list" | "enroll" | "challenge" | "verify"
+): Promise<MfaError> {
+	if (!response) return { ok: false, error: `mfa_${operation}_unavailable`, status: 503 }
 	const text = await response.text().catch(() => "")
+	let providerCode: string | null = null
 	try {
-		const parsed = JSON.parse(text) as { error_code?: unknown; msg?: unknown }
-		if (typeof parsed.error_code === "string") {
-			return { ok: false, error: parsed.error_code, status: response.status }
+		const parsed = JSON.parse(text) as {
+			error_code?: unknown
+			msg?: unknown
+			message?: unknown
+			code?: unknown
 		}
-		if (typeof parsed.msg === "string")
-			return { ok: false, error: parsed.msg, status: response.status }
+		if (typeof parsed.error_code === "string") {
+			providerCode = parsed.error_code
+		} else if (typeof parsed.code === "string") {
+			providerCode = parsed.code
+		}
+		console.warn("auth.mfa.provider_error", {
+			operation,
+			status: response.status,
+			providerCode,
+			contentType: response.headers.get("content-type"),
+		})
+		if (providerCode) return { ok: false, error: providerCode, status: response.status }
 	} catch {
 		// Supabase can return a non-JSON proxy response. Keep the public error generic.
 	}
-	return { ok: false, error: "mfa_request_failed", status: response.status }
+	console.warn("auth.mfa.provider_error", {
+		operation,
+		status: response.status,
+		providerCode,
+		contentType: response.headers.get("content-type"),
+	})
+	return { ok: false, error: `mfa_${operation}_failed_${response.status}`, status: response.status }
 }
 
 export async function listTotpFactors(accessToken: string): Promise<MfaResult<MfaFactor[]>> {
 	const response = await authRequest(accessToken, "/factors", { method: "GET" })
-	if (!response?.ok) return responseError(response)
+	if (!response?.ok) return responseError(response, "list")
 	const body = (await response.json()) as { factors?: unknown }
 	const factors = Array.isArray(body.factors) ? body.factors : []
 	return {
@@ -89,7 +111,7 @@ export async function enrollTotpFactor(
 			friendly_name: `FASTT Command Center ${crypto.randomUUID().slice(0, 8)}`,
 		}),
 	})
-	if (!response?.ok) return responseError(response)
+	if (!response?.ok) return responseError(response, "enroll")
 	const body = (await response.json()) as Record<string, unknown>
 	const totp = body.totp as Record<string, unknown> | undefined
 	if (typeof body.id !== "string" || typeof totp?.qr_code !== "string") {
@@ -111,7 +133,7 @@ export async function verifyTotpFactor(params: {
 			method: "POST",
 		}
 	)
-	if (!challenge?.ok) return responseError(challenge)
+	if (!challenge?.ok) return responseError(challenge, "challenge")
 	const challengeBody = (await challenge.json()) as { id?: unknown }
 	if (typeof challengeBody.id !== "string")
 		return { ok: false, error: "mfa_invalid_challenge", status: 502 }
@@ -121,7 +143,7 @@ export async function verifyTotpFactor(params: {
 		`/factors/${encodeURIComponent(params.factorId)}/verify`,
 		{ method: "POST", body: JSON.stringify({ challenge_id: challengeBody.id, code: params.code }) }
 	)
-	if (!verification?.ok) return responseError(verification)
+	if (!verification?.ok) return responseError(verification, "verify")
 	const session = (await verification.json()) as SupabaseSession
 	if (!session.access_token || !session.refresh_token || !Number.isFinite(session.expires_in)) {
 		return { ok: false, error: "mfa_invalid_session", status: 502 }
