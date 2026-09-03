@@ -11,6 +11,7 @@ describe("Guardrail: financial internal endpoints are provider scoped", () => {
 			const source = read(file)
 			if (!source.includes("export const")) return []
 			return source.includes("requireFinancialProvider") ||
+				source.includes("requireFinancialManager") ||
 				source.includes("getProviderIdFromRequest")
 				? []
 				: [`${file}: missing provider scoping`]

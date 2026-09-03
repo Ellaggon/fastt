@@ -21,6 +21,8 @@ function map(row: any): FinancialReviewEvent {
 		financialReferenceId: row.financialReferenceId ?? null,
 		refundHandoffId: row.refundHandoffId ?? null,
 		reconciliationMatchId: row.reconciliationMatchId ?? null,
+		paymentTransactionId: row.paymentTransactionId ?? null,
+		settlementRecordId: row.settlementRecordId ?? null,
 		type: String(row.type) as FinancialReviewEvent["type"],
 		actorId: row.actorId ?? null,
 		actorType: String(row.actorType) as FinancialReviewEvent["actorType"],
