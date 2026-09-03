@@ -1316,7 +1316,7 @@ const activeQueueLabel =
 			button.setAttribute("disabled", "true")
 			try {
 				const res = await fetch(
-					`/api/admin/providers/documents/preview?providerId=${encodeURIComponent(providerId)}&documentId=${encodeURIComponent(documentId)}`
+					`/api/admin/providers/documents/preview?providerId=${encodeURIComponent(providerId)}&documentId=${encodeURIComponent(documentId)}&reason=case_review`
 				)
 				const body = await res.json().catch(() => ({}))
 				if (!res.ok || !body.url) {
