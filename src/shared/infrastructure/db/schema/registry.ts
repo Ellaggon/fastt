@@ -7,6 +7,7 @@ export type DatabaseDomain =
 	| "taxes"
 	| "booking"
 	| "financial"
+	| "security"
 
 export const databaseTablesByDomain = {
 	provider: [
@@ -140,6 +141,16 @@ export const databaseTablesByDomain = {
 		"ProviderPayableSnapshot",
 		"PayoutRecord",
 		"ProviderStatement",
+	],
+	security: [
+		"InternalRole",
+		"InternalPermission",
+		"InternalRolePermission",
+		"InternalUserRole",
+		"InternalSecuritySession",
+		"AuditEvent",
+		"SensitiveDataAccessEvent",
+		"CommandIdempotency",
 	],
 } as const satisfies Record<DatabaseDomain, readonly string[]>
 

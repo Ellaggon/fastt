@@ -1,4 +1,5 @@
 import { db, ProviderAuditLog } from "@/shared/infrastructure/db/compat"
+import { redactAuditPayload } from "@/lib/audit/audit-events"
 
 /**
  * Canonical provider audit writer for sensitive settings mutations.
@@ -21,37 +22,8 @@ export type WriteProviderAuditLogParams = {
 	riskLevel: ProviderAuditRiskLevel
 }
 
-const SENSITIVE_KEYS = new Set([
-	"credentialSecret",
-	"endpointUrl",
-	"credentials",
-	"secret",
-	"token",
-	"accessToken",
-	"refreshToken",
-	"password",
-	"passwordHash",
-	"accountIdentifier",
-	"accountIdentifierEnc",
-	"ciphertext",
-	"encryptedJson",
-])
-
 export function snapshotForProviderAudit(value: unknown): unknown {
-	if (value == null) return null
-	if (Array.isArray(value)) return value.map((item) => snapshotForProviderAudit(item))
-	if (value instanceof Date) return value.toISOString()
-	if (typeof value !== "object") return value
-
-	const output: Record<string, unknown> = {}
-	for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
-		if (SENSITIVE_KEYS.has(key)) {
-			output[key] = entry ? "[redacted]" : null
-			continue
-		}
-		output[key] = snapshotForProviderAudit(entry)
-	}
-	return output
+	return redactAuditPayload(value)
 }
 
 export async function writeProviderAuditLog(params: WriteProviderAuditLogParams): Promise<void> {
