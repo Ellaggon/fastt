@@ -5,7 +5,7 @@ export type ProductRow = {
 	name: string | null
 	description?: string | null
 	productType: string | null
-	providerId: string | null
+	providerId: string
 	geoPlaceId?: string | null
 }
 

@@ -6,6 +6,7 @@ import {
 	Hold,
 	db,
 	eq,
+	User,
 } from "@/shared/infrastructure/db/compat"
 
 import { inventoryHoldRepository } from "@/container"
@@ -210,6 +211,7 @@ describe("integration/policy exception rules CAPA6", () => {
 	it("creates internal overrides and materializes them in hold and booking snapshots", async () => {
 		const suffix = crypto.randomUUID()
 		const token = `token_per_${suffix}`
+		const adminUserId = `admin_${suffix}`
 		const adminEmail = "ellaggon@proton.me"
 		const geoPlaceId = `dest_per_${suffix}`
 		const productId = `prod_per_${suffix}`
@@ -219,6 +221,10 @@ describe("integration/policy exception rules CAPA6", () => {
 		const bookingId = `bk_per_${suffix}`
 		const checkIn = "2030-04-10"
 		const checkOut = "2030-04-12"
+		await db.insert(User).values({
+			id: adminUserId,
+			email: `policy-admin-${suffix}@fastt.test`,
+		})
 
 		await seedBookableRatePlan({
 			productId,
@@ -247,7 +253,7 @@ describe("integration/policy exception rules CAPA6", () => {
 		})
 
 		const created = await withSupabaseAuthStub(
-			{ [token]: { id: `admin_${suffix}`, email: adminEmail } },
+			{ [token]: { id: adminUserId, email: adminEmail } },
 			async () => {
 				const createResponse = await POST({
 					request: authedJsonRequest({
@@ -426,7 +432,7 @@ describe("integration/policy exception rules CAPA6", () => {
 		).toBe(100)
 
 		await withSupabaseAuthStub(
-			{ [token]: { id: `admin_${suffix}`, email: adminEmail } },
+			{ [token]: { id: adminUserId, email: adminEmail } },
 			async () => {
 				const patchResponse = await PATCH({
 					params: { id: created.id },

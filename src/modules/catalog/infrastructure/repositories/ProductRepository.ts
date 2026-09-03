@@ -80,19 +80,20 @@ export class ProductRepository implements ProductRepositoryPort {
 		id: string
 		name: string
 		productType: string
-		providerId?: string | null
+		providerId: string
 		geoPlaceId: string
 		dataClass?: "production" | "demo" | "fixture" | "sandbox"
 	}): Promise<void> {
 		const productType = normalizeProductTypeForStorage(params.productType)
 		if (!productType) throw new Error("Unsupported product type")
+		if (!String(params.providerId || "").trim()) throw new Error("PRODUCT_PROVIDER_REQUIRED")
 		await this.assertCompatiblePrimaryGeoPlace(productType, params.geoPlaceId)
 		await db.transaction(async (tx) => {
 			await tx.insert(Product).values({
 				id: params.id,
 				name: params.name,
 				productType,
-				providerId: params.providerId ?? null,
+				providerId: params.providerId,
 				dataClass: params.dataClass ?? "production",
 			})
 

@@ -558,7 +558,7 @@ CREATE TABLE "Product" (
 	"productType" text NOT NULL,
 	"creationDate" timestamp with time zone NOT NULL DEFAULT now(),
 	"lastUpdated" timestamp with time zone NOT NULL DEFAULT now(),
-	"providerId" text,
+	"providerId" text NOT NULL,
 	"dataClass" text NOT NULL DEFAULT 'production',
 	"publicationState" text NOT NULL DEFAULT 'draft',
 	"publicationValidationErrorsJson" jsonb,
@@ -964,7 +964,10 @@ CREATE TABLE "PolicyExceptionRule" (
 	"id" text PRIMARY KEY,
 	"type" text NOT NULL,
 	"scope" text NOT NULL DEFAULT 'global',
-	"scopeId" text,
+	"productTargetId" text,
+	"variantTargetId" text,
+	"ratePlanTargetId" text,
+	"scopeId" text GENERATED ALWAYS AS (coalesce("productTargetId", "variantTargetId", "ratePlanTargetId")) STORED,
 	"category" text,
 	"priority" integer NOT NULL DEFAULT 100,
 	"isActive" boolean NOT NULL DEFAULT true,
@@ -1295,7 +1298,7 @@ CREATE TABLE "EffectivePricing" (
 
 CREATE TABLE "TaxFeeDefinition" (
 	"id" text PRIMARY KEY,
-	"providerId" text,
+	"providerId" text NOT NULL,
 	"code" text NOT NULL,
 	"name" text NOT NULL,
 	"kind" text NOT NULL,
@@ -1617,6 +1620,8 @@ CREATE TABLE "FinancialReviewEvent" (
 	"financialReferenceId" text,
 	"refundHandoffId" text,
 	"reconciliationMatchId" text,
+	"paymentTransactionId" text,
+	"settlementRecordId" text,
 	"type" text NOT NULL,
 	"actorId" text,
 	"actorType" text NOT NULL,
@@ -2534,6 +2539,24 @@ ALTER TABLE "PolicyRule"
 ;
 
 ALTER TABLE "PolicyExceptionRule"
+	ADD CONSTRAINT "PolicyExceptionRule_productTargetId_fk"
+	FOREIGN KEY ("productTargetId")
+	REFERENCES "Product" ("id")
+;
+
+ALTER TABLE "PolicyExceptionRule"
+	ADD CONSTRAINT "PolicyExceptionRule_variantTargetId_fk"
+	FOREIGN KEY ("variantTargetId")
+	REFERENCES "Variant" ("id")
+;
+
+ALTER TABLE "PolicyExceptionRule"
+	ADD CONSTRAINT "PolicyExceptionRule_ratePlanTargetId_fk"
+	FOREIGN KEY ("ratePlanTargetId")
+	REFERENCES "RatePlan" ("id")
+;
+
+ALTER TABLE "PolicyExceptionRule"
 	ADD CONSTRAINT "PolicyExceptionRule_createdBy_fk"
 	FOREIGN KEY ("createdBy")
 	REFERENCES "User" ("id")
@@ -3140,6 +3163,18 @@ ALTER TABLE "FinancialReviewEvent"
 	ADD CONSTRAINT "FinancialReviewEvent_reconciliationMatchId_fk"
 	FOREIGN KEY ("reconciliationMatchId")
 	REFERENCES "ReconciliationMatch" ("id")
+;
+
+ALTER TABLE "FinancialReviewEvent"
+	ADD CONSTRAINT "FinancialReviewEvent_paymentTransactionId_fk"
+	FOREIGN KEY ("paymentTransactionId")
+	REFERENCES "PaymentTransaction" ("id")
+;
+
+ALTER TABLE "FinancialReviewEvent"
+	ADD CONSTRAINT "FinancialReviewEvent_settlementRecordId_fk"
+	FOREIGN KEY ("settlementRecordId")
+	REFERENCES "FinancialSettlementRecord" ("id")
 ;
 
 ALTER TABLE "PaymentTransaction"
@@ -3762,6 +3797,14 @@ CREATE INDEX "FinancialReviewEvent_refundHandoffId_idx" ON "FinancialReviewEvent
 
 CREATE INDEX "FinancialReviewEvent_reconciliationMatchId_idx" ON "FinancialReviewEvent" ("reconciliationMatchId");
 
+CREATE INDEX "FinancialReviewEvent_paymentTransactionId_idx" ON "FinancialReviewEvent" ("paymentTransactionId");
+
+CREATE INDEX "FinancialReviewEvent_settlementRecordId_idx" ON "FinancialReviewEvent" ("settlementRecordId");
+
+CREATE UNIQUE INDEX "FinancialReviewEvent_payment_association_unique" ON "FinancialReviewEvent" ("paymentTransactionId") WHERE "type" = 'external_evidence_associated' AND "paymentTransactionId" IS NOT NULL;
+
+CREATE UNIQUE INDEX "FinancialReviewEvent_settlement_association_unique" ON "FinancialReviewEvent" ("settlementRecordId") WHERE "type" = 'external_evidence_associated' AND "settlementRecordId" IS NOT NULL;
+
 CREATE INDEX "PaymentTransaction_bookingId_idx" ON "PaymentTransaction" ("bookingId");
 
 CREATE INDEX "PaymentTransaction_provider_type_status_idx" ON "PaymentTransaction" ("providerId", "type", "status");
@@ -3917,6 +3960,17 @@ ALTER TABLE "PolicyAssignment" ADD CONSTRAINT "PolicyAssignment_typed_target_che
 				OR ("scope" = 'rate_plan' AND "productTargetId" IS NULL AND "variantTargetId" IS NULL AND "ratePlanTargetId" IS NOT NULL)
 			));
 
+ALTER TABLE "PolicyExceptionRule" ADD CONSTRAINT "PolicyExceptionRule_typed_target_check" CHECK ((
+				("scope" = 'global' AND "productTargetId" IS NULL AND "variantTargetId" IS NULL AND "ratePlanTargetId" IS NULL)
+				OR ("scope" = 'product' AND "productTargetId" IS NOT NULL AND "variantTargetId" IS NULL AND "ratePlanTargetId" IS NULL)
+				OR ("scope" = 'variant' AND "productTargetId" IS NULL AND "variantTargetId" IS NOT NULL AND "ratePlanTargetId" IS NULL)
+				OR ("scope" = 'rate_plan' AND "productTargetId" IS NULL AND "variantTargetId" IS NULL AND "ratePlanTargetId" IS NOT NULL)
+			));
+
+ALTER TABLE "PolicyExceptionRule" ADD CONSTRAINT "PolicyExceptionRule_category_check" CHECK ("category" IS NULL OR "category" IN ('Cancellation', 'Payment', 'CheckIn', 'NoShow'));
+
+ALTER TABLE "PolicyExceptionRule" ADD CONSTRAINT "PolicyExceptionRule_effective_range_check" CHECK ("effectiveFrom" IS NULL OR "effectiveTo" IS NULL OR "effectiveFrom" <= "effectiveTo");
+
 ALTER TABLE "Hold" ADD CONSTRAINT "Hold_commercial_snapshot_check" CHECK (("commercialSnapshotVersion" = 'legacy' AND "priceQuoteId" IS NULL AND "commercialSnapshotJson" IS NULL) OR ("commercialSnapshotVersion" = 'hold_commercial_snapshot_v1' AND "priceQuoteId" IS NOT NULL AND "commercialSnapshotJson" IS NOT NULL AND ("commercialSnapshotJson" -> 'priceQuote' ->> 'quoteId') = "priceQuoteId"));
 
 ALTER TABLE "CommercialRule" ADD CONSTRAINT "CommercialRule_idempotency_pair_check" CHECK ((
@@ -3964,6 +4018,19 @@ ALTER TABLE "TaxFeeAssignment" ADD CONSTRAINT "TaxFeeAssignment_typed_target_che
 			));
 
 ALTER TABLE "BookingVoucher" ADD CONSTRAINT "BookingVoucher_status_check" CHECK ("status" in ('issued', 'redeemed', 'void'));
+
+ALTER TABLE "FinancialReviewEvent" ADD CONSTRAINT "FinancialReviewEvent_external_association_target_check" CHECK ((
+				"type" = 'external_evidence_associated'
+				AND num_nonnulls("paymentTransactionId", "settlementRecordId") = 1
+				AND "financialExceptionId" IS NULL
+				AND "financialReferenceId" IS NULL
+				AND "refundHandoffId" IS NULL
+				AND "reconciliationMatchId" IS NULL
+			) OR (
+				"type" <> 'external_evidence_associated'
+				AND "paymentTransactionId" IS NULL
+				AND "settlementRecordId" IS NULL
+			));
 
 
 
@@ -4773,200 +4840,58 @@ BEFORE UPDATE ON "PricingBulkOperationJob"
 FOR EACH ROW
 EXECUTE FUNCTION fastt_prevent_pricing_bulk_command_mutation();
 
--- Financial rows that belong to a reservation must also belong to that
--- reservation's provider. Independent FKs cannot express this composite rule.
-CREATE OR REPLACE FUNCTION fastt_validate_financial_booking_provider()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-DECLARE
-	booking_provider_id text;
-BEGIN
-	IF NEW."bookingId" IS NULL THEN
-		RETURN NEW;
-	END IF;
 
-	SELECT "providerId" INTO booking_provider_id
-	FROM "Booking"
-	WHERE "id" = NEW."bookingId";
 
-	IF booking_provider_id IS NULL OR booking_provider_id <> NEW."providerId" THEN
-		RAISE EXCEPTION 'FINANCIAL_BOOKING_PROVIDER_MISMATCH';
-	END IF;
-	RETURN NEW;
-END;
-$$;
+-- Canonical typed assignment ownership invariants.
 
-DO $$
-DECLARE
-	table_name text;
-BEGIN
-	FOREACH table_name IN ARRAY ARRAY[
-		'FinancialExceptionRecord',
-		'FinancialReference',
-		'RefundHandoffRecord',
-		'RefundQuote',
-		'RefundLedger',
-		'FinancialReviewEvent',
-		'PaymentTransaction',
-		'FinancialSettlementRecord',
-		'ReconciliationMatch',
-		'CommissionSnapshot',
-		'ProviderPayableSnapshot',
-		'PayoutRecord'
-	]
-	LOOP
-		EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', 'trg_' || table_name || '_booking_provider', table_name);
-		EXECUTE format(
-			'CREATE TRIGGER %I BEFORE INSERT OR UPDATE OF "bookingId", "providerId" ON %I FOR EACH ROW EXECUTE FUNCTION fastt_validate_financial_booking_provider()',
-			'trg_' || table_name || '_booking_provider', table_name
-		);
-	END LOOP;
-END;
-$$;
-
--- A refund ledger entry is the applied form of one quote. Keeping both IDs
--- aligned prevents an otherwise valid FK graph from joining different sales.
-CREATE OR REPLACE FUNCTION fastt_validate_refund_ledger_lineage()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-DECLARE
-	quote_booking_id text;
-	quote_provider_id text;
-	payment_booking_id text;
-	payment_provider_id text;
-BEGIN
-	SELECT "bookingId", "providerId"
-	INTO quote_booking_id, quote_provider_id
-	FROM "RefundQuote"
-	WHERE "id" = NEW."refundQuoteId";
-
-	IF quote_booking_id IS NULL
-		OR quote_booking_id <> NEW."bookingId"
-		OR quote_provider_id <> NEW."providerId" THEN
-		RAISE EXCEPTION 'REFUND_LEDGER_QUOTE_LINEAGE_MISMATCH';
-	END IF;
-
-	IF NEW."paymentTransactionId" IS NOT NULL THEN
-		SELECT "bookingId", "providerId"
-		INTO payment_booking_id, payment_provider_id
-		FROM "PaymentTransaction"
-		WHERE "id" = NEW."paymentTransactionId";
-
-		IF payment_provider_id IS NULL
-			OR payment_provider_id <> NEW."providerId"
-			OR payment_booking_id IS DISTINCT FROM NEW."bookingId" THEN
-			RAISE EXCEPTION 'REFUND_LEDGER_PAYMENT_LINEAGE_MISMATCH';
-		END IF;
-	END IF;
-	RETURN NEW;
-END;
-$$;
-
-DROP TRIGGER IF EXISTS "trg_RefundLedger_lineage" ON "RefundLedger";
-CREATE TRIGGER "trg_RefundLedger_lineage"
-BEFORE INSERT OR UPDATE OF "refundQuoteId", "bookingId", "providerId", "paymentTransactionId"
-ON "RefundLedger"
-FOR EACH ROW
-EXECUTE FUNCTION fastt_validate_refund_ledger_lineage();
-
--- Review events are immutable evidence, so their optional related records must
--- point at the same booking and provider as the event itself.
-CREATE OR REPLACE FUNCTION fastt_validate_financial_review_event_lineage()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-BEGIN
-	IF NEW."financialExceptionId" IS NOT NULL AND NOT EXISTS (
-		SELECT 1 FROM "FinancialExceptionRecord"
-		WHERE "id" = NEW."financialExceptionId"
-			AND "bookingId" = NEW."bookingId"
-			AND "providerId" = NEW."providerId"
-	) THEN RAISE EXCEPTION 'FINANCIAL_REVIEW_EXCEPTION_LINEAGE_MISMATCH'; END IF;
-
-	IF NEW."financialReferenceId" IS NOT NULL AND NOT EXISTS (
-		SELECT 1 FROM "FinancialReference"
-		WHERE "id" = NEW."financialReferenceId"
-			AND "bookingId" = NEW."bookingId"
-			AND "providerId" = NEW."providerId"
-	) THEN RAISE EXCEPTION 'FINANCIAL_REVIEW_REFERENCE_LINEAGE_MISMATCH'; END IF;
-
-	IF NEW."refundHandoffId" IS NOT NULL AND NOT EXISTS (
-		SELECT 1 FROM "RefundHandoffRecord"
-		WHERE "id" = NEW."refundHandoffId"
-			AND "bookingId" = NEW."bookingId"
-			AND "providerId" = NEW."providerId"
-	) THEN RAISE EXCEPTION 'FINANCIAL_REVIEW_HANDOFF_LINEAGE_MISMATCH'; END IF;
-
-	IF NEW."reconciliationMatchId" IS NOT NULL AND NOT EXISTS (
-		SELECT 1 FROM "ReconciliationMatch"
-		WHERE "id" = NEW."reconciliationMatchId"
-			AND "bookingId" = NEW."bookingId"
-			AND "providerId" = NEW."providerId"
-	) THEN RAISE EXCEPTION 'FINANCIAL_REVIEW_RECONCILIATION_LINEAGE_MISMATCH'; END IF;
-	RETURN NEW;
-END;
-$$;
-
-DROP TRIGGER IF EXISTS "trg_FinancialReviewEvent_lineage" ON "FinancialReviewEvent";
-CREATE TRIGGER "trg_FinancialReviewEvent_lineage"
-BEFORE INSERT OR UPDATE OF "bookingId", "providerId", "financialExceptionId", "financialReferenceId", "refundHandoffId", "reconciliationMatchId"
-ON "FinancialReviewEvent"
-FOR EACH ROW
-EXECUTE FUNCTION fastt_validate_financial_review_event_lineage();
-
--- Assignment targets are polymorphic only at the domain boundary. Once stored,
--- their FK is typed and this helper resolves the owning provider from it.
+-- Child writes lock and validate the complete ownership chain. Parent ownership
+-- identities are immutable; aggregate transfers must use an explicit migration.
 CREATE OR REPLACE FUNCTION fastt_catalog_assignment_target_provider(
 	product_target_id text,
 	variant_target_id text,
 	rate_plan_target_id text
 )
-RETURNS text
-LANGUAGE plpgsql
-STABLE
-AS $$
+RETURNS text LANGUAGE plpgsql VOLATILE AS $$
 DECLARE target_provider_id text;
 BEGIN
 	IF product_target_id IS NOT NULL THEN
-		SELECT "providerId" INTO target_provider_id FROM "Product" WHERE "id" = product_target_id;
+		SELECT product."providerId" INTO target_provider_id
+		FROM "Product" product WHERE product."id" = product_target_id
+		FOR SHARE OF product;
 	ELSIF variant_target_id IS NOT NULL THEN
 		SELECT product."providerId" INTO target_provider_id
-		FROM "Variant" variant JOIN "Product" product ON product."id" = variant."productId"
-		WHERE variant."id" = variant_target_id;
+		FROM "Variant" variant
+		JOIN "Product" product ON product."id" = variant."productId"
+		WHERE variant."id" = variant_target_id
+		FOR SHARE OF variant, product;
 	ELSIF rate_plan_target_id IS NOT NULL THEN
 		SELECT product."providerId" INTO target_provider_id
 		FROM "RatePlan" rate_plan
 		JOIN "Variant" variant ON variant."id" = rate_plan."variantId"
 		JOIN "Product" product ON product."id" = variant."productId"
-		WHERE rate_plan."id" = rate_plan_target_id;
+		WHERE rate_plan."id" = rate_plan_target_id
+		FOR SHARE OF rate_plan, variant, product;
 	END IF;
 	RETURN target_provider_id;
 END;
 $$;
 
 CREATE OR REPLACE FUNCTION fastt_validate_tax_fee_assignment_owner()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-DECLARE definition_provider_id text;
-DECLARE target_provider_id text;
+RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE definition_provider_id text; target_provider_id text;
 BEGIN
 	SELECT "providerId" INTO definition_provider_id
-	FROM "TaxFeeDefinition" WHERE "id" = NEW."taxFeeDefinitionId";
-
+	FROM "TaxFeeDefinition" WHERE "id" = NEW."taxFeeDefinitionId" FOR SHARE;
 	IF NEW."scope" = 'global' THEN RETURN NEW; END IF;
 	IF NEW."scope" = 'provider' THEN
-		target_provider_id := NEW."providerTargetId";
+		SELECT "id" INTO target_provider_id
+		FROM "Provider" WHERE "id" = NEW."providerTargetId" FOR SHARE;
 	ELSE
 		target_provider_id := fastt_catalog_assignment_target_provider(
 			NEW."productTargetId", NEW."variantTargetId", NEW."ratePlanTargetId"
 		);
 	END IF;
-
-	IF definition_provider_id IS NULL OR target_provider_id IS NULL
-		OR definition_provider_id <> target_provider_id THEN
+	IF definition_provider_id IS NULL OR target_provider_id IS NULL OR definition_provider_id <> target_provider_id THEN
 		RAISE EXCEPTION 'TAX_FEE_ASSIGNMENT_PROVIDER_MISMATCH';
 	END IF;
 	RETURN NEW;
@@ -4974,19 +4899,15 @@ END;
 $$;
 
 CREATE OR REPLACE FUNCTION fastt_validate_policy_assignment_owner()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-DECLARE group_provider_id text;
-DECLARE target_provider_id text;
+RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE group_provider_id text; target_provider_id text;
 BEGIN
 	SELECT "ownerProviderId" INTO group_provider_id
-	FROM "PolicyGroup" WHERE "id" = NEW."policyGroupId";
+	FROM "PolicyGroup" WHERE "id" = NEW."policyGroupId" FOR SHARE;
 	target_provider_id := fastt_catalog_assignment_target_provider(
 		NEW."productTargetId", NEW."variantTargetId", NEW."ratePlanTargetId"
 	);
-	IF group_provider_id IS NULL OR target_provider_id IS NULL
-		OR group_provider_id <> target_provider_id THEN
+	IF group_provider_id IS NULL OR target_provider_id IS NULL OR group_provider_id <> target_provider_id THEN
 		RAISE EXCEPTION 'POLICY_ASSIGNMENT_PROVIDER_MISMATCH';
 	END IF;
 	RETURN NEW;
@@ -4994,52 +4915,237 @@ END;
 $$;
 
 CREATE OR REPLACE FUNCTION fastt_validate_commercial_rule_application_owner()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-DECLARE rule_provider_id text;
-DECLARE rule_set_provider_id text;
-DECLARE rule_set_id text;
-DECLARE target_provider_id text;
+RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE rule_provider_id text; rule_set_provider_id text; rule_set_id text; target_provider_id text;
 BEGIN
 	SELECT "providerId", "ruleSetId" INTO rule_provider_id, rule_set_id
-	FROM "CommercialRule" WHERE "id" = NEW."ruleId";
+	FROM "CommercialRule" WHERE "id" = NEW."ruleId" FOR SHARE;
 	SELECT "providerId" INTO rule_set_provider_id
-	FROM "CommercialRuleSet" WHERE "id" = NEW."ruleSetId";
+	FROM "CommercialRuleSet" WHERE "id" = NEW."ruleSetId" FOR SHARE;
 	target_provider_id := fastt_catalog_assignment_target_provider(
 		NEW."productTargetId", NEW."variantTargetId", NEW."ratePlanTargetId"
 	);
 	IF rule_provider_id IS NULL OR rule_set_provider_id IS NULL OR target_provider_id IS NULL
-		OR NEW."providerId" <> rule_provider_id
-		OR NEW."providerId" <> rule_set_provider_id
-		OR NEW."ruleSetId" <> rule_set_id
-		OR NEW."providerId" <> target_provider_id THEN
+		OR NEW."providerId" <> rule_provider_id OR NEW."providerId" <> rule_set_provider_id
+		OR NEW."ruleSetId" <> rule_set_id OR NEW."providerId" <> target_provider_id THEN
 		RAISE EXCEPTION 'COMMERCIAL_RULE_APPLICATION_PROVIDER_MISMATCH';
 	END IF;
 	RETURN NEW;
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION fastt_prevent_catalog_assignment_owner_drift()
+RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE old_provider_id text; new_provider_id text;
+BEGIN
+	IF TG_TABLE_NAME = 'Product' THEN
+		IF NEW."providerId" IS DISTINCT FROM OLD."providerId" THEN
+			RAISE EXCEPTION 'PRODUCT_PROVIDER_IDENTITY_IMMUTABLE';
+		END IF;
+	ELSIF TG_TABLE_NAME = 'Variant' AND NEW."productId" IS DISTINCT FROM OLD."productId" THEN
+		SELECT p."providerId" INTO old_provider_id FROM "Product" p WHERE p."id" = OLD."productId";
+		SELECT p."providerId" INTO new_provider_id FROM "Product" p WHERE p."id" = NEW."productId";
+		IF old_provider_id IS DISTINCT FROM new_provider_id THEN RAISE EXCEPTION 'VARIANT_CROSS_PROVIDER_MOVE_BLOCKED'; END IF;
+	ELSIF TG_TABLE_NAME = 'RatePlan' AND NEW."variantId" IS DISTINCT FROM OLD."variantId" THEN
+		SELECT p."providerId" INTO old_provider_id FROM "Variant" v JOIN "Product" p ON p."id" = v."productId" WHERE v."id" = OLD."variantId";
+		SELECT p."providerId" INTO new_provider_id FROM "Variant" v JOIN "Product" p ON p."id" = v."productId" WHERE v."id" = NEW."variantId";
+		IF old_provider_id IS DISTINCT FROM new_provider_id THEN RAISE EXCEPTION 'RATE_PLAN_CROSS_PROVIDER_MOVE_BLOCKED'; END IF;
+	END IF;
+	RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION fastt_prevent_rule_assignment_owner_drift()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+	IF TG_TABLE_NAME = 'TaxFeeDefinition' THEN
+		IF NEW."providerId" IS DISTINCT FROM OLD."providerId" THEN
+			RAISE EXCEPTION 'TAX_FEE_DEFINITION_PROVIDER_IDENTITY_IMMUTABLE';
+		END IF;
+	ELSIF TG_TABLE_NAME = 'PolicyGroup' THEN
+		IF NEW."ownerProviderId" IS DISTINCT FROM OLD."ownerProviderId" THEN
+			RAISE EXCEPTION 'POLICY_GROUP_PROVIDER_IDENTITY_IMMUTABLE';
+		END IF;
+	ELSIF TG_TABLE_NAME = 'CommercialRule' THEN
+		IF NEW."providerId" IS DISTINCT FROM OLD."providerId"
+			OR NEW."ruleSetId" IS DISTINCT FROM OLD."ruleSetId" THEN
+			RAISE EXCEPTION 'COMMERCIAL_RULE_LINEAGE_IMMUTABLE';
+		END IF;
+	ELSIF TG_TABLE_NAME = 'CommercialRuleSet' THEN
+		IF NEW."providerId" IS DISTINCT FROM OLD."providerId" THEN
+			RAISE EXCEPTION 'COMMERCIAL_RULE_SET_PROVIDER_IDENTITY_IMMUTABLE';
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$$;
+
 DROP TRIGGER IF EXISTS "trg_TaxFeeAssignment_owner" ON "TaxFeeAssignment";
-CREATE TRIGGER "trg_TaxFeeAssignment_owner"
-BEFORE INSERT OR UPDATE OF "taxFeeDefinitionId", "scope", "providerTargetId", "productTargetId", "variantTargetId", "ratePlanTargetId"
-ON "TaxFeeAssignment"
-FOR EACH ROW
-EXECUTE FUNCTION fastt_validate_tax_fee_assignment_owner();
-
+CREATE TRIGGER "trg_TaxFeeAssignment_owner" BEFORE INSERT OR UPDATE OF "taxFeeDefinitionId", "scope", "providerTargetId", "productTargetId", "variantTargetId", "ratePlanTargetId" ON "TaxFeeAssignment" FOR EACH ROW EXECUTE FUNCTION fastt_validate_tax_fee_assignment_owner();
 DROP TRIGGER IF EXISTS "trg_PolicyAssignment_owner" ON "PolicyAssignment";
-CREATE TRIGGER "trg_PolicyAssignment_owner"
-BEFORE INSERT OR UPDATE OF "policyGroupId", "scope", "productTargetId", "variantTargetId", "ratePlanTargetId"
-ON "PolicyAssignment"
-FOR EACH ROW
-EXECUTE FUNCTION fastt_validate_policy_assignment_owner();
-
+CREATE TRIGGER "trg_PolicyAssignment_owner" BEFORE INSERT OR UPDATE OF "policyGroupId", "scope", "productTargetId", "variantTargetId", "ratePlanTargetId" ON "PolicyAssignment" FOR EACH ROW EXECUTE FUNCTION fastt_validate_policy_assignment_owner();
 DROP TRIGGER IF EXISTS "trg_CommercialRuleApplication_owner" ON "CommercialRuleApplication";
-CREATE TRIGGER "trg_CommercialRuleApplication_owner"
-BEFORE INSERT OR UPDATE OF "providerId", "ruleSetId", "ruleId", "scope", "productTargetId", "variantTargetId", "ratePlanTargetId"
-ON "CommercialRuleApplication"
-FOR EACH ROW
-EXECUTE FUNCTION fastt_validate_commercial_rule_application_owner();
+CREATE TRIGGER "trg_CommercialRuleApplication_owner" BEFORE INSERT OR UPDATE OF "providerId", "ruleSetId", "ruleId", "scope", "productTargetId", "variantTargetId", "ratePlanTargetId" ON "CommercialRuleApplication" FOR EACH ROW EXECUTE FUNCTION fastt_validate_commercial_rule_application_owner();
+
+DROP TRIGGER IF EXISTS "trg_Product_assignment_owner_drift" ON "Product";
+CREATE TRIGGER "trg_Product_assignment_owner_drift" BEFORE UPDATE OF "providerId" ON "Product" FOR EACH ROW EXECUTE FUNCTION fastt_prevent_catalog_assignment_owner_drift();
+DROP TRIGGER IF EXISTS "trg_Variant_assignment_owner_drift" ON "Variant";
+CREATE TRIGGER "trg_Variant_assignment_owner_drift" BEFORE UPDATE OF "productId" ON "Variant" FOR EACH ROW EXECUTE FUNCTION fastt_prevent_catalog_assignment_owner_drift();
+DROP TRIGGER IF EXISTS "trg_RatePlan_assignment_owner_drift" ON "RatePlan";
+CREATE TRIGGER "trg_RatePlan_assignment_owner_drift" BEFORE UPDATE OF "variantId" ON "RatePlan" FOR EACH ROW EXECUTE FUNCTION fastt_prevent_catalog_assignment_owner_drift();
+DROP TRIGGER IF EXISTS "trg_TaxFeeDefinition_assignment_owner_drift" ON "TaxFeeDefinition";
+CREATE TRIGGER "trg_TaxFeeDefinition_assignment_owner_drift" BEFORE UPDATE OF "providerId" ON "TaxFeeDefinition" FOR EACH ROW EXECUTE FUNCTION fastt_prevent_rule_assignment_owner_drift();
+DROP TRIGGER IF EXISTS "trg_PolicyGroup_assignment_owner_drift" ON "PolicyGroup";
+CREATE TRIGGER "trg_PolicyGroup_assignment_owner_drift" BEFORE UPDATE OF "ownerProviderId" ON "PolicyGroup" FOR EACH ROW EXECUTE FUNCTION fastt_prevent_rule_assignment_owner_drift();
+DROP TRIGGER IF EXISTS "trg_CommercialRule_assignment_owner_drift" ON "CommercialRule";
+CREATE TRIGGER "trg_CommercialRule_assignment_owner_drift" BEFORE UPDATE OF "providerId", "ruleSetId" ON "CommercialRule" FOR EACH ROW EXECUTE FUNCTION fastt_prevent_rule_assignment_owner_drift();
+DROP TRIGGER IF EXISTS "trg_CommercialRuleSet_assignment_owner_drift" ON "CommercialRuleSet";
+CREATE TRIGGER "trg_CommercialRuleSet_assignment_owner_drift" BEFORE UPDATE OF "providerId" ON "CommercialRuleSet" FOR EACH ROW EXECUTE FUNCTION fastt_prevent_rule_assignment_owner_drift();
+
+
+
+-- Canonical financial ownership and evidence invariants.
+
+-- Financial ownership is a relational identity, not an application convention.
+-- Composite foreign keys protect both child writes and later parent changes.
+DO $$
+DECLARE table_name text;
+BEGIN
+	FOREACH table_name IN ARRAY ARRAY[
+		'FinancialExceptionRecord', 'FinancialReference', 'RefundHandoffRecord', 'RefundQuote',
+		'RefundLedger', 'FinancialReviewEvent', 'PaymentTransaction', 'FinancialSettlementRecord',
+		'ReconciliationMatch', 'CommissionSnapshot', 'ProviderPayableSnapshot', 'PayoutRecord'
+	]
+	LOOP
+		EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', 'trg_' || table_name || '_booking_provider', table_name);
+	END LOOP;
+END;
+$$;
+DROP TRIGGER IF EXISTS "trg_RefundLedger_lineage" ON "RefundLedger";
+DROP TRIGGER IF EXISTS "trg_FinancialReviewEvent_lineage" ON "FinancialReviewEvent";
+DROP FUNCTION IF EXISTS fastt_validate_financial_booking_provider();
+DROP FUNCTION IF EXISTS fastt_validate_refund_ledger_lineage();
+DROP FUNCTION IF EXISTS fastt_validate_financial_review_event_lineage();
+
+ALTER TABLE "Booking"
+	ADD CONSTRAINT "Booking_id_provider_unique" UNIQUE ("id", "providerId");
+
+ALTER TABLE "FinancialExceptionRecord" ADD CONSTRAINT "FinancialExceptionRecord_booking_provider_fk" FOREIGN KEY ("bookingId", "providerId") REFERENCES "Booking" ("id", "providerId");
+ALTER TABLE "FinancialReference" ADD CONSTRAINT "FinancialReference_booking_provider_fk" FOREIGN KEY ("bookingId", "providerId") REFERENCES "Booking" ("id", "providerId");
+ALTER TABLE "RefundHandoffRecord" ADD CONSTRAINT "RefundHandoffRecord_booking_provider_fk" FOREIGN KEY ("bookingId", "providerId") REFERENCES "Booking" ("id", "providerId");
+ALTER TABLE "RefundQuote" ADD CONSTRAINT "RefundQuote_booking_provider_fk" FOREIGN KEY ("bookingId", "providerId") REFERENCES "Booking" ("id", "providerId");
+ALTER TABLE "RefundLedger" ADD CONSTRAINT "RefundLedger_booking_provider_fk" FOREIGN KEY ("bookingId", "providerId") REFERENCES "Booking" ("id", "providerId");
+ALTER TABLE "FinancialReviewEvent" ADD CONSTRAINT "FinancialReviewEvent_booking_provider_fk" FOREIGN KEY ("bookingId", "providerId") REFERENCES "Booking" ("id", "providerId");
+ALTER TABLE "PaymentTransaction" ADD CONSTRAINT "PaymentTransaction_booking_provider_fk" FOREIGN KEY ("bookingId", "providerId") REFERENCES "Booking" ("id", "providerId");
+ALTER TABLE "FinancialSettlementRecord" ADD CONSTRAINT "FinancialSettlementRecord_booking_provider_fk" FOREIGN KEY ("bookingId", "providerId") REFERENCES "Booking" ("id", "providerId");
+ALTER TABLE "ReconciliationMatch" ADD CONSTRAINT "ReconciliationMatch_booking_provider_fk" FOREIGN KEY ("bookingId", "providerId") REFERENCES "Booking" ("id", "providerId");
+ALTER TABLE "CommissionSnapshot" ADD CONSTRAINT "CommissionSnapshot_booking_provider_fk" FOREIGN KEY ("bookingId", "providerId") REFERENCES "Booking" ("id", "providerId");
+ALTER TABLE "ProviderPayableSnapshot" ADD CONSTRAINT "ProviderPayableSnapshot_booking_provider_fk" FOREIGN KEY ("bookingId", "providerId") REFERENCES "Booking" ("id", "providerId");
+ALTER TABLE "PayoutRecord" ADD CONSTRAINT "PayoutRecord_booking_provider_fk" FOREIGN KEY ("bookingId", "providerId") REFERENCES "Booking" ("id", "providerId");
+
+-- Composite lineage keys make refund and review evidence concurrency-safe.
+ALTER TABLE "RefundQuote" ADD CONSTRAINT "RefundQuote_id_booking_provider_unique" UNIQUE ("id", "bookingId", "providerId");
+ALTER TABLE "PaymentTransaction" ADD CONSTRAINT "PaymentTransaction_id_booking_provider_unique" UNIQUE ("id", "bookingId", "providerId");
+ALTER TABLE "FinancialSettlementRecord" ADD CONSTRAINT "FinancialSettlementRecord_id_booking_provider_unique" UNIQUE ("id", "bookingId", "providerId");
+ALTER TABLE "FinancialExceptionRecord" ADD CONSTRAINT "FinancialExceptionRecord_id_booking_provider_unique" UNIQUE ("id", "bookingId", "providerId");
+ALTER TABLE "FinancialReference" ADD CONSTRAINT "FinancialReference_id_booking_provider_unique" UNIQUE ("id", "bookingId", "providerId");
+ALTER TABLE "RefundHandoffRecord" ADD CONSTRAINT "RefundHandoffRecord_id_booking_provider_unique" UNIQUE ("id", "bookingId", "providerId");
+ALTER TABLE "ReconciliationMatch" ADD CONSTRAINT "ReconciliationMatch_id_booking_provider_unique" UNIQUE ("id", "bookingId", "providerId");
+
+ALTER TABLE "RefundLedger" ADD CONSTRAINT "RefundLedger_quote_lineage_fk" FOREIGN KEY ("refundQuoteId", "bookingId", "providerId") REFERENCES "RefundQuote" ("id", "bookingId", "providerId");
+ALTER TABLE "RefundLedger" ADD CONSTRAINT "RefundLedger_payment_lineage_fk" FOREIGN KEY ("paymentTransactionId", "bookingId", "providerId") REFERENCES "PaymentTransaction" ("id", "bookingId", "providerId");
+
+ALTER TABLE "FinancialReviewEvent" ADD CONSTRAINT "FinancialReviewEvent_exception_lineage_fk" FOREIGN KEY ("financialExceptionId", "bookingId", "providerId") REFERENCES "FinancialExceptionRecord" ("id", "bookingId", "providerId");
+ALTER TABLE "FinancialReviewEvent" ADD CONSTRAINT "FinancialReviewEvent_reference_lineage_fk" FOREIGN KEY ("financialReferenceId", "bookingId", "providerId") REFERENCES "FinancialReference" ("id", "bookingId", "providerId");
+ALTER TABLE "FinancialReviewEvent" ADD CONSTRAINT "FinancialReviewEvent_handoff_lineage_fk" FOREIGN KEY ("refundHandoffId", "bookingId", "providerId") REFERENCES "RefundHandoffRecord" ("id", "bookingId", "providerId");
+ALTER TABLE "FinancialReviewEvent" ADD CONSTRAINT "FinancialReviewEvent_reconciliation_lineage_fk" FOREIGN KEY ("reconciliationMatchId", "bookingId", "providerId") REFERENCES "ReconciliationMatch" ("id", "bookingId", "providerId");
+ALTER TABLE "FinancialReviewEvent" ADD CONSTRAINT "FinancialReviewEvent_payment_lineage_fk" FOREIGN KEY ("paymentTransactionId", "bookingId", "providerId") REFERENCES "PaymentTransaction" ("id", "bookingId", "providerId");
+ALTER TABLE "FinancialReviewEvent" ADD CONSTRAINT "FinancialReviewEvent_settlement_lineage_fk" FOREIGN KEY ("settlementRecordId", "bookingId", "providerId") REFERENCES "FinancialSettlementRecord" ("id", "bookingId", "providerId");
+
+CREATE OR REPLACE FUNCTION fastt_prevent_financial_identity_drift()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+	IF TG_TABLE_NAME = 'Booking' AND NEW."providerId" IS DISTINCT FROM OLD."providerId" THEN
+		RAISE EXCEPTION 'BOOKING_PROVIDER_IDENTITY_IMMUTABLE';
+	ELSIF TG_TABLE_NAME = 'RefundQuote' AND (NEW."bookingId", NEW."providerId") IS DISTINCT FROM (OLD."bookingId", OLD."providerId") THEN
+		RAISE EXCEPTION 'REFUND_QUOTE_LINEAGE_IMMUTABLE';
+	ELSIF TG_TABLE_NAME = 'RefundLedger' AND (NEW."refundQuoteId", NEW."bookingId", NEW."providerId", NEW."paymentTransactionId") IS DISTINCT FROM (OLD."refundQuoteId", OLD."bookingId", OLD."providerId", OLD."paymentTransactionId") THEN
+		RAISE EXCEPTION 'REFUND_LEDGER_LINEAGE_IMMUTABLE';
+	END IF;
+	RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER "trg_Booking_financial_identity" BEFORE UPDATE OF "providerId" ON "Booking" FOR EACH ROW EXECUTE FUNCTION fastt_prevent_financial_identity_drift();
+CREATE TRIGGER "trg_RefundQuote_financial_identity" BEFORE UPDATE OF "bookingId", "providerId" ON "RefundQuote" FOR EACH ROW EXECUTE FUNCTION fastt_prevent_financial_identity_drift();
+CREATE TRIGGER "trg_RefundLedger_financial_identity" BEFORE UPDATE OF "refundQuoteId", "bookingId", "providerId", "paymentTransactionId" ON "RefundLedger" FOR EACH ROW EXECUTE FUNCTION fastt_prevent_financial_identity_drift();
+
+-- Imported evidence may be linked exactly once. Corrections require explicit
+-- compensating evidence instead of silently rewriting financial history.
+CREATE OR REPLACE FUNCTION fastt_validate_external_evidence_identity_transition()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+	IF NEW."providerId" IS DISTINCT FROM OLD."providerId" THEN
+		RAISE EXCEPTION 'FINANCIAL_EVIDENCE_PROVIDER_IMMUTABLE';
+	END IF;
+	IF OLD."bookingId" IS NOT NULL AND NEW."bookingId" IS DISTINCT FROM OLD."bookingId" THEN
+		RAISE EXCEPTION 'FINANCIAL_EVIDENCE_BOOKING_IMMUTABLE';
+	END IF;
+	RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER "trg_PaymentTransaction_evidence_identity" BEFORE UPDATE OF "bookingId", "providerId" ON "PaymentTransaction" FOR EACH ROW EXECUTE FUNCTION fastt_validate_external_evidence_identity_transition();
+CREATE TRIGGER "trg_FinancialSettlementRecord_evidence_identity" BEFORE UPDATE OF "bookingId", "providerId" ON "FinancialSettlementRecord" FOR EACH ROW EXECUTE FUNCTION fastt_validate_external_evidence_identity_transition();
+
+CREATE OR REPLACE FUNCTION fastt_prevent_financial_review_event_mutation()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+	RAISE EXCEPTION 'FINANCIAL_REVIEW_EVENT_IMMUTABLE';
+END;
+$$;
+
+CREATE TRIGGER "trg_FinancialReviewEvent_immutable" BEFORE UPDATE OR DELETE ON "FinancialReviewEvent" FOR EACH ROW EXECUTE FUNCTION fastt_prevent_financial_review_event_mutation();
+
+
+
+-- Financial booking candidate search indexes.
+
+-- Candidate lookup is an operational search surface. These indexes keep it
+-- bounded at provider scale without turning the financial inbox into a source
+-- of truth for all reservations.
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE EXTENSION IF NOT EXISTS unaccent WITH SCHEMA public;
+
+CREATE OR REPLACE FUNCTION public.fastt_search_normalize(value text)
+RETURNS text
+LANGUAGE sql
+IMMUTABLE
+PARALLEL SAFE
+RETURNS NULL ON NULL INPUT
+AS $$
+	SELECT lower(public.unaccent('public.unaccent', value));
+$$;
+
+CREATE INDEX "Booking_provider_externalBookingId_idx"
+	ON "Booking" ("providerId", "externalBookingId")
+	WHERE "externalBookingId" IS NOT NULL;
+CREATE INDEX "Booking_provider_checkInDate_idx" ON "Booking" ("providerId", "checkInDate");
+CREATE INDEX "Booking_provider_checkOutDate_idx" ON "Booking" ("providerId", "checkOutDate");
+CREATE INDEX "Booking_provider_recent_idx"
+	ON "Booking" ("providerId", "confirmedAt" DESC, "bookingDate" DESC);
+CREATE INDEX "Booking_guestNameSnapshot_trgm_idx"
+	ON "Booking" USING gin (public.fastt_search_normalize(coalesce("guestNameSnapshot", '')) gin_trgm_ops)
+	WHERE "guestNameSnapshot" IS NOT NULL;
+CREATE INDEX "Booking_guestEmailSnapshot_trgm_idx"
+	ON "Booking" USING gin (public.fastt_search_normalize(coalesce("guestEmailSnapshot", '')) gin_trgm_ops)
+	WHERE "guestEmailSnapshot" IS NOT NULL;
+CREATE INDEX "BookingLineItem_productNameSnapshot_trgm_idx"
+	ON "BookingLineItem" USING gin (public.fastt_search_normalize(coalesce("productNameSnapshot", '')) gin_trgm_ops)
+	WHERE "productNameSnapshot" IS NOT NULL;
+CREATE INDEX "BookingLineItem_variantNameSnapshot_trgm_idx"
+	ON "BookingLineItem" USING gin (public.fastt_search_normalize(coalesce("variantNameSnapshot", '')) gin_trgm_ops)
+	WHERE "variantNameSnapshot" IS NOT NULL;
 
 
 

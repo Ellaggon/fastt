@@ -10,7 +10,7 @@ export const productBaseSchema = z.object({
 		.refine((value) => normalizeProductTypeValue(value) !== null, {
 			message: "Unsupported product type",
 		}),
-	providerId: z.string().trim().optional(),
+	providerId: z.string().trim().min(1),
 	geoPlaceId: z.string().trim().min(1),
 })
 

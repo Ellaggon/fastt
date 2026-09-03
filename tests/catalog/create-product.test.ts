@@ -25,6 +25,7 @@ describe("catalog/product/createProduct (unit)", () => {
 					id: "prod_1",
 					name: "",
 					productType: "Hotel",
+					providerId: "prov_1",
 					geoPlaceId: "geo_1",
 				}
 			)

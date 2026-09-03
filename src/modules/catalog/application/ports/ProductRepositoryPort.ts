@@ -5,7 +5,7 @@ export type ProductAggregate = {
 		id: string
 		name: string
 		productType: string
-		providerId?: string | null
+		providerId: string
 		geoPlaceId: string | null
 		dataClass?: string
 	}
@@ -67,7 +67,7 @@ export interface ProductRepositoryPort {
 		id: string
 		name: string
 		productType: string
-		providerId?: string | null
+		providerId: string
 		geoPlaceId: string
 		dataClass?: string
 	}): Promise<void>
@@ -113,7 +113,7 @@ export interface ProductRepositoryPort {
 		id: string
 		name: string
 		productType: string
-		providerId?: string | null
+		providerId: string
 		geoPlaceId: string | null
 	} | null>
 }

@@ -9,6 +9,7 @@ import {
 	PolicyExceptionRule,
 	sql,
 } from "@/shared/infrastructure/db/compat"
+import { typedCatalogAssignmentTarget } from "@/shared/domain/assignment-target"
 
 import {
 	isPolicyExceptionApproved,
@@ -142,11 +143,15 @@ export class PolicyExceptionRuleRepository implements PolicyExceptionRuleReposit
 			throw new Error("POLICY_EXCEPTION_SCOPE_ID_REQUIRED")
 		}
 		const action = normalizeAction(input.action)
+		const target =
+			scope === "global"
+				? { productTargetId: null, variantTargetId: null, ratePlanTargetId: null }
+				: typedCatalogAssignmentTarget(scope, scopeId!)
 		const row = {
 			id: randomUUID(),
 			type: input.type,
 			scope,
-			scopeId,
+			...target,
 			category: normalizeCategory(input.category),
 			priority: Number.isFinite(Number(input.priority)) ? Number(input.priority) : 100,
 			isActive: input.isActive !== false && action.approval?.status === "approved",
@@ -157,8 +162,9 @@ export class PolicyExceptionRuleRepository implements PolicyExceptionRuleReposit
 			createdAt: new Date(),
 			createdBy: input.createdBy == null ? null : String(input.createdBy),
 		}
-		await db.insert(PolicyExceptionRule).values(row as any)
-		return toDomain(row)
+		const created = await db.insert(PolicyExceptionRule).values(row).returning().then(first)
+		if (!created) throw new Error("POLICY_EXCEPTION_CREATE_FAILED")
+		return toDomain(created)
 	}
 
 	async findById(id: string): Promise<PolicyExceptionRuleDomain | null> {

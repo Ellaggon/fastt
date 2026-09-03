@@ -15,7 +15,7 @@ const KINDS: TaxFeeKind[] = ["tax", "fee"]
 export async function createTaxFeeDefinition(
 	deps: { repo: TaxFeeCommandRepositoryPort },
 	params: {
-		providerId?: string | null
+		providerId: string
 		code: string
 		name: string
 		kind: TaxFeeKind
@@ -32,6 +32,8 @@ export async function createTaxFeeDefinition(
 		editingState?: "draft" | "published"
 	}
 ): Promise<{ id: string }> {
+	const providerId = String(params.providerId || "").trim()
+	if (!providerId) throw new Error("Provider required")
 	const code = String(params.code || "").trim()
 	if (!code) throw new Error("Invalid code: required")
 	if (code !== code.toUpperCase()) throw new Error("Invalid code: must be uppercase")
@@ -59,7 +61,7 @@ export async function createTaxFeeDefinition(
 
 	const existing = await deps.repo.findActiveDefinitionByCodeProvider({
 		code,
-		providerId: params.providerId ?? null,
+		providerId,
 	})
 	if (existing) throw new Error("Duplicate active definition for code")
 
@@ -67,7 +69,7 @@ export async function createTaxFeeDefinition(
 
 	const def: Omit<TaxFeeDefinition, "createdAt" | "updatedAt"> = {
 		id,
-		providerId: params.providerId ?? null,
+		providerId,
 		code,
 		name: params.name,
 		kind: params.kind,

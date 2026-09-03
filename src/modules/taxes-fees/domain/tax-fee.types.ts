@@ -23,7 +23,7 @@ export type TaxFeeJurisdictionRule = {
 
 export type TaxFeeDefinition = {
 	id: string
-	providerId: string | null
+	providerId: string
 	code: string
 	name: string
 	kind: TaxFeeKind

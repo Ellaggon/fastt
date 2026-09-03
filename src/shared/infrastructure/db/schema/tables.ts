@@ -868,7 +868,7 @@ export const Product = pgTable(
 		productType: txt("productType"),
 		creationDate: now("creationDate"),
 		lastUpdated: now("lastUpdated"),
-		providerId: txtOpt("providerId").references(() => Provider.id),
+		providerId: txt("providerId").references(() => Provider.id),
 		dataClass: text("dataClass").default("production").notNull(),
 		/** Canonical lifecycle for marketplace availability; never stored in a side table. */
 		publicationState: text("publicationState").default("draft").notNull(),
@@ -1891,7 +1891,13 @@ export const PolicyExceptionRule = pgTable(
 		id: pk(),
 		type: txt("type"),
 		scope: text("scope").default("global").notNull(),
-		scopeId: txtOpt("scopeId"),
+		productTargetId: txtOpt("productTargetId").references(() => Product.id),
+		variantTargetId: txtOpt("variantTargetId").references(() => Variant.id),
+		ratePlanTargetId: txtOpt("ratePlanTargetId").references(() => RatePlan.id),
+		/** Compatibility projection for policy resolution; never writable state. */
+		scopeId: txtOpt("scopeId").generatedAlwaysAs(
+			sql`coalesce("productTargetId", "variantTargetId", "ratePlanTargetId")`
+		),
 		category: txtOpt("category"),
 		priority: intDefault("priority", 100),
 		isActive: boolDefault("isActive", true),
@@ -1918,6 +1924,23 @@ export const PolicyExceptionRule = pgTable(
 		),
 		index("PolicyExceptionRule_category_active_idx").on(table.category, table.isActive),
 		index("PolicyExceptionRule_effective_range_idx").on(table.effectiveFrom, table.effectiveTo),
+		check(
+			"PolicyExceptionRule_typed_target_check",
+			sql`(
+				(${table.scope} = 'global' AND ${table.productTargetId} IS NULL AND ${table.variantTargetId} IS NULL AND ${table.ratePlanTargetId} IS NULL)
+				OR (${table.scope} = 'product' AND ${table.productTargetId} IS NOT NULL AND ${table.variantTargetId} IS NULL AND ${table.ratePlanTargetId} IS NULL)
+				OR (${table.scope} = 'variant' AND ${table.productTargetId} IS NULL AND ${table.variantTargetId} IS NOT NULL AND ${table.ratePlanTargetId} IS NULL)
+				OR (${table.scope} = 'rate_plan' AND ${table.productTargetId} IS NULL AND ${table.variantTargetId} IS NULL AND ${table.ratePlanTargetId} IS NOT NULL)
+			)`
+		),
+		check(
+			"PolicyExceptionRule_category_check",
+			sql`${table.category} IS NULL OR ${table.category} IN ('Cancellation', 'Payment', 'CheckIn', 'NoShow')`
+		),
+		check(
+			"PolicyExceptionRule_effective_range_check",
+			sql`${table.effectiveFrom} IS NULL OR ${table.effectiveTo} IS NULL OR ${table.effectiveFrom} <= ${table.effectiveTo}`
+		),
 	]
 )
 
@@ -2464,7 +2487,7 @@ export const TaxFeeDefinition = pgTable(
 	"TaxFeeDefinition",
 	{
 		id: pk(),
-		providerId: txtOpt("providerId").references(() => Provider.id),
+		providerId: txt("providerId").references(() => Provider.id),
 		code: txt("code"),
 		name: txt("name"),
 		kind: txt("kind"),
@@ -3069,6 +3092,8 @@ export const FinancialReviewEvent = pgTable(
 		financialReferenceId: txtOpt("financialReferenceId").references(() => FinancialReference.id),
 		refundHandoffId: txtOpt("refundHandoffId").references(() => RefundHandoffRecord.id),
 		reconciliationMatchId: txtOpt("reconciliationMatchId").references(() => ReconciliationMatch.id),
+		paymentTransactionId: txtOpt("paymentTransactionId").references(() => PaymentTransaction.id),
+		settlementRecordId: txtOpt("settlementRecordId").references(() => FinancialSettlementRecord.id),
 		type: txt("type"),
 		actorId: txtOpt("actorId"),
 		actorType: txt("actorType"),
@@ -3082,6 +3107,33 @@ export const FinancialReviewEvent = pgTable(
 		index("FinancialReviewEvent_financialReferenceId_idx").on(table.financialReferenceId),
 		index("FinancialReviewEvent_refundHandoffId_idx").on(table.refundHandoffId),
 		index("FinancialReviewEvent_reconciliationMatchId_idx").on(table.reconciliationMatchId),
+		index("FinancialReviewEvent_paymentTransactionId_idx").on(table.paymentTransactionId),
+		index("FinancialReviewEvent_settlementRecordId_idx").on(table.settlementRecordId),
+		uniqueIndex("FinancialReviewEvent_payment_association_unique")
+			.on(table.paymentTransactionId)
+			.where(
+				sql`${table.type} = 'external_evidence_associated' AND ${table.paymentTransactionId} IS NOT NULL`
+			),
+		uniqueIndex("FinancialReviewEvent_settlement_association_unique")
+			.on(table.settlementRecordId)
+			.where(
+				sql`${table.type} = 'external_evidence_associated' AND ${table.settlementRecordId} IS NOT NULL`
+			),
+		check(
+			"FinancialReviewEvent_external_association_target_check",
+			sql`(
+				${table.type} = 'external_evidence_associated'
+				AND num_nonnulls(${table.paymentTransactionId}, ${table.settlementRecordId}) = 1
+				AND ${table.financialExceptionId} IS NULL
+				AND ${table.financialReferenceId} IS NULL
+				AND ${table.refundHandoffId} IS NULL
+				AND ${table.reconciliationMatchId} IS NULL
+			) OR (
+				${table.type} <> 'external_evidence_associated'
+				AND ${table.paymentTransactionId} IS NULL
+				AND ${table.settlementRecordId} IS NULL
+			)`
+		),
 	]
 )
 

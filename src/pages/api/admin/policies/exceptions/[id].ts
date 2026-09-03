@@ -70,25 +70,25 @@ export const PATCH: APIRoute = async ({ request, params }) => {
 			body.operation === "approve"
 				? await approvePolicyExceptionRuleUseCase({
 						id,
-						actorUserId: auth.user.email,
+						actorUserId: auth.user.id,
 						reason: body.reason,
 					})
 				: body.operation === "reject"
 					? await rejectPolicyExceptionRuleUseCase({
 							id,
-							actorUserId: auth.user.email,
+							actorUserId: auth.user.id,
 							reason: body.reason,
 						})
 					: body.operation === "rollback"
 						? await rollbackPolicyExceptionRuleUseCase({
 								id,
-								actorUserId: auth.user.email,
+								actorUserId: auth.user.id,
 								reason: body.reason,
 							})
 						: await setPolicyExceptionRuleActiveUseCase({
 								id,
 								isActive,
-								actorUserId: auth.user.email,
+								actorUserId: auth.user.id,
 							})
 		if (!item) return json({ error: "not_found" }, 404)
 		const scope = String(item.scope ?? "")
