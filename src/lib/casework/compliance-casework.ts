@@ -370,7 +370,10 @@ export async function synchronizeCaseAssignment(params: {
 	assigneeEmail: string | null
 	actorUserId?: string | null
 }) {
-	const ensured = await synchronizeComplianceCase(params.source)
+	// Assignments remain the operational source of truth. Casework dual-write must
+	// never fail the legacy upsert when the additive schema/policy is not ready.
+	const ensured = await synchronizeComplianceCaseCompat(params.source)
+	if (!ensured) return null
 	const tasks = await db
 		.select({ id: CaseTask.id, assigneeEmail: CaseTask.assigneeEmail })
 		.from(CaseTask)
