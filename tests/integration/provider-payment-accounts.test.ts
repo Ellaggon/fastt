@@ -14,6 +14,7 @@ import {
 } from "@/pages/api/provider/settings/payment-accounts"
 import { POST as adminPaymentAccountsPost } from "@/pages/api/admin/providers/payment-accounts"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
+import { elevateInternalTestSession } from "../test-support/internal-mfa"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -67,6 +68,7 @@ function makeAuthedRequest(path: string, token: string, body?: FormData | string
 	headers.set("cookie", `sb-access-token=${encodeURIComponent(token)}; sb-refresh-token=r`)
 	headers.set("accept", "application/json")
 	if (!body) return new Request(`http://localhost:4321${path}`, { headers })
+	headers.set("Idempotency-Key", `test-command-${crypto.randomUUID()}`)
 	if (typeof body === "string") {
 		headers.set("Content-Type", "application/json")
 		return new Request(`http://localhost:4321${path}`, { method: "POST", headers, body })
@@ -76,9 +78,9 @@ function makeAuthedRequest(path: string, token: string, body?: FormData | string
 
 describe("provider payment accounts / payouts", () => {
 	it("lets an owner submit a bank account and only an internal admin verify it", async () => {
-		const providerId = "provider_payment_accounts_flow"
+		const providerId = `provider_payment_accounts_flow_${crypto.randomUUID()}`
 		const token = "t_payments_owner"
-		const ownerEmail = "payments.owner@example.com"
+		const ownerEmail = `payments.owner.${crypto.randomUUID()}@example.com`
 		const ownerId = `user_${ownerEmail}`
 		const adminToken = "t_payments_admin"
 		const adminEmail = "payments.admin@fastt.test"
@@ -90,12 +92,15 @@ describe("provider payment accounts / payouts", () => {
 			displayName: "Pagos Config",
 			ownerEmail,
 		})
-		await db.insert(User).values({
-			id: adminId,
-			email: adminEmail,
-			username: "payments_admin",
-			registrationDate: new Date(),
-		})
+		await db
+			.insert(User)
+			.values({
+				id: adminId,
+				email: adminEmail,
+				username: "payments_admin",
+				registrationDate: new Date(),
+			})
+			.onConflictDoNothing()
 
 		await withSupabaseAuthStub(
 			{
@@ -144,6 +149,7 @@ describe("provider payment accounts / payouts", () => {
 				} as any)
 				expect(selfReviewRes.status).toBe(403)
 
+				await elevateInternalTestSession({ userId: adminId, accessToken: adminToken })
 				const adminRes = await adminPaymentAccountsPost({
 					request: makeAuthedRequest(
 						"/api/admin/providers/payment-accounts",
@@ -206,7 +212,7 @@ describe("provider payment accounts / payouts", () => {
 	})
 
 	it("rejects payment management for staff without payment permission", async () => {
-		const providerId = "provider_payments_staff"
+		const providerId = `provider_payments_staff_${crypto.randomUUID()}`
 		const token = "t_payments_staff"
 		const staffEmail = "payments.staff@example.com"
 		const staffId = `user_${staffEmail}`
@@ -218,19 +224,25 @@ describe("provider payment accounts / payouts", () => {
 			displayName: "Staff Payments",
 			ownerEmail: "payments.owner.staffcase@example.com",
 		})
-		await db.insert(User).values({
-			id: staffId,
-			email: staffEmail,
-			username: "payments_staff",
-			registrationDate: now,
-		})
-		await db.insert(ProviderUser).values({
-			id: `provider_user_${staffId}`,
-			providerId,
-			userId: staffId,
-			role: "staff",
-			createdAt: now,
-		})
+		await db
+			.insert(User)
+			.values({
+				id: staffId,
+				email: staffEmail,
+				username: "payments_staff",
+				registrationDate: now,
+			})
+			.onConflictDoNothing()
+		await db
+			.insert(ProviderUser)
+			.values({
+				id: `provider_user_${staffId}`,
+				providerId,
+				userId: staffId,
+				role: "staff",
+				createdAt: now,
+			})
+			.onConflictDoNothing()
 
 		await withSupabaseAuthStub({ [token]: { id: staffId, email: staffEmail } }, async () => {
 			const body = new FormData()
@@ -250,9 +262,9 @@ describe("provider payment accounts / payouts", () => {
 	})
 
 	it("requires reason when admin marks a payout account as requires_attention", async () => {
-		const providerId = "provider_payments_attention"
+		const providerId = `provider_payments_attention_${crypto.randomUUID()}`
 		const token = "t_payments_attention"
-		const ownerEmail = "payments.attention@example.com"
+		const ownerEmail = `payments.attention.${crypto.randomUUID()}@example.com`
 		const ownerId = `user_${ownerEmail}`
 		const adminToken = "t_payments_attention_admin"
 		const adminEmail = "payments.attention.admin@fastt.test"
@@ -264,12 +276,15 @@ describe("provider payment accounts / payouts", () => {
 			displayName: "Attention Payments",
 			ownerEmail,
 		})
-		await db.insert(User).values({
-			id: adminId,
-			email: adminEmail,
-			username: "payments_attention_admin",
-			registrationDate: new Date(),
-		})
+		await db
+			.insert(User)
+			.values({
+				id: adminId,
+				email: adminEmail,
+				username: "payments_attention_admin",
+				registrationDate: new Date(),
+			})
+			.onConflictDoNothing()
 
 		await withSupabaseAuthStub(
 			{
@@ -289,6 +304,7 @@ describe("provider payment accounts / payouts", () => {
 				} as any)
 				const submitted = await submitRes.json()
 
+				await elevateInternalTestSession({ userId: adminId, accessToken: adminToken })
 				const attentionRes = await adminPaymentAccountsPost({
 					request: makeAuthedRequest(
 						"/api/admin/providers/payment-accounts",

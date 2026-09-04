@@ -11,6 +11,7 @@ import { GET as documentsGet, POST as documentsPost } from "@/pages/api/provider
 import { POST as adminDocumentsPost } from "@/pages/api/admin/providers/documents"
 import { GET as settingsSummaryGet } from "@/pages/api/provider/settings/summary"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
+import { elevateInternalTestSession } from "../test-support/internal-mfa"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -64,6 +65,7 @@ function makeAuthedRequest(path: string, token: string, body?: FormData | string
 	headers.set("cookie", `sb-access-token=${encodeURIComponent(token)}; sb-refresh-token=r`)
 	headers.set("accept", "application/json")
 	if (!body) return new Request(`http://localhost:4321${path}`, { headers })
+	headers.set("Idempotency-Key", `test-command-${crypto.randomUUID()}`)
 	if (typeof body === "string") {
 		headers.set("Content-Type", "application/json")
 		return new Request(`http://localhost:4321${path}`, { method: "POST", headers, body })
@@ -87,12 +89,15 @@ describe("provider compliance documents", () => {
 			displayName: "Documentos Config",
 			ownerEmail,
 		})
-		await db.insert(User).values({
-			id: adminId,
-			email: adminEmail,
-			username: "documents_admin",
-			registrationDate: new Date(),
-		})
+		await db
+			.insert(User)
+			.values({
+				id: adminId,
+				email: adminEmail,
+				username: "documents_admin",
+				registrationDate: new Date(),
+			})
+			.onConflictDoNothing()
 
 		await withSupabaseAuthStub(
 			{
@@ -138,6 +143,7 @@ describe("provider compliance documents", () => {
 				const selfReviewPayload = await selfReviewRes.json()
 				expect(selfReviewPayload.error).toBe("forbidden")
 
+				await elevateInternalTestSession({ userId: adminId, accessToken: adminToken })
 				const adminRes = await adminDocumentsPost({
 					request: makeAuthedRequest(
 						"/api/admin/providers/documents",
@@ -211,19 +217,25 @@ describe("provider compliance documents", () => {
 			displayName: "Staff Docs",
 			ownerEmail: "documents.owner.staffcase@example.com",
 		})
-		await db.insert(User).values({
-			id: staffId,
-			email: staffEmail,
-			username: "documents_staff",
-			registrationDate: now,
-		})
-		await db.insert(ProviderUser).values({
-			id: `provider_user_${staffId}`,
-			providerId,
-			userId: staffId,
-			role: "staff",
-			createdAt: now,
-		})
+		await db
+			.insert(User)
+			.values({
+				id: staffId,
+				email: staffEmail,
+				username: "documents_staff",
+				registrationDate: now,
+			})
+			.onConflictDoNothing()
+		await db
+			.insert(ProviderUser)
+			.values({
+				id: `provider_user_${staffId}`,
+				providerId,
+				userId: staffId,
+				role: "staff",
+				createdAt: now,
+			})
+			.onConflictDoNothing()
 
 		await withSupabaseAuthStub({ [token]: { id: staffId, email: staffEmail } }, async () => {
 			const body = new FormData()
@@ -255,12 +267,15 @@ describe("provider compliance documents", () => {
 			displayName: "Reject Docs",
 			ownerEmail,
 		})
-		await db.insert(User).values({
-			id: adminId,
-			email: adminEmail,
-			username: "documents_reject_admin",
-			registrationDate: new Date(),
-		})
+		await db
+			.insert(User)
+			.values({
+				id: adminId,
+				email: adminEmail,
+				username: "documents_reject_admin",
+				registrationDate: new Date(),
+			})
+			.onConflictDoNothing()
 
 		await withSupabaseAuthStub(
 			{
@@ -279,6 +294,7 @@ describe("provider compliance documents", () => {
 				} as any)
 				const submitted = await submitRes.json()
 
+				await elevateInternalTestSession({ userId: adminId, accessToken: adminToken })
 				const rejectRes = await adminDocumentsPost({
 					request: makeAuthedRequest(
 						"/api/admin/providers/documents",

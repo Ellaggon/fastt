@@ -1,8 +1,16 @@
 import type { APIRoute } from "astro"
 import { providerV2Repository } from "@/container"
 import { requireInternalPermission } from "@/lib/auth/internal-authorization"
-import { writeAuditEvent } from "@/lib/audit/audit-events"
+import { requireRecentInternalAuthentication } from "@/lib/auth/internal-step-up"
 import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/invalidation"
+import {
+	executeSensitiveCommand,
+	type SensitiveCommandAudit,
+} from "@/lib/commands/sensitive-command"
+import {
+	IdempotencyConflictError,
+	idempotencyKeyFromRequest,
+} from "@/lib/commands/command-idempotency"
 import { requestIdFromRequest, withRequestId } from "@/lib/http/request-context"
 import { writeProviderAuditLog } from "@/lib/provider-audit"
 import { getLatestProviderVerificationStatus } from "@/lib/provider-admin-compliance"
@@ -43,12 +51,6 @@ export const POST: APIRoute = async ({ request }) => {
 				headers: { "Content-Type": "application/json" },
 			})
 		}
-		const principal = await requireInternalPermission(request, "provider.verification.review", {
-			type: "provider",
-			id: payload.providerId,
-		})
-		const { user } = principal
-
 		if (payload.status !== "approved" && payload.status !== "rejected") {
 			return new Response(JSON.stringify({ error: "status must be approved or rejected" }), {
 				status: 400,
@@ -62,76 +64,118 @@ export const POST: APIRoute = async ({ request }) => {
 				headers: { "Content-Type": "application/json" },
 			})
 		}
-
-		const before = await getLatestProviderVerificationStatus(payload.providerId)
-
-		const result = await setProviderVerificationV2(
-			{ repo: providerV2Repository },
-			{
-				providerId: payload.providerId,
-				status: payload.status,
-				reason: payload.reason ?? null,
-				reviewedByUserId: user.id,
-				metadataJson: null,
-			}
-		)
-
-		await writeProviderAuditLog({
-			providerId: payload.providerId,
-			actorUserId: user.id,
-			action: "provider.verification.review",
-			entityType: "ProviderVerification",
-			entityId: payload.providerId,
-			beforeJson: { status: before?.status ?? "pending", reason: before?.reason ?? null },
-			afterJson: {
-				status: payload.status,
-				reason: payload.reason ?? null,
-				reviewedBy: user.email,
-			},
-			riskLevel: "high",
-		})
-		await writeAuditEvent({
+		const audit: SensitiveCommandAudit = {
 			requestId,
-			actorUserId: user.id,
-			actorRoleKeys: principal.roles,
 			providerId: payload.providerId,
 			action: "provider.verification.review",
 			entityType: "ProviderVerification",
 			entityId: payload.providerId,
-			riskLevel: "high",
-			beforeJson: { status: before?.status ?? "pending", reason: before?.reason ?? null },
-			afterJson: { status: payload.status, reason: payload.reason ?? null },
-		})
+			riskLevel: "high" as const,
+		}
+		let actorEmail: string | undefined
+		const command = await executeSensitiveCommand({
+			audit,
+			idempotency: {
+				scope: "provider.verification.review",
+				key: idempotencyKeyFromRequest(request),
+				payload: {
+					providerId: payload.providerId,
+					status: payload.status,
+					reason: payload.reason ?? null,
+				},
+			},
+			authorize: async () => {
+				const principal = await requireInternalPermission(request, "provider.verification.review", {
+					type: "provider",
+					id: payload.providerId,
+				})
+				audit.actorUserId = principal.user.id
+				audit.actorRoleKeys = principal.roles
+				actorEmail = principal.user.email
+				await requireRecentInternalAuthentication({ request, user: principal.user })
+			},
+			execute: async () => {
+				const actorUserId = audit.actorUserId
+				if (!actorUserId) throw new Error("sensitive_command_actor_missing")
 
-		const { completeComplianceAssignment } = await import("@/lib/provider-compliance-ops")
-		await completeComplianceAssignment({
-			providerId: payload.providerId,
-			domain: "verification",
-			entityId: payload.providerId,
-		})
+				const before = await getLatestProviderVerificationStatus(payload.providerId)
+				const result = await setProviderVerificationV2(
+					{ repo: providerV2Repository },
+					{
+						providerId: payload.providerId,
+						status: payload.status,
+						reason: payload.reason ?? null,
+						reviewedByUserId: actorUserId,
+						metadataJson: null,
+					}
+				)
 
-		await invalidateProvider(payload.providerId)
-		await invalidateProviderGovernance(payload.providerId, "admin_provider_verification_reviewed")
+				await writeProviderAuditLog({
+					providerId: payload.providerId,
+					actorUserId,
+					action: "provider.verification.review",
+					entityType: "ProviderVerification",
+					entityId: payload.providerId,
+					beforeJson: { status: before?.status ?? "pending", reason: before?.reason ?? null },
+					afterJson: {
+						status: payload.status,
+						reason: payload.reason ?? null,
+						reviewedBy: actorEmail,
+					},
+					riskLevel: "high",
+				})
+
+				const { completeComplianceAssignment } = await import("@/lib/provider-compliance-ops")
+				await completeComplianceAssignment({
+					providerId: payload.providerId,
+					domain: "verification",
+					entityId: payload.providerId,
+				})
+				await invalidateProvider(payload.providerId)
+				await invalidateProviderGovernance(
+					payload.providerId,
+					"admin_provider_verification_reviewed"
+				)
+				return {
+					response: result,
+					beforeJson: { status: before?.status ?? "pending", reason: before?.reason ?? null },
+					afterJson: { status: payload.status, reason: payload.reason ?? null },
+				}
+			},
+		})
 
 		return withRequestId(
-			new Response(JSON.stringify(result), {
+			new Response(JSON.stringify({ ...command.response, idempotent: command.replayed }), {
 				status: 200,
 				headers: { "Content-Type": "application/json" },
 			}),
 			requestId
 		)
 	} catch (e) {
-		if (e instanceof Response) return e
+		if (e instanceof Response) return withRequestId(e, requestId)
+		if (e instanceof IdempotencyConflictError) {
+			return withRequestId(
+				new Response(JSON.stringify({ error: e.code }), {
+					status: 409,
+					headers: { "Content-Type": "application/json" },
+				}),
+				requestId
+			)
+		}
 		if (e instanceof ValidationError) {
 			return new Response(JSON.stringify({ error: "validation_error", errors: e.errors }), {
 				status: 400,
 				headers: { "Content-Type": "application/json" },
 			})
 		}
+		const status =
+			typeof (e as Error & { status?: unknown })?.status === "number"
+				? (e as Error & { status: number }).status
+				: 500
 		const msg = e instanceof Error ? e.message : "Unknown error"
 		return withRequestId(
 			new Response(JSON.stringify({ error: msg }), {
-				status: 500,
+				status,
 				headers: { "Content-Type": "application/json" },
 			}),
 			requestId

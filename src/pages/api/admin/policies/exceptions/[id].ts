@@ -1,7 +1,9 @@
 import type { APIRoute } from "astro"
 import { z } from "zod"
 
-import { requireInternalAdmin } from "@/lib/auth/requireInternalAdmin"
+import { requireInternalPermission } from "@/lib/auth/internal-authorization"
+import { permissionForPolicyExceptionMutation } from "@/lib/auth/policy-exception-permissions"
+import { requireRecentInternalAuthentication } from "@/lib/auth/internal-step-up"
 import {
 	approvePolicyExceptionRuleUseCase,
 	rejectPolicyExceptionRuleUseCase,
@@ -52,9 +54,9 @@ async function readBody(request: Request): Promise<z.infer<typeof patchSchema> |
 }
 
 export const PATCH: APIRoute = async ({ request, params }) => {
-	let auth: Awaited<ReturnType<typeof requireInternalAdmin>>
+	let auth: Awaited<ReturnType<typeof requireInternalPermission>>
 	try {
-		auth = await requireInternalAdmin(request)
+		auth = await requireInternalPermission(request, "policy.edit")
 	} catch (response) {
 		if (response instanceof Response) return response
 		throw response
@@ -63,6 +65,20 @@ export const PATCH: APIRoute = async ({ request, params }) => {
 	if (!id) return json({ error: "id_required" }, 400)
 	const body = await readBody(request)
 	if (!body) return json({ error: "validation_error" }, 400)
+	if (permissionForPolicyExceptionMutation(body.operation) === "policy.publish") {
+		try {
+			await requireInternalPermission(request, "policy.publish")
+		} catch (response) {
+			if (response instanceof Response) return response
+			throw response
+		}
+		try {
+			await requireRecentInternalAuthentication({ request, user: auth.user })
+		} catch (response) {
+			if (response instanceof Response) return response
+			throw response
+		}
+	}
 	const isActive =
 		typeof body.isActive === "boolean" ? body.isActive : body.isActive === "true" ? true : false
 	try {
