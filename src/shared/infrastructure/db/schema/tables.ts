@@ -968,6 +968,297 @@ export const ProviderComplianceAssignment = pgTable(
 	]
 )
 
+/** Casework coordinates domain sources; it never replaces their source of truth. */
+export const ComplianceCase = pgTable(
+	"ComplianceCase",
+	{
+		id: pk(),
+		caseNumber: txt("caseNumber"),
+		providerId: txt("providerId").references(() => Provider.id),
+		caseType: text("caseType").default("provider_compliance").notNull(),
+		domain: txt("domain"),
+		status: text("status").default("open").notNull(),
+		stage: text("stage").default("triage").notNull(),
+		priority: text("priority").default("normal").notNull(),
+		riskTier: text("riskTier").default("standard").notNull(),
+		sourceType: txt("sourceType"),
+		sourceRef: txt("sourceRef"),
+		policyVersionId: txtOpt("policyVersionId"),
+		summary: txtOpt("summary"),
+		resolutionCode: txtOpt("resolutionCode"),
+		openedAt: now("openedAt"),
+		resolvedAt: ts("resolvedAt"),
+		closedAt: ts("closedAt"),
+		reopenedAt: ts("reopenedAt"),
+		version: intDefault("version", 1),
+		createdBy: txtOpt("createdBy").references(() => User.id),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		uniqueIndex("ComplianceCase_caseNumber_unique").on(table.caseNumber),
+		index("ComplianceCase_status_priority_opened_idx").on(
+			table.status,
+			table.priority,
+			table.openedAt
+		),
+		index("ComplianceCase_provider_status_idx").on(table.providerId, table.status),
+		index("ComplianceCase_domain_status_priority_idx").on(
+			table.domain,
+			table.status,
+			table.priority
+		),
+		uniqueIndex("ComplianceCase_active_source_unique")
+			.on(table.providerId, table.domain, table.sourceType, table.sourceRef)
+			.where(sql`${table.status} IN ('open', 'in_review', 'waiting_information', 'blocked')`),
+		check(
+			"ComplianceCase_domain_check",
+			sql`${table.domain} IN ('verification', 'fiscal', 'documents', 'payments')`
+		),
+		check(
+			"ComplianceCase_status_check",
+			sql`${table.status} IN ('open', 'in_review', 'waiting_information', 'blocked', 'resolved', 'closed', 'canceled')`
+		),
+		check(
+			"ComplianceCase_priority_check",
+			sql`${table.priority} IN ('low', 'normal', 'high', 'critical')`
+		),
+		check(
+			"ComplianceCase_riskTier_check",
+			sql`${table.riskTier} IN ('standard', 'elevated', 'high')`
+		),
+	]
+)
+
+export const CaseTask = pgTable(
+	"CaseTask",
+	{
+		id: pk(),
+		caseId: txt("caseId").references(() => ComplianceCase.id, { onDelete: "restrict" }),
+		taskKey: txt("taskKey"),
+		taskType: text("taskType").default("review_requirement").notNull(),
+		status: text("status").default("open").notNull(),
+		requirementKey: txtOpt("requirementKey"),
+		assigneeEmail: txtOpt("assigneeEmail"),
+		dueAt: ts("dueAt"),
+		completedAt: ts("completedAt"),
+		blockedReasonCode: txtOpt("blockedReasonCode"),
+		version: intDefault("version", 1),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		uniqueIndex("CaseTask_case_taskKey_unique").on(table.caseId, table.taskKey),
+		index("CaseTask_status_due_idx").on(table.status, table.dueAt),
+		index("CaseTask_assignee_status_idx").on(table.assigneeEmail, table.status),
+		check(
+			"CaseTask_status_check",
+			sql`${table.status} IN ('open', 'in_progress', 'blocked', 'completed', 'canceled')`
+		),
+	]
+)
+
+export const CaseAssignmentEvent = pgTable(
+	"CaseAssignmentEvent",
+	{
+		id: pk(),
+		caseId: txt("caseId").references(() => ComplianceCase.id, { onDelete: "restrict" }),
+		taskId: txtOpt("taskId").references(() => CaseTask.id, { onDelete: "restrict" }),
+		eventType: txt("eventType"),
+		fromAssigneeEmail: txtOpt("fromAssigneeEmail"),
+		toAssigneeEmail: txtOpt("toAssigneeEmail"),
+		reasonCode: txtOpt("reasonCode"),
+		actorUserId: txtOpt("actorUserId").references(() => User.id),
+		createdAt: now("createdAt"),
+	},
+	(table) => [
+		index("CaseAssignmentEvent_case_created_idx").on(table.caseId, table.createdAt),
+		check(
+			"CaseAssignmentEvent_type_check",
+			sql`${table.eventType} IN ('assigned', 'reassigned', 'unassigned', 'backfilled')`
+		),
+	]
+)
+
+export const CaseSlaTimer = pgTable(
+	"CaseSlaTimer",
+	{
+		id: pk(),
+		caseId: txt("caseId").references(() => ComplianceCase.id, { onDelete: "restrict" }),
+		timerKey: text("timerKey").default("resolution").notNull(),
+		policyKey: txt("policyKey"),
+		status: text("status").default("running").notNull(),
+		startedAt: now("startedAt"),
+		dueAt: tsReq("dueAt"),
+		pausedAt: ts("pausedAt"),
+		breachedAt: ts("breachedAt"),
+		stoppedAt: ts("stoppedAt"),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		uniqueIndex("CaseSlaTimer_case_timer_unique").on(table.caseId, table.timerKey),
+		index("CaseSlaTimer_due_running_idx").on(table.dueAt, table.status),
+		check(
+			"CaseSlaTimer_status_check",
+			sql`${table.status} IN ('running', 'paused', 'breached', 'stopped')`
+		),
+	]
+)
+
+export const CaseLink = pgTable(
+	"CaseLink",
+	{
+		id: pk(),
+		fromCaseId: txt("fromCaseId").references(() => ComplianceCase.id, { onDelete: "restrict" }),
+		toCaseId: txt("toCaseId").references(() => ComplianceCase.id, { onDelete: "restrict" }),
+		linkType: txt("linkType"),
+		createdBy: txtOpt("createdBy").references(() => User.id),
+		createdAt: now("createdAt"),
+	},
+	(table) => [
+		uniqueIndex("CaseLink_unique").on(table.fromCaseId, table.toCaseId, table.linkType),
+		check(
+			"CaseLink_type_check",
+			sql`${table.linkType} IN ('duplicate', 'reverification', 'appeal', 'related_incident')`
+		),
+		check("CaseLink_not_self_check", sql`${table.fromCaseId} <> ${table.toCaseId}`),
+	]
+)
+
+export const CompliancePolicySet = pgTable(
+	"CompliancePolicySet",
+	{
+		id: pk(),
+		key: txt("key"),
+		label: txt("label"),
+		country: txt("country"),
+		vertical: txt("vertical"),
+		collectionModel: txt("collectionModel"),
+		status: text("status").default("active").notNull(),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		uniqueIndex("CompliancePolicySet_key_unique").on(table.key),
+		check("CompliancePolicySet_status_check", sql`${table.status} IN ('active', 'retired')`),
+	]
+)
+export const CompliancePolicyVersion = pgTable(
+	"CompliancePolicyVersion",
+	{
+		id: pk(),
+		policySetId: txt("policySetId").references(() => CompliancePolicySet.id, {
+			onDelete: "restrict",
+		}),
+		version: int("version"),
+		status: text("status").default("draft").notNull(),
+		effectiveFrom: tsReq("effectiveFrom"),
+		effectiveTo: ts("effectiveTo"),
+		approvedBy: txtOpt("approvedBy").references(() => User.id),
+		approvedAt: ts("approvedAt"),
+		createdAt: now("createdAt"),
+	},
+	(table) => [
+		uniqueIndex("CompliancePolicyVersion_set_version_unique").on(table.policySetId, table.version),
+		index("CompliancePolicyVersion_active_idx").on(
+			table.policySetId,
+			table.status,
+			table.effectiveFrom
+		),
+		check(
+			"CompliancePolicyVersion_status_check",
+			sql`${table.status} IN ('draft', 'published', 'retired')`
+		),
+	]
+)
+export const ComplianceRequirementRule = pgTable(
+	"ComplianceRequirementRule",
+	{
+		id: pk(),
+		policyVersionId: txt("policyVersionId").references(() => CompliancePolicyVersion.id, {
+			onDelete: "restrict",
+		}),
+		domain: txt("domain"),
+		requirementKey: txt("requirementKey"),
+		required: boolDefault("required", true),
+		conditionJson: jsonb("conditionJson"),
+		slaHours: intDefault("slaHours", 48),
+		createdAt: now("createdAt"),
+	},
+	(table) => [
+		uniqueIndex("ComplianceRequirementRule_version_requirement_unique").on(
+			table.policyVersionId,
+			table.requirementKey
+		),
+		check(
+			"ComplianceRequirementRule_domain_check",
+			sql`${table.domain} IN ('verification', 'fiscal', 'documents', 'payments')`
+		),
+		check("ComplianceRequirementRule_sla_check", sql`${table.slaHours} BETWEEN 1 AND 168`),
+	]
+)
+export const ComplianceDecisionReason = pgTable(
+	"ComplianceDecisionReason",
+	{
+		id: pk(),
+		policyVersionId: txt("policyVersionId").references(() => CompliancePolicyVersion.id, {
+			onDelete: "restrict",
+		}),
+		code: txt("code"),
+		domain: txtOpt("domain"),
+		decision: txt("decision"),
+		label: txt("label"),
+		requiresComment: boolDefault("requiresComment", false),
+		active: boolDefault("active", true),
+		createdAt: now("createdAt"),
+	},
+	(table) => [
+		uniqueIndex("ComplianceDecisionReason_version_code_unique").on(
+			table.policyVersionId,
+			table.code
+		),
+		check(
+			"ComplianceDecisionReason_domain_check",
+			sql`${table.domain} IS NULL OR ${table.domain} IN ('verification', 'fiscal', 'documents', 'payments')`
+		),
+		check(
+			"ComplianceDecisionReason_decision_check",
+			sql`${table.decision} IN ('approved', 'rejected', 'requires_attention', 'request_information')`
+		),
+	]
+)
+
+export const DomainEventOutbox = pgTable(
+	"DomainEventOutbox",
+	{
+		id: pk(),
+		eventType: txt("eventType"),
+		aggregateType: txt("aggregateType"),
+		aggregateId: txt("aggregateId"),
+		dedupeKey: txt("dedupeKey"),
+		payloadJson: jsonb("payloadJson").notNull(),
+		status: text("status").default("pending").notNull(),
+		attempts: intDefault("attempts", 0),
+		availableAt: now("availableAt"),
+		lockedAt: ts("lockedAt"),
+		lockedBy: txtOpt("lockedBy"),
+		publishedAt: ts("publishedAt"),
+		lastError: txtOpt("lastError"),
+		createdAt: now("createdAt"),
+	},
+	(table) => [
+		uniqueIndex("DomainEventOutbox_dedupe_unique").on(table.dedupeKey),
+		index("DomainEventOutbox_pending_idx")
+			.on(table.status, table.availableAt, table.createdAt)
+			.where(sql`${table.status} = 'pending'`),
+		check(
+			"DomainEventOutbox_status_check",
+			sql`${table.status} IN ('pending', 'processing', 'published', 'failed')`
+		),
+	]
+)
+
 export const ProviderConfigurationState = pgTable(
 	"ProviderConfigurationState",
 	{
