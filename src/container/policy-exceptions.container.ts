@@ -1,5 +1,6 @@
 import { PolicyCommandRepositoryCapa6 } from "@/modules/policies/infrastructure/repositories/PolicyCommandRepositoryCapa6"
 import { PolicyExceptionRuleRepository } from "@/modules/policies/infrastructure/repositories/PolicyExceptionRuleRepository"
+import { assertSeparationOfDuties } from "@/lib/auth/internal-authorization"
 import type {
 	PolicyExceptionRuleAction,
 	PolicyExceptionRuleContextFilter,
@@ -84,6 +85,10 @@ export async function approvePolicyExceptionRuleUseCase(params: {
 }) {
 	const before = await policyExceptionRuleRepository.findById(params.id)
 	if (!before) return null
+	assertSeparationOfDuties({
+		makerUserId: before.createdBy,
+		checkerUserId: params.actorUserId,
+	})
 	const action: PolicyExceptionRuleAction = {
 		...before.action,
 		approval: {

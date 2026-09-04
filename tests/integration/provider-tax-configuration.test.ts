@@ -15,6 +15,7 @@ import {
 import { POST as adminTaxConfigurationPost } from "@/pages/api/admin/providers/tax-configuration"
 import { GET as settingsSummaryGet } from "@/pages/api/provider/settings/summary"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
+import { elevateInternalTestSession } from "../test-support/internal-mfa"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -68,6 +69,7 @@ function makeAuthedRequest(path: string, token: string, body?: FormData | string
 	headers.set("cookie", `sb-access-token=${encodeURIComponent(token)}; sb-refresh-token=r`)
 	headers.set("accept", "application/json")
 	if (!body) return new Request(`http://localhost:4321${path}`, { headers })
+	headers.set("Idempotency-Key", `test-command-${crypto.randomUUID()}`)
 	if (typeof body === "string") {
 		headers.set("Content-Type", "application/json")
 		return new Request(`http://localhost:4321${path}`, { method: "POST", headers, body })
@@ -150,6 +152,7 @@ describe("integration/provider fiscal profile separation", () => {
 				expect(getBody.taxConfiguration.status).toBe("pending")
 				expect(getBody.permissions.canManageFiscality).toBe(true)
 
+				await elevateInternalTestSession({ userId: adminId, accessToken: adminToken })
 				const adminRes = await adminTaxConfigurationPost({
 					request: makeAuthedRequest(
 						"/api/admin/providers/tax-configuration",

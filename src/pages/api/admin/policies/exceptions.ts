@@ -1,7 +1,8 @@
 import type { APIRoute } from "astro"
 import { z } from "zod"
 
-import { requireInternalAdmin } from "@/lib/auth/requireInternalAdmin"
+import { requireInternalPermission } from "@/lib/auth/internal-authorization"
+import { permissionForPolicyExceptionCreate } from "@/lib/auth/policy-exception-permissions"
 import {
 	createPolicyExceptionRuleUseCase,
 	listPolicyExceptionRulesUseCase,
@@ -163,7 +164,7 @@ async function readBody(request: Request): Promise<Record<string, unknown>> {
 
 export const GET: APIRoute = async ({ request, url }) => {
 	try {
-		await requireInternalAdmin(request)
+		await requireInternalPermission(request, "policy.edit")
 	} catch (response) {
 		if (response instanceof Response) return response
 		throw response
@@ -181,15 +182,21 @@ export const GET: APIRoute = async ({ request, url }) => {
 }
 
 export const POST: APIRoute = async ({ request }) => {
-	let auth: Awaited<ReturnType<typeof requireInternalAdmin>>
+	let auth: Awaited<ReturnType<typeof requireInternalPermission>>
 	try {
-		auth = await requireInternalAdmin(request)
+		auth = await requireInternalPermission(request, "policy.edit")
 	} catch (response) {
 		if (response instanceof Response) return response
 		throw response
 	}
 	const parsed = createSchema.safeParse(await readBody(request))
 	if (!parsed.success) return json({ error: "validation_error", issues: parsed.error.issues }, 400)
+	if (
+		permissionForPolicyExceptionCreate({ approvalStatus: parsed.data.action.approval?.status }) ===
+		"policy.publish"
+	) {
+		return json({ error: "approval_workflow_required" }, 409)
+	}
 	const created = await createPolicyExceptionRuleUseCase(parsed.data, auth.user.id)
 	const scope = String(created.scope ?? "")
 	const scopeId = String(created.scopeId ?? "")
