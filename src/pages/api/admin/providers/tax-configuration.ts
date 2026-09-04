@@ -4,6 +4,10 @@ import { requireInternalPermission } from "@/lib/auth/internal-authorization"
 import { requireRecentInternalAuthentication } from "@/lib/auth/internal-step-up"
 import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/invalidation"
 import {
+	resolveComplianceCaseForSourceCompat,
+	synchronizeComplianceCaseCompat,
+} from "@/lib/casework/compliance-casework"
+import {
 	IdempotencyConflictError,
 	idempotencyKeyFromRequest,
 } from "@/lib/commands/command-idempotency"
@@ -80,12 +84,29 @@ export const POST: APIRoute = async ({ request }) => {
 			execute: async () => {
 				const actorUserId = audit.actorUserId
 				if (!actorUserId) throw new Error("sensitive_command_actor_missing")
+				await synchronizeComplianceCaseCompat({
+					providerId: payload.providerId,
+					domain: "fiscal",
+					sourceType: "ProviderTaxConfiguration",
+					sourceRef: payload.providerId,
+					summary: "Revisión de identidad fiscal",
+				})
 				const taxConfiguration = await reviewProviderTaxConfiguration({
 					providerId: payload.providerId,
 					actorUserId,
 					status: payload.status,
 					reason: payload.reason,
 				})
+				if (payload.status === "verified" || payload.status === "requires_attention")
+					await resolveComplianceCaseForSourceCompat(
+						{
+							providerId: payload.providerId,
+							domain: "fiscal",
+							sourceType: "ProviderTaxConfiguration",
+							sourceRef: payload.providerId,
+						},
+						payload.status === "verified" ? "requirements_satisfied" : "information_mismatch"
+					)
 				await invalidateProvider(payload.providerId)
 				await invalidateProviderGovernance(payload.providerId, "admin_tax_configuration_reviewed")
 				return {
