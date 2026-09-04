@@ -5,6 +5,15 @@ import { describe, expect, it } from "vitest"
 const read = (path: string) => readFileSync(resolve(process.cwd(), path), "utf8")
 
 describe("command center phase 2 casework foundation", () => {
+	it("ships the published policy seed in the fresh-install baseline", () => {
+		const baseline = read("db/postgres/0001_initial_schema.sql")
+		expect(baseline).toContain("cps_bo_accommodation_intermediary_v1")
+		expect(baseline).toContain("'published'")
+		expect(read("src/shared/infrastructure/db/schema/casework-policy-seed.sql")).toContain(
+			"cps_bo_accommodation_intermediary_v1"
+		)
+	})
+
 	it("has a canonical active-case uniqueness constraint and transactional outbox", () => {
 		const migration = read("db/migrations/2026-11-02_command_center_phase2_casework.sql")
 		expect(migration).toContain("ComplianceCase_active_source_unique")
