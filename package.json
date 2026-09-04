@@ -35,6 +35,7 @@
     "db:explain:provider-integrations": "tsx scripts/db/explain-provider-integration-operations.ts",
     "db:migrate:apply-one": "tsx scripts/db/apply-single-migration.ts",
     "access:grant-internal-role": "node --import dotenv/config --import tsx src/scripts/grant-internal-role.ts",
+    "ops:cleanup-command-idempotency": "node --import dotenv/config --import tsx src/scripts/cleanup-command-idempotency.ts",
     "db:backfill:surfaces": "tsx scripts/db/backfill-performance-surfaces.ts",
     "db:backfill:hotel-room-units": "tsx scripts/db/backfill-hotel-room-inventory-config.ts",
     "db:search:retention": "tsx scripts/db/apply-search-retention.ts",
