@@ -1330,10 +1330,12 @@ const activeQueueLabel =
 		})
 	})
 
-	async function postJson(url, payload) {
+	async function postJson(url, payload, idempotencyKey = `admin_command:${crypto.randomUUID()}`) {
+		const headers = { "Content-Type": "application/json" }
+		if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey
 		const res = await fetch(url, {
 			method: "POST",
-			headers: { "Content-Type": "application/json" },
+			headers,
 			body: JSON.stringify(payload),
 		})
 		if (res.status === 200) {
@@ -1358,7 +1360,11 @@ const activeQueueLabel =
 			const providerId = button.getAttribute("data-approve-provider")
 			if (!providerId) return
 			button.setAttribute("disabled", "true")
-			await postJson("/api/admin/providers/verification", { providerId, status: "approved" })
+			await postJson(
+				"/api/admin/providers/verification",
+				{ providerId, status: "approved" },
+				`provider_verification:${providerId}:approved:${crypto.randomUUID()}`
+			)
 			button.removeAttribute("disabled")
 		})
 	})
@@ -1376,11 +1382,15 @@ const activeQueueLabel =
 				return
 			}
 			if (submitButton) submitButton.setAttribute("disabled", "true")
-			await postJson("/api/admin/providers/verification", {
-				providerId,
-				status: "rejected",
-				reason,
-			})
+			await postJson(
+				"/api/admin/providers/verification",
+				{
+					providerId,
+					status: "rejected",
+					reason,
+				},
+				`provider_verification:${providerId}:rejected:${crypto.randomUUID()}`
+			)
 			if (submitButton) submitButton.removeAttribute("disabled")
 		})
 	})

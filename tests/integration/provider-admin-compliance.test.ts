@@ -16,6 +16,7 @@ import { upsertProviderTaxConfiguration } from "@/lib/provider-tax-configuration
 import { GET as complianceGet } from "@/pages/api/admin/providers/compliance"
 import { POST as adminVerificationPost } from "@/pages/api/admin/providers/verification"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
+import { elevateInternalTestSession } from "../test-support/internal-mfa"
 
 type SupabaseTestUser = { id: string; email: string }
 
@@ -70,6 +71,7 @@ function makeAuthedRequest(path: string, token: string, body?: string): Request 
 	headers.set("accept", "application/json")
 	if (!body) return new Request(`http://localhost:4321${path}`, { headers })
 	headers.set("Content-Type", "application/json")
+	headers.set("Idempotency-Key", `test-command-${crypto.randomUUID()}`)
 	return new Request(`http://localhost:4321${path}`, { method: "POST", headers, body })
 }
 
@@ -83,7 +85,7 @@ describe("provider admin unified compliance console", () => {
 	})
 
 	it("aggregates verification + fiscal + documents + payments queues and audit trail", async () => {
-		const providerId = "provider_compliance_console"
+		const providerId = `provider_compliance_console_${crypto.randomUUID()}`
 		const ownerEmail = "compliance.owner@example.com"
 		const ownerId = `user_${ownerEmail}`
 		const adminToken = "t_compliance_admin"
@@ -96,12 +98,15 @@ describe("provider admin unified compliance console", () => {
 			displayName: "Compliance Console",
 			ownerEmail,
 		})
-		await db.insert(User).values({
-			id: adminId,
-			email: adminEmail,
-			username: "compliance_admin",
-			registrationDate: new Date(),
-		})
+		await db
+			.insert(User)
+			.values({
+				id: adminId,
+				email: adminEmail,
+				username: "compliance_admin",
+				registrationDate: new Date(),
+			})
+			.onConflictDoNothing()
 
 		await upsertProviderTaxConfiguration({
 			providerId,
@@ -167,6 +172,7 @@ describe("provider admin unified compliance console", () => {
 		await withSupabaseAuthStub(
 			{ [adminToken]: { id: adminId, email: adminEmail } },
 			async () => {
+				await elevateInternalTestSession({ userId: adminId, accessToken: adminToken })
 				const approveRes = await adminVerificationPost({
 					request: makeAuthedRequest(
 						"/api/admin/providers/verification",

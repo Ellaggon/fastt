@@ -1,7 +1,17 @@
 import type { APIRoute } from "astro"
 
 import { requireInternalPermission } from "@/lib/auth/internal-authorization"
+import { requireRecentInternalAuthentication } from "@/lib/auth/internal-step-up"
 import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/invalidation"
+import {
+	IdempotencyConflictError,
+	idempotencyKeyFromRequest,
+} from "@/lib/commands/command-idempotency"
+import {
+	executeSensitiveCommand,
+	type SensitiveCommandAudit,
+} from "@/lib/commands/sensitive-command"
+import { requestIdFromRequest, withRequestId } from "@/lib/http/request-context"
 import {
 	initiatePaymentAccountMicroDeposit,
 	reviewProviderPaymentAccount,
@@ -38,6 +48,7 @@ async function readPayload(request: Request): Promise<{
 }
 
 export const POST: APIRoute = async ({ request }) => {
+	const requestId = requestIdFromRequest(request)
 	try {
 		const payload = await readPayload(request)
 
@@ -47,56 +58,101 @@ export const POST: APIRoute = async ({ request }) => {
 				headers: { "Content-Type": "application/json" },
 			})
 		}
-		const { user } = await requireInternalPermission(request, "provider.payment.review", {
-			type: "provider",
-			id: payload.providerId,
-		})
 		if (!payload.accountId) {
 			return new Response(JSON.stringify({ error: "accountId is required" }), {
 				status: 400,
 				headers: { "Content-Type": "application/json" },
 			})
 		}
+		const action = payload.action === "initiate_micro_deposit" ? "initiate_micro_deposit" : "review"
+		const audit: SensitiveCommandAudit = {
+			requestId,
+			providerId: payload.providerId,
+			action: `provider.payment_account.${action}`,
+			entityType: "ProviderPaymentAccount",
+			entityId: payload.accountId,
+			riskLevel: "high",
+		}
+		const command = await executeSensitiveCommand({
+			audit,
+			idempotency: {
+				scope: `provider.payment_account.${action}`,
+				key: idempotencyKeyFromRequest(request),
+				payload: {
+					providerId: payload.providerId,
+					accountId: payload.accountId,
+					action,
+					status: payload.status,
+					reason: payload.reason ?? null,
+				},
+			},
+			authorize: async () => {
+				const principal = await requireInternalPermission(request, "provider.payment.review", {
+					type: "provider",
+					id: payload.providerId,
+				})
+				audit.actorUserId = principal.user.id
+				audit.actorRoleKeys = principal.roles
+				await requireRecentInternalAuthentication({ request, user: principal.user })
+			},
+			execute: async () => {
+				const actorUserId = audit.actorUserId
+				if (!actorUserId) throw new Error("sensitive_command_actor_missing")
+				if (action === "initiate_micro_deposit") {
+					const result = await initiatePaymentAccountMicroDeposit({
+						providerId: payload.providerId,
+						actorUserId,
+						accountId: payload.accountId,
+					})
+					await invalidateProvider(payload.providerId)
+					await invalidateProviderGovernance(
+						payload.providerId,
+						"admin_payment_micro_deposit_started"
+					)
+					return { response: { ok: true, ...result }, afterJson: { action } }
+				}
+				const account = await reviewProviderPaymentAccount({
+					providerId: payload.providerId,
+					actorUserId,
+					accountId: payload.accountId,
+					status: payload.status,
+					reason: payload.reason,
+				})
+				await invalidateProvider(payload.providerId)
+				await invalidateProviderGovernance(payload.providerId, "admin_payment_account_reviewed")
+				return { response: { ok: true, account }, afterJson: { status: payload.status } }
+			},
+		})
 
-		if (payload.action === "initiate_micro_deposit") {
-			const result = await initiatePaymentAccountMicroDeposit({
-				providerId: payload.providerId,
-				actorUserId: user.id,
-				accountId: payload.accountId,
-			})
-			await invalidateProvider(payload.providerId)
-			await invalidateProviderGovernance(payload.providerId, "admin_payment_micro_deposit_started")
-			return new Response(JSON.stringify({ ok: true, ...result }), {
+		return withRequestId(
+			new Response(JSON.stringify({ ...command.response, idempotent: command.replayed }), {
 				status: 200,
 				headers: { "Content-Type": "application/json" },
-			})
-		}
-
-		const account = await reviewProviderPaymentAccount({
-			providerId: payload.providerId,
-			actorUserId: user.id,
-			accountId: payload.accountId,
-			status: payload.status,
-			reason: payload.reason,
-		})
-
-		await invalidateProvider(payload.providerId)
-		await invalidateProviderGovernance(payload.providerId, "admin_payment_account_reviewed")
-
-		return new Response(JSON.stringify({ ok: true, account }), {
-			status: 200,
-			headers: { "Content-Type": "application/json" },
-		})
+			}),
+			requestId
+		)
 	} catch (e) {
-		if (e instanceof Response) return e
+		if (e instanceof Response) return withRequestId(e, requestId)
+		if (e instanceof IdempotencyConflictError) {
+			return withRequestId(
+				new Response(JSON.stringify({ error: e.code }), {
+					status: 409,
+					headers: { "Content-Type": "application/json" },
+				}),
+				requestId
+			)
+		}
 		const status =
 			typeof (e as Error & { status?: number })?.status === "number"
 				? (e as Error & { status?: number }).status!
 				: 500
 		const msg = e instanceof Error ? e.message : "Unknown error"
-		return new Response(JSON.stringify({ error: msg }), {
-			status,
-			headers: { "Content-Type": "application/json" },
-		})
+		return withRequestId(
+			new Response(JSON.stringify({ error: msg }), {
+				status,
+				headers: { "Content-Type": "application/json" },
+			}),
+			requestId
+		)
 	}
 }
