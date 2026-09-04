@@ -157,6 +157,7 @@ export async function upsertComplianceAssignment(params: {
 		.then(first)
 		.catch(() => null)
 
+	let stored: ProviderComplianceAssignmentRecord | null
 	if (existing?.id) {
 		await db
 			.update(ProviderComplianceAssignment)
@@ -173,30 +174,52 @@ export async function upsertComplianceAssignment(params: {
 			.from(ProviderComplianceAssignment)
 			.where(eq(ProviderComplianceAssignment.id, existing.id))
 			.then(first)
-		return row ? mapRow(row) : null
+		stored = row ? mapRow(row) : null
+	} else {
+		const id = crypto.randomUUID()
+		await db.insert(ProviderComplianceAssignment).values({
+			id,
+			providerId: params.providerId,
+			domain,
+			entityId,
+			assigneeEmail: assigneeEmail ?? undefined,
+			slaHours,
+			slaDueAt,
+			status: "open",
+			notes: notes ?? undefined,
+			createdBy: params.actorUserId,
+			createdAt: now,
+			updatedAt: now,
+		})
+		const row = await db
+			.select()
+			.from(ProviderComplianceAssignment)
+			.where(eq(ProviderComplianceAssignment.id, id))
+			.then(first)
+		stored = row ? mapRow(row) : null
 	}
-
-	const id = crypto.randomUUID()
-	await db.insert(ProviderComplianceAssignment).values({
-		id,
-		providerId: params.providerId,
-		domain,
-		entityId,
-		assigneeEmail: assigneeEmail ?? undefined,
-		slaHours,
-		slaDueAt,
-		status: "open",
-		notes: notes ?? undefined,
-		createdBy: params.actorUserId,
-		createdAt: now,
-		updatedAt: now,
-	})
-	const row = await db
-		.select()
-		.from(ProviderComplianceAssignment)
-		.where(eq(ProviderComplianceAssignment.id, id))
-		.then(first)
-	return row ? mapRow(row) : null
+	if (stored) {
+		const { synchronizeCaseAssignment } = await import("@/lib/casework/compliance-casework")
+		await synchronizeCaseAssignment({
+			source: {
+				providerId: params.providerId,
+				domain,
+				sourceType:
+					domain === "verification"
+						? "ProviderVerification"
+						: domain === "fiscal"
+							? "ProviderTaxConfiguration"
+							: domain === "documents"
+								? "ProviderDocument"
+								: "ProviderPaymentAccount",
+				sourceRef: entityId,
+				summary: `Asignación operativa: ${domain}`,
+			},
+			assigneeEmail: stored.assigneeEmail,
+			actorUserId: params.actorUserId,
+		})
+	}
+	return stored
 }
 
 export async function completeComplianceAssignment(params: {
