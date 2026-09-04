@@ -26,6 +26,10 @@
     {
       "path": "/api/cron/command-idempotency-cleanup",
       "schedule": "57 4 * * *"
+    },
+    {
+      "path": "/api/cron/compliance-case-reconciliation",
+      "schedule": "17 5 * * *"
     }
   ]
 }
