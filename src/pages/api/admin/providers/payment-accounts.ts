@@ -4,6 +4,10 @@ import { requireInternalPermission } from "@/lib/auth/internal-authorization"
 import { requireRecentInternalAuthentication } from "@/lib/auth/internal-step-up"
 import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/invalidation"
 import {
+	resolveComplianceCaseForSourceCompat,
+	synchronizeComplianceCaseCompat,
+} from "@/lib/casework/compliance-casework"
+import {
 	IdempotencyConflictError,
 	idempotencyKeyFromRequest,
 } from "@/lib/commands/command-idempotency"
@@ -98,6 +102,13 @@ export const POST: APIRoute = async ({ request }) => {
 			execute: async () => {
 				const actorUserId = audit.actorUserId
 				if (!actorUserId) throw new Error("sensitive_command_actor_missing")
+				await synchronizeComplianceCaseCompat({
+					providerId: payload.providerId,
+					domain: "payments",
+					sourceType: "ProviderPaymentAccount",
+					sourceRef: payload.accountId,
+					summary: "Revisión de cuenta de payout",
+				})
 				if (action === "initiate_micro_deposit") {
 					const result = await initiatePaymentAccountMicroDeposit({
 						providerId: payload.providerId,
@@ -118,6 +129,16 @@ export const POST: APIRoute = async ({ request }) => {
 					status: payload.status,
 					reason: payload.reason,
 				})
+				if (payload.status === "verified" || payload.status === "requires_attention")
+					await resolveComplianceCaseForSourceCompat(
+						{
+							providerId: payload.providerId,
+							domain: "payments",
+							sourceType: "ProviderPaymentAccount",
+							sourceRef: payload.accountId,
+						},
+						payload.status === "verified" ? "requirements_satisfied" : "information_mismatch"
+					)
 				await invalidateProvider(payload.providerId)
 				await invalidateProviderGovernance(payload.providerId, "admin_payment_account_reviewed")
 				return { response: { ok: true, account }, afterJson: { status: payload.status } }

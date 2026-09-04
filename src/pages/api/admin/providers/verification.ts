@@ -4,6 +4,10 @@ import { requireInternalPermission } from "@/lib/auth/internal-authorization"
 import { requireRecentInternalAuthentication } from "@/lib/auth/internal-step-up"
 import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/invalidation"
 import {
+	resolveComplianceCaseForSourceCompat,
+	synchronizeComplianceCaseCompat,
+} from "@/lib/casework/compliance-casework"
+import {
 	executeSensitiveCommand,
 	type SensitiveCommandAudit,
 } from "@/lib/commands/sensitive-command"
@@ -97,6 +101,13 @@ export const POST: APIRoute = async ({ request }) => {
 			execute: async () => {
 				const actorUserId = audit.actorUserId
 				if (!actorUserId) throw new Error("sensitive_command_actor_missing")
+				await synchronizeComplianceCaseCompat({
+					providerId: payload.providerId,
+					domain: "verification",
+					sourceType: "ProviderVerification",
+					sourceRef: payload.providerId,
+					summary: "Revisión de identidad y negocio del proveedor",
+				})
 
 				const before = await getLatestProviderVerificationStatus(payload.providerId)
 				const result = await setProviderVerificationV2(
@@ -131,6 +142,15 @@ export const POST: APIRoute = async ({ request }) => {
 					domain: "verification",
 					entityId: payload.providerId,
 				})
+				await resolveComplianceCaseForSourceCompat(
+					{
+						providerId: payload.providerId,
+						domain: "verification",
+						sourceType: "ProviderVerification",
+						sourceRef: payload.providerId,
+					},
+					payload.status === "approved" ? "requirements_satisfied" : "requirements_not_satisfied"
+				)
 				await invalidateProvider(payload.providerId)
 				await invalidateProviderGovernance(
 					payload.providerId,

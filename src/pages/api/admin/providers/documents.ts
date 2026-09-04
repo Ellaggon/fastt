@@ -4,6 +4,10 @@ import { requireInternalPermission } from "@/lib/auth/internal-authorization"
 import { requireRecentInternalAuthentication } from "@/lib/auth/internal-step-up"
 import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/invalidation"
 import {
+	resolveComplianceCaseForSourceCompat,
+	synchronizeComplianceCaseCompat,
+} from "@/lib/casework/compliance-casework"
+import {
 	IdempotencyConflictError,
 	idempotencyKeyFromRequest,
 } from "@/lib/commands/command-idempotency"
@@ -90,6 +94,13 @@ export const POST: APIRoute = async ({ request }) => {
 			execute: async () => {
 				const actorUserId = audit.actorUserId
 				if (!actorUserId) throw new Error("sensitive_command_actor_missing")
+				await synchronizeComplianceCaseCompat({
+					providerId: payload.providerId,
+					domain: "documents",
+					sourceType: "ProviderDocument",
+					sourceRef: payload.documentId,
+					summary: "Revisión documental",
+				})
 				const document = await reviewProviderDocument({
 					providerId: payload.providerId,
 					actorUserId,
@@ -97,6 +108,16 @@ export const POST: APIRoute = async ({ request }) => {
 					status: payload.status,
 					reviewNotes: payload.reviewNotes,
 				})
+				if (payload.status === "verified" || payload.status === "rejected")
+					await resolveComplianceCaseForSourceCompat(
+						{
+							providerId: payload.providerId,
+							domain: "documents",
+							sourceType: "ProviderDocument",
+							sourceRef: payload.documentId,
+						},
+						payload.status === "verified" ? "requirements_satisfied" : "requirements_not_satisfied"
+					)
 				await invalidateProvider(payload.providerId)
 				await invalidateProviderGovernance(payload.providerId, "admin_provider_document_reviewed")
 				return {
