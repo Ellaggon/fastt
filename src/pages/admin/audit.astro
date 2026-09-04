@@ -1,0 +1,238 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import FormField from "@/components/ui/FormField.astro"
+import Input from "@/components/ui/Input.astro"
+import Select from "@/components/ui/Select.astro"
+import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
+import {
+	AUDIT_OUTCOMES,
+	AUDIT_RISK_LEVELS,
+	loadAuditConsoleEvents,
+	parseAuditConsoleFilters,
+} from "@/lib/audit/audit-console"
+import { requireInternalPermission } from "@/lib/auth/internal-authorization"
+
+let isAuthorized = false
+try {
+	await requireInternalPermission(Astro.request, "audit.read")
+	isAuthorized = true
+} catch (response) {
+	if (response instanceof Response && response.status === 401) return Astro.redirect("/SignInPage")
+}
+
+const filters = parseAuditConsoleFilters(Astro.url.searchParams)
+const events = isAuthorized ? await loadAuditConsoleEvents(filters) : []
+const fmt = new Intl.DateTimeFormat("es-CL", { dateStyle: "medium", timeStyle: "medium" })
+const outcomeVariant = {
+	attempted: "info",
+	succeeded: "success",
+	denied: "warning",
+	failed: "error",
+} as const
+const riskVariant = { low: "neutral", medium: "info", high: "warning", critical: "error" } as const
+const byOutcome = Object.fromEntries(AUDIT_OUTCOMES.map((outcome) => [outcome, 0])) as Record<
+	(typeof AUDIT_OUTCOMES)[number],
+	number
+>
+for (const event of events) byOutcome[event.outcome] += 1
+const hasFilters = [...Astro.url.searchParams.keys()].some((key) => key !== "limit")
+
+function providerAuditHref(providerId: string) {
+	return `/admin/audit?providerId=${encodeURIComponent(providerId)}`
+}
+---
+
+<InternalAdminLayout title="Admin · Auditoría operativa">
+	<section class="space-y-6 text-slate-200">
+		<header class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+			<div class="max-w-3xl space-y-2">
+				<p class="text-xs font-semibold tracking-[0.16em] text-amber-300 uppercase">
+					Centro de mando
+				</p>
+				<h1 class="text-2xl font-semibold text-white">Auditoría operativa</h1>
+				<p class="text-sm leading-6 text-slate-300">
+					Traza transversal de intentos, decisiones, bloqueos y reintentos. Esta vista sirve para
+					operar e investigar; el contenido sensible permanece redaccionado.
+				</p>
+			</div>
+			<div class="flex flex-wrap gap-2">
+				<Button href="/admin/providers" variant="onDark" size="sm">Abrir cola de proveedores</Button
+				>
+				<Button href="/auth/mfa?returnTo=/admin/audit" variant="secondary" size="sm">
+					Confirmar MFA
+				</Button>
+			</div>
+		</header>
+
+		{
+			!isAuthorized ? (
+				<Card class="bg-slate-100">
+					<h2 class="text-lg font-semibold text-slate-900">Acceso restringido</h2>
+					<p class="mt-1 text-sm text-slate-600">
+						Tu cuenta necesita el permiso <code>audit.read</code> para consultar esta auditoría.
+					</p>
+				</Card>
+			) : (
+				<>
+					<Card class="bg-slate-100">
+						<form
+							class="grid gap-4 md:grid-cols-2 xl:grid-cols-4"
+							method="get"
+							aria-label="Filtrar auditoría operativa"
+						>
+							<FormField htmlFor="audit-provider-id" label="Proveedor (ID)">
+								<Input id="audit-provider-id" name="providerId" value={filters.providerId ?? ""} />
+							</FormField>
+							<FormField htmlFor="audit-request-id" label="Request ID">
+								<Input id="audit-request-id" name="requestId" value={filters.requestId ?? ""} />
+							</FormField>
+							<FormField htmlFor="audit-action" label="Acción exacta">
+								<Input
+									id="audit-action"
+									name="action"
+									placeholder="provider.verification.review"
+									value={filters.action ?? ""}
+								/>
+							</FormField>
+							<FormField htmlFor="audit-outcome" label="Resultado">
+								<Select id="audit-outcome" name="outcome">
+									<option value="">Todos</option>
+									{AUDIT_OUTCOMES.map((outcome) => (
+										<option value={outcome} selected={filters.outcome === outcome}>
+											{outcome}
+										</option>
+									))}
+								</Select>
+							</FormField>
+							<FormField htmlFor="audit-risk" label="Riesgo">
+								<Select id="audit-risk" name="risk">
+									<option value="">Todos</option>
+									{AUDIT_RISK_LEVELS.map((risk) => (
+										<option value={risk} selected={filters.riskLevel === risk}>
+											{risk}
+										</option>
+									))}
+								</Select>
+							</FormField>
+							<FormField htmlFor="audit-from" label="Desde">
+								<Input
+									id="audit-from"
+									type="date"
+									name="from"
+									value={Astro.url.searchParams.get("from") ?? ""}
+								/>
+							</FormField>
+							<FormField htmlFor="audit-to" label="Hasta">
+								<Input
+									id="audit-to"
+									type="date"
+									name="to"
+									value={Astro.url.searchParams.get("to") ?? ""}
+								/>
+							</FormField>
+							<div class="flex items-end gap-2">
+								<Button type="submit" variant="primary">
+									Aplicar filtros
+								</Button>
+								{hasFilters && (
+									<Button href="/admin/audit" variant="secondary">
+										Limpiar
+									</Button>
+								)}
+							</div>
+						</form>
+						<p class="mt-4 text-xs leading-5 text-slate-600">
+							Se muestran hasta 150 eventos, de más reciente a más antiguo. Usa el Request ID para
+							reconstruir una petición concreta.
+						</p>
+					</Card>
+
+					<div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Resumen de resultados">
+						{AUDIT_OUTCOMES.map((outcome) => (
+							<Card class="bg-slate-900">
+								<p class="text-xs font-medium tracking-wide text-slate-400 uppercase">{outcome}</p>
+								<p class="mt-1 text-2xl font-semibold text-white">{byOutcome[outcome]}</p>
+							</Card>
+						))}
+					</div>
+
+					<Card class="bg-slate-100">
+						<div class="mb-4 flex items-baseline justify-between gap-4">
+							<h2 class="text-lg font-semibold text-slate-900">Eventos</h2>
+							<p class="text-sm text-slate-600">
+								{events.length} resultado{events.length === 1 ? "" : "s"}
+							</p>
+						</div>
+						{events.length ? (
+							<ol class="space-y-3" aria-label="Resultados de auditoría">
+								{events.map((event) => (
+									<li>
+										<Card class="p-4" variant="plain">
+											<div class="flex flex-col justify-between gap-3 md:flex-row">
+												<div class="min-w-0 space-y-2">
+													<div class="flex flex-wrap items-center gap-2">
+														<p class="font-semibold break-all text-slate-950">{event.action}</p>
+														<Badge variant={outcomeVariant[event.outcome]}>{event.outcome}</Badge>
+														<Badge variant={riskVariant[event.riskLevel]}>
+															riesgo {event.riskLevel}
+														</Badge>
+														{event.context?.idempotency === "replay" && (
+															<Badge variant="info">replay</Badge>
+														)}
+													</div>
+													<p class="text-sm text-slate-600">
+														{event.createdAt ? fmt.format(new Date(event.createdAt)) : "Sin fecha"}{" "}
+														· {event.entityType}
+														{event.entityId ? ` · ${event.entityId}` : ""}
+													</p>
+													<p class="text-sm text-slate-700">
+														Actor: {event.actorLabel ?? "Sesión no identificada"}
+													</p>
+													{event.actorRoles.length ? (
+														<p class="text-xs text-slate-500">
+															Roles: {event.actorRoles.join(", ")}
+														</p>
+													) : null}
+												</div>
+												<div class="space-y-2 text-sm text-slate-600 md:text-right">
+													{event.providerId ? (
+														<a
+															class="block font-medium text-slate-900 underline"
+															href={providerAuditHref(event.providerId)}
+														>
+															Proveedor: {event.providerLabel}
+														</a>
+													) : (
+														<p>Sin proveedor asociado</p>
+													)}
+													<p class="text-xs break-all">Request: {event.requestId ?? "—"}</p>
+												</div>
+											</div>
+											{event.context ? (
+												<details class="mt-3">
+													<summary class="cursor-pointer text-sm font-medium text-slate-700">
+														Ver metadatos redaccionados
+													</summary>
+													<pre class="mt-2 overflow-x-auto rounded bg-slate-950 p-3 text-xs text-slate-100">
+														{JSON.stringify(event.context, null, 2)}
+													</pre>
+												</details>
+											) : null}
+										</Card>
+									</li>
+								))}
+							</ol>
+						) : (
+							<p class="rounded border border-dashed border-slate-300 p-6 text-sm text-slate-600">
+								No hay eventos para estos filtros. Las decisiones nuevas aparecerán aquí como
+								intentos y resultados.
+							</p>
+						)}
+					</Card>
+				</>
+			)
+		}
+	</section>
+</InternalAdminLayout>

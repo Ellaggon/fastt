@@ -122,7 +122,10 @@ const activeQueueLabel =
 	<section class="min-h-screen text-slate-200">
 		<div class="mx-auto max-w-7xl space-y-6 px-6">
 			<header class="space-y-2">
-				<h1 class="text-2xl font-semibold text-white">Cumplimiento de proveedores</h1>
+				<div class="flex flex-wrap items-center justify-between gap-3">
+					<h1 class="text-2xl font-semibold text-white">Cumplimiento de proveedores</h1>
+					<Button href="/admin/audit" variant="onDark" size="sm">Auditoría técnica</Button>
+				</div>
 				<p class="text-sm text-slate-300">
 					Workbench ops: una cola activa (default SLA vencidas), abre un caso en el panel lateral.
 					El proveedor envía; solo el equipo interno valida. Toda decisión queda en auditoría.
@@ -1233,6 +1236,12 @@ const activeQueueLabel =
 													<p class="mb-2 text-sm font-semibold text-slate-900">
 														Auditoría reciente
 													</p>
+													<a
+														href={`/admin/audit?providerId=${encodeURIComponent(focusedDetail.provider.id)}`}
+														class="mb-3 inline-block text-xs font-semibold text-slate-900 underline"
+													>
+														Ver auditoría técnica completa
+													</a>
 													<table class="min-w-full divide-y divide-slate-200 text-sm">
 														<thead>
 															<tr class="text-left text-xs tracking-wide text-slate-600 uppercase">
@@ -1273,6 +1282,15 @@ const activeQueueLabel =
 
 <script is:inline>
 	const feedback = document.getElementById("admin-compliance-feedback")
+	const currentReturnTo = `${window.location.pathname}${window.location.search}`
+
+	function startMfaReauthentication() {
+		showFeedback(
+			"warning",
+			"Confirma tu MFA para continuar. Volverás a este caso y deberás repetir la acción."
+		)
+		window.location.assign(`/auth/mfa?returnTo=${encodeURIComponent(currentReturnTo)}`)
+	}
 
 	function showFeedback(kind, message) {
 		if (!feedback) return
@@ -1319,6 +1337,10 @@ const activeQueueLabel =
 					`/api/admin/providers/documents/preview?providerId=${encodeURIComponent(providerId)}&documentId=${encodeURIComponent(documentId)}&reason=case_review`
 				)
 				const body = await res.json().catch(() => ({}))
+				if (res.status === 401) {
+					startMfaReauthentication()
+					return
+				}
 				if (!res.ok || !body.url) {
 					showFeedback("warning", body.error || "No se pudo abrir el archivo")
 					return
@@ -1343,15 +1365,16 @@ const activeQueueLabel =
 			window.location.reload()
 			return
 		}
+		const body = await res.json().catch(() => ({}))
+		if (res.status === 401) {
+			startMfaReauthentication()
+			return
+		}
 		if (res.status === 403) {
 			showFeedback("error", "Not authorized")
 			return
 		}
-		let msg = "Error"
-		try {
-			const body = await res.json()
-			msg = body?.error || msg
-		} catch {}
+		const msg = body?.error || "Error"
 		showFeedback(res.status === 400 ? "warning" : "error", msg)
 	}
 
