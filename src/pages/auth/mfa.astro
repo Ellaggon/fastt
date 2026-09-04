@@ -10,6 +10,7 @@ import { sanitizeReturnTo } from "@/lib/auth/returnTo"
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage?returnTo=/auth/mfa")
 const returnTo = sanitizeReturnTo(Astro.url.searchParams.get("returnTo"), "/dashboard")
+const returnsToCommandCenter = returnTo.startsWith("/admin/")
 ---
 
 <Layout title="Verificación en dos pasos">
@@ -20,6 +21,14 @@ const returnTo = sanitizeReturnTo(Astro.url.searchParams.get("returnTo"), "/dash
 				Configura o confirma tu código temporal. La sesión elevada dura 15 minutos para acciones
 				sensibles.
 			</p>
+			{
+				returnsToCommandCenter && (
+					<p class="mt-2 text-sm leading-6 text-slate-600">
+						Al confirmar volverás al caso del Centro de Mando. Por seguridad, la decisión deberá
+						repetirse manualmente.
+					</p>
+				)
+			}
 			<div id="mfa-message" class="mt-5 hidden" role="status"></div>
 			<div id="mfa-setup" class="mt-6 hidden space-y-4">
 				<p class="text-sm text-slate-700">Escanea el código con una aplicación autenticadora.</p>
