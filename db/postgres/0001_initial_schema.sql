@@ -994,6 +994,147 @@ CREATE TABLE "PolicyAuditLog" (
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
+CREATE TABLE "CompliancePolicySet" (
+	"id" text PRIMARY KEY,
+	"key" text NOT NULL,
+	"label" text NOT NULL,
+	"country" text NOT NULL,
+	"vertical" text NOT NULL,
+	"collectionModel" text NOT NULL,
+	"status" text NOT NULL DEFAULT 'active',
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "CompliancePolicyVersion" (
+	"id" text PRIMARY KEY,
+	"policySetId" text NOT NULL,
+	"version" integer NOT NULL,
+	"status" text NOT NULL DEFAULT 'draft',
+	"effectiveFrom" timestamp with time zone NOT NULL,
+	"effectiveTo" timestamp with time zone,
+	"approvedBy" text,
+	"approvedAt" timestamp with time zone,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "ComplianceRequirementRule" (
+	"id" text PRIMARY KEY,
+	"policyVersionId" text NOT NULL,
+	"domain" text NOT NULL,
+	"requirementKey" text NOT NULL,
+	"required" boolean NOT NULL DEFAULT true,
+	"conditionJson" jsonb,
+	"slaHours" integer NOT NULL DEFAULT 48,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "ComplianceDecisionReason" (
+	"id" text PRIMARY KEY,
+	"policyVersionId" text NOT NULL,
+	"code" text NOT NULL,
+	"domain" text,
+	"decision" text NOT NULL,
+	"label" text NOT NULL,
+	"requiresComment" boolean NOT NULL DEFAULT false,
+	"active" boolean NOT NULL DEFAULT true,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "ComplianceCase" (
+	"id" text PRIMARY KEY,
+	"caseNumber" text NOT NULL,
+	"providerId" text NOT NULL,
+	"caseType" text NOT NULL DEFAULT 'provider_compliance',
+	"domain" text NOT NULL,
+	"status" text NOT NULL DEFAULT 'open',
+	"stage" text NOT NULL DEFAULT 'triage',
+	"priority" text NOT NULL DEFAULT 'normal',
+	"riskTier" text NOT NULL DEFAULT 'standard',
+	"sourceType" text NOT NULL,
+	"sourceRef" text NOT NULL,
+	"policyVersionId" text,
+	"summary" text,
+	"resolutionCode" text,
+	"openedAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"resolvedAt" timestamp with time zone,
+	"closedAt" timestamp with time zone,
+	"reopenedAt" timestamp with time zone,
+	"version" integer NOT NULL DEFAULT 1,
+	"createdBy" text,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "CaseTask" (
+	"id" text PRIMARY KEY,
+	"caseId" text NOT NULL,
+	"taskKey" text NOT NULL,
+	"taskType" text NOT NULL DEFAULT 'review_requirement',
+	"status" text NOT NULL DEFAULT 'open',
+	"requirementKey" text,
+	"assigneeEmail" text,
+	"dueAt" timestamp with time zone,
+	"completedAt" timestamp with time zone,
+	"blockedReasonCode" text,
+	"version" integer NOT NULL DEFAULT 1,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "CaseAssignmentEvent" (
+	"id" text PRIMARY KEY,
+	"caseId" text NOT NULL,
+	"taskId" text,
+	"eventType" text NOT NULL,
+	"fromAssigneeEmail" text,
+	"toAssigneeEmail" text,
+	"reasonCode" text,
+	"actorUserId" text,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "CaseSlaTimer" (
+	"id" text PRIMARY KEY,
+	"caseId" text NOT NULL,
+	"timerKey" text NOT NULL DEFAULT 'resolution',
+	"policyKey" text NOT NULL,
+	"status" text NOT NULL DEFAULT 'running',
+	"startedAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"dueAt" timestamp with time zone NOT NULL,
+	"pausedAt" timestamp with time zone,
+	"breachedAt" timestamp with time zone,
+	"stoppedAt" timestamp with time zone,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "CaseLink" (
+	"id" text PRIMARY KEY,
+	"fromCaseId" text NOT NULL,
+	"toCaseId" text NOT NULL,
+	"linkType" text NOT NULL,
+	"createdBy" text,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "DomainEventOutbox" (
+	"id" text PRIMARY KEY,
+	"eventType" text NOT NULL,
+	"aggregateType" text NOT NULL,
+	"aggregateId" text NOT NULL,
+	"dedupeKey" text NOT NULL,
+	"payloadJson" jsonb NOT NULL,
+	"status" text NOT NULL DEFAULT 'pending',
+	"attempts" integer NOT NULL DEFAULT 0,
+	"availableAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"lockedAt" timestamp with time zone,
+	"lockedBy" text,
+	"publishedAt" timestamp with time zone,
+	"lastError" text,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
 CREATE TABLE "VariantInventoryConfig" (
 	"variantId" text PRIMARY KEY,
 	"defaultTotalUnits" integer NOT NULL,
@@ -2681,6 +2822,99 @@ ALTER TABLE "PolicyAuditLog"
 	REFERENCES "PolicyAssignment" ("id")
 ;
 
+ALTER TABLE "CompliancePolicyVersion"
+	ADD CONSTRAINT "CompliancePolicyVersion_policySetId_fk"
+	FOREIGN KEY ("policySetId")
+	REFERENCES "CompliancePolicySet" ("id")
+	ON DELETE RESTRICT
+;
+
+ALTER TABLE "CompliancePolicyVersion"
+	ADD CONSTRAINT "CompliancePolicyVersion_approvedBy_fk"
+	FOREIGN KEY ("approvedBy")
+	REFERENCES "User" ("id")
+;
+
+ALTER TABLE "ComplianceRequirementRule"
+	ADD CONSTRAINT "ComplianceRequirementRule_policyVersionId_fk"
+	FOREIGN KEY ("policyVersionId")
+	REFERENCES "CompliancePolicyVersion" ("id")
+	ON DELETE RESTRICT
+;
+
+ALTER TABLE "ComplianceDecisionReason"
+	ADD CONSTRAINT "ComplianceDecisionReason_policyVersionId_fk"
+	FOREIGN KEY ("policyVersionId")
+	REFERENCES "CompliancePolicyVersion" ("id")
+	ON DELETE RESTRICT
+;
+
+ALTER TABLE "ComplianceCase"
+	ADD CONSTRAINT "ComplianceCase_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
+;
+
+ALTER TABLE "ComplianceCase"
+	ADD CONSTRAINT "ComplianceCase_createdBy_fk"
+	FOREIGN KEY ("createdBy")
+	REFERENCES "User" ("id")
+;
+
+ALTER TABLE "CaseTask"
+	ADD CONSTRAINT "CaseTask_caseId_fk"
+	FOREIGN KEY ("caseId")
+	REFERENCES "ComplianceCase" ("id")
+	ON DELETE RESTRICT
+;
+
+ALTER TABLE "CaseAssignmentEvent"
+	ADD CONSTRAINT "CaseAssignmentEvent_caseId_fk"
+	FOREIGN KEY ("caseId")
+	REFERENCES "ComplianceCase" ("id")
+	ON DELETE RESTRICT
+;
+
+ALTER TABLE "CaseAssignmentEvent"
+	ADD CONSTRAINT "CaseAssignmentEvent_taskId_fk"
+	FOREIGN KEY ("taskId")
+	REFERENCES "CaseTask" ("id")
+	ON DELETE RESTRICT
+;
+
+ALTER TABLE "CaseAssignmentEvent"
+	ADD CONSTRAINT "CaseAssignmentEvent_actorUserId_fk"
+	FOREIGN KEY ("actorUserId")
+	REFERENCES "User" ("id")
+;
+
+ALTER TABLE "CaseSlaTimer"
+	ADD CONSTRAINT "CaseSlaTimer_caseId_fk"
+	FOREIGN KEY ("caseId")
+	REFERENCES "ComplianceCase" ("id")
+	ON DELETE RESTRICT
+;
+
+ALTER TABLE "CaseLink"
+	ADD CONSTRAINT "CaseLink_fromCaseId_fk"
+	FOREIGN KEY ("fromCaseId")
+	REFERENCES "ComplianceCase" ("id")
+	ON DELETE RESTRICT
+;
+
+ALTER TABLE "CaseLink"
+	ADD CONSTRAINT "CaseLink_toCaseId_fk"
+	FOREIGN KEY ("toCaseId")
+	REFERENCES "ComplianceCase" ("id")
+	ON DELETE RESTRICT
+;
+
+ALTER TABLE "CaseLink"
+	ADD CONSTRAINT "CaseLink_createdBy_fk"
+	FOREIGN KEY ("createdBy")
+	REFERENCES "User" ("id")
+;
+
 ALTER TABLE "VariantInventoryConfig"
 	ADD CONSTRAINT "VariantInventoryConfig_variantId_fk"
 	FOREIGN KEY ("variantId")
@@ -3757,6 +3991,44 @@ CREATE INDEX "PolicyAuditLog_policyGroupId_idx" ON "PolicyAuditLog" ("policyGrou
 
 CREATE INDEX "PolicyAuditLog_scope_scopeId_idx" ON "PolicyAuditLog" ("scope", "scopeId");
 
+CREATE UNIQUE INDEX "CompliancePolicySet_key_unique" ON "CompliancePolicySet" ("key");
+
+CREATE UNIQUE INDEX "CompliancePolicyVersion_set_version_unique" ON "CompliancePolicyVersion" ("policySetId", "version");
+
+CREATE INDEX "CompliancePolicyVersion_active_idx" ON "CompliancePolicyVersion" ("policySetId", "status", "effectiveFrom");
+
+CREATE UNIQUE INDEX "ComplianceRequirementRule_version_requirement_unique" ON "ComplianceRequirementRule" ("policyVersionId", "requirementKey");
+
+CREATE UNIQUE INDEX "ComplianceDecisionReason_version_code_unique" ON "ComplianceDecisionReason" ("policyVersionId", "code");
+
+CREATE UNIQUE INDEX "ComplianceCase_caseNumber_unique" ON "ComplianceCase" ("caseNumber");
+
+CREATE INDEX "ComplianceCase_status_priority_opened_idx" ON "ComplianceCase" ("status", "priority", "openedAt");
+
+CREATE INDEX "ComplianceCase_provider_status_idx" ON "ComplianceCase" ("providerId", "status");
+
+CREATE INDEX "ComplianceCase_domain_status_priority_idx" ON "ComplianceCase" ("domain", "status", "priority");
+
+CREATE UNIQUE INDEX "ComplianceCase_active_source_unique" ON "ComplianceCase" ("providerId", "domain", "sourceType", "sourceRef") WHERE "status" IN ('open', 'in_review', 'waiting_information', 'blocked');
+
+CREATE UNIQUE INDEX "CaseTask_case_taskKey_unique" ON "CaseTask" ("caseId", "taskKey");
+
+CREATE INDEX "CaseTask_status_due_idx" ON "CaseTask" ("status", "dueAt");
+
+CREATE INDEX "CaseTask_assignee_status_idx" ON "CaseTask" ("assigneeEmail", "status");
+
+CREATE INDEX "CaseAssignmentEvent_case_created_idx" ON "CaseAssignmentEvent" ("caseId", "createdAt");
+
+CREATE UNIQUE INDEX "CaseSlaTimer_case_timer_unique" ON "CaseSlaTimer" ("caseId", "timerKey");
+
+CREATE INDEX "CaseSlaTimer_due_running_idx" ON "CaseSlaTimer" ("dueAt", "status");
+
+CREATE UNIQUE INDEX "CaseLink_unique" ON "CaseLink" ("fromCaseId", "toCaseId", "linkType");
+
+CREATE UNIQUE INDEX "DomainEventOutbox_dedupe_unique" ON "DomainEventOutbox" ("dedupeKey");
+
+CREATE INDEX "DomainEventOutbox_pending_idx" ON "DomainEventOutbox" ("status", "availableAt", "createdAt") WHERE "status" = 'pending';
+
 CREATE INDEX "InventoryResource_provider_variant_status_idx" ON "InventoryResource" ("providerId", "variantId", "status");
 
 CREATE UNIQUE INDEX "InventoryResource_variant_label_unique" ON "InventoryResource" ("variantId", "label");
@@ -4184,6 +4456,38 @@ ALTER TABLE "PolicyExceptionRule" ADD CONSTRAINT "PolicyExceptionRule_typed_targ
 ALTER TABLE "PolicyExceptionRule" ADD CONSTRAINT "PolicyExceptionRule_category_check" CHECK ("category" IS NULL OR "category" IN ('Cancellation', 'Payment', 'CheckIn', 'NoShow'));
 
 ALTER TABLE "PolicyExceptionRule" ADD CONSTRAINT "PolicyExceptionRule_effective_range_check" CHECK ("effectiveFrom" IS NULL OR "effectiveTo" IS NULL OR "effectiveFrom" <= "effectiveTo");
+
+ALTER TABLE "CompliancePolicySet" ADD CONSTRAINT "CompliancePolicySet_status_check" CHECK ("status" IN ('active', 'retired'));
+
+ALTER TABLE "CompliancePolicyVersion" ADD CONSTRAINT "CompliancePolicyVersion_status_check" CHECK ("status" IN ('draft', 'published', 'retired'));
+
+ALTER TABLE "ComplianceRequirementRule" ADD CONSTRAINT "ComplianceRequirementRule_domain_check" CHECK ("domain" IN ('verification', 'fiscal', 'documents', 'payments'));
+
+ALTER TABLE "ComplianceRequirementRule" ADD CONSTRAINT "ComplianceRequirementRule_sla_check" CHECK ("slaHours" BETWEEN 1 AND 168);
+
+ALTER TABLE "ComplianceDecisionReason" ADD CONSTRAINT "ComplianceDecisionReason_domain_check" CHECK ("domain" IS NULL OR "domain" IN ('verification', 'fiscal', 'documents', 'payments'));
+
+ALTER TABLE "ComplianceDecisionReason" ADD CONSTRAINT "ComplianceDecisionReason_decision_check" CHECK ("decision" IN ('approved', 'rejected', 'requires_attention', 'request_information'));
+
+ALTER TABLE "ComplianceCase" ADD CONSTRAINT "ComplianceCase_domain_check" CHECK ("domain" IN ('verification', 'fiscal', 'documents', 'payments'));
+
+ALTER TABLE "ComplianceCase" ADD CONSTRAINT "ComplianceCase_status_check" CHECK ("status" IN ('open', 'in_review', 'waiting_information', 'blocked', 'resolved', 'closed', 'canceled'));
+
+ALTER TABLE "ComplianceCase" ADD CONSTRAINT "ComplianceCase_priority_check" CHECK ("priority" IN ('low', 'normal', 'high', 'critical'));
+
+ALTER TABLE "ComplianceCase" ADD CONSTRAINT "ComplianceCase_riskTier_check" CHECK ("riskTier" IN ('standard', 'elevated', 'high'));
+
+ALTER TABLE "CaseTask" ADD CONSTRAINT "CaseTask_status_check" CHECK ("status" IN ('open', 'in_progress', 'blocked', 'completed', 'canceled'));
+
+ALTER TABLE "CaseAssignmentEvent" ADD CONSTRAINT "CaseAssignmentEvent_type_check" CHECK ("eventType" IN ('assigned', 'reassigned', 'unassigned', 'backfilled'));
+
+ALTER TABLE "CaseSlaTimer" ADD CONSTRAINT "CaseSlaTimer_status_check" CHECK ("status" IN ('running', 'paused', 'breached', 'stopped'));
+
+ALTER TABLE "CaseLink" ADD CONSTRAINT "CaseLink_type_check" CHECK ("linkType" IN ('duplicate', 'reverification', 'appeal', 'related_incident'));
+
+ALTER TABLE "CaseLink" ADD CONSTRAINT "CaseLink_not_self_check" CHECK ("fromCaseId" <> "toCaseId");
+
+ALTER TABLE "DomainEventOutbox" ADD CONSTRAINT "DomainEventOutbox_status_check" CHECK ("status" IN ('pending', 'processing', 'published', 'failed'));
 
 ALTER TABLE "Hold" ADD CONSTRAINT "Hold_commercial_snapshot_check" CHECK (("commercialSnapshotVersion" = 'legacy' AND "priceQuoteId" IS NULL AND "commercialSnapshotJson" IS NULL) OR ("commercialSnapshotVersion" = 'hold_commercial_snapshot_v1' AND "priceQuoteId" IS NOT NULL AND "commercialSnapshotJson" IS NOT NULL AND ("commercialSnapshotJson" -> 'priceQuote' ->> 'quoteId') = "priceQuoteId"));
 
@@ -5376,6 +5680,35 @@ CREATE INDEX "BookingLineItem_productNameSnapshot_trgm_idx"
 CREATE INDEX "BookingLineItem_variantNameSnapshot_trgm_idx"
 	ON "BookingLineItem" USING gin (public.fastt_search_normalize(coalesce("variantNameSnapshot", '')) gin_trgm_ops)
 	WHERE "variantNameSnapshot" IS NOT NULL;
+
+
+
+-- Canonical Phase 2 casework policy seed for fresh installs.
+
+-- Deterministic Phase 2 policy seed for Bolivia accommodation intermediary/PSP.
+-- Included in fresh installs via db:pg:generate-initial and in upgrades via the
+-- Phase 2 additive migration. Keep both copies identical and idempotent.
+INSERT INTO "CompliancePolicySet" ("id","key","label","country","vertical","collectionModel","status") VALUES
+	('cps_bo_accommodation_intermediary_v1','bo-accommodation-intermediary','FASTT Bolivia · alojamientos · intermediario','BO','accommodation','intermediary','active')
+ON CONFLICT ("key") DO NOTHING;
+
+INSERT INTO "CompliancePolicyVersion" ("id","policySetId","version","status","effectiveFrom","approvedAt") VALUES
+	('cpv_bo_accommodation_intermediary_v1','cps_bo_accommodation_intermediary_v1',1,'published','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')
+ON CONFLICT ("policySetId","version") DO NOTHING;
+
+INSERT INTO "ComplianceRequirementRule" ("id","policyVersionId","domain","requirementKey","slaHours") VALUES
+	('crr_v1_identity','cpv_bo_accommodation_intermediary_v1','verification','identity_and_business_review',24),
+	('crr_v1_tax','cpv_bo_accommodation_intermediary_v1','fiscal','tax_identity_review',48),
+	('crr_v1_document','cpv_bo_accommodation_intermediary_v1','documents','evidence_document_review',48),
+	('crr_v1_payout','cpv_bo_accommodation_intermediary_v1','payments','payout_account_review',24)
+ON CONFLICT ("policyVersionId","requirementKey") DO NOTHING;
+
+INSERT INTO "ComplianceDecisionReason" ("id","policyVersionId","code","domain","decision","label","requiresComment") VALUES
+	('cdr_v1_approved','cpv_bo_accommodation_intermediary_v1','requirements_satisfied',NULL,'approved','Requisitos satisfechos',false),
+	('cdr_v1_missing','cpv_bo_accommodation_intermediary_v1','evidence_missing',NULL,'request_information','Evidencia faltante',true),
+	('cdr_v1_mismatch','cpv_bo_accommodation_intermediary_v1','information_mismatch',NULL,'requires_attention','Información inconsistente',true),
+	('cdr_v1_rejected','cpv_bo_accommodation_intermediary_v1','requirements_not_satisfied',NULL,'rejected','Requisitos no satisfechos',true)
+ON CONFLICT ("policyVersionId","code") DO NOTHING;
 
 
 

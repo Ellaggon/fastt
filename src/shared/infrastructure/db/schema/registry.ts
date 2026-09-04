@@ -8,6 +8,7 @@ export type DatabaseDomain =
 	| "booking"
 	| "financial"
 	| "security"
+	| "casework"
 
 export const databaseTablesByDomain = {
 	provider: [
@@ -89,6 +90,18 @@ export const databaseTablesByDomain = {
 		"PolicyRule",
 		"PolicyExceptionRule",
 		"PolicyAuditLog",
+		"CompliancePolicySet",
+		"CompliancePolicyVersion",
+		"ComplianceRequirementRule",
+		"ComplianceDecisionReason",
+	],
+	casework: [
+		"ComplianceCase",
+		"CaseTask",
+		"CaseAssignmentEvent",
+		"CaseSlaTimer",
+		"CaseLink",
+		"DomainEventOutbox",
 	],
 	inventory: [
 		"VariantInventoryConfig",

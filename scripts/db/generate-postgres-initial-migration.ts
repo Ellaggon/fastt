@@ -14,6 +14,7 @@ const FINANCIAL_RELATIONAL_INTEGRITY_FILE =
 	"src/shared/infrastructure/db/schema/financial-relational-integrity.sql"
 const FINANCIAL_BOOKING_CANDIDATE_SEARCH_FILE =
 	"src/shared/infrastructure/db/schema/financial-booking-candidate-search.sql"
+const CASEWORK_POLICY_SEED_FILE = "src/shared/infrastructure/db/schema/casework-policy-seed.sql"
 
 type DrizzleTable = Record<string | symbol, unknown>
 type DrizzleColumn = {
@@ -271,6 +272,7 @@ async function main() {
 		FINANCIAL_BOOKING_CANDIDATE_SEARCH_FILE,
 		"utf8"
 	)
+	const caseworkPolicySeedSql = await readFile(CASEWORK_POLICY_SEED_FILE, "utf8")
 	const lines = [
 		"-- Fastt Supabase initial schema.",
 		"-- Generated from src/shared/infrastructure/db/schema/tables.ts.",
@@ -299,6 +301,9 @@ async function main() {
 		"",
 		"-- Financial booking candidate search indexes.",
 		financialBookingCandidateSearchSql.trim(),
+		"",
+		"-- Canonical Phase 2 casework policy seed for fresh installs.",
+		caseworkPolicySeedSql.trim(),
 		"",
 		"COMMIT;",
 		"",
