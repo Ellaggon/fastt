@@ -1077,6 +1077,7 @@ CREATE TABLE "CaseTask" (
 	"dueAt" timestamp with time zone,
 	"completedAt" timestamp with time zone,
 	"blockedReasonCode" text,
+	"assigneeUserId" text,
 	"version" integer NOT NULL DEFAULT 1,
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
 	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
@@ -1092,6 +1093,56 @@ CREATE TABLE "CaseAssignmentEvent" (
 	"reasonCode" text,
 	"actorUserId" text,
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "CaseDecision" (
+	"id" text PRIMARY KEY,
+	"caseId" text NOT NULL,
+	"decision" text NOT NULL,
+	"reasonCodeId" text NOT NULL,
+	"policyVersionId" text NOT NULL,
+	"caseVersion" integer NOT NULL,
+	"evidenceSnapshotJson" jsonb,
+	"impactSnapshotJson" jsonb,
+	"comment" text,
+	"status" text NOT NULL DEFAULT 'draft',
+	"proposedByUserId" text NOT NULL,
+	"proposedAt" timestamp with time zone,
+	"appliedAt" timestamp with time zone,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "CaseDecisionApproval" (
+	"id" text PRIMARY KEY,
+	"decisionId" text NOT NULL,
+	"actorUserId" text NOT NULL,
+	"vote" text NOT NULL,
+	"reason" text,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "CaseActivityEvent" (
+	"id" text PRIMARY KEY,
+	"caseId" text NOT NULL,
+	"eventType" text NOT NULL,
+	"actorUserId" text,
+	"summary" text NOT NULL,
+	"metadataJson" jsonb,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "SavedCaseView" (
+	"id" text PRIMARY KEY,
+	"ownerUserId" text NOT NULL,
+	"name" text NOT NULL,
+	"scope" text NOT NULL DEFAULT 'private',
+	"filtersJson" jsonb NOT NULL,
+	"sortJson" jsonb,
+	"visibleColumnsJson" jsonb,
+	"isDefault" boolean NOT NULL DEFAULT false,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
 CREATE TABLE "CaseSlaTimer" (
@@ -2868,6 +2919,13 @@ ALTER TABLE "CaseTask"
 	ON DELETE RESTRICT
 ;
 
+ALTER TABLE "CaseTask"
+	ADD CONSTRAINT "CaseTask_assigneeUserId_fk"
+	FOREIGN KEY ("assigneeUserId")
+	REFERENCES "User" ("id")
+	ON DELETE RESTRICT
+;
+
 ALTER TABLE "CaseAssignmentEvent"
 	ADD CONSTRAINT "CaseAssignmentEvent_caseId_fk"
 	FOREIGN KEY ("caseId")
@@ -2886,6 +2944,69 @@ ALTER TABLE "CaseAssignmentEvent"
 	ADD CONSTRAINT "CaseAssignmentEvent_actorUserId_fk"
 	FOREIGN KEY ("actorUserId")
 	REFERENCES "User" ("id")
+;
+
+ALTER TABLE "CaseDecision"
+	ADD CONSTRAINT "CaseDecision_caseId_fk"
+	FOREIGN KEY ("caseId")
+	REFERENCES "ComplianceCase" ("id")
+	ON DELETE RESTRICT
+;
+
+ALTER TABLE "CaseDecision"
+	ADD CONSTRAINT "CaseDecision_reasonCodeId_fk"
+	FOREIGN KEY ("reasonCodeId")
+	REFERENCES "ComplianceDecisionReason" ("id")
+	ON DELETE RESTRICT
+;
+
+ALTER TABLE "CaseDecision"
+	ADD CONSTRAINT "CaseDecision_policyVersionId_fk"
+	FOREIGN KEY ("policyVersionId")
+	REFERENCES "CompliancePolicyVersion" ("id")
+	ON DELETE RESTRICT
+;
+
+ALTER TABLE "CaseDecision"
+	ADD CONSTRAINT "CaseDecision_proposedByUserId_fk"
+	FOREIGN KEY ("proposedByUserId")
+	REFERENCES "User" ("id")
+	ON DELETE RESTRICT
+;
+
+ALTER TABLE "CaseDecisionApproval"
+	ADD CONSTRAINT "CaseDecisionApproval_decisionId_fk"
+	FOREIGN KEY ("decisionId")
+	REFERENCES "CaseDecision" ("id")
+	ON DELETE RESTRICT
+;
+
+ALTER TABLE "CaseDecisionApproval"
+	ADD CONSTRAINT "CaseDecisionApproval_actorUserId_fk"
+	FOREIGN KEY ("actorUserId")
+	REFERENCES "User" ("id")
+	ON DELETE RESTRICT
+;
+
+ALTER TABLE "CaseActivityEvent"
+	ADD CONSTRAINT "CaseActivityEvent_caseId_fk"
+	FOREIGN KEY ("caseId")
+	REFERENCES "ComplianceCase" ("id")
+	ON DELETE RESTRICT
+;
+
+ALTER TABLE "CaseActivityEvent"
+	ADD CONSTRAINT "CaseActivityEvent_actorUserId_fk"
+	FOREIGN KEY ("actorUserId")
+	REFERENCES "User" ("id")
+	ON DELETE RESTRICT
+;
+
+ALTER TABLE "SavedCaseView"
+	ADD CONSTRAINT "SavedCaseView_ownerUserId_fk"
+	FOREIGN KEY ("ownerUserId")
+	REFERENCES "User" ("id")
+	ON DELETE RESTRICT
 ;
 
 ALTER TABLE "CaseSlaTimer"
@@ -4017,7 +4138,21 @@ CREATE INDEX "CaseTask_status_due_idx" ON "CaseTask" ("status", "dueAt");
 
 CREATE INDEX "CaseTask_assignee_status_idx" ON "CaseTask" ("assigneeEmail", "status");
 
+CREATE INDEX "CaseTask_assignee_user_status_idx" ON "CaseTask" ("assigneeUserId", "status");
+
 CREATE INDEX "CaseAssignmentEvent_case_created_idx" ON "CaseAssignmentEvent" ("caseId", "createdAt");
+
+CREATE INDEX "CaseDecision_case_created_idx" ON "CaseDecision" ("caseId", "createdAt");
+
+CREATE UNIQUE INDEX "CaseDecision_case_version_active_unique" ON "CaseDecision" ("caseId", "caseVersion") WHERE "status" IN ('proposed', 'pending_approval', 'approved', 'applying', 'applied');
+
+CREATE UNIQUE INDEX "CaseDecisionApproval_decision_actor_unique" ON "CaseDecisionApproval" ("decisionId", "actorUserId");
+
+CREATE INDEX "CaseActivityEvent_case_created_idx" ON "CaseActivityEvent" ("caseId", "createdAt");
+
+CREATE UNIQUE INDEX "SavedCaseView_owner_name_unique" ON "SavedCaseView" ("ownerUserId", "name");
+
+CREATE INDEX "SavedCaseView_owner_default_idx" ON "SavedCaseView" ("ownerUserId", "isDefault");
 
 CREATE UNIQUE INDEX "CaseSlaTimer_case_timer_unique" ON "CaseSlaTimer" ("caseId", "timerKey");
 
@@ -4480,6 +4615,16 @@ ALTER TABLE "ComplianceCase" ADD CONSTRAINT "ComplianceCase_riskTier_check" CHEC
 ALTER TABLE "CaseTask" ADD CONSTRAINT "CaseTask_status_check" CHECK ("status" IN ('open', 'in_progress', 'blocked', 'completed', 'canceled'));
 
 ALTER TABLE "CaseAssignmentEvent" ADD CONSTRAINT "CaseAssignmentEvent_type_check" CHECK ("eventType" IN ('assigned', 'reassigned', 'unassigned', 'backfilled'));
+
+ALTER TABLE "CaseDecision" ADD CONSTRAINT "CaseDecision_decision_check" CHECK ("decision" IN ('approved', 'rejected', 'requires_attention', 'request_information'));
+
+ALTER TABLE "CaseDecision" ADD CONSTRAINT "CaseDecision_status_check" CHECK ("status" IN ('draft', 'proposed', 'pending_approval', 'approved', 'rejected', 'applying', 'applied', 'failed', 'canceled'));
+
+ALTER TABLE "CaseDecision" ADD CONSTRAINT "CaseDecision_case_version_check" CHECK ("caseVersion" >= 1);
+
+ALTER TABLE "CaseDecisionApproval" ADD CONSTRAINT "CaseDecisionApproval_vote_check" CHECK ("vote" IN ('approved', 'rejected'));
+
+ALTER TABLE "SavedCaseView" ADD CONSTRAINT "SavedCaseView_scope_check" CHECK ("scope" IN ('private', 'team'));
 
 ALTER TABLE "CaseSlaTimer" ADD CONSTRAINT "CaseSlaTimer_status_check" CHECK ("status" IN ('running', 'paused', 'breached', 'stopped'));
 
@@ -5709,6 +5854,30 @@ INSERT INTO "ComplianceDecisionReason" ("id","policyVersionId","code","domain","
 	('cdr_v1_mismatch','cpv_bo_accommodation_intermediary_v1','information_mismatch',NULL,'requires_attention','Información inconsistente',true),
 	('cdr_v1_rejected','cpv_bo_accommodation_intermediary_v1','requirements_not_satisfied',NULL,'rejected','Requisitos no satisfechos',true)
 ON CONFLICT ("policyVersionId","code") DO NOTHING;
+
+
+
+-- Phase 3 case decision maker-checker integrity for fresh installs.
+
+-- Phase 3: prevent self-approval at the persistence boundary for CaseDecisionApproval.
+CREATE OR REPLACE FUNCTION fastt_prevent_case_decision_self_approval()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM "CaseDecision" decision
+    WHERE decision."id" = NEW."decisionId"
+      AND decision."proposedByUserId" = NEW."actorUserId"
+  ) THEN
+    RAISE EXCEPTION 'maker_checker_separation_required' USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS "CaseDecisionApproval_prevent_self_approval" ON "CaseDecisionApproval";
+CREATE TRIGGER "CaseDecisionApproval_prevent_self_approval"
+BEFORE INSERT OR UPDATE ON "CaseDecisionApproval"
+FOR EACH ROW EXECUTE FUNCTION fastt_prevent_case_decision_self_approval();
 
 
 
