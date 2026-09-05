@@ -1,0 +1,263 @@
+---
+import Button from "@/components/ui/Button.astro"
+import type { CaseEvidenceReadModel } from "@/modules/casework/public"
+
+const { evidence, caseId }: { evidence: CaseEvidenceReadModel; caseId: string } = Astro.props
+const signalLabel = {
+	pass: "Verificado",
+	review: "Revisar",
+	missing: "Faltante",
+	info: "Informativo",
+}
+const signalClass = {
+	pass: "border-emerald-200 bg-emerald-50 text-emerald-900",
+	review: "border-amber-200 bg-amber-50 text-amber-950",
+	missing: "border-red-200 bg-red-50 text-red-900",
+	info: "border-sky-200 bg-sky-50 text-sky-900",
+}
+const artifactStatus = {
+	ready: {
+		label: "Listo para corroborar",
+		class: "border-emerald-200 bg-emerald-50 text-emerald-900",
+	},
+	missing: { label: "Archivo no adjuntado", class: "border-amber-200 bg-amber-50 text-amber-950" },
+	unavailable: { label: "Archivo no disponible", class: "border-red-200 bg-red-50 text-red-900" },
+}
+const holderMatchStatus = {
+	exact: {
+		label: "Coincidencia exacta",
+		class: "border-emerald-200 bg-emerald-50 text-emerald-900",
+	},
+	probable: {
+		label: "Coincidencia probable",
+		class: "border-amber-200 bg-amber-50 text-amber-950",
+	},
+	mismatch: { label: "Discrepancia detectada", class: "border-red-200 bg-red-50 text-red-900" },
+	insufficient: {
+		label: "Datos insuficientes",
+		class: "border-slate-200 bg-slate-50 text-slate-800",
+	},
+}
+---
+
+<section
+	class="space-y-5"
+	aria-labelledby="case-evidence-title"
+	data-case-evidence
+	data-evidence-revision={evidence.revision}
+>
+	<header class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+		<div>
+			<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+				Investigación de evidencia
+			</p>
+			<h2 id="case-evidence-title" class="mt-1 text-lg font-semibold">{evidence.title}</h2>
+			<p class="mt-2 max-w-3xl text-sm text-slate-600">{evidence.description}</p>
+		</div>
+		<span
+			class="shrink-0 rounded-full bg-slate-100 px-3 py-1 font-mono text-[11px] text-slate-600"
+			title="Revisión determinista de la evidencia">rev. {evidence.revision.slice(0, 8)}</span
+		>
+	</header>
+
+	<dl class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+		{
+			evidence.facts.map((fact) => (
+				<div
+					class:list={[
+						"rounded-xl border p-3",
+						fact.tone === "critical" ? "border-red-200 bg-red-50" : "border-slate-200 bg-slate-50",
+					]}
+				>
+					<>
+						<dt class="text-xs font-medium text-slate-500">
+							{fact.label}
+							{fact.sensitive ? <span class="ml-1 text-amber-700">· protegido</span> : null}
+						</dt>
+						<dd class="mt-1 text-sm font-medium break-words text-slate-900">{fact.value}</dd>
+					</>
+				</div>
+			))
+		}
+	</dl>
+
+	<div>
+		<h3 class="text-sm font-semibold text-slate-900">Corroboraciones</h3>
+		<ul class="mt-3 grid gap-3 lg:grid-cols-2">
+			{
+				evidence.signals.map((signal) => (
+					<li class:list={["rounded-xl border p-3", signalClass[signal.status]]}>
+						<>
+							<div class="flex items-center justify-between gap-3">
+								<>
+									<span class="text-sm font-semibold">{signal.label}</span>
+									<span class="text-[11px] font-semibold tracking-wide uppercase">
+										{signalLabel[signal.status]}
+									</span>
+								</>
+							</div>
+							<p class="mt-1 text-xs leading-5 opacity-80">{signal.detail}</p>
+						</>
+					</li>
+				))
+			}
+		</ul>
+	</div>
+
+	{
+		evidence.holderMatch && (
+			<section class="rounded-xl border border-slate-200 p-4" aria-labelledby="holder-match-title">
+				<div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+					<div>
+						<h3 id="holder-match-title" class="text-sm font-semibold">
+							Evaluación de titularidad
+						</h3>
+						<p class="mt-1 text-sm text-slate-700">{evidence.holderMatch.method}</p>
+					</div>
+					<span
+						class:list={[
+							"w-fit rounded-full border px-2.5 py-1 text-xs font-semibold",
+							holderMatchStatus[evidence.holderMatch.level].class,
+						]}
+					>
+						{holderMatchStatus[evidence.holderMatch.level].label}
+					</span>
+				</div>
+				<p class="mt-3 text-sm text-slate-600">{evidence.holderMatch.detail}</p>
+				<p class="mt-3 text-xs text-slate-500">
+					Esta evaluación es una señal de apoyo, no sustituye la revisión humana, los documentos de
+					titularidad ni la política aplicable.
+				</p>
+			</section>
+		)
+	}
+
+	{
+		evidence.artifact?.kind === "document" && (
+			<div
+				class="rounded-xl border border-slate-200 p-4"
+				data-document-artifact
+				data-preview-state={evidence.artifact.previewState}
+			>
+				<div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+					<>
+						<div>
+							<>
+								<h3 class="text-sm font-semibold">Archivo asociado</h3>
+								<p class="mt-1 text-sm text-slate-700">{evidence.artifact.fileName}</p>
+								<p class="mt-1 text-xs text-slate-500">
+									{evidence.artifact.mimeType ?? "Formato no informado"}
+									{evidence.artifact.sizeBytes
+										? ` · ${Math.ceil(evidence.artifact.sizeBytes / 1024)} KB`
+										: ""}
+								</p>
+							</>
+						</div>
+						<span
+							class:list={[
+								"w-fit rounded-full border px-2.5 py-1 text-xs font-semibold",
+								artifactStatus[evidence.artifact.previewState].class,
+							]}
+						>
+							{artifactStatus[evidence.artifact.previewState].label}
+						</span>
+					</>
+				</div>
+				<p class="mt-3 text-sm text-slate-700" role="status">
+					{evidence.artifact.previewMessage}
+				</p>
+				{evidence.artifact.previewState !== "ready" && (
+					<div class="mt-4 flex flex-wrap items-center gap-3">
+						<Button type="button" size="sm" variant="secondary" data-prepare-evidence-request>
+							Preparar solicitud de evidencia
+						</Button>
+						<span class="text-xs text-slate-500">
+							No se permite aprobar hasta que exista un archivo corroborable.
+						</span>
+					</div>
+				)}
+			</div>
+		)
+	}
+
+	{
+		evidence.approvalBlockers.length > 0 && (
+			<div class="fastt-notice rounded-xl border border-amber-300 bg-amber-50 p-4" role="alert">
+				<>
+					<h3 class="text-sm font-semibold text-amber-950">Aprobación bloqueada</h3>
+					<ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-900">
+						{evidence.approvalBlockers.map((blocker) => (
+							<li>{blocker}</li>
+						))}
+					</ul>
+				</>
+			</div>
+		)
+	}
+
+	{
+		evidence.approvalWarnings.length > 0 && (
+			<div class="fastt-notice rounded-xl border border-amber-300 bg-amber-50 p-4" role="alert">
+				<h3 class="text-sm font-semibold text-amber-950">Revisión reforzada requerida</h3>
+				<ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-900">
+					{evidence.approvalWarnings.map((warning) => (
+						<li>{warning}</li>
+					))}
+				</ul>
+			</div>
+		)
+	}
+
+	{
+		evidence.reveal && (
+			<form
+				class="fastt-notice rounded-xl border border-amber-200 bg-amber-50 p-4"
+				data-evidence-reveal
+				data-endpoint={`/api/admin/v1/cases/${caseId}/evidence/reveal`}
+			>
+				<h3 class="text-sm font-semibold text-amber-950">Acceso puntual a información sensible</h3>
+				<p class="mt-1 text-xs leading-5 text-amber-900">
+					Requiere permiso de revelado, MFA reciente y una justificación. Cada intento queda en
+					auditoría.
+				</p>
+				<input type="hidden" name="kind" value={evidence.reveal.kind} />
+				<label class="mt-3 block text-xs font-medium text-amber-950">
+					Motivo de acceso
+					<input
+						name="reason"
+						required
+						minlength="8"
+						maxlength="240"
+						class="fastt-notice fastt-field mt-1 h-10 w-full rounded-lg border border-amber-300 bg-white px-3 text-sm"
+						placeholder="Ej. validar titularidad para resolver el caso"
+					/>
+				</label>
+				<div class="mt-3 flex flex-wrap items-center gap-3">
+					<>
+						<Button type="submit" size="sm" variant="secondary">
+							{evidence.reveal.label}
+						</Button>
+						<span class="text-xs text-amber-800">
+							El acceso caduca o se oculta automáticamente.
+						</span>
+					</>
+				</div>
+				<div
+					class="fastt-notice mt-3 hidden rounded-lg border border-amber-200 bg-white p-3 text-sm"
+					data-reveal-output
+					role="status"
+					aria-live="polite"
+				/>
+			</form>
+		)
+	}
+
+	<footer class="text-xs text-slate-500">
+		Fuente canónica: <span class="font-mono">{evidence.sourceType} · {evidence.sourceRef}</span>.
+		Observada {
+			new Intl.DateTimeFormat("es-BO", { dateStyle: "medium", timeStyle: "short" }).format(
+				new Date(evidence.observedAt)
+			)
+		}.
+	</footer>
+</section>

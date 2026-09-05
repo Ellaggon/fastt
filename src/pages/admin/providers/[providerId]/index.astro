@@ -1,0 +1,161 @@
+---
+import CaseStatusBadge from "@/components/admin/cases/CaseStatusBadge.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
+import { requireInternalPermission } from "@/lib/auth/internal-authorization"
+import { getProvider360 } from "@/modules/casework/public"
+
+let authorized = false
+try {
+	await requireInternalPermission(Astro.request, "provider.compliance.read")
+	authorized = true
+} catch (response) {
+	if (response instanceof Response && response.status === 401) return Astro.redirect("/SignInPage")
+}
+const providerId = String(Astro.params.providerId ?? "")
+const view = authorized ? await getProvider360(providerId) : null
+if (authorized && !view) return new Response("Proveedor no encontrado", { status: 404 })
+const activeStatuses = new Set(["open", "in_review", "waiting_information", "blocked"])
+const activeCases = view?.cases.filter((item) => activeStatuses.has(item.status)) ?? []
+const domainLabels: Record<string, string> = {
+	verification: "Identidad y negocio",
+	fiscal: "Fiscalidad",
+	documents: "Documentos",
+	payments: "Pagos",
+}
+const fmt = new Intl.DateTimeFormat("es-BO", { dateStyle: "medium" })
+---
+
+<InternalAdminLayout
+	title={view
+		? `${view.provider.displayName || view.provider.legalName || "Proveedor"} · 360`
+		: "Proveedor 360"}
+>
+	{
+		view && (
+			<section class="space-y-6">
+				<header class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+					<>
+						<div>
+							<>
+								<p class="text-xs font-semibold tracking-[0.16em] text-amber-300 uppercase">
+									Proveedor 360
+								</p>
+								<h1 class="mt-2 text-3xl font-semibold text-white">
+									{view.provider.displayName || view.provider.legalName || "Proveedor sin nombre"}
+								</h1>
+								<p class="mt-2 font-mono text-xs text-slate-400">{view.provider.id}</p>
+							</>
+						</div>
+						<div class="flex flex-wrap gap-2">
+							<>
+								<Button
+									href={`/admin/providers?filter=all&providerId=${view.provider.id}`}
+									variant="onDark"
+								>
+									Abrir fuentes legacy
+								</Button>
+								<Button href={`/admin/audit?providerId=${view.provider.id}`} variant="secondary">
+									Auditoría
+								</Button>
+							</>
+						</div>
+					</>
+				</header>
+				<div class="fastt-notice rounded-xl border border-sky-400/40 bg-sky-950/50 px-4 py-3 text-sm text-sky-100">
+					Provider 360 es una vista longitudinal. Para cambiar una fuente sensible, abre su caso;
+					aquí no existen mutaciones directas.
+				</div>
+				<div class="grid gap-6 xl:grid-cols-[1fr_22rem]">
+					<div class="space-y-6">
+						<Card>
+							<>
+								<h2 class="text-lg font-semibold">Cumplimiento por dominio</h2>
+								<div class="mt-4 grid gap-4 sm:grid-cols-2">
+									{Object.entries(domainLabels).map(([domain, label]) => {
+										const cases = activeCases.filter((item) => item.domain === domain)
+										return (
+											<a
+												href={`/admin/queues/${domain}`}
+												class="rounded-xl border border-slate-200 p-4 hover:border-amber-400"
+											>
+												<div class="flex items-center justify-between">
+													<h3 class="font-semibold">{label}</h3>
+													<span class="text-2xl font-semibold">{cases.length}</span>
+												</div>
+												<p class="mt-2 text-sm text-slate-600">
+													{cases.length ? "Requiere atención" : "Sin expediente activo"}
+												</p>
+											</a>
+										)
+									})}
+								</div>
+							</>
+						</Card>
+						<Card>
+							<div class="flex items-center justify-between">
+								<>
+									<h2 class="text-lg font-semibold">Expedientes</h2>
+									<span class="text-sm text-slate-500">{view.cases.length}</span>
+								</>
+							</div>
+							{view.cases.length ? (
+								<ol class="mt-4 divide-y divide-slate-200">
+									{view.cases.map((item) => (
+										<li class="flex flex-col justify-between gap-3 py-4 sm:flex-row sm:items-center">
+											<div>
+												<a class="font-semibold hover:underline" href={`/admin/cases/${item.id}`}>
+													{item.caseNumber}
+												</a>
+												<p class="mt-1 text-sm text-slate-600">
+													{domainLabels[item.domain]} · {item.summary}
+												</p>
+											</div>
+											<div class="flex items-center gap-2">
+												<CaseStatusBadge value={item.status} />
+												<span class="text-xs text-slate-500">{fmt.format(item.openedAt)}</span>
+											</div>
+										</li>
+									))}
+								</ol>
+							) : (
+								<p class="mt-4 text-sm text-slate-600">No hay expedientes.</p>
+							)}
+						</Card>
+					</div>
+					<aside class="space-y-4">
+						<>
+							<Card>
+								<>
+									<h2 class="font-semibold">Perfil</h2>
+									<dl class="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+										<>
+											<dt class="text-slate-500">Legal</dt>
+											<dd>{view.provider.legalName || "—"}</dd>
+											<dt class="text-slate-500">Visible</dt>
+											<dd>{view.provider.displayName || "—"}</dd>
+											<dt class="text-slate-500">Estado</dt>
+											<dd>{view.provider.status || "—"}</dd>
+											<dt class="text-slate-500">Propósito</dt>
+											<dd>{view.provider.accountPurpose}</dd>
+										</>
+									</dl>
+								</>
+							</Card>
+							<Card>
+								<>
+									<h2 class="font-semibold">Capacidades</h2>
+									<p class="mt-2 text-sm text-slate-600">
+										La próxima iteración conectará publicación, reservas y payout como capacidades
+										derivadas. No se infieren restricciones desde un único estado general.
+									</p>
+								</>
+							</Card>
+						</>
+					</aside>
+				</div>
+			</section>
+		)
+	}
+</InternalAdminLayout>

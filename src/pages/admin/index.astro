@@ -1,0 +1,158 @@
+---
+import CaseTable from "@/components/admin/cases/CaseTable.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
+import { requireInternalPermission } from "@/lib/auth/internal-authorization"
+import { getCommandCenterSummary } from "@/modules/casework/public"
+
+let authorized = false
+try {
+	await requireInternalPermission(Astro.request, "provider.compliance.read")
+	authorized = true
+} catch (response) {
+	if (response instanceof Response && response.status === 401) return Astro.redirect("/SignInPage")
+}
+const summary = authorized ? await getCommandCenterSummary() : null
+const domainLabels: Record<string, string> = {
+	verification: "Identidad y negocio",
+	fiscal: "Fiscalidad",
+	documents: "Documentos",
+	payments: "Pagos",
+}
+---
+
+<InternalAdminLayout title="Centro de Mando · Inicio">
+	<section class="space-y-8">
+		<header class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+			<div class="max-w-3xl space-y-2">
+				<p class="text-xs font-semibold tracking-[0.16em] text-amber-300 uppercase">
+					Operación · Bolivia
+				</p>
+				<h1 class="text-3xl font-semibold text-white">Estado operacional</h1>
+				<p class="text-sm leading-6 text-slate-300">
+					Prioriza el siguiente trabajo sin revelar información sensible. Cada indicador abre una
+					cola reproducible.
+				</p>
+			</div>
+			<div class="flex flex-wrap gap-2">
+				<Button href="/admin/work" variant="onDark">Abrir mi trabajo</Button><Button
+					href="/admin/cases"
+					variant="secondary">Buscar caso</Button
+				>
+			</div>
+		</header>
+
+		{
+			!authorized || !summary ? (
+				<Card>
+					<>
+						<h2 class="font-semibold">Acceso restringido</h2>
+						<p class="mt-2 text-sm text-slate-600">Se requiere provider.compliance.read.</p>
+					</>
+				</Card>
+			) : (
+				<>
+					<div
+						class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5"
+						aria-label="Indicadores operacionales"
+					>
+						<a href="/admin/queues/all">
+							<Card class="h-full hover:border-amber-400">
+								<>
+									<p class="text-xs font-semibold text-slate-500 uppercase">Abiertos</p>
+									<p class="mt-2 text-3xl font-semibold">{summary.open}</p>
+									<p class="mt-1 text-xs text-slate-500">Ver todos</p>
+								</>
+							</Card>
+						</a>
+						<a href="/admin/queues/overdue">
+							<Card class="h-full hover:border-red-400">
+								<>
+									<p class="text-xs font-semibold text-slate-500 uppercase">SLA vencido</p>
+									<p class="mt-2 text-3xl font-semibold text-red-700">{summary.overdue}</p>
+									<p class="mt-1 text-xs text-slate-500">Atender primero</p>
+								</>
+							</Card>
+						</a>
+						<a href="/admin/queues/due-soon">
+							<Card class="h-full hover:border-amber-400">
+								<>
+									<p class="text-xs font-semibold text-slate-500 uppercase">Por vencer</p>
+									<p class="mt-2 text-3xl font-semibold text-amber-700">{summary.dueSoon}</p>
+									<p class="mt-1 text-xs text-slate-500">Próximas 8 horas</p>
+								</>
+							</Card>
+						</a>
+						<a href="/admin/queues/high-risk">
+							<Card class="h-full hover:border-amber-400">
+								<>
+									<p class="text-xs font-semibold text-slate-500 uppercase">Riesgo alto</p>
+									<p class="mt-2 text-3xl font-semibold">{summary.highRisk}</p>
+									<p class="mt-1 text-xs text-slate-500">Segundo control</p>
+								</>
+							</Card>
+						</a>
+						<a href="/admin/queues/unassigned">
+							<Card class="h-full hover:border-amber-400">
+								<>
+									<p class="text-xs font-semibold text-slate-500 uppercase">Sin asignar</p>
+									<p class="mt-2 text-3xl font-semibold">{summary.unassigned}</p>
+									<p class="mt-1 text-xs text-slate-500">Requieren responsable</p>
+								</>
+							</Card>
+						</a>
+					</div>
+
+					<div class="grid gap-6 xl:grid-cols-[1fr_22rem]">
+						<section class="space-y-3">
+							<>
+								<div class="flex items-center justify-between">
+									<>
+										<h2 class="text-xl font-semibold text-white">Actividad reciente</h2>
+										<a href="/admin/queues/all" class="text-sm text-amber-200 hover:underline">
+											Ver cola completa
+										</a>
+									</>
+								</div>
+								<CaseTable items={summary.recent} />
+							</>
+						</section>
+						<aside class="space-y-4">
+							<Card>
+								<>
+									<h2 class="font-semibold">Carga por dominio</h2>
+									<ul class="mt-4 space-y-3">
+										{Object.entries(summary.byDomain).map(([domain, count]) => (
+											<li class="flex items-center justify-between gap-4 text-sm">
+												<a class="hover:underline" href={`/admin/queues/${domain}`}>
+													{domainLabels[domain]}
+												</a>
+												<strong>{count}</strong>
+											</li>
+										))}
+									</ul>
+								</>
+							</Card>
+							<Card>
+								<>
+									<h2 class="font-semibold">Alcance activo</h2>
+									<dl class="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+										<>
+											<dt class="text-slate-500">País</dt>
+											<dd>Bolivia</dd>
+											<dt class="text-slate-500">Vertical</dt>
+											<dd>Alojamiento</dd>
+											<dt class="text-slate-500">Cobro</dt>
+											<dd>Intermediario</dd>
+										</>
+									</dl>
+								</>
+							</Card>
+						</aside>
+					</div>
+				</>
+			)
+		}
+	</section>
+</InternalAdminLayout>

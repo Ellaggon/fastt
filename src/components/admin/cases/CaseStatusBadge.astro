@@ -1,0 +1,44 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+
+const { value, kind = "status" } = Astro.props
+const labels: Record<string, string> = {
+	open: "Abierto",
+	in_review: "En revisión",
+	waiting_information: "Esperando información",
+	blocked: "Bloqueado",
+	resolved: "Resuelto",
+	closed: "Cerrado",
+	canceled: "Cancelado",
+	low: "Baja",
+	normal: "Normal",
+	high: "Alta",
+	critical: "Crítica",
+	standard: "Estándar",
+	elevated: "Elevado",
+	overdue: "SLA vencido",
+	due_soon: "Por vencer",
+	running: "En plazo",
+	paused: "SLA pausado",
+	stopped: "SLA detenido",
+	none: "Sin SLA",
+}
+const variants: Record<string, "neutral" | "info" | "success" | "warning" | "error"> = {
+	open: "info",
+	in_review: "info",
+	waiting_information: "warning",
+	blocked: "error",
+	resolved: "success",
+	closed: "neutral",
+	critical: "error",
+	high: "warning",
+	elevated: "warning",
+	overdue: "error",
+	due_soon: "warning",
+	running: "success",
+}
+const label = labels[String(value)] ?? String(value || "—")
+const prefix = kind === "risk" ? "Riesgo " : kind === "priority" ? "Prioridad " : ""
+---
+
+<Badge variant={variants[String(value)] ?? "neutral"}>{prefix}{label}</Badge>

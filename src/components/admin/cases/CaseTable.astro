@@ -1,0 +1,93 @@
+---
+import CaseStatusBadge from "./CaseStatusBadge.astro"
+
+const { items = [], emptyMessage = "No hay casos en esta vista." } = Astro.props
+const fmt = new Intl.DateTimeFormat("es-BO", { dateStyle: "short", timeStyle: "short" })
+const domainLabels: Record<string, string> = {
+	verification: "Identidad y negocio",
+	fiscal: "Fiscalidad",
+	documents: "Documentos",
+	payments: "Pagos",
+}
+---
+
+{
+	items.length ? (
+		<div class="fastt-card overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+			<table class="min-w-full border-collapse text-left text-sm">
+				<caption class="sr-only">Casos operativos</caption>
+				<thead class="bg-slate-50 text-xs tracking-wide text-slate-600 uppercase">
+					<tr>
+						<th scope="col" class="px-4 py-3">
+							Caso
+						</th>
+						<th scope="col" class="px-4 py-3">
+							Proveedor
+						</th>
+						<th scope="col" class="px-4 py-3">
+							Dominio
+						</th>
+						<th scope="col" class="px-4 py-3">
+							Estado
+						</th>
+						<th scope="col" class="px-4 py-3">
+							Prioridad y riesgo
+						</th>
+						<th scope="col" class="px-4 py-3">
+							SLA
+						</th>
+						<th scope="col" class="px-4 py-3">
+							Responsable
+						</th>
+					</tr>
+				</thead>
+				<tbody class="divide-y divide-slate-200 text-slate-800">
+					{items.map((item: any) => (
+						<tr class="align-top focus-within:bg-slate-50 hover:bg-slate-50">
+							<td class="px-4 py-4">
+								<a
+									href={`/admin/cases/${encodeURIComponent(item.id)}`}
+									class="font-semibold text-slate-950 underline-offset-4 hover:underline focus:ring-2 focus:ring-amber-500 focus:outline-none"
+								>
+									{item.caseNumber}
+								</a>
+								<p class="mt-1 max-w-xs text-xs text-slate-500">{item.summary ?? "Sin resumen"}</p>
+							</td>
+							<td class="px-4 py-4">
+								<a class="font-medium hover:underline" href={`/admin/providers/${item.providerId}`}>
+									{item.providerName || item.providerLegalName || "Proveedor sin nombre"}
+								</a>
+								<p class="mt-1 font-mono text-[11px] text-slate-500">{item.providerId}</p>
+							</td>
+							<td class="px-4 py-4">{domainLabels[item.domain] ?? item.domain}</td>
+							<td class="px-4 py-4">
+								<CaseStatusBadge value={item.status} />
+							</td>
+							<td class="space-y-1 px-4 py-4">
+								<CaseStatusBadge value={item.priority} kind="priority" />
+								<CaseStatusBadge value={item.riskTier} kind="risk" />
+							</td>
+							<td class="px-4 py-4">
+								<CaseStatusBadge value={item.slaStatus} />
+								{item.slaDueAt && (
+									<p class="mt-1 text-xs text-slate-500">{fmt.format(item.slaDueAt)}</p>
+								)}
+							</td>
+							<td class="px-4 py-4 text-xs">
+								{item.assigneeEmail || "Sin asignar"}
+								<p class="mt-1 text-slate-500">{item.openTasks} tarea(s) abierta(s)</p>
+							</td>
+						</tr>
+					))}
+				</tbody>
+			</table>
+		</div>
+	) : (
+		<div
+			class="fastt-empty-state rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-600"
+			role="status"
+		>
+			{emptyMessage}
+		</div>
+	)
+}

@@ -1,5 +1,11 @@
 export const FEATURE_FLAG_DEFAULTS = {
 	NEW_DASHBOARD_ARCH: false,
+	/** Internal command-center read surface. Never override from request data. */
+	COMMAND_CENTER_V2_READ_ENABLED: true,
+	/** Casework mutations are enabled separately after shadow-read certification. */
+	COMMAND_CENTER_V2_COMMANDS_ENABLED: false,
+	/** Rollback switch; disable only after all four domains pass the casework gate. */
+	COMMAND_CENTER_LEGACY_WRITE_ENABLED: true,
 	SEARCH_V2_ENABLED: false,
 	SEARCH_SHADOW_COMPARE: false,
 	SEARCH_POLICY_BLOCKER_ENABLED: false,
@@ -20,6 +26,9 @@ export type FeatureFlagName = keyof typeof FEATURE_FLAG_DEFAULTS
  * Resolution is env (or `context.env` in tests) + default only.
  */
 export const ENV_ONLY_FEATURE_FLAGS = new Set<FeatureFlagName>([
+	"COMMAND_CENTER_V2_READ_ENABLED",
+	"COMMAND_CENTER_V2_COMMANDS_ENABLED",
+	"COMMAND_CENTER_LEGACY_WRITE_ENABLED",
 	"TOURS_CHECKOUT_ENABLED",
 	"TOURS_REFUND_HOURS_ENABLED",
 	"TOURS_CHECKIN_ENABLED",
@@ -165,6 +174,15 @@ export function getFeatureFlag(flagName: FeatureFlagName, context?: FeatureFlagC
 export function getFeatureFlags(context?: FeatureFlagContext): Record<FeatureFlagName, boolean> {
 	return {
 		NEW_DASHBOARD_ARCH: getFeatureFlag("NEW_DASHBOARD_ARCH", context),
+		COMMAND_CENTER_V2_READ_ENABLED: getFeatureFlag("COMMAND_CENTER_V2_READ_ENABLED", context),
+		COMMAND_CENTER_V2_COMMANDS_ENABLED: getFeatureFlag(
+			"COMMAND_CENTER_V2_COMMANDS_ENABLED",
+			context
+		),
+		COMMAND_CENTER_LEGACY_WRITE_ENABLED: getFeatureFlag(
+			"COMMAND_CENTER_LEGACY_WRITE_ENABLED",
+			context
+		),
 		SEARCH_V2_ENABLED: getFeatureFlag("SEARCH_V2_ENABLED", context),
 		SEARCH_SHADOW_COMPARE: getFeatureFlag("SEARCH_SHADOW_COMPARE", context),
 		SEARCH_POLICY_BLOCKER_ENABLED: getFeatureFlag("SEARCH_POLICY_BLOCKER_ENABLED", context),
