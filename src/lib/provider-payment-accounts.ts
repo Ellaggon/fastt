@@ -479,7 +479,9 @@ export async function listPendingProviderPaymentAccountsForAdmin(): Promise<
 
 		.catch(() => [])
 
-	return rows.map((row) => mapRow(row, { includeSecret: true }))
+	// Queue/read surfaces stay masked. Full identifiers are available only through
+	// the case-bound reveal endpoint (permission + MFA + reason + audit).
+	return rows.map((row) => mapRow(row, { includeSecret: false }))
 }
 
 /**
