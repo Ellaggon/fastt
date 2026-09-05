@@ -1,9 +1,16 @@
-import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3"
+import { GetObjectCommand, HeadObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 
 import { r2 } from "@/container/shared.container"
 
 const OBJECT_PREFIX = "provider-documents"
+
+export type ProviderDocumentPreviewState = "ready" | "missing" | "unavailable"
+
+export type ProviderDocumentPreviewAvailability = {
+	state: ProviderDocumentPreviewState
+	message: string
+}
 
 export function isR2DocumentStorageConfigured(): boolean {
 	return Boolean(
@@ -74,6 +81,62 @@ export function assertAllowedProviderDocumentUrl(fileUrl: string): void {
 	throw error
 }
 
+/**
+ * Answers whether an internal reviewer can open an artifact now, without
+ * returning a URL or file content. R2 references are checked with HEAD so a
+ * stale database reference is never presented as reviewable evidence.
+ */
+export async function inspectProviderDocumentPreview(params: {
+	fileUrl: string | null | undefined
+}): Promise<ProviderDocumentPreviewAvailability> {
+	const raw = String(params.fileUrl ?? "").trim()
+	if (!raw)
+		return {
+			state: "missing",
+			message: "El envío conserva metadatos, pero no contiene un archivo adjunto.",
+		}
+	if (raw.startsWith("local://"))
+		return {
+			state: "unavailable",
+			message: "La referencia es local y no puede abrirse desde el Centro de Mando desplegado.",
+		}
+	const objectKey = parseProviderDocumentObjectKey(raw)
+	if (!objectKey) {
+		if (/^https:\/\//i.test(raw))
+			return {
+				state: "ready",
+				message: "El archivo está disponible mediante el enlace seguro registrado.",
+			}
+		return {
+			state: "unavailable",
+			message: "La referencia del archivo no corresponde a un almacenamiento permitido.",
+		}
+	}
+	if (!isR2DocumentStorageConfigured())
+		return {
+			state: "unavailable",
+			message: "El almacenamiento seguro de documentos no está configurado en este entorno.",
+		}
+	try {
+		await r2.send(
+			new HeadObjectCommand({
+				Bucket: process.env.R2_BUCKET_NAME!,
+				Key: objectKey,
+			})
+		)
+		return {
+			state: "ready",
+			message: "Archivo disponible para revisión con MFA y acceso auditado.",
+		}
+	} catch {
+		return {
+			state: "unavailable",
+			message:
+				"La referencia existe, pero el archivo ya no está disponible en almacenamiento seguro.",
+		}
+	}
+}
+
 export async function uploadProviderDocumentObject(params: {
 	providerId: string
 	documentId: string
@@ -110,6 +173,8 @@ export async function createProviderDocumentPreviewUrl(params: {
 		return null
 	}
 	if (!isR2DocumentStorageConfigured()) return null
+	const availability = await inspectProviderDocumentPreview({ fileUrl: params.fileUrl })
+	if (availability.state !== "ready") return null
 	return getSignedUrl(
 		r2,
 		new GetObjectCommand({

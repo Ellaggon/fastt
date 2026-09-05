@@ -17,7 +17,10 @@ function resolveKey(): Buffer {
 	if (raw.length >= 32) {
 		return createHash("sha256").update(raw).digest()
 	}
-	// Deterministic local/test key — production should always set PROVIDER_PAYOUT_SECRETS_KEY.
+	if (process.env.NODE_ENV === "production") {
+		throw new Error("PROVIDER_PAYOUT_SECRETS_KEY_required")
+	}
+	// Deterministic key is allowed only for local development and isolated tests.
 	return createHash("sha256").update("fastt-dev-payout-secrets-v1").digest()
 }
 
