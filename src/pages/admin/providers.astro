@@ -5,6 +5,7 @@ import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import Textarea from "@/components/ui/Textarea.astro"
 import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
+import { getFeatureFlag } from "@/config/featureFlags"
 import { requireInternalAdmin } from "@/lib/auth/requireInternalAdmin"
 import {
 	adminComplianceRejectTemplates,
@@ -116,6 +117,7 @@ const queueButtons = [
 
 const activeQueueLabel =
 	queueButtons.find((button) => button.id === filter)?.label ?? "Cola de revisión"
+const commandCenterV2 = getFeatureFlag("COMMAND_CENTER_V2_READ_ENABLED", { request: Astro.request })
 ---
 
 <InternalAdminLayout title="Admin · Cumplimiento de proveedores">
@@ -131,6 +133,22 @@ const activeQueueLabel =
 					El proveedor envía; solo el equipo interno valida. Toda decisión queda en auditoría.
 				</p>
 			</header>
+			{
+				commandCenterV2 && (
+					<div class="fastt-notice rounded-xl border border-sky-400/40 bg-sky-950/50 px-4 py-3 text-sm text-sky-100">
+						<div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+							<p>
+								<strong>Página legacy.</strong> El nuevo Centro de Mando ya ofrece Inicio, Mi
+								trabajo, colas y expedientes. Esta vista permanece como fuente operativa durante el
+								piloto.
+							</p>
+							<Button href="/admin/queues/all" variant="onDark" size="sm">
+								Abrir Casework
+							</Button>
+						</div>
+					</div>
+				)
+			}
 
 			{
 				!isAdmin ? (

@@ -2,6 +2,7 @@ import type { APIRoute } from "astro"
 import { z } from "zod"
 
 import { requireInternalPermission } from "@/lib/auth/internal-authorization"
+import { requireRecentInternalAuthentication } from "@/lib/auth/internal-step-up"
 import { permissionForPolicyExceptionCreate } from "@/lib/auth/policy-exception-permissions"
 import {
 	createPolicyExceptionRuleUseCase,
@@ -185,6 +186,12 @@ export const POST: APIRoute = async ({ request }) => {
 	let auth: Awaited<ReturnType<typeof requireInternalPermission>>
 	try {
 		auth = await requireInternalPermission(request, "policy.edit")
+	} catch (response) {
+		if (response instanceof Response) return response
+		throw response
+	}
+	try {
+		await requireRecentInternalAuthentication({ request, user: auth.user })
 	} catch (response) {
 		if (response instanceof Response) return response
 		throw response

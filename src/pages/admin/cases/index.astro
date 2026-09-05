@@ -1,0 +1,183 @@
+---
+import CaseTable from "@/components/admin/cases/CaseTable.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Input from "@/components/ui/Input.astro"
+import Select from "@/components/ui/Select.astro"
+import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
+import { requireInternalPermission } from "@/lib/auth/internal-authorization"
+import { CASE_DOMAINS, listCommandCenterCases, listSavedCaseViews } from "@/modules/casework/public"
+
+let principal: Awaited<ReturnType<typeof requireInternalPermission>> | null = null
+try {
+	principal = await requireInternalPermission(Astro.request, "provider.compliance.read")
+} catch (response) {
+	if (response instanceof Response && response.status === 401) return Astro.redirect("/SignInPage")
+}
+const search = String(Astro.url.searchParams.get("q") ?? "").trim()
+const domain = Astro.url.searchParams.get("domain")
+const status = Astro.url.searchParams.get("status")
+const priority = Astro.url.searchParams.get("priority")
+const riskTier = Astro.url.searchParams.get("riskTier")
+const result = principal
+	? await listCommandCenterCases({
+			search,
+			domain,
+			status,
+			priority,
+			riskTier,
+			limit: 60,
+			cursor: Astro.url.searchParams.get("cursor"),
+		})
+	: { items: [], nextCursor: null }
+const savedViews = principal ? await listSavedCaseViews(principal.user.id) : []
+const currentFilters = Object.fromEntries(
+	[
+		["q", search],
+		["domain", domain],
+		["status", status],
+		["priority", priority],
+		["riskTier", riskTier],
+	].filter((entry): entry is [string, string] => Boolean(entry[1]))
+)
+const optionLabels: Record<string, string> = {
+	verification: "Identidad y negocio",
+	fiscal: "Fiscalidad",
+	documents: "Documentos",
+	payments: "Pagos",
+}
+const savedViewLinks = savedViews.map((view) => ({
+	...view,
+	href: `/admin/cases?${new URLSearchParams((view.filtersJson ?? {}) as Record<string, string>).toString()}`,
+}))
+---
+
+<InternalAdminLayout title="Centro de Mando · Casos">
+	<section class="space-y-6">
+		<header>
+			<p class="text-xs font-semibold tracking-[0.16em] text-amber-300 uppercase">Expedientes</p><h1
+				class="mt-2 text-3xl font-semibold text-white"
+			>
+				Buscar casos
+			</h1><p class="mt-2 text-sm text-slate-300">
+				Busca por número de caso, ID de proveedor, referencia canónica o nombre. La consulta se
+				parametriza y limita a 100 caracteres.
+			</p>
+		</header>
+		{
+			savedViewLinks.length > 0 && (
+				<nav aria-label="Vistas guardadas" class="flex flex-wrap items-center gap-2">
+					<span class="text-xs font-semibold tracking-wider text-slate-400 uppercase">
+						Mis vistas
+					</span>
+					{savedViewLinks.map((view) => (
+						<a
+							class="rounded-full border border-slate-700 px-3 py-1.5 text-sm text-slate-200 hover:border-amber-300 hover:text-amber-200"
+							href={view.href}
+						>
+							{view.name}
+						</a>
+					))}
+				</nav>
+			)
+		}
+		<Card>
+			<form class="grid gap-3 md:grid-cols-6" method="get" role="search">
+				<label class="md:col-span-2"
+					><span class="text-sm font-medium">Buscar</span><Input
+						id="case-search"
+						name="q"
+						value={search}
+						maxlength="100"
+						placeholder="CC-…, provider ID o nombre"
+						class="mt-2"
+					/></label
+				>
+				<label
+					><span class="text-sm font-medium">Dominio</span><Select name="domain" class="mt-2"
+						><option value="">Todos</option>{
+							CASE_DOMAINS.map((value) => (
+								<option value={value} selected={domain === value}>
+									{optionLabels[value]}
+								</option>
+							))
+						}</Select
+					></label
+				>
+				<label
+					><span class="text-sm font-medium">Estado</span><Select name="status" class="mt-2"
+						><option value="">Activos</option>{
+							["open", "in_review", "waiting_information", "blocked", "resolved"].map((value) => (
+								<option value={value} selected={status === value}>
+									{value}
+								</option>
+							))
+						}</Select
+					></label
+				>
+				<label
+					><span class="text-sm font-medium">Prioridad</span><Select name="priority" class="mt-2"
+						><option value="">Todas</option>{
+							["low", "normal", "high", "critical"].map((value) => (
+								<option value={value} selected={priority === value}>
+									{value}
+								</option>
+							))
+						}</Select
+					></label
+				>
+				<label
+					><span class="text-sm font-medium">Riesgo</span><Select name="riskTier" class="mt-2"
+						><option value="">Todos</option>{
+							["standard", "elevated", "high"].map((value) => (
+								<option value={value} selected={riskTier === value}>
+									{value}
+								</option>
+							))
+						}</Select
+					></label
+				>
+				<div class="flex flex-wrap gap-2 md:col-span-6">
+					<Button type="submit">Aplicar filtros</Button><Button
+						href="/admin/cases"
+						variant="secondary">Limpiar</Button
+					>
+				</div>
+			</form>
+			<form
+				action="/api/admin/v1/views"
+				method="post"
+				class="mt-5 flex flex-col gap-2 border-t border-slate-200 pt-4 sm:flex-row sm:items-end"
+			>
+				<label class="flex-1"
+					><span class="text-sm font-medium">Guardar filtros actuales</span><Input
+						name="name"
+						minlength="2"
+						maxlength="80"
+						required
+						placeholder="Ej. Fiscalidad prioritaria"
+						class="mt-2"
+					/></label
+				>
+				<input type="hidden" name="filters" value={JSON.stringify(currentFilters)} />
+				<Button type="submit" variant="secondary">Guardar vista</Button>
+			</form>
+		</Card>
+		<CaseTable
+			items={result.items}
+			emptyMessage={search ? "No encontramos casos con ese criterio." : "No hay casos activos."}
+		/>
+		{
+			result.nextCursor && (
+				<div class="flex justify-center">
+					<Button
+						href={`/admin/cases?${new URLSearchParams({ ...currentFilters, cursor: result.nextCursor }).toString()}`}
+						variant="secondary"
+					>
+						Siguiente página
+					</Button>
+				</div>
+			)
+		}
+	</section>
+</InternalAdminLayout>

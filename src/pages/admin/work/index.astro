@@ -1,0 +1,91 @@
+---
+import CaseTable from "@/components/admin/cases/CaseTable.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
+import { requireInternalPermission } from "@/lib/auth/internal-authorization"
+import { listCommandCenterCases } from "@/modules/casework/public"
+
+let principal: Awaited<ReturnType<typeof requireInternalPermission>> | null = null
+try {
+	principal = await requireInternalPermission(Astro.request, "provider.compliance.read")
+} catch (response) {
+	if (response instanceof Response && response.status === 401) return Astro.redirect("/SignInPage")
+}
+const view = Astro.url.searchParams.get("view") ?? "assigned"
+const result = principal
+	? await listCommandCenterCases({
+			assigneeUserId: view === "assigned" ? principal.user.id : null,
+			sla: view === "overdue" ? "overdue" : view === "due_soon" ? "due_soon" : null,
+			pendingSecondControlForUserId: view === "second_control" ? principal.user.id : null,
+			limit: 60,
+		})
+	: { items: [], nextCursor: null }
+---
+
+<InternalAdminLayout title="Centro de Mando · Mi trabajo">
+	<section class="space-y-6">
+		<header class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+			<div>
+				<p class="text-xs font-semibold tracking-[0.16em] text-amber-300 uppercase">
+					Operación personal
+				</p><h1 class="mt-2 text-3xl font-semibold text-white">Mi trabajo</h1><p
+					class="mt-2 text-sm text-slate-300"
+				>
+					Casos asignados, próximos vencimientos y controles que no puedes completar en solitario.
+				</p>
+			</div><Button href="/admin/queues/unassigned" variant="onDark">Ver sin asignar</Button>
+		</header>
+		<nav class="flex flex-wrap gap-2" aria-label="Vistas de mi trabajo">
+			{
+				[
+					["assigned", "Asignados a mí"],
+					["overdue", "Vencidos"],
+					["due_soon", "Por vencer"],
+					["second_control", "Segundo control"],
+				].map(([id, label]) => (
+					<a
+						href={`/admin/work?view=${id}`}
+						aria-current={view === id ? "page" : undefined}
+						class:list={[
+							"min-h-10 rounded-xl border px-4 py-2 text-sm font-medium",
+							view === id
+								? "border-amber-300 bg-amber-300 text-slate-950"
+								: "border-slate-700 text-slate-200 hover:bg-slate-900",
+						]}
+					>
+						{label}
+					</a>
+				))
+			}
+		</nav>
+		{
+			view === "second_control" && (
+				<Card class="border-amber-300 bg-amber-50">
+					<>
+						<h2 class="font-semibold">Separación de funciones activa</h2>
+						<p class="mt-2 text-sm text-slate-700">
+							Ellaggon puede preparar estos expedientes, pero no aprobar su propia propuesta.
+							Permanecerán visibles hasta incorporar un segundo responsable con el permiso
+							correspondiente.
+						</p>
+					</>
+				</Card>
+			)
+		}
+		{
+			principal ? (
+				<CaseTable
+					items={result.items}
+					emptyMessage={
+						view === "assigned"
+							? "No tienes casos asignados. Abre la cola sin asignar para tomar el siguiente."
+							: "No hay casos en esta vista."
+					}
+				/>
+			) : (
+				<Card>Acceso restringido.</Card>
+			)
+		}
+	</section>
+</InternalAdminLayout>

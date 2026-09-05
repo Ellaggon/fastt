@@ -1,0 +1,178 @@
+---
+import CaseTable from "@/components/admin/cases/CaseTable.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Select from "@/components/ui/Select.astro"
+import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
+import { requireInternalPermission } from "@/lib/auth/internal-authorization"
+import { CASE_DOMAINS, listCommandCenterCases } from "@/modules/casework/public"
+
+let authorized = false
+try {
+	await requireInternalPermission(Astro.request, "provider.compliance.read")
+	authorized = true
+} catch (response) {
+	if (response instanceof Response && response.status === 401) return Astro.redirect("/SignInPage")
+}
+const queueId = String(Astro.params.queueId ?? "all")
+const definitions: Record<
+	string,
+	{
+		label: string
+		description: string
+		domain?: string
+		sla?: "overdue" | "due_soon"
+		riskTier?: string
+		unassigned?: boolean
+	}
+> = {
+	"all": {
+		label: "Todas las pendientes",
+		description: "Expedientes activos de los cuatro dominios.",
+	},
+	"overdue": {
+		label: "SLA vencido",
+		description: "Trabajo fuera del objetivo interno.",
+		sla: "overdue",
+	},
+	"due-soon": {
+		label: "Por vencer",
+		description: "SLA dentro de las próximas ocho horas.",
+		sla: "due_soon",
+	},
+	"high-risk": {
+		label: "Riesgo alto",
+		description: "Expedientes que requieren revisión reforzada.",
+		riskTier: "high",
+	},
+	"unassigned": {
+		label: "Sin asignar",
+		description: "Trabajo listo para ser tomado.",
+		unassigned: true,
+	},
+	"verification": {
+		label: "Identidad y negocio",
+		description: "KYC/KYB del proveedor.",
+		domain: "verification",
+	},
+	"fiscal": {
+		label: "Fiscalidad",
+		description: "Identidad y configuración fiscal.",
+		domain: "fiscal",
+	},
+	"documents": {
+		label: "Documentos",
+		description: "Evidencia, licencias y vigencias.",
+		domain: "documents",
+	},
+	"payments": {
+		label: "Pagos",
+		description: "Cuenta de payout y titularidad.",
+		domain: "payments",
+	},
+}
+const queue = definitions[queueId] ?? definitions.all
+const domain = Astro.url.searchParams.get("domain") || queue.domain || null
+const priority = Astro.url.searchParams.get("priority")
+const riskTier = Astro.url.searchParams.get("riskTier") || queue.riskTier || null
+const status = Astro.url.searchParams.get("status")
+const cursor = Astro.url.searchParams.get("cursor")
+const result = authorized
+	? await listCommandCenterCases({
+			domain,
+			priority,
+			riskTier,
+			status,
+			sla: queue.sla,
+			unassigned: queue.unassigned,
+			cursor,
+			limit: 50,
+		})
+	: { items: [], nextCursor: null }
+const nextParams = new URLSearchParams(Astro.url.searchParams)
+if (result.nextCursor) nextParams.set("cursor", result.nextCursor)
+---
+
+<InternalAdminLayout title={`Centro de Mando · ${queue.label}`}>
+	<section class="space-y-6">
+		<header class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+			<div>
+				<p class="text-xs font-semibold tracking-[0.16em] text-amber-300 uppercase">
+					Cola operacional
+				</p><h1 class="mt-2 text-3xl font-semibold text-white">{queue.label}</h1><p
+					class="mt-2 text-sm text-slate-300"
+				>
+					{queue.description}
+				</p>
+			</div><Button href="/admin/work" variant="onDark">Mi trabajo</Button>
+		</header>
+		<nav class="flex gap-2 overflow-x-auto pb-1" aria-label="Colas principales">
+			{
+				Object.entries(definitions).map(([id, item]) => (
+					<a
+						href={`/admin/queues/${id}`}
+						aria-current={queueId === id ? "page" : undefined}
+						class:list={[
+							"min-h-10 shrink-0 rounded-xl border px-4 py-2 text-sm",
+							queueId === id
+								? "border-amber-300 bg-amber-300 font-semibold text-slate-950"
+								: "border-slate-700 text-slate-200 hover:bg-slate-900",
+						]}
+					>
+						{item.label}
+					</a>
+				))
+			}
+		</nav>
+		<Card
+			><form class="grid gap-4 md:grid-cols-4" method="get" aria-label="Filtrar cola">
+				<label class="text-sm font-medium"
+					>Dominio<Select name="domain" class="mt-2"
+						><option value="">Todos</option>{
+							CASE_DOMAINS.map((value) => (
+								<option value={value} selected={domain === value}>
+									{definitions[value].label}
+								</option>
+							))
+						}</Select
+					></label
+				><label class="text-sm font-medium"
+					>Prioridad<Select name="priority" class="mt-2"
+						><option value="">Todas</option>{
+							["low", "normal", "high", "critical"].map((value) => (
+								<option value={value} selected={priority === value}>
+									{value}
+								</option>
+							))
+						}</Select
+					></label
+				><label class="text-sm font-medium"
+					>Riesgo<Select name="riskTier" class="mt-2"
+						><option value="">Todos</option>{
+							["standard", "elevated", "high"].map((value) => (
+								<option value={value} selected={riskTier === value}>
+									{value}
+								</option>
+							))
+						}</Select
+					></label
+				><div class="flex items-end gap-2">
+					<Button type="submit">Aplicar</Button><Button
+						href={`/admin/queues/${queueId}`}
+						variant="secondary">Limpiar</Button
+					>
+				</div>
+			</form></Card
+		>
+		<CaseTable items={result.items} />
+		{
+			result.nextCursor && (
+				<div class="flex justify-center">
+					<Button href={`/admin/queues/${queueId}?${nextParams.toString()}`} variant="secondary">
+						Siguiente página
+					</Button>
+				</div>
+			)
+		}
+	</section>
+</InternalAdminLayout>
