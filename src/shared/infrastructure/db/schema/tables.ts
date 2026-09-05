@@ -1043,6 +1043,8 @@ export const CaseTask = pgTable(
 		dueAt: ts("dueAt"),
 		completedAt: ts("completedAt"),
 		blockedReasonCode: txtOpt("blockedReasonCode"),
+		/** Durable IAM identity; email remains a display/backfill snapshot during cutover. */
+		assigneeUserId: txtOpt("assigneeUserId").references(() => User.id, { onDelete: "restrict" }),
 		version: intDefault("version", 1),
 		createdAt: now("createdAt"),
 		updatedAt: now("updatedAt"),
@@ -1051,6 +1053,7 @@ export const CaseTask = pgTable(
 		uniqueIndex("CaseTask_case_taskKey_unique").on(table.caseId, table.taskKey),
 		index("CaseTask_status_due_idx").on(table.status, table.dueAt),
 		index("CaseTask_assignee_status_idx").on(table.assigneeEmail, table.status),
+		index("CaseTask_assignee_user_status_idx").on(table.assigneeUserId, table.status),
 		check(
 			"CaseTask_status_check",
 			sql`${table.status} IN ('open', 'in_progress', 'blocked', 'completed', 'canceled')`
@@ -1123,6 +1126,106 @@ export const CaseLink = pgTable(
 			sql`${table.linkType} IN ('duplicate', 'reverification', 'appeal', 'related_incident')`
 		),
 		check("CaseLink_not_self_check", sql`${table.fromCaseId} <> ${table.toCaseId}`),
+	]
+)
+
+/** Business decision lifecycle. AuditEvent remains the security/technical trail. */
+export const CaseDecision = pgTable(
+	"CaseDecision",
+	{
+		id: pk(),
+		caseId: txt("caseId").references(() => ComplianceCase.id, { onDelete: "restrict" }),
+		decision: txt("decision"),
+		reasonCodeId: txt("reasonCodeId").references(() => ComplianceDecisionReason.id, {
+			onDelete: "restrict",
+		}),
+		policyVersionId: txt("policyVersionId").references(() => CompliancePolicyVersion.id, {
+			onDelete: "restrict",
+		}),
+		caseVersion: int("caseVersion"),
+		evidenceSnapshotJson: jsonb("evidenceSnapshotJson"),
+		impactSnapshotJson: jsonb("impactSnapshotJson"),
+		comment: txtOpt("comment"),
+		status: text("status").default("draft").notNull(),
+		proposedByUserId: txt("proposedByUserId").references(() => User.id, {
+			onDelete: "restrict",
+		}),
+		proposedAt: ts("proposedAt"),
+		appliedAt: ts("appliedAt"),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		index("CaseDecision_case_created_idx").on(table.caseId, table.createdAt),
+		uniqueIndex("CaseDecision_case_version_active_unique")
+			.on(table.caseId, table.caseVersion)
+			.where(
+				sql`${table.status} IN ('proposed', 'pending_approval', 'approved', 'applying', 'applied')`
+			),
+		check(
+			"CaseDecision_decision_check",
+			sql`${table.decision} IN ('approved', 'rejected', 'requires_attention', 'request_information')`
+		),
+		check(
+			"CaseDecision_status_check",
+			sql`${table.status} IN ('draft', 'proposed', 'pending_approval', 'approved', 'rejected', 'applying', 'applied', 'failed', 'canceled')`
+		),
+		check("CaseDecision_case_version_check", sql`${table.caseVersion} >= 1`),
+	]
+)
+
+export const CaseDecisionApproval = pgTable(
+	"CaseDecisionApproval",
+	{
+		id: pk(),
+		decisionId: txt("decisionId").references(() => CaseDecision.id, { onDelete: "restrict" }),
+		actorUserId: txt("actorUserId").references(() => User.id, { onDelete: "restrict" }),
+		vote: txt("vote"),
+		reason: txtOpt("reason"),
+		createdAt: now("createdAt"),
+	},
+	(table) => [
+		uniqueIndex("CaseDecisionApproval_decision_actor_unique").on(
+			table.decisionId,
+			table.actorUserId
+		),
+		check("CaseDecisionApproval_vote_check", sql`${table.vote} IN ('approved', 'rejected')`),
+	]
+)
+
+/** Human-readable, append-only case timeline; never stores raw evidence or secrets. */
+export const CaseActivityEvent = pgTable(
+	"CaseActivityEvent",
+	{
+		id: pk(),
+		caseId: txt("caseId").references(() => ComplianceCase.id, { onDelete: "restrict" }),
+		eventType: txt("eventType"),
+		actorUserId: txtOpt("actorUserId").references(() => User.id, { onDelete: "restrict" }),
+		summary: txt("summary"),
+		metadataJson: jsonb("metadataJson"),
+		createdAt: now("createdAt"),
+	},
+	(table) => [index("CaseActivityEvent_case_created_idx").on(table.caseId, table.createdAt)]
+)
+
+export const SavedCaseView = pgTable(
+	"SavedCaseView",
+	{
+		id: pk(),
+		ownerUserId: txt("ownerUserId").references(() => User.id, { onDelete: "restrict" }),
+		name: txt("name"),
+		scope: text("scope").default("private").notNull(),
+		filtersJson: jsonb("filtersJson").notNull(),
+		sortJson: jsonb("sortJson"),
+		visibleColumnsJson: jsonb("visibleColumnsJson"),
+		isDefault: boolDefault("isDefault", false),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		uniqueIndex("SavedCaseView_owner_name_unique").on(table.ownerUserId, table.name),
+		index("SavedCaseView_owner_default_idx").on(table.ownerUserId, table.isDefault),
+		check("SavedCaseView_scope_check", sql`${table.scope} IN ('private', 'team')`),
 	]
 )
 

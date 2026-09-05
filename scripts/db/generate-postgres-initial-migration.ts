@@ -15,6 +15,8 @@ const FINANCIAL_RELATIONAL_INTEGRITY_FILE =
 const FINANCIAL_BOOKING_CANDIDATE_SEARCH_FILE =
 	"src/shared/infrastructure/db/schema/financial-booking-candidate-search.sql"
 const CASEWORK_POLICY_SEED_FILE = "src/shared/infrastructure/db/schema/casework-policy-seed.sql"
+const CASEWORK_DECISION_INTEGRITY_FILE =
+	"src/shared/infrastructure/db/schema/casework-decision-integrity.sql"
 
 type DrizzleTable = Record<string | symbol, unknown>
 type DrizzleColumn = {
@@ -273,6 +275,7 @@ async function main() {
 		"utf8"
 	)
 	const caseworkPolicySeedSql = await readFile(CASEWORK_POLICY_SEED_FILE, "utf8")
+	const caseworkDecisionIntegritySql = await readFile(CASEWORK_DECISION_INTEGRITY_FILE, "utf8")
 	const lines = [
 		"-- Fastt Supabase initial schema.",
 		"-- Generated from src/shared/infrastructure/db/schema/tables.ts.",
@@ -304,6 +307,9 @@ async function main() {
 		"",
 		"-- Canonical Phase 2 casework policy seed for fresh installs.",
 		caseworkPolicySeedSql.trim(),
+		"",
+		"-- Phase 3 case decision maker-checker integrity for fresh installs.",
+		caseworkDecisionIntegritySql.trim(),
 		"",
 		"COMMIT;",
 		"",
