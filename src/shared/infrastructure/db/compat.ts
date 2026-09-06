@@ -114,6 +114,8 @@ export {
 	ProviderComplianceAssignment,
 	ProviderConfigurationState,
 	ProviderDocument,
+	ProviderDocumentInspection,
+	ProviderDocumentProcessingJob,
 	ProviderExternalCalendar,
 	ProviderExternalCalendarConflict,
 	ProviderExternalCalendarEvent,
