@@ -1,6 +1,11 @@
 import { createHash } from "node:crypto"
 
 import { assessHolderNameMatch, type HolderNameMatch } from "@/lib/compliance/holder-name-match"
+import {
+	documentInspectionGate,
+	getProviderDocumentInspection,
+	type ProviderDocumentInspectionReadModel,
+} from "@/lib/documents/document-processing"
 import { getLatestProviderVerificationStatus } from "@/lib/provider-admin-compliance"
 import { listProviderDocuments } from "@/lib/provider-documents"
 import { listProviderPaymentAccounts } from "@/lib/provider-payment-accounts"
@@ -49,6 +54,7 @@ export type CaseEvidenceReadModel = {
 		hasFile: boolean
 		previewState: ProviderDocumentPreviewState
 		previewMessage: string
+		inspection: ProviderDocumentInspectionReadModel | null
 	}
 	approvalBlockers: string[]
 	approvalWarnings: string[]
@@ -84,6 +90,10 @@ export async function getCaseEvidence(workspace: Workspace): Promise<CaseEvidenc
 	const sourceDocumentPreview = sourceDocument
 		? await inspectProviderDocumentPreview({ fileUrl: sourceDocument.fileUrl })
 		: null
+	const sourceDocumentInspection = sourceDocument
+		? await getProviderDocumentInspection(sourceDocument.id)
+		: null
+	const sourceDocumentGate = documentInspectionGate(sourceDocumentInspection)
 	const sourcePayment = payments.find((item) => item.id === workspace.case.sourceRef) ?? null
 	const sourcePaymentHolderMatch = sourcePayment
 		? assessHolderNameMatch({
@@ -231,16 +241,19 @@ export async function getCaseEvidence(workspace: Workspace): Promise<CaseEvidenc
 						hasFile: Boolean(sourceDocument.fileUrl),
 						previewState: sourceDocumentPreview?.state ?? "missing",
 						previewMessage: sourceDocumentPreview?.message ?? "No hay archivo asociado.",
+						inspection: sourceDocumentInspection,
 					}
 				: null,
-			approvalBlockers:
-				sourceDocumentPreview?.state === "ready"
+			approvalBlockers: [
+				...(sourceDocumentPreview?.state === "ready"
 					? []
-					: ["No se puede aprobar un documento sin un archivo disponible para corroboración."],
-			approvalWarnings: [],
+					: ["No se puede aprobar un documento sin un archivo disponible para corroboración."]),
+				...sourceDocumentGate.blockers,
+			],
+			approvalWarnings: sourceDocumentGate.warnings,
 			holderMatch: null,
 			reveal:
-				sourceDocumentPreview?.state === "ready"
+				sourceDocumentPreview?.state === "ready" && sourceDocumentGate.canReveal
 					? { kind: "document", label: "Abrir documento de forma segura", fields: ["fileUrl"] }
 					: null,
 		}
