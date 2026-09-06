@@ -397,6 +397,72 @@ export const ProviderDocument = pgTable(
 	]
 )
 
+export const ProviderDocumentInspection = pgTable(
+	"ProviderDocumentInspection",
+	{
+		id: pk(),
+		documentId: txt("documentId").references(() => ProviderDocument.id),
+		providerId: txt("providerId").references(() => Provider.id),
+		processingState: text("processingState").default("queued").notNull(),
+		sha256: txtOpt("sha256"),
+		detectedMimeType: txtOpt("detectedMimeType"),
+		byteSize: intOpt("byteSize"),
+		structuralStatus: text("structuralStatus").default("pending").notNull(),
+		malwareStatus: text("malwareStatus").default("pending").notNull(),
+		malwareEngine: txtOpt("malwareEngine"),
+		malwareDefinitionVersion: txtOpt("malwareDefinitionVersion"),
+		ocrStatus: text("ocrStatus").default("pending").notNull(),
+		ocrProvider: txtOpt("ocrProvider"),
+		ocrLanguage: txtOpt("ocrLanguage"),
+		ocrConfidence: ratioOpt("ocrConfidence"),
+		extractionStatus: text("extractionStatus").default("pending").notNull(),
+		extractedFieldsJson: jsonb("extractedFieldsJson"),
+		tamperStatus: text("tamperStatus").default("pending").notNull(),
+		tamperSignalsJson: jsonb("tamperSignalsJson"),
+		qualitySignalsJson: jsonb("qualitySignalsJson"),
+		errorCode: txtOpt("errorCode"),
+		startedAt: ts("startedAt"),
+		completedAt: ts("completedAt"),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		uniqueIndex("ProviderDocumentInspection_document_unique").on(table.documentId),
+		index("ProviderDocumentInspection_provider_state_idx").on(
+			table.providerId,
+			table.processingState
+		),
+		index("ProviderDocumentInspection_malware_tamper_idx").on(
+			table.malwareStatus,
+			table.tamperStatus
+		),
+	]
+)
+
+export const ProviderDocumentProcessingJob = pgTable(
+	"ProviderDocumentProcessingJob",
+	{
+		id: pk(),
+		documentId: txt("documentId").references(() => ProviderDocument.id),
+		status: text("status").default("queued").notNull(),
+		attempts: intDefault("attempts", 0),
+		availableAt: now("availableAt"),
+		lockedAt: ts("lockedAt"),
+		lockedBy: txtOpt("lockedBy"),
+		lastErrorCode: txtOpt("lastErrorCode"),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		uniqueIndex("ProviderDocumentProcessingJob_document_unique").on(table.documentId),
+		index("ProviderDocumentProcessingJob_claim_idx").on(
+			table.status,
+			table.availableAt,
+			table.createdAt
+		),
+	]
+)
+
 export const ProviderTaxConfiguration = pgTable(
 	"ProviderTaxConfiguration",
 	{

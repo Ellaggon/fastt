@@ -43,6 +43,47 @@ CREATE TABLE "ProviderDocument" (
 	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
+CREATE TABLE "ProviderDocumentInspection" (
+	"id" text PRIMARY KEY,
+	"documentId" text NOT NULL,
+	"providerId" text NOT NULL,
+	"processingState" text NOT NULL DEFAULT 'queued',
+	"sha256" text,
+	"detectedMimeType" text,
+	"byteSize" integer,
+	"structuralStatus" text NOT NULL DEFAULT 'pending',
+	"malwareStatus" text NOT NULL DEFAULT 'pending',
+	"malwareEngine" text,
+	"malwareDefinitionVersion" text,
+	"ocrStatus" text NOT NULL DEFAULT 'pending',
+	"ocrProvider" text,
+	"ocrLanguage" text,
+	"ocrConfidence" numeric(7, 4),
+	"extractionStatus" text NOT NULL DEFAULT 'pending',
+	"extractedFieldsJson" jsonb,
+	"tamperStatus" text NOT NULL DEFAULT 'pending',
+	"tamperSignalsJson" jsonb,
+	"qualitySignalsJson" jsonb,
+	"errorCode" text,
+	"startedAt" timestamp with time zone,
+	"completedAt" timestamp with time zone,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "ProviderDocumentProcessingJob" (
+	"id" text PRIMARY KEY,
+	"documentId" text NOT NULL,
+	"status" text NOT NULL DEFAULT 'queued',
+	"attempts" integer NOT NULL DEFAULT 0,
+	"availableAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"lockedAt" timestamp with time zone,
+	"lockedBy" text,
+	"lastErrorCode" text,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
 CREATE TABLE "ProviderTaxConfiguration" (
 	"providerId" text PRIMARY KEY,
 	"status" text NOT NULL DEFAULT 'not_configured',
@@ -2028,6 +2069,24 @@ ALTER TABLE "ProviderDocument"
 	REFERENCES "User" ("id")
 ;
 
+ALTER TABLE "ProviderDocumentInspection"
+	ADD CONSTRAINT "ProviderDocumentInspection_documentId_fk"
+	FOREIGN KEY ("documentId")
+	REFERENCES "ProviderDocument" ("id")
+;
+
+ALTER TABLE "ProviderDocumentInspection"
+	ADD CONSTRAINT "ProviderDocumentInspection_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
+;
+
+ALTER TABLE "ProviderDocumentProcessingJob"
+	ADD CONSTRAINT "ProviderDocumentProcessingJob_documentId_fk"
+	FOREIGN KEY ("documentId")
+	REFERENCES "ProviderDocument" ("id")
+;
+
 ALTER TABLE "ProviderTaxConfiguration"
 	ADD CONSTRAINT "ProviderTaxConfiguration_providerId_fk"
 	FOREIGN KEY ("providerId")
@@ -3789,6 +3848,16 @@ CREATE INDEX "Provider_dataClassification_idx" ON "Provider" ("dataClassificatio
 CREATE INDEX "ProviderDocument_providerId_type_idx" ON "ProviderDocument" ("providerId", "type");
 
 CREATE INDEX "ProviderDocument_providerId_status_idx" ON "ProviderDocument" ("providerId", "status");
+
+CREATE UNIQUE INDEX "ProviderDocumentInspection_document_unique" ON "ProviderDocumentInspection" ("documentId");
+
+CREATE INDEX "ProviderDocumentInspection_provider_state_idx" ON "ProviderDocumentInspection" ("providerId", "processingState");
+
+CREATE INDEX "ProviderDocumentInspection_malware_tamper_idx" ON "ProviderDocumentInspection" ("malwareStatus", "tamperStatus");
+
+CREATE UNIQUE INDEX "ProviderDocumentProcessingJob_document_unique" ON "ProviderDocumentProcessingJob" ("documentId");
+
+CREATE INDEX "ProviderDocumentProcessingJob_claim_idx" ON "ProviderDocumentProcessingJob" ("status", "availableAt", "createdAt");
 
 CREATE INDEX "ProviderTaxConfiguration_status_idx" ON "ProviderTaxConfiguration" ("status");
 
