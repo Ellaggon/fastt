@@ -8,6 +8,7 @@ import {
 	type SensitiveCommandAudit,
 } from "@/lib/commands/sensitive-command"
 import { createProviderDocumentPreviewUrl } from "@/lib/provider-document-storage"
+import { assertProviderDocumentSafeToReveal } from "@/lib/documents/document-processing"
 import { readAccountIdentifierFromMetadata } from "@/lib/provider-payment-secrets"
 import { requestIdFromRequest, withRequestId } from "@/lib/http/request-context"
 import { getCaseWorkspace } from "@/modules/casework/public"
@@ -94,6 +95,7 @@ export const POST: APIRoute = async ({ request, params }) => {
 						)
 						.then(first)
 					if (!row?.fileUrl) throw Object.assign(new Error("evidence_not_found"), { status: 404 })
+					await assertProviderDocumentSafeToReveal(row.id)
 					const url = await createProviderDocumentPreviewUrl({
 						fileUrl: row.fileUrl,
 						expiresInSeconds: 300,

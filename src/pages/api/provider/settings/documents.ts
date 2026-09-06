@@ -203,6 +203,11 @@ export const POST: APIRoute = async ({ request }) => {
 		if (err instanceof ZodError)
 			return json({ error: "validation_error", details: err.issues }, 400)
 		const status = typeof err?.status === "number" ? err.status : 400
+		console.error("provider.settings.documents.submit_failed", {
+			type: formTypeHint || null,
+			error: String(err?.message || "Unknown error").slice(0, 120),
+			status,
+		})
 		return json({ error: String(err?.message || "Unknown error") }, status)
 	}
 }

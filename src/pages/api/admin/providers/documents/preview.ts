@@ -5,6 +5,7 @@ import { requireInternalPermission } from "@/lib/auth/internal-authorization"
 import { requireRecentInternalAuthentication } from "@/lib/auth/internal-step-up"
 import { writeSensitiveDataAccessEvent } from "@/lib/audit/audit-events"
 import { createProviderDocumentPreviewUrl } from "@/lib/provider-document-storage"
+import { assertProviderDocumentSafeToReveal } from "@/lib/documents/document-processing"
 import { requestIdFromRequest, withRequestId } from "@/lib/http/request-context"
 
 export const GET: APIRoute = async ({ request }) => {
@@ -49,18 +50,13 @@ export const GET: APIRoute = async ({ request }) => {
 			})
 		}
 
+		await assertProviderDocumentSafeToReveal(row.id)
 		const previewUrl = await createProviderDocumentPreviewUrl({ fileUrl: row.fileUrl })
 		if (!previewUrl) {
-			return new Response(
-				JSON.stringify({
-					error: "preview_unavailable",
-					fileUrl: row.fileUrl,
-				}),
-				{
-					status: 404,
-					headers: { "Content-Type": "application/json" },
-				}
-			)
+			return new Response(JSON.stringify({ error: "preview_unavailable" }), {
+				status: 404,
+				headers: { "Content-Type": "application/json" },
+			})
 		}
 		await writeSensitiveDataAccessEvent({
 			requestId,

@@ -5,6 +5,8 @@ import {
 	desc,
 	eq,
 	ProviderDocument,
+	ProviderDocumentInspection,
+	ProviderDocumentProcessingJob,
 	ProviderUser,
 } from "@/shared/infrastructure/db/compat"
 
@@ -943,13 +945,6 @@ export async function submitProviderDocument(params: {
 
 		.catch(() => [])
 
-	for (const row of activeSameType) {
-		await db
-			.update(ProviderDocument)
-			.set({ status: "superseded", updatedAt: now })
-			.where(eq(ProviderDocument.id, row.id))
-	}
-
 	const metadataJson = {
 		fileName,
 		mimeType,
@@ -959,18 +954,42 @@ export async function submitProviderDocument(params: {
 		storage: fileUrl.startsWith("r2:") ? "r2" : fileUrl.startsWith("local://") ? "local" : "url",
 	}
 
-	await db.insert(ProviderDocument).values({
-		id,
-		providerId: params.providerId,
-		type,
-		status: "pending",
-		fileUrl,
-		metadataJson,
-		reviewNotes: null,
-		reviewedAt: null,
-		reviewedBy: null,
-		createdAt: now,
-		updatedAt: now,
+	await db.transaction(async (tx) => {
+		for (const row of activeSameType) {
+			await tx
+				.update(ProviderDocument)
+				.set({ status: "superseded", updatedAt: now })
+				.where(eq(ProviderDocument.id, row.id))
+		}
+		await tx.insert(ProviderDocument).values({
+			id,
+			providerId: params.providerId,
+			type,
+			status: "pending",
+			fileUrl,
+			metadataJson,
+			reviewNotes: null,
+			reviewedAt: null,
+			reviewedBy: null,
+			createdAt: now,
+			updatedAt: now,
+		})
+		await tx.insert(ProviderDocumentInspection).values({
+			id,
+			documentId: id,
+			providerId: params.providerId,
+			processingState: "queued",
+			createdAt: now,
+			updatedAt: now,
+		})
+		await tx.insert(ProviderDocumentProcessingJob).values({
+			id: `document-processing:${id}`,
+			documentId: id,
+			status: "queued",
+			availableAt: now,
+			createdAt: now,
+			updatedAt: now,
+		})
 	})
 
 	await writeProviderAuditLog({
@@ -1068,6 +1087,18 @@ export async function reviewProviderDocument(params: {
 		const error = new Error("not_pending")
 		;(error as Error & { status?: number }).status = 409
 		throw error
+	}
+
+	if (nextStatus === "verified") {
+		const { documentInspectionGate, getProviderDocumentInspection } =
+			await import("@/lib/documents/document-processing")
+		const gate = documentInspectionGate(await getProviderDocumentInspection(existing.id))
+		if (gate.blockers.length) {
+			const error = new Error("document_processing_gate_blocked")
+			;(error as Error & { status?: number; details?: string[] }).status = 422
+			;(error as Error & { status?: number; details?: string[] }).details = gate.blockers
+			throw error
+		}
 	}
 
 	const now = new Date()
