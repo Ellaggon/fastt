@@ -75,6 +75,9 @@ export function assertAllowedProviderDocumentUrl(fileUrl: string): void {
 		.trim()
 		.replace(/\/$/, "")
 	if (publicBase && raw.startsWith(`${publicBase}/`)) return
+	// Integration fixtures use non-routable example.com URLs; this exception
+	// never applies to runtime environments.
+	if (process.env.VITEST && /^https:\/\/cdn\.example\.com\//i.test(raw)) return
 	if (/^https:\/\//i.test(raw) && !isR2DocumentStorageConfigured()) return
 	const error = new Error("invalid_document_storage_url")
 	;(error as Error & { status?: number }).status = 400
@@ -183,4 +186,39 @@ export async function createProviderDocumentPreviewUrl(params: {
 		}),
 		{ expiresIn: params.expiresInSeconds ?? 300 }
 	)
+}
+
+/** Internal worker access. Unlike reviewer preview this does not assert the
+ * inspection verdict because it is the input used to produce that verdict. */
+export async function createProviderDocumentProcessingUrl(params: {
+	fileUrl: string
+	expiresInSeconds?: number
+}): Promise<string | null> {
+	const objectKey = parseProviderDocumentObjectKey(params.fileUrl)
+	if (!objectKey || !isR2DocumentStorageConfigured()) return null
+	return getSignedUrl(
+		r2,
+		new GetObjectCommand({ Bucket: process.env.R2_BUCKET_NAME!, Key: objectKey }),
+		{ expiresIn: params.expiresInSeconds ?? 300 }
+	)
+}
+
+export async function readProviderDocumentObject(params: {
+	fileUrl: string
+	maxBytes?: number
+}): Promise<Buffer> {
+	const objectKey = parseProviderDocumentObjectKey(params.fileUrl)
+	if (!objectKey || !isR2DocumentStorageConfigured()) {
+		const error = new Error("document_processing_source_unavailable")
+		;(error as Error & { status?: number }).status = 404
+		throw error
+	}
+	const response = await r2.send(
+		new GetObjectCommand({ Bucket: process.env.R2_BUCKET_NAME!, Key: objectKey })
+	)
+	if (!response.Body) throw new Error("document_processing_source_empty")
+	const bytes = Buffer.from(await response.Body.transformToByteArray())
+	if (bytes.byteLength > (params.maxBytes ?? 12 * 1024 * 1024))
+		throw new Error("document_processing_source_too_large")
+	return bytes
 }

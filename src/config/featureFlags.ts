@@ -6,6 +6,8 @@ export const FEATURE_FLAG_DEFAULTS = {
 	COMMAND_CENTER_V2_COMMANDS_ENABLED: false,
 	/** Rollback switch; disable only after all four domains pass the casework gate. */
 	COMMAND_CENTER_LEGACY_WRITE_ENABLED: true,
+	/** Hard-gates document preview/approval on antivirus and structural inspection. */
+	DOCUMENT_PROCESSING_ENFORCED: false,
 	SEARCH_V2_ENABLED: false,
 	SEARCH_SHADOW_COMPARE: false,
 	SEARCH_POLICY_BLOCKER_ENABLED: false,
@@ -29,6 +31,7 @@ export const ENV_ONLY_FEATURE_FLAGS = new Set<FeatureFlagName>([
 	"COMMAND_CENTER_V2_READ_ENABLED",
 	"COMMAND_CENTER_V2_COMMANDS_ENABLED",
 	"COMMAND_CENTER_LEGACY_WRITE_ENABLED",
+	"DOCUMENT_PROCESSING_ENFORCED",
 	"TOURS_CHECKOUT_ENABLED",
 	"TOURS_REFUND_HOURS_ENABLED",
 	"TOURS_CHECKIN_ENABLED",
@@ -183,6 +186,7 @@ export function getFeatureFlags(context?: FeatureFlagContext): Record<FeatureFla
 			"COMMAND_CENTER_LEGACY_WRITE_ENABLED",
 			context
 		),
+		DOCUMENT_PROCESSING_ENFORCED: getFeatureFlag("DOCUMENT_PROCESSING_ENFORCED", context),
 		SEARCH_V2_ENABLED: getFeatureFlag("SEARCH_V2_ENABLED", context),
 		SEARCH_SHADOW_COMPARE: getFeatureFlag("SEARCH_SHADOW_COMPARE", context),
 		SEARCH_POLICY_BLOCKER_ENABLED: getFeatureFlag("SEARCH_POLICY_BLOCKER_ENABLED", context),
