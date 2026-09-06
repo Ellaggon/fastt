@@ -38,6 +38,46 @@ const holderMatchStatus = {
 		class: "border-slate-200 bg-slate-50 text-slate-800",
 	},
 }
+const processingLabels: Record<string, string> = {
+	queued: "En cola",
+	processing: "Procesando",
+	completed: "Completado",
+	blocked: "Bloqueado",
+	failed: "Fallido",
+	awaiting_configuration: "Requiere configuración",
+	pending: "Pendiente",
+	clean: "Limpio",
+	infected: "Amenaza detectada",
+	unavailable: "No disponible",
+	error: "Error",
+	valid: "Válido",
+	suspicious: "Sospechoso",
+	invalid: "Inválido",
+	not_supported: "No compatible",
+	clear: "Sin señales",
+	suspected: "Posible manipulación",
+	inconclusive: "No concluyente",
+}
+const processingTone = (status: string) =>
+	["completed", "clean", "valid", "clear"].includes(status)
+		? "border-emerald-200 bg-emerald-50 text-emerald-900"
+		: ["blocked", "infected", "suspicious", "invalid", "suspected", "failed", "error"].includes(
+					status
+			  )
+			? "border-red-200 bg-red-50 text-red-900"
+			: "border-amber-200 bg-amber-50 text-amber-950"
+const processingErrorMessages: Record<string, string> = {
+	document_analysis_gateway_not_configured:
+		"El análisis especializado aún no está configurado. Mantén la revisión manual y no interpretes este estado como archivo limpio.",
+	document_processing_source_unavailable:
+		"El archivo original no está disponible para inspección. Solicita una nueva carga antes de aprobar.",
+	document_processing_source_missing:
+		"El registro no contiene un archivo original. Solicita una nueva carga antes de aprobar.",
+	document_format_not_recognized:
+		"El formato real no pudo reconocerse y el documento permanece bloqueado.",
+	document_processing_source_too_large:
+		"El archivo excede el límite técnico permitido y debe volver a cargarse.",
+}
 ---
 
 <section
@@ -177,6 +217,84 @@ const holderMatchStatus = {
 					</div>
 				)}
 			</div>
+		)
+	}
+
+	{
+		evidence.artifact?.kind === "document" && (
+			<section
+				class="rounded-xl border border-slate-200 p-4"
+				aria-labelledby="document-analysis-title"
+			>
+				<div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+					<div>
+						<h3 id="document-analysis-title" class="text-sm font-semibold">
+							Seguridad y extracción automática
+						</h3>
+						<p class="mt-1 text-xs text-slate-600">
+							El archivo permanece en cuarentena lógica hasta completar los controles obligatorios.
+						</p>
+					</div>
+					<span
+						class:list={[
+							"w-fit rounded-full border px-2.5 py-1 text-xs font-semibold",
+							processingTone(evidence.artifact.inspection?.processingState ?? "pending"),
+						]}
+					>
+						{processingLabels[evidence.artifact.inspection?.processingState ?? "pending"] ??
+							evidence.artifact.inspection?.processingState ??
+							"Pendiente"}
+					</span>
+				</div>
+				{evidence.artifact.inspection ? (
+					<>
+						<dl class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+							{[
+								["Antivirus", evidence.artifact.inspection.malwareStatus],
+								["OCR", evidence.artifact.inspection.ocrStatus],
+								["Extracción", evidence.artifact.inspection.extractionStatus],
+								["Manipulación", evidence.artifact.inspection.tamperStatus],
+							].map(([label, status]) => (
+								<div class:list={["rounded-lg border p-3", processingTone(status)]}>
+									<dt class="text-xs font-medium opacity-75">{label}</dt>
+									<dd class="mt-1 text-sm font-semibold">{processingLabels[status] ?? status}</dd>
+								</div>
+							))}
+						</dl>
+						<div class="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500">
+							<span>
+								Formato detectado: {evidence.artifact.inspection.detectedMimeType ?? "pendiente"}
+							</span>
+							<span>
+								Huella:{" "}
+								{evidence.artifact.inspection.sha256
+									? `${evidence.artifact.inspection.sha256.slice(0, 12)}…`
+									: "pendiente"}
+							</span>
+							<span>
+								Campos extraídos: {evidence.artifact.inspection.extractedFieldKeys.length}
+							</span>
+						</div>
+						{evidence.artifact.inspection.extractedFieldKeys.length > 0 && (
+							<p class="mt-2 text-xs text-slate-500">
+								Campos detectados: {evidence.artifact.inspection.extractedFieldKeys.join(", ")}. Los
+								valores sensibles no se muestran en este resumen.
+							</p>
+						)}
+						{evidence.artifact.inspection.errorCode && (
+							<p class="mt-3 text-xs text-amber-800">
+								Atención operativa:{" "}
+								{processingErrorMessages[evidence.artifact.inspection.errorCode] ??
+									"La inspección técnica necesita atención. Consulta el evento operativo antes de decidir."}
+							</p>
+						)}
+					</>
+				) : (
+					<p class="mt-3 text-sm text-amber-800">
+						Este documento todavía no ingresó a la cola técnica de inspección.
+					</p>
+				)}
+			</section>
 		)
 	}
 

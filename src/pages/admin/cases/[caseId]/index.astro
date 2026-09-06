@@ -35,6 +35,16 @@ const legacyHref = workspace
 	? `/admin/providers?filter=${legacyFilter}&providerId=${encodeURIComponent(workspace.case.providerId)}`
 	: "/admin/providers"
 const notice = Astro.url.searchParams.get("notice")
+const caseActionable = Boolean(
+	workspace &&
+	["open", "in_review", "waiting_information", "blocked"].includes(workspace.case.status)
+)
+const noticeMessage =
+	notice === "assigned"
+		? "El caso quedó asignado correctamente."
+		: notice === "decision_pending_second_control"
+			? "La propuesta se registró y quedó pendiente de segundo control."
+			: "La decisión se aplicó correctamente. El expediente quedó resuelto."
 ---
 
 <InternalAdminLayout
@@ -47,10 +57,9 @@ const notice = Astro.url.searchParams.get("notice")
 					<div
 						class="fastt-notice rounded-xl border border-emerald-400 bg-emerald-950/50 px-4 py-3 text-sm text-emerald-100"
 						role="status"
+						data-command-success
 					>
-						{notice === "assigned"
-							? "El caso quedó asignado correctamente."
-							: "La decisión quedó registrada."}
+						{noticeMessage}
 					</div>
 				)}
 				<div class="fastt-card sticky top-[4.25rem] z-30 rounded-2xl border border-slate-700 bg-slate-900/95 p-4 shadow-xl backdrop-blur">
@@ -219,7 +228,7 @@ const notice = Astro.url.searchParams.get("notice")
 									</span>
 								</>
 							</div>
-							{commandsEnabled ? (
+							{commandsEnabled && caseActionable ? (
 								<form
 									class="mt-5 space-y-4"
 									data-case-command
@@ -290,6 +299,26 @@ const notice = Astro.url.searchParams.get("notice")
 									/>
 									<Button type="submit">Proponer decisión</Button>
 								</form>
+							) : !caseActionable ? (
+								<div
+									class="fastt-notice mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"
+									data-case-closed
+								>
+									<p class="font-semibold">Caso cerrado: no admite nuevas decisiones</p>
+									<p class="mt-1">
+										La decisión quedó aplicada a la fuente canónica. Consulta la cronología o la
+										auditoría para revisar el resultado.
+									</p>
+									<div class="mt-3">
+										<Button
+											href={`/admin/audit?providerId=${workspace.case.providerId}&entityId=${workspace.case.id}`}
+											variant="secondary"
+											size="sm"
+										>
+											Ver auditoría de la decisión
+										</Button>
+									</div>
+								</div>
 							) : (
 								<div class="fastt-card mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
 									<p class="text-sm text-slate-700">
@@ -330,7 +359,8 @@ const notice = Astro.url.searchParams.get("notice")
 					<aside class="space-y-4">
 						<Card>
 							<h2 class="font-semibold">Siguiente acción</h2>
-							{workspace.tasks.some((task) => !task.assigneeUserId && !task.assigneeEmail) ? (
+							{caseActionable &&
+							workspace.tasks.some((task) => !task.assigneeUserId && !task.assigneeEmail) ? (
 								commandsEnabled ? (
 									<form
 										class="mt-4"
@@ -352,7 +382,9 @@ const notice = Astro.url.searchParams.get("notice")
 									<p class="mt-2 text-sm text-slate-600">Activa comandos v2 para tomar el caso.</p>
 								)
 							) : (
-								<p class="mt-2 text-sm text-slate-600">El caso ya tiene responsable.</p>
+								<p class="mt-2 text-sm text-slate-600">
+									{caseActionable ? "El caso ya tiene responsable." : "El caso está cerrado."}
+								</p>
 							)}
 						</Card>
 						<Card>
@@ -506,9 +538,22 @@ const notice = Astro.url.searchParams.get("notice")
 	})
 
 	const forms = document.querySelectorAll<HTMLFormElement>("[data-case-command]")
+	const commandErrorMessage = (code: string) =>
+		({
+			case_not_actionable:
+				"El caso ya fue resuelto. Revisa la cronología o la auditoría; no se creó una segunda decisión.",
+			case_version_conflict:
+				"El expediente cambió mientras lo revisabas. Se actualizó para mostrar la versión vigente.",
+			approval_evidence_incomplete:
+				"No se puede aprobar hasta completar o corroborar la evidencia requerida.",
+			approval_evidence_review_comment_required:
+				"Explica la coincidencia probable de titularidad antes de proponer la aprobación.",
+		})[code] ?? code
 	for (const form of forms)
 		form.addEventListener("submit", async (event) => {
 			event.preventDefault()
+			if (form.dataset.submitting === "true") return
+			form.dataset.submitting = "true"
 			const button = form.querySelector<HTMLButtonElement>("button[type='submit']")
 			const message = form.querySelector<HTMLElement>("[data-command-message]")
 			if (button) button.disabled = true
@@ -536,16 +581,29 @@ const notice = Astro.url.searchParams.get("notice")
 				if (!response.ok) throw new Error(body?.error || `command_failed_${response.status}`)
 				if (message) {
 					message.className = "rounded-xl bg-emerald-100 px-4 py-3 text-sm text-emerald-800"
-					message.textContent = "Acción registrada. Actualizando el expediente…"
+					message.textContent = "Acción registrada correctamente. Actualizando el expediente…"
 				}
-				window.location.reload()
+				const destination = new URL(window.location.href)
+				const isAssignment = form.dataset.endpoint?.endsWith("/assign")
+				destination.searchParams.set(
+					"notice",
+					isAssignment
+						? "assigned"
+						: body?.pendingSecondControl
+							? "decision_pending_second_control"
+							: "decision_applied"
+				)
+				window.location.assign(`${destination.pathname}${destination.search}${destination.hash}`)
 			} catch (error) {
 				if (message) {
 					message.className = "rounded-xl bg-red-100 px-4 py-3 text-sm text-red-800"
 					message.textContent =
-						error instanceof Error ? error.message : "No se pudo completar la acción."
+						error instanceof Error
+							? commandErrorMessage(error.message)
+							: "No se pudo completar la acción."
 				}
 				if (button) button.disabled = false
+				form.dataset.submitting = "false"
 			}
 		})
 </script>
