@@ -107,8 +107,12 @@ export async function getCaseEvidence(workspace: Workspace): Promise<CaseEvidenc
 			accountHolderName: item.accountHolderName,
 		})
 	)
-	const verifiedDocuments = documents.filter((item) => item.status === "verified")
-	const pendingDocuments = documents.filter((item) => item.status === "pending")
+	const verifiedDocuments = documents.filter(
+		(item) => item.type === "government_id" && item.status === "verified"
+	)
+	const pendingDocuments = documents.filter(
+		(item) => item.type === "government_id" && item.status === "pending"
+	)
 	const commonSignals: EvidenceSignal[] = [
 		{
 			key: "identity_documents",

@@ -32,6 +32,38 @@ function commandError(code: string, status: number) {
 	return error
 }
 
+export function describeCaseDecisionEffect(input: {
+	domain: string
+	decision: string
+	requiresSecondControl?: boolean
+}) {
+	if (input.requiresSecondControl)
+		return "La propuesta se guardará y quedará pendiente de aprobación por otra persona; todavía no cambia la fuente."
+	if (input.decision === "request_information")
+		return "Se registrará una solicitud de información. El expediente quedará esperando respuesta y la fuente canónica no cambiará todavía."
+	if (input.domain === "documents")
+		return input.decision === "approved"
+			? "El documento se marcará verificado y el expediente se resolverá."
+			: "El documento se marcará rechazado y el expediente se resolverá con ese resultado."
+	if (input.domain === "fiscal")
+		return input.decision === "approved"
+			? "El registro fiscal se marcará verificado y el expediente se resolverá."
+			: "El registro fiscal quedará marcado para corrección y el expediente se resolverá."
+	if (input.domain === "payments")
+		return input.decision === "approved"
+			? "La cuenta para desembolsos se marcará validada y el expediente se resolverá."
+			: "La cuenta para desembolsos quedará marcada para corrección y el expediente se resolverá."
+	return input.decision === "approved"
+		? "La revisión de identidad se aprobará y el expediente se resolverá."
+		: "La revisión de identidad se rechazará y el expediente se resolverá."
+}
+
+function isDecisionAllowedForDomain(domain: string, decision: string) {
+	if (decision === "approved" || decision === "rejected" || decision === "request_information")
+		return true
+	return decision === "requires_attention" && (domain === "fiscal" || domain === "payments")
+}
+
 export async function proposeCaseDecision(input: {
 	caseId: string
 	expectedVersion: number
@@ -49,6 +81,8 @@ export async function proposeCaseDecision(input: {
 	const current = cases[0]
 	if (!current) throw commandError("case_not_found", 404)
 	if (!current.policyVersionId) throw commandError("case_policy_version_missing", 409)
+	if (!isDecisionAllowedForDomain(current.domain, input.decision))
+		throw commandError("decision_not_supported_for_domain", 422)
 	if (Number(current.version) !== input.expectedVersion)
 		throw commandError("case_version_conflict", 409)
 	if (!["open", "in_review", "waiting_information", "blocked"].includes(current.status))
@@ -88,6 +122,17 @@ export async function proposeCaseDecision(input: {
 			)
 			.returning({ id: ComplianceCase.id })
 		if (!claimed[0]) throw commandError("case_version_conflict", 409)
+		const pendingDecision = await tx
+			.select({ id: CaseDecision.id })
+			.from(CaseDecision)
+			.where(
+				and(
+					eq(CaseDecision.caseId, input.caseId),
+					inArray(CaseDecision.status, ["pending_approval", "approved", "applying", "failed"])
+				)
+			)
+			.limit(1)
+		if (pendingDecision.length) throw commandError("case_decision_pending_review", 409)
 		await tx.insert(CaseDecision).values({
 			id: decisionId,
 			caseId: input.caseId,
@@ -104,6 +149,11 @@ export async function proposeCaseDecision(input: {
 				domain: current.domain,
 				requiresSecondControl,
 				applicationPending: true,
+				effect: describeCaseDecisionEffect({
+					domain: current.domain,
+					decision: input.decision,
+					requiresSecondControl,
+				}),
 			},
 			createdAt: now,
 			updatedAt: now,
@@ -163,9 +213,12 @@ export async function assignCase(input: {
 			.where(
 				and(
 					eq(CaseTask.caseId, input.caseId),
+					isNull(CaseTask.assigneeUserId),
+					isNull(CaseTask.assigneeEmail),
 					inArray(CaseTask.status, ["open", "in_progress", "blocked"])
 				)
 			)
+		if (!tasks.length) throw commandError("case_already_assigned", 409)
 		for (const task of tasks) {
 			await tx
 				.update(CaseTask)
@@ -422,55 +475,54 @@ export async function applyCaseDecision(input: {
 					updatedAt: now,
 				})
 				.where(eq(CaseDecision.id, decision.id))
-			await tx
-				.insert(CaseActivityEvent)
-				.values({
-					id: crypto.randomUUID(),
-					caseId: caseRow.id,
-					eventType: domainResult.deferred ? "information_requested" : "decision_applied",
-					actorUserId: input.actorUserId,
-					summary: domainResult.deferred
-						? "La decisión requiere información antes de aplicarse"
-						: "Decisión aplicada a la fuente canónica",
-					metadataJson: { decisionId: decision.id, decision: decision.decision },
-					createdAt: now,
-				})
-			await tx
-				.insert(DomainEventOutbox)
-				.values({
-					id: crypto.randomUUID(),
-					eventType: domainResult.deferred ? "case.waiting_information" : "case.decision.applied",
-					aggregateType: "ComplianceCase",
-					aggregateId: caseRow.id,
-					dedupeKey: `case.decision.${domainResult.deferred ? "deferred" : "applied"}:${decision.id}`,
-					payloadJson: { caseId: caseRow.id, decisionId: decision.id, caseVersion: finalVersion },
-					status: "pending",
-					attempts: 0,
-					availableAt: now,
-					createdAt: now,
-				})
+			await tx.insert(CaseActivityEvent).values({
+				id: crypto.randomUUID(),
+				caseId: caseRow.id,
+				eventType: domainResult.deferred ? "information_requested" : "decision_applied",
+				actorUserId: input.actorUserId,
+				summary: domainResult.deferred
+					? "La decisión requiere información antes de aplicarse"
+					: "Decisión aplicada a la fuente canónica",
+				metadataJson: { decisionId: decision.id, decision: decision.decision },
+				createdAt: now,
+			})
+			await tx.insert(DomainEventOutbox).values({
+				id: crypto.randomUUID(),
+				eventType: domainResult.deferred ? "case.waiting_information" : "case.decision.applied",
+				aggregateType: "ComplianceCase",
+				aggregateId: caseRow.id,
+				dedupeKey: `case.decision.${domainResult.deferred ? "deferred" : "applied"}:${decision.id}`,
+				payloadJson: { caseId: caseRow.id, decisionId: decision.id, caseVersion: finalVersion },
+				status: "pending",
+				attempts: 0,
+				availableAt: now,
+				createdAt: now,
+			})
 		})
-		return { caseVersion: finalVersion, applied: !domainResult.deferred, replayed: false }
+		return {
+			caseVersion: finalVersion,
+			applied: !domainResult.deferred,
+			caseStatus: domainResult.deferred ? "waiting_information" : "resolved",
+			replayed: false,
+		}
 	} catch (error) {
 		await db.transaction(async (tx) => {
 			await tx
 				.update(CaseDecision)
 				.set({ status: "failed", updatedAt: new Date() })
 				.where(eq(CaseDecision.id, decision.id))
-			await tx
-				.insert(CaseActivityEvent)
-				.values({
-					id: crypto.randomUUID(),
-					caseId: caseRow.id,
-					eventType: "decision_failed",
-					actorUserId: input.actorUserId,
-					summary: "La decisión no pudo aplicarse; requiere revisión",
-					metadataJson: {
-						decisionId: decision.id,
-						errorCode: error instanceof Error ? error.message : "unknown",
-					},
-					createdAt: new Date(),
-				})
+			await tx.insert(CaseActivityEvent).values({
+				id: crypto.randomUUID(),
+				caseId: caseRow.id,
+				eventType: "decision_failed",
+				actorUserId: input.actorUserId,
+				summary: "La decisión no pudo aplicarse; requiere revisión",
+				metadataJson: {
+					decisionId: decision.id,
+					errorCode: error instanceof Error ? error.message : "unknown",
+				},
+				createdAt: new Date(),
+			})
 		})
 		throw error
 	}
@@ -507,31 +559,27 @@ export async function approveAndApplyCaseDecision(input: {
 			)
 			.returning({ id: ComplianceCase.id })
 		if (!claimed[0]) throw commandError("case_version_conflict", 409)
-		await tx
-			.insert(CaseDecisionApproval)
-			.values({
-				id: crypto.randomUUID(),
-				decisionId: decision.id,
-				actorUserId: input.actorUserId,
-				vote: "approved",
-				reason: String(input.reason ?? "").trim() || undefined,
-				createdAt: now,
-			})
+		await tx.insert(CaseDecisionApproval).values({
+			id: crypto.randomUUID(),
+			decisionId: decision.id,
+			actorUserId: input.actorUserId,
+			vote: "approved",
+			reason: String(input.reason ?? "").trim() || undefined,
+			createdAt: now,
+		})
 		await tx
 			.update(CaseDecision)
 			.set({ status: "approved", updatedAt: now })
 			.where(eq(CaseDecision.id, decision.id))
-		await tx
-			.insert(CaseActivityEvent)
-			.values({
-				id: crypto.randomUUID(),
-				caseId: decision.caseId,
-				eventType: "decision_approved",
-				actorUserId: input.actorUserId,
-				summary: "Segundo control aprobado",
-				metadataJson: { decisionId: decision.id },
-				createdAt: now,
-			})
+		await tx.insert(CaseActivityEvent).values({
+			id: crypto.randomUUID(),
+			caseId: decision.caseId,
+			eventType: "decision_approved",
+			actorUserId: input.actorUserId,
+			summary: "Segundo control aprobado",
+			metadataJson: { decisionId: decision.id },
+			createdAt: now,
+		})
 	})
 	return applyCaseDecision({
 		decisionId: decision.id,
@@ -573,45 +621,39 @@ export async function rejectCaseDecisionApproval(input: {
 			)
 			.returning({ id: ComplianceCase.id })
 		if (!claimed[0]) throw commandError("case_version_conflict", 409)
-		await tx
-			.insert(CaseDecisionApproval)
-			.values({
-				id: crypto.randomUUID(),
-				decisionId: decision.id,
-				actorUserId: input.actorUserId,
-				vote: "rejected",
-				reason,
-				createdAt: now,
-			})
+		await tx.insert(CaseDecisionApproval).values({
+			id: crypto.randomUUID(),
+			decisionId: decision.id,
+			actorUserId: input.actorUserId,
+			vote: "rejected",
+			reason,
+			createdAt: now,
+		})
 		await tx
 			.update(CaseDecision)
 			.set({ status: "rejected", updatedAt: now })
 			.where(eq(CaseDecision.id, decision.id))
-		await tx
-			.insert(CaseActivityEvent)
-			.values({
-				id: crypto.randomUUID(),
-				caseId: decision.caseId,
-				eventType: "decision_rejected_by_checker",
-				actorUserId: input.actorUserId,
-				summary: "Segundo control devolvió la propuesta",
-				metadataJson: { decisionId: decision.id, reason },
-				createdAt: now,
-			})
-		await tx
-			.insert(DomainEventOutbox)
-			.values({
-				id: crypto.randomUUID(),
-				eventType: "case.decision.rejected_by_checker",
-				aggregateType: "ComplianceCase",
-				aggregateId: decision.caseId,
-				dedupeKey: `case.decision.rejected_by_checker:${decision.id}`,
-				payloadJson: { caseId: decision.caseId, decisionId: decision.id, caseVersion: nextVersion },
-				status: "pending",
-				attempts: 0,
-				availableAt: now,
-				createdAt: now,
-			})
+		await tx.insert(CaseActivityEvent).values({
+			id: crypto.randomUUID(),
+			caseId: decision.caseId,
+			eventType: "decision_rejected_by_checker",
+			actorUserId: input.actorUserId,
+			summary: "Segundo control devolvió la propuesta",
+			metadataJson: { decisionId: decision.id, reason },
+			createdAt: now,
+		})
+		await tx.insert(DomainEventOutbox).values({
+			id: crypto.randomUUID(),
+			eventType: "case.decision.rejected_by_checker",
+			aggregateType: "ComplianceCase",
+			aggregateId: decision.caseId,
+			dedupeKey: `case.decision.rejected_by_checker:${decision.id}`,
+			payloadJson: { caseId: decision.caseId, decisionId: decision.id, caseVersion: nextVersion },
+			status: "pending",
+			attempts: 0,
+			availableAt: now,
+			createdAt: now,
+		})
 	})
 	return { caseVersion: nextVersion, rejected: true }
 }

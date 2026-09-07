@@ -7,6 +7,7 @@ import {
 	inArray,
 	lte,
 	Provider,
+	sql,
 	User,
 } from "@/shared/infrastructure/db/compat"
 
@@ -18,6 +19,7 @@ export type AuditRiskLevelFilter = (typeof AUDIT_RISK_LEVELS)[number]
 
 export type AuditConsoleFilters = {
 	providerId?: string
+	caseId?: string
 	requestId?: string
 	action?: string
 	outcome?: AuditOutcomeFilter
@@ -52,6 +54,7 @@ export function parseAuditConsoleFilters(searchParams: URLSearchParams): AuditCo
 	const riskLevel = nonEmpty(searchParams.get("risk"), 24)
 	return {
 		providerId: nonEmpty(searchParams.get("providerId")),
+		caseId: nonEmpty(searchParams.get("caseId")),
 		requestId: nonEmpty(searchParams.get("requestId")),
 		action: nonEmpty(searchParams.get("action")),
 		outcome: isOutcome(outcome) ? outcome : undefined,
@@ -89,6 +92,15 @@ export async function loadAuditConsoleEvents(
 ): Promise<AuditConsoleEvent[]> {
 	const conditions = []
 	if (filters.providerId) conditions.push(eq(AuditEvent.providerId, filters.providerId))
+	if (filters.caseId)
+		conditions.push(sql`(
+			(${AuditEvent.entityType} = 'ComplianceCase' AND ${AuditEvent.entityId} = ${filters.caseId})
+			OR (${AuditEvent.entityType} = 'CaseDecision' AND EXISTS (
+				SELECT 1 FROM "CaseDecision" decision
+				WHERE decision."id" = ${AuditEvent.entityId} AND decision."caseId" = ${filters.caseId}
+			))
+			OR coalesce(${AuditEvent.contextJson}->>'caseId', '') = ${filters.caseId}
+		)`)
 	if (filters.requestId) conditions.push(eq(AuditEvent.requestId, filters.requestId))
 	if (filters.action) conditions.push(eq(AuditEvent.action, filters.action))
 	if (filters.outcome) conditions.push(eq(AuditEvent.outcome, filters.outcome))

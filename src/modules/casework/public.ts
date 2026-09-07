@@ -4,12 +4,19 @@
 export {
 	ACTIVE_CASE_STATUSES,
 	CASE_DOMAINS,
+	COMMAND_CENTER_QUEUES,
+	PROVIDER_WORK_VOCABULARY,
 	type CaseListFilters,
+	type ProviderOperationalArea,
 	getCaseWorkspace,
 	getCommandCenterSummary,
 	getDecisionAuthorizationContext,
 	getProvider360,
+	getProviderOperationalSnapshot,
 	listCommandCenterCases,
+	parseCommandCenterQueueFilters,
+	prioritizeProviderPendingCases,
+	summarizeProviderCaseCounts,
 	listSavedCaseViews,
 } from "./application/queries/command-center"
 
@@ -24,6 +31,7 @@ export {
 export {
 	applyCaseDecision,
 	approveAndApplyCaseDecision,
+	describeCaseDecisionEffect,
 	assignCase,
 	deleteCaseView,
 	proposeCaseDecision,
