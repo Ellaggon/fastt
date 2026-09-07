@@ -9,6 +9,8 @@
     "seed:geo:bolivia": "node --import dotenv/config --import tsx src/scripts/seed-bolivia-geo-places.ts",
     "certify:marketplace:commercial": "node --import dotenv/config --import tsx src/scripts/certify-marketplace-commercialization.ts",
     "certify:command-center:v2": "node --import dotenv/config --import tsx src/scripts/certify-command-center-v2.ts",
+
+    "test:command-center:phase-e": "FASTT_DATA_ENV=test vitest run tests/unit/command-center-pilot-rollout.test.ts tests/ui/casework-phase-d.test.ts tests/ui/casework-phase-e.test.ts tests/architecture/command-center-phase3.test.ts",
     "certify:holder-match": "node --import dotenv/config --import tsx src/scripts/prepare-holder-match-certification-fixtures.ts",
     "audit:geo:retirement": "tsx scripts/db/verify-legacy-geography-retirement.ts",
     "audit:geo:legacy-products": "node --import dotenv/config --import tsx scripts/db/audit-legacy-geography-products.ts",

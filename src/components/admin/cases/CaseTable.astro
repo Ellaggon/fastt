@@ -2,18 +2,28 @@
 import CaseStatusBadge from "./CaseStatusBadge.astro"
 
 const { items = [], emptyMessage = "No hay casos en esta vista." } = Astro.props
-const fmt = new Intl.DateTimeFormat("es-BO", { dateStyle: "short", timeStyle: "short" })
+const fmt = new Intl.DateTimeFormat("es-BO", {
+	dateStyle: "short",
+	timeStyle: "short",
+	timeZone: "America/La_Paz",
+})
 const domainLabels: Record<string, string> = {
 	verification: "Identidad y negocio",
 	fiscal: "Fiscalidad",
 	documents: "Documentos",
 	payments: "Pagos",
 }
+const returnTo = encodeURIComponent(Astro.url.pathname + Astro.url.search)
 ---
 
 {
 	items.length ? (
-		<div class="fastt-card overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+		<div
+			class="fastt-card overflow-x-auto rounded-2xl border border-slate-200 bg-white"
+			tabindex="0"
+			role="region"
+			aria-label="Casos operativos; desplaza horizontalmente para ver todas las columnas"
+		>
 			<table class="min-w-full border-collapse text-left text-sm">
 				<caption class="sr-only">Casos operativos</caption>
 				<thead class="bg-slate-50 text-xs tracking-wide text-slate-600 uppercase">
@@ -46,7 +56,7 @@ const domainLabels: Record<string, string> = {
 						<tr class="align-top focus-within:bg-slate-50 hover:bg-slate-50">
 							<td class="px-4 py-4">
 								<a
-									href={`/admin/cases/${encodeURIComponent(item.id)}`}
+									href={`/admin/cases/${encodeURIComponent(item.id)}?returnTo=${returnTo}`}
 									class="font-semibold text-slate-950 underline-offset-4 hover:underline focus:ring-2 focus:ring-amber-500 focus:outline-none"
 								>
 									{item.caseNumber}
@@ -57,7 +67,10 @@ const domainLabels: Record<string, string> = {
 								<a class="font-medium hover:underline" href={`/admin/providers/${item.providerId}`}>
 									{item.providerName || item.providerLegalName || "Proveedor sin nombre"}
 								</a>
-								<p class="mt-1 font-mono text-[11px] text-slate-500">{item.providerId}</p>
+								<details class="mt-1 text-xs text-slate-600">
+									<summary class="cursor-pointer">ID interno</summary>
+									<span class="font-mono break-all">{item.providerId}</span>
+								</details>
 							</td>
 							<td class="px-4 py-4">{domainLabels[item.domain] ?? item.domain}</td>
 							<td class="px-4 py-4">

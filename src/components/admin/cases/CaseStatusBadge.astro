@@ -4,6 +4,11 @@ import Badge from "@/components/ui/Badge.astro"
 const { value, kind = "status" } = Astro.props
 const labels: Record<string, string> = {
 	open: "Abierto",
+	triage: "Revisión inicial",
+	evidence: "Revisión de evidencia",
+	decision: "Decisión",
+	completed: "Completada",
+	breached: "Plazo vencido",
 	in_review: "En revisión",
 	waiting_information: "Esperando información",
 	blocked: "Bloqueado",
@@ -37,7 +42,8 @@ const variants: Record<string, "neutral" | "info" | "success" | "warning" | "err
 	due_soon: "warning",
 	running: "success",
 }
-const label = labels[String(value)] ?? String(value || "—")
+const label =
+	kind === "risk" && value === "high" ? "Alto" : (labels[String(value)] ?? "Sin evaluación")
 const prefix = kind === "risk" ? "Riesgo " : kind === "priority" ? "Prioridad " : ""
 ---
 
