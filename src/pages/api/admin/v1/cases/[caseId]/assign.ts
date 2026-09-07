@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro"
 
-import { getFeatureFlag } from "@/config/featureFlags"
+import { getFeatureFlag, isCommandCenterV2PilotProvider } from "@/config/featureFlags"
 import { requireInternalPermission } from "@/lib/auth/internal-authorization"
 import {
 	idempotencyKeyFromRequest,
@@ -11,7 +11,7 @@ import {
 	type SensitiveCommandAudit,
 } from "@/lib/commands/sensitive-command"
 import { requestIdFromRequest, withRequestId } from "@/lib/http/request-context"
-import { assignCase } from "@/modules/casework/public"
+import { assignCase, getCaseWorkspace } from "@/modules/casework/public"
 
 async function payload(request: Request) {
 	const type = request.headers.get("content-type") ?? ""
@@ -46,6 +46,10 @@ export const POST: APIRoute = async ({ request, params, redirect }) => {
 			},
 			authorize: async () => {
 				const principal = await requireInternalPermission(request, "case.assign")
+				const workspace = await getCaseWorkspace(caseId)
+				if (!workspace) throw Object.assign(new Error("case_not_found"), { status: 404 })
+				if (!isCommandCenterV2PilotProvider(workspace.case.providerId))
+					throw Response.json({ error: "casework_pilot_scope_required" }, { status: 403 })
 				audit.actorUserId = principal.user.id
 				audit.actorRoleKeys = principal.roles
 				;(audit as SensitiveCommandAudit & { actorEmail?: string }).actorEmail =

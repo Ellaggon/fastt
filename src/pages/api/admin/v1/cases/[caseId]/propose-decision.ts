@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro"
 
-import { getFeatureFlag } from "@/config/featureFlags"
+import { getFeatureFlag, isCommandCenterV2PilotProvider } from "@/config/featureFlags"
 import { requireInternalPermission } from "@/lib/auth/internal-authorization"
 import { requireRecentInternalAuthentication } from "@/lib/auth/internal-step-up"
 import {
@@ -64,6 +64,8 @@ export const POST: APIRoute = async ({ request, params, redirect }) => {
 				const principal = await requireInternalPermission(request, "case.decision.propose")
 				const workspace = await getCaseWorkspace(caseId)
 				if (!workspace) throw Object.assign(new Error("case_not_found"), { status: 404 })
+				if (!isCommandCenterV2PilotProvider(workspace.case.providerId))
+					throw Response.json({ error: "casework_pilot_scope_required" }, { status: 403 })
 				const permission = {
 					verification: "provider.verification.review",
 					fiscal: "provider.fiscal.review",
@@ -123,8 +125,14 @@ export const POST: APIRoute = async ({ request, params, redirect }) => {
 				}
 			},
 		})
-		if (!request.headers.get("content-type")?.includes("application/json"))
-			return redirect(`/admin/cases/${encodeURIComponent(caseId)}?notice=decision_proposed`, 303)
+		if (!request.headers.get("content-type")?.includes("application/json")) {
+			const notice = command.response.requiresSecondControl
+				? "decision_pending_second_control"
+				: "caseStatus" in command.response && command.response.caseStatus === "waiting_information"
+					? "decision_waiting_information"
+					: "decision_applied"
+			return redirect(`/admin/cases/${encodeURIComponent(caseId)}?notice=${notice}`, 303)
+		}
 		return withRequestId(
 			Response.json({ ok: true, ...command.response, idempotent: command.replayed }),
 			requestId
