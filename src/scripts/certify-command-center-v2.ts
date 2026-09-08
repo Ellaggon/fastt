@@ -69,6 +69,24 @@ function assertion(condition: unknown, code: string): asserts condition {
 	if (!condition) throw new Error(code)
 }
 
+async function assertFixtureClassification(allowMissing = false) {
+	const [provider] = await db
+		.select({
+			purpose: Provider.accountPurpose,
+			classification: Provider.dataClassification,
+			status: Provider.status,
+		})
+		.from(Provider)
+		.where(eq(Provider.id, PROVIDER_ID))
+	if (!provider && allowMissing) return
+	assertion(
+		provider?.purpose === "integration_certification" &&
+			provider.classification === "fixture" &&
+			provider.status === "inactive",
+		"CERTIFICATION_PROVIDER_CLASSIFICATION_REQUIRED"
+	)
+}
+
 function certificationPdf() {
 	const objects = [
 		"<< /Type /Catalog /Pages 2 0 R >>",
@@ -92,6 +110,7 @@ function certificationPdf() {
 
 async function attachDocument() {
 	assertion(ATTACHMENT_CONFIRMED, "CERTIFICATION_ATTACHMENT_CONFIRMATION_REQUIRED")
+	await assertFixtureClassification()
 	const [document] = await db
 		.select({
 			id: ProviderDocument.id,
@@ -143,6 +162,7 @@ async function attachDocument() {
 
 async function prepare() {
 	assertion(CONFIRMED, "CERTIFICATION_CONFIRMATION_REQUIRED")
+	await assertFixtureClassification(true)
 	const now = new Date()
 
 	await db
@@ -250,6 +270,7 @@ async function prepare() {
 }
 
 async function verify() {
+	await assertFixtureClassification()
 	const cases = await db
 		.select({
 			id: ComplianceCase.id,
