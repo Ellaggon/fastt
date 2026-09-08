@@ -5,25 +5,82 @@ import Select from "@/components/ui/Select.astro"
 import Textarea from "@/components/ui/Textarea.astro"
 import CaseStatusBadge from "@/components/admin/cases/CaseStatusBadge.astro"
 import CaseEvidencePanel from "@/components/admin/cases/CaseEvidencePanel.astro"
-import { getFeatureFlag } from "@/config/featureFlags"
+import { getFeatureFlag, isCommandCenterV2PilotProvider } from "@/config/featureFlags"
 import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
 import { requireInternalPermission } from "@/lib/auth/internal-authorization"
-import { getCaseEvidence, getCaseWorkspace } from "@/modules/casework/public"
+import {
+	describeCaseDecisionEffect,
+	getCaseEvidence,
+	getCaseWorkspace,
+} from "@/modules/casework/public"
 
 let principal: Awaited<ReturnType<typeof requireInternalPermission>> | null = null
+let accessRestricted = false
 try {
 	principal = await requireInternalPermission(Astro.request, "provider.compliance.read")
 } catch (response) {
 	if (response instanceof Response && response.status === 401) return Astro.redirect("/SignInPage")
+	if (response instanceof Response && response.status === 403) accessRestricted = true
+	else throw response
 }
 const caseId = String(Astro.params.caseId ?? "")
 const workspace = principal ? await getCaseWorkspace(caseId) : null
 if (principal && !workspace) return new Response("Caso no encontrado", { status: 404 })
+const decisionPermissionByDomain: Record<
+	string,
+	| "provider.verification.review"
+	| "provider.fiscal.review"
+	| "provider.document.review"
+	| "provider.payment.review"
+> = {
+	verification: "provider.verification.review",
+	fiscal: "provider.fiscal.review",
+	documents: "provider.document.review",
+	payments: "provider.payment.review",
+}
+let canProposeDecision = false
+let canReviewDecision = false
+let canAssignCase = false
+async function hasPermission(permission: Parameters<typeof requireInternalPermission>[1]) {
+	try {
+		await requireInternalPermission(
+			Astro.request,
+			permission,
+			workspace ? { type: "provider", id: workspace.case.providerId } : undefined
+		)
+		return true
+	} catch (response) {
+		if (response instanceof Response && response.status === 403) return false
+		throw response
+	}
+}
+if (principal && workspace) {
+	canReviewDecision =
+		(await hasPermission("case.decision.approve_high_risk")) &&
+		(await hasPermission(decisionPermissionByDomain[workspace.case.domain]))
+	canAssignCase = await hasPermission("case.assign")
+	try {
+		await requireInternalPermission(Astro.request, "case.decision.propose")
+		await requireInternalPermission(
+			Astro.request,
+			decisionPermissionByDomain[workspace.case.domain] ?? "provider.compliance.read",
+			{ type: "provider", id: workspace.case.providerId }
+		)
+		canProposeDecision = true
+	} catch (response) {
+		if (!(response instanceof Response) || response.status !== 403) throw response
+	}
+}
 const evidence = workspace ? await getCaseEvidence(workspace) : null
 const commandsEnabled = getFeatureFlag("COMMAND_CENTER_V2_COMMANDS_ENABLED", {
 	request: Astro.request,
 })
-const fmt = new Intl.DateTimeFormat("es-BO", { dateStyle: "medium", timeStyle: "short" })
+const caseInPilot = workspace ? isCommandCenterV2PilotProvider(workspace.case.providerId) : false
+const fmt = new Intl.DateTimeFormat("es-BO", {
+	dateStyle: "medium",
+	timeStyle: "short",
+	timeZone: "America/La_Paz",
+})
 const domainLabels: Record<string, string> = {
 	verification: "Identidad y negocio",
 	fiscal: "Fiscalidad",
@@ -35,432 +92,726 @@ const legacyHref = workspace
 	? `/admin/providers?filter=${legacyFilter}&providerId=${encodeURIComponent(workspace.case.providerId)}`
 	: "/admin/providers"
 const notice = Astro.url.searchParams.get("notice")
+const requestedReturn = Astro.url.searchParams.get("returnTo") || ""
+const returnHref = /^\/admin\/(queues\/[a-z-]+|work|cases)\/?(?:\?[^#]*)?$/.test(requestedReturn)
+	? requestedReturn
+	: workspace
+		? `/admin/providers/${encodeURIComponent(workspace.case.providerId)}`
+		: "/admin/work"
 const caseActionable = Boolean(
 	workspace &&
 	["open", "in_review", "waiting_information", "blocked"].includes(workspace.case.status)
 )
+const decisionLabels: Record<string, string> = {
+	approved: "Aprobar",
+	rejected: "Rechazar",
+	request_information: "Solicitar información",
+	requires_attention: "Marcar para corrección",
+}
+const allowedDecisionValues = workspace
+	? [...new Set(workspace.reasons.map((reason) => reason.decision))].filter(
+			(decision) =>
+				decision !== "requires_attention" || ["fiscal", "payments"].includes(workspace.case.domain)
+		)
+	: []
+const decisionEffects = workspace
+	? Object.fromEntries(
+			allowedDecisionValues.map((decision) => [
+				decision,
+				describeCaseDecisionEffect({
+					domain: workspace.case.domain,
+					decision,
+					requiresSecondControl: workspace.case.riskTier === "high",
+				}),
+			])
+		)
+	: {}
+const taskLabels: Record<string, string> = {
+	tax_identity_review: "Revisar identidad fiscal",
+	payout_account_review: "Revisar cuenta para desembolsos",
+	document_review: "Revisar documento",
+	identity_review: "Revisar identidad",
+	business_verification: "Revisar identidad y negocio",
+}
+const reasonById = new Map((workspace?.reasons ?? []).map((reason) => [reason.id, reason]))
+const pendingDecisionReview =
+	workspace?.decisions.some((decision) =>
+		["pending_approval", "approved", "applying", "failed"].includes(decision.status)
+	) ?? false
 const noticeMessage =
 	notice === "assigned"
 		? "El caso quedó asignado correctamente."
 		: notice === "decision_pending_second_control"
 			? "La propuesta se registró y quedó pendiente de segundo control."
-			: "La decisión se aplicó correctamente. El expediente quedó resuelto."
+			: notice === "decision_waiting_information"
+				? "La solicitud quedó registrada. El expediente espera información antes de continuar."
+				: notice === "decision_returned"
+					? "La propuesta fue devuelta para revisión. El expediente sigue abierto."
+					: "La decisión se aplicó correctamente. El expediente quedó resuelto."
 ---
 
 <InternalAdminLayout
 	title={workspace ? `${workspace.case.caseNumber} · Centro de Mando` : "Caso · Centro de Mando"}
 >
 	{
-		workspace && (
-			<section class="space-y-6" data-case-workspace data-case-id={workspace.case.id}>
-				{notice && (
-					<div
-						class="fastt-notice rounded-xl border border-emerald-400 bg-emerald-950/50 px-4 py-3 text-sm text-emerald-100"
-						role="status"
-						data-command-success
-					>
-						{noticeMessage}
-					</div>
-				)}
-				<div class="fastt-card sticky top-[4.25rem] z-30 rounded-2xl border border-slate-700 bg-slate-900/95 p-4 shadow-xl backdrop-blur">
-					<div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-						<div>
-							<>
-								<div class="flex flex-wrap items-center gap-2">
-									<>
-										<span class="font-mono text-xs text-amber-200">
-											{workspace.case.caseNumber}
-										</span>
-										<CaseStatusBadge value={workspace.case.status} />
-										<CaseStatusBadge value={workspace.case.priority} kind="priority" />
-										<CaseStatusBadge value={workspace.case.riskTier} kind="risk" />
-									</>
+		accessRestricted ? (
+			<section class="space-y-6">
+				<Card class="bg-slate-100">
+					<h1 class="text-xl font-semibold text-slate-900">Acceso restringido</h1>
+					<p class="mt-2 text-sm text-slate-600">
+						Tu cuenta no tiene permiso para consultar este expediente.
+					</p>
+				</Card>
+			</section>
+		) : (
+			workspace && (
+				<section
+					class="space-y-6"
+					data-case-workspace
+					data-case-id={workspace.case.id}
+					data-actor-id={principal?.user.id}
+				>
+					{notice &&
+						((notice === "assigned" &&
+							workspace.tasks.some((task) => task.assigneeUserId === principal?.user.id)) ||
+							(notice === "decision_applied" && workspace.case.status === "resolved") ||
+							(notice === "decision_waiting_information" &&
+								workspace.case.status === "waiting_information") ||
+							(notice === "decision_pending_second_control" &&
+								workspace.decisions.some((decision) => decision.status === "pending_approval")) ||
+							(notice === "decision_returned" &&
+								workspace.approvals.some((approval) => approval.vote === "rejected"))) && (
+							<div
+								class="fastt-notice rounded-xl border border-emerald-400 bg-emerald-950/50 px-4 py-3 text-sm text-emerald-100"
+								role="status"
+								data-command-success
+							>
+								{noticeMessage}
+								<div class="mt-3 flex flex-wrap gap-3">
+									<a
+										class="font-semibold underline underline-offset-4"
+										href={`/admin/queues/all?providerId=${encodeURIComponent(workspace.case.providerId)}`}
+									>
+										Volver a los pendientes del proveedor
+									</a>
+									<a
+										class="font-semibold underline underline-offset-4"
+										href={`/admin/providers/${workspace.case.providerId}`}
+									>
+										Ver ficha del proveedor
+									</a>
 								</div>
-								<h1 class="mt-2 text-2xl font-semibold text-white">
-									{workspace.case.summary ?? domainLabels[workspace.case.domain]}
-								</h1>
-								<p class="mt-1 text-sm text-slate-400">
-									{workspace.case.providerName || workspace.case.providerLegalName || "Proveedor"} ·{" "}
-									{domainLabels[workspace.case.domain]} · versión {workspace.case.version}
-								</p>
-							</>
-						</div>
-						<div class="flex flex-wrap gap-2">
-							<>
-								<Button
-									href={`/admin/providers/${workspace.case.providerId}`}
-									variant="onDark"
-									size="sm"
-								>
-									Proveedor 360
-								</Button>
-								<Button
-									href={`/admin/audit?providerId=${workspace.case.providerId}&entityId=${workspace.case.id}`}
-									variant="secondary"
-									size="sm"
-								>
-									Auditoría
-								</Button>
-								<Button href={legacyHref} variant="secondary" size="sm">
-									Abrir legacy
-								</Button>
-							</>
+							</div>
+						)}
+					<div class="fastt-card rounded-2xl border border-slate-700 bg-slate-900/95 p-4 shadow-xl">
+						<div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+							<div>
+								<>
+									<div class="flex flex-wrap items-center gap-2">
+										<>
+											<span class="font-mono text-xs text-amber-200">
+												{workspace.case.caseNumber}
+											</span>
+											<CaseStatusBadge value={workspace.case.status} />
+											<CaseStatusBadge value={workspace.case.priority} kind="priority" />
+											<CaseStatusBadge value={workspace.case.riskTier} kind="risk" />
+										</>
+									</div>
+									<h1 class="mt-2 text-2xl font-semibold text-white">
+										{workspace.case.summary ?? domainLabels[workspace.case.domain]}
+									</h1>
+									<p class="mt-1 text-sm text-slate-400">
+										{workspace.case.providerName || workspace.case.providerLegalName || "Proveedor"}{" "}
+										· {domainLabels[workspace.case.domain]} · versión {workspace.case.version}
+									</p>
+								</>
+							</div>
+							<div class="flex flex-wrap gap-2">
+								{requestedReturn && (
+									<Button href={returnHref} variant="onDark" size="sm">
+										Volver al trabajo de origen
+									</Button>
+								)}
+								<>
+									<Button
+										href={`/admin/providers/${workspace.case.providerId}`}
+										variant="onDark"
+										size="sm"
+									>
+										Ficha del proveedor
+									</Button>
+									<a
+										href={`/admin/audit?providerId=${workspace.case.providerId}&caseId=${workspace.case.id}`}
+										class="px-3 py-3 text-sm text-slate-300 underline underline-offset-4"
+									>
+										Auditoría
+									</a>
+									<a
+										href={legacyHref}
+										class="px-3 py-3 text-sm text-slate-300 underline underline-offset-4"
+									>
+										Panel anterior
+									</a>
+								</>
+							</div>
 						</div>
 					</div>
-				</div>
 
-				<div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
-					<div class="space-y-6">
-						<Card>
-							<>
+					<div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
+						<div class="space-y-6">
+							<Card>
+								<>
+									<div class="flex items-start justify-between gap-4">
+										<>
+											<div>
+												<>
+													<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+														Por qué se abrió
+													</p>
+													<h2 class="mt-2 text-lg font-semibold">{workspace.case.summary}</h2>
+													<p class="mt-2 text-sm text-slate-600">
+														Revisa los datos y la evidencia de {domainLabels[workspace.case.domain]}{" "}
+														antes de registrar un resultado.
+													</p>
+												</>
+											</div>
+											<CaseStatusBadge value={workspace.case.stage} />
+										</>
+									</div>
+									<dl class="mt-5 grid gap-4 text-sm break-words sm:grid-cols-2">
+										<>
+											<div>
+												<>
+													<dt class="text-slate-500">Abierto</dt>
+													<dd class="mt-1 font-medium">{fmt.format(workspace.case.openedAt)}</dd>
+												</>
+											</div>
+											<div>
+												<>
+													<dt class="text-slate-500">Última actualización</dt>
+													<dd class="mt-1 font-medium">{fmt.format(workspace.case.updatedAt)}</dd>
+												</>
+											</div>
+											<div>
+												<>
+													<dt class="text-slate-500">Política · referencia técnica</dt>
+													<dd class="mt-1 text-xs">
+														<details>
+															<>
+																<summary class="cursor-pointer py-1">Ver versión aplicada</summary>
+																<span class="font-mono break-all">
+																	{workspace.case.policyVersionId ?? "Sin versión"}
+																</span>
+															</>
+														</details>
+													</dd>
+												</>
+											</div>
+											<div>
+												<>
+													<dt class="text-slate-500">Referencia</dt>
+													<dd class="mt-1 text-xs">
+														<details>
+															<>
+																<summary class="cursor-pointer py-1">Ver ID de la fuente</summary>
+																<span class="font-mono break-all">{workspace.case.sourceRef}</span>
+															</>
+														</details>
+													</dd>
+												</>
+											</div>
+										</>
+									</dl>
+								</>
+							</Card>
+
+							<Card>
+								<>
+									<div class="flex items-center justify-between">
+										<>
+											<div>
+												<>
+													<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+														Requisitos
+													</p>
+													<h2 class="mt-1 text-lg font-semibold">Tareas de revisión</h2>
+												</>
+											</div>
+											<span class="text-sm text-slate-500">{workspace.tasks.length} tarea(s)</span>
+										</>
+									</div>
+									<ol class="mt-4 divide-y divide-slate-200">
+										{workspace.tasks.map((task) => (
+											<li class="flex flex-col justify-between gap-3 py-4 sm:flex-row sm:items-center">
+												<div>
+													<p class="font-medium">
+														{taskLabels[task.requirementKey ?? task.taskType] ??
+															"Revisar evidencia del área"}
+													</p>
+													<p class="mt-1 text-xs text-slate-500">
+														Responsable: {task.assigneeEmail ?? "sin asignar"}
+													</p>
+												</div>
+												<div class="flex items-center gap-2">
+													<CaseStatusBadge value={task.status} />
+													{task.dueAt && (
+														<span class="text-xs text-slate-500">
+															vence {fmt.format(task.dueAt)}
+														</span>
+													)}
+												</div>
+											</li>
+										))}
+									</ol>
+								</>
+							</Card>
+
+							{evidence && (
+								<Card>
+									<CaseEvidencePanel evidence={evidence} caseId={workspace.case.id} />
+								</Card>
+							)}
+
+							<Card id="decision-composer">
 								<div class="flex items-start justify-between gap-4">
 									<>
 										<div>
 											<>
 												<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-													Por qué se abrió
+													Resultado de la revisión
 												</p>
-												<h2 class="mt-2 text-lg font-semibold">{workspace.case.summary}</h2>
-												<p class="mt-2 text-sm text-slate-600">
-													Fuente canónica: {workspace.case.sourceType}. La referencia se usa para
-													reconciliación, no duplica el contenido sensible.
-												</p>
+												<h2 class="mt-1 text-lg font-semibold">Preparar decisión</h2>
 											</>
 										</div>
-										<CaseStatusBadge value={workspace.case.stage} />
-									</>
-								</div>
-								<dl class="mt-5 grid gap-4 text-sm sm:grid-cols-2">
-									<>
-										<div>
-											<>
-												<dt class="text-slate-500">Abierto</dt>
-												<dd class="mt-1 font-medium">{fmt.format(workspace.case.openedAt)}</dd>
-											</>
-										</div>
-										<div>
-											<>
-												<dt class="text-slate-500">Última actualización</dt>
-												<dd class="mt-1 font-medium">{fmt.format(workspace.case.updatedAt)}</dd>
-											</>
-										</div>
-										<div>
-											<>
-												<dt class="text-slate-500">Política</dt>
-												<dd class="mt-1 font-mono text-xs">
-													{workspace.case.policyVersionId ?? "Sin versión"}
-												</dd>
-											</>
-										</div>
-										<div>
-											<>
-												<dt class="text-slate-500">Referencia</dt>
-												<dd class="mt-1 font-mono text-xs">{workspace.case.sourceRef}</dd>
-											</>
-										</div>
-									</>
-								</dl>
-							</>
-						</Card>
-
-						<Card>
-							<>
-								<div class="flex items-center justify-between">
-									<>
-										<div>
-											<>
-												<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-													Requisitos
-												</p>
-												<h2 class="mt-1 text-lg font-semibold">Checklist del caso</h2>
-											</>
-										</div>
-										<span class="text-sm text-slate-500">{workspace.tasks.length} tarea(s)</span>
-									</>
-								</div>
-								<ol class="mt-4 divide-y divide-slate-200">
-									{workspace.tasks.map((task) => (
-										<li class="flex flex-col justify-between gap-3 py-4 sm:flex-row sm:items-center">
-											<div>
-												<p class="font-medium">{task.requirementKey ?? task.taskType}</p>
-												<p class="mt-1 text-xs text-slate-500">
-													Responsable: {task.assigneeEmail ?? "sin asignar"}
-												</p>
-											</div>
-											<div class="flex items-center gap-2">
-												<CaseStatusBadge value={task.status} />
-												{task.dueAt && (
-													<span class="text-xs text-slate-500">vence {fmt.format(task.dueAt)}</span>
-												)}
-											</div>
-										</li>
-									))}
-								</ol>
-							</>
-						</Card>
-
-						{evidence && (
-							<Card>
-								<CaseEvidencePanel evidence={evidence} caseId={workspace.case.id} />
-							</Card>
-						)}
-
-						<Card id="decision-composer">
-							<div class="flex items-start justify-between gap-4">
-								<>
-									<div>
-										<>
-											<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-												Decision composer
-											</p>
-											<h2 class="mt-1 text-lg font-semibold">Preparar decisión</h2>
-										</>
-									</div>
-									<span
-										class:list={[
-											"rounded-full px-3 py-1 text-xs font-semibold",
-											commandsEnabled
-												? "bg-emerald-100 text-emerald-800"
-												: "bg-amber-100 text-amber-800",
-										]}
-									>
-										{commandsEnabled ? "Comandos habilitados" : "Solo lectura"}
-									</span>
-								</>
-							</div>
-							{commandsEnabled && caseActionable ? (
-								<form
-									class="mt-5 space-y-4"
-									data-case-command
-									data-endpoint={`/api/admin/v1/cases/${workspace.case.id}/propose-decision`}
-								>
-									<input type="hidden" name="caseVersion" value={workspace.case.version} />
-									<input type="hidden" name="evidenceRevision" value={evidence?.revision ?? ""} />
-									<label class="block text-sm font-medium">
-										Resultado
-										<Select name="decision" class="mt-2" required>
-											<option value="">Selecciona</option>
-											<option
-												value="approved"
-												disabled={Boolean(evidence?.approvalBlockers.length)}
-											>
-												Aprobar
-											</option>
-											<option value="rejected">Rechazar</option>
-											<option value="request_information">Pedir información</option>
-											<option value="requires_attention">Requiere atención</option>
-										</Select>
-									</label>
-									<label class="block text-sm font-medium">
-										Motivo de política
-										<Select name="reasonCode" class="mt-2" required>
-											<option value="">Selecciona</option>
-											{workspace.reasons.map((reason) => (
-												<option value={reason.code} data-decision={reason.decision}>
-													{reason.label} · {reason.code}
-												</option>
-											))}
-										</Select>
-									</label>
-									<label class="block text-sm font-medium">
-										Comentario
-										<Textarea
-											name="comment"
-											class="mt-2"
-											rows="4"
-											placeholder="Explica discrepancias o información solicitada."
-										/>
-									</label>
-									<div class="fastt-notice rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-										<strong>Impacto previo:</strong> la propuesta quedará ligada a la versión{" "}
-										{workspace.case.version}, la política citada y la revisión de evidencia{" "}
-										{evidence?.revision.slice(0, 8)}.{" "}
-										{workspace.case.riskTier === "high"
-											? "Por riesgo alto requerirá otra persona."
-											: "La aplicación al dominio seguirá el flujo controlado del caso."}
-									</div>
-									{evidence?.approvalBlockers.length ? (
-										<p class="text-sm text-amber-800">
-											La aprobación está deshabilitada hasta resolver la evidencia faltante. Puedes
-											pedir información o rechazarla con el motivo correspondiente.
-										</p>
-									) : null}
-									{evidence?.approvalWarnings.length ? (
-										<p class="text-sm text-amber-800">
-											La aprobación requiere un comentario que justifique la coincidencia probable
-											de titularidad.
-										</p>
-									) : null}
-									<p
-										class="hidden rounded-xl px-4 py-3 text-sm"
-										data-command-message
-										role="status"
-										aria-live="polite"
-									/>
-									<Button type="submit">Proponer decisión</Button>
-								</form>
-							) : !caseActionable ? (
-								<div
-									class="fastt-notice mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"
-									data-case-closed
-								>
-									<p class="font-semibold">Caso cerrado: no admite nuevas decisiones</p>
-									<p class="mt-1">
-										La decisión quedó aplicada a la fuente canónica. Consulta la cronología o la
-										auditoría para revisar el resultado.
-									</p>
-									<div class="mt-3">
-										<Button
-											href={`/admin/audit?providerId=${workspace.case.providerId}&entityId=${workspace.case.id}`}
-											variant="secondary"
-											size="sm"
+										<span
+											class:list={[
+												"rounded-full px-3 py-1 text-xs font-semibold",
+												commandsEnabled && caseInPilot && canProposeDecision
+													? "bg-emerald-100 text-emerald-800"
+													: "bg-amber-100 text-amber-800",
+											]}
 										>
-											Ver auditoría de la decisión
-										</Button>
-									</div>
+											{commandsEnabled && caseInPilot && canProposeDecision
+												? "Comandos habilitados"
+												: "Solo lectura"}
+										</span>
+									</>
 								</div>
-							) : (
-								<div class="fastt-card mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
-									<p class="text-sm text-slate-700">
-										La lectura v2 está en shadow mode. Habilita{" "}
-										<code>COMMAND_CENTER_V2_COMMANDS_ENABLED=true</code> después de aplicar la
-										migración y certificar paridad.
-									</p>
-									<div class="mt-4">
-										<Button href={legacyHref} variant="secondary">
-											Resolver en legacy
-										</Button>
-									</div>
-								</div>
-							)}
-						</Card>
-
-						<Card>
-							<h2 class="mt-1 text-lg font-semibold">Cronología operacional</h2>
-							{workspace.activities.length ? (
-								<ol class="mt-4 space-y-3">
-									{workspace.activities.map((event) => (
-										<li class="border-l-2 border-slate-200 pl-4">
-											<p class="text-sm font-medium">{event.summary}</p>
-											<p class="mt-1 text-xs text-slate-500">
-												{fmt.format(event.createdAt)} · {event.eventType}
-											</p>
-										</li>
-									))}
-								</ol>
-							) : (
-								<p class="mt-4 text-sm text-slate-600">
-									La timeline comenzará con la primera acción realizada desde Casework.
-								</p>
-							)}
-						</Card>
-					</div>
-
-					<aside class="space-y-4">
-						<Card>
-							<h2 class="font-semibold">Siguiente acción</h2>
-							{caseActionable &&
-							workspace.tasks.some((task) => !task.assigneeUserId && !task.assigneeEmail) ? (
-								commandsEnabled ? (
+								{commandsEnabled &&
+								caseInPilot &&
+								caseActionable &&
+								canProposeDecision &&
+								!pendingDecisionReview ? (
 									<form
-										class="mt-4"
+										class="mt-5 space-y-4"
 										data-case-command
-										data-endpoint={`/api/admin/v1/cases/${workspace.case.id}/assign`}
+										data-endpoint={`/api/admin/v1/cases/${workspace.case.id}/propose-decision`}
+										data-approval-comment={evidence?.approvalWarnings.length ? "true" : "false"}
 									>
 										<input type="hidden" name="caseVersion" value={workspace.case.version} />
+										<input type="hidden" name="evidenceRevision" value={evidence?.revision ?? ""} />
+										<label class="block text-sm font-medium">
+											Resultado
+											<Select name="decision" class="mt-2" required>
+												<option value="">Selecciona</option>
+												{allowedDecisionValues.map((decision) => (
+													<option
+														value={decision}
+														data-effect={decisionEffects[decision]}
+														disabled={
+															decision === "approved" && Boolean(evidence?.approvalBlockers.length)
+														}
+													>
+														{decisionLabels[decision] ?? decision}
+													</option>
+												))}
+											</Select>
+										</label>
+										<label class="block text-sm font-medium">
+											Motivo de política
+											<Select name="reasonCode" class="mt-2" required>
+												<option value="">Selecciona un resultado primero</option>
+												{workspace.reasons.map((reason) => (
+													<option
+														value={reason.code}
+														data-decision={reason.decision}
+														data-requires-comment={reason.requiresComment ? "true" : "false"}
+													>
+														{reason.label}
+													</option>
+												))}
+											</Select>
+										</label>
+										<label class="block text-sm font-medium">
+											Comentario{" "}
+											<span data-comment-requirement class="text-slate-500">
+												Opcional según el motivo
+											</span>
+											<Textarea
+												name="comment"
+												class="mt-2"
+												rows="4"
+												placeholder="Explica discrepancias o información solicitada."
+											/>
+										</label>
+										<div
+											class="fastt-notice rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"
+											data-decision-effect
+										>
+											<strong>Efecto antes de decidir:</strong> selecciona un resultado para ver qué
+											fuente cambiará. La propuesta quedará ligada a la versión{" "}
+											{workspace.case.version}, la política citada y la revisión de evidencia{" "}
+											{evidence?.revision.slice(0, 8)}.
+										</div>
+										{evidence?.approvalBlockers.length ? (
+											<p class="text-sm text-amber-800">
+												La aprobación está deshabilitada hasta resolver la evidencia faltante.
+												Puedes pedir información o rechazarla con el motivo correspondiente.
+											</p>
+										) : null}
+										{evidence?.approvalWarnings.length ? (
+											<p class="text-sm text-amber-800">
+												La aprobación requiere un comentario que justifique la coincidencia probable
+												de titularidad.
+											</p>
+										) : null}
 										<p
 											class="hidden rounded-xl px-4 py-3 text-sm"
 											data-command-message
 											role="status"
 											aria-live="polite"
 										/>
-										<Button type="submit" class="w-full">
-											Tomar caso
-										</Button>
+										<Button type="submit">Proponer decisión</Button>
 									</form>
+								) : pendingDecisionReview ? (
+									<p class="mt-5 rounded-xl bg-amber-50 p-4 text-sm text-amber-950">
+										Ya existe una decisión pendiente de control o de reconciliación. Revisa su
+										estado y la auditoría antes de registrar otra propuesta.
+									</p>
+								) : !caseActionable ? (
+									<div
+										class="fastt-notice mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"
+										data-case-closed
+									>
+										<p class="font-semibold">Caso cerrado: no admite nuevas decisiones</p>
+										<p class="mt-1">
+											Consulta la cronología o la auditoría para conocer el resultado registrado y
+											su fecha.
+										</p>
+										<div class="mt-3">
+											<Button
+												href={`/admin/audit?providerId=${workspace.case.providerId}&caseId=${workspace.case.id}`}
+												variant="secondary"
+												size="sm"
+											>
+												Ver auditoría de la decisión
+											</Button>
+										</div>
+									</div>
+								) : !commandsEnabled ? (
+									<div class="fastt-card mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+										<p class="text-sm text-slate-700">
+											Las decisiones en esta vista todavía no están habilitadas. Consulta la
+											evidencia y continúa en el panel anterior si necesitas resolver la revisión.
+										</p>
+										<div class="mt-4">
+											<Button href={legacyHref} variant="secondary">
+												Continuar en el panel anterior
+											</Button>
+										</div>
+									</div>
+								) : !caseInPilot ? (
+									<div class="fastt-notice mt-5 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950">
+										<p class="font-semibold">
+											Este proveedor está fuera del piloto de decisiones v2
+										</p>
+										<p class="mt-1">
+											Consulta la evidencia en esta vista. Antes de continuar en el panel anterior,
+											comprueba que la tarea admite esa ruta; las propuestas pendientes de segundo
+											control deben resolverse en su expediente.
+										</p>
+										<div class="mt-4">
+											<Button href={legacyHref} variant="secondary">
+												Continuar en el panel anterior
+											</Button>
+										</div>
+									</div>
 								) : (
-									<p class="mt-2 text-sm text-slate-600">Activa comandos v2 para tomar el caso.</p>
-								)
-							) : (
-								<p class="mt-2 text-sm text-slate-600">
-									{caseActionable ? "El caso ya tiene responsable." : "El caso está cerrado."}
-								</p>
-							)}
-						</Card>
-						<Card>
-							<h2 class="font-semibold">SLA</h2>
-							{workspace.timers.map((timer) => (
-								<div class="mt-3">
-									<CaseStatusBadge value={timer.status} />
-									<p class="mt-2 text-sm text-slate-600">Vence {fmt.format(timer.dueAt)}</p>
-								</div>
-							))}
-						</Card>
-						<Card>
-							<>
-								<h2 class="font-semibold">Restricciones</h2>
-								<p class="mt-2 text-sm text-slate-600">
-									Las capacidades se derivan de las fuentes canónicas. Esta versión no permite
-									mutarlas desde Provider 360.
-								</p>
-							</>
-						</Card>
-						<Card>
-							<p class="text-xs text-slate-500">propuestas persistentes</p>
-							{workspace.decisions
-								.filter((decision) => decision.status === "pending_approval")
-								.map((decision) => (
-									<div class="fastt-notice mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
-										<p class="font-semibold">Segundo control pendiente</p>
-										<p class="mt-1">{decision.decision}</p>
-										{decision.proposedByUserId === principal?.user.id ? (
-											<p class="mt-2 text-xs">No puedes aprobar ni rechazar tu propia propuesta.</p>
-										) : commandsEnabled ? (
-											<div class="mt-3 space-y-3">
-												<form
-													data-case-command
-													data-endpoint={`/api/admin/v1/decisions/${decision.id}/approve`}
-												>
-													<input type="hidden" name="caseVersion" value={workspace.case.version} />
-													<p class="hidden" data-command-message role="status" aria-live="polite" />
-													<Button type="submit" size="sm">
-														Aprobar control
-													</Button>
-												</form>
-												<form
-													data-case-command
-													data-endpoint={`/api/admin/v1/decisions/${decision.id}/reject`}
-												>
-													<input type="hidden" name="caseVersion" value={workspace.case.version} />
-													<label class="block text-xs font-medium">
-														Motivo de devolución
-														<Textarea name="reason" rows="2" minlength="8" required class="mt-1" />
-													</label>
-													<p class="hidden" data-command-message role="status" aria-live="polite" />
-													<Button type="submit" size="sm" variant="secondary">
-														Devolver propuesta
-													</Button>
-												</form>
-											</div>
-										) : null}
+									<div class="fastt-notice mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+										<p class="font-semibold">
+											No tienes permiso para decidir en {domainLabels[workspace.case.domain]}
+										</p>
+										<p class="mt-1">
+											Puedes consultar la evidencia, el historial y el estado del segundo control.
+											Solicita el permiso del área para proponer, aprobar o devolver una decisión.
+										</p>
+									</div>
+								)}
+							</Card>
+
+							<Card>
+								<h2 class="mt-1 text-lg font-semibold">Cronología operacional</h2>
+								{workspace.activities.length ? (
+									<ol class="mt-4 space-y-3">
+										{workspace.activities.map((event) => (
+											<li class="border-l-2 border-slate-200 pl-4">
+												<p class="text-sm font-medium">{event.summary}</p>
+												<p class="mt-1 text-xs text-slate-500">
+													{fmt.format(event.createdAt)} · {event.eventType}
+												</p>
+											</li>
+										))}
+									</ol>
+								) : (
+									<p class="mt-4 text-sm text-slate-600">
+										Todavía no hay acciones registradas en este expediente.
+									</p>
+								)}
+							</Card>
+						</div>
+
+						<aside class="space-y-4">
+							<Card>
+								<h2 class="font-semibold">Siguiente acción</h2>
+								{caseActionable &&
+								workspace.tasks.some((task) => !task.assigneeUserId && !task.assigneeEmail) ? (
+									commandsEnabled && caseInPilot && canAssignCase ? (
+										<form
+											class="mt-4"
+											data-case-command
+											data-endpoint={`/api/admin/v1/cases/${workspace.case.id}/assign`}
+										>
+											<input type="hidden" name="caseVersion" value={workspace.case.version} />
+											<p
+												class="hidden rounded-xl px-4 py-3 text-sm"
+												data-command-message
+												role="status"
+												aria-live="polite"
+											/>
+											<Button type="submit" class="w-full">
+												Tomar caso
+											</Button>
+										</form>
+									) : (
+										<p class="mt-2 text-sm text-slate-600">
+											La asignación no está disponible para tu cuenta en esta vista.
+										</p>
+									)
+								) : (
+									<p class="mt-2 text-sm text-slate-600">
+										{caseActionable ? "El caso ya tiene responsable." : "El caso está cerrado."}
+									</p>
+								)}
+							</Card>
+							<Card>
+								<h2 class="font-semibold">Plazo de revisión · Bolivia</h2>
+								{workspace.timers.map((timer) => (
+									<div class="mt-3">
+										<CaseStatusBadge
+											value={
+												timer.status === "running"
+													? timer.dueAt.getTime() <= Date.now()
+														? "overdue"
+														: timer.dueAt.getTime() <= Date.now() + 8 * 3600000
+															? "due_soon"
+															: "running"
+													: timer.status
+											}
+										/>
+										<p class="mt-2 text-sm text-slate-600">Vence {fmt.format(timer.dueAt)}</p>
 									</div>
 								))}
-						</Card>
-					</aside>
-				</div>
-			</section>
+							</Card>
+							<Card>
+								<>
+									<h2 class="font-semibold">Restricciones</h2>
+									<p class="mt-2 text-sm text-slate-600">
+										Consulta en la ficha del proveedor las condiciones para cobrar y recibir
+										desembolsos. La decisión de esta área no aprueba las demás revisiones.
+									</p>
+								</>
+							</Card>
+							<Card>
+								<h2 class="font-semibold">Estado de decisiones</h2>
+								{workspace.decisions
+									.filter(
+										(decision) =>
+											decision.decision === "request_information" && decision.status === "proposed"
+									)
+									.map((decision) => (
+										<div class="fastt-notice mt-4 rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm text-sky-950">
+											<p class="font-semibold">Solicitud de información</p>
+											<p class="mt-1">
+												Registrada: {fmt.format(decision.proposedAt ?? decision.createdAt)}.
+											</p>
+											<p class="mt-1">
+												Envío al proveedor: sin confirmación registrada. Respuesta: sin confirmación
+												registrada.
+											</p>
+										</div>
+									))}
+								{workspace.decisions
+									.filter((decision) => decision.status === "failed")
+									.map((decision) => (
+										<div class="fastt-notice mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-950">
+											<p class="font-semibold">Aplicación no confirmada</p>
+											<p class="mt-1">
+												No se confirmó el resultado completo. Comprueba la evidencia y la auditoría
+												antes de recuperar la propuesta; la fuente puede haber cambiado.
+											</p>
+											<details class="mt-3">
+												<summary class="cursor-pointer">
+													Recuperar propuesta: requiere reconciliación
+												</summary>
+												<p class="mt-2">
+													{decisionLabels[decision.decision]} ·{" "}
+													{reasonById.get(decision.reasonCodeId)?.label ?? "Motivo registrado"}
+												</p>
+												<p class="mt-2 whitespace-pre-wrap">
+													{decision.comment || "Sin comentario"}
+												</p>
+												<p class="mt-2">
+													La propuesta permanece guardada. Su resultado debe aclararse antes de
+													habilitar otra decisión.
+												</p>
+											</details>
+										</div>
+									))}
+								{workspace.decisions
+									.filter((decision) => decision.status === "pending_approval")
+									.map((decision) => (
+										<div class="fastt-notice mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+											<p class="font-semibold">Segundo control pendiente</p>
+											<p class="mt-2">
+												Al aprobar el control:{" "}
+												{describeCaseDecisionEffect({
+													domain: workspace.case.domain,
+													decision: decision.decision,
+												})}
+											</p>
+											{decision.comment && (
+												<p class="mt-2 whitespace-pre-wrap">Justificación: {decision.comment}</p>
+											)}
+											<p class="mt-1">
+												{decisionLabels[decision.decision] ?? decision.decision} ·{" "}
+												{reasonById.get(decision.reasonCodeId)?.label ?? "Motivo de política"}
+											</p>
+											<p class="mt-1 text-xs">
+												Propuesta registrada:{" "}
+												{fmt.format(decision.proposedAt ?? decision.createdAt)}.
+											</p>
+											{workspace.approvals
+												.filter((approval) => approval.decisionId === decision.id)
+												.map((approval) => (
+													<p class="mt-2 text-xs">
+														{approval.vote === "approved" ? "Control aprobado" : "Control devuelto"}
+														: {approval.reason || "Sin comentario"}
+													</p>
+												))}
+											{decision.proposedByUserId === principal?.user.id ? (
+												<p class="mt-2 text-xs">
+													No puedes aprobar ni rechazar tu propia propuesta.
+												</p>
+											) : commandsEnabled && caseInPilot && canReviewDecision ? (
+												<div class="mt-3 space-y-3">
+													<form
+														data-case-command
+														data-endpoint={`/api/admin/v1/decisions/${decision.id}/approve`}
+													>
+														<input
+															type="hidden"
+															name="caseVersion"
+															value={workspace.case.version}
+														/>
+														<p
+															class="hidden"
+															data-command-message
+															role="status"
+															aria-live="polite"
+														/>
+														<Button type="submit" size="sm">
+															Aprobar control
+														</Button>
+													</form>
+													<form
+														data-case-command
+														data-endpoint={`/api/admin/v1/decisions/${decision.id}/reject`}
+													>
+														<input
+															type="hidden"
+															name="caseVersion"
+															value={workspace.case.version}
+														/>
+														<label class="block text-xs font-medium">
+															Motivo de devolución
+															<Textarea
+																name="reason"
+																rows="2"
+																minlength="8"
+																required
+																class="mt-1"
+															/>
+														</label>
+														<p
+															class="hidden"
+															data-command-message
+															role="status"
+															aria-live="polite"
+														/>
+														<Button type="submit" size="sm" variant="secondary">
+															Devolver propuesta
+														</Button>
+													</form>
+												</div>
+											) : null}
+										</div>
+									))}
+							</Card>
+						</aside>
+					</div>
+				</section>
+			)
 		)
 	}
 </InternalAdminLayout>
 
 <script>
+	import {
+		canDiscardCaseCommand,
+		prepareCaseCommand,
+		type PendingCaseCommand,
+	} from "@/modules/casework/command-recovery"
+	const recoveryMemory = new Map<string, string>()
+	const storage = {
+		getItem(key: string) {
+			try {
+				return sessionStorage.getItem(key) ?? recoveryMemory.get(key) ?? null
+			} catch {
+				return recoveryMemory.get(key) ?? null
+			}
+		},
+		setItem(key: string, value: string) {
+			recoveryMemory.set(key, value)
+			try {
+				sessionStorage.setItem(key, value)
+			} catch {
+				/* In-memory recovery remains available. */
+			}
+		},
+		removeItem(key: string) {
+			recoveryMemory.delete(key)
+			try {
+				sessionStorage.removeItem(key)
+			} catch {
+				/* Storage unavailable. */
+			}
+		},
+	}
 	const prepareEvidenceRequest = document.querySelector<HTMLButtonElement>(
 		"[data-prepare-evidence-request]"
 	)
 	prepareEvidenceRequest?.addEventListener("click", () => {
-		const composer = document.querySelector<HTMLFormElement>(
-			"[data-case-command*='propose-decision']"
-		)
+		const composer = document.querySelector<HTMLFormElement>("[data-endpoint*='/propose-decision']")
 		const decision = composer?.querySelector<HTMLSelectElement>("select[name='decision']")
 		const reason = composer?.querySelector<HTMLSelectElement>("select[name='reasonCode']")
 		const comment = composer?.querySelector<HTMLTextAreaElement>("textarea[name='comment']")
@@ -472,6 +823,7 @@ const noticeMessage =
 		if (matchingReason) reason.value = matchingReason.value
 		comment.value =
 			"No hay un archivo disponible para corroborar el documento. Solicitar una nueva carga segura."
+		composer?.dispatchEvent(new Event("change", { bubbles: true }))
 		document
 			.querySelector("#decision-composer")
 			?.scrollIntoView({ behavior: "smooth", block: "start" })
@@ -503,10 +855,16 @@ const noticeMessage =
 			}
 			if (!response.ok) throw new Error(body?.error || `evidence_reveal_failed_${response.status}`)
 			if (body.kind === "document" && body.url) {
-				if (output)
-					output.textContent =
-						"Documento autorizado. Se abrió en una pestaña separada durante cinco minutos."
-				window.open(String(body.url), "_blank", "noopener,noreferrer")
+				if (output) {
+					output.textContent = "Documento autorizado. El enlace caduca en cinco minutos. "
+					const link = document.createElement("a")
+					link.href = String(body.url)
+					link.target = "_blank"
+					link.rel = "noopener noreferrer"
+					link.className = "underline font-semibold"
+					link.textContent = "Abrir documento autorizado"
+					output.append(link)
+				}
 			} else if (body.kind === "tax_registration") {
 				if (output)
 					output.innerHTML = `<span class="text-xs text-slate-500">Registro fiscal</span><br><strong class="font-mono"></strong>`
@@ -538,16 +896,85 @@ const noticeMessage =
 	})
 
 	const forms = document.querySelectorAll<HTMLFormElement>("[data-case-command]")
+	const composer = document.querySelector<HTMLFormElement>("[data-endpoint*='/propose-decision']")
+	const actorId = document.querySelector<HTMLElement>("[data-actor-id]")?.dataset.actorId || ""
+	const draftKey = composer
+		? `casework:decision-draft:${actorId}:${composer.closest<HTMLElement>("[data-case-id]")?.dataset.caseId}`
+		: null
+	const idempotencyKey = draftKey ? `${draftKey}:idempotency` : null
+	const readDraft = () => {
+		if (!draftKey) return null
+		try {
+			return JSON.parse(storage.getItem(draftKey) || "null") as Record<string, string> | null
+		} catch {
+			return null
+		}
+	}
+	const saveDraft = () => {
+		if (!composer || !draftKey) return
+		const values = Object.fromEntries(new FormData(composer).entries()) as Record<string, string>
+		storage.setItem(
+			draftKey,
+			JSON.stringify({
+				decision: values.decision || "",
+				reasonCode: values.reasonCode || "",
+				comment: values.comment || "",
+			})
+		)
+	}
+	const syncComposer = () => {
+		if (!composer) return
+		const decision = composer.querySelector<HTMLSelectElement>("[name='decision']")
+		const reason = composer.querySelector<HTMLSelectElement>("[name='reasonCode']")
+		const comment = composer.querySelector<HTMLTextAreaElement>("[name='comment']")
+		const effect = composer.querySelector<HTMLElement>("[data-decision-effect]")
+		const requirement = composer.querySelector<HTMLElement>("[data-comment-requirement]")
+		if (!decision || !reason || !comment || !effect || !requirement) return
+		for (const option of [...reason.options]) {
+			const allowed = !option.dataset.decision || option.dataset.decision === decision.value
+			option.hidden = !allowed
+			option.disabled = !allowed
+		}
+		if (reason.selectedOptions[0]?.disabled) reason.value = ""
+		const selectedReason = reason.selectedOptions[0]
+		const required =
+			selectedReason?.dataset.requiresComment === "true" ||
+			(decision.value === "approved" && composer.dataset.approvalComment === "true")
+		comment.required = required
+		requirement.textContent = required ? "Obligatorio para este motivo" : "Opcional según el motivo"
+		effect.innerHTML = `<strong>Efecto antes de decidir:</strong> ${decision.selectedOptions[0]?.dataset.effect || "selecciona un resultado para ver qué fuente cambiará."} La propuesta quedará ligada a la versión ${composer.querySelector<HTMLInputElement>("[name='caseVersion']")?.value || "actual"}.`
+	}
+	if (composer) {
+		const draft = readDraft()
+		if (draft) {
+			for (const [name, value] of Object.entries(draft)) {
+				const field = composer.querySelector<
+					HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+				>(`[name='${name}']`)
+				if (field) field.value = value
+			}
+		}
+		composer.addEventListener("input", saveDraft)
+		composer.addEventListener("change", () => {
+			syncComposer()
+			saveDraft()
+		})
+		syncComposer()
+	}
 	const commandErrorMessage = (code: string) =>
 		({
 			case_not_actionable:
 				"El caso ya fue resuelto. Revisa la cronología o la auditoría; no se creó una segunda decisión.",
 			case_version_conflict:
-				"El expediente cambió mientras lo revisabas. Se actualizó para mostrar la versión vigente.",
+				"El expediente cambió mientras lo revisabas. Recarga la página para consultar la versión vigente; tu borrador se conserva y debes revisarlo antes de enviarlo.",
 			approval_evidence_incomplete:
 				"No se puede aprobar hasta completar o corroborar la evidencia requerida.",
 			approval_evidence_review_comment_required:
 				"Explica la coincidencia probable de titularidad antes de proponer la aprobación.",
+			decision_not_supported_for_domain:
+				"Ese resultado no puede aplicarse a esta área. Elige una acción disponible y su motivo.",
+			case_evidence_changed:
+				"La evidencia cambió mientras revisabas. Se conservó tu borrador para que lo confirmes contra la versión actual.",
 		})[code] ?? code
 	for (const form of forms)
 		form.addEventListener("submit", async (event) => {
@@ -562,45 +989,86 @@ const noticeMessage =
 				message.textContent = "Procesando…"
 			}
 			try {
+				const commandKey =
+					form === composer && idempotencyKey
+						? idempotencyKey
+						: `casework:command:${actorId}:${form.dataset.endpoint}`
+				let previous: PendingCaseCommand | null = null
+				try {
+					previous = JSON.parse(storage.getItem(commandKey) || "null")
+				} catch {
+					/* First attempt. */
+				}
+				const pending = prepareCaseCommand(
+					previous,
+					JSON.stringify(Object.fromEntries(new FormData(form))),
+					() => crypto.randomUUID()
+				)
+				storage.setItem(commandKey, JSON.stringify(pending))
+				const stableIdempotencyKey = pending.key
 				const response = await fetch(form.dataset.endpoint || "", {
 					method: "POST",
 					headers: {
 						"Content-Type": "application/json",
-						"Idempotency-Key": crypto.randomUUID(),
+						"Idempotency-Key": stableIdempotencyKey,
 						"X-Request-Id": crypto.randomUUID(),
 					},
-					body: JSON.stringify(Object.fromEntries(new FormData(form))),
+					body: pending.body,
 				})
-				const body = await response.json().catch(() => ({}))
+				const body = await response.json()
 				if (response.status === 401 && body?.error === "reauthentication_required") {
 					window.location.assign(
 						`/auth/mfa?returnTo=${encodeURIComponent(window.location.pathname + window.location.search)}`
 					)
 					return
 				}
-				if (!response.ok) throw new Error(body?.error || `command_failed_${response.status}`)
+				if (!response.ok) {
+					if (canDiscardCaseCommand(response.status, body?.error)) storage.removeItem(commandKey)
+					throw new Error(body?.error || `command_failed_${response.status}`)
+				}
+				if (
+					body?.ok !== true ||
+					(!form.dataset.endpoint?.endsWith("/assign") &&
+						!body.pendingSecondControl &&
+						!body.rejected &&
+						body.caseStatus !== "waiting_information" &&
+						body.applied !== true)
+				)
+					throw new SyntaxError("command_response_unconfirmed")
+				if (form === composer && draftKey && idempotencyKey) {
+					storage.removeItem(draftKey)
+					storage.removeItem(idempotencyKey)
+				}
+				storage.removeItem(commandKey)
 				if (message) {
 					message.className = "rounded-xl bg-emerald-100 px-4 py-3 text-sm text-emerald-800"
 					message.textContent = "Acción registrada correctamente. Actualizando el expediente…"
 				}
 				const destination = new URL(window.location.href)
 				const isAssignment = form.dataset.endpoint?.endsWith("/assign")
+				const isDecisionReturn = form.dataset.endpoint?.endsWith("/reject")
 				destination.searchParams.set(
 					"notice",
 					isAssignment
 						? "assigned"
 						: body?.pendingSecondControl
 							? "decision_pending_second_control"
-							: "decision_applied"
+							: isDecisionReturn || body?.rejected
+								? "decision_returned"
+								: body?.caseStatus === "waiting_information"
+									? "decision_waiting_information"
+									: "decision_applied"
 				)
 				window.location.assign(`${destination.pathname}${destination.search}${destination.hash}`)
 			} catch (error) {
 				if (message) {
 					message.className = "rounded-xl bg-red-100 px-4 py-3 text-sm text-red-800"
 					message.textContent =
-						error instanceof Error
-							? commandErrorMessage(error.message)
-							: "No se pudo completar la acción."
+						error instanceof TypeError || error instanceof SyntaxError
+							? "Respuesta sin confirmar. El reintento consultará la misma operación con la misma clave y los datos originales; las ediciones posteriores no se enviarán hasta aclarar el resultado."
+							: error instanceof Error
+								? commandErrorMessage(error.message)
+								: "No se pudo completar la acción."
 				}
 				if (button) button.disabled = false
 				form.dataset.submitting = "false"

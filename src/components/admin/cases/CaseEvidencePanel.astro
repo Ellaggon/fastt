@@ -99,6 +99,15 @@ const processingErrorMessages: Record<string, string> = {
 			title="Revisión determinista de la evidencia">rev. {evidence.revision.slice(0, 8)}</span
 		>
 	</header>
+	<p class="-mt-2 text-xs text-slate-500">
+		Consultada el {
+			new Intl.DateTimeFormat("es-BO", {
+				dateStyle: "medium",
+				timeStyle: "short",
+				timeZone: "America/La_Paz",
+			}).format(new Date(evidence.observedAt))
+		} (hora de Bolivia). Compara cada criterio antes de elegir un resultado.
+	</p>
 
 	<dl class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
 		{
@@ -122,7 +131,7 @@ const processingErrorMessages: Record<string, string> = {
 	</dl>
 
 	<div>
-		<h3 class="text-sm font-semibold text-slate-900">Corroboraciones</h3>
+		<h3 class="text-sm font-semibold text-slate-900">Criterios de decisión</h3>
 		<ul class="mt-3 grid gap-3 lg:grid-cols-2">
 			{
 				evidence.signals.map((signal) => (
@@ -370,12 +379,15 @@ const processingErrorMessages: Record<string, string> = {
 		)
 	}
 
-	<footer class="text-xs text-slate-500">
-		Fuente canónica: <span class="font-mono">{evidence.sourceType} · {evidence.sourceRef}</span>.
-		Observada {
-			new Intl.DateTimeFormat("es-BO", { dateStyle: "medium", timeStyle: "short" }).format(
-				new Date(evidence.observedAt)
-			)
-		}.
-	</footer>
+	<details class="text-xs text-slate-600 break-words">
+		<summary class="cursor-pointer py-2">Referencias técnicas de la evidencia</summary>
+		<footer class="text-xs text-slate-500 break-all">
+			Fuente canónica: <span class="font-mono">{evidence.sourceType} · {evidence.sourceRef}</span>.
+			Observada {
+				new Intl.DateTimeFormat("es-BO", { dateStyle: "medium", timeStyle: "short" }).format(
+					new Date(evidence.observedAt)
+				)
+			}.
+		</footer>
+	</details>
 </section>

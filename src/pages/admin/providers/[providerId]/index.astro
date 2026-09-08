@@ -4,158 +4,516 @@ import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
 import { requireInternalPermission } from "@/lib/auth/internal-authorization"
-import { getProvider360 } from "@/modules/casework/public"
+import { getProvider360, PROVIDER_WORK_VOCABULARY } from "@/modules/casework/public"
 
 let authorized = false
+let accessRestricted = false
 try {
 	await requireInternalPermission(Astro.request, "provider.compliance.read")
 	authorized = true
 } catch (response) {
 	if (response instanceof Response && response.status === 401) return Astro.redirect("/SignInPage")
+	if (response instanceof Response && response.status === 403) accessRestricted = true
+	else throw response
 }
+
 const providerId = String(Astro.params.providerId ?? "")
 const view = authorized ? await getProvider360(providerId) : null
 if (authorized && !view) return new Response("Proveedor no encontrado", { status: 404 })
-const activeStatuses = new Set(["open", "in_review", "waiting_information", "blocked"])
-const activeCases = view?.cases.filter((item) => activeStatuses.has(item.status)) ?? []
-const domainLabels: Record<string, string> = {
-	verification: "Identidad y negocio",
-	fiscal: "Fiscalidad",
-	documents: "Documentos",
-	payments: "Pagos",
-}
+
 const fmt = new Intl.DateTimeFormat("es-BO", { dateStyle: "medium" })
+const activeStatuses = new Set(["open", "in_review", "waiting_information", "blocked"])
+const activeCasesTotal = view
+	? Object.values(view.caseCounts.activeByDomain).reduce((total, amount) => total + amount, 0)
+	: 0
+const pendingCases = view?.pendingCases ?? []
+const nextCase = pendingCases[0] ?? null
+const visiblePendingCases = pendingCases.slice(0, 6)
+const closedCases = (view?.cases ?? [])
+	.filter((item) => !activeStatuses.has(item.status))
+	.slice(0, 8)
+const shortProviderId = view ? `${view.provider.id.slice(0, 8)}…${view.provider.id.slice(-4)}` : ""
+const accountStatusLabels: Record<string, string> = {
+	draft: "Borrador",
+	active: "Activo",
+	inactive: "Inactivo",
+	suspended: "Suspendido",
+}
+const accountPurposeLabels: Record<string, string> = {
+	commercial: "Comercial",
+	integration_certification: "Certificación · datos de prueba",
+	internal_qa: "Pruebas internas",
+}
+const operational = view?.operational ?? null
+
+function caseTitle(item: { summary: string | null; domain: string }) {
+	return (
+		item.summary
+			?.trim()
+			.replaceAll("government_id", "documento de identidad")
+			.replaceAll("tax_document", "documento fiscal")
+			.replaceAll("business_registration", "registro mercantil")
+			.replaceAll("cuenta de payout", "cuenta para desembolsos") ||
+		`Revisión de ${PROVIDER_WORK_VOCABULARY.domains[item.domain as keyof typeof PROVIDER_WORK_VOCABULARY.domains] ?? item.domain}`
+	)
+}
+function deadlineLabel(item: (typeof pendingCases)[number]) {
+	if (item.slaStatus === "overdue") return "SLA vencido"
+	if (item.slaStatus === "due_soon")
+		return item.slaDueAt ? `Vence ${fmt.format(item.slaDueAt)}` : "Por vencer"
+	if (item.slaDueAt) return `Vence ${fmt.format(item.slaDueAt)}`
+	return "Sin plazo definido"
+}
+function nextActionExplanation(item: (typeof pendingCases)[number] | null) {
+	if (!item) return "No hay revisiones activas para este proveedor."
+	const domain =
+		PROVIDER_WORK_VOCABULARY.domains[
+			item.domain as keyof typeof PROVIDER_WORK_VOCABULARY.domains
+		] ?? item.domain
+	if (item.status === "waiting_information")
+		return `Esperamos información del proveedor para continuar con ${domain.toLowerCase()}. Revisa qué se solicitó en el expediente.`
+	return `${deadlineLabel(item)}. ${item.assigneeEmail ? `Responsable: ${item.assigneeEmail}.` : "Sin responsable asignado."}`
+}
+function sourceDateLabel(value: Date | null) {
+	return value ? fmt.format(value) : "Sin evaluación registrada"
+}
+function operationalTone(status: string) {
+	if (status === "verified") return "bg-emerald-100 text-emerald-800"
+	if (status === "attention") return "bg-red-100 text-red-800"
+	if (status === "reconciliation_needed") return "bg-amber-100 text-amber-800"
+	if (status === "in_review") return "bg-sky-100 text-sky-800"
+	return "bg-slate-100 text-slate-700"
+}
+function availabilityLabel(value: boolean | null) {
+	return value === true
+		? "Habilitado"
+		: value === false
+			? "Restringido"
+			: "Sin evaluación específica"
+}
 ---
 
 <InternalAdminLayout
 	title={view
-		? `${view.provider.displayName || view.provider.legalName || "Proveedor"} · 360`
-		: "Proveedor 360"}
+		? `${view.provider.displayName || view.provider.legalName || "Proveedor"} · Ficha`
+		: "Ficha del proveedor"}
 >
 	{
-		view && (
+		accessRestricted ? (
 			<section class="space-y-6">
-				<header class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+				<Card class="bg-slate-100">
 					<>
-						<div>
-							<>
-								<p class="text-xs font-semibold tracking-[0.16em] text-amber-300 uppercase">
-									Proveedor 360
-								</p>
-								<h1 class="mt-2 text-3xl font-semibold text-white">
-									{view.provider.displayName || view.provider.legalName || "Proveedor sin nombre"}
-								</h1>
-								<p class="mt-2 font-mono text-xs text-slate-400">{view.provider.id}</p>
-							</>
-						</div>
-						<div class="flex flex-wrap gap-2">
-							<>
-								<Button
-									href={`/admin/providers?filter=all&providerId=${view.provider.id}`}
-									variant="onDark"
-								>
-									Abrir fuentes legacy
-								</Button>
-								<Button href={`/admin/audit?providerId=${view.provider.id}`} variant="secondary">
-									Auditoría
-								</Button>
-							</>
-						</div>
+						<h1 class="text-xl font-semibold text-slate-900">Acceso restringido</h1>
+						<p class="mt-2 text-sm text-slate-600">
+							Tu cuenta no tiene permiso para consultar la ficha de este proveedor.
+						</p>
 					</>
-				</header>
-				<div class="fastt-notice rounded-xl border border-sky-400/40 bg-sky-950/50 px-4 py-3 text-sm text-sky-100">
-					Provider 360 es una vista longitudinal. Para cambiar una fuente sensible, abre su caso;
-					aquí no existen mutaciones directas.
-				</div>
-				<div class="grid gap-6 xl:grid-cols-[1fr_22rem]">
-					<div class="space-y-6">
-						<Card>
-							<>
-								<h2 class="text-lg font-semibold">Cumplimiento por dominio</h2>
-								<div class="mt-4 grid gap-4 sm:grid-cols-2">
-									{Object.entries(domainLabels).map(([domain, label]) => {
-										const cases = activeCases.filter((item) => item.domain === domain)
-										return (
-											<a
-												href={`/admin/queues/${domain}`}
-												class="rounded-xl border border-slate-200 p-4 hover:border-amber-400"
-											>
-												<div class="flex items-center justify-between">
-													<h3 class="font-semibold">{label}</h3>
-													<span class="text-2xl font-semibold">{cases.length}</span>
+				</Card>
+			</section>
+		) : (
+			view && (
+				<section class="space-y-6">
+					<header class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+						<div>
+							<p class="text-xs font-semibold tracking-[0.16em] text-amber-300 uppercase">
+								Ficha del proveedor
+							</p>
+							<h1 class="mt-2 text-3xl font-semibold text-white">
+								{view.provider.displayName || view.provider.legalName || "Proveedor sin nombre"}
+							</h1>
+							{view.provider.dataClassification === "fixture" && (
+								<p class="mt-2 font-semibold text-amber-200">
+									Datos de prueba · no usar para decisiones comerciales
+								</p>
+							)}
+							<p class="mt-2 text-sm text-slate-300">
+								{view.provider.legalName || "Razón social no registrada"}
+							</p>
+							<div class="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+								<span>ID interno: {shortProviderId}</span>
+								<button
+									type="button"
+									data-copy-provider-id={view.provider.id}
+									class="fastt-button inline-flex items-center gap-1 rounded px-1 font-semibold text-white underline decoration-slate-500 underline-offset-4 hover:decoration-white focus:ring-2 focus:ring-white focus:outline-none"
+								>
+									<span aria-hidden="true">⧉</span> <span data-copy-label>Copiar ID</span>
+								</button>
+								<span class="sr-only" data-copy-status aria-live="polite" />
+							</div>
+						</div>
+						<Button href="#historial" variant="onDark">
+							Ver historial
+						</Button>
+					</header>
+
+					<div class="grid gap-6 xl:grid-cols-[1fr_22rem]">
+						<div class="space-y-6">
+							<Card class="border-amber-300 bg-amber-50">
+								<div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+									<div>
+										<>
+											<p class="text-xs font-semibold tracking-[0.12em] text-amber-800 uppercase">
+												Próxima acción
+											</p>
+											<h2 class="mt-2 text-lg font-semibold text-slate-950">
+												{nextCase ? caseTitle(nextCase) : "No hay acciones pendientes"}
+											</h2>
+											<p class="mt-2 text-sm text-slate-700">{nextActionExplanation(nextCase)}</p>
+										</>
+									</div>
+									{nextCase && (
+										<Button href={`/admin/cases/${nextCase.id}`}>
+											{PROVIDER_WORK_VOCABULARY.actions.openCase}
+										</Button>
+									)}
+								</div>
+							</Card>
+
+							<Card>
+								<div class="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
+									<>
+										<h2 class="text-lg font-semibold">Pendientes</h2>
+										<p class="text-sm text-slate-600">
+											{activeCasesTotal}{" "}
+											{activeCasesTotal === 1 ? "revisión activa" : "revisiones activas"}
+										</p>
+									</>
+								</div>
+								<p class="mt-2 text-sm text-slate-600">
+									Ordenadas por plazo, prioridad y posibilidad de avanzar.
+								</p>
+								{visiblePendingCases.length ? (
+									<ol class="mt-4 divide-y divide-slate-200">
+										{visiblePendingCases.map((item) => (
+											<li class="grid gap-3 py-4 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto] lg:items-center">
+												<div>
+													<p class="font-semibold text-slate-950">{caseTitle(item)}</p>
+													<p class="mt-1 text-sm text-slate-600">
+														{
+															PROVIDER_WORK_VOCABULARY.domains[
+																item.domain as keyof typeof PROVIDER_WORK_VOCABULARY.domains
+															]
+														}{" "}
+														· {deadlineLabel(item)} · {item.assigneeEmail || "Sin asignar"}
+													</p>
 												</div>
-												<p class="mt-2 text-sm text-slate-600">
-													{cases.length ? "Requiere atención" : "Sin expediente activo"}
-												</p>
-											</a>
+												<CaseStatusBadge value={item.status} />
+												<CaseStatusBadge value={item.slaStatus} />
+												<Button href={`/admin/cases/${item.id}`} variant="secondary" size="sm">
+													{PROVIDER_WORK_VOCABULARY.actions.openCase}
+												</Button>
+											</li>
+										))}
+									</ol>
+								) : (
+									<p class="mt-4 text-sm text-slate-600">
+										{PROVIDER_WORK_VOCABULARY.results.noActiveCases}.
+									</p>
+								)}
+								{activeCasesTotal > visiblePendingCases.length && (
+									<a
+										href={`/admin/queues/all?providerId=${encodeURIComponent(view.provider.id)}`}
+										class="mt-4 inline-flex text-sm font-semibold text-slate-900 underline underline-offset-4"
+									>
+										{PROVIDER_WORK_VOCABULARY.actions.viewAllPending}
+									</a>
+								)}
+							</Card>
+
+							<Card>
+								<h2 class="text-lg font-semibold">Estado por área</h2>
+								<p class="mt-2 text-sm text-slate-600">
+									Cada resultado indica su fuente, la fecha de evaluación y la evidencia que falta.
+								</p>
+								<div class="mt-4 grid gap-4 sm:grid-cols-2">
+									{Object.entries(PROVIDER_WORK_VOCABULARY.domains).map(([domain, label]) => {
+										const area = operational?.areas[domain as keyof typeof operational.areas]
+										const activeCase = pendingCases.find((item) => item.domain === domain)
+										return (
+											<article class="rounded-xl border border-slate-200 p-4">
+												<div class="flex items-start justify-between gap-3">
+													<h3 class="font-semibold text-slate-950">{label}</h3>
+													{area && (
+														<span
+															class={`rounded-full px-2 py-1 text-xs font-semibold ${operationalTone(area.status)}`}
+														>
+															{area.statusLabel}
+														</span>
+													)}
+												</div>
+												{area && (
+													<>
+														<p class="mt-3 text-sm text-slate-700">{area.reason}</p>
+														<dl class="mt-3 space-y-1 text-xs text-slate-500">
+															<div>
+																<dt class="inline font-semibold text-slate-600">Fuente: </dt>
+																<dd class="inline">{area.source}</dd>
+															</div>
+															<div>
+																<dt class="inline font-semibold text-slate-600">Evaluada: </dt>
+																<dd class="inline">{sourceDateLabel(area.sourceUpdatedAt)}</dd>
+															</div>
+														</dl>
+														{area.missingEvidence.length > 0 && (
+															<p class="mt-3 text-sm text-slate-700">
+																<span class="font-semibold">Falta: </span>
+																{area.missingEvidence.join(", ")}
+															</p>
+														)}
+													</>
+												)}
+												<div class="mt-4">
+													<a
+														href={
+															activeCase
+																? `/admin/cases/${activeCase.id}`
+																: `/admin/queues/${domain}?providerId=${encodeURIComponent(view.provider.id)}`
+														}
+														class="text-sm font-semibold text-slate-900 underline underline-offset-4"
+													>
+														{activeCase
+															? PROVIDER_WORK_VOCABULARY.actions.openCase
+															: PROVIDER_WORK_VOCABULARY.actions.viewArea}
+													</a>
+												</div>
+											</article>
 										)
 									})}
 								</div>
-							</>
-						</Card>
-						<Card>
-							<div class="flex items-center justify-between">
-								<>
-									<h2 class="text-lg font-semibold">Expedientes</h2>
-									<span class="text-sm text-slate-500">{view.cases.length}</span>
-								</>
-							</div>
-							{view.cases.length ? (
-								<ol class="mt-4 divide-y divide-slate-200">
-									{view.cases.map((item) => (
-										<li class="flex flex-col justify-between gap-3 py-4 sm:flex-row sm:items-center">
-											<div>
-												<a class="font-semibold hover:underline" href={`/admin/cases/${item.id}`}>
-													{item.caseNumber}
-												</a>
-												<p class="mt-1 text-sm text-slate-600">
-													{domainLabels[item.domain]} · {item.summary}
-												</p>
-											</div>
-											<div class="flex items-center gap-2">
-												<CaseStatusBadge value={item.status} />
-												<span class="text-xs text-slate-500">{fmt.format(item.openedAt)}</span>
-											</div>
-										</li>
-									))}
-								</ol>
-							) : (
-								<p class="mt-4 text-sm text-slate-600">No hay expedientes.</p>
-							)}
-						</Card>
-					</div>
-					<aside class="space-y-4">
-						<>
+								<p class="mt-4 text-xs text-slate-500">
+									Evaluación de esta ficha:{" "}
+									{operational ? fmt.format(operational.evaluatedAt) : "No disponible"}. Los casos
+									enlazados sirven para revisar o decidir; no sustituyen esta evaluación.
+								</p>
+							</Card>
+
+							<Card id="historial">
+								<div class="flex items-baseline justify-between gap-3">
+									<>
+										<h2 class="text-lg font-semibold">Historial reciente</h2>
+										<span class="text-sm text-slate-500">
+											{view.caseCounts.total} revisiones en total
+										</span>
+									</>
+								</div>
+								{closedCases.length ? (
+									<ol class="mt-4 divide-y divide-slate-200">
+										{closedCases.map((item) => (
+											<li class="flex flex-col justify-between gap-3 py-4 sm:flex-row sm:items-center">
+												<div>
+													<p class="font-semibold text-slate-950">{caseTitle(item)}</p>
+													<p class="mt-1 text-sm text-slate-600">
+														{
+															PROVIDER_WORK_VOCABULARY.domains[
+																item.domain as keyof typeof PROVIDER_WORK_VOCABULARY.domains
+															]
+														}{" "}
+														· Abierto {fmt.format(item.openedAt)}
+													</p>
+												</div>
+												<div class="flex items-center gap-3">
+													<CaseStatusBadge value={item.status} />
+													<a
+														class="text-sm font-semibold text-slate-900 underline underline-offset-4"
+														href={`/admin/cases/${item.id}`}
+													>
+														Ver expediente
+													</a>
+												</div>
+											</li>
+										))}
+									</ol>
+								) : (
+									<p class="mt-4 text-sm text-slate-600">
+										{PROVIDER_WORK_VOCABULARY.results.noClosedCases}.
+									</p>
+								)}
+								{view.caseCounts.total > view.cases.length && (
+									<p class="mt-4 text-xs text-slate-500">
+										El historial muestra los 100 expedientes más recientes.
+									</p>
+								)}
+							</Card>
+						</div>
+
+						<aside class="space-y-4">
 							<Card>
 								<>
 									<h2 class="font-semibold">Perfil</h2>
-									<dl class="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+									<dl class="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-3 text-sm">
 										<>
-											<dt class="text-slate-500">Legal</dt>
-											<dd>{view.provider.legalName || "—"}</dd>
-											<dt class="text-slate-500">Visible</dt>
-											<dd>{view.provider.displayName || "—"}</dd>
-											<dt class="text-slate-500">Estado</dt>
-											<dd>{view.provider.status || "—"}</dd>
-											<dt class="text-slate-500">Propósito</dt>
-											<dd>{view.provider.accountPurpose}</dd>
+											<dt class="text-slate-500">Razón social</dt>
+											<dd>{view.provider.legalName || "No registrada"}</dd>
+											<dt class="text-slate-500">Nombre comercial</dt>
+											<dd>{view.provider.displayName || "No registrado"}</dd>
+											<dt class="text-slate-500">Estado de cuenta</dt>
+											<dd>
+												{(view.provider.status && accountStatusLabels[view.provider.status]) ||
+													view.provider.status ||
+													"No definido"}
+											</dd>
+											<dt class="text-slate-500">Tipo de cuenta</dt>
+											<dd>
+												{(view.provider.accountPurpose &&
+													accountPurposeLabels[view.provider.accountPurpose]) ||
+													view.provider.accountPurpose ||
+													"No definido"}
+											</dd>
 										</>
 									</dl>
 								</>
 							</Card>
 							<Card>
-								<>
-									<h2 class="font-semibold">Capacidades</h2>
-									<p class="mt-2 text-sm text-slate-600">
-										La próxima iteración conectará publicación, reservas y payout como capacidades
-										derivadas. No se infieren restricciones desde un único estado general.
-									</p>
-								</>
+								<h2 class="font-semibold">Cobros y desembolsos</h2>
+								<p class="mt-2 text-sm text-slate-600">
+									Estas tres evaluaciones tienen alcances distintos.
+								</p>
+								{operational && (
+									<dl class="mt-4 space-y-4 text-sm">
+										<div>
+											<dt class="font-semibold text-slate-950">Cobros en la plataforma</dt>
+											<dd class="mt-1">
+												<span
+													class={`rounded-full px-2 py-1 text-xs font-semibold ${operational.capabilities.collections.available ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"}`}
+												>
+													{availabilityLabel(operational.capabilities.collections.available)}
+												</span>
+												<p class="mt-2 text-slate-600">
+													{operational.capabilities.collections.reason}
+												</p>
+												<p class="mt-1 text-xs text-slate-500">
+													Fuente: {operational.capabilities.collections.source} · Evaluada:{" "}
+													{fmt.format(operational.evaluatedAt)}
+												</p>
+											</dd>
+										</div>
+										<div>
+											<dt class="font-semibold text-slate-950">
+												Validación de cuenta para desembolsos
+											</dt>
+											<dd class="mt-1">
+												<span
+													class={`rounded-full px-2 py-1 text-xs font-semibold ${operational.capabilities.payoutAccount.available ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}
+												>
+													{availabilityLabel(operational.capabilities.payoutAccount.available)}
+												</span>
+												<p class="mt-2 text-slate-600">
+													{operational.capabilities.payoutAccount.reason}
+												</p>
+												<p class="mt-1 text-xs text-slate-500">
+													Fuente: {operational.capabilities.payoutAccount.source} · Evaluada:{" "}
+													{sourceDateLabel(operational.capabilities.payoutAccount.evaluatedAt)}
+												</p>
+											</dd>
+										</div>
+										<div>
+											<dt class="font-semibold text-slate-950">Disponibilidad de desembolsos</dt>
+											<dd class="mt-1">
+												<span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">
+													{availabilityLabel(operational.capabilities.disbursements.available)}
+												</span>
+												<p class="mt-2 text-slate-600">
+													{operational.capabilities.disbursements.reason}
+												</p>
+												<p class="mt-1 text-xs text-slate-500">
+													Fuente: {operational.capabilities.disbursements.source} · Evaluada:{" "}
+													{sourceDateLabel(operational.capabilities.disbursements.evaluatedAt)}
+												</p>
+											</dd>
+										</div>
+									</dl>
+								)}
 							</Card>
-						</>
-					</aside>
-				</div>
-			</section>
+							<details class="fastt-card rounded-xl border border-slate-200 bg-white p-4 text-sm shadow-sm">
+								<>
+									<summary class="cursor-pointer font-semibold text-slate-700">
+										Herramientas técnicas
+									</summary>
+									<div class="mt-3 flex flex-col items-start gap-2">
+										<>
+											<Button
+												href={`/admin/audit?providerId=${encodeURIComponent(view.provider.id)}`}
+												variant="secondary"
+												size="sm"
+											>
+												Auditoría
+											</Button>
+											<Button
+												href={`/admin/providers?filter=all&providerId=${encodeURIComponent(view.provider.id)}`}
+												variant="ghost"
+												size="sm"
+											>
+												Ver fuentes anteriores
+											</Button>
+										</>
+									</div>
+								</>
+							</details>
+						</aside>
+					</div>
+				</section>
+			)
 		)
 	}
 </InternalAdminLayout>
+
+<script>
+	async function copyTextToClipboard(value: string): Promise<boolean> {
+		try {
+			if (navigator.clipboard?.writeText) {
+				await navigator.clipboard.writeText(value)
+				return true
+			}
+		} catch {
+			/* fall through to legacy copy */
+		}
+		try {
+			const input = document.createElement("textarea")
+			input.value = value
+			input.setAttribute("readonly", "")
+			input.style.position = "fixed"
+			input.style.top = "0"
+			input.style.left = "0"
+			input.style.opacity = "0"
+			document.body.appendChild(input)
+			input.focus()
+			input.select()
+			input.setSelectionRange(0, value.length)
+			const copied = document.execCommand("copy")
+			input.remove()
+			return copied
+		} catch {
+			return false
+		}
+	}
+
+	function setCopyFeedback(button: HTMLButtonElement, ok: boolean) {
+		const label = button.querySelector<HTMLElement>("[data-copy-label]")
+		const status = document.querySelector<HTMLElement>("[data-copy-status]")
+		if (label) label.textContent = ok ? "Copiado" : "No se pudo copiar"
+		if (status) {
+			status.textContent = ok
+				? "ID interno copiado al portapapeles"
+				: "No se pudo copiar el ID interno"
+		}
+		window.setTimeout(() => {
+			if (label) label.textContent = "Copiar ID"
+			if (status) status.textContent = ""
+		}, 1800)
+	}
+
+	const globalState = window as typeof window & { __fasttCopyProviderIdBound?: boolean }
+	if (!globalState.__fasttCopyProviderIdBound) {
+		globalState.__fasttCopyProviderIdBound = true
+		document.addEventListener("click", (event) => {
+			const target = event.target
+			if (!(target instanceof Element)) return
+			const button = target.closest<HTMLButtonElement>("[data-copy-provider-id]")
+			if (!button) return
+			const providerId = button.dataset.copyProviderId
+			if (!providerId) return
+			event.preventDefault()
+			void copyTextToClipboard(providerId).then((ok) => setCopyFeedback(button, ok))
+		})
+	}
+</script>
