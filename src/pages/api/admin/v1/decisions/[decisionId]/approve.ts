@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro"
-import { getFeatureFlag } from "@/config/featureFlags"
+import { getFeatureFlag, isCommandCenterV2PilotProvider } from "@/config/featureFlags"
 import { requireInternalPermission } from "@/lib/auth/internal-authorization"
 import { requireRecentInternalAuthentication } from "@/lib/auth/internal-step-up"
 import {
@@ -14,6 +14,8 @@ import { requestIdFromRequest, withRequestId } from "@/lib/http/request-context"
 import {
 	approveAndApplyCaseDecision,
 	getDecisionAuthorizationContext,
+	getCaseWorkspace,
+	getCaseEvidence,
 } from "@/modules/casework/public"
 
 export const POST: APIRoute = async ({ request, params }) => {
@@ -45,6 +47,8 @@ export const POST: APIRoute = async ({ request, params }) => {
 				)
 				const context = await getDecisionAuthorizationContext(decisionId)
 				if (!context) throw Object.assign(new Error("case_decision_not_found"), { status: 404 })
+				if (!isCommandCenterV2PilotProvider(context.providerId))
+					throw Response.json({ error: "casework_pilot_scope_required" }, { status: 403 })
 				const permission = {
 					verification: "provider.verification.review",
 					fiscal: "provider.fiscal.review",
@@ -62,10 +66,22 @@ export const POST: APIRoute = async ({ request, params }) => {
 				audit.actorUserId = principal.user.id
 				audit.actorRoleKeys = principal.roles
 				audit.providerId = context.providerId
+				audit.contextJson = { caseId: context.caseId }
 				await requireRecentInternalAuthentication({ request, user: principal.user })
 			},
 			execute: async () => {
 				if (!audit.actorUserId) throw new Error("sensitive_command_actor_missing")
+				const context = await getDecisionAuthorizationContext(decisionId)
+				const workspace = context ? await getCaseWorkspace(context.caseId) : null
+				const proposal = workspace?.decisions.find((item) => item.id === decisionId)
+				if (!workspace || !proposal)
+					throw Object.assign(new Error("case_decision_not_found"), { status: 404 })
+				const evidence = await getCaseEvidence(workspace)
+				const snapshot = proposal.evidenceSnapshotJson as { evidenceRevision?: string } | null
+				if (snapshot?.evidenceRevision !== evidence.revision)
+					throw Object.assign(new Error("case_evidence_changed"), { status: 409 })
+				if (proposal.decision === "approved" && evidence.approvalBlockers.length)
+					throw Object.assign(new Error("approval_evidence_incomplete"), { status: 422 })
 				const result = await approveAndApplyCaseDecision({
 					decisionId,
 					expectedCaseVersion,

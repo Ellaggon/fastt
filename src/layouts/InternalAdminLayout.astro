@@ -86,7 +86,8 @@ const isActive = (link: (typeof links)[number]) =>
 						>
 						<a
 							class="rounded-lg border border-slate-700 px-3 py-2 text-xs font-medium text-amber-200 hover:border-amber-300"
-							href={`/auth/mfa?returnTo=${encodeURIComponent(pathname)}`}>Confirmar MFA</a
+							href={`/auth/mfa?returnTo=${encodeURIComponent(pathname + Astro.url.search)}`}
+							>Confirmar MFA</a
 						>
 					</div>
 				</div>
