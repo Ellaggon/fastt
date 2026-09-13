@@ -7,6 +7,7 @@ import {
 	daysBeforeArrivalAsDaysBeforeDeparture,
 	durationMinutesMatchesBucket,
 	isTourSlotKind,
+	normalizeTourDurationBucket,
 	parseDurationMinutes,
 	pricePerNightAsUnitPrice,
 	tourDepartureToStay,
@@ -52,17 +53,21 @@ describe("tour semantics mapping contract", () => {
 	})
 
 	it("matches duration filter buckets", () => {
-		expect(durationMinutesMatchesBucket(180, "lt1")).toBe(true)
-		expect(durationMinutesMatchesBucket(24 * 60, "1")).toBe(true)
-		expect(durationMinutesMatchesBucket(3 * 24 * 60, "2-3")).toBe(true)
-		expect(durationMinutesMatchesBucket(null, "lt1")).toBe(false)
+		expect(durationMinutesMatchesBucket(180, "up_to_4h")).toBe(true)
+		expect(durationMinutesMatchesBucket(6 * 60, "four_to_eight_hours")).toBe(true)
+		expect(durationMinutesMatchesBucket(8 * 60, "full_day")).toBe(true)
+		expect(durationMinutesMatchesBucket(12 * 60, "full_day")).toBe(true)
+		expect(durationMinutesMatchesBucket(24 * 60, "multi_day")).toBe(true)
+		expect(durationMinutesMatchesBucket(12 * 60, "multi_day")).toBe(false)
+		expect(durationMinutesMatchesBucket(null, "up_to_4h")).toBe(false)
 		expect(durationMinutesMatchesBucket(180, "")).toBe(true)
+		expect(normalizeTourDurationBucket("lt1")).toBe("up_to_4h")
+		expect(normalizeTourDurationBucket("1")).toBe("full_day")
 	})
 })
 
 describe("tour JSON shapes contract (fase 0 inventory)", () => {
-	const read = (rel: string) =>
-		readFileSync(resolve(process.cwd(), rel), "utf8")
+	const read = (rel: string) => readFileSync(resolve(process.cwd(), rel), "utf8")
 
 	it("keeps create and update paths building identical Tour.*Json shapes", () => {
 		for (const rel of [
@@ -74,7 +79,9 @@ describe("tour JSON shapes contract (fase 0 inventory)", () => {
 			expect(source).toContain('address: form.get("meetingPointAddress")')
 			expect(source).toContain('instructions: form.get("meetingPointInstructions")')
 			// itineraryJson: [{ step: 1-based, description }]
-			expect(source).toContain('listFromForm(form.get("tourItinerary")).map((description, index) => ({')
+			expect(source).toContain(
+				'listFromForm(form.get("tourItinerary")).map((description, index) => ({'
+			)
 			expect(source).toContain("step: index + 1")
 			// guideJson.languages is a comma-joined string (not an array)
 			expect(source).toContain('listFromForm(form.get("guideLanguages")).join(", ")')
@@ -97,8 +104,7 @@ describe("tour JSON shapes contract (fase 0 inventory)", () => {
 })
 
 describe("tour content backfill contract (fase 1)", () => {
-	const read = (rel: string) =>
-		readFileSync(resolve(process.cwd(), rel), "utf8")
+	const read = (rel: string) => readFileSync(resolve(process.cwd(), rel), "utf8")
 
 	it("normalize migration adds queryable columns and indexes", () => {
 		const migration = read("db/migrations/2026-08-14_tour_content_normalize.sql")
@@ -119,9 +125,9 @@ describe("tour content backfill contract (fase 1)", () => {
 
 		expect(schema).not.toContain('categoriesJson: jsonb("categoriesJson")')
 		expect(baseline).not.toContain('"categoriesJson" jsonb')
-		expect(retirement).toContain('TOUR_CATEGORIES_JSON_INVALID_SHAPE')
+		expect(retirement).toContain("TOUR_CATEGORIES_JSON_INVALID_SHAPE")
 		expect(retirement).toContain('INSERT INTO "ProductCategoryLink"')
-		expect(retirement).toContain('TOUR_CATEGORY_BACKFILL_INCOMPLETE')
+		expect(retirement).toContain("TOUR_CATEGORY_BACKFILL_INCOMPLETE")
 		expect(retirement).toContain('ALTER TABLE "Tour" DROP COLUMN "categoriesJson"')
 		expect(backfillValidator).toContain("skipped_categories_json_retired")
 		expect(backfillValidator).toContain("information_schema.columns")

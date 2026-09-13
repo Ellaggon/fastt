@@ -124,19 +124,54 @@ export function isTourSlotKind(kind: string | null | undefined): boolean {
 	)
 }
 
-/** Duration filter buckets used by TourSearchPanel. */
+/**
+ * Human-scale duration buckets used by public tour discovery.
+ *
+ * A tour that lasts a normal working day must not be presented as a multi-day
+ * activity. Legacy values are accepted below so saved search URLs continue to
+ * work while the panel emits the clearer values.
+ */
+export const TOUR_DURATION_OPTIONS = [
+	{ value: "up_to_4h", label: "Hasta 4 horas" },
+	{ value: "four_to_eight_hours", label: "Más de 4 a menos de 8 horas" },
+	{ value: "full_day", label: "Jornada completa (8–24 horas)" },
+	{ value: "multi_day", label: "Más de un día" },
+] as const
+
+export type TourDurationBucket = (typeof TOUR_DURATION_OPTIONS)[number]["value"]
+
+export function normalizeTourDurationBucket(
+	bucket: string | null | undefined
+): TourDurationBucket | null {
+	const value = String(bucket ?? "").trim()
+	if (!value) return null
+	if (TOUR_DURATION_OPTIONS.some((option) => option.value === value)) {
+		return value as TourDurationBucket
+	}
+	// URLs emitted before Fase 1.
+	if (value === "lt1") return "up_to_4h"
+	if (value === "1") return "full_day"
+	if (["2-3", "4-7", "8+"].includes(value)) return "multi_day"
+	return null
+}
+
+export function tourDurationBucketLabel(bucket: string | null | undefined): string | null {
+	const normalized = normalizeTourDurationBucket(bucket)
+	return TOUR_DURATION_OPTIONS.find((option) => option.value === normalized)?.label ?? null
+}
+
+/** Duration filter buckets used by TourSearchPanel and SearchUnitView. */
 export function durationMinutesMatchesBucket(
 	durationMinutes: number | null | undefined,
 	bucket: string | null | undefined
 ): boolean {
-	const b = String(bucket ?? "").trim()
+	const b = normalizeTourDurationBucket(bucket)
 	if (!b) return true
 	if (durationMinutes == null || !Number.isFinite(durationMinutes)) return false
 	const m = Number(durationMinutes)
-	if (b === "lt1") return m < 24 * 60
-	if (b === "1") return m >= 24 * 60 && m < 48 * 60
-	if (b === "2-3") return m >= 48 * 60 && m < 96 * 60
-	if (b === "4-7") return m >= 96 * 60 && m < 192 * 60
-	if (b === "8+") return m >= 192 * 60
+	if (b === "up_to_4h") return m <= 4 * 60
+	if (b === "four_to_eight_hours") return m > 4 * 60 && m < 8 * 60
+	if (b === "full_day") return m >= 8 * 60 && m < 24 * 60
+	if (b === "multi_day") return m >= 24 * 60
 	return true
 }

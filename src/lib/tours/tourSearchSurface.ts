@@ -12,7 +12,11 @@ import {
 	tourDifficultyLabel,
 	tourDifficultyMatchValues,
 } from "@/lib/tours/tourDifficulty"
-import { durationMinutesMatchesBucket, tourDepartureToStay } from "@/lib/tours/tourSemantics"
+import {
+	durationMinutesMatchesBucket,
+	normalizeTourDurationBucket,
+	tourDepartureToStay,
+} from "@/lib/tours/tourSemantics"
 import {
 	filterTourSearchCardsForCanary,
 	recordTourSearch,
@@ -114,14 +118,13 @@ function isSellableRow(row: {
 }
 
 function durationBucketSql(bucket: string | null | undefined) {
-	const b = String(bucket ?? "").trim()
+	const b = normalizeTourDurationBucket(bucket)
 	if (!b) return null
 	const minutes = Tour.durationMinutes
-	if (b === "lt1") return and(sql`${minutes} is not null`, lt(minutes, 24 * 60))
-	if (b === "1") return and(gte(minutes, 24 * 60), lt(minutes, 48 * 60))
-	if (b === "2-3") return and(gte(minutes, 48 * 60), lt(minutes, 96 * 60))
-	if (b === "4-7") return and(gte(minutes, 96 * 60), lt(minutes, 192 * 60))
-	if (b === "8+") return gte(minutes, 192 * 60)
+	if (b === "up_to_4h") return and(sql`${minutes} is not null`, lt(minutes, 4 * 60 + 1))
+	if (b === "four_to_eight_hours") return and(gte(minutes, 4 * 60 + 1), lt(minutes, 8 * 60))
+	if (b === "full_day") return and(gte(minutes, 8 * 60), lt(minutes, 24 * 60))
+	if (b === "multi_day") return gte(minutes, 24 * 60)
 	return null
 }
 
@@ -140,6 +143,7 @@ export async function getTourSearchSurface(params: {
 	level?: string | null
 	priceMin?: number | null
 	priceMax?: number | null
+	currency?: string | null
 	sort?: string
 	limit?: number
 	/** Stable session/anon id for percentage canary bucketing (not destination). */
@@ -206,6 +210,7 @@ async function loadTourSearchSurfaceCards(params: {
 	level?: string | null
 	priceMin?: number | null
 	priceMax?: number | null
+	currency?: string | null
 	sort?: string
 	limit?: number
 	canarySubject?: { subjectId?: string | null; host?: string | null }
@@ -419,6 +424,10 @@ async function loadTourSearchSurfaceCards(params: {
 		params.priceMax == null || !Number.isFinite(Number(params.priceMax))
 			? null
 			: Number(params.priceMax)
+	const currency = String(params.currency ?? "")
+		.trim()
+		.toUpperCase()
+	if (/^[A-Z]{3}$/.test(currency)) cards = cards.filter((card) => card.currency === currency)
 	if (priceMin != null) cards = cards.filter((c) => c.fromPrice >= priceMin)
 	if (priceMax != null) cards = cards.filter((c) => c.fromPrice <= priceMax)
 
@@ -454,8 +463,14 @@ async function loadTourSearchSurfaceCards(params: {
 
 	const sort = String(params.sort ?? "relevance").trim()
 	cards.sort((a, b) => {
-		if (sort === "price_asc") return a.fromPrice - b.fromPrice
-		if (sort === "price_desc") return b.fromPrice - a.fromPrice
+		// Numeric amounts from different currencies are not comparable. Price order
+		// therefore groups the currency first, then sorts within that currency.
+		if (sort === "price_asc") {
+			return a.currency.localeCompare(b.currency) || a.fromPrice - b.fromPrice
+		}
+		if (sort === "price_desc") {
+			return a.currency.localeCompare(b.currency) || b.fromPrice - a.fromPrice
+		}
 		if (sort === "duration_asc") {
 			return Number(a.durationMinutes ?? 99999) - Number(b.durationMinutes ?? 99999)
 		}
@@ -464,10 +479,13 @@ async function loadTourSearchSurfaceCards(params: {
 			if (ratingDiff !== 0) return ratingDiff
 			return b.reviewCount - a.reviewCount
 		}
-		// relevance: cheapest available first, then rating
-		const priceDiff = a.fromPrice - b.fromPrice
-		if (priceDiff !== 0) return priceDiff
-		return Number(b.avgRating ?? 0) - Number(a.avgRating ?? 0)
+		// Relevance prioritizes social proof; it does not pretend amounts in
+		// different currencies are directly comparable.
+		const ratingDiff = Number(b.avgRating ?? 0) - Number(a.avgRating ?? 0)
+		if (ratingDiff !== 0) return ratingDiff
+		const reviewsDiff = b.reviewCount - a.reviewCount
+		if (reviewsDiff !== 0) return reviewsDiff
+		return a.name.localeCompare(b.name, "es")
 	})
 
 	const canaryFiltered = filterTourSearchCardsForCanary(cards, params.canarySubject)
