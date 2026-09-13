@@ -74,13 +74,6 @@ export function tourTicketsToOccupancyDetail(params: {
 		else if (bucket === "child") out.children += qty
 		else out.infants += qty
 	}
-	// Hold/search require at least 1 adult in the commercial spine.
-	if (out.adults < 1 && out.children + out.infants > 0) {
-		out.adults = 1
-		if (out.children > 0) out.children -= 1
-		else out.infants = Math.max(0, out.infants - 1)
-	}
-	if (out.adults < 1) out.adults = 1
 	return out
 }
 
@@ -96,7 +89,15 @@ export function tourCupoUnits(params: {
 		if (!code) continue
 		total += normalizeTicketQuantity(params.quantities[code])
 	}
-	return Math.max(1, total)
+	return total
+}
+
+/** The UI may preserve an invalid party, but booking must not reinterpret it. */
+export function isValidTourParty(input: {
+	occupancy: TourOccupancyDetail
+	cupoUnits: number
+}): boolean {
+	return input.cupoUnits >= 1 && input.occupancy.adults >= 1
 }
 
 export function parseTourTicketQuantitiesFromSearchParams(
