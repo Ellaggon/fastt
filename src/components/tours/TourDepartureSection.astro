@@ -11,7 +11,6 @@ const {
 	productId,
 	ticketTypes = [],
 	priceBreakdown = null,
-	policySummary = null,
 } = Astro.props
 
 function ratePlanIdOf(ratePlan: any): string {
@@ -43,7 +42,9 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 				Reserva tu experiencia
 			</span>
 			<h2 class="mt-1 text-2xl font-semibold text-slate-950">Salidas disponibles</h2>
-			{policySummary ? <p class="mt-2 max-w-xl text-sm text-slate-600">{policySummary}</p> : null}
+			<p class="mt-2 max-w-xl text-sm text-slate-600">
+				Elige fecha, grupo y opción. Las condiciones se actualizan para la tarifa seleccionada.
+			</p>
 		</div>
 		<div class="grid w-full gap-2 sm:grid-cols-2 lg:flex lg:w-auto lg:flex-wrap lg:items-end">
 			<div class="flex flex-col gap-1">
@@ -93,7 +94,7 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 		priceBreakdown?.rows?.length ? (
 			<div class="fastt-soft-box rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-4">
 				<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-					Desglose por age band
+					Participantes seleccionados
 				</p>
 				<ul class="mt-3 space-y-2 text-sm text-slate-700">
 					{priceBreakdown.rows.map((row: any) => (
@@ -101,7 +102,7 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 							<span>
 								{row.quantity}× {row.label}
 								{row.inheritsAdultPricing ? (
-									<span class="ml-1 text-xs text-slate-400">(hereda adulto)</span>
+									<span class="ml-1 text-xs text-slate-400">(tarifa de adulto)</span>
 								) : null}
 							</span>
 							<span class="font-medium text-slate-950">
@@ -110,9 +111,9 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 						</li>
 					))}
 				</ul>
-				{priceBreakdown.note ? (
-					<p class="mt-3 text-xs leading-5 text-slate-500">{priceBreakdown.note}</p>
-				) : null}
+				<p class="mt-3 text-xs leading-5 text-slate-500">
+					El total y los cargos se confirmarán para la opción y el grupo que elijas.
+				</p>
 			</div>
 		) : null
 	}
@@ -120,7 +121,8 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 	{
 		(offers ?? []).length === 0 ? (
 			<p class="text-sm text-slate-600">
-				No hay salidas reservables para esa fecha y mezcla de tickets. Prueba otra fecha o cupo.
+				Elige una fecha y participantes para revisar las salidas. Si no hay cupo, prueba otra fecha
+				o un grupo menor.
 			</p>
 		) : (
 			<ul class="grid gap-3 md:grid-cols-2">
@@ -165,8 +167,10 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 								</div>
 								{!isPrivate && price != null ? (
 									<p class="text-right text-sm font-semibold text-slate-950">
-										{price}
-										<span class="block font-normal text-slate-500">total · {cupoUnits} cupos</span>
+										USD {price}
+										<span class="block font-normal text-slate-500">
+											precio inicial · confirma el total
+										</span>
 									</p>
 								) : isPrivate ? (
 									<p class="text-right text-sm font-semibold text-slate-950">
@@ -195,6 +199,7 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 												class="fastt-button rounded-[var(--fastt-radius-control)] border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
 												data-select-variant-id={variantId}
 												data-select-rateplan-id={id}
+												aria-pressed="false"
 											>
 												{String(rp.name ?? "Tarifa")}
 												{rpPrice != null ? ` · ${rpPrice}` : ""}
@@ -215,14 +220,24 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 		class="fastt-soft-box rounded-[var(--fastt-radius-card)] border border-slate-200 bg-slate-50 p-4"
 	>
 		<p class="text-xs text-slate-500">
-			Ocupación comercial: {occupancyDetail.adults} adultos · {occupancyDetail.children} niños ·{
-				" "
-			}
+			Participantes: {occupancyDetail.adults} adultos · {occupancyDetail.children} niños ·{" "}
 			{occupancyDetail.infants} infantes · cupo {cupoUnits}
 		</p>
 		<p id="tourHoldStatus" class="mt-2 text-sm text-slate-700" aria-live="polite">
 			Selecciona una tarifa para reservar cupo.
 		</p>
+		<div
+			id="tourSelectionSummary"
+			class="fastt-card mt-3 hidden rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700"
+			aria-live="polite"
+		>
+		</div>
+		<div
+			id="tourQuoteSummary"
+			class="fastt-notice mt-3 hidden rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950"
+			aria-live="polite"
+		>
+		</div>
 		<div class="mt-3 flex flex-wrap gap-2">
 			<Button type="button" id="tourReserveBtn" disabled>Reservar cupo</Button>
 			<Button type="button" id="tourConfirmBtn" variant="secondary" disabled>
@@ -282,6 +297,8 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 		const reserveBtn = document.getElementById("tourReserveBtn") as HTMLButtonElement | null
 		const confirmBtn = document.getElementById("tourConfirmBtn") as HTMLButtonElement | null
 		const statusEl = document.getElementById("tourHoldStatus")
+		const selectionSummary = document.getElementById("tourSelectionSummary")
+		const quoteSummary = document.getElementById("tourQuoteSummary")
 		let selectedVariantId = ""
 		let selectedRatePlanId = ""
 		let latestHoldId = ""
@@ -294,6 +311,23 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 			"tourPrivateSubmitBtn"
 		) as HTMLButtonElement | null
 		const privateCancel = document.getElementById("tourPrivateCancelBtn")
+
+		function invalidateSelection(
+			message = "La selección cambió. Elige una opción para ver sus condiciones."
+		) {
+			selectedVariantId = ""
+			selectedRatePlanId = ""
+			latestHoldId = ""
+			latestPriceQuoteId = ""
+			if (reserveBtn) reserveBtn.disabled = true
+			if (confirmBtn) confirmBtn.disabled = true
+			if (quoteSummary) quoteSummary.classList.add("hidden")
+			if (selectionSummary) selectionSummary.classList.add("hidden")
+			root
+				.querySelectorAll<HTMLButtonElement>("[data-select-rateplan-id]")
+				.forEach((button) => button.setAttribute("aria-pressed", "false"))
+			if (statusEl) statusEl.textContent = message
+		}
 
 		function showPrivateQuote(variantId: string) {
 			privateVariantId = variantId
@@ -351,16 +385,20 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 				else if (bucket === "child") children += qty
 				else if (bucket === "infant") infants += qty
 			}
-			if (adults < 1 && children + infants > 0) {
-				adults = 1
-				if (children > 0) children -= 1
-				else infants = Math.max(0, infants - 1)
-			}
-			if (adults < 1) adults = 1
 			return {
 				occupancyDetail: { adults, children, infants },
-				rooms: Math.max(1, cupo || adults + children + infants),
+				rooms: cupo,
 			}
+		}
+
+		function validParty(
+			occupancyDetail: { adults: number; children: number; infants: number },
+			rooms: number
+		) {
+			if (rooms < 1) return "Agrega al menos un participante para continuar."
+			if (occupancyDetail.adults < 1)
+				return "Esta reserva requiere al menos un adulto; ajusta el grupo antes de continuar."
+			return ""
 		}
 
 		function departureDate(): string {
@@ -376,10 +414,19 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 		searchBtn?.addEventListener("click", () => {
 			const date = departureDate()
 			const quantities = readQuantities()
-			if (!productId || !date) return
+			const party = toOccupancy(quantities)
+			const partyError = validParty(party.occupancyDetail, party.rooms)
+			if (partyError) {
+				if (statusEl) statusEl.textContent = partyError
+				return
+			}
+			if (!productId || !date) {
+				if (statusEl) statusEl.textContent = "Elige una fecha de salida."
+				return
+			}
 			const url = new URL(window.location.href)
 			url.searchParams.set("departure", date)
-			url.searchParams.set("adults", String(quantities.adult ?? quantities.adulto ?? 1))
+			url.searchParams.set("adults", String(quantities.adult ?? quantities.adulto ?? 0))
 			url.searchParams.set("children", String(quantities.child ?? 0))
 			url.searchParams.set("infants", String(quantities.infant ?? 0))
 			if (quantities.custom) url.searchParams.set("custom", String(quantities.custom))
@@ -388,21 +435,55 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 		})
 
 		root.querySelectorAll<HTMLButtonElement>("[data-select-variant-id]").forEach((btn) => {
-			btn.addEventListener("click", () => {
+			btn.addEventListener("click", async () => {
 				hidePrivateQuote()
+				invalidateSelection("Consultando condiciones de la opción elegida…")
 				selectedVariantId = String(btn.dataset.selectVariantId ?? "")
 				selectedRatePlanId = String(btn.dataset.selectRateplanId ?? "")
-				latestHoldId = ""
-				latestPriceQuoteId = ""
+				btn.setAttribute("aria-pressed", "true")
 				if (reserveBtn) reserveBtn.disabled = !(selectedVariantId && selectedRatePlanId)
 				if (confirmBtn) confirmBtn.disabled = true
-				if (statusEl) {
-					statusEl.textContent = selectedRatePlanId
-						? "Tarifa seleccionada. Reserva el cupo para continuar."
-						: "Selecciona una tarifa."
+				try {
+					const query = new URLSearchParams({
+						productId,
+						variantId: selectedVariantId,
+						ratePlanId: selectedRatePlanId,
+						departure: departureDate(),
+					})
+					const response = await fetch(`/api/tours/selection-summary?${query}`)
+					const payload = await response.json().catch(() => ({}))
+					if (!response.ok) throw new Error("selection_summary_unavailable")
+					if (selectionSummary) {
+						const confirmation =
+							payload.bookingStatus === "instant"
+								? "Confirmación inmediata"
+								: payload.bookingStatus === "request"
+									? "Solicitud de cotización"
+									: "Confirmación sujeta a revisión"
+						selectionSummary.textContent = `${confirmation}. ${payload.policySummary}${payload.freeCancellationDeadline ? ` Puedes cancelar sin costo hasta ${payload.freeCancellationDeadline}.` : ""}`
+						selectionSummary.classList.remove("hidden")
+					}
+					if (statusEl)
+						statusEl.textContent =
+							payload.bookingStatus === "request"
+								? "Esta opción requiere cotización; completa tus datos abajo."
+								: "Tarifa seleccionada. Revisa las condiciones y reserva el cupo para continuar."
+				} catch {
+					if (statusEl)
+						statusEl.textContent =
+							"No se pudieron cargar las condiciones de esta opción. Elige otra opción o intenta de nuevo."
+					if (reserveBtn) reserveBtn.disabled = true
 				}
 			})
 		})
+		departureInput?.addEventListener("change", () => invalidateSelection())
+		root
+			.querySelectorAll<HTMLInputElement>("[data-ticket-qty]")
+			.forEach((input) =>
+				input.addEventListener("input", () =>
+					invalidateSelection("El grupo cambió. Actualiza el precio para ver salidas disponibles.")
+				)
+			)
 
 		root.querySelectorAll<HTMLButtonElement>("[data-quote-private-variant]").forEach((btn) => {
 			btn.addEventListener("click", () => {
@@ -425,6 +506,11 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 				(document.getElementById("privateMessage") as HTMLTextAreaElement | null)?.value ?? ""
 			).trim()
 			const { occupancyDetail, rooms } = toOccupancy(readQuantities())
+			const partyError = validParty(occupancyDetail, rooms)
+			if (partyError) {
+				if (privateStatus) privateStatus.textContent = partyError
+				return
+			}
 			if (!name || !email) {
 				if (privateStatus) privateStatus.textContent = "Nombre y email son obligatorios."
 				return
@@ -474,6 +560,11 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 				return
 			}
 			const { occupancyDetail, rooms } = toOccupancy(readQuantities())
+			const partyError = validParty(occupancyDetail, rooms)
+			if (partyError) {
+				if (statusEl) statusEl.textContent = partyError
+				return
+			}
 			if (statusEl) statusEl.textContent = "Creando hold..."
 			if (reserveBtn) reserveBtn.disabled = true
 			try {
@@ -508,6 +599,11 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 				}
 				latestHoldId = String(payload?.holdId ?? "")
 				latestPriceQuoteId = String(payload?.priceQuote?.quoteId ?? "")
+				if (quoteSummary && payload?.priceQuote) {
+					const quote = payload.priceQuote
+					quoteSummary.textContent = `Total confirmado para esta selección: ${quote.currency || "USD"} ${Number(quote.totalAmount ?? 0).toFixed(2)}. Incluye cargos e impuestos aplicables: ${quote.currency || "USD"} ${Number(quote.taxesAndFees?.totalAmount ?? quote.taxesAndFees?.total ?? 0).toFixed(2)}.`
+					quoteSummary.classList.remove("hidden")
+				}
 				if (statusEl) {
 					statusEl.textContent = latestHoldId
 						? "Cupo reservado. Confirma la reserva."

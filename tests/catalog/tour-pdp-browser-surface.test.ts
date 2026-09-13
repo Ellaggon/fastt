@@ -7,6 +7,7 @@ import {
 	tourCupoUnits,
 	tourTicketsToOccupancyDetail,
 	parseTourTicketQuantitiesFromSearchParams,
+	isValidTourParty,
 } from "@/lib/tours/tourTicketOccupancy"
 
 function read(relativePath: string) {
@@ -38,17 +39,13 @@ describe("tour PDP browser surface (trust + ticket→price→hold)", () => {
 
 		expect(departure).toContain("Reserva tu experiencia")
 		expect(departure).toContain("Salidas disponibles")
-		expect(departure).toContain("Desglose por age band")
+		expect(departure).toContain("Participantes seleccionados")
 		expect(departure).toContain("data-ticket-qty")
 		expect(departure).toContain("data-select-rateplan-id")
 		expect(departure).toContain("/api/inventory/hold")
 		expect(departure).toContain("Reservar cupo")
-		expect(departure.indexOf("Actualizar precio")).toBeLessThan(
-			departure.indexOf("Reservar cupo")
-		)
-		expect(departure.indexOf("Reservar cupo")).toBeLessThan(
-			departure.indexOf("Confirmar reserva")
-		)
+		expect(departure.indexOf("Actualizar precio")).toBeLessThan(departure.indexOf("Reservar cupo"))
+		expect(departure.indexOf("Reservar cupo")).toBeLessThan(departure.indexOf("Confirmar reserva"))
 	})
 
 	it("ticket selector maps age bands → cupo → priced mix before hold payload shape", () => {
@@ -61,6 +58,10 @@ describe("tour PDP browser surface (trust + ticket→price→hold)", () => {
 		const cupo = tourCupoUnits({ tickets, quantities })
 		expect(occupancyDetail).toEqual({ adults: 2, children: 1, infants: 0 })
 		expect(cupo).toBe(3)
+		expect(isValidTourParty({ occupancy: occupancyDetail, cupoUnits: cupo })).toBe(true)
+		expect(
+			isValidTourParty({ occupancy: { adults: 0, children: 2, infants: 0 }, cupoUnits: 2 })
+		).toBe(false)
 
 		const policy = {
 			baseAmount: 100,

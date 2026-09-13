@@ -1,0 +1,126 @@
+---
+import type { ImageRow } from "@/types/products"
+
+interface Props {
+	images: ImageRow[]
+	title: string
+}
+const { images, title } = Astro.props as Props
+const galleryImages = images.length
+	? images
+	: [{ id: "placeholder", url: "https://placehold.co/1200x675?text=Sin+imagen" } as ImageRow]
+---
+
+<section class="space-y-2" aria-label={`Galería de ${title}`} data-tour-gallery>
+	<button
+		type="button"
+		class="fastt-button relative block w-full overflow-hidden rounded-[var(--fastt-radius-panel)] shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+		data-gallery-open="0"
+		aria-label={`Ampliar imagen 1 de ${galleryImages.length}`}
+	>
+		<img src={galleryImages[0].url} alt={title} class="h-72 w-full object-cover sm:h-96" />
+		<span
+			class="absolute right-3 bottom-3 rounded-full bg-black/70 px-3 py-1 text-sm font-medium text-white"
+			>Ver fotos ({galleryImages.length})</span
+		>
+	</button>
+	{
+		galleryImages.length > 1 ? (
+			<div class="grid grid-cols-4 gap-2 sm:grid-cols-6">
+				{galleryImages.slice(0, 6).map((image, index) => (
+					<button
+						type="button"
+						class="fastt-button overflow-hidden rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+						data-gallery-open={index}
+						aria-label={`Ampliar imagen ${index + 1} de ${galleryImages.length}`}
+					>
+						<img
+							src={image.url}
+							alt={`${title}, imagen ${index + 1}`}
+							class="h-20 w-full object-cover"
+						/>
+					</button>
+				))}
+			</div>
+		) : null
+	}
+	<div
+		class="fastt-modal-backdrop fixed inset-0 z-50 hidden items-center justify-center bg-black/90 p-4"
+		data-gallery-dialog
+		role="dialog"
+		aria-modal="true"
+		aria-label={`Galería de ${title}`}
+	>
+		<button
+			type="button"
+			class="fastt-button absolute top-5 right-6 rounded p-2 text-3xl text-white focus-visible:outline focus-visible:outline-2"
+			data-gallery-close
+			aria-label="Cerrar galería">×</button
+		>
+		<button
+			type="button"
+			class="fastt-button absolute left-3 rounded p-3 text-3xl text-white focus-visible:outline focus-visible:outline-2 sm:left-8"
+			data-gallery-previous
+			aria-label="Foto anterior">‹</button
+		>
+		<img class="max-h-[80vh] max-w-[84vw] rounded shadow-lg" data-gallery-image alt="" />
+		<button
+			type="button"
+			class="fastt-button absolute right-3 rounded p-3 text-3xl text-white focus-visible:outline focus-visible:outline-2 sm:right-8"
+			data-gallery-next
+			aria-label="Foto siguiente">›</button
+		>
+	</div>
+</section>
+
+<script define:vars={{ sources: galleryImages.map((image) => image.url) }}>
+	document.querySelectorAll("[data-tour-gallery]").forEach((gallery) => {
+		const dialog = gallery.querySelector("[data-gallery-dialog]")
+		const image = gallery.querySelector("[data-gallery-image]")
+		const close = gallery.querySelector("[data-gallery-close]")
+		let index = 0
+		let opener = null
+		const show = () => {
+			if (image) image.src = sources[index] || ""
+		}
+		const hide = () => {
+			dialog?.classList.add("hidden")
+			dialog?.classList.remove("flex")
+			opener?.focus()
+		}
+		gallery.querySelectorAll("[data-gallery-open]").forEach((button) =>
+			button.addEventListener("click", () => {
+				index = Number(button.dataset.galleryOpen || 0)
+				opener = button
+				show()
+				dialog?.classList.remove("hidden")
+				dialog?.classList.add("flex")
+				close?.focus()
+			})
+		)
+		close?.addEventListener("click", hide)
+		gallery.querySelector("[data-gallery-previous]")?.addEventListener("click", () => {
+			index = (index - 1 + sources.length) % sources.length
+			show()
+		})
+		gallery.querySelector("[data-gallery-next]")?.addEventListener("click", () => {
+			index = (index + 1) % sources.length
+			show()
+		})
+		dialog?.addEventListener("click", (event) => {
+			if (event.target === dialog) hide()
+		})
+		document.addEventListener("keydown", (event) => {
+			if (dialog?.classList.contains("hidden")) return
+			if (event.key === "Escape") hide()
+			if (event.key === "ArrowLeft") {
+				index = (index - 1 + sources.length) % sources.length
+				show()
+			}
+			if (event.key === "ArrowRight") {
+				index = (index + 1) % sources.length
+				show()
+			}
+		})
+	})
+</script>
