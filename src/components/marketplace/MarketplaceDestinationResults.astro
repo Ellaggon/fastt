@@ -2,6 +2,7 @@
 import { ArrowLeft, MapPin } from "@lucide/astro"
 
 import PublicListingImage from "@/components/marketplace/PublicListingImage.astro"
+import ProductCard from "@/components/productUI/ProductCard.astro"
 import HotelSearchPanel from "@/components/searchPanel/HotelSearchPanel.astro"
 import TourSearchPanel from "@/components/searchPanel/TourSearchPanel.astro"
 import UILayout from "@/layouts/UILayout.astro"
@@ -89,7 +90,18 @@ const structuredData = destination
 							)
 						}
 					</div>
-					<div>{isHotels ? <HotelSearchPanel /> : <TourSearchPanel />}</div>
+					<div>
+						{
+							isHotels ? (
+								<HotelSearchPanel />
+							) : (
+								<TourSearchPanel
+									destinationPath={destination?.canonicalPath}
+									destinationName={destination?.name}
+								/>
+							)
+						}
+					</div>
 				</div>
 			</div>
 		</header>
@@ -115,51 +127,68 @@ const structuredData = destination
 			{
 				listings.length ? (
 					<div class="divide-y divide-slate-200">
-						{listings.map((listing) => (
-							<article class="grid gap-5 py-6 sm:grid-cols-[13rem_minmax(0,1fr)]">
-								<a
-									href={listingHref(listing)}
-									class="relative aspect-[4/3] overflow-hidden bg-slate-200"
-								>
-									<PublicListingImage
-										src={listing.imageUrl}
-										alt={listing.name}
-										class="absolute inset-0"
-									/>
-								</a>
-								<div class="flex min-w-0 flex-col justify-between gap-4 py-1">
-									<div>
-										<h2 class="text-xl font-semibold text-slate-950">
-											<a href={listingHref(listing)} class="hover:underline">
-												{listing.name}
-											</a>
-										</h2>
-										{listing.address ? (
-											<p class="mt-2 flex items-center gap-2 text-sm text-slate-600">
-												<MapPin class="h-4 w-4 shrink-0" aria-hidden="true" />
-												{listing.address}
-											</p>
-										) : null}
-										{!isHotels && (listing.duration || listing.difficultyLevel) ? (
-											<p class="mt-2 text-sm text-slate-600">
-												{[listing.duration, listing.difficultyLevel].filter(Boolean).join(" · ")}
-											</p>
-										) : null}
-										{listing.description ? (
-											<p class="mt-3 line-clamp-2 text-sm leading-6 text-slate-600">
-												{listing.description}
-											</p>
-										) : null}
-									</div>
+						{listings.map((listing) =>
+							isHotels ? (
+								<article class="grid gap-5 py-6 sm:grid-cols-[13rem_minmax(0,1fr)]">
 									<a
 										href={listingHref(listing)}
-										class="text-sm font-semibold text-slate-950 hover:underline"
+										class="relative aspect-[4/3] overflow-hidden bg-slate-200"
 									>
-										Ver detalle
+										<PublicListingImage
+											src={listing.imageUrl}
+											alt={listing.name}
+											class="absolute inset-0"
+										/>
 									</a>
+									<div class="flex min-w-0 flex-col justify-between gap-4 py-1">
+										<div>
+											<h2 class="text-xl font-semibold text-slate-950">
+												<a href={listingHref(listing)} class="hover:underline">
+													{listing.name}
+												</a>
+											</h2>
+											{listing.address ? (
+												<p class="mt-2 flex items-center gap-2 text-sm text-slate-600">
+													<MapPin class="h-4 w-4 shrink-0" aria-hidden="true" />
+													{listing.address}
+												</p>
+											) : null}
+											{!isHotels && (listing.duration || listing.difficultyLevel) ? (
+												<p class="mt-2 text-sm text-slate-600">
+													{[listing.duration, listing.difficultyLevel].filter(Boolean).join(" · ")}
+												</p>
+											) : null}
+											{listing.description ? (
+												<p class="mt-3 line-clamp-2 text-sm leading-6 text-slate-600">
+													{listing.description}
+												</p>
+											) : null}
+										</div>
+										<a
+											href={listingHref(listing)}
+											class="text-sm font-semibold text-slate-950 hover:underline"
+										>
+											Ver detalle
+										</a>
+									</div>
+								</article>
+							) : (
+								<div class="py-4">
+									<ProductCard
+										vertical="tour"
+										name={listing.name}
+										href={listingHref(listing)}
+										image={listing.imageUrl || "/favicon-sbg.webp"}
+										alt={listing.name}
+										description={listing.description || ""}
+										duration={listing.duration || ""}
+										difficultyLevel={listing.difficultyLevel || ""}
+										metaLine="Elige una fecha para ver cupo y precio"
+										services={[]}
+									/>
 								</div>
-							</article>
-						))}
+							)
+						)}
 					</div>
 				) : (
 					<section class="py-16 text-center">

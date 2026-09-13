@@ -1,11 +1,18 @@
 ---
 import ProductCard from "@/components/productUI/ProductCard.astro"
+import Button from "@/components/ui/Button.astro"
 import Notice from "@/components/ui/Notice.astro"
 import SearchLayout from "@/layouts/SearchLayout.astro"
 import { resolvePublicDestination } from "@/lib/marketplace/publicDestinationListings"
-import { publicSearchHref } from "@/lib/marketplace/publicDestinationRoutes"
+import { publicDestinationHref, publicSearchHref } from "@/lib/marketplace/publicDestinationRoutes"
 import { tourDifficultyLabel } from "@/lib/tours/tourDifficulty"
+import {
+	hasInvalidTourPriceRange,
+	isValidTourSearchDate,
+	parseTourPriceInput,
+} from "@/lib/tours/tourDiscoveryFilters"
 import { getTourSearchSurface } from "@/lib/tours/tourSearchSurface"
+import { tourDurationBucketLabel } from "@/lib/tours/tourSemantics"
 import { db, eq, GeoPlace } from "@/shared/infrastructure/db/compat"
 
 const params = Astro.url.searchParams
@@ -15,8 +22,9 @@ if (canonicalPath && params.get("destino") !== canonicalPath) {
 	return Astro.redirect(publicSearchHref("tours", params, canonicalPath), 308)
 }
 
-const startDate = params.get("startDate") || params.get("checkin") || null
-const effectiveStartDate = startDate && /^\d{4}-\d{2}-\d{2}$/.test(startDate) ? startDate : null
+const rawStartDate = params.get("startDate") ?? params.get("checkin")
+const effectiveStartDate = isValidTourSearchDate(rawStartDate) ? rawStartDate : null
+const invalidDate = Boolean(rawStartDate) && !effectiveStartDate
 const durationBucket = params.get("duration") || null
 const level = params.get("level") || null
 const categorySlugs = params
@@ -24,8 +32,14 @@ const categorySlugs = params
 	.map((value: string) => value.trim().toLowerCase())
 	.filter(Boolean)
 const sort = String(params.get("sort") ?? "relevance").trim()
-const priceMin = Number(params.get("priceMin"))
-const priceMax = Number(params.get("priceMax"))
+const priceMin = parseTourPriceInput(params.get("priceMin"))
+const priceMax = parseTourPriceInput(params.get("priceMax"))
+const invalidPriceRange = hasInvalidTourPriceRange(priceMin, priceMax)
+const currency = String(params.get("currency") ?? "")
+	.trim()
+	.toUpperCase()
+const hasPriceFilter = priceMin.value != null || priceMax.value != null
+const missingPriceCurrency = hasPriceFilter && !/^[A-Z]{3}$/.test(currency)
 
 let destination: { id: string; name: string } | null = null
 if (canonicalPath) {
@@ -54,7 +68,7 @@ let tours: Awaited<ReturnType<typeof getTourSearchSurface>>["cards"] = []
 let availability: Awaited<ReturnType<typeof getTourSearchSurface>>["meta"]["availability"] | null =
 	null
 let loadError: string | null = null
-if (effectiveStartDate) {
+if (effectiveStartDate && !invalidPriceRange && !missingPriceCurrency) {
 	try {
 		const surface = await getTourSearchSurface({
 			startDate: effectiveStartDate,
@@ -62,8 +76,9 @@ if (effectiveStartDate) {
 			categorySlugs,
 			durationBucket,
 			level,
-			priceMin: Number.isFinite(priceMin) ? priceMin : null,
-			priceMax: Number.isFinite(priceMax) ? priceMax : null,
+			priceMin: priceMin.value,
+			priceMax: priceMax.value,
+			currency: currency || null,
 			sort,
 			limit: 50,
 			sessionSubjectId,
@@ -78,6 +93,13 @@ if (effectiveStartDate) {
 }
 
 const levelLabel = level ? tourDifficultyLabel(level) || level : null
+const durationLabel = tourDurationBucketLabel(durationBucket)
+const clearParams = new URLSearchParams(params)
+for (const key of ["category", "duration", "level", "priceMin", "priceMax", "currency", "sort"])
+	clearParams.delete(key)
+const clearFiltersHref = publicSearchHref("tours", clearParams, canonicalPath ?? undefined)
+const destinationHref = canonicalPath ? publicDestinationHref(canonicalPath, "tours") : "/tours"
+const currencies = new Set(tours.map((tour) => tour.currency))
 ---
 
 <SearchLayout
@@ -85,6 +107,7 @@ const levelLabel = level ? tourDifficultyLabel(level) || level : null
 	producType="tours"
 	description="Busca tours disponibles por fecha, duración, nivel y destino en Bolivia."
 	canonicalPath="/buscar/tours"
+	searchPanelProps={{ destinationPath: canonicalPath, destinationName: destination?.name }}
 >
 	<main class="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
 		<header class="border-b border-slate-200 pb-5">
@@ -98,15 +121,35 @@ const levelLabel = level ? tourDifficultyLabel(level) || level : null
 						? `Salida: ${effectiveStartDate}`
 						: "Selecciona una fecha para ver salidas disponibles"
 				}
-				{durationBucket ? ` · ${durationBucket}` : ""}
-				{levelLabel ? ` · ${levelLabel}` : ""}
+				{durationLabel ? ` · ${durationLabel}` : ""}{levelLabel ? ` · ${levelLabel}` : ""}
 			</p>
 		</header>
 
 		{
-			!effectiveStartDate ? (
+			invalidDate ? (
+				<Notice variant="error" title="Fecha no válida">
+					Elige una fecha real con el formato AAAA-MM-DD.
+				</Notice>
+			) : null
+		}
+		{
+			invalidPriceRange ? (
+				<Notice variant="error" title="Rango de precio no válido">
+					El precio mínimo debe ser igual o menor que el máximo; ambos deben ser cero o mayores.
+				</Notice>
+			) : null
+		}
+		{
+			missingPriceCurrency ? (
+				<Notice variant="error" title="Indica una moneda para el precio">
+					Así el presupuesto se compara correctamente; elige la moneda junto al rango de precio.
+				</Notice>
+			) : null
+		}
+		{
+			!rawStartDate ? (
 				<Notice variant="warning" title="Selecciona una fecha">
-					Mostramos solo tours con salida y precio disponibles para la fecha que elijas.
+					Mostraremos solo tours con salida y precio disponibles para la fecha que elijas.
 				</Notice>
 			) : null
 		}
@@ -120,16 +163,28 @@ const levelLabel = level ? tourDifficultyLabel(level) || level : null
 		{
 			!loadError && availability === "disabled" ? (
 				<Notice variant="info" title="Búsqueda de tours no disponible">
-					La reserva pública de tours no está abierta en este momento.
+					La reserva pública de tours no está abierta en este momento.{" "}
+					<a href={destinationHref} class="font-semibold underline">
+						Explorar experiencias
+					</a>
 				</Notice>
 			) : null
 		}
+
 		{
 			!loadError &&
+			!invalidDate &&
+			!invalidPriceRange &&
+			!missingPriceCurrency &&
 			availability !== "disabled" &&
 			availability !== "error" &&
 			effectiveStartDate ? (
 				<div class="grid grid-cols-1 gap-4">
+					{currencies.size > 1 && (sort === "price_asc" || sort === "price_desc") ? (
+						<Notice variant="info" title="Precios en más de una moneda">
+							El orden por precio agrupa cada moneda y luego ordena los importes dentro de ella.
+						</Notice>
+					) : null}
 					{tours.length ? (
 						tours.map((tour) => (
 							<ProductCard
@@ -141,17 +196,28 @@ const levelLabel = level ? tourDifficultyLabel(level) || level : null
 								duration={tour.duration || ""}
 								difficultyLevel={tour.difficultyLevel || ""}
 								description={tour.description || ""}
-								priceUSD={tour.currency === "USD" ? tour.fromPrice : 0}
-								priceBOB={tour.currency === "BOB" ? tour.fromPrice : 0}
+								price={tour.fromPrice}
+								currency={tour.currency}
+								metaLine={`${tour.departureTime ? `Salida ${tour.departureTime} · ` : ""}${tour.availableSlots} salida${tour.availableSlots === 1 ? "" : "s"} disponible${tour.availableSlots === 1 ? "" : "s"}`}
 								stars={tour.avgRating ?? 0}
 								reviewCount={tour.reviewCount}
 								services={[]}
 							/>
 						))
 					) : (
-						<Notice variant="info" title="Sin salidas para estos filtros">
-							Prueba otra fecha o amplía tus filtros.
-						</Notice>
+						<section class="fastt-card space-y-4 p-6 text-center">
+							<h2 class="text-lg font-semibold text-slate-950">Sin salidas para estos filtros</h2>
+							<p class="mx-auto max-w-xl text-sm leading-6 text-slate-600">
+								No encontramos una salida con cupo y precio para esta combinación. Puedes ampliar
+								los filtros o revisar experiencias del destino.
+							</p>
+							<div class="flex flex-wrap justify-center gap-3">
+								<Button href={clearFiltersHref} variant="secondary">
+									Quitar filtros
+								</Button>
+								<Button href={destinationHref}>Ver experiencias</Button>
+							</div>
+						</section>
 					)}
 				</div>
 			) : null
