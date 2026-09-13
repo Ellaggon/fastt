@@ -973,6 +973,20 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		rationale: "Consumer tour discovery and detail routes.",
 	},
 	{
+		pattern: "/help",
+		status: "public",
+		context: "public-marketplace",
+		owner: "Public Marketplace",
+		rationale: "Guest guidance for searching, comparing, and managing tour bookings.",
+	},
+	{
+		pattern: "/trips",
+		status: "public",
+		context: "public-marketplace",
+		owner: "Public Marketplace",
+		rationale: "Authenticated guest trip list for confirmed bookings.",
+	},
+	{
 		pattern: "/trips/:bookingId",
 		status: "public",
 		context: "public-marketplace",
