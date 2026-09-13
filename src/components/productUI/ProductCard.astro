@@ -20,6 +20,9 @@ interface Props {
 	duration?: string
 	priceUSD?: number
 	priceBOB?: number
+	/** Canonical public offer price; supports every persisted ISO currency. */
+	price?: number
+	currency?: string
 	/** Optional secondary line (e.g. departure time). */
 	metaLine?: string
 	/** Vertical drives CTA + price unit copy via vocabulary. Default hotel for legacy callers. */
@@ -49,7 +52,26 @@ const services = (
 	.map((s: any) => serviceMap.get(s.id))
 	.filter(Boolean)
 
-const hasPrice = Boolean(Number(props.priceUSD) > 0 || Number(props.priceBOB) > 0)
+const canonicalPrice = Number(props.price)
+const canonicalCurrency = String(props.currency ?? "")
+	.trim()
+	.toUpperCase()
+const hasCanonicalPrice =
+	Number.isFinite(canonicalPrice) && canonicalPrice > 0 && Boolean(canonicalCurrency)
+const hasPrice =
+	hasCanonicalPrice || Boolean(Number(props.priceUSD) > 0 || Number(props.priceBOB) > 0)
+let formattedCanonicalPrice: string | null = null
+if (hasCanonicalPrice) {
+	try {
+		formattedCanonicalPrice = new Intl.NumberFormat("es-BO", {
+			style: "currency",
+			currency: canonicalCurrency,
+			maximumFractionDigits: 2,
+		}).format(canonicalPrice)
+	} catch {
+		formattedCanonicalPrice = `${canonicalCurrency} ${canonicalPrice.toFixed(2)}`
+	}
+}
 const ratingValue = Number(props.stars ?? 0)
 const reviewCount = Number(props.reviewCount ?? 0)
 const showTourMeta = vertical === "tour" && (props.duration || props.difficultyLevel)
@@ -142,8 +164,12 @@ const showTourMeta = vertical === "tour" && (props.duration || props.difficultyL
 					{
 						hasPrice ? (
 							<>
-								<p class="hidden text-xs font-semibold text-slate-500 lg:block">{priceUnitLabel}</p>
-								{Number(props.priceUSD) > 0 ? (
+								<p class="text-xs font-semibold text-slate-500">{priceUnitLabel}</p>
+								{formattedCanonicalPrice ? (
+									<p class="text-base font-semibold text-slate-950 md:text-2xl md:font-bold">
+										{formattedCanonicalPrice}
+									</p>
+								) : Number(props.priceUSD) > 0 ? (
 									<p class="text-base font-semibold text-slate-950 md:text-2xl md:font-bold">
 										<span class="text-xs text-slate-950 md:text-base">US$</span>
 										{props.priceUSD}
