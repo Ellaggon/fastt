@@ -1,0 +1,81 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import UILayout from "@/layouts/UILayout.astro"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { and, Booking, BookingLineItem, db, desc, eq } from "@/shared/infrastructure/db/compat"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user?.id) return Astro.redirect("/SignInPage?returnTo=/trips")
+
+const rows = await db
+	.select({
+		bookingId: Booking.id,
+		status: Booking.status,
+		departureDate: Booking.checkInDate,
+		currency: Booking.currency,
+		totalAmount: Booking.totalAmount,
+		productName: BookingLineItem.productNameSnapshot,
+		variantName: BookingLineItem.variantNameSnapshot,
+	})
+	.from(Booking)
+	.leftJoin(BookingLineItem, eq(BookingLineItem.bookingId, Booking.id))
+	.where(and(eq(Booking.userId, user.id)))
+	.orderBy(desc(Booking.checkInDate))
+	.limit(50)
+
+const trips = [...new Map(rows.map((row) => [row.bookingId, row])).values()]
+---
+
+<UILayout title="Tus viajes" description="Tus reservas y próximos viajes.">
+	<main class="min-h-screen bg-slate-50 px-4 py-12 sm:px-6 lg:px-8">
+		<div class="mx-auto max-w-3xl">
+			<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 pb-6">
+				<div>
+					<p class="text-sm font-semibold text-slate-500">Cuenta</p><h1
+						class="mt-1 text-3xl font-semibold text-slate-950"
+					>
+						Tus viajes
+					</h1>
+				</div>
+				<Button href="/tours" variant="secondary">Buscar tours</Button>
+			</header>
+			{
+				trips.length ? (
+					<div class="mt-6 space-y-3">
+						{trips.map((trip) => (
+							<Card class="flex flex-wrap items-center justify-between gap-4 p-5">
+								<div>
+									<p class="font-semibold text-slate-950">
+										{trip.productName || trip.variantName || "Reserva"}
+									</p>
+									<p class="mt-1 text-sm text-slate-600">
+										Salida: {String(trip.departureDate ?? "—").slice(0, 10)} · {trip.status}
+									</p>
+									<p class="mt-1 text-sm text-slate-600">
+										{trip.currency} {Number(trip.totalAmount ?? 0).toFixed(2)}
+									</p>
+								</div>
+								<Button href={`/trips/${trip.bookingId}`} variant="secondary" size="sm">
+									Ver reserva
+								</Button>
+							</Card>
+						))}
+					</div>
+				) : (
+					<section class="fastt-empty-state mt-10 rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center">
+						<>
+							<h2 class="text-lg font-semibold text-slate-950">Aún no tienes viajes</h2>
+							<p class="mt-2 text-sm text-slate-600">
+								Cuando confirmes una reserva, aparecerá aquí.
+							</p>
+							<Button href="/tours" class="mt-5">
+								Explorar tours
+							</Button>
+						</>
+					</section>
+				)
+			}
+		</div>
+	</main>
+</UILayout>

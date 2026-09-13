@@ -1,15 +1,17 @@
 ---
-import Badge from "@/components/ui/Badge.astro"
 import Breadcrumbs from "@/components/Breadcrumbs.astro"
 import TourDepartureSection from "@/components/tours/TourDepartureSection.astro"
-import { SERVICE_CATALOG } from "@/data/service/service-catalog"
+import TourGallery from "@/components/tours/TourGallery.astro"
+import Badge from "@/components/ui/Badge.astro"
 import { searchOffers } from "@/container"
+import { SERVICE_CATALOG } from "@/data/service/service-catalog"
 import Layout from "@/layouts/Layout.astro"
+import { publicCatalogProductEligibility } from "@/lib/marketplace/public-catalog-eligibility"
 import { tourDifficultyLabel } from "@/lib/tours/tourDifficulty"
 import { tourDepartureToStay } from "@/lib/tours/tourSemantics"
-import { publicCatalogProductEligibility } from "@/lib/marketplace/public-catalog-eligibility"
 import {
 	buildAgeBandPriceBreakdown,
+	isValidTourParty,
 	parseTourTicketQuantitiesFromSearchParams,
 	tourCupoUnits,
 	tourTicketsToOccupancyDetail,
@@ -19,7 +21,6 @@ import {
 	derivePolicySummaryFromResolvedPolicies,
 	resolveEffectivePolicies,
 } from "@/modules/policies/public"
-import type { ImageRow, ServiceRow } from "@/types/products"
 import {
 	and,
 	asc,
@@ -28,30 +29,31 @@ import {
 	db,
 	desc,
 	eq,
-	GeoPlace,
 	first,
+	GeoPlace,
+	gt,
 	Image,
 	inArray,
+	isNull,
 	lte,
 	or,
-	isNull,
 	Product,
-	Provider,
-	ProductGeoPlace,
 	ProductCategory,
 	ProductCategoryLink,
 	ProductContent,
+	ProductGeoPlace,
+	ProductImage,
 	ProductLocation,
 	ProductReview,
-	ProductImage,
 	ProductService,
+	Provider,
 	RatePlanOccupancyPolicy,
-	gt,
 	Tour,
 	TourSlotProfile,
 	TourTicketType,
 	Variant,
 } from "@/shared/infrastructure/db/compat"
+import type { ImageRow, ServiceRow } from "@/types/products"
 
 const url = Astro.url
 const productId = Astro.params.id
@@ -98,26 +100,11 @@ if (
 	quantities.adult = Math.max(1, Number(url.searchParams.get("participants") ?? 1) || 1)
 }
 
-if (!departureStr) {
-	const today = new Date()
-	const qs = new URLSearchParams({
-		departure: toISODateOnly(today),
-		adults: String(quantities.adult || 1),
-		children: String(quantities.child || 0),
-		infants: String(quantities.infant || 0),
-	})
-	if (quantities.custom) qs.set("custom", String(quantities.custom))
-	return Astro.redirect(`/tours/${productId}?${qs.toString()}`)
-}
-
 let stay
 try {
-	stay = tourDepartureToStay(departureStr)
+	stay = tourDepartureToStay(departureStr || toISODateOnly(new Date()))
 } catch {
-	const today = new Date()
-	return Astro.redirect(
-		`/tours/${productId}?departure=${toISODateOnly(today)}&adults=${quantities.adult || 1}`
-	)
+	stay = tourDepartureToStay(toISODateOnly(new Date()))
 }
 
 const ticketTypes = await db
@@ -142,19 +129,20 @@ const cupoUnits = tourCupoUnits({
 	tickets: ticketBands.length ? ticketBands : [{ code: "adult", label: "Adulto", isActive: true }],
 	quantities,
 })
+const validInitialParty = isValidTourParty({ occupancy: occupancyDetail, cupoUnits })
 
-const offers = await searchOffers({
-	productId,
-	checkIn: stay.checkIn,
-	checkOut: stay.checkOut,
-	adults: occupancyDetail.adults,
-	children: occupancyDetail.children,
-	rooms: cupoUnits,
-	featureContext: {
-		request: Astro.request,
-		query: url.searchParams,
-	},
-})
+const offers =
+	departureStr && validInitialParty
+		? await searchOffers({
+				productId,
+				checkIn: stay.checkIn,
+				checkOut: stay.checkOut,
+				adults: occupancyDetail.adults,
+				children: occupancyDetail.children,
+				rooms: cupoUnits,
+				featureContext: { request: Astro.request, query: url.searchParams },
+			})
+		: []
 
 try {
 	const productResult = await db
@@ -193,6 +181,14 @@ try {
 
 	product = {
 		...productResult.Product,
+		operator: productResult.Provider
+			? {
+					name:
+						productResult.Provider.displayName ||
+						productResult.Provider.legalName ||
+						"Operador local",
+				}
+			: null,
 		destination: productResult.GeoPlace
 			? { ...productResult.GeoPlace, name: productResult.GeoPlace.canonicalName }
 			: null,
@@ -374,15 +370,6 @@ if (firstRatePlanId && productId) {
 if (productType === "tour") {
 	badges.push({ label: "Voucher móvil", variant: "info", source: "Product.productType=tour" })
 }
-// Instant confirm path for published salidas with TourSlotProfile.
-const hasSlotProfile = offerVariantIds.some((id) => Boolean(slotsByVariantId[id]?.departureTime))
-if (hasSlotProfile) {
-	badges.push({
-		label: "Confirmación inmediata",
-		variant: "success",
-		source: "TourSlotProfile.departureTime",
-	})
-}
 
 const todayIso = new Date().toISOString().slice(0, 10)
 const occupancyPolicy = firstRatePlanId
@@ -452,7 +439,7 @@ const avgRating =
 const reviewCount = Number(reviewAgg?.reviewCount ?? 0)
 
 const searchState = {
-	departureDate: departureStr,
+	departureDate: departureStr ?? "",
 	quantities,
 	occupancyDetail,
 	cupoUnits,
@@ -510,27 +497,7 @@ const mapEmbed =
 				</div>
 			) : productData ? (
 				<>
-					<div class="relative overflow-hidden rounded-[var(--fastt-radius-panel)] shadow-lg">
-						<img
-							id="gallery-main-img"
-							src={productData.images[0]?.url || "https://placehold.co/1200x675?text=Sin+imagen"}
-							alt={productData.name}
-							class="h-96 w-full cursor-pointer object-cover transition-transform duration-700 hover:scale-105"
-						/>
-					</div>
-
-					{productData.images.length > 1 && (
-						<div class="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
-							{productData.images.map((img: ImageRow, i: number) => (
-								<img
-									src={img.url}
-									alt={`Imagen ${i + 1}`}
-									class="thumb-img h-24 w-full cursor-pointer rounded-[var(--fastt-radius-card)] object-cover hover:opacity-80"
-									data-index={i}
-								/>
-							))}
-						</div>
-					)}
+					<TourGallery images={productData.images} title={productData.name} />
 
 					<section class="fastt-card space-y-4 rounded-[var(--fastt-radius-panel)] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
 						<div class="flex flex-wrap items-start justify-between gap-4">
@@ -587,18 +554,6 @@ const mapEmbed =
 							) : null}
 						</div>
 
-						{policySummary ? (
-							<div class="fastt-soft-box rounded-[var(--fastt-radius-card)] border border-slate-200 bg-slate-50 p-4">
-								<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-									Cancelación
-								</p>
-								<p class="mt-1 text-sm font-medium text-slate-900">{policySummary}</p>
-								{freeCancelDeadline ? (
-									<p class="mt-1 text-xs text-slate-600">Cutoff local: {freeCancelDeadline}</p>
-								) : null}
-							</div>
-						) : null}
-
 						{categories.length > 0 && (
 							<ul class="flex flex-wrap gap-2">
 								{categories.map((c) => (
@@ -608,6 +563,17 @@ const mapEmbed =
 						)}
 
 						{description ? <p class="leading-relaxed text-slate-700">{description}</p> : null}
+						{productData.operator ? (
+							<div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+								<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+									Operado por
+								</p>
+								<p class="mt-1 font-semibold text-slate-950">{productData.operator.name}</p>
+								<p class="mt-1 text-sm text-slate-600">
+									Proveedor de esta experiencia y responsable de sus indicaciones operativas.
+								</p>
+							</div>
+						) : null}
 					</section>
 
 					<section id="booking">
@@ -618,7 +584,6 @@ const mapEmbed =
 							searchState={searchState}
 							ticketTypes={ticketBands}
 							priceBreakdown={priceBreakdown}
-							policySummary={policySummary}
 						/>
 					</section>
 
@@ -735,94 +700,10 @@ const mapEmbed =
 							</ul>
 						</section>
 					)}
-
-					<div
-						id="gallery-modal"
-						class="bg-opacity-90 fixed inset-0 z-50 hidden items-center justify-center bg-black"
-					>
-						<button
-							id="modal-close"
-							class="absolute top-5 right-6 text-3xl font-bold text-white hover:text-gray-400"
-						>
-							&times;
-						</button>
-						<button
-							id="modal-prev"
-							class="absolute left-6 text-4xl font-bold text-white hover:text-gray-400"
-						>
-							❮
-						</button>
-						<img
-							id="modal-img"
-							class="max-h-[80vh] max-w-[90vw] rounded-[var(--fastt-radius-card)] shadow-lg"
-							alt="Vista ampliada"
-						/>
-						<button
-							id="modal-next"
-							class="absolute right-6 text-4xl font-bold text-white hover:text-gray-400"
-						>
-							❯
-						</button>
-					</div>
 				</>
 			) : (
 				<p class="text-center text-gray-500">Cargando...</p>
 			)
 		}
 	</main>
-
-	<script>
-		document.addEventListener("DOMContentLoaded", () => {
-			const mainImg = document.getElementById("gallery-main-img") as HTMLImageElement | null
-			const thumbImgs = Array.from(document.querySelectorAll<HTMLImageElement>(".thumb-img"))
-			const modal = document.getElementById("gallery-modal") as HTMLElement | null
-			const modalImg = document.getElementById("modal-img") as HTMLImageElement | null
-			const modalClose = document.getElementById("modal-close") as HTMLElement | null
-			const btnPrev = document.getElementById("modal-prev") as HTMLElement | null
-			const btnNext = document.getElementById("modal-next") as HTMLElement | null
-
-			let currentIndex = 0
-
-			const openModal = (index: number) => {
-				if (!modal || !modalImg || thumbImgs.length === 0) return
-				currentIndex = index
-				modalImg.src = thumbImgs[index]?.src || mainImg?.src || ""
-				modal.classList.remove("hidden")
-			}
-
-			const closeModal = () => modal?.classList.add("hidden")
-
-			const showPrev = () => {
-				if (!modalImg || thumbImgs.length === 0) return
-				currentIndex = (currentIndex - 1 + thumbImgs.length) % thumbImgs.length
-				modalImg.src = thumbImgs[currentIndex].src
-			}
-
-			const showNext = () => {
-				if (!modalImg || thumbImgs.length === 0) return
-				currentIndex = (currentIndex + 1) % thumbImgs.length
-				modalImg.src = thumbImgs[currentIndex].src
-			}
-
-			mainImg?.addEventListener("click", () => openModal(0))
-			thumbImgs.forEach((thumb, i) => thumb.addEventListener("click", () => openModal(i)))
-			modalClose?.addEventListener("click", closeModal)
-			modal?.addEventListener("click", (e) => e.target === modal && closeModal())
-			btnPrev?.addEventListener("click", (e) => {
-				e.stopPropagation()
-				showPrev()
-			})
-			btnNext?.addEventListener("click", (e) => {
-				e.stopPropagation()
-				showNext()
-			})
-
-			document.addEventListener("keydown", (e) => {
-				if (modal?.classList.contains("hidden")) return
-				if (e.key === "ArrowLeft") showPrev()
-				if (e.key === "ArrowRight") showNext()
-				if (e.key === "Escape") closeModal()
-			})
-		})
-	</script>
 </Layout>
