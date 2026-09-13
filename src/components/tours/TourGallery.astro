@@ -74,41 +74,39 @@ const galleryImages = images.length
 </section>
 
 <script define:vars={{ sources: galleryImages.map((image) => image.url) }}>
-	document.querySelectorAll<HTMLElement>("[data-tour-gallery]").forEach((gallery) => {
-		const dialog = gallery.querySelector<HTMLElement>("[data-gallery-dialog]")
-		const image = gallery.querySelector<HTMLImageElement>("[data-gallery-image]")
-		const close = gallery.querySelector<HTMLButtonElement>("[data-gallery-close]")
-		let index = 0,
-			opener: HTMLElement | null = null
+	document.querySelectorAll("[data-tour-gallery]").forEach((gallery) => {
+		const dialog = gallery.querySelector("[data-gallery-dialog]")
+		const image = gallery.querySelector("[data-gallery-image]")
+		const close = gallery.querySelector("[data-gallery-close]")
+		let index = 0
+		let opener = null
 		const show = () => {
 			if (image) image.src = sources[index] || ""
 		}
 		const hide = () => {
 			dialog?.classList.add("hidden")
+			dialog?.classList.remove("flex")
 			opener?.focus()
 		}
-		gallery.querySelectorAll<HTMLButtonElement>("[data-gallery-open]").forEach((button) =>
+		gallery.querySelectorAll("[data-gallery-open]").forEach((button) =>
 			button.addEventListener("click", () => {
 				index = Number(button.dataset.galleryOpen || 0)
 				opener = button
 				show()
 				dialog?.classList.remove("hidden")
+				dialog?.classList.add("flex")
 				close?.focus()
 			})
 		)
 		close?.addEventListener("click", hide)
-		gallery
-			.querySelector<HTMLButtonElement>("[data-gallery-previous]")
-			?.addEventListener("click", () => {
-				index = (index - 1 + sources.length) % sources.length
-				show()
-			})
-		gallery
-			.querySelector<HTMLButtonElement>("[data-gallery-next]")
-			?.addEventListener("click", () => {
-				index = (index + 1) % sources.length
-				show()
-			})
+		gallery.querySelector("[data-gallery-previous]")?.addEventListener("click", () => {
+			index = (index - 1 + sources.length) % sources.length
+			show()
+		})
+		gallery.querySelector("[data-gallery-next]")?.addEventListener("click", () => {
+			index = (index + 1) % sources.length
+			show()
+		})
 		dialog?.addEventListener("click", (event) => {
 			if (event.target === dialog) hide()
 		})
