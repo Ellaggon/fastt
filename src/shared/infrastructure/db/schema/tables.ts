@@ -63,6 +63,48 @@ export const Provider = pgTable(
 	]
 )
 
+/** Declared economic holder; a manager may operate the account for this holder. */
+export const ProviderHolderProfile = pgTable(
+	"ProviderHolderProfile",
+	{
+		providerId: txt("providerId")
+			.primaryKey()
+			.references(() => Provider.id, { onDelete: "cascade" }),
+		holderType: txt("holderType"),
+		holderCountry: txt("holderCountry"),
+		taxResidenceCountry: txtOpt("taxResidenceCountry"),
+		payoutCountry: txtOpt("payoutCountry"),
+		collectionModel: text("collectionModel").default("undecided").notNull(),
+		declarationStatus: text("declarationStatus").default("declared").notNull(),
+		declaredByUserId: txtOpt("declaredByUserId"),
+		declaredAt: now("declaredAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		check(
+			"ProviderHolderProfile_holderType_check",
+			sql`${table.holderType} IN ('persona_natural', 'entidad')`
+		),
+		check("ProviderHolderProfile_holderCountry_check", sql`${table.holderCountry} ~ '^[A-Z]{2}$'`),
+		check(
+			"ProviderHolderProfile_taxResidenceCountry_check",
+			sql`${table.taxResidenceCountry} IS NULL OR ${table.taxResidenceCountry} ~ '^[A-Z]{2}$'`
+		),
+		check(
+			"ProviderHolderProfile_payoutCountry_check",
+			sql`${table.payoutCountry} IS NULL OR ${table.payoutCountry} ~ '^[A-Z]{2}$'`
+		),
+		check(
+			"ProviderHolderProfile_collectionModel_check",
+			sql`${table.collectionModel} IN ('undecided', 'property_collect', 'platform_collect')`
+		),
+		check(
+			"ProviderHolderProfile_declarationStatus_check",
+			sql`${table.declarationStatus} IN ('declared', 'in_review', 'verified', 'changes_requested')`
+		),
+	]
+)
+
 /**
  * Canonical geographic catalog for marketplace discovery.
  */
@@ -1304,6 +1346,10 @@ export const CompliancePolicySet = pgTable(
 		country: txt("country"),
 		vertical: txt("vertical"),
 		collectionModel: txt("collectionModel"),
+		/** Casework seeds remain isolated from commercial authorization policies. */
+		policyScope: text("policyScope").default("casework").notNull(),
+		holderType: txtOpt("holderType"),
+		jurisdictionRole: text("jurisdictionRole").default("product").notNull(),
 		status: text("status").default("active").notNull(),
 		createdAt: now("createdAt"),
 		updatedAt: now("updatedAt"),
@@ -1311,6 +1357,18 @@ export const CompliancePolicySet = pgTable(
 	(table) => [
 		uniqueIndex("CompliancePolicySet_key_unique").on(table.key),
 		check("CompliancePolicySet_status_check", sql`${table.status} IN ('active', 'retired')`),
+		check(
+			"CompliancePolicySet_scope_check",
+			sql`${table.policyScope} IN ('casework', 'commercial')`
+		),
+		check(
+			"CompliancePolicySet_holderType_check",
+			sql`${table.holderType} IS NULL OR ${table.holderType} IN ('persona_natural', 'entidad')`
+		),
+		check(
+			"CompliancePolicySet_jurisdictionRole_check",
+			sql`${table.jurisdictionRole} IN ('holder', 'tax', 'payout', 'product')`
+		),
 	]
 )
 export const CompliancePolicyVersion = pgTable(
@@ -1326,6 +1384,7 @@ export const CompliancePolicyVersion = pgTable(
 		effectiveTo: ts("effectiveTo"),
 		approvedBy: txtOpt("approvedBy").references(() => User.id),
 		approvedAt: ts("approvedAt"),
+		approvalReference: txtOpt("approvalReference"),
 		createdAt: now("createdAt"),
 	},
 	(table) => [
@@ -1352,6 +1411,10 @@ export const ComplianceRequirementRule = pgTable(
 		requirementKey: txt("requirementKey"),
 		required: boolDefault("required", true),
 		conditionJson: jsonb("conditionJson"),
+		capabilitiesJson: jsonb("capabilitiesJson"),
+		acceptedEvidenceJson: jsonb("acceptedEvidenceJson"),
+		blockingAction: txtOpt("blockingAction"),
+		reviewOwner: txtOpt("reviewOwner"),
 		slaHours: intDefault("slaHours", 48),
 		createdAt: now("createdAt"),
 	},
@@ -1542,6 +1605,53 @@ export const Product = pgTable(
 		check(
 			"Product_publicationState_check",
 			sql`${table.publicationState} IN ('draft', 'ready', 'published')`
+		),
+	]
+)
+
+/**
+ * The resumable, non-sensitive navigation state for a product preparation
+ * flow. Product fields remain canonical in their own aggregates; this table
+ * only records where the operator should resume.
+ */
+export const ProviderPreparationSession = pgTable(
+	"ProviderPreparationSession",
+	{
+		id: pk(),
+		providerId: txt("providerId").references(() => Provider.id, { onDelete: "cascade" }),
+		userId: txt("userId").references(() => User.id, { onDelete: "cascade" }),
+		productId: txtOpt("productId").references(() => Product.id, { onDelete: "cascade" }),
+		playbookId: txt("playbookId"),
+		vertical: txt("vertical"),
+		stepId: txt("stepId"),
+		variantId: txtOpt("variantId"),
+		ratePlanId: txtOpt("ratePlanId"),
+		lastPath: txt("lastPath"),
+		status: text("status").default("active").notNull(),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		uniqueIndex("ProviderPreparationSession_owner_playbook_unique").on(
+			table.providerId,
+			table.userId,
+			table.playbookId
+		),
+		index("ProviderPreparationSession_owner_status_updated_idx").on(
+			table.providerId,
+			table.userId,
+			table.status,
+			table.updatedAt
+		),
+		index("ProviderPreparationSession_product_idx").on(table.productId),
+		check(
+			"ProviderPreparationSession_playbook_check",
+			sql`${table.playbookId} IN ('launch', 'launch-tour')`
+		),
+		check("ProviderPreparationSession_vertical_check", sql`${table.vertical} IN ('hotel', 'tour')`),
+		check(
+			"ProviderPreparationSession_status_check",
+			sql`${table.status} IN ('active', 'completed', 'abandoned')`
 		),
 	]
 )
@@ -1893,6 +2003,33 @@ export const Tour = pgTable(
 	]
 )
 
+/** Distinct whole-home aggregate: beds are descriptive, never separate sellable stock. */
+export const WholeHome = pgTable(
+	"WholeHome",
+	{
+		productId: txt("productId")
+			.primaryKey()
+			.references(() => Product.id, { onDelete: "cascade" }),
+		exclusiveUse: boolDefault("exclusiveUse", true),
+		bedrooms: intDefault("bedrooms", 0),
+		beds: intDefault("beds", 0),
+		bathrooms: intDefault("bathrooms", 1),
+		maxGuests: intDefault("maxGuests", 1),
+		houseRulesJson: jsonb("houseRulesJson"),
+		feesJson: jsonb("feesJson"),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		check("WholeHome_exclusiveUse_check", sql`${table.exclusiveUse} = true`),
+		check(
+			"WholeHome_rooms_nonnegative_check",
+			sql`${table.bedrooms} >= 0 AND ${table.beds} >= 0 AND ${table.bathrooms} >= 1`
+		),
+		check("WholeHome_maxGuests_check", sql`${table.maxGuests} BETWEEN 1 AND 30`),
+	]
+)
+
 export const Package = pgTable("Package", {
 	productId: text("productId")
 		.primaryKey()
@@ -2019,6 +2156,28 @@ export const InventoryResource = pgTable(
 			table.status
 		),
 		uniqueIndex("InventoryResource_variant_label_unique").on(table.variantId, table.label),
+	]
+)
+
+/** One physical dwelling maps to one sellable unit and one inventory resource. */
+export const WholeHomeUnit = pgTable(
+	"WholeHomeUnit",
+	{
+		variantId: txt("variantId")
+			.primaryKey()
+			.references(() => Variant.id, { onDelete: "restrict" }),
+		productId: txt("productId").references(() => WholeHome.productId, { onDelete: "restrict" }),
+		providerId: txt("providerId").references(() => Provider.id, { onDelete: "restrict" }),
+		resourceId: txt("resourceId").references(() => InventoryResource.id, { onDelete: "restrict" }),
+		physicalKey: txt("physicalKey"),
+		unitCount: intDefault("unitCount", 1),
+		createdAt: now("createdAt"),
+	},
+	(table) => [
+		uniqueIndex("WholeHomeUnit_product_unique").on(table.productId),
+		uniqueIndex("WholeHomeUnit_resource_unique").on(table.resourceId),
+		uniqueIndex("WholeHomeUnit_provider_physical_unique").on(table.providerId, table.physicalKey),
+		check("WholeHomeUnit_unitCount_check", sql`${table.unitCount} = 1`),
 	]
 )
 
