@@ -1,0 +1,20 @@
+{
+  "version": "2026-09-14.1",
+  "scope": "Provider governance only; product, actor authorization and commercial availability are separate gates",
+  "scenarios": [
+    { "id": "P00", "missing": null, "publish": true, "booking": true, "payments": true },
+    { "id": "P01", "missing": "identity", "publish": false, "booking": false, "payments": false },
+    { "id": "P02", "missing": "operations", "publish": false, "booking": false, "payments": true },
+    {
+      "id": "P03",
+      "missing": "verification",
+      "publish": false,
+      "booking": false,
+      "payments": false
+    },
+    { "id": "P04", "missing": "fiscality", "publish": false, "booking": false, "payments": false },
+    { "id": "P05", "missing": "documents", "publish": true, "booking": true, "payments": false },
+    { "id": "P06", "missing": "payments", "publish": true, "booking": true, "payments": false },
+    { "id": "P07", "missing": "team", "publish": false, "booking": false, "payments": false }
+  ]
+}
