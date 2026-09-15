@@ -20,6 +20,35 @@ CREATE TABLE "Provider" (
 	"createdAt" timestamp with time zone
 );
 
+CREATE TABLE "ProviderHolderProfile" (
+	"providerId" text PRIMARY KEY,
+	"holderType" text NOT NULL,
+	"holderCountry" text NOT NULL,
+	"taxResidenceCountry" text,
+	"payoutCountry" text,
+	"collectionModel" text NOT NULL DEFAULT 'undecided',
+	"declarationStatus" text NOT NULL DEFAULT 'declared',
+	"declaredByUserId" text,
+	"declaredAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "ProviderPreparationSession" (
+	"id" text PRIMARY KEY,
+	"providerId" text NOT NULL,
+	"userId" text NOT NULL,
+	"productId" text,
+	"playbookId" text NOT NULL,
+	"vertical" text NOT NULL,
+	"stepId" text NOT NULL,
+	"variantId" text,
+	"ratePlanId" text,
+	"lastPath" text NOT NULL,
+	"status" text NOT NULL DEFAULT 'active',
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
 CREATE TABLE "ProviderProfile" (
 	"providerId" text PRIMARY KEY,
 	"timezone" text NOT NULL,
@@ -719,6 +748,29 @@ CREATE TABLE "Tour" (
 	"pickupJson" jsonb
 );
 
+CREATE TABLE "WholeHome" (
+	"productId" text PRIMARY KEY,
+	"exclusiveUse" boolean NOT NULL DEFAULT true,
+	"bedrooms" integer NOT NULL DEFAULT 0,
+	"beds" integer NOT NULL DEFAULT 0,
+	"bathrooms" integer NOT NULL DEFAULT 1,
+	"maxGuests" integer NOT NULL DEFAULT 1,
+	"houseRulesJson" jsonb,
+	"feesJson" jsonb,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "WholeHomeUnit" (
+	"variantId" text PRIMARY KEY,
+	"productId" text NOT NULL,
+	"providerId" text NOT NULL,
+	"resourceId" text NOT NULL,
+	"physicalKey" text NOT NULL,
+	"unitCount" integer NOT NULL DEFAULT 1,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
 CREATE TABLE "TourSlotProfile" (
 	"variantId" text PRIMARY KEY,
 	"departureTime" text NOT NULL,
@@ -1042,6 +1094,9 @@ CREATE TABLE "CompliancePolicySet" (
 	"country" text NOT NULL,
 	"vertical" text NOT NULL,
 	"collectionModel" text NOT NULL,
+	"policyScope" text NOT NULL DEFAULT 'casework',
+	"holderType" text,
+	"jurisdictionRole" text NOT NULL DEFAULT 'product',
 	"status" text NOT NULL DEFAULT 'active',
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
 	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
@@ -1056,6 +1111,7 @@ CREATE TABLE "CompliancePolicyVersion" (
 	"effectiveTo" timestamp with time zone,
 	"approvedBy" text,
 	"approvedAt" timestamp with time zone,
+	"approvalReference" text,
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
@@ -1066,6 +1122,10 @@ CREATE TABLE "ComplianceRequirementRule" (
 	"requirementKey" text NOT NULL,
 	"required" boolean NOT NULL DEFAULT true,
 	"conditionJson" jsonb,
+	"capabilitiesJson" jsonb,
+	"acceptedEvidenceJson" jsonb,
+	"blockingAction" text,
+	"reviewOwner" text,
 	"slaHours" integer NOT NULL DEFAULT 48,
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
 );
@@ -2051,6 +2111,34 @@ CREATE TABLE "CommandIdempotency" (
 
 
 
+ALTER TABLE "ProviderHolderProfile"
+	ADD CONSTRAINT "ProviderHolderProfile_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "ProviderPreparationSession"
+	ADD CONSTRAINT "ProviderPreparationSession_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "ProviderPreparationSession"
+	ADD CONSTRAINT "ProviderPreparationSession_userId_fk"
+	FOREIGN KEY ("userId")
+	REFERENCES "User" ("id")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "ProviderPreparationSession"
+	ADD CONSTRAINT "ProviderPreparationSession_productId_fk"
+	FOREIGN KEY ("productId")
+	REFERENCES "Product" ("id")
+	ON DELETE CASCADE
+;
+
 ALTER TABLE "ProviderProfile"
 	ADD CONSTRAINT "ProviderProfile_providerId_fk"
 	FOREIGN KEY ("providerId")
@@ -2624,6 +2712,41 @@ ALTER TABLE "Tour"
 	ADD CONSTRAINT "Tour_productId_fk"
 	FOREIGN KEY ("productId")
 	REFERENCES "Product" ("id")
+;
+
+ALTER TABLE "WholeHome"
+	ADD CONSTRAINT "WholeHome_productId_fk"
+	FOREIGN KEY ("productId")
+	REFERENCES "Product" ("id")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "WholeHomeUnit"
+	ADD CONSTRAINT "WholeHomeUnit_variantId_fk"
+	FOREIGN KEY ("variantId")
+	REFERENCES "Variant" ("id")
+	ON DELETE RESTRICT
+;
+
+ALTER TABLE "WholeHomeUnit"
+	ADD CONSTRAINT "WholeHomeUnit_productId_fk"
+	FOREIGN KEY ("productId")
+	REFERENCES "WholeHome" ("productId")
+	ON DELETE RESTRICT
+;
+
+ALTER TABLE "WholeHomeUnit"
+	ADD CONSTRAINT "WholeHomeUnit_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
+	ON DELETE RESTRICT
+;
+
+ALTER TABLE "WholeHomeUnit"
+	ADD CONSTRAINT "WholeHomeUnit_resourceId_fk"
+	FOREIGN KEY ("resourceId")
+	REFERENCES "InventoryResource" ("id")
+	ON DELETE RESTRICT
 ;
 
 ALTER TABLE "TourSlotProfile"
@@ -3845,6 +3968,12 @@ ALTER TABLE "GeoPlace" ADD CONSTRAINT "GeoPlace_parent_slug_unique" UNIQUE NULLS
 
 CREATE INDEX "Provider_dataClassification_idx" ON "Provider" ("dataClassification");
 
+CREATE UNIQUE INDEX "ProviderPreparationSession_owner_playbook_unique" ON "ProviderPreparationSession" ("providerId", "userId", "playbookId");
+
+CREATE INDEX "ProviderPreparationSession_owner_status_updated_idx" ON "ProviderPreparationSession" ("providerId", "userId", "status", "updatedAt");
+
+CREATE INDEX "ProviderPreparationSession_product_idx" ON "ProviderPreparationSession" ("productId");
+
 CREATE INDEX "ProviderDocument_providerId_type_idx" ON "ProviderDocument" ("providerId", "type");
 
 CREATE INDEX "ProviderDocument_providerId_status_idx" ON "ProviderDocument" ("providerId", "status");
@@ -4080,6 +4209,12 @@ CREATE UNIQUE INDEX "HouseRule_variant_type_unique" ON "HouseRule" ("scopeId", "
 CREATE INDEX "Tour_durationMinutes_idx" ON "Tour" ("durationMinutes");
 
 CREATE INDEX "Tour_difficultyLevel_idx" ON "Tour" ("difficultyLevel");
+
+CREATE UNIQUE INDEX "WholeHomeUnit_product_unique" ON "WholeHomeUnit" ("productId");
+
+CREATE UNIQUE INDEX "WholeHomeUnit_resource_unique" ON "WholeHomeUnit" ("resourceId");
+
+CREATE UNIQUE INDEX "WholeHomeUnit_provider_physical_unique" ON "WholeHomeUnit" ("providerId", "physicalKey");
 
 CREATE INDEX "TourSlotProfile_departureTime_idx" ON "TourSlotProfile" ("departureTime");
 
@@ -4533,6 +4668,24 @@ ALTER TABLE "Provider" ADD CONSTRAINT "Provider_accountPurpose_check" CHECK ("ac
 
 ALTER TABLE "Provider" ADD CONSTRAINT "Provider_dataClassification_check" CHECK ("dataClassification" IN ('production', 'demo', 'fixture'));
 
+ALTER TABLE "ProviderHolderProfile" ADD CONSTRAINT "ProviderHolderProfile_holderType_check" CHECK ("holderType" IN ('persona_natural', 'entidad'));
+
+ALTER TABLE "ProviderHolderProfile" ADD CONSTRAINT "ProviderHolderProfile_holderCountry_check" CHECK ("holderCountry" ~ '^[A-Z]{2}$');
+
+ALTER TABLE "ProviderHolderProfile" ADD CONSTRAINT "ProviderHolderProfile_taxResidenceCountry_check" CHECK ("taxResidenceCountry" IS NULL OR "taxResidenceCountry" ~ '^[A-Z]{2}$');
+
+ALTER TABLE "ProviderHolderProfile" ADD CONSTRAINT "ProviderHolderProfile_payoutCountry_check" CHECK ("payoutCountry" IS NULL OR "payoutCountry" ~ '^[A-Z]{2}$');
+
+ALTER TABLE "ProviderHolderProfile" ADD CONSTRAINT "ProviderHolderProfile_collectionModel_check" CHECK ("collectionModel" IN ('undecided', 'property_collect', 'platform_collect'));
+
+ALTER TABLE "ProviderHolderProfile" ADD CONSTRAINT "ProviderHolderProfile_declarationStatus_check" CHECK ("declarationStatus" IN ('declared', 'in_review', 'verified', 'changes_requested'));
+
+ALTER TABLE "ProviderPreparationSession" ADD CONSTRAINT "ProviderPreparationSession_playbook_check" CHECK ("playbookId" IN ('launch', 'launch-tour'));
+
+ALTER TABLE "ProviderPreparationSession" ADD CONSTRAINT "ProviderPreparationSession_vertical_check" CHECK ("vertical" IN ('hotel', 'tour'));
+
+ALTER TABLE "ProviderPreparationSession" ADD CONSTRAINT "ProviderPreparationSession_status_check" CHECK ("status" IN ('active', 'completed', 'abandoned'));
+
 ALTER TABLE "ProviderIntegrationConnection" ADD CONSTRAINT "ProviderIntegrationConnection_status_check" CHECK ("status" IN ('not_configured', 'pending', 'connected', 'requires_attention', 'syncing', 'error', 'revoked'));
 
 ALTER TABLE "ProviderIntegrationConnection" ADD CONSTRAINT "ProviderIntegrationConnection_mode_check" CHECK ("mode" IN ('sandbox', 'production'));
@@ -4622,6 +4775,14 @@ ALTER TABLE "HouseRule" ADD CONSTRAINT "HouseRule_scope_shape_check" CHECK (("sc
 
 ALTER TABLE "HouseRule" ADD CONSTRAINT "HouseRule_variant_type_check" CHECK ("scope" = 'product' OR "type" IN ('Pets', 'Smoking', 'Access', 'Safety', 'ExtraBeds'));
 
+ALTER TABLE "WholeHome" ADD CONSTRAINT "WholeHome_exclusiveUse_check" CHECK ("exclusiveUse" = true);
+
+ALTER TABLE "WholeHome" ADD CONSTRAINT "WholeHome_rooms_nonnegative_check" CHECK ("bedrooms" >= 0 AND "beds" >= 0 AND "bathrooms" >= 1);
+
+ALTER TABLE "WholeHome" ADD CONSTRAINT "WholeHome_maxGuests_check" CHECK ("maxGuests" BETWEEN 1 AND 30);
+
+ALTER TABLE "WholeHomeUnit" ADD CONSTRAINT "WholeHomeUnit_unitCount_check" CHECK ("unitCount" = 1);
+
 ALTER TABLE "TourSlotProfile" ADD CONSTRAINT "TourSlotProfile_bookingMode_check" CHECK ("bookingMode" in ('shared', 'private'));
 
 ALTER TABLE "TourSlotProfile" ADD CONSTRAINT "TourSlotProfile_maxPax_check" CHECK ("maxPax" >= 1);
@@ -4662,6 +4823,12 @@ ALTER TABLE "PolicyExceptionRule" ADD CONSTRAINT "PolicyExceptionRule_category_c
 ALTER TABLE "PolicyExceptionRule" ADD CONSTRAINT "PolicyExceptionRule_effective_range_check" CHECK ("effectiveFrom" IS NULL OR "effectiveTo" IS NULL OR "effectiveFrom" <= "effectiveTo");
 
 ALTER TABLE "CompliancePolicySet" ADD CONSTRAINT "CompliancePolicySet_status_check" CHECK ("status" IN ('active', 'retired'));
+
+ALTER TABLE "CompliancePolicySet" ADD CONSTRAINT "CompliancePolicySet_scope_check" CHECK ("policyScope" IN ('casework', 'commercial'));
+
+ALTER TABLE "CompliancePolicySet" ADD CONSTRAINT "CompliancePolicySet_holderType_check" CHECK ("holderType" IS NULL OR "holderType" IN ('persona_natural', 'entidad'));
+
+ALTER TABLE "CompliancePolicySet" ADD CONSTRAINT "CompliancePolicySet_jurisdictionRole_check" CHECK ("jurisdictionRole" IN ('holder', 'tax', 'payout', 'product'));
 
 ALTER TABLE "CompliancePolicyVersion" ADD CONSTRAINT "CompliancePolicyVersion_status_check" CHECK ("status" IN ('draft', 'published', 'retired'));
 
