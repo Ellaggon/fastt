@@ -4,6 +4,7 @@ import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { invalidateProvider } from "@/lib/cache/invalidation"
 import { refreshProductOperationalSurfaceAfterMutation } from "@/lib/product/productOperationalSurface"
+import { savePreparationSession } from "@/lib/onboarding/preparationSession"
 import { createProduct, geoPlaceCompatibilityError } from "@/modules/catalog/public"
 import { productRepository } from "@/container"
 import { and, db, eq, first, GeoPlace } from "@/shared/infrastructure/db/compat"
@@ -81,6 +82,24 @@ export const POST: APIRoute = async ({ request }) => {
 			request,
 			source: "product.create",
 		})
+		if (
+			playbook === "launch" ||
+			playbook === "launch-accommodation" ||
+			playbook === "launch-tour"
+		) {
+			const isTour = playbook === "launch-tour"
+			await savePreparationSession({
+				providerId,
+				userId: user.id,
+				productId: id,
+				playbookId: isTour ? "launch-tour" : "launch",
+				vertical: isTour ? "tour" : "hotel",
+				stepId: "content",
+				lastPath: isTour
+					? `/product/${encodeURIComponent(id)}/content?playbook=launch-tour&step=content&flow=create`
+					: `/product/${encodeURIComponent(id)}/content?playbook=launch&step=content&flow=create`,
+			})
+		}
 		await invalidateProvider(providerId)
 
 		if (!wantsJson) {

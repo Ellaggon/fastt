@@ -6,12 +6,21 @@ import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
 import { routes } from "@/lib/routes"
 
-const { isProviderAvailable = true, profile } = Astro.props
+const {
+	isProviderAvailable = true,
+	profile,
+	supportEmailRequired = true,
+	showRelatedDomains = true,
+	redirectTo = "",
+	cancelHref = routes.providerSettings(),
+	submitLabel = "Guardar perfil",
+} = Astro.props
 ---
 
 {
 	isProviderAvailable ? (
 		<form method="POST" action="/api/providers/profile" class="space-y-6" data-profile-ops-form>
+			{redirectTo ? <Input type="hidden" name="onboardingNext" value={redirectTo} /> : null}
 			<p class="text-sm leading-6 text-slate-600">
 				Estos campos alinean reservas, calendario y comunicaciones. La identidad fiscal, payouts e
 				integraciones viven en sus propias secciones.
@@ -48,55 +57,59 @@ const { isProviderAvailable = true, profile } = Astro.props
 			<FormField
 				label="Correo de soporte"
 				htmlFor="supportEmail"
-				description="Opcional si ya existe un correo de contacto configurado."
+				required={supportEmailRequired}
+				description="Lo usaremos para comunicaciones operativas y reservas."
 			>
 				<Input
 					id="supportEmail"
 					type="email"
 					name="supportEmail"
+					required={supportEmailRequired}
 					value={profile?.supportEmail ?? ""}
 				/>
 			</FormField>
 			<FormField label="Teléfono de soporte" htmlFor="supportPhone">
 				<Input id="supportPhone" name="supportPhone" value={profile?.supportPhone ?? ""} />
 			</FormField>
-			<Card variant="soft" class="text-sm leading-6 text-slate-600">
-				<p class="font-medium text-slate-800">Dominios relacionados</p>
-				<ul class="mt-2 list-disc space-y-1 pl-4">
-					<li>
-						<a
-							href={routes.providerSettingsTaxFees()}
-							class="font-medium text-slate-900 underline underline-offset-2"
-						>
-							Fiscalidad
-						</a>{" "}
-						→ perfil fiscal + impuestos/cargos de venta
-					</li>
-					<li>
-						<a
-							href={routes.providerSettingsIntegrations()}
-							class="font-medium text-slate-900 underline underline-offset-2"
-						>
-							Integraciones
-						</a>{" "}
-						→ conectores y prueba de conexión
-					</li>
-					<li>
-						<a
-							href={routes.providerSettingsVerification()}
-							class="font-medium text-slate-900 underline underline-offset-2"
-						>
-							Verificación
-						</a>{" "}
-						→ documentos mínimos
-					</li>
-				</ul>
-			</Card>
+			{showRelatedDomains ? (
+				<Card variant="soft" class="text-sm leading-6 text-slate-600">
+					<p class="font-medium text-slate-800">Dominios relacionados</p>
+					<ul class="mt-2 list-disc space-y-1 pl-4">
+						<li>
+							<a
+								href={routes.providerSettingsTaxFees()}
+								class="font-medium text-slate-900 underline underline-offset-2"
+							>
+								Fiscalidad
+							</a>{" "}
+							→ perfil fiscal + impuestos/cargos de venta
+						</li>
+						<li>
+							<a
+								href={routes.providerSettingsIntegrations()}
+								class="font-medium text-slate-900 underline underline-offset-2"
+							>
+								Integraciones
+							</a>{" "}
+							→ conectores y prueba de conexión
+						</li>
+						<li>
+							<a
+								href={routes.providerSettingsVerification()}
+								class="font-medium text-slate-900 underline underline-offset-2"
+							>
+								Verificación
+							</a>{" "}
+							→ documentos mínimos
+						</li>
+					</ul>
+				</Card>
+			) : null}
 			<div class="flex items-center justify-end gap-3">
-				<Button href={routes.providerSettings()} variant="secondary">
+				<Button href={cancelHref} variant="secondary">
 					Volver
 				</Button>
-				<Button type="submit">Guardar perfil</Button>
+				<Button type="submit">{submitLabel}</Button>
 			</div>
 		</form>
 	) : (

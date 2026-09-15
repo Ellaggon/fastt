@@ -1,0 +1,25 @@
+---
+import Layout from "@/layouts/Layout.astro"
+
+interface Props {
+	title: string
+	eyebrow?: string
+}
+
+const { title, eyebrow = "Preparar tu negocio" } = Astro.props
+---
+
+<Layout title={title} noindex={true}>
+	<main id="content" class="min-h-screen bg-slate-950 px-4 py-6 text-slate-100 sm:px-6 sm:py-10">
+		<div class="mx-auto flex w-full max-w-4xl flex-col gap-10">
+			<header class="flex items-center justify-between gap-4">
+				<a href="/" class="text-lg font-semibold tracking-tight text-white">Fastt</a>
+				<a href="/help" class="text-sm font-medium text-slate-300 hover:text-white">Ayuda</a>
+			</header>
+			<section class="mx-auto w-full max-w-3xl">
+				<p class="text-xs font-semibold tracking-[0.16em] text-slate-400 uppercase">{eyebrow}</p>
+				<slot />
+			</section>
+		</div>
+	</main>
+</Layout>

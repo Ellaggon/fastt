@@ -9,11 +9,16 @@ import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { buildAddRoomHref, resolveAddRoomPlaybookFromUrl } from "@/lib/playbook/add-room"
+import { listActivePreparationSessions } from "@/lib/onboarding/preparationSession"
 import {
 	type ProductPreparationSummary,
 	listProductOperationalPreparation,
 } from "@/lib/product/productOperationalSurface"
 import { routes } from "@/lib/routes"
+import {
+	providerOnboardingLegacyHref,
+	resolveProviderOnboardingRollout,
+} from "@/lib/onboarding/providerOnboardingRollout"
 import { ArrowRight, BedDouble, Hotel, Plus, ShieldCheck } from "@lucide/astro"
 import { and, db, eq, Product, sql, Variant } from "@/shared/infrastructure/db/compat"
 
@@ -22,7 +27,12 @@ const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
 
 const providerId = (await getProviderIdFromRequest(Astro.request, user)) ?? ""
-if (!providerId) return Astro.redirect(routes.providerSettingsProfile())
+if (!providerId) {
+	const rollout = resolveProviderOnboardingRollout({ userId: user.id, host: Astro.url.host })
+	return Astro.redirect(
+		rollout.enabled ? routes.providerOnboarding() : providerOnboardingLegacyHref()
+	)
+}
 
 const rows = await db
 	.select({
@@ -68,6 +78,7 @@ for (const row of rows) {
 }
 
 const products = Array.from(byProduct.values())
+const preparationResumes = await listActivePreparationSessions(providerId, user.id)
 const preparationByProduct = await listProductOperationalPreparation(
 	providerId,
 	products.map((product) => product.id)
@@ -110,8 +121,12 @@ Astro.response.headers.set(
 	`dashboard;dur=${Number((performance.now() - dashboardStartedAt).toFixed(1))}`
 )
 
-function preparationMessage(preparation: ProductPreparationSummary | null | undefined) {
-	if (!preparation) return "Revisa la preparación del alojamiento antes de publicarlo."
+function preparationMessage(
+	preparation: ProductPreparationSummary | null | undefined,
+	isTour: boolean
+) {
+	if (!preparation)
+		return `Revisa la preparación del ${isTour ? "tour" : "alojamiento"} antes de publicarlo.`
 	if (preparation.isPublished) return "Publicado y visible para huéspedes."
 	if (preparation.readyToPublish) return "Preparación completa. Revisa la vista previa y publica."
 	if (preparation.blockerCount > 0) {
@@ -123,18 +138,21 @@ function preparationMessage(preparation: ProductPreparationSummary | null | unde
 
 function preparationSupport(
 	roomCount: number,
-	preparation: ProductPreparationSummary | null | undefined
+	preparation: ProductPreparationSummary | null | undefined,
+	isTour: boolean
 ) {
 	if (roomCount === 0) {
-		return "Crea la primera habitación para definir capacidad, fotos, tarifa y disponibilidad desde el flujo guiado."
+		return isTour
+			? "Crea la primera salida para definir fecha, cupo, precio y disponibilidad desde el flujo guiado."
+			: "Crea la primera habitación para definir capacidad, fotos, tarifa y disponibilidad desde el flujo guiado."
 	}
 	if (preparation?.readyToPublish) {
 		return "La ficha ya tiene lo esencial. Revisa la experiencia final antes de publicarla."
 	}
 	if ((preparation?.blockerCount ?? 0) > 0) {
-		return "Continúa por el primer pendiente y vuelve aquí para revisar habitaciones."
+		return `Continúa por el primer pendiente y vuelve aquí para revisar ${isTour ? "salidas" : "habitaciones"}.`
 	}
-	return "Mantén habitaciones, tarifas y disponibilidad actualizadas desde sus herramientas operativas."
+	return `Mantén ${isTour ? "salidas, cupos" : "habitaciones"}, tarifas y disponibilidad actualizadas desde sus herramientas operativas.`
 }
 ---
 
@@ -158,6 +176,32 @@ function preparationSupport(
 		</header>
 
 		<div class="space-y-5">
+			{
+				!isChoosingForAddRoom && preparationResumes.length > 0 ? (
+					<section aria-labelledby="resume-preparation-heading" class="space-y-3">
+						<div class="space-y-1">
+							<p class="text-sm font-medium text-slate-400">Preparación en curso</p>
+							<h2 id="resume-preparation-heading" class="text-xl font-semibold text-white">
+								Retoma donde lo dejaste
+							</h2>
+						</div>
+						<div class="grid gap-3 md:grid-cols-2">
+							{preparationResumes.map((session) => (
+								<Card class="flex flex-wrap items-center justify-between gap-4 border-slate-700 bg-slate-900 p-5">
+									<div>
+										<p class="text-sm font-semibold text-white">{session.productName}</p>
+										<p class="mt-1 text-sm text-slate-300">
+											{session.vertical === "tour" ? "Tour" : "Alojamiento"} · paso pendiente:{" "}
+											{session.stepId}
+										</p>
+									</div>
+									<Button href={session.href}>Continuar preparación</Button>
+								</Card>
+							))}
+						</div>
+					</section>
+				) : null
+			}
 			{
 				products.length === 0 ? (
 					<Card class="overflow-hidden p-0">
@@ -237,7 +281,9 @@ function preparationSupport(
 									? "Continuar preparación"
 									: isReadyToPublish
 										? "Revisar y publicar"
-										: "Abrir alojamiento"
+										: isTour
+											? "Abrir tour"
+											: "Abrir alojamiento"
 								const previewRooms = product.rooms.slice(0, 3)
 								const remainingRooms = Math.max(0, product.rooms.length - previewRooms.length)
 								const preparationPercent = Math.max(
@@ -250,6 +296,7 @@ function preparationSupport(
 										class="overflow-hidden p-0"
 										data-dashboard-product-card
 										data-product-id={product.id}
+										data-product-vertical={isTour ? "tour" : "hotel"}
 									>
 										<div class="grid gap-0 lg:grid-cols-[minmax(0,1fr)_280px]">
 											<div class="space-y-5 p-5 md:p-6">
@@ -284,10 +331,10 @@ function preparationSupport(
 																data-preparation-message
 																data-room-count={product.rooms.length}
 															>
-																{preparationMessage(preparation)}
+																{preparationMessage(preparation, isTour)}
 															</p>
 															<p class="text-sm leading-6 text-slate-600" data-preparation-support>
-																{preparationSupport(product.rooms.length, preparation)}
+																{preparationSupport(product.rooms.length, preparation, isTour)}
 															</p>
 														</div>
 														<span
@@ -311,7 +358,7 @@ function preparationSupport(
 													</div>
 												</div>
 
-												{product.rooms.length > 0 ? (
+												{product.rooms.length > 0 && !isTour ? (
 													<div class="space-y-2">
 														<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
 															Habitaciones recientes
@@ -398,7 +445,7 @@ function preparationSupport(
 																variant="secondary"
 																className="w-full"
 															>
-																Abrir alojamiento
+																{isTour ? "Abrir tour" : "Abrir alojamiento"}
 															</Button>
 														)}
 													</div>
@@ -474,8 +521,9 @@ function preparationSupport(
 	)
 	const productIds = productCards.map((card) => card.dataset.productId).filter(Boolean)
 
-	function preparationMessage(preparation: any) {
-		if (!preparation) return "Revisa la preparación del alojamiento antes de publicarlo."
+	function preparationMessage(preparation: any, isTour: boolean) {
+		if (!preparation)
+			return `Revisa la preparación del ${isTour ? "tour" : "alojamiento"} antes de publicarlo.`
 		if (preparation.isPublished) return "Publicado y visible para huéspedes."
 		if (preparation.readyToPublish) return "Preparación completa. Revisa la vista previa y publica."
 		if (Number(preparation.blockerCount ?? 0) > 0) {
@@ -487,17 +535,19 @@ function preparationSupport(
 		return `${Math.round(Number(preparation.readinessPercent ?? 0))}% de preparación completada.`
 	}
 
-	function preparationSupport(roomCount: number, preparation: any) {
+	function preparationSupport(roomCount: number, preparation: any, isTour: boolean) {
 		if (roomCount === 0) {
-			return "Crea la primera habitación para definir capacidad, fotos, tarifa y disponibilidad desde el flujo guiado."
+			return isTour
+				? "Crea la primera salida para definir fecha, cupo, precio y disponibilidad desde el flujo guiado."
+				: "Crea la primera habitación para definir capacidad, fotos, tarifa y disponibilidad desde el flujo guiado."
 		}
 		if (preparation?.readyToPublish) {
 			return "La ficha ya tiene lo esencial. Revisa la experiencia final antes de publicarla."
 		}
 		if (Number(preparation?.blockerCount ?? 0) > 0) {
-			return "Continúa por el primer pendiente y vuelve aquí para revisar habitaciones."
+			return `Continúa por el primer pendiente y vuelve aquí para revisar ${isTour ? "salidas" : "habitaciones"}.`
 		}
-		return "Mantén habitaciones, tarifas y disponibilidad actualizadas desde sus herramientas operativas."
+		return `Mantén ${isTour ? "salidas, cupos" : "habitaciones"}, tarifas y disponibilidad actualizadas desde sus herramientas operativas.`
 	}
 
 	function setActionLabel(action: HTMLElement, label: string) {
@@ -517,6 +567,7 @@ function preparationSupport(
 		const roomCount = Number(
 			card.querySelector<HTMLElement>("[data-room-count]")?.dataset.roomCount ?? 0
 		)
+		const isTour = card.dataset.productVertical === "tour"
 		const message = card.querySelector<HTMLElement>("[data-preparation-message]")
 		const support = card.querySelector<HTMLElement>("[data-preparation-support]")
 		const nextStep = card.querySelector<HTMLElement>("[data-preparation-next-step]")
@@ -526,8 +577,8 @@ function preparationSupport(
 		const progressValue = progressBar?.querySelector<HTMLElement>(".fastt-progress-value")
 		const readinessPercent = Math.max(0, Math.min(100, Number(preparation?.readinessPercent ?? 0)))
 
-		if (message) message.textContent = preparationMessage(preparation)
-		if (support) support.textContent = preparationSupport(roomCount, preparation)
+		if (message) message.textContent = preparationMessage(preparation, isTour)
+		if (support) support.textContent = preparationSupport(roomCount, preparation, isTour)
 		if (nextStep) {
 			nextStep.textContent = preparation?.nextStepLabel ?? ""
 			nextStep.classList.toggle("hidden", !preparation?.nextStepLabel)

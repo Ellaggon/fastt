@@ -1,5 +1,6 @@
 ---
 import Button from "@/components/ui/Button.astro"
+import GuidedPreparationLayout from "@/layouts/GuidedPreparationLayout.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
@@ -27,6 +28,7 @@ import {
 } from "@/lib/playbook/launch-accommodation"
 import {
 	getLaunchLikeStepPosition,
+	getLaunchLikeStage,
 	resolveLaunchPlaybookDefinition,
 } from "@/lib/playbook/launch-playbook-definition"
 import {
@@ -101,6 +103,8 @@ let progressPercent = 0
 let previousHref: string | null = null
 let resolvedContinueHref = continueHref?.trim() || null
 let currentStepKnown = false
+let stageLabel = ""
+let stagePosition = 0
 
 if (isComplete && active && productId) {
 	playbookTitle = COMPLETE_TO_PUBLISH_PLAYBOOK_TITLE
@@ -168,6 +172,11 @@ if (isComplete && active && productId) {
 		currentStepKnown = true
 		stepLabel = currentStep.label
 		stepGuestImpact = currentStep.guestImpact
+		if (launchLikeDefinition) {
+			const stage = getLaunchLikeStage(launchLikeDefinition, currentStep.id)
+			stageLabel = stage.label
+			stagePosition = stage.position
+		}
 	}
 	if (previousStep) {
 		previousHref = isAddRoom
@@ -236,19 +245,37 @@ const progressHeading =
 		: stepNumber && totalSteps
 			? `Paso ${stepNumber} de ${totalSteps}`
 			: "Progreso"
+const preparationSessionPayload =
+	active && productId && (playbookId === "launch" || playbookId === LAUNCH_TOUR_PLAYBOOK_ID)
+		? {
+				productId,
+				playbookId,
+				vertical: playbookId === LAUNCH_TOUR_PLAYBOOK_ID ? "tour" : "hotel",
+				stepId: String(stepId ?? "content"),
+				variantId,
+				ratePlanId,
+			}
+		: null
+const PlaybookShell = active ? GuidedPreparationLayout : WorkspaceLayout
 ---
 
-<WorkspaceLayout title={title}>
+<PlaybookShell title={title} playbookTitle={playbookTitle} stepLabel={stepLabel}>
 	{
 		showProgress ? (
 			<div class="mb-5 space-y-2">
+				{stageLabel ? (
+					<p class="text-xs font-semibold tracking-wide text-slate-300 uppercase">
+						Etapa {stagePosition} de 3 · {stageLabel}
+					</p>
+				) : null}
 				<p class="text-xs font-semibold tracking-wide text-slate-400 uppercase">
 					{progressHeading}
 				</p>
 				<div
 					class="fastt-progress-track h-1.5 overflow-hidden bg-slate-800"
 					role="progressbar"
-					aria-valuenow={progressPercent}
+					aria-label={`Progreso de ${playbookTitle}: ${progressHeading}`}
+					aria-valuenow={visualProgressPercent}
 					aria-valuemin={0}
 					aria-valuemax={100}
 				>
@@ -262,6 +289,22 @@ const progressHeading =
 	}
 
 	<slot />
+
+	<script define:vars={{ preparationSessionPayload }}>
+		if (preparationSessionPayload) {
+			const savePreparationSession = () => {
+				const lastPath = `${window.location.pathname}${window.location.search}`
+				void fetch("/api/onboarding/preparation-session", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					keepalive: true,
+					body: JSON.stringify({ ...preparationSessionPayload, lastPath }),
+				}).catch(() => undefined)
+			}
+			savePreparationSession()
+			window.addEventListener("pagehide", savePreparationSession)
+		}
+	</script>
 
 	{
 		showFooter ? (
@@ -307,4 +350,4 @@ const progressHeading =
 			</footer>
 		) : null
 	}
-</WorkspaceLayout>
+</PlaybookShell>

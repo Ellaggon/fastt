@@ -6,7 +6,7 @@ import { routes } from "@/lib/routes"
 
 const context = await Astro.locals.getWorkspaceContext()
 if (!context.user) return Astro.redirect("/SignInPage")
-if (!context.provider) return Astro.redirect(routes.providerSettingsProfile())
+if (!context.provider) return Astro.redirect(routes.providerOnboardingStart())
 const jobId = String(Astro.params.id ?? "").trim()
 if (!jobId) return Astro.redirect(routes.ratesPlansManage())
 ---

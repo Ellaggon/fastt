@@ -5,6 +5,8 @@ import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/in
 import { routes } from "@/lib/routes"
 import { updateProviderIdentityV2 } from "@/modules/catalog/public"
 import { ValidationError } from "@/lib/validation/ValidationError"
+import { parseHolderDeclaration, saveProviderHolderProfile } from "@/lib/provider-holder-profile"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 
 function shouldReturnHtmlRedirect(request: Request): boolean {
 	const accept = (request.headers.get("accept") || "").toLowerCase()
@@ -19,7 +21,6 @@ function redirectToProfileSettings(request: Request, params: Record<string, stri
 
 async function handleProviderUpdate(ctx: Parameters<APIRoute>[0]): Promise<Response> {
 	const { request, params } = ctx
-	void params.id
 
 	try {
 		const providerId = await getProviderIdFromRequest(request)
@@ -32,8 +33,14 @@ async function handleProviderUpdate(ctx: Parameters<APIRoute>[0]): Promise<Respo
 				headers: { "Content-Type": "application/json" },
 			})
 		}
+		if (params.id !== providerId) {
+			return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403 })
+		}
+		const user = await getUserFromRequest(request)
+		if (!user?.id) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 })
 
 		const form = await request.formData()
+		const holderDeclaration = parseHolderDeclaration(form)
 		const raw = {
 			legalName: String(form.get("legalName") ?? "").trim(),
 			displayName: String(form.get("displayName") ?? "").trim(),
@@ -46,6 +53,13 @@ async function handleProviderUpdate(ctx: Parameters<APIRoute>[0]): Promise<Respo
 				...raw,
 			}
 		)
+		if (holderDeclaration) {
+			await saveProviderHolderProfile({
+				providerId,
+				userId: user.id,
+				declaration: holderDeclaration,
+			})
+		}
 		await invalidateProvider(providerId)
 		await invalidateProviderGovernance(providerId, "provider_identity_updated")
 
@@ -58,6 +72,13 @@ async function handleProviderUpdate(ctx: Parameters<APIRoute>[0]): Promise<Respo
 			headers: { "Content-Type": "application/json" },
 		})
 	} catch (error) {
+		if (error instanceof Error && error.message === "holder_declaration_invalid") {
+			if (shouldReturnHtmlRedirect(request))
+				return redirectToProfileSettings(request, { error: "validation_error" })
+			return new Response(JSON.stringify({ error: "validation_error", field: "holderType" }), {
+				status: 400,
+			})
+		}
 		if (error instanceof ValidationError) {
 			if (shouldReturnHtmlRedirect(request)) {
 				return redirectToProfileSettings(request, { error: "validation_error" })
