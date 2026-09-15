@@ -44,6 +44,8 @@ describe("tour PDP browser surface (trust + ticket→price→hold)", () => {
 		expect(departure).toContain("data-select-rateplan-id")
 		expect(departure).toContain("/api/inventory/hold")
 		expect(departure).toContain("Reservar cupo")
+		expect(departure).toContain("Cotizar salida privada")
+		expect(departure).toContain("No se reserva inventario hasta que el proveedor acepte")
 		expect(departure.indexOf("Actualizar precio")).toBeLessThan(departure.indexOf("Reservar cupo"))
 		expect(departure.indexOf("Reservar cupo")).toBeLessThan(departure.indexOf("Confirmar reserva"))
 	})

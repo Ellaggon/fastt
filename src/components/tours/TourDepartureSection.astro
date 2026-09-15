@@ -411,6 +411,14 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 			return d.toISOString().slice(0, 10)
 		}
 
+		function formatCancellationDeadline(value: unknown): string {
+			const raw = String(value ?? "").trim()
+			const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(raw)
+			if (!match) return raw.replace(/\[property_local\]/g, "hora local").trim()
+			const [, year, month, day, hour, minute] = match
+			return `${day}/${month}/${year} a las ${hour}:${minute} (hora local)`
+		}
+
 		searchBtn?.addEventListener("click", () => {
 			const date = departureDate()
 			const quantities = readQuantities()
@@ -460,7 +468,10 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 								: payload.bookingStatus === "request"
 									? "Solicitud de cotización"
 									: "Confirmación sujeta a revisión"
-						selectionSummary.textContent = `${confirmation}. ${payload.policySummary}${payload.freeCancellationDeadline ? ` Puedes cancelar sin costo hasta ${payload.freeCancellationDeadline}.` : ""}`
+						const cancellationDeadline = formatCancellationDeadline(
+							payload.freeCancellationDeadline
+						)
+						selectionSummary.textContent = `${confirmation}. ${payload.policySummary}${cancellationDeadline ? ` Puedes cancelar sin costo hasta ${cancellationDeadline}.` : ""}`
 						selectionSummary.classList.remove("hidden")
 					}
 					if (statusEl)

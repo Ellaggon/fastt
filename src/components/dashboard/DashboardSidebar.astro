@@ -7,6 +7,11 @@ import {
 	filterEnterpriseNavigationForDisclosure,
 	type SidebarDisclosureMode,
 } from "@/lib/backoffice-governance"
+import {
+	providerOperationalNavigation,
+	resolveOperationalSidebarVertical,
+	type ProviderOperationalNavigationItem,
+} from "@/lib/dashboard/providerOperationalNavigation"
 import type { ProviderSidebarReadiness } from "@/lib/dashboard/providerSidebarReadiness"
 import type { WorkspaceShellContext } from "@/lib/dashboard/workspaceRequestContext"
 import {
@@ -66,10 +71,14 @@ const visibleNavigation = visibleNavigationBase.map((section) => ({
 		return item
 	}),
 }))
-const isSectionActive = (items: (typeof visibleNavigation)[number]["items"]) =>
+type SidebarNavigationItem =
+	| (typeof enterpriseNavigation)[number]["items"][number]
+	| ProviderOperationalNavigationItem
+
+const isSectionActive = (items: readonly SidebarNavigationItem[]) =>
 	items.some((item) => isItemActive(item))
 
-function isItemActive(item: (typeof enterpriseNavigation)[number]["items"][number]) {
+function isItemActive(item: SidebarNavigationItem) {
 	if (item.label === "Alojamiento") {
 		const path = hrefPath(item.href)
 		return (
@@ -86,7 +95,7 @@ function isItemActive(item: (typeof enterpriseNavigation)[number]["items"][numbe
 	return hrefPath(item.href) === hrefPath(activeHref)
 }
 
-function itemSummary(item: (typeof enterpriseNavigation)[number]["items"][number]) {
+function itemSummary(item: SidebarNavigationItem) {
 	return sidebarReadiness[item.href] ?? ""
 }
 
@@ -110,7 +119,7 @@ const serviceTypes = resolveProviderWorkspaceContext({
 }).availableVerticals
 const hasHotelService = serviceTypes.includes("hotel")
 const onlyHotelService = hasHotelService && new Set(serviceTypes).size === 1
-const navigationGroups = [
+const defaultNavigationGroups = [
 	{
 		title: "Inicio",
 		sections: ["Inicio"],
@@ -130,36 +139,12 @@ const navigationGroups = [
 					collapsible: false,
 				},
 			]),
-	{
-		title: "Venta",
-		sections: ["Venta"],
-		collapsible: false,
-	},
-	{
-		title: "Reservas",
-		sections: ["Reservas"],
-		collapsible: false,
-	},
-	{
-		title: "Finanzas",
-		sections: ["Finanzas"],
-		collapsible: false,
-	},
-	{
-		title: "Análisis",
-		sections: ["Analítica"],
-		collapsible: false,
-	},
-	{
-		title: "Distribución",
-		sections: ["Distribución"],
-		collapsible: false,
-	},
-	{
-		title: "Configuración",
-		sections: ["Configuración"],
-		collapsible: false,
-	},
+	{ title: "Venta", sections: ["Venta"], collapsible: false },
+	{ title: "Reservas", sections: ["Reservas"], collapsible: false },
+	{ title: "Finanzas", sections: ["Finanzas"], collapsible: false },
+	{ title: "Análisis", sections: ["Analítica"], collapsible: false },
+	{ title: "Distribución", sections: ["Distribución"], collapsible: false },
+	{ title: "Configuración", sections: ["Configuración"], collapsible: false },
 ]
 	.map((group) => ({
 		...group,
@@ -167,13 +152,22 @@ const navigationGroups = [
 	}))
 	.filter((group) => group.items.length > 0)
 
+const operationalVertical = resolveOperationalSidebarVertical({
+	workspaceScope,
+	availableVerticals: serviceTypes,
+})
+const operationalNavigation = providerOperationalNavigation(operationalVertical)
+const navigationGroups = operationalNavigation ?? defaultNavigationGroups
+
 function shouldShowNavGroupHeading(
-	item: (typeof enterpriseNavigation)[number]["items"][number],
+	item: SidebarNavigationItem,
 	index: number,
-	items: (typeof enterpriseNavigation)[number]["items"]
+	items: readonly SidebarNavigationItem[]
 ) {
-	if (!item.navGroup) return false
-	return index === 0 || items[index - 1]?.navGroup !== item.navGroup
+	const navGroup = "navGroup" in item ? item.navGroup : undefined
+	if (!navGroup) return false
+	const previous = items[index - 1]
+	return index === 0 || !(previous && "navGroup" in previous && previous.navGroup === navGroup)
 }
 ---
 
@@ -193,7 +187,7 @@ function shouldShowNavGroupHeading(
 						<>
 							{shouldShowNavGroupHeading(item, index, group.items) ? (
 								<p class="px-2.5 pt-2 text-[10px] font-semibold tracking-[0.12em] text-slate-600 uppercase first:pt-0">
-									{item.navGroup}
+									{"navGroup" in item ? item.navGroup : ""}
 								</p>
 							) : null}
 							<DashboardSidebarItem
