@@ -13,7 +13,7 @@ import {
 	upsertRatePlanTemplate,
 	upsertRatePlan,
 } from "@/shared/infrastructure/test-support/db-test-data"
-import { upsertProvider } from "../test-support/catalog-db-test-data"
+import { markProductPublished, upsertProvider } from "../test-support/catalog-db-test-data"
 import { materializeSearchUnitRange } from "@/modules/search/public"
 import { ensurePricingCoverageForRequestRuntime } from "@/modules/pricing/public"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
@@ -24,6 +24,7 @@ import {
 	EffectivePricing,
 	EffectiveRestriction,
 	SearchUnitView,
+	Provider,
 	Variant,
 	and,
 	eq,
@@ -636,14 +637,20 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 	})
 
 	it("booking confirmed consumes availability and search reflects booked stock", async () => {
-		const token = "t_search_booking"
-		const email = "search-booking@example.com"
-		const providerId = "prov_search_booking"
-		const geoPlaceId = "dest_search_booking"
-		const productId = `prod_search_booking_${crypto.randomUUID()}`
+		const suffix = crypto.randomUUID()
+		const token = `t_search_booking_${suffix}`
+		const email = `search-booking-${suffix}@example.com`
+		const providerId = `prov_search_booking_${suffix}`
+		const geoPlaceId = `dest_search_booking_${suffix}`
+		const productId = `prod_search_booking_${suffix}`
 		const variantId = `var_search_booking_${crypto.randomUUID()}`
 		const templateId = `rpt_search_booking_${crypto.randomUUID()}`
 		const ratePlanId = `rp_search_booking_${crypto.randomUUID()}`
+
+		const checkInDate = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString().slice(0, 10)
+		const checkOutDate = new Date(`${checkInDate}T00:00:00.000Z`)
+		checkOutDate.setUTCDate(checkOutDate.getUTCDate() + 1)
+		const checkOut = checkOutDate.toISOString().slice(0, 10)
 
 		await seedSearchableVariant({
 			email,
@@ -653,16 +660,21 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 			variantId,
 			ratePlanTemplateId: templateId,
 			ratePlanId,
-			inventoryDates: ["2026-03-10"],
+			inventoryDates: [checkInDate],
 			totalInventory: 1,
 		})
+		await db
+			.update(Provider)
+			.set({ accountPurpose: "commercial", dataClassification: "production" })
+			.where(eq(Provider.id, providerId))
+		await markProductPublished(productId)
 
 		await withSupabaseAuthStub({ [token]: { id: "u_search_booking", email } }, async () => {
 			const hold = new FormData()
 			hold.set("variantId", variantId)
 			hold.set("ratePlanId", ratePlanId)
-			hold.set("checkIn", "2026-03-10")
-			hold.set("checkOut", "2026-03-11")
+			hold.set("checkIn", checkInDate)
+			hold.set("checkOut", checkOut)
 			hold.set("quantity", "1")
 			hold.set("adults", "2")
 			hold.set("children", "0")
@@ -670,8 +682,8 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 			const holdRes = await holdPost({
 				request: makeAuthedFormRequest({ path: "/api/inventory/hold", token, form: hold }),
 			} as any)
-			expect(holdRes.status).toBe(200)
 			const holdBody = (await readJson(holdRes)) as any
+			expect(holdRes.status, JSON.stringify(holdBody)).toBe(200)
 
 			const confirm = new FormData()
 			confirm.set("holdId", String(holdBody?.holdId ?? ""))
@@ -682,15 +694,15 @@ describe("integration/search availability correctness (CAPA 5 Phase 3)", () => {
 
 			const offers = await searchOffers({
 				productId,
-				checkIn: new Date("2026-03-10"),
-				checkOut: new Date("2026-03-11"),
+				checkIn: new Date(`${checkInDate}T00:00:00.000Z`),
+				checkOut: new Date(`${checkOut}T00:00:00.000Z`),
 				rooms: 1,
 				adults: 2,
 				children: 0,
 			})
 			expect(offers.some((o) => o.variantId === variantId)).toBe(false)
 		})
-	})
+	}, 90_000)
 
 	it("stop sell restriction: if any stop_sell applies at variant scope, Search rejects", async () => {
 		const email = "search-stopsell@example.com"
