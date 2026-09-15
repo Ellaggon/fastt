@@ -15,6 +15,14 @@ import {
 	productVerticalRegistry,
 } from "@/lib/catalog/productVerticalRegistry"
 import { routes } from "@/lib/routes"
+import {
+	providerOnboardingBusinessHref,
+	resolveProviderOnboardingVertical,
+} from "@/lib/onboarding/providerOnboarding"
+import {
+	providerOnboardingLegacyHref,
+	resolveProviderOnboardingRollout,
+} from "@/lib/onboarding/providerOnboardingRollout"
 import { isGeoPlaceCompatible } from "@/modules/catalog/public"
 import { asc, db, eq, GeoPlace } from "@/shared/infrastructure/db/compat"
 
@@ -22,7 +30,14 @@ const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
 
 const providerId = (await getProviderIdFromRequest(Astro.request, user)) ?? ""
-if (!providerId) return Astro.redirect(routes.providerSettingsProfile())
+if (!providerId) {
+	const rollout = resolveProviderOnboardingRollout({ userId: user.id, host: Astro.url.host })
+	if (!rollout.enabled) return Astro.redirect(providerOnboardingLegacyHref())
+	const requested = resolveProviderOnboardingVertical(Astro.url.searchParams.get("type"))
+	return Astro.redirect(
+		requested ? providerOnboardingBusinessHref(requested) : routes.providerOnboarding()
+	)
+}
 
 const resolvedPlaybook = resolvePlaybookFromUrl(Astro.url)
 if (Astro.url.searchParams.get("flow") === "create" && !Astro.url.searchParams.get("playbook")) {

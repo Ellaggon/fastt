@@ -17,7 +17,7 @@ export const providerProfileSchema = z.object({
 			"Currency must be a 3-letter ISO code"
 		)
 		.regex(currencyRegex, "Currency must be a valid ISO 4217 code (e.g. USD)"),
-	supportEmail: emailSchema.optional(),
+	supportEmail: emailSchema,
 	supportPhone: optionalPhoneSchema,
 })
 

@@ -1,0 +1,114 @@
+---
+import ProviderProfileForm from "@/components/provider/ProviderProfileForm.astro"
+import ProviderRegisterForm from "@/components/provider/ProviderRegisterForm.astro"
+import Notice from "@/components/ui/Notice.astro"
+import ProviderOnboardingLayout from "@/layouts/ProviderOnboardingLayout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import {
+	PROVIDER_ONBOARDING_SELECTION_COOKIE,
+	providerOnboardingBusinessHref,
+	providerOnboardingProductCreateHref,
+	resolveProviderOnboardingVertical,
+} from "@/lib/onboarding/providerOnboarding"
+import {
+	providerOnboardingLegacyHref,
+	resolveProviderOnboardingRollout,
+} from "@/lib/onboarding/providerOnboardingRollout"
+import { isHolderStorageAvailable, readProviderHolderProfile } from "@/lib/provider-holder-profile"
+import { getProviderFullAggregate } from "@/modules/catalog/public"
+
+const user = await getUserFromRequest(Astro.request)
+const vertical = resolveProviderOnboardingVertical(Astro.url.searchParams.get("vertical"))
+if (!vertical) return Astro.redirect("/provider/onboarding?intent=provider")
+const currentPath = `${Astro.url.pathname}${Astro.url.search}`
+if (!user?.id) return Astro.redirect(`/SignInPage?returnTo=${encodeURIComponent(currentPath)}`)
+const rollout = resolveProviderOnboardingRollout({ userId: user.id, host: Astro.url.host })
+if (!rollout.enabled) return Astro.redirect(providerOnboardingLegacyHref())
+
+const providerId = await getProviderIdFromRequest(Astro.request, user)
+const aggregate = providerId ? await getProviderFullAggregate(providerId, user.id) : null
+const provider = aggregate?.provider ?? null
+const holderProfile = providerId ? await readProviderHolderProfile(providerId) : null
+const holderStorageReady = await isHolderStorageAvailable()
+const profile = aggregate?.profile ?? null
+const hasProvider = Boolean(provider?.id)
+const success = String(Astro.url.searchParams.get("success") ?? "")
+const error = String(Astro.url.searchParams.get("error") ?? "")
+const serviceLabel = vertical === "tour" ? "tour" : "alojamiento"
+Astro.cookies.set(PROVIDER_ONBOARDING_SELECTION_COOKIE, vertical, {
+	path: "/",
+	httpOnly: true,
+	sameSite: "lax",
+	secure: Astro.url.protocol === "https:",
+	maxAge: 60 * 60 * 24 * 30,
+})
+const identityNext = providerOnboardingBusinessHref(vertical)
+const productNext = providerOnboardingProductCreateHref(vertical)
+---
+
+<ProviderOnboardingLayout title={`Preparar ${serviceLabel} · Datos del negocio`}>
+	<div class="space-y-6">
+		<header class="space-y-3">
+			<h1 class="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+				{hasProvider ? "Configura tu contacto operativo" : "Cuéntanos sobre tu negocio"}
+			</h1>
+			<p class="max-w-2xl text-sm leading-6 text-slate-300">
+				{
+					hasProvider
+						? `Usaremos estos datos para operar tu ${serviceLabel}. Después comenzarás su preparación.`
+						: "Estos datos identifican al titular del negocio y se usarán en verificación, pagos e integraciones."
+				}
+			</p>
+		</header>
+
+		{
+			!holderStorageReady ? (
+				<Notice variant="warning" title="Declaración del titular pendiente">
+					Este entorno necesita la migración de Fase 4 para guardar tipo de titular y
+					jurisdicciones.
+				</Notice>
+			) : null
+		}
+
+		{
+			success === "identity_saved" ? (
+				<Notice variant="success" title="Datos del negocio guardados">
+					Ahora confirma el contacto operativo para comenzar tu {serviceLabel}.
+				</Notice>
+			) : null
+		}
+		{
+			error ? (
+				<Notice variant="error" title="No se pudo guardar">
+					{error === "validation_error"
+						? "Revisa los campos requeridos e inténtalo de nuevo."
+						: "Intenta de nuevo en unos momentos."}
+				</Notice>
+			) : null
+		}
+
+		{
+			hasProvider ? (
+				<ProviderProfileForm
+					isProviderAvailable={true}
+					profile={profile}
+					supportEmailRequired={true}
+					showRelatedDomains={false}
+					redirectTo={productNext}
+					cancelHref="/provider/onboarding?intent=provider"
+					submitLabel={`Guardar y preparar ${serviceLabel}`}
+				/>
+			) : (
+				<ProviderRegisterForm
+					provider={provider}
+					holderProfile={holderProfile}
+					holderStorageReady={holderStorageReady}
+					hasProvider={false}
+					onboardingNext={identityNext}
+					submitLabel="Guardar y continuar"
+				/>
+			)
+		}
+	</div>
+</ProviderOnboardingLayout>

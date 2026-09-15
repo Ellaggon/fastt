@@ -26,7 +26,7 @@ const auth = await requireProvider(Astro.request).catch((error: unknown) => {
 	throw error
 })
 if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
-if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerSettingsProfile())
+if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerOnboardingStart())
 
 const data = await listProviderExternalCalendars(auth.providerId)
 const activeCalendars = data.calendars.filter((calendar) => calendar.status !== "revoked")

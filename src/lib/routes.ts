@@ -5,6 +5,8 @@ export const routes = {
 	provider: () => "/provider",
 	providerSettings: () => "/provider/settings",
 	providerSettingsProfile: () => "/provider/settings/profile",
+	providerOnboarding: () => "/provider/onboarding",
+	providerOnboardingStart: () => "/provider/onboarding?intent=provider",
 	providerSettingsVerification: () => "/provider/settings/verification",
 	providerSettingsVerificationDocuments: () => "/provider/settings/verification/documents",
 	providerSettingsVerificationFiscal: () => "/provider/settings/verification/fiscal",

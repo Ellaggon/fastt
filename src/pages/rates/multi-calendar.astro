@@ -7,7 +7,7 @@ import { routes } from "@/lib/routes"
 
 const workspaceContext = await Astro.locals.getWorkspaceContext()
 if (!workspaceContext.user) return Astro.redirect("/SignInPage")
-if (!workspaceContext.provider) return Astro.redirect(routes.providerSettingsProfile())
+if (!workspaceContext.provider) return Astro.redirect(routes.providerOnboardingStart())
 const sidebarData = await workspaceContext.sidebarDataPromise
 if (sidebarData?.disclosureMode === "small-provider") {
 	return Astro.redirect(`${routes.calendar()}?focus=price&source=multi-calendar-simple-redirect`)
