@@ -1,4 +1,4 @@
-export type ProductTypeValue = "hotel" | "tour" | "package" | "limousine"
+export type ProductTypeValue = "hotel" | "tour" | "package" | "limousine" | "whole_home"
 
 export type GeoPlaceType =
 	| "country"
@@ -18,6 +18,9 @@ const PRODUCT_TYPE_ALIASES: Record<string, ProductTypeValue> = {
 	hotel: "hotel",
 	hotels: "hotel",
 	lodging: "hotel",
+	whole_home: "whole_home",
+	rental: "whole_home",
+	vacation_rental: "whole_home",
 	package: "package",
 	packages: "package",
 	paquete: "package",
@@ -46,6 +49,7 @@ const allowedPrimaryDiscoveryTypes: Record<ProductTypeValue, ReadonlySet<GeoPlac
 	tour: new Set(["city", "locality", "neighborhood", "poi", "natural_area"]),
 	package: new Set(["admin_area_1", "city", "locality", "natural_area"]),
 	limousine: new Set(["admin_area_1", "city", "locality"]),
+	whole_home: new Set(["city", "locality", "neighborhood", "poi"]),
 }
 
 export function geoPlaceCompatibilityError(input: { productType: unknown; placeType: unknown }) {

@@ -1,4 +1,9 @@
-export type VariantKind = "hotel_room" | "tour_slot" | "package_base" | "limousine_service"
+export type VariantKind =
+	| "hotel_room"
+	| "tour_slot"
+	| "package_base"
+	| "limousine_service"
+	| "whole_home"
 export type VariantLifecycleState = "draft" | "ready" | "archived"
 
 export type VariantCore = {

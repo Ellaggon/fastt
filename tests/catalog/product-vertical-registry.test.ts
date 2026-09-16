@@ -34,7 +34,7 @@ describe("catalog/product vertical registry", () => {
 		expect(normalizeProductTypeValue("unknown")).toBeNull()
 	})
 
-	it("keeps customer-facing verticals active without exposing planned rentals", () => {
+	it("exposes complete homes as a distinct active vertical", () => {
 		const active = listActiveProductVerticalEntries()
 
 		expect(active.map((entry) => entry.productType)).toEqual([
@@ -42,14 +42,16 @@ describe("catalog/product vertical registry", () => {
 			"tour",
 			"package",
 			"limousine",
+			"whole_home",
 		])
 		expect(active.map((entry) => entry.creation.typeOptionLabel)).toEqual([
 			"Alojamiento",
 			"Tour",
 			"Paquete",
 			"Traslado",
+			"Propiedad",
 		])
-		expect(productVerticalRegistry.rental.status).toBe("planned")
+		expect(productVerticalRegistry.rental.status).toBe("active")
 		expect(productVerticalRegistry.generic.status).toBe("fallback")
 	})
 
@@ -68,6 +70,8 @@ describe("catalog/product vertical registry", () => {
 		expect(productVerticalRegistry.tour.routes.publicSearchHref).toBe("/buscar/tours")
 		expect(productVerticalRegistry.hotel.variantKind).toBe("hotel_room")
 		expect(productVerticalRegistry.tour.variantKind).toBe("tour_slot")
+		expect(productVerticalRegistry.rental.variantKind).toBe("whole_home")
+		expect(productVerticalRegistry.rental.routes.publicDetailHref("p1")).toBe("/homes/p1")
 
 		expect(productVerticalRegistry.hotel.creation.heading).toBe("Crear alojamiento")
 		expect(productVerticalRegistry.tour.creation.namePlaceholder).toContain("City Tour")

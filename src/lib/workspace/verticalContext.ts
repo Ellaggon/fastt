@@ -6,7 +6,8 @@ import {
 } from "@/lib/catalog/productVerticalRegistry"
 
 export type WorkspaceContextLevel = "company" | "vertical" | "product"
-export type ActiveWorkspaceVertical = Exclude<ProductVertical, "generic" | "rental">
+/** Every active registry vertical can be selected in the operational workspace. */
+export type ActiveWorkspaceVertical = Exclude<ProductVertical, "generic">
 
 export type ProviderWorkspaceContext = {
 	level: WorkspaceContextLevel
