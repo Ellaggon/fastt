@@ -7,7 +7,7 @@ import { refreshProductOperationalSurfaceAfterMutation } from "@/lib/product/pro
 import { savePreparationSession } from "@/lib/onboarding/preparationSession"
 import { createProduct, geoPlaceCompatibilityError } from "@/modules/catalog/public"
 import { productRepository } from "@/container"
-import { and, db, eq, first, GeoPlace } from "@/shared/infrastructure/db/compat"
+import { and, db, eq, first, GeoPlace, WholeHome } from "@/shared/infrastructure/db/compat"
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
@@ -33,6 +33,7 @@ export const POST: APIRoute = async ({ request }) => {
 			productType: String(form.get("productType") ?? ""),
 			geoPlaceId: String(form.get("geoPlaceId") ?? ""),
 		}
+		const isWholeHome = String(raw.productType).trim().toLowerCase() === "whole_home"
 		const playbook = String(form.get("playbook") ?? "").trim()
 		const wantsJson = String(form.get("_response") ?? "").trim() !== "redirect"
 		const geoPlace = raw.geoPlaceId
@@ -76,6 +77,16 @@ export const POST: APIRoute = async ({ request }) => {
 				geoPlaceId: raw.geoPlaceId,
 			}
 		)
+		if (isWholeHome) {
+			await db.insert(WholeHome).values({
+				productId: id,
+				exclusiveUse: true,
+				bedrooms: 0,
+				beds: 0,
+				bathrooms: 1,
+				maxGuests: 1,
+			})
+		}
 		await refreshProductOperationalSurfaceAfterMutation({
 			productId: id,
 			providerId,
@@ -108,9 +119,11 @@ export const POST: APIRoute = async ({ request }) => {
 			else if (playbook === "launch" || playbook === "launch-accommodation") {
 				params.set("playbook", "launch")
 			}
-			const nextPath = playbook
-				? `/product/${encodeURIComponent(id)}/content?${params.toString()}`
-				: `/product/${encodeURIComponent(id)}`
+			const nextPath = isWholeHome
+				? `/product/${encodeURIComponent(id)}/whole-home?flow=create`
+				: playbook
+					? `/product/${encodeURIComponent(id)}/content?${params.toString()}`
+					: `/product/${encodeURIComponent(id)}`
 			return new Response(null, {
 				status: 303,
 				headers: { Location: nextPath },

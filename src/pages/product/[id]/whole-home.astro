@@ -1,0 +1,101 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import FormField from "@/components/ui/FormField.astro"
+import Input from "@/components/ui/Input.astro"
+import Notice from "@/components/ui/Notice.astro"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { getProductAggregate } from "@/modules/catalog/public"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
+const providerId = await getProviderIdFromRequest(Astro.request, user)
+if (!providerId) return Astro.redirect("/provider/onboarding?intent=provider")
+const productId = String(Astro.params.id ?? "")
+const product = productId ? await getProductAggregate(productId) : null
+const productRow = product ? ((product as any).product ?? product) : null
+if (
+	!productRow ||
+	productRow.providerId !== providerId ||
+	String(productRow.productType).toLowerCase() !== "whole_home"
+) {
+	return Astro.redirect("/dashboard")
+}
+---
+
+<WorkspaceLayout title="Configurar vivienda completa">
+	<section class="mx-auto max-w-2xl space-y-6">
+		<header class="space-y-2">
+			<p class="text-sm font-medium text-slate-500">Vivienda completa</p>
+			<h1 class="text-3xl font-semibold text-slate-950">Define la única unidad vendible</h1>
+			<p class="text-sm leading-6 text-slate-600">
+				Una reserva ocupa toda la vivienda. Dormitorios y camas se describen en la ficha; no se
+				venden por separado.
+			</p>
+		</header>
+		<Card>
+			<form id="whole-home-form" class="space-y-5">
+				<Input type="hidden" name="productId" value={productId} />
+				<Input type="hidden" name="kind" value="whole_home" />
+				<FormField label="Nombre de la unidad" htmlFor="name" required
+					><Input id="name" name="name" required value="Vivienda completa" /></FormField
+				>
+				<FormField
+					label="Clave física interna"
+					htmlFor="physicalKey"
+					required
+					description="Debe identificar este inmueble de forma única dentro de tu cuenta."
+					><Input
+						id="physicalKey"
+						name="physicalKey"
+						required
+						placeholder="Ej: casa-lago-001"
+					/></FormField
+				>
+				<FormField label="Máximo de huéspedes" htmlFor="maxGuests" required
+					><Input
+						id="maxGuests"
+						name="maxGuests"
+						type="number"
+						min="1"
+						max="30"
+						value="2"
+						required
+					/></FormField
+				>
+				<p id="whole-home-result" class="text-sm" aria-live="polite"></p>
+				<div class="flex justify-end gap-3">
+					<Button href={`/product/${productId}/content`} variant="secondary">Volver</Button><Button
+						type="submit">Crear unidad y calendario</Button
+					>
+				</div>
+			</form>
+		</Card>
+		<Notice variant="info" title="Próximo paso"
+			>Configura contenido, fotos, condiciones y una tarifa inicial antes de habilitar ventas.</Notice
+		>
+	</section>
+</WorkspaceLayout>
+<script>
+	const form = document.querySelector<HTMLFormElement>("#whole-home-form")
+	const result = document.querySelector<HTMLElement>("#whole-home-result")
+	form?.addEventListener("submit", async (event) => {
+		event.preventDefault()
+		if (!form || !result) return
+		const response = await fetch("/api/variant/create", {
+			method: "POST",
+			body: new FormData(form),
+		})
+		const body = await response.json().catch(() => ({}))
+		if (!response.ok) {
+			result.textContent = body.error || "No se pudo crear la unidad."
+			result.className = "text-sm text-red-700"
+			return
+		}
+		result.textContent = "Unidad creada. Continúa a tarifas para definir el precio nocturno."
+		result.className = "text-sm text-emerald-700"
+		form.querySelector("button[type=submit]")?.setAttribute("disabled", "disabled")
+	})
+</script>
