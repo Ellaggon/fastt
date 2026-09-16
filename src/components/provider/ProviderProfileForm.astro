@@ -4,6 +4,7 @@ import Card from "@/components/ui/Card.astro"
 import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
+import { providerFormErrorMessage } from "@/lib/provider-form-flash"
 import { routes } from "@/lib/routes"
 
 const {
@@ -13,8 +14,16 @@ const {
 	showRelatedDomains = true,
 	redirectTo = "",
 	cancelHref = routes.providerSettings(),
+	draft = null,
+	fieldErrors = {},
 	submitLabel = "Guardar perfil",
+	onboarding = false,
+	serviceLabel = "servicio",
 } = Astro.props
+const value = (field: string, fallback = "") => String(draft?.values?.[field] ?? fallback)
+const fieldError = (field: string) =>
+	fieldErrors?.[field] ? providerFormErrorMessage(field, String(fieldErrors[field])) : ""
+const onboardingIntro = `Estos datos te permiten preparar el calendario y los precios de tu ${serviceLabel}. Guardarlos te lleva a crear su borrador; todavía no lo publica ni habilita reservas.`
 ---
 
 {
@@ -22,34 +31,73 @@ const {
 		<form method="POST" action="/api/providers/profile" class="space-y-6" data-profile-ops-form>
 			{redirectTo ? <Input type="hidden" name="onboardingNext" value={redirectTo} /> : null}
 			<p class="text-sm leading-6 text-slate-600">
-				Estos campos alinean reservas, calendario y comunicaciones. La identidad fiscal, payouts e
-				integraciones viven en sus propias secciones.
+				{onboarding
+					? onboardingIntro
+					: "Estos campos alinean reservas, calendario y comunicaciones. La identidad fiscal, payouts e integraciones viven en sus propias secciones."}
 			</p>
-			<FormField label="Zona horaria" htmlFor="timezone" required>
-				<Select id="timezone" name="timezone" required>
+			<FormField
+				label="Zona horaria"
+				htmlFor="timezone"
+				required
+				description={
+					onboarding ? "Define las horas de las salidas o la disponibilidad." : undefined
+				}
+				error={fieldError("timezone")}
+			>
+				<Select id="timezone" name="timezone" required hasError={Boolean(fieldError("timezone"))}>
 					<option
 						value="America/Santiago"
-						selected={(profile?.timezone ?? "America/Santiago") === "America/Santiago"}
+						selected={
+							value("timezone", profile?.timezone ?? "America/Santiago") === "America/Santiago"
+						}
 					>
 						America/Santiago
 					</option>
-					<option value="America/New_York" selected={profile?.timezone === "America/New_York"}>
+					<option
+						value="America/New_York"
+						selected={value("timezone", profile?.timezone ?? "") === "America/New_York"}
+					>
 						America/New_York
 					</option>
-					<option value="Europe/Madrid" selected={profile?.timezone === "Europe/Madrid"}>
+					<option
+						value="Europe/Madrid"
+						selected={value("timezone", profile?.timezone ?? "") === "Europe/Madrid"}
+					>
 						Europe/Madrid
 					</option>
 				</Select>
 			</FormField>
-			<FormField label="Moneda por defecto" htmlFor="defaultCurrency" required>
-				<Select id="defaultCurrency" name="defaultCurrency" required>
-					<option value="USD" selected={(profile?.defaultCurrency ?? "USD") === "USD"}>
+			<FormField
+				label="Moneda por defecto"
+				htmlFor="defaultCurrency"
+				required
+				description={
+					onboarding ? "Será la moneda inicial de los precios que configurarás." : undefined
+				}
+				error={fieldError("defaultCurrency")}
+			>
+				<Select
+					id="defaultCurrency"
+					name="defaultCurrency"
+					required
+					hasError={Boolean(fieldError("defaultCurrency"))}
+				>
+					<option
+						value="USD"
+						selected={value("defaultCurrency", profile?.defaultCurrency ?? "USD") === "USD"}
+					>
 						USD
 					</option>
-					<option value="EUR" selected={profile?.defaultCurrency === "EUR"}>
+					<option
+						value="EUR"
+						selected={value("defaultCurrency", profile?.defaultCurrency ?? "") === "EUR"}
+					>
 						EUR
 					</option>
-					<option value="CLP" selected={profile?.defaultCurrency === "CLP"}>
+					<option
+						value="CLP"
+						selected={value("defaultCurrency", profile?.defaultCurrency ?? "") === "CLP"}
+					>
 						CLP
 					</option>
 				</Select>
@@ -58,18 +106,34 @@ const {
 				label="Correo de soporte"
 				htmlFor="supportEmail"
 				required={supportEmailRequired}
-				description="Lo usaremos para comunicaciones operativas y reservas."
+				description={
+					onboarding
+						? "Fastt y los viajeros lo usarán para asuntos de reserva. Te lo pedimos ahora para dejarlo listo antes de publicar y aceptar reservas."
+						: "Lo usaremos para comunicaciones operativas y reservas."
+				}
+				error={fieldError("supportEmail")}
 			>
 				<Input
 					id="supportEmail"
 					type="email"
 					name="supportEmail"
 					required={supportEmailRequired}
-					value={profile?.supportEmail ?? ""}
+					value={value("supportEmail", profile?.supportEmail ?? "")}
+					hasError={Boolean(fieldError("supportEmail"))}
 				/>
 			</FormField>
-			<FormField label="Teléfono de soporte" htmlFor="supportPhone">
-				<Input id="supportPhone" name="supportPhone" value={profile?.supportPhone ?? ""} />
+			<FormField
+				label="Teléfono de soporte"
+				htmlFor="supportPhone"
+				description={onboarding ? "Opcional; puede ayudar a coordinar la operación." : undefined}
+				error={fieldError("supportPhone")}
+			>
+				<Input
+					id="supportPhone"
+					name="supportPhone"
+					value={value("supportPhone", profile?.supportPhone ?? "")}
+					hasError={Boolean(fieldError("supportPhone"))}
+				/>
 			</FormField>
 			{showRelatedDomains ? (
 				<Card variant="soft" class="text-sm leading-6 text-slate-600">
@@ -100,7 +164,7 @@ const {
 							>
 								Verificación
 							</a>{" "}
-							→ documentos mínimos
+							→ documentos mínimos de cumplimiento
 						</li>
 					</ul>
 				</Card>

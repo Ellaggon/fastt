@@ -3,6 +3,12 @@ import { providerV2Repository } from "@/container"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/invalidation"
 import { routes } from "@/lib/routes"
+import { resolveProviderOnboardingNext } from "@/lib/onboarding/providerOnboarding"
+import {
+	createProviderFormFlash,
+	PROVIDER_FORM_FLASH_COOKIE,
+	type ProviderFormFlash,
+} from "@/lib/provider-form-flash"
 import { updateProviderIdentityV2 } from "@/modules/catalog/public"
 import { ValidationError } from "@/lib/validation/ValidationError"
 import { parseHolderDeclaration, saveProviderHolderProfile } from "@/lib/provider-holder-profile"
@@ -19,8 +25,36 @@ function redirectToProfileSettings(request: Request, params: Record<string, stri
 	return Response.redirect(url, 303)
 }
 
+function redirectAfterProviderSave(
+	request: Request,
+	params: Record<string, string>,
+	onboardingNext: unknown
+): Response {
+	const target = resolveProviderOnboardingNext(onboardingNext, routes.providerSettingsProfile())
+	const url = new URL(target, request.url)
+	for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value)
+	return Response.redirect(url, 303)
+}
+
+function writeIdentityFlash(
+	cookies: { set: (name: string, value: string, options: Record<string, unknown>) => void },
+	flash: ProviderFormFlash | null,
+	errors: Record<string, string>
+) {
+	if (!flash) return
+	cookies.set(PROVIDER_FORM_FLASH_COOKIE, createProviderFormFlash({ ...flash, errors }), {
+		httpOnly: true,
+		sameSite: "lax",
+		secure: import.meta.env.PROD,
+		path: "/provider",
+		maxAge: 600,
+	})
+}
+
 async function handleProviderUpdate(ctx: Parameters<APIRoute>[0]): Promise<Response> {
-	const { request, params } = ctx
+	const { request, params, cookies } = ctx
+	let onboardingNext: unknown = ""
+	let identityFlash: ProviderFormFlash | null = null
 
 	try {
 		const providerId = await getProviderIdFromRequest(request)
@@ -40,11 +74,25 @@ async function handleProviderUpdate(ctx: Parameters<APIRoute>[0]): Promise<Respo
 		if (!user?.id) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 })
 
 		const form = await request.formData()
-		const holderDeclaration = parseHolderDeclaration(form)
+		onboardingNext = form.get("onboardingNext")
 		const raw = {
 			legalName: String(form.get("legalName") ?? "").trim(),
 			displayName: String(form.get("displayName") ?? "").trim(),
 		}
+		identityFlash = {
+			form: "identity",
+			values: {
+				displayName: raw.displayName,
+				legalName: raw.legalName,
+				holderType: String(form.get("holderType") ?? "").trim(),
+				holderCountry: String(form.get("holderCountry") ?? "").trim(),
+				taxResidenceCountry: String(form.get("taxResidenceCountry") ?? "").trim(),
+				payoutCountry: String(form.get("payoutCountry") ?? "").trim(),
+				collectionModel: String(form.get("collectionModel") ?? "").trim(),
+			},
+			errors: {},
+		}
+		const holderDeclaration = parseHolderDeclaration(form)
 
 		const result = await updateProviderIdentityV2(
 			{ repo: providerV2Repository },
@@ -64,7 +112,7 @@ async function handleProviderUpdate(ctx: Parameters<APIRoute>[0]): Promise<Respo
 		await invalidateProviderGovernance(providerId, "provider_identity_updated")
 
 		if (shouldReturnHtmlRedirect(request)) {
-			return redirectToProfileSettings(request, { success: "identity_saved" })
+			return redirectAfterProviderSave(request, { success: "identity_saved" }, onboardingNext)
 		}
 
 		return new Response(JSON.stringify(result), {
@@ -73,15 +121,21 @@ async function handleProviderUpdate(ctx: Parameters<APIRoute>[0]): Promise<Respo
 		})
 	} catch (error) {
 		if (error instanceof Error && error.message === "holder_declaration_invalid") {
-			if (shouldReturnHtmlRedirect(request))
-				return redirectToProfileSettings(request, { error: "validation_error" })
+			if (shouldReturnHtmlRedirect(request)) {
+				writeIdentityFlash(cookies, identityFlash, {
+					holderType: "Selecciona un titular y un país válidos.",
+					holderCountry: "Selecciona un titular y un país válidos.",
+				})
+				return redirectAfterProviderSave(request, { error: "validation_error" }, onboardingNext)
+			}
 			return new Response(JSON.stringify({ error: "validation_error", field: "holderType" }), {
 				status: 400,
 			})
 		}
 		if (error instanceof ValidationError) {
 			if (shouldReturnHtmlRedirect(request)) {
-				return redirectToProfileSettings(request, { error: "validation_error" })
+				writeIdentityFlash(cookies, identityFlash, error.errors)
+				return redirectAfterProviderSave(request, { error: "validation_error" }, onboardingNext)
 			}
 			return new Response(JSON.stringify({ error: "validation_error", errors: error.errors }), {
 				status: 400,
@@ -90,7 +144,8 @@ async function handleProviderUpdate(ctx: Parameters<APIRoute>[0]): Promise<Respo
 		}
 
 		if (shouldReturnHtmlRedirect(request)) {
-			return redirectToProfileSettings(request, { error: "save_failed" })
+			writeIdentityFlash(cookies, identityFlash, {})
+			return redirectAfterProviderSave(request, { error: "save_failed" }, onboardingNext)
 		}
 		const message = error instanceof Error ? error.message : "Unknown error"
 		return new Response(JSON.stringify({ error: message }), {

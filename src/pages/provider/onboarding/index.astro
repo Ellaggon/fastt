@@ -10,18 +10,16 @@ import {
 	providerOnboardingStartHref,
 	resolveProviderOnboardingVertical,
 } from "@/lib/onboarding/providerOnboarding"
+import { resolveProviderOnboardingEntryFromStorage } from "@/lib/onboarding/providerOnboardingEntry"
 import {
 	providerOnboardingLegacyHref,
 	resolveProviderOnboardingRollout,
 } from "@/lib/onboarding/providerOnboardingRollout"
-import { routes } from "@/lib/routes"
 
 const user = await getUserFromRequest(Astro.request)
 const currentPath = `${Astro.url.pathname}${Astro.url.search}`
 if (!user) return Astro.redirect(`/SignInPage?returnTo=${encodeURIComponent(currentPath)}`)
 
-const providerId = await getProviderIdFromRequest(Astro.request, user)
-if (providerId) return Astro.redirect(routes.dashboard())
 const rollout = resolveProviderOnboardingRollout({ userId: user.id, host: Astro.url.host })
 if (!rollout.enabled) return Astro.redirect(providerOnboardingLegacyHref())
 
@@ -30,14 +28,21 @@ const rememberedVertical = resolveProviderOnboardingVertical(
 	Astro.cookies.get(PROVIDER_ONBOARDING_SELECTION_COOKIE)?.value
 )
 const isChangingService = Astro.url.searchParams.get("change") === "1"
-if (isProviderIntent && rememberedVertical && !isChangingService) {
-	return Astro.redirect(providerOnboardingBusinessHref(rememberedVertical))
-}
+const providerId = await getProviderIdFromRequest(Astro.request, user)
+const entry = await resolveProviderOnboardingEntryFromStorage({
+	providerId,
+	userId: user.id,
+	explicitProviderIntent: isProviderIntent && !isChangingService,
+	selectedVertical: isChangingService ? null : rememberedVertical,
+})
+if (entry.kind === "redirect") return Astro.redirect(entry.href)
+const showServiceChoice = entry.kind === "render-service-choice"
+const showContinue = entry.kind === "render-continue"
 ---
 
-<ProviderOnboardingLayout title={isProviderIntent ? "Ofrecer en Fastt" : "Bienvenido a Fastt"}>
+<ProviderOnboardingLayout title={showServiceChoice ? "Ofrecer en Fastt" : "Bienvenido a Fastt"}>
 	{
-		isProviderIntent ? (
+		showServiceChoice ? (
 			<div class="space-y-6">
 				<header class="space-y-3">
 					<h1 class="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
@@ -70,18 +75,18 @@ if (isProviderIntent && rememberedVertical && !isChangingService) {
 				</div>
 				<p class="text-sm leading-6 text-slate-400">Podrás añadir otros servicios después.</p>
 			</div>
-		) : rememberedVertical ? (
+		) : showContinue ? (
 			<div class="space-y-6">
 				<header class="space-y-3">
 					<h1 class="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-						Continúa preparando tu {rememberedVertical === "tour" ? "tour" : "alojamiento"}
+						Continúa preparando tu {entry.vertical === "tour" ? "tour" : "alojamiento"}
 					</h1>
 					<p class="max-w-2xl text-sm leading-6 text-slate-300">
 						Guardamos tu elección para que no tengas que empezar de nuevo.
 					</p>
 				</header>
 				<div class="flex flex-wrap gap-3">
-					<Button href={providerOnboardingBusinessHref(rememberedVertical)}>Continuar</Button>
+					<Button href={providerOnboardingBusinessHref(entry.vertical)}>Continuar</Button>
 					<Button href="/provider/onboarding?intent=provider&change=1" variant="secondary">
 						Cambiar servicio
 					</Button>
