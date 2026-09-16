@@ -13,6 +13,8 @@ export type DatabaseDomain =
 export const databaseTablesByDomain = {
 	provider: [
 		"Provider",
+		"ProviderHolderProfile",
+		"ProviderPreparationSession",
 		"ProviderProfile",
 		"ProviderDocument",
 		"ProviderDocumentInspection",
@@ -63,6 +65,8 @@ export const databaseTablesByDomain = {
 		"ProductLocation",
 		"Hotel",
 		"Tour",
+		"WholeHome",
+		"WholeHomeUnit",
 		"TourSlotProfile",
 		"TourDepartureInstance",
 		"TourOperationalResource",
