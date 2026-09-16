@@ -60,17 +60,22 @@ const errorNotice =
 						title: "Proveedor no encontrado",
 						body: "Crea primero la identidad comercial para habilitar el perfil operativo.",
 					}
-				: error === "save_failed" || error === "invalid_method"
+				: error === "invalid_method"
 					? {
-							title: "No se pudo guardar",
-							body: "Hubo un problema al guardar. Intenta de nuevo en unos momentos.",
+							title: "Vuelve a guardar desde el formulario",
+							body: "La ruta interna de guardado se abrió directamente y no recibió datos. Tus campos siguen intactos: usa el botón Guardar identidad de esta página.",
 						}
-					: error
+					: error === "save_failed"
 						? {
-								title: "No se pudo completar la acción",
-								body: "Revisa los datos e intenta de nuevo.",
+								title: "No se pudo guardar",
+								body: "Hubo un problema al guardar. Intenta de nuevo en unos momentos.",
 							}
-						: null
+						: error
+							? {
+									title: "No se pudo completar la acción",
+									body: "Revisa los datos e intenta de nuevo.",
+								}
+							: null
 ---
 
 <ProviderSettingsLayout
@@ -132,14 +137,6 @@ const errorNotice =
 	}
 
 	<div class="mx-auto flex w-full max-w-3xl flex-col gap-6" data-profile-identity-first>
-		{
-			!holderStorageReady ? (
-				<Notice variant="warning" title="Declaración del titular pendiente">
-					Este entorno necesita la migración de Fase 4 antes de guardar tipo de titular y
-					jurisdicciones. La identidad comercial existente sigue disponible.
-				</Notice>
-			) : null
-		}
 		<div data-profile-identity>
 			<ProviderRegisterForm
 				provider={provider}

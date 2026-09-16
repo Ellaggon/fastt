@@ -43,6 +43,14 @@ function list(value: unknown): Set<string> {
 	)
 }
 
+function isLocalHost(value: unknown): boolean {
+	const host = String(value ?? "")
+		.trim()
+		.toLowerCase()
+		.split(":")[0]
+	return host === "localhost" || host === "127.0.0.1" || host === "::1"
+}
+
 /** Stable, non-secret bucket. It is only for rollout assignment, never authorization. */
 export function providerOnboardingRolloutBucket(subjectId: string): number {
 	let hash = 2166136261
@@ -67,7 +75,14 @@ export function resolveProviderOnboardingRollout(input: {
 		return { enabled: false, stage: "off", cohort: "control", reason: "kill_switch" }
 	}
 
-	const currentStage = stage(env.PROVIDER_ONBOARDING_ROLLOUT_STAGE)
+	// Exercise the new journey in local development. An explicit environment
+	// stage, including "off", always wins, so deployments remain fail-closed.
+	const currentStage =
+		env.PROVIDER_ONBOARDING_ROLLOUT_STAGE != null
+			? stage(env.PROVIDER_ONBOARDING_ROLLOUT_STAGE)
+			: isLocalHost(input.host)
+				? "general"
+				: "off"
 	const userId = String(input.userId ?? "").trim()
 	if (currentStage === "off") {
 		return { enabled: false, stage: currentStage, cohort: "control", reason: "stage_off" }

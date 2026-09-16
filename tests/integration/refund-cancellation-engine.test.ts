@@ -4,7 +4,10 @@ import {
 	BookingPolicySnapshot,
 	BookingLineItem,
 	db,
+	DailyInventory,
+	EffectiveAvailability,
 	eq,
+	InventoryLock,
 	RefundLedger,
 	RefundQuote,
 } from "@/shared/infrastructure/db/compat"
@@ -249,6 +252,26 @@ describe("integration/refund cancellation engine", () => {
 			pricingBreakdownJson: { totalPrice: 1000, currency: "USD" },
 			createdAt: new Date(),
 		} as any)
+		for (const date of ["2030-02-10", "2030-02-11"]) {
+			await db.insert(DailyInventory).values({
+				id: `di_refund_${suffix}_${date}`,
+				variantId,
+				date,
+				totalInventory: 1,
+				reservedCount: 0,
+				createdAt: new Date(),
+			} as any)
+			await db.insert(InventoryLock).values({
+				id: `lock_refund_${suffix}_${date}`,
+				holdId: `hold_refund_${suffix}`,
+				variantId,
+				date,
+				quantity: 1,
+				expiresAt: new Date("2030-02-12T00:00:00.000Z"),
+				bookingId,
+				createdAt: new Date(),
+			} as any)
+		}
 		await db.insert(BookingPolicySnapshot).values({
 			id: `bps_refund_${suffix}`,
 			bookingId,
@@ -353,6 +376,20 @@ describe("integration/refund cancellation engine", () => {
 			.then((rows) => rows[0])
 		expect(booking?.status).toBe("cancelled")
 		expect((booking as any)?.refundHandoffSnapshotJson?.state).toBe("ledger_recorded")
+		const remainingLocks = await db
+			.select({ id: InventoryLock.id })
+			.from(InventoryLock)
+			.where(eq(InventoryLock.bookingId, bookingId))
+		expect(remainingLocks).toHaveLength(0)
+		const availability = await db
+			.select({ availableUnits: EffectiveAvailability.availableUnits, bookedUnits: EffectiveAvailability.bookedUnits })
+			.from(EffectiveAvailability)
+			.where(eq(EffectiveAvailability.variantId, variantId))
+		expect(availability).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ availableUnits: 1, bookedUnits: 0 }),
+			])
+		)
 
 		const quotes = await db.select().from(RefundQuote).where(eq(RefundQuote.bookingId, bookingId))
 

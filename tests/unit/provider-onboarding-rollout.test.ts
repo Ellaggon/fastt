@@ -13,9 +13,23 @@ describe("provider onboarding rollout", () => {
 		stage: "off",
 		reason: "stage_off",
 	})
+
 		expect(
 		resolveProviderOnboardingRollout({ userId: "u1", env: { PROVIDER_ONBOARDING_ENABLED: "false" } })
 	).toMatchObject({ enabled: false, reason: "kill_switch" })
+	})
+
+	it("enables the guided journey by default on localhost only", () => {
+		expect(
+			resolveProviderOnboardingRollout({ userId: "local-user", host: "localhost:4321", env: {} })
+		).toMatchObject({ enabled: true, stage: "general", cohort: "canary", reason: "general" })
+		expect(
+			resolveProviderOnboardingRollout({
+				userId: "local-user",
+				host: "localhost:4321",
+				env: { PROVIDER_ONBOARDING_ROLLOUT_STAGE: "off" },
+			})
+		).toMatchObject({ enabled: false, stage: "off", reason: "stage_off" })
 	})
 
 	it("uses explicit users before stable percentage assignment", () => {
