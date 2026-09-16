@@ -29,7 +29,7 @@ export type ProductAggregate = {
 		updatedAt?: Date | null
 	}
 	verticalReadiness?: {
-		kind: "hotel" | "tour" | "package" | "limousine" | "unknown"
+		kind: "hotel" | "tour" | "package" | "limousine" | "rental" | "unknown"
 		subtypeExists: boolean
 		hotel?: {
 			variantCount: number
@@ -58,6 +58,13 @@ export type ProductAggregate = {
 			hasVehicle: boolean
 			hasPickupDropoff: boolean
 			hasCapacity: boolean
+		}
+		rental?: {
+			hasExclusiveProfile: boolean
+			hasPhysicalUnit: boolean
+			hasCapacity: boolean
+			hasInventoryConfig: boolean
+			hasDefaultRatePlan: boolean
 		}
 	}
 }

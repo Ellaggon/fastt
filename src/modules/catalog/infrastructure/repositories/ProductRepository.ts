@@ -19,6 +19,8 @@ import {
 	Hotel,
 	Limousine,
 	Tour,
+	WholeHome,
+	WholeHomeUnit,
 	TourSlotProfile,
 	TourTicketType,
 	ProductCategoryLink,
@@ -534,6 +536,54 @@ export class ProductRepository implements ProductRepositoryPort {
 					hasPickupDropoff: !!limo?.pickupJson && !!limo?.dropoffJson,
 					hasCapacity:
 						Number(limo?.passengerCapacity ?? 0) > 0 && Number(limo?.luggageCapacity ?? -1) >= 0,
+				},
+			}
+		} else if (pt === "whole_home") {
+			const [home, unit] = await Promise.all([
+				db.select().from(WholeHome).where(eq(WholeHome.productId, productId)).then(first),
+				db
+					.select({ variantId: WholeHomeUnit.variantId, resourceId: WholeHomeUnit.resourceId })
+					.from(WholeHomeUnit)
+					.where(eq(WholeHomeUnit.productId, productId))
+					.then(first),
+			])
+			subtypeExists = Boolean(home)
+			let hasCapacity = false
+			let hasInventoryConfig = false
+			let hasDefaultRatePlan = false
+			if (unit?.variantId) {
+				const row = await db
+					.select({
+						capacity: VariantCapacity.variantId,
+						inventory: VariantInventoryConfig.variantId,
+						rate: RatePlan.id,
+					})
+					.from(Variant)
+					.leftJoin(VariantCapacity, eq(VariantCapacity.variantId, Variant.id))
+					.leftJoin(VariantInventoryConfig, eq(VariantInventoryConfig.variantId, Variant.id))
+					.leftJoin(
+						RatePlan,
+						and(
+							eq(RatePlan.variantId, Variant.id),
+							eq(RatePlan.isDefault, true),
+							eq(RatePlan.isActive, true)
+						)
+					)
+					.where(eq(Variant.id, unit.variantId))
+					.then(first)
+				hasCapacity = Boolean(row?.capacity)
+				hasInventoryConfig = Boolean(row?.inventory)
+				hasDefaultRatePlan = Boolean(row?.rate)
+			}
+			verticalReadiness = {
+				kind: "rental",
+				subtypeExists,
+				rental: {
+					hasExclusiveProfile: Boolean(home?.exclusiveUse),
+					hasPhysicalUnit: Boolean(unit?.variantId && unit.resourceId),
+					hasCapacity,
+					hasInventoryConfig,
+					hasDefaultRatePlan,
 				},
 			}
 		}

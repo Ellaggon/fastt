@@ -5,6 +5,7 @@ export const variantKindSchema = z.enum([
 	"tour_slot",
 	"package_base",
 	"limousine_service",
+	"whole_home",
 ])
 export const variantLifecycleStateSchema = z.enum(["draft", "ready", "archived"])
 

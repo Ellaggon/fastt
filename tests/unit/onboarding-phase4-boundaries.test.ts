@@ -24,14 +24,14 @@ describe("onboarding phase 4 boundaries", () => {
 	])
 	})
 
-	it("keeps rental outside activation until it has a distinct inventory and booking contract", () => {
+	it("activates rental only with its distinct exclusive-inventory contract", () => {
 		const rental = getProductVerticalEntry("rental")
-		expect(rental.status).toBe("planned")
-		expect(rental.productType).toBeNull()
-		expect(rental.variantKind).toBeNull()
-		expect(rental.routes.publicCollectionHref).toBeNull()
-		expect(activeProductVerticals).not.toContain("rental")
-		expect(productVerticalRegistry.rental.creation.submitLabel).toContain("Próximamente")
+		expect(rental.status).toBe("active")
+		expect(rental.productType).toBe("whole_home")
+		expect(rental.variantKind).toBe("whole_home")
+		expect(rental.routes.publicCollectionHref).toBe("/homes")
+		expect(activeProductVerticals).toContain("rental")
+		expect(productVerticalRegistry.rental.creation.submitLabel).toContain("vivienda")
 	})
 
 	it("does not claim adaptive KYC while the approved policy remains global", () => {

@@ -13,7 +13,9 @@ import {
 	variantKindForProductType,
 } from "@/lib/catalog/productVerticalRegistry"
 
-function normalizeProductType(raw: string): "hotel" | "tour" | "package" | "limousine" | "unknown" {
+function normalizeProductType(
+	raw: string
+): "hotel" | "tour" | "package" | "limousine" | "whole_home" | "unknown" {
 	return normalizeProductTypeForStorage(raw) ?? "unknown"
 }
 

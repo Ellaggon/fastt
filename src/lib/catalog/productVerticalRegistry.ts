@@ -1,11 +1,12 @@
-export type ProductTypeValue = "hotel" | "tour" | "package" | "limousine"
+export type ProductTypeValue = "hotel" | "tour" | "package" | "limousine" | "whole_home"
 export type ProductTypeStorage = ProductTypeValue
-export type ProductVertical = ProductTypeValue | "rental" | "generic"
+export type ProductVertical = Exclude<ProductTypeValue, "whole_home"> | "rental" | "generic"
 export type VariantKindForVertical =
 	| "hotel_room"
 	| "tour_slot"
 	| "package_base"
 	| "limousine_service"
+	| "whole_home"
 
 export type ProductVerticalSectionKey =
 	| "identity"
@@ -457,9 +458,9 @@ export const productVerticalRegistry = {
 	},
 	rental: {
 		vertical: "rental",
-		productType: null,
-		variantKind: null,
-		status: "planned",
+		productType: "whole_home",
+		variantKind: "whole_home",
+		status: "active",
 		labels: {
 			singular: "propiedad",
 			plural: "propiedades",
@@ -480,27 +481,29 @@ export const productVerticalRegistry = {
 			workspaceListHref: "/dashboard",
 			workspaceCreateHref: "/product/create?type=Rental",
 			workspaceFilteredHref: "/dashboard",
-			publicCollectionHref: null,
-			publicSearchHref: null,
-			publicDetailHref: () => null,
+			publicCollectionHref: "/homes",
+			publicSearchHref: "/buscar/viviendas",
+			publicDetailHref: (productId: string) => `/homes/${encodeId(productId)}`,
 		},
 		creation: {
 			title: "Catalogo · Crear propiedad",
 			heading: "Crear propiedad",
-			description: "Tipo planificado para alojamientos no hoteleros.",
+			description:
+				"Crea una vivienda de uso exclusivo con una unidad vendible y calendario propio.",
 			typeOptionLabel: "Propiedad",
 			nameLabel: "Nombre de la propiedad",
 			namePlaceholder: "Ej: Cabana vista al lago",
 			destinationLabel: "Destino de la propiedad",
-			submitLabel: "Próximamente",
-			loadingLabel: "Cargando: preparando información...",
-			successLabel: "La vivienda completa todavía no está disponible.",
+			submitLabel: "Crear vivienda",
+			loadingLabel: "Cargando: creando vivienda...",
+			successLabel: "Vivienda creada correctamente.",
 		},
 		sections: commonCatalogSections,
 		readiness: {
 			requiredSections: ["identity", "content", "photos", "location", "bookingPolicies", "preview"],
 			recommendedSections: ["houseRules"],
-			publishSummary: "Vertical planificada; no debe aparecer como opcion activa todavia.",
+			publishSummary:
+				"La vivienda debe tener uso exclusivo, unidad física, precio, calendario, condiciones y vista previa.",
 		},
 		contextLine:
 			"Prepara la ficha de la propiedad: contenido, fotos, ubicacion, reglas de estancia y vista previa.",
@@ -557,7 +560,7 @@ export const productVerticalRegistry = {
 	},
 } satisfies Record<ProductVertical, ProductVerticalRegistryEntry>
 
-export const activeProductVerticals = ["hotel", "tour", "package", "limousine"] as const
+export const activeProductVerticals = ["hotel", "tour", "package", "limousine", "rental"] as const
 
 const PRODUCT_TYPE_ALIASES: Record<string, ProductVertical> = {
 	accommodation: "hotel",
@@ -584,6 +587,7 @@ const PRODUCT_TYPE_ALIASES: Record<string, ProductVertical> = {
 	rental: "rental",
 	rentals: "rental",
 	vacation_rental: "rental",
+	whole_home: "rental",
 }
 
 export function normalizeProductVertical(value: unknown): ProductVertical {

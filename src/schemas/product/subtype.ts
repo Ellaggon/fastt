@@ -100,6 +100,6 @@ export const limousineSchema = z.object({
 /** helper simple para normalizar productType del form */
 export function normalizeProductType(
 	raw: unknown
-): "hotel" | "tour" | "package" | "limousine" | "unknown" {
+): "hotel" | "tour" | "package" | "limousine" | "whole_home" | "unknown" {
 	return normalizeProductTypeForStorage(raw) ?? "unknown"
 }

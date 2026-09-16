@@ -139,6 +139,35 @@ export async function evaluateProductReadiness(
 		}
 	}
 
+	if (vertical === "rental") {
+		const home = verticalReadiness?.rental
+		if (!home?.hasExclusiveProfile)
+			errors.push({
+				code: "missing_whole_home_exclusivity",
+				message: "La vivienda debe declarar uso exclusivo.",
+			})
+		if (!home?.hasPhysicalUnit)
+			errors.push({
+				code: "missing_whole_home_unit",
+				message: "Crea la unidad física única de la vivienda.",
+			})
+		if (!home?.hasCapacity)
+			errors.push({
+				code: "missing_whole_home_capacity",
+				message: "Define la capacidad máxima de huéspedes.",
+			})
+		if (!home?.hasInventoryConfig)
+			errors.push({
+				code: "missing_whole_home_inventory",
+				message: "Configura el calendario de la vivienda.",
+			})
+		if (!home?.hasDefaultRatePlan)
+			errors.push({
+				code: "missing_whole_home_rate",
+				message: "Define una tarifa nocturna predeterminada.",
+			})
+	}
+
 	if (deps.resolvePublicationValidationErrors) {
 		const additionalErrors = await deps.resolvePublicationValidationErrors({
 			productId: params.productId,
