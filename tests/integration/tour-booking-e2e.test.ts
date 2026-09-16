@@ -315,6 +315,9 @@ describe("integration/tour booking E2E (P0 1.1)", () => {
 			process.env.FASTT_CACHE_L1_TTL_SECONDS = "900"
 			process.env.LOCAL_QA_AUTH_ENABLED = "false"
 			process.env.TOURS_CHECKOUT_ENABLED = "true"
+			// The checkout switch is deliberately evaluated through the rollout gate too.
+			// A certification run opts into the general cohort explicitly.
+			process.env.TOURS_ROLLOUT_STAGE = "general"
 			process.env.TOURS_REFUND_HOURS_ENABLED = "true"
 			process.env.TOURS_CHECKIN_ENABLED = "true"
 			process.env.TOURS_PUBLIC_SEARCH_ENABLED = "true"
@@ -328,7 +331,7 @@ describe("integration/tour booking E2E (P0 1.1)", () => {
 			const afternoonId = `var_tour_pm_${suffix}`
 			const morningRp = `rp_tour_am_${suffix}`
 			const afternoonRp = `rp_tour_pm_${suffix}`
-			const departure = "2026-09-15"
+			const departure = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString().slice(0, 10)
 			const stay = tourDepartureToStay(departure)
 			const checkIn = stay.checkIn.toISOString().slice(0, 10)
 			const checkOut = stay.checkOut.toISOString().slice(0, 10)
@@ -491,6 +494,26 @@ describe("integration/tour booking E2E (P0 1.1)", () => {
 					departureTime: "09:00",
 					participants: occupancy,
 				})
+
+				const postConfirmOffers = await searchOffers({
+					productId,
+					checkIn: stay.checkIn,
+					checkOut: stay.checkOut,
+					adults,
+					children,
+					rooms,
+					currency: "USD",
+				})
+				const remainingMorningOffer = postConfirmOffers.find(
+					(offer) => String(offer.variantId) === morningId
+				)
+				expect(remainingMorningOffer).toBeTruthy()
+				expect(
+					(Array.isArray(remainingMorningOffer?.ratePlans)
+						? remainingMorningOffer.ratePlans
+						: []
+					).some((plan: any) => Number(plan?.finalPrice ?? plan?.basePrice ?? 0) > 0)
+				).toBe(true)
 			})
 		},
 		120_000

@@ -55,7 +55,8 @@ const isEditMode = mode === "edit"
 
 	<Notice tone="info">
 		Aquí creas la plantilla de la salida: hora, idioma, modalidad y cupo máximo. En el calendario
-		elegirás después las fechas concretas en las que los viajeros podrán reservarla.
+		elegirás después las fechas concretas en las que los viajeros podrán reservarla. Las salidas
+		recurrentes no se crean automáticamente: cada fecha se abre y controla de forma explícita.
 	</Notice>
 
 	<section
@@ -126,11 +127,19 @@ const isEditMode = mode === "edit"
 			</FormField>
 			<FormField label="Modalidad" for="bookingMode" required>
 				<Select id="bookingMode" name="bookingMode" required>
-					<option value="shared" selected={bookingMode !== "private"}>Compartido</option>
-					<option value="private" selected={bookingMode === "private"}>Privado</option>
+					<option value="shared" selected={bookingMode !== "private"}>
+						Compartido (reserva directa con cupo común)
+					</option>
+					<option value="private" selected={bookingMode === "private"}>
+						Privado (solicitud de cotización)
+					</option>
 				</Select>
 			</FormField>
 		</div>
+		<p class="text-sm leading-5 text-slate-600">
+			Las categorías de participantes comparten este mismo cupo. Una salida privada queda como
+			solicitud de cotización y no bloquea inventario hasta que el proveedor la acepte.
+		</p>
 		<Checkbox name="isActive" value="true" checked={isActive !== false}>
 			Salida activa (visible para venta)
 		</Checkbox>
