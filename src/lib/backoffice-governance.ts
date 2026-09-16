@@ -144,6 +144,12 @@ export const backofficeShells: BackofficeShellClassification[] = [
 		context: "public-marketplace",
 		rule: "Base shell for auth/public/simple pages; not a provider workspace shell.",
 	},
+	{
+		shell: "ProviderOnboardingLayout",
+		status: "canonical",
+		context: "governance",
+		rule: "Reduced setup shell for provider onboarding before a workspace exists; wraps Layout, not WorkspaceLayout.",
+	},
 ]
 
 export const operationalContextMetadata: Record<OperationalContext, OperationalContextMetadata> = {
@@ -395,6 +401,14 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		owner: "Provider Setup",
 		rationale:
 			"Centro canónico de configuración del proveedor: identidad, cumplimiento, fiscalidad y equipo.",
+	},
+	{
+		pattern: "/provider/onboarding/**",
+		status: "canonical",
+		context: "governance",
+		owner: "Provider Setup",
+		rationale:
+			"Entrada guiada del proveedor antes de existir workspace operativo; usa shell reducido, no navegación diaria.",
 	},
 	{
 		pattern: "/provider/tax-fees",
@@ -787,6 +801,14 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		context: "governance",
 		owner: "Provider Setup",
 		rationale: "APIs de perfil y verificación del proveedor.",
+	},
+	{
+		pattern: "/api/onboarding/**",
+		status: "canonical",
+		context: "governance",
+		owner: "Provider Setup",
+		rationale:
+			"APIs de sesión de preparación y diagnóstico de política comercial durante el onboarding.",
 	},
 	{
 		pattern: "/api/product/**",

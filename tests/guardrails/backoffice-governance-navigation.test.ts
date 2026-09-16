@@ -95,6 +95,7 @@ function shellViolationForPage(route: string, relativePath: string): string | nu
 	if (isRedirectOnly(source)) return null
 
 	const usesWorkspace = source.includes("WorkspaceLayout")
+	const usesOnboardingShell = source.includes("ProviderOnboardingLayout")
 	const usesInternalAdmin = source.includes("InternalAdminLayout")
 	const usesLegacyDashboard = source.includes("DashboardLayout")
 	const usesPublicShell =
@@ -115,7 +116,8 @@ function shellViolationForPage(route: string, relativePath: string): string | nu
 		["provider-workspace", "enterprise-operations", "governance"].includes(
 			classification.context
 		) &&
-		!usesWorkspace
+		!usesWorkspace &&
+		!(classification.context === "governance" && usesOnboardingShell)
 	) {
 		return `${relativePath}: workspace route must use WorkspaceLayout`
 	}
