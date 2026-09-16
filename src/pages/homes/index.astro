@@ -21,7 +21,7 @@ const homes = await db
 			publicCatalogProductEligibility()
 		)
 	)
-	.orderBy(desc(Product.updatedAt))
+	.orderBy(desc(Product.publicationUpdatedAt))
 	.limit(24)
 ---
 
