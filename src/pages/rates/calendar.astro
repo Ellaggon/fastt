@@ -28,7 +28,7 @@ const workspaceContext = await timing.time<WorkspaceRequestContext>("authProvide
 	Astro.locals.getWorkspaceContext()
 )
 if (!workspaceContext.user) return Astro.redirect("/SignInPage")
-if (!workspaceContext.provider) return Astro.redirect(routes.providerSettingsProfile())
+if (!workspaceContext.provider) return Astro.redirect(routes.providerOnboardingStart())
 const sidebarData = await timing.time("sidebar", () => workspaceContext.sidebarDataPromise)
 const auth = {
 	user: workspaceContext.user,

@@ -3,9 +3,17 @@ import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
+import Select from "@/components/ui/Select.astro"
 import { routes } from "@/lib/routes"
 
-const { provider, hasProvider = false } = Astro.props
+const {
+	provider,
+	holderProfile,
+	holderStorageReady = true,
+	hasProvider = false,
+	onboardingNext = "",
+	submitLabel = "Guardar identidad",
+} = Astro.props
 const formAction = hasProvider && provider?.id ? `/api/providers/${provider.id}` : "/api/providers"
 ---
 
@@ -21,6 +29,7 @@ const formAction = hasProvider && provider?.id ? `/api/providers/${provider.id}`
 	</header>
 	<Card>
 		<form method="POST" action={formAction} class="max-w-3xl space-y-6">
+			{onboardingNext ? <Input type="hidden" name="onboardingNext" value={onboardingNext} /> : null}
 			<div class="space-y-4">
 				<div class="space-y-1">
 					<h3 class="text-xl font-semibold text-slate-900">Datos base</h3>
@@ -32,7 +41,27 @@ const formAction = hasProvider && provider?.id ? `/api/providers/${provider.id}`
 				<FormField label="Nombre comercial" htmlFor="displayName" required>
 					<Input id="displayName" name="displayName" required value={provider?.displayName ?? ""} />
 				</FormField>
-				<FormField label="Razón social" htmlFor="legalName" required>
+				{
+					holderStorageReady ? (
+						<FormField label="Titular que operará el negocio" htmlFor="holderType" required>
+							<Select id="holderType" name="holderType" required>
+								<option value="" selected={!holderProfile?.holderType}>
+									Selecciona una opción
+								</option>
+								<option
+									value="persona_natural"
+									selected={holderProfile?.holderType === "persona_natural"}
+								>
+									Persona natural
+								</option>
+								<option value="entidad" selected={holderProfile?.holderType === "entidad"}>
+									Empresa o entidad
+								</option>
+							</Select>
+						</FormField>
+					) : null
+				}
+				<FormField label="Nombre legal del titular o razón social" htmlFor="legalName" required>
 					<Input
 						id="legalName"
 						name="legalName"
@@ -41,10 +70,87 @@ const formAction = hasProvider && provider?.id ? `/api/providers/${provider.id}`
 						class="scroll-mt-24"
 					/>
 				</FormField>
+				{
+					holderStorageReady ? (
+						<FormField
+							label="País de residencia o constitución del titular (ISO 2 letras)"
+							htmlFor="holderCountry"
+							required
+						>
+							<Input
+								id="holderCountry"
+								name="holderCountry"
+								required
+								pattern="[A-Za-z]{2}"
+								maxlength="2"
+								placeholder="CL"
+								value={holderProfile?.holderCountry ?? ""}
+							/>
+						</FormField>
+					) : null
+				}
+				{
+					holderStorageReady ? (
+						<>
+							<FormField
+								label="País de residencia fiscal (ISO 2 letras)"
+								htmlFor="taxResidenceCountry"
+							>
+								<Input
+									id="taxResidenceCountry"
+									name="taxResidenceCountry"
+									pattern="[A-Za-z]{2}"
+									maxlength="2"
+									placeholder="CL"
+									value={holderProfile?.taxResidenceCountry ?? ""}
+								/>
+							</FormField>
+							<FormField label="País de la cuenta de pago (ISO 2 letras)" htmlFor="payoutCountry">
+								<Input
+									id="payoutCountry"
+									name="payoutCountry"
+									pattern="[A-Za-z]{2}"
+									maxlength="2"
+									placeholder="CL"
+									value={holderProfile?.payoutCountry ?? ""}
+								/>
+							</FormField>
+							<FormField label="Quién cobrará al viajero" htmlFor="collectionModel">
+								<Select id="collectionModel" name="collectionModel">
+									<option
+										value="undecided"
+										selected={
+											!holderProfile?.collectionModel ||
+											holderProfile.collectionModel === "undecided"
+										}
+									>
+										Aún por definir
+									</option>
+									<option
+										value="property_collect"
+										selected={holderProfile?.collectionModel === "property_collect"}
+									>
+										El proveedor cobra
+									</option>
+									<option
+										value="platform_collect"
+										selected={holderProfile?.collectionModel === "platform_collect"}
+									>
+										Fastt cobra, sujeto a contrato y revisión
+									</option>
+								</Select>
+							</FormField>
+							<p class="text-sm leading-6 text-slate-600">
+								La declaración se guarda para revisar los requisitos aplicables. No cambia por sí
+								sola los permisos de publicación, reservas ni cobros.
+							</p>
+						</>
+					) : null
+				}
 			</div>
 			<div class="flex items-center justify-end gap-3">
 				<Button href={routes.providerSettings()} variant="secondary"> Volver </Button>
-				<Button type="submit"> Guardar identidad </Button>
+				<Button type="submit"> {submitLabel} </Button>
 			</div>
 		</form>
 	</Card>

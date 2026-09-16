@@ -6,6 +6,7 @@ import Notice from "@/components/ui/Notice.astro"
 import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { isHolderStorageAvailable, readProviderHolderProfile } from "@/lib/provider-holder-profile"
 import { TRUST_GLOSSARY } from "@/lib/provider-trust-map"
 import { routes } from "@/lib/routes"
 import { getProviderFullAggregate } from "@/modules/catalog/public"
@@ -14,8 +15,11 @@ const user = await getUserFromRequest(Astro.request)
 if (!user?.id) return Astro.redirect("/SignInPage")
 
 const providerId = await getProviderIdFromRequest(Astro.request, user)
+if (!providerId) return Astro.redirect(routes.providerOnboardingStart())
 const aggregate = providerId ? await getProviderFullAggregate(providerId, user.id) : null
 const provider = aggregate?.provider ?? null
+const holderProfile = providerId ? await readProviderHolderProfile(providerId) : null
+const holderStorageReady = await isHolderStorageAvailable()
 const profile = aggregate?.profile ?? null
 const hasProvider = Boolean(provider?.id)
 
@@ -128,8 +132,21 @@ const errorNotice =
 	}
 
 	<div class="mx-auto flex w-full max-w-3xl flex-col gap-6" data-profile-identity-first>
+		{
+			!holderStorageReady ? (
+				<Notice variant="warning" title="Declaración del titular pendiente">
+					Este entorno necesita la migración de Fase 4 antes de guardar tipo de titular y
+					jurisdicciones. La identidad comercial existente sigue disponible.
+				</Notice>
+			) : null
+		}
 		<div data-profile-identity>
-			<ProviderRegisterForm provider={provider} hasProvider={hasProvider} />
+			<ProviderRegisterForm
+				provider={provider}
+				holderProfile={holderProfile}
+				holderStorageReady={holderStorageReady}
+				hasProvider={hasProvider}
+			/>
 		</div>
 
 		{

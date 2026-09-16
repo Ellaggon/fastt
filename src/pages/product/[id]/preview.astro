@@ -31,6 +31,7 @@ import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
 import { routes } from "@/lib/routes"
 import { listProviderDocuments } from "@/lib/provider-documents"
+import { evaluateProviderGovernance } from "@/lib/provider-governance"
 import {
 	getProductFullAggregate,
 	getProductVariantsAggregate,
@@ -177,6 +178,27 @@ if (!publishState) return Astro.redirect(routes.productList())
 const checks = publishState.checks
 const completedChecks = publishState.completedChecks
 const readyToPublish = publishState.readyToPublish && !isPublished
+const providerGovernance = await evaluateProviderGovernance(providerId, {
+	currentUserId: user.id,
+	persist: false,
+})
+const providerPublishBlockers = providerGovernance.blockers.filter((blocker) =>
+	blocker.capabilities.includes("publish")
+)
+const providerReadyToPublish = providerGovernance.capabilities.publish
+const providerPublishBlocker = providerPublishBlockers[0] ?? null
+const publicationEligibility = await productRepository.getProductPublicationEligibility(productId)
+const publicationEligible = providerReadyToPublish && publicationEligibility.eligible
+const eligibilityBlocker = publicationEligibility.eligible
+	? null
+	: {
+			label:
+				publicationEligibility.reason === "provider_not_commercial"
+					? "El negocio no está habilitado para uso comercial"
+					: "Esta ficha pertenece a datos no aptos para publicación pública",
+			href: routes.providerSettings(),
+		}
+const publicationBlocker = providerPublishBlocker ?? eligibilityBlocker
 const readinessPercent = publishState.readinessPercent
 const blockerLabels = publishState.blockers
 	.filter((check) => check.sectionKey !== "preview")
@@ -385,6 +407,32 @@ try {
 			) : null
 		}
 
+		{
+			!isPublished && !publicationEligible ? (
+				<Card
+					variant="soft"
+					class="border-amber-200 bg-amber-50 text-slate-900"
+					data-provider-publish-blocked
+				>
+					<div class="flex flex-wrap items-center justify-between gap-4">
+						<div>
+							<p class="font-semibold">Falta configurar el negocio para publicar</p>
+							<p class="mt-1 text-sm leading-6 text-slate-700">
+								{publicationBlocker
+									? `${publicationBlocker.label}. Cuando lo completes podrás publicar esta ficha.`
+									: "Completa la configuración requerida del negocio antes de publicar esta ficha."}
+							</p>
+						</div>
+						{publicationBlocker ? (
+							<Button href={publicationBlocker.href} variant="secondary">
+								Resolver configuración
+							</Button>
+						) : null}
+					</div>
+				</Card>
+			) : null
+		}
+
 		<Card variant="dark" class="!border-neutral-800 !bg-black">
 			<div class="space-y-6">
 				<div class="flex flex-wrap items-start justify-between gap-4">
@@ -403,7 +451,7 @@ try {
 								{
 									isPublished
 										? `${vertical.labels.workspaceSingular} publicado`
-										: readyToPublish
+										: readyToPublish && publicationEligible
 											? "Listo para publicar"
 											: "Pendientes para publicar"
 								}
@@ -412,15 +460,29 @@ try {
 								{
 									isPublished
 										? "La ficha ya está activa. Usa esta revisión para comprobar cómo la verá el viajero."
-										: readyToPublish
+										: readyToPublish && publicationEligible
 											? "Todo lo obligatorio está listo. Publica cuando estés preparado para recibir reservas."
-											: `${completedChecks} de ${checks.length} bloques principales listos. ${blockerLabels.length ? `Faltan ${blockerLabels.length} paso${blockerLabels.length === 1 ? "" : "s"}: ${blockerLabels.join(", ")}.` : ""}`
+											: readyToPublish
+												? "La ficha está lista. Completa la configuración del negocio para poder publicarla."
+												: `${completedChecks} de ${checks.length} bloques principales listos. ${blockerLabels.length ? `Faltan ${blockerLabels.length} paso${blockerLabels.length === 1 ? "" : "s"}: ${blockerLabels.join(", ")}.` : ""}`
 								}
 							</p>
 						</div>
 					</div>
-					<Badge variant={isPublished || readyToPublish ? "darkSuccess" : "darkWarning"}>
-						{isPublished ? "Publicado" : readyToPublish ? "Listo" : `${readinessPercent}% listo`}
+					<Badge
+						variant={isPublished || (readyToPublish && publicationEligible)
+							? "darkSuccess"
+							: "darkWarning"}
+					>
+						{
+							isPublished
+								? "Publicado"
+								: readyToPublish && publicationEligible
+									? "Listo"
+									: readyToPublish
+										? "Negocio pendiente"
+										: `${readinessPercent}% listo`
+						}
 					</Badge>
 				</div>
 
@@ -455,7 +517,7 @@ try {
 								{
 									isPublished
 										? "Revisión"
-										: readyToPublish
+										: readyToPublish && publicationEligible
 											? "Siguiente acción"
 											: "Siguiente requisito"
 								}
@@ -464,18 +526,22 @@ try {
 								{
 									isPublished
 										? "La página pública ya está disponible"
-										: readyToPublish
+										: readyToPublish && publicationEligible
 											? `Publicar ${vertical.labels.singular.toLowerCase()}`
-											: (nextBlocker?.label ?? "Revisa los requisitos pendientes")
+											: readyToPublish
+												? (publicationBlocker?.label ?? "Configura el negocio para publicar")
+												: (nextBlocker?.label ?? "Revisa los requisitos pendientes")
 								}
 							</p>
 							<p class="mt-1 max-w-xl text-sm leading-6 text-neutral-400">
 								{
 									isPublished
 										? "Puedes volver a la ficha para operar el alojamiento o revisar el resultado público."
-										: readyToPublish
+										: readyToPublish && publicationEligible
 											? `Revisa la ficha pública debajo y confirma que representa correctamente tu ${vertical.labels.singular.toLowerCase()}.`
-											: (nextBlocker?.detail ?? "Completa el siguiente requisito para continuar.")
+											: readyToPublish
+												? "La ficha ya está preparada. Resuelve este requisito del negocio para publicarla."
+												: (nextBlocker?.detail ?? "Completa el siguiente requisito para continuar.")
 								}
 							</p>
 						</div>
@@ -485,9 +551,13 @@ try {
 							Volver a ficha
 						</Button>
 						{
-							isPublished ? null : readyToPublish ? (
+							isPublished ? null : readyToPublish && publicationEligible ? (
 								<Button class="publish-product-button" type="button" variant="onDark">
 									Publicar {vertical.labels.singular}
+								</Button>
+							) : readyToPublish && publicationBlocker ? (
+								<Button href={publicationBlocker.href} variant="onDark">
+									Resolver configuración
 								</Button>
 							) : (
 								<Button href={completePreparationHref} variant="onDark">
@@ -504,6 +574,13 @@ try {
 					role="status"
 				>
 				</div>
+				<a
+					id="providerBlockerAction"
+					class="mt-3 hidden text-sm font-semibold text-white underline"
+					href="#"
+				>
+					Resolver configuración del negocio
+				</a>
 			</div>
 		</Card>
 
@@ -947,11 +1024,13 @@ try {
 		define:vars={{
 			productId,
 			productPublishedHref: `${routes.productDetail(productId)}?published=1`,
+			providerBlockerHref: publicationBlocker?.href ?? routes.providerSettings(),
 		}}
 	>
 		;(function () {
 			const publishButtons = Array.from(document.querySelectorAll(".publish-product-button"))
 			const feedback = document.getElementById("publishFeedback")
+			const providerBlockerAction = document.getElementById("providerBlockerAction")
 			if (!publishButtons.length || !productId) return
 
 			const setDisabled = (disabled) => {
@@ -1007,6 +1086,24 @@ try {
 					})
 					const publishPayload = await publishResponse.json().catch(() => ({}))
 					if (!publishResponse.ok || !publishPayload.ok) {
+						if (publishPayload.error === "provider_configuration_blocked") {
+							const blocker = Array.isArray(publishPayload.blockers)
+								? publishPayload.blockers[0]
+								: null
+							if (feedback) {
+								feedback.textContent = blocker?.label
+									? `No puedes publicar todavía: ${blocker.label}.`
+									: "No puedes publicar hasta completar la configuración del negocio."
+							}
+							if (providerBlockerAction) {
+								const href = String(blocker?.href || providerBlockerHref)
+								if (href.startsWith("/") && !href.startsWith("//"))
+									providerBlockerAction.href = href
+								providerBlockerAction.classList.remove("hidden")
+							}
+							setDisabled(false)
+							return
+						}
 						const errors = Array.isArray(publishPayload.validationErrors)
 							? publishPayload.validationErrors
 									.map((item) => String(item?.message || item?.code || ""))
@@ -1018,7 +1115,8 @@ try {
 						return
 					}
 
-					if (feedback) feedback.textContent = "Alojamiento publicado. Volviendo a la ficha..."
+					if (feedback)
+						feedback.textContent = `${vertical.labels.workspaceSingular} publicado. Volviendo a la ficha...`
 					window.location.href = productPublishedHref
 				} catch (error) {
 					if (feedback) feedback.textContent = `Error de red: ${String(error)}`

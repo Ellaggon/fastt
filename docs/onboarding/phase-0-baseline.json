@@ -1,0 +1,17 @@
+{
+  "capturedAt": "2026-09-14T12:23:47.113Z",
+  "dataEnvironment": "development",
+  "configuredSink": "log (default)",
+  "scope": "Configured local connection; not a certification of deployed production traffic",
+  "window": {
+    "to": "2026-09-14T12:23:46.515Z",
+    "from": "2026-08-15T12:23:46.515Z"
+  },
+  "events": [],
+  "population": {
+    "allProviders": 217,
+    "commercialProductionProviders": 212
+  },
+  "activationConversion": null,
+  "reason": "SettingsFunnel does not establish signup cohort, selected intent or first bookable offer; counts are not conversion rates."
+}

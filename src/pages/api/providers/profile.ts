@@ -8,6 +8,7 @@ import { upsertProviderProfileV2 } from "@/modules/catalog/public"
 import { ValidationError } from "@/lib/validation/ValidationError"
 import { inferSettingsRiskLevel, writeProviderAuditLog } from "@/lib/provider-audit"
 import { routes } from "@/lib/routes"
+import { resolveProviderOnboardingNext } from "@/lib/onboarding/providerOnboarding"
 
 function shouldReturnHtmlRedirect(request: Request): boolean {
 	const accept = (request.headers.get("accept") || "").toLowerCase()
@@ -16,6 +17,17 @@ function shouldReturnHtmlRedirect(request: Request): boolean {
 
 function redirectToProfileSettings(request: Request, params: Record<string, string>): Response {
 	const url = new URL(routes.providerSettingsProfile(), request.url)
+	for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value)
+	return Response.redirect(url, 303)
+}
+
+function redirectAfterProfileSave(
+	request: Request,
+	params: Record<string, string>,
+	onboardingNext: unknown
+): Response {
+	const target = resolveProviderOnboardingNext(onboardingNext, routes.providerSettingsProfile())
+	const url = new URL(target, request.url)
 	for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value)
 	return Response.redirect(url, 303)
 }
@@ -38,6 +50,7 @@ function profileSnapshot(
 }
 
 export const handleProviderProfilePost: APIRoute = async ({ request }) => {
+	let onboardingNext: unknown = ""
 	try {
 		const user = await getUserFromRequest(request)
 		if (!user?.email || !user?.id) {
@@ -61,10 +74,11 @@ export const handleProviderProfilePost: APIRoute = async ({ request }) => {
 		}
 
 		const form = await request.formData()
+		onboardingNext = form.get("onboardingNext")
 		const raw = {
 			timezone: String(form.get("timezone") ?? "").trim(),
 			defaultCurrency: String(form.get("defaultCurrency") ?? "").trim(),
-			supportEmail: String(form.get("supportEmail") ?? "").trim() || undefined,
+			supportEmail: String(form.get("supportEmail") ?? "").trim(),
 			supportPhone: String(form.get("supportPhone") ?? "").trim() || undefined,
 		}
 
@@ -115,7 +129,7 @@ export const handleProviderProfilePost: APIRoute = async ({ request }) => {
 		})
 
 		if (shouldReturnHtmlRedirect(request)) {
-			return redirectToProfileSettings(request, { success: "ops_saved" })
+			return redirectAfterProfileSave(request, { success: "ops_saved" }, onboardingNext)
 		}
 
 		return new Response(JSON.stringify(result), {
@@ -125,7 +139,7 @@ export const handleProviderProfilePost: APIRoute = async ({ request }) => {
 	} catch (e) {
 		if (e instanceof ValidationError) {
 			if (shouldReturnHtmlRedirect(request)) {
-				return redirectToProfileSettings(request, { error: "validation_error" })
+				return redirectAfterProfileSave(request, { error: "validation_error" }, onboardingNext)
 			}
 			return new Response(JSON.stringify({ error: "validation_error", errors: e.errors }), {
 				status: 400,
@@ -134,9 +148,13 @@ export const handleProviderProfilePost: APIRoute = async ({ request }) => {
 		}
 		const msg = e instanceof Error ? e.message : "Unknown error"
 		if (shouldReturnHtmlRedirect(request)) {
-			return redirectToProfileSettings(request, {
-				error: msg.includes("Provider not found") ? "provider_not_found" : "save_failed",
-			})
+			return redirectAfterProfileSave(
+				request,
+				{
+					error: msg.includes("Provider not found") ? "provider_not_found" : "save_failed",
+				},
+				onboardingNext
+			)
 		}
 		const status = msg.includes("Provider not found") ? 404 : 500
 		return new Response(JSON.stringify({ error: msg }), {

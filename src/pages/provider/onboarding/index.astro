@@ -1,0 +1,121 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import ProviderOnboardingLayout from "@/layouts/ProviderOnboardingLayout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import {
+	PROVIDER_ONBOARDING_SELECTION_COOKIE,
+	providerOnboardingBusinessHref,
+	providerOnboardingStartHref,
+	resolveProviderOnboardingVertical,
+} from "@/lib/onboarding/providerOnboarding"
+import {
+	providerOnboardingLegacyHref,
+	resolveProviderOnboardingRollout,
+} from "@/lib/onboarding/providerOnboardingRollout"
+import { routes } from "@/lib/routes"
+
+const user = await getUserFromRequest(Astro.request)
+const currentPath = `${Astro.url.pathname}${Astro.url.search}`
+if (!user) return Astro.redirect(`/SignInPage?returnTo=${encodeURIComponent(currentPath)}`)
+
+const providerId = await getProviderIdFromRequest(Astro.request, user)
+if (providerId) return Astro.redirect(routes.dashboard())
+const rollout = resolveProviderOnboardingRollout({ userId: user.id, host: Astro.url.host })
+if (!rollout.enabled) return Astro.redirect(providerOnboardingLegacyHref())
+
+const isProviderIntent = Astro.url.searchParams.get("intent") === "provider"
+const rememberedVertical = resolveProviderOnboardingVertical(
+	Astro.cookies.get(PROVIDER_ONBOARDING_SELECTION_COOKIE)?.value
+)
+const isChangingService = Astro.url.searchParams.get("change") === "1"
+if (isProviderIntent && rememberedVertical && !isChangingService) {
+	return Astro.redirect(providerOnboardingBusinessHref(rememberedVertical))
+}
+---
+
+<ProviderOnboardingLayout title={isProviderIntent ? "Ofrecer en Fastt" : "Bienvenido a Fastt"}>
+	{
+		isProviderIntent ? (
+			<div class="space-y-6">
+				<header class="space-y-3">
+					<h1 class="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+						¿Qué quieres ofrecer en Fastt?
+					</h1>
+					<p class="max-w-2xl text-sm leading-6 text-slate-300">
+						Prepararás tu primer servicio paso a paso. Puedes guardar y volver después; solo se
+						publicará cuando completes sus requisitos.
+					</p>
+				</header>
+				<div class="grid gap-4 sm:grid-cols-2">
+					<Card className="flex min-h-52 flex-col justify-between gap-5 border-slate-700 bg-white p-6">
+						<div class="space-y-2">
+							<h2 class="text-xl font-semibold text-slate-950">Alojamiento</h2>
+							<p class="text-sm leading-6 text-slate-600">
+								Para hoteles, hostales y establecimientos que venden habitaciones completas.
+							</p>
+						</div>
+						<Button href={providerOnboardingBusinessHref("hotel")}>Preparar alojamiento</Button>
+					</Card>
+					<Card className="flex min-h-52 flex-col justify-between gap-5 border-slate-700 bg-white p-6">
+						<div class="space-y-2">
+							<h2 class="text-xl font-semibold text-slate-950">Tour o actividad</h2>
+							<p class="text-sm leading-6 text-slate-600">
+								Para experiencias con participantes, horarios y cupos.
+							</p>
+						</div>
+						<Button href={providerOnboardingBusinessHref("tour")}>Preparar tour</Button>
+					</Card>
+				</div>
+				<p class="text-sm leading-6 text-slate-400">Podrás añadir otros servicios después.</p>
+			</div>
+		) : rememberedVertical ? (
+			<div class="space-y-6">
+				<header class="space-y-3">
+					<h1 class="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+						Continúa preparando tu {rememberedVertical === "tour" ? "tour" : "alojamiento"}
+					</h1>
+					<p class="max-w-2xl text-sm leading-6 text-slate-300">
+						Guardamos tu elección para que no tengas que empezar de nuevo.
+					</p>
+				</header>
+				<div class="flex flex-wrap gap-3">
+					<Button href={providerOnboardingBusinessHref(rememberedVertical)}>Continuar</Button>
+					<Button href="/provider/onboarding?intent=provider&change=1" variant="secondary">
+						Cambiar servicio
+					</Button>
+				</div>
+			</div>
+		) : (
+			<div class="space-y-6">
+				<header class="space-y-3">
+					<h1 class="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+						Bienvenido a Fastt
+					</h1>
+					<p class="max-w-2xl text-sm leading-6 text-slate-300">
+						Elige cómo quieres continuar. Crear una cuenta no crea un negocio automáticamente.
+					</p>
+				</header>
+				<div class="grid gap-4 sm:grid-cols-2">
+					<Card className="space-y-4 bg-white p-6">
+						<h2 class="text-xl font-semibold text-slate-950">Quiero ofrecer un servicio</h2>
+						<p class="text-sm leading-6 text-slate-600">
+							Crea tu negocio y prepara un alojamiento o tour.
+						</p>
+						<Button href={providerOnboardingStartHref()}>Ofrecer en Fastt</Button>
+					</Card>
+					<Card className="space-y-4 bg-white p-6">
+						<h2 class="text-xl font-semibold text-slate-950">Quiero explorar viajes</h2>
+						<p class="text-sm leading-6 text-slate-600">
+							Busca alojamientos, tours y próximos viajes.
+						</p>
+						<Button href="/" variant="secondary">
+							Ir a explorar
+						</Button>
+					</Card>
+				</div>
+			</div>
+		)
+	}
+</ProviderOnboardingLayout>

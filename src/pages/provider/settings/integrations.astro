@@ -33,7 +33,7 @@ const auth = await requireProvider(Astro.request).catch((error: any) => {
 	throw error
 })
 if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
-if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerSettingsProfile())
+if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerOnboardingStart())
 
 const readModel = await getProviderIntegrationsSummaryReadModel(auth.providerId)
 const channelConnections = readModel.connections.filter(

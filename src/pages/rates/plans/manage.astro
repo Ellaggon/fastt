@@ -38,7 +38,7 @@ const workspaceContext = await timing.time<WorkspaceRequestContext>("authProvide
 	Astro.locals.getWorkspaceContext()
 )
 if (!workspaceContext.user) return Astro.redirect("/SignInPage")
-if (!workspaceContext.provider) return Astro.redirect(routes.providerSettingsProfile())
+if (!workspaceContext.provider) return Astro.redirect(routes.providerOnboardingStart())
 const auth = {
 	user: workspaceContext.user,
 	providerId: workspaceContext.provider.providerId,

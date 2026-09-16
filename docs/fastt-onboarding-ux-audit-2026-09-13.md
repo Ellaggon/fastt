@@ -59,19 +59,19 @@ El problema no es que se necesiten datos del negocio. Es que se solicitan sin ha
 
 Fastt ya contiene piezas importantes:
 
-| Capacidad existente | Evidencia | Qué conviene conservar |
-|---|---|---|
-| Estado vacío del dashboard | “Añade tu primer servicio” y enlace a creación | La invitación a crear; debe aparecer antes y tener continuidad |
-| Selector de tipo de servicio | `/product/create` pregunta “¿Qué quieres ofrecer?” | La clasificación explícita por intención |
-| Registro de verticales | `productVerticalRegistry.ts` | Etiquetas, rutas y requisitos centralizados |
-| Recorrido de alojamiento | `launch-accommodation.ts` | Secuencia y vínculos al catálogo, habitaciones y venta |
-| Recorrido de tours | `launch-tour.ts` | Semántica propia de participantes, salidas y cupos |
-| Progreso y recuperación de pendientes | Evaluadores de playbook y preparación | Derivar avance desde datos reales |
-| Borradores de formularios | `playbookFormDraft.ts` utiliza `sessionStorage` | Protección local complementaria mientras se edita |
-| Vista previa y requisitos de producto | `evaluate-complete-to-publish-progress.ts` | Validación antes de publicar |
-| Habilitación del proveedor | `provider-governance.ts` | Separación de publicar, reservas, pagos e integraciones |
-| Invitaciones y roles | Flujo de invitación y permisos del proveedor | No obligar a miembros invitados a crear otro negocio |
-| Telemetría de configuración | `provider-settings-funnel.ts` | Extenderla hacia activación, sin duplicar instrumentación |
+| Capacidad existente                   | Evidencia                                          | Qué conviene conservar                                         |
+| ------------------------------------- | -------------------------------------------------- | -------------------------------------------------------------- |
+| Estado vacío del dashboard            | “Añade tu primer servicio” y enlace a creación     | La invitación a crear; debe aparecer antes y tener continuidad |
+| Selector de tipo de servicio          | `/product/create` pregunta “¿Qué quieres ofrecer?” | La clasificación explícita por intención                       |
+| Registro de verticales                | `productVerticalRegistry.ts`                       | Etiquetas, rutas y requisitos centralizados                    |
+| Recorrido de alojamiento              | `launch-accommodation.ts`                          | Secuencia y vínculos al catálogo, habitaciones y venta         |
+| Recorrido de tours                    | `launch-tour.ts`                                   | Semántica propia de participantes, salidas y cupos             |
+| Progreso y recuperación de pendientes | Evaluadores de playbook y preparación              | Derivar avance desde datos reales                              |
+| Borradores de formularios             | `playbookFormDraft.ts` utiliza `sessionStorage`    | Protección local complementaria mientras se edita              |
+| Vista previa y requisitos de producto | `evaluate-complete-to-publish-progress.ts`         | Validación antes de publicar                                   |
+| Habilitación del proveedor            | `provider-governance.ts`                           | Separación de publicar, reservas, pagos e integraciones        |
+| Invitaciones y roles                  | Flujo de invitación y permisos del proveedor       | No obligar a miembros invitados a crear otro negocio           |
+| Telemetría de configuración           | `provider-settings-funnel.ts`                      | Extenderla hacia activación, sin duplicar instrumentación      |
 
 No hace falta construir un segundo catálogo ni sustituir todo el backoffice. Hace falta una capa coherente que conecte esas capacidades desde la primera sesión.
 
@@ -111,15 +111,15 @@ La página pública de actividades de Expedia muestra una solicitud comercial qu
 
 ### 4.3. Aplicación recomendada en Fastt
 
-| Patrón | Decisión para Fastt |
-|---|---|
-| Entrada por intención | Preguntar qué ofrecer antes de mostrar configuración administrativa |
-| Separación entre cuenta y anuncio | Una cuenta accede a uno o más negocios; cada negocio administra ofertas |
-| Preparación progresiva | Agrupar tareas en etapas comprensibles, conservando subpasos específicos |
-| Borrador y continuidad | Guardado persistente y reanudación por cuenta, negocio y oferta |
-| Publicación distinta de activación | Mostrar exactamente qué está completo y qué capacidad sigue bloqueada |
-| Vías por tipo de inventario | Tour, hotel y vivienda completa necesitan vocabulario y unidades de venta distintos |
-| Herramientas profesionales | Mostrar importación o conexión cuando el usuario declara que ya usa un sistema |
+| Patrón                             | Decisión para Fastt                                                                 |
+| ---------------------------------- | ----------------------------------------------------------------------------------- |
+| Entrada por intención              | Preguntar qué ofrecer antes de mostrar configuración administrativa                 |
+| Separación entre cuenta y anuncio  | Una cuenta accede a uno o más negocios; cada negocio administra ofertas             |
+| Preparación progresiva             | Agrupar tareas en etapas comprensibles, conservando subpasos específicos            |
+| Borrador y continuidad             | Guardado persistente y reanudación por cuenta, negocio y oferta                     |
+| Publicación distinta de activación | Mostrar exactamente qué está completo y qué capacidad sigue bloqueada               |
+| Vías por tipo de inventario        | Tour, hotel y vivienda completa necesitan vocabulario y unidades de venta distintos |
+| Herramientas profesionales         | Mostrar importación o conexión cuando el usuario declara que ya usa un sistema      |
 
 Estas son recomendaciones de diseño derivadas de la comparación; no son afirmaciones de que las interfaces competidoras utilicen exactamente los layouts propuestos aquí.
 
@@ -127,25 +127,25 @@ Estas son recomendaciones de diseño derivadas de la comparación; no son afirma
 
 Las prioridades indican orden de intervención. **P0:** interrumpe la activación o da una señal engañosa sobre ella. **P1:** fricción o incoherencia importante. **P2:** profundidad, escala y optimización. No son una clasificación de incidentes de producción.
 
-| ID | Gap y evidencia | Consecuencia | Acción | Prioridad |
-|---|---|---|---|---|
-| G01 | Cuenta sin proveedor redirigida desde dashboard y creación a Settings/Profile | El primer contacto es administrativo y no pregunta intención | Crear un punto de entrada de onboarding y resolver destino por contexto | P0 |
-| G02 | Filtro del menú basado en productos existentes; no tiene etapa de onboarding | Desaparecen los servicios mientras permanecen herramientas dependientes | Añadir estado de ciclo de vida y un shell inicial propio | P0 |
-| G03 | Guardar identidad vuelve al perfil y prioriza verificación | Falta un siguiente paso inequívoco hacia la primera oferta | “Guardar y continuar” con destino contextual | P0 |
-| G04 | La preparación de producto y la habilitación del proveedor se evalúan por separado | La ficha puede estar lista y publicar terminar bloqueado por cuenta | Agregar un resumen común de activación que consuma ambas evaluaciones | P0 |
-| G05 | `supportEmail` opcional en formulario/esquema; `operationsComplete` lo exige | Se puede guardar correctamente y seguir incompleto sin explicación suficiente | Definir contacto efectivo o exigirlo explícitamente; coherencia de UI y servidor | P0 |
-| G06 | Datos operativos colapsados; selector limitado a tres zonas y tres monedas | Defaults o valores existentes pueden no corresponder al negocio | Pedir confirmación contextual y ofrecer catálogo válido del mercado soportado | P1 |
-| G07 | Razón social exigida sin preguntar persona/empresa | Un operador individual puede no saber qué responder | Capturar tipo de titular y adaptar campos y requisitos | P1 |
-| G08 | Set KYC básico fijo en `requiredKycDocumentTypes` | No modela por sí solo diferencias entre persona, empresa, país y actividad | Matriz de aplicabilidad versionada, con política definida por responsables | P1 |
-| G09 | Wizard dentro del shell operativo | Distracción y cambios de contexto durante una tarea inicial | Shell de preparación con navegación de pasos | P1 |
-| G10 | Existencia de borrador local en `sessionStorage`, sin evidencia de sesión inicial persistente integral | La protección local no garantiza continuidad entre dispositivos | Sesión persistente y reanudación derivada de datos guardados | P1 |
-| G11 | Errores HTML de identidad redirigen con código genérico | Se pierde precisión de campos y no se rehidrata el intento rechazado | Mensajes junto al campo y preservación del borrador no sensible | P1 |
-| G12 | Persisten textos/rutas de habitaciones en cards del dashboard y mensaje “Alojamiento publicado” en la vista previa común | Un operador de tours encuentra vocabulario o destinos de hotel | Resolver copy y navegación por vertical en todas las superficies | P1 |
-| G13 | `rental` figura como `planned`; hotel usa `hotel_room` | No se puede prometer vivienda completa como capacidad ya disponible | Delimitar MVP hotelero y desarrollar el modelo de vivienda antes de ofrecerlo | P1 / alcance |
-| G14 | Telemetría centrada en configuración y bloqueos | No demuestra conversión desde registro hasta primera oferta reservable | Instrumentar funnel de activación con cohortes | P1 |
-| G15 | Callback y creación exponen lenguaje como Supabase, discovery, tokens o respuestas técnicas | El usuario recibe detalles de implementación en lugar de instrucciones | Copy de producto y diagnóstico técnico fuera del mensaje principal | P1 |
-| G16 | La función de registro hace comprobación previa, inserción de proveedor y enlace en operaciones separadas | Existe un riesgo a verificar de altas parciales o duplicadas ante concurrencia/fallos | Transacción, identidad autenticada estable y pruebas de repetición/concurrencia | P1 técnico |
-| G17 | Progreso de verificación usa una anchura visual que puede superar el porcentaje anunciado por ARIA | Diferencia entre progreso percibido y anunciado | Distinguir posición del paso y requisitos completados, con valores coherentes | P1 accesibilidad |
+| ID  | Gap y evidencia                                                                                                          | Consecuencia                                                                          | Acción                                                                           | Prioridad        |
+| --- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ---------------- |
+| G01 | Cuenta sin proveedor redirigida desde dashboard y creación a Settings/Profile                                            | El primer contacto es administrativo y no pregunta intención                          | Crear un punto de entrada de onboarding y resolver destino por contexto          | P0               |
+| G02 | Filtro del menú basado en productos existentes; no tiene etapa de onboarding                                             | Desaparecen los servicios mientras permanecen herramientas dependientes               | Añadir estado de ciclo de vida y un shell inicial propio                         | P0               |
+| G03 | Guardar identidad vuelve al perfil y prioriza verificación                                                               | Falta un siguiente paso inequívoco hacia la primera oferta                            | “Guardar y continuar” con destino contextual                                     | P0               |
+| G04 | La preparación de producto y la habilitación del proveedor se evalúan por separado                                       | La ficha puede estar lista y publicar terminar bloqueado por cuenta                   | Agregar un resumen común de activación que consuma ambas evaluaciones            | P0               |
+| G05 | `supportEmail` opcional en formulario/esquema; `operationsComplete` lo exige                                             | Se puede guardar correctamente y seguir incompleto sin explicación suficiente         | Definir contacto efectivo o exigirlo explícitamente; coherencia de UI y servidor | P0               |
+| G06 | Datos operativos colapsados; selector limitado a tres zonas y tres monedas                                               | Defaults o valores existentes pueden no corresponder al negocio                       | Pedir confirmación contextual y ofrecer catálogo válido del mercado soportado    | P1               |
+| G07 | Razón social exigida sin preguntar persona/empresa                                                                       | Un operador individual puede no saber qué responder                                   | Capturar tipo de titular y adaptar campos y requisitos                           | P1               |
+| G08 | Set KYC básico fijo en `requiredKycDocumentTypes`                                                                        | No modela por sí solo diferencias entre persona, empresa, país y actividad            | Matriz de aplicabilidad versionada, con política definida por responsables       | P1               |
+| G09 | Wizard dentro del shell operativo                                                                                        | Distracción y cambios de contexto durante una tarea inicial                           | Shell de preparación con navegación de pasos                                     | P1               |
+| G10 | Existencia de borrador local en `sessionStorage`, sin evidencia de sesión inicial persistente integral                   | La protección local no garantiza continuidad entre dispositivos                       | Sesión persistente y reanudación derivada de datos guardados                     | P1               |
+| G11 | Errores HTML de identidad redirigen con código genérico                                                                  | Se pierde precisión de campos y no se rehidrata el intento rechazado                  | Mensajes junto al campo y preservación del borrador no sensible                  | P1               |
+| G12 | Persisten textos/rutas de habitaciones en cards del dashboard y mensaje “Alojamiento publicado” en la vista previa común | Un operador de tours encuentra vocabulario o destinos de hotel                        | Resolver copy y navegación por vertical en todas las superficies                 | P1               |
+| G13 | `rental` figura como `planned`; hotel usa `hotel_room`                                                                   | No se puede prometer vivienda completa como capacidad ya disponible                   | Delimitar MVP hotelero y desarrollar el modelo de vivienda antes de ofrecerlo    | P1 / alcance     |
+| G14 | Telemetría centrada en configuración y bloqueos                                                                          | No demuestra conversión desde registro hasta primera oferta reservable                | Instrumentar funnel de activación con cohortes                                   | P1               |
+| G15 | Callback y creación exponen lenguaje como Supabase, discovery, tokens o respuestas técnicas                              | El usuario recibe detalles de implementación en lugar de instrucciones                | Copy de producto y diagnóstico técnico fuera del mensaje principal               | P1               |
+| G16 | La función de registro hace comprobación previa, inserción de proveedor y enlace en operaciones separadas                | Existe un riesgo a verificar de altas parciales o duplicadas ante concurrencia/fallos | Transacción, identidad autenticada estable y pruebas de repetición/concurrencia  | P1 técnico       |
+| G17 | Progreso de verificación usa una anchura visual que puede superar el porcentaje anunciado por ARIA                       | Diferencia entre progreso percibido y anunciado                                       | Distinguir posición del paso y requisitos completados, con valores coherentes    | P1 accesibilidad |
 
 **Precisión sobre G04:** `loadCompleteToPublishState` calcula requisitos de producto; `/api/product/publish` además ejecuta `assertProviderCapability(..., "publish")`. El cliente de vista previa maneja errores de validación de producto, pero para el bloqueo de proveedor puede acabar mostrando `provider_configuration_blocked` sin convertir sus detalles en acciones. Es un problema de integración de estados, no evidencia de que se pueda saltar la validación del servidor.
 
@@ -157,11 +157,11 @@ Las prioridades indican orden de intervención. **P0:** interrumpe la activació
 
 ### 6.1. Separar cuatro conceptos
 
-| Concepto | Qué representa | Ejemplo | Dónde se edita |
-|---|---|---|---|
-| Cuenta personal | Persona que inicia sesión | Ana, propietaria o miembro del equipo | Menú de cuenta |
-| Negocio/proveedor | Organización o titular que opera y cobra | Andina Experiencias | Configuración del negocio |
-| Oferta/anuncio | Servicio que ve el viajero | Tour gastronómico o Hotel Mirador | Mis tours / Mis alojamientos |
+| Concepto              | Qué representa                                | Ejemplo                                                | Dónde se edita                                    |
+| --------------------- | --------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------- |
+| Cuenta personal       | Persona que inicia sesión                     | Ana, propietaria o miembro del equipo                  | Menú de cuenta                                    |
+| Negocio/proveedor     | Organización o titular que opera y cobra      | Andina Experiencias                                    | Configuración del negocio                         |
+| Oferta/anuncio        | Servicio que ve el viajero                    | Tour gastronómico o Hotel Mirador                      | Mis tours / Mis alojamientos                      |
 | Inventario reservable | Unidad con capacidad, precio y disponibilidad | Salida del sábado; habitación doble; vivienda completa | Salidas / Habitaciones / Calendario según el caso |
 
 “Perfil de tours” debería desambiguarse: puede ser la presentación pública del operador o la ficha de un tour. No debe existir una única página que mezcle biografía del negocio, itinerario, cuenta bancaria y cupos.
@@ -172,11 +172,11 @@ La marca del negocio tampoco tiene por qué coincidir con el título de cada ofe
 
 No conviene crear un único porcentaje que mezcle identidad, fotografías, cuenta bancaria y reservas.
 
-| Eje | Estados de interfaz recomendados |
-|---|---|
-| Preparación de oferta | Sin iniciar · Borrador · Ficha completa · Cambios pendientes |
+| Eje                      | Estados de interfaz recomendados                                                              |
+| ------------------------ | --------------------------------------------------------------------------------------------- |
+| Preparación de oferta    | Sin iniciar · Borrador · Ficha completa · Cambios pendientes                                  |
 | Habilitación del negocio | Datos pendientes · En revisión · Requiere corrección · Habilitado para una capacidad concreta |
-| Comercialización | Sin publicar · Publicado · Reservable · Sin disponibilidad · Pausado |
+| Comercialización         | Sin publicar · Publicado · Reservable · Sin disponibilidad · Pausado                          |
 
 Estos nombres son una propuesta de presentación y agregación. No implican sustituir automáticamente los estados persistidos de Fastt por un solo enum nuevo.
 
@@ -194,15 +194,15 @@ Si Fastt quiere permitir preparar ofertas sin razón social definitiva, debe per
 
 ### 7.1. Resolver la intención antes de redirigir
 
-| Contexto de entrada | Destino recomendado |
-|---|---|
-| Persona que se registra para reservar o consultar un viaje | Retorno al contexto de viajero |
-| Persona que elige “Ofrecer un servicio” y no tiene negocio | Bienvenida de proveedor |
-| Invitado a un negocio existente | Aceptar invitación, confirmar negocio y entrar según su rol |
-| Propietario con borrador inicial | Resumen de preparación con “Continuar” |
-| Propietario con servicios operativos | Inicio operativo |
-| Usuario con varios negocios | Contexto solicitado o selector explícito si no hay uno inequívoco |
-| Usuario que abre un enlace a un paso | Ese paso si tiene acceso; si falta un prerrequisito, resolverlo conservando el destino |
+| Contexto de entrada                                        | Destino recomendado                                                                    |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Persona que se registra para reservar o consultar un viaje | Retorno al contexto de viajero                                                         |
+| Persona que elige “Ofrecer un servicio” y no tiene negocio | Bienvenida de proveedor                                                                |
+| Invitado a un negocio existente                            | Aceptar invitación, confirmar negocio y entrar según su rol                            |
+| Propietario con borrador inicial                           | Resumen de preparación con “Continuar”                                                 |
+| Propietario con servicios operativos                       | Inicio operativo                                                                       |
+| Usuario con varios negocios                                | Contexto solicitado o selector explícito si no hay uno inequívoco                      |
+| Usuario que abre un enlace a un paso                       | Ese paso si tiene acceso; si falta un prerrequisito, resolverlo conservando el destino |
 
 No toda cuenta nueva debe convertirse en proveedor. Fastt tiene superficies públicas y de viajes; un cambio global del registro debe preservar `returnTo`, invitaciones, recuperación de contraseña y el contexto de viajero.
 
@@ -268,18 +268,18 @@ Fastt tiene el modelo hotelero activo y `rental` planificado. El MVP debe afirma
 
 Todas las pantallas comparten encabezado con el nombre del borrador, navegación de etapas, estado de guardado y pie consistente con Anterior, Guardar y salir, y Guardar y continuar.
 
-| Pantalla | Contenido y aspecto | Acción y resultado |
-|---|---|---|
-| A1. Tipo y nombre | Tarjetas de tipos admitidos; nombre del alojamiento; destino. Ejemplos claros. Sin mostrar `hotel` ni códigos de lugar como texto principal | Crear borrador, conservar selección y pasar a ubicación |
-| A2. Ubicación | Dirección desglosada, ciudad/país, pin ajustable e indicaciones. Explicación de qué ubicación ve el público y qué dirección recibe el huésped según política real | Guardar ubicación validada y confirmar zona horaria |
-| A3. Espacios y capacidad | En hotel: “Crea tu primer tipo de habitación”, camas, huéspedes máximos y cuántas unidades de ese tipo existen. En vivienda futura: dormitorios, camas, baños y capacidad total | Crear inventario inicial sin obligar a cargar todo el establecimiento |
-| A4. Servicios y descripción | Selección de comodidades agrupadas; descripción breve; accesibilidad como características concretas. Evitar una lista masiva sin búsqueda | Dejar una ficha comprensible para el viajero |
-| A5. Fotografías | Galería con portada, orden, eliminación recuperable cuando exista, progreso de carga y errores por foto. Distinguir fotos del alojamiento y de cada tipo de habitación | Cumplir los mínimos reales y conservar cargas completadas |
-| A6. Precio inicial | Una tarifa base con moneda y unidad explícita: por noche y por habitación o vivienda. Ocupación incluida, impuestos/cargos y total de ejemplo | Crear la primera tarifa con precio interpretable |
-| A7. Disponibilidad | Calendario y rango de fechas, noches abiertas, unidades disponibles, estancia mínima y anticipación donde apliquen. Mostrar explícitamente fechas cerradas | Abrir inventario real; precio cargado no equivale a noche disponible |
-| A8. Condiciones | Cancelación, pago, no presentación y horarios de llegada/salida; reglas de convivencia en un bloque diferenciado. Mostrar resumen legible | Guardar condiciones seleccionadas sin duplicar sus fuentes de datos |
-| A9. Requisitos del negocio | Checklist por aplicabilidad, reutilizando lo completado. Estado por documento/capacidad y acceso a corregir | Completar o enviar requisitos sin repetir datos |
-| A10. Revisión | Vista de huésped más panel de preparación, habilitación y disponibilidad. Ejemplo verificable de estancia/precio | Publicar si corresponde, o resolver el bloqueo concreto |
+| Pantalla                    | Contenido y aspecto                                                                                                                                                             | Acción y resultado                                                    |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| A1. Tipo y nombre           | Tarjetas de tipos admitidos; nombre del alojamiento; destino. Ejemplos claros. Sin mostrar `hotel` ni códigos de lugar como texto principal                                     | Crear borrador, conservar selección y pasar a ubicación               |
+| A2. Ubicación               | Dirección desglosada, ciudad/país, pin ajustable e indicaciones. Explicación de qué ubicación ve el público y qué dirección recibe el huésped según política real               | Guardar ubicación validada y confirmar zona horaria                   |
+| A3. Espacios y capacidad    | En hotel: “Crea tu primer tipo de habitación”, camas, huéspedes máximos y cuántas unidades de ese tipo existen. En vivienda futura: dormitorios, camas, baños y capacidad total | Crear inventario inicial sin obligar a cargar todo el establecimiento |
+| A4. Servicios y descripción | Selección de comodidades agrupadas; descripción breve; accesibilidad como características concretas. Evitar una lista masiva sin búsqueda                                       | Dejar una ficha comprensible para el viajero                          |
+| A5. Fotografías             | Galería con portada, orden, eliminación recuperable cuando exista, progreso de carga y errores por foto. Distinguir fotos del alojamiento y de cada tipo de habitación          | Cumplir los mínimos reales y conservar cargas completadas             |
+| A6. Precio inicial          | Una tarifa base con moneda y unidad explícita: por noche y por habitación o vivienda. Ocupación incluida, impuestos/cargos y total de ejemplo                                   | Crear la primera tarifa con precio interpretable                      |
+| A7. Disponibilidad          | Calendario y rango de fechas, noches abiertas, unidades disponibles, estancia mínima y anticipación donde apliquen. Mostrar explícitamente fechas cerradas                      | Abrir inventario real; precio cargado no equivale a noche disponible  |
+| A8. Condiciones             | Cancelación, pago, no presentación y horarios de llegada/salida; reglas de convivencia en un bloque diferenciado. Mostrar resumen legible                                       | Guardar condiciones seleccionadas sin duplicar sus fuentes de datos   |
+| A9. Requisitos del negocio  | Checklist por aplicabilidad, reutilizando lo completado. Estado por documento/capacidad y acceso a corregir                                                                     | Completar o enviar requisitos sin repetir datos                       |
+| A10. Revisión               | Vista de huésped más panel de preparación, habilitación y disponibilidad. Ejemplo verificable de estancia/precio                                                                | Publicar si corresponde, o resolver el bloqueo concreto               |
 
 Esta secuencia reorganiza las pantallas existentes por modelo mental. No implica introducir diez pantallas nuevas obligatorias: A4 y A5 pueden subdividirse, y A6–A8 deben reutilizar los motores comerciales existentes bajo una presentación inicial más sencilla.
 
@@ -309,18 +309,18 @@ Ejemplo: “Caminata al mirador” → sábado, 09:00, español, 12 cupos → ad
 
 ### 9.2. Secuencia y composición
 
-| Pantalla | Contenido y aspecto | Acción y resultado |
-|---|---|---|
-| T1. Tipo, nombre y destino | Categoría entendible y título orientativo. Tipo de actividad y destino. Tarjetas con ejemplos cuando aporten claridad | Crear borrador del tour |
-| T2. Experiencia e itinerario | Duración, descripción, paradas/actividades reordenables, inclusiones y exclusiones. Indicar mínimos reales antes de que el usuario termine | Explicar qué vivirá el participante |
-| T3. Encuentro y logística | Pin, punto de encuentro, instrucciones, anticipación de llegada y recogida sólo cuando se soporte. Distinguir destino de búsqueda y lugar de inicio | Evitar direcciones ambiguas |
-| T4. Participantes y requisitos | Tipos de participante, edades, dificultad, idiomas, condiciones de participación y accesibilidad. Requisitos específicos según actividad | Definir quién puede reservar sin pedir información innecesaria |
-| T5. Fotografías | Portada y fotos de la experiencia, instrucciones de calidad y número mínimo basado en validación actual. Cargas con estado por archivo | Preparar la representación pública |
-| T6. Primera salida y precio | Fecha futura, hora, zona, idioma, capacidad y precio por tipo de participante. Resumen “sábado, 09:00, 12 cupos, precio por adulto” | Crear una primera combinación vendible coherente |
-| T7. Repetición y disponibilidad | Repetir por días/rango cuando se soporte, excepciones, cierre de reservas y vista de salidas resultantes antes de confirmar | Evitar crear manualmente cada fecha o duplicar salidas |
-| T8. Condiciones y preguntas | Cancelación, confirmación, clima/no presentación según capacidad disponible, y preguntas que necesita el operador | Configurar condiciones visibles antes del pago |
-| T9. Requisitos del operador | Identidad y fiscalidad reutilizadas; licencias/seguros exigibles según política aplicable, con estado y motivo | Habilitar capacidades sin pedir documentos ajenos al caso |
-| T10. Revisión | Vista del viajero con itinerario, encuentro, participantes, próxima salida, precio, condiciones y bloqueos separados | Publicar o continuar la corrección indicada |
+| Pantalla                        | Contenido y aspecto                                                                                                                                 | Acción y resultado                                             |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| T1. Tipo, nombre y destino      | Categoría entendible y título orientativo. Tipo de actividad y destino. Tarjetas con ejemplos cuando aporten claridad                               | Crear borrador del tour                                        |
+| T2. Experiencia e itinerario    | Duración, descripción, paradas/actividades reordenables, inclusiones y exclusiones. Indicar mínimos reales antes de que el usuario termine          | Explicar qué vivirá el participante                            |
+| T3. Encuentro y logística       | Pin, punto de encuentro, instrucciones, anticipación de llegada y recogida sólo cuando se soporte. Distinguir destino de búsqueda y lugar de inicio | Evitar direcciones ambiguas                                    |
+| T4. Participantes y requisitos  | Tipos de participante, edades, dificultad, idiomas, condiciones de participación y accesibilidad. Requisitos específicos según actividad            | Definir quién puede reservar sin pedir información innecesaria |
+| T5. Fotografías                 | Portada y fotos de la experiencia, instrucciones de calidad y número mínimo basado en validación actual. Cargas con estado por archivo              | Preparar la representación pública                             |
+| T6. Primera salida y precio     | Fecha futura, hora, zona, idioma, capacidad y precio por tipo de participante. Resumen “sábado, 09:00, 12 cupos, precio por adulto”                 | Crear una primera combinación vendible coherente               |
+| T7. Repetición y disponibilidad | Repetir por días/rango cuando se soporte, excepciones, cierre de reservas y vista de salidas resultantes antes de confirmar                         | Evitar crear manualmente cada fecha o duplicar salidas         |
+| T8. Condiciones y preguntas     | Cancelación, confirmación, clima/no presentación según capacidad disponible, y preguntas que necesita el operador                                   | Configurar condiciones visibles antes del pago                 |
+| T9. Requisitos del operador     | Identidad y fiscalidad reutilizadas; licencias/seguros exigibles según política aplicable, con estado y motivo                                      | Habilitar capacidades sin pedir documentos ajenos al caso      |
+| T10. Revisión                   | Vista del viajero con itinerario, encuentro, participantes, próxima salida, precio, condiciones y bloqueos separados                                | Publicar o continuar la corrección indicada                    |
 
 Fastt ya implementa muchas de estas piezas. T6 propone reunir visualmente primera salida y precio, aunque internamente sigan existiendo variantes, tarifas y calendario. El usuario debe completar una tarea comercial; no aprender esas entidades para poder comenzar.
 
@@ -338,15 +338,15 @@ Sin salidas futuras: aviso principal “Añade una salida para volver a recibir 
 
 ### 10.1. Cuándo existe
 
-| Situación | Navegación recomendada |
-|---|---|
-| Cuenta creada, intención todavía no definida | Sin sidebar; bienvenida y menú de cuenta |
-| Identidad mínima del negocio | Sin sidebar; Anterior y Guardar y continuar |
-| Primer servicio en preparación | Navegación de etapas, sin secciones operativas ajenas |
-| Usuario sale del recorrido con un borrador | Shell reducido: Inicio, borrador/listado de servicios, Configuración y Ayuda |
-| Oferta operativa | Sidebar estable de la vertical |
-| Negocio mixto | Selector de contexto y navegación que conserve el alcance seleccionado |
-| Miembro invitado | Navegación por permisos y tareas; no wizard de propietario |
+| Situación                                    | Navegación recomendada                                                       |
+| -------------------------------------------- | ---------------------------------------------------------------------------- |
+| Cuenta creada, intención todavía no definida | Sin sidebar; bienvenida y menú de cuenta                                     |
+| Identidad mínima del negocio                 | Sin sidebar; Anterior y Guardar y continuar                                  |
+| Primer servicio en preparación               | Navegación de etapas, sin secciones operativas ajenas                        |
+| Usuario sale del recorrido con un borrador   | Shell reducido: Inicio, borrador/listado de servicios, Configuración y Ayuda |
+| Oferta operativa                             | Sidebar estable de la vertical                                               |
+| Negocio mixto                                | Selector de contexto y navegación que conserve el alcance seleccionado       |
+| Miembro invitado                             | Navegación por permisos y tareas; no wizard de propietario                   |
 
 No conviene llenar el menú inicial con elementos deshabilitados. Lo que aún no es útil se explica en el resumen de preparación. Lo que el usuario no puede usar por permisos se controla en servidor y se comunica apropiadamente si abre una URL directa.
 
@@ -540,14 +540,14 @@ El sidebar consume esa misma experiencia agregada. Su disponibilidad visual no s
 
 ### 13.3. Rutas propuestas y compatibilidad
 
-| Ruta conceptual propuesta | Responsabilidad |
-|---|---|
-| `/provider/onboarding` | Resolver bienvenida o reanudación |
-| `/provider/onboarding/business` | Datos iniciales contextualizados |
-| `/provider/onboarding/overview` | Mapa de preparación y borradores |
+| Ruta conceptual propuesta                                | Responsabilidad                                |
+| -------------------------------------------------------- | ---------------------------------------------- |
+| `/provider/onboarding`                                   | Resolver bienvenida o reanudación              |
+| `/provider/onboarding/business`                          | Datos iniciales contextualizados               |
+| `/provider/onboarding/overview`                          | Mapa de preparación y borradores               |
 | Rutas existentes de producto con contexto de preparación | Editar catálogo sin crear un catálogo paralelo |
-| `/provider/settings/*` | Mantenimiento y requisitos del negocio |
-| `/dashboard` | Resumen apropiado a etapa y permisos |
+| `/provider/settings/*`                                   | Mantenimiento y requisitos del negocio         |
+| `/dashboard`                                             | Resumen apropiado a etapa y permisos           |
 
 Las rutas son una propuesta, no destinos disponibles ahora. Antes de adoptar nombres definitivos, ajustar el catálogo de rutas y contratos del repositorio.
 
@@ -565,6 +565,8 @@ Reutilizar datos ya verificados cuando el alcance lo permita. Una segunda oferta
 
 ### Fase 0. Acordar contrato y establecer línea base
 
+**Ejecución del 14-09-2026:** [contrato y decisiones](/Users/ellaggon/Projects/fastt/docs/onboarding/phase-0-contract.md), [medición inicial](/Users/ellaggon/Projects/fastt/docs/onboarding/phase-0-baseline.json) y [evaluación de cierre, incluida fase 2](/Users/ellaggon/Projects/fastt/docs/onboarding/phase-0-closeout.md). Contrato contrastado en dominio y certificado contra PostgreSQL aislado: 35 pruebas de la batería declarada aprobaron. Razón social continúa obligatoria en el primer incremento.
+
 **Responsables:** producto, diseño, backend y responsable de políticas del proveedor.
 
 Entregables: mapa de estados; casos soportados de alojamiento; política persona/empresa; requisitos para publicar/reservar/cobrar; estrategia de regreso para viajeros e invitados; escenarios de prueba; medición inicial del funnel si existe volumen suficiente.
@@ -572,6 +574,8 @@ Entregables: mapa de estados; casos soportados de alojamiento; política persona
 **Criterio de salida:** una misma cuenta y producto reciben el mismo diagnóstico de habilitación en el documento de producto y en las reglas del servidor. Decidir expresamente si la razón social sigue siendo obligatoria al crear negocio en el primer incremento.
 
 ### Fase 1. Corregir la entrada y los mensajes engañosos
+
+**Ejecución del 14-09-2026:** [cierre y evaluación](/Users/ellaggon/Projects/fastt/docs/onboarding/phase-1-closeout.md). Se incorporó el recorrido reducido para alojamiento/tour, la elección persistida antes de crear negocio, los deep links operativos al onboarding y el diagnóstico conjunto de gobernanza y elegibilidad comercial en vista previa. El recorrido autenticado hotelero quedó certificado contra Fastt Backup.
 
 **Prioridad máxima.** Incorporar bienvenida para intención de proveedor; preservar `returnTo`; crear un shell inicial reducido; conectar identidad con la creación elegida; resolver G04 y G05; traducir errores de bloqueo a acciones.
 
@@ -588,11 +592,15 @@ Aprovechar el selector y los playbooks actuales. En este incremento no es necesa
 
 ### Fase 2. Unificar preparación y continuidad
 
+**Ejecución del 14-09-2026:** [cierre y evaluación](/Users/ellaggon/Projects/fastt/docs/onboarding/phase-2-closeout.md). El shell guiado ya no usa navegación operativa durante la preparación, los once pasos se agrupan en tres etapas y existe una sesión persistente por usuario, proveedor y playbook para retomar producto, variante y tarifa.
+
 Separar el shell guiado de `WorkspaceLayout`, agrupar los once pasos en etapas, unificar Guardar y continuar, incorporar sesión persistente y preservar contexto de producto/variante/tarifa. Corregir vocabulario y enlaces hoteleros en tours. Añadir tratamiento móvil y accesibilidad.
 
 **Criterio de salida:** completar un borrador de hotel y uno de tour; salir, volver, reautenticarse y retomar sin duplicar entidades ni perder datos persistidos. Validar enlaces profundos y retroceso del navegador.
 
 ### Fase 3. Completar los caminos verticales
+
+**Ejecución del 15-09-2026:** [cierre y evidencia comercial](/Users/ellaggon/Projects/fastt/docs/onboarding/phase-3-closeout.md). El sidebar ya usa vocabulario hotelero o de tours según alcance; la salida compartida mantiene un cupo común y la privada se ofrece sólo como cotización. La recurrencia no se promete: cada fecha se abre explícitamente en calendario. Los contratos de búsqueda, hold y confirmación cubren inventario/precio hotelero y salida/cupo de tour. F3-01 quedó certificado contra Fastt Backup y F3-02 se comprobó visualmente en Brave con precio, cupo y condiciones de una salida publicada.
 
 Para hotel: clarificar tipos/unidades, tarifa inicial, inventario y condiciones. Para tours: clarificar participantes, cupo compartido, salida y precio; validar funciones recurrentes y privadas antes de ofrecerlas. Reorganizar el sidebar operativo y los detalles locales.
 
@@ -600,11 +608,15 @@ Para hotel: clarificar tipos/unidades, tarifa inicial, inventario y condiciones.
 
 ### Fase 4. Requisitos adaptativos y expansión
 
+**Evaluación del 15-09-2026:** [análisis de alcance y fronteras](/Users/ellaggon/Projects/fastt/docs/onboarding/phase-4-assessment.md) y [decisiones basadas en Airbnb y Expedia](/Users/ellaggon/Projects/fastt/docs/onboarding/phase-4-research-decisions-2026-09-15.md). Negocio mixto, herramientas profesionales y corrección documental ya tienen superficies operativas. La matriz adaptativa tiene contrato de producto y arquitectura; faltan anexos jurisdiccionales ratificados y persistencia. Vivienda completa entra en la hoja de ruta con unidad vendible e inventario exclusivos, pero `rental` permanece planeado hasta certificar cotización, reserva y cancelación.
+
 Aplicar matriz por titular/país/actividad; mejorar revisión/corrección; soportar negocio mixto y herramientas profesionales según uso. Desarrollar vivienda completa como iniciativa de dominio si forma parte del alcance aprobado.
 
 **Criterio de salida:** nuevas opciones no se limitan a cambios de etiqueta; crean inventario correcto, se cotizan, se reservan y aplican sus reglas en todos los puntos de entrada.
 
 ### Fase 5. Lanzar gradualmente y medir
+
+**Ejecución del 15-09-2026:** [plan y control de rollout](/Users/ellaggon/Projects/fastt/docs/onboarding/phase-5-rollout.md). El onboarding tiene ahora kill switch, etapas de staging/allowlist/porcentaje/general, cohorte estable por usuario y retorno al Perfil legacy sin borrar datos. El control es sólo de experiencia y no modifica autorización ni publicación. No se activaron proveedores reales durante esta ejecución.
 
 Activar para cuentas nuevas mediante flag, validar en entorno de pruebas, pilotar con proveedores reales y ampliar por cohortes. Conservar una vía de retorno al shell anterior sin borrar datos creados. Supervisar errores, abandono, latencia y soporte. No ejecutar experimentos que reduzcan controles de autorización o publicación.
 
@@ -612,59 +624,59 @@ Activar para cuentas nuevas mediante flag, validar en entorno de pruebas, pilota
 
 ### 14.1. Backlog ejecutable
 
-| Trabajo | Archivos/piezas principales | Dependencia | Aceptación |
-|---|---|---|---|
-| Resolver entrada por intención y rol | Auth signup/signin/callback, dashboard, invitaciones | Contrato de destinos | Casos viajero, propietario e invitado sin redirección incorrecta |
-| Shell inicial | WorkspaceLayout, PlaybookLayout, nuevo layout de onboarding | Estado de experiencia | Sidebar operativo ausente durante bienvenida y preparación inicial |
-| Conectar identidad a oferta | ProviderRegisterForm, API providers, product/create | Contexto persistente | Guardar lleva al tipo elegido y soporta reintento |
-| Coherencia contacto/operación | ProviderProfileForm, profile schema, governance | Decisión de contacto efectivo | Validación, copy y habilitación coinciden |
-| Resumen agregado de activación | Evaluador de producto, governance, preview, publish | Matriz de estados | Mismo diagnóstico antes y durante publicación |
-| Borrador y reanudación | playbookFormDraft, guardado por paso, sesión de preparación | Modelo de persistencia | Recuperación entre sesiones/dispositivos de datos guardados |
-| Navegación por etapa y vertical | backoffice-governance, sidebar, verticalContext | Contrato del shell | Matriz de navegación cubierta sin ocultar la vía de creación |
-| Corrección de tours | Dashboard y preview compartidos, registro de verticales | Ninguna relevante | No muestra rutas de habitación o mensajes de alojamiento en tours |
-| Requisitos por aplicabilidad | provider-documents, governance, verificación | Política validada | Persona/empresa y actividad reciben requisitos correctos |
-| Medición | provider-settings-funnel y eventos de activación | Definiciones del funnel | Registro→reservable trazable sin documentos ni datos sensibles en eventos |
+| Trabajo                              | Archivos/piezas principales                                 | Dependencia                   | Aceptación                                                                |
+| ------------------------------------ | ----------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------- |
+| Resolver entrada por intención y rol | Auth signup/signin/callback, dashboard, invitaciones        | Contrato de destinos          | Casos viajero, propietario e invitado sin redirección incorrecta          |
+| Shell inicial                        | WorkspaceLayout, PlaybookLayout, nuevo layout de onboarding | Estado de experiencia         | Sidebar operativo ausente durante bienvenida y preparación inicial        |
+| Conectar identidad a oferta          | ProviderRegisterForm, API providers, product/create         | Contexto persistente          | Guardar lleva al tipo elegido y soporta reintento                         |
+| Coherencia contacto/operación        | ProviderProfileForm, profile schema, governance             | Decisión de contacto efectivo | Validación, copy y habilitación coinciden                                 |
+| Resumen agregado de activación       | Evaluador de producto, governance, preview, publish         | Matriz de estados             | Mismo diagnóstico antes y durante publicación                             |
+| Borrador y reanudación               | playbookFormDraft, guardado por paso, sesión de preparación | Modelo de persistencia        | Recuperación entre sesiones/dispositivos de datos guardados               |
+| Navegación por etapa y vertical      | backoffice-governance, sidebar, verticalContext             | Contrato del shell            | Matriz de navegación cubierta sin ocultar la vía de creación              |
+| Corrección de tours                  | Dashboard y preview compartidos, registro de verticales     | Ninguna relevante             | No muestra rutas de habitación o mensajes de alojamiento en tours         |
+| Requisitos por aplicabilidad         | provider-documents, governance, verificación                | Política validada             | Persona/empresa y actividad reciben requisitos correctos                  |
+| Medición                             | provider-settings-funnel y eventos de activación            | Definiciones del funnel       | Registro→reservable trazable sin documentos ni datos sensibles en eventos |
 
 ## 15. Pruebas y medición
 
 ### 15.1. Matriz mínima de aceptación
 
-| Caso | Resultado esperado |
-|---|---|
-| Cuenta nueva sin proveedor | Bienvenida y siguiente paso claros |
-| Registro con confirmación por correo | Retoma intención después de confirmar |
-| Registro desde reserva/viaje | Conserva contexto de viajero |
-| Invitación a negocio existente | No crea un proveedor adicional |
-| Negocio sin productos | Crear/continuar visible, herramientas operativas secundarias |
-| Borrador hotelero y borrador tour | Vocabulario, campos y destinos propios |
-| Cierre, sesión expirada, otro dispositivo | Recupera datos persistidos y siguiente pendiente |
-| Fallo de red o doble clic al crear | No duplica proveedor, producto, variante o salida |
-| Usuario con permisos limitados | No ejecuta acciones de propietario por URL/API |
-| Producto completo, cuenta pendiente | Estado claro con acción o espera correcta |
-| Cuenta habilitada, producto incompleto | CTA al requisito del producto |
-| Publicado sin inventario | No se presenta como reservable |
-| Tour con tickets que comparten cupo | No aumenta capacidad por sumar categorías |
-| Hotel con varias unidades del mismo tipo | Cantidad de inventario interpretada correctamente |
-| Proveedor mixto | Contexto y navegación no confunden noches con salidas |
-| Móvil y teclado | Flujo completado sin controles tapados ni pérdida de foco |
-| Regreso a una cuenta operativa | No fuerza repetir onboarding |
+| Caso                                      | Resultado esperado                                           |
+| ----------------------------------------- | ------------------------------------------------------------ |
+| Cuenta nueva sin proveedor                | Bienvenida y siguiente paso claros                           |
+| Registro con confirmación por correo      | Retoma intención después de confirmar                        |
+| Registro desde reserva/viaje              | Conserva contexto de viajero                                 |
+| Invitación a negocio existente            | No crea un proveedor adicional                               |
+| Negocio sin productos                     | Crear/continuar visible, herramientas operativas secundarias |
+| Borrador hotelero y borrador tour         | Vocabulario, campos y destinos propios                       |
+| Cierre, sesión expirada, otro dispositivo | Recupera datos persistidos y siguiente pendiente             |
+| Fallo de red o doble clic al crear        | No duplica proveedor, producto, variante o salida            |
+| Usuario con permisos limitados            | No ejecuta acciones de propietario por URL/API               |
+| Producto completo, cuenta pendiente       | Estado claro con acción o espera correcta                    |
+| Cuenta habilitada, producto incompleto    | CTA al requisito del producto                                |
+| Publicado sin inventario                  | No se presenta como reservable                               |
+| Tour con tickets que comparten cupo       | No aumenta capacidad por sumar categorías                    |
+| Hotel con varias unidades del mismo tipo  | Cantidad de inventario interpretada correctamente            |
+| Proveedor mixto                           | Contexto y navegación no confunden noches con salidas        |
+| Móvil y teclado                           | Flujo completado sin controles tapados ni pérdida de foco    |
+| Regreso a una cuenta operativa            | No fuerza repetir onboarding                                 |
 
 Reutilizar los tests de lanzamiento, publicación, gobernanza, perfil e invitaciones existentes. Agregar pruebas sobre los contratos nuevos y recorridos que crucen módulos; no basta con verificar que el texto de un botón existe. Las pruebas con navegador deberán usar LibreWolf o Brave, respetando la política del proyecto.
 
 ### 15.2. Métricas
 
-| Métrica | Definición |
-|---|---|
-| Inicio efectivo | Porcentaje de altas con intención de proveedor que eligen una vertical |
-| Primer borrador | Porcentaje que guarda su primera oferta, segmentado por vertical |
-| Ficha completa | Porcentaje de borradores que completa requisitos de producto |
+| Métrica                   | Definición                                                                                             |
+| ------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Inicio efectivo           | Porcentaje de altas con intención de proveedor que eligen una vertical                                 |
+| Primer borrador           | Porcentaje que guarda su primera oferta, segmentado por vertical                                       |
+| Ficha completa            | Porcentaje de borradores que completa requisitos de producto                                           |
 | Primera oferta reservable | Porcentaje de altas de proveedor que llega a una oferta habilitada con disponibilidad comercial válida |
-| Tiempo de preparación | Mediana y percentil alto de tiempo activo hasta borrador/ficha completa |
-| Espera de habilitación | Tiempo separado en revisión, fuera del esfuerzo de completar formularios |
-| Recuperación | Usuarios que retoman y avanzan un borrador después de salir |
-| Fricción | Fallos de guardado, campos rechazados, bucles y salidas por paso |
-| Coherencia de publicación | Intentos rechazados por requisitos que la revisión no había mostrado |
-| Primera reserva | Conversión y tiempo posteriores a activación, interpretados junto a demanda |
+| Tiempo de preparación     | Mediana y percentil alto de tiempo activo hasta borrador/ficha completa                                |
+| Espera de habilitación    | Tiempo separado en revisión, fuera del esfuerzo de completar formularios                               |
+| Recuperación              | Usuarios que retoman y avanzan un borrador después de salir                                            |
+| Fricción                  | Fallos de guardado, campos rechazados, bucles y salidas por paso                                       |
+| Coherencia de publicación | Intentos rechazados por requisitos que la revisión no había mostrado                                   |
+| Primera reserva           | Conversión y tiempo posteriores a activación, interpretados junto a demanda                            |
 
 Eventos propuestos: intención seleccionada, negocio inicial guardado, borrador creado, paso guardado, recorrido retomado, ficha completa, requisito enviado, requisito resuelto, publicación solicitada, publicación bloqueada, oferta reservable y primera reserva. Distinguir eventos de servidor y de interacción; deduplicar reintentos.
 
@@ -676,21 +688,21 @@ Primero medir línea base. Los objetivos de mejora deben acordarse después; est
 
 Los enlaces siguientes permiten revisar los puntos de entrada y contratos usados en esta auditoría.
 
-| Referencia | Archivo |
-|---|---|
-| Registro y retorno | [signup.ts](/Users/ellaggon/Projects/fastt/src/pages/api/auth/signup.ts), [signin.ts](/Users/ellaggon/Projects/fastt/src/pages/api/auth/signin.ts), [callback.astro](/Users/ellaggon/Projects/fastt/src/pages/auth/callback.astro) |
-| Dashboard y estado vacío | [dashboard/index.astro](/Users/ellaggon/Projects/fastt/src/pages/dashboard/index.astro) |
-| Perfil inicial reportado | [profile.astro](/Users/ellaggon/Projects/fastt/src/pages/provider/settings/profile.astro), [ProviderRegisterForm.astro](/Users/ellaggon/Projects/fastt/src/components/provider/ProviderRegisterForm.astro) |
-| Alta de proveedor | [API providers](/Users/ellaggon/Projects/fastt/src/pages/api/providers/index.ts), [register-provider-v2.ts](/Users/ellaggon/Projects/fastt/src/modules/catalog/application/use-cases/provider-v2/register-provider-v2.ts), [ProviderV2Repository.ts](/Users/ellaggon/Projects/fastt/src/modules/catalog/infrastructure/repositories/ProviderV2Repository.ts) |
-| Identidad y operación | [identity.schema.ts](/Users/ellaggon/Projects/fastt/src/schemas/provider/identity.schema.ts), [profile.schema.ts](/Users/ellaggon/Projects/fastt/src/schemas/provider/profile.schema.ts), [ProviderProfileForm.astro](/Users/ellaggon/Projects/fastt/src/components/provider/ProviderProfileForm.astro) |
-| Navegación y contexto | [DashboardSidebar.astro](/Users/ellaggon/Projects/fastt/src/components/dashboard/DashboardSidebar.astro), [backoffice-governance.ts](/Users/ellaggon/Projects/fastt/src/lib/backoffice-governance.ts), [workspaceRequestContext.ts](/Users/ellaggon/Projects/fastt/src/lib/dashboard/workspaceRequestContext.ts) |
-| Shells | [WorkspaceLayout.astro](/Users/ellaggon/Projects/fastt/src/layouts/WorkspaceLayout.astro), [PlaybookLayout.astro](/Users/ellaggon/Projects/fastt/src/layouts/PlaybookLayout.astro), [ProviderSettingsLayout.astro](/Users/ellaggon/Projects/fastt/src/layouts/ProviderSettingsLayout.astro) |
-| Selector y verticales | [product/create.astro](/Users/ellaggon/Projects/fastt/src/pages/product/create.astro), [productVerticalRegistry.ts](/Users/ellaggon/Projects/fastt/src/lib/catalog/productVerticalRegistry.ts) |
-| Recorridos | [launch-accommodation.ts](/Users/ellaggon/Projects/fastt/src/lib/playbook/launch-accommodation.ts), [launch-tour.ts](/Users/ellaggon/Projects/fastt/src/lib/playbook/launch-tour.ts) |
-| Borradores | [playbookFormDraft.ts](/Users/ellaggon/Projects/fastt/src/lib/forms/playbookFormDraft.ts) |
-| Preparación y publicación | [evaluate-complete-to-publish-progress.ts](/Users/ellaggon/Projects/fastt/src/lib/playbook/evaluate-complete-to-publish-progress.ts), [preview.astro](/Users/ellaggon/Projects/fastt/src/pages/product/[id]/preview.astro), [publish.ts](/Users/ellaggon/Projects/fastt/src/pages/api/product/publish.ts), [canonical-product-publication.ts](/Users/ellaggon/Projects/fastt/src/lib/product/canonical-product-publication.ts) |
-| Gobernanza y documentos | [provider-governance.ts](/Users/ellaggon/Projects/fastt/src/lib/provider-governance.ts), [provider-documents.ts](/Users/ellaggon/Projects/fastt/src/lib/provider-documents.ts) |
-| Continuidad de invitaciones | [invitations/accept.astro](/Users/ellaggon/Projects/fastt/src/pages/provider/invitations/accept.astro) |
-| Telemetría | [provider-settings-funnel.ts](/Users/ellaggon/Projects/fastt/src/lib/provider-settings-funnel.ts) |
+| Referencia                  | Archivo                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Registro y retorno          | [signup.ts](/Users/ellaggon/Projects/fastt/src/pages/api/auth/signup.ts), [signin.ts](/Users/ellaggon/Projects/fastt/src/pages/api/auth/signin.ts), [callback.astro](/Users/ellaggon/Projects/fastt/src/pages/auth/callback.astro)                                                                                                                                                                                             |
+| Dashboard y estado vacío    | [dashboard/index.astro](/Users/ellaggon/Projects/fastt/src/pages/dashboard/index.astro)                                                                                                                                                                                                                                                                                                                                        |
+| Perfil inicial reportado    | [profile.astro](/Users/ellaggon/Projects/fastt/src/pages/provider/settings/profile.astro), [ProviderRegisterForm.astro](/Users/ellaggon/Projects/fastt/src/components/provider/ProviderRegisterForm.astro)                                                                                                                                                                                                                     |
+| Alta de proveedor           | [API providers](/Users/ellaggon/Projects/fastt/src/pages/api/providers/index.ts), [register-provider-v2.ts](/Users/ellaggon/Projects/fastt/src/modules/catalog/application/use-cases/provider-v2/register-provider-v2.ts), [ProviderV2Repository.ts](/Users/ellaggon/Projects/fastt/src/modules/catalog/infrastructure/repositories/ProviderV2Repository.ts)                                                                   |
+| Identidad y operación       | [identity.schema.ts](/Users/ellaggon/Projects/fastt/src/schemas/provider/identity.schema.ts), [profile.schema.ts](/Users/ellaggon/Projects/fastt/src/schemas/provider/profile.schema.ts), [ProviderProfileForm.astro](/Users/ellaggon/Projects/fastt/src/components/provider/ProviderProfileForm.astro)                                                                                                                        |
+| Navegación y contexto       | [DashboardSidebar.astro](/Users/ellaggon/Projects/fastt/src/components/dashboard/DashboardSidebar.astro), [backoffice-governance.ts](/Users/ellaggon/Projects/fastt/src/lib/backoffice-governance.ts), [workspaceRequestContext.ts](/Users/ellaggon/Projects/fastt/src/lib/dashboard/workspaceRequestContext.ts)                                                                                                               |
+| Shells                      | [WorkspaceLayout.astro](/Users/ellaggon/Projects/fastt/src/layouts/WorkspaceLayout.astro), [PlaybookLayout.astro](/Users/ellaggon/Projects/fastt/src/layouts/PlaybookLayout.astro), [ProviderSettingsLayout.astro](/Users/ellaggon/Projects/fastt/src/layouts/ProviderSettingsLayout.astro)                                                                                                                                    |
+| Selector y verticales       | [product/create.astro](/Users/ellaggon/Projects/fastt/src/pages/product/create.astro), [productVerticalRegistry.ts](/Users/ellaggon/Projects/fastt/src/lib/catalog/productVerticalRegistry.ts)                                                                                                                                                                                                                                 |
+| Recorridos                  | [launch-accommodation.ts](/Users/ellaggon/Projects/fastt/src/lib/playbook/launch-accommodation.ts), [launch-tour.ts](/Users/ellaggon/Projects/fastt/src/lib/playbook/launch-tour.ts)                                                                                                                                                                                                                                           |
+| Borradores                  | [playbookFormDraft.ts](/Users/ellaggon/Projects/fastt/src/lib/forms/playbookFormDraft.ts)                                                                                                                                                                                                                                                                                                                                      |
+| Preparación y publicación   | [evaluate-complete-to-publish-progress.ts](/Users/ellaggon/Projects/fastt/src/lib/playbook/evaluate-complete-to-publish-progress.ts), [preview.astro](/Users/ellaggon/Projects/fastt/src/pages/product/[id]/preview.astro), [publish.ts](/Users/ellaggon/Projects/fastt/src/pages/api/product/publish.ts), [canonical-product-publication.ts](/Users/ellaggon/Projects/fastt/src/lib/product/canonical-product-publication.ts) |
+| Gobernanza y documentos     | [provider-governance.ts](/Users/ellaggon/Projects/fastt/src/lib/provider-governance.ts), [provider-documents.ts](/Users/ellaggon/Projects/fastt/src/lib/provider-documents.ts)                                                                                                                                                                                                                                                 |
+| Continuidad de invitaciones | [invitations/accept.astro](/Users/ellaggon/Projects/fastt/src/pages/provider/invitations/accept.astro)                                                                                                                                                                                                                                                                                                                         |
+| Telemetría                  | [provider-settings-funnel.ts](/Users/ellaggon/Projects/fastt/src/lib/provider-settings-funnel.ts)                                                                                                                                                                                                                                                                                                                              |
 
 La primera entrega recomendada es concreta: **bienvenida por intención, navegación inicial reducida, continuidad desde identidad hacia la oferta y un diagnóstico de activación consistente**. Esa entrega permite aprovechar los recorridos ya construidos y probar con usuarios si Fastt logra llevarlos desde “creé mi cuenta” hasta “puedo recibir mi primera reserva”.
