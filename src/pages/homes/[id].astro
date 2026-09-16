@@ -1,0 +1,188 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import FormField from "@/components/ui/FormField.astro"
+import Input from "@/components/ui/Input.astro"
+import UILayout from "@/layouts/UILayout.astro"
+import { searchOffers } from "@/container"
+import { publicCatalogProductEligibility } from "@/lib/marketplace/public-catalog-eligibility"
+import { and, db, eq, first, Product, Provider, WholeHome } from "@/shared/infrastructure/db/compat"
+
+const productId = String(Astro.params.id ?? "")
+const product = productId
+	? await db
+			.select({ id: Product.id, name: Product.name, publicationState: Product.publicationState })
+			.from(Product)
+			.innerJoin(Provider, eq(Provider.id, Product.providerId))
+			.where(
+				and(
+					eq(Product.id, productId),
+					eq(Product.productType, "whole_home"),
+					eq(Product.publicationState, "published"),
+					publicCatalogProductEligibility()
+				)
+			)
+			.then(first)
+	: null
+if (!product) return Astro.redirect("/homes")
+const home = await db.select().from(WholeHome).where(eq(WholeHome.productId, productId)).then(first)
+if (!home) return Astro.redirect("/homes")
+const query = Astro.url.searchParams
+const today = new Date()
+const next = new Date(today)
+next.setDate(today.getDate() + 1)
+const date = (value: string | null, fallback: Date) =>
+	value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : fallback.toISOString().slice(0, 10)
+const checkin = date(query.get("checkin"), today)
+const checkout = date(query.get("checkout"), next)
+const adults = Math.max(1, Number(query.get("adults") ?? 2))
+const offers = await searchOffers({
+	productId,
+	checkIn: new Date(`${checkin}T00:00:00Z`),
+	checkOut: new Date(`${checkout}T00:00:00Z`),
+	adults,
+	children: 0,
+	featureContext: { request: Astro.request, query },
+})
+---
+
+<UILayout title={`${product.name} · Vivienda completa`}>
+	<main class="mx-auto max-w-4xl space-y-6 px-4 py-8">
+		<header class="space-y-2">
+			<p class="text-sm font-medium text-slate-500">Vivienda completa · uso exclusivo</p><h1
+				class="text-3xl font-semibold text-slate-950"
+			>
+				{product.name}
+			</h1><p class="text-slate-600">
+				{home.bedrooms} dormitorios · {home.beds} camas · {home.bathrooms} baño(s) · hasta {
+					home.maxGuests
+				} huéspedes
+			</p>
+		</header>
+		<Card>
+			<form class="grid gap-3 sm:grid-cols-4" method="GET">
+				<FormField label="Entrada">
+					<Input type="date" name="checkin" value={checkin} />
+				</FormField>
+				<FormField label="Salida">
+					<Input type="date" name="checkout" value={checkout} />
+				</FormField>
+				<FormField label="Huéspedes">
+					<Input type="number" min="1" max={home.maxGuests} name="adults" value={adults} />
+				</FormField>
+				<Button type="submit" className="self-end">Ver disponibilidad</Button>
+			</form>
+		</Card>
+		<section aria-live="polite" class="space-y-3">
+			{
+				offers.length ? (
+					offers.map((offer: any) => {
+						const ratePlan = Array.isArray(offer.ratePlans) ? offer.ratePlans[0] : null
+						const ratePlanId = String(ratePlan?.id ?? ratePlan?.ratePlanId ?? "")
+						const variantId = String(offer.variantId ?? "")
+						return (
+							<Card>
+								<div class="flex flex-wrap items-center justify-between gap-3">
+									<>
+										<div>
+											<>
+												<h2 class="font-semibold text-slate-950">Vivienda completa</h2>
+												<p class="text-sm text-slate-600">
+													Uso exclusivo para tu grupo. Precio y condiciones se confirman antes del
+													hold.
+												</p>
+											</>
+										</div>
+										<div class="text-right">
+											<>
+												<p class="text-lg font-semibold">
+													{offer.currency ?? "USD"} {offer.totalPrice ?? offer.price ?? "—"}
+												</p>
+												<Button
+													type="button"
+													size="sm"
+													className="mt-2"
+													data-home-reserve
+													data-variant-id={variantId}
+													data-rate-plan-id={ratePlanId}
+												>
+													Reservar
+												</Button>
+											</>
+										</div>
+									</>
+								</div>
+							</Card>
+						)
+					})
+				) : (
+					<Card>
+						<p class="text-slate-600">No hay disponibilidad o precio para estas fechas.</p>
+					</Card>
+				)
+			}
+		</section>
+		<p id="home-booking-status" class="text-sm text-slate-700" aria-live="polite"></p>
+	</main>
+</UILayout>
+<script define:vars={{ checkin, checkout, adults }}>
+	let holdId = ""
+	let priceQuoteId = ""
+	const status = document.querySelector<HTMLElement>("#home-booking-status")
+	for (const button of document.querySelectorAll<HTMLButtonElement>("[data-home-reserve]")) {
+		button.addEventListener("click", async () => {
+			const variantId = String(button.dataset.variantId ?? "")
+			const ratePlanId = String(button.dataset.ratePlanId ?? "")
+			if (!variantId || !ratePlanId) {
+				if (status) status.textContent = "Esta vivienda no tiene una tarifa reservable."
+				return
+			}
+			button.disabled = true
+			if (status) status.textContent = "Verificando precio y creando hold…"
+			try {
+				const hold = await fetch("/api/inventory/hold", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						variantId,
+						ratePlanId,
+						dateRange: { from: checkin, to: checkout },
+						occupancyDetail: { adults: Math.max(1, Number(adults)), children: 0, infants: 0 },
+						rooms: 1,
+					}),
+				})
+				const payload = await hold.json().catch(() => ({}))
+				if (!hold.ok || !payload.holdId) {
+					if (status)
+						status.textContent =
+							payload.error === "not_available"
+								? "La vivienda ya no está disponible para esas fechas."
+								: "No se pudo crear el hold."
+					return
+				}
+				holdId = String(payload.holdId)
+				priceQuoteId = String(payload.priceQuote?.quoteId ?? "")
+				if (status) status.textContent = "Hold creado. Confirmando tu reserva…"
+				const confirmed = await fetch("/api/booking/confirm", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ holdId, priceQuoteId: priceQuoteId || undefined }),
+				})
+				const booking = await confirmed.json().catch(() => ({}))
+				if (!confirmed.ok || !booking.bookingId) {
+					if (status)
+						status.textContent =
+							booking.error === "PRICE_QUOTE_MISMATCH"
+								? "El precio cambió; vuelve a consultar la vivienda."
+								: "No se pudo confirmar la reserva."
+					return
+				}
+				window.location.href = `/booking/${encodeURIComponent(String(booking.bookingId))}`
+			} catch {
+				if (status) status.textContent = "Error de red al reservar."
+			} finally {
+				button.disabled = false
+			}
+		})
+	}
+</script>

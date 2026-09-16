@@ -1,0 +1,66 @@
+---
+import Card from "@/components/ui/Card.astro"
+import UILayout from "@/layouts/UILayout.astro"
+import { publicCatalogProductEligibility } from "@/lib/marketplace/public-catalog-eligibility"
+import { and, db, desc, eq, Product, Provider, WholeHome } from "@/shared/infrastructure/db/compat"
+
+const homes = await db
+	.select({
+		id: Product.id,
+		name: Product.name,
+		maxGuests: WholeHome.maxGuests,
+		bedrooms: WholeHome.bedrooms,
+	})
+	.from(Product)
+	.innerJoin(Provider, eq(Provider.id, Product.providerId))
+	.innerJoin(WholeHome, eq(WholeHome.productId, Product.id))
+	.where(
+		and(
+			eq(Product.productType, "whole_home"),
+			eq(Product.publicationState, "published"),
+			publicCatalogProductEligibility()
+		)
+	)
+	.orderBy(desc(Product.updatedAt))
+	.limit(24)
+---
+
+<UILayout title="Viviendas completas">
+	<main class="mx-auto max-w-4xl space-y-6 px-4 py-10">
+		<header class="space-y-3">
+			<p class="text-sm font-medium text-slate-500">Estancias de uso exclusivo</p>
+			<h1 class="text-3xl font-semibold text-slate-950">Viviendas completas</h1>
+			<p class="max-w-2xl text-slate-600">
+				Elige una propiedad y consulta fechas, huéspedes, precio y condiciones antes de reservar.
+			</p>
+		</header>
+		<section class="grid gap-4 sm:grid-cols-2" aria-label="Viviendas disponibles">
+			{
+				homes.length ? (
+					homes.map((home) => (
+						<Card>
+							<>
+								<h2 class="text-lg font-semibold text-slate-950">{home.name}</h2>
+								<p class="mt-1 text-sm text-slate-600">
+									{home.bedrooms} dormitorios · hasta {home.maxGuests} huéspedes
+								</p>
+								<a
+									class="mt-4 inline-flex rounded bg-slate-950 px-4 py-2 font-medium text-white"
+									href={`/homes/${home.id}`}
+								>
+									Consultar fechas y precio
+								</a>
+							</>
+						</Card>
+					))
+				) : (
+					<Card>
+						<p class="text-slate-700">
+							Aún no hay viviendas publicadas. Vuelve pronto para explorar nuevas estancias.
+						</p>
+					</Card>
+				)
+			}
+		</section>
+	</main>
+</UILayout>
