@@ -492,9 +492,9 @@ export const productVerticalRegistry = {
 			nameLabel: "Nombre de la propiedad",
 			namePlaceholder: "Ej: Cabana vista al lago",
 			destinationLabel: "Destino de la propiedad",
-			submitLabel: "Crear propiedad",
-			loadingLabel: "Cargando: creando propiedad...",
-			successLabel: "Exito: propiedad creada correctamente.",
+			submitLabel: "Próximamente",
+			loadingLabel: "Cargando: preparando información...",
+			successLabel: "La vivienda completa todavía no está disponible.",
 		},
 		sections: commonCatalogSections,
 		readiness: {

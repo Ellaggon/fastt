@@ -22,6 +22,8 @@ export type LaunchLikeStep = {
 	buildHref: (context: LaunchLikeContext) => string
 }
 
+export type LaunchLikeStage = { label: string; position: number }
+
 export type LaunchPlaybookDefinition = {
 	id: LaunchLikePlaybookId
 	title: string
@@ -66,5 +68,23 @@ export function getLaunchLikeStepPosition(
 				: null,
 		stepNumber: index >= 0 ? index + 1 : null,
 		totalSteps: definition.steps.length,
+	}
+}
+
+export function getLaunchLikeStage(
+	definition: LaunchPlaybookDefinition,
+	stepId: LaunchLikeStepId | string
+): LaunchLikeStage {
+	const index = definition.steps.findIndex((step) => step.id === stepId)
+	if (index >= definition.steps.length - 1) return { label: "Revisión y publicación", position: 3 }
+	if (index < 5) {
+		return {
+			label: definition.id === "launch-tour" ? "Tu experiencia" : "Tu alojamiento",
+			position: 1,
+		}
+	}
+	return {
+		label: definition.id === "launch-tour" ? "Salidas y venta" : "Habitaciones y venta",
+		position: 2,
 	}
 }
