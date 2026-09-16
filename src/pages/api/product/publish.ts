@@ -6,6 +6,10 @@ import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { refreshProductOperationalSurfaceAfterMutation } from "@/lib/product/productOperationalSurface"
 import { resolveCanonicalProductPublicationValidationErrors } from "@/lib/product/canonical-product-publication"
 import { assertProviderCapability } from "@/lib/provider-governance"
+import {
+	assertProductCommercialCapability,
+	CommercialPolicyBlockedError,
+} from "@/lib/commercial-policy/enforcement"
 import { publishProduct } from "@/modules/catalog/public"
 
 export const POST: APIRoute = async ({ request }) => {
@@ -48,6 +52,7 @@ export const POST: APIRoute = async ({ request }) => {
 			currentUserId: user.id,
 			capability: "publish",
 		})
+		await assertProductCommercialCapability({ providerId, productId, capability: "publish" })
 		const result = await publishProduct(
 			{
 				repo: productRepository,
@@ -102,6 +107,12 @@ export const POST: APIRoute = async ({ request }) => {
 					headers: { "Content-Type": "application/json" },
 				}
 			)
+		}
+		if (e instanceof CommercialPolicyBlockedError) {
+			return new Response(JSON.stringify({ error: "commercial_policy_blocked", ...e.details }), {
+				status: 423,
+				headers: { "Content-Type": "application/json" },
+			})
 		}
 		const msg = e instanceof Error ? e.message : "Unknown error"
 		return new Response(JSON.stringify({ error: msg }), {

@@ -63,15 +63,6 @@ const productNext = providerOnboardingProductCreateHref(vertical)
 		</header>
 
 		{
-			!holderStorageReady ? (
-				<Notice variant="warning" title="Declaración del titular pendiente">
-					Este entorno necesita la migración de Fase 4 para guardar tipo de titular y
-					jurisdicciones.
-				</Notice>
-			) : null
-		}
-
-		{
 			success === "identity_saved" ? (
 				<Notice variant="success" title="Datos del negocio guardados">
 					Ahora confirma el contacto operativo para comenzar tu {serviceLabel}.

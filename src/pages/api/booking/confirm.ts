@@ -15,6 +15,10 @@ import {
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { invalidateBooking, invalidateProvider, invalidateVariant } from "@/lib/cache/invalidation"
 import { assertProviderCapability } from "@/lib/provider-governance"
+import {
+	assertProductCommercialCapability,
+	CommercialPolicyBlockedError,
+} from "@/lib/commercial-policy/enforcement"
 import { createBookingFromHold } from "@/modules/booking/public"
 import { bookingFromHoldRepository } from "@/container/booking.container"
 import { tourTrustRepository } from "@/container"
@@ -91,11 +95,13 @@ async function findLinkedBookingByHold(
 
 async function findHoldMeta(holdId: string): Promise<{
 	providerId: string | null
+	productId: string | null
 	isTourSlot: boolean
 }> {
 	const row = await db
 		.select({
 			providerId: Product.providerId,
+			productId: Product.id,
 			variantKind: Variant.kind,
 			productType: Product.productType,
 		})
@@ -108,6 +114,7 @@ async function findHoldMeta(holdId: string): Promise<{
 	const variantKind = String(row?.variantKind ?? "").toLowerCase()
 	return {
 		providerId: String(row?.providerId ?? "").trim() || null,
+		productId: String((row as any)?.productId ?? "").trim() || null,
 		isTourSlot: variantKind === "tour_slot" || productType === "tour",
 	}
 }
@@ -202,6 +209,12 @@ export const POST: APIRoute = async ({ request }) => {
 		await assertProviderCapability({
 			providerId: providerIdForHold,
 			currentUserId: user?.id ?? null,
+			capability: "booking",
+		})
+		if (!holdMeta.productId) throw new Error("PRODUCT_OWNERSHIP_REQUIRED")
+		await assertProductCommercialCapability({
+			providerId: providerIdForHold,
+			productId: holdMeta.productId,
 			capability: "booking",
 		})
 
@@ -306,6 +319,15 @@ export const POST: APIRoute = async ({ request }) => {
 			}
 		)
 	} catch (error) {
+		if (error instanceof CommercialPolicyBlockedError) {
+			return new Response(
+				JSON.stringify({ error: "commercial_policy_blocked", ...error.details }),
+				{
+					status: 423,
+					headers: { "Content-Type": "application/json" },
+				}
+			)
+		}
 		if (requestedHoldId && isSqliteBusyError(error)) {
 			incrementCounter("sqlite_busy_total", { phase: "booking_confirm" })
 			incrementCounter("booking_confirm_retry_total", { phase: "recovery" })

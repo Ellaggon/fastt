@@ -6,6 +6,7 @@ import {
 	db,
 	eq,
 	first,
+	InventoryLock,
 	Variant,
 } from "@/shared/infrastructure/db/compat"
 import { z } from "zod"
@@ -25,6 +26,7 @@ import {
 	recordRefundLedgerFromQuote,
 	type RefundQuote,
 } from "@/modules/financial/public"
+import { applyInventoryMutation } from "@/modules/inventory/public"
 
 const schema = z.object({
 	bookingId: z.string().trim().min(1),
@@ -41,6 +43,12 @@ function json(payload: unknown, status = 200) {
 		status,
 		headers: { "Content-Type": "application/json" },
 	})
+}
+
+function toExclusiveDate(isoDate: string): string {
+	const date = new Date(`${isoDate}T00:00:00.000Z`)
+	date.setUTCDate(date.getUTCDate() + 1)
+	return date.toISOString().slice(0, 10)
 }
 
 async function readBody(request: Request): Promise<unknown> {
@@ -179,29 +187,61 @@ export const POST: APIRoute = async ({ request }) => {
 			idPrefix: `cancel-preview:${auth.providerId}:${context.booking.id}`,
 		})
 
-		await db
-			.update(Booking)
-			.set({
-				status: "cancelled",
-				lifecycleAuditJson: {
-					mode: "persisted_operation",
-					cancelledAt: cancelledAt.toISOString(),
-					previousStatus: context.booking.status,
-					refundQuoteId: quote.id,
-					refundLedgerId: ledger.id,
-				},
-				refundHandoffSnapshotJson: {
-					state: "ledger_recorded",
-					owner: "Finance",
-					boundary: "refund_ledger",
-					refundQuoteId: quote.id,
-					refundLedgerId: ledger.id,
-					refundAmount: ledger.refundAmount,
-					currency: ledger.currency,
-					financialPreview: financialPreview.preview,
-				},
-			} as any)
-			.where(eq(Booking.id, context.booking.id))
+		const locks = await db
+			.select({ variantId: InventoryLock.variantId, date: InventoryLock.date })
+			.from(InventoryLock)
+			.where(eq(InventoryLock.bookingId, context.booking.id))
+		const ranges = new Map<string, { from: string; lastDate: string }>()
+		for (const lock of locks) {
+			const variantId = String(lock.variantId ?? "").trim()
+			const date = String(lock.date ?? "").trim()
+			if (!variantId || !date) continue
+			const range = ranges.get(variantId)
+			if (!range) ranges.set(variantId, { from: date, lastDate: date })
+			else {
+				if (date < range.from) range.from = date
+				if (date > range.lastDate) range.lastDate = date
+			}
+		}
+		await applyInventoryMutation({
+			mutate: async () => {
+				await db
+					.update(Booking)
+					.set({
+						status: "cancelled",
+						lifecycleAuditJson: {
+							mode: "persisted_operation",
+							cancelledAt: cancelledAt.toISOString(),
+							previousStatus: context.booking.status,
+							refundQuoteId: quote.id,
+							refundLedgerId: ledger.id,
+						},
+						refundHandoffSnapshotJson: {
+							state: "ledger_recorded",
+							owner: "Finance",
+							boundary: "refund_ledger",
+							refundQuoteId: quote.id,
+							refundLedgerId: ledger.id,
+							refundAmount: ledger.refundAmount,
+							currency: ledger.currency,
+							financialPreview: financialPreview.preview,
+						},
+					} as any)
+					.where(eq(Booking.id, context.booking.id))
+				// A confirmed lock represents booked stock. Once cancelled it must no
+				// longer contribute to availability; the booking lifecycle audit keeps
+				// the cancellation evidence, while inventory locks remain live stock.
+				await db.delete(InventoryLock).where(eq(InventoryLock.bookingId, context.booking.id))
+			},
+			recompute: [...ranges.entries()].map(([variantId, range]) => ({
+				variantId,
+				from: range.from,
+				to: toExclusiveDate(range.lastDate),
+				reason: "booking_cancel",
+				idempotencyKey: `booking_cancel:${context.booking.id}:${variantId}`,
+			})),
+			logContext: { action: "booking_cancel", bookingId: context.booking.id },
+		})
 
 		// Canonical cancel path voids tour vouchers (issued/redeemed → void). No UI shortcut.
 		const voucher = await db
