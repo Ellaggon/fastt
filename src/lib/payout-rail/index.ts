@@ -37,7 +37,8 @@ export function resolvePayoutRailPreference(): PayoutRailProviderId {
 
 /**
  * Honest rail status for host/admin UX.
- * Live ACH only when preferred=stripe_connect, key present, and PAYOUT_RAIL_LIVE=1.
+ * Live ACH account verification only when preferred=stripe_connect, a key,
+ * PAYOUT_RAIL_LIVE=1 and an approved live-money reference are all present.
  */
 export function getPayoutRailStatus(): PayoutRailStatus {
 	const preferredProvider = resolvePayoutRailPreference()
@@ -54,7 +55,7 @@ export function getPayoutRailStatus(): PayoutRailStatus {
 			liveEnabled,
 			hostLabel: "Verificación de prueba (simulado)",
 			adminHint:
-				"Rail simulado (default). ACH live: PAYOUT_RAIL_PROVIDER=stripe_connect + STRIPE_SECRET_KEY + PAYOUT_RAIL_LIVE=1 (US). Opcional PAYOUT_RAIL_VERIFICATION=microdeposits|financial_connections.",
+				"Rail simulado (default). La verificación ACH requiere Stripe Connect, PAYOUT_RAIL_LIVE=1 y FASTT_LIVE_MONEY_APPROVAL_REFERENCE. No habilita cobros ni liquidaciones.",
 		}
 	}
 
@@ -80,7 +81,7 @@ export function getPayoutRailStatus(): PayoutRailStatus {
 			liveEnabled: false,
 			hostLabel: "Verificación de prueba (simulado — Connect listo)",
 			adminHint:
-				"Stripe key presente. Falta PAYOUT_RAIL_LIVE=1 para initiate ACH live (US SetupIntent / Financial Connections). Mientras tanto μ-depósitos simulados.",
+				"Stripe key presente. Falta PAYOUT_RAIL_LIVE=1 o la referencia de aprobación para verificación ACH real. Mientras tanto μ-depósitos simulados; no hay cobros ni liquidaciones.",
 		}
 	}
 

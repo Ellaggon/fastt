@@ -20,6 +20,7 @@ const envKeys = [
 	"STRIPE_SECRET_KEY",
 	"PAYOUT_RAIL_LIVE",
 	"PAYOUT_RAIL_VERIFICATION",
+	"FASTT_LIVE_MONEY_APPROVAL_REFERENCE",
 ] as const
 const envSnapshot: Record<string, string | undefined> = {}
 
@@ -126,7 +127,9 @@ describe("S5-4 payout rail adapter (ACH/Connect scaffold)", () => {
 	it("wires initiate through payout rail and honest host/admin labels", () => {
 		const accountsLib = read("src/lib/provider-payment-accounts.ts")
 		const card = read("src/components/provider/ProviderPaymentAccountsCard.astro")
-		const paymentsPage = readVerificationSurface("src/pages/provider/settings/verification/payments.astro")
+		const paymentsPage = readVerificationSurface(
+			"src/pages/provider/settings/verification/payments.astro"
+		)
 		const admin = read("src/pages/admin/providers.astro")
 		const envExample = read(".env.example")
 
@@ -162,6 +165,7 @@ describe("P2 Stripe ACH SetupIntent / Financial Connections (mocked)", () => {
 		snapshotEnv()
 		process.env.STRIPE_SECRET_KEY = "sk_test_live"
 		process.env.PAYOUT_RAIL_LIVE = "1"
+		process.env.FASTT_LIVE_MONEY_APPROVAL_REFERENCE = "FIN-LEGAL-TEST"
 		delete process.env.PAYOUT_RAIL_VERIFICATION
 
 		const fetchMock = vi.fn(async (url: string) => {
@@ -212,6 +216,7 @@ describe("P2 Stripe ACH SetupIntent / Financial Connections (mocked)", () => {
 		snapshotEnv()
 		process.env.STRIPE_SECRET_KEY = "sk_test_live"
 		process.env.PAYOUT_RAIL_LIVE = "1"
+		process.env.FASTT_LIVE_MONEY_APPROVAL_REFERENCE = "FIN-LEGAL-TEST"
 		process.env.PAYOUT_RAIL_VERIFICATION = "financial_connections"
 
 		vi.stubGlobal(

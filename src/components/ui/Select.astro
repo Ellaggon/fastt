@@ -1,14 +1,15 @@
 ---
+import { ChevronDown } from "@lucide/astro"
+
 const {
 	hasError = false,
 	error = null,
 	className = "",
 	class: classProp = "",
-	...props
+	id,
+	disabled = false,
+	...selectProps
 } = Astro.props
-
-const baseClass =
-	"fastt-field block h-11 w-full bg-white px-3 text-sm text-slate-900 focus:outline-none"
 
 const showError = Boolean(hasError || error)
 
@@ -16,9 +17,246 @@ const stateClass = showError
 	? "border-red-500 focus:border-red-500 focus:shadow-[0_0_0_2px_rgb(254_202_202)]"
 	: "border-slate-300"
 
-const finalClass = `${baseClass} ${stateClass} ${className} ${classProp}`.trim()
+const wrapperClass = `fastt-select relative ${className} ${classProp}`.trim()
+const triggerClass =
+	`fastt-select__trigger fastt-field flex h-11 w-full items-center justify-between gap-2 bg-white px-3 text-left text-sm text-slate-900 focus:outline-none disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 ${stateClass}`.trim()
+
+const listboxId = id ? `${id}-listbox` : undefined
 ---
 
-<select class={finalClass} {...props}>
-	<slot />
-</select>
+<div class={wrapperClass} data-fastt-select>
+	<select
+		class="sr-only"
+		tabindex="-1"
+		aria-hidden="true"
+		disabled={disabled || undefined}
+		{...selectProps}
+	>
+		<slot />
+	</select>
+	<button
+		type="button"
+		id={id}
+		class={triggerClass}
+		disabled={disabled || undefined}
+		aria-haspopup="listbox"
+		aria-expanded="false"
+		aria-controls={listboxId}
+		aria-invalid={showError ? "true" : undefined}
+		data-fastt-select-trigger
+	>
+		<span class="min-w-0 truncate" data-fastt-select-label></span>
+		<ChevronDown class="fastt-select__chevron h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
+	</button>
+	<ul
+		id={listboxId}
+		class="fastt-select__menu hidden"
+		role="listbox"
+		tabindex="-1"
+		data-fastt-select-menu
+	>
+	</ul>
+</div>
+
+<script>
+	function bindFasttSelectDismissals() {
+		if (document.documentElement.dataset.fasttSelectDismissals === "1") return
+		document.documentElement.dataset.fasttSelectDismissals = "1"
+
+		document.addEventListener("click", (event) => {
+			document.querySelectorAll('[data-fastt-select][data-open="true"]').forEach((rootEl) => {
+				if (!(rootEl instanceof HTMLElement)) return
+				if (event.target instanceof Node && rootEl.contains(event.target)) return
+				rootEl.dataset.open = "false"
+				rootEl.querySelector("[data-fastt-select-menu]")?.classList.add("hidden")
+				rootEl.querySelector("[data-fastt-select-trigger]")?.setAttribute("aria-expanded", "false")
+			})
+		})
+
+		document.addEventListener("keydown", (event) => {
+			if (event.key !== "Escape") return
+			document.querySelectorAll('[data-fastt-select][data-open="true"]').forEach((rootEl) => {
+				if (!(rootEl instanceof HTMLElement)) return
+				rootEl.dataset.open = "false"
+				rootEl.querySelector("[data-fastt-select-menu]")?.classList.add("hidden")
+				const trigger = rootEl.querySelector("[data-fastt-select-trigger]")
+				trigger?.setAttribute("aria-expanded", "false")
+				if (trigger instanceof HTMLElement) trigger.focus()
+			})
+		})
+	}
+
+	function initFasttSelects(root: ParentNode = document) {
+		bindFasttSelectDismissals()
+
+		root.querySelectorAll("[data-fastt-select]").forEach((rootEl) => {
+			if (!(rootEl instanceof HTMLElement) || rootEl.dataset.fasttSelectReady === "1") return
+			rootEl.dataset.fasttSelectReady = "1"
+
+			const select = rootEl.querySelector("select")
+			const trigger = rootEl.querySelector("[data-fastt-select-trigger]")
+			const label = rootEl.querySelector("[data-fastt-select-label]")
+			const menu = rootEl.querySelector("[data-fastt-select-menu]")
+			if (
+				!(select instanceof HTMLSelectElement) ||
+				!(trigger instanceof HTMLButtonElement) ||
+				!(label instanceof HTMLElement) ||
+				!(menu instanceof HTMLUListElement)
+			) {
+				return
+			}
+
+			let activeIndex = -1
+
+			const options = () => Array.from(select.options)
+
+			const selectedOption = () => options()[select.selectedIndex] ?? null
+
+			const enabledOptions = () => options().filter((option) => !option.disabled)
+
+			const syncLabel = () => {
+				const current = selectedOption()
+				if (!current || !current.value) {
+					const placeholder = options().find((option) => !option.value)
+					label.textContent = placeholder?.textContent?.trim() || "Seleccionar"
+					label.classList.add("fastt-select__label--placeholder")
+					return
+				}
+				label.textContent = current.textContent?.trim() || current.value
+				label.classList.remove("fastt-select__label--placeholder")
+			}
+
+			const renderMenu = () => {
+				menu.innerHTML = ""
+				options().forEach((option, index) => {
+					const item = document.createElement("li")
+					const button = document.createElement("button")
+					button.type = "button"
+					button.className = "fastt-select__option"
+					button.role = "option"
+					button.dataset.index = String(index)
+					button.textContent = option.textContent?.trim() || option.value
+					button.dataset.selected = select.selectedIndex === index ? "true" : "false"
+					button.dataset.disabled = option.disabled ? "true" : "false"
+					button.disabled = option.disabled
+					button.setAttribute("aria-selected", select.selectedIndex === index ? "true" : "false")
+					item.appendChild(button)
+					menu.appendChild(item)
+				})
+			}
+
+			const setOpen = (open: boolean) => {
+				rootEl.dataset.open = open ? "true" : "false"
+				menu.classList.toggle("hidden", !open)
+				trigger.setAttribute("aria-expanded", open ? "true" : "false")
+				if (!open) {
+					activeIndex = -1
+					menu.querySelectorAll("[data-active='true']").forEach((node) => {
+						node.removeAttribute("data-active")
+					})
+					return
+				}
+				const currentIndex = select.selectedIndex
+				const activeButton = menu.querySelector<HTMLButtonElement>(`[data-index="${currentIndex}"]`)
+				activeButton?.scrollIntoView({ block: "nearest" })
+			}
+
+			const chooseIndex = (index: number) => {
+				const option = options()[index]
+				if (!option || option.disabled) return
+				select.selectedIndex = index
+				select.dispatchEvent(new Event("change", { bubbles: true }))
+				syncLabel()
+				renderMenu()
+				setOpen(false)
+				trigger.focus()
+			}
+
+			const moveActive = (direction: 1 | -1) => {
+				const enabled = enabledOptions()
+				if (!enabled.length) return
+				const current = selectedOption()
+				let nextIndex = enabled.findIndex((option) => option === current)
+				if (nextIndex < 0) nextIndex = 0
+				else nextIndex = (nextIndex + direction + enabled.length) % enabled.length
+				activeIndex = options().indexOf(enabled[nextIndex]!)
+				menu.querySelectorAll("[data-active='true']").forEach((node) => {
+					node.removeAttribute("data-active")
+				})
+				const activeButton = menu.querySelector<HTMLButtonElement>(`[data-index="${activeIndex}"]`)
+				activeButton?.setAttribute("data-active", "true")
+				activeButton?.scrollIntoView({ block: "nearest" })
+			}
+
+			renderMenu()
+			syncLabel()
+
+			trigger.addEventListener("click", () => {
+				if (trigger.disabled) return
+				setOpen(rootEl.dataset.open !== "true")
+			})
+
+			trigger.addEventListener("keydown", (event) => {
+				if (trigger.disabled) return
+				if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+					event.preventDefault()
+					if (rootEl.dataset.open !== "true") setOpen(true)
+					moveActive(event.key === "ArrowDown" ? 1 : -1)
+					return
+				}
+				if (event.key === "Enter" || event.key === " ") {
+					event.preventDefault()
+					setOpen(rootEl.dataset.open !== "true")
+				}
+			})
+
+			menu.addEventListener("click", (event) => {
+				const button = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>(
+					"[data-index]"
+				)
+				if (!button) return
+				chooseIndex(Number(button.dataset.index))
+			})
+
+			menu.addEventListener("keydown", (event) => {
+				if (event.key === "Escape") {
+					event.preventDefault()
+					setOpen(false)
+					trigger.focus()
+					return
+				}
+				if (event.key === "ArrowDown") {
+					event.preventDefault()
+					moveActive(1)
+					return
+				}
+				if (event.key === "ArrowUp") {
+					event.preventDefault()
+					moveActive(-1)
+					return
+				}
+				if (event.key === "Enter" || event.key === " ") {
+					event.preventDefault()
+					if (activeIndex >= 0) chooseIndex(activeIndex)
+				}
+			})
+
+			select.addEventListener("change", () => {
+				syncLabel()
+				renderMenu()
+			})
+
+			const form = select.form
+			form?.addEventListener("reset", () => {
+				requestAnimationFrame(() => {
+					syncLabel()
+					renderMenu()
+					setOpen(false)
+				})
+			})
+		})
+	}
+
+	initFasttSelects()
+	document.addEventListener("astro:page-load", () => initFasttSelects())
+</script>

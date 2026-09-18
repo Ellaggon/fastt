@@ -50,14 +50,14 @@ const createFormDefaultOpen = accounts.length === 0 || needsAttention.length > 0
 const focusAccount = pending[0] ?? needsAttention[0] ?? verified[0] ?? null
 const focusTimeline = focusAccount ? buildPayoutVerificationTimeline(focusAccount) : null
 const actionLead = !accounts.length
-	? "Aquí debes agregar una cuenta bancaria para recibir liquidaciones."
+	? "Puedes dejar una cuenta preparada para una futura liquidación. Esto no habilita cobros ni pagos por Fastt."
 	: focusTimeline?.showConfirmForm
 		? "Ingresa los dos montos del extracto (en centavos) para verificar la titularidad."
 		: pending.length
 			? "Espera los dos depósitos de prueba en el extracto. Cuando aparezcan, confirma los montos."
 			: needsAttention.length
 				? "Esta cuenta necesita corrección. Envía una nueva con los datos corregidos."
-				: "Esta cuenta está lista para liquidaciones."
+				: "La cuenta está verificada. Una liquidación seguirá bloqueada hasta que existan contrato, política y rail aprobados."
 
 function badgeVariantForPhase(phaseLabel: string) {
 	if (phaseLabel === "Lista") return "success" as const
@@ -74,7 +74,7 @@ function badgeVariantForPhase(phaseLabel: string) {
 		<div class="space-y-5">
 			<div class="flex flex-wrap items-start justify-between gap-3">
 				<div>
-					<h2 class="text-xl font-semibold text-slate-950">Cuenta de cobro</h2>
+					<h2 class="text-xl font-semibold text-slate-950">Cuenta para futuras liquidaciones</h2>
 					<p class="mt-2 text-sm leading-6 text-slate-600" data-payments-action-lead>
 						{actionLead}
 					</p>
@@ -252,7 +252,8 @@ function badgeVariantForPhase(phaseLabel: string) {
 						})
 					) : (
 						<Card variant="soft" class="text-sm text-slate-600">
-							Aún no hay cuentas. Agrega una cuenta bancaria para habilitar liquidaciones.
+							Aún no hay cuentas. Puedes preparar una cuenta bancaria; hacerlo no habilita
+							liquidaciones.
 						</Card>
 					)
 				}
@@ -271,10 +272,10 @@ function badgeVariantForPhase(phaseLabel: string) {
 						</summary>
 						<p class="mt-2 border-t border-slate-200 pt-3">
 							{rail.mode === "scaffold"
-								? "Connect está preparado en entorno, pero los micro-depósitos siguen siendo de prueba (aún no hay ACH bancario real)."
+								? "Connect está preparado en entorno, pero los micro-depósitos siguen siendo de prueba. No habilita cobrar ni liquidar."
 								: rail.mode === "not_configured"
 									? "Se pidió Stripe Connect pero falta configurar la clave; seguimos en verificación de prueba (simulado)."
-									: "Verificación de titularidad en modo de prueba. Los montos no salen del banco hasta cablear ACH/Connect live."}
+									: "La verificación bancaria no autoriza cobros ni liquidaciones; ambos requieren contrato, política y rail aprobados."}
 						</p>
 					</details>
 				) : (

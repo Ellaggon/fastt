@@ -11,7 +11,7 @@ export type PayoutRailStatus = {
 	mode: PayoutRailMode
 	/** True when STRIPE_SECRET_KEY is present. */
 	stripeKeyPresent: boolean
-	/** True when PAYOUT_RAIL_LIVE opt-in is on. */
+	/** True only when the ACH verification release and its approval reference are configured. */
 	liveEnabled: boolean
 	/** Host-facing short label. */
 	hostLabel: string

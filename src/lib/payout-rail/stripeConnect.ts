@@ -8,12 +8,18 @@ export function isStripeConnectKeyPresent(): boolean {
 	return Boolean(String(process.env.STRIPE_SECRET_KEY ?? "").trim())
 }
 
-/** Opt-in: real Stripe ACH (SetupIntent microdeposits / Financial Connections). */
+/**
+ * Opt-in for real bank-account verification only. The approval reference is a
+ * deploy-time release control; it does not enable charge capture or payouts.
+ */
 export function isStripePayoutRailLiveEnabled(): boolean {
 	const raw = String(process.env.PAYOUT_RAIL_LIVE ?? "")
 		.trim()
 		.toLowerCase()
-	return raw === "1" || raw === "true" || raw === "yes" || raw === "on"
+	const approvalReference = String(process.env.FASTT_LIVE_MONEY_APPROVAL_REFERENCE ?? "").trim()
+	return (
+		(raw === "1" || raw === "true" || raw === "yes" || raw === "on") && Boolean(approvalReference)
+	)
 }
 
 /** Prefer Financial Connections session (instant) vs microdeposits SetupIntent. */
