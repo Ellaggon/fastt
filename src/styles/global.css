@@ -198,6 +198,81 @@ body {
 	box-shadow: 0 0 0 2px var(--fastt-color-focus);
 }
 
+.fastt-select {
+	position: relative;
+	width: 100%;
+}
+
+.fastt-select__trigger {
+	cursor: pointer;
+}
+
+.fastt-select__chevron {
+	transition: transform var(--fastt-motion-standard) ease;
+}
+
+.fastt-select[data-open="true"] .fastt-select__chevron {
+	transform: rotate(180deg);
+}
+
+.fastt-select[data-open="true"] .fastt-select__trigger {
+	border-color: var(--fastt-color-focus);
+	box-shadow: 0 0 0 2px var(--fastt-color-focus);
+}
+
+.fastt-select__label--placeholder {
+	color: rgb(148 163 184);
+}
+
+.fastt-select__menu {
+	position: absolute;
+	top: calc(100% + 0.35rem);
+	right: 0;
+	left: 0;
+	z-index: 50;
+	max-height: min(16rem, 50vh);
+	margin: 0;
+	padding: 0.35rem;
+	overflow-y: auto;
+	list-style: none;
+	border: 1px solid rgb(226 232 240 / 0.92);
+	border-radius: var(--fastt-radius-card);
+	background: rgb(255 255 255 / 0.98);
+	box-shadow: var(--fastt-shadow-panel);
+}
+
+.fastt-select__option {
+	display: block;
+	width: 100%;
+	border: 0;
+	border-radius: calc(var(--fastt-radius-card) - 0.25rem);
+	background: transparent;
+	padding: 0.625rem 0.75rem;
+	color: rgb(51 65 85);
+	font-size: 0.875rem;
+	font-weight: 500;
+	text-align: left;
+	cursor: pointer;
+}
+
+.fastt-select__option:hover,
+.fastt-select__option[data-active="true"] {
+	background: rgb(248 250 252);
+	color: rgb(15 23 42);
+}
+
+.fastt-select__option[data-selected="true"] {
+	background: rgb(241 245 249);
+	color: rgb(15 23 42);
+	font-weight: 600;
+}
+
+.fastt-select__option:disabled,
+.fastt-select__option[data-disabled="true"] {
+	color: rgb(148 163 184);
+	cursor: not-allowed;
+}
+
 .fastt-prompt-field {
 	display: flex;
 	min-height: 3.75rem;
