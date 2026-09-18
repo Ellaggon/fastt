@@ -221,7 +221,7 @@ body {
 }
 
 .fastt-select__label--placeholder {
-	color: rgb(148 163 184);
+	color: rgb(100 116 139);
 }
 
 .fastt-select__menu {
@@ -269,7 +269,7 @@ body {
 
 .fastt-select__option:disabled,
 .fastt-select__option[data-disabled="true"] {
-	color: rgb(148 163 184);
+	color: rgb(100 116 139);
 	cursor: not-allowed;
 }
 
