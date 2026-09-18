@@ -13,6 +13,7 @@ type Props = {
 	defaultScopeId?: string
 	defaultChannel?: string
 	isProfessionalMode?: boolean
+	paymentMode?: "standard" | "provider_at_experience_only"
 }
 
 const {
@@ -20,7 +21,9 @@ const {
 	defaultScopeId = "",
 	defaultChannel = "",
 	isProfessionalMode = false,
+	paymentMode = "standard",
 } = Astro.props
+const providerAtExperienceOnly = paymentMode === "provider_at_experience_only"
 
 const policyCategoryLabels = Object.fromEntries(
 	POLICY_CATEGORY_OPTIONS.map((category) => [category.value, category.label])
@@ -75,6 +78,7 @@ const policyModalCopy = {
 	data-default-scope={defaultScope}
 	data-default-scope-id={defaultScopeId}
 	data-default-channel={defaultChannel}
+	data-payment-mode={paymentMode}
 >
 	<div
 		class:list={[
@@ -292,12 +296,30 @@ const policyModalCopy = {
 								</div>
 							</div>
 							<div class="space-y-4" data-assignment-custom-category="Payment">
+								{
+									providerAtExperienceOnly ? (
+										<p class="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm leading-6 text-sky-950">
+											El viajero paga al proveedor al realizar el tour. Fastt confirma la reserva,
+											pero no procesa el pago ni custodia fondos.
+										</p>
+									) : null
+								}
 								<div class="grid gap-3 sm:grid-cols-3">
 									<label class="block text-sm font-medium text-slate-700">
 										Cuándo paga
 										<Select id="assignmentPaymentType" class="mt-1">
-											<option value="pay_at_property">Al llegar</option>
-											<option value="prepayment">Prepago</option>
+											<option value="pay_at_property">
+												{
+													providerAtExperienceOnly
+														? "Al realizar el tour · cobra el proveedor"
+														: "Al llegar"
+												}
+											</option>
+											{
+												providerAtExperienceOnly ? null : (
+													<option value="prepayment">Prepago</option>
+												)
+											}
 										</Select>
 									</label>
 									<label class="block text-sm font-medium text-slate-700">
@@ -481,12 +503,14 @@ const policyModalCopy = {
 	is:inline
 	define:vars={{
 		isProfessionalMode,
+		paymentMode,
 		policyCategoryLabels,
 		policyCategoryPreviewCopy: POLICY_CATEGORY_PREVIEW_COPY,
 		policyModalCopy,
 	}}
 >
 	// @ts-nocheck
+	const providerAtExperienceOnly = paymentMode === "provider_at_experience_only"
 	const assignmentOverlay = document.getElementById("policyAssignmentOverlay")
 	const assignmentClose = document.getElementById("policyAssignmentClose")
 	const assignmentSubmit = document.getElementById("policyAssignmentSubmit")
@@ -590,6 +614,16 @@ const policyModalCopy = {
 	}
 
 	function renderModalChrome(category) {
+		if (providerAtExperienceOnly && category === "Payment") {
+			if (assignmentEyebrow) assignmentEyebrow.textContent = "Condición de pago"
+			if (assignmentTitle) assignmentTitle.textContent = "Pago al proveedor"
+			if (assignmentDescription) {
+				assignmentDescription.textContent =
+					"El viajero paga al proveedor al realizar el tour. El prepago no está disponible en Fastt todavía."
+			}
+			if (presetLabel) presetLabel.textContent = "Forma de pago disponible"
+			return
+		}
 		const copy = modalCopy(category)
 		if (assignmentEyebrow)
 			assignmentEyebrow.textContent = isProfessionalMode
@@ -640,7 +674,12 @@ const policyModalCopy = {
 	}
 
 	function renderPolicyOptions() {
-		const policies = assignmentState.options.policies || []
+		const policies = (assignmentState.options.policies || []).filter(
+			(policy) =>
+				!providerAtExperienceOnly ||
+				String(policy.category) !== "Payment" ||
+				String(policy?.rules?.paymentType ?? "") === "pay_at_property"
+		)
 		if (!policySelect) return
 		policySelect.innerHTML = policies.length
 			? policies
@@ -656,7 +695,11 @@ const policyModalCopy = {
 		if (!presetSelect || !categorySelect) return
 		const category = categorySelect.value
 		const presets = (assignmentState.options.presets || []).filter(
-			(preset) => String(preset.category) === category
+			(preset) =>
+				String(preset.category) === category &&
+				(!providerAtExperienceOnly ||
+					category !== "Payment" ||
+					String(preset?.rules?.paymentType ?? "") === "pay_at_property")
 		)
 		presetSelect.innerHTML = presets.length
 			? presets
@@ -713,7 +756,11 @@ const policyModalCopy = {
 		if (!existingCards || !categorySelect) return
 		const category = categorySelect.value
 		const policies = (assignmentState.options.policies || []).filter(
-			(policy) => String(policy.category) === category
+			(policy) =>
+				String(policy.category) === category &&
+				(!providerAtExperienceOnly ||
+					category !== "Payment" ||
+					String(policy?.rules?.paymentType ?? "") === "pay_at_property")
 		)
 		existingCards.innerHTML = policies.length
 			? `<div class="fastt-policy-option-list space-y-2">${policies
@@ -1300,6 +1347,7 @@ const policyModalCopy = {
 		input.addEventListener("change", () => setMode(input.value))
 	})
 	categorySelect?.addEventListener("change", () => {
+		renderPolicyOptions()
 		renderPresetOptions()
 		renderExistingCards()
 		renderPresetCardsState()
