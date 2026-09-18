@@ -25,7 +25,13 @@ const listboxId = id ? `${id}-listbox` : undefined
 ---
 
 <div class={wrapperClass} data-fastt-select>
-	<select class="sr-only" tabindex="-1" disabled={disabled || undefined} {...selectProps}>
+	<select
+		class="sr-only"
+		tabindex="-1"
+		aria-hidden="true"
+		disabled={disabled || undefined}
+		{...selectProps}
+	>
 		<slot />
 	</select>
 	<button
