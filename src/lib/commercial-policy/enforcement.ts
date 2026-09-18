@@ -47,8 +47,10 @@ export async function assertProductCommercialCapability(params: {
 	providerId: string
 	productId: string
 	capability: CommercialCapability
+	/** Live money movement must always evaluate the approved policy, even in shadow rollout. */
+	force?: boolean
 }): Promise<void> {
-	if (!commercialPolicyEnforcementEnabled()) return
+	if (!params.force && !commercialPolicyEnforcementEnabled()) return
 	const product = await db
 		.select({ productType: Product.productType })
 		.from(Product)

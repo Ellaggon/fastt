@@ -30,12 +30,14 @@ describe("S7-1 ACH live rail gating", () => {
 		delete process.env.STRIPE_SECRET_KEY
 		delete process.env.PAYOUT_RAIL_LIVE
 		delete process.env.PAYOUT_RAIL_VERIFICATION
+		delete process.env.FASTT_LIVE_MONEY_APPROVAL_REFERENCE
 	})
 
-	it("reports live mode only with stripe_connect + key + PAYOUT_RAIL_LIVE", () => {
+	it("reports live mode only with stripe_connect, key, rail opt-in and approved reference", () => {
 		process.env.PAYOUT_RAIL_PROVIDER = "stripe_connect"
 		process.env.STRIPE_SECRET_KEY = "sk_test"
 		process.env.PAYOUT_RAIL_LIVE = "1"
+		process.env.FASTT_LIVE_MONEY_APPROVAL_REFERENCE = "FIN-LEGAL-TEST"
 		const status = getPayoutRailStatus()
 		expect(status.mode).toBe("live")
 		expect(status.activeProvider).toBe("stripe_connect")
