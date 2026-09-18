@@ -9,6 +9,11 @@ import { ValidationError } from "@/lib/validation/ValidationError"
 import { inferSettingsRiskLevel, writeProviderAuditLog } from "@/lib/provider-audit"
 import { routes } from "@/lib/routes"
 import { resolveProviderOnboardingNext } from "@/lib/onboarding/providerOnboarding"
+import {
+	createProviderFormFlash,
+	PROVIDER_FORM_FLASH_COOKIE,
+	type ProviderFormFlash,
+} from "@/lib/provider-form-flash"
 
 function shouldReturnHtmlRedirect(request: Request): boolean {
 	const accept = (request.headers.get("accept") || "").toLowerCase()
@@ -32,6 +37,21 @@ function redirectAfterProfileSave(
 	return Response.redirect(url, 303)
 }
 
+function writeProfileFlash(
+	cookies: { set: (name: string, value: string, options: Record<string, unknown>) => void },
+	flash: ProviderFormFlash | null,
+	errors: Record<string, string>
+) {
+	if (!flash) return
+	cookies.set(PROVIDER_FORM_FLASH_COOKIE, createProviderFormFlash({ ...flash, errors }), {
+		httpOnly: true,
+		sameSite: "lax",
+		secure: import.meta.env.PROD,
+		path: "/provider",
+		maxAge: 600,
+	})
+}
+
 function profileSnapshot(
 	row: {
 		timezone: string
@@ -49,8 +69,9 @@ function profileSnapshot(
 	}
 }
 
-export const handleProviderProfilePost: APIRoute = async ({ request }) => {
+export const handleProviderProfilePost: APIRoute = async ({ request, cookies }) => {
 	let onboardingNext: unknown = ""
+	let profileFlash: ProviderFormFlash | null = null
 	try {
 		const user = await getUserFromRequest(request)
 		if (!user?.email || !user?.id) {
@@ -80,6 +101,11 @@ export const handleProviderProfilePost: APIRoute = async ({ request }) => {
 			defaultCurrency: String(form.get("defaultCurrency") ?? "").trim(),
 			supportEmail: String(form.get("supportEmail") ?? "").trim(),
 			supportPhone: String(form.get("supportPhone") ?? "").trim() || undefined,
+		}
+		profileFlash = {
+			form: "profile",
+			values: { ...raw, supportPhone: raw.supportPhone ?? "" },
+			errors: {},
 		}
 
 		const beforeProfile = profileSnapshot(
@@ -139,6 +165,7 @@ export const handleProviderProfilePost: APIRoute = async ({ request }) => {
 	} catch (e) {
 		if (e instanceof ValidationError) {
 			if (shouldReturnHtmlRedirect(request)) {
+				writeProfileFlash(cookies, profileFlash, e.errors)
 				return redirectAfterProfileSave(request, { error: "validation_error" }, onboardingNext)
 			}
 			return new Response(JSON.stringify({ error: "validation_error", errors: e.errors }), {
@@ -148,6 +175,7 @@ export const handleProviderProfilePost: APIRoute = async ({ request }) => {
 		}
 		const msg = e instanceof Error ? e.message : "Unknown error"
 		if (shouldReturnHtmlRedirect(request)) {
+			writeProfileFlash(cookies, profileFlash, {})
 			return redirectAfterProfileSave(
 				request,
 				{

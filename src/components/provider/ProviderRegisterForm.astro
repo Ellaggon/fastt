@@ -4,6 +4,7 @@ import Card from "@/components/ui/Card.astro"
 import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
+import { providerFormErrorMessage } from "@/lib/provider-form-flash"
 import { routes } from "@/lib/routes"
 
 const {
@@ -12,19 +13,34 @@ const {
 	holderStorageReady = true,
 	hasProvider = false,
 	onboardingNext = "",
+	backHref = routes.providerSettings(),
+	draft = null,
+	fieldErrors = {},
 	submitLabel = "Guardar identidad",
+	onboarding = false,
+	serviceLabel = "servicio",
 } = Astro.props
 const formAction = hasProvider && provider?.id ? `/api/providers/${provider.id}` : "/api/providers"
+const value = (field: string, fallback = "") => String(draft?.values?.[field] ?? fallback)
+const fieldError = (field: string) =>
+	fieldErrors?.[field] ? providerFormErrorMessage(field, String(fieldErrors[field])) : ""
+const onboardingIntro = `Guardar estos datos crea el negocio desde el que prepararás tu ${serviceLabel}. No publica el ${serviceLabel} ni habilita reservas o cobros.`
 ---
 
 <section class="space-y-4">
 	<header class="space-y-1">
 		<p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-			Configuración del proveedor
+			{onboarding ? "Paso 1 de 2" : "Configuración del proveedor"}
 		</p>
-		<h2 class="text-lg font-semibold text-slate-100">Identidad comercial</h2>
+		<h2 class="text-lg font-semibold text-slate-100">
+			{onboarding ? `Datos de tu ${serviceLabel}` : "Identidad comercial"}
+		</h2>
 		<p class="text-sm text-slate-300">
-			Define cómo se reconoce el negocio dentro de Fastt y en los controles internos.
+			{
+				onboarding
+					? `Primero identifica quién ofrecerá el ${serviceLabel}. Después definirás cómo se preparará.`
+					: "Define cómo se reconoce el negocio dentro de Fastt y en los controles internos."
+			}
 		</p>
 	</header>
 	<Card>
@@ -32,42 +48,90 @@ const formAction = hasProvider && provider?.id ? `/api/providers/${provider.id}`
 			{onboardingNext ? <Input type="hidden" name="onboardingNext" value={onboardingNext} /> : null}
 			<div class="space-y-4">
 				<div class="space-y-1">
-					<h3 class="text-xl font-semibold text-slate-900">Datos base</h3>
+					<h3 class="text-xl font-semibold text-slate-900">
+						{onboarding ? `Quién ofrece el ${serviceLabel}` : "Datos base"}
+					</h3>
 					<p class="text-sm text-slate-600">
-						Estos campos son el punto de partida para verificación, impuestos, pagos e
-						integraciones.
+						{
+							onboarding
+								? onboardingIntro
+								: "Estos campos son el punto de partida para verificación, impuestos, pagos e integraciones."
+						}
 					</p>
 				</div>
-				<FormField label="Nombre comercial" htmlFor="displayName" required>
-					<Input id="displayName" name="displayName" required value={provider?.displayName ?? ""} />
+				<FormField
+					label="Nombre comercial"
+					htmlFor="displayName"
+					required
+					description={onboarding ? "Es el nombre que verán los viajeros." : undefined}
+					error={fieldError("displayName")}
+				>
+					<Input
+						id="displayName"
+						name="displayName"
+						required
+						value={value("displayName", provider?.displayName ?? "")}
+						hasError={Boolean(fieldError("displayName"))}
+						aria-invalid={fieldError("displayName") ? "true" : undefined}
+					/>
 				</FormField>
 				{
 					holderStorageReady ? (
-						<FormField label="Titular que operará el negocio" htmlFor="holderType" required>
-							<Select id="holderType" name="holderType" required>
-								<option value="" selected={!holderProfile?.holderType}>
+						<FormField
+							label="Titular que operará el negocio"
+							htmlFor="holderType"
+							required
+							description={
+								onboarding
+									? "Indica si ofreces el servicio como persona o empresa para identificar los requisitos aplicables."
+									: undefined
+							}
+							error={fieldError("holderType")}
+						>
+							<Select
+								id="holderType"
+								name="holderType"
+								required
+								hasError={Boolean(fieldError("holderType"))}
+							>
+								<option value="" selected={!value("holderType", holderProfile?.holderType ?? "")}>
 									Selecciona una opción
 								</option>
 								<option
 									value="persona_natural"
-									selected={holderProfile?.holderType === "persona_natural"}
+									selected={
+										value("holderType", holderProfile?.holderType ?? "") === "persona_natural"
+									}
 								>
 									Persona natural
 								</option>
-								<option value="entidad" selected={holderProfile?.holderType === "entidad"}>
+								<option
+									value="entidad"
+									selected={value("holderType", holderProfile?.holderType ?? "") === "entidad"}
+								>
 									Empresa o entidad
 								</option>
 							</Select>
 						</FormField>
 					) : null
 				}
-				<FormField label="Nombre legal del titular o razón social" htmlFor="legalName" required>
+				<FormField
+					label="Nombre legal del titular o razón social"
+					htmlFor="legalName"
+					required
+					description={onboarding
+						? "Debe coincidir con el nombre que aparece en los documentos del titular."
+						: undefined}
+					error={fieldError("legalName")}
+				>
 					<Input
 						id="legalName"
 						name="legalName"
 						required
-						value={provider?.legalName ?? ""}
+						value={value("legalName", provider?.legalName ?? "")}
 						class="scroll-mt-24"
+						hasError={Boolean(fieldError("legalName"))}
+						aria-invalid={fieldError("legalName") ? "true" : undefined}
 					/>
 				</FormField>
 				{
@@ -76,6 +140,12 @@ const formAction = hasProvider && provider?.id ? `/api/providers/${provider.id}`
 							label="País de residencia o constitución del titular (ISO 2 letras)"
 							htmlFor="holderCountry"
 							required
+							description={
+								onboarding
+									? "Usamos el país para mostrarte los requisitos que podrían aplicar al negocio."
+									: undefined
+							}
+							error={fieldError("holderCountry")}
 						>
 							<Input
 								id="holderCountry"
@@ -84,7 +154,8 @@ const formAction = hasProvider && provider?.id ? `/api/providers/${provider.id}`
 								pattern="[A-Za-z]{2}"
 								maxlength="2"
 								placeholder="CL"
-								value={holderProfile?.holderCountry ?? ""}
+								value={value("holderCountry", holderProfile?.holderCountry ?? "")}
+								hasError={Boolean(fieldError("holderCountry"))}
 							/>
 						</FormField>
 					) : null
@@ -95,6 +166,12 @@ const formAction = hasProvider && provider?.id ? `/api/providers/${provider.id}`
 							<FormField
 								label="País de residencia fiscal (ISO 2 letras)"
 								htmlFor="taxResidenceCountry"
+								description={
+									onboarding
+										? "Opcional por ahora; podrás completarlo cuando prepares la configuración fiscal."
+										: undefined
+								}
+								error={fieldError("taxResidenceCountry")}
 							>
 								<Input
 									id="taxResidenceCountry"
@@ -102,39 +179,69 @@ const formAction = hasProvider && provider?.id ? `/api/providers/${provider.id}`
 									pattern="[A-Za-z]{2}"
 									maxlength="2"
 									placeholder="CL"
-									value={holderProfile?.taxResidenceCountry ?? ""}
+									value={value("taxResidenceCountry", holderProfile?.taxResidenceCountry ?? "")}
+									hasError={Boolean(fieldError("taxResidenceCountry"))}
 								/>
 							</FormField>
-							<FormField label="País de la cuenta de pago (ISO 2 letras)" htmlFor="payoutCountry">
+							<FormField
+								label="País de la cuenta de pago (ISO 2 letras)"
+								htmlFor="payoutCountry"
+								description={
+									onboarding
+										? "Opcional por ahora; no configura todavía una cuenta de cobro."
+										: undefined
+								}
+								error={fieldError("payoutCountry")}
+							>
 								<Input
 									id="payoutCountry"
 									name="payoutCountry"
 									pattern="[A-Za-z]{2}"
 									maxlength="2"
 									placeholder="CL"
-									value={holderProfile?.payoutCountry ?? ""}
+									value={value("payoutCountry", holderProfile?.payoutCountry ?? "")}
+									hasError={Boolean(fieldError("payoutCountry"))}
 								/>
 							</FormField>
-							<FormField label="Quién cobrará al viajero" htmlFor="collectionModel">
-								<Select id="collectionModel" name="collectionModel">
+							<FormField
+								label="Quién cobrará al viajero"
+								htmlFor="collectionModel"
+								description={
+									onboarding
+										? "Puedes dejarlo pendiente. Esta elección no habilita cobros ni cambia permisos por sí sola."
+										: undefined
+								}
+								error={fieldError("collectionModel")}
+							>
+								<Select
+									id="collectionModel"
+									name="collectionModel"
+									hasError={Boolean(fieldError("collectionModel"))}
+								>
 									<option
 										value="undecided"
 										selected={
-											!holderProfile?.collectionModel ||
-											holderProfile.collectionModel === "undecided"
+											!value("collectionModel", holderProfile?.collectionModel ?? "") ||
+											value("collectionModel", holderProfile?.collectionModel ?? "") === "undecided"
 										}
 									>
 										Aún por definir
 									</option>
 									<option
 										value="property_collect"
-										selected={holderProfile?.collectionModel === "property_collect"}
+										selected={
+											value("collectionModel", holderProfile?.collectionModel ?? "") ===
+											"property_collect"
+										}
 									>
 										El proveedor cobra
 									</option>
 									<option
 										value="platform_collect"
-										selected={holderProfile?.collectionModel === "platform_collect"}
+										selected={
+											value("collectionModel", holderProfile?.collectionModel ?? "") ===
+											"platform_collect"
+										}
 									>
 										Fastt cobra, sujeto a contrato y revisión
 									</option>
@@ -149,7 +256,7 @@ const formAction = hasProvider && provider?.id ? `/api/providers/${provider.id}`
 				}
 			</div>
 			<div class="flex items-center justify-end gap-3">
-				<Button href={routes.providerSettings()} variant="secondary"> Volver </Button>
+				<Button href={backHref} variant="secondary"> Volver </Button>
 				<Button type="submit"> {submitLabel} </Button>
 			</div>
 		</form>

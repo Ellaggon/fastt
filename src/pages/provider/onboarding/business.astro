@@ -15,6 +15,7 @@ import {
 	providerOnboardingLegacyHref,
 	resolveProviderOnboardingRollout,
 } from "@/lib/onboarding/providerOnboardingRollout"
+import { PROVIDER_FORM_FLASH_COOKIE, readProviderFormFlash } from "@/lib/provider-form-flash"
 import { isHolderStorageAvailable, readProviderHolderProfile } from "@/lib/provider-holder-profile"
 import { getProviderFullAggregate } from "@/modules/catalog/public"
 
@@ -35,6 +36,16 @@ const profile = aggregate?.profile ?? null
 const hasProvider = Boolean(provider?.id)
 const success = String(Astro.url.searchParams.get("success") ?? "")
 const error = String(Astro.url.searchParams.get("error") ?? "")
+const identityFlash = readProviderFormFlash(
+	Astro.cookies.get(PROVIDER_FORM_FLASH_COOKIE)?.value,
+	"identity"
+)
+const profileFlash = readProviderFormFlash(
+	Astro.cookies.get(PROVIDER_FORM_FLASH_COOKIE)?.value,
+	"profile"
+)
+if (identityFlash || profileFlash)
+	Astro.cookies.delete(PROVIDER_FORM_FLASH_COOKIE, { path: "/provider" })
 const serviceLabel = vertical === "tour" ? "tour" : "alojamiento"
 Astro.cookies.set(PROVIDER_ONBOARDING_SELECTION_COOKIE, vertical, {
 	path: "/",
@@ -51,13 +62,17 @@ const productNext = providerOnboardingProductCreateHref(vertical)
 	<div class="space-y-6">
 		<header class="space-y-3">
 			<h1 class="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-				{hasProvider ? "Configura tu contacto operativo" : "Cuéntanos sobre tu negocio"}
+				{
+					hasProvider
+						? `Prepara cómo operará tu ${serviceLabel}`
+						: `Crea tu negocio para ofrecer un ${serviceLabel}`
+				}
 			</h1>
 			<p class="max-w-2xl text-sm leading-6 text-slate-300">
 				{
 					hasProvider
-						? `Usaremos estos datos para operar tu ${serviceLabel}. Después comenzarás su preparación.`
-						: "Estos datos identifican al titular del negocio y se usarán en verificación, pagos e integraciones."
+						? `Paso 2 de 2. Define los datos operativos y después crearás el borrador de tu ${serviceLabel}.`
+						: `Paso 1 de 2. Identifica quién ofrecerá el ${serviceLabel}; después definirás sus datos operativos.`
 				}
 			</p>
 		</header>
@@ -65,7 +80,7 @@ const productNext = providerOnboardingProductCreateHref(vertical)
 		{
 			success === "identity_saved" ? (
 				<Notice variant="success" title="Datos del negocio guardados">
-					Ahora confirma el contacto operativo para comenzar tu {serviceLabel}.
+					Ahora completa los datos operativos para crear el borrador de tu {serviceLabel}.
 				</Notice>
 			) : null
 		}
@@ -73,11 +88,16 @@ const productNext = providerOnboardingProductCreateHref(vertical)
 			error ? (
 				<Notice variant="error" title="No se pudo guardar">
 					{error === "validation_error"
-						? "Revisa los campos requeridos e inténtalo de nuevo."
+						? "Revisa los campos marcados e inténtalo de nuevo."
 						: "Intenta de nuevo en unos momentos."}
 				</Notice>
 			) : null
 		}
+		<Notice variant="info" title="Podrás guardar un borrador">
+			Guardar estos datos o crear la oferta no publica el servicio ni habilita reservas. Antes de
+			publicar, Fastt mostrará los requisitos pendientes del negocio y de la oferta, con la acción
+			para resolverlos.
+		</Notice>
 
 		{
 			hasProvider ? (
@@ -87,8 +107,12 @@ const productNext = providerOnboardingProductCreateHref(vertical)
 					supportEmailRequired={true}
 					showRelatedDomains={false}
 					redirectTo={productNext}
-					cancelHref="/provider/onboarding?intent=provider"
-					submitLabel={`Guardar y preparar ${serviceLabel}`}
+					cancelHref="/provider/onboarding?intent=provider&change=1"
+					draft={profileFlash}
+					fieldErrors={profileFlash?.errors}
+					onboarding={true}
+					serviceLabel={serviceLabel}
+					submitLabel={`Guardar y crear mi ${serviceLabel}`}
 				/>
 			) : (
 				<ProviderRegisterForm
@@ -97,6 +121,11 @@ const productNext = providerOnboardingProductCreateHref(vertical)
 					holderStorageReady={holderStorageReady}
 					hasProvider={false}
 					onboardingNext={identityNext}
+					backHref="/provider/onboarding?intent=provider&change=1"
+					draft={identityFlash}
+					fieldErrors={identityFlash?.errors}
+					onboarding={true}
+					serviceLabel={serviceLabel}
 					submitLabel="Guardar y continuar"
 				/>
 			)
