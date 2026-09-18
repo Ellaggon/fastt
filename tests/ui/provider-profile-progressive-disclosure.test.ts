@@ -30,7 +30,7 @@ describe("S5-2 profile progressive disclosure", () => {
 		expect(identityIdx).toBeGreaterThan(-1)
 		expect(opsIdx).toBeGreaterThan(identityIdx)
 
-		expect(page).toContain("Empieza por la identidad comercial")
+		expect(page).toContain("Edita la identidad y los datos operativos del negocio")
 		expect(page).toContain("Queda bloqueado hasta guardar la identidad comercial")
 
 		expect(form).toContain("data-profile-ops-form")

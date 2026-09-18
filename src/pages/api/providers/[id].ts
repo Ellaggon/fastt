@@ -11,7 +11,12 @@ import {
 } from "@/lib/provider-form-flash"
 import { updateProviderIdentityV2 } from "@/modules/catalog/public"
 import { ValidationError } from "@/lib/validation/ValidationError"
-import { parseHolderDeclaration, saveProviderHolderProfile } from "@/lib/provider-holder-profile"
+import {
+	collectionModelForIdentitySave,
+	parseHolderDeclaration,
+	readProviderHolderProfile,
+	saveProviderHolderProfile,
+} from "@/lib/provider-holder-profile"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 
 function shouldReturnHtmlRedirect(request: Request): boolean {
@@ -88,7 +93,6 @@ async function handleProviderUpdate(ctx: Parameters<APIRoute>[0]): Promise<Respo
 				holderCountry: String(form.get("holderCountry") ?? "").trim(),
 				taxResidenceCountry: String(form.get("taxResidenceCountry") ?? "").trim(),
 				payoutCountry: String(form.get("payoutCountry") ?? "").trim(),
-				collectionModel: String(form.get("collectionModel") ?? "").trim(),
 			},
 			errors: {},
 		}
@@ -102,10 +106,14 @@ async function handleProviderUpdate(ctx: Parameters<APIRoute>[0]): Promise<Respo
 			}
 		)
 		if (holderDeclaration) {
+			const existingHolder = await readProviderHolderProfile(providerId)
 			await saveProviderHolderProfile({
 				providerId,
 				userId: user.id,
-				declaration: holderDeclaration,
+				declaration: {
+					...holderDeclaration,
+					collectionModel: collectionModelForIdentitySave(existingHolder),
+				},
 			})
 		}
 		await invalidateProvider(providerId)
@@ -156,7 +164,7 @@ async function handleProviderUpdate(ctx: Parameters<APIRoute>[0]): Promise<Respo
 }
 
 export const GET: APIRoute = async ({ request }) => {
-	return redirectToProfileSettings(request, { error: "invalid_method" })
+	return Response.redirect(new URL(routes.providerSettingsProfile(), request.url), 303)
 }
 export const PATCH: APIRoute = handleProviderUpdate
 export const POST: APIRoute = handleProviderUpdate

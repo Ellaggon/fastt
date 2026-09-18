@@ -4,6 +4,7 @@ import {
 	providerOnboardingBusinessHref,
 	providerOnboardingProductCreateHref,
 	providerOnboardingStartHref,
+	resolveProviderOnboardingErrorReturn,
 	resolveProviderOnboardingNext,
 	resolveProviderOnboardingVertical,
 } from "@/lib/onboarding/providerOnboarding"
@@ -47,5 +48,19 @@ describe("provider onboarding destinations", () => {
 	it("rejects arbitrary or external form destinations", () => {
 		expect(resolveProviderOnboardingNext("https://example.test", "/fallback")).toBe("/fallback")
 		expect(resolveProviderOnboardingNext("/booking", "/fallback")).toBe("/fallback")
+	})
+
+	it("returns failed saves to the same editable step", () => {
+		for (const vertical of ["hotel", "tour"] as const) {
+			expect(
+				resolveProviderOnboardingErrorReturn(
+					providerOnboardingProductCreateHref(vertical),
+					"/provider/settings/profile"
+				)
+			).toBe(providerOnboardingBusinessHref(vertical))
+		}
+		expect(resolveProviderOnboardingErrorReturn("https://example.test", "/fallback")).toBe(
+			"/fallback"
+		)
 	})
 })

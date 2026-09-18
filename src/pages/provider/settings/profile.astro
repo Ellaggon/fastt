@@ -1,19 +1,24 @@
 ---
 import ProviderProfileForm from "@/components/provider/ProviderProfileForm.astro"
 import ProviderRegisterForm from "@/components/provider/ProviderRegisterForm.astro"
-import Button from "@/components/ui/Button.astro"
 import Notice from "@/components/ui/Notice.astro"
 import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import {
+	PROVIDER_ONBOARDING_SELECTION_COOKIE,
+	resolveProviderOnboardingVertical,
+} from "@/lib/onboarding/providerOnboarding"
+import { resolveProviderOnboardingEntryFromStorage } from "@/lib/onboarding/providerOnboardingEntry"
 import { PROVIDER_FORM_FLASH_COOKIE, readProviderFormFlash } from "@/lib/provider-form-flash"
 import { isHolderStorageAvailable, readProviderHolderProfile } from "@/lib/provider-holder-profile"
-import { TRUST_GLOSSARY } from "@/lib/provider-trust-map"
 import { routes } from "@/lib/routes"
 import { getProviderFullAggregate } from "@/modules/catalog/public"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user?.id) return Astro.redirect("/SignInPage")
+if (Astro.url.searchParams.get("error") === "invalid_method")
+	return Astro.redirect(routes.providerOnboardingStart())
 
 const providerId = await getProviderIdFromRequest(Astro.request, user)
 if (!providerId) return Astro.redirect(routes.providerOnboardingStart())
@@ -23,6 +28,38 @@ const holderProfile = providerId ? await readProviderHolderProfile(providerId) :
 const holderStorageReady = await isHolderStorageAvailable()
 const profile = aggregate?.profile ?? null
 const hasProvider = Boolean(provider?.id)
+const selectedVertical = resolveProviderOnboardingVertical(
+	Astro.cookies.get(PROVIDER_ONBOARDING_SELECTION_COOKIE)?.value
+)
+const onboardingEntry = await resolveProviderOnboardingEntryFromStorage({
+	providerId,
+	userId: user.id,
+	explicitProviderIntent: true,
+	selectedVertical,
+})
+const onboardingResume =
+	onboardingEntry.kind === "redirect" &&
+	onboardingEntry.reason !== "first_offer_published" &&
+	onboardingEntry.reason !== "unsupported_first_offer"
+		? {
+				href: onboardingEntry.href,
+				vertical: onboardingEntry.vertical,
+			}
+		: onboardingEntry.kind === "render-service-choice"
+			? {
+					href: "/provider/onboarding?intent=provider&change=1",
+					vertical: null,
+				}
+			: null
+const onboardingResumeLabel =
+	onboardingResume?.vertical === "tour"
+		? "Continuar creando tu tour"
+		: onboardingResume?.vertical === "hotel"
+			? "Continuar creando tu alojamiento"
+			: "Elegir servicio y continuar"
+const onboardingResumeTitle = onboardingResume?.vertical
+	? "Tu primera oferta sigue en preparación"
+	: "Completa tu primera oferta"
 
 const success = String(Astro.url.searchParams.get("success") ?? "").trim()
 const error = String(Astro.url.searchParams.get("error") ?? "").trim()
@@ -46,12 +83,12 @@ const successNotice =
 	success === "identity_saved"
 		? {
 				title: "Identidad comercial guardada",
-				body: "Nombre comercial y razón social actualizados. Abre el perfil operativo si quieres zona horaria, moneda y soporte, o continúa a verificación.",
+				body: "Nombre comercial y razón social actualizados. Puedes seguir editando los datos operativos desde esta página.",
 			}
 		: success === "ops_saved" || success === "saved"
 			? {
 					title: "Perfil operativo guardado",
-					body: "Zona horaria, moneda y contacto de soporte quedan listos para la operación del proveedor.",
+					body: "Zona horaria, moneda y contacto de soporte actualizados.",
 				}
 			: null
 
@@ -71,60 +108,44 @@ const errorNotice =
 						title: "Proveedor no encontrado",
 						body: "Crea primero la identidad comercial para habilitar el perfil operativo.",
 					}
-				: error === "invalid_method"
+				: error === "save_failed"
 					? {
-							title: "Vuelve a guardar desde el formulario",
-							body: "La ruta interna de guardado se abrió directamente y no recibió datos. Tus campos siguen intactos: usa el botón Guardar identidad de esta página.",
+							title: "No se pudo guardar",
+							body: "Hubo un problema al guardar. Intenta de nuevo en unos momentos.",
 						}
-					: error === "save_failed"
+					: error
 						? {
-								title: "No se pudo guardar",
-								body: "Hubo un problema al guardar. Intenta de nuevo en unos momentos.",
+								title: "No se pudo completar la acción",
+								body: "Revisa los datos e intenta de nuevo.",
 							}
-						: error
-							? {
-									title: "No se pudo completar la acción",
-									body: "Revisa los datos e intenta de nuevo.",
-								}
-							: null
+						: null
 ---
 
 <ProviderSettingsLayout
 	title="Perfil del proveedor"
 	heading="Perfil del proveedor"
-	description="Empieza por la identidad comercial. Zona horaria, moneda y soporte quedan en operación (colapsado). Fiscalidad, pagos e integraciones van en sus propias secciones."
+	description="Edita la identidad y los datos operativos del negocio. La publicación, verificación, pagos e integraciones se gestionan desde sus propios espacios."
 >
-	<div slot="actions" class="flex flex-wrap gap-3">
-		{
-			hasProvider ? (
-				<Button href={routes.providerSettingsVerification()} variant="secondary">
-					{TRUST_GLOSSARY.returnToVerification.label}
-				</Button>
-			) : null
-		}
-		<Button href={routes.providerSettings()} variant="secondary">Resumen</Button>
-	</div>
-
 	{
 		successNotice ? (
 			<Notice variant="success" title={successNotice.title}>
-				<p>{successNotice.body}</p>
-				{hasProvider ? (
-					<p
-						class="mt-3"
-						data-post-save-cta
-						data-funnel-domain="identity"
-						data-funnel-surface="profile"
-					>
-						<a
-							class="font-semibold underline"
-							href={routes.providerSettingsVerification()}
-							data-funnel-cta="post_save"
-						>
-							{TRUST_GLOSSARY.returnToVerification.label}
-						</a>
-					</p>
-				) : null}
+				{successNotice.body}
+			</Notice>
+		) : null
+	}
+	{
+		onboardingResume ? (
+			<Notice variant="info" title={onboardingResumeTitle} data-settings-onboarding-resume>
+				<p>
+					El negocio y sus datos se conservan. Retoma el alta sin crear ni duplicar otra oferta.
+				</p>
+				<a
+					href={onboardingResume.href}
+					class="mt-3 inline-flex rounded-md bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+					data-settings-onboarding-resume-cta
+				>
+					{onboardingResumeLabel}
+				</a>
 			</Notice>
 		) : null
 	}
@@ -156,6 +177,7 @@ const errorNotice =
 				hasProvider={hasProvider}
 				draft={identityFlash}
 				fieldErrors={identityFlash?.errors}
+				showBackAction={false}
 			/>
 		</div>
 
@@ -179,6 +201,8 @@ const errorNotice =
 							profile={profile}
 							draft={profileFlash}
 							fieldErrors={profileFlash?.errors}
+							showRelatedDomains={false}
+							showBackAction={false}
 						/>
 					</div>
 				</details>

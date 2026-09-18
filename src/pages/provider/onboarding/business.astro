@@ -34,6 +34,7 @@ const holderProfile = providerId ? await readProviderHolderProfile(providerId) :
 const holderStorageReady = await isHolderStorageAvailable()
 const profile = aggregate?.profile ?? null
 const hasProvider = Boolean(provider?.id)
+const needsIdentity = !hasProvider || (holderStorageReady && !holderProfile)
 const success = String(Astro.url.searchParams.get("success") ?? "")
 const error = String(Astro.url.searchParams.get("error") ?? "")
 const identityFlash = readProviderFormFlash(
@@ -63,22 +64,24 @@ const productNext = providerOnboardingProductCreateHref(vertical)
 		<header class="space-y-3">
 			<h1 class="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
 				{
-					hasProvider
-						? `Prepara cómo operará tu ${serviceLabel}`
-						: `Crea tu negocio para ofrecer un ${serviceLabel}`
+					needsIdentity
+						? hasProvider
+							? `Completa quién ofrecerá tu ${serviceLabel}`
+							: `Crea tu negocio para ofrecer un ${serviceLabel}`
+						: `Prepara cómo operará tu ${serviceLabel}`
 				}
 			</h1>
 			<p class="max-w-2xl text-sm leading-6 text-slate-300">
 				{
-					hasProvider
-						? `Paso 2 de 2. Define los datos operativos y después crearás el borrador de tu ${serviceLabel}.`
-						: `Paso 1 de 2. Identifica quién ofrecerá el ${serviceLabel}; después definirás sus datos operativos.`
+					needsIdentity
+						? `Paso 1 de 2. Identifica quién ofrecerá el ${serviceLabel}; después definirás sus datos operativos.`
+						: `Paso 2 de 2. Define los datos operativos y después crearás el borrador de tu ${serviceLabel}.`
 				}
 			</p>
 		</header>
 
 		{
-			success === "identity_saved" ? (
+			success === "identity_saved" && !needsIdentity ? (
 				<Notice variant="success" title="Datos del negocio guardados">
 					Ahora completa los datos operativos para crear el borrador de tu {serviceLabel}.
 				</Notice>
@@ -100,7 +103,7 @@ const productNext = providerOnboardingProductCreateHref(vertical)
 		</Notice>
 
 		{
-			hasProvider ? (
+			!needsIdentity ? (
 				<ProviderProfileForm
 					isProviderAvailable={true}
 					profile={profile}
@@ -119,7 +122,7 @@ const productNext = providerOnboardingProductCreateHref(vertical)
 					provider={provider}
 					holderProfile={holderProfile}
 					holderStorageReady={holderStorageReady}
-					hasProvider={false}
+					hasProvider={hasProvider}
 					onboardingNext={identityNext}
 					backHref="/provider/onboarding?intent=provider&change=1"
 					draft={identityFlash}

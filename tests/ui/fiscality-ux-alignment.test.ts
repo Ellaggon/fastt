@@ -9,13 +9,19 @@ test("fiscality uses a contextual header, segmented navigation and progressive f
 	expect(read("src/pages/dashboard/index.astro")).toContain('class="sr-only">Resumen Operativo')
 	expect(read("src/pages/dashboard/index.astro")).not.toContain("border-b border-slate-800 pb-5")
 	expect(read("src/components/dashboard/DashboardTopBar.astro")).toContain("isDashboardWorkspace")
-	expect(read("src/components/dashboard/DashboardTopBar.astro")).toContain('label="Resumen Operativo"')
+	expect(read("src/components/dashboard/DashboardTopBar.astro")).toContain(
+		'label="Resumen Operativo"'
+	)
 	expect(read("src/components/dashboard/DashboardTopBar.astro")).toContain('value=""')
 	expect(read("src/components/dashboard/DashboardTopBar.astro")).toContain('icon="dashboard"')
 	expect(read("src/components/dashboard/DashboardTopBar.astro")).not.toContain('label="Panel"')
 	expect(read("src/components/dashboard/DashboardTopBar.astro")).toContain("isRatesWorkspace")
-	expect(read("src/components/dashboard/DashboardTopBar.astro")).toContain("isRatePlanConditionsView")
-	expect(read("src/components/dashboard/DashboardTopBar.astro")).toContain("RatePlanContextSwitcher")
+	expect(read("src/components/dashboard/DashboardTopBar.astro")).toContain(
+		"isRatePlanConditionsView"
+	)
+	expect(read("src/components/dashboard/DashboardTopBar.astro")).toContain(
+		"RatePlanContextSwitcher"
+	)
 	expect(read("src/components/dashboard/DashboardTopBar.astro")).toContain("SalesContextSwitcher")
 	expect(read("src/components/rates/RatePlanContextSwitcher.astro")).toContain('label="Tarifa"')
 	expect(read("src/components/rates/RatePlanContextSwitcher.astro")).toContain('icon="rates"')
@@ -25,7 +31,9 @@ test("fiscality uses a contextual header, segmented navigation and progressive f
 	expect(read("src/components/rates/SalesContextSwitcher.astro")).toContain("Tarifas")
 	expect(read("src/components/rates/SalesContextSwitcher.astro")).toContain("Conexiones iCal")
 	expect(read("src/components/rates/SalesContextSwitcher.astro")).toContain("Multicalendario")
-	expect(read("src/components/ui/ContextSwitcher.astro")).toContain("fastt-context-switcher--title-only")
+	expect(read("src/components/ui/ContextSwitcher.astro")).toContain(
+		"fastt-context-switcher--title-only"
+	)
 	expect(read("src/components/ui/ContextSwitcher.astro")).toContain('"sales"')
 	expect(read("src/components/ui/ContextSwitcher.astro")).toContain("data-context-switcher-pending")
 	expect(read("src/components/ui/ContextSwitcher.astro")).toContain("data-context-switcher-value")
@@ -40,7 +48,9 @@ test("fiscality uses a contextual header, segmented navigation and progressive f
 	expect(read("src/pages/product/[id]/index.astro")).not.toContain("ProductContextSwitcher")
 	expect(read("src/pages/product/[id]/index.astro")).not.toContain("border-b border-slate-800 pb-5")
 	expect(read("src/pages/provider/house-rules.astro")).toContain("flex flex-col gap-2")
-	expect(read("src/pages/provider/house-rules.astro")).toContain('class="sr-only">Reglas para huéspedes')
+	expect(read("src/pages/provider/house-rules.astro")).toContain(
+		'class="sr-only">Reglas para huéspedes'
+	)
 	expect(read("src/pages/provider/house-rules.astro")).not.toContain(
 		"text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl"
 	)
@@ -49,29 +59,47 @@ test("fiscality uses a contextual header, segmented navigation and progressive f
 		"Define comportamiento, llegada y salida del alojamiento. Cancelación, pago y no presentación se editan en Condiciones de cada tarifa."
 	)
 	expect(read("src/pages/provider/house-rules.astro")).not.toContain("ProductContextSwitcher")
-	expect(read("src/pages/provider/house-rules.astro")).not.toContain("border-b border-slate-800 pb-5")
+	expect(read("src/pages/provider/house-rules.astro")).not.toContain(
+		"border-b border-slate-800 pb-5"
+	)
 	expect(read("src/layouts/ProviderSettingsLayout.astro")).toContain("flex flex-col gap-2")
 	expect(read("src/layouts/ProviderSettingsLayout.astro")).toContain(
 		"text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl"
 	)
-	expect(read("src/layouts/ProviderSettingsLayout.astro")).not.toContain("border-b border-slate-800")
+	expect(read("src/layouts/ProviderSettingsLayout.astro")).not.toContain(
+		"border-b border-slate-800"
+	)
 	expect(read("src/components/dashboard/DashboardTopBar.astro")).toContain("isHouseRulesWorkspace")
-	expect(read("src/components/dashboard/DashboardTopBar.astro")).toContain("ProviderAccountSwitcher")
-	expect(read("src/components/provider/ProviderAccountSwitcher.astro")).toContain("TRUST_GLOSSARY.page.eyebrow")
-	expect(read("src/components/provider/ProviderAccountSwitcher.astro")).toContain("TRUST_GLOSSARY.page.heading")
+	expect(read("src/components/dashboard/DashboardTopBar.astro")).not.toContain(
+		"ProviderAccountSwitcher"
+	)
+	expect(read("src/components/provider/ProviderAccountSwitcher.astro")).toContain(
+		"TRUST_GLOSSARY.page.eyebrow"
+	)
+	expect(read("src/components/provider/ProviderAccountSwitcher.astro")).toContain(
+		"TRUST_GLOSSARY.page.heading"
+	)
 	expect(read("src/lib/provider-trust-map.ts")).toContain('eyebrow: "Cuenta del proveedor"')
 	expect(read("src/lib/provider-trust-map.ts")).toContain('heading: "Verificación"')
-	expect(read("src/components/tax-fees/FiscalScopeSwitcher.astro")).toContain("Configuración comercial")
+	expect(read("src/components/tax-fees/FiscalScopeSwitcher.astro")).toContain(
+		"Configuración comercial"
+	)
 	expect(read("src/components/tax-fees/FiscalScopeSwitcher.astro")).toContain("Toda la cuenta")
 	expect(read("src/components/tax-fees/FiscalScopeSwitcher.astro")).toContain("ContextSwitcher")
 	expect(read("src/layouts/FiscalWorkspaceLayout.astro")).not.toContain("Relacionadas")
 	const fiscalLayout = read("src/layouts/FiscalWorkspaceLayout.astro")
 	expect(fiscalLayout).not.toContain("border-b border-slate-800 pb-5")
 	expect(read("src/components/tax-fees/FiscalWorkspaceTabs.astro")).toContain("TabsInsidePanel")
-	expect(read("src/components/tax-fees/FiscalWorkspaceTabs.astro")).toContain("fastt-tabs-inside-panel__item")
-	expect(read("src/components/tax-fees/FiscalWorkspaceTabs.astro")).toContain('data-astro-prefetch="viewport"')
+	expect(read("src/components/tax-fees/FiscalWorkspaceTabs.astro")).toContain(
+		"fastt-tabs-inside-panel__item"
+	)
+	expect(read("src/components/tax-fees/FiscalWorkspaceTabs.astro")).toContain(
+		'data-astro-prefetch="viewport"'
+	)
 	expect(read("src/layouts/FiscalWorkspaceLayout.astro")).toContain("Identidad fiscal")
-	expect(read("src/layouts/FiscalWorkspaceLayout.astro")).toContain("providerTaxIdentityPresentation")
+	expect(read("src/layouts/FiscalWorkspaceLayout.astro")).toContain(
+		"providerTaxIdentityPresentation"
+	)
 	expect(read("src/layouts/FiscalWorkspaceLayout.astro")).toContain("identity.darkBadge")
 	expect(read("src/layouts/FiscalWorkspaceLayout.astro")).toContain("flex flex-col gap-2")
 	expect(read("src/layouts/FiscalWorkspaceLayout.astro")).toContain(
@@ -80,7 +108,9 @@ test("fiscality uses a contextual header, segmented navigation and progressive f
 	expect(read("src/layouts/FiscalWorkspaceLayout.astro")).toContain(
 		"inline-flex w-fit items-center gap-2 text-xs font-semibold text-slate-400 hover:text-slate-200"
 	)
-	expect(read("src/layouts/FiscalWorkspaceLayout.astro")).toContain("text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl")
+	expect(read("src/layouts/FiscalWorkspaceLayout.astro")).toContain(
+		"text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl"
+	)
 	expect(read("src/components/dashboard/DashboardTopBar.astro")).toContain("fastt-side-sheet--dark")
 	expect(read("src/components/dashboard/DashboardTopBar.astro")).toContain("Abrir menú")
 	expect(read("src/styles/global.css")).toContain("padding: 0.7rem 0.7rem 0.55rem")

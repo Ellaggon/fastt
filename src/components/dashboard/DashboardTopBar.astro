@@ -13,7 +13,6 @@ import DashboardSidebar from "@/components/dashboard/DashboardSidebar.astro"
 import WorkspacePreferencesDrawer from "@/components/dashboard/WorkspacePreferencesDrawer.astro"
 import AccommodationContextSwitcher from "@/components/product/AccommodationContextSwitcher.astro"
 import ProductContextSwitcher from "@/components/product/ProductContextSwitcher.astro"
-import ProviderAccountSwitcher from "@/components/provider/ProviderAccountSwitcher.astro"
 import RatePlanContextSwitcher from "@/components/rates/RatePlanContextSwitcher.astro"
 import SalesContextSwitcher from "@/components/rates/SalesContextSwitcher.astro"
 import FiscalScopeSwitcher from "@/components/tax-fees/FiscalScopeSwitcher.astro"
@@ -115,14 +114,6 @@ const isRatePlanConditionsView =
 	Boolean(ratePlanIdFromPath) &&
 	String(Astro.url.searchParams.get("vista") ?? "conditions") === "conditions"
 const isRatesWorkspace = workspacePath === "/rates" || workspacePath.startsWith("/rates/")
-const isVerificationWorkspace =
-	workspacePath === "/provider/settings/verification" ||
-	workspacePath.startsWith("/provider/settings/verification/")
-const isAccountSettingsWorkspace =
-	workspacePath === "/provider/settings" ||
-	workspacePath.startsWith("/provider/settings/profile") ||
-	workspacePath.startsWith("/provider/settings/team") ||
-	isVerificationWorkspace
 const showContextSwitcher =
 	Boolean(providerId) &&
 	(isDashboardWorkspace ||
@@ -131,8 +122,7 @@ const showContextSwitcher =
 		isFiscalWorkspace ||
 		isGuidedProductWorkspace ||
 		isProductWorkspace ||
-		isHouseRulesWorkspace ||
-		isAccountSettingsWorkspace)
+		isHouseRulesWorkspace)
 ---
 
 <header class="relative z-40 bg-black">
@@ -258,8 +248,6 @@ const showContextSwitcher =
 					/>
 				) : showContextSwitcher && isFiscalWorkspace ? (
 					<FiscalScopeSwitcher providerId={providerId} variant="topbar" />
-				) : showContextSwitcher && isAccountSettingsWorkspace ? (
-					<ProviderAccountSwitcher variant="topbar" />
 				) : showContextSwitcher && isHouseRulesWorkspace ? (
 					<ProductContextSwitcher
 						providerId={providerId}

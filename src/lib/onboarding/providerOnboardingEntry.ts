@@ -1,6 +1,7 @@
 import { buildPlaybookHref } from "@/lib/playbook/launch-accommodation"
 import { buildTourPlaybookHref } from "@/lib/playbook/launch-tour"
 import { routes } from "@/lib/routes"
+import { isHolderStorageAvailable, readProviderHolderProfile } from "@/lib/provider-holder-profile"
 import { asc, db, eq, Product, ProviderProfile } from "@/shared/infrastructure/db/compat"
 import { listActivePreparationSessions, type PreparationResume } from "./preparationSession"
 import {
@@ -19,7 +20,7 @@ export type ProviderOnboardingEntry =
 	| { kind: "render-welcome" }
 	| { kind: "render-service-choice" }
 	| { kind: "render-continue"; vertical: ProviderOnboardingVertical }
-	| { kind: "redirect"; href: string; reason: string }
+	| { kind: "redirect"; href: string; reason: string; vertical?: ProviderOnboardingVertical }
 
 function isOperationalProfileComplete(
 	profile: {
@@ -67,6 +68,7 @@ export function resolveProviderOnboardingEntry(input: {
 	} | null
 	activeSessions: readonly PreparationResume[]
 	firstProduct: OnboardingProduct | null
+	holderDeclarationPending?: boolean
 }): ProviderOnboardingEntry {
 	if (!input.hasProvider) {
 		if (input.explicitProviderIntent && input.selectedVertical) {
@@ -84,30 +86,57 @@ export function resolveProviderOnboardingEntry(input: {
 
 	const activeSession = input.activeSessions[0]
 	if (activeSession) {
-		return { kind: "redirect", href: activeSession.href, reason: "active_preparation_session" }
+		return {
+			kind: "redirect",
+			href: activeSession.href,
+			reason: "active_preparation_session",
+			vertical: activeSession.vertical,
+		}
 	}
 
 	if (input.firstProduct) {
 		if (input.firstProduct.publicationState === "published") {
-			return { kind: "redirect", href: routes.dashboard(), reason: "first_offer_published" }
+			return {
+				kind: "redirect",
+				href: routes.dashboard(),
+				reason: "first_offer_published",
+				vertical: productVertical(input.firstProduct.productType) ?? undefined,
+			}
 		}
 		const href = fallbackPreparationHref(input.firstProduct)
-		if (href) return { kind: "redirect", href, reason: "first_offer_needs_preparation" }
+		if (href) {
+			return {
+				kind: "redirect",
+				href,
+				reason: "first_offer_needs_preparation",
+				vertical: productVertical(input.firstProduct.productType) ?? undefined,
+			}
+		}
 		return { kind: "redirect", href: routes.dashboard(), reason: "unsupported_first_offer" }
 	}
 
 	if (!input.selectedVertical) return { kind: "render-service-choice" }
+	if (input.holderDeclarationPending) {
+		return {
+			kind: "redirect",
+			href: providerOnboardingBusinessHref(input.selectedVertical),
+			reason: "holder_declaration_pending",
+			vertical: input.selectedVertical,
+		}
+	}
 	if (!isOperationalProfileComplete(input.profile)) {
 		return {
 			kind: "redirect",
 			href: providerOnboardingBusinessHref(input.selectedVertical),
 			reason: "operational_profile_incomplete",
+			vertical: input.selectedVertical,
 		}
 	}
 	return {
 		kind: "redirect",
 		href: providerOnboardingProductCreateHref(input.selectedVertical),
 		reason: "business_ready_for_first_offer",
+		vertical: input.selectedVertical,
 	}
 }
 
@@ -127,8 +156,9 @@ export async function resolveProviderOnboardingEntryFromStorage(input: {
 			firstProduct: null,
 		})
 	}
+	const providerId = input.providerId
 
-	const [profile, product, activeSessions] = await Promise.all([
+	const [profile, product, activeSessions, holderDeclarationPending] = await Promise.all([
 		db
 			.select({
 				timezone: ProviderProfile.timezone,
@@ -136,7 +166,7 @@ export async function resolveProviderOnboardingEntryFromStorage(input: {
 				supportEmail: ProviderProfile.supportEmail,
 			})
 			.from(ProviderProfile)
-			.where(eq(ProviderProfile.providerId, input.providerId))
+			.where(eq(ProviderProfile.providerId, providerId))
 			.then((rows) => rows[0] ?? null),
 		db
 			.select({
@@ -145,16 +175,19 @@ export async function resolveProviderOnboardingEntryFromStorage(input: {
 				publicationState: Product.publicationState,
 			})
 			.from(Product)
-			.where(eq(Product.providerId, input.providerId))
+			.where(eq(Product.providerId, providerId))
 			.orderBy(asc(Product.creationDate))
 			.limit(1)
 			.then((rows) => rows[0] ?? null),
-		listActivePreparationSessions(input.providerId, input.userId).catch((error) => {
+		listActivePreparationSessions(providerId, input.userId).catch((error) => {
 			// A missing Phase 2 table must not strand a new provider. The migration is
 			// still required to offer durable resumption, but product state remains safe.
 			console.error("Provider preparation session lookup failed.", error)
 			return [] as PreparationResume[]
 		}),
+		isHolderStorageAvailable().then(async (ready) =>
+			ready ? !(await readProviderHolderProfile(providerId)) : false
+		),
 	])
 
 	return resolveProviderOnboardingEntry({
@@ -164,5 +197,6 @@ export async function resolveProviderOnboardingEntryFromStorage(input: {
 		profile,
 		activeSessions,
 		firstProduct: product,
+		holderDeclarationPending,
 	})
 }

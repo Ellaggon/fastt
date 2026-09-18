@@ -54,7 +54,7 @@ function writeIdentityFlash(
 }
 
 export const GET: APIRoute = async ({ request }) => {
-	return redirectToProfileSettings(request, { error: "invalid_method" })
+	return Response.redirect(new URL(routes.providerOnboardingStart(), request.url), 303)
 }
 
 export const POST: APIRoute = async ({ request, cookies }) => {
@@ -87,7 +87,6 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 				holderCountry: String(form.get("holderCountry") ?? "").trim(),
 				taxResidenceCountry: String(form.get("taxResidenceCountry") ?? "").trim(),
 				payoutCountry: String(form.get("payoutCountry") ?? "").trim(),
-				collectionModel: String(form.get("collectionModel") ?? "").trim(),
 			},
 			errors: {},
 		}

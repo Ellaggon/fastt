@@ -17,6 +17,7 @@ const {
 	draft = null,
 	fieldErrors = {},
 	submitLabel = "Guardar identidad",
+	showBackAction = true,
 	onboarding = false,
 	serviceLabel = "servicio",
 } = Astro.props
@@ -24,7 +25,9 @@ const formAction = hasProvider && provider?.id ? `/api/providers/${provider.id}`
 const value = (field: string, fallback = "") => String(draft?.values?.[field] ?? fallback)
 const fieldError = (field: string) =>
 	fieldErrors?.[field] ? providerFormErrorMessage(field, String(fieldErrors[field])) : ""
-const onboardingIntro = `Guardar estos datos crea el negocio desde el que prepararás tu ${serviceLabel}. No publica el ${serviceLabel} ni habilita reservas o cobros.`
+const onboardingIntro = hasProvider
+	? `Completa la declaración de quién ofrece tu ${serviceLabel}. El negocio ya está guardado; actualizarlo no crea otro ni habilita publicación, reservas o cobros.`
+	: `Guardar estos datos crea el negocio desde el que prepararás tu ${serviceLabel}. No publica el ${serviceLabel} ni habilita reservas o cobros.`
 ---
 
 <section class="space-y-4">
@@ -44,7 +47,7 @@ const onboardingIntro = `Guardar estos datos crea el negocio desde el que prepar
 		</p>
 	</header>
 	<Card>
-		<form method="POST" action={formAction} class="max-w-3xl space-y-6">
+		<form method="POST" action={formAction} class="max-w-3xl space-y-6" data-astro-reload>
 			{onboardingNext ? <Input type="hidden" name="onboardingNext" value={onboardingNext} /> : null}
 			<div class="space-y-4">
 				<div class="space-y-1">
@@ -153,7 +156,7 @@ const onboardingIntro = `Guardar estos datos crea el negocio desde el que prepar
 								required
 								pattern="[A-Za-z]{2}"
 								maxlength="2"
-								placeholder="CL"
+								placeholder="BO"
 								value={value("holderCountry", holderProfile?.holderCountry ?? "")}
 								hasError={Boolean(fieldError("holderCountry"))}
 							/>
@@ -178,7 +181,7 @@ const onboardingIntro = `Guardar estos datos crea el negocio desde el que prepar
 									name="taxResidenceCountry"
 									pattern="[A-Za-z]{2}"
 									maxlength="2"
-									placeholder="CL"
+									placeholder="BO"
 									value={value("taxResidenceCountry", holderProfile?.taxResidenceCountry ?? "")}
 									hasError={Boolean(fieldError("taxResidenceCountry"))}
 								/>
@@ -198,65 +201,24 @@ const onboardingIntro = `Guardar estos datos crea el negocio desde el que prepar
 									name="payoutCountry"
 									pattern="[A-Za-z]{2}"
 									maxlength="2"
-									placeholder="CL"
+									placeholder="BO"
 									value={value("payoutCountry", holderProfile?.payoutCountry ?? "")}
 									hasError={Boolean(fieldError("payoutCountry"))}
 								/>
 							</FormField>
-							<FormField
-								label="Quién cobrará al viajero"
-								htmlFor="collectionModel"
-								description={
-									onboarding
-										? "Puedes dejarlo pendiente. Esta elección no habilita cobros ni cambia permisos por sí sola."
-										: undefined
-								}
-								error={fieldError("collectionModel")}
-							>
-								<Select
-									id="collectionModel"
-									name="collectionModel"
-									hasError={Boolean(fieldError("collectionModel"))}
-								>
-									<option
-										value="undecided"
-										selected={
-											!value("collectionModel", holderProfile?.collectionModel ?? "") ||
-											value("collectionModel", holderProfile?.collectionModel ?? "") === "undecided"
-										}
-									>
-										Aún por definir
-									</option>
-									<option
-										value="property_collect"
-										selected={
-											value("collectionModel", holderProfile?.collectionModel ?? "") ===
-											"property_collect"
-										}
-									>
-										El proveedor cobra
-									</option>
-									<option
-										value="platform_collect"
-										selected={
-											value("collectionModel", holderProfile?.collectionModel ?? "") ===
-											"platform_collect"
-										}
-									>
-										Fastt cobra, sujeto a contrato y revisión
-									</option>
-								</Select>
-							</FormField>
-							<p class="text-sm leading-6 text-slate-600">
-								La declaración se guarda para revisar los requisitos aplicables. No cambia por sí
-								sola los permisos de publicación, reservas ni cobros.
-							</p>
 						</>
 					) : null
 				}
 			</div>
 			<div class="flex items-center justify-end gap-3">
-				<Button href={backHref} variant="secondary"> Volver </Button>
+				{
+					showBackAction ? (
+						<Button href={backHref} variant="secondary">
+							{" "}
+							Volver{" "}
+						</Button>
+					) : null
+				}
 				<Button type="submit"> {submitLabel} </Button>
 			</div>
 		</form>
