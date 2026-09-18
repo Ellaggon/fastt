@@ -25,8 +25,12 @@ describe("Settings IA: Verificación outside settings tabs", () => {
 		const layout = read("src/layouts/ProviderSettingsLayout.astro")
 		const verification = readVerificationSurface("src/pages/provider/settings/verification.astro")
 		const optionals = read("src/pages/provider/settings/verification/documents.astro")
-		const fiscalVerification = readVerificationSurface("src/pages/provider/settings/verification/fiscal.astro")
-		const paymentsVerification = readVerificationSurface("src/pages/provider/settings/verification/payments.astro")
+		const fiscalVerification = readVerificationSurface(
+			"src/pages/provider/settings/verification/fiscal.astro"
+		)
+		const paymentsVerification = readVerificationSurface(
+			"src/pages/provider/settings/verification/payments.astro"
+		)
 
 		expect(layout).toContain("showSettingsTabs")
 		expect(layout).toContain("showSettingsTabs ? <ProviderSettingsSubnav")
@@ -81,14 +85,19 @@ describe("Settings IA: Verificación outside settings tabs", () => {
 		const glossary = read("src/lib/provider-trust-map.ts")
 		const profile = read("src/pages/provider/settings/profile.astro")
 		const fiscal = read("src/pages/provider/settings/tax-fees/identity.astro")
-		const verificationFiscal = readVerificationSurface("src/pages/provider/settings/verification/fiscal.astro")
-		const verificationPayments = readVerificationSurface("src/pages/provider/settings/verification/payments.astro")
+		const verificationFiscal = readVerificationSurface(
+			"src/pages/provider/settings/verification/fiscal.astro"
+		)
+		const verificationPayments = readVerificationSurface(
+			"src/pages/provider/settings/verification/payments.astro"
+		)
 		const documents = read("src/pages/provider/settings/verification/documents.astro")
 		const payments = read("src/pages/provider/settings/payments.astro")
 
 		expect(glossary).toContain("returnToVerification")
 		expect(glossary).toContain("Volver a Verificación")
-		expect(profile).toContain("TRUST_GLOSSARY.returnToVerification")
+		expect(profile).not.toContain("TRUST_GLOSSARY.returnToVerification")
+		expect(profile).toContain("data-settings-onboarding-resume")
 		expect(documents).toContain("Volver a verificación")
 		expect(fiscal).toContain("Astro.redirect(routes.providerSettingsVerificationFiscal())")
 		expect(verificationFiscal).not.toContain("TRUST_GLOSSARY.returnToVerification")

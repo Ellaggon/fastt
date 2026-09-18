@@ -69,3 +69,16 @@ export function resolveProviderOnboardingNext(value: unknown, fallback: string):
 	}
 	return fallback
 }
+
+/** Keep failed form submissions on their editable onboarding step. */
+export function resolveProviderOnboardingErrorReturn(value: unknown, fallback: string): string {
+	const next = resolveProviderOnboardingNext(value, "")
+	if (next.startsWith("/provider/onboarding/business?")) return next
+	if (next.startsWith("/product/create?")) {
+		const params = new URL(next, "http://fastt.local").searchParams
+		return providerOnboardingBusinessHref(
+			params.get("playbook") === "launch-tour" ? "tour" : "hotel"
+		)
+	}
+	return fallback
+}

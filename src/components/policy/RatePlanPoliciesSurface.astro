@@ -56,6 +56,7 @@ interface Props {
 	showPlanSummary?: boolean
 	showHeader?: boolean
 	inlineHotelArrival?: boolean
+	offeringType?: "accommodation" | "tour"
 }
 
 const {
@@ -67,9 +68,11 @@ const {
 	showPlanSummary = true,
 	showHeader = true,
 	inlineHotelArrival = false,
+	offeringType = "accommodation",
 } = Astro.props
 const isProfessionalMode = requestedProfessionalMode && (showHeader || showPlanSummary)
 const isGuidedSurface = inlineHotelArrival
+const isTour = offeringType === "tour"
 
 const technicalCategories = POLICY_CATEGORY_OPTIONS.map((category) => ({
 	key: category.value,
@@ -307,11 +310,15 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 										</span>
 										<div class="min-w-0">
 											<div class="flex flex-wrap items-center gap-2">
-												<h4 class="font-semibold text-slate-950">Pago y garantía</h4>
+												<h4 class="font-semibold text-slate-950">
+													{isTour ? "Pago al proveedor" : "Pago y garantía"}
+												</h4>
 												<Badge variant={paymentStatus.variant}>{paymentStatus.label}</Badge>
 											</div>
 											<p class="mt-1 text-sm leading-5 text-slate-500">
-												Cuándo se cobra y qué asegura la reserva.
+												{isTour
+													? "El viajero paga al proveedor al realizar el tour. Fastt no procesa este pago por ahora."
+													: "Cuándo se cobra y qué asegura la reserva."}
 											</p>
 										</div>
 									</div>
@@ -328,7 +335,11 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 												data-assignment-scope-id={plan.ratePlanId}
 												data-assignment-category="Payment"
 											>
-												{paymentMissing ? "Configurar pago" : "Cambiar pago"}
+												{paymentMissing
+													? isTour
+														? "Confirmar pago al proveedor"
+														: "Configurar pago"
+													: "Cambiar pago"}
 												{paymentMissing && <ArrowRight class="h-4 w-4" />}
 											</Button>
 										</div>
@@ -554,4 +565,8 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 	}
 </section>
 
-<PolicyAssignmentFlow defaultScope="rate_plan" isProfessionalMode={isProfessionalMode} />
+<PolicyAssignmentFlow
+	defaultScope="rate_plan"
+	isProfessionalMode={isProfessionalMode}
+	paymentMode={isTour ? "provider_at_experience_only" : "standard"}
+/>

@@ -28,22 +28,23 @@ describe("provider operational navigation", () => {
 		expect(labels).toEqual(
 			expect.arrayContaining(["Mis tours", "Salidas y cupos", "Operación de hoy", "Tarifas"])
 		)
+		expect(labels).not.toContain("Mis alojamientos")
 		expect(labels).not.toContain("Habitaciones")
 		expect(labels).not.toContain("Reglas para huéspedes")
 	})
 
 	it("only adopts a vertical automatically when the provider has one active vertical", () => {
 		expect(
-		resolveOperationalSidebarVertical({
-			workspaceScope: { vertical: null, productId: null },
-			availableVerticals: ["tour"],
-		})
-	).toBe("tour")
+			resolveOperationalSidebarVertical({
+				workspaceScope: { vertical: null, productId: null },
+				availableVerticals: ["tour"],
+			})
+		).toBe("tour")
 		expect(
-		resolveOperationalSidebarVertical({
-			workspaceScope: { vertical: null, productId: null },
-			availableVerticals: ["hotel", "tour"],
-		})
-	).toBeNull()
-})
+			resolveOperationalSidebarVertical({
+				workspaceScope: { vertical: null, productId: null },
+				availableVerticals: ["hotel", "tour"],
+			})
+		).toBeNull()
+	})
 })

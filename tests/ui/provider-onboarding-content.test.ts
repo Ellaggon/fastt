@@ -19,6 +19,8 @@ describe("provider onboarding content", () => {
 		expect(business).toContain("Guardar y crear mi")
 		expect(identity).toContain("Es el nombre que verán los viajeros.")
 		expect(identity).toContain("No publica el")
+		expect(identity).not.toContain("Quién cobrará al viajero")
+		expect(identity).not.toContain('name="collectionModel"')
 		expect(operations).toContain("Define las horas de las salidas o la disponibilidad.")
 		expect(operations).toContain("Te lo pedimos ahora para dejarlo listo antes de publicar")
 	})

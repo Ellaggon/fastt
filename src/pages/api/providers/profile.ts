@@ -8,7 +8,10 @@ import { upsertProviderProfileV2 } from "@/modules/catalog/public"
 import { ValidationError } from "@/lib/validation/ValidationError"
 import { inferSettingsRiskLevel, writeProviderAuditLog } from "@/lib/provider-audit"
 import { routes } from "@/lib/routes"
-import { resolveProviderOnboardingNext } from "@/lib/onboarding/providerOnboarding"
+import {
+	resolveProviderOnboardingErrorReturn,
+	resolveProviderOnboardingNext,
+} from "@/lib/onboarding/providerOnboarding"
 import {
 	createProviderFormFlash,
 	PROVIDER_FORM_FLASH_COOKIE,
@@ -32,6 +35,20 @@ function redirectAfterProfileSave(
 	onboardingNext: unknown
 ): Response {
 	const target = resolveProviderOnboardingNext(onboardingNext, routes.providerSettingsProfile())
+	const url = new URL(target, request.url)
+	for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value)
+	return Response.redirect(url, 303)
+}
+
+function redirectAfterProfileError(
+	request: Request,
+	params: Record<string, string>,
+	onboardingNext: unknown
+): Response {
+	const target = resolveProviderOnboardingErrorReturn(
+		onboardingNext,
+		routes.providerSettingsProfile()
+	)
 	const url = new URL(target, request.url)
 	for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value)
 	return Response.redirect(url, 303)
@@ -166,7 +183,7 @@ export const handleProviderProfilePost: APIRoute = async ({ request, cookies }) 
 		if (e instanceof ValidationError) {
 			if (shouldReturnHtmlRedirect(request)) {
 				writeProfileFlash(cookies, profileFlash, e.errors)
-				return redirectAfterProfileSave(request, { error: "validation_error" }, onboardingNext)
+				return redirectAfterProfileError(request, { error: "validation_error" }, onboardingNext)
 			}
 			return new Response(JSON.stringify({ error: "validation_error", errors: e.errors }), {
 				status: 400,
@@ -176,7 +193,7 @@ export const handleProviderProfilePost: APIRoute = async ({ request, cookies }) 
 		const msg = e instanceof Error ? e.message : "Unknown error"
 		if (shouldReturnHtmlRedirect(request)) {
 			writeProfileFlash(cookies, profileFlash, {})
-			return redirectAfterProfileSave(
+			return redirectAfterProfileError(
 				request,
 				{
 					error: msg.includes("Provider not found") ? "provider_not_found" : "save_failed",

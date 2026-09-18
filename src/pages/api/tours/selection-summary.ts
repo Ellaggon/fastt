@@ -5,6 +5,7 @@ import {
 	derivePolicySummaryFromResolvedPolicies,
 	resolveEffectivePolicies,
 } from "@/modules/policies/public"
+import { buildTourPaymentTerms } from "@/lib/tours/tour-payment-terms"
 
 function json(payload: unknown, status = 200) {
 	return new Response(JSON.stringify(payload), {
@@ -64,11 +65,13 @@ export const GET: APIRoute = async ({ url }) => {
 		})
 		const mode = String(selected.bookingMode ?? "shared").toLowerCase()
 		const immediate = mode === "shared" && String(selected.confirmationType) === "instant"
+		const payment = buildTourPaymentTerms(snapshot)
 		return json({
 			policySummary:
 				derivePolicySummaryFromResolvedPolicies(resolved) || "Condiciones según la opción elegida.",
 			freeCancellationDeadline:
 				snapshot.cancellation?.calculation?.cancellation?.freeCancellationDeadlineLocal ?? null,
+			payment,
 			bookingStatus: mode === "private" ? "request" : immediate ? "instant" : "review",
 		})
 	} catch {

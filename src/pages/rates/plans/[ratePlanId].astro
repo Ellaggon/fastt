@@ -29,6 +29,7 @@ import { getRatePlanRemovalReadiness } from "@/lib/rates/getRatePlanRemovalReadi
 import { loadRatePlanReadModelById } from "@/lib/rates/loadRatePlansReadModel"
 import { routes } from "@/lib/routes"
 import { REQUIRED_POLICY_CATEGORIES, resolvePolicyDateRange } from "@/modules/policies/public"
+import { db, eq, Product } from "@/shared/infrastructure/db/compat"
 
 const auth = await requireProvider(Astro.request).catch((e: any) => {
 	if (e instanceof Response && e.status === 401) return "__REDIRECT_LOGIN__"
@@ -79,6 +80,14 @@ const [row, loadedRatePlan, loadedPolicies] = await Promise.all([
 if (!row) {
 	return new Response("Tarifa no encontrada", { status: 404 })
 }
+
+const product = await db
+	.select({ productType: Product.productType })
+	.from(Product)
+	.where(eq(Product.id, String(row.productId)))
+	.then((rows) => rows[0] ?? null)
+const offeringType =
+	String(product?.productType ?? "").toLowerCase() === "tour" ? "tour" : "accommodation"
 
 if ("redirectTo" in loadedRatePlan) return Astro.redirect(loadedRatePlan.redirectTo)
 const { loaded } = loadedRatePlan
@@ -309,6 +318,7 @@ const layoutProps =
 					showPlanSummary={false}
 					showHeader={false}
 					inlineHotelArrival={isPlaybookMode}
+					offeringType={offeringType}
 				/>
 				{
 					activePlaybook === "launch-tour" ? (

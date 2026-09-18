@@ -33,7 +33,11 @@ describe("provider onboarding entry", () => {
 					},
 				],
 			})
-		).toMatchObject({ kind: "redirect", href: "/rates/plans/manage?productId=tour-1" })
+		).toMatchObject({
+			kind: "redirect",
+			href: "/rates/plans/manage?productId=tour-1",
+			vertical: "tour",
+		})
 	})
 
 	it("returns an existing first draft to its guided preparation instead of the dashboard", () => {
@@ -80,6 +84,20 @@ describe("provider onboarding entry", () => {
 		expect(resolveProviderOnboardingEntry({ ...base, hasProvider: true })).toMatchObject({
 			kind: "redirect",
 			href: "/product/create?type=Tour&playbook=launch-tour&step=create&flow=create",
+		})
+	})
+
+	it("does not skip a pending holder declaration when contact is already complete", () => {
+		expect(
+			resolveProviderOnboardingEntry({
+				...base,
+				hasProvider: true,
+				holderDeclarationPending: true,
+			})
+		).toMatchObject({
+			kind: "redirect",
+			href: "/provider/onboarding/business?vertical=tour",
+			reason: "holder_declaration_pending",
 		})
 	})
 

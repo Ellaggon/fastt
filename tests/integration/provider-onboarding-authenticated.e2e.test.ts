@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { POST as providerIdentityPost } from "@/pages/api/providers"
+import { POST as providerIdentityUpdatePost } from "@/pages/api/providers/[id]"
 import { POST as providerProfilePost } from "@/pages/api/providers/profile"
 import { POST as productCreatePost } from "@/pages/api/product/create"
 import { POST as productPublishPost } from "@/pages/api/product/publish"
@@ -50,8 +51,13 @@ function authedJsonRequest(params: { path: string; token: string; body: unknown 
 describe("e2e/authenticated provider onboarding", () => {
 	it("persists hotel and tour drafts across an authenticated provider resume without duplicating products", async () => {
 		const token = `onboarding-token-${run}`
+		const resumedToken = `onboarding-resumed-token-${run}`
 		const email = `onboarding-${run}@example.test`
 		const userId = `user_${run}`
+		const authenticatedSessions = {
+			[token]: { id: userId, email },
+			[resumedToken]: { id: userId, email },
+		}
 		const placeId = `onboarding-place-${run}`
 		const displayName = `Hotel Onboarding ${run}`
 		const legalName = `Hotel Onboarding ${run} SpA`
@@ -67,12 +73,10 @@ describe("e2e/authenticated provider onboarding", () => {
 
 		process.env.FASTT_ENFORCE_PROVIDER_GOVERNANCE = "1"
 		try {
-			await withSupabaseAuthStub({ [token]: { id: userId, email } }, async () => {
+			await withSupabaseAuthStub(authenticatedSessions, async () => {
 				const identityForm = new FormData()
 				identityForm.set("displayName", displayName)
 				identityForm.set("legalName", legalName)
-				identityForm.set("holderType", "entidad")
-				identityForm.set("holderCountry", "CL")
 				identityForm.set("onboardingNext", "/provider/onboarding/business?vertical=hotel")
 				const identityResponse = await providerIdentityPost({
 					request: authedFormRequest({
@@ -93,9 +97,41 @@ describe("e2e/authenticated provider onboarding", () => {
 					.where(eq(Provider.displayName, displayName))
 					.then((rows) => rows[0])
 				expect(provider?.id).toBeTruthy()
-				const holder = await db.select().from(ProviderHolderProfile)
-					.where(eq(ProviderHolderProfile.providerId, String(provider?.id))).then((rows) => rows[0])
-				expect(holder).toMatchObject({ holderType: "entidad", holderCountry: "CL", declarationStatus: "declared" })
+				const declarationForm = new FormData()
+				declarationForm.set("displayName", displayName)
+				declarationForm.set("legalName", legalName)
+				declarationForm.set("holderType", "entidad")
+				declarationForm.set("holderCountry", "CL")
+				declarationForm.set("onboardingNext", "/provider/onboarding/business?vertical=hotel")
+				const declarationResponse = await providerIdentityUpdatePost({
+					params: { id: String(provider?.id) },
+					request: authedFormRequest({
+						path: `/api/providers/${provider?.id}`,
+						token: resumedToken,
+						form: declarationForm,
+						accept: "text/html",
+					}),
+				} as any)
+				expect(declarationResponse.status).toBe(303)
+				expect(declarationResponse.headers.get("location")).toBe(
+					"http://localhost:4321/provider/onboarding/business?vertical=hotel&success=identity_saved"
+				)
+				expect(
+					await db
+						.select({ id: Provider.id })
+						.from(Provider)
+						.where(eq(Provider.displayName, displayName))
+				).toHaveLength(1)
+				const holder = await db
+					.select()
+					.from(ProviderHolderProfile)
+					.where(eq(ProviderHolderProfile.providerId, String(provider?.id)))
+					.then((rows) => rows[0])
+				expect(holder).toMatchObject({
+					holderType: "entidad",
+					holderCountry: "CL",
+					declarationStatus: "declared",
+				})
 
 				const profileForm = new FormData()
 				profileForm.set("timezone", "America/Santiago")
@@ -105,7 +141,7 @@ describe("e2e/authenticated provider onboarding", () => {
 				const profileResponse = await providerProfilePost({
 					request: authedFormRequest({
 						path: "/api/providers/profile",
-						token,
+						token: resumedToken,
 						form: profileForm,
 						accept: "text/html",
 					}),
@@ -145,13 +181,20 @@ describe("e2e/authenticated provider onboarding", () => {
 					.then((rows) => rows[0])
 				expect(product).toMatchObject({ id: productId, providerId: provider?.id })
 				const policyResponse = await commercialPolicyGet({
-					request: new Request(`http://localhost:4321/api/onboarding/commercial-policy?productId=${productId}`, {
-						headers: { cookie: `sb-access-token=${encodeURIComponent(token)}; sb-refresh-token=fixture` },
-					}),
+					request: new Request(
+						`http://localhost:4321/api/onboarding/commercial-policy?productId=${productId}`,
+						{
+							headers: {
+								cookie: `sb-access-token=${encodeURIComponent(token)}; sb-refresh-token=fixture`,
+							},
+						}
+					),
 				} as any)
 				expect(policyResponse.status).toBe(200)
 				expect(await policyResponse.json()).toMatchObject({
-					mode: "shadow", policyStatus: "unsupported", capabilities: { publish: false, booking: false },
+					mode: "shadow",
+					policyStatus: "unsupported",
+					capabilities: { publish: false, booking: false },
 				})
 
 				const sessionResponse = await preparationSessionPost({

@@ -17,7 +17,10 @@ function country(value: FormDataEntryValue | null): string | null {
 	return /^[A-Z]{2}$/.test(normalized) ? normalized : null
 }
 
-/** Null means an older client did not submit the declaration; no permissions change. */
+/**
+ * Identity captures the holder and jurisdictions only. Collection is deliberately
+ * initialized as undecided here; a payment-contract flow owns that later decision.
+ */
 export function parseHolderDeclaration(form: FormData): HolderDeclaration | null {
 	if (!form.has("holderType") && !form.has("holderCountry")) return null
 	const holderType = String(form.get("holderType") ?? "")
@@ -32,17 +35,23 @@ export function parseHolderDeclaration(form: FormData): HolderDeclaration | null
 	if ((taxRaw && !taxResidenceCountry) || (payoutRaw && !payoutCountry)) {
 		throw new Error("holder_declaration_invalid")
 	}
-	const collectionModel = String(form.get("collectionModel") ?? "undecided")
-	if (!["undecided", "property_collect", "platform_collect"].includes(collectionModel)) {
-		throw new Error("holder_declaration_invalid")
-	}
 	return {
 		holderType,
 		holderCountry,
 		taxResidenceCountry,
 		payoutCountry,
-		collectionModel: collectionModel as HolderDeclaration["collectionModel"],
+		collectionModel: "undecided",
 	}
+}
+
+/** Identity edits must never reset a payment-contract decision already on file. */
+export function collectionModelForIdentitySave(
+	existing: { collectionModel?: unknown } | null | undefined
+) {
+	const collectionModel = existing?.collectionModel
+	return collectionModel === "property_collect" || collectionModel === "platform_collect"
+		? collectionModel
+		: "undecided"
 }
 
 export async function readProviderHolderProfile(providerId: string) {

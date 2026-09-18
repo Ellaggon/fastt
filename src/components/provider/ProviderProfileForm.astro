@@ -17,6 +17,7 @@ const {
 	draft = null,
 	fieldErrors = {},
 	submitLabel = "Guardar perfil",
+	showBackAction = true,
 	onboarding = false,
 	serviceLabel = "servicio",
 } = Astro.props
@@ -28,7 +29,13 @@ const onboardingIntro = `Estos datos te permiten preparar el calendario y los pr
 
 {
 	isProviderAvailable ? (
-		<form method="POST" action="/api/providers/profile" class="space-y-6" data-profile-ops-form>
+		<form
+			method="POST"
+			action="/api/providers/profile"
+			class="space-y-6"
+			data-profile-ops-form
+			data-astro-reload
+		>
 			{redirectTo ? <Input type="hidden" name="onboardingNext" value={redirectTo} /> : null}
 			<p class="text-sm leading-6 text-slate-600">
 				{onboarding
@@ -46,12 +53,10 @@ const onboardingIntro = `Estos datos te permiten preparar el calendario y los pr
 			>
 				<Select id="timezone" name="timezone" required hasError={Boolean(fieldError("timezone"))}>
 					<option
-						value="America/Santiago"
-						selected={
-							value("timezone", profile?.timezone ?? "America/Santiago") === "America/Santiago"
-						}
+						value="America/La_Paz"
+						selected={value("timezone", profile?.timezone ?? "America/La_Paz") === "America/La_Paz"}
 					>
-						America/Santiago
+						America/La_Paz
 					</option>
 					<option
 						value="America/New_York"
@@ -83,8 +88,14 @@ const onboardingIntro = `Estos datos te permiten preparar el calendario y los pr
 					hasError={Boolean(fieldError("defaultCurrency"))}
 				>
 					<option
+						value="BOB"
+						selected={value("defaultCurrency", profile?.defaultCurrency ?? "BOB") === "BOB"}
+					>
+						BOB
+					</option>
+					<option
 						value="USD"
-						selected={value("defaultCurrency", profile?.defaultCurrency ?? "USD") === "USD"}
+						selected={value("defaultCurrency", profile?.defaultCurrency ?? "") === "USD"}
 					>
 						USD
 					</option>
@@ -93,12 +104,6 @@ const onboardingIntro = `Estos datos te permiten preparar el calendario y los pr
 						selected={value("defaultCurrency", profile?.defaultCurrency ?? "") === "EUR"}
 					>
 						EUR
-					</option>
-					<option
-						value="CLP"
-						selected={value("defaultCurrency", profile?.defaultCurrency ?? "") === "CLP"}
-					>
-						CLP
 					</option>
 				</Select>
 			</FormField>
@@ -170,9 +175,11 @@ const onboardingIntro = `Estos datos te permiten preparar el calendario y los pr
 				</Card>
 			) : null}
 			<div class="flex items-center justify-end gap-3">
-				<Button href={cancelHref} variant="secondary">
-					Volver
-				</Button>
+				{showBackAction ? (
+					<Button href={cancelHref} variant="secondary">
+						Volver
+					</Button>
+				) : null}
 				<Button type="submit">{submitLabel}</Button>
 			</div>
 		</form>
