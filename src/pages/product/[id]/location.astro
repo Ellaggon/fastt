@@ -66,6 +66,7 @@ const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.
 	stepId={playbook.stepId ?? "location"}
 	productId={productId}
 	isHotel={isHotel}
+	continueFormId={playbook.active ? "locationForm" : null}
 >
 	<section class="space-y-8">
 		<section class="space-y-4">
@@ -169,7 +170,12 @@ const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.
 						</p>
 						<p id="stateDetail" class="whitespace-pre-wrap text-sm text-slate-600"></p>
 
-						<div class="flex items-center justify-end gap-3 pt-2">
+						<div
+							class:list={[
+								"flex items-center justify-end gap-3 pt-2",
+								playbook.active ? "hidden" : "",
+							]}
+						>
 							<Button
 								href={playbook.active && playbook.playbookId
 									? playbookRedirectHrefFor(
@@ -202,7 +208,11 @@ const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.
 	<script>
 		import L from "leaflet"
 		import { bindPlaybookFormDraft } from "@/lib/forms/playbookFormDraft.ts"
-		import { resolvePlaybookRedirectAfterSave } from "@/lib/playbook/playbook-nav.ts"
+		import { setPlaybookSubmitBusy } from "@/lib/forms/playbookFormBusy.ts"
+		import {
+			readPlaybookNavIntent,
+			resolvePlaybookRedirectAfterSave,
+		} from "@/lib/playbook/playbook-nav.ts"
 
 		type LocationState = "empty" | "loading" | "success" | "error" | "disabled"
 
@@ -295,31 +305,42 @@ const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.
 
 			form.addEventListener("submit", async (e) => {
 				e.preventDefault()
+				const fd = new FormData(form)
+				const intent = readPlaybookNavIntent(fd, e.submitter)
+				const targetProductId = String(fd.get("productId") || "")
+				if (intent === "exit" && !String(fd.get("geoPlaceId") || "").trim()) {
+					window.location.href = resolvePlaybookRedirectAfterSave(fd, {
+						productId: targetProductId,
+						launchPath: `/product/${encodeURIComponent(targetProductId)}/images`,
+						launchStep: "images",
+						intent: "exit",
+					})
+					return
+				}
 				setState("loading")
-				btn.disabled = true
+				setPlaybookSubmitBusy(form, true)
 				setState("disabled")
 
 				try {
-					const fd = new FormData(form)
 					const res = await fetch("/api/product/location", { method: "POST", body: fd })
 					const txt = await res.text()
 
 					if (!res.ok) {
-						btn.disabled = false
+						setPlaybookSubmitBusy(form, false)
 						setState("error", `status=${res.status}\n${txt}`)
 						return
 					}
 
 					setState("success", "Guardado correctamente")
 					draft.clear()
-					const targetProductId = String(fd.get("productId") || "")
 					window.location.href = resolvePlaybookRedirectAfterSave(fd, {
 						productId: targetProductId,
 						launchPath: `/product/${encodeURIComponent(targetProductId)}/images`,
 						launchStep: "images",
+						submitter: e.submitter,
 					})
 				} catch (err) {
-					btn.disabled = false
+					setPlaybookSubmitBusy(form, false)
 					setState("error", `Error de red: ${String(err)}`)
 				}
 			})

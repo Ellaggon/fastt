@@ -47,6 +47,7 @@ const existingImages = product.images || []
 	stepId={playbook.stepId ?? "images"}
 	productId={productId}
 	isHotel={isHotel}
+	continueFormId={playbook.active ? "imagesForm" : null}
 >
 	<section class="space-y-8">
 		<section class="space-y-4">
@@ -135,7 +136,9 @@ const existingImages = product.images || []
 							<p id="stateDetail" class="whitespace-pre-wrap text-sm text-slate-600"></p>
 						</div>
 
-						<div class="flex items-center justify-end gap-3">
+						<div
+							class:list={["flex items-center justify-end gap-3", playbook.active ? "hidden" : ""]}
+						>
 							<Button
 								href={playbook.active && playbook.playbookId
 									? playbookRedirectHrefFor(

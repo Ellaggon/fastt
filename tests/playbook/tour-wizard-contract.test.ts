@@ -18,8 +18,11 @@ describe("tour wizard browser and routing contract", () => {
 
 	it("never degrades the image step from tour to accommodation", () => {
 		const handler = source("src/lib/forms/productImagesHandler.ts")
-		expect(handler).toContain('playbook === "launch-tour"')
-		expect(handler).toContain('playbook === "launch-tour" ? "launch-tour" : "launch"')
+		expect(handler).toContain("resolvePlaybookRedirectAfterSave")
+		expect(handler).toContain('launchStep: "subtype"')
+		const nav = source("src/lib/playbook/playbook-nav.ts")
+		expect(nav).toContain("isTourLaunchPlaybookMode")
+		expect(nav).toContain("buildTourPlaybookHref")
 	})
 
 	it("has a Tour-specific progress, conditions and publish path", () => {
