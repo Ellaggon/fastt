@@ -101,9 +101,9 @@ const galleryImages = images.length
 			}
 			if (status) status.textContent = `Foto ${index + 1} de ${sources.length}`
 		}
-		const focusable = (): HTMLElement[] =>
-			Array.from(dialog?.querySelectorAll<HTMLElement>("button:not([disabled])") ?? []).filter(
-				(element) => element.offsetParent !== null
+		const focusable = () =>
+			Array.from(dialog?.querySelectorAll("button:not([disabled])") ?? []).filter(
+				(element) => element instanceof HTMLElement && element.offsetParent !== null
 			)
 		const hide = () => {
 			dialog?.classList.add("hidden")
