@@ -9,18 +9,36 @@ import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { buildAddRoomHref, resolveAddRoomPlaybookFromUrl } from "@/lib/playbook/add-room"
-import { listActivePreparationSessions } from "@/lib/onboarding/preparationSession"
 import {
 	type ProductPreparationSummary,
 	listProductOperationalPreparation,
 } from "@/lib/product/productOperationalSurface"
+import {
+	filterProductsForWorkspaceScope,
+	isDashboardSetupHome,
+	resolveDashboardHomeCopy,
+	shiftIsoDate,
+	summarizeDashboardToday,
+} from "@/lib/dashboard/dashboardHomePresentation"
+import { resolveOperationalSidebarVertical } from "@/lib/dashboard/providerOperationalNavigation"
+import { bookingOperationsQueryRepository } from "@/modules/booking/public"
+import { resolveVerticalVocabulary } from "@/lib/verticalVocabulary"
+import {
+	evaluateProviderGovernance,
+	readProviderGovernanceFromConfigurationState,
+} from "@/lib/provider-governance"
 import { routes } from "@/lib/routes"
 import {
 	providerOnboardingLegacyHref,
 	resolveProviderOnboardingRollout,
 } from "@/lib/onboarding/providerOnboardingRollout"
-import { ArrowRight, BedDouble, Hotel, Plus, ShieldCheck } from "@lucide/astro"
+import { ArrowRight, BedDouble, Hotel, Map as MapIcon, Plus, ShieldCheck } from "@lucide/astro"
 import { and, db, eq, Product, sql, Variant } from "@/shared/infrastructure/db/compat"
+import { normalizeProductVertical } from "@/lib/catalog/productVerticalRegistry"
+import {
+	resolveWorkspaceNavigationScope,
+	type ActiveWorkspaceVertical,
+} from "@/lib/workspace/verticalContext"
 
 const dashboardStartedAt = performance.now()
 const user = await getUserFromRequest(Astro.request)
@@ -77,8 +95,23 @@ for (const row of rows) {
 	byProduct.set(productId, entry)
 }
 
-const products = Array.from(byProduct.values())
-const preparationResumes = await listActivePreparationSessions(providerId, user.id)
+const catalogProducts = Array.from(byProduct.values())
+const availableVerticals = [
+	...new Set(
+		catalogProducts
+			.map((product) => normalizeProductVertical(product.type))
+			.filter((vertical): vertical is ActiveWorkspaceVertical => vertical !== "generic")
+	),
+]
+const workspaceScope = resolveWorkspaceNavigationScope({
+	productTypes: availableVerticals,
+	searchParams: Astro.url.searchParams,
+})
+const operationalVertical = resolveOperationalSidebarVertical({
+	workspaceScope,
+	availableVerticals,
+})
+const products = filterProductsForWorkspaceScope(catalogProducts, operationalVertical)
 const preparationByProduct = await listProductOperationalPreparation(
 	providerId,
 	products.map((product) => product.id)
@@ -88,33 +121,83 @@ const flow = Astro.url.searchParams.get("flow")
 if (!addRoomPlaybook.active && flow === "add-room") {
 	return Astro.redirect(buildAddRoomHref(routes.catalogAccommodations(), "choose-accommodation"))
 }
-if (products.length === 1) {
+if (catalogProducts.length === 1) {
 	if (addRoomPlaybook.active) {
-		return Astro.redirect(buildAddRoomHref(routes.productRoomNew(products[0].id), "create-room"))
+		return Astro.redirect(
+			buildAddRoomHref(routes.productRoomNew(catalogProducts[0].id), "create-room")
+		)
 	}
 }
 
-const totalRooms = products.reduce((sum, product) => sum + product.rooms.length, 0)
-const activeRooms = products.reduce(
-	(sum, product) => sum + product.rooms.filter((room) => room.active).length,
-	0
-)
-const inactiveRooms = Math.max(0, totalRooms - activeRooms)
 const hotelProducts = products.filter((product) => product.type.toLowerCase() === "hotel")
 const tourProducts = products.filter((product) => product.type.toLowerCase() === "tour")
+const otherProductCount = Math.max(0, products.length - hotelProducts.length - tourProducts.length)
+const hasHotel = hotelProducts.length > 0
+const hasTour = tourProducts.length > 0
 const tourDepartures = tourProducts.reduce((sum, product) => sum + product.rooms.length, 0)
+const operatedFamilies = [hasHotel, hasTour, otherProductCount > 0].filter(Boolean).length
 const isChoosingForAddRoom = addRoomPlaybook.active
+const isSetupHome = !isChoosingForAddRoom && isDashboardSetupHome(products, preparationByProduct)
+const showAddAnotherService = products.length > 0 && !isChoosingForAddRoom && !isSetupHome
+const showCrossVerticalKpis = !isSetupHome && operatedFamilies > 1
+const opsVocabulary = resolveVerticalVocabulary(
+	operationalVertical ? [operationalVertical] : availableVerticals
+).ops
+const todayIso = new Date().toISOString().slice(0, 10)
+const todayBookings =
+	!isSetupHome && !isChoosingForAddRoom
+		? await bookingOperationsQueryRepository
+				.listByProvider({
+					providerId,
+					from: shiftIsoDate(todayIso, -21),
+					to: shiftIsoDate(todayIso, 14),
+					limit: 80,
+				})
+				.then((result) =>
+					result.items.filter(
+						(item) => !operationalVertical || item.vertical === operationalVertical
+					)
+				)
+				.catch(() => [])
+		: []
+const todaySummary = summarizeDashboardToday(todayBookings, todayIso)
+const showTodayBoard = !isSetupHome && !isChoosingForAddRoom && todaySummary.hasAnyBookings
+const homeCopy = resolveDashboardHomeCopy({
+	isChoosingForAddRoom,
+	isSetupHome,
+	hasHotel,
+	hasTour,
+	hotelCount: hotelProducts.length,
+	tourCount: tourProducts.length,
+	productCount: products.length,
+	hasTodayOperations: showTodayBoard,
+})
+const providerGovernance =
+	(await readProviderGovernanceFromConfigurationState(providerId, {
+		currentUserId: user.id,
+		allowStale: true,
+	}).catch(() => null)) ??
+	(await evaluateProviderGovernance(providerId, {
+		currentUserId: user.id,
+		persist: true,
+	}).catch(() => null))
+const providerNotice = providerGovernance?.blockers[0]
+	? {
+			label: providerGovernance.blockers[0].label,
+			href: providerGovernance.blockers[0].href || routes.providerSettings(),
+		}
+	: null
 const Layout = addRoomPlaybook.active ? PlaybookLayout : WorkspaceLayout
 const layoutProps = addRoomPlaybook.active
 	? {
-			title: "Resumen",
+			title: homeCopy.title,
 			playbookId: "add-room" as const,
 			active: true,
 			stepId: addRoomPlaybook.stepId ?? "choose-accommodation",
 			productId: "",
 			isHotel: true,
 		}
-	: { title: "Resumen" }
+	: { title: homeCopy.title }
 
 Astro.response.headers.set(
 	"Server-Timing",
@@ -127,7 +210,9 @@ function preparationMessage(
 ) {
 	if (!preparation)
 		return `Revisa la preparación del ${isTour ? "tour" : "alojamiento"} antes de publicarlo.`
-	if (preparation.isPublished) return "Publicado y visible para huéspedes."
+	if (preparation.isPublished) {
+		return isTour ? "Publicado y visible para viajeros." : "Publicado y visible para huéspedes."
+	}
 	if (preparation.readyToPublish) return "Preparación completa. Revisa la vista previa y publica."
 	if (preparation.blockerCount > 0) {
 		const preview = preparation.blockerPreview.join(", ").toLowerCase()
@@ -154,54 +239,58 @@ function preparationSupport(
 	}
 	return `Mantén ${isTour ? "salidas, cupos" : "habitaciones"}, tarifas y disponibilidad actualizadas desde sus herramientas operativas.`
 }
+
+function spanishCount(count: number, singular: string, plural: string) {
+	return `${count} ${count === 1 ? singular : plural}`
+}
+
+function variantInventorySummary(isTour: boolean, total: number, active: number) {
+	if (total === 0) return isTour ? "Sin salidas todavía" : "Sin habitaciones todavía"
+	return `${spanishCount(total, isTour ? "salida" : "habitación", isTour ? "salidas" : "habitaciones")} · ${spanishCount(active, "activa", "activas")}`
+}
+
+function addAnotherServiceCopy() {
+	if (hasTour && !hasHotel) {
+		return "Agrega otro tour u otra línea, como alojamientos, paquetes o traslados."
+	}
+	if (hasHotel && !hasTour) {
+		return "Agrega otro servicio solo si operas una línea distinta, como tours, paquetes o traslados. Si quieres sumar espacios dentro del mismo hotel, crea habitaciones."
+	}
+	return "Agrega otro servicio solo si operas una línea distinta. Cada línea tiene su propia ficha y operación."
+}
 ---
 
 <Layout {...layoutProps}>
 	<section class="space-y-6 md:space-y-8">
 		<header class="flex flex-col gap-2">
-			{
-				isChoosingForAddRoom ? (
-					<>
-						<h1 class="text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl">
-							Elige dónde crear la habitación
-						</h1>
-						<p class="max-w-3xl text-sm leading-5 text-slate-300 sm:leading-6">
-							Selecciona el alojamiento donde agregarás una nueva habitación.
-						</p>
-					</>
-				) : (
-					<h1 class="sr-only">Resumen Operativo</h1>
-				)
-			}
+			<h1 class="text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl">
+				{homeCopy.title}
+			</h1>
+			<p class="max-w-3xl text-sm leading-5 text-slate-300 sm:leading-6">
+				{homeCopy.intro}
+			</p>
 		</header>
 
+		{
+			providerNotice && !isChoosingForAddRoom ? (
+				<a
+					href={providerNotice.href}
+					data-dashboard-provider-notice
+					class="flex flex-wrap items-center justify-between gap-3 rounded-[var(--fastt-radius-card)] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm transition hover:border-white/20 hover:bg-white/[0.07]"
+				>
+					<span class="flex min-w-0 items-start gap-3">
+						<ShieldCheck class="mt-0.5 h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+						<span class="min-w-0">
+							<span class="block font-semibold text-white">Cuenta de proveedor</span>
+							<span class="mt-0.5 block text-slate-400">{providerNotice.label}</span>
+						</span>
+					</span>
+					<span class="shrink-0 font-semibold text-white">Completar</span>
+				</a>
+			) : null
+		}
+
 		<div class="space-y-5">
-			{
-				!isChoosingForAddRoom && preparationResumes.length > 0 ? (
-					<section aria-labelledby="resume-preparation-heading" class="space-y-3">
-						<div class="space-y-1">
-							<p class="text-sm font-medium text-slate-400">Preparación en curso</p>
-							<h2 id="resume-preparation-heading" class="text-xl font-semibold text-white">
-								Retoma donde lo dejaste
-							</h2>
-						</div>
-						<div class="grid gap-3 md:grid-cols-2">
-							{preparationResumes.map((session) => (
-								<Card class="flex flex-wrap items-center justify-between gap-4 border-slate-700 bg-slate-900 p-5">
-									<div>
-										<p class="text-sm font-semibold text-white">{session.productName}</p>
-										<p class="mt-1 text-sm text-slate-300">
-											{session.vertical === "tour" ? "Tour" : "Alojamiento"} · paso pendiente:{" "}
-											{session.stepId}
-										</p>
-									</div>
-									<Button href={session.href}>Continuar preparación</Button>
-								</Card>
-							))}
-						</div>
-					</section>
-				) : null
-			}
 			{
 				products.length === 0 ? (
 					<Card class="overflow-hidden p-0">
@@ -234,22 +323,106 @@ function preparationSupport(
 					</Card>
 				) : (
 					<>
-						<WorkspaceMetricStats>
-							<WorkspaceMetricStat label="Servicios">{products.length}</WorkspaceMetricStat>
-							<WorkspaceMetricStat label="Hotel">{hotelProducts.length}</WorkspaceMetricStat>
-							<WorkspaceMetricStat label="Tours">
-								{tourProducts.length}
-								<span class="text-sm font-medium text-slate-500"> · {tourDepartures} salidas</span>
-							</WorkspaceMetricStat>
-						</WorkspaceMetricStats>
+						{showTodayBoard ? (
+							<section class="space-y-3" data-dashboard-today>
+								<div class="flex flex-wrap items-end justify-between gap-3">
+									<div>
+										<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">
+											Operación de hoy
+										</p>
+										<p class="mt-1 text-sm text-slate-400">
+											Lo que hay que atender ahora, sin mezclar inventario de otra línea.
+										</p>
+									</div>
+									<div class="flex flex-wrap gap-2">
+										<Button
+											href={`${routes.bookingList()}?vista=today`}
+											variant="secondary"
+											size="sm"
+										>
+											Ver reservas
+										</Button>
+										{hasTour ? (
+											<Button href={routes.bookingDayOf()} variant="secondary" size="sm">
+												Cola de hoy
+											</Button>
+										) : null}
+									</div>
+								</div>
+								<WorkspaceMetricStats ariaLabel="Actividad de hoy">
+									<WorkspaceMetricStat label={opsVocabulary.metricArrivalsToday}>
+										{todaySummary.arrivalsToday}
+									</WorkspaceMetricStat>
+									<WorkspaceMetricStat label={opsVocabulary.metricDeparturesToday}>
+										{todaySummary.departuresToday}
+									</WorkspaceMetricStat>
+									<WorkspaceMetricStat label={opsVocabulary.metricInProgress}>
+										{todaySummary.inProgress}
+									</WorkspaceMetricStat>
+									<WorkspaceMetricStat
+										label="Pago pendiente"
+										tone={todaySummary.pendingPayment > 0 ? "warning" : "default"}
+									>
+										{todaySummary.pendingPayment}
+									</WorkspaceMetricStat>
+								</WorkspaceMetricStats>
+								{todaySummary.agenda.length > 0 ? (
+									<div class="overflow-hidden rounded-[var(--fastt-radius-card)] border border-white/10 bg-white/[0.04]">
+										{todaySummary.agenda.map((item) => (
+											<a
+												href={`/booking/${encodeURIComponent(item.bookingId)}`}
+												class="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 px-4 py-3 text-sm last:border-b-0 hover:bg-white/[0.04]"
+											>
+												<span class="min-w-0">
+													<span class="block truncate font-semibold text-white">
+														{item.guestName}
+													</span>
+													<span class="block truncate text-slate-400">{item.productName}</span>
+												</span>
+												<span class="shrink-0 text-xs font-medium text-slate-400">
+													{item.checkIn}
+													{item.checkOut ? ` → ${item.checkOut}` : ""}
+												</span>
+											</a>
+										))}
+									</div>
+								) : (
+									<p class="text-sm text-slate-400">No hay movimientos puntuales para hoy.</p>
+								)}
+							</section>
+						) : !isSetupHome && !isChoosingForAddRoom ? (
+							<p class="text-sm leading-6 text-slate-400" data-dashboard-today-empty>
+								Todavía no hay reservas. Cuando alguien reserve, aquí verás el día: salidas,
+								llegadas y pagos pendientes.
+							</p>
+						) : null}
+
+						{showCrossVerticalKpis ? (
+							<WorkspaceMetricStats ariaLabel="Resumen de la operación">
+								<WorkspaceMetricStat label="Servicios">{products.length}</WorkspaceMetricStat>
+								{hasHotel ? (
+									<WorkspaceMetricStat label="Alojamientos">
+										{hotelProducts.length}
+									</WorkspaceMetricStat>
+								) : null}
+								{hasTour ? (
+									<WorkspaceMetricStat label="Tours">
+										{tourProducts.length}
+										<span class="text-sm font-medium text-slate-500">
+											{" "}
+											· {spanishCount(tourDepartures, "salida", "salidas")}
+										</span>
+									</WorkspaceMetricStat>
+								) : null}
+							</WorkspaceMetricStats>
+						) : null}
 
 						<div class="grid gap-4">
 							{products.map((product) => {
 								const isTour = product.type.toLowerCase() === "tour"
-								const variantLabel = isTour ? "salida" : "habitación"
-								const variantsLabel = isTour ? "salidas" : "habitaciones"
 								const activeCount = product.rooms.filter((room) => room.active).length
 								const inactiveCount = Math.max(0, product.rooms.length - activeCount)
+								const hasVariants = product.rooms.length > 0
 								const primaryHref = isTour
 									? routes.productDeparturesForProduct(product.id)
 									: isChoosingForAddRoom
@@ -258,26 +431,27 @@ function preparationSupport(
 								const primaryLabel = isChoosingForAddRoom
 									? "Crear habitación"
 									: isTour
-										? "Abrir salidas"
-										: product.rooms.length === 0
-											? "Crear primera habitación"
-											: "Abrir habitaciones"
+										? hasVariants
+											? "Abrir salidas"
+											: "Crear primera salida"
+										: hasVariants
+											? "Abrir habitaciones"
+											: "Crear primera habitación"
 								const accommodationHref = routes.productDetail(product.id)
 								const preparation = preparationByProduct.get(product.id)
-								const hasPreparationPending =
-									!isChoosingForAddRoom &&
-									!preparation?.isPublished &&
-									(preparation?.blockerCount ?? 0) > 0
+								const isPublished = Boolean(preparation?.isPublished)
 								const isReadyToPublish =
-									!isChoosingForAddRoom &&
-									!preparation?.isPublished &&
-									Boolean(preparation?.readyToPublish)
-								const accommodationPrimaryHref = hasPreparationPending
+									!isChoosingForAddRoom && !isPublished && Boolean(preparation?.readyToPublish)
+								const isSetup = !isChoosingForAddRoom && !isPublished && !isReadyToPublish
+								const showInventoryStats = hasVariants
+								const showOpsActions = isChoosingForAddRoom || isPublished
+								const showAside = isChoosingForAddRoom || showInventoryStats || showOpsActions
+								const accommodationPrimaryHref = isSetup
 									? (preparation?.continuePreparationHref ?? accommodationHref)
 									: isReadyToPublish
 										? (preparation?.previewHref ?? routes.productPreview(product.id))
 										: accommodationHref
-								const accommodationLabel = hasPreparationPending
+								const accommodationLabel = isSetup
 									? "Continuar preparación"
 									: isReadyToPublish
 										? "Revisar y publicar"
@@ -290,6 +464,7 @@ function preparationSupport(
 									0,
 									Math.min(100, Number(preparation?.readinessPercent ?? 0))
 								)
+								const VerticalIcon = isTour ? MapIcon : Hotel
 
 								return (
 									<Card
@@ -297,20 +472,25 @@ function preparationSupport(
 										data-dashboard-product-card
 										data-product-id={product.id}
 										data-product-vertical={isTour ? "tour" : "hotel"}
+										data-choosing-add-room={isChoosingForAddRoom ? "true" : "false"}
 									>
-										<div class="grid gap-0 lg:grid-cols-[minmax(0,1fr)_280px]">
+										<div
+											class:list={[
+												"grid gap-0",
+												showAside ? "lg:grid-cols-[minmax(0,1fr)_280px]" : "",
+											]}
+											data-dashboard-card-grid
+										>
 											<div class="space-y-5 p-5 md:p-6">
 												<div class="flex flex-wrap items-start justify-between gap-4">
 													<div class="space-y-1">
 														<p class="flex items-center gap-2 text-xs font-semibold tracking-wide text-slate-500 uppercase">
-															<Hotel class="h-4 w-4" />
+															<VerticalIcon class="h-4 w-4" />
 															{isTour ? "Tour" : "Alojamiento"}
 														</p>
 														<h2 class="text-xl font-semibold text-slate-950">{product.name}</h2>
 														<p class="text-sm text-slate-600">
-															{product.rooms.length} {variantLabel}
-															{product.rooms.length === 1 ? "" : "s"} · {activeCount} activa
-															{activeCount === 1 ? "" : "s"}
+															{variantInventorySummary(isTour, product.rooms.length, activeCount)}
 														</p>
 													</div>
 													<Button
@@ -406,9 +586,21 @@ function preparationSupport(
 												) : null}
 											</div>
 
-											<aside class="border-t border-slate-200 bg-slate-50 p-5 md:p-6 lg:border-t-0 lg:border-l">
+											<aside
+												class:list={[
+													"border-t border-slate-200 bg-slate-50 p-5 md:p-6 lg:border-t-0 lg:border-l",
+													showAside ? "" : "hidden",
+												]}
+												data-dashboard-ops-aside
+											>
 												<div class="flex h-full flex-col justify-between gap-6">
-													<div class="grid grid-cols-2 gap-3">
+													<div
+														class:list={[
+															"grid grid-cols-2 gap-3",
+															showInventoryStats ? "" : "hidden",
+														]}
+														data-inventory-stats
+													>
 														<div>
 															<p class="text-xs font-medium text-slate-500">Activas</p>
 															<p class="mt-1 text-xl font-semibold text-slate-950">{activeCount}</p>
@@ -420,7 +612,10 @@ function preparationSupport(
 															</p>
 														</div>
 													</div>
-													<div class="flex flex-col gap-2">
+													<div
+														class:list={["flex flex-col gap-2", showOpsActions ? "" : "hidden"]}
+														data-ops-actions
+													>
 														<Button
 															href={primaryHref}
 															data-astro-prefetch
@@ -462,52 +657,24 @@ function preparationSupport(
 		</div>
 
 		{
-			products.length > 0 && !isChoosingForAddRoom ? (
+			showAddAnotherService ? (
 				<section>
-					<div class="grid gap-4 lg:grid-cols-2">
-						<div class="flex min-h-36 flex-col justify-between gap-5 rounded-[var(--fastt-radius-panel)] bg-white px-5 py-4 shadow-sm ring-1 ring-slate-900/[0.06]">
-							<div class="flex gap-3">
-								<span class="fastt-section-icon">
-									<Plus class="size-4" aria-hidden="true" />
-								</span>
-								<div>
-									<h2 class="text-base font-semibold text-slate-950">
-										¿Administras otro servicio?
-									</h2>
-									<p class="mt-1 text-sm leading-6 text-slate-500">
-										Agrega otro servicio solo si operas una línea distinta, como tours, paquetes o
-										traslados. Si quieres sumar espacios dentro del mismo hotel, crea habitaciones.
-									</p>
-								</div>
-							</div>
-							<div class="flex justify-end">
-								<Button
-									href="/product/create?playbook=launch&step=create&flow=create"
-									variant="secondary"
-								>
-									Agregar otro servicio
-								</Button>
+					<div class="flex min-h-28 flex-col justify-between gap-4 rounded-[var(--fastt-radius-panel)] bg-white px-5 py-4 shadow-sm ring-1 ring-slate-900/[0.06] sm:flex-row sm:items-center">
+						<div class="flex min-w-0 gap-3">
+							<span class="fastt-section-icon">
+								<Plus class="size-4" aria-hidden="true" />
+							</span>
+							<div>
+								<h2 class="text-base font-semibold text-slate-950">¿Administras otro servicio?</h2>
+								<p class="mt-1 text-sm leading-6 text-slate-500">{addAnotherServiceCopy()}</p>
 							</div>
 						</div>
-						<div class="flex min-h-36 flex-col justify-between gap-5 rounded-[var(--fastt-radius-panel)] bg-white px-5 py-4 shadow-sm ring-1 ring-slate-900/[0.06]">
-							<div class="flex gap-3">
-								<span class="fastt-section-icon">
-									<ShieldCheck class="size-4" aria-hidden="true" />
-								</span>
-								<div>
-									<h2 class="text-base font-semibold text-slate-950">Proveedor</h2>
-									<p class="mt-1 text-sm leading-6 text-slate-500">
-										Completa identidad, perfil y verificación para que la operación tenga datos
-										confiables antes de publicar o vender.
-									</p>
-								</div>
-							</div>
-							<div class="flex justify-end">
-								<Button href={routes.providerSettings()} variant="secondary">
-									Ir a proveedor
-								</Button>
-							</div>
-						</div>
+						<Button
+							href="/product/create?playbook=launch&step=create&flow=create"
+							variant="secondary"
+						>
+							Agregar otro servicio
+						</Button>
 					</div>
 				</section>
 			) : null
@@ -524,7 +691,9 @@ function preparationSupport(
 	function preparationMessage(preparation: any, isTour: boolean) {
 		if (!preparation)
 			return `Revisa la preparación del ${isTour ? "tour" : "alojamiento"} antes de publicarlo.`
-		if (preparation.isPublished) return "Publicado y visible para huéspedes."
+		if (preparation.isPublished) {
+			return isTour ? "Publicado y visible para viajeros." : "Publicado y visible para huéspedes."
+		}
 		if (preparation.readyToPublish) return "Preparación completa. Revisa la vista previa y publica."
 		if (Number(preparation.blockerCount ?? 0) > 0) {
 			const preview = Array.isArray(preparation.blockerPreview)
@@ -563,6 +732,29 @@ function preparationSupport(
 		}
 	}
 
+	const cardSplitClass = "lg:grid-cols-[minmax(0,1fr)_280px]"
+
+	function syncCardChrome(card: HTMLElement, preparation: any) {
+		const isChoosing = card.dataset.choosingAddRoom === "true"
+		const roomCount = Number(
+			card.querySelector<HTMLElement>("[data-room-count]")?.dataset.roomCount ?? 0
+		)
+		const isPublished = Boolean(preparation?.isPublished)
+		const showInventory = roomCount > 0
+		const showOps = isChoosing || isPublished
+		const showAside = isChoosing || showInventory || showOps
+		card
+			.querySelector<HTMLElement>("[data-dashboard-card-grid]")
+			?.classList.toggle(cardSplitClass, showAside)
+		card
+			.querySelector<HTMLElement>("[data-dashboard-ops-aside]")
+			?.classList.toggle("hidden", !showAside)
+		card
+			.querySelector<HTMLElement>("[data-inventory-stats]")
+			?.classList.toggle("hidden", !showInventory)
+		card.querySelector<HTMLElement>("[data-ops-actions]")?.classList.toggle("hidden", !showOps)
+	}
+
 	function updatePreparationCard(card: HTMLElement, preparation: any) {
 		const roomCount = Number(
 			card.querySelector<HTMLElement>("[data-room-count]")?.dataset.roomCount ?? 0
@@ -584,10 +776,11 @@ function preparationSupport(
 			nextStep.classList.toggle("hidden", !preparation?.nextStepLabel)
 		}
 		if (action) {
-			const hasPending = !preparation?.isPublished && Number(preparation?.blockerCount ?? 0) > 0
-			const isReadyToPublish = !preparation?.isPublished && Boolean(preparation?.readyToPublish)
-			if (hasPending) {
-				action.href = preparation.continuePreparationHref
+			const isPublished = Boolean(preparation?.isPublished)
+			const isReadyToPublish = !isPublished && Boolean(preparation?.readyToPublish)
+			const isSetup = !isPublished && !isReadyToPublish
+			if (isSetup) {
+				action.href = preparation.continuePreparationHref || action.href
 				setActionLabel(action, "Continuar preparación")
 			} else if (isReadyToPublish) {
 				action.href = preparation.previewHref
@@ -598,6 +791,7 @@ function preparationSupport(
 			progressContainer.classList.toggle("hidden", Boolean(preparation?.isPublished))
 		if (progressBar) progressBar.setAttribute("aria-valuenow", String(readinessPercent))
 		if (progressValue) progressValue.style.width = `${readinessPercent}%`
+		syncCardChrome(card, preparation)
 	}
 
 	if (productIds.length > 0) {
