@@ -6,13 +6,13 @@ redeem/issued, or refund quote vs applied.
 
 ## Sequence
 
-| Step | `TOURS_ROLLOUT_STAGE` | Who is on |
-| ---- | --------------------- | --------- |
-| 0 · Off | unset / typo / `off` | Nobody (**fail-closed**) |
-| 1 · Staging | `staging` | Preview/staging deploy or hosts in `TOURS_ROLLOUT_STAGING_HOSTS` |
-| 2 · Allowlist | `allowlist` | Providers in `TOURS_PROVIDER_ALLOWLIST` (checkout/check-in/refund-hours). Search stays on but **cards are filtered** to allowlisted providers. |
-| 3 · Percentage | `percentage` | Allowlist ∪ stable hash bucket `< TOURS_ROLLOUT_PERCENT` (0–100). Search buckets by **session cookie**, not destination. |
-| 4 · General | `general` | Everyone |
+| Step           | `TOURS_ROLLOUT_STAGE` | Who is on                                                                                                                                      |
+| -------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0 · Off        | unset / typo / `off`  | Nobody (**fail-closed**)                                                                                                                       |
+| 1 · Staging    | `staging`             | Preview/staging deploy or hosts in `TOURS_ROLLOUT_STAGING_HOSTS`                                                                               |
+| 2 · Allowlist  | `allowlist`           | Providers in `TOURS_PROVIDER_ALLOWLIST` (checkout/check-in/refund-hours). Search stays on but **cards are filtered** to allowlisted providers. |
+| 3 · Percentage | `percentage`          | Allowlist ∪ stable hash bucket `< TOURS_ROLLOUT_PERCENT` (0–100). Search buckets by **session cookie**, not destination.                       |
+| 4 · General    | `general`             | Everyone                                                                                                                                       |
 
 Kill-switches (still required, env-only, guest cannot override):
 
@@ -99,6 +99,12 @@ Convergent check-in: `POST /api/booking/check-in` redeems an `issued` voucher ev
 Booking is already `checked_in` (`repaired: true`).
 
 ## Browser smoke (P1)
+
+La prueba automática no reemplaza la certificación de una ficha con datos comerciales reales. El registro pendiente de Fase 2, sus condiciones y la matriz de evidencia están en [certificación operativa de Tours PDP](../ops/tours-pdp-phase-2-operational-certification.md). No ampliar cohorte comercial mientras ese registro permanezca abierto.
+
+El checkout tiene un registro independiente de Fase 3: [certificación operativa de checkout](../ops/tours-checkout-phase-3-operational-certification.md). Tampoco se amplía checkout mientras ese registro permanezca abierto.
+
+El cierre de implementación de ambas fases y las pruebas reproducibles están consolidados en [cierre en código de Tours Fases 2 y 3](../ops/tours-phase-2-3-code-closeout.md). Las dos puertas anteriores quedan reservadas para evidencia operativa y no representan deuda de implementación conocida.
 
 ```bash
 pnpm run test:tours:playwright

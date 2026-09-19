@@ -51,6 +51,13 @@ const voucherLabel =
 			: voucherStatus === "void"
 				? "Anulado"
 				: "Sin voucher"
+const bookingState = String(trip.status ?? "").toLowerCase()
+const confirmationMessage =
+	bookingState === "confirmed"
+		? "Tu reserva está confirmada. Lleva este voucher el día de la salida; el punto de encuentro y la hora quedan congelados desde la compra."
+		: bookingState === "cancelled"
+			? "Esta reserva fue cancelada. El voucher no es válido para presentarte en la salida."
+			: "Esta reserva está siendo revisada. Te avisaremos cuando su estado esté resuelto."
 
 const crossSell = await loadHotelTourCrossSell({
 	geoPlaceId: trip.geoPlaceId,
@@ -73,10 +80,7 @@ const crossSell = await loadHotelTourCrossSell({
 				<h1 class="text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">
 					{trip.productName}
 				</h1>
-				<p class="max-w-2xl text-sm leading-6 text-slate-600">
-					Tu cupo está confirmado. Lleva este voucher el día de la salida; el punto de encuentro y
-					la hora quedan congelados desde la compra.
-				</p>
+				<p class="max-w-2xl text-sm leading-6 text-slate-600">{confirmationMessage}</p>
 			</header>
 
 			<section class="mt-8 grid gap-4">
@@ -300,6 +304,7 @@ const crossSell = await loadHotelTourCrossSell({
 			}
 
 			<footer class="mt-8 flex flex-wrap gap-3">
+				<Button href="/trips" variant="secondary">Tus viajes</Button>
 				<Button href="/tours" variant="secondary">Explorar más experiencias</Button>
 				{
 					trip.guestEmail ? (

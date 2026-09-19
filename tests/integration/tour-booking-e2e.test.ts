@@ -277,8 +277,7 @@ async function seedTourCommercialReady(params: {
 		computedAt: new Date(),
 	} as any)
 
-	const totalGuests =
-		params.occupancy.adults + params.occupancy.children + params.occupancy.infants
+	const totalGuests = params.occupancy.adults + params.occupancy.children + params.occupancy.infants
 	await db.insert(SearchUnitView).values({
 		id: `suv_${crypto.randomUUID()}`,
 		variantId: params.variantId,
@@ -306,82 +305,196 @@ async function seedTourCommercialReady(params: {
 }
 
 describe("integration/tour booking E2E (P0 1.1)", () => {
-	it(
-		"runs real search → hold → confirm with independent cupo per salida",
-		async () => {
-			process.env.INVENTORY_MUTATION_TIMEOUT_MS = "60000"
-			process.env.INVENTORY_RECOMPUTE_CHAIN_TIMEOUT_MS = "60000"
-			// Hold pricing lives in L1 when Redis is unavailable; keep it past slow recompute.
-			process.env.FASTT_CACHE_L1_TTL_SECONDS = "900"
-			process.env.LOCAL_QA_AUTH_ENABLED = "false"
-			process.env.TOURS_CHECKOUT_ENABLED = "true"
-			// The checkout switch is deliberately evaluated through the rollout gate too.
-			// A certification run opts into the general cohort explicitly.
-			process.env.TOURS_ROLLOUT_STAGE = "general"
-			process.env.TOURS_REFUND_HOURS_ENABLED = "true"
-			process.env.TOURS_CHECKIN_ENABLED = "true"
-			process.env.TOURS_PUBLIC_SEARCH_ENABLED = "true"
-			const suffix = crypto.randomUUID()
-			const token = `t_tour_e2e_${suffix}`
-			const userId = `u_tour_e2e_${suffix}`
-			const email = `tour-e2e-${suffix}@example.com`
-			const productId = `prod_tour_${suffix}`
-			const geoPlaceId = `dest_tour_${suffix}`
-			const morningId = `var_tour_am_${suffix}`
-			const afternoonId = `var_tour_pm_${suffix}`
-			const morningRp = `rp_tour_am_${suffix}`
-			const afternoonRp = `rp_tour_pm_${suffix}`
-			const departure = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString().slice(0, 10)
-			const stay = tourDepartureToStay(departure)
-			const checkIn = stay.checkIn.toISOString().slice(0, 10)
-			const checkOut = stay.checkOut.toISOString().slice(0, 10)
-			expect(stay.nights).toBe(1)
+	it("runs real search → hold → confirm with independent cupo per salida", async () => {
+		process.env.INVENTORY_MUTATION_TIMEOUT_MS = "60000"
+		process.env.INVENTORY_RECOMPUTE_CHAIN_TIMEOUT_MS = "60000"
+		// Hold pricing lives in L1 when Redis is unavailable; keep it past slow recompute.
+		process.env.FASTT_CACHE_L1_TTL_SECONDS = "900"
+		process.env.LOCAL_QA_AUTH_ENABLED = "false"
+		process.env.TOURS_CHECKOUT_ENABLED = "true"
+		// The checkout switch is deliberately evaluated through the rollout gate too.
+		// A certification run opts into the general cohort explicitly.
+		process.env.TOURS_ROLLOUT_STAGE = "general"
+		process.env.TOURS_REFUND_HOURS_ENABLED = "true"
+		process.env.TOURS_CHECKIN_ENABLED = "true"
+		process.env.TOURS_PUBLIC_SEARCH_ENABLED = "true"
+		const suffix = crypto.randomUUID()
+		const token = `t_tour_e2e_${suffix}`
+		const userId = `u_tour_e2e_${suffix}`
+		const email = `tour-e2e-${suffix}@example.com`
+		const productId = `prod_tour_${suffix}`
+		const geoPlaceId = `dest_tour_${suffix}`
+		const morningId = `var_tour_am_${suffix}`
+		const afternoonId = `var_tour_pm_${suffix}`
+		const morningRp = `rp_tour_am_${suffix}`
+		const afternoonRp = `rp_tour_pm_${suffix}`
+		const departure = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString().slice(0, 10)
+		const stay = tourDepartureToStay(departure)
+		const checkIn = stay.checkIn.toISOString().slice(0, 10)
+		const checkOut = stay.checkOut.toISOString().slice(0, 10)
+		expect(stay.nights).toBe(1)
 
-			const maxPax = 10
-			const adults = 2
-			const children = 1
-			const infants = 0
-			const rooms = adults + children
-			const occupancy = { adults, children, infants }
-			const meetingPoint = {
-				address: "Plaza Murillo",
-				instructions: "Esperar junto a la catedral con chaleco naranja.",
+		const maxPax = 10
+		const adults = 2
+		const children = 1
+		const infants = 0
+		const rooms = adults + children
+		const occupancy = { adults, children, infants }
+		const meetingPoint = {
+			address: "Plaza Murillo",
+			instructions: "Esperar junto a la catedral con chaleco naranja.",
+		}
+
+		await db
+			.insert(User)
+			.values({
+				id: userId,
+				email,
+				firstName: "Ana",
+				lastName: "Tour",
+			} as any)
+			.onConflictDoNothing()
+
+		await seedTourCommercialReady({
+			productId,
+			geoPlaceId,
+			variantId: morningId,
+			ratePlanId: morningRp,
+			departureTime: "09:00",
+			maxPax,
+			departureDate: checkIn,
+			meetingPoint,
+			occupancy,
+		})
+		await seedTourCommercialReady({
+			productId,
+			geoPlaceId,
+			variantId: afternoonId,
+			ratePlanId: afternoonRp,
+			departureTime: "15:30",
+			maxPax,
+			departureDate: checkIn,
+			meetingPoint,
+			occupancy,
+		})
+
+		const offers = await searchOffers({
+			productId,
+			checkIn: stay.checkIn,
+			checkOut: stay.checkOut,
+			adults,
+			children,
+			rooms,
+			currency: "USD",
+		})
+		const offerVariantIds = offers.map((offer) => String(offer.variantId)).sort()
+		expect(offerVariantIds).toEqual([afternoonId, morningId].sort())
+		expect(
+			offers.every((offer) =>
+				(Array.isArray(offer.ratePlans) ? offer.ratePlans : []).some(
+					(plan: any) => Number(plan?.finalPrice ?? plan?.basePrice ?? 0) > 0
+				)
+			)
+		).toBe(true)
+
+		await withSupabaseAuthStub({ [token]: { id: userId, email } }, async () => {
+			const holdRes = await holdPost({
+				request: makeAuthedJsonRequest({
+					path: "/api/inventory/hold",
+					token,
+					body: {
+						variantId: morningId,
+						ratePlanId: morningRp,
+						dateRange: { from: checkIn, to: checkOut },
+						rooms,
+						occupancyDetail: occupancy,
+					},
+				}),
+			} as any)
+			const holdBody = (await readJson(holdRes)) as any
+			if (holdRes.status !== 200) {
+				throw new Error(`hold failed: ${JSON.stringify(holdBody)}`)
 			}
+			const holdId = String(holdBody?.holdId ?? "")
+			const priceQuoteId = String(holdBody?.priceQuote?.quoteId ?? "")
+			expect(holdId.length).toBeGreaterThan(0)
+			expect(priceQuoteId).toMatch(/^pq_[a-f0-9]{32}$/)
 
-			await db
-				.insert(User)
-				.values({
-					id: userId,
-					email,
-					firstName: "Ana",
-					lastName: "Tour",
-				} as any)
-				.onConflictDoNothing()
+			const confirmRes = await bookingConfirmPost({
+				request: makeAuthedJsonRequest({
+					path: "/api/booking/confirm",
+					token,
+					body: { holdId, priceQuoteId, leadName: "Tour Guest" },
+				}),
+			} as any)
+			const confirmBody = (await readJson(confirmRes)) as any
+			if (confirmRes.status !== 200) {
+				throw new Error(`confirm failed: ${JSON.stringify(confirmBody)}`)
+			}
+			const bookingId = String(confirmBody?.bookingId ?? "")
+			expect(bookingId.length).toBeGreaterThan(0)
 
-			await seedTourCommercialReady({
-				productId,
-				geoPlaceId,
-				variantId: morningId,
-				ratePlanId: morningRp,
+			const morningInv = await db
+				.select({
+					reservedCount: DailyInventory.reservedCount,
+					totalInventory: DailyInventory.totalInventory,
+				})
+				.from(DailyInventory)
+				.where(and(eq(DailyInventory.variantId, morningId), eq(DailyInventory.date, checkIn)))
+				.then((rows) => rows[0])
+			expect(Number(morningInv?.reservedCount)).toBe(rooms)
+			expect(Number(morningInv?.totalInventory)).toBe(maxPax)
+
+			const afternoonInv = await db
+				.select({
+					reservedCount: DailyInventory.reservedCount,
+					totalInventory: DailyInventory.totalInventory,
+				})
+				.from(DailyInventory)
+				.where(and(eq(DailyInventory.variantId, afternoonId), eq(DailyInventory.date, checkIn)))
+				.then((rows) => rows[0])
+			expect(Number(afternoonInv?.reservedCount)).toBe(0)
+			expect(Number(afternoonInv?.totalInventory)).toBe(maxPax)
+
+			const booking = await db
+				.select()
+				.from(Booking)
+				.where(eq(Booking.id, bookingId))
+				.then((rows) => rows[0])
+			expect(booking).toBeTruthy()
+			expect(String(booking?.status)).toBe("confirmed")
+			expect(String(booking?.userId)).toBe(userId)
+			expect(Number(booking?.numAdults)).toBe(adults)
+			expect(Number(booking?.numChildren)).toBe(children)
+
+			const contact = (booking?.guestContactSnapshotJson ?? {}) as Record<string, unknown>
+			expect(contact.meetingPoint).toMatchObject(meetingPoint)
+			expect(String(contact.departureTime ?? "")).toBe("09:00")
+
+			const lineItems = await db
+				.select()
+				.from(BookingLineItem)
+				.where(eq(BookingLineItem.bookingId, bookingId))
+			expect(lineItems).toHaveLength(1)
+			expect(String(lineItems[0]?.variantId)).toBe(morningId)
+			expect(Number(lineItems[0]?.adults)).toBe(adults)
+			expect(Number(lineItems[0]?.children)).toBe(children)
+
+			const voucher = await db
+				.select()
+				.from(BookingVoucher)
+				.where(eq(BookingVoucher.bookingId, bookingId))
+				.then((rows) => rows[0])
+			expect(voucher).toBeTruthy()
+			expect(String(voucher?.status)).toBe("issued")
+			expect(String(voucher?.code ?? "")).toMatch(/^FT-/)
+			expect(voucher?.instructionsJson).toMatchObject({
+				departureDate: checkIn,
 				departureTime: "09:00",
-				maxPax,
-				departureDate: checkIn,
-				meetingPoint,
-				occupancy,
-			})
-			await seedTourCommercialReady({
-				productId,
-				geoPlaceId,
-				variantId: afternoonId,
-				ratePlanId: afternoonRp,
-				departureTime: "15:30",
-				maxPax,
-				departureDate: checkIn,
-				meetingPoint,
-				occupancy,
+				participants: occupancy,
 			})
 
-			const offers = await searchOffers({
+			const postConfirmOffers = await searchOffers({
 				productId,
 				checkIn: stay.checkIn,
 				checkOut: stay.checkOut,
@@ -390,132 +503,16 @@ describe("integration/tour booking E2E (P0 1.1)", () => {
 				rooms,
 				currency: "USD",
 			})
-			const offerVariantIds = offers.map((offer) => String(offer.variantId)).sort()
-			expect(offerVariantIds).toEqual([afternoonId, morningId].sort())
+			const remainingMorningOffer = postConfirmOffers.find(
+				(offer) => String(offer.variantId) === morningId
+			)
+			expect(remainingMorningOffer).toBeTruthy()
 			expect(
-				offers.every((offer) =>
-					(Array.isArray(offer.ratePlans) ? offer.ratePlans : []).some(
-						(plan: any) => Number(plan?.finalPrice ?? plan?.basePrice ?? 0) > 0
-					)
-				)
+				(Array.isArray(remainingMorningOffer?.ratePlans)
+					? remainingMorningOffer.ratePlans
+					: []
+				).some((plan: any) => Number(plan?.finalPrice ?? plan?.basePrice ?? 0) > 0)
 			).toBe(true)
-
-			await withSupabaseAuthStub({ [token]: { id: userId, email } }, async () => {
-				const holdRes = await holdPost({
-					request: makeAuthedJsonRequest({
-						path: "/api/inventory/hold",
-						token,
-						body: {
-							variantId: morningId,
-							ratePlanId: morningRp,
-							dateRange: { from: checkIn, to: checkOut },
-							rooms,
-							occupancyDetail: occupancy,
-						},
-					}),
-				} as any)
-				const holdBody = (await readJson(holdRes)) as any
-				if (holdRes.status !== 200) {
-					throw new Error(`hold failed: ${JSON.stringify(holdBody)}`)
-				}
-				const holdId = String(holdBody?.holdId ?? "")
-				expect(holdId.length).toBeGreaterThan(0)
-
-				const confirmRes = await bookingConfirmPost({
-					request: makeAuthedJsonRequest({
-						path: "/api/booking/confirm",
-						token,
-						body: { holdId },
-					}),
-				} as any)
-				const confirmBody = (await readJson(confirmRes)) as any
-				if (confirmRes.status !== 200) {
-					throw new Error(`confirm failed: ${JSON.stringify(confirmBody)}`)
-				}
-				const bookingId = String(confirmBody?.bookingId ?? "")
-				expect(bookingId.length).toBeGreaterThan(0)
-
-				const morningInv = await db
-					.select({
-						reservedCount: DailyInventory.reservedCount,
-						totalInventory: DailyInventory.totalInventory,
-					})
-					.from(DailyInventory)
-					.where(and(eq(DailyInventory.variantId, morningId), eq(DailyInventory.date, checkIn)))
-					.then((rows) => rows[0])
-				expect(Number(morningInv?.reservedCount)).toBe(rooms)
-				expect(Number(morningInv?.totalInventory)).toBe(maxPax)
-
-				const afternoonInv = await db
-					.select({
-						reservedCount: DailyInventory.reservedCount,
-						totalInventory: DailyInventory.totalInventory,
-					})
-					.from(DailyInventory)
-					.where(and(eq(DailyInventory.variantId, afternoonId), eq(DailyInventory.date, checkIn)))
-					.then((rows) => rows[0])
-				expect(Number(afternoonInv?.reservedCount)).toBe(0)
-				expect(Number(afternoonInv?.totalInventory)).toBe(maxPax)
-
-				const booking = await db
-					.select()
-					.from(Booking)
-					.where(eq(Booking.id, bookingId))
-					.then((rows) => rows[0])
-				expect(booking).toBeTruthy()
-				expect(String(booking?.status)).toBe("confirmed")
-				expect(String(booking?.userId)).toBe(userId)
-				expect(Number(booking?.numAdults)).toBe(adults)
-				expect(Number(booking?.numChildren)).toBe(children)
-
-				const contact = (booking?.guestContactSnapshotJson ?? {}) as Record<string, unknown>
-				expect(contact.meetingPoint).toMatchObject(meetingPoint)
-				expect(String(contact.departureTime ?? "")).toBe("09:00")
-
-				const lineItems = await db
-					.select()
-					.from(BookingLineItem)
-					.where(eq(BookingLineItem.bookingId, bookingId))
-				expect(lineItems).toHaveLength(1)
-				expect(String(lineItems[0]?.variantId)).toBe(morningId)
-				expect(Number(lineItems[0]?.adults)).toBe(adults)
-				expect(Number(lineItems[0]?.children)).toBe(children)
-
-				const voucher = await db
-					.select()
-					.from(BookingVoucher)
-					.where(eq(BookingVoucher.bookingId, bookingId))
-					.then((rows) => rows[0])
-				expect(voucher).toBeTruthy()
-				expect(String(voucher?.status)).toBe("issued")
-				expect(String(voucher?.code ?? "")).toMatch(/^FT-/)
-				expect(voucher?.instructionsJson).toMatchObject({
-					departureDate: checkIn,
-					departureTime: "09:00",
-					participants: occupancy,
-				})
-
-				const postConfirmOffers = await searchOffers({
-					productId,
-					checkIn: stay.checkIn,
-					checkOut: stay.checkOut,
-					adults,
-					children,
-					rooms,
-					currency: "USD",
-				})
-				const remainingMorningOffer = postConfirmOffers.find(
-					(offer) => String(offer.variantId) === morningId
-				)
-				expect(remainingMorningOffer).toBeTruthy()
-				expect(
-					(Array.isArray(remainingMorningOffer?.ratePlans)
-						? remainingMorningOffer.ratePlans
-						: []
-					).some((plan: any) => Number(plan?.finalPrice ?? plan?.basePrice ?? 0) > 0)
-				).toBe(true)
-			})
-		},
-		120_000
-	)
+		})
+	}, 120_000)
 })

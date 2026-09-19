@@ -1,0 +1,358 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Input from "@/components/ui/Input.astro"
+import Notice from "@/components/ui/Notice.astro"
+import Layout from "@/layouts/Layout.astro"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { buildTourSelectionPath, loadTourCheckoutHold } from "@/lib/tours/tourCheckout"
+
+const holdId = String(Astro.url.searchParams.get("holdId") ?? "").trim()
+const priceQuoteId = String(Astro.url.searchParams.get("priceQuoteId") ?? "").trim()
+const currentPath = `/checkout/tours?${new URLSearchParams({
+	holdId,
+	...(priceQuoteId ? { priceQuoteId } : {}),
+}).toString()}`
+const user = await getUserFromRequest(Astro.request)
+if (!user?.id) return Astro.redirect(`/SignInPage?returnTo=${encodeURIComponent(currentPath)}`)
+
+const checkout = await loadTourCheckoutHold(holdId)
+const productSelectionPath = checkout ? buildTourSelectionPath(checkout) : "/tours"
+const quoteMatches = Boolean(
+	priceQuoteId && checkout?.commercial.priceQuote.quoteId === priceQuoteId
+)
+const isExpired = !checkout || checkout.expiresAt.getTime() <= Date.now()
+const checkoutEnabled = Boolean(
+	checkout && quoteMatches && !isExpired && checkout.payment.status === "provider_at_experience"
+)
+const quote = checkout?.commercial.priceQuote
+const extras = quote?.taxesAndFees?.totalAmount ?? quote?.taxesAndFees?.total ?? 0
+---
+
+<Layout title="Completa tu reserva">
+	<main class="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
+		<div class="mx-auto grid max-w-5xl gap-6 lg:grid-cols-[1fr_360px]">
+			<section>
+				<a href={productSelectionPath} class="text-sm font-medium text-slate-700 underline"
+					>Volver a la experiencia</a
+				>
+				<h1 class="mt-4 text-3xl font-semibold tracking-tight text-slate-950">
+					Completa tu reserva
+				</h1>
+				<p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+					Revisarás la selección retenida, tus datos necesarios para esta salida y el total antes de
+					confirmar.
+				</p>
+
+				{
+					!checkout || !quoteMatches ? (
+						<Card class="mt-6 border-amber-200 bg-amber-50 p-6">
+							<h2 class="text-lg font-semibold text-slate-950">
+								Esta selección ya no está disponible
+							</h2>
+							<p class="mt-2 text-sm text-slate-700">
+								No encontramos la cotización que intentabas revisar. Vuelve a elegir una salida para
+								consultar el precio vigente.
+							</p>
+							<Button href={productSelectionPath} class="mt-5">
+								Buscar disponibilidad
+							</Button>
+						</Card>
+					) : isExpired ? (
+						<Card class="mt-6 border-amber-200 bg-amber-50 p-6">
+							<h2 class="text-lg font-semibold text-slate-950">La retención de cupo venció</h2>
+							<p class="mt-2 text-sm text-slate-700">
+								No se confirmó ninguna reserva. Vuelve a la ficha para comprobar el cupo y el precio
+								actualizados.
+							</p>
+							<Button href={productSelectionPath} class="mt-5">
+								Comprobar disponibilidad
+							</Button>
+						</Card>
+					) : checkout.payment.status !== "provider_at_experience" ? (
+						<Card class="mt-6 border-amber-200 bg-amber-50 p-6">
+							<h2 class="text-lg font-semibold text-slate-950">
+								Esta salida no tiene una modalidad de pago disponible
+							</h2>
+							<p class="mt-2 text-sm text-slate-700">{checkout.payment.detail}</p>
+							<Button href={productSelectionPath} class="mt-5">
+								Volver a la ficha
+							</Button>
+						</Card>
+					) : (
+						<form
+							id="tourCheckoutForm"
+							class="mt-6 space-y-5"
+							data-hold-id={checkout.holdId}
+							data-price-quote-id={checkout.commercial.priceQuote.quoteId}
+							novalidate
+						>
+							<Card class="p-5">
+								<h2 class="text-lg font-semibold text-slate-950">Titular de la reserva</h2>
+								<p class="mt-1 text-sm text-slate-600">
+									La reserva quedará disponible en Tus viajes para {user.email}.
+								</p>
+								<label
+									class="mt-4 block text-sm font-medium text-slate-800"
+									for="tourCheckoutLeadName"
+								>
+									Nombre completo
+									<Input
+										id="tourCheckoutLeadName"
+										name="leadName"
+										class="mt-1 w-full"
+										autocomplete="name"
+										required
+									/>
+								</label>
+							</Card>
+
+							{checkout.questions.length ? (
+								<Card class="p-5">
+									<h2 class="text-lg font-semibold text-slate-950">Datos para esta salida</h2>
+									<p class="mt-1 text-sm text-slate-600">
+										El proveedor solicita estos datos para preparar tu experiencia.
+									</p>
+									<div class="mt-4 space-y-4">
+										{checkout.questions.map((question) => (
+											<label
+												class="block text-sm font-medium text-slate-800"
+												for={`question_${question.id}`}
+											>
+												{question.label}
+												{question.required ? (
+													<span class="text-rose-700"> · Obligatorio</span>
+												) : null}
+												<Input
+													id={`question_${question.id}`}
+													class="mt-1 w-full"
+													data-question-id={question.id}
+													required={question.required}
+												/>
+											</label>
+										))}
+									</div>
+								</Card>
+							) : null}
+
+							<Card class="p-5">
+								<h2 class="text-lg font-semibold text-slate-950">Condiciones y pago</h2>
+								<p class="mt-2 text-sm font-medium text-slate-900">{checkout.payment.timing}</p>
+								<p class="mt-1 text-sm leading-6 text-slate-600">{checkout.payment.detail}</p>
+								<p class="mt-4 text-sm leading-6 text-slate-700">
+									{checkout.policy.cancellation?.summary ??
+										"Consulta las condiciones aplicables a esta tarifa."}
+								</p>
+							</Card>
+
+							<Notice id="tourCheckoutError" variant="error" class="hidden" tabindex="-1" />
+							<p id="tourCheckoutStatus" class="text-sm text-slate-600" aria-live="polite" />
+							<Button id="tourCheckoutSubmit" type="submit">
+								Confirmar reserva
+							</Button>
+						</form>
+					)
+				}
+			</section>
+
+			{
+				checkout ? (
+					<aside class="lg:pt-12">
+						<Card class="sticky top-5 p-5">
+							<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+								Tu selección
+							</p>
+							<h2 class="mt-2 text-xl font-semibold text-slate-950">{checkout.productName}</h2>
+							<p class="mt-2 text-sm text-slate-600">
+								{checkout.variantName} · {checkout.commercial.from}
+								{checkout.departureTime ? ` · ${checkout.departureTime}` : ""}
+							</p>
+							<p class="mt-1 text-sm text-slate-600">
+								{checkout.languageCode ? `Idioma: ${checkout.languageCode.toUpperCase()} · ` : ""}
+								{checkout.commercial.occupancyDetail.adults} adulto
+								{checkout.commercial.occupancyDetail.adults === 1 ? "" : "s"}
+								{checkout.commercial.occupancyDetail.children
+									? ` · ${checkout.commercial.occupancyDetail.children} niño(s)`
+									: ""}
+							</p>
+							<dl class="mt-5 space-y-3 border-t border-slate-200 pt-4 text-sm">
+								<div class="flex justify-between gap-4">
+									<>
+										<dt class="text-slate-600">Servicio</dt>
+										<dd>
+											{quote?.currency} {Number(quote?.baseAmount ?? 0).toFixed(2)}
+										</dd>
+									</>
+								</div>
+								<div class="flex justify-between gap-4">
+									<>
+										<dt class="text-slate-600">Impuestos y cargos</dt>
+										<dd>
+											{quote?.currency} {Number(extras).toFixed(2)}
+										</dd>
+									</>
+								</div>
+								<div class="flex justify-between gap-4 border-t border-slate-200 pt-3 text-base font-semibold text-slate-950">
+									<>
+										<dt>Total</dt>
+										<dd>
+											{quote?.currency} {Number(quote?.totalAmount ?? 0).toFixed(2)}
+										</dd>
+									</>
+								</div>
+							</dl>
+							<p
+								id="tourHoldExpiry"
+								class="mt-5 rounded-lg bg-slate-100 p-3 text-xs leading-5 text-slate-700"
+								data-expires-at={checkout.expiresAt.toISOString()}
+							>
+								Este cupo está retenido temporalmente.
+							</p>
+						</Card>
+					</aside>
+				) : null
+			}
+		</div>
+	</main>
+</Layout>
+
+<script>
+	const form = document.getElementById("tourCheckoutForm") as HTMLFormElement | null
+	if (form) {
+		const holdId = String(form.dataset.holdId ?? "")
+		const priceQuoteId = String(form.dataset.priceQuoteId ?? "")
+		const submit = document.getElementById("tourCheckoutSubmit") as HTMLButtonElement | null
+		const status = document.getElementById("tourCheckoutStatus")
+		const error = document.getElementById("tourCheckoutError")
+		const expiry = document.getElementById("tourHoldExpiry")
+		let holdExpired = false
+		const showError = (message: string) => {
+			if (!error) return
+			error.textContent = message
+			error.classList.remove("hidden")
+			error.focus()
+		}
+		const returnToSignIn = () => {
+			const returnTo = `${window.location.pathname}${window.location.search}`
+			window.location.assign(`/SignInPage?returnTo=${encodeURIComponent(returnTo)}`)
+		}
+		const recover = async (): Promise<
+			"confirmed" | "pending" | "expired" | "missing" | "unauthorized" | "unavailable"
+		> => {
+			try {
+				const response = await fetch(
+					`/api/booking/confirmation-status?holdId=${encodeURIComponent(holdId)}`,
+					{ cache: "no-store" }
+				)
+				if (response.status === 401) return "unauthorized"
+				const payload = await response.json().catch(() => ({}))
+				if (payload?.state === "confirmed" && payload?.bookingId) {
+					window.location.assign(`/trips/${encodeURIComponent(String(payload.bookingId))}`)
+					return "confirmed"
+				}
+				if (payload?.state === "expired") return "expired"
+				if (payload?.state === "pending") return "pending"
+				return "missing"
+			} catch {
+				return "unavailable"
+			}
+		}
+		const refreshExpiry = () => {
+			const expiresAt = new Date(String(expiry?.dataset.expiresAt ?? "")).getTime()
+			const seconds = Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000))
+			if (!Number.isFinite(expiresAt) || seconds <= 0) {
+				holdExpired = true
+				if (expiry)
+					expiry.textContent = "La retención venció. Comprueba disponibilidad para continuar."
+				if (submit) submit.disabled = true
+				return
+			}
+			if (expiry) {
+				expiry.textContent = `Cupo retenido durante ${Math.floor(seconds / 60)}:${String(
+					seconds % 60
+				).padStart(2, "0")} minutos.`
+			}
+		}
+		refreshExpiry()
+		window.setInterval(refreshExpiry, 1_000)
+		form.addEventListener("submit", async (event) => {
+			event.preventDefault()
+			if (!form.reportValidity()) return
+			let redirecting = false
+			if (submit) submit.disabled = true
+			if (status) status.textContent = "Confirmando tu reserva…"
+			if (error) error.classList.add("hidden")
+			const answers = Array.from(form.querySelectorAll<HTMLInputElement>("[data-question-id]")).map(
+				(input) => ({
+					questionId: String(input.dataset.questionId ?? ""),
+					value: input.value.trim(),
+				})
+			)
+			try {
+				const response = await fetch("/api/booking/confirm", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						holdId,
+						priceQuoteId,
+						leadName: String(new FormData(form).get("leadName") ?? "").trim(),
+						answers,
+					}),
+				})
+				const payload = await response.json().catch(() => ({}))
+				if (response.ok && payload?.bookingId) {
+					redirecting = true
+					window.location.assign(`/trips/${encodeURIComponent(String(payload.bookingId))}`)
+					return
+				}
+				if (response.status === 401) {
+					redirecting = true
+					returnToSignIn()
+					return
+				}
+				if (payload?.error === "HOLD_EXPIRED")
+					showError(
+						"La retención venció. Comprueba disponibilidad para obtener una nueva cotización."
+					)
+				else if (payload?.error === "PRICE_QUOTE_MISMATCH")
+					showError(
+						"El precio de esta retención ya no coincide. Vuelve a la ficha para revisar el precio vigente."
+					)
+				else if (payload?.error === "missing_required_answers")
+					showError("Completa los datos obligatorios marcados para confirmar.")
+				else if (payload?.error === "PAYMENT_METHOD_UNAVAILABLE")
+					showError("Esta salida no tiene una modalidad de pago que Fastt pueda confirmar.")
+				else
+					showError(
+						"No pudimos confirmar la reserva. Revisa el estado antes de intentarlo nuevamente."
+					)
+			} catch {
+				if (status)
+					status.textContent =
+						"No recibimos respuesta. Estamos comprobando si tu reserva se confirmó…"
+				const recovery = await recover()
+				if (recovery === "unauthorized") {
+					redirecting = true
+					returnToSignIn()
+				} else if (recovery === "expired") {
+					holdExpired = true
+					showError("La retención venció y no se creó ninguna reserva. Comprueba disponibilidad.")
+				} else if (recovery === "missing") {
+					showError(
+						"No encontramos una reserva confirmada ni una retención activa. Comprueba disponibilidad."
+					)
+				} else if (recovery === "unavailable") {
+					showError(
+						"No pudimos comprobar el resultado por un problema de red. Revisa Tus viajes antes de reintentar."
+					)
+				} else if (recovery === "pending") {
+					showError(
+						"No pudimos confirmar el resultado. Tu cupo sigue retenido si no venció; puedes reintentar sin crear otra reserva."
+					)
+				}
+			} finally {
+				if (submit && !redirecting) submit.disabled = holdExpired
+			}
+		})
+	}
+</script>

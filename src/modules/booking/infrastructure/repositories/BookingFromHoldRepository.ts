@@ -14,6 +14,7 @@ import {
 	RatePlan,
 	sql,
 	Tour,
+	TourBookingQuestion,
 	TourSlotProfile,
 	User,
 	Variant,
@@ -31,6 +32,7 @@ import {
 	HOLD_COMMERCIAL_SNAPSHOT_VERSION,
 	isHoldCommercialSnapshot,
 } from "@/modules/inventory/public"
+import { readTourBookingQuestionSnapshot } from "@/lib/tours/tourBookingQuestionsSnapshot"
 
 type BookingPricingSnapshot = {
 	ratePlanId: string
@@ -241,11 +243,14 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 			const linkedBookingId = holdRows.find((row) => row.bookingId)?.bookingId
 			if (linkedBookingId) {
 				const existingBooking = await tx
-					.select({ id: Booking.id, status: Booking.status })
+					.select({ id: Booking.id, status: Booking.status, userId: Booking.userId })
 					.from(Booking)
 					.where(eq(Booking.id, linkedBookingId))
 					.then(first)
 				if (!existingBooking) throw new Error("HOLD_ALREADY_CONFIRMED")
+				if (!input.userId || existingBooking.userId !== input.userId) {
+					throw new Error("HOLD_OWNED_BY_ANOTHER_USER")
+				}
 				const variantId = String(holdRows[0].variantId)
 				const variant = await tx
 					.select({ productId: Variant.productId })
@@ -363,6 +368,61 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 				String(variant.kind ?? "")
 					.trim()
 					.toLowerCase() === "tour_slot"
+			const snapshottedQuestions = readTourBookingQuestionSnapshot(
+				hold?.guestExpectationsSnapshotJson
+			)
+			const configuredQuestions = isTourSlot
+				? (snapshottedQuestions ??
+					(await tx
+						.select({
+							id: TourBookingQuestion.id,
+							code: TourBookingQuestion.code,
+							label: TourBookingQuestion.label,
+							required: TourBookingQuestion.isRequired,
+						})
+						.from(TourBookingQuestion)
+						.where(eq(TourBookingQuestion.productId, product.id))))
+				: []
+			const submittedAnswers = new Map<string, string>()
+			for (const answer of input.tourAnswers ?? []) {
+				const questionId = String(answer?.questionId ?? "").trim()
+				const value = String(answer?.value ?? "").trim()
+				if (!questionId || value.length > 500 || submittedAnswers.has(questionId)) {
+					throw new Error("INVALID_TOUR_ANSWERS")
+				}
+				submittedAnswers.set(questionId, value)
+			}
+			const configuredQuestionIds = new Set(
+				configuredQuestions.map((question) => String(question.id))
+			)
+			if (
+				[...submittedAnswers.keys()].some((questionId) => !configuredQuestionIds.has(questionId))
+			) {
+				throw new Error("INVALID_TOUR_ANSWERS")
+			}
+			if (
+				configuredQuestions.some(
+					(question) => Boolean(question.required) && !submittedAnswers.get(String(question.id))
+				)
+			) {
+				throw new Error("missing_required_answers")
+			}
+			const tourAnswers = configuredQuestions
+				.map((question) => {
+					const value = submittedAnswers.get(String(question.id))
+					if (!value) return null
+					return {
+						questionId: String(question.id),
+						code: String(question.code),
+						label: String(question.label),
+						value,
+					}
+				})
+				.filter(Boolean)
+			const submittedLeadName = String(input.leadName ?? "").trim()
+			if (submittedLeadName.length > 160 || (isTourSlot && submittedLeadName.length < 2)) {
+				throw new Error("INVALID_LEAD_CONTACT")
+			}
 			const tourMeetingPointSnapshot = isTourSlot
 				? await tx
 						.select({
@@ -421,10 +481,10 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 				source: String(input.source ?? "web"),
 				confirmedAt: now,
 				guestEmailSnapshot,
-				guestNameSnapshot,
+				guestNameSnapshot: submittedLeadName || guestNameSnapshot,
 				guestContactSnapshotJson: {
 					email: guestEmailSnapshot,
-					name: guestNameSnapshot,
+					name: submittedLeadName || guestNameSnapshot,
 					userId: input.userId ?? null,
 					...(isTourSlot
 						? {
@@ -435,6 +495,7 @@ export class BookingFromHoldRepository implements BookingFromHoldRepositoryPort 
 							}
 						: {}),
 					...(meetingPointSnapshot ? { meetingPoint: meetingPointSnapshot } : {}),
+					...(tourAnswers.length ? { tourAnswers } : {}),
 				},
 				lifecycleAuditJson: lifecycleAuditSnapshot,
 				refundHandoffSnapshotJson: refundHandoffSnapshot,
