@@ -71,6 +71,7 @@ export async function searchOffers(params: {
 	rooms?: number
 	adults: number
 	children: number
+	infants?: number
 	debug?: boolean
 	currency?: string
 	featureContext?: FeatureFlagContext & { requestId?: string }

@@ -9,6 +9,8 @@ import type { TaxFeeBreakdown } from "@/modules/taxes-fees/public"
 
 export type SearchRatePlanOffer = {
 	ratePlanId: string
+	ratePlanName?: string | null
+	currency?: string | null
 	basePrice: number
 	finalPrice: number
 	taxesAndFees: TaxFeeBreakdown
@@ -166,6 +168,7 @@ export class SearchPipeline<TUnit extends SellableUnit = SellableUnit> {
 		return [
 			{
 				ratePlanId: defaultRatePlanId,
+				currency: String(taxBreakdown.currency ?? "USD").toUpperCase(),
 				basePrice: Number(effective.total),
 				finalPrice: final,
 				taxesAndFees: taxBreakdown,

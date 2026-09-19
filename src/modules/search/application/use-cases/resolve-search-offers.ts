@@ -18,6 +18,7 @@ export type SearchOffersInput = {
 	rooms?: number
 	adults: number
 	children: number
+	infants?: number
 	debug?: boolean
 	currency?: string
 }
@@ -112,7 +113,7 @@ export async function resolveSearchOffers(
 	const occupancyKey = buildOccupancyKey({
 		adults: params.adults,
 		children: params.children,
-		infants: 0,
+		infants: Math.max(0, Number(params.infants ?? 0)),
 	})
 
 	const unitIds = units.map((unit) => unit.id).filter(Boolean)
@@ -239,6 +240,20 @@ export async function resolveSearchOffers(
 			)
 			const ratePlanId = String(bucket[0]?.ratePlanId ?? "")
 			if (!ratePlanId) continue
+			const ratePlanName = String(bucket[0]?.ratePlanName ?? "").trim() || null
+			const currencies = new Set(
+				bucket.map((row) => String(row.currency ?? "").toUpperCase()).filter(Boolean)
+			)
+			const currency =
+				currencies.size === 0
+					? String(params.currency ?? "USD").toUpperCase()
+					: currencies.size === 1
+						? [...currencies][0]
+						: ""
+			if (!currency || !/^[A-Z]{3}$/.test(currency)) {
+				sawInconsistentViewData = true
+				continue
+			}
 
 			const stayDayRows = stayDates
 				.map((date) => bucketByDate.get(date))
@@ -395,6 +410,8 @@ export async function resolveSearchOffers(
 
 			ratePlanOffers.push({
 				ratePlanId,
+				ratePlanName,
+				currency,
 				basePrice: total,
 				finalPrice: total,
 				taxesAndFees: {
@@ -402,7 +419,7 @@ export async function resolveSearchOffers(
 					base: total,
 					taxes: { included: [], excluded: [] },
 					fees: { included: [], excluded: [] },
-					currency: "USD",
+					currency,
 				} as TaxFeeBreakdown,
 				totalPrice: total,
 			})

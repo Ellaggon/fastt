@@ -1,4 +1,5 @@
 ---
+import Dialog from "@/components/ui/Dialog.astro"
 import type { ImageRow } from "@/types/products"
 
 interface Props {
@@ -27,63 +28,70 @@ const galleryImages = images.length
 	{
 		galleryImages.length > 1 ? (
 			<div class="grid grid-cols-4 gap-2 sm:grid-cols-6">
-				{galleryImages.slice(0, 6).map((image, index) => (
-					<button
-						type="button"
-						class="fastt-button overflow-hidden rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-						data-gallery-open={index}
-						aria-label={`Ampliar imagen ${index + 1} de ${galleryImages.length}`}
-					>
-						<img
-							src={image.url}
-							alt={`${title}, imagen ${index + 1}`}
-							class="h-20 w-full object-cover"
-						/>
-					</button>
-				))}
+				{galleryImages.slice(1, 7).map((image, thumbnailIndex) => {
+					const index = thumbnailIndex + 1
+					return (
+						<button
+							type="button"
+							class="fastt-button overflow-hidden rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+							data-gallery-open={index}
+							aria-label={`Ampliar imagen ${index + 1} de ${galleryImages.length}`}
+						>
+							<img
+								src={image.url}
+								alt={`${title}, imagen ${index + 1}`}
+								class="h-20 w-full object-cover"
+							/>
+						</button>
+					)
+				})}
 			</div>
 		) : null
 	}
-	<div
-		class="fastt-modal-backdrop fixed inset-0 z-50 hidden items-center justify-center bg-black/90 p-4"
+	<Dialog
+		class="max-h-screen max-w-full overflow-visible border-0 bg-transparent p-4 backdrop:bg-black/90"
 		data-gallery-dialog
-		role="dialog"
-		aria-modal="true"
 		aria-label={`Galería de ${title}`}
 	>
-		<button
-			type="button"
-			class="fastt-button absolute top-5 right-6 rounded p-2 text-3xl text-white focus-visible:outline focus-visible:outline-2"
-			data-gallery-close
-			aria-label="Cerrar galería">×</button
-		>
-		{
-			galleryImages.length > 1 ? (
-				<button
-					type="button"
-					class="fastt-button absolute left-3 rounded p-3 text-3xl text-white focus-visible:outline focus-visible:outline-2 sm:left-8"
-					data-gallery-previous
-					aria-label="Foto anterior"
-				>
-					‹
-				</button>
-			) : null
-		}
-		<img class="max-h-[80vh] max-w-[84vw] rounded shadow-lg" data-gallery-image alt="" />
-		<p class="sr-only" aria-live="polite" data-gallery-status></p>
-		{
-			galleryImages.length > 1 ? (
-				<button
-					type="button"
-					class="fastt-button absolute right-3 rounded p-3 text-3xl text-white focus-visible:outline focus-visible:outline-2 sm:right-8"
-					data-gallery-next
-					aria-label="Foto siguiente"
-				>
-					›
-				</button>
-			) : null
-		}
-	</div>
+		<div class="relative flex min-h-[12rem] min-w-0 items-center justify-center">
+			<button
+				type="button"
+				class="fastt-button absolute top-5 right-6 rounded p-2 text-3xl text-white focus-visible:outline focus-visible:outline-2"
+				data-gallery-close
+				aria-label="Cerrar galería">×</button
+			>
+			{
+				galleryImages.length > 1 ? (
+					<button
+						type="button"
+						class="fastt-button absolute left-3 rounded p-3 text-3xl text-white focus-visible:outline focus-visible:outline-2 sm:left-8"
+						data-gallery-previous
+						aria-label="Foto anterior"
+					>
+						‹
+					</button>
+				) : null
+			}
+			<img
+				class="max-h-[80vh] max-w-[84vw] rounded object-contain shadow-lg"
+				data-gallery-image
+				alt=""
+			/>
+			<p class="sr-only" aria-live="polite" data-gallery-status></p>
+			{
+				galleryImages.length > 1 ? (
+					<button
+						type="button"
+						class="fastt-button absolute right-3 rounded p-3 text-3xl text-white focus-visible:outline focus-visible:outline-2 sm:right-8"
+						data-gallery-next
+						aria-label="Foto siguiente"
+					>
+						›
+					</button>
+				) : null
+			}
+		</div>
+	</Dialog>
 </section>
 
 <script define:vars={{ sources: galleryImages.map((image) => image.url), title }}>
@@ -106,17 +114,14 @@ const galleryImages = images.length
 				(element) => element instanceof HTMLElement && element.offsetParent !== null
 			)
 		const hide = () => {
-			dialog?.classList.add("hidden")
-			dialog?.classList.remove("flex")
-			opener?.focus()
+			if (dialog?.open) dialog.close()
 		}
 		gallery.querySelectorAll("[data-gallery-open]").forEach((button) =>
 			button.addEventListener("click", () => {
 				index = Number(button.dataset.galleryOpen || 0)
 				opener = button
 				show()
-				dialog?.classList.remove("hidden")
-				dialog?.classList.add("flex")
+				dialog?.showModal()
 				close?.focus()
 			})
 		)
@@ -129,11 +134,12 @@ const galleryImages = images.length
 			index = (index + 1) % sources.length
 			show()
 		})
+		dialog?.addEventListener("close", () => opener?.focus())
 		dialog?.addEventListener("click", (event) => {
 			if (event.target === dialog) hide()
 		})
 		document.addEventListener("keydown", (event) => {
-			if (dialog?.classList.contains("hidden")) return
+			if (!dialog?.open) return
 			if (event.key === "Tab") {
 				const controls = focusable()
 				const first = controls[0]
@@ -147,7 +153,10 @@ const galleryImages = images.length
 					first.focus()
 				}
 			}
-			if (event.key === "Escape") hide()
+			if (event.key === "Escape") {
+				event.preventDefault()
+				hide()
+			}
 			if (event.key === "ArrowLeft") {
 				index = (index - 1 + sources.length) % sources.length
 				show()

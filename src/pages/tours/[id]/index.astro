@@ -21,6 +21,7 @@ import {
 	derivePolicySummaryFromResolvedPolicies,
 	resolveEffectivePolicies,
 } from "@/modules/policies/public"
+import { buildOccupancyKey } from "@/modules/search/public"
 import {
 	and,
 	asc,
@@ -32,9 +33,11 @@ import {
 	first,
 	GeoPlace,
 	gt,
+	gte,
 	Image,
 	inArray,
 	isNull,
+	lt,
 	lte,
 	or,
 	Product,
@@ -48,6 +51,7 @@ import {
 	ProductService,
 	Provider,
 	RatePlanOccupancyPolicy,
+	SearchUnitView,
 	Tour,
 	TourSlotProfile,
 	TourTicketType,
@@ -139,10 +143,55 @@ const offers =
 				checkOut: stay.checkOut,
 				adults: occupancyDetail.adults,
 				children: occupancyDetail.children,
+				infants: occupancyDetail.infants,
 				rooms: cupoUnits,
 				featureContext: { request: Astro.request, query: url.searchParams },
 			})
 		: []
+
+const alternativeDates: Array<{ date: string; label: string; href: string }> = []
+if (departureStr && validInitialParty && offers.length === 0) {
+	const windowEnd = new Date(`${departureStr}T00:00:00.000Z`)
+	windowEnd.setUTCDate(windowEnd.getUTCDate() + 31)
+	const rows = await db
+		.select({ date: SearchUnitView.date })
+		.from(SearchUnitView)
+		.where(
+			and(
+				eq(SearchUnitView.productId, productId),
+				eq(SearchUnitView.occupancyKey, buildOccupancyKey(occupancyDetail)),
+				gt(SearchUnitView.date, departureStr),
+				lt(SearchUnitView.date, windowEnd.toISOString().slice(0, 10)),
+				eq(SearchUnitView.isAvailable, true),
+				eq(SearchUnitView.hasAvailability, true),
+				eq(SearchUnitView.hasPrice, true),
+				gte(SearchUnitView.availableUnits, cupoUnits),
+				or(isNull(SearchUnitView.primaryBlocker), eq(SearchUnitView.primaryBlocker, ""))
+			)
+		)
+		.orderBy(asc(SearchUnitView.date))
+		.limit(40)
+	const uniqueDates = [...new Set(rows.map((row) => String(row.date)).filter(Boolean))].slice(0, 3)
+	for (const date of uniqueDates) {
+		const params = new URLSearchParams({
+			departure: date,
+			adults: String(quantities.adult ?? quantities.adulto ?? 0),
+			children: String(quantities.child ?? 0),
+			infants: String(quantities.infant ?? 0),
+		})
+		if (quantities.custom) params.set("custom", String(quantities.custom))
+		alternativeDates.push({
+			date,
+			label: new Intl.DateTimeFormat("es-CL", {
+				weekday: "short",
+				day: "numeric",
+				month: "short",
+				timeZone: "UTC",
+			}).format(new Date(`${date}T00:00:00.000Z`)),
+			href: `/tours/${encodeURIComponent(productId)}?${params.toString()}`,
+		})
+	}
+}
 
 try {
 	const productResult = await db
@@ -443,6 +492,8 @@ const searchState = {
 	quantities,
 	occupancyDetail,
 	cupoUnits,
+	selectedVariantId: String(url.searchParams.get("variantId") ?? ""),
+	selectedRatePlanId: String(url.searchParams.get("ratePlanId") ?? ""),
 }
 
 const breadcrumbItems = [
@@ -584,6 +635,7 @@ const mapEmbed =
 							searchState={searchState}
 							ticketTypes={ticketBands}
 							priceBreakdown={priceBreakdown}
+							alternativeDates={alternativeDates}
 						/>
 					</section>
 
