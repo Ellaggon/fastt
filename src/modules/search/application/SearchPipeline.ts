@@ -168,7 +168,7 @@ export class SearchPipeline<TUnit extends SellableUnit = SellableUnit> {
 		return [
 			{
 				ratePlanId: defaultRatePlanId,
-				currency: String(taxBreakdown.currency ?? "USD").toUpperCase(),
+				currency: "USD",
 				basePrice: Number(effective.total),
 				finalPrice: final,
 				taxesAndFees: taxBreakdown,
