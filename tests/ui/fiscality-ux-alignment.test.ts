@@ -6,7 +6,7 @@ test("fiscality uses a contextual header, segmented navigation and progressive f
 	expect(read("src/components/dashboard/DashboardTopBar.astro")).toContain("FiscalScopeSwitcher")
 	expect(read("src/components/dashboard/DashboardTopBar.astro")).toContain("ProductContextSwitcher")
 	expect(read("src/pages/dashboard/index.astro")).toContain("flex flex-col gap-2")
-	expect(read("src/pages/dashboard/index.astro")).toContain('class="sr-only">Resumen Operativo')
+	expect(read("src/pages/dashboard/index.astro")).toContain("homeCopy.title")
 	expect(read("src/pages/dashboard/index.astro")).not.toContain("border-b border-slate-800 pb-5")
 	expect(read("src/components/dashboard/DashboardTopBar.astro")).toContain("isDashboardWorkspace")
 	expect(read("src/components/dashboard/DashboardTopBar.astro")).toContain(
