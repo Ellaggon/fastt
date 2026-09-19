@@ -779,7 +779,11 @@ async function certifyFlow(input: {
 		request: new Request("http://localhost:4321/api/booking/confirm", {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ holdId: holdPayload.holdId, priceQuoteId: searchTerms.quoteId }),
+			body: JSON.stringify({
+				holdId: holdPayload.holdId,
+				priceQuoteId: searchTerms.quoteId,
+				leadName: "Certificación Marketplace",
+			}),
 		}),
 	} as any)
 	const checkoutPayload = await readJson(checkoutResponse)

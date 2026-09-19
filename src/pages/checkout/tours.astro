@@ -26,7 +26,7 @@ const checkoutEnabled = Boolean(
 	checkout && quoteMatches && !isExpired && checkout.payment.status === "provider_at_experience"
 )
 const quote = checkout?.commercial.priceQuote
-const extras = quote?.taxesAndFees?.totalAmount ?? quote?.taxesAndFees?.total ?? 0
+const extras = quote?.taxesAndFees?.total ?? 0
 ---
 
 <Layout title="Completa tu reserva">
@@ -140,7 +140,7 @@ const extras = quote?.taxesAndFees?.totalAmount ?? quote?.taxesAndFees?.total ??
 								<p class="mt-2 text-sm font-medium text-slate-900">{checkout.payment.timing}</p>
 								<p class="mt-1 text-sm leading-6 text-slate-600">{checkout.payment.detail}</p>
 								<p class="mt-4 text-sm leading-6 text-slate-700">
-									{checkout.policy.cancellation?.summary ??
+									{checkout.policy.cancellation?.description ??
 										"Consulta las condiciones aplicables a esta tarifa."}
 								</p>
 							</Card>
