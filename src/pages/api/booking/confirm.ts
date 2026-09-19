@@ -7,6 +7,7 @@ import {
 	db,
 	eq,
 	InventoryLock,
+	Hold,
 	Product,
 	sql,
 	Variant,
@@ -36,6 +37,8 @@ import {
 	toursCheckoutEnabled,
 } from "@/lib/tours/tourObservability"
 import { recordMarketplaceEvent } from "@/modules/catalog/public"
+import { buildTourPaymentTerms } from "@/lib/tours/tour-payment-terms"
+import type { HoldPolicySnapshot } from "@/modules/policies/public"
 
 const schema = z.object({
 	holdId: z.string().uuid(),
@@ -44,6 +47,17 @@ const schema = z.object({
 		.regex(/^pq_[a-f0-9]{32}$/)
 		.optional()
 		.nullable(),
+	leadName: z.string().trim().min(2).max(160).optional(),
+	answers: z
+		.array(
+			z.object({
+				questionId: z.string().uuid(),
+				value: z.string().trim().max(500),
+			})
+		)
+		.max(10)
+		.optional()
+		.default([]),
 	/** Optional cross-sell attribution funnel close (hotel → tour). */
 	marketplaceAttribution: z
 		.object({
@@ -74,19 +88,21 @@ async function sleep(ms: number): Promise<void> {
 }
 
 async function findLinkedBookingByHold(
-	holdId: string
+	holdId: string,
+	userId: string
 ): Promise<{ bookingId: string; status: string } | null> {
 	const linked = await db
 		.select({
 			bookingId: InventoryLock.bookingId,
 			status: Booking.status,
+			userId: Booking.userId,
 		})
 		.from(InventoryLock)
 		.leftJoin(Booking, eq(Booking.id, InventoryLock.bookingId))
 		.where(and(eq(InventoryLock.holdId, holdId), sql`${InventoryLock.bookingId} is not null`))
 		.then(first)
 
-	if (!linked?.bookingId) return null
+	if (!linked?.bookingId || linked.userId !== userId) return null
 	return {
 		bookingId: String(linked.bookingId),
 		status: String(linked.status ?? "confirmed"),
@@ -97,6 +113,8 @@ async function findHoldMeta(holdId: string): Promise<{
 	providerId: string | null
 	productId: string | null
 	isTourSlot: boolean
+	policySnapshotJson: unknown
+	priceQuoteId: string | null
 }> {
 	const row = await db
 		.select({
@@ -104,10 +122,13 @@ async function findHoldMeta(holdId: string): Promise<{
 			productId: Product.id,
 			variantKind: Variant.kind,
 			productType: Product.productType,
+			policySnapshotJson: Hold.policySnapshotJson,
+			priceQuoteId: Hold.priceQuoteId,
 		})
 		.from(InventoryLock)
 		.leftJoin(Variant, eq(Variant.id, InventoryLock.variantId))
 		.leftJoin(Product, eq(Product.id, Variant.productId))
+		.leftJoin(Hold, eq(Hold.id, InventoryLock.holdId))
 		.where(eq(InventoryLock.holdId, holdId))
 		.then(first)
 	const productType = String(row?.productType ?? "").toLowerCase()
@@ -116,24 +137,24 @@ async function findHoldMeta(holdId: string): Promise<{
 		providerId: String(row?.providerId ?? "").trim() || null,
 		productId: String((row as any)?.productId ?? "").trim() || null,
 		isTourSlot: variantKind === "tour_slot" || productType === "tour",
+		policySnapshotJson: row?.policySnapshotJson ?? null,
+		priceQuoteId: String(row?.priceQuoteId ?? "").trim() || null,
 	}
 }
 
 async function serializeBookingConfirm<T>(holdId: string, fn: () => Promise<T>): Promise<T> {
 	const prev = bookingConfirmQueues.get(holdId) ?? Promise.resolve()
 	const current = prev.catch(() => undefined).then(fn)
-	bookingConfirmQueues.set(
-		holdId,
-		current.then(
-			() => undefined,
-			() => undefined
-		)
+	const tail = current.then(
+		() => undefined,
+		() => undefined
 	)
+	bookingConfirmQueues.set(holdId, tail)
 	try {
 		return await current
 	} finally {
 		const queued = bookingConfirmQueues.get(holdId)
-		if (queued === current || !queued) {
+		if (queued === tail || !queued) {
 			bookingConfirmQueues.delete(holdId)
 		}
 	}
@@ -143,6 +164,7 @@ export const POST: APIRoute = async ({ request }) => {
 	const startedAt = performance.now()
 	const requestId = String(request.headers.get("x-request-id") ?? crypto.randomUUID()).trim()
 	let requestedHoldId: string | null = null
+	let authenticatedUserId: string | null = null
 	let busyRecoveryAttempts = 0
 	try {
 		// Tours kill-switches are env-only; do not resolve from guest request.
@@ -159,6 +181,13 @@ export const POST: APIRoute = async ({ request }) => {
 		})
 
 		const user = await getUserFromRequest(request)
+		if (!user?.id) {
+			return new Response(JSON.stringify({ error: "unauthorized" }), {
+				status: 401,
+				headers: { "Content-Type": "application/json" },
+			})
+		}
+		authenticatedUserId = user.id
 
 		const contentType = request.headers.get("content-type") ?? ""
 		let payload: unknown
@@ -176,6 +205,25 @@ export const POST: APIRoute = async ({ request }) => {
 		const holdMeta = await findHoldMeta(parsed.holdId)
 		const providerIdForHold = holdMeta.providerId
 		if (!providerIdForHold) throw new Error("PROVIDER_OWNERSHIP_REQUIRED")
+		if (
+			holdMeta.isTourSlot &&
+			(!parsed.priceQuoteId || parsed.priceQuoteId !== holdMeta.priceQuoteId)
+		) {
+			return new Response(JSON.stringify({ error: "PRICE_QUOTE_MISMATCH" }), {
+				status: 409,
+				headers: { "Content-Type": "application/json" },
+			})
+		}
+		if (
+			holdMeta.isTourSlot &&
+			buildTourPaymentTerms((holdMeta.policySnapshotJson ?? {}) as HoldPolicySnapshot).status !==
+				"provider_at_experience"
+		) {
+			return new Response(JSON.stringify({ error: "PAYMENT_METHOD_UNAVAILABLE" }), {
+				status: 409,
+				headers: { "Content-Type": "application/json" },
+			})
+		}
 		const confirmHost = (() => {
 			try {
 				return new URL(request.url).host
@@ -208,7 +256,6 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 		await assertProviderCapability({
 			providerId: providerIdForHold,
-			currentUserId: user?.id ?? null,
 			capability: "booking",
 		})
 		if (!holdMeta.productId) throw new Error("PRODUCT_OWNERSHIP_REQUIRED")
@@ -228,8 +275,10 @@ export const POST: APIRoute = async ({ request }) => {
 						{
 							holdId: parsed.holdId,
 							priceQuoteId: parsed.priceQuoteId,
-							userId: String((user as any)?.id ?? "").trim() || null,
+							userId: user.id,
 							source: "web",
+							leadName: parsed.leadName ?? null,
+							tourAnswers: parsed.answers,
 						}
 					),
 				recompute: (bookingResult) => ({
@@ -333,11 +382,15 @@ export const POST: APIRoute = async ({ request }) => {
 			incrementCounter("booking_confirm_retry_total", { phase: "recovery" })
 			// Concurrent confirm can race with the tx that links hold->booking.
 			// Poll briefly to return idempotent success instead of transient 500.
-			let linked = await findLinkedBookingByHold(requestedHoldId)
+			let linked = authenticatedUserId
+				? await findLinkedBookingByHold(requestedHoldId, authenticatedUserId)
+				: null
 			for (let attempt = 1; !linked && attempt <= 8; attempt++) {
 				busyRecoveryAttempts = attempt
 				await sleep(50 * attempt)
-				linked = await findLinkedBookingByHold(requestedHoldId)
+				linked = authenticatedUserId
+					? await findLinkedBookingByHold(requestedHoldId, authenticatedUserId)
+					: null
 			}
 			if (linked) {
 				logFallbackTriggered({
@@ -411,6 +464,16 @@ export const POST: APIRoute = async ({ request }) => {
 			)
 		}
 		const code = error instanceof Error ? error.message : "INTERNAL_ERROR"
+		if (
+			code === "missing_required_answers" ||
+			code === "INVALID_TOUR_ANSWERS" ||
+			code === "INVALID_LEAD_CONTACT"
+		) {
+			return new Response(JSON.stringify({ error: code }), {
+				status: 422,
+				headers: { "Content-Type": "application/json" },
+			})
+		}
 		if (requestedHoldId) {
 			const meta = await findHoldMeta(requestedHoldId).catch(() => ({ isTourSlot: false }))
 			if (meta.isTourSlot) {
@@ -425,6 +488,7 @@ export const POST: APIRoute = async ({ request }) => {
 			code === "HOLD_NOT_FOUND" ||
 			code === "HOLD_EXPIRED" ||
 			code === "HOLD_ALREADY_CONFIRMED" ||
+			code === "HOLD_OWNED_BY_ANOTHER_USER" ||
 			code === "HOLD_COMMERCIAL_SNAPSHOT_MISSING" ||
 			code === "PRICE_QUOTE_MISMATCH" ||
 			code === "INVENTORY_CONFLICT"

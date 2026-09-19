@@ -2,6 +2,7 @@ import type { APIRoute } from "astro"
 import { ZodError, z } from "zod"
 import {
 	and,
+	asc,
 	db,
 	EffectivePricing,
 	eq,
@@ -12,6 +13,7 @@ import {
 	Provider,
 	SearchUnitView,
 	TourSlotProfile,
+	TourBookingQuestion,
 } from "@/shared/infrastructure/db/compat"
 
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
@@ -94,6 +96,7 @@ type HoldabilityResult =
 			holdable: true
 			ratePlanId: string
 			totalPrice: number
+			currency: string
 			nights: number
 			days: Array<{
 				date: string
@@ -162,6 +165,7 @@ async function resolveHoldabilityFromView(params: {
 			hasPrice: SearchUnitView.hasPrice,
 			availableUnits: SearchUnitView.availableUnits,
 			pricePerNight: SearchUnitView.pricePerNight,
+			currency: SearchUnitView.currency,
 			minStay: SearchUnitView.minStay,
 			maxStay: SearchUnitView.maxStay,
 			minLeadTime: SearchUnitView.minLeadTime,
@@ -270,6 +274,7 @@ async function resolveHoldabilityFromView(params: {
 	let selected: {
 		ratePlanId: string
 		totalPrice: number
+		currency: string
 		days: Array<{
 			date: string
 			price: number
@@ -283,6 +288,13 @@ async function resolveHoldabilityFromView(params: {
 		}>
 	} | null = null
 	for (const [ratePlanId, bucket] of byRatePlan.entries()) {
+		const currencies = new Set(bucket.map((row) => String(row.currency ?? "").toUpperCase()))
+		const currency = currencies.size === 1 ? [...currencies][0] : ""
+		if (!currency || !/^[A-Z]{3}$/.test(currency)) {
+			if (!firstFailure)
+				firstFailure = { reason: "CURRENCY_MISMATCH", failingDate: stayDates[0] ?? null }
+			continue
+		}
 		const byDate = new Map<string, SearchUnitViewStayRow>(
 			bucket.map((row) => [
 				String(row.date),
@@ -357,7 +369,7 @@ async function resolveHoldabilityFromView(params: {
 		}
 		const totalPrice = days.reduce((sum, day) => sum + day.price, 0)
 		if (!selected || totalPrice < selected.totalPrice) {
-			selected = { ratePlanId, totalPrice, days }
+			selected = { ratePlanId, totalPrice, currency, days }
 		}
 	}
 
@@ -379,6 +391,7 @@ async function resolveHoldabilityFromView(params: {
 		holdable: true,
 		ratePlanId: selected.ratePlanId,
 		totalPrice: selected.totalPrice,
+		currency: selected.currency,
 		nights: stayDates.length,
 		days: selected.days,
 	}
@@ -575,8 +588,30 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 					{
 						repo: inventoryHoldRepository,
 						resolveEffectivePolicies: (ctx) => resolveEffectivePolicies(ctx),
-						buildGuestExpectationsSnapshot: (productId, variantId) =>
-							buildGuestStayExpectationsSnapshot(productId, { variantId }),
+						buildGuestExpectationsSnapshot: async (productId, variantId) => {
+							const [base, questions] = await Promise.all([
+								buildGuestStayExpectationsSnapshot(productId, { variantId }),
+								db
+									.select({
+										id: TourBookingQuestion.id,
+										code: TourBookingQuestion.code,
+										label: TourBookingQuestion.label,
+										required: TourBookingQuestion.isRequired,
+									})
+									.from(TourBookingQuestion)
+									.where(eq(TourBookingQuestion.productId, productId))
+									.orderBy(asc(TourBookingQuestion.sortOrder)),
+							])
+							return {
+								...(base && typeof base === "object" ? base : {}),
+								tourBookingQuestions: questions.map((question) => ({
+									id: String(question.id),
+									code: String(question.code),
+									label: String(question.label),
+									required: Boolean(question.required),
+								})),
+							}
+						},
 						resolvePolicyExceptionRules: (ctx) => resolvePolicyExceptionRulesUseCase(ctx),
 						policyContext: {
 							productId: variant.productId,
@@ -632,7 +667,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 									occupancy: parsed.occupancyDetail,
 									channel: "web",
 								},
-								currency: "USD",
+								currency: holdability.currency,
 								nights: holdability.nights,
 								baseAmount: holdability.totalPrice,
 								taxesAndFees: taxBreakdown,
@@ -657,7 +692,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 							return {
 								version: HOLD_COMMERCIAL_SNAPSHOT_VERSION,
 								ratePlanId: holdability.ratePlanId,
-								currency: "USD",
+								currency: holdability.currency,
 								occupancy: Math.max(
 									1,
 									parsed.occupancyDetail.adults + parsed.occupancyDetail.children
@@ -687,6 +722,12 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 						dateRange: parsed.dateRange,
 						rooms: parsed.rooms,
 						sessionId: effectiveSessionId,
+						selectionKey: [
+							parsed.ratePlanId,
+							parsed.occupancyDetail.adults,
+							parsed.occupancyDetail.children,
+							parsed.occupancyDetail.infants,
+						].join(":"),
 					}
 				)
 			},

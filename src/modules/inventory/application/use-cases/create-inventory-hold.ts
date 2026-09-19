@@ -19,6 +19,7 @@ const createInventoryHoldSchema = z.object({
 	// Deprecated legacy alias kept for controlled compatibility.
 	occupancy: z.number().int().min(1).optional(),
 	sessionId: z.string().min(1),
+	selectionKey: z.string().trim().min(1).max(240).optional(),
 })
 
 export type CreateInventoryHoldInput = z.infer<typeof createInventoryHoldSchema>
@@ -38,13 +39,16 @@ function toStableUuidFromString(value: string): string {
 	return `${normalized.slice(0, 8)}-${normalized.slice(8, 12)}-${normalized.slice(12, 16)}-${normalized.slice(16, 20)}-${normalized.slice(20, 32)}`
 }
 
-function buildIdempotencyHoldId(input: {
+export function buildIdempotencyHoldId(input: {
 	sessionId: string
 	variantId: string
 	from: string
 	to: string
+	ratePlanId: string
+	rooms: number
+	selectionKey?: string
 }): string {
-	const key = `hold:${input.sessionId}:${input.variantId}:${input.from}:${input.to}`
+	const key = `hold:${input.sessionId}:${input.variantId}:${input.ratePlanId}:${input.from}:${input.to}:${input.rooms}:${input.selectionKey ?? ""}`
 	return toStableUuidFromString(key)
 }
 
@@ -139,6 +143,9 @@ export async function createInventoryHold(
 		variantId: parsed.variantId,
 		from: parsed.dateRange.from,
 		to: parsed.dateRange.to,
+		ratePlanId: policyRatePlanId,
+		rooms: requestedRooms,
+		selectionKey: parsed.selectionKey,
 	})
 
 	const existing = await deps.repo.findActiveHold({ holdId, now })

@@ -3,6 +3,8 @@ export type CreateBookingFromHoldInput = {
 	priceQuoteId?: string | null
 	userId?: string | null
 	source?: string | null
+	leadName?: string | null
+	tourAnswers?: Array<{ questionId: string; value: string }> | null
 }
 
 export type CreateBookingFromHoldResult = {

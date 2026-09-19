@@ -54,6 +54,19 @@ describe("tour PDP browser surface (trust + ticket→price→hold)", () => {
 		)
 	})
 
+	it("checkout surface confirms held tour selection with recovery and payment guardrails", () => {
+		const checkout = read("src/pages/checkout/tours.astro")
+		const confirm = read("src/pages/api/booking/confirm.ts")
+		expect(checkout).toContain("Completa tu reserva")
+		expect(checkout).toContain("/SignInPage?returnTo=")
+		expect(checkout).toContain("tourHoldExpiry")
+		expect(checkout).toContain("/api/booking/confirmation-status")
+		expect(checkout).toContain("checkout.payment.timing")
+		expect(confirm).toContain("missing_required_answers")
+		expect(confirm).toContain("PAYMENT_METHOD_UNAVAILABLE")
+		expect(confirm).toContain("HOLD_OWNED_BY_ANOTHER_USER")
+	})
+
 	it("ticket selector maps age bands → cupo → priced mix before hold payload shape", () => {
 		const quantities = parseTourTicketQuantitiesFromSearchParams(
 			new URLSearchParams("adults=2&children=1&infants=0&custom=0")
