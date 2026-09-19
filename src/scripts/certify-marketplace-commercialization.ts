@@ -44,6 +44,7 @@ import { GET as receiptGet } from "@/pages/api/booking/[bookingId]/receipt"
 import { POST as bookingConfirmPost } from "@/pages/api/booking/confirm"
 import { POST as holdPost } from "@/pages/api/inventory/hold"
 import type { PriceQuote } from "@/modules/pricing/public"
+import { createPolicyCapa6, replacePolicyAssignmentCapa6 } from "@/modules/policies/public"
 import { prepareMarketplaceCertificationEnvironment } from "./marketplace-certification-environment"
 
 const APPLY = process.argv.includes("--apply")
@@ -143,6 +144,49 @@ function localQaEnvironment() {
 			if (value === undefined) delete process.env[key]
 			else process.env[key] = value
 		}
+	}
+}
+
+async function ensureCertificationPolicies(ratePlanId: string) {
+	const cancellation = await createPolicyCapa6({
+		ownerProviderId: PROVIDER_ID,
+		category: "Cancellation",
+		description: "Certificación marketplace",
+		cancellationTiers: [
+			{
+				daysBeforeArrival: 1,
+				hoursBeforeDeparture: 6,
+				penaltyType: "percentage",
+				penaltyAmount: 0,
+			},
+			{ daysBeforeArrival: 0, penaltyType: "percentage", penaltyAmount: 100 },
+		],
+	})
+	const payment = await createPolicyCapa6({
+		ownerProviderId: PROVIDER_ID,
+		category: "Payment",
+		description: "Pay at property",
+		rules: { paymentType: "pay_at_property" },
+	})
+	const checkIn = await createPolicyCapa6({
+		ownerProviderId: PROVIDER_ID,
+		category: "CheckIn",
+		description: "Certificación marketplace",
+		rules: { checkInFrom: "08:00", checkInUntil: "18:00", checkOutUntil: "20:00" },
+	})
+	const noShow = await createPolicyCapa6({
+		ownerProviderId: PROVIDER_ID,
+		category: "NoShow",
+		description: "Certificación marketplace",
+		rules: { penaltyType: "percentage", penaltyAmount: 100 },
+	})
+	for (const policy of [cancellation, payment, checkIn, noShow]) {
+		await replacePolicyAssignmentCapa6({
+			policyId: policy.policyId,
+			scope: "rate_plan",
+			scopeId: ratePlanId,
+			channel: "web",
+		})
 	}
 }
 
@@ -580,6 +624,9 @@ async function upsertFixture(params: {
 			target: TourSlotProfile.variantId,
 			set: { departureTime: "09:00", maxPax: 20, isActive: true, updatedAt: now },
 		})
+
+	await ensureCertificationPolicies(HOTEL_RATE_PLAN_ID)
+	await ensureCertificationPolicies(TOUR_RATE_PLAN_ID)
 
 	await db
 		.insert(TaxFeeDefinition)
