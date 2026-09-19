@@ -21,6 +21,8 @@ import { createHash } from "node:crypto"
 export type SearchUnitViewReadRow = {
 	variantId: string
 	ratePlanId: string
+	ratePlanName: string | null
+	currency: string
 	date: string
 	isAvailable: boolean
 	hasAvailability: boolean
@@ -208,8 +210,11 @@ export const searchReadModelRepository = {
 				cta: SearchUnitView.cta,
 				ctd: SearchUnitView.ctd,
 				primaryBlocker: SearchUnitView.primaryBlocker,
+				currency: SearchUnitView.currency,
+				ratePlanName: RatePlan.name,
 			})
 			.from(SearchUnitView)
+			.innerJoin(RatePlan, eq(RatePlan.id, SearchUnitView.ratePlanId))
 			.where(
 				and(
 					inArray(SearchUnitView.variantId, params.unitIds),
@@ -222,6 +227,8 @@ export const searchReadModelRepository = {
 		return rows.map((row) => ({
 			variantId: String(row.variantId),
 			ratePlanId: String(row.ratePlanId),
+			ratePlanName: row.ratePlanName == null ? null : String(row.ratePlanName),
+			currency: String(row.currency ?? "USD").toUpperCase(),
 			date: String(row.date),
 			isAvailable: Boolean(row.isAvailable),
 			hasAvailability: Boolean(row.hasAvailability),

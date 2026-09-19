@@ -108,7 +108,7 @@ describe("tour booking guest commerce (fase 3)", () => {
 		expect(section).toContain("data-ticket-qty")
 		expect(section).toContain("occupancyDetail")
 		expect(section).toContain("/api/inventory/hold")
-		expect(section).toContain("/api/booking/confirm")
+		expect(section).toContain("/checkout/tours")
 
 		const confirmation = read(
 			"src/modules/booking/infrastructure/repositories/BookingFromHoldRepository.ts"

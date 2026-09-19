@@ -3,6 +3,8 @@ import type { SearchUnit } from "@/modules/search/public"
 export type SearchUnitViewRow = {
 	variantId: string
 	ratePlanId: string
+	ratePlanName?: string | null
+	currency?: string | null
 	date: string
 	isAvailable: boolean
 	hasAvailability: boolean
