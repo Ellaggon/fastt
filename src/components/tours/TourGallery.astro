@@ -57,32 +57,54 @@ const galleryImages = images.length
 			data-gallery-close
 			aria-label="Cerrar galería">×</button
 		>
-		<button
-			type="button"
-			class="fastt-button absolute left-3 rounded p-3 text-3xl text-white focus-visible:outline focus-visible:outline-2 sm:left-8"
-			data-gallery-previous
-			aria-label="Foto anterior">‹</button
-		>
+		{
+			galleryImages.length > 1 ? (
+				<button
+					type="button"
+					class="fastt-button absolute left-3 rounded p-3 text-3xl text-white focus-visible:outline focus-visible:outline-2 sm:left-8"
+					data-gallery-previous
+					aria-label="Foto anterior"
+				>
+					‹
+				</button>
+			) : null
+		}
 		<img class="max-h-[80vh] max-w-[84vw] rounded shadow-lg" data-gallery-image alt="" />
-		<button
-			type="button"
-			class="fastt-button absolute right-3 rounded p-3 text-3xl text-white focus-visible:outline focus-visible:outline-2 sm:right-8"
-			data-gallery-next
-			aria-label="Foto siguiente">›</button
-		>
+		<p class="sr-only" aria-live="polite" data-gallery-status></p>
+		{
+			galleryImages.length > 1 ? (
+				<button
+					type="button"
+					class="fastt-button absolute right-3 rounded p-3 text-3xl text-white focus-visible:outline focus-visible:outline-2 sm:right-8"
+					data-gallery-next
+					aria-label="Foto siguiente"
+				>
+					›
+				</button>
+			) : null
+		}
 	</div>
 </section>
 
-<script define:vars={{ sources: galleryImages.map((image) => image.url) }}>
+<script define:vars={{ sources: galleryImages.map((image) => image.url), title }}>
 	document.querySelectorAll("[data-tour-gallery]").forEach((gallery) => {
 		const dialog = gallery.querySelector("[data-gallery-dialog]")
 		const image = gallery.querySelector("[data-gallery-image]")
 		const close = gallery.querySelector("[data-gallery-close]")
+		const status = gallery.querySelector("[data-gallery-status]")
 		let index = 0
 		let opener = null
 		const show = () => {
-			if (image) image.src = sources[index] || ""
+			if (image) {
+				image.src = sources[index] || ""
+				image.alt = `${title}, imagen ${index + 1} de ${sources.length}`
+			}
+			if (status) status.textContent = `Foto ${index + 1} de ${sources.length}`
 		}
+		const focusable = () =>
+			Array.from(dialog?.querySelectorAll("button:not([disabled])") ?? []).filter(
+				(element) => element instanceof HTMLElement && element.offsetParent !== null
+			)
 		const hide = () => {
 			dialog?.classList.add("hidden")
 			dialog?.classList.remove("flex")
@@ -112,6 +134,19 @@ const galleryImages = images.length
 		})
 		document.addEventListener("keydown", (event) => {
 			if (dialog?.classList.contains("hidden")) return
+			if (event.key === "Tab") {
+				const controls = focusable()
+				const first = controls[0]
+				const last = controls[controls.length - 1]
+				if (!first || !last) return
+				if (event.shiftKey && document.activeElement === first) {
+					event.preventDefault()
+					last.focus()
+				} else if (!event.shiftKey && document.activeElement === last) {
+					event.preventDefault()
+					first.focus()
+				}
+			}
 			if (event.key === "Escape") hide()
 			if (event.key === "ArrowLeft") {
 				index = (index - 1 + sources.length) % sources.length
