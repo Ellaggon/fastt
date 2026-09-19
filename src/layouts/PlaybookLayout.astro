@@ -52,6 +52,8 @@ interface Props {
 	continueReload?: boolean
 	continueDisabled?: boolean
 	continueDisabledTitle?: string
+	continueFormId?: string | null
+	ownsPrimaryCta?: boolean
 	hideFooter?: boolean
 }
 
@@ -69,6 +71,8 @@ const {
 	continueReload = false,
 	continueDisabled = false,
 	continueDisabledTitle = "Completa los pasos requeridos para continuar.",
+	continueFormId = null,
+	ownsPrimaryCta = false,
 	hideFooter = false,
 } = Astro.props
 
@@ -237,6 +241,11 @@ const isTerminalStep = isAddRoom
 		? stepId === "preview"
 		: stepId === "preview"
 const showFooter = active && currentStepKnown && !hideFooter
+const boundContinueFormId = continueFormId?.trim() || ""
+const formBoundContinue = Boolean(boundContinueFormId)
+const showHrefContinue = !formBoundContinue && !ownsPrimaryCta
+const persistAndExit = formBoundContinue && Boolean(productId)
+const formContinueLabel = continueLabel === "Continuar →" ? "Guardar y continuar" : continueLabel
 const showProgress = active && currentStepKnown && !isTerminalStep
 const visualProgressPercent = Math.min(100, Math.max(0, progressPercent))
 const progressHeading =
@@ -321,23 +330,47 @@ const PlaybookShell = active ? GuidedPreparationLayout : WorkspaceLayout
 					) : null}
 				</div>
 				<div class="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
-					<a
-						href={exitHref}
-						class="inline-flex h-10 items-center justify-center px-2 text-sm font-medium text-slate-500 transition hover:text-slate-200"
-					>
-						Salir del flujo
-					</a>
+					{persistAndExit && !isTerminalStep ? (
+						<Button
+							type="submit"
+							form={boundContinueFormId}
+							name="playbookNav"
+							value="exit"
+							formnovalidate
+							variant="ghost"
+							className="text-slate-400 hover:bg-slate-800 hover:text-white"
+						>
+							Dejar para más tarde
+						</Button>
+					) : (
+						<a
+							href={exitHref}
+							class="inline-flex h-10 items-center justify-center px-2 text-sm font-medium text-slate-500 transition hover:text-slate-200"
+						>
+							Dejar para más tarde
+						</a>
+					)}
 					{isTerminalStep && isComplete ? (
 						<p class="text-sm text-slate-400">Usa el botón Publicar en la vista previa.</p>
 					) : isTerminalStep ? (
 						<Button href={exitHref} className="fastt-playbook-cta">
 							{isAddRoom ? "Ver habitaciones" : "Ir a la ficha"}
 						</Button>
-					) : resolvedContinueHref && continueDisabled ? (
+					) : formBoundContinue ? (
+						<Button
+							type="submit"
+							form={boundContinueFormId}
+							name="playbookNav"
+							value="continue"
+							className="fastt-playbook-cta"
+						>
+							{formContinueLabel}
+						</Button>
+					) : showHrefContinue && resolvedContinueHref && continueDisabled ? (
 						<Button disabled className="fastt-playbook-cta" title={continueDisabledTitle}>
 							{continueLabel}
 						</Button>
-					) : resolvedContinueHref ? (
+					) : showHrefContinue && resolvedContinueHref ? (
 						<Button
 							href={resolvedContinueHref}
 							className="fastt-playbook-cta"

@@ -1,3 +1,9 @@
+import { setPlaybookSubmitBusy } from "@/lib/forms/playbookFormBusy"
+import {
+	readPlaybookNavIntent,
+	resolvePlaybookRedirectAfterSave,
+} from "@/lib/playbook/playbook-nav"
+
 function qs<T extends Element>(sel: string, el: ParentNode = document) {
 	return el.querySelector(sel) as T | null
 }
@@ -201,55 +207,45 @@ function initProductImagesForm() {
 		)
 	}
 
-	function redirectAfterSuccess(formFd: FormData, productId: string) {
-		const mode = String(formFd.get("flow") || "")
-			.trim()
-			.toLowerCase()
-		const playbook = String(formFd.get("playbook") || "")
-			.trim()
-			.toLowerCase()
-		if (
-			mode === "create" ||
-			mode === "complete" ||
-			playbook === "launch" ||
-			playbook === "launch-accommodation" ||
-			playbook === "launch-tour" ||
-			playbook === "complete-to-publish" ||
-			playbook === "complete"
-		) {
-			if (mode === "complete" || playbook === "complete-to-publish" || playbook === "complete") {
-				window.location.href = `/product/${encodeURIComponent(productId)}/preview?playbook=complete-to-publish&step=preview&flow=complete`
-				return
-			}
-			const nextPlaybook = playbook === "launch-tour" ? "launch-tour" : "launch"
-			window.location.href = `/product/${encodeURIComponent(productId)}/subtype?playbook=${nextPlaybook}&step=subtype&flow=create`
-			return
-		}
-		window.location.href = `/product/${encodeURIComponent(productId)}`
+	function redirectAfterSuccess(
+		formFd: FormData,
+		productId: string,
+		submitter?: EventTarget | null
+	) {
+		window.location.href = resolvePlaybookRedirectAfterSave(formFd, {
+			productId,
+			launchPath: `/product/${encodeURIComponent(productId)}/subtype`,
+			launchStep: "subtype",
+			submitter,
+		})
 	}
 
 	form.addEventListener("submit", async (e) => {
 		e.preventDefault()
+		const formFd = new FormData(form)
+		const productId = String(formFd.get("productId") || "")
+		const intent = readPlaybookNavIntent(formFd, e.submitter)
 		setState("loading")
-		btn.disabled = true
+		setPlaybookSubmitBusy(form, true)
 		setState("disabled")
 
 		try {
 			if (pendingImages.length === 0) {
 				if (existingImages.length > 0) {
-					const formFd = new FormData(form)
 					setState("success", "Continuando con las fotos existentes.")
-					redirectAfterSuccess(formFd, String(formFd.get("productId") || ""))
+					redirectAfterSuccess(formFd, productId, e.submitter)
 					return
 				}
-				btn.disabled = false
+				if (intent === "exit") {
+					redirectAfterSuccess(formFd, productId, e.submitter)
+					return
+				}
+				setPlaybookSubmitBusy(form, false)
 				setState("empty", "Debes seleccionar al menos una imagen.")
 				dropzoneEl.focus()
 				return
 			}
 
-			const formFd = new FormData(form)
-			const productId = String(formFd.get("productId") || "")
 			const imageIds: string[] = []
 
 			for (const item of pendingImages) {
@@ -267,7 +263,7 @@ function initProductImagesForm() {
 					item.state = "error"
 					item.error = `Inicialización fallida (${initRes.status})`
 					renderPreviewGrid()
-					btn.disabled = false
+					setPlaybookSubmitBusy(form, false)
 					setState("error", `Error de inicialización (${initRes.status}):\n${initTxt}`)
 					return
 				}
@@ -287,7 +283,7 @@ function initProductImagesForm() {
 					item.state = "error"
 					item.error = `Carga fallida (${putRes.status})`
 					renderPreviewGrid()
-					btn.disabled = false
+					setPlaybookSubmitBusy(form, false)
 					setState("error", `Error de carga al storage (${putRes.status}).`)
 					return
 				}
@@ -306,7 +302,7 @@ function initProductImagesForm() {
 					item.state = "error"
 					item.error = `Finalización fallida (${completeRes.status})`
 					renderPreviewGrid()
-					btn.disabled = false
+					setPlaybookSubmitBusy(form, false)
 					setState("error", `Error al completar carga (${completeRes.status}):\n${completeTxt}`)
 					return
 				}
@@ -323,15 +319,15 @@ function initProductImagesForm() {
 			const res = await fetch("/api/product/images", { method: "POST", body: setFd })
 			const txt = await res.text()
 			if (!res.ok) {
-				btn.disabled = false
+				setPlaybookSubmitBusy(form, false)
 				setState("error", `status=${res.status}\n${txt}`)
 				return
 			}
 
 			setState("success", "Guardado correctamente")
-			redirectAfterSuccess(formFd, productId)
+			redirectAfterSuccess(formFd, productId, e.submitter)
 		} catch (err) {
-			btn.disabled = false
+			setPlaybookSubmitBusy(form, false)
 			setState("error", `Error de red: ${String(err)}`)
 		}
 	})

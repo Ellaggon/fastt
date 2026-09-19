@@ -73,6 +73,6 @@ describe("Tour content-form wizard", () => {
 		expect(page).toContain('role="button"')
 		expect(handler).toContain('event.key !== "Enter" && event.key !== " "')
 		expect(handler).toContain("Continuando con las fotos existentes.")
-		expect(handler).toContain('playbook === "launch-tour"')
+		expect(handler).toContain("resolvePlaybookRedirectAfterSave")
 	})
 })

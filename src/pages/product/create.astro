@@ -90,6 +90,8 @@ const compatibleGeoPlaces = destinations.filter((place) =>
 	active={activePlaybook}
 	stepId={resolvedPlaybook.stepId ?? "create"}
 	isHotel={isLaunchHotelFlow}
+	continueFormId={activePlaybook ? "createForm" : null}
+	continueLabel="Crear y continuar"
 >
 	<section class="space-y-8">
 		{
@@ -197,7 +199,9 @@ const compatibleGeoPlaces = destinations.filter((place) =>
 								<p id="stateDetail" class="text-sm whitespace-pre-wrap text-slate-600" />
 							</div>
 
-							<div class="flex items-center justify-end gap-3">
+							<div
+								class:list={["flex items-center justify-end gap-3", activePlaybook ? "hidden" : ""]}
+							>
 								<Button href="/product/create" variant="secondary">
 									{" "}
 									Volver{" "}
@@ -216,6 +220,7 @@ const compatibleGeoPlaces = destinations.filter((place) =>
 	<script>
 		// @ts-nocheck
 		import { bindPlaybookFormDraft } from "@/lib/forms/playbookFormDraft.ts"
+		import { setPlaybookSubmitBusy } from "@/lib/forms/playbookFormBusy.ts"
 
 		function initCreateForm() {
 			const form = document.getElementById("createForm")
@@ -255,10 +260,8 @@ const compatibleGeoPlaces = destinations.filter((place) =>
 			form.addEventListener("submit", async (e) => {
 				e.preventDefault()
 				setState("loading")
-				if (btn instanceof HTMLButtonElement) {
-					btn.disabled = true
-					btn.textContent = "Cargando..."
-				}
+				setPlaybookSubmitBusy(form, true)
+				if (btn instanceof HTMLButtonElement) btn.textContent = "Cargando..."
 				setState("disabled")
 
 				try {
@@ -269,10 +272,8 @@ const compatibleGeoPlaces = destinations.filter((place) =>
 					const txt = await res.text()
 
 					if (!res.ok) {
-						if (btn instanceof HTMLButtonElement) {
-							btn.disabled = false
-							btn.textContent = btnText
-						}
+						setPlaybookSubmitBusy(form, false)
+						if (btn instanceof HTMLButtonElement) btn.textContent = btnText
 						const payload = (() => {
 							try {
 								return JSON.parse(txt)
@@ -294,19 +295,15 @@ const compatibleGeoPlaces = destinations.filter((place) =>
 					try {
 						json = JSON.parse(txt)
 					} catch {
-						if (btn instanceof HTMLButtonElement) {
-							btn.disabled = false
-							btn.textContent = btnText
-						}
+						setPlaybookSubmitBusy(form, false)
+						if (btn instanceof HTMLButtonElement) btn.textContent = btnText
 						setState("error", `Respuesta inválida:\n${txt}`)
 						return
 					}
 
 					if (!json?.id) {
-						if (btn instanceof HTMLButtonElement) {
-							btn.disabled = false
-							btn.textContent = btnText
-						}
+						setPlaybookSubmitBusy(form, false)
+						if (btn instanceof HTMLButtonElement) btn.textContent = btnText
 						setState("error", `Respuesta sin ID:\n${txt}`)
 						return
 					}
@@ -319,10 +316,8 @@ const compatibleGeoPlaces = destinations.filter((place) =>
 							? `/product/${json.id}/content?playbook=launch&step=content&flow=create`
 							: `/product/${json.id}`
 				} catch (err) {
-					if (btn instanceof HTMLButtonElement) {
-						btn.disabled = false
-						btn.textContent = btnText
-					}
+					setPlaybookSubmitBusy(form, false)
+					if (btn instanceof HTMLButtonElement) btn.textContent = btnText
 					setState("error", `Error de red: ${String(err)}`)
 				}
 			})

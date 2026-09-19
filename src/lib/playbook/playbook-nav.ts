@@ -96,16 +96,46 @@ export function playbookRedirectHrefFor(
 	return buildPlaybookHref(path, step as LaunchStepId)
 }
 
+export type PlaybookNavIntent = "continue" | "exit"
+
+export function productWorkspaceHref(productId: string) {
+	return `/product/${encodeURIComponent(productId)}`
+}
+
+export function readPlaybookNavIntent(
+	formData: FormData,
+	submitter?: EventTarget | null
+): PlaybookNavIntent {
+	if (submitter && typeof submitter === "object" && "name" in submitter && "value" in submitter) {
+		const named = submitter as { name?: unknown; value?: unknown }
+		if (String(named.name ?? "") === "playbookNav") {
+			return String(named.value ?? "")
+				.trim()
+				.toLowerCase() === "exit"
+				? "exit"
+				: "continue"
+		}
+	}
+	return String(formData.get("playbookNav") ?? "")
+		.trim()
+		.toLowerCase() === "exit"
+		? "exit"
+		: "continue"
+}
+
 export function resolvePlaybookRedirectAfterSave(
 	formData: FormData,
 	options: {
 		productId: string
 		launchPath: string
 		launchStep: LaunchStepId | TourLaunchStepId
+		intent?: PlaybookNavIntent
+		submitter?: EventTarget | null
 	}
 ): string {
-	if (!isPlaybookMode(formData)) {
-		return `/product/${encodeURIComponent(options.productId)}`
+	const intent = options.intent ?? readPlaybookNavIntent(formData, options.submitter)
+	if (intent === "exit" || !isPlaybookMode(formData)) {
+		return productWorkspaceHref(options.productId)
 	}
 	if (isCompleteToPublishPlaybookMode(formData)) {
 		return completeToPublishRedirectHref(options.productId)
