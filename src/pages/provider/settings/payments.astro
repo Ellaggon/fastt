@@ -1,3 +1,26 @@
 ---
-return Astro.redirect("/provider/settings/verification/payments")
+import ProviderCommercialContractCard from "@/components/provider/ProviderCommercialContractCard.astro"
+import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
+import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
+import { loadProviderContractSurface } from "@/lib/commercial-policy/provider-contract-surface"
+
+const auth = await requireProviderSessionSurface(Astro.request).catch((error: any) => {
+	if (error instanceof Response && error.status === 401) return "__LOGIN__"
+	if (error instanceof Response && error.status === 403) return "__PROFILE__"
+	throw error
+})
+if (auth === "__LOGIN__") return Astro.redirect("/SignInPage")
+if (auth === "__PROFILE__") return Astro.redirect("/provider/settings/profile")
+const providerId = typeof auth === "string" ? null : auth.provider.providerId
+if (!providerId) return Astro.redirect("/provider/settings/profile")
+const model = await loadProviderContractSurface(providerId)
 ---
+
+<ProviderSettingsLayout
+	title="Cobros y liquidaciones"
+	heading="Cobros y liquidaciones"
+	description="Revisa el modelo contractual de tus ofertas y el estado de los controles necesarios antes de operar dinero."
+	showSettingsTabs={false}
+>
+	<ProviderCommercialContractCard model={model} />
+</ProviderSettingsLayout>
