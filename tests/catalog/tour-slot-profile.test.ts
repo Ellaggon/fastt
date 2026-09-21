@@ -48,10 +48,10 @@ describe("tour slot profile (fase 2)", () => {
 		expect(index).toContain("Calendario")
 
 		const hub = read("src/pages/product/[id]/index.astro")
-		expect(hub).toContain("productDeparturesForProduct")
-		expect(hub).toContain("data-is-tour")
+		expect(hub).toContain("buildTourCommercialLinksForProductHub")
+		expect(hub).toContain("departuresHref")
 		expect(hub).toContain("isTour")
-		expect(hub).toContain("Abrir salidas")
+		expect(hub).toContain("Ficha del tour")
 
 		const hydration = read("src/pages/product/_client/product-summary-hydration.ts")
 		expect(hydration).toContain("salidas configuradas")
