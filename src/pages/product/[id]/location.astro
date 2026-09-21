@@ -57,6 +57,23 @@ const compatibleGeoPlaces = geoPlaces.filter((place) =>
 
 const initialLat = typeof existingLocation?.lat === "number" ? existingLocation.lat : -16.495905
 const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.lng : -68.133623
+const tourMeetingPoint =
+	isTour && product.subtype?.kind === "tour" ? product.subtype.meetingPoint : null
+const meetingAddress =
+	tourMeetingPoint && typeof tourMeetingPoint === "object"
+		? String((tourMeetingPoint as Record<string, unknown>).address ?? "").trim()
+		: ""
+const meetingInstructions =
+	tourMeetingPoint && typeof tourMeetingPoint === "object"
+		? String((tourMeetingPoint as Record<string, unknown>).instructions ?? "").trim()
+		: ""
+const meetingPath = `/product/${encodeURIComponent(productId)}/subtype#tour-meeting-point`
+const meetingHref =
+	playbook.playbookId === "complete-to-publish"
+		? buildCompleteToPublishHref(meetingPath, "subtype")
+		: playbook.playbookId === "launch-tour"
+			? `${meetingPath.split("#")[0]}?playbook=launch-tour&step=subtype&flow=create#tour-meeting-point`
+			: meetingPath
 ---
 
 <PlaybookLayout
@@ -66,6 +83,7 @@ const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.
 	stepId={playbook.stepId ?? "location"}
 	productId={productId}
 	isHotel={isHotel}
+	playbookVertical={vertical.vertical}
 	continueFormId={playbook.active ? "locationForm" : null}
 >
 	<section class="space-y-8">
@@ -88,17 +106,25 @@ const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.
 							<Input type="hidden" name="playbook" value={playbook.playbookId} />
 						) : null
 					}
+					{
+						playbook.active && playbook.playbookId === "complete-to-publish" ? (
+							<>
+								<Input type="hidden" name="playbookCurrentStep" value="location" />
+								<Input type="hidden" name="playbookVertical" value={vertical.vertical} />
+							</>
+						) : null
+					}
 					<Input id="lat" type="hidden" name="lat" value={String(initialLat)} />
 					<Input id="lng" type="hidden" name="lng" value={String(initialLng)} />
 
 					<header class="space-y-1.5">
 						<h2 class="text-xl font-semibold text-slate-900">
-							{isTour ? "Ubicación para discovery" : "Metadata geográfica"}
+							{isTour ? "Destino y zona pública" : "Metadata geográfica"}
 						</h2>
 						<p class="text-sm leading-6 text-slate-600">
 							{
 								isTour
-									? "Selecciona la zona que representa el destino o atractivo principal. El punto exacto donde empieza el tour se solicita después en Detalles del tour."
+									? "Selecciona el destino que organiza las búsquedas y ubica el área general en el mapa. Esto no cambia el punto exacto donde el viajero se reúne con el guía."
 									: `Define ubicación, coordenadas y contexto geográfico de ${vertical.labels.singular}.`
 							}
 						</p>
@@ -164,6 +190,36 @@ const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.
 						</FormField>
 					</section>
 
+					{
+						isTour ? (
+							<section
+								class="space-y-4 border-t border-slate-200 pt-8"
+								aria-labelledby="meetingPointHeading"
+							>
+								<div class="flex flex-wrap items-start justify-between gap-4">
+									<div class="max-w-xl">
+										<h3 id="meetingPointHeading" class="font-semibold text-slate-950">
+											Punto de encuentro operativo
+										</h3>
+										<p class="mt-1 text-sm leading-6 text-slate-600">
+											Se muestra al viajero para encontrar al guía. Es independiente del destino y
+											de la zona pública elegidos arriba.
+										</p>
+									</div>
+									<Button href={meetingHref} variant="secondary" size="sm">
+										{meetingAddress ? "Editar punto de encuentro" : "Definir punto de encuentro"}
+									</Button>
+								</div>
+								<div class="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+									<p class="font-medium text-slate-900">
+										{meetingAddress || "Todavía no se definió el punto exacto."}
+									</p>
+									{meetingInstructions ? <p class="mt-1 leading-6">{meetingInstructions}</p> : null}
+								</div>
+							</section>
+						) : null
+					}
+
 					<div class="space-y-4 border-t border-slate-200 pt-8">
 						<p id="stateLabel" class="text-sm text-slate-600" aria-live="polite">
 							Vacío: sin cambios guardados.
@@ -180,13 +236,13 @@ const initialLng = typeof existingLocation?.lng === "number" ? existingLocation.
 								href={playbook.active && playbook.playbookId
 									? playbookRedirectHrefFor(
 											playbook.playbookId,
-											`/product/${productId}/content`,
-											"content",
+											playbook.playbookId === "complete-to-publish"
+												? `/product/${productId}/images`
+												: `/product/${productId}/content`,
+											playbook.playbookId === "complete-to-publish" ? "photos" : "content",
 											productId
 										)
-									: playbook.active && playbook.playbookId === "complete-to-publish"
-										? buildCompleteToPublishHref(`/product/${productId}/preview`, "preview")
-										: `/product/${encodeURIComponent(productId)}/content`}
+									: `/product/${encodeURIComponent(productId)}/content`}
 								variant="secondary"
 							>
 								Volver

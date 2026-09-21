@@ -6,6 +6,7 @@ import {
 	readPlaybookNavIntent,
 	resolvePlaybookRedirectAfterSave,
 } from "@/lib/playbook/playbook-nav"
+import { resolveCompleteToPublishPlaybookFromUrl } from "@/lib/playbook/complete-to-publish"
 
 function read(path: string) {
 	return readFileSync(resolve(path), "utf8")
@@ -29,23 +30,52 @@ describe("playbook primary CTA contract", () => {
 		const location = read("src/pages/product/[id]/location.astro")
 		const subtype = read("src/pages/product/[id]/subtype.astro")
 		expect(images).toContain('continueFormId={playbook.active ? "imagesForm" : null}')
+		expect(images).toContain('name="playbookCurrentStep"')
+		expect(images).not.toContain('buildCompleteToPublishHref(`/product/${productId}/preview`, "preview")')
 		expect(content).toContain('continueFormId={playbookResolved.active ? "contentForm" : null}')
 		expect(location).toContain('continueFormId={playbook.active ? "locationForm" : null}')
 		expect(subtype).toContain('continueFormId={playbook.active ? "subtypeForm" : null}')
 		expect(images).toContain("playbook.active ? \"hidden\"")
 	})
 
-	it("keeps editor-owned steps without a second footer continue", () => {
-		const tickets = read("src/pages/product/[id]/tickets.astro")
-		const departures = read("src/pages/product/[id]/departures/new.astro")
-		expect(tickets).toContain("ownsPrimaryCta={tourPlaybook.active}")
-		expect(departures).toContain("ownsPrimaryCta={tourPlaybook.active}")
+	it("keeps complete-to-publish on tickets instead of dropping to the workspace", () => {
+		const resolved = resolveCompleteToPublishPlaybookFromUrl(
+			new URL(
+				"http://localhost/product/p1/tickets?playbook=complete-to-publish&step=tickets&flow=complete"
+			)
+		)
+		expect(resolved).toMatchObject({
+			active: true,
+			playbookId: "complete-to-publish",
+			stepId: "tickets",
+			productId: "p1",
+		})
+		expect(
+			resolveCompleteToPublishPlaybookFromUrl(
+				new URL("http://localhost/product/p1/tickets?playbook=complete-to-publish&flow=complete")
+			).stepId
+		).toBe("tickets")
 	})
 
-	it("sends Guardar y continuar forward and Dejar para más tarde back to the product", () => {
+	it("binds async editor steps to the playbook footer instead of inline continue", () => {
+		const tickets = read("src/pages/product/[id]/tickets.astro")
+		const departures = read("src/pages/product/[id]/departures/new.astro")
+		expect(tickets).toContain('continueFormId={playbook.active ? "ticketsPlaybookForm" : null}')
+		expect(tickets).not.toContain("save-and-continue-btn")
+		expect(departures).toContain(
+			'continueFormId={playbook.active ? "tour-slot-profile-form" : null}'
+		)
+		expect(departures).toContain("playbookFooterControls={playbook.active}")
+		expect(tickets).toContain("resolvePlaybookFromUrl")
+		expect(departures).toContain("resolvePlaybookFromUrl")
+	})
+
+	it("sends Guardar y continuar to the next complete-to-publish step, not preview", () => {
 		const continueData = new FormData()
 		continueData.set("playbook", "complete-to-publish")
 		continueData.set("flow", "complete")
+		continueData.set("playbookCurrentStep", "photos")
+		continueData.set("playbookVertical", "tour")
 		expect(
 			resolvePlaybookRedirectAfterSave(continueData, {
 				productId: "p1",
@@ -53,7 +83,17 @@ describe("playbook primary CTA contract", () => {
 				launchStep: "subtype",
 				intent: "continue",
 			})
-		).toContain("preview")
+		).toBe("/product/p1/location?playbook=complete-to-publish&step=location&flow=complete")
+
+		continueData.set("playbookCurrentStep", "content")
+		expect(
+			resolvePlaybookRedirectAfterSave(continueData, {
+				productId: "p1",
+				launchPath: "/product/p1/location",
+				launchStep: "location",
+				intent: "continue",
+			})
+		).toBe("/product/p1/images?playbook=complete-to-publish&step=photos&flow=complete")
 
 		const exitData = new FormData()
 		exitData.set("playbook", "complete-to-publish")

@@ -54,6 +54,7 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 	stepId={playbookResolved.stepId ?? "content"}
 	productId={productId}
 	isHotel={isHotel}
+	playbookVertical={vertical.vertical}
 	continueFormId={playbookResolved.active ? "contentForm" : null}
 >
 	<section class="space-y-8">
@@ -74,6 +75,14 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 					{
 						playbookResolved.active && playbookResolved.playbookId ? (
 							<Input type="hidden" name="playbook" value={playbookResolved.playbookId} />
+						) : null
+					}
+					{
+						playbookResolved.active && playbookResolved.playbookId === "complete-to-publish" ? (
+							<>
+								<Input type="hidden" name="playbookCurrentStep" value="content" />
+								<Input type="hidden" name="playbookVertical" value={vertical.vertical} />
+							</>
 						) : null
 					}
 					<header class="space-y-1.5">

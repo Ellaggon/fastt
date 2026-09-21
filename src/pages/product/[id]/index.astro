@@ -22,6 +22,8 @@ import {
 import { summarizeProductPreparation } from "@/lib/playbook/summarize-product-preparation"
 import { getProductOperationalSurface } from "@/lib/product/productOperationalSurface"
 import { routes } from "@/lib/routes"
+import { buildTourCommercialLinks } from "@/lib/tours/tourProviderNavigation"
+import { asc, db, eq, Variant } from "@/shared/infrastructure/db/compat"
 import {
 	ArrowRight,
 	BedDouble,
@@ -146,9 +148,32 @@ const productHeaderSummaryText = publishState
 			blockerLabels: preparation?.blockerPreview ?? [],
 		})
 	: productHeaderSummary
+const tourVariants = isTour
+	? await db
+			.select({
+				id: Variant.id,
+				defaultRatePlanId: Variant.defaultRatePlanId,
+				salesEnabled: Variant.salesEnabled,
+				lifecycleState: Variant.lifecycleState,
+			})
+			.from(Variant)
+			.where(eq(Variant.productId, productId))
+			.orderBy(asc(Variant.createdAt))
+	: []
+const primaryTourVariant =
+	tourVariants.find((variant) => variant.salesEnabled && variant.lifecycleState === "ready") ??
+	tourVariants[0] ??
+	null
+const tourCommercialLinks = buildTourCommercialLinks({
+	productId,
+	variantId: primaryTourVariant?.id,
+	ratePlanId: primaryTourVariant?.defaultRatePlanId,
+})
 const conditionsHref = isHotel
 	? (operationalSurface?.conditionsHref ?? routes.rates())
-	: routes.rates()
+	: isTour
+		? tourCommercialLinks.conditionsHref
+		: routes.rates()
 const productContentHref = `/product/${encodeURIComponent(productId)}/content`
 const productImagesHref = `/product/${encodeURIComponent(productId)}/images`
 const productLocationHref = `/product/${encodeURIComponent(productId)}/location`
@@ -214,7 +239,10 @@ logRoutePerformance({
 							</div>
 						</div>
 						<div class="flex flex-wrap justify-end gap-2">
-							<Button href={routes.calendar()} variant="secondary">
+							<Button
+								href={isTour ? tourCommercialLinks.calendarHref : routes.calendar()}
+								variant="secondary"
+							>
 								<CalendarDays class="h-4 w-4" aria-hidden="true" />
 								Abrir calendario
 							</Button>
@@ -482,23 +510,49 @@ logRoutePerformance({
 							</Button>
 							{
 								isTour ? (
-									<Button
-										href={routes.productDeparturesForProduct(productId)}
-										variant="secondary"
-										className="w-full justify-start"
-									>
-										<CalendarDays class="size-4" aria-hidden="true" />
-										Abrir salidas
-									</Button>
+									<>
+										<Button
+											href={tourCommercialLinks.departuresHref}
+											variant="secondary"
+											className="w-full justify-start"
+										>
+											<CalendarDays class="size-4" aria-hidden="true" />
+											Gestionar salidas
+										</Button>
+										<Button
+											href={tourCommercialLinks.participantsHref}
+											variant="secondary"
+											className="w-full justify-start"
+										>
+											<ClipboardList class="size-4" aria-hidden="true" />
+											Participantes
+										</Button>
+										<Button
+											href={tourCommercialLinks.categoriesHref}
+											variant="secondary"
+											className="w-full justify-start"
+										>
+											<Tags class="size-4" aria-hidden="true" />
+											Categorías de búsqueda
+										</Button>
+									</>
 								) : null
 							}
-							<Button href={routes.rates()} variant="secondary" className="w-full justify-start">
+							<Button
+								href={isTour ? tourCommercialLinks.priceHref : routes.rates()}
+								variant="secondary"
+								className="w-full justify-start"
+							>
 								<Tags class="size-4" aria-hidden="true" />
-								Abrir tarifas
+								{isTour ? "Editar precio" : "Abrir tarifas"}
 							</Button>
-							<Button href={routes.calendar()} variant="secondary" className="w-full justify-start">
+							<Button
+								href={isTour ? tourCommercialLinks.calendarHref : routes.calendar()}
+								variant="secondary"
+								className="w-full justify-start"
+							>
 								<CalendarDays class="size-4" aria-hidden="true" />
-								Abrir calendario
+								{isTour ? "Revisar disponibilidad" : "Abrir calendario"}
 							</Button>
 						</div>
 					</div>

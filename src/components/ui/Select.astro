@@ -107,6 +107,45 @@ const listboxId = id ? `${id}-listbox` : undefined
 			}
 
 			let activeIndex = -1
+			let menuAnchor: Comment | null = null
+
+			const ensureMenuAnchor = () => {
+				if (menuAnchor) return
+				menuAnchor = document.createComment("fastt-select-menu-anchor")
+				rootEl.appendChild(menuAnchor)
+			}
+
+			const positionMenu = () => {
+				const rect = trigger.getBoundingClientRect()
+				menu.style.position = "fixed"
+				menu.style.top = `${Math.round(rect.bottom + 4)}px`
+				menu.style.left = `${Math.round(rect.left)}px`
+				menu.style.width = `${Math.round(rect.width)}px`
+				menu.style.zIndex = "300"
+			}
+
+			const mountMenuPortal = () => {
+				ensureMenuAnchor()
+				if (menu.parentElement !== document.body) {
+					document.body.appendChild(menu)
+				}
+				positionMenu()
+			}
+
+			const unmountMenuPortal = () => {
+				menu.style.position = ""
+				menu.style.top = ""
+				menu.style.left = ""
+				menu.style.width = ""
+				menu.style.zIndex = ""
+				if (menu.parentElement === document.body && menuAnchor) {
+					menuAnchor.parentElement?.insertBefore(menu, menuAnchor.nextSibling)
+				}
+			}
+
+			const onViewportChange = () => {
+				if (rootEl.dataset.open === "true") positionMenu()
+			}
 
 			const options = () => Array.from(select.options)
 
@@ -149,7 +188,14 @@ const listboxId = id ? `${id}-listbox` : undefined
 				rootEl.dataset.open = open ? "true" : "false"
 				menu.classList.toggle("hidden", !open)
 				trigger.setAttribute("aria-expanded", open ? "true" : "false")
-				if (!open) {
+				if (open) {
+					mountMenuPortal()
+					window.addEventListener("scroll", onViewportChange, true)
+					window.addEventListener("resize", onViewportChange)
+				} else {
+					window.removeEventListener("scroll", onViewportChange, true)
+					window.removeEventListener("resize", onViewportChange)
+					unmountMenuPortal()
 					activeIndex = -1
 					menu.querySelectorAll("[data-active='true']").forEach((node) => {
 						node.removeAttribute("data-active")
