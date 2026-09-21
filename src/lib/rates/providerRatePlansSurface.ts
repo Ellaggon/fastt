@@ -23,6 +23,7 @@ export type RatePlanListItem = {
 	description?: string | null
 	productId: string
 	productName: string
+	productType: string
 	variantId: string
 	variantName: string
 	isActive: boolean

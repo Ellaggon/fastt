@@ -74,6 +74,15 @@ const isProfessionalMode = requestedProfessionalMode && (showHeader || showPlanS
 const isGuidedSurface = inlineHotelArrival
 const isTour = offeringType === "tour"
 
+function policySummaryForDisplay(value: string): string {
+	if (!isTour) return value
+	return value
+		.replaceAll("Paga en la propiedad", "Paga al proveedor durante la experiencia")
+		.replaceAll("Pago en propiedad", "Pago al proveedor")
+		.replaceAll("primera noche", "reserva")
+		.replaceAll("estadía completa", "reserva completa")
+}
+
 const technicalCategories = POLICY_CATEGORY_OPTIONS.map((category) => ({
 	key: category.value,
 	label: category.label,
@@ -185,7 +194,7 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 										<p class="text-sm text-slate-500">
 											{plan.coverageCount === 0
 												? "Sin condiciones configuradas."
-												: plan.policySummary}
+												: policySummaryForDisplay(plan.policySummary)}
 										</p>
 									</div>
 								)}
@@ -238,7 +247,9 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 												</Badge>
 											</div>
 											<p class="mt-1 text-sm leading-5 text-slate-500">
-												Qué ocurre si el huésped cancela o no llega.
+												{isTour
+													? "Qué ocurre si el viajero cancela o no se presenta a la salida."
+													: "Qué ocurre si el huésped cancela o no llega."}
 											</p>
 										</div>
 									</div>
@@ -349,13 +360,17 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 										<div>
 											<dt class="text-xs font-medium text-slate-500">Cuándo paga</dt>
 											<dd class="mt-1 text-sm font-semibold text-slate-900">
-												{plan.contractFacts.paymentTiming}
+												{isTour && !paymentMissing
+													? "Al realizar el tour"
+													: plan.contractFacts.paymentTiming}
 											</dd>
 										</div>
 										<div>
 											<dt class="text-xs font-medium text-slate-500">Cuánto paga</dt>
 											<dd class="mt-1 text-sm font-semibold text-slate-900">
-												{plan.contractFacts.paymentAmount}
+												{isTour && !paymentMissing
+													? "El proveedor cobra el total"
+													: plan.contractFacts.paymentAmount}
 											</dd>
 										</div>
 										<div>
@@ -376,20 +391,31 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 										</span>
 										<div class="min-w-0">
 											<div class="flex flex-wrap items-center gap-2">
-												<h4 class="font-semibold text-slate-950">Llegada y salida</h4>
-												<Badge variant={arrivalStatusValue.variant}>
-													{arrivalStatusValue.label}
+												<h4 class="font-semibold text-slate-950">
+													{isTour ? "Presentación para la salida" : "Llegada y salida"}
+												</h4>
+												<Badge variant={isTour ? "info" : arrivalStatusValue.variant}>
+													{isTour ? "Definida en la salida" : arrivalStatusValue.label}
 												</Badge>
 											</div>
 											<p class="mt-1 text-sm leading-5 text-slate-500">
-												{plan.contractFacts.arrivalSource === "Tarifa"
-													? "Esta tarifa tiene un horario distinto al del alojamiento."
-													: "Horarios compartidos por las tarifas del alojamiento. Se editan en las reglas del hotel; aquí solo puedes crear una excepción de horario."}
+												{isTour
+													? "La hora, idioma, modalidad y cupo se gestionan en la salida; la tarifa conserva sus condiciones comerciales."
+													: plan.contractFacts.arrivalSource === "Tarifa"
+														? "Esta tarifa tiene un horario distinto al del alojamiento."
+														: "Horarios compartidos por las tarifas del alojamiento. Se editan en las reglas del hotel; aquí solo puedes crear una excepción de horario."}
 											</p>
 										</div>
 									</div>
 
-									{isGuidedSurface ? (
+									{isTour ? (
+										<div class="px-1 sm:px-4">
+											<p class="text-sm leading-6 text-slate-600">
+												Usa “Anterior” para revisar la salida sin perder el progreso de esta
+												preparación.
+											</p>
+										</div>
+									) : isGuidedSurface ? (
 										<div class="px-1 sm:px-4">
 											<div class="flex justify-end">
 												<Button
@@ -434,27 +460,29 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 										</div>
 									)}
 
-									<dl class="mt-2 grid gap-x-8 gap-y-4 px-1 sm:grid-cols-[minmax(0,1.4fr)_minmax(180px,0.6fr)] sm:px-4 lg:col-start-2 lg:mt-4">
-										<div>
-											<dt class="text-xs font-medium text-slate-500">Horario</dt>
-											<dd class="mt-1 text-sm font-semibold text-slate-900">
-												{plan.contractFacts.arrivalSchedule}
-											</dd>
-										</div>
-										<div>
-											<dt class="text-xs font-medium text-slate-500">Origen</dt>
-											<dd class="mt-1 flex items-center gap-2 text-sm font-semibold text-slate-900">
-												<Building2 class="h-4 w-4 text-slate-400" />
-												{arrivalSourceLabel}
-											</dd>
-										</div>
-									</dl>
+									{!isTour && (
+										<dl class="mt-2 grid gap-x-8 gap-y-4 px-1 sm:grid-cols-[minmax(0,1.4fr)_minmax(180px,0.6fr)] sm:px-4 lg:col-start-2 lg:mt-4">
+											<div>
+												<dt class="text-xs font-medium text-slate-500">Horario</dt>
+												<dd class="mt-1 text-sm font-semibold text-slate-900">
+													{plan.contractFacts.arrivalSchedule}
+												</dd>
+											</div>
+											<div>
+												<dt class="text-xs font-medium text-slate-500">Origen</dt>
+												<dd class="mt-1 flex items-center gap-2 text-sm font-semibold text-slate-900">
+													<Building2 class="h-4 w-4 text-slate-400" />
+													{arrivalSourceLabel}
+												</dd>
+											</div>
+										</dl>
+									)}
 								</div>
 							</section>
 						</div>
 					</article>
 
-					{isGuidedSurface ? null : (
+					{isGuidedSurface || isTour ? null : (
 						<p
 							class="mt-10 px-1 pb-2 text-sm leading-6 text-slate-500 sm:px-4"
 							data-rate-conditions-boundary

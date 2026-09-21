@@ -7,6 +7,7 @@ export type ProviderRatePlanVariantChoice = {
 	variantName: string
 	productId: string
 	productName: string
+	productType: string
 	label: string
 }
 
@@ -32,17 +33,25 @@ async function queryProviderRatePlanVariants(
 			variantName: Variant.name,
 			productId: Product.id,
 			productName: Product.name,
+			productType: Product.productType,
 		})
 		.from(Variant)
 		.innerJoin(Product, eq(Product.id, Variant.productId))
 		.where(eq(Product.providerId, providerId))
 		.orderBy(asc(Product.name), asc(Variant.name))
 
-	return rows.map((row) => ({
-		variantId: String(row.variantId),
-		variantName: String(row.variantName ?? "Habitación"),
-		productId: String(row.productId),
-		productName: String(row.productName ?? "Hotel"),
-		label: `${String(row.productName ?? "Hotel")} · ${String(row.variantName ?? "Habitación")}`,
-	}))
+	return rows.map((row) => {
+		const productType = String(row.productType ?? "")
+		const isTour = productType.trim().toLowerCase() === "tour"
+		const productFallback = isTour ? "Tour" : "Alojamiento"
+		const variantFallback = isTour ? "Salida" : "Habitación"
+		return {
+			variantId: String(row.variantId),
+			variantName: String(row.variantName ?? variantFallback),
+			productId: String(row.productId),
+			productName: String(row.productName ?? productFallback),
+			productType,
+			label: `${String(row.productName ?? productFallback)} · ${String(row.variantName ?? variantFallback)}`,
+		}
+	})
 }

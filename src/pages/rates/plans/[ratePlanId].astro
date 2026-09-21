@@ -19,6 +19,12 @@ import {
 	resolveLaunchPlaybookFromUrl,
 } from "@/lib/playbook/launch-accommodation"
 import { getNextTourLaunchStep, resolveTourLaunchPlaybookFromUrl } from "@/lib/playbook/launch-tour"
+import {
+	buildCompleteToPublishHref,
+	COMPLETE_TO_PUBLISH_PLAYBOOK_ID,
+	completeToPublishNextHref,
+	resolveCompleteToPublishPlaybookFromUrl,
+} from "@/lib/playbook/complete-to-publish"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { getProviderSidebarData } from "@/lib/dashboard/providerSidebarReadiness"
@@ -88,6 +94,7 @@ const product = await db
 	.then((rows) => rows[0] ?? null)
 const offeringType =
 	String(product?.productType ?? "").toLowerCase() === "tour" ? "tour" : "accommodation"
+const isTourContext = offeringType === "tour"
 
 if ("redirectTo" in loadedRatePlan) return Astro.redirect(loadedRatePlan.redirectTo)
 const { loaded } = loadedRatePlan
@@ -107,9 +114,12 @@ const viewTitles = {
 	details: `Datos de ${row.ratePlanName}`,
 } as const
 const viewDescriptions = {
-	conditions:
-		"Cancelación, pago y no presentación de esta tarifa. La llegada y salida se heredan del alojamiento. Los cambios se aplican a reservas futuras.",
-	price: "Ajusta el precio base de referencia. Los cambios por fecha se hacen desde el calendario.",
+	conditions: isTourContext
+		? "Cancelación, pago, presentación y datos necesarios para esta salida. Los cambios se aplican a reservas futuras."
+		: "Cancelación, pago y no presentación de esta tarifa. La llegada y salida se heredan del alojamiento. Los cambios se aplican a reservas futuras.",
+	price: isTourContext
+		? "Ajusta el precio de referencia por participante. Los cambios por fecha se hacen desde el calendario."
+		: "Ajusta el precio base de referencia. Los cambios por fecha se hacen desde el calendario.",
 	details: "Gestiona el nombre visible, estado comercial y configuración principal de esta tarifa.",
 } as const
 const tabs = [
@@ -124,6 +134,7 @@ const tabs = [
 const addRoomPlaybook = resolveAddRoomPlaybookFromUrl(Astro.url)
 const launchPlaybook = resolveLaunchPlaybookFromUrl(Astro.url)
 const tourLaunchPlaybook = resolveTourLaunchPlaybookFromUrl(Astro.url)
+const completePlaybook = resolveCompleteToPublishPlaybookFromUrl(Astro.url)
 const flow = Astro.url.searchParams.get("flow")
 if (!addRoomPlaybook.active && flow === "add-room") {
 	return Astro.redirect(
@@ -168,13 +179,26 @@ const tourCtx = {
 const tourContinueHref = tourLaunchPlaybook.active
 	? (getNextTourLaunchStep("conditions")?.buildHref(tourCtx) ?? null)
 	: null
+const completeContinueHref = completePlaybook.active
+	? isTourContext
+		? buildCompleteToPublishHref(
+				`${routes.calendar()}?focus=availability&productId=${encodeURIComponent(tourCtx.productId)}&variantId=${encodeURIComponent(tourCtx.variantId)}&ratePlanId=${encodeURIComponent(ratePlanId)}`,
+				"calendar"
+			)
+		: completeToPublishNextHref(tourCtx.productId, "bookingPolicies", "hotel", {
+				variantId: tourCtx.variantId,
+				ratePlanId,
+			})
+	: null
 const activePlaybook = addRoomPlaybook.active
 	? "add-room"
-	: launchPlaybook.active
-		? "launch"
-		: tourLaunchPlaybook.active
-			? "launch-tour"
-			: null
+	: completePlaybook.active
+		? "complete-to-publish"
+		: launchPlaybook.active
+			? "launch"
+			: tourLaunchPlaybook.active
+				? "launch-tour"
+				: null
 const isPlaybookMode = Boolean(activePlaybook)
 const effectiveActiveView = isPlaybookMode ? "conditions" : activeView
 const Layout = activePlaybook ? PlaybookLayout : WorkspaceLayout
@@ -221,7 +245,22 @@ const layoutProps =
 						continueLabel: "Confirmar condiciones y continuar →",
 						continueReload: true,
 					}
-				: { title: `Tarifa · ${row.ratePlanName}` }
+				: activePlaybook === "complete-to-publish"
+					? {
+							title: `Tarifa · ${row.ratePlanName}`,
+							playbookId: COMPLETE_TO_PUBLISH_PLAYBOOK_ID,
+							active: true,
+							stepId: completePlaybook.stepId ?? "bookingPolicies",
+							productId: tourCtx.productId,
+							variantId: tourCtx.variantId,
+							ratePlanId,
+							isHotel: !isTourContext,
+							playbookVertical: isTourContext ? "tour" : "hotel",
+							continueHref: completeContinueHref,
+							continueLabel: "Confirmar condiciones y continuar →",
+							continueReload: true,
+						}
+					: { title: `Tarifa · ${row.ratePlanName}` }
 ---
 
 <Layout {...layoutProps}>
@@ -231,12 +270,8 @@ const layoutProps =
 				{
 					isPlaybookMode && activePlaybook !== "add-room" ? (
 						<p class="flex items-center gap-2 text-xs font-semibold tracking-wide text-slate-400 uppercase">
-							{activePlaybook === "launch-tour" ? (
-								<Ticket class="h-4 w-4" />
-							) : (
-								<Hotel class="h-4 w-4" />
-							)}
-							{row.productName} · {activePlaybook === "launch-tour" ? "Salida" : "Nueva habitación"}
+							{isTourContext ? <Ticket class="h-4 w-4" /> : <Hotel class="h-4 w-4" />}
+							{row.productName} · {isTourContext ? "Salida" : "Nueva habitación"}
 						</p>
 					) : null
 				}
@@ -246,7 +281,9 @@ const layoutProps =
 				<p class="max-w-2xl text-sm leading-6 text-slate-300">
 					{
 						isPlaybookMode
-							? "Creamos condiciones iniciales para esta tarifa. Revísalas o ajústalas antes de abrir disponibilidad."
+							? isTourContext
+								? "Revisa cancelación, pago al proveedor, presentación y preguntas necesarias antes de abrir fechas."
+								: "Creamos condiciones iniciales para esta tarifa. Revísalas o ajústalas antes de abrir disponibilidad."
 							: viewDescriptions[effectiveActiveView]
 					}
 				</p>
@@ -306,9 +343,11 @@ const layoutProps =
 			>
 				<RatePlanPoliciesSurface
 					title={viewTitles.conditions}
-					description={isPlaybookMode
-						? "Revisa cancelación, pago y no presentación de esta tarifa. La llegada se hereda del alojamiento."
-						: "Cancelación, pago y no presentación de esta tarifa. La llegada y salida se heredan del alojamiento."}
+					description={isTourContext
+						? "Revisa cancelación, pago al proveedor y presentación para esta salida."
+						: isPlaybookMode
+							? "Revisa cancelación, pago y no presentación de esta tarifa. La llegada se hereda del alojamiento."
+							: "Cancelación, pago y no presentación de esta tarifa. La llegada y salida se heredan del alojamiento."}
 					policyPlans={policyPlans}
 					checkIn={checkIn}
 					checkOut={checkOut}
@@ -317,11 +356,11 @@ const layoutProps =
 					isProfessionalMode={isProfessionalMode}
 					showPlanSummary={false}
 					showHeader={false}
-					inlineHotelArrival={isPlaybookMode}
+					inlineHotelArrival={isPlaybookMode && !isTourContext}
 					offeringType={offeringType}
 				/>
 				{
-					activePlaybook === "launch-tour" ? (
+					isPlaybookMode && isTourContext ? (
 						<div
 							id="tourBookingQuestions"
 							data-product-id={tourCtx.productId}
@@ -335,6 +374,14 @@ const layoutProps =
 									Solicita solo datos imprescindibles. Se mostrarán al viajero antes de confirmar.
 								</p>
 							</div>
+							<div class="rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm leading-6 text-sky-950">
+								<p class="font-semibold">Alcance: todo el tour</p>
+								<p class="mt-1">
+									Se preguntan una vez por reserva al comprador o viajero principal y aplican a
+									todas las salidas y tarifas. Las respuestas quedan guardadas con la reserva; los
+									cambios solo afectan reservas nuevas.
+								</p>
+							</div>
 							<div class="grid gap-3 sm:grid-cols-2">
 								{[
 									["pickup_location", "Hotel o dirección de recogida"],
@@ -346,7 +393,12 @@ const layoutProps =
 								].map(([code, label]) => (
 									<label class="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
 										<input type="checkbox" value={code} data-tour-question class="mt-0.5" />
-										<span>{label}</span>
+										<span>
+											{label}
+											<span class="mt-0.5 block text-xs text-slate-500">
+												Obligatoria al reservar
+											</span>
+										</span>
 									</label>
 								))}
 							</div>
@@ -357,6 +409,10 @@ const layoutProps =
 									placeholder="Ej: ¿Qué talla de traje de neopreno necesitas?"
 									className="mt-1"
 								/>
+							</label>
+							<label class="flex items-center gap-2 text-sm text-slate-700">
+								<input id="tourCustomQuestionRequired" type="checkbox" />
+								Hacer obligatoria la pregunta adicional
 							</label>
 							<div class="flex flex-wrap items-center gap-3">
 								<Button type="button" id="saveTourQuestions" size="sm">
@@ -387,6 +443,7 @@ const layoutProps =
 								initialCurrency={loaded.initialCurrency}
 								initialBasePrice={loaded.initialBasePrice}
 								backHref={routes.rates()}
+								offeringType={offeringType}
 							/>
 						</div>
 					</div>
@@ -410,15 +467,20 @@ const layoutProps =
 									<div class="mb-5 sm:mb-6">
 										<h2 class="text-lg font-semibold text-slate-950">Datos de tarifa</h2>
 										<p class="mt-1 text-sm leading-6 text-slate-500">
-											Define cómo identificas esta opción y cuál será la tarifa de referencia de la
-											habitación.
+											{isTourContext
+												? "Define cómo identificas esta opción y cuál será el precio de referencia de la salida."
+												: "Define cómo identificas esta opción y cuál será la tarifa de referencia de la habitación."}
 										</p>
 									</div>
 									<div class="grid gap-5 md:grid-cols-2">
 										<FormField
 											label="Nombre visible"
 											htmlFor="rate-plan-name"
-											description="Es el nombre que verá el huésped al reservar."
+											description={
+												isTourContext
+													? "Es el nombre que verá el viajero al reservar."
+													: "Es el nombre que verá el huésped al reservar."
+											}
 											required
 										>
 											<Input id="rate-plan-name" name="name" value={row.ratePlanName} required />
@@ -426,7 +488,11 @@ const layoutProps =
 										<FormField
 											label="Descripción interna"
 											htmlFor="rate-plan-description"
-											description="Solo para tu equipo; no se muestra al huésped."
+											description={
+												isTourContext
+													? "Solo para tu equipo; no se muestra al viajero."
+													: "Solo para tu equipo; no se muestra al huésped."
+											}
 											class="md:col-span-2"
 										>
 											<Textarea
@@ -441,7 +507,9 @@ const layoutProps =
 										<span>
 											<strong class="block text-slate-950">Tarifa principal</strong>
 											<span class="mt-1 block leading-5 text-slate-500">
-												Úsala como referencia principal de precio para esta habitación.
+												{isTourContext
+													? "Úsala como referencia principal de precio para esta salida."
+													: "Úsala como referencia principal de precio para esta habitación."}
 											</span>
 										</span>
 										<input
@@ -735,6 +803,9 @@ const layoutProps =
 		const productId = String(root.dataset.productId || "")
 		const status = document.getElementById("tourQuestionsStatus")
 		const custom = document.getElementById("tourCustomQuestion") as HTMLInputElement | null
+		const customRequired = document.getElementById(
+			"tourCustomQuestionRequired"
+		) as HTMLInputElement | null
 		const inputs = Array.from(root.querySelectorAll<HTMLInputElement>("[data-tour-question]"))
 		const current = await fetch(
 			`/api/tours/booking-questions?productId=${encodeURIComponent(productId)}`
@@ -747,6 +818,7 @@ const layoutProps =
 		}
 		const customQuestion = questions.find((question: any) => question.code === "custom")
 		if (custom && customQuestion) custom.value = String(customQuestion.label || "")
+		if (customRequired && customQuestion) customRequired.checked = customQuestion.required === true
 
 		document.getElementById("saveTourQuestions")?.addEventListener("click", async () => {
 			if (status) status.textContent = "Guardando preguntas..."
@@ -763,7 +835,7 @@ const layoutProps =
 					id: crypto.randomUUID(),
 					code: "custom",
 					label: custom.value.trim(),
-					required: false,
+					required: Boolean(customRequired?.checked),
 				})
 			}
 			const response = await fetch("/api/tours/booking-questions", {

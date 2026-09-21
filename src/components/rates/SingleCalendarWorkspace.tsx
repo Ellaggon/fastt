@@ -35,7 +35,8 @@ type Props = {
 	isProfessional: boolean
 	initialMode?: CalendarControlMode
 	guidedAvailability?: {
-		playbook: "add-room" | "launch" | "launch-tour" | null
+		playbook: "add-room" | "launch" | "launch-tour" | "complete-to-publish" | null
+		vertical: "hotel" | "tour"
 		productId: string
 		productName: string
 		variantName: string
@@ -232,7 +233,7 @@ export default function SingleCalendarWorkspace({
 	initialMode = "price",
 	guidedAvailability,
 }: Props) {
-	const isTourGuidedAvailability = guidedAvailability?.playbook === "launch-tour"
+	const isTourGuidedAvailability = guidedAvailability?.vertical === "tour"
 	const isAddRoomGuidedAvailability = guidedAvailability?.playbook === "add-room"
 	const guidedStartDate = addDays(localIsoDate(), 1)
 	const initialRequest = {
@@ -653,10 +654,14 @@ export default function SingleCalendarWorkspace({
 		}
 	}
 
-	async function finalizeGuidedAddRoom() {
-		if (!isAddRoomGuidedAvailability || !guidedIsReady) {
+	async function finalizeGuidedRate() {
+		if ((!isAddRoomGuidedAvailability && !isTourGuidedAvailability) || !guidedIsReady) {
 			setGuidedFeedbackVariant("error")
-			setGuidedFeedback("Configura inventario inicial para al menos 30 noches antes de finalizar.")
+			setGuidedFeedback(
+				isTourGuidedAvailability
+					? "Abre al menos una fecha futura con cupo antes de continuar."
+					: "Configura inventario inicial para al menos 30 noches antes de finalizar."
+			)
 			return
 		}
 		if (
@@ -665,13 +670,21 @@ export default function SingleCalendarWorkspace({
 			!guidedAvailability?.productId
 		) {
 			setGuidedFeedbackVariant("error")
-			setGuidedFeedback("No se encontró el contexto completo de la habitación para finalizar.")
+			setGuidedFeedback(
+				isTourGuidedAvailability
+					? "No se encontró el contexto completo de la salida para continuar."
+					: "No se encontró el contexto completo de la habitación para finalizar."
+			)
 			return
 		}
 
 		setGuidedFinalizing(true)
 		setGuidedFeedbackVariant("info")
-		setGuidedFeedback("Verificando la habitación y activando la tarifa...")
+		setGuidedFeedback(
+			isTourGuidedAvailability
+				? "Verificando la salida y activando la tarifa..."
+				: "Verificando la habitación y activando la tarifa..."
+		)
 		try {
 			const response = await fetch("/api/rateplans/activate-guided", {
 				method: "POST",
@@ -680,6 +693,8 @@ export default function SingleCalendarWorkspace({
 					productId: guidedAvailability.productId,
 					variantId: readySurface.selectedVariantId,
 					ratePlanId: readySurface.selectedRatePlanId,
+					playbook: guidedAvailability.playbook,
+					vertical: guidedAvailability.vertical,
 				}),
 			})
 			const body = await response.json().catch(() => ({}))
@@ -1047,14 +1062,18 @@ export default function SingleCalendarWorkspace({
 											? "Actualizar disponibilidad"
 											: "Abrir disponibilidad"}
 									</Button>
-									{isAddRoomGuidedAvailability && guidedIsReady ? (
+									{(isAddRoomGuidedAvailability || isTourGuidedAvailability) && guidedIsReady ? (
 										<Button
 											type="button"
-											onClick={() => void finalizeGuidedAddRoom()}
+											onClick={() => void finalizeGuidedRate()}
 											disabled={loading || guidedFinalizing}
 											className="fastt-playbook-cta"
 										>
-											{guidedFinalizing ? "Finalizando..." : "Finalizar configuración"}
+											{guidedFinalizing
+												? "Finalizando..."
+												: isTourGuidedAvailability
+													? "Activar tarifa y continuar"
+													: "Finalizar configuración"}
 										</Button>
 									) : null}
 								</div>
