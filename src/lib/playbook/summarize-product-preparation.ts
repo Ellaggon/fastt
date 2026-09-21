@@ -1,6 +1,6 @@
 import {
 	buildCompleteToPublishEntryHref,
-	buildCompleteToPublishResumeHref,
+	resolveCompleteToPublishResume,
 } from "@/lib/playbook/complete-to-publish"
 import { loadCompleteToPublishState } from "@/lib/playbook/evaluate-complete-to-publish-progress"
 import { routes } from "@/lib/routes"
@@ -55,6 +55,7 @@ export async function summarizeProductPreparation(params: {
 	status?: string
 	request?: Request
 	url?: URL
+	lastPath?: string | null
 }): Promise<ProductPreparationSummary | null> {
 	const productId = String(params.productId ?? "").trim()
 	const providerId = String(params.providerId ?? "").trim()
@@ -95,7 +96,13 @@ export async function summarizeProductPreparation(params: {
 	if (!publishState) return null
 
 	const blockers = publishState.blockers.filter((check) => check.sectionKey !== "preview")
-	const nextBlocker = blockers[0] ?? null
+	const resume = resolveCompleteToPublishResume(productId, publishState.checks, {
+		lastPath: params.lastPath,
+	})
+	const resumeCheck =
+		publishState.checks.find((check) => check.sectionKey === resume.sectionKey) ??
+		blockers[0] ??
+		null
 
 	return {
 		productId,
@@ -109,11 +116,11 @@ export async function summarizeProductPreparation(params: {
 		readyToPublish: publishState.readyToPublish,
 		completedChecks: publishState.completedChecks,
 		totalChecks: publishState.totalChecks,
-		continuePreparationHref: buildCompleteToPublishResumeHref(productId, publishState.checks),
+		continuePreparationHref: resume.href,
 		previewHref,
-		nextStepLabel: nextBlocker?.label ?? null,
-		nextStepBody: nextBlocker?.guestImpact ?? null,
-		nextStepCta: nextBlocker?.cta ?? (publishState.readyToPublish ? "Ir a vista previa" : null),
+		nextStepLabel: resume.label ?? resumeCheck?.label ?? null,
+		nextStepBody: resumeCheck?.guestImpact ?? null,
+		nextStepCta: resumeCheck?.cta ?? (publishState.readyToPublish ? "Ir a vista previa" : null),
 		checks: publishState.checks.map((check) => ({
 			sectionKey: check.sectionKey,
 			label: check.label,

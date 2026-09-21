@@ -65,6 +65,7 @@ export async function evaluateTourLaunchProgress(
 		subtype:
 			Boolean(completionBySection.get("subtype")) && Boolean(completionBySection.get("itinerary")),
 		tickets: Boolean(completionBySection.get("tickets")),
+		categories: Boolean(completionBySection.get("categories")),
 		departure: Boolean(completionBySection.get("departure")),
 		rate: Boolean(completionBySection.get("rate")),
 		conditions: Boolean(completionBySection.get("bookingPolicies")),

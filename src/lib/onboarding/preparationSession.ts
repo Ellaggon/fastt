@@ -1,6 +1,10 @@
 import { buildPlaybookHref } from "@/lib/playbook/launch-accommodation"
 import { buildTourPlaybookHref } from "@/lib/playbook/launch-tour"
-import { buildCompleteToPublishHref } from "@/lib/playbook/complete-to-publish"
+import {
+	buildCompleteToPublishHref,
+	completeToPublishStepHref,
+	normalizeCompleteToPublishStep,
+} from "@/lib/playbook/complete-to-publish"
 import {
 	and,
 	db,
@@ -126,8 +130,11 @@ export async function listActivePreparationSessions(
 				? buildTourPlaybookHref(`/product/${encodeURIComponent(row.productId)}/content`, "content")
 				: row.playbookId === "complete-to-publish"
 					? buildCompleteToPublishHref(
-							`/product/${encodeURIComponent(row.productId)}/content`,
-							"content"
+							completeToPublishStepHref(
+								row.productId,
+								normalizeCompleteToPublishStep(row.stepId) ?? "content"
+							),
+							normalizeCompleteToPublishStep(row.stepId) ?? "content"
 						)
 					: buildPlaybookHref(`/product/${encodeURIComponent(row.productId)}/content`, "content")
 		return [

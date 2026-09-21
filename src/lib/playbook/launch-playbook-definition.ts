@@ -10,6 +10,7 @@ import {
 	type TourLaunchContext,
 	type TourLaunchStepId,
 } from "@/lib/playbook/launch-tour"
+import { getTourPublishingStage } from "@/lib/playbook/tour-publishing-stages"
 
 export type LaunchLikePlaybookId = "launch" | "launch-tour"
 export type LaunchLikeStepId = LaunchStepId | TourLaunchStepId
@@ -22,7 +23,7 @@ export type LaunchLikeStep = {
 	buildHref: (context: LaunchLikeContext) => string
 }
 
-export type LaunchLikeStage = { label: string; position: number }
+export type LaunchLikeStage = { label: string; position: number; total: number }
 
 export type LaunchPlaybookDefinition = {
 	id: LaunchLikePlaybookId
@@ -75,16 +76,24 @@ export function getLaunchLikeStage(
 	definition: LaunchPlaybookDefinition,
 	stepId: LaunchLikeStepId | string
 ): LaunchLikeStage {
+	if (definition.id === "launch-tour") {
+		const stage = getTourPublishingStage(String(stepId))
+		return { label: stage.label, position: stage.position, total: stage.total }
+	}
 	const index = definition.steps.findIndex((step) => step.id === stepId)
-	if (index >= definition.steps.length - 1) return { label: "Revisión y publicación", position: 3 }
+	if (index >= definition.steps.length - 1) {
+		return { label: "Revisión y publicación", position: 3, total: 3 }
+	}
 	if (index < 5) {
 		return {
-			label: definition.id === "launch-tour" ? "Tu experiencia" : "Tu alojamiento",
+			label: "Tu alojamiento",
 			position: 1,
+			total: 3,
 		}
 	}
 	return {
-		label: definition.id === "launch-tour" ? "Salidas y venta" : "Habitaciones y venta",
+		label: "Habitaciones y venta",
 		position: 2,
+		total: 3,
 	}
 }

@@ -8,6 +8,7 @@ export type TourLaunchStepId =
 	| "images"
 	| "subtype"
 	| "tickets"
+	| "categories"
 	| "departure"
 	| "rate"
 	| "conditions"
@@ -43,8 +44,8 @@ export const TOUR_LAUNCH_STEPS: TourLaunchStepDefinition[] = [
 	},
 	{
 		id: "location",
-		label: "Punto de encuentro",
-		guestImpact: "Dónde comienza la experiencia.",
+		label: "Destino y encuentro",
+		guestImpact: "Dónde se descubre la experiencia y cómo se identifica su punto de inicio.",
 		buildHref: ({ productId }) =>
 			buildTourPlaybookHref(`/product/${encodeURIComponent(productId)}/location`, "location"),
 	},
@@ -64,10 +65,17 @@ export const TOUR_LAUNCH_STEPS: TourLaunchStepDefinition[] = [
 	},
 	{
 		id: "tickets",
-		label: "Modalidades",
-		guestImpact: "Quién puede reservar y bajo qué tipo de ticket.",
+		label: "Participantes",
+		guestImpact: "Quién puede reservar y qué edades admite cada tipo de participante.",
 		buildHref: ({ productId }) =>
 			buildTourPlaybookHref(`/product/${encodeURIComponent(productId)}/tickets`, "tickets"),
+	},
+	{
+		id: "categories",
+		label: "Categorías de búsqueda",
+		guestImpact: "Cómo encontrarán los viajeros esta experiencia en el catálogo.",
+		buildHref: ({ productId }) =>
+			buildTourPlaybookHref(`/product/${encodeURIComponent(productId)}/categories`, "categories"),
 	},
 	{
 		id: "departure",
@@ -95,7 +103,11 @@ export const TOUR_LAUNCH_STEPS: TourLaunchStepDefinition[] = [
 		guestImpact: "Cancelación, confirmación y datos necesarios para operar la reserva.",
 		buildHref: ({ productId, variantId, ratePlanId }) => {
 			if (ratePlanId) {
-				const params = new URLSearchParams({ vista: "conditions" })
+				const params = new URLSearchParams({
+					vista: "conditions",
+					productId,
+					ratePlanId,
+				})
 				if (variantId) params.set("variantId", variantId)
 				return buildTourPlaybookHref(
 					`/rates/plans/${encodeURIComponent(ratePlanId)}?${params.toString()}`,
@@ -111,8 +123,8 @@ export const TOUR_LAUNCH_STEPS: TourLaunchStepDefinition[] = [
 		id: "calendar",
 		label: "Disponibilidad",
 		guestImpact: "El cupo que podrán reservar los viajeros.",
-		buildHref: ({ variantId, ratePlanId }) => {
-			const params = new URLSearchParams({ focus: "availability" })
+		buildHref: ({ productId, variantId, ratePlanId }) => {
+			const params = new URLSearchParams({ focus: "availability", productId })
 			if (variantId) params.set("variantId", variantId)
 			if (ratePlanId) params.set("ratePlanId", ratePlanId)
 			return buildTourPlaybookHref(`/rates/calendar?${params}`, "calendar")
@@ -165,6 +177,7 @@ export function inferTourLaunchStepFromPathname(pathname: string): TourLaunchSte
 	if (pathname.endsWith("/images")) return "images"
 	if (pathname.endsWith("/subtype")) return "subtype"
 	if (pathname.endsWith("/tickets")) return "tickets"
+	if (pathname.endsWith("/categories")) return "categories"
 	if (pathname.endsWith("/departures/new")) return "departure"
 	if (pathname.includes("/rates/plans/manage")) return "rate"
 	if (pathname.match(/\/rates\/plans\/[^/]+$/)) return "conditions"
