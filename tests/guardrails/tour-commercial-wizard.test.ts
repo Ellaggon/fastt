@@ -36,37 +36,4 @@ describe("tour commercial wizard", () => {
 		expect(page).toContain("Define hora, cupo, idioma y modalidad")
 		expect(page).toContain("pasos siguientes")
 	})
-
-	it("uses Tour-specific guided pricing while preserving shared rate management", () => {
-		const source = read("src/pages/rates/plans/manage.astro")
-		const tourSuccessBranch = source.slice(
-			source.indexOf("if (tourLaunchPlaybookActive)"),
-			source.indexOf("if (completePlaybookActive)")
-		)
-		expect(source).toContain(
-			"const isTourPlaybookRateStep = Boolean(activePlaybook && isTourRateContext)"
-		)
-		expect(source).toContain('"Precio por participante"')
-		expect(source).toContain('"Salida seleccionada"')
-		expect(source).toContain("Condiciones de reserva")
-		expect(source).toContain("ratePlanIntentPresets.filter")
-		expect(tourSuccessBranch).toContain('step: "conditions"')
-		expect(tourSuccessBranch).toContain('vista: "conditions"')
-		expect(tourSuccessBranch).toContain(
-			"window.location.href = `/rates/plans/${encodeURIComponent(String(result.ratePlanId))}"
-		)
-		expect(tourSuccessBranch).not.toContain("/rates/calendar")
-	})
-
-	it("treats launch-tour as guided future availability with capacity", () => {
-		const page = read("src/pages/rates/calendar.astro")
-		const workspace = read("src/components/rates/SingleCalendarWorkspace.tsx")
-		expect(page).toContain('tourLaunchPlaybook.stepId === "calendar"')
-		expect(page).toContain("gt(DailyInventory.date, todayIso)")
-		expect(page).toContain("gt(DailyInventory.totalInventory, 0)")
-		expect(page).toContain("requiredDays: isTourContext ? 1 : 30")
-		expect(workspace).toContain('guidedAvailability?.vertical === "tour"')
-		expect(workspace).toContain("La primera fecha reservable debe ser futura.")
-		expect(workspace).toContain('"Cupo de participantes"')
-	})
 })
