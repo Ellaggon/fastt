@@ -383,7 +383,7 @@ export const POLICY_PRESET_CATALOG = [
 			},
 		],
 	},
-] as const satisfies readonly PolicyPreset[]
+] satisfies readonly PolicyPreset[]
 
 export const POLICY_PRESETS = POLICY_PRESET_CATALOG.reduce(
 	(acc, preset) => {

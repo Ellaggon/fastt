@@ -168,7 +168,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 			category: preset.category,
 			stayLengthType: preset.stayLengthType,
 			refundBasis: preset.refundBasis,
-			businesses: preset.businesses,
+			businesses: "businesses" in preset ? preset.businesses : undefined,
 			rules: preset.rules,
 			cancellationTiers: "cancellationTiers" in preset ? (preset.cancellationTiers ?? []) : [],
 		})
