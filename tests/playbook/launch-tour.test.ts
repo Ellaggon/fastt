@@ -19,6 +19,7 @@ describe("playbook/launch-tour", () => {
 			"images",
 			"subtype",
 			"tickets",
+			"categories",
 			"departure",
 			"rate",
 			"conditions",
@@ -55,6 +56,8 @@ describe("playbook/launch-tour", () => {
 
 	it("provides the same navigation contract as accommodation", () => {
 		expect(getPreviousTourLaunchStep("tickets")?.id).toBe("subtype")
+		expect(getNextTourLaunchStep("tickets")?.id).toBe("categories")
+		expect(getNextTourLaunchStep("categories")?.id).toBe("departure")
 		expect(getNextTourLaunchStep("rate")?.id).toBe("conditions")
 		expect(getNextTourLaunchStep("conditions")?.id).toBe("calendar")
 		expect(inferTourLaunchStepFromPathname("/rates/plans/rate_123")).toBe("conditions")

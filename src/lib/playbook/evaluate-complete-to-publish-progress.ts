@@ -69,6 +69,7 @@ const BLOCKER_ORDER: ProductVerticalSectionKey[] = [
 	"rooms",
 	"itinerary",
 	"tickets",
+	"categories",
 	"departure",
 	"rate",
 	"calendar",
@@ -124,7 +125,7 @@ function sectionLabel(section: ProductVerticalSectionKey, verticalLabel: string)
 		houseRules: "Reglas para huéspedes",
 		bookingPolicies: "Condiciones de reserva",
 		itinerary: "Itinerario del tour",
-		tickets: "Modalidades y tickets",
+		tickets: "Tipos de participante",
 		categories: "Categorías de búsqueda",
 		departure: "Primera salida",
 		rate: "Precio de la salida",
@@ -146,7 +147,7 @@ function sectionCta(section: ProductVerticalSectionKey): string {
 		houseRules: "Revisar reglas",
 		bookingPolicies: "Revisar tarifas",
 		itinerary: "Editar itinerario",
-		tickets: "Configurar tickets",
+		tickets: "Configurar participantes",
 		categories: "Elegir categorías",
 		departure: "Crear salida",
 		rate: "Configurar precio",
@@ -373,16 +374,24 @@ export async function loadCompleteToPublishState(params: {
 			detail: `Completa al menos ${TOUR_QUALITY_MIN_ITINERARY_STEPS} pasos del itinerario.`,
 		},
 		tickets: {
-			complete:
-				vertical.vertical !== "tour" ||
-				(Boolean(tourReadiness?.hasActiveTickets) && Boolean(tourReadiness?.hasCategory)),
+			complete: vertical.vertical !== "tour" || Boolean(tourReadiness?.hasActiveTickets),
 			detail:
 				vertical.vertical !== "tour"
 					? "No aplica para este tipo de oferta."
-					: tourReadiness?.hasActiveTickets && tourReadiness?.hasCategory
-						? "Hay una modalidad activa y una categoría de discovery."
-						: "Crea una modalidad activa y asigna una categoría de discovery.",
+					: tourReadiness?.hasActiveTickets
+						? "Hay al menos un tipo de participante activo."
+						: "Crea al menos un tipo de participante activo.",
 			statusLabel: tourReadiness?.hasActiveTickets ? "Modalidad activa" : "Sin modalidad",
+		},
+		categories: {
+			complete: vertical.vertical !== "tour" || Boolean(tourReadiness?.hasCategory),
+			detail:
+				vertical.vertical !== "tour"
+					? "No aplica para este tipo de oferta."
+					: tourReadiness?.hasCategory
+						? "La experiencia tiene una categoría pública de búsqueda."
+						: "Selecciona al menos una categoría de búsqueda.",
+			statusLabel: tourReadiness?.hasCategory ? "Categoría asignada" : "Sin categoría",
 		},
 		departure: {
 			complete: vertical.vertical !== "tour" || Number(tourReadiness?.activeSlotCount ?? 0) > 0,
@@ -482,7 +491,6 @@ export async function loadCompleteToPublishState(params: {
 		blockers,
 		readyToPublish: allActionableComplete,
 		completedChecks,
-		totalChecks,
 		readinessPercent: totalChecks > 0 ? Math.round((completedChecks / totalChecks) * 100) : 0,
 	}
 }
@@ -542,7 +550,12 @@ export async function evaluateCompleteToPublishProgress(
 		state.blockers[0]?.sectionKey ||
 		(state.readyToPublish ? "preview" : orderedSteps[0]?.sectionKey) ||
 		null
-	const nextBlocker = state.blockers.find((check) => check.sectionKey !== currentStepId)
+	const currentIndex = orderedSteps.findIndex((check) => check.sectionKey === currentStepId)
+	const currentHref = currentIndex >= 0 ? orderedSteps[currentIndex].href : null
+	const sequentialNext =
+		currentIndex >= 0
+			? orderedSteps.slice(currentIndex + 1).find((check) => check.href !== currentHref)
+			: (orderedSteps.find((check) => check.sectionKey === "preview") ?? null)
 
 	const steps: CompleteToPublishProgressStep[] = orderedSteps.map((check) => ({
 		key: check.sectionKey,
@@ -551,7 +564,7 @@ export async function evaluateCompleteToPublishProgress(
 		complete: check.complete,
 		href: check.href,
 		isCurrent: check.sectionKey === currentStepId,
-		isNext: check.sectionKey === nextBlocker?.sectionKey,
+		isNext: check.sectionKey === sequentialNext?.sectionKey,
 		isBlocker: !check.complete,
 	}))
 
@@ -566,9 +579,9 @@ export async function evaluateCompleteToPublishProgress(
 		steps,
 		blockers: steps.filter((step) => step.isBlocker),
 		currentStep: currentStepId,
-		nextStep: nextBlocker?.sectionKey ?? null,
-		nextHref: nextBlocker
-			? buildCompleteToPublishHref(nextBlocker.href, nextBlocker.sectionKey)
+		nextStep: sequentialNext?.sectionKey ?? null,
+		nextHref: sequentialNext
+			? buildCompleteToPublishHref(sequentialNext.href, sequentialNext.sectionKey)
 			: state.readyToPublish
 				? buildCompleteToPublishHref(routes.productPreview(productId), "preview")
 				: null,

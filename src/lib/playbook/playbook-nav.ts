@@ -2,6 +2,8 @@ import { ADD_ROOM_PLAYBOOK_ID, buildAddRoomHref, type AddRoomStepId } from "@/li
 import {
 	COMPLETE_TO_PUBLISH_PLAYBOOK_ID,
 	buildCompleteToPublishHref,
+	completeToPublishNextHref,
+	normalizeCompleteToPublishStep,
 } from "@/lib/playbook/complete-to-publish"
 import {
 	buildPlaybookHref,
@@ -87,8 +89,9 @@ export function playbookRedirectHrefFor(
 	if (playbookId === ADD_ROOM_PLAYBOOK_ID) {
 		return buildAddRoomHref(path, step as AddRoomStepId)
 	}
-	if (playbookId === COMPLETE_TO_PUBLISH_PLAYBOOK_ID && productId) {
-		return completeToPublishRedirectHref(productId)
+	if (playbookId === COMPLETE_TO_PUBLISH_PLAYBOOK_ID) {
+		const completeStep = normalizeCompleteToPublishStep(step) ?? step
+		return buildCompleteToPublishHref(path, completeStep)
 	}
 	if (playbookId === LAUNCH_TOUR_PLAYBOOK_ID) {
 		return buildTourPlaybookHref(path, step as TourLaunchStepId)
@@ -131,6 +134,8 @@ export function resolvePlaybookRedirectAfterSave(
 		launchStep: LaunchStepId | TourLaunchStepId
 		intent?: PlaybookNavIntent
 		submitter?: EventTarget | null
+		currentStep?: string | null
+		vertical?: string | null
 	}
 ): string {
 	const intent = options.intent ?? readPlaybookNavIntent(formData, options.submitter)
@@ -138,7 +143,11 @@ export function resolvePlaybookRedirectAfterSave(
 		return productWorkspaceHref(options.productId)
 	}
 	if (isCompleteToPublishPlaybookMode(formData)) {
-		return completeToPublishRedirectHref(options.productId)
+		return completeToPublishNextHref(
+			options.productId,
+			String(formData.get("playbookCurrentStep") || options.currentStep || ""),
+			String(formData.get("playbookVertical") || options.vertical || "")
+		)
 	}
 	if (isAddRoomPlaybookMode(formData)) {
 		return addRoomRedirectHref(options.launchPath, options.launchStep as AddRoomStepId)

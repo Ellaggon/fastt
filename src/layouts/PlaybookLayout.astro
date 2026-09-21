@@ -12,8 +12,8 @@ import {
 	isAddRoomTerminalStep,
 } from "@/lib/playbook/add-room"
 import {
-	buildCompleteToPublishHref,
 	COMPLETE_TO_PUBLISH_PLAYBOOK_TITLE,
+	completeToPublishPreviousHref,
 } from "@/lib/playbook/complete-to-publish"
 import { evaluateAddRoomProgress } from "@/lib/playbook/evaluate-add-room-progress"
 import { evaluateCompleteToPublishProgress } from "@/lib/playbook/evaluate-complete-to-publish-progress"
@@ -37,6 +37,7 @@ import {
 	type TourLaunchStepId,
 } from "@/lib/playbook/launch-tour"
 import type { PlaybookId } from "@/lib/playbook/types"
+import { getTourPublishingStage } from "@/lib/playbook/tour-publishing-stages"
 
 interface Props {
 	title?: string
@@ -47,6 +48,7 @@ interface Props {
 	variantId?: string
 	ratePlanId?: string
 	isHotel?: boolean
+	playbookVertical?: string | null
 	continueHref?: string | null
 	continueLabel?: string
 	continueReload?: boolean
@@ -66,6 +68,7 @@ const {
 	variantId = "",
 	ratePlanId = "",
 	isHotel = false,
+	playbookVertical = null,
 	continueHref = null,
 	continueLabel = "Continuar →",
 	continueReload = false,
@@ -109,6 +112,7 @@ let resolvedContinueHref = continueHref?.trim() || null
 let currentStepKnown = false
 let stageLabel = ""
 let stagePosition = 0
+let stageTotal = 0
 
 if (isComplete && active && productId) {
 	playbookTitle = COMPLETE_TO_PUBLISH_PLAYBOOK_TITLE
@@ -130,11 +134,19 @@ if (isComplete && active && productId) {
 				stepGuestImpact = current.guestImpact
 				stepNumber = progress.steps.findIndex((step) => step.isCurrent) + 1
 				if (stepNumber === 0) stepNumber = 1
+				if (playbookVertical === "tour") {
+					const stage = getTourPublishingStage(current.key)
+					stageLabel = stage.label
+					stagePosition = stage.position
+					stageTotal = stage.total
+				}
 			}
-			const previous = progress.steps
-				.filter((step) => step.isBlocker && step.key !== stepId)
-				.sort((a, b) => Number(a.isCurrent) - Number(b.isCurrent))[0]
-			if (previous) previousHref = buildCompleteToPublishHref(previous.href, previous.key)
+			previousHref = completeToPublishPreviousHref(
+				productId,
+				stepId,
+				playbookVertical || (isHotel ? "hotel" : null),
+				{ variantId, ratePlanId }
+			)
 			if (!resolvedContinueHref && progress.nextHref) {
 				resolvedContinueHref = progress.nextHref
 			}
@@ -180,6 +192,7 @@ if (isComplete && active && productId) {
 			const stage = getLaunchLikeStage(launchLikeDefinition, currentStep.id)
 			stageLabel = stage.label
 			stagePosition = stage.position
+			stageTotal = stage.total
 		}
 	}
 	if (previousStep) {
@@ -255,11 +268,18 @@ const progressHeading =
 			? `Paso ${stepNumber} de ${totalSteps}`
 			: "Progreso"
 const preparationSessionPayload =
-	active && productId && (playbookId === "launch" || playbookId === LAUNCH_TOUR_PLAYBOOK_ID)
+	active &&
+	productId &&
+	(playbookId === "launch" || playbookId === LAUNCH_TOUR_PLAYBOOK_ID || isComplete)
 		? {
 				productId,
 				playbookId,
-				vertical: playbookId === LAUNCH_TOUR_PLAYBOOK_ID ? "tour" : "hotel",
+				vertical:
+					playbookId === LAUNCH_TOUR_PLAYBOOK_ID || playbookVertical === "tour"
+						? "tour"
+						: playbookVertical === "hotel" || isHotel
+							? "hotel"
+							: "tour",
 				stepId: String(stepId ?? "content"),
 				variantId,
 				ratePlanId,
@@ -274,7 +294,7 @@ const PlaybookShell = active ? GuidedPreparationLayout : WorkspaceLayout
 			<div class="mb-5 space-y-2">
 				{stageLabel ? (
 					<p class="text-xs font-semibold tracking-wide text-slate-300 uppercase">
-						Etapa {stagePosition} de 3 · {stageLabel}
+						Etapa {stagePosition} de {stageTotal} · {stageLabel}
 					</p>
 				) : null}
 				<p class="text-xs font-semibold tracking-wide text-slate-400 uppercase">

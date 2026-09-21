@@ -1,4 +1,7 @@
-import type { ProductVerticalSectionKey } from "@/lib/catalog/productVerticalRegistry"
+import {
+	getProductVerticalEntry,
+	type ProductVerticalSectionKey,
+} from "@/lib/catalog/productVerticalRegistry"
 import { routes } from "@/lib/routes"
 import type { CompleteToPublishCheck } from "@/lib/playbook/evaluate-complete-to-publish-progress"
 
@@ -53,6 +56,9 @@ export function resolveCompleteToPublishPlaybookFromUrl(url: URL): {
 	else if (url.pathname.endsWith("/location")) inferredStep = "location"
 	else if (url.pathname.endsWith("/subtype")) inferredStep = "subtype"
 	else if (url.pathname.endsWith("/rooms")) inferredStep = "rooms"
+	else if (url.pathname.endsWith("/tickets")) inferredStep = "tickets"
+	else if (url.pathname.endsWith("/categories")) inferredStep = "categories"
+	else if (url.pathname.includes("/departures/")) inferredStep = "departure"
 	else if (url.pathname.includes("/house-rules")) inferredStep = "houseRules"
 	else if (url.pathname.includes("/rates/")) inferredStep = "bookingPolicies"
 
@@ -66,17 +72,261 @@ export function resolveCompleteToPublishPlaybookFromUrl(url: URL): {
 	}
 }
 
+function lastPathBelongsToProduct(
+	productId: string,
+	lastPath: string | null | undefined
+): string | null {
+	const path = String(lastPath ?? "").trim()
+	if (!path.startsWith("/") || path.startsWith("//") || path.includes("://")) return null
+	const url = new URL(path, "http://fastt.local")
+	const pathProduct = url.pathname.match(/^\/product\/([^/]+)/)?.[1] ?? ""
+	const queryProduct = String(url.searchParams.get("productId") ?? "").trim()
+	if (pathProduct !== productId && queryProduct !== productId) return null
+	if (!url.pathname.startsWith("/product/") && !url.pathname.startsWith("/rates/")) return null
+	const playbook = String(url.searchParams.get("playbook") ?? "")
+		.trim()
+		.toLowerCase()
+	const flow = String(url.searchParams.get("flow") ?? "")
+		.trim()
+		.toLowerCase()
+	if (
+		playbook !== COMPLETE_TO_PUBLISH_PLAYBOOK_ID &&
+		playbook !== "complete" &&
+		flow !== "complete"
+	) {
+		return null
+	}
+	return `${url.pathname}${url.search}`
+}
+
+export function resolveCompleteToPublishResume(
+	productId: string,
+	checks: CompleteToPublishCheck[],
+	options?: { lastPath?: string | null }
+): { href: string; sectionKey: string | null; label: string | null } {
+	const savedPath = lastPathBelongsToProduct(productId, options?.lastPath)
+	if (savedPath) {
+		const url = new URL(savedPath, "http://fastt.local")
+		const resolved = resolveCompleteToPublishPlaybookFromUrl(url)
+		const current = checks.find((check) => check.sectionKey === resolved.stepId) ?? null
+		return {
+			href: savedPath,
+			sectionKey: resolved.stepId,
+			label: current?.label ?? null,
+		}
+	}
+
+	const playbookResumeOrder: ProductVerticalSectionKey[] = [
+		"content",
+		"photos",
+		"location",
+		"subtype",
+		"tickets",
+		"categories",
+		"departure",
+		"rate",
+		"calendar",
+		"bookingPolicies",
+		"preview",
+	]
+	const bySection = new Map(checks.map((check) => [check.sectionKey, check]))
+	const playbookSteps = playbookResumeOrder
+		.map((sectionKey) => bySection.get(sectionKey))
+		.filter((check): check is CompleteToPublishCheck => Boolean(check))
+	const furthestReachedIndex = playbookSteps.reduce((furthest, check, index) => {
+		if (check.complete) return Math.max(furthest, index)
+		return furthest
+	}, -1)
+	const resumeFromProgress =
+		furthestReachedIndex >= 0
+			? (playbookSteps.slice(furthestReachedIndex).find((check) => !check.complete) ??
+				playbookSteps[furthestReachedIndex] ??
+				null)
+			: null
+	const firstIncomplete = playbookSteps.find((check) => !check.complete) ?? null
+	const resume = resumeFromProgress ?? firstIncomplete
+	if (!resume) {
+		return {
+			href: buildCompleteToPublishHref(routes.productPreview(productId), "preview"),
+			sectionKey: "preview",
+			label: "Vista previa y publicar",
+		}
+	}
+	return {
+		href: buildCompleteToPublishHref(resume.href, resume.sectionKey),
+		sectionKey: resume.sectionKey,
+		label: resume.label,
+	}
+}
+
 export function buildCompleteToPublishResumeHref(
 	productId: string,
-	checks: CompleteToPublishCheck[]
+	checks: CompleteToPublishCheck[],
+	options?: { lastPath?: string | null }
 ): string {
-	const blocker = checks.find((check) => !check.complete && check.sectionKey !== "preview")
-	if (!blocker) {
-		return buildCompleteToPublishHref(routes.productPreview(productId), "preview")
-	}
-	return buildCompleteToPublishHref(blocker.href, blocker.sectionKey)
+	return resolveCompleteToPublishResume(productId, checks, options).href
 }
 
 export function buildCompleteToPublishEntryHref(productId: string): string {
 	return buildCompleteToPublishHref(routes.productPreview(productId), "preview")
+}
+
+const COMPLETE_TO_PUBLISH_STEP_ORDER: ProductVerticalSectionKey[] = [
+	"content",
+	"photos",
+	"location",
+	"subtype",
+	"rooms",
+	"itinerary",
+	"tickets",
+	"categories",
+	"departure",
+	"rate",
+	"calendar",
+	"inclusions",
+	"houseRules",
+	"bookingPolicies",
+	"preview",
+]
+
+export function normalizeCompleteToPublishStep(
+	step: string | null | undefined
+): ProductVerticalSectionKey | null {
+	const raw = String(step ?? "")
+		.trim()
+		.toLowerCase()
+	if (!raw) return null
+	if (raw === "images") return "photos"
+	if (raw === "house-rules" || raw === "houserules") return "houseRules"
+	if (raw === "booking-policies" || raw === "bookingpolicies" || raw === "conditions") {
+		return "bookingPolicies"
+	}
+	return COMPLETE_TO_PUBLISH_STEP_ORDER.includes(raw as ProductVerticalSectionKey)
+		? (raw as ProductVerticalSectionKey)
+		: null
+}
+
+export function completeToPublishStepHref(
+	productId: string,
+	section: ProductVerticalSectionKey,
+	context: { variantId?: string | null; ratePlanId?: string | null } = {}
+): string {
+	const variantId = String(context.variantId ?? "").trim()
+	const ratePlanId = String(context.ratePlanId ?? "").trim()
+	switch (section) {
+		case "content":
+			return `/product/${encodeURIComponent(productId)}/content`
+		case "photos":
+			return `/product/${encodeURIComponent(productId)}/images`
+		case "location":
+			return `/product/${encodeURIComponent(productId)}/location`
+		case "subtype":
+		case "itinerary":
+		case "inclusions":
+			return `/product/${encodeURIComponent(productId)}/subtype`
+		case "tickets":
+			return `/product/${encodeURIComponent(productId)}/tickets`
+		case "categories":
+			return `/product/${encodeURIComponent(productId)}/categories`
+		case "departure":
+			return `/product/${encodeURIComponent(productId)}/departures/new`
+		case "rate":
+			return `${routes.rates()}?${new URLSearchParams({
+				productId,
+				openDialog: "1",
+				...(variantId ? { variantId } : {}),
+			}).toString()}`
+		case "calendar":
+			return `${routes.calendar()}?${new URLSearchParams({
+				focus: "availability",
+				productId,
+				...(variantId ? { variantId } : {}),
+				...(ratePlanId ? { ratePlanId } : {}),
+			}).toString()}`
+		case "rooms":
+			return routes.productRoomsForProduct(productId)
+		case "houseRules":
+			return `${routes.providerHouseRules()}?productId=${encodeURIComponent(productId)}`
+		case "bookingPolicies":
+			return ratePlanId
+				? `${routes.ratePlanPolicies(ratePlanId)}?${new URLSearchParams({
+						vista: "conditions",
+						productId,
+						...(variantId ? { variantId } : {}),
+						ratePlanId,
+					}).toString()}`
+				: `${routes.rates()}?productId=${encodeURIComponent(productId)}`
+		case "preview":
+			return routes.productPreview(productId)
+		default:
+			return routes.productDetail(productId)
+	}
+}
+
+function completeToPublishOrderedSteps(verticalHint?: string | null): ProductVerticalSectionKey[] {
+	return getProductVerticalEntry(verticalHint).readiness.requiredSections.filter(
+		(section) => section !== "identity"
+	)
+}
+
+function adjacentCompleteToPublishStep(
+	productId: string,
+	currentStep: string | null | undefined,
+	direction: "next" | "previous",
+	verticalHint?: string | null,
+	context: { variantId?: string | null; ratePlanId?: string | null } = {}
+): { step: ProductVerticalSectionKey; href: string } | null {
+	const steps = completeToPublishOrderedSteps(verticalHint)
+	const current = normalizeCompleteToPublishStep(currentStep) ?? steps[0] ?? null
+	if (!current) return null
+	const currentIndex = steps.indexOf(current)
+	const start = currentIndex >= 0 ? currentIndex : 0
+	const currentHref = completeToPublishStepHref(productId, current, context)
+
+	if (direction === "next") {
+		for (let index = start + 1; index < steps.length; index += 1) {
+			const step = steps[index]
+			const href = completeToPublishStepHref(productId, step, context)
+			if (href !== currentHref) {
+				return { step, href: buildCompleteToPublishHref(href, step) }
+			}
+		}
+		return {
+			step: "preview",
+			href: buildCompleteToPublishHref(routes.productPreview(productId), "preview"),
+		}
+	}
+
+	for (let index = start - 1; index >= 0; index -= 1) {
+		const step = steps[index]
+		const href = completeToPublishStepHref(productId, step, context)
+		if (href !== currentHref) {
+			return { step, href: buildCompleteToPublishHref(href, step) }
+		}
+	}
+	return null
+}
+
+export function completeToPublishNextHref(
+	productId: string,
+	currentStep: string | null | undefined,
+	verticalHint?: string | null,
+	context: { variantId?: string | null; ratePlanId?: string | null } = {}
+): string {
+	return (
+		adjacentCompleteToPublishStep(productId, currentStep, "next", verticalHint, context)?.href ??
+		buildCompleteToPublishHref(routes.productPreview(productId), "preview")
+	)
+}
+
+export function completeToPublishPreviousHref(
+	productId: string,
+	currentStep: string | null | undefined,
+	verticalHint?: string | null,
+	context: { variantId?: string | null; ratePlanId?: string | null } = {}
+): string | null {
+	return (
+		adjacentCompleteToPublishStep(productId, currentStep, "previous", verticalHint, context)
+			?.href ?? null
+	)
 }
