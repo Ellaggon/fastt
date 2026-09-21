@@ -50,6 +50,41 @@ describe("tour commercial rate context", () => {
 		expect(manage).toContain('["flexible", "early_booking"]')
 	})
 
+	it("uses tour-specific guided pricing while preserving shared rate management", () => {
+		const source = (path: string) => readFileSync(resolve(path), "utf8")
+		const manage = source("src/pages/rates/plans/manage.astro")
+		const tourSuccessBranch = manage.slice(
+			manage.indexOf("if (tourLaunchPlaybookActive)"),
+			manage.indexOf("if (completePlaybookActive)")
+		)
+		expect(manage).toContain(
+			"const isTourPlaybookRateStep = Boolean(activePlaybook && isTourRateContext)"
+		)
+		expect(manage).toContain('"Precio por participante"')
+		expect(manage).toContain('"Salida seleccionada"')
+		expect(manage).toContain("Condiciones de reserva")
+		expect(manage).toContain("ratePlanIntentPresets.filter")
+		expect(tourSuccessBranch).toContain('step: "conditions"')
+		expect(tourSuccessBranch).toContain('vista: "conditions"')
+		expect(tourSuccessBranch).toContain(
+			"window.location.href = `/rates/plans/${encodeURIComponent(String(result.ratePlanId))}"
+		)
+		expect(tourSuccessBranch).not.toContain("/rates/calendar")
+	})
+
+	it("treats launch-tour as guided future availability with capacity", () => {
+		const source = (path: string) => readFileSync(resolve(path), "utf8")
+		const page = source("src/pages/rates/calendar.astro")
+		const workspace = source("src/components/rates/SingleCalendarWorkspace.tsx")
+		expect(page).toContain('tourLaunchPlaybook.stepId === "calendar"')
+		expect(page).toContain("gt(DailyInventory.date, todayIso)")
+		expect(page).toContain("gt(DailyInventory.totalInventory, 0)")
+		expect(page).toContain("requiredDays: isTourContext ? 1 : 30")
+		expect(workspace).toContain('guidedAvailability?.vertical === "tour"')
+		expect(workspace).toContain("La primera fecha reservable debe ser futura.")
+		expect(workspace).toContain('"Cupo de participantes"')
+	})
+
 	it("requires availability before activating the guided tour rate", () => {
 		const calendar = source("src/components/rates/SingleCalendarWorkspace.tsx")
 		const page = source("src/pages/rates/calendar.astro")
