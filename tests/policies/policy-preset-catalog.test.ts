@@ -37,7 +37,16 @@ describe("policies/policy preset catalog", () => {
 			}
 		}
 
-		expect(POLICY_PRESET_CATALOG.filter((item) => item.category === "Cancellation")).toHaveLength(7)
+		const cancellationPresets = POLICY_PRESET_CATALOG.filter((item) => item.category === "Cancellation")
+		expect(
+			cancellationPresets.filter((preset) => !preset.businesses || preset.businesses.includes("hotel"))
+		).toHaveLength(7)
+		expect(cancellationPresets.filter((preset) => preset.businesses?.includes("tour"))).toHaveLength(2)
+		expect(resolvePolicyPreset("tour_flexible_24h", "Cancellation")?.cancellationTiers).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ hoursBeforeDeparture: 24, penaltyAmount: 0 }),
+			])
+		)
 		expect(resolvePolicyPreset("long_term", "Cancellation")?.rules).toEqual(
 			expect.objectContaining({
 				minStayNights: 28,
