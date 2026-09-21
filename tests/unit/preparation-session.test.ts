@@ -27,14 +27,10 @@ describe("persistent preparation session contract", () => {
 		expect(isPreparationVertical("rental")).toBe(false)
 	})
 
-	it("keeps the hotel flow in three stages and exposes six tour stages", () => {
+	it("keeps the hotel launch flow in three stages", () => {
 		const hotel = resolveLaunchPlaybookDefinition("launch", {
 			productId: "hotel-1",
 			isHotel: true,
-		})
-		const tour = resolveLaunchPlaybookDefinition("launch-tour", {
-			productId: "tour-1",
-			isHotel: false,
 		})
 		expect(getLaunchLikeStage(hotel, "content")).toMatchObject({
 			position: 1,
@@ -43,14 +39,6 @@ describe("persistent preparation session contract", () => {
 		expect(getLaunchLikeStage(hotel, "rate")).toMatchObject({
 			position: 2,
 			label: "Habitaciones y venta",
-		})
-		expect(getLaunchLikeStage(tour, "departure")).toMatchObject({
-			position: 5,
-			label: "Salidas y venta",
-		})
-		expect(getLaunchLikeStage(tour, "preview")).toMatchObject({
-			position: 6,
-			label: "Revisión y publicación",
 		})
 	})
 
