@@ -3,6 +3,7 @@ import {
 	loadCompleteToPublishState,
 	type CompleteToPublishState,
 } from "@/lib/playbook/evaluate-complete-to-publish-progress"
+import { auditTourProductPolicyCompatibility } from "@/lib/policies/audit-tour-policy-compatibility"
 
 const validationCodeBySection = {
 	content: "missing_content",
@@ -41,5 +42,13 @@ export async function resolveCanonicalProductPublicationValidationErrors(params:
 }): Promise<ProductReadinessValidationError[]> {
 	const state = await loadCompleteToPublishState(params)
 	if (!state) return [{ code: "missing_product", message: "No se encontró el producto." }]
-	return publicationValidationErrorsFromState(state)
+	const errors = publicationValidationErrorsFromState(state)
+	const incompatible = await auditTourProductPolicyCompatibility(params.productId)
+	if (incompatible.length) {
+		errors.push({
+			code: "tour_policy_compatibility_review_required",
+			message: `Hay ${incompatible.length} condición${incompatible.length === 1 ? "" : "es"} histórica${incompatible.length === 1 ? "" : "s"} incompatible${incompatible.length === 1 ? "" : "s"}. Reemplázala desde la tarifa antes de publicar; no se convertirá automáticamente.`,
+		})
+	}
+	return errors
 }
