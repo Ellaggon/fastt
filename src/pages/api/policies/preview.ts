@@ -318,9 +318,10 @@ export const POST: APIRoute = async ({ request }) => {
 						?.businesses
 				: undefined,
 		rules: Object.fromEntries(
-			selected.rules
-				.filter((rule: { ruleKey?: string | null }) => Boolean(rule.ruleKey))
-				.map((rule: { ruleKey: string; ruleValue: unknown }) => [rule.ruleKey, rule.ruleValue])
+			selected.rules.flatMap((rule: { ruleKey?: string | null; ruleValue: unknown }) => {
+				const key = String(rule.ruleKey ?? "").trim()
+				return key ? [[key, rule.ruleValue] as const] : []
+			})
 		),
 		cancellationTiers: selected.cancellationTiers,
 	})[0]
