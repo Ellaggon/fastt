@@ -3,10 +3,10 @@ import Button from "@/components/ui/Button.astro"
 import Checkbox from "@/components/ui/Checkbox.astro"
 import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
-import Notice from "@/components/ui/Notice.astro"
 import Select from "@/components/ui/Select.astro"
 import Textarea from "@/components/ui/Textarea.astro"
 import { Clock, Languages, Users } from "@lucide/astro"
+import { TOUR_SLOT_LANGUAGE_OPTIONS } from "@/lib/tours/tourSlotLanguageOptions"
 
 interface Props {
 	productId: string
@@ -22,6 +22,7 @@ interface Props {
 	meetingPointOverride?: string | null
 	isActive?: boolean | null
 	redirectOnSuccess?: string | null
+	playbookFooterControls?: boolean
 }
 
 const {
@@ -38,9 +39,21 @@ const {
 	meetingPointOverride = "",
 	isActive = true,
 	redirectOnSuccess = null,
+	playbookFooterControls = false,
 } = Astro.props
 
 const isEditMode = mode === "edit"
+const resolvedLanguageCode = String(languageCode ?? "es")
+	.trim()
+	.toLowerCase()
+const languageOptions = TOUR_SLOT_LANGUAGE_OPTIONS.some(
+	(entry) => entry.code === resolvedLanguageCode
+)
+	? TOUR_SLOT_LANGUAGE_OPTIONS
+	: [
+			{ code: resolvedLanguageCode, label: resolvedLanguageCode.toUpperCase() },
+			...TOUR_SLOT_LANGUAGE_OPTIONS,
+		]
 ---
 
 <form
@@ -53,14 +66,8 @@ const isEditMode = mode === "edit"
 	{isEditMode ? <input type="hidden" name="variantId" value={variantId ?? ""} /> : null}
 	<input type="hidden" name="productId" value={productId} />
 
-	<Notice tone="info">
-		Aquí creas la plantilla de la salida: hora, idioma, modalidad y cupo máximo. En el calendario
-		elegirás después las fechas concretas en las que los viajeros podrán reservarla. Las salidas
-		recurrentes no se crean automáticamente: cada fecha se abre y controla de forma explícita.
-	</Notice>
-
 	<section
-		class="fastt-card space-y-4 rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-5"
+		class="fastt-card space-y-4 rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-5 text-slate-950"
 	>
 		<header class="flex items-center gap-2">
 			<Clock class="h-4 w-4 text-slate-500" />
@@ -85,14 +92,18 @@ const isEditMode = mode === "edit"
 					value={departureTime ?? "09:00"}
 				/>
 			</FormField>
-			<FormField label="Duración override (minutos, opcional)" for="durationMinutes">
+			<FormField
+				label="Duración de esta salida (minutos, opcional)"
+				htmlFor="durationMinutes"
+				description="Si la dejas vacía, usamos la duración configurada en los detalles del tour."
+			>
 				<Input
 					id="durationMinutes"
 					name="durationMinutes"
 					type="number"
 					min="1"
 					value={durationMinutes != null ? String(durationMinutes) : ""}
-					placeholder="Deja vacío para usar la duración del tour"
+					placeholder="Ej: 180"
 				/>
 			</FormField>
 		</div>
@@ -108,7 +119,7 @@ const isEditMode = mode === "edit"
 	</section>
 
 	<section
-		class="fastt-card space-y-4 rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-5"
+		class="fastt-card space-y-4 rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-5 text-slate-950"
 	>
 		<header class="flex items-center gap-2">
 			<Users class="h-4 w-4 text-slate-500" />
@@ -125,7 +136,7 @@ const isEditMode = mode === "edit"
 					value={String(maxPax ?? 12)}
 				/>
 			</FormField>
-			<FormField label="Modalidad" for="bookingMode" required>
+			<FormField label="Modalidad" htmlFor="bookingMode" required>
 				<Select id="bookingMode" name="bookingMode" required>
 					<option value="shared" selected={bookingMode !== "private"}>
 						Compartido (reserva directa con cupo común)
@@ -140,42 +151,50 @@ const isEditMode = mode === "edit"
 			Las categorías de participantes comparten este mismo cupo. Una salida privada queda como
 			solicitud de cotización y no bloquea inventario hasta que el proveedor la acepte.
 		</p>
-		<Checkbox name="isActive" value="true" checked={isActive !== false}>
-			Salida activa (visible para venta)
-		</Checkbox>
+		<Checkbox
+			name="isActive"
+			value="true"
+			checked={isActive !== false}
+			label="Salida activa (visible para venta)"
+		/>
 	</section>
 
 	<section
-		class="fastt-card space-y-4 rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-5"
+		class="fastt-card space-y-4 rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-5 text-slate-950"
 	>
 		<header class="flex items-center gap-2">
 			<Languages class="h-4 w-4 text-slate-500" />
 			<h2 class="text-sm font-semibold text-slate-950">Idioma y punto de encuentro</h2>
 		</header>
 		<div class="grid gap-4 md:grid-cols-2">
-			<FormField label="Idioma" for="languageCode" required>
+			<FormField label="Idioma" htmlFor="languageCode" required>
 				<Select id="languageCode" name="languageCode" required>
-					<option value="es" selected={languageCode === "es"}>Español</option>
-					<option value="en" selected={languageCode === "en"}>English</option>
-					<option value="pt" selected={languageCode === "pt"}>Português</option>
-					<option value="fr" selected={languageCode === "fr"}>Français</option>
-					<option value="de" selected={languageCode === "de"}>Deutsch</option>
+					{
+						languageOptions.map((lang) => (
+							<option value={lang.code} selected={resolvedLanguageCode === lang.code}>
+								{lang.label}
+							</option>
+						))
+					}
 				</Select>
 			</FormField>
-			<FormField label="Override de encuentro (opcional)" for="meetingPointOverride">
+			<FormField label="Punto de encuentro distinto (opcional)" htmlFor="meetingPointOverride">
 				<Input
 					id="meetingPointOverride"
 					name="meetingPointOverride"
 					value={meetingPointOverride ?? ""}
-					placeholder="Si esta salida reúne en otro lugar"
+					placeholder="Ej: Entrada sur del parque, junto al kiosco"
 				/>
+				<p class="text-xs leading-5 text-slate-500">
+					Solo si esta salida reúne al grupo en un lugar diferente al del tour.
+				</p>
 			</FormField>
 		</div>
 	</section>
 
 	<p id="tour-slot-form-status" class="text-sm text-slate-600" role="status" aria-live="polite"></p>
 
-	<div class="flex flex-wrap gap-3">
+	<div class:list={["flex flex-wrap gap-3", playbookFooterControls ? "hidden" : ""]}>
 		<Button type="submit" id="tour-slot-submit">
 			{isEditMode ? "Guardar salida" : "Crear salida"}
 		</Button>
@@ -241,9 +260,20 @@ const isEditMode = mode === "edit"
 	form?.addEventListener("submit", async (event) => {
 		event.preventDefault()
 		if (!form) return
+		const submitter = event.submitter
+		if (
+			submitter instanceof HTMLButtonElement &&
+			submitter.name === "playbookNav" &&
+			submitter.value === "exit"
+		) {
+			const productId = form.dataset.productId || ""
+			window.location.href = `/product/${encodeURIComponent(productId)}`
+			return
+		}
+		const activeSubmit = submitter instanceof HTMLButtonElement ? submitter : submitBtn
 		statusEl?.setAttribute("role", "status")
 		if (statusEl) statusEl.textContent = "Guardando salida..."
-		if (submitBtn) submitBtn.disabled = true
+		if (activeSubmit) activeSubmit.disabled = true
 		try {
 			const response = await fetch("/api/variant/tour-slot-profile", {
 				method: "POST",
@@ -275,7 +305,7 @@ const isEditMode = mode === "edit"
 					"Se perdió la conexión. Tu borrador sigue guardado; comprueba la red e inténtalo de nuevo."
 			}
 		} finally {
-			if (submitBtn) submitBtn.disabled = false
+			if (activeSubmit) activeSubmit.disabled = false
 		}
 	})
 </script>

@@ -1,12 +1,16 @@
 ---
-import ProductContextSwitcher from "@/components/product/ProductContextSwitcher.astro"
 import TourSlotProfileEditor from "@/components/tours/TourSlotProfileEditor.astro"
 import { productRepository } from "@/container"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { isTourProductType } from "@/lib/catalog/productVerticalRegistry"
-import { buildTourPlaybookHref, resolveTourLaunchPlaybookFromUrl } from "@/lib/playbook/launch-tour"
+import {
+	buildCompleteToPublishHref,
+	COMPLETE_TO_PUBLISH_PLAYBOOK_ID,
+} from "@/lib/playbook/complete-to-publish"
+import { buildTourPlaybookHref } from "@/lib/playbook/launch-tour"
+import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
 import { routes } from "@/lib/routes"
 import { getProductAggregate } from "@/modules/catalog/public"
 
@@ -25,42 +29,43 @@ if (!isTourProductType(owned.productType)) return Astro.redirect(routes.productD
 
 const product = await getProductAggregate(productId)
 if (!product) return Astro.redirect("/product/create")
-const tourPlaybook = resolveTourLaunchPlaybookFromUrl(Astro.url)
-const tourRateHref = buildTourPlaybookHref(
-	`/rates/plans/manage?productId=${encodeURIComponent(productId)}&openDialog=1&variantId=__VARIANT_ID__`,
-	"rate"
-)
+const playbook = resolvePlaybookFromUrl(Astro.url)
+const isCompletePlaybook = playbook.playbookId === COMPLETE_TO_PUBLISH_PLAYBOOK_ID
+const tourRateHref = isCompletePlaybook
+	? buildCompleteToPublishHref(
+			`/rates/plans/manage?productId=${encodeURIComponent(productId)}&openDialog=1&variantId=__VARIANT_ID__`,
+			"rate"
+		)
+	: buildTourPlaybookHref(
+			`/rates/plans/manage?productId=${encodeURIComponent(productId)}&openDialog=1&variantId=__VARIANT_ID__`,
+			"rate"
+		)
 ---
 
 <PlaybookLayout
 	title={`${product.displayName} · Nueva salida`}
-	playbookId={tourPlaybook.playbookId}
-	active={tourPlaybook.active}
-	stepId={tourPlaybook.stepId ?? "departure"}
+	playbookId={playbook.playbookId}
+	active={playbook.active}
+	stepId={playbook.stepId ?? "departure"}
 	productId={productId}
 	isHotel={false}
-	ownsPrimaryCta={tourPlaybook.active}
+	playbookVertical="tour"
+	continueFormId={playbook.active ? "tour-slot-profile-form" : null}
 >
 	<section class="space-y-5">
-		<header class="space-y-1.5 border-b border-slate-200 pb-5">
-			<ProductContextSwitcher
-				providerId={providerId}
-				productId={productId}
-				productType={owned.productType}
-				currentName={product.displayName}
-				selectable={false}
-			/>
-			<h1 class="text-3xl font-semibold text-slate-950">Crea una salida</h1>
-			<p class="max-w-2xl text-sm leading-6 text-slate-600">
-				Primero define la plantilla operativa: hora, cupo máximo, idioma y modalidad. Todavía no
-				estás abriendo fechas; lo harás en disponibilidad después de fijar el precio.
+		<header class="space-y-1.5">
+			<h1 class="text-2xl font-semibold text-white sm:text-3xl">Crea una salida</h1>
+			<p class="max-w-2xl text-sm leading-6 text-slate-300">
+				Define hora, cupo, idioma y modalidad de esta salida. Las fechas y el precio los configuras
+				en los pasos siguientes.
 			</p>
 		</header>
 
 		<TourSlotProfileEditor
 			productId={productId}
 			mode="create"
-			redirectOnSuccess={tourPlaybook.active
+			playbookFooterControls={playbook.active}
+			redirectOnSuccess={playbook.active
 				? tourRateHref
 				: routes.productDeparturesForProduct(productId)}
 		/>

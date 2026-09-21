@@ -15,8 +15,16 @@ const finalInputClass = `fastt-check-input mt-0.5 size-4 shrink-0 ${inputClass}`
 
 <label class={wrapperClass}>
 	<input type="checkbox" class={finalInputClass} {...props} />
-	<span class="min-w-0">
-		{label ? <span class="block text-sm font-semibold text-slate-800">{label}</span> : <slot />}
+	<span class="min-w-0 text-slate-800">
+		{
+			label ? (
+				<span class="block text-sm font-semibold text-slate-800">{label}</span>
+			) : (
+				<span class="block text-sm font-semibold text-slate-800">
+					<slot />
+				</span>
+			)
+		}
 		{
 			description ? (
 				<span class="mt-1 block text-sm leading-5 text-slate-500">{description}</span>

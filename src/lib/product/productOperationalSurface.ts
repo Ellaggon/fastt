@@ -184,21 +184,22 @@ async function readSurface(params: {
 
 export async function listProductOperationalPreparation(
 	providerId: string,
-	productIds: string[]
+	productIds: string[],
+	options?: { lastPathByProductId?: Map<string, string> }
 ): Promise<Map<string, ProductPreparationSummary>> {
 	const ids = Array.from(new Set(productIds.map((id) => String(id ?? "").trim()).filter(Boolean)))
 	if (!providerId || ids.length === 0) return new Map()
-	const rows = await db
-		.select()
-		.from(ProductOperationalSurface)
-		.where(
-			and(
-				eq(ProductOperationalSurface.providerId, providerId),
-				inArray(ProductOperationalSurface.productId, ids)
-			)
-		)
 	const result = new Map<string, ProductPreparationSummary>()
-	for (const row of rows) result.set(String(row.productId), preparationFromRow(row))
+	await Promise.all(
+		ids.map(async (productId) => {
+			const summary = await summarizeProductPreparation({
+				productId,
+				providerId,
+				lastPath: options?.lastPathByProductId?.get(productId) ?? null,
+			})
+			if (summary) result.set(productId, summary)
+		})
+	)
 	return result
 }
 
@@ -283,6 +284,7 @@ export async function refreshProductOperationalSurface(params: {
 	request?: Request
 	url?: URL
 	source?: string
+	lastPath?: string | null
 }): Promise<ProductOperationalSurfaceRead | null> {
 	const [aggregate, variantsAggregate, statusRow] = await Promise.all([
 		getProductFullAggregate(params.productId, params.providerId),
@@ -304,6 +306,7 @@ export async function refreshProductOperationalSurface(params: {
 		status,
 		request: params.request,
 		url: params.url,
+		lastPath: params.lastPath,
 	})
 
 	const variants = Array.isArray(variantsAggregate?.variants) ? variantsAggregate.variants : []

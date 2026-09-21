@@ -24,11 +24,14 @@ describe("phase 2 guided preparation surface", () => {
 			source("src/pages/dashboard/index.astro"),
 			source("src/pages/api/onboarding/preparation-session.ts"),
 		])
+		expect(playbook).toContain("complete-to-publish")
 		expect(playbook).toContain("/api/onboarding/preparation-session")
 		expect(playbook).toContain("variantId")
 		expect(playbook).toContain("ratePlanId")
 		expect(endpoint).toContain("eq(Product.providerId, providerId)")
 		expect(dashboard).toContain("Continuar preparación")
+		expect(dashboard).toContain("savedCompleteToPublishHrefForProduct")
+		expect(dashboard).toContain("data-saved-preparation-href")
 		expect(dashboard).toContain("continuePreparationHref")
 		expect(dashboard).toContain("data-preparation-action")
 		expect(dashboard).not.toContain("Retoma donde lo dejaste")
