@@ -6,6 +6,8 @@ import Badge from "@/components/ui/Badge.astro"
 import { searchOffers } from "@/container"
 import { SERVICE_CATALOG } from "@/data/service/service-catalog"
 import Layout from "@/layouts/Layout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { publicCatalogProductEligibility } from "@/lib/marketplace/public-catalog-eligibility"
 import { tourDifficultyLabel } from "@/lib/tours/tourDifficulty"
 import { tourDepartureToStay } from "@/lib/tours/tourSemantics"
@@ -92,6 +94,26 @@ function fieldFromObject(value: unknown, key: string) {
 }
 
 if (!productId) return Astro.redirect("/tours")
+
+const requestedProviderPreview = url.searchParams.get("preview") === "provider"
+const previewUser = requestedProviderPreview ? await getUserFromRequest(Astro.request) : null
+const previewProviderId = previewUser
+	? await getProviderIdFromRequest(Astro.request, previewUser)
+	: null
+const previewOwnership =
+	requestedProviderPreview && previewProviderId
+		? await db
+				.select({ providerId: Product.providerId, productType: Product.productType })
+				.from(Product)
+				.where(and(eq(Product.id, productId), eq(Product.providerId, previewProviderId)))
+				.then(first)
+		: null
+const isProviderPreview =
+	Boolean(previewOwnership) &&
+	String(previewOwnership?.productType ?? "")
+		.trim()
+		.toLowerCase() === "tour"
+if (requestedProviderPreview && !isProviderPreview) return Astro.redirect("/tours")
 
 const departureStr = url.searchParams.get("departure")
 const quantities = parseTourTicketQuantitiesFromSearchParams(url.searchParams)
@@ -213,11 +235,13 @@ try {
 			and(eq(ProductContent.productId, Product.id), eq(ProductContent.dataClass, "production"))
 		)
 		.where(
-			and(
-				eq(Product.id, productId),
-				publicCatalogProductEligibility(),
-				eq(Product.publicationState, "published")
-			)
+			isProviderPreview
+				? and(eq(Product.id, productId), eq(Product.providerId, String(previewProviderId)))
+				: and(
+						eq(Product.id, productId),
+						publicCatalogProductEligibility(),
+						eq(Product.publicationState, "published")
+					)
 		)
 		.then(first)
 
@@ -521,8 +545,10 @@ const mapEmbed =
 	title={productData?.name || "Tour"}
 	description={description ||
 		`Información de la experiencia ${productData?.name || "seleccionada"}.`}
-	canonicalPath={productData ? `/tours/${encodeURIComponent(productId)}` : undefined}
-	structuredData={productData
+	canonicalPath={productData && !isProviderPreview
+		? `/tours/${encodeURIComponent(productId)}`
+		: undefined}
+	structuredData={productData && !isProviderPreview
 		? {
 				"@context": "https://schema.org",
 				"@type": "TouristTrip",
@@ -533,6 +559,22 @@ const mapEmbed =
 		: undefined}
 >
 	<main class="mx-auto min-h-screen max-w-7xl space-y-10 p-4 lg:p-12">
+		{
+			isProviderPreview ? (
+				<div class="sticky top-3 z-40 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-300 bg-sky-50 px-4 py-3 text-sm text-sky-950 shadow-lg">
+					<div>
+						<p class="font-semibold">Vista previa privada del proveedor</p>
+						<p>Esta es la misma plantilla pública. Las acciones de reserva están desactivadas.</p>
+					</div>
+					<a
+						class="font-semibold underline"
+						href={`/product/${encodeURIComponent(productId)}/preview`}
+					>
+						Volver a preparación
+					</a>
+				</div>
+			) : null
+		}
 		<Breadcrumbs items={breadcrumbItems} />
 
 		{
@@ -636,6 +678,7 @@ const mapEmbed =
 							ticketTypes={ticketBands}
 							priceBreakdown={priceBreakdown}
 							alternativeDates={alternativeDates}
+							previewMode={isProviderPreview}
 						/>
 					</section>
 
