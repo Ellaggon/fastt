@@ -24,5 +24,7 @@ describe("Product category boundaries", () => {
 		expect(endpoint).toContain("eq(ProductCategory.vertical, vertical)")
 		expect(endpoint).toContain("await db.transaction")
 		expect(endpoint).toContain('eq(ProductCategory.dataClass, "production")')
+		expect(endpoint).toContain("publicTourCategories")
+		expect(endpoint).toContain("isPublicTourCategory")
 	})
 })

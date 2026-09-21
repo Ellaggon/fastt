@@ -7,12 +7,17 @@ const NON_PUBLIC_WORD = /(?:^|[-_\s])(test|fixture|qa|demo|seed)(?:$|[-_\s])/i
 
 const CATEGORY_LABELS: Record<string, string> = {
 	"adventure": "Aventura",
+	"art-design": "Arte y diseño",
+	"city-tour": "City tour",
+	"cruise": "Navegación",
 	"cultural": "Cultura y patrimonio",
 	"gastronomy": "Gastronomía",
 	"nature": "Naturaleza",
+	"ski": "Ski y nieve",
 	"trekking": "Trekking",
-	"wildlife": "Vida silvestre",
 	"water-activities": "Actividades acuáticas",
+	"wellness": "Bienestar",
+	"wildlife": "Vida silvestre",
 }
 
 function normalizedKey(value: string): string {

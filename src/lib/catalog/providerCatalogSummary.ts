@@ -11,6 +11,8 @@ export type CatalogProductRow = {
 	productType: string | null
 	roomCount: number
 	activeRoomCount: number
+	primaryVariantId: string | null
+	primaryRatePlanId: string | null
 	status: {
 		label: string
 		variant: "success" | "info" | "warning"
@@ -97,16 +99,40 @@ export async function getProviderCatalogSummary(
 					variantId: Variant.id,
 					salesEnabled: Variant.salesEnabled,
 					lifecycleState: Variant.lifecycleState,
+					defaultRatePlanId: Variant.defaultRatePlanId,
 				})
 				.from(Variant)
 				.where(inArray(Variant.productId, productIds))
 		: []
-	const roomCounts = new Map<string, { total: number; active: number }>()
+	const roomCounts = new Map<
+		string,
+		{
+			total: number
+			active: number
+			primaryVariantId: string | null
+			primaryRatePlanId: string | null
+			primaryIsActive: boolean
+		}
+	>()
 	for (const room of roomRows) {
 		const productId = String(room.productId)
-		const current = roomCounts.get(productId) ?? { total: 0, active: 0 }
+		const current = roomCounts.get(productId) ?? {
+			total: 0,
+			active: 0,
+			primaryVariantId: null,
+			primaryRatePlanId: null,
+			primaryIsActive: false,
+		}
 		current.total += 1
 		if (room.salesEnabled && room.lifecycleState === "ready") current.active += 1
+		const candidateIsActive = Boolean(room.salesEnabled) && room.lifecycleState === "ready"
+		const shouldSelect =
+			!current.primaryVariantId || (candidateIsActive && !current.primaryIsActive)
+		if (shouldSelect) {
+			current.primaryVariantId = String(room.variantId)
+			current.primaryRatePlanId = String(room.defaultRatePlanId ?? "").trim() || null
+			current.primaryIsActive = candidateIsActive
+		}
 		roomCounts.set(productId, current)
 	}
 	const statuses = productIds.length
@@ -120,13 +146,21 @@ export async function getProviderCatalogSummary(
 	)
 
 	const products = rows.map((product) => {
-		const rooms = roomCounts.get(String(product.id)) ?? { total: 0, active: 0 }
+		const rooms = roomCounts.get(String(product.id)) ?? {
+			total: 0,
+			active: 0,
+			primaryVariantId: null,
+			primaryRatePlanId: null,
+			primaryIsActive: false,
+		}
 		return {
 			id: product.id,
 			name: product.name,
 			productType: product.productType,
 			roomCount: rooms.total,
 			activeRoomCount: rooms.active,
+			primaryVariantId: rooms.primaryVariantId,
+			primaryRatePlanId: rooms.primaryRatePlanId,
 			status: getCatalogStatusMeta(statusMap.get(product.id)),
 		}
 	})
@@ -157,6 +191,8 @@ export async function getProviderCatalogSummary(
 		productType: product.productType,
 		roomCount: 0,
 		activeRoomCount: 0,
+		primaryVariantId: null,
+		primaryRatePlanId: null,
 		status: getCatalogStatusMeta(allStatusMap.get(product.id)),
 	}))
 
