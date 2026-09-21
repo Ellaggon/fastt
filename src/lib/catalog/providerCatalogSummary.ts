@@ -1,4 +1,14 @@
-import { and, db, eq, inArray, Product, sql, Variant } from "@/shared/infrastructure/db/compat"
+import {
+	and,
+	db,
+	desc,
+	eq,
+	inArray,
+	Product,
+	RatePlan,
+	sql,
+	Variant,
+} from "@/shared/infrastructure/db/compat"
 
 import {
 	PRODUCT_VERTICAL_OPTIONS,
@@ -99,11 +109,28 @@ export async function getProviderCatalogSummary(
 					variantId: Variant.id,
 					salesEnabled: Variant.salesEnabled,
 					lifecycleState: Variant.lifecycleState,
-					defaultRatePlanId: Variant.defaultRatePlanId,
 				})
 				.from(Variant)
 				.where(inArray(Variant.productId, productIds))
 		: []
+	const variantIds = roomRows.map((room) => String(room.variantId)).filter(Boolean)
+	const ratePlanRows = variantIds.length
+		? await db
+				.select({
+					variantId: RatePlan.variantId,
+					ratePlanId: RatePlan.id,
+					isDefault: RatePlan.isDefault,
+				})
+				.from(RatePlan)
+				.where(inArray(RatePlan.variantId, variantIds))
+				.orderBy(desc(RatePlan.isDefault), desc(RatePlan.isActive))
+		: []
+	const ratePlanByVariant = new Map<string, string>()
+	for (const row of ratePlanRows) {
+		const variantId = String(row.variantId ?? "").trim()
+		if (!variantId || ratePlanByVariant.has(variantId)) continue
+		ratePlanByVariant.set(variantId, String(row.ratePlanId))
+	}
 	const roomCounts = new Map<
 		string,
 		{
@@ -129,8 +156,9 @@ export async function getProviderCatalogSummary(
 		const shouldSelect =
 			!current.primaryVariantId || (candidateIsActive && !current.primaryIsActive)
 		if (shouldSelect) {
-			current.primaryVariantId = String(room.variantId)
-			current.primaryRatePlanId = String(room.defaultRatePlanId ?? "").trim() || null
+			const variantId = String(room.variantId)
+			current.primaryVariantId = variantId
+			current.primaryRatePlanId = ratePlanByVariant.get(variantId) ?? null
 			current.primaryIsActive = candidateIsActive
 		}
 		roomCounts.set(productId, current)
