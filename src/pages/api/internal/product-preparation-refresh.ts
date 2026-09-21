@@ -52,7 +52,6 @@ export const POST: APIRoute = async ({ request, url }) => {
 				providerId,
 				request,
 				url,
-				lastPath: savedCompleteToPublishHrefForProduct(productId, sessions),
 			})
 		)
 	)
