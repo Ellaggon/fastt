@@ -1,6 +1,11 @@
 import { buildPlaybookHref } from "@/lib/playbook/launch-accommodation"
 import { buildTourPlaybookHref } from "@/lib/playbook/launch-tour"
 import {
+	buildCompleteToPublishHref,
+	completeToPublishStepHref,
+	normalizeCompleteToPublishStep,
+} from "@/lib/playbook/complete-to-publish"
+import {
 	and,
 	db,
 	desc,
@@ -9,7 +14,7 @@ import {
 	ProviderPreparationSession,
 } from "@/shared/infrastructure/db/compat"
 
-export type PreparationPlaybookId = "launch" | "launch-tour"
+export type PreparationPlaybookId = "launch" | "launch-tour" | "complete-to-publish"
 export type PreparationVertical = "hotel" | "tour"
 
 export type PreparationSessionInput = {
@@ -25,7 +30,7 @@ export type PreparationSessionInput = {
 }
 
 export function isPreparationPlaybookId(value: unknown): value is PreparationPlaybookId {
-	return value === "launch" || value === "launch-tour"
+	return value === "launch" || value === "launch-tour" || value === "complete-to-publish"
 }
 
 export function isPreparationVertical(value: unknown): value is PreparationVertical {
@@ -123,7 +128,15 @@ export async function listActivePreparationSessions(
 		const fallback =
 			row.playbookId === "launch-tour"
 				? buildTourPlaybookHref(`/product/${encodeURIComponent(row.productId)}/content`, "content")
-				: buildPlaybookHref(`/product/${encodeURIComponent(row.productId)}/content`, "content")
+				: row.playbookId === "complete-to-publish"
+					? buildCompleteToPublishHref(
+							completeToPublishStepHref(
+								row.productId,
+								normalizeCompleteToPublishStep(row.stepId) ?? "content"
+							),
+							normalizeCompleteToPublishStep(row.stepId) ?? "content"
+						)
+					: buildPlaybookHref(`/product/${encodeURIComponent(row.productId)}/content`, "content")
 		return [
 			{
 				productId: row.productId,
@@ -134,4 +147,16 @@ export async function listActivePreparationSessions(
 			},
 		]
 	})
+}
+
+export function savedCompleteToPublishHrefForProduct(
+	productId: string,
+	sessions: readonly PreparationResume[]
+): string | null {
+	const match = sessions.find((session) => {
+		if (session.productId !== productId) return false
+		const href = String(session.href ?? "")
+		return href.includes("playbook=complete-to-publish") || href.includes("flow=complete")
+	})
+	return match?.href ?? null
 }

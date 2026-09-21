@@ -4680,7 +4680,7 @@ ALTER TABLE "ProviderHolderProfile" ADD CONSTRAINT "ProviderHolderProfile_collec
 
 ALTER TABLE "ProviderHolderProfile" ADD CONSTRAINT "ProviderHolderProfile_declarationStatus_check" CHECK ("declarationStatus" IN ('declared', 'in_review', 'verified', 'changes_requested'));
 
-ALTER TABLE "ProviderPreparationSession" ADD CONSTRAINT "ProviderPreparationSession_playbook_check" CHECK ("playbookId" IN ('launch', 'launch-tour'));
+ALTER TABLE "ProviderPreparationSession" ADD CONSTRAINT "ProviderPreparationSession_playbook_check" CHECK ("playbookId" IN ('launch', 'launch-tour', 'complete-to-publish'));
 
 ALTER TABLE "ProviderPreparationSession" ADD CONSTRAINT "ProviderPreparationSession_vertical_check" CHECK ("vertical" IN ('hotel', 'tour'));
 
