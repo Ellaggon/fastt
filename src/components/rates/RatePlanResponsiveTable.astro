@@ -22,6 +22,7 @@ type RatePlanDisplayRow = {
 	policyCoverageLabel: string
 	inventoryLabel: string
 	inventoryModeLabel: string
+	priceUnitLabel: string
 }
 
 type Props = { rows: RatePlanDisplayRow[]; activeView: string }
@@ -95,7 +96,7 @@ const hasVisibleRows = rows.some((row) => matchesView(row.stateKey, activeView))
 								<div class="rate-plan-price" role="cell">
 									<p class="rate-plan-mobile-label">Precio base</p>
 									<p class="font-semibold text-slate-950">{row.priceLabel}</p>
-									<p class="mt-1 hidden text-xs text-slate-500 md:block">por noche</p>
+									<p class="mt-1 hidden text-xs text-slate-500 md:block">{row.priceUnitLabel}</p>
 								</div>
 								<div class="rate-plan-policy" role="cell">
 									<p class="rate-plan-mobile-label">Condiciones</p>

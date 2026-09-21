@@ -9,6 +9,11 @@ import type { WorkspaceRequestContext } from "@/lib/dashboard/workspaceRequestCo
 import { createServerTimingRecorder } from "@/lib/observability/serverTiming"
 import { resolveAddRoomPlaybookFromUrl } from "@/lib/playbook/add-room"
 import {
+	buildCompleteToPublishHref,
+	COMPLETE_TO_PUBLISH_PLAYBOOK_ID,
+	resolveCompleteToPublishPlaybookFromUrl,
+} from "@/lib/playbook/complete-to-publish"
+import {
 	getNextLaunchStep,
 	resolveLaunchPlaybookFromUrl,
 } from "@/lib/playbook/launch-accommodation"
@@ -48,9 +53,14 @@ const initialMode =
 const addRoomPlaybook = resolveAddRoomPlaybookFromUrl(Astro.url)
 const launchPlaybook = resolveLaunchPlaybookFromUrl(Astro.url)
 const tourLaunchPlaybook = resolveTourLaunchPlaybookFromUrl(Astro.url)
+const completePlaybook = resolveCompleteToPublishPlaybookFromUrl(Astro.url)
 const flow = Astro.url.searchParams.get("flow")
 const needsGuidedContext = Boolean(
-	addRoomPlaybook.active || launchPlaybook.active || tourLaunchPlaybook.active || flow
+	addRoomPlaybook.active ||
+	launchPlaybook.active ||
+	tourLaunchPlaybook.active ||
+	completePlaybook.active ||
+	flow
 )
 const rows = needsGuidedContext
 	? await timing.time("ratePlans", () =>
@@ -67,7 +77,9 @@ const matchedRow = rows.find(
 const playbookProductId =
 	matchedRow?.productId ??
 	addRoomPlaybook.productId ??
+	completePlaybook.productId ??
 	String(Astro.url.searchParams.get("productId") ?? "")
+const isTourContext = String(matchedRow?.productType ?? "").toLowerCase() === "tour"
 
 if (!addRoomPlaybook.active && flow === "add-room" && playbookProductId) {
 	const params = new URLSearchParams(Astro.url.searchParams)
@@ -99,16 +111,19 @@ const launchContinueHref = launchPlaybook.active
 	: null
 const activePlaybook = addRoomPlaybook.active
 	? "add-room"
-	: launchPlaybook.active
-		? "launch"
-		: tourLaunchPlaybook.active
-			? "launch-tour"
-			: null
+	: completePlaybook.active
+		? "complete-to-publish"
+		: launchPlaybook.active
+			? "launch"
+			: tourLaunchPlaybook.active
+				? "launch-tour"
+				: null
 const isGuidedAvailabilityStep = Boolean(
 	activePlaybook &&
 	(addRoomPlaybook.stepId === "availability" ||
 		launchPlaybook.stepId === "calendar" ||
-		tourLaunchPlaybook.stepId === "calendar")
+		tourLaunchPlaybook.stepId === "calendar" ||
+		completePlaybook.stepId === "calendar")
 )
 const guidedVariantId = String(
 	addRoomCtx.variantId || launchCtx.variantId || variantIdParam || ""
@@ -175,9 +190,27 @@ const layoutProps =
 						variantId: variantIdParam,
 						ratePlanId: ratePlanIdParam,
 						isHotel: false,
-						continueHref: `/product/${encodeURIComponent(playbookProductId)}/preview?playbook=launch-tour&step=preview&flow=create`,
+						hideFooter: true,
 					}
-				: { title: "Calendario" }
+				: activePlaybook === "complete-to-publish"
+					? {
+							title: isTourContext
+								? "Calendario · Disponibilidad de la salida"
+								: "Calendario · Disponibilidad inicial",
+							playbookId: COMPLETE_TO_PUBLISH_PLAYBOOK_ID,
+							active: true,
+							stepId: completePlaybook.stepId ?? "calendar",
+							productId: playbookProductId,
+							variantId: variantIdParam,
+							ratePlanId: ratePlanIdParam,
+							isHotel: !isTourContext,
+							playbookVertical: isTourContext ? "tour" : "hotel",
+							continueHref: isTourContext
+								? null
+								: buildCompleteToPublishHref(routes.productPreview(playbookProductId), "preview"),
+							hideFooter: isTourContext,
+						}
+					: { title: "Calendario" }
 
 for (const name of ["pricing", "inventory", "restrictions", "searchFreshness", "ical"]) {
 	if (!timing.metrics.some((metric) => metric.name === name)) {
@@ -194,14 +227,14 @@ timing.setHeader(Astro.response.headers)
 			isGuidedAvailabilityStep ? (
 				<header class="flex flex-wrap items-start justify-between gap-4">
 					<div class="space-y-2">
-						{activePlaybook === "launch-tour" ? (
+						{isTourContext ? (
 							<p class="text-xs font-semibold tracking-wide text-slate-400 uppercase">
 								{matchedRow?.productName ?? ""} · Primera salida
 							</p>
 						) : null}
 						<h1 class="text-3xl font-semibold text-slate-100">Disponibilidad inicial</h1>
 						<p class="max-w-3xl text-sm leading-6 text-slate-300">
-							{activePlaybook === "launch-tour"
+							{isTourContext
 								? "Abre al menos una fecha futura con cupo para participantes. Esa será la primera salida que podrán reservar los viajeros."
 								: "Configura las primeras fechas con inventario para esta habitación. Después podrás operar el calendario completo."}
 						</p>
@@ -228,11 +261,12 @@ timing.setHeader(Astro.response.headers)
 			guidedAvailability={isGuidedAvailabilityStep
 				? {
 						playbook: activePlaybook,
+						vertical: isTourContext ? "tour" : "hotel",
 						productId: playbookProductId,
 						productName: matchedRow?.productName ?? "",
 						variantName: matchedRow?.variantName ?? "",
 						ratePlanName: matchedRow?.ratePlanName ?? "",
-						requiredDays: activePlaybook === "launch-tour" ? 1 : 30,
+						requiredDays: isTourContext ? 1 : 30,
 						initialInventoryDays: guidedInventoryDays,
 						finalizationError: guidedFinalizationError,
 					}

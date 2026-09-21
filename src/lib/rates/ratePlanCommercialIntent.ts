@@ -52,6 +52,18 @@ const specs: Record<RatePlanIntentId, CommercialIntentSpec> = {
 	},
 }
 
-export function resolveCommercialIntentSpec(intent: RatePlanIntentId): CommercialIntentSpec {
-	return specs[intent]
+export function resolveCommercialIntentSpec(
+	intent: RatePlanIntentId,
+	options: { offeringType?: "accommodation" | "tour" } = {}
+): CommercialIntentSpec {
+	const spec = specs[intent]
+	if (options.offeringType !== "tour") return spec
+	return {
+		...spec,
+		contract: {
+			...spec.contract,
+			Payment: "pay_at_property",
+			NoShow: "no_show_percentage_100",
+		},
+	}
 }

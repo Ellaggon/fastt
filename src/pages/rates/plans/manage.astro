@@ -23,6 +23,11 @@ import {
 	LAUNCH_TOUR_PLAYBOOK_ID,
 	resolveTourLaunchPlaybookFromUrl,
 } from "@/lib/playbook/launch-tour"
+import {
+	COMPLETE_TO_PUBLISH_PLAYBOOK_ID,
+	completeToPublishPreviousHref,
+	resolveCompleteToPublishPlaybookFromUrl,
+} from "@/lib/playbook/complete-to-publish"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import type { WorkspaceRequestContext } from "@/lib/dashboard/workspaceRequestContext"
 import { logRoutePerformance } from "@/lib/observability/performanceLog"
@@ -162,8 +167,13 @@ const ratePlanDisplayRows = rows.map((row) => {
 		priceLabel: money(row.pricingReadiness?.basePrice, row.pricingReadiness?.currency),
 		policyLabel: shortPolicySummary(row.policySummary),
 		policyCoverageLabel: `${covered}/${total} completas`,
-		inventoryLabel: `${row.inventoryReadiness?.availableDays ?? 0}/${row.inventoryReadiness?.expectedDays ?? 30} noches`,
+		inventoryLabel:
+			String(row.productType ?? "").toLowerCase() === "tour"
+				? `${row.inventoryReadiness?.availableDays ?? 0}/${row.inventoryReadiness?.expectedDays ?? 30} fechas`
+				: `${row.inventoryReadiness?.availableDays ?? 0}/${row.inventoryReadiness?.expectedDays ?? 30} noches`,
 		inventoryModeLabel: restrictions ? "Venta ajustada" : "Venta estándar",
+		priceUnitLabel:
+			String(row.productType ?? "").toLowerCase() === "tour" ? "por participante" : "por noche",
 	}
 })
 
@@ -183,6 +193,7 @@ function tabHref(vista: string) {
 const addRoomPlaybook = resolveAddRoomPlaybookFromUrl(Astro.url)
 const launchPlaybook = resolveLaunchPlaybookFromUrl(Astro.url)
 const tourLaunchPlaybook = resolveTourLaunchPlaybookFromUrl(Astro.url)
+const completePlaybook = resolveCompleteToPublishPlaybookFromUrl(Astro.url)
 const flow = Astro.url.searchParams.get("flow")
 if (!addRoomPlaybook.active && flow === "add-room") {
 	const params = new URLSearchParams(Astro.url.searchParams)
@@ -201,8 +212,17 @@ const requestedVariantId = String(Astro.url.searchParams.get("variantId") ?? "")
 const shouldOpenDialog = Astro.url.searchParams.get("openDialog") === "1"
 const matchedVariant = variantChoices.find((choice) => choice.variantId === requestedVariantId)
 const requestedProductId = String(Astro.url.searchParams.get("productId") ?? "").trim()
+const productVariant = variantChoices.find((choice) => choice.productId === requestedProductId)
 const playbookProductId =
-	matchedVariant?.productId ?? addRoomPlaybook.productId ?? requestedProductId
+	matchedVariant?.productId ??
+	addRoomPlaybook.productId ??
+	completePlaybook.productId ??
+	requestedProductId
+const productType = String(matchedVariant?.productType ?? productVariant?.productType ?? "")
+const isTourRateContext = productType.toLowerCase() === "tour"
+const scopedVariantChoices = requestedProductId
+	? variantChoices.filter((choice) => choice.productId === requestedProductId)
+	: variantChoices
 const addRoomCtx = {
 	productId: playbookProductId,
 	variantId: requestedVariantId || undefined,
@@ -226,19 +246,22 @@ const launchPreviousHref = launchPlaybook.active
 	: null
 const activePlaybook = addRoomPlaybook.active
 	? "add-room"
-	: launchPlaybook.active
-		? "launch"
-		: tourLaunchPlaybook.active
-			? "launch-tour"
-			: null
+	: completePlaybook.active
+		? "complete-to-publish"
+		: launchPlaybook.active
+			? "launch"
+			: tourLaunchPlaybook.active
+				? "launch-tour"
+				: null
 const isPlaybookRateStep = Boolean(activePlaybook)
-const isTourPlaybookRateStep = activePlaybook === "launch-tour"
+const isTourPlaybookRateStep = Boolean(activePlaybook && isTourRateContext)
 const playbookVariantLabel =
 	matchedVariant?.variantName ?? (isTourPlaybookRateStep ? "esta salida" : "esta habitación")
 const guidedIntentPresets = isTourPlaybookRateStep
-	? ratePlanIntentPresets.filter((preset) =>
-			["flexible", "non_refundable", "early_booking"].includes(preset.id)
-		)
+	? ratePlanIntentPresets.filter((preset) => ["flexible", "early_booking"].includes(preset.id))
+	: ratePlanIntentPresets
+const availableIntentPresets = isTourRateContext
+	? ratePlanIntentPresets.filter((preset) => ["flexible", "early_booking"].includes(preset.id))
 	: ratePlanIntentPresets
 const playbookPreviousHref =
 	activePlaybook === "add-room"
@@ -250,7 +273,14 @@ const playbookPreviousHref =
 						`/product/${encodeURIComponent(playbookProductId)}/departures/new`,
 						"departure"
 					)
-				: null
+				: activePlaybook === "complete-to-publish" && playbookProductId
+					? completeToPublishPreviousHref(
+							playbookProductId,
+							"rate",
+							isTourRateContext ? "tour" : "hotel",
+							{ variantId: requestedVariantId }
+						)
+					: null
 const playbookExitHref =
 	activePlaybook === "add-room" && playbookProductId
 		? routes.productRoomsForProduct(playbookProductId)
@@ -258,7 +288,9 @@ const playbookExitHref =
 			? routes.productDetail(playbookProductId)
 			: activePlaybook === "launch-tour" && playbookProductId
 				? routes.productDetail(playbookProductId)
-				: routes.rates()
+				: activePlaybook === "complete-to-publish" && playbookProductId
+					? routes.productDetail(playbookProductId)
+					: routes.rates()
 const Layout = activePlaybook ? PlaybookLayout : WorkspaceLayout
 const layoutProps =
 	activePlaybook === "add-room"
@@ -296,7 +328,21 @@ const layoutProps =
 						isHotel: false,
 						hideFooter: true,
 					}
-				: { title: "Tarifas" }
+				: activePlaybook === "complete-to-publish"
+					? {
+							title: isTourRateContext
+								? "Tarifas · Precio de la salida"
+								: "Tarifas · Primera tarifa",
+							playbookId: COMPLETE_TO_PUBLISH_PLAYBOOK_ID,
+							active: true,
+							stepId: completePlaybook.stepId ?? "rate",
+							productId: playbookProductId,
+							variantId: requestedVariantId,
+							isHotel: !isTourRateContext,
+							playbookVertical: isTourRateContext ? "tour" : "hotel",
+							hideFooter: true,
+						}
+					: { title: "Tarifas" }
 
 timing.add("history", 0, "deferred_endpoint")
 timing.addTotal("total")
@@ -336,7 +382,9 @@ logRoutePerformance({
 							? isTourPlaybookRateStep
 								? "Define el precio de venta y las condiciones iniciales de esta salida. Después abrirás sus primeras fechas."
 								: "Define el precio base y la propuesta comercial inicial para que esta habitación pueda venderse."
-							: "Define cómo se venden tus habitaciones: precio base, condiciones y acceso al calendario."
+							: isTourRateContext
+								? "Define cómo se venden las salidas del tour: precio por participante, condiciones y fechas disponibles."
+								: "Define cómo se venden tus habitaciones: precio base, condiciones y acceso al calendario."
 					}
 				</p>
 			</div>
@@ -570,14 +618,18 @@ logRoutePerformance({
 							<div>
 								<h2 class="font-semibold">¿Qué quieres vender?</h2>
 								<p class="mt-1 text-sm text-slate-500">
-									Elige la habitación y la propuesta comercial.
+									{isTourRateContext
+										? "Elige la salida y la propuesta comercial."
+										: "Elige la habitación y la propuesta comercial."}
 								</p>
 							</div>
 							<label class="block space-y-1.5 text-sm">
-								<span class="font-medium">Habitación</span>
+								<span class="font-medium">{isTourRateContext ? "Salida" : "Habitación"}</span>
 								<Select name="variantId" required>
-									<option value="">Selecciona una habitación</option>
-									{variantChoices.map((choice) => (
+									<option value="">
+										{isTourRateContext ? "Selecciona una salida" : "Selecciona una habitación"}
+									</option>
+									{scopedVariantChoices.map((choice) => (
 										<option
 											value={choice.variantId}
 											selected={choice.variantId === requestedVariantId}
@@ -590,7 +642,7 @@ logRoutePerformance({
 							<label class="block space-y-1.5 text-sm">
 								<span class="font-medium">Propuesta</span>
 								<Select name="intent" required>
-									{ratePlanIntentPresets.map((preset) => (
+									{availableIntentPresets.map((preset) => (
 										<option value={preset.id}>
 											{preset.name} · {preset.summary}
 										</option>
@@ -607,7 +659,9 @@ logRoutePerformance({
 							<div>
 								<h2 class="font-semibold">Precio y condiciones</h2>
 								<p class="mt-1 text-sm text-slate-500">
-									Este precio será la base para las noches sin ajustes.
+									{isTourRateContext
+										? "Este precio será la base por participante para las fechas sin ajustes."
+										: "Este precio será la base para las noches sin ajustes."}
 								</p>
 							</div>
 							<div class="grid gap-3 sm:grid-cols-[140px_1fr]">
@@ -621,7 +675,9 @@ logRoutePerformance({
 									</Select>
 								</label>
 								<label class="block space-y-1.5 text-sm">
-									<span class="font-medium">Precio base por noche</span>
+									<span class="font-medium">
+										{isTourRateContext ? "Precio por participante" : "Precio base por noche"}
+									</span>
 									<Input
 										name="basePrice"
 										type="number"
@@ -636,8 +692,9 @@ logRoutePerformance({
 								class="fastt-soft-box bg-slate-50 p-4 text-sm text-slate-600"
 								data-contract-summary
 							>
-								Incluye cancelación flexible, pago en el hotel, ingreso estándar y cargo de primera
-								noche por no presentación.
+								{isTourRateContext
+									? "Incluye cancelación flexible, pago al proveedor durante la experiencia y reglas claras de no presentación."
+									: "Incluye cancelación flexible, pago en el hotel, ingreso estándar y cargo de primera noche por no presentación."}
 							</div>
 						</section>
 
@@ -716,8 +773,11 @@ logRoutePerformance({
 		addRoomPlaybookActive: addRoomPlaybook.active,
 		launchPlaybookActive: launchPlaybook.active,
 		tourLaunchPlaybookActive: tourLaunchPlaybook.active,
+		completePlaybookActive: completePlaybook.active,
 		isPlaybookRateStep,
 		isTourPlaybookRateStep,
+		isTourRateContext,
+		playbookProductId,
 	}}
 >
 	const actionFeedback = document.querySelector("[data-rate-plan-action-feedback]")
@@ -825,10 +885,9 @@ logRoutePerformance({
 	const review = document.querySelector("[data-rate-plan-review]")
 	let currentStep = 1
 
-	const intentCopy = isTourPlaybookRateStep
+	const intentCopy = isTourRateContext
 		? {
 				flexible: "Cancelación flexible · Condiciones simples para el viajero",
-				non_refundable: "10% de descuento · No reembolsable · Pago anticipado",
 				early_booking: "10% de descuento con 21 días de anticipación · Condición flexible",
 			}
 		: {
@@ -852,10 +911,12 @@ logRoutePerformance({
 			heading.textContent = `${currentStep} de 3 · ${["Oferta", "Precio y condiciones", "Revisión"][currentStep - 1]}`
 		if (currentStep === 3 && form && review) {
 			const data = new FormData(form)
-			const room =
-				form.querySelector('[name="variantId"]')?.selectedOptions[0]?.textContent ?? "Habitación"
+			const variant =
+				form.querySelector('[name="variantId"]')?.selectedOptions[0]?.textContent ??
+				(isTourRateContext ? "Salida" : "Habitación")
 			const intent = String(data.get("intent") || "flexible")
-			review.innerHTML = `<p class="font-semibold text-slate-950">${String(data.get("name") || "Nueva tarifa")}</p><p class="mt-2 text-slate-600">${room}</p><p class="mt-1 text-slate-600">${String(data.get("currency") || "BOB")} ${String(data.get("basePrice") || "-")} por noche</p><p class="mt-3 text-xs text-slate-500">${intentCopy[intent] || intentCopy.flexible}</p>`
+			const priceUnit = isTourRateContext ? "por participante" : "por noche"
+			review.innerHTML = `<p class="font-semibold text-slate-950">${String(data.get("name") || "Nueva tarifa")}</p><p class="mt-2 text-slate-600">${variant}</p><p class="mt-1 text-slate-600">${String(data.get("currency") || "BOB")} ${String(data.get("basePrice") || "-")} ${priceUnit}</p><p class="mt-3 text-xs text-slate-500">${intentCopy[intent] || intentCopy.flexible}</p>`
 		}
 	}
 
@@ -902,7 +963,10 @@ logRoutePerformance({
 			currency: String(data.get("currency") || "BOB"),
 			basePrice: Number(data.get("basePrice")),
 			publicationMode:
-				addRoomPlaybookActive || launchPlaybookActive || tourLaunchPlaybookActive
+				addRoomPlaybookActive ||
+				launchPlaybookActive ||
+				tourLaunchPlaybookActive ||
+				completePlaybookActive
 					? "draft"
 					: submitter?.value === "publish"
 						? "publish"
@@ -949,6 +1013,32 @@ logRoutePerformance({
 					playbook: "launch-tour",
 					step: "conditions",
 					flow: "create",
+					variantId: payload.variantId,
+					ratePlanId: String(result.ratePlanId),
+					vista: "conditions",
+				})
+				window.location.href = `/rates/plans/${encodeURIComponent(String(result.ratePlanId))}?${params.toString()}`
+				return
+			}
+			if (completePlaybookActive) {
+				if (!isTourRateContext) {
+					const params = new URLSearchParams({
+						focus: "availability",
+						productId: String(playbookProductId || ""),
+						variantId: payload.variantId,
+						ratePlanId: String(result.ratePlanId),
+						playbook: "complete-to-publish",
+						step: "calendar",
+						flow: "complete",
+					})
+					window.location.href = `/rates/calendar?${params.toString()}`
+					return
+				}
+				const params = new URLSearchParams({
+					productId: String(playbookProductId || ""),
+					playbook: "complete-to-publish",
+					step: "bookingPolicies",
+					flow: "complete",
 					variantId: payload.variantId,
 					ratePlanId: String(result.ratePlanId),
 					vista: "conditions",

@@ -34,14 +34,22 @@ export const POST: APIRoute = async ({ request }) => {
 	try {
 		const body = createCommercialRatePlanSchema.parse(await request.json())
 		const variant = await variantManagementRepository.getVariantById(body.variantId)
-		if (!variant) return json(404, { error: "Habitación no encontrada." })
+		if (!variant) return json(404, { error: "Unidad vendible no encontrada." })
 		const ownedProduct = await productRepository.ensureProductOwnedByProvider(
 			variant.productId,
 			providerId
 		)
-		if (!ownedProduct) return json(404, { error: "Habitación no encontrada." })
+		if (!ownedProduct) return json(404, { error: "Unidad vendible no encontrada." })
+		const offeringType =
+			String(ownedProduct.productType ?? "").toLowerCase() === "tour" ? "tour" : "accommodation"
+		if (offeringType === "tour" && ["non_refundable", "long_stay"].includes(body.intent)) {
+			return json(422, {
+				error:
+					"Esta propuesta comercial requiere una modalidad que todavía no está disponible para tours.",
+			})
+		}
 
-		const intent = resolveCommercialIntentSpec(body.intent)
+		const intent = resolveCommercialIntentSpec(body.intent, { offeringType })
 		const result = await createRatePlan(
 			{ repo: ratePlanCommandRepository },
 			{

@@ -9,6 +9,7 @@ interface Props {
 	initialCurrency: string
 	initialBasePrice: string
 	backHref?: string
+	offeringType?: "accommodation" | "tour"
 }
 
 const {
@@ -16,7 +17,9 @@ const {
 	initialCurrency,
 	initialBasePrice,
 	backHref = "/rates/plans/manage",
+	offeringType = "accommodation",
 } = Astro.props
+const isTour = offeringType === "tour"
 ---
 
 <form id="pricingForm" class="mx-auto max-w-3xl space-y-6">
@@ -25,7 +28,11 @@ const {
 		<div>
 			<h2 class="text-lg font-semibold text-slate-950">Precio base</h2>
 			<p class="mt-1 text-sm leading-6 text-slate-500">
-				Es el precio de referencia por noche. Los ajustes por fecha se hacen desde el calendario.
+				{
+					isTour
+						? "Es el precio de referencia por participante. Los ajustes por fecha se hacen desde el calendario."
+						: "Es el precio de referencia por noche. Los ajustes por fecha se hacen desde el calendario."
+				}
 			</p>
 		</div>
 		<div class="grid gap-5 sm:grid-cols-[12rem_minmax(0,1fr)]">
@@ -36,7 +43,7 @@ const {
 				</Select>
 			</FormField>
 			<FormField
-				label="Precio base por noche"
+				label={isTour ? "Precio por participante" : "Precio base por noche"}
 				htmlFor="basePrice"
 				description="Antes de impuestos, promociones o cambios por fecha."
 				required
