@@ -12,6 +12,7 @@ import {
 } from "@/shared/infrastructure/db/compat"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { isPublicTourCategory, publicTourCategories } from "@/lib/tours/tourDiscoveryFilters"
 
 const linkSchema = z.object({
 	productId: z.string().trim().min(1),
@@ -52,10 +53,13 @@ export const GET: APIRoute = async ({ url }) => {
 		linkedIds = links.map((row) => String(row.categoryId))
 	}
 
-	return new Response(JSON.stringify({ ok: true, categories, linkedIds }), {
-		status: 200,
-		headers: { "Content-Type": "application/json" },
-	})
+	return new Response(
+		JSON.stringify({ ok: true, categories: publicTourCategories(categories), linkedIds }),
+		{
+			status: 200,
+			headers: { "Content-Type": "application/json" },
+		}
+	)
 }
 
 export const POST: APIRoute = async ({ request }) => {
@@ -91,7 +95,11 @@ export const POST: APIRoute = async ({ request }) => {
 		const uniqueIds = [...new Set(parsed.categoryIds.map((id) => id.trim()).filter(Boolean))]
 		if (uniqueIds.length > 0) {
 			const valid = await db
-				.select({ id: ProductCategory.id })
+				.select({
+					id: ProductCategory.id,
+					slug: ProductCategory.slug,
+					name: ProductCategory.name,
+				})
 				.from(ProductCategory)
 				.where(
 					and(
@@ -101,7 +109,13 @@ export const POST: APIRoute = async ({ request }) => {
 						eq(ProductCategory.dataClass, "production")
 					)
 				)
-			const validSet = new Set(valid.map((row) => String(row.id)))
+			const validSet = new Set(
+				valid
+					.filter((row) =>
+						isPublicTourCategory({ slug: String(row.slug ?? ""), name: String(row.name ?? "") })
+					)
+					.map((row) => String(row.id))
+			)
 			for (const id of uniqueIds) {
 				if (!validSet.has(id)) {
 					return new Response(JSON.stringify({ error: "invalid_category", categoryId: id }), {

@@ -21,6 +21,10 @@ import {
 	summarizeDashboardToday,
 } from "@/lib/dashboard/dashboardHomePresentation"
 import { resolveOperationalSidebarVertical } from "@/lib/dashboard/providerOperationalNavigation"
+import {
+	listActivePreparationSessions,
+	savedCompleteToPublishHrefForProduct,
+} from "@/lib/onboarding/preparationSession"
 import { bookingOperationsQueryRepository } from "@/modules/booking/public"
 import { resolveVerticalVocabulary } from "@/lib/verticalVocabulary"
 import {
@@ -112,6 +116,7 @@ const operationalVertical = resolveOperationalSidebarVertical({
 	availableVerticals,
 })
 const products = filterProductsForWorkspaceScope(catalogProducts, operationalVertical)
+const preparationSessions = await listActivePreparationSessions(providerId, String(user.id ?? ""))
 const preparationByProduct = await listProductOperationalPreparation(
 	providerId,
 	products.map((product) => product.id)
@@ -439,6 +444,12 @@ function addAnotherServiceCopy() {
 											: "Crear primera habitación"
 								const accommodationHref = routes.productDetail(product.id)
 								const preparation = preparationByProduct.get(product.id)
+								const savedPreparationHref = savedCompleteToPublishHrefForProduct(
+									product.id,
+									preparationSessions
+								)
+								const continuePreparationHref =
+									savedPreparationHref ?? preparation?.continuePreparationHref ?? accommodationHref
 								const isPublished = Boolean(preparation?.isPublished)
 								const isReadyToPublish =
 									!isChoosingForAddRoom && !isPublished && Boolean(preparation?.readyToPublish)
@@ -447,7 +458,7 @@ function addAnotherServiceCopy() {
 								const showOpsActions = isChoosingForAddRoom || isPublished
 								const showAside = isChoosingForAddRoom || showInventoryStats || showOpsActions
 								const accommodationPrimaryHref = isSetup
-									? (preparation?.continuePreparationHref ?? accommodationHref)
+									? continuePreparationHref
 									: isReadyToPublish
 										? (preparation?.previewHref ?? routes.productPreview(product.id))
 										: accommodationHref
@@ -472,6 +483,7 @@ function addAnotherServiceCopy() {
 										data-dashboard-product-card
 										data-product-id={product.id}
 										data-product-vertical={isTour ? "tour" : "hotel"}
+										data-saved-preparation-href={savedPreparationHref ?? ""}
 										data-choosing-add-room={isChoosingForAddRoom ? "true" : "false"}
 									>
 										<div
@@ -780,7 +792,8 @@ function addAnotherServiceCopy() {
 			const isReadyToPublish = !isPublished && Boolean(preparation?.readyToPublish)
 			const isSetup = !isPublished && !isReadyToPublish
 			if (isSetup) {
-				action.href = preparation.continuePreparationHref || action.href
+				const savedHref = card.dataset.savedPreparationHref
+				action.href = savedHref || preparation.continuePreparationHref || action.href
 				setActionLabel(action, "Continuar preparación")
 			} else if (isReadyToPublish) {
 				action.href = preparation.previewHref

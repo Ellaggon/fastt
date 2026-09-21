@@ -35,7 +35,12 @@ describe("tour discovery input rules", () => {
 				{ id: "2", slug: "city-tour-09aad244", name: "city-tour-09aad244" },
 				{ id: "3", slug: "qa-hike", name: "QA hike" },
 				{ id: "4", slug: "adventure-duplicate", name: "Aventura" },
+				{ id: "5", slug: "trekking-e9a05764", name: "trekking-e9a05764" },
+				{ id: "6", slug: "city-tour", name: "City Tour" },
 			])
-		).toEqual([{ id: "1", slug: "adventure", name: "Aventura" }])
+		).toEqual([
+			{ id: "1", slug: "adventure", name: "Aventura" },
+			{ id: "6", slug: "city-tour", name: "City tour" },
+		])
 	})
 })

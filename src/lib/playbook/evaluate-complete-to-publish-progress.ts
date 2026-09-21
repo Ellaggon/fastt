@@ -53,6 +53,7 @@ const SECTION_GUEST_IMPACT: Partial<Record<ProductVerticalSectionKey, string>> =
 	bookingPolicies: "Cancelación, pago y reglas de reserva",
 	itinerary: "Secuencia de actividades del tour",
 	tickets: "Modalidades que puede seleccionar el viajero",
+	categories: "Cómo se encuentra la experiencia en el catálogo",
 	departure: "La primera salida reservable del tour",
 	rate: "El precio de venta de la salida",
 	calendar: "El cupo disponible para reservar",
@@ -91,6 +92,8 @@ function sectionHref(productId: string, section: ProductVerticalSectionKey): str
 			return `/product/${encodeURIComponent(productId)}/subtype`
 		case "tickets":
 			return `/product/${encodeURIComponent(productId)}/tickets`
+		case "categories":
+			return `/product/${encodeURIComponent(productId)}/categories`
 		case "departure":
 			return `/product/${encodeURIComponent(productId)}/departures/new`
 		case "rate":
@@ -122,6 +125,7 @@ function sectionLabel(section: ProductVerticalSectionKey, verticalLabel: string)
 		bookingPolicies: "Condiciones de reserva",
 		itinerary: "Itinerario del tour",
 		tickets: "Modalidades y tickets",
+		categories: "Categorías de búsqueda",
 		departure: "Primera salida",
 		rate: "Precio de la salida",
 		calendar: "Cupo y disponibilidad",
@@ -143,6 +147,7 @@ function sectionCta(section: ProductVerticalSectionKey): string {
 		bookingPolicies: "Revisar tarifas",
 		itinerary: "Editar itinerario",
 		tickets: "Configurar tickets",
+		categories: "Elegir categorías",
 		departure: "Crear salida",
 		rate: "Configurar precio",
 		calendar: "Configurar disponibilidad",

@@ -20,6 +20,7 @@ export type ProductVerticalSectionKey =
 	| "itinerary"
 	| "services"
 	| "inclusions"
+	| "categories"
 	| "tickets"
 	| "departure"
 	| "rate"
@@ -285,6 +286,41 @@ export const productVerticalRegistry = {
 				required: false,
 				owner: "experience",
 			},
+			{
+				key: "tickets",
+				label: "Participantes",
+				description: "Tipos de participante, edades y disponibilidad para reservar.",
+				required: true,
+				owner: "experience",
+			},
+			{
+				key: "categories",
+				label: "Categorías de búsqueda",
+				description: "Clasificación pública usada para descubrir la experiencia.",
+				required: true,
+				owner: "catalog",
+			},
+			{
+				key: "departure",
+				label: "Salidas",
+				description: "Horario, modalidad, idioma y capacidad de la experiencia.",
+				required: true,
+				owner: "experience",
+			},
+			{
+				key: "rate",
+				label: "Precio",
+				description: "Precio por participante de una salida vendible.",
+				required: true,
+				owner: "contract",
+			},
+			{
+				key: "calendar",
+				label: "Disponibilidad",
+				description: "Fechas futuras y cupos abiertos para reservar.",
+				required: true,
+				owner: "experience",
+			},
 		],
 		readiness: {
 			requiredSections: [
@@ -295,6 +331,7 @@ export const productVerticalRegistry = {
 				"subtype",
 				"itinerary",
 				"tickets",
+				"categories",
 				"departure",
 				"rate",
 				"bookingPolicies",
