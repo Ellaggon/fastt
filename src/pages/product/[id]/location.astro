@@ -234,14 +234,17 @@ const meetingHref =
 						>
 							<Button
 								href={playbook.active && playbook.playbookId
-									? playbookRedirectHrefFor(
-											playbook.playbookId,
-											playbook.playbookId === "complete-to-publish"
-												? `/product/${productId}/images`
-												: `/product/${productId}/content`,
-											playbook.playbookId === "complete-to-publish" ? "photos" : "content",
-											productId
-										)
+									? playbook.playbookId === "complete-to-publish"
+										? buildCompleteToPublishHref(
+												`/product/${encodeURIComponent(productId)}/images`,
+												"photos"
+											)
+										: playbookRedirectHrefFor(
+												playbook.playbookId,
+												`/product/${encodeURIComponent(productId)}/content`,
+												"content",
+												productId
+											)
 									: `/product/${encodeURIComponent(productId)}/content`}
 								variant="secondary"
 							>

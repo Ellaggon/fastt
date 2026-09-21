@@ -23,7 +23,7 @@ import { summarizeProductPreparation } from "@/lib/playbook/summarize-product-pr
 import { getProductOperationalSurface } from "@/lib/product/productOperationalSurface"
 import { routes } from "@/lib/routes"
 import { buildTourCommercialLinks } from "@/lib/tours/tourProviderNavigation"
-import { asc, db, eq, Variant } from "@/shared/infrastructure/db/compat"
+import { asc, db, desc, eq, RatePlan, Variant } from "@/shared/infrastructure/db/compat"
 import {
 	ArrowRight,
 	BedDouble,
@@ -152,7 +152,6 @@ const tourVariants = isTour
 	? await db
 			.select({
 				id: Variant.id,
-				defaultRatePlanId: Variant.defaultRatePlanId,
 				salesEnabled: Variant.salesEnabled,
 				lifecycleState: Variant.lifecycleState,
 			})
@@ -164,10 +163,19 @@ const primaryTourVariant =
 	tourVariants.find((variant) => variant.salesEnabled && variant.lifecycleState === "ready") ??
 	tourVariants[0] ??
 	null
+const primaryTourRatePlanId = primaryTourVariant?.id
+	? await db
+			.select({ id: RatePlan.id })
+			.from(RatePlan)
+			.where(eq(RatePlan.variantId, String(primaryTourVariant.id)))
+			.orderBy(desc(RatePlan.isDefault), desc(RatePlan.isActive))
+			.limit(1)
+			.then((rows) => String(rows[0]?.id ?? "").trim() || null)
+	: null
 const tourCommercialLinks = buildTourCommercialLinks({
 	productId,
 	variantId: primaryTourVariant?.id,
-	ratePlanId: primaryTourVariant?.defaultRatePlanId,
+	ratePlanId: primaryTourRatePlanId,
 })
 const conditionsHref = isHotel
 	? (operationalSurface?.conditionsHref ?? routes.rates())

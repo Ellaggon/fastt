@@ -117,9 +117,13 @@ const operationalVertical = resolveOperationalSidebarVertical({
 })
 const products = filterProductsForWorkspaceScope(catalogProducts, operationalVertical)
 const preparationSessions = await listActivePreparationSessions(providerId, String(user.id ?? ""))
+const lastPathByProductId = new Map(
+	preparationSessions.map((session) => [session.productId, session.href] as const)
+)
 const preparationByProduct = await listProductOperationalPreparation(
 	providerId,
-	products.map((product) => product.id)
+	products.map((product) => product.id),
+	{ lastPathByProductId }
 )
 const addRoomPlaybook = resolveAddRoomPlaybookFromUrl(Astro.url)
 const flow = Astro.url.searchParams.get("flow")
