@@ -21,7 +21,10 @@ export async function auditTourProductPolicyCompatibility(productId: string) {
 		.where(eq(Product.id, productId))
 		.then((rows) => rows[0])
 	if (!product || String(product.productType).toLowerCase() !== "tour") return []
-	const context = policyBusinessContextFromProduct(product)
+	const context = policyBusinessContextFromProduct({
+		productId: product.id,
+		productType: product.productType,
+	})
 	const variants = await db
 		.select({ id: Variant.id })
 		.from(Variant)
