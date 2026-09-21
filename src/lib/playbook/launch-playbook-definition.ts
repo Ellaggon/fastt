@@ -86,13 +86,13 @@ export function getLaunchLikeStage(
 	}
 	if (index < 5) {
 		return {
-			label: definition.id === "launch-tour" ? "Tu experiencia" : "Tu alojamiento",
+			label: "Tu alojamiento",
 			position: 1,
 			total: 3,
 		}
 	}
 	return {
-		label: definition.id === "launch-tour" ? "Salidas y venta" : "Habitaciones y venta",
+		label: "Habitaciones y venta",
 		position: 2,
 		total: 3,
 	}

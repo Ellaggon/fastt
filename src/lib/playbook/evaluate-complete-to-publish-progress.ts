@@ -491,6 +491,7 @@ export async function loadCompleteToPublishState(params: {
 		blockers,
 		readyToPublish: allActionableComplete,
 		completedChecks,
+		totalChecks,
 		readinessPercent: totalChecks > 0 ? Math.round((completedChecks / totalChecks) * 100) : 0,
 	}
 }
