@@ -2,6 +2,10 @@ import type { APIRoute } from "astro"
 import { and, db, eq, inArray, Product } from "@/shared/infrastructure/db/compat"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import {
+	listActivePreparationSessions,
+	savedCompleteToPublishHrefForProduct,
+} from "@/lib/onboarding/preparationSession"
 import { refreshProductOperationalSurface } from "@/lib/product/productOperationalSurface"
 
 export const POST: APIRoute = async ({ request, url }) => {
@@ -40,7 +44,8 @@ export const POST: APIRoute = async ({ request, url }) => {
 		.where(and(eq(Product.providerId, providerId), inArray(Product.id, productIds)))
 
 	const ownedProductIds = ownedProducts.map((product) => String(product.id))
-	const products = await Promise.all(
+	const sessions = await listActivePreparationSessions(providerId, String(user.id ?? ""))
+	const surfaces = await Promise.all(
 		ownedProductIds.map((productId) =>
 			refreshProductOperationalSurface({
 				productId,
@@ -50,9 +55,20 @@ export const POST: APIRoute = async ({ request, url }) => {
 			})
 		)
 	)
+	const products = surfaces
+		.filter(Boolean)
+		.map((surface) => {
+			if (!surface?.readiness) return null
+			const savedHref = savedCompleteToPublishHrefForProduct(surface.productId, sessions)
+			return {
+				...surface.readiness,
+				continuePreparationHref: savedHref ?? surface.readiness.continuePreparationHref,
+			}
+		})
+		.filter(Boolean)
 
 	const durationMs = Number((performance.now() - startedAt).toFixed(1))
-	return new Response(JSON.stringify({ products: products.filter(Boolean), durationMs }), {
+	return new Response(JSON.stringify({ products, durationMs }), {
 		status: 200,
 		headers: {
 			"Content-Type": "application/json",

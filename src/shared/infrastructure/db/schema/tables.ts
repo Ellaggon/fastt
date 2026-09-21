@@ -1646,7 +1646,7 @@ export const ProviderPreparationSession = pgTable(
 		index("ProviderPreparationSession_product_idx").on(table.productId),
 		check(
 			"ProviderPreparationSession_playbook_check",
-			sql`${table.playbookId} IN ('launch', 'launch-tour')`
+			sql`${table.playbookId} IN ('launch', 'launch-tour', 'complete-to-publish')`
 		),
 		check("ProviderPreparationSession_vertical_check", sql`${table.vertical} IN ('hotel', 'tour')`),
 		check(
