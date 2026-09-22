@@ -141,11 +141,18 @@ if (changed.size === 0) {
 const errors = []
 const allDocs = markdownFiles(resolve(root, "docs"))
 const indexTargets = new Set()
-for (const indexPath of allDocs.filter((path) => path.endsWith(`${sep}README.md`))) {
-	const content = readFileSync(indexPath, "utf8")
+function collectIndexLinks(filePath) {
+	if (!existsSync(filePath)) return
+	const content = readFileSync(filePath, "utf8")
 	for (const link of localLinks(content)) {
-		indexTargets.add(normalize(relative(root, resolve(dirname(indexPath), link))))
+		indexTargets.add(normalize(relative(root, resolve(dirname(filePath), link))))
 	}
+}
+for (const indexPath of allDocs.filter((path) => path.endsWith(`${sep}README.md`))) {
+	collectIndexLinks(indexPath)
+}
+for (const entry of ["AGENTS.md", "README.md"]) {
+	collectIndexLinks(resolve(root, entry))
 }
 
 for (const [path, status] of changed) {
