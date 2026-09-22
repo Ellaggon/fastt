@@ -7,10 +7,18 @@ import {
 	Policy,
 	PolicyGroup,
 	PolicyRule,
+	Product,
+	ProviderProfile,
+	RatePlan,
+	TourSlotProfile,
+	Variant,
 } from "@/shared/infrastructure/db/compat"
 import { POLICY_PRESET_CATALOG } from "@/data/policy/policy-presets"
 import { getPolicyCategoryLabel } from "@/data/policy/policy-categories"
 import { buildPolicyCategoryPreview } from "@/lib/policies/buildPolicyCategoryPreview"
+import { buildTourPolicyCategoryPreview } from "@/lib/policies/build-tour-policy-preview"
+import { evaluatePolicyBusinessCompatibility } from "@/lib/policies/policy-business-compatibility"
+import { resolvePolicyBusinessContextForScope } from "@/lib/policies/resolve-policy-business-context"
 import { buildPolicyFinancialPreviewFromResolution } from "@/modules/financial/public"
 import type { PolicyResolutionDTO } from "@/modules/policies/public"
 import { requireProvider } from "@/lib/auth/requireProvider"
@@ -230,7 +238,14 @@ export const POST: APIRoute = async ({ request }) => {
 	const scope = String(body.scope ?? "rate_plan")
 	const scopeId = String(body.scopeId ?? "").trim()
 	const owned = await getOwnedPolicyScopeIds(providerId)
-	if (!ensureOwnedScope(owned, scope, scopeId)) {
+	if (!scopeId || !ensureOwnedScope(owned, scope, scopeId)) {
+		return new Response(JSON.stringify({ error: "scope_not_found" }), {
+			status: 404,
+			headers: { "Content-Type": "application/json" },
+		})
+	}
+	const businessContext = await resolvePolicyBusinessContextForScope({ scope, scopeId })
+	if (!businessContext) {
 		return new Response(JSON.stringify({ error: "scope_not_found" }), {
 			status: 404,
 			headers: { "Content-Type": "application/json" },
@@ -238,13 +253,48 @@ export const POST: APIRoute = async ({ request }) => {
 	}
 
 	const today = new Date()
-	const checkIn = String(body.checkIn ?? "").trim() || addDays(today.toISOString().slice(0, 10), 14)
+	const requestedDepartureDate = String(body.checkIn ?? "").trim()
+	const checkIn = requestedDepartureDate || addDays(today.toISOString().slice(0, 10), 14)
 	const checkOut = String(body.checkOut ?? "").trim() || addDays(checkIn, 2)
-	const currency =
+	let currency =
 		String(body.currency ?? "BOB")
 			.trim()
 			.toUpperCase() || "BOB"
-	const grossAmount = Number.isFinite(Number(body.grossAmount)) ? Number(body.grossAmount) : 1000
+	let grossAmount = Number.isFinite(Number(body.grossAmount)) ? Number(body.grossAmount) : 0
+	const productProfile = await db
+		.select({ timezone: ProviderProfile.timezone, currency: ProviderProfile.defaultCurrency })
+		.from(Product)
+		.leftJoin(ProviderProfile, eq(ProviderProfile.providerId, Product.providerId))
+		.where(eq(Product.id, businessContext.productId))
+		.then((rows) => rows[0])
+	const departureProfile =
+		scope === "rate_plan"
+			? await db
+					.select({ departureTime: TourSlotProfile.departureTime })
+					.from(RatePlan)
+					.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
+					.leftJoin(TourSlotProfile, eq(TourSlotProfile.variantId, Variant.id))
+					.where(eq(RatePlan.id, scopeId))
+					.then((rows) => rows[0])
+			: scope === "variant"
+				? await db
+						.select({ departureTime: TourSlotProfile.departureTime })
+						.from(TourSlotProfile)
+						.where(eq(TourSlotProfile.variantId, scopeId))
+						.then((rows) => rows[0])
+				: null
+	const departureTime =
+		String(departureProfile?.departureTime ?? body.departureTime ?? "").trim() || null
+	const isTour = businessContext.business === "tour"
+	if (isTour) {
+		currency =
+			String(productProfile?.currency ?? currency)
+				.trim()
+				.toUpperCase() || currency
+		// A policy editor has no selected participants or authoritative price quote.
+		// Do not let an arbitrary client amount look like a bookable total.
+		grossAmount = 0
+	}
 	const selected =
 		mode === "draft"
 			? loadDraftPolicy(body)
@@ -258,6 +308,29 @@ export const POST: APIRoute = async ({ request }) => {
 			headers: { "Content-Type": "application/json" },
 		})
 	}
+	const compatibilityIssue = evaluatePolicyBusinessCompatibility(businessContext, {
+		category: selected.category,
+		stayLengthType: selected.policy.stayLengthType,
+		refundBasis: selected.policy.refundBasis,
+		businesses:
+			mode === "preset"
+				? POLICY_PRESET_CATALOG.find((preset) => preset.key === selected.policy.policyPresetKey)
+						?.businesses
+				: undefined,
+		rules: Object.fromEntries(
+			selected.rules.flatMap((rule: { ruleKey?: string | null; ruleValue: unknown }) => {
+				const key = String(rule.ruleKey ?? "").trim()
+				return key ? [[key, rule.ruleValue] as const] : []
+			})
+		),
+		cancellationTiers: selected.cancellationTiers,
+	})[0]
+	if (compatibilityIssue) {
+		return new Response(
+			JSON.stringify({ error: compatibilityIssue.code, message: compatibilityIssue.message }),
+			{ status: 409, headers: { "Content-Type": "application/json" } }
+		)
+	}
 
 	const resolved = buildResolvedDTO({
 		category: selected.category,
@@ -266,7 +339,6 @@ export const POST: APIRoute = async ({ request }) => {
 		rules: selected.rules,
 		cancellationTiers: selected.cancellationTiers,
 	})
-	const departureTime = String(body.departureTime ?? "").trim() || null
 	const financialPreview = buildPolicyFinancialPreviewFromResolution({
 		providerId,
 		resolvedPolicies: resolved,
@@ -281,10 +353,19 @@ export const POST: APIRoute = async ({ request }) => {
 		idPrefix: "policy-preview",
 		departureTime,
 	})
-	const categoryPreview = buildPolicyCategoryPreview({
-		category: selected.category,
-		financialPreview,
-	})
+	const categoryPreview = isTour
+		? buildTourPolicyCategoryPreview({
+				category: selected.category,
+				snapshot: financialPreview.snapshot,
+				context: {
+					departureDate: requestedDepartureDate || null,
+					departureTime,
+					timezone: String(productProfile?.timezone ?? "").trim() || null,
+					currency,
+					quoteAmount: null,
+				},
+			})
+		: buildPolicyCategoryPreview({ category: selected.category, financialPreview })
 
 	return new Response(
 		JSON.stringify({
@@ -298,7 +379,16 @@ export const POST: APIRoute = async ({ request }) => {
 				policyPresetKey: selected.policy.policyPresetKey ?? null,
 			},
 			snapshot: financialPreview.snapshot,
-			quotes: financialPreview.quotes,
+			quotes: isTour ? null : financialPreview.quotes,
+			previewContext: isTour
+				? {
+						departureDate: requestedDepartureDate || null,
+						departureTime,
+						timezone: String(productProfile?.timezone ?? "").trim() || null,
+						currency,
+						quote: "missing",
+					}
+				: null,
 			presentation: {
 				title: categoryPreview.title,
 				description: categoryPreview.description,
