@@ -15,6 +15,7 @@ import {
 import type {
 	CancellationTierRow,
 	PolicyAssignmentSnapshot,
+	PolicyDetailsByPolicyId,
 	PolicyResolutionRepositoryPort,
 	PolicyRuleRow,
 	PolicySnapshot,
@@ -179,5 +180,49 @@ export class PolicyResolutionRepository implements PolicyResolutionRepositoryPor
 			penaltyType: String(r.penaltyType ?? ""),
 			penaltyAmount: r.penaltyAmount == null ? null : Number(r.penaltyAmount),
 		}))
+	}
+
+	async listPolicyDetailsByPolicyIds(policyIds: string[]): Promise<PolicyDetailsByPolicyId> {
+		const ids = [...new Set(policyIds.map((id) => String(id ?? "").trim()).filter(Boolean))]
+		if (!ids.length) return { rulesByPolicyId: {}, cancellationTiersByPolicyId: {} }
+
+		const [rules, tiers] = await Promise.all([
+			db.select().from(PolicyRule).where(inArray(PolicyRule.policyId, ids)),
+			db.select().from(CancellationTier).where(inArray(CancellationTier.policyId, ids)),
+		])
+		const rulesByPolicyId: Record<string, PolicyRuleRow[]> = {}
+		for (const row of rules as any[]) {
+			const policyId = String(row.policyId ?? "")
+			if (!policyId) continue
+			;(rulesByPolicyId[policyId] ??= []).push({
+				id: String(row.id),
+				policyId,
+				ruleKey: row.ruleKey == null ? null : String(row.ruleKey),
+				ruleValue: row.ruleValue as unknown,
+			})
+		}
+		const cancellationTiersByPolicyId: Record<string, CancellationTierRow[]> = {}
+		for (const row of tiers as any[]) {
+			const policyId = String(row.policyId ?? "")
+			if (!policyId) continue
+			;(cancellationTiersByPolicyId[policyId] ??= []).push({
+				id: String(row.id),
+				policyId,
+				daysBeforeArrival: Number(row.daysBeforeArrival ?? 0),
+				hoursBeforeDeparture:
+					row.hoursBeforeDeparture == null ? null : Number(row.hoursBeforeDeparture),
+				penaltyType: String(row.penaltyType ?? ""),
+				penaltyAmount: row.penaltyAmount == null ? null : Number(row.penaltyAmount),
+			})
+		}
+		for (const rows of Object.values(cancellationTiersByPolicyId)) {
+			rows.sort((a, b) => {
+				if (a.daysBeforeArrival !== b.daysBeforeArrival) {
+					return a.daysBeforeArrival - b.daysBeforeArrival
+				}
+				return a.id.localeCompare(b.id)
+			})
+		}
+		return { rulesByPolicyId, cancellationTiersByPolicyId }
 	}
 }

@@ -49,6 +49,11 @@ export type CancellationTierRow = {
 	penaltyAmount: number | null
 }
 
+export type PolicyDetailsByPolicyId = {
+	rulesByPolicyId: Record<string, PolicyRuleRow[]>
+	cancellationTiersByPolicyId: Record<string, CancellationTierRow[]>
+}
+
 export interface PolicyResolutionRepositoryPort {
 	listActiveAssignments(params: {
 		scopeChain: ScopeNode[]
@@ -66,4 +71,7 @@ export interface PolicyResolutionRepositoryPort {
 
 	listPolicyRulesByPolicyId(policyId: string): Promise<PolicyRuleRow[]>
 	listCancellationTiersByPolicyId(policyId: string): Promise<CancellationTierRow[]>
+
+	/** Optional bulk path. Legacy adapters can keep the two single-policy reads. */
+	listPolicyDetailsByPolicyIds?(policyIds: string[]): Promise<PolicyDetailsByPolicyId>
 }
