@@ -100,11 +100,7 @@ Booking is already `checked_in` (`repaired: true`).
 
 ## Browser smoke (P1)
 
-La prueba automática no reemplaza la certificación de una ficha con datos comerciales reales. El registro pendiente de Fase 2, sus condiciones y la matriz de evidencia están en [certificación operativa de Tours PDP](../ops/tours-pdp-phase-2-operational-certification.md). No ampliar cohorte comercial mientras ese registro permanezca abierto.
-
-El checkout tiene un registro independiente de Fase 3: [certificación operativa de checkout](../ops/tours-checkout-phase-3-operational-certification.md). Tampoco se amplía checkout mientras ese registro permanezca abierto.
-
-El cierre de implementación de ambas fases y las pruebas reproducibles están consolidados en [cierre en código de Tours Fases 2 y 3](../ops/tours-phase-2-3-code-closeout.md). Las dos puertas anteriores quedan reservadas para evidencia operativa y no representan deuda de implementación conocida.
+La prueba automática no reemplaza la certificación de una ficha con datos comerciales reales. Las matrices de ficha y checkout, su evidencia automatizada y los casos pendientes están consolidados en [certificación de ficha y checkout](../certifications/tours/booking-flow-2026-09.md). No ampliar la cohorte comercial mientras ese registro permanezca abierto.
 
 ```bash
 pnpm run test:tours:playwright
