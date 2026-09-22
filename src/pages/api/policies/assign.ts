@@ -6,14 +6,15 @@ import {
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { invalidatePolicyConditions, invalidateProduct } from "@/lib/cache/invalidation"
 import { getOrCreateProviderPresetPolicy } from "@/lib/policies/getOrCreateProviderPresetPolicy"
+import { evaluatePolicyBusinessCompatibility } from "@/lib/policies/policy-business-compatibility"
 import {
 	ensurePolicyOwnedByProvider,
 	ensurePolicyScopeOwnedByProvider,
-	resolveProductIdForPolicyScope,
 } from "@/lib/policies/policyOwnership"
-import { isSupportedTourPaymentType } from "@/lib/tours/tour-payment-terms"
+import { resolvePolicyBusinessContextForScope } from "@/lib/policies/resolve-policy-business-context"
 import {
 	db,
+	CancellationTier,
 	eq,
 	first,
 	Policy,
@@ -22,6 +23,7 @@ import {
 	Product,
 } from "@/shared/infrastructure/db/compat"
 import type { PolicyCategory } from "@/modules/policies/public"
+import { resolvePolicyPreset } from "@/data/policy/policy-presets"
 
 const validCategories = new Set(["Cancellation", "Payment", "CheckIn", "NoShow"])
 const validScopes = new Set(["product", "variant", "rate_plan"])
@@ -36,6 +38,46 @@ function json(status: number, payload: Record<string, unknown>) {
 		status,
 		headers: { "Content-Type": "application/json" },
 	})
+}
+
+function compatibilityError(issue: { code: string; message: string }) {
+	return json(409, { error: issue.code, message: issue.message })
+}
+
+async function loadExistingCandidate(policyId: string) {
+	const policy = await db
+		.select({
+			category: PolicyGroup.category,
+			stayLengthType: (Policy as any).stayLengthType,
+			refundBasis: (Policy as any).refundBasis,
+		})
+		.from(Policy)
+		.innerJoin(PolicyGroup, eq(Policy.groupId, PolicyGroup.id))
+		.where(eq(Policy.id, policyId))
+		.then(first)
+	if (!policy) return null
+	const [rules, tiers] = await Promise.all([
+		db
+			.select({ key: PolicyRule.ruleKey, value: PolicyRule.ruleValue })
+			.from(PolicyRule)
+			.where(eq(PolicyRule.policyId, policyId)),
+		db
+			.select({
+				daysBeforeArrival: CancellationTier.daysBeforeArrival,
+				hoursBeforeDeparture: CancellationTier.hoursBeforeDeparture,
+				penaltyType: CancellationTier.penaltyType,
+				penaltyAmount: CancellationTier.penaltyAmount,
+			})
+			.from(CancellationTier)
+			.where(eq(CancellationTier.policyId, policyId)),
+	])
+	return {
+		category: String(policy.category ?? ""),
+		stayLengthType: policy.stayLengthType,
+		refundBasis: policy.refundBasis,
+		rules: Object.fromEntries(rules.map((row) => [String(row.key ?? ""), row.value])),
+		cancellationTiers: tiers,
+	}
 }
 
 export const POST: APIRoute = async ({ request }) => {
@@ -57,15 +99,8 @@ export const POST: APIRoute = async ({ request }) => {
 	if (!scopeOwned) {
 		return json(403, { error: "scope_not_owned" })
 	}
-	const scopedProductId = await resolveProductIdForPolicyScope({ scope, scopeId })
-	const product = scopedProductId
-		? await db
-				.select({ productType: Product.productType })
-				.from(Product)
-				.where(eq(Product.id, scopedProductId))
-				.then(first)
-		: null
-	const isTourScope = String(product?.productType ?? "").toLowerCase() === "tour"
+	const businessContext = await resolvePolicyBusinessContextForScope({ scope, scopeId })
+	if (!businessContext) return json(404, { error: "scope_not_found" })
 
 	let policyId = text(body.policyId)
 	let category = text(body.category) as PolicyCategory
@@ -74,36 +109,27 @@ export const POST: APIRoute = async ({ request }) => {
 		if (!policyId) return json(400, { error: "missing_policy" })
 		const policyOwned = await ensurePolicyOwnedByProvider({ providerId, policyId })
 		if (!policyOwned) return json(403, { error: "policy_not_owned" })
-		if (isTourScope) {
-			const policy = await db
-				.select({ category: PolicyGroup.category })
-				.from(Policy)
-				.innerJoin(PolicyGroup, eq(Policy.groupId, PolicyGroup.id))
-				.where(eq(Policy.id, policyId))
-				.then(first)
-			category = String(policy?.category ?? category) as PolicyCategory
-			if (category === "Payment") {
-				const paymentRule = await db
-					.select({ value: PolicyRule.ruleValue })
-					.from(PolicyRule)
-					.where(eq(PolicyRule.policyId, policyId))
-					.then(
-						(rows) =>
-							rows.find((row) => String((row as any).ruleKey ?? "") === "paymentType") ?? null
-					)
-				if (!isSupportedTourPaymentType(paymentRule?.value)) {
-					return json(409, { error: "tour_prepayment_not_available" })
-				}
-			}
-		}
+		const candidate = await loadExistingCandidate(policyId)
+		if (!candidate) return json(404, { error: "policy_not_found" })
+		category = candidate.category as PolicyCategory
+		const issue = evaluatePolicyBusinessCompatibility(businessContext, candidate)[0]
+		if (issue) return compatibilityError(issue)
 	} else if (mode === "preset") {
 		const policyPresetKey = text(body.policyPresetKey)
 		if (!validCategories.has(category) || !policyPresetKey) {
 			return json(400, { error: "invalid_preset_context" })
 		}
-		if (isTourScope && category === "Payment" && policyPresetKey !== "pay_at_property") {
-			return json(409, { error: "tour_prepayment_not_available" })
-		}
+		const preset = resolvePolicyPreset(policyPresetKey, category)
+		if (!preset) return json(400, { error: "invalid_preset_context" })
+		const issue = evaluatePolicyBusinessCompatibility(businessContext, {
+			category: preset.category,
+			stayLengthType: preset.stayLengthType,
+			refundBasis: preset.refundBasis,
+			businesses: preset.businesses,
+			rules: preset.rules,
+			cancellationTiers: preset.cancellationTiers,
+		})[0]
+		if (issue) return compatibilityError(issue)
 
 		const presetPolicy = await getOrCreateProviderPresetPolicy({
 			providerId,
@@ -117,13 +143,14 @@ export const POST: APIRoute = async ({ request }) => {
 			return json(400, { error: "invalid_draft_context" })
 		}
 		const rules = typeof body.rules === "object" && body.rules ? body.rules : {}
-		if (
-			isTourScope &&
-			category === "Payment" &&
-			!isSupportedTourPaymentType((rules as Record<string, unknown>).paymentType)
-		) {
-			return json(409, { error: "tour_prepayment_not_available" })
-		}
+		const issue = evaluatePolicyBusinessCompatibility(businessContext, {
+			category,
+			stayLengthType: body.stayLengthType ?? "any",
+			refundBasis: body.refundBasis,
+			rules: rules as Record<string, unknown>,
+			cancellationTiers: Array.isArray(body.cancellationTiers) ? body.cancellationTiers : [],
+		})[0]
+		if (issue) return compatibilityError(issue)
 		if (category === "CheckIn") {
 			const checkInFrom = text((rules as Record<string, unknown>).checkInFrom)
 			const checkInUntil = text((rules as Record<string, unknown>).checkInUntil)
@@ -149,7 +176,9 @@ export const POST: APIRoute = async ({ request }) => {
 				category === "Cancellation"
 					? "total_booking"
 					: category === "NoShow"
-						? "first_night"
+						? businessContext.business === "tour"
+							? "total_booking"
+							: "first_night"
 						: category === "CheckIn"
 							? "none"
 							: "provider_policy",
@@ -173,7 +202,7 @@ export const POST: APIRoute = async ({ request }) => {
 		channel,
 		actorUserId,
 	})
-	const productId = await resolveProductIdForPolicyScope({ scope, scopeId })
+	const productId = businessContext.productId
 	await invalidatePolicyConditions({ scope, scopeId, productId })
 	if (productId) await invalidateProduct(productId)
 

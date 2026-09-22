@@ -19,7 +19,9 @@ import {
 	POLICY_PRESET_CATALOG,
 } from "@/data/policy/policy-presets"
 import { requireProvider } from "@/lib/auth/requireProvider"
+import { isPolicyBusinessCompatible } from "@/lib/policies/policy-business-compatibility"
 import { getOwnedPolicyScopeIds } from "@/lib/policies/policyOwnership"
+import { resolvePolicyBusinessContextForScope } from "@/lib/policies/resolve-policy-business-context"
 import { resolveRatePlanNameColumn } from "@/lib/rates/ratePlanSchemaCompat"
 
 function policyLabel(row: {
@@ -35,9 +37,28 @@ function policyLabel(row: {
 	return `${getPolicyCategoryLabel(category)} ${preset} · v${Number(row.version ?? 1)}`
 }
 
-export const GET: APIRoute = async ({ request }) => {
+export const GET: APIRoute = async ({ request, url }) => {
 	const { providerId } = await requireProvider(request)
 	const owned = await getOwnedPolicyScopeIds(providerId)
+	const scope = String(url.searchParams.get("scope") ?? "rate_plan")
+	const scopeId = String(url.searchParams.get("scopeId") ?? "").trim()
+	const scopeOwned =
+		(scope === "product" && owned.productIds.includes(scopeId)) ||
+		(scope === "variant" && owned.variantIds.includes(scopeId)) ||
+		(scope === "rate_plan" && owned.ratePlanIds.includes(scopeId))
+	if (!scopeId || !scopeOwned) {
+		return new Response(JSON.stringify({ error: "scope_not_found" }), {
+			status: 404,
+			headers: { "Content-Type": "application/json" },
+		})
+	}
+	const businessContext = await resolvePolicyBusinessContextForScope({ scope, scopeId })
+	if (!businessContext) {
+		return new Response(JSON.stringify({ error: "scope_not_found" }), {
+			status: 404,
+			headers: { "Content-Type": "application/json" },
+		})
+	}
 	const ratePlanName = await resolveRatePlanNameColumn()
 
 	const products = owned.productIds.length
@@ -119,6 +140,8 @@ export const GET: APIRoute = async ({ request }) => {
 		if (!tiersByPolicyId.has(policyId)) tiersByPolicyId.set(policyId, [])
 		tiersByPolicyId.get(policyId)!.push({
 			daysBeforeArrival: Number(tier.daysBeforeArrival ?? 0),
+			hoursBeforeDeparture:
+				tier.hoursBeforeDeparture == null ? null : Number(tier.hoursBeforeDeparture),
 			penaltyType: String(tier.penaltyType ?? "percentage"),
 			penaltyAmount: tier.penaltyAmount == null ? null : Number(tier.penaltyAmount),
 		})
@@ -127,20 +150,40 @@ export const GET: APIRoute = async ({ request }) => {
 		list.sort((a, b) => Number(b.daysBeforeArrival ?? 0) - Number(a.daysBeforeArrival ?? 0))
 	}
 
+	const policyOptions = policies
+		.map((policy) => ({
+			...policy,
+			label: policyLabel(policy),
+			categoryLabel: getPolicyCategoryLabel(policy.category),
+			presetLabel: getPolicyPresetLabel(
+				String(policy.policyPresetKey ?? ""),
+				String(policy.category ?? "")
+			),
+			rules: rulesByPolicyId.get(String(policy.id ?? "")) ?? {},
+			cancellationTiers: tiersByPolicyId.get(String(policy.id ?? "")) ?? [],
+		}))
+		.filter((policy) => isPolicyBusinessCompatible(businessContext, policy))
+	const presetOptions = POLICY_PRESET_CATALOG.filter((preset) =>
+		isPolicyBusinessCompatible(businessContext, {
+			category: preset.category,
+			stayLengthType: preset.stayLengthType,
+			refundBasis: preset.refundBasis,
+			businesses: "businesses" in preset ? preset.businesses : undefined,
+			rules: preset.rules,
+			cancellationTiers: "cancellationTiers" in preset ? (preset.cancellationTiers ?? []) : [],
+		})
+	)
+
 	return new Response(
 		JSON.stringify({
-			policies: policies.map((policy) => ({
-				...policy,
-				label: policyLabel(policy),
-				categoryLabel: getPolicyCategoryLabel(policy.category),
-				presetLabel: getPolicyPresetLabel(
-					String(policy.policyPresetKey ?? ""),
-					String(policy.category ?? "")
-				),
-				rules: rulesByPolicyId.get(String(policy.id ?? "")) ?? {},
-				cancellationTiers: tiersByPolicyId.get(String(policy.id ?? "")) ?? [],
-			})),
-			presets: POLICY_PRESET_CATALOG.map((preset) => ({
+			context: {
+				productId: businessContext.productId,
+				productType: businessContext.productType,
+				business: businessContext.business,
+				allowedCategories: businessContext.contract.allowedCategories,
+			},
+			policies: policyOptions,
+			presets: presetOptions.map((preset) => ({
 				key: preset.key,
 				category: preset.category,
 				label: getPolicyPresetLabel(preset.key, preset.category),

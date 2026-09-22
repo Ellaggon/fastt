@@ -16,6 +16,8 @@ export type PolicyPresetKey =
 	| "no_show_first_night"
 	| "no_show_full_stay"
 	| "no_show_percentage_100"
+	| "tour_flexible_24h"
+	| "tour_non_refundable"
 
 export type PolicyPreset = {
 	key: PolicyPresetKey
@@ -37,6 +39,7 @@ export type PolicyPreset = {
 	localTimezone: string
 	rules: Record<string, unknown>
 	cancellationTiers?: CancellationTierInput[]
+	businesses?: readonly ("hotel" | "tour")[]
 }
 
 const cancellationPreset = (
@@ -328,7 +331,59 @@ export const POLICY_PRESET_CATALOG = [
 		localTimezone: "property_local",
 		rules: { penaltyType: "percentage", penaltyAmount: 100 },
 	},
-] as const satisfies readonly PolicyPreset[]
+	{
+		key: "tour_flexible_24h",
+		category: "Cancellation",
+		name: "Tour flexible: 24 horas",
+		description: "Cancelación gratuita hasta 24 horas antes de la salida programada.",
+		guestFacing: "Puedes cancelar sin costo hasta 24 horas antes de la salida.",
+		operationalMeaning: "Usar cuando la salida permite liberar el cupo con un día de anticipación.",
+		stayLengthType: "any",
+		gracePeriod: 0,
+		refundBasis: "total_booking",
+		payoutBasis: "provider_policy",
+		localTimezone: "property_local",
+		businesses: ["tour"],
+		rules: {},
+		cancellationTiers: [
+			{
+				daysBeforeArrival: 0,
+				hoursBeforeDeparture: 24,
+				penaltyType: "percentage",
+				penaltyAmount: 0,
+			},
+			{
+				daysBeforeArrival: 0,
+				hoursBeforeDeparture: 0,
+				penaltyType: "percentage",
+				penaltyAmount: 100,
+			},
+		],
+	},
+	{
+		key: "tour_non_refundable",
+		category: "Cancellation",
+		name: "Tour no reembolsable",
+		description: "La reserva de esta salida no admite reembolso por cancelación.",
+		guestFacing: "Esta experiencia no admite reembolso si cancelas.",
+		operationalMeaning: "Usar solo cuando el proveedor confirma que no hay devolución posible.",
+		stayLengthType: "any",
+		gracePeriod: 0,
+		refundBasis: "total_booking",
+		payoutBasis: "provider_policy",
+		localTimezone: "property_local",
+		businesses: ["tour"],
+		rules: {},
+		cancellationTiers: [
+			{
+				daysBeforeArrival: 0,
+				hoursBeforeDeparture: 0,
+				penaltyType: "percentage",
+				penaltyAmount: 100,
+			},
+		],
+	},
+] satisfies readonly PolicyPreset[]
 
 export const POLICY_PRESETS = POLICY_PRESET_CATALOG.reduce(
 	(acc, preset) => {

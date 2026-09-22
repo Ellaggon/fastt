@@ -74,9 +74,12 @@ export async function getOrCreateProviderPresetPolicy(params: {
 		.orderBy(desc(Policy.version), asc(Policy.id))
 
 	const expectedRules = clonePolicyPresetRules(preset)
-	const expectedTiers = (clonePolicyPresetCancellationTiers(preset) ?? []).sort(
-		(left, right) => right.daysBeforeArrival - left.daysBeforeArrival
-	)
+	const expectedTiers = (clonePolicyPresetCancellationTiers(preset) ?? [])
+		.map((tier) => ({
+			...tier,
+			hoursBeforeDeparture: tier.hoursBeforeDeparture ?? null,
+		}))
+		.sort((left, right) => right.daysBeforeArrival - left.daysBeforeArrival)
 
 	for (const candidate of candidates) {
 		const [ruleRows, tierRows] = await Promise.all([
@@ -87,6 +90,7 @@ export async function getOrCreateProviderPresetPolicy(params: {
 			db
 				.select({
 					daysBeforeArrival: CancellationTier.daysBeforeArrival,
+					hoursBeforeDeparture: CancellationTier.hoursBeforeDeparture,
 					penaltyType: CancellationTier.penaltyType,
 					penaltyAmount: CancellationTier.penaltyAmount,
 				})
@@ -99,6 +103,8 @@ export async function getOrCreateProviderPresetPolicy(params: {
 		)
 		const tiers = tierRows.map((row) => ({
 			daysBeforeArrival: Number(row.daysBeforeArrival),
+			hoursBeforeDeparture:
+				row.hoursBeforeDeparture == null ? null : Number(row.hoursBeforeDeparture),
 			penaltyType: String(row.penaltyType),
 			penaltyAmount: Number(row.penaltyAmount),
 		}))
