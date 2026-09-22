@@ -1,2 +1,3 @@
 pnpm exec lint-staged
 pnpm run check:ui:staged
+pnpm run check:docs:staged
