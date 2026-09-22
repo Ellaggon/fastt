@@ -328,4 +328,76 @@ describe("policies/resolveEffectivePolicies (canonical resolver, isolated)", () 
 		expect(res.policies).toHaveLength(1)
 		expect(res.policies[0].policy.id).toBe("p_new")
 	})
+
+	it("reads policy details in one batch after preserving scope and channel precedence", async () => {
+		const repo = makeRepo({
+			assignments: [
+				{
+					id: "a_cancel",
+					policyGroupId: "g_cancel",
+					category: "Cancellation",
+					scope: "rate_plan",
+					scopeId: "rp1",
+					channel: null,
+				},
+				{
+					id: "a_payment",
+					policyGroupId: "g_payment",
+					category: "Payment",
+					scope: "product",
+					scopeId: "p1",
+					channel: null,
+				},
+			],
+			policiesByGroup: {
+				g_cancel: [
+					{
+						id: "p_cancel",
+						groupId: "g_cancel",
+						description: "Cancelación",
+						version: 1,
+						status: "active",
+					},
+				],
+				g_payment: [
+					{
+						id: "p_payment",
+						groupId: "g_payment",
+						description: "Pago",
+						version: 1,
+						status: "active",
+					},
+				],
+			},
+		})
+		let detailCalls = 0
+		repo.listPolicyDetailsByPolicyIds = async (policyIds) => {
+			detailCalls += 1
+			expect(new Set(policyIds)).toEqual(new Set(["p_cancel", "p_payment"]))
+			return {
+				rulesByPolicyId: {
+					p_payment: [
+						{
+							id: "r1",
+							policyId: "p_payment",
+							ruleKey: "paymentType",
+							ruleValue: "pay_at_property",
+						},
+					],
+				},
+				cancellationTiersByPolicyId: { p_cancel: [] },
+			}
+		}
+
+		const result = await resolveEffectivePolicies(
+			{ repo },
+			{ productId: "p1", ratePlanId: "rp1", requiredCategories: ["Cancellation", "Payment"] }
+		)
+
+		expect(detailCalls).toBe(1)
+		expect(result.policies).toHaveLength(2)
+		expect(result.policies.find((policy) => policy.category === "Payment")?.policy.rules).toEqual([
+			{ id: "r1", policyId: "p_payment", ruleKey: "paymentType", ruleValue: "pay_at_property" },
+		])
+	})
 })

@@ -8,6 +8,7 @@ import { resolvePolicyPreset } from "@/data/policy/policy-presets"
 import { logger } from "@/lib/observability/logger"
 import { resolveRatePlanOwnerContext } from "@/modules/pricing/public"
 import { logPolicyContractMismatch } from "@/lib/observability/migration-logger"
+import type { ServerTimingRecorder } from "@/lib/observability/serverTiming"
 import type { FeatureFlagContext } from "@/config/featureFlags"
 import { PolicyExceptionRuleRepository } from "../../infrastructure/repositories/PolicyExceptionRuleRepository"
 
@@ -19,6 +20,8 @@ type SurfaceRatePlan = {
 	id: string
 	name: string
 	isDefault?: boolean | null
+	productId?: string | null
+	variantId?: string | null
 }
 
 export type PolicyPlanView = {
@@ -231,30 +234,32 @@ export async function buildRatePlanPoliciesSurface(params: {
 	checkOut: string
 	requestId?: string
 	featureContext?: FeatureFlagContext
+	timing?: ServerTimingRecorder
 }): Promise<{ policyPlans: PolicyPlanView[] }> {
 	const exceptionRepo = new PolicyExceptionRuleRepository()
 	const policyPlans = await Promise.all(
 		params.ratePlans.map(async (plan) => {
 			const ratePlanId = String(plan.id)
-			const ownerContext = await resolveRatePlanOwnerContext(ratePlanId)
-			const productId = ownerContext?.productId ?? ""
-			const variantId = ownerContext?.variantId ?? ""
-			const resolvedRaw = await resolveEffectivePolicies({
-				productId,
-				variantId: variantId || undefined,
-				ratePlanId,
-				checkIn: params.checkIn,
-				checkOut: params.checkOut,
-				channel: "web",
-				requiredCategories: [...REQUIRED_POLICY_CATEGORIES],
-				onMissingCategory: "return_null",
-				requestId: params.requestId,
-				featureContext: params.featureContext,
-			})
-			const resolved = resolvedRaw
-			const exceptionRules =
+			const ownerContext =
+				plan.productId && plan.variantId ? null : await resolveRatePlanOwnerContext(ratePlanId)
+			const productId = String(plan.productId ?? ownerContext?.productId ?? "")
+			const variantId = String(plan.variantId ?? ownerContext?.variantId ?? "")
+			const resolvePolicies = () =>
+				resolveEffectivePolicies({
+					productId,
+					variantId: variantId || undefined,
+					ratePlanId,
+					checkIn: params.checkIn,
+					checkOut: params.checkOut,
+					channel: "web",
+					requiredCategories: [...REQUIRED_POLICY_CATEGORIES],
+					onMissingCategory: "return_null",
+					requestId: params.requestId,
+					featureContext: params.featureContext,
+				})
+			const resolveExceptions = () =>
 				productId && variantId
-					? await exceptionRepo.listApplicable({
+					? exceptionRepo.listApplicable({
 							productId,
 							variantId,
 							ratePlanId,
@@ -262,7 +267,14 @@ export async function buildRatePlanPoliciesSurface(params: {
 							checkIn: params.checkIn,
 							checkOut: params.checkOut,
 						})
-					: []
+					: Promise.resolve([])
+			const [resolvedRaw, exceptionRules] = await Promise.all([
+				params.timing ? params.timing.time("policyResolution", resolvePolicies) : resolvePolicies(),
+				params.timing
+					? params.timing.time("policyExceptions", resolveExceptions)
+					: resolveExceptions(),
+			])
+			const resolved = resolvedRaw
 			const snapshot = buildPolicySnapshot({
 				resolvedPolicies: resolved,
 				checkIn: params.checkIn,

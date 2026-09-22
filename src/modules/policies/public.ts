@@ -63,9 +63,24 @@ export async function resolveEffectivePolicies(params: {
 	requestId?: string
 	featureContext?: import("@/config/featureFlags").FeatureFlagContext
 }): Promise<import("./application/dto/PolicyResolutionDTO").PolicyResolutionDTO> {
+	const { cacheKeys, cacheTtls } = await import("@/lib/cache/cacheKeys")
+	const { readThrough } = await import("@/lib/cache/readThrough")
 	const { resolveEffectivePoliciesUseCase } =
 		await import("@/container/policies-resolution.container")
-	return resolveEffectivePoliciesUseCase(params)
+	const checkIn = String(params.checkIn ?? "").trim()
+	const asOfDate = /^\d{4}-\d{2}-\d{2}$/.test(checkIn)
+		? checkIn
+		: new Date().toISOString().slice(0, 10)
+	const key = cacheKeys.policyResolution({
+		productId: params.productId,
+		variantId: params.variantId,
+		ratePlanId: params.ratePlanId,
+		asOfDate,
+		channel: params.channel,
+		requiredCategories: params.requiredCategories,
+		onMissingCategory: params.onMissingCategory,
+	})
+	return readThrough(key, cacheTtls.policyResolution, () => resolveEffectivePoliciesUseCase(params))
 }
 
 export async function listPolicyCoverageByProvider(
@@ -89,7 +104,10 @@ export async function createPolicyVersionCapa6(
 	params: import("./application/use-cases/capa6/create-policy-version").CreatePolicyVersionInput
 ) {
 	const { createPolicyVersionCapa6UseCase } = await import("@/container/policies-write.container")
-	return createPolicyVersionCapa6UseCase(params)
+	const result = await createPolicyVersionCapa6UseCase(params)
+	const { invalidateAllPolicyConditions } = await import("@/lib/cache/invalidation")
+	await invalidateAllPolicyConditions("policy_version_created")
+	return result
 }
 
 export async function replacePolicyAssignmentCapa6(
@@ -97,7 +115,10 @@ export async function replacePolicyAssignmentCapa6(
 ) {
 	const { replacePolicyAssignmentCapa6UseCase } =
 		await import("@/container/policies-write.container")
-	return replacePolicyAssignmentCapa6UseCase(params)
+	const result = await replacePolicyAssignmentCapa6UseCase(params)
+	const { invalidateAllPolicyConditions } = await import("@/lib/cache/invalidation")
+	await invalidateAllPolicyConditions("policy_assignment_replaced")
+	return result
 }
 
 export async function deactivatePolicyAssignmentCapa6(
@@ -105,5 +126,8 @@ export async function deactivatePolicyAssignmentCapa6(
 ) {
 	const { deactivatePolicyAssignmentCapa6UseCase } =
 		await import("@/container/policies-write.container")
-	return deactivatePolicyAssignmentCapa6UseCase(params)
+	const result = await deactivatePolicyAssignmentCapa6UseCase(params)
+	const { invalidateAllPolicyConditions } = await import("@/lib/cache/invalidation")
+	await invalidateAllPolicyConditions("policy_assignment_deactivated")
+	return result
 }

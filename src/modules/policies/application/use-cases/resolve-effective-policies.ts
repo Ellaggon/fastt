@@ -115,8 +115,14 @@ export async function resolveEffectivePolicies(
 	}
 
 	const categories = uniq(assignments.map((a) => a.category)).sort((a, b) => a.localeCompare(b))
+	// The winning scope is determined below. Fetch every applicable group once so
+	// category resolution stays deterministic without serial database round-trips.
+	const policiesByGroup = await deps.repo.listActivePoliciesByGroupIds({
+		groupIds: uniq(assignments.map((assignment) => assignment.policyGroupId)),
+		asOfDate,
+	})
 
-	const resolved: ResolvedPolicy[] = []
+	const winners: Array<{ category: string; scope: PolicyScope; policy: PolicySnapshot }> = []
 
 	for (const category of categories) {
 		let winner: { scope: PolicyScope; policy: PolicySnapshot; assignmentId: string } | null = null
@@ -134,11 +140,8 @@ export async function resolveEffectivePolicies(
 				: scoped.filter((a) => a.channel === null)
 			if (!channelCandidates.length) continue
 
-			const groupIds = uniq(channelCandidates.map((a) => a.policyGroupId)).sort()
-			const byGroup = await deps.repo.listActivePoliciesByGroupIds({ groupIds, asOfDate })
-
 			const scored = channelCandidates
-				.map((a) => ({ a, p: byGroup[a.policyGroupId] }))
+				.map((a) => ({ a, p: policiesByGroup[a.policyGroupId] }))
 				.filter((x): x is { a: (typeof channelCandidates)[number]; p: PolicySnapshot } =>
 					Boolean(x.p)
 				)
@@ -165,21 +168,30 @@ export async function resolveEffectivePolicies(
 
 		if (!winner) continue
 
-		const [rules, tiers] = await Promise.all([
-			deps.repo.listPolicyRulesByPolicyId(winner.policy.id),
-			deps.repo.listCancellationTiersByPolicyId(winner.policy.id),
-		])
-
-		resolved.push({
-			category,
-			policy: {
-				...winner.policy,
-				rules,
-				cancellationTiers: tiers,
-			},
-			resolvedFromScope: winner.scope,
-		})
+		winners.push({ category, scope: winner.scope, policy: winner.policy })
 	}
+
+	const details = deps.repo.listPolicyDetailsByPolicyIds
+		? await deps.repo.listPolicyDetailsByPolicyIds(winners.map((winner) => winner.policy.id))
+		: null
+	const resolved: ResolvedPolicy[] = await Promise.all(
+		winners.map(async (winner) => {
+			const [rules, tiers] = details
+				? [
+						details.rulesByPolicyId[winner.policy.id] ?? [],
+						details.cancellationTiersByPolicyId[winner.policy.id] ?? [],
+					]
+				: await Promise.all([
+						deps.repo.listPolicyRulesByPolicyId(winner.policy.id),
+						deps.repo.listCancellationTiersByPolicyId(winner.policy.id),
+					])
+			return {
+				category: winner.category,
+				policy: { ...winner.policy, rules, cancellationTiers: tiers },
+				resolvedFromScope: winner.scope,
+			}
+		})
+	)
 
 	const resolvedCategories = new Set(resolved.map((item) => String(item.category)))
 	const missingCategories = requiredCategories.filter(
