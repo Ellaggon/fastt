@@ -29,6 +29,33 @@ export const cacheKeys = {
 	providerRatePlanVariants(providerId: string): string {
 		return `ws:provider:${providerId}:rates:variants`
 	},
+	policyResolution(params: {
+		productId: string
+		variantId?: string | null
+		ratePlanId?: string | null
+		asOfDate: string
+		channel?: string | null
+		requiredCategories?: string[]
+		onMissingCategory?: "return_null" | "throw_error"
+	}): string {
+		const categories = [...new Set((params.requiredCategories ?? []).map(String).filter(Boolean))]
+			.sort()
+			.join(",")
+		return [
+			"ws:policies:effective",
+			String(params.productId ?? "").trim(),
+			String(params.variantId ?? "").trim() || "none",
+			String(params.ratePlanId ?? "").trim() || "none",
+			String(params.asOfDate ?? "").trim(),
+			String(params.channel ?? "").trim() || "all",
+			categories || "all",
+			params.onMissingCategory ?? "return_null",
+		].join(":")
+	},
+	policyResolutionPrefix(productId?: string | null): string {
+		const id = String(productId ?? "").trim()
+		return id ? `ws:policies:effective:${id}:` : "ws:policies:effective:"
+	},
 	calendarSurface(
 		providerId: string,
 		ratePlanId: string,
@@ -155,6 +182,7 @@ export const cacheTtls = {
 	providerSidebar: 20,
 	providerRatePlansSurface: 20,
 	providerRatePlanVariants: 30,
+	policyResolution: 20,
 	calendarSurface: 15,
 	providerBookingsSummary: 30,
 	productSurface: 60,
