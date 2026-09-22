@@ -253,6 +253,7 @@ export async function invalidatePolicyConditions(params: {
 	})
 	await delByPrefix("ws:pricing:rateplans:")
 	await delByPrefix("ws:search:public")
+	await delByPrefix(cacheKeys.policyResolutionPrefix(params.productId))
 	await Promise.all(
 		ratePlanIds.map((ratePlanId) => delByPrefix(`ws:pricing:rateplan:${ratePlanId}:`))
 	)
@@ -274,6 +275,7 @@ export async function invalidatePolicyConditions(params: {
 export async function invalidateAllPolicyConditions(source = "invalidate_all_policy_conditions") {
 	await delByPrefix("ws:pricing:")
 	await delByPrefix("ws:search:public")
+	await delByPrefix(cacheKeys.policyResolutionPrefix())
 	void import("@/lib/policies/ratePlanConditionState")
 		.then(({ refreshRatePlanConditionStates }) =>
 			refreshRatePlanConditionStates({ channel: "web" })
