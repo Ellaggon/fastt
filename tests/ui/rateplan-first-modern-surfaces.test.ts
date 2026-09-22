@@ -55,9 +55,7 @@ describe("ui/rateplan-first modern surfaces", () => {
 		expect(manage).toContain("tabHref(")
 		expect(responsiveTable).toContain("data-rate-plan-row")
 		expect(responsiveTable).toContain(".rate-plan-responsive-row.hidden")
-		expect(responsiveTable).toMatch(
-			/\.rate-plan-responsive-row\.hidden\s*\{[^}]*display:\s*none/
-		)
+		expect(responsiveTable).toMatch(/\.rate-plan-responsive-row\.hidden\s*\{[^}]*display:\s*none/)
 		expect(manage).toContain("installRatePlanTabsController")
 		expect(controller).toContain("renderRatePlanView")
 		expect(controller).toContain('document.addEventListener("astro:page-load"')
@@ -110,7 +108,7 @@ describe("ui/rateplan-first modern surfaces", () => {
 		expect(source).not.toContain("wizCategoryForm")
 		expect(source).not.toContain('intent: "save_category"')
 		expect(source).not.toContain("daysBeforeArrival")
-		expect(source).not.toContain("paymentMode")
+		expect(source).toContain('paymentMode={isTour ? "provider_at_experience_only" : "standard"}')
 	})
 
 	it("preview de asignacion de condiciones usa backend real obligatorio", () => {
@@ -272,6 +270,25 @@ describe("ui/rateplan-first modern surfaces", () => {
 		expect(assignmentFlow).toContain("Calcula y revisa el preview obligatorio")
 		expect(previewEndpoint).toContain('mode?: "existing" | "preset" | "draft"')
 		expect(previewEndpoint).toContain("loadDraftPolicy")
+	})
+
+	it("el editor usa el select nativo y abre antes de cargar sus opciones", () => {
+		const assignmentFlow = read("src/components/policy/PolicyAssignmentFlow.astro")
+
+		expect(assignmentFlow).toContain("function nativeSelect(id)")
+		expect(assignmentFlow).toContain('nativeSelect("assignmentCategory")')
+		expect(assignmentFlow).toContain('assignmentOverlay?.classList.remove("hidden")')
+		expect(assignmentFlow).toContain("Cargando condiciones disponibles...")
+		expect(assignmentFlow).toContain("await loadAssignmentOptions(defaultScope, defaultScopeId)")
+	})
+
+	it("no ofrece una primera noche ni lenguaje hotelero al editar un tour", () => {
+		const assignmentFlow = read("src/components/policy/PolicyAssignmentFlow.astro")
+
+		expect(assignmentFlow).toContain("function contextualPolicyText(value)")
+		expect(assignmentFlow).toContain('option[value="first_night"]')
+		expect(assignmentFlow).toContain('"Cobrar reserva completa"')
+		expect(assignmentFlow).toContain('"No presentación: reserva completa"')
 	})
 
 	it("preview financiero completo alimenta vistas específicas sin duplicar el cálculo", () => {

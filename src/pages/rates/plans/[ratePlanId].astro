@@ -27,38 +27,70 @@ import {
 } from "@/lib/playbook/complete-to-publish"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
+import { logRoutePerformance } from "@/lib/observability/performanceLog"
+import { createServerTimingRecorder } from "@/lib/observability/serverTiming"
 import { getProviderSidebarData } from "@/lib/dashboard/providerSidebarReadiness"
 import { getProviderUserWorkspacePreferenceRead } from "@/lib/providerUserWorkspacePreference"
 import { loadRatePlanPoliciesData } from "@/lib/policies/loadRatePlanPoliciesData"
 import { loadRatePlanPricingData } from "@/lib/pricing/loadRatePlanPricingData"
 import { getRatePlanRemovalReadiness } from "@/lib/rates/getRatePlanRemovalReadiness"
-import { loadRatePlanReadModelById } from "@/lib/rates/loadRatePlansReadModel"
+import {
+	loadRatePlanPlaybookReadModel,
+	loadRatePlanReadModelById,
+} from "@/lib/rates/loadRatePlansReadModel"
 import { routes } from "@/lib/routes"
 import { REQUIRED_POLICY_CATEGORIES, resolvePolicyDateRange } from "@/modules/policies/public"
-import { db, eq, Product } from "@/shared/infrastructure/db/compat"
 
-const auth = await requireProvider(Astro.request).catch((e: any) => {
-	if (e instanceof Response && e.status === 401) return "__REDIRECT_LOGIN__"
-	if (e instanceof Response && e.status === 403) return "__REDIRECT_PROVIDER__"
-	throw e
-})
+const startedAt = performance.now()
+const timing = createServerTimingRecorder()
+const auth = await timing
+	.time("authProvider", () => requireProvider(Astro.request))
+	.catch((e: any) => {
+		if (e instanceof Response && e.status === 401) return "__REDIRECT_LOGIN__"
+		if (e instanceof Response && e.status === 403) return "__REDIRECT_PROVIDER__"
+		throw e
+	})
 if (auth === "__REDIRECT_LOGIN__") return Astro.redirect("/SignInPage")
 if (auth === "__REDIRECT_PROVIDER__") return Astro.redirect(routes.providerSettingsProfile())
 
-const workspacePreference = await getProviderUserWorkspacePreferenceRead({
-	providerId: auth.providerId,
-	userId: auth.user.id,
-})
-const sidebarData = await getProviderSidebarData(auth.providerId, {
-	userId: auth.user.id,
-	workspaceExperience: workspacePreference.schemaAvailable
-		? workspacePreference.experience
-		: undefined,
-})
-const isProfessionalMode = sidebarData.disclosureMode !== "small-provider"
-
 const ratePlanId = String(Astro.params.ratePlanId ?? "").trim()
 if (!ratePlanId) return Astro.redirect(routes.rates())
+
+const addRoomPlaybook = resolveAddRoomPlaybookFromUrl(Astro.url)
+const launchPlaybook = resolveLaunchPlaybookFromUrl(Astro.url)
+const tourLaunchPlaybook = resolveTourLaunchPlaybookFromUrl(Astro.url)
+const completePlaybook = resolveCompleteToPublishPlaybookFromUrl(Astro.url)
+const activePlaybook = addRoomPlaybook.active
+	? "add-room"
+	: completePlaybook.active
+		? "complete-to-publish"
+		: launchPlaybook.active
+			? "launch"
+			: tourLaunchPlaybook.active
+				? "launch-tour"
+				: null
+const isPlaybookMode = Boolean(activePlaybook)
+
+// PlaybookLayout has no provider-wide sidebar. Avoid its readiness aggregation on
+// this focused step; it can be substantially more expensive than the editor itself.
+let isProfessionalMode = false
+if (!isPlaybookMode) {
+	const workspacePreference = await timing.time("workspacePreference", () =>
+		getProviderUserWorkspacePreferenceRead({
+			providerId: auth.providerId,
+			userId: auth.user.id,
+		})
+	)
+	const sidebarData = await timing.time("sidebar", () =>
+		getProviderSidebarData(auth.providerId, {
+			userId: auth.user.id,
+			workspaceExperience: workspacePreference.schemaAvailable
+				? workspacePreference.experience
+				: undefined,
+		})
+	)
+	isProfessionalMode = sidebarData.disclosureMode !== "small-provider"
+}
 
 const { checkIn, checkOut } = resolvePolicyDateRange(Astro.url)
 const ratePlanDetailViews = ["conditions", "price", "details"] as const
@@ -69,31 +101,48 @@ const activeView: RatePlanDetailView = ratePlanDetailViews.includes(
 )
 	? (requestedView as RatePlanDetailView)
 	: "conditions"
-
-const [row, loadedRatePlan, loadedPolicies] = await Promise.all([
-	loadRatePlanReadModelById({
-		providerId: auth.providerId,
-		url: Astro.url,
+const loadedRatePlanPromise = timing.time("ratePlanContext", () =>
+	loadRatePlanPricingData({
+		request: Astro.request,
 		ratePlanId,
-		checkIn,
-		checkOut,
-		channel: "web",
-	}),
-	loadRatePlanPricingData({ request: Astro.request, ratePlanId }),
-	loadRatePlanPoliciesData({ request: Astro.request, ratePlanId, checkIn, checkOut }),
+		includePricingEditorData: !isPlaybookMode,
+	})
+)
+const [row, loadedRatePlan, loadedPolicies] = await Promise.all([
+	isPlaybookMode
+		? timing.time("ratePlanModel", () =>
+				loadRatePlanPlaybookReadModel({ providerId: auth.providerId, ratePlanId })
+			)
+		: timing.time("ratePlanModel", () =>
+				loadRatePlanReadModelById({
+					providerId: auth.providerId,
+					url: Astro.url,
+					ratePlanId,
+					checkIn,
+					checkOut,
+					channel: "web",
+				})
+			),
+	loadedRatePlanPromise,
+	timing.time("policySurface", () =>
+		loadRatePlanPoliciesData({
+			request: Astro.request,
+			ratePlanId,
+			checkIn,
+			checkOut,
+			loadedRatePlan: loadedRatePlanPromise,
+			includePricingEditorData: !isPlaybookMode,
+			timing,
+		})
+	),
 ])
 
 if (!row) {
 	return new Response("Tarifa no encontrada", { status: 404 })
 }
 
-const product = await db
-	.select({ productType: Product.productType })
-	.from(Product)
-	.where(eq(Product.id, String(row.productId)))
-	.then((rows) => rows[0] ?? null)
 const offeringType =
-	String(product?.productType ?? "").toLowerCase() === "tour" ? "tour" : "accommodation"
+	String(row.productType ?? "").toLowerCase() === "tour" ? "tour" : "accommodation"
 const isTourContext = offeringType === "tour"
 
 if ("redirectTo" in loadedRatePlan) return Astro.redirect(loadedRatePlan.redirectTo)
@@ -102,12 +151,16 @@ if ("redirectTo" in loadedPolicies) return Astro.redirect(loadedPolicies.redirec
 const { context, policyPlans } = loadedPolicies
 
 const policyCoverageDone = Number(row.policyCoverage?.coveredCategories ?? 0)
-const removalReadiness = await getRatePlanRemovalReadiness({
-	ratePlanId,
-	variantId: String(row.variantId),
-	isActive: Boolean(row.isActive),
-	isDefault: Boolean(row.isDefault),
-})
+const removalReadiness = isPlaybookMode
+	? null
+	: await timing.time("removalReadiness", () =>
+			getRatePlanRemovalReadiness({
+				ratePlanId,
+				variantId: String(row.variantId),
+				isActive: Boolean(row.isActive),
+				isDefault: Boolean(row.isDefault),
+			})
+		)
 const viewTitles = {
 	conditions: `Condiciones tarifarias de ${row.ratePlanName}`,
 	price: `Precio base de ${row.ratePlanName}`,
@@ -131,10 +184,6 @@ const tabs = [
 	},
 	{ id: "details", label: "Datos de tarifa", meta: row.isActive ? "Activa" : "Inactiva" },
 ]
-const addRoomPlaybook = resolveAddRoomPlaybookFromUrl(Astro.url)
-const launchPlaybook = resolveLaunchPlaybookFromUrl(Astro.url)
-const tourLaunchPlaybook = resolveTourLaunchPlaybookFromUrl(Astro.url)
-const completePlaybook = resolveCompleteToPublishPlaybookFromUrl(Astro.url)
 const flow = Astro.url.searchParams.get("flow")
 if (!addRoomPlaybook.active && flow === "add-room") {
 	return Astro.redirect(
@@ -190,16 +239,6 @@ const completeContinueHref = completePlaybook.active
 				ratePlanId,
 			})
 	: null
-const activePlaybook = addRoomPlaybook.active
-	? "add-room"
-	: completePlaybook.active
-		? "complete-to-publish"
-		: launchPlaybook.active
-			? "launch"
-			: tourLaunchPlaybook.active
-				? "launch-tour"
-				: null
-const isPlaybookMode = Boolean(activePlaybook)
 const effectiveActiveView = isPlaybookMode ? "conditions" : activeView
 const Layout = activePlaybook ? PlaybookLayout : WorkspaceLayout
 const layoutProps =
@@ -261,6 +300,21 @@ const layoutProps =
 							continueReload: true,
 						}
 					: { title: `Tarifa · ${row.ratePlanName}` }
+
+timing.addTotal("total")
+timing.setHeader(Astro.response.headers)
+logRoutePerformance({
+	name: "rates.plan.detail",
+	request: Astro.request,
+	url: Astro.url,
+	status: 200,
+	startedAt,
+	timing,
+	userId: auth.user.id,
+	providerId: auth.providerId,
+	productId: row.productId,
+	extra: { playbook: activePlaybook ?? "none", ratePlanId },
+})
 ---
 
 <Layout {...layoutProps}>
@@ -540,11 +594,13 @@ const layoutProps =
 											? "Desactivar detiene reservas nuevas sin borrar precio, condiciones ni historial."
 											: "La tarifa está fuera de venta y puede reactivarse conservando su configuración."}
 									</p>
-									{row.isActive && row.isDefault && removalReadiness.activeAlternatives > 0 && (
-										<p class="mt-2 text-sm text-amber-700">
-											Designa otra tarifa principal antes de desactivar esta.
-										</p>
-									)}
+									{row.isActive &&
+										row.isDefault &&
+										(removalReadiness?.activeAlternatives ?? 0) > 0 && (
+											<p class="mt-2 text-sm text-amber-700">
+												Designa otra tarifa principal antes de desactivar esta.
+											</p>
+										)}
 								</div>
 								<Button
 									type="button"
@@ -552,7 +608,7 @@ const layoutProps =
 									data-rate-plan-toggle-status
 									data-next-active={row.isActive ? "false" : "true"}
 									disabled={
-										row.isActive && row.isDefault && removalReadiness.activeAlternatives > 0
+										row.isActive && row.isDefault && (removalReadiness?.activeAlternatives ?? 0) > 0
 									}
 								>
 									{row.isActive ? "Desactivar tarifa" : "Activar tarifa"}
@@ -566,9 +622,9 @@ const layoutProps =
 										<p class="mt-1 max-w-xl text-sm text-slate-500">
 											Solo puede eliminarse si está inactiva y nunca tuvo reservas ni retenciones.
 										</p>
-										{removalReadiness.blockers.length > 0 && (
+										{(removalReadiness?.blockers.length ?? 0) > 0 && (
 											<ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-500">
-												{removalReadiness.blockers.map((blocker) => (
+												{(removalReadiness?.blockers ?? []).map((blocker) => (
 													<li>{blocker}</li>
 												))}
 											</ul>
@@ -578,7 +634,7 @@ const layoutProps =
 										type="button"
 										variant="danger"
 										data-open-rate-plan-delete
-										disabled={!removalReadiness.canDelete}
+										disabled={!removalReadiness?.canDelete}
 									>
 										Eliminar definitivamente
 									</Button>

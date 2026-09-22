@@ -540,12 +540,23 @@ const policyModalCopy = {
 	const assignmentDescription = document.getElementById("policyAssignmentDescription")
 	const existingFields = document.getElementById("assignmentExistingFields")
 	const presetFields = document.getElementById("assignmentPresetFields")
-	const policySelect = document.getElementById("assignmentPolicyId")
-	const categorySelect = document.getElementById("assignmentCategory")
+
+	function nativeSelect(id) {
+		const element = document.getElementById(id)
+		if (element instanceof HTMLSelectElement) return element
+		return element?.closest("[data-fastt-select]")?.querySelector("select") || null
+	}
+
+	function syncSelectControl(select) {
+		select?.dispatchEvent(new Event("change", { bubbles: true }))
+	}
+
+	const policySelect = nativeSelect("assignmentPolicyId")
+	const categorySelect = nativeSelect("assignmentCategory")
 	const categoryOptions = categorySelect
 		? Array.from(categorySelect.options).map((option) => option.outerHTML)
 		: []
-	const presetSelect = document.getElementById("assignmentPreset")
+	const presetSelect = nativeSelect("assignmentPreset")
 	const presetCards = document.getElementById("assignmentPresetCards")
 	const existingCards = document.getElementById("assignmentExistingCards")
 	const customHelp = document.getElementById("assignmentCustomHelp")
@@ -559,19 +570,19 @@ const policyModalCopy = {
 		"assignmentCancellationDepartureTime"
 	)
 	const cancellationPenaltyInput = document.getElementById("assignmentCancellationPenalty")
-	const paymentTypeInput = document.getElementById("assignmentPaymentType")
+	const paymentTypeInput = nativeSelect("assignmentPaymentType")
 	const prepaymentPercentageInput = document.getElementById("assignmentPrepaymentPercentage")
 	const prepaymentDaysInput = document.getElementById("assignmentPrepaymentDays")
 	const checkInFromInput = document.getElementById("assignmentCheckInFrom")
 	const checkInUntilInput = document.getElementById("assignmentCheckInUntil")
 	const checkOutUntilInput = document.getElementById("assignmentCheckOutUntil")
-	const noShowPenaltyTypeInput = document.getElementById("assignmentNoShowPenaltyType")
+	const noShowPenaltyTypeInput = nativeSelect("assignmentNoShowPenaltyType")
 	const noShowPenaltyAmountInput = document.getElementById("assignmentNoShowPenaltyAmount")
 	const presetLabel = document.getElementById("assignmentPresetLabel")
 	const descriptionInput = document.getElementById("assignmentDescription")
-	const scopeSelect = document.getElementById("assignmentScope")
-	const scopeIdSelect = document.getElementById("assignmentScopeId")
-	const channelSelect = document.getElementById("assignmentChannel")
+	const scopeSelect = nativeSelect("assignmentScope")
+	const scopeIdSelect = nativeSelect("assignmentScopeId")
+	const channelSelect = nativeSelect("assignmentChannel")
 	const impactBox = document.getElementById("assignmentImpact")
 	const professionalImpactBox = document.getElementById("assignmentProfessionalImpact")
 	const guestPreviewBox = document.getElementById("assignmentGuestPreview")
@@ -584,9 +595,30 @@ const policyModalCopy = {
 	const departureHref = assignmentOverlay?.dataset.departureHref || ""
 	let returnFocusElement = null
 
+	function contextualPolicyText(value) {
+		const copy = String(value ?? "")
+		if (!isTourEditor) return copy
+		return copy
+			.replaceAll(/el huésped/gi, "el viajero")
+			.replaceAll(/al huésped/gi, "al viajero")
+			.replaceAll(/la estadía completa/gi, "la reserva completa")
+			.replaceAll(/estadía completa/gi, "reserva completa")
+			.replaceAll(/la primera noche/gi, "la reserva")
+			.replaceAll(/primera noche/gi, "reserva")
+	}
+
+	// A tour has no "first night". The server rejects that basis as well; remove
+	// it from the client form so the available draft choices match the contract.
+	if (isTourEditor && noShowPenaltyTypeInput) {
+		noShowPenaltyTypeInput.querySelector('option[value="first_night"]')?.remove()
+		const fullOption = noShowPenaltyTypeInput.querySelector('option[value="full"]')
+		if (fullOption) fullOption.textContent = "Cobrar reserva completa"
+	}
+
 	const assignmentState = {
 		loadedFor: "",
 		loading: false,
+		loadingPromise: null,
 		previewReady: false,
 		options: {
 			policies: [],
@@ -715,32 +747,41 @@ const policyModalCopy = {
 
 	async function loadAssignmentOptions(scope, scopeId) {
 		const contextKey = `${scope}:${scopeId}`
-		if (assignmentState.loadedFor === contextKey || assignmentState.loading) return
+		if (assignmentState.loadedFor === contextKey) return true
+		if (assignmentState.loadingPromise) return assignmentState.loadingPromise
 		assignmentState.loading = true
-		const params = new URLSearchParams({ scope, scopeId })
-		let response
-		let payload
+		assignmentState.loadingPromise = (async () => {
+			const params = new URLSearchParams({ scope, scopeId })
+			let response
+			let payload
+			try {
+				response = await fetch(`/api/policies/assignment-options?${params.toString()}`)
+				payload = await response.json().catch(() => null)
+			} catch {
+				showStatus("error", "No hay conexión para cargar las opciones. Intenta nuevamente.")
+				return false
+			} finally {
+				assignmentState.loading = false
+			}
+			if (!response.ok || !payload) {
+				showStatus("error", "No se pudieron cargar las opciones de asignación.")
+				return false
+			}
+			assignmentState.options = payload
+			assignmentState.loadedFor = contextKey
+			renderCategoryOptions()
+			renderPolicyOptions()
+			renderPresetOptions()
+			renderExistingCards()
+			renderScopeOptions()
+			renderImpact()
+			return true
+		})()
 		try {
-			response = await fetch(`/api/policies/assignment-options?${params.toString()}`)
-			payload = await response.json().catch(() => null)
-		} catch {
-			assignmentState.loading = false
-			showStatus("error", "No hay conexión para cargar las opciones. Intenta nuevamente.")
-			return
+			return await assignmentState.loadingPromise
+		} finally {
+			assignmentState.loadingPromise = null
 		}
-		assignmentState.loading = false
-		if (!response.ok || !payload) {
-			showStatus("error", "No se pudieron cargar las opciones de asignación.")
-			return
-		}
-		assignmentState.options = payload
-		assignmentState.loadedFor = contextKey
-		renderCategoryOptions()
-		renderPolicyOptions()
-		renderPresetOptions()
-		renderExistingCards()
-		renderScopeOptions()
-		renderImpact()
 	}
 
 	function renderCategoryOptions() {
@@ -751,6 +792,7 @@ const policyModalCopy = {
 			.filter((option) => allowed.some((category) => option.includes(`value="${category}"`)))
 			.join("")
 		if (previous && allowed.includes(previous)) categorySelect.value = previous
+		syncSelectControl(categorySelect)
 	}
 
 	function renderPolicyOptions() {
@@ -760,10 +802,11 @@ const policyModalCopy = {
 			? policies
 					.map(
 						(policy) =>
-							`<option value="${assignmentEscape(policy.id)}" data-category="${assignmentEscape(policy.category)}">${assignmentEscape(policy.label)}</option>`
+							`<option value="${assignmentEscape(policy.id)}" data-category="${assignmentEscape(policy.category)}">${assignmentEscape(contextualPolicyText(policy.label))}</option>`
 					)
 					.join("")
 			: '<option value="">No hay condiciones publicadas</option>'
+		syncSelectControl(policySelect)
 	}
 
 	function renderPresetOptions() {
@@ -776,10 +819,11 @@ const policyModalCopy = {
 			? presets
 					.map(
 						(preset) =>
-							`<option value="${assignmentEscape(preset.key)}" data-description="${assignmentEscape(preset.description)}">${assignmentEscape(preset.label)}</option>`
+							`<option value="${assignmentEscape(preset.key)}" data-description="${assignmentEscape(contextualPolicyText(preset.description))}">${assignmentEscape(contextualPolicyText(preset.label))}</option>`
 					)
 					.join("")
 			: '<option value="">Sin plantillas para esta categoría</option>'
+		syncSelectControl(presetSelect)
 		if (presetCards && !isProfessionalMode) {
 			presetCards.innerHTML = presets.length
 				? `<div class="fastt-policy-option-list space-y-2">${presets
@@ -792,8 +836,8 @@ const policyModalCopy = {
 									aria-pressed="${index === 0 ? "true" : "false"}"
 								>
 									<span class="min-w-0">
-										<span class="block text-sm font-semibold text-slate-950">${assignmentEscape(preset.label)}</span>
-										<span class="mt-1 block text-xs leading-5 text-slate-600">${assignmentEscape(preset.description || "")}</span>
+									<span class="block text-sm font-semibold text-slate-950">${assignmentEscape(contextualPolicyText(preset.label))}</span>
+									<span class="mt-1 block text-xs leading-5 text-slate-600">${assignmentEscape(contextualPolicyText(preset.description || ""))}</span>
 									</span>
 									<span class="policy-preset-check ${index === 0 ? "" : "hidden"} shrink-0 rounded-full bg-slate-950 px-2 py-0.5 text-xs font-semibold text-white">✓</span>
 								</button>
@@ -840,8 +884,8 @@ const policyModalCopy = {
 								aria-pressed="${index === 0 ? "true" : "false"}"
 							>
 								<span class="min-w-0">
-									<span class="block text-sm font-semibold text-slate-950">${assignmentEscape(policy.label)}</span>
-									<span class="mt-1 block text-xs leading-5 text-slate-600">${assignmentEscape(policy.helper || "Condición publicada disponible para este proveedor.")}</span>
+									<span class="block text-sm font-semibold text-slate-950">${assignmentEscape(contextualPolicyText(policy.label))}</span>
+									<span class="mt-1 block text-xs leading-5 text-slate-600">${assignmentEscape(contextualPolicyText(policy.helper || "Condición publicada disponible para este proveedor."))}</span>
 								</span>
 								<span class="policy-existing-check ${index === 0 ? "" : "hidden"} shrink-0 rounded-full bg-slate-950 px-2 py-0.5 text-xs font-semibold text-white">✓</span>
 							</button>
@@ -918,6 +962,7 @@ const policyModalCopy = {
 		if (preferredId && items.some((item) => String(item.id) === String(preferredId))) {
 			scopeIdSelect.value = preferredId
 		}
+		syncSelectControl(scopeIdSelect)
 	}
 
 	function currentSelection() {
@@ -1026,7 +1071,7 @@ const policyModalCopy = {
 			}
 		}
 		if (category === "NoShow") {
-			const penaltyType = noShowPenaltyTypeInput?.value || "first_night"
+			const penaltyType = noShowPenaltyTypeInput?.value || (isTourEditor ? "full" : "first_night")
 			const rules = { penaltyType }
 			if (penaltyType === "percentage") {
 				rules.penaltyAmount = Math.max(0, Math.min(100, numberValue(noShowPenaltyAmountInput, 100)))
@@ -1059,11 +1104,15 @@ const policyModalCopy = {
 			return `Llegada ${rules.checkInFrom}–${rules.checkInUntil} · salida hasta ${rules.checkOutUntil}`
 		}
 		if (category === "NoShow") {
-			const type = noShowPenaltyTypeInput?.value || "first_night"
-			if (type === "full") return "No presentación: estadía completa"
+			const type = noShowPenaltyTypeInput?.value || (isTourEditor ? "full" : "first_night")
+			if (type === "full") {
+				return isTourEditor
+					? "No presentación: reserva completa"
+					: "No presentación: estadía completa"
+			}
 			if (type === "percentage")
 				return `No presentación: ${numberValue(noShowPenaltyAmountInput, 100)}%`
-			return "No presentación: primera noche"
+			return isTourEditor ? "No presentación: reserva" : "No presentación: primera noche"
 		}
 		return "Condición personalizada"
 	}
@@ -1183,12 +1232,13 @@ const policyModalCopy = {
 		if (!impactBox && !professionalImpactBox) return
 		const selected = currentSelection()
 		const channel = channelSelect?.value || "Todos los canales"
-		const source =
+		const source = contextualPolicyText(
 			selected.mode === "existing"
 				? selected.policy?.label || "Selecciona una condición publicada"
 				: selected.mode === "draft"
 					? "Horario personalizado"
 					: selected.preset?.label || "Selecciona una plantilla"
+		)
 		const destination = selected.scopeOption
 			? `${scopeLabel(selected.scope)}: ${selected.scopeOption.label}`
 			: `${scopeLabel(selected.scope)} sin seleccionar`
@@ -1272,8 +1322,21 @@ const policyModalCopy = {
 				? "existing"
 				: trigger?.dataset.assignmentMode || "preset"
 
-		if (scopeSelect) scopeSelect.value = defaultScope
-		await loadAssignmentOptions(defaultScope, defaultScopeId)
+		if (scopeSelect) {
+			scopeSelect.value = defaultScope
+		}
+		statusBox?.classList.add("hidden")
+		assignmentOverlay?.classList.remove("hidden")
+		assignmentOverlay?.setAttribute("aria-busy", "true")
+		assignmentSubmit.disabled = true
+		if (guestPreviewBox) {
+			guestPreviewBox.innerHTML =
+				'<div class="rounded-lg border border-slate-200 bg-white px-3 py-3 text-slate-600">Cargando condiciones disponibles...</div>'
+		}
+		assignmentClose?.focus()
+		const optionsLoaded = await loadAssignmentOptions(defaultScope, defaultScopeId)
+		assignmentOverlay?.removeAttribute("aria-busy")
+		if (!optionsLoaded) return
 		renderScopeOptions(defaultScopeId)
 		if (isProfessionalMode && defaultPolicyId && policySelect) policySelect.value = defaultPolicyId
 		if (defaultCategory && categorySelect) categorySelect.value = defaultCategory
@@ -1286,9 +1349,7 @@ const policyModalCopy = {
 		renderPresetCardsState()
 		renderModalChrome(categorySelect?.value || defaultCategory)
 		setMode(defaultMode)
-		statusBox?.classList.add("hidden")
-		assignmentOverlay?.classList.remove("hidden")
-		assignmentClose?.focus()
+		assignmentSubmit.disabled = false
 		renderImpact()
 	}
 

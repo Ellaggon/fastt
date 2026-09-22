@@ -31,6 +31,18 @@ function withObservabilityHeaders(response: Response, headers: Record<string, st
 	}
 }
 
+function appendServerTiming(response: Response, totalMs: number): void {
+	const existing = response.headers.get("Server-Timing")
+	const pageTotalMatch = existing?.match(/(?:^|,)\s*total;dur=([\d.]+)/)
+	const pageDataMs = Number(pageTotalMatch?.[1] ?? 0)
+	const renderMs = Math.max(0, totalMs - (Number.isFinite(pageDataMs) ? pageDataMs : 0))
+	const metrics = [
+		`request;dur=${totalMs.toFixed(1)};desc="whole server response"`,
+		`render;dur=${renderMs.toFixed(1)};desc="response after page data"`,
+	]
+	response.headers.set("Server-Timing", [existing, ...metrics].filter(Boolean).join(", "))
+}
+
 export const onRequest: MiddlewareHandler = async (context, next) => {
 	const requestContext: FasttRequestContext = {
 		id: createRequestId(),
@@ -45,12 +57,15 @@ export const onRequest: MiddlewareHandler = async (context, next) => {
 
 	return runWithRequestContext(requestContext, async () => {
 		const response = await next()
+		const totalMs = performance.now() - requestContext.startedAt
 		const cache = summarizeCacheEvents(requestContext.cacheEvents)
-		return withObservabilityHeaders(response, {
+		const observedResponse = withObservabilityHeaders(response, {
 			"X-Fastt-Region": currentRegion(),
 			"X-Fastt-Request-Id": requestContext.id,
 			"X-Fastt-Cache": cache.state,
 			"X-Fastt-Cache-Detail": cache.detail,
 		})
+		appendServerTiming(observedResponse, totalMs)
+		return observedResponse
 	})
 }
