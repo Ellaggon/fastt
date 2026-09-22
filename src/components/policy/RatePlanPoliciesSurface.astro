@@ -52,6 +52,7 @@ interface Props {
 	checkOut: string
 	requiredCategories: readonly string[]
 	productId?: string
+	variantId?: string
 	isProfessionalMode?: boolean
 	showPlanSummary?: boolean
 	showHeader?: boolean
@@ -64,6 +65,7 @@ const {
 	description,
 	policyPlans,
 	productId,
+	variantId,
 	isProfessionalMode: requestedProfessionalMode = false,
 	showPlanSummary = true,
 	showHeader = true,
@@ -409,11 +411,17 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 									</div>
 
 									{isTour ? (
-										<div class="px-1 sm:px-4">
+										<div class="flex flex-wrap items-center justify-between gap-3 px-1 sm:px-4">
 											<p class="text-sm leading-6 text-slate-600">
-												Usa “Anterior” para revisar la salida sin perder el progreso de esta
-												preparación.
+												La edición de salida conserva esta tarifa y sus condiciones.
 											</p>
+											<Button
+												href={`${routes.calendar()}?focus=availability&productId=${encodeURIComponent(String(productId ?? ""))}&variantId=${encodeURIComponent(String(variantId ?? ""))}&ratePlanId=${encodeURIComponent(plan.ratePlanId)}`}
+												variant="secondary"
+												size="sm"
+											>
+												Ver salida y cupo
+											</Button>
 										</div>
 									) : isGuidedSurface ? (
 										<div class="px-1 sm:px-4">
@@ -597,4 +605,8 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 	defaultScope="rate_plan"
 	isProfessionalMode={isProfessionalMode}
 	paymentMode={isTour ? "provider_at_experience_only" : "standard"}
+	offeringType={isTour ? "tour" : "accommodation"}
+	departureHref={isTour && productId && variantId
+		? `${routes.calendar()}?focus=availability&productId=${encodeURIComponent(productId)}&variantId=${encodeURIComponent(variantId)}`
+		: ""}
 />

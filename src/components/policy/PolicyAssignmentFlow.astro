@@ -14,6 +14,8 @@ type Props = {
 	defaultChannel?: string
 	isProfessionalMode?: boolean
 	paymentMode?: "standard" | "provider_at_experience_only"
+	offeringType?: "accommodation" | "tour"
+	departureHref?: string
 }
 
 const {
@@ -22,6 +24,8 @@ const {
 	defaultChannel = "",
 	isProfessionalMode = false,
 	paymentMode = "standard",
+	offeringType = "accommodation",
+	departureHref = "",
 } = Astro.props
 const providerAtExperienceOnly = paymentMode === "provider_at_experience_only"
 
@@ -79,12 +83,19 @@ const policyModalCopy = {
 	data-default-scope-id={defaultScopeId}
 	data-default-channel={defaultChannel}
 	data-payment-mode={paymentMode}
+	data-offering-type={offeringType}
+	data-departure-href={departureHref}
 >
 	<div
 		class:list={[
 			"fastt-modal-panel fastt-dialog mx-auto flex max-h-[92vh] w-full flex-col border bg-white text-slate-900",
 			"max-w-5xl",
 		]}
+		role="dialog"
+		aria-modal="true"
+		aria-labelledby="policyAssignmentTitle"
+		aria-describedby="policyAssignmentDescription"
+		tabindex="-1"
 	>
 		<div class="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-4">
 			<div>
@@ -98,6 +109,16 @@ const policyModalCopy = {
 				<p id="policyAssignmentDescription" class="mt-1 text-sm text-slate-600">
 					Crea y asigna desde una plantilla. Revisa el impacto antes de confirmar.
 				</p>
+				{
+					offeringType === "tour" && departureHref ? (
+						<a
+							href={departureHref}
+							class="mt-2 inline-block text-sm font-semibold text-sky-800 underline"
+						>
+							Ver y editar salida
+						</a>
+					) : null
+				}
 			</div>
 			<Button
 				type="button"
@@ -253,7 +274,7 @@ const policyModalCopy = {
 											<span class="text-sm text-slate-500">día(s) antes</span>
 										</div>
 										<p class="mt-1 text-xs text-slate-500">
-											Fallback cuando no defines horas (hoteles y tours).
+											Solo para alojamientos. En tours usa horas antes de la salida.
 										</p>
 									</label>
 									<label class="block text-sm font-medium text-slate-700">
@@ -276,7 +297,7 @@ const policyModalCopy = {
 										<Input
 											id="assignmentCancellationDepartureTime"
 											type="time"
-											value="09:00"
+											placeholder="Se obtiene de la salida"
 											class="mt-1"
 										/>
 									</label>
@@ -521,6 +542,9 @@ const policyModalCopy = {
 	const presetFields = document.getElementById("assignmentPresetFields")
 	const policySelect = document.getElementById("assignmentPolicyId")
 	const categorySelect = document.getElementById("assignmentCategory")
+	const categoryOptions = categorySelect
+		? Array.from(categorySelect.options).map((option) => option.outerHTML)
+		: []
 	const presetSelect = document.getElementById("assignmentPreset")
 	const presetCards = document.getElementById("assignmentPresetCards")
 	const existingCards = document.getElementById("assignmentExistingCards")
@@ -556,12 +580,20 @@ const policyModalCopy = {
 	const statusBox = document.getElementById("assignmentStatus")
 	const simpleModeGrid = document.getElementById("assignmentSimpleModeGrid")
 	const simpleModeButtons = Array.from(document.querySelectorAll("[data-assignment-simple-mode]"))
+	const isTourEditor = assignmentOverlay?.dataset.offeringType === "tour"
+	const departureHref = assignmentOverlay?.dataset.departureHref || ""
+	let returnFocusElement = null
 
 	const assignmentState = {
-		loaded: false,
+		loadedFor: "",
 		loading: false,
 		previewReady: false,
-		options: { policies: [], presets: [], scopes: { product: [], variant: [], rate_plan: [] } },
+		options: {
+			policies: [],
+			presets: [],
+			scopes: { product: [], variant: [], rate_plan: [] },
+			context: { allowedCategories: [] },
+		},
 	}
 	let previewRequestSeq = 0
 	let simpleAssignmentMode = "preset"
@@ -580,8 +612,8 @@ const policyModalCopy = {
 	}
 
 	function scopeLabel(scope) {
-		if (scope === "product") return "Hotel"
-		if (scope === "variant") return "Habitación"
+		if (scope === "product") return isTourEditor ? "Experiencia" : "Hotel"
+		if (scope === "variant") return isTourEditor ? "Salida" : "Habitación"
 		return "Tarifa"
 	}
 
@@ -599,6 +631,33 @@ const policyModalCopy = {
 	}
 
 	function modalCopy(category) {
+		if (isTourEditor) {
+			const tourCopy = {
+				Cancellation: [
+					"Cancelación",
+					"Define qué ocurre si el viajero cancela antes de la salida.",
+				],
+				NoShow: [
+					"No presentación",
+					"Define la penalidad contractual si el viajero no llega a la salida.",
+				],
+				Payment: [
+					"Pago al proveedor",
+					"El viajero paga al proveedor durante la experiencia; Fastt no procesa ese pago.",
+				],
+			}[category]
+			if (tourCopy)
+				return {
+					eyebrow: "Condición de la experiencia",
+					title: tourCopy[0],
+					description: tourCopy[1],
+					choiceLabel: "Plantilla",
+					previewLabel: "Así lo verá el viajero",
+					previewDescription: "Resumen contractual de la salida.",
+					impactLabel: "Alcance",
+					impactText: "El cambio afecta nuevas reservas de esta tarifa.",
+				}
+		}
 		return (
 			policyModalCopy?.[category] || {
 				eyebrow: "Condición de reserva",
@@ -654,18 +713,29 @@ const policyModalCopy = {
 		statusBox.textContent = message
 	}
 
-	async function loadAssignmentOptions() {
-		if (assignmentState.loaded || assignmentState.loading) return
+	async function loadAssignmentOptions(scope, scopeId) {
+		const contextKey = `${scope}:${scopeId}`
+		if (assignmentState.loadedFor === contextKey || assignmentState.loading) return
 		assignmentState.loading = true
-		const response = await fetch("/api/policies/assignment-options")
-		const payload = await response.json().catch(() => null)
+		const params = new URLSearchParams({ scope, scopeId })
+		let response
+		let payload
+		try {
+			response = await fetch(`/api/policies/assignment-options?${params.toString()}`)
+			payload = await response.json().catch(() => null)
+		} catch {
+			assignmentState.loading = false
+			showStatus("error", "No hay conexión para cargar las opciones. Intenta nuevamente.")
+			return
+		}
 		assignmentState.loading = false
 		if (!response.ok || !payload) {
 			showStatus("error", "No se pudieron cargar las opciones de asignación.")
 			return
 		}
 		assignmentState.options = payload
-		assignmentState.loaded = true
+		assignmentState.loadedFor = contextKey
+		renderCategoryOptions()
 		renderPolicyOptions()
 		renderPresetOptions()
 		renderExistingCards()
@@ -673,13 +743,18 @@ const policyModalCopy = {
 		renderImpact()
 	}
 
+	function renderCategoryOptions() {
+		if (!categorySelect) return
+		const allowed = assignmentState.options.context?.allowedCategories || []
+		const previous = categorySelect.value
+		categorySelect.innerHTML = categoryOptions
+			.filter((option) => allowed.some((category) => option.includes(`value="${category}"`)))
+			.join("")
+		if (previous && allowed.includes(previous)) categorySelect.value = previous
+	}
+
 	function renderPolicyOptions() {
-		const policies = (assignmentState.options.policies || []).filter(
-			(policy) =>
-				!providerAtExperienceOnly ||
-				String(policy.category) !== "Payment" ||
-				String(policy?.rules?.paymentType ?? "") === "pay_at_property"
-		)
+		const policies = assignmentState.options.policies || []
 		if (!policySelect) return
 		policySelect.innerHTML = policies.length
 			? policies
@@ -695,11 +770,7 @@ const policyModalCopy = {
 		if (!presetSelect || !categorySelect) return
 		const category = categorySelect.value
 		const presets = (assignmentState.options.presets || []).filter(
-			(preset) =>
-				String(preset.category) === category &&
-				(!providerAtExperienceOnly ||
-					category !== "Payment" ||
-					String(preset?.rules?.paymentType ?? "") === "pay_at_property")
+			(preset) => String(preset.category) === category
 		)
 		presetSelect.innerHTML = presets.length
 			? presets
@@ -756,11 +827,7 @@ const policyModalCopy = {
 		if (!existingCards || !categorySelect) return
 		const category = categorySelect.value
 		const policies = (assignmentState.options.policies || []).filter(
-			(policy) =>
-				String(policy.category) === category &&
-				(!providerAtExperienceOnly ||
-					category !== "Payment" ||
-					String(policy?.rules?.paymentType ?? "") === "pay_at_property")
+			(policy) => String(policy.category) === category
 		)
 		existingCards.innerHTML = policies.length
 			? `<div class="fastt-policy-option-list space-y-2">${policies
@@ -1190,7 +1257,8 @@ const policyModalCopy = {
 	}
 
 	async function openAssignmentFlow(trigger) {
-		await loadAssignmentOptions()
+		returnFocusElement =
+			document.activeElement instanceof HTMLElement ? document.activeElement : null
 		const defaultScope =
 			trigger?.dataset.assignmentScope || assignmentOverlay?.dataset.defaultScope || "rate_plan"
 		const defaultScopeId =
@@ -1205,6 +1273,7 @@ const policyModalCopy = {
 				: trigger?.dataset.assignmentMode || "preset"
 
 		if (scopeSelect) scopeSelect.value = defaultScope
+		await loadAssignmentOptions(defaultScope, defaultScopeId)
 		renderScopeOptions(defaultScopeId)
 		if (isProfessionalMode && defaultPolicyId && policySelect) policySelect.value = defaultPolicyId
 		if (defaultCategory && categorySelect) categorySelect.value = defaultCategory
@@ -1225,6 +1294,7 @@ const policyModalCopy = {
 
 	function closeAssignmentFlow() {
 		assignmentOverlay?.classList.add("hidden")
+		returnFocusElement?.focus?.()
 	}
 
 	async function submitAssignment() {
@@ -1290,12 +1360,23 @@ const policyModalCopy = {
 							scopeId: selected.scopeId,
 							channel: channelSelect?.value || null,
 						}
-		const response = await fetch("/api/policies/assign", {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify(body),
-		})
-		const payload = await response.json().catch(() => ({}))
+		let response
+		let payload
+		try {
+			response = await fetch("/api/policies/assign", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(body),
+			})
+			payload = await response.json().catch(() => ({}))
+		} catch {
+			assignmentSubmit.disabled = false
+			showStatus(
+				"error",
+				"No se pudo confirmar por un problema de red. Verifica el resultado antes de reintentar."
+			)
+			return
+		}
 		assignmentSubmit.disabled = false
 		if (!response.ok) {
 			showStatus("error", `No se pudo asignar: ${payload?.error || "error"}`)
@@ -1343,6 +1424,13 @@ const policyModalCopy = {
 	assignmentOverlay?.addEventListener("click", (event) => {
 		if (event.target === assignmentOverlay) closeAssignmentFlow()
 	})
+	document.addEventListener("keydown", (event) => {
+		if (assignmentOverlay?.classList.contains("hidden")) return
+		if (event.key === "Escape") {
+			event.preventDefault()
+			closeAssignmentFlow()
+		}
+	})
 	document.querySelectorAll('input[name="assignmentMode"]').forEach((input) => {
 		input.addEventListener("change", () => setMode(input.value))
 	})
@@ -1363,8 +1451,13 @@ const policyModalCopy = {
 		renderExistingCardsState()
 		renderImpact()
 	})
-	scopeSelect?.addEventListener("change", () => {
+	scopeSelect?.addEventListener("change", async () => {
 		renderScopeOptions()
+		await loadAssignmentOptions(scopeSelect.value, scopeIdSelect?.value || "")
+		renderCategoryOptions()
+		renderPolicyOptions()
+		renderPresetOptions()
+		renderExistingCards()
 		renderCustomHelp(categorySelect?.value)
 		renderImpact()
 	})
