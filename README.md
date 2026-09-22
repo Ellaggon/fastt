@@ -33,6 +33,10 @@ npm run dev
 
 Servidor local: `http://localhost:4321`
 
+## Documentación
+
+Empieza en [`docs/README.md`](docs/README.md). Las instrucciones específicas para agentes están en [`AGENTS.md`](AGENTS.md).
+
 ## Tests y calidad
 
 ```sh

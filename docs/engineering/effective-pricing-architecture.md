@@ -71,3 +71,7 @@ Architecture invariants are enforced by guardrails in `tests/guardrails/`, inclu
 - `pricing-baseline-semantic-naming.test.ts`
 
 Any guardrail failure blocks CI and indicates architecture regression.
+
+## Operación de trabajos masivos
+
+`/api/cron/pricing-bulk-jobs` es el scheduler protegido de recuperación para trabajos durables de precios. En Vercel Hobby se ejecuta una vez al día porque una frecuencia menor impide el despliegue. Una instalación que necesite menor latencia debe invocar el mismo endpoint desde un scheduler externo autenticado o actualizar el plan. El lease del worker permite invocaciones duplicadas sin procesar dos veces el mismo trabajo.

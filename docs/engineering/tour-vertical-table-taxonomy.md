@@ -126,7 +126,7 @@ Search `/buscar/tours` requires `startDate` and reads sellable `tour_slot` rows 
 Las suites con PostgreSQL requieren `DATABASE_URL_TEST` y
 `FASTT_TEST_DATABASE=1`. Vitest elimina las URLs operativas heredadas y rechaza
 una URL de pruebas que apunte a la misma base. La configuración y la operación
-local están documentadas en [test-database-isolation.md](./test-database-isolation.md).
+local están documentadas en [recuperación de la base PostgreSQL aislada](../onboarding/f0-01-test-database-recovery.md).
 
 Los comandos de migración siguen requiriendo una URL operativa explícita; no se
 ejecutan como parte de Vitest.
