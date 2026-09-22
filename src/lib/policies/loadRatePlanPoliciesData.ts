@@ -1,13 +1,20 @@
-import { loadRatePlanPricingData } from "@/lib/pricing/loadRatePlanPricingData"
+import {
+	loadRatePlanPricingData,
+	type LoadedRatePlanPricingData,
+} from "@/lib/pricing/loadRatePlanPricingData"
 import { routes } from "@/lib/routes"
 import { getRatePlanById } from "@/modules/pricing/public"
 import { buildRatePlanPoliciesSurface } from "@/modules/policies/public"
+import type { ServerTimingRecorder } from "@/lib/observability/serverTiming"
 
 type Input = {
 	request: Request
 	ratePlanId: string
 	checkIn: string
 	checkOut: string
+	loadedRatePlan?: LoadedRatePlanPricingData | Promise<LoadedRatePlanPricingData>
+	includePricingEditorData?: boolean
+	timing?: ServerTimingRecorder
 }
 
 export type LoadedRatePlanPoliciesData =
@@ -25,10 +32,12 @@ export type LoadedRatePlanPoliciesData =
 
 export async function loadRatePlanPoliciesData(input: Input): Promise<LoadedRatePlanPoliciesData> {
 	const requestId = String(input.request.headers.get("x-request-id") ?? crypto.randomUUID()).trim()
-	const loadedRatePlan = await loadRatePlanPricingData({
-		request: input.request,
-		ratePlanId: input.ratePlanId,
-	})
+	const loadedRatePlan = await (input.loadedRatePlan ??
+		loadRatePlanPricingData({
+			request: input.request,
+			ratePlanId: input.ratePlanId,
+			includePricingEditorData: input.includePricingEditorData,
+		}))
 	if ("redirectTo" in loadedRatePlan) return loadedRatePlan
 
 	const { loaded, ownerContext } = loadedRatePlan
@@ -45,11 +54,15 @@ export async function loadRatePlanPoliciesData(input: Input): Promise<LoadedRate
 		id: string
 		name: string
 		isDefault?: boolean
+		productId: string
+		variantId: string
 	}> = [
 		{
 			id: String(targetRatePlan.id),
 			name: String(targetRatePlan.template?.name ?? "Tarifa"),
 			isDefault: Boolean(targetRatePlan.isDefault),
+			productId: String(loaded.productId),
+			variantId: String(loaded.variantId),
 		},
 	]
 
@@ -62,6 +75,7 @@ export async function loadRatePlanPoliciesData(input: Input): Promise<LoadedRate
 			request: input.request,
 			query: new URL(input.request.url).searchParams,
 		},
+		timing: input.timing,
 	})
 
 	return {

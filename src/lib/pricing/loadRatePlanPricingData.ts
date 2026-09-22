@@ -10,6 +10,7 @@ import {
 type Input = {
 	request: Request
 	ratePlanId: string
+	includePricingEditorData?: boolean
 }
 
 export type LoadedRatePlanPricingData =
@@ -78,6 +79,39 @@ export async function loadRatePlanPricingData(input: Input): Promise<LoadedRateP
 
 	const displayContext = await resolveRatePlanPricingContext({ providerId, ratePlanId })
 	if (!displayContext) return { redirectTo: routes.ratePlansList() }
+	const includePricingEditorData = input.includePricingEditorData !== false
+	if (!includePricingEditorData) {
+		return {
+			ownerContext: { ratePlanId: ownerContext.ratePlanId },
+			displayContext: {
+				ratePlanName: displayContext.ratePlanName,
+				productName: displayContext.productName,
+				variantName: displayContext.variantName,
+			},
+			loaded: {
+				user: { id: user.id, email: user.email },
+				providerId,
+				productId: ownerContext.productId,
+				variantId: ownerContext.variantId,
+				variant: {
+					id: ownerContext.variantId,
+					productId: ownerContext.productId,
+					name: displayContext.variantName,
+				},
+				initialCurrency: "USD",
+				initialBasePrice: "",
+				ratePlans: [],
+				defaultPlanLabel: "No cargado en este paso",
+				defaultRatePlanId: null,
+				activeRulesForUi: [],
+				effectivePricingDays: 0,
+				effectivePricingStart: null,
+				effectivePricingEnd: null,
+				coverageGaps: 0,
+				invalidActiveRuleRanges: 0,
+			},
+		}
+	}
 
 	const pricingSummary = await ratePlanPricingReadRepository.getRatePlanPricingSummary(ratePlanId)
 	const initialCurrency = pricingSummary?.currency ?? "USD"
