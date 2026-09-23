@@ -7,7 +7,7 @@ import RatePlanPoliciesSurface from "@/components/policy/RatePlanPoliciesSurface
 import RatePlanPricingSurface from "@/components/pricing/RatePlanPricingSurface.astro"
 import TabsOutsidePanel from "@/components/ui/TabsOutsidePanel.astro"
 import Textarea from "@/components/ui/Textarea.astro"
-import { Hotel, Ticket } from "@lucide/astro"
+import { Hotel, ShieldCheck, Ticket } from "@lucide/astro"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import {
 	buildAddRoomHref,
@@ -37,9 +37,14 @@ import { getRatePlanRemovalReadiness } from "@/lib/rates/getRatePlanRemovalReadi
 import {
 	loadRatePlanPlaybookReadModel,
 	loadRatePlanReadModelById,
+	type RatePlanListItem,
 } from "@/lib/rates/loadRatePlansReadModel"
 import { routes } from "@/lib/routes"
-import { REQUIRED_POLICY_CATEGORIES, resolvePolicyDateRange } from "@/modules/policies/public"
+import {
+	REQUIRED_POLICY_CATEGORIES,
+	buildRatePlanPoliciesSurface,
+	resolvePolicyDateRange,
+} from "@/modules/policies/public"
 
 const startedAt = performance.now()
 const timing = createServerTimingRecorder()
@@ -101,55 +106,97 @@ const activeView: RatePlanDetailView = ratePlanDetailViews.includes(
 )
 	? (requestedView as RatePlanDetailView)
 	: "conditions"
-const loadedRatePlanPromise = timing.time("ratePlanContext", () =>
-	loadRatePlanPricingData({
-		request: Astro.request,
-		ratePlanId,
-		includePricingEditorData: !isPlaybookMode,
-	})
-)
-const [row, loadedRatePlan, loadedPolicies] = await Promise.all([
-	isPlaybookMode
-		? timing.time("ratePlanModel", () =>
-				loadRatePlanPlaybookReadModel({ providerId: auth.providerId, ratePlanId })
-			)
-		: timing.time("ratePlanModel", () =>
-				loadRatePlanReadModelById({
-					providerId: auth.providerId,
-					url: Astro.url,
-					ratePlanId,
-					checkIn,
-					checkOut,
-					channel: "web",
-				})
-			),
-	loadedRatePlanPromise,
-	timing.time("policySurface", () =>
-		loadRatePlanPoliciesData({
-			request: Astro.request,
-			ratePlanId,
+
+let row: RatePlanListItem
+let policyPlans: Awaited<ReturnType<typeof buildRatePlanPoliciesSurface>>["policyPlans"]
+let context: {
+	productId: string
+	variantId: string
+	productName: string
+	variantName: string
+	ratePlanName: string
+}
+let loaded: { initialCurrency: string; initialBasePrice: string }
+
+if (isPlaybookMode) {
+	const playbookRow = await timing.time("ratePlanModel", () =>
+		loadRatePlanPlaybookReadModel({ providerId: auth.providerId, ratePlanId })
+	)
+	if (!playbookRow) return new Response("Tarifa no encontrada", { status: 404 })
+	row = playbookRow
+	const surface = await timing.time("policySurface", () =>
+		buildRatePlanPoliciesSurface({
+			ratePlans: [
+				{
+					id: ratePlanId,
+					name: String(row.ratePlanName),
+					isDefault: Boolean(row.isDefault),
+					productId: String(row.productId),
+					variantId: String(row.variantId),
+				},
+			],
 			checkIn,
 			checkOut,
-			loadedRatePlan: loadedRatePlanPromise,
-			includePricingEditorData: !isPlaybookMode,
+			featureContext: {
+				request: Astro.request,
+				query: Astro.url.searchParams,
+			},
 			timing,
 		})
-	),
-])
-
-if (!row) {
-	return new Response("Tarifa no encontrada", { status: 404 })
+	)
+	policyPlans = surface.policyPlans
+	context = {
+		productId: String(row.productId),
+		variantId: String(row.variantId),
+		productName: String(row.productName ?? ""),
+		variantName: String(row.variantName ?? ""),
+		ratePlanName: String(row.ratePlanName),
+	}
+	loaded = { initialCurrency: "USD", initialBasePrice: "" }
+} else {
+	const loadedRatePlanPromise = timing.time("ratePlanContext", () =>
+		loadRatePlanPricingData({
+			request: Astro.request,
+			ratePlanId,
+			includePricingEditorData: true,
+		})
+	)
+	const [readModel, loadedRatePlan, loadedPolicies] = await Promise.all([
+		timing.time("ratePlanModel", () =>
+			loadRatePlanReadModelById({
+				providerId: auth.providerId,
+				url: Astro.url,
+				ratePlanId,
+				checkIn,
+				checkOut,
+				channel: "web",
+			})
+		),
+		loadedRatePlanPromise,
+		timing.time("policySurface", () =>
+			loadRatePlanPoliciesData({
+				request: Astro.request,
+				ratePlanId,
+				checkIn,
+				checkOut,
+				loadedRatePlan: loadedRatePlanPromise,
+				includePricingEditorData: true,
+				timing,
+			})
+		),
+	])
+	if (!readModel) return new Response("Tarifa no encontrada", { status: 404 })
+	if ("redirectTo" in loadedRatePlan) return Astro.redirect(loadedRatePlan.redirectTo)
+	if ("redirectTo" in loadedPolicies) return Astro.redirect(loadedPolicies.redirectTo)
+	row = readModel
+	policyPlans = loadedPolicies.policyPlans
+	context = loadedPolicies.context
+	loaded = loadedRatePlan.loaded
 }
 
 const offeringType =
 	String(row.productType ?? "").toLowerCase() === "tour" ? "tour" : "accommodation"
 const isTourContext = offeringType === "tour"
-
-if ("redirectTo" in loadedRatePlan) return Astro.redirect(loadedRatePlan.redirectTo)
-const { loaded } = loadedRatePlan
-if ("redirectTo" in loadedPolicies) return Astro.redirect(loadedPolicies.redirectTo)
-const { context, policyPlans } = loadedPolicies
-
 const policyCoverageDone = Number(row.policyCoverage?.coveredCategories ?? 0)
 const removalReadiness = isPlaybookMode
 	? null
@@ -239,6 +286,41 @@ const completeContinueHref = completePlaybook.active
 				ratePlanId,
 			})
 	: null
+const complianceReviewHref = (() => {
+	const base = routes.providerSettingsVerificationDocuments()
+	if (!(isPlaybookMode && isTourContext)) return base
+	const current = new URL(`${Astro.url.pathname}${Astro.url.search}`, "http://fastt.local")
+	if (!current.searchParams.get("productId"))
+		current.searchParams.set("productId", tourCtx.productId)
+	if (!current.searchParams.get("variantId") && tourCtx.variantId) {
+		current.searchParams.set("variantId", tourCtx.variantId)
+	}
+	if (!current.searchParams.get("ratePlanId")) current.searchParams.set("ratePlanId", ratePlanId)
+	if (!current.searchParams.get("playbook") && activePlaybook) {
+		current.searchParams.set("playbook", activePlaybook)
+	}
+	if (!current.searchParams.get("step")) {
+		current.searchParams.set(
+			"step",
+			activePlaybook === "complete-to-publish" ? "bookingPolicies" : "conditions"
+		)
+	}
+	if (!current.searchParams.get("flow")) {
+		current.searchParams.set(
+			"flow",
+			activePlaybook === "complete-to-publish" ? "complete" : "create"
+		)
+	}
+	const returnTo = `${current.pathname}${current.search}`
+	const target = new URL(base, "http://fastt.local")
+	for (const key of ["playbook", "step", "flow", "productId", "variantId", "ratePlanId"]) {
+		const value = current.searchParams.get(key)
+		if (value) target.searchParams.set(key, value)
+	}
+	target.searchParams.set("playbookVertical", "tour")
+	target.searchParams.set("returnTo", returnTo)
+	return `${target.pathname}?${target.searchParams.toString()}`
+})()
 const effectiveActiveView = isPlaybookMode ? "conditions" : activeView
 const Layout = activePlaybook ? PlaybookLayout : WorkspaceLayout
 const layoutProps =
@@ -298,6 +380,7 @@ const layoutProps =
 							continueHref: completeContinueHref,
 							continueLabel: "Confirmar condiciones y continuar →",
 							continueReload: true,
+							lightweight: true,
 						}
 					: { title: `Tarifa · ${row.ratePlanName}` }
 
@@ -355,8 +438,10 @@ logRoutePerformance({
 
 		<section
 			class:list={[
-				"fastt-workspace-panel overflow-hidden text-slate-900",
-				isPlaybookMode ? "bg-white" : "",
+				isPlaybookMode && isTourContext
+					? "space-y-6 text-slate-100"
+					: "fastt-workspace-panel overflow-hidden text-slate-900",
+				!isTourContext && isPlaybookMode ? "bg-white" : "",
 			]}
 		>
 			{
@@ -389,100 +474,161 @@ logRoutePerformance({
 
 			<div
 				class={effectiveActiveView === "conditions"
-					? isPlaybookMode
-						? "px-5"
-						: "p-5"
+					? isPlaybookMode && isTourContext
+						? ""
+						: isPlaybookMode
+							? "px-5"
+							: "p-5"
 					: "hidden p-5"}
 				data-rate-plan-panel="conditions"
 			>
-				<RatePlanPoliciesSurface
-					title={viewTitles.conditions}
-					description={isTourContext
-						? "Revisa cancelación, pago al proveedor y presentación para esta salida."
-						: isPlaybookMode
-							? "Revisa cancelación, pago y no presentación de esta tarifa. La llegada se hereda del alojamiento."
-							: "Cancelación, pago y no presentación de esta tarifa. La llegada y salida se heredan del alojamiento."}
-					policyPlans={policyPlans}
-					checkIn={checkIn}
-					checkOut={checkOut}
-					requiredCategories={[...REQUIRED_POLICY_CATEGORIES]}
-					productId={context.productId}
-					variantId={String(row.variantId)}
-					isProfessionalMode={isProfessionalMode}
-					showPlanSummary={false}
-					showHeader={false}
-					inlineHotelArrival={isPlaybookMode && !isTourContext}
-					offeringType={offeringType}
-				/>
 				{
 					isPlaybookMode && isTourContext ? (
-						<div
-							id="tourBookingQuestions"
-							data-product-id={tourCtx.productId}
-							class="mx-auto mt-6 max-w-3xl space-y-4 border-t border-slate-200 pt-6"
-						>
-							<div>
-								<h2 class="text-lg font-semibold text-slate-950">
-									Preguntas necesarias para operar
-								</h2>
-								<p class="mt-1 text-sm leading-6 text-slate-600">
-									Solicita solo datos imprescindibles. Se mostrarán al viajero antes de confirmar.
-								</p>
-							</div>
-							<div class="rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm leading-6 text-sky-950">
-								<p class="font-semibold">Alcance: todo el tour</p>
-								<p class="mt-1">
-									Se preguntan una vez por reserva al comprador o viajero principal y aplican a
-									todas las salidas y tarifas. Las respuestas quedan guardadas con la reserva; los
-									cambios solo afectan reservas nuevas.
-								</p>
-							</div>
-							<div class="grid gap-3 sm:grid-cols-2">
-								{[
-									["pickup_location", "Hotel o dirección de recogida"],
-									["language", "Idioma preferido"],
-									["dietary", "Preferencias alimentarias"],
-									["mobility", "Necesidades de movilidad"],
-									["weight", "Peso para seguridad/equipamiento"],
-									["height", "Altura para seguridad/equipamiento"],
-								].map(([code, label]) => (
-									<label class="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-										<input type="checkbox" value={code} data-tour-question class="mt-0.5" />
-										<span>
-											{label}
-											<span class="mt-0.5 block text-xs text-slate-500">
-												Obligatoria al reservar
-											</span>
-										</span>
-									</label>
-								))}
-							</div>
-							<label class="block text-sm font-medium text-slate-700">
-								Pregunta adicional (opcional)
-								<Input
-									id="tourCustomQuestion"
-									placeholder="Ej: ¿Qué talla de traje de neopreno necesitas?"
-									className="mt-1"
-								/>
-							</label>
-							<label class="flex items-center gap-2 text-sm text-slate-700">
-								<input id="tourCustomQuestionRequired" type="checkbox" />
-								Hacer obligatoria la pregunta adicional
-							</label>
-							<div class="flex flex-wrap items-center gap-3">
-								<Button type="button" id="saveTourQuestions" size="sm">
-									Guardar preguntas
-								</Button>
-								<a
-									href={routes.providerSettingsVerificationDocuments()}
-									class="text-sm font-semibold text-sky-800 underline"
+						<div class="grid gap-6">
+							<section class="fastt-card overflow-hidden rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white text-slate-950">
+								<header class="flex gap-4 border-b border-slate-100 bg-slate-50/80 px-5 py-4">
+									<span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-white text-sm font-bold text-slate-800 ring-1 ring-slate-200">
+										1
+									</span>
+									<div class="min-w-0">
+										<h2 class="text-lg font-semibold text-slate-950">Contrato comercial</h2>
+										<p class="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
+											Cancelación, pago al proveedor y presentación de la salida. El viajero ve
+											estas reglas antes de confirmar.
+										</p>
+									</div>
+								</header>
+								<div class="px-2 sm:px-3">
+									<RatePlanPoliciesSurface
+										title={viewTitles.conditions}
+										description=""
+										policyPlans={policyPlans}
+										checkIn={checkIn}
+										checkOut={checkOut}
+										requiredCategories={[...REQUIRED_POLICY_CATEGORIES]}
+										productId={context.productId}
+										variantId={String(row.variantId)}
+										isProfessionalMode={isProfessionalMode}
+										showPlanSummary={false}
+										showHeader={false}
+										inlineHotelArrival={false}
+										offeringType={offeringType}
+										playbookMode={isPlaybookMode}
+										embeddedGuidedSection
+									/>
+								</div>
+							</section>
+
+							<section
+								id="tourBookingQuestions"
+								data-product-id={tourCtx.productId}
+								class="fastt-card overflow-hidden rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white text-slate-950"
+							>
+								<header class="flex gap-4 border-b border-slate-100 bg-slate-50/80 px-5 py-4">
+									<span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-white text-sm font-bold text-slate-800 ring-1 ring-slate-200">
+										2
+									</span>
+									<div class="min-w-0">
+										<h2 class="text-lg font-semibold text-slate-950">Preguntas al reservar</h2>
+										<p class="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
+											Solicita solo datos imprescindibles. Se preguntan una vez por reserva, aplican
+											a todas las salidas y tarifas del tour, y solo afectan reservas nuevas.
+										</p>
+									</div>
+								</header>
+								<div class="space-y-5 px-5 py-5">
+									<div class="grid gap-3 sm:grid-cols-2">
+										{[
+											["pickup_location", "Hotel o dirección de recogida"],
+											["language", "Idioma preferido"],
+											["dietary", "Preferencias alimentarias"],
+											["mobility", "Necesidades de movilidad"],
+											["weight", "Peso para seguridad/equipamiento"],
+											["height", "Altura para seguridad/equipamiento"],
+										].map(([code, label]) => (
+											<label class="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-800 transition hover:border-slate-300 hover:bg-slate-50/80 has-[:checked]:border-sky-300 has-[:checked]:bg-sky-50/40">
+												<input type="checkbox" value={code} data-tour-question class="mt-0.5" />
+												<span>
+													<span class="font-medium text-slate-950">{label}</span>
+													<span class="mt-0.5 block text-xs text-slate-500">
+														Obligatoria al reservar
+													</span>
+												</span>
+											</label>
+										))}
+									</div>
+									<div class="rounded-lg border border-slate-200 bg-slate-50/60 p-4">
+										<label class="block text-sm font-medium text-slate-950">
+											Pregunta adicional (opcional)
+											<Input
+												id="tourCustomQuestion"
+												placeholder="Ej: ¿Qué talla de traje de neopreno necesitas?"
+												className="mt-2 bg-white"
+											/>
+										</label>
+										<label class="mt-3 flex items-center gap-2 text-sm text-slate-700">
+											<input id="tourCustomQuestionRequired" type="checkbox" />
+											Hacer obligatoria la pregunta adicional
+										</label>
+									</div>
+									<p id="tourQuestionsStatus" class="text-sm text-slate-600" aria-live="polite" />
+								</div>
+							</section>
+
+							<section class="fastt-card flex flex-col gap-4 rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white px-5 py-4 text-slate-950 sm:flex-row sm:items-center sm:justify-between">
+								<div class="flex min-w-0 items-start gap-3">
+									<span class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-white text-slate-700 ring-1 ring-slate-200">
+										<ShieldCheck class="h-5 w-5" />
+									</span>
+									<div>
+										<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+											Bloque 3 · Cumplimiento
+										</p>
+										<h2 class="mt-0.5 text-base font-semibold text-slate-950">
+											Licencias y seguro
+										</h2>
+										<p class="mt-1 text-sm leading-6 text-slate-600">
+											Verifica la documentación del proveedor antes de publicar. Sigues en este paso
+											y vuelves aquí al terminar.
+										</p>
+									</div>
+								</div>
+								<Button
+									href={complianceReviewHref}
+									variant="secondary"
+									size="sm"
+									className="shrink-0"
 								>
 									Revisar licencias y seguro
-								</a>
-							</div>
-							<p id="tourQuestionsStatus" class="text-sm text-slate-600" aria-live="polite" />
+								</Button>
+							</section>
 						</div>
-					) : null
+					) : (
+						<>
+							<RatePlanPoliciesSurface
+								title={viewTitles.conditions}
+								description={
+									isTourContext
+										? "Revisa cancelación, pago al proveedor y presentación para esta salida."
+										: isPlaybookMode
+											? "Revisa cancelación, pago y no presentación de esta tarifa. La llegada se hereda del alojamiento."
+											: "Cancelación, pago y no presentación de esta tarifa. La llegada y salida se heredan del alojamiento."
+								}
+								policyPlans={policyPlans}
+								checkIn={checkIn}
+								checkOut={checkOut}
+								requiredCategories={[...REQUIRED_POLICY_CATEGORIES]}
+								productId={context.productId}
+								variantId={String(row.variantId)}
+								isProfessionalMode={isProfessionalMode}
+								showPlanSummary={false}
+								showHeader={false}
+								inlineHotelArrival={isPlaybookMode && !isTourContext}
+								offeringType={offeringType}
+								playbookMode={isPlaybookMode}
+							/>
+						</>
+					)
 				}
 			</div>
 
@@ -877,35 +1023,100 @@ logRoutePerformance({
 		if (custom && customQuestion) custom.value = String(customQuestion.label || "")
 		if (customRequired && customQuestion) customRequired.checked = customQuestion.required === true
 
-		document.getElementById("saveTourQuestions")?.addEventListener("click", async () => {
-			if (status) status.textContent = "Guardando preguntas..."
+		const questionKey = (items: Array<{ code: string; label: string; required: boolean }>) =>
+			JSON.stringify(items.map((item) => [item.code, item.label, item.required]))
+
+		const readQuestions = () => {
 			const selected = inputs
 				.filter((input) => input.checked)
 				.map((input) => ({
-					id: crypto.randomUUID(),
 					code: input.value,
-					label: QUESTION_LABELS[input.value],
+					label: QUESTION_LABELS[input.value] || input.value,
 					required: true,
 				}))
-			if (custom?.value.trim()) {
+			const customLabel = custom?.value.trim() || ""
+			if (customLabel) {
 				selected.push({
-					id: crypto.randomUUID(),
 					code: "custom",
-					label: custom.value.trim(),
+					label: customLabel,
 					required: Boolean(customRequired?.checked),
 				})
 			}
-			const response = await fetch("/api/tours/booking-questions", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ productId, questions: selected }),
-			})
-			if (status) {
-				status.textContent = response.ok
-					? "Preguntas guardadas."
-					: "No se pudieron guardar las preguntas."
+			return selected
+		}
+
+		let savedKey = questionKey(
+			questions.map((question: any) => ({
+				code: String(question.code || ""),
+				label: String(question.label || ""),
+				required: question.required === true,
+			}))
+		)
+		let persistInFlight: Promise<boolean> | null = null
+
+		const persistTourQuestions = async () => {
+			const selected = readQuestions()
+			const customLabel = selected.find((item) => item.code === "custom")?.label || ""
+			if (customLabel && customLabel.length < 3) {
+				if (status) {
+					status.textContent = "La pregunta adicional necesita al menos 3 caracteres."
+				}
+				return false
 			}
-		})
+			const nextKey = questionKey(selected)
+			if (nextKey === savedKey) return true
+			if (persistInFlight) return persistInFlight
+			persistInFlight = (async () => {
+				if (status) status.textContent = "Guardando preguntas..."
+				const response = await fetch("/api/tours/booking-questions", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						productId,
+						questions: selected.map((item) => ({
+							...item,
+							id: crypto.randomUUID(),
+						})),
+					}),
+				}).catch(() => null)
+				if (!response?.ok) {
+					if (status) status.textContent = "No se pudieron guardar las preguntas."
+					return false
+				}
+				savedKey = nextKey
+				if (status) status.textContent = ""
+				return true
+			})()
+			try {
+				return await persistInFlight
+			} finally {
+				persistInFlight = null
+			}
+		}
+
+		document.addEventListener(
+			"click",
+			async (event) => {
+				if (!root.isConnected || root.dataset.bound !== "true") return
+				if (!(event.target instanceof Element)) return
+				const link = event.target.closest("a[href]")
+				if (!(link instanceof HTMLAnchorElement)) return
+				if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0)
+					return
+				const leavesStep = Boolean(
+					link.closest(".fastt-playbook-footer") ||
+					link.closest('[data-rate-plan-panel="conditions"]')
+				)
+				if (!leavesStep) return
+				if (questionKey(readQuestions()) === savedKey) return
+				event.preventDefault()
+				event.stopPropagation()
+				const href = link.href
+				const saved = await persistTourQuestions()
+				if (saved) window.location.assign(href)
+			},
+			true
+		)
 	}
 
 	initTourQuestions()
