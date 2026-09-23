@@ -3,8 +3,10 @@ import ProviderDocumentsAccessDenied from "@/components/provider/ProviderDocumen
 import ProviderVerificationOptionals from "@/components/provider/ProviderVerificationOptionals.astro"
 import Button from "@/components/ui/Button.astro"
 import Notice from "@/components/ui/Notice.astro"
+import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
 import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
+import { safeRatePlanPlaybookReturn } from "@/lib/auth/returnTo"
 import { listOpenComplianceAssignments } from "@/lib/provider-compliance-ops"
 import {
 	listProviderDocuments,
@@ -84,40 +86,104 @@ const resultMessages: Record<
 		variant: "warning",
 	},
 }
+
+const playbookReturnHref = safeRatePlanPlaybookReturn(Astro.url.searchParams.get("returnTo"))
+const playbookReturnUrl = playbookReturnHref
+	? new URL(playbookReturnHref, "http://fastt.local")
+	: null
+const playbookDetour = Boolean(playbookReturnUrl)
+const detourPlaybookId = String(playbookReturnUrl?.searchParams.get("playbook") ?? "")
+const detourVertical = Astro.url.searchParams.get("playbookVertical") === "hotel" ? "hotel" : "tour"
+const detourStep =
+	String(playbookReturnUrl?.searchParams.get("step") ?? "").trim() ||
+	(detourPlaybookId === "complete-to-publish" ? "bookingPolicies" : "conditions")
 ---
 
-<ProviderSettingsLayout
-	title="Documentos adicionales"
-	heading="Documentos adicionales"
-	description="Propiedad, licencias y domicilio. No desbloquean los documentos mínimos de Verificación."
-	showSettingsTabs={false}
->
-	<div slot="actions" class="flex flex-wrap gap-3">
-		<Button href={routes.providerSettingsVerification()} variant="secondary">
-			Volver a verificación
-		</Button>
-		<Button href={routes.providerSettings()} variant="secondary">Configuración</Button>
-	</div>
+{
+	playbookDetour && playbookReturnHref && playbookReturnUrl ? (
+		<PlaybookLayout
+			title="Licencias y seguro"
+			playbookId={
+				detourPlaybookId === "complete-to-publish" ? "complete-to-publish" : "launch-tour"
+			}
+			active
+			stepId={detourStep}
+			productId={String(playbookReturnUrl.searchParams.get("productId") ?? "")}
+			variantId={String(playbookReturnUrl.searchParams.get("variantId") ?? "")}
+			ratePlanId={String(playbookReturnUrl.searchParams.get("ratePlanId") ?? "")}
+			isHotel={detourVertical === "hotel"}
+			playbookVertical={detourVertical}
+			hideFooter
+			lightweight
+		>
+			<section class="space-y-6">
+				<header class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+					<div class="max-w-2xl space-y-2">
+						<h1 class="text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl">
+							Licencias y seguro
+						</h1>
+						<p class="text-sm leading-6 text-slate-300">
+							Este paso de la guía sigue abierto. Sube la licencia o el seguro y vuelve a las
+							condiciones de la tarifa.
+						</p>
+					</div>
+					<Button href={playbookReturnHref} variant="secondary" className="shrink-0">
+						Volver a condiciones
+					</Button>
+				</header>
+				{result && resultMessages[result] ? (
+					<Notice variant={resultMessages[result].variant} title={resultMessages[result].title}>
+						{resultMessages[result].body}
+					</Notice>
+				) : null}
+				{canManageDocuments ? (
+					<ProviderVerificationOptionals
+						documents={optionalDocuments}
+						documentTypes={optionalDocumentTypes}
+						canManageDocuments={canManageDocuments}
+						defaultUploadType={defaultOptionalUploadType}
+						documentAssignments={documentAssignmentById}
+						playbookReturnTo={playbookReturnHref}
+						playbookVertical={detourVertical}
+					/>
+				) : (
+					<ProviderDocumentsAccessDenied roleLabel={providerRoleLabel} surface="optional" />
+				)}
+			</section>
+		</PlaybookLayout>
+	) : (
+		<ProviderSettingsLayout
+			title="Documentos adicionales"
+			heading="Documentos adicionales"
+			description="Propiedad, licencias y domicilio. No desbloquean los documentos mínimos de Verificación."
+			showSettingsTabs={false}
+		>
+			<div slot="actions" class="flex flex-wrap gap-3">
+				<Button href={routes.providerSettingsVerification()} variant="secondary">
+					Volver a verificación
+				</Button>
+				<Button href={routes.providerSettings()} variant="secondary">
+					Configuración
+				</Button>
+			</div>
 
-	{
-		result && resultMessages[result] ? (
-			<Notice variant={resultMessages[result].variant} title={resultMessages[result].title}>
-				{resultMessages[result].body}
-			</Notice>
-		) : null
-	}
+			{result && resultMessages[result] ? (
+				<Notice variant={resultMessages[result].variant} title={resultMessages[result].title}>
+					{resultMessages[result].body}
+				</Notice>
+			) : null}
 
-	{
-		canManageDocuments ? (
-			<ProviderVerificationOptionals
-				documents={optionalDocuments}
-				documentTypes={optionalDocumentTypes}
-				canManageDocuments={canManageDocuments}
-				defaultUploadType={defaultOptionalUploadType}
-				documentAssignments={documentAssignmentById}
-			/>
-		) : (
-			<ProviderDocumentsAccessDenied roleLabel={providerRoleLabel} surface="optional" />
-		)
-	}
-</ProviderSettingsLayout>
+			{canManageDocuments ? (
+				<ProviderVerificationOptionals
+					documents={optionalDocuments}
+					documentTypes={optionalDocumentTypes}
+					canManageDocuments={canManageDocuments}
+					defaultUploadType={defaultOptionalUploadType}
+					documentAssignments={documentAssignmentById}
+				/>
+			) : (
+				<ProviderDocumentsAccessDenied roleLabel={providerRoleLabel} surface="optional" />
+			)}
+		</ProviderSettingsLayout>
+	)
+}

@@ -2,6 +2,7 @@ import type { APIRoute } from "astro"
 import { ZodError, z } from "zod"
 
 import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
+import { safeRatePlanPlaybookReturn } from "@/lib/auth/returnTo"
 import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/invalidation"
 import {
 	listProviderDocuments,
@@ -19,6 +20,7 @@ const submitSchema = z.object({
 		"tax_document",
 		"ownership_proof",
 		"operating_license",
+		"insurance",
 		"address_proof",
 	]),
 	fileUrl: z
@@ -56,7 +58,28 @@ function shouldReturnHtmlRedirect(request: Request) {
 	return false
 }
 
-function redirectAfterSubmit(request: Request, result: string, type: string) {
+function applyPlaybookDetour(target: URL, returnToRaw: unknown, verticalRaw: unknown) {
+	const safe = safeRatePlanPlaybookReturn(returnToRaw)
+	if (!safe) return
+	const source = new URL(safe, "http://fastt.local")
+	target.searchParams.set("returnTo", `${source.pathname}${source.search}`)
+	for (const key of ["playbook", "step", "flow", "productId", "variantId", "ratePlanId"]) {
+		const value = source.searchParams.get(key)
+		if (value) target.searchParams.set(key, value)
+	}
+	const vertical = String(verticalRaw ?? "").trim()
+	if (vertical === "tour" || vertical === "hotel") {
+		target.searchParams.set("playbookVertical", vertical)
+	}
+}
+
+function redirectAfterSubmit(
+	request: Request,
+	result: string,
+	type: string,
+	returnToRaw?: unknown,
+	verticalRaw?: unknown
+) {
 	const isOptional = !(requiredKycDocumentTypes as readonly string[]).includes(type as any)
 	const path = isOptional
 		? routes.providerSettingsVerificationDocuments()
@@ -64,12 +87,19 @@ function redirectAfterSubmit(request: Request, result: string, type: string) {
 	const target = new URL(path, request.url)
 	target.searchParams.set("result", result)
 	if (type) target.searchParams.set("type", type)
+	if (isOptional) applyPlaybookDetour(target, returnToRaw, verticalRaw)
 	// Hash is fine in Location for browsers; keep slot focus after reload.
 	if (!isOptional && type) target.hash = `kyc-slot-${type}`
 	return Response.redirect(target.toString(), 303)
 }
 
-function redirectAfterFormError(request: Request, errorCode: string, type?: string) {
+function redirectAfterFormError(
+	request: Request,
+	errorCode: string,
+	type?: string,
+	returnToRaw?: unknown,
+	verticalRaw?: unknown
+) {
 	const rawType = String(type ?? "").trim()
 	const isOptional =
 		rawType.length > 0 && !(requiredKycDocumentTypes as readonly string[]).includes(rawType as any)
@@ -80,6 +110,7 @@ function redirectAfterFormError(request: Request, errorCode: string, type?: stri
 	target.searchParams.set("result", "error")
 	target.searchParams.set("error", errorCode)
 	if (rawType) target.searchParams.set("type", rawType)
+	if (isOptional) applyPlaybookDetour(target, returnToRaw, verticalRaw)
 	return Response.redirect(target.toString(), 303)
 }
 
@@ -113,6 +144,8 @@ export const GET: APIRoute = async ({ request }) => {
 export const POST: APIRoute = async ({ request }) => {
 	const preferRedirect = shouldReturnHtmlRedirect(request)
 	let formTypeHint = ""
+	let returnToHint = ""
+	let verticalHint = ""
 	try {
 		const { user, provider } = await requireProviderSessionSurface(request)
 		const providerId = provider.providerId
@@ -120,11 +153,19 @@ export const POST: APIRoute = async ({ request }) => {
 		const form = await request.formData()
 		const action = String(form.get("action") ?? "submit")
 		formTypeHint = String(form.get("type") ?? "").trim()
+		returnToHint = String(form.get("returnTo") ?? "").trim()
+		verticalHint = String(form.get("playbookVertical") ?? "").trim()
 
 		// Document review is internal-admin only (/api/admin/providers/documents).
 		if (action === "review") {
 			if (preferRedirect) {
-				return redirectAfterFormError(request, "forbidden_review", formTypeHint)
+				return redirectAfterFormError(
+					request,
+					"forbidden_review",
+					formTypeHint,
+					returnToHint,
+					verticalHint
+				)
 			}
 			return json(
 				{
@@ -139,7 +180,13 @@ export const POST: APIRoute = async ({ request }) => {
 		// Same gate as verification UI (session surface), before storage/DB work.
 		if (!provider.permissions?.canManageDocuments) {
 			if (preferRedirect) {
-				return redirectAfterFormError(request, "forbidden", formTypeHint)
+				return redirectAfterFormError(
+					request,
+					"forbidden",
+					formTypeHint,
+					returnToHint,
+					verticalHint
+				)
 			}
 			return json({ error: "forbidden" }, 403)
 		}
@@ -175,14 +222,14 @@ export const POST: APIRoute = async ({ request }) => {
 		await invalidateProviderGovernance(providerId, "provider_document_submitted")
 
 		return preferRedirect
-			? redirectAfterSubmit(request, "submitted", parsed.type)
+			? redirectAfterSubmit(request, "submitted", parsed.type, returnToHint, verticalHint)
 			: json({ ok: true, document: submitted }, 201)
 	} catch (err: any) {
 		if (err instanceof Response) {
 			// Auth redirects/forbidden — keep as-is for API clients; form posts go back to UI.
 			if (preferRedirect && err.status >= 400 && err.status < 500 && err.status !== 401) {
 				const code = err.status === 403 ? "forbidden" : "upload_failed"
-				return redirectAfterFormError(request, code, formTypeHint)
+				return redirectAfterFormError(request, code, formTypeHint, returnToHint, verticalHint)
 			}
 			return err
 		}
@@ -198,7 +245,7 @@ export const POST: APIRoute = async ({ request }) => {
 					: String(err?.message || "upload_failed")
 							.replace(/[^a-zA-Z0-9._-]+/g, "_")
 							.slice(0, 64) || "upload_failed"
-			return redirectAfterFormError(request, code, formTypeHint)
+			return redirectAfterFormError(request, code, formTypeHint, returnToHint, verticalHint)
 		}
 		if (err instanceof ZodError)
 			return json({ error: "validation_error", details: err.issues }, 400)
