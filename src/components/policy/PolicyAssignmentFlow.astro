@@ -16,6 +16,8 @@ type Props = {
 	paymentMode?: "standard" | "provider_at_experience_only"
 	offeringType?: "accommodation" | "tour"
 	departureHref?: string
+	availabilityHref?: string
+	availabilityIsNextStep?: boolean
 }
 
 const {
@@ -26,6 +28,8 @@ const {
 	paymentMode = "standard",
 	offeringType = "accommodation",
 	departureHref = "",
+	availabilityHref = "",
+	availabilityIsNextStep = false,
 } = Astro.props
 const providerAtExperienceOnly = paymentMode === "provider_at_experience_only"
 
@@ -85,6 +89,8 @@ const policyModalCopy = {
 	data-payment-mode={paymentMode}
 	data-offering-type={offeringType}
 	data-departure-href={departureHref}
+	data-availability-href={availabilityHref}
+	data-availability-is-next-step={availabilityIsNextStep ? "true" : "false"}
 >
 	<div
 		class:list={[
@@ -110,13 +116,19 @@ const policyModalCopy = {
 					Crea y asigna desde una plantilla. Revisa el impacto antes de confirmar.
 				</p>
 				{
-					offeringType === "tour" && departureHref ? (
-						<a
-							href={departureHref}
-							class="mt-2 inline-block text-sm font-semibold text-sky-800 underline"
-						>
-							Ver y editar salida
-						</a>
+					offeringType === "tour" && (departureHref || availabilityHref) ? (
+						<nav class="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-sm" aria-label="Editar salida">
+							{departureHref ? (
+								<a href={departureHref} class="font-semibold text-sky-800 underline">
+									Editar horario y detalles de la salida
+								</a>
+							) : null}
+							{availabilityHref && !availabilityIsNextStep ? (
+								<a href={availabilityHref} class="font-semibold text-sky-800 underline">
+									Administrar fechas disponibles
+								</a>
+							) : null}
+						</nav>
 					) : null
 				}
 			</div>
@@ -205,6 +217,14 @@ const policyModalCopy = {
 									Personalizar
 								</button>
 							</div>
+						</div>
+						<div
+							id="assignmentOptionsSkeleton"
+							class="mt-3 hidden"
+							role="status"
+							aria-live="polite"
+							aria-busy="true"
+						>
 						</div>
 						<div
 							id="assignmentExistingFields"
@@ -532,14 +552,53 @@ const policyModalCopy = {
 >
 	// @ts-nocheck
 	const providerAtExperienceOnly = paymentMode === "provider_at_experience_only"
-	const assignmentOverlay = document.getElementById("policyAssignmentOverlay")
-	const assignmentClose = document.getElementById("policyAssignmentClose")
-	const assignmentSubmit = document.getElementById("policyAssignmentSubmit")
-	const assignmentEyebrow = document.getElementById("policyAssignmentEyebrow")
-	const assignmentTitle = document.getElementById("policyAssignmentTitle")
-	const assignmentDescription = document.getElementById("policyAssignmentDescription")
-	const existingFields = document.getElementById("assignmentExistingFields")
-	const presetFields = document.getElementById("assignmentPresetFields")
+	let assignmentOverlay = null
+	let assignmentClose = null
+	let assignmentSubmit = null
+	let assignmentEyebrow = null
+	let assignmentTitle = null
+	let assignmentDescription = null
+	let existingFields = null
+	let presetFields = null
+	let policySelect = null
+	let categorySelect = null
+	let categoryOptions = []
+	let presetSelect = null
+	let presetCards = null
+	let existingCards = null
+	let customHelp = null
+	let customFields = null
+	let customCategoryPanels = []
+	let cancellationFreeDaysInput = null
+	let cancellationFreeHoursInput = null
+	let cancellationDepartureTimeInput = null
+	let cancellationPenaltyInput = null
+	let paymentTypeInput = null
+	let prepaymentPercentageInput = null
+	let prepaymentDaysInput = null
+	let checkInFromInput = null
+	let checkInUntilInput = null
+	let checkOutUntilInput = null
+	let noShowPenaltyTypeInput = null
+	let noShowPenaltyAmountInput = null
+	let presetLabel = null
+	let descriptionInput = null
+	let scopeSelect = null
+	let scopeIdSelect = null
+	let channelSelect = null
+	let impactBox = null
+	let professionalImpactBox = null
+	let guestPreviewBox = null
+	let previewTitle = null
+	let previewDescription = null
+	let statusBox = null
+	let simpleModeGrid = null
+	let simpleModeButtons = []
+	let isTourEditor = false
+	let departureHref = ""
+	let availabilityIsNextStep = false
+	let returnFocusElement = null
+	let optionsSkeleton = null
 
 	function nativeSelect(id) {
 		const element = document.getElementById(id)
@@ -551,49 +610,70 @@ const policyModalCopy = {
 		select?.dispatchEvent(new Event("change", { bubbles: true }))
 	}
 
-	const policySelect = nativeSelect("assignmentPolicyId")
-	const categorySelect = nativeSelect("assignmentCategory")
-	const categoryOptions = categorySelect
-		? Array.from(categorySelect.options).map((option) => option.outerHTML)
-		: []
-	const presetSelect = nativeSelect("assignmentPreset")
-	const presetCards = document.getElementById("assignmentPresetCards")
-	const existingCards = document.getElementById("assignmentExistingCards")
-	const customHelp = document.getElementById("assignmentCustomHelp")
-	const customFields = document.getElementById("assignmentCustomFields")
-	const customCategoryPanels = Array.from(
-		document.querySelectorAll("[data-assignment-custom-category]")
-	)
-	const cancellationFreeDaysInput = document.getElementById("assignmentCancellationFreeDays")
-	const cancellationFreeHoursInput = document.getElementById("assignmentCancellationFreeHours")
-	const cancellationDepartureTimeInput = document.getElementById(
-		"assignmentCancellationDepartureTime"
-	)
-	const cancellationPenaltyInput = document.getElementById("assignmentCancellationPenalty")
-	const paymentTypeInput = nativeSelect("assignmentPaymentType")
-	const prepaymentPercentageInput = document.getElementById("assignmentPrepaymentPercentage")
-	const prepaymentDaysInput = document.getElementById("assignmentPrepaymentDays")
-	const checkInFromInput = document.getElementById("assignmentCheckInFrom")
-	const checkInUntilInput = document.getElementById("assignmentCheckInUntil")
-	const checkOutUntilInput = document.getElementById("assignmentCheckOutUntil")
-	const noShowPenaltyTypeInput = nativeSelect("assignmentNoShowPenaltyType")
-	const noShowPenaltyAmountInput = document.getElementById("assignmentNoShowPenaltyAmount")
-	const presetLabel = document.getElementById("assignmentPresetLabel")
-	const descriptionInput = document.getElementById("assignmentDescription")
-	const scopeSelect = nativeSelect("assignmentScope")
-	const scopeIdSelect = nativeSelect("assignmentScopeId")
-	const channelSelect = nativeSelect("assignmentChannel")
-	const impactBox = document.getElementById("assignmentImpact")
-	const professionalImpactBox = document.getElementById("assignmentProfessionalImpact")
-	const guestPreviewBox = document.getElementById("assignmentGuestPreview")
-	const previewTitle = document.getElementById("assignmentPreviewTitle")
-	const previewDescription = document.getElementById("assignmentPreviewDescription")
-	const statusBox = document.getElementById("assignmentStatus")
-	const simpleModeGrid = document.getElementById("assignmentSimpleModeGrid")
-	const simpleModeButtons = Array.from(document.querySelectorAll("[data-assignment-simple-mode]"))
-	const isTourEditor = assignmentOverlay?.dataset.offeringType === "tour"
-	const departureHref = assignmentOverlay?.dataset.departureHref || ""
-	let returnFocusElement = null
+	function captureAssignmentDom() {
+		const nextOverlay = document.getElementById("policyAssignmentOverlay")
+		const sameOverlay = Boolean(nextOverlay && nextOverlay === assignmentOverlay)
+		assignmentOverlay = nextOverlay
+		assignmentClose = document.getElementById("policyAssignmentClose")
+		assignmentSubmit = document.getElementById("policyAssignmentSubmit")
+		assignmentEyebrow = document.getElementById("policyAssignmentEyebrow")
+		assignmentTitle = document.getElementById("policyAssignmentTitle")
+		assignmentDescription = document.getElementById("policyAssignmentDescription")
+		existingFields = document.getElementById("assignmentExistingFields")
+		presetFields = document.getElementById("assignmentPresetFields")
+		policySelect = nativeSelect("assignmentPolicyId")
+		categorySelect = nativeSelect("assignmentCategory")
+		presetSelect = nativeSelect("assignmentPreset")
+		presetCards = document.getElementById("assignmentPresetCards")
+		optionsSkeleton = document.getElementById("assignmentOptionsSkeleton")
+		existingCards = document.getElementById("assignmentExistingCards")
+		customHelp = document.getElementById("assignmentCustomHelp")
+		customFields = document.getElementById("assignmentCustomFields")
+		customCategoryPanels = Array.from(
+			document.querySelectorAll("[data-assignment-custom-category]")
+		)
+		cancellationFreeDaysInput = document.getElementById("assignmentCancellationFreeDays")
+		cancellationFreeHoursInput = document.getElementById("assignmentCancellationFreeHours")
+		cancellationDepartureTimeInput = document.getElementById("assignmentCancellationDepartureTime")
+		cancellationPenaltyInput = document.getElementById("assignmentCancellationPenalty")
+		paymentTypeInput = nativeSelect("assignmentPaymentType")
+		prepaymentPercentageInput = document.getElementById("assignmentPrepaymentPercentage")
+		prepaymentDaysInput = document.getElementById("assignmentPrepaymentDays")
+		checkInFromInput = document.getElementById("assignmentCheckInFrom")
+		checkInUntilInput = document.getElementById("assignmentCheckInUntil")
+		checkOutUntilInput = document.getElementById("assignmentCheckOutUntil")
+		noShowPenaltyTypeInput = nativeSelect("assignmentNoShowPenaltyType")
+		noShowPenaltyAmountInput = document.getElementById("assignmentNoShowPenaltyAmount")
+		presetLabel = document.getElementById("assignmentPresetLabel")
+		descriptionInput = document.getElementById("assignmentDescription")
+		scopeSelect = nativeSelect("assignmentScope")
+		scopeIdSelect = nativeSelect("assignmentScopeId")
+		channelSelect = nativeSelect("assignmentChannel")
+		impactBox = document.getElementById("assignmentImpact")
+		professionalImpactBox = document.getElementById("assignmentProfessionalImpact")
+		guestPreviewBox = document.getElementById("assignmentGuestPreview")
+		previewTitle = document.getElementById("assignmentPreviewTitle")
+		previewDescription = document.getElementById("assignmentPreviewDescription")
+		statusBox = document.getElementById("assignmentStatus")
+		simpleModeGrid = document.getElementById("assignmentSimpleModeGrid")
+		simpleModeButtons = Array.from(document.querySelectorAll("[data-assignment-simple-mode]"))
+		isTourEditor = assignmentOverlay?.dataset.offeringType === "tour"
+		departureHref = assignmentOverlay?.dataset.departureHref || ""
+		availabilityIsNextStep = assignmentOverlay?.dataset.availabilityIsNextStep === "true"
+		if (!sameOverlay && categorySelect) {
+			categoryOptions = Array.from(categorySelect.options).map((option) => option.outerHTML)
+		}
+		if (
+			isTourEditor &&
+			noShowPenaltyTypeInput &&
+			noShowPenaltyTypeInput.dataset.tourBasisNormalized !== "true"
+		) {
+			noShowPenaltyTypeInput.querySelector('option[value="first_night"]')?.remove()
+			const fullOption = noShowPenaltyTypeInput.querySelector('option[value="full"]')
+			if (fullOption) fullOption.textContent = "Cobrar reserva completa"
+			noShowPenaltyTypeInput.dataset.tourBasisNormalized = "true"
+		}
+	}
 
 	function contextualPolicyText(value) {
 		const copy = String(value ?? "")
@@ -605,14 +685,6 @@ const policyModalCopy = {
 			.replaceAll(/estadía completa/gi, "reserva completa")
 			.replaceAll(/la primera noche/gi, "la reserva")
 			.replaceAll(/primera noche/gi, "reserva")
-	}
-
-	// A tour has no "first night". The server rejects that basis as well; remove
-	// it from the client form so the available draft choices match the contract.
-	if (isTourEditor && noShowPenaltyTypeInput) {
-		noShowPenaltyTypeInput.querySelector('option[value="first_night"]')?.remove()
-		const fullOption = noShowPenaltyTypeInput.querySelector('option[value="full"]')
-		if (fullOption) fullOption.textContent = "Cobrar reserva completa"
 	}
 
 	const assignmentState = {
@@ -743,6 +815,95 @@ const policyModalCopy = {
 				? "rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
 				: "rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800"
 		statusBox.textContent = message
+	}
+
+	function assignmentPresetCardsSkeleton(count = 3) {
+		return `<div class="fastt-policy-option-list space-y-2">
+			<span class="sr-only">Cargando condiciones disponibles</span>
+			${Array.from(
+				{ length: count },
+				() => `
+				<div class="fastt-row-card border border-slate-200 p-3">
+					<div class="flex items-start justify-between gap-3">
+						<div class="min-w-0 flex-1 space-y-2">
+							<div class="workspace-skeleton-rate-bar h-4 w-40 max-w-full"></div>
+							<div class="workspace-skeleton-rate-bar h-3 w-full max-w-sm"></div>
+							<div class="workspace-skeleton-rate-bar h-3 w-52 max-w-full"></div>
+						</div>
+						<div class="workspace-skeleton-rate-bar size-6 shrink-0 rounded-full"></div>
+					</div>
+				</div>
+			`
+			).join("")}
+		</div>`
+	}
+
+	function assignmentProfessionalFieldsSkeleton() {
+		return `<div class="space-y-4">
+			<span class="sr-only">Cargando condiciones disponibles</span>
+			<div class="grid gap-3 sm:grid-cols-2">
+				<div class="space-y-2">
+					<div class="workspace-skeleton-rate-bar h-3 w-20"></div>
+					<div class="workspace-skeleton-rate-bar h-10 w-full rounded-md"></div>
+				</div>
+				<div class="space-y-2">
+					<div class="workspace-skeleton-rate-bar h-3 w-24"></div>
+					<div class="workspace-skeleton-rate-bar h-10 w-full rounded-md"></div>
+				</div>
+			</div>
+			<div class="workspace-skeleton-rate-plan-block h-28"></div>
+		</div>`
+	}
+
+	function assignmentGuestPreviewSkeleton(loadingLabel = "Calculando vista previa") {
+		return `<div class="overflow-hidden rounded-md border border-slate-200 bg-white">
+			<span class="sr-only">${assignmentEscape(loadingLabel)}</span>
+			<div class="border-b border-slate-200 bg-slate-50 px-3 py-2.5">
+				<div class="workspace-skeleton-rate-bar h-3 w-32"></div>
+			</div>
+			${Array.from(
+				{ length: 4 },
+				() => `
+				<div class="flex items-start justify-between gap-3 border-b border-slate-100 px-3 py-3 last:border-b-0">
+					<div class="workspace-skeleton-rate-bar h-3 w-24"></div>
+					<div class="workspace-skeleton-rate-bar h-3 w-28 max-w-[58%]"></div>
+				</div>
+			`
+			).join("")}
+		</div>`
+	}
+
+	function assignmentImpactSkeleton() {
+		return `<div class="space-y-2">
+			<span class="sr-only">Cargando opciones</span>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
+				<div class="workspace-skeleton-rate-bar h-3 w-16"></div>
+				<div class="workspace-skeleton-rate-bar h-4 w-full max-w-md"></div>
+				<div class="workspace-skeleton-rate-bar h-3 w-40"></div>
+			</div>
+		</div>`
+	}
+
+	function showAssignmentOptionsLoading() {
+		if (isProfessionalMode && optionsSkeleton) {
+			optionsSkeleton.innerHTML = assignmentProfessionalFieldsSkeleton()
+			optionsSkeleton.classList.remove("hidden")
+			optionsSkeleton.setAttribute("aria-busy", "true")
+			presetFields?.classList.add("hidden")
+		} else if (presetCards) {
+			presetCards.innerHTML = assignmentPresetCardsSkeleton(3)
+			presetCards.classList.remove("hidden")
+		}
+		if (guestPreviewBox) guestPreviewBox.innerHTML = assignmentGuestPreviewSkeleton()
+		if (impactBox) impactBox.innerHTML = assignmentImpactSkeleton()
+		if (professionalImpactBox) professionalImpactBox.innerHTML = assignmentImpactSkeleton()
+	}
+
+	function hideAssignmentOptionsLoading() {
+		optionsSkeleton?.classList.add("hidden")
+		optionsSkeleton?.removeAttribute("aria-busy")
+		if (optionsSkeleton) optionsSkeleton.innerHTML = ""
+		if (isProfessionalMode) presetFields?.classList.remove("hidden")
 	}
 
 	async function loadAssignmentOptions(scope, scopeId) {
@@ -995,6 +1156,7 @@ const policyModalCopy = {
 				scope: selected.scope,
 				scopeId: selected.scopeId,
 				channel: channelSelect?.value || null,
+				availabilityStepIsNext: availabilityIsNextStep,
 			}
 		}
 		if (selected.mode === "draft") {
@@ -1008,6 +1170,7 @@ const policyModalCopy = {
 				scope: selected.scope,
 				scopeId: selected.scopeId,
 				channel: channelSelect?.value || null,
+				availabilityStepIsNext: availabilityIsNextStep,
 			}
 		}
 		return {
@@ -1017,6 +1180,7 @@ const policyModalCopy = {
 			scope: selected.scope,
 			scopeId: selected.scopeId,
 			channel: channelSelect?.value || null,
+			availabilityStepIsNext: availabilityIsNextStep,
 		}
 	}
 
@@ -1163,8 +1327,7 @@ const policyModalCopy = {
 		}
 
 		const seq = ++previewRequestSeq
-		guestPreviewBox.innerHTML =
-			'<div class="rounded-lg border border-slate-200 bg-white px-3 py-3 text-slate-600">Calculando consecuencias...</div>'
+		guestPreviewBox.innerHTML = assignmentGuestPreviewSkeleton("Calculando consecuencias")
 		try {
 			const response = await fetch("/api/policies/preview", {
 				method: "POST",
@@ -1307,6 +1470,8 @@ const policyModalCopy = {
 	}
 
 	async function openAssignmentFlow(trigger) {
+		bindAssignmentSurface()
+		if (!assignmentOverlay || !assignmentSubmit) return
 		returnFocusElement =
 			document.activeElement instanceof HTMLElement ? document.activeElement : null
 		const defaultScope =
@@ -1329,14 +1494,19 @@ const policyModalCopy = {
 		assignmentOverlay?.classList.remove("hidden")
 		assignmentOverlay?.setAttribute("aria-busy", "true")
 		assignmentSubmit.disabled = true
-		if (guestPreviewBox) {
-			guestPreviewBox.innerHTML =
-				'<div class="rounded-lg border border-slate-200 bg-white px-3 py-3 text-slate-600">Cargando condiciones disponibles...</div>'
+		const optionsContextKey = `${defaultScope}:${defaultScopeId}`
+		if (assignmentState.loadedFor !== optionsContextKey) {
+			showAssignmentOptionsLoading()
 		}
 		assignmentClose?.focus()
 		const optionsLoaded = await loadAssignmentOptions(defaultScope, defaultScopeId)
+		hideAssignmentOptionsLoading()
 		assignmentOverlay?.removeAttribute("aria-busy")
-		if (!optionsLoaded) return
+		if (!optionsLoaded) {
+			if (guestPreviewBox) guestPreviewBox.innerHTML = ""
+			if (presetCards && !isProfessionalMode) presetCards.innerHTML = ""
+			return
+		}
 		renderScopeOptions(defaultScopeId)
 		if (isProfessionalMode && defaultPolicyId && policySelect) policySelect.value = defaultPolicyId
 		if (defaultCategory && categorySelect) categorySelect.value = defaultCategory
@@ -1462,93 +1632,107 @@ const policyModalCopy = {
 		if (shouldReload) window.setTimeout(() => window.location.reload(), 700)
 	}
 
-	document.addEventListener("click", (event) => {
-		const target = event.target instanceof HTMLElement ? event.target : null
-		const arrivalTrigger = target?.closest(".policy-arrival-open")
-		if (arrivalTrigger instanceof HTMLElement) {
-			openAssignmentFlow({
-				dataset: {
-					assignmentScope: "product",
-					assignmentScopeId: arrivalTrigger.dataset.arrivalScopeId || "",
-					assignmentCategory: "CheckIn",
-					assignmentMode: "draft",
-				},
-			})
-			return
-		}
-		const trigger = target?.closest(".policy-assignment-open")
-		if (trigger instanceof HTMLElement) {
-			openAssignmentFlow(trigger)
-		}
-	})
-	assignmentClose?.addEventListener("click", closeAssignmentFlow)
-	assignmentOverlay?.addEventListener("click", (event) => {
-		if (event.target === assignmentOverlay) closeAssignmentFlow()
-	})
-	document.addEventListener("keydown", (event) => {
-		if (assignmentOverlay?.classList.contains("hidden")) return
-		if (event.key === "Escape") {
-			event.preventDefault()
-			closeAssignmentFlow()
-		}
-	})
-	document.querySelectorAll('input[name="assignmentMode"]').forEach((input) => {
-		input.addEventListener("change", () => setMode(input.value))
-	})
-	categorySelect?.addEventListener("change", () => {
-		renderPolicyOptions()
-		renderPresetOptions()
-		renderExistingCards()
-		renderPresetCardsState()
-		renderModalChrome(categorySelect.value)
-		renderCustomFieldsState(categorySelect.value)
-		renderImpact()
-	})
-	presetSelect?.addEventListener("change", () => {
-		renderPresetCardsState()
-		renderImpact()
-	})
-	policySelect?.addEventListener("change", () => {
-		renderExistingCardsState()
-		renderImpact()
-	})
-	scopeSelect?.addEventListener("change", async () => {
-		renderScopeOptions()
-		await loadAssignmentOptions(scopeSelect.value, scopeIdSelect?.value || "")
-		renderCategoryOptions()
-		renderPolicyOptions()
-		renderPresetOptions()
-		renderExistingCards()
-		renderCustomHelp(categorySelect?.value)
-		renderImpact()
-	})
-	scopeIdSelect?.addEventListener("change", () => {
-		renderCustomHelp(categorySelect?.value)
-		renderImpact()
-	})
-	channelSelect?.addEventListener("change", renderImpact)
-	for (const input of [
-		cancellationFreeDaysInput,
-		cancellationFreeHoursInput,
-		cancellationDepartureTimeInput,
-		cancellationPenaltyInput,
-		paymentTypeInput,
-		prepaymentPercentageInput,
-		prepaymentDaysInput,
-		checkInFromInput,
-		checkInUntilInput,
-		checkOutUntilInput,
-		noShowPenaltyTypeInput,
-		noShowPenaltyAmountInput,
-	]) {
-		input?.addEventListener("input", renderImpact)
-		input?.addEventListener("change", () => {
-			renderCustomFieldsState(categorySelect?.value)
+	function bindAssignmentSurface() {
+		captureAssignmentDom()
+		if (!assignmentOverlay || assignmentOverlay.dataset.assignmentBound === "true") return
+		assignmentOverlay.dataset.assignmentBound = "true"
+		assignmentClose?.addEventListener("click", closeAssignmentFlow)
+		assignmentOverlay.addEventListener("click", (event) => {
+			if (event.target === assignmentOverlay) closeAssignmentFlow()
+		})
+		document.querySelectorAll('input[name="assignmentMode"]').forEach((input) => {
+			input.addEventListener("change", () => setMode(input.value))
+		})
+		categorySelect?.addEventListener("change", () => {
+			renderPolicyOptions()
+			renderPresetOptions()
+			renderExistingCards()
+			renderPresetCardsState()
+			renderModalChrome(categorySelect.value)
+			renderCustomFieldsState(categorySelect.value)
 			renderImpact()
 		})
+		presetSelect?.addEventListener("change", () => {
+			renderPresetCardsState()
+			renderImpact()
+		})
+		policySelect?.addEventListener("change", () => {
+			renderExistingCardsState()
+			renderImpact()
+		})
+		scopeSelect?.addEventListener("change", async () => {
+			renderScopeOptions()
+			await loadAssignmentOptions(scopeSelect.value, scopeIdSelect?.value || "")
+			renderCategoryOptions()
+			renderPolicyOptions()
+			renderPresetOptions()
+			renderExistingCards()
+			renderCustomHelp(categorySelect?.value)
+			renderImpact()
+		})
+		scopeIdSelect?.addEventListener("change", () => {
+			renderCustomHelp(categorySelect?.value)
+			renderImpact()
+		})
+		channelSelect?.addEventListener("change", renderImpact)
+		for (const input of [
+			cancellationFreeDaysInput,
+			cancellationFreeHoursInput,
+			cancellationDepartureTimeInput,
+			cancellationPenaltyInput,
+			paymentTypeInput,
+			prepaymentPercentageInput,
+			prepaymentDaysInput,
+			checkInFromInput,
+			checkInUntilInput,
+			checkOutUntilInput,
+			noShowPenaltyTypeInput,
+			noShowPenaltyAmountInput,
+		]) {
+			input?.addEventListener("input", renderImpact)
+			input?.addEventListener("change", () => {
+				renderCustomFieldsState(categorySelect?.value)
+				renderImpact()
+			})
+		}
+		for (const button of simpleModeButtons) {
+			button.addEventListener("click", () =>
+				setMode(button.dataset.assignmentSimpleMode || "preset")
+			)
+		}
+		assignmentSubmit?.addEventListener("click", submitAssignment)
 	}
-	for (const button of simpleModeButtons) {
-		button.addEventListener("click", () => setMode(button.dataset.assignmentSimpleMode || "preset"))
+
+	if (!window.__fasttPolicyAssignmentDocumentBound) {
+		window.__fasttPolicyAssignmentDocumentBound = true
+		document.addEventListener("click", (event) => {
+			const target = event.target instanceof HTMLElement ? event.target : null
+			const arrivalTrigger = target?.closest(".policy-arrival-open")
+			if (arrivalTrigger instanceof HTMLElement) {
+				openAssignmentFlow({
+					dataset: {
+						assignmentScope: "product",
+						assignmentScopeId: arrivalTrigger.dataset.arrivalScopeId || "",
+						assignmentCategory: "CheckIn",
+						assignmentMode: "draft",
+					},
+				})
+				return
+			}
+			const trigger = target?.closest(".policy-assignment-open")
+			if (trigger instanceof HTMLElement) {
+				openAssignmentFlow(trigger)
+			}
+		})
+		document.addEventListener("keydown", (event) => {
+			const overlay = document.getElementById("policyAssignmentOverlay")
+			if (!overlay || overlay.classList.contains("hidden")) return
+			if (event.key === "Escape") {
+				event.preventDefault()
+				closeAssignmentFlow()
+			}
+		})
+		document.addEventListener("astro:page-load", () => bindAssignmentSurface())
 	}
-	assignmentSubmit?.addEventListener("click", submitAssignment)
+	bindAssignmentSurface()
 </script>

@@ -278,7 +278,9 @@ describe("ui/rateplan-first modern surfaces", () => {
 		expect(assignmentFlow).toContain("function nativeSelect(id)")
 		expect(assignmentFlow).toContain('nativeSelect("assignmentCategory")')
 		expect(assignmentFlow).toContain('assignmentOverlay?.classList.remove("hidden")')
-		expect(assignmentFlow).toContain("Cargando condiciones disponibles...")
+		expect(assignmentFlow).toContain("showAssignmentOptionsLoading")
+		expect(assignmentFlow).toContain("workspace-skeleton-rate-bar")
+		expect(assignmentFlow).toContain("Cargando condiciones disponibles")
 		expect(assignmentFlow).toContain("await loadAssignmentOptions(defaultScope, defaultScopeId)")
 	})
 

@@ -58,6 +58,8 @@ interface Props {
 	showHeader?: boolean
 	inlineHotelArrival?: boolean
 	offeringType?: "accommodation" | "tour"
+	playbookMode?: boolean
+	embeddedGuidedSection?: boolean
 }
 
 const {
@@ -71,10 +73,37 @@ const {
 	showHeader = true,
 	inlineHotelArrival = false,
 	offeringType = "accommodation",
+	playbookMode = false,
+	embeddedGuidedSection = false,
 } = Astro.props
 const isProfessionalMode = requestedProfessionalMode && (showHeader || showPlanSummary)
 const isGuidedSurface = inlineHotelArrival
 const isTour = offeringType === "tour"
+const currentPath = `${Astro.url.pathname}${Astro.url.search}`
+
+function withPlaybookContext(path: string, step: "departure" | "calendar", returnAfter = false) {
+	if (!playbookMode) return path
+	const target = new URL(path, "http://fastt.local")
+	for (const key of ["playbook", "flow", "productId", "variantId", "ratePlanId"]) {
+		const value = Astro.url.searchParams.get(key)
+		if (value) target.searchParams.set(key, value)
+	}
+	target.searchParams.set("step", returnAfter ? Astro.url.searchParams.get("step") || step : step)
+	if (returnAfter) target.searchParams.set("returnTo", currentPath)
+	return `${target.pathname}?${target.searchParams.toString()}`
+}
+
+const tourDepartureHref =
+	isTour && productId && variantId
+		? withPlaybookContext(routes.productDepartureDetail(productId, variantId), "departure", true)
+		: ""
+const tourAvailabilityHref =
+	isTour && productId && variantId
+		? withPlaybookContext(
+				`${routes.calendar()}?focus=availability&productId=${encodeURIComponent(productId)}&variantId=${encodeURIComponent(variantId)}`,
+				"calendar"
+			)
+		: ""
 
 function policySummaryForDisplay(value: string): string {
 	if (!isTour) return value
@@ -179,9 +208,11 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 					<article
 						class:list={[
 							"overflow-hidden",
-							showHeader || showPlanSummary || isProfessionalMode
-								? "border-y border-slate-200"
-								: "border-b border-slate-200",
+							embeddedGuidedSection
+								? ""
+								: showHeader || showPlanSummary || isProfessionalMode
+									? "border-y border-slate-200"
+									: "border-b border-slate-200",
 						]}
 						data-plan-id={plan.ratePlanId}
 					>
@@ -411,17 +442,12 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 									</div>
 
 									{isTour ? (
-										<div class="flex flex-wrap items-center justify-between gap-3 px-1 sm:px-4">
-											<p class="text-sm leading-6 text-slate-600">
-												La edición de salida conserva esta tarifa y sus condiciones.
-											</p>
-											<Button
-												href={`${routes.calendar()}?focus=availability&productId=${encodeURIComponent(String(productId ?? ""))}&variantId=${encodeURIComponent(String(variantId ?? ""))}&ratePlanId=${encodeURIComponent(plan.ratePlanId)}`}
-												variant="secondary"
-												size="sm"
-											>
-												Ver salida y cupo
-											</Button>
+										<div class="px-1 sm:px-4">
+											<div class="flex justify-end">
+												<Button href={tourDepartureHref} variant="secondary" size="sm">
+													Editar salida
+												</Button>
+											</div>
 										</div>
 									) : isGuidedSurface ? (
 										<div class="px-1 sm:px-4">
@@ -465,6 +491,16 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 													{arrivalMissing && <ArrowRight class="h-4 w-4" />}
 												</Button>
 											</div>
+										</div>
+									)}
+
+									{isTour && (
+										<div class="mt-2 px-1 sm:px-4 lg:col-start-2 lg:mt-4">
+											<p class="text-sm leading-6 text-slate-600">
+												{playbookMode
+													? "La disponibilidad se configura en el siguiente paso. Puedes corregir ahora el horario o los detalles de esta salida."
+													: "La edición de salida conserva esta tarifa y sus condiciones."}
+											</p>
 										</div>
 									)}
 
@@ -606,7 +642,7 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 	isProfessionalMode={isProfessionalMode}
 	paymentMode={isTour ? "provider_at_experience_only" : "standard"}
 	offeringType={isTour ? "tour" : "accommodation"}
-	departureHref={isTour && productId && variantId
-		? `${routes.calendar()}?focus=availability&productId=${encodeURIComponent(productId)}&variantId=${encodeURIComponent(variantId)}`
-		: ""}
+	departureHref={tourDepartureHref}
+	availabilityHref={tourAvailabilityHref}
+	availabilityIsNextStep={isTour && playbookMode}
 />
