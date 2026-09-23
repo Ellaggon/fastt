@@ -2,12 +2,13 @@
 import TourSlotProfileEditor from "@/components/tours/TourSlotProfileEditor.astro"
 import Card from "@/components/ui/Card.astro"
 import { productRepository, variantManagementRepository } from "@/container"
+import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { isTourProductType } from "@/lib/catalog/productVerticalRegistry"
+import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
 import { routes } from "@/lib/routes"
-import { getProductAggregate } from "@/modules/catalog/public"
 import { db, eq, first, TourSlotProfile } from "@/shared/infrastructure/db/compat"
 
 const user = await getUserFromRequest(Astro.request)
@@ -21,14 +22,13 @@ const slotId = String(Astro.params.slotId ?? "")
 if (!productId) return Astro.redirect("/product/create")
 if (!slotId) return Astro.redirect(routes.productDeparturesForProduct(productId))
 
-const owned = await productRepository.ensureProductOwnedByProvider(productId, providerId)
+const [owned, variant, profile] = await Promise.all([
+	productRepository.ensureProductOwnedByProvider(productId, providerId),
+	variantManagementRepository.getVariantById(slotId),
+	db.select().from(TourSlotProfile).where(eq(TourSlotProfile.variantId, slotId)).then(first),
+])
 if (!owned) return Astro.redirect("/product/create")
 if (!isTourProductType(owned.productType)) return Astro.redirect(routes.productDetail(productId))
-
-const product = await getProductAggregate(productId)
-if (!product) return Astro.redirect("/product/create")
-
-const variant = await variantManagementRepository.getVariantById(slotId)
 if (!variant || variant.productId !== productId) {
 	return Astro.redirect(routes.productDeparturesForProduct(productId))
 }
@@ -40,24 +40,56 @@ if (
 	return Astro.redirect(routes.productDeparturesForProduct(productId))
 }
 
-const profile = await db
-	.select()
-	.from(TourSlotProfile)
-	.where(eq(TourSlotProfile.variantId, slotId))
-	.then(first)
-
 const override =
 	profile?.meetingPointOverrideJson && typeof profile.meetingPointOverrideJson === "object"
 		? String((profile.meetingPointOverrideJson as any).instructions ?? "").trim()
 		: ""
+
+const playbook = resolvePlaybookFromUrl(Astro.url, { isHotel: false })
+const rawReturnTo = String(Astro.url.searchParams.get("returnTo") ?? "").trim()
+
+function safeConditionsReturn(value: string): string | null {
+	if (!value.startsWith("/") || value.startsWith("//") || value.includes("://")) return null
+	const target = new URL(value, "http://fastt.local")
+	if (!/^\/rates\/plans\/[^/]+$/.test(target.pathname)) return null
+	if (target.searchParams.get("productId") !== productId) return null
+	if (target.searchParams.get("variantId") !== slotId) return null
+	return `${target.pathname}${target.search}`
+}
+
+const conditionsReturnHref = playbook.active ? safeConditionsReturn(rawReturnTo) : null
+const Layout = playbook.active ? PlaybookLayout : WorkspaceLayout
+const layoutProps = playbook.active
+	? {
+			title: `${owned.name} · Editar salida`,
+			playbookId: playbook.playbookId,
+			active: true,
+			stepId: playbook.stepId ?? "departure",
+			productId,
+			variantId: slotId,
+			ratePlanId: String(Astro.url.searchParams.get("ratePlanId") ?? ""),
+			isHotel: false,
+			playbookVertical: "tour",
+			hideFooter: true,
+			lightweight: true,
+		}
+	: { title: `${owned.name} · Editar salida` }
 ---
 
-<WorkspaceLayout title={`${product.displayName} · Editar salida`}>
+<Layout {...layoutProps}>
 	<section class="space-y-6 md:space-y-8">
 		<header class="flex flex-col gap-2">
 			<h1 class="text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl">
-				{variant.name}
+				{playbook.active ? "Editar horario y detalles de la salida" : variant.name}
 			</h1>
+			{
+				conditionsReturnHref ? (
+					<p class="max-w-2xl text-sm leading-6 text-slate-300">
+						Este ajuste conserva tu lugar en la guía. Al guardar volverás a las condiciones de la
+						tarifa.
+					</p>
+				) : null
+			}
 		</header>
 
 		<TourSlotProfileEditor
@@ -73,21 +105,27 @@ const override =
 			bookingMode={(profile?.bookingMode as "shared" | "private") ?? "shared"}
 			meetingPointOverride={override}
 			isActive={profile?.isActive ?? variant.salesEnabled}
-			redirectOnSuccess={routes.productDeparturesForProduct(productId)}
+			redirectOnSuccess={conditionsReturnHref ?? routes.productDeparturesForProduct(productId)}
+			submitLabel={conditionsReturnHref ? "Guardar y volver a condiciones" : null}
+			cancelHref={conditionsReturnHref}
 		/>
 
-		<Card class="space-y-3 bg-white">
-			<div>
-				<h2 class="text-lg font-semibold text-slate-950">Manifiesto de participantes</h2>
-				<p class="text-sm text-slate-600">
-					Reservas confirmadas para esta salida. La presentación y el voucher se gestionan desde el
-					detalle de cada reserva.
-				</p>
-			</div>
-			<div id="departureManifest" class="divide-y divide-slate-100 text-sm text-slate-700">
-				Cargando manifiesto…
-			</div>
-		</Card>
+		{
+			playbook.active ? null : (
+				<Card class="space-y-3 bg-white">
+					<div>
+						<h2 class="text-lg font-semibold text-slate-950">Manifiesto de participantes</h2>
+						<p class="text-sm text-slate-600">
+							Reservas confirmadas para esta salida. La presentación y el voucher se gestionan desde
+							el detalle de cada reserva.
+						</p>
+					</div>
+					<div id="departureManifest" class="divide-y divide-slate-100 text-sm text-slate-700">
+						Cargando manifiesto…
+					</div>
+				</Card>
+			)
+		}
 	</section>
 	<script is:inline define:vars={{ slotId }}>
 		;(async () => {
@@ -122,4 +160,4 @@ const override =
 			}
 		})()
 	</script>
-</WorkspaceLayout>
+</Layout>

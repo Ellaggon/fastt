@@ -16,7 +16,6 @@ import {
 	completeToPublishPreviousHref,
 } from "@/lib/playbook/complete-to-publish"
 import { evaluateAddRoomProgress } from "@/lib/playbook/evaluate-add-room-progress"
-import { evaluateCompleteToPublishProgress } from "@/lib/playbook/evaluate-complete-to-publish-progress"
 import { evaluateLaunchProgress } from "@/lib/playbook/evaluate-launch-progress"
 import { evaluateTourLaunchProgress } from "@/lib/playbook/evaluate-tour-launch-progress"
 import {
@@ -57,6 +56,7 @@ interface Props {
 	continueFormId?: string | null
 	ownsPrimaryCta?: boolean
 	hideFooter?: boolean
+	lightweight?: boolean
 }
 
 const {
@@ -77,6 +77,7 @@ const {
 	continueFormId = null,
 	ownsPrimaryCta = false,
 	hideFooter = false,
+	lightweight = false,
 } = Astro.props
 
 const isAddRoom = playbookId === "add-room"
@@ -114,11 +115,30 @@ let stageLabel = ""
 let stagePosition = 0
 let stageTotal = 0
 
-if (isComplete && active && productId) {
+if (isComplete && active && lightweight) {
+	playbookTitle = COMPLETE_TO_PUBLISH_PLAYBOOK_TITLE
+	currentStepKnown = true
+	if (productId) {
+		previousHref = completeToPublishPreviousHref(
+			productId,
+			stepId,
+			playbookVertical || (isHotel ? "hotel" : null),
+			{ variantId, ratePlanId }
+		)
+	}
+	if (playbookVertical === "tour") {
+		const stage = getTourPublishingStage(stepId)
+		stageLabel = stage.label
+		stagePosition = stage.position
+		stageTotal = stage.total
+	}
+} else if (isComplete && active && productId) {
 	playbookTitle = COMPLETE_TO_PUBLISH_PLAYBOOK_TITLE
 	const user = await getUserFromRequest(Astro.request)
 	const providerId = user ? await getProviderIdFromRequest(Astro.request, user) : null
 	if (providerId) {
+		const { evaluateCompleteToPublishProgress } =
+			await import("@/lib/playbook/evaluate-complete-to-publish-progress")
 		const progress = await evaluateCompleteToPublishProgress(productId, providerId, {
 			currentStepId: stepId,
 			request: Astro.request,
@@ -212,7 +232,7 @@ if (isComplete && active && productId) {
 					: (getPreviousLaunchStep(stepId, launchCtx)?.buildHref(launchCtx) ?? null)
 	}
 
-	if (active && productId) {
+	if (active && productId && !lightweight) {
 		const user = await getUserFromRequest(Astro.request)
 		const providerId = user ? await getProviderIdFromRequest(Astro.request, user) : null
 		if (providerId) {
@@ -260,16 +280,20 @@ const showHrefContinue = !formBoundContinue && !ownsPrimaryCta
 const persistAndExit = formBoundContinue && Boolean(productId)
 const formContinueLabel = continueLabel === "Continuar →" ? "Guardar y continuar" : continueLabel
 const showProgress = active && currentStepKnown && !isTerminalStep
+const showReadinessMeter = showProgress && !lightweight
 const visualProgressPercent = Math.min(100, Math.max(0, progressPercent))
 const progressHeading =
 	isAddRoom && stepNumber && totalSteps
 		? `${playbookTitle} - Paso ${stepNumber} de ${totalSteps}`
-		: stepNumber && totalSteps
-			? `Paso ${stepNumber} de ${totalSteps}`
-			: "Progreso"
+		: stageLabel && stagePosition > 0 && stageTotal > 0
+			? `Etapa ${stagePosition} de ${stageTotal} · ${stageLabel}`
+			: stepNumber && totalSteps
+				? `Paso ${stepNumber} de ${totalSteps}`
+				: "Progreso"
 const preparationSessionPayload =
 	active &&
 	productId &&
+	!lightweight &&
 	(playbookId === "launch" || playbookId === LAUNCH_TOUR_PLAYBOOK_ID || isComplete)
 		? {
 				productId,
@@ -292,27 +316,24 @@ const PlaybookShell = active ? GuidedPreparationLayout : WorkspaceLayout
 	{
 		showProgress ? (
 			<div class="mb-5 space-y-2">
-				{stageLabel ? (
-					<p class="text-xs font-semibold tracking-wide text-slate-300 uppercase">
-						Etapa {stagePosition} de {stageTotal} · {stageLabel}
-					</p>
-				) : null}
-				<p class="text-xs font-semibold tracking-wide text-slate-400 uppercase">
+				<p class="text-xs font-semibold tracking-wide text-slate-300 uppercase">
 					{progressHeading}
 				</p>
-				<div
-					class="fastt-progress-track h-1.5 overflow-hidden bg-slate-800"
-					role="progressbar"
-					aria-label={`Progreso de ${playbookTitle}: ${progressHeading}`}
-					aria-valuenow={visualProgressPercent}
-					aria-valuemin={0}
-					aria-valuemax={100}
-				>
+				{showReadinessMeter ? (
 					<div
-						class="fastt-progress-value h-full"
-						style={`width: ${visualProgressPercent}%; min-width: ${visualProgressPercent > 0 ? "0.75rem" : "0"}; background-color: var(--fastt-color-selection);`}
-					/>
-				</div>
+						class="fastt-progress-track h-1.5 overflow-hidden bg-slate-800"
+						role="progressbar"
+						aria-label={`Progreso de ${playbookTitle}: ${progressHeading}`}
+						aria-valuenow={visualProgressPercent}
+						aria-valuemin={0}
+						aria-valuemax={100}
+					>
+						<div
+							class="fastt-progress-value h-full"
+							style={`width: ${visualProgressPercent}%; min-width: ${visualProgressPercent > 0 ? "0.75rem" : "0"}; background-color: var(--fastt-color-selection);`}
+						/>
+					</div>
+				) : null}
 			</div>
 		) : null
 	}
