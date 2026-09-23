@@ -3,6 +3,7 @@ import { createHash } from "node:crypto"
 import { first, db, sql, User } from "@/shared/infrastructure/db/compat"
 import { LOCAL_QA_LOGOUT_COOKIE } from "./authCookies"
 import { getCachedAuthUser, setCachedAuthUser } from "./authCache"
+import { getRequestAuthAccessTokenOverride } from "./requestAuthState"
 import { fetchSupabaseUser } from "./supabaseClient"
 
 export type AuthUser = { id: string; email: string }
@@ -30,7 +31,11 @@ function readCookieToken(req: Request): string | null {
 
 /** Returns a session token for server-side Supabase Auth operations only. */
 export function getAccessTokenFromRequest(request: Request): string | null {
-	return readBearerToken(request) || readCookieToken(request)
+	return (
+		getRequestAuthAccessTokenOverride(request) ||
+		readBearerToken(request) ||
+		readCookieToken(request)
+	)
 }
 
 function hashToken(value: string): string {
