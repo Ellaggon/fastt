@@ -2,8 +2,12 @@ import type { APIRoute } from "astro"
 import {
 	db,
 	and,
+	asc,
 	CancellationTier,
+	EffectiveAvailability,
 	eq,
+	gt,
+	gte,
 	Policy,
 	PolicyGroup,
 	PolicyRule,
@@ -43,6 +47,7 @@ type PreviewBody = {
 	checkIn?: string
 	checkOut?: string
 	departureTime?: string | null
+	availabilityStepIsNext?: boolean
 	currency?: string
 	grossAmount?: number
 }
@@ -254,8 +259,6 @@ export const POST: APIRoute = async ({ request }) => {
 
 	const today = new Date()
 	const requestedDepartureDate = String(body.checkIn ?? "").trim()
-	const checkIn = requestedDepartureDate || addDays(today.toISOString().slice(0, 10), 14)
-	const checkOut = String(body.checkOut ?? "").trim() || addDays(checkIn, 2)
 	let currency =
 		String(body.currency ?? "BOB")
 			.trim()
@@ -270,7 +273,10 @@ export const POST: APIRoute = async ({ request }) => {
 	const departureProfile =
 		scope === "rate_plan"
 			? await db
-					.select({ departureTime: TourSlotProfile.departureTime })
+					.select({
+						variantId: Variant.id,
+						departureTime: TourSlotProfile.departureTime,
+					})
 					.from(RatePlan)
 					.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
 					.leftJoin(TourSlotProfile, eq(TourSlotProfile.variantId, Variant.id))
@@ -278,7 +284,10 @@ export const POST: APIRoute = async ({ request }) => {
 					.then((rows) => rows[0])
 			: scope === "variant"
 				? await db
-						.select({ departureTime: TourSlotProfile.departureTime })
+						.select({
+							variantId: TourSlotProfile.variantId,
+							departureTime: TourSlotProfile.departureTime,
+						})
 						.from(TourSlotProfile)
 						.where(eq(TourSlotProfile.variantId, scopeId))
 						.then((rows) => rows[0])
@@ -286,6 +295,29 @@ export const POST: APIRoute = async ({ request }) => {
 	const departureTime =
 		String(departureProfile?.departureTime ?? body.departureTime ?? "").trim() || null
 	const isTour = businessContext.business === "tour"
+	const todayDate = today.toISOString().slice(0, 10)
+	const nextAvailableDeparture =
+		isTour && departureProfile?.variantId && !requestedDepartureDate
+			? await db
+					.select({ date: EffectiveAvailability.date })
+					.from(EffectiveAvailability)
+					.where(
+						and(
+							eq(EffectiveAvailability.variantId, departureProfile.variantId),
+							gte(EffectiveAvailability.date, todayDate),
+							gt(EffectiveAvailability.availableUnits, 0)
+						)
+					)
+					.orderBy(asc(EffectiveAvailability.date))
+					.limit(1)
+					.then((rows) => rows[0] ?? null)
+			: null
+	const effectiveDepartureDate =
+		requestedDepartureDate || String(nextAvailableDeparture?.date ?? "").slice(0, 10) || null
+	// The calculation engine requires a date. This fallback stays internal and
+	// must never be presented as a real departure when availability supplied none.
+	const checkIn = effectiveDepartureDate || addDays(todayDate, 14)
+	const checkOut = String(body.checkOut ?? "").trim() || addDays(checkIn, 2)
 	if (isTour) {
 		currency =
 			String(productProfile?.currency ?? currency)
@@ -358,11 +390,14 @@ export const POST: APIRoute = async ({ request }) => {
 				category: selected.category,
 				snapshot: financialPreview.snapshot,
 				context: {
-					departureDate: requestedDepartureDate || null,
+					departureDate: effectiveDepartureDate,
 					departureTime,
+					departureDateSource: requestedDepartureDate ? "requested" : "next_available",
+					availabilityStepIsNext: Boolean(body.availabilityStepIsNext),
 					timezone: String(productProfile?.timezone ?? "").trim() || null,
 					currency,
 					quoteAmount: null,
+					configuredCancellationTiers: selected.cancellationTiers,
 				},
 			})
 		: buildPolicyCategoryPreview({ category: selected.category, financialPreview })
@@ -382,8 +417,10 @@ export const POST: APIRoute = async ({ request }) => {
 			quotes: isTour ? null : financialPreview.quotes,
 			previewContext: isTour
 				? {
-						departureDate: requestedDepartureDate || null,
+						departureDate: effectiveDepartureDate,
 						departureTime,
+						departureDateSource: requestedDepartureDate ? "requested" : "next_available",
+						availabilityStepIsNext: Boolean(body.availabilityStepIsNext),
 						timezone: String(productProfile?.timezone ?? "").trim() || null,
 						currency,
 						quote: "missing",
