@@ -145,7 +145,15 @@ function buildContractFacts(resolved: any, snapshot: any) {
 	const cancellationTiers = Array.isArray(cancellationCalculation?.refundTiers)
 		? cancellationCalculation.refundTiers
 		: []
+	const configuredCancellationTiers = Array.isArray(cancellation?.policy?.cancellationTiers)
+		? cancellation.policy.cancellationTiers
+		: []
 	const freeTier = cancellationTiers.find((tier: any) => Number(tier?.refundPercent ?? -1) >= 100)
+	const configuredFreeTier = configuredCancellationTiers.find(
+		(tier: any) =>
+			String(tier?.penaltyType ?? "") === "percentage" && Number(tier?.penaltyAmount) <= 0
+	)
+	const configuredFreeHours = Number(configuredFreeTier?.hoursBeforeDeparture)
 	const chargedTiers = cancellationTiers.filter((tier: any) => Number(tier?.penaltyAmount ?? 0) > 0)
 	const penaltyValues = Array.from(
 		new Set(chargedTiers.map((tier: any) => penaltyLabel(tier.penaltyType, tier.penaltyAmount)))
@@ -163,9 +171,11 @@ function buildContractFacts(resolved: any, snapshot: any) {
 			? presetName(cancellation, "Condición personalizada")
 			: "Sin configurar",
 		cancellationDeadline: cancellation
-			? freeTier
-				? `Hasta ${pluralDays(Number(freeTier.daysBeforeArrival ?? 0))} antes`
-				: "Sin cancelación gratuita"
+			? Number.isFinite(configuredFreeHours) && configuredFreeHours > 0
+				? `Hasta ${configuredFreeHours} ${configuredFreeHours === 1 ? "hora" : "horas"} antes`
+				: freeTier
+					? `Hasta ${pluralDays(Number(freeTier.daysBeforeArrival ?? 0))} antes`
+					: "Sin cancelación gratuita"
 			: "Sin configurar",
 		cancellationPenalty: cancellation
 			? penaltyValues.length
