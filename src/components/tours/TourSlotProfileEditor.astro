@@ -23,6 +23,8 @@ interface Props {
 	isActive?: boolean | null
 	redirectOnSuccess?: string | null
 	playbookFooterControls?: boolean
+	submitLabel?: string | null
+	cancelHref?: string | null
 }
 
 const {
@@ -40,6 +42,8 @@ const {
 	isActive = true,
 	redirectOnSuccess = null,
 	playbookFooterControls = false,
+	submitLabel = null,
+	cancelHref = null,
 } = Astro.props
 
 const isEditMode = mode === "edit"
@@ -192,13 +196,32 @@ const languageOptions = TOUR_SLOT_LANGUAGE_OPTIONS.some(
 		</div>
 	</section>
 
-	<p id="tour-slot-form-status" class="text-sm text-slate-600" role="status" aria-live="polite"></p>
+	<p id="tour-slot-form-status" class="text-sm text-slate-300" role="status" aria-live="polite"></p>
 
-	<div class:list={["flex flex-wrap gap-3", playbookFooterControls ? "hidden" : ""]}>
-		<Button type="submit" id="tour-slot-submit">
-			{isEditMode ? "Guardar salida" : "Crear salida"}
-		</Button>
-	</div>
+	{
+		cancelHref ? (
+			<footer class="fastt-playbook-footer flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-end">
+				<div class="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+					<Button
+						href={cancelHref}
+						variant="ghost"
+						className="text-slate-400 hover:bg-slate-800 hover:text-white"
+					>
+						Volver sin guardar
+					</Button>
+					<Button type="submit" id="tour-slot-submit" className="fastt-playbook-cta">
+						{submitLabel || (isEditMode ? "Guardar salida" : "Crear salida")}
+					</Button>
+				</div>
+			</footer>
+		) : (
+			<div class:list={["flex flex-wrap gap-3", playbookFooterControls ? "hidden" : ""]}>
+				<Button type="submit" id="tour-slot-submit">
+					{submitLabel || (isEditMode ? "Guardar salida" : "Crear salida")}
+				</Button>
+			</div>
+		)
+	}
 </form>
 
 <script>
