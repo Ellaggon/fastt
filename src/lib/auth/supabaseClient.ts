@@ -159,6 +159,42 @@ export async function signInWithPassword(params: {
 	return { ok: true, session }
 }
 
+export async function refreshSessionWithToken(
+	refreshToken: string
+): Promise<{ ok: true; session: SupabaseSession } | { ok: false; error: string; status: number }> {
+	const cfg = getSupabaseConfig()
+	if (!cfg) return { ok: false, error: "Supabase not configured", status: 500 }
+	if (!refreshToken) return { ok: false, error: "Missing refresh token", status: 401 }
+
+	const resp = await fetchSupabase(
+		`${cfg.url}/auth/v1/token?grant_type=refresh_token`,
+		{
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"apikey": getAuthApiKey(cfg),
+			},
+			body: JSON.stringify({ refresh_token: refreshToken }),
+		},
+		"refresh_session"
+	)
+
+	if (!resp) {
+		return { ok: false, error: "Supabase auth service unavailable", status: 503 }
+	}
+
+	if (!resp.ok) {
+		const txt = await resp.text().catch(() => "")
+		return { ok: false, error: txt || "Refresh failed", status: resp.status }
+	}
+
+	const session = (await resp.json()) as SupabaseSession
+	if (!session?.access_token || !session.refresh_token || !Number.isFinite(session.expires_in)) {
+		return { ok: false, error: "Invalid refresh payload", status: 500 }
+	}
+	return { ok: true, session }
+}
+
 /**
  * Server-side auth: sign up with email/password.
  * Depending on Supabase settings, it may or may not return a session.

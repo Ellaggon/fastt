@@ -1,4 +1,5 @@
 import type { MiddlewareHandler } from "astro"
+import { ensureAuthSessionForRequest } from "@/lib/auth/ensureAuthSession"
 import { buildWorkspaceRequestContext } from "@/lib/dashboard/workspaceRequestContext"
 import { createRequestId } from "@/lib/observability/performanceLog"
 import {
@@ -12,6 +13,26 @@ import {
  * Response.redirect() (and some platform Responses) expose immutable headers.
  * Rebuild a mutable Response so we can attach observability headers.
  */
+function appendSetCookieHeaders(response: Response, cookies: string[]): Response {
+	if (!cookies.length) return response
+	try {
+		for (const cookie of cookies) {
+			response.headers.append("Set-Cookie", cookie)
+		}
+		return response
+	} catch {
+		const nextHeaders = new Headers(response.headers)
+		for (const cookie of cookies) {
+			nextHeaders.append("Set-Cookie", cookie)
+		}
+		return new Response(response.body, {
+			status: response.status,
+			statusText: response.statusText,
+			headers: nextHeaders,
+		})
+	}
+}
+
 function withObservabilityHeaders(response: Response, headers: Record<string, string>): Response {
 	try {
 		for (const [key, value] of Object.entries(headers)) {
@@ -56,7 +77,8 @@ export const onRequest: MiddlewareHandler = async (context, next) => {
 	}
 
 	return runWithRequestContext(requestContext, async () => {
-		const response = await next()
+		const refreshedAuthCookies = await ensureAuthSessionForRequest(context.request)
+		const response = appendSetCookieHeaders(await next(), refreshedAuthCookies ?? [])
 		const totalMs = performance.now() - requestContext.startedAt
 		const cache = summarizeCacheEvents(requestContext.cacheEvents)
 		const observedResponse = withObservabilityHeaders(response, {
