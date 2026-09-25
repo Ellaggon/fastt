@@ -1,10 +1,12 @@
 ---
 import ProductCard from "@/components/productUI/ProductCard.astro"
+import TourDiscoveryCard from "@/components/tours/TourDiscoveryCard.astro"
 import Button from "@/components/ui/Button.astro"
 import Notice from "@/components/ui/Notice.astro"
 import SearchLayout from "@/layouts/SearchLayout.astro"
 import { resolvePublicDestination } from "@/lib/marketplace/publicDestinationListings"
 import { publicDestinationHref, publicSearchHref } from "@/lib/marketplace/publicDestinationRoutes"
+import { getPublicTourCatalog } from "@/lib/tours/publicTourCatalog"
 import { tourDifficultyLabel } from "@/lib/tours/tourDifficulty"
 import {
 	hasInvalidTourPriceRange,
@@ -17,6 +19,7 @@ import { db, eq, GeoPlace } from "@/shared/infrastructure/db/compat"
 
 const params = Astro.url.searchParams
 const resolvedDestination = await resolvePublicDestination(params.get("destino"))
+const invalidDestination = Boolean(params.get("destino")) && !resolvedDestination
 const canonicalPath = resolvedDestination?.canonicalPath ?? null
 if (canonicalPath && params.get("destino") !== canonicalPath) {
 	return Astro.redirect(publicSearchHref("tours", params, canonicalPath), 308)
@@ -92,6 +95,18 @@ if (effectiveStartDate && !invalidPriceRange && !missingPriceCurrency) {
 	}
 }
 
+const catalog =
+	!effectiveStartDate && !invalidDate && !invalidDestination
+		? await getPublicTourCatalog({
+				destinationPath: canonicalPath,
+				categorySlugs,
+				durationBucket,
+				level,
+				sort,
+				limit: 50,
+			})
+		: null
+
 const levelLabel = level ? tourDifficultyLabel(level) || level : null
 const durationLabel = tourDurationBucketLabel(durationBucket)
 const clearParams = new URLSearchParams(params)
@@ -118,8 +133,8 @@ const currencies = new Set(tours.map((tour) => tour.currency))
 			<p class="mt-2 text-sm text-slate-600">
 				{
 					effectiveStartDate
-						? `Salida: ${effectiveStartDate}`
-						: "Selecciona una fecha para ver salidas disponibles"
+						? `Salidas disponibles el ${new Intl.DateTimeFormat("es-BO", { dateStyle: "long", timeZone: "UTC" }).format(new Date(`${effectiveStartDate}T00:00:00Z`))}`
+						: "Explora experiencias publicadas y elige una fecha cuando quieras comprobar cupos y precio."
 				}
 				{durationLabel ? ` · ${durationLabel}` : ""}{levelLabel ? ` · ${levelLabel}` : ""}
 			</p>
@@ -147,9 +162,25 @@ const currencies = new Set(tours.map((tour) => tour.currency))
 			) : null
 		}
 		{
-			!rawStartDate ? (
-				<Notice variant="warning" title="Selecciona una fecha">
-					Mostraremos solo tours con salida y precio disponibles para la fecha que elijas.
+			invalidDestination ? (
+				<Notice variant="error" title="Destino no reconocido">
+					Vuelve a escribir el destino y elige una coincidencia de la lista.
+				</Notice>
+			) : null
+		}
+		{
+			!rawStartDate && !invalidDestination ? (
+				<Notice variant="info" title="Estás explorando sin fecha">
+					Estas son experiencias publicadas. Elige una fecha para consultar salidas, cupos y precios
+					reales.
+				</Notice>
+			) : null
+		}
+		{
+			!effectiveStartDate && hasPriceFilter ? (
+				<Notice variant="warning" title="El presupuesto necesita una fecha">
+					No aplicamos el rango todavía porque el precio depende de una salida. Elige una fecha para
+					compararlo en la moneda indicada.
 				</Notice>
 			) : null
 		}
@@ -168,6 +199,51 @@ const currencies = new Set(tours.map((tour) => tour.currency))
 						Explorar experiencias
 					</a>
 				</Notice>
+			) : null
+		}
+
+		{
+			catalog?.status === "error" ? (
+				<Notice variant="error" title="No se pudo cargar el catálogo">
+					Intenta nuevamente. Este error no significa que no existan experiencias.
+				</Notice>
+			) : null
+		}
+
+		{
+			catalog && catalog.status !== "error" ? (
+				catalog.cards.length ? (
+					<section aria-labelledby="catalog-results-title">
+						<div class="flex items-center justify-between border-b border-slate-200 pb-4">
+							<h2 id="catalog-results-title" class="font-semibold text-slate-950">
+								{catalog.cards.length} {catalog.cards.length === 1 ? "experiencia" : "experiencias"}
+							</h2>
+							<span class="text-sm text-slate-500">Precios al elegir fecha</span>
+						</div>
+						<div class="mt-6 grid grid-cols-1 gap-x-5 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
+							{catalog.cards.map((tour, index) => (
+								<TourDiscoveryCard tour={tour} priority={index < 3} />
+							))}
+						</div>
+					</section>
+				) : (
+					<section class="fastt-card space-y-4 p-6 text-center">
+						<h2 class="text-lg font-semibold text-slate-950">
+							No encontramos experiencias con estos filtros
+						</h2>
+						<p class="mx-auto max-w-xl text-sm leading-6 text-slate-600">
+							Prueba quitar duración, nivel o actividad, o explora otro destino.
+						</p>
+						<div class="flex flex-wrap justify-center gap-3">
+							<>
+								<Button href={clearFiltersHref} variant="secondary">
+									Quitar filtros
+								</Button>
+								<Button href="/tours">Explorar Bolivia</Button>
+							</>
+						</div>
+					</section>
+				)
 			) : null
 		}
 

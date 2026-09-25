@@ -1,0 +1,278 @@
+---
+import { CalendarDays, MapPin, Search } from "@lucide/astro"
+
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import DatesModal from "@/components/ui/DatesModal.astro"
+import Input from "@/components/ui/Input.astro"
+
+interface Props {
+	destinationPath?: string
+	destinationName?: string
+	startDate?: string
+}
+
+const { destinationPath = "", destinationName = "", startDate = "" } = Astro.props as Props
+const todayInBolivia = new Intl.DateTimeFormat("en-CA", {
+	timeZone: "America/La_Paz",
+	year: "numeric",
+	month: "2-digit",
+	day: "2-digit",
+}).format(new Date())
+---
+
+<Card
+	variant="plain"
+	class="border-white/70 p-3 shadow-[0_20px_55px_-24px_rgba(15,23,42,0.45)] sm:p-4"
+>
+	<form
+		id="tourDiscoverySearch"
+		action="/buscar/tours"
+		method="get"
+		data-tour-discovery-search
+		novalidate
+	>
+		<div class="grid gap-2 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_auto] md:items-end">
+			<div class="relative" data-tour-destination-root>
+				<label
+					for="tourDiscoveryDestination"
+					class="mb-1.5 block text-sm font-semibold text-slate-800"
+				>
+					Destino
+				</label>
+				<div class="relative">
+					<MapPin
+						class="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500"
+						aria-hidden="true"
+					/>
+					<Input
+						id="tourDiscoveryDestination"
+						type="search"
+						value={destinationName}
+						autocomplete="off"
+						placeholder="Toda Bolivia"
+						className="h-14 rounded-xl pl-12 pr-4 text-base"
+						aria-autocomplete="list"
+						aria-controls="tourDiscoveryDestinations"
+						aria-expanded="false"
+						aria-describedby="tourDestinationHint tourDiscoveryError"
+						data-tour-destination-input
+					/>
+					<input type="hidden" name="destino" value={destinationPath} data-tour-destination-path />
+				</div>
+				<p id="tourDestinationHint" class="sr-only">
+					Escribe una ciudad o región y elige una sugerencia, o deja el campo vacío para explorar
+					Bolivia.
+				</p>
+				<div
+					id="tourDiscoveryDestinations"
+					class="fastt-soft-box absolute left-0 right-0 z-50 mt-2 hidden overflow-hidden border border-slate-200 shadow-xl"
+					role="listbox"
+					data-tour-destination-list
+				>
+				</div>
+			</div>
+
+			<div>
+				<label class="mb-1.5 block text-sm font-semibold text-slate-800" for="tourDiscoveryDate">
+					Fecha <span class="font-normal text-slate-500">(opcional)</span>
+				</label>
+				<div class="relative">
+					<CalendarDays
+						class="pointer-events-none absolute left-4 top-1/2 z-10 h-5 w-5 -translate-y-1/2 text-slate-500"
+						aria-hidden="true"
+					/>
+					<DatesModal
+						id="tourDiscoveryDate"
+						name="startDate"
+						value={startDate}
+						min={todayInBolivia}
+						placeholder="Aún no sé la fecha"
+						className="h-14 rounded-xl pl-12 pr-4 text-base"
+					/>
+				</div>
+			</div>
+
+			<Button type="submit" size="lg" class="h-14 w-full rounded-xl px-6 text-base md:w-auto">
+				<Search class="h-5 w-5" aria-hidden="true" />
+				Explorar tours
+			</Button>
+		</div>
+		<p
+			id="tourDiscoveryError"
+			class="mt-3 hidden text-sm font-medium text-red-700"
+			role="alert"
+			data-tour-discovery-error
+		>
+		</p>
+	</form>
+</Card>
+
+<script type="module">
+	function bindTourDiscoverySearch() {
+		document.querySelectorAll("[data-tour-discovery-search]").forEach((form) => {
+			if (!(form instanceof HTMLFormElement) || form.dataset.bound === "true") return
+			form.dataset.bound = "true"
+
+			const root = form.querySelector("[data-tour-destination-root]")
+			const input = form.querySelector("[data-tour-destination-input]")
+			const pathInput = form.querySelector("[data-tour-destination-path]")
+			const list = form.querySelector("[data-tour-destination-list]")
+			const error = form.querySelector("[data-tour-discovery-error]")
+			if (
+				!(root instanceof HTMLElement) ||
+				!(input instanceof HTMLInputElement) ||
+				!(pathInput instanceof HTMLInputElement) ||
+				!(list instanceof HTMLElement) ||
+				!(error instanceof HTMLElement)
+			)
+				return
+
+			let request = null
+			let timer = 0
+			let activeIndex = -1
+			let options = []
+
+			const close = () => {
+				list.classList.add("hidden")
+				input.setAttribute("aria-expanded", "false")
+				input.removeAttribute("aria-activedescendant")
+				activeIndex = -1
+			}
+			const open = () => {
+				list.classList.remove("hidden")
+				input.setAttribute("aria-expanded", "true")
+			}
+			const setMessage = (message, tone = "neutral") => {
+				list.innerHTML = ""
+				const node = document.createElement("p")
+				node.className = `px-4 py-3 text-sm ${tone === "error" ? "text-red-700" : "text-slate-600"}`
+				node.textContent = message
+				list.appendChild(node)
+				options = []
+				open()
+			}
+			const select = (option) => {
+				input.value = option.dataset.label || option.textContent || ""
+				pathInput.value = option.dataset.canonicalPath || ""
+				error.classList.add("hidden")
+				close()
+				input.focus()
+			}
+			const render = (items) => {
+				list.innerHTML = ""
+				if (!Array.isArray(items) || !items.length) {
+					setMessage("No encontramos ese destino. Prueba con una ciudad o región de Bolivia.")
+					return
+				}
+				options = items.map((destination, index) => {
+					const typeLabel =
+						{
+							country: "País",
+							admin_area_1: "Departamento",
+							admin_area_2: "Provincia",
+							city: "Ciudad",
+							locality: "Localidad",
+							neighborhood: "Barrio",
+							natural_area: "Área natural",
+							poi: "Lugar",
+						}[destination.placeType] || "Destino"
+					const departmentLabel =
+						destination.department && destination.department !== destination.name
+							? `, ${destination.department}`
+							: ""
+					const label = `${destination.name}${departmentLabel} · ${typeLabel}`
+					const button = document.createElement("button")
+					button.type = "button"
+					button.id = `tour-destination-option-${index}`
+					button.role = "option"
+					button.className =
+						"flex min-h-12 w-full items-center gap-3 px-4 py-3 text-left text-sm text-slate-800 hover:bg-slate-50 focus:bg-slate-100 focus:outline-none"
+					button.dataset.canonicalPath = destination.canonicalPath || ""
+					button.dataset.label = label
+					button.innerHTML = `<span aria-hidden="true" class="text-slate-400">⌖</span><span>${label.replace(/[&<>\"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character])}</span>`
+					button.addEventListener("click", () => select(button))
+					const item = document.createElement("div")
+					item.appendChild(button)
+					list.appendChild(item)
+					return button
+				})
+				open()
+			}
+			const search = async (value) => {
+				request?.abort()
+				request = new AbortController()
+				setMessage("Buscando destinos…")
+				try {
+					const response = await fetch(`/api/destinations?q=${encodeURIComponent(value)}&limit=7`, {
+						signal: request.signal,
+					})
+					if (!response.ok) throw new Error("destination_lookup_failed")
+					render(await response.json())
+				} catch (searchError) {
+					if (searchError?.name === "AbortError") return
+					setMessage("No pudimos buscar destinos. Intenta nuevamente.", "error")
+				}
+			}
+
+			input.addEventListener("input", () => {
+				pathInput.value = ""
+				error.classList.add("hidden")
+				window.clearTimeout(timer)
+				const value = input.value.trim()
+				if (!value) return close()
+				timer = window.setTimeout(() => search(value), 180)
+			})
+			input.addEventListener("keydown", (event) => {
+				if (!options.length) {
+					if (event.key === "Escape") close()
+					return
+				}
+				if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+					event.preventDefault()
+					activeIndex =
+						event.key === "ArrowDown"
+							? (activeIndex + 1) % options.length
+							: (activeIndex - 1 + options.length) % options.length
+					options[activeIndex].focus()
+					input.setAttribute("aria-activedescendant", options[activeIndex].id)
+				}
+				if (event.key === "Escape") close()
+			})
+			list.addEventListener("keydown", (event) => {
+				const current = options.indexOf(document.activeElement)
+				if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+					event.preventDefault()
+					const next =
+						event.key === "ArrowDown"
+							? (current + 1) % options.length
+							: (current - 1 + options.length) % options.length
+					options[next]?.focus()
+				}
+				if (event.key === "Escape") {
+					close()
+					input.focus()
+				}
+			})
+			form.addEventListener("submit", (event) => {
+				if (input.value.trim() && !pathInput.value) {
+					event.preventDefault()
+					error.textContent =
+						"Elige un destino de la lista o borra el texto para explorar toda Bolivia."
+					error.classList.remove("hidden")
+					input.focus()
+					return
+				}
+				if (!pathInput.value) pathInput.disabled = true
+				const dateInput = form.querySelector('[name="startDate"]')
+				if (dateInput instanceof HTMLInputElement && !dateInput.value) dateInput.disabled = true
+			})
+			document.addEventListener("click", (event) => {
+				if (!root.contains(event.target)) close()
+			})
+		})
+	}
+
+	bindTourDiscoverySearch()
+	document.addEventListener("astro:page-load", bindTourDiscoverySearch)
+</script>

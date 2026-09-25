@@ -1,0 +1,82 @@
+---
+import { ArrowUpRight, Clock3, MapPin, Star } from "@lucide/astro"
+
+import PublicListingImage from "@/components/marketplace/PublicListingImage.astro"
+import type { PublicTourCatalogCard } from "@/lib/tours/publicTourCatalog"
+
+interface Props {
+	tour: PublicTourCatalogCard
+	priority?: boolean
+}
+
+const { tour, priority = false } = Astro.props as Props
+const href = `/tours/${tour.productId}`
+---
+
+<article class="group min-w-0">
+	<a
+		href={href}
+		class="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-4"
+		aria-label={`Ver ${tour.name}`}
+	>
+		<div class="relative aspect-[4/3] overflow-hidden rounded-2xl bg-slate-100">
+			<PublicListingImage
+				src={tour.imageUrl}
+				alt={tour.name}
+				class="transition duration-500 group-hover:scale-[1.025]"
+				priority={priority}
+				fill
+			/>
+			<span
+				class="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-slate-950 shadow-sm"
+				aria-hidden="true"
+			>
+				<ArrowUpRight class="h-4 w-4" />
+			</span>
+		</div>
+		<div class="pt-4">
+			<div class="flex min-h-5 items-center justify-between gap-3 text-sm text-slate-600">
+				{
+					tour.destinationName ? (
+						<span class="flex min-w-0 items-center gap-1.5">
+							<>
+								<MapPin class="h-4 w-4 shrink-0" aria-hidden="true" />
+								<span class="truncate">{tour.destinationName}</span>
+							</>
+						</span>
+					) : (
+						<span />
+					)
+				}
+				{
+					tour.avgRating ? (
+						<span class="flex shrink-0 items-center gap-1 font-medium text-slate-800">
+							<Star class="h-4 w-4 fill-current" aria-hidden="true" />
+							{tour.avgRating.toFixed(1)}
+							{tour.reviewCount > 0 ? (
+								<span class="font-normal text-slate-500">({tour.reviewCount})</span>
+							) : null}
+						</span>
+					) : null
+				}
+			</div>
+			<h3
+				class="mt-2 line-clamp-2 text-lg font-semibold leading-6 text-slate-950 group-hover:underline group-hover:underline-offset-4"
+			>
+				{tour.name}
+			</h3>
+			<div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-600">
+				{
+					tour.duration ? (
+						<span class="flex items-center gap-1.5">
+							<Clock3 class="h-4 w-4" aria-hidden="true" />
+							{tour.duration}
+						</span>
+					) : null
+				}
+				{tour.difficultyLevel ? <span>{tour.difficultyLevel}</span> : null}
+			</div>
+			<p class="mt-3 text-sm font-semibold text-slate-950">Ver fechas y precios</p>
+		</div>
+	</a>
+</article>

@@ -18,22 +18,26 @@ describe("public marketplace certification", () => {
 		expect(read("src/components/marketplace/PublicListingImage.astro")).toContain(
 			'aria-label="Imagen no disponible"'
 		)
-		expect(read("src/components/marketplace/PublicListingImage.astro")).toContain('data-state={src ? "source" : "fallback"}')
+		expect(read("src/components/marketplace/PublicListingImage.astro")).toContain(
+			'data-state={src ? "source" : "fallback"}'
+		)
 	})
 
 	it("keeps public landings semantically navigable and vertically isolated", () => {
 		const surface = read("src/components/marketplace/MarketplaceListingSurface.astro")
 		const hotels = read("src/pages/hotels/index.astro")
 		const tours = read("src/pages/tours/index.astro")
+		const tourLanding = read("src/components/tours/ToursLandingPage.astro")
 
 		expect(surface).toContain('id="content"')
 		expect(surface).toContain("aria-labelledby")
 		expect(surface).toContain("aria-label={`Destinos populares")
-		expect(surface).toContain("isHotels ? <HotelSearchPanel /> : <TourSearchPanel />")
 		expect(hotels).toContain('vertical="hotels"')
 		expect(hotels).toContain('canonicalPath="/hotels"')
-		expect(tours).toContain('vertical="tours"')
-		expect(tours).toContain('canonicalPath="/tours"')
+		expect(tours).toContain("ToursLandingPage")
+		expect(tourLanding).toContain('id="content"')
+		expect(tourLanding).toContain('canonicalPath="/tours"')
+		expect(tourLanding).toContain("Explora por destino")
 	})
 
 	it("reads published destination copy and discovery rows from canonical geography", () => {
@@ -41,9 +45,11 @@ describe("public marketplace certification", () => {
 		const geoSeed = read("src/scripts/seed-bolivia-geo-places.ts")
 
 		expect(destinationListings).toContain("GeoPlaceContent")
-		expect(destinationListings).toContain('marketplace_geo_discovery_reads_total')
-		expect(destinationListings).toContain('marketplace_geo_discovery_rows_total')
-		expect(destinationListings).toContain('strategy: input.canonicalRows > 0 ? "canonical" : "canonical_empty"')
+		expect(destinationListings).toContain("marketplace_geo_discovery_reads_total")
+		expect(destinationListings).toContain("marketplace_geo_discovery_rows_total")
+		expect(destinationListings).toContain(
+			'strategy: input.canonicalRows > 0 ? "canonical" : "canonical_empty"'
+		)
 		expect(destinationListings).not.toContain("LegacyDestinationGeoPlaceMap")
 		expect(destinationListings).not.toContain('from "@/data/departments"')
 		expect(geoSeed).toContain("BOLIVIA_GEO_PLACE_CONTENT")
