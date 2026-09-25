@@ -1,60 +1,40 @@
 ---
-import MarketplaceListingSurface from "@/components/marketplace/MarketplaceListingSurface.astro"
+import ToursLandingPage from "@/components/tours/ToursLandingPage.astro"
 import {
 	publicDestinationHref,
 	publicGeoPlacePath,
 } from "@/lib/marketplace/publicDestinationRoutes"
+import { getPublicTourCatalog } from "@/lib/tours/publicTourCatalog"
 
 const destinationHref = (place: string) => publicDestinationHref(publicGeoPlacePath(place), "tours")
 
-const popularDestinations = [
-	{ label: "La Paz", href: destinationHref("geo:bo:la-paz-city") },
-	{ label: "Uyuni", href: destinationHref("geo:bo:uyuni") },
-	{ label: "Santa Cruz", href: destinationHref("geo:bo:santa-cruz-de-la-sierra") },
-	{ label: "Copacabana", href: destinationHref("geo:bo:copacabana") },
-	{ label: "Cochabamba", href: destinationHref("geo:bo:cochabamba-city") },
-]
-
-const exploreGroups = [
+const destinations = [
 	{
-		title: "Naturaleza",
-		links: [
-			{ label: "Salares y desiertos", href: destinationHref("geo:bo:uyuni") },
-			{ label: "Selva y biodiversidad", href: destinationHref("geo:bo:beni") },
-			{ label: "Montaña y altiplano", href: destinationHref("geo:bo:la-paz-city") },
-		],
+		name: "La Paz",
+		description: "Ciudad, altiplano y montañas",
+		href: destinationHref("geo:bo:la-paz-city"),
+		imageUrl: "https://pub-de0b5a27b1424d99afa6c7b2fe2f02dc.r2.dev/la-paz.webp",
 	},
 	{
-		title: "Cultura",
-		links: [
-			{ label: "Historia y patrimonio", href: destinationHref("geo:bo:sucre") },
-			{ label: "Gastronomía local", href: destinationHref("geo:bo:cochabamba-city") },
-			{ label: "Experiencias urbanas", href: destinationHref("geo:bo:la-paz-city") },
-		],
+		name: "Sucre",
+		description: "Historia, arquitectura y patrimonio",
+		href: destinationHref("geo:bo:sucre"),
+		imageUrl: "https://pub-de0b5a27b1424d99afa6c7b2fe2f02dc.r2.dev/sucre.webp",
 	},
 	{
-		title: "Por duración",
-		links: [
-			{ label: "Medio día", href: "/buscar/tours?duration=lt1" },
-			{ label: "Día completo", href: "/buscar/tours?duration=1" },
-			{ label: "Varios días", href: "/buscar/tours?duration=2-3" },
-		],
+		name: "Santa Cruz",
+		description: "Naturaleza y cultura tropical",
+		href: destinationHref("geo:bo:santa-cruz-de-la-sierra"),
+		imageUrl: "https://pub-de0b5a27b1424d99afa6c7b2fe2f02dc.r2.dev/santa-cruz.webp",
 	},
 	{
-		title: "Antes de reservar",
-		links: [
-			{ label: "Cómo elegir un tour", href: "/help" },
-			{ label: "Tus viajes", href: "/trips" },
-		],
+		name: "Cochabamba",
+		description: "Valles, historia y sabores",
+		href: destinationHref("geo:bo:cochabamba-city"),
+		imageUrl: "https://pub-de0b5a27b1424d99afa6c7b2fe2f02dc.r2.dev/cochabamba.webp",
 	},
 ]
+const catalog = await getPublicTourCatalog({ limit: 8 })
 ---
 
-<MarketplaceListingSurface
-	vertical="tours"
-	title="Tours y experiencias en Bolivia"
-	description="Descubre experiencias con información clara sobre duración, punto de encuentro e inclusiones."
-	canonicalPath="/tours"
-	popularDestinations={popularDestinations}
-	exploreGroups={exploreGroups}
-/>
+<ToursLandingPage catalog={catalog} destinations={destinations} />

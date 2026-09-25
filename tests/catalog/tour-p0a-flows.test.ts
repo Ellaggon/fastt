@@ -10,7 +10,7 @@ describe("tours P0A broken-flow remediations", () => {
 	it("search panel submits canonical difficulty values with Spanish labels", () => {
 		const panel = read("src/components/searchPanel/TourSearchPanel.astro")
 		expect(panel).toContain("TOUR_DIFFICULTY_OPTIONS")
-		expect(panel).toContain("value={level.value}")
+		expect(panel).toContain("value={option.value}")
 		expect(panel).not.toContain('const levels = ["Fácil", "Moderado", "Difícil"]')
 	})
 

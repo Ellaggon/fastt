@@ -102,7 +102,8 @@ function shellViolationForPage(route: string, relativePath: string): string | nu
 		source.includes("SearchLayout") ||
 		source.includes("UILayout") ||
 		source.includes("MarketplaceListingSurface") ||
-		source.includes("MarketplaceDestinationResults")
+		source.includes("MarketplaceDestinationResults") ||
+		source.includes("ToursLandingPage")
 	const usesBaseLayout = source.includes("@/layouts/Layout.astro")
 
 	if (usesLegacyDashboard) return `${relativePath}: uses legacy DashboardLayout`
