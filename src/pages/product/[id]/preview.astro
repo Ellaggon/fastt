@@ -5,7 +5,6 @@ import { buildGuestRoomPreviews } from "@/components/productUI/room-section.view
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
-import ProgressBar from "@/components/ui/ProgressBar.astro"
 import { productRepository } from "@/container"
 import { POLICY_CATEGORY_ORDER } from "@/data/policy/policy-categories"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
@@ -15,10 +14,7 @@ import {
 	resolveCompleteToPublishPlaybookFromUrl,
 } from "@/lib/playbook/complete-to-publish"
 import { loadCompleteToPublishState } from "@/lib/playbook/evaluate-complete-to-publish-progress"
-import {
-	buildPlaybookHref,
-	resolveLaunchPlaybookFromUrl,
-} from "@/lib/playbook/launch-accommodation"
+import { resolveLaunchPlaybookFromUrl } from "@/lib/playbook/launch-accommodation"
 import {
 	buildTourPlaybookHref,
 	resolveTourLaunchPlaybookFromUrl,
@@ -30,7 +26,6 @@ import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
 import { routes } from "@/lib/routes"
-import { listProviderDocuments } from "@/lib/provider-documents"
 import { evaluateProviderGovernance } from "@/lib/provider-governance"
 import {
 	getProductFullAggregate,
@@ -43,21 +38,12 @@ import { buildGuestStayExpectationsSnapshot } from "@/modules/house-rules/public
 import { mapResolvedPoliciesToUI, resolveEffectivePolicies } from "@/modules/policies/public"
 import {
 	first,
-	and,
 	asc,
 	db,
 	eq,
-	gt,
 	Image,
 	inArray,
 	Product,
-	TourBookingQuestion,
-	TourSlotProfile,
-	TourTicketType,
-	Variant,
-	DailyInventory,
-	RatePlan,
-	RatePlanOccupancyPolicy,
 	VariantImage,
 } from "@/shared/infrastructure/db/compat"
 
@@ -93,86 +79,6 @@ const productStatus = String(statusRow?.state ?? "draft")
 	.trim()
 	.toLowerCase()
 const isPublished = productStatus === "published"
-const [tourBookingQuestions, providerDocuments] = isTour
-	? await Promise.all([
-			db
-				.select({
-					label: TourBookingQuestion.label,
-					required: TourBookingQuestion.isRequired,
-				})
-				.from(TourBookingQuestion)
-				.where(eq(TourBookingQuestion.productId, productId))
-				.orderBy(asc(TourBookingQuestion.sortOrder)),
-			listProviderDocuments(providerId),
-		])
-	: [[], []]
-const verifiedTourCompliance = new Set(
-	providerDocuments
-		.filter((document) => document.status === "verified")
-		.map((document) => document.type)
-)
-const [tourTickets, tourSlots] = isTour
-	? await Promise.all([
-			db
-				.select({ label: TourTicketType.label })
-				.from(TourTicketType)
-				.where(and(eq(TourTicketType.productId, productId), eq(TourTicketType.isActive, true))),
-			db
-				.select({
-					variantId: Variant.id,
-					name: Variant.name,
-					time: TourSlotProfile.departureTime,
-					maxPax: TourSlotProfile.maxPax,
-				})
-				.from(Variant)
-				.innerJoin(TourSlotProfile, eq(TourSlotProfile.variantId, Variant.id))
-				.where(and(eq(Variant.productId, productId), eq(TourSlotProfile.isActive, true))),
-		])
-	: [[], []]
-const nextTourInventory =
-	isTour && tourSlots.length
-		? await db
-				.select({
-					date: DailyInventory.date,
-					totalInventory: DailyInventory.totalInventory,
-					reservedCount: DailyInventory.reservedCount,
-				})
-				.from(DailyInventory)
-				.where(
-					and(
-						inArray(
-							DailyInventory.variantId,
-							tourSlots.map((slot) => slot.variantId)
-						),
-						gt(DailyInventory.date, new Date().toISOString().slice(0, 10)),
-						gt(DailyInventory.totalInventory, 0)
-					)
-				)
-				.orderBy(asc(DailyInventory.date))
-				.then(first)
-		: null
-const tourStartingPrice =
-	isTour && tourSlots.length
-		? await db
-				.select({
-					amount: RatePlanOccupancyPolicy.baseAmount,
-					currency: RatePlanOccupancyPolicy.baseCurrency,
-				})
-				.from(RatePlan)
-				.innerJoin(RatePlanOccupancyPolicy, eq(RatePlanOccupancyPolicy.ratePlanId, RatePlan.id))
-				.where(
-					and(
-						inArray(
-							RatePlan.variantId,
-							tourSlots.map((slot) => slot.variantId)
-						),
-						eq(RatePlan.isActive, true)
-					)
-				)
-				.orderBy(asc(RatePlanOccupancyPolicy.baseAmount))
-				.then(first)
-		: null
-
 const publishState = await loadCompleteToPublishState({
 	productId,
 	providerId,
@@ -182,7 +88,6 @@ const publishState = await loadCompleteToPublishState({
 if (!publishState) return Astro.redirect(routes.productList())
 
 const checks = publishState.checks
-const completedChecks = publishState.completedChecks
 const readyToPublish = publishState.readyToPublish && !isPublished
 const providerGovernance = await evaluateProviderGovernance(providerId, {
 	currentUserId: user.id,
@@ -209,8 +114,10 @@ const readinessPercent = publishState.readinessPercent
 const blockerLabels = publishState.blockers
 	.filter((check) => check.sectionKey !== "preview")
 	.map((check) => check.label)
-const nextBlocker =
-	checks.find((check) => !check.complete && check.sectionKey !== "preview") ?? null
+const actionableChecks = checks.filter((check) => check.sectionKey !== "preview")
+const actionableCompletedChecks = actionableChecks.filter((check) => check.complete).length
+const actionableBlockers = publishState.blockers.filter((check) => check.sectionKey !== "preview")
+const nextBlocker = actionableBlockers[0] ?? null
 
 const playbook = resolvePlaybookFromUrl(Astro.url, { isHotel })
 const launchPlaybook = resolveLaunchPlaybookFromUrl(Astro.url)
@@ -252,11 +159,18 @@ function checkHref(check: (typeof checks)[number]) {
 			departure: "departure",
 			rate: "rate",
 			calendar: "calendar",
+			bookingPolicies: "conditions",
 			preview: "preview",
 		}
 		return buildTourPlaybookHref(check.href, stepBySection[check.sectionKey] ?? "preview")
 	}
 	return check.href
+}
+
+// Inside a guided flow, preview is the final review rather than another place to
+// discover old omissions. Draft preview remains available outside the playbook.
+if (playbook.active && stepId === "preview" && nextBlocker) {
+	return Astro.redirect(checkHref(nextBlocker))
 }
 
 const completePreparationHref = buildCompleteToPublishResumeHref(productId, checks)
@@ -279,17 +193,6 @@ const packageExclusionItems = packageExcludes
 	.split(/\r?\n|,/)
 	.map((item) => item.trim())
 	.filter(Boolean)
-const tourSubtype = aggregate.subtype?.kind === "tour" ? aggregate.subtype : null
-const tourItineraryItems = Array.isArray(tourSubtype?.itinerary)
-	? tourSubtype.itinerary.map((item) => String(item ?? "").trim()).filter(Boolean)
-	: []
-const tourIncludes = Array.isArray(tourSubtype?.includes)
-	? tourSubtype.includes.map((item) => String(item ?? "").trim()).filter(Boolean)
-	: []
-const tourExcludes = Array.isArray(tourSubtype?.excludes)
-	? tourSubtype.excludes.map((item) => String(item ?? "").trim()).filter(Boolean)
-	: []
-
 const previewVariantId = String(Astro.url.searchParams.get("variantId") ?? "").trim()
 
 const hotelGuestExpectationsSnapshot = isHotel
@@ -372,25 +275,27 @@ const requiredPolicyCategories = ["Cancellation", "Payment", "CheckIn", "NoShow"
 let policyCategorySet = new Set<string>()
 let mappedPolicies: any[] = []
 let policyResolutionError: string | null = null
-try {
-	const resolvedPolicies = await resolveEffectivePolicies({
-		productId,
-		channel: "web",
-		requiredCategories: requiredPolicyCategories,
-		onMissingCategory: "return_null",
-		featureContext: {
-			request: Astro.request,
-			query: Astro.url.searchParams,
-		},
-	})
-	policyCategorySet = new Set(
-		resolvedPolicies.policies.map((policy) => String(policy.category ?? ""))
-	)
-	mappedPolicies = mapResolvedPoliciesToUI(resolvedPolicies) as any[]
-} catch (error) {
-	policyResolutionError =
-		error instanceof Error ? error.message : "No se pudieron resolver las condiciones"
-	mappedPolicies = []
+if (!isTour) {
+	try {
+		const resolvedPolicies = await resolveEffectivePolicies({
+			productId,
+			channel: "web",
+			requiredCategories: requiredPolicyCategories,
+			onMissingCategory: "return_null",
+			featureContext: {
+				request: Astro.request,
+				query: Astro.url.searchParams,
+			},
+		})
+		policyCategorySet = new Set(
+			resolvedPolicies.policies.map((policy) => String(policy.category ?? ""))
+		)
+		mappedPolicies = mapResolvedPoliciesToUI(resolvedPolicies) as any[]
+	} catch (error) {
+		policyResolutionError =
+			error instanceof Error ? error.message : "No se pudieron resolver las condiciones"
+		mappedPolicies = []
+	}
 }
 ---
 
@@ -404,32 +309,6 @@ try {
 	hideFooter={playbook.active && stepId === "preview"}
 >
 	<section class="space-y-7">
-		{
-			realTourPreviewHref ? (
-				<section class="space-y-3" data-real-public-preview>
-					<header class="flex flex-wrap items-end justify-between gap-3">
-						<div>
-							<p class="text-sm font-semibold text-white">Vista pública real</p>
-							<p class="mt-1 text-sm leading-6 text-slate-400">
-								Usa la misma página y componentes que verá el viajero. Las reservas están
-								desactivadas hasta publicar.
-							</p>
-						</div>
-						<Button href={realTourPreviewHref} variant="secondary">
-							Abrir en pantalla completa
-						</Button>
-					</header>
-					<div class="overflow-hidden rounded-xl border border-slate-700 bg-white shadow-xl">
-						<iframe
-							title={`Vista pública de ${aggregate.displayName}`}
-							src={realTourPreviewHref}
-							class="h-[48rem] w-full bg-white"
-							loading="eager"
-						/>
-					</div>
-				</section>
-			) : null
-		}
 		{
 			isPublished && publicDetailHref ? (
 				<div class="flex justify-end">
@@ -497,7 +376,7 @@ try {
 											? "Todo lo obligatorio está listo. Publica cuando estés preparado para recibir reservas."
 											: readyToPublish
 												? "La ficha está lista. Completa la configuración del negocio para poder publicarla."
-												: `${completedChecks} de ${checks.length} bloques principales listos. ${blockerLabels.length ? `Faltan ${blockerLabels.length} paso${blockerLabels.length === 1 ? "" : "s"}: ${blockerLabels.join(", ")}.` : ""}`
+												: `${actionableCompletedChecks} requisitos listos. ${blockerLabels.length ? `Faltan ${blockerLabels.length}: ${blockerLabels.join(", ")}.` : ""}`
 								}
 							</p>
 						</div>
@@ -528,7 +407,7 @@ try {
 						</div>
 					</div>
 					<p class="shrink-0 text-xs font-medium text-neutral-400 tabular-nums">
-						{completedChecks} de {checks.length}
+						{actionableCompletedChecks} de {actionableChecks.length}
 					</p>
 				</div>
 
@@ -581,7 +460,7 @@ try {
 					</div>
 					<div class="flex shrink-0 flex-wrap items-center gap-2">
 						<Button href={routes.productDetail(productId)} variant="secondary">
-							Volver a ficha
+							{playbook.active ? "Salir y volver a la ficha" : "Volver a la ficha"}
 						</Button>
 						{
 							isPublished ? null : readyToPublish && publicationEligible ? (
@@ -593,8 +472,11 @@ try {
 									Resolver configuración
 								</Button>
 							) : (
-								<Button href={completePreparationHref} variant="onDark">
-									Completar preparación
+								<Button
+									href={nextBlocker ? checkHref(nextBlocker) : completePreparationHref}
+									variant="onDark"
+								>
+									{nextBlocker ? `Corregir ${nextBlocker.label}` : "Completar preparación"}
 									<ArrowRight class="h-4 w-4" aria-hidden="true" />
 								</Button>
 							)
@@ -617,402 +499,261 @@ try {
 			</div>
 		</Card>
 
-		<section class="space-y-4">
-			<header class="space-y-1">
-				<h2 class="text-lg font-semibold text-slate-100">Ficha pública</h2>
-				<p class="text-sm leading-6 text-slate-400">Así leerá el viajero el contenido principal.</p>
-			</header>
-			<Card className="overflow-hidden bg-white p-0 text-slate-800">
-				{
-					primaryImage ? (
-						<img src={primaryImage} alt={aggregate.displayName} class="h-80 w-full object-cover" />
-					) : (
-						<div class="flex h-80 items-center justify-center bg-slate-100 text-sm text-slate-500">
-							Agrega fotos para dar una primera impresión clara.
-						</div>
-					)
-				}
-				<div class="space-y-6 p-5 md:p-6">
-					<div class="flex flex-wrap items-start justify-between gap-4">
-						<div class="space-y-1">
-							<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-								{vertical.labels.workspaceSingular}
-							</p>
-							<h2 class="text-2xl font-semibold text-slate-950">{aggregate.displayName}</h2>
-							<p class="text-sm text-slate-500">
-								{aggregate.location.address || "Ubicación pendiente"}
+		{
+			realTourPreviewHref ? (
+				<section class="space-y-3" data-real-public-preview>
+					<header class="flex flex-wrap items-end justify-between gap-3">
+						<div>
+							<p class="text-sm font-semibold text-white">Vista final del viajero</p>
+							<p class="mt-1 max-w-3xl text-sm leading-6 text-slate-400">
+								Esta es la página pública real del tour. Las reservas permanecen desactivadas hasta
+								publicarlo.
 							</p>
 						</div>
-						<Badge variant={readyToPublish || isPublished ? "success" : "warning"}>
-							{readyToPublish || isPublished ? "Lista para viajeros" : "Borrador"}
-						</Badge>
+						<Button href={realTourPreviewHref} variant="secondary">
+							Abrir vista del viajero
+						</Button>
+					</header>
+					<div class="overflow-hidden rounded-xl border border-slate-700 bg-white shadow-xl">
+						<iframe
+							title={`Vista pública de ${aggregate.displayName}`}
+							src={realTourPreviewHref}
+							class="h-[48rem] w-full bg-white"
+							loading="eager"
+						/>
 					</div>
+				</section>
+			) : null
+		}
 
-					{
-						imagePreviews.length > 1 ? (
-							<div class="grid grid-cols-3 gap-2 md:grid-cols-6">
-								{imagePreviews.map((image) => (
-									<img src={image.url} alt="Vista previa" class="h-20 rounded-lg object-cover" />
-								))}
-							</div>
-						) : null
-					}
+		{
+			!isTour ? (
+				<div class="space-y-7" data-provider-legacy-preview>
+					<section class="space-y-4">
+						<header class="space-y-1">
+							<h2 class="text-lg font-semibold text-slate-100">Ficha pública</h2>
+							<p class="text-sm leading-6 text-slate-400">
+								Así leerá el viajero el contenido principal.
+							</p>
+						</header>
+						<Card className="overflow-hidden bg-white p-0 text-slate-800">
+							{primaryImage ? (
+								<img
+									src={primaryImage}
+									alt={aggregate.displayName}
+									class="h-80 w-full object-cover"
+								/>
+							) : (
+								<div class="flex h-80 items-center justify-center bg-slate-100 text-sm text-slate-500">
+									Agrega fotos para dar una primera impresión clara.
+								</div>
+							)}
+							<div class="space-y-6 p-5 md:p-6">
+								<div class="flex flex-wrap items-start justify-between gap-4">
+									<div class="space-y-1">
+										<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+											{vertical.labels.workspaceSingular}
+										</p>
+										<h2 class="text-2xl font-semibold text-slate-950">{aggregate.displayName}</h2>
+										<p class="text-sm text-slate-500">
+											{aggregate.location.address || "Ubicación pendiente"}
+										</p>
+									</div>
+									<Badge variant={readyToPublish || isPublished ? "success" : "warning"}>
+										{readyToPublish || isPublished ? "Lista para viajeros" : "Borrador"}
+									</Badge>
+								</div>
 
-					<div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-						<div class="space-y-5">
-							<div>
-								<p class="text-sm font-semibold text-slate-900">
-									Sobre {
-										vertical.labels.singular === "alojamiento"
-											? "este alojamiento"
-											: `este ${vertical.labels.singular}`
-									}
-								</p>
-								<p class="mt-2 text-sm leading-7 text-slate-700">
-									{
-										description ||
-											`Agrega una descripción clara para que el viajero entienda ${vertical.labels.singular === "alojamiento" ? "el alojamiento" : `este ${vertical.labels.singular}`}.`
-									}
-								</p>
+								{imagePreviews.length > 1 ? (
+									<div class="grid grid-cols-3 gap-2 md:grid-cols-6">
+										{imagePreviews.map((image) => (
+											<img
+												src={image.url}
+												alt="Vista previa"
+												class="h-20 rounded-lg object-cover"
+											/>
+										))}
+									</div>
+								) : null}
+
+								<div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+									<div class="space-y-5">
+										<div>
+											<p class="text-sm font-semibold text-slate-900">
+												Sobre{" "}
+												{vertical.labels.singular === "alojamiento"
+													? "este alojamiento"
+													: `este ${vertical.labels.singular}`}
+											</p>
+											<p class="mt-2 text-sm leading-7 text-slate-700">
+												{description ||
+													`Agrega una descripción clara para que el viajero entienda ${vertical.labels.singular === "alojamiento" ? "el alojamiento" : `este ${vertical.labels.singular}`}.`}
+											</p>
+										</div>
+										<div>
+											<p class="text-sm font-semibold text-slate-900">Destacados</p>
+											{highlights.length ? (
+												<ul class="mt-3 flex flex-wrap gap-2 text-sm text-slate-700">
+													{highlights.map((item) => (
+														<li class="rounded-full bg-slate-100 px-3 py-1.5">{String(item)}</li>
+													))}
+												</ul>
+											) : (
+												<p class="mt-2 text-sm text-slate-500">
+													Agrega al menos un destacado visible para viajeros.
+												</p>
+											)}
+										</div>
+									</div>
+
+									<div class="space-y-3 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
+										<p class="flex items-center gap-2 text-sm font-semibold text-slate-900">
+											<ShieldCheck class="h-4 w-4 text-slate-500" aria-hidden="true" />
+											Confianza de reserva
+										</p>
+										<p class="text-sm leading-6 text-slate-600">
+											El huésped debe entender cancelación, pagos, no presentación e ingreso antes
+											de reservar.
+										</p>
+										<div class="flex flex-wrap gap-2">
+											{requiredPolicyCategories.map((category) => (
+												<Badge variant={policyCategorySet.has(category) ? "success" : "neutral"}>
+													{POLICY_CATEGORY_ORDER[category as keyof typeof POLICY_CATEGORY_ORDER] ??
+														category}
+												</Badge>
+											))}
+										</div>
+									</div>
+								</div>
 							</div>
-							<div>
-								<p class="text-sm font-semibold text-slate-900">Destacados</p>
-								{
-									highlights.length ? (
-										<ul class="mt-3 flex flex-wrap gap-2 text-sm text-slate-700">
-											{highlights.map((item) => (
-												<li class="rounded-full bg-slate-100 px-3 py-1.5">{String(item)}</li>
+						</Card>
+					</section>
+
+					{isHotel ? (
+						<section class="space-y-4">
+							<header class="flex flex-wrap items-end justify-between gap-3">
+								<div class="space-y-1">
+									<h2 class="text-lg font-semibold text-slate-100">Dónde dormirán los huéspedes</h2>
+									<p class="text-sm leading-6 text-slate-400">
+										Habitaciones que el huésped podrá revisar antes de reservar.
+									</p>
+								</div>
+								<Button
+									href={`/product/${encodeURIComponent(productId)}/rooms`}
+									variant="secondary"
+									size="sm"
+								>
+									<BedDouble class="h-4 w-4" aria-hidden="true" />
+									Editar habitaciones
+								</Button>
+							</header>
+							{guestRoomPreviews.length ? (
+								<GuestRoomPreviewCards
+									previews={guestRoomPreviews}
+									cardClass="fastt-row-card bg-white text-slate-900 ring-1 ring-slate-200/70"
+									gridClass="grid gap-4 lg:grid-cols-2"
+								/>
+							) : (
+								<Card className="border-amber-200 bg-amber-50 text-amber-950">
+									<p class="text-sm font-semibold">Aún no hay habitaciones listas para preview.</p>
+									<p class="mt-1 text-sm leading-6">
+										Completa camas, baño, capacidad, fotos y notas para que el huésped entienda
+										dónde dormirá.
+									</p>
+								</Card>
+							)}
+						</section>
+					) : null}
+
+					{vertical.vertical === "package" ? (
+						<section class="space-y-4">
+							<header class="space-y-1">
+								<h2 class="text-lg font-semibold text-slate-100">Incluye / No incluye</h2>
+								<p class="text-sm leading-6 text-slate-400">
+									Listas visibles del paquete antes de publicar.
+								</p>
+							</header>
+							<div class="grid gap-4 md:grid-cols-2">
+								<Card className="bg-white text-slate-800">
+									<p class="text-sm font-semibold text-slate-900">Incluye</p>
+									{packageInclusionItems.length ? (
+										<ul class="mt-3 space-y-2 text-sm leading-6 text-slate-700">
+											{packageInclusionItems.map((item) => (
+												<li class="rounded-md bg-slate-50 px-3 py-2">{item}</li>
 											))}
 										</ul>
 									) : (
 										<p class="mt-2 text-sm text-slate-500">
-											Agrega al menos un destacado visible para viajeros.
+											Agrega inclusiones visibles antes de publicar.
 										</p>
-									)
-								}
-							</div>
-						</div>
-
-						<div class="space-y-3 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
-							<p class="flex items-center gap-2 text-sm font-semibold text-slate-900">
-								<ShieldCheck class="h-4 w-4 text-slate-500" aria-hidden="true" />
-								Confianza de reserva
-							</p>
-							<p class="text-sm leading-6 text-slate-600">
-								El huésped debe entender cancelación, pagos, no presentación e ingreso antes de
-								reservar.
-							</p>
-							<div class="flex flex-wrap gap-2">
-								{
-									requiredPolicyCategories.map((category) => (
-										<Badge variant={policyCategorySet.has(category) ? "success" : "neutral"}>
-											{POLICY_CATEGORY_ORDER[category as keyof typeof POLICY_CATEGORY_ORDER] ??
-												category}
-										</Badge>
-									))
-								}
-							</div>
-						</div>
-					</div>
-				</div>
-			</Card>
-		</section>
-
-		{
-			isHotel ? (
-				<section class="space-y-4">
-					<header class="flex flex-wrap items-end justify-between gap-3">
-						<div class="space-y-1">
-							<h2 class="text-lg font-semibold text-slate-100">Dónde dormirán los huéspedes</h2>
-							<p class="text-sm leading-6 text-slate-400">
-								Habitaciones que el huésped podrá revisar antes de reservar.
-							</p>
-						</div>
-						<Button
-							href={`/product/${encodeURIComponent(productId)}/rooms`}
-							variant="secondary"
-							size="sm"
-						>
-							<BedDouble class="h-4 w-4" aria-hidden="true" />
-							Editar habitaciones
-						</Button>
-					</header>
-					{guestRoomPreviews.length ? (
-						<GuestRoomPreviewCards
-							previews={guestRoomPreviews}
-							cardClass="fastt-row-card bg-white text-slate-900 ring-1 ring-slate-200/70"
-							gridClass="grid gap-4 lg:grid-cols-2"
-						/>
-					) : (
-						<Card className="border-amber-200 bg-amber-50 text-amber-950">
-							<p class="text-sm font-semibold">Aún no hay habitaciones listas para preview.</p>
-							<p class="mt-1 text-sm leading-6">
-								Completa camas, baño, capacidad, fotos y notas para que el huésped entienda dónde
-								dormirá.
-							</p>
-						</Card>
-					)}
-				</section>
-			) : null
-		}
-
-		{
-			isTour ? (
-				<section class="space-y-4">
-					<header class="flex flex-wrap items-end justify-between gap-3">
-						<div class="space-y-1">
-							<h2 class="text-lg font-semibold text-slate-100">La experiencia</h2>
-							<p class="text-sm leading-6 text-slate-400">
-								Itinerario, punto de encuentro y modalidades que verá el participante.
-							</p>
-						</div>
-						<div class="flex flex-wrap gap-2">
-							<Button
-								href={`/product/${encodeURIComponent(productId)}/tickets`}
-								variant="secondary"
-								size="sm"
-							>
-								Editar modalidades
-							</Button>
-							<Button
-								href={`/product/${encodeURIComponent(productId)}/departures`}
-								variant="secondary"
-								size="sm"
-							>
-								Editar salidas
-							</Button>
-						</div>
-					</header>
-					<Card className="bg-white text-slate-800">
-						<div class="grid gap-4 md:grid-cols-4">
-							<div>
-								<p class="text-sm font-semibold text-slate-900">Duración</p>
-								<p class="mt-1 text-sm text-slate-600">
-									{aggregate.subtype?.kind === "tour" && aggregate.subtype.duration
-										? String(aggregate.subtype.duration)
-										: "Pendiente de definir"}
-								</p>
-							</div>
-							<div>
-								<p class="text-sm font-semibold text-slate-900">Punto de encuentro</p>
-								<p class="mt-1 text-sm text-slate-600">
-									{aggregate.subtype?.kind === "tour" && aggregate.subtype.meetingPoint
-										? String(aggregate.subtype.meetingPoint)
-										: "Pendiente de definir"}
-								</p>
-							</div>
-							<div>
-								<p class="text-sm font-semibold text-slate-900">Dificultad</p>
-								<p class="mt-1 text-sm text-slate-600">
-									{String((tourSubtype as any)?.difficultyLevel ?? "Pendiente de definir")}
-								</p>
-							</div>
-							<div>
-								<p class="text-sm font-semibold text-slate-900">Itinerario</p>
-								<p class="mt-1 text-sm text-slate-600">
-									{tourItineraryItems.length
-										? `${tourItineraryItems.length} actividades`
-										: "Pendiente de definir"}
-								</p>
-							</div>
-						</div>
-						{tourItineraryItems.length ? (
-							<ol class="mt-5 space-y-2">
-								{tourItineraryItems.map((item, index) => (
-									<li class="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
-										<span class="mr-2 font-semibold text-slate-900">{index + 1}.</span>
-										{item}
-									</li>
-								))}
-							</ol>
-						) : null}
-						<div class="mt-5 grid gap-4 md:grid-cols-2">
-							<div>
-								<p class="text-sm font-semibold text-slate-900">Incluye</p>
-								<p class="mt-1 text-sm text-slate-600">
-									{tourIncludes.length ? tourIncludes.join(" · ") : "Pendiente de definir"}
-								</p>
-							</div>
-							<div>
-								<p class="text-sm font-semibold text-slate-900">No incluye</p>
-								<p class="mt-1 text-sm text-slate-600">
-									{tourExcludes.length ? tourExcludes.join(" · ") : "Sin exclusiones informadas"}
-								</p>
-							</div>
-						</div>
-					</Card>
-					<Card className="bg-white text-slate-800">
-						<div class="grid gap-4 md:grid-cols-4">
-							<div>
-								<p class="text-sm font-semibold text-slate-900">Participantes</p>
-								<p class="mt-1 text-sm text-slate-600">
-									{tourTickets.length
-										? tourTickets.map((ticket) => ticket.label).join(" · ")
-										: "Pendiente de definir"}
-								</p>
-							</div>
-							<div>
-								<p class="text-sm font-semibold text-slate-900">Modalidades activas</p>
-								<p class="mt-1 text-sm text-slate-600">
-									{tourSlots.length
-										? tourSlots.map((slot) => `${slot.name} · ${slot.time}`).join(" · ")
-										: "Pendiente de definir"}
-								</p>
-							</div>
-							<div>
-								<p class="text-sm font-semibold text-slate-900">Próxima fecha disponible</p>
-								<p class="mt-1 text-sm text-slate-600">
-									{nextTourInventory?.date
-										? `${nextTourInventory.date} · ${Number(nextTourInventory.totalInventory) - Number(nextTourInventory.reservedCount)} cupos`
-										: "Pendiente de definir"}
-								</p>
-							</div>
-							<div>
-								<p class="text-sm font-semibold text-slate-900">Precio desde</p>
-								<p class="mt-1 text-sm text-slate-600">
-									{tourStartingPrice
-										? new Intl.NumberFormat("es-BO", {
-												style: "currency",
-												currency: String(tourStartingPrice.currency || "USD"),
-											}).format(Number(tourStartingPrice.amount))
-										: "Pendiente de definir"}
-								</p>
-							</div>
-						</div>
-					</Card>
-					<div class="grid gap-4 md:grid-cols-2">
-						<Card className="bg-white text-slate-800">
-							<p class="text-sm font-semibold text-slate-900">Preguntas antes de reservar</p>
-							{tourBookingQuestions.length ? (
-								<ul class="mt-3 space-y-2 text-sm text-slate-700">
-									{tourBookingQuestions.map((question: any) => (
-										<li class="rounded-lg bg-slate-50 px-3 py-2">
-											{String(question.label)}
-											<span class="ml-2 text-xs text-slate-500">
-												{question.required ? "Obligatoria" : "Opcional"}
-											</span>
-										</li>
-									))}
-								</ul>
-							) : (
-								<p class="mt-2 text-sm text-slate-500">
-									No se solicitarán datos adicionales al viajero.
-								</p>
-							)}
-						</Card>
-						<Card className="bg-white text-slate-800">
-							<p class="text-sm font-semibold text-slate-900">Cumplimiento operativo</p>
-							<p class="mt-2 text-sm leading-6 text-slate-600">
-								Seguro de responsabilidad:{" "}
-								{verifiedTourCompliance.has("insurance") ? "verificado" : "no verificado"}
-								<br />
-								Licencia de operación:{" "}
-								{verifiedTourCompliance.has("operating_license") ? "verificada" : "no verificada"}
-							</p>
-							<a
-								href={routes.providerSettingsVerificationDocuments()}
-								class="mt-3 inline-flex text-sm font-semibold text-sky-800 underline"
-							>
-								Gestionar documentos
-							</a>
-						</Card>
-					</div>
-				</section>
-			) : null
-		}
-
-		{
-			vertical.vertical === "package" ? (
-				<section class="space-y-4">
-					<header class="space-y-1">
-						<h2 class="text-lg font-semibold text-slate-100">Incluye / No incluye</h2>
-						<p class="text-sm leading-6 text-slate-400">
-							Listas visibles del paquete antes de publicar.
-						</p>
-					</header>
-					<div class="grid gap-4 md:grid-cols-2">
-						<Card className="bg-white text-slate-800">
-							<p class="text-sm font-semibold text-slate-900">Incluye</p>
-							{packageInclusionItems.length ? (
-								<ul class="mt-3 space-y-2 text-sm leading-6 text-slate-700">
-									{packageInclusionItems.map((item) => (
-										<li class="rounded-md bg-slate-50 px-3 py-2">{item}</li>
-									))}
-								</ul>
-							) : (
-								<p class="mt-2 text-sm text-slate-500">
-									Agrega inclusiones visibles antes de publicar.
-								</p>
-							)}
-						</Card>
-						<Card className="bg-white text-slate-800">
-							<p class="text-sm font-semibold text-slate-900">No incluye</p>
-							{packageExclusionItems.length ? (
-								<ul class="mt-3 space-y-2 text-sm leading-6 text-slate-700">
-									{packageExclusionItems.map((item) => (
-										<li class="rounded-md bg-slate-50 px-3 py-2">{item}</li>
-									))}
-								</ul>
-							) : (
-								<p class="mt-2 text-sm text-slate-500">
-									Las exclusiones ayudan a evitar dudas antes de reservar.
-								</p>
-							)}
-						</Card>
-					</div>
-				</section>
-			) : null
-		}
-
-		<section class="space-y-4">
-			<header class="flex flex-wrap items-end justify-between gap-3">
-				<div class="space-y-1">
-					<h2 class="text-lg font-semibold text-slate-100">
-						{isHotel ? "Condiciones que verá el huésped" : "Condiciones que verá el viajero"}
-					</h2>
-					<p class="text-sm leading-6 text-slate-400">
-						Resumen visible de cancelación, pago, no presentación y llegada.
-					</p>
-				</div>
-				{
-					isHotel ? (
-						<Button href={conditionsHref} variant="secondary" size="sm">
-							Editar condiciones
-						</Button>
-					) : null
-				}
-			</header>
-			<div class="grid gap-3 md:grid-cols-2">
-				{
-					policyResolutionError ? (
-						<Card className="border-red-200 bg-red-50 text-red-900">
-							<p class="font-semibold">No se pudieron resolver las condiciones.</p>
-							<p class="mt-1 text-sm">{policyResolutionError}</p>
-						</Card>
-					) : mappedPolicies.length ? (
-						mappedPolicies.map((policy: any) => {
-							const category = String(policy.category ?? "")
-							return (
-								<Card className="bg-white text-slate-800">
-									<p class="text-sm font-semibold text-slate-900">
-										{POLICY_CATEGORY_ORDER[category as keyof typeof POLICY_CATEGORY_ORDER] ??
-											category}
-									</p>
-									<p class="mt-2 text-sm leading-6 text-slate-600">
-										{String(policy.description ?? "Sin detalle visible.")}
-									</p>
+									)}
 								</Card>
-							)
-						})
-					) : (
-						<Card className="bg-white text-slate-700">
-							<p class="font-semibold text-slate-900">Aún no hay condiciones visibles.</p>
-							<p class="mt-1 text-sm">Agrega condiciones antes de publicar.</p>
-						</Card>
-					)
-				}
-			</div>
-		</section>
+								<Card className="bg-white text-slate-800">
+									<p class="text-sm font-semibold text-slate-900">No incluye</p>
+									{packageExclusionItems.length ? (
+										<ul class="mt-3 space-y-2 text-sm leading-6 text-slate-700">
+											{packageExclusionItems.map((item) => (
+												<li class="rounded-md bg-slate-50 px-3 py-2">{item}</li>
+											))}
+										</ul>
+									) : (
+										<p class="mt-2 text-sm text-slate-500">
+											Las exclusiones ayudan a evitar dudas antes de reservar.
+										</p>
+									)}
+								</Card>
+							</div>
+						</section>
+					) : null}
+
+					<section class="space-y-4">
+						<header class="flex flex-wrap items-end justify-between gap-3">
+							<div class="space-y-1">
+								<h2 class="text-lg font-semibold text-slate-100">
+									{isHotel ? "Condiciones que verá el huésped" : "Condiciones que verá el viajero"}
+								</h2>
+								<p class="text-sm leading-6 text-slate-400">
+									Resumen visible de cancelación, pago, no presentación y llegada.
+								</p>
+							</div>
+							{isHotel ? (
+								<Button href={conditionsHref} variant="secondary" size="sm">
+									Editar condiciones
+								</Button>
+							) : null}
+						</header>
+						<div class="grid gap-3 md:grid-cols-2">
+							{policyResolutionError ? (
+								<Card className="border-red-200 bg-red-50 text-red-900">
+									<p class="font-semibold">No se pudieron resolver las condiciones.</p>
+									<p class="mt-1 text-sm">{policyResolutionError}</p>
+								</Card>
+							) : mappedPolicies.length ? (
+								mappedPolicies.map((policy: any) => {
+									const category = String(policy.category ?? "")
+									return (
+										<Card className="bg-white text-slate-800">
+											<p class="text-sm font-semibold text-slate-900">
+												{POLICY_CATEGORY_ORDER[category as keyof typeof POLICY_CATEGORY_ORDER] ??
+													category}
+											</p>
+											<p class="mt-2 text-sm leading-6 text-slate-600">
+												{String(policy.description ?? "Sin detalle visible.")}
+											</p>
+										</Card>
+									)
+								})
+							) : (
+								<Card className="bg-white text-slate-700">
+									<p class="font-semibold text-slate-900">Aún no hay condiciones visibles.</p>
+									<p class="mt-1 text-sm">Agrega condiciones antes de publicar.</p>
+								</Card>
+							)}
+						</div>
+					</section>
+				</div>
+			) : null
+		}
 
 		{
 			isHotel ? (

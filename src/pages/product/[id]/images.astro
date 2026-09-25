@@ -12,6 +12,7 @@ import { buildPlaybookHref } from "@/lib/playbook/launch-accommodation"
 import { playbookRedirectHrefFor } from "@/lib/playbook/playbook-nav"
 import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
 import { routes } from "@/lib/routes"
+import { TOUR_QUALITY_MIN_IMAGES } from "@/lib/tours/tourAdminQuality"
 import { getProductFullAggregate } from "@/modules/catalog/public"
 
 const user = await getUserFromRequest(Astro.request)
@@ -38,6 +39,8 @@ const isHotel = vertical.vertical === "hotel"
 const isTour = vertical.vertical === "tour"
 const playbook = resolvePlaybookFromUrl(Astro.url, { isHotel })
 const existingImages = product.images || []
+const enforceTourPublicationGallery = isTour && playbook.active
+const missingTourImages = Math.max(0, TOUR_QUALITY_MIN_IMAGES - existingImages.length)
 ---
 
 <PlaybookLayout
@@ -49,6 +52,8 @@ const existingImages = product.images || []
 	isHotel={isHotel}
 	playbookVertical={vertical.vertical}
 	continueFormId={playbook.active ? "imagesForm" : null}
+	continueDisabled={enforceTourPublicationGallery && missingTourImages > 0}
+	continueDisabledTitle={`Agrega ${missingTourImages} foto${missingTourImages === 1 ? "" : "s"} más para continuar.`}
 >
 	<section class="space-y-8">
 		<section class="space-y-4">
@@ -58,6 +63,7 @@ const existingImages = product.images || []
 					method="POST"
 					action="/api/product/images"
 					class="max-w-3xl space-y-8"
+					data-required-image-count={enforceTourPublicationGallery ? TOUR_QUALITY_MIN_IMAGES : 0}
 				>
 					<Input type="hidden" name="productId" value={productId} />
 					<Input
@@ -90,13 +96,17 @@ const existingImages = product.images || []
 						</h2>
 						<p class="text-sm leading-6 text-slate-600">
 							{
-								isTour
-									? "Recomendamos 5 fotos: portada, experiencia, entorno y detalles. Puedes continuar con las fotos que ya tengas."
-									: "Arrastra imágenes aquí o haz clic para seleccionarlas."
+								isTour && enforceTourPublicationGallery
+									? "Para publicar necesitas 5 fotos: portada, experiencia, entorno y detalles. Puedes guardar el borrador y volver después."
+									: isTour
+										? "Recomendamos 5 fotos: portada, experiencia, entorno y detalles."
+										: "Arrastra imágenes aquí o haz clic para seleccionarlas."
 							}
 						</p>
 						<p id="imageCount" class="text-sm font-semibold text-slate-800" aria-live="polite">
-							{existingImages.length}/5 fotos recomendadas
+							{existingImages.length}/{TOUR_QUALITY_MIN_IMAGES} fotos {
+								enforceTourPublicationGallery ? "necesarias para publicar" : "recomendadas"
+							}
 						</p>
 					</header>
 
@@ -137,9 +147,11 @@ const existingImages = product.images || []
 						<div class="space-y-1">
 							<p id="stateLabel" class="text-sm text-slate-600" aria-live="polite">
 								{
-									existingImages.length > 0
-										? "Listo: puedes continuar con las fotos existentes o agregar nuevas."
-										: "Vacío: selecciona imágenes para continuar."
+									enforceTourPublicationGallery && missingTourImages > 0
+										? `Faltan ${missingTourImages} foto${missingTourImages === 1 ? "" : "s"} para continuar con la preparación.`
+										: existingImages.length > 0
+											? "Listo: puedes continuar con las fotos existentes o agregar nuevas."
+											: "Vacío: selecciona imágenes para continuar."
 								}
 							</p>
 							<p id="stateDetail" class="whitespace-pre-wrap text-sm text-slate-600"></p>
