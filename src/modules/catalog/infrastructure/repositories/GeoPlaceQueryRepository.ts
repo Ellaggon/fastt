@@ -23,10 +23,12 @@ export class GeoPlaceQueryRepository implements GeoPlaceQueryRepositoryPort {
 				name: GeoPlace.canonicalName,
 				slug: GeoPlace.slug,
 				canonicalPath: GeoPlace.canonicalPath,
+				placeType: GeoPlace.placeType,
 				country: GeoPlace.countryCode,
-				department: sql<
-					string | null
-				>`CASE WHEN ${GeoPlace.placeType} = 'admin_area_1' THEN ${GeoPlace.canonicalName} ELSE NULL END`,
+				department: sql<string | null>`CASE
+					WHEN ${GeoPlace.placeType} = 'admin_area_1' THEN ${GeoPlace.canonicalName}
+					ELSE (SELECT parent."canonicalName" FROM "GeoPlace" parent WHERE parent."id" = ${GeoPlace.parentId} AND parent."placeType" = 'admin_area_1' LIMIT 1)
+				END`,
 				latitude: GeoPlace.centroidLat,
 				longitude: GeoPlace.centroidLng,
 			})
