@@ -1,118 +1,105 @@
 ---
+import { CircleUserRound } from "@lucide/astro"
+
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { ensureUserForSession } from "@/modules/identity/public"
-import ProfileHover from "./ProfileHover.astro"
 
 const user = await getUserFromRequest(Astro.request)
+if (user?.email) await ensureUserForSession({ email: user.email })
 
-// Use identity module to ensure user is persisted
-if (user?.email) {
-	await ensureUserForSession({ email: user.email })
-}
+const pathname = Astro.url.pathname
+const links = [
+	{ label: "Inicio", href: "/", active: pathname === "/" },
+	{ label: "Alojamientos", href: "/hotels", active: pathname.startsWith("/hotels") },
+	{
+		label: "Tours",
+		href: "/tours",
+		active: pathname.startsWith("/tours") || pathname === "/buscar/tours",
+	},
+	{ label: "Paquetes", href: "/packages", active: pathname.startsWith("/packages") },
+]
 ---
 
-<nav
-	class="fixed top-0 z-20 flex w-full items-center justify-between bg-neutral-900/50 px-6 text-neutral-300 backdrop-blur-md transition-[color,transform] duration-300 ease-out"
+<header
+	class="fixed inset-x-0 top-0 z-40 h-16 border-b border-slate-200 bg-white/95 text-slate-950 shadow-sm backdrop-blur"
 >
-	<div class="flex items-center gap-6 md:gap-8">
-		<a
-			href="/"
-			class="group flex items-center gap-x-2 transition-colors duration-300 hover:text-white"
-		>
-			<img
-				src="/favicon-sbg.webp"
-				alt="icon-company"
-				class="h-6 w-6 transition-all duration-300 group-hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]"
-			/>
-		</a>
-		<div class="hidden grid-cols-9 items-center text-sm font-medium sm:grid">
-			<div class="flex justify-center">
-				<a
-					href="/"
-					class="border-b border-transparent p-6 transition-[color,border-color] duration-300 hover:border-white hover:text-white"
-				>
-					Inicio
-				</a>
-			</div>
-			<div class="flex justify-center">
-				<a
-					href="/hotels"
-					class="border-b border-transparent p-6 transition-[color,border-color] duration-300 hover:border-white hover:text-white"
-				>
-					Hoteles
-				</a>
-			</div>
-			<div class="flex justify-center">
-				<a
-					href="/tours"
-					class="border-b border-transparent p-6 transition-[color,border-color] duration-300 hover:border-white hover:text-white"
-				>
-					Tours
-				</a>
-			</div>
-			<div class="flex justify-center">
-				<a
-					href="/packages"
-					class="border-b border-transparent p-6 transition-[color,border-color] duration-300 hover:border-white hover:text-white"
-				>
-					Paquetes
-				</a>
-			</div>
+	<div class="flex h-full w-full items-center justify-between px-4 sm:px-6 lg:px-8 xl:px-10">
+		<div class="flex min-w-0 items-center gap-8">
+			<a
+				href="/"
+				class="flex shrink-0 items-center gap-2 font-semibold tracking-tight text-slate-950"
+				aria-label="Fastt, inicio"
+			>
+				<img src="/favicon-sbg.webp" alt="" class="h-8 w-8 rounded-full" />
+				<span class="text-lg">Fastt</span>
+			</a>
+			<nav aria-label="Navegación principal" class="hidden h-16 items-center md:flex">
+				<ul class="flex h-full items-center gap-1">
+					{
+						links.map((link) => (
+							<li class="h-full">
+								<a
+									href={link.href}
+									aria-current={link.active ? "page" : undefined}
+									class:list={[
+										"relative flex h-full min-w-11 items-center px-3 text-sm font-medium transition-colors hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-slate-950",
+										link.active
+											? "text-slate-950 after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-slate-950"
+											: "text-slate-600",
+									]}
+								>
+									{link.label}
+								</a>
+							</li>
+						))
+					}
+				</ul>
+			</nav>
+		</div>
+
+		<div class="hidden items-center gap-2 md:flex">
 			{
-				user && (
-					<div class="flex justify-center">
+				user ? (
+					<>
 						<a
 							href="/dashboard"
-							class="border-b border-transparent p-6 transition-[color,border-color] duration-300 hover:border-white hover:text-white"
+							class="inline-flex min-h-11 items-center rounded-xl px-3 text-sm font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-950"
 						>
-							Dashboard
+							Panel de proveedor
 						</a>
-					</div>
+						<details class="relative">
+							<summary
+								class="fastt-soft-box flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-full text-slate-700 hover:bg-slate-50"
+								aria-label="Abrir menú de cuenta"
+							>
+								<CircleUserRound class="h-5 w-5" aria-hidden="true" />
+							</summary>
+							<div class="fastt-card absolute top-12 right-0 w-64 bg-white p-2 shadow-xl">
+								<p class="truncate px-3 py-2 text-sm text-slate-600">{user.email}</p>
+								<a
+									href="/trips"
+									class="block rounded-lg px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-100"
+								>
+									Mis viajes
+								</a>
+								<a
+									href="/api/auth/logout"
+									class="block rounded-lg px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-100"
+								>
+									Cerrar sesión
+								</a>
+							</div>
+						</details>
+					</>
+				) : (
+					<a
+						href="/SignInPage"
+						class="fastt-soft-box inline-flex min-h-11 items-center px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+					>
+						Ingresar
+					</a>
 				)
 			}
 		</div>
 	</div>
-
-	<div class="flex items-center gap-x-4">
-		{
-			user ? (
-				<>
-					<ProfileHover />
-					{/* <a
-						href="/product/create"
-						class="flex items-center justify-center rounded-lg bg-white px-4 py-2 text-sm font-semibold text-black shadow-md transition-transform duration-300 hover:scale-95"
-					>
-						Publicar
-					</a> */}
-				</>
-			) : (
-				<>
-					<a
-						href="/SignInPage"
-						class="hidden items-center justify-center rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-neutral-200 transition-colors duration-300 hover:bg-white/20 md:flex"
-					>
-						Ingresar
-					</a>
-				</>
-			)
-		}
-	</div>
-</nav>
-<div class="absolute top-9 h-2 w-full bg-white"></div>
-
-<script>
-	let lastScrollY = window.scrollY
-	const nav = document.querySelector("nav")
-
-	const handleScroll = () => {
-		const currentScrollY = window.scrollY
-		if (lastScrollY < currentScrollY && currentScrollY > 50) {
-			nav?.classList.add("-translate-y-full")
-		} else {
-			nav?.classList.remove("-translate-y-full")
-		}
-		lastScrollY = currentScrollY
-	}
-
-	window.addEventListener("scroll", handleScroll)
-</script>
+</header>
