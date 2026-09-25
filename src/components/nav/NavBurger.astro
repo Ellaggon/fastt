@@ -1,137 +1,120 @@
 ---
+import { Menu, X } from "@lucide/astro"
 
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+
+const user = await getUserFromRequest(Astro.request)
 ---
 
-<nav>
-	<!-- burger button -->
-	<div class="fixed bottom-10 right-10 z-10 cursor-pointer">
-		<button
-			class="inline-flex cursor-pointer flex-row items-center justify-center rounded-full border-2 bg-opacity-60 px-2 pb-1.5 text-center text-3xl font-medium text-white opacity-70 transition duration-300 hover:scale-90 hover:bg-slate-900 hover:opacity-100 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-[#1da1f2]/50 md:hidden dark:focus:ring-[#1da1f2]/55"
-			id="menuButton"
-		>
-			&#9776;
-		</button>
-	</div>
-
-	<!-- burger nav -->
-	<article
-		class="nav fixed bottom-24 left-1/2 z-10 hidden w-[96%] -translate-x-1/2 transform flex-col items-center gap-3 rounded-3xl bg-black p-5 md:flex-row md:text-xl"
+<div class="md:hidden" data-public-mobile-nav>
+	<button
+		type="button"
+		class="fixed right-4 top-2.5 z-50 flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-950 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950"
+		aria-label="Abrir menú"
+		aria-controls="publicMobileMenu"
+		aria-expanded="false"
+		data-public-mobile-trigger
 	>
-		<a
-			href="/"
-			class="flew-row inline-flex w-full items-center justify-start gap-3 rounded-lg bg-opacity-60 px-3 py-2.5 text-center font-medium text-white opacity-70 transition duration-300 hover:scale-90 hover:bg-slate-900 hover:opacity-100 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-[#1da1f2]/50 md:hidden"
-		>
-			<div>
-				<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-					<path d="M3 9.5 12 3l9 6.5V21a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V9.5Z"></path>
-				</svg>
-			</div>
-			<p>Inicio</p>
-		</a>
-		<a
-			href="/tours"
-			class="flew-row inline-flex w-full items-center justify-start gap-3 rounded-lg bg-opacity-60 px-3 py-2.5 text-center font-medium text-white opacity-70 transition duration-300 hover:scale-90 hover:bg-slate-900 hover:opacity-100 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-[#1da1f2]/50 md:hidden"
-		>
-			<div>
-				<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-					<path
-						d="M9 20h6l1-4H8l1 4Zm3-18C8 2 5 5.4 5 9c0 3.5 2.5 6 7 6s7-2.5 7-6c0-3.6-3-7-7-7Zm-4 7c0-2.6 2-5 4-5s4 2.4 4 5-2 4-4 4-4-1.4-4-4Z"
-					></path>
-				</svg>
-			</div>
-			<p>Tours</p>
-		</a>
-		<a
-			href="/hotels"
-			class="flew-row inline-flex w-full items-center justify-start gap-3 rounded-lg bg-opacity-60 px-3 py-2.5 text-center font-medium text-white opacity-70 transition duration-300 hover:scale-90 hover:bg-slate-900 hover:opacity-100 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-[#1da1f2]/50 md:hidden"
-		>
-			<div>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					fill="none"
-					viewBox="0 0 24 24"
-					stroke-width="1.8"
-					stroke="currentColor"
-					class="h-5 w-5"
-				>
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						d="M3 21V8a2 2 0 012-2h2V4a2 2 0 012-2h6a2 2 0 012 2v2h2a2 2 0 012 2v13m-8 0V11m-4 10V11m-4 10h16"
-					></path>
-				</svg>
-			</div>
-			<p>Hoteles</p>
-		</a>
-		<a
-			href="/dashboard"
-			class="flew-row inline-flex w-full items-center justify-start gap-3 rounded-lg bg-opacity-60 px-3 py-2.5 text-center font-medium text-white opacity-70 transition duration-300 hover:scale-90 hover:bg-slate-900 hover:opacity-100 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-[#1da1f2]/50 md:hidden"
-		>
-			<div>
-				<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-					<path d="M4 13h4v7H4v-7Zm6-6h4v13h-4V7Zm6 9h4v4h-4v-4Z"></path>
-				</svg>
-			</div>
-			<p>Dashboard</p>
-		</a>
-		<a
-			href="/product/create?playbook=launch&step=create&flow=create"
-			class="flew-row inline-flex w-full items-center justify-start gap-3 rounded-lg bg-opacity-60 px-3 py-2.5 text-center font-medium text-white opacity-70 transition duration-300 hover:scale-90 hover:bg-slate-900 hover:opacity-100 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-[#1da1f2]/50 md:hidden"
-		>
-			<div>
-				<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-					<path d="M11 4h2v7h7v2h-7v7h-2v-7H4v-2h7V4Z"></path>
-				</svg>
-			</div>
-			<p>Publicar</p>
-		</a>
-		<a
-			href="/api/auth/logout"
-			class="flew-row inline-flex w-full items-center justify-start gap-3 rounded-lg bg-opacity-60 px-3 py-2.5 text-center font-medium text-white opacity-70 transition duration-300 hover:scale-90 hover:bg-slate-900 hover:opacity-100 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-[#1da1f2]/50 md:hidden"
-		>
-			<div>
-				<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-					<path
-						d="M16 17v2H6V5h10v2h2V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10v-2h-2Zm-1-5 3-3v2h6v2h-6v2l-3-3Z"
-					></path>
-				</svg>
-			</div>
-			<p>Salir</p>
-		</a>
-	</article>
-</nav>
+		<Menu class="h-5 w-5" data-menu-open-icon aria-hidden="true" />
+		<X class="hidden h-5 w-5" data-menu-close-icon aria-hidden="true" />
+	</button>
+	<div
+		id="publicMobileMenu"
+		class="fixed inset-x-3 top-[4.5rem] z-50 hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl"
+		data-public-mobile-menu
+	>
+		<nav aria-label="Navegación móvil">
+			<ul class="space-y-1 text-base font-medium text-slate-900">
+				<li>
+					<a href="/" class="flex min-h-12 items-center rounded-xl px-4 hover:bg-slate-100"
+						>Inicio</a
+					>
+				</li>
+				<li>
+					<a href="/hotels" class="flex min-h-12 items-center rounded-xl px-4 hover:bg-slate-100"
+						>Alojamientos</a
+					>
+				</li>
+				<li>
+					<a href="/tours" class="flex min-h-12 items-center rounded-xl px-4 hover:bg-slate-100"
+						>Tours</a
+					>
+				</li>
+				<li>
+					<a href="/packages" class="flex min-h-12 items-center rounded-xl px-4 hover:bg-slate-100"
+						>Paquetes</a
+					>
+				</li>
+				<li>
+					<a href="/trips" class="flex min-h-12 items-center rounded-xl px-4 hover:bg-slate-100"
+						>Mis viajes</a
+					>
+				</li>
+				{
+					user ? (
+						<>
+							<li class="my-2 border-t border-slate-200" />
+							<li>
+								<a
+									href="/dashboard"
+									class="flex min-h-12 items-center rounded-xl px-4 hover:bg-slate-100"
+								>
+									Panel de proveedor
+								</a>
+							</li>
+							<li>
+								<a
+									href="/api/auth/logout"
+									class="flex min-h-12 items-center rounded-xl px-4 hover:bg-slate-100"
+								>
+									Cerrar sesión
+								</a>
+							</li>
+						</>
+					) : (
+						<li>
+							<a
+								href="/SignInPage"
+								class="mt-2 flex min-h-12 items-center justify-center rounded-xl bg-slate-950 px-4 text-white"
+							>
+								Ingresar
+							</a>
+						</li>
+					)
+				}
+			</ul>
+		</nav>
+	</div>
+</div>
 
 <script>
-	const $menuButton = document.getElementById("menuButton")
-	let $nav = document.querySelector(".nav")
-
-	let menuOpen = false
-
-	$menuButton?.addEventListener("click", () => {
-		menuOpen = !menuOpen
-		if (menuOpen) {
-			$nav?.classList.add("flex", "is-open")
-			$nav?.classList.remove("hidden")
-		} else {
-			$nav?.classList.add("hidden")
-			$nav?.classList.remove("flex", "is-open")
-		}
-	})
+	function bindPublicMobileNavigation() {
+		document.querySelectorAll("[data-public-mobile-nav]").forEach((root) => {
+			if (!(root instanceof HTMLElement) || root.dataset.bound === "true") return
+			root.dataset.bound = "true"
+			const trigger = root.querySelector("[data-public-mobile-trigger]")
+			const menu = root.querySelector("[data-public-mobile-menu]")
+			const openIcon = root.querySelector("[data-menu-open-icon]")
+			const closeIcon = root.querySelector("[data-menu-close-icon]")
+			if (!(trigger instanceof HTMLButtonElement) || !(menu instanceof HTMLElement)) return
+			const setOpen = (open: boolean) => {
+				menu.classList.toggle("hidden", !open)
+				openIcon?.classList.toggle("hidden", open)
+				closeIcon?.classList.toggle("hidden", !open)
+				trigger.setAttribute("aria-expanded", String(open))
+				trigger.setAttribute("aria-label", open ? "Cerrar menú" : "Abrir menú")
+			}
+			trigger.addEventListener("click", () =>
+				setOpen(trigger.getAttribute("aria-expanded") !== "true")
+			)
+			document.addEventListener("keydown", (event) => {
+				if (event.key === "Escape" && trigger.getAttribute("aria-expanded") === "true") {
+					setOpen(false)
+					trigger.focus()
+				}
+			})
+		})
+	}
+	bindPublicMobileNavigation()
+	document.addEventListener("astro:page-load", bindPublicMobileNavigation)
 </script>
-
-<style>
-	.nav.is-open {
-		animation: public-burger-in 0.3s ease-out;
-	}
-
-	@keyframes public-burger-in {
-		from {
-			opacity: 0;
-			transform: translateX(-50%) translateY(8px);
-		}
-		to {
-			opacity: 1;
-			transform: translateX(-50%) translateY(0);
-		}
-	}
-</style>
