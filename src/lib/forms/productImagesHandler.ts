@@ -59,10 +59,33 @@ function initProductImagesForm() {
 	const previewGridEl = previewGrid
 	const stateLabelEl = stateLabel
 	const stateDetailEl = stateDetail
+	const requiredImageCount = Number(form.dataset.requiredImageCount ?? 0)
+	const continueButton = document.querySelector<HTMLButtonElement>(
+		'button[form="imagesForm"][name="playbookNav"][value="continue"]'
+	)
 
-	function setState(state: "empty" | "loading" | "success" | "error" | "disabled", detail = "") {
+	function syncPublicationRequirement() {
+		const total =
+			existingImages.length + pendingImages.filter((item) => item.state !== "error").length
+		const missing = Math.max(0, requiredImageCount - total)
+		if (continueButton) {
+			continueButton.disabled = missing > 0
+			continueButton.title =
+				missing > 0 ? `Agrega ${missing} foto${missing === 1 ? "" : "s"} más para continuar.` : ""
+		}
+		if (imageCount) {
+			imageCount.textContent = `${total}/5 fotos ${requiredImageCount > 0 ? "necesarias para publicar" : "recomendadas"}`
+		}
+		return { total, missing }
+	}
+
+	function setState(
+		state: "empty" | "incomplete" | "loading" | "success" | "error" | "disabled",
+		detail = ""
+	) {
 		const labels: Record<string, string> = {
 			empty: "Vacío: selecciona imágenes para continuar.",
+			incomplete: "Pendiente: completa la galería para continuar.",
 			loading: "Cargando: procesando imágenes...",
 			success: "Éxito: imágenes asociadas correctamente.",
 			error: "Error: no se pudieron asociar las imágenes.",
@@ -82,9 +105,7 @@ function initProductImagesForm() {
 
 	function renderPreviewGrid() {
 		previewGridEl.innerHTML = ""
-		if (imageCount) {
-			imageCount.textContent = `${existingImages.length + pendingImages.length}/5 fotos recomendadas`
-		}
+		syncPublicationRequirement()
 		if (pendingImages.length === 0 && existingImages.length === 0) {
 			previewGridEl.innerHTML =
 				'<p class="fastt-empty-state col-span-full p-6 text-sm text-slate-600">Todavía no hay imágenes cargadas.</p>'
@@ -145,7 +166,13 @@ function initProductImagesForm() {
 					syncInputWithPendingImages()
 					renderPreviewGrid()
 					if (pendingImages.length === 0) {
-						setState("empty")
+						const requirement = syncPublicationRequirement()
+						setState(
+							requirement.missing > 0 ? "incomplete" : "empty",
+							requirement.missing > 0
+								? `Faltan ${requirement.missing} foto${requirement.missing === 1 ? "" : "s"}.`
+								: ""
+						)
 					}
 				}
 			})
@@ -167,7 +194,13 @@ function initProductImagesForm() {
 		syncInputWithPendingImages()
 		renderPreviewGrid()
 		if (pendingImages.length > 0) {
-			setState("empty", `${pendingImages.length} imagen(es) listas para subir.`)
+			const requirement = syncPublicationRequirement()
+			setState(
+				requirement.missing > 0 ? "incomplete" : "empty",
+				requirement.missing > 0
+					? `${pendingImages.length} imagen(es) listas para subir. Faltan ${requirement.missing}.`
+					: `${pendingImages.length} imagen(es) listas para subir. Ya puedes continuar.`
+			)
 		}
 	}
 
@@ -200,7 +233,13 @@ function initProductImagesForm() {
 	})
 
 	renderPreviewGrid()
-	if (existingImages.length > 0) {
+	const initialRequirement = syncPublicationRequirement()
+	if (initialRequirement.missing > 0) {
+		setState(
+			"incomplete",
+			`Faltan ${initialRequirement.missing} foto${initialRequirement.missing === 1 ? "" : "s"} para continuar con la preparación.`
+		)
+	} else if (existingImages.length > 0) {
 		setState(
 			"empty",
 			`Ya tienes ${existingImages.length} foto(s). Puedes continuar o agregar nuevas.`
@@ -225,6 +264,15 @@ function initProductImagesForm() {
 		const formFd = new FormData(form)
 		const productId = String(formFd.get("productId") || "")
 		const intent = readPlaybookNavIntent(formFd, e.submitter)
+		const requirement = syncPublicationRequirement()
+		if (intent === "continue" && requirement.missing > 0) {
+			setState(
+				"incomplete",
+				`Agrega ${requirement.missing} foto${requirement.missing === 1 ? "" : "s"} más antes de continuar.`
+			)
+			dropzoneEl.focus()
+			return
+		}
 		setState("loading")
 		setPlaybookSubmitBusy(form, true)
 		setState("disabled")
