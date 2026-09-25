@@ -889,22 +889,42 @@ body {
 	animation: calendar-updated 700ms var(--fastt-ease-settle) both;
 }
 
+.calendar-loading-frame {
+	position: absolute;
+	inset: 0;
+	z-index: 30;
+	overflow: hidden;
+	border-radius: inherit;
+	pointer-events: none;
+}
+
 .calendar-loading-bar {
 	position: absolute;
-	inset: 0 0 auto;
-	z-index: 30;
-	height: 2px;
+	top: 0;
+	right: 0;
+	left: 0;
+	height: 3px;
 	overflow: hidden;
-	background: rgb(226 232 240 / 70%);
+	background: rgb(226 232 240 / 88%);
 }
 
 .calendar-loading-bar::after {
 	display: block;
-	width: 38%;
+	width: 34%;
 	height: 100%;
 	content: "";
-	background: #0f172a;
-	animation: calendar-loading 900ms ease-in-out infinite;
+	background: linear-gradient(
+		90deg,
+		transparent,
+		rgb(37 99 235 / 18%) 18%,
+		var(--fastt-color-selection) 46%,
+		#dbeafe 50%,
+		var(--fastt-color-selection) 54%,
+		rgb(37 99 235 / 18%) 82%,
+		transparent
+	);
+	box-shadow: 0 0 14px var(--fastt-color-selection-shadow);
+	animation: calendar-loading 1.15s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
 .calendar-backdrop {
@@ -980,10 +1000,10 @@ body {
 }
 @keyframes calendar-loading {
 	from {
-		transform: translateX(-120%);
+		transform: translateX(-130%);
 	}
 	to {
-		transform: translateX(360%);
+		transform: translateX(320%);
 	}
 }
 @keyframes calendar-backdrop-enter {
