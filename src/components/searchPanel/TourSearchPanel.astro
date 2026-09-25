@@ -1,25 +1,35 @@
 ---
+import { Search, SlidersHorizontal } from "@lucide/astro"
+
 import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
 import DatesModal from "@/components/ui/DatesModal.astro"
 import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
-import { publicTourCategories, isTourDurationBucket } from "@/lib/tours/tourDiscoveryFilters"
+import { publicTourCategories } from "@/lib/tours/tourDiscoveryFilters"
 import { TOUR_DIFFICULTY_OPTIONS } from "@/lib/tours/tourDifficulty"
-import { TOUR_DURATION_OPTIONS } from "@/lib/tours/tourSemantics"
+import { normalizeTourDurationBucket, TOUR_DURATION_OPTIONS } from "@/lib/tours/tourSemantics"
 import { and, asc, db, eq, ProductCategory } from "@/shared/infrastructure/db/compat"
 
 interface Props {
 	destinationPath?: string | null
 	destinationName?: string | null
+	startDate?: string
 }
 
-const { destinationPath: routeDestinationPath, destinationName: routeDestinationName } =
-	Astro.props as Props
+const {
+	destinationPath: routeDestinationPath,
+	destinationName: routeDestinationName,
+	startDate: startDateProp,
+} = Astro.props as Props
 const params = Astro.url.searchParams
 const selectedDestinationPath = routeDestinationPath ?? params.get("destino") ?? ""
 const selectedDestinationName = routeDestinationName ?? ""
-const startDate = params.get("startDate") ?? params.get("checkin") ?? ""
-const duration = isTourDurationBucket(params.get("duration")) ? params.get("duration") : ""
+const startDate =
+	startDateProp !== undefined
+		? startDateProp
+		: (params.get("startDate") ?? params.get("checkin") ?? "")
+const duration = normalizeTourDurationBucket(params.get("duration")) ?? ""
 const level = String(params.get("level") ?? "")
 const selectedCategories = new Set(
 	params.getAll("category").map((value) => value.trim().toLowerCase())
@@ -32,12 +42,22 @@ const currency = /^[A-Z]{3}$/.test(String(params.get("currency") ?? "").toUpperC
 const sort = String(params.get("sort") ?? "relevance")
 const sortOptions = [
 	{ value: "relevance", label: "Más relevantes" },
-	{ value: "price_asc", label: "Precio: menor primero" },
-	{ value: "price_desc", label: "Precio: mayor primero" },
+	...(startDate
+		? [
+				{ value: "price_asc", label: "Precio: menor primero" },
+				{ value: "price_desc", label: "Precio: mayor primero" },
+			]
+		: []),
 	{ value: "duration_asc", label: "Duración: corta primero" },
 	{ value: "rating_desc", label: "Mejor calificados" },
 ]
 const currencyOptions = ["BOB", "USD", "CLP", "EUR"]
+const todayInBolivia = new Intl.DateTimeFormat("en-CA", {
+	timeZone: "America/La_Paz",
+	year: "numeric",
+	month: "2-digit",
+	day: "2-digit",
+}).format(new Date())
 
 let categories: Array<{ id: string; slug: string; name: string }> = []
 try {
@@ -57,163 +77,265 @@ try {
 } catch {
 	categories = []
 }
+const selectedDurationLabel = duration
+	? TOUR_DURATION_OPTIONS.find((option) => option.value === duration)?.label
+	: null
+const selectedLevelLabel = level
+	? TOUR_DIFFICULTY_OPTIONS.find((option) => option.value === level)?.label
+	: null
+const activeFilterLabels = [
+	...(selectedDurationLabel ? [selectedDurationLabel] : []),
+	...(selectedLevelLabel ? [selectedLevelLabel] : []),
+	...categories
+		.filter((category) => selectedCategories.has(category.slug.toLowerCase()))
+		.map((category) => category.name),
+	...(priceMin || priceMax
+		? [
+				priceMin && priceMax
+					? `${priceMin}–${priceMax}${currency ? ` ${currency}` : ""}`
+					: priceMin
+						? `Desde ${priceMin}${currency ? ` ${currency}` : ""}`
+						: `Hasta ${priceMax}${currency ? ` ${currency}` : ""}`,
+			]
+		: []),
+]
 ---
 
-<div class="sticky top-0 z-40 mx-auto w-full max-w-4xl">
-	<form
-		id="tourSearchForm"
-		action="/buscar/tours"
-		method="get"
-		novalidate
-		class="fastt-card grid grid-cols-1 gap-3 border bg-white p-4 md:grid-cols-3"
-	>
-		<div class="col-span-1 md:col-span-1">
-			<label for="destinationInput" class="mb-1 block text-sm font-semibold text-slate-800"
-				>Destino</label
-			>
-			<div class="relative text-slate-900">
-				<Input
-					id="destinationInput"
-					autocomplete="off"
-					type="search"
-					value={selectedDestinationName}
-					placeholder="Ciudad, región o parque..."
-					aria-controls="destinationsList"
-					aria-autocomplete="list"
-				/>
-				<input type="hidden" id="destinationPath" name="destino" value={selectedDestinationPath} />
-				<ul
-					id="destinationsList"
-					role="listbox"
-					class="fastt-soft-box absolute left-0 right-0 z-50 mt-1 hidden max-h-56 overflow-auto border border-slate-200 bg-white text-sm"
-				>
-				</ul>
-			</div>
-		</div>
-
-		<div class="col-span-1 md:col-span-1">
-			<label class="mb-1 block text-sm font-semibold text-slate-800"
-				>Fecha de salida <span class="font-normal text-slate-500">(requerida)</span></label
-			>
-			<DatesModal id="startDate" name="startDate" value={startDate} className="w-full" required />
-		</div>
-
-		<div class="col-span-1 md:col-span-1">
-			<label for="duration" class="mb-1 block text-sm font-semibold text-slate-800">Duración</label>
-			<Select name="duration" id="duration">
-				<option value="" selected={!duration}>Cualquiera</option>
-				{
-					TOUR_DURATION_OPTIONS.map((option) => (
-						<option value={option.value} selected={duration === option.value}>
-							{option.label}
-						</option>
-					))
-				}
-			</Select>
-		</div>
-
-		{
-			categories.length ? (
-				<div class="col-span-1 md:col-span-3">
-					<label class="mb-1 block text-sm font-semibold text-slate-800">Actividades</label>
-					<div id="activitiesWrap" class="flex flex-wrap gap-2">
-						{categories.map((category) => (
-							<label class="fastt-soft-box inline-flex items-center gap-2 bg-slate-50 px-2 py-1 text-sm">
-								<input
-									type="checkbox"
-									name="category"
-									value={category.slug}
-									checked={selectedCategories.has(category.slug.toLowerCase())}
-									class="h-4 w-4"
-								/>
-								<span class="text-slate-700">{category.name}</span>
-							</label>
-						))}
+<div class="mx-auto w-full">
+	<Card variant="plain" class="p-3 shadow-[0_18px_50px_-28px_rgba(15,23,42,0.45)] sm:p-4">
+		<form id="tourSearchForm" action="/buscar/tours" method="get" novalidate>
+			<div class="grid gap-2 md:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_auto_auto] md:items-end">
+				<div>
+					<label for="destinationInput" class="mb-1.5 block text-sm font-semibold text-slate-800"
+						>Destino</label
+					>
+					<div class="relative text-slate-900">
+						<Input
+							id="destinationInput"
+							autocomplete="off"
+							type="search"
+							value={selectedDestinationName}
+							placeholder="Ciudad, región o parque..."
+							aria-controls="destinationsList"
+							aria-autocomplete="list"
+							aria-expanded="false"
+							aria-describedby="tourSearchFormError"
+							className="h-14 rounded-xl px-4 text-base"
+						/>
+						<input
+							type="hidden"
+							id="destinationPath"
+							name="destino"
+							value={selectedDestinationPath}
+						/>
+						<ul
+							id="destinationsList"
+							role="listbox"
+							class="fastt-soft-box absolute left-0 right-0 z-50 mt-1 hidden max-h-56 overflow-auto border border-slate-200 bg-white text-sm"
+						>
+						</ul>
 					</div>
 				</div>
-			) : null
-		}
 
-		<div class="col-span-1 md:col-span-1">
-			<label for="level" class="mb-1 block text-sm font-semibold text-slate-800">Nivel</label>
-			<Select name="level" id="level">
-				<option value="" selected={!level}>Cualquiera</option>
-				{
-					TOUR_DIFFICULTY_OPTIONS.map((level) => (
-						<option
-							value={level.value}
-							selected={String(params.get("level") ?? "") === level.value}
-						>
-							{level.label}
-						</option>
-					))
-				}
-			</Select>
-		</div>
+				<div>
+					<label class="mb-1.5 block text-sm font-semibold text-slate-800" for="startDate"
+						>Fecha de salida <span class="font-normal text-slate-500">(opcional)</span></label
+					>
+					<DatesModal
+						id="startDate"
+						name="startDate"
+						value={startDate}
+						min={todayInBolivia}
+						placeholder="Aún no sé la fecha"
+						className="h-14 w-full rounded-xl px-4 text-base"
+					/>
+				</div>
 
-		<div class="col-span-1 md:col-span-1">
-			<label class="mb-1 block text-sm font-semibold text-slate-800">Precio por participante</label>
-			<div class="flex gap-2">
-				<Input
-					name="priceMin"
-					type="number"
-					min="0"
-					step="0.01"
-					value={priceMin}
-					placeholder="Mín."
-					class="w-1/2"
-				/>
-				<Input
-					name="priceMax"
-					type="number"
-					min="0"
-					step="0.01"
-					value={priceMax}
-					placeholder="Máx."
-					class="w-1/2"
-				/>
+				<div>
+					<span
+						class="mb-1.5 hidden text-sm font-semibold text-transparent md:block"
+						aria-hidden="true">Filtros</span
+					>
+					<Button
+						type="button"
+						variant="outline"
+						class="h-14 w-full rounded-xl px-4 text-sm md:w-auto"
+						aria-expanded="false"
+						aria-controls="tourSearchFilters"
+						data-tour-filters-toggle
+					>
+						<SlidersHorizontal class="h-4 w-4" aria-hidden="true" />
+						Filtros
+						{
+							activeFilterLabels.length ? (
+								<span class="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-950 px-1.5 text-xs text-white">
+									{activeFilterLabels.length}
+								</span>
+							) : null
+						}
+					</Button>
+				</div>
+
+				<div>
+					<span
+						class="mb-1.5 hidden text-sm font-semibold text-transparent md:block"
+						aria-hidden="true">Buscar</span
+					>
+					<Button type="submit" size="lg" class="h-14 w-full rounded-xl px-6 text-base md:w-auto">
+						<Search class="h-5 w-5" aria-hidden="true" />
+						Buscar
+					</Button>
+				</div>
 			</div>
-		</div>
 
-		<div class="col-span-1 md:col-span-1">
-			<label for="currency" class="mb-1 block text-sm font-semibold text-slate-800"
-				>Moneda del presupuesto</label
+			{
+				activeFilterLabels.length ? (
+					<p class="mt-3 text-sm text-slate-600">{activeFilterLabels.join(" · ")}</p>
+				) : null
+			}
+
+			<Card
+				id="tourSearchFilters"
+				variant="soft"
+				hidden
+				data-tour-filters-panel
+				class="mt-4 p-4 sm:p-5"
 			>
-			<Select name="currency" id="currency">
-				<option value="" selected={!currency}>Elige una moneda si filtras por precio</option>
 				{
-					currencyOptions.map((option) => (
-						<option value={option} selected={currency === option}>
-							{option}
-						</option>
-					))
+					categories.length ? (
+						<div>
+							<p class="text-sm font-semibold text-slate-800">Actividades</p>
+							<div id="activitiesWrap" class="mt-3 flex flex-wrap gap-2">
+								{categories.map((category) => (
+									<label class="cursor-pointer">
+										<input
+											type="checkbox"
+											name="category"
+											value={category.slug}
+											checked={selectedCategories.has(category.slug.toLowerCase())}
+											class="peer sr-only"
+										/>
+										<span class="fastt-soft-box inline-flex min-h-11 items-center rounded-full border border-slate-300 px-4 text-sm text-slate-800 transition peer-checked:border-slate-950 peer-checked:bg-slate-950 peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-slate-950 peer-focus-visible:ring-offset-2">
+											{category.name}
+										</span>
+									</label>
+								))}
+							</div>
+						</div>
+					) : null
 				}
-			</Select>
-		</div>
 
-		<div class="col-span-1 md:col-span-1">
-			<label for="sort" class="mb-1 block text-sm font-semibold text-slate-800">Orden</label>
-			<Select name="sort" id="sort">
-				{
-					sortOptions.map((option) => (
-						<option value={option.value} selected={sort === option.value}>
-							{option.label}
-						</option>
-					))
-				}
-			</Select>
-		</div>
+				<div class:list={["grid gap-4 md:grid-cols-2", categories.length ? "mt-5" : ""]}>
+					<div>
+						<label for="duration" class="mb-1.5 block text-sm font-semibold text-slate-800"
+							>Duración</label
+						>
+						<Select name="duration" id="duration">
+							<option value="" selected={!duration}>Cualquiera</option>
+							{
+								TOUR_DURATION_OPTIONS.map((option) => (
+									<option value={option.value} selected={duration === option.value}>
+										{option.label}
+									</option>
+								))
+							}
+						</Select>
+					</div>
+					<div>
+						<label for="level" class="mb-1.5 block text-sm font-semibold text-slate-800"
+							>Dificultad</label
+						>
+						<Select name="level" id="level">
+							<option value="" selected={!level}>Cualquiera</option>
+							{
+								TOUR_DIFFICULTY_OPTIONS.map((option) => (
+									<option value={option.value} selected={level === option.value}>
+										{option.label}
+									</option>
+								))
+							}
+						</Select>
+					</div>
+				</div>
 
-		<p
-			id="tourSearchFormError"
-			class="col-span-1 hidden text-sm font-medium text-red-700 md:col-span-3"
-			role="alert"
-		>
-		</p>
-		<div class="col-span-1 flex justify-end md:col-span-3">
-			<Button type="submit">Buscar tours</Button>
-		</div>
-	</form>
+				<div class="mt-5">
+					<p class="text-sm font-semibold text-slate-800">Precio por participante</p>
+					<p class="mt-1 text-sm text-slate-600">
+						Se aplica al buscar con fecha. Sin un monto, la moneda no filtra.
+					</p>
+					<div class="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_8.5rem]">
+						<Input
+							name="priceMin"
+							aria-label="Precio mínimo por participante"
+							type="number"
+							min="0"
+							step="0.01"
+							value={priceMin}
+							placeholder="Mín."
+						/>
+						<Input
+							name="priceMax"
+							aria-label="Precio máximo por participante"
+							type="number"
+							min="0"
+							step="0.01"
+							value={priceMax}
+							placeholder="Máx."
+						/>
+						<div>
+							<label for="currency" class="sr-only">Moneda</label>
+							<Select name="currency" id="currency" aria-label="Moneda">
+								<option value="" selected={!currency}>Moneda</option>
+								{
+									currencyOptions.map((option) => (
+										<option value={option} selected={currency === option}>
+											{option}
+										</option>
+									))
+								}
+							</Select>
+						</div>
+					</div>
+				</div>
+
+				<div class="mt-5 border-t border-slate-200 pt-5">
+					<label for="sort" class="mb-1.5 block text-sm font-semibold text-slate-800">Ordenar</label
+					>
+					<div class="max-w-xs">
+						<Select name="sort" id="sort">
+							{
+								sortOptions.map((option) => (
+									<option value={option.value} selected={sort === option.value}>
+										{option.label}
+									</option>
+								))
+							}
+						</Select>
+					</div>
+				</div>
+
+				<div class="mt-5 flex flex-wrap items-center justify-between gap-3">
+					<button
+						type="button"
+						class="min-h-11 rounded-full px-3 text-sm font-semibold text-slate-700 underline-offset-4 hover:underline"
+						data-tour-filters-clear
+					>
+						Limpiar filtros
+					</button>
+					<button
+						type="button"
+						class="inline-flex h-11 items-center rounded-full bg-slate-950 px-5 text-sm font-semibold text-white hover:bg-slate-800"
+						data-tour-filters-close
+					>
+						Listo
+					</button>
+				</div>
+			</Card>
+
+			<p id="tourSearchFormError" class="mt-3 hidden text-sm font-medium text-red-700" role="alert">
+			</p>
+		</form>
+	</Card>
 </div>
 
 <script type="module">
@@ -228,23 +350,49 @@ try {
 	async function fetchDestinations(query) {
 		if (!query) return []
 		const response = await fetch(`/api/destinations?q=${encodeURIComponent(query)}&limit=8`)
-		return response.ok ? response.json() : []
+		if (!response.ok) throw new Error("destination_lookup_failed")
+		return response.json()
 	}
 	function selectDestination(option, input, hiddenInput, list) {
 		input.value = option.dataset.label || option.textContent || ""
 		hiddenInput.value = option.dataset.canonicalPath || ""
 		list.classList.add("hidden")
+		input.setAttribute("aria-expanded", "false")
 		input.focus()
 	}
 	function renderDestinations(list, items, input, hiddenInput) {
 		list.innerHTML = ""
-		if (!items?.length) return list.classList.add("hidden")
-		for (const destination of items) {
-			const label = `${destination.name}${destination.department ? `, ${destination.department}` : ""}${destination.country ? ` — ${destination.country}` : ""}`
+		if (!items?.length) {
+			const empty = document.createElement("li")
+			empty.className = "px-3 py-3 text-slate-600"
+			empty.textContent = "No encontramos ese destino. Prueba con una ciudad o región de Bolivia."
+			list.appendChild(empty)
+			list.classList.remove("hidden")
+			input.setAttribute("aria-expanded", "true")
+			return
+		}
+		for (const [index, destination] of items.entries()) {
+			const typeLabel =
+				{
+					country: "País",
+					admin_area_1: "Departamento",
+					admin_area_2: "Provincia",
+					city: "Ciudad",
+					locality: "Localidad",
+					neighborhood: "Barrio",
+					natural_area: "Área natural",
+					poi: "Lugar",
+				}[destination.placeType] || "Destino"
+			const departmentLabel =
+				destination.department && destination.department !== destination.name
+					? `, ${destination.department}`
+					: ""
+			const label = `${destination.name}${departmentLabel} · ${typeLabel}`
 			const item = document.createElement("li")
 			const button = document.createElement("button")
 			button.type = "button"
 			button.role = "option"
+			button.id = `tour-search-destination-${index}`
 			button.className =
 				"block w-full px-3 py-2 text-left text-slate-800 hover:bg-slate-100 focus:bg-slate-100"
 			button.dataset.canonicalPath = destination.canonicalPath || ""
@@ -255,8 +403,9 @@ try {
 			list.appendChild(item)
 		}
 		list.classList.remove("hidden")
+		input.setAttribute("aria-expanded", "true")
 	}
-	document.addEventListener("DOMContentLoaded", () => {
+	function bindTourSearchForm() {
 		const form = qs("#tourSearchForm"),
 			input = qs("#destinationInput"),
 			list = qs("#destinationsList"),
@@ -266,14 +415,62 @@ try {
 			currencyInput = qs('select[name="currency"]'),
 			error = qs("#tourSearchFormError")
 		if (
+			!(form instanceof HTMLFormElement) ||
+			form.dataset.bound === "true" ||
 			!(input instanceof HTMLInputElement) ||
 			!(list instanceof HTMLElement) ||
 			!(hiddenInput instanceof HTMLInputElement)
 		)
 			return
+		form.dataset.bound = "true"
+		const filtersToggle = form.querySelector("[data-tour-filters-toggle]")
+		const filtersPanel = form.querySelector("[data-tour-filters-panel]")
+		const setFiltersOpen = (open) => {
+			if (!(filtersPanel instanceof HTMLElement) || !(filtersToggle instanceof HTMLButtonElement))
+				return
+			filtersPanel.hidden = !open
+			filtersToggle.setAttribute("aria-expanded", open ? "true" : "false")
+		}
+		filtersToggle?.addEventListener("click", () => {
+			if (!(filtersPanel instanceof HTMLElement)) return
+			setFiltersOpen(filtersPanel.hidden)
+		})
+		form.querySelector("[data-tour-filters-close]")?.addEventListener("click", () => {
+			setFiltersOpen(false)
+			if (filtersToggle instanceof HTMLButtonElement) filtersToggle.focus()
+		})
+		form.querySelector("[data-tour-filters-clear]")?.addEventListener("click", () => {
+			filtersPanel?.querySelectorAll('input[type="checkbox"]').forEach((node) => {
+				if (node instanceof HTMLInputElement) node.checked = false
+			})
+			filtersPanel?.querySelectorAll('input[type="number"]').forEach((node) => {
+				if (node instanceof HTMLInputElement) node.value = ""
+			})
+			filtersPanel?.querySelectorAll("select").forEach((node) => {
+				if (!(node instanceof HTMLSelectElement)) return
+				node.value = node.name === "sort" ? "relevance" : ""
+				node.dispatchEvent(new Event("change", { bubbles: true }))
+			})
+		})
+		let requestNumber = 0
 		const search = debounce(async (value) => {
-			if (!value?.trim()) return list.classList.add("hidden")
-			renderDestinations(list, await fetchDestinations(value.trim()), input, hiddenInput)
+			if (!value?.trim()) {
+				list.classList.add("hidden")
+				input.setAttribute("aria-expanded", "false")
+				return
+			}
+			const currentRequest = ++requestNumber
+			try {
+				const items = await fetchDestinations(value.trim())
+				if (currentRequest !== requestNumber) return
+				renderDestinations(list, items, input, hiddenInput)
+			} catch {
+				if (currentRequest !== requestNumber) return
+				list.innerHTML =
+					'<li class="px-3 py-3 text-red-700">No pudimos buscar destinos. Intenta nuevamente.</li>'
+				list.classList.remove("hidden")
+				input.setAttribute("aria-expanded", "true")
+			}
 		}, 180)
 		input.addEventListener("input", (event) => {
 			hiddenInput.value = ""
@@ -284,25 +481,48 @@ try {
 				list.querySelector("button")?.focus()
 				event.preventDefault()
 			}
-			if (event.key === "Escape") list.classList.add("hidden")
+			if (event.key === "Escape") {
+				list.classList.add("hidden")
+				input.setAttribute("aria-expanded", "false")
+			}
 		})
 		form?.addEventListener("submit", (event) => {
 			const min = Number(minInput?.value),
 				max = Number(maxInput?.value)
 			const hasMin = minInput?.value.trim() !== "",
 				hasMax = maxInput?.value.trim() !== ""
+			const unresolvedDestination = input.value.trim() !== "" && hiddenInput.value === ""
 			const invalid =
 				(hasMin && (!Number.isFinite(min) || min < 0)) ||
 				(hasMax && (!Number.isFinite(max) || max < 0)) ||
 				(hasMin && hasMax && min > max) ||
-				((hasMin || hasMax) && !currencyInput?.value)
-			if (!invalid) return
+				unresolvedDestination
+			if (!invalid) {
+				if (!hiddenInput.value) hiddenInput.disabled = true
+				const dateInput = form.querySelector('[name="startDate"]')
+				if (dateInput instanceof HTMLInputElement && !dateInput.value) dateInput.disabled = true
+				if (currencyInput instanceof HTMLSelectElement) {
+					if ((hasMin || hasMax) && !currencyInput.value) {
+						currencyInput.value = "BOB"
+						currencyInput.dispatchEvent(new Event("change", { bubbles: true }))
+					}
+					if (!(hasMin || hasMax)) currencyInput.disabled = true
+				}
+				return
+			}
 			event.preventDefault()
+			if (filtersPanel instanceof HTMLElement) setFiltersOpen(true)
 			if (error instanceof HTMLElement) {
-				error.textContent =
-					"Elige la moneda del presupuesto y revisa que el mínimo no sea mayor que el máximo."
+				error.textContent = unresolvedDestination
+					? "Elige un destino de la lista o borra el texto para explorar toda Bolivia."
+					: "Revisa que el precio mínimo no sea mayor que el máximo."
 				error.classList.remove("hidden")
+				if (unresolvedDestination) input.focus()
 			}
 		})
-	})
+	}
+
+	bindTourSearchForm()
+	document.addEventListener("DOMContentLoaded", bindTourSearchForm)
+	document.addEventListener("astro:page-load", bindTourSearchForm)
 </script>
