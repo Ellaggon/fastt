@@ -59,11 +59,8 @@ describe("add-room completion contract", () => {
 		expect(layout).toContain("isAddRoomTerminalStep(stepId)")
 		expect(layout).toContain("const showProgress = active && currentStepKnown && !isTerminalStep")
 		expect(layout).toContain("showProgress ? (")
-		expect(layout).toContain(
-			"const visualProgressPercent = Math.min(100, Math.max(0, progressPercent))"
-		)
-		expect(layout).not.toContain("stepPositionPercent")
-		expect(layout).not.toContain("Math.max(progressPercent")
+		expect(layout).toContain("stageProgressPercent")
+		expect(layout).toContain("Math.max(progressPercent, stageProgressPercent)")
 	})
 
 	it("uses the same canonical room completion evaluator in the operational summary", () => {
