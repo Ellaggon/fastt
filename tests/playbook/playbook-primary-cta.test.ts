@@ -31,11 +31,15 @@ describe("playbook primary CTA contract", () => {
 		const subtype = read("src/pages/product/[id]/subtype.astro")
 		expect(images).toContain('continueFormId={playbook.active ? "imagesForm" : null}')
 		expect(images).toContain('name="playbookCurrentStep"')
-		expect(images).not.toContain('buildCompleteToPublishHref(`/product/${productId}/preview`, "preview")')
+		expect(images).toContain("continueDisabled={enforceTourPublicationGallery")
+		expect(images).toContain("necesarias para publicar")
+		expect(images).not.toContain(
+			'buildCompleteToPublishHref(`/product/${productId}/preview`, "preview")'
+		)
 		expect(content).toContain('continueFormId={playbookResolved.active ? "contentForm" : null}')
 		expect(location).toContain('continueFormId={playbook.active ? "locationForm" : null}')
 		expect(subtype).toContain('continueFormId={playbook.active ? "subtypeForm" : null}')
-		expect(images).toContain("playbook.active ? \"hidden\"")
+		expect(images).toContain('playbook.active ? "hidden"')
 	})
 
 	it("keeps complete-to-publish on tickets instead of dropping to the workspace", () => {

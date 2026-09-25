@@ -8,7 +8,6 @@ import {
 import { invalidateAggregateCache } from "@/lib/cache/ssrAggregateCache"
 import { buildCompleteToPublishHref } from "@/lib/playbook/complete-to-publish"
 import { buildTourPlaybookHref } from "@/lib/playbook/launch-tour"
-import { assertProviderCapability } from "@/lib/provider-governance"
 import { validateRatePlanPublication } from "@/lib/rates/validateRatePlanPublication"
 import { routes } from "@/lib/routes"
 import { getRatePlanById, resolveRatePlanOwnerContext } from "@/modules/pricing/public"
@@ -54,14 +53,6 @@ export async function finalizeTourRate(input: Input) {
 			error: "Aún falta información para activar la tarifa de esta salida.",
 			blockers: publication.blockers,
 		}
-	}
-
-	if (!ratePlan.isActive) {
-		await assertProviderCapability({
-			providerId: input.providerId,
-			currentUserId: input.userId,
-			capability: "publish",
-		})
 	}
 
 	await ratePlanCommandRepository.updateRatePlan({

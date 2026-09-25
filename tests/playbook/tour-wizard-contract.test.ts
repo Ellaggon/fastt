@@ -31,6 +31,8 @@ describe("tour wizard browser and routing contract", () => {
 		const preview = source("src/pages/product/[id]/preview.astro")
 		expect(layout).toContain("evaluateTourLaunchProgress")
 		expect(layout).toContain("Etapa ${stagePosition} de ${stageTotal} · ${stageLabel}")
+		expect(layout).toContain("stageProgressPercent")
+		expect(layout).toContain("Math.max(progressPercent, stageProgressPercent)")
 		expect(layout).not.toMatch(
 			/Etapa \{stagePosition\}[\s\S]*Paso \{stepNumber\} de \{totalSteps\}/
 		)
@@ -41,7 +43,6 @@ describe("tour wizard browser and routing contract", () => {
 	it("collects operational questions and surfaces conditional compliance", () => {
 		const questionsApi = source("src/pages/api/tours/booking-questions.ts")
 		const conditions = source("src/pages/rates/plans/[ratePlanId].astro")
-		const preview = source("src/pages/product/[id]/preview.astro")
 		const registry = source("src/lib/catalog/productVerticalRegistry.ts")
 		expect(questionsApi).toContain("TourBookingQuestion")
 		expect(conditions).toContain("Preguntas al reservar")
@@ -59,7 +60,7 @@ describe("tour wizard browser and routing contract", () => {
 		expect(documents).toContain("hideFooter")
 		expect(conditions).toContain("embeddedGuidedSection")
 		expect(conditions).toContain("Contrato comercial")
-		expect(preview).toContain("Cumplimiento operativo")
+		expect(conditions).toContain("Bloque 3 · Cumplimiento")
 		expect(registry).toMatch(/"rate",\s+"bookingPolicies",\s+"calendar"/)
 	})
 
@@ -72,7 +73,9 @@ describe("tour wizard browser and routing contract", () => {
 		expect(surface).toContain('Astro.url.searchParams.get("step") || step')
 		expect(surface).toContain("availabilityIsNextStep={isTour && playbookMode}")
 		expect(flow).toContain("bindAssignmentSurface")
-		expect(flow).toContain('document.addEventListener("astro:page-load", () => bindAssignmentSurface())')
+		expect(flow).toContain(
+			'document.addEventListener("astro:page-load", () => bindAssignmentSurface())'
+		)
 		expect(departure).toContain("safeConditionsReturn")
 		expect(departure).toContain("lightweight: true")
 		expect(departure).toContain("playbook.active ? PlaybookLayout : WorkspaceLayout")

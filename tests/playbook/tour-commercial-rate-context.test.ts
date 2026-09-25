@@ -99,5 +99,6 @@ describe("tour commercial rate context", () => {
 		expect(validator).toContain("const minimumAvailabilityDays = isTour ? 1")
 		expect(finalizer).toContain("isActive: true")
 		expect(finalizer).toContain("validateRatePlanPublication")
+		expect(finalizer).not.toContain("assertProviderCapability")
 	})
 })

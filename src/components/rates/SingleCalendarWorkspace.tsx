@@ -1115,7 +1115,11 @@ export default function SingleCalendarWorkspace({
 				as="section"
 				className="fastt-workspace-panel relative z-10 !overflow-visible p-4 text-slate-900"
 			>
-				{loading && <span className="calendar-loading-bar" aria-hidden="true" />}
+				{loading && !isGuidedAvailability && (
+					<span className="calendar-loading-frame" aria-hidden="true">
+						<span className="calendar-loading-bar" />
+					</span>
+				)}
 
 				{!isGuidedAvailability ? (
 					<div className="flex flex-wrap items-center gap-3 lg:gap-4">
@@ -1278,7 +1282,15 @@ export default function SingleCalendarWorkspace({
 				)}
 			</Card>
 
-			<Card as="section" className="fastt-workspace-panel overflow-hidden p-0 text-slate-900">
+			<Card
+				as="section"
+				className="fastt-workspace-panel relative overflow-hidden p-0 text-slate-900"
+			>
+				{loading && isGuidedAvailability && (
+					<span className="calendar-loading-frame" aria-hidden="true">
+						<span className="calendar-loading-bar" />
+					</span>
+				)}
 				<div className="flex flex-wrap items-center gap-3 px-4 pt-4 pb-2 sm:justify-between">
 					{isGuidedAvailability ? (
 						<div className="flex items-center gap-2">

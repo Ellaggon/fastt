@@ -281,7 +281,12 @@ const persistAndExit = formBoundContinue && Boolean(productId)
 const formContinueLabel = continueLabel === "Continuar →" ? "Guardar y continuar" : continueLabel
 const showProgress = active && currentStepKnown && !isTerminalStep
 const showReadinessMeter = showProgress && !lightweight
-const visualProgressPercent = Math.min(100, Math.max(0, progressPercent))
+const stageProgressPercent =
+	stagePosition > 0 && stageTotal > 0 ? Math.round((stagePosition / stageTotal) * 100) : 0
+const visualProgressPercent =
+	stageProgressPercent > 0
+		? Math.min(100, Math.max(progressPercent, stageProgressPercent))
+		: Math.min(100, Math.max(0, progressPercent))
 const progressHeading =
 	isAddRoom && stepNumber && totalSteps
 		? `${playbookTitle} - Paso ${stepNumber} de ${totalSteps}`

@@ -100,13 +100,16 @@ function sectionHref(productId: string, section: ProductVerticalSectionKey): str
 		case "rate":
 			return `${routes.rates()}?productId=${encodeURIComponent(productId)}&openDialog=1`
 		case "calendar":
-			return `${routes.calendar()}?focus=availability`
+			return `${routes.calendar()}?${new URLSearchParams({
+				focus: "availability",
+				productId,
+			}).toString()}`
 		case "rooms":
 			return routes.productRoomsForProduct(productId)
 		case "houseRules":
 			return `${routes.providerHouseRules()}?productId=${encodeURIComponent(productId)}`
 		case "bookingPolicies":
-			return routes.rates()
+			return `${routes.rates()}?productId=${encodeURIComponent(productId)}`
 		case "preview":
 			return routes.productPreview(productId)
 		default:
@@ -215,7 +218,10 @@ export async function loadCompleteToPublishState(params: {
 		sellableRoomCount = completions.filter((completion) => completion?.sellable).length
 	}
 
-	const requiredPolicyCategories = ["Cancellation", "Payment", "CheckIn", "NoShow"]
+	const requiredPolicyCategories =
+		vertical.vertical === "tour"
+			? ["Cancellation", "Payment"]
+			: ["Cancellation", "Payment", "CheckIn", "NoShow"]
 	let missingPolicies: string[] = []
 	let policyResolutionError: string | null = null
 	try {

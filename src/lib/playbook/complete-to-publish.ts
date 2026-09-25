@@ -104,47 +104,50 @@ export function resolveCompleteToPublishResume(
 	checks: CompleteToPublishCheck[],
 	options?: { lastPath?: string | null }
 ): { href: string; sectionKey: string | null; label: string | null } {
-	const savedPath = lastPathBelongsToProduct(productId, options?.lastPath)
-	if (savedPath) {
-		const url = new URL(savedPath, "http://fastt.local")
-		const resolved = resolveCompleteToPublishPlaybookFromUrl(url)
-		const current = checks.find((check) => check.sectionKey === resolved.stepId) ?? null
-		return {
-			href: savedPath,
-			sectionKey: resolved.stepId,
-			label: current?.label ?? null,
-		}
-	}
-
 	const playbookResumeOrder: ProductVerticalSectionKey[] = [
 		"content",
 		"photos",
 		"location",
 		"subtype",
+		"itinerary",
 		"tickets",
 		"categories",
 		"departure",
 		"rate",
-		"calendar",
 		"bookingPolicies",
+		"calendar",
+		"rooms",
+		"houseRules",
+		"inclusions",
 		"preview",
 	]
 	const bySection = new Map(checks.map((check) => [check.sectionKey, check]))
 	const playbookSteps = playbookResumeOrder
 		.map((sectionKey) => bySection.get(sectionKey))
 		.filter((check): check is CompleteToPublishCheck => Boolean(check))
-	const furthestReachedIndex = playbookSteps.reduce((furthest, check, index) => {
-		if (check.complete) return Math.max(furthest, index)
-		return furthest
-	}, -1)
-	const resumeFromProgress =
-		furthestReachedIndex >= 0
-			? (playbookSteps.slice(furthestReachedIndex).find((check) => !check.complete) ??
-				playbookSteps[furthestReachedIndex] ??
-				null)
-			: null
 	const firstIncomplete = playbookSteps.find((check) => !check.complete) ?? null
-	const resume = resumeFromProgress ?? firstIncomplete
+
+	const savedPath = lastPathBelongsToProduct(productId, options?.lastPath)
+	if (savedPath) {
+		const url = new URL(savedPath, "http://fastt.local")
+		const resolved = resolveCompleteToPublishPlaybookFromUrl(url)
+		const current = checks.find((check) => check.sectionKey === resolved.stepId) ?? null
+		// A saved URL is useful only while it still represents the first unresolved
+		// requirement. Resuming a later step would hide an earlier publication blocker
+		// until the final preview, which makes the guided flow contradict itself.
+		if (
+			current &&
+			((firstIncomplete && current.sectionKey === firstIncomplete.sectionKey) ||
+				(!firstIncomplete && current.sectionKey === "preview"))
+		) {
+			return {
+				href: savedPath,
+				sectionKey: resolved.stepId,
+				label: current.label,
+			}
+		}
+	}
+	const resume = firstIncomplete
 	if (!resume) {
 		return {
 			href: buildCompleteToPublishHref(routes.productPreview(productId), "preview"),

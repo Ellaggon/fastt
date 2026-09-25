@@ -1127,7 +1127,11 @@ export default function MultiCalendarWorkspace({ initialSurface, initialRules }:
 				as="section"
 				className="fastt-workspace-panel relative overflow-hidden p-4 text-slate-900"
 			>
-				{loading && <span className="calendar-loading-bar" aria-hidden="true" />}
+				{loading && (
+					<span className="calendar-loading-frame" aria-hidden="true">
+						<span className="calendar-loading-bar" />
+					</span>
+				)}
 				<details className="fastt-soft-box group border border-slate-200 bg-slate-50/70">
 					<summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">
 						<span>Filtros{activeFilterCount ? ` · ${activeFilterCount} activos` : ""}</span>
