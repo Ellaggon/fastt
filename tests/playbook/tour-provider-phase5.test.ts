@@ -5,7 +5,9 @@ import { describe, expect, it } from "vitest"
 import { completeToPublishNextHref } from "@/lib/playbook/complete-to-publish"
 import { TOUR_LAUNCH_STEPS } from "@/lib/playbook/launch-tour"
 import {
+	countCompletedTourPublishingStages,
 	getTourPublishingStage,
+	tourPublishingProgressPercent,
 	TOUR_PUBLISHING_STAGE_COUNT,
 } from "@/lib/playbook/tour-publishing-stages"
 import { tourActivityQualityCriteria } from "@/lib/tours/tourActivityQuality"
@@ -14,14 +16,58 @@ import { buildTourCommercialLinks } from "@/lib/tours/tourProviderNavigation"
 const source = (path: string) => readFileSync(resolve(process.cwd(), path), "utf8")
 
 describe("tour provider phase 5", () => {
-	it("presents the detailed workflow as six stable creation stages", () => {
-		expect(TOUR_PUBLISHING_STAGE_COUNT).toBe(6)
+	it("gives each tour screen its own stage in the order the provider walks them", () => {
+		expect(TOUR_PUBLISHING_STAGE_COUNT).toBe(11)
 		expect(getTourPublishingStage("content")).toMatchObject({ position: 1, label: "Identidad" })
-		expect(getTourPublishingStage("location")).toMatchObject({ position: 2, label: "Destino" })
-		expect(getTourPublishingStage("subtype")).toMatchObject({ position: 3, label: "Experiencia" })
-		expect(getTourPublishingStage("categories")).toMatchObject({ position: 4 })
-		expect(getTourPublishingStage("rate")).toMatchObject({ position: 5 })
-		expect(getTourPublishingStage("preview")).toMatchObject({ position: 6 })
+		expect(getTourPublishingStage("photos")).toMatchObject({ position: 2, label: "Fotos" })
+		expect(getTourPublishingStage("location")).toMatchObject({ position: 3, label: "Destino" })
+		expect(getTourPublishingStage("subtype")).toMatchObject({
+			position: 4,
+			label: "Itinerario y detalles",
+		})
+		expect(getTourPublishingStage("tickets")).toMatchObject({ position: 5, label: "Participantes" })
+		expect(getTourPublishingStage("categories")).toMatchObject({
+			position: 6,
+			label: "Participantes y búsqueda",
+		})
+		expect(getTourPublishingStage("departure")).toMatchObject({ position: 7, label: "Salida" })
+		expect(getTourPublishingStage("rate")).toMatchObject({ position: 8, label: "Precio" })
+		expect(getTourPublishingStage("bookingPolicies")).toMatchObject({
+			position: 9,
+			label: "Condiciones de reserva",
+		})
+		expect(getTourPublishingStage("calendar")).toMatchObject({
+			position: 10,
+			label: "Disponibilidad",
+		})
+		expect(getTourPublishingStage("preview")).toMatchObject({
+			position: 11,
+			label: "Revisión y publicación",
+		})
+		expect(getTourPublishingStage("rate").position).toBeGreaterThan(
+			getTourPublishingStage("departure").position
+		)
+		expect(getTourPublishingStage("bookingPolicies").position).toBeGreaterThan(
+			getTourPublishingStage("rate").position
+		)
+		expect(getTourPublishingStage("calendar").position).toBeGreaterThan(
+			getTourPublishingStage("bookingPolicies").position
+		)
+	})
+
+	it("aligns the progress bar with completed tour stages, not checklist noise", () => {
+		expect(countCompletedTourPublishingStages(["content", "photos", "location"])).toBe(3)
+		expect(
+			tourPublishingProgressPercent({
+				completedSectionKeys: ["content", "photos", "location", "subtype", "itinerary", "tickets"],
+			})
+		).toBe(45)
+		expect(tourPublishingProgressPercent({ currentStepId: "rate" })).toBe(64)
+		expect(tourPublishingProgressPercent({ currentStepId: "bookingPolicies" })).toBe(73)
+		const layout = source("src/layouts/PlaybookLayout.astro")
+		expect(layout).toContain("tourPublishingProgressPercent")
+		expect(layout).toContain("completeTourCompletedSectionKeys")
+		expect(layout).toContain("!lightweight || isTourCompletePlaybook")
 	})
 
 	it("keeps participants and discovery categories as consecutive independent tasks", () => {
@@ -70,7 +116,7 @@ describe("tour provider phase 5", () => {
 		const booking = source("src/components/tours/TourDepartureSection.astro")
 		expect(preview).toContain("data-real-public-preview")
 		expect(preview).toContain("!isTour ?")
-		expect(preview).toContain('playbook.active && stepId === "preview" && nextBlocker')
+		expect(preview).toContain('playbookId !== "complete-to-publish"')
 		expect(preview).toContain("Corregir ${nextBlocker.label}")
 		expect(preview).toContain("?preview=provider")
 		expect(publicTour).toContain("eq(Product.providerId, previewProviderId)")
@@ -100,6 +146,8 @@ describe("tour provider phase 5", () => {
 		const readiness = source("src/lib/playbook/evaluate-complete-to-publish-progress.ts")
 		expect(readiness).toContain("Number(tourReadiness?.activeSlotCount ?? 0) > 0")
 		expect(readiness).toContain("Number(tourReadiness?.completeSlotCount ?? 0) > 0")
-		expect(readiness).toContain('? ["Cancellation", "Payment"]')
+		expect(readiness).toContain("tourCommercialContext")
+		expect(readiness).toContain("primarySlotId")
+		expect(readiness).toContain("completeToPublishStepHref")
 	})
 })
