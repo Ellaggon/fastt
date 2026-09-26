@@ -19,7 +19,8 @@ describe("tour commercial rate context", () => {
 		expect(manage).toContain("resolveCompleteToPublishPlaybookFromUrl")
 		expect(manage).toContain('activePlaybook === "complete-to-publish"')
 		expect(manage).toContain('step: "bookingPolicies"')
-		expect(manage).toContain('"Precio por participante"')
+		expect(manage).toContain("<TourAcceptedCurrencies />")
+		expect(manage).toContain("precio por participante en cada moneda que aceptas")
 		expect(detail).toContain("completeContinueHref")
 		expect(detail).toContain("isPlaybookMode && isTourContext")
 		expect(calendar).toContain('completePlaybook.stepId === "calendar"')
@@ -47,7 +48,34 @@ describe("tour commercial rate context", () => {
 		expect(tour.contract.Payment).toBe("pay_at_property")
 		expect(tour.contract.NoShow).toBe("no_show_percentage_100")
 		const manage = source("src/pages/rates/plans/manage.astro")
-		expect(manage).toContain('["flexible", "early_booking"]')
+		expect(manage).toContain('value="flexible"')
+		expect(manage).toContain('value="early_booking"')
+	})
+
+	it("creates a standard tour rate first and makes later advance promotions explicit", () => {
+		const manage = source("src/pages/rates/plans/manage.astro")
+		const createEndpoint = source("src/pages/api/rateplans/create.ts")
+		const standard = resolveCommercialIntentSpec("flexible", { offeringType: "tour" })
+		const advance = resolveCommercialIntentSpec("early_booking", {
+			offeringType: "tour",
+			discountPercent: 18,
+			minAdvanceDays: 30,
+		})
+
+		expect(standard.type).toBe("package")
+		expect(standard.value).toBe(0)
+		expect(advance.type).toBe("percentage_discount")
+		expect(advance.value).toBe(18)
+		expect(advance.minAdvanceDays).toBe(30)
+		expect(manage).toContain("Tarifa estándar")
+		expect(manage).toContain("Recomendada para empezar")
+		expect(manage).toContain("data-advance-settings")
+		expect(manage).toContain('name="discountPercent"')
+		expect(manage).toContain('name="minAdvanceDays"')
+		expect(manage).toContain("Guardar y revisar condiciones")
+		expect(manage).toContain('vista: "conditions"')
+		expect(createEndpoint).toContain("Crea o marca primero una tarifa estándar como principal")
+		expect(createEndpoint).toContain("discountPercent: body.discountPercent")
 	})
 
 	it("uses tour-specific guided pricing while preserving shared rate management", () => {
@@ -60,7 +88,11 @@ describe("tour commercial rate context", () => {
 		expect(manage).toContain(
 			"const isTourPlaybookRateStep = Boolean(activePlaybook && isTourRateContext)"
 		)
-		expect(manage).toContain('"Precio por participante"')
+		expect(manage).toContain("<TourAcceptedCurrencies />")
+		expect(manage).toContain("readCurrencyOffers")
+		expect(source("src/components/rates/TourAcceptedCurrencies.astro")).toContain(
+			"Puedes cobrar en bolivianos, en dólares o en ambos."
+		)
 		expect(manage).toContain('"Salida seleccionada"')
 		expect(manage).toContain("Condiciones de reserva")
 		expect(manage).toContain("ratePlanIntentPresets.filter")
