@@ -923,6 +923,14 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		rationale: "Public error surface.",
 	},
 	{
+		pattern: "/estado-servicio",
+		status: "public",
+		context: "public-marketplace",
+		owner: "Platform Reliability",
+		rationale:
+			"Degraded-mode page when transient database connectivity prevents rendering the requested marketplace route.",
+	},
+	{
 		pattern: "/SignInPage",
 		status: "public",
 		context: "public-marketplace",
