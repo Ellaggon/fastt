@@ -36,7 +36,14 @@ const isTour = offeringType === "tour"
 			</p>
 		</div>
 		<div class="grid gap-5 sm:grid-cols-[12rem_minmax(0,1fr)]">
-			<FormField label="Moneda" htmlFor="currency" description="Se aplica a esta tarifa." required>
+			<FormField
+				label="Moneda"
+				htmlFor="currency"
+				description={isTour
+					? "Esta tarifa se cobra en una moneda. Si también aceptas otra, crea una tarifa adicional con su precio."
+					: "Se aplica a esta tarifa."}
+				required
+			>
 				<Select id="currency" name="currency" value={initialCurrency} required>
 					<option value="USD">USD</option>
 					<option value="BOB">BOB</option>

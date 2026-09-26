@@ -54,9 +54,21 @@ const specs: Record<RatePlanIntentId, CommercialIntentSpec> = {
 
 export function resolveCommercialIntentSpec(
 	intent: RatePlanIntentId,
-	options: { offeringType?: "accommodation" | "tour" } = {}
+	options: {
+		offeringType?: "accommodation" | "tour"
+		discountPercent?: number
+		minAdvanceDays?: number
+	} = {}
 ): CommercialIntentSpec {
-	const spec = specs[intent]
+	const baseSpec = specs[intent]
+	const spec =
+		options.offeringType === "tour" && intent === "early_booking"
+			? {
+					...baseSpec,
+					value: options.discountPercent ?? baseSpec.value,
+					minAdvanceDays: options.minAdvanceDays ?? baseSpec.minAdvanceDays,
+				}
+			: baseSpec
 	if (options.offeringType !== "tour") return spec
 	return {
 		...spec,

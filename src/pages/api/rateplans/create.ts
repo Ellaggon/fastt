@@ -17,6 +17,7 @@ import { assertProviderCapability } from "@/lib/provider-governance"
 import {
 	createCommercialRatePlanSchema,
 	createRatePlan,
+	listRatePlansByProvider,
 	setRatePlanPricingBaseline,
 } from "@/modules/pricing/public"
 
@@ -48,8 +49,25 @@ export const POST: APIRoute = async ({ request }) => {
 					"Esta propuesta comercial requiere una modalidad que todavía no está disponible para tours.",
 			})
 		}
+		if (offeringType === "tour" && body.intent === "early_booking") {
+			const existingRatePlans = await listRatePlansByProvider(providerId)
+			const hasMainRate = existingRatePlans.some((ratePlan) => {
+				const row = ratePlan as { variantId?: unknown; isDefault?: unknown }
+				return String(row.variantId) === body.variantId && Boolean(row.isDefault)
+			})
+			if (!hasMainRate) {
+				return json(422, {
+					error:
+						"Crea o marca primero una tarifa estándar como principal para esta salida. Después podrás añadir el descuento por reserva anticipada.",
+				})
+			}
+		}
 
-		const intent = resolveCommercialIntentSpec(body.intent, { offeringType })
+		const intent = resolveCommercialIntentSpec(body.intent, {
+			offeringType,
+			discountPercent: body.discountPercent,
+			minAdvanceDays: body.minAdvanceDays,
+		})
 		const result = await createRatePlan(
 			{ repo: ratePlanCommandRepository },
 			{

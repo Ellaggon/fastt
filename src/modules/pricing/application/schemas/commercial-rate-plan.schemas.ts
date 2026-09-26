@@ -12,6 +12,8 @@ export const createCommercialRatePlanSchema = z.object({
 	name: z.string().trim().min(2).max(120),
 	description: z.string().trim().max(500).optional(),
 	intent: commercialRatePlanIntentSchema.default("flexible"),
+	discountPercent: z.coerce.number().min(1).max(50).optional(),
+	minAdvanceDays: z.coerce.number().int().min(1).max(365).optional(),
 	currency: z.enum(["BOB", "USD"]),
 	basePrice: z.coerce.number().positive().max(1_000_000),
 	publicationMode: z.enum(["draft", "publish"]).default("draft"),
