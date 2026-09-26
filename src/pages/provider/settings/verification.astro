@@ -4,7 +4,11 @@ import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
 import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
 import { providerDocumentTypes, requiredKycDocumentTypes } from "@/lib/provider-documents"
 import { formatProviderRoleLabel } from "@/lib/provider-permissions"
-import { TRUST_GLOSSARY } from "@/lib/provider-trust-map"
+import {
+	buildVerificationPageGuidance,
+	buildVerificationPageGuidanceByTab,
+	TRUST_GLOSSARY,
+} from "@/lib/provider-trust-map"
 import { loadProviderVerificationWorkspace } from "@/lib/provider-verification-workspace"
 import { routes } from "@/lib/routes"
 
@@ -42,19 +46,48 @@ const model = await loadProviderVerificationWorkspace({
 	providerRoleLabel,
 	url: Astro.url,
 })
-const { trustLinks, listaReady, trustMapComplete, wizardStepNumber, wizardProgressPercent } = model
+const {
+	trustLinks,
+	listaReady,
+	trustMapComplete,
+	readyCount,
+	totalCount,
+	inReviewCount,
+	actionRequiredCount,
+	notStartedCount,
+	readinessPercent,
+	nextActionId,
+	activeSectionId,
+} = model
 const showWizardProgress = trustLinks.length > 0
+const pageGuidanceByTab = buildVerificationPageGuidanceByTab({
+	trustLinks,
+	nextActionId,
+	trustMapComplete,
+})
+const pageGuidance =
+	pageGuidanceByTab[activeSectionId] ??
+	buildVerificationPageGuidance({
+		trustLinks,
+		nextActionId,
+		trustMapComplete,
+		activeSectionId,
+	})
 ---
 
 <ProviderSettingsLayout
 	title="Verificación y documentos"
 	eyebrow={TRUST_GLOSSARY.page.eyebrow}
 	heading={TRUST_GLOSSARY.page.heading}
-	description={TRUST_GLOSSARY.page.description}
+	description={pageGuidance}
+	verificationPageGuidanceByTab={showWizardProgress ? pageGuidanceByTab : null}
 	showSettingsTabs={false}
-	progressStep={showWizardProgress ? wizardStepNumber : null}
-	progressTotal={showWizardProgress ? trustLinks.length : null}
-	progressPercent={showWizardProgress ? wizardProgressPercent : null}
+	readyCount={showWizardProgress ? readyCount : null}
+	totalCount={showWizardProgress ? totalCount : null}
+	inReviewCount={showWizardProgress ? inReviewCount : null}
+	actionRequiredCount={showWizardProgress ? actionRequiredCount : null}
+	notStartedCount={showWizardProgress ? notStartedCount : null}
+	readinessPercent={showWizardProgress ? readinessPercent : null}
 >
 	<div
 		class="space-y-6 md:space-y-8"

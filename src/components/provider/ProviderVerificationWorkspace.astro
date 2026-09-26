@@ -9,6 +9,7 @@ import ProviderVerificationNextStep from "@/components/provider/ProviderVerifica
 import ProviderVerificationView from "@/components/provider/ProviderVerificationView.astro"
 import Notice from "@/components/ui/Notice.astro"
 import type { ProviderVerificationWorkspaceModel } from "@/lib/provider-verification-workspace"
+import { isProviderTrustMapComplete } from "@/lib/provider-trust-map"
 import { routes } from "@/lib/routes"
 
 type Props = {
@@ -17,7 +18,8 @@ type Props = {
 
 const { model } = Astro.props as Props
 const {
-	initialPanel,
+	activeSectionId,
+	nextActionId,
 	listaReady,
 	trustLinks,
 	canManageDocuments,
@@ -47,11 +49,22 @@ const {
 	error,
 } = model
 
-const hubActive = initialPanel === "identity" || initialPanel === "business"
+const trustMapComplete = isProviderTrustMapComplete(trustLinks)
+const trustLinkById = new Map(trustLinks.map((link) => [link.id, link]))
+function panelLabel(id: "identity" | "business" | "fiscal" | "payments") {
+	const link = trustLinkById.get(id)
+	return link
+		? `${link.label}. Estado: ${link.stateLabel}. ${link.description}`
+		: "Estado no disponible."
+}
+
+const hubActive = activeSectionId === "identity" || activeSectionId === "business"
+const optionalsEntryActive = activeSectionId === "business"
 const documentResult = hubActive ? result : ""
-const fiscalResult = initialPanel === "fiscal" ? result : ""
-const paymentResult = initialPanel === "payments" ? result : ""
-const paymentError = initialPanel === "payments" ? error : ""
+const fiscalResult = activeSectionId === "fiscal" ? result : ""
+const fiscalError = activeSectionId === "fiscal" ? error : ""
+const paymentResult = activeSectionId === "payments" ? result : ""
+const paymentError = activeSectionId === "payments" ? error : ""
 
 const uploadErrorMessages: Record<string, string> = {
 	document_file_meta_required:
@@ -196,172 +209,189 @@ const paymentErrorMessages: Record<
 	}
 
 	<div data-verification-trust-nav>
-		<ProviderTrustMapRail links={trustLinks} activeId={initialPanel} />
+		<ProviderTrustMapRail
+			links={trustLinks}
+			activeId={activeSectionId}
+			nextActionId={nextActionId}
+		/>
 	</div>
 
-	<section
-		class="space-y-6 md:space-y-8"
-		data-verification-trust-panel="identity"
-		data-active={initialPanel === "identity" ? "true" : "false"}
-		hidden={initialPanel !== "identity" ? true : undefined}
-	>
-		<ProviderVerificationView
-			latestVerification={latestVerification}
-			documents={documents}
-			showHeader={false}
-			placement="primary"
-			reviewAssignment={verificationAssignment}
-			trustMapComplete={listaReady}
-			suppressConsequence={suppressStatusConsequence}
-		/>
-	</section>
+	<div class="verification-trust-panels-stage" data-verification-trust-panels-stage>
+		<section
+			class="space-y-6 md:space-y-8"
+			data-verification-trust-panel="identity"
+			data-active={activeSectionId === "identity" ? "true" : "false"}
+			hidden={activeSectionId !== "identity" ? true : undefined}
+			aria-labelledby="verification-panel-identity-title"
+		>
+			<h2 id="verification-panel-identity-title" class="sr-only">{panelLabel("identity")}</h2>
+			<ProviderVerificationView
+				latestVerification={latestVerification}
+				documents={documents}
+				showHeader={false}
+				placement="primary"
+				reviewAssignment={verificationAssignment}
+				trustMapComplete={listaReady}
+				suppressConsequence={suppressStatusConsequence}
+			/>
+		</section>
 
-	<section
-		class="space-y-6 md:space-y-8"
-		data-verification-trust-panel="business"
-		data-active={initialPanel === "business" ? "true" : "false"}
-		hidden={initialPanel !== "business" ? true : undefined}
-	>
-		{
-			!listaReady ? (
-				canManageDocuments ? (
-					<div data-verification-docs-fold>
-						<ProviderKycSlotsCard
-							slots={kycSlots}
-							canManageDocuments={canManageDocuments}
-							documentAssignments={documentAssignments}
-							focusType={requestedType}
-							elevated
+		<section
+			class="space-y-6 md:space-y-8"
+			data-verification-trust-panel="business"
+			data-active={activeSectionId === "business" ? "true" : "false"}
+			hidden={activeSectionId !== "business" ? true : undefined}
+			aria-labelledby="verification-panel-business-title"
+		>
+			<h2 id="verification-panel-business-title" class="sr-only">{panelLabel("business")}</h2>
+			{
+				!listaReady ? (
+					canManageDocuments ? (
+						<div data-verification-docs-fold>
+							<ProviderKycSlotsCard
+								slots={kycSlots}
+								canManageDocuments={canManageDocuments}
+								documentAssignments={documentAssignments}
+								focusType={requestedType}
+								elevated
+							>
+								<ProviderVerificationNextStep
+									slot="intro"
+									nextStep={nextStep}
+									crossLinks={crossLinks}
+									copyOnly
+								/>
+							</ProviderKycSlotsCard>
+						</div>
+					) : (
+						<div
+							class="fastt-card space-y-6 border border-slate-200 bg-white p-4 text-slate-900 sm:p-5"
+							data-verification-docs-fold
 						>
-							<ProviderVerificationNextStep
-								slot="intro"
-								nextStep={nextStep}
-								crossLinks={crossLinks}
-								copyOnly
-							/>
-						</ProviderKycSlotsCard>
-					</div>
+							<div>
+								<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">
+									Negocio
+								</p>
+								<h2 class="mt-2 text-xl font-semibold text-slate-950">Documentos mínimos</h2>
+							</div>
+							<ProviderVerificationNextStep nextStep={nextStep} crossLinks={crossLinks} copyOnly />
+							<ProviderDocumentsAccessDenied roleLabel={providerRoleLabel} slots={kycSlots} />
+						</div>
+					)
 				) : (
 					<div
-						class="fastt-card space-y-6 border border-slate-200 bg-white p-4 text-slate-900 sm:p-5"
-						data-verification-docs-fold
+						class="fastt-notice space-y-4 rounded-[var(--fastt-radius-card)] border border-emerald-200 bg-emerald-50/50 px-5 py-4"
+						data-verification-lista-docs
 					>
-						<div>
-							<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">
-								Negocio
-							</p>
-							<h2 class="mt-2 text-xl font-semibold text-slate-950">Documentos mínimos</h2>
-						</div>
-						<ProviderVerificationNextStep nextStep={nextStep} crossLinks={crossLinks} copyOnly />
-						<ProviderDocumentsAccessDenied roleLabel={providerRoleLabel} slots={kycSlots} />
+						<p class="text-sm font-semibold text-slate-950">Documentos mínimos listos</p>
+						<p class="mt-1 text-sm leading-6 text-slate-600">
+							Negocio está completo en el mapa. Usa Publicar o Pagos arriba; el respaldo adicional
+							sigue disponible abajo.
+						</p>
 					</div>
 				)
-			) : (
-				<div
-					class="fastt-notice space-y-4 rounded-[var(--fastt-radius-card)] border border-emerald-200 bg-emerald-50/50 px-5 py-4"
-					data-verification-lista-docs
-				>
-					<p class="text-sm font-semibold text-slate-950">Documentos mínimos listos</p>
-					<p class="mt-1 text-sm leading-6 text-slate-600">
-						Negocio está completo en el mapa. Usa Publicar o Pagos arriba; el respaldo adicional
-						sigue disponible abajo.
-					</p>
-				</div>
-			)
-		}
-	</section>
+			}
+		</section>
 
-	<section
-		class="space-y-6 md:space-y-8"
-		data-verification-trust-panel="fiscal"
-		data-active={initialPanel === "fiscal" ? "true" : "false"}
-		hidden={initialPanel !== "fiscal" ? true : undefined}
-	>
-		{
-			fiscalResult === "tax_profile_saved" ? (
-				<Notice variant="success" title="Identidad fiscal enviada">
-					<p>
-						Guardamos tu registro fiscal. Quedó en revisión; el resultado aparecerá en este eslabón
-						cuando el equipo Fastt termine.
-					</p>
-					<p
-						class="mt-3 flex flex-wrap gap-3"
-						data-post-save-cta
-						data-funnel-domain="fiscality"
-						data-funnel-surface="verification_fiscal"
-					>
-						<a class="font-semibold underline" href={routes.providerSettingsVerificationPayments()}>
-							Continuar a pagos
-						</a>
-					</p>
-				</Notice>
-			) : null
-		}
-		<ProviderTaxProfileCard
-			taxConfiguration={taxConfiguration}
-			canManageFiscality={canManageFiscality}
-			reviewAssignment={fiscalAssignment}
-			formReturnTo="verificationFiscal"
-		/>
-	</section>
-
-	<section
-		class="space-y-6 md:space-y-8"
-		data-verification-trust-panel="payments"
-		data-active={initialPanel === "payments" ? "true" : "false"}
-		hidden={initialPanel !== "payments" ? true : undefined}
-	>
-		{
-			paymentResult && paymentResultMessages[paymentResult] ? (
-				<Notice
-					variant={paymentResultMessages[paymentResult].variant}
-					title={paymentResultMessages[paymentResult].title}
-				>
-					<p>{paymentResultMessages[paymentResult].body}</p>
-					<p
-						class="mt-3"
-						data-post-save-cta
-						data-funnel-domain="payments"
-						data-funnel-surface="verification_payments"
-					>
-						<a
-							class="font-semibold underline"
-							href={routes.providerSettingsVerification()}
-							data-funnel-cta="post_save"
+		<section
+			class="space-y-6 md:space-y-8"
+			data-verification-trust-panel="fiscal"
+			data-active={activeSectionId === "fiscal" ? "true" : "false"}
+			hidden={activeSectionId !== "fiscal" ? true : undefined}
+			aria-labelledby="verification-panel-fiscal-title"
+		>
+			<h2 id="verification-panel-fiscal-title" class="sr-only">{panelLabel("fiscal")}</h2>
+			{
+				fiscalResult === "tax_profile_saved" ? (
+					<Notice variant="success" title="Identidad fiscal enviada">
+						<p>
+							Guardamos tu registro fiscal. Quedó en revisión; el resultado aparecerá en este
+							eslabón cuando el equipo Fastt termine.
+						</p>
+						<p
+							class="mt-3 flex flex-wrap gap-3"
+							data-post-save-cta
+							data-funnel-domain="fiscality"
+							data-funnel-surface="verification_fiscal"
 						>
-							Volver al mapa de Verificación
-						</a>
-					</p>
-				</Notice>
-			) : null
-		}
-		{
-			paymentError && paymentErrorMessages[paymentError] ? (
-				<Notice
-					variant={paymentErrorMessages[paymentError].variant}
-					title={paymentErrorMessages[paymentError].title}
-				>
-					{paymentErrorMessages[paymentError].body}
-				</Notice>
-			) : null
-		}
-		<ProviderPaymentAccountsCard
-			accounts={paymentAccounts}
-			canManagePayments={canManagePayments}
-			defaultCurrency={defaultCurrency}
-			paymentAssignments={paymentAssignments}
-			payoutRail={payoutRail}
-			formReturnTo="verificationPayments"
-		/>
-	</section>
+							<a
+								class="font-semibold underline"
+								href={routes.providerSettingsVerificationPayments()}
+							>
+								Continuar a pagos
+							</a>
+						</p>
+					</Notice>
+				) : null
+			}
+			<ProviderTaxProfileCard
+				taxConfiguration={taxConfiguration}
+				canManageFiscality={canManageFiscality}
+				reviewAssignment={fiscalAssignment}
+				formReturnTo="verificationFiscal"
+				saveError={fiscalError}
+			/>
+		</section>
+
+		<section
+			class="space-y-6 md:space-y-8"
+			data-verification-trust-panel="payments"
+			data-active={activeSectionId === "payments" ? "true" : "false"}
+			hidden={activeSectionId !== "payments" ? true : undefined}
+			aria-labelledby="verification-panel-payments-title"
+		>
+			<h2 id="verification-panel-payments-title" class="sr-only">{panelLabel("payments")}</h2>
+			{
+				paymentResult && paymentResultMessages[paymentResult] ? (
+					<Notice
+						variant={paymentResultMessages[paymentResult].variant}
+						title={paymentResultMessages[paymentResult].title}
+					>
+						<p>{paymentResultMessages[paymentResult].body}</p>
+						<p
+							class="mt-3"
+							data-post-save-cta
+							data-funnel-domain="payments"
+							data-funnel-surface="verification_payments"
+						>
+							<a
+								class="font-semibold underline"
+								href={routes.providerSettingsVerification()}
+								data-funnel-cta="post_save"
+							>
+								Volver al mapa de Verificación
+							</a>
+						</p>
+					</Notice>
+				) : null
+			}
+			{
+				paymentError && paymentErrorMessages[paymentError] ? (
+					<Notice
+						variant={paymentErrorMessages[paymentError].variant}
+						title={paymentErrorMessages[paymentError].title}
+					>
+						{paymentErrorMessages[paymentError].body}
+					</Notice>
+				) : null
+			}
+			<ProviderPaymentAccountsCard
+				accounts={paymentAccounts}
+				canManagePayments={canManagePayments}
+				defaultCurrency={defaultCurrency}
+				paymentAssignments={paymentAssignments}
+				payoutRail={payoutRail}
+				formReturnTo="verificationPayments"
+			/>
+		</section>
+	</div>
 
 	<details
 		class="fastt-notice rounded-[var(--fastt-radius-card)] border border-slate-200 bg-slate-50 px-5 py-4"
-		data-verification-hub-chrome
 		data-verification-optionals-entry
 		data-verification-optionals="entry"
 		data-verification-optionals-collapsed="true"
-		hidden={hubActive ? undefined : true}
+		hidden={optionalsEntryActive ? undefined : true}
 	>
 		<summary class="cursor-pointer list-none">
 			<div class="flex flex-wrap items-center justify-between gap-3">
@@ -393,7 +423,67 @@ const paymentErrorMessages: Record<
 			</a>
 		</div>
 	</details>
+
+	{
+		trustLinks.length > 0 && !trustMapComplete ? (
+			<p class="text-xs leading-5 text-slate-500/90" data-trust-map-parallel-work>
+				Puedes preparar estas áreas en paralelo. Cada formulario solo se limita por permisos o por
+				una verificación que sigue en curso.
+			</p>
+		) : null
+	}
 </div>
+<style is:global>
+	.verification-trust-panels-stage {
+		position: relative;
+		isolation: isolate;
+	}
+
+	[data-verification-trust-panel] {
+		transition:
+			opacity 0.42s cubic-bezier(0.4, 0, 0.2, 1),
+			transform 0.42s cubic-bezier(0.4, 0, 0.2, 1),
+			visibility 0.42s;
+	}
+
+	[data-verification-trust-panel][data-active="false"] {
+		position: absolute;
+		top: 0;
+		right: 0;
+		left: 0;
+		opacity: 0;
+		visibility: hidden;
+		transform: translateY(0.45rem);
+		pointer-events: none;
+	}
+
+	[data-verification-trust-panel][data-active="true"] {
+		position: relative;
+		opacity: 1;
+		visibility: visible;
+		transform: translateY(0);
+	}
+
+	[data-verification-page-description] {
+		transition: opacity 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		[data-verification-trust-panel] {
+			transition: none;
+		}
+
+		[data-verification-trust-panel][data-active="false"] {
+			position: absolute;
+			display: none;
+		}
+
+		[data-verification-page-description] {
+			transition: none;
+		}
+	}
+</style>
 <script>
+	import "@/pages/provider/settings/_client/verification-form-submit-pending.js"
 	import "@/pages/provider/settings/_client/verification-trust-panels.js"
 </script>

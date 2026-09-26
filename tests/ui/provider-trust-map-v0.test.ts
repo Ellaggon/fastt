@@ -6,9 +6,13 @@ import { buildRequiredKycSlots } from "@/lib/provider-documents"
 import {
 	assertNoLegacyPendingLabel,
 	buildProviderTrustMap,
+	buildVerificationPageGuidance,
+	formatVerificationProgressBreakdownLine,
+	formatVerificationProgressTotalLine,
 	labelAccountVerificationStatus,
 	labelDocumentKycState,
 	labelMatrixCheckState,
+	summarizeProviderTrustProgress,
 	TRUST_GLOSSARY,
 } from "@/lib/provider-trust-map"
 
@@ -27,12 +31,7 @@ describe("V0 trust map IA + glossary (cuenta vs docs)", () => {
 			fiscalStatus: "not_configured",
 			verifiedPaymentAccounts: 0,
 		})
-		expect(links.map((link) => link.id)).toEqual([
-			"identity",
-			"business",
-			"fiscal",
-			"payments",
-		])
+		expect(links.map((link) => link.id)).toEqual(["identity", "business", "fiscal", "payments"])
 		expect(links.map((link) => link.label)).toEqual([
 			TRUST_GLOSSARY.links.identity.label,
 			TRUST_GLOSSARY.links.business.label,
@@ -44,9 +43,7 @@ describe("V0 trust map IA + glossary (cuenta vs docs)", () => {
 			"#verification-status-panel"
 		)
 		expect(links.find((link) => link.id === "business")?.href).toContain("#kyc-slots")
-		expect(links.find((link) => link.id === "fiscal")?.href).toContain(
-			"/verification/fiscal"
-		)
+		expect(links.find((link) => link.id === "fiscal")?.href).toContain("/verification/fiscal")
 		expect(links.find((link) => link.id === "payments")?.href).toContain("/payments")
 	})
 
@@ -75,6 +72,74 @@ describe("V0 trust map IA + glossary (cuenta vs docs)", () => {
 		}
 	})
 
+	it("derives readiness from completed requirements and keeps the next action separate", () => {
+		const links = buildProviderTrustMap({
+			accountStatus: "pending",
+			documentsComplete: false,
+			hasMissingDocs: true,
+			fiscalStatus: "not_configured",
+			verifiedPaymentAccounts: 0,
+		})
+		expect(formatVerificationProgressTotalLine(0, 4)).toBe("0 de 4 requisitos listos")
+		expect(
+			formatVerificationProgressBreakdownLine({
+				readyCount: 0,
+				inReviewCount: 1,
+				actionRequiredCount: 1,
+				notStartedCount: 2,
+			})
+		).toBe("0 listos · 1 en revisión · 1 por completar · 2 sin iniciar")
+
+		const progress = summarizeProviderTrustProgress(links)
+
+		expect(progress).toEqual({
+			readyCount: 0,
+			totalCount: 4,
+			inReviewCount: 1,
+			actionRequiredCount: 1,
+			notStartedCount: 2,
+			readinessPercent: 0,
+			nextActionId: "business",
+		})
+
+		const guidanceIdentity = buildVerificationPageGuidance({
+			trustLinks: links,
+			nextActionId: progress.nextActionId,
+			activeSectionId: "identity",
+		})
+		expect(guidanceIdentity).toBe(
+			"Ya completaste tu parte. Aún no está aprobada. Puedes continuar con Negocio mientras revisamos Identidad."
+		)
+
+		const guidanceBusiness = buildVerificationPageGuidance({
+			trustLinks: links,
+			nextActionId: progress.nextActionId,
+			activeSectionId: "business",
+		})
+		expect(guidanceBusiness).toContain("Mientras revisamos Identidad")
+		expect(guidanceBusiness).toContain("completa Negocio aquí")
+		expect(guidanceBusiness).not.toContain("Ya completaste tu parte")
+	})
+
+	it("distinguishes an absent submission, missing documents and rejected documents", () => {
+		const fresh = buildProviderTrustMap({
+			accountStatus: null,
+			documentsComplete: false,
+			hasMissingDocs: true,
+		})
+		const rejected = buildProviderTrustMap({
+			accountStatus: "approved",
+			documentsComplete: false,
+			hasRejectedDocs: true,
+			hasMissingDocs: false,
+		})
+
+		expect(fresh.find((link) => link.id === "identity")?.uiState).toBe("not_started")
+		expect(fresh.find((link) => link.id === "business")?.uiState).toBe("action_needed")
+		expect(rejected.find((link) => link.id === "business")?.uiState).toBe("requires_changes")
+		expect(rejected.find((link) => link.id === "business")?.stateLabel).toBe("Requiere cambios")
+	})
+
 	it("aligns KYC slot labels with glossary (no Pendiente)", () => {
 		const slots = buildRequiredKycSlots({ documents: [] })
 		expect(slots.every((slot) => slot.stateLabel === "Falta")).toBe(true)
@@ -95,7 +160,9 @@ describe("V0 trust map IA + glossary (cuenta vs docs)", () => {
 
 		expect(page).toContain("ProviderTrustMapRail")
 		expect(page).toContain("buildProviderTrustMap")
-		expect(page).toContain("TRUST_GLOSSARY.page.description")
+		expect(page).toContain("buildVerificationPageGuidance")
+		expect(page).toContain("buildVerificationPageGuidanceByTab")
+		expect(page).toContain("description={pageGuidance}")
 
 		expect(rail).toContain("data-trust-map-rail")
 		expect(rail).toContain("data-trust-link")
@@ -118,6 +185,15 @@ describe("V0 trust map IA + glossary (cuenta vs docs)", () => {
 		expect(rail).toContain("CircleDollarSign")
 		expect(rail).toContain("link.stateLabel")
 		expect(rail).toContain("data-trust-link-status")
+		expect(rail).not.toContain("data-trust-link-next-action")
+		expect(rail).not.toContain("Siguiente")
+		expect(rail).not.toContain("data-trust-map-parallel-work")
+		expect(read("src/components/provider/ProviderVerificationWorkspace.astro")).toContain(
+			"data-trust-map-parallel-work"
+		)
+		expect(read("src/components/provider/ProviderVerificationWorkspace.astro")).toContain(
+			"por permisos o"
+		)
 		expect(rail).toContain('data-active={active ? "true" : "false"}')
 		expect(rail).toContain("provider-trust-rail.js")
 		expect(railClient).toContain("resolveTrustRailActiveId")

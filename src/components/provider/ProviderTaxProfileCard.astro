@@ -8,6 +8,7 @@ import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
 import { PROVIDER_REVIEW_WAIT_LABEL } from "@/lib/provider-review-wait-state"
 import type { ProviderTaxConfigurationRecord } from "@/lib/provider-tax-configuration"
+import { fiscalIdentityErrorMessage } from "@/lib/provider-tax-identity-validation"
 import { providerInvoicingModes, providerTaxRegimes } from "@/lib/provider-tax-configuration"
 
 type Props = {
@@ -18,6 +19,7 @@ type Props = {
 		slaState: "ok" | "due_soon" | "overdue" | "done"
 	} | null
 	formReturnTo?: "taxIdentity" | "verificationFiscal"
+	saveError?: string
 }
 
 const {
@@ -25,11 +27,32 @@ const {
 	canManageFiscality = false,
 	reviewAssignment = null,
 	formReturnTo = "taxIdentity",
+	saveError = "",
 } = Astro.props as Props
 const status = taxConfiguration?.status ?? "not_configured"
 const country = taxConfiguration?.taxResidenceCountry ?? ""
 const regime = taxConfiguration?.taxRegime ?? ""
 const invoicingMode = taxConfiguration?.invoicingMode ?? "platform_receipt"
+const registration = taxConfiguration?.businessRegistrationNumber ?? ""
+const countryOptions = [
+	{ value: "BO", label: "Bolivia (BO)" },
+	{ value: "CL", label: "Chile (CL)" },
+	{ value: "US", label: "Estados Unidos (US)" },
+	{ value: "ES", label: "España (ES)" },
+	{ value: "PE", label: "Perú (PE)" },
+	{ value: "AR", label: "Argentina (AR)" },
+] as const
+const countryLabel =
+	countryOptions.find((item) => item.value === country)?.label ?? (country || "Sin definir")
+const regimeLabel =
+	providerTaxRegimes.find((item) => item.value === regime)?.label ?? (regime || "Sin definir")
+const invoicingLabel =
+	providerInvoicingModes.find((item) => item.value === invoicingMode)?.label ?? invoicingMode
+const hasSavedIdentity = Boolean(country || registration || regime)
+const showSubmittedRecord = hasSavedIdentity && status !== "not_configured"
+const saveErrorMessage = saveError ? fiscalIdentityErrorMessage(saveError) : ""
+/** Pending and verified stay read-only until the provider chooses to correct. */
+const formStartsOpen = !showSubmittedRecord || status === "requires_attention"
 const actionLead =
 	status === "verified"
 		? "Tu identidad fiscal está lista para liquidaciones."
@@ -93,129 +116,196 @@ const actionLead =
 
 		{
 			canManageFiscality ? (
-				<form method="post" action="/api/provider/settings/tax-configuration" class="space-y-4">
-					<input type="hidden" name="returnTo" value={formReturnTo} />
-					<div class="grid gap-4 md:grid-cols-2">
-						<FormField label="País de residencia fiscal" htmlFor="taxResidenceCountry">
-							<Select id="taxResidenceCountry" name="taxResidenceCountry">
-								<option value="">Sin definir</option>
-								<option value="BO" selected={country === "BO"}>
-									Bolivia (BO)
-								</option>
-								<option value="CL" selected={country === "CL"}>
-									Chile (CL)
-								</option>
-								<option value="US" selected={country === "US"}>
-									Estados Unidos (US)
-								</option>
-								<option value="ES" selected={country === "ES"}>
-									España (ES)
-								</option>
-								<option value="PE" selected={country === "PE"}>
-									Perú (PE)
-								</option>
-								<option value="AR" selected={country === "AR"}>
-									Argentina (AR)
-								</option>
-							</Select>
-						</FormField>
-
-						<FormField label="NIT / registro mercantil" htmlFor="businessRegistrationNumber">
-							<Input
-								id="businessRegistrationNumber"
-								name="businessRegistrationNumber"
-								value={taxConfiguration?.businessRegistrationNumber ?? ""}
-								placeholder="NIT-123456 / EIN / CIF"
-								class="scroll-mt-24"
-							/>
-						</FormField>
-
-						<FormField label="Régimen fiscal" htmlFor="taxRegime">
-							<Select id="taxRegime" name="taxRegime">
-								<option value="">Sin definir</option>
-								{providerTaxRegimes.map((item) => (
-									<option value={item.value} selected={regime === item.value}>
-										{item.label}
-									</option>
-								))}
-							</Select>
-						</FormField>
-					</div>
-
-					<FormField label="Modo de facturación" htmlFor="invoicingMode">
-						<Select id="invoicingMode" name="invoicingMode" required>
-							{providerInvoicingModes.map((item) => (
-								<option value={item.value} selected={invoicingMode === item.value}>
-									{item.label}
-								</option>
-							))}
-						</Select>
-					</FormField>
-
-					<div class="flex justify-end">
-						<Button type="submit">Enviar identidad fiscal</Button>
-					</div>
-
+				<div class="space-y-4">
+					{showSubmittedRecord ? (
+						<Card
+							variant="plain"
+							class="fastt-soft-box border border-slate-200 bg-slate-50 p-4"
+							data-fiscal-submitted-summary
+						>
+							<dl class="grid gap-3 sm:grid-cols-2">
+								<div>
+									<dt class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+										País de residencia fiscal
+									</dt>
+									<dd class="mt-1 text-sm font-medium text-slate-950">{countryLabel}</dd>
+								</div>
+								<div>
+									<dt class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+										NIT / registro mercantil
+									</dt>
+									<dd class="mt-1 text-sm font-medium text-slate-950">
+										{registration || "Sin definir"}
+									</dd>
+								</div>
+								<div>
+									<dt class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+										Régimen fiscal
+									</dt>
+									<dd class="mt-1 text-sm font-medium text-slate-950">{regimeLabel}</dd>
+								</div>
+								<div>
+									<dt class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+										Modo de facturación
+									</dt>
+									<dd class="mt-1 text-sm font-medium text-slate-950">{invoicingLabel}</dd>
+								</div>
+							</dl>
+						</Card>
+					) : null}
 					<details
-						class="fastt-notice rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-600"
-						data-fiscal-long-copy-collapsed="true"
+						class="space-y-4"
+						data-fiscal-identity-editor
+						open={formStartsOpen ? true : undefined}
 					>
-						<summary class="cursor-pointer font-semibold text-slate-900">
-							Cómo se usa la facturación
+						<summary
+							class:list={[
+								"cursor-pointer text-sm font-semibold text-slate-900",
+								formStartsOpen && "sr-only",
+							]}
+						>
+							{status === "verified" ? "Actualizar identidad fiscal" : "Corregir y volver a enviar"}
 						</summary>
-						<div class="mt-3 border-t border-slate-200 pt-3">
-							<p class="mb-2">
-								Quién emite el comprobante al huésped. No cambia los impuestos de venta.
-							</p>
-							<ul class="list-disc space-y-1 pl-4">
-								{providerInvoicingModes.map((item) => (
-									<li>
-										<span class="font-medium text-slate-800">{item.label}:</span> {item.description}
-									</li>
-								))}
-							</ul>
-							<p class="mt-3">
-								Al guardar con datos de identidad, el estado pasa a{" "}
-								<span class="font-medium text-slate-800">{PROVIDER_REVIEW_WAIT_LABEL}</span>. No
-								puedes marcar Verificado tú mismo.
-							</p>
-						</div>
-					</details>
+						<form
+							method="post"
+							action="/api/provider/settings/tax-configuration"
+							class="space-y-4"
+							autocomplete="off"
+							data-astro-reload
+							data-fiscal-identity-form
+							data-tax-country={country}
+							data-tax-regime={regime}
+							data-tax-registration={registration}
+							data-invoicing-mode={invoicingMode}
+						>
+							<input type="hidden" name="returnTo" value={formReturnTo} />
+							<div class="grid gap-4 md:grid-cols-2">
+								<FormField label="País de residencia fiscal" htmlFor="taxResidenceCountry">
+									<Select id="taxResidenceCountry" name="taxResidenceCountry">
+										<option value="">Sin definir</option>
+										{countryOptions.map((item) => (
+											<option value={item.value} selected={country === item.value}>
+												{item.label}
+											</option>
+										))}
+									</Select>
+								</FormField>
 
-					<details
-						class="fastt-notice rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-600"
-						data-fiscal-withhold-explainer
-						data-long-copy-collapsed="true"
-					>
-						<summary class="cursor-pointer font-semibold text-slate-900">
-							Retenciones y liquidaciones
-							<span class="mt-0.5 block text-xs font-normal text-slate-500">
-								Qué pasa con tus cobros si falta el registro
-							</span>
-						</summary>
-						<div class="mt-3 border-t border-slate-200 pt-3">
-							<p class="mb-2">
-								Sin NIT/registro y residencia fiscal verificados, Fastt puede{" "}
-								<strong>retener o retrasar liquidaciones</strong> hasta confirmar tu identidad
-								tributaria. Esto no define los impuestos que cobras al huésped.
-							</p>
-							<ul class="list-disc space-y-1 pl-4">
-								<li>
-									<strong>Con registro verificado:</strong> las liquidaciones a tu cuenta de cobros
-									pueden seguir el calendario normal tras payout verificado.
-								</li>
-								<li>
-									<strong>Sin registro o en revisión:</strong> los cobros a huéspedes pueden
-									continuar, pero el desembolso al proveedor queda sujeto a retención o espera de
-									cumplimiento.
-								</li>
-								<li>
-									La retención se aplica a <em>tu</em> liquidación, no al precio de la reserva.
-								</li>
-							</ul>
-						</div>
+								<FormField label="NIT / registro mercantil" htmlFor="businessRegistrationNumber">
+									<Input
+										id="businessRegistrationNumber"
+										name="businessRegistrationNumber"
+										value={registration}
+										placeholder="NIT-123456 / EIN / CIF"
+										class="scroll-mt-24"
+										aria-describedby="businessRegistrationNumber-error"
+									/>
+									<p
+										id="businessRegistrationNumber-error"
+										class="text-sm text-red-600"
+										role="alert"
+										data-fiscal-registration-error
+										data-fiscal-save-error
+										hidden={saveErrorMessage ? undefined : true}
+									>
+										<span class="mb-1 block font-semibold">No se guardó la identidad fiscal</span>
+										<span data-fiscal-registration-error-body>{saveErrorMessage}</span>
+									</p>
+								</FormField>
+
+								<FormField label="Régimen fiscal" htmlFor="taxRegime">
+									<Select id="taxRegime" name="taxRegime">
+										<option value="">Sin definir</option>
+										{providerTaxRegimes.map((item) => (
+											<option value={item.value} selected={regime === item.value}>
+												{item.label}
+											</option>
+										))}
+									</Select>
+								</FormField>
+							</div>
+
+							<FormField label="Modo de facturación" htmlFor="invoicingMode">
+								<Select id="invoicingMode" name="invoicingMode" required>
+									{providerInvoicingModes.map((item) => (
+										<option value={item.value} selected={invoicingMode === item.value}>
+											{item.label}
+										</option>
+									))}
+								</Select>
+							</FormField>
+
+							<details
+								class="fastt-notice rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-600"
+								data-fiscal-long-copy-collapsed="true"
+							>
+								<summary class="cursor-pointer font-semibold text-slate-900">
+									Cómo se usa la facturación
+								</summary>
+								<div class="mt-3 border-t border-slate-200 pt-3">
+									<p class="mb-2">
+										Quién emite el comprobante al huésped. No cambia los impuestos de venta.
+									</p>
+									<ul class="list-disc space-y-1 pl-4">
+										{providerInvoicingModes.map((item) => (
+											<li>
+												<span class="font-medium text-slate-800">{item.label}:</span>{" "}
+												{item.description}
+											</li>
+										))}
+									</ul>
+									<p class="mt-3">
+										Al guardar con datos de identidad, el estado pasa a{" "}
+										<span class="font-medium text-slate-800">{PROVIDER_REVIEW_WAIT_LABEL}</span>. No
+										puedes marcar Verificado tú mismo.
+									</p>
+								</div>
+							</details>
+
+							<details
+								class="fastt-notice rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-600"
+								data-fiscal-withhold-explainer
+								data-long-copy-collapsed="true"
+							>
+								<summary class="cursor-pointer font-semibold text-slate-900">
+									Retenciones y liquidaciones
+									<span class="mt-0.5 block text-xs font-normal text-slate-500">
+										Qué pasa con tus cobros si falta el registro
+									</span>
+								</summary>
+								<div class="mt-3 border-t border-slate-200 pt-3">
+									<p class="mb-2">
+										Sin NIT/registro y residencia fiscal verificados, Fastt puede{" "}
+										<strong>retener o retrasar liquidaciones</strong> hasta confirmar tu identidad
+										tributaria. Esto no define los impuestos que cobras al huésped.
+									</p>
+									<ul class="list-disc space-y-1 pl-4">
+										<li>
+											<strong>Con registro verificado:</strong> las liquidaciones a tu cuenta de
+											cobros pueden seguir el calendario normal tras payout verificado.
+										</li>
+										<li>
+											<strong>Sin registro o en revisión:</strong> los cobros a huéspedes pueden
+											continuar, pero el desembolso al proveedor queda sujeto a retención o espera
+											de cumplimiento.
+										</li>
+										<li>
+											La retención se aplica a <em>tu</em> liquidación, no al precio de la reserva.
+										</li>
+									</ul>
+								</div>
+							</details>
+
+							<div class="fastt-form-submit-footer" data-fiscal-form-actions>
+								<Button type="submit" variant="selection" class="w-full sm:w-auto">
+									{formStartsOpen && status !== "requires_attention"
+										? "Enviar identidad fiscal"
+										: "Volver a enviar"}
+								</Button>
+							</div>
+						</form>
 					</details>
-				</form>
+				</div>
 			) : (
 				<div class="space-y-3 text-sm leading-6 text-slate-600">
 					<p>Tu rol actual no puede editar la identidad fiscal del proveedor.</p>
@@ -234,3 +324,134 @@ const actionLead =
 		}
 	</div>
 </Card>
+
+<script>
+	import {
+		fiscalIdentityErrorMessage,
+		previewFiscalIdentitySubmit,
+	} from "@/lib/provider-tax-identity-validation"
+
+	function fieldValue(form: HTMLFormElement, name: string) {
+		const field = form.querySelector(`[name="${name}"]`)
+		if (field instanceof HTMLSelectElement || field instanceof HTMLInputElement) return field.value
+		return ""
+	}
+
+	function showRegistrationError(form: HTMLFormElement, code: string) {
+		const alert = form.querySelector("[data-fiscal-registration-error]")
+		const body = form.querySelector("[data-fiscal-registration-error-body]")
+		if (!(alert instanceof HTMLElement)) return
+		const input = form.querySelector('[name="businessRegistrationNumber"]')
+		if (!code) {
+			alert.hidden = true
+			if (body instanceof HTMLElement) body.textContent = ""
+			if (input instanceof HTMLInputElement) input.removeAttribute("aria-invalid")
+			return
+		}
+		alert.hidden = false
+		if (body instanceof HTMLElement) body.textContent = fiscalIdentityErrorMessage(code)
+		if (input instanceof HTMLInputElement) input.setAttribute("aria-invalid", "true")
+	}
+
+	function validateFiscalIdentityForm(form: HTMLFormElement) {
+		const preview = previewFiscalIdentitySubmit({
+			taxResidenceCountry: fieldValue(form, "taxResidenceCountry"),
+			businessRegistrationNumber: fieldValue(form, "businessRegistrationNumber"),
+			taxRegime: fieldValue(form, "taxRegime"),
+		})
+		if (preview.ok) {
+			showRegistrationError(form, "")
+			return true
+		}
+		const details = form.closest("details")
+		if (details instanceof HTMLDetailsElement) details.open = true
+		showRegistrationError(form, preview.code)
+		return false
+	}
+
+	function fiscalFormFromEvent(event: Event) {
+		const target = event.target
+		if (target instanceof HTMLFormElement && target.hasAttribute("data-fiscal-identity-form"))
+			return target
+		if (target instanceof Element) {
+			const form = target.closest("form[data-fiscal-identity-form]")
+			if (form instanceof HTMLFormElement) return form
+		}
+		return null
+	}
+
+	document.addEventListener(
+		"submit",
+		(event) => {
+			const form = fiscalFormFromEvent(event)
+			if (!form || validateFiscalIdentityForm(form)) return
+			event.preventDefault()
+			event.stopImmediatePropagation()
+		},
+		true
+	)
+
+	document.addEventListener(
+		"click",
+		(event) => {
+			const target = event.target
+			if (!(target instanceof Element)) return
+			const button = target.closest("button, input[type='submit']")
+			if (!(button instanceof HTMLButtonElement) && !(button instanceof HTMLInputElement)) return
+			if (button.type !== "submit") return
+			const form = button.closest("form[data-fiscal-identity-form]")
+			if (!(form instanceof HTMLFormElement)) return
+			if (validateFiscalIdentityForm(form)) return
+			event.preventDefault()
+			event.stopImmediatePropagation()
+		},
+		true
+	)
+
+	document.addEventListener("focusout", (event) => {
+		const form = fiscalFormFromEvent(event)
+		if (!form) return
+		const target = event.target
+		if (!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement)) return
+		if (
+			target.name !== "businessRegistrationNumber" &&
+			target.name !== "taxResidenceCountry" &&
+			target.name !== "taxRegime"
+		) {
+			return
+		}
+		if (
+			!fieldValue(form, "taxResidenceCountry") &&
+			!fieldValue(form, "businessRegistrationNumber") &&
+			!fieldValue(form, "taxRegime")
+		) {
+			showRegistrationError(form, "")
+			return
+		}
+		validateFiscalIdentityForm(form)
+	})
+
+	function applyFiscalIdentityForms() {
+		document.querySelectorAll("[data-fiscal-identity-form]").forEach((node) => {
+			if (!(node instanceof HTMLFormElement)) return
+			const setSelect = (name: string, value: string) => {
+				if (!value) return
+				const field = node.querySelector(`[name="${name}"]`)
+				if (!(field instanceof HTMLSelectElement)) return
+				field.value = value
+				field.dispatchEvent(new Event("change", { bubbles: true }))
+			}
+			setSelect("taxResidenceCountry", node.dataset.taxCountry ?? "")
+			setSelect("taxRegime", node.dataset.taxRegime ?? "")
+			setSelect("invoicingMode", node.dataset.invoicingMode ?? "")
+			const registration = node.querySelector('[name="businessRegistrationNumber"]')
+			const savedRegistration = node.dataset.taxRegistration ?? ""
+			if (registration instanceof HTMLInputElement && savedRegistration) {
+				registration.value = savedRegistration
+			}
+		})
+	}
+
+	applyFiscalIdentityForms()
+	document.addEventListener("astro:page-load", applyFiscalIdentityForms)
+</script>

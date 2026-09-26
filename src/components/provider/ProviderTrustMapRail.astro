@@ -12,6 +12,8 @@ import {
 type Props = {
 	links?: ProviderTrustLink[]
 	activeId?: TrustLinkId | null
+	/** Unused on rail UI; callers may still pass focus id from the trust map. */
+	nextActionId?: TrustLinkId | null
 }
 
 const { links = [], activeId = null } = Astro.props as Props
@@ -24,9 +26,10 @@ const iconByLinkId = {
 } as const
 const statusBadgeByState = {
 	ready: "darkSuccess",
-	in_review: "darkWarning",
-	action_needed: "darkError",
-	not_started: "darkNeutral",
+	in_review: "darkNeutral",
+	action_needed: "darkWarning",
+	requires_changes: "darkError",
+	not_started: "darkWarning",
 	blocked: "darkNeutral",
 } as const
 
@@ -70,11 +73,10 @@ const currentActiveId = resolveInitialActiveId()
 							data-astro-prefetch="viewport"
 							data-trust-link={link.id}
 							data-trust-link-state={link.uiState}
-							data-trust-link-focus={link.isFocus ? "true" : undefined}
 							data-trust-link-active={active ? "true" : undefined}
 							data-active={active ? "true" : "false"}
 							aria-current={active ? "page" : undefined}
-							aria-label={`${link.label}: ${link.stateLabel}`}
+							aria-label={`${link.label}. Estado: ${link.stateLabel}. ${link.description}`}
 							class="fastt-tabs-inside-panel__item"
 						>
 							<Icon class="h-4 w-4 shrink-0" aria-hidden="true" />

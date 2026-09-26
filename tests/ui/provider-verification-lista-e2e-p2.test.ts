@@ -52,9 +52,7 @@ describe("P2 Lista end-to-end after completing trust map", () => {
 		expect(isProviderTrustMapComplete(links)).toBe(false)
 		expect(links.find((link) => link.id === "identity")?.uiState).toBe("action_needed")
 		expect(links.find((link) => link.id === "identity")?.href).toBe(PROFILE_LEGAL_NAME_HREF)
-		expect(
-			isVerificationListaReady({ trustLinks: links, legalNameComplete: false })
-		).toBe(false)
+		expect(isVerificationListaReady({ trustLinks: links, legalNameComplete: false })).toBe(false)
 
 		const next = resolveVerificationNextStep({
 			trustLinks: links,

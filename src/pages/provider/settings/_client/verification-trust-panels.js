@@ -33,39 +33,104 @@ function resolveVerificationTrustPanel() {
 	return resolveVerificationTrustPanelFromUrl(new URL(window.location.href))
 }
 
+function prefersReducedMotion() {
+	return window.matchMedia("(prefers-reduced-motion: reduce)").matches
+}
+
+function preserveVerificationScrollPosition(apply) {
+	const scrollX = window.scrollX
+	const scrollY = window.scrollY
+	apply()
+	window.requestAnimationFrame(() => {
+		window.requestAnimationFrame(() => {
+			window.scrollTo(scrollX, scrollY)
+		})
+	})
+}
+
+/** Deep links inside a panel (upload slots), not trust-rail tab switches. */
 function scrollVerificationPanelIntoView(url) {
 	if (!url.hash) return
 	window.requestAnimationFrame(() => {
 		const target = document.querySelector(url.hash)
 		if (target && typeof target.scrollIntoView === "function") {
-			target.scrollIntoView({ block: "start" })
+			target.scrollIntoView({
+				block: "start",
+				behavior: prefersReducedMotion() ? "auto" : "smooth",
+			})
 		}
 	})
 }
 
+function syncVerificationPageDescription(activeId) {
+	const el = document.querySelector("[data-verification-page-description]")
+	if (!el) return
+	const raw = el.getAttribute("data-verification-page-guidance")
+	if (!raw) return
+	let next = null
+	try {
+		const map = JSON.parse(raw)
+		next = map?.[activeId]
+	} catch {
+		return
+	}
+	if (typeof next !== "string" || !next.trim()) return
+
+	const apply = () => {
+		el.textContent = next
+		el.style.opacity = "1"
+	}
+
+	if (prefersReducedMotion()) {
+		apply()
+		return
+	}
+
+	el.style.opacity = "0"
+	window.setTimeout(apply, 160)
+}
+
 function syncVerificationTrustPanels() {
 	const activeId = resolveVerificationTrustPanel()
+	syncVerificationPageDescription(activeId)
 	const hubActive = activeId === "identity" || activeId === "business"
 	document.querySelectorAll("[data-verification-trust-panel]").forEach((panel) => {
 		const isActive = panel.getAttribute("data-verification-trust-panel") === activeId
-		panel.toggleAttribute("hidden", !isActive)
+		panel.removeAttribute("hidden")
 		panel.setAttribute("data-active", isActive ? "true" : "false")
+		if (isActive) {
+			panel.removeAttribute("inert")
+		} else {
+			panel.setAttribute("inert", "")
+		}
 	})
 	document.querySelectorAll("[data-verification-hub-chrome]").forEach((el) => {
 		el.toggleAttribute("hidden", !hubActive)
+	})
+	document.querySelectorAll("[data-verification-optionals-entry]").forEach((el) => {
+		el.toggleAttribute("hidden", activeId !== "business")
 	})
 	const title = VERIFICATION_PANEL_TITLES[activeId]
 	if (title) document.title = title
 }
 
-function activateVerificationTrustUrl(url) {
-	window.history.pushState({}, "", url.pathname + url.search + url.hash)
-	syncVerificationTrustPanels()
-	window.dispatchEvent(new Event("provider-verification-trust-sync"))
-	if (url.hash) {
+function activateVerificationTrustUrl(url, options = {}) {
+	const { preserveScroll = true, scrollToPanel = false } = options
+	const run = () => {
+		window.history.pushState({}, "", url.pathname + url.search + url.hash)
+		syncVerificationTrustPanels()
+		window.dispatchEvent(new Event("provider-verification-trust-sync"))
+		if (scrollToPanel && url.hash) {
+			scrollVerificationPanelIntoView(url)
+		}
+	}
+	if (preserveScroll) {
+		preserveVerificationScrollPosition(run)
+		return
+	}
+	run()
+	if (scrollToPanel && url.hash) {
 		scrollVerificationPanelIntoView(url)
-	} else {
-		window.scrollTo({ top: 0, behavior: "instant" })
 	}
 }
 
@@ -83,15 +148,23 @@ function handleVerificationTrustClick(event) {
 	const url = new URL(href, window.location.href)
 	if (url.origin !== window.location.origin) return
 	if (!isVerificationWorkspacePath(url.pathname)) return
+	const trustRail = target.closest("[data-trust-link]")
 	event.preventDefault()
 	const next = url.pathname + url.search + url.hash
 	const current = window.location.pathname + window.location.search + window.location.hash
 	if (next === current) {
-		syncVerificationTrustPanels()
-		scrollVerificationPanelIntoView(url)
+		preserveVerificationScrollPosition(() => {
+			syncVerificationTrustPanels()
+		})
+		if (!trustRail && url.hash) {
+			scrollVerificationPanelIntoView(url)
+		}
 		return
 	}
-	activateVerificationTrustUrl(url)
+	activateVerificationTrustUrl(url, {
+		preserveScroll: Boolean(trustRail),
+		scrollToPanel: !trustRail && Boolean(url.hash),
+	})
 }
 
 window.__fasttVerificationTrustSync = syncVerificationTrustPanels
@@ -103,10 +176,16 @@ if (!window.__fasttVerificationTrustBound) {
 		if (window.__fasttVerificationTrustSync) window.__fasttVerificationTrustSync()
 	})
 	window.addEventListener("hashchange", () => {
-		if (window.__fasttVerificationTrustSync) window.__fasttVerificationTrustSync()
+		if (window.__fasttVerificationTrustSync) {
+			preserveVerificationScrollPosition(() => {
+				window.__fasttVerificationTrustSync()
+			})
+		}
 	})
 	window.addEventListener("popstate", () => {
-		if (window.__fasttVerificationTrustSync) window.__fasttVerificationTrustSync()
+		preserveVerificationScrollPosition(() => {
+			if (window.__fasttVerificationTrustSync) window.__fasttVerificationTrustSync()
+		})
 		window.dispatchEvent(new Event("provider-verification-trust-sync"))
 	})
 }
