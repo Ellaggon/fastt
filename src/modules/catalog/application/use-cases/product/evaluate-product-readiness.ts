@@ -96,7 +96,9 @@ export async function evaluateProductReadiness(
 				categoryCount: tour?.hasCategory ? 1 : 0,
 				activeTicketCount: tour?.hasActiveTickets ? 1 : 0,
 				activeSalidaCount: Number(tour?.activeSlotCount ?? 0),
-				completeSalidaCount: Number(tour?.completeSlotCount ?? 0),
+				completeSalidaCount: Number(
+					tour?.sellableCompleteSlotCount ?? tour?.completeSlotCount ?? 0
+				),
 			})
 		)
 	}

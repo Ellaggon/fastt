@@ -494,7 +494,17 @@ export class ProductRepository implements ProductRepositoryPort {
 					)
 			)
 			const completeSlotCount = completeSlots.length
-			const activeSlotCount = slotsWithProfile.filter((row) => row.profileIsActive !== false).length
+			const sellableCompleteSlotCount = liveSlots.filter(
+				(row) =>
+					row.salesEnabled === true &&
+					row.lifecycleState === "ready" &&
+					Boolean(row.profileVariantId) &&
+					Boolean(row.capacityVariantId) &&
+					Boolean(
+						pickRateId(String(row.id), row.defaultRatePlanId ? String(row.defaultRatePlanId) : null)
+					)
+			).length
+			const activeSlotCount = sellableCompleteSlotCount
 			const primarySlot = completeSlots[0] ?? slotsWithProfile[0] ?? null
 			const primarySlotId = primarySlot ? String(primarySlot.id) : null
 			const primaryRatePlanId = primarySlot
@@ -530,10 +540,11 @@ export class ProductRepository implements ProductRepositoryPort {
 					hasIncludes: Array.isArray(tour?.includesJson) && tour.includesJson.length > 0,
 					hasCategory: Boolean(categoryRow?.id),
 					hasActiveTickets: Boolean(ticketRow?.id),
-					hasSchedule: completeSlotCount > 0,
+					hasSchedule: sellableCompleteSlotCount > 0,
 					imageCount: images.length,
 					slotCount: schedules.length,
 					completeSlotCount,
+					sellableCompleteSlotCount,
 					activeSlotCount,
 					primarySlotId,
 					primaryRatePlanId,
