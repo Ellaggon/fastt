@@ -9,7 +9,10 @@ import {
 	TOUR_QUALITY_MIN_IMAGES,
 	TOUR_QUALITY_MIN_ITINERARY_STEPS,
 } from "@/lib/tours/tourAdminQuality"
-import { buildCompleteToPublishHref } from "@/lib/playbook/complete-to-publish"
+import {
+	buildCompleteToPublishHref,
+	completeToPublishStepHref,
+} from "@/lib/playbook/complete-to-publish"
 import { getProductFullAggregate, getProductVariantsAggregate } from "@/modules/catalog/public"
 import {
 	essentialHouseRuleTypes,
@@ -79,42 +82,12 @@ const BLOCKER_ORDER: ProductVerticalSectionKey[] = [
 	"preview",
 ]
 
-function sectionHref(productId: string, section: ProductVerticalSectionKey): string {
-	switch (section) {
-		case "content":
-			return `/product/${encodeURIComponent(productId)}/content`
-		case "photos":
-			return `/product/${encodeURIComponent(productId)}/images`
-		case "location":
-			return `/product/${encodeURIComponent(productId)}/location`
-		case "subtype":
-		case "itinerary":
-		case "inclusions":
-			return `/product/${encodeURIComponent(productId)}/subtype`
-		case "tickets":
-			return `/product/${encodeURIComponent(productId)}/tickets`
-		case "categories":
-			return `/product/${encodeURIComponent(productId)}/categories`
-		case "departure":
-			return `/product/${encodeURIComponent(productId)}/departures/new`
-		case "rate":
-			return `${routes.rates()}?productId=${encodeURIComponent(productId)}&openDialog=1`
-		case "calendar":
-			return `${routes.calendar()}?${new URLSearchParams({
-				focus: "availability",
-				productId,
-			}).toString()}`
-		case "rooms":
-			return routes.productRoomsForProduct(productId)
-		case "houseRules":
-			return `${routes.providerHouseRules()}?productId=${encodeURIComponent(productId)}`
-		case "bookingPolicies":
-			return `${routes.rates()}?productId=${encodeURIComponent(productId)}`
-		case "preview":
-			return routes.productPreview(productId)
-		default:
-			return routes.productDetail(productId)
-	}
+function sectionHref(
+	productId: string,
+	section: ProductVerticalSectionKey,
+	context: { variantId?: string | null; ratePlanId?: string | null } = {}
+): string {
+	return completeToPublishStepHref(productId, section, context)
 }
 
 function sectionLabel(section: ProductVerticalSectionKey, verticalLabel: string): string {
@@ -152,7 +125,7 @@ function sectionCta(section: ProductVerticalSectionKey): string {
 		itinerary: "Editar itinerario",
 		tickets: "Configurar participantes",
 		categories: "Elegir categorías",
-		departure: "Crear salida",
+		departure: "Editar salida",
 		rate: "Configurar precio",
 		calendar: "Configurar disponibilidad",
 		inclusions: "Editar inclusiones",
@@ -179,6 +152,10 @@ export async function loadCompleteToPublishState(params: {
 		repositoryAggregate?.verticalReadiness?.kind === "tour"
 			? repositoryAggregate.verticalReadiness.tour
 			: null
+	const tourCommercialContext = {
+		variantId: String(tourReadiness?.primarySlotId ?? "").trim() || null,
+		ratePlanId: String(tourReadiness?.primaryRatePlanId ?? "").trim() || null,
+	}
 	const description = String(aggregate.content.description ?? "").trim()
 	const highlights = Array.isArray(aggregate.content.highlights) ? aggregate.content.highlights : []
 	const packageIncludes =
@@ -227,6 +204,8 @@ export async function loadCompleteToPublishState(params: {
 	try {
 		const resolvedPolicies = await resolveEffectivePolicies({
 			productId,
+			variantId: tourCommercialContext.variantId ?? undefined,
+			ratePlanId: tourCommercialContext.ratePlanId ?? undefined,
 			channel: "web",
 			requiredCategories: requiredPolicyCategories,
 			onMissingCategory: "return_null",
@@ -466,7 +445,7 @@ export async function loadCompleteToPublishState(params: {
 			completedCount: completion.completedCount,
 			totalCount: completion.totalCount,
 			missingItems: completion.missingItems,
-			href: sectionHref(productId, section),
+			href: sectionHref(productId, section, tourCommercialContext),
 			cta: sectionCta(section),
 			detail: completion.detail,
 		}

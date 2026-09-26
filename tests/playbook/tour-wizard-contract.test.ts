@@ -30,6 +30,8 @@ describe("tour wizard browser and routing contract", () => {
 		const playbook = source("src/lib/playbook/launch-tour.ts")
 		const preview = source("src/pages/product/[id]/preview.astro")
 		expect(layout).toContain("evaluateTourLaunchProgress")
+		expect(layout).toContain("applyTourPublishingStage")
+		expect(layout).toContain("normalizeCompleteToPublishStep")
 		expect(layout).toContain("Etapa ${stagePosition} de ${stageTotal} · ${stageLabel}")
 		expect(layout).toContain("stageProgressPercent")
 		expect(layout).toContain("Math.max(progressPercent, stageProgressPercent)")
