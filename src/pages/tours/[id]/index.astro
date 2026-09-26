@@ -10,9 +10,8 @@ import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { publicCatalogProductEligibility } from "@/lib/marketplace/public-catalog-eligibility"
 import { tourDifficultyLabel } from "@/lib/tours/tourDifficulty"
-import { tourDepartureToStay } from "@/lib/tours/tourSemantics"
+import { formatTourDuration, tourDepartureToStay } from "@/lib/tours/tourSemantics"
 import {
-	buildAgeBandPriceBreakdown,
 	isValidTourParty,
 	parseTourTicketQuantitiesFromSearchParams,
 	tourCupoUnits,
@@ -40,7 +39,6 @@ import {
 	inArray,
 	isNull,
 	lt,
-	lte,
 	or,
 	Product,
 	ProductCategory,
@@ -52,7 +50,6 @@ import {
 	ProductReview,
 	ProductService,
 	Provider,
-	RatePlanOccupancyPolicy,
 	SearchUnitView,
 	Tour,
 	TourSlotProfile,
@@ -60,6 +57,19 @@ import {
 	Variant,
 } from "@/shared/infrastructure/db/compat"
 import type { ImageRow, ServiceRow } from "@/types/products"
+import {
+	Car,
+	Check,
+	Clock,
+	ExternalLink,
+	Gauge,
+	Languages,
+	MapPin,
+	Route,
+	ShieldCheck,
+	UserRound,
+	X,
+} from "@lucide/astro"
 
 const url = Astro.url
 const productId = Astro.params.id
@@ -310,6 +320,14 @@ try {
 
 const productData = product ? { ...product, images, subtype, services, description } : null
 
+const descriptionWords =
+	String(description ?? "")
+		.toLocaleLowerCase("es")
+		.match(/[\p{L}\p{N}]+/gu) ?? []
+const descriptionNeedsEditorialReview =
+	descriptionWords.length < 12 ||
+	new Set(descriptionWords).size < Math.max(4, Math.ceil(descriptionWords.length * 0.55))
+
 const itinerarySteps = asStringList(productData?.subtype?.itineraryJson)
 const includes = asStringList(productData?.subtype?.includesJson)
 const excludes = asStringList(productData?.subtype?.excludesJson)
@@ -341,9 +359,12 @@ const safetyWarnings = fieldFromObject(productData?.subtype?.safetyJson, "warnin
 const beforeYouBook = [
 	safetyRequirements ? `Requisitos: ${safetyRequirements}` : "",
 	safetyWarnings ? `Advertencias: ${safetyWarnings}` : "",
-	pickupInstructions ? `Pickup: ${pickupInstructions}` : "",
-	meetingInstructions ? `Encuentro: ${meetingInstructions}` : "",
 ].filter(Boolean)
+
+const durationLabel = formatTourDuration({
+	duration: productData?.subtype?.duration,
+	durationMinutes: productData?.subtype?.durationMinutes,
+})
 
 const offerVariantIds = Array.from(
 	new Set(offers.map((offer: any) => String(offer?.variantId ?? "")).filter(Boolean))
@@ -444,48 +465,6 @@ if (productType === "tour") {
 	badges.push({ label: "Voucher móvil", variant: "info", source: "Product.productType=tour" })
 }
 
-const todayIso = new Date().toISOString().slice(0, 10)
-const occupancyPolicy = firstRatePlanId
-	? await db
-			.select({
-				baseAmount: RatePlanOccupancyPolicy.baseAmount,
-				baseAdults: RatePlanOccupancyPolicy.baseAdults,
-				baseChildren: RatePlanOccupancyPolicy.baseChildren,
-				extraAdultValue: RatePlanOccupancyPolicy.extraAdultValue,
-				childMode: RatePlanOccupancyPolicy.childMode,
-				childValue: RatePlanOccupancyPolicy.childValue,
-			})
-			.from(RatePlanOccupancyPolicy)
-			.where(
-				and(
-					eq(RatePlanOccupancyPolicy.ratePlanId, firstRatePlanId),
-					lte(RatePlanOccupancyPolicy.effectiveFrom, new Date(`${todayIso}T00:00:00.000Z`)),
-					or(
-						isNull(RatePlanOccupancyPolicy.effectiveTo),
-						gt(RatePlanOccupancyPolicy.effectiveTo, new Date(`${todayIso}T00:00:00.000Z`))
-					)
-				)
-			)
-			.orderBy(desc(RatePlanOccupancyPolicy.effectiveFrom))
-			.then(first)
-	: null
-
-const priceBreakdown = buildAgeBandPriceBreakdown({
-	tickets: ticketBands.length ? ticketBands : [{ code: "adult", label: "Adulto", isActive: true }],
-	quantities,
-	policy: occupancyPolicy
-		? {
-				baseAmount: Number(occupancyPolicy.baseAmount ?? 0),
-				baseAdults: Number(occupancyPolicy.baseAdults ?? 1),
-				baseChildren: Number(occupancyPolicy.baseChildren ?? 0),
-				extraAdultValue:
-					occupancyPolicy.extraAdultValue == null ? null : Number(occupancyPolicy.extraAdultValue),
-				childMode: occupancyPolicy.childMode == null ? null : String(occupancyPolicy.childMode),
-				childValue: occupancyPolicy.childValue == null ? null : Number(occupancyPolicy.childValue),
-			}
-		: null,
-})
-
 const reviewAgg = await db
 	.select({
 		avgRating: avg(ProductReview.rating),
@@ -536,13 +515,12 @@ const mapsQuery = encodeURIComponent(
 const mapEmbed =
 	meetingLat && meetingLng
 		? `https://www.openstreetmap.org/export/embed.html?bbox=${Number(meetingLng) - 0.01}%2C${Number(meetingLat) - 0.01}%2C${Number(meetingLng) + 0.01}%2C${Number(meetingLat) + 0.01}&layer=mapnik&marker=${meetingLat}%2C${meetingLng}`
-		: meetingAddress
-			? `https://www.openstreetmap.org/export/embed.html?bbox=-180%2C-85%2C180%2C85&layer=mapnik`
-			: null
+		: null
 ---
 
 <Layout
 	title={productData?.name || "Tour"}
+	bodyClass="bg-white text-slate-950"
 	description={description ||
 		`Información de la experiencia ${productData?.name || "seleccionada"}.`}
 	canonicalPath={productData && !isProviderPreview
@@ -558,247 +536,394 @@ const mapEmbed =
 			}
 		: undefined}
 >
-	<main class="mx-auto min-h-screen max-w-7xl space-y-10 p-4 lg:p-12">
-		{
-			isProviderPreview ? (
-				<div class="sticky top-3 z-40 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-300 bg-sky-50 px-4 py-3 text-sm text-sky-950 shadow-lg">
-					<div>
-						<p class="font-semibold">Vista previa privada del proveedor</p>
-						<p>Esta es la misma plantilla pública. Las acciones de reserva están desactivadas.</p>
+	<main id="content" class="min-h-screen bg-white pb-24 text-slate-950 md:pb-16">
+		<div class="mx-auto max-w-7xl space-y-7 px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
+			{
+				isProviderPreview ? (
+					<div
+						class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950"
+						data-provider-preview-banner
+					>
+						<div>
+							<p class="font-semibold">Vista previa privada del proveedor</p>
+							<p>Esta es la misma plantilla pública. Las acciones de reserva están desactivadas.</p>
+						</div>
+						<a
+							class="font-semibold underline"
+							href={`/product/${encodeURIComponent(productId)}/preview`}
+						>
+							Volver a preparación
+						</a>
 					</div>
-					<a
-						class="font-semibold underline"
-						href={`/product/${encodeURIComponent(productId)}/preview`}
+				) : null
+			}
+			{
+				isProviderPreview && descriptionNeedsEditorialReview ? (
+					<div
+						class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+						data-preview-content-warning
 					>
-						Volver a preparación
-					</a>
-				</div>
-			) : null
-		}
-		<Breadcrumbs items={breadcrumbItems} />
+						<div>
+							<p class="font-semibold">Revisión editorial pendiente</p>
+							<p>La descripción aún es demasiado breve o repetitiva para una ficha pública.</p>
+						</div>
+						<a
+							class="font-semibold underline"
+							href={`/product/${encodeURIComponent(productId)}/content`}
+						>
+							Editar descripción
+						</a>
+					</div>
+				) : null
+			}
+			<Breadcrumbs items={breadcrumbItems} tone="light" />
 
-		{
-			errorMessage ? (
-				<div class="flex min-h-[60vh] flex-col items-center justify-center text-center">
-					<h1 class="mb-4 text-4xl font-bold text-red-500">{errorMessage}</h1>
-					<a
-						href="/tours"
-						class="rounded-[var(--fastt-radius-card)] border border-gray-500 px-6 py-3 transition hover:bg-gray-800 hover:text-white"
-					>
-						Volver a tours
-					</a>
-				</div>
-			) : productData ? (
-				<>
-					<TourGallery images={productData.images} title={productData.name} />
-
-					<section class="fastt-card space-y-4 rounded-[var(--fastt-radius-panel)] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
-						<div class="flex flex-wrap items-start justify-between gap-4">
-							<div class="space-y-2">
-								<h1 class="text-4xl font-bold tracking-tight text-slate-950">{productData.name}</h1>
-								<p class="text-slate-600">
-									{productData.location?.address ?? (meetingAddress || "Ubicación por confirmar")}
-									{productData.destination?.name ? `, ${productData.destination.name}` : ""}
-								</p>
-								{avgRating != null && reviewCount > 0 ? (
-									<p class="text-sm font-medium text-slate-800">
-										★ {avgRating}
-										<span class="font-normal text-slate-500">
-											{" "}
-											· {reviewCount} reseñas publicadas
+			{
+				errorMessage ? (
+					<div class="flex min-h-[60vh] flex-col items-center justify-center text-center">
+						<h1 class="mb-4 text-4xl font-bold text-red-500">{errorMessage}</h1>
+						<a
+							href="/tours"
+							class="rounded-[var(--fastt-radius-card)] border border-gray-500 px-6 py-3 transition hover:bg-gray-800 hover:text-white"
+						>
+							Volver a tours
+						</a>
+					</div>
+				) : productData ? (
+					<>
+						<header class="flex flex-wrap items-end justify-between gap-5">
+							<div class="max-w-4xl min-w-0">
+								<h1 class="text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl lg:text-[2.75rem] lg:leading-tight">
+									{productData.name}
+								</h1>
+								<div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-slate-600">
+									{avgRating != null && reviewCount > 0 ? (
+										<span class="font-semibold text-slate-900">
+											★ {avgRating} · {reviewCount}{" "}
+											{reviewCount === 1 ? "reseña publicada" : "reseñas publicadas"}
 										</span>
-									</p>
-								) : (
-									<p class="text-sm text-slate-500">Aún sin reseñas publicadas</p>
-								)}
-							</div>
-							<div class="flex flex-wrap gap-2">
-								{badges.map((badge) => (
-									<Badge variant={badge.variant} title={`Fuente: ${badge.source}`}>
-										{badge.label}
-									</Badge>
-								))}
-							</div>
-						</div>
-
-						<div class="flex flex-wrap gap-3 text-sm text-slate-700">
-							{productData.subtype?.duration ? (
-								<span class="rounded-md bg-slate-50 px-3 py-1 ring-1 ring-slate-200">
-									Duración: {productData.subtype.duration}
-									{productData.subtype.durationMinutes != null
-										? ` (${productData.subtype.durationMinutes} min)`
-										: ""}
-								</span>
-							) : null}
-							{productData.subtype?.difficultyLevel ? (
-								<span class="rounded-md bg-slate-50 px-3 py-1 ring-1 ring-slate-200">
-									Nivel: {tourDifficultyLabel(productData.subtype.difficultyLevel)}
-								</span>
-							) : null}
-							{guideLanguages ? (
-								<span class="rounded-md bg-slate-50 px-3 py-1 ring-1 ring-slate-200">
-									Idiomas: {guideLanguages}
-								</span>
-							) : null}
-							{guideType ? (
-								<span class="rounded-md bg-slate-50 px-3 py-1 ring-1 ring-slate-200">
-									Guía: {guideType}
-								</span>
-							) : null}
-						</div>
-
-						{categories.length > 0 && (
-							<ul class="flex flex-wrap gap-2">
-								{categories.map((c) => (
-									<li class="rounded-full bg-slate-900 px-3 py-1 text-xs text-white">{c}</li>
-								))}
-							</ul>
-						)}
-
-						{description ? <p class="leading-relaxed text-slate-700">{description}</p> : null}
-						{productData.operator ? (
-							<div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
-								<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-									Operado por
-								</p>
-								<p class="mt-1 font-semibold text-slate-950">{productData.operator.name}</p>
-								<p class="mt-1 text-sm text-slate-600">
-									Proveedor de esta experiencia y responsable de sus indicaciones operativas.
-								</p>
-							</div>
-						) : null}
-					</section>
-
-					<section id="booking">
-						<TourDepartureSection
-							productId={productId}
-							offers={offers}
-							slotsByVariantId={slotsByVariantId}
-							searchState={searchState}
-							ticketTypes={ticketBands}
-							priceBreakdown={priceBreakdown}
-							alternativeDates={alternativeDates}
-							previewMode={isProviderPreview}
-						/>
-					</section>
-
-					{(meetingAddress || meetingInstructions || pickupArea) && (
-						<section class="fastt-card space-y-4 rounded-[var(--fastt-radius-panel)] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
-							<h2 class="text-2xl font-semibold text-slate-950">Punto de encuentro y pickup</h2>
-							<div class="grid gap-6 lg:grid-cols-2">
-								<div class="space-y-2 text-sm text-slate-700">
-									{meetingAddress ? (
-										<p>
-											<strong>Encuentro:</strong> {meetingAddress}
-										</p>
 									) : null}
-									{meetingInstructions ? <p>{meetingInstructions}</p> : null}
-									{pickupArea ? (
-										<p>
-											<strong>Pickup:</strong> {pickupArea}
-										</p>
-									) : null}
-									{pickupInstructions ? <p>{pickupInstructions}</p> : null}
-									{meetingAddress ? (
-										<a
-											class="inline-flex text-sm font-semibold text-sky-800 hover:underline"
-											href={`https://www.openstreetmap.org/search?query=${mapsQuery}`}
-											target="_blank"
-											rel="noreferrer"
-										>
-											Abrir en mapa
-										</a>
-									) : null}
+									<span>
+										{productData.destination?.name ??
+											productData.location?.address ??
+											meetingAddress ??
+											"Ubicación por confirmar"}
+									</span>
 								</div>
-								{mapEmbed && meetingLat && meetingLng ? (
-									<iframe
-										title="Mapa del punto de encuentro"
-										class="h-56 w-full rounded-[var(--fastt-radius-card)] border border-slate-200"
-										src={mapEmbed}
-										loading="lazy"
-									/>
-								) : meetingAddress ? (
-									<div class="flex h-56 items-center justify-center rounded-[var(--fastt-radius-card)] border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-sm text-slate-600">
-										Dirección disponible: {meetingAddress}. Coordenadas no publicadas todavía.
+							</div>
+						</header>
+
+						<TourGallery images={productData.images} title={productData.name} />
+
+						<section class="border-b border-slate-200 pb-8 md:pb-10">
+							<div class="flex flex-wrap items-start justify-between gap-4">
+								<div>
+									<p class="text-sm font-semibold text-orange-700">La experiencia</p>
+									<h2 class="mt-1 text-2xl font-semibold tracking-tight text-slate-950">
+										Lo esencial, antes de elegir una salida
+									</h2>
+								</div>
+								<div class="flex flex-wrap gap-2">
+									{badges.map((badge) => (
+										<Badge variant={badge.variant} title={`Fuente: ${badge.source}`}>
+											{badge.label}
+										</Badge>
+									))}
+								</div>
+							</div>
+
+							{categories.length > 0 ? (
+								<ul class="mt-5 flex flex-wrap gap-2" aria-label="Tipos de actividad">
+									{categories.map((category) => (
+										<li class="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">
+											{category}
+										</li>
+									))}
+								</ul>
+							) : null}
+
+							{description ? (
+								<p class="mt-5 max-w-4xl text-base leading-7 text-slate-700 md:text-lg md:leading-8">
+									{description}
+								</p>
+							) : null}
+
+							{(durationLabel ||
+								productData.subtype?.difficultyLevel ||
+								guideLanguages ||
+								guideType) && (
+								<dl class="mt-7 grid gap-x-8 gap-y-5 border-y border-slate-200 py-6 sm:grid-cols-2 lg:grid-cols-4">
+									{durationLabel ? (
+										<div class="flex gap-3">
+											<Clock class="mt-0.5 size-5 shrink-0 text-slate-500" aria-hidden="true" />
+											<div>
+												<dt class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+													Duración
+												</dt>
+												<dd class="mt-1 text-sm font-semibold text-slate-950">{durationLabel}</dd>
+											</div>
+										</div>
+									) : null}
+									{productData.subtype?.difficultyLevel ? (
+										<div class="flex gap-3">
+											<Gauge class="mt-0.5 size-5 shrink-0 text-slate-500" aria-hidden="true" />
+											<div>
+												<dt class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+													Nivel
+												</dt>
+												<dd class="mt-1 text-sm font-semibold text-slate-950">
+													{tourDifficultyLabel(productData.subtype.difficultyLevel)}
+												</dd>
+											</div>
+										</div>
+									) : null}
+									{guideLanguages ? (
+										<div class="flex gap-3">
+											<Languages class="mt-0.5 size-5 shrink-0 text-slate-500" aria-hidden="true" />
+											<div>
+												<dt class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+													Idiomas
+												</dt>
+												<dd class="mt-1 text-sm font-semibold text-slate-950">{guideLanguages}</dd>
+											</div>
+										</div>
+									) : null}
+									{guideType ? (
+										<div class="flex gap-3">
+											<UserRound class="mt-0.5 size-5 shrink-0 text-slate-500" aria-hidden="true" />
+											<div>
+												<dt class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+													Modalidad de guía
+												</dt>
+												<dd class="mt-1 text-sm font-semibold text-slate-950">
+													{guideType.replace(/[_-]+/g, " ")}
+												</dd>
+											</div>
+										</div>
+									) : null}
+								</dl>
+							)}
+
+							{productData.operator ? (
+								<div class="mt-6 flex max-w-3xl items-start gap-4">
+									<div class="flex size-11 shrink-0 items-center justify-center rounded-full bg-orange-50 text-orange-800">
+										<UserRound class="size-5" aria-hidden="true" />
 									</div>
-								) : null}
-							</div>
-						</section>
-					)}
-
-					{itinerarySteps.length > 0 && (
-						<section class="fastt-card space-y-3 rounded-[var(--fastt-radius-panel)] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
-							<h2 class="text-2xl font-semibold text-slate-950">Itinerario</h2>
-							<ol class="list-decimal space-y-2 pl-5 text-slate-700">
-								{itinerarySteps.map((step) => (
-									<li>{step}</li>
-								))}
-							</ol>
-						</section>
-					)}
-
-					{(includes.length > 0 || excludes.length > 0) && (
-						<section class="grid gap-6 md:grid-cols-2">
-							{includes.length > 0 ? (
-								<div class="fastt-card rounded-[var(--fastt-radius-panel)] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
-									<h2 class="mb-3 text-xl font-semibold text-slate-950">Incluye</h2>
-									<ul class="list-disc space-y-1 pl-5 text-slate-700">
-										{includes.map((item) => (
-											<li>{item}</li>
-										))}
-									</ul>
-								</div>
-							) : null}
-							{excludes.length > 0 ? (
-								<div class="fastt-card rounded-[var(--fastt-radius-panel)] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
-									<h2 class="mb-3 text-xl font-semibold text-slate-950">No incluye</h2>
-									<ul class="list-disc space-y-1 pl-5 text-slate-700">
-										{excludes.map((item) => (
-											<li>{item}</li>
-										))}
-									</ul>
+									<div>
+										<p class="text-sm text-slate-500">Experiencia operada por</p>
+										<p class="font-semibold text-slate-950">{productData.operator.name}</p>
+										<p class="mt-1 text-sm leading-6 text-slate-600">
+											Gestiona la salida, el encuentro y las indicaciones operativas del recorrido.
+										</p>
+									</div>
 								</div>
 							) : null}
 						</section>
-					)}
 
-					{beforeYouBook.length > 0 && (
-						<section class="fastt-card space-y-3 rounded-[var(--fastt-radius-panel)] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
-							<h2 class="text-2xl font-semibold text-slate-950">Antes de reservar</h2>
-							<ul class="list-disc space-y-2 pl-5 text-slate-700">
-								{beforeYouBook.map((item) => (
-									<li>{item}</li>
-								))}
-							</ul>
-						</section>
-					)}
+						<div class="grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-12 xl:grid-cols-[minmax(0,1fr)_24rem]">
+							<aside id="booking" class="lg:sticky lg:top-6 lg:col-start-2 lg:row-start-1">
+								<TourDepartureSection
+									productId={productId}
+									offers={offers}
+									slotsByVariantId={slotsByVariantId}
+									searchState={searchState}
+									ticketTypes={ticketBands}
+									alternativeDates={alternativeDates}
+									previewMode={isProviderPreview}
+									layout="rail"
+								/>
+							</aside>
 
-					{recentReviews.length > 0 && (
-						<section class="fastt-card space-y-4 rounded-[var(--fastt-radius-panel)] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
-							<div class="flex items-end justify-between gap-3">
-								<h2 class="text-2xl font-semibold text-slate-950">Reseñas</h2>
-								{avgRating != null ? (
-									<p class="text-sm text-slate-600">
-										Promedio {avgRating} · {reviewCount} publicadas
-									</p>
+							<div class="min-w-0 divide-y divide-slate-200 lg:col-start-1 lg:row-start-1">
+								{meetingAddress || meetingInstructions || pickupArea || pickupInstructions ? (
+									<section class="pb-9">
+										<div class="flex items-center gap-3">
+											<MapPin class="size-5 text-orange-700" aria-hidden="true" />
+											<h2 class="text-2xl font-semibold tracking-tight text-slate-950">
+												Encuentro y recogida
+											</h2>
+										</div>
+										<div
+											class:list={[
+												"mt-5 grid gap-6",
+												mapEmbed && "md:grid-cols-[minmax(0,1fr)_18rem]",
+											]}
+										>
+											<div class="space-y-5 text-sm leading-6 text-slate-700">
+												{meetingAddress || meetingInstructions ? (
+													<div class="flex gap-3">
+														<MapPin
+															class="mt-0.5 size-4 shrink-0 text-slate-400"
+															aria-hidden="true"
+														/>
+														<div>
+															<p class="font-semibold text-slate-950">Punto de encuentro</p>
+															{meetingAddress ? <p class="mt-1">{meetingAddress}</p> : null}
+															{meetingInstructions ? (
+																<p class="mt-1 text-slate-600">{meetingInstructions}</p>
+															) : null}
+														</div>
+													</div>
+												) : null}
+												{pickupArea || pickupInstructions ? (
+													<div class="flex gap-3">
+														<Car class="mt-0.5 size-4 shrink-0 text-slate-400" aria-hidden="true" />
+														<div>
+															<p class="font-semibold text-slate-950">Recogida</p>
+															{pickupArea ? <p class="mt-1">{pickupArea}</p> : null}
+															{pickupInstructions ? (
+																<p class="mt-1 text-slate-600">{pickupInstructions}</p>
+															) : null}
+														</div>
+													</div>
+												) : null}
+												{meetingAddress ? (
+													<a
+														class="inline-flex items-center gap-2 font-semibold text-orange-800 underline-offset-4 hover:underline"
+														href={`https://www.openstreetmap.org/search?query=${mapsQuery}`}
+														target="_blank"
+														rel="noreferrer"
+													>
+														Abrir ubicación en el mapa
+														<ExternalLink class="size-4" aria-hidden="true" />
+													</a>
+												) : null}
+											</div>
+											{mapEmbed ? (
+												<iframe
+													title="Mapa del punto de encuentro"
+													class="h-52 w-full rounded-xl border border-slate-200"
+													src={mapEmbed}
+													loading="lazy"
+												/>
+											) : null}
+										</div>
+									</section>
+								) : null}
+
+								{itinerarySteps.length > 0 ? (
+									<section class="py-9">
+										<div class="flex items-center gap-3">
+											<Route class="size-5 text-orange-700" aria-hidden="true" />
+											<h2 class="text-2xl font-semibold tracking-tight text-slate-950">
+												Itinerario
+											</h2>
+										</div>
+										<ol class="mt-6 space-y-0">
+											{itinerarySteps.map((step, index) => (
+												<li class="relative grid grid-cols-[2.25rem_minmax(0,1fr)] gap-3 pb-6 last:pb-0">
+													{index < itinerarySteps.length - 1 ? (
+														<span
+															class="absolute top-8 bottom-0 left-[1.1rem] w-px bg-slate-200"
+															aria-hidden="true"
+														/>
+													) : null}
+													<span class="relative z-10 flex size-9 items-center justify-center rounded-full border border-slate-300 bg-white text-sm font-semibold text-slate-700">
+														{index + 1}
+													</span>
+													<p class="pt-1.5 leading-6 text-slate-700">{step}</p>
+												</li>
+											))}
+										</ol>
+									</section>
+								) : null}
+
+								{includes.length > 0 || excludes.length > 0 ? (
+									<section class="py-9">
+										<h2 class="text-2xl font-semibold tracking-tight text-slate-950">
+											Qué incluye
+										</h2>
+										<div
+											class:list={[
+												"mt-6 grid gap-7",
+												includes.length > 0 && excludes.length > 0 && "sm:grid-cols-2",
+											]}
+										>
+											{includes.length > 0 ? (
+												<div>
+													<h3 class="text-sm font-semibold text-slate-950">
+														Incluido en la experiencia
+													</h3>
+													<ul class="mt-3 space-y-3">
+														{includes.map((item) => (
+															<li class="flex gap-3 text-sm leading-6 text-slate-700">
+																<Check
+																	class="mt-1 size-4 shrink-0 text-emerald-700"
+																	aria-hidden="true"
+																/>
+																<span>{item}</span>
+															</li>
+														))}
+													</ul>
+												</div>
+											) : null}
+											{excludes.length > 0 ? (
+												<div>
+													<h3 class="text-sm font-semibold text-slate-950">No incluido</h3>
+													<ul class="mt-3 space-y-3">
+														{excludes.map((item) => (
+															<li class="flex gap-3 text-sm leading-6 text-slate-700">
+																<X class="mt-1 size-4 shrink-0 text-slate-400" aria-hidden="true" />
+																<span>{item}</span>
+															</li>
+														))}
+													</ul>
+												</div>
+											) : null}
+										</div>
+									</section>
+								) : null}
+
+								{beforeYouBook.length > 0 ? (
+									<section class="py-9">
+										<div class="flex items-center gap-3">
+											<ShieldCheck class="size-5 text-orange-700" aria-hidden="true" />
+											<h2 class="text-2xl font-semibold tracking-tight text-slate-950">
+												Antes de reservar
+											</h2>
+										</div>
+										<ul class="mt-5 space-y-3">
+											{beforeYouBook.map((item) => (
+												<li class="flex gap-3 text-sm leading-6 text-slate-700">
+													<Check class="mt-1 size-4 shrink-0 text-slate-400" aria-hidden="true" />
+													<span>{item}</span>
+												</li>
+											))}
+										</ul>
+									</section>
+								) : null}
+
+								{recentReviews.length > 0 ? (
+									<section class="pt-9">
+										<div class="flex flex-wrap items-end justify-between gap-3">
+											<h2 class="text-2xl font-semibold tracking-tight text-slate-950">Reseñas</h2>
+											{avgRating != null ? (
+												<p class="text-sm text-slate-600">
+													Promedio {avgRating} · {reviewCount} publicadas
+												</p>
+											) : null}
+										</div>
+										<ul class="mt-5 space-y-4">
+											{recentReviews.map((review) => (
+												<li class="rounded-xl bg-slate-50 p-5">
+													<p class="text-sm font-semibold text-slate-900">
+														★ {Number(review.rating)}
+													</p>
+													{review.body ? (
+														<p class="mt-2 text-sm leading-6 text-slate-700">{review.body}</p>
+													) : null}
+												</li>
+											))}
+										</ul>
+									</section>
 								) : null}
 							</div>
-							<ul class="space-y-3">
-								{recentReviews.map((review) => (
-									<li class="rounded-[var(--fastt-radius-card)] border border-slate-100 bg-slate-50 p-4">
-										<p class="text-sm font-semibold text-slate-900">★ {Number(review.rating)}</p>
-										{review.body ? (
-											<p class="mt-1 text-sm leading-6 text-slate-700">{review.body}</p>
-										) : null}
-									</li>
-								))}
-							</ul>
-						</section>
-					)}
-				</>
-			) : (
-				<p class="text-center text-gray-500">Cargando...</p>
-			)
-		}
+						</div>
+					</>
+				) : (
+					<p class="text-center text-gray-500">Cargando...</p>
+				)
+			}
+		</div>
 	</main>
 </Layout>

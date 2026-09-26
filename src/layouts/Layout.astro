@@ -10,6 +10,7 @@ interface Props {
 	canonicalPath?: string
 	noindex?: boolean
 	structuredData?: Record<string, unknown> | Array<Record<string, unknown>>
+	bodyClass?: string
 }
 const {
 	title,
@@ -17,6 +18,7 @@ const {
 	canonicalPath,
 	noindex = false,
 	structuredData,
+	bodyClass = "",
 } = Astro.props
 const canonicalHref = canonicalPath ? new URL(canonicalPath, Astro.url.origin).href : null
 ---
@@ -46,7 +48,7 @@ const canonicalHref = canonicalPath ? new URL(canonicalPath, Astro.url.origin).h
 		<title>{title}</title>
 		<ClientRouter />
 	</head>
-	<body class="font-sans">
+	<body class:list={["min-h-screen font-sans", bodyClass]}>
 		<a
 			href="#content"
 			class="sr-only fixed left-4 top-4 z-[100] rounded-md bg-slate-950 px-4 py-2 text-sm font-semibold text-white focus:not-sr-only focus:outline-none focus:ring-2 focus:ring-white"

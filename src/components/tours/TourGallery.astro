@@ -1,98 +1,275 @@
 ---
+import { ChevronLeft, ChevronRight, ImageIcon, Images, X } from "@lucide/astro"
+
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
 import Dialog from "@/components/ui/Dialog.astro"
+import { tourGalleryLayout } from "@/lib/tours/tourGalleryLayout"
 import type { ImageRow } from "@/types/products"
 
 interface Props {
 	images: ImageRow[]
 	title: string
 }
-const { images, title } = Astro.props as Props
-const galleryImages = images.length
-	? images
-	: [{ id: "placeholder", url: "https://placehold.co/1200x675?text=Sin+imagen" } as ImageRow]
+
+const { images = [], title } = Astro.props as Props
+const galleryImages = images.filter((image) => String(image?.url ?? "").trim())
+const imageCount = galleryImages.length
+const visibleImages = galleryImages.slice(0, 5)
+const galleryLayout = `tour-gallery-grid--${tourGalleryLayout(imageCount)}`
+const galleryActionLabel = imageCount === 1 ? "Ver foto" : `Ver todas las fotos · ${imageCount}`
 ---
 
-<section class="space-y-2" aria-label={`Galería de ${title}`} data-tour-gallery>
-	<button
-		type="button"
-		class="fastt-button relative block w-full overflow-hidden rounded-[var(--fastt-radius-panel)] shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-		data-gallery-open="0"
-		aria-label={`Ampliar imagen 1 de ${galleryImages.length}`}
-	>
-		<img src={galleryImages[0].url} alt={title} class="h-72 w-full object-cover sm:h-96" />
-		<span
-			class="absolute right-3 bottom-3 rounded-full bg-black/70 px-3 py-1 text-sm font-medium text-white"
-			>Ver fotos ({galleryImages.length})</span
-		>
-	</button>
+<section aria-label={`Galería de ${title}`} data-tour-gallery data-image-count={imageCount}>
 	{
-		galleryImages.length > 1 ? (
-			<div class="grid grid-cols-4 gap-2 sm:grid-cols-6">
-				{galleryImages.slice(1, 7).map((image, thumbnailIndex) => {
-					const index = thumbnailIndex + 1
-					return (
-						<button
+		imageCount === 0 ? (
+			<Card
+				variant="plain"
+				class="flex min-h-72 items-center justify-center border border-slate-200 bg-slate-100 px-6 text-center sm:min-h-96"
+			>
+				<div class="max-w-sm text-slate-600">
+					<span class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-sm">
+						<ImageIcon class="h-6 w-6 text-slate-500" aria-hidden="true" />
+					</span>
+					<p class="mt-4 font-semibold text-slate-900">Fotos pendientes</p>
+					<p class="mt-1 text-sm leading-6">
+						El proveedor todavía no ha publicado fotografías de esta experiencia.
+					</p>
+				</div>
+			</Card>
+		) : (
+			<>
+				<div class:list={["tour-gallery-grid", galleryLayout]}>
+					{visibleImages.map((image, index) => (
+						<Button
 							type="button"
-							class="fastt-button overflow-hidden rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+							variant="ghost"
+							className={`tour-gallery-tile group h-auto min-h-0 rounded-none border-0 bg-transparent p-0 shadow-none hover:bg-transparent${index === 0 ? " tour-gallery-tile--primary" : ""}`}
 							data-gallery-open={index}
-							aria-label={`Ampliar imagen ${index + 1} de ${galleryImages.length}`}
+							aria-label={`Ampliar imagen ${index + 1} de ${imageCount}`}
 						>
 							<img
 								src={image.url}
-								alt={`${title}, imagen ${index + 1}`}
-								class="h-20 w-full object-cover"
+								alt={index === 0 ? title : `${title}, imagen ${index + 1}`}
+								class="h-full w-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.025]"
+								loading={index === 0 ? "eager" : "lazy"}
+								fetchpriority={index === 0 ? "high" : "auto"}
+								decoding="async"
 							/>
-						</button>
-					)
-				})}
-			</div>
-		) : null
+							<span
+								class="absolute inset-0 bg-black/0 transition-colors duration-300 group-hover:bg-black/[0.04]"
+								aria-hidden="true"
+							/>
+						</Button>
+					))}
+					<Button
+						type="button"
+						variant="secondary"
+						className="absolute right-4 bottom-4 min-h-11 bg-white/95 shadow-md backdrop-blur hover:bg-white"
+						data-gallery-open="0"
+						aria-label={
+							imageCount === 1
+								? `Ampliar foto de ${title}`
+								: `Ver todas las fotos de ${title}, ${imageCount} en total`
+						}
+					>
+						<Images class="h-4 w-4" aria-hidden="true" />
+						{galleryActionLabel}
+					</Button>
+				</div>
+
+				<Dialog
+					class="tour-gallery-dialog"
+					data-gallery-dialog
+					data-gallery-state="idle"
+					aria-label={`Galería ampliada de ${title}`}
+				>
+					<div
+						class="tour-gallery-viewer grid h-full min-h-0 grid-rows-[auto_1fr_auto]"
+						data-gallery-viewer
+					>
+						<header class="flex min-h-16 items-center justify-between gap-4 px-4 sm:px-6">
+							<p class="text-sm font-medium text-white" aria-live="polite" data-gallery-counter>
+								1 de {imageCount}
+							</p>
+							<Button
+								type="button"
+								variant="ghost"
+								className="h-11 w-11 rounded-full bg-white/10 p-0 text-white hover:bg-white/20 focus:ring-white focus:ring-offset-slate-950"
+								data-gallery-close
+								aria-label="Cerrar galería"
+							>
+								<X class="h-5 w-5" aria-hidden="true" />
+							</Button>
+						</header>
+
+						<div
+							class="tour-gallery-stage relative flex min-h-0 items-center justify-center px-4 pb-4 sm:px-20"
+							data-gallery-stage
+						>
+							{imageCount > 1 ? (
+								<Button
+									type="button"
+									variant="ghost"
+									className="absolute left-3 z-10 h-11 w-11 rounded-full bg-white/10 p-0 text-white hover:bg-white/20 focus:ring-white sm:left-6"
+									data-gallery-previous
+									aria-label="Foto anterior"
+								>
+									<ChevronLeft class="h-6 w-6" aria-hidden="true" />
+								</Button>
+							) : null}
+							<img class="max-h-full max-w-full object-contain" data-gallery-image alt="" />
+							<p class="sr-only" aria-live="polite" data-gallery-status />
+							{imageCount > 1 ? (
+								<Button
+									type="button"
+									variant="ghost"
+									className="absolute right-3 z-10 h-11 w-11 rounded-full bg-white/10 p-0 text-white hover:bg-white/20 focus:ring-white sm:right-6"
+									data-gallery-next
+									aria-label="Foto siguiente"
+								>
+									<ChevronRight class="h-6 w-6" aria-hidden="true" />
+								</Button>
+							) : null}
+						</div>
+						<p class="px-6 pb-5 text-center text-sm text-white/70">{title}</p>
+					</div>
+				</Dialog>
+			</>
+		)
 	}
-	<Dialog
-		class="max-h-screen max-w-full overflow-visible border-0 bg-transparent p-4 backdrop:bg-black/90"
-		data-gallery-dialog
-		aria-label={`Galería de ${title}`}
-	>
-		<div class="relative flex min-h-[12rem] min-w-0 items-center justify-center">
-			<button
-				type="button"
-				class="fastt-button absolute top-5 right-6 rounded p-2 text-3xl text-white focus-visible:outline focus-visible:outline-2"
-				data-gallery-close
-				aria-label="Cerrar galería">×</button
-			>
-			{
-				galleryImages.length > 1 ? (
-					<button
-						type="button"
-						class="fastt-button absolute left-3 rounded p-3 text-3xl text-white focus-visible:outline focus-visible:outline-2 sm:left-8"
-						data-gallery-previous
-						aria-label="Foto anterior"
-					>
-						‹
-					</button>
-				) : null
-			}
-			<img
-				class="max-h-[80vh] max-w-[84vw] rounded object-contain shadow-lg"
-				data-gallery-image
-				alt=""
-			/>
-			<p class="sr-only" aria-live="polite" data-gallery-status></p>
-			{
-				galleryImages.length > 1 ? (
-					<button
-						type="button"
-						class="fastt-button absolute right-3 rounded p-3 text-3xl text-white focus-visible:outline focus-visible:outline-2 sm:right-8"
-						data-gallery-next
-						aria-label="Foto siguiente"
-					>
-						›
-					</button>
-				) : null
-			}
-		</div>
-	</Dialog>
 </section>
+
+<style>
+	.tour-gallery-dialog {
+		height: 100dvh;
+		max-height: none;
+		width: 100vw;
+		max-width: none;
+		overflow: hidden;
+		border: 0;
+		border-radius: 0;
+		background: rgb(2 6 23);
+		padding: 0;
+		color: white;
+	}
+
+	.tour-gallery-dialog::backdrop {
+		background: rgb(0 0 0 / 0.9);
+	}
+
+	.tour-gallery-grid {
+		position: relative;
+		display: grid;
+		height: clamp(18rem, 62vw, 30rem);
+		overflow: hidden;
+		border-radius: 1rem;
+		background: rgb(241 245 249);
+		gap: 0.375rem;
+	}
+
+	.tour-gallery-tile {
+		position: relative;
+		min-width: 0;
+		min-height: 0;
+		overflow: hidden;
+		border: 0;
+		border-radius: 0;
+		background: rgb(226 232 240);
+		padding: 0;
+		text-align: left;
+	}
+
+	.tour-gallery-tile:focus-visible {
+		z-index: 2;
+		outline: 3px solid white;
+		outline-offset: -5px;
+		box-shadow: inset 0 0 0 7px rgb(15 23 42 / 0.8);
+	}
+
+	.tour-gallery-viewer {
+		animation: tour-gallery-viewer-in 240ms cubic-bezier(0.16, 1, 0.3, 1);
+	}
+
+	.tour-gallery-stage {
+		touch-action: pan-y;
+		user-select: none;
+	}
+
+	.tour-gallery-stage [data-gallery-image] {
+		will-change: opacity, transform;
+	}
+
+	@keyframes tour-gallery-viewer-in {
+		from {
+			opacity: 0;
+			transform: scale(0.985);
+		}
+		to {
+			opacity: 1;
+			transform: scale(1);
+		}
+	}
+
+	@media (max-width: 39.999rem) {
+		.tour-gallery-grid {
+			display: block;
+			height: auto;
+			aspect-ratio: 4 / 3;
+		}
+
+		.tour-gallery-tile:not(:first-child) {
+			display: none;
+		}
+		.tour-gallery-tile:first-child {
+			display: block;
+			height: 100%;
+			width: 100%;
+		}
+	}
+
+	@media (min-width: 40rem) {
+		.tour-gallery-grid--single {
+			grid-template-columns: 1fr;
+		}
+		.tour-gallery-grid--two {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+		.tour-gallery-grid--three {
+			grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+			grid-template-rows: repeat(2, minmax(0, 1fr));
+		}
+		.tour-gallery-grid--three .tour-gallery-tile--primary {
+			grid-row: span 2;
+		}
+		.tour-gallery-grid--four {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			grid-template-rows: repeat(2, minmax(0, 1fr));
+		}
+		.tour-gallery-grid--five {
+			grid-template-columns: repeat(4, minmax(0, 1fr));
+			grid-template-rows: repeat(2, minmax(0, 1fr));
+		}
+		.tour-gallery-grid--five .tour-gallery-tile--primary {
+			grid-column: span 2;
+			grid-row: span 2;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.tour-gallery-viewer {
+			animation: none;
+		}
+
+		.tour-gallery-tile img,
+		.tour-gallery-grid button {
+			transition: none;
+		}
+		.tour-gallery-tile:hover img {
+			transform: none;
+		}
+	}
+</style>
 
 <script define:vars={{ sources: galleryImages.map((image) => image.url), title }}>
 	document.querySelectorAll("[data-tour-gallery]").forEach((gallery) => {
@@ -100,19 +277,33 @@ const galleryImages = images.length
 		const image = gallery.querySelector("[data-gallery-image]")
 		const close = gallery.querySelector("[data-gallery-close]")
 		const status = gallery.querySelector("[data-gallery-status]")
+		const counter = gallery.querySelector("[data-gallery-counter]")
+		const stage = gallery.querySelector("[data-gallery-stage]")
 		let index = 0
 		let opener = null
-		const show = () => {
+		let imageMotion = null
+		let touchStartX = null
+		let touchStartY = null
+		const reduceMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches
+		const show = (direction = 0) => {
 			if (image) {
+				imageMotion?.cancel()
+				if (!reduceMotion() && image.src) {
+					imageMotion = image.animate(
+						[
+							{ opacity: 0, transform: `translateX(${direction < 0 ? "-2" : "2"}%) scale(0.985)` },
+							{ opacity: 1, transform: "translateX(0) scale(1)" },
+						],
+						{ duration: 220, easing: "cubic-bezier(0.16, 1, 0.3, 1)" }
+					)
+				}
 				image.src = sources[index] || ""
 				image.alt = `${title}, imagen ${index + 1} de ${sources.length}`
 			}
-			if (status) status.textContent = `Foto ${index + 1} de ${sources.length}`
+			const label = `${index + 1} de ${sources.length}`
+			if (counter) counter.textContent = label
+			if (status) status.textContent = `Foto ${label}`
 		}
-		const focusable = () =>
-			Array.from(dialog?.querySelectorAll("button:not([disabled])") ?? []).filter(
-				(element) => element instanceof HTMLElement && element.offsetParent !== null
-			)
 		const hide = () => {
 			if (dialog?.open) dialog.close()
 		}
@@ -128,42 +319,53 @@ const galleryImages = images.length
 		close?.addEventListener("click", hide)
 		gallery.querySelector("[data-gallery-previous]")?.addEventListener("click", () => {
 			index = (index - 1 + sources.length) % sources.length
-			show()
+			show(-1)
 		})
 		gallery.querySelector("[data-gallery-next]")?.addEventListener("click", () => {
 			index = (index + 1) % sources.length
-			show()
+			show(1)
 		})
-		dialog?.addEventListener("close", () => opener?.focus())
+		stage?.addEventListener("pointerdown", (event) => {
+			if (event.pointerType === "mouse") return
+			touchStartX = event.clientX
+			touchStartY = event.clientY
+			stage.setPointerCapture?.(event.pointerId)
+		})
+		stage?.addEventListener("pointerup", (event) => {
+			if (touchStartX == null || touchStartY == null || sources.length < 2) return
+			const dx = event.clientX - touchStartX
+			const dy = event.clientY - touchStartY
+			touchStartX = null
+			touchStartY = null
+			if (Math.abs(dx) < 44 || Math.abs(dx) <= Math.abs(dy)) return
+			index = dx < 0 ? (index + 1) % sources.length : (index - 1 + sources.length) % sources.length
+			show(dx < 0 ? 1 : -1)
+		})
+		stage?.addEventListener("pointercancel", () => {
+			touchStartX = null
+			touchStartY = null
+		})
+		dialog?.addEventListener("close", () => {
+			imageMotion?.cancel()
+			if (opener?.isConnected) opener.focus()
+		})
 		dialog?.addEventListener("click", (event) => {
 			if (event.target === dialog) hide()
 		})
-		document.addEventListener("keydown", (event) => {
+		dialog?.addEventListener("keydown", (event) => {
 			if (!dialog?.open) return
-			if (event.key === "Tab") {
-				const controls = focusable()
-				const first = controls[0]
-				const last = controls[controls.length - 1]
-				if (!first || !last) return
-				if (event.shiftKey && document.activeElement === first) {
-					event.preventDefault()
-					last.focus()
-				} else if (!event.shiftKey && document.activeElement === last) {
-					event.preventDefault()
-					first.focus()
-				}
-			}
 			if (event.key === "Escape") {
-				event.preventDefault()
 				hide()
 			}
-			if (event.key === "ArrowLeft") {
+			if (event.key === "ArrowLeft" && sources.length > 1) {
+				event.preventDefault()
 				index = (index - 1 + sources.length) % sources.length
-				show()
+				show(-1)
 			}
-			if (event.key === "ArrowRight") {
+			if (event.key === "ArrowRight" && sources.length > 1) {
+				event.preventDefault()
 				index = (index + 1) % sources.length
-				show()
+				show(1)
 			}
 		})
 	})
