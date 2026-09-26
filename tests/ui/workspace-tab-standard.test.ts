@@ -19,6 +19,7 @@ test("workspace subnavigation uses the Calendar/iCal standard from one component
 	expect(globalStyles).toContain(".fastt-tabs-inside-panel__status-dot")
 	expect(globalStyles).toContain('data-trust-link-status-state="in_review"')
 	expect(globalStyles).toContain('data-trust-link-status-state="action_needed"')
+	expect(globalStyles).toContain('data-trust-link-status-state="requires_changes"')
 	expect(globalStyles).toContain("font-size: inherit")
 	expect(globalStyles).toContain("line-height: inherit")
 	expect(globalStyles).toContain('data-active="true"')

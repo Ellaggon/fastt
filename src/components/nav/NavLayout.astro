@@ -8,13 +8,22 @@ const user = await getUserFromRequest(Astro.request)
 if (user?.email) await ensureUserForSession({ email: user.email })
 
 const pathname = Astro.url.pathname
+const isDestinationVertical = (vertical: "alojamientos" | "tours") =>
+	new RegExp(`^/destinos/.+/${vertical}/?$`).test(pathname)
 const links = [
 	{ label: "Inicio", href: "/", active: pathname === "/" },
-	{ label: "Alojamientos", href: "/hotels", active: pathname.startsWith("/hotels") },
+	{
+		label: "Alojamientos",
+		href: "/hotels",
+		active: pathname.startsWith("/hotels") || isDestinationVertical("alojamientos"),
+	},
 	{
 		label: "Tours",
 		href: "/tours",
-		active: pathname.startsWith("/tours") || pathname === "/buscar/tours",
+		active:
+			pathname.startsWith("/tours") ||
+			pathname === "/buscar/tours" ||
+			isDestinationVertical("tours"),
 	},
 	{ label: "Paquetes", href: "/packages", active: pathname.startsWith("/packages") },
 ]

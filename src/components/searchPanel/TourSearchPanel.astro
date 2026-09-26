@@ -1,11 +1,12 @@
 ---
-import { Search, SlidersHorizontal } from "@lucide/astro"
+import { MapPin, Search, SlidersHorizontal } from "@lucide/astro"
 
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import DatesModal from "@/components/ui/DatesModal.astro"
 import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
+import TourSearchDisclosure from "@/components/searchPanel/TourSearchDisclosure.astro"
 import { publicTourCategories } from "@/lib/tours/tourDiscoveryFilters"
 import { TOUR_DIFFICULTY_OPTIONS } from "@/lib/tours/tourDifficulty"
 import { normalizeTourDurationBucket, TOUR_DURATION_OPTIONS } from "@/lib/tours/tourSemantics"
@@ -15,12 +16,14 @@ interface Props {
 	destinationPath?: string | null
 	destinationName?: string | null
 	startDate?: string
+	compact?: boolean
 }
 
 const {
 	destinationPath: routeDestinationPath,
 	destinationName: routeDestinationName,
 	startDate: startDateProp,
+	compact = false,
 } = Astro.props as Props
 const params = Astro.url.searchParams
 const selectedDestinationPath = routeDestinationPath ?? params.get("destino") ?? ""
@@ -101,15 +104,30 @@ const activeFilterLabels = [
 ]
 ---
 
-<div class="mx-auto w-full">
-	<Card variant="plain" class="p-3 shadow-[0_18px_50px_-28px_rgba(15,23,42,0.45)] sm:p-4">
+<TourSearchDisclosure
+	compact={compact}
+	destinationName={selectedDestinationName}
+	startDate={startDate}
+	activeFilterCount={activeFilterLabels.length}
+>
+	<div
+		class={compact
+			? "w-full"
+			: "fastt-card rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_18px_50px_-28px_rgba(15,23,42,0.45)] sm:p-4"}
+	>
 		<form id="tourSearchForm" action="/buscar/tours" method="get" novalidate>
-			<div class="grid gap-2 md:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_auto_auto] md:items-end">
-				<div>
+			<div
+				class="grid gap-3 max-md:grid-cols-2 md:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_auto_auto] md:items-end md:gap-2"
+			>
+				<div class="max-md:col-span-2" data-search-field="destination">
 					<label for="destinationInput" class="mb-1.5 block text-sm font-semibold text-slate-800"
 						>Destino</label
 					>
 					<div class="relative text-slate-900">
+						<MapPin
+							class="pointer-events-none absolute left-4 top-4 z-10 h-6 w-5 text-slate-500"
+							aria-hidden="true"
+						/>
 						<Input
 							id="destinationInput"
 							autocomplete="off"
@@ -121,7 +139,7 @@ const activeFilterLabels = [
 							aria-autocomplete="list"
 							aria-expanded="false"
 							aria-describedby="tourSearchFormError"
-							className="h-14 rounded-xl px-4 text-base"
+							className="h-14 rounded-xl pl-12 pr-4 text-base"
 						/>
 						<input
 							type="hidden"
@@ -138,9 +156,9 @@ const activeFilterLabels = [
 					</div>
 				</div>
 
-				<div>
+				<div class="max-md:col-span-2" data-search-field="date">
 					<label class="mb-1.5 block text-sm font-semibold text-slate-800" for="startDate"
-						>Fecha de salida <span class="font-normal text-slate-500">(opcional)</span></label
+						>Fecha de salida</label
 					>
 					<DatesModal
 						id="startDate"
@@ -148,25 +166,21 @@ const activeFilterLabels = [
 						value={startDate}
 						min={todayInBolivia}
 						placeholder="Aún no sé la fecha"
-						className="h-14 w-full rounded-xl px-4 text-base"
+						className="h-14 w-full justify-start gap-3 rounded-xl px-4 text-base [&>svg]:order-first [&>svg]:h-5 [&>svg]:w-5 [&>svg]:shrink-0"
 					/>
 				</div>
 
-				<div>
-					<span
-						class="mb-1.5 hidden text-sm font-semibold text-transparent md:block"
-						aria-hidden="true">Filtros</span
-					>
+				<div class="max-md:col-span-1" data-search-field="filters">
 					<Button
 						type="button"
-						variant="outline"
-						class="h-14 w-full rounded-xl px-4 text-sm md:w-auto"
+						variant="secondary"
+						class="tour-search-filters-control h-14 w-full rounded-xl px-4 md:w-auto"
+						aria-label="Filtros"
 						aria-expanded="false"
 						aria-controls="tourSearchFilters"
 						data-tour-filters-toggle
 					>
-						<SlidersHorizontal class="h-4 w-4" aria-hidden="true" />
-						Filtros
+						<SlidersHorizontal class="h-5 w-5" aria-hidden="true" />
 						{
 							activeFilterLabels.length ? (
 								<span class="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-950 px-1.5 text-xs text-white">
@@ -177,14 +191,16 @@ const activeFilterLabels = [
 					</Button>
 				</div>
 
-				<div>
-					<span
-						class="mb-1.5 hidden text-sm font-semibold text-transparent md:block"
-						aria-hidden="true">Buscar</span
+				<div class="max-md:col-span-1" data-search-field="submit">
+					<Button
+						type="submit"
+						variant="primary"
+						size="lg"
+						class="tour-search-submit h-14 w-full rounded-xl px-5 shadow-[0_12px_28px_-14px_rgba(15,23,42,0.55)] md:min-w-[7.75rem] md:w-auto"
+						aria-label="Buscar tours"
 					>
-					<Button type="submit" size="lg" class="h-14 w-full rounded-xl px-6 text-base md:w-auto">
-						<Search class="h-5 w-5" aria-hidden="true" />
-						Buscar
+						<Search class="h-5 w-5 shrink-0" aria-hidden="true" />
+						<span class="hidden sm:inline">Buscar</span>
 					</Button>
 				</div>
 			</div>
@@ -200,15 +216,15 @@ const activeFilterLabels = [
 				variant="soft"
 				hidden
 				data-tour-filters-panel
-				class="mt-4 p-4 sm:p-5"
+				class="tour-search-filters-panel mt-4 p-4 sm:p-5"
 			>
 				{
 					categories.length ? (
-						<div>
+						<div data-tour-filters-section>
 							<p class="text-sm font-semibold text-slate-800">Actividades</p>
 							<div id="activitiesWrap" class="mt-3 flex flex-wrap gap-2">
 								{categories.map((category) => (
-									<label class="cursor-pointer">
+									<label class="cursor-pointer" data-tour-filters-chip>
 										<input
 											type="checkbox"
 											name="category"
@@ -226,7 +242,10 @@ const activeFilterLabels = [
 					) : null
 				}
 
-				<div class:list={["grid gap-4 md:grid-cols-2", categories.length ? "mt-5" : ""]}>
+				<div
+					class:list={["grid gap-4 md:grid-cols-2", categories.length ? "mt-5" : ""]}
+					data-tour-filters-section
+				>
 					<div>
 						<label for="duration" class="mb-1.5 block text-sm font-semibold text-slate-800"
 							>Duración</label
@@ -259,7 +278,7 @@ const activeFilterLabels = [
 					</div>
 				</div>
 
-				<div class="mt-5">
+				<div class="mt-5" data-tour-filters-section>
 					<p class="text-sm font-semibold text-slate-800">Precio por participante</p>
 					<p class="mt-1 text-sm text-slate-600">
 						Se aplica al buscar con fecha. Sin un monto, la moneda no filtra.
@@ -299,7 +318,7 @@ const activeFilterLabels = [
 					</div>
 				</div>
 
-				<div class="mt-5 border-t border-slate-200 pt-5">
+				<div class="mt-5 border-t border-slate-200 pt-5" data-tour-filters-section>
 					<label for="sort" class="mb-1.5 block text-sm font-semibold text-slate-800">Ordenar</label
 					>
 					<div class="max-w-xs">
@@ -315,7 +334,10 @@ const activeFilterLabels = [
 					</div>
 				</div>
 
-				<div class="mt-5 flex flex-wrap items-center justify-between gap-3">
+				<div
+					class="mt-5 flex flex-wrap items-center justify-between gap-3"
+					data-tour-filters-section
+				>
 					<button
 						type="button"
 						class="min-h-11 rounded-full px-3 text-sm font-semibold text-slate-700 underline-offset-4 hover:underline"
@@ -336,8 +358,27 @@ const activeFilterLabels = [
 			<p id="tourSearchFormError" class="mt-3 hidden text-sm font-medium text-red-700" role="alert">
 			</p>
 		</form>
-	</Card>
-</div>
+	</div>
+</TourSearchDisclosure>
+
+<style>
+	.tour-search-filters-panel.is-open {
+		box-shadow:
+			0 0 0 1px rgb(203 213 225),
+			0 16px 40px -28px rgb(15 23 42 / 0.28);
+	}
+
+	:global(.tour-search-filters-control.is-filter-panel-open) {
+		border-color: rgb(148 163 184);
+		box-shadow: 0 0 0 3px rgb(148 163 184 / 0.18);
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.tour-search-filters-panel.is-open {
+			box-shadow: none;
+		}
+	}
+</style>
 
 <script type="module">
 	const qs = (selector, element = document) => element.querySelector(selector)
@@ -426,11 +467,137 @@ const activeFilterLabels = [
 		form.dataset.bound = "true"
 		const filtersToggle = form.querySelector("[data-tour-filters-toggle]")
 		const filtersPanel = form.querySelector("[data-tour-filters-panel]")
+		const FILTER_EASING = "cubic-bezier(0.16, 1, 0.3, 1)"
+		let filtersPanelAnimation = null
+		let filtersSectionAnimations = []
+
+		const clearFiltersPanelMotion = () => {
+			filtersPanelAnimation?.cancel()
+			filtersPanelAnimation = null
+			filtersSectionAnimations.forEach((motion) => motion.cancel())
+			filtersSectionAnimations = []
+		}
+
+		const resetFiltersPanelStyles = (panel) => {
+			panel.style.height = ""
+			panel.style.overflow = ""
+			panel.classList.remove("is-opening")
+			panel
+				.querySelectorAll("[data-tour-filters-section], [data-tour-filters-chip]")
+				.forEach((node) => {
+					if (node instanceof HTMLElement) {
+						node.style.opacity = ""
+						node.style.transform = ""
+					}
+				})
+		}
+
+		const settleFiltersPanel = (panel, toggle, open) => {
+			clearFiltersPanelMotion()
+			resetFiltersPanelStyles(panel)
+			panel.hidden = !open
+			panel.classList.toggle("is-open", open)
+			toggle.setAttribute("aria-expanded", open ? "true" : "false")
+			toggle.classList.toggle("is-filter-panel-open", open)
+		}
+
+		const runFiltersPanelMotion = (open) => {
+			if (!(filtersPanel instanceof HTMLElement) || !(filtersToggle instanceof HTMLButtonElement))
+				return
+			if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+				settleFiltersPanel(filtersPanel, filtersToggle, open)
+				return
+			}
+
+			clearFiltersPanelMotion()
+
+			if (open) {
+				filtersPanel.hidden = false
+				filtersPanel.classList.add("is-opening")
+				filtersToggle.setAttribute("aria-expanded", "true")
+				const targetHeight = filtersPanel.scrollHeight
+				const sections = [...filtersPanel.querySelectorAll("[data-tour-filters-section]")]
+				const chips = [...filtersPanel.querySelectorAll("[data-tour-filters-chip]")]
+
+				filtersPanel.style.overflow = "hidden"
+				filtersPanel.style.height = "0px"
+
+				filtersPanelAnimation = filtersPanel.animate(
+					[
+						{ height: "0px", opacity: 0 },
+						{ height: `${targetHeight}px`, opacity: 1 },
+					],
+					{ duration: 440, easing: FILTER_EASING, fill: "both" }
+				)
+
+				sections.forEach((section, index) => {
+					filtersSectionAnimations.push(
+						section.animate(
+							[
+								{ opacity: 0, transform: "translateY(14px)" },
+								{ opacity: 1, transform: "translateY(0)" },
+							],
+							{
+								duration: 400,
+								delay: 120 + index * 65,
+								easing: FILTER_EASING,
+								fill: "both",
+							}
+						)
+					)
+				})
+
+				chips.forEach((chip, index) => {
+					filtersSectionAnimations.push(
+						chip.animate(
+							[
+								{ opacity: 0, transform: "translateY(8px) scale(0.94)" },
+								{ opacity: 1, transform: "translateY(0) scale(1)" },
+							],
+							{
+								duration: 340,
+								delay: 180 + Math.min(index * 22, 360),
+								easing: FILTER_EASING,
+								fill: "both",
+							}
+						)
+					)
+				})
+
+				const current = filtersPanelAnimation
+				filtersPanelAnimation.onfinish = () => {
+					if (filtersPanelAnimation !== current) return
+					settleFiltersPanel(filtersPanel, filtersToggle, true)
+				}
+				return
+			}
+
+			const startHeight = filtersPanel.getBoundingClientRect().height
+			filtersPanel.style.overflow = "hidden"
+			filtersPanel.style.height = `${startHeight}px`
+			filtersToggle.classList.remove("is-filter-panel-open")
+
+			filtersPanelAnimation = filtersPanel.animate(
+				[
+					{ height: `${startHeight}px`, opacity: 1 },
+					{ height: "0px", opacity: 0 },
+				],
+				{ duration: 280, easing: "cubic-bezier(0.4, 0, 1, 1)", fill: "both" }
+			)
+
+			const current = filtersPanelAnimation
+			filtersPanelAnimation.onfinish = () => {
+				if (filtersPanelAnimation !== current) return
+				settleFiltersPanel(filtersPanel, filtersToggle, false)
+			}
+		}
+
 		const setFiltersOpen = (open) => {
 			if (!(filtersPanel instanceof HTMLElement) || !(filtersToggle instanceof HTMLButtonElement))
 				return
-			filtersPanel.hidden = !open
-			filtersToggle.setAttribute("aria-expanded", open ? "true" : "false")
+			const isOpen = !filtersPanel.hidden
+			if (open === isOpen && !filtersPanel.classList.contains("is-opening")) return
+			runFiltersPanelMotion(open)
 		}
 		filtersToggle?.addEventListener("click", () => {
 			if (!(filtersPanel instanceof HTMLElement)) return
