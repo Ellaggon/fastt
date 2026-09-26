@@ -1,6 +1,11 @@
 ---
 import ProviderSettingsSubnav from "@/components/provider/ProviderSettingsSubnav.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import type { TrustLinkId } from "@/lib/provider-trust-map"
+import {
+	formatVerificationProgressBreakdownLine,
+	formatVerificationProgressTotalLine,
+} from "@/lib/provider-trust-map"
 
 interface Props {
 	title?: string
@@ -12,10 +17,15 @@ interface Props {
 	 * Off for Verificación: wizard/trust map is its own chrome, not a settings tab.
 	 */
 	showSettingsTabs?: boolean
-	/** Playbook-style progress above the page title (Verificación wizard). */
-	progressStep?: number | null
-	progressTotal?: number | null
-	progressPercent?: number | null
+	/** Verified readiness above the page title. Navigation position is deliberately separate. */
+	readyCount?: number | null
+	totalCount?: number | null
+	inReviewCount?: number | null
+	actionRequiredCount?: number | null
+	notStartedCount?: number | null
+	readinessPercent?: number | null
+	/** Per-tab subtitles; hub updates header copy when the trust rail panel changes. */
+	verificationPageGuidanceByTab?: Partial<Record<TrustLinkId, string>> | null
 }
 
 const {
@@ -23,24 +33,47 @@ const {
 	heading = "Configuración",
 	description = "Administra la identidad, el equipo y la operación del proveedor.",
 	showSettingsTabs = true,
-	progressStep = null,
-	progressTotal = null,
-	progressPercent = null,
+	readyCount = null,
+	totalCount = null,
+	inReviewCount = null,
+	actionRequiredCount = null,
+	notStartedCount = null,
+	readinessPercent = null,
+	verificationPageGuidanceByTab = null,
 } = Astro.props
 
+const verificationPageGuidanceJson =
+	verificationPageGuidanceByTab && Object.keys(verificationPageGuidanceByTab).length > 0
+		? JSON.stringify(verificationPageGuidanceByTab)
+		: null
+
 const hasProgress =
-	typeof progressStep === "number" &&
-	progressStep > 0 &&
-	typeof progressTotal === "number" &&
-	progressTotal > 0
-const stepPositionPercent = hasProgress ? Math.round((progressStep! / progressTotal!) * 100) : 0
+	typeof readyCount === "number" &&
+	readyCount >= 0 &&
+	typeof totalCount === "number" &&
+	totalCount > 0
 const rawPercent =
-	typeof progressPercent === "number" && Number.isFinite(progressPercent)
-		? Math.min(100, Math.max(0, Math.round(progressPercent)))
+	typeof readinessPercent === "number" && Number.isFinite(readinessPercent)
+		? Math.min(100, Math.max(0, Math.round(readinessPercent)))
 		: 0
-const visualProgressPercent = hasProgress
-	? Math.min(100, Math.max(rawPercent, stepPositionPercent))
-	: 0
+const visualProgressPercent = hasProgress ? rawPercent : 0
+const hasProgressBreakdown =
+	hasProgress &&
+	typeof inReviewCount === "number" &&
+	typeof actionRequiredCount === "number" &&
+	typeof notStartedCount === "number"
+const progressTotalLine =
+	hasProgress && typeof totalCount === "number" && typeof readyCount === "number"
+		? formatVerificationProgressTotalLine(readyCount, totalCount)
+		: ""
+const progressBreakdownLine = hasProgressBreakdown
+	? formatVerificationProgressBreakdownLine({
+			readyCount: readyCount!,
+			inReviewCount: inReviewCount!,
+			actionRequiredCount: actionRequiredCount!,
+			notStartedCount: notStartedCount!,
+		})
+	: progressTotalLine
 ---
 
 <WorkspaceLayout title={title}>
@@ -48,12 +81,33 @@ const visualProgressPercent = hasProgress
 		{
 			hasProgress ? (
 				<div class="mb-5 space-y-2" data-verification-wizard-progress>
-					<p
-						class="text-xs font-semibold tracking-wide text-slate-400 uppercase"
-						data-next-step-progress
+					<div
+						class:list={[
+							"verification-wizard-progress-label",
+							hasProgressBreakdown && "verification-wizard-progress-label--alternate",
+						]}
+						data-verification-wizard-progress-label={hasProgressBreakdown ? "true" : undefined}
 					>
-						{`Paso ${progressStep} de ${progressTotal}`}
-					</p>
+						<p
+							class="verification-wizard-progress-label__stack text-xs font-semibold tracking-wide text-slate-400 uppercase"
+							data-next-step-progress
+						>
+							<span class="verification-wizard-progress-label__phase verification-wizard-progress-label__phase--total">
+								{progressTotalLine}
+							</span>
+							{hasProgressBreakdown ? (
+								<span
+									class="verification-wizard-progress-label__phase verification-wizard-progress-label__phase--breakdown tracking-wide text-slate-400 normal-case"
+									aria-hidden="true"
+								>
+									{progressBreakdownLine}
+								</span>
+							) : null}
+						</p>
+						{hasProgressBreakdown ? (
+							<span class="sr-only">{`${progressTotalLine}. ${progressBreakdownLine}`}</span>
+						) : null}
+					</div>
 					<div
 						class="fastt-progress-track h-1.5 overflow-hidden bg-slate-800"
 						role="progressbar"
@@ -81,7 +135,13 @@ const visualProgressPercent = hasProgress
 					<slot name="actions" />
 				</div>
 			</div>
-			<p class="max-w-3xl text-sm leading-5 text-slate-300 sm:leading-6">{description}</p>
+			<p
+				class="max-w-3xl text-sm leading-5 text-slate-300 sm:leading-6"
+				data-verification-page-description={verificationPageGuidanceJson ? "true" : undefined}
+				data-verification-page-guidance={verificationPageGuidanceJson ?? undefined}
+			>
+				{description}
+			</p>
 		</header>
 
 		<section class={showSettingsTabs ? "space-y-6 md:space-y-8" : "space-y-0"}>
@@ -94,3 +154,95 @@ const visualProgressPercent = hasProgress
 		import "@/pages/provider/settings/_client/settings-funnel-beacon.js"
 	</script>
 </WorkspaceLayout>
+
+<style is:global>
+	.verification-wizard-progress-label__stack {
+		position: relative;
+		min-height: 1.25rem;
+		margin: 0;
+	}
+
+	.verification-wizard-progress-label__phase {
+		display: block;
+	}
+
+	.verification-wizard-progress-label--alternate .verification-wizard-progress-label__phase {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		will-change: opacity, transform, filter;
+	}
+
+	.verification-wizard-progress-label--alternate
+		.verification-wizard-progress-label__phase--breakdown {
+		line-height: 1.25rem;
+	}
+
+	@keyframes verification-wizard-progress-label-a {
+		0%,
+		38% {
+			opacity: 1;
+			transform: translate3d(0, 0, 0);
+			filter: blur(0);
+		}
+		46%,
+		88% {
+			opacity: 0;
+			transform: translate3d(0, -0.4rem, 0);
+			filter: blur(4px);
+		}
+		100% {
+			opacity: 1;
+			transform: translate3d(0, 0, 0);
+			filter: blur(0);
+		}
+	}
+
+	@keyframes verification-wizard-progress-label-b {
+		0%,
+		38% {
+			opacity: 0;
+			transform: translate3d(0, 0.45rem, 0);
+			filter: blur(4px);
+		}
+		46%,
+		88% {
+			opacity: 1;
+			transform: translate3d(0, 0, 0);
+			filter: blur(0);
+		}
+		100% {
+			opacity: 0;
+			transform: translate3d(0, -0.35rem, 0);
+			filter: blur(3px);
+		}
+	}
+
+	.verification-wizard-progress-label--alternate .verification-wizard-progress-label__phase--total {
+		animation: verification-wizard-progress-label-a 7.5s cubic-bezier(0.45, 0.05, 0.2, 1) infinite;
+	}
+
+	.verification-wizard-progress-label--alternate
+		.verification-wizard-progress-label__phase--breakdown {
+		animation: verification-wizard-progress-label-b 7.5s cubic-bezier(0.45, 0.05, 0.2, 1) infinite;
+	}
+
+	.verification-wizard-progress-label--alternate:hover .verification-wizard-progress-label__phase,
+	.verification-wizard-progress-label--alternate:focus-within
+		.verification-wizard-progress-label__phase {
+		animation-play-state: paused;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.verification-wizard-progress-label--alternate
+			.verification-wizard-progress-label__phase--breakdown {
+			display: none;
+		}
+
+		.verification-wizard-progress-label--alternate
+			.verification-wizard-progress-label__phase--total {
+			position: static;
+			animation: none;
+		}
+	}
+</style>

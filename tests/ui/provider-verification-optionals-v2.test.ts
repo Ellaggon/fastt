@@ -11,6 +11,19 @@ function read(relativePath: string) {
 }
 
 describe("V2 optionals subroute — verification = mínimos + wait", () => {
+	it("shows optionals entry only on the Negocio tab", () => {
+		const workspace = read("src/components/provider/ProviderVerificationWorkspace.astro")
+		const panelClient = read("src/pages/provider/settings/_client/verification-trust-panels.js")
+
+		expect(workspace).toContain("optionalsEntryActive")
+		expect(workspace).toContain('hidden={optionalsEntryActive ? undefined : true}')
+		expect(workspace).not.toMatch(
+			/data-verification-optionals-entry[\s\S]{0,120}data-verification-hub-chrome/
+		)
+		expect(panelClient).toContain("[data-verification-optionals-entry]")
+		expect(panelClient).toContain('activeId !== "business"')
+	})
+
 	it("exposes verification/documents route", () => {
 		expect(routes.providerSettingsVerificationDocuments()).toBe(
 			"/provider/settings/verification/documents"

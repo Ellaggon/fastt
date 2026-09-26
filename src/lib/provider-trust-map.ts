@@ -7,7 +7,8 @@
  *
  * Cuenta:  En revisión | Lista | Requiere cambios
  * Docs:    Falta | Enviado | Verificado | Requiere cambios
- * Trust:   Identidad → Negocio → Fiscal → Pagos
+ * Trust (rail — 5 etiquetas · color en global.css):
+ *   Listo (verde) · En revisión (azul) · Completar (amarillo) · Requiere cambios (rojo) · En espera (gris)
  */
 
 import { routes } from "@/lib/routes"
@@ -15,7 +16,13 @@ import { routes } from "@/lib/routes"
 export type TrustLinkId = "identity" | "business" | "fiscal" | "payments"
 
 /** Aggregate state for a trust-map pill (not a raw DB status). */
-export type TrustLinkUiState = "ready" | "in_review" | "action_needed" | "not_started" | "blocked"
+export type TrustLinkUiState =
+	| "ready"
+	| "in_review"
+	| "action_needed"
+	| "requires_changes"
+	| "not_started"
+	| "blocked"
 
 export type TrustLinkTone = "success" | "warning" | "error" | "neutral" | "info"
 
@@ -33,6 +40,16 @@ export type ProviderTrustLink = {
 	isFocus: boolean
 }
 
+export type VerificationProgressContract = {
+	readyCount: number
+	totalCount: number
+	inReviewCount: number
+	actionRequiredCount: number
+	notStartedCount: number
+	readinessPercent: number
+	nextActionId: TrustLinkId | null
+}
+
 export type AccountVerificationStatus = "approved" | "rejected" | "pending" | string
 
 export type DocumentKycUiState = "missing" | "pending" | "verified" | "rejected"
@@ -43,6 +60,7 @@ export const TRUST_GLOSSARY = {
 		inReview: "En revisión",
 		ready: "Lista",
 		needsChanges: "Requiere cambios",
+		notStarted: "Por hacer",
 		/** @deprecated Do not use in UI — collides with document language. */
 		legacyPending: "Pendiente",
 	},
@@ -61,7 +79,9 @@ export const TRUST_GLOSSARY = {
 		ready: "Listo",
 		inReview: "En revisión",
 		actionNeeded: "Completar",
-		notStarted: "Por hacer",
+		needsChanges: "Requiere cambios",
+		/** Internal aggregate; rail shows «Completar» (same as actionNeeded). */
+		notStarted: "Completar",
 		blocked: "En espera",
 	},
 	links: {
@@ -316,14 +336,23 @@ export function resolveTrustAlignedHubCoach(
 	}
 }
 
-export function labelAccountVerificationStatus(status: AccountVerificationStatus): {
+export function labelAccountVerificationStatus(
+	status: AccountVerificationStatus | null | undefined
+): {
 	label: string
 	tone: TrustLinkTone
 	uiState: TrustLinkUiState
 } {
-	const raw = String(status ?? "pending")
+	const raw = String(status ?? "")
 		.trim()
 		.toLowerCase()
+	if (!raw || raw === "not_started") {
+		return {
+			label: TRUST_GLOSSARY.account.notStarted,
+			tone: "info",
+			uiState: "not_started",
+		}
+	}
 	if (raw === "approved") {
 		return {
 			label: TRUST_GLOSSARY.account.ready,
@@ -335,7 +364,7 @@ export function labelAccountVerificationStatus(status: AccountVerificationStatus
 		return {
 			label: TRUST_GLOSSARY.account.needsChanges,
 			tone: "error",
-			uiState: "action_needed",
+			uiState: "requires_changes",
 		}
 	}
 	return {
@@ -384,11 +413,13 @@ function trustLinkStateLabel(uiState: TrustLinkUiState): string {
 			return TRUST_GLOSSARY.trustLink.inReview
 		case "action_needed":
 			return TRUST_GLOSSARY.trustLink.actionNeeded
+		case "requires_changes":
+			return TRUST_GLOSSARY.trustLink.needsChanges
 		case "blocked":
 			return TRUST_GLOSSARY.trustLink.blocked
 		case "not_started":
 		default:
-			return TRUST_GLOSSARY.trustLink.notStarted
+			return TRUST_GLOSSARY.trustLink.actionNeeded
 	}
 }
 
@@ -399,12 +430,14 @@ function trustLinkTone(uiState: TrustLinkUiState): TrustLinkTone {
 		case "in_review":
 			return "warning"
 		case "action_needed":
+			return "warning"
+		case "requires_changes":
 			return "error"
 		case "blocked":
 			return "neutral"
 		case "not_started":
 		default:
-			return "info"
+			return "warning"
 	}
 }
 
@@ -415,18 +448,23 @@ function resolveBusinessUiState(params: {
 	hasMissingDocs: boolean
 }): TrustLinkUiState {
 	if (params.documentsComplete) return "ready"
-	if (params.hasRejectedDocs || params.hasMissingDocs) return "action_needed"
+	if (params.hasRejectedDocs) return "requires_changes"
+	// At least one doc in flight → tab shows En revisión even if other slots still Falta.
 	if (params.hasSubmittedDocs) return "in_review"
+	if (params.hasMissingDocs) return "action_needed"
 	return "not_started"
 }
 
-function resolveFiscalUiState(status: string | null | undefined): TrustLinkUiState {
+function resolveFiscalUiState(
+	status: string | null | undefined,
+	options?: { identityInReview?: boolean }
+): TrustLinkUiState {
 	const raw = String(status ?? "not_configured")
 		.trim()
 		.toLowerCase()
 	if (raw === "verified") return "ready"
-	if (raw === "pending") return "in_review"
-	if (raw === "requires_attention") return "action_needed"
+	if (raw === "requires_attention") return "requires_changes"
+	if (raw === "pending" || options?.identityInReview) return "in_review"
 	return "not_started"
 }
 
@@ -446,6 +484,8 @@ export type BuildProviderTrustMapInput = {
 	hasSubmittedDocs?: boolean
 	hasMissingDocs?: boolean
 	fiscalStatus?: string | null
+	/** Saved fiscal identity awaiting review (even if status column still not_configured). */
+	fiscalIdentityInReview?: boolean
 	verifiedPaymentAccounts?: number
 	pendingPaymentAccounts?: number
 	/**
@@ -460,7 +500,7 @@ export type BuildProviderTrustMapInput = {
  * Builds the 4-link trust map with focus on the first incomplete eslabón.
  */
 export function buildProviderTrustMap(input: BuildProviderTrustMapInput = {}): ProviderTrustLink[] {
-	const account = labelAccountVerificationStatus(input.accountStatus ?? "pending")
+	const account = labelAccountVerificationStatus(input.accountStatus)
 	const legalNameComplete = input.legalNameComplete !== false
 	const identityUi: TrustLinkUiState = !legalNameComplete ? "action_needed" : account.uiState
 	const identityHref = !legalNameComplete
@@ -472,7 +512,9 @@ export function buildProviderTrustMap(input: BuildProviderTrustMapInput = {}): P
 		hasSubmittedDocs: Boolean(input.hasSubmittedDocs),
 		hasMissingDocs: Boolean(input.hasMissingDocs ?? !input.documentsComplete),
 	})
-	const fiscalUi = resolveFiscalUiState(input.fiscalStatus)
+	const fiscalUi = resolveFiscalUiState(input.fiscalStatus, {
+		identityInReview: Boolean(input.fiscalIdentityInReview),
+	})
 	const paymentsUi = resolvePaymentsUiState({
 		verifiedPaymentAccounts: Number(input.verifiedPaymentAccounts ?? 0),
 		pendingPaymentAccounts: Number(input.pendingPaymentAccounts ?? 0),
@@ -523,14 +565,18 @@ export function buildProviderTrustMap(input: BuildProviderTrustMapInput = {}): P
 			.trim()
 			.toLowerCase() === "rejected"
 	const preferBusinessOnReject =
-		accountRejected && legalNameComplete && businessUi === "action_needed"
+		accountRejected && legalNameComplete && businessUi === "requires_changes"
 
 	const focusId = preferBusinessOnReject
 		? "business"
 		: links.every((link) => link.uiState === "ready")
 			? null
-			: (links.find((link) => link.uiState === "action_needed" || link.uiState === "not_started")
-					?.id ??
+			: (links.find(
+					(link) =>
+						link.uiState === "requires_changes" ||
+						link.uiState === "action_needed" ||
+						link.uiState === "not_started"
+				)?.id ??
 				links.find((link) => link.uiState === "in_review")?.id ??
 				links[0]?.id ??
 				null)
@@ -541,9 +587,196 @@ export function buildProviderTrustMap(input: BuildProviderTrustMapInput = {}): P
 	}))
 }
 
+export function summarizeProviderTrustProgress(
+	links: ProviderTrustLink[]
+): VerificationProgressContract {
+	const totalCount = links.length
+	const readyCount = links.filter((link) => link.uiState === "ready").length
+	const inReviewCount = links.filter((link) => link.uiState === "in_review").length
+	const actionRequiredCount = links.filter(
+		(link) => link.uiState === "action_needed" || link.uiState === "requires_changes"
+	).length
+	const notStartedCount = links.filter((link) => link.uiState === "not_started").length
+	return {
+		readyCount,
+		totalCount,
+		inReviewCount,
+		actionRequiredCount,
+		notStartedCount,
+		readinessPercent: totalCount > 0 ? Math.round((readyCount / totalCount) * 100) : 0,
+		nextActionId: links.find((link) => link.isFocus)?.id ?? null,
+	}
+}
+
+export function formatVerificationProgressTotalLine(
+	readyCount: number,
+	totalCount: number
+): string {
+	return `${readyCount} de ${totalCount} requisitos listos`
+}
+
+export function formatVerificationProgressBreakdownLine(counts: {
+	readyCount: number
+	inReviewCount: number
+	actionRequiredCount: number
+	notStartedCount: number
+}): string {
+	const { readyCount, inReviewCount, actionRequiredCount, notStartedCount } = counts
+	return [
+		`${readyCount} ${readyCount === 1 ? "listo" : "listos"}`,
+		`${inReviewCount} en revisión`,
+		`${actionRequiredCount} por completar`,
+		`${notStartedCount} sin iniciar`,
+	].join(" · ")
+}
+
 /** True when Identidad → Negocio → Fiscal → Pagos are all ready (V2 Lista). */
 export function isProviderTrustMapComplete(links: ProviderTrustLink[]): boolean {
 	return links.length >= 4 && links.every((link) => link.uiState === "ready")
+}
+
+export const VERIFICATION_TRUST_TAB_IDS: TrustLinkId[] = [
+	"identity",
+	"business",
+	"fiscal",
+	"payments",
+]
+
+export type VerificationPageGuidanceInput = {
+	trustLinks: ProviderTrustLink[]
+	nextActionId?: TrustLinkId | null
+	trustMapComplete?: boolean
+	/** Active trust rail tab — copy is authored for the panel the user is viewing. */
+	activeSectionId?: TrustLinkId | null
+}
+
+function formatTrustLinkLabels(links: ProviderTrustLink[]): string {
+	if (links.length === 0) return ""
+	if (links.length === 1) return links[0]!.label
+	if (links.length === 2) return `${links[0]!.label} y ${links[1]!.label}`
+	const head = links
+		.slice(0, -1)
+		.map((link) => link.label)
+		.join(", ")
+	return `${head} y ${links.at(-1)!.label}`
+}
+
+function guidanceWhenActiveTabInReview(
+	activeLink: ProviderTrustLink,
+	nextAction: ProviderTrustLink | null
+): string {
+	const base = "Ya completaste tu parte. Aún no está aprobada."
+	if (nextAction && nextAction.id !== activeLink.id) {
+		return `${base} Puedes continuar con ${nextAction.label} mientras revisamos ${activeLink.label}.`
+	}
+	return `${base} Te avisaremos cuando termine la revisión de ${activeLink.label}.`
+}
+
+function guidanceWhenOtherTabsInReview(
+	activeLink: ProviderTrustLink,
+	inReviewElsewhere: ProviderTrustLink[]
+): string {
+	const reviewLabel = formatTrustLinkLabels(inReviewElsewhere)
+	const lead =
+		inReviewElsewhere.length === 1
+			? `Mientras revisamos ${reviewLabel}`
+			: `Mientras revisamos ${reviewLabel}`
+
+	if (activeLink.uiState === "ready") {
+		const verb = inReviewElsewhere.length === 1 ? "sigue" : "siguen"
+		return `${activeLink.label} está listo. ${reviewLabel} ${verb} en revisión.`
+	}
+	if (activeLink.uiState === "requires_changes") {
+		return `${lead}, corrige ${activeLink.label} en esta pestaña: hay cambios pendientes.`
+	}
+	if (activeLink.uiState === "action_needed" || activeLink.uiState === "not_started") {
+		return `${lead}, completa ${activeLink.label} aquí: ${activeLink.description}`
+	}
+	if (activeLink.uiState === "blocked") {
+		return `${activeLink.label} está en espera. ${reviewLabel} en revisión.`
+	}
+	return `${lead}, sigue en ${activeLink.label}.`
+}
+
+function guidanceForActiveTrustTab(
+	activeLink: ProviderTrustLink,
+	params: {
+		nextAction: ProviderTrustLink | null
+		inReviewElsewhere: ProviderTrustLink[]
+	}
+): string {
+	if (activeLink.uiState === "in_review") {
+		return guidanceWhenActiveTabInReview(activeLink, params.nextAction)
+	}
+	if (params.inReviewElsewhere.length > 0) {
+		return guidanceWhenOtherTabsInReview(activeLink, params.inReviewElsewhere)
+	}
+	if (activeLink.uiState === "ready") {
+		return `${activeLink.label} está listo. Sigue con el próximo eslabón del mapa de confianza.`
+	}
+	if (activeLink.uiState === "requires_changes") {
+		return `${activeLink.label} requiere cambios. Corrige lo solicitado y vuelve a enviar.`
+	}
+	if (activeLink.uiState === "action_needed" || activeLink.uiState === "not_started") {
+		return `Completa ${activeLink.label}: ${activeLink.description} ${TRUST_GLOSSARY.page.accountVsDocs}`
+	}
+	if (activeLink.uiState === "blocked") {
+		return `${activeLink.label} está en espera hasta que avances el paso anterior.`
+	}
+	return TRUST_GLOSSARY.page.description
+}
+
+/**
+ * Host-facing subtitle under «Verificación» — one message per active trust tab.
+ */
+export function buildVerificationPageGuidance(input: VerificationPageGuidanceInput): string {
+	const {
+		trustLinks,
+		nextActionId = null,
+		trustMapComplete = false,
+		activeSectionId = null,
+	} = input
+
+	if (trustLinks.length === 0) {
+		return TRUST_GLOSSARY.page.description
+	}
+
+	if (trustMapComplete || isProviderTrustMapComplete(trustLinks)) {
+		return TRUST_GLOSSARY.page.readyBody
+	}
+
+	const linkById = new Map(trustLinks.map((link) => [link.id, link]))
+	const nextAction = nextActionId ? (linkById.get(nextActionId) ?? null) : null
+	const activeId = activeSectionId ?? "identity"
+	const activeLink = linkById.get(activeId) ?? null
+
+	if (activeLink) {
+		const inReviewElsewhere = trustLinks.filter(
+			(link) => link.uiState === "in_review" && link.id !== activeId
+		)
+		return guidanceForActiveTrustTab(activeLink, { nextAction, inReviewElsewhere })
+	}
+
+	if (nextAction) {
+		if (nextAction.uiState === "requires_changes") {
+			return `${nextAction.label} requiere cambios. Es el paso recomendado ahora.`
+		}
+		return `Siguiente paso: ${nextAction.label} (${nextAction.stateLabel}). ${TRUST_GLOSSARY.page.accountVsDocs}`
+	}
+
+	return TRUST_GLOSSARY.page.description
+}
+
+/** Precomputed subtitles for each rail tab (hub client sync on hash / panel change). */
+export function buildVerificationPageGuidanceByTab(
+	input: Omit<VerificationPageGuidanceInput, "activeSectionId">
+): Record<TrustLinkId, string> {
+	return Object.fromEntries(
+		VERIFICATION_TRUST_TAB_IDS.map((id) => [
+			id,
+			buildVerificationPageGuidance({ ...input, activeSectionId: id }),
+		])
+	) as Record<TrustLinkId, string>
 }
 
 /**

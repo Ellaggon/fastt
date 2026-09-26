@@ -153,7 +153,9 @@ const invoicingLabels = Object.fromEntries(
 ) as Record<ProviderInvoicingMode, string>
 
 function asStatus(value: unknown): ProviderTaxConfigurationStatus {
-	const raw = String(value ?? "not_configured").trim()
+	const raw = String(value ?? "not_configured")
+		.trim()
+		.toLowerCase()
 	if (
 		raw === "pending" ||
 		raw === "verified" ||
@@ -184,6 +186,19 @@ export function deriveProviderTaxStatus(params: {
 		params.taxResidenceCountry || params.businessRegistrationNumber || params.taxRegime
 	)
 	return hasIdentity ? "pending" : "not_configured"
+}
+
+/** True when fiscal identity was saved and awaits (or is in) internal review — for trust rail. */
+export function isProviderFiscalIdentityInReview(
+	tax: Pick<
+		ProviderTaxConfigurationRecord,
+		"status" | "taxResidenceCountry" | "businessRegistrationNumber" | "taxRegime"
+	> | null
+): boolean {
+	if (!tax) return false
+	if (tax.status === "pending") return true
+	if (tax.status === "verified" || tax.status === "requires_attention") return false
+	return Boolean(tax.taxResidenceCountry || tax.businessRegistrationNumber || tax.taxRegime)
 }
 
 function readTinBureauSnapshot(metadataJson: unknown): ProviderTaxBureauSnapshot | null {
@@ -337,9 +352,9 @@ export async function upsertProviderTaxConfiguration(params: {
 	})
 	if (!registrationValidation.ok) {
 		const error = new Error(registrationValidation.code || "invalid_tax_registration")
-		;(error as Error & { status?: number; message?: string }).status = 400
-		;(error as Error & { message: string }).message =
-			registrationValidation.message || "invalid_tax_registration"
+		;(error as Error & { status?: number; code?: string }).status = 400
+		;(error as Error & { code?: string }).code =
+			registrationValidation.code || "invalid_tax_registration"
 		throw error
 	}
 	const businessRegistrationNumber: string | null = registrationValidation.normalized
@@ -353,7 +368,15 @@ export async function upsertProviderTaxConfiguration(params: {
 
 	if (taxResidenceCountry && !/^[A-Z]{2}$/.test(taxResidenceCountry)) {
 		const error = new Error("invalid_tax_residence_country")
-		;(error as Error & { status?: number }).status = 400
+		;(error as Error & { status?: number; code?: string }).status = 400
+		;(error as Error & { code?: string }).code = "invalid_tax_residence_country"
+		throw error
+	}
+
+	if (status === "not_configured") {
+		const error = new Error("incomplete_tax_identity")
+		;(error as Error & { status?: number; code?: string }).status = 400
+		;(error as Error & { code?: string }).code = "incomplete_tax_identity"
 		throw error
 	}
 

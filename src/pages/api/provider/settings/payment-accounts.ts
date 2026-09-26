@@ -40,8 +40,17 @@ function json(payload: unknown, status = 200) {
 }
 
 function shouldReturnHtmlRedirect(request: Request) {
-	const accept = request.headers.get("accept") ?? ""
-	return accept.includes("text/html")
+	const accept = (request.headers.get("accept") ?? "").toLowerCase()
+	const fetchDest = request.headers.get("sec-fetch-dest") ?? ""
+	const fetchMode = request.headers.get("sec-fetch-mode") ?? ""
+	const contentType = request.headers.get("content-type") ?? ""
+	const wantsJsonOnly = accept.includes("application/json") && !accept.includes("text/html")
+	if (wantsJsonOnly) return false
+	if (accept.includes("text/html")) return true
+	if (fetchDest === "document" || fetchMode === "navigate") return true
+	if (contentType.includes("multipart/form-data")) return true
+	if (contentType.includes("application/x-www-form-urlencoded")) return true
+	return false
 }
 
 function paymentsRedirectTarget(

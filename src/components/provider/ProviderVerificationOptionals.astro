@@ -163,7 +163,11 @@ const selectedType = documentTypes.some((item) => item.value === defaultUploadTy
 					Notas de envío (opcional)
 					<Input name="submissionNotes" placeholder="Versión vigente / dato actualizado" />
 				</label>
-				<Button type="submit">Enviar a revisión</Button>
+				<div class="fastt-form-submit-footer">
+					<Button type="submit" variant="selection" class="w-full sm:w-auto">
+						Enviar a revisión
+					</Button>
+				</div>
 			</form>
 		) : null
 	}

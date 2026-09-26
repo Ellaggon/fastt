@@ -45,7 +45,9 @@ describe("S2-1 fiscal UX split TIN vs guest taxes", () => {
 		expect(sales).not.toContain("TaxFeePage")
 		expect(sales).not.toContain("ProviderTaxProfileCard")
 
-		expect(api).toContain("/provider/settings/verification/fiscal?result=")
+		expect(api).toContain("providerSettingsVerificationFiscal")
+		expect(api).toContain("sec-fetch-dest")
+		expect(api).toContain("application/x-www-form-urlencoded")
 		expect(governance).toContain("taxFeesIdentity")
 		expect(governance).toContain("taxFeesSales")
 		expect(governance).toContain('taxFeesIdentity: "/provider/settings/verification/fiscal"')

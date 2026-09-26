@@ -3,10 +3,7 @@ import { readFileSync } from "node:fs"
 import { readVerificationSurface } from "./read-verification-surface"
 
 import { buildRequiredKycSlots } from "@/lib/provider-documents"
-import {
-	buildProviderTrustMap,
-	resolveVerificationNextStep,
-} from "@/lib/provider-trust-map"
+import { buildProviderTrustMap, resolveVerificationNextStep } from "@/lib/provider-trust-map"
 import {
 	isVerificationWorkspacePath,
 	resolveVerificationTrustPanelFromUrl,
@@ -30,9 +27,7 @@ describe("V1 verification fold reorder (action-first)", () => {
 		const focus = slots[0]
 		const next = resolveVerificationNextStep({
 			trustLinks,
-			focusSlot: focus
-				? { type: focus.type, label: focus.label, state: focus.state }
-				: null,
+			focusSlot: focus ? { type: focus.type, label: focus.label, state: focus.state } : null,
 			canManageDocuments: true,
 		})
 		expect(next.anchorsKyc).toBe(true)
@@ -70,9 +65,19 @@ describe("V1 verification fold reorder (action-first)", () => {
 		expect(page).toContain("elevated")
 		expect(page).toContain('placement="primary"')
 		expect(page).toContain("verification-trust-panels.js")
+		expect(read("src/components/provider/ProviderVerificationWorkspace.astro")).toContain(
+			"verification-form-submit-pending.js"
+		)
+		expect(read("src/styles/global.css")).toContain("fastt-verification-submit-bar")
 		expect(panelClient).toContain("syncVerificationTrustPanels")
 		expect(panelClient).toContain("handleVerificationTrustClick")
+		expect(panelClient).toContain('activeId !== "business"')
+		expect(read("src/components/provider/ProviderVerificationWorkspace.astro")).toContain(
+			"optionalsEntryActive"
+		)
 		expect(panelClient).toContain("window.history.pushState")
+		expect(panelClient).not.toContain("window.scrollTo({ top: 0")
+		expect(page).toContain("verification-trust-panels-stage")
 		expect(panelClient).toContain("astro:page-load")
 		expect(panelClient).not.toContain("data-header-upload-cta")
 		expect(page).not.toContain("data-header-upload-cta")
@@ -84,6 +89,8 @@ describe("V1 verification fold reorder (action-first)", () => {
 		expect(page).toContain("data-verification-workspace")
 		expect(page).toContain('data-verification-trust-panel="fiscal"')
 		expect(page).toContain('data-verification-trust-panel="payments"')
+		expect(page).toContain('aria-labelledby="verification-panel-identity-title"')
+		expect(page).toContain("Estado: ${link.stateLabel}")
 		expect(panelClient).toContain("isVerificationWorkspacePath")
 		expect(panelClient).toContain("/provider/settings/verification/fiscal")
 		expect(panelClient).toContain("/provider/settings/verification/payments")
@@ -100,6 +107,16 @@ describe("V1 verification fold reorder (action-first)", () => {
 				new URL("https://fastt.test/provider/settings/verification/fiscal")
 			)
 		).toBe("fiscal")
+		expect(
+			resolveVerificationTrustPanelFromUrl(
+				new URL("https://fastt.test/provider/settings/verification#kyc-slot-government_id")
+			)
+		).toBe("business")
+		expect(
+			resolveVerificationTrustPanelFromUrl(
+				new URL("https://fastt.test/provider/settings/verification#verification-status-panel")
+			)
+		).toBe("identity")
 	})
 
 	it("wires elevated upload + collapsed status panel", () => {

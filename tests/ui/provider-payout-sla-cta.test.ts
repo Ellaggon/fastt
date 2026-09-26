@@ -39,7 +39,7 @@ describe("S3-2 payout SLA mirror + post-save CTAs", () => {
 		expect(page).toContain("paymentAssignments={paymentAssignments}")
 		expect(page).toContain("data-post-save-cta")
 		expect(page).toContain("ProviderTrustMapRail")
-		expect(page).toContain("activeId={initialPanel}")
+		expect(page).toContain("activeId={activeSectionId}")
 
 		expect(card).toContain("ProviderReviewWaitNotice")
 		expect(card).toContain('domain="payment"')
@@ -50,7 +50,9 @@ describe("S3-2 payout SLA mirror + post-save CTAs", () => {
 	it("exposes post-save CTAs toward verification (data surfaces) and next domains", () => {
 		const profile = read("src/pages/provider/settings/profile.astro")
 		const verification = readVerificationSurface("src/pages/provider/settings/verification.astro")
-		const taxIdentity = readVerificationSurface("src/pages/provider/settings/verification/fiscal.astro")
+		const taxIdentity = readVerificationSurface(
+			"src/pages/provider/settings/verification/fiscal.astro"
+		)
 
 		expect(profile).toContain("data-post-save-cta")
 		expect(profile).toContain("routes.providerSettingsVerification()")
