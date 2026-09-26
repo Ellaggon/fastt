@@ -16,11 +16,15 @@ import {
 	listProviderPaymentAccounts,
 	type ProviderPaymentAccountRecord,
 } from "@/lib/provider-payment-accounts"
-import { getProviderTaxConfiguration } from "@/lib/provider-tax-configuration"
+import {
+	getProviderTaxConfiguration,
+	isProviderFiscalIdentityInReview,
+} from "@/lib/provider-tax-configuration"
 import {
 	buildProviderTrustMap,
 	isProviderTrustMapComplete,
 	isVerificationListaReady,
+	summarizeProviderTrustProgress,
 } from "@/lib/provider-trust-map"
 import { routes } from "@/lib/routes"
 
@@ -106,16 +110,13 @@ export async function buildProviderVerificationTrustSnapshot(params: Params) {
 		hasSubmittedDocs: kycSlots.some((slot) => slot.state === "pending"),
 		hasMissingDocs: kycSlots.some((slot) => slot.state === "missing"),
 		fiscalStatus: taxConfiguration?.status ?? null,
+		fiscalIdentityInReview: isProviderFiscalIdentityInReview(taxConfiguration),
 		verifiedPaymentAccounts: paymentCounts.verified,
 		pendingPaymentAccounts: paymentCounts.pending,
 		legalNameComplete,
 	})
 	const trustMapComplete = isProviderTrustMapComplete(trustLinks)
-	const trustFocusIndex = Math.max(
-		0,
-		trustLinks.findIndex((link) => link.isFocus)
-	)
-	const trustReadyCount = trustLinks.filter((link) => link.uiState === "ready").length
+	const progress = summarizeProviderTrustProgress(trustLinks)
 
 	return {
 		defaultCurrency: providerRow?.defaultCurrency ?? "USD",
@@ -128,9 +129,12 @@ export async function buildProviderVerificationTrustSnapshot(params: Params) {
 		trustLinks,
 		trustMapComplete,
 		listaReady: isVerificationListaReady({ trustLinks, legalNameComplete }),
-		wizardStepNumber:
-			trustLinks.length > 0 ? (trustMapComplete ? trustLinks.length : trustFocusIndex + 1) : 0,
-		wizardProgressPercent:
-			trustLinks.length > 0 ? Math.round((trustReadyCount / trustLinks.length) * 100) : 0,
+		readyCount: progress.readyCount,
+		totalCount: progress.totalCount,
+		inReviewCount: progress.inReviewCount,
+		actionRequiredCount: progress.actionRequiredCount,
+		notStartedCount: progress.notStartedCount,
+		readinessPercent: progress.readinessPercent,
+		nextActionId: progress.nextActionId,
 	}
 }

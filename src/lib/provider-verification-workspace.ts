@@ -38,12 +38,17 @@ type SlaAssignment = {
 }
 
 export type ProviderVerificationWorkspaceModel = {
-	initialPanel: VerificationTrustPanelId
+	activeSectionId: VerificationTrustPanelId
 	listaReady: boolean
 	trustMapComplete: boolean
 	trustLinks: ProviderTrustLink[]
-	wizardStepNumber: number
-	wizardProgressPercent: number
+	readyCount: number
+	totalCount: number
+	inReviewCount: number
+	actionRequiredCount: number
+	notStartedCount: number
+	readinessPercent: number
+	nextActionId: TrustLinkId | null
 	canManageDocuments: boolean
 	canManageFiscality: boolean
 	canManagePayments: boolean
@@ -125,8 +130,13 @@ export async function loadProviderVerificationWorkspace(params: {
 		trustLinks,
 		legalNameComplete,
 	})
-	const wizardStepNumber = trustSnapshot?.wizardStepNumber ?? 0
-	const wizardProgressPercent = trustSnapshot?.wizardProgressPercent ?? 0
+	const readyCount = trustSnapshot?.readyCount ?? 0
+	const totalCount = trustSnapshot?.totalCount ?? 0
+	const inReviewCount = trustSnapshot?.inReviewCount ?? 0
+	const actionRequiredCount = trustSnapshot?.actionRequiredCount ?? 0
+	const notStartedCount = trustSnapshot?.notStartedCount ?? 0
+	const readinessPercent = trustSnapshot?.readinessPercent ?? 0
+	const nextActionId = trustSnapshot?.nextActionId ?? null
 
 	const verificationAssignment =
 		openAssignments.find(
@@ -224,12 +234,17 @@ export async function loadProviderVerificationWorkspace(params: {
 	).length
 
 	return {
-		initialPanel: resolveVerificationTrustPanelFromUrl(params.url),
+		activeSectionId: resolveVerificationTrustPanelFromUrl(params.url),
 		listaReady,
 		trustMapComplete,
 		trustLinks,
-		wizardStepNumber,
-		wizardProgressPercent,
+		readyCount,
+		totalCount,
+		inReviewCount,
+		actionRequiredCount,
+		notStartedCount,
+		readinessPercent,
+		nextActionId,
 		canManageDocuments,
 		canManageFiscality,
 		canManagePayments,

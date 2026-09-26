@@ -10,6 +10,7 @@ import {
 	providerTaxRegimes,
 	upsertProviderTaxConfiguration,
 } from "@/lib/provider-tax-configuration"
+import { routes } from "@/lib/routes"
 
 const upsertSchema = z.object({
 	taxResidenceCountry: z
@@ -31,14 +32,51 @@ function json(payload: unknown, status = 200) {
 	})
 }
 
+/** Browser form navigation must 303 back to Verificación — never dump API JSON. */
 function shouldReturnHtmlRedirect(request: Request) {
-	const accept = request.headers.get("accept") ?? ""
-	return accept.includes("text/html")
+	const accept = (request.headers.get("accept") ?? "").toLowerCase()
+	const fetchDest = request.headers.get("sec-fetch-dest") ?? ""
+	const fetchMode = request.headers.get("sec-fetch-mode") ?? ""
+	const contentType = request.headers.get("content-type") ?? ""
+	const wantsJsonOnly = accept.includes("application/json") && !accept.includes("text/html")
+	if (wantsJsonOnly) return false
+	if (accept.includes("text/html")) return true
+	if (fetchDest === "document" || fetchMode === "navigate") return true
+	if (contentType.includes("multipart/form-data")) return true
+	if (contentType.includes("application/x-www-form-urlencoded")) return true
+	return false
 }
 
-function redirectToTaxIdentity(request: Request, result: string) {
-	const target = `/provider/settings/verification/fiscal?result=${result}`
-	return Response.redirect(new URL(target, request.url), 303)
+function fiscalRedirectPath(result: string, returnToRaw?: FormDataEntryValue | null): string {
+	const returnTo = String(returnToRaw ?? "").trim()
+	const base =
+		returnTo === "taxIdentity"
+			? routes.providerSettingsTaxIdentity()
+			: routes.providerSettingsVerificationFiscal()
+	const url = `${base}?result=${encodeURIComponent(result)}`
+	return url
+}
+
+function redirectAfterFiscalSubmit(
+	request: Request,
+	result: string,
+	returnToRaw?: FormDataEntryValue | null
+) {
+	return Response.redirect(new URL(fiscalRedirectPath(result, returnToRaw), request.url), 303)
+}
+
+function redirectAfterFiscalError(
+	request: Request,
+	error: string,
+	returnToRaw?: FormDataEntryValue | null
+) {
+	const base =
+		String(returnToRaw ?? "").trim() === "taxIdentity"
+			? routes.providerSettingsTaxIdentity()
+			: routes.providerSettingsVerificationFiscal()
+	const target = new URL(base, request.url)
+	target.searchParams.set("error", error)
+	return Response.redirect(target, 303)
 }
 
 export const GET: APIRoute = async ({ request }) => {
@@ -65,11 +103,13 @@ export const GET: APIRoute = async ({ request }) => {
 }
 
 export const POST: APIRoute = async ({ request }) => {
+	let returnTo: FormDataEntryValue | null = null
 	try {
 		const { user, provider } = await requireProviderSessionSurface(request)
 		const providerId = provider.providerId
 
 		const form = await request.formData()
+		returnTo = form.get("returnTo")
 		const parsed = upsertSchema.parse({
 			taxResidenceCountry: form.get("taxResidenceCountry") ?? "",
 			businessRegistrationNumber: form.get("businessRegistrationNumber") ?? "",
@@ -90,13 +130,20 @@ export const POST: APIRoute = async ({ request }) => {
 		await invalidateProviderGovernance(providerId, "provider_tax_configuration_updated")
 
 		return shouldReturnHtmlRedirect(request)
-			? redirectToTaxIdentity(request, "tax_profile_saved")
+			? redirectAfterFiscalSubmit(request, "tax_profile_saved", returnTo)
 			: json({ ok: true, taxConfiguration })
 	} catch (err: any) {
 		if (err instanceof Response) return err
-		if (err instanceof ZodError)
-			return json({ error: "validation_error", details: err.issues }, 400)
+		if (err instanceof ZodError) {
+			return shouldReturnHtmlRedirect(request)
+				? redirectAfterFiscalError(request, "validation_error", returnTo)
+				: json({ error: "validation_error", details: err.issues }, 400)
+		}
 		const status = typeof err?.status === "number" ? err.status : 400
-		return json({ error: String(err?.message || "Unknown error") }, status)
+		const code = String(err?.code || err?.message || "tax_save_failed")
+		const safeCode = /^[a-z0-9_]+$/i.test(code) ? code : "tax_save_failed"
+		return shouldReturnHtmlRedirect(request)
+			? redirectAfterFiscalError(request, safeCode, returnTo)
+			: json({ error: safeCode }, status)
 	}
 }
