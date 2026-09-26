@@ -232,13 +232,20 @@ export function completeToPublishStepHref(
 		case "categories":
 			return `/product/${encodeURIComponent(productId)}/categories`
 		case "departure":
-			return `/product/${encodeURIComponent(productId)}/departures/new`
+			return variantId
+				? `/product/${encodeURIComponent(productId)}/departures/${encodeURIComponent(variantId)}`
+				: `/product/${encodeURIComponent(productId)}/departures/new`
 		case "rate":
-			return `${routes.rates()}?${new URLSearchParams({
-				productId,
-				openDialog: "1",
-				...(variantId ? { variantId } : {}),
-			}).toString()}`
+			return ratePlanId
+				? `${routes.ratePlanDetail(ratePlanId)}?${new URLSearchParams({
+						productId,
+						...(variantId ? { variantId } : {}),
+					}).toString()}`
+				: `${routes.rates()}?${new URLSearchParams({
+						productId,
+						openDialog: "1",
+						...(variantId ? { variantId } : {}),
+					}).toString()}`
 		case "calendar":
 			return `${routes.calendar()}?${new URLSearchParams({
 				focus: "availability",

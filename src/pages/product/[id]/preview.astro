@@ -167,9 +167,15 @@ function checkHref(check: (typeof checks)[number]) {
 	return check.href
 }
 
-// Inside a guided flow, preview is the final review rather than another place to
-// discover old omissions. Draft preview remains available outside the playbook.
-if (playbook.active && stepId === "preview" && nextBlocker) {
+// Inside launch playbooks, preview still jumps to the first blocker. In
+// complete-to-publish the calendar step already hands off to preview; stay there
+// and let the page surface pending requirements without rewinding the flow.
+if (
+	playbook.active &&
+	stepId === "preview" &&
+	nextBlocker &&
+	playbookId !== "complete-to-publish"
+) {
 	return Astro.redirect(checkHref(nextBlocker))
 }
 

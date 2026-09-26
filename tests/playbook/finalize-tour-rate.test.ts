@@ -10,10 +10,18 @@ const mocks = vi.hoisted(() => ({
 	invalidatePricing: vi.fn(),
 	invalidateCalendarSurface: vi.fn(),
 	invalidateProvider: vi.fn(),
+	evaluateVariantReadiness: vi.fn(),
+	setVariantSalesEnabled: vi.fn(),
 }))
 
 vi.mock("@/container", () => ({
 	ratePlanCommandRepository: { updateRatePlan: mocks.updateRatePlan },
+	variantManagementRepository: {},
+	ratePlanPricingReadRepository: {},
+}))
+vi.mock("@/modules/catalog/public", () => ({
+	evaluateVariantReadiness: mocks.evaluateVariantReadiness,
+	setVariantSalesEnabled: mocks.setVariantSalesEnabled,
 }))
 vi.mock("@/lib/rates/validateRatePlanPublication", () => ({
 	validateRatePlanPublication: mocks.validateRatePlanPublication,
@@ -58,6 +66,12 @@ describe("finalize tour rate", () => {
 		})
 		mocks.validateRatePlanPublication.mockResolvedValue({ canPublish: true, blockers: [] })
 		mocks.updateRatePlan.mockResolvedValue("updated")
+		mocks.evaluateVariantReadiness.mockResolvedValue({
+			variantId: "slot-1",
+			lifecycleState: "ready",
+			validationErrors: [],
+		})
+		mocks.setVariantSalesEnabled.mockResolvedValue({ variantId: "slot-1", salesEnabled: true })
 		mocks.invalidateVariant.mockResolvedValue(undefined)
 		mocks.invalidatePricing.mockResolvedValue(undefined)
 		mocks.invalidateCalendarSurface.mockResolvedValue(undefined)
@@ -70,6 +84,14 @@ describe("finalize tour rate", () => {
 		expect(result.ok).toBe(true)
 		expect(mocks.updateRatePlan).toHaveBeenCalledWith(
 			expect.objectContaining({ ratePlanId: "rate-1", isActive: true, isDefault: true })
+		)
+		expect(mocks.evaluateVariantReadiness).toHaveBeenCalledWith(
+			expect.anything(),
+			{ variantId: "slot-1" }
+		)
+		expect(mocks.setVariantSalesEnabled).toHaveBeenCalledWith(
+			expect.anything(),
+			{ variantId: "slot-1", salesEnabled: true }
 		)
 		if (result.ok) expect(result.terminalHref).toContain("playbook=complete-to-publish")
 	})

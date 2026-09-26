@@ -78,7 +78,9 @@ export function getLaunchLikeStage(
 ): LaunchLikeStage {
 	if (definition.id === "launch-tour") {
 		const stage = getTourPublishingStage(String(stepId))
-		return { label: stage.label, position: stage.position, total: stage.total }
+		const index = definition.steps.findIndex((step) => step.id === stepId)
+		const position = index >= 0 ? index + 1 : stage.position
+		return { label: stage.label, position, total: definition.steps.length }
 	}
 	const index = definition.steps.findIndex((step) => step.id === stepId)
 	if (index >= definition.steps.length - 1) {

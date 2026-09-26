@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
 	completeToPublishNextHref,
 	completeToPublishPreviousHref,
+	completeToPublishStepHref,
 	resolveCompleteToPublishPlaybookFromUrl,
 } from "@/lib/playbook/complete-to-publish"
 
@@ -35,5 +36,15 @@ describe("tour rate playbook context", () => {
 				ratePlanId: "rate_1",
 			})
 		).toContain("ratePlanId=rate_1")
+	})
+
+	it("opens the existing departure and rate instead of the create forms", () => {
+		expect(
+			completeToPublishStepHref("tour_1", "departure", { variantId: "slot_1", ratePlanId: "rate_1" })
+		).toBe("/product/tour_1/departures/slot_1")
+		expect(
+			completeToPublishStepHref("tour_1", "rate", { variantId: "slot_1", ratePlanId: "rate_1" })
+		).toContain("/rates/plans/rate_1")
+		expect(completeToPublishStepHref("tour_1", "departure")).toContain("/departures/new")
 	})
 })
