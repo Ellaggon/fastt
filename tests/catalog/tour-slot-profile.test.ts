@@ -65,7 +65,8 @@ describe("tour slot profile (fase 2)", () => {
 		)
 		expect(repo).toContain("capacityVariantId: VariantCapacity.variantId")
 		expect(repo).toContain("defaultRatePlanId: RatePlan.id")
-		expect(repo).toContain("Boolean(row.defaultRatePlanId)")
+		expect(repo).toContain("pickRateId")
+		expect(repo).toContain("Boolean(row.capacityVariantId)")
 
 		const evaluate = read(
 			"src/modules/catalog/application/use-cases/product/evaluate-product-readiness.ts"
