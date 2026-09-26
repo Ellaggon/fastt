@@ -48,6 +48,8 @@ export type ProductAggregate = {
 			slotCount?: number
 			completeSlotCount?: number
 			activeSlotCount?: number
+			primarySlotId?: string | null
+			primaryRatePlanId?: string | null
 		}
 		package?: {
 			hasDaysAndNights: boolean
