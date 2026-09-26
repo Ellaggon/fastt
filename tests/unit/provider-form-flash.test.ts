@@ -29,4 +29,17 @@ describe("provider form flash", () => {
 		expect(readProviderFormFlash(value, "identity")).toBeNull()
 		expect(providerFormErrorMessage("displayName")).toContain("nombre comercial")
 	})
+
+	it("keeps identity and operations values together for the unified settings form", () => {
+		const value = createProviderFormFlash({
+			form: "settings",
+			values: { displayName: "Paseos del sur", supportEmail: "ops@fastt.test" },
+			errors: { supportEmail: "invalid" },
+		})
+		expect(readProviderFormFlash(value, "settings")).toEqual({
+			form: "settings",
+			values: { displayName: "Paseos del sur", supportEmail: "ops@fastt.test" },
+			errors: { supportEmail: "invalid" },
+		})
+	})
 })

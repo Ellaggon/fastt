@@ -1,6 +1,6 @@
 export const PROVIDER_FORM_FLASH_COOKIE = "fastt_provider_form_flash"
 
-export type ProviderFormFlashForm = "identity" | "profile"
+export type ProviderFormFlashForm = "identity" | "profile" | "settings"
 
 export type ProviderFormFlash = {
 	form: ProviderFormFlashForm
@@ -8,17 +8,22 @@ export type ProviderFormFlash = {
 	errors: Record<string, string>
 }
 
+const identityFields = [
+	"displayName",
+	"legalName",
+	"holderType",
+	"holderCountry",
+	"taxResidenceCountry",
+	"payoutCountry",
+	"collectionModel",
+] as const
+
+const profileFields = ["timezone", "defaultCurrency", "supportEmail", "supportPhone"] as const
+
 const allowedFields: Record<ProviderFormFlashForm, readonly string[]> = {
-	identity: [
-		"displayName",
-		"legalName",
-		"holderType",
-		"holderCountry",
-		"taxResidenceCountry",
-		"payoutCountry",
-		"collectionModel",
-	],
-	profile: ["timezone", "defaultCurrency", "supportEmail", "supportPhone"],
+	identity: identityFields,
+	profile: profileFields,
+	settings: [...identityFields, ...profileFields],
 }
 
 function normalizeText(value: unknown) {
