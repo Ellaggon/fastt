@@ -437,6 +437,7 @@ export class ProductRepository implements ProductRepositoryPort {
 					salesEnabled: Variant.salesEnabled,
 					lifecycleState: Variant.lifecycleState,
 					profileVariantId: TourSlotProfile.variantId,
+					profileIsActive: TourSlotProfile.isActive,
 					capacityVariantId: VariantCapacity.variantId,
 					defaultRatePlanId: RatePlan.id,
 				})
@@ -453,18 +454,65 @@ export class ProductRepository implements ProductRepositoryPort {
 				)
 				.where(and(eq(Variant.productId, productId), eq(Variant.kind, "tour_slot")))
 
-			// Align with admin quality: complete salida = commercially enabled + profile + capacity + default rate.
-			const completeSlotCount = schedules.filter(
+			const liveSlots = schedules.filter((row) => row.lifecycleState !== "archived")
+			const slotsWithProfile = liveSlots.filter((row) => Boolean(row.profileVariantId))
+			const slotIds = liveSlots.map((row) => String(row.id))
+			const rateRows = slotIds.length
+				? await db
+						.select({
+							id: RatePlan.id,
+							variantId: RatePlan.variantId,
+							isDefault: RatePlan.isDefault,
+							isActive: RatePlan.isActive,
+						})
+						.from(RatePlan)
+						.where(inArray(RatePlan.variantId, slotIds))
+				: []
+			const ratesByVariant = new Map<string, typeof rateRows>()
+			for (const rate of rateRows) {
+				const key = String(rate.variantId)
+				const list = ratesByVariant.get(key) ?? []
+				list.push(rate)
+				ratesByVariant.set(key, list)
+			}
+			const pickRateId = (variantId: string, preferredDefaultId: string | null) => {
+				if (preferredDefaultId) return preferredDefaultId
+				const rates = ratesByVariant.get(variantId) ?? []
+				const preferred =
+					rates.find((rate) => rate.isDefault && rate.isActive) ??
+					rates.find((rate) => rate.isActive) ??
+					rates[0]
+				return preferred?.id ? String(preferred.id) : null
+			}
+			// Playbook creates the slot as draft. Count the commercial setup the provider
+			// already saved; salesEnabled/ready are enabled later when the tarifa is activated.
+			const completeSlots = slotsWithProfile.filter(
+				(row) =>
+					Boolean(row.capacityVariantId) &&
+					Boolean(
+						pickRateId(String(row.id), row.defaultRatePlanId ? String(row.defaultRatePlanId) : null)
+					)
+			)
+			const completeSlotCount = completeSlots.length
+			const sellableCompleteSlotCount = liveSlots.filter(
 				(row) =>
 					row.salesEnabled === true &&
 					row.lifecycleState === "ready" &&
 					Boolean(row.profileVariantId) &&
 					Boolean(row.capacityVariantId) &&
-					Boolean(row.defaultRatePlanId)
+					Boolean(
+						pickRateId(String(row.id), row.defaultRatePlanId ? String(row.defaultRatePlanId) : null)
+					)
 			).length
-			const activeSlotCount = schedules.filter(
-				(row) => row.salesEnabled === true && row.lifecycleState === "ready"
-			).length
+			const activeSlotCount = sellableCompleteSlotCount
+			const primarySlot = completeSlots[0] ?? slotsWithProfile[0] ?? null
+			const primarySlotId = primarySlot ? String(primarySlot.id) : null
+			const primaryRatePlanId = primarySlot
+				? pickRateId(
+						String(primarySlot.id),
+						primarySlot.defaultRatePlanId ? String(primarySlot.defaultRatePlanId) : null
+					)
+				: null
 			const itinerarySteps = Array.isArray(tour?.itineraryJson) ? tour.itineraryJson.length : 0
 			const [categoryRow, ticketRow] = await Promise.all([
 				db
@@ -492,11 +540,14 @@ export class ProductRepository implements ProductRepositoryPort {
 					hasIncludes: Array.isArray(tour?.includesJson) && tour.includesJson.length > 0,
 					hasCategory: Boolean(categoryRow?.id),
 					hasActiveTickets: Boolean(ticketRow?.id),
-					hasSchedule: completeSlotCount > 0,
+					hasSchedule: sellableCompleteSlotCount > 0,
 					imageCount: images.length,
 					slotCount: schedules.length,
 					completeSlotCount,
+					sellableCompleteSlotCount,
 					activeSlotCount,
+					primarySlotId,
+					primaryRatePlanId,
 				},
 			}
 		} else if (pt === "package") {

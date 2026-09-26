@@ -8,7 +8,7 @@ function qs<T extends Element>(sel: string, el: ParentNode = document) {
 	return el.querySelector(sel) as T | null
 }
 
-type UploadState = "pending" | "uploading" | "success" | "error"
+type UploadState = "pending" | "queued" | "uploading" | "success" | "error"
 
 type PendingImage = {
 	id: string
@@ -68,7 +68,7 @@ function initProductImagesForm() {
 		const total =
 			existingImages.length + pendingImages.filter((item) => item.state !== "error").length
 		const missing = Math.max(0, requiredImageCount - total)
-		if (continueButton) {
+		if (continueButton && form?.dataset.uploading !== "true") {
 			continueButton.disabled = missing > 0
 			continueButton.title =
 				missing > 0 ? `Agrega ${missing} foto${missing === 1 ? "" : "s"} más para continuar.` : ""
@@ -86,10 +86,10 @@ function initProductImagesForm() {
 		const labels: Record<string, string> = {
 			empty: "Vacío: selecciona imágenes para continuar.",
 			incomplete: "Pendiente: completa la galería para continuar.",
-			loading: "Cargando: procesando imágenes...",
+			loading: "Subiendo fotografías. Espera a que termine antes de volver a pulsar.",
 			success: "Éxito: imágenes asociadas correctamente.",
 			error: "Error: no se pudieron asociar las imágenes.",
-			disabled: "Deshabilitado: esperando respuesta del servidor.",
+			disabled: "Subiendo fotografías. Espera a que termine antes de volver a pulsar.",
 		}
 		stateLabelEl.textContent = labels[state] || labels.empty
 		stateDetailEl.textContent = detail
@@ -105,6 +105,12 @@ function initProductImagesForm() {
 
 	function renderPreviewGrid() {
 		previewGridEl.innerHTML = ""
+		previewGridEl.setAttribute(
+			"aria-busy",
+			pendingImages.some((item) => item.state === "uploading" || item.state === "queued")
+				? "true"
+				: "false"
+		)
 		syncPublicationRequirement()
 		if (pendingImages.length === 0 && existingImages.length === 0) {
 			previewGridEl.innerHTML =
@@ -131,14 +137,30 @@ function initProductImagesForm() {
 			const stateText =
 				image.state === "pending"
 					? "Pendiente"
-					: image.state === "uploading"
-						? "Subiendo..."
-						: image.state === "success"
-							? "Cargada"
-							: "Error"
+					: image.state === "queued"
+						? "En cola"
+						: image.state === "uploading"
+							? "Subiendo..."
+							: image.state === "success"
+								? "Cargada"
+								: "Error"
 
 			card.innerHTML = `
-				<img src="${image.previewUrl}" alt="Vista previa" class="h-24 w-full rounded-md object-cover" />
+				<div class="relative">
+					<img src="${image.previewUrl}" alt="Vista previa" class="h-24 w-full rounded-md object-cover ${
+						image.state === "uploading" ? "opacity-40" : ""
+					}" />
+					${
+						image.state === "uploading"
+							? `<div class="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-md bg-slate-950/55 text-white">
+									<span class="h-7 w-7 animate-spin rounded-full border-2 border-white/30 border-t-white" aria-hidden="true"></span>
+									<span class="text-xs font-semibold">Subiendo...</span>
+								</div>`
+							: image.state === "queued"
+								? `<div class="absolute inset-0 flex items-center justify-center rounded-md bg-slate-950/40 text-xs font-semibold text-white">En cola</div>`
+								: ""
+					}
+				</div>
 				<div class="space-y-1">
 					<p class="truncate text-xs font-medium text-slate-700">${image.file.name}</p>
 					<p class="text-xs ${
@@ -157,7 +179,7 @@ function initProductImagesForm() {
 			removeBtn.className =
 				"fastt-button inline-flex h-8 w-full items-center justify-center rounded-md border border-slate-300 bg-white text-xs font-medium text-slate-700 hover:bg-slate-50"
 			removeBtn.textContent = "Quitar"
-			removeBtn.disabled = image.state === "uploading"
+			removeBtn.disabled = image.state === "uploading" || image.state === "queued"
 			removeBtn.addEventListener("click", () => {
 				const index = pendingImages.findIndex((item) => item.id === image.id)
 				if (index >= 0) {
@@ -259,8 +281,15 @@ function initProductImagesForm() {
 		})
 	}
 
+	const releaseUpload = () => {
+		form.dataset.uploading = "false"
+		setPlaybookSubmitBusy(form, false)
+		syncPublicationRequirement()
+	}
+
 	form.addEventListener("submit", async (e) => {
 		e.preventDefault()
+		if (form.dataset.uploading === "true") return
 		const formFd = new FormData(form)
 		const productId = String(formFd.get("productId") || "")
 		const intent = readPlaybookNavIntent(formFd, e.submitter)
@@ -273,9 +302,11 @@ function initProductImagesForm() {
 			dropzoneEl.focus()
 			return
 		}
-		setState("loading")
-		setPlaybookSubmitBusy(form, true)
-		setState("disabled")
+		form.dataset.uploading = "true"
+		const queue = pendingImages.filter((item) => item.state !== "error" && item.state !== "success")
+		const busyLabel = queue.length > 0 ? `Subiendo 1 de ${queue.length}…` : "Continuando…"
+		setPlaybookSubmitBusy(form, true, busyLabel)
+		setState("loading", busyLabel)
 
 		try {
 			if (pendingImages.length === 0) {
@@ -288,17 +319,26 @@ function initProductImagesForm() {
 					redirectAfterSuccess(formFd, productId, e.submitter)
 					return
 				}
-				setPlaybookSubmitBusy(form, false)
+				releaseUpload()
 				setState("empty", "Debes seleccionar al menos una imagen.")
 				dropzoneEl.focus()
 				return
 			}
 
+			for (const item of queue) item.state = "queued"
+			renderPreviewGrid()
+
 			const imageIds: string[] = []
+			let uploaded = 0
 
 			for (const item of pendingImages) {
+				if (item.state === "error" || item.state === "success") continue
+				uploaded += 1
 				item.state = "uploading"
 				item.error = ""
+				const progressLabel = `Subiendo ${uploaded} de ${queue.length}…`
+				setPlaybookSubmitBusy(form, true, progressLabel)
+				setState("loading", progressLabel)
 				renderPreviewGrid()
 
 				const initFd = new FormData()
@@ -311,7 +351,7 @@ function initProductImagesForm() {
 					item.state = "error"
 					item.error = `Inicialización fallida (${initRes.status})`
 					renderPreviewGrid()
-					setPlaybookSubmitBusy(form, false)
+					releaseUpload()
 					setState("error", `Error de inicialización (${initRes.status}):\n${initTxt}`)
 					return
 				}
@@ -331,7 +371,7 @@ function initProductImagesForm() {
 					item.state = "error"
 					item.error = `Carga fallida (${putRes.status})`
 					renderPreviewGrid()
-					setPlaybookSubmitBusy(form, false)
+					releaseUpload()
 					setState("error", `Error de carga al storage (${putRes.status}).`)
 					return
 				}
@@ -350,7 +390,7 @@ function initProductImagesForm() {
 					item.state = "error"
 					item.error = `Finalización fallida (${completeRes.status})`
 					renderPreviewGrid()
-					setPlaybookSubmitBusy(form, false)
+					releaseUpload()
 					setState("error", `Error al completar carga (${completeRes.status}):\n${completeTxt}`)
 					return
 				}
@@ -360,14 +400,18 @@ function initProductImagesForm() {
 				imageIds.push(initJson.imageId)
 			}
 
+			setPlaybookSubmitBusy(form, true, "Guardando galería…")
+			setState("loading", "Guardando galería…")
+
 			const setFd = new FormData()
 			setFd.set("productId", productId)
-			for (const id of imageIds) setFd.append("imageId", id)
+			const galleryIds = [...existingImages.map((image) => image.id), ...imageIds].filter(Boolean)
+			for (const id of [...new Set(galleryIds)]) setFd.append("imageId", id)
 
 			const res = await fetch("/api/product/images", { method: "POST", body: setFd })
 			const txt = await res.text()
 			if (!res.ok) {
-				setPlaybookSubmitBusy(form, false)
+				releaseUpload()
 				setState("error", `status=${res.status}\n${txt}`)
 				return
 			}
@@ -375,7 +419,7 @@ function initProductImagesForm() {
 			setState("success", "Guardado correctamente")
 			redirectAfterSuccess(formFd, productId, e.submitter)
 		} catch (err) {
-			setPlaybookSubmitBusy(form, false)
+			releaseUpload()
 			setState("error", `Error de red: ${String(err)}`)
 		}
 	})

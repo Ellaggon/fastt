@@ -1,4 +1,8 @@
-import { ratePlanCommandRepository } from "@/container"
+import {
+	ratePlanCommandRepository,
+	ratePlanPricingReadRepository,
+	variantManagementRepository,
+} from "@/container"
 import {
 	invalidateCalendarSurface,
 	invalidatePricing,
@@ -10,6 +14,7 @@ import { buildCompleteToPublishHref } from "@/lib/playbook/complete-to-publish"
 import { buildTourPlaybookHref } from "@/lib/playbook/launch-tour"
 import { validateRatePlanPublication } from "@/lib/rates/validateRatePlanPublication"
 import { routes } from "@/lib/routes"
+import { evaluateVariantReadiness, setVariantSalesEnabled } from "@/modules/catalog/public"
 import { getRatePlanById, resolveRatePlanOwnerContext } from "@/modules/pricing/public"
 
 type Input = {
@@ -62,6 +67,21 @@ export async function finalizeTourRate(input: Input) {
 		name: String(ratePlan.name ?? "Tarifa"),
 		description: ratePlan.description == null ? null : String(ratePlan.description),
 	})
+
+	try {
+		const readiness = await evaluateVariantReadiness(
+			{ repo: variantManagementRepository, pricingReadRepo: ratePlanPricingReadRepository },
+			{ variantId: input.variantId }
+		)
+		if (readiness.lifecycleState === "ready") {
+			await setVariantSalesEnabled(
+				{ repo: variantManagementRepository },
+				{ variantId: input.variantId, salesEnabled: true }
+			)
+		}
+	} catch (error) {
+		console.error("finalize-tour-rate:variant-sales", error)
+	}
 
 	invalidateAggregateCache({
 		providerId: input.providerId,
