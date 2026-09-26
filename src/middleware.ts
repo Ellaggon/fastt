@@ -1,5 +1,6 @@
 import type { MiddlewareHandler } from "astro"
 import { ensureAuthSessionForRequest } from "@/lib/auth/ensureAuthSession"
+import { sanitizeReturnTo } from "@/lib/auth/returnTo"
 import { buildWorkspaceRequestContext } from "@/lib/dashboard/workspaceRequestContext"
 import { createRequestId } from "@/lib/observability/performanceLog"
 import {
@@ -8,6 +9,7 @@ import {
 	summarizeCacheEvents,
 	type FasttRequestContext,
 } from "@/lib/observability/requestContext"
+import { isTransientDatabaseConnectivityError } from "@/shared/infrastructure/db/connectivity-error"
 
 /**
  * Response.redirect() (and some platform Responses) expose immutable headers.
@@ -77,17 +79,30 @@ export const onRequest: MiddlewareHandler = async (context, next) => {
 	}
 
 	return runWithRequestContext(requestContext, async () => {
-		const refreshedAuthCookies = await ensureAuthSessionForRequest(context.request)
-		const response = appendSetCookieHeaders(await next(), refreshedAuthCookies ?? [])
-		const totalMs = performance.now() - requestContext.startedAt
-		const cache = summarizeCacheEvents(requestContext.cacheEvents)
-		const observedResponse = withObservabilityHeaders(response, {
-			"X-Fastt-Region": currentRegion(),
-			"X-Fastt-Request-Id": requestContext.id,
-			"X-Fastt-Cache": cache.state,
-			"X-Fastt-Cache-Detail": cache.detail,
-		})
-		appendServerTiming(observedResponse, totalMs)
-		return observedResponse
+		try {
+			const refreshedAuthCookies = await ensureAuthSessionForRequest(context.request)
+			const response = appendSetCookieHeaders(await next(), refreshedAuthCookies ?? [])
+			const totalMs = performance.now() - requestContext.startedAt
+			const cache = summarizeCacheEvents(requestContext.cacheEvents)
+			const observedResponse = withObservabilityHeaders(response, {
+				"X-Fastt-Region": currentRegion(),
+				"X-Fastt-Request-Id": requestContext.id,
+				"X-Fastt-Cache": cache.state,
+				"X-Fastt-Cache-Detail": cache.detail,
+			})
+			appendServerTiming(observedResponse, totalMs)
+			return observedResponse
+		} catch (error) {
+			if (!isTransientDatabaseConnectivityError(error)) throw error
+			const url = new URL(context.request.url)
+			if (url.pathname === "/estado-servicio") throw error
+			console.error("[fastt] database connectivity", {
+				requestId: requestContext.id,
+				path: url.pathname,
+				code: error instanceof Error ? error.message : String(error),
+			})
+			const nextPath = sanitizeReturnTo(`${url.pathname}${url.search}`, "/")
+			return context.redirect(`/estado-servicio?next=${encodeURIComponent(nextPath)}`)
+		}
 	})
 }

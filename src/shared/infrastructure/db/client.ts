@@ -2,6 +2,7 @@ import { drizzle } from "drizzle-orm/postgres-js"
 import postgres from "postgres"
 
 import { getPostgresConnectionUrl, type PostgresConnectionMode } from "./env"
+import { preferIpv4Dns } from "./prefer-ipv4-dns"
 import * as schema from "./schema"
 
 type PostgresClientOptions = {
@@ -32,6 +33,7 @@ export function createPostgresSqlClient(options: PostgresClientOptions = {}) {
 	const existing = clients.get(key)
 	if (existing) return existing
 
+	preferIpv4Dns()
 	const sql = postgres(getPostgresConnectionUrl(resolved.mode), {
 		max: resolved.max,
 		prepare: false,
