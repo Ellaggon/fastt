@@ -51,9 +51,10 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 		if (offeringType === "tour" && body.intent === "early_booking") {
 			const existingRatePlans = await listRatePlansByProvider(providerId)
-			const hasMainRate = existingRatePlans.some(
-				(ratePlan) => String(ratePlan.variantId) === body.variantId && Boolean(ratePlan.isDefault)
-			)
+			const hasMainRate = existingRatePlans.some((ratePlan) => {
+				const row = ratePlan as { variantId?: unknown; isDefault?: unknown }
+				return String(row.variantId) === body.variantId && Boolean(row.isDefault)
+			})
 			if (!hasMainRate) {
 				return json(422, {
 					error:
