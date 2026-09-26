@@ -68,7 +68,7 @@ function initProductImagesForm() {
 		const total =
 			existingImages.length + pendingImages.filter((item) => item.state !== "error").length
 		const missing = Math.max(0, requiredImageCount - total)
-		if (continueButton && form.dataset.uploading !== "true") {
+		if (continueButton && form?.dataset.uploading !== "true") {
 			continueButton.disabled = missing > 0
 			continueButton.title =
 				missing > 0 ? `Agrega ${missing} foto${missing === 1 ? "" : "s"} más para continuar.` : ""
