@@ -73,7 +73,7 @@ const displayValue = (() => {
 
 	<div
 		id={`${id}-calendar-panel`}
-		class="absolute left-0 z-50 mt-2 hidden w-72 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl"
+		class="absolute left-0 z-[320] mt-2 hidden w-72 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl"
 		data-date-modal-panel
 		role="dialog"
 		aria-modal="false"
@@ -189,6 +189,42 @@ const displayValue = (() => {
 			let currentMonth = selected
 				? new Date(Date.UTC(selected.getUTCFullYear(), selected.getUTCMonth(), 1))
 				: new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1))
+			let panelAnchor = null
+
+			const positionPanel = () => {
+				const rect = trigger.getBoundingClientRect()
+				panel.style.position = "fixed"
+				panel.style.top = `${Math.round(rect.bottom + 8)}px`
+				panel.style.left = `${Math.round(rect.left)}px`
+				panel.style.width = `${Math.round(Math.max(rect.width, 288))}px`
+				panel.style.zIndex = "320"
+			}
+
+			const mountPanelPortal = () => {
+				if (!panelAnchor) {
+					panelAnchor = document.createComment("fastt-date-modal-anchor")
+					root.appendChild(panelAnchor)
+				}
+				if (panel.parentElement !== document.body) {
+					document.body.appendChild(panel)
+				}
+				positionPanel()
+			}
+
+			const unmountPanelPortal = () => {
+				panel.style.position = ""
+				panel.style.top = ""
+				panel.style.left = ""
+				panel.style.width = ""
+				panel.style.zIndex = ""
+				if (panel.parentElement === document.body && panelAnchor) {
+					panelAnchor.parentElement?.insertBefore(panel, panelAnchor.nextSibling)
+				}
+			}
+
+			const onViewportChange = () => {
+				if (!panel.classList.contains("hidden")) positionPanel()
+			}
 
 			const syncRequiredProxy = () => {
 				if (!(requiredProxy instanceof HTMLInputElement)) return
@@ -274,14 +310,22 @@ const displayValue = (() => {
 			const close = (restoreFocus = false) => {
 				panel.classList.add("hidden")
 				trigger.setAttribute("aria-expanded", "false")
+				window.removeEventListener("scroll", onViewportChange, true)
+				window.removeEventListener("resize", onViewportChange)
+				unmountPanelPortal()
 				if (restoreFocus) trigger.focus()
 			}
 			const open = () => {
+				mountPanelPortal()
 				panel.classList.remove("hidden")
 				trigger.setAttribute("aria-expanded", "true")
+				window.addEventListener("scroll", onViewportChange, true)
+				window.addEventListener("resize", onViewportChange)
+				render()
 			}
 
-			trigger.addEventListener("click", () => {
+			trigger.addEventListener("click", (event) => {
+				event.stopPropagation()
 				if (panel.classList.contains("hidden")) open()
 				else close()
 			})
@@ -308,7 +352,11 @@ const displayValue = (() => {
 			btnClose.addEventListener("click", () => close(true))
 
 			document.addEventListener("click", (event) => {
-				if (!root.contains(event.target)) close()
+				if (panel.classList.contains("hidden")) return
+				const target = event.target
+				if (!(target instanceof Node)) return
+				if (root.contains(target) || panel.contains(target)) return
+				close()
 			})
 			document.addEventListener("keydown", (event) => {
 				if (event.key === "Escape" && !panel.classList.contains("hidden")) close(true)

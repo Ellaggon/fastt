@@ -1,0 +1,579 @@
+---
+import { CalendarDays, ChevronDown, MapPin, SlidersHorizontal } from "@lucide/astro"
+
+import Button from "@/components/ui/Button.astro"
+
+type Props = {
+	compact?: boolean
+	destinationName?: string | null
+	startDate?: string
+	activeFilterCount?: number
+}
+
+const {
+	compact = false,
+	destinationName = null,
+	startDate = "",
+	activeFilterCount = 0,
+} = Astro.props as Props
+
+const departureLabel = (() => {
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) return "Cualquier fecha"
+	const date = new Date(`${startDate}T00:00:00.000Z`)
+	if (Number.isNaN(date.getTime())) return "Cualquier fecha"
+	return date.toLocaleDateString("es-BO", {
+		day: "numeric",
+		month: "short",
+		year: "numeric",
+		timeZone: "UTC",
+	})
+})()
+const destinationLabel = String(destinationName ?? "").trim() || "Cambiar destino"
+const filterLabel = activeFilterCount
+	? `${activeFilterCount} ${activeFilterCount === 1 ? "filtro" : "filtros"}`
+	: ""
+const summaryAriaLabel = filterLabel
+	? `Modificar búsqueda: ${destinationLabel}, ${departureLabel}, ${filterLabel}`
+	: `Modificar búsqueda: ${destinationLabel}, ${departureLabel}`
+---
+
+{
+	compact ? (
+		<details class="tour-search-disclosure" data-tour-search-disclosure>
+			<summary
+				class="tour-search-disclosure__summary"
+				aria-label={summaryAriaLabel}
+				data-tour-search-disclosure-toggle
+			>
+				<span class="tour-search-disclosure__summary-leading">
+					<span class="tour-search-disclosure__values" data-tour-search-disclosure-values>
+						<span class="tour-search-disclosure__item" data-search-origin="destination">
+							<MapPin class="h-4 w-4 shrink-0" aria-hidden="true" />
+							<span class="min-w-0 truncate">{destinationLabel}</span>
+						</span>
+						<span class="tour-search-disclosure__divider" aria-hidden="true" />
+						<span class="tour-search-disclosure__item" data-search-origin="date">
+							<CalendarDays class="h-4 w-4 shrink-0" aria-hidden="true" />
+							<span data-tour-search-disclosure-date-text>{departureLabel}</span>
+						</span>
+					</span>
+					<span
+						class="tour-search-disclosure__divider tour-search-disclosure__divider--before-filters"
+						aria-hidden="true"
+					/>
+					<span
+						class:list={[
+							"tour-search-disclosure__item",
+							"tour-search-disclosure__item--filters",
+							!filterLabel && "tour-search-disclosure__item--filters-icon-only",
+						]}
+						data-search-origin="filters"
+					>
+						<SlidersHorizontal
+							class="tour-search-disclosure__filters-origin-icon h-4 w-4 shrink-0"
+							aria-hidden="true"
+						/>
+						{filterLabel ? (
+							<span class="tour-search-disclosure__filters-label">{filterLabel}</span>
+						) : (
+							<span class="sr-only">Filtros</span>
+						)}
+						{activeFilterCount ? (
+							<span class="tour-search-disclosure__filters-badge md:hidden">
+								{activeFilterCount}
+							</span>
+						) : null}
+					</span>
+				</span>
+				<span class="tour-search-disclosure__action">
+					<span
+						class="tour-search-disclosure__action-text hidden md:inline-block"
+						data-tour-search-disclosure-action-text
+					>
+						Modificar búsqueda
+					</span>
+					<span class="tour-search-disclosure__submit-origin" data-search-origin="submit">
+						<ChevronDown class="h-4 w-4" aria-hidden="true" data-tour-search-disclosure-chevron />
+					</span>
+				</span>
+			</summary>
+
+			<div class="tour-search-disclosure__content" data-tour-search-disclosure-content>
+				<div class="tour-search-disclosure__content-inner">
+					<slot />
+					<div class="mt-2 flex justify-end">
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							data-search-collapse
+							className="min-h-11 gap-1.5 px-3 text-xs text-slate-600"
+						>
+							Contraer <ChevronDown class="h-3.5 w-3.5 rotate-180" aria-hidden="true" />
+						</Button>
+					</div>
+				</div>
+			</div>
+		</details>
+	) : (
+		<div class="mx-auto w-full">
+			<slot />
+		</div>
+	)
+}
+
+<style>
+	.tour-search-disclosure {
+		position: relative;
+		border: 1px solid rgb(226 232 240);
+		border-radius: 1rem;
+		background: rgb(255 255 255);
+		box-shadow: 0 14px 34px -28px rgb(15 23 42 / 0.5);
+		transition:
+			box-shadow 400ms ease,
+			border-color 400ms ease;
+	}
+
+	.tour-search-disclosure[open] {
+		border-color: rgb(203 213 225);
+		box-shadow: 0 18px 44px -24px rgb(15 23 42 / 0.24);
+	}
+
+	.tour-search-disclosure__summary {
+		display: flex;
+		min-height: 4rem;
+		cursor: pointer;
+		list-style: none;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+		padding: 0.75rem 1rem;
+		border-radius: inherit;
+		color: rgb(15 23 42);
+		transition:
+			background-color 180ms ease,
+			box-shadow 180ms ease;
+	}
+
+	.tour-search-disclosure__summary::-webkit-details-marker {
+		display: none;
+	}
+
+	.tour-search-disclosure[data-expanded="true"] > summary {
+		position: absolute;
+		inset: 0 0 auto;
+		opacity: 0;
+		pointer-events: none;
+	}
+
+	.tour-search-disclosure__summary:hover {
+		background: rgb(248 250 252);
+	}
+
+	.tour-search-disclosure__summary:focus-visible {
+		outline: 2px solid var(--fastt-color-selection);
+		outline-offset: -2px;
+	}
+
+	.tour-search-disclosure__summary-leading,
+	.tour-search-disclosure__values,
+	.tour-search-disclosure__item,
+	.tour-search-disclosure__action {
+		display: inline-flex;
+		align-items: center;
+	}
+
+	.tour-search-disclosure__summary-leading {
+		min-width: 0;
+		flex: 1;
+		gap: 1rem;
+	}
+
+	.tour-search-disclosure__values {
+		min-width: 0;
+		gap: 1rem;
+		font-size: 0.875rem;
+		font-weight: 600;
+	}
+
+	.tour-search-disclosure__item {
+		min-width: 0;
+		gap: 0.4375rem;
+		white-space: nowrap;
+	}
+
+	.tour-search-disclosure__item svg {
+		color: rgb(71 85 105);
+	}
+
+	.tour-search-disclosure__item--filters-icon-only {
+		color: rgb(100 116 139);
+	}
+
+	.tour-search-disclosure__filters-origin-icon {
+		transition: transform 320ms cubic-bezier(0.16, 1, 0.3, 1);
+	}
+
+	.tour-search-disclosure__summary:hover .tour-search-disclosure__filters-origin-icon {
+		transform: rotate(-10deg) scale(1.05);
+	}
+
+	.tour-search-disclosure__submit-origin {
+		display: inline-flex;
+		align-items: center;
+	}
+
+	.tour-search-disclosure__divider {
+		width: 1px;
+		height: 1.25rem;
+		background: rgb(226 232 240);
+	}
+
+	.tour-search-disclosure__item--filters {
+		position: relative;
+	}
+
+	.tour-search-disclosure__filters-badge {
+		position: absolute;
+		top: -0.4rem;
+		right: -0.45rem;
+		display: inline-flex;
+		min-width: 1rem;
+		height: 1rem;
+		align-items: center;
+		justify-content: center;
+		border-radius: 9999px;
+		background: rgb(15 23 42);
+		padding-inline: 0.25rem;
+		font-size: 0.625rem;
+		font-weight: 700;
+		line-height: 1;
+		color: rgb(255 255 255);
+	}
+
+	.tour-search-disclosure__action {
+		flex-shrink: 0;
+		gap: 0.5rem;
+		color: rgb(51 65 85);
+		font-size: 0.8125rem;
+		font-weight: 700;
+	}
+
+	.tour-search-disclosure__action svg {
+		transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+	}
+
+	.tour-search-disclosure[open] .tour-search-disclosure__summary {
+		border-radius: 1rem 1rem 0 0;
+		box-shadow: inset 0 -1px 0 rgb(226 232 240);
+		background: rgb(248 250 252 / 0.72);
+	}
+
+	.tour-search-disclosure[open] .tour-search-disclosure__action svg {
+		transform: rotate(180deg);
+	}
+
+	:global(.tour-search-filters-control[data-tour-filters-toggle].is-filter-reveal) {
+		animation: tour-search-filter-control-reveal 640ms cubic-bezier(0.16, 1, 0.3, 1);
+	}
+
+	:global(
+		.tour-search-filters-control[data-tour-filters-toggle].is-filter-reveal svg:first-of-type
+	) {
+		animation: tour-search-filter-icon-reveal 640ms cubic-bezier(0.16, 1, 0.3, 1);
+	}
+
+	@keyframes tour-search-filter-control-reveal {
+		0% {
+			box-shadow: 0 0 0 0 rgb(59 130 246 / 0.28);
+		}
+		40% {
+			box-shadow: 0 0 0 5px rgb(59 130 246 / 0.12);
+		}
+		100% {
+			box-shadow: 0 0 0 0 rgb(59 130 246 / 0);
+		}
+	}
+
+	@keyframes tour-search-filter-icon-reveal {
+		0% {
+			transform: rotate(-22deg) scale(0.82);
+		}
+		55% {
+			transform: rotate(6deg) scale(1.08);
+		}
+		100% {
+			transform: rotate(0deg) scale(1);
+		}
+	}
+
+	.tour-search-disclosure[open] .tour-search-disclosure__content {
+		overflow: visible;
+	}
+
+	.tour-search-disclosure[open] .tour-search-disclosure__content-inner {
+		overflow: visible;
+	}
+
+	.tour-search-disclosure__content {
+		overflow: hidden;
+	}
+
+	.tour-search-disclosure__content-inner {
+		padding: 1rem;
+	}
+
+	@media (min-width: 40rem) {
+		.tour-search-disclosure__content-inner {
+			padding: 1.25rem;
+		}
+	}
+
+	@media (max-width: 40rem) {
+		.tour-search-disclosure__summary {
+			align-items: center;
+			padding: 0.875rem;
+		}
+
+		.tour-search-disclosure__summary-leading {
+			flex: 1;
+			min-width: 0;
+			gap: 0.625rem;
+		}
+
+		.tour-search-disclosure__values {
+			flex-wrap: wrap;
+			gap: 0.375rem 0.625rem;
+		}
+
+		.tour-search-disclosure__divider,
+		.tour-search-disclosure__divider--before-filters {
+			display: none;
+		}
+
+		.tour-search-disclosure__filters-label {
+			position: absolute;
+			width: 1px;
+			height: 1px;
+			overflow: hidden;
+			clip: rect(0, 0, 0, 0);
+			white-space: nowrap;
+		}
+
+		.tour-search-disclosure__item--filters {
+			flex-shrink: 0;
+			margin-left: auto;
+		}
+
+		.tour-search-disclosure__action {
+			flex-shrink: 0;
+			padding-top: 0;
+		}
+	}
+
+	@media (min-width: 40rem) {
+		.tour-search-disclosure__filters-badge {
+			display: none;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.tour-search-disclosure,
+		.tour-search-disclosure__summary,
+		.tour-search-disclosure__action svg,
+		.tour-search-disclosure__filters-origin-icon {
+			transition: none;
+		}
+
+		:global(.tour-search-filters-control[data-tour-filters-toggle].is-filter-reveal),
+		:global(
+			.tour-search-filters-control[data-tour-filters-toggle].is-filter-reveal svg:first-of-type
+		) {
+			animation: none;
+		}
+	}
+</style>
+
+<script>
+	function bindTourSearchDisclosure() {
+		document.querySelectorAll("[data-tour-search-disclosure]").forEach((root) => {
+			if (!(root instanceof HTMLDetailsElement) || root.dataset.bound === "true") return
+			const summary = root.querySelector("[data-tour-search-disclosure-toggle]")
+			const content = root.querySelector("[data-tour-search-disclosure-content]")
+			const actionText = root.querySelector("[data-tour-search-disclosure-action-text]")
+			const collapse = root.querySelector("[data-search-collapse]")
+			if (!(summary instanceof HTMLElement) || !(content instanceof HTMLElement)) return
+			root.dataset.bound = "true"
+			let animation: Animation | null = null
+			let fieldAnimations: Animation[] = []
+			let expanded = root.dataset.expanded === "true" || root.open
+			const originalLabel = summary.getAttribute("aria-label") ?? "Modificar búsqueda"
+
+			const updateLabel = () => {
+				if (actionText) actionText.textContent = expanded ? "Cerrar búsqueda" : "Modificar búsqueda"
+				summary.setAttribute(
+					"aria-label",
+					expanded ? "Cerrar formulario de búsqueda" : originalLabel
+				)
+			}
+			const settle = () => {
+				root.open = expanded
+				root.dataset.expanded = String(expanded)
+				summary.inert = expanded
+				root.style.overflow = ""
+				content.style.overflow = ""
+				content.inert = false
+				updateLabel()
+			}
+
+			const revealFilterControl = (field: HTMLElement) => {
+				const toggle = field.querySelector<HTMLElement>("[data-tour-filters-toggle]")
+				if (!toggle) return
+				toggle.classList.remove("is-filter-reveal")
+				void toggle.offsetWidth
+				toggle.classList.add("is-filter-reveal")
+				window.setTimeout(() => toggle.classList.remove("is-filter-reveal"), 700)
+			}
+
+			const animateSearchField = (
+				field: HTMLElement,
+				origin: HTMLElement,
+				opening: boolean,
+				index: number
+			) => {
+				const from = origin.getBoundingClientRect()
+				const to = field.getBoundingClientRect()
+				const kind = field.dataset.searchField ?? ""
+				const isFilters = kind === "filters"
+				const scale = isFilters ? 0.88 : 0.96
+				const compactFrame = {
+					transform: `translate(${from.left - to.left}px, ${from.top - to.top}px) scale(${scale})`,
+					opacity: 0,
+				}
+				const expandedFrame = { transform: "translate(0, 0) scale(1)", opacity: 1 }
+				field.style.transformOrigin = isFilters ? "center center" : "top left"
+				const motion = field.animate(
+					opening ? [compactFrame, expandedFrame] : [expandedFrame, compactFrame],
+					{
+						duration: opening ? (isFilters ? 480 : 420) : 260,
+						delay: opening ? index * 28 + (isFilters ? 10 : 0) : 0,
+						easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+						fill: "both",
+					}
+				)
+				if (isFilters && opening) {
+					const originIcon = origin.querySelector("svg")
+					originIcon?.animate(
+						[
+							{ transform: "rotate(0deg) scale(1)", opacity: 1 },
+							{ transform: "rotate(12deg) scale(0.72)", opacity: 0.35 },
+						],
+						{
+							duration: 360,
+							delay: index * 28 + 10,
+							easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+							fill: "forwards",
+						}
+					)
+					void motion.finished.then(() => revealFilterControl(field))
+				}
+				return motion
+			}
+
+			const runSearchMotion = () => {
+				const startHeight = root.getBoundingClientRect().height
+				if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+					animation = null
+					settle()
+					if (expanded)
+						root
+							.querySelector<HTMLInputElement>("#destinationInput")
+							?.focus({ preventScroll: true })
+					else summary.focus({ preventScroll: true })
+					return
+				}
+				// Keep details open during closing so height can animate; restore
+				// natural height and visible overflow afterwards for autocomplete.
+				root.open = true
+				const endHeight = expanded
+					? root.getBoundingClientRect().height
+					: summary.getBoundingClientRect().height + 2
+				root.style.overflow = "hidden"
+				content.style.overflow = "visible"
+				content.inert = false
+				if (expanded)
+					root.querySelector<HTMLInputElement>("#destinationInput")?.focus({ preventScroll: true })
+				else summary.focus({ preventScroll: true })
+				root.querySelectorAll<HTMLElement>("[data-search-field]").forEach((field, index) => {
+					const origin = root.querySelector<HTMLElement>(
+						`[data-search-origin="${field.dataset.searchField}"]`
+					)
+					if (!origin) return
+					fieldAnimations.push(animateSearchField(field, origin, expanded, index))
+				})
+				animation = root.animate([{ height: `${startHeight}px` }, { height: `${endHeight}px` }], {
+					duration: expanded ? 500 : 300,
+					easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+					fill: "both",
+				})
+				const currentAnimation = animation
+				animation.onfinish = () => {
+					if (animation !== currentAnimation) return
+					currentAnimation.cancel()
+					fieldAnimations.forEach((motion) => motion.cancel())
+					fieldAnimations = []
+					animation = null
+					settle()
+				}
+			}
+
+			const setSearchExpanded = (next: boolean, event?: Event) => {
+				event?.preventDefault()
+				if (next === expanded) return
+				animation?.cancel()
+				fieldAnimations.forEach((motion) => motion.cancel())
+				fieldAnimations = []
+				root.querySelectorAll('[data-search-origin="filters"] svg').forEach((icon) => {
+					if (!(icon instanceof SVGElement)) return
+					icon.getAnimations().forEach((motion) => motion.cancel())
+					icon.style.transform = ""
+					icon.style.opacity = ""
+				})
+				root.querySelectorAll(".is-filter-reveal").forEach((node) => {
+					node.classList.remove("is-filter-reveal")
+				})
+				expanded = next
+				if (expanded) {
+					root.dataset.expanded = "true"
+				} else {
+					root.dataset.expanded = "false"
+					summary.inert = false
+				}
+				updateLabel()
+				runSearchMotion()
+			}
+
+			const toggleSearch = (event: Event) => {
+				setSearchExpanded(!expanded, event)
+			}
+
+			const collapseSearch = (event: Event) => {
+				event.stopPropagation()
+				if (!expanded) return
+				setSearchExpanded(false, event)
+			}
+			summary.addEventListener("click", toggleSearch)
+			collapse?.addEventListener("click", collapseSearch)
+
+			root.addEventListener("toggle", () => {
+				if (animation) return
+				expanded = root.open
+				root.dataset.expanded = String(expanded)
+				summary.inert = expanded
+				updateLabel()
+			})
+		})
+	}
+	bindTourSearchDisclosure()
+	document.addEventListener("astro:page-load", bindTourSearchDisclosure)
+</script>
