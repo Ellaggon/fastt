@@ -1,9 +1,10 @@
 ---
 interface Props {
 	items: { name: string; href: string; current?: boolean }[]
+	tone?: "light" | "dark"
 }
 
-const { items } = Astro.props
+const { items, tone = "dark" } = Astro.props
 ---
 
 <nav aria-label="Breadcrumb" class="hidden md:block">
@@ -29,7 +30,10 @@ const { items } = Astro.props
 						href={item.href}
 						class:list={[
 							"transition-colors hover:text-slate-950 hover:underline",
-							{ "pointer-events-none text-neutral-100": item.current },
+							{
+								"pointer-events-none text-slate-950": item.current && tone === "light",
+								"pointer-events-none text-neutral-100": item.current && tone === "dark",
+							},
 						]}
 						aria-current={item.current ? "page" : undefined}
 					>
