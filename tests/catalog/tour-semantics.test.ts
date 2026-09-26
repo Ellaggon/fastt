@@ -6,6 +6,7 @@ import {
 	bookingDatesToTourDeparture,
 	daysBeforeArrivalAsDaysBeforeDeparture,
 	durationMinutesMatchesBucket,
+	formatTourDuration,
 	isTourSlotKind,
 	normalizeTourDurationBucket,
 	parseDurationMinutes,
@@ -50,6 +51,14 @@ describe("tour semantics mapping contract", () => {
 		expect(parseDurationMinutes("3 Días")).toBe(4320)
 		expect(parseDurationMinutes("90 minutos")).toBe(90)
 		expect(parseDurationMinutes("")).toBeNull()
+	})
+
+	it("formats one canonical public duration without repeating raw data", () => {
+		expect(formatTourDuration({ duration: "4", durationMinutes: 240 })).toBe("4 horas")
+		expect(formatTourDuration({ durationMinutes: 90 })).toBe("1 h 30 min")
+		expect(formatTourDuration({ duration: "45 minutos" })).toBe("45 min")
+		expect(formatTourDuration({ duration: "Jornada completa" })).toBe("Jornada completa")
+		expect(formatTourDuration({})).toBeNull()
 	})
 
 	it("matches duration filter buckets", () => {

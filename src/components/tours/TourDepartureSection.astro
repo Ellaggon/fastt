@@ -1,9 +1,10 @@
 ---
 import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
 import Input from "@/components/ui/Input.astro"
 import Notice from "@/components/ui/Notice.astro"
 import Textarea from "@/components/ui/Textarea.astro"
-import { Clock, Users } from "@lucide/astro"
+import { CalendarDays, ChevronDown, Clock, Users } from "@lucide/astro"
 
 const {
 	offers = [],
@@ -11,10 +12,12 @@ const {
 	searchState,
 	productId,
 	ticketTypes = [],
-	priceBreakdown = null,
 	alternativeDates = [],
 	previewMode = false,
+	layout = "default",
 } = Astro.props
+
+const isRail = layout === "rail"
 
 function ratePlanIdOf(ratePlan: any): string {
 	return String(ratePlan?.ratePlanId ?? ratePlan?.id ?? "").trim()
@@ -36,108 +39,151 @@ const activeTickets = (Array.isArray(ticketTypes) ? ticketTypes : []).filter(
 	(t: any) => t?.isActive !== false
 )
 const quantities = searchState?.quantities ?? { adult: 1, child: 0, infant: 0, custom: 0 }
-const occupancyDetail = searchState?.occupancyDetail ?? { adults: 1, children: 0, infants: 0 }
 const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
+const hasSearchedDeparture = Boolean(String(searchState?.departureDate ?? "").trim())
+const initialGroupSummary = (() => {
+	const parts = activeTickets
+		.map((ticket: any) => {
+			const code = String(ticket.code ?? "")
+			const quantity = Number(quantities[code] ?? (code === "adult" ? 1 : 0)) || 0
+			if (quantity < 1) return ""
+			return `${quantity} ${String(ticket.label ?? code).toLowerCase()}${quantity === 1 ? "" : "s"}`
+		})
+		.filter(Boolean)
+	return parts.join(" · ") || "Elige participantes"
+})()
 ---
 
 <section
-	class="fastt-workspace-panel space-y-5 p-4 md:p-6"
+	class:list={["fastt-workspace-panel space-y-5", isRail ? "p-4 sm:p-5" : "p-4 md:p-6"]}
 	data-tour-booking-root={previewMode ? undefined : ""}
+	data-selection-state={hasSearchedDeparture ? "ready" : "needs-search"}
 	data-product-id={productId}
 	data-ticket-types={JSON.stringify(activeTickets)}
 	data-initial-variant-id={String(searchState?.selectedVariantId ?? "")}
 	data-initial-rate-plan-id={String(searchState?.selectedRatePlanId ?? "")}
 >
-	<header class="flex flex-wrap items-end justify-between gap-4">
-		<div>
-			<span class="block text-xs font-semibold uppercase tracking-wide text-slate-500">
-				Reserva tu experiencia
-			</span>
-			<h2 class="mt-1 text-2xl font-semibold text-slate-950">Salidas disponibles</h2>
-			<p class="mt-2 max-w-xl text-sm text-slate-600">
-				Elige fecha, grupo y opción. Las condiciones se actualizan para la tarifa seleccionada.
+	<header>
+		<span class="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+			Reserva tu experiencia
+		</span>
+		<h2 id="tourBookingHeading" class="mt-1 text-2xl font-semibold text-slate-950">
+			Elige fecha y salida
+		</h2>
+		<p class="mt-2 max-w-xl text-sm leading-6 text-slate-600">
+			Primero consulta disponibilidad. Después elige una opción y revisa sus condiciones antes de
+			reservar cupo.
+		</p>
+	</header>
+
+	<Card
+		variant="plain"
+		aria-labelledby="tourSearchStep"
+		class="border border-slate-200 bg-slate-50/70 p-3.5"
+	>
+		<div class="flex items-center justify-between gap-3">
+			<h3 id="tourSearchStep" class="text-sm font-semibold text-slate-950">
+				<span class="mr-2 text-orange-700">1.</span>Fecha y grupo
+			</h3>
+			<p id="tourGroupSummary" class="text-right text-xs font-medium text-slate-600">
+				{initialGroupSummary}
 			</p>
 		</div>
-		<div class="grid w-full gap-2 sm:grid-cols-2 lg:flex lg:w-auto lg:flex-wrap lg:items-end">
+		<div
+			class:list={[
+				"mt-3 grid w-full gap-2",
+				isRail ? "grid-cols-1" : "sm:grid-cols-[minmax(11rem,0.8fr)_minmax(14rem,1.2fr)_auto]",
+			]}
+		>
 			<div class="flex flex-col gap-1">
-				<label class="text-xs text-slate-500" for="tourDepartureDate">Fecha de salida</label>
+				<label class="text-xs font-medium text-slate-600" for="tourDepartureDate">
+					<span class="inline-flex items-center gap-1"
+						><CalendarDays class="size-3.5" aria-hidden="true" /> Fecha de salida</span
+					>
+				</label>
 				<Input
 					id="tourDepartureDate"
 					type="date"
 					value={String(searchState?.departureDate ?? "")}
-					class="lg:w-[160px]"
 				/>
 			</div>
-			{
-				(activeTickets.length ? activeTickets : [{ code: "adult", label: "Adulto" }]).map(
-					(ticket: any) => {
-						const code = String(ticket.code)
-						const value = Number(quantities[code] ?? (code === "adult" ? 1 : 0)) || 0
-						return (
-							<div class="flex flex-col gap-1">
-								<label class="text-xs text-slate-500" for={`tourQty_${code}`}>
-									{String(ticket.label ?? code)}
-									{ticket.minAge != null || ticket.maxAge != null ? (
-										<span class="text-slate-400">
-											{" "}
-											({ticket.minAge != null ? ticket.minAge : "—"}–
-											{ticket.maxAge != null ? ticket.maxAge : "—"})
-										</span>
-									) : null}
-								</label>
-								<Input
-									id={`tourQty_${code}`}
-									type="number"
-									min="0"
-									value={String(value)}
-									class="lg:w-[110px]"
-									data-ticket-qty={code}
-								/>
-							</div>
+			<details
+				class="fastt-soft-box tour-group-disclosure group border border-slate-300 bg-white"
+				data-tour-group-disclosure
+			>
+				<summary
+					class="flex h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 text-sm text-slate-900 marker:hidden"
+				>
+					<span class="inline-flex items-center gap-2"
+						><Users class="size-4 text-slate-500" aria-hidden="true" /> Grupo</span
+					>
+					<span class="inline-flex items-center gap-2 text-xs font-medium text-slate-600">
+						<span data-group-summary-copy>{initialGroupSummary}</span>
+						<ChevronDown
+							class="size-4 transition-transform duration-200 group-open:rotate-180"
+							aria-hidden="true"
+						/>
+					</span>
+				</summary>
+				<div
+					class="tour-group-disclosure__content grid gap-3 border-t border-slate-200 p-3 sm:grid-cols-2"
+					data-tour-group-content
+				>
+					{
+						(activeTickets.length ? activeTickets : [{ code: "adult", label: "Adulto" }]).map(
+							(ticket: any) => {
+								const code = String(ticket.code)
+								const value = Number(quantities[code] ?? (code === "adult" ? 1 : 0)) || 0
+								return (
+									<div class="flex flex-col gap-1">
+										<label class="text-xs font-medium text-slate-600" for={`tourQty_${code}`}>
+											{String(ticket.label ?? code)}
+											{ticket.minAge != null || ticket.maxAge != null ? (
+												<span class="text-slate-400">
+													{" "}
+													({ticket.minAge != null ? ticket.minAge : "—"}–
+													{ticket.maxAge != null ? ticket.maxAge : "—"})
+												</span>
+											) : null}
+										</label>
+										<Input
+											id={`tourQty_${code}`}
+											type="number"
+											min="0"
+											value={String(value)}
+											data-ticket-qty={code}
+										/>
+									</div>
+								)
+							}
 						)
 					}
-				)
-			}
-			<Button type="button" id="tourSearchBtn" variant="secondary" disabled={previewMode}>
-				Actualizar precio
+				</div>
+			</details>
+			<Button
+				type="button"
+				id="tourSearchBtn"
+				variant="secondary"
+				class={isRail ? "w-full" : "self-end"}
+				disabled={previewMode}
+			>
+				Ver salidas
 			</Button>
 		</div>
-	</header>
-
-	{
-		priceBreakdown?.rows?.length ? (
-			<div class="fastt-soft-box rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-4">
-				<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-					Participantes seleccionados
-				</p>
-				<ul class="mt-3 space-y-2 text-sm text-slate-700">
-					{priceBreakdown.rows.map((row: any) => (
-						<li class="flex items-center justify-between gap-3 border-b border-slate-100 pb-2 last:border-0 last:pb-0">
-							<span>
-								{row.quantity}× {row.label}
-								{row.inheritsAdultPricing ? (
-									<span class="ml-1 text-xs text-slate-400">(tarifa de adulto)</span>
-								) : null}
-							</span>
-							<span class="font-medium text-slate-950">
-								{row.lineTotal != null ? row.lineTotal : "—"}
-							</span>
-						</li>
-					))}
-				</ul>
-				<p class="mt-3 text-xs leading-5 text-slate-500">
-					El total y los cargos se confirmarán para la opción y el grupo que elijas.
-				</p>
-			</div>
-		) : null
-	}
+	</Card>
 
 	{
 		(offers ?? []).length === 0 ? (
-			<div>
-				<p class="text-sm text-slate-600">
-					Elige una fecha y participantes para revisar las salidas. Si no hay cupo, prueba otra
-					fecha o un grupo menor.
+			<Card variant="plain" class="border border-dashed border-slate-300 p-4" data-offer-panel>
+				<p class="text-sm font-medium text-slate-800">
+					{hasSearchedDeparture
+						? "No hay salidas con cupo para esta fecha y grupo."
+						: "Elige fecha y grupo para consultar las salidas disponibles."}
+				</p>
+				<p class="mt-1 text-sm leading-6 text-slate-600">
+					{hasSearchedDeparture
+						? "Prueba otra fecha o reduce el grupo."
+						: "Los precios y condiciones se calculan para la búsqueda que realices."}
 				</p>
 				{alternativeDates.length ? (
 					<Notice title="Próximas fechas con cupo" class="mt-3">
@@ -153,147 +199,180 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 						</div>
 					</Notice>
 				) : null}
-			</div>
+			</Card>
 		) : (
-			<ul class="grid gap-3 md:grid-cols-2">
-				{(offers ?? []).map((offer: any) => {
-					const variantId = String(offer?.variantId ?? offer?.variant?.id ?? "")
-					const slot = slotsByVariantId?.[variantId] ?? {}
-					const name = String(slot.name ?? offer?.variant?.name ?? "Salida")
-					const time = String(slot.departureTime ?? "—")
-					const lang = String(slot.languageCode ?? "").toUpperCase()
-					const isPrivate = String(slot.bookingMode ?? "").toLowerCase() === "private"
-					const mode = isPrivate ? "Privado" : "Compartido"
-					const maxPax = Number(slot.maxPax ?? offer?.variant?.capacity?.maxOccupancy ?? 0) || null
-					const ratePlans = Array.isArray(offer?.ratePlans) ? offer.ratePlans : []
-					const firstPlan = ratePlans[0]
-					const ratePlanId = ratePlanIdOf(firstPlan)
-					const price = firstPlan ? priceOf(firstPlan) : null
-					const currency = firstPlan ? currencyOf(firstPlan) : "USD"
-					return (
-						<li
-							class="fastt-card rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-5"
-							data-tour-offer
-							data-variant-id={variantId}
-							data-rateplan-id={ratePlanId}
-							data-booking-mode={isPrivate ? "private" : "shared"}
-						>
-							<div class="flex items-start justify-between gap-3">
-								<div>
-									<p class="text-base font-semibold text-slate-950">{name}</p>
-									<p class="mt-1 flex flex-wrap items-center gap-3 text-sm text-slate-600">
-										<span class="inline-flex items-center gap-1">
-											<Clock class="h-3.5 w-3.5" />
-											{time}
-										</span>
-										{maxPax ? (
+			<section data-offer-panel aria-labelledby="tourOfferStep">
+				<div class="mb-3 flex items-end justify-between gap-4">
+					<div>
+						<h3 id="tourOfferStep" class="text-sm font-semibold text-slate-950">
+							<span class="mr-2 text-orange-700">2.</span>Elige una opción
+						</h3>
+						<p class="mt-1 text-xs leading-5 text-slate-600">
+							Precios para la fecha y el grupo consultados.
+						</p>
+					</div>
+					<p id="tourResultsState" class="text-right text-xs text-slate-500" aria-live="polite">
+						{hasSearchedDeparture
+							? "Elige una tarifa para ver condiciones."
+							: "Consulta pendiente."}
+					</p>
+				</div>
+				<ul class:list={["grid gap-3", !isRail && "md:grid-cols-2"]}>
+					{(offers ?? []).map((offer: any) => {
+						const variantId = String(offer?.variantId ?? offer?.variant?.id ?? "")
+						const slot = slotsByVariantId?.[variantId] ?? {}
+						const name = String(slot.name ?? offer?.variant?.name ?? "Salida")
+						const time = String(slot.departureTime ?? "—")
+						const lang = String(slot.languageCode ?? "").toUpperCase()
+						const isPrivate = String(slot.bookingMode ?? "").toLowerCase() === "private"
+						const mode = isPrivate ? "Privado" : "Compartido"
+						const maxPax =
+							Number(slot.maxPax ?? offer?.variant?.capacity?.maxOccupancy ?? 0) || null
+						const ratePlans = Array.isArray(offer?.ratePlans) ? offer.ratePlans : []
+						const firstPlan = ratePlans[0]
+						const ratePlanId = ratePlanIdOf(firstPlan)
+						const price = firstPlan ? priceOf(firstPlan) : null
+						const currency = firstPlan ? currencyOf(firstPlan) : "USD"
+						return (
+							<li
+								class="tour-offer-card fastt-card rounded-xl border border-slate-200 bg-white p-4 transition-[border-color,box-shadow,transform] duration-200"
+								data-tour-offer
+								data-variant-id={variantId}
+								data-rateplan-id={ratePlanId}
+								data-booking-mode={isPrivate ? "private" : "shared"}
+							>
+								<div class="flex items-start justify-between gap-3">
+									<div>
+										<p class="text-base font-semibold text-slate-950">{name}</p>
+										<p class="mt-1 flex flex-wrap items-center gap-3 text-sm text-slate-600">
 											<span class="inline-flex items-center gap-1">
-												<Users class="h-3.5 w-3.5" />
-												Hasta {maxPax} cupos
+												<Clock class="h-3.5 w-3.5" />
+												{time}
 											</span>
-										) : null}
-										{lang ? <span>{lang}</span> : null}
-										<span>{mode}</span>
-									</p>
+											{maxPax ? (
+												<span class="inline-flex items-center gap-1">
+													<Users class="h-3.5 w-3.5" />
+													Hasta {maxPax} cupos
+												</span>
+											) : null}
+											{lang ? <span>{lang}</span> : null}
+											<span>{mode}</span>
+										</p>
+									</div>
+									{!isPrivate && price != null ? (
+										<p class="text-right text-sm font-semibold text-slate-950">
+											{currency} {price}
+											<span class="block text-xs font-normal text-slate-500">para este grupo</span>
+										</p>
+									) : isPrivate ? (
+										<p class="text-right text-sm font-semibold text-slate-950">
+											A cotizar
+											<span class="block font-normal text-slate-500">salida privada</span>
+										</p>
+									) : null}
 								</div>
-								{!isPrivate && price != null ? (
-									<p class="text-right text-sm font-semibold text-slate-950">
-										{currency} {price}
-										<span class="block font-normal text-slate-500">
-											precio inicial · confirma el total
-										</span>
-									</p>
-								) : isPrivate ? (
-									<p class="text-right text-sm font-semibold text-slate-950">
-										A cotizar
-										<span class="block font-normal text-slate-500">salida privada</span>
-									</p>
-								) : null}
-							</div>
-							<div class="mt-4 flex flex-wrap gap-2">
-								{isPrivate ? (
-									<button
-										type="button"
-										class="fastt-button rounded-[var(--fastt-radius-control)] border border-slate-950 bg-slate-950 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800"
-										data-quote-private-variant={variantId}
-										disabled={previewMode}
-									>
-										Cotizar salida privada
-									</button>
-								) : (
-									ratePlans.map((rp: any) => {
-										const id = ratePlanIdOf(rp)
-										const rpPrice = priceOf(rp)
-										if (!id) return null
-										return (
-											<button
-												type="button"
-												class="fastt-button rounded-[var(--fastt-radius-control)] border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-												data-select-variant-id={variantId}
-												data-select-rateplan-id={id}
-												aria-pressed="false"
-												disabled={previewMode}
-											>
-												{String(rp.ratePlanName ?? rp.name ?? "Tarifa")}
-												{rpPrice != null ? ` · ${currencyOf(rp)} ${rpPrice}` : ""}
-											</button>
-										)
-									})
-								)}
-							</div>
-						</li>
-					)
-				})}
-			</ul>
+								<div class="mt-4 grid gap-2">
+									{isPrivate ? (
+										<button
+											type="button"
+											class="fastt-button w-full rounded-[var(--fastt-radius-control)] border border-slate-950 bg-slate-950 px-3 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
+											data-quote-private-variant={variantId}
+											disabled={previewMode || !hasSearchedDeparture}
+										>
+											Cotizar salida privada
+										</button>
+									) : (
+										ratePlans.map((rp: any) => {
+											const id = ratePlanIdOf(rp)
+											const rpPrice = priceOf(rp)
+											if (!id) return null
+											return (
+												<button
+													type="button"
+													class="fastt-button flex w-full items-center justify-between rounded-[var(--fastt-radius-control)] border border-slate-200 px-3 py-2.5 text-left text-sm font-semibold text-slate-800 hover:border-slate-400 hover:bg-slate-50 aria-pressed:border-slate-950 aria-pressed:bg-slate-950 aria-pressed:text-white"
+													data-select-variant-id={variantId}
+													data-select-rateplan-id={id}
+													data-option-label={`${name} · ${String(rp.ratePlanName ?? rp.name ?? "Tarifa")}`}
+													data-option-price={rpPrice ?? ""}
+													data-option-currency={currencyOf(rp)}
+													aria-pressed="false"
+													disabled={previewMode || !hasSearchedDeparture}
+												>
+													<span>{String(rp.ratePlanName ?? rp.name ?? "Tarifa")}</span>
+													<span class="text-xs font-medium opacity-80">
+														{rpPrice != null ? `${currencyOf(rp)} ${rpPrice}` : "Consultar"}
+													</span>
+												</button>
+											)
+										})
+									)}
+								</div>
+							</li>
+						)
+					})}
+				</ul>
+			</section>
 		)
 	}
 
 	<div
 		id="tourSharedCheckout"
-		class="fastt-soft-box rounded-[var(--fastt-radius-card)] border border-slate-200 bg-slate-50 p-4"
+		class="tour-selection-panel fastt-soft-box rounded-xl border border-slate-200 bg-slate-50 p-4"
 	>
 		{
 			previewMode ? (
-				<Notice title="Reservas desactivadas en vista previa">
+				<Notice title="Reservas desactivadas en vista previa" data-preview-booking-disabled>
 					Publica el tour para habilitar cotizaciones, holds y checkout en esta misma ficha.
 				</Notice>
 			) : (
 				<>
-					<p class="text-xs text-slate-500">
-						Participantes: {occupancyDetail.adults} adultos · {occupancyDetail.children} niños ·{" "}
-						{occupancyDetail.infants} infantes · cupo {cupoUnits}
-					</p>
-					<p id="tourHoldStatus" class="mt-2 text-sm text-slate-700" aria-live="polite">
-						Selecciona una tarifa para reservar cupo.
+					<div class="flex items-center justify-between gap-3">
+						<p class="text-sm font-semibold text-slate-950">
+							<span class="mr-2 text-orange-700">3.</span>Revisa y reserva
+						</p>
+						<p class="text-xs text-slate-500">Cupo: {cupoUnits}</p>
+					</div>
+					<p
+						id="tourHoldStatus"
+						class="mt-2 text-sm leading-6 text-slate-700"
+						role="status"
+						aria-live="polite"
+					>
+						Selecciona una tarifa para revisar el precio y las condiciones aplicables.
 					</p>
 					<div
 						id="tourSelectionSummary"
-						class="fastt-card mt-3 hidden rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700"
+						class="tour-selection-summary fastt-card mt-4 hidden rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-700"
 						aria-live="polite"
 					>
-						<p id="tourSelectionConfirmation" class="font-semibold text-slate-950" />
-						<dl class="mt-3 grid gap-3 border-t border-slate-100 pt-3 sm:grid-cols-2">
+						<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">Tu selección</p>
+						<p id="tourSelectionConfirmation" class="mt-1 font-semibold text-slate-950" />
+						<p id="tourSelectionPrice" class="mt-3 text-lg font-semibold text-slate-950" />
+						<p id="tourSelectionPriceHint" class="mt-1 text-xs leading-5 text-slate-500" />
+						<dl class="mt-4 grid gap-4 border-t border-slate-100 pt-4">
 							<div>
-								<dt class="text-xs font-medium text-slate-500">Pago</dt>
+								<dt class="text-xs font-semibold tracking-wide text-slate-500 uppercase">Pago</dt>
 								<dd id="tourSelectionPayment" class="mt-1 font-medium text-slate-900" />
 								<p id="tourSelectionPaymentDetail" class="mt-1 text-xs leading-5 text-slate-600" />
 							</div>
 							<div>
-								<dt class="text-xs font-medium text-slate-500">Cancelación</dt>
+								<dt class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+									Cancelación
+								</dt>
 								<dd id="tourSelectionCancellation" class="mt-1 font-medium text-slate-900" />
 							</div>
 						</dl>
 					</div>
 					<div
 						id="tourQuoteSummary"
-						class="fastt-notice mt-3 hidden rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950"
+						class="fastt-notice mt-4 hidden rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950"
 						aria-live="polite"
 					/>
-					<div class="mt-3 flex flex-wrap gap-2">
-						<Button type="button" id="tourReserveBtn" disabled>
+					<div class="mt-4 grid gap-2">
+						<Button type="button" id="tourReserveBtn" class="w-full" disabled>
 							Reservar cupo
 						</Button>
-						<Button type="button" id="tourCheckoutBtn" variant="secondary" disabled>
+						<Button type="button" id="tourCheckoutBtn" variant="secondary" class="w-full" disabled>
 							Continuar a checkout
 						</Button>
 					</div>
@@ -343,6 +422,76 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 	}
 </section>
 
+<style>
+	.tour-group-disclosure {
+		transition:
+			border-color 180ms ease,
+			box-shadow 180ms ease;
+	}
+
+	.tour-group-disclosure[open] {
+		border-color: rgb(148 163 184);
+		box-shadow: 0 10px 20px -18px rgb(15 23 42 / 0.45);
+	}
+
+	.tour-offer-card:has([aria-pressed="true"]) {
+		border-color: rgb(15 23 42);
+		box-shadow: 0 12px 24px -20px rgb(15 23 42 / 0.36);
+		transform: translateY(-1px);
+	}
+
+	.tour-selection-summary[data-revealed="true"],
+	.tour-selection-panel[data-state="held"] {
+		animation: tour-selection-reveal 260ms cubic-bezier(0.16, 1, 0.3, 1);
+	}
+
+	@keyframes tour-selection-reveal {
+		from {
+			opacity: 0;
+			transform: translateY(6px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.tour-group-disclosure,
+		.tour-offer-card {
+			transition: none;
+		}
+
+		.tour-selection-summary[data-revealed="true"],
+		.tour-selection-panel[data-state="held"] {
+			animation: none;
+		}
+	}
+</style>
+
+{
+	!previewMode ? (
+		<div class="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 p-3 shadow-[0_-8px_24px_rgba(15,23,42,0.12)] backdrop-blur md:hidden">
+			<div class="mx-auto flex max-w-lg items-center gap-3">
+				<div class="min-w-0 flex-1">
+					<p class="text-xs text-slate-500">Reserva esta experiencia</p>
+					<p data-mobile-booking-status class="truncate text-sm font-semibold text-slate-950">
+						Elige fecha y salida
+					</p>
+				</div>
+				<button
+					type="button"
+					class="fastt-button shrink-0 rounded-[var(--fastt-radius-control)] bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white"
+					data-mobile-booking-cta
+					aria-controls="booking"
+				>
+					Ver salidas
+				</button>
+			</div>
+		</div>
+	) : null
+}
+
 <script>
 	const rootEl = document.querySelector<HTMLElement>("[data-tour-booking-root]")
 	if (rootEl) {
@@ -364,16 +513,25 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 		const checkoutBtn = document.getElementById("tourCheckoutBtn") as HTMLButtonElement | null
 		const statusEl = document.getElementById("tourHoldStatus")
 		const selectionSummary = document.getElementById("tourSelectionSummary")
+		const selectionPanel = document.querySelector<HTMLElement>(".tour-selection-panel")
 		const selectionConfirmation = document.getElementById("tourSelectionConfirmation")
 		const selectionPayment = document.getElementById("tourSelectionPayment")
 		const selectionPaymentDetail = document.getElementById("tourSelectionPaymentDetail")
 		const selectionCancellation = document.getElementById("tourSelectionCancellation")
+		const selectionPrice = document.getElementById("tourSelectionPrice")
+		const selectionPriceHint = document.getElementById("tourSelectionPriceHint")
 		const quoteSummary = document.getElementById("tourQuoteSummary")
+		const resultsState = document.getElementById("tourResultsState")
+		const groupSummary = document.getElementById("tourGroupSummary")
+		const mobileStatus = document.querySelector("[data-mobile-booking-status]")
+		const mobileBookingCta = document.querySelector<HTMLButtonElement>("[data-mobile-booking-cta]")
 		let selectedVariantId = ""
 		let selectedRatePlanId = ""
 		let latestHoldId = ""
 		let latestPriceQuoteId = ""
 		let privateVariantId = ""
+		let selectionMotion: Animation | null = null
+		let groupDisclosureMotion: Animation | null = null
 		const sharedCheckout = document.getElementById("tourSharedCheckout")
 		const privateQuote = document.getElementById("tourPrivateQuote")
 		const privateStatus = document.getElementById("tourPrivateStatus")
@@ -382,8 +540,67 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 		) as HTMLButtonElement | null
 		const privateCancel = document.getElementById("tourPrivateCancelBtn")
 
+		function setMobileStatus(message: string, action = "Ver salidas") {
+			if (mobileStatus) mobileStatus.textContent = message
+			if (mobileBookingCta) mobileBookingCta.textContent = action
+		}
+
+		function reducedMotion() {
+			return window.matchMedia("(prefers-reduced-motion: reduce)").matches
+		}
+
+		function revealSelection() {
+			if (!(selectionSummary instanceof HTMLElement)) return
+			selectionMotion?.cancel()
+			selectionSummary.dataset.revealed = "true"
+			if (!reducedMotion()) {
+				selectionMotion = selectionSummary.animate(
+					[
+						{ opacity: 0, transform: "translateY(6px)" },
+						{ opacity: 1, transform: "translateY(0)" },
+					],
+					{ duration: 240, easing: "cubic-bezier(0.16, 1, 0.3, 1)" }
+				)
+			}
+		}
+
+		function setSelectionPanelState(state: string) {
+			if (selectionPanel) selectionPanel.dataset.state = state
+		}
+
+		function setOfferActionsDisabled(disabled: boolean) {
+			root
+				.querySelectorAll<HTMLButtonElement>(
+					"[data-select-rateplan-id], [data-quote-private-variant]"
+				)
+				.forEach((button) => {
+					button.disabled = disabled
+				})
+		}
+
+		function describeGroup() {
+			const quantities = readQuantities()
+			const parts = ticketTypes
+				.filter((ticket) => ticket.isActive !== false)
+				.map((ticket) => {
+					const quantity = Number(quantities[ticket.code] ?? 0)
+					if (!quantity) return ""
+					return `${quantity} ${String(ticket.label ?? ticket.code).toLowerCase()}${quantity === 1 ? "" : "s"}`
+				})
+				.filter(Boolean)
+			return parts.join(" · ") || "Sin participantes"
+		}
+
+		function updateGroupSummary() {
+			const summary = describeGroup()
+			if (groupSummary) groupSummary.textContent = summary
+			root.querySelectorAll<HTMLElement>("[data-group-summary-copy]").forEach((element) => {
+				element.textContent = summary
+			})
+		}
+
 		function invalidateSelection(
-			message = "La selección cambió. Elige una opción para ver sus condiciones."
+			message = "Hay cambios sin consultar. Actualiza las salidas para continuar."
 		) {
 			selectedVariantId = ""
 			selectedRatePlanId = ""
@@ -393,6 +610,13 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 			if (checkoutBtn) checkoutBtn.disabled = true
 			if (quoteSummary) quoteSummary.classList.add("hidden")
 			if (selectionSummary) selectionSummary.classList.add("hidden")
+			selectionSummary?.removeAttribute("data-revealed")
+			selectionMotion?.cancel()
+			setSelectionPanelState("stale")
+			root.dataset.selectionState = "stale"
+			setOfferActionsDisabled(true)
+			if (resultsState) resultsState.textContent = "Hay cambios sin consultar."
+			setMobileStatus("Actualiza fecha o grupo", "Ver salidas")
 			root
 				.querySelectorAll<HTMLButtonElement>("[data-select-rateplan-id]")
 				.forEach((button) => button.setAttribute("aria-pressed", "false"))
@@ -404,6 +628,12 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 		}
 
 		function showPrivateQuote(variantId: string) {
+			if (!departureDate()) {
+				if (statusEl)
+					statusEl.textContent = "Elige una fecha antes de solicitar una salida privada."
+				setMobileStatus("Elige una fecha", "Ver salidas")
+				return
+			}
 			privateVariantId = variantId
 			selectedVariantId = ""
 			selectedRatePlanId = ""
@@ -413,15 +643,19 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 			if (checkoutBtn) checkoutBtn.disabled = true
 			sharedCheckout?.classList.add("hidden")
 			privateQuote?.classList.remove("hidden")
+			setSelectionPanelState("private")
 			if (privateStatus) {
 				privateStatus.textContent = "Completa tus datos para solicitar la cotización."
 			}
+			setMobileStatus("Solicitud privada", "Revisar solicitud")
 		}
 
 		function hidePrivateQuote() {
 			privateVariantId = ""
 			privateQuote?.classList.add("hidden")
 			sharedCheckout?.classList.remove("hidden")
+			setSelectionPanelState("ready")
+			setMobileStatus("Elige fecha y salida", "Ver salidas")
 		}
 
 		function readQuantities() {
@@ -506,6 +740,15 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 				if (statusEl) statusEl.textContent = "Elige una fecha de salida."
 				return
 			}
+			root.dataset.selectionState = "loading"
+			setSelectionPanelState("loading")
+			root.setAttribute("aria-busy", "true")
+			if (statusEl) statusEl.textContent = "Consultando salidas y precios para este grupo..."
+			setMobileStatus("Consultando salidas...", "Ver salidas")
+			if (searchBtn instanceof HTMLButtonElement) {
+				searchBtn.disabled = true
+				searchBtn.textContent = "Consultando..."
+			}
 			const url = new URL(window.location.href)
 			url.searchParams.set("departure", date)
 			url.searchParams.set("adults", String(quantities.adult ?? quantities.adulto ?? 0))
@@ -524,11 +767,16 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 				selectedRatePlanId = String(btn.dataset.selectRateplanId ?? "")
 				const selectionToken = `${selectedVariantId}:${selectedRatePlanId}`
 				btn.setAttribute("aria-pressed", "true")
+				root.dataset.selectionState = "loading-selection"
+				setSelectionPanelState("loading")
+				root.setAttribute("aria-busy", "true")
+				setOfferActionsDisabled(true)
+				setMobileStatus("Revisando condiciones...", "Revisar reserva")
 				const selectedUrl = new URL(window.location.href)
 				selectedUrl.searchParams.set("variantId", selectedVariantId)
 				selectedUrl.searchParams.set("ratePlanId", selectedRatePlanId)
 				window.history.replaceState({}, "", selectedUrl)
-				if (reserveBtn) reserveBtn.disabled = !(selectedVariantId && selectedRatePlanId)
+				if (reserveBtn) reserveBtn.disabled = true
 				if (checkoutBtn) checkoutBtn.disabled = true
 				try {
 					const query = new URLSearchParams({
@@ -552,7 +800,19 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 							payload.freeCancellationDeadline
 						)
 						if (selectionConfirmation) {
-							selectionConfirmation.textContent = `${confirmation}. ${payload.policySummary}`
+							selectionConfirmation.textContent = `${String(btn.dataset.optionLabel ?? "Opción seleccionada")}. ${confirmation}. ${payload.policySummary}`
+						}
+						if (selectionPrice) {
+							const amount = String(btn.dataset.optionPrice ?? "").trim()
+							const currency = String(btn.dataset.optionCurrency ?? "USD").trim()
+							selectionPrice.textContent = amount
+								? `${currency} ${amount}`
+								: "Precio disponible al reservar cupo"
+						}
+						if (selectionPriceHint) {
+							selectionPriceHint.textContent = String(btn.dataset.optionPrice ?? "").trim()
+								? `Referencia para ${describeGroup()}. El total contractual y cargos se fijan al reservar cupo.`
+								: "El total contractual se muestra antes de continuar al checkout."
 						}
 						if (selectionPayment) {
 							selectionPayment.textContent =
@@ -569,18 +829,29 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 								: "Consulta las condiciones de cancelación antes de reservar."
 						}
 						selectionSummary.classList.remove("hidden")
+						revealSelection()
 					}
+					root.dataset.selectionState = "selected"
+					setSelectionPanelState("selected")
+					root.removeAttribute("aria-busy")
+					setOfferActionsDisabled(false)
+					if (reserveBtn) reserveBtn.disabled = !(selectedVariantId && selectedRatePlanId)
 					if (statusEl)
 						statusEl.textContent =
 							payload.bookingStatus === "request"
 								? "Esta opción requiere cotización; completa tus datos abajo."
 								: "Tarifa seleccionada. Revisa las condiciones y reserva el cupo para continuar."
+					setMobileStatus("Condiciones listas", "Revisar reserva")
 				} catch {
 					if (`${selectedVariantId}:${selectedRatePlanId}` !== selectionToken) return
-					if (statusEl)
-						statusEl.textContent =
-							"No se pudieron cargar las condiciones de esta opción. Elige otra opción o intenta de nuevo."
-					if (reserveBtn) reserveBtn.disabled = true
+					invalidateSelection(
+						"No se pudieron cargar las condiciones de esta opción. Elige otra opción o intenta de nuevo."
+					)
+					setOfferActionsDisabled(false)
+					root.dataset.selectionState = "ready"
+					setSelectionPanelState("ready")
+					if (resultsState) resultsState.textContent = "Elige otra tarifa o vuelve a intentarlo."
+					root.removeAttribute("aria-busy")
 				}
 			})
 		})
@@ -591,14 +862,45 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 				)
 				?.click()
 		}
-		departureInput?.addEventListener("change", () => invalidateSelection())
-		root
-			.querySelectorAll<HTMLInputElement>("[data-ticket-qty]")
-			.forEach((input) =>
-				input.addEventListener("input", () =>
-					invalidateSelection("El grupo cambió. Actualiza el precio para ver salidas disponibles.")
+		updateGroupSummary()
+		if (departureDate()) setMobileStatus("Elige una opción", "Ver salidas")
+		mobileBookingCta?.addEventListener("click", (event) => {
+			root.scrollIntoView({ behavior: reducedMotion() ? "auto" : "smooth", block: "start" })
+			// A touch user keeps their current focus context. Keyboard activation moves focus to the date.
+			if (event.detail === 0) {
+				window.requestAnimationFrame(() => departureInput?.focus({ preventScroll: true }))
+			}
+		})
+		root.querySelectorAll<HTMLDetailsElement>("[data-tour-group-disclosure]").forEach((details) => {
+			const content = details.querySelector<HTMLElement>("[data-tour-group-content]")
+			if (!content) return
+			details.addEventListener("toggle", () => {
+				groupDisclosureMotion?.cancel()
+				if (reducedMotion()) return
+				const height = content.getBoundingClientRect().height
+				if (!height) return
+				const opening = details.open
+				groupDisclosureMotion = content.animate(
+					opening
+						? [
+								{ opacity: 0, transform: "translateY(-4px)" },
+								{ opacity: 1, transform: "translateY(0)" },
+							]
+						: [
+								{ opacity: 1, transform: "translateY(0)" },
+								{ opacity: 0, transform: "translateY(-3px)" },
+							],
+					{ duration: opening ? 190 : 140, easing: "cubic-bezier(0.16, 1, 0.3, 1)" }
 				)
-			)
+			})
+		})
+		departureInput?.addEventListener("change", () => invalidateSelection())
+		root.querySelectorAll<HTMLInputElement>("[data-ticket-qty]").forEach((input) =>
+			input.addEventListener("input", () => {
+				updateGroupSummary()
+				invalidateSelection("El grupo cambió. Actualiza las salidas para continuar.")
+			})
+		)
 
 		root.querySelectorAll<HTMLButtonElement>("[data-quote-private-variant]").forEach((btn) => {
 			btn.addEventListener("click", () => {
@@ -681,6 +983,10 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 				return
 			}
 			if (statusEl) statusEl.textContent = "Creando hold..."
+			root.dataset.selectionState = "holding"
+			setSelectionPanelState("holding")
+			root.setAttribute("aria-busy", "true")
+			setMobileStatus("Reservando cupo...", "Revisar reserva")
 			if (reserveBtn) reserveBtn.disabled = true
 			try {
 				const response = await fetch("/api/inventory/hold", {
@@ -716,8 +1022,17 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 				latestPriceQuoteId = String(payload?.priceQuote?.quoteId ?? "")
 				if (quoteSummary && payload?.priceQuote) {
 					const quote = payload.priceQuote
-					quoteSummary.textContent = `Total confirmado para esta selección: ${quote.currency || "USD"} ${Number(quote.totalAmount ?? 0).toFixed(2)}. Incluye cargos e impuestos aplicables: ${quote.currency || "USD"} ${Number(quote.taxesAndFees?.totalAmount ?? quote.taxesAndFees?.total ?? 0).toFixed(2)}.`
+					const currency = quote.currency || "USD"
+					const total = Number(quote.totalAmount ?? 0).toFixed(2)
+					const fees = Number(
+						quote.taxesAndFees?.totalAmount ?? quote.taxesAndFees?.total ?? 0
+					).toFixed(2)
+					quoteSummary.textContent = `Total confirmado: ${currency} ${total}. Incluye impuestos y cargos aplicables: ${currency} ${fees}.`
 					quoteSummary.classList.remove("hidden")
+					if (selectionPrice) selectionPrice.textContent = `Total confirmado: ${currency} ${total}`
+					if (selectionPriceHint) {
+						selectionPriceHint.textContent = `Cupo retenido para ${describeGroup()}. Impuestos y cargos aplicables: ${currency} ${fees}.`
+					}
 				}
 				if (statusEl) {
 					statusEl.textContent = latestHoldId
@@ -725,9 +1040,14 @@ const cupoUnits = Number(searchState?.cupoUnits ?? 1) || 1
 						: "Hold creado."
 				}
 				if (checkoutBtn) checkoutBtn.disabled = !latestHoldId
+				root.dataset.selectionState = latestHoldId ? "held" : "selected"
+				setSelectionPanelState(latestHoldId ? "held" : "selected")
+				setMobileStatus(latestHoldId ? "Cupo reservado" : "Revisa tu reserva", "Revisar reserva")
 			} catch {
 				if (statusEl) statusEl.textContent = "Error de red al crear hold."
+				setSelectionPanelState("error")
 			} finally {
+				root.removeAttribute("aria-busy")
 				if (reserveBtn) reserveBtn.disabled = !(selectedVariantId && selectedRatePlanId)
 			}
 		})

@@ -116,6 +116,30 @@ export function parseDurationMinutes(duration: string | null | undefined): numbe
 	return null
 }
 
+/** Public, human-scale duration label. Persisted minutes are the source of truth. */
+export function formatTourDuration(input: {
+	durationMinutes?: number | null
+	duration?: string | null
+}): string | null {
+	const persistedMinutes = Number(input.durationMinutes)
+	const parsedMinutes = parseDurationMinutes(input.duration)
+	const minutes =
+		Number.isFinite(persistedMinutes) && persistedMinutes > 0
+			? Math.round(persistedMinutes)
+			: parsedMinutes
+
+	if (minutes != null && minutes > 0) {
+		if (minutes < 60) return `${minutes} min`
+		const hours = Math.floor(minutes / 60)
+		const remainder = minutes % 60
+		if (remainder === 0) return hours === 1 ? "1 hora" : `${hours} horas`
+		return `${hours} h ${remainder} min`
+	}
+
+	const fallback = String(input.duration ?? "").trim()
+	return fallback || null
+}
+
 export function isTourSlotKind(kind: string | null | undefined): boolean {
 	return (
 		String(kind ?? "")

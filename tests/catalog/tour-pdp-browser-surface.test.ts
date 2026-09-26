@@ -38,8 +38,9 @@ describe("tour PDP browser surface (trust + ticket→price→hold)", () => {
 		expect(pdp).not.toContain("checkOutTime")
 
 		expect(departure).toContain("Reserva tu experiencia")
-		expect(departure).toContain("Salidas disponibles")
-		expect(departure).toContain("Participantes seleccionados")
+		expect(departure).toContain("Elige fecha y salida")
+		expect(departure).toContain("Fecha y grupo")
+		expect(departure).toContain("Revisa y reserva")
 		expect(departure).toContain("data-ticket-qty")
 		expect(departure).toContain("data-select-rateplan-id")
 		expect(departure).toContain("/api/inventory/hold")
