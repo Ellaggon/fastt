@@ -53,7 +53,8 @@ describe("S3-2 payout SLA mirror + post-save CTAs", () => {
 		const taxIdentity = readVerificationSurface("src/pages/provider/settings/verification/fiscal.astro")
 
 		expect(profile).toContain("data-post-save-cta")
-		expect(profile).toContain("TRUST_GLOSSARY.returnToVerification")
+		expect(profile).toContain("routes.providerSettingsVerification()")
+		expect(profile).toContain("Continuar a verificación")
 		expect(verification).toContain("data-post-save-cta")
 		expect(verification).toContain("Continuar a registro fiscal")
 		expect(verification).toContain("Continuar a pagos")

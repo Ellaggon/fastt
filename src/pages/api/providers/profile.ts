@@ -17,6 +17,12 @@ import {
 	PROVIDER_FORM_FLASH_COOKIE,
 	type ProviderFormFlash,
 } from "@/lib/provider-form-flash"
+import {
+	formIncludesIdentityFields,
+	persistProviderIdentityFromForm,
+	readProviderSettingsFormValues,
+	validateProviderSettingsForm,
+} from "@/lib/provider/save-provider-settings-profile"
 
 function shouldReturnHtmlRedirect(request: Request): boolean {
 	const accept = (request.headers.get("accept") || "").toLowerCase()
@@ -113,16 +119,33 @@ export const handleProviderProfilePost: APIRoute = async ({ request, cookies }) 
 
 		const form = await request.formData()
 		onboardingNext = form.get("onboardingNext")
+		const includeIdentity = formIncludesIdentityFields(form)
+		const values = readProviderSettingsFormValues(form)
 		const raw = {
-			timezone: String(form.get("timezone") ?? "").trim(),
-			defaultCurrency: String(form.get("defaultCurrency") ?? "").trim(),
-			supportEmail: String(form.get("supportEmail") ?? "").trim(),
-			supportPhone: String(form.get("supportPhone") ?? "").trim() || undefined,
+			timezone: values.timezone,
+			defaultCurrency: values.defaultCurrency,
+			supportEmail: values.supportEmail,
+			supportPhone: values.supportPhone || undefined,
 		}
 		profileFlash = {
-			form: "profile",
-			values: { ...raw, supportPhone: raw.supportPhone ?? "" },
+			form: includeIdentity ? "settings" : "profile",
+			values: includeIdentity ? values : { ...raw, supportPhone: raw.supportPhone ?? "" },
 			errors: {},
+		}
+
+		const settingsErrors = validateProviderSettingsForm(form, { includeIdentity })
+		if (Object.keys(settingsErrors).length > 0) {
+			throw new ValidationError(settingsErrors)
+		}
+
+		if (includeIdentity) {
+			await persistProviderIdentityFromForm({
+				repo: providerV2Repository,
+				providerId,
+				userId: user.id,
+				form,
+			})
+			await invalidateProviderGovernance(providerId, "provider_identity_updated")
 		}
 
 		const beforeProfile = profileSnapshot(
@@ -172,7 +195,11 @@ export const handleProviderProfilePost: APIRoute = async ({ request, cookies }) 
 		})
 
 		if (shouldReturnHtmlRedirect(request)) {
-			return redirectAfterProfileSave(request, { success: "ops_saved" }, onboardingNext)
+			return redirectAfterProfileSave(
+				request,
+				{ success: includeIdentity ? "saved" : "ops_saved" },
+				onboardingNext
+			)
 		}
 
 		return new Response(JSON.stringify(result), {

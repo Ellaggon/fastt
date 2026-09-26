@@ -7,33 +7,32 @@ function read(relativePath: string) {
 	return readFileSync(new URL(relativePath, root), "utf8")
 }
 
-describe("S5-2 profile progressive disclosure", () => {
-	it("puts identity first and collapses/gates ops", () => {
+describe("provider settings profile is a single save", () => {
+	it("keeps identity and operations in one form with one submit for an existing provider", () => {
 		const page = read("src/pages/provider/settings/profile.astro")
-		const form = read("src/components/provider/ProviderProfileForm.astro")
+		const register = read("src/components/provider/ProviderRegisterForm.astro")
+		const operations = read("src/components/provider/ProviderProfileForm.astro")
 
-		expect(page).toContain("data-profile-identity-first")
+		expect(page).toContain("data-provider-settings-unified")
+		expect(page).toContain('action="/api/providers/profile"')
+		expect(page).toContain("Guardar cambios")
+		expect(page).toContain("embedded={true}")
 		expect(page).toContain("data-profile-identity")
 		expect(page).toContain("data-profile-ops")
 		expect(page).toContain("data-profile-ops-gated")
-		expect(page).toContain("data-profile-identity-gate")
+		expect(page).not.toContain("<details")
 		expect(page).not.toContain("xl:grid-cols-2")
-
-		expect(page).toContain("<details")
-		expect(page).toContain("open={opsDefaultOpen}")
-		expect(page).toContain('success === "identity_saved"')
-		expect(page).toContain('opsParam === "1"')
-		expect(page).toContain('id="ops"')
 
 		const identityIdx = page.indexOf("data-profile-identity")
 		const opsIdx = page.indexOf("data-profile-ops")
 		expect(identityIdx).toBeGreaterThan(-1)
 		expect(opsIdx).toBeGreaterThan(identityIdx)
 
-		expect(page).toContain("Edita la identidad y los datos operativos del negocio")
+		expect(page).toContain("Un solo guardado actualiza la identidad comercial")
 		expect(page).toContain("Queda bloqueado hasta guardar la identidad comercial")
 
-		expect(form).toContain("data-profile-ops-form")
-		expect(form).toContain("documentos mínimos de cumplimiento")
+		expect(register).toContain("embedded = false")
+		expect(operations).toContain("embedded = false")
+		expect(operations).toContain("data-profile-ops-form")
 	})
 })

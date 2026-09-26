@@ -19,8 +19,10 @@ const {
 	submitLabel = "Guardar perfil",
 	showBackAction = true,
 	onboarding = false,
+	embedded = false,
 	serviceLabel = "servicio",
 } = Astro.props
+const Wrapper = embedded ? "div" : "form"
 const value = (field: string, fallback = "") => String(draft?.values?.[field] ?? fallback)
 const fieldError = (field: string) =>
 	fieldErrors?.[field] ? providerFormErrorMessage(field, String(fieldErrors[field])) : ""
@@ -29,14 +31,16 @@ const onboardingIntro = `Estos datos te permiten preparar el calendario y los pr
 
 {
 	isProviderAvailable ? (
-		<form
-			method="POST"
-			action="/api/providers/profile"
+		<Wrapper
+			method={embedded ? undefined : "POST"}
+			action={embedded ? undefined : "/api/providers/profile"}
 			class="space-y-6"
 			data-profile-ops-form
-			data-astro-reload
+			data-astro-reload={embedded ? undefined : true}
 		>
-			{redirectTo ? <Input type="hidden" name="onboardingNext" value={redirectTo} /> : null}
+			{redirectTo && !embedded ? (
+				<Input type="hidden" name="onboardingNext" value={redirectTo} />
+			) : null}
 			<p class="text-sm leading-6 text-slate-600">
 				{onboarding
 					? onboardingIntro
@@ -174,15 +178,17 @@ const onboardingIntro = `Estos datos te permiten preparar el calendario y los pr
 					</ul>
 				</Card>
 			) : null}
-			<div class="flex items-center justify-end gap-3">
-				{showBackAction ? (
-					<Button href={cancelHref} variant="secondary">
-						Volver
-					</Button>
-				) : null}
-				<Button type="submit">{submitLabel}</Button>
-			</div>
-		</form>
+			{embedded ? null : (
+				<div class="flex items-center justify-end gap-3">
+					{showBackAction ? (
+						<Button href={cancelHref} variant="secondary">
+							Volver
+						</Button>
+					) : null}
+					<Button type="submit">{submitLabel}</Button>
+				</div>
+			)}
+		</Wrapper>
 	) : (
 		<div class="space-y-4" data-profile-ops-unavailable>
 			<p class="text-sm text-slate-600">

@@ -22,15 +22,13 @@ describe("S0-1 profile settings feedback contract", () => {
 
 		expect(createApi).toContain('success: "identity_saved"')
 		expect(updateApi).toContain('success: "identity_saved"')
-		expect(opsApi).toContain('success: "ops_saved"')
+		expect(opsApi).toContain('success: includeIdentity ? "saved" : "ops_saved"')
 
-		expect(profilePage).toContain('success === "identity_saved"')
-		expect(profilePage).toContain('success === "ops_saved"')
+		expect(profilePage).toContain('success === "identity_saved" || success === "ops_saved" || success === "saved"')
 		expect(profilePage).toContain('error === "validation_error"')
 		expect(profilePage).toContain('Astro.url.searchParams.get("error") === "invalid_method"')
 		expect(profilePage).not.toContain("La ruta interna de guardado se abrió directamente")
-		expect(profilePage).toContain("Identidad comercial guardada")
-		expect(profilePage).toContain("Perfil operativo guardado")
+		expect(profilePage).toContain("Perfil guardado")
 		expect(profilePage).not.toContain("Declaración del titular pendiente")
 	})
 })

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
 	db,
 	eq,
+	Provider,
 	ProviderProfile,
 	ProviderTaxConfiguration,
 } from "@/shared/infrastructure/db/compat"
@@ -111,5 +112,59 @@ describe("integration/provider profile canonical settings", () => {
 			.where(eq(ProviderTaxConfiguration.providerId, providerId))
 			.then((rows) => rows[0])
 		expect(taxConfiguration).toBeFalsy()
+	})
+
+	it("saves commercial identity and operational profile in the same POST", async () => {
+		const providerId = "provider_profile_unified_settings"
+		const token = "t_profile_unified_settings"
+		const email = "profile.unified@example.com"
+		const userId = `user_${email}`
+
+		await upsertProvider({
+			id: providerId,
+			legalName: "Nombre anterior Ltda",
+			displayName: "Nombre anterior",
+			ownerEmail: email,
+		})
+
+		const form = new FormData()
+		form.set("displayName", "Paseos del sur")
+		form.set("legalName", "Paseos Ltda")
+		form.set("holderType", "entidad")
+		form.set("holderCountry", "BO")
+		form.set("timezone", "America/La_Paz")
+		form.set("defaultCurrency", "BOB")
+		form.set("supportEmail", "ellaggon@tuta.io")
+		form.set("supportPhone", "123456")
+
+		await withSupabaseAuthStub({ [token]: { id: userId, email } }, async () => {
+			const response = await providerProfilePost({
+				request: makeAuthedFormRequest({ token, form }),
+			} as any)
+
+			expect(response.status).toBe(200)
+		})
+
+		const provider = await db
+			.select()
+			.from(Provider)
+			.where(eq(Provider.id, providerId))
+			.then((rows) => rows[0])
+		expect(provider).toMatchObject({
+			displayName: "Paseos del sur",
+			legalName: "Paseos Ltda",
+		})
+
+		const profile = await db
+			.select()
+			.from(ProviderProfile)
+			.where(eq(ProviderProfile.providerId, providerId))
+			.then((rows) => rows[0])
+		expect(profile).toMatchObject({
+			timezone: "America/La_Paz",
+			defaultCurrency: "BOB",
+			supportEmail: "ellaggon@tuta.io",
+			supportPhone: "123456",
+		})
 	})
 })

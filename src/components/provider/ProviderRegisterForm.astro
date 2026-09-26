@@ -19,9 +19,11 @@ const {
 	submitLabel = "Guardar identidad",
 	showBackAction = true,
 	onboarding = false,
+	embedded = false,
 	serviceLabel = "servicio",
 } = Astro.props
 const formAction = hasProvider && provider?.id ? `/api/providers/${provider.id}` : "/api/providers"
+const Wrapper = embedded ? "div" : "form"
 const value = (field: string, fallback = "") => String(draft?.values?.[field] ?? fallback)
 const fieldError = (field: string) =>
 	fieldErrors?.[field] ? providerFormErrorMessage(field, String(fieldErrors[field])) : ""
@@ -47,8 +49,18 @@ const onboardingIntro = hasProvider
 		</p>
 	</header>
 	<Card>
-		<form method="POST" action={formAction} class="max-w-3xl space-y-6" data-astro-reload>
-			{onboardingNext ? <Input type="hidden" name="onboardingNext" value={onboardingNext} /> : null}
+		<Wrapper
+			method={embedded ? undefined : "POST"}
+			action={embedded ? undefined : formAction}
+			class="max-w-3xl space-y-6"
+			data-astro-reload={embedded ? undefined : true}
+			data-profile-identity-fields
+		>
+			{
+				onboardingNext && !embedded ? (
+					<Input type="hidden" name="onboardingNext" value={onboardingNext} />
+				) : null
+			}
 			<div class="space-y-4">
 				<div class="space-y-1">
 					<h3 class="text-xl font-semibold text-slate-900">
@@ -210,17 +222,18 @@ const onboardingIntro = hasProvider
 					) : null
 				}
 			</div>
-			<div class="flex items-center justify-end gap-3">
-				{
-					showBackAction ? (
-						<Button href={backHref} variant="secondary">
-							{" "}
-							Volver{" "}
-						</Button>
-					) : null
-				}
-				<Button type="submit"> {submitLabel} </Button>
-			</div>
-		</form>
+			{
+				embedded ? null : (
+					<div class="flex items-center justify-end gap-3">
+						{showBackAction ? (
+							<Button href={backHref} variant="secondary">
+								Volver
+							</Button>
+						) : null}
+						<Button type="submit">{submitLabel}</Button>
+					</div>
+				)
+			}
+		</Wrapper>
 	</Card>
 </section>
