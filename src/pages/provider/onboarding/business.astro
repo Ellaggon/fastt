@@ -17,6 +17,10 @@ import {
 } from "@/lib/onboarding/providerOnboardingRollout"
 import { PROVIDER_FORM_FLASH_COOKIE, readProviderFormFlash } from "@/lib/provider-form-flash"
 import { isHolderStorageAvailable, readProviderHolderProfile } from "@/lib/provider-holder-profile"
+import {
+	commercialLineForOnboardingVertical,
+	enrollProviderCommercialLine,
+} from "@/lib/verification/commercial-lines"
 import { getProviderFullAggregate } from "@/modules/catalog/public"
 
 const user = await getUserFromRequest(Astro.request)
@@ -28,6 +32,15 @@ const rollout = resolveProviderOnboardingRollout({ userId: user.id, host: Astro.
 if (!rollout.enabled) return Astro.redirect(providerOnboardingLegacyHref())
 
 const providerId = await getProviderIdFromRequest(Astro.request, user)
+const line = commercialLineForOnboardingVertical(vertical)
+if (providerId && line) {
+	await enrollProviderCommercialLine({
+		providerId,
+		line,
+		source: "onboarding",
+		enrolledByUserId: user.id,
+	})
+}
 const aggregate = providerId ? await getProviderFullAggregate(providerId, user.id) : null
 const provider = aggregate?.provider ?? null
 const holderProfile = providerId ? await readProviderHolderProfile(providerId) : null

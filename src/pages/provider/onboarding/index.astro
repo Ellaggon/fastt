@@ -33,7 +33,8 @@ const entry = await resolveProviderOnboardingEntryFromStorage({
 	providerId,
 	userId: user.id,
 	explicitProviderIntent: isProviderIntent && !isChangingService,
-	selectedVertical: isChangingService ? null : rememberedVertical,
+	selectedVertical: providerId ? null : isChangingService ? null : rememberedVertical,
+	choosingAdditionalLine: Boolean(providerId && isChangingService),
 })
 if (entry.kind === "redirect") return Astro.redirect(entry.href)
 const showServiceChoice = entry.kind === "render-service-choice"

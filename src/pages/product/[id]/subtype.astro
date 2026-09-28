@@ -440,6 +440,19 @@ const limousineSubtype =
 											</FormField>
 										</div>
 									</details>
+
+									<p class="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-700">
+										El papel operativo, el territorio y las actividades se editan en
+										<a
+											class="ml-1 font-semibold underline underline-offset-2"
+											href={`${routes.providerSettingsVerification()}?line=tour&tab=activity&experience=${encodeURIComponent(productId)}#tour-operating-context`}
+											target="_blank"
+											rel="noopener noreferrer"
+										>
+											Verificación de tours (abre otra pestaña)
+										</a>
+										. Puedes continuar esta guía y completarlos después.
+									</p>
 								</div>
 							) : null
 						}

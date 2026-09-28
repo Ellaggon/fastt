@@ -10,6 +10,7 @@ import {
 	assertProductCommercialCapability,
 	CommercialPolicyBlockedError,
 } from "@/lib/commercial-policy/enforcement"
+import { assertProductLineGate, ProductLineGateBlockedError } from "@/lib/verification/line-gate"
 import { publishProduct } from "@/modules/catalog/public"
 
 export const POST: APIRoute = async ({ request }) => {
@@ -52,7 +53,17 @@ export const POST: APIRoute = async ({ request }) => {
 			currentUserId: user.id,
 			capability: "publish",
 		})
-		await assertProductCommercialCapability({ providerId, productId, capability: "publish" })
+		await assertProductCommercialCapability({
+			providerId,
+			productId,
+			capability: "publish",
+			forceForTour: true,
+		})
+		await assertProductLineGate({
+			providerId,
+			productId,
+			capability: "publish",
+		})
 		const result = await publishProduct(
 			{
 				repo: productRepository,
@@ -110,6 +121,12 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 		if (e instanceof CommercialPolicyBlockedError) {
 			return new Response(JSON.stringify({ error: "commercial_policy_blocked", ...e.details }), {
+				status: 423,
+				headers: { "Content-Type": "application/json" },
+			})
+		}
+		if (e instanceof ProductLineGateBlockedError) {
+			return new Response(JSON.stringify({ error: "product_line_gate_blocked", ...e.details }), {
 				status: 423,
 				headers: { "Content-Type": "application/json" },
 			})

@@ -27,6 +27,8 @@ import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
 import { routes } from "@/lib/routes"
 import { evaluateProviderGovernance } from "@/lib/provider-governance"
+import { resolveProductCommercialDiagnosis } from "@/lib/commercial-policy/enforcement"
+import { loadProductLineGate } from "@/lib/verification/line-gate"
 import {
 	getProductFullAggregate,
 	getProductVariantsAggregate,
@@ -65,6 +67,12 @@ if (!aggregate) return Astro.redirect(routes.productList())
 const vertical = getProductVerticalEntry(aggregate.productType)
 const isHotel = vertical.vertical === "hotel"
 const isTour = vertical.vertical === "tour"
+const verificationHref = isTour
+	? `${routes.providerSettingsVerification()}?line=tour&tab=activity&experience=${encodeURIComponent(productId)}`
+	: `${routes.providerSettingsVerification()}?line=lodging&tab=identity`
+const verificationDocumentsHref = isTour
+	? `${routes.providerSettingsVerificationDocuments()}?line=tour&tab=activity&experience=${encodeURIComponent(productId)}`
+	: routes.providerSettingsVerificationDocuments()
 const publicDetailHref = vertical.routes.publicDetailHref(productId)
 const realTourPreviewHref = isTour
 	? `/tours/${encodeURIComponent(productId)}?preview=provider`
@@ -99,7 +107,37 @@ const providerPublishBlockers = providerGovernance.blockers.filter((blocker) =>
 const providerReadyToPublish = providerGovernance.capabilities.publish
 const providerPublishBlocker = providerPublishBlockers[0] ?? null
 const publicationEligibility = await productRepository.getProductPublicationEligibility(productId)
-const publicationEligible = providerReadyToPublish && publicationEligibility.eligible
+const commercialDiagnosis = isTour
+	? await resolveProductCommercialDiagnosis({ providerId, productId })
+	: null
+const commercialPublishBlocker = commercialDiagnosis?.diagnosis.blockers.find((blocker) =>
+	blocker.capabilities.includes("publish")
+)
+const commercialPublishDetail = commercialPublishBlocker
+	? commercialPublishBlocker.evidenceState === "pending_review"
+		? "La evidencia aplicable ya fue enviada, pero aún está en revisión interna."
+		: commercialPublishBlocker.evidenceState === "rejected"
+			? "La evidencia aplicable fue rechazada. Corrígela o carga una nueva versión."
+			: commercialPublishBlocker.evidenceState === "expired"
+				? "La evidencia aplicable venció y debe renovarse antes de publicar."
+				: commercialPublishBlocker.evidenceState === "out_of_scope"
+					? "La evidencia existe, pero no cubre esta experiencia, territorio o actividad."
+					: null
+	: null
+const commercialReadyToPublish =
+	!commercialDiagnosis || commercialDiagnosis.diagnosis.capabilities.publish
+const lineGate = await loadProductLineGate({
+	providerId,
+	productId,
+	capability: "publish",
+})
+const lineGateBlocker = lineGate.enforced ? (lineGate.blockers[0] ?? null) : null
+const lineGateReady = !lineGate.enforced || lineGate.allowed
+const publicationEligible =
+	providerReadyToPublish &&
+	publicationEligibility.eligible &&
+	commercialReadyToPublish &&
+	lineGateReady
 const eligibilityBlocker = publicationEligibility.eligible
 	? null
 	: {
@@ -109,7 +147,23 @@ const eligibilityBlocker = publicationEligibility.eligible
 					: "Esta ficha pertenece a datos no aptos para publicación pública",
 			href: routes.providerSettings(),
 		}
-const publicationBlocker = providerPublishBlocker ?? eligibilityBlocker
+const publicationBlocker =
+	providerPublishBlocker ??
+	(lineGateBlocker
+		? {
+				label: lineGateBlocker.label,
+				href: verificationHref,
+			}
+		: null) ??
+	(commercialPublishBlocker
+		? {
+				label: commercialPublishBlocker.action,
+				href: commercialPublishBlocker.id.includes("holder")
+					? routes.providerSettingsProfile()
+					: verificationDocumentsHref,
+			}
+		: null) ??
+	eligibilityBlocker
 const readinessPercent = publishState.readinessPercent
 const blockerLabels = publishState.blockers
 	.filter((check) => check.sectionKey !== "preview")
@@ -337,7 +391,7 @@ if (!isTour) {
 							<p class="font-semibold">Falta configurar el negocio para publicar</p>
 							<p class="mt-1 text-sm leading-6 text-slate-700">
 								{publicationBlocker
-									? `${publicationBlocker.label}. Cuando lo completes podrás publicar esta ficha.`
+									? `${commercialPublishDetail ?? publicationBlocker.label} ${commercialPublishDetail ? (commercialPublishBlocker?.action ?? "") : "Cuando lo completes podrás publicar esta ficha."}`
 									: "Completa la configuración requerida del negocio antes de publicar esta ficha."}
 							</p>
 						</div>

@@ -4,6 +4,10 @@ import { invalidateProduct } from "@/lib/cache/invalidation"
 import { refreshProductOperationalSurfaceAfterMutation } from "@/lib/product/productOperationalSurface"
 import { canonicalizeTourDifficultyForStorage } from "@/lib/tours/tourDifficulty"
 import { parseDurationMinutes } from "@/lib/tours/tourSemantics"
+import {
+	parseTourComplianceContext,
+	saveTourComplianceContext,
+} from "@/lib/tours/tour-compliance-context"
 import { updateProductSubtype } from "@/modules/catalog/public"
 import { tourSchema } from "@/schemas/product/subtype"
 import { productRepository, subtypeRepository } from "@/container"
@@ -177,6 +181,22 @@ export const POST: APIRoute = async ({ request }) => {
 			subtype,
 		})
 		if (response.ok) {
+			if (
+				subtypeType === "tour" &&
+				["complianceOperatingRole", "complianceActivityClass", "complianceJurisdictionCode"].some(
+					(key) => form.has(key)
+				)
+			) {
+				await saveTourComplianceContext({
+					productId,
+					providerId,
+					input: parseTourComplianceContext({
+						operatingRole: form.get("complianceOperatingRole"),
+						activityClasses: form.getAll("complianceActivityClass"),
+						jurisdictionCode: form.get("complianceJurisdictionCode"),
+					}),
+				})
+			}
 			await invalidateProduct(productId)
 			await refreshProductOperationalSurfaceAfterMutation({
 				productId,

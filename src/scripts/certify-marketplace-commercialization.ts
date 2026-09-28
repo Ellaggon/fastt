@@ -17,6 +17,8 @@ import {
 	ProductGeoPlace,
 	ProductLocation,
 	Provider,
+	ProviderCommercialLine,
+	ProviderHolderProfile,
 	ProviderProfile,
 	ProviderTaxConfiguration,
 	ProviderUser,
@@ -46,6 +48,7 @@ import { POST as holdPost } from "@/pages/api/inventory/hold"
 import type { PriceQuote } from "@/modules/pricing/public"
 import { createPolicyCapa6, replacePolicyAssignmentCapa6 } from "@/modules/policies/public"
 import { prepareMarketplaceCertificationEnvironment } from "./marketplace-certification-environment"
+import { seedMarketplaceCertificationCommercialPolicy } from "./marketplace-certification-commercial-policy"
 
 const APPLY = process.argv.includes("--apply")
 const CONFIRMED = process.env.CONFIRM_MARKETPLACE_COMMERCIAL_CERTIFICATION === "apply"
@@ -248,6 +251,47 @@ async function upsertFixture(params: {
 			set: { role: "owner" },
 		})
 	await db
+		.insert(ProviderHolderProfile)
+		.values({
+			providerId: PROVIDER_ID,
+			holderType: "entidad",
+			holderCountry: "BO",
+			taxResidenceCountry: "BO",
+			payoutCountry: "BO",
+			collectionModel: "property_collect",
+			declarationStatus: "declared",
+			declaredByUserId: USER_ID,
+			declaredAt: now,
+			updatedAt: now,
+		})
+		.onConflictDoUpdate({
+			target: ProviderHolderProfile.providerId,
+			set: {
+				holderType: "entidad",
+				holderCountry: "BO",
+				taxResidenceCountry: "BO",
+				payoutCountry: "BO",
+				collectionModel: "property_collect",
+				declarationStatus: "declared",
+				declaredByUserId: USER_ID,
+				updatedAt: now,
+			},
+		})
+	for (const line of ["lodging", "tour"] as const) {
+		await db
+			.insert(ProviderCommercialLine)
+			.values({
+				id: `provider_commercial_line_certification_${line}`,
+				providerId: PROVIDER_ID,
+				line,
+				source: "admin",
+				collectionModel: "property_collect",
+				enrolledByUserId: USER_ID,
+				enrolledAt: now,
+			})
+			.onConflictDoNothing()
+	}
+	await db
 		.insert(ProviderProfile)
 		.values({
 			providerId: PROVIDER_ID,
@@ -425,6 +469,14 @@ async function upsertFixture(params: {
 			target: Tour.productId,
 			set: { duration: "3 horas", durationMinutes: 180 },
 		})
+
+	await seedMarketplaceCertificationCommercialPolicy({
+		db,
+		providerId: PROVIDER_ID,
+		userId: USER_ID,
+		tourProductId: TOUR_PRODUCT_ID,
+		now,
+	})
 
 	const commercialUnits = [
 		{
