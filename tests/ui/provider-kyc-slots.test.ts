@@ -30,6 +30,12 @@ function doc(
 		mimeType: partial.mimeType ?? null,
 		sizeBytes: partial.sizeBytes ?? null,
 		submissionNotes: partial.submissionNotes ?? null,
+		issuer: partial.issuer ?? null,
+		issuedAt: partial.issuedAt ?? null,
+		expiresAt: partial.expiresAt ?? null,
+		subjectType: partial.subjectType ?? "provider",
+		subjectReference: partial.subjectReference ?? null,
+		scopes: partial.scopes ?? [],
 		reviewNotes: partial.reviewNotes ?? null,
 		reviewedAt: partial.reviewedAt ?? null,
 		reviewedBy: partial.reviewedBy ?? null,
@@ -119,12 +125,13 @@ describe("S1-1 KYC slots + reject reason", () => {
 		expect(card).toContain("data-kyc-one-job")
 		expect(card).not.toContain("data-kyc-collapsed-slots")
 		expect(card).not.toContain("Hacer después")
-		expect(card).toContain("data-kyc-slot-review-state")
-		expect(card).toContain("Documento en revisión")
-		expect(card).toContain("data-kyc-slot-submitted-file")
-		expect(card).toContain("Archivo enviado")
-		expect(card).toContain("data-kyc-slot-next-action")
-		expect(card).toContain("Continuar a Fiscalidad")
+		expect(card).toContain("ProviderKycSlotPendingReview")
+		const pendingReview = read("src/components/provider/ProviderKycSlotPendingReview.astro")
+		expect(pendingReview).toContain("data-kyc-slot-review-title")
+		expect(pendingReview).toContain("data-kyc-slot-submitted-file")
+		expect(pendingReview).toContain("Archivo enviado")
+		expect(pendingReview).toContain("data-kyc-slot-next-action")
+		expect(pendingReview).toContain("Continuar a Fiscalidad")
 		expect(card).toContain('slot.state === "missing" || slot.state === "rejected"')
 
 		const form = read("src/components/provider/ProviderKycUploadForm.astro")
@@ -167,10 +174,11 @@ describe("S1-1 KYC slots + reject reason", () => {
 		const pendingBranchEnd = card.indexOf("{bridge ? (", pendingBranchStart)
 		const pendingBranch = card.slice(pendingBranchStart, pendingBranchEnd)
 
-		expect(pendingBranch).toContain("data-kyc-slot-review-state")
-		expect(pendingBranch).toContain("Documento en revisión")
-		expect(pendingBranch).toContain("data-kyc-slot-submitted-file")
-		expect(pendingBranch).toContain("data-kyc-slot-next-action")
+		expect(pendingBranch).toContain("ProviderKycSlotPendingReview")
+		const pendingReview = read("src/components/provider/ProviderKycSlotPendingReview.astro")
+		expect(pendingReview).toContain("data-kyc-slot-review-state")
+		expect(pendingReview).toContain("data-kyc-slot-submitted-file")
+		expect(pendingReview).toContain("data-kyc-slot-next-action")
 		expect(pendingBranch).not.toContain("Subir documento")
 		expect(pendingBranch).not.toContain("ProviderKycUploadForm")
 		expect(card).toContain('if (slot.state !== "missing") return false')
