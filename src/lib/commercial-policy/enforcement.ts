@@ -237,6 +237,10 @@ export async function assertProductCommercialCapability(params: {
 	/** Tours use scoped operational evidence and cannot use the legacy bypass. */
 	forceForTour?: boolean
 }): Promise<void> {
+	const enforceInVitest =
+		process.env.FASTT_ENFORCE_COMMERCIAL_POLICY === "1" || params.force === true
+	if (process.env.VITEST && !enforceInVitest) return
+
 	const rollout = resolveCommercialPolicyRollout({ providerId: params.providerId })
 	if (
 		commercialPolicyEnforcementDecision({

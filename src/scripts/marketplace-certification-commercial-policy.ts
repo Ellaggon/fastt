@@ -5,17 +5,39 @@ import {
 	ComplianceRequirementRule,
 	ProviderDocument,
 	TourComplianceContext,
+	User,
 	db,
 } from "@/shared/infrastructure/db/compat"
-
 type Db = typeof db
 
 const tourApprovalAreas = ["policy", "finance", "tour_operations"] as const
+
+/** One approver per `(policyVersionId, approverUserId)`; certification uses dedicated signers. */
+const tourApproverUserIds: Record<(typeof tourApprovalAreas)[number], string> = {
+	policy: "user_marketplace_cert_approver_policy",
+	finance: "user_marketplace_cert_approver_finance",
+	tour_operations: "user_marketplace_cert_approver_tour_ops",
+}
 
 const tourContextJson = {
 	operatingRoles: ["guide"],
 	activityClasses: ["urban_cultural"],
 	jurisdictionCodes: ["BO-LP"],
+}
+
+async function ensureTourApproverUsers(db: Db) {
+	for (const area of tourApprovalAreas) {
+		const id = tourApproverUserIds[area]
+		await db
+			.insert(User)
+			.values({
+				id,
+				email: `${id}@fastt.local`,
+				firstName: "Certificación",
+				lastName: area,
+			})
+			.onConflictDoNothing()
+	}
 }
 
 async function seedVerticalPolicies(params: {
@@ -87,12 +109,22 @@ async function seedVerticalPolicies(params: {
 						id: `cpa_marketplace_cert_${params.vertical}_${role}_${area}`,
 						policyVersionId: versionId,
 						approvalArea: area,
-						approverUserId: params.userId,
+						approverUserId: tourApproverUserIds[area],
 						approvalReference: `cert-${area}`,
 						approvedAt: new Date("2026-01-01T00:00:00Z"),
 						createdAt: params.now,
 					})
-					.onConflictDoNothing()
+					.onConflictDoUpdate({
+						target: [
+							CommercialPolicyApproval.policyVersionId,
+							CommercialPolicyApproval.approvalArea,
+						],
+						set: {
+							approverUserId: tourApproverUserIds[area],
+							approvalReference: `cert-${area}`,
+							approvedAt: new Date("2026-01-01T00:00:00Z"),
+						},
+					})
 			}
 		}
 	}
@@ -106,6 +138,7 @@ export async function seedMarketplaceCertificationCommercialPolicy(params: {
 	tourProductId: string
 	now: Date
 }) {
+	await ensureTourApproverUsers(params.db)
 	await seedVerticalPolicies({
 		db: params.db,
 		userId: params.userId,
