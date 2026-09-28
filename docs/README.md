@@ -3,7 +3,7 @@
 Status: active  
 Document type: index  
 Owner: Engineering  
-Last verified: 2026-09-22  
+Last verified: 2026-09-28
 Scope: índice y reglas de navegación documental  
 Source of truth: este índice y los índices de dominio
 Review trigger: incorporación, reemplazo o retiro de una fuente documental
@@ -23,15 +23,29 @@ Review trigger: incorporación, reemplazo o retiro de una fuente documental
 | Área                          | Entrada recomendada                                                                                                             |
 | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | Tours                         | [Dominio Tours](./domains/tours/README.md)                                                                                      |
+| Alojamiento                   | [Dominio Alojamiento](./domains/lodging/README.md)                                                                              |
 | ADRs de tours e integraciones | [Índice de ADRs](./engineering/adr/README.md)                                                                                   |
 | Precios                       | [Arquitectura de precio efectivo](./engineering/effective-pricing-architecture.md)                                              |
 | Onboarding                    | [Índice de onboarding](./onboarding/README.md)                                                                                  |
 | Centro de Mando               | [Índice del Centro de Mando](./command-center/README.md)                                                                        |
-| Migración Supabase            | [Estado de migración](./engineering/supabase-migration.md)                                                                      |
+| PostgreSQL                    | [Operación PostgreSQL](./engineering/supabase-migration.md)                                                                      |
 | Integraciones                 | [Runbook de integraciones](./engineering/provider-integration-operations-runbook.md)                                            |
 | Seguridad                     | [Registro de deuda](./engineering/security-debt-register.md) y [monitorización](./engineering/dependency-monitoring-runbook.md) |
 | Fiscalidad                    | [`fiscality/`](./fiscality/phase-0-contract.md)                                                                                 |
 | Pagos reales                  | [Activación de dinero real](./payments/live-money-activation.md)                                                                |
+
+## Contratos técnicos transversales
+
+- UI: [sistema de diseño](./design-system-governance.md) y [playbooks](./engineering/playbook-contract.md).
+- Datos: [aislamiento de fixtures](./engineering/marketplace-data-isolation.md),
+  [geografía](./engineering/marketplace-geography-migration.md) y
+  [propiedad de datos del proveedor](./engineering/provider-settings-table-taxonomy.md).
+- Operación: [navegación administrativa](./engineering/backoffice-governance-baseline.md),
+  [Rooms & Rates](./engineering/rooms-rates-table-taxonomy.md) y
+  [rendimiento](./performance-observability.md).
+
+Abrir sólo la fuente correspondiente a la tarea. Un contrato grande se consulta por sección;
+no es una instrucción para leer todos los reportes del repositorio.
 
 ## Tipos de documento
 
