@@ -4,7 +4,7 @@ import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import Notice from "@/components/ui/Notice.astro"
-import type { ProviderDocumentRecord } from "@/lib/provider-documents"
+import type { ProviderDocumentRecord, RequiredKycDocumentType } from "@/lib/provider-documents"
 import { evaluateRequiredKycDocumentsComplete } from "@/lib/provider-documents"
 import { resolveProviderRejectCategory } from "@/lib/provider-reject-categories"
 import { buildProviderReviewWaitState } from "@/lib/provider-review-wait-state"
@@ -12,6 +12,7 @@ import { labelAccountVerificationStatus, TRUST_GLOSSARY } from "@/lib/provider-t
 import { routes } from "@/lib/routes"
 
 type Props = {
+	line?: "lodging" | "tour" | null
 	latestVerification?: {
 		status?: string | null
 		reason?: string | null
@@ -32,9 +33,12 @@ type Props = {
 	 * are already submitted), hide yellow «Qué se bloquea» and use compact wait.
 	 */
 	suppressConsequence?: boolean
+	/** Slots resolved for this account. Omitted keeps the historical three types. */
+	requiredDocumentTypes?: readonly RequiredKycDocumentType[]
 }
 
 const {
+	line = null,
 	latestVerification,
 	documents = [],
 	showHeader = true,
@@ -42,6 +46,7 @@ const {
 	reviewAssignment = null,
 	trustMapComplete = false,
 	suppressConsequence = false,
+	requiredDocumentTypes,
 } = Astro.props as Props
 const isSecondary = placement === "secondary"
 const status = String(latestVerification?.status ?? "pending")
@@ -66,7 +71,9 @@ const rejectCategory =
 
 const verifiedDocuments = documents.filter((doc) => doc.status === "verified")
 const pendingDocuments = documents.filter((doc) => doc.status === "pending")
-const kyc = evaluateRequiredKycDocumentsComplete(documents)
+const kyc = evaluateRequiredKycDocumentsComplete(documents, {
+	requiredTypes: requiredDocumentTypes,
+})
 const documentsComplete = kyc.complete
 const showReadyConsequence = Boolean(trustMapComplete || (isApproved && documentsComplete))
 const showWarningConsequence =
@@ -87,10 +94,16 @@ const accountConsequence = isApproved
 	? "La cuenta lista habilita publicar y operar con los controles actuales."
 	: "Sin la cuenta lista no puedes publicar ni aceptar reservas con confianza."
 const documentsConsequence = documentsComplete
-	? "Documentos mínimos listos para cobros y conectores sensibles."
-	: "Sin los documentos mínimos verificados no puedes liquidar cobros ni activar conectores sensibles."
+	? line === "tour"
+		? "Los documentos de identidad aplicables a la cuenta están listos."
+		: "Documentos mínimos listos para cobros y conectores sensibles."
+	: line === "tour"
+		? "La identidad pendiente impide habilitar la experiencia; las licencias se revisan en Actividad."
+		: "Sin los documentos mínimos verificados no puedes liquidar cobros ni activar conectores sensibles."
 const listaConsequence =
-	"Identidad, negocio, fiscal y pagos están alineados. Puedes publicar o revisar liquidaciones."
+	line === "tour"
+		? "La identidad de la cuenta está lista. La actividad, la seguridad y la fiscalidad se revisan en sus pestañas."
+		: "Identidad, negocio, fiscal y pagos están alineados. Puedes publicar o revisar liquidaciones."
 ---
 
 <section
@@ -143,7 +156,9 @@ const listaConsequence =
 				</summary>
 				<div class="mt-5 space-y-6 border-t border-slate-200 pt-5">
 					<p class="sr-only" data-trust-progress-pointer>
-						El avance de Identidad, negocio, fiscal y pagos está en Tu progreso, arriba.
+						{line === "tour"
+							? "El estado de esta cuenta no representa la habilitación de toda la experiencia."
+							: "El avance de Identidad, negocio, fiscal y pagos está en Tu progreso, arriba."}
 					</p>
 
 					{suppressConsequence ? null : (

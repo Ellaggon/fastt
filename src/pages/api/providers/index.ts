@@ -15,6 +15,10 @@ import {
 	parseHolderDeclaration,
 	saveProviderHolderProfile,
 } from "@/lib/provider-holder-profile"
+import {
+	commercialLineFromOnboardingDestination,
+	enrollProviderCommercialLine,
+} from "@/lib/verification/commercial-lines"
 
 function shouldReturnHtmlRedirect(request: Request): boolean {
 	const accept = (request.headers.get("accept") || "").toLowerCase()
@@ -105,6 +109,17 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 				providerId: result.providerId,
 				userId: user.id,
 				declaration: holderDeclaration,
+			})
+		}
+		const enrolledLine = commercialLineFromOnboardingDestination(
+			resolveProviderOnboardingNext(onboardingNext, "")
+		)
+		if (enrolledLine) {
+			await enrollProviderCommercialLine({
+				providerId: result.providerId,
+				line: enrolledLine,
+				source: "onboarding",
+				enrolledByUserId: user.id,
 			})
 		}
 

@@ -23,7 +23,9 @@ interface Props {
 	inReviewCount?: number | null
 	actionRequiredCount?: number | null
 	notStartedCount?: number | null
+	notEvaluableCount?: number | null
 	readinessPercent?: number | null
+	progressLabel?: string
 	/** Per-tab subtitles; hub updates header copy when the trust rail panel changes. */
 	verificationPageGuidanceByTab?: Partial<Record<TrustLinkId, string>> | null
 }
@@ -38,7 +40,9 @@ const {
 	inReviewCount = null,
 	actionRequiredCount = null,
 	notStartedCount = null,
+	notEvaluableCount = null,
 	readinessPercent = null,
+	progressLabel = "Progreso de verificación",
 	verificationPageGuidanceByTab = null,
 } = Astro.props
 
@@ -72,6 +76,7 @@ const progressBreakdownLine = hasProgressBreakdown
 			inReviewCount: inReviewCount!,
 			actionRequiredCount: actionRequiredCount!,
 			notStartedCount: notStartedCount!,
+			notEvaluableCount: notEvaluableCount ?? 0,
 		})
 	: progressTotalLine
 ---
@@ -114,7 +119,7 @@ const progressBreakdownLine = hasProgressBreakdown
 						aria-valuenow={rawPercent}
 						aria-valuemin={0}
 						aria-valuemax={100}
-						aria-label="Progreso de verificación"
+						aria-label={progressLabel}
 					>
 						<div
 							class="fastt-progress-value h-full"

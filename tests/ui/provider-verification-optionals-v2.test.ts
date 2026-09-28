@@ -16,7 +16,7 @@ describe("V2 optionals subroute — verification = mínimos + wait", () => {
 		const panelClient = read("src/pages/provider/settings/_client/verification-trust-panels.js")
 
 		expect(workspace).toContain("optionalsEntryActive")
-		expect(workspace).toContain('hidden={optionalsEntryActive ? undefined : true}')
+		expect(workspace).toContain("hidden={optionalsEntryActive ? undefined : true}")
 		expect(workspace).not.toMatch(
 			/data-verification-optionals-entry[\s\S]{0,120}data-verification-hub-chrome/
 		)
@@ -54,7 +54,8 @@ describe("V2 optionals subroute — verification = mínimos + wait", () => {
 		const form = read("src/components/provider/ProviderKycUploadForm.astro")
 		const panel = read("src/components/provider/ProviderVerificationOptionals.astro")
 		expect(form).toContain("data-astro-reload")
-		expect(form).toContain('action="/api/provider/settings/documents"')
+		expect(form).toContain('new URL("/api/provider/settings/documents", Astro.url)')
+		expect(form).toContain("action={`${uploadAction.pathname}${uploadAction.search}`}")
 		expect(form).toContain('method="post"')
 		expect(panel).toContain("data-astro-reload")
 	})
@@ -66,9 +67,9 @@ describe("V2 optionals subroute — verification = mínimos + wait", () => {
 
 		expect(page).toContain("ProviderVerificationOptionals")
 		expect(page).toContain("Volver a verificación")
-		expect(page).toContain("Documentos adicionales")
+		expect(page).toContain("Evidencia y documentos")
 		expect(page).toContain(
-			"Propiedad, licencias y domicilio. No desbloquean los documentos mínimos de Verificación."
+			"Documentos de tu línea. La identidad, el registro de la entidad y el NIT, cuando corresponden, se piden una vez en Verificación."
 		)
 
 		expect(panel).toContain("data-verification-optionals")
@@ -76,10 +77,12 @@ describe("V2 optionals subroute — verification = mínimos + wait", () => {
 		expect(panel).toContain("data-optional-upload-form")
 		expect(panel).toContain("data-optional-documents-list")
 		expect(panel).toContain("ProviderReviewWaitNotice")
+		expect(panel).toContain("Ofertas cubiertas")
+		expect(panel).toContain('name="scopeProductId"')
 		expect(panel).not.toContain("Respaldo adicional")
 		expect(panel).not.toContain("<h2")
 		expect(panel.indexOf("{pendingCount} enviado")).toBeGreaterThan(
-			panel.indexOf("Subir documento opcional")
+			panel.indexOf("Enviar evidencia")
 		)
 
 		expect(api).toContain("redirectAfterSubmit")

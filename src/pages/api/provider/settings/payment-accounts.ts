@@ -1,4 +1,5 @@
 import type { APIRoute } from "astro"
+import { copyVerificationNavigationQuery } from "@/lib/verification/navigation"
 import { ZodError, z } from "zod"
 
 import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
@@ -71,7 +72,13 @@ function redirectToPayments(
 	result: string,
 	returnTo?: FormDataEntryValue | null
 ) {
-	return Response.redirect(new URL(paymentsRedirectTarget(result, returnTo), request.url), 303)
+	return Response.redirect(
+		copyVerificationNavigationQuery(
+			new URL(paymentsRedirectTarget(result, returnTo), request.url),
+			new URL(request.url)
+		),
+		303
+	)
 }
 
 function redirectToPaymentsError(
@@ -80,7 +87,10 @@ function redirectToPaymentsError(
 	returnTo?: FormDataEntryValue | null
 ) {
 	return Response.redirect(
-		new URL(paymentsRedirectTarget(error, returnTo, "error"), request.url),
+		copyVerificationNavigationQuery(
+			new URL(paymentsRedirectTarget(error, returnTo, "error"), request.url),
+			new URL(request.url)
+		),
 		303
 	)
 }
