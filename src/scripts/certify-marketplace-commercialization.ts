@@ -48,6 +48,7 @@ import { POST as holdPost } from "@/pages/api/inventory/hold"
 import type { PriceQuote } from "@/modules/pricing/public"
 import { createPolicyCapa6, replacePolicyAssignmentCapa6 } from "@/modules/policies/public"
 import { prepareMarketplaceCertificationEnvironment } from "./marketplace-certification-environment"
+import { seedMarketplaceCertificationCommercialPolicy } from "./marketplace-certification-commercial-policy"
 
 const APPLY = process.argv.includes("--apply")
 const CONFIRMED = process.env.CONFIRM_MARKETPLACE_COMMERCIAL_CERTIFICATION === "apply"
@@ -468,6 +469,14 @@ async function upsertFixture(params: {
 			target: Tour.productId,
 			set: { duration: "3 horas", durationMinutes: 180 },
 		})
+
+	await seedMarketplaceCertificationCommercialPolicy({
+		db,
+		providerId: PROVIDER_ID,
+		userId: USER_ID,
+		tourProductId: TOUR_PRODUCT_ID,
+		now,
+	})
 
 	const commercialUnits = [
 		{
