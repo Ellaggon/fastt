@@ -2,7 +2,7 @@ import type { APIRoute } from "astro"
 import { ZodError, z } from "zod"
 
 import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
-import { safeRatePlanPlaybookReturn } from "@/lib/auth/returnTo"
+import { safeProductPreviewReturn, safeRatePlanPlaybookReturn } from "@/lib/auth/returnTo"
 import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/invalidation"
 import {
 	listProviderDocuments,
@@ -12,6 +12,9 @@ import {
 	validateDocumentFile,
 } from "@/lib/provider-documents"
 import { routes } from "@/lib/routes"
+import { loadProviderVerificationResolution } from "@/lib/verification/requirement-context"
+import { matchUpload, type VerificationRequirement } from "@/lib/verification/requirement-resolver"
+import { copyVerificationNavigationQuery } from "@/lib/verification/navigation"
 
 const submitSchema = z.object({
 	type: z.enum([
@@ -33,6 +36,12 @@ const submitSchema = z.object({
 	mimeType: z.string().trim().max(120).optional(),
 	sizeBytes: z.coerce.number().int().positive().optional(),
 	submissionNotes: z.string().trim().max(2000).optional(),
+	issuer: z.string().trim().max(240).optional(),
+	issuedAt: z.string().trim().max(40).optional(),
+	expiresAt: z.string().trim().max(40).optional(),
+	subjectType: z.enum(["provider", "legal_entity", "person", "resource", "third_party"]).optional(),
+	subjectReference: z.string().trim().max(240).optional(),
+	replacesDocumentId: z.string().trim().max(160).optional(),
 })
 
 function json(payload: unknown, status = 200) {
@@ -58,19 +67,35 @@ function shouldReturnHtmlRedirect(request: Request) {
 	return false
 }
 
-function applyPlaybookDetour(target: URL, returnToRaw: unknown, verticalRaw: unknown) {
+function applyOptionalDocumentContext(
+	target: URL,
+	returnToRaw: unknown,
+	verticalRaw: unknown,
+	scopeProductIdRaw?: unknown
+) {
+	const scopeProductId = String(scopeProductIdRaw ?? "").trim()
+	if (scopeProductId && scopeProductId.length < 180)
+		target.searchParams.set("scopeProductId", scopeProductId)
 	const safe = safeRatePlanPlaybookReturn(returnToRaw)
-	if (!safe) return
-	const source = new URL(safe, "http://fastt.local")
-	target.searchParams.set("returnTo", `${source.pathname}${source.search}`)
-	for (const key of ["playbook", "step", "flow", "productId", "variantId", "ratePlanId"]) {
-		const value = source.searchParams.get(key)
-		if (value) target.searchParams.set(key, value)
+	if (safe) {
+		const source = new URL(safe, "http://fastt.local")
+		target.searchParams.set("returnTo", `${source.pathname}${source.search}`)
+		for (const key of ["playbook", "step", "flow", "productId", "variantId", "ratePlanId"]) {
+			const value = source.searchParams.get(key)
+			if (value) target.searchParams.set(key, value)
+		}
+		const vertical = String(verticalRaw ?? "").trim()
+		if (vertical === "tour" || vertical === "hotel")
+			target.searchParams.set("playbookVertical", vertical)
+		return
 	}
-	const vertical = String(verticalRaw ?? "").trim()
-	if (vertical === "tour" || vertical === "hotel") {
-		target.searchParams.set("playbookVertical", vertical)
-	}
+	const preview = safeProductPreviewReturn(returnToRaw)
+	if (!preview) return
+	target.searchParams.set("returnTo", preview)
+}
+
+function applyVerificationNavigationContext(target: URL, request: Request) {
+	copyVerificationNavigationQuery(target, new URL(request.url))
 }
 
 function redirectAfterSubmit(
@@ -78,16 +103,25 @@ function redirectAfterSubmit(
 	result: string,
 	type: string,
 	returnToRaw?: unknown,
-	verticalRaw?: unknown
+	verticalRaw?: unknown,
+	scopeProductIdRaw?: unknown
 ) {
 	const isOptional = !(requiredKycDocumentTypes as readonly string[]).includes(type as any)
-	const path = isOptional
-		? routes.providerSettingsVerificationDocuments()
-		: routes.providerSettingsVerification()
+	const tourTab = new URL(request.url).searchParams.get("tab")
+	const inlineTour =
+		isOptional &&
+		new URL(request.url).searchParams.get("line") === "tour" &&
+		(tourTab === "activity" || tourTab === "safety")
+	const path =
+		isOptional && !inlineTour
+			? routes.providerSettingsVerificationDocuments()
+			: routes.providerSettingsVerification()
 	const target = new URL(path, request.url)
 	target.searchParams.set("result", result)
 	if (type) target.searchParams.set("type", type)
-	if (isOptional) applyPlaybookDetour(target, returnToRaw, verticalRaw)
+	if (isOptional && !inlineTour)
+		applyOptionalDocumentContext(target, returnToRaw, verticalRaw, scopeProductIdRaw)
+	applyVerificationNavigationContext(target, request)
 	// Hash is fine in Location for browsers; keep slot focus after reload.
 	if (!isOptional && type) target.hash = `kyc-slot-${type}`
 	return Response.redirect(target.toString(), 303)
@@ -98,19 +132,28 @@ function redirectAfterFormError(
 	errorCode: string,
 	type?: string,
 	returnToRaw?: unknown,
-	verticalRaw?: unknown
+	verticalRaw?: unknown,
+	scopeProductIdRaw?: unknown
 ) {
 	const rawType = String(type ?? "").trim()
 	const isOptional =
 		rawType.length > 0 && !(requiredKycDocumentTypes as readonly string[]).includes(rawType as any)
-	const path = isOptional
-		? routes.providerSettingsVerificationDocuments()
-		: routes.providerSettingsVerification()
+	const tourTab = new URL(request.url).searchParams.get("tab")
+	const inlineTour =
+		isOptional &&
+		new URL(request.url).searchParams.get("line") === "tour" &&
+		(tourTab === "activity" || tourTab === "safety")
+	const path =
+		isOptional && !inlineTour
+			? routes.providerSettingsVerificationDocuments()
+			: routes.providerSettingsVerification()
 	const target = new URL(path, request.url)
 	target.searchParams.set("result", "error")
 	target.searchParams.set("error", errorCode)
 	if (rawType) target.searchParams.set("type", rawType)
-	if (isOptional) applyPlaybookDetour(target, returnToRaw, verticalRaw)
+	if (isOptional && !inlineTour)
+		applyOptionalDocumentContext(target, returnToRaw, verticalRaw, scopeProductIdRaw)
+	applyVerificationNavigationContext(target, request)
 	return Response.redirect(target.toString(), 303)
 }
 
@@ -146,6 +189,7 @@ export const POST: APIRoute = async ({ request }) => {
 	let formTypeHint = ""
 	let returnToHint = ""
 	let verticalHint = ""
+	let scopeProductIdHint = ""
 	try {
 		const { user, provider } = await requireProviderSessionSurface(request)
 		const providerId = provider.providerId
@@ -155,6 +199,7 @@ export const POST: APIRoute = async ({ request }) => {
 		formTypeHint = String(form.get("type") ?? "").trim()
 		returnToHint = String(form.get("returnTo") ?? "").trim()
 		verticalHint = String(form.get("playbookVertical") ?? "").trim()
+		scopeProductIdHint = String(form.get("scopeProductId") ?? "").trim()
 
 		// Document review is internal-admin only (/api/admin/providers/documents).
 		if (action === "review") {
@@ -164,7 +209,8 @@ export const POST: APIRoute = async ({ request }) => {
 					"forbidden_review",
 					formTypeHint,
 					returnToHint,
-					verticalHint
+					verticalHint,
+					scopeProductIdHint
 				)
 			}
 			return json(
@@ -185,7 +231,8 @@ export const POST: APIRoute = async ({ request }) => {
 					"forbidden",
 					formTypeHint,
 					returnToHint,
-					verticalHint
+					verticalHint,
+					scopeProductIdHint
 				)
 			}
 			return json({ error: "forbidden" }, 403)
@@ -193,14 +240,70 @@ export const POST: APIRoute = async ({ request }) => {
 
 		const file = form.get("file")
 		const fileMeta = validateDocumentFile(file instanceof File ? file : null)
+		const loadedResolution = await loadProviderVerificationResolution(providerId)
+		const postedType = String(form.get("type") ?? "").trim()
+		let matchedRequirement: VerificationRequirement | null = null
+		if (loadedResolution.enforced && loadedResolution.resolution) {
+			matchedRequirement = matchUpload(loadedResolution.resolution, postedType)
+			if (!matchedRequirement?.documentType) {
+				if (preferRedirect) {
+					return redirectAfterFormError(
+						request,
+						"document_not_applicable",
+						postedType,
+						returnToHint,
+						verticalHint,
+						scopeProductIdHint
+					)
+				}
+				return json({ error: "document_not_applicable" }, 422)
+			}
+		}
 		const parsed = submitSchema.parse({
-			type: form.get("type"),
+			type: matchedRequirement?.documentType ?? form.get("type"),
 			fileUrl: form.get("fileUrl") || undefined,
 			fileName: form.get("fileName") || fileMeta?.fileName || undefined,
 			mimeType: form.get("mimeType") || fileMeta?.mimeType || undefined,
 			sizeBytes: form.get("sizeBytes") || fileMeta?.sizeBytes || undefined,
 			submissionNotes: form.get("submissionNotes") || undefined,
+			issuer: form.get("issuer") || undefined,
+			issuedAt: form.get("issuedAt") || undefined,
+			expiresAt: form.get("expiresAt") || undefined,
+			subjectType: form.get("subjectType") || undefined,
+			subjectReference: form.get("subjectReference") || undefined,
+			replacesDocumentId: form.get("replacesDocumentId") || undefined,
 		})
+		const territoryCode = String(form.get("territoryCode") ?? "").trim()
+		const territoryLabel = String(form.get("territoryLabel") ?? "").trim()
+		const postedProductIds = form
+			.getAll("scopeProductId")
+			.map((value) => String(value).trim())
+			.filter(Boolean)
+		const postedResourceIds = form
+			.getAll("scopeResourceId")
+			.map((value) => String(value).trim())
+			.filter(Boolean)
+		const postedActivities = form
+			.getAll("activityClass")
+			.map((value) => String(value).trim())
+			.filter(Boolean)
+		const scopes = matchedRequirement?.scopes
+		const isGuideCredential = matchedRequirement?.id === "tour.guide_credential"
+		const requiresProductScope =
+			matchedRequirement?.layer === "lodging" || matchedRequirement?.layer === "tour"
+		const evidence = {
+			issuer: parsed.issuer,
+			issuedAt: parsed.issuedAt,
+			expiresAt: parsed.expiresAt,
+			subjectType: parsed.subjectType,
+			subjectReference: parsed.subjectReference,
+			productIds: postedProductIds.length ? postedProductIds : (scopes?.productIds ?? []),
+			resourceIds: postedResourceIds.length ? postedResourceIds : (scopes?.resourceIds ?? []),
+			territories: territoryCode
+				? [{ code: territoryCode, label: territoryLabel }]
+				: (scopes?.territoryCodes ?? []).map((code) => ({ code, label: "" })),
+			activityClasses: postedActivities.length ? postedActivities : (scopes?.activityClasses ?? []),
+		}
 
 		let fileBytes: Uint8Array | null = null
 		if (file instanceof File && typeof file.arrayBuffer === "function") {
@@ -216,20 +319,45 @@ export const POST: APIRoute = async ({ request }) => {
 			mimeType: parsed.mimeType,
 			sizeBytes: parsed.sizeBytes,
 			submissionNotes: parsed.submissionNotes,
+			evidence,
+			requireProductScope: requiresProductScope,
+			requireSubjectReference: isGuideCredential,
+			allowedSubjectTypes: isGuideCredential ? ["person", "resource"] : undefined,
+			scopeProductType:
+				matchedRequirement?.layer === "tour"
+					? "tour"
+					: matchedRequirement?.layer === "lodging"
+						? "hotel"
+						: undefined,
+			replacesDocumentId: parsed.replacesDocumentId,
 			fileBytes,
 		})
 		await invalidateProvider(providerId)
 		await invalidateProviderGovernance(providerId, "provider_document_submitted")
 
 		return preferRedirect
-			? redirectAfterSubmit(request, "submitted", parsed.type, returnToHint, verticalHint)
+			? redirectAfterSubmit(
+					request,
+					"submitted",
+					parsed.type,
+					returnToHint,
+					verticalHint,
+					scopeProductIdHint
+				)
 			: json({ ok: true, document: submitted }, 201)
 	} catch (err: any) {
 		if (err instanceof Response) {
 			// Auth redirects/forbidden — keep as-is for API clients; form posts go back to UI.
 			if (preferRedirect && err.status >= 400 && err.status < 500 && err.status !== 401) {
 				const code = err.status === 403 ? "forbidden" : "upload_failed"
-				return redirectAfterFormError(request, code, formTypeHint, returnToHint, verticalHint)
+				return redirectAfterFormError(
+					request,
+					code,
+					formTypeHint,
+					returnToHint,
+					verticalHint,
+					scopeProductIdHint
+				)
 			}
 			return err
 		}
@@ -245,7 +373,14 @@ export const POST: APIRoute = async ({ request }) => {
 					: String(err?.message || "upload_failed")
 							.replace(/[^a-zA-Z0-9._-]+/g, "_")
 							.slice(0, 64) || "upload_failed"
-			return redirectAfterFormError(request, code, formTypeHint, returnToHint, verticalHint)
+			return redirectAfterFormError(
+				request,
+				code,
+				formTypeHint,
+				returnToHint,
+				verticalHint,
+				scopeProductIdHint
+			)
 		}
 		if (err instanceof ZodError)
 			return json({ error: "validation_error", details: err.issues }, 400)

@@ -4,13 +4,21 @@ import ProviderIdentityVendorCard from "@/components/provider/ProviderIdentityVe
 import ProviderKycSlotsCard from "@/components/provider/ProviderKycSlotsCard.astro"
 import ProviderPaymentAccountsCard from "@/components/provider/ProviderPaymentAccountsCard.astro"
 import ProviderTaxProfileCard from "@/components/provider/ProviderTaxProfileCard.astro"
+import ProviderTourOperatingContext from "@/components/provider/ProviderTourOperatingContext.astro"
+import ProviderCommercialLineCollectionModel from "@/components/provider/ProviderCommercialLineCollectionModel.astro"
 import ProviderTrustMapRail from "@/components/provider/ProviderTrustMapRail.astro"
+import ProviderVerificationLineSections from "@/components/provider/ProviderVerificationLineSections.astro"
+import ProviderVerificationBusinessNav from "@/components/provider/ProviderVerificationBusinessNav.astro"
 import ProviderVerificationNextStep from "@/components/provider/ProviderVerificationNextStep.astro"
+import ProviderVerificationOptionals from "@/components/provider/ProviderVerificationOptionals.astro"
 import ProviderVerificationView from "@/components/provider/ProviderVerificationView.astro"
+import Badge from "@/components/ui/Badge.astro"
 import Notice from "@/components/ui/Notice.astro"
+import { resolveProviderRejectCategory } from "@/lib/provider-reject-categories"
 import type { ProviderVerificationWorkspaceModel } from "@/lib/provider-verification-workspace"
 import { isProviderTrustMapComplete } from "@/lib/provider-trust-map"
 import { routes } from "@/lib/routes"
+import { verificationNavigationHref, type VerificationTab } from "@/lib/verification/navigation"
 
 type Props = {
 	model: ProviderVerificationWorkspaceModel
@@ -19,10 +27,14 @@ type Props = {
 const { model } = Astro.props as Props
 const {
 	activeSectionId,
+	navigation,
+	tourProducts,
+	tourPlaybook,
 	nextActionId,
 	listaReady,
 	trustLinks,
 	canManageDocuments,
+	canEditTourContext,
 	canManageFiscality,
 	canManagePayments,
 	providerRoleLabel,
@@ -44,6 +56,11 @@ const {
 	suppressStatusConsequence,
 	optionalDocumentsCount,
 	optionalPendingCount,
+	tourVerification,
+	tourContext,
+	commercialLine,
+	tourEvidenceOptions,
+	screen,
 	result,
 	uploadErrorCode,
 	error,
@@ -51,6 +68,31 @@ const {
 
 const trustMapComplete = isProviderTrustMapComplete(trustLinks)
 const trustLinkById = new Map(trustLinks.map((link) => [link.id, link]))
+const identitySlots = screen ? kycSlots.filter((slot) => slot.type === "government_id") : []
+const businessSlots = screen
+	? kycSlots.filter((slot) => slot.type === "business_registration")
+	: kycSlots
+const payoutBlocks = screen ? screen.paymentsCountsForSelling : true
+const selectedLine = navigation?.line ?? null
+function tourEvidenceDocuments(area: "activity" | "safety") {
+	const types = new Set(tourEvidenceOptions[area].map((option) => option.value.split("::")[0]))
+	return documents.filter((document) => {
+		if (!types.has(document.type)) return false
+		const productScopes = document.scopes.filter((scope) => scope.scopeType === "product")
+		return (
+			productScopes.length === 0 ||
+			productScopes.some((scope) => scope.productId === navigation?.experienceId)
+		)
+	})
+}
+const lineHref = (tab: VerificationTab) =>
+	navigation && selectedLine
+		? verificationNavigationHref({ url: Astro.url, navigation, line: selectedLine, tab })
+		: tab === "fiscal"
+			? routes.providerSettingsVerificationFiscal()
+			: tab === "payments"
+				? routes.providerSettingsVerificationPayments()
+				: routes.providerSettingsVerification()
 function panelLabel(id: "identity" | "business" | "fiscal" | "payments") {
 	const link = trustLinkById.get(id)
 	return link
@@ -59,6 +101,13 @@ function panelLabel(id: "identity" | "business" | "fiscal" | "payments") {
 }
 
 const hubActive = activeSectionId === "identity" || activeSectionId === "business"
+const hideIdentityAccountStatus =
+	activeSectionId === "identity" && Boolean(selectedLine || identitySlots.length)
+const accountVerificationStatus = String(latestVerification?.status ?? "pending")
+const accountRejected = accountVerificationStatus === "rejected"
+const accountRejectCategory = accountRejected
+	? resolveProviderRejectCategory(latestVerification?.reason, "verification")
+	: null
 const optionalsEntryActive = activeSectionId === "business"
 const documentResult = hubActive ? result : ""
 const fiscalResult = activeSectionId === "fiscal" ? result : ""
@@ -179,18 +228,20 @@ const paymentErrorMessages: Record<
 					>
 						<a
 							class="font-semibold underline"
-							href={routes.providerSettingsVerificationFiscal()}
+							href={lineHref(selectedLine === "tour" ? "activity" : "fiscal")}
 							data-funnel-cta="post_save"
 						>
-							Continuar a registro fiscal
+							{selectedLine === "tour" ? "Continuar a actividad" : "Continuar a registro fiscal"}
 						</a>
-						<a
-							class="font-semibold underline"
-							href={routes.providerSettingsVerificationPayments()}
-							data-funnel-cta="post_save"
-						>
-							Continuar a pagos
-						</a>
+						{selectedLine !== "tour" || navigation?.fasttCollects ? (
+							<a
+								class="font-semibold underline"
+								href={lineHref("payments")}
+								data-funnel-cta="post_save"
+							>
+								Continuar a pagos
+							</a>
+						) : null}
 					</div>
 				</Notice>
 			</div>
@@ -208,13 +259,41 @@ const paymentErrorMessages: Record<
 		) : null
 	}
 
-	<div data-verification-trust-nav>
-		<ProviderTrustMapRail
-			links={trustLinks}
-			activeId={activeSectionId}
-			nextActionId={nextActionId}
-		/>
-	</div>
+	{
+		navigation?.line ? (
+			<div class="space-y-4">
+				<ProviderVerificationBusinessNav
+					navigation={navigation}
+					url={Astro.url}
+					products={tourProducts}
+					playbook={tourPlaybook}
+					trustLinks={trustLinks}
+				/>
+				{commercialLine && selectedLine ? (
+					<ProviderCommercialLineCollectionModel
+						line={commercialLine.line}
+						collectionModel={commercialLine.collectionModel}
+						canEdit={canEditTourContext}
+						returnTo={`${Astro.url.pathname}${Astro.url.search}`}
+						result={result}
+						error={error}
+					/>
+				) : null}
+			</div>
+		) : (
+			<div data-verification-trust-nav>
+				<ProviderTrustMapRail
+					links={trustLinks}
+					activeId={
+						activeSectionId === "activity" || activeSectionId === "safety"
+							? "identity"
+							: activeSectionId
+					}
+					nextActionId={nextActionId}
+				/>
+			</div>
+		)
+	}
 
 	<div class="verification-trust-panels-stage" data-verification-trust-panels-stage>
 		<section
@@ -223,17 +302,71 @@ const paymentErrorMessages: Record<
 			data-active={activeSectionId === "identity" ? "true" : "false"}
 			hidden={activeSectionId !== "identity" ? true : undefined}
 			aria-labelledby="verification-panel-identity-title"
+			id={hideIdentityAccountStatus ? "verification-status-panel" : undefined}
 		>
 			<h2 id="verification-panel-identity-title" class="sr-only">{panelLabel("identity")}</h2>
-			<ProviderVerificationView
-				latestVerification={latestVerification}
-				documents={documents}
-				showHeader={false}
-				placement="primary"
-				reviewAssignment={verificationAssignment}
-				trustMapComplete={listaReady}
-				suppressConsequence={suppressStatusConsequence}
-			/>
+			{
+				accountRejected && hideIdentityAccountStatus ? (
+					<Notice
+						variant="error"
+						title="La cuenta requiere cambios"
+						data-verification-account-reject
+					>
+						{accountRejectCategory?.matched ? (
+							<Badge variant="error" class="mb-2" data-reject-category>
+								{accountRejectCategory.label}
+							</Badge>
+						) : null}
+						<p class="text-sm leading-6">
+							{latestVerification?.reason ||
+								"Corrige los datos indicados y vuelve a enviar los documentos necesarios."}
+						</p>
+					</Notice>
+				) : null
+			}
+			{
+				hideIdentityAccountStatus ? null : (
+					<ProviderVerificationView
+						line={selectedLine}
+						latestVerification={latestVerification}
+						documents={documents}
+						showHeader={false}
+						placement="primary"
+						reviewAssignment={verificationAssignment}
+						trustMapComplete={selectedLine === "tour" ? false : listaReady}
+						suppressConsequence={suppressStatusConsequence}
+						requiredDocumentTypes={kycSlots.length ? kycSlots.map((slot) => slot.type) : undefined}
+					/>
+				)
+			}
+			{
+				identitySlots.length && (!navigation?.line || activeSectionId === "identity") ? (
+					<ProviderKycSlotsCard
+						slots={identitySlots}
+						canManageDocuments={canManageDocuments}
+						documentAssignments={documentAssignments}
+						focusType={
+							identitySlots.some((slot) => slot.type === requestedType)
+								? requestedType
+								: "government_id"
+						}
+						elevated
+						payoutBlocks={payoutBlocks}
+					/>
+				) : null
+			}
+			{
+				selectedLine === "tour" && businessSlots.length && activeSectionId === "identity" ? (
+					<ProviderKycSlotsCard
+						slots={businessSlots}
+						canManageDocuments={canManageDocuments}
+						documentAssignments={documentAssignments}
+						focusType="business_registration"
+						elevated
+						payoutBlocks={payoutBlocks}
+					/>
+				) : null
+			}
 		</section>
 
 		<section
@@ -245,15 +378,27 @@ const paymentErrorMessages: Record<
 		>
 			<h2 id="verification-panel-business-title" class="sr-only">{panelLabel("business")}</h2>
 			{
-				!listaReady ? (
+				screen && selectedLine === "lodging" ? (
+					<ProviderVerificationLineSections screen={screen} line="lodging" />
+				) : null
+			}
+			{
+				selectedLine === "tour" ||
+				(navigation?.line && activeSectionId !== "business") ? null : screen &&
+				  businessSlots.length === 0 ? (
+					<Notice variant="info" title="No se requiere registro de entidad">
+						El titular de esta cuenta no tiene un documento societario pendiente en esta línea.
+					</Notice>
+				) : !listaReady ? (
 					canManageDocuments ? (
 						<div data-verification-docs-fold>
 							<ProviderKycSlotsCard
-								slots={kycSlots}
+								slots={businessSlots}
 								canManageDocuments={canManageDocuments}
 								documentAssignments={documentAssignments}
 								focusType={requestedType}
 								elevated
+								payoutBlocks={payoutBlocks}
 							>
 								<ProviderVerificationNextStep
 									slot="intro"
@@ -293,6 +438,116 @@ const paymentErrorMessages: Record<
 			}
 		</section>
 
+		{
+			selectedLine === "tour" && screen ? (
+				<section
+					class="space-y-6 md:space-y-8"
+					data-verification-trust-panel="activity"
+					data-active={activeSectionId === "activity" ? "true" : "false"}
+					hidden={activeSectionId !== "activity" ? true : undefined}
+					aria-labelledby="verification-panel-activity-title"
+				>
+					<h2 id="verification-panel-activity-title" class="sr-only">
+						Actividad y licencias
+					</h2>
+					<ProviderTourOperatingContext
+						productId={navigation?.experienceId ?? null}
+						context={tourContext ?? null}
+						canEdit={canEditTourContext}
+						result={result}
+						error={error}
+					/>
+					<ProviderVerificationLineSections
+						screen={screen}
+						line="tour"
+						tourArea="activity"
+						experienceId={navigation?.experienceId}
+					/>
+					{tourVerification[0]?.state === "waiting_on_fastt" ? (
+						<Notice variant="info" title="Pendiente de política Fastt">
+							Esta combinación todavía requiere una regla comercial aprobada. Puedes guardar la
+							operación; no subas documentos que no aparezcan como aplicables.
+						</Notice>
+					) : null}
+					{result === "submitted" ? (
+						<Notice variant="success" title="Licencia enviada">
+							El respaldo quedó en revisión para esta experiencia.
+						</Notice>
+					) : null}
+					{result === "error" ? (
+						<Notice variant="warning" title="No se pudo enviar la licencia">
+							{uploadErrorMessages[uploadErrorCode] ??
+								"Revisa el archivo y el alcance e inténtalo de nuevo."}
+						</Notice>
+					) : null}
+					{tourEvidenceOptions.activity.length && navigation?.experienceId ? (
+						<ProviderVerificationOptionals
+							surface="tour-activity"
+							documents={tourEvidenceDocuments("activity")}
+							documentTypes={tourEvidenceOptions.activity}
+							canManageDocuments={canManageDocuments}
+							scopeProductId={navigation.experienceId}
+							availableProducts={tourProducts.map((product) => ({
+								...product,
+								kind: "tour" as const,
+							}))}
+							documentAssignments={documentAssignments}
+							defaultUploadType={requestedType}
+						/>
+					) : null}
+				</section>
+			) : null
+		}
+
+		{
+			selectedLine === "tour" && screen ? (
+				<section
+					class="space-y-6 md:space-y-8"
+					data-verification-trust-panel="safety"
+					data-active={activeSectionId === "safety" ? "true" : "false"}
+					hidden={activeSectionId !== "safety" ? true : undefined}
+					aria-labelledby="verification-panel-safety-title"
+				>
+					<h2 id="verification-panel-safety-title" class="sr-only">
+						Seguridad y permisos
+					</h2>
+					<ProviderVerificationLineSections
+						screen={screen}
+						line="tour"
+						tourArea="safety"
+						experienceId={navigation?.experienceId}
+						safetyState={tourPlaybook.find((tab) => tab.id === "safety")?.uiState}
+					/>
+					{result === "submitted" ? (
+						<Notice variant="success" title="Respaldo enviado">
+							La evidencia de seguridad quedó en revisión para esta experiencia.
+						</Notice>
+					) : null}
+					{result === "error" ? (
+						<Notice variant="warning" title="No se pudo enviar el respaldo">
+							{uploadErrorMessages[uploadErrorCode] ??
+								"Revisa el archivo y el alcance e inténtalo de nuevo."}
+						</Notice>
+					) : null}
+					{tourEvidenceOptions.safety.length && navigation?.experienceId ? (
+						<ProviderVerificationOptionals
+							surface="tour-safety"
+							documents={tourEvidenceDocuments("safety")}
+							documentTypes={tourEvidenceOptions.safety}
+							canManageDocuments={canManageDocuments}
+							scopeProductId={navigation.experienceId}
+							availableProducts={tourProducts.map((product) => ({
+								...product,
+								kind: "tour" as const,
+							}))}
+							documentAssignments={documentAssignments}
+							defaultUploadType={requestedType}
+						/>
+					) : null}
+				</section>
+			) : null
+		}
+
 		<section
 			class="space-y-6 md:space-y-8"
 			data-verification-trust-panel="fiscal"
@@ -316,15 +571,23 @@ const paymentErrorMessages: Record<
 						>
 							<a
 								class="font-semibold underline"
-								href={routes.providerSettingsVerificationPayments()}
+								href={
+									selectedLine === "tour" && !navigation?.fasttCollects
+										? lineHref("activity")
+										: lineHref("payments")
+								}
 							>
-								Continuar a pagos
+								{selectedLine === "tour" && !navigation?.fasttCollects
+									? "Volver a actividad"
+									: "Continuar a pagos"}
 							</a>
 						</p>
 					</Notice>
 				) : null
 			}
 			<ProviderTaxProfileCard
+				line={selectedLine}
+				fasttCollects={selectedLine === "tour" ? (navigation?.fasttCollects ?? false) : true}
 				taxConfiguration={taxConfiguration}
 				canManageFiscality={canManageFiscality}
 				reviewAssignment={fiscalAssignment}
@@ -342,6 +605,14 @@ const paymentErrorMessages: Record<
 		>
 			<h2 id="verification-panel-payments-title" class="sr-only">{panelLabel("payments")}</h2>
 			{
+				screen && !screen.paymentsCountsForSelling ? (
+					<Notice variant="info" title="Pagos no cuenta para vender">
+						El cobro de esta cuenta es directo. La cuenta de liquidación de Fastt queda fuera del
+						avance de la experiencia y del alojamiento.
+					</Notice>
+				) : null
+			}
+			{
 				paymentResult && paymentResultMessages[paymentResult] ? (
 					<Notice
 						variant={paymentResultMessages[paymentResult].variant}
@@ -356,7 +627,7 @@ const paymentErrorMessages: Record<
 						>
 							<a
 								class="font-semibold underline"
-								href={routes.providerSettingsVerification()}
+								href={lineHref("identity")}
 								data-funnel-cta="post_save"
 							>
 								Volver al mapa de Verificación
@@ -400,7 +671,11 @@ const paymentErrorMessages: Record<
 						Documentos adicionales si te los pedimos
 					</p>
 					<p class="mt-1 text-sm leading-6 text-slate-600">
-						Propiedad, licencias y domicilio no desbloquean los mínimos.
+						{
+							screen
+								? "El paquete de cada línea está en las secciones de arriba."
+								: "Propiedad, licencias y domicilio no desbloquean los mínimos."
+						}
 						{
 							optionalDocumentsCount
 								? ` ${optionalDocumentsCount} documento${optionalDocumentsCount === 1 ? "" : "s"} en archivo${

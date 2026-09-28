@@ -5,6 +5,8 @@ import {
 	ProviderAuditLog,
 	ProviderDocument,
 	ProviderUser,
+	Product,
+	TourComplianceContext,
 	User,
 } from "@/shared/infrastructure/db/compat"
 import { GET as documentsGet, POST as documentsPost } from "@/pages/api/provider/settings/documents"
@@ -202,6 +204,154 @@ describe("provider compliance documents", () => {
 			},
 			{ adminEmails: adminEmail }
 		)
+	})
+
+	it("keeps separate tour licences and returns only their recorded scopes", async () => {
+		const providerId = "provider_documents_scoped_evidence"
+		const token = "t_documents_scoped_evidence"
+		const ownerEmail = "documents.scoped@example.com"
+		const ownerId = `user_${ownerEmail}`
+
+		await upsertProvider({
+			id: providerId,
+			legalName: "Evidencia por alcance S.R.L.",
+			displayName: "Evidencia por alcance",
+			ownerEmail,
+		})
+
+		await withSupabaseAuthStub({ [token]: { id: ownerId, email: ownerEmail } }, async () => {
+			const first = new FormData()
+			first.set("type", "operating_license")
+			first.set("fileUrl", "https://cdn.example.com/licencia-la-paz.pdf")
+			first.set("fileName", "licencia-la-paz.pdf")
+			first.set("issuer", "Autoridad turística")
+			first.set("issuedAt", "2026-01-01")
+			first.set("expiresAt", "2026-12-31")
+			first.set("territoryCode", "BO-LP")
+			first.set("territoryLabel", "La Paz")
+			first.append("activityClass", "guided_nature")
+
+			const firstRes = await documentsPost({
+				request: makeAuthedRequest("/api/provider/settings/documents", token, first),
+			} as any)
+			expect(firstRes.status).toBe(201)
+			const firstDocument = await firstRes.json()
+
+			const second = new FormData()
+			second.set("type", "operating_license")
+			second.set("fileUrl", "https://cdn.example.com/licencia-uyuni.pdf")
+			second.set("fileName", "licencia-uyuni.pdf")
+			second.set("territoryCode", "BO-PO")
+			second.set("territoryLabel", "Potosí")
+			second.append("activityClass", "adventure")
+
+			const secondRes = await documentsPost({
+				request: makeAuthedRequest("/api/provider/settings/documents", token, second),
+			} as any)
+			expect(secondRes.status).toBe(201)
+			const secondDocument = await secondRes.json()
+
+			const listRes = await documentsGet({
+				request: makeAuthedRequest("/api/provider/settings/documents", token),
+			} as any)
+			expect(listRes.status).toBe(200)
+			const listed = await listRes.json()
+			const licences = listed.documents.filter(
+				(document: any) =>
+					document.id === firstDocument.document.id || document.id === secondDocument.document.id
+			)
+			expect(licences).toHaveLength(2)
+			expect(licences.every((document: any) => document.status === "pending")).toBe(true)
+			expect(
+				licences.find((document: any) => document.id === firstDocument.document.id).scopes
+			).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({ scopeType: "territory", territoryCode: "BO-LP" }),
+					expect.objectContaining({ scopeType: "activity", activityClass: "guided_nature" }),
+				])
+			)
+			expect(
+				licences.find((document: any) => document.id === secondDocument.document.id).scopes
+			).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({ scopeType: "territory", territoryCode: "BO-PO" }),
+					expect.objectContaining({ scopeType: "activity", activityClass: "adventure" }),
+				])
+			)
+		})
+	})
+
+	it("records one operator licence against each selected tour without widening its scope", async () => {
+		const suffix = crypto.randomUUID()
+		const providerId = `provider_documents_multi_scope_${suffix}`
+		const token = `t_documents_multi_scope_${suffix}`
+		const ownerEmail = `documents.multi-scope.${suffix}@example.com`
+		const ownerId = `user_${ownerEmail}`
+		const productIds = [`tour_scope_a_${suffix}`, `tour_scope_b_${suffix}`]
+
+		await upsertProvider({
+			id: providerId,
+			legalName: "Alcance múltiple S.R.L.",
+			displayName: "Alcance múltiple",
+			ownerEmail,
+		})
+		await db.insert(Product).values(
+			productIds.map((id, index) => ({
+				id,
+				providerId,
+				name: `Experiencia con alcance ${index + 1}`,
+				productType: "tour",
+			}))
+		)
+		await db.insert(TourComplianceContext).values(
+			productIds.map((productId) => ({
+				productId,
+				providerId,
+				operatingRole: "operator",
+				activityClassesJson: ["urban_cultural"],
+				jurisdictionCode: "BO-LP",
+			}))
+		)
+
+		await withSupabaseAuthStub({ [token]: { id: ownerId, email: ownerEmail } }, async () => {
+			const body = new FormData()
+			body.set("type", "operating_license::tour.operator_license")
+			body.set("fileUrl", "https://cdn.example.com/licencia-operador-compartida.pdf")
+			body.set("fileName", "licencia-operador-compartida.pdf")
+			body.set("subjectType", "legal_entity")
+			body.set("territoryCode", "BO-LP")
+			body.set("territoryLabel", "La Paz")
+			body.append("scopeProductId", productIds[0])
+			body.append("scopeProductId", productIds[1])
+
+			const submitRes = await documentsPost({
+				request: makeAuthedRequest("/api/provider/settings/documents", token, body),
+			} as any)
+			expect(submitRes.status).toBe(201)
+			const submitted = await submitRes.json()
+			expect(submitted.document.type).toBe("operating_license")
+			expect(submitted.document.status).toBe("pending")
+			expect(
+				submitted.document.scopes
+					.filter((scope: any) => scope.scopeType === "product")
+					.map((scope: any) => scope.productId)
+			).toEqual(productIds)
+
+			const listRes = await documentsGet({
+				request: makeAuthedRequest("/api/provider/settings/documents", token),
+			} as any)
+			expect(listRes.status).toBe(200)
+			const listed = await listRes.json()
+			const document = listed.documents.find((row: any) => row.id === submitted.document.id)
+			expect(document?.scopes).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({ scopeType: "product", productId: productIds[0] }),
+					expect.objectContaining({ scopeType: "product", productId: productIds[1] }),
+					expect.objectContaining({ scopeType: "territory", territoryCode: "BO-LP" }),
+				])
+			)
+			expect(document?.scopes.filter((scope: any) => scope.scopeType === "product")).toHaveLength(2)
+		})
 	})
 
 	it("rejects document management for staff without document permission", async () => {

@@ -38,8 +38,8 @@ function badgeVariant(status: string) {
 
 	<Card variant="soft">
 		<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">Modelo declarado</p>
-		<p class="mt-1 font-semibold text-slate-950">{model.holderModelLabel}</p>
-		<p class="mt-1 text-sm leading-6 text-slate-600">{model.holderDetail}</p>
+		<p class="mt-1 font-semibold text-slate-950">{model.collectionSummaryLabel}</p>
+		<p class="mt-1 text-sm leading-6 text-slate-600">{model.collectionSummaryDetail}</p>
 	</Card>
 
 	{
@@ -54,6 +54,7 @@ function badgeVariant(status: string) {
 									{offering.verticalLabel}
 									{offering.country ? ` · ${offering.country}` : ""}
 								</p>
+								<p class="mt-1 text-sm text-slate-600">{offering.collectionModelLabel}</p>
 							</div>
 							<Badge variant={badgeVariant(offering.status)}>{offering.statusLabel}</Badge>
 						</div>

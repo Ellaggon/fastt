@@ -1,0 +1,128 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Checkbox from "@/components/ui/Checkbox.astro"
+import FormField from "@/components/ui/FormField.astro"
+import Input from "@/components/ui/Input.astro"
+import Notice from "@/components/ui/Notice.astro"
+import Select from "@/components/ui/Select.astro"
+import {
+	storedTourActivityClasses,
+	tourComplianceActivityClasses,
+	tourComplianceActivityLabels,
+	type TourOperatingRole,
+} from "@/lib/tours/tour-compliance-context"
+
+type Props = {
+	productId: string | null
+	context: {
+		operatingRole: string | null
+		activityClassesJson: unknown
+		jurisdictionCode: string | null
+	} | null
+	canEdit: boolean
+	result?: string
+	error?: string
+}
+
+const { productId, context, canEdit, result, error } = Astro.props as Props
+const selectedActivities = storedTourActivityClasses(context?.activityClassesJson)
+const roles: Array<{ value: TourOperatingRole; label: string }> = [
+	{ value: "guide", label: "Guía" },
+	{ value: "operator", label: "Operador" },
+	{ value: "intermediary", label: "Intermediario" },
+]
+---
+
+<Card class="space-y-5" data-tour-operating-context>
+	<div class="max-w-2xl">
+		<h2 id="tour-operating-context" class="text-lg font-semibold text-slate-950">
+			Cómo operas esta experiencia
+		</h2>
+		<p class="mt-1 text-sm leading-6 text-slate-600">
+			Declara quién la opera, dónde y qué actividades incluye. Estos datos determinan qué respaldos
+			pueden corresponder.
+		</p>
+	</div>
+	{
+		result === "context_saved" ? (
+			<Notice variant="success" title="Operación guardada">
+				Las declaraciones de esta experiencia están actualizadas.
+			</Notice>
+		) : null
+	}
+	{
+		error === "invalid_context" ? (
+			<Notice variant="warning" title="Revisa la declaración">
+				Selecciona un papel operativo, indica el territorio y marca al menos una actividad.
+			</Notice>
+		) : null
+	}
+	{
+		error === "forbidden" ? (
+			<Notice variant="warning" title="Sin permiso para editar">
+				Pide acceso de edición del perfil al titular de la cuenta.
+			</Notice>
+		) : null
+	}
+	{
+		productId && canEdit ? (
+			<form
+				method="post"
+				action="/api/provider/settings/tour-operating-context"
+				class="space-y-5"
+				data-tour-operating-context-form
+			>
+				<input type="hidden" name="productId" value={productId} />
+				<div class="grid gap-4 sm:grid-cols-2">
+					<FormField label="Papel operativo" htmlFor="tour-operating-role" required>
+						<Select id="tour-operating-role" name="operatingRole" required>
+							<option value="" selected={!context?.operatingRole}>
+								Selecciona quién opera
+							</option>
+							{roles.map((role) => (
+								<option value={role.value} selected={context?.operatingRole === role.value}>
+									{role.label}
+								</option>
+							))}
+						</Select>
+					</FormField>
+					<FormField label="Territorio operativo" htmlFor="tour-jurisdiction-code" required>
+						<Input
+							id="tour-jurisdiction-code"
+							name="jurisdictionCode"
+							maxlength="64"
+							required
+							value={context?.jurisdictionCode ?? ""}
+							placeholder="Ej.: BO-LP"
+						/>
+					</FormField>
+				</div>
+				<fieldset class="space-y-3">
+					<legend class="text-sm font-semibold text-slate-800">
+						Actividades que efectivamente operas
+					</legend>
+					<div class="grid gap-2 sm:grid-cols-2">
+						{tourComplianceActivityClasses.map((activity) => (
+							<Card variant="soft" class="min-h-11 py-2">
+								<Checkbox
+									name="activityClass"
+									value={activity}
+									checked={selectedActivities.includes(activity)}
+									label={tourComplianceActivityLabels[activity]}
+								/>
+							</Card>
+						))}
+					</div>
+				</fieldset>
+				<Button type="submit">Guardar operación</Button>
+			</form>
+		) : (
+			<p class="text-sm text-slate-600">
+				{productId
+					? "Tu rol no permite cambiar estas declaraciones."
+					: "Crea una experiencia para declarar cómo se opera."}
+			</p>
+		)
+	}
+</Card>

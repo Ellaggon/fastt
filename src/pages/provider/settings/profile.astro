@@ -7,10 +7,6 @@ import Notice from "@/components/ui/Notice.astro"
 import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import {
-	PROVIDER_ONBOARDING_SELECTION_COOKIE,
-	resolveProviderOnboardingVertical,
-} from "@/lib/onboarding/providerOnboarding"
 import { resolveProviderOnboardingEntryFromStorage } from "@/lib/onboarding/providerOnboardingEntry"
 import { PROVIDER_FORM_FLASH_COOKIE, readProviderFormFlash } from "@/lib/provider-form-flash"
 import { isHolderStorageAvailable, readProviderHolderProfile } from "@/lib/provider-holder-profile"
@@ -30,14 +26,11 @@ const holderProfile = providerId ? await readProviderHolderProfile(providerId) :
 const holderStorageReady = await isHolderStorageAvailable()
 const profile = aggregate?.profile ?? null
 const hasProvider = Boolean(provider?.id)
-const selectedVertical = resolveProviderOnboardingVertical(
-	Astro.cookies.get(PROVIDER_ONBOARDING_SELECTION_COOKIE)?.value
-)
 const onboardingEntry = await resolveProviderOnboardingEntryFromStorage({
 	providerId,
 	userId: user.id,
 	explicitProviderIntent: true,
-	selectedVertical,
+	selectedVertical: null,
 })
 const onboardingResume =
 	onboardingEntry.kind === "redirect" &&

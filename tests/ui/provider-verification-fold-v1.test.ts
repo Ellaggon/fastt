@@ -43,7 +43,7 @@ describe("V1 verification fold reorder (action-first)", () => {
 		const navIdx = page.indexOf("data-verification-trust-nav")
 		const identityPanelIdx = page.indexOf('data-verification-trust-panel="identity"')
 		const foldIdx = page.indexOf("data-verification-docs-fold")
-		const kycIdx = page.indexOf("<ProviderKycSlotsCard")
+		const kycIdx = page.indexOf("<ProviderKycSlotsCard", foldIdx)
 		const railIdx = page.indexOf("<ProviderTrustMapRail")
 		const nextIdx = page.indexOf("<ProviderVerificationNextStep")
 		const statusIdx = page.indexOf("<ProviderVerificationView")
@@ -67,6 +67,9 @@ describe("V1 verification fold reorder (action-first)", () => {
 		expect(page).toContain("verification-trust-panels.js")
 		expect(read("src/components/provider/ProviderVerificationWorkspace.astro")).toContain(
 			"verification-form-submit-pending.js"
+		)
+		expect(read("src/components/provider/ProviderVerificationWorkspace.astro")).toContain(
+			"hideIdentityAccountStatus"
 		)
 		expect(read("src/styles/global.css")).toContain("fastt-verification-submit-bar")
 		expect(panelClient).toContain("syncVerificationTrustPanels")

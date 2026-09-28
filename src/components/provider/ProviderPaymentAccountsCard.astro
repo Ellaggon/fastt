@@ -14,6 +14,7 @@ import {
 	providerPayoutMethods,
 	providerPayoutSchedules,
 } from "@/lib/provider-payment-accounts"
+import { copyVerificationNavigationQuery } from "@/lib/verification/navigation"
 
 type Props = {
 	accounts?: ProviderPaymentAccountRecord[]
@@ -38,6 +39,10 @@ const {
 	payoutRail = null,
 	formReturnTo = "payments",
 } = Astro.props as Props
+const saveAction = copyVerificationNavigationQuery(
+	new URL("/api/provider/settings/payment-accounts", Astro.url),
+	Astro.url
+)
 
 const rail = payoutRail ?? getPayoutRailStatus()
 const pending = accounts.filter((row) => row.status === "pending")
@@ -197,7 +202,7 @@ function badgeVariantForPhase(phaseLabel: string) {
 											{canManagePayments ? (
 												<form
 													method="post"
-													action="/api/provider/settings/payment-accounts"
+													action={`${saveAction.pathname}${saveAction.search}`}
 													class="grid gap-3 sm:grid-cols-3"
 													data-micro-deposit-confirm-form
 													data-astro-reload
@@ -322,7 +327,7 @@ function badgeVariantForPhase(phaseLabel: string) {
 					</summary>
 					<form
 						method="post"
-						action="/api/provider/settings/payment-accounts"
+						action={`${saveAction.pathname}${saveAction.search}`}
 						class="mt-4 space-y-4 border-t border-slate-200 pt-4"
 						data-astro-reload
 					>

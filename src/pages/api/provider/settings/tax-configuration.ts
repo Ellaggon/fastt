@@ -1,4 +1,5 @@
 import type { APIRoute } from "astro"
+import { copyVerificationNavigationQuery } from "@/lib/verification/navigation"
 import { ZodError, z } from "zod"
 
 import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
@@ -62,7 +63,13 @@ function redirectAfterFiscalSubmit(
 	result: string,
 	returnToRaw?: FormDataEntryValue | null
 ) {
-	return Response.redirect(new URL(fiscalRedirectPath(result, returnToRaw), request.url), 303)
+	return Response.redirect(
+		copyVerificationNavigationQuery(
+			new URL(fiscalRedirectPath(result, returnToRaw), request.url),
+			new URL(request.url)
+		),
+		303
+	)
 }
 
 function redirectAfterFiscalError(
@@ -76,6 +83,7 @@ function redirectAfterFiscalError(
 			: routes.providerSettingsVerificationFiscal()
 	const target = new URL(base, request.url)
 	target.searchParams.set("error", error)
+	copyVerificationNavigationQuery(target, new URL(request.url))
 	return Response.redirect(target, 303)
 }
 

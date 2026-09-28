@@ -3,9 +3,10 @@ import { getKycCaptureGuide } from "@/lib/provider-documents"
 
 type Props = {
 	documentType: string
+	payoutBlocks?: boolean
 }
 
-const { documentType } = Astro.props as Props
+const { documentType, payoutBlocks = true } = Astro.props as Props
 const guide = getKycCaptureGuide(documentType)
 ---
 
@@ -82,7 +83,11 @@ const guide = getKycCaptureGuide(documentType)
 			{guide.mobileHint}
 		</p>
 		<p class="text-sm leading-6 text-slate-600">
-			Hasta que este documento esté verificado, no puedes liquidar cobros ni publicar con confianza.
+			{
+				payoutBlocks
+					? "Hasta que este documento esté verificado, no puedes liquidar cobros ni publicar con confianza."
+					: "Hasta que este documento esté verificado, no puedes publicar."
+			}
 		</p>
 		<p class="sr-only" data-kyc-capture-desktop-hint>
 			{guide.example}

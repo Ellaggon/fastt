@@ -6,7 +6,7 @@ import Notice from "@/components/ui/Notice.astro"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
 import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
-import { safeRatePlanPlaybookReturn } from "@/lib/auth/returnTo"
+import { safeProductPreviewReturn, safeRatePlanPlaybookReturn } from "@/lib/auth/returnTo"
 import { listOpenComplianceAssignments } from "@/lib/provider-compliance-ops"
 import {
 	listProviderDocuments,
@@ -15,6 +15,9 @@ import {
 } from "@/lib/provider-documents"
 import { formatProviderRoleLabel } from "@/lib/provider-permissions"
 import { routes } from "@/lib/routes"
+import { loadProviderVerificationResolution } from "@/lib/verification/requirement-context"
+import { packDocumentTypes, packUploadOptions } from "@/lib/verification/requirement-resolver"
+import { asc, db, eq, Product } from "@/shared/infrastructure/db/compat"
 
 const auth = await requireProviderSessionSurface(Astro.request).catch((e: any) => {
 	if (e instanceof Response && e.status === 401) return "__REDIRECT_LOGIN__"
@@ -35,15 +38,31 @@ const summaryPromise = fetch(new URL("/api/provider/settings/summary", Astro.url
 	.then((res) => (res.ok ? res.json() : null))
 	.catch(() => null)
 const documentsPromise = providerId ? listProviderDocuments(providerId).catch(() => []) : []
+const productsPromise = providerId
+	? db
+			.select({ id: Product.id, name: Product.name, productType: Product.productType })
+			.from(Product)
+			.where(eq(Product.providerId, providerId))
+			.orderBy(asc(Product.creationDate))
+			.catch(() => [])
+	: []
 const openAssignmentsPromise = providerId
 	? listOpenComplianceAssignments({ providerId }).catch(() => [])
 	: []
 
-const [summary, documents, openAssignments] = await Promise.all([
+const [summary, documents, openAssignments, products] = await Promise.all([
 	summaryPromise,
 	documentsPromise,
 	openAssignmentsPromise,
+	productsPromise,
 ])
+const availableProducts = products
+	.filter((product) => product.productType === "tour" || product.productType === "hotel")
+	.map((product) => ({
+		id: product.id,
+		name: product.name,
+		kind: product.productType === "hotel" ? ("lodging" as const) : ("tour" as const),
+	}))
 const permissions = sessionPermissions ?? summary?.permissions ?? {}
 const canManageDocuments = Boolean(permissions.canManageDocuments)
 
@@ -53,31 +72,39 @@ const documentAssignmentById = Object.fromEntries(
 		.map((row) => [row.entityId, row] as const)
 )
 
-const optionalDocumentTypes = providerDocumentTypes.filter(
+const loadedResolution = providerId ? await loadProviderVerificationResolution(providerId) : null
+const legacyOptionalTypes = providerDocumentTypes.filter(
 	(item) => !(requiredKycDocumentTypes as readonly string[]).includes(item.value)
 )
-const optionalDocuments = documents.filter(
-	(doc) => !(requiredKycDocumentTypes as readonly string[]).includes(doc.type)
+const resolvedPack =
+	loadedResolution?.enforced && loadedResolution.resolution ? loadedResolution.resolution : null
+const optionalDocumentTypes = resolvedPack ? packUploadOptions(resolvedPack) : legacyOptionalTypes
+const packTypes = new Set<string>(
+	resolvedPack ? packDocumentTypes(resolvedPack) : legacyOptionalTypes.map((item) => item.value)
 )
+const optionalDocuments = documents.filter((doc) => packTypes.has(doc.type))
+const renewalDocumentId = String(Astro.url.searchParams.get("renewDocumentId") ?? "").trim() || null
 
 const result = Astro.url.searchParams.get("result")
 const requestedType = String(Astro.url.searchParams.get("type") ?? "").trim()
 const defaultOptionalUploadType = optionalDocumentTypes.some((item) => item.value === requestedType)
 	? requestedType
-	: optionalDocumentTypes[0]?.value
+	: (optionalDocumentTypes.find((item) => item.value.startsWith(`${requestedType}::`))?.value ??
+		optionalDocumentTypes[0]?.value)
+const uploadError = String(Astro.url.searchParams.get("error") ?? "").trim()
 
 const resultMessages: Record<
 	string,
 	{ title: string; body: string; variant: "success" | "warning" }
 > = {
 	submitted: {
-		title: "Documento opcional enviado",
-		body: "Quedó como Enviado. No cuenta para el checklist mínimo de Verificación.",
+		title: "Documento enviado",
+		body: "Quedó en revisión. Contará para el requisito aplicable solo cuando Fastt verifique su vigencia y alcance.",
 		variant: "success",
 	},
 	verified: {
-		title: "Documento opcional verificado",
-		body: "Queda en el archivo de respaldo adicional.",
+		title: "Documento verificado",
+		body: "El respaldo fue verificado. Su alcance determinará en qué oferta cuenta.",
 		variant: "success",
 	},
 	rejected: {
@@ -88,6 +115,7 @@ const resultMessages: Record<
 }
 
 const playbookReturnHref = safeRatePlanPlaybookReturn(Astro.url.searchParams.get("returnTo"))
+const previewReturnHref = safeProductPreviewReturn(Astro.url.searchParams.get("returnTo"))
 const playbookReturnUrl = playbookReturnHref
 	? new URL(playbookReturnHref, "http://fastt.local")
 	: null
@@ -97,6 +125,16 @@ const detourVertical = Astro.url.searchParams.get("playbookVertical") === "hotel
 const detourStep =
 	String(playbookReturnUrl?.searchParams.get("step") ?? "").trim() ||
 	(detourPlaybookId === "complete-to-publish" ? "bookingPolicies" : "conditions")
+const scopeProductId =
+	String(Astro.url.searchParams.get("scopeProductId") ?? "").trim() ||
+	String(playbookReturnUrl?.searchParams.get("productId") ?? "").trim() ||
+	null
+const verificationBackUrl = new URL(routes.providerSettingsVerification(), Astro.url)
+for (const key of ["line", "tab", "experience", "lodgingTab", "tourTab"]) {
+	const value = Astro.url.searchParams.get(key)
+	if (value) verificationBackUrl.searchParams.set(key, value)
+}
+const verificationBackHref = `${verificationBackUrl.pathname}${verificationBackUrl.search}`
 ---
 
 {
@@ -136,6 +174,18 @@ const detourStep =
 						{resultMessages[result].body}
 					</Notice>
 				) : null}
+				{uploadError === "document_not_applicable" ? (
+					<Notice variant="warning" title="Este documento no corresponde a tu línea">
+						La prueba de titularidad y la licencia del establecimiento son de alojamiento. Un guía
+						no las sube aquí.
+					</Notice>
+				) : null}
+				{resolvedPack && optionalDocumentTypes.length === 0 ? (
+					<Notice variant="info" title="Todavía no hay un documento de línea para subir">
+						Declara la actividad, el territorio y el papel de cada experiencia. Eso afina la
+						credencial o el seguro. La identidad sigue en Verificación.
+					</Notice>
+				) : null}
 				{canManageDocuments ? (
 					<ProviderVerificationOptionals
 						documents={optionalDocuments}
@@ -145,6 +195,9 @@ const detourStep =
 						documentAssignments={documentAssignmentById}
 						playbookReturnTo={playbookReturnHref}
 						playbookVertical={detourVertical}
+						scopeProductId={scopeProductId}
+						availableProducts={availableProducts}
+						renewalDocumentId={renewalDocumentId}
 					/>
 				) : (
 					<ProviderDocumentsAccessDenied roleLabel={providerRoleLabel} surface="optional" />
@@ -153,13 +206,18 @@ const detourStep =
 		</PlaybookLayout>
 	) : (
 		<ProviderSettingsLayout
-			title="Documentos adicionales"
-			heading="Documentos adicionales"
-			description="Propiedad, licencias y domicilio. No desbloquean los documentos mínimos de Verificación."
+			title="Evidencia y documentos"
+			heading="Evidencia y documentos"
+			description="Documentos de tu línea. La identidad, el registro de la entidad y el NIT, cuando corresponden, se piden una vez en Verificación."
 			showSettingsTabs={false}
 		>
 			<div slot="actions" class="flex flex-wrap gap-3">
-				<Button href={routes.providerSettingsVerification()} variant="secondary">
+				{previewReturnHref ? (
+					<Button href={previewReturnHref} variant="secondary">
+						Volver a la experiencia
+					</Button>
+				) : null}
+				<Button href={verificationBackHref} variant="secondary">
 					Volver a verificación
 				</Button>
 				<Button href={routes.providerSettings()} variant="secondary">
@@ -172,6 +230,24 @@ const detourStep =
 					{resultMessages[result].body}
 				</Notice>
 			) : null}
+			{scopeProductId ? (
+				<Notice variant="info" title="Evidencia para una experiencia concreta">
+					El documento quedará vinculado a esta experiencia. Solo contará si la revisión confirma su
+					titular, vigencia, territorio, actividad y demás alcance declarado.
+				</Notice>
+			) : null}
+			{uploadError === "document_not_applicable" ? (
+				<Notice variant="warning" title="Este documento no corresponde a tu línea">
+					La prueba de titularidad y la licencia del establecimiento son de alojamiento. Un guía no
+					las sube aquí.
+				</Notice>
+			) : null}
+			{resolvedPack && optionalDocumentTypes.length === 0 ? (
+				<Notice variant="info" title="Todavía no hay un documento de línea para subir">
+					Declara la actividad, el territorio y el papel de cada experiencia. Eso afina la
+					credencial o el seguro. La identidad sigue en Verificación.
+				</Notice>
+			) : null}
 
 			{canManageDocuments ? (
 				<ProviderVerificationOptionals
@@ -180,6 +256,10 @@ const detourStep =
 					canManageDocuments={canManageDocuments}
 					defaultUploadType={defaultOptionalUploadType}
 					documentAssignments={documentAssignmentById}
+					playbookReturnTo={previewReturnHref}
+					scopeProductId={scopeProductId}
+					availableProducts={availableProducts}
+					renewalDocumentId={renewalDocumentId}
 				/>
 			) : (
 				<ProviderDocumentsAccessDenied roleLabel={providerRoleLabel} surface="optional" />

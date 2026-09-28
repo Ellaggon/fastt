@@ -1,0 +1,124 @@
+---
+import Card from "@/components/ui/Card.astro"
+import type { VerificationScreen } from "@/lib/verification/screen-sections"
+import type { VerificationPlaybookTab } from "@/lib/verification/navigation"
+
+type Props = {
+	screen: VerificationScreen
+	line?: "lodging" | "tour" | null
+	tourArea?: "activity" | "safety" | null
+	experienceId?: string | null
+	safetyState?: VerificationPlaybookTab["uiState"]
+}
+
+const {
+	screen,
+	line = null,
+	tourArea = null,
+	experienceId = null,
+	safetyState = "not_evaluable",
+} = Astro.props as Props
+const lineSections = screen.sections.filter(
+	(section) => section.id !== "shared" && (!line || section.id === line) && section.items.length > 0
+)
+const safetyIds = new Set(["tour.insurance", "tour.food_handling_pending"])
+function contextualHref(href: string, id: string): string {
+	if (line === "tour") {
+		if (id === "tour.insurance") return "#tour-evidence-tour-safety"
+		if (id === "tour.guide_credential" || id === "tour.operator_license")
+			return "#tour-evidence-tour-activity"
+	}
+	const url = new URL(href, Astro.url)
+	if (url.pathname === "/provider/settings/verification/documents" && line) {
+		url.searchParams.set("line", line)
+		url.searchParams.set("tab", line === "tour" ? (tourArea ?? "activity") : "business")
+		if (experienceId) {
+			url.searchParams.set("experience", experienceId)
+			url.searchParams.set("scopeProductId", experienceId)
+		}
+	}
+	return `${url.pathname}${url.search}${url.hash}`
+}
+---
+
+{
+	lineSections.length ? (
+		<section class="space-y-4" aria-label="Requisitos de la línea" data-verification-line-sections>
+			{lineSections.map((section) => {
+				const listed = section.items.filter(
+					(entry) =>
+						entry.id !== "tour.operating_role_missing" &&
+						(section.id !== "tour" ||
+							!tourArea ||
+							(tourArea === "safety" ? safetyIds.has(entry.id) : !safetyIds.has(entry.id)))
+				)
+				if (!listed.length && !(section.id === "tour" && tourArea === "safety")) return null
+				return (
+					<Card class="space-y-4" data-verification-line-section={section.id}>
+						<div class="max-w-3xl">
+							<p class="text-sm font-semibold text-slate-950">
+								{section.id === "tour"
+									? tourArea === "safety"
+										? "Seguridad aplicable"
+										: "Licencias aplicables"
+									: section.title}
+							</p>
+							<p class="mt-1 text-sm leading-6 text-slate-600">
+								{section.id === "tour"
+									? tourArea === "safety"
+										? "Se determina por las actividades declaradas y la política vigente."
+										: "Se determina por quién opera y dónde se realiza la experiencia."
+									: section.description}
+							</p>
+						</div>
+						{listed.length ? (
+							<ul class="grid gap-2 sm:grid-cols-2">
+								{listed.map((entry) => (
+									<li
+										data-verification-line-item={entry.id}
+										data-counts={entry.countsTowardProgress ? "true" : "false"}
+									>
+										{entry.href ? (
+											<a
+												href={contextualHref(entry.href, entry.id)}
+												class="flex items-center justify-between gap-3 text-sm text-slate-800 underline-offset-2 hover:underline"
+											>
+												<span>
+													<span>{entry.label}</span>
+													{entry.stateDetail ? (
+														<span class="mt-1 block text-xs leading-5 text-slate-500">
+															{entry.stateDetail}
+														</span>
+													) : null}
+												</span>
+												<span class="shrink-0 font-medium text-slate-500">{entry.stateLabel}</span>
+											</a>
+										) : (
+											<span class="flex items-center justify-between gap-3 text-sm text-slate-800">
+												<span>
+													<span>{entry.label}</span>
+													{entry.stateDetail ? (
+														<span class="mt-1 block text-xs leading-5 text-slate-500">
+															{entry.stateDetail}
+														</span>
+													) : null}
+												</span>
+												<span class="shrink-0 font-medium text-slate-500">{entry.stateLabel}</span>
+											</span>
+										)}
+									</li>
+								))}
+							</ul>
+						) : (
+							<p class="text-sm leading-6 text-slate-600">
+								{safetyState === "not_applicable"
+									? "No aplica un documento de seguridad adicional a la actividad y el territorio declarados. Si cambian, volveremos a evaluarlo."
+									: "No evaluable todavía. Declara el papel operativo, la actividad y el territorio en Actividad y licencias para saber qué respaldo corresponde."}
+							</p>
+						)}
+					</Card>
+				)
+			})}
+		</section>
+	) : null
+}

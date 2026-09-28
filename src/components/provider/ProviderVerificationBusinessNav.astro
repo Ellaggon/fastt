@@ -1,0 +1,166 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Button from "@/components/ui/Button.astro"
+import FormField from "@/components/ui/FormField.astro"
+import Select from "@/components/ui/Select.astro"
+import TabsInsidePanel from "@/components/ui/TabsInsidePanel.astro"
+import type { ProviderTrustLink } from "@/lib/provider-trust-map"
+import { TRUST_GLOSSARY } from "@/lib/provider-trust-map"
+import type { VerificationNavigation, VerificationPlaybookTab } from "@/lib/verification/navigation"
+import { verificationNavigationHref, verificationTabLabel } from "@/lib/verification/navigation"
+import { CircleDollarSign, Compass, LifeBuoy, ReceiptText, ShieldCheck } from "@lucide/astro"
+
+type Props = {
+	navigation: VerificationNavigation
+	url: URL
+	products: Array<{ id: string; name: string | null }>
+	playbook?: VerificationPlaybookTab[]
+	trustLinks?: ProviderTrustLink[]
+}
+
+const { navigation, url, products, playbook = [], trustLinks = [] } = Astro.props as Props
+const navigationPlaybook: VerificationPlaybookTab[] =
+	navigation.line === "tour"
+		? playbook
+		: navigation.tabs.map((tab) => {
+				const link = trustLinks.find((entry) => entry.id === tab)
+				return {
+					id: tab,
+					label: verificationTabLabel(tab),
+					href: verificationNavigationHref({ url, navigation, line: "lodging", tab }),
+					uiState: link?.uiState ?? "not_evaluable",
+					stateLabel: link?.stateLabel ?? "No evaluable",
+				}
+			})
+const iconByTab = {
+	identity: ShieldCheck,
+	activity: Compass,
+	safety: LifeBuoy,
+	fiscal: ReceiptText,
+	payments: CircleDollarSign,
+	business: ShieldCheck,
+} as const
+const statusBadgeByState = {
+	ready: "darkSuccess",
+	in_review: "darkNeutral",
+	action_needed: "darkWarning",
+	requires_changes: "darkError",
+	not_started: "darkWarning",
+	blocked: "darkNeutral",
+	not_evaluable: "darkNeutral",
+	not_applicable: "darkNeutral",
+} as const
+const playbookComplete =
+	navigationPlaybook.length > 0 &&
+	navigationPlaybook.every((tab) => tab.uiState === "ready" || tab.uiState === "not_applicable")
+const lineLabels = { lodging: "Alojamientos", tour: "Tours" } as const
+const currentLine = navigation.line
+const currentName = products.find((product) => product.id === navigation.experienceId)?.name
+---
+
+<div class="space-y-4" data-verification-business-nav>
+	{
+		navigation.lines.length > 1 ? (
+			<nav aria-label="Línea de negocio" class="flex flex-wrap gap-2" data-verification-line-nav>
+				{navigation.lines.map((line) => {
+					const active = line === currentLine
+					return (
+						<a
+							href={verificationNavigationHref({ url, navigation, line })}
+							aria-current={active ? "page" : undefined}
+							data-verification-line-link={line}
+							class:list={[
+								"rounded-full border px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900",
+								active
+									? "border-slate-950 bg-slate-950 text-white"
+									: "border-slate-200 bg-white text-slate-700 hover:border-slate-400",
+							]}
+						>
+							{lineLabels[line]}
+						</a>
+					)
+				})}
+			</nav>
+		) : null
+	}
+	{
+		currentLine === "tour" && products.length > 1 ? (
+			<form
+				method="get"
+				action="/provider/settings/verification"
+				class="flex flex-wrap items-end gap-3"
+				data-verification-experience-selector
+			>
+				<input type="hidden" name="line" value="tour" />
+				<input type="hidden" name="tab" value={navigation.tab} />
+				<input type="hidden" name="tourTab" value={navigation.tab} />
+				{url.searchParams.get("lodgingTab") ? (
+					<input type="hidden" name="lodgingTab" value={url.searchParams.get("lodgingTab")} />
+				) : null}
+				<FormField
+					label="Experiencia"
+					htmlFor="verification-experience-select"
+					class="min-w-56 flex-1 text-slate-200 [&_label]:text-slate-200"
+				>
+					<Select id="verification-experience-select" name="experience">
+						{products.map((product) => (
+							<option value={product.id} selected={product.id === navigation.experienceId}>
+								{product.name || "Experiencia sin nombre"}
+							</option>
+						))}
+					</Select>
+				</FormField>
+				<Button type="submit" variant="secondary">
+					Ver experiencia
+				</Button>
+			</form>
+		) : currentLine === "tour" && currentName ? (
+			<p class="text-sm text-slate-300" data-verification-selected-experience>
+				Experiencia: <span class="font-medium text-white">{currentName}</span>
+			</p>
+		) : null
+	}
+	{
+		currentLine && navigationPlaybook.length ? (
+			<div data-verification-tab-nav data-verification-tour-playbook>
+				{playbookComplete ? (
+					<div class="mb-1.5 flex flex-wrap items-center justify-end gap-2">
+						<Badge variant="success">{TRUST_GLOSSARY.page.railComplete}</Badge>
+					</div>
+				) : null}
+				<TabsInsidePanel
+					aria-label={`Verificación de ${lineLabels[currentLine].toLowerCase()}`}
+					class="max-w-full flex-nowrap"
+				>
+					{navigationPlaybook.map((tab) => {
+						const active = navigation.tab === tab.id
+						const Icon = iconByTab[tab.id]
+						return (
+							<a
+								href={tab.href}
+								data-astro-prefetch="viewport"
+								aria-current={active ? "page" : undefined}
+								aria-label={`${tab.label}. Estado: ${tab.stateLabel}.`}
+								data-verification-tab-link={tab.id}
+								data-active={active ? "true" : "false"}
+								class="fastt-tabs-inside-panel__item"
+							>
+								<Icon class="h-4 w-4 shrink-0" aria-hidden="true" />
+								<span class="fastt-tabs-inside-panel__label">{tab.label}</span>
+								<Badge
+									variant={statusBadgeByState[tab.uiState]}
+									class="fastt-tabs-inside-panel__status"
+									data-trust-link-status
+									data-trust-link-status-state={tab.uiState}
+								>
+									<span class="fastt-tabs-inside-panel__status-dot" aria-hidden="true" />
+									{tab.stateLabel}
+								</Badge>
+							</a>
+						)
+					})}
+				</TabsInsidePanel>
+			</div>
+		) : null
+	}
+</div>

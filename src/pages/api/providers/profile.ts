@@ -23,6 +23,10 @@ import {
 	readProviderSettingsFormValues,
 	validateProviderSettingsForm,
 } from "@/lib/provider/save-provider-settings-profile"
+import {
+	commercialLineFromOnboardingDestination,
+	enrollProviderCommercialLine,
+} from "@/lib/verification/commercial-lines"
 
 function shouldReturnHtmlRedirect(request: Request): boolean {
 	const accept = (request.headers.get("accept") || "").toLowerCase()
@@ -193,6 +197,17 @@ export const handleProviderProfilePost: APIRoute = async ({ request, cookies }) 
 				changedKeys: Object.keys(raw),
 			}),
 		})
+		const enrolledLine = commercialLineFromOnboardingDestination(
+			resolveProviderOnboardingNext(onboardingNext, "")
+		)
+		if (enrolledLine) {
+			await enrollProviderCommercialLine({
+				providerId,
+				line: enrolledLine,
+				source: "onboarding",
+				enrolledByUserId: user.id,
+			})
+		}
 
 		if (shouldReturnHtmlRedirect(request)) {
 			return redirectAfterProfileSave(
