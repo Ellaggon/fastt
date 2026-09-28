@@ -13,6 +13,8 @@
     "certify:holder-match": "node --import dotenv/config --import tsx src/scripts/prepare-holder-match-certification-fixtures.ts",
     "audit:geo:retirement": "tsx scripts/db/verify-legacy-geography-retirement.ts",
     "audit:geo:legacy-products": "node --import dotenv/config --import tsx scripts/db/audit-legacy-geography-products.ts",
+
+    "audit:commercial-evidence-migration": "node --import dotenv/config --import tsx scripts/db/audit-commercial-evidence-migration.ts",
     "purge:geo:legacy-products": "node --import dotenv/config --import tsx scripts/db/purge-legacy-geography-products.ts",
     "seed:financial:demo": "tsx src/scripts/seed-financial-operational-demo.ts",
     "audit:r2-images": "tsx src/scripts/audit-r2-image-orphans.ts",
