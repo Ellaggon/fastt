@@ -1,9 +1,8 @@
 import type { APIRoute } from "astro"
 
 import { searchReadModelRepository } from "@/container/search-read-model.container"
-import { SEARCH_VIEW_REASON_CODES } from "@/modules/search/public"
+import { buildSearchViewGovernanceHealth, SEARCH_VIEW_REASON_CODES } from "@/modules/search/public"
 import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
-import { buildSearchViewGovernanceHealth } from "@/modules/search/application/services/search-view-health"
 
 function parseDateOnly(value: string): Date {
 	const raw = String(value ?? "").trim()

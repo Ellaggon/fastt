@@ -8,6 +8,10 @@ import { savePreparationSession } from "@/lib/onboarding/preparationSession"
 import { createProduct, geoPlaceCompatibilityError } from "@/modules/catalog/public"
 import { productRepository } from "@/container"
 import { and, db, eq, first, GeoPlace, WholeHome } from "@/shared/infrastructure/db/compat"
+import {
+	commercialLineForProductType,
+	enrollProviderCommercialLine,
+} from "@/lib/verification/commercial-lines"
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
@@ -85,6 +89,16 @@ export const POST: APIRoute = async ({ request }) => {
 				beds: 0,
 				bathrooms: 1,
 				maxGuests: 1,
+			})
+		}
+		const line = commercialLineForProductType(raw.productType)
+		if (line) {
+			await enrollProviderCommercialLine({
+				providerId,
+				line,
+				source: "product",
+				originProductId: id,
+				enrolledByUserId: user.id,
 			})
 		}
 		await refreshProductOperationalSurfaceAfterMutation({

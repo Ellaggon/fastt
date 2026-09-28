@@ -2,6 +2,7 @@ import { buildPlaybookHref } from "@/lib/playbook/launch-accommodation"
 import { buildTourPlaybookHref } from "@/lib/playbook/launch-tour"
 import { routes } from "@/lib/routes"
 import { isHolderStorageAvailable, readProviderHolderProfile } from "@/lib/provider-holder-profile"
+import { listProviderCommercialLines } from "@/lib/verification/commercial-lines"
 import { asc, db, eq, Product, ProviderProfile } from "@/shared/infrastructure/db/compat"
 import { listActivePreparationSessions, type PreparationResume } from "./preparationSession"
 import {
@@ -53,9 +54,9 @@ function fallbackPreparationHref(product: OnboardingProduct): string | null {
 }
 
 /**
- * One decision point for a provider returning to onboarding. It deliberately
- * uses persisted facts only; cookies provide the chosen vertical but never
- * authorize a product or an operational route.
+ * One decision point for a provider returning to onboarding. Once the account
+ * exists, enrolled commercial lines decide the journey. The selection cookie
+ * only helps a visitor who does not have an account yet.
  */
 export function resolveProviderOnboardingEntry(input: {
 	hasProvider: boolean
@@ -68,6 +69,10 @@ export function resolveProviderOnboardingEntry(input: {
 	} | null
 	activeSessions: readonly PreparationResume[]
 	firstProduct: OnboardingProduct | null
+	/** Persisted account lines. The onboarding cookie is not read here. */
+	enrolledLines?: readonly ("lodging" | "tour")[]
+	/** Explicit request to add another line. It does not remove the ones already stored. */
+	choosingAdditionalLine?: boolean
 	holderDeclarationPending?: boolean
 }): ProviderOnboardingEntry {
 	if (!input.hasProvider) {
@@ -115,28 +120,48 @@ export function resolveProviderOnboardingEntry(input: {
 		return { kind: "redirect", href: routes.dashboard(), reason: "unsupported_first_offer" }
 	}
 
-	if (!input.selectedVertical) return { kind: "render-service-choice" }
+	if (input.choosingAdditionalLine) return { kind: "render-service-choice" }
+
+	const enrolled = input.enrolledLines ?? []
+	const onlyLine = enrolled.length === 1 ? enrolled[0] : null
+	const resumeVertical = onlyLine === "tour" ? "tour" : onlyLine === "lodging" ? "hotel" : null
+	if (!resumeVertical) {
+		if (
+			enrolled.length > 1 &&
+			(input.holderDeclarationPending || !isOperationalProfileComplete(input.profile))
+		) {
+			return {
+				kind: "redirect",
+				href: providerOnboardingBusinessHref("hotel"),
+				reason: input.holderDeclarationPending
+					? "holder_declaration_pending"
+					: "operational_profile_incomplete",
+				vertical: "hotel",
+			}
+		}
+		return { kind: "render-service-choice" }
+	}
 	if (input.holderDeclarationPending) {
 		return {
 			kind: "redirect",
-			href: providerOnboardingBusinessHref(input.selectedVertical),
+			href: providerOnboardingBusinessHref(resumeVertical),
 			reason: "holder_declaration_pending",
-			vertical: input.selectedVertical,
+			vertical: resumeVertical,
 		}
 	}
 	if (!isOperationalProfileComplete(input.profile)) {
 		return {
 			kind: "redirect",
-			href: providerOnboardingBusinessHref(input.selectedVertical),
+			href: providerOnboardingBusinessHref(resumeVertical),
 			reason: "operational_profile_incomplete",
-			vertical: input.selectedVertical,
+			vertical: resumeVertical,
 		}
 	}
 	return {
 		kind: "redirect",
-		href: providerOnboardingProductCreateHref(input.selectedVertical),
+		href: providerOnboardingProductCreateHref(resumeVertical),
 		reason: "business_ready_for_first_offer",
-		vertical: input.selectedVertical,
+		vertical: resumeVertical,
 	}
 }
 
@@ -145,6 +170,7 @@ export async function resolveProviderOnboardingEntryFromStorage(input: {
 	userId: string
 	explicitProviderIntent: boolean
 	selectedVertical: ProviderOnboardingVertical | null
+	choosingAdditionalLine?: boolean
 }): Promise<ProviderOnboardingEntry> {
 	if (!input.providerId) {
 		return resolveProviderOnboardingEntry({
@@ -158,45 +184,49 @@ export async function resolveProviderOnboardingEntryFromStorage(input: {
 	}
 	const providerId = input.providerId
 
-	const [profile, product, activeSessions, holderDeclarationPending] = await Promise.all([
-		db
-			.select({
-				timezone: ProviderProfile.timezone,
-				defaultCurrency: ProviderProfile.defaultCurrency,
-				supportEmail: ProviderProfile.supportEmail,
-			})
-			.from(ProviderProfile)
-			.where(eq(ProviderProfile.providerId, providerId))
-			.then((rows) => rows[0] ?? null),
-		db
-			.select({
-				id: Product.id,
-				productType: Product.productType,
-				publicationState: Product.publicationState,
-			})
-			.from(Product)
-			.where(eq(Product.providerId, providerId))
-			.orderBy(asc(Product.creationDate))
-			.limit(1)
-			.then((rows) => rows[0] ?? null),
-		listActivePreparationSessions(providerId, input.userId).catch((error) => {
-			// A missing Phase 2 table must not strand a new provider. The migration is
-			// still required to offer durable resumption, but product state remains safe.
-			console.error("Provider preparation session lookup failed.", error)
-			return [] as PreparationResume[]
-		}),
-		isHolderStorageAvailable().then(async (ready) =>
-			ready ? !(await readProviderHolderProfile(providerId)) : false
-		),
-	])
+	const [profile, product, activeSessions, holderDeclarationPending, enrolledLines] =
+		await Promise.all([
+			db
+				.select({
+					timezone: ProviderProfile.timezone,
+					defaultCurrency: ProviderProfile.defaultCurrency,
+					supportEmail: ProviderProfile.supportEmail,
+				})
+				.from(ProviderProfile)
+				.where(eq(ProviderProfile.providerId, providerId))
+				.then((rows) => rows[0] ?? null),
+			db
+				.select({
+					id: Product.id,
+					productType: Product.productType,
+					publicationState: Product.publicationState,
+				})
+				.from(Product)
+				.where(eq(Product.providerId, providerId))
+				.orderBy(asc(Product.creationDate))
+				.limit(1)
+				.then((rows) => rows[0] ?? null),
+			listActivePreparationSessions(providerId, input.userId).catch((error) => {
+				// A missing Phase 2 table must not strand a new provider. The migration is
+				// still required to offer durable resumption, but product state remains safe.
+				console.error("Provider preparation session lookup failed.", error)
+				return [] as PreparationResume[]
+			}),
+			isHolderStorageAvailable().then(async (ready) =>
+				ready ? !(await readProviderHolderProfile(providerId)) : false
+			),
+			listProviderCommercialLines(providerId).then((rows) => rows.map((row) => row.line)),
+		])
 
 	return resolveProviderOnboardingEntry({
 		hasProvider: true,
 		explicitProviderIntent: input.explicitProviderIntent,
-		selectedVertical: input.selectedVertical,
+		selectedVertical: null,
 		profile,
 		activeSessions,
 		firstProduct: product,
+		enrolledLines,
+		choosingAdditionalLine: input.choosingAdditionalLine,
 		holderDeclarationPending,
 	})
 }

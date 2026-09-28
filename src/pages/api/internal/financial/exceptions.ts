@@ -1,13 +1,12 @@
 import type { APIRoute } from "astro"
 
 import { financialExceptionRepository } from "@/container/financial.container"
-import { buildFinancialReviewOverlay } from "@/modules/financial/application/use-cases/build-financial-review-overlay"
-import { listFinancialExceptions } from "@/modules/financial/application/use-cases/list-financial-exceptions"
 import type {
 	FinancialExceptionCode,
 	FinancialExceptionRecord,
 	FinancialExceptionStatus,
 } from "@/modules/financial/public"
+import { buildFinancialReviewOverlay, listFinancialExceptions } from "@/modules/financial/public"
 
 import { json, requireFinancialProvider } from "./_stage2"
 import { GET as getFinancialOperations } from "./operations"

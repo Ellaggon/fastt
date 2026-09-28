@@ -20,6 +20,12 @@ import {
 	assertProductCommercialCapability,
 	CommercialPolicyBlockedError,
 } from "@/lib/commercial-policy/enforcement"
+import {
+	assertProductLineGate,
+	departureResourcesForBooking,
+	lineGateEvaluationDate,
+	ProductLineGateBlockedError,
+} from "@/lib/verification/line-gate"
 import { createBookingFromHold } from "@/modules/booking/public"
 import { bookingFromHoldRepository } from "@/container/booking.container"
 import { tourTrustRepository } from "@/container"
@@ -112,6 +118,8 @@ async function findLinkedBookingByHold(
 async function findHoldMeta(holdId: string): Promise<{
 	providerId: string | null
 	productId: string | null
+	variantId: string | null
+	departureDate: string | null
 	isTourSlot: boolean
 	policySnapshotJson: unknown
 	priceQuoteId: string | null
@@ -120,10 +128,12 @@ async function findHoldMeta(holdId: string): Promise<{
 		.select({
 			providerId: Product.providerId,
 			productId: Product.id,
+			variantId: InventoryLock.variantId,
 			variantKind: Variant.kind,
 			productType: Product.productType,
 			policySnapshotJson: Hold.policySnapshotJson,
 			priceQuoteId: Hold.priceQuoteId,
+			departureDate: Hold.checkIn,
 		})
 		.from(InventoryLock)
 		.leftJoin(Variant, eq(Variant.id, InventoryLock.variantId))
@@ -136,6 +146,8 @@ async function findHoldMeta(holdId: string): Promise<{
 	return {
 		providerId: String(row?.providerId ?? "").trim() || null,
 		productId: String((row as any)?.productId ?? "").trim() || null,
+		variantId: String(row?.variantId ?? "").trim() || null,
+		departureDate: String(row?.departureDate ?? "").trim() || null,
 		isTourSlot: variantKind === "tour_slot" || productType === "tour",
 		policySnapshotJson: row?.policySnapshotJson ?? null,
 		priceQuoteId: String(row?.priceQuoteId ?? "").trim() || null,
@@ -259,10 +271,26 @@ export const POST: APIRoute = async ({ request }) => {
 			capability: "booking",
 		})
 		if (!holdMeta.productId) throw new Error("PRODUCT_OWNERSHIP_REQUIRED")
+		const departure =
+			holdMeta.isTourSlot && holdMeta.variantId && holdMeta.departureDate
+				? await departureResourcesForBooking({
+						variantId: holdMeta.variantId,
+						date: holdMeta.departureDate,
+					})
+				: []
 		await assertProductCommercialCapability({
 			providerId: providerIdForHold,
 			productId: holdMeta.productId,
 			capability: "booking",
+			resourceIds: departure.map((resource) => resource.resourceId),
+			forceForTour: true,
+		})
+		await assertProductLineGate({
+			providerId: providerIdForHold,
+			productId: holdMeta.productId,
+			capability: "booking",
+			departure,
+			evaluatedAt: lineGateEvaluationDate(holdMeta.departureDate),
 		})
 
 		const result = await serializeBookingConfirm(parsed.holdId, async () =>
@@ -371,6 +399,15 @@ export const POST: APIRoute = async ({ request }) => {
 		if (error instanceof CommercialPolicyBlockedError) {
 			return new Response(
 				JSON.stringify({ error: "commercial_policy_blocked", ...error.details }),
+				{
+					status: 423,
+					headers: { "Content-Type": "application/json" },
+				}
+			)
+		}
+		if (error instanceof ProductLineGateBlockedError) {
+			return new Response(
+				JSON.stringify({ error: "product_line_gate_blocked", ...error.details }),
 				{
 					status: 423,
 					headers: { "Content-Type": "application/json" },

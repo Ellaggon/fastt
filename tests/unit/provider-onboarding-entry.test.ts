@@ -5,6 +5,7 @@ import { resolveProviderOnboardingEntry } from "@/lib/onboarding/providerOnboard
 const base = {
 	explicitProviderIntent: true,
 	selectedVertical: "tour" as const,
+	enrolledLines: ["tour"] as const,
 	profile: { timezone: "America/Santiago", defaultCurrency: "CLP", supportEmail: "ops@fastt.test" },
 	activeSessions: [],
 	firstProduct: null,
@@ -99,6 +100,47 @@ describe("provider onboarding entry", () => {
 			href: "/provider/onboarding/business?vertical=tour",
 			reason: "holder_declaration_pending",
 		})
+	})
+
+	it("does not let the onboarding cookie replace the enrolled line", () => {
+		expect(
+			resolveProviderOnboardingEntry({
+				...base,
+				hasProvider: true,
+				selectedVertical: "hotel",
+				enrolledLines: ["tour"],
+			})
+		).toMatchObject({
+			kind: "redirect",
+			href: "/product/create?type=Tour&playbook=launch-tour&step=create&flow=create",
+			vertical: "tour",
+		})
+		expect(
+			resolveProviderOnboardingEntry({
+				...base,
+				hasProvider: true,
+				selectedVertical: "tour",
+				enrolledLines: [],
+			})
+		).toEqual({ kind: "render-service-choice" })
+	})
+
+	it("keeps both lines when the provider adds the other service", () => {
+		expect(
+			resolveProviderOnboardingEntry({
+				...base,
+				hasProvider: true,
+				enrolledLines: ["lodging", "tour"],
+				choosingAdditionalLine: true,
+			})
+		).toEqual({ kind: "render-service-choice" })
+		expect(
+			resolveProviderOnboardingEntry({
+				...base,
+				hasProvider: true,
+				enrolledLines: ["lodging", "tour"],
+			})
+		).toEqual({ kind: "render-service-choice" })
 	})
 
 	it("does not assume provider intent for a traveler without a business", () => {
