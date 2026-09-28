@@ -106,6 +106,47 @@ export const ProviderHolderProfile = pgTable(
 )
 
 /**
+ * Commercial lines enrolled on the account. A row stays when its products are
+ * removed: originProductId is cleared, and the compliance enrollment remains.
+ */
+export const ProviderCommercialLine = pgTable(
+	"ProviderCommercialLine",
+	{
+		id: pk(),
+		providerId: txt("providerId").references(() => Provider.id, { onDelete: "cascade" }),
+		line: txt("line"),
+		source: txt("source"),
+		/** Declared per business line; never inferred from another line or legacy account state. */
+		collectionModel: text("collectionModel").default("undecided").notNull(),
+		collectionDeclaredByUserId: txtOpt("collectionDeclaredByUserId").references(
+			(): AnyPgColumn => User.id,
+			{ onDelete: "set null" }
+		),
+		collectionDeclaredAt: ts("collectionDeclaredAt"),
+		originProductId: txtOpt("originProductId").references((): AnyPgColumn => Product.id, {
+			onDelete: "set null",
+		}),
+		enrolledByUserId: txtOpt("enrolledByUserId").references((): AnyPgColumn => User.id, {
+			onDelete: "set null",
+		}),
+		enrolledAt: now("enrolledAt"),
+	},
+	(table) => [
+		uniqueIndex("ProviderCommercialLine_provider_line_unique").on(table.providerId, table.line),
+		index("ProviderCommercialLine_provider_idx").on(table.providerId),
+		check("ProviderCommercialLine_line_check", sql`${table.line} IN ('lodging', 'tour')`),
+		check(
+			"ProviderCommercialLine_source_check",
+			sql`${table.source} IN ('onboarding', 'product', 'admin')`
+		),
+		check(
+			"ProviderCommercialLine_collectionModel_check",
+			sql`${table.collectionModel} IN ('undecided', 'property_collect', 'platform_collect')`
+		),
+	]
+)
+
+/**
  * Canonical geographic catalog for marketplace discovery.
  */
 export const GeoPlace = pgTable(
@@ -347,9 +388,11 @@ export const InternalRolePermission = pgTable(
 	"InternalRolePermission",
 	{
 		roleId: txt("roleId").references(() => InternalRole.id, { onDelete: "cascade" }),
-		permissionKey: text("permissionKey").references(() => InternalPermission.key, {
-			onDelete: "cascade",
-		}),
+		permissionKey: text("permissionKey")
+			.notNull()
+			.references(() => InternalPermission.key, {
+				onDelete: "cascade",
+			}),
 		createdAt: now("createdAt"),
 	},
 	(table) => [primaryKey({ columns: [table.roleId, table.permissionKey] })]
@@ -427,6 +470,11 @@ export const ProviderDocument = pgTable(
 		status: text("status").default("pending").notNull(),
 		fileUrl: txtOpt("fileUrl"),
 		metadataJson: jsonb("metadataJson"),
+		issuer: txtOpt("issuer"),
+		issuedAt: ts("issuedAt"),
+		expiresAt: ts("expiresAt"),
+		subjectType: text("subjectType").default("provider").notNull(),
+		subjectReference: txtOpt("subjectReference"),
 		reviewNotes: txtOpt("reviewNotes"),
 		reviewedAt: ts("reviewedAt"),
 		reviewedBy: txtOpt("reviewedBy").references(() => User.id),
@@ -436,6 +484,11 @@ export const ProviderDocument = pgTable(
 	(table) => [
 		index("ProviderDocument_providerId_type_idx").on(table.providerId, table.type),
 		index("ProviderDocument_providerId_status_idx").on(table.providerId, table.status),
+		index("ProviderDocument_provider_expiry_idx").on(table.providerId, table.expiresAt),
+		check(
+			"ProviderDocument_subjectType_check",
+			sql`${table.subjectType} IN ('provider', 'legal_entity', 'person', 'resource', 'third_party')`
+		),
 	]
 )
 
@@ -1385,6 +1438,8 @@ export const CompliancePolicyVersion = pgTable(
 		approvedBy: txtOpt("approvedBy").references(() => User.id),
 		approvedAt: ts("approvedAt"),
 		approvalReference: txtOpt("approvalReference"),
+		/** Exact operational tuple for commercial tour versions. */
+		contextJson: jsonb("contextJson"),
 		createdAt: now("createdAt"),
 	},
 	(table) => [
@@ -1397,6 +1452,35 @@ export const CompliancePolicyVersion = pgTable(
 		check(
 			"CompliancePolicyVersion_status_check",
 			sql`${table.status} IN ('draft', 'published', 'retired')`
+		),
+	]
+)
+/** Independent signatures required before a commercial tour version may publish. */
+export const CommercialPolicyApproval = pgTable(
+	"CommercialPolicyApproval",
+	{
+		id: pk(),
+		policyVersionId: txt("policyVersionId").references(() => CompliancePolicyVersion.id, {
+			onDelete: "restrict",
+		}),
+		approvalArea: txt("approvalArea"),
+		approverUserId: txt("approverUserId").references(() => User.id, { onDelete: "restrict" }),
+		approvalReference: txt("approvalReference"),
+		approvedAt: tsReq("approvedAt"),
+		createdAt: now("createdAt"),
+	},
+	(table) => [
+		uniqueIndex("CommercialPolicyApproval_version_area_unique").on(
+			table.policyVersionId,
+			table.approvalArea
+		),
+		uniqueIndex("CommercialPolicyApproval_version_approver_unique").on(
+			table.policyVersionId,
+			table.approverUserId
+		),
+		check(
+			"CommercialPolicyApproval_area_check",
+			sql`${table.approvalArea} IN ('policy', 'finance', 'tour_operations')`
 		),
 	]
 )
@@ -1415,6 +1499,9 @@ export const ComplianceRequirementRule = pgTable(
 		acceptedEvidenceJson: jsonb("acceptedEvidenceJson"),
 		blockingAction: txtOpt("blockingAction"),
 		reviewOwner: txtOpt("reviewOwner"),
+		sourceKind: txtOpt("sourceKind"),
+		sourceReference: txtOpt("sourceReference"),
+		sourceCheckedAt: ts("sourceCheckedAt"),
 		slaHours: intDefault("slaHours", 48),
 		createdAt: now("createdAt"),
 	},
@@ -1428,6 +1515,10 @@ export const ComplianceRequirementRule = pgTable(
 			sql`${table.domain} IN ('verification', 'fiscal', 'documents', 'payments')`
 		),
 		check("ComplianceRequirementRule_sla_check", sql`${table.slaHours} BETWEEN 1 AND 168`),
+		check(
+			"ComplianceRequirementRule_source_kind_check",
+			sql`${table.sourceKind} IS NULL OR ${table.sourceKind} IN ('legal', 'contract', 'fastt_policy')`
+		),
 	]
 )
 export const ComplianceDecisionReason = pgTable(
@@ -2445,6 +2536,66 @@ export const TourOperationalResource = pgTable(
 			table.providerId,
 			table.type,
 			table.status
+		),
+	]
+)
+
+/** Product-scoped compliance declaration. Empty fields deliberately mean review is required. */
+export const TourComplianceContext = pgTable(
+	"TourComplianceContext",
+	{
+		productId: txt("productId")
+			.primaryKey()
+			.references(() => Product.id, { onDelete: "cascade" }),
+		providerId: txt("providerId").references(() => Provider.id, { onDelete: "cascade" }),
+		operatingRole: txtOpt("operatingRole"),
+		activityClassesJson: jsonb("activityClassesJson"),
+		jurisdictionCode: txtOpt("jurisdictionCode"),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		index("TourComplianceContext_provider_idx").on(table.providerId),
+		check(
+			"TourComplianceContext_operatingRole_check",
+			sql`${table.operatingRole} IS NULL OR ${table.operatingRole} IN ('operator', 'guide', 'intermediary')`
+		),
+	]
+)
+
+/** One evidence document can cover several products, territories, activities or resources. */
+export const ProviderDocumentScope = pgTable(
+	"ProviderDocumentScope",
+	{
+		id: pk(),
+		documentId: txt("documentId").references(() => ProviderDocument.id, { onDelete: "cascade" }),
+		providerId: txt("providerId").references(() => Provider.id, { onDelete: "cascade" }),
+		scopeType: txt("scopeType"),
+		productId: txtOpt("productId").references(() => Product.id, { onDelete: "cascade" }),
+		resourceId: txtOpt("resourceId").references(() => TourOperationalResource.id, {
+			onDelete: "cascade",
+		}),
+		territoryCode: txtOpt("territoryCode"),
+		territoryLabel: txtOpt("territoryLabel"),
+		activityClass: txtOpt("activityClass"),
+		createdAt: now("createdAt"),
+	},
+	(table) => [
+		index("ProviderDocumentScope_document_idx").on(table.documentId),
+		index("ProviderDocumentScope_provider_product_idx").on(table.providerId, table.productId),
+		index("ProviderDocumentScope_provider_territory_idx").on(table.providerId, table.territoryCode),
+		check(
+			"ProviderDocumentScope_type_check",
+			sql`${table.scopeType} IN ('product', 'resource', 'territory', 'activity')`
+		),
+		check(
+			"ProviderDocumentScope_payload_check",
+			sql`(
+				(${table.scopeType} = 'product' AND ${table.productId} IS NOT NULL AND ${table.resourceId} IS NULL AND ${table.territoryCode} IS NULL AND ${table.activityClass} IS NULL)
+				OR (${table.scopeType} = 'resource' AND ${table.resourceId} IS NOT NULL AND ${table.productId} IS NULL AND ${table.territoryCode} IS NULL AND ${table.activityClass} IS NULL)
+				OR (${table.scopeType} = 'territory' AND ${table.territoryCode} IS NOT NULL AND ${table.productId} IS NULL AND ${table.resourceId} IS NULL AND ${table.activityClass} IS NULL)
+				OR (${table.scopeType} = 'activity' AND ${table.activityClass} IS NOT NULL AND ${table.productId} IS NULL AND ${table.resourceId} IS NULL AND ${table.territoryCode} IS NULL)
+			)`
 		),
 	]
 )

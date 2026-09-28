@@ -33,6 +33,19 @@ CREATE TABLE "ProviderHolderProfile" (
 	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
+CREATE TABLE "ProviderCommercialLine" (
+	"id" text PRIMARY KEY,
+	"providerId" text NOT NULL,
+	"line" text NOT NULL,
+	"source" text NOT NULL,
+	"collectionModel" text NOT NULL DEFAULT 'undecided',
+	"collectionDeclaredByUserId" text,
+	"collectionDeclaredAt" timestamp with time zone,
+	"originProductId" text,
+	"enrolledByUserId" text,
+	"enrolledAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
 CREATE TABLE "ProviderPreparationSession" (
 	"id" text PRIMARY KEY,
 	"providerId" text NOT NULL,
@@ -65,11 +78,29 @@ CREATE TABLE "ProviderDocument" (
 	"status" text NOT NULL DEFAULT 'pending',
 	"fileUrl" text,
 	"metadataJson" jsonb,
+	"issuer" text,
+	"issuedAt" timestamp with time zone,
+	"expiresAt" timestamp with time zone,
+	"subjectType" text NOT NULL DEFAULT 'provider',
+	"subjectReference" text,
 	"reviewNotes" text,
 	"reviewedAt" timestamp with time zone,
 	"reviewedBy" text,
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
 	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "ProviderDocumentScope" (
+	"id" text PRIMARY KEY,
+	"documentId" text NOT NULL,
+	"providerId" text NOT NULL,
+	"scopeType" text NOT NULL,
+	"productId" text,
+	"resourceId" text,
+	"territoryCode" text,
+	"territoryLabel" text,
+	"activityClass" text,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
 CREATE TABLE "ProviderDocumentInspection" (
@@ -748,6 +779,16 @@ CREATE TABLE "Tour" (
 	"pickupJson" jsonb
 );
 
+CREATE TABLE "TourComplianceContext" (
+	"productId" text PRIMARY KEY,
+	"providerId" text NOT NULL,
+	"operatingRole" text,
+	"activityClassesJson" jsonb,
+	"jurisdictionCode" text,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
 CREATE TABLE "WholeHome" (
 	"productId" text PRIMARY KEY,
 	"exclusiveUse" boolean NOT NULL DEFAULT true,
@@ -1112,6 +1153,17 @@ CREATE TABLE "CompliancePolicyVersion" (
 	"approvedBy" text,
 	"approvedAt" timestamp with time zone,
 	"approvalReference" text,
+	"contextJson" jsonb,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+CREATE TABLE "CommercialPolicyApproval" (
+	"id" text PRIMARY KEY,
+	"policyVersionId" text NOT NULL,
+	"approvalArea" text NOT NULL,
+	"approverUserId" text NOT NULL,
+	"approvalReference" text NOT NULL,
+	"approvedAt" timestamp with time zone NOT NULL,
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
@@ -1126,6 +1178,9 @@ CREATE TABLE "ComplianceRequirementRule" (
 	"acceptedEvidenceJson" jsonb,
 	"blockingAction" text,
 	"reviewOwner" text,
+	"sourceKind" text,
+	"sourceReference" text,
+	"sourceCheckedAt" timestamp with time zone,
 	"slaHours" integer NOT NULL DEFAULT 48,
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
 );
@@ -2033,7 +2088,7 @@ CREATE TABLE "InternalPermission" (
 
 CREATE TABLE "InternalRolePermission" (
 	"roleId" text NOT NULL,
-	"permissionKey" text,
+	"permissionKey" text NOT NULL,
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
@@ -2118,6 +2173,34 @@ ALTER TABLE "ProviderHolderProfile"
 	ON DELETE CASCADE
 ;
 
+ALTER TABLE "ProviderCommercialLine"
+	ADD CONSTRAINT "ProviderCommercialLine_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "ProviderCommercialLine"
+	ADD CONSTRAINT "ProviderCommercialLine_collectionDeclaredByUserId_fk"
+	FOREIGN KEY ("collectionDeclaredByUserId")
+	REFERENCES "User" ("id")
+	ON DELETE SET NULL
+;
+
+ALTER TABLE "ProviderCommercialLine"
+	ADD CONSTRAINT "ProviderCommercialLine_originProductId_fk"
+	FOREIGN KEY ("originProductId")
+	REFERENCES "Product" ("id")
+	ON DELETE SET NULL
+;
+
+ALTER TABLE "ProviderCommercialLine"
+	ADD CONSTRAINT "ProviderCommercialLine_enrolledByUserId_fk"
+	FOREIGN KEY ("enrolledByUserId")
+	REFERENCES "User" ("id")
+	ON DELETE SET NULL
+;
+
 ALTER TABLE "ProviderPreparationSession"
 	ADD CONSTRAINT "ProviderPreparationSession_providerId_fk"
 	FOREIGN KEY ("providerId")
@@ -2155,6 +2238,34 @@ ALTER TABLE "ProviderDocument"
 	ADD CONSTRAINT "ProviderDocument_reviewedBy_fk"
 	FOREIGN KEY ("reviewedBy")
 	REFERENCES "User" ("id")
+;
+
+ALTER TABLE "ProviderDocumentScope"
+	ADD CONSTRAINT "ProviderDocumentScope_documentId_fk"
+	FOREIGN KEY ("documentId")
+	REFERENCES "ProviderDocument" ("id")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "ProviderDocumentScope"
+	ADD CONSTRAINT "ProviderDocumentScope_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "ProviderDocumentScope"
+	ADD CONSTRAINT "ProviderDocumentScope_productId_fk"
+	FOREIGN KEY ("productId")
+	REFERENCES "Product" ("id")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "ProviderDocumentScope"
+	ADD CONSTRAINT "ProviderDocumentScope_resourceId_fk"
+	FOREIGN KEY ("resourceId")
+	REFERENCES "TourOperationalResource" ("id")
+	ON DELETE CASCADE
 ;
 
 ALTER TABLE "ProviderDocumentInspection"
@@ -2714,6 +2825,20 @@ ALTER TABLE "Tour"
 	REFERENCES "Product" ("id")
 ;
 
+ALTER TABLE "TourComplianceContext"
+	ADD CONSTRAINT "TourComplianceContext_productId_fk"
+	FOREIGN KEY ("productId")
+	REFERENCES "Product" ("id")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "TourComplianceContext"
+	ADD CONSTRAINT "TourComplianceContext_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
+	ON DELETE CASCADE
+;
+
 ALTER TABLE "WholeHome"
 	ADD CONSTRAINT "WholeHome_productId_fk"
 	FOREIGN KEY ("productId")
@@ -3066,6 +3191,20 @@ ALTER TABLE "CompliancePolicyVersion"
 	ADD CONSTRAINT "CompliancePolicyVersion_approvedBy_fk"
 	FOREIGN KEY ("approvedBy")
 	REFERENCES "User" ("id")
+;
+
+ALTER TABLE "CommercialPolicyApproval"
+	ADD CONSTRAINT "CommercialPolicyApproval_policyVersionId_fk"
+	FOREIGN KEY ("policyVersionId")
+	REFERENCES "CompliancePolicyVersion" ("id")
+	ON DELETE RESTRICT
+;
+
+ALTER TABLE "CommercialPolicyApproval"
+	ADD CONSTRAINT "CommercialPolicyApproval_approverUserId_fk"
+	FOREIGN KEY ("approverUserId")
+	REFERENCES "User" ("id")
+	ON DELETE RESTRICT
 ;
 
 ALTER TABLE "ComplianceRequirementRule"
@@ -3968,6 +4107,10 @@ ALTER TABLE "GeoPlace" ADD CONSTRAINT "GeoPlace_parent_slug_unique" UNIQUE NULLS
 
 CREATE INDEX "Provider_dataClassification_idx" ON "Provider" ("dataClassification");
 
+CREATE UNIQUE INDEX "ProviderCommercialLine_provider_line_unique" ON "ProviderCommercialLine" ("providerId", "line");
+
+CREATE INDEX "ProviderCommercialLine_provider_idx" ON "ProviderCommercialLine" ("providerId");
+
 CREATE UNIQUE INDEX "ProviderPreparationSession_owner_playbook_unique" ON "ProviderPreparationSession" ("providerId", "userId", "playbookId");
 
 CREATE INDEX "ProviderPreparationSession_owner_status_updated_idx" ON "ProviderPreparationSession" ("providerId", "userId", "status", "updatedAt");
@@ -3977,6 +4120,14 @@ CREATE INDEX "ProviderPreparationSession_product_idx" ON "ProviderPreparationSes
 CREATE INDEX "ProviderDocument_providerId_type_idx" ON "ProviderDocument" ("providerId", "type");
 
 CREATE INDEX "ProviderDocument_providerId_status_idx" ON "ProviderDocument" ("providerId", "status");
+
+CREATE INDEX "ProviderDocument_provider_expiry_idx" ON "ProviderDocument" ("providerId", "expiresAt");
+
+CREATE INDEX "ProviderDocumentScope_document_idx" ON "ProviderDocumentScope" ("documentId");
+
+CREATE INDEX "ProviderDocumentScope_provider_product_idx" ON "ProviderDocumentScope" ("providerId", "productId");
+
+CREATE INDEX "ProviderDocumentScope_provider_territory_idx" ON "ProviderDocumentScope" ("providerId", "territoryCode");
 
 CREATE UNIQUE INDEX "ProviderDocumentInspection_document_unique" ON "ProviderDocumentInspection" ("documentId");
 
@@ -4210,6 +4361,8 @@ CREATE INDEX "Tour_durationMinutes_idx" ON "Tour" ("durationMinutes");
 
 CREATE INDEX "Tour_difficultyLevel_idx" ON "Tour" ("difficultyLevel");
 
+CREATE INDEX "TourComplianceContext_provider_idx" ON "TourComplianceContext" ("providerId");
+
 CREATE UNIQUE INDEX "WholeHomeUnit_product_unique" ON "WholeHomeUnit" ("productId");
 
 CREATE UNIQUE INDEX "WholeHomeUnit_resource_unique" ON "WholeHomeUnit" ("resourceId");
@@ -4321,6 +4474,10 @@ CREATE UNIQUE INDEX "CompliancePolicySet_key_unique" ON "CompliancePolicySet" ("
 CREATE UNIQUE INDEX "CompliancePolicyVersion_set_version_unique" ON "CompliancePolicyVersion" ("policySetId", "version");
 
 CREATE INDEX "CompliancePolicyVersion_active_idx" ON "CompliancePolicyVersion" ("policySetId", "status", "effectiveFrom");
+
+CREATE UNIQUE INDEX "CommercialPolicyApproval_version_area_unique" ON "CommercialPolicyApproval" ("policyVersionId", "approvalArea");
+
+CREATE UNIQUE INDEX "CommercialPolicyApproval_version_approver_unique" ON "CommercialPolicyApproval" ("policyVersionId", "approverUserId");
 
 CREATE UNIQUE INDEX "ComplianceRequirementRule_version_requirement_unique" ON "ComplianceRequirementRule" ("policyVersionId", "requirementKey");
 
@@ -4680,11 +4837,28 @@ ALTER TABLE "ProviderHolderProfile" ADD CONSTRAINT "ProviderHolderProfile_collec
 
 ALTER TABLE "ProviderHolderProfile" ADD CONSTRAINT "ProviderHolderProfile_declarationStatus_check" CHECK ("declarationStatus" IN ('declared', 'in_review', 'verified', 'changes_requested'));
 
+ALTER TABLE "ProviderCommercialLine" ADD CONSTRAINT "ProviderCommercialLine_line_check" CHECK ("line" IN ('lodging', 'tour'));
+
+ALTER TABLE "ProviderCommercialLine" ADD CONSTRAINT "ProviderCommercialLine_source_check" CHECK ("source" IN ('onboarding', 'product', 'admin'));
+
+ALTER TABLE "ProviderCommercialLine" ADD CONSTRAINT "ProviderCommercialLine_collectionModel_check" CHECK ("collectionModel" IN ('undecided', 'property_collect', 'platform_collect'));
+
 ALTER TABLE "ProviderPreparationSession" ADD CONSTRAINT "ProviderPreparationSession_playbook_check" CHECK ("playbookId" IN ('launch', 'launch-tour', 'complete-to-publish'));
 
 ALTER TABLE "ProviderPreparationSession" ADD CONSTRAINT "ProviderPreparationSession_vertical_check" CHECK ("vertical" IN ('hotel', 'tour'));
 
 ALTER TABLE "ProviderPreparationSession" ADD CONSTRAINT "ProviderPreparationSession_status_check" CHECK ("status" IN ('active', 'completed', 'abandoned'));
+
+ALTER TABLE "ProviderDocument" ADD CONSTRAINT "ProviderDocument_subjectType_check" CHECK ("subjectType" IN ('provider', 'legal_entity', 'person', 'resource', 'third_party'));
+
+ALTER TABLE "ProviderDocumentScope" ADD CONSTRAINT "ProviderDocumentScope_type_check" CHECK ("scopeType" IN ('product', 'resource', 'territory', 'activity'));
+
+ALTER TABLE "ProviderDocumentScope" ADD CONSTRAINT "ProviderDocumentScope_payload_check" CHECK ((
+				("scopeType" = 'product' AND "productId" IS NOT NULL AND "resourceId" IS NULL AND "territoryCode" IS NULL AND "activityClass" IS NULL)
+				OR ("scopeType" = 'resource' AND "resourceId" IS NOT NULL AND "productId" IS NULL AND "territoryCode" IS NULL AND "activityClass" IS NULL)
+				OR ("scopeType" = 'territory' AND "territoryCode" IS NOT NULL AND "productId" IS NULL AND "resourceId" IS NULL AND "activityClass" IS NULL)
+				OR ("scopeType" = 'activity' AND "activityClass" IS NOT NULL AND "productId" IS NULL AND "resourceId" IS NULL AND "territoryCode" IS NULL)
+			));
 
 ALTER TABLE "ProviderIntegrationConnection" ADD CONSTRAINT "ProviderIntegrationConnection_status_check" CHECK ("status" IN ('not_configured', 'pending', 'connected', 'requires_attention', 'syncing', 'error', 'revoked'));
 
@@ -4775,6 +4949,8 @@ ALTER TABLE "HouseRule" ADD CONSTRAINT "HouseRule_scope_shape_check" CHECK (("sc
 
 ALTER TABLE "HouseRule" ADD CONSTRAINT "HouseRule_variant_type_check" CHECK ("scope" = 'product' OR "type" IN ('Pets', 'Smoking', 'Access', 'Safety', 'ExtraBeds'));
 
+ALTER TABLE "TourComplianceContext" ADD CONSTRAINT "TourComplianceContext_operatingRole_check" CHECK ("operatingRole" IS NULL OR "operatingRole" IN ('operator', 'guide', 'intermediary'));
+
 ALTER TABLE "WholeHome" ADD CONSTRAINT "WholeHome_exclusiveUse_check" CHECK ("exclusiveUse" = true);
 
 ALTER TABLE "WholeHome" ADD CONSTRAINT "WholeHome_rooms_nonnegative_check" CHECK ("bedrooms" >= 0 AND "beds" >= 0 AND "bathrooms" >= 1);
@@ -4832,9 +5008,13 @@ ALTER TABLE "CompliancePolicySet" ADD CONSTRAINT "CompliancePolicySet_jurisdicti
 
 ALTER TABLE "CompliancePolicyVersion" ADD CONSTRAINT "CompliancePolicyVersion_status_check" CHECK ("status" IN ('draft', 'published', 'retired'));
 
+ALTER TABLE "CommercialPolicyApproval" ADD CONSTRAINT "CommercialPolicyApproval_area_check" CHECK ("approvalArea" IN ('policy', 'finance', 'tour_operations'));
+
 ALTER TABLE "ComplianceRequirementRule" ADD CONSTRAINT "ComplianceRequirementRule_domain_check" CHECK ("domain" IN ('verification', 'fiscal', 'documents', 'payments'));
 
 ALTER TABLE "ComplianceRequirementRule" ADD CONSTRAINT "ComplianceRequirementRule_sla_check" CHECK ("slaHours" BETWEEN 1 AND 168);
+
+ALTER TABLE "ComplianceRequirementRule" ADD CONSTRAINT "ComplianceRequirementRule_source_kind_check" CHECK ("sourceKind" IS NULL OR "sourceKind" IN ('legal', 'contract', 'fastt_policy'));
 
 ALTER TABLE "ComplianceDecisionReason" ADD CONSTRAINT "ComplianceDecisionReason_domain_check" CHECK ("domain" IS NULL OR "domain" IN ('verification', 'fiscal', 'documents', 'payments'));
 
