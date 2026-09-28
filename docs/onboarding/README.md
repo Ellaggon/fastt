@@ -1,25 +1,33 @@
-# Onboarding de proveedores
+# Onboarding y verificación de proveedores
 
-Status: active  
-Document type: index  
-Owner: Provider Experience  
-Last verified: 2026-09-22  
-Scope: entrada, preparación, elegibilidad y rollout
-Source of truth: auditoría y documentos vigentes enlazados en este índice  
-Review trigger: cambio del flujo, elegibilidad o rollout de onboarding
+Status: active
+Document type: index
+Owner: Provider Experience
+Last verified: 2026-09-28
+Scope: entrada, preparación, verificación por negocio y activación
+Source of truth: código y contratos enlazados
+Review trigger: cambio de navegación, diagnóstico o autorización
 
-La [auditoría integral](../fastt-onboarding-ux-audit-2026-09-13.md) mantiene la visión completa. Los documentos de fase aportan contrato o evidencia específica:
+## Empezar por la tarea
 
-| Tema                  | Documento                                               | Estado documental                                     |
-| --------------------- | ------------------------------------------------------- | ----------------------------------------------------- |
-| Contrato y línea base | [Fase 0](./phase-0-contract.md)                         | Útil como contrato; estado actualizado en el closeout |
-| Evidencia F0          | [Cierre F0](./phase-0-closeout.md)                      | Histórico certificado                                 |
-| Entrada y diagnóstico | [Cierre F1](./phase-1-closeout.md)                      | Histórico certificado                                 |
-| Preparación guiada    | [Cierre F2](./phase-2-closeout.md)                      | Histórico certificado                                 |
-| Caminos reservables   | [Cierre F3](./phase-3-closeout.md)                      | Histórico certificado                                 |
-| Expansión y política  | [Evaluación F4](./phase-4-assessment.md)                | Activo; pendiente ratificación BO v1                  |
-| Activación            | [Runbook de activación](./phase-4-policy-activation.md) | Activo                                                |
-| Anexo BO              | [Borrador](./phase-4-policy-annex-bo-draft.md)          | Draft; no aprobado                                    |
-| Rollout               | [Fase 5](./phase-5-rollout.md)                          | Implementado; no activado globalmente                 |
+| Tarea | Fuente |
+| --- | --- |
+| Requisitos de alojamiento | [Anexo vigente](../domains/lodging/policy-annex.md) |
+| Requisitos de tours | [Matriz BO v1 en borrador](../domains/tours/policy-annex.md); no equivale a una política firmada |
+| Ratificación y operación con una persona | [Activación comercial](./phase-4-policy-activation.md) |
+| Creación y continuidad de tours | [Flujo del proveedor](../domains/tours/provider-workflow.md) |
+| Cohortes y métricas del onboarding | [Rollout](./phase-5-rollout.md) |
+| Base de pruebas y conectividad | [Aislamiento de datos](../engineering/marketplace-data-isolation.md) |
 
-Para una tarea nueva, empieza por la auditoría y abre sólo la fase señalada por su sección. Los cierres F0–F3 son evidencia, no una especificación independiente.
+Para entrada y retorno consultar `src/lib/onboarding/providerOnboardingEntry.ts`.
+Para progreso por línea y experiencia consultar `src/lib/verification/` y
+`src/lib/provider-verification-workspace.ts`; para autorización comercial,
+`src/lib/commercial-policy/`. La interfaz no concede permisos por porcentaje.
+
+## Historia, sólo para investigar regresiones
+
+El [contrato inicial](./phase-0-contract.md) y la
+[auditoría de septiembre](../fastt-onboarding-ux-audit-2026-09-13.md) describen el proyecto
+antes de la verificación por línea. Sus planes y estados no sustituyen los contratos actuales.
+La [evidencia de preparación y reserva de septiembre](../certifications/onboarding/preparation-2026-09.md)
+consolida las pruebas y sus límites; no debe usarse para repetir fases consumidas.

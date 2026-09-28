@@ -1,10 +1,16 @@
 # Onboarding · Fase 0: contrato y línea base
 
+Status: archived
+
+> Registro histórico del incremento de septiembre. Para requisitos y acciones actuales,
+> empezar en el [índice de onboarding](./README.md); los estados de este archivo no
+> describen automáticamente el entorno actual.
+
 Fecha: 14 de septiembre de 2026. Versión: `2026-09-14.1`.
 
 Parte del [plan integral de onboarding](/Users/ellaggon/Projects/fastt/docs/fastt-onboarding-ux-audit-2026-09-13.md). Código base inspeccionado: `105e410e43eb6f3c5ae4efc8968e58c53f4d6e36`.
 
-**Estado:** entregables contractuales preparados, reglas de dominio contrastadas con pruebas ejecutables y línea base consultada. La certificación de integración con la base aislada queda pendiente por una conexión de tests inválida. No declarar la fase cerrada sin esa salvedad. Ver [evaluación de cierre](/Users/ellaggon/Projects/fastt/docs/onboarding/phase-0-closeout.md).
+**Estado:** entregables contractuales preparados, reglas de dominio contrastadas con pruebas ejecutables y línea base consultada. La certificación de integración con la base aislada queda pendiente por una conexión de tests inválida. No declarar la fase cerrada sin esa salvedad. Ver [evaluación de cierre](../certifications/onboarding/preparation-2026-09.md).
 
 ## 1. Decisiones del primer incremento
 
