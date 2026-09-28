@@ -93,7 +93,9 @@ export default [
 	// Enforce module encapsulation for all non-module consumers:
 	// external code must import ONLY from "@/modules/<module>/public".
 	{
-		files: ["src/**/*.{ts,tsx,astro}", "tests/**/*.{ts,tsx}"],
+		files: ["src/**/*.{ts,tsx,astro}"],
+		// Tests may exercise a module's internal implementation; production
+		// consumers must still cross the public module boundary.
 		// Transitional/infra wiring folders may legitimately import implementations.
 		ignores: [
 			"src/modules/**",

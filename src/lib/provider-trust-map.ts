@@ -620,13 +620,21 @@ export function formatVerificationProgressBreakdownLine(counts: {
 	inReviewCount: number
 	actionRequiredCount: number
 	notStartedCount: number
+	notEvaluableCount?: number
 }): string {
-	const { readyCount, inReviewCount, actionRequiredCount, notStartedCount } = counts
+	const {
+		readyCount,
+		inReviewCount,
+		actionRequiredCount,
+		notStartedCount,
+		notEvaluableCount = 0,
+	} = counts
 	return [
 		`${readyCount} ${readyCount === 1 ? "listo" : "listos"}`,
 		`${inReviewCount} en revisión`,
 		`${actionRequiredCount} por completar`,
 		`${notStartedCount} sin iniciar`,
+		...(notEvaluableCount > 0 ? [`${notEvaluableCount} sin evaluar`] : []),
 	].join(" · ")
 }
 

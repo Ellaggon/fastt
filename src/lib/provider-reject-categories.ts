@@ -27,6 +27,24 @@ export const providerComplianceRejectCategories = [
 		body: "El documento no coincide con la razón social o identidad declarada en el perfil del proveedor.",
 	},
 	{
+		id: "doc_scope_insufficient",
+		domain: "documents" as const,
+		label: "Alcance insuficiente para la experiencia",
+		body: "El documento no acredita el territorio, actividad, titular o recurso declarado para esta experiencia. Envía una evidencia que cubra ese alcance.",
+	},
+	{
+		id: "doc_expired",
+		domain: "documents" as const,
+		label: "Documento vencido",
+		body: "La vigencia indicada ya terminó. Envía una renovación vigente y declara el alcance que cubre.",
+	},
+	{
+		id: "doc_issuer_unverifiable",
+		domain: "documents" as const,
+		label: "Emisor o vigencia no verificables",
+		body: "No pudimos verificar el emisor, la fecha de vigencia o la referencia de este documento. Corrige esos datos y envía una versión verificable.",
+	},
+	{
 		id: "tax_incomplete",
 		domain: "fiscal" as const,
 		label: "Identidad fiscal incompleta",
