@@ -17,6 +17,8 @@ import {
 	ProductGeoPlace,
 	ProductLocation,
 	Provider,
+	ProviderCommercialLine,
+	ProviderHolderProfile,
 	ProviderProfile,
 	ProviderTaxConfiguration,
 	ProviderUser,
@@ -247,6 +249,47 @@ async function upsertFixture(params: {
 			target: [ProviderUser.providerId, ProviderUser.userId],
 			set: { role: "owner" },
 		})
+	await db
+		.insert(ProviderHolderProfile)
+		.values({
+			providerId: PROVIDER_ID,
+			holderType: "entidad",
+			holderCountry: "BO",
+			taxResidenceCountry: "BO",
+			payoutCountry: "BO",
+			collectionModel: "property_collect",
+			declarationStatus: "declared",
+			declaredByUserId: USER_ID,
+			declaredAt: now,
+			updatedAt: now,
+		})
+		.onConflictDoUpdate({
+			target: ProviderHolderProfile.providerId,
+			set: {
+				holderType: "entidad",
+				holderCountry: "BO",
+				taxResidenceCountry: "BO",
+				payoutCountry: "BO",
+				collectionModel: "property_collect",
+				declarationStatus: "declared",
+				declaredByUserId: USER_ID,
+				updatedAt: now,
+			},
+		})
+	for (const line of ["lodging", "tour"] as const) {
+		await db
+			.insert(ProviderCommercialLine)
+			.values({
+				id: `provider_commercial_line_certification_${line}`,
+				providerId: PROVIDER_ID,
+				line,
+				source: "admin",
+				collectionModel: "property_collect",
+				enrolledByUserId: USER_ID,
+				enrolledAt: now,
+			})
+			.onConflictDoNothing()
+	}
 	await db
 		.insert(ProviderProfile)
 		.values({
