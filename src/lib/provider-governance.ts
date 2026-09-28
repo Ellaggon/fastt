@@ -23,6 +23,9 @@ import {
 	isTaxDocumentSatisfiedByFiscal,
 } from "@/lib/provider-documents"
 import { emitSettingsFunnelDomainCompletions } from "@/lib/provider-settings-funnel"
+import { providerGovernanceCapabilityMap } from "@/lib/verification/governance-capabilities"
+import { accountGateDocumentTypes } from "@/lib/verification/requirement-resolver"
+import { loadProviderVerificationResolution } from "@/lib/verification/requirement-context"
 
 export type ProviderCapability = "publish" | "booking" | "payments" | "integrations"
 
@@ -336,6 +339,7 @@ export async function evaluateProviderGovernance(
 		integrationRows,
 		auditRows,
 		teamRows,
+		loadedResolution,
 	] = await Promise.all([
 		safe(null, () =>
 			db
@@ -445,6 +449,7 @@ export async function evaluateProviderGovernance(
 				.from(ProviderUser)
 				.where(eq(ProviderUser.providerId, id))
 		),
+		loadProviderVerificationResolution(id),
 	])
 
 	if (!base?.provider?.id) throw new Error("PROVIDER_NOT_FOUND")
@@ -476,13 +481,19 @@ export async function evaluateProviderGovernance(
 		profile?.timezone?.trim() && profile?.defaultCurrency?.trim() && profile?.supportEmail?.trim()
 	)
 	const verificationComplete = latestVerification?.status === "approved"
-	// Minimum KYC set (gov ID + business registration + tax doc), all verified.
-	// tax_document may be satisfied by verified NIT in Fiscalidad (V1.1 bridge).
+	// Identity, entity registration and tax id come from the resolver once the
+	// account has a holder or a line. Lodging and tour packs stay out of this
+	// gate, and this gate still does not block publish.
+	const kycRequiredTypes =
+		loadedResolution.enforced && loadedResolution.resolution
+			? accountGateDocumentTypes(loadedResolution.resolution)
+			: undefined
 	const kycDocuments = evaluateRequiredKycDocumentsComplete(documentRows, {
 		taxDocumentSatisfiedByFiscal: isTaxDocumentSatisfiedByFiscal({
 			businessRegistrationNumber: taxConfiguration?.businessRegistrationNumber,
 			fiscalStatus,
 		}),
+		requiredTypes: kycRequiredTypes,
 	})
 	const documentsComplete = kycDocuments.complete
 	// Taxpayer identity must be admin-verified. Active sales tax fees + country are NOT a substitute.
@@ -508,56 +519,56 @@ export async function evaluateProviderGovernance(
 			label: "Datos del negocio",
 			complete: identityComplete,
 			href: settingsRoutes.profile,
-			capabilities: ["publish", "booking", "payments", "integrations"],
+			capabilities: [...providerGovernanceCapabilityMap.identity],
 		},
 		{
 			id: "operations",
 			label: "Contacto y operación diaria",
 			complete: operationsComplete,
 			href: settingsRoutes.profile,
-			capabilities: ["publish", "booking"],
+			capabilities: [...providerGovernanceCapabilityMap.operations],
 		},
 		{
 			id: "verification",
 			label: "Cuenta revisada y aprobada",
 			complete: verificationComplete,
 			href: settingsRoutes.verification,
-			capabilities: ["publish", "booking", "payments", "integrations"],
+			capabilities: [...providerGovernanceCapabilityMap.verification],
 		},
 		{
 			id: "documents",
 			label: "Documentos mínimos verificados",
 			complete: documentsComplete,
 			href: settingsRoutes.verification,
-			capabilities: ["payments", "integrations"],
+			capabilities: [...providerGovernanceCapabilityMap.documents],
 		},
 		{
 			id: "fiscality",
 			label: "Registro fiscal verificado",
 			complete: fiscalComplete,
 			href: settingsRoutes.taxFeesIdentity,
-			capabilities: ["publish", "booking", "payments"],
+			capabilities: [...providerGovernanceCapabilityMap.fiscality],
 		},
 		{
 			id: "payments",
 			label: "Cuenta para cobrar verificada",
 			complete: paymentsComplete,
 			href: settingsRoutes.payments,
-			capabilities: ["payments"],
+			capabilities: [...providerGovernanceCapabilityMap.payments],
 		},
 		{
 			id: "integrations",
 			label: "Conectores con prueba exitosa",
 			complete: integrationsReady,
 			href: settingsRoutes.integrations,
-			capabilities: ["integrations"],
+			capabilities: [...providerGovernanceCapabilityMap.integrations],
 		},
 		{
 			id: "team",
 			label: "Equipo y permisos listos",
 			complete: teamComplete,
 			href: settingsRoutes.team,
-			capabilities: ["publish", "booking", "payments", "integrations"],
+			capabilities: [...providerGovernanceCapabilityMap.team],
 		},
 	]
 

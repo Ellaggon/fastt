@@ -5,6 +5,8 @@ import {
 	listProviderDocuments,
 } from "@/lib/provider-documents"
 import { evaluateProviderGovernance } from "@/lib/provider-governance"
+import { loadProviderVerificationResolution } from "@/lib/verification/requirement-context"
+import { accountGateDocumentTypes } from "@/lib/verification/requirement-resolver"
 import { listProviderPaymentAccounts } from "@/lib/provider-payment-accounts"
 import { getProviderTaxConfiguration } from "@/lib/provider-tax-configuration"
 
@@ -84,23 +86,25 @@ function isStaleTerminalSource(status: string, updatedAt: Date | null) {
 
 /** Read-only contract backed by owned source records, never account status or case counts. */
 export async function getProviderOperationalSnapshot(providerId: string) {
-	const [verificationRows, tax, documents, paymentAccounts, governance] = await Promise.all([
-		db
-			.select({
-				status: ProviderVerification.status,
-				reason: ProviderVerification.reason,
-				reviewedAt: ProviderVerification.reviewedAt,
-				createdAt: ProviderVerification.createdAt,
-			})
-			.from(ProviderVerification)
-			.where(eq(ProviderVerification.providerId, providerId))
-			.orderBy(desc(ProviderVerification.createdAt), desc(ProviderVerification.id))
-			.limit(1),
-		getProviderTaxConfiguration(providerId),
-		listProviderDocuments(providerId),
-		listProviderPaymentAccounts(providerId),
-		evaluateProviderGovernance(providerId),
-	])
+	const [verificationRows, tax, documents, paymentAccounts, governance, loadedResolution] =
+		await Promise.all([
+			db
+				.select({
+					status: ProviderVerification.status,
+					reason: ProviderVerification.reason,
+					reviewedAt: ProviderVerification.reviewedAt,
+					createdAt: ProviderVerification.createdAt,
+				})
+				.from(ProviderVerification)
+				.where(eq(ProviderVerification.providerId, providerId))
+				.orderBy(desc(ProviderVerification.createdAt), desc(ProviderVerification.id))
+				.limit(1),
+			getProviderTaxConfiguration(providerId),
+			listProviderDocuments(providerId),
+			listProviderPaymentAccounts(providerId),
+			evaluateProviderGovernance(providerId),
+			loadProviderVerificationResolution(providerId),
+		])
 	const verification = verificationRows[0] ?? null
 	const verificationDate = verification?.reviewedAt ?? verification?.createdAt ?? null
 	const fiscalDate = tax?.updatedAt ?? null
@@ -115,6 +119,10 @@ export async function getProviderOperationalSnapshot(providerId: string) {
 		taxDocumentSatisfiedByFiscal: Boolean(
 			tax?.businessRegistrationNumber && tax.status === "verified"
 		),
+		requiredTypes:
+			loadedResolution.enforced && loadedResolution.resolution
+				? accountGateDocumentTypes(loadedResolution.resolution)
+				: undefined,
 	})
 	const rejectedDocuments = documents.filter((document) => document.status === "rejected")
 	const pendingDocuments = documents.filter((document) => document.status === "pending")
