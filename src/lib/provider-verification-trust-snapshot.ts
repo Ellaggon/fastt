@@ -11,6 +11,7 @@ import {
 	evaluateRequiredKycDocumentsComplete,
 	isTaxDocumentSatisfiedByFiscal,
 	listProviderDocuments,
+	type RequiredKycDocumentType,
 } from "@/lib/provider-documents"
 import {
 	listProviderPaymentAccounts,
@@ -31,6 +32,8 @@ import { routes } from "@/lib/routes"
 type Params = {
 	providerId: string
 	paymentAccounts?: ProviderPaymentAccountRecord[] | null
+	/** Account slots from the resolver. Omitted keeps the historical three. */
+	kycDocumentTypes?: readonly RequiredKycDocumentType[]
 }
 
 export async function buildProviderVerificationTrustSnapshot(params: Params) {
@@ -77,6 +80,7 @@ export async function buildProviderVerificationTrustSnapshot(params: Params) {
 	const kycSlots = buildRequiredKycSlots({
 		documents,
 		uploadBasePath: routes.providerSettingsVerification(),
+		types: params.kycDocumentTypes,
 		taxFiscal: taxConfiguration
 			? {
 					businessRegistrationNumber: taxConfiguration.businessRegistrationNumber,
@@ -95,6 +99,7 @@ export async function buildProviderVerificationTrustSnapshot(params: Params) {
 	})
 	const kycEval = evaluateRequiredKycDocumentsComplete(documents, {
 		taxDocumentSatisfiedByFiscal: taxDocSatisfiedByFiscal,
+		requiredTypes: params.kycDocumentTypes,
 	})
 	const legalNameComplete = Boolean(
 		String(providerRow?.legalName ?? "").trim() && String(providerRow?.displayName ?? "").trim()

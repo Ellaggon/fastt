@@ -9,16 +9,27 @@ type Props = {
 	optionalConstancia?: boolean
 	/** When false, submit is expected in the page header (form=kyc-inline-upload-form). */
 	showSubmitButton?: boolean
+	payoutBlocks?: boolean
 }
 
-const { documentType, optionalConstancia = false, showSubmitButton = true } = Astro.props as Props
+const {
+	documentType,
+	optionalConstancia = false,
+	showSubmitButton = true,
+	payoutBlocks = true,
+} = Astro.props as Props
+const uploadAction = new URL("/api/provider/settings/documents", Astro.url)
+for (const key of ["line", "tab", "experience", "lodgingTab", "tourTab"]) {
+	const value = Astro.url.searchParams.get(key)
+	if (value) uploadAction.searchParams.set(key, value)
+}
 ---
 
 <form
 	id="kyc-inline-upload-form"
 	class="space-y-4"
 	method="post"
-	action="/api/provider/settings/documents"
+	action={`${uploadAction.pathname}${uploadAction.search}`}
 	enctype="multipart/form-data"
 	data-astro-reload
 	data-kyc-inline-upload-form
@@ -60,7 +71,7 @@ const { documentType, optionalConstancia = false, showSubmitButton = true } = As
 		</label>
 	</details>
 
-	<ProviderKycCaptureCoach documentType={documentType} />
+	<ProviderKycCaptureCoach documentType={documentType} payoutBlocks={payoutBlocks} />
 
 	{
 		showSubmitButton ? (

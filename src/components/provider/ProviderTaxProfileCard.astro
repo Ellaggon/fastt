@@ -10,8 +10,11 @@ import { PROVIDER_REVIEW_WAIT_LABEL } from "@/lib/provider-review-wait-state"
 import type { ProviderTaxConfigurationRecord } from "@/lib/provider-tax-configuration"
 import { fiscalIdentityErrorMessage } from "@/lib/provider-tax-identity-validation"
 import { providerInvoicingModes, providerTaxRegimes } from "@/lib/provider-tax-configuration"
+import { copyVerificationNavigationQuery } from "@/lib/verification/navigation"
 
 type Props = {
+	line?: "lodging" | "tour" | null
+	fasttCollects?: boolean
 	taxConfiguration?: ProviderTaxConfigurationRecord | null
 	canManageFiscality?: boolean
 	reviewAssignment?: {
@@ -23,12 +26,18 @@ type Props = {
 }
 
 const {
+	line = null,
+	fasttCollects = true,
 	taxConfiguration = null,
 	canManageFiscality = false,
 	reviewAssignment = null,
 	formReturnTo = "taxIdentity",
 	saveError = "",
 } = Astro.props as Props
+const saveAction = copyVerificationNavigationQuery(
+	new URL("/api/provider/settings/tax-configuration", Astro.url),
+	Astro.url
+)
 const status = taxConfiguration?.status ?? "not_configured"
 const country = taxConfiguration?.taxResidenceCountry ?? ""
 const regime = taxConfiguration?.taxRegime ?? ""
@@ -55,12 +64,14 @@ const saveErrorMessage = saveError ? fiscalIdentityErrorMessage(saveError) : ""
 const formStartsOpen = !showSubmittedRecord || status === "requires_attention"
 const actionLead =
 	status === "verified"
-		? "Tu identidad fiscal está lista para liquidaciones."
+		? line === "tour" && !fasttCollects
+			? "Tu identidad fiscal está verificada para esta cuenta."
+			: "Tu identidad fiscal está lista para liquidaciones."
 		: status === "requires_attention"
 			? "Corrige el país, el NIT o la facturación y vuelve a enviar a revisión."
 			: status === "pending"
 				? "Ya enviamos tu registro. Si un dato está mal, corrígelo y vuelve a enviar."
-				: "Aquí debes completar el país de residencia, el NIT o registro comercial y quién factura al huésped."
+				: `Aquí debes completar el país de residencia, el NIT o registro comercial y quién factura al ${line === "tour" ? "viajero" : "huésped"}.`
 ---
 
 <Card>
@@ -168,7 +179,7 @@ const actionLead =
 						</summary>
 						<form
 							method="post"
-							action="/api/provider/settings/tax-configuration"
+							action={`${saveAction.pathname}${saveAction.search}`}
 							class="space-y-4"
 							autocomplete="off"
 							data-astro-reload
@@ -244,13 +255,16 @@ const actionLead =
 								</summary>
 								<div class="mt-3 border-t border-slate-200 pt-3">
 									<p class="mb-2">
-										Quién emite el comprobante al huésped. No cambia los impuestos de venta.
+										Quién emite el comprobante al {line === "tour" ? "viajero" : "huésped"}. No
+										cambia los impuestos de venta.
 									</p>
 									<ul class="list-disc space-y-1 pl-4">
 										{providerInvoicingModes.map((item) => (
 											<li>
 												<span class="font-medium text-slate-800">{item.label}:</span>{" "}
-												{item.description}
+												{line === "tour"
+													? item.description.replace("huésped", "viajero")
+													: item.description}
 											</li>
 										))}
 									</ul>
@@ -262,39 +276,48 @@ const actionLead =
 								</div>
 							</details>
 
-							<details
-								class="fastt-notice rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-600"
-								data-fiscal-withhold-explainer
-								data-long-copy-collapsed="true"
-							>
-								<summary class="cursor-pointer font-semibold text-slate-900">
-									Retenciones y liquidaciones
-									<span class="mt-0.5 block text-xs font-normal text-slate-500">
-										Qué pasa con tus cobros si falta el registro
-									</span>
-								</summary>
-								<div class="mt-3 border-t border-slate-200 pt-3">
-									<p class="mb-2">
-										Sin NIT/registro y residencia fiscal verificados, Fastt puede{" "}
-										<strong>retener o retrasar liquidaciones</strong> hasta confirmar tu identidad
-										tributaria. Esto no define los impuestos que cobras al huésped.
-									</p>
-									<ul class="list-disc space-y-1 pl-4">
-										<li>
-											<strong>Con registro verificado:</strong> las liquidaciones a tu cuenta de
-											cobros pueden seguir el calendario normal tras payout verificado.
-										</li>
-										<li>
-											<strong>Sin registro o en revisión:</strong> los cobros a huéspedes pueden
-											continuar, pero el desembolso al proveedor queda sujeto a retención o espera
-											de cumplimiento.
-										</li>
-										<li>
-											La retención se aplica a <em>tu</em> liquidación, no al precio de la reserva.
-										</li>
-									</ul>
-								</div>
-							</details>
+							{fasttCollects ? (
+								<details
+									class="fastt-notice rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-600"
+									data-fiscal-withhold-explainer
+									data-long-copy-collapsed="true"
+								>
+									<summary class="cursor-pointer font-semibold text-slate-900">
+										Retenciones y liquidaciones
+										<span class="mt-0.5 block text-xs font-normal text-slate-500">
+											Qué pasa con tus cobros si falta el registro
+										</span>
+									</summary>
+									<div class="mt-3 border-t border-slate-200 pt-3">
+										<p class="mb-2">
+											Sin NIT/registro y residencia fiscal verificados, Fastt puede{" "}
+											<strong>retener o retrasar liquidaciones</strong> hasta confirmar tu identidad
+											tributaria. Esto no define los impuestos que cobras al{" "}
+											{line === "tour" ? "viajero" : "huésped"}.
+										</p>
+										<ul class="list-disc space-y-1 pl-4">
+											<li>
+												<strong>Con registro verificado:</strong> las liquidaciones a tu cuenta de
+												cobros pueden seguir el calendario normal tras payout verificado.
+											</li>
+											<li>
+												<strong>Sin registro o en revisión:</strong> los cobros a{" "}
+												{line === "tour" ? "viajeros" : "huéspedes"} pueden continuar, pero el
+												desembolso al proveedor queda sujeto a retención o espera de cumplimiento.
+											</li>
+											<li>
+												La retención se aplica a <em>tu</em> liquidación, no al precio de la
+												reserva.
+											</li>
+										</ul>
+									</div>
+								</details>
+							) : (
+								<p class="text-sm leading-6 text-slate-600">
+									En cobro directo, Fastt no retiene ni liquida el pago de esta experiencia. La
+									identidad fiscal se revisa por separado.
+								</p>
+							)}
 
 							<div class="fastt-form-submit-footer" data-fiscal-form-actions>
 								<Button type="submit" variant="selection" class="w-full sm:w-auto">

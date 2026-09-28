@@ -1,5 +1,7 @@
 import { getIdentityVendorStatus } from "@/lib/identity-vendor"
 import { getPayoutRailStatus } from "@/lib/payout-rail"
+import { resolveProductCommercialDiagnosis } from "@/lib/commercial-policy/enforcement"
+import { readProviderHolderProfile } from "@/lib/provider-holder-profile"
 import { listOpenComplianceAssignments } from "@/lib/provider-compliance-ops"
 import {
 	requiredKycDocumentTypes,
@@ -16,6 +18,7 @@ import {
 	isProviderTrustMapComplete,
 	isVerificationListaReady,
 	resolveVerificationNextStep,
+	summarizeProviderTrustProgress,
 	shouldSuppressVerificationStatusWarning,
 	type ProviderTrustLink,
 	type TrustLinkId,
@@ -23,8 +26,44 @@ import {
 	type VerificationNextStep,
 } from "@/lib/provider-trust-map"
 import { buildProviderVerificationTrustSnapshot } from "@/lib/provider-verification-trust-snapshot"
+import {
+	readTourComplianceContext,
+	storedTourActivityClasses,
+} from "@/lib/tours/tour-compliance-context"
+import {
+	loadProviderVerificationResolution,
+	type LoadedVerificationResolution,
+} from "@/lib/verification/requirement-context"
+import {
+	collectionModelForCommercialLine,
+	readProviderCommercialLineState,
+	type CommercialLineRecord,
+} from "@/lib/verification/commercial-lines"
+import {
+	accountGateDocumentTypes,
+	packDocumentTypes,
+} from "@/lib/verification/requirement-resolver"
+import {
+	buildVerificationScreenSections,
+	type VerificationScreen,
+	type VerificationScreenItemState,
+} from "@/lib/verification/screen-sections"
+import {
+	buildTourVerificationPlaybook,
+	resolveVerificationNavigation,
+	summarizeVerificationPlaybook,
+	verificationNavigationHref,
+	type VerificationNavigation,
+	type VerificationPlaybookTab,
+	type VerificationTab,
+} from "@/lib/verification/navigation"
+import {
+	buildTourVerificationReadiness,
+	type TourVerificationReadiness,
+} from "@/lib/provider-tour-verification"
+import { and, asc, db, eq, Product } from "@/shared/infrastructure/db/compat"
 
-export type VerificationTrustPanelId = TrustLinkId
+export type VerificationTrustPanelId = VerificationTab
 
 export const VERIFICATION_WORKSPACE_PATHS = [
 	"/provider/settings/verification",
@@ -39,6 +78,9 @@ type SlaAssignment = {
 
 export type ProviderVerificationWorkspaceModel = {
 	activeSectionId: VerificationTrustPanelId
+	navigation: VerificationNavigation | null
+	tourPlaybook: VerificationPlaybookTab[]
+	tourProducts: Array<{ id: string; name: string | null }>
 	listaReady: boolean
 	trustMapComplete: boolean
 	trustLinks: ProviderTrustLink[]
@@ -47,9 +89,11 @@ export type ProviderVerificationWorkspaceModel = {
 	inReviewCount: number
 	actionRequiredCount: number
 	notStartedCount: number
+	notEvaluableCount: number
 	readinessPercent: number
 	nextActionId: TrustLinkId | null
 	canManageDocuments: boolean
+	canEditTourContext: boolean
 	canManageFiscality: boolean
 	canManagePayments: boolean
 	providerRoleLabel: string
@@ -75,6 +119,18 @@ export type ProviderVerificationWorkspaceModel = {
 	suppressStatusConsequence: boolean
 	optionalDocumentsCount: number
 	optionalPendingCount: number
+	/**
+	 * Per-tour diagnosis. Line sections on this page own the progress; this
+	 * list stays inside Experiencias.
+	 */
+	tourVerification: TourVerificationReadiness[]
+	tourContext: Awaited<ReturnType<typeof readTourComplianceContext>> | null
+	commercialLine: CommercialLineRecord | null
+	tourEvidenceOptions: {
+		activity: Array<{ value: string; label: string; description: string }>
+		safety: Array<{ value: string; label: string; description: string }>
+	}
+	screen: VerificationScreen | null
 	legalNameComplete: boolean
 	result: string
 	uploadErrorCode: string
@@ -87,6 +143,23 @@ function normalizePath(pathname: string): string {
 
 export function isVerificationWorkspacePath(pathname: string): boolean {
 	return (VERIFICATION_WORKSPACE_PATHS as readonly string[]).includes(normalizePath(pathname))
+}
+
+/** The four hotel tabs stay only where that step still applies. */
+export function visibleVerificationTrustLinks(
+	links: readonly ProviderTrustLink[],
+	screen: VerificationScreen | null
+): ProviderTrustLink[] {
+	if (!screen) return [...links]
+	if (screen.sections.some((section) => section.id === "lodging")) return [...links]
+	const asksForRegistration = screen.sections.some((section) =>
+		section.items.some((item) => item.id === "shared.business_registration")
+	)
+	return links.filter((link) => {
+		if (link.id === "payments") return screen.paymentsCountsForSelling
+		if (link.id === "business") return asksForRegistration
+		return link.id === "identity" || link.id === "fiscal"
+	})
 }
 
 export function resolveVerificationTrustPanelFromUrl(url: URL): VerificationTrustPanelId {
@@ -103,9 +176,11 @@ export async function loadProviderVerificationWorkspace(params: {
 	sessionPermissions?: Partial<ProviderPermissions> | null
 	providerRoleLabel: string
 	url: URL
+	verificationResolution?: LoadedVerificationResolution
 }): Promise<ProviderVerificationWorkspaceModel> {
 	const permissions = (params.sessionPermissions ?? {}) as Partial<ProviderPermissions>
 	const canManageDocuments = Boolean(permissions.canManageDocuments)
+	const canEditTourContext = Boolean(permissions.canEditProfile)
 	const canManageFiscality = Boolean(permissions.canManageFiscality)
 	const canManagePayments = Boolean(permissions.canManagePayments)
 	const requestedType = String(params.url.searchParams.get("type") ?? "").trim()
@@ -113,10 +188,89 @@ export async function loadProviderVerificationWorkspace(params: {
 	const uploadErrorCode = String(params.url.searchParams.get("error") ?? "").trim()
 	const error = uploadErrorCode
 
-	const [trustSnapshot, openAssignments] = await Promise.all([
-		buildProviderVerificationTrustSnapshot({ providerId: params.providerId }).catch(() => null),
-		listOpenComplianceAssignments({ providerId: params.providerId }).catch(() => []),
-	])
+	const loadedResolution =
+		params.verificationResolution ?? (await loadProviderVerificationResolution(params.providerId))
+	const kycDocumentTypes =
+		loadedResolution.enforced && loadedResolution.resolution
+			? accountGateDocumentTypes(loadedResolution.resolution)
+			: undefined
+	const packTypes =
+		loadedResolution.enforced && loadedResolution.resolution
+			? new Set<string>(packDocumentTypes(loadedResolution.resolution))
+			: null
+
+	const [trustSnapshot, openAssignments, holder, tourProducts, commercialLineState] =
+		await Promise.all([
+			buildProviderVerificationTrustSnapshot({
+				providerId: params.providerId,
+				kycDocumentTypes,
+			}).catch(() => null),
+			listOpenComplianceAssignments({ providerId: params.providerId }).catch(() => []),
+			readProviderHolderProfile(params.providerId),
+			db
+				.select({
+					id: Product.id,
+					name: Product.name,
+					publicationState: Product.publicationState,
+				})
+				.from(Product)
+				.where(and(eq(Product.providerId, params.providerId), eq(Product.productType, "tour")))
+				.orderBy(asc(Product.creationDate))
+				.catch(() => []),
+			readProviderCommercialLineState(params.providerId),
+		])
+	const requestedExperience = params.url.searchParams.get("experience")
+	const selectedExperienceId = tourProducts.some((product) => product.id === requestedExperience)
+		? requestedExperience
+		: (tourProducts[0]?.id ?? null)
+	const displayedTours = tourProducts.filter((product) => product.id === selectedExperienceId)
+	const requestedLine = params.url.searchParams.get("line")
+	const selectedLine = loadedResolution.lines.includes(requestedLine as "lodging" | "tour")
+		? (requestedLine as "lodging" | "tour")
+		: (loadedResolution.lines[0] ?? null)
+	const selectedLineCollectionModel = collectionModelForCommercialLine(
+		commercialLineState.lines,
+		selectedLine
+	)
+	const commercialLine =
+		commercialLineState.lines.find((entry) => entry.line === selectedLine) ?? null
+	const tourContext = selectedExperienceId
+		? await readTourComplianceContext(selectedExperienceId, params.providerId)
+		: null
+	const appliesToSelectedTour = (requirement: {
+		layer: string
+		scopes: { productIds: string[] }
+	}) =>
+		requirement.layer !== "tour" ||
+		!selectedExperienceId ||
+		requirement.scopes.productIds.length === 0 ||
+		requirement.scopes.productIds.includes(selectedExperienceId)
+	const tourRequirements = (loadedResolution.resolution?.requirements ?? []).filter(
+		(requirement) =>
+			requirement.layer === "tour" &&
+			Boolean(requirement.documentType && requirement.uploadValue) &&
+			appliesToSelectedTour(requirement)
+	)
+	const tourEvidenceOptions = {
+		activity: tourRequirements.filter((requirement) => requirement.id !== "tour.insurance"),
+		safety: tourRequirements.filter((requirement) => requirement.id === "tour.insurance"),
+	}
+	const mapEvidenceOption = (requirement: (typeof tourRequirements)[number]) => ({
+		value: requirement.uploadValue as string,
+		label: requirement.label,
+		description: requirement.appliesBecause,
+	})
+	const tourVerification: TourVerificationReadiness[] = await Promise.all(
+		displayedTours.map(async (product) => {
+			const resolved = await resolveProductCommercialDiagnosis({
+				providerId: params.providerId,
+				productId: product.id,
+				holder,
+				documents: trustSnapshot?.documents,
+			})
+			return buildTourVerificationReadiness({ product, diagnosis: resolved.diagnosis })
+		})
+	)
 
 	const documents = trustSnapshot?.documents ?? []
 	const kycSlots = trustSnapshot?.kycSlots ?? []
@@ -154,6 +308,72 @@ export async function loadProviderVerificationWorkspace(params: {
 		openAssignments.filter((row) => row.domain === "payments").map((row) => [row.entityId, row])
 	)
 
+	const paymentsState: VerificationScreenItemState = paymentAccounts.some(
+		(account) => account.status === "verified"
+	)
+		? "ready"
+		: paymentAccounts.some((account) => account.status === "pending")
+			? "in_review"
+			: paymentAccounts.some((account) => account.status === "requires_attention")
+				? "action_needed"
+				: "not_started"
+	const screen =
+		loadedResolution.enforced && loadedResolution.resolution
+			? buildVerificationScreenSections({
+					lines: loadedResolution.lines,
+					collectionModel: selectedLineCollectionModel,
+					requirements: loadedResolution.resolution.requirements.filter(appliesToSelectedTour),
+					legalNameComplete,
+					accountStatus: latestVerification?.status ?? null,
+					fiscalStatus: taxConfiguration?.status ?? null,
+					paymentsState,
+					documents: documents.map((document) => ({
+						type: document.type,
+						status: document.status,
+					})),
+					evidence: documents.map((document) => ({
+						id: document.id,
+						type: document.type,
+						status: document.status,
+						expiresAt: document.expiresAt,
+						subjectType: document.subjectType,
+						subjectReference: document.subjectReference,
+						scopes: document.scopes.map((scope) => ({
+							scopeType: scope.scopeType,
+							productId: scope.productId,
+							resourceId: scope.resourceId,
+							territoryCode: scope.territoryCode,
+							activityClass: scope.activityClass,
+						})),
+					})),
+					tourOperation: selectedExperienceId
+						? {
+								productId: selectedExperienceId,
+								territoryCodes: tourContext?.jurisdictionCode ? [tourContext.jurisdictionCode] : [],
+								activityClasses: storedTourActivityClasses(tourContext?.activityClassesJson),
+							}
+						: null,
+					slots: kycSlots.map((slot) => ({ type: slot.type, state: slot.state })),
+				})
+			: null
+	const resolvedNavigation = screen
+		? resolveVerificationNavigation({
+				url: params.url,
+				lines: loadedResolution.lines,
+				experienceIds: tourProducts.map((product) => product.id),
+				fasttCollects: screen.paymentsCountsForSelling,
+			})
+		: null
+	const navigation =
+		resolvedNavigation && resolvedNavigation.line === "tour"
+			? { ...resolvedNavigation, experienceId: selectedExperienceId }
+			: resolvedNavigation
+	const visibleTrustLinks = visibleVerificationTrustLinks(trustLinks, screen)
+	const requestedPanel = resolveVerificationTrustPanelFromUrl(params.url)
+	const activeSectionId =
+		navigation?.tab ??
+		(visibleTrustLinks.some((link) => link.id === requestedPanel) ? requestedPanel : "identity")
+
 	const focusTypeResolved = resolveKycUploadFocusType({
 		slots: kycSlots,
 		focusType: requestedType,
@@ -177,8 +397,8 @@ export async function loadProviderVerificationWorkspace(params: {
 		latestVerification?.reason,
 		"verification"
 	)
-	const nextStep = resolveVerificationNextStep({
-		trustLinks,
+	const resolvedNextStep = resolveVerificationNextStep({
+		trustLinks: visibleTrustLinks,
 		focusSlot: focusSlot
 			? {
 					type: focusSlot.type,
@@ -207,6 +427,15 @@ export async function loadProviderVerificationWorkspace(params: {
 		accountStatus: latestVerification?.status,
 		accountRejectCategoryLabel: accountRejectCategory?.matched ? accountRejectCategory.label : null,
 	})
+	const nextStep =
+		screen &&
+		!screen.paymentsCountsForSelling &&
+		resolvedNextStep.consequenceLine?.includes("liquid")
+			? {
+					...resolvedNextStep,
+					consequenceLine: "Hasta que este documento esté verificado, no puedes publicar.",
+				}
+			: resolvedNextStep
 	const crossLinks = buildVerificationCrossLinks({
 		legalNameComplete,
 		nextStepLinkId: nextStep.linkId,
@@ -214,7 +443,7 @@ export async function loadProviderVerificationWorkspace(params: {
 		paymentsReady: trustLinks.find((link) => link.id === "payments")?.uiState === "ready",
 		onlyOffPage: true,
 		ctaKind: nextStep.ctaKind ?? null,
-	})
+	}).filter((link) => screen?.paymentsCountsForSelling !== false || link.id !== "payments")
 	const hasActionableDocumentGaps = kycSlots.some(
 		(slot) => slot.state === "missing" || slot.state === "rejected"
 	)
@@ -224,28 +453,78 @@ export async function loadProviderVerificationWorkspace(params: {
 		hasActionableDocumentGaps,
 	})
 
-	const optionalDocumentsCount = documents.filter(
-		(doc) => !(requiredKycDocumentTypes as readonly string[]).includes(doc.type)
-	).length
+	const isLinePackDocument = (type: string) =>
+		packTypes
+			? packTypes.has(type)
+			: !(requiredKycDocumentTypes as readonly string[]).includes(type)
+	const optionalDocumentsCount = documents.filter((doc) => isLinePackDocument(doc.type)).length
 	const optionalPendingCount = documents.filter(
-		(doc) =>
-			!(requiredKycDocumentTypes as readonly string[]).includes(doc.type) &&
-			doc.status === "pending"
+		(doc) => isLinePackDocument(doc.type) && doc.status === "pending"
 	).length
 
+	const tourSection = screen?.sections.find((section) => section.id === "tour") ?? null
+	const countingTourItems = (tourSection?.items ?? []).filter((item) => item.countsTowardProgress)
+	const contextComplete = Boolean(
+		tourContext?.operatingRole &&
+		tourContext.jurisdictionCode &&
+		storedTourActivityClasses(tourContext.activityClassesJson).length > 0
+	)
+	const linkState = (id: TrustLinkId) =>
+		trustLinks.find((link) => link.id === id)?.uiState ?? "not_started"
+	const tourPlaybook =
+		navigation?.line === "tour"
+			? buildTourVerificationPlaybook({
+					tabs: navigation.tabs,
+					hrefFor: (tab) =>
+						verificationNavigationHref({
+							url: params.url,
+							navigation,
+							line: "tour",
+							tab,
+						}),
+					identity: linkState("identity"),
+					registration: screen?.sections.some((section) =>
+						section.items.some((item) => item.id === "shared.business_registration")
+					)
+						? linkState("business")
+						: null,
+					fiscal: linkState("fiscal"),
+					payments: linkState("payments"),
+					activity: countingTourItems
+						.filter(
+							(item) => item.id !== "tour.insurance" && item.id !== "tour.operating_role_missing"
+						)
+						.map((item) => item.state),
+					safety: countingTourItems
+						.filter((item) => item.id === "tour.insurance")
+						.map((item) => item.state),
+					contextComplete,
+					policyResolved: tourVerification[0]?.state !== "waiting_on_fastt",
+				})
+			: []
+	const tourProgress = tourPlaybook.length ? summarizeVerificationPlaybook(tourPlaybook) : null
+	const headerProgress =
+		tourProgress ?? (screen ? summarizeProviderTrustProgress(visibleTrustLinks) : null)
+
 	return {
-		activeSectionId: resolveVerificationTrustPanelFromUrl(params.url),
+		activeSectionId,
+		navigation,
+		tourPlaybook,
+		tourProducts: tourProducts.map((product) => ({ id: product.id, name: product.name })),
 		listaReady,
 		trustMapComplete,
-		trustLinks,
-		readyCount,
-		totalCount,
-		inReviewCount,
-		actionRequiredCount,
-		notStartedCount,
-		readinessPercent,
+		trustLinks: visibleTrustLinks,
+		readyCount: headerProgress?.readyCount ?? readyCount,
+		totalCount: headerProgress?.totalCount ?? totalCount,
+		inReviewCount: headerProgress?.inReviewCount ?? inReviewCount,
+		actionRequiredCount: headerProgress?.actionRequiredCount ?? actionRequiredCount,
+		notStartedCount: headerProgress?.notStartedCount ?? notStartedCount,
+		notEvaluableCount: tourProgress?.notEvaluableCount ?? 0,
+		readinessPercent: headerProgress?.readinessPercent ?? readinessPercent,
+		screen,
 		nextActionId,
 		canManageDocuments,
+		canEditTourContext,
 		canManageFiscality,
 		canManagePayments,
 		providerRoleLabel: params.providerRoleLabel,
@@ -267,6 +546,13 @@ export async function loadProviderVerificationWorkspace(params: {
 		suppressStatusConsequence,
 		optionalDocumentsCount,
 		optionalPendingCount,
+		tourVerification,
+		tourContext,
+		commercialLine,
+		tourEvidenceOptions: {
+			activity: tourEvidenceOptions.activity.map(mapEvidenceOption),
+			safety: tourEvidenceOptions.safety.map(mapEvidenceOption),
+		},
 		legalNameComplete,
 		result,
 		uploadErrorCode,

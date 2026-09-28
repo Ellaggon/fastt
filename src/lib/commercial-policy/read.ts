@@ -6,6 +6,7 @@ import {
 	CompliancePolicySet,
 	CompliancePolicyVersion,
 	ComplianceRequirementRule,
+	CommercialPolicyApproval,
 } from "@/shared/infrastructure/db/compat"
 import {
 	evaluateCommercialPolicy,
@@ -13,6 +14,9 @@ import {
 	type CommercialPolicyRequirement,
 	type CommercialPolicyVersion,
 	type CommercialCapability,
+	type CommercialEvidence,
+	type CommercialPolicyContextSelector,
+	type CommercialPolicyApproval as CommercialPolicyApprovalRecord,
 } from "./evaluate"
 
 const capabilityValues: CommercialCapability[] = [
@@ -29,10 +33,47 @@ function stringArray(value: unknown): string[] {
 		: []
 }
 
+function normalizeRequirementCondition(value: unknown): CommercialPolicyRequirement["condition"] {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return null
+	const raw = value as Record<string, unknown>
+	const list = (key: string) => stringArray(raw[key]).slice(0, 50)
+	const condition = {
+		operatingRoles: list("operatingRoles"),
+		activityClasses: list("activityClasses"),
+		jurisdictionCodes: list("jurisdictionCodes"),
+		resourceIds: list("resourceIds"),
+		subjectReferences: list("subjectReferences"),
+		evidenceScope: ["provider", "product", "operation"].includes(String(raw.evidenceScope))
+			? (String(raw.evidenceScope) as "provider" | "product" | "operation")
+			: undefined,
+	}
+	return Object.values(condition).some((value) =>
+		Array.isArray(value) ? value.length > 0 : Boolean(value)
+	)
+		? condition
+		: null
+}
+
+function normalizeContextSelector(value: unknown): CommercialPolicyContextSelector | null {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return null
+	const raw = value as Record<string, unknown>
+	const selector = {
+		operatingRoles: stringArray(raw.operatingRoles).slice(0, 12),
+		activityClasses: stringArray(raw.activityClasses).slice(0, 12),
+		jurisdictionCodes: stringArray(raw.jurisdictionCodes).slice(0, 20),
+	}
+	return selector.operatingRoles.length &&
+		selector.activityClasses.length &&
+		selector.jurisdictionCodes.length
+		? selector
+		: null
+}
+
 /** Reads only explicitly commercial policies. Legacy casework seeds cannot grant permissions. */
 export async function diagnoseCommercialPolicy(params: {
 	context: CommercialPolicyContext
-	verifiedEvidence: string[]
+	verifiedEvidence?: string[]
+	evidence?: CommercialEvidence[]
 }) {
 	const rows = await db
 		.select({
@@ -43,6 +84,7 @@ export async function diagnoseCommercialPolicy(params: {
 			approvedBy: CompliancePolicyVersion.approvedBy,
 			approvedAt: CompliancePolicyVersion.approvedAt,
 			approvalReference: CompliancePolicyVersion.approvalReference,
+			contextJson: CompliancePolicyVersion.contextJson,
 			country: CompliancePolicySet.country,
 			vertical: CompliancePolicySet.vertical,
 			collectionModel: CompliancePolicySet.collectionModel,
@@ -61,20 +103,36 @@ export async function diagnoseCommercialPolicy(params: {
 			)
 		)
 	const ids = rows.map((row) => row.id)
-	const rules = ids.length
-		? await db
-				.select({
-					policyVersionId: ComplianceRequirementRule.policyVersionId,
-					requirementKey: ComplianceRequirementRule.requirementKey,
-					required: ComplianceRequirementRule.required,
-					capabilitiesJson: ComplianceRequirementRule.capabilitiesJson,
-					acceptedEvidenceJson: ComplianceRequirementRule.acceptedEvidenceJson,
-					blockingAction: ComplianceRequirementRule.blockingAction,
-					reviewOwner: ComplianceRequirementRule.reviewOwner,
-				})
-				.from(ComplianceRequirementRule)
-				.where(inArray(ComplianceRequirementRule.policyVersionId, ids))
-		: []
+	const [rules, approvals] = ids.length
+		? await Promise.all([
+				db
+					.select({
+						policyVersionId: ComplianceRequirementRule.policyVersionId,
+						requirementKey: ComplianceRequirementRule.requirementKey,
+						required: ComplianceRequirementRule.required,
+						capabilitiesJson: ComplianceRequirementRule.capabilitiesJson,
+						acceptedEvidenceJson: ComplianceRequirementRule.acceptedEvidenceJson,
+						conditionJson: ComplianceRequirementRule.conditionJson,
+						blockingAction: ComplianceRequirementRule.blockingAction,
+						reviewOwner: ComplianceRequirementRule.reviewOwner,
+						sourceKind: ComplianceRequirementRule.sourceKind,
+						sourceReference: ComplianceRequirementRule.sourceReference,
+						sourceCheckedAt: ComplianceRequirementRule.sourceCheckedAt,
+					})
+					.from(ComplianceRequirementRule)
+					.where(inArray(ComplianceRequirementRule.policyVersionId, ids)),
+				db
+					.select({
+						policyVersionId: CommercialPolicyApproval.policyVersionId,
+						approvalArea: CommercialPolicyApproval.approvalArea,
+						approverUserId: CommercialPolicyApproval.approverUserId,
+						approvalReference: CommercialPolicyApproval.approvalReference,
+						approvedAt: CommercialPolicyApproval.approvedAt,
+					})
+					.from(CommercialPolicyApproval)
+					.where(inArray(CommercialPolicyApproval.policyVersionId, ids)),
+			])
+		: [[], []]
 	const versions: CommercialPolicyVersion[] = rows.map((row) => ({
 		id: row.id,
 		status: row.status as CommercialPolicyVersion["status"],
@@ -83,6 +141,17 @@ export async function diagnoseCommercialPolicy(params: {
 		approvedBy: row.approvedBy,
 		approvedAt: row.approvedAt,
 		approvalReference: row.approvalReference,
+		context: normalizeContextSelector(row.contextJson),
+		signatures: approvals
+			.filter((approval) => approval.policyVersionId === row.id)
+			.map(
+				(approval): CommercialPolicyApprovalRecord => ({
+					approvalArea: approval.approvalArea as CommercialPolicyApprovalRecord["approvalArea"],
+					approverUserId: approval.approverUserId,
+					approvalReference: approval.approvalReference,
+					approvedAt: approval.approvedAt,
+				})
+			),
 		country: row.country,
 		vertical: row.vertical as CommercialPolicyVersion["vertical"],
 		collectionModel: row.collectionModel as CommercialPolicyVersion["collectionModel"],
@@ -102,6 +171,12 @@ export async function diagnoseCommercialPolicy(params: {
 					acceptedEvidence: stringArray(rule.acceptedEvidenceJson),
 					blockingAction: rule.blockingAction || "Solicita revisión de este requisito.",
 					reviewOwner: rule.reviewOwner || "policies",
+					sourceKind: ["legal", "contract", "fastt_policy"].includes(String(rule.sourceKind))
+						? (rule.sourceKind as CommercialPolicyRequirement["sourceKind"])
+						: null,
+					sourceReference: rule.sourceReference,
+					sourceCheckedAt: rule.sourceCheckedAt,
+					condition: normalizeRequirementCondition(rule.conditionJson),
 				}
 			}),
 	}))
@@ -109,5 +184,6 @@ export async function diagnoseCommercialPolicy(params: {
 		context: params.context,
 		versions,
 		verifiedEvidence: params.verifiedEvidence,
+		evidence: params.evidence,
 	})
 }

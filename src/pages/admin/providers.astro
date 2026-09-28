@@ -614,6 +614,73 @@ const commandCenterV2 = getFeatureFlag("COMMAND_CENTER_V2_READ_ENABLED", { reque
 																<td class="px-3 py-3 align-top text-sm text-slate-700">
 																	<p class="font-medium text-slate-900">{doc.typeLabel}</p>
 																	<p>{doc.fileName || "Sin nombre"}</p>
+																	{doc.expiresAt ? (
+																		<p
+																			class:list={[
+																				"text-xs",
+																				doc.isExpiredEvidence
+																					? "font-semibold text-red-700"
+																					: "text-slate-500",
+																			]}
+																		>
+																			Vigencia: {fmt.format(new Date(doc.expiresAt))}
+																		</p>
+																	) : null}
+																	{doc.scopes.length ? (
+																		<p class="text-xs leading-5 text-slate-600">
+																			Alcance:{" "}
+																			{doc.scopes
+																				.map((scope) =>
+																					scope.productId
+																						? "experiencia vinculada"
+																						: scope.resourceId
+																							? "recurso asignado"
+																							: scope.territoryLabel ||
+																								scope.territoryCode ||
+																								scope.activityClass ||
+																								"declarado"
+																				)
+																				.join(" · ")}
+																		</p>
+																	) : (
+																		<p class="text-xs text-amber-700">
+																			Sin alcance específico declarado; valida si la política exige
+																			uno.
+																		</p>
+																	)}
+																	{doc.expiryImpact ? (
+																		<div class="mt-2 rounded border border-amber-200 bg-amber-50 px-2 py-2 text-xs leading-5 text-amber-950">
+																			<p class="font-semibold">Impacto a revisar</p>
+																			<p>
+																				{doc.expiryImpact.futureAssignedDepartureCount} salida
+																				{doc.expiryImpact.futureAssignedDepartureCount === 1
+																					? ""
+																					: "s"}{" "}
+																				futura
+																				{doc.expiryImpact.futureAssignedDepartureCount === 1
+																					? ""
+																					: "s"}{" "}
+																				con recursos asignados ·{" "}
+																				{doc.expiryImpact.upcomingConfirmedBookingCount} reserva
+																				{doc.expiryImpact.upcomingConfirmedBookingCount === 1
+																					? ""
+																					: "s"}{" "}
+																				confirmada
+																				{doc.expiryImpact.upcomingConfirmedBookingCount === 1
+																					? ""
+																					: "s"}{" "}
+																				próxima
+																				{doc.expiryImpact.upcomingConfirmedBookingCount === 1
+																					? ""
+																					: "s"}
+																				.
+																			</p>
+																			<p>
+																				Las reservas existentes conservan su snapshot; Operaciones
+																				decide cualquier medida sobre salidas futuras.
+																			</p>
+																		</div>
+																	) : null}
 																	{doc.submissionNotes ? (
 																		<p class="text-xs text-slate-500">
 																			Nota: {doc.submissionNotes}
@@ -651,15 +718,26 @@ const commandCenterV2 = getFeatureFlag("COMMAND_CENTER_V2_READ_ENABLED", { reque
 																</td>
 																<td class="px-3 py-3 align-top">
 																	<div class="flex min-w-[320px] flex-col gap-2">
-																		<Button
-																			variant="primary"
-																			className="w-fit"
-																			data-verify-document={doc.id}
-																			data-provider-id={doc.providerId}
-																		>
-																			Verificar
-																		</Button>
-																		{!focusedDetail && (
+																		{!doc.isExpiredEvidence ? (
+																			<Button
+																				variant="primary"
+																				className="w-fit"
+																				data-verify-document={doc.id}
+																				data-provider-id={doc.providerId}
+																			>
+																				Verificar
+																			</Button>
+																		) : (
+																			<div class="fastt-notice rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm leading-5 text-amber-950">
+																				<p class="font-semibold">Renovación requerida</p>
+																				<p>
+																					La evidencia vencida no se vuelve a aprobar. El proveedor
+																					debe enviar una renovación; revisa el alcance y las
+																					salidas futuras antes de habilitarla.
+																				</p>
+																			</div>
+																		)}
+																		{!doc.isExpiredEvidence && !focusedDetail && (
 																			<form
 																				class="flex flex-col gap-2"
 																				data-reject-document-form

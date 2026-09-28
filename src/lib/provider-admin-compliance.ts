@@ -10,7 +10,11 @@ import {
 } from "@/shared/infrastructure/db/compat"
 
 import { listOpenComplianceAssignments } from "@/lib/provider-compliance-ops"
-import { listPendingProviderDocumentsForAdmin } from "@/lib/provider-documents"
+import {
+	assessExpiredDocumentOperationalImpact,
+	listExpiredProviderDocumentsForAdmin,
+	listPendingProviderDocumentsForAdmin,
+} from "@/lib/provider-documents"
 import { listPendingProviderPaymentAccountsForAdmin } from "@/lib/provider-payment-accounts"
 import { adminComplianceRejectTemplates } from "@/lib/provider-reject-categories"
 import { listProviderTaxConfigurationsForAdmin } from "@/lib/provider-tax-configuration"
@@ -292,11 +296,12 @@ export async function loadProviderComplianceConsole(params?: {
 	const showPayments = filter === "all" || filter === "payments" || isSlaFilter
 	const showAudit = filter === "all" || filter === "audit"
 
-	const [verificationQueue, taxConfigs, documents, payments, audit, assignments] =
+	const [verificationQueue, taxConfigs, documents, expiredDocuments, payments, audit, assignments] =
 		await Promise.all([
 			listPendingProviderVerificationsForAdmin(),
 			listProviderTaxConfigurationsForAdmin(),
 			listPendingProviderDocumentsForAdmin(),
+			listExpiredProviderDocumentsForAdmin(),
 			listPendingProviderPaymentAccountsForAdmin(),
 			showAudit
 				? listRecentProviderComplianceAudit({ limit: params?.auditLimit ?? 40 })
@@ -330,11 +335,21 @@ export async function loadProviderComplianceConsole(params?: {
 		displayName: providerNameById.get(row.providerId) ?? row.providerId,
 		assignment: assignmentByKey.get(`fiscal:${row.providerId}:${row.providerId}`) ?? null,
 	}))
-	const documentRowsAll = documents.map((doc) => ({
-		...doc,
-		displayName: providerNameById.get(doc.providerId) ?? doc.providerId,
-		assignment: assignmentByKey.get(`documents:${doc.providerId}:${doc.id}`) ?? null,
-	}))
+	const documentRowsAll = await Promise.all(
+		[...documents, ...expiredDocuments].map(async (doc) => ({
+			...doc,
+			isExpiredEvidence: doc.status === "verified",
+			expiryImpact:
+				doc.status === "verified"
+					? await assessExpiredDocumentOperationalImpact({
+							providerId: doc.providerId,
+							document: doc,
+						})
+					: null,
+			displayName: providerNameById.get(doc.providerId) ?? doc.providerId,
+			assignment: assignmentByKey.get(`documents:${doc.providerId}:${doc.id}`) ?? null,
+		}))
+	)
 	const paymentRowsAll = payments.map((account) => ({
 		...account,
 		displayName: providerNameById.get(account.providerId) ?? account.providerId,

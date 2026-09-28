@@ -26,6 +26,9 @@ export const INTERNAL_PERMISSIONS = [
 	"sensitive_data.download",
 	"policy.edit",
 	"policy.publish",
+	"commercial_policy.policy.approve",
+	"commercial_policy.finance.approve",
+	"commercial_policy.tour_operations.approve",
 	"access.manage",
 	"payout.release",
 ] as const

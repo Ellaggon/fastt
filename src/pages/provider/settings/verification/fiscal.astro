@@ -46,22 +46,33 @@ const pageGuidance = buildVerificationPageGuidance({
 	trustLinks,
 	nextActionId,
 	trustMapComplete,
-	activeSectionId,
+	activeSectionId:
+		activeSectionId === "activity" || activeSectionId === "safety" ? "identity" : activeSectionId,
 })
 ---
 
 <ProviderSettingsLayout
 	title="Verificación fiscal"
 	eyebrow={TRUST_GLOSSARY.page.eyebrow}
-	heading={TRUST_GLOSSARY.page.heading}
-	description={pageGuidance}
+	heading={model.navigation?.line === "tour"
+		? "Verificación de tours"
+		: model.navigation?.line === "lodging"
+			? "Verificación de alojamientos"
+			: TRUST_GLOSSARY.page.heading}
+	description={model.navigation?.line === "tour"
+		? "Revisa los datos fiscales aplicables a tus experiencias."
+		: pageGuidance}
 	showSettingsTabs={false}
-	readyCount={trustLinks.length ? readyCount : null}
-	totalCount={trustLinks.length ? totalCount : null}
-	inReviewCount={trustLinks.length ? inReviewCount : null}
-	actionRequiredCount={trustLinks.length ? actionRequiredCount : null}
-	notStartedCount={trustLinks.length ? notStartedCount : null}
-	readinessPercent={trustLinks.length ? readinessPercent : null}
+	readyCount={trustLinks.length && model.navigation?.line !== "tour" ? readyCount : null}
+	totalCount={trustLinks.length && model.navigation?.line !== "tour" ? totalCount : null}
+	inReviewCount={trustLinks.length && model.navigation?.line !== "tour" ? inReviewCount : null}
+	actionRequiredCount={trustLinks.length && model.navigation?.line !== "tour"
+		? actionRequiredCount
+		: null}
+	notStartedCount={trustLinks.length && model.navigation?.line !== "tour" ? notStartedCount : null}
+	readinessPercent={trustLinks.length && model.navigation?.line !== "tour"
+		? readinessPercent
+		: null}
 >
 	<div
 		class="space-y-6 md:space-y-8"

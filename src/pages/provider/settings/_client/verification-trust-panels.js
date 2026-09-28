@@ -7,6 +7,8 @@ const VERIFICATION_WORKSPACE_PATHS = new Set([
 const VERIFICATION_PANEL_TITLES = {
 	identity: "Verificación y documentos",
 	business: "Verificación y documentos",
+	activity: "Verificación y documentos",
+	safety: "Verificación y documentos",
 	fiscal: "Verificación fiscal",
 	payments: "Verificación de pagos",
 }
@@ -20,10 +22,14 @@ function isVerificationWorkspacePath(pathname) {
 }
 
 function resolveVerificationTrustPanelFromUrl(url) {
+	const businessTab = url.searchParams.get("tab")
+	if (["identity", "business", "activity", "safety", "fiscal", "payments"].includes(businessTab))
+		return businessTab
 	const pathname = normalizePath(url.pathname || window.location.pathname)
 	if (pathname.endsWith("/verification/payments")) return "payments"
 	if (pathname.endsWith("/verification/fiscal")) return "fiscal"
 	if (!pathname.includes("/provider/settings/verification")) return "identity"
+	if (url.searchParams.get("type") === "government_id") return "identity"
 	if (url.searchParams.get("type")) return "business"
 	if (url.hash === "#kyc-slots" || url.hash.startsWith("#kyc-slot-")) return "business"
 	return "identity"
@@ -90,9 +96,23 @@ function syncVerificationPageDescription(activeId) {
 	window.setTimeout(apply, 160)
 }
 
+function syncVerificationTabNav(activeId) {
+	document.querySelectorAll("[data-verification-tab-link]").forEach((link) => {
+		const tab = link.getAttribute("data-verification-tab-link")
+		const active = tab === activeId
+		link.setAttribute("data-active", active ? "true" : "false")
+		if (active) {
+			link.setAttribute("aria-current", "page")
+		} else {
+			link.removeAttribute("aria-current")
+		}
+	})
+}
+
 function syncVerificationTrustPanels() {
 	const activeId = resolveVerificationTrustPanel()
 	syncVerificationPageDescription(activeId)
+	syncVerificationTabNav(activeId)
 	const hubActive = activeId === "identity" || activeId === "business"
 	document.querySelectorAll("[data-verification-trust-panel]").forEach((panel) => {
 		const isActive = panel.getAttribute("data-verification-trust-panel") === activeId
@@ -147,6 +167,51 @@ function handleVerificationTrustClick(event) {
 	if (!href) return
 	const url = new URL(href, window.location.href)
 	if (url.origin !== window.location.origin) return
+	const currentUrl = new URL(window.location.href)
+	if (currentUrl.searchParams.has("line")) {
+		const businessNav = target.closest("[data-verification-business-nav]")
+		if (businessNav) {
+			if (target.closest("[data-verification-tab-link]")) {
+				event.preventDefault()
+				activateVerificationTrustUrl(url, {
+					preserveScroll: true,
+					scrollToPanel: Boolean(url.hash),
+				})
+				return
+			}
+			if (target.closest("[data-verification-line-link]")) return
+			return
+		}
+		if (isVerificationWorkspacePath(url.pathname) && !url.searchParams.has("line")) {
+			url.searchParams.set("line", currentUrl.searchParams.get("line"))
+			const experience = currentUrl.searchParams.get("experience")
+			if (experience) url.searchParams.set("experience", experience)
+			const tab = url.pathname.endsWith("/fiscal")
+				? "fiscal"
+				: url.pathname.endsWith("/payments")
+					? "payments"
+					: url.searchParams.get("type") === "government_id"
+						? "identity"
+						: url.searchParams.get("type")
+							? currentUrl.searchParams.get("line") === "tour"
+								? "activity"
+								: "business"
+							: "identity"
+			url.searchParams.set("tab", tab)
+		}
+		if (isVerificationWorkspacePath(url.pathname)) {
+			event.preventDefault()
+			if (normalizePath(url.pathname) === normalizePath(currentUrl.pathname)) {
+				activateVerificationTrustUrl(url, {
+					preserveScroll: true,
+					scrollToPanel: Boolean(url.hash),
+				})
+				return
+			}
+			window.location.assign(url.pathname + url.search + url.hash)
+		}
+		return
+	}
 	if (!isVerificationWorkspacePath(url.pathname)) return
 	const trustRail = target.closest("[data-trust-link]")
 	event.preventDefault()

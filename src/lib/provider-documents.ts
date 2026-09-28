@@ -4,10 +4,20 @@ import {
 	db,
 	desc,
 	eq,
+	gte,
+	inArray,
+	lt,
+	Booking,
+	Product,
 	ProviderDocument,
 	ProviderDocumentInspection,
 	ProviderDocumentProcessingJob,
+	ProviderDocumentScope,
 	ProviderUser,
+	RatePlan,
+	TourResourceAssignment,
+	TourOperationalResource,
+	Variant,
 } from "@/shared/infrastructure/db/compat"
 
 import { inferSettingsRiskLevel, writeProviderAuditLog } from "@/lib/provider-audit"
@@ -22,6 +32,9 @@ import { providerRepository } from "@/container"
 import { resolveProviderPermissions } from "@/lib/provider-permissions"
 import { resolveProviderRejectCategory } from "@/lib/provider-reject-categories"
 import { routes } from "@/lib/routes"
+import { isProviderDocumentExpired } from "@/lib/provider-document-validity"
+
+export { isProviderDocumentExpired } from "@/lib/provider-document-validity"
 
 /** Deep-link into Verificación fiscal NIT field (owner of taxpayer ID in trust flow). */
 export const FISCAL_NIT_HREF = `${routes.providerSettingsVerificationFiscal()}#businessRegistrationNumber`
@@ -48,6 +61,40 @@ export type ProviderDocumentType =
 	| "address_proof"
 
 export type ProviderDocumentStatus = "pending" | "verified" | "rejected" | "superseded"
+export type ProviderDocumentSubjectType =
+	| "provider"
+	| "legal_entity"
+	| "person"
+	| "resource"
+	| "third_party"
+export type ProviderDocumentActivityClass =
+	| "urban_cultural"
+	| "guided_nature"
+	| "adventure"
+	| "transport"
+	| "water_air"
+	| "gastronomic"
+export type ProviderDocumentScopeRecord = {
+	id: string
+	scopeType: "product" | "resource" | "territory" | "activity"
+	productId: string | null
+	resourceId: string | null
+	territoryCode: string | null
+	territoryLabel: string | null
+	activityClass: ProviderDocumentActivityClass | null
+}
+export type ProviderDocumentEvidenceInput = {
+	issuer?: unknown
+	issuedAt?: unknown
+	expiresAt?: unknown
+	subjectType?: unknown
+	subjectReference?: unknown
+	productIds?: unknown
+	resourceIds?: unknown
+	territories?: unknown
+	activityClasses?: unknown
+	requireOperationScope?: unknown
+}
 
 export type ProviderDocumentRecord = {
 	id: string
@@ -62,6 +109,12 @@ export type ProviderDocumentRecord = {
 	mimeType: string | null
 	sizeBytes: number | null
 	submissionNotes: string | null
+	issuer: string | null
+	issuedAt: Date | null
+	expiresAt: Date | null
+	subjectType: ProviderDocumentSubjectType
+	subjectReference: string | null
+	scopes: ProviderDocumentScopeRecord[]
 	reviewNotes: string | null
 	reviewedAt: Date | null
 	reviewedBy: string | null
@@ -97,20 +150,23 @@ export function evaluateRequiredKycDocumentsComplete(
 	documents: Array<{ type: string; status: string }>,
 	options?: {
 		taxDocumentSatisfiedByFiscal?: boolean
+		/** Subset resolved for this account. Omitted means the historical three types. */
+		requiredTypes?: readonly RequiredKycDocumentType[]
 	}
 ): {
 	complete: boolean
 	verifiedRequiredTypes: RequiredKycDocumentType[]
 	missingRequiredTypes: RequiredKycDocumentType[]
 } {
+	const required = options?.requiredTypes ?? requiredKycDocumentTypes
 	const verifiedTypes = new Set(
 		documents.filter((row) => row.status === "verified").map((row) => String(row.type))
 	)
 	if (options?.taxDocumentSatisfiedByFiscal) {
 		verifiedTypes.add("tax_document")
 	}
-	const verifiedRequiredTypes = requiredKycDocumentTypes.filter((type) => verifiedTypes.has(type))
-	const missingRequiredTypes = requiredKycDocumentTypes.filter((type) => !verifiedTypes.has(type))
+	const verifiedRequiredTypes = required.filter((type) => verifiedTypes.has(type))
+	const missingRequiredTypes = required.filter((type) => !verifiedTypes.has(type))
 	return {
 		complete: missingRequiredTypes.length === 0,
 		verifiedRequiredTypes,
@@ -575,11 +631,14 @@ export function buildRequiredKycSlots(params: {
 	documents: ProviderDocumentRecord[]
 	uploadBasePath?: string
 	taxFiscal?: BuildKycFiscalInput | null
+	/** Subset resolved for this account. Omitted means the historical three slots. */
+	types?: readonly RequiredKycDocumentType[]
 }): ProviderKycSlot[] {
 	const base = String(params.uploadBasePath ?? "/provider/settings/verification").trim()
 	const taxBridge = buildTaxDocumentFiscalBridge(params.taxFiscal ?? null)
+	const types = params.types ?? requiredKycDocumentTypes
 
-	return requiredKycDocumentTypes.map((type) => {
+	return types.map((type) => {
 		const meta = providerDocumentTypes.find((item) => item.value === type)
 		const document = pickLatestDocumentForType(params.documents, type)
 		const fiscalBridge = type === "tax_document" ? taxBridge : null
@@ -697,6 +756,184 @@ function asDocumentStatus(value: unknown): ProviderDocumentStatus {
 	return "pending"
 }
 
+const subjectTypes = new Set<ProviderDocumentSubjectType>([
+	"provider",
+	"legal_entity",
+	"person",
+	"resource",
+	"third_party",
+])
+const activityClasses = new Set<ProviderDocumentActivityClass>([
+	"urban_cultural",
+	"guided_nature",
+	"adventure",
+	"transport",
+	"water_air",
+	"gastronomic",
+])
+
+function boundedText(value: unknown, maximum: number): string | null {
+	const text = String(value ?? "").trim()
+	return text && text.length <= maximum ? text : null
+}
+
+function isoDate(value: unknown, boundary: "start" | "end" = "start"): Date | null {
+	const raw = String(value ?? "").trim()
+	if (!raw) return null
+	if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+		const date = new Date(`${raw}T${boundary === "end" ? "23:59:59.999" : "00:00:00.000"}Z`)
+		return Number.isNaN(date.getTime()) ? null : date
+	}
+	const date = new Date(raw)
+	return Number.isNaN(date.getTime()) ? null : date
+}
+
+function stringList(value: unknown, maximum: number): string[] {
+	const list = Array.isArray(value) ? value : typeof value === "string" ? value.split(/[\n,]/) : []
+	return [
+		...new Set(
+			list.map((item) => boundedText(item, 160)).filter((item): item is string => Boolean(item))
+		),
+	].slice(0, maximum)
+}
+
+/** Validates evidence semantics before a document can be stored or linked to an offer. */
+export function parseProviderDocumentEvidence(
+	input: ProviderDocumentEvidenceInput | null | undefined
+) {
+	const raw = input && typeof input === "object" ? input : {}
+	const subjectRaw = String((raw as any).subjectType ?? "").trim()
+	const subjectCandidate = boundedText(subjectRaw, 40) as ProviderDocumentSubjectType | null
+	if (subjectRaw && !subjectCandidate) throw new Error("invalid_document_subject")
+	if (subjectCandidate && !subjectTypes.has(subjectCandidate))
+		throw new Error("invalid_document_subject")
+	const subjectType = subjectCandidate ?? "provider"
+	const issuedAt = isoDate((raw as any).issuedAt)
+	const expiresAt = isoDate((raw as any).expiresAt, "end")
+	if ((raw as any).issuedAt && !issuedAt) throw new Error("invalid_document_issued_at")
+	if ((raw as any).expiresAt && !expiresAt) throw new Error("invalid_document_expires_at")
+	if (issuedAt && expiresAt && expiresAt <= issuedAt)
+		throw new Error("invalid_document_validity_range")
+	const territoriesRaw: unknown[] = Array.isArray((raw as any).territories)
+		? ((raw as any).territories as unknown[])
+		: []
+	const territories = territoriesRaw.slice(0, 20).map((item) => {
+		if (!item || typeof item !== "object") throw new Error("invalid_document_territory")
+		const code = boundedText((item as any).code, 64)
+		const label = boundedText((item as any).label, 160)
+		if (!code) throw new Error("invalid_document_territory")
+		return { code, label }
+	})
+	const classes = stringList((raw as any).activityClasses, 12)
+	if (classes.some((item) => !activityClasses.has(item as ProviderDocumentActivityClass)))
+		throw new Error("invalid_document_activity_class")
+	const parsed = {
+		issuer: boundedText((raw as any).issuer, 240),
+		issuedAt,
+		expiresAt,
+		subjectType,
+		subjectReference: boundedText((raw as any).subjectReference, 240),
+		productIds: stringList((raw as any).productIds, 50),
+		resourceIds: stringList((raw as any).resourceIds, 50),
+		territories,
+		activityClasses: classes as ProviderDocumentActivityClass[],
+	}
+	if (
+		(raw as any).requireOperationScope &&
+		parsed.productIds.length +
+			parsed.resourceIds.length +
+			parsed.territories.length +
+			parsed.activityClasses.length ===
+			0
+	) {
+		throw new Error("document_scope_required")
+	}
+	return parsed
+}
+
+/**
+ * Applies the requirement-specific submission contract before a file is stored.
+ * The API resolves these constraints from the provider's active verification
+ * requirements, so browser controls and direct requests share the same gate.
+ */
+export function validateProviderDocumentEvidence(
+	input: ProviderDocumentEvidenceInput | null | undefined,
+	constraints: {
+		requireProductScope?: boolean
+		requireSubjectReference?: boolean
+		allowedSubjectTypes?: readonly ProviderDocumentSubjectType[]
+	} = {}
+) {
+	const evidence = parseProviderDocumentEvidence(input)
+	if (constraints.requireProductScope && evidence.productIds.length === 0) {
+		throw new Error("document_product_scope_required")
+	}
+	if (constraints.requireSubjectReference && !evidence.subjectReference) {
+		throw new Error("document_subject_reference_required")
+	}
+	if (
+		constraints.allowedSubjectTypes?.length &&
+		!constraints.allowedSubjectTypes.includes(evidence.subjectType)
+	) {
+		throw new Error("document_subject_type_invalid")
+	}
+	return evidence
+}
+
+/**
+ * Resolves recorded evidence conservatively. Every scope dimension present on a
+ * document must match the requested operation; an expired document never applies.
+ */
+export function documentAppliesToOperation(
+	document: Pick<ProviderDocumentRecord, "expiresAt" | "subjectReference" | "scopes">,
+	context: {
+		at?: Date
+		productId?: string | null
+		resourceId?: string | null
+		territoryCodes?: string[]
+		activityClasses?: ProviderDocumentActivityClass[]
+		subjectReferences?: string[]
+	}
+): boolean {
+	const at = context.at ?? new Date()
+	if (isProviderDocumentExpired(document.expiresAt, at)) return false
+	if (
+		document.subjectReference &&
+		context.subjectReferences?.length &&
+		!context.subjectReferences.includes(document.subjectReference)
+	)
+		return false
+	const byType = new Map<string, ProviderDocumentScopeRecord[]>()
+	for (const scope of document.scopes) {
+		const group = byType.get(scope.scopeType) ?? []
+		group.push(scope)
+		byType.set(scope.scopeType, group)
+	}
+	const products = byType.get("product") ?? []
+	if (products.length && !products.some((scope) => scope.productId === context.productId))
+		return false
+	const resources = byType.get("resource") ?? []
+	if (resources.length && !resources.some((scope) => scope.resourceId === context.resourceId))
+		return false
+	const territories = byType.get("territory") ?? []
+	if (
+		territories.length &&
+		!territories.some((scope) =>
+			context.territoryCodes?.includes(String(scope.territoryCode ?? ""))
+		)
+	)
+		return false
+	const activities = byType.get("activity") ?? []
+	if (
+		activities.length &&
+		!activities.some((scope) =>
+			context.activityClasses?.includes(scope.activityClass as ProviderDocumentActivityClass)
+		)
+	)
+		return false
+	return true
+}
+
 function typeLabel(type: ProviderDocumentType) {
 	return providerDocumentTypes.find((item) => item.value === type)?.label ?? type
 }
@@ -726,6 +963,12 @@ function mapRow(row: {
 	status: string
 	fileUrl: string | null
 	metadataJson: unknown
+	issuer?: string | null
+	issuedAt?: Date | null
+	expiresAt?: Date | null
+	subjectType?: string | null
+	subjectReference?: string | null
+	scopes?: ProviderDocumentScopeRecord[]
 	reviewNotes: string | null
 	reviewedAt: Date | null
 	reviewedBy: string | null
@@ -749,12 +992,77 @@ function mapRow(row: {
 		mimeType: metadata.mimeType,
 		sizeBytes: metadata.sizeBytes,
 		submissionNotes: metadata.submissionNotes,
+		issuer: row.issuer ?? null,
+		issuedAt: row.issuedAt ?? null,
+		expiresAt: row.expiresAt ?? null,
+		subjectType: subjectTypes.has(row.subjectType as ProviderDocumentSubjectType)
+			? (row.subjectType as ProviderDocumentSubjectType)
+			: "provider",
+		subjectReference: row.subjectReference ?? null,
+		scopes: row.scopes ?? [],
 		reviewNotes: row.reviewNotes ?? null,
 		reviewedAt: row.reviewedAt ?? null,
 		reviewedBy: row.reviewedBy ?? null,
 		createdAt: row.createdAt ?? null,
 		updatedAt: row.updatedAt ?? null,
 	}
+}
+
+const documentColumns = {
+	id: ProviderDocument.id,
+	providerId: ProviderDocument.providerId,
+	type: ProviderDocument.type,
+	status: ProviderDocument.status,
+	fileUrl: ProviderDocument.fileUrl,
+	metadataJson: ProviderDocument.metadataJson,
+	issuer: ProviderDocument.issuer,
+	issuedAt: ProviderDocument.issuedAt,
+	expiresAt: ProviderDocument.expiresAt,
+	subjectType: ProviderDocument.subjectType,
+	subjectReference: ProviderDocument.subjectReference,
+	reviewNotes: ProviderDocument.reviewNotes,
+	reviewedAt: ProviderDocument.reviewedAt,
+	reviewedBy: ProviderDocument.reviewedBy,
+	createdAt: ProviderDocument.createdAt,
+	updatedAt: ProviderDocument.updatedAt,
+}
+
+type DocumentRow = Parameters<typeof mapRow>[0]
+
+async function withDocumentScopes(rows: DocumentRow[]): Promise<ProviderDocumentRecord[]> {
+	const ids = rows.map((row) => row.id)
+	if (ids.length === 0) return []
+	const scopes = await db
+		.select({
+			id: ProviderDocumentScope.id,
+			documentId: ProviderDocumentScope.documentId,
+			scopeType: ProviderDocumentScope.scopeType,
+			productId: ProviderDocumentScope.productId,
+			resourceId: ProviderDocumentScope.resourceId,
+			territoryCode: ProviderDocumentScope.territoryCode,
+			territoryLabel: ProviderDocumentScope.territoryLabel,
+			activityClass: ProviderDocumentScope.activityClass,
+		})
+		.from(ProviderDocumentScope)
+		.where(inArray(ProviderDocumentScope.documentId, ids))
+		.catch(() => [])
+	const byDocument = new Map<string, ProviderDocumentScopeRecord[]>()
+	for (const scope of scopes) {
+		const list = byDocument.get(scope.documentId) ?? []
+		list.push({
+			id: scope.id,
+			scopeType: scope.scopeType as ProviderDocumentScopeRecord["scopeType"],
+			productId: scope.productId,
+			resourceId: scope.resourceId,
+			territoryCode: scope.territoryCode,
+			territoryLabel: scope.territoryLabel,
+			activityClass: activityClasses.has(scope.activityClass as ProviderDocumentActivityClass)
+				? (scope.activityClass as ProviderDocumentActivityClass)
+				: null,
+		})
+		byDocument.set(scope.documentId, list)
+	}
+	return rows.map((row) => mapRow({ ...row, scopes: byDocument.get(row.id) ?? [] }))
 }
 
 async function getProviderRole(providerId: string, userId: string) {
@@ -786,51 +1094,165 @@ export async function assertCanManageDocuments(providerId: string, userId: strin
 
 export async function listProviderDocuments(providerId: string): Promise<ProviderDocumentRecord[]> {
 	const rows = await db
-		.select({
-			id: ProviderDocument.id,
-			providerId: ProviderDocument.providerId,
-			type: ProviderDocument.type,
-			status: ProviderDocument.status,
-			fileUrl: ProviderDocument.fileUrl,
-			metadataJson: ProviderDocument.metadataJson,
-			reviewNotes: ProviderDocument.reviewNotes,
-			reviewedAt: ProviderDocument.reviewedAt,
-			reviewedBy: ProviderDocument.reviewedBy,
-			createdAt: ProviderDocument.createdAt,
-			updatedAt: ProviderDocument.updatedAt,
-		})
+		.select(documentColumns)
 		.from(ProviderDocument)
 		.where(eq(ProviderDocument.providerId, providerId))
 		.orderBy(desc(ProviderDocument.createdAt), desc(ProviderDocument.id))
-
 		.catch(() => [])
-
-	return rows.map(mapRow)
+	return withDocumentScopes(rows)
 }
 
 /** Cross-provider pending queue for internal admin review console. */
 export async function listPendingProviderDocumentsForAdmin(): Promise<ProviderDocumentRecord[]> {
 	const rows = await db
-		.select({
-			id: ProviderDocument.id,
-			providerId: ProviderDocument.providerId,
-			type: ProviderDocument.type,
-			status: ProviderDocument.status,
-			fileUrl: ProviderDocument.fileUrl,
-			metadataJson: ProviderDocument.metadataJson,
-			reviewNotes: ProviderDocument.reviewNotes,
-			reviewedAt: ProviderDocument.reviewedAt,
-			reviewedBy: ProviderDocument.reviewedBy,
-			createdAt: ProviderDocument.createdAt,
-			updatedAt: ProviderDocument.updatedAt,
-		})
+		.select(documentColumns)
 		.from(ProviderDocument)
 		.where(eq(ProviderDocument.status, "pending"))
 		.orderBy(desc(ProviderDocument.createdAt), desc(ProviderDocument.id))
-
 		.catch(() => [])
+	return withDocumentScopes(rows)
+}
 
-	return rows.map(mapRow)
+/** Verified evidence whose declared validity has ended. It remains historical evidence, never pending work. */
+export async function listExpiredProviderDocumentsForAdmin(
+	now = new Date()
+): Promise<ProviderDocumentRecord[]> {
+	const startOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+	const rows = await db
+		.select(documentColumns)
+		.from(ProviderDocument)
+		.where(
+			and(eq(ProviderDocument.status, "verified"), lt(ProviderDocument.expiresAt, startOfToday))
+		)
+		.orderBy(desc(ProviderDocument.expiresAt), desc(ProviderDocument.id))
+		.catch(() => [])
+	return withDocumentScopes(rows)
+}
+
+/**
+ * Scope values come from a browser form, so they must be tied back to this
+ * provider before we persist them. This prevents a direct request from
+ * attaching a valid-looking document to somebody else's hotel or guide.
+ */
+async function assertEvidenceScopeBelongsToProvider(
+	providerId: string,
+	evidence: ReturnType<typeof parseProviderDocumentEvidence>,
+	expectedProductType?: "tour" | "hotel"
+) {
+	if (evidence.productIds.length) {
+		const products = await db
+			.select({ id: Product.id, productType: Product.productType })
+			.from(Product)
+			.where(and(eq(Product.providerId, providerId), inArray(Product.id, evidence.productIds)))
+			.catch(() => [])
+		if (
+			products.length !== evidence.productIds.length ||
+			(expectedProductType &&
+				products.some((product) => product.productType !== expectedProductType))
+		)
+			throw new Error("document_scope_product_not_found")
+	}
+	if (evidence.resourceIds.length) {
+		const resources = await db
+			.select({ id: TourOperationalResource.id })
+			.from(TourOperationalResource)
+			.where(
+				and(
+					eq(TourOperationalResource.providerId, providerId),
+					inArray(TourOperationalResource.id, evidence.resourceIds)
+				)
+			)
+			.catch(() => [])
+		if (resources.length !== evidence.resourceIds.length)
+			throw new Error("document_scope_resource_not_found")
+	}
+	if (
+		evidence.subjectReference &&
+		(evidence.subjectType === "person" || evidence.subjectType === "resource")
+	) {
+		const subject = await db
+			.select({ id: TourOperationalResource.id })
+			.from(TourOperationalResource)
+			.where(
+				and(
+					eq(TourOperationalResource.providerId, providerId),
+					eq(TourOperationalResource.id, evidence.subjectReference)
+				)
+			)
+			.then(first)
+			.catch(() => null)
+		if (!subject) throw new Error("document_subject_not_found")
+	}
+}
+
+export type DocumentExpiryOperationalImpact = {
+	productIds: string[]
+	futureAssignedDepartureCount: number
+	upcomingConfirmedBookingCount: number
+	scopeNeedsManualReview: boolean
+	/** Historical reservations retain their booking/policy snapshots. */
+	existingReservationsTreatment: "preserved_snapshot"
+}
+
+/** Read-only preview. Expiry can block new activity, never silently rewrites confirmed reservations. */
+export async function assessExpiredDocumentOperationalImpact(params: {
+	providerId: string
+	document: Pick<ProviderDocumentRecord, "scopes">
+	asOf?: Date
+}): Promise<DocumentExpiryOperationalImpact> {
+	const today = (params.asOf ?? new Date()).toISOString().slice(0, 10)
+	const productIds = Array.from(
+		new Set(
+			params.document.scopes
+				.filter((scope) => scope.scopeType === "product" && scope.productId)
+				.map((scope) => String(scope.productId))
+		)
+	)
+	if (!productIds.length) {
+		return {
+			productIds: [],
+			futureAssignedDepartureCount: 0,
+			upcomingConfirmedBookingCount: 0,
+			scopeNeedsManualReview: true,
+			existingReservationsTreatment: "preserved_snapshot",
+		}
+	}
+	const [assignments, bookings] = await Promise.all([
+		db
+			.select({ id: TourResourceAssignment.id })
+			.from(TourResourceAssignment)
+			.innerJoin(Variant, eq(TourResourceAssignment.variantId, Variant.id))
+			.where(
+				and(
+					eq(TourResourceAssignment.providerId, params.providerId),
+					inArray(Variant.productId, productIds),
+					gte(TourResourceAssignment.date, today)
+				)
+			)
+			.catch(() => []),
+		db
+			.select({ id: Booking.id })
+			.from(Booking)
+			.innerJoin(RatePlan, eq(Booking.ratePlanId, RatePlan.id))
+			.innerJoin(Variant, eq(RatePlan.variantId, Variant.id))
+			.where(
+				and(
+					eq(Booking.providerId, params.providerId),
+					eq(Booking.status, "confirmed"),
+					inArray(Variant.productId, productIds),
+					gte(Booking.checkInDate, today)
+				)
+			)
+			.limit(101)
+			.catch(() => []),
+	])
+	return {
+		productIds,
+		futureAssignedDepartureCount: assignments.length,
+		upcomingConfirmedBookingCount: bookings.length,
+		scopeNeedsManualReview: params.document.scopes.some((scope) => scope.scopeType !== "product"),
+		existingReservationsTreatment: "preserved_snapshot",
+	}
 }
 
 export async function submitProviderDocument(params: {
@@ -842,6 +1264,14 @@ export async function submitProviderDocument(params: {
 	mimeType?: unknown
 	sizeBytes?: unknown
 	submissionNotes?: unknown
+	evidence?: ProviderDocumentEvidenceInput | null
+	/** Requirement-specific evidence constraints resolved by the server route. */
+	requireProductScope?: boolean
+	requireSubjectReference?: boolean
+	allowedSubjectTypes?: readonly ProviderDocumentSubjectType[]
+	scopeProductType?: "tour" | "hotel"
+	/** Replacements are explicit so a second licence never erases another scope. */
+	replacesDocumentId?: unknown
 	/** When set with R2 configured, uploads bytes and stores an r2: ref. */
 	fileBytes?: Uint8Array | Buffer | null
 }) {
@@ -866,6 +1296,20 @@ export async function submitProviderDocument(params: {
 			: Number(params.sizeBytes)
 	const normalizedSize = Number.isFinite(sizeBytes) && sizeBytes > 0 ? Math.floor(sizeBytes) : null
 	const submissionNotes = String(params.submissionNotes ?? "").trim() || null
+	const evidence = validateProviderDocumentEvidence(
+		{
+			...params.evidence,
+			requireOperationScope:
+				type === "ownership_proof" || type === "operating_license" || type === "insurance",
+		},
+		{
+			requireProductScope: params.requireProductScope,
+			requireSubjectReference: params.requireSubjectReference,
+			allowedSubjectTypes: params.allowedSubjectTypes,
+		}
+	)
+	await assertEvidenceScopeBelongsToProvider(params.providerId, evidence, params.scopeProductType)
+	const replacesDocumentId = String(params.replacesDocumentId ?? "").trim() || null
 	const hasBytes = Boolean(params.fileBytes && params.fileBytes.byteLength > 0)
 
 	if (!fileUrlRaw && !fileName && !hasBytes) {
@@ -932,6 +1376,66 @@ export async function submitProviderDocument(params: {
 
 	assertAllowedProviderDocumentUrl(fileUrl)
 
+	const [ownedProducts, ownedResources] = await Promise.all([
+		evidence.productIds.length
+			? db
+					.select({ id: Product.id })
+					.from(Product)
+					.where(
+						and(eq(Product.providerId, params.providerId), inArray(Product.id, evidence.productIds))
+					)
+			: Promise.resolve([]),
+		evidence.resourceIds.length
+			? db
+					.select({ id: TourOperationalResource.id })
+					.from(TourOperationalResource)
+					.where(
+						and(
+							eq(TourOperationalResource.providerId, params.providerId),
+							inArray(TourOperationalResource.id, evidence.resourceIds)
+						)
+					)
+			: Promise.resolve([]),
+	])
+	if (
+		ownedProducts.length !== evidence.productIds.length ||
+		ownedResources.length !== evidence.resourceIds.length
+	) {
+		const error = new Error("document_scope_not_owned")
+		;(error as Error & { status?: number }).status = 403
+		throw error
+	}
+
+	const replacement = replacesDocumentId
+		? await db
+				.select({
+					id: ProviderDocument.id,
+					type: ProviderDocument.type,
+					status: ProviderDocument.status,
+					expiresAt: ProviderDocument.expiresAt,
+				})
+				.from(ProviderDocument)
+				.where(
+					and(
+						eq(ProviderDocument.id, replacesDocumentId),
+						eq(ProviderDocument.providerId, params.providerId)
+					)
+				)
+				.then(first)
+		: null
+	const replacementIsRenewable =
+		replacement?.status === "verified" && isProviderDocumentExpired(replacement.expiresAt, now)
+	if (
+		replacesDocumentId &&
+		(!replacement ||
+			replacement.type !== type ||
+			(replacement.status === "verified" && !replacementIsRenewable))
+	) {
+		const error = new Error("invalid_document_replacement")
+		;(error as Error & { status?: number }).status = 409
+		throw error
+	}
+
 	const activeSameType = await db
 		.select({ id: ProviderDocument.id, status: ProviderDocument.status })
 		.from(ProviderDocument)
@@ -953,13 +1457,46 @@ export async function submitProviderDocument(params: {
 		source: "provider.settings.documents",
 		storage: fileUrl.startsWith("r2:") ? "r2" : fileUrl.startsWith("local://") ? "local" : "url",
 	}
+	const scope = (
+		scopeType: ProviderDocumentScopeRecord["scopeType"],
+		value: Pick<
+			ProviderDocumentScopeRecord,
+			"productId" | "resourceId" | "territoryCode" | "territoryLabel" | "activityClass"
+		>
+	): ProviderDocumentScopeRecord => ({ id: crypto.randomUUID(), scopeType, ...value })
+	const emptyScope = {
+		productId: null,
+		resourceId: null,
+		territoryCode: null,
+		territoryLabel: null,
+		activityClass: null,
+	}
+	const documentScopes: ProviderDocumentScopeRecord[] = [
+		...evidence.productIds.map((productId) => scope("product", { ...emptyScope, productId })),
+		...evidence.resourceIds.map((resourceId) => scope("resource", { ...emptyScope, resourceId })),
+		...evidence.territories.map((territory) =>
+			scope("territory", {
+				...emptyScope,
+				territoryCode: territory.code,
+				territoryLabel: territory.label,
+			})
+		),
+		...evidence.activityClasses.map((activityClass) =>
+			scope("activity", { ...emptyScope, activityClass })
+		),
+	]
 
 	await db.transaction(async (tx) => {
-		for (const row of activeSameType) {
+		const supersedeIds = replacement
+			? [replacement.id]
+			: ["government_id", "business_registration", "tax_document"].includes(type)
+				? activeSameType.map((row) => row.id)
+				: []
+		for (const documentId of supersedeIds) {
 			await tx
 				.update(ProviderDocument)
 				.set({ status: "superseded", updatedAt: now })
-				.where(eq(ProviderDocument.id, row.id))
+				.where(eq(ProviderDocument.id, documentId))
 		}
 		await tx.insert(ProviderDocument).values({
 			id,
@@ -968,6 +1505,11 @@ export async function submitProviderDocument(params: {
 			status: "pending",
 			fileUrl,
 			metadataJson,
+			issuer: evidence.issuer,
+			issuedAt: evidence.issuedAt,
+			expiresAt: evidence.expiresAt,
+			subjectType: evidence.subjectType,
+			subjectReference: evidence.subjectReference,
 			reviewNotes: null,
 			reviewedAt: null,
 			reviewedBy: null,
@@ -990,6 +1532,16 @@ export async function submitProviderDocument(params: {
 			createdAt: now,
 			updatedAt: now,
 		})
+		if (documentScopes.length) {
+			await tx.insert(ProviderDocumentScope).values(
+				documentScopes.map((scope) => ({
+					...scope,
+					documentId: id,
+					providerId: params.providerId,
+					createdAt: now,
+				}))
+			)
+		}
 	})
 
 	await writeProviderAuditLog({
@@ -998,9 +1550,10 @@ export async function submitProviderDocument(params: {
 		action: "provider.document.submit",
 		entityType: "ProviderDocument",
 		entityId: id,
-		beforeJson: activeSameType.length
-			? { supersededIds: activeSameType.map((row) => row.id) }
-			: null,
+		beforeJson:
+			replacement || ["government_id", "business_registration", "tax_document"].includes(type)
+				? { supersededIds: replacement ? [replacement.id] : activeSameType.map((row) => row.id) }
+				: null,
 		afterJson: {
 			type,
 			status: "pending",
@@ -1008,6 +1561,7 @@ export async function submitProviderDocument(params: {
 			fileName,
 			mimeType,
 			sizeBytes: normalizedSize,
+			evidence,
 		},
 		riskLevel: inferSettingsRiskLevel({ domain: "documents" }),
 	})
@@ -1020,6 +1574,12 @@ export async function submitProviderDocument(params: {
 		status: "pending",
 		fileUrl,
 		metadataJson,
+		issuer: evidence.issuer,
+		issuedAt: evidence.issuedAt,
+		expiresAt: evidence.expiresAt,
+		subjectType: evidence.subjectType,
+		subjectReference: evidence.subjectReference,
+		scopes: documentScopes,
 		reviewNotes: null,
 		reviewedAt: null,
 		reviewedBy: null,
@@ -1055,19 +1615,7 @@ export async function reviewProviderDocument(params: {
 	}
 
 	const existing = await db
-		.select({
-			id: ProviderDocument.id,
-			providerId: ProviderDocument.providerId,
-			type: ProviderDocument.type,
-			status: ProviderDocument.status,
-			fileUrl: ProviderDocument.fileUrl,
-			metadataJson: ProviderDocument.metadataJson,
-			reviewNotes: ProviderDocument.reviewNotes,
-			reviewedAt: ProviderDocument.reviewedAt,
-			reviewedBy: ProviderDocument.reviewedBy,
-			createdAt: ProviderDocument.createdAt,
-			updatedAt: ProviderDocument.updatedAt,
-		})
+		.select(documentColumns)
 		.from(ProviderDocument)
 		.where(
 			and(
@@ -1088,6 +1636,11 @@ export async function reviewProviderDocument(params: {
 		;(error as Error & { status?: number }).status = 409
 		throw error
 	}
+	if (nextStatus === "verified" && isProviderDocumentExpired(existing.expiresAt)) {
+		const error = new Error("document_expired")
+		;(error as Error & { status?: number }).status = 422
+		throw error
+	}
 
 	if (nextStatus === "verified") {
 		const { documentInspectionGate, getProviderDocumentInspection } =
@@ -1102,7 +1655,7 @@ export async function reviewProviderDocument(params: {
 	}
 
 	const now = new Date()
-	const before = mapRow(existing)
+	const before = (await withDocumentScopes([existing]))[0]!
 
 	await db
 		.update(ProviderDocument)
@@ -1128,6 +1681,14 @@ export async function reviewProviderDocument(params: {
 		afterJson: {
 			status: nextStatus,
 			reviewNotes: reviewNotes || null,
+			evidence: {
+				issuer: before.issuer,
+				issuedAt: before.issuedAt,
+				expiresAt: before.expiresAt,
+				subjectType: before.subjectType,
+				subjectReference: before.subjectReference,
+				scopes: before.scopes,
+			},
 		},
 		riskLevel: inferSettingsRiskLevel({ domain: "documents" }),
 	})

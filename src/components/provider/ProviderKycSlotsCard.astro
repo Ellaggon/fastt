@@ -1,6 +1,6 @@
 ---
+import ProviderKycSlotPendingReview from "@/components/provider/ProviderKycSlotPendingReview.astro"
 import ProviderKycUploadForm from "@/components/provider/ProviderKycUploadForm.astro"
-import ProviderReviewWaitNotice from "@/components/provider/ProviderReviewWaitNotice.astro"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
@@ -25,6 +25,8 @@ type Props = {
 	 * Fold mode: one consequence lives in next-step; only the focused slot mounts.
 	 */
 	elevated?: boolean
+	/** Direct collection does not block payout, so the capture copy stays on publishing. */
+	payoutBlocks?: boolean
 }
 
 const {
@@ -33,6 +35,7 @@ const {
 	documentAssignments = {},
 	focusType = null,
 	elevated = false,
+	payoutBlocks = true,
 } = Astro.props as Props
 
 const missingCount = slots.filter((slot) => slot.state === "missing").length
@@ -81,10 +84,6 @@ function allowUploadForm(slot: ProviderKycSlot) {
 	if (!showInlineUpload(slot)) return false
 	if (!focusTypeResolved) return true
 	return focusTypeResolved === slot.type
-}
-
-function submittedFileLabel(slot: ProviderKycSlot) {
-	return slot.fileName || "Archivo recibido"
 }
 ---
 
@@ -198,42 +197,13 @@ function submittedFileLabel(slot: ProviderKycSlot) {
 								</Notice>
 							) : null}
 
-							{slot.state === "pending" ? (
-								<div class="space-y-3" data-kyc-slot-review-state>
-									<Notice variant="info" title="Documento en revisión">
-										<div class="space-y-3">
-											<p>
-												Ya recibimos este archivo. El equipo Fastt revisará que coincida con los
-												datos del negocio antes de marcarlo como verificado.
-											</p>
-											<div class="flex flex-wrap items-center gap-2" data-kyc-slot-submitted-file>
-												<Badge variant="neutral">Archivo enviado</Badge>
-												<span class="text-sm font-semibold">{submittedFileLabel(slot)}</span>
-											</div>
-											<div class="flex flex-wrap items-center gap-2" data-kyc-slot-next-action>
-												<Button
-													href={routes.providerSettingsVerificationFiscal()}
-													variant="secondary"
-													size="sm"
-												>
-													Continuar a Fiscalidad
-												</Button>
-												<span class="text-sm text-current/75">
-													Siguiente acción: completa o revisa el NIT/TIN mientras esperamos la
-													revisión.
-												</span>
-											</div>
-										</div>
-									</Notice>
-									{!bridge ? (
-										<ProviderReviewWaitNotice
-											domain="document"
-											assignment={
-												slot.documentId ? (documentAssignments[slot.documentId] ?? null) : null
-											}
-										/>
-									) : null}
-								</div>
+							{slot.state === "pending" && !bridge ? (
+								<ProviderKycSlotPendingReview
+									kycSlot={slot}
+									documentAssignments={documentAssignments}
+									compact={elevated}
+									showFiscalBridge={slot.type === "government_id"}
+								/>
 							) : null}
 
 							{bridge ? (
@@ -265,6 +235,7 @@ function submittedFileLabel(slot: ProviderKycSlot) {
 										documentType={slot.type}
 										optionalConstancia={Boolean(bridge?.allowOptionalUpload)}
 										showSubmitButton={true}
+										payoutBlocks={payoutBlocks}
 									/>
 								</div>
 							) : allowUploadForm(slot) ? (
@@ -381,42 +352,13 @@ function submittedFileLabel(slot: ProviderKycSlot) {
 								</Notice>
 							) : null}
 
-							{slot.state === "pending" ? (
-								<div class="space-y-3" data-kyc-slot-review-state>
-									<Notice variant="info" title="Documento en revisión">
-										<div class="space-y-3">
-											<p>
-												Ya recibimos este archivo. El equipo Fastt revisará que coincida con los
-												datos del negocio antes de marcarlo como verificado.
-											</p>
-											<div class="flex flex-wrap items-center gap-2" data-kyc-slot-submitted-file>
-												<Badge variant="neutral">Archivo enviado</Badge>
-												<span class="text-sm font-semibold">{submittedFileLabel(slot)}</span>
-											</div>
-											<div class="flex flex-wrap items-center gap-2" data-kyc-slot-next-action>
-												<Button
-													href={routes.providerSettingsVerificationFiscal()}
-													variant="secondary"
-													size="sm"
-												>
-													Continuar a Fiscalidad
-												</Button>
-												<span class="text-sm text-current/75">
-													Siguiente acción: completa o revisa el NIT/TIN mientras esperamos la
-													revisión.
-												</span>
-											</div>
-										</div>
-									</Notice>
-									{!bridge ? (
-										<ProviderReviewWaitNotice
-											domain="document"
-											assignment={
-												slot.documentId ? (documentAssignments[slot.documentId] ?? null) : null
-											}
-										/>
-									) : null}
-								</div>
+							{slot.state === "pending" && !bridge ? (
+								<ProviderKycSlotPendingReview
+									kycSlot={slot}
+									documentAssignments={documentAssignments}
+									compact={false}
+									showFiscalBridge={slot.type === "government_id"}
+								/>
 							) : null}
 
 							{allowUploadForm(slot) ? (
@@ -439,6 +381,7 @@ function submittedFileLabel(slot: ProviderKycSlot) {
 												documentType={slot.type}
 												optionalConstancia={Boolean(bridge?.allowOptionalUpload)}
 												showSubmitButton={true}
+												payoutBlocks={payoutBlocks}
 											/>
 										</div>
 									</details>

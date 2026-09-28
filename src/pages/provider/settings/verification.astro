@@ -11,6 +11,8 @@ import {
 } from "@/lib/provider-trust-map"
 import { loadProviderVerificationWorkspace } from "@/lib/provider-verification-workspace"
 import { routes } from "@/lib/routes"
+import { loadProviderVerificationResolution } from "@/lib/verification/requirement-context"
+import { requestedTypeRoutesToPack } from "@/lib/verification/requirement-resolver"
 
 const auth = await requireProviderSessionSurface(Astro.request).catch((e: any) => {
 	if (e instanceof Response && e.status === 401) return "__REDIRECT_LOGIN__"
@@ -31,20 +33,27 @@ const optionalTypeValues = new Set<string>(
 		.filter((item) => !(requiredKycDocumentTypes as readonly string[]).includes(item.value))
 		.map((item) => item.value)
 )
-// Optionals live on /verification/documents — keep this page to mínimos + wait.
-if (requestedType && optionalTypeValues.has(requestedType)) {
+
+if (!providerId) return Astro.redirect(routes.providerSettingsProfile())
+
+const loadedResolution = requestedType ? await loadProviderVerificationResolution(providerId) : null
+const routesToPack =
+	loadedResolution?.enforced && loadedResolution.resolution
+		? requestedTypeRoutesToPack(loadedResolution.resolution, requestedType)
+		: optionalTypeValues.has(requestedType)
+// Line-pack uploads live on /verification/documents. Identity slots stay here.
+if (requestedType && routesToPack) {
 	const target = new URL(routes.providerSettingsVerificationDocuments(), Astro.url)
 	target.searchParams.set("type", requestedType)
 	return Astro.redirect(target.pathname + target.search)
 }
-
-if (!providerId) return Astro.redirect(routes.providerSettingsProfile())
 
 const model = await loadProviderVerificationWorkspace({
 	providerId,
 	sessionPermissions,
 	providerRoleLabel,
 	url: Astro.url,
+	verificationResolution: loadedResolution ?? undefined,
 })
 const {
 	trustLinks,
@@ -55,39 +64,56 @@ const {
 	inReviewCount,
 	actionRequiredCount,
 	notStartedCount,
+	notEvaluableCount,
 	readinessPercent,
 	nextActionId,
 	activeSectionId,
 } = model
-const showWizardProgress = trustLinks.length > 0
+const showWizardProgress = trustLinks.length > 0 || model.tourPlaybook.length > 0
 const pageGuidanceByTab = buildVerificationPageGuidanceByTab({
 	trustLinks,
 	nextActionId,
 	trustMapComplete,
 })
 const pageGuidance =
-	pageGuidanceByTab[activeSectionId] ??
+	pageGuidanceByTab[activeSectionId as keyof typeof pageGuidanceByTab] ??
 	buildVerificationPageGuidance({
 		trustLinks,
 		nextActionId,
 		trustMapComplete,
-		activeSectionId,
+		activeSectionId: "identity",
 	})
 ---
 
 <ProviderSettingsLayout
 	title="Verificación y documentos"
 	eyebrow={TRUST_GLOSSARY.page.eyebrow}
-	heading={TRUST_GLOSSARY.page.heading}
-	description={pageGuidance}
-	verificationPageGuidanceByTab={showWizardProgress ? pageGuidanceByTab : null}
+	heading={model.navigation?.line === "tour"
+		? "Verificación de tours"
+		: model.navigation?.line === "lodging"
+			? "Verificación de alojamientos"
+			: TRUST_GLOSSARY.page.heading}
+	description={model.navigation?.line === "tour"
+		? "Revisa identidad, actividad, seguridad y fiscalidad de la experiencia seleccionada."
+		: model.navigation?.line === "lodging"
+			? "Completa identidad, negocio, fiscalidad y pagos del alojamiento."
+			: pageGuidance}
+	verificationPageGuidanceByTab={model.screen
+		? null
+		: showWizardProgress
+			? pageGuidanceByTab
+			: null}
 	showSettingsTabs={false}
 	readyCount={showWizardProgress ? readyCount : null}
 	totalCount={showWizardProgress ? totalCount : null}
 	inReviewCount={showWizardProgress ? inReviewCount : null}
 	actionRequiredCount={showWizardProgress ? actionRequiredCount : null}
 	notStartedCount={showWizardProgress ? notStartedCount : null}
+	notEvaluableCount={showWizardProgress ? notEvaluableCount : null}
 	readinessPercent={showWizardProgress ? readinessPercent : null}
+	progressLabel={model.navigation?.line === "tour"
+		? "Preparación de documentos del tour"
+		: "Progreso de verificación"}
 >
 	<div
 		class="space-y-6 md:space-y-8"

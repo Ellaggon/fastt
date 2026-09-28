@@ -1,0 +1,119 @@
+---
+import Badge from "@/components/ui/Badge.astro"
+import Card from "@/components/ui/Card.astro"
+import type { TourVerificationReadiness } from "@/lib/provider-tour-verification"
+
+type Props = { tours?: TourVerificationReadiness[] }
+
+const { tours = [] } = Astro.props as Props
+const badgeVariant = {
+	ready: "success",
+	in_review: "warning",
+	action_needed: "warning",
+	waiting_on_fastt: "neutral",
+} as const
+function contextualActionHref(href: string | null, productId: string) {
+	if (!href) return undefined
+	const target = new URL(href, Astro.url)
+	if (
+		target.pathname === "/provider/settings/verification/documents" ||
+		target.pathname === "/provider/settings/verification"
+	) {
+		target.searchParams.set("line", "tour")
+		target.searchParams.set("tab", "activity")
+		target.searchParams.set("experience", productId)
+	}
+	return `${target.pathname}${target.search}${target.hash}`
+}
+---
+
+{
+	tours.length ? (
+		<section
+			class="space-y-4"
+			aria-labelledby="tour-verification-readiness-title"
+			data-tour-verification-readiness
+		>
+			<div class="flex flex-wrap items-end justify-between gap-3">
+				<div>
+					<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">
+						Experiencias
+					</p>
+					<h2
+						id="tour-verification-readiness-title"
+						class="mt-1 text-xl font-semibold text-slate-950"
+					>
+						Habilitación por experiencia
+					</h2>
+					<p class="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
+						La cuenta compartida no se repite aquí. Esta lista muestra qué evidencia habilita cada
+						experiencia y qué no puede reutilizarse.
+					</p>
+				</div>
+			</div>
+			<div class="grid gap-4">
+				{tours.map((tour) => (
+					<Card
+						class="space-y-4"
+						data-tour-verification-product={tour.productId}
+						data-tour-verification-state={tour.state}
+					>
+						<div class="flex flex-wrap items-start justify-between gap-3">
+							<div>
+								<h3 class="text-base font-semibold text-slate-950">{tour.productName}</h3>
+								<p class="mt-1 text-sm leading-6 text-slate-600">{tour.body}</p>
+							</div>
+							<Badge variant={badgeVariant[tour.state]}>{tour.stateLabel}</Badge>
+						</div>
+
+						<div class="grid gap-3 border-t border-slate-200 pt-4 sm:grid-cols-2">
+							<div>
+								<p class="text-sm font-semibold text-slate-900">{tour.paymentLabel}</p>
+								<p class="mt-1 text-sm leading-6 text-slate-600">{tour.paymentBody}</p>
+							</div>
+							<div>
+								<p class="text-sm font-semibold text-slate-900">Cuenta compartida</p>
+								<p class="mt-1 text-sm leading-6 text-slate-600">
+									{tour.reusedAccountEvidenceCount
+										? `${tour.reusedAccountEvidenceCount} requisito${tour.reusedAccountEvidenceCount === 1 ? "" : "s"} se reutiliza de la cuenta porque la política aprobada lo permite.`
+										: "No hay evidencia de cuenta reutilizada para esta experiencia."}
+								</p>
+							</div>
+							<div>
+								<p class="text-sm font-semibold text-slate-900">Evidencia de esta experiencia</p>
+								<p class="mt-1 text-sm leading-6 text-slate-600">
+									{tour.experienceEvidenceCount
+										? `${tour.experienceEvidenceCount} requisito${tour.experienceEvidenceCount === 1 ? "" : "s"} usa un respaldo que cubre esta experiencia.`
+										: "Los respaldos de otra experiencia o de un alojamiento no se aplican aquí."}
+								</p>
+							</div>
+						</div>
+
+						{tour.blockers.length ? (
+							<ul
+								class="space-y-2 border-t border-slate-200 pt-4 text-sm leading-6 text-slate-600"
+								aria-label={`Pendientes de ${tour.productName}`}
+							>
+								{tour.blockers.map((blocker) => (
+									<li data-tour-verification-blocker={blocker.id}>{blocker.body}</li>
+								))}
+							</ul>
+						) : null}
+						{tour.action ? (
+							<a
+								href={contextualActionHref(tour.action.href, tour.productId)}
+								class="inline-flex text-sm font-semibold text-slate-900 underline underline-offset-2"
+							>
+								{tour.action.label} →
+							</a>
+						) : tour.state === "in_review" ? (
+							<p class="text-sm font-medium text-slate-700">
+								Ya completaste tu parte. Fastt revisará la evidencia antes de habilitarla.
+							</p>
+						) : null}
+					</Card>
+				))}
+			</div>
+		</section>
+	) : null
+}

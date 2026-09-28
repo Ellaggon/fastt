@@ -1,0 +1,95 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import FormField from "@/components/ui/FormField.astro"
+import Notice from "@/components/ui/Notice.astro"
+import Select from "@/components/ui/Select.astro"
+import type {
+	CommercialLine,
+	CommercialLineCollectionModel,
+} from "@/lib/verification/commercial-lines"
+
+type Props = {
+	line: CommercialLine
+	collectionModel: CommercialLineCollectionModel
+	canEdit: boolean
+	returnTo: string
+	result?: string
+	error?: string
+}
+
+const { line, collectionModel, canEdit, returnTo, result, error } = Astro.props as Props
+const label = line === "tour" ? "tours" : "alojamientos"
+---
+
+<Card class="space-y-4" data-commercial-line-collection-model={line}>
+	<div>
+		<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">
+			Modalidad de cobro
+		</p>
+		<h2 class="mt-1 text-lg font-semibold text-slate-950">Cómo se cobra en {label}</h2>
+		<p class="mt-1 text-sm leading-6 text-slate-600">
+			Esta decisión pertenece sólo a {label}. No cambia la otra línea ni cobra dinero por sí sola.
+		</p>
+	</div>
+	{
+		result === "line_collection_saved" ? (
+			<Notice variant="success" title="Modalidad guardada">
+				La declaración se aplicará a nuevas decisiones comerciales de esta línea.
+			</Notice>
+		) : null
+	}
+	{
+		error === "line_collection_invalid" ? (
+			<Notice variant="warning" title="Revisa la modalidad">
+				Elige una opción válida antes de guardar.
+			</Notice>
+		) : null
+	}
+	{
+		error === "line_collection_line_missing" ? (
+			<Notice variant="warning" title="Línea pendiente">
+				No encontramos esta línea comercial. Recarga la página e inténtalo de nuevo.
+			</Notice>
+		) : null
+	}
+	{
+		error === "line_collection_forbidden" ? (
+			<Notice variant="warning" title="Sin permiso">
+				Tu rol no puede cambiar la modalidad de cobro.
+			</Notice>
+		) : null
+	}
+	{
+		canEdit ? (
+			<form
+				method="post"
+				action="/api/provider/settings/commercial-line-collection-model"
+				class="flex flex-wrap items-end gap-3"
+			>
+				<input type="hidden" name="line" value={line} />
+				<input type="hidden" name="returnTo" value={returnTo} />
+				<FormField
+					label="Modalidad declarada"
+					htmlFor={`collectionModel-${line}`}
+					class="min-w-64 flex-1"
+				>
+					<Select id={`collectionModel-${line}`} name="collectionModel">
+						<option value="undecided" selected={collectionModel === "undecided"}>
+							Aún por definir
+						</option>
+						<option value="property_collect" selected={collectionModel === "property_collect"}>
+							El proveedor cobra al viajero
+						</option>
+						<option value="platform_collect" selected={collectionModel === "platform_collect"}>
+							Fastt cobra al viajero
+						</option>
+					</Select>
+				</FormField>
+				<Button type="submit">Guardar modalidad</Button>
+			</form>
+		) : (
+			<p class="text-sm text-slate-600">Tu rol no puede modificar esta declaración.</p>
+		)
+	}
+</Card>
