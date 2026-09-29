@@ -47,3 +47,4 @@ blob-report/
 .env*.local
 .env.test
 !.env.example
+.env*
