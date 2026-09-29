@@ -301,6 +301,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(settingsSection?.items.map((item) => item.label)).toEqual([
 			"Configuración",
 			"Verificación",
+			"Soporte",
 			"Fiscalidad",
 		])
 
