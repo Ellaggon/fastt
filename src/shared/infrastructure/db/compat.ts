@@ -113,6 +113,8 @@ export {
 	Provider,
 	ProviderHolderProfile,
 	ProviderCommercialLine,
+	ProviderSupportRequest,
+	ProviderSupportMessage,
 	ProviderAuditLog,
 	ProviderComplianceAssignment,
 	ProviderConfigurationState,

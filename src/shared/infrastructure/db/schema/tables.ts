@@ -146,6 +146,64 @@ export const ProviderCommercialLine = pgTable(
 	]
 )
 
+/** Provider-initiated support stays separate from compliance decisions and their reconciler. */
+export const ProviderSupportRequest = pgTable(
+	"ProviderSupportRequest",
+	{
+		id: pk(),
+		providerId: txt("providerId").references(() => Provider.id),
+		createdByUserId: txt("createdByUserId").references((): AnyPgColumn => User.id),
+		topic: txt("topic"),
+		line: txt("line"),
+		status: text("status").default("open").notNull(),
+		requestKey: txt("requestKey"),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+		resolvedAt: ts("resolvedAt"),
+	},
+	(table) => [
+		uniqueIndex("ProviderSupportRequest_provider_key_unique").on(
+			table.providerId,
+			table.requestKey
+		),
+		index("ProviderSupportRequest_provider_updated_idx").on(table.providerId, table.updatedAt),
+		index("ProviderSupportRequest_status_updated_idx").on(table.status, table.updatedAt),
+		check(
+			"ProviderSupportRequest_topic_check",
+			sql`${table.topic} IN ('historical_tour_collection', 'verification', 'payments', 'other')`
+		),
+		check(
+			"ProviderSupportRequest_line_check",
+			sql`${table.line} IN ('tour', 'lodging', 'account')`
+		),
+		check(
+			"ProviderSupportRequest_status_check",
+			sql`${table.status} IN ('open', 'waiting_provider', 'resolved')`
+		),
+	]
+)
+
+export const ProviderSupportMessage = pgTable(
+	"ProviderSupportMessage",
+	{
+		id: pk(),
+		requestId: txt("requestId").references(() => ProviderSupportRequest.id),
+		authorUserId: txt("authorUserId").references((): AnyPgColumn => User.id),
+		authorRole: txt("authorRole"),
+		body: txt("body"),
+		requestKey: txt("requestKey"),
+		createdAt: now("createdAt"),
+	},
+	(table) => [
+		uniqueIndex("ProviderSupportMessage_request_key_unique").on(table.requestId, table.requestKey),
+		index("ProviderSupportMessage_request_created_idx").on(table.requestId, table.createdAt),
+		check(
+			"ProviderSupportMessage_authorRole_check",
+			sql`${table.authorRole} IN ('provider', 'internal')`
+		),
+	]
+)
+
 /**
  * Canonical geographic catalog for marketplace discovery.
  */
