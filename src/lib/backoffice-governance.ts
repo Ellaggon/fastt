@@ -395,6 +395,14 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 			"Workspace operativo de conexiones, sincronizaciones, mapeos e incidencias externas.",
 	},
 	{
+		pattern: "/provider/support",
+		status: "canonical",
+		context: "governance",
+		owner: "Provider Setup",
+		rationale:
+			"Canal de soporte del proveedor para consultas de verificación, cobros históricos y operación de cuenta.",
+	},
+	{
 		pattern: "/provider/settings/**",
 		status: "canonical",
 		context: "governance",
@@ -787,6 +795,20 @@ export const backofficeRouteClassifications: BackofficeRouteClassification[] = [
 		context: "governance",
 		owner: "Provider Setup",
 		rationale: "APIs de impuestos y cargos como setup del proveedor.",
+	},
+	{
+		pattern: "/api/provider/support/**",
+		status: "canonical",
+		context: "governance",
+		owner: "Provider Setup",
+		rationale: "API del hilo de soporte del proveedor con el equipo Fastt.",
+	},
+	{
+		pattern: "/api/admin/support/**",
+		status: "internal-only",
+		context: "internal-admin",
+		owner: "Internal Admin",
+		rationale: "API interna para responder y cerrar solicitudes de soporte del proveedor.",
 	},
 	{
 		pattern: "/api/provider/**",
