@@ -32,18 +32,68 @@ jobs:
 
   reconcile-fastt-rate-limit:
     if: >
-      github.event_name == 'status' &&
-      github.event.context == 'Vercel – fastt' &&
-      github.event.state == 'failure' &&
-      contains(github.event.description, 'rate limited')
+      github.event_name == 'pull_request' ||
+      (
+        github.event_name == 'status' &&
+        (github.event.context == 'Vercel' || github.event.context == 'Vercel – fastt') &&
+        github.event.state == 'failure' &&
+        contains(github.event.description, 'rate limited')
+      )
     runs-on: ubuntu-latest
     steps:
       - name: Unblock PR when Hobby deploy quota prevents a fresh preview
         env:
           GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event_name == 'status' && github.event.sha || github.event.pull_request.head.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_CONTEXT: ${{ github.event.context }}
         run: |
-          gh api "repos/${{ github.repository }}/statuses/${{ github.event.sha }}" \
+          context="${EVENT_CONTEXT:-Vercel}"
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            match=$(gh api "repos/${{ github.repository }}/commits/${SHA}/status" --jq '
+              [.statuses[]
+                | select(.context == "Vercel" or .context == "Vercel – fastt")
+                | select(.state == "failure")
+                | select(.description | test("rate limited"; "i"))
+              ][0] // empty
+            ')
+            if [ -z "$match" ] || [ "$match" = "null" ]; then
+              echo "No Hobby rate-limit failure on Vercel; leaving the status unchanged."
+              exit 0
+            fi
+            context=$(printf '%s' "$match" | jq -r '.context')
+          fi
+          gh api "repos/${{ github.repository }}/statuses/${SHA}" \
             -f state=success \
-            -f context='Vercel – fastt' \
+            -f context="$context" \
+            -f description='Hobby deploy quota hit; merge-safe while CI is green — redeploy preview when quota resets' \
+            -f target_url="https://vercel.com/ellaggons-projects/fastt"
+
+  reconcile-fastt-rate-limit-followup:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for Vercel deployment status after PR sync
+        run: sleep 90
+      - name: Reconcile Hobby rate limit once Vercel reports failure
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          match=$(gh api "repos/${{ github.repository }}/commits/${SHA}/status" --jq '
+            [.statuses[]
+              | select(.context == "Vercel" or .context == "Vercel – fastt")
+              | select(.state == "failure")
+              | select(.description | test("rate limited"; "i"))
+            ][0] // empty
+          ')
+          if [ -z "$match" ] || [ "$match" = "null" ]; then
+            echo "No Hobby rate-limit failure on Vercel; leaving the status unchanged."
+            exit 0
+          fi
+          context=$(printf '%s' "$match" | jq -r '.context')
+          gh api "repos/${{ github.repository }}/statuses/${SHA}" \
+            -f state=success \
+            -f context="$context" \
             -f description='Hobby deploy quota hit; merge-safe while CI is green — redeploy preview when quota resets' \
             -f target_url="https://vercel.com/ellaggons-projects/fastt"
