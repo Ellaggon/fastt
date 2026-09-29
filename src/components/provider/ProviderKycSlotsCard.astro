@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import Notice from "@/components/ui/Notice.astro"
 import { resolveKycUploadFocusType, type ProviderKycSlot } from "@/lib/provider-documents"
+import { isDocumentUploadPausedForHolderReview } from "@/lib/provider-holder-profile"
 import { TRUST_GLOSSARY } from "@/lib/provider-trust-map"
 import { routes } from "@/lib/routes"
 
@@ -27,6 +28,9 @@ type Props = {
 	elevated?: boolean
 	/** Direct collection does not block payout, so the capture copy stays on publishing. */
 	payoutBlocks?: boolean
+	/** Holder profile change under Fastt review — hide upload CTAs for missing slots. */
+	holderDeclarationInReview?: boolean
+	holderType?: "persona_natural" | "entidad" | null
 }
 
 const {
@@ -36,7 +40,20 @@ const {
 	focusType = null,
 	elevated = false,
 	payoutBlocks = true,
+	holderDeclarationInReview = false,
+	holderType = null,
 } = Astro.props as Props
+
+const holderReviewContext = holderDeclarationInReview
+	? { declarationStatus: "in_review" as const, holderType }
+	: null
+
+function uploadPausedForHolder(slot: ProviderKycSlot) {
+	return isDocumentUploadPausedForHolderReview({
+		holder: holderReviewContext,
+		documentType: slot.type,
+	})
+}
 
 const missingCount = slots.filter((slot) => slot.state === "missing").length
 const rejectedCount = slots.filter((slot) => slot.state === "rejected").length
@@ -81,6 +98,7 @@ function showInlineUpload(slot: ProviderKycSlot) {
 
 /** Hard one-doc (S6-3): only the focused uploadable slot mounts the form. */
 function allowUploadForm(slot: ProviderKycSlot) {
+	if (uploadPausedForHolder(slot)) return false
 	if (!showInlineUpload(slot)) return false
 	if (!focusTypeResolved) return true
 	return focusTypeResolved === slot.type
@@ -204,6 +222,23 @@ function allowUploadForm(slot: ProviderKycSlot) {
 									compact={elevated}
 									showFiscalBridge={slot.type === "government_id"}
 								/>
+							) : null}
+
+							{slot.state === "missing" && uploadPausedForHolder(slot) ? (
+								<p class="text-sm leading-6 text-slate-600" data-kyc-slot-paused-for-holder-review>
+									Queda pendiente cuando Fastt confirme el titular.
+								</p>
+							) : null}
+
+							{slot.type === "government_id" &&
+							slot.state === "verified" &&
+							holderDeclarationInReview ? (
+								<p
+									class="text-sm leading-6 text-slate-600"
+									data-kyc-slot-holder-review-on-verified-id
+								>
+									El documento sigue verificado; Fastt lo revisará con el nuevo titular declarado.
+								</p>
 							) : null}
 
 							{bridge ? (
@@ -359,6 +394,23 @@ function allowUploadForm(slot: ProviderKycSlot) {
 									compact={false}
 									showFiscalBridge={slot.type === "government_id"}
 								/>
+							) : null}
+
+							{slot.state === "missing" && uploadPausedForHolder(slot) ? (
+								<p class="text-sm leading-6 text-slate-600" data-kyc-slot-paused-for-holder-review>
+									Queda pendiente cuando Fastt confirme el titular.
+								</p>
+							) : null}
+
+							{slot.type === "government_id" &&
+							slot.state === "verified" &&
+							holderDeclarationInReview ? (
+								<p
+									class="text-sm leading-6 text-slate-600"
+									data-kyc-slot-holder-review-on-verified-id
+								>
+									El documento sigue verificado; Fastt lo revisará con el nuevo titular declarado.
+								</p>
 							) : null}
 
 							{allowUploadForm(slot) ? (

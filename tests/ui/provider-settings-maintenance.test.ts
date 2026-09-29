@@ -8,10 +8,9 @@ describe("provider settings maintenance surface", () => {
 	it("keeps profile editing in Settings while offering incomplete providers one resume path", async () => {
 		const page = await source("src/pages/provider/settings/profile.astro")
 
-		expect(page).toContain("resolveProviderOnboardingEntryFromStorage")
-		expect(page).toContain("data-settings-onboarding-resume")
-		expect(page).toContain("Continuar creando tu tour")
-		expect(page).toContain("sin crear ni duplicar otra oferta")
+		expect(page).not.toContain("data-settings-onboarding-resume")
+		expect(page).not.toContain("Continuar creando tu tour")
+		expect(page).not.toContain("Tu primera oferta sigue en preparación")
 		expect(page).not.toContain('slot="actions"')
 		expect(page).toContain("showBackAction={false}")
 		expect(page).toContain("showRelatedDomains={false}")

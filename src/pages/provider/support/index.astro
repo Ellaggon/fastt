@@ -1,0 +1,240 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Notice from "@/components/ui/Notice.astro"
+import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
+import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
+import {
+	listProviderSupport,
+	parseSupportLine,
+	parseSupportTopic,
+	supportLines,
+	supportStatuses,
+	supportTopics,
+} from "@/lib/provider-support"
+import { routes } from "@/lib/routes"
+
+const session = await requireProviderSessionSurface(Astro.request).catch((error: unknown) => {
+	if (error instanceof Response && error.status === 401) return "login"
+	if (error instanceof Response && error.status === 403) return "provider"
+	throw error
+})
+if (session === "login") return Astro.redirect("/SignInPage")
+if (session === "provider") return Astro.redirect(routes.providerOnboardingStart())
+
+const threads = await listProviderSupport(session.provider.providerId)
+const selectedTopic = parseSupportTopic(Astro.url.searchParams.get("topic")) ?? "other"
+const selectedLine = parseSupportLine(Astro.url.searchParams.get("line")) ?? "account"
+const historical = selectedTopic === "historical_tour_collection"
+const focusedRequest = String(Astro.url.searchParams.get("request") ?? "")
+const result = String(Astro.url.searchParams.get("result") ?? "")
+const error = String(Astro.url.searchParams.get("error") ?? "")
+const rawFrom = String(Astro.url.searchParams.get("from") ?? "")
+const supportReturnHref = `${Astro.url.pathname}${Astro.url.search}`
+let backHref = routes.providerSettings()
+let backLabel = "Volver a configuración"
+try {
+	const parsed = new URL(rawFrom, Astro.url)
+	if (
+		parsed.origin === Astro.url.origin &&
+		parsed.pathname === routes.providerSettingsVerification()
+	) {
+		backHref = `${parsed.pathname}${parsed.search}${parsed.hash}`
+		backLabel = "Volver a verificación"
+	}
+} catch {
+	// The default destination is always the provider settings page.
+}
+const formatDate = (value: Date) =>
+	new Intl.DateTimeFormat("es-BO", { dateStyle: "medium", timeStyle: "short" }).format(value)
+const messageInputClass =
+	"mt-2 min-h-28 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-950 placeholder:text-slate-400 focus:border-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300"
+const selectClass =
+	"mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-950 focus:border-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300"
+const genericTopicOptions = ["verification", "payments", "other"] as const
+const lineOptions = Object.keys(supportLines) as Array<keyof typeof supportLines>
+---
+
+<ProviderSettingsLayout
+	title="Ayuda para proveedores"
+	eyebrow="Soporte para proveedores"
+	heading="¿En qué podemos ayudarte?"
+	description="Envía una consulta sobre tu negocio y sigue la respuesta aquí. Tus documentos de verificación se gestionan en su sección segura."
+	showSettingsTabs={false}
+>
+	<div class="mx-auto max-w-4xl space-y-6" data-provider-support>
+		<div class="flex flex-wrap items-center justify-between gap-3">
+			<a
+				class="text-sm font-semibold text-slate-200 underline underline-offset-4 hover:text-white"
+				href={backHref}>← {backLabel}</a
+			>
+			<span class="text-sm text-slate-400">Canal del proveedor · no es la ayuda de reservas</span>
+		</div>
+		{
+			result === "sent" && (
+				<Notice variant="success" title="Solicitud recibida">
+					La conversación aparece abajo. Responderemos en este mismo espacio.
+				</Notice>
+			)
+		}
+		{
+			error && (
+				<Notice variant="warning" title="No se pudo enviar">
+					Revisa los datos e inténtalo de nuevo. Si persiste, actualiza la página.
+				</Notice>
+			)
+		}
+		<section
+			class="fastt-card space-y-5 border border-slate-200 bg-white p-5 text-slate-900 sm:p-7"
+			aria-labelledby="support-new-title"
+		>
+			<div>
+				<h2 id="support-new-title" class="text-xl font-semibold">
+					{historical ? "Revisar declaración histórica de cobro" : "Nueva consulta"}
+				</h2>
+				<p class="mt-2 text-sm leading-6 text-slate-600">
+					{
+						historical
+							? "Cuéntanos qué modalidad se acordó para tus tours. Revisaremos la declaración antigua; enviar este mensaje no activa cobros."
+							: "Describe el problema y el negocio afectado. Evita incluir datos bancarios, claves o imágenes de documentos."
+					}
+				</p>
+			</div>
+			<form
+				action="/api/provider/support"
+				method="post"
+				class="space-y-4"
+				data-support-form
+				data-success="sent"
+			>
+				<input type="hidden" name="requestKey" value={crypto.randomUUID()} />
+				<input type="hidden" name="returnTo" value={supportReturnHref} />
+				{
+					historical ? (
+						<>
+							<input type="hidden" name="topic" value="historical_tour_collection" />
+							<input type="hidden" name="line" value="tour" />
+							<p class="text-sm">
+								<strong>Motivo:</strong> Cobro histórico de tours
+							</p>
+						</>
+					) : (
+						<div class="grid gap-4 sm:grid-cols-2">
+							<label class="block text-sm font-medium">
+								Motivo
+								<select name="topic" required class={selectClass}>
+									{genericTopicOptions.map((topic) => (
+										<option value={topic} selected={selectedTopic === topic}>
+											{supportTopics[topic]}
+										</option>
+									))}
+								</select>
+							</label>
+							<label class="block text-sm font-medium">
+								Negocio afectado
+								<select name="line" required class={selectClass}>
+									{lineOptions.map((line) => (
+										<option value={line} selected={selectedLine === line}>
+											{supportLines[line]}
+										</option>
+									))}
+								</select>
+							</label>
+						</div>
+					)
+				}
+				<label class="block text-sm font-medium" for="support-message"
+					>¿Qué ocurrió?
+					<textarea
+						id="support-message"
+						name="body"
+						required
+						minlength="12"
+						maxlength="2000"
+						class={messageInputClass}
+						placeholder="Explica qué ves, qué esperabas y en qué sección ocurrió."></textarea>
+				</label>
+				<div class="flex flex-wrap items-center gap-3">
+					<Button type="submit">Enviar consulta</Button><p
+						class="text-sm text-slate-600"
+						aria-live="polite"
+						data-support-feedback
+					>
+					</p>
+				</div>
+			</form>
+		</section>
+		<section class="space-y-4" aria-labelledby="support-history-title">
+			<h2 id="support-history-title" class="text-xl font-semibold text-white">Tus consultas</h2>
+			{
+				threads.length === 0 ? (
+					<p class="text-sm text-slate-300">
+						Aún no tienes consultas. Cuando envíes una, podrás verla y responder aquí.
+					</p>
+				) : (
+					threads.map((thread) => (
+						<details
+							class="fastt-card border border-slate-200 bg-white p-5 text-slate-900"
+							open={focusedRequest === thread.id ? true : undefined}
+						>
+							<summary class="cursor-pointer text-sm font-semibold marker:text-slate-500">
+								{supportTopics[thread.topic as keyof typeof supportTopics] ?? "Consulta"} ·{" "}
+								{supportLines[thread.line as keyof typeof supportLines] ?? "Cuenta"} ·{" "}
+								{supportStatuses[thread.status as keyof typeof supportStatuses] ?? "Recibida"}
+							</summary>
+							<p class="mt-2 text-xs text-slate-500">
+								Referencia {thread.id.slice(0, 8).toUpperCase()} · {formatDate(thread.createdAt)}
+							</p>
+							<ol class="mt-5 space-y-3" aria-label="Conversación">
+								{thread.messages.map((message) => (
+									<li class="fastt-soft-box rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
+										<p class="font-semibold">
+											{message.authorRole === "internal" ? "Equipo Fastt" : "Tu negocio"} ·{" "}
+											{formatDate(message.createdAt)}
+										</p>
+										<p class="mt-1 whitespace-pre-wrap text-slate-700">{message.body}</p>
+									</li>
+								))}
+							</ol>
+							<form
+								action="/api/provider/support"
+								method="post"
+								class="mt-5 space-y-3 border-t border-slate-200 pt-4"
+								data-support-form
+								data-success="sent"
+							>
+								<>
+									<input type="hidden" name="replyTo" value={thread.id} />
+									<input type="hidden" name="requestKey" value={crypto.randomUUID()} />
+									<input type="hidden" name="returnTo" value={supportReturnHref} />
+								</>
+								<label class="block text-sm font-medium">
+									Añadir información o responder
+									<textarea
+										name="body"
+										required
+										minlength="12"
+										maxlength="2000"
+										class={messageInputClass}
+									/>
+								</label>
+								<div class="flex flex-wrap items-center gap-3">
+									<>
+										<Button type="submit" variant="secondary">
+											Enviar respuesta
+										</Button>
+										<p class="text-sm text-slate-600" aria-live="polite" data-support-feedback />
+									</>
+								</div>
+							</form>
+						</details>
+					))
+				)
+			}
+		</section>
+	</div>
+</ProviderSettingsLayout>
+
+<script>
+	import { attachProviderSupportForms } from "@/lib/provider-support-form"
+	attachProviderSupportForms()
+</script>

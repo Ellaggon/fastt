@@ -1,7 +1,10 @@
 import { getIdentityVendorStatus } from "@/lib/identity-vendor"
 import { getPayoutRailStatus } from "@/lib/payout-rail"
 import { resolveProductCommercialDiagnosis } from "@/lib/commercial-policy/enforcement"
-import { readProviderHolderProfile } from "@/lib/provider-holder-profile"
+import {
+	isHolderDeclarationInReview,
+	readProviderHolderProfile,
+} from "@/lib/provider-holder-profile"
 import { listOpenComplianceAssignments } from "@/lib/provider-compliance-ops"
 import {
 	requiredKycDocumentTypes,
@@ -40,7 +43,8 @@ import {
 	type CommercialLineRecord,
 } from "@/lib/verification/commercial-lines"
 import {
-	accountGateDocumentTypes,
+	accountKycDocumentTypes,
+	holderRequiresBusinessRegistration,
 	packDocumentTypes,
 } from "@/lib/verification/requirement-resolver"
 import {
@@ -50,6 +54,7 @@ import {
 } from "@/lib/verification/screen-sections"
 import {
 	buildTourVerificationPlaybook,
+	trustStateFromKycSlotState,
 	resolveVerificationNavigation,
 	summarizeVerificationPlaybook,
 	verificationNavigationHref,
@@ -132,6 +137,10 @@ export type ProviderVerificationWorkspaceModel = {
 	}
 	screen: VerificationScreen | null
 	legalNameComplete: boolean
+	holderType: "persona_natural" | "entidad" | null
+	holderDeclarationInReview: boolean
+	/** Mercantile uploads kept after switching to persona natural (read-only). */
+	historicalBusinessRegistrationDocuments: ProviderDocumentRecord[]
 	result: string
 	uploadErrorCode: string
 	error: string
@@ -148,13 +157,16 @@ export function isVerificationWorkspacePath(pathname: string): boolean {
 /** The four hotel tabs stay only where that step still applies. */
 export function visibleVerificationTrustLinks(
 	links: readonly ProviderTrustLink[],
-	screen: VerificationScreen | null
+	screen: VerificationScreen | null,
+	requiresBusinessRegistration = true
 ): ProviderTrustLink[] {
 	if (!screen) return [...links]
 	if (screen.sections.some((section) => section.id === "lodging")) return [...links]
-	const asksForRegistration = screen.sections.some((section) =>
-		section.items.some((item) => item.id === "shared.business_registration")
-	)
+	const asksForRegistration =
+		requiresBusinessRegistration &&
+		screen.sections.some((section) =>
+			section.items.some((item) => item.id === "shared.business_registration")
+		)
 	return links.filter((link) => {
 		if (link.id === "payments") return screen.paymentsCountsForSelling
 		if (link.id === "business") return asksForRegistration
@@ -190,35 +202,39 @@ export async function loadProviderVerificationWorkspace(params: {
 
 	const loadedResolution =
 		params.verificationResolution ?? (await loadProviderVerificationResolution(params.providerId))
-	const kycDocumentTypes =
-		loadedResolution.enforced && loadedResolution.resolution
-			? accountGateDocumentTypes(loadedResolution.resolution)
-			: undefined
+	const holder = await readProviderHolderProfile(params.providerId)
+	const holderType =
+		holder?.holderType === "persona_natural" || holder?.holderType === "entidad"
+			? holder.holderType
+			: null
+	const kycDocumentTypes = accountKycDocumentTypes({
+		enforced: loadedResolution.enforced,
+		resolution: loadedResolution.resolution,
+		holderType,
+	})
 	const packTypes =
 		loadedResolution.enforced && loadedResolution.resolution
 			? new Set<string>(packDocumentTypes(loadedResolution.resolution))
 			: null
 
-	const [trustSnapshot, openAssignments, holder, tourProducts, commercialLineState] =
-		await Promise.all([
-			buildProviderVerificationTrustSnapshot({
-				providerId: params.providerId,
-				kycDocumentTypes,
-			}).catch(() => null),
-			listOpenComplianceAssignments({ providerId: params.providerId }).catch(() => []),
-			readProviderHolderProfile(params.providerId),
-			db
-				.select({
-					id: Product.id,
-					name: Product.name,
-					publicationState: Product.publicationState,
-				})
-				.from(Product)
-				.where(and(eq(Product.providerId, params.providerId), eq(Product.productType, "tour")))
-				.orderBy(asc(Product.creationDate))
-				.catch(() => []),
-			readProviderCommercialLineState(params.providerId),
-		])
+	const [trustSnapshot, openAssignments, tourProducts, commercialLineState] = await Promise.all([
+		buildProviderVerificationTrustSnapshot({
+			providerId: params.providerId,
+			kycDocumentTypes,
+		}).catch(() => null),
+		listOpenComplianceAssignments({ providerId: params.providerId }).catch(() => []),
+		db
+			.select({
+				id: Product.id,
+				name: Product.name,
+				publicationState: Product.publicationState,
+			})
+			.from(Product)
+			.where(and(eq(Product.providerId, params.providerId), eq(Product.productType, "tour")))
+			.orderBy(asc(Product.creationDate))
+			.catch(() => []),
+		readProviderCommercialLineState(params.providerId),
+	])
 	const requestedExperience = params.url.searchParams.get("experience")
 	const selectedExperienceId = tourProducts.some((product) => product.id === requestedExperience)
 		? requestedExperience
@@ -274,11 +290,20 @@ export async function loadProviderVerificationWorkspace(params: {
 
 	const documents = trustSnapshot?.documents ?? []
 	const kycSlots = trustSnapshot?.kycSlots ?? []
+	const historicalBusinessRegistrationDocuments = holderRequiresBusinessRegistration(holderType)
+		? []
+		: documents.filter((document) => document.type === "business_registration")
 	const latestVerification = trustSnapshot?.latestVerification ?? null
 	const taxConfiguration = trustSnapshot?.taxConfiguration ?? null
 	const paymentAccounts = trustSnapshot?.paymentAccounts ?? []
 	const trustLinks = trustSnapshot?.trustLinks ?? []
 	const legalNameComplete = Boolean(trustSnapshot?.legalNameComplete)
+	const holderDeclarationInReview = isHolderDeclarationInReview(holder)
+	const tourIdentityPlaybookState = (slotState: ReturnType<typeof trustStateFromKycSlotState>) => {
+		if (!legalNameComplete) return "action_needed" as const
+		if (holderDeclarationInReview) return "in_review" as const
+		return slotState
+	}
 	const trustMapComplete = isProviderTrustMapComplete(trustLinks)
 	const listaReady = isVerificationListaReady({
 		trustLinks,
@@ -368,7 +393,11 @@ export async function loadProviderVerificationWorkspace(params: {
 		resolvedNavigation && resolvedNavigation.line === "tour"
 			? { ...resolvedNavigation, experienceId: selectedExperienceId }
 			: resolvedNavigation
-	const visibleTrustLinks = visibleVerificationTrustLinks(trustLinks, screen)
+	const visibleTrustLinks = visibleVerificationTrustLinks(
+		trustLinks,
+		screen,
+		holderRequiresBusinessRegistration(holderType)
+	)
 	const requestedPanel = resolveVerificationTrustPanelFromUrl(params.url)
 	const activeSectionId =
 		navigation?.tab ??
@@ -471,6 +500,21 @@ export async function loadProviderVerificationWorkspace(params: {
 	)
 	const linkState = (id: TrustLinkId) =>
 		trustLinks.find((link) => link.id === id)?.uiState ?? "not_started"
+	const tourRequiresRegistration =
+		holderRequiresBusinessRegistration(holderType) &&
+		Boolean(
+			screen?.sections.some((section) =>
+				section.items.some((item) => item.id === "shared.business_registration")
+			)
+		)
+	const tourIdentityFromSlots = !legalNameComplete
+		? ("action_needed" as const)
+		: trustStateFromKycSlotState(kycSlots.find((slot) => slot.type === "government_id")?.state)
+	const tourRegistrationFromSlots = tourRequiresRegistration
+		? trustStateFromKycSlotState(
+				kycSlots.find((slot) => slot.type === "business_registration")?.state
+			)
+		: null
 	const tourPlaybook =
 		navigation?.line === "tour"
 			? buildTourVerificationPlaybook({
@@ -482,12 +526,8 @@ export async function loadProviderVerificationWorkspace(params: {
 							line: "tour",
 							tab,
 						}),
-					identity: linkState("identity"),
-					registration: screen?.sections.some((section) =>
-						section.items.some((item) => item.id === "shared.business_registration")
-					)
-						? linkState("business")
-						: null,
+					identity: tourIdentityPlaybookState(tourIdentityFromSlots),
+					registration: tourRegistrationFromSlots,
 					fiscal: linkState("fiscal"),
 					payments: linkState("payments"),
 					activity: countingTourItems
@@ -554,6 +594,9 @@ export async function loadProviderVerificationWorkspace(params: {
 			safety: tourEvidenceOptions.safety.map(mapEvidenceOption),
 		},
 		legalNameComplete,
+		holderType,
+		holderDeclarationInReview,
+		historicalBusinessRegistrationDocuments,
 		result,
 		uploadErrorCode,
 		error,

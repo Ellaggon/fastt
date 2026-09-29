@@ -17,11 +17,13 @@ const links = commandCenterEnabled
 			{ href: "/admin/work", label: "Mi trabajo" },
 			{ href: "/admin/queues/all", label: "Colas" },
 			{ href: "/admin/cases", label: "Casos" },
+			{ href: "/admin/support", label: "Soporte" },
 			{ href: "/admin/audit", label: "Auditoría" },
 			{ href: "/admin/policy-exceptions", label: "Políticas" },
 		]
 	: [
 			{ href: "/admin/providers", label: "Proveedores", exact: true },
+			{ href: "/admin/support", label: "Soporte" },
 			{ href: "/admin/audit", label: "Auditoría" },
 		]
 const isActive = (link: (typeof links)[number]) =>

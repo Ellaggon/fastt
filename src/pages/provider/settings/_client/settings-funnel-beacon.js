@@ -125,12 +125,16 @@ function bindAll() {
 		.forEach(bindKycCaptureTiming)
 }
 
-if (document.readyState === "loading") {
-	document.addEventListener("DOMContentLoaded", bindAll)
-} else {
+function bootSettingsFunnelBeacon() {
 	bindAll()
 }
 
-document.addEventListener("settings-summary-hydrated", () => {
-	bindAll()
-})
+if (document.readyState === "loading") {
+	document.addEventListener("DOMContentLoaded", bootSettingsFunnelBeacon)
+} else {
+	bootSettingsFunnelBeacon()
+}
+
+document.addEventListener("astro:page-load", bootSettingsFunnelBeacon)
+document.addEventListener("provider-settings-tab-applied", bootSettingsFunnelBeacon)
+document.addEventListener("settings-summary-hydrated", bootSettingsFunnelBeacon)

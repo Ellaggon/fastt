@@ -49,7 +49,10 @@ const isActive = (item: (typeof items)[number]) => {
 }
 ---
 
-<TabsInsidePanel aria-label="Navegación de configuración del proveedor">
+<TabsInsidePanel
+	class="max-w-full flex-nowrap"
+	aria-label="Navegación de configuración del proveedor"
+>
 	{
 		items.map((item) => {
 			const active = isActive(item)
@@ -57,8 +60,7 @@ const isActive = (item: (typeof items)[number]) => {
 			return (
 				<a
 					href={item.href}
-					data-workspace-nav
-					data-astro-prefetch="viewport"
+					data-provider-settings-nav
 					data-active={active ? "true" : "false"}
 					aria-current={active ? "page" : undefined}
 					class="fastt-tabs-inside-panel__item"
@@ -70,3 +72,36 @@ const isActive = (item: (typeof items)[number]) => {
 		})
 	}
 </TabsInsidePanel>
+
+<script is:inline>
+	;(function () {
+		if (window.__fasttProviderSettingsNavInline) return
+		window.__fasttProviderSettingsNavInline = true
+		document.addEventListener(
+			"click",
+			function (event) {
+				if (event.defaultPrevented) return
+				if (event.button !== 0) return
+				if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return
+				var target = event.target
+				if (!target || !target.closest) return
+				var link = target.closest("a[data-provider-settings-nav]")
+				if (!link) return
+				if (link.getAttribute("aria-current") === "page") return
+				event.preventDefault()
+				event.stopImmediatePropagation()
+				var href = link.href
+				if (typeof window.__fasttNavigateSettingsTab === "function") {
+					window.__fasttNavigateSettingsTab(href)
+					return
+				}
+				window.__fasttSettingsNavQueue = href
+			},
+			true
+		)
+	})()
+</script>
+
+<script>
+	import "@/pages/provider/settings/_client/provider-settings-nav.js"
+</script>

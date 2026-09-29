@@ -112,7 +112,6 @@ describe("provider sensitive audit hardening", () => {
 			taxForm.set("taxResidenceCountry", "CL")
 			taxForm.set("businessRegistrationNumber", "76.123.456-0")
 			taxForm.set("taxRegime", "general")
-			taxForm.set("invoicingMode", "platform_receipt")
 			const taxRes = await taxConfigurationPost({
 				request: makeAuthedRequest("/api/provider/settings/tax-configuration", token, taxForm),
 			} as any)

@@ -4,6 +4,7 @@ import { ZodError, z } from "zod"
 import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
 import { safeProductPreviewReturn, safeRatePlanPlaybookReturn } from "@/lib/auth/returnTo"
 import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/invalidation"
+import { assertHolderDeclarationAllowsDocuments } from "@/lib/provider-holder-profile"
 import {
 	listProviderDocuments,
 	providerDocumentTypes,
@@ -197,6 +198,7 @@ export const POST: APIRoute = async ({ request }) => {
 		const form = await request.formData()
 		const action = String(form.get("action") ?? "submit")
 		formTypeHint = String(form.get("type") ?? "").trim()
+		await assertHolderDeclarationAllowsDocuments(providerId, formTypeHint)
 		returnToHint = String(form.get("returnTo") ?? "").trim()
 		verticalHint = String(form.get("playbookVertical") ?? "").trim()
 		scopeProductIdHint = String(form.get("scopeProductId") ?? "").trim()

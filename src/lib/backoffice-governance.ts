@@ -1261,6 +1261,12 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 				summary: "Wizard de confianza: documentos KYC y estado de cuenta.",
 			},
 			{
+				label: "Soporte",
+				href: routes.providerSupport(),
+				status: "canonical",
+				summary: "Consultas del proveedor y respuestas del equipo Fastt.",
+			},
+			{
 				label: "Fiscalidad",
 				href: routes.taxFees(),
 				status: "canonical",

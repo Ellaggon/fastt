@@ -1,0 +1,13 @@
+---
+const { label, value = "", mono = false } = Astro.props
+const display = String(value ?? "").trim() || "—"
+---
+
+<div
+	class="fastt-row-card rounded-lg border border-slate-200/80 bg-white px-4 py-3.5 shadow-[var(--fastt-shadow-row)]"
+>
+	<p class="text-sm leading-5 text-slate-500">{label}</p>
+	<p class:list={["mt-1 text-sm font-semibold text-slate-950", mono && "font-mono tracking-wide"]}>
+		{display}
+	</p>
+</div>

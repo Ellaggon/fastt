@@ -245,6 +245,17 @@ describe("verification screen sections", () => {
 			entity
 		)
 		expect(entityTabs.map((link) => link.id)).toEqual(["identity", "business", "fiscal"])
+
+		const entityScreenHiddenForNatural = visibleVerificationTrustLinks(
+			[
+				{ id: "identity", label: "Identidad" },
+				{ id: "business", label: "Negocio" },
+				{ id: "fiscal", label: "Fiscal" },
+			] as never,
+			entity,
+			false
+		)
+		expect(entityScreenHiddenForNatural.map((link) => link.id)).toEqual(["identity", "fiscal"])
 	})
 
 	it("does not move hotel publish onto the screen sections", () => {

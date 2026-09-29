@@ -5,6 +5,10 @@
  * already enforced in production. New tour documents stay withheld until
  * Policy, Finance and Tours Operations sign the Bolivia annex. A line without
  * an annex does not borrow another line's pack.
+ *
+ * Representative power (`shared.representative_power`) stays in
+ * `withheldRequirementIds` until that signature; do not add uploads or resolver
+ * rows before the annex moves to production.
  */
 
 import {
@@ -72,11 +76,15 @@ export const tourPolicyAnnex = {
 		"departure.insurance",
 	],
 	withheldRequirementIds: [
+		"shared.representative_power",
 		"tour.protected_area_permit",
 		"tour.food_handling_document",
 		"tour.vehicle_habilitation",
 	],
 } as const satisfies PolicyAnnex
+
+/** Matriz tours BO v1 — poder del representante; no implementar antes de firma del anexo. */
+export const representativePowerRequirementId = "shared.representative_power" as const
 
 const annexes = [lodgingPolicyAnnex, tourPolicyAnnex] as const
 
@@ -94,6 +102,13 @@ export function annexIsSigned(annex: PolicyAnnex): boolean {
 
 /** Only the annex allowlist can be enforced. A new id stays out until that annex lists it. */
 export function mayEnforceRequirement(line: CommercialLine | null, requirementId: string): boolean {
+	if (
+		line === "tour" &&
+		tourPolicyAnnex.withheldRequirementIds.some((id) => id === requirementId) &&
+		!annexIsSigned(tourPolicyAnnex)
+	) {
+		return false
+	}
 	if (requirementId.startsWith("shared.")) return true
 	const annex = policyAnnexForLine(line)
 	if (!annex) return false

@@ -58,6 +58,36 @@ describe("verification navigation by business line", () => {
 		expect(redirect.searchParams.get("result")).toBe("submitted")
 	})
 
+	it("shows identity as En revisión when the playbook passes in_review for holder changes", () => {
+		const tabs = buildTourVerificationPlaybook({
+			tabs: ["identity", "activity", "safety", "fiscal"],
+			hrefFor: (tab) => `/provider/settings/verification?line=tour&tab=${tab}`,
+			identity: "in_review",
+			registration: "action_needed",
+			fiscal: "not_started",
+			payments: "not_started",
+			activity: ["not_started"],
+			safety: [],
+			contextComplete: false,
+		})
+		expect(tabs.find((tab) => tab.id === "identity")?.stateLabel).toBe("En revisión")
+	})
+
+	it("shows identity as Completar when the ID slot is missing even if registration is in review", () => {
+		const tabs = buildTourVerificationPlaybook({
+			tabs: ["identity", "activity", "safety", "fiscal"],
+			hrefFor: (tab) => `/provider/settings/verification?line=tour&tab=${tab}`,
+			identity: "action_needed",
+			registration: "in_review",
+			fiscal: "not_started",
+			payments: "not_started",
+			activity: ["not_started"],
+			safety: [],
+			contextComplete: false,
+		})
+		expect(tabs.find((tab) => tab.id === "identity")?.stateLabel).toBe("Completar")
+	})
+
 	it("does not present safety as ready before the tour context can be evaluated", () => {
 		const tabs = buildTourVerificationPlaybook({
 			tabs: ["identity", "activity", "safety", "fiscal"],

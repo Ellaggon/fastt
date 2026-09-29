@@ -31,8 +31,8 @@ Review trigger: incorporación, reemplazo o retiro de una fuente documental
 | PostgreSQL                    | [Operación PostgreSQL](./engineering/supabase-migration.md)                                                                      |
 | Integraciones                 | [Runbook de integraciones](./engineering/provider-integration-operations-runbook.md)                                            |
 | Seguridad                     | [Registro de deuda](./engineering/security-debt-register.md) y [monitorización](./engineering/dependency-monitoring-runbook.md) |
-| Fiscalidad                    | [`fiscality/`](./fiscality/phase-0-contract.md)                                                                                 |
-| Pagos reales                  | [Activación de dinero real](./payments/live-money-activation.md)                                                                |
+| Fiscalidad                    | [Contrato de fiscalidad](./fiscality/phase-0-contract.md) y [auditoría de modos heredados](./certifications/fiscality/legacy-invoicing-modes-2026-09-28.md) |
+| Pagos reales                  | [Activación de dinero real](./payments/live-money-activation.md) y [certificación financiera transversal](./certifications/financial/booking-payment-commission-cancellation-2026-09-28.md) |
 
 ## Contratos técnicos transversales
 

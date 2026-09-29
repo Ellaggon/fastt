@@ -12,7 +12,7 @@ function read(relativePath: string) {
 	return readFileSync(new URL(relativePath, root), "utf8")
 }
 
-describe("S4-6 fiscal withhold explainer + Pro docs-lite", () => {
+describe("Fiscal identity and connector guidance", () => {
 	it("exposes docs-lite help for every connector in the catalog", () => {
 		const catalog = listProviderConnectorCatalog()
 		expect(catalog.length).toBeGreaterThanOrEqual(4)
@@ -23,9 +23,12 @@ describe("S4-6 fiscal withhold explainer + Pro docs-lite", () => {
 		expect(catalog.some((item) => String(item.key) === "payment_gateway")).toBe(false)
 	})
 
-	it("wires withhold explainer on fiscal identity and docs-lite in Simple+Pro integrations", () => {
-		const identity = readVerificationSurface("src/pages/provider/settings/verification/fiscal.astro")
+	it("keeps fiscal identity separate from invoicing and unavailable settlements", () => {
+		const identity = readVerificationSurface(
+			"src/pages/provider/settings/verification/fiscal.astro"
+		)
 		const taxCard = read("src/components/provider/ProviderTaxProfileCard.astro")
+		const collectionCard = read("src/components/provider/ProviderLodgingCollectionModel.astro")
 		const integrations = read(
 			"src/pages/provider/settings/integrations/connect/channel-manager.astro"
 		)
@@ -33,14 +36,17 @@ describe("S4-6 fiscal withhold explainer + Pro docs-lite", () => {
 		expect(identity).not.toContain("Ir a cuentas de liquidación")
 		expect(identity).not.toContain("Resumen fiscal</Button>")
 		expect(identity).toContain("ProviderTaxProfileCard")
-		expect(taxCard).toContain("data-fiscal-withhold-explainer")
-		expect(taxCard).toContain('data-long-copy-collapsed="true"')
-		expect(taxCard).toContain("Retenciones y liquidaciones")
-		expect(taxCard).toContain("retener o retrasar")
-		expect(taxCard).toContain("retener o retrasar liquidaciones")
+		expect(taxCard).not.toContain('name="invoicingMode"')
+		expect(taxCard).not.toContain("retener o retrasar liquidaciones")
+		expect(taxCard).toContain("data-fiscal-scope-note")
+		expect(taxCard).toContain("Estos datos identifican al contribuyente; no configuran cobros.")
+		expect(taxCard).not.toContain("acuerdo comercial")
+		expect(taxCard).not.toContain("comisión")
+		expect(collectionCard).toContain('data-commercial-line-collection-model="lodging"')
+		expect(collectionCard).not.toContain("Cobros de tus tours")
+		expect(collectionCard).toContain('value="platform_collect" selected disabled')
 		expect(taxCard).toContain("data-fiscal-action-lead")
-		expect(taxCard).toContain("Aquí debes completar")
-		expect(taxCard).toContain('data-fiscal-long-copy-collapsed="true"')
+		expect(taxCard).toContain("identificador tributario")
 		expect(taxCard).toContain("data-fiscal-form-actions")
 		expect(taxCard).toContain("fastt-form-submit-footer")
 		expect(taxCard).toContain("Enviar identidad fiscal")
@@ -56,12 +62,21 @@ describe("S4-6 fiscal withhold explainer + Pro docs-lite", () => {
 		expect(taxCard).toContain("fiscalIdentityErrorMessage")
 
 		const workspace = read("src/components/provider/ProviderVerificationWorkspace.astro")
+		expect(workspace).toContain('selectedLine === "lodging" && activeSectionId === "payments"')
+		expect(workspace).toContain("Revisar cobro histórico de tours")
+		expect(workspace).not.toContain("Acuerdo pendiente")
 		const validation = read("src/lib/provider-tax-identity-validation.ts")
 		expect(workspace).toContain("saveError={fiscalError}")
 		expect(workspace).not.toContain('title="No se guardó la identidad fiscal"')
 		expect(validation).toContain("incomplete_tax_identity")
 		expect(validation).toContain("No se guardó el registro")
-		expect(previewFiscalIdentitySubmit({ taxResidenceCountry: "", businessRegistrationNumber: "", taxRegime: "" })).toEqual({
+		expect(
+			previewFiscalIdentitySubmit({
+				taxResidenceCountry: "",
+				businessRegistrationNumber: "",
+				taxRegime: "",
+			})
+		).toEqual({
 			ok: false,
 			code: "incomplete_tax_identity",
 			message: "Completa el país, el NIT o el régimen antes de enviar.",
@@ -86,6 +101,7 @@ describe("S4-6 fiscal withhold explainer + Pro docs-lite", () => {
 		).toEqual({ ok: true })
 
 		const taxApi = read("src/pages/api/provider/settings/tax-configuration.ts")
+		expect(taxApi).toContain('form.has("invoicingMode")')
 		expect(taxApi).toContain("application/x-www-form-urlencoded")
 		expect(taxApi).toContain("redirectAfterFiscalSubmit")
 		expect(taxApi).toContain("tax_profile_saved")

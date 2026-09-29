@@ -1,0 +1,16 @@
+---
+import ProviderSettingsProfileReadonlyField from "@/components/provider/ProviderSettingsProfileReadonlyField.astro"
+
+const { profile } = Astro.props
+---
+
+<div class="grid gap-3 sm:grid-cols-2">
+	<ProviderSettingsProfileReadonlyField label="Zona horaria" value={profile?.timezone} mono />
+	<ProviderSettingsProfileReadonlyField
+		label="Moneda por defecto"
+		value={profile?.defaultCurrency}
+		mono
+	/>
+	<ProviderSettingsProfileReadonlyField label="Correo de soporte" value={profile?.supportEmail} />
+	<ProviderSettingsProfileReadonlyField label="Teléfono de soporte" value={profile?.supportPhone} />
+</div>

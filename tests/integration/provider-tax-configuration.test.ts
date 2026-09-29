@@ -14,6 +14,7 @@ import {
 } from "@/pages/api/provider/settings/tax-configuration"
 import { POST as adminTaxConfigurationPost } from "@/pages/api/admin/providers/tax-configuration"
 import { GET as settingsSummaryGet } from "@/pages/api/provider/settings/summary"
+import { upsertProviderTaxConfiguration } from "@/lib/provider-tax-configuration"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
 import { elevateInternalTestSession } from "../test-support/internal-mfa"
 
@@ -93,6 +94,27 @@ describe("integration/provider fiscal profile separation", () => {
 			displayName: "Separacion Fiscal",
 			ownerEmail: email,
 		})
+		// Existing account-wide mode is historical data, not a provider form choice.
+		await upsertProviderTaxConfiguration({
+			providerId,
+			actorUserId: userId,
+			taxResidenceCountry: "BO",
+			businessRegistrationNumber: "1020304050",
+			taxRegime: "general",
+		})
+		await db
+			.update(ProviderTaxConfiguration)
+			.set({ invoicingMode: "provider_invoice" })
+			.where(eq(ProviderTaxConfiguration.providerId, providerId))
+		const lowerLevelAttempt = await upsertProviderTaxConfiguration({
+			providerId,
+			actorUserId: userId,
+			taxResidenceCountry: "BO",
+			businessRegistrationNumber: "1020304050",
+			taxRegime: "general",
+			invoicingMode: "hybrid",
+		} as any)
+		expect(lowerLevelAttempt.invoicingMode).toBe("provider_invoice")
 		await db
 			.insert(User)
 			.values({
@@ -129,7 +151,21 @@ describe("integration/provider fiscal profile separation", () => {
 				taxForm.set("taxResidenceCountry", "BO")
 				taxForm.set("businessRegistrationNumber", "1020304050")
 				taxForm.set("taxRegime", "general")
-				taxForm.set("invoicingMode", "provider_invoice")
+				const tampered = new FormData()
+				tampered.set("taxResidenceCountry", "BO")
+				tampered.set("businessRegistrationNumber", "1020304050")
+				tampered.set("taxRegime", "general")
+				tampered.set("invoicingMode", "platform_receipt")
+				const denied = await taxConfigurationPost({
+					request: makeAuthedRequest("/api/provider/settings/tax-configuration", token, tampered),
+				} as any)
+				expect(denied.status).toBe(422)
+				expect((await denied.json()).error).toBe("invoicing_mode_not_editable")
+				const unchanged = await db
+					.select({ invoicingMode: ProviderTaxConfiguration.invoicingMode })
+					.from(ProviderTaxConfiguration)
+					.where(eq(ProviderTaxConfiguration.providerId, providerId))
+				expect(unchanged[0]?.invoicingMode).toBe("provider_invoice")
 
 				const taxRes = await taxConfigurationPost({
 					request: makeAuthedRequest("/api/provider/settings/tax-configuration", token, taxForm),
@@ -143,6 +179,23 @@ describe("integration/provider fiscal profile separation", () => {
 					taxRegime: "general",
 					invoicingMode: "provider_invoice",
 				})
+
+				// The identity-only form no longer edits the legacy invoicing field.
+				const identityOnlyForm = new FormData()
+				identityOnlyForm.set("taxResidenceCountry", "BO")
+				identityOnlyForm.set("businessRegistrationNumber", "1020304050")
+				identityOnlyForm.set("taxRegime", "general")
+				const identityOnlyRes = await taxConfigurationPost({
+					request: makeAuthedRequest(
+						"/api/provider/settings/tax-configuration",
+						token,
+						identityOnlyForm
+					),
+				} as any)
+				expect(identityOnlyRes.status).toBe(200)
+				expect((await identityOnlyRes.json()).taxConfiguration.invoicingMode).toBe(
+					"provider_invoice"
+				)
 
 				const getRes = await taxConfigurationGet({
 					request: makeAuthedRequest("/api/provider/settings/tax-configuration", token),

@@ -1,0 +1,150 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Notice from "@/components/ui/Notice.astro"
+import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
+import {
+	principalHasPermission,
+	requireInternalPermission,
+} from "@/lib/auth/internal-authorization"
+import {
+	listInternalProviderSupport,
+	supportLines,
+	supportStatuses,
+	supportTopics,
+} from "@/lib/provider-support"
+
+const principal = await requireInternalPermission(Astro.request, "provider.compliance.read").catch(
+	(error: unknown) => {
+		if (error instanceof Response) return error
+		throw error
+	}
+)
+if (principal instanceof Response) {
+	if (principal.status === 401) return Astro.redirect("/SignInPage")
+	return principal
+}
+const threads = await listInternalProviderSupport()
+const focusedRequest = String(Astro.url.searchParams.get("request") ?? "")
+const result = String(Astro.url.searchParams.get("result") ?? "")
+const error = String(Astro.url.searchParams.get("error") ?? "")
+const formatDate = (value: Date) =>
+	new Intl.DateTimeFormat("es-BO", { dateStyle: "medium", timeStyle: "short" }).format(value)
+const textareaClass =
+	"mt-2 min-h-24 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-950 focus:border-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300"
+const canReplyById = new Map(
+	threads.map((thread) => [
+		thread.id,
+		principalHasPermission(principal, "case.assign", { type: "provider", id: thread.providerId }),
+	])
+)
+---
+
+<InternalAdminLayout title="Soporte a proveedores · Centro de Mando">
+	<div class="mx-auto max-w-5xl space-y-6" data-internal-provider-support>
+		<header>
+			<p class="text-xs font-semibold tracking-[0.14em] text-amber-300 uppercase">
+				Soporte a proveedores
+			</p>
+			<h1 class="mt-2 text-3xl font-semibold text-white">Solicitudes recibidas</h1>
+			<p class="mt-2 text-sm leading-6 text-slate-300">
+				Lee el contexto y responde en el mismo hilo. Las respuestas son visibles para el proveedor;
+				aquí no se aprueban cobros ni documentos.
+			</p>
+		</header>
+		{
+			result === "replied" && (
+				<Notice variant="success" title="Respuesta guardada">
+					El proveedor puede verla en su espacio de soporte.
+				</Notice>
+			)
+		}
+		{
+			error && (
+				<Notice variant="warning" title="No se pudo responder">
+					Revisa el mensaje e inténtalo de nuevo.
+				</Notice>
+			)
+		}
+		{
+			threads.length === 0 ? (
+				<div class="fastt-empty-state rounded-xl border border-slate-700 bg-slate-900 p-6 text-sm text-slate-300">
+					No hay solicitudes de proveedores todavía.
+				</div>
+			) : (
+				<div class="space-y-4">
+					{threads.map((thread) => (
+						<details
+							class="fastt-card rounded-xl border border-slate-200 bg-white p-5 text-slate-900"
+							open={focusedRequest === thread.id ? true : undefined}
+						>
+							<summary class="cursor-pointer text-sm font-semibold marker:text-slate-500">
+								{supportTopics[thread.topic as keyof typeof supportTopics] ?? "Consulta"} ·{" "}
+								{thread.providerName} ·{" "}
+								{supportStatuses[thread.status as keyof typeof supportStatuses] ?? "Recibida"}
+							</summary>
+							<p class="mt-2 text-xs text-slate-500">
+								{supportLines[thread.line as keyof typeof supportLines] ?? "Cuenta"} · Referencia{" "}
+								{thread.id.slice(0, 8).toUpperCase()} · {formatDate(thread.updatedAt)}
+							</p>
+							<ol class="mt-5 space-y-3" aria-label={`Conversación con ${thread.providerName}`}>
+								{thread.messages.map((message) => (
+									<li class="fastt-soft-box rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
+										<p class="font-semibold">
+											{message.authorRole === "internal" ? "Equipo Fastt" : "Proveedor"} ·{" "}
+											{formatDate(message.createdAt)}
+										</p>
+										<p class="mt-1 whitespace-pre-wrap text-slate-700">{message.body}</p>
+									</li>
+								))}
+							</ol>
+							{canReplyById.get(thread.id) ? (
+								<form
+									action={`/api/admin/support/${encodeURIComponent(thread.id)}`}
+									method="post"
+									class="mt-5 space-y-3 border-t border-slate-200 pt-4"
+									data-support-form
+									data-success="replied"
+								>
+									<input type="hidden" name="requestKey" value={crypto.randomUUID()} />
+									<label class="block text-sm font-medium">
+										Respuesta visible al proveedor
+										<textarea
+											name="body"
+											required
+											minlength="12"
+											maxlength="2000"
+											class={textareaClass}
+										/>
+									</label>
+									<label class="block text-sm font-medium">
+										Estado después de responder
+										<select
+											name="status"
+											class="fastt-field mt-2 block w-full max-w-xs bg-white px-3 py-2 text-sm"
+										>
+											<option value="waiting_provider">Esperando al proveedor</option>
+											<option value="resolved">Resuelta</option>
+										</select>
+									</label>
+									<div class="flex flex-wrap items-center gap-3">
+										<Button type="submit">Responder</Button>
+										<p class="text-sm text-slate-600" aria-live="polite" data-support-feedback />
+									</div>
+								</form>
+							) : (
+								<p class="mt-4 text-sm text-slate-600">
+									Puedes consultar este hilo; responder requiere permiso de gestión de casos.
+								</p>
+							)}
+						</details>
+					))}
+				</div>
+			)
+		}
+	</div>
+</InternalAdminLayout>
+
+<script>
+	import { attachProviderSupportForms } from "@/lib/provider-support-form"
+	attachProviderSupportForms()
+</script>

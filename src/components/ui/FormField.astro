@@ -17,7 +17,7 @@ const finalClass = `space-y-2 ${className} ${classProp}`.trim()
 		{label}
 		{required ? <span class="ml-1 text-red-600">*</span> : null}
 	</label>
-	{description ? <p class="text-xs leading-5 text-slate-500">{description}</p> : null}
 	<slot />
+	{description ? <p class="text-xs leading-5 text-slate-500">{description}</p> : null}
 	{error ? <p class="text-sm text-red-600">{error}</p> : null}
 </div>

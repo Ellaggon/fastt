@@ -46,6 +46,29 @@ CREATE TABLE "ProviderCommercialLine" (
 	"enrolledAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
+CREATE TABLE "ProviderSupportRequest" (
+	"id" text PRIMARY KEY,
+	"providerId" text NOT NULL,
+	"createdByUserId" text NOT NULL,
+	"topic" text NOT NULL,
+	"line" text NOT NULL,
+	"status" text NOT NULL DEFAULT 'open',
+	"requestKey" text NOT NULL,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"resolvedAt" timestamp with time zone
+);
+
+CREATE TABLE "ProviderSupportMessage" (
+	"id" text PRIMARY KEY,
+	"requestId" text NOT NULL,
+	"authorUserId" text NOT NULL,
+	"authorRole" text NOT NULL,
+	"body" text NOT NULL,
+	"requestKey" text NOT NULL,
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
 CREATE TABLE "ProviderPreparationSession" (
 	"id" text PRIMARY KEY,
 	"providerId" text NOT NULL,
@@ -2201,6 +2224,30 @@ ALTER TABLE "ProviderCommercialLine"
 	ON DELETE SET NULL
 ;
 
+ALTER TABLE "ProviderSupportRequest"
+	ADD CONSTRAINT "ProviderSupportRequest_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
+;
+
+ALTER TABLE "ProviderSupportRequest"
+	ADD CONSTRAINT "ProviderSupportRequest_createdByUserId_fk"
+	FOREIGN KEY ("createdByUserId")
+	REFERENCES "User" ("id")
+;
+
+ALTER TABLE "ProviderSupportMessage"
+	ADD CONSTRAINT "ProviderSupportMessage_requestId_fk"
+	FOREIGN KEY ("requestId")
+	REFERENCES "ProviderSupportRequest" ("id")
+;
+
+ALTER TABLE "ProviderSupportMessage"
+	ADD CONSTRAINT "ProviderSupportMessage_authorUserId_fk"
+	FOREIGN KEY ("authorUserId")
+	REFERENCES "User" ("id")
+;
+
 ALTER TABLE "ProviderPreparationSession"
 	ADD CONSTRAINT "ProviderPreparationSession_providerId_fk"
 	FOREIGN KEY ("providerId")
@@ -4111,6 +4158,16 @@ CREATE UNIQUE INDEX "ProviderCommercialLine_provider_line_unique" ON "ProviderCo
 
 CREATE INDEX "ProviderCommercialLine_provider_idx" ON "ProviderCommercialLine" ("providerId");
 
+CREATE UNIQUE INDEX "ProviderSupportRequest_provider_key_unique" ON "ProviderSupportRequest" ("providerId", "requestKey");
+
+CREATE INDEX "ProviderSupportRequest_provider_updated_idx" ON "ProviderSupportRequest" ("providerId", "updatedAt");
+
+CREATE INDEX "ProviderSupportRequest_status_updated_idx" ON "ProviderSupportRequest" ("status", "updatedAt");
+
+CREATE UNIQUE INDEX "ProviderSupportMessage_request_key_unique" ON "ProviderSupportMessage" ("requestId", "requestKey");
+
+CREATE INDEX "ProviderSupportMessage_request_created_idx" ON "ProviderSupportMessage" ("requestId", "createdAt");
+
 CREATE UNIQUE INDEX "ProviderPreparationSession_owner_playbook_unique" ON "ProviderPreparationSession" ("providerId", "userId", "playbookId");
 
 CREATE INDEX "ProviderPreparationSession_owner_status_updated_idx" ON "ProviderPreparationSession" ("providerId", "userId", "status", "updatedAt");
@@ -4842,6 +4899,14 @@ ALTER TABLE "ProviderCommercialLine" ADD CONSTRAINT "ProviderCommercialLine_line
 ALTER TABLE "ProviderCommercialLine" ADD CONSTRAINT "ProviderCommercialLine_source_check" CHECK ("source" IN ('onboarding', 'product', 'admin'));
 
 ALTER TABLE "ProviderCommercialLine" ADD CONSTRAINT "ProviderCommercialLine_collectionModel_check" CHECK ("collectionModel" IN ('undecided', 'property_collect', 'platform_collect'));
+
+ALTER TABLE "ProviderSupportRequest" ADD CONSTRAINT "ProviderSupportRequest_topic_check" CHECK ("topic" IN ('historical_tour_collection', 'verification', 'payments', 'other'));
+
+ALTER TABLE "ProviderSupportRequest" ADD CONSTRAINT "ProviderSupportRequest_line_check" CHECK ("line" IN ('tour', 'lodging', 'account'));
+
+ALTER TABLE "ProviderSupportRequest" ADD CONSTRAINT "ProviderSupportRequest_status_check" CHECK ("status" IN ('open', 'waiting_provider', 'resolved'));
+
+ALTER TABLE "ProviderSupportMessage" ADD CONSTRAINT "ProviderSupportMessage_authorRole_check" CHECK ("authorRole" IN ('provider', 'internal'));
 
 ALTER TABLE "ProviderPreparationSession" ADD CONSTRAINT "ProviderPreparationSession_playbook_check" CHECK ("playbookId" IN ('launch', 'launch-tour', 'complete-to-publish'));
 

@@ -58,6 +58,24 @@ function dominantState(states: readonly TrustLinkUiState[]): PlaybookState {
 	return [...states].sort((left, right) => stateRank[left] - stateRank[right])[0] ?? "not_evaluable"
 }
 
+/** Tour playbook tabs follow KYC slots, not account-level «En revisión». */
+export function trustStateFromKycSlotState(
+	state: "missing" | "pending" | "verified" | "rejected" | undefined
+): TrustLinkUiState {
+	switch (state) {
+		case "verified":
+			return "ready"
+		case "pending":
+			return "in_review"
+		case "rejected":
+			return "requires_changes"
+		case "missing":
+			return "action_needed"
+		default:
+			return "not_started"
+	}
+}
+
 function playbookStateLabel(state: PlaybookState) {
 	switch (state) {
 		case "not_evaluable":
@@ -95,9 +113,10 @@ export function buildTourVerificationPlaybook(input: {
 }): VerificationPlaybookTab[] {
 	const stateFor = (tab: VerificationTab): PlaybookState => {
 		if (tab === "identity") {
-			return dominantState(
-				input.registration ? [input.identity, input.registration] : [input.identity]
-			)
+			const states = input.registration ? [input.identity, input.registration] : [input.identity]
+			if (states.includes("requires_changes")) return "requires_changes"
+			if (input.identity === "in_review") return "in_review"
+			return dominantState(states)
 		}
 		if (tab === "activity") {
 			return dominantState(

@@ -1,0 +1,54 @@
+---
+import ProviderSettingsProfileReadonlyField from "@/components/provider/ProviderSettingsProfileReadonlyField.astro"
+
+const { provider, holderProfile, holderStorageReady = true } = Astro.props
+
+const holderTypeLabel =
+	holderProfile?.holderType === "persona_natural"
+		? "Persona natural"
+		: holderProfile?.holderType === "entidad"
+			? "Empresa o entidad"
+			: "—"
+---
+
+<div class="space-y-4">
+	<div class="grid gap-3 sm:grid-cols-2">
+		<ProviderSettingsProfileReadonlyField label="Nombre comercial" value={provider?.displayName} />
+		{
+			holderStorageReady ? (
+				<ProviderSettingsProfileReadonlyField
+					label="Titular que operará el negocio"
+					value={holderTypeLabel}
+				/>
+			) : null
+		}
+	</div>
+	<ProviderSettingsProfileReadonlyField
+		label="Nombre legal del titular o razón social"
+		value={provider?.legalName}
+	/>
+	{
+		holderStorageReady ? (
+			<div class="grid gap-3 sm:grid-cols-3">
+				<ProviderSettingsProfileReadonlyField
+					label="País de residencia o constitución del titular"
+					value={holderProfile?.holderCountry}
+					mono
+				/>
+				<ProviderSettingsProfileReadonlyField
+					label="País de residencia fiscal"
+					value={holderProfile?.taxResidenceCountry}
+					mono
+				/>
+				<ProviderSettingsProfileReadonlyField
+					label="País de la cuenta de pago"
+					value={holderProfile?.payoutCountry}
+					mono
+				/>
+			</div>
+		) : null
+	}
+	<p class="border-t border-slate-200/80 pt-4 text-xs leading-5 text-slate-500">
+		Punto de partida para verificación, impuestos, pagos e integraciones.
+	</p>
+</div>

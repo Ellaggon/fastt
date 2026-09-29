@@ -10,6 +10,8 @@ describe("provider onboarding form feedback", () => {
 		const form = new FormData()
 		form.set("displayName", "A")
 		form.set("legalName", "Andes SpA")
+		form.set("holderType", "entidad")
+		form.set("holderCountry", "BO")
 		form.set("onboardingNext", "/provider/onboarding/business?vertical=tour")
 		const cookieWrites: Array<{ name: string; value: string; options: Record<string, unknown> }> =
 			[]

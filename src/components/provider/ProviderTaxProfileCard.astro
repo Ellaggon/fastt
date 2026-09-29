@@ -6,15 +6,12 @@ import Card from "@/components/ui/Card.astro"
 import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
-import { PROVIDER_REVIEW_WAIT_LABEL } from "@/lib/provider-review-wait-state"
 import type { ProviderTaxConfigurationRecord } from "@/lib/provider-tax-configuration"
 import { fiscalIdentityErrorMessage } from "@/lib/provider-tax-identity-validation"
-import { providerInvoicingModes, providerTaxRegimes } from "@/lib/provider-tax-configuration"
+import { providerTaxRegimes } from "@/lib/provider-tax-configuration"
 import { copyVerificationNavigationQuery } from "@/lib/verification/navigation"
 
 type Props = {
-	line?: "lodging" | "tour" | null
-	fasttCollects?: boolean
 	taxConfiguration?: ProviderTaxConfigurationRecord | null
 	canManageFiscality?: boolean
 	reviewAssignment?: {
@@ -26,8 +23,6 @@ type Props = {
 }
 
 const {
-	line = null,
-	fasttCollects = true,
 	taxConfiguration = null,
 	canManageFiscality = false,
 	reviewAssignment = null,
@@ -41,7 +36,6 @@ const saveAction = copyVerificationNavigationQuery(
 const status = taxConfiguration?.status ?? "not_configured"
 const country = taxConfiguration?.taxResidenceCountry ?? ""
 const regime = taxConfiguration?.taxRegime ?? ""
-const invoicingMode = taxConfiguration?.invoicingMode ?? "platform_receipt"
 const registration = taxConfiguration?.businessRegistrationNumber ?? ""
 const countryOptions = [
 	{ value: "BO", label: "Bolivia (BO)" },
@@ -55,23 +49,20 @@ const countryLabel =
 	countryOptions.find((item) => item.value === country)?.label ?? (country || "Sin definir")
 const regimeLabel =
 	providerTaxRegimes.find((item) => item.value === regime)?.label ?? (regime || "Sin definir")
-const invoicingLabel =
-	providerInvoicingModes.find((item) => item.value === invoicingMode)?.label ?? invoicingMode
 const hasSavedIdentity = Boolean(country || registration || regime)
 const showSubmittedRecord = hasSavedIdentity && status !== "not_configured"
 const saveErrorMessage = saveError ? fiscalIdentityErrorMessage(saveError) : ""
 /** Pending and verified stay read-only until the provider chooses to correct. */
-const formStartsOpen = !showSubmittedRecord || status === "requires_attention"
+const formStartsOpen =
+	Boolean(saveErrorMessage) || !showSubmittedRecord || status === "requires_attention"
 const actionLead =
 	status === "verified"
-		? line === "tour" && !fasttCollects
-			? "Tu identidad fiscal está verificada para esta cuenta."
-			: "Tu identidad fiscal está lista para liquidaciones."
+		? "La identidad fiscal del negocio está verificada."
 		: status === "requires_attention"
-			? "Corrige el país, el NIT o la facturación y vuelve a enviar a revisión."
+			? "Corrige los datos fiscales indicados y vuelve a enviarlos a revisión."
 			: status === "pending"
-				? "Ya enviamos tu registro. Si un dato está mal, corrígelo y vuelve a enviar."
-				: `Aquí debes completar el país de residencia, el NIT o registro comercial y quién factura al ${line === "tour" ? "viajero" : "huésped"}.`
+				? "Recibimos tus datos fiscales. Estamos revisando que correspondan al titular del negocio."
+				: "Completa el país de residencia fiscal, el identificador tributario y el régimen del negocio."
 ---
 
 <Card>
@@ -103,7 +94,7 @@ const actionLead =
 		}
 
 		{
-			taxConfiguration?.tinBureau ? (
+			taxConfiguration?.tinBureau?.matchStatus === "mismatch" ? (
 				<Card
 					variant="soft"
 					class="space-y-2"
@@ -117,9 +108,7 @@ const actionLead =
 						</Badge>
 					</div>
 					<p class="text-sm leading-6 text-slate-600">
-						{taxConfiguration.tinBureau.matchStatus === "format_ok"
-							? "El formato es válido. El equipo Fastt confirmará que coincida con la razón social."
-							: taxConfiguration.tinBureau.hostNarrative || taxConfiguration.tinBureau.message}
+						{taxConfiguration.tinBureau.hostNarrative || taxConfiguration.tinBureau.message}
 					</p>
 				</Card>
 			) : null
@@ -128,13 +117,13 @@ const actionLead =
 		{
 			canManageFiscality ? (
 				<div class="space-y-4">
-					{showSubmittedRecord ? (
+					{showSubmittedRecord && !formStartsOpen ? (
 						<Card
 							variant="plain"
 							class="fastt-soft-box border border-slate-200 bg-slate-50 p-4"
 							data-fiscal-submitted-summary
 						>
-							<dl class="grid gap-3 sm:grid-cols-2">
+							<dl class="grid gap-3 sm:grid-cols-3">
 								<div>
 									<dt class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
 										País de residencia fiscal
@@ -143,7 +132,7 @@ const actionLead =
 								</div>
 								<div>
 									<dt class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-										NIT / registro mercantil
+										Identificador tributario
 									</dt>
 									<dd class="mt-1 text-sm font-medium text-slate-950">
 										{registration || "Sin definir"}
@@ -154,12 +143,6 @@ const actionLead =
 										Régimen fiscal
 									</dt>
 									<dd class="mt-1 text-sm font-medium text-slate-950">{regimeLabel}</dd>
-								</div>
-								<div>
-									<dt class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-										Modo de facturación
-									</dt>
-									<dd class="mt-1 text-sm font-medium text-slate-950">{invoicingLabel}</dd>
 								</div>
 							</dl>
 						</Card>
@@ -187,7 +170,6 @@ const actionLead =
 							data-tax-country={country}
 							data-tax-regime={regime}
 							data-tax-registration={registration}
-							data-invoicing-mode={invoicingMode}
 						>
 							<input type="hidden" name="returnTo" value={formReturnTo} />
 							<div class="grid gap-4 md:grid-cols-2">
@@ -202,12 +184,15 @@ const actionLead =
 									</Select>
 								</FormField>
 
-								<FormField label="NIT / registro mercantil" htmlFor="businessRegistrationNumber">
+								<FormField
+									label="Identificador tributario (NIT en Bolivia)"
+									htmlFor="businessRegistrationNumber"
+								>
 									<Input
 										id="businessRegistrationNumber"
 										name="businessRegistrationNumber"
 										value={registration}
-										placeholder="NIT-123456 / EIN / CIF"
+										placeholder="Número registrado ante la autoridad fiscal"
 										class="scroll-mt-24"
 										aria-describedby="businessRegistrationNumber-error"
 									/>
@@ -236,88 +221,9 @@ const actionLead =
 								</FormField>
 							</div>
 
-							<FormField label="Modo de facturación" htmlFor="invoicingMode">
-								<Select id="invoicingMode" name="invoicingMode" required>
-									{providerInvoicingModes.map((item) => (
-										<option value={item.value} selected={invoicingMode === item.value}>
-											{item.label}
-										</option>
-									))}
-								</Select>
-							</FormField>
-
-							<details
-								class="fastt-notice rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-600"
-								data-fiscal-long-copy-collapsed="true"
-							>
-								<summary class="cursor-pointer font-semibold text-slate-900">
-									Cómo se usa la facturación
-								</summary>
-								<div class="mt-3 border-t border-slate-200 pt-3">
-									<p class="mb-2">
-										Quién emite el comprobante al {line === "tour" ? "viajero" : "huésped"}. No
-										cambia los impuestos de venta.
-									</p>
-									<ul class="list-disc space-y-1 pl-4">
-										{providerInvoicingModes.map((item) => (
-											<li>
-												<span class="font-medium text-slate-800">{item.label}:</span>{" "}
-												{line === "tour"
-													? item.description.replace("huésped", "viajero")
-													: item.description}
-											</li>
-										))}
-									</ul>
-									<p class="mt-3">
-										Al guardar con datos de identidad, el estado pasa a{" "}
-										<span class="font-medium text-slate-800">{PROVIDER_REVIEW_WAIT_LABEL}</span>. No
-										puedes marcar Verificado tú mismo.
-									</p>
-								</div>
-							</details>
-
-							{fasttCollects ? (
-								<details
-									class="fastt-notice rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-600"
-									data-fiscal-withhold-explainer
-									data-long-copy-collapsed="true"
-								>
-									<summary class="cursor-pointer font-semibold text-slate-900">
-										Retenciones y liquidaciones
-										<span class="mt-0.5 block text-xs font-normal text-slate-500">
-											Qué pasa con tus cobros si falta el registro
-										</span>
-									</summary>
-									<div class="mt-3 border-t border-slate-200 pt-3">
-										<p class="mb-2">
-											Sin NIT/registro y residencia fiscal verificados, Fastt puede{" "}
-											<strong>retener o retrasar liquidaciones</strong> hasta confirmar tu identidad
-											tributaria. Esto no define los impuestos que cobras al{" "}
-											{line === "tour" ? "viajero" : "huésped"}.
-										</p>
-										<ul class="list-disc space-y-1 pl-4">
-											<li>
-												<strong>Con registro verificado:</strong> las liquidaciones a tu cuenta de
-												cobros pueden seguir el calendario normal tras payout verificado.
-											</li>
-											<li>
-												<strong>Sin registro o en revisión:</strong> los cobros a{" "}
-												{line === "tour" ? "viajeros" : "huéspedes"} pueden continuar, pero el
-												desembolso al proveedor queda sujeto a retención o espera de cumplimiento.
-											</li>
-											<li>
-												La retención se aplica a <em>tu</em> liquidación, no al precio de la
-												reserva.
-											</li>
-										</ul>
-									</div>
-								</details>
-							) : (
-								<p class="text-sm leading-6 text-slate-600">
-									En cobro directo, Fastt no retiene ni liquida el pago de esta experiencia. La
-									identidad fiscal se revisa por separado.
-								</p>
-							)}
+							<p class="text-sm leading-6 text-slate-600" data-fiscal-scope-note>
+								Estos datos identifican al contribuyente; no configuran cobros.
+							</p>
 
 							<div class="fastt-form-submit-footer" data-fiscal-form-actions>
 								<Button type="submit" variant="selection" class="w-full sm:w-auto">
@@ -337,7 +243,6 @@ const actionLead =
 							<li>País: {taxConfiguration.taxResidenceCountry || "Sin definir"}</li>
 							<li>Registro: {taxConfiguration.businessRegistrationNumber || "Sin definir"}</li>
 							<li>Régimen: {taxConfiguration.taxRegime || "Sin definir"}</li>
-							<li>Facturación: {taxConfiguration.invoicingModeLabel}</li>
 						</ul>
 					) : (
 						<p>Todavía no hay un perfil fiscal configurado.</p>
@@ -466,7 +371,6 @@ const actionLead =
 			}
 			setSelect("taxResidenceCountry", node.dataset.taxCountry ?? "")
 			setSelect("taxRegime", node.dataset.taxRegime ?? "")
-			setSelect("invoicingMode", node.dataset.invoicingMode ?? "")
 			const registration = node.querySelector('[name="businessRegistrationNumber"]')
 			const savedRegistration = node.dataset.taxRegistration ?? ""
 			if (registration instanceof HTMLInputElement && savedRegistration) {

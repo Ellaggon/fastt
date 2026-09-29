@@ -11,6 +11,7 @@ Review trigger: cambio del contrato o de las superficies públicas y del proveed
 ## Leer primero
 
 - [Políticas comerciales de tours](./policies.md): contrato, editor, preview y compatibilidad histórica.
+- [Acuerdo económico inicial](./commercial-terms.md): propuesta de cobro directo, comisión, base, devengo y cancelaciones; pendiente de aceptación.
 - [Matriz comercial BO v1](./policy-annex.md): borrador sin firma. No exige documentos nuevos hasta que Políticas, Finanzas y Operaciones Tours la ratifiquen.
 - [Flujo del proveedor](./provider-workflow.md): creación, edición, playbook y publicación.
 - [Taxonomía de datos](../../engineering/tour-vertical-table-taxonomy.md): Product → Variant/tour_slot → RatePlan → inventario → reserva.
@@ -23,5 +24,7 @@ Review trigger: cambio del contrato o de las superficies públicas y del proveed
 - [Certificación de políticas](../../certifications/tours/policies-2026-09-21.md).
 - [Certificación de ficha y checkout](../../certifications/tours/booking-flow-2026-09.md).
 - [Certificación de verificación por línea](../../certifications/verification/line-gates-2026-09-26.md).
+- [Auditoría de modos fiscales heredados](../../certifications/fiscality/legacy-invoicing-modes-2026-09-28.md): datos de producción clasificados sin mutar reservas.
+- [Certificación financiera transversal](../../certifications/financial/booking-payment-commission-cancellation-2026-09-28.md): evidencia parcial de reserva, conciliación y cancelación; no certifica cobro real ni comisión aceptada.
 
 Las certificaciones describen qué se probó en una fecha. Los documentos de este directorio definen el comportamiento vigente.

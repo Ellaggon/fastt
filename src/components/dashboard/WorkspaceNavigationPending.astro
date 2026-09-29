@@ -199,9 +199,11 @@ const rateColumns = Array.from({ length: 6 })
 				const target = event.target
 				const link =
 					target instanceof Element
-						? target.closest("[data-context-switcher] [data-workspace-nav]")
+						? (target.closest("a[data-provider-settings-nav]") ??
+							target.closest("[data-context-switcher] [data-workspace-nav]"))
 						: null
 				if (!(link instanceof HTMLAnchorElement)) return
+				if (link.hasAttribute("data-provider-settings-nav")) return
 				if (link.getAttribute("aria-current") === "page") return
 				window.clearTimeout(pendingTimer)
 				try {

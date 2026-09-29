@@ -21,6 +21,31 @@ function country(value: FormDataEntryValue | null): string | null {
  * Identity captures the holder and jurisdictions only. Collection is deliberately
  * initialized as undecided here; a payment-contract flow owns that later decision.
  */
+export class HolderDeclarationRequiredError extends Error {
+	constructor() {
+		super("holder_declaration_required")
+	}
+}
+
+/**
+ * Parses holder fields when present. When `required`, onboarding cannot continue
+ * without an explicit persona natural / entidad declaration.
+ */
+export async function resolveHolderDeclarationForSubmit(
+	form: FormData,
+	options: { required: boolean }
+): Promise<HolderDeclaration | null> {
+	const hasHolderFields = form.has("holderType") || form.has("holderCountry")
+	if (!options.required) {
+		if (!hasHolderFields) return null
+		await assertHolderStorageAvailable()
+		return parseHolderDeclaration(form)
+	}
+	if (!hasHolderFields) throw new HolderDeclarationRequiredError()
+	await assertHolderStorageAvailable()
+	return parseHolderDeclaration(form)
+}
+
 export function parseHolderDeclaration(form: FormData): HolderDeclaration | null {
 	if (!form.has("holderType") && !form.has("holderCountry")) return null
 	const holderType = String(form.get("holderType") ?? "")
@@ -52,6 +77,40 @@ export function collectionModelForIdentitySave(
 	return collectionModel === "property_collect" || collectionModel === "platform_collect"
 		? collectionModel
 		: "undecided"
+}
+
+export function isHolderDeclarationInReview(
+	holder: { declarationStatus?: string | null } | null | undefined
+): boolean {
+	return String(holder?.declarationStatus ?? "").trim() === "in_review"
+}
+
+/**
+ * During a holder change, identity uploads pause. Entity accounts may still
+ * submit mercantile registration while Fastt confirms the new titular.
+ */
+export function isDocumentUploadPausedForHolderReview(params: {
+	holder: { declarationStatus?: string | null; holderType?: string | null } | null | undefined
+	documentType?: string | null
+}): boolean {
+	if (!isHolderDeclarationInReview(params.holder)) return false
+	const type = String(params.documentType ?? "").trim()
+	if (type === "business_registration" && params.holder?.holderType === "entidad") {
+		return false
+	}
+	return true
+}
+
+/** Blocks new document uploads while Fastt reviews a holder change. */
+export async function assertHolderDeclarationAllowsDocuments(
+	providerId: string,
+	documentType?: string | null
+): Promise<void> {
+	const holder = await readProviderHolderProfile(providerId)
+	if (!isDocumentUploadPausedForHolderReview({ holder, documentType })) return
+	const error = new Error("holder_declaration_in_review")
+	;(error as Error & { status?: number }).status = 422
+	throw error
 }
 
 export async function readProviderHolderProfile(providerId: string) {

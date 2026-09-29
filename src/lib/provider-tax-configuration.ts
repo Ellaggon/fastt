@@ -334,7 +334,6 @@ export async function upsertProviderTaxConfiguration(params: {
 	taxResidenceCountry?: unknown
 	businessRegistrationNumber?: unknown
 	taxRegime?: unknown
-	invoicingMode?: unknown
 	/** @deprecated Ignored. Provider cannot set verified / requires_attention. */
 	status?: unknown
 }) {
@@ -364,7 +363,6 @@ export async function upsertProviderTaxConfiguration(params: {
 		businessRegistrationNumber,
 		taxRegime,
 	})
-	const invoicingMode = asInvoicingMode(params.invoicingMode)
 
 	if (taxResidenceCountry && !/^[A-Z]{2}$/.test(taxResidenceCountry)) {
 		const error = new Error("invalid_tax_residence_country")
@@ -381,6 +379,9 @@ export async function upsertProviderTaxConfiguration(params: {
 	}
 
 	const before = await getProviderTaxConfiguration(params.providerId)
+	// Provider-facing identity updates preserve legacy invoicing data. Issuer
+	// decisions belong to a separate reviewed commercial contract.
+	const invoicingMode = before?.invoicingMode ?? "platform_receipt"
 	const now = new Date()
 
 	const existingMeta = await db

@@ -1,12 +1,14 @@
 import { readFileSync } from "node:fs"
 import { describe, expect, it } from "vitest"
 import { resolveVerificationRequirements } from "@/lib/verification/requirement-resolver"
+import { providerDocumentTypes } from "@/lib/provider-documents"
 import {
 	annexIsSigned,
 	lodgingPolicyAnnex,
 	mayEnforceRequirement,
 	policyAnnexForLine,
 	policyAnnexForProductType,
+	representativePowerRequirementId,
 	tourPolicyAnnex,
 } from "@/lib/verification/policy-annex"
 
@@ -38,6 +40,28 @@ describe("policy annexes", () => {
 		expect(policyAnnexForProductType("package")).toBeNull()
 		expect(policyAnnexForProductType("limousine")).toBeNull()
 		expect(policyAnnexForLine("experiences")).toBeNull()
+	})
+
+	it("withholds representative power until Políticas, Finanzas and Operaciones Tours sign", () => {
+		expect(tourPolicyAnnex.withheldRequirementIds).toContain(representativePowerRequirementId)
+		expect(mayEnforceRequirement("tour", representativePowerRequirementId)).toBe(false)
+		expect(mayEnforceRequirement("lodging", representativePowerRequirementId)).toBe(false)
+		expect(
+			providerDocumentTypes.some(
+				(item) =>
+					item.value.includes("representative") ||
+					item.value.includes("power_of_attorney") ||
+					item.label.toLowerCase().includes("representante")
+			)
+		).toBe(false)
+		const entidad = resolveVerificationRequirements({
+			...base,
+			lines: ["tour", "lodging"],
+			holderType: "entidad",
+		})
+		expect(entidad.requirements.map((item) => item.id)).not.toContain(
+			representativePowerRequirementId
+		)
 	})
 
 	it("keeps new tour documents waiting for the three signatures", () => {

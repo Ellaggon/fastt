@@ -137,7 +137,9 @@ const fiscalIdentityErrorMessages: Record<string, string> = {
 	invalid_tax_id_chars: "No se guardó. El número de registro tiene caracteres no permitidos.",
 	invalid_tax_residence_country: "No se guardó. El país fiscal debe ser un código de dos letras.",
 	registration_required: "No se guardó. Falta el NIT o registro mercantil.",
-	validation_error: "No se guardó. Revisa país, NIT, régimen y modo de facturación.",
+	validation_error: "No se guardó. Revisa país, NIT y régimen fiscal.",
+	invoicing_mode_not_editable:
+		"La identidad fiscal no cambia quién emite comprobantes. Quita el modo de facturación de la solicitud.",
 	forbidden: "Tu rol no puede editar la identidad fiscal.",
 }
 

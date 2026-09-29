@@ -45,7 +45,7 @@ export type ProviderContractSurface = {
 
 function modelLabel(value: unknown): string {
 	if (value === "property_collect") return "El proveedor cobra al viajero"
-	if (value === "platform_collect") return "Fastt cobra al viajero"
+	if (value === "platform_collect") return "Cobro por Fastt declarado (no disponible)"
 	return "Aún por definir"
 }
 

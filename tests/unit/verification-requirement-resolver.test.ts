@@ -8,6 +8,7 @@ import {
 import { governanceCheckIdsFor } from "@/lib/verification/governance-capabilities"
 import {
 	accountGateDocumentTypes,
+	accountKycDocumentTypes,
 	matchUpload,
 	packDocumentTypes,
 	packUploadOptions,
@@ -16,6 +17,11 @@ import {
 	type TourVerificationContext,
 	type VerificationResolutionInput,
 } from "@/lib/verification/requirement-resolver"
+import { buildRequiredKycSlots } from "@/lib/provider-documents"
+import {
+	buildTourVerificationPlaybook,
+	trustStateFromKycSlotState,
+} from "@/lib/verification/navigation"
 
 const root = new URL("../../", import.meta.url)
 
@@ -264,6 +270,91 @@ describe("verification requirement resolver", () => {
 			"document_not_applicable"
 		)
 		expect(read("src/lib/provider-governance.ts")).toContain("accountGateDocumentTypes")
+	})
+
+	it("asks for mercantile completion when the holder becomes entidad", () => {
+		const resolution = resolveVerificationRequirements(
+			input({ lines: ["tour"], holderType: "entidad", tours: [] })
+		)
+		const types = accountKycDocumentTypes({
+			enforced: true,
+			resolution,
+			holderType: "entidad",
+		})
+		expect(types).toContain("business_registration")
+		const slots = buildRequiredKycSlots({
+			documents: [{ type: "government_id", status: "verified" } as never],
+			types,
+		})
+		const registration = slots.find((slot) => slot.type === "business_registration")
+		expect(registration?.state).toBe("missing")
+		const identityState = trustStateFromKycSlotState(
+			slots.find((slot) => slot.type === "government_id")?.state
+		)
+		const registrationState = trustStateFromKycSlotState(registration?.state)
+		expect(registrationState).toBe("action_needed")
+		const tabs = buildTourVerificationPlaybook({
+			tabs: ["identity", "activity", "safety", "fiscal"],
+			hrefFor: (tab) => `/verification?tab=${tab}`,
+			identity: identityState,
+			registration: registrationState,
+			fiscal: "not_started",
+			payments: "not_started",
+			activity: ["not_started"],
+			safety: [],
+			contextComplete: false,
+		})
+		expect(tabs.find((tab) => tab.id === "identity")?.stateLabel).toBe("Completar")
+	})
+
+	it("keeps identity en revisión with verified ID while mercantile stays completar during holder review", () => {
+		const tabs = buildTourVerificationPlaybook({
+			tabs: ["identity", "activity", "safety", "fiscal"],
+			hrefFor: (tab) => `/verification?tab=${tab}`,
+			identity: "in_review",
+			registration: "action_needed",
+			fiscal: "not_started",
+			payments: "not_started",
+			activity: ["not_started"],
+			safety: [],
+			contextComplete: false,
+		})
+		expect(tabs.find((tab) => tab.id === "identity")?.stateLabel).toBe("En revisión")
+	})
+
+	it("drops mercantile slots for persona natural while legacy rows remain in storage", () => {
+		const resolution = resolveVerificationRequirements(
+			input({ lines: ["tour"], holderType: "persona_natural", tours: [] })
+		)
+		const types = accountKycDocumentTypes({
+			enforced: true,
+			resolution,
+			holderType: "persona_natural",
+		})
+		expect(types).not.toContain("business_registration")
+		const slots = buildRequiredKycSlots({
+			documents: [
+				{ type: "government_id", status: "verified" } as never,
+				{ type: "business_registration", status: "pending" } as never,
+			],
+			types,
+		})
+		expect(slots.map((slot) => slot.type)).toEqual(["government_id", "tax_document"])
+		const identityState = trustStateFromKycSlotState(
+			slots.find((slot) => slot.type === "government_id")?.state
+		)
+		const tabs = buildTourVerificationPlaybook({
+			tabs: ["identity", "activity", "safety", "fiscal"],
+			hrefFor: (tab) => `/verification?tab=${tab}`,
+			identity: identityState,
+			registration: null,
+			fiscal: "not_started",
+			payments: "not_started",
+			activity: ["not_started"],
+			safety: [],
+			contextComplete: false,
+		})
+		expect(tabs.find((tab) => tab.id === "identity")?.uiState).toBe("ready")
 	})
 
 	it("completes the account documents gate without a hidden entity slot", () => {

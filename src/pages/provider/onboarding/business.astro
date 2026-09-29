@@ -116,6 +116,15 @@ const productNext = providerOnboardingProductCreateHref(vertical)
 		</Notice>
 
 		{
+			needsIdentity && !holderStorageReady ? (
+				<Notice variant="warning" title="Declaración de titular no disponible">
+					Antes de crear tu {serviceLabel} debes indicar si operas como persona natural o empresa.
+					Esta cuenta aún no tiene habilitado ese paso; contacta a soporte Fastt.
+				</Notice>
+			) : null
+		}
+
+		{
 			!needsIdentity ? (
 				<ProviderProfileForm
 					isProviderAvailable={true}
@@ -130,7 +139,7 @@ const productNext = providerOnboardingProductCreateHref(vertical)
 					serviceLabel={serviceLabel}
 					submitLabel={`Guardar y crear mi ${serviceLabel}`}
 				/>
-			) : (
+			) : holderStorageReady ? (
 				<ProviderRegisterForm
 					provider={provider}
 					holderProfile={holderProfile}
@@ -144,7 +153,7 @@ const productNext = providerOnboardingProductCreateHref(vertical)
 					serviceLabel={serviceLabel}
 					submitLabel="Guardar y continuar"
 				/>
-			)
+			) : null
 		}
 	</div>
 </ProviderOnboardingLayout>

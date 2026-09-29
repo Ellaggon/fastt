@@ -8,11 +8,25 @@ import {
 	commercialLineFromOnboardingDestination,
 	collectionModelForCommercialLine,
 	linesAfterRemovingProducts,
+	providerCollectionDeclarationError,
 	sortCommercialLines,
 	type CommercialLineRecord,
 } from "@/lib/verification/commercial-lines"
 
 describe("provider commercial lines", () => {
+	it("rejects unsupported provider payment declarations before persistence", () => {
+		expect(providerCollectionDeclarationError("tour", "platform_collect")).toBe(
+			"PLATFORM_COLLECTION_UNAVAILABLE"
+		)
+		expect(providerCollectionDeclarationError("tour", "property_collect")).toBe(
+			"TOUR_COLLECTION_AGREEMENT_REQUIRED"
+		)
+		expect(providerCollectionDeclarationError("lodging", "platform_collect")).toBe(
+			"PLATFORM_COLLECTION_UNAVAILABLE"
+		)
+		expect(providerCollectionDeclarationError("tour", "undecided")).toBeNull()
+		expect(providerCollectionDeclarationError("lodging", "property_collect")).toBeNull()
+	})
 	it("reads a tour catalog as the tour line even before the line table is filled", () => {
 		expect(commercialLinesForProductTypes(["tour", "tour"])).toEqual(["tour"])
 		expect(commercialLinesForProductTypes(["hotel", "tour"])).toEqual(["lodging", "tour"])

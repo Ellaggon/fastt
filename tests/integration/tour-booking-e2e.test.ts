@@ -12,6 +12,7 @@ import {
 	EffectiveAvailability,
 	EffectivePricing,
 	eq,
+	PaymentTransaction,
 	Product,
 	Provider,
 	RatePlan,
@@ -463,6 +464,11 @@ describe("integration/tour booking E2E (P0 1.1)", () => {
 				.then((rows) => rows[0])
 			expect(booking).toBeTruthy()
 			expect(String(booking?.status)).toBe("confirmed")
+			const paymentEvidence = await db
+				.select({ id: PaymentTransaction.id })
+				.from(PaymentTransaction)
+				.where(eq(PaymentTransaction.bookingId, bookingId))
+			expect(paymentEvidence).toHaveLength(0)
 			expect(String(booking?.userId)).toBe(userId)
 			expect(Number(booking?.numAdults)).toBe(adults)
 			expect(Number(booking?.numChildren)).toBe(children)

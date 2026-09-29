@@ -9,6 +9,29 @@ export const commercialLineCollectionModels = [
 	"platform_collect",
 ] as const
 export type CommercialLineCollectionModel = (typeof commercialLineCollectionModels)[number]
+
+export type ProviderCollectionDeclarationError =
+	| "COMMERCIAL_LINE_COLLECTION_MODEL_INVALID"
+	| "PLATFORM_COLLECTION_UNAVAILABLE"
+	| "TOUR_COLLECTION_AGREEMENT_REQUIRED"
+
+/** Provider declarations cannot enable a payment rail or replace a tour agreement. */
+export function providerCollectionDeclarationError(
+	line: CommercialLine,
+	collectionModel: CommercialLineCollectionModel
+): ProviderCollectionDeclarationError | null {
+	if (
+		!commercialLines.includes(line) ||
+		!commercialLineCollectionModels.includes(collectionModel)
+	) {
+		return "COMMERCIAL_LINE_COLLECTION_MODEL_INVALID"
+	}
+	if (collectionModel === "platform_collect") return "PLATFORM_COLLECTION_UNAVAILABLE"
+	if (line === "tour" && collectionModel === "property_collect") {
+		return "TOUR_COLLECTION_AGREEMENT_REQUIRED"
+	}
+	return null
+}
 export const commercialLineSources = ["onboarding", "product", "admin"] as const
 export type CommercialLineSource = (typeof commercialLineSources)[number]
 
@@ -213,9 +236,8 @@ export async function declareProviderCommercialLineCollectionModel(params: {
 	collectionModel: CommercialLineCollectionModel
 	declaredByUserId: string
 }): Promise<CommercialLineRecord | null> {
-	if (!commercialLineCollectionModels.includes(params.collectionModel)) {
-		throw new Error("COMMERCIAL_LINE_COLLECTION_MODEL_INVALID")
-	}
+	const error = providerCollectionDeclarationError(params.line, params.collectionModel)
+	if (error) throw new Error(error)
 	try {
 		const updated = await db
 			.update(ProviderCommercialLine)

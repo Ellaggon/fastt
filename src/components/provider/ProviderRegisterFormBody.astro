@@ -1,0 +1,51 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Input from "@/components/ui/Input.astro"
+import ProviderRegisterIdentityFields from "@/components/provider/ProviderRegisterIdentityFields.astro"
+
+const {
+	onboardingNext = "",
+	embedded = false,
+	settingsHubCard = false,
+	showBackAction = true,
+	backHref,
+	submitLabel = "Guardar identidad",
+	provider,
+	holderProfile,
+	holderStorageReady = true,
+	onboarding = false,
+	serviceLabel = "servicio",
+	draft = null,
+	fieldErrors = {},
+	onboardingIntro = "",
+} = Astro.props
+---
+
+{
+	onboardingNext && !embedded ? (
+		<Input type="hidden" name="onboardingNext" value={onboardingNext} />
+	) : null
+}
+<ProviderRegisterIdentityFields
+	settingsHubCard={settingsHubCard}
+	provider={provider}
+	holderProfile={holderProfile}
+	holderStorageReady={holderStorageReady}
+	onboarding={onboarding}
+	serviceLabel={serviceLabel}
+	draft={draft}
+	fieldErrors={fieldErrors}
+	onboardingIntro={onboardingIntro}
+/>
+{
+	embedded ? null : (
+		<div class="flex items-center justify-end gap-3">
+			{showBackAction ? (
+				<Button href={backHref} variant="secondary">
+					Volver
+				</Button>
+			) : null}
+			<Button type="submit">{submitLabel}</Button>
+		</div>
+	)
+}

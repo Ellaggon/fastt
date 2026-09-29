@@ -58,12 +58,16 @@ const canonicalHref = canonicalPath ? new URL(canonicalPath, Astro.url.origin).h
 		<slot />
 		<script>
 			const bootPageWorkspaces = () => {
-				if (!window.location.pathname.startsWith("/financial")) return
-				import("@/pages/financial/_client/financial-page-boot").then(
-					({ bootFinancialExperience }) => {
-						bootFinancialExperience()
-					}
-				)
+				if (window.location.pathname.startsWith("/financial")) {
+					import("@/pages/financial/_client/financial-page-boot").then(
+						({ bootFinancialExperience }) => {
+							bootFinancialExperience()
+						}
+					)
+				}
+				if (/^\/provider\/settings(\/(profile|team))?\/?$/.test(window.location.pathname)) {
+					import("@/pages/provider/settings/_client/provider-settings-nav.js")
+				}
 			}
 
 			document.addEventListener("astro:page-load", bootPageWorkspaces)

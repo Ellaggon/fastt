@@ -3,7 +3,10 @@ import { providerV2Repository } from "@/container"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/invalidation"
 import { routes } from "@/lib/routes"
-import { resolveProviderOnboardingNext } from "@/lib/onboarding/providerOnboarding"
+import {
+	onboardingSubmitRequiresHolderDeclaration,
+	resolveProviderOnboardingNext,
+} from "@/lib/onboarding/providerOnboarding"
 import {
 	createProviderFormFlash,
 	PROVIDER_FORM_FLASH_COOKIE,
@@ -13,8 +16,9 @@ import { updateProviderIdentityV2 } from "@/modules/catalog/public"
 import { ValidationError } from "@/lib/validation/ValidationError"
 import {
 	collectionModelForIdentitySave,
-	parseHolderDeclaration,
+	HolderDeclarationRequiredError,
 	readProviderHolderProfile,
+	resolveHolderDeclarationForSubmit,
 	saveProviderHolderProfile,
 } from "@/lib/provider-holder-profile"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
@@ -96,7 +100,10 @@ async function handleProviderUpdate(ctx: Parameters<APIRoute>[0]): Promise<Respo
 			},
 			errors: {},
 		}
-		const holderDeclaration = parseHolderDeclaration(form)
+		const requiresHolderDeclaration = onboardingSubmitRequiresHolderDeclaration(onboardingNext)
+		const holderDeclaration = await resolveHolderDeclarationForSubmit(form, {
+			required: requiresHolderDeclaration,
+		})
 
 		const result = await updateProviderIdentityV2(
 			{ repo: providerV2Repository },
@@ -128,6 +135,18 @@ async function handleProviderUpdate(ctx: Parameters<APIRoute>[0]): Promise<Respo
 			headers: { "Content-Type": "application/json" },
 		})
 	} catch (error) {
+		if (error instanceof HolderDeclarationRequiredError) {
+			if (shouldReturnHtmlRedirect(request)) {
+				writeIdentityFlash(cookies, identityFlash, {
+					holderType: "Selecciona quién operará el negocio.",
+					holderCountry: "Indica el país del titular con dos letras, por ejemplo BO.",
+				})
+				return redirectAfterProviderSave(request, { error: "validation_error" }, onboardingNext)
+			}
+			return new Response(JSON.stringify({ error: "validation_error", field: "holderType" }), {
+				status: 400,
+			})
+		}
 		if (error instanceof Error && error.message === "holder_declaration_invalid") {
 			if (shouldReturnHtmlRedirect(request)) {
 				writeIdentityFlash(cookies, identityFlash, {

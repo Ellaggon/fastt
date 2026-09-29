@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import {
+	onboardingSubmitRequiresHolderDeclaration,
 	PROVIDER_ONBOARDING_SELECTION_COOKIE,
 	providerOnboardingBusinessHref,
 	providerOnboardingProductCreateHref,
@@ -43,6 +44,17 @@ describe("provider onboarding destinations", () => {
 				"/provider/settings/profile"
 			)
 		).toBe(providerOnboardingProductCreateHref("hotel"))
+	})
+
+	it("requires holder declaration on onboarding identity saves", () => {
+		expect(onboardingSubmitRequiresHolderDeclaration(providerOnboardingBusinessHref("tour"))).toBe(
+			true
+		)
+		expect(onboardingSubmitRequiresHolderDeclaration(providerOnboardingProductCreateHref("tour"))).toBe(
+			true
+		)
+		expect(onboardingSubmitRequiresHolderDeclaration("/provider/settings/profile")).toBe(false)
+		expect(onboardingSubmitRequiresHolderDeclaration("")).toBe(false)
 	})
 
 	it("rejects arbitrary or external form destinations", () => {

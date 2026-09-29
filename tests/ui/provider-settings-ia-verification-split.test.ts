@@ -34,7 +34,8 @@ describe("Settings IA: Verificación outside settings tabs", () => {
 		const workspace = read("src/lib/provider-verification-workspace.ts")
 
 		expect(layout).toContain("showSettingsTabs")
-		expect(layout).toContain("showSettingsTabs ? <ProviderSettingsSubnav")
+		expect(layout).toContain("showSettingsTabs ? (")
+		expect(layout).toContain("<ProviderSettingsSubnav")
 		expect(layout).toContain("data-verification-wizard-progress")
 		expect(layout).toContain("formatVerificationProgressTotalLine")
 		expect(layout).toContain("formatVerificationProgressBreakdownLine")
@@ -134,7 +135,7 @@ describe("Settings IA: Verificación outside settings tabs", () => {
 		expect(glossary).toContain("returnToVerification")
 		expect(glossary).toContain("Volver a Verificación")
 		expect(profile).not.toContain("TRUST_GLOSSARY.returnToVerification")
-		expect(profile).toContain("data-settings-onboarding-resume")
+		expect(profile).not.toContain("data-settings-onboarding-resume")
 		expect(documents).toContain("Volver a verificación")
 		expect(fiscal).toContain("Astro.redirect(routes.providerSettingsVerificationFiscal())")
 		expect(verificationFiscal).not.toContain("TRUST_GLOSSARY.returnToVerification")

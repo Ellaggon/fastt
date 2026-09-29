@@ -114,7 +114,6 @@ describe("provider admin unified compliance console", () => {
 			taxResidenceCountry: "CL",
 			businessRegistrationNumber: "76.999.888-8",
 			taxRegime: "general",
-			invoicingMode: "platform_receipt",
 		})
 		await submitProviderDocument({
 			providerId,

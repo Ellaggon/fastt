@@ -55,7 +55,9 @@ const playbookComplete =
 	navigationPlaybook.every((tab) => tab.uiState === "ready" || tab.uiState === "not_applicable")
 const lineLabels = { lodging: "Alojamientos", tour: "Tours" } as const
 const currentLine = navigation.line
-const currentName = products.find((product) => product.id === navigation.experienceId)?.name
+/** Licencias y seguro dependen de la experiencia; identidad y fiscal son de cuenta. */
+const experienceScopedTab = navigation.tab === "activity" || navigation.tab === "safety"
+const showExperienceSelector = currentLine === "tour" && experienceScopedTab && products.length > 1
 ---
 
 <div class="space-y-4" data-verification-business-nav>
@@ -84,7 +86,7 @@ const currentName = products.find((product) => product.id === navigation.experie
 		) : null
 	}
 	{
-		currentLine === "tour" && products.length > 1 ? (
+		showExperienceSelector ? (
 			<form
 				method="get"
 				action="/provider/settings/verification"
@@ -114,10 +116,6 @@ const currentName = products.find((product) => product.id === navigation.experie
 					Ver experiencia
 				</Button>
 			</form>
-		) : currentLine === "tour" && currentName ? (
-			<p class="text-sm text-slate-300" data-verification-selected-experience>
-				Experiencia: <span class="font-medium text-white">{currentName}</span>
-			</p>
 		) : null
 	}
 	{

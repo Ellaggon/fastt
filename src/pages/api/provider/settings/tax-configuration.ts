@@ -6,7 +6,6 @@ import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
 import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/invalidation"
 import {
 	getProviderTaxConfiguration,
-	providerInvoicingModes,
 	providerTaxConfigurationStatuses,
 	providerTaxRegimes,
 	upsertProviderTaxConfiguration,
@@ -23,7 +22,6 @@ const upsertSchema = z.object({
 		}),
 	businessRegistrationNumber: z.string().trim().max(120),
 	taxRegime: z.string().trim().max(80),
-	invoicingMode: z.enum(["platform_receipt", "provider_invoice", "hybrid"]),
 })
 
 function json(payload: unknown, status = 200) {
@@ -98,7 +96,6 @@ export const GET: APIRoute = async ({ request }) => {
 		return json({
 			taxConfiguration,
 			statuses: providerTaxConfigurationStatuses,
-			invoicingModes: providerInvoicingModes,
 			taxRegimes: providerTaxRegimes,
 			permissions: {
 				canManageFiscality: permissions.canManageFiscality,
@@ -118,11 +115,17 @@ export const POST: APIRoute = async ({ request }) => {
 
 		const form = await request.formData()
 		returnTo = form.get("returnTo")
+		// This fiscal identity endpoint cannot change a contractual issuer or enable
+		// platform invoicing. Reject even an explicit legacy value before any write.
+		if (form.has("invoicingMode")) {
+			return shouldReturnHtmlRedirect(request)
+				? redirectAfterFiscalError(request, "invoicing_mode_not_editable", returnTo)
+				: json({ error: "invoicing_mode_not_editable" }, 422)
+		}
 		const parsed = upsertSchema.parse({
 			taxResidenceCountry: form.get("taxResidenceCountry") ?? "",
 			businessRegistrationNumber: form.get("businessRegistrationNumber") ?? "",
 			taxRegime: form.get("taxRegime") ?? "",
-			invoicingMode: form.get("invoicingMode") || "platform_receipt",
 		})
 
 		// Status is derived server-side (pending | not_configured). Providers cannot self-verify.
@@ -132,7 +135,6 @@ export const POST: APIRoute = async ({ request }) => {
 			taxResidenceCountry: parsed.taxResidenceCountry,
 			businessRegistrationNumber: parsed.businessRegistrationNumber,
 			taxRegime: parsed.taxRegime,
-			invoicingMode: parsed.invoicingMode,
 		})
 		await invalidateProvider(providerId)
 		await invalidateProviderGovernance(providerId, "provider_tax_configuration_updated")

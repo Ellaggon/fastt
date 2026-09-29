@@ -4,13 +4,9 @@ import Card from "@/components/ui/Card.astro"
 import FormField from "@/components/ui/FormField.astro"
 import Notice from "@/components/ui/Notice.astro"
 import Select from "@/components/ui/Select.astro"
-import type {
-	CommercialLine,
-	CommercialLineCollectionModel,
-} from "@/lib/verification/commercial-lines"
+import type { CommercialLineCollectionModel } from "@/lib/verification/commercial-lines"
 
 type Props = {
-	line: CommercialLine
 	collectionModel: CommercialLineCollectionModel
 	canEdit: boolean
 	returnTo: string
@@ -18,20 +14,33 @@ type Props = {
 	error?: string
 }
 
-const { line, collectionModel, canEdit, returnTo, result, error } = Astro.props as Props
-const label = line === "tour" ? "tours" : "alojamientos"
+const { collectionModel, canEdit, returnTo, result, error } = Astro.props as Props
 ---
 
-<Card class="space-y-4" data-commercial-line-collection-model={line}>
+<Card class="space-y-4" data-commercial-line-collection-model="lodging">
 	<div>
 		<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">
 			Modalidad de cobro
 		</p>
-		<h2 class="mt-1 text-lg font-semibold text-slate-950">Cómo se cobra en {label}</h2>
+		<h2 class="mt-1 text-lg font-semibold text-slate-950">Cómo se cobra en alojamientos</h2>
 		<p class="mt-1 text-sm leading-6 text-slate-600">
-			Esta decisión pertenece sólo a {label}. No cambia la otra línea ni cobra dinero por sí sola.
+			Esta declaración sólo corresponde a alojamientos. Guardarla no procesa un pago.
 		</p>
 	</div>
+	{
+		collectionModel === "platform_collect" ? (
+			<Notice variant="warning" title="Cobro por Fastt no disponible">
+				La modalidad histórica permanece registrada, pero Fastt todavía no procesa este pago.
+			</Notice>
+		) : null
+	}
+	{
+		error === "line_collection_platform_unavailable" ? (
+			<Notice variant="warning" title="Cobro no disponible">
+				Fastt todavía no procesa el pago del huésped. La declaración anterior no cambió.
+			</Notice>
+		) : null
+	}
 	{
 		result === "line_collection_saved" ? (
 			<Notice variant="success" title="Modalidad guardada">
@@ -67,23 +76,25 @@ const label = line === "tour" ? "tours" : "alojamientos"
 				action="/api/provider/settings/commercial-line-collection-model"
 				class="flex flex-wrap items-end gap-3"
 			>
-				<input type="hidden" name="line" value={line} />
+				<input type="hidden" name="line" value="lodging" />
 				<input type="hidden" name="returnTo" value={returnTo} />
 				<FormField
 					label="Modalidad declarada"
-					htmlFor={`collectionModel-${line}`}
+					htmlFor="collectionModel-lodging"
 					class="min-w-64 flex-1"
 				>
-					<Select id={`collectionModel-${line}`} name="collectionModel">
+					<Select id="collectionModel-lodging" name="collectionModel" required>
 						<option value="undecided" selected={collectionModel === "undecided"}>
 							Aún por definir
 						</option>
 						<option value="property_collect" selected={collectionModel === "property_collect"}>
 							El proveedor cobra al viajero
 						</option>
-						<option value="platform_collect" selected={collectionModel === "platform_collect"}>
-							Fastt cobra al viajero
-						</option>
+						{collectionModel === "platform_collect" ? (
+							<option value="platform_collect" selected disabled>
+								Cobro por Fastt (histórico, no disponible)
+							</option>
+						) : null}
 					</Select>
 				</FormField>
 				<Button type="submit">Guardar modalidad</Button>

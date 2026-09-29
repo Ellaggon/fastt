@@ -71,6 +71,15 @@ describe("V1 verification fold reorder (action-first)", () => {
 		expect(read("src/components/provider/ProviderVerificationWorkspace.astro")).toContain(
 			"hideIdentityAccountStatus"
 		)
+		expect(read("src/components/provider/ProviderVerificationWorkspace.astro")).toContain(
+			"data-verification-holder-declaration-review"
+		)
+		expect(read("src/components/provider/ProviderVerificationWorkspace.astro")).toContain(
+			"Registro mercantil en historial"
+		)
+		expect(read("src/components/provider/ProviderKycSlotsCard.astro")).toContain(
+			"holderDeclarationInReview"
+		)
 		expect(read("src/styles/global.css")).toContain("fastt-verification-submit-bar")
 		expect(panelClient).toContain("syncVerificationTrustPanels")
 		expect(panelClient).toContain("handleVerificationTrustClick")

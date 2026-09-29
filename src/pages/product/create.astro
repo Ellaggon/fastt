@@ -19,6 +19,7 @@ import {
 	providerOnboardingBusinessHref,
 	resolveProviderOnboardingVertical,
 } from "@/lib/onboarding/providerOnboarding"
+import { isHolderStorageAvailable, readProviderHolderProfile } from "@/lib/provider-holder-profile"
 import {
 	providerOnboardingLegacyHref,
 	resolveProviderOnboardingRollout,
@@ -30,6 +31,7 @@ const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
 
 const providerId = (await getProviderIdFromRequest(Astro.request, user)) ?? ""
+const holderStorageReady = providerId ? await isHolderStorageAvailable() : false
 if (!providerId) {
 	const rollout = resolveProviderOnboardingRollout({ userId: user.id, host: Astro.url.host })
 	if (!rollout.enabled) return Astro.redirect(providerOnboardingLegacyHref())
@@ -49,6 +51,12 @@ const isHotelLaunch =
 	resolvedPlaybook.playbookId === "launch" && (!requestedType || requestedVertical === "hotel")
 const isTourLaunch =
 	resolvedPlaybook.playbookId === LAUNCH_TOUR_PLAYBOOK_ID && requestedVertical === "tour"
+if (providerId && holderStorageReady && (isTourLaunch || isHotelLaunch)) {
+	const holderProfile = await readProviderHolderProfile(providerId)
+	if (!holderProfile) {
+		return Astro.redirect(providerOnboardingBusinessHref(isTourLaunch ? "tour" : "hotel"))
+	}
+}
 if (
 	resolvedPlaybook.playbookId === "launch" &&
 	requestedVertical !== "generic" &&

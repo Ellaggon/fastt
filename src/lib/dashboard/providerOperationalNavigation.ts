@@ -59,7 +59,10 @@ export function providerOperationalNavigation(
 			},
 			{
 				title: "Configuración",
-				items: [{ label: "Configuración", href: routes.settings(), status: "canonical" }],
+				items: [
+					{ label: "Configuración", href: routes.settings(), status: "canonical" },
+					{ label: "Soporte", href: routes.providerSupport(), status: "canonical" },
+				],
 			},
 			{
 				title: "Añadir",
@@ -93,7 +96,10 @@ export function providerOperationalNavigation(
 			},
 			{
 				title: "Configuración",
-				items: [{ label: "Configuración", href: routes.settings(), status: "canonical" }],
+				items: [
+					{ label: "Configuración", href: routes.settings(), status: "canonical" },
+					{ label: "Soporte", href: routes.providerSupport(), status: "canonical" },
+				],
 			},
 			{
 				title: "Añadir",

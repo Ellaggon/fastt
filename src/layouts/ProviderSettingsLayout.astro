@@ -82,7 +82,7 @@ const progressBreakdownLine = hasProgressBreakdown
 ---
 
 <WorkspaceLayout title={title}>
-	<section class="space-y-6 md:space-y-8 text-slate-200">
+	<section class="space-y-6 text-slate-200 md:space-y-8" data-provider-settings-shell>
 		{
 			hasProgress ? (
 				<div class="mb-5 space-y-2" data-verification-wizard-progress>
@@ -149,10 +149,15 @@ const progressBreakdownLine = hasProgressBreakdown
 			</p>
 		</header>
 
-		<section class={showSettingsTabs ? "space-y-6 md:space-y-8" : "space-y-0"}>
-			{showSettingsTabs ? <ProviderSettingsSubnav /> : null}
-			<slot />
-		</section>
+		{showSettingsTabs ? <ProviderSettingsSubnav /> : null}
+		<div class="provider-settings-panel-stage">
+			<div
+				class="flex flex-col gap-8 md:gap-10 data-[settings-panel-loading]:pointer-events-none"
+				data-provider-settings-panel
+			>
+				<slot />
+			</div>
+		</div>
 	</section>
 
 	<script>
@@ -161,6 +166,48 @@ const progressBreakdownLine = hasProgressBreakdown
 </WorkspaceLayout>
 
 <style is:global>
+	.provider-settings-panel-stage {
+		position: relative;
+		isolation: isolate;
+	}
+
+	[data-provider-settings-shell] > header {
+		transition: opacity 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+	}
+
+	[data-provider-settings-shell] > header[data-settings-header-leaving],
+	[data-provider-settings-shell] > header[data-settings-header-entering] {
+		opacity: 0;
+	}
+
+	[data-provider-settings-panel] {
+		transition:
+			opacity 0.42s cubic-bezier(0.4, 0, 0.2, 1),
+			transform 0.42s cubic-bezier(0.4, 0, 0.2, 1);
+	}
+
+	[data-provider-settings-panel][data-settings-panel-leaving],
+	[data-provider-settings-panel][data-settings-panel-entering] {
+		opacity: 0;
+		transform: translateY(0.45rem);
+		pointer-events: none;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		[data-provider-settings-shell] > header,
+		[data-provider-settings-panel] {
+			transition: none;
+		}
+
+		[data-provider-settings-shell] > header[data-settings-header-leaving],
+		[data-provider-settings-shell] > header[data-settings-header-entering],
+		[data-provider-settings-panel][data-settings-panel-leaving],
+		[data-provider-settings-panel][data-settings-panel-entering] {
+			opacity: 1;
+			transform: none;
+		}
+	}
+
 	.verification-wizard-progress-label__stack {
 		position: relative;
 		min-height: 1.25rem;

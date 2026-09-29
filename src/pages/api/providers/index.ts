@@ -2,7 +2,10 @@ import type { APIRoute } from "astro"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { providerV2Repository } from "@/container"
 import { routes } from "@/lib/routes"
-import { resolveProviderOnboardingNext } from "@/lib/onboarding/providerOnboarding"
+import {
+	onboardingSubmitRequiresHolderDeclaration,
+	resolveProviderOnboardingNext,
+} from "@/lib/onboarding/providerOnboarding"
 import {
 	createProviderFormFlash,
 	PROVIDER_FORM_FLASH_COOKIE,
@@ -11,8 +14,8 @@ import {
 import { registerProviderV2 } from "@/modules/catalog/public"
 import { ValidationError } from "@/lib/validation/ValidationError"
 import {
-	assertHolderStorageAvailable,
-	parseHolderDeclaration,
+	HolderDeclarationRequiredError,
+	resolveHolderDeclarationForSubmit,
 	saveProviderHolderProfile,
 } from "@/lib/provider-holder-profile"
 import {
@@ -94,8 +97,10 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 			},
 			errors: {},
 		}
-		const holderDeclaration = parseHolderDeclaration(form)
-		if (holderDeclaration) await assertHolderStorageAvailable()
+		const requiresHolderDeclaration = onboardingSubmitRequiresHolderDeclaration(onboardingNext)
+		const holderDeclaration = await resolveHolderDeclarationForSubmit(form, {
+			required: requiresHolderDeclaration,
+		})
 
 		const result = await registerProviderV2(
 			{ repo: providerV2Repository },
@@ -132,6 +137,19 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 			headers: { "Content-Type": "application/json" },
 		})
 	} catch (e) {
+		if (e instanceof HolderDeclarationRequiredError) {
+			if (shouldReturnHtmlRedirect(request)) {
+				writeIdentityFlash(cookies, identityFlash, {
+					holderType: "Selecciona quién operará el negocio.",
+					holderCountry: "Indica el país del titular con dos letras, por ejemplo BO.",
+				})
+				return redirectAfterProviderSave(request, { error: "validation_error" }, onboardingNext)
+			}
+			return new Response(JSON.stringify({ error: "validation_error", field: "holderType" }), {
+				status: 400,
+				headers: { "Content-Type": "application/json" },
+			})
+		}
 		if (e instanceof Error && e.message === "holder_declaration_invalid") {
 			if (shouldReturnHtmlRedirect(request)) {
 				writeIdentityFlash(cookies, identityFlash, {

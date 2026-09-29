@@ -1,0 +1,189 @@
+---
+import FormField from "@/components/ui/FormField.astro"
+import Input from "@/components/ui/Input.astro"
+import Select from "@/components/ui/Select.astro"
+import { providerFormErrorMessage } from "@/lib/provider-form-flash"
+
+const {
+	provider,
+	holderProfile,
+	holderStorageReady = true,
+	onboarding = false,
+	serviceLabel = "servicio",
+	draft = null,
+	fieldErrors = {},
+	settingsHubCard = false,
+	onboardingIntro = "",
+} = Astro.props
+
+const value = (field: string, fallback = "") => String(draft?.values?.[field] ?? fallback)
+const fieldError = (field: string) =>
+	fieldErrors?.[field] ? providerFormErrorMessage(field, String(fieldErrors[field])) : ""
+---
+
+<div class={settingsHubCard ? "space-y-5" : "space-y-4"}>
+	{
+		settingsHubCard ? null : (
+			<div class="space-y-1">
+				<h3 class="text-xl font-semibold text-slate-900">
+					{onboarding ? `Quién ofrece el ${serviceLabel}` : "Datos base"}
+				</h3>
+				<p class="text-sm text-slate-600">
+					{onboarding
+						? onboardingIntro
+						: "Estos campos son el punto de partida para verificación, impuestos, pagos e integraciones."}
+				</p>
+			</div>
+		)
+	}
+	<FormField
+		label="Nombre comercial"
+		htmlFor="displayName"
+		required
+		description={onboarding ? "Es el nombre que verán los viajeros." : undefined}
+		error={fieldError("displayName")}
+	>
+		<Input
+			id="displayName"
+			name="displayName"
+			required
+			value={value("displayName", provider?.displayName ?? "")}
+			hasError={Boolean(fieldError("displayName"))}
+			aria-invalid={fieldError("displayName") ? "true" : undefined}
+		/>
+	</FormField>
+	{
+		holderStorageReady ? (
+			<FormField
+				label="Titular que operará el negocio"
+				htmlFor="holderType"
+				required
+				description={
+					onboarding
+						? "Indica si ofreces el servicio como persona o empresa para identificar los requisitos aplicables."
+						: undefined
+				}
+				error={fieldError("holderType")}
+			>
+				<Select
+					id="holderType"
+					name="holderType"
+					required
+					hasError={Boolean(fieldError("holderType"))}
+				>
+					<option value="" selected={!value("holderType", holderProfile?.holderType ?? "")}>
+						Selecciona una opción
+					</option>
+					<option
+						value="persona_natural"
+						selected={value("holderType", holderProfile?.holderType ?? "") === "persona_natural"}
+					>
+						Persona natural
+					</option>
+					<option
+						value="entidad"
+						selected={value("holderType", holderProfile?.holderType ?? "") === "entidad"}
+					>
+						Empresa o entidad
+					</option>
+				</Select>
+			</FormField>
+		) : null
+	}
+	<FormField
+		label="Nombre legal del titular o razón social"
+		htmlFor="legalName"
+		required
+		description={onboarding
+			? "Debe coincidir con el nombre que aparece en los documentos del titular."
+			: undefined}
+		error={fieldError("legalName")}
+	>
+		<Input
+			id="legalName"
+			name="legalName"
+			required
+			value={value("legalName", provider?.legalName ?? "")}
+			class="scroll-mt-24"
+			hasError={Boolean(fieldError("legalName"))}
+			aria-invalid={fieldError("legalName") ? "true" : undefined}
+		/>
+	</FormField>
+	{
+		holderStorageReady ? (
+			<FormField
+				label="País de residencia o constitución del titular (ISO 2 letras)"
+				htmlFor="holderCountry"
+				required
+				description={
+					onboarding
+						? "Usamos el país para mostrarte los requisitos que podrían aplicar al negocio."
+						: undefined
+				}
+				error={fieldError("holderCountry")}
+			>
+				<Input
+					id="holderCountry"
+					name="holderCountry"
+					required
+					pattern="[A-Za-z]{2}"
+					maxlength="2"
+					placeholder="BO"
+					value={value("holderCountry", holderProfile?.holderCountry ?? "")}
+					hasError={Boolean(fieldError("holderCountry"))}
+				/>
+			</FormField>
+		) : null
+	}
+	{
+		holderStorageReady ? (
+			<>
+				<FormField
+					label="País de residencia fiscal (ISO 2 letras)"
+					htmlFor="taxResidenceCountry"
+					description={
+						onboarding
+							? "Opcional por ahora; podrás completarlo cuando prepares la configuración fiscal."
+							: undefined
+					}
+					error={fieldError("taxResidenceCountry")}
+				>
+					<Input
+						id="taxResidenceCountry"
+						name="taxResidenceCountry"
+						pattern="[A-Za-z]{2}"
+						maxlength="2"
+						placeholder="BO"
+						value={value("taxResidenceCountry", holderProfile?.taxResidenceCountry ?? "")}
+						hasError={Boolean(fieldError("taxResidenceCountry"))}
+					/>
+				</FormField>
+				<FormField
+					label="País de la cuenta de pago (ISO 2 letras)"
+					htmlFor="payoutCountry"
+					description={
+						onboarding ? "Opcional por ahora; no configura todavía una cuenta de cobro." : undefined
+					}
+					error={fieldError("payoutCountry")}
+				>
+					<Input
+						id="payoutCountry"
+						name="payoutCountry"
+						pattern="[A-Za-z]{2}"
+						maxlength="2"
+						placeholder="BO"
+						value={value("payoutCountry", holderProfile?.payoutCountry ?? "")}
+						hasError={Boolean(fieldError("payoutCountry"))}
+					/>
+				</FormField>
+			</>
+		) : null
+	}
+	{
+		settingsHubCard ? (
+			<p class="text-xs leading-5 text-slate-500">
+				Punto de partida para verificación, impuestos, pagos e integraciones.
+			</p>
+		) : null
+	}
+</div>

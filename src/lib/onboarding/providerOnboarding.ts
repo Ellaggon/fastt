@@ -40,6 +40,13 @@ export function providerOnboardingProductCreateHref(vertical: ProviderOnboarding
  * intentionally narrower than a generic returnTo because the form creates a
  * business association and must not become an open redirect.
  */
+/** Onboarding identity saves must declare persona natural vs entidad before any product draft. */
+export function onboardingSubmitRequiresHolderDeclaration(value: unknown): boolean {
+	const next = resolveProviderOnboardingNext(value, "")
+	if (!next) return false
+	return next.startsWith("/provider/onboarding/business?") || next.startsWith("/product/create?")
+}
+
 export function resolveProviderOnboardingNext(value: unknown, fallback: string): string {
 	const raw = String(value ?? "").trim()
 	if (!raw.startsWith("/") || raw.startsWith("//") || raw.includes("://")) return fallback

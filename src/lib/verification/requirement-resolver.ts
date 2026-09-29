@@ -213,6 +213,7 @@ export function resolveVerificationRequirements(
 				"El titular es una entidad. Una persona natural no presenta registro mercantil."
 			)
 		)
+		// shared.representative_power stays withheld until annex.tour.bo.v1 is signed.
 	}
 
 	const taxable =
@@ -271,6 +272,7 @@ export function resolveVerificationRequirements(
 	return {
 		requirements: requirements.filter((item) => {
 			const line = item.layer === "lodging" || item.layer === "tour" ? item.layer : null
+			if (item.layer === "shared") return mayEnforceRequirement(line, item.id)
 			return line ? mayEnforceRequirement(line, item.id) : true
 		}),
 	}
@@ -400,6 +402,33 @@ export function accountGateDocumentTypes(
 			.map((item) => item.documentType)
 	)
 	return requiredKycDocumentTypes.filter((type) => wanted.has(type))
+}
+
+export type HolderTypeForRegistration = "persona_natural" | "entidad" | null
+
+export function holderRequiresBusinessRegistration(holderType: HolderTypeForRegistration): boolean {
+	return holderType === "entidad"
+}
+
+/**
+ * KYC slots for the verification workspace. Persona natural never includes
+ * business_registration, even when legacy rows remain in storage.
+ */
+export function accountKycDocumentTypes(params: {
+	enforced: boolean
+	resolution: VerificationResolution | null
+	holderType: HolderTypeForRegistration
+}): readonly RequiredKycDocumentType[] | undefined {
+	if (params.enforced && params.resolution) {
+		return accountGateDocumentTypes(params.resolution)
+	}
+	if (params.holderType === "persona_natural") {
+		return requiredKycDocumentTypes.filter((type) => type !== "business_registration")
+	}
+	if (params.holderType === "entidad") {
+		return requiredKycDocumentTypes
+	}
+	return undefined
 }
 
 export function packUploadOptions(resolution: VerificationResolution): Array<{

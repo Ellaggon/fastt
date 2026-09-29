@@ -5,7 +5,7 @@ import ProviderKycSlotsCard from "@/components/provider/ProviderKycSlotsCard.ast
 import ProviderPaymentAccountsCard from "@/components/provider/ProviderPaymentAccountsCard.astro"
 import ProviderTaxProfileCard from "@/components/provider/ProviderTaxProfileCard.astro"
 import ProviderTourOperatingContext from "@/components/provider/ProviderTourOperatingContext.astro"
-import ProviderCommercialLineCollectionModel from "@/components/provider/ProviderCommercialLineCollectionModel.astro"
+import ProviderLodgingCollectionModel from "@/components/provider/ProviderLodgingCollectionModel.astro"
 import ProviderTrustMapRail from "@/components/provider/ProviderTrustMapRail.astro"
 import ProviderVerificationLineSections from "@/components/provider/ProviderVerificationLineSections.astro"
 import ProviderVerificationBusinessNav from "@/components/provider/ProviderVerificationBusinessNav.astro"
@@ -61,6 +61,9 @@ const {
 	commercialLine,
 	tourEvidenceOptions,
 	screen,
+	holderType,
+	holderDeclarationInReview,
+	historicalBusinessRegistrationDocuments,
 	result,
 	uploadErrorCode,
 	error,
@@ -72,8 +75,15 @@ const identitySlots = screen ? kycSlots.filter((slot) => slot.type === "governme
 const businessSlots = screen
 	? kycSlots.filter((slot) => slot.type === "business_registration")
 	: kycSlots
+const missingMercantileForEntity =
+	holderType === "entidad" &&
+	businessSlots.some((slot) => slot.state === "missing" || slot.state === "rejected")
 const payoutBlocks = screen ? screen.paymentsCountsForSelling : true
 const selectedLine = navigation?.line ?? null
+const historicalSupportHref = new URL(routes.providerSupport(), Astro.url)
+historicalSupportHref.searchParams.set("topic", "historical_tour_collection")
+historicalSupportHref.searchParams.set("line", "tour")
+historicalSupportHref.searchParams.set("from", `${Astro.url.pathname}${Astro.url.search}`)
 function tourEvidenceDocuments(area: "activity" | "safety") {
 	const types = new Set(tourEvidenceOptions[area].map((option) => option.value.split("::")[0]))
 	return documents.filter((document) => {
@@ -269,9 +279,8 @@ const paymentErrorMessages: Record<
 					playbook={tourPlaybook}
 					trustLinks={trustLinks}
 				/>
-				{commercialLine && selectedLine ? (
-					<ProviderCommercialLineCollectionModel
-						line={commercialLine.line}
+				{commercialLine && selectedLine === "lodging" && activeSectionId === "payments" ? (
+					<ProviderLodgingCollectionModel
 						collectionModel={commercialLine.collectionModel}
 						canEdit={canEditTourContext}
 						returnTo={`${Astro.url.pathname}${Astro.url.search}`}
@@ -305,6 +314,21 @@ const paymentErrorMessages: Record<
 			id={hideIdentityAccountStatus ? "verification-status-panel" : undefined}
 		>
 			<h2 id="verification-panel-identity-title" class="sr-only">{panelLabel("identity")}</h2>
+			{
+				holderDeclarationInReview && activeSectionId === "identity" ? (
+					<Notice
+						variant="info"
+						title="Fastt está revisando el cambio de titular"
+						data-verification-holder-declaration-review
+					>
+						<p class="text-sm leading-6">
+							{missingMercantileForEntity
+								? "Confirmamos el nuevo titular antes de publicar. Tu documento de identidad verificado sigue vigente mientras tanto; si falta el registro de la entidad, puedes subirlo abajo."
+								: "Actualizaste quién opera el negocio. No hace falta enviar documentos nuevos mientras terminamos esa revisión; te avisamos aquí al confirmarlo."}
+						</p>
+					</Notice>
+				) : null
+			}
 			{
 				accountRejected && hideIdentityAccountStatus ? (
 					<Notice
@@ -352,6 +376,8 @@ const paymentErrorMessages: Record<
 						}
 						elevated
 						payoutBlocks={payoutBlocks}
+						holderDeclarationInReview={holderDeclarationInReview}
+						holderType={holderType}
 					/>
 				) : null
 			}
@@ -364,7 +390,29 @@ const paymentErrorMessages: Record<
 						focusType="business_registration"
 						elevated
 						payoutBlocks={payoutBlocks}
+						holderDeclarationInReview={holderDeclarationInReview}
+						holderType={holderType}
 					/>
+				) : null
+			}
+			{
+				historicalBusinessRegistrationDocuments.length && activeSectionId === "identity" ? (
+					<Notice variant="info" title="Registro mercantil en historial">
+						<p class="text-sm leading-6">
+							Como persona natural ya no pedimos registro mercantil. Los archivos anteriores se
+							conservan solo como referencia y no afectan el estado de Identidad.
+						</p>
+						<ul class="mt-3 space-y-2 text-sm text-slate-700">
+							{historicalBusinessRegistrationDocuments.map((document) => (
+								<li class="flex flex-wrap items-center gap-2">
+									<span class="font-medium text-slate-900">
+										{document.fileName || "Registro mercantil"}
+									</span>
+									<Badge variant={document.tone}>{document.statusLabel}</Badge>
+								</li>
+							))}
+						</ul>
+					</Notice>
 				) : null
 			}
 		</section>
@@ -399,6 +447,8 @@ const paymentErrorMessages: Record<
 								focusType={requestedType}
 								elevated
 								payoutBlocks={payoutBlocks}
+								holderDeclarationInReview={holderDeclarationInReview}
+								holderType={holderType}
 							>
 								<ProviderVerificationNextStep
 									slot="intro"
@@ -457,6 +507,19 @@ const paymentErrorMessages: Record<
 						result={result}
 						error={error}
 					/>
+					{commercialLine?.collectionModel === "platform_collect" ? (
+						<Notice variant="warning" title="Revisar cobro histórico de tours">
+							Esta línea conserva una declaración de cobro por Fastt. Fastt no procesa pagos de
+							tours y esa declaración no activa cobros.{" "}
+							<a
+								class="font-semibold underline underline-offset-2"
+								href={`${historicalSupportHref.pathname}${historicalSupportHref.search}`}
+							>
+								Solicitar revisión al equipo Fastt
+							</a>
+							.
+						</Notice>
+					) : null}
 					<ProviderVerificationLineSections
 						screen={screen}
 						line="tour"
@@ -586,8 +649,6 @@ const paymentErrorMessages: Record<
 				) : null
 			}
 			<ProviderTaxProfileCard
-				line={selectedLine}
-				fasttCollects={selectedLine === "tour" ? (navigation?.fasttCollects ?? false) : true}
 				taxConfiguration={taxConfiguration}
 				canManageFiscality={canManageFiscality}
 				reviewAssignment={fiscalAssignment}
