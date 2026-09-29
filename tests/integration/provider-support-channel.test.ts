@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest"
 
-import { listProviderSupport } from "@/lib/provider-support"
+import { listInternalProviderSupport, listProviderSupport } from "@/lib/provider-support"
 import { POST as adminReply } from "@/pages/api/admin/support/[requestId]"
 import { POST as providerSubmit } from "@/pages/api/provider/support/index"
 import {
@@ -17,6 +17,7 @@ const original = {
 	supabaseKey: process.env.SUPABASE_ANON_KEY,
 	adminEmails: process.env.INTERNAL_ADMIN_EMAILS,
 	allowlist: process.env.FASTT_INTERNAL_AUTH_ALLOWLIST_FALLBACK,
+	supportAlertTo: process.env.PROVIDER_SUPPORT_ALERT_TO,
 	fetch: globalThis.fetch,
 }
 
@@ -27,6 +28,7 @@ afterEach(() => {
 		["SUPABASE_ANON_KEY", original.supabaseKey],
 		["INTERNAL_ADMIN_EMAILS", original.adminEmails],
 		["FASTT_INTERNAL_AUTH_ALLOWLIST_FALLBACK", original.allowlist],
+		["PROVIDER_SUPPORT_ALERT_TO", original.supportAlertTo],
 	] as const) {
 		if (value === undefined) delete process.env[key]
 		else process.env[key] = value
@@ -63,6 +65,7 @@ describe("provider support channel", () => {
 		process.env.SUPABASE_ANON_KEY = "sb_publishable_test"
 		process.env.INTERNAL_ADMIN_EMAILS = adminEmail
 		process.env.FASTT_INTERNAL_AUTH_ALLOWLIST_FALLBACK = "true"
+		delete process.env.PROVIDER_SUPPORT_ALERT_TO
 		const users: Record<string, string> = {
 			"provider-a": emailA,
 			"provider-b": emailB,
@@ -196,5 +199,16 @@ describe("provider support channel", () => {
 		expect(stored).toHaveLength(1)
 		expect(messages).toHaveLength(5)
 		expect(await listProviderSupport(providerB)).toEqual([])
+
+		const firstPage = await listInternalProviderSupport({ filter: "all", page: 1, pageSize: 1 })
+		expect(firstPage.threads).toHaveLength(1)
+		expect(firstPage.startIndex).toBe(1)
+		expect(firstPage.total).toBeGreaterThanOrEqual(1)
+		if (firstPage.totalPages > 1) {
+			const secondPage = await listInternalProviderSupport({ filter: "all", page: 2, pageSize: 1 })
+			expect(secondPage.threads).toHaveLength(1)
+			expect(secondPage.startIndex).toBe(2)
+			expect(secondPage.threads[0]?.id).not.toBe(firstPage.threads[0]?.id)
+		}
 	}, 90_000)
 })

@@ -5,6 +5,8 @@ import {
 	findInternalSupportRequest,
 	parseSupportBody,
 	parseSupportKey,
+	parseSupportInboxFilter,
+	parseSupportInboxPage,
 	ProviderSupportError,
 	replyToProviderSupport,
 } from "@/lib/provider-support"
@@ -13,10 +15,14 @@ function respond(
 	request: Request,
 	payload: Record<string, unknown>,
 	status: number,
-	requestId: string
+	requestId: string,
+	returnStatus: string = "open",
+	returnPage = 1
 ) {
 	if ((request.headers.get("accept") ?? "").includes("text/html")) {
 		const target = new URL("/admin/support", request.url)
+		target.searchParams.set("status", returnStatus)
+		target.searchParams.set("page", String(returnPage))
 		target.searchParams.set("request", requestId)
 		target.searchParams.set(
 			status < 400 ? "result" : "error",
@@ -52,13 +58,17 @@ export const POST: APIRoute = async ({ request, params }) => {
 		throw error
 	})
 	if (principal instanceof Response) return principal
+	let returnStatus = "open"
+	let returnPage = 1
 	try {
 		const form = await request.formData()
+		returnStatus = parseSupportInboxFilter(form.get("returnStatus"))
+		returnPage = parseSupportInboxPage(String(form.get("returnPage") ?? "1"))
 		const body = parseSupportBody(form.get("body"))
 		const requestKey = parseSupportKey(form.get("requestKey"))
 		const status = String(form.get("status") ?? "")
 		if (status !== "waiting_provider" && status !== "resolved")
-			return respond(request, { error: "invalid_status" }, 422, requestId)
+			return respond(request, { error: "invalid_status" }, 422, requestId, returnStatus, returnPage)
 		await replyToProviderSupport({
 			requestId,
 			actorUserId: principal.user.id,
@@ -67,11 +77,25 @@ export const POST: APIRoute = async ({ request, params }) => {
 			requestKey,
 			status,
 		})
-		return respond(request, { ok: true, requestId }, 200, requestId)
+		return respond(request, { ok: true, requestId }, 200, requestId, status, 1)
 	} catch (error) {
 		if (error instanceof ProviderSupportError)
-			return respond(request, { error: error.code }, error.status, requestId)
+			return respond(
+				request,
+				{ error: error.code },
+				error.status,
+				requestId,
+				returnStatus,
+				returnPage
+			)
 		console.error("provider.support.internal_reply_failed", error)
-		return respond(request, { error: "support_unavailable" }, 503, requestId)
+		return respond(
+			request,
+			{ error: "support_unavailable" },
+			503,
+			requestId,
+			returnStatus,
+			returnPage
+		)
 	}
 }

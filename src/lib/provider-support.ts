@@ -7,7 +7,6 @@ import {
 	eq,
 	gte,
 	inArray,
-	ne,
 	Provider,
 	ProviderSupportMessage,
 	ProviderSupportRequest,
@@ -29,6 +28,14 @@ export const supportStatuses = {
 export type SupportTopic = keyof typeof supportTopics
 export type SupportLine = keyof typeof supportLines
 export type SupportStatus = keyof typeof supportStatuses
+export const supportInboxFilters = {
+	open: "Recibidas",
+	waiting_provider: "Esperando al proveedor",
+	resolved: "Resueltas",
+	all: "Todas",
+} as const
+export type SupportInboxFilter = keyof typeof supportInboxFilters
+export const supportInboxPageSize = 20
 type RequestRow = typeof ProviderSupportRequest.$inferSelect
 type MessageRow = typeof ProviderSupportMessage.$inferSelect
 export type SupportThread = RequestRow & { messages: MessageRow[]; providerName?: string }
@@ -100,21 +107,71 @@ export async function listProviderSupport(providerId: string): Promise<SupportTh
 	return attachMessages(requests)
 }
 
-export async function listInternalProviderSupport(): Promise<SupportThread[]> {
-	const active = await db
-		.select()
+export function parseSupportInboxFilter(value: unknown): SupportInboxFilter {
+	if (typeof value === "string" && Object.hasOwn(supportInboxFilters, value))
+		return value as SupportInboxFilter
+	return "open"
+}
+
+export function parseSupportInboxPage(value: unknown): number {
+	if (typeof value !== "string" || !/^\d{1,6}$/.test(value)) return 1
+	return Math.max(1, Number(value) || 1)
+}
+
+export async function listInternalProviderSupport(
+	options: {
+		filter?: SupportInboxFilter
+		page?: number
+		pageSize?: number
+	} = {}
+) {
+	const filter = options.filter ?? "open"
+	const pageSize = Math.min(50, Math.max(1, Math.trunc(options.pageSize ?? supportInboxPageSize)))
+	const requestedPage = Math.max(1, Math.trunc(options.page ?? 1))
+	const countsQuery = db
+		.select({ status: ProviderSupportRequest.status, total: count() })
 		.from(ProviderSupportRequest)
-		.where(ne(ProviderSupportRequest.status, "resolved"))
-		.orderBy(desc(ProviderSupportRequest.updatedAt), desc(ProviderSupportRequest.id))
-	const recentResolved = await db
-		.select()
-		.from(ProviderSupportRequest)
-		.where(eq(ProviderSupportRequest.status, "resolved"))
-		.orderBy(desc(ProviderSupportRequest.updatedAt), desc(ProviderSupportRequest.id))
-		.limit(40)
-	const requests = [...active, ...recentResolved]
+		.groupBy(ProviderSupportRequest.status)
+	const statusCounts = await countsQuery
+	const countsByStatus = new Map(statusCounts.map((row) => [row.status, Number(row.total)]))
+	const counts = {
+		open: countsByStatus.get("open") ?? 0,
+		waiting_provider: countsByStatus.get("waiting_provider") ?? 0,
+		resolved: countsByStatus.get("resolved") ?? 0,
+	}
+	const total =
+		filter === "all" ? counts.open + counts.waiting_provider + counts.resolved : counts[filter]
+	const totalPages = Math.max(1, Math.ceil(total / pageSize))
+	const page = Math.min(requestedPage, totalPages)
+	const offset = (page - 1) * pageSize
+	const condition = filter === "all" ? undefined : eq(ProviderSupportRequest.status, filter)
+	const requests = condition
+		? await db
+				.select()
+				.from(ProviderSupportRequest)
+				.where(condition)
+				.orderBy(desc(ProviderSupportRequest.updatedAt), desc(ProviderSupportRequest.id))
+				.limit(pageSize)
+				.offset(offset)
+		: await db
+				.select()
+				.from(ProviderSupportRequest)
+				.orderBy(desc(ProviderSupportRequest.updatedAt), desc(ProviderSupportRequest.id))
+				.limit(pageSize)
+				.offset(offset)
 	const threads = await attachMessages(requests)
-	if (!threads.length) return threads
+	if (!threads.length)
+		return {
+			threads,
+			filter,
+			counts,
+			total,
+			page,
+			pageSize,
+			totalPages,
+			startIndex: 0,
+			endIndex: 0,
+		}
 	const providers = await db
 		.select({ id: Provider.id, displayName: Provider.displayName, legalName: Provider.legalName })
 		.from(Provider)
@@ -130,16 +187,21 @@ export async function listInternalProviderSupport(): Promise<SupportThread[]> {
 			provider.displayName || provider.legalName || provider.id,
 		])
 	)
-	return threads
-		.sort((a, b) => {
-			const weight = (status: string) =>
-				status === "open" ? 0 : status === "waiting_provider" ? 1 : 2
-			return weight(a.status) - weight(b.status)
-		})
-		.map((thread) => ({
-			...thread,
-			providerName: names.get(thread.providerId) ?? thread.providerId,
-		}))
+	const namedThreads = threads.map((thread) => ({
+		...thread,
+		providerName: names.get(thread.providerId) ?? thread.providerId,
+	}))
+	return {
+		threads: namedThreads,
+		filter,
+		counts,
+		total,
+		page,
+		pageSize,
+		totalPages,
+		startIndex: offset + 1,
+		endIndex: offset + namedThreads.length,
+	}
 }
 
 export async function findProviderSupportRequest(requestId: string, providerId: string) {
@@ -189,7 +251,7 @@ export async function createProviderSupport(input: {
 		.limit(1)
 	if (existing[0]) {
 		await assertMatchingSubmission(existing[0], input)
-		return existing[0].id
+		return { id: existing[0].id, created: false }
 	}
 
 	const since = new Date(Date.now() - 24 * 60 * 60 * 1000)
@@ -230,7 +292,7 @@ export async function createProviderSupport(input: {
 		})
 		return rows[0].id
 	})
-	if (inserted) return inserted
+	if (inserted) return { id: inserted, created: true }
 	const winner = await db
 		.select({
 			id: ProviderSupportRequest.id,
@@ -247,7 +309,7 @@ export async function createProviderSupport(input: {
 		.limit(1)
 	if (winner[0]) {
 		await assertMatchingSubmission(winner[0], input)
-		return winner[0].id
+		return { id: winner[0].id, created: false }
 	}
 	throw new ProviderSupportError("request_not_saved", 503)
 }

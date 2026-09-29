@@ -6,8 +6,12 @@ import {
 	principalHasPermission,
 	requireInternalPermission,
 } from "@/lib/auth/internal-authorization"
+import { providerSupportAlertReadiness } from "@/lib/email/providerSupportAlertEmail"
 import {
 	listInternalProviderSupport,
+	parseSupportInboxFilter,
+	parseSupportInboxPage,
+	supportInboxFilters,
 	supportLines,
 	supportStatuses,
 	supportTopics,
@@ -23,7 +27,11 @@ if (principal instanceof Response) {
 	if (principal.status === 401) return Astro.redirect("/SignInPage")
 	return principal
 }
-const threads = await listInternalProviderSupport()
+const filter = parseSupportInboxFilter(Astro.url.searchParams.get("status"))
+const page = parseSupportInboxPage(Astro.url.searchParams.get("page"))
+const inbox = await listInternalProviderSupport({ filter, page })
+const threads = inbox.threads
+const alertReadiness = providerSupportAlertReadiness()
 const focusedRequest = String(Astro.url.searchParams.get("request") ?? "")
 const result = String(Astro.url.searchParams.get("result") ?? "")
 const error = String(Astro.url.searchParams.get("error") ?? "")
@@ -31,6 +39,9 @@ const formatDate = (value: Date) =>
 	new Intl.DateTimeFormat("es-BO", { dateStyle: "medium", timeStyle: "short" }).format(value)
 const textareaClass =
 	"mt-2 min-h-24 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-950 focus:border-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300"
+const filterHref = (nextFilter: keyof typeof supportInboxFilters) =>
+	`/admin/support?status=${nextFilter}`
+const pageHref = (nextPage: number) => `/admin/support?status=${filter}&page=${nextPage}`
 const canReplyById = new Map(
 	threads.map((thread) => [
 		thread.id,
@@ -50,7 +61,49 @@ const canReplyById = new Map(
 				Lee el contexto y responde en el mismo hilo. Las respuestas son visibles para el proveedor;
 				aquí no se aprueban cobros ni documentos.
 			</p>
+			<p class="mt-3 text-sm font-medium text-amber-100" aria-live="polite">
+				{inbox.counts.open + inbox.counts.waiting_provider} solicitudes requieren seguimiento:
+				{inbox.counts.open} nuevas y {inbox.counts.waiting_provider} esperando al proveedor.
+			</p>
 		</header>
+		{
+			alertReadiness.configured ? (
+				<Notice variant="success" title="Avisos por correo activos">
+					El equipo recibirá un aviso por cada solicitud nueva y cada respuesta del proveedor.
+				</Notice>
+			) : (
+				<Notice variant="warning" title="Avisos por correo sin configurar">
+					La bandeja sigue siendo el registro principal. Revisa las solicitudes nuevas al iniciar el
+					turno; para recibir avisos, configura el correo interno y el proveedor transaccional.
+				</Notice>
+			)
+		}
+		<nav class="flex flex-wrap gap-2" aria-label="Filtrar solicitudes de soporte">
+			{
+				Object.entries(supportInboxFilters).map(([key, label]) => {
+					const status = key as keyof typeof supportInboxFilters
+					const count =
+						status === "all"
+							? inbox.counts.open + inbox.counts.waiting_provider + inbox.counts.resolved
+							: inbox.counts[status]
+					return (
+						<a
+							href={filterHref(status)}
+							aria-current={filter === status ? "page" : undefined}
+							class:list={[
+								"inline-flex min-h-10 items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-amber-300",
+								filter === status
+									? "border-amber-300 bg-amber-300 text-slate-950"
+									: "border-slate-700 bg-slate-900 text-slate-200 hover:border-slate-500",
+							]}
+						>
+							{label}
+							<span class="text-xs tabular-nums">{count}</span>
+						</a>
+					)
+				})
+			}
+		</nav>
 		{
 			result === "replied" && (
 				<Notice variant="success" title="Respuesta guardada">
@@ -68,7 +121,7 @@ const canReplyById = new Map(
 		{
 			threads.length === 0 ? (
 				<div class="fastt-empty-state rounded-xl border border-slate-700 bg-slate-900 p-6 text-sm text-slate-300">
-					No hay solicitudes de proveedores todavía.
+					No hay solicitudes en esta vista.
 				</div>
 			) : (
 				<div class="space-y-4">
@@ -106,6 +159,8 @@ const canReplyById = new Map(
 									data-success="replied"
 								>
 									<input type="hidden" name="requestKey" value={crypto.randomUUID()} />
+									<input type="hidden" name="returnStatus" value={filter} />
+									<input type="hidden" name="returnPage" value={inbox.page} />
 									<label class="block text-sm font-medium">
 										Respuesta visible al proveedor
 										<textarea
@@ -139,6 +194,53 @@ const canReplyById = new Map(
 						</details>
 					))}
 				</div>
+			)
+		}
+		{
+			inbox.total > 0 && (
+				<nav
+					class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 pt-4"
+					aria-label="Paginación de solicitudes"
+				>
+					<p class="text-sm text-slate-300">
+						Mostrando {inbox.startIndex}–{inbox.endIndex} de {inbox.total}
+					</p>
+					<div class="flex items-center gap-2">
+						{inbox.page > 1 ? (
+							<a
+								class="fastt-button min-h-10 rounded-lg border border-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-900 focus:ring-2 focus:ring-amber-300 focus:outline-none"
+								href={pageHref(inbox.page - 1)}
+							>
+								Anterior
+							</a>
+						) : (
+							<span
+								class="min-h-10 rounded-lg border border-slate-800 px-4 py-2 text-sm text-slate-500"
+								aria-disabled="true"
+							>
+								Anterior
+							</span>
+						)}
+						<span class="px-2 text-sm text-slate-300">
+							Página {inbox.page} de {inbox.totalPages}
+						</span>
+						{inbox.page < inbox.totalPages ? (
+							<a
+								class="fastt-button min-h-10 rounded-lg border border-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-900 focus:ring-2 focus:ring-amber-300 focus:outline-none"
+								href={pageHref(inbox.page + 1)}
+							>
+								Siguiente
+							</a>
+						) : (
+							<span
+								class="min-h-10 rounded-lg border border-slate-800 px-4 py-2 text-sm text-slate-500"
+								aria-disabled="true"
+							>
+								Siguiente
+							</span>
+						)}
+					</div>
+				</nav>
 			)
 		}
 	</div>

@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro"
 
 import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
+import { notifyProviderSupportTeam } from "@/lib/email/providerSupportAlertEmail"
 import {
 	createProviderSupport,
 	findProviderSupportRequest,
@@ -68,7 +69,7 @@ export const POST: APIRoute = async ({ request }) => {
 		if (replyTo) {
 			const thread = await findProviderSupportRequest(replyTo, providerId)
 			if (!thread) return respond(request, { error: "not_found" }, 404, undefined, returnTo)
-			await replyToProviderSupport({
+			const inserted = await replyToProviderSupport({
 				requestId: thread.id,
 				actorUserId: userId,
 				authorRole: "provider",
@@ -76,13 +77,21 @@ export const POST: APIRoute = async ({ request }) => {
 				requestKey,
 				status: "open",
 			})
+			if (inserted)
+				await notifyProviderSupportTeam({
+					event: "provider_reply",
+					requestId: thread.id,
+					topic: parseSupportTopic(thread.topic) ?? "other",
+					line: parseSupportLine(thread.line) ?? "account",
+					requestUrl: request.url,
+				})
 			return respond(request, { ok: true, requestId: thread.id }, 200, thread.id, returnTo)
 		}
 		const topic = parseSupportTopic(form.get("topic"))
 		const line = parseSupportLine(form.get("line"))
 		if (!topic || !line || (topic === "historical_tour_collection" && line !== "tour"))
 			return respond(request, { error: "invalid_context" }, 422, undefined, returnTo)
-		const requestId = await createProviderSupport({
+		const created = await createProviderSupport({
 			providerId,
 			userId,
 			topic,
@@ -90,7 +99,15 @@ export const POST: APIRoute = async ({ request }) => {
 			body,
 			requestKey,
 		})
-		return respond(request, { ok: true, requestId }, 201, requestId, returnTo)
+		if (created.created)
+			await notifyProviderSupportTeam({
+				event: "new_request",
+				requestId: created.id,
+				topic,
+				line,
+				requestUrl: request.url,
+			})
+		return respond(request, { ok: true, requestId: created.id }, 201, created.id, returnTo)
 	} catch (error) {
 		if (error instanceof ProviderSupportError)
 			return respond(request, { error: error.code }, error.status, undefined, returnTo)
