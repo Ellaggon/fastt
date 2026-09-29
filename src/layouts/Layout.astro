@@ -57,6 +57,10 @@ const canonicalHref = canonicalPath ? new URL(canonicalPath, Astro.url.origin).h
 		</a>
 		<slot />
 		<script>
+			import("@/pages/rates/_client/calendar-island-boot").then(({ installCalendarIslandBoot }) => {
+				installCalendarIslandBoot()
+			})
+
 			const bootPageWorkspaces = () => {
 				if (window.location.pathname.startsWith("/financial")) {
 					import("@/pages/financial/_client/financial-page-boot").then(

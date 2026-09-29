@@ -276,6 +276,7 @@ export default function SingleCalendarWorkspace({
 	const [pricingJobIntentStorageKey, setPricingJobIntentStorageKey] = useState<string | null>(null)
 	const activeRequest = useRef<AbortController | null>(null)
 	const requestSequence = useRef(0)
+	const mounted = useRef(true)
 	const today = localIsoDate()
 	const isGuidedAvailability = Boolean(guidedAvailability)
 	const requiredGuidedDays = Math.max(1, Number(guidedAvailability?.requiredDays ?? 30))
@@ -393,13 +394,31 @@ export default function SingleCalendarWorkspace({
 	}
 
 	useEffect(() => {
+		mounted.current = true
+		return () => {
+			mounted.current = false
+			activeRequest.current?.abort()
+		}
+	}, [])
+
+	useEffect(() => {
 		if (surface) {
 			setLoading(false)
 			return
 		}
 		void loadSurface(initialRequest, { updateUrl: false })
-		return () => activeRequest.current?.abort()
 	}, [])
+
+	useEffect(() => {
+		function onWorkspacePageLoad() {
+			if (!mounted.current) return
+			if (window.location.pathname.replace(/\/$/, "") !== "/rates/calendar") return
+			if (surface) return
+			void loadSurface(initialRequest, { updateUrl: false })
+		}
+		document.addEventListener("astro:page-load", onWorkspacePageLoad)
+		return () => document.removeEventListener("astro:page-load", onWorkspacePageLoad)
+	}, [surface])
 
 	useEffect(() => {
 		if (!surface) return
