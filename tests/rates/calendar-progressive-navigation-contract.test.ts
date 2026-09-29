@@ -106,6 +106,19 @@ describe("calendar progressive navigation contract", () => {
 		expect(endpoint).toContain("loadProviderRatePlansReadModel")
 	})
 
+	it("rehydrates client-only calendar islands after ClientRouter swaps", () => {
+		const layout = read("src/layouts/Layout.astro")
+		const boot = read("src/pages/rates/_client/calendar-island-boot.ts")
+		const single = read("src/components/rates/SingleCalendarWorkspace.tsx")
+
+		expect(layout).toContain("calendar-island-boot")
+		expect(boot).toContain('astro-island[client="only"]')
+		expect(boot).toContain("client-render-time")
+		expect(boot).toContain("astro:page-load")
+		expect(boot).toContain("astro:after-swap")
+		expect(single).toContain("astro:page-load")
+	})
+
 	it("keeps bounded calendar surfaces across Astro island remounts", () => {
 		const cache = read("src/lib/rates/calendarSurfaceClientCache.ts")
 		const single = read("src/components/rates/SingleCalendarWorkspace.tsx")
