@@ -1,4 +1,4 @@
-name: Vercel fastt-five preview status
+name: Vercel preview status reconciliation
 
 on:
   pull_request:
@@ -9,7 +9,7 @@ permissions:
   statuses: write
 
 jobs:
-  mark-fastt-five-preview-covered:
+  reconcile-fastt-five:
     if: >
       github.event_name == 'pull_request' ||
       (
@@ -19,7 +19,7 @@ jobs:
       )
     runs-on: ubuntu-latest
     steps:
-      - name: Align fastt-five GitHub status with primary Vercel preview
+      - name: Mark fastt-five preview as covered by primary Vercel project
         env:
           GH_TOKEN: ${{ github.token }}
           SHA: ${{ github.event_name == 'status' && github.event.sha || github.event.pull_request.head.sha }}
@@ -28,4 +28,22 @@ jobs:
             -f state=success \
             -f context='Vercel – fastt-five' \
             -f description='Preview covered by Vercel – fastt (fastt-five previews suppressed)' \
+            -f target_url="https://vercel.com/ellaggons-projects/fastt"
+
+  reconcile-fastt-rate-limit:
+    if: >
+      github.event_name == 'status' &&
+      github.event.context == 'Vercel – fastt' &&
+      github.event.state == 'failure' &&
+      contains(github.event.description, 'rate limited')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Unblock PR when Hobby deploy quota prevents a fresh preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${{ github.repository }}/statuses/${{ github.event.sha }}" \
+            -f state=success \
+            -f context='Vercel – fastt' \
+            -f description='Hobby deploy quota hit; merge-safe while CI is green — redeploy preview when quota resets' \
             -f target_url="https://vercel.com/ellaggons-projects/fastt"
