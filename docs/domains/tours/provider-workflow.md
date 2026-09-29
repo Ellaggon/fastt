@@ -1,13 +1,15 @@
 # Flujo del proveedor para tours
 
-Status: active  
+Status: superseded  
 Document type: canonical  
 Owner: Tours / Provider Experience  
 Last verified: 2026-09-25  
-Scope: creación, reanudación, edición y preparación para publicar  
-Source of truth: `src/lib/playbook/complete-to-publish.ts` y las páginas `src/pages/product/`  
+Scope: creación, reanudación, edición y preparación para publicar (recuento histórico de etapas)  
+Source of truth: [Playbooks del proveedor para tours](./tour-provider-playbooks.md)  
 Related code/tests: `src/pages/catalog/tours.astro`, `src/lib/tours/tourProviderNavigation.ts`, pruebas `tour-commercial-wizard`
 Review trigger: cambio del playbook, requisitos de publicación o navegación del proveedor
+Supersedes: —
+Superseded by: [Playbooks del proveedor para tours](./tour-provider-playbooks.md)
 
 Cada pantalla del recorrido es una etapa. El indicador avanza al guardar y pasar a la siguiente:
 
