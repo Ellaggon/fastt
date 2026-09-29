@@ -1,0 +1,31 @@
+name: Vercel fastt-five preview status
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  status:
+
+permissions:
+  statuses: write
+
+jobs:
+  mark-fastt-five-preview-covered:
+    if: >
+      github.event_name == 'pull_request' ||
+      (
+        github.event_name == 'status' &&
+        github.event.context == 'Vercel – fastt-five' &&
+        github.event.state == 'failure'
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - name: Align fastt-five GitHub status with primary Vercel preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event_name == 'status' && github.event.sha || github.event.pull_request.head.sha }}
+        run: |
+          gh api "repos/${{ github.repository }}/statuses/${SHA}" \
+            -f state=success \
+            -f context='Vercel – fastt-five' \
+            -f description='Preview covered by Vercel – fastt (fastt-five previews suppressed)' \
+            -f target_url="https://vercel.com/ellaggons-projects/fastt"
