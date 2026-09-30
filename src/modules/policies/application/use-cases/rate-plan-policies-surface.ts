@@ -11,6 +11,7 @@ import { logPolicyContractMismatch } from "@/lib/observability/migration-logger"
 import type { ServerTimingRecorder } from "@/lib/observability/serverTiming"
 import type { FeatureFlagContext } from "@/config/featureFlags"
 import { PolicyExceptionRuleRepository } from "../../infrastructure/repositories/PolicyExceptionRuleRepository"
+import type { PolicyCategory } from "../../domain/policy.category"
 import { getRequiredPolicyCategories } from "@/lib/policies/policy-business-contract"
 
 export const REQUIRED_POLICY_CATEGORIES = ["Cancellation", "Payment", "CheckIn", "NoShow"] as const
@@ -30,6 +31,7 @@ export type PolicyPlanView = {
 	ratePlanId: string
 	ratePlanName: string
 	isDefault: boolean
+	requiredCategories: readonly PolicyCategory[]
 	coverageCount: number
 	missingCategories: string[]
 	isSellableByContract: boolean
@@ -339,6 +341,7 @@ export async function buildRatePlanPoliciesSurface(params: {
 				ratePlanId,
 				ratePlanName: String(plan.name),
 				isDefault: Boolean(plan.isDefault),
+				requiredCategories,
 				coverageCount: requiredCategories.length - resolved.missingCategories.length,
 				missingCategories:
 					requiredCategories.length > 0
