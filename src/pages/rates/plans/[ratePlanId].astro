@@ -41,8 +41,6 @@ import {
 } from "@/lib/rates/loadRatePlansReadModel"
 import { routes } from "@/lib/routes"
 import { buildRatePlanPoliciesSurface, resolvePolicyDateRange } from "@/modules/policies/public"
-import { getRequiredPolicyCategories } from "@/lib/policies/policy-business-contract"
-
 const startedAt = performance.now()
 const timing = createServerTimingRecorder()
 const auth = await timing
@@ -195,7 +193,6 @@ if (isPlaybookMode) {
 const offeringType =
 	String(row.productType ?? "").toLowerCase() === "tour" ? "tour" : "accommodation"
 const isTourContext = offeringType === "tour"
-const requiredPolicyCategories = [...getRequiredPolicyCategories(row.productType)]
 const policyCoverageDone = Number(row.policyCoverage?.coveredCategories ?? 0)
 const removalReadiness = isPlaybookMode
 	? null
@@ -504,7 +501,6 @@ logRoutePerformance({
 										policyPlans={policyPlans}
 										checkIn={checkIn}
 										checkOut={checkOut}
-										requiredCategories={requiredPolicyCategories}
 										productId={context.productId}
 										variantId={String(row.variantId)}
 										isProfessionalMode={isProfessionalMode}
@@ -616,7 +612,6 @@ logRoutePerformance({
 								policyPlans={policyPlans}
 								checkIn={checkIn}
 								checkOut={checkOut}
-								requiredCategories={requiredPolicyCategories}
 								productId={context.productId}
 								variantId={String(row.variantId)}
 								isProfessionalMode={isProfessionalMode}
