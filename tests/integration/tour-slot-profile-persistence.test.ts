@@ -104,11 +104,16 @@ afterEach(() => {
 
 describe("tour slot profile persistence in PostgreSQL", () => {
 	it.each([
-		{ action: "inserts", seedExistingProfile: false },
-		{ action: "updates", seedExistingProfile: true },
+		{ action: "inserts", seedExistingProfile: false, updateDefaultCapacity: false },
+		{ action: "updates", seedExistingProfile: true, updateDefaultCapacity: false },
+		{
+			action: "explicitly changes the future default and updates",
+			seedExistingProfile: true,
+			updateDefaultCapacity: true,
+		},
 	])(
 		"$action the slot profile without changing scheduled inventory rows",
-		async ({ seedExistingProfile }) => {
+		async ({ seedExistingProfile, updateDefaultCapacity }) => {
 			const suffix = crypto.randomUUID().replaceAll("-", "")
 			const fixture = {
 				providerId: `tour-profile-provider-${suffix}`,
@@ -156,8 +161,20 @@ describe("tour slot profile persistence in PostgreSQL", () => {
 					salesEnabled: false,
 					maxOccupancy: 6,
 				})
+				let seededInventoryConfig: typeof VariantInventoryConfig.$inferSelect | undefined
 				let seededProfileCreatedAt: Date | undefined
 				if (seedExistingProfile) {
+					await db.insert(VariantInventoryConfig).values({
+						variantId: fixture.variantId,
+						defaultTotalUnits: 6,
+						horizonDays: 180,
+						createdAt: new Date("2020-01-01T00:00:00Z"),
+					})
+					seededInventoryConfig = await db
+						.select()
+						.from(VariantInventoryConfig)
+						.where(eq(VariantInventoryConfig.variantId, fixture.variantId))
+						.then((rows) => rows[0])
 					await db.insert(TourSlotProfile).values({
 						variantId: fixture.variantId,
 						departureTime: "08:00",
@@ -206,12 +223,17 @@ describe("tour slot profile persistence in PostgreSQL", () => {
 				form.set("bookingMode", "private")
 				form.set("meetingPointOverride", "Entrada principal")
 				form.set("isActive", "true")
+				if (updateDefaultCapacity) form.set("updateDefaultCapacity", "true")
 
 				const response = await saveTourSlotProfile({
 					request: makeRequest(fixture.token, form),
 				} as never)
 				expect(response.status).toBe(200)
-				expect(await response.json()).toMatchObject({ ok: true, variantId: fixture.variantId })
+				expect(await response.json()).toMatchObject({
+					ok: true,
+					variantId: fixture.variantId,
+					defaultCapacityUpdated: !seedExistingProfile || updateDefaultCapacity,
+				})
 
 				const [profile, capacity, inventoryConfig, after] = await Promise.all([
 					db
@@ -241,7 +263,14 @@ describe("tour slot profile persistence in PostgreSQL", () => {
 					meetingPointOverrideJson: { instructions: "Entrada principal" },
 				})
 				expect(capacity).toMatchObject({ maxOccupancy: 9, maxAdults: 9 })
-				expect(inventoryConfig).toMatchObject({ defaultTotalUnits: 9, horizonDays: 365 })
+				if (seededInventoryConfig) {
+					expect(inventoryConfig).toEqual({
+						...seededInventoryConfig,
+						defaultTotalUnits: updateDefaultCapacity ? 9 : 6,
+					})
+				} else {
+					expect(inventoryConfig).toMatchObject({ defaultTotalUnits: 9, horizonDays: 365 })
+				}
 				expect(after).toEqual(before)
 				expect(after).toHaveLength(scheduledRows.length)
 				if (seededProfileCreatedAt) {

@@ -130,7 +130,7 @@ const languageOptions = TOUR_SLOT_LANGUAGE_OPTIONS.some(
 			<h2 class="text-sm font-semibold text-slate-950">Cupo y modalidad</h2>
 		</header>
 		<div class="grid gap-4 md:grid-cols-2">
-			<FormField label="Máximo de participantes" for="maxPax" required>
+			<FormField label="Máximo de participantes por grupo" for="maxPax" required>
 				<Input
 					id="maxPax"
 					name="maxPax"
@@ -151,6 +151,25 @@ const languageOptions = TOUR_SLOT_LANGUAGE_OPTIONS.some(
 				</Select>
 			</FormField>
 		</div>
+		<p class="text-sm leading-5 text-slate-600">
+			Este máximo limita el tamaño del grupo que puede reservar. Guardar no cambia los cupos ni las
+			reservas de fechas ya programadas.
+		</p>
+		{
+			isEditMode ? (
+				<Checkbox
+					name="updateDefaultCapacity"
+					value="true"
+					checked={false}
+					label="Usar este máximo como cupo predeterminado para nuevas fechas"
+				/>
+			) : (
+				<p class="text-sm leading-5 text-slate-600">
+					Al crear la opción, este máximo inicia su cupo predeterminado. Las fechas se abren después
+					en el calendario.
+				</p>
+			)
+		}
 		<p class="text-sm leading-5 text-slate-600">
 			Las categorías de participantes comparten este mismo cupo. Una salida privada queda como
 			solicitud de cotización y no bloquea inventario hasta que el proveedor la acepte.
