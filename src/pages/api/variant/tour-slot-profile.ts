@@ -3,7 +3,6 @@ import { ZodError, z } from "zod"
 import { first, db, eq, TourSlotProfile, Variant } from "@/shared/infrastructure/db/compat"
 
 import {
-	inventoryBootstrapper,
 	productRepository,
 	variantInventoryConfigRepository,
 	variantManagementRepository,
@@ -111,7 +110,6 @@ export const POST: APIRoute = async ({ request }) => {
 				{
 					repo: variantManagementRepository,
 					inventoryConfigRepo: variantInventoryConfigRepository,
-					inventoryBootstrap: inventoryBootstrapper,
 				},
 				{
 					productId: parsed.productId,
@@ -119,6 +117,7 @@ export const POST: APIRoute = async ({ request }) => {
 					kind: "tour_slot",
 					description: parsed.description ?? null,
 					defaultTotalUnits: parsed.maxPax,
+					bootstrapInventory: false,
 				}
 			)
 			variantId = result.variantId
@@ -162,12 +161,6 @@ export const POST: APIRoute = async ({ request }) => {
 			defaultTotalUnits: parsed.maxPax,
 			horizonDays: 365,
 		})
-		await inventoryBootstrapper.bootstrapVariantInventory({
-			variantId,
-			totalInventory: parsed.maxPax,
-			days: 365,
-		})
-
 		await variantManagementRepository.upsertCapacity({
 			variantId,
 			minOccupancy: 1,

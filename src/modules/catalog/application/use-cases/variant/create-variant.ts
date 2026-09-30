@@ -34,11 +34,12 @@ export async function createVariant(
 		name: string
 		description?: string | null
 		kind: VariantKind
-		/** Inventory cupo bootstrap; tour_slot should pass maxPax. Default 1 (hotel rooms). */
+		/** Default capacity; tour_slot should pass maxPax. Default 1 (hotel rooms). */
 		defaultTotalUnits?: number
 		/**
-		 * A room profile records physical units before the provider intentionally opens
-		 * dates in the calendar. Other variant kinds retain the existing bootstrap.
+		 * Profile and date inventory are separate. Tour slots skip bootstrap so the
+		 * provider opens dates explicitly in the calendar; other variants retain the
+		 * existing bootstrap behavior.
 		 */
 		bootstrapInventory?: boolean
 	}
@@ -84,7 +85,7 @@ export async function createVariant(
 	})
 	if (params.bootstrapInventory !== false) {
 		if (!deps.inventoryBootstrap) throw new Error("Inventory bootstrap is required")
-		// CAPA 5: tour and generic variants keep their existing inventory bootstrap.
+		// Only bootstrap when this action explicitly owns date setup.
 		await deps.inventoryBootstrap.bootstrapVariantInventory({
 			variantId,
 			totalInventory: defaultTotalUnits,

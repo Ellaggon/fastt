@@ -94,6 +94,9 @@ export const POST: APIRoute = async ({ request }) => {
 				kind,
 				description,
 				defaultTotalUnits: kind === "whole_home" ? 1 : undefined,
+				// A tour option defines its profile here; the provider opens dates
+				// separately in the calendar, where the affected range is explicit.
+				bootstrapInventory: kind !== "tour_slot",
 			}
 		)
 		if (kind === "whole_home") {
