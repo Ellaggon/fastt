@@ -1,3 +1,4 @@
+import { tourActivationBlockers } from "./tourActivationBlockers"
 import {
 	ratePlanCommandRepository,
 	ratePlanPricingReadRepository,
@@ -126,7 +127,11 @@ export async function finalizeTourRate(input: Input) {
 			ok: false as const,
 			status: 409 as const,
 			error: "Aún falta información para activar la tarifa de esta salida.",
-			blockers: publication.blockers,
+			blockers: tourActivationBlockers(
+				publication.blockerDetails ??
+					publication.blockers.map((label) => ({ id: "departure", label })),
+				input
+			),
 		}
 	}
 	const readiness = await evaluateVariantReadiness(
@@ -138,7 +143,12 @@ export async function finalizeTourRate(input: Input) {
 			ok: false as const,
 			status: 409 as const,
 			error: "La salida aún no está lista para activar.",
-			blockers: readiness.validationErrors.map((error) => error.message),
+			blockers: tourActivationBlockers(
+				readiness.validationErrors
+					.filter((error) => error.code !== "inventory_missing")
+					.map((error) => ({ id: error.code, label: error.message })),
+				input
+			),
 		}
 	}
 
@@ -166,18 +176,27 @@ export async function finalizeTourRate(input: Input) {
 			),
 		])
 		const blockers = [
-			...currentPublication.blockers,
+			...(currentPublication.blockerDetails ??
+				currentPublication.blockers.map((label) => ({ id: "departure", label }))),
 			...(currentReadiness.lifecycleState !== "ready"
-				? currentReadiness.validationErrors.map((error) => error.message)
+				? currentReadiness.validationErrors
+						.filter((error) => error.code !== "inventory_missing")
+						.map((error) => ({
+							id: error.code,
+							label: error.message,
+						}))
 				: []),
 		]
 		return {
 			ok: false as const,
 			status: 409 as const,
 			error: "La salida cambió mientras se activaba. Revisa estos requisitos y vuelve a intentar.",
-			blockers: blockers.length
-				? blockers
-				: ["Actualiza la salida y vuelve a intentar la activación."],
+			blockers: tourActivationBlockers(
+				blockers.length
+					? blockers
+					: [{ id: "departure", label: "Actualiza la salida y vuelve a intentar la activación." }],
+				input
+			),
 		}
 	}
 	const cacheRefreshed = await refreshTourActivationSurfaces(input)

@@ -110,7 +110,7 @@ describe("tour commercial rate context", () => {
 		const page = source("src/pages/rates/calendar.astro")
 		const workspace = source("src/components/rates/SingleCalendarWorkspace.tsx")
 		expect(page).toContain('tourLaunchPlaybook.stepId === "calendar"')
-		expect(page).toContain("gt(DailyInventory.date, todayIso)")
+		expect(page).toContain("gt(DailyInventory.date, providerLocalToday(playbookProductId))")
 		expect(page).toContain("sellableDailyInventoryCondition()")
 		expect(page).toContain("requiredDays: isTourContext ? 1 : 30")
 		expect(source("src/lib/rates/sellableDailyInventoryCondition.ts")).toContain(

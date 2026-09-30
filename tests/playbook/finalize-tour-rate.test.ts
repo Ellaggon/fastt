@@ -137,7 +137,32 @@ describe("finalize tour rate", () => {
 		expect(result).toMatchObject({
 			ok: false,
 			status: 409,
-			blockers: ["disponibilidad"],
+			blockers: [expect.objectContaining({ label: "disponibilidad", href: expect.any(String) })],
+		})
+		expect(mocks.activateTourRate).not.toHaveBeenCalled()
+	})
+
+	it("returns actionable commercial diagnostics with the selected rate", async () => {
+		mocks.validateRatePlanPublication.mockResolvedValue({
+			canPublish: false,
+			blockers: ["Precio pendiente", "Condiciones pendientes"],
+			blockerDetails: [
+				{ id: "price", label: "Precio pendiente" },
+				{ id: "conditions", label: "Condiciones pendientes" },
+			],
+		})
+		const result = await finalizeTourRate(input)
+		expect(result).toMatchObject({
+			ok: false,
+			status: 409,
+			blockers: [
+				{ id: "price", label: "Precio pendiente", href: expect.stringContaining("vista=price") },
+				{
+					id: "conditions",
+					label: "Condiciones pendientes",
+					href: expect.stringContaining("vista=conditions"),
+				},
+			],
 		})
 		expect(mocks.activateTourRate).not.toHaveBeenCalled()
 	})
@@ -146,7 +171,10 @@ describe("finalize tour rate", () => {
 		mocks.evaluateVariantReadiness.mockResolvedValue({
 			variantId: "slot-1",
 			lifecycleState: "draft",
-			validationErrors: [{ code: "missing_tour_slot_profile", message: "Completa la salida." }],
+			validationErrors: [
+				{ code: "missing_tour_slot_profile", message: "Completa la salida." },
+				{ code: "inventory_missing", message: "Inventory not configured (reserved for CAPA 5)" },
+			],
 		})
 
 		const result = await finalizeTourRate(input)
@@ -154,7 +182,12 @@ describe("finalize tour rate", () => {
 		expect(result).toMatchObject({
 			ok: false,
 			status: 409,
-			blockers: ["Completa la salida."],
+			blockers: [
+				expect.objectContaining({
+					label: "Completa el horario, idioma y grupo de esta salida.",
+					href: expect.any(String),
+				}),
+			],
 		})
 		expect(mocks.activateTourRate).not.toHaveBeenCalled()
 	})
@@ -249,7 +282,12 @@ describe("finalize tour rate", () => {
 		expect(result).toMatchObject({
 			ok: false,
 			status: 409,
-			blockers: ["Completa el perfil de la salida."],
+			blockers: [
+				expect.objectContaining({
+					label: "Completa el perfil de la salida.",
+					href: expect.any(String),
+				}),
+			],
 		})
 		expect(mocks.invalidateVariant).not.toHaveBeenCalled()
 	})
