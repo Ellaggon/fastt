@@ -14,7 +14,7 @@ import { cacheKeys, cacheTtls } from "@/lib/cache/cacheKeys"
 import { readThrough } from "@/lib/cache/readThrough"
 import { fallbackRatePlanConditionsSummary } from "@/lib/policies/ratePlanConditionState"
 import type { ServerTimingRecorder } from "@/lib/observability/serverTiming"
-import { REQUIRED_POLICY_CATEGORIES } from "@/modules/policies/public"
+import { getRequiredPolicyCategories } from "@/lib/policies/policy-business-contract"
 import { listRatePlansByProvider } from "@/modules/pricing/public"
 
 export type RatePlanListItem = {
@@ -123,7 +123,6 @@ async function loadProviderRatePlansSurface(input: {
 	const rows = (await measured(timing, "ratePlansBase", () =>
 		listRatePlansByProvider(providerId)
 	)) as BaseRatePlanRow[]
-	const requiredCategories = [...REQUIRED_POLICY_CATEGORIES]
 	const expectedInventoryDays = countNights(checkIn, checkOut)
 	const ratePlanIds = rows.map((row) => String(row.ratePlanId)).filter(Boolean)
 	const variantIds = [...new Set(rows.map((row) => String(row.variantId)).filter(Boolean))]
@@ -162,6 +161,12 @@ async function loadProviderRatePlansSurface(input: {
 		const pricingSummary = pricingByRatePlan.get(String(row.ratePlanId)) ?? null
 		const conditionsSummary =
 			pricingSummary?.conditionsSummary ?? fallbackRatePlanConditionsSummary()
+		const requiredCategories = [...getRequiredPolicyCategories(row.productType)]
+		const missingCategories = requiredCategories.length
+			? conditionsSummary.missingCategories.filter((category) =>
+					requiredCategories.includes(category as (typeof requiredCategories)[number])
+				)
+			: ["Contrato de políticas no definido"]
 		const inventorySummary = inventoryByVariant.get(String(row.variantId)) ?? null
 		const coverageDays = Number(inventorySummary?.coverageDays ?? 0)
 		const availableDays = Number(inventorySummary?.availableDays ?? 0)
@@ -185,10 +190,10 @@ async function loadProviderRatePlansSurface(input: {
 				expectedDays: expectedInventoryDays,
 			},
 			policyCoverage: {
-				totalCategories: conditionsSummary.totalCategories || requiredCategories.length,
-				coveredCategories: conditionsSummary.coveredCategories,
-				missingCategories: conditionsSummary.missingCategories,
-				isComplete: conditionsSummary.conditionsComplete,
+				totalCategories: requiredCategories.length,
+				coveredCategories: Math.max(requiredCategories.length - missingCategories.length, 0),
+				missingCategories,
+				isComplete: requiredCategories.length > 0 && missingCategories.length === 0,
 				policyCoverageUpdatedAt:
 					conditionsSummary.policyCoverageUpdatedAt instanceof Date
 						? conditionsSummary.policyCoverageUpdatedAt.toISOString()

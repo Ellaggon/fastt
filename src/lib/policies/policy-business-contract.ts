@@ -4,6 +4,7 @@ export type PolicyBusinessKind = "hotel" | "tour" | "unknown"
 
 export type PolicyBusinessContract = {
 	business: PolicyBusinessKind
+	requiredCategories: readonly PolicyCategory[]
 	allowedCategories: readonly PolicyCategory[]
 	cancellation: {
 		anchor: "arrival" | "scheduled_departure" | "unsupported"
@@ -19,13 +20,11 @@ export type PolicyBusinessContract = {
 	}
 }
 
-/**
- * Contract only: Phase A records semantics without yet filtering the editor or
- * mutating persisted policies. Phase B consumes this as the shared server rule.
- */
+/** Shared vertical policy contract used by editors, readiness, and publication checks. */
 export const POLICY_BUSINESS_CONTRACTS: Record<PolicyBusinessKind, PolicyBusinessContract> = {
 	hotel: {
 		business: "hotel",
+		requiredCategories: ["Cancellation", "Payment", "CheckIn", "NoShow"],
 		allowedCategories: ["Cancellation", "Payment", "CheckIn", "NoShow"],
 		cancellation: {
 			anchor: "arrival",
@@ -37,6 +36,7 @@ export const POLICY_BUSINESS_CONTRACTS: Record<PolicyBusinessKind, PolicyBusines
 	},
 	tour: {
 		business: "tour",
+		requiredCategories: ["Cancellation", "Payment", "NoShow"],
 		allowedCategories: ["Cancellation", "Payment", "NoShow"],
 		cancellation: {
 			anchor: "scheduled_departure",
@@ -48,6 +48,7 @@ export const POLICY_BUSINESS_CONTRACTS: Record<PolicyBusinessKind, PolicyBusines
 	},
 	unknown: {
 		business: "unknown",
+		requiredCategories: [],
 		allowedCategories: [],
 		cancellation: {
 			anchor: "unsupported",
@@ -72,4 +73,8 @@ export function policyBusinessKindFromProductType(productType: unknown): PolicyB
 
 export function getPolicyBusinessContract(productType: unknown): PolicyBusinessContract {
 	return POLICY_BUSINESS_CONTRACTS[policyBusinessKindFromProductType(productType)]
+}
+
+export function getRequiredPolicyCategories(productType: unknown): readonly PolicyCategory[] {
+	return getPolicyBusinessContract(productType).requiredCategories
 }

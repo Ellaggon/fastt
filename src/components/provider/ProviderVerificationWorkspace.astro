@@ -104,6 +104,13 @@ const lineHref = (tab: VerificationTab) =>
 				? routes.providerSettingsVerificationPayments()
 				: routes.providerSettingsVerification()
 function panelLabel(id: "identity" | "business" | "fiscal" | "payments") {
+	const tourTab =
+		selectedLine === "tour" && id === "identity"
+			? tourPlaybook.find((tab) => tab.id === "identity")
+			: null
+	if (tourTab) {
+		return `${tourTab.label}. Estado: ${tourTab.stateLabel}. Requisitos de identidad y titularidad del proveedor.`
+	}
 	const link = trustLinkById.get(id)
 	return link
 		? `${link.label}. Estado: ${link.stateLabel}. ${link.description}`
@@ -325,6 +332,23 @@ const paymentErrorMessages: Record<
 							{missingMercantileForEntity
 								? "Confirmamos el nuevo titular antes de publicar. Tu documento de identidad verificado sigue vigente mientras tanto; si falta el registro de la entidad, puedes subirlo abajo."
 								: "Actualizaste quién opera el negocio. No hace falta enviar documentos nuevos mientras terminamos esa revisión; te avisamos aquí al confirmarlo."}
+						</p>
+					</Notice>
+				) : null
+			}
+			{
+				selectedLine === "tour" &&
+				latestVerification?.status === "pending" &&
+				!holderDeclarationInReview &&
+				activeSectionId === "identity" ? (
+					<Notice
+						variant="info"
+						title="La revisión de la cuenta sigue en curso"
+						data-verification-account-review
+					>
+						<p class="text-sm leading-6">
+							El equipo Fastt revisa la cuenta por separado de estos documentos. Completa también
+							los requisitos que aparecen abajo; estar en revisión no los marca como listos.
 						</p>
 					</Notice>
 				) : null

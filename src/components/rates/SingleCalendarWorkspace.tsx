@@ -44,6 +44,7 @@ type Props = {
 		requiredDays: number
 		initialInventoryDays: number
 		finalizationError?: string
+		activationBlocker?: { label: string; href: string }
 	}
 }
 
@@ -959,16 +960,32 @@ export default function SingleCalendarWorkspace({
 									<div className="flex flex-wrap items-center gap-2">
 										<h2 className="text-xl font-semibold text-slate-950">
 											{isTourGuidedAvailability
-												? "Abre la primera fecha reservable"
+												? guidedAvailability.activationBlocker && guidedIsReady
+													? "Disponibilidad configurada"
+													: "Abre la primera fecha reservable"
 												: "Abrir disponibilidad inicial"}
 										</h2>
-										<Badge variant={guidedIsReady ? "success" : "warning"}>
-											{guidedIsReady ? "Lista" : "Pendiente"}
+										<Badge
+											variant={
+												guidedAvailability.activationBlocker
+													? "warning"
+													: guidedIsReady
+														? "success"
+														: "warning"
+											}
+										>
+											{guidedAvailability.activationBlocker
+												? "Habilitación pendiente"
+												: guidedIsReady
+													? "Lista"
+													: "Pendiente"}
 										</Badge>
 									</div>
 									<p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
 										{isTourGuidedAvailability
-											? "Elige una o más fechas futuras y asigna el cupo de participantes. Con al menos una fecha con cupo, la salida queda lista para reservar."
+											? guidedAvailability.activationBlocker && guidedIsReady
+												? "Hay fechas futuras con cupo. La tarifa todavía no puede recibir reservas hasta resolver la habilitación de la cuenta."
+												: "Elige una o más fechas futuras y asigna el cupo de participantes. Con al menos una fecha con cupo, la salida queda lista para reservar."
 											: "Configura inventario inicial para un primer rango vendible. Precios y condiciones ya se revisaron en los pasos anteriores."}
 									</p>
 								</div>
@@ -1081,7 +1098,9 @@ export default function SingleCalendarWorkspace({
 											? "Actualizar disponibilidad"
 											: "Abrir disponibilidad"}
 									</Button>
-									{(isAddRoomGuidedAvailability || isTourGuidedAvailability) && guidedIsReady ? (
+									{(isAddRoomGuidedAvailability ||
+										(isTourGuidedAvailability && !guidedAvailability.activationBlocker)) &&
+									guidedIsReady ? (
 										<Button
 											type="button"
 											onClick={() => void finalizeGuidedRate()}
@@ -1097,6 +1116,24 @@ export default function SingleCalendarWorkspace({
 									) : null}
 								</div>
 							</div>
+							{isTourGuidedAvailability && guidedAvailability.activationBlocker ? (
+								<Notice variant="warning">
+									<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+										<p>
+											Antes de aceptar reservas, resuelve:
+											<strong className="ml-1">{guidedAvailability.activationBlocker.label}</strong>
+											.
+										</p>
+										<Button
+											href={guidedAvailability.activationBlocker.href}
+											variant="secondary"
+											size="sm"
+										>
+											Resolver requisito
+										</Button>
+									</div>
+								</Notice>
+							) : null}
 
 							{guidedFeedback && <Notice variant={guidedFeedbackVariant}>{guidedFeedback}</Notice>}
 						</div>

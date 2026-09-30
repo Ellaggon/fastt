@@ -11,6 +11,7 @@ export class RatePlanOwnerContextRepository implements RatePlanOwnerContextRepos
 				ratePlanId: RatePlan.id,
 				variantId: Variant.id,
 				productId: Product.id,
+				productType: Product.productType,
 				providerId: Product.providerId,
 			})
 			.from(RatePlan)
@@ -24,6 +25,7 @@ export class RatePlanOwnerContextRepository implements RatePlanOwnerContextRepos
 			ratePlanId: String(row.ratePlanId),
 			variantId: String(row.variantId),
 			productId: String(row.productId),
+			productType: String(row.productType ?? ""),
 			providerId: row.providerId == null ? null : String(row.providerId),
 		}
 	}

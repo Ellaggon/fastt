@@ -530,7 +530,7 @@ export async function evaluateProviderGovernance(
 		},
 		{
 			id: "verification",
-			label: "Cuenta revisada y aprobada",
+			label: "Aprobación de la cuenta",
 			complete: verificationComplete,
 			href: settingsRoutes.verification,
 			capabilities: [...providerGovernanceCapabilityMap.verification],

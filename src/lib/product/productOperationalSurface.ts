@@ -2,7 +2,6 @@ import {
 	and,
 	db,
 	eq,
-	inArray,
 	first,
 	Product,
 	ProductOperationalSurface,
@@ -17,9 +16,9 @@ export type { ProductPreparationSummary }
 import { getProductFullAggregate, getProductVariantsAggregate } from "@/modules/catalog/public"
 import {
 	derivePolicySummaryFromResolvedPolicies,
-	REQUIRED_POLICY_CATEGORIES,
 	resolveEffectivePolicies,
 } from "@/modules/policies/public"
+import { getRequiredPolicyCategories } from "@/lib/policies/policy-business-contract"
 import { listRatePlansByProvider } from "@/modules/pricing/public"
 
 const SURFACE_MAX_AGE_MS = Number(process.env.FASTT_PRODUCT_SURFACE_MAX_AGE_MS ?? 10 * 60 * 1000)
@@ -125,15 +124,29 @@ function normalizeCoverImage(value: unknown): { id: string; url: string } | null
 	return id && url ? { id, url } : null
 }
 
-function normalizePolicyCoverage(value: unknown): ProductPolicyCoverageState | null {
+function normalizePolicyCoverage(
+	value: unknown,
+	productType: unknown
+): ProductPolicyCoverageState | null {
 	if (!value || typeof value !== "object") return null
 	const raw = value as Partial<ProductPolicyCoverageState>
+	const requiredCategories = [...getRequiredPolicyCategories(productType)]
+	const missingCategories = requiredCategories.length
+		? asStringArray(raw.missingCategories).filter((category) =>
+				requiredCategories.includes(category as (typeof requiredCategories)[number])
+			)
+		: ["Contrato de políticas no definido"]
 	return {
-		totalCategories: Number(raw.totalCategories ?? REQUIRED_POLICY_CATEGORIES.length),
-		coveredCategories: Number(raw.coveredCategories ?? 0),
-		missingCategories: asStringArray(raw.missingCategories),
-		isComplete: Boolean(raw.isComplete),
-		summary: String(raw.summary ?? "Sin condiciones configuradas"),
+		totalCategories: requiredCategories.length,
+		coveredCategories: Math.max(requiredCategories.length - missingCategories.length, 0),
+		missingCategories,
+		isComplete: requiredCategories.length > 0 && missingCategories.length === 0,
+		summary:
+			requiredCategories.length > 0 && missingCategories.length === 0
+				? "Condiciones completas"
+				: missingCategories.length
+					? `Faltan condiciones: ${missingCategories.join(", ")}`
+					: "Contrato de políticas no definido",
 		ratePlanId: raw.ratePlanId ? String(raw.ratePlanId) : null,
 		updatedAt: String(raw.updatedAt ?? new Date().toISOString()),
 	}
@@ -153,7 +166,7 @@ function surfaceFromRow(row: any): ProductOperationalSurfaceRead {
 		variantCount: Number(row.variantCount ?? 0),
 		activeVariantCount: Number(row.activeVariantCount ?? 0),
 		defaultRatePlanIds: asStringArray(row.defaultRatePlanIdsJson),
-		policyCoverageState: normalizePolicyCoverage(row.policyCoverageStateJson),
+		policyCoverageState: normalizePolicyCoverage(row.policyCoverageStateJson, row.productType),
 		conditionsHref: String(row.conditionsHref ?? routes.rates()),
 		updatedAt: new Date(row.updatedAt),
 	}
@@ -206,9 +219,10 @@ export async function listProductOperationalPreparation(
 async function resolvePolicyCoverageState(params: {
 	productId: string
 	providerId: string
+	productType: string
 	defaultRatePlanIds: string[]
 }): Promise<ProductPolicyCoverageState | null> {
-	const requiredCategories = [...REQUIRED_POLICY_CATEGORIES]
+	const requiredCategories = [...getRequiredPolicyCategories(params.productType)]
 	const ratePlanRows = (await listRatePlansByProvider(params.providerId)) as SurfaceRatePlanRow[]
 	const target =
 		ratePlanRows.find(
@@ -218,13 +232,27 @@ async function resolvePolicyCoverageState(params: {
 		null
 	const ratePlanId = String(target?.ratePlanId ?? params.defaultRatePlanIds[0] ?? "").trim()
 	if (!ratePlanId) {
+		const missingCategories = requiredCategories.length
+			? requiredCategories
+			: ["Contrato de políticas no definido"]
 		return {
 			totalCategories: requiredCategories.length,
 			coveredCategories: 0,
-			missingCategories: requiredCategories,
+			missingCategories,
 			isComplete: false,
 			summary: "Sin tarifa para configurar condiciones",
 			ratePlanId: null,
+			updatedAt: new Date().toISOString(),
+		}
+	}
+	if (!requiredCategories.length) {
+		return {
+			totalCategories: 0,
+			coveredCategories: 0,
+			missingCategories: ["Contrato de políticas no definido"],
+			isComplete: false,
+			summary: "Contrato de políticas no definido",
+			ratePlanId,
 			updatedAt: new Date().toISOString(),
 		}
 	}
@@ -321,6 +349,7 @@ export async function refreshProductOperationalSurface(params: {
 	const policyCoverageState = await resolvePolicyCoverageState({
 		productId: params.productId,
 		providerId: params.providerId,
+		productType: String(aggregate.productType ?? ""),
 		defaultRatePlanIds,
 	})
 	const conditionsHref = policyCoverageState?.ratePlanId

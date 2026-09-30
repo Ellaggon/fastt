@@ -1,5 +1,14 @@
 # Tour Vertical Table Taxonomy
 
+Status: active
+Document type: canonical
+Owner: Tours / Engineering
+Last verified: 2026-09-29
+Scope: significado de tablas y datos comerciales de tours sobre el modelo compartido
+Source of truth: esquema, migraciones y pruebas enlazadas en este documento
+Related code/tests: `src/shared/infrastructure/db/schema/`, `src/pages/api/variant/tour-slot-profile.ts`, `src/pages/api/variant/create.ts`, `tests/catalog/tour-slot-profile.test.ts`
+Review trigger: cambio del modelo de salidas, inventario, reserva o disponibilidad de tours
+
 Sibling of [`rooms-rates-table-taxonomy.md`](./rooms-rates-table-taxonomy.md).
 Defines how lodging-shaped columns map to tours/experiences without a second booking engine.
 
@@ -11,21 +20,21 @@ Defines how lodging-shaped columns map to tours/experiences without a second boo
 | `DailyInventory.date`                | Departure calendar date                                                      |
 | `Booking.checkInDate`                | `departureDate`                                                              |
 | `Booking.checkOutDate`               | End of activity window (`departureDate + 1` for day tours, or multi-day end) |
-| `BookingLineItem`                  | Línea de reserva compartida (no una habitación de hotel)                     |
+| `BookingLineItem`                    | Línea de reserva compartida (no una habitación de hotel)                     |
 | `SearchUnitView.pricePerNight`       | Price per participant / unit                                                 |
 | `CancellationTier.daysBeforeArrival` | Days before departure (MVP)                                                  |
 | `VariantCapacity.maxOccupancy`       | Max participants (pax) on the salida                                         |
 
 ## Tour content columns (Fase 1)
 
-| Column                                                                 | Role                                                                                                     |
-| ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `Tour.duration`                                                        | Display label (legacy free text)                                                                         |
-| `Tour.durationMinutes`                                                 | Queryable duration in minutes                                                                            |
-| `Tour.includesJson` / `excludesJson`                                   | Aligned with Package                                                                                     |
-| `ProductCategory` + `ProductCategoryLink`                              | Canonical discovery taxonomy; managed in `/product/[id]/tickets`                                          |
-| `Tour.pickupJson`                                                      | Optional pickup logistics (Limousine pattern)                                                            |
-| `Tour.meetingPointJson` / `itineraryJson` / `safetyJson` / `guideJson` | Existing structured JSON                                                                                 |
+| Column                                                                 | Role                                                             |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `Tour.duration`                                                        | Display label (legacy free text)                                 |
+| `Tour.durationMinutes`                                                 | Queryable duration in minutes                                    |
+| `Tour.includesJson` / `excludesJson`                                   | Aligned with Package                                             |
+| `ProductCategory` + `ProductCategoryLink`                              | Canonical discovery taxonomy; managed in `/product/[id]/tickets` |
+| `Tour.pickupJson`                                                      | Optional pickup logistics (Limousine pattern)                    |
+| `Tour.meetingPointJson` / `itineraryJson` / `safetyJson` / `guideJson` | Existing structured JSON                                         |
 
 ## Tour JSON shapes inventory (Fase 0 contract)
 
@@ -34,15 +43,15 @@ payloads (`create-product-subtype.ts` and `api/product/subtype.ts` PUT); `tourSc
 (`src/schemas/product/subtype.ts`) accepts them as `z.unknown()` — these shapes are
 the de-facto contract, pinned by `tests/catalog/tour-semantics.test.ts`.
 
-| Column             | Shape                                                                                                | Form fields (source)                              |
-| ------------------ | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| `meetingPointJson` | `{ address?: string, instructions?: string }` (object omitted if all empty)                          | `meetingPointAddress`, `meetingPointInstructions` |
-| `itineraryJson`    | `Array<{ step: number (1-based), description: string }>`                                             | `tourItinerary` (one line per step)               |
-| `safetyJson`       | `{ requirements?: string, warnings?: string }`                                                       | `safetyRequirements`, `safetyWarnings`            |
-| `guideJson`        | `{ languages?: string (comma-joined, e.g. "es, en"), guideType?: string }`                           | `guideLanguages` (list), `guideType`              |
-| `includesJson`     | `string[]`                                                                                           | `tourIncludes` (one per line)                     |
-| `excludesJson`     | `string[]`                                                                                           | `tourExcludes` (one per line)                     |
-| `pickupJson`       | `{ defaultArea?: string, instructions?: string }`                                                    | `pickupDefaultArea`, `pickupInstructions`         |
+| Column             | Shape                                                                       | Form fields (source)                              |
+| ------------------ | --------------------------------------------------------------------------- | ------------------------------------------------- |
+| `meetingPointJson` | `{ address?: string, instructions?: string }` (object omitted if all empty) | `meetingPointAddress`, `meetingPointInstructions` |
+| `itineraryJson`    | `Array<{ step: number (1-based), description: string }>`                    | `tourItinerary` (one line per step)               |
+| `safetyJson`       | `{ requirements?: string, warnings?: string }`                              | `safetyRequirements`, `safetyWarnings`            |
+| `guideJson`        | `{ languages?: string (comma-joined, e.g. "es, en"), guideType?: string }`  | `guideLanguages` (list), `guideType`              |
+| `includesJson`     | `string[]`                                                                  | `tourIncludes` (one per line)                     |
+| `excludesJson`     | `string[]`                                                                  | `tourExcludes` (one per line)                     |
+| `pickupJson`       | `{ defaultArea?: string, instructions?: string }`                           | `pickupDefaultArea`, `pickupInstructions`         |
 
 Notes:
 
@@ -63,20 +72,25 @@ One profile per `Variant(kind=tour_slot)`. Convention: **1 Variant per clock tim
 (e.g. “Salida 09:00”, “Salida 14:00”). `DailyInventory.date` stays date-only; the hour
 lives on the profile (Airbnb schedule instance / Viator timedEntry ≈ variant+profile).
 
-| Column                      | Role                                                                                                                          |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `TourSlotProfile.variantId` | PK = `Variant` with `kind=tour_slot` (1:1)                                                                                    |
-| `departureTime`             | Clock time (HH:MM) NOT NULL; not encoded in `DailyInventory.date`                                                             |
-| `durationMinutes`           | Optional override of `Tour.durationMinutes` for this salida                                                                   |
-| `maxPax`                    | Cupo; seeds `VariantInventoryConfig.defaultTotalUnits` and `VariantCapacity.maxOccupancy` (default inventory = maxPax, not 1) |
-| `languageCode`              | Language for this salida                                                                                                      |
-| `bookingMode`               | `shared` \| `private` (DEFAULT `shared`)                                                                                      |
-| `meetingPointOverrideJson`  | Optional override vs product meeting point                                                                                    |
-| `isActive`                  | Profile-level active flag (synced to `Variant.isActive` on save)                                                              |
+| Column                      | Role                                                                                                                        |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `TourSlotProfile.variantId` | PK = `Variant` with `kind=tour_slot` (1:1)                                                                                  |
+| `departureTime`             | Clock time (HH:MM) NOT NULL; not encoded in `DailyInventory.date`                                                           |
+| `durationMinutes`           | Optional override of `Tour.durationMinutes` for this salida                                                                 |
+| `maxPax`                    | Máximo de participantes de la opción; actualiza `VariantInventoryConfig.defaultTotalUnits` y `VariantCapacity.maxOccupancy` |
+| `languageCode`              | Language for this salida                                                                                                    |
+| `bookingMode`               | `shared` \| `private` (DEFAULT `shared`)                                                                                    |
+| `meetingPointOverrideJson`  | Optional override vs product meeting point                                                                                  |
+| `isActive`                  | Profile-level active flag (synced to `Variant.isActive` on save)                                                            |
 
 UI: provider **Salidas** at `/product/{id}/departures` (not hotel rooms). Product hub
 exposes CTAs Tarifas + Calendario for tours. Readiness for a sellable salida requires
 **profile + capacity + default rate**.
+
+Saving a tour slot profile does not create or overwrite `DailyInventory` rows. The
+profile stores the option's maximum group size; the provider opens dates and sets their
+capacity in the calendar. Existing date-specific availability remains unchanged when
+editing the profile.
 
 Close-out migration: `db/migrations/2026-08-18_tour_slot_profile_closeout.sql`.
 
@@ -115,7 +129,7 @@ Search `/buscar/tours` requires `startDate` and reads sellable `tour_slot` rows 
 
 | App alias / surface        | Physical truth                                                                                           |
 | -------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `BookingLineItem`          | Tabla física canónica de líneas de reserva para todas las verticales                                    |
+| `BookingLineItem`          | Tabla física canónica de líneas de reserva para todas las verticales                                     |
 | Ops vocab by `productType` | `verticalVocabulary.ops` — llegada→salida, habitación→línea, huésped→participante for tours              |
 | Booking lifecycle labels   | `deriveBookingLifecycle({ productType })`                                                                |
 | Admin quality queue        | `/admin/tours/quality` — score from images, itinerary, meeting point, duration, includes, active salidas |
@@ -213,7 +227,7 @@ Tour content JSON shapes (same maturity suite, not the quality-floor claim):
 | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------- |
 | Public search/PDP copy + this taxonomy mapping doc                                    | [`tour-public-surfaces.test.ts`](../../tests/guardrails/tour-public-surfaces.test.ts)                                                                                                                                                                                                                                                                                                                                                                                                      | Guardrail                                    |
 | P3 tables deferred (no Guide / TourGuideAssignment / TourDepartureInstance in schema) | [`tour-p3-deferred-capabilities.test.ts`](../../tests/guardrails/tour-p3-deferred-capabilities.test.ts)                                                                                                                                                                                                                                                                                                                                                                                    | Guardrail                                    |
-| `BookingLineItem` como contrato físico transversal                                    | [`booking-line-item-physical-contract.test.ts`](../../tests/postgres/booking-line-item-physical-contract.test.ts) → `uses the cross-vertical table name across table, constraints, indexes and trigger`                                                                                                                                                                                                                                                                                  | Guardrail                                    |
+| `BookingLineItem` como contrato físico transversal                                    | [`booking-line-item-physical-contract.test.ts`](../../tests/postgres/booking-line-item-physical-contract.test.ts) → `uses the cross-vertical table name across table, constraints, indexes and trigger`                                                                                                                                                                                                                                                                                    | Guardrail                                    |
 | Schema / semantics contracts (outside phase6 command unless added)                    | [`tour-tickets-discovery.test.ts`](../../tests/catalog/tour-tickets-discovery.test.ts), [`tour-semantics.test.ts`](../../tests/catalog/tour-semantics.test.ts), [`tour-slot-profile.test.ts`](../../tests/catalog/tour-slot-profile.test.ts), [`tour-ticket-occupancy.test.ts`](../../tests/catalog/tour-ticket-occupancy.test.ts), [`tour-search-surface.test.ts`](../../tests/catalog/tour-search-surface.test.ts), [`tour-p2-trust.test.ts`](../../tests/catalog/tour-p2-trust.test.ts) | Guardrail / unit (not phase6 runtime matrix) |
 
 `pnpm test:tours:phase6` file list (must stay in sync with the Closed rows above):

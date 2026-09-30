@@ -40,11 +40,8 @@ import {
 	type RatePlanListItem,
 } from "@/lib/rates/loadRatePlansReadModel"
 import { routes } from "@/lib/routes"
-import {
-	REQUIRED_POLICY_CATEGORIES,
-	buildRatePlanPoliciesSurface,
-	resolvePolicyDateRange,
-} from "@/modules/policies/public"
+import { buildRatePlanPoliciesSurface, resolvePolicyDateRange } from "@/modules/policies/public"
+import { getRequiredPolicyCategories } from "@/lib/policies/policy-business-contract"
 
 const startedAt = performance.now()
 const timing = createServerTimingRecorder()
@@ -133,6 +130,7 @@ if (isPlaybookMode) {
 					isDefault: Boolean(row.isDefault),
 					productId: String(row.productId),
 					variantId: String(row.variantId),
+					productType: String(row.productType ?? ""),
 				},
 			],
 			checkIn,
@@ -197,6 +195,7 @@ if (isPlaybookMode) {
 const offeringType =
 	String(row.productType ?? "").toLowerCase() === "tour" ? "tour" : "accommodation"
 const isTourContext = offeringType === "tour"
+const requiredPolicyCategories = [...getRequiredPolicyCategories(row.productType)]
 const policyCoverageDone = Number(row.policyCoverage?.coveredCategories ?? 0)
 const removalReadiness = isPlaybookMode
 	? null
@@ -505,7 +504,7 @@ logRoutePerformance({
 										policyPlans={policyPlans}
 										checkIn={checkIn}
 										checkOut={checkOut}
-										requiredCategories={[...REQUIRED_POLICY_CATEGORIES]}
+										requiredCategories={requiredPolicyCategories}
 										productId={context.productId}
 										variantId={String(row.variantId)}
 										isProfessionalMode={isProfessionalMode}
@@ -617,7 +616,7 @@ logRoutePerformance({
 								policyPlans={policyPlans}
 								checkIn={checkIn}
 								checkOut={checkOut}
-								requiredCategories={[...REQUIRED_POLICY_CATEGORIES]}
+								requiredCategories={requiredPolicyCategories}
 								productId={context.productId}
 								variantId={String(row.variantId)}
 								isProfessionalMode={isProfessionalMode}

@@ -1,5 +1,6 @@
 import { baseRateRepository, variantInventoryConfigRepository } from "@/container"
-import { REQUIRED_POLICY_CATEGORIES, resolveEffectivePolicies } from "@/modules/policies/public"
+import { getRequiredPolicyCategories } from "@/lib/policies/policy-business-contract"
+import { resolveEffectivePolicies } from "@/modules/policies/public"
 import {
 	and,
 	count,
@@ -19,17 +20,9 @@ export async function validateRatePlanPublication(params: {
 	productId: string
 }) {
 	const todayIso = new Date().toISOString().slice(0, 10)
-	const [baseline, inventory, policies, availability, product] = await Promise.all([
+	const [baseline, inventory, availability, product] = await Promise.all([
 		baseRateRepository.getCanonicalPricingBaselineByRatePlanId(params.ratePlanId),
 		variantInventoryConfigRepository.getByVariantId(params.variantId),
-		resolveEffectivePolicies({
-			productId: params.productId,
-			variantId: params.variantId,
-			ratePlanId: params.ratePlanId,
-			channel: "web",
-			requiredCategories: [...REQUIRED_POLICY_CATEGORIES],
-			onMissingCategory: "return_null",
-		}),
 		db
 			.select({ value: count() })
 			.from(DailyInventory)
@@ -46,13 +39,25 @@ export async function validateRatePlanPublication(params: {
 			.where(eq(Product.id, params.productId))
 			.then(first),
 	])
+	const requiredCategories = [...getRequiredPolicyCategories(product?.productType)]
 	const isTour = String(product?.productType ?? "").toLowerCase() === "tour"
 	const minimumAvailabilityDays = isTour ? 1 : MINIMUM_SELLABLE_AVAILABILITY_DAYS
+	const policies = requiredCategories.length
+		? await resolveEffectivePolicies({
+				productId: params.productId,
+				variantId: params.variantId,
+				ratePlanId: params.ratePlanId,
+				channel: "web",
+				requiredCategories,
+				onMissingCategory: "return_null",
+			})
+		: null
 
 	const blockers: string[] = []
 	if (!baseline || Number(baseline.basePrice) <= 0) blockers.push("precio base")
 	if (!inventory || Number(inventory.defaultTotalUnits) <= 0) blockers.push("cupo físico")
-	if (policies.missingCategories.length > 0) blockers.push("condiciones obligatorias")
+	if (!requiredCategories.length) blockers.push("contrato de políticas no definido")
+	else if (policies?.missingCategories.length) blockers.push("condiciones obligatorias")
 	if (Number(availability[0]?.value ?? 0) < minimumAvailabilityDays) {
 		blockers.push(
 			isTour

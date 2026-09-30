@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const { repoMock } = vi.hoisted(() => ({
 	repoMock: {
-		resolveProductId: vi.fn(),
+		resolveProductContext: vi.fn(),
 		loadMaterializationInputs: vi.fn(),
 		resolveSourceVersion: vi.fn(),
 		getSearchUnitViewRow: vi.fn(),
@@ -31,7 +31,7 @@ describe("sourceVersion integrity (occupancy-aware)", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
 		configureSearchUnitMaterializationRepository(repoMock as any)
-		repoMock.resolveProductId.mockResolvedValue("prod-1")
+		repoMock.resolveProductContext.mockResolvedValue({ productId: "prod-1", productType: "hotel" })
 		repoMock.loadMaterializationInputs.mockResolvedValue({
 			availabilityRow: { availableUnits: 2 },
 			pricingRow: { finalBasePrice: 120 },
