@@ -19,6 +19,8 @@ const mocks = vi.hoisted(() => ({
 	},
 }))
 
+vi.mock("@/lib/rates/providerLocalToday", () => ({ providerLocalToday: () => "2026-09-30" }))
+
 vi.mock("@/container", () => ({
 	baseRateRepository: {
 		getCanonicalPricingBaselineByRatePlanId: mocks.getCanonicalPricingBaselineByRatePlanId,
@@ -70,7 +72,7 @@ describe("validate rate plan publication", () => {
 			productId: "product-1",
 		})
 
-		expect(result).toEqual({ canPublish: true, blockers: [] })
+		expect(result).toMatchObject({ canPublish: true, blockers: [] })
 		expect(mocks.gt).toHaveBeenCalledWith("date", expect.any(String))
 		expect(mocks.gt).toHaveBeenCalledWith("totalInventory", 0)
 		expect(mocks.lt).toHaveBeenCalledWith("reservedCount", "totalInventory")
@@ -88,7 +90,7 @@ describe("validate rate plan publication", () => {
 			productId: "product-1",
 		})
 
-		expect(result).toEqual({
+		expect(result).toMatchObject({
 			canPublish: false,
 			blockers: ["Configura al menos 30 noches con disponibilidad."],
 		})
@@ -120,7 +122,7 @@ describe("validate rate plan publication", () => {
 			productId: "tour-1",
 		})
 
-		expect(result).toEqual({ canPublish: true, blockers: [] })
+		expect(result).toMatchObject({ canPublish: true, blockers: [] })
 		expect(mocks.lt).toHaveBeenCalledWith("reservedCount", "totalInventory")
 		expect(mocks.resolveEffectivePolicies).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -139,7 +141,7 @@ describe("validate rate plan publication", () => {
 			productId: "tour-1",
 		})
 
-		expect(result).toEqual({
+		expect(result).toMatchObject({
 			canPublish: false,
 			blockers: ["Abre al menos una fecha futura con cupo para esta salida."],
 		})
@@ -180,6 +182,11 @@ describe("validate rate plan publication", () => {
 			"Define un precio base mayor que cero.",
 			"Define el cupo físico de esta salida.",
 			"Abre al menos una fecha futura con cupo para esta salida.",
+		])
+		expect(result.blockerDetails.map((blocker) => blocker.id)).toEqual([
+			"price",
+			"capacity",
+			"availability",
 		])
 	})
 
