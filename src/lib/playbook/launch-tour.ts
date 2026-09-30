@@ -186,6 +186,27 @@ export function inferTourLaunchStepFromPathname(pathname: string): TourLaunchSte
 	return null
 }
 
+export function resolveTourLaunchStepFromUrl(
+	url: URL,
+	fallback: TourLaunchStepId
+): TourLaunchStepId {
+	const requested = String(url.searchParams.get("step") ?? "").trim()
+	return (
+		getTourLaunchStepById(requested)?.id ??
+		inferTourLaunchStepFromPathname(url.pathname) ??
+		fallback
+	)
+}
+
+/** Keep shared rate routes in the tour flow when product context identifies a tour. */
+export function canonicalTourLaunchHref(url: URL, fallback: TourLaunchStepId): string {
+	const params = new URLSearchParams(url.searchParams)
+	params.set("playbook", LAUNCH_TOUR_PLAYBOOK_ID)
+	params.set("step", resolveTourLaunchStepFromUrl(url, fallback))
+	params.set("flow", "create")
+	return `${url.pathname}?${params.toString()}`
+}
+
 export function resolveTourLaunchPlaybookFromUrl(url: URL): {
 	active: boolean
 	playbookId: typeof LAUNCH_TOUR_PLAYBOOK_ID | null

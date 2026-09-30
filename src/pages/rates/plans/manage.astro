@@ -22,6 +22,7 @@ import {
 import {
 	buildTourPlaybookHref,
 	LAUNCH_TOUR_PLAYBOOK_ID,
+	canonicalTourLaunchHref,
 	resolveTourLaunchPlaybookFromUrl,
 } from "@/lib/playbook/launch-tour"
 import {
@@ -196,31 +197,48 @@ const launchPlaybook = resolveLaunchPlaybookFromUrl(Astro.url)
 const tourLaunchPlaybook = resolveTourLaunchPlaybookFromUrl(Astro.url)
 const completePlaybook = resolveCompleteToPublishPlaybookFromUrl(Astro.url)
 const flow = Astro.url.searchParams.get("flow")
+const requestedProductId = String(Astro.url.searchParams.get("productId") ?? "").trim()
+const requestedVariantId = String(Astro.url.searchParams.get("variantId") ?? "").trim()
+const matchedVariant = variantChoices.find(
+	(choice) =>
+		choice.variantId === requestedVariantId &&
+		(!requestedProductId || choice.productId === requestedProductId)
+)
+const productVariant = variantChoices.find((choice) => choice.productId === requestedProductId)
+const contextVariant = matchedVariant ?? productVariant
+const productIsTour = String(contextVariant?.productType ?? "").toLowerCase() === "tour"
+
+if (flow === "create" && productIsTour && !completePlaybook.active) {
+	const tourHref = canonicalTourLaunchHref(Astro.url, "rate")
+	if (tourHref !== `${Astro.url.pathname}${Astro.url.search}`) return Astro.redirect(tourHref)
+}
 if (!addRoomPlaybook.active && flow === "add-room") {
 	const params = new URLSearchParams(Astro.url.searchParams)
 	params.set("playbook", "add-room")
 	params.set("step", "create-rate")
 	return Astro.redirect(`${routes.rates()}?${params.toString()}`)
 }
-if (!launchPlaybook.active && flow === "create") {
+if (
+	!launchPlaybook.active &&
+	!tourLaunchPlaybook.active &&
+	!completePlaybook.active &&
+	flow === "create" &&
+	!productIsTour
+) {
 	const params = new URLSearchParams(Astro.url.searchParams)
 	params.set("playbook", "launch")
 	params.set("step", "rate")
 	return Astro.redirect(`${routes.rates()}?${params.toString()}`)
 }
 
-const requestedVariantId = String(Astro.url.searchParams.get("variantId") ?? "").trim()
 const shouldOpenDialog = Astro.url.searchParams.get("openDialog") === "1"
-const matchedVariant = variantChoices.find((choice) => choice.variantId === requestedVariantId)
-const requestedProductId = String(Astro.url.searchParams.get("productId") ?? "").trim()
-const productVariant = variantChoices.find((choice) => choice.productId === requestedProductId)
 const playbookProductId =
 	matchedVariant?.productId ??
 	addRoomPlaybook.productId ??
 	completePlaybook.productId ??
 	requestedProductId
 const productType = String(matchedVariant?.productType ?? productVariant?.productType ?? "")
-const isTourRateContext = productType.toLowerCase() === "tour"
+const isTourRateContext = productType.toLowerCase() === "tour" || productIsTour
 const scopedVariantChoices = requestedProductId
 	? variantChoices.filter((choice) => choice.productId === requestedProductId)
 	: variantChoices

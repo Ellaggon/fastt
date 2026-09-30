@@ -31,6 +31,7 @@ export const attachHotelRoomSubtypeSchema = z.object({
 
 export const evaluateVariantReadinessSchema = z.object({
 	variantId: z.string().trim().min(1),
+	ratePlanId: z.string().trim().min(1).optional(),
 })
 
 export const updateVariantLifecycleSchema = z.object({

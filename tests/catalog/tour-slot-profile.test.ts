@@ -22,13 +22,17 @@ describe("tour slot profile (fase 2)", () => {
 		expect(closeout).toContain("SET DEFAULT 'shared'")
 	})
 
-	it("bootstraps inventory with maxPax and wires salidas provider surface", () => {
+	it("keeps tour profile saves separate from date availability", () => {
 		const api = read("src/pages/api/variant/tour-slot-profile.ts")
 		expect(api).toContain('kind: "tour_slot"')
 		expect(api).toContain("defaultTotalUnits: parsed.maxPax")
-		expect(api).toContain("totalInventory: parsed.maxPax")
+		expect(api).not.toContain("inventoryBootstrapper")
+		expect(api).not.toContain("DailyInventory")
 		expect(api).toContain("durationMinutes")
 		expect(api).toContain("isActive: parsed.isActive")
+
+		const variantApi = read("src/pages/api/variant/create.ts")
+		expect(variantApi).toContain('bootstrapInventory: kind !== "tour_slot"')
 
 		const createVariant = read(
 			"src/modules/catalog/application/use-cases/variant/create-variant.ts"
@@ -60,9 +64,7 @@ describe("tour slot profile (fase 2)", () => {
 	})
 
 	it("requires profile + capacity + default rate for tour product readiness", () => {
-		const repo = read(
-			"src/modules/catalog/infrastructure/repositories/ProductRepository.ts"
-		)
+		const repo = read("src/modules/catalog/infrastructure/repositories/ProductRepository.ts")
 		expect(repo).toContain("capacityVariantId: VariantCapacity.variantId")
 		expect(repo).toContain("defaultRatePlanId: RatePlan.id")
 		expect(repo).toContain("pickRateId")

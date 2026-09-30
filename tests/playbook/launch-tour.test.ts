@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+	canonicalTourLaunchHref,
 	buildTourPlaybookHref,
 	getNextTourLaunchStep,
 	getPreviousTourLaunchStep,
@@ -11,6 +12,16 @@ import {
 import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
 
 describe("playbook/launch-tour", () => {
+	it("keeps shared rates pages in the tour flow and preserves selected context", () => {
+		const url = new URL(
+			"https://fastt.test/rates/calendar?productId=tour_123&variantId=slot_1&flow=create&step=house-rules"
+		)
+
+		expect(canonicalTourLaunchHref(url, "calendar")).toBe(
+			"/rates/calendar?productId=tour_123&variantId=slot_1&flow=create&step=calendar&playbook=launch-tour"
+		)
+	})
+
 	it("defines a reservable tour path from identity to availability", () => {
 		expect(TOUR_LAUNCH_STEPS.map((step) => step.id)).toEqual([
 			"create",
