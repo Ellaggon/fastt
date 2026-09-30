@@ -11,6 +11,7 @@ import { requireProvider } from "@/lib/auth/requireProvider"
 import { invalidatePricing, invalidateProvider, invalidateVariant } from "@/lib/cache/invalidation"
 import { invalidateAggregateCache } from "@/lib/cache/ssrAggregateCache"
 import { createRatePlanContract } from "@/lib/rates/createRatePlanContract"
+import { findReusableRatePlan } from "@/lib/rates/distinctRatePlanOffers"
 import { resolveCommercialIntentSpec } from "@/lib/rates/ratePlanCommercialIntent"
 import { validateRatePlanPublication } from "@/lib/rates/validateRatePlanPublication"
 import { assertProviderCapability } from "@/lib/provider-governance"
@@ -31,6 +32,7 @@ function json(status: number, payload: Record<string, unknown>) {
 export const POST: APIRoute = async ({ request }) => {
 	const { providerId, user } = await requireProvider(request)
 	let createdRatePlanId = ""
+	let reusedExistingRatePlan = false
 
 	try {
 		const body = createCommercialRatePlanSchema.parse(await request.json())
@@ -49,8 +51,14 @@ export const POST: APIRoute = async ({ request }) => {
 					"Esta propuesta comercial requiere una modalidad que todavía no está disponible para tours.",
 			})
 		}
+		const existingRatePlans = (await listRatePlansByProvider(providerId)) as Array<{
+			ratePlanId: string
+			variantId: string
+			ratePlanName: string
+			isDefault?: boolean
+			isActive?: boolean
+		}>
 		if (offeringType === "tour" && body.intent === "early_booking") {
-			const existingRatePlans = await listRatePlansByProvider(providerId)
 			const hasMainRate = existingRatePlans.some((ratePlan) => {
 				const row = ratePlan as { variantId?: unknown; isDefault?: unknown }
 				return String(row.variantId) === body.variantId && Boolean(row.isDefault)
@@ -68,22 +76,28 @@ export const POST: APIRoute = async ({ request }) => {
 			discountPercent: body.discountPercent,
 			minAdvanceDays: body.minAdvanceDays,
 		})
-		const result = await createRatePlan(
-			{ repo: ratePlanCommandRepository },
-			{
-				variantId: body.variantId,
-				name: body.name,
-				description: body.description ?? null,
-				type: intent.type,
-				value: intent.value,
-				minNights: intent.minNights,
-				minAdvanceDays: intent.minAdvanceDays,
-				isActive: false,
-				isDefault: false,
-			}
-		)
-		if (!result.ok) return json(result.status, { error: result.error })
-		createdRatePlanId = result.ratePlanId
+		const reusable = findReusableRatePlan(existingRatePlans, body.variantId, body.name)
+		if (reusable) {
+			createdRatePlanId = reusable.ratePlanId
+			reusedExistingRatePlan = true
+		} else {
+			const result = await createRatePlan(
+				{ repo: ratePlanCommandRepository },
+				{
+					variantId: body.variantId,
+					name: body.name,
+					description: body.description ?? null,
+					type: intent.type,
+					value: intent.value,
+					minNights: intent.minNights,
+					minAdvanceDays: intent.minAdvanceDays,
+					isActive: false,
+					isDefault: false,
+				}
+			)
+			if (!result.ok) return json(result.status, { error: result.error })
+			createdRatePlanId = result.ratePlanId
+		}
 
 		await setRatePlanPricingBaseline(
 			{ pricingBaselineRepo: baseRateRepository, variantRepo: variantRepository },
@@ -168,7 +182,7 @@ export const POST: APIRoute = async ({ request }) => {
 			status: body.publicationMode === "publish" ? "active" : "draft",
 		})
 	} catch (error) {
-		if (createdRatePlanId) {
+		if (createdRatePlanId && !reusedExistingRatePlan) {
 			await ratePlanCommandRepository.deleteRatePlan(createdRatePlanId).catch(() => undefined)
 		}
 		if (error instanceof ZodError) {

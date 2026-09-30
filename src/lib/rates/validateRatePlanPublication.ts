@@ -1,5 +1,7 @@
 import { baseRateRepository, variantInventoryConfigRepository } from "@/container"
 import { getRequiredPolicyCategories } from "@/lib/policies/policy-business-contract"
+import { getPolicyCategoryLabel } from "@/data/policy/policy-categories"
+import { sellableDailyInventoryCondition } from "@/lib/rates/sellableDailyInventoryCondition"
 import { resolveEffectivePolicies } from "@/modules/policies/public"
 import {
 	and,
@@ -30,7 +32,7 @@ export async function validateRatePlanPublication(params: {
 				and(
 					eq(DailyInventory.variantId, params.variantId),
 					gt(DailyInventory.date, todayIso),
-					gt(DailyInventory.totalInventory, 0)
+					sellableDailyInventoryCondition()
 				)
 			),
 		db
@@ -54,15 +56,29 @@ export async function validateRatePlanPublication(params: {
 		: null
 
 	const blockers: string[] = []
-	if (!baseline || Number(baseline.basePrice) <= 0) blockers.push("precio base")
-	if (!inventory || Number(inventory.defaultTotalUnits) <= 0) blockers.push("cupo físico")
-	if (!requiredCategories.length) blockers.push("contrato de políticas no definido")
-	else if (policies?.missingCategories.length) blockers.push("condiciones obligatorias")
+	if (!baseline || Number(baseline.basePrice) <= 0) {
+		blockers.push("Define un precio base mayor que cero.")
+	}
+	if (!inventory || Number(inventory.defaultTotalUnits) <= 0) {
+		blockers.push(
+			isTour
+				? "Define el cupo físico de esta salida."
+				: "Define cuántas unidades físicas tiene esta habitación."
+		)
+	}
+	if (!requiredCategories.length) {
+		blockers.push("Fastt aún no definió las condiciones para este tipo de oferta.")
+	} else if (policies?.missingCategories.length) {
+		const missingLabels = policies.missingCategories.map((category) =>
+			getPolicyCategoryLabel(category)
+		)
+		blockers.push(`Completa las condiciones pendientes: ${missingLabels.join(", ")}.`)
+	}
 	if (Number(availability[0]?.value ?? 0) < minimumAvailabilityDays) {
 		blockers.push(
 			isTour
-				? "al menos una fecha futura con cupo"
-				: `${MINIMUM_SELLABLE_AVAILABILITY_DAYS} noches con disponibilidad`
+				? "Abre al menos una fecha futura con cupo para esta salida."
+				: `Configura al menos ${MINIMUM_SELLABLE_AVAILABILITY_DAYS} noches con disponibilidad.`
 		)
 	}
 

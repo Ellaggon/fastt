@@ -16,7 +16,7 @@ describe("calendar surface server cache", () => {
 
 	it("uses the provider, variant, rate plan and month in a short-lived key", () => {
 		expect(cacheKeys.calendarSurface("provider-1", "rate-1", "variant-1", "2026-08")).toBe(
-			"ws:provider:provider-1:calendar:variant-1:rate-1:2026-08"
+			"ws:provider:provider-1:calendar:offer:variant-1:rate-1:2026-08"
 		)
 		expect(cacheKeys.calendarSurfacePrefix("provider-1")).toBe("ws:provider:provider-1:calendar:")
 		expect(cacheTtls.calendarSurface).toBe(15)

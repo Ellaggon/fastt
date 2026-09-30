@@ -78,3 +78,10 @@ export function getPolicyBusinessContract(productType: unknown): PolicyBusinessC
 export function getRequiredPolicyCategories(productType: unknown): readonly PolicyCategory[] {
 	return getPolicyBusinessContract(productType).requiredCategories
 }
+
+export function normalizePolicyCoverage(productType: unknown, coveredCategories: unknown) {
+	const total = getRequiredPolicyCategories(productType).length
+	const parsed = Number(coveredCategories)
+	const covered = Number.isFinite(parsed) ? Math.min(total, Math.max(0, Math.trunc(parsed))) : 0
+	return { covered, total, label: total ? `${covered}/${total}` : "Sin contrato" }
+}

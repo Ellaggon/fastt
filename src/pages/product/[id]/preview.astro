@@ -17,6 +17,7 @@ import { loadCompleteToPublishState } from "@/lib/playbook/evaluate-complete-to-
 import { resolveLaunchPlaybookFromUrl } from "@/lib/playbook/launch-accommodation"
 import {
 	buildTourPlaybookHref,
+	buildTourProviderPreviewHref,
 	resolveTourLaunchPlaybookFromUrl,
 	type TourLaunchStepId,
 } from "@/lib/playbook/launch-tour"
@@ -39,6 +40,7 @@ import { ArrowRight, BedDouble, CircleCheck, ClipboardList, ShieldCheck } from "
 import { buildGuestStayExpectationsSnapshot } from "@/modules/house-rules/public"
 import { mapResolvedPoliciesToUI, resolveEffectivePolicies } from "@/modules/policies/public"
 import {
+	and,
 	first,
 	asc,
 	db,
@@ -46,7 +48,9 @@ import {
 	Image,
 	inArray,
 	Product,
+	RatePlan,
 	VariantImage,
+	Variant,
 } from "@/shared/infrastructure/db/compat"
 
 const user = await getUserFromRequest(Astro.request)
@@ -74,9 +78,36 @@ const verificationDocumentsHref = isTour
 	? `${routes.providerSettingsVerificationDocuments()}?line=tour&tab=activity&experience=${encodeURIComponent(productId)}`
 	: routes.providerSettingsVerificationDocuments()
 const publicDetailHref = vertical.routes.publicDetailHref(productId)
+const previewVariantId = String(Astro.url.searchParams.get("variantId") ?? "").trim()
+const previewRatePlanId = String(Astro.url.searchParams.get("ratePlanId") ?? "").trim()
 const realTourPreviewHref = isTour
-	? `/tours/${encodeURIComponent(productId)}?preview=provider`
+	? buildTourProviderPreviewHref(productId, {
+			variantId: previewVariantId,
+			ratePlanId: previewRatePlanId,
+		})
 	: null
+const selectedTourReviewOffer =
+	isTour && previewVariantId && previewRatePlanId
+		? await db
+				.select({
+					variantName: Variant.name,
+					ratePlanName: RatePlan.name,
+					ratePlanIsActive: RatePlan.isActive,
+					ratePlanIsDefault: RatePlan.isDefault,
+					salesEnabled: Variant.salesEnabled,
+				})
+				.from(Variant)
+				.innerJoin(RatePlan, eq(RatePlan.variantId, Variant.id))
+				.where(
+					and(
+						eq(Variant.id, previewVariantId),
+						eq(Variant.productId, productId),
+						eq(Variant.kind, "tour_slot"),
+						eq(RatePlan.id, previewRatePlanId)
+					)
+				)
+				.then(first)
+		: null
 
 const statusRow = await db
 	.select({ state: Product.publicationState })
@@ -254,8 +285,6 @@ const packageExclusionItems = packageExcludes
 	.split(/\r?\n|,/)
 	.map((item) => item.trim())
 	.filter(Boolean)
-const previewVariantId = String(Astro.url.searchParams.get("variantId") ?? "").trim()
-
 const hotelGuestExpectationsSnapshot = isHotel
 	? await buildGuestStayExpectationsSnapshot(productId)
 	: null
@@ -565,6 +594,49 @@ if (!isTour) {
 		{
 			realTourPreviewHref ? (
 				<section class="space-y-3" data-real-public-preview>
+					{previewVariantId || previewRatePlanId ? (
+						<aside
+							class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sky-950"
+							aria-label="Selección comercial en revisión"
+							data-selected-tour-review
+						>
+							{selectedTourReviewOffer ? (
+								<div class="flex w-full flex-wrap items-center justify-between gap-3">
+									<div class="min-w-0">
+										<p class="text-xs font-semibold tracking-wide text-sky-800 uppercase">
+											Oferta seleccionada para revisar
+										</p>
+										<p class="mt-1 font-semibold">
+											{String(selectedTourReviewOffer.variantName ?? "Salida")}
+										</p>
+										<p class="mt-0.5 text-sm text-sky-900">
+											Tarifa: {String(selectedTourReviewOffer.ratePlanName ?? "Sin nombre")}
+										</p>
+									</div>
+									<Badge
+										variant={
+											selectedTourReviewOffer.ratePlanIsActive &&
+											selectedTourReviewOffer.ratePlanIsDefault &&
+											selectedTourReviewOffer.salesEnabled
+												? "success"
+												: "warning"
+										}
+									>
+										{selectedTourReviewOffer.ratePlanIsActive &&
+										selectedTourReviewOffer.ratePlanIsDefault &&
+										selectedTourReviewOffer.salesEnabled
+											? "Tarifa activada"
+											: "Revisar activación"}
+									</Badge>
+								</div>
+							) : (
+								<p class="text-sm font-medium" role="status">
+									No pudimos vincular esta selección con una opción y tarifa de este tour. Vuelve a
+									revisar disponibilidad y precio.
+								</p>
+							)}
+						</aside>
+					) : null}
 					<header class="flex flex-wrap items-end justify-between gap-3">
 						<div>
 							<p class="text-sm font-semibold text-white">Vista final del viajero</p>

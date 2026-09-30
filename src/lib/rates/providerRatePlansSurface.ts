@@ -16,6 +16,7 @@ import { fallbackRatePlanConditionsSummary } from "@/lib/policies/ratePlanCondit
 import type { ServerTimingRecorder } from "@/lib/observability/serverTiming"
 import { getRequiredPolicyCategories } from "@/lib/policies/policy-business-contract"
 import { listRatePlansByProvider } from "@/modules/pricing/public"
+import { summarizeMissingPolicyCategories } from "@/modules/policies/public"
 
 export type RatePlanListItem = {
 	ratePlanId: string
@@ -28,6 +29,7 @@ export type RatePlanListItem = {
 	variantName: string
 	isActive: boolean
 	isDefault: boolean
+	createdAt?: string | null
 	status: "active" | "inactive"
 	summary: {
 		priceRulesCount: number
@@ -199,7 +201,11 @@ async function loadProviderRatePlansSurface(input: {
 						? conditionsSummary.policyCoverageUpdatedAt.toISOString()
 						: conditionsSummary.policyCoverageUpdatedAt,
 			},
-			policySummary: conditionsSummary.summary,
+			policySummary: missingCategories.length
+				? summarizeMissingPolicyCategories(missingCategories)
+				: requiredCategories.length
+					? conditionsSummary.summary
+					: "Contrato de políticas no definido",
 		}
 	})
 

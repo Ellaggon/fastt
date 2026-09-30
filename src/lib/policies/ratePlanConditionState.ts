@@ -8,7 +8,11 @@ import {
 	RatePlanConditionState,
 	Variant,
 } from "@/shared/infrastructure/db/compat"
-import { listPolicyCoverageByProvider, REQUIRED_POLICY_CATEGORIES } from "@/modules/policies/public"
+import {
+	listPolicyCoverageByProvider,
+	REQUIRED_POLICY_CATEGORIES,
+	summarizeMissingPolicyCategories,
+} from "@/modules/policies/public"
 import { getRequiredPolicyCategories } from "@/lib/policies/policy-business-contract"
 import type { PolicyCategory } from "@/modules/policies/public"
 
@@ -65,7 +69,7 @@ function asMissingCategories(value: unknown, required: readonly PolicyCategory[]
 
 function summaryForMissing(missingCategories: readonly string[]): string {
 	if (!missingCategories.length) return "Condiciones completas"
-	return `Faltan condiciones: ${missingCategories.join(", ")}`
+	return `Faltan: ${summarizeMissingPolicyCategories(missingCategories).replace(/^Pendientes:\s*/, "")}`
 }
 
 function fallbackSummary(): RatePlanConditionsSummary {

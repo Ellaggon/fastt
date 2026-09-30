@@ -17,6 +17,7 @@ import { getProductFullAggregate, getProductVariantsAggregate } from "@/modules/
 import {
 	derivePolicySummaryFromResolvedPolicies,
 	resolveEffectivePolicies,
+	summarizeMissingPolicyCategories,
 } from "@/modules/policies/public"
 import { getRequiredPolicyCategories } from "@/lib/policies/policy-business-contract"
 import { listRatePlansByProvider } from "@/modules/pricing/public"
@@ -145,7 +146,7 @@ function normalizePolicyCoverage(
 			requiredCategories.length > 0 && missingCategories.length === 0
 				? "Condiciones completas"
 				: missingCategories.length
-					? `Faltan condiciones: ${missingCategories.join(", ")}`
+					? summarizeMissingPolicyCategories(missingCategories)
 					: "Contrato de políticas no definido",
 		ratePlanId: raw.ratePlanId ? String(raw.ratePlanId) : null,
 		updatedAt: String(raw.updatedAt ?? new Date().toISOString()),
@@ -286,7 +287,7 @@ async function resolvePolicyCoverageState(params: {
 			coveredCategories: 0,
 			missingCategories: requiredCategories,
 			isComplete: false,
-			summary: "Sin condiciones configuradas",
+			summary: "No se pudieron verificar las condiciones de reserva.",
 			ratePlanId,
 			updatedAt: new Date().toISOString(),
 		}

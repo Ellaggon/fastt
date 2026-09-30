@@ -10,6 +10,7 @@ import {
 	type RatePlanListItem,
 } from "@/lib/rates/providerRatePlansSurface"
 import { resolvePolicyDateRange } from "@/modules/policies/public"
+import { getRequiredPolicyCategories } from "@/lib/policies/policy-business-contract"
 
 export type { RatePlanListItem } from "@/lib/rates/providerRatePlansSurface"
 
@@ -136,7 +137,7 @@ export async function loadRatePlanPlaybookReadModel(input: {
 			expectedDays: 0,
 		},
 		policyCoverage: {
-			totalCategories: 4,
+			totalCategories: getRequiredPolicyCategories(row.productType).length,
 			coveredCategories: 0,
 			missingCategories: [],
 			isComplete: false,

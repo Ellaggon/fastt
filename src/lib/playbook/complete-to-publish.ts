@@ -266,8 +266,13 @@ export function completeToPublishStepHref(
 						ratePlanId,
 					}).toString()}`
 				: `${routes.rates()}?productId=${encodeURIComponent(productId)}`
-		case "preview":
-			return routes.productPreview(productId)
+		case "preview": {
+			const params = new URLSearchParams()
+			if (variantId) params.set("variantId", variantId)
+			if (ratePlanId) params.set("ratePlanId", ratePlanId)
+			const query = params.toString()
+			return `${routes.productPreview(productId)}${query ? `?${query}` : ""}`
+		}
 		default:
 			return routes.productDetail(productId)
 	}
@@ -303,7 +308,10 @@ function adjacentCompleteToPublishStep(
 		}
 		return {
 			step: "preview",
-			href: buildCompleteToPublishHref(routes.productPreview(productId), "preview"),
+			href: buildCompleteToPublishHref(
+				completeToPublishStepHref(productId, "preview", context),
+				"preview"
+			),
 		}
 	}
 
@@ -325,7 +333,7 @@ export function completeToPublishNextHref(
 ): string {
 	return (
 		adjacentCompleteToPublishStep(productId, currentStep, "next", verticalHint, context)?.href ??
-		buildCompleteToPublishHref(routes.productPreview(productId), "preview")
+		buildCompleteToPublishHref(completeToPublishStepHref(productId, "preview", context), "preview")
 	)
 }
 

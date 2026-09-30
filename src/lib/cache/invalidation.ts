@@ -99,7 +99,7 @@ export async function invalidateProviderWorkspaceExperience(params: {
 	const providerId = String(params.providerId ?? "").trim()
 	const userId = String(params.userId ?? "").trim()
 	if (!providerId || !userId) return
-	await delByPrefix(`ws:provider:${providerId}:sidebar:v2:${userId}:`)
+	await delByPrefix(`ws:provider:${providerId}:sidebar:v3:${userId}:`)
 	console.debug("cache invalidated", {
 		scope: "provider_workspace_experience",
 		providerId,

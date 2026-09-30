@@ -134,10 +134,40 @@ export const TOUR_LAUNCH_STEPS: TourLaunchStepDefinition[] = [
 		id: "preview",
 		label: "Vista previa y publicar",
 		guestImpact: "Revisa la oferta antes de recibir reservas.",
-		buildHref: ({ productId }) =>
-			buildTourPlaybookHref(`/product/${encodeURIComponent(productId)}/preview`, "preview"),
+		buildHref: ({ productId, variantId, ratePlanId }) =>
+			buildTourPlaybookHref(buildTourReviewHref(productId, { variantId, ratePlanId }), "preview"),
 	},
 ]
+
+export function withTourOfferSelection(
+	path: string,
+	context: { variantId?: string | null; ratePlanId?: string | null } = {}
+): string {
+	const [pathname, existingQuery = ""] = path.split("?")
+	const params = new URLSearchParams(existingQuery)
+	const variantId = String(context.variantId ?? "").trim()
+	const ratePlanId = String(context.ratePlanId ?? "").trim()
+	if (variantId) params.set("variantId", variantId)
+	else params.delete("variantId")
+	if (ratePlanId) params.set("ratePlanId", ratePlanId)
+	else params.delete("ratePlanId")
+	const query = params.toString()
+	return `${pathname}${query ? `?${query}` : ""}`
+}
+
+export function buildTourReviewHref(
+	productId: string,
+	context: { variantId?: string | null; ratePlanId?: string | null } = {}
+): string {
+	return withTourOfferSelection(`/product/${encodeURIComponent(productId)}/preview`, context)
+}
+
+export function buildTourProviderPreviewHref(
+	productId: string,
+	context: { variantId?: string | null; ratePlanId?: string | null } = {}
+): string {
+	return withTourOfferSelection(`/tours/${encodeURIComponent(productId)}?preview=provider`, context)
+}
 
 export function buildTourPlaybookHref(path: string, step: TourLaunchStepId): string {
 	const [basePath, existingQuery = ""] = path.split("?")
@@ -198,13 +228,55 @@ export function resolveTourLaunchStepFromUrl(
 	)
 }
 
-/** Keep shared rate routes in the tour flow when product context identifies a tour. */
-export function canonicalTourLaunchHref(url: URL, fallback: TourLaunchStepId): string {
+type TourSharedRateContext = {
+	isTour: boolean
+	step: Extract<TourLaunchStepId, "rate" | "conditions" | "calendar">
+	productId: string
+	variantId?: string
+	ratePlanId?: string
+}
+
+/**
+ * Canonicalize guided entries to a shared rate page from trusted product context.
+ * URL parameters express navigation intent; they never decide the business line.
+ */
+export function getTourSharedRateCanonicalHref(
+	url: URL,
+	context: TourSharedRateContext
+): string | null {
+	if (!context.isTour) return null
+
+	const playbook = String(url.searchParams.get("playbook") ?? "").trim()
+	const flow = String(url.searchParams.get("flow") ?? "").trim()
+	const isCompletePlaybook = playbook === "complete-to-publish"
+	const isTourPlaybook = playbook === LAUNCH_TOUR_PLAYBOOK_ID
+	const hasAccommodationIntent =
+		playbook === "launch" || playbook === "add-room" || flow === "create" || flow === "add-room"
+	if (!isCompletePlaybook && !isTourPlaybook && !hasAccommodationIntent) return null
+
 	const params = new URLSearchParams(url.searchParams)
-	params.set("playbook", LAUNCH_TOUR_PLAYBOOK_ID)
-	params.set("step", resolveTourLaunchStepFromUrl(url, fallback))
-	params.set("flow", "create")
-	return `${url.pathname}?${params.toString()}`
+	params.set("playbook", isCompletePlaybook ? "complete-to-publish" : LAUNCH_TOUR_PLAYBOOK_ID)
+	params.set("step", isCompletePlaybook ? (params.get("step") ?? context.step) : context.step)
+	params.set("flow", isCompletePlaybook ? "complete" : "create")
+	params.set("productId", context.productId)
+	if (context.variantId) params.set("variantId", context.variantId)
+	else params.delete("variantId")
+	if (context.ratePlanId) params.set("ratePlanId", context.ratePlanId)
+	else params.delete("ratePlanId")
+
+	const href = `${url.pathname}?${params.toString()}`
+	return href === `${url.pathname}${url.search}` ? null : href
+}
+
+/** Keep a tour rate detail page out of accommodation playbooks and restore its exact context. */
+export function getTourRateDetailCanonicalHref(
+	url: URL,
+	context: { isTour: boolean; productId: string; variantId: string; ratePlanId: string }
+): string | null {
+	return getTourSharedRateCanonicalHref(url, {
+		...context,
+		step: "conditions",
+	})
 }
 
 export function resolveTourLaunchPlaybookFromUrl(url: URL): {

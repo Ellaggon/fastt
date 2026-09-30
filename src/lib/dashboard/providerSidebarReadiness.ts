@@ -4,6 +4,7 @@ import {
 	db,
 	eq,
 	inArray,
+	ne,
 	Product,
 	ProviderUser,
 	RatePlan,
@@ -17,6 +18,8 @@ import {
 } from "@/lib/commercial-rules/commercialRulesRepository"
 import { cacheKeys, cacheTtls } from "@/lib/cache/cacheKeys"
 import { readThrough } from "@/lib/cache/readThrough"
+import { distinctRatePlanOffers } from "@/lib/rates/distinctRatePlanOffers"
+import { resolveRatePlanNameColumn } from "@/lib/rates/ratePlanSchemaCompat"
 import { routes } from "@/lib/routes"
 import { getProviderPolicyReadiness } from "@/lib/policies/providerPolicyReadiness"
 import { getProviderUserWorkspacePreferenceRead } from "@/lib/providerUserWorkspacePreference"
@@ -88,22 +91,63 @@ function compactContractCount(value: number) {
 	return `${value} ${value === 1 ? "contrato incompleto" : "contratos incompletos"}`
 }
 
+type OperationalRatePlanRow = {
+	ratePlanId: string
+	variantId: string
+	ratePlanName: string
+	productId?: string
+	variantName?: string
+	isDefault?: boolean
+	isActive?: boolean
+	createdAt?: string | Date | null
+	lifecycleState?: string | null
+}
+
+/**
+ * A tariff counts when it exists on a departure that is still in the catalog.
+ * Opening the departure for sale is a later step, and an extra accepted
+ * currency is another price of the same tariff.
+ */
+export function operationalRatePlanIds(rows: OperationalRatePlanRow[]): string[] {
+	const countable = rows.filter(
+		(row) => row.lifecycleState !== "archived" && row.isActive !== false
+	)
+	return distinctRatePlanOffers(countable).map((row) => row.ratePlanId)
+}
+
 async function getProviderRatePlanIds(providerId: string): Promise<string[]> {
+	// Count catalog tariffs, including departures that are not on sale yet.
+	const ratePlanName = await resolveRatePlanNameColumn()
 	const rows = await db
-		.select({ ratePlanId: RatePlan.id })
+		.select({
+			ratePlanId: RatePlan.id,
+			variantId: Variant.id,
+			ratePlanName,
+			productId: Product.id,
+			variantName: Variant.name,
+			isDefault: RatePlan.isDefault,
+			isActive: RatePlan.isActive,
+			createdAt: RatePlan.createdAt,
+			lifecycleState: Variant.lifecycleState,
+		})
 		.from(RatePlan)
 		.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
 		.innerJoin(Product, eq(Product.id, Variant.productId))
-		.where(
-			and(
-				eq(Product.providerId, providerId),
-				eq(Variant.salesEnabled, true),
-				eq(Variant.lifecycleState, "ready"),
-				eq(RatePlan.isActive, true)
-			)
-		)
+		.where(and(eq(Product.providerId, providerId), ne(Variant.lifecycleState, "archived")))
 
-	return rows.map((row) => String(row.ratePlanId))
+	return operationalRatePlanIds(
+		rows.map((row) => ({
+			ratePlanId: String(row.ratePlanId),
+			variantId: String(row.variantId),
+			ratePlanName: String(row.ratePlanName ?? ""),
+			productId: String(row.productId),
+			variantName: String(row.variantName ?? ""),
+			isDefault: Boolean(row.isDefault),
+			isActive: Boolean(row.isActive),
+			createdAt: row.createdAt,
+			lifecycleState: row.lifecycleState == null ? null : String(row.lifecycleState),
+		}))
+	)
 }
 
 async function getProviderVariantIds(providerId: string): Promise<string[]> {
@@ -417,17 +461,16 @@ async function loadProviderSidebarData(
 	normalizedProviderId: string,
 	context: ProviderAdvancedDisclosureContext
 ): Promise<ProviderSidebarData> {
-	const [ratePlanIds, variantIds, productRows, policyReadiness, primaryAccommodationLinks] =
-		await Promise.all([
-			getProviderRatePlanIds(normalizedProviderId),
-			getProviderVariantIds(normalizedProviderId),
-			db
-				.select({ productId: Product.id, productType: Product.productType })
-				.from(Product)
-				.where(eq(Product.providerId, normalizedProviderId)),
-			getProviderPolicyReadiness(normalizedProviderId),
-			getPrimaryAccommodationLinks(normalizedProviderId),
-		])
+	const [ratePlanIds, variantIds, productRows, primaryAccommodationLinks] = await Promise.all([
+		getProviderRatePlanIds(normalizedProviderId),
+		getProviderVariantIds(normalizedProviderId),
+		db
+			.select({ productId: Product.id, productType: Product.productType })
+			.from(Product)
+			.where(eq(Product.providerId, normalizedProviderId)),
+		getPrimaryAccommodationLinks(normalizedProviderId),
+	])
+	const policyReadiness = await getProviderPolicyReadiness(normalizedProviderId, { ratePlanIds })
 	const scopeIds = [
 		...ratePlanIds,
 		...variantIds,

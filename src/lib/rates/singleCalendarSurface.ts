@@ -9,6 +9,7 @@ import {
 	listProviderExternalCalendarOverlay,
 	type ProviderExternalCalendarDayOverlay,
 } from "@/lib/provider-external-calendars"
+import { distinctRatePlanOffers } from "@/lib/rates/distinctRatePlanOffers"
 import type { RatePlanListItem } from "@/lib/rates/loadRatePlansReadModel"
 import type { ServerTimingRecorder } from "@/lib/observability/serverTiming"
 import { summarizeMissingPolicyCategories } from "@/modules/policies/public"
@@ -52,8 +53,9 @@ export async function buildSingleCalendarSurface(input: {
 	externalCalendarOverlay?: ProviderExternalCalendarDayOverlay[]
 	timing?: ServerTimingRecorder
 }): Promise<SingleCalendarSurface> {
+	const rows = distinctRatePlanOffers(input.rows, input.ratePlanId)
 	const pricingInput = {
-		rows: input.rows,
+		rows,
 		ratePlanId: input.ratePlanId,
 		variantId: input.variantId,
 		month: input.month,
@@ -80,11 +82,11 @@ export async function buildSingleCalendarSurface(input: {
 	const selected = pricing.selectedRatePlan
 	const missingCategories = selected?.policyCoverage?.missingCategories ?? []
 	const complete = Boolean(selected?.policyCoverage?.isComplete)
-	const conditionsSummary =
-		missingCategories.length >= 4
-			? "Sin condiciones configuradas"
-			: String(selected?.policySummary ?? "").trim() ||
-				(complete ? "Contrato completo" : summarizeMissingPolicyCategories(missingCategories))
+	const conditionsSummary = complete
+		? String(selected?.policySummary ?? "").trim() || "Contrato completo"
+		: missingCategories.length
+			? summarizeMissingPolicyCategories(missingCategories)
+			: String(selected?.policySummary ?? "").trim() || "Condiciones sin verificar"
 	const conditionsMissingSummary = summarizeMissingPolicyCategories(missingCategories)
 	const firstDay = pricing.days[0]?.date
 	const externalCalendarByDate = new Map(externalCalendarOverlay.map((day) => [day.date, day]))
@@ -106,7 +108,7 @@ export async function buildSingleCalendarSurface(input: {
 			missingSummary: conditionsMissingSummary,
 			missingCategories,
 		},
-		ratePlans: input.rows.map((row) => ({
+		ratePlans: rows.map((row) => ({
 			id: String(row.ratePlanId),
 			name: String(row.ratePlanName),
 			context: `${row.productName} · ${row.variantName}`,
@@ -129,8 +131,9 @@ export async function loadSingleCalendarSurface(input: {
 	month?: string | null
 	timing?: ServerTimingRecorder
 }): Promise<SingleCalendarSurface> {
+	const rows = distinctRatePlanOffers(input.rows, input.ratePlanId)
 	const scope = resolvePricingCalendarScope({
-		rows: input.rows,
+		rows,
 		ratePlanId: input.ratePlanId,
 		variantId: input.variantId,
 		month: input.month,

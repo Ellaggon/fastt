@@ -48,6 +48,8 @@ describe("integration/api guided rate activation", () => {
 		mocks.finalizeTourRate.mockResolvedValue({
 			ok: true,
 			ratePlanId: "rate-1",
+			alreadyActive: true,
+			cacheRefreshPending: false,
 			terminalHref: "/product/product-1/preview?playbook=complete-to-publish",
 		})
 	})
@@ -81,6 +83,90 @@ describe("integration/api guided rate activation", () => {
 		expect(response.status).toBe(409)
 		expect(payload.blockers).toEqual([
 			"Define cuántas unidades físicas existen para esta habitación.",
+		])
+	})
+
+	it("returns provider configuration blockers with safe corrective links", async () => {
+		mocks.resolveRatePlanOwnerContext.mockResolvedValue({
+			providerId: "provider-1",
+			productId: "product-1",
+			variantId: "room-1",
+			productType: "tour",
+		})
+		const error = Object.assign(new Error("PROVIDER_CONFIGURATION_BLOCKED:publish"), {
+			details: {
+				capability: "publish",
+				blockers: [
+					{
+						id: "fiscality",
+						label: "Completa la identidad fiscal del proveedor.",
+						severity: "high",
+						href: "/provider/settings/verification/fiscal",
+						areaId: "fiscality",
+						capabilities: ["publish"],
+					},
+					{
+						id: "unsafe_link",
+						label: "No debe incluir un enlace externo.",
+						href: "https://example.test",
+					},
+				],
+				risks: [],
+			},
+		})
+		mocks.finalizeTourRate.mockRejectedValue(error)
+
+		const response = await POST({
+			request: request({ playbook: "launch-tour" }),
+		} as never)
+		const payload = await response.json()
+
+		expect(response.status).toBe(409)
+		expect(payload).toEqual({
+			code: "provider_configuration_blocked",
+			error: "Completa los requisitos del proveedor antes de activar esta oferta.",
+			blockers: [
+				{
+					id: "fiscality",
+					label: "Completa la identidad fiscal del proveedor.",
+					href: "/provider/settings/verification/fiscal",
+					severity: "high",
+					areaId: "fiscality",
+				},
+				{
+					id: "unsafe_link",
+					label: "No debe incluir un enlace externo.",
+				},
+			],
+		})
+	})
+
+	it("provides a settings recovery link when governance returns no actionable issue", async () => {
+		mocks.resolveRatePlanOwnerContext.mockResolvedValue({
+			providerId: "provider-1",
+			productId: "product-1",
+			variantId: "room-1",
+			productType: "tour",
+		})
+		mocks.finalizeTourRate.mockRejectedValue(
+			Object.assign(new Error("PROVIDER_CONFIGURATION_BLOCKED:publish"), {
+				details: { capability: "publish", blockers: [] },
+			})
+		)
+
+		const response = await POST({
+			request: request({ playbook: "launch-tour" }),
+		} as never)
+		const payload = await response.json()
+
+		expect(response.status).toBe(409)
+		expect(payload.blockers).toEqual([
+			{
+				id: "provider_configuration",
+				label:
+					"No pudimos identificar el requisito pendiente. Revisa la configuración de tu proveedor.",
+				href: "/provider/settings",
+			},
 		])
 	})
 
@@ -120,5 +206,7 @@ describe("integration/api guided rate activation", () => {
 			playbook: "launch-tour",
 		})
 		expect(mocks.finalizeAddRoom).not.toHaveBeenCalled()
+		const payload = await response.json()
+		expect(payload).toMatchObject({ alreadyActive: true, cacheRefreshPending: false })
 	})
 })

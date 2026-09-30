@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
 	getPolicyBusinessContract,
+	normalizePolicyCoverage,
 	policyBusinessKindFromProductType,
 } from "@/lib/policies/policy-business-contract"
 import { resolvePolicyPreset } from "@/data/policy/policy-presets"
@@ -61,6 +62,29 @@ describe("policy business contract", () => {
 				allowedTypes: fixture.paymentTypes,
 				platformCollectsFunds: fixture.platformCollectsFunds,
 			},
+		})
+	})
+
+	it("normalizes visible coverage to the categories required by each business", () => {
+		expect(normalizePolicyCoverage("tour", 3)).toEqual({
+			covered: 3,
+			total: 3,
+			label: "3/3",
+		})
+		expect(normalizePolicyCoverage("tour", 4)).toEqual({
+			covered: 3,
+			total: 3,
+			label: "3/3",
+		})
+		expect(normalizePolicyCoverage("hotel", 3)).toEqual({
+			covered: 3,
+			total: 4,
+			label: "3/4",
+		})
+		expect(normalizePolicyCoverage("unknown", 4)).toEqual({
+			covered: 0,
+			total: 0,
+			label: "Sin contrato",
 		})
 	})
 })
