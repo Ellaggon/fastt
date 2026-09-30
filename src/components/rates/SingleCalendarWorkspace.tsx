@@ -1,3 +1,4 @@
+import { providerCalendarDate } from "@/lib/rates/providerCalendarDate"
 /** @jsxRuntime classic */
 import React, { startTransition, useEffect, useMemo, useRef, useState } from "react"
 
@@ -43,6 +44,7 @@ type Props = {
 		ratePlanName: string
 		requiredDays: number
 		initialInventoryDays: number
+		timezone?: string
 		finalizationError?: string
 		activationBlockers?: Array<{ id: string; label: string; href: string }>
 	}
@@ -238,7 +240,7 @@ export default function SingleCalendarWorkspace({
 	const isTourGuidedAvailability = guidedAvailability?.vertical === "tour"
 	const isAddRoomGuidedAvailability = guidedAvailability?.playbook === "add-room"
 	const hasActivationBlockers = Boolean(guidedAvailability?.activationBlockers?.length)
-	const guidedStartDate = addDays(localIsoDate(), 1)
+	const guidedStartDate = addDays(providerCalendarDate(guidedAvailability?.timezone), 1)
 	const initialRequest = {
 		ratePlanId: initialRatePlanId,
 		variantId: initialVariantId,
@@ -284,7 +286,9 @@ export default function SingleCalendarWorkspace({
 	const activeRequest = useRef<AbortController | null>(null)
 	const requestSequence = useRef(0)
 	const mounted = useRef(true)
-	const today = localIsoDate()
+	const today = guidedAvailability
+		? providerCalendarDate(guidedAvailability.timezone)
+		: localIsoDate()
 	const isGuidedAvailability = Boolean(guidedAvailability)
 	const requiredGuidedDays = Math.max(1, Number(guidedAvailability?.requiredDays ?? 30))
 	const guidedProgressPercent = Math.min(
@@ -564,7 +568,7 @@ export default function SingleCalendarWorkspace({
 	function applyPreset(kind: string) {
 		setSelectionHint("")
 		setSelectionHintAction("")
-		const today = new Date().toISOString().slice(0, 10)
+		const today = providerCalendarDate(guidedAvailability?.timezone)
 		const max =
 			kind === "next_7" ? addDays(today, 6) : kind === "next_30" ? addDays(today, 29) : "9999-12-31"
 		setSelectedDates(
@@ -620,7 +624,7 @@ export default function SingleCalendarWorkspace({
 			setGuidedFeedback("Elige un rango de fechas válido.")
 			return
 		}
-		if (guidedFrom <= localIsoDate()) {
+		if (guidedFrom <= providerCalendarDate(guidedAvailability?.timezone)) {
 			setGuidedFeedbackVariant("error")
 			setGuidedFeedback("La primera fecha reservable debe ser futura.")
 			return
@@ -1105,7 +1109,7 @@ export default function SingleCalendarWorkspace({
 									<Input
 										type="date"
 										value={guidedTo}
-										min={guidedFrom || localIsoDate()}
+										min={guidedFrom || providerCalendarDate(guidedAvailability?.timezone)}
 										onChange={(event) => {
 											setGuidedRange("custom")
 											setGuidedTo(event.target.value)

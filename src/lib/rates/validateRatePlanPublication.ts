@@ -1,6 +1,7 @@
 import { baseRateRepository, variantInventoryConfigRepository } from "@/container"
 import { getRequiredPolicyCategories } from "@/lib/policies/policy-business-contract"
 import { getPolicyCategoryLabel } from "@/data/policy/policy-categories"
+import { providerLocalToday } from "@/lib/rates/providerLocalToday"
 import { sellableDailyInventoryCondition } from "@/lib/rates/sellableDailyInventoryCondition"
 import { resolveEffectivePolicies } from "@/modules/policies/public"
 import {
@@ -21,7 +22,6 @@ export async function validateRatePlanPublication(params: {
 	variantId: string
 	productId: string
 }) {
-	const todayIso = new Date().toISOString().slice(0, 10)
 	const [baseline, inventory, availability, product] = await Promise.all([
 		baseRateRepository.getCanonicalPricingBaselineByRatePlanId(params.ratePlanId),
 		variantInventoryConfigRepository.getByVariantId(params.variantId),
@@ -31,7 +31,7 @@ export async function validateRatePlanPublication(params: {
 			.where(
 				and(
 					eq(DailyInventory.variantId, params.variantId),
-					gt(DailyInventory.date, todayIso),
+					gt(DailyInventory.date, providerLocalToday(params.productId)),
 					sellableDailyInventoryCondition()
 				)
 			),
@@ -56,31 +56,38 @@ export async function validateRatePlanPublication(params: {
 		: null
 
 	const blockers: string[] = []
+	const blockerDetails: Array<{ id: string; label: string }> = []
+	const addBlocker = (id: string, label: string) => {
+		blockers.push(label)
+		blockerDetails.push({ id, label })
+	}
 	if (!baseline || Number(baseline.basePrice) <= 0) {
-		blockers.push("Define un precio base mayor que cero.")
+		addBlocker("price", "Define un precio base mayor que cero.")
 	}
 	if (!inventory || Number(inventory.defaultTotalUnits) <= 0) {
-		blockers.push(
+		addBlocker(
+			"capacity",
 			isTour
 				? "Define el cupo físico de esta salida."
 				: "Define cuántas unidades físicas tiene esta habitación."
 		)
 	}
 	if (!requiredCategories.length) {
-		blockers.push("Fastt aún no definió las condiciones para este tipo de oferta.")
+		addBlocker("policy_contract", "Fastt aún no definió las condiciones para este tipo de oferta.")
 	} else if (policies?.missingCategories.length) {
 		const missingLabels = policies.missingCategories.map((category) =>
 			getPolicyCategoryLabel(category)
 		)
-		blockers.push(`Completa las condiciones pendientes: ${missingLabels.join(", ")}.`)
+		addBlocker("conditions", `Completa las condiciones pendientes: ${missingLabels.join(", ")}.`)
 	}
 	if (Number(availability[0]?.value ?? 0) < minimumAvailabilityDays) {
-		blockers.push(
+		addBlocker(
+			"availability",
 			isTour
 				? "Abre al menos una fecha futura con cupo para esta salida."
 				: `Configura al menos ${MINIMUM_SELLABLE_AVAILABILITY_DAYS} noches con disponibilidad.`
 		)
 	}
 
-	return { canPublish: blockers.length === 0, blockers }
+	return { canPublish: blockers.length === 0, blockers, blockerDetails }
 }
