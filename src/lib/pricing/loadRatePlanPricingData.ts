@@ -18,6 +18,7 @@ export type LoadedRatePlanPricingData =
 	| {
 			ownerContext: {
 				ratePlanId: string
+				productType: string
 			}
 			displayContext: {
 				ratePlanName: string
@@ -82,7 +83,10 @@ export async function loadRatePlanPricingData(input: Input): Promise<LoadedRateP
 	const includePricingEditorData = input.includePricingEditorData !== false
 	if (!includePricingEditorData) {
 		return {
-			ownerContext: { ratePlanId: ownerContext.ratePlanId },
+			ownerContext: {
+				ratePlanId: ownerContext.ratePlanId,
+				productType: ownerContext.productType,
+			},
 			displayContext: {
 				ratePlanName: displayContext.ratePlanName,
 				productName: displayContext.productName,
@@ -148,7 +152,10 @@ export async function loadRatePlanPricingData(input: Input): Promise<LoadedRateP
 	const coverageGaps = Math.max(30 - effectivePricingDays, 0)
 
 	return {
-		ownerContext: { ratePlanId: ownerContext.ratePlanId },
+		ownerContext: {
+			ratePlanId: ownerContext.ratePlanId,
+			productType: ownerContext.productType,
+		},
 		displayContext: {
 			ratePlanName: displayContext.ratePlanName,
 			productName: displayContext.productName,

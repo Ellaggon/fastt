@@ -75,7 +75,10 @@ export type SearchUnitMaterializationInputs = {
 }
 
 export type SearchUnitMaterializationRepositoryPort = {
-	resolveProductId(variantId: string): Promise<string | null>
+	resolveProductContext(variantId: string): Promise<{
+		productId: string
+		productType: string
+	} | null>
 	loadMaterializationInputs(params: {
 		variantId: string
 		ratePlanId: string

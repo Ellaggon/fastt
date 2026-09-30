@@ -9,6 +9,8 @@ import {
 	Variant,
 } from "@/shared/infrastructure/db/compat"
 import { listPolicyCoverageByProvider, REQUIRED_POLICY_CATEGORIES } from "@/modules/policies/public"
+import { getRequiredPolicyCategories } from "@/lib/policies/policy-business-contract"
+import type { PolicyCategory } from "@/modules/policies/public"
 
 export type RatePlanConditionsSummary = {
 	conditionsComplete: boolean
@@ -24,6 +26,7 @@ type RatePlanConditionContext = {
 	providerId: string
 	productId: string
 	variantId: string
+	productType: string
 }
 
 const DEFAULT_CHANNEL = "web"
@@ -51,9 +54,13 @@ function stateId(ratePlanId: string, channel = DEFAULT_CHANNEL): string {
 	return `${ratePlanId}:${channel || DEFAULT_CHANNEL}`
 }
 
-function asMissingCategories(value: unknown): string[] {
-	if (!Array.isArray(value)) return [...REQUIRED_POLICY_CATEGORIES]
-	return value.map((item) => String(item ?? "").trim()).filter(Boolean)
+function asMissingCategories(value: unknown, required: readonly PolicyCategory[]): string[] {
+	if (!required.length) return ["Contrato de políticas no definido"]
+	if (!Array.isArray(value)) return [...required]
+	const requiredSet = new Set<string>(required)
+	return value
+		.map((item) => String(item ?? "").trim())
+		.filter((category) => requiredSet.has(category))
 }
 
 function summaryForMissing(missingCategories: readonly string[]): string {
@@ -87,6 +94,7 @@ async function listContextsByRatePlanIds(ratePlanIds: readonly string[]) {
 			providerId: Product.providerId,
 			productId: Product.id,
 			variantId: Variant.id,
+			productType: Product.productType,
 		})
 		.from(RatePlan)
 		.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
@@ -103,6 +111,7 @@ async function listContextsByProvider(providerId: string) {
 			providerId: Product.providerId,
 			productId: Product.id,
 			variantId: Variant.id,
+			productType: Product.productType,
 		})
 		.from(RatePlan)
 		.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
@@ -117,6 +126,7 @@ async function listAllContexts() {
 			providerId: Product.providerId,
 			productId: Product.id,
 			variantId: Variant.id,
+			productType: Product.productType,
 		})
 		.from(RatePlan)
 		.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
@@ -134,15 +144,15 @@ export async function readRatePlanConditionSummaries(
 	const rows = await db
 		.select({
 			ratePlanId: RatePlanConditionState.ratePlanId,
-			totalCategories: RatePlanConditionState.totalCategories,
-			coveredCategories: RatePlanConditionState.coveredCategories,
 			missingCategoriesJson: RatePlanConditionState.missingCategoriesJson,
-			conditionsComplete: RatePlanConditionState.conditionsComplete,
-			summary: RatePlanConditionState.summary,
 			policyCoverageUpdatedAt: RatePlanConditionState.policyCoverageUpdatedAt,
 			updatedAt: RatePlanConditionState.updatedAt,
+			productType: Product.productType,
 		})
 		.from(RatePlanConditionState)
+		.innerJoin(RatePlan, eq(RatePlan.id, RatePlanConditionState.ratePlanId))
+		.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
+		.innerJoin(Product, eq(Product.id, Variant.productId))
 		.where(
 			and(
 				inArray(RatePlanConditionState.ratePlanId, ids),
@@ -154,14 +164,18 @@ export async function readRatePlanConditionSummaries(
 	for (const row of rows) {
 		const ratePlanId = String(row.ratePlanId ?? "").trim()
 		if (!ratePlanId) continue
-		const missingCategories = asMissingCategories(row.missingCategoriesJson)
+		const requiredCategories = getRequiredPolicyCategories(row.productType)
+		const missingCategories = asMissingCategories(row.missingCategoriesJson, requiredCategories)
 		result.set(ratePlanId, {
-			conditionsComplete: Boolean(row.conditionsComplete),
-			totalCategories: Number(row.totalCategories ?? REQUIRED_POLICY_CATEGORIES.length),
-			coveredCategories: Number(row.coveredCategories ?? 0),
+			conditionsComplete: requiredCategories.length > 0 && missingCategories.length === 0,
+			totalCategories: requiredCategories.length,
+			coveredCategories: Math.max(requiredCategories.length - missingCategories.length, 0),
 			missingCategories,
 			policyCoverageUpdatedAt: row.policyCoverageUpdatedAt ?? null,
-			summary: String(row.summary ?? summaryForMissing(missingCategories)),
+			summary:
+				requiredCategories.length > 0 && missingCategories.length === 0
+					? "Condiciones completas"
+					: summaryForMissing(missingCategories),
 		})
 	}
 
@@ -220,59 +234,79 @@ export async function refreshRatePlanConditionStates(params: {
 		providerId: String(row.providerId),
 		productId: String(row.productId),
 		variantId: String(row.variantId),
+		productType: String(row.productType ?? ""),
 	}))
 	if (!normalizedContexts.length) return
 
-	const requestedIds = new Set(normalizedContexts.map((row) => row.ratePlanId))
 	const providers = unique(normalizedContexts.map((row) => row.providerId))
 	const now = new Date()
 
 	for (const providerId of providers) {
-		const coverageRows = await listPolicyCoverageByProvider({
-			providerId,
-			asOfDate: todayIso(),
-			channel,
-			requiredCategories: REQUIRED_POLICY_CATEGORIES,
-		})
-		for (const coverage of coverageRows) {
-			const ratePlanId = String(coverage.ratePlanId)
-			if (!requestedIds.has(ratePlanId)) continue
-			const context = normalizedContexts.find((row) => row.ratePlanId === ratePlanId)
-			if (!context) continue
-			const missingCategories = coverage.missingCategories
-			await db
-				.insert(RatePlanConditionState)
-				.values({
-					id: stateId(ratePlanId, channel),
-					ratePlanId,
-					providerId: context.providerId,
-					productId: context.productId,
-					variantId: context.variantId,
-					channel,
-					totalCategories: REQUIRED_POLICY_CATEGORIES.length,
-					coveredCategories: coverage.coveredCategories.length,
-					missingCategoriesJson: missingCategories,
-					conditionsComplete: coverage.isComplete,
-					summary: summaryForMissing(missingCategories),
-					policyCoverageUpdatedAt: now,
-					updatedAt: now,
-				})
-				.onConflictDoUpdate({
-					target: [RatePlanConditionState.ratePlanId, RatePlanConditionState.channel],
-					set: {
+		const providerContexts = normalizedContexts.filter((row) => row.providerId === providerId)
+		const groups = new Map<
+			string,
+			{ categories: readonly PolicyCategory[]; contexts: RatePlanConditionContext[] }
+		>()
+		for (const context of providerContexts) {
+			const categories = getRequiredPolicyCategories(context.productType)
+			const key = JSON.stringify(categories)
+			const group = groups.get(key) ?? { categories, contexts: [] }
+			group.contexts.push(context)
+			groups.set(key, group)
+		}
+		for (const group of groups.values()) {
+			const coverageRows = group.categories.length
+				? await listPolicyCoverageByProvider({
+						providerId,
+						asOfDate: todayIso(),
+						channel,
+						requiredCategories: group.categories,
+					})
+				: []
+			const coverageByRatePlanId = new Map(
+				coverageRows.map((coverage) => [String(coverage.ratePlanId), coverage])
+			)
+			for (const context of group.contexts) {
+				const ratePlanId = context.ratePlanId
+				const coverage = coverageByRatePlanId.get(ratePlanId)
+				const missingCategories = group.categories.length
+					? (coverage?.missingCategories ?? [...group.categories])
+					: ["Contrato de políticas no definido"]
+				const isComplete = group.categories.length > 0 && missingCategories.length === 0
+				await db
+					.insert(RatePlanConditionState)
+					.values({
+						id: stateId(ratePlanId, channel),
+						ratePlanId,
 						providerId: context.providerId,
 						productId: context.productId,
 						variantId: context.variantId,
-						totalCategories: REQUIRED_POLICY_CATEGORIES.length,
-						coveredCategories: coverage.coveredCategories.length,
+						channel,
+						totalCategories: group.categories.length,
+						coveredCategories: Math.max(group.categories.length - missingCategories.length, 0),
 						missingCategoriesJson: missingCategories,
-						conditionsComplete: coverage.isComplete,
+						conditionsComplete: isComplete,
 						summary: summaryForMissing(missingCategories),
 						policyCoverageUpdatedAt: now,
 						updatedAt: now,
-					},
-				})
-				.catch(() => undefined)
+					})
+					.onConflictDoUpdate({
+						target: [RatePlanConditionState.ratePlanId, RatePlanConditionState.channel],
+						set: {
+							providerId: context.providerId,
+							productId: context.productId,
+							variantId: context.variantId,
+							totalCategories: group.categories.length,
+							coveredCategories: Math.max(group.categories.length - missingCategories.length, 0),
+							missingCategoriesJson: missingCategories,
+							conditionsComplete: isComplete,
+							summary: summaryForMissing(missingCategories),
+							policyCoverageUpdatedAt: now,
+							updatedAt: now,
+						},
+					})
+					.catch(() => undefined)
+			}
 		}
 	}
 }

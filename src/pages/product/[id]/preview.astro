@@ -197,8 +197,9 @@ const stepId =
 				: "preview"
 
 function checkHref(check: (typeof checks)[number]) {
+	const navigationStep = check.navigationStep ?? check.sectionKey
 	if (playbookId === "complete-to-publish") {
-		return buildCompleteToPublishHref(check.href, check.sectionKey)
+		return buildCompleteToPublishHref(check.href, navigationStep)
 	}
 	if (playbookId === "launch-tour") {
 		const stepBySection: Record<string, TourLaunchStepId> = {
@@ -216,7 +217,7 @@ function checkHref(check: (typeof checks)[number]) {
 			bookingPolicies: "conditions",
 			preview: "preview",
 		}
-		return buildTourPlaybookHref(check.href, stepBySection[check.sectionKey] ?? "preview")
+		return buildTourPlaybookHref(check.href, stepBySection[navigationStep] ?? "preview")
 	}
 	return check.href
 }
@@ -388,10 +389,12 @@ if (!isTour) {
 				>
 					<div class="flex flex-wrap items-center justify-between gap-4">
 						<div>
-							<p class="font-semibold">Falta configurar el negocio para publicar</p>
+							<p class="font-semibold">Hay un requisito del negocio pendiente</p>
 							<p class="mt-1 text-sm leading-6 text-slate-700">
 								{publicationBlocker
-									? `${commercialPublishDetail ?? publicationBlocker.label} ${commercialPublishDetail ? (commercialPublishBlocker?.action ?? "") : "Cuando lo completes podrás publicar esta ficha."}`
+									? commercialPublishDetail
+										? `${commercialPublishDetail} ${commercialPublishBlocker?.action ?? ""}`
+										: `Pendiente: ${publicationBlocker.label}. Al resolverlo, volveremos a comprobar los demás requisitos de publicación.`
 									: "Completa la configuración requerida del negocio antes de publicar esta ficha."}
 							</p>
 						</div>

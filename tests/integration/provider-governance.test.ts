@@ -30,8 +30,9 @@ describe("integration/provider governance", () => {
 	})
 
 	it("blocks provider capabilities when mandatory configuration is incomplete", async () => {
-		const providerId = "provider_governance_blocked"
-		const ownerEmail = "governance.blocked@example.com"
+		const fixtureSuffix = crypto.randomUUID()
+		const providerId = `provider_governance_blocked_${fixtureSuffix}`
+		const ownerEmail = `governance.blocked.${fixtureSuffix}@example.com`
 		const ownerId = `user_${ownerEmail}`
 
 		await upsertProvider({
@@ -64,8 +65,9 @@ describe("integration/provider governance", () => {
 	})
 
 	it("unlocks capabilities and persists a configuration state when governance data is complete", async () => {
-		const providerId = "provider_governance_ready"
-		const ownerEmail = "governance.ready@example.com"
+		const fixtureSuffix = crypto.randomUUID()
+		const providerId = `provider_governance_ready_${fixtureSuffix}`
+		const ownerEmail = `governance.ready.${fixtureSuffix}@example.com`
 		const ownerId = `user_${ownerEmail}`
 		const now = new Date("2026-07-18T12:00:00.000Z")
 
@@ -94,7 +96,7 @@ describe("integration/provider governance", () => {
 			updatedBy: ownerId,
 		})
 		await db.insert(ProviderVerification).values({
-			id: "verification_governance_ready",
+			id: `verification_governance_ready_${fixtureSuffix}`,
 			providerId,
 			status: "approved",
 			reason: "Cumplimiento aprobado",
@@ -103,7 +105,7 @@ describe("integration/provider governance", () => {
 		})
 		await db.insert(ProviderDocument).values([
 			{
-				id: "document_governance_ready_gov",
+				id: `document_governance_ready_gov_${fixtureSuffix}`,
 				providerId,
 				type: "government_id",
 				status: "verified",
@@ -111,7 +113,7 @@ describe("integration/provider governance", () => {
 				updatedAt: now,
 			},
 			{
-				id: "document_governance_ready_biz",
+				id: `document_governance_ready_biz_${fixtureSuffix}`,
 				providerId,
 				type: "business_registration",
 				status: "verified",
@@ -119,7 +121,7 @@ describe("integration/provider governance", () => {
 				updatedAt: now,
 			},
 			{
-				id: "document_governance_ready_tax",
+				id: `document_governance_ready_tax_${fixtureSuffix}`,
 				providerId,
 				type: "tax_document",
 				status: "verified",
@@ -128,7 +130,7 @@ describe("integration/provider governance", () => {
 			},
 		])
 		await db.insert(TaxFeeDefinition).values({
-			id: "tax_governance_ready",
+			id: `tax_governance_ready_${fixtureSuffix}`,
 			providerId,
 			code: "IVA",
 			name: "IVA",
@@ -144,7 +146,7 @@ describe("integration/provider governance", () => {
 			updatedAt: now,
 		})
 		await db.insert(ProviderPaymentAccount).values({
-			id: "payment_governance_ready",
+			id: `payment_governance_ready_${fixtureSuffix}`,
 			providerId,
 			status: "verified",
 			provider: "manual_bank",
@@ -156,7 +158,7 @@ describe("integration/provider governance", () => {
 			updatedAt: now,
 		})
 		await db.insert(ProviderIntegrationConnection).values({
-			id: "integration_governance_ready",
+			id: `integration_governance_ready_${fixtureSuffix}`,
 			providerId,
 			connectorKey: "channel_manager",
 			status: "connected",
@@ -202,9 +204,10 @@ describe("integration/provider governance", () => {
 	})
 
 	it("keeps roles simple while honoring granular permission overrides", async () => {
-		const providerId = "provider_governance_permission_overrides"
-		const ownerEmail = "permission.owner@example.com"
-		const staffEmail = "permission.staff@example.com"
+		const fixtureSuffix = crypto.randomUUID()
+		const providerId = `provider_governance_permission_overrides_${fixtureSuffix}`
+		const ownerEmail = `permission.owner.${fixtureSuffix}@example.com`
+		const staffEmail = `permission.staff.${fixtureSuffix}@example.com`
 		const staffId = `user_${staffEmail}`
 
 		await upsertProvider({
@@ -215,7 +218,7 @@ describe("integration/provider governance", () => {
 		})
 		await db.insert(User).values({ id: staffId, email: staffEmail }).onConflictDoNothing()
 		await db.insert(ProviderUser).values({
-			id: "provider_user_permission_override",
+			id: `provider_user_permission_override_${fixtureSuffix}`,
 			providerId,
 			userId: staffId,
 			role: "staff",
@@ -242,8 +245,9 @@ describe("integration/provider governance", () => {
 	})
 
 	it("does not treat verification approval or tax-fee shortcuts as documents/fiscal complete", async () => {
-		const providerId = "provider_governance_no_bypass"
-		const ownerEmail = "governance.nobypass@example.com"
+		const fixtureSuffix = crypto.randomUUID()
+		const providerId = `provider_governance_no_bypass_${fixtureSuffix}`
+		const ownerEmail = `governance.nobypass.${fixtureSuffix}@example.com`
 		const ownerId = `user_${ownerEmail}`
 		const now = new Date("2026-07-21T12:00:00.000Z")
 
@@ -261,7 +265,7 @@ describe("integration/provider governance", () => {
 			governanceUpdatedAt: now,
 		})
 		await db.insert(ProviderVerification).values({
-			id: "verification_governance_no_bypass",
+			id: `verification_governance_no_bypass_${fixtureSuffix}`,
 			providerId,
 			status: "approved",
 			createdAt: now,
@@ -277,7 +281,7 @@ describe("integration/provider governance", () => {
 			updatedBy: ownerId,
 		})
 		await db.insert(TaxFeeDefinition).values({
-			id: "tax_governance_no_bypass",
+			id: `tax_governance_no_bypass_${fixtureSuffix}`,
 			providerId,
 			code: "IVA",
 			name: "IVA",
@@ -293,7 +297,7 @@ describe("integration/provider governance", () => {
 			updatedAt: now,
 		})
 		await db.insert(ProviderDocument).values({
-			id: "document_governance_no_bypass_pending",
+			id: `document_governance_no_bypass_pending_${fixtureSuffix}`,
 			providerId,
 			type: "business_registration",
 			status: "pending",
@@ -301,7 +305,7 @@ describe("integration/provider governance", () => {
 			updatedAt: now,
 		})
 		await db.insert(ProviderPaymentAccount).values({
-			id: "payment_governance_no_bypass",
+			id: `payment_governance_no_bypass_${fixtureSuffix}`,
 			providerId,
 			status: "verified",
 			provider: "bank_transfer",
@@ -338,8 +342,9 @@ describe("integration/provider governance", () => {
 	})
 
 	it("does not mark integrations ready until a successful smoke sync exists", async () => {
-		const providerId = "provider_governance_smoke"
-		const ownerEmail = "governance.smoke@example.com"
+		const fixtureSuffix = crypto.randomUUID()
+		const providerId = `provider_governance_smoke_${fixtureSuffix}`
+		const ownerEmail = `governance.smoke.${fixtureSuffix}@example.com`
 		const ownerId = `user_${ownerEmail}`
 		const now = new Date("2026-07-21T13:00:00.000Z")
 
@@ -350,7 +355,7 @@ describe("integration/provider governance", () => {
 			ownerEmail,
 		})
 		await db.insert(ProviderIntegrationConnection).values({
-			id: "integration_governance_smoke_pending",
+			id: `integration_governance_smoke_pending_${fixtureSuffix}`,
 			providerId,
 			connectorKey: "webhooks_api",
 			status: "pending",
@@ -371,7 +376,12 @@ describe("integration/provider governance", () => {
 		await db
 			.update(ProviderIntegrationConnection)
 			.set({ status: "connected", lastSyncStatus: "success", lastSyncAt: now })
-			.where(eq(ProviderIntegrationConnection.id, "integration_governance_smoke_pending"))
+			.where(
+				eq(
+					ProviderIntegrationConnection.id,
+					`integration_governance_smoke_pending_${fixtureSuffix}`
+				)
+			)
 
 		const afterSmoke = await evaluateProviderGovernance(providerId, {
 			currentUserId: ownerId,

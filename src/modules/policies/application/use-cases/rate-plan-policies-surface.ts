@@ -11,6 +11,7 @@ import { logPolicyContractMismatch } from "@/lib/observability/migration-logger"
 import type { ServerTimingRecorder } from "@/lib/observability/serverTiming"
 import type { FeatureFlagContext } from "@/config/featureFlags"
 import { PolicyExceptionRuleRepository } from "../../infrastructure/repositories/PolicyExceptionRuleRepository"
+import { getRequiredPolicyCategories } from "@/lib/policies/policy-business-contract"
 
 export const REQUIRED_POLICY_CATEGORIES = ["Cancellation", "Payment", "CheckIn", "NoShow"] as const
 
@@ -22,6 +23,7 @@ type SurfaceRatePlan = {
 	isDefault?: boolean | null
 	productId?: string | null
 	variantId?: string | null
+	productType?: string | null
 }
 
 export type PolicyPlanView = {
@@ -250,10 +252,12 @@ export async function buildRatePlanPoliciesSurface(params: {
 	const policyPlans = await Promise.all(
 		params.ratePlans.map(async (plan) => {
 			const ratePlanId = String(plan.id)
-			const ownerContext =
-				plan.productId && plan.variantId ? null : await resolveRatePlanOwnerContext(ratePlanId)
+			const hasProductContext = Boolean(plan.productId && plan.variantId && plan.productType)
+			const ownerContext = hasProductContext ? null : await resolveRatePlanOwnerContext(ratePlanId)
 			const productId = String(plan.productId ?? ownerContext?.productId ?? "")
 			const variantId = String(plan.variantId ?? ownerContext?.variantId ?? "")
+			const productType = String(plan.productType ?? ownerContext?.productType ?? "")
+			const requiredCategories = [...getRequiredPolicyCategories(productType)]
 			const resolvePolicies = () =>
 				resolveEffectivePolicies({
 					productId,
@@ -262,7 +266,7 @@ export async function buildRatePlanPoliciesSurface(params: {
 					checkIn: params.checkIn,
 					checkOut: params.checkOut,
 					channel: "web",
-					requiredCategories: [...REQUIRED_POLICY_CATEGORIES],
+					requiredCategories,
 					onMissingCategory: "return_null",
 					requestId: params.requestId,
 					featureContext: params.featureContext,
@@ -311,34 +315,40 @@ export async function buildRatePlanPoliciesSurface(params: {
 				})
 			}
 			const inheritanceByCategory = Object.fromEntries(
-				REQUIRED_POLICY_CATEGORIES.map((category) => {
+				requiredCategories.map((category) => {
 					const item = resolved.policies.find((p: any) => String(p.category) === category)
 					return [category, item ? sourceLabel(item.resolvedFromScope) : "Sin asignación"]
 				})
 			)
 			const overrideSummaryByCategory = Object.fromEntries(
-				REQUIRED_POLICY_CATEGORIES.map((category) => {
+				requiredCategories.map((category) => {
 					const key = snapshotKeysByCategory[category]
 					return [category, overrideLabel(key ? (snapshot as any)[key] : null)]
 				})
 			)
 			const snapshotPreviewByCategory = Object.fromEntries(
-				REQUIRED_POLICY_CATEGORIES.map((category) => {
+				requiredCategories.map((category) => {
 					const key = snapshotKeysByCategory[category]
 					return [category, snapshotLabel(category, key ? (snapshot as any)[key] : null)]
 				})
 			)
-			const isSellableByContract = resolved.missingCategories.length === 0
+			const isSellableByContract =
+				requiredCategories.length > 0 && resolved.missingCategories.length === 0
 			const contractFacts = buildContractFacts(resolved, snapshot)
 			return {
 				ratePlanId,
 				ratePlanName: String(plan.name),
 				isDefault: Boolean(plan.isDefault),
-				coverageCount: REQUIRED_POLICY_CATEGORIES.length - resolved.missingCategories.length,
-				missingCategories: resolved.missingCategories,
+				coverageCount: requiredCategories.length - resolved.missingCategories.length,
+				missingCategories:
+					requiredCategories.length > 0
+						? resolved.missingCategories
+						: ["Contrato de políticas no definido"],
 				isSellableByContract,
 				sellabilityLabel: isSellableByContract ? "Lista para vender" : "No lista para vender",
-				policySummary: derivePolicySummaryFromResolvedPolicies(resolved),
+				policySummary: requiredCategories.length
+					? derivePolicySummaryFromResolvedPolicies(resolved)
+					: "Contrato de políticas no definido",
 				inheritanceByCategory,
 				overrideSummaryByCategory,
 				snapshotPreviewByCategory,

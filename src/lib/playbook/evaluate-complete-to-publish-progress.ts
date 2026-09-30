@@ -5,6 +5,7 @@ import {
 } from "@/lib/catalog/productVerticalRegistry"
 import { routes } from "@/lib/routes"
 import { productRepository } from "@/container"
+import { and, count, DailyInventory, db, eq, first, gt } from "@/shared/infrastructure/db/compat"
 import {
 	TOUR_QUALITY_MIN_IMAGES,
 	TOUR_QUALITY_MIN_ITINERARY_STEPS,
@@ -21,10 +22,12 @@ import {
 import { buildGuestStayExpectationsSnapshot } from "@/modules/house-rules/public"
 import { resolveEffectivePolicies } from "@/modules/policies/public"
 import { loadVariantCompletion } from "@/lib/playbook/evaluate-add-room-progress"
+import { getRequiredPolicyCategories } from "@/lib/policies/policy-business-contract"
 
 export type CompleteToPublishCheck = {
 	key: string
 	sectionKey: ProductVerticalSectionKey
+	navigationStep?: ProductVerticalSectionKey
 	label: string
 	guestImpact: string
 	complete: boolean
@@ -156,6 +159,23 @@ export async function loadCompleteToPublishState(params: {
 		variantId: String(tourReadiness?.primarySlotId ?? "").trim() || null,
 		ratePlanId: String(tourReadiness?.primaryRatePlanId ?? "").trim() || null,
 	}
+	const futureAvailableDateCount = tourCommercialContext.variantId
+		? Number(
+				(
+					await db
+						.select({ value: count() })
+						.from(DailyInventory)
+						.where(
+							and(
+								eq(DailyInventory.variantId, tourCommercialContext.variantId),
+								gt(DailyInventory.date, new Date().toISOString().slice(0, 10)),
+								gt(DailyInventory.totalInventory, 0)
+							)
+						)
+						.then(first)
+				)?.value ?? 0
+			)
+		: 0
 	const description = String(aggregate.content.description ?? "").trim()
 	const highlights = Array.isArray(aggregate.content.highlights) ? aggregate.content.highlights : []
 	const packageIncludes =
@@ -195,10 +215,7 @@ export async function loadCompleteToPublishState(params: {
 		sellableRoomCount = completions.filter((completion) => completion?.sellable).length
 	}
 
-	const requiredPolicyCategories =
-		vertical.vertical === "tour"
-			? ["Cancellation", "Payment"]
-			: ["Cancellation", "Payment", "CheckIn", "NoShow"]
+	const requiredPolicyCategories = [...getRequiredPolicyCategories(aggregate.productType)]
 	let missingPolicies: string[] = []
 	let policyResolutionError: string | null = null
 	try {
@@ -385,8 +402,19 @@ export async function loadCompleteToPublishState(params: {
 					? "No aplica para este tipo de oferta."
 					: Number(tourReadiness?.activeSlotCount ?? 0) > 0
 						? "Hay una salida activa."
-						: "Crea una salida activa con fecha, hora y cupo.",
-			statusLabel: Number(tourReadiness?.activeSlotCount ?? 0) > 0 ? "Salida activa" : "Sin salida",
+						: Number(tourReadiness?.completeSlotCount ?? 0) > 0 && futureAvailableDateCount > 0
+							? "La salida y sus fechas tienen cupo. Activa la tarifa desde el calendario para aceptar reservas."
+							: Number(tourReadiness?.completeSlotCount ?? 0) > 0
+								? "La salida está configurada. Abre al menos una fecha futura con cupo en el calendario."
+								: "Configura la salida, el cupo y una tarifa.",
+			statusLabel:
+				Number(tourReadiness?.activeSlotCount ?? 0) > 0
+					? "Salida activa"
+					: Number(tourReadiness?.completeSlotCount ?? 0) > 0
+						? futureAvailableDateCount > 0
+							? "Por activar"
+							: "Sin fecha futura"
+						: "Sin salida",
 		},
 		rate: {
 			complete: vertical.vertical !== "tour" || Number(tourReadiness?.completeSlotCount ?? 0) > 0,
@@ -394,20 +422,23 @@ export async function loadCompleteToPublishState(params: {
 				vertical.vertical !== "tour"
 					? "No aplica para este tipo de oferta."
 					: Number(tourReadiness?.completeSlotCount ?? 0) > 0
-						? "La salida tiene tarifa activa."
+						? "La salida tiene una tarifa configurada; se validará antes de activarla."
 						: "Asigna una tarifa activa a la salida.",
 			statusLabel:
-				Number(tourReadiness?.completeSlotCount ?? 0) > 0 ? "Tarifa activa" : "Sin tarifa",
+				Number(tourReadiness?.completeSlotCount ?? 0) > 0 ? "Tarifa configurada" : "Sin tarifa",
 		},
 		calendar: {
-			complete: vertical.vertical !== "tour" || Number(tourReadiness?.completeSlotCount ?? 0) > 0,
+			complete: vertical.vertical !== "tour" || futureAvailableDateCount > 0,
 			detail:
 				vertical.vertical !== "tour"
 					? "No aplica para este tipo de oferta."
-					: Number(tourReadiness?.completeSlotCount ?? 0) > 0
-						? "La salida tiene cupo y disponibilidad."
-						: "Configura cupo y disponibilidad de la salida.",
-			statusLabel: Number(tourReadiness?.completeSlotCount ?? 0) > 0 ? "Cupo definido" : "Sin cupo",
+					: futureAvailableDateCount > 0
+						? `${futureAvailableDateCount} fecha${futureAvailableDateCount === 1 ? "" : "s"} futura${futureAvailableDateCount === 1 ? "" : "s"} con cupo.`
+						: "Abre al menos una fecha futura con cupo para recibir reservas.",
+			statusLabel:
+				futureAvailableDateCount > 0
+					? `${futureAvailableDateCount} fecha${futureAvailableDateCount === 1 ? "" : "s"}`
+					: "Sin fechas futuras",
 		},
 		inclusions: {
 			complete: packageInclusionItems.length > 0,
@@ -428,6 +459,10 @@ export async function loadCompleteToPublishState(params: {
 	const requiredSections = vertical.readiness.requiredSections.filter(
 		(section) => section !== "identity"
 	)
+	const tourActivationPending =
+		vertical.vertical === "tour" &&
+		Number(tourReadiness?.completeSlotCount ?? 0) > 0 &&
+		Number(tourReadiness?.activeSlotCount ?? 0) === 0
 
 	const checks: CompleteToPublishCheck[] = requiredSections.map((section) => {
 		const completion = completionBySection[section] ?? {
@@ -438,15 +473,28 @@ export async function loadCompleteToPublishState(params: {
 		return {
 			key: section,
 			sectionKey: section,
-			label: sectionLabel(section, verticalLabel),
+			label:
+				section === "departure" && tourActivationPending
+					? "Activar primera salida"
+					: sectionLabel(section, verticalLabel),
 			guestImpact: SECTION_GUEST_IMPACT[section] ?? "Información visible para el huésped",
 			complete: completion.complete,
 			statusLabel: completion.statusLabel ?? (completion.complete ? "Configurado" : "Pendiente"),
 			completedCount: completion.completedCount,
 			totalCount: completion.totalCount,
 			missingItems: completion.missingItems,
-			href: sectionHref(productId, section, tourCommercialContext),
-			cta: sectionCta(section),
+			navigationStep: section === "departure" && tourActivationPending ? "calendar" : section,
+			href: sectionHref(
+				productId,
+				section === "departure" && tourActivationPending ? "calendar" : section,
+				tourCommercialContext
+			),
+			cta:
+				section === "departure" && tourActivationPending
+					? futureAvailableDateCount > 0
+						? "Activar tarifa"
+						: "Revisar calendario"
+					: sectionCta(section),
 			detail: completion.detail,
 		}
 	})

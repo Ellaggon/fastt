@@ -6,6 +6,9 @@ import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { invalidateVariant } from "@/lib/cache/invalidation"
 import { setVariantSalesEnabled } from "@/modules/catalog/public"
 import { variantManagementRepository, productRepository } from "@/container"
+import { buildCompleteToPublishEntryHref } from "@/lib/playbook/complete-to-publish"
+import { routes } from "@/lib/routes"
+import { isTourProductType } from "@/lib/catalog/productVerticalRegistry"
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
@@ -17,11 +20,22 @@ export const POST: APIRoute = async ({ request }) => {
 		const variantId = String(form.get("variantId") ?? "").trim()
 		const salesEnabled = form.get("salesEnabled") === "true"
 		const variant = await variantManagementRepository.getVariantById(variantId)
-		if (
-			!variant ||
-			!(await productRepository.ensureProductOwnedByProvider(variant.productId, providerId))
-		) {
+		const ownedProduct = variant
+			? await productRepository.ensureProductOwnedByProvider(variant.productId, providerId)
+			: null
+		if (!variant || !ownedProduct) {
 			return new Response(JSON.stringify({ error: "Not found" }), { status: 404 })
+		}
+		if (salesEnabled && isTourProductType(ownedProduct.productType)) {
+			return new Response(
+				JSON.stringify({
+					error: "TOUR_GUIDED_ACTIVATION_REQUIRED",
+					message:
+						"Activa esta salida desde la revisión guiada para validar precio, condiciones y fechas.",
+					nextActionHref: buildCompleteToPublishEntryHref(routes.productPreview(variant.productId)),
+				}),
+				{ status: 409, headers: { "Content-Type": "application/json" } }
+			)
 		}
 
 		const result = await setVariantSalesEnabled(

@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
 	invalidatePricing: vi.fn(),
 	invalidateCalendarSurface: vi.fn(),
 	invalidateProvider: vi.fn(),
+	assertProviderCapability: vi.fn(),
 	evaluateVariantReadiness: vi.fn(),
 	setVariantSalesEnabled: vi.fn(),
 }))
@@ -25,6 +26,9 @@ vi.mock("@/modules/catalog/public", () => ({
 }))
 vi.mock("@/lib/rates/validateRatePlanPublication", () => ({
 	validateRatePlanPublication: mocks.validateRatePlanPublication,
+}))
+vi.mock("@/lib/provider-governance", () => ({
+	assertProviderCapability: mocks.assertProviderCapability,
 }))
 vi.mock("@/modules/pricing/public", () => ({
 	getRatePlanById: mocks.getRatePlanById,
@@ -66,6 +70,7 @@ describe("finalize tour rate", () => {
 		})
 		mocks.validateRatePlanPublication.mockResolvedValue({ canPublish: true, blockers: [] })
 		mocks.updateRatePlan.mockResolvedValue("updated")
+		mocks.assertProviderCapability.mockResolvedValue(undefined)
 		mocks.evaluateVariantReadiness.mockResolvedValue({
 			variantId: "slot-1",
 			lifecycleState: "ready",
@@ -85,14 +90,14 @@ describe("finalize tour rate", () => {
 		expect(mocks.updateRatePlan).toHaveBeenCalledWith(
 			expect.objectContaining({ ratePlanId: "rate-1", isActive: true, isDefault: true })
 		)
-		expect(mocks.evaluateVariantReadiness).toHaveBeenCalledWith(
-			expect.anything(),
-			{ variantId: "slot-1" }
-		)
-		expect(mocks.setVariantSalesEnabled).toHaveBeenCalledWith(
-			expect.anything(),
-			{ variantId: "slot-1", salesEnabled: true }
-		)
+		expect(mocks.evaluateVariantReadiness).toHaveBeenCalledWith(expect.anything(), {
+			variantId: "slot-1",
+			ratePlanId: "rate-1",
+		})
+		expect(mocks.setVariantSalesEnabled).toHaveBeenCalledWith(expect.anything(), {
+			variantId: "slot-1",
+			salesEnabled: true,
+		})
 		if (result.ok) expect(result.terminalHref).toContain("playbook=complete-to-publish")
 	})
 
@@ -110,5 +115,46 @@ describe("finalize tour rate", () => {
 			blockers: ["disponibilidad"],
 		})
 		expect(mocks.updateRatePlan).not.toHaveBeenCalled()
+	})
+
+	it("does not activate or report success when variant readiness is incomplete", async () => {
+		mocks.evaluateVariantReadiness.mockResolvedValue({
+			variantId: "slot-1",
+			lifecycleState: "draft",
+			validationErrors: [{ code: "missing_tour_slot_profile", message: "Completa la salida." }],
+		})
+
+		const result = await finalizeTourRate(input)
+
+		expect(result).toMatchObject({
+			ok: false,
+			status: 409,
+			blockers: ["Completa la salida."],
+		})
+		expect(mocks.updateRatePlan).not.toHaveBeenCalled()
+		expect(mocks.setVariantSalesEnabled).not.toHaveBeenCalled()
+	})
+
+	it("propagates a sales enablement failure instead of returning success", async () => {
+		mocks.setVariantSalesEnabled.mockRejectedValue(new Error("sales write failed"))
+
+		await expect(finalizeTourRate(input)).rejects.toThrow("sales write failed")
+	})
+
+	it("checks publish capability even when re-enabling a previously active rate", async () => {
+		mocks.getRatePlanById.mockResolvedValue({
+			name: "Estándar",
+			description: null,
+			isActive: true,
+		})
+
+		const result = await finalizeTourRate(input)
+
+		expect(result.ok).toBe(true)
+		expect(mocks.assertProviderCapability).toHaveBeenCalledWith({
+			providerId: "provider-1",
+			currentUserId: "user-1",
+			capability: "publish",
+		})
 	})
 })

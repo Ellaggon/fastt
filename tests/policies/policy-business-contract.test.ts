@@ -8,10 +8,11 @@ import { resolvePolicyPreset } from "@/data/policy/policy-presets"
 import { POLICY_BUSINESS_CONTRACT_FIXTURES } from "../fixtures/policies/business-contract-fixtures"
 
 describe("policy business contract", () => {
-	it("keeps hotel policy semantics stable before tour compatibility is introduced", () => {
+	it("keeps hotel policy semantics stable", () => {
 		const fixture = POLICY_BUSINESS_CONTRACT_FIXTURES.hotel
 		const contract = getPolicyBusinessContract(fixture.productType)
 		expect(contract.allowedCategories).toEqual(fixture.categories)
+		expect(contract.requiredCategories).toEqual(fixture.categories)
 		expect(contract.cancellation).toMatchObject({
 			anchor: fixture.cancellation.anchor,
 			allowedLeadUnits: fixture.cancellation.units,
@@ -31,6 +32,7 @@ describe("policy business contract", () => {
 		const fixture = POLICY_BUSINESS_CONTRACT_FIXTURES.tour
 		const contract = getPolicyBusinessContract(fixture.productType)
 		expect(contract.allowedCategories).toEqual(fixture.categories)
+		expect(contract.requiredCategories).toEqual(fixture.categories)
 		expect(contract.cancellation).toMatchObject({
 			anchor: fixture.cancellation.anchor,
 			allowedLeadUnits: fixture.cancellation.units,
@@ -47,6 +49,7 @@ describe("policy business contract", () => {
 		const fixture = POLICY_BUSINESS_CONTRACT_FIXTURES.unknown
 		expect(policyBusinessKindFromProductType(fixture.productType)).toBe("unknown")
 		expect(getPolicyBusinessContract(fixture.productType)).toMatchObject({
+			requiredCategories: fixture.categories,
 			allowedCategories: fixture.categories,
 			cancellation: {
 				anchor: fixture.cancellation.anchor,

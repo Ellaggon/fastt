@@ -34,7 +34,7 @@ describe("Settings IA: Verificación outside settings tabs", () => {
 		const workspace = read("src/lib/provider-verification-workspace.ts")
 
 		expect(layout).toContain("showSettingsTabs")
-		expect(layout).toContain("showSettingsTabs ? (")
+		expect(layout).toContain("showSettingsTabs ? <ProviderSettingsSubnav /> : null")
 		expect(layout).toContain("<ProviderSettingsSubnav")
 		expect(layout).toContain("data-verification-wizard-progress")
 		expect(layout).toContain("formatVerificationProgressTotalLine")
@@ -91,6 +91,14 @@ describe("Settings IA: Verificación outside settings tabs", () => {
 		expect(panels).toContain("syncVerificationTabNav")
 		expect(workspace).toContain("data-verification-trust-panels-stage")
 		expect(panels).toContain("data-verification-page-guidance")
+	})
+
+	it("keeps the accessible tour identity panel aligned with its tab state", () => {
+		const workspace = read("src/components/provider/ProviderVerificationWorkspace.astro")
+		expect(workspace).toContain('selectedLine === "tour" && id === "identity"')
+		expect(workspace).toContain("tourTab.label}. Estado: ${tourTab.stateLabel}")
+		expect(workspace).toContain("data-verification-account-review")
+		expect(workspace).toContain("estar en revisión no los marca como listos")
 	})
 
 	it("stacks verification sections with explicit gap (not display:contents)", () => {

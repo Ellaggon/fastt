@@ -12,6 +12,7 @@ import {
 import { invalidateAggregateCache } from "@/lib/cache/ssrAggregateCache"
 import { buildCompleteToPublishHref } from "@/lib/playbook/complete-to-publish"
 import { buildTourPlaybookHref } from "@/lib/playbook/launch-tour"
+import { assertProviderCapability } from "@/lib/provider-governance"
 import { validateRatePlanPublication } from "@/lib/rates/validateRatePlanPublication"
 import { routes } from "@/lib/routes"
 import { evaluateVariantReadiness, setVariantSalesEnabled } from "@/modules/catalog/public"
@@ -41,6 +42,7 @@ export async function finalizeTourRate(input: Input) {
 		name?: unknown
 		description?: unknown
 		isActive?: unknown
+		isDefault?: unknown
 	} | null
 	if (!ratePlan) {
 		return { ok: false as const, status: 404 as const, error: "Tarifa no encontrada." }
@@ -59,29 +61,39 @@ export async function finalizeTourRate(input: Input) {
 			blockers: publication.blockers,
 		}
 	}
+	await assertProviderCapability({
+		providerId: input.providerId,
+		currentUserId: input.userId,
+		capability: "publish",
+	})
 
-	await ratePlanCommandRepository.updateRatePlan({
+	const readiness = await evaluateVariantReadiness(
+		{ repo: variantManagementRepository, pricingReadRepo: ratePlanPricingReadRepository },
+		{ variantId: input.variantId, ratePlanId: input.ratePlanId }
+	)
+	if (readiness.lifecycleState !== "ready") {
+		return {
+			ok: false as const,
+			status: 409 as const,
+			error: "La salida aún no está lista para activar.",
+			blockers: readiness.validationErrors.map((error) => error.message),
+		}
+	}
+
+	const updateResult = await ratePlanCommandRepository.updateRatePlan({
 		ratePlanId: input.ratePlanId,
 		isActive: true,
 		isDefault: true,
 		name: String(ratePlan.name ?? "Tarifa"),
 		description: ratePlan.description == null ? null : String(ratePlan.description),
 	})
-
-	try {
-		const readiness = await evaluateVariantReadiness(
-			{ repo: variantManagementRepository, pricingReadRepo: ratePlanPricingReadRepository },
-			{ variantId: input.variantId }
-		)
-		if (readiness.lifecycleState === "ready") {
-			await setVariantSalesEnabled(
-				{ repo: variantManagementRepository },
-				{ variantId: input.variantId, salesEnabled: true }
-			)
-		}
-	} catch (error) {
-		console.error("finalize-tour-rate:variant-sales", error)
+	if (updateResult === "not_found") {
+		return { ok: false as const, status: 404 as const, error: "Tarifa no encontrada." }
 	}
+	await setVariantSalesEnabled(
+		{ repo: variantManagementRepository },
+		{ variantId: input.variantId, salesEnabled: true }
+	)
 
 	invalidateAggregateCache({
 		providerId: input.providerId,

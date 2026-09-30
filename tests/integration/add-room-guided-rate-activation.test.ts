@@ -3,10 +3,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const mocks = vi.hoisted(() => ({
 	requireProvider: vi.fn(),
 	finalizeAddRoom: vi.fn(),
+	finalizeTourRate: vi.fn(),
+	resolveRatePlanOwnerContext: vi.fn(),
 }))
 
 vi.mock("@/lib/auth/requireProvider", () => ({ requireProvider: mocks.requireProvider }))
 vi.mock("@/lib/playbook/finalize-add-room", () => ({ finalizeAddRoom: mocks.finalizeAddRoom }))
+vi.mock("@/lib/playbook/finalize-tour-rate", () => ({ finalizeTourRate: mocks.finalizeTourRate }))
+vi.mock("@/modules/pricing/public", () => ({
+	resolveRatePlanOwnerContext: mocks.resolveRatePlanOwnerContext,
+}))
 
 import { POST } from "@/pages/api/rateplans/activate-guided"
 
@@ -27,11 +33,22 @@ describe("integration/api guided rate activation", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
 		mocks.requireProvider.mockResolvedValue({ providerId: "provider-1", user: { id: "user-1" } })
+		mocks.resolveRatePlanOwnerContext.mockResolvedValue({
+			providerId: "provider-1",
+			productId: "product-1",
+			variantId: "room-1",
+			productType: "hotel",
+		})
 		mocks.finalizeAddRoom.mockResolvedValue({
 			ok: true,
 			ratePlanId: "rate-1",
 			terminalHref:
 				"/product/product-1/rooms?variantId=room-1&ratePlanId=rate-1&playbook=add-room&step=confirmation&flow=add-room",
+		})
+		mocks.finalizeTourRate.mockResolvedValue({
+			ok: true,
+			ratePlanId: "rate-1",
+			terminalHref: "/product/product-1/preview?playbook=complete-to-publish",
 		})
 	})
 
@@ -68,14 +85,40 @@ describe("integration/api guided rate activation", () => {
 	})
 
 	it("does not disclose another provider's rate plan", async () => {
-		mocks.finalizeAddRoom.mockResolvedValue({
-			ok: false,
-			status: 404,
-			error: "Tarifa, habitación o alojamiento no encontrado.",
+		mocks.resolveRatePlanOwnerContext.mockResolvedValue({
+			providerId: "another-provider",
+			productId: "product-1",
+			variantId: "room-1",
+			productType: "hotel",
 		})
 
 		const response = await POST({ request: request() } as never)
 
 		expect(response.status).toBe(404)
+		expect(mocks.finalizeAddRoom).not.toHaveBeenCalled()
+	})
+
+	it("resolves vertical from the owned rate plan instead of trusting a hotel claim", async () => {
+		mocks.resolveRatePlanOwnerContext.mockResolvedValue({
+			providerId: "provider-1",
+			productId: "product-1",
+			variantId: "room-1",
+			productType: "tour",
+		})
+
+		const response = await POST({
+			request: request({ vertical: "hotel", playbook: "launch-tour" }),
+		} as never)
+
+		expect(response.status).toBe(200)
+		expect(mocks.finalizeTourRate).toHaveBeenCalledWith({
+			providerId: "provider-1",
+			userId: "user-1",
+			productId: "product-1",
+			variantId: "room-1",
+			ratePlanId: "rate-1",
+			playbook: "launch-tour",
+		})
+		expect(mocks.finalizeAddRoom).not.toHaveBeenCalled()
 	})
 })
