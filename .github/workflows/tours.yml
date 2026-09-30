@@ -125,6 +125,9 @@ jobs:
       - name: UI guardrail
         run: pnpm run check:ui
 
+      - name: Rendered policy coverage (tours and lodging)
+        run: pnpm run test:ui:render
+
       - name: Postgres schema parity
         env:
           FASTT_DATA_ENV: test

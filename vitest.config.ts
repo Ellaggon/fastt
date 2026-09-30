@@ -1,9 +1,10 @@
-import { defineConfig } from "vitest/config"
+import { configDefaults, defineConfig } from "vitest/config"
 import path from "path"
 
 export default defineConfig({
 	test: {
 		globals: true,
+		exclude: [...configDefaults.exclude, "tests/render/**"],
 		environment: "node",
 		setupFiles: [path.resolve(__dirname, "tests/setup/clean-db-env.ts")],
 		// The default suite includes integration files invoked directly by CI. They
