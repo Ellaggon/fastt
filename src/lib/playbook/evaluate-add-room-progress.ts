@@ -12,6 +12,7 @@ import {
 	db,
 	gt,
 } from "@/shared/infrastructure/db/compat"
+import { providerLocalToday } from "@/lib/rates/providerLocalToday"
 import { sellableDailyInventoryCondition } from "@/lib/rates/sellableDailyInventoryCondition"
 import { baseRateRepository } from "@/container"
 import { resolveRatePlanNameColumn } from "@/lib/rates/ratePlanSchemaCompat"
@@ -154,7 +155,6 @@ export async function loadVariantCompletionForAggregateVariant(
 	const variantId = String(variant.id)
 
 	const ratePlanName = await resolveRatePlanNameColumn()
-	const todayIso = new Date().toISOString().slice(0, 10)
 	const [inventoryRows, imageRows, inventoryConfigRows, roomProfileRows, bedRows, tariffRows] =
 		await Promise.all([
 			db
@@ -163,7 +163,7 @@ export async function loadVariantCompletionForAggregateVariant(
 				.where(
 					and(
 						eq(DailyInventory.variantId, variantId),
-						gt(DailyInventory.date, todayIso),
+						gt(DailyInventory.date, providerLocalToday(productId)),
 						sellableDailyInventoryCondition()
 					)
 				),

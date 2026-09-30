@@ -3,7 +3,7 @@
 Status: active  
 Document type: canonical  
 Owner: Tours / Provider Experience  
-Last verified: 2026-09-29  
+Last verified: 2026-09-30
 Scope: definición ideal de los recorridos guiados (playbooks) del proveedor de tours, sus etapas, diagnóstico compartido, navegación y reglas de interfaz  
 Source of truth: este documento; implementación en `src/lib/playbook/`, layouts de playbook y superficies enlazadas del proveedor  
 Related code/tests: `src/lib/playbook/`, `src/layouts/PlaybookLayout.astro`, `src/pages/product/`, `src/pages/catalog/tours.astro`, pruebas de wizard comercial de tours  
@@ -93,7 +93,8 @@ La finalización debe devolver un resultado verificable: **configuración comple
 
 ### Separación de acciones de persistencia
 
-- Guardar el **perfil** modifica el perfil.  
+- Guardar el **perfil** modifica horario, idioma, modalidad y máximo de participantes por grupo (`TourSlotProfile` y su límite en `VariantCapacity`). Conserva todas las fechas, cupos y reservas de `DailyInventory`.
+- El cupo predeterminado de `VariantInventoryConfig` se inicializa al crear la opción. En una edición sólo cambia al marcar **«Usar este máximo como cupo predeterminado para nuevas fechas»**; se conservan horizonte y fecha de creación. La acción no abre fechas ni modifica las ya programadas.
 - **Abrir fechas** modifica las fechas seleccionadas.  
 - **Cambiar capacidad** propone un alcance explícito.  
 - Las **reservas existentes** y **excepciones manuales** requieren tratamiento propio.

@@ -81,7 +81,12 @@ function lastPathBelongsToProduct(
 	const url = new URL(path, "http://fastt.local")
 	const pathProduct = url.pathname.match(/^\/product\/([^/]+)/)?.[1] ?? ""
 	const queryProduct = String(url.searchParams.get("productId") ?? "").trim()
-	if (pathProduct !== productId && queryProduct !== productId) return null
+	if (
+		(pathProduct && pathProduct !== productId) ||
+		(queryProduct && queryProduct !== productId) ||
+		(!pathProduct && !queryProduct)
+	)
+		return null
 	if (!url.pathname.startsWith("/product/") && !url.pathname.startsWith("/rates/")) return null
 	const playbook = String(url.searchParams.get("playbook") ?? "")
 		.trim()
@@ -127,11 +132,28 @@ export function resolveCompleteToPublishResume(
 		.filter((check): check is CompleteToPublishCheck => Boolean(check))
 	const firstIncomplete = playbookSteps.find((check) => !check.complete) ?? null
 
+	const preview = checks.find((check) => check.sectionKey === "preview")
+	let previewHref = buildCompleteToPublishHref(
+		preview?.href ?? routes.productPreview(productId),
+		"preview"
+	)
 	const savedPath = lastPathBelongsToProduct(productId, options?.lastPath)
 	if (savedPath) {
 		const url = new URL(savedPath, "http://fastt.local")
 		const resolved = resolveCompleteToPublishPlaybookFromUrl(url)
 		const current = checks.find((check) => check.sectionKey === resolved.stepId) ?? null
+		// Once preparation is complete, a prior commercial step still identifies
+		// the offer being prepared, even though its form no longer needs attention.
+		const savedVariantId = url.searchParams.get("variantId")?.trim()
+		const savedRatePlanId =
+			url.searchParams.get("ratePlanId")?.trim() ||
+			url.pathname.match(/^\/rates\/plans\/([^/]+)$/)?.[1]
+		if (!firstIncomplete && savedVariantId && savedRatePlanId) {
+			const target = new URL(previewHref, "http://fastt.local")
+			target.searchParams.set("variantId", savedVariantId)
+			target.searchParams.set("ratePlanId", savedRatePlanId)
+			previewHref = `${target.pathname}${target.search}`
+		}
 		// A saved URL is useful only while it still represents the first unresolved
 		// requirement. Resuming a later step would hide an earlier publication blocker
 		// until the final preview, which makes the guided flow contradict itself.
@@ -140,8 +162,21 @@ export function resolveCompleteToPublishResume(
 			((firstIncomplete && current.sectionKey === firstIncomplete.sectionKey) ||
 				(!firstIncomplete && current.sectionKey === "preview"))
 		) {
+			// A legacy preview URL may lack selection; use the diagnosed pair only
+			// when neither identifier was saved. Never combine two different offers.
+			if (
+				current.sectionKey === "preview" &&
+				!url.searchParams.get("variantId")?.trim() &&
+				!url.searchParams.get("ratePlanId")?.trim()
+			) {
+				const diagnosed = new URL(previewHref, "http://fastt.local")
+				for (const key of ["variantId", "ratePlanId"]) {
+					const value = diagnosed.searchParams.get(key)
+					if (value) url.searchParams.set(key, value)
+				}
+			}
 			return {
-				href: savedPath,
+				href: `${url.pathname}${url.search}`,
 				sectionKey: resolved.stepId,
 				label: current.label,
 			}
@@ -150,7 +185,7 @@ export function resolveCompleteToPublishResume(
 	const resume = firstIncomplete
 	if (!resume) {
 		return {
-			href: buildCompleteToPublishHref(routes.productPreview(productId), "preview"),
+			href: previewHref,
 			sectionKey: "preview",
 			label: "Vista previa y publicar",
 		}

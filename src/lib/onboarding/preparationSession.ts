@@ -124,7 +124,18 @@ export async function listActivePreparationSessions(
 	return rows.flatMap((row) => {
 		if (!row.productId || !isPreparationPlaybookId(row.playbookId)) return []
 		if (!isPreparationVertical(row.vertical)) return []
-		const savedPath = normalizePreparationPath(row.lastPath)
+		let savedPath = normalizePreparationPath(row.lastPath)
+		if (savedPath && row.playbookId === "complete-to-publish") {
+			const url = new URL(savedPath, "http://fastt.local")
+			if (
+				!url.searchParams.get("variantId")?.trim() &&
+				!url.searchParams.get("ratePlanId")?.trim()
+			) {
+				if (row.variantId) url.searchParams.set("variantId", row.variantId)
+				if (row.ratePlanId) url.searchParams.set("ratePlanId", row.ratePlanId)
+				savedPath = `${url.pathname}${url.search}`
+			}
+		}
 		const fallback =
 			row.playbookId === "launch-tour"
 				? buildTourPlaybookHref(`/product/${encodeURIComponent(row.productId)}/content`, "content")
@@ -132,7 +143,8 @@ export async function listActivePreparationSessions(
 					? buildCompleteToPublishHref(
 							completeToPublishStepHref(
 								row.productId,
-								normalizeCompleteToPublishStep(row.stepId) ?? "content"
+								normalizeCompleteToPublishStep(row.stepId) ?? "content",
+								{ variantId: row.variantId, ratePlanId: row.ratePlanId }
 							),
 							normalizeCompleteToPublishStep(row.stepId) ?? "content"
 						)

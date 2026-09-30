@@ -3,8 +3,8 @@
 Status: pending-operational-evidence  
 Document type: certification  
 Owner: Tours / QA  
-Last verified: 2026-09-26
-Scope: ficha pública, selección, hold, checkout, confirmación y recuperación  
+Last verified: 2026-09-30
+Scope: ficha pública, selección, hold, checkout, confirmación, recuperación y persistencia del perfil de salida
 Source of truth: código de ficha, inventario y checkout; esta página registra evidencia
 Related code/tests: `src/pages/tours/`, `src/pages/booking/`, `tests/integration/tour-booking-e2e.test.ts`, `tests/catalog/tour-pdp-provider-preview-parity.test.ts`
 Review trigger: completar la matriz pendiente o cambiar el contrato de ficha, hold o checkout
@@ -61,3 +61,17 @@ de datos reales.
 ## Criterio de cierre
 
 Todos los escenarios deben registrar `passed` en un proveedor controlado, sin datos personales en la evidencia. Un fallo abre una corrección ligada al escenario. No ampliar rollout basándose únicamente en fixtures o pruebas de superficie.
+
+## Persistencia del perfil de salida — 2026-09-30
+
+Tres escenarios aprobados contra PostgreSQL aislado mediante la ruta real:
+
+```bash
+pnpm exec vitest run tests/integration/tour-slot-profile-persistence.test.ts --reporter=dot
+```
+
+- Inserción y actualización del perfil conservan íntegramente las filas de `DailyInventory`, incluidas fechas, cupos y `reservedCount` positivo. La actualización conserva `TourSlotProfile.createdAt`.
+- Una edición normal conserva íntegramente `VariantInventoryConfig`. El cambio explícito del cupo predeterminado conserva su horizonte y `createdAt`, sin modificar fechas existentes.
+- `maxPax` actualiza el máximo de grupo en perfil y `VariantCapacity`; el cupo predeterminado se inicializa cuando falta o cambia con la acción explícita del formulario.
+
+La autenticación y el refresco de caché están simulados; las lecturas y escrituras PostgreSQL son reales. Los fixtures se eliminan al terminar. Esta evidencia no certifica autenticación real ni sustituye la matriz comercial pendiente.

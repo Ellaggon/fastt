@@ -117,7 +117,7 @@ export async function summarizeProductPreparation(params: {
 		completedChecks: publishState.completedChecks,
 		totalChecks: publishState.totalChecks,
 		continuePreparationHref: resume.href,
-		previewHref,
+		previewHref: publishState.readyToPublish ? resume.href : previewHref,
 		nextStepLabel: resume.label ?? resumeCheck?.label ?? null,
 		nextStepBody: resumeCheck?.guestImpact ?? null,
 		nextStepCta: resumeCheck?.cta ?? (publishState.readyToPublish ? "Ir a vista previa" : null),
