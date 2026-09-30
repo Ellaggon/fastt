@@ -75,6 +75,7 @@
     "perf:html-budget": "node scripts/perf/html-budget.mjs",
     "perf:infra-region": "node scripts/perf/infra-region-compare.mjs",
     "perf:pagespeed": "node scripts/perf/pagespeed-public.mjs",
+    "test:ui:render": "FASTT_DATA_ENV=test vitest run --config vitest.astro.config.ts",
     "test": "FASTT_DATA_ENV=test vitest"
   },
   "dependencies": {

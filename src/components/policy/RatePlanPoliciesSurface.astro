@@ -17,32 +17,7 @@ import {
 	TriangleAlert,
 } from "@lucide/astro"
 
-interface PolicyPlanView {
-	ratePlanId: string
-	ratePlanName: string
-	isDefault: boolean
-	coverageCount: number
-	missingCategories: string[]
-	isSellableByContract: boolean
-	sellabilityLabel: string
-	policySummary: string
-	inheritanceByCategory: Record<string, string>
-	overrideSummaryByCategory: Record<string, string>
-	snapshotPreviewByCategory: Record<string, string>
-	snapshotVersionIds: string[]
-	snapshotResolvedAt: string
-	contractFacts: {
-		cancellationPreset: string
-		cancellationDeadline: string
-		cancellationPenalty: string
-		noShowCharge: string
-		paymentTiming: string
-		paymentAmount: string
-		paymentGuarantee: string
-		arrivalSchedule: string
-		arrivalSource: string
-	}
-}
+import type { PolicyPlanView } from "@/modules/policies/public"
 
 interface Props {
 	title?: string
@@ -50,7 +25,6 @@ interface Props {
 	policyPlans: PolicyPlanView[]
 	checkIn: string
 	checkOut: string
-	requiredCategories: readonly string[]
 	productId?: string
 	variantId?: string
 	isProfessionalMode?: boolean
@@ -113,11 +87,6 @@ function policySummaryForDisplay(value: string): string {
 		.replaceAll("primera noche", "reserva")
 		.replaceAll("estadía completa", "reserva completa")
 }
-
-const technicalCategories = POLICY_CATEGORY_OPTIONS.map((category) => ({
-	key: category.value,
-	label: category.label,
-}))
 
 function formattedResolvedAt(value: string): string {
 	const date = new Date(value)
@@ -186,6 +155,18 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 
 	{
 		policyPlans.map((plan) => {
+			const requiredCategories = plan.requiredCategories
+			const hasContract = requiredCategories.length > 0
+			const coverageLabel = hasContract
+				? `${plan.coverageCount}/${requiredCategories.length}`
+				: "Contrato sin definir"
+			const technicalCategories = POLICY_CATEGORY_OPTIONS.filter((category) =>
+				requiredCategories.includes(category.value)
+			).map((category) => ({
+				key: category.value,
+				label:
+					isTour && category.value === "NoShow" ? "Presentación para la salida" : category.label,
+			}))
 			const cancellationMissing = plan.missingCategories.includes("Cancellation")
 			const noShowMissing = plan.missingCategories.includes("NoShow")
 			const paymentMissing = plan.missingCategories.includes("Payment")
@@ -246,7 +227,9 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 											)}
 											{plan.isSellableByContract
 												? "Condiciones completas"
-												: `${plan.coverageCount}/4 completas`}
+												: hasContract
+													? `${coverageLabel} completas`
+													: coverageLabel}
 										</Badge>
 									)}
 									{isProfessionalMode && (
@@ -265,268 +248,277 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 							</div>
 						)}
 
-						<div class="divide-y divide-slate-200">
-							<section class="py-5" data-contract-block="cancellation-no-show">
-								<div class="grid gap-6 lg:grid-cols-[minmax(220px,0.75fr)_minmax(0,1.4fr)]">
-									<div class="flex min-w-0 items-start gap-3 px-1 sm:px-4">
-										<span class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
-											<ShieldCheck class="h-5 w-5" />
-										</span>
-										<div class="min-w-0">
-											<div class="flex flex-wrap items-center gap-2">
-												<h4 class="font-semibold text-slate-950">Cancelación y no presentación</h4>
-												<Badge variant={cancellationStatus.variant}>
-													{cancellationStatus.label}
-												</Badge>
+						{hasContract ? (
+							<div class="divide-y divide-slate-200">
+								<section class="py-5" data-contract-block="cancellation-no-show">
+									<div class="grid gap-6 lg:grid-cols-[minmax(220px,0.75fr)_minmax(0,1.4fr)]">
+										<div class="flex min-w-0 items-start gap-3 px-1 sm:px-4">
+											<span class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+												<ShieldCheck class="h-5 w-5" />
+											</span>
+											<div class="min-w-0">
+												<div class="flex flex-wrap items-center gap-2">
+													<h4 class="font-semibold text-slate-950">
+														Cancelación y no presentación
+													</h4>
+													<Badge variant={cancellationStatus.variant}>
+														{cancellationStatus.label}
+													</Badge>
+												</div>
+												<p class="mt-1 text-sm leading-5 text-slate-500">
+													{isTour
+														? "Qué ocurre si el viajero cancela o no se presenta a la salida."
+														: "Qué ocurre si el huésped cancela o no llega."}
+												</p>
 											</div>
-											<p class="mt-1 text-sm leading-5 text-slate-500">
-												{isTour
-													? "Qué ocurre si el viajero cancela o no se presenta a la salida."
-													: "Qué ocurre si el huésped cancela o no llega."}
-											</p>
 										</div>
-									</div>
 
-									<div class="px-1 sm:px-4">
-										<div class="flex flex-wrap justify-end gap-2">
-											<Button
-												type="button"
-												variant={cancellationMissing ? "primary" : "secondary"}
-												size="sm"
-												class="policy-assignment-open"
-												data-assignment-mode="preset"
-												data-assignment-scope="rate_plan"
-												data-assignment-scope-id={plan.ratePlanId}
-												data-assignment-category="Cancellation"
-											>
-												{cancellationMissing ? "Configurar cancelación" : "Cambiar cancelación"}
-												{cancellationMissing && <ArrowRight class="h-4 w-4" />}
-											</Button>
-											<Button
-												type="button"
-												variant={noShowMissing ? "primary" : "ghost"}
-												size="sm"
-												class="policy-assignment-open"
-												data-assignment-mode="preset"
-												data-assignment-scope="rate_plan"
-												data-assignment-scope-id={plan.ratePlanId}
-												data-assignment-category="NoShow"
-											>
-												{noShowMissing ? "Configurar no presentación" : "Cambiar no presentación"}
-											</Button>
-										</div>
-									</div>
-
-									<dl class="mt-2 grid gap-x-8 gap-y-4 px-1 sm:grid-cols-2 sm:px-4 lg:col-start-2 lg:mt-4 xl:grid-cols-4">
-										<div>
-											<dt class="text-xs font-medium text-slate-500">Plantilla</dt>
-											<dd class="mt-1 text-sm font-semibold text-slate-900">
-												{plan.contractFacts.cancellationPreset}
-											</dd>
-										</div>
-										<div>
-											<dt class="text-xs font-medium text-slate-500">Cancelación gratuita</dt>
-											<dd class="mt-1 text-sm font-semibold text-slate-900">
-												{plan.contractFacts.cancellationDeadline}
-											</dd>
-										</div>
-										<div>
-											<dt class="text-xs font-medium text-slate-500">Penalidad</dt>
-											<dd class="mt-1 text-sm font-semibold text-slate-900">
-												{plan.contractFacts.cancellationPenalty}
-											</dd>
-										</div>
-										<div>
-											<dt class="text-xs font-medium text-slate-500">Si no llega</dt>
-											<dd class="mt-1 text-sm font-semibold text-slate-900">
-												{plan.contractFacts.noShowCharge}
-											</dd>
-										</div>
-									</dl>
-								</div>
-							</section>
-
-							<section class="py-5" data-contract-block="payment-guarantee">
-								<div class="grid gap-6 lg:grid-cols-[minmax(220px,0.75fr)_minmax(0,1.4fr)]">
-									<div class="flex min-w-0 items-start gap-3 px-1 sm:px-4">
-										<span class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
-											<CreditCard class="h-5 w-5" />
-										</span>
-										<div class="min-w-0">
-											<div class="flex flex-wrap items-center gap-2">
-												<h4 class="font-semibold text-slate-950">
-													{isTour ? "Pago al proveedor" : "Pago y garantía"}
-												</h4>
-												<Badge variant={paymentStatus.variant}>{paymentStatus.label}</Badge>
-											</div>
-											<p class="mt-1 text-sm leading-5 text-slate-500">
-												{isTour
-													? "El viajero paga al proveedor al realizar el tour. Fastt no procesa este pago por ahora."
-													: "Cuándo se cobra y qué asegura la reserva."}
-											</p>
-										</div>
-									</div>
-
-									<div class="px-1 sm:px-4">
-										<div class="flex justify-end">
-											<Button
-												type="button"
-												variant={paymentMissing ? "primary" : "secondary"}
-												size="sm"
-												class="policy-assignment-open"
-												data-assignment-mode="preset"
-												data-assignment-scope="rate_plan"
-												data-assignment-scope-id={plan.ratePlanId}
-												data-assignment-category="Payment"
-											>
-												{paymentMissing
-													? isTour
-														? "Confirmar pago al proveedor"
-														: "Configurar pago"
-													: "Cambiar pago"}
-												{paymentMissing && <ArrowRight class="h-4 w-4" />}
-											</Button>
-										</div>
-									</div>
-
-									<dl class="mt-2 grid gap-x-8 gap-y-4 px-1 sm:grid-cols-3 sm:px-4 lg:col-start-2 lg:mt-4">
-										<div>
-											<dt class="text-xs font-medium text-slate-500">Cuándo paga</dt>
-											<dd class="mt-1 text-sm font-semibold text-slate-900">
-												{isTour && !paymentMissing
-													? "Al realizar el tour"
-													: plan.contractFacts.paymentTiming}
-											</dd>
-										</div>
-										<div>
-											<dt class="text-xs font-medium text-slate-500">Cuánto paga</dt>
-											<dd class="mt-1 text-sm font-semibold text-slate-900">
-												{isTour && !paymentMissing
-													? "El proveedor cobra el total"
-													: plan.contractFacts.paymentAmount}
-											</dd>
-										</div>
-										<div>
-											<dt class="text-xs font-medium text-slate-500">Garantía</dt>
-											<dd class="mt-1 text-sm font-semibold text-slate-900">
-												{plan.contractFacts.paymentGuarantee}
-											</dd>
-										</div>
-									</dl>
-								</div>
-							</section>
-
-							<section class="py-5" data-contract-block="arrival-departure">
-								<div class="grid gap-6 lg:grid-cols-[minmax(220px,0.75fr)_minmax(0,1.4fr)]">
-									<div class="flex min-w-0 items-start gap-3 px-1 sm:px-4">
-										<span class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
-											<CalendarClock class="h-5 w-5" />
-										</span>
-										<div class="min-w-0">
-											<div class="flex flex-wrap items-center gap-2">
-												<h4 class="font-semibold text-slate-950">
-													{isTour ? "Presentación para la salida" : "Llegada y salida"}
-												</h4>
-												<Badge variant={isTour ? "info" : arrivalStatusValue.variant}>
-													{isTour ? "Definida en la salida" : arrivalStatusValue.label}
-												</Badge>
-											</div>
-											<p class="mt-1 text-sm leading-5 text-slate-500">
-												{isTour
-													? "La hora, idioma, modalidad y cupo se gestionan en la salida; la tarifa conserva sus condiciones comerciales."
-													: plan.contractFacts.arrivalSource === "Tarifa"
-														? "Esta tarifa tiene un horario distinto al del alojamiento."
-														: "Horarios compartidos por las tarifas del alojamiento. Se editan en las reglas del hotel; aquí solo puedes crear una excepción de horario."}
-											</p>
-										</div>
-									</div>
-
-									{isTour ? (
 										<div class="px-1 sm:px-4">
-											<div class="flex justify-end">
-												<Button href={tourDepartureHref} variant="secondary" size="sm">
-													Editar salida
+											<div class="flex flex-wrap justify-end gap-2">
+												<Button
+													type="button"
+													variant={cancellationMissing ? "primary" : "secondary"}
+													size="sm"
+													class="policy-assignment-open"
+													data-assignment-mode="preset"
+													data-assignment-scope="rate_plan"
+													data-assignment-scope-id={plan.ratePlanId}
+													data-assignment-category="Cancellation"
+												>
+													{cancellationMissing ? "Configurar cancelación" : "Cambiar cancelación"}
+													{cancellationMissing && <ArrowRight class="h-4 w-4" />}
+												</Button>
+												<Button
+													type="button"
+													variant={noShowMissing ? "primary" : "ghost"}
+													size="sm"
+													class="policy-assignment-open"
+													data-assignment-mode="preset"
+													data-assignment-scope="rate_plan"
+													data-assignment-scope-id={plan.ratePlanId}
+													data-assignment-category="NoShow"
+												>
+													{noShowMissing ? "Configurar no presentación" : "Cambiar no presentación"}
 												</Button>
 											</div>
 										</div>
-									) : isGuidedSurface ? (
+
+										<dl class="mt-2 grid gap-x-8 gap-y-4 px-1 sm:grid-cols-2 sm:px-4 lg:col-start-2 lg:mt-4 xl:grid-cols-4">
+											<div>
+												<dt class="text-xs font-medium text-slate-500">Plantilla</dt>
+												<dd class="mt-1 text-sm font-semibold text-slate-900">
+													{plan.contractFacts.cancellationPreset}
+												</dd>
+											</div>
+											<div>
+												<dt class="text-xs font-medium text-slate-500">Cancelación gratuita</dt>
+												<dd class="mt-1 text-sm font-semibold text-slate-900">
+													{plan.contractFacts.cancellationDeadline}
+												</dd>
+											</div>
+											<div>
+												<dt class="text-xs font-medium text-slate-500">Penalidad</dt>
+												<dd class="mt-1 text-sm font-semibold text-slate-900">
+													{plan.contractFacts.cancellationPenalty}
+												</dd>
+											</div>
+											<div>
+												<dt class="text-xs font-medium text-slate-500">Si no llega</dt>
+												<dd class="mt-1 text-sm font-semibold text-slate-900">
+													{plan.contractFacts.noShowCharge}
+												</dd>
+											</div>
+										</dl>
+									</div>
+								</section>
+
+								<section class="py-5" data-contract-block="payment-guarantee">
+									<div class="grid gap-6 lg:grid-cols-[minmax(220px,0.75fr)_minmax(0,1.4fr)]">
+										<div class="flex min-w-0 items-start gap-3 px-1 sm:px-4">
+											<span class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+												<CreditCard class="h-5 w-5" />
+											</span>
+											<div class="min-w-0">
+												<div class="flex flex-wrap items-center gap-2">
+													<h4 class="font-semibold text-slate-950">
+														{isTour ? "Pago al proveedor" : "Pago y garantía"}
+													</h4>
+													<Badge variant={paymentStatus.variant}>{paymentStatus.label}</Badge>
+												</div>
+												<p class="mt-1 text-sm leading-5 text-slate-500">
+													{isTour
+														? "El viajero paga al proveedor al realizar el tour. Fastt no procesa este pago por ahora."
+														: "Cuándo se cobra y qué asegura la reserva."}
+												</p>
+											</div>
+										</div>
+
 										<div class="px-1 sm:px-4">
 											<div class="flex justify-end">
 												<Button
 													type="button"
-													variant={arrivalMissing ? "primary" : "secondary"}
+													variant={paymentMissing ? "primary" : "secondary"}
 													size="sm"
-													class="policy-arrival-open"
-													data-arrival-scope-id={productId}
+													class="policy-assignment-open"
+													data-assignment-mode="preset"
+													data-assignment-scope="rate_plan"
+													data-assignment-scope-id={plan.ratePlanId}
+													data-assignment-category="Payment"
 												>
-													{arrivalMissing ? "Configurar horarios" : "Editar horarios"}
-													{arrivalMissing && <ArrowRight class="h-4 w-4" />}
+													{paymentMissing
+														? isTour
+															? "Confirmar pago al proveedor"
+															: "Configurar pago"
+														: "Cambiar pago"}
+													{paymentMissing && <ArrowRight class="h-4 w-4" />}
 												</Button>
 											</div>
 										</div>
-									) : (
-										<div class="px-1 sm:px-4">
-											<div class="flex flex-wrap justify-end gap-2">
-												<Button
-													href={providerHouseRulesHref(productId, plan.ratePlanId, "arrival")}
-													variant="secondary"
-													size="sm"
-												>
-													Editar en alojamiento
-												</Button>
-												<Button
-													href={providerHouseRulesHref(
-														productId,
-														plan.ratePlanId,
-														"arrival",
-														"rate-exception"
-													)}
-													variant={arrivalMissing ? "primary" : "secondary"}
-													size="sm"
-													data-rate-arrival-exception-cta
-												>
-													{plan.contractFacts.arrivalSource === "Tarifa"
-														? "Editar excepción de horario"
-														: "Excepción de esta tarifa"}
-													{arrivalMissing && <ArrowRight class="h-4 w-4" />}
-												</Button>
-											</div>
-										</div>
-									)}
 
-									{isTour && (
-										<div class="mt-2 px-1 sm:px-4 lg:col-start-2 lg:mt-4">
-											<p class="text-sm leading-6 text-slate-600">
-												{playbookMode
-													? "La disponibilidad se configura en el siguiente paso. Puedes corregir ahora el horario o los detalles de esta salida."
-													: "La edición de salida conserva esta tarifa y sus condiciones."}
-											</p>
-										</div>
-									)}
-
-									{!isTour && (
-										<dl class="mt-2 grid gap-x-8 gap-y-4 px-1 sm:grid-cols-[minmax(0,1.4fr)_minmax(180px,0.6fr)] sm:px-4 lg:col-start-2 lg:mt-4">
+										<dl class="mt-2 grid gap-x-8 gap-y-4 px-1 sm:grid-cols-3 sm:px-4 lg:col-start-2 lg:mt-4">
 											<div>
-												<dt class="text-xs font-medium text-slate-500">Horario</dt>
+												<dt class="text-xs font-medium text-slate-500">Cuándo paga</dt>
 												<dd class="mt-1 text-sm font-semibold text-slate-900">
-													{plan.contractFacts.arrivalSchedule}
+													{isTour && !paymentMissing
+														? "Al realizar el tour"
+														: plan.contractFacts.paymentTiming}
 												</dd>
 											</div>
 											<div>
-												<dt class="text-xs font-medium text-slate-500">Origen</dt>
-												<dd class="mt-1 flex items-center gap-2 text-sm font-semibold text-slate-900">
-													<Building2 class="h-4 w-4 text-slate-400" />
-													{arrivalSourceLabel}
+												<dt class="text-xs font-medium text-slate-500">Cuánto paga</dt>
+												<dd class="mt-1 text-sm font-semibold text-slate-900">
+													{isTour && !paymentMissing
+														? "El proveedor cobra el total"
+														: plan.contractFacts.paymentAmount}
+												</dd>
+											</div>
+											<div>
+												<dt class="text-xs font-medium text-slate-500">Garantía</dt>
+												<dd class="mt-1 text-sm font-semibold text-slate-900">
+													{plan.contractFacts.paymentGuarantee}
 												</dd>
 											</div>
 										</dl>
-									)}
-								</div>
-							</section>
-						</div>
+									</div>
+								</section>
+
+								<section class="py-5" data-contract-block="arrival-departure">
+									<div class="grid gap-6 lg:grid-cols-[minmax(220px,0.75fr)_minmax(0,1.4fr)]">
+										<div class="flex min-w-0 items-start gap-3 px-1 sm:px-4">
+											<span class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+												<CalendarClock class="h-5 w-5" />
+											</span>
+											<div class="min-w-0">
+												<div class="flex flex-wrap items-center gap-2">
+													<h4 class="font-semibold text-slate-950">
+														{isTour ? "Presentación para la salida" : "Llegada y salida"}
+													</h4>
+													<Badge variant={isTour ? "info" : arrivalStatusValue.variant}>
+														{isTour ? "Definida en la salida" : arrivalStatusValue.label}
+													</Badge>
+												</div>
+												<p class="mt-1 text-sm leading-5 text-slate-500">
+													{isTour
+														? "La hora, idioma, modalidad y cupo se gestionan en la salida; la tarifa conserva sus condiciones comerciales."
+														: plan.contractFacts.arrivalSource === "Tarifa"
+															? "Esta tarifa tiene un horario distinto al del alojamiento."
+															: "Horarios compartidos por las tarifas del alojamiento. Se editan en las reglas del hotel; aquí solo puedes crear una excepción de horario."}
+												</p>
+											</div>
+										</div>
+
+										{isTour ? (
+											<div class="px-1 sm:px-4">
+												<div class="flex justify-end">
+													<Button href={tourDepartureHref} variant="secondary" size="sm">
+														Editar salida
+													</Button>
+												</div>
+											</div>
+										) : isGuidedSurface ? (
+											<div class="px-1 sm:px-4">
+												<div class="flex justify-end">
+													<Button
+														type="button"
+														variant={arrivalMissing ? "primary" : "secondary"}
+														size="sm"
+														class="policy-arrival-open"
+														data-arrival-scope-id={productId}
+													>
+														{arrivalMissing ? "Configurar horarios" : "Editar horarios"}
+														{arrivalMissing && <ArrowRight class="h-4 w-4" />}
+													</Button>
+												</div>
+											</div>
+										) : (
+											<div class="px-1 sm:px-4">
+												<div class="flex flex-wrap justify-end gap-2">
+													<Button
+														href={providerHouseRulesHref(productId, plan.ratePlanId, "arrival")}
+														variant="secondary"
+														size="sm"
+													>
+														Editar en alojamiento
+													</Button>
+													<Button
+														href={providerHouseRulesHref(
+															productId,
+															plan.ratePlanId,
+															"arrival",
+															"rate-exception"
+														)}
+														variant={arrivalMissing ? "primary" : "secondary"}
+														size="sm"
+														data-rate-arrival-exception-cta
+													>
+														{plan.contractFacts.arrivalSource === "Tarifa"
+															? "Editar excepción de horario"
+															: "Excepción de esta tarifa"}
+														{arrivalMissing && <ArrowRight class="h-4 w-4" />}
+													</Button>
+												</div>
+											</div>
+										)}
+
+										{isTour && (
+											<div class="mt-2 px-1 sm:px-4 lg:col-start-2 lg:mt-4">
+												<p class="text-sm leading-6 text-slate-600">
+													{playbookMode
+														? "La disponibilidad se configura en el siguiente paso. Puedes corregir ahora el horario o los detalles de esta salida."
+														: "La edición de salida conserva esta tarifa y sus condiciones."}
+												</p>
+											</div>
+										)}
+
+										{!isTour && (
+											<dl class="mt-2 grid gap-x-8 gap-y-4 px-1 sm:grid-cols-[minmax(0,1.4fr)_minmax(180px,0.6fr)] sm:px-4 lg:col-start-2 lg:mt-4">
+												<div>
+													<dt class="text-xs font-medium text-slate-500">Horario</dt>
+													<dd class="mt-1 text-sm font-semibold text-slate-900">
+														{plan.contractFacts.arrivalSchedule}
+													</dd>
+												</div>
+												<div>
+													<dt class="text-xs font-medium text-slate-500">Origen</dt>
+													<dd class="mt-1 flex items-center gap-2 text-sm font-semibold text-slate-900">
+														<Building2 class="h-4 w-4 text-slate-400" />
+														{arrivalSourceLabel}
+													</dd>
+												</div>
+											</dl>
+										)}
+									</div>
+								</section>
+							</div>
+						) : (
+							<p class="px-4 py-5 text-sm text-slate-600">
+								Contrato sin definir. Fastt debe definir las condiciones aplicables antes de
+								habilitar esta tarifa.
+							</p>
+						)}
 					</article>
 
-					{isGuidedSurface || isTour ? null : (
+					{isGuidedSurface || isTour || !hasContract ? null : (
 						<p
 							class="mt-10 px-1 pb-2 text-sm leading-6 text-slate-500 sm:px-4"
 							data-rate-conditions-boundary
@@ -562,7 +554,7 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 										<div>
 											<dt class="text-xs font-medium text-slate-500">Cobertura</dt>
 											<dd class="mt-1 text-sm font-semibold text-slate-900">
-												{plan.coverageCount}/4 categorías
+												{hasContract ? `${coverageLabel} categorías` : coverageLabel}
 											</dd>
 										</div>
 										<div>
@@ -590,7 +582,10 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 									<h4 class="font-semibold text-slate-950">Fuentes y excepciones</h4>
 									<div class="mt-3 divide-y divide-slate-100">
 										{technicalCategories.map((category) => (
-											<div class="grid gap-1 py-3 sm:grid-cols-[9rem_1fr]">
+											<div
+												class="grid gap-1 py-3 sm:grid-cols-[9rem_1fr]"
+												data-policy-category-row={category.key}
+											>
 												<p class="text-sm font-semibold text-slate-900">{category.label}</p>
 												<div class="text-sm text-slate-600">
 													<p>{plan.inheritanceByCategory[category.key]}</p>
@@ -607,7 +602,10 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 									<h4 class="font-semibold text-slate-950">Vista calculable</h4>
 									<div class="mt-3 divide-y divide-slate-100">
 										{technicalCategories.map((category) => (
-											<div class="grid gap-1 py-3 sm:grid-cols-[9rem_1fr]">
+											<div
+												class="grid gap-1 py-3 sm:grid-cols-[9rem_1fr]"
+												data-policy-category-row={category.key}
+											>
 												<p class="text-sm font-semibold text-slate-900">{category.label}</p>
 												<p class="text-sm text-slate-600">
 													{plan.snapshotPreviewByCategory[category.key]}
@@ -617,16 +615,18 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 									</div>
 								</section>
 
-								<Button
-									type="button"
-									variant="secondary"
-									class="policy-assignment-open w-full"
-									data-assignment-mode="existing"
-									data-assignment-scope="rate_plan"
-									data-assignment-scope-id={plan.ratePlanId}
-								>
-									Usar condición existente
-								</Button>
+								{hasContract && (
+									<Button
+										type="button"
+										variant="secondary"
+										class="policy-assignment-open w-full"
+										data-assignment-mode="existing"
+										data-assignment-scope="rate_plan"
+										data-assignment-scope-id={plan.ratePlanId}
+									>
+										Usar condición existente
+									</Button>
+								)}
 								<span class="sr-only">Crear desde plantilla</span>
 							</div>
 						</Drawer>
