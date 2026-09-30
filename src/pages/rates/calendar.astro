@@ -22,6 +22,7 @@ import {
 	LAUNCH_TOUR_PLAYBOOK_ID,
 	resolveTourLaunchPlaybookFromUrl,
 } from "@/lib/playbook/launch-tour"
+import { evaluateProviderGovernance } from "@/lib/provider-governance"
 import {
 	loadProviderRatePlansReadModel,
 	type RatePlanListItem,
@@ -169,6 +170,35 @@ const isGuidedAvailabilityStep = Boolean(
 		tourLaunchPlaybook.stepId === "calendar" ||
 		completePlaybook.stepId === "calendar")
 )
+const guidedTourPublishBlocker =
+	isGuidedAvailabilityStep &&
+	isTourContext &&
+	(activePlaybook === "complete-to-publish" || activePlaybook === "launch-tour")
+		? ((
+				await evaluateProviderGovernance(auth.providerId, {
+					currentUserId: workspaceContext.user.id,
+					persist: false,
+				})
+			).blockers.find((blocker) => blocker.capabilities.includes("publish")) ?? null)
+		: null
+function guidedTourPublishBlockerHref() {
+	if (!guidedTourPublishBlocker) return ""
+	const url = new URL(guidedTourPublishBlocker.href, Astro.url)
+	if (url.pathname === routes.providerSettingsVerification()) {
+		const tabByArea: Record<string, string> = {
+			verification: "identity",
+			documents: "identity",
+			fiscality: "fiscal",
+			payments: "payments",
+		}
+		const tab = tabByArea[guidedTourPublishBlocker.areaId ?? ""] ?? "identity"
+		url.searchParams.set("line", "tour")
+		url.searchParams.set("tab", tab)
+		url.searchParams.set("tourTab", tab)
+		url.searchParams.set("experience", playbookProductId)
+	}
+	return `${url.pathname}${url.search}`
+}
 const guidedVariantId = String(
 	addRoomCtx.variantId || launchCtx.variantId || variantIdParam || ""
 ).trim()
@@ -313,6 +343,12 @@ timing.setHeader(Astro.response.headers)
 						requiredDays: isTourContext ? 1 : 30,
 						initialInventoryDays: guidedInventoryDays,
 						finalizationError: guidedFinalizationError,
+						activationBlocker: guidedTourPublishBlocker
+							? {
+									label: guidedTourPublishBlocker.label,
+									href: guidedTourPublishBlockerHref(),
+								}
+							: undefined,
 					}
 				: undefined}
 		>

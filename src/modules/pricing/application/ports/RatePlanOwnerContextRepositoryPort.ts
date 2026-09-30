@@ -2,6 +2,7 @@ export type RatePlanOwnerContext = {
 	ratePlanId: string
 	variantId: string
 	productId: string
+	productType: string
 	providerId: string | null
 }
 

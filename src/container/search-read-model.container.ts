@@ -10,6 +10,7 @@ import {
 	isNull,
 	lt,
 	or,
+	Product,
 	RatePlan,
 	SearchUnitView,
 	sql,
@@ -303,13 +304,19 @@ export const searchReadModelRepository = {
 		return rows.map((row) => String(row.id)).filter(Boolean)
 	},
 
-	async resolveProductId(variantId: string): Promise<string | null> {
+	async resolveProductContext(variantId: string): Promise<{
+		productId: string
+		productType: string
+	} | null> {
 		const row = await db
-			.select({ productId: Variant.productId })
+			.select({ productId: Product.id, productType: Product.productType })
 			.from(Variant)
+			.innerJoin(Product, eq(Product.id, Variant.productId))
 			.where(eq(Variant.id, variantId))
 			.then((rows) => rows[0])
-		return row?.productId ? String(row.productId) : null
+		return row?.productId
+			? { productId: String(row.productId), productType: String(row.productType ?? "") }
+			: null
 	},
 
 	async resolveGuestRange(variantId: string): Promise<number[]> {

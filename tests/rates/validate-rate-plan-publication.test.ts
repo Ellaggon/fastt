@@ -5,8 +5,10 @@ const mocks = vi.hoisted(() => ({
 	getByVariantId: vi.fn(),
 	resolveEffectivePolicies: vi.fn(),
 	select: vi.fn(),
-	where: vi.fn(),
+	inventoryWhere: vi.fn(),
+	productWhere: vi.fn(),
 	gt: vi.fn(),
+	productTable: { id: "product.id", productType: "product.productType" },
 }))
 
 vi.mock("@/container", () => ({
@@ -21,9 +23,11 @@ vi.mock("@/modules/policies/public", () => ({
 }))
 vi.mock("@/shared/infrastructure/db/compat", () => ({
 	DailyInventory: { date: "date", variantId: "variantId", totalInventory: "totalInventory" },
+	Product: mocks.productTable,
 	and: vi.fn(),
 	count: vi.fn(),
 	eq: vi.fn(),
+	first: (rows: unknown[]) => rows[0],
 	gt: mocks.gt,
 	db: {
 		select: mocks.select,
@@ -38,10 +42,13 @@ describe("validate rate plan publication", () => {
 		mocks.getCanonicalPricingBaselineByRatePlanId.mockResolvedValue({ basePrice: 120 })
 		mocks.getByVariantId.mockResolvedValue({ defaultTotalUnits: 1 })
 		mocks.resolveEffectivePolicies.mockResolvedValue({ missingCategories: [] })
-		mocks.select.mockReturnValue({
-			from: () => ({ where: mocks.where }),
-		})
-		mocks.where.mockResolvedValue([{ value: 30 }])
+		mocks.select.mockImplementation(() => ({
+			from: (table: unknown) => ({
+				where: table === mocks.productTable ? mocks.productWhere : mocks.inventoryWhere,
+			}),
+		}))
+		mocks.inventoryWhere.mockResolvedValue([{ value: 30 }])
+		mocks.productWhere.mockResolvedValue([{ productType: "hotel" }])
 	})
 
 	it("allows activation with a base price, physical capacity, required policies and 30 nights", async () => {
@@ -56,7 +63,7 @@ describe("validate rate plan publication", () => {
 	})
 
 	it("blocks activation below the sellable availability threshold", async () => {
-		mocks.where.mockResolvedValue([{ value: 29 }])
+		mocks.inventoryWhere.mockResolvedValue([{ value: 29 }])
 
 		const result = await validateRatePlanPublication({
 			ratePlanId: "rate-1",
@@ -81,5 +88,37 @@ describe("validate rate plan publication", () => {
 		})
 
 		expect(result.blockers).toEqual(["cupo físico", "condiciones obligatorias"])
+	})
+
+	it("requires tour policies only and accepts one future departure", async () => {
+		mocks.productWhere.mockResolvedValue([{ productType: "tour" }])
+		mocks.inventoryWhere.mockResolvedValue([{ value: 1 }])
+
+		const result = await validateRatePlanPublication({
+			ratePlanId: "tour-rate-1",
+			variantId: "tour-slot-1",
+			productId: "tour-1",
+		})
+
+		expect(result).toEqual({ canPublish: true, blockers: [] })
+		expect(mocks.resolveEffectivePolicies).toHaveBeenCalledWith(
+			expect.objectContaining({
+				requiredCategories: ["Cancellation", "Payment", "NoShow"],
+			})
+		)
+	})
+
+	it("fails closed when a product has no policy contract", async () => {
+		mocks.productWhere.mockResolvedValue([{ productType: "unknown_vertical" }])
+
+		const result = await validateRatePlanPublication({
+			ratePlanId: "unknown-rate-1",
+			variantId: "unknown-slot-1",
+			productId: "unknown-1",
+		})
+
+		expect(result.canPublish).toBe(false)
+		expect(result.blockers).toContain("contrato de políticas no definido")
+		expect(mocks.resolveEffectivePolicies).not.toHaveBeenCalled()
 	})
 })

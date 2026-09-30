@@ -1,6 +1,8 @@
 import { listPolicyCoverageByProvider } from "@/modules/policies/public"
+import { getRequiredPolicyCategories } from "@/lib/policies/policy-business-contract"
+import { listRatePlansByProvider } from "@/modules/pricing/public"
 
-const REQUIRED_CATEGORIES = ["Cancellation", "Payment", "CheckIn", "NoShow"] as const
+type ProviderRatePlanContext = { ratePlanId: string; productType: string }
 
 export type ProviderPolicyReadiness = {
 	totalRatePlans: number
@@ -34,16 +36,58 @@ export async function getProviderPolicyReadiness(
 		}
 	}
 
-	const today = new Date().toISOString().slice(0, 10)
-	const coverage = await listPolicyCoverageByProvider({
-		providerId: normalizedProviderId,
-		asOfDate: today,
-		channel: "web",
-		requiredCategories: REQUIRED_CATEGORIES,
-	})
+	const ratePlans = (await listRatePlansByProvider(
+		normalizedProviderId
+	)) as ProviderRatePlanContext[]
+	const totalRatePlans = ratePlans.length
+	if (!totalRatePlans) {
+		return {
+			totalRatePlans: 0,
+			readyRatePlans: 0,
+			incompleteRatePlans: 0,
+			summary: defaultSummary({ totalRatePlans: 0, readyRatePlans: 0, incompleteRatePlans: 0 }),
+		}
+	}
 
-	const readyRatePlans = coverage.filter((row) => row.isComplete).length
-	const totalRatePlans = coverage.length
+	const plansByContract = new Map<
+		string,
+		{ categories: readonly string[]; ratePlanIds: Set<string> }
+	>()
+	for (const plan of ratePlans) {
+		const categories = getRequiredPolicyCategories(plan.productType)
+		const contractKey = JSON.stringify(categories)
+		const group = plansByContract.get(contractKey) ?? { categories, ratePlanIds: new Set<string>() }
+		group.ratePlanIds.add(String(plan.ratePlanId))
+		plansByContract.set(contractKey, group)
+	}
+
+	const today = new Date().toISOString().slice(0, 10)
+	const coverageByContract = new Map<string, Map<string, boolean>>()
+	await Promise.all(
+		[...plansByContract.entries()].map(async ([contractKey, group]) => {
+			if (!group.categories.length) return
+			const coverage = await listPolicyCoverageByProvider({
+				providerId: normalizedProviderId,
+				asOfDate: today,
+				channel: "web",
+				requiredCategories: group.categories,
+			})
+			coverageByContract.set(
+				contractKey,
+				new Map(
+					coverage
+						.filter((row) => group.ratePlanIds.has(String(row.ratePlanId)))
+						.map((row) => [String(row.ratePlanId), row.isComplete])
+				)
+			)
+		})
+	)
+
+	const readyRatePlans = ratePlans.filter((plan) => {
+		const categories = getRequiredPolicyCategories(plan.productType)
+		if (!categories.length) return false
+		return coverageByContract.get(JSON.stringify(categories))?.get(String(plan.ratePlanId)) === true
+	}).length
 	const incompleteRatePlans = Math.max(totalRatePlans - readyRatePlans, 0)
 	return {
 		totalRatePlans,

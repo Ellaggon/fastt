@@ -56,6 +56,7 @@ export async function loadRatePlanPoliciesData(input: Input): Promise<LoadedRate
 		isDefault?: boolean
 		productId: string
 		variantId: string
+		productType: string
 	}> = [
 		{
 			id: String(targetRatePlan.id),
@@ -63,6 +64,7 @@ export async function loadRatePlanPoliciesData(input: Input): Promise<LoadedRate
 			isDefault: Boolean(targetRatePlan.isDefault),
 			productId: String(loaded.productId),
 			variantId: String(loaded.variantId),
+			productType: String(loadedRatePlan.ownerContext.productType ?? ""),
 		},
 	]
 

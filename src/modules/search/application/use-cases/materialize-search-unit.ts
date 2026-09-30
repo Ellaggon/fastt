@@ -7,6 +7,7 @@ import { buildOccupancyKey } from "../../domain/occupancy-key"
 import { normalizeOccupancy, type Occupancy } from "@/shared/domain/occupancy"
 import type { SearchUnitMaterializationRepositoryPort } from "../ports/SearchUnitMaterializationRepositoryPort"
 import { resolveSearchSellability } from "../services/LegacySellabilityCompatibility"
+import { getRequiredPolicyCategories } from "@/lib/policies/policy-business-contract"
 export {
 	SEARCH_VIEW_REASON_CODES,
 	SEARCH_VIEW_SLA,
@@ -48,8 +49,6 @@ const materializeSearchUnitRangeSchema = z.object({
 
 type MaterializeSearchUnitInput = z.infer<typeof materializeSearchUnitSchema>
 type MaterializeSearchUnitRangeInput = z.infer<typeof materializeSearchUnitRangeSchema>
-
-const REQUIRED_POLICY_CATEGORIES = ["Cancellation", "Payment", "NoShow", "CheckIn"] as const
 
 let searchUnitMaterializationRepository: SearchUnitMaterializationRepositoryPort | null = null
 
@@ -204,10 +203,11 @@ export async function materializeSearchUnit(
 	const repository = resolveRepository()
 	const parsed = materializeSearchUnitSchema.parse(input)
 	const normalizedDate = toISODateOnly(parseDateOnly(parsed.date))
-	const productId = await repository.resolveProductId(parsed.variantId)
-	if (!productId) {
+	const productContext = await repository.resolveProductContext(parsed.variantId)
+	if (!productContext?.productId) {
 		return { updated: false, isSellable: false, blocker: "MISSING_VARIANT" }
 	}
+	const productId = productContext.productId
 
 	const occupancy = normalizeOccupancy(parsed.occupancy)
 	const occupancyKey = buildOccupancyKey(occupancy)
@@ -251,16 +251,21 @@ export async function materializeSearchUnit(
 	let policyBlocked = false
 	const policyBlockerEnabled = getFeatureFlag("SEARCH_POLICY_BLOCKER_ENABLED")
 	if (policyBlockerEnabled && isSellable) {
+		const requiredCategories = [...getRequiredPolicyCategories(productContext.productType)]
 		try {
-			const resolvedPolicies = await resolveEffectivePolicies({
-				productId,
-				variantId: parsed.variantId,
-				ratePlanId: parsed.ratePlanId,
-				checkIn: normalizedDate,
-				requiredCategories: [...REQUIRED_POLICY_CATEGORIES],
-				onMissingCategory: "return_null",
-			})
-			policyBlocked = resolvedPolicies.missingCategories.length > 0
+			if (!requiredCategories.length) {
+				policyBlocked = true
+			} else {
+				const resolvedPolicies = await resolveEffectivePolicies({
+					productId,
+					variantId: parsed.variantId,
+					ratePlanId: parsed.ratePlanId,
+					checkIn: normalizedDate,
+					requiredCategories,
+					onMissingCategory: "return_null",
+				})
+				policyBlocked = resolvedPolicies.missingCategories.length > 0
+			}
 		} catch (error) {
 			logger.warn("search.materialize.policy_resolution_failed", {
 				variantId: parsed.variantId,

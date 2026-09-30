@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const { repoMock } = vi.hoisted(() => ({
+const { repoMock, getFeatureFlagMock, resolveEffectivePoliciesMock } = vi.hoisted(() => ({
 	repoMock: {
-		resolveProductId: vi.fn(),
+		resolveProductContext: vi.fn(),
 		loadMaterializationInputs: vi.fn(),
 		resolveSourceVersion: vi.fn(),
 		getSearchUnitViewRow: vi.fn(),
@@ -11,6 +11,8 @@ const { repoMock } = vi.hoisted(() => ({
 		resolveGuestRange: vi.fn(),
 		purgeStaleSearchUnitRows: vi.fn(),
 	},
+	getFeatureFlagMock: vi.fn(() => false),
+	resolveEffectivePoliciesMock: vi.fn(),
 }))
 
 vi.mock("@/container/search-read-model.container", () => ({
@@ -18,11 +20,11 @@ vi.mock("@/container/search-read-model.container", () => ({
 }))
 
 vi.mock("@/config/featureFlags", () => ({
-	getFeatureFlag: vi.fn(() => false),
+	getFeatureFlag: getFeatureFlagMock,
 }))
 
 vi.mock("@/modules/policies/public", () => ({
-	resolveEffectivePolicies: vi.fn(),
+	resolveEffectivePolicies: resolveEffectivePoliciesMock,
 }))
 
 import {
@@ -34,8 +36,9 @@ import {
 describe("materialize search unit governance hardening", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
+		getFeatureFlagMock.mockReturnValue(false)
 		configureSearchUnitMaterializationRepository(repoMock)
-		repoMock.resolveProductId.mockResolvedValue("prod-1")
+		repoMock.resolveProductContext.mockResolvedValue({ productId: "prod-1", productType: "hotel" })
 		repoMock.loadMaterializationInputs.mockResolvedValue({
 			availabilityRow: { availableUnits: 2 },
 			pricingRow: { finalBasePrice: 120 },
@@ -47,6 +50,7 @@ describe("materialize search unit governance hardening", () => {
 		repoMock.resolveDefaultRatePlanIds.mockResolvedValue(["rp-b", "rp-a", "rp-a"])
 		repoMock.resolveGuestRange.mockResolvedValue([2, 1, 2])
 		repoMock.purgeStaleSearchUnitRows.mockResolvedValue(0)
+		resolveEffectivePoliciesMock.mockResolvedValue({ missingCategories: [] })
 	})
 
 	it("is idempotent across repeated executions with unchanged sourceVersion", async () => {
@@ -151,6 +155,30 @@ describe("materialize search unit governance hardening", () => {
 		expect("stopSell" in persisted).toBe(false)
 		expect("isSellable" in persisted).toBe(false)
 		expect(persisted.primaryBlocker).toBe(null)
+	})
+
+	it("uses tour-required policy categories without requiring hotel check-in", async () => {
+		getFeatureFlagMock.mockReturnValue(true)
+		repoMock.resolveProductContext.mockResolvedValue({
+			productId: "prod-tour",
+			productType: "tour",
+		})
+		resolveEffectivePoliciesMock.mockResolvedValue({ missingCategories: [] })
+
+		const result = await materializeSearchUnit({
+			variantId: "tour-slot-1",
+			ratePlanId: "tour-rate-1",
+			date: "2026-10-10",
+			occupancy: { adults: 1, children: 0, infants: 0 },
+			currency: "USD",
+		})
+
+		expect(result.isSellable).toBe(true)
+		expect(resolveEffectivePoliciesMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				requiredCategories: ["Cancellation", "Payment", "NoShow"],
+			})
+		)
 	})
 
 	it("normalizes and deduplicates range materialization deterministically", async () => {

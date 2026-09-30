@@ -7,6 +7,7 @@ type VariantPricingReadPort = {
 	getDefaultRatePlanPricingSummaryByVariant(
 		variantId: string
 	): Promise<{ ratePlanId: string } | null | undefined>
+	getRatePlanPricingSummary?(ratePlanId: string): Promise<unknown | null | undefined>
 }
 
 export async function evaluateVariantReadiness(
@@ -14,7 +15,7 @@ export async function evaluateVariantReadiness(
 		repo: VariantManagementRepositoryPort
 		pricingReadRepo: VariantPricingReadPort
 	},
-	params: { variantId: string }
+	params: { variantId: string; ratePlanId?: string }
 ): Promise<{
 	variantId: string
 	lifecycleState: "draft" | "ready"
@@ -68,9 +69,10 @@ export async function evaluateVariantReadiness(
 	// Keep subtype out of blocking readiness until reference data setup is enforced.
 
 	// Pricing summary is consumed from pricing read-model (catalog must not interpret pricing internals).
-	const pricingSummary = await deps.pricingReadRepo.getDefaultRatePlanPricingSummaryByVariant(
-		parsed.variantId
-	)
+	const pricingSummary =
+		parsed.ratePlanId && deps.pricingReadRepo.getRatePlanPricingSummary
+			? await deps.pricingReadRepo.getRatePlanPricingSummary(parsed.ratePlanId)
+			: await deps.pricingReadRepo.getDefaultRatePlanPricingSummaryByVariant(parsed.variantId)
 	if (!pricingSummary) {
 		const e = { code: "pricing_missing", message: "Pricing summary not configured" }
 		allErrors.push(e)

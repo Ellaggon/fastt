@@ -22,10 +22,11 @@ import { upsertProvider } from "../test-support/catalog-db-test-data"
 
 describe("P2 maturity — micro-deposit / smoke / TIN / ops SLA", () => {
 	it("verifies payout ownership via micro-deposit confirm", async () => {
-		const providerId = "provider_p2_micro_deposit"
-		const ownerEmail = "p2.micro@example.com"
+		const fixtureSuffix = crypto.randomUUID()
+		const providerId = `provider_p2_micro_deposit_${fixtureSuffix}`
+		const ownerEmail = `p2.micro.${fixtureSuffix}@example.com`
 		const ownerId = `user_${ownerEmail}`
-		const adminId = "user_p2_admin_micro"
+		const adminId = `user_p2_admin_micro_${fixtureSuffix}`
 		const now = new Date()
 
 		await upsertProvider({
@@ -36,8 +37,8 @@ describe("P2 maturity — micro-deposit / smoke / TIN / ops SLA", () => {
 		})
 		await db.insert(User).values({
 			id: adminId,
-			email: "p2.admin.micro@fastt.test",
-			username: "p2_admin_micro",
+			email: `p2.admin.micro.${fixtureSuffix}@fastt.test`,
+			username: `p2_admin_micro_${fixtureSuffix}`,
 			registrationDate: now,
 		})
 
@@ -159,18 +160,20 @@ describe("P2 maturity — micro-deposit / smoke / TIN / ops SLA", () => {
 	})
 
 	it("tracks ops assignments and completes on review close", async () => {
-		const providerId = "provider_p2_ops_sla"
-		const actorId = "user_p2_ops_actor"
+		const fixtureSuffix = crypto.randomUUID()
+		const providerId = `provider_p2_ops_sla_${fixtureSuffix}`
+		const actorId = `user_p2_ops_actor_${fixtureSuffix}`
+		const actorEmail = `p2.ops.actor.${fixtureSuffix}@fastt.test`
 		await upsertProvider({
 			id: providerId,
 			legalName: "P2 Ops S.R.L.",
 			displayName: "P2 Ops",
-			ownerEmail: "p2.ops@example.com",
+			ownerEmail: `p2.ops.${fixtureSuffix}@example.com`,
 		})
 		await db.insert(User).values({
 			id: actorId,
-			email: "p2.ops.actor@fastt.test",
-			username: "p2_ops_actor",
+			email: actorEmail,
+			username: `p2_ops_actor_${fixtureSuffix}`,
 			registrationDate: new Date(),
 		})
 
