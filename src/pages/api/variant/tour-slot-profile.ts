@@ -1,6 +1,13 @@
 import type { APIRoute } from "astro"
 import { ZodError, z } from "zod"
-import { first, db, eq, TourSlotProfile, Variant } from "@/shared/infrastructure/db/compat"
+import {
+	first,
+	db,
+	eq,
+	TourSlotProfile,
+	Variant,
+	VariantInventoryConfig,
+} from "@/shared/infrastructure/db/compat"
 
 import {
 	productRepository,
@@ -34,6 +41,7 @@ const tourSlotSchema = z.object({
 	bookingMode: z.enum(["shared", "private"]).default("shared"),
 	meetingPointOverride: z.string().trim().optional(),
 	isActive: z.boolean().default(true),
+	updateDefaultCapacity: z.boolean().default(false),
 })
 
 export const POST: APIRoute = async ({ request }) => {
@@ -69,6 +77,9 @@ export const POST: APIRoute = async ({ request }) => {
 				? String(form.get("meetingPointOverride"))
 				: undefined,
 			isActive: form.has("isActive"),
+			updateDefaultCapacity: ["true", "on"].includes(
+				String(form.get("updateDefaultCapacity") ?? "")
+			),
 		})
 
 		const owned = await productRepository.ensureProductOwnedByProvider(parsed.productId, providerId)
@@ -156,11 +167,22 @@ export const POST: APIRoute = async ({ request }) => {
 			})
 		}
 
-		await variantInventoryConfigRepository.upsert({
-			variantId,
-			defaultTotalUnits: parsed.maxPax,
-			horizonDays: 365,
-		})
+		const inventoryConfig = await variantInventoryConfigRepository.getByVariantId(variantId)
+		// Initial setup needs a default; subsequent profile edits do not change it.
+		// An explicit default change never rewrites scheduled dates or reservations.
+		const defaultCapacityUpdated = !inventoryConfig || parsed.updateDefaultCapacity
+		if (!inventoryConfig) {
+			await variantInventoryConfigRepository.upsert({
+				variantId,
+				defaultTotalUnits: parsed.maxPax,
+				horizonDays: 365,
+			})
+		} else if (parsed.updateDefaultCapacity) {
+			await db
+				.update(VariantInventoryConfig)
+				.set({ defaultTotalUnits: parsed.maxPax })
+				.where(eq(VariantInventoryConfig.variantId, variantId))
+		}
 		await variantManagementRepository.upsertCapacity({
 			variantId,
 			minOccupancy: 1,
@@ -177,7 +199,7 @@ export const POST: APIRoute = async ({ request }) => {
 			source: "variant.tour-slot-profile",
 		})
 
-		return new Response(JSON.stringify({ ok: true, variantId }), {
+		return new Response(JSON.stringify({ ok: true, variantId, defaultCapacityUpdated }), {
 			status: 200,
 			headers: { "Content-Type": "application/json" },
 		})
