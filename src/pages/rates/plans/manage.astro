@@ -22,7 +22,6 @@ import {
 import {
 	buildTourPlaybookHref,
 	LAUNCH_TOUR_PLAYBOOK_ID,
-	getTourSharedRateCanonicalHref,
 	resolveTourLaunchPlaybookFromUrl,
 } from "@/lib/playbook/launch-tour"
 import {
@@ -35,6 +34,7 @@ import type { WorkspaceRequestContext } from "@/lib/dashboard/workspaceRequestCo
 import { logRoutePerformance } from "@/lib/observability/performanceLog"
 import { createServerTimingRecorder } from "@/lib/observability/serverTiming"
 import { loadProviderRatePlanVariants } from "@/lib/rates/loadProviderRatePlanVariants"
+import { loadRatePlanManagementEntry } from "@/lib/rates/loadRatePlanManagementEntry"
 import { buildProviderRatePlansSurface } from "@/lib/rates/providerRatePlansSurface"
 import { ratePlanIntentPresets } from "@/lib/rates/ratePlanIntentPresets"
 import { routes } from "@/lib/routes"
@@ -212,22 +212,12 @@ const completePlaybook = resolveCompleteToPublishPlaybookFromUrl(Astro.url)
 const flow = Astro.url.searchParams.get("flow")
 const requestedProductId = String(Astro.url.searchParams.get("productId") ?? "").trim()
 const requestedVariantId = String(Astro.url.searchParams.get("variantId") ?? "").trim()
-const matchedVariant = variantChoices.find(
-	(choice) =>
-		choice.variantId === requestedVariantId &&
-		(!requestedProductId || choice.productId === requestedProductId)
+const rateEntry = await timing.time("entryContext", () =>
+	loadRatePlanManagementEntry({ url: Astro.url, providerId: auth.providerId, variantChoices })
 )
-const productVariant = variantChoices.find((choice) => choice.productId === requestedProductId)
-const contextVariant = matchedVariant ?? productVariant
-const productIsTour = String(contextVariant?.productType ?? "").toLowerCase() === "tour"
-
-const tourCanonicalHref = getTourSharedRateCanonicalHref(Astro.url, {
-	isTour: productIsTour,
-	step: "rate",
-	productId: String(contextVariant?.productId ?? requestedProductId),
-	variantId: String(contextVariant?.variantId ?? requestedVariantId),
-})
-if (tourCanonicalHref) return Astro.redirect(tourCanonicalHref)
+if (rateEntry.notFound) return new Response("Oferta no encontrada", { status: 404 })
+if (rateEntry.redirectHref) return Astro.redirect(rateEntry.redirectHref)
+const { matchedVariant, productType, isTour: productIsTour } = rateEntry
 if (!addRoomPlaybook.active && flow === "add-room") {
 	const params = new URLSearchParams(Astro.url.searchParams)
 	params.set("playbook", "add-room")
@@ -249,11 +239,10 @@ if (
 
 const shouldOpenDialog = Astro.url.searchParams.get("openDialog") === "1"
 const playbookProductId =
-	matchedVariant?.productId ??
-	addRoomPlaybook.productId ??
-	completePlaybook.productId ??
+	rateEntry.productId ||
+	addRoomPlaybook.productId ||
+	completePlaybook.productId ||
 	requestedProductId
-const productType = String(matchedVariant?.productType ?? productVariant?.productType ?? "")
 const isTourRateContext = productType.toLowerCase() === "tour" || productIsTour
 const scopedVariantChoices = requestedProductId
 	? variantChoices.filter((choice) => choice.productId === requestedProductId)
