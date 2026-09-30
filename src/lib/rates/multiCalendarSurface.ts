@@ -242,11 +242,11 @@ export async function buildRatesMultiCalendarSurface(input: {
 			const conditionsComplete = Boolean(row.policyCoverage?.isComplete)
 			const missingCategories = row.policyCoverage?.missingCategories ?? []
 			const conditionsMissingSummary = summarizeMissingPolicyCategories(missingCategories)
-			const conditionsSummary =
-				missingCategories.length >= 4
-					? "Sin condiciones configuradas"
-					: row.policySummary ||
-						(conditionsComplete ? "Contrato completo" : conditionsMissingSummary)
+			const conditionsSummary = conditionsComplete
+				? row.policySummary || "Contrato completo"
+				: missingCategories.length
+					? conditionsMissingSummary
+					: row.policySummary || "Condiciones sin verificar"
 			const cells: MultiCalendarCell[] = days.map((day) => {
 				const cancellationDateAssignment = (input.cancellationDateAssignments ?? [])
 					.filter(

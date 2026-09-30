@@ -18,7 +18,7 @@ import {
 	resolveLaunchPlaybookFromUrl,
 } from "@/lib/playbook/launch-accommodation"
 import {
-	canonicalTourLaunchHref,
+	getTourSharedRateCanonicalHref,
 	LAUNCH_TOUR_PLAYBOOK_ID,
 	resolveTourLaunchPlaybookFromUrl,
 } from "@/lib/playbook/launch-tour"
@@ -27,6 +27,7 @@ import {
 	loadProviderRatePlansReadModel,
 	type RatePlanListItem,
 } from "@/lib/rates/loadRatePlansReadModel"
+import { sellableDailyInventoryCondition } from "@/lib/rates/sellableDailyInventoryCondition"
 import { routes } from "@/lib/routes"
 import {
 	and,
@@ -91,13 +92,13 @@ const requestedVariantId = String(Astro.url.searchParams.get("variantId") ?? "")
 const contextualRow =
 	matchedRow ?? rows.find((row: RatePlanListItem) => String(row.productId) === requestedProductId)
 const requestedProduct =
-	flow === "create" && !contextualRow && requestedProductId
+	needsGuidedContext && !contextualRow && requestedProductId
 		? await db
 				.select({ productId: Product.id, productType: Product.productType })
 				.from(Product)
 				.where(and(eq(Product.id, requestedProductId), eq(Product.providerId, auth.providerId)))
 				.then(first)
-		: flow === "create" && !contextualRow && requestedVariantId
+		: needsGuidedContext && !contextualRow && requestedVariantId
 			? await db
 					.select({ productId: Product.id, productType: Product.productType })
 					.from(Variant)
@@ -114,10 +115,14 @@ const playbookProductId =
 const isTourContext =
 	String(contextualRow?.productType ?? requestedProduct?.productType ?? "").toLowerCase() === "tour"
 
-if (flow === "create" && isTourContext && !completePlaybook.active) {
-	const tourHref = canonicalTourLaunchHref(Astro.url, "calendar")
-	if (tourHref !== `${Astro.url.pathname}${Astro.url.search}`) return Astro.redirect(tourHref)
-}
+const tourCanonicalHref = getTourSharedRateCanonicalHref(Astro.url, {
+	isTour: isTourContext,
+	step: "calendar",
+	productId: String(contextualRow?.productId ?? requestedProduct?.productId ?? requestedProductId),
+	variantId: String(contextualRow?.variantId ?? variantIdParam),
+	ratePlanId: String(contextualRow?.ratePlanId ?? ratePlanIdParam),
+})
+if (tourCanonicalHref) return Astro.redirect(tourCanonicalHref)
 
 if (!addRoomPlaybook.active && flow === "add-room" && playbookProductId) {
 	const params = new URLSearchParams(Astro.url.searchParams)
@@ -170,32 +175,34 @@ const isGuidedAvailabilityStep = Boolean(
 		tourLaunchPlaybook.stepId === "calendar" ||
 		completePlaybook.stepId === "calendar")
 )
-const guidedTourPublishBlocker =
+const guidedTourPublishBlockers =
 	isGuidedAvailabilityStep &&
 	isTourContext &&
 	(activePlaybook === "complete-to-publish" || activePlaybook === "launch-tour")
-		? ((
+		? (
 				await evaluateProviderGovernance(auth.providerId, {
 					currentUserId: workspaceContext.user.id,
 					persist: false,
 				})
-			).blockers.find((blocker) => blocker.capabilities.includes("publish")) ?? null)
-		: null
-function guidedTourPublishBlockerHref() {
-	if (!guidedTourPublishBlocker) return ""
-	const url = new URL(guidedTourPublishBlocker.href, Astro.url)
-	if (url.pathname === routes.providerSettingsVerification()) {
+			).blockers.filter((blocker) => blocker.capabilities.includes("publish"))
+		: []
+function guidedTourPublishBlockerHref(blocker: (typeof guidedTourPublishBlockers)[number]) {
+	const url = new URL(blocker.href, Astro.url)
+	const verificationPath = routes.providerSettingsVerification()
+	if (url.pathname === verificationPath || url.pathname.startsWith(`${verificationPath}/`)) {
+		url.searchParams.set("line", "tour")
+		url.searchParams.set("experience", playbookProductId)
+	}
+	if (url.pathname === verificationPath) {
 		const tabByArea: Record<string, string> = {
 			verification: "identity",
 			documents: "identity",
 			fiscality: "fiscal",
 			payments: "payments",
 		}
-		const tab = tabByArea[guidedTourPublishBlocker.areaId ?? ""] ?? "identity"
-		url.searchParams.set("line", "tour")
+		const tab = tabByArea[blocker.areaId ?? ""] ?? "identity"
 		url.searchParams.set("tab", tab)
 		url.searchParams.set("tourTab", tab)
-		url.searchParams.set("experience", playbookProductId)
 	}
 	return `${url.pathname}${url.search}`
 }
@@ -220,7 +227,7 @@ const guidedInventoryDays =
 								and(
 									eq(DailyInventory.variantId, guidedVariantId),
 									gt(DailyInventory.date, todayIso),
-									gt(DailyInventory.totalInventory, 0)
+									sellableDailyInventoryCondition()
 								)
 							)
 							.then(first)
@@ -343,12 +350,11 @@ timing.setHeader(Astro.response.headers)
 						requiredDays: isTourContext ? 1 : 30,
 						initialInventoryDays: guidedInventoryDays,
 						finalizationError: guidedFinalizationError,
-						activationBlocker: guidedTourPublishBlocker
-							? {
-									label: guidedTourPublishBlocker.label,
-									href: guidedTourPublishBlockerHref(),
-								}
-							: undefined,
+						activationBlockers: guidedTourPublishBlockers.map((blocker) => ({
+							id: blocker.id,
+							label: blocker.label,
+							href: guidedTourPublishBlockerHref(blocker),
+						})),
 					}
 				: undefined}
 		>

@@ -18,7 +18,7 @@ export const cacheKeys = {
 		providerRole: string
 	): string {
 		const mode = workspaceExperience === "professional" ? "professional" : "essential"
-		return `ws:provider:${providerId}:sidebar:v2:${userId}:${mode}:${providerRole}`
+		return `ws:provider:${providerId}:sidebar:v3:${userId}:${mode}:${providerRole}`
 	},
 	providerRatePlansSurface(providerId: string, checkIn: string, checkOut: string): string {
 		return `ws:provider:${providerId}:rates:surface:${checkIn}:${checkOut}`
@@ -62,7 +62,7 @@ export const cacheKeys = {
 		variantId: string,
 		month: string
 	): string {
-		return `ws:provider:${providerId}:calendar:${variantId}:${ratePlanId}:${month}`
+		return `ws:provider:${providerId}:calendar:offer:${variantId}:${ratePlanId}:${month}`
 	},
 	calendarSurfacePrefix(providerId: string): string {
 		return `ws:provider:${providerId}:calendar:`

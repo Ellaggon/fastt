@@ -23,6 +23,7 @@ describe("tour commercial rate context", () => {
 		expect(manage).toContain("precio por participante en cada moneda que aceptas")
 		expect(detail).toContain("completeContinueHref")
 		expect(detail).toContain("isPlaybookMode && isTourContext")
+		expect(detail).toContain("getTourRateDetailCanonicalHref(Astro.url")
 		expect(calendar).toContain('completePlaybook.stepId === "calendar"')
 		expect(calendar).toContain('vertical: isTourContext ? "tour" : "hotel"')
 	})
@@ -110,8 +111,11 @@ describe("tour commercial rate context", () => {
 		const workspace = source("src/components/rates/SingleCalendarWorkspace.tsx")
 		expect(page).toContain('tourLaunchPlaybook.stepId === "calendar"')
 		expect(page).toContain("gt(DailyInventory.date, todayIso)")
-		expect(page).toContain("gt(DailyInventory.totalInventory, 0)")
+		expect(page).toContain("sellableDailyInventoryCondition()")
 		expect(page).toContain("requiredDays: isTourContext ? 1 : 30")
+		expect(source("src/lib/rates/sellableDailyInventoryCondition.ts")).toContain(
+			"lt(DailyInventory.reservedCount, DailyInventory.totalInventory)"
+		)
 		expect(workspace).toContain('guidedAvailability?.vertical === "tour"')
 		expect(workspace).toContain("La primera fecha reservable debe ser futura.")
 		expect(workspace).toContain('"Cupo de participantes"')
@@ -123,15 +127,33 @@ describe("tour commercial rate context", () => {
 		const endpoint = source("src/pages/api/rateplans/activate-guided.ts")
 		const validator = source("src/lib/rates/validateRatePlanPublication.ts")
 		const finalizer = source("src/lib/playbook/finalize-tour-rate.ts")
+		const workspace = source("src/components/rates/SingleCalendarWorkspace.tsx")
+		const activationRepository = source(
+			"src/modules/pricing/infrastructure/repositories/RatePlanCommandRepository.ts"
+		)
 
 		expect(calendar).toContain("Activar tarifa y continuar")
 		expect(calendar).toContain("finalizeGuidedRate")
 		expect(page).toContain("hideFooter: isTourContext")
 		expect(endpoint).toContain("finalizeTourRate")
 		expect(validator).toContain("const minimumAvailabilityDays = isTour ? 1")
-		expect(finalizer).toContain("isActive: true")
+		expect(validator).toContain("sellableDailyInventoryCondition()")
+		expect(finalizer).toContain("ratePlanCommandRepository.activateTourRate")
+		expect(activationRepository).toContain("async activateTourRate")
+		expect(activationRepository).toContain("return db.transaction(async (tx) =>")
+		expect(activationRepository).toContain("salesEnabled: true")
 		expect(finalizer).toContain("validateRatePlanPublication")
 		expect(finalizer).toContain("assertProviderCapability")
 		expect(finalizer).toContain('capability: "publish"')
+		expect(workspace).toContain("body.alreadyActive === true")
+		expect(workspace).toContain("Abrir resumen de la oferta")
+	})
+
+	it("uses sellable capacity when calculating playbook availability", () => {
+		const completeReadiness = source("src/lib/playbook/evaluate-complete-to-publish-progress.ts")
+		const hotelReadiness = source("src/lib/playbook/evaluate-add-room-progress.ts")
+
+		expect(completeReadiness).toContain("sellableDailyInventoryCondition()")
+		expect(hotelReadiness).toContain("sellableDailyInventoryCondition()")
 	})
 })

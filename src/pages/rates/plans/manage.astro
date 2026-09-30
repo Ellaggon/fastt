@@ -22,7 +22,7 @@ import {
 import {
 	buildTourPlaybookHref,
 	LAUNCH_TOUR_PLAYBOOK_ID,
-	canonicalTourLaunchHref,
+	getTourSharedRateCanonicalHref,
 	resolveTourLaunchPlaybookFromUrl,
 } from "@/lib/playbook/launch-tour"
 import {
@@ -38,6 +38,8 @@ import { loadProviderRatePlanVariants } from "@/lib/rates/loadProviderRatePlanVa
 import { buildProviderRatePlansSurface } from "@/lib/rates/providerRatePlansSurface"
 import { ratePlanIntentPresets } from "@/lib/rates/ratePlanIntentPresets"
 import { routes } from "@/lib/routes"
+import { normalizePolicyCoverage } from "@/lib/policies/policy-business-contract"
+import { summarizeMissingPolicyCategories } from "@/modules/policies/public"
 
 const startedAt = performance.now()
 const timing = createServerTimingRecorder()
@@ -122,10 +124,18 @@ function commercialState(row: (typeof rows)[number]) {
 		}
 	}
 	if (!row.policyCoverage?.isComplete) {
+		const missingSummary = summarizeMissingPolicyCategories(
+			row.policyCoverage?.missingCategories ?? []
+		)
+		const requiredCount = normalizePolicyCoverage(row.productType, 0).total
 		return {
 			key: "policies",
 			label: "No vendible",
-			reason: "Faltan condiciones para reservar.",
+			reason: !requiredCount
+				? "Fastt aún no definió las condiciones para este tipo de oferta."
+				: missingSummary === "Contrato completo"
+					? "No se pudo verificar el estado de las condiciones de reserva."
+					: `${missingSummary}.`,
 			href: routes.ratePlanPolicies(ratePlanId),
 			badge: "warning" as const,
 		}
@@ -150,8 +160,11 @@ const needsAttention = rows.length - readyRatePlans - draftRatePlans
 
 const ratePlanDisplayRows = rows.map((row) => {
 	const state = rowStates.get(String(row.ratePlanId))!
-	const covered = Number(row.policyCoverage?.coveredCategories ?? 0)
-	const total = Number(row.policyCoverage?.totalCategories ?? 4)
+	const {
+		covered,
+		total,
+		label: coverageLabel,
+	} = normalizePolicyCoverage(row.productType, row.policyCoverage?.coveredCategories)
 	const restrictions = Number(row.summary?.activeRestrictionsCount ?? 0)
 	return {
 		id: String(row.ratePlanId),
@@ -168,7 +181,7 @@ const ratePlanDisplayRows = rows.map((row) => {
 		resolveLabel: state.key === "ready" ? "Ver" : "Resolver",
 		priceLabel: money(row.pricingReadiness?.basePrice, row.pricingReadiness?.currency),
 		policyLabel: shortPolicySummary(row.policySummary),
-		policyCoverageLabel: `${covered}/${total} completas`,
+		policyCoverageLabel: total ? `${coverageLabel} completas` : "Contrato sin definir",
 		inventoryLabel:
 			String(row.productType ?? "").toLowerCase() === "tour"
 				? `${row.inventoryReadiness?.availableDays ?? 0}/${row.inventoryReadiness?.expectedDays ?? 30} fechas`
@@ -208,10 +221,13 @@ const productVariant = variantChoices.find((choice) => choice.productId === requ
 const contextVariant = matchedVariant ?? productVariant
 const productIsTour = String(contextVariant?.productType ?? "").toLowerCase() === "tour"
 
-if (flow === "create" && productIsTour && !completePlaybook.active) {
-	const tourHref = canonicalTourLaunchHref(Astro.url, "rate")
-	if (tourHref !== `${Astro.url.pathname}${Astro.url.search}`) return Astro.redirect(tourHref)
-}
+const tourCanonicalHref = getTourSharedRateCanonicalHref(Astro.url, {
+	isTour: productIsTour,
+	step: "rate",
+	productId: String(contextVariant?.productId ?? requestedProductId),
+	variantId: String(contextVariant?.variantId ?? requestedVariantId),
+})
+if (tourCanonicalHref) return Astro.redirect(tourCanonicalHref)
 if (!addRoomPlaybook.active && flow === "add-room") {
 	const params = new URLSearchParams(Astro.url.searchParams)
 	params.set("playbook", "add-room")

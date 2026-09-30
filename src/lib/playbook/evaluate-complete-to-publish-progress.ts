@@ -6,6 +6,7 @@ import {
 import { routes } from "@/lib/routes"
 import { productRepository } from "@/container"
 import { and, count, DailyInventory, db, eq, first, gt } from "@/shared/infrastructure/db/compat"
+import { sellableDailyInventoryCondition } from "@/lib/rates/sellableDailyInventoryCondition"
 import {
 	TOUR_QUALITY_MIN_IMAGES,
 	TOUR_QUALITY_MIN_ITINERARY_STEPS,
@@ -169,7 +170,7 @@ export async function loadCompleteToPublishState(params: {
 							and(
 								eq(DailyInventory.variantId, tourCommercialContext.variantId),
 								gt(DailyInventory.date, new Date().toISOString().slice(0, 10)),
-								gt(DailyInventory.totalInventory, 0)
+								sellableDailyInventoryCondition()
 							)
 						)
 						.then(first)

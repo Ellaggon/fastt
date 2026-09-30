@@ -24,7 +24,8 @@ function defaultSummary(params: {
 }
 
 export async function getProviderPolicyReadiness(
-	providerId: string
+	providerId: string,
+	scope?: { ratePlanIds?: readonly string[] }
 ): Promise<ProviderPolicyReadiness> {
 	const normalizedProviderId = String(providerId ?? "").trim()
 	if (!normalizedProviderId) {
@@ -36,9 +37,21 @@ export async function getProviderPolicyReadiness(
 		}
 	}
 
-	const ratePlans = (await listRatePlansByProvider(
-		normalizedProviderId
-	)) as ProviderRatePlanContext[]
+	const scopedIds = scope?.ratePlanIds
+		? new Set(scope.ratePlanIds.map((ratePlanId) => String(ratePlanId)))
+		: null
+	if (scopedIds && scopedIds.size === 0) {
+		return {
+			totalRatePlans: 0,
+			readyRatePlans: 0,
+			incompleteRatePlans: 0,
+			summary: defaultSummary({ totalRatePlans: 0, readyRatePlans: 0, incompleteRatePlans: 0 }),
+		}
+	}
+
+	const ratePlans = (
+		(await listRatePlansByProvider(normalizedProviderId)) as ProviderRatePlanContext[]
+	).filter((plan) => !scopedIds || scopedIds.has(String(plan.ratePlanId)))
 	const totalRatePlans = ratePlans.length
 	if (!totalRatePlans) {
 		return {

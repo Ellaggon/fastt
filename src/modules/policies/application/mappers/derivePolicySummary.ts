@@ -197,7 +197,6 @@ export function summarizeMissingPolicyCategories(missingCategories: readonly str
 		)
 	)
 	if (labels.length === 0) return "Contrato completo"
-	if (labels.length >= 4) return "Sin condiciones configuradas"
 	return `Pendientes: ${naturalList(labels)}`
 }
 

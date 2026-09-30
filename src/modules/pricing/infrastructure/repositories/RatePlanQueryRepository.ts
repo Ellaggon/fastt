@@ -77,6 +77,7 @@ export class RatePlanQueryRepository implements RatePlanQueryRepositoryPort {
 				description: ratePlanDescription,
 				isActive: RatePlan.isActive,
 				isDefault: RatePlan.isDefault,
+				createdAt: RatePlan.createdAt,
 			})
 			.from(RatePlan)
 			.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
@@ -133,6 +134,7 @@ export class RatePlanQueryRepository implements RatePlanQueryRepositoryPort {
 					variantName: String(row.variantName ?? ""),
 					isActive: Boolean(row.isActive),
 					isDefault: Boolean(row.isDefault),
+					createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : null,
 					status: Boolean(row.isActive) ? "active" : "inactive",
 					summary: {
 						priceRulesCount,

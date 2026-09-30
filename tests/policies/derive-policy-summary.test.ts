@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest"
 
-import { derivePolicySummaryFromResolvedPolicies } from "@/modules/policies/public"
+import {
+	derivePolicySummaryFromResolvedPolicies,
+	summarizeMissingPolicyCategories,
+} from "@/modules/policies/public"
 
 function resolved(params: {
 	policies?: Array<{
@@ -41,7 +44,13 @@ describe("derivePolicySummaryFromResolvedPolicies", () => {
 					missingCategories: ["Cancellation", "Payment", "CheckIn", "NoShow"],
 				})
 			)
-		).toBe("Sin condiciones configuradas")
+		).toBe("Pendientes: cancelación, pago, llegada/salida y no presentación")
+	})
+
+	it("names all three tour policy requirements when none are assigned", () => {
+		expect(summarizeMissingPolicyCategories(["Cancellation", "Payment", "NoShow"])).toBe(
+			"Pendientes: cancelación, pago y no presentación"
+		)
 	})
 
 	it("names configured and pending conditions without generic policy fallbacks", () => {

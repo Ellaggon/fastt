@@ -44,11 +44,12 @@ type Props = {
 		requiredDays: number
 		initialInventoryDays: number
 		finalizationError?: string
-		activationBlocker?: { label: string; href: string }
+		activationBlockers?: Array<{ id: string; label: string; href: string }>
 	}
 }
 
 type DrawerAction = "manual_price" | "inventory_units" | "stop_sell" | "min_los" | null
+type GuidedActivationBlocker = { id: string; label: string; href?: string }
 
 const WEEKDAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
 const RANGE_PRESETS = [
@@ -236,6 +237,7 @@ export default function SingleCalendarWorkspace({
 }: Props) {
 	const isTourGuidedAvailability = guidedAvailability?.vertical === "tour"
 	const isAddRoomGuidedAvailability = guidedAvailability?.playbook === "add-room"
+	const hasActivationBlockers = Boolean(guidedAvailability?.activationBlockers?.length)
 	const guidedStartDate = addDays(localIsoDate(), 1)
 	const initialRequest = {
 		ratePlanId: initialRatePlanId,
@@ -263,6 +265,10 @@ export default function SingleCalendarWorkspace({
 	const [guidedFeedbackVariant, setGuidedFeedbackVariant] = useState<"info" | "success" | "error">(
 		guidedAvailability?.finalizationError ? "error" : "info"
 	)
+	const [guidedActivationBlockers, setGuidedActivationBlockers] = useState<
+		GuidedActivationBlocker[]
+	>([])
+	const [guidedTerminalHref, setGuidedTerminalHref] = useState<string | null>(null)
 	const [guidedInventoryDays, setGuidedInventoryDays] = useState(
 		Math.max(0, Number(guidedAvailability?.initialInventoryDays ?? 0))
 	)
@@ -699,6 +705,9 @@ export default function SingleCalendarWorkspace({
 		}
 
 		setGuidedFinalizing(true)
+		setGuidedTerminalHref(null)
+		setGuidedActivationBlockers([])
+		setGuidedFeedback("")
 		setGuidedFeedbackVariant("info")
 		setGuidedFeedback(
 			isTourGuidedAvailability
@@ -719,8 +728,52 @@ export default function SingleCalendarWorkspace({
 			})
 			const body = await response.json().catch(() => ({}))
 			if (!response.ok || !body?.terminalHref) {
-				const blockers = Array.isArray(body?.blockers) ? body.blockers.join(" ") : ""
-				throw new Error(body?.error || blockers || "No se pudo finalizar la configuración.")
+				const blockers: GuidedActivationBlocker[] = Array.isArray(body?.blockers)
+					? body.blockers.flatMap((value: unknown, index: number) => {
+							if (typeof value === "string") {
+								const label = value.trim()
+								return label ? [{ id: `blocker-${index + 1}`, label }] : []
+							}
+							if (!value || typeof value !== "object") return []
+							const blocker = value as Record<string, unknown>
+							const label = String(blocker.label ?? "").trim()
+							if (!label) return []
+							const href = String(blocker.href ?? "").trim()
+							return [
+								{
+									id: String(blocker.id ?? `blocker-${index + 1}`),
+									label,
+									...(href.startsWith("/") && !href.startsWith("//") ? { href } : {}),
+								},
+							]
+						})
+					: []
+				const error = String(body?.error ?? "").trim()
+				setGuidedFeedbackVariant("error")
+				setGuidedFeedback(
+					[
+						error || "No se pudo finalizar la configuración.",
+						...blockers.filter((blocker) => !blocker.href).map((blocker) => blocker.label),
+					].join(" ")
+				)
+				setGuidedActivationBlockers(blockers.filter((blocker) => blocker.href))
+				setGuidedFinalizing(false)
+				return
+			}
+			const alreadyActive = body.alreadyActive === true
+			const cacheRefreshPending = body.cacheRefreshPending === true
+			if (alreadyActive || cacheRefreshPending) {
+				setGuidedFeedbackVariant(cacheRefreshPending ? "info" : "success")
+				setGuidedFeedback(
+					cacheRefreshPending
+						? alreadyActive
+							? "La tarifa ya estaba activa y recuperé el estado guardado. No se pudo actualizar automáticamente la vista comercial."
+							: "La activación quedó guardada, pero no se pudo actualizar automáticamente la vista comercial."
+						: "La tarifa ya estaba activa; recuperé el estado guardado."
+				)
+				setGuidedTerminalHref(String(body.terminalHref))
+				setGuidedFinalizing(false)
+				return
 			}
 			window.location.assign(String(body.terminalHref))
 		} catch (error) {
@@ -960,21 +1013,17 @@ export default function SingleCalendarWorkspace({
 									<div className="flex flex-wrap items-center gap-2">
 										<h2 className="text-xl font-semibold text-slate-950">
 											{isTourGuidedAvailability
-												? guidedAvailability.activationBlocker && guidedIsReady
+												? hasActivationBlockers && guidedIsReady
 													? "Disponibilidad configurada"
 													: "Abre la primera fecha reservable"
 												: "Abrir disponibilidad inicial"}
 										</h2>
 										<Badge
 											variant={
-												guidedAvailability.activationBlocker
-													? "warning"
-													: guidedIsReady
-														? "success"
-														: "warning"
+												hasActivationBlockers ? "warning" : guidedIsReady ? "success" : "warning"
 											}
 										>
-											{guidedAvailability.activationBlocker
+											{hasActivationBlockers
 												? "Habilitación pendiente"
 												: guidedIsReady
 													? "Lista"
@@ -983,7 +1032,7 @@ export default function SingleCalendarWorkspace({
 									</div>
 									<p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
 										{isTourGuidedAvailability
-											? guidedAvailability.activationBlocker && guidedIsReady
+											? hasActivationBlockers && guidedIsReady
 												? "Hay fechas futuras con cupo. La tarifa todavía no puede recibir reservas hasta resolver la habilitación de la cuenta."
 												: "Elige una o más fechas futuras y asigna el cupo de participantes. Con al menos una fecha con cupo, la salida queda lista para reservar."
 											: "Configura inventario inicial para un primer rango vendible. Precios y condiciones ya se revisaron en los pasos anteriores."}
@@ -1099,8 +1148,9 @@ export default function SingleCalendarWorkspace({
 											: "Abrir disponibilidad"}
 									</Button>
 									{(isAddRoomGuidedAvailability ||
-										(isTourGuidedAvailability && !guidedAvailability.activationBlocker)) &&
-									guidedIsReady ? (
+										(isTourGuidedAvailability && !hasActivationBlockers)) &&
+									guidedIsReady &&
+									!guidedTerminalHref ? (
 										<Button
 											type="button"
 											onClick={() => void finalizeGuidedRate()}
@@ -1116,26 +1166,66 @@ export default function SingleCalendarWorkspace({
 									) : null}
 								</div>
 							</div>
-							{isTourGuidedAvailability && guidedAvailability.activationBlocker ? (
+							{isTourGuidedAvailability && hasActivationBlockers ? (
 								<Notice variant="warning">
-									<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-										<p>
-											Antes de aceptar reservas, resuelve:
-											<strong className="ml-1">{guidedAvailability.activationBlocker.label}</strong>
-											.
-										</p>
-										<Button
-											href={guidedAvailability.activationBlocker.href}
-											variant="secondary"
-											size="sm"
+									<div className="space-y-3">
+										<p>Antes de aceptar reservas, completa estos requisitos del proveedor:</p>
+										<ul
+											className="space-y-2"
+											aria-label="Requisitos pendientes para activar la oferta"
 										>
-											Resolver requisito
-										</Button>
+											{guidedAvailability.activationBlockers?.map((blocker) => (
+												<li
+													key={blocker.id}
+													className="flex flex-col gap-2 rounded-lg border border-amber-200 bg-white/70 p-3 sm:flex-row sm:items-center sm:justify-between"
+												>
+													<span>{blocker.label}</span>
+													<Button href={blocker.href} variant="secondary" size="sm">
+														Resolver requisito
+													</Button>
+												</li>
+											))}
+										</ul>
 									</div>
 								</Notice>
 							) : null}
 
-							{guidedFeedback && <Notice variant={guidedFeedbackVariant}>{guidedFeedback}</Notice>}
+							{guidedFeedback && (
+								<Notice variant={guidedFeedbackVariant}>
+									<div className="space-y-2">
+										<p>{guidedFeedback}</p>
+										{guidedActivationBlockers.length > 0 ? (
+											<ul
+												className="space-y-2"
+												aria-label="Requisitos pendientes para activar la oferta"
+											>
+												{guidedActivationBlockers.map((blocker) => (
+													<li
+														key={blocker.id}
+														className="flex flex-col gap-2 rounded-lg border border-red-200 bg-white/70 p-3 sm:flex-row sm:items-center sm:justify-between"
+													>
+														<span>{blocker.label}</span>
+														<a
+															href={blocker.href}
+															className="inline-flex min-h-10 items-center font-semibold text-slate-900 underline underline-offset-4"
+														>
+															Resolver requisito
+														</a>
+													</li>
+												))}
+											</ul>
+										) : null}
+										{guidedTerminalHref ? (
+											<a
+												href={guidedTerminalHref}
+												className="inline-flex min-h-10 items-center font-semibold text-slate-900 underline underline-offset-4"
+											>
+												Abrir resumen de la oferta
+											</a>
+										) : null}
+									</div>
+								</Notice>
+							)}
 						</div>
 
 						<aside className="border-t border-slate-200 bg-slate-50 p-5 md:p-6 lg:border-t-0 lg:border-l">

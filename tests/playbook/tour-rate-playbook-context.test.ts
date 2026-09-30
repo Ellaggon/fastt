@@ -38,9 +38,24 @@ describe("tour rate playbook context", () => {
 		).toContain("ratePlanId=rate_1")
 	})
 
+	it("keeps the selected departure and rate through the review step", () => {
+		const href = completeToPublishStepHref("tour_1", "preview", {
+			variantId: "slot_1",
+			ratePlanId: "rate_1",
+		})
+		const url = new URL(href, "http://localhost")
+
+		expect(url.pathname).toBe("/product/tour_1/preview")
+		expect(url.searchParams.get("variantId")).toBe("slot_1")
+		expect(url.searchParams.get("ratePlanId")).toBe("rate_1")
+	})
+
 	it("opens the existing departure and rate instead of the create forms", () => {
 		expect(
-			completeToPublishStepHref("tour_1", "departure", { variantId: "slot_1", ratePlanId: "rate_1" })
+			completeToPublishStepHref("tour_1", "departure", {
+				variantId: "slot_1",
+				ratePlanId: "rate_1",
+			})
 		).toBe("/product/tour_1/departures/slot_1")
 		expect(
 			completeToPublishStepHref("tour_1", "rate", { variantId: "slot_1", ratePlanId: "rate_1" })

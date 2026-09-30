@@ -31,6 +31,96 @@ import type {
 } from "../../application/ports/RatePlanCommandRepositoryPort"
 
 export class RatePlanCommandRepository implements RatePlanCommandRepositoryPort {
+	/** Activate a tour's selected rate and its departure in one database transaction. */
+	async activateTourRate(params: {
+		ratePlanId: string
+		variantId: string
+		productId: string
+		providerId: string
+		name: string
+		description: string | null
+	}): Promise<"not_found" | "not_ready" | "activated" | "already_active"> {
+		const compressedSchema = await hasCompressedRatePlanSchema()
+		return db.transaction(async (tx) => {
+			const current = await tx
+				.select({
+					ratePlanId: RatePlan.id,
+					isActive: RatePlan.isActive,
+					isDefault: RatePlan.isDefault,
+					variantId: Variant.id,
+					productId: Product.id,
+					providerId: Product.providerId,
+					productType: Product.productType,
+					variantKind: Variant.kind,
+					lifecycleState: Variant.lifecycleState,
+					salesEnabled: Variant.salesEnabled,
+				})
+				.from(RatePlan)
+				.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
+				.innerJoin(Product, eq(Product.id, Variant.productId))
+				.where(eq(RatePlan.id, params.ratePlanId))
+				.then(first)
+
+			if (
+				!current ||
+				String(current.variantId) !== params.variantId ||
+				String(current.productId) !== params.productId ||
+				String(current.providerId ?? "") !== params.providerId ||
+				String(current.productType ?? "")
+					.trim()
+					.toLowerCase() !== "tour" ||
+				String(current.variantKind ?? "")
+					.trim()
+					.toLowerCase() !== "tour_slot"
+			) {
+				return "not_found"
+			}
+
+			if (current.isActive && current.isDefault && current.salesEnabled) return "already_active"
+			if (current.lifecycleState !== "ready") return "not_ready"
+
+			// Update the guarded row first. The transaction holds its row lock until
+			// both activation writes commit, and a failed condition leaves the rate untouched.
+			const enabled = await tx
+				.update(Variant)
+				.set({ salesEnabled: true })
+				.where(and(eq(Variant.id, params.variantId), eq(Variant.lifecycleState, "ready")))
+				.returning({ id: Variant.id })
+			if (!enabled[0]) return "not_ready"
+
+			await tx
+				.update(RatePlan)
+				.set({ isDefault: false })
+				.where(eq(RatePlan.variantId, params.variantId))
+
+			if (compressedSchema) {
+				await tx
+					.update(RatePlan)
+					.set({
+						isActive: true,
+						isDefault: true,
+						name: params.name,
+						description: params.description,
+					})
+					.where(eq(RatePlan.id, params.ratePlanId))
+			} else {
+				await tx
+					.update(RatePlan)
+					.set({ isActive: true, isDefault: true })
+					.where(eq(RatePlan.id, params.ratePlanId))
+				await tx.execute(sql`
+						update "RatePlanTemplate"
+						set "name" = ${params.name}, "description" = ${params.description}
+						where "id" = (
+							select "templateId" from "RatePlan" where "id" = ${params.ratePlanId}
+						)
+					`)
+			}
+
+			return "activated"
+		})
+	}
+
 	async createRatePlan(cmd: CreateRatePlanCommand): Promise<void> {
 		let providerId: string | null = null
 		const compressedSchema = await hasCompressedRatePlanSchema()

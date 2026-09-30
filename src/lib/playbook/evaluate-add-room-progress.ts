@@ -12,6 +12,7 @@ import {
 	db,
 	gt,
 } from "@/shared/infrastructure/db/compat"
+import { sellableDailyInventoryCondition } from "@/lib/rates/sellableDailyInventoryCondition"
 import { baseRateRepository } from "@/container"
 import { resolveRatePlanNameColumn } from "@/lib/rates/ratePlanSchemaCompat"
 import { getProductVariantsAggregate } from "@/modules/catalog/public"
@@ -163,7 +164,7 @@ export async function loadVariantCompletionForAggregateVariant(
 					and(
 						eq(DailyInventory.variantId, variantId),
 						gt(DailyInventory.date, todayIso),
-						gt(DailyInventory.totalInventory, 0)
+						sellableDailyInventoryCondition()
 					)
 				),
 			db

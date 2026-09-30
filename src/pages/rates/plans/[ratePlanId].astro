@@ -18,7 +18,11 @@ import {
 	getNextLaunchStep,
 	resolveLaunchPlaybookFromUrl,
 } from "@/lib/playbook/launch-accommodation"
-import { getNextTourLaunchStep, resolveTourLaunchPlaybookFromUrl } from "@/lib/playbook/launch-tour"
+import {
+	getNextTourLaunchStep,
+	getTourRateDetailCanonicalHref,
+	resolveTourLaunchPlaybookFromUrl,
+} from "@/lib/playbook/launch-tour"
 import {
 	buildCompleteToPublishHref,
 	COMPLETE_TO_PUBLISH_PLAYBOOK_ID,
@@ -41,6 +45,8 @@ import {
 } from "@/lib/rates/loadRatePlansReadModel"
 import { routes } from "@/lib/routes"
 import { buildRatePlanPoliciesSurface, resolvePolicyDateRange } from "@/modules/policies/public"
+import { normalizePolicyCoverage } from "@/lib/policies/policy-business-contract"
+
 const startedAt = performance.now()
 const timing = createServerTimingRecorder()
 const auth = await timing
@@ -193,7 +199,18 @@ if (isPlaybookMode) {
 const offeringType =
 	String(row.productType ?? "").toLowerCase() === "tour" ? "tour" : "accommodation"
 const isTourContext = offeringType === "tour"
-const policyCoverageDone = Number(row.policyCoverage?.coveredCategories ?? 0)
+const tourRateDetailHref = getTourRateDetailCanonicalHref(Astro.url, {
+	isTour: isTourContext,
+	productId: String(row.productId),
+	variantId: String(row.variantId),
+	ratePlanId,
+})
+if (tourRateDetailHref) return Astro.redirect(tourRateDetailHref)
+const policyPlan = policyPlans.find((plan) => plan.ratePlanId === ratePlanId)
+const policyCoverage = normalizePolicyCoverage(
+	row.productType,
+	policyPlan?.coverageCount ?? row.policyCoverage?.coveredCategories
+)
 const removalReadiness = isPlaybookMode
 	? null
 	: await timing.time("removalReadiness", () =>
@@ -219,7 +236,11 @@ const viewDescriptions = {
 	details: "Gestiona el nombre visible, estado comercial y configuración principal de esta tarifa.",
 } as const
 const tabs = [
-	{ id: "conditions", label: "Condiciones", meta: `${policyCoverageDone}/4` },
+	{
+		id: "conditions",
+		label: "Condiciones",
+		meta: policyCoverage.label,
+	},
 	{
 		id: "price",
 		label: "Precio base",

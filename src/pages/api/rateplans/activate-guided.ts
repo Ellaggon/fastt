@@ -69,13 +69,55 @@ export const POST: APIRoute = async ({ request }) => {
 		return json(200, {
 			success: true,
 			ratePlanId: result.ratePlanId,
+			...("alreadyActive" in result ? { alreadyActive: result.alreadyActive } : {}),
+			...("cacheRefreshPending" in result
+				? { cacheRefreshPending: result.cacheRefreshPending }
+				: {}),
 			terminalHref: result.terminalHref,
 		})
 	} catch (error) {
 		if (error instanceof Response) return error
 		if (error instanceof Error && error.message.startsWith("PROVIDER_CONFIGURATION_BLOCKED")) {
+			const details = (
+				error as Error & {
+					details?: { capability?: unknown; blockers?: unknown }
+				}
+			).details
+			const blockers = Array.isArray(details?.blockers)
+				? details.blockers.flatMap((value) => {
+						if (!value || typeof value !== "object") return []
+						const blocker = value as Record<string, unknown>
+						const label = String(blocker.label ?? "").trim()
+						if (!label) return []
+						const rawHref = String(blocker.href ?? "").trim()
+						const href = rawHref.startsWith("/") && !rawHref.startsWith("//") ? rawHref : undefined
+						return [
+							{
+								id: String(blocker.id ?? "provider_configuration"),
+								label,
+								...(href ? { href } : {}),
+								...(blocker.severity === "low" ||
+								blocker.severity === "medium" ||
+								blocker.severity === "high"
+									? { severity: blocker.severity }
+									: {}),
+								...(blocker.areaId ? { areaId: String(blocker.areaId) } : {}),
+							},
+						]
+					})
+				: []
+			if (blockers.length === 0) {
+				blockers.push({
+					id: "provider_configuration",
+					label:
+						"No pudimos identificar el requisito pendiente. Revisa la configuración de tu proveedor.",
+					href: "/provider/settings",
+				})
+			}
 			return json(409, {
-				error: "La tarifa no puede activarse hasta completar la configuración del proveedor.",
+				code: "provider_configuration_blocked",
+				error: "Completa los requisitos del proveedor antes de activar esta oferta.",
+				blockers,
 			})
 		}
 		console.error("rateplans:activate-guided", error)
