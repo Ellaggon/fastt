@@ -70,7 +70,8 @@ export const GET: APIRoute = async ({ request }) => {
 	const listProducts = products.slice(0, 5)
 	const preparationByProduct = await listProductOperationalPreparation(
 		providerId,
-		listProducts.map((product) => product.id)
+		listProducts.map((product) => product.id),
+		{ request }
 	)
 
 	const preparationSummaries = listProducts.map(

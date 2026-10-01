@@ -180,3 +180,58 @@ describe("catalog/product/evaluateProductReadiness (unit)", () => {
 		})
 	})
 })
+
+describe("canonical selected tour diagnosis", () => {
+	it("does not add aggregate departure counters to the selected-offer result", async () => {
+		const aggregate: ProductAggregate = {
+			product: {
+				id: "tour",
+				name: "Tour",
+				productType: "Tour",
+				providerId: "provider",
+				geoPlaceId: "place",
+			},
+			imagesCount: 0,
+			subtypeExists: false,
+			content: null,
+			location: null,
+			publication: { state: "draft", validationErrorsJson: null },
+		}
+		const repo = makeRepo(aggregate)
+		const resolvePublicationValidationErrors = vi.fn(async () => [
+			{ code: "price", message: "Define el precio de esta tarifa." },
+		])
+		const result = await evaluateProductReadiness(
+			{ repo, resolvePublicationValidationErrors },
+			{ productId: "tour" }
+		)
+		expect(result.validationErrors).toEqual([
+			{ code: "price", message: "Define el precio de esta tarifa." },
+		])
+		expect(repo.setProductPublication).toHaveBeenCalledWith(
+			expect.objectContaining({ validationErrorsJson: result.validationErrors })
+		)
+	})
+	it("keeps the hotel checks when additional validation is supplied", async () => {
+		const aggregate: ProductAggregate = {
+			product: {
+				id: "hotel",
+				name: "Hotel",
+				productType: "Hotel",
+				providerId: "provider",
+				geoPlaceId: "place",
+			},
+			imagesCount: 0,
+			subtypeExists: false,
+			content: null,
+			location: null,
+			publication: { state: "draft", validationErrorsJson: null },
+		}
+		const result = await evaluateProductReadiness(
+			{ repo: makeRepo(aggregate), resolvePublicationValidationErrors: async () => [] },
+			{ productId: "hotel" }
+		)
+		expect(result.state).toBe("draft")
+		expect(result.validationErrors.some((error) => error.code === "missing_images")).toBe(true)
+	})
+})

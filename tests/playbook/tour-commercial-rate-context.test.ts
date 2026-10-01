@@ -153,7 +153,7 @@ describe("tour commercial rate context", () => {
 		const completeReadiness = source("src/lib/playbook/evaluate-complete-to-publish-progress.ts")
 		const hotelReadiness = source("src/lib/playbook/evaluate-add-room-progress.ts")
 
-		expect(completeReadiness).toContain("sellableDailyInventoryCondition()")
+		expect(completeReadiness).toContain("validateRatePlanPublication")
 		expect(hotelReadiness).toContain("sellableDailyInventoryCondition()")
 	})
 })

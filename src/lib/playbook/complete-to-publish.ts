@@ -249,6 +249,18 @@ export function completeToPublishStepHref(
 	section: ProductVerticalSectionKey,
 	context: { variantId?: string | null; ratePlanId?: string | null } = {}
 ): string {
+	const href = unscopedCompleteToPublishStepHref(productId, section, context)
+	const url = new URL(href, "http://fastt.local")
+	if (context.variantId?.trim()) url.searchParams.set("variantId", context.variantId.trim())
+	if (context.ratePlanId?.trim()) url.searchParams.set("ratePlanId", context.ratePlanId.trim())
+	return `${url.pathname}${url.search}${url.hash}`
+}
+
+function unscopedCompleteToPublishStepHref(
+	productId: string,
+	section: ProductVerticalSectionKey,
+	context: { variantId?: string | null; ratePlanId?: string | null } = {}
+): string {
 	const variantId = String(context.variantId ?? "").trim()
 	const ratePlanId = String(context.ratePlanId ?? "").trim()
 	switch (section) {
@@ -274,6 +286,7 @@ export function completeToPublishStepHref(
 			return ratePlanId
 				? `${routes.ratePlanDetail(ratePlanId)}?${new URLSearchParams({
 						productId,
+						vista: "price",
 						...(variantId ? { variantId } : {}),
 					}).toString()}`
 				: `${routes.rates()}?${new URLSearchParams({
@@ -294,7 +307,7 @@ export function completeToPublishStepHref(
 			return `${routes.providerHouseRules()}?productId=${encodeURIComponent(productId)}`
 		case "bookingPolicies":
 			return ratePlanId
-				? `${routes.ratePlanPolicies(ratePlanId)}?${new URLSearchParams({
+				? `${routes.ratePlanDetail(ratePlanId)}?${new URLSearchParams({
 						vista: "conditions",
 						productId,
 						...(variantId ? { variantId } : {}),

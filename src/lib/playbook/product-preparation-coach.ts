@@ -1,3 +1,4 @@
+import type { presentTourDiagnostic } from "@/lib/tours/tourDiagnosticPresentation"
 const NEXT_STEP_COPY: Record<string, { body: string; cta: string }> = {
 	"Contenido visible para huéspedes": {
 		body: "Lo que el huésped lee en la ficha.",
@@ -121,6 +122,7 @@ export function resolveProductPreparationHeaderSummary(input: {
 }
 
 export function resolveProductPreparationCoach(input: {
+	tourPresentation?: ReturnType<typeof presentTourDiagnostic>
 	readyToPublish: boolean
 	readinessPercent?: number
 	nextStepLabel?: string | null
@@ -129,6 +131,17 @@ export function resolveProductPreparationCoach(input: {
 	continuePreparationHref: string
 	previewHref: string
 }): ProductPreparationCoach {
+	if (input.tourPresentation)
+		return {
+			badge: input.readyToPublish
+				? "Listo"
+				: `${Math.round(Number(input.readinessPercent ?? 0))}% preparado`,
+			ready: input.readyToPublish,
+			label: input.tourPresentation.nextLabel,
+			body: input.tourPresentation.support,
+			cta: input.tourPresentation.primaryAction.label,
+			href: input.tourPresentation.primaryAction.href,
+		}
 	if (input.readyToPublish) {
 		return {
 			badge: "Listo",

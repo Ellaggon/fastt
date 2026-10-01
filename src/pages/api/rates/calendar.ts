@@ -4,6 +4,10 @@ import { requireProvider } from "@/lib/auth/requireProvider"
 import { createServerTimingRecorder } from "@/lib/observability/serverTiming"
 import { loadProviderRatePlansReadModel } from "@/lib/rates/loadRatePlansReadModel"
 import { loadSingleCalendarSurface } from "@/lib/rates/singleCalendarSurface"
+import {
+	loadTourCommercialEntryContext,
+	tourContextValidationResponse,
+} from "@/lib/tours/loadTourCommercialContext"
 
 function json(status: number, payload: unknown, headers: HeadersInit) {
 	const responseHeaders = new Headers(headers)
@@ -33,17 +37,46 @@ export const GET: APIRoute = async ({ request, url }) => {
 		})
 	try {
 		const auth = await timing.time("authProvider", () => requireProvider(request))
+		const context = await timing.time("tourContext", () =>
+			loadTourCommercialEntryContext({
+				providerId: auth.providerId,
+				productId: url.searchParams.get("productId") ?? "",
+				request,
+				url,
+			})
+		)
+		if (context) {
+			const contextError = tourContextValidationResponse(context)
+			if (contextError) return respondWith(contextError)
+			if (context.status === "unresolved")
+				return respond(422, {
+					error: context.reason,
+					message: "Completa la opción y su tarifa antes de abrir este calendario.",
+				})
+		}
 		const rows = await timing.time("ratePlans", () =>
 			loadProviderRatePlansReadModel({
 				providerId: auth.providerId,
 				url,
 			})
 		)
+		if (
+			context?.status === "resolved" &&
+			!rows.some(
+				(row) => row.variantId === context.variantId && row.ratePlanId === context.ratePlanId
+			)
+		)
+			return respond(409, {
+				error: "offer_read_model_stale",
+				message: "Esta oferta no pudo cargarse. Actualiza e intenta de nuevo.",
+			})
 		const surface = await loadSingleCalendarSurface({
 			rows,
 			providerId: auth.providerId,
-			ratePlanId: url.searchParams.get("ratePlanId"),
-			variantId: url.searchParams.get("variantId"),
+			ratePlanId:
+				context?.status === "resolved" ? context.ratePlanId : url.searchParams.get("ratePlanId"),
+			variantId:
+				context?.status === "resolved" ? context.variantId : url.searchParams.get("variantId"),
 			month: url.searchParams.get("month"),
 			timing,
 		})

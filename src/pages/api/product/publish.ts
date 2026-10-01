@@ -1,3 +1,7 @@
+import {
+	loadTourCommercialContext,
+	tourContextValidationResponse,
+} from "@/lib/tours/loadTourCommercialContext"
 import type { APIRoute } from "astro"
 import { ZodError } from "zod"
 import { productRepository } from "@/container"
@@ -48,6 +52,43 @@ export const POST: APIRoute = async ({ request }) => {
 			})
 		}
 
+		const selection = {
+			variantId: String(form.get("variantId") ?? "").trim(),
+			ratePlanId: String(form.get("ratePlanId") ?? "").trim(),
+		}
+		if (String(owned.productType).toLowerCase() === "tour") {
+			const context = await loadTourCommercialContext({
+				productId: productId,
+				providerId,
+				request,
+				selection: selection.variantId || selection.ratePlanId ? selection : undefined,
+			})
+			const contextError = tourContextValidationResponse(context)
+			if (contextError) return contextError
+			if (context.status === "resolved") {
+				selection.variantId = context.variantId!
+				selection.ratePlanId = context.ratePlanId!
+			}
+		}
+		// Project the same reasons/actions as preview before the independent enforcement guards.
+		const tourErrors =
+			String(owned.productType).toLowerCase() === "tour"
+				? await resolveCanonicalProductPublicationValidationErrors({
+						productId,
+						providerId,
+						request,
+						selection,
+					})
+				: null
+		if (tourErrors?.length)
+			return new Response(
+				JSON.stringify({
+					ok: false,
+					error: "tour_publication_blocked",
+					validationErrors: tourErrors,
+				}),
+				{ status: 422, headers: { "Content-Type": "application/json" } }
+			)
 		await assertProviderCapability({
 			providerId,
 			currentUserId: user.id,
@@ -68,11 +109,14 @@ export const POST: APIRoute = async ({ request }) => {
 			{
 				repo: productRepository,
 				resolvePublicationValidationErrors: ({ productId: targetProductId }) =>
-					resolveCanonicalProductPublicationValidationErrors({
-						productId: targetProductId,
-						providerId,
-						request,
-					}),
+					tourErrors
+						? Promise.resolve(tourErrors)
+						: resolveCanonicalProductPublicationValidationErrors({
+								productId: targetProductId,
+								providerId,
+								request,
+								selection: selection.variantId || selection.ratePlanId ? selection : undefined,
+							}),
 			},
 			{ productId }
 		)

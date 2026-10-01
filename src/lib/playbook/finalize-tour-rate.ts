@@ -1,3 +1,4 @@
+import { loadTourAuthorization } from "@/lib/tours/loadTourAuthorization"
 import { tourActivationBlockers } from "./tourActivationBlockers"
 import {
 	ratePlanCommandRepository,
@@ -117,6 +118,21 @@ export async function finalizeTourRate(input: Input) {
 		return successResult(input, true, !cacheRefreshed)
 	}
 
+	const authorization = await loadTourAuthorization(input)
+	const authorizationBlockers = Object.entries(authorization)
+		.filter(([, observation]) => !observation.ready)
+		.map(([id, observation]) => ({
+			id,
+			label: observation.message,
+			href: `/provider/settings/verification?line=tour&experience=${encodeURIComponent(input.productId)}`,
+		}))
+	if (authorizationBlockers.length)
+		return {
+			ok: false as const,
+			status: 409 as const,
+			error: "Esta experiencia todavía no está habilitada.",
+			blockers: authorizationBlockers,
+		}
 	const publication = await validateRatePlanPublication({
 		productId: input.productId,
 		variantId: input.variantId,

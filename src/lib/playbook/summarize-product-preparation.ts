@@ -1,3 +1,12 @@
+import { presentTourDiagnostic } from "@/lib/tours/tourDiagnosticPresentation"
+import {
+	loadTourCommercialContext,
+	type LoadedTourContext,
+} from "@/lib/tours/loadTourCommercialContext"
+import {
+	tourContextSelectionHref,
+	withTourCommercialContext,
+} from "@/lib/tours/resolveTourCommercialContext"
 import {
 	buildCompleteToPublishEntryHref,
 	resolveCompleteToPublishResume,
@@ -7,6 +16,8 @@ import { routes } from "@/lib/routes"
 
 export type ProductPreparationSummary = {
 	productId: string
+	tourPresentation?: ReturnType<typeof presentTourDiagnostic>
+	tourContext?: LoadedTourContext
 	status: string
 	statusLabel: string
 	statusVariant: "success" | "info" | "warning"
@@ -63,11 +74,32 @@ export async function summarizeProductPreparation(params: {
 
 	const status = normalizeStatus(params.status)
 	const presentation = statusPresentation(status)
-	const previewHref = routes.productPreview(productId)
-
-	if (status === "published") {
+	let session: { variantId: string | null; ratePlanId: string | null } | undefined
+	if (params.lastPath?.startsWith("/") && !params.lastPath.startsWith("//")) {
+		try {
+			const saved = new URL(params.lastPath, "http://fastt.local")
+			session = {
+				variantId: saved.searchParams.get("variantId"),
+				ratePlanId: saved.searchParams.get("ratePlanId"),
+			}
+		} catch {
+			/* Invalid saved paths never supply a selection. */
+		}
+	}
+	const publishedContext =
+		status === "published"
+			? await loadTourCommercialContext({
+					productId,
+					providerId,
+					request: params.request,
+					url: params.url,
+					session,
+				})
+			: null
+	if (status === "published" && publishedContext?.status === "not_tour") {
 		return {
 			productId,
+			tourContext: publishedContext,
 			status,
 			statusLabel: presentation.label,
 			statusVariant: presentation.variant,
@@ -79,7 +111,7 @@ export async function summarizeProductPreparation(params: {
 			completedChecks: null,
 			totalChecks: null,
 			continuePreparationHref: routes.productDetail(productId),
-			previewHref,
+			previewHref: routes.productPreview(productId),
 			nextStepLabel: null,
 			nextStepBody: null,
 			nextStepCta: null,
@@ -92,13 +124,39 @@ export async function summarizeProductPreparation(params: {
 		providerId,
 		request: params.request,
 		url: params.url,
+		session,
 	})
 	if (!publishState) return null
+	const tourContext =
+		publishState.tourContext ??
+		(await loadTourCommercialContext({
+			productId,
+			providerId,
+			request: params.request,
+			url: params.url,
+			session,
+		}))
+
+	const previewHref =
+		"options" in tourContext
+			? tourContext.status === "unresolved" && tourContext.reason === "selection_required"
+				? tourContextSelectionHref(tourContext, routes.productPreview(productId))
+				: withTourCommercialContext(routes.productPreview(productId), tourContext)
+			: routes.productPreview(productId)
 
 	const blockers = publishState.blockers.filter((check) => check.sectionKey !== "preview")
 	const resume = resolveCompleteToPublishResume(productId, publishState.checks, {
-		lastPath: params.lastPath,
+		lastPath:
+			params.lastPath && "options" in tourContext
+				? withTourCommercialContext(params.lastPath, tourContext)
+				: params.lastPath,
 	})
+	const tourPresentation = publishState.tourDiagnostic
+		? presentTourDiagnostic(publishState.tourDiagnostic, {
+				published: status === "published",
+				previewHref,
+			})
+		: undefined
 	const resumeCheck =
 		publishState.checks.find((check) => check.sectionKey === resume.sectionKey) ??
 		blockers[0] ??
@@ -106,21 +164,40 @@ export async function summarizeProductPreparation(params: {
 
 	return {
 		productId,
+		tourContext: publishState.tourContext,
+		tourPresentation,
 		status,
-		statusLabel: publishState.readyToPublish ? "Listo para publicar" : presentation.label,
-		statusVariant: publishState.readyToPublish ? "info" : presentation.variant,
-		isPublished: false,
+		statusLabel:
+			status === "published"
+				? presentation.label
+				: publishState.readyToPublish
+					? "Listo para publicar"
+					: presentation.label,
+		statusVariant:
+			status === "published"
+				? presentation.variant
+				: publishState.readyToPublish
+					? "info"
+					: presentation.variant,
+		isPublished: status === "published",
 		readinessPercent: publishState.readinessPercent,
 		blockerCount: blockers.length,
 		blockerPreview: blockers.slice(0, 3).map((check) => check.label),
-		readyToPublish: publishState.readyToPublish,
+		readyToPublish: status !== "published" && publishState.readyToPublish,
 		completedChecks: publishState.completedChecks,
 		totalChecks: publishState.totalChecks,
-		continuePreparationHref: resume.href,
-		previewHref: publishState.readyToPublish ? resume.href : previewHref,
-		nextStepLabel: resume.label ?? resumeCheck?.label ?? null,
-		nextStepBody: resumeCheck?.guestImpact ?? null,
-		nextStepCta: resumeCheck?.cta ?? (publishState.readyToPublish ? "Ir a vista previa" : null),
+		continuePreparationHref: tourPresentation?.primaryAction.href ?? resume.href,
+		previewHref: tourPresentation
+			? previewHref
+			: publishState.readyToPublish
+				? resume.href
+				: previewHref,
+		nextStepLabel: tourPresentation?.nextLabel ?? resume.label ?? resumeCheck?.label ?? null,
+		nextStepBody: tourPresentation?.support ?? resumeCheck?.guestImpact ?? null,
+		nextStepCta:
+			tourPresentation?.primaryAction.label ??
+			resumeCheck?.cta ??
+			(publishState.readyToPublish ? "Ir a vista previa" : null),
 		checks: publishState.checks.map((check) => ({
 			sectionKey: check.sectionKey,
 			label: check.label,

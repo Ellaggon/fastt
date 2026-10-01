@@ -5,9 +5,7 @@ import { describe, expect, it } from "vitest"
 import { completeToPublishNextHref } from "@/lib/playbook/complete-to-publish"
 import { TOUR_LAUNCH_STEPS } from "@/lib/playbook/launch-tour"
 import {
-	countCompletedTourPublishingStages,
 	getTourPublishingStage,
-	tourPublishingProgressPercent,
 	TOUR_PUBLISHING_STAGE_COUNT,
 } from "@/lib/playbook/tour-publishing-stages"
 import { tourActivityQualityCriteria } from "@/lib/tours/tourActivityQuality"
@@ -55,18 +53,12 @@ describe("tour provider phase 5", () => {
 		)
 	})
 
-	it("aligns the progress bar with completed tour stages, not checklist noise", () => {
-		expect(countCompletedTourPublishingStages(["content", "photos", "location"])).toBe(3)
-		expect(
-			tourPublishingProgressPercent({
-				completedSectionKeys: ["content", "photos", "location", "subtype", "itinerary", "tickets"],
-			})
-		).toBe(45)
-		expect(tourPublishingProgressPercent({ currentStepId: "rate" })).toBe(64)
-		expect(tourPublishingProgressPercent({ currentStepId: "bookingPolicies" })).toBe(73)
+	it("uses diagnostic preparation rather than visited stages in the progress bar", () => {
 		const layout = source("src/layouts/PlaybookLayout.astro")
-		expect(layout).toContain("tourPublishingProgressPercent")
-		expect(layout).toContain("completeTourCompletedSectionKeys")
+		expect(layout).toContain("isTourCompletePlaybook || isTourLaunch")
+		expect(layout).toContain("progressPercent = progress.progress.progressPercent")
+		expect(layout).toContain("aria-valuenow={visualProgressPercent}")
+		expect(layout).not.toContain("tourPublishingProgressPercent")
 		expect(layout).toContain("!lightweight || isTourCompletePlaybook")
 	})
 
@@ -117,7 +109,7 @@ describe("tour provider phase 5", () => {
 		expect(preview).toContain("data-real-public-preview")
 		expect(preview).toContain("!isTour ?")
 		expect(preview).toContain('playbookId !== "complete-to-publish"')
-		expect(preview).toContain("Corregir ${nextBlocker.label}")
+		expect(preview).toContain("nextBlocker?.cta")
 		expect(preview).toContain("buildTourProviderPreviewHref(productId")
 		expect(preview).toContain("ratePlanId: previewRatePlanId")
 		expect(preview).toContain("eq(Variant.productId, productId)")
@@ -146,26 +138,13 @@ describe("tour provider phase 5", () => {
 		expect(food.map((criterion) => criterion.id)).toContain("meeting-instructions")
 	})
 
-	it("accepts one complete active departure as sufficient publication inventory", () => {
+	it("uses independent selected-offer observations rather than aggregate departure counters", () => {
 		const readiness = source("src/lib/playbook/evaluate-complete-to-publish-progress.ts")
-		expect(readiness).toContain("Number(tourReadiness?.activeSlotCount ?? 0) > 0")
-		expect(readiness).toContain("Number(tourReadiness?.completeSlotCount ?? 0) > 0")
-		expect(readiness).toContain("futureAvailableDateCount > 0")
-		expect(readiness).toContain('"Por activar"')
-		expect(readiness).toContain('"Activar primera salida"')
-		expect(readiness).toContain(
-			'navigationStep: section === "departure" && tourActivationPending ? "calendar" : section'
-		)
-		expect(readiness).toContain("tourCommercialContext")
-		expect(readiness).toContain("primarySlotId")
-		expect(readiness).toContain("completeToPublishStepHref")
-		const preview = source("src/pages/product/[id]/preview.astro")
-		expect(preview).toContain("check.navigationStep ?? check.sectionKey")
-		expect(preview).toContain("Hay un requisito del negocio pendiente")
-		expect(preview).toContain("volveremos a comprobar los demás requisitos de publicación")
-		expect(preview).not.toContain("Cuenta revisada y aprobada")
+		expect(readiness).toContain("buildTourDiagnostic")
+		expect(readiness).toContain("commercial?.observations.availableDateCount")
+		expect(readiness).toContain("commercial?.observations.priceReady")
+		expect(readiness).toContain("summarizeTourDiagnostic(tourDiagnostic).preparation")
 	})
-
 	it("does not offer guided activation while provider governance blocks publishing", () => {
 		const calendar = source("src/pages/rates/calendar.astro")
 		const workspace = source("src/components/rates/SingleCalendarWorkspace.tsx")

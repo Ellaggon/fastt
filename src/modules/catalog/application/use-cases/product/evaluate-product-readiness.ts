@@ -5,7 +5,13 @@ import type {
 import { normalizeProductVertical } from "@/lib/catalog/productVerticalRegistry"
 import { tourPublicationValidationErrors } from "@/lib/tours/tourAdminQuality"
 
-export type ProductReadinessValidationError = { code: string; message: string }
+export type ProductReadinessValidationError = {
+	code: string
+	message: string
+	state?: string
+	responsible?: "provider" | "fastt"
+	action?: { label: string; href: string }
+}
 
 export async function evaluateProductReadiness(
 	deps: {
@@ -171,6 +177,9 @@ export async function evaluateProductReadiness(
 	}
 
 	if (deps.resolvePublicationValidationErrors) {
+		// The product-scoped tour diagnosis replaces the legacy aggregate counters.
+		// Other verticals retain their existing checks and additive validation.
+		if (vertical === "tour") errors.length = 0
 		const additionalErrors = await deps.resolvePublicationValidationErrors({
 			productId: params.productId,
 		})

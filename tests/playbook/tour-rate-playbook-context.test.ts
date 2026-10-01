@@ -56,7 +56,7 @@ describe("tour rate playbook context", () => {
 				variantId: "slot_1",
 				ratePlanId: "rate_1",
 			})
-		).toBe("/product/tour_1/departures/slot_1")
+		).toBe("/product/tour_1/departures/slot_1?variantId=slot_1&ratePlanId=rate_1")
 		expect(
 			completeToPublishStepHref("tour_1", "rate", { variantId: "slot_1", ratePlanId: "rate_1" })
 		).toContain("/rates/plans/rate_1")
