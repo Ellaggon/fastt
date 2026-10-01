@@ -1,3 +1,4 @@
+import { PreparationSessionError } from "@/lib/onboarding/preparationSessionContext"
 import type { APIRoute } from "astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
@@ -7,7 +8,6 @@ import {
 	normalizePreparationPath,
 	savePreparationSession,
 } from "@/lib/onboarding/preparationSession"
-import { and, db, eq, Product } from "@/shared/infrastructure/db/compat"
 
 export const POST: APIRoute = async ({ request }) => {
 	const user = await getUserFromRequest(request)
@@ -32,25 +32,36 @@ export const POST: APIRoute = async ({ request }) => {
 		return new Response(JSON.stringify({ error: "invalid_preparation_session" }), { status: 400 })
 	}
 
-	const product = await db
-		.select({ id: Product.id })
-		.from(Product)
-		.where(and(eq(Product.id, productId), eq(Product.providerId, providerId)))
-		.limit(1)
-	if (!product[0])
-		return new Response(JSON.stringify({ error: "product_not_found" }), { status: 404 })
-
-	await savePreparationSession({
-		providerId,
-		userId: user.id,
-		productId,
-		playbookId,
-		vertical,
-		stepId,
-		variantId: String(body?.variantId ?? "").trim() || null,
-		ratePlanId: String(body?.ratePlanId ?? "").trim() || null,
-		lastPath,
-	})
+	if (body?.writeVersion !== 2)
+		return new Response(
+			JSON.stringify({
+				error: "session_client_upgrade_required",
+				message: "Recarga la página para guardar este recorrido.",
+			}),
+			{ status: 409 }
+		)
+	const navigationAt = new Date(String(body?.navigationAt ?? ""))
+	try {
+		await savePreparationSession({
+			providerId,
+			userId: user.id,
+			productId,
+			playbookId,
+			vertical,
+			stepId,
+			variantId: String(body?.variantId ?? "").trim() || null,
+			ratePlanId: String(body?.ratePlanId ?? "").trim() || null,
+			lastPath,
+			navigationAt,
+		})
+	} catch (error) {
+		if (error instanceof PreparationSessionError)
+			return new Response(JSON.stringify({ error: error.code }), {
+				status: error.status,
+				headers: { "Content-Type": "application/json" },
+			})
+		throw error
+	}
 	return new Response(JSON.stringify({ ok: true }), {
 		headers: { "Content-Type": "application/json" },
 	})

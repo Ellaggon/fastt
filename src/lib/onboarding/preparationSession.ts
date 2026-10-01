@@ -1,5 +1,11 @@
-import { buildPlaybookHref } from "@/lib/playbook/launch-accommodation"
-import { buildTourPlaybookHref } from "@/lib/playbook/launch-tour"
+import { preparationPathContext, PreparationSessionError } from "./preparationSessionContext"
+import { loadTourCommercialContext } from "@/lib/tours/loadTourCommercialContext"
+import {
+	tourContextSelectionHref,
+	withTourCommercialContext,
+} from "@/lib/tours/resolveTourCommercialContext"
+import { LAUNCH_STEPS, buildPlaybookHref } from "@/lib/playbook/launch-accommodation"
+import { TOUR_LAUNCH_STEPS, buildTourPlaybookHref } from "@/lib/playbook/launch-tour"
 import {
 	buildCompleteToPublishHref,
 	completeToPublishStepHref,
@@ -11,6 +17,10 @@ import {
 	desc,
 	eq,
 	Product,
+	Variant,
+	RatePlan,
+	sql,
+	first,
 	ProviderPreparationSession,
 } from "@/shared/infrastructure/db/compat"
 
@@ -27,6 +37,7 @@ export type PreparationSessionInput = {
 	variantId?: string | null
 	ratePlanId?: string | null
 	lastPath: string
+	navigationAt?: Date
 }
 
 export function isPreparationPlaybookId(value: unknown): value is PreparationPlaybookId {
@@ -46,45 +57,108 @@ export function normalizePreparationPath(value: unknown): string | null {
 }
 
 export async function savePreparationSession(input: PreparationSessionInput) {
-	const existing = await db
-		.select({ id: ProviderPreparationSession.id })
-		.from(ProviderPreparationSession)
-		.where(
-			and(
-				eq(ProviderPreparationSession.providerId, input.providerId),
-				eq(ProviderPreparationSession.userId, input.userId),
-				eq(ProviderPreparationSession.playbookId, input.playbookId)
-			)
+	const parsed = preparationPathContext(input)
+	const validStep =
+		input.playbookId === "complete-to-publish"
+			? normalizeCompleteToPublishStep(input.stepId) === input.stepId
+			: (input.playbookId === "launch-tour" ? TOUR_LAUNCH_STEPS : LAUNCH_STEPS).some(
+					(step) => step.id === input.stepId
+				)
+	if (!validStep) throw new PreparationSessionError("invalid_preparation_step")
+	const navigationAt = input.navigationAt ?? new Date()
+	if (!Number.isFinite(navigationAt.getTime()) || navigationAt.getTime() > Date.now() + 60_000)
+		throw new PreparationSessionError("invalid_navigation_time")
+	return db.transaction(async (tx) => {
+		// Serialize initial creation and updates of the same session, not unrelated tours.
+		await tx.execute(
+			sql`SELECT set_config('fastt.preparation_write_version', '2', true), pg_advisory_xact_lock(hashtextextended(${JSON.stringify([input.providerId, input.userId, input.productId, input.playbookId])}, 0))`
 		)
-		.limit(1)
-
-	const values = {
-		productId: input.productId,
-		vertical: input.vertical,
-		stepId: input.stepId,
-		variantId: input.variantId || null,
-		ratePlanId: input.ratePlanId || null,
-		lastPath: input.lastPath,
-		status: "active" as const,
-		updatedAt: new Date(),
-	}
-	if (existing[0]?.id) {
-		await db
-			.update(ProviderPreparationSession)
-			.set(values)
-			.where(eq(ProviderPreparationSession.id, existing[0].id))
-		return existing[0].id
-	}
-
-	const id = crypto.randomUUID()
-	await db.insert(ProviderPreparationSession).values({
-		id,
-		providerId: input.providerId,
-		userId: input.userId,
-		playbookId: input.playbookId,
-		...values,
+		const product = await tx
+			.select({ productType: Product.productType })
+			.from(Product)
+			.where(and(eq(Product.id, input.productId), eq(Product.providerId, input.providerId)))
+			.then(first)
+		if (!product) throw new PreparationSessionError("product_not_found", 404)
+		const productType = String(product.productType).toLowerCase()
+		if (!["tour", "hotel", "whole_home"].includes(productType))
+			throw new PreparationSessionError("preparation_vertical_mismatch")
+		const isTour = productType === "tour"
+		if (
+			(isTour ? "tour" : "hotel") !== input.vertical ||
+			(isTour && input.playbookId === "launch") ||
+			(!isTour && input.playbookId === "launch-tour")
+		)
+			throw new PreparationSessionError("preparation_vertical_mismatch")
+		const key = and(
+			eq(ProviderPreparationSession.providerId, input.providerId),
+			eq(ProviderPreparationSession.userId, input.userId),
+			eq(ProviderPreparationSession.productId, input.productId),
+			eq(ProviderPreparationSession.playbookId, input.playbookId)
+		)
+		const existing = await tx.select().from(ProviderPreparationSession).where(key).then(first)
+		// An old pagehide or a delayed request cannot overwrite a newer navigation.
+		let variantId = parsed.explicitSelection ? parsed.variantId : (existing?.variantId ?? null)
+		let ratePlanId = parsed.explicitSelection ? parsed.ratePlanId : (existing?.ratePlanId ?? null)
+		if (ratePlanId) {
+			const rate = await tx
+				.select({ variantId: RatePlan.variantId })
+				.from(RatePlan)
+				.where(eq(RatePlan.id, ratePlanId))
+				.then(first)
+			if (!rate || (variantId && variantId !== rate.variantId))
+				throw new PreparationSessionError("preparation_rate_mismatch")
+			variantId = rate.variantId
+		}
+		if (variantId) {
+			const variant = await tx
+				.select({ id: Variant.id, kind: Variant.kind })
+				.from(Variant)
+				.where(and(eq(Variant.id, variantId), eq(Variant.productId, input.productId)))
+				.then(first)
+			if (!variant || (isTour && variant.kind !== "tour_slot"))
+				throw new PreparationSessionError("preparation_variant_mismatch")
+		}
+		if (existing && new Date(existing.updatedAt).getTime() > navigationAt.getTime())
+			return existing.id
+		// Normalize legacy playbook query values only after validating the real product.
+		parsed.url.searchParams.set("playbook", input.playbookId)
+		parsed.url.searchParams.set("step", input.stepId)
+		if (variantId) parsed.url.searchParams.set("variantId", variantId)
+		else parsed.url.searchParams.delete("variantId")
+		if (ratePlanId) parsed.url.searchParams.set("ratePlanId", ratePlanId)
+		else parsed.url.searchParams.delete("ratePlanId")
+		const values = {
+			vertical: input.vertical,
+			writeVersion: 2,
+			stepId: input.stepId,
+			variantId,
+			ratePlanId,
+			lastPath: `${parsed.url.pathname}${parsed.url.search}`,
+			status: "active" as const,
+			updatedAt: navigationAt,
+		}
+		const rows = await tx
+			.insert(ProviderPreparationSession)
+			.values({
+				id: crypto.randomUUID(),
+				providerId: input.providerId,
+				userId: input.userId,
+				productId: input.productId,
+				playbookId: input.playbookId,
+				...values,
+			})
+			.onConflictDoUpdate({
+				target: [
+					ProviderPreparationSession.providerId,
+					ProviderPreparationSession.userId,
+					ProviderPreparationSession.productId,
+					ProviderPreparationSession.playbookId,
+				],
+				set: values,
+			})
+			.returning({ id: ProviderPreparationSession.id })
+		return rows[0].id
 	})
-	return id
 }
 
 export type PreparationResume = {
@@ -116,49 +190,85 @@ export async function listActivePreparationSessions(
 			and(
 				eq(ProviderPreparationSession.providerId, providerId),
 				eq(ProviderPreparationSession.userId, userId),
-				eq(ProviderPreparationSession.status, "active")
+				eq(ProviderPreparationSession.status, "active"),
+				eq(Product.providerId, providerId)
 			)
 		)
 		.orderBy(desc(ProviderPreparationSession.updatedAt))
 
-	return rows.flatMap((row) => {
-		if (!row.productId || !isPreparationPlaybookId(row.playbookId)) return []
-		if (!isPreparationVertical(row.vertical)) return []
-		let savedPath = normalizePreparationPath(row.lastPath)
-		if (savedPath && row.playbookId === "complete-to-publish") {
-			const url = new URL(savedPath, "http://fastt.local")
-			if (
-				!url.searchParams.get("variantId")?.trim() &&
-				!url.searchParams.get("ratePlanId")?.trim()
-			) {
-				if (row.variantId) url.searchParams.set("variantId", row.variantId)
-				if (row.ratePlanId) url.searchParams.set("ratePlanId", row.ratePlanId)
-				savedPath = `${url.pathname}${url.search}`
+	const resumes = await Promise.all(
+		rows.map(async (row) => {
+			if (!row.productId || !isPreparationPlaybookId(row.playbookId)) return []
+			if (!isPreparationVertical(row.vertical)) return []
+			let savedPath = normalizePreparationPath(row.lastPath)
+			if (savedPath) {
+				try {
+					preparationPathContext({
+						productId: row.productId,
+						lastPath: savedPath,
+						variantId: row.variantId,
+						ratePlanId: row.ratePlanId,
+					})
+				} catch {
+					savedPath = null
+				}
 			}
-		}
-		const fallback =
-			row.playbookId === "launch-tour"
-				? buildTourPlaybookHref(`/product/${encodeURIComponent(row.productId)}/content`, "content")
-				: row.playbookId === "complete-to-publish"
-					? buildCompleteToPublishHref(
-							completeToPublishStepHref(
-								row.productId,
-								normalizeCompleteToPublishStep(row.stepId) ?? "content",
-								{ variantId: row.variantId, ratePlanId: row.ratePlanId }
-							),
-							normalizeCompleteToPublishStep(row.stepId) ?? "content"
+			if (savedPath && row.playbookId === "complete-to-publish") {
+				const url = new URL(savedPath, "http://fastt.local")
+				if (
+					!url.searchParams.get("variantId")?.trim() &&
+					!url.searchParams.get("ratePlanId")?.trim()
+				) {
+					if (row.variantId) url.searchParams.set("variantId", row.variantId)
+					if (row.ratePlanId) url.searchParams.set("ratePlanId", row.ratePlanId)
+					savedPath = `${url.pathname}${url.search}`
+				}
+			}
+			const fallback =
+				row.playbookId === "launch-tour"
+					? buildTourPlaybookHref(
+							`/product/${encodeURIComponent(row.productId)}/content`,
+							"content"
 						)
-					: buildPlaybookHref(`/product/${encodeURIComponent(row.productId)}/content`, "content")
-		return [
-			{
-				productId: row.productId,
-				vertical: row.vertical,
-				productName: String(row.productName || "Servicio sin nombre"),
-				href: savedPath ?? fallback,
-				stepId: String(row.stepId || "content"),
-			},
-		]
-	})
+					: row.playbookId === "complete-to-publish"
+						? buildCompleteToPublishHref(
+								completeToPublishStepHref(
+									row.productId,
+									normalizeCompleteToPublishStep(row.stepId) ?? "content",
+									{ variantId: row.variantId, ratePlanId: row.ratePlanId }
+								),
+								normalizeCompleteToPublishStep(row.stepId) ?? "content"
+							)
+						: buildPlaybookHref(`/product/${encodeURIComponent(row.productId)}/content`, "content")
+			let href = savedPath ?? fallback
+			if (row.vertical === "tour") {
+				const context = await loadTourCommercialContext({
+					providerId,
+					productId: row.productId,
+					userId,
+					url: new URL(href, "http://fastt.local"),
+				})
+				if (context.status === "not_found" || context.status === "not_tour") return []
+				if ("options" in context) {
+					href =
+						context.status === "unresolved" &&
+						["invalid_selection", "selection_required"].includes(context.reason)
+							? tourContextSelectionHref(context, href)
+							: withTourCommercialContext(href, context)
+				}
+			}
+			return [
+				{
+					productId: row.productId,
+					vertical: row.vertical,
+					productName: String(row.productName || "Servicio sin nombre"),
+					href,
+					stepId: String(row.stepId || "content"),
+				},
+			]
+		})
+	)
+	return resumes.flat()
 }
 
 export function savedCompleteToPublishHrefForProduct(

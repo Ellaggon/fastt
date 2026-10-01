@@ -59,3 +59,14 @@ por sí solos el despliegue remoto, la latencia de producción ni toda la suite 
 Esos valores son históricos: medir otra vez para evaluar el entorno actual. Los informes
 por fase y los comandos de importación retirados se consultan en Git si una investigación
 requiere reconstruir aquella migración.
+
+## Sesiones de preparación por producto
+
+Aplicar en orden `2026-09-30_preparation_sessions_per_product.sql` y
+`2026-10-01_preparation_session_writer_fence.sql`, después de respaldar las filas.
+Comparar sus IDs, contenido y fechas tras migrar; sólo se añade `writeVersion`.
+El cliente y la transacción usan v2. Código anterior no puede escribir, ni siquiera
+sobre una fila v2: coordinar el despliegue de la aplicación. Para revertir código,
+conservar este protocolo y la clave por producto; el índice anterior perdería
+compatibilidad al existir varios tours. No reconstruir sesiones sobrescritas ni
+asignar automáticamente un producto a las filas históricas sin él.

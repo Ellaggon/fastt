@@ -1771,6 +1771,7 @@ export const ProviderPreparationSession = pgTable(
 		userId: txt("userId").references(() => User.id, { onDelete: "cascade" }),
 		productId: txtOpt("productId").references(() => Product.id, { onDelete: "cascade" }),
 		playbookId: txt("playbookId"),
+		writeVersion: intDefault("writeVersion", 1),
 		vertical: txt("vertical"),
 		stepId: txt("stepId"),
 		variantId: txtOpt("variantId"),
@@ -1781,9 +1782,10 @@ export const ProviderPreparationSession = pgTable(
 		updatedAt: now("updatedAt"),
 	},
 	(table) => [
-		uniqueIndex("ProviderPreparationSession_owner_playbook_unique").on(
+		uniqueIndex("ProviderPreparationSession_owner_product_playbook_unique").on(
 			table.providerId,
 			table.userId,
+			table.productId,
 			table.playbookId
 		),
 		index("ProviderPreparationSession_owner_status_updated_idx").on(
