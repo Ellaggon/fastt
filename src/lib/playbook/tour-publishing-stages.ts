@@ -60,7 +60,6 @@ export function getTourPublishingStage(stepId: string | null | undefined): TourP
 }
 
 export const TOUR_PUBLISHING_STAGE_COUNT = TOTAL
-
 const STAGE_READINESS_SECTIONS: Record<string, string[]> = {
 	identity: ["content"],
 	photos: ["photos"],

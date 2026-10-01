@@ -1,3 +1,7 @@
+import {
+	loadTourCommercialContext,
+	tourContextValidationResponse,
+} from "@/lib/tours/loadTourCommercialContext"
 import type { APIRoute } from "astro"
 import { ZodError } from "zod"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
@@ -38,6 +42,24 @@ export const POST: APIRoute = async ({ request }) => {
 			})
 		}
 
+		const selection = {
+			variantId: String(form.get("variantId") ?? "").trim(),
+			ratePlanId: String(form.get("ratePlanId") ?? "").trim(),
+		}
+		if (String(owned.productType).toLowerCase() === "tour") {
+			const context = await loadTourCommercialContext({
+				productId: raw.productId,
+				providerId,
+				request,
+				selection: selection.variantId || selection.ratePlanId ? selection : undefined,
+			})
+			const contextError = tourContextValidationResponse(context)
+			if (contextError) return contextError
+			if (context.status === "resolved") {
+				selection.variantId = context.variantId!
+				selection.ratePlanId = context.ratePlanId!
+			}
+		}
 		const result = await evaluateProductReadiness(
 			{
 				repo: productRepository,
@@ -46,6 +68,7 @@ export const POST: APIRoute = async ({ request }) => {
 						productId,
 						providerId,
 						request,
+						selection: selection.variantId || selection.ratePlanId ? selection : undefined,
 					}),
 			},
 			raw

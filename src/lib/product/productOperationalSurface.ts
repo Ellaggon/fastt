@@ -199,7 +199,7 @@ async function readSurface(params: {
 export async function listProductOperationalPreparation(
 	providerId: string,
 	productIds: string[],
-	options?: { lastPathByProductId?: Map<string, string> }
+	options?: { lastPathByProductId?: Map<string, string>; request?: Request }
 ): Promise<Map<string, ProductPreparationSummary>> {
 	const ids = Array.from(new Set(productIds.map((id) => String(id ?? "").trim()).filter(Boolean)))
 	if (!providerId || ids.length === 0) return new Map()
@@ -210,6 +210,7 @@ export async function listProductOperationalPreparation(
 				productId,
 				providerId,
 				lastPath: options?.lastPathByProductId?.get(productId) ?? null,
+				request: options?.request,
 			})
 			if (summary) result.set(productId, summary)
 		})
@@ -445,13 +446,8 @@ export async function refreshProductOperationalSurface(params: {
 		})
 		.catch(() => null)
 
-	return (
-		(await readSurface({
-			productId: params.productId,
-			providerId: params.providerId,
-			allowStale: true,
-		})) ?? builtSurface
-	)
+	// Return the freshly evaluated user/offer context, not the lossy product cache.
+	return builtSurface
 }
 
 export async function getProductOperationalSurface(params: {

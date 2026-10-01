@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({
 	getByVariantId: vi.fn(),
 	resolveEffectivePolicies: vi.fn(),
 	select: vi.fn(),
+	capacityWhere: vi.fn(),
+	capacityTable: { variantId: "capacity.variantId" },
 	inventoryWhere: vi.fn(),
 	productWhere: vi.fn(),
 	eq: vi.fn(),
@@ -19,7 +21,10 @@ const mocks = vi.hoisted(() => ({
 	},
 }))
 
-vi.mock("@/lib/rates/providerLocalToday", () => ({ providerLocalToday: () => "2026-09-30" }))
+vi.mock("@/lib/rates/providerLocalToday", () => ({
+	providerLocalToday: () => "2026-09-30",
+	providerLocalTimezone: () => "America/La_Paz",
+}))
 
 vi.mock("@/container", () => ({
 	baseRateRepository: {
@@ -33,6 +38,8 @@ vi.mock("@/modules/policies/public", () => ({
 }))
 vi.mock("@/shared/infrastructure/db/compat", () => ({
 	DailyInventory: mocks.dailyInventoryTable,
+	VariantCapacity: mocks.capacityTable,
+	TourSlotProfile: { variantId: "profile.variantId", bookingMode: "profile.mode" },
 	Product: mocks.productTable,
 	and: vi.fn((...conditions: unknown[]) => conditions),
 	count: vi.fn(),
@@ -50,7 +57,10 @@ import { validateRatePlanPublication } from "@/lib/rates/validateRatePlanPublica
 describe("validate rate plan publication", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
-		mocks.getCanonicalPricingBaselineByRatePlanId.mockResolvedValue({ basePrice: 120 })
+		mocks.getCanonicalPricingBaselineByRatePlanId.mockResolvedValue({
+			basePrice: 120,
+			currency: "BOB",
+		})
 		mocks.getByVariantId.mockResolvedValue({ defaultTotalUnits: 1 })
 		mocks.resolveEffectivePolicies.mockResolvedValue({ missingCategories: [] })
 		mocks.gt.mockImplementation((...args: unknown[]) => ["gt", ...args])
@@ -58,9 +68,18 @@ describe("validate rate plan publication", () => {
 		mocks.eq.mockImplementation((...args: unknown[]) => ["eq", ...args])
 		mocks.select.mockImplementation(() => ({
 			from: (table: unknown) => ({
-				where: table === mocks.productTable ? mocks.productWhere : mocks.inventoryWhere,
+				leftJoin() {
+					return this
+				},
+				where:
+					table === mocks.productTable
+						? mocks.productWhere
+						: table === mocks.capacityTable
+							? mocks.capacityWhere
+							: mocks.inventoryWhere,
 			}),
 		}))
+		mocks.capacityWhere.mockResolvedValue([{ maxOccupancy: 8 }])
 		mocks.inventoryWhere.mockResolvedValue([{ value: 30 }])
 		mocks.productWhere.mockResolvedValue([{ productType: "hotel" }])
 	})
@@ -169,6 +188,7 @@ describe("validate rate plan publication", () => {
 	it("explains the missing price, capacity and date before a tour can activate", async () => {
 		mocks.getCanonicalPricingBaselineByRatePlanId.mockResolvedValue(null)
 		mocks.getByVariantId.mockResolvedValue({ defaultTotalUnits: 0 })
+		mocks.capacityWhere.mockResolvedValue([{ maxOccupancy: 0 }])
 		mocks.productWhere.mockResolvedValue([{ productType: "tour" }])
 		mocks.inventoryWhere.mockResolvedValue([{ value: 0 }])
 
@@ -188,6 +208,45 @@ describe("validate rate plan publication", () => {
 			"capacity",
 			"availability",
 		])
+	})
+
+	it("private options require configured dates but do not consume shared sellable inventory", async () => {
+		mocks.productWhere.mockResolvedValue([{ productType: "tour" }])
+		mocks.capacityWhere.mockResolvedValue([{ maxOccupancy: 8, bookingMode: "private" }])
+		mocks.inventoryWhere.mockResolvedValueOnce([{ value: 0 }]).mockResolvedValueOnce([{ value: 2 }])
+		const result = await validateRatePlanPublication({
+			productId: "tour",
+			variantId: "option",
+			ratePlanId: "rate",
+		})
+		expect(result.canPublish).toBe(true)
+		expect(result.observations.availableDateCount).toBe(0)
+		expect(result.observations.configuredDateCount).toBe(2)
+	})
+
+	it("rejects an effective hotel policy on the selected tour rate", async () => {
+		mocks.productWhere.mockResolvedValue([{ productType: "tour" }])
+		mocks.resolveEffectivePolicies.mockResolvedValue({
+			missingCategories: [],
+			policies: [
+				{
+					category: "Cancellation",
+					policy: {
+						stayLengthType: "long_stay",
+						refundBasis: "first_night",
+						rules: [],
+						cancellationTiers: [],
+					},
+				},
+			],
+		})
+		const result = await validateRatePlanPublication({
+			productId: "tour",
+			variantId: "option",
+			ratePlanId: "rate",
+		})
+		expect(result.observations.conditionsReady).toBe(false)
+		expect(result.blockerDetails.some((blocker) => blocker.id === "conditions")).toBe(true)
 	})
 
 	it("fails closed when a product has no policy contract", async () => {

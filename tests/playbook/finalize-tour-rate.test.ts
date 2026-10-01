@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
 	activateTourRate: vi.fn(),
+	loadTourAuthorization: vi.fn(),
 	getVariantById: vi.fn(),
 	validateRatePlanPublication: vi.fn(),
 	getRatePlanById: vi.fn(),
@@ -13,6 +14,10 @@ const mocks = vi.hoisted(() => ({
 	invalidateProvider: vi.fn(),
 	assertProviderCapability: vi.fn(),
 	evaluateVariantReadiness: vi.fn(),
+}))
+
+vi.mock("@/lib/tours/loadTourAuthorization", () => ({
+	loadTourAuthorization: mocks.loadTourAuthorization,
 }))
 
 vi.mock("@/container", () => ({
@@ -57,6 +62,10 @@ const input = {
 describe("finalize tour rate", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
+		mocks.loadTourAuthorization.mockResolvedValue({
+			provider_authorization: { ready: true, message: "" },
+			experience_authorization: { ready: true, message: "" },
+		})
 		mocks.resolveRatePlanOwnerContext.mockResolvedValue({
 			providerId: "provider-1",
 			productId: "product-1",
@@ -88,6 +97,26 @@ describe("finalize tour rate", () => {
 		mocks.invalidatePricing.mockResolvedValue(undefined)
 		mocks.invalidateCalendarSurface.mockResolvedValue(undefined)
 		mocks.invalidateProvider.mockResolvedValue(undefined)
+	})
+
+	it("returns exact authorization blockers before any activation write", async () => {
+		mocks.loadTourAuthorization.mockResolvedValue({
+			provider_authorization: { ready: true, message: "" },
+			experience_authorization: { ready: false, message: "Licencia pendiente" },
+		})
+		const result = await finalizeTourRate(input)
+		expect(result.ok).toBe(false)
+		expect(result).toMatchObject({
+			status: 409,
+			blockers: [
+				{
+					id: "experience_authorization",
+					label: "Licencia pendiente",
+					href: "/provider/settings/verification?line=tour&experience=product-1",
+				},
+			],
+		})
+		expect(mocks.activateTourRate).not.toHaveBeenCalled()
 	})
 
 	it("activates the rate after availability without waiting for provider publication setup", async () => {

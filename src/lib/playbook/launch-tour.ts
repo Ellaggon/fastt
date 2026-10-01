@@ -28,7 +28,7 @@ export type TourLaunchStepDefinition = {
 	buildHref: (context: TourLaunchContext) => string
 }
 
-export const TOUR_LAUNCH_STEPS: TourLaunchStepDefinition[] = [
+const TOUR_LAUNCH_STEP_DEFINITIONS: TourLaunchStepDefinition[] = [
 	{
 		id: "create",
 		label: "Crear tour",
@@ -81,9 +81,11 @@ export const TOUR_LAUNCH_STEPS: TourLaunchStepDefinition[] = [
 		id: "departure",
 		label: "Primera salida",
 		guestImpact: "Fecha, hora, cupo e idioma disponibles para reservar.",
-		buildHref: ({ productId }) =>
+		buildHref: ({ productId, variantId }) =>
 			buildTourPlaybookHref(
-				`/product/${encodeURIComponent(productId)}/departures/new`,
+				variantId
+					? `/product/${encodeURIComponent(productId)}/departures/${encodeURIComponent(variantId)}`
+					: `/product/${encodeURIComponent(productId)}/departures/new`,
 				"departure"
 			),
 	},
@@ -91,7 +93,12 @@ export const TOUR_LAUNCH_STEPS: TourLaunchStepDefinition[] = [
 		id: "rate",
 		label: "Precio",
 		guestImpact: "El precio de venta de la salida.",
-		buildHref: ({ productId, variantId }) => {
+		buildHref: ({ productId, variantId, ratePlanId }) => {
+			if (ratePlanId)
+				return buildTourPlaybookHref(
+					`/rates/plans/${encodeURIComponent(ratePlanId)}?${new URLSearchParams({ productId, vista: "price", ...(variantId ? { variantId } : {}), ratePlanId })}`,
+					"rate"
+				)
 			const params = new URLSearchParams({ productId, openDialog: "1" })
 			if (variantId) params.set("variantId", variantId)
 			return buildTourPlaybookHref(`/rates/plans/manage?${params}`, "rate")
@@ -138,6 +145,16 @@ export const TOUR_LAUNCH_STEPS: TourLaunchStepDefinition[] = [
 			buildTourPlaybookHref(buildTourReviewHref(productId, { variantId, ratePlanId }), "preview"),
 	},
 ]
+
+export const TOUR_LAUNCH_STEPS: TourLaunchStepDefinition[] = TOUR_LAUNCH_STEP_DEFINITIONS.map(
+	(step) => ({
+		...step,
+		buildHref: (context) =>
+			step.id === "create"
+				? step.buildHref(context)
+				: withTourOfferSelection(step.buildHref(context), context),
+	})
+)
 
 export function withTourOfferSelection(
 	path: string,

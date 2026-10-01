@@ -1,3 +1,8 @@
+import {
+	assertProductCommercialCapability,
+	CommercialPolicyBlockedError,
+} from "@/lib/commercial-policy/enforcement"
+import { assertProductLineGate, ProductLineGateBlockedError } from "@/lib/verification/line-gate"
 import type { APIRoute } from "astro"
 import { z } from "zod"
 import { tourTrustRepository } from "@/container"
@@ -33,6 +38,23 @@ export const POST: APIRoute = async ({ request }) => {
 	try {
 		const user = await getUserFromRequest(request)
 		const parsed = schema.parse(await request.json().catch(() => ({})))
+		const owner = await tourTrustRepository.findPrivateTourSlot({
+			productId: parsed.productId,
+			variantId: parsed.variantId,
+		})
+		if (!owner?.providerId) return json({ error: "not_found" }, 404)
+		await assertProductCommercialCapability({
+			providerId: owner.providerId,
+			productId: parsed.productId,
+			capability: "publish",
+			forceForTour: true,
+		})
+		await assertProductLineGate({
+			providerId: owner.providerId,
+			productId: parsed.productId,
+			capability: "publish",
+			evaluatedAt: new Date(`${parsed.departureDate}T00:00:00Z`),
+		})
 		const result = await createTourPrivateRequest(
 			{ repo: tourTrustRepository },
 			{
@@ -60,6 +82,11 @@ export const POST: APIRoute = async ({ request }) => {
 				"Solicitud enviada al proveedor. No se reservó cupo; te contactarán con la cotización.",
 		})
 	} catch (error) {
+		if (
+			error instanceof CommercialPolicyBlockedError ||
+			error instanceof ProductLineGateBlockedError
+		)
+			return json({ error: "experience_authorization_required", message: error.message }, 409)
 		if (error instanceof z.ZodError) {
 			return json({ error: "validation_error", issues: error.issues }, 400)
 		}

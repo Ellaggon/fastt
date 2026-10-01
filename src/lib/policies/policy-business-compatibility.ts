@@ -178,3 +178,29 @@ export function policyBusinessContextFromProduct(params: {
 		contract,
 	}
 }
+
+/** Evaluates the effective version, not its name or template identity. */
+export function effectivePolicyCompatibilityIssues(
+	context: PolicyBusinessContext,
+	entries: readonly {
+		category: string
+		policy: {
+			stayLengthType?: unknown
+			refundBasis?: unknown
+			rules?: readonly { ruleKey: string | null; ruleValue: unknown }[]
+			cancellationTiers?: PolicyCompatibilityCandidate["cancellationTiers"]
+		}
+	}[]
+) {
+	return entries.flatMap((entry) =>
+		evaluatePolicyBusinessCompatibility(context, {
+			category: entry.category,
+			stayLengthType: entry.policy.stayLengthType,
+			refundBasis: entry.policy.refundBasis,
+			rules: Object.fromEntries(
+				(entry.policy.rules ?? []).map((rule) => [String(rule.ruleKey ?? ""), rule.ruleValue])
+			),
+			cancellationTiers: entry.policy.cancellationTiers,
+		})
+	)
+}

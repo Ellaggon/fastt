@@ -99,7 +99,7 @@ describe("preparation preview recovery through dashboard summary", () => {
 	it("preserves the saved pair rather than replacing it with the primary offer", async () => {
 		const lastPath =
 			"/product/tour-1/preview?playbook=complete-to-publish&variantId=slot-3&ratePlanId=rate-3"
-		mocks.rows = [{ ...baseSession, lastPath }]
+		mocks.rows = [{ ...baseSession, variantId: "slot-3", ratePlanId: "rate-3", lastPath }]
 		const sessions = await listActivePreparationSessions("provider-1", "user-1")
 		expect(sessions[0].href).toBe(lastPath)
 	})

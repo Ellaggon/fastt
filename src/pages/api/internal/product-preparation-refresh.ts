@@ -52,6 +52,7 @@ export const POST: APIRoute = async ({ request, url }) => {
 				providerId,
 				request,
 				url,
+				lastPath: savedCompleteToPublishHrefForProduct(productId, sessions),
 			})
 		)
 	)
@@ -62,7 +63,9 @@ export const POST: APIRoute = async ({ request, url }) => {
 			const savedHref = savedCompleteToPublishHrefForProduct(surface.productId, sessions)
 			return {
 				...surface.readiness,
-				continuePreparationHref: savedHref ?? surface.readiness.continuePreparationHref,
+				continuePreparationHref: surface.readiness.tourPresentation
+					? surface.readiness.continuePreparationHref
+					: (savedHref ?? surface.readiness.continuePreparationHref),
 			}
 		})
 		.filter(Boolean)

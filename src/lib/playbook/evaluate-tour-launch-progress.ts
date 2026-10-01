@@ -1,3 +1,5 @@
+import { presentTourDiagnostic } from "@/lib/tours/tourDiagnosticPresentation"
+import { TOUR_REQUIREMENTS } from "@/lib/tours/tourDiagnosticContract"
 import { loadCompleteToPublishState } from "@/lib/playbook/evaluate-complete-to-publish-progress"
 import {
 	getNextTourLaunchStep,
@@ -9,6 +11,7 @@ import { getProductFullAggregate } from "@/modules/catalog/public"
 
 export type TourLaunchProgressResult = {
 	playbookId: "launch-tour"
+	tourPresentation?: ReturnType<typeof presentTourDiagnostic>
 	productId: string
 	progress: {
 		completedSteps: number
@@ -51,19 +54,39 @@ export async function evaluateTourLaunchProgress(
 		providerId,
 		request: options.request,
 		url: options.url,
+		selection:
+			options.variantId || options.ratePlanId
+				? { variantId: options.variantId, ratePlanId: options.ratePlanId }
+				: undefined,
 	})
 	if (!publishState) return null
 
-	const completionBySection = new Map(
-		publishState.checks.map((check) => [check.sectionKey, check.complete] as const)
-	)
+	const completionBySection = new Map<string, boolean>()
+	for (const check of publishState.checks) {
+		if (
+			publishState.tourDiagnostic &&
+			!(
+				check.key in TOUR_REQUIREMENTS &&
+				TOUR_REQUIREMENTS[check.key as keyof typeof TOUR_REQUIREMENTS].axis === "preparation"
+			)
+		)
+			continue
+		completionBySection.set(
+			check.sectionKey,
+			(completionBySection.get(check.sectionKey) ?? true) && check.complete
+		)
+	}
+
 	const completion: Record<TourLaunchStepId, boolean> = {
 		create: true,
 		content: Boolean(completionBySection.get("content")),
-		location: Boolean(completionBySection.get("location")),
+		location: Boolean(
+			completionBySection.get(publishState.tourDiagnostic ? "subtype" : "location")
+		),
 		images: Boolean(completionBySection.get("photos")),
 		subtype:
-			Boolean(completionBySection.get("subtype")) && Boolean(completionBySection.get("itinerary")),
+			Boolean(completionBySection.get("subtype")) &&
+			(Boolean(publishState.tourDiagnostic) || Boolean(completionBySection.get("itinerary"))),
 		tickets: Boolean(completionBySection.get("tickets")),
 		categories: Boolean(completionBySection.get("categories")),
 		departure: Boolean(completionBySection.get("departure")),
@@ -82,8 +105,14 @@ export async function evaluateTourLaunchProgress(
 	const nextStep = currentStepId ? getNextTourLaunchStep(currentStepId) : null
 	const ctx: TourLaunchContext = {
 		productId,
-		variantId: String(options.variantId ?? "").trim() || undefined,
-		ratePlanId: String(options.ratePlanId ?? "").trim() || undefined,
+		variantId:
+			publishState.tourContext && "variantId" in publishState.tourContext
+				? (publishState.tourContext.variantId ?? undefined)
+				: undefined,
+		ratePlanId:
+			publishState.tourContext && "ratePlanId" in publishState.tourContext
+				? (publishState.tourContext.ratePlanId ?? undefined)
+				: undefined,
 	}
 	const steps = TOUR_LAUNCH_STEPS.map((step) => ({
 		key: step.id,
@@ -94,16 +123,21 @@ export async function evaluateTourLaunchProgress(
 		isCurrent: step.id === currentStepId,
 		isNext: step.id === nextStep?.id,
 	}))
-	const completedSteps = steps.filter((step) => step.complete).length
-	const totalSteps = steps.length
+	const completedSteps = publishState.completedChecks
+	const totalSteps = publishState.totalChecks
 
 	return {
 		playbookId: "launch-tour",
+		tourPresentation: publishState.tourDiagnostic
+			? presentTourDiagnostic(publishState.tourDiagnostic, {
+					previewHref: publishState.checks.find((check) => check.key === "preview")!.href,
+				})
+			: undefined,
 		productId,
 		progress: {
 			completedSteps,
 			totalSteps,
-			progressPercent: totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0,
+			progressPercent: publishState.readinessPercent,
 		},
 		steps,
 		currentStep: currentStepId,

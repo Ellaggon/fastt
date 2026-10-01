@@ -1,3 +1,4 @@
+import { tourPublicationBlockers } from "@/lib/tours/buildTourDiagnostic"
 import type { ProductReadinessValidationError } from "@/modules/catalog/public"
 import {
 	loadCompleteToPublishState,
@@ -24,6 +25,14 @@ const validationCodeBySection = {
 export function publicationValidationErrorsFromState(
 	state: CompleteToPublishState
 ): ProductReadinessValidationError[] {
+	if (state.tourDiagnostic)
+		return tourPublicationBlockers(state.tourDiagnostic).map((blocker) => ({
+			code: blocker.id,
+			message: blocker.reason.message,
+			state: blocker.state,
+			responsible: blocker.responsible,
+			action: blocker.action,
+		}))
 	return state.blockers
 		.filter((check) => check.sectionKey !== "preview")
 		.map((check) => ({
@@ -39,10 +48,12 @@ export async function resolveCanonicalProductPublicationValidationErrors(params:
 	providerId: string
 	request?: Request
 	url?: URL
+	selection?: { variantId?: string | null; ratePlanId?: string | null }
 }): Promise<ProductReadinessValidationError[]> {
 	const state = await loadCompleteToPublishState(params)
 	if (!state) return [{ code: "missing_product", message: "No se encontró el producto." }]
 	const errors = publicationValidationErrorsFromState(state)
+	if (state.tourDiagnostic) return errors
 	const incompatible = await auditTourProductPolicyCompatibility(params.productId)
 	if (incompatible.length) {
 		errors.push({

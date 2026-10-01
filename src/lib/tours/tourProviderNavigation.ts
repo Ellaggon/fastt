@@ -1,3 +1,8 @@
+import {
+	tourContextSelectionHref,
+	withTourCommercialContext,
+	type TourContextResolution,
+} from "./resolveTourCommercialContext"
 export type TourCommercialContext = {
 	productId: string
 	variantId?: string | null
@@ -65,4 +70,12 @@ export function buildTourCommercialLinksForProductHub(params: {
 		variantId: params.variantId,
 		ratePlanId: params.operationalSurface?.defaultRatePlanIds?.[0] ?? null,
 	})
+}
+
+/** Secondary editing links cannot silently fall back to a different offer. */
+export function contextualizeTourLink(href: string, context: TourContextResolution): string {
+	return context.status === "unresolved" &&
+		["selection_required", "invalid_selection"].includes(context.reason)
+		? tourContextSelectionHref(context, href)
+		: withTourCommercialContext(href, context)
 }

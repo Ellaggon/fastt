@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
 	requireProvider: vi.fn(),
 	loadRatePlans: vi.fn(),
 	loadSurface: vi.fn(),
+	loadContext: vi.fn(),
 }))
 
 vi.mock("@/lib/auth/requireProvider", () => ({ requireProvider: mocks.requireProvider }))
@@ -12,6 +13,10 @@ vi.mock("@/lib/rates/loadRatePlansReadModel", () => ({
 }))
 vi.mock("@/lib/rates/singleCalendarSurface", () => ({
 	loadSingleCalendarSurface: mocks.loadSurface,
+}))
+vi.mock("@/lib/tours/loadTourCommercialContext", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@/lib/tours/loadTourCommercialContext")>()),
+	loadTourCommercialEntryContext: mocks.loadContext,
 }))
 
 import { GET } from "@/pages/api/rates/calendar"
@@ -31,6 +36,7 @@ const metricNames = [
 describe("calendar API Server-Timing", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
+		mocks.loadContext.mockResolvedValue(null)
 		mocks.requireProvider.mockResolvedValue({
 			providerId: "provider-1",
 			user: { id: "user-1" },
@@ -70,5 +76,41 @@ describe("calendar API Server-Timing", () => {
 		expect(response.headers.get("x-auth-reason")).toBe("missing-session")
 		expect(response.headers.get("server-timing")).toContain("authProvider;dur=")
 		expect(response.headers.get("server-timing")).toContain("total;dur=")
+	})
+	it.each(["invalid_selection", "selection_required"])(
+		"does not fall back after %s",
+		async (reason) => {
+			mocks.loadContext.mockResolvedValue({ status: "unresolved", reason, productId: "tour" })
+			const url = new URL("http://fastt.local/api/rates/calendar?variantId=variant-1")
+			const response = await GET({ request: new Request(url), url } as never)
+			expect(response.status).toBe(reason === "invalid_selection" ? 400 : 409)
+			expect(mocks.loadSurface).not.toHaveBeenCalled()
+		}
+	)
+	it("passes the resolved pair rather than an implicit read-model default", async () => {
+		mocks.loadContext.mockResolvedValue({
+			status: "resolved",
+			productId: "tour",
+			ratePlanId: "rate-1",
+			variantId: "variant-1",
+		})
+		const url = new URL("http://fastt.local/api/rates/calendar?productId=tour")
+		const response = await GET({ request: new Request(url), url } as never)
+		expect(response.status).toBe(200)
+		expect(mocks.loadSurface).toHaveBeenCalledWith(
+			expect.objectContaining({ ratePlanId: "rate-1", variantId: "variant-1" })
+		)
+	})
+	it("a stale read model cannot substitute another offer", async () => {
+		mocks.loadContext.mockResolvedValue({
+			status: "resolved",
+			productId: "tour",
+			ratePlanId: "deleted-from-cache",
+			variantId: "variant-1",
+		})
+		const url = new URL("http://fastt.local/api/rates/calendar?productId=tour")
+		const response = await GET({ request: new Request(url), url } as never)
+		expect(response.status).toBe(409)
+		expect(mocks.loadSurface).not.toHaveBeenCalled()
 	})
 })

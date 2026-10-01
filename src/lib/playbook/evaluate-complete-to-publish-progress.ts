@@ -1,3 +1,19 @@
+import {
+	presentTourDiagnostic,
+	TOUR_REQUIREMENT_PRESENTATION,
+} from "@/lib/tours/tourDiagnosticPresentation"
+import {
+	buildTourDiagnostic,
+	summarizeTourDiagnostic,
+	tourPublicationBlockers,
+} from "@/lib/tours/buildTourDiagnostic"
+import { TOUR_REQUIREMENTS, type TourDiagnostic } from "@/lib/tours/tourDiagnosticContract"
+import { loadTourAuthorization } from "@/lib/tours/loadTourAuthorization"
+import { validateRatePlanPublication } from "@/lib/rates/validateRatePlanPublication"
+import {
+	loadTourCommercialContext,
+	type LoadedTourContext,
+} from "@/lib/tours/loadTourCommercialContext"
 import { POLICY_CATEGORY_ORDER } from "@/data/policy/policy-categories"
 import {
 	getProductVerticalEntry,
@@ -5,9 +21,6 @@ import {
 } from "@/lib/catalog/productVerticalRegistry"
 import { routes } from "@/lib/routes"
 import { productRepository } from "@/container"
-import { and, count, DailyInventory, db, eq, first, gt } from "@/shared/infrastructure/db/compat"
-import { providerLocalToday } from "@/lib/rates/providerLocalToday"
-import { sellableDailyInventoryCondition } from "@/lib/rates/sellableDailyInventoryCondition"
 import {
 	TOUR_QUALITY_MIN_IMAGES,
 	TOUR_QUALITY_MIN_ITINERARY_STEPS,
@@ -44,6 +57,8 @@ export type CompleteToPublishCheck = {
 
 export type CompleteToPublishState = {
 	checks: CompleteToPublishCheck[]
+	tourContext?: LoadedTourContext
+	tourDiagnostic?: TourDiagnostic
 	blockers: CompleteToPublishCheck[]
 	readyToPublish: boolean
 	completedChecks: number
@@ -144,6 +159,8 @@ export async function loadCompleteToPublishState(params: {
 	providerId: string
 	request?: Request
 	url?: URL
+	selection?: { variantId?: string | null; ratePlanId?: string | null }
+	session?: { variantId?: string | null; ratePlanId?: string | null }
 }): Promise<CompleteToPublishState | null> {
 	const { productId, providerId } = params
 	const aggregate = await getProductFullAggregate(productId, providerId)
@@ -157,27 +174,46 @@ export async function loadCompleteToPublishState(params: {
 		repositoryAggregate?.verticalReadiness?.kind === "tour"
 			? repositoryAggregate.verticalReadiness.tour
 			: null
+	const tourContext =
+		vertical.vertical === "tour" ? await loadTourCommercialContext(params) : undefined
+	if (tourContext?.status === "not_found") return null
 	const tourCommercialContext = {
-		variantId: String(tourReadiness?.primarySlotId ?? "").trim() || null,
-		ratePlanId: String(tourReadiness?.primaryRatePlanId ?? "").trim() || null,
+		variantId: tourContext && "variantId" in tourContext ? tourContext.variantId : null,
+		ratePlanId: tourContext && "ratePlanId" in tourContext ? tourContext.ratePlanId : null,
 	}
-	const futureAvailableDateCount = tourCommercialContext.variantId
-		? Number(
-				(
-					await db
-						.select({ value: count() })
-						.from(DailyInventory)
-						.where(
-							and(
-								eq(DailyInventory.variantId, tourCommercialContext.variantId),
-								gt(DailyInventory.date, providerLocalToday(productId)),
-								sellableDailyInventoryCondition()
-							)
-						)
-						.then(first)
-				)?.value ?? 0
-			)
-		: 0
+	const selectedOption = tourContext?.status === "resolved" ? tourContext.option : null
+	const selectedActiveSlotCount =
+		selectedOption?.salesEnabled && selectedOption.lifecycleState === "ready" ? 1 : 0
+	let commercialReadFailed = false
+	const commercial =
+		tourContext?.status === "resolved"
+			? await validateRatePlanPublication({
+					productId,
+					variantId: tourContext.variantId!,
+					ratePlanId: tourContext.ratePlanId!,
+				}).catch(() => {
+					commercialReadFailed = true
+					return null
+				})
+			: null
+	const authorization =
+		vertical.vertical === "tour"
+			? await loadTourAuthorization({ productId, providerId }).catch(() => {
+					return {
+						provider_authorization: {
+							ready: false,
+							message: "No se pudo verificar la cuenta.",
+							code: "read_failed",
+						},
+						experience_authorization: {
+							ready: false,
+							message: "No se pudo verificar la experiencia.",
+							code: "read_failed",
+						},
+					}
+				})
+			: null
+	const futureAvailableDateCount = commercial?.observations.availableDateCount ?? 0
 	const description = String(aggregate.content.description ?? "").trim()
 	const highlights = Array.isArray(aggregate.content.highlights) ? aggregate.content.highlights : []
 	const packageIncludes =
@@ -221,27 +257,37 @@ export async function loadCompleteToPublishState(params: {
 	let missingPolicies: string[] = []
 	let policyResolutionError: string | null = null
 	try {
-		const resolvedPolicies = await resolveEffectivePolicies({
-			productId,
-			variantId: tourCommercialContext.variantId ?? undefined,
-			ratePlanId: tourCommercialContext.ratePlanId ?? undefined,
-			channel: "web",
-			requiredCategories: requiredPolicyCategories,
-			onMissingCategory: "return_null",
-			featureContext: params.request
-				? {
-						request: params.request,
-						query: params.url?.searchParams ?? new URLSearchParams(),
-					}
-				: undefined,
-		})
-		const policyCategorySet = new Set(
-			resolvedPolicies.policies.map((policy) => String(policy.category ?? ""))
-		)
-		missingPolicies =
-			resolvedPolicies.missingCategories.length > 0
-				? resolvedPolicies.missingCategories
-				: requiredPolicyCategories.filter((category) => !policyCategorySet.has(category))
+		if (vertical.vertical === "tour" && tourContext?.status !== "resolved") {
+			throw new Error("Selecciona una opción y tarifa para revisar sus condiciones.")
+		}
+		const resolvedPolicies =
+			vertical.vertical === "tour"
+				? null
+				: await resolveEffectivePolicies({
+						productId,
+						variantId: tourCommercialContext.variantId ?? undefined,
+						ratePlanId: tourCommercialContext.ratePlanId ?? undefined,
+						channel: "web",
+						requiredCategories: requiredPolicyCategories,
+						onMissingCategory: "return_null",
+						featureContext: params.request
+							? {
+									request: params.request,
+									query: params.url?.searchParams ?? new URLSearchParams(),
+								}
+							: undefined,
+					})
+		if (!resolvedPolicies) {
+			missingPolicies = commercial?.observations.conditionsReady ? [] : requiredPolicyCategories
+		} else {
+			const policyCategorySet = new Set(
+				resolvedPolicies.policies.map((policy) => String(policy.category ?? ""))
+			)
+			missingPolicies =
+				resolvedPolicies.missingCategories.length > 0
+					? resolvedPolicies.missingCategories
+					: requiredPolicyCategories.filter((category) => !policyCategorySet.has(category))
+		}
 	} catch (error) {
 		policyResolutionError =
 			error instanceof Error ? error.message : "No se pudieron resolver las condiciones"
@@ -397,51 +443,6 @@ export async function loadCompleteToPublishState(params: {
 						: "Selecciona al menos una categoría de búsqueda.",
 			statusLabel: tourReadiness?.hasCategory ? "Categoría asignada" : "Sin categoría",
 		},
-		departure: {
-			complete: vertical.vertical !== "tour" || Number(tourReadiness?.activeSlotCount ?? 0) > 0,
-			detail:
-				vertical.vertical !== "tour"
-					? "No aplica para este tipo de oferta."
-					: Number(tourReadiness?.activeSlotCount ?? 0) > 0
-						? "Hay una salida activa."
-						: Number(tourReadiness?.completeSlotCount ?? 0) > 0 && futureAvailableDateCount > 0
-							? "La salida y sus fechas tienen cupo. Activa la tarifa desde el calendario para aceptar reservas."
-							: Number(tourReadiness?.completeSlotCount ?? 0) > 0
-								? "La salida está configurada. Abre al menos una fecha futura con cupo en el calendario."
-								: "Configura la salida, el cupo y una tarifa.",
-			statusLabel:
-				Number(tourReadiness?.activeSlotCount ?? 0) > 0
-					? "Salida activa"
-					: Number(tourReadiness?.completeSlotCount ?? 0) > 0
-						? futureAvailableDateCount > 0
-							? "Por activar"
-							: "Sin fecha futura"
-						: "Sin salida",
-		},
-		rate: {
-			complete: vertical.vertical !== "tour" || Number(tourReadiness?.completeSlotCount ?? 0) > 0,
-			detail:
-				vertical.vertical !== "tour"
-					? "No aplica para este tipo de oferta."
-					: Number(tourReadiness?.completeSlotCount ?? 0) > 0
-						? "La salida tiene una tarifa configurada; se validará antes de activarla."
-						: "Asigna una tarifa activa a la salida.",
-			statusLabel:
-				Number(tourReadiness?.completeSlotCount ?? 0) > 0 ? "Tarifa configurada" : "Sin tarifa",
-		},
-		calendar: {
-			complete: vertical.vertical !== "tour" || futureAvailableDateCount > 0,
-			detail:
-				vertical.vertical !== "tour"
-					? "No aplica para este tipo de oferta."
-					: futureAvailableDateCount > 0
-						? `${futureAvailableDateCount} fecha${futureAvailableDateCount === 1 ? "" : "s"} futura${futureAvailableDateCount === 1 ? "" : "s"} con cupo.`
-						: "Abre al menos una fecha futura con cupo para recibir reservas.",
-			statusLabel:
-				futureAvailableDateCount > 0
-					? `${futureAvailableDateCount} fecha${futureAvailableDateCount === 1 ? "" : "s"}`
-					: "Sin fechas futuras",
-		},
 		inclusions: {
 			complete: packageInclusionItems.length > 0,
 			statusLabel: packageInclusionItems.length
@@ -461,48 +462,164 @@ export async function loadCompleteToPublishState(params: {
 	const requiredSections = vertical.readiness.requiredSections.filter(
 		(section) => section !== "identity"
 	)
-	const tourActivationPending =
-		vertical.vertical === "tour" &&
-		Number(tourReadiness?.completeSlotCount ?? 0) > 0 &&
-		Number(tourReadiness?.activeSlotCount ?? 0) === 0
-
-	const checks: CompleteToPublishCheck[] = requiredSections.map((section) => {
-		const completion = completionBySection[section] ?? {
-			complete: false,
-			detail: "Pendiente de completar.",
-			statusLabel: "Pendiente",
-		}
-		return {
-			key: section,
-			sectionKey: section,
-			label:
-				section === "departure" && tourActivationPending
-					? "Activar primera salida"
-					: sectionLabel(section, verticalLabel),
-			guestImpact: SECTION_GUEST_IMPACT[section] ?? "Información visible para el huésped",
-			complete: completion.complete,
-			statusLabel: completion.statusLabel ?? (completion.complete ? "Configurado" : "Pendiente"),
-			completedCount: completion.completedCount,
-			totalCount: completion.totalCount,
-			missingItems: completion.missingItems,
-			navigationStep: section === "departure" && tourActivationPending ? "calendar" : section,
-			href: sectionHref(
-				productId,
-				section === "departure" && tourActivationPending ? "calendar" : section,
-				tourCommercialContext
-			),
-			cta:
-				section === "departure" && tourActivationPending
-					? futureAvailableDateCount > 0
-						? "Activar tarifa"
-						: "Revisar calendario"
-					: sectionCta(section),
-			detail: completion.detail,
-		}
-	})
+	const checks: CompleteToPublishCheck[] =
+		vertical.vertical === "tour"
+			? []
+			: requiredSections.map((section) => {
+					const completion = completionBySection[section] ?? {
+						complete: false,
+						detail: "Pendiente de completar.",
+						statusLabel: "Pendiente",
+					}
+					return {
+						key: section,
+						sectionKey: section,
+						label: sectionLabel(section, verticalLabel),
+						guestImpact: SECTION_GUEST_IMPACT[section] ?? "Información visible para el huésped",
+						complete: completion.complete,
+						statusLabel:
+							completion.statusLabel ?? (completion.complete ? "Configurado" : "Pendiente"),
+						completedCount: completion.completedCount,
+						totalCount: completion.totalCount,
+						missingItems: completion.missingItems,
+						href: sectionHref(productId, section),
+						cta: sectionCta(section),
+						detail: completion.detail,
+					}
+				})
+	let tourDiagnostic: TourDiagnostic | undefined
+	if (tourContext && authorization) {
+		const observed = (ready: boolean, message: string) => ({ ready, message })
+		const commercialObservation = (ready: boolean, message: string) => ({
+			ready,
+			message: commercialReadFailed
+				? "No se pudo verificar la configuración comercial. Vuelve a intentar."
+				: message,
+			...(commercialReadFailed ? { code: "read_failed" } : {}),
+		})
+		tourDiagnostic = buildTourDiagnostic({
+			providerId,
+			productId,
+			context: tourContext,
+			timezone: commercial?.observations.timezone ?? "UTC",
+			observations: {
+				presentation: observed(
+					Boolean(
+						completionBySection.content?.complete &&
+						aggregate.displayName?.trim() &&
+						aggregate.geoPlace?.id
+					),
+					"Completa nombre, destino, descripción y destacados."
+				),
+				logistics: observed(
+					Boolean(
+						completionBySection.subtype?.complete &&
+						completionBySection.itinerary?.complete &&
+						completionBySection.location?.complete
+					),
+					"Completa duración, encuentro, inclusiones, ubicación e itinerario."
+				),
+				photos: observed(
+					Boolean(completionBySection.photos?.complete),
+					completionBySection.photos!.detail
+				),
+				participants: observed(
+					Boolean(completionBySection.tickets?.complete),
+					completionBySection.tickets!.detail
+				),
+				activities: observed(
+					Boolean(completionBySection.categories?.complete),
+					completionBySection.categories!.detail
+				),
+				option_profile: observed(
+					Boolean(selectedOption?.hasProfile),
+					"Completa horario, idioma y modalidad de la opción."
+				),
+				group_capacity: commercialObservation(
+					Boolean(commercial?.observations.capacityReady),
+					"Define el máximo de participantes de esta opción."
+				),
+				price: commercialObservation(
+					Boolean(commercial?.observations.priceReady),
+					commercial?.blockerDetails?.find((blocker) => blocker.id === "price")?.label ??
+						"Define un precio base positivo y una moneda válida."
+				),
+				conditions: commercialObservation(
+					Boolean(commercial?.observations.conditionsReady),
+					commercial?.blockerDetails
+						?.filter((blocker) => blocker.id === "conditions")
+						.map((blocker) => blocker.label)
+						.join(" ") ||
+						"Completa las condiciones compatibles de cancelación, pago y no presentación."
+				),
+				calendar_configuration: commercialObservation(
+					Number(commercial?.observations.configuredDateCount ?? 0) > 0,
+					"Programa al menos una fecha para esta opción."
+				),
+				...authorization,
+				option_activation: observed(
+					Boolean(selectedActiveSlotCount),
+					"Activa esta opción desde el calendario."
+				),
+				rate_activation: observed(
+					Boolean(tourContext.status === "resolved" && tourContext.rate.isActive),
+					"Activa esta tarifa desde el calendario."
+				),
+				current_availability: commercialObservation(
+					futureAvailableDateCount > 0,
+					"No hay fechas futuras con cupo sin reservar."
+				),
+			},
+		})
+		// Each requirement remains independent even when two corrections share an editor.
+		checks.splice(
+			0,
+			checks.length,
+			...Object.entries(tourDiagnostic.requirements).map(([id, requirement]) => {
+				const presentation =
+					TOUR_REQUIREMENT_PRESENTATION[id as keyof typeof TOUR_REQUIREMENT_PRESENTATION]
+				const sectionKey = presentation.section
+				const result = requirement.result
+				const complete = result.state === "ready" || result.state === "not_applicable"
+				return {
+					key: id,
+					sectionKey,
+					label: presentation.label,
+					guestImpact:
+						"action" in result ? result.reason.message : "Requisito comprobado de la experiencia",
+					complete,
+					statusLabel: complete
+						? "Listo"
+						: result.state === "not_evaluable"
+							? "Sin evaluar"
+							: "Pendiente",
+					detail: complete ? "Requisito comprobado." : result.reason.message,
+					href:
+						"action" in result
+							? result.action.href
+							: sectionHref(productId, sectionKey, tourCommercialContext),
+					cta: "action" in result ? result.action.label : "Revisar",
+				}
+			})
+		)
+	}
+	if (tourDiagnostic)
+		checks.push({
+			key: "preview",
+			sectionKey: "preview",
+			label: "Revisión final",
+			guestImpact: "Revisión de la oferta elegida",
+			complete: tourPublicationBlockers(tourDiagnostic).length === 0,
+			statusLabel: "Revisión",
+			detail: "Revisa esta opción y tarifa antes de publicar.",
+			href: sectionHref(productId, "preview", tourCommercialContext),
+			cta: "Revisar ficha",
+		})
 
 	const actionableChecks = checks.filter((check) => check.sectionKey !== "preview")
-	const allActionableComplete = actionableChecks.every((check) => check.complete)
+	const allActionableComplete = tourDiagnostic
+		? tourPublicationBlockers(tourDiagnostic).length === 0
+		: actionableChecks.every((check) => check.complete)
 	const previewCheck = checks.find((check) => check.sectionKey === "preview")
 	if (previewCheck) {
 		previewCheck.complete = allActionableComplete
@@ -515,16 +632,26 @@ export async function loadCompleteToPublishState(params: {
 	}
 
 	const blockers = checks
-		.filter((check) => !check.complete)
-		.sort((a, b) => BLOCKER_ORDER.indexOf(a.sectionKey) - BLOCKER_ORDER.indexOf(b.sectionKey))
+		.filter((check) => !check.complete && (!tourDiagnostic || check.key !== "current_availability"))
+		.sort((a, b) =>
+			tourDiagnostic ? 0 : BLOCKER_ORDER.indexOf(a.sectionKey) - BLOCKER_ORDER.indexOf(b.sectionKey)
+		)
 
-	const completedChecks = checks.filter((check) => check.complete).length
-	const totalChecks = checks.length
+	const preparationSummary = tourDiagnostic
+		? summarizeTourDiagnostic(tourDiagnostic).preparation
+		: null
+	const completedChecks =
+		preparationSummary?.readyCount ?? checks.filter((check) => check.complete).length
+	const totalChecks = preparationSummary?.totalCount ?? checks.length
 
 	return {
 		checks,
+		tourContext,
+		tourDiagnostic,
 		blockers,
-		readyToPublish: allActionableComplete,
+		readyToPublish: tourDiagnostic
+			? tourPublicationBlockers(tourDiagnostic).length === 0
+			: allActionableComplete,
 		completedChecks,
 		totalChecks,
 		readinessPercent: totalChecks > 0 ? Math.round((completedChecks / totalChecks) * 100) : 0,
@@ -544,6 +671,7 @@ export type CompleteToPublishProgressStep = {
 
 export type CompleteToPublishProgressResult = {
 	playbookId: "complete-to-publish"
+	tourPresentation?: ReturnType<typeof presentTourDiagnostic>
 	productId: string
 	progress: {
 		completedSteps: number
@@ -579,21 +707,42 @@ export async function evaluateCompleteToPublishProgress(
 	// Keep the stable readiness order in the shell. Moving blockers to the front made a
 	// partially prepared accommodation look like it had returned to "Paso 1 de N".
 	const orderedSteps = state.checks
+	const progressSteps = state.tourDiagnostic
+		? orderedSteps
+				.filter(
+					(check) =>
+						check.key === "preview" ||
+						(check.key in TOUR_REQUIREMENTS &&
+							TOUR_REQUIREMENTS[check.key as keyof typeof TOUR_REQUIREMENTS].axis === "preparation")
+				)
+				.reduce<CompleteToPublishCheck[]>((grouped, check) => {
+					const existing = grouped.find((item) => item.sectionKey === check.sectionKey)
+					if (existing) {
+						existing.complete = existing.complete && check.complete
+						if (!check.complete) {
+							existing.detail = check.detail
+							existing.cta = check.cta
+							existing.href = check.href
+						}
+					} else grouped.push({ ...check })
+					return grouped
+				}, [])
+		: orderedSteps
 
 	const explicitStep = String(options.currentStepId ?? "").trim() as ProductVerticalSectionKey
 	const currentStepId =
 		explicitStep ||
 		state.blockers[0]?.sectionKey ||
-		(state.readyToPublish ? "preview" : orderedSteps[0]?.sectionKey) ||
+		(state.readyToPublish ? "preview" : progressSteps[0]?.sectionKey) ||
 		null
-	const currentIndex = orderedSteps.findIndex((check) => check.sectionKey === currentStepId)
-	const currentHref = currentIndex >= 0 ? orderedSteps[currentIndex].href : null
+	const currentIndex = progressSteps.findIndex((check) => check.sectionKey === currentStepId)
+	const currentHref = currentIndex >= 0 ? progressSteps[currentIndex].href : null
 	const sequentialNext =
 		currentIndex >= 0
-			? orderedSteps.slice(currentIndex + 1).find((check) => check.href !== currentHref)
-			: (orderedSteps.find((check) => check.sectionKey === "preview") ?? null)
+			? progressSteps.slice(currentIndex + 1).find((check) => check.href !== currentHref)
+			: (progressSteps.find((check) => check.sectionKey === "preview") ?? null)
 
-	const steps: CompleteToPublishProgressStep[] = orderedSteps.map((check) => ({
+	const steps: CompleteToPublishProgressStep[] = progressSteps.map((check) => ({
 		key: check.sectionKey,
 		label: check.label,
 		guestImpact: check.guestImpact,
@@ -601,11 +750,16 @@ export async function evaluateCompleteToPublishProgress(
 		href: check.href,
 		isCurrent: check.sectionKey === currentStepId,
 		isNext: check.sectionKey === sequentialNext?.sectionKey,
-		isBlocker: !check.complete,
+		isBlocker: state.blockers.some((blocker) => blocker.key === check.key),
 	}))
 
 	return {
 		playbookId: "complete-to-publish",
+		tourPresentation: state.tourDiagnostic
+			? presentTourDiagnostic(state.tourDiagnostic, {
+					previewHref: state.checks.find((check) => check.key === "preview")!.href,
+				})
+			: undefined,
 		productId,
 		progress: {
 			completedSteps: state.completedChecks,
@@ -619,7 +773,14 @@ export async function evaluateCompleteToPublishProgress(
 		nextHref: sequentialNext
 			? buildCompleteToPublishHref(sequentialNext.href, sequentialNext.sectionKey)
 			: state.readyToPublish
-				? buildCompleteToPublishHref(routes.productPreview(productId), "preview")
+				? buildCompleteToPublishHref(
+						sectionHref(
+							productId,
+							"preview",
+							state.tourContext && "variantId" in state.tourContext ? state.tourContext : {}
+						),
+						"preview"
+					)
 				: null,
 		readyToPublish: state.readyToPublish,
 		exitHref: routes.productDetail(productId),
