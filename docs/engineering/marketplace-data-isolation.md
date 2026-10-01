@@ -1,5 +1,13 @@
 # Aislamiento de datos del marketplace
 
+Status: active
+Document type: canonical
+Owner: Engineering
+Last verified: 2026-10-01
+Scope: clasificación de entornos y aislamiento de datos y fixtures
+Source of truth: configuración y guardrails de datos enlazados
+Review trigger: cambio de contrato o procedimiento; revisar código y evidencia antes de operar
+
 ## Contrato de entorno
 
 Todo proceso que conecte con datos Fastt declara `FASTT_DATA_ENV` como

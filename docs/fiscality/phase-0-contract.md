@@ -1,9 +1,17 @@
 # Fiscalidad de ventas: contrato de transición v1
 
+Status: active
+Document type: canonical
+Owner: Finance / Engineering
+Last verified: 2026-10-01
+Scope: fiscalidad de ventas y límites frente a identidad fiscal
+Source of truth: esquema, endpoints fiscales y pruebas enlazados
+Review trigger: cambio de contrato o procedimiento; revisar código y evidencia antes de operar
+
 ## Límites de dominio
 
 - **Fiscalidad de ventas** administra reglas que cambian el precio mostrado o cobrado al huésped.
-- **Identidad fiscal** permanece en `/provider/settings/verification/fiscal` y es la única fuente de residencia fiscal, registro empresarial, NIT y modo de facturación.
+- **Identidad fiscal** permanece en `/provider/settings/verification/fiscal` y es la única fuente de residencia fiscal, registro empresarial y NIT. Los modos históricos de facturación requieren revisión explícita; no habilitan emisión ni cobro de plataforma. Véase la [auditoría de modos heredados](../certifications/fiscality/legacy-invoicing-modes-2026-09-28.md).
 - Una definición comercial no debe guardar NIT, residencia del proveedor ni documentos de identidad.
 
 ## Fuente de verdad e inventario

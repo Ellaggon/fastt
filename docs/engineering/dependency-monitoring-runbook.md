@@ -1,5 +1,13 @@
 # Dependency Security Monitoring Runbook
 
+Status: active
+Document type: runbook
+Owner: Engineering / Security
+Last verified: 2026-10-01
+Scope: auditoría periódica de dependencias y tratamiento de deuda
+Source of truth: lockfile, comandos de auditoría y registro de deuda
+Review trigger: cambio de contrato o procedimiento; revisar código y evidencia antes de operar
+
 Last updated: 2026-07-28
 
 ## Purpose

@@ -1,5 +1,13 @@
 # Fastt UI Governance
 
+Status: active
+Document type: governance
+Owner: Product / Engineering
+Last verified: 2026-10-01
+Scope: componentes compartidos y guardrails de interfaz
+Source of truth: src/components/ui/ y controles enlazados
+Review trigger: cambio de contrato o procedimiento; revisar código y evidencia antes de operar
+
 ## No Regression Rule
 
 New product work must not create repeatable UI objects with raw Tailwind-only markup.

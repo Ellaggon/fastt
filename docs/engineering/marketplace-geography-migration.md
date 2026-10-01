@@ -1,5 +1,13 @@
 # Migración de geografía del marketplace
 
+Status: active
+Document type: runbook
+Owner: Engineering
+Last verified: 2026-10-01
+Scope: migración aditiva y condiciones para retirar geografía legacy
+Source of truth: migraciones, auditorías y consumidores enlazados
+Review trigger: cambio de contrato o procedimiento; revisar código y evidencia antes de operar
+
 ## Estado de las fases 2 a 8
 
 El esquema sigue siendo aditivo: `Destination` y `Product.destinationId` se

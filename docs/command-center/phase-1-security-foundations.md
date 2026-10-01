@@ -1,9 +1,17 @@
 # FASTT — Fase 1: fundaciones de seguridad y datos
 
+Status: active
+Document type: canonical
+Owner: Platform / Security
+Last verified: 2026-10-01
+Scope: permisos internos, auditoría, MFA y transición IAM
+Source of truth: código y migraciones enlazados; estado de despliegue requiere evidencia
+Review trigger: cambio de contrato, controles o procedimiento; revisar evidencia del entorno antes de ejecutar
+
 **Versión:** 1.0  
 **Fecha:** 2026-09-03  
 **Estado de código:** implementado y validado localmente  
-**Estado de base de datos:** migración preparada; requiere aplicación controlada  
+**Estado de base de datos:** consultar evidencia y migraciones del entorno objetivo; este contrato no acredita su despliegue actual
 **Depende de:** `docs/command-center/phase-0-contract.md`
 
 ## 1. Resultado ejecutivo

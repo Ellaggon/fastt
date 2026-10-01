@@ -1,5 +1,13 @@
 # Playbook Contract
 
+Status: active
+Document type: canonical
+Owner: Provider Experience
+Last verified: 2026-10-01
+Scope: identidad y destinos del recorrido de alojamiento
+Source of truth: rutas de tarifas/calendario; tours se rige por su contrato de dominio
+Review trigger: cambio de contrato o procedimiento; revisar código y evidencia antes de operar
+
 ## Launch accommodation
 
 `launch` is the canonical internal ID for the guided accommodation launch flow. Keep this ID stable for compatibility with existing pages, layout logic, API responses, and client-side redirects.

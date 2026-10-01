@@ -1,5 +1,13 @@
 # Backoffice Governance Baseline
 
+Status: active
+Document type: canonical
+Owner: Platform / Engineering
+Last verified: 2026-10-01
+Scope: shells, rutas, propiedad y límites del backoffice
+Source of truth: rutas y controles enlazados
+Review trigger: cambio de contrato o procedimiento; revisar código y evidencia antes de operar
+
 ## Purpose
 
 This document is the source of truth for Capa 0: Backoffice Governance Baseline.

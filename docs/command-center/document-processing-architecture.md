@@ -1,5 +1,13 @@
 # Arquitectura de seguridad e inteligencia documental de FASTT
 
+Status: active
+Document type: canonical
+Owner: Platform / Security
+Last verified: 2026-10-01
+Scope: procesamiento documental en modo sombra y condiciones de activación
+Source of truth: arquitectura y código enlazados; activación especializada pendiente
+Review trigger: cambio de contrato, controles o procedimiento; revisar evidencia del entorno antes de ejecutar
+
 **Estado:** implementada en modo sombra; activación obligatoria pendiente de proveedor especializado  
 **Alcance:** documentos de identidad, negocio, fiscalidad y corroboración de pagos  
 **Decisión:** el archivo original permanece privado en R2 y toda decisión se apoya en un expediente técnico persistente, reproducible y auditable.

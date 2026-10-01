@@ -1,11 +1,20 @@
 # FASTT — Contrato operativo de Fase 0 del Centro de Mando
 
+Status: active
+Document type: canonical
+Owner: Platform / Operations
+Last verified: 2026-10-01
+Scope: decisiones operativas del Centro de Mando para piloto controlado
+Source of truth: contrato y controles enlazados; no certifica despliegue
+Review trigger: cambio de contrato, controles o procedimiento; revisar evidencia del entorno antes de ejecutar
+Supersedes: `docs/reports/report-source.md`
+
 **Versión:** 1.0  
 **Fecha de decisión:** 2026-09-02  
 **Estado:** aprobado internamente para diseño, desarrollo y piloto controlado  
 **Responsable actual:** responsable único de FASTT  
 **Alcance:** Bolivia, hospedaje, cohorte inicial por invitación  
-**Fuente ejecutiva relacionada:** `docs/reports/report-source.md`
+**Origen:** análisis estratégico consolidado en este contrato; los reportes preliminares fueron retirados.
 
 > Este documento es la fuente canónica de decisiones de la Fase 0 del Centro de Mando. Convierte el análisis estratégico en reglas operativas, de datos, acceso, riesgo y arquitectura. No sustituye asesoría jurídica, fiscal, regulatoria o de seguridad especializada.
 
@@ -38,14 +47,14 @@ La precedencia funcional será:
 
 ### 1.2 Estados de las decisiones
 
-| Estado                         | Significado                                                                         |
-| ------------------------------ | ----------------------------------------------------------------------------------- |
-| `approved_internal`            | Puede implementarse y utilizarse en el piloto interno.                              |
-| `approved_public`              | Superó las validaciones y controles necesarios para el go-live público del alcance. |
-| `provisional`                  | Es la opción de diseño elegida, pero debe revisarse antes del go-live afectado.     |
-| `external_validation_required` | No puede activarse en producción sin especialista o contraparte competente.         |
-| `blocked`                      | No hay base suficiente para decidir o ejecutar.                                     |
-| `superseded`                   | Una decisión posterior la sustituyó.                                                |
+| Estado | Significado |
+| --- | --- |
+| `approved_internal` | Puede implementarse y utilizarse en el piloto interno. |
+| `approved_public` | Superó las validaciones y controles necesarios para el go-live público del alcance. |
+| `provisional` | Es la opción de diseño elegida, pero debe revisarse antes del go-live afectado. |
+| `external_validation_required` | No puede activarse en producción sin especialista o contraparte competente. |
+| `blocked` | No hay base suficiente para decidir o ejecutar. |
+| `superseded` | Una decisión posterior la sustituyó. |
 
 ---
 
@@ -55,17 +64,17 @@ FASTT tiene actualmente una sola persona responsable del proyecto. Esa persona p
 
 ### 2.1 Roles conceptuales
 
-| Rol conceptual      | Responsable temporal               | Alcance actual                                                        |
-| ------------------- | ---------------------------------- | --------------------------------------------------------------------- |
-| Sponsor y dirección | responsable único                  | alcance, presupuesto, aceptación de riesgo de producto                |
-| Producto            | responsable único                  | experiencia, prioridades, restricciones comerciales                   |
-| Operaciones         | responsable único                  | colas, procedimientos, SLA internos                                   |
-| Policy owner        | responsable único                  | catálogo inicial y versionado                                         |
-| Ingeniería          | responsable único                  | arquitectura, datos, APIs, pruebas                                    |
-| Seguridad operativa | responsable único                  | controles básicos y preparación de revisión                           |
-| Legal/fiscal        | especialista externo por contratar | validación obligatoria de asuntos marcados                            |
-| PSP/pagos           | PSP seleccionado                   | custodia, KYC delegado, liquidación y controles financieros acordados |
-| QA independiente    | segunda persona futura o tercero   | revisión antes de ampliar el piloto                                   |
+| Rol conceptual | Responsable temporal | Alcance actual |
+| --- | --- | --- |
+| Sponsor y dirección | responsable único | alcance, presupuesto, aceptación de riesgo de producto |
+| Producto | responsable único | experiencia, prioridades, restricciones comerciales |
+| Operaciones | responsable único | colas, procedimientos, SLA internos |
+| Policy owner | responsable único | catálogo inicial y versionado |
+| Ingeniería | responsable único | arquitectura, datos, APIs, pruebas |
+| Seguridad operativa | responsable único | controles básicos y preparación de revisión |
+| Legal/fiscal | especialista externo por contratar | validación obligatoria de asuntos marcados |
+| PSP/pagos | PSP seleccionado | custodia, KYC delegado, liquidación y controles financieros acordados |
+| QA independiente | segunda persona futura o tercero | revisión antes de ampliar el piloto |
 
 ### 2.2 Decisión sobre cuatro ojos mientras exista una persona
 
@@ -139,12 +148,12 @@ FASTT operará en el MVP como intermediario tecnológico y comercial. El proveed
 
 ### 4.2 Flujos aprobados
 
-| Flujo                           | Proveedor del servicio | Cobro                               | Rol de FASTT                | Estado                      |
-| ------------------------------- | ---------------------- | ----------------------------------- | --------------------------- | --------------------------- |
-| Pago en destino                 | alojamiento            | alojamiento                         | distribución y comisión     | permitido                   |
-| Reserva prepaga                 | alojamiento            | PSP por cuenta del proveedor        | orquestación y conciliación | condicionado a contrato PSP |
-| Comisión FASTT                  | FASTT                  | deducción acordada o cobro separado | factura su comisión         | validación fiscal requerida |
-| Custodia en cuenta propia FASTT | —                      | FASTT                               | collector/MoR               | prohibido en MVP            |
+| Flujo | Proveedor del servicio | Cobro | Rol de FASTT | Estado |
+| --- | --- | --- | --- | --- |
+| Pago en destino | alojamiento | alojamiento | distribución y comisión | permitido |
+| Reserva prepaga | alojamiento | PSP por cuenta del proveedor | orquestación y conciliación | condicionado a contrato PSP |
+| Comisión FASTT | FASTT | deducción acordada o cobro separado | factura su comisión | validación fiscal requerida |
+| Custodia en cuenta propia FASTT | — | FASTT | collector/MoR | prohibido en MVP |
 
 ### 4.3 Atributos contractuales por reserva
 
@@ -179,16 +188,16 @@ Antes de aceptar pagos reales se deberá validar:
 
 El caso coordina el trabajo, pero no sustituye las fuentes de verdad de cada dominio.
 
-| Dominio           | Fuente canónica actual o futura                        | El caso almacena                              |
-| ----------------- | ------------------------------------------------------ | --------------------------------------------- |
-| Identidad/negocio | `ProviderVerification` y sujetos futuros               | referencia, requisitos, evaluación y decisión |
-| Documentos        | `ProviderDocument`                                     | vínculo a la versión usada                    |
-| Fiscalidad        | `ProviderTaxConfiguration`                             | resultado de preparación y decisión           |
-| Pagos             | `ProviderPaymentAccount`/PSP                           | referencia tokenizada y decisión              |
-| Configuración     | `ProviderConfigurationState` y fuentes del producto    | snapshot de readiness                         |
-| Trabajo operativo | `ProviderComplianceAssignment`, luego `ComplianceCase` | owner, prioridad, SLA y tareas                |
-| Auditoría         | `ProviderAuditLog`, luego `AuditEvent`                 | referencias; nunca copia mutable              |
-| Restricciones     | futuro `CapabilityRestriction`                         | vínculo y efecto resumido                     |
+| Dominio | Fuente canónica actual o futura | El caso almacena |
+| --- | --- | --- |
+| Identidad/negocio | `ProviderVerification` y sujetos futuros | referencia, requisitos, evaluación y decisión |
+| Documentos | `ProviderDocument` | vínculo a la versión usada |
+| Fiscalidad | `ProviderTaxConfiguration` | resultado de preparación y decisión |
+| Pagos | `ProviderPaymentAccount`/PSP | referencia tokenizada y decisión |
+| Configuración | `ProviderConfigurationState` y fuentes del producto | snapshot de readiness |
+| Trabajo operativo | `ProviderComplianceAssignment`, luego `ComplianceCase` | owner, prioridad, SLA y tareas |
+| Auditoría | `ProviderAuditLog`, luego `AuditEvent` | referencias; nunca copia mutable |
+| Restricciones | futuro `CapabilityRestriction` | vínculo y efecto resumido |
 
 ### 5.1 Decisión arquitectónica
 
@@ -209,36 +218,36 @@ El caso coordina el trabajo, pero no sustituye las fuentes de verdad de cada dom
 
 ### 6.1 Tipos iniciales
 
-| Código            | Tipo                     | Uso                                  |
-| ----------------- | ------------------------ | ------------------------------------ |
-| `ONBOARDING`      | alta inicial             | expediente completo del proveedor    |
+| Código | Tipo | Uso |
+| --- | --- | --- |
+| `ONBOARDING` | alta inicial | expediente completo del proveedor |
 | `IDENTITY_REVIEW` | identidad/representación | inconsistencia o revisión específica |
-| `BUSINESS_REVIEW` | negocio/beneficiarios    | KYB o cambio material                |
-| `FISCAL_REVIEW`   | fiscalidad               | alta o cambio de datos fiscales      |
-| `DOCUMENT_REVIEW` | documentos               | revisión, sustitución o caducidad    |
-| `PAYOUT_REVIEW`   | cuenta de pago           | alta, cambio o inconsistencia        |
-| `REVERIFICATION`  | reverificación           | caducidad o cambio de política       |
-| `APPEAL`          | apelación                | impugnación de una decisión          |
-| `INCIDENT`        | incidente                | fraude, seguridad o daño operativo   |
+| `BUSINESS_REVIEW` | negocio/beneficiarios | KYB o cambio material |
+| `FISCAL_REVIEW` | fiscalidad | alta o cambio de datos fiscales |
+| `DOCUMENT_REVIEW` | documentos | revisión, sustitución o caducidad |
+| `PAYOUT_REVIEW` | cuenta de pago | alta, cambio o inconsistencia |
+| `REVERIFICATION` | reverificación | caducidad o cambio de política |
+| `APPEAL` | apelación | impugnación de una decisión |
+| `INCIDENT` | incidente | fraude, seguridad o daño operativo |
 
 ### 6.2 Estados oficiales del caso
 
-| Estado                    | Significado                        | Salidas permitidas                                                                         |
-| ------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------ |
-| `draft`                   | creado sin expediente completo     | `awaiting_provider`, `submitted`, `canceled`                                               |
-| `awaiting_provider`       | falta acción del proveedor         | `submitted`, `expired`, `canceled`                                                         |
-| `submitted`               | expediente recibido                | `triage`                                                                                   |
-| `triage`                  | alcance, prioridad y requisitos    | `in_review`, `pending_external`, `awaiting_provider`                                       |
-| `in_review`               | evaluación activa                  | `pending_external`, `pending_second_approval`, `changes_requested`, `approved`, `rejected` |
-| `pending_external`        | espera verificable de tercero      | `in_review`, `changes_requested`, `canceled`                                               |
-| `pending_second_approval` | decisión propuesta de alto impacto | `approved`, `rejected`, `in_review`, `canceled`                                            |
-| `changes_requested`       | corrección accionable              | `submitted`, `expired`, `canceled`                                                         |
-| `approved`                | requisitos del alcance satisfechos | `appealed`, `superseded`                                                                   |
-| `rejected`                | cierre negativo fundamentado       | `appealed`, `superseded`                                                                   |
-| `appealed`                | revisión separada de la decisión   | `in_review`, `approved`, `rejected`                                                        |
-| `expired`                 | plazo/evidencia vencidos           | `submitted`, `superseded`                                                                  |
-| `canceled`                | cierre administrativo              | `superseded`                                                                               |
-| `superseded`              | reemplazado por caso posterior     | ninguna                                                                                    |
+| Estado | Significado | Salidas permitidas |
+| --- | --- | --- |
+| `draft` | creado sin expediente completo | `awaiting_provider`, `submitted`, `canceled` |
+| `awaiting_provider` | falta acción del proveedor | `submitted`, `expired`, `canceled` |
+| `submitted` | expediente recibido | `triage` |
+| `triage` | alcance, prioridad y requisitos | `in_review`, `pending_external`, `awaiting_provider` |
+| `in_review` | evaluación activa | `pending_external`, `pending_second_approval`, `changes_requested`, `approved`, `rejected` |
+| `pending_external` | espera verificable de tercero | `in_review`, `changes_requested`, `canceled` |
+| `pending_second_approval` | decisión propuesta de alto impacto | `approved`, `rejected`, `in_review`, `canceled` |
+| `changes_requested` | corrección accionable | `submitted`, `expired`, `canceled` |
+| `approved` | requisitos del alcance satisfechos | `appealed`, `superseded` |
+| `rejected` | cierre negativo fundamentado | `appealed`, `superseded` |
+| `appealed` | revisión separada de la decisión | `in_review`, `approved`, `rejected` |
+| `expired` | plazo/evidencia vencidos | `submitted`, `superseded` |
+| `canceled` | cierre administrativo | `superseded` |
+| `superseded` | reemplazado por caso posterior | ninguna |
 
 ```mermaid
 stateDiagram-v2
@@ -322,17 +331,17 @@ Cada política tendrá:
 
 ### 7.2 Políticas iniciales
 
-| ID                         | Nombre                            | Estado                       | Aplicación                          |
-| -------------------------- | --------------------------------- | ---------------------------- | ----------------------------------- |
-| `POL-BO-LODGE-ONBOARD-001` | onboarding de alojamiento Bolivia | aprobada internamente        | cohorte MVP                         |
-| `POL-BO-IDENTITY-001`      | identidad y representación        | provisional                  | personas relacionadas               |
-| `POL-BO-BUSINESS-001`      | negocio y beneficiario final      | provisional                  | entidad proveedora                  |
-| `POL-BO-TAX-001`           | preparación fiscal                | validación externa requerida | alta y cambios fiscales             |
-| `POL-BO-PAYOUT-001`        | cuenta y liberación de pagos      | validación PSP requerida     | prepago/payout                      |
-| `POL-BO-LICENSE-001`       | licencia de hospedaje             | provisional                  | publicación                         |
-| `POL-GLOBAL-ACCESS-001`    | acceso interno                    | aprobada internamente        | Centro de Mando                     |
-| `POL-GLOBAL-RETENTION-001` | retención y eliminación           | provisional                  | todas las evidencias                |
-| `POL-GLOBAL-RISK-001`      | scoring y EDD                     | aprobada para piloto manual  | priorización, no rechazo automático |
+| ID | Nombre | Estado | Aplicación |
+| --- | --- | --- | --- |
+| `POL-BO-LODGE-ONBOARD-001` | onboarding de alojamiento Bolivia | aprobada internamente | cohorte MVP |
+| `POL-BO-IDENTITY-001` | identidad y representación | provisional | personas relacionadas |
+| `POL-BO-BUSINESS-001` | negocio y beneficiario final | provisional | entidad proveedora |
+| `POL-BO-TAX-001` | preparación fiscal | validación externa requerida | alta y cambios fiscales |
+| `POL-BO-PAYOUT-001` | cuenta y liberación de pagos | validación PSP requerida | prepago/payout |
+| `POL-BO-LICENSE-001` | licencia de hospedaje | provisional | publicación |
+| `POL-GLOBAL-ACCESS-001` | acceso interno | aprobada internamente | Centro de Mando |
+| `POL-GLOBAL-RETENTION-001` | retención y eliminación | provisional | todas las evidencias |
+| `POL-GLOBAL-RISK-001` | scoring y EDD | aprobada para piloto manual | priorización, no rechazo automático |
 
 ### 7.3 Aplicación temporal de políticas
 
@@ -350,20 +359,20 @@ Un caso conserva la versión que se le asignó al iniciar evaluación. Una nueva
 
 ### 8.1 Requisitos comunes del alojamiento
 
-| Código             | Requisito                           | Evidencia mínima                                   | Validación                 | Decisión negativa inicial  | Restricción                  |
-| ------------------ | ----------------------------------- | -------------------------------------------------- | -------------------------- | -------------------------- | ---------------------------- |
-| `REQ-ID-001`       | identidad del representante         | documento vigente + resultado vendor cuando exista | híbrida                    | pedir corrección o escalar | no publicar, vender ni pagar |
-| `REQ-KYB-001`      | existencia del negocio              | registro/NIT y datos declarados                    | manual + fuente autorizada | pedir corrección           | no go-live                   |
-| `REQ-KYB-002`      | facultad de representación          | poder, nombramiento o declaración respaldada       | manual                     | pedir evidencia            | no go-live                   |
-| `REQ-KYB-003`      | beneficiarios/control               | declaración y evidencia proporcional al riesgo     | manual                     | EDD                        | no go-live/payout            |
-| `REQ-TAX-001`      | NIT y razón social coherentes       | registro fiscal                                    | híbrida                    | corregir o escalar         | bloquear preparación fiscal  |
-| `REQ-LIC-001`      | autorización de hospedaje aplicable | licencia/registro vigente                          | manual                     | corregir/rechazar          | no publicar                  |
-| `REQ-PAY-001`      | cuenta de pago válida               | token/resultado PSP                                | delegada                   | corregir                   | no payout                    |
-| `REQ-PAY-002`      | titularidad coherente               | match PSP/entidad autorizada                       | delegada + revisión        | EDD                        | no payout                    |
-| `REQ-CONTRACT-001` | términos aceptados                  | aceptación versionada                              | automática                 | solicitar aceptación       | no go-live                   |
-| `REQ-PRODUCT-001`  | contenido mínimo                    | ficha, imágenes, políticas, capacidad              | automática/manual          | corregir                   | no publicar                  |
-| `REQ-OPS-001`      | contacto y soporte                  | contacto verificado                                | automática/manual          | corregir                   | no go-live                   |
-| `REQ-OPS-002`      | prueba integral                     | búsqueda a cancelación/conciliación simulada       | manual guiada              | corregir                   | no go-live                   |
+| Código | Requisito | Evidencia mínima | Validación | Decisión negativa inicial | Restricción |
+| --- | --- | --- | --- | --- | --- |
+| `REQ-ID-001` | identidad del representante | documento vigente + resultado vendor cuando exista | híbrida | pedir corrección o escalar | no publicar, vender ni pagar |
+| `REQ-KYB-001` | existencia del negocio | registro/NIT y datos declarados | manual + fuente autorizada | pedir corrección | no go-live |
+| `REQ-KYB-002` | facultad de representación | poder, nombramiento o declaración respaldada | manual | pedir evidencia | no go-live |
+| `REQ-KYB-003` | beneficiarios/control | declaración y evidencia proporcional al riesgo | manual | EDD | no go-live/payout |
+| `REQ-TAX-001` | NIT y razón social coherentes | registro fiscal | híbrida | corregir o escalar | bloquear preparación fiscal |
+| `REQ-LIC-001` | autorización de hospedaje aplicable | licencia/registro vigente | manual | corregir/rechazar | no publicar |
+| `REQ-PAY-001` | cuenta de pago válida | token/resultado PSP | delegada | corregir | no payout |
+| `REQ-PAY-002` | titularidad coherente | match PSP/entidad autorizada | delegada + revisión | EDD | no payout |
+| `REQ-CONTRACT-001` | términos aceptados | aceptación versionada | automática | solicitar aceptación | no go-live |
+| `REQ-PRODUCT-001` | contenido mínimo | ficha, imágenes, políticas, capacidad | automática/manual | corregir | no publicar |
+| `REQ-OPS-001` | contacto y soporte | contacto verificado | automática/manual | corregir | no go-live |
+| `REQ-OPS-002` | prueba integral | búsqueda a cancelación/conciliación simulada | manual guiada | corregir | no go-live |
 
 ### 8.2 Requisitos de tours para segunda ola
 
@@ -396,29 +405,29 @@ Se añadirán, como mínimo: licencia del operador, seguro vigente, permisos apl
 
 ### 9.2 Reason codes v1
 
-| Código                          | Mensaje interno                      | Mensaje/remediación al proveedor                    | Resultado usual                 |
-| ------------------------------- | ------------------------------------ | --------------------------------------------------- | ------------------------------- |
-| `DOC.ILLEGIBLE`                 | archivo no evaluable                 | subir copia nítida, completa y vigente              | cambios solicitados             |
-| `DOC.INCOMPLETE`                | faltan páginas o lados               | completar todas las páginas/caras                   | cambios solicitados             |
-| `DOC.EXPIRED`                   | evidencia vencida                    | presentar versión vigente                           | cambios solicitados/restricción |
-| `ID.MISMATCH`                   | identidad no coincide                | revisar datos y adjuntar respaldo correcto          | cambios solicitados             |
-| `ID.VENDOR_INCONCLUSIVE`        | vendor no concluye                   | repetir validación o aportar evidencia alternativa  | escalamiento                    |
-| `KYB.NOT_FOUND`                 | negocio no verificable               | revisar registro y razón social                     | cambios solicitados             |
-| `KYB.REPRESENTATION_MISSING`    | representación no probada            | aportar poder o documento equivalente               | cambios solicitados             |
-| `KYB.OWNER_UNKNOWN`             | control/beneficiario sin identificar | completar estructura de propiedad/control           | EDD                             |
-| `TAX.INCOMPLETE`                | identidad fiscal incompleta          | completar país, NIT y razón social                  | cambios solicitados             |
-| `TAX.MISMATCH`                  | registro no coincide                 | corregir datos o aportar respaldo                   | cambios solicitados             |
-| `LIC.MISSING`                   | licencia requerida ausente           | adjuntar autorización aplicable                     | restricción de publicación      |
-| `LIC.EXPIRED`                   | licencia vencida                     | renovar y adjuntar documento                        | despublicación                  |
-| `PAY.INVALID`                   | cuenta no válida                     | registrar una cuenta válida                         | bloqueo de payout               |
-| `PAY.OWNER_MISMATCH`            | titular inconsistente                | acreditar titularidad o registrar cuenta autorizada | EDD/bloqueo                     |
-| `PAY.RECENT_CHANGE`             | cambio cercano al payout             | esperar cooling period y completar revisión         | hold                            |
-| `RISK.EDD_REQUIRED`             | umbral o trigger de EDD              | revisión adicional; no exponer señales internas     | escalamiento                    |
-| `RISK.SANCTIONS_POSSIBLE_MATCH` | match potencial                      | revisión interna; comunicación aprobada             | hold/escalamiento               |
-| `RISK.FRAUD_SUSPECTED`          | señales de fraude                    | mensaje neutral aprobado por política               | restricción                     |
-| `OPS.TEST_FAILED`               | prueba operativa fallida             | corregir el paso señalado y repetir                 | no go-live                      |
-| `SYS.VENDOR_UNAVAILABLE`        | dependencia caída                    | no se requiere corrección del proveedor             | pendiente externo               |
-| `SYS.CONCURRENT_UPDATE`         | versión obsoleta                     | recargar el caso                                    | sin decisión                    |
+| Código | Mensaje interno | Mensaje/remediación al proveedor | Resultado usual |
+| --- | --- | --- | --- |
+| `DOC.ILLEGIBLE` | archivo no evaluable | subir copia nítida, completa y vigente | cambios solicitados |
+| `DOC.INCOMPLETE` | faltan páginas o lados | completar todas las páginas/caras | cambios solicitados |
+| `DOC.EXPIRED` | evidencia vencida | presentar versión vigente | cambios solicitados/restricción |
+| `ID.MISMATCH` | identidad no coincide | revisar datos y adjuntar respaldo correcto | cambios solicitados |
+| `ID.VENDOR_INCONCLUSIVE` | vendor no concluye | repetir validación o aportar evidencia alternativa | escalamiento |
+| `KYB.NOT_FOUND` | negocio no verificable | revisar registro y razón social | cambios solicitados |
+| `KYB.REPRESENTATION_MISSING` | representación no probada | aportar poder o documento equivalente | cambios solicitados |
+| `KYB.OWNER_UNKNOWN` | control/beneficiario sin identificar | completar estructura de propiedad/control | EDD |
+| `TAX.INCOMPLETE` | identidad fiscal incompleta | completar país, NIT y razón social | cambios solicitados |
+| `TAX.MISMATCH` | registro no coincide | corregir datos o aportar respaldo | cambios solicitados |
+| `LIC.MISSING` | licencia requerida ausente | adjuntar autorización aplicable | restricción de publicación |
+| `LIC.EXPIRED` | licencia vencida | renovar y adjuntar documento | despublicación |
+| `PAY.INVALID` | cuenta no válida | registrar una cuenta válida | bloqueo de payout |
+| `PAY.OWNER_MISMATCH` | titular inconsistente | acreditar titularidad o registrar cuenta autorizada | EDD/bloqueo |
+| `PAY.RECENT_CHANGE` | cambio cercano al payout | esperar cooling period y completar revisión | hold |
+| `RISK.EDD_REQUIRED` | umbral o trigger de EDD | revisión adicional; no exponer señales internas | escalamiento |
+| `RISK.SANCTIONS_POSSIBLE_MATCH` | match potencial | revisión interna; comunicación aprobada | hold/escalamiento |
+| `RISK.FRAUD_SUSPECTED` | señales de fraude | mensaje neutral aprobado por política | restricción |
+| `OPS.TEST_FAILED` | prueba operativa fallida | corregir el paso señalado y repetir | no go-live |
+| `SYS.VENDOR_UNAVAILABLE` | dependencia caída | no se requiere corrección del proveedor | pendiente externo |
+| `SYS.CONCURRENT_UPDATE` | versión obsoleta | recargar el caso | sin decisión |
 
 ### 9.3 Reglas de comunicación
 
@@ -437,17 +446,17 @@ Se añadirán, como mínimo: licencia del operador, seguro vigente, permisos apl
 
 ### 10.2 Matriz de restricción
 
-| Incumplimiento              | Restricción inicial                         | Se conserva                           | Liberación                 |
-| --------------------------- | ------------------------------------------- | ------------------------------------- | -------------------------- |
-| identidad/negocio pendiente | publicar, vender, cobrar y payout           | completar perfil                      | aprobación de requisitos   |
-| fiscalidad pendiente        | go-live/facturación aplicable               | completar configuración               | `TAX` aprobado             |
-| licencia ausente/vencida    | publicación y nuevas ventas del producto    | reservas existentes                   | licencia vigente aprobada  |
-| payout no verificado        | `release_payout`                            | ventas si política/PSP lo permiten    | cuenta aprobada            |
-| cambio de cuenta            | payout 72 h por defecto                     | resto de operación                    | cooling + validación       |
-| contenido incompleto        | producto afectado                           | otros productos                       | calidad aprobada           |
-| integración degradada       | venta automática afectada                   | gestión manual segura                 | health check aprobado      |
-| fraude probable             | nuevas ventas y payout                      | gestión segura de reservas existentes | segunda aprobación/tercero |
-| sanción confirmada          | bloqueo integral permitido por ley/contrato | preservación de evidencia             | Legal/Compliance externo   |
+| Incumplimiento | Restricción inicial | Se conserva | Liberación |
+| --- | --- | --- | --- |
+| identidad/negocio pendiente | publicar, vender, cobrar y payout | completar perfil | aprobación de requisitos |
+| fiscalidad pendiente | go-live/facturación aplicable | completar configuración | `TAX` aprobado |
+| licencia ausente/vencida | publicación y nuevas ventas del producto | reservas existentes | licencia vigente aprobada |
+| payout no verificado | `release_payout` | ventas si política/PSP lo permiten | cuenta aprobada |
+| cambio de cuenta | payout 72 h por defecto | resto de operación | cooling + validación |
+| contenido incompleto | producto afectado | otros productos | calidad aprobada |
+| integración degradada | venta automática afectada | gestión manual segura | health check aprobado |
+| fraude probable | nuevas ventas y payout | gestión segura de reservas existentes | segunda aprobación/tercero |
+| sanción confirmada | bloqueo integral permitido por ley/contrato | preservación de evidencia | Legal/Compliance externo |
 
 ### 10.3 Invariantes de restricción
 
@@ -461,12 +470,12 @@ Toda restricción tendrá `scope`, `capability`, `reasonCode`, `sourceCaseId`, `
 
 **Decisión `DEC-RISK-001` — `approved_internal` para piloto manual**
 
-| Puntaje | Tratamiento                       |
-| ------- | --------------------------------- |
-| 0–39    | flujo estándar                    |
-| 40–69   | revisión manual normal            |
-| 70–84   | revisión reforzada                |
-| 85–100  | bloqueo preventivo y escalamiento |
+| Puntaje | Tratamiento |
+| --- | --- |
+| 0–39 | flujo estándar |
+| 40–69 | revisión manual normal |
+| 70–84 | revisión reforzada |
+| 85–100 | bloqueo preventivo y escalamiento |
 
 Durante al menos los primeros 90 días:
 
@@ -478,13 +487,13 @@ Durante al menos los primeros 90 días:
 
 #### Componentes iniciales del score
 
-| Componente                  | Máximo | Ejemplos de señales                                                    |
-| --------------------------- | -----: | ---------------------------------------------------------------------- |
-| identidad y representación  |     25 | inconsistencias, documento dudoso, representación incompleta           |
-| negocio y control           |     20 | estructura opaca, beneficiario no identificado, registro inconsistente |
-| fiscalidad y licencias      |     15 | NIT, actividad, licencia o vigencia incongruentes                      |
-| pagos                       |     20 | titularidad, país/cuenta, cambio reciente, señal PSP                   |
-| comportamiento y relaciones |     20 | fraude previo, entidades vinculadas, actividad anómala                 |
+| Componente | Máximo | Ejemplos de señales |
+| --- | ---: | --- |
+| identidad y representación | 25 | inconsistencias, documento dudoso, representación incompleta |
+| negocio y control | 20 | estructura opaca, beneficiario no identificado, registro inconsistente |
+| fiscalidad y licencias | 15 | NIT, actividad, licencia o vigencia incongruentes |
+| pagos | 20 | titularidad, país/cuenta, cambio reciente, señal PSP |
+| comportamiento y relaciones | 20 | fraude previo, entidades vinculadas, actividad anómala |
 
 El score será la suma de señales activas versionadas, limitada a 100. Ninguna ausencia técnica, caída de vendor o falta de dato causada por FASTT sumará riesgo. Los hard triggers pueden elevar el tratamiento sin modificar artificialmente el score.
 
@@ -528,17 +537,17 @@ Se delegarán, cuando sea viable: autenticidad documental, OCR, liveness, compar
 
 `case.read`, `case.assign`, `evidence.read`, `evidence.reveal_sensitive`, `evidence.download`, `decision.propose`, `decision.approve`, `decision.reject`, `decision.override`, `restriction.apply`, `restriction.release`, `payment_account.approve`, `payout.hold`, `payout.release`, `policy.edit`, `policy.publish`, `audit.read`, `audit.export`, `access.grant`, `access.revoke`.
 
-| Rol                 | Lectura                          | Proponer | Decidir estándar | Alto riesgo/override       | Política                       | Acceso                        | Auditoría                      |
-| ------------------- | -------------------------------- | -------- | ---------------- | -------------------------- | ------------------------------ | ----------------------------- | ------------------------------ |
-| `case_agent`        | casos asignados; PII enmascarada | sí       | no               | no                         | no                             | no                            | caso propio                    |
-| `senior_reviewer`   | ámbito asignado                  | sí       | sí               | propone                    | no                             | no                            | ámbito asignado                |
-| `risk_approver`     | riesgo y evidencia necesaria     | sí       | sí               | aprueba como checker       | no                             | no                            | decisiones de riesgo           |
-| `payments_reviewer` | pago tokenizado                  | sí       | cuenta estándar  | propone liberación crítica | no                             | no                            | eventos de pago                |
-| `policy_admin`      | políticas y simulaciones         | no       | no               | no                         | edita; publicación con checker | no                            | cambios de política            |
-| `access_admin`      | identidades y roles              | no       | no               | no                         | no                             | concede/revoca con aprobación | eventos de acceso              |
-| `auditor`           | solo lectura autorizada          | no       | no               | no                         | no                             | no                            | lectura/exportación controlada |
-| `support_readonly`  | estado y mensajes permitidos     | no       | no               | no                         | no                             | no                            | no                             |
-| `platform_admin`    | break-glass limitado             | no       | no por defecto   | no por defecto             | no                             | emergencia                    | uso completo auditado          |
+| Rol | Lectura | Proponer | Decidir estándar | Alto riesgo/override | Política | Acceso | Auditoría |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `case_agent` | casos asignados; PII enmascarada | sí | no | no | no | no | caso propio |
+| `senior_reviewer` | ámbito asignado | sí | sí | propone | no | no | ámbito asignado |
+| `risk_approver` | riesgo y evidencia necesaria | sí | sí | aprueba como checker | no | no | decisiones de riesgo |
+| `payments_reviewer` | pago tokenizado | sí | cuenta estándar | propone liberación crítica | no | no | eventos de pago |
+| `policy_admin` | políticas y simulaciones | no | no | no | edita; publicación con checker | no | cambios de política |
+| `access_admin` | identidades y roles | no | no | no | no | concede/revoca con aprobación | eventos de acceso |
+| `auditor` | solo lectura autorizada | no | no | no | no | no | lectura/exportación controlada |
+| `support_readonly` | estado y mensajes permitidos | no | no | no | no | no | no |
+| `platform_admin` | break-glass limitado | no | no por defecto | no por defecto | no | emergencia | uso completo auditado |
 
 ### 12.3 Acciones con cuatro ojos
 
@@ -557,18 +566,18 @@ Se delegarán, cuando sea viable: autenticidad documental, OCR, liveness, compar
 
 ### 12.4 Régimen temporal unipersonal
 
-| Acción                                     | Régimen actual                                                               |
-| ------------------------------------------ | ---------------------------------------------------------------------------- |
-| pedir documentos/correcciones              | permitida y auditada                                                         |
-| aprobar expediente estándar de bajo riesgo | permitida durante piloto invitado                                            |
-| rechazar por falta remediable              | `request_changes`, no rechazo definitivo                                     |
-| publicar política                          | versión interna; política crítica requiere revisión externa antes de go-live |
-| cambiar cuenta de pago                     | depende del PSP; payout retenido                                             |
-| override de verificación fallida           | bloqueado                                                                    |
-| aprobar alto riesgo                        | bloqueado o revisión externa identificada                                    |
-| liberar hold crítico                       | bloqueado o PSP/tercero competente                                           |
-| exportar PII masivamente                   | bloqueado                                                                    |
-| borrar evidencia manualmente               | bloqueado; proceso de retención                                              |
+| Acción | Régimen actual |
+| --- | --- |
+| pedir documentos/correcciones | permitida y auditada |
+| aprobar expediente estándar de bajo riesgo | permitida durante piloto invitado |
+| rechazar por falta remediable | `request_changes`, no rechazo definitivo |
+| publicar política | versión interna; política crítica requiere revisión externa antes de go-live |
+| cambiar cuenta de pago | depende del PSP; payout retenido |
+| override de verificación fallida | bloqueado |
+| aprobar alto riesgo | bloqueado o revisión externa identificada |
+| liberar hold crítico | bloqueado o PSP/tercero competente |
+| exportar PII masivamente | bloqueado |
+| borrar evidencia manualmente | bloqueado; proceso de retención |
 
 ### 12.5 Acceso actual
 
@@ -580,19 +589,19 @@ El allowlist de correo de `requireInternalAdmin.ts` se acepta solo como compatib
 
 ### 13.1 Decisión provisional de retención
 
-| Clase                                               | Retención inicial                  | Condición                                       |
-| --------------------------------------------------- | ---------------------------------- | ----------------------------------------------- |
-| decisiones, auditoría y políticas                   | 10 años desde cierre               | validación legal requerida                      |
-| transacciones, conciliación, facturas, payout       | 10 años                            | validación fiscal/PSP                           |
-| resultado de verificación y referencia              | 10 años                            | acceso restringido                              |
-| expediente KYC completo si FASTT es sujeto obligado | 10 años tras relación              | depende de dictamen                             |
-| expediente KYC si no es sujeto obligado             | 5 años                             | salvo contrato/litigio                          |
-| documento bruto de identidad                        | 5 años o mínimo legal              | reducir si vendor basta                         |
-| biometría, selfie o video                           | FASTT no almacena                  | vendor: mínimo contractual, objetivo 30–90 días |
-| solicitud abandonada                                | 180 días                           | luego eliminación/anonimización                 |
-| proveedor rechazado                                 | decisión 5 años; bruto 12–24 meses | validar necesidad                               |
-| logs técnicos                                       | 12–24 meses                        | sin secretos/PII innecesaria                    |
-| acceso a PII                                        | 5 años inicialmente                | revisar obligación                              |
+| Clase | Retención inicial | Condición |
+| --- | --- | --- |
+| decisiones, auditoría y políticas | 10 años desde cierre | validación legal requerida |
+| transacciones, conciliación, facturas, payout | 10 años | validación fiscal/PSP |
+| resultado de verificación y referencia | 10 años | acceso restringido |
+| expediente KYC completo si FASTT es sujeto obligado | 10 años tras relación | depende de dictamen |
+| expediente KYC si no es sujeto obligado | 5 años | salvo contrato/litigio |
+| documento bruto de identidad | 5 años o mínimo legal | reducir si vendor basta |
+| biometría, selfie o video | FASTT no almacena | vendor: mínimo contractual, objetivo 30–90 días |
+| solicitud abandonada | 180 días | luego eliminación/anonimización |
+| proveedor rechazado | decisión 5 años; bruto 12–24 meses | validar necesidad |
+| logs técnicos | 12–24 meses | sin secretos/PII innecesaria |
+| acceso a PII | 5 años inicialmente | revisar obligación |
 
 ### 13.2 Reglas
 
@@ -610,26 +619,26 @@ El allowlist de correo de `requireInternalAdmin.ts` se acepta solo como compatib
 
 ### 14.1 SLA comunicado al proveedor
 
-| Flujo                      | Compromiso inicial                      |
-| -------------------------- | --------------------------------------- |
-| acuse de recepción         | inmediato                               |
-| revisión estándar completa | hasta 3 días hábiles                    |
-| revisión reforzada         | hasta 7 días hábiles                    |
-| nueva cuenta de pago       | 2–3 días hábiles más dependencia PSP    |
-| apelación                  | primera actualización en 5 días hábiles |
+| Flujo | Compromiso inicial |
+| --- | --- |
+| acuse de recepción | inmediato |
+| revisión estándar completa | hasta 3 días hábiles |
+| revisión reforzada | hasta 7 días hábiles |
+| nueva cuenta de pago | 2–3 días hábiles más dependencia PSP |
+| apelación | primera actualización en 5 días hábiles |
 
 El reloj se pausa cuando falta evidencia del proveedor o una dependencia externa, y el estado visible debe explicarlo.
 
 ### 14.2 Objetivos internos
 
-| Evento                                      | Objetivo                                                |
-| ------------------------------------------- | ------------------------------------------------------- |
-| triage estándar                             | 4 horas hábiles                                         |
-| primera acción de identidad/payout          | 1 día hábil                                             |
-| primera acción de negocio/fiscal/documentos | 2 días hábiles                                          |
-| triage high risk                            | 4 horas hábiles                                         |
-| posible sanción                             | 30 minutos para triage; mismo día para ruta de decisión |
-| incidente con viajeros activos              | 15 minutos                                              |
+| Evento | Objetivo |
+| --- | --- |
+| triage estándar | 4 horas hábiles |
+| primera acción de identidad/payout | 1 día hábil |
+| primera acción de negocio/fiscal/documentos | 2 días hábiles |
+| triage high risk | 4 horas hábiles |
+| posible sanción | 30 minutos para triage; mismo día para ruta de decisión |
+| incidente con viajeros activos | 15 minutos |
 
 Mientras haya una persona, estos son objetivos de planificación y transparencia, no disponibilidad 24/7. FASTT no publicará cobertura que no puede sostener.
 
@@ -721,21 +730,21 @@ El proyecto ya posee modelos y flujos para documentos, fiscalidad, pagos, verifi
 
 ## 17. Threat model inicial
 
-| Amenaza                    | Riesgo                         | Control requerido                               | Go-live                          |
-| -------------------------- | ------------------------------ | ----------------------------------------------- | -------------------------------- |
-| cuenta admin comprometida  | control total                  | MFA, reauth, sesión corta, alertas              | obligatorio                      |
-| autoaprobación             | fraude/error interno           | maker != checker y bloqueo temporal unipersonal | obligatorio en acciones críticas |
-| enlace documental filtrado | exposición PII                 | URL firmada breve, autorización, logs           | obligatorio                      |
-| exportación masiva         | fuga de datos                  | permiso específico, doble control, límites      | bloqueada inicialmente           |
-| webhook repetido/falso     | duplicación/manipulación       | firma, timestamp, nonce, idempotencia           | obligatorio                      |
-| concurrencia de revisores  | decisión perdida               | optimistic locking/version expected             | obligatorio                      |
-| documento sustituido       | aprobar evidencia diferente    | versionado/hash y vínculo exacto                | obligatorio                      |
-| cambio de payout           | desvío de fondos               | PSP, reauth, hold 72 h, notificación            | obligatorio                      |
-| auditoría fallida          | decisión no demostrable        | fail-safe en acciones críticas + outbox         | obligatorio                      |
-| vendor caído               | rechazo incorrecto             | `error/pending_external`, nunca `fail`          | obligatorio                      |
-| cambio de política         | aplicación retroactiva errónea | policy version pinning y simulación             | obligatorio                      |
-| read model atrasado        | acción sobre estado obsoleto   | validar comando en SoT                          | obligatorio                      |
-| abuso del único operador   | falta de independencia         | límites, bloqueos y revisión externa            | obligatorio                      |
+| Amenaza | Riesgo | Control requerido | Go-live |
+| --- | --- | --- | --- |
+| cuenta admin comprometida | control total | MFA, reauth, sesión corta, alertas | obligatorio |
+| autoaprobación | fraude/error interno | maker != checker y bloqueo temporal unipersonal | obligatorio en acciones críticas |
+| enlace documental filtrado | exposición PII | URL firmada breve, autorización, logs | obligatorio |
+| exportación masiva | fuga de datos | permiso específico, doble control, límites | bloqueada inicialmente |
+| webhook repetido/falso | duplicación/manipulación | firma, timestamp, nonce, idempotencia | obligatorio |
+| concurrencia de revisores | decisión perdida | optimistic locking/version expected | obligatorio |
+| documento sustituido | aprobar evidencia diferente | versionado/hash y vínculo exacto | obligatorio |
+| cambio de payout | desvío de fondos | PSP, reauth, hold 72 h, notificación | obligatorio |
+| auditoría fallida | decisión no demostrable | fail-safe en acciones críticas + outbox | obligatorio |
+| vendor caído | rechazo incorrecto | `error/pending_external`, nunca `fail` | obligatorio |
+| cambio de política | aplicación retroactiva errónea | policy version pinning y simulación | obligatorio |
+| read model atrasado | acción sobre estado obsoleto | validar comando en SoT | obligatorio |
+| abuso del único operador | falta de independencia | límites, bloqueos y revisión externa | obligatorio |
 
 Ningún riesgo crítico puede aceptarse únicamente por conveniencia del piloto.
 
@@ -882,15 +891,15 @@ Esta aprobación permite:
 
 ### 21.3 Validaciones pendientes antes del go-live público
 
-| ID              | Validación                                     | Responsable externo        | Bloquea                     |
-| --------------- | ---------------------------------------------- | -------------------------- | --------------------------- |
-| `VAL-LEGAL-001` | modelo contractual e intermediación            | abogado boliviano          | contratación pública/pagos  |
-| `VAL-TAX-001`   | facturación, comisión e impuestos              | asesor fiscal boliviano    | cobro/comisión              |
-| `VAL-PSP-001`   | marketplace, KYC, payout, refunds, chargebacks | PSP                        | prepago/payout              |
-| `VAL-AML-001`   | obligaciones directas y beneficiario final     | abogado/compliance local   | política KYB/EDD definitiva |
-| `VAL-PRIV-001`  | privacidad, transferencias y retención         | abogado/privacy            | evidencia real sensible     |
-| `VAL-SEC-001`   | revisión de controles críticos                 | especialista independiente | go-live público             |
-| `VAL-QA-001`    | muestreo/revisión independiente                | segunda persona o tercero  | ampliar cohorte/alto riesgo |
+| ID | Validación | Responsable externo | Bloquea |
+| --- | --- | --- | --- |
+| `VAL-LEGAL-001` | modelo contractual e intermediación | abogado boliviano | contratación pública/pagos |
+| `VAL-TAX-001` | facturación, comisión e impuestos | asesor fiscal boliviano | cobro/comisión |
+| `VAL-PSP-001` | marketplace, KYC, payout, refunds, chargebacks | PSP | prepago/payout |
+| `VAL-AML-001` | obligaciones directas y beneficiario final | abogado/compliance local | política KYB/EDD definitiva |
+| `VAL-PRIV-001` | privacidad, transferencias y retención | abogado/privacy | evidencia real sensible |
+| `VAL-SEC-001` | revisión de controles críticos | especialista independiente | go-live público |
+| `VAL-QA-001` | muestreo/revisión independiente | segunda persona o tercero | ampliar cohorte/alto riesgo |
 
 ### 21.4 Condición de cierre definitivo
 
@@ -947,20 +956,20 @@ El contrato v1.0 cambiará de `approved_internal` a `approved_public` para este 
 
 ## 23. Registro consolidado de decisiones
 
-| ID               | Decisión                                            | Estado              | Revisión                    |
-| ---------------- | --------------------------------------------------- | ------------------- | --------------------------- |
-| `DEC-SCOPE-001`  | Bolivia, hospedaje, cohorte invitada                | `approved_internal` | tras piloto                 |
-| `DEC-SCOPE-002`  | tours como segunda ola                              | `approved_internal` | gate de hospedaje           |
-| `DEC-BIZ-001`    | FASTT intermediario, no MoR/custodio                | `provisional`       | Legal/PSP                   |
-| `DEC-ARCH-001`   | monolito modular + caso coordinador                 | `approved_internal` | tras shadow                 |
-| `DEC-POLICY-001` | política como dato versionado                       | `approved_internal` | anual/incidente             |
-| `DEC-RISK-001`   | EDD >=70, sin rechazo automático                    | `approved_internal` | quincenal piloto            |
-| `DEC-SOD-001`    | cuatro ojos para alto impacto                       | `approved_internal` | al incorporar segundo actor |
-| `DEC-SOD-002`    | acciones críticas bloqueadas en régimen unipersonal | `approved_internal` | cambio organizacional       |
-| `DEC-RET-001`    | retención por clase                                 | `provisional`       | Legal/Privacy               |
-| `DEC-SLA-001`    | 3 días estándar/7 reforzada                         | `approved_internal` | tras 30–50 casos            |
-| `DEC-MIG-001`    | shadow → pilot → dual-read → general → retire       | `approved_internal` | por release                 |
-| `DEC-GOLIVE-001` | go-live como capacidad derivada                     | `approved_internal` | continua                    |
+| ID | Decisión | Estado | Revisión |
+| --- | --- | --- | --- |
+| `DEC-SCOPE-001` | Bolivia, hospedaje, cohorte invitada | `approved_internal` | tras piloto |
+| `DEC-SCOPE-002` | tours como segunda ola | `approved_internal` | gate de hospedaje |
+| `DEC-BIZ-001` | FASTT intermediario, no MoR/custodio | `provisional` | Legal/PSP |
+| `DEC-ARCH-001` | monolito modular + caso coordinador | `approved_internal` | tras shadow |
+| `DEC-POLICY-001` | política como dato versionado | `approved_internal` | anual/incidente |
+| `DEC-RISK-001` | EDD >=70, sin rechazo automático | `approved_internal` | quincenal piloto |
+| `DEC-SOD-001` | cuatro ojos para alto impacto | `approved_internal` | al incorporar segundo actor |
+| `DEC-SOD-002` | acciones críticas bloqueadas en régimen unipersonal | `approved_internal` | cambio organizacional |
+| `DEC-RET-001` | retención por clase | `provisional` | Legal/Privacy |
+| `DEC-SLA-001` | 3 días estándar/7 reforzada | `approved_internal` | tras 30–50 casos |
+| `DEC-MIG-001` | shadow → pilot → dual-read → general → retire | `approved_internal` | por release |
+| `DEC-GOLIVE-001` | go-live como capacidad derivada | `approved_internal` | continua |
 
 ---
 
@@ -968,7 +977,7 @@ El contrato v1.0 cambiará de `approved_internal` a `approved_public` para este 
 
 ### Proyecto FASTT
 
-- `docs/reports/report-source.md`
+- Contrato operativo de este documento y procedimiento de validación del Centro de Mando.
 - `docs/engineering/backoffice-governance-baseline.md`
 - `docs/fiscality/phase-0-contract.md`
 - `src/lib/provider-reject-categories.ts`
@@ -993,8 +1002,8 @@ El contrato v1.0 cambiará de `approved_internal` a `approved_public` para este 
 
 ## 25. Control de cambios
 
-| Versión | Fecha      | Cambio                                                   | Autoridad            |
-| ------- | ---------- | -------------------------------------------------------- | -------------------- |
-| 1.0     | 2026-09-02 | ejecución inicial de Fase 0 adaptada a responsable único | responsable de FASTT |
+| Versión | Fecha | Cambio | Autoridad |
+| --- | --- | --- | --- |
+| 1.0 | 2026-09-02 | ejecución inicial de Fase 0 adaptada a responsable único | responsable de FASTT |
 
 Toda modificación material deberá añadir una fila, actualizar las decisiones afectadas y conservar el motivo del cambio.

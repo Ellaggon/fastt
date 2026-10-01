@@ -1,6 +1,14 @@
 # Activación de dinero real
 
-Fastt no procesa pagos del viajero ni envía liquidaciones en la implementación actual. La verificación de una cuenta bancaria y la selección de quién cobra son datos preparatorios; ninguno concede permiso para mover dinero.
+Status: active
+Document type: runbook
+Owner: Finance / Engineering
+Last verified: 2026-10-01
+Scope: condiciones para incorporar y habilitar ejecución de dinero real
+Source of truth: puertas de capacidad y adaptadores enlazados; requiere decisión formal
+Review trigger: cambio de contrato o procedimiento; revisar código y evidencia antes de operar
+
+Fastt no procesa pagos del viajero ni envía liquidaciones en la implementación actual. La verificación de una cuenta bancaria y las declaraciones históricas de cobro son datos preparatorios; ninguno concede permiso para mover dinero. El acuerdo inicial de tours se define en el [contrato económico](../domains/tours/commercial-terms.md), sin selector de capacidades no soportadas.
 
 Antes de incorporar un ejecutor de cobro o liquidación deben cumplirse, en este orden:
 
