@@ -6,7 +6,6 @@ export default getViteConfig(
 		test: {
 			environment: "node",
 			include: ["tests/render/**/*.test.ts"],
-			setupFiles: [path.resolve("tests/setup/clean-db-env.ts")],
 		},
 		resolve: { alias: { "@": path.resolve("src") } },
 	},
