@@ -72,6 +72,27 @@ export function buildTourCommercialLinksForProductHub(params: {
 	})
 }
 
+type LoadedTourCommercialContext = {
+	status: string
+	variantId?: string | null
+	ratePlanId?: string | null
+}
+
+/** Keep product hub pages free of rate-plan identifiers in editorial surfaces. */
+export function buildTourCommercialLinksForLoadedContext(
+	productId: string,
+	context: LoadedTourCommercialContext | null
+) {
+	if (context?.status === "resolved") {
+		return buildTourCommercialLinks({
+			productId,
+			variantId: context.variantId,
+			ratePlanId: context.ratePlanId,
+		})
+	}
+	return buildTourCommercialLinks({ productId })
+}
+
 /** Secondary editing links cannot silently fall back to a different offer. */
 export function contextualizeTourLink(href: string, context: TourContextResolution): string {
 	return context.status === "unresolved" &&

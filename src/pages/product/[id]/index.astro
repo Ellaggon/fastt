@@ -23,7 +23,7 @@ import { summarizeProductPreparation } from "@/lib/playbook/summarize-product-pr
 import { getProductOperationalSurface } from "@/lib/product/productOperationalSurface"
 import { routes } from "@/lib/routes"
 import { loadTourCommercialContext } from "@/lib/tours/loadTourCommercialContext"
-import { buildTourCommercialLinks } from "@/lib/tours/tourProviderNavigation"
+import { buildTourCommercialLinksForLoadedContext } from "@/lib/tours/tourProviderNavigation"
 import {
 	ArrowRight,
 	BedDouble,
@@ -159,11 +159,7 @@ const tourContext = isTour
 			url: Astro.url,
 		})
 	: null
-const tourCommercialLinks = buildTourCommercialLinks({
-	productId,
-	variantId: tourContext && "variantId" in tourContext ? tourContext.variantId : null,
-	ratePlanId: tourContext && "ratePlanId" in tourContext ? tourContext.ratePlanId : null,
-})
+const tourCommercialLinks = buildTourCommercialLinksForLoadedContext(productId, tourContext)
 const conditionsHref = isHotel
 	? (operationalSurface?.conditionsHref ?? routes.rates())
 	: isTour
