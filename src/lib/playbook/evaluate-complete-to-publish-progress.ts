@@ -706,8 +706,9 @@ export async function evaluateCompleteToPublishProgress(
 
 	// Keep the stable readiness order in the shell. Moving blockers to the front made a
 	// partially prepared accommodation look like it had returned to "Paso 1 de N".
-	const orderedSteps = state.tourDiagnostic
-		? state.checks
+	const orderedSteps = state.checks
+	const progressSteps = state.tourDiagnostic
+		? orderedSteps
 				.filter(
 					(check) =>
 						check.key === "preview" ||
@@ -726,22 +727,22 @@ export async function evaluateCompleteToPublishProgress(
 					} else grouped.push({ ...check })
 					return grouped
 				}, [])
-		: state.checks
+		: orderedSteps
 
 	const explicitStep = String(options.currentStepId ?? "").trim() as ProductVerticalSectionKey
 	const currentStepId =
 		explicitStep ||
 		state.blockers[0]?.sectionKey ||
-		(state.readyToPublish ? "preview" : orderedSteps[0]?.sectionKey) ||
+		(state.readyToPublish ? "preview" : progressSteps[0]?.sectionKey) ||
 		null
-	const currentIndex = orderedSteps.findIndex((check) => check.sectionKey === currentStepId)
-	const currentHref = currentIndex >= 0 ? orderedSteps[currentIndex].href : null
+	const currentIndex = progressSteps.findIndex((check) => check.sectionKey === currentStepId)
+	const currentHref = currentIndex >= 0 ? progressSteps[currentIndex].href : null
 	const sequentialNext =
 		currentIndex >= 0
-			? orderedSteps.slice(currentIndex + 1).find((check) => check.href !== currentHref)
-			: (orderedSteps.find((check) => check.sectionKey === "preview") ?? null)
+			? progressSteps.slice(currentIndex + 1).find((check) => check.href !== currentHref)
+			: (progressSteps.find((check) => check.sectionKey === "preview") ?? null)
 
-	const steps: CompleteToPublishProgressStep[] = orderedSteps.map((check) => ({
+	const steps: CompleteToPublishProgressStep[] = progressSteps.map((check) => ({
 		key: check.sectionKey,
 		label: check.label,
 		guestImpact: check.guestImpact,
