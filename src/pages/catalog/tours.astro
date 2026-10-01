@@ -14,7 +14,7 @@ import { getProviderCatalogSummary } from "@/lib/catalog/providerCatalogSummary"
 import { buildCompleteToPublishEntryHref } from "@/lib/playbook/complete-to-publish"
 import { summarizeProductPreparation } from "@/lib/playbook/summarize-product-preparation"
 import { routes } from "@/lib/routes"
-import { buildTourCommercialLinks } from "@/lib/tours/tourProviderNavigation"
+import { buildTourCommercialLinks, contextualizeTourLink } from "@/lib/tours/tourProviderNavigation"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
@@ -33,13 +33,30 @@ const taskRows = await Promise.all(
 			request: Astro.request,
 			url: Astro.url,
 		})
-		const links = buildTourCommercialLinks({
+		const baseLinks = buildTourCommercialLinks({
 			productId: product.id,
-			variantId: product.primaryVariantId,
-			ratePlanId: product.primaryRatePlanId,
+			variantId:
+				preparation?.tourContext && "variantId" in preparation.tourContext
+					? preparation.tourContext.variantId
+					: null,
+			ratePlanId:
+				preparation?.tourContext && "ratePlanId" in preparation.tourContext
+					? preparation.tourContext.ratePlanId
+					: null,
 		})
-		const primaryTask =
-			product.status.state === "published"
+		const context = preparation?.tourContext
+		const links =
+			context && "options" in context
+				? (Object.fromEntries(
+						Object.entries(baseLinks).map(([key, href]) => [
+							key,
+							contextualizeTourLink(href, context),
+						])
+					) as typeof baseLinks)
+				: baseLinks
+		const primaryTask = preparation?.tourPresentation
+			? preparation.tourPresentation.primaryAction
+			: product.status.state === "published"
 				? { label: "Revisar disponibilidad", href: links.calendarHref }
 				: preparation?.readyToPublish
 					? { label: "Revisar y publicar", href: preparation.previewHref }
@@ -48,7 +65,16 @@ const taskRows = await Promise.all(
 							href:
 								preparation?.continuePreparationHref ?? buildCompleteToPublishEntryHref(product.id),
 						}
-		return { product, preparation, links, primaryTask }
+		return {
+			product,
+			preparation,
+			links,
+			primaryTask,
+			detailHref:
+				context && "options" in context
+					? contextualizeTourLink(routes.productDetail(product.id), context)
+					: routes.productDetail(product.id),
+		}
 	})
 )
 ---
@@ -113,7 +139,7 @@ const taskRows = await Promise.all(
 					</Card>
 				) : (
 					<div class="grid gap-3">
-						{taskRows.map(({ product, preparation, links, primaryTask }) => (
+						{taskRows.map(({ product, preparation, links, primaryTask, detailHref }) => (
 							<Card class="grid gap-5 bg-white p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
 								<div class="min-w-0 space-y-3">
 									<div class="flex flex-wrap items-center gap-2">
@@ -123,7 +149,14 @@ const taskRows = await Promise.all(
 									{preparation && !preparation.isPublished ? (
 										<>
 											<div class="flex max-w-xl items-center gap-3">
-												<div class="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200">
+												<div
+													class="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200"
+													role="progressbar"
+													aria-label="Preparación del tour"
+													aria-valuemin={0}
+													aria-valuemax={100}
+													aria-valuenow={preparation.readinessPercent}
+												>
 													<div
 														class="h-full rounded-full bg-slate-950"
 														style={`width: ${Math.max(0, Math.min(100, preparation.readinessPercent))}%`}
@@ -141,7 +174,8 @@ const taskRows = await Promise.all(
 										</>
 									) : (
 										<p class="text-sm text-slate-600">
-											Publicado · gestiona salidas, precio y cupos sin recorrer la creación.
+											{preparation?.tourPresentation?.support ??
+												"Publicado · gestiona opciones, precio y cupos."}
 										</p>
 									)}
 								</div>
@@ -149,10 +183,14 @@ const taskRows = await Promise.all(
 									<Button href={primaryTask.href} size="sm">
 										{primaryTask.label}
 									</Button>
-									<Button href={routes.productPreview(product.id)} variant="secondary" size="sm">
+									<Button
+										href={preparation?.previewHref ?? routes.productPreview(product.id)}
+										variant="secondary"
+										size="sm"
+									>
 										Vista previa
 									</Button>
-									<Button href={routes.productDetail(product.id)} variant="secondary" size="sm">
+									<Button href={detailHref} variant="secondary" size="sm">
 										Editar ficha
 									</Button>
 									{product.primaryVariantId ? (

@@ -1,4 +1,9 @@
 ---
+import { presentTourDiagnostic } from "@/lib/tours/tourDiagnosticPresentation"
+import {
+	loadTourCommercialContext,
+	tourContextEntryResponse,
+} from "@/lib/tours/loadTourCommercialContext"
 import GuestHouseRulesPanel from "@/components/house-rules/GuestHouseRulesPanel.astro"
 import GuestRoomPreviewCards from "@/components/productUI/GuestRoomPreviewCards.astro"
 import { buildGuestRoomPreviews } from "@/components/productUI/room-section.viewmodel"
@@ -28,7 +33,6 @@ import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
 import { routes } from "@/lib/routes"
 import { evaluateProviderGovernance } from "@/lib/provider-governance"
-import { resolveProductCommercialDiagnosis } from "@/lib/commercial-policy/enforcement"
 import { loadProductLineGate } from "@/lib/verification/line-gate"
 import {
 	getProductFullAggregate,
@@ -78,6 +82,16 @@ const verificationDocumentsHref = isTour
 	? `${routes.providerSettingsVerificationDocuments()}?line=tour&tab=activity&experience=${encodeURIComponent(productId)}`
 	: routes.providerSettingsVerificationDocuments()
 const publicDetailHref = vertical.routes.publicDetailHref(productId)
+if (isTour) {
+	const selection = await loadTourCommercialContext({
+		providerId,
+		productId,
+		request: Astro.request,
+		url: Astro.url,
+	})
+	const entryResponse = tourContextEntryResponse(selection, Astro.url)
+	if (entryResponse) return entryResponse
+}
 const previewVariantId = String(Astro.url.searchParams.get("variantId") ?? "").trim()
 const previewRatePlanId = String(Astro.url.searchParams.get("ratePlanId") ?? "").trim()
 const realTourPreviewHref = isTour
@@ -86,6 +100,11 @@ const realTourPreviewHref = isTour
 			ratePlanId: previewRatePlanId,
 		})
 	: null
+const publicPreviewReturnTo = Astro.url.pathname + Astro.url.search
+const realTourPreviewWithReturn = realTourPreviewHref
+	? `${realTourPreviewHref}&${new URLSearchParams({ returnTo: publicPreviewReturnTo })}`
+	: null
+
 const selectedTourReviewOffer =
 	isTour && previewVariantId && previewRatePlanId
 		? await db
@@ -128,47 +147,35 @@ if (!publishState) return Astro.redirect(routes.productList())
 
 const checks = publishState.checks
 const readyToPublish = publishState.readyToPublish && !isPublished
-const providerGovernance = await evaluateProviderGovernance(providerId, {
-	currentUserId: user.id,
-	persist: false,
-})
-const providerPublishBlockers = providerGovernance.blockers.filter((blocker) =>
+const providerGovernance = isTour
+	? null
+	: await evaluateProviderGovernance(providerId, {
+			currentUserId: user.id,
+			persist: false,
+		})
+const providerPublishBlockers = (providerGovernance?.blockers ?? []).filter((blocker) =>
 	blocker.capabilities.includes("publish")
 )
-const providerReadyToPublish = providerGovernance.capabilities.publish
+const providerReadyToPublish = isTour
+	? publishState.tourDiagnostic?.requirements.provider_authorization.result.state === "ready"
+	: Boolean(providerGovernance?.capabilities.publish)
 const providerPublishBlocker = providerPublishBlockers[0] ?? null
-const publicationEligibility = await productRepository.getProductPublicationEligibility(productId)
-const commercialDiagnosis = isTour
-	? await resolveProductCommercialDiagnosis({ providerId, productId })
-	: null
-const commercialPublishBlocker = commercialDiagnosis?.diagnosis.blockers.find((blocker) =>
-	blocker.capabilities.includes("publish")
-)
-const commercialPublishDetail = commercialPublishBlocker
-	? commercialPublishBlocker.evidenceState === "pending_review"
-		? "La evidencia aplicable ya fue enviada, pero aún está en revisión interna."
-		: commercialPublishBlocker.evidenceState === "rejected"
-			? "La evidencia aplicable fue rechazada. Corrígela o carga una nueva versión."
-			: commercialPublishBlocker.evidenceState === "expired"
-				? "La evidencia aplicable venció y debe renovarse antes de publicar."
-				: commercialPublishBlocker.evidenceState === "out_of_scope"
-					? "La evidencia existe, pero no cubre esta experiencia, territorio o actividad."
-					: null
-	: null
-const commercialReadyToPublish =
-	!commercialDiagnosis || commercialDiagnosis.diagnosis.capabilities.publish
-const lineGate = await loadProductLineGate({
-	providerId,
-	productId,
-	capability: "publish",
-})
-const lineGateBlocker = lineGate.enforced ? (lineGate.blockers[0] ?? null) : null
-const lineGateReady = !lineGate.enforced || lineGate.allowed
+const publicationEligibility = isTour
+	? { eligible: true, reason: null }
+	: await productRepository.getProductPublicationEligibility(productId)
+const lineGate = isTour
+	? null
+	: await loadProductLineGate({
+			providerId,
+			productId,
+			capability: "publish",
+		})
+const lineGateBlocker = lineGate?.enforced ? (lineGate.blockers[0] ?? null) : null
+const lineGateReady = isTour
+	? publishState.tourDiagnostic?.requirements.experience_authorization.result.state === "ready"
+	: !lineGate?.enforced || lineGate.allowed
 const publicationEligible =
-	providerReadyToPublish &&
-	publicationEligibility.eligible &&
-	commercialReadyToPublish &&
-	lineGateReady
+	providerReadyToPublish && publicationEligibility.eligible && lineGateReady
 const eligibilityBlocker = publicationEligibility.eligible
 	? null
 	: {
@@ -186,21 +193,21 @@ const publicationBlocker =
 				href: verificationHref,
 			}
 		: null) ??
-	(commercialPublishBlocker
-		? {
-				label: commercialPublishBlocker.action,
-				href: commercialPublishBlocker.id.includes("holder")
-					? routes.providerSettingsProfile()
-					: verificationDocumentsHref,
-			}
-		: null) ??
 	eligibilityBlocker
+const tourPresentation = publishState.tourDiagnostic
+	? presentTourDiagnostic(publishState.tourDiagnostic, {
+			published: isPublished,
+			previewHref: Astro.url.pathname + Astro.url.search,
+		})
+	: null
 const readinessPercent = publishState.readinessPercent
 const blockerLabels = publishState.blockers
 	.filter((check) => check.sectionKey !== "preview")
 	.map((check) => check.label)
 const actionableChecks = checks.filter((check) => check.sectionKey !== "preview")
-const actionableCompletedChecks = actionableChecks.filter((check) => check.complete).length
+const actionableCompletedChecks = publishState.tourDiagnostic
+	? publishState.completedChecks
+	: actionableChecks.filter((check) => check.complete).length
 const actionableBlockers = publishState.blockers.filter((check) => check.sectionKey !== "preview")
 const nextBlocker = actionableBlockers[0] ?? null
 
@@ -228,6 +235,11 @@ const stepId =
 				: "preview"
 
 function checkHref(check: (typeof checks)[number]) {
+	if (isTour && check.href.startsWith("/provider/")) {
+		const target = new URL(check.href, Astro.url)
+		target.searchParams.set("returnTo", Astro.url.pathname + Astro.url.search)
+		return target.pathname + target.search + target.hash
+	}
 	const navigationStep = check.navigationStep ?? check.sectionKey
 	if (playbookId === "complete-to-publish") {
 		return buildCompleteToPublishHref(check.href, navigationStep)
@@ -262,7 +274,7 @@ if (
 	nextBlocker &&
 	playbookId !== "complete-to-publish"
 ) {
-	return Astro.redirect(checkHref(nextBlocker))
+	if (!publishState.tourDiagnostic) return Astro.redirect(checkHref(nextBlocker))
 }
 
 const completePreparationHref = buildCompleteToPublishResumeHref(productId, checks)
@@ -410,7 +422,7 @@ if (!isTour) {
 		}
 
 		{
-			!isPublished && !publicationEligible ? (
+			!isTour && !isPublished && !publicationEligible ? (
 				<Card
 					variant="soft"
 					class="border-amber-200 bg-amber-50 text-slate-900"
@@ -421,9 +433,7 @@ if (!isTour) {
 							<p class="font-semibold">Hay un requisito del negocio pendiente</p>
 							<p class="mt-1 text-sm leading-6 text-slate-700">
 								{publicationBlocker
-									? commercialPublishDetail
-										? `${commercialPublishDetail} ${commercialPublishBlocker?.action ?? ""}`
-										: `Pendiente: ${publicationBlocker.label}. Al resolverlo, volveremos a comprobar los demás requisitos de publicación.`
+									? `Pendiente: ${publicationBlocker.label}. Al resolverlo, volveremos a comprobar los demás requisitos de publicación.`
 									: "Completa la configuración requerida del negocio antes de publicar esta ficha."}
 							</p>
 						</div>
@@ -462,13 +472,15 @@ if (!isTour) {
 							</p>
 							<p class="mt-1 max-w-3xl text-sm leading-6 text-neutral-400">
 								{
-									isPublished
-										? "La ficha ya está activa. Usa esta revisión para comprobar cómo la verá el viajero."
-										: readyToPublish && publicationEligible
-											? "Todo lo obligatorio está listo. Publica cuando estés preparado para recibir reservas."
-											: readyToPublish
-												? "La ficha está lista. Completa la configuración del negocio para poder publicarla."
-												: `${actionableCompletedChecks} requisitos listos. ${blockerLabels.length ? `Faltan ${blockerLabels.length}: ${blockerLabels.join(", ")}.` : ""}`
+									tourPresentation
+										? tourPresentation.message
+										: isPublished
+											? "La ficha ya está activa. Usa esta revisión para comprobar cómo la verá el viajero."
+											: readyToPublish && publicationEligible
+												? "Todo lo obligatorio está listo. Publica cuando estés preparado para recibir reservas."
+												: readyToPublish
+													? "La ficha está lista. Completa la configuración del negocio para poder publicarla."
+													: `${actionableCompletedChecks} requisitos listos. ${blockerLabels.length ? `Faltan ${blockerLabels.length}: ${blockerLabels.join(", ")}.` : ""}`
 								}
 							</p>
 						</div>
@@ -485,13 +497,20 @@ if (!isTour) {
 									? "Listo"
 									: readyToPublish
 										? "Negocio pendiente"
-										: `${readinessPercent}% listo`
+										: `${readinessPercent}% ${publishState.tourDiagnostic ? "preparado" : "listo"}`
 						}
 					</Badge>
 				</div>
 
 				<div class="flex items-center gap-3">
-					<div class="h-1 flex-1 overflow-hidden rounded-full bg-white/10">
+					<div
+						role="progressbar"
+						aria-label="Preparación de la ficha"
+						aria-valuemin="0"
+						aria-valuemax="100"
+						aria-valuenow={readinessPercent}
+						class="h-1 flex-1 overflow-hidden rounded-full bg-white/10"
+					>
 						<div
 							class="h-full rounded-full"
 							style={`width: ${Math.max(0, Math.min(100, readinessPercent))}%; background-color: var(--fastt-color-selection);`}
@@ -499,7 +518,9 @@ if (!isTour) {
 						</div>
 					</div>
 					<p class="shrink-0 text-xs font-medium text-neutral-400 tabular-nums">
-						{actionableCompletedChecks} de {actionableChecks.length}
+						{actionableCompletedChecks} de {
+							publishState.tourDiagnostic ? publishState.totalChecks : actionableChecks.length
+						}
 					</p>
 				</div>
 
@@ -539,19 +560,27 @@ if (!isTour) {
 							</p>
 							<p class="mt-1 max-w-xl text-sm leading-6 text-neutral-400">
 								{
-									isPublished
-										? "Puedes volver a la ficha para operar el alojamiento o revisar el resultado público."
-										: readyToPublish && publicationEligible
-											? `Revisa la ficha pública debajo y confirma que representa correctamente tu ${vertical.labels.singular.toLowerCase()}.`
-											: readyToPublish
-												? "La ficha ya está preparada. Resuelve este requisito del negocio para publicarla."
-												: (nextBlocker?.detail ?? "Completa el siguiente requisito para continuar.")
+									tourPresentation
+										? tourPresentation.support
+										: isPublished
+											? "Puedes volver a la ficha para operar el alojamiento o revisar el resultado público."
+											: readyToPublish && publicationEligible
+												? `Revisa la ficha pública debajo y confirma que representa correctamente tu ${vertical.labels.singular.toLowerCase()}.`
+												: readyToPublish
+													? "La ficha ya está preparada. Resuelve este requisito del negocio para publicarla."
+													: (nextBlocker?.detail ??
+														"Completa el siguiente requisito para continuar.")
 								}
 							</p>
 						</div>
 					</div>
 					<div class="flex shrink-0 flex-wrap items-center gap-2">
-						<Button href={routes.productDetail(productId)} variant="secondary">
+						<Button
+							href={isTour
+								? `${routes.productDetail(productId)}?${new URLSearchParams({ ...(previewVariantId ? { variantId: previewVariantId } : {}), ...(previewRatePlanId ? { ratePlanId: previewRatePlanId } : {}) })}`
+								: routes.productDetail(productId)}
+							variant="secondary"
+						>
 							{playbook.active ? "Salir y volver a la ficha" : "Volver a la ficha"}
 						</Button>
 						{
@@ -565,10 +594,16 @@ if (!isTour) {
 								</Button>
 							) : (
 								<Button
-									href={nextBlocker ? checkHref(nextBlocker) : completePreparationHref}
+									href={
+										nextBlocker
+											? checkHref(nextBlocker)
+											: (tourPresentation?.primaryAction.href ?? completePreparationHref)
+									}
 									variant="onDark"
 								>
-									{nextBlocker ? `Corregir ${nextBlocker.label}` : "Completar preparación"}
+									{nextBlocker?.cta ??
+										tourPresentation?.primaryAction.label ??
+										"Completar preparación"}
 									<ArrowRight class="h-4 w-4" aria-hidden="true" />
 								</Button>
 							)
@@ -645,14 +680,14 @@ if (!isTour) {
 								publicarlo.
 							</p>
 						</div>
-						<Button href={realTourPreviewHref} variant="secondary">
+						<Button href={realTourPreviewWithReturn} variant="secondary">
 							Abrir vista del viajero
 						</Button>
 					</header>
 					<div class="overflow-hidden rounded-xl border border-slate-700 bg-white shadow-xl">
 						<iframe
 							title={`Vista pública de ${aggregate.displayName}`}
-							src={realTourPreviewHref}
+							src={realTourPreviewWithReturn}
 							class="h-[48rem] w-full bg-white"
 							loading="eager"
 						/>
@@ -938,7 +973,6 @@ if (!isTour) {
 		define:vars={{
 			productId,
 			productPublishedHref: `${routes.productDetail(productId)}?published=1`,
-			providerBlockerHref: publicationBlocker?.href ?? routes.providerSettings(),
 		}}
 	>
 		;(function () {
@@ -952,15 +986,37 @@ if (!isTour) {
 					button.disabled = disabled
 				}
 			}
-			const tourErrorMessages = {
-				missing_tour_images: "Agrega al menos 5 fotos de la experiencia.",
-				missing_tour_itinerary: "Completa al menos 3 actividades del itinerario.",
-				missing_tour_meeting_point: "Define el punto e instrucciones de encuentro.",
-				missing_tour_duration: "Define la duración total del tour.",
-				missing_tour_includes: "Indica al menos un servicio incluido.",
-				missing_tour_category: "Selecciona una categoría de discovery.",
-				missing_tour_tickets: "Crea al menos un tipo de participante activo.",
-				missing_tour_schedule: "Configura una salida futura con precio y cupo.",
+			const showFailure = (payload, fallback) => {
+				const errors = Array.isArray(payload.validationErrors) ? payload.validationErrors : []
+				const blockers = Array.isArray(payload.blockers) ? payload.blockers : []
+				if (feedback)
+					feedback.textContent =
+						errors
+							.map((item) => item.message)
+							.filter(Boolean)
+							.join("\n") ||
+						blockers
+							.map((item) => item.label || item.action)
+							.filter(Boolean)
+							.join("\n") ||
+						payload.message ||
+						fallback
+				const action = errors.find((item) => item.action)?.action || payload.action
+				const href =
+					action?.href || payload.selectionHref || blockers.find((item) => item.href)?.href
+				if (providerBlockerAction) {
+					const safe =
+						typeof href === "string" &&
+						href.startsWith("/") &&
+						!href.startsWith("//") &&
+						!href.includes("\\") &&
+						!/%(?:2f|5c)/i.test(href)
+					providerBlockerAction.classList.toggle("hidden", !safe)
+					if (safe) {
+						providerBlockerAction.href = href
+						providerBlockerAction.textContent = action?.label || "Revisar pendiente"
+					}
+				}
 			}
 
 			const publish = async () => {
@@ -973,6 +1029,10 @@ if (!isTour) {
 				try {
 					const formData = new FormData()
 					formData.set("productId", productId)
+					for (const key of ["variantId", "ratePlanId"]) {
+						const value = new URL(window.location.href).searchParams.get(key)
+						if (value) formData.set(key, value)
+					}
 
 					const evaluateResponse = await fetch("/api/product/evaluate", {
 						method: "POST",
@@ -980,16 +1040,7 @@ if (!isTour) {
 					})
 					const evaluatePayload = await evaluateResponse.json().catch(() => ({}))
 					if (!evaluateResponse.ok || evaluatePayload.state !== "ready") {
-						const errors = Array.isArray(evaluatePayload.validationErrors)
-							? evaluatePayload.validationErrors
-									.map((item) =>
-										String(tourErrorMessages[item?.code] || item?.message || item?.code || "")
-									)
-									.filter(Boolean)
-									.join("\n")
-							: String(evaluatePayload.error || "No se pudo validar la oferta.")
-						if (feedback)
-							feedback.textContent = errors || "Completa los requisitos antes de publicar."
+						showFailure(evaluatePayload, "No se pudo validar la oferta. Vuelve a intentar.")
 						setDisabled(false)
 						return
 					}
@@ -1000,31 +1051,7 @@ if (!isTour) {
 					})
 					const publishPayload = await publishResponse.json().catch(() => ({}))
 					if (!publishResponse.ok || !publishPayload.ok) {
-						if (publishPayload.error === "provider_configuration_blocked") {
-							const blocker = Array.isArray(publishPayload.blockers)
-								? publishPayload.blockers[0]
-								: null
-							if (feedback) {
-								feedback.textContent = blocker?.label
-									? `No puedes publicar todavía: ${blocker.label}.`
-									: "No puedes publicar hasta completar la configuración del negocio."
-							}
-							if (providerBlockerAction) {
-								const href = String(blocker?.href || providerBlockerHref)
-								if (href.startsWith("/") && !href.startsWith("//"))
-									providerBlockerAction.href = href
-								providerBlockerAction.classList.remove("hidden")
-							}
-							setDisabled(false)
-							return
-						}
-						const errors = Array.isArray(publishPayload.validationErrors)
-							? publishPayload.validationErrors
-									.map((item) => String(item?.message || item?.code || ""))
-									.filter(Boolean)
-									.join("\n")
-							: String(publishPayload.error || "No se pudo publicar la oferta.")
-						if (feedback) feedback.textContent = errors
+						showFailure(publishPayload, "No se pudo publicar la oferta. Vuelve a intentar.")
 						setDisabled(false)
 						return
 					}

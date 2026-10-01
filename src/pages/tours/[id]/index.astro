@@ -9,6 +9,11 @@ import Layout from "@/layouts/Layout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { publicCatalogProductEligibility } from "@/lib/marketplace/public-catalog-eligibility"
+import { withTourOfferSelection } from "@/lib/playbook/launch-tour"
+import {
+	loadTourCommercialContext,
+	tourContextEntryResponse,
+} from "@/lib/tours/loadTourCommercialContext"
 import { tourDifficultyLabel } from "@/lib/tours/tourDifficulty"
 import { formatTourDuration, tourDepartureToStay } from "@/lib/tours/tourSemantics"
 import {
@@ -124,6 +129,21 @@ const isProviderPreview =
 		.trim()
 		.toLowerCase() === "tour"
 if (requestedProviderPreview && !isProviderPreview) return Astro.redirect("/tours")
+
+if (isProviderPreview && previewProviderId) {
+	const context = await loadTourCommercialContext({
+		providerId: previewProviderId,
+		productId: String(productId),
+		request: Astro.request,
+		url,
+	})
+	const entryResponse = tourContextEntryResponse(context, url)
+	if (entryResponse) return entryResponse
+}
+const previewSelection = {
+	variantId: url.searchParams.get("variantId"),
+	ratePlanId: url.searchParams.get("ratePlanId"),
+}
 
 const departureStr = url.searchParams.get("departure")
 const quantities = parseTourTicketQuantitiesFromSearchParams(url.searchParams)
@@ -550,7 +570,10 @@ const mapEmbed =
 						</div>
 						<a
 							class="font-semibold underline"
-							href={`/product/${encodeURIComponent(productId)}/preview`}
+							href={withTourOfferSelection(
+								`/product/${encodeURIComponent(productId)}/preview`,
+								previewSelection
+							)}
 						>
 							Volver a preparación
 						</a>
@@ -569,7 +592,10 @@ const mapEmbed =
 						</div>
 						<a
 							class="font-semibold underline"
-							href={`/product/${encodeURIComponent(productId)}/content`}
+							href={withTourOfferSelection(
+								`/product/${encodeURIComponent(productId)}/content`,
+								previewSelection
+							)}
 						>
 							Editar descripción
 						</a>

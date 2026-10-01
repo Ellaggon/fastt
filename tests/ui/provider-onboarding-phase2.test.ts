@@ -28,7 +28,10 @@ describe("phase 2 guided preparation surface", () => {
 		expect(playbook).toContain("/api/onboarding/preparation-session")
 		expect(playbook).toContain("variantId")
 		expect(playbook).toContain("ratePlanId")
-		expect(endpoint).toContain("eq(Product.providerId, providerId)")
+		expect(endpoint).toContain("savePreparationSession")
+		expect(await source("src/lib/onboarding/preparationSession.ts")).toContain(
+			"eq(Product.providerId, input.providerId)"
+		)
 		expect(dashboard).toContain("Continuar preparación")
 		expect(dashboard).toContain("savedCompleteToPublishHrefForProduct")
 		expect(dashboard).toContain("data-saved-preparation-href")

@@ -1,4 +1,5 @@
 ---
+import { loadTourCommercialContext } from "@/lib/tours/loadTourCommercialContext"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import FormField from "@/components/ui/FormField.astro"
@@ -194,6 +195,29 @@ if (isPlaybookMode) {
 	policyPlans = loadedPolicies.policyPlans
 	context = loadedPolicies.context
 	loaded = loadedRatePlan.loaded
+}
+
+if (String(row.productType).toLowerCase() === "tour") {
+	if (
+		(Astro.url.searchParams.get("productId") &&
+			Astro.url.searchParams.get("productId") !== String(row.productId)) ||
+		(Astro.url.searchParams.get("ratePlanId") &&
+			Astro.url.searchParams.get("ratePlanId") !== ratePlanId)
+	)
+		return new Response("El contexto no coincide con esta tarifa.", { status: 400 })
+	const selection = await loadTourCommercialContext({
+		providerId: auth.providerId,
+		productId: String(row.productId),
+		request: Astro.request,
+		selection: {
+			variantId: Astro.url.searchParams.get("variantId") || String(row.variantId),
+			ratePlanId,
+		},
+	})
+	if (selection.status === "read_failed")
+		return new Response("No se pudo consultar la oferta. Reintenta.", { status: 503 })
+	if (selection.status !== "resolved")
+		return new Response("La opción o tarifa no pertenece a este tour.", { status: 400 })
 }
 
 const offeringType =

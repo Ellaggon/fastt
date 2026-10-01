@@ -15,11 +15,15 @@ import {
 	ProviderHolderProfile,
 	ProviderPreparationSession,
 	ProviderProfile,
+	RatePlan,
 } from "@/shared/infrastructure/db/compat"
+import { upsertVariant } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertGeoPlace } from "../test-support/catalog-db-test-data"
 import { withSupabaseAuthStub } from "../test-support/supabase-auth-stub"
 
 const run = crypto.randomUUID()
+const roomId = `room-onboarding-${run}`
+const rateId = `rate-onboarding-${run}`
 
 function authedFormRequest(params: {
 	path: string
@@ -197,18 +201,28 @@ describe("e2e/authenticated provider onboarding", () => {
 					capabilities: { publish: false, booking: false },
 				})
 
+				await upsertVariant({
+					id: roomId,
+					productId: String(productId),
+					kind: "hotel_room",
+					name: "Room onboarding",
+					maxOccupancy: 2,
+				})
+				await db.insert(RatePlan).values({ id: rateId, variantId: roomId, name: "Rate onboarding" })
 				const sessionResponse = await preparationSessionPost({
 					request: authedJsonRequest({
 						path: "/api/onboarding/preparation-session",
 						token,
 						body: {
+							writeVersion: 2,
+							navigationAt: new Date().toISOString(),
 							productId,
 							playbookId: "launch",
 							vertical: "hotel",
 							stepId: "rate",
-							variantId: "room-onboarding",
-							ratePlanId: "rate-onboarding",
-							lastPath: `/rates/plans/manage?productId=${productId}&variantId=room-onboarding&ratePlanId=rate-onboarding&playbook=launch&step=rate&flow=create`,
+							variantId: roomId,
+							ratePlanId: rateId,
+							lastPath: `/rates/plans/manage?productId=${productId}&variantId=${roomId}&ratePlanId=${rateId}&playbook=launch&step=rate&flow=create`,
 						},
 					}),
 				} as any)
@@ -227,8 +241,8 @@ describe("e2e/authenticated provider onboarding", () => {
 				expect(session).toMatchObject({
 					productId,
 					stepId: "rate",
-					variantId: "room-onboarding",
-					ratePlanId: "rate-onboarding",
+					variantId: roomId,
+					ratePlanId: rateId,
 				})
 
 				const tourForm = new FormData()

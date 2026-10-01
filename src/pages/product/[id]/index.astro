@@ -22,8 +22,8 @@ import {
 import { summarizeProductPreparation } from "@/lib/playbook/summarize-product-preparation"
 import { getProductOperationalSurface } from "@/lib/product/productOperationalSurface"
 import { routes } from "@/lib/routes"
-import { buildTourCommercialLinksForProductHub } from "@/lib/tours/tourProviderNavigation"
-import { asc, db, eq, Variant } from "@/shared/infrastructure/db/compat"
+import { loadTourCommercialContext } from "@/lib/tours/loadTourCommercialContext"
+import { buildTourCommercialLinksForLoadedContext } from "@/lib/tours/tourProviderNavigation"
 import {
 	ArrowRight,
 	BedDouble,
@@ -115,6 +115,7 @@ const completePreparationHref =
 const previewHref = preparation?.previewHref ?? routes.productPreview(productId)
 const preparationCoach = publishState
 	? resolveProductPreparationCoach({
+			tourPresentation: preparation?.tourPresentation,
 			readyToPublish: publishState.readyToPublish,
 			readinessPercent: publishState.readinessPercent,
 			nextStepLabel: preparation?.nextStepLabel,
@@ -139,35 +140,26 @@ const productHeaderTitle = resolveProductPreparationHeaderTitle({
 	readyToPublish: Boolean(publishState?.readyToPublish),
 	workspaceSingularLabel: vertical.labels.workspaceSingular,
 })
-const productHeaderSummaryText = publishState
-	? resolveProductPreparationHeaderSummary({
-			isPublished,
-			readyToPublish: publishState.readyToPublish,
-			completedChecks: publishState.completedChecks,
-			totalChecks: publishState.totalChecks,
-			blockerLabels: preparation?.blockerPreview ?? [],
-		})
-	: productHeaderSummary
-const tourVariants = isTour
-	? await db
-			.select({
-				id: Variant.id,
-				salesEnabled: Variant.salesEnabled,
-				lifecycleState: Variant.lifecycleState,
+const productHeaderSummaryText =
+	preparation?.tourPresentation?.message ??
+	(publishState
+		? resolveProductPreparationHeaderSummary({
+				isPublished,
+				readyToPublish: publishState.readyToPublish,
+				completedChecks: publishState.completedChecks,
+				totalChecks: publishState.totalChecks,
+				blockerLabels: preparation?.blockerPreview ?? [],
 			})
-			.from(Variant)
-			.where(eq(Variant.productId, productId))
-			.orderBy(asc(Variant.createdAt))
-	: []
-const primaryTourVariant =
-	tourVariants.find((variant) => variant.salesEnabled && variant.lifecycleState === "ready") ??
-	tourVariants[0] ??
-	null
-const tourCommercialLinks = buildTourCommercialLinksForProductHub({
-	productId,
-	variantId: primaryTourVariant?.id,
-	operationalSurface,
-})
+		: productHeaderSummary)
+const tourContext = isTour
+	? await loadTourCommercialContext({
+			providerId,
+			productId,
+			request: Astro.request,
+			url: Astro.url,
+		})
+	: null
+const tourCommercialLinks = buildTourCommercialLinksForLoadedContext(productId, tourContext)
 const conditionsHref = isHotel
 	? (operationalSurface?.conditionsHref ?? routes.rates())
 	: isTour
