@@ -4,6 +4,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const mocks = vi.hoisted(() => ({
 	productRows: [] as Array<{ productId: string; productType: string }>,
 }))
+vi.mock("@/lib/tours/loadTourCommercialContext", () => ({
+	loadTourCommercialEntryContext: vi.fn().mockResolvedValue(null),
+	tourContextEntryResponse: vi.fn(),
+}))
 vi.mock("@/lib/rates/loadProviderRatePlanVariants", () => ({
 	loadProviderRatePlanVariants: vi.fn().mockResolvedValue([]),
 }))
