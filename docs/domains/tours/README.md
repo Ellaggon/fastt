@@ -14,7 +14,6 @@ Review trigger: cambio del contrato o de las superficies públicas y del proveed
 - [Acuerdo económico inicial](./commercial-terms.md): propuesta de cobro directo, comisión, base, devengo y cancelaciones; pendiente de aceptación.
 - [Matriz comercial BO v1](./policy-annex.md): borrador sin firma. No exige documentos nuevos hasta que Políticas, Finanzas y Operaciones Tours la ratifiquen.
 - [Playbooks del proveedor](./tour-provider-playbooks.md): especificación ideal de los cuatro recorridos guiados, etapas, diagnóstico compartido e interfaz.
-- [Flujo del proveedor](./provider-workflow.md): referencia histórica de etapas (supersedida por playbooks del proveedor para el recorrido de preparación).
 - [Taxonomía de datos](../../engineering/tour-vertical-table-taxonomy.md): Product → Variant/tour_slot → RatePlan → inventario → reserva.
 - [ADRs de Tours](../../engineering/adr/README.md): capacidades diferidas y expansiones de esquema.
 - [Rollout canary](../../engineering/tours-rollout-canary.md): habilitación gradual.

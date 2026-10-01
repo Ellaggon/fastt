@@ -1,3 +1,4 @@
+import { projectTourPublishingStages } from "@/lib/playbook/tour-publishing-stages"
 import {
 	TOUR_REQUIREMENTS,
 	summarizeTourDiagnostic,
@@ -78,6 +79,8 @@ export function presentTourDiagnostic(
 		href: options.previewHref,
 	}
 	return {
+		stages: projectTourPublishingStages(diagnosis),
+		preparation: summary.preparation,
 		primaryAction,
 		nextRequirementId: next?.id ?? null,
 		message: options.published

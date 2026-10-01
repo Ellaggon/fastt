@@ -1,0 +1,88 @@
+---
+import type { projectTourPublishingStages } from "@/lib/playbook/tour-publishing-stages"
+interface Props {
+	preparation: { readyCount: number; totalCount: number; readinessPercent: number }
+	stages?: ReturnType<typeof projectTourPublishingStages>
+	activeStageId?: string
+	showMeter?: boolean
+}
+const { preparation, stages, activeStageId, showMeter = true } = Astro.props
+const percent = preparation.readinessPercent
+const labels = {
+	ready: "Lista",
+	pending: "Pendiente",
+	blocked: "Requiere revisión",
+	not_evaluable: "Sin evaluar",
+}
+---
+
+<div class="space-y-3" data-tour-preparation-progress>
+	{
+		showMeter ? (
+			<>
+				<p class="text-sm font-medium">
+					{percent}% preparado · {preparation.readyCount} de {preparation.totalCount} requisitos
+				</p>
+				<div
+					role="progressbar"
+					aria-label="Preparación de la ficha"
+					aria-valuemin={0}
+					aria-valuemax={100}
+					aria-valuenow={percent}
+					aria-valuetext={`${percent}% preparado; ${preparation.readyCount} de ${preparation.totalCount} requisitos`}
+					class="fastt-progress-track h-1.5 overflow-hidden bg-slate-500/20"
+				>
+					<div
+						class="fastt-progress-value h-full"
+						style={`width: ${percent}%; background-color: var(--fastt-color-selection);`}
+					/>
+				</div>
+			</>
+		) : null
+	}
+
+	{
+		stages ? (
+			<details class="tour-stage-index" open>
+				<summary class="cursor-pointer text-sm font-medium">Ver preparación</summary>
+				<ol
+					class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3"
+					aria-label="Etapas de preparación"
+				>
+					{stages.map((stage) => (
+						<li
+							aria-current={stage.id === activeStageId ? "step" : undefined}
+							class="rounded-lg border border-slate-500/20 px-3 py-2 text-xs"
+						>
+							<span class="block font-medium">
+								{stage.position}. {stage.label}
+							</span>
+							<span class="mt-1 block text-slate-400">
+								{labels[stage.state as keyof typeof labels]}
+							</span>
+						</li>
+					))}
+				</ol>
+			</details>
+		) : null
+	}
+</div>
+<style>
+	@media (min-width: 768px) {
+		.tour-stage-index > summary {
+			display: none;
+		}
+	}
+</style>
+
+<script>
+	const desktop = window.matchMedia("(min-width: 768px)")
+	function initializeTourStageIndexes() {
+		document.querySelectorAll<HTMLDetailsElement>(".tour-stage-index").forEach((index) => {
+			index.open = desktop.matches
+		})
+	}
+	initializeTourStageIndexes()
+	desktop.addEventListener("change", initializeTourStageIndexes)
+	document.addEventListener("astro:page-load", initializeTourStageIndexes)
+</script>

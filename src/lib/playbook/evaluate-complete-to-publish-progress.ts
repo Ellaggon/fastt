@@ -632,7 +632,11 @@ export async function loadCompleteToPublishState(params: {
 	}
 
 	const blockers = checks
-		.filter((check) => !check.complete && (!tourDiagnostic || check.key !== "current_availability"))
+		.filter(
+			(check) =>
+				!check.complete &&
+				(!tourDiagnostic || (check.key !== "current_availability" && check.key !== "preview"))
+		)
 		.sort((a, b) =>
 			tourDiagnostic ? 0 : BLOCKER_ORDER.indexOf(a.sectionKey) - BLOCKER_ORDER.indexOf(b.sectionKey)
 		)

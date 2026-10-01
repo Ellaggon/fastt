@@ -1,4 +1,5 @@
 ---
+import TourPreparationProgress from "@/components/tours/TourPreparationProgress.astro"
 import { presentTourDiagnostic } from "@/lib/tours/tourDiagnosticPresentation"
 import {
 	loadTourCommercialContext,
@@ -408,6 +409,9 @@ if (!isTour) {
 	stepId={stepId}
 	productId={productId}
 	isHotel={isHotel}
+	playbookVertical={vertical.vertical}
+	variantId={previewVariantId}
+	ratePlanId={previewRatePlanId}
 	hideFooter={playbook.active && stepId === "preview"}
 >
 	<section class="space-y-7">
@@ -502,27 +506,31 @@ if (!isTour) {
 					</Badge>
 				</div>
 
-				<div class="flex items-center gap-3">
-					<div
-						role="progressbar"
-						aria-label="Preparación de la ficha"
-						aria-valuemin="0"
-						aria-valuemax="100"
-						aria-valuenow={readinessPercent}
-						class="h-1 flex-1 overflow-hidden rounded-full bg-white/10"
-					>
-						<div
-							class="h-full rounded-full"
-							style={`width: ${Math.max(0, Math.min(100, readinessPercent))}%; background-color: var(--fastt-color-selection);`}
-						>
+				{
+					tourPresentation ? (
+						<TourPreparationProgress preparation={tourPresentation.preparation} />
+					) : (
+						<div class="flex items-center gap-3">
+							<div
+								role="progressbar"
+								aria-label="Preparación de la ficha"
+								aria-valuemin="0"
+								aria-valuemax="100"
+								aria-valuenow={readinessPercent}
+								class="h-1 flex-1 overflow-hidden rounded-full bg-white/10"
+							>
+								<div
+									class="h-full rounded-full"
+									style={`width: ${Math.max(0, Math.min(100, readinessPercent))}%; background-color: var(--fastt-color-selection);`}
+								/>
+							</div>
+							<p class="shrink-0 text-xs font-medium text-neutral-400 tabular-nums">
+								{actionableCompletedChecks} de{" "}
+								{publishState.tourDiagnostic ? publishState.totalChecks : actionableChecks.length}
+							</p>
 						</div>
-					</div>
-					<p class="shrink-0 text-xs font-medium text-neutral-400 tabular-nums">
-						{actionableCompletedChecks} de {
-							publishState.tourDiagnostic ? publishState.totalChecks : actionableChecks.length
-						}
-					</p>
-				</div>
+					)
+				}
 
 				<div
 					class="flex flex-col gap-4 border-t border-white/10 pt-5 sm:flex-row sm:items-center sm:justify-between"

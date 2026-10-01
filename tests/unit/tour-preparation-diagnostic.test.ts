@@ -235,3 +235,66 @@ describe("B5 surface parity", () => {
 		)
 	})
 })
+
+describe("B7 parity across preparation surfaces and server blockers", () => {
+	it.each([
+		"price",
+		"conditions",
+		"calendar",
+		"sold_out",
+		"commercial_failure",
+		"authorization_failure",
+		"ambiguous",
+	])("preserves the same diagnosis for %s", async (scenario) => {
+		if (scenario === "price")
+			mocks.commercial.mockResolvedValue({ observations: { ...observations, priceReady: false } })
+		if (scenario === "conditions")
+			mocks.commercial.mockResolvedValue({
+				observations: { ...observations, conditionsReady: false },
+			})
+		if (scenario === "calendar")
+			mocks.commercial.mockResolvedValue({
+				observations: { ...observations, configuredDateCount: 0, availableDateCount: 0 },
+			})
+		if (scenario === "sold_out")
+			mocks.commercial.mockResolvedValue({
+				observations: { ...observations, availableDateCount: 0 },
+			})
+		if (scenario === "commercial_failure")
+			mocks.commercial.mockRejectedValue(new Error("read failed"))
+		if (scenario === "authorization_failure")
+			mocks.authorization.mockRejectedValue(new Error("read failed"))
+		if (scenario === "ambiguous")
+			mocks.context.mockResolvedValue({
+				status: "unresolved",
+				productId: "tour",
+				reason: "selection_required",
+				options: [],
+				variantId: null,
+				ratePlanId: null,
+			})
+		const state = (await loadCompleteToPublishState(input))!
+		const preview = presentTourDiagnostic(state.tourDiagnostic!, {
+			previewHref: "/product/tour/preview",
+		})
+		const server = publicationValidationErrorsFromState(state)
+		const card = (await summarizeProductPreparation({ ...input, status: "draft" }))!
+		for (const step of ["content", "rate", "preview"]) {
+			const guide = (await evaluateTourLaunchProgress("tour", "provider", { currentStepId: step }))!
+			expect(guide.progress.progressPercent).toBe(state.readinessPercent)
+			expect(guide.tourPresentation?.publicationBlockers).toEqual(preview.publicationBlockers)
+			expect(guide.tourPresentation?.stages).toEqual(preview.stages)
+		}
+		expect(card.tourPresentation?.publicationBlockers).toEqual(preview.publicationBlockers)
+		expect(card.readinessPercent).toBe(state.readinessPercent)
+		expect(server.map((e) => ({ code: e.code, message: e.message, action: e.action }))).toEqual(
+			preview.publicationBlockers.map((b) => ({
+				code: b.id,
+				message: b.reason.message,
+				action: b.action,
+			}))
+		)
+		expect(state.readyToPublish).toBe(server.length === 0)
+		expect(state.blockers.some((check) => check.key === "preview")).toBe(false)
+	})
+})

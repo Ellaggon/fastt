@@ -8,7 +8,7 @@ Scope: definición ideal de los recorridos guiados (playbooks) del proveedor de 
 Source of truth: este documento; implementación en `src/lib/playbook/`, layouts de playbook y superficies enlazadas del proveedor  
 Related code/tests: `src/lib/playbook/`, `src/layouts/PlaybookLayout.astro`, `src/pages/product/`, `src/pages/catalog/tours.astro`, pruebas de wizard comercial de tours  
 Review trigger: cambio de etapas, playbooks, requisitos de preparación, verificación o activación comercial de tours  
-Supersedes: [Flujo del proveedor para tours](./provider-workflow.md) (recuento y orden de etapas del recorrido de preparación)
+Supersedes: `docs/domains/tours/provider-workflow.md` (retirado: recuento histórico de pantallas; reemplazado por seis etapas y progreso por requisitos)
 
 ## Principios de diseño (referencia de mercado)
 
@@ -124,6 +124,8 @@ Evaluación B3: `buildTourDiagnostic.ts` proyecta observaciones de precio, condi
 B5: `tourDiagnosticPresentation.ts` proyecta motivos y acciones en catálogo, dashboard, guía, preview y errores de API, con selección y retorno. Una lectura fallida ofrece reintento. El refresco conserva el diagnóstico; la barra mide preparación. Pruebas: `tests/unit/tour-preparation-diagnostic.test.ts` y `tests/unit/product-tour-selection-api.test.ts`.
 
 ### Progreso
+
+B6: `tour-publishing-stages.ts` agrupa las pantallas en seis etapas; sus subpasos no suman avance. `TourPreparationProgress.astro` comparte porcentaje, texto y valor accesible entre guía y preview. La etapa de revisión refleja preparación, autorización y activación, pero no agrega un requisito ni un bloqueo duplicado. Sin diagnóstico no se presenta un porcentaje inventado. El índice distingue la etapa actual mediante `aria-current="step"` de su estado persistido; cambiar de pantalla no altera requisitos.
 
 - La **posición** puede mostrarse como “Etapa X de 6”.  
 - Un identificador explícito de recorrido de **tours** debe prevalecer sobre parámetros genéricos de flujo de creación (por ejemplo `flow=create` de alojamiento).
