@@ -1,5 +1,13 @@
 # Validación UX de Integraciones
 
+Status: active
+Document type: runbook
+Owner: Provider Experience
+Last verified: 2026-10-01
+Scope: protocolo de observación humana de integraciones
+Source of truth: formularios de integración y tareas descritas; no acredita sesiones realizadas
+Review trigger: cambio de contrato o procedimiento; revisar código y evidencia antes de operar
+
 ## Objetivo
 
 Comprobar que un proveedor sin experiencia técnica puede elegir, autorizar, mapear y validar

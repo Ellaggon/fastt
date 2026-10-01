@@ -1,5 +1,13 @@
 # Fiscality closure certification
 
+Status: active
+Document type: runbook
+Owner: Engineering / Finance
+Last verified: 2026-10-01
+Scope: procedimiento de certificación fiscal; no es evidencia de ejecución
+Source of truth: src/scripts/record-fiscality-migration.ts y contrato fiscal
+Review trigger: cambio de contrato, controles o procedimiento; revisar evidencia del entorno antes de ejecutar
+
 ## Data migration
 
 1. Run the Phase 0 audit for every provider and retain the JSON output.

@@ -1,5 +1,13 @@
 # Tours canary rollout
 
+Status: active
+Document type: runbook
+Owner: Tours / Operations
+Last verified: 2026-10-01
+Scope: rollout por cohortes y reversión de tours
+Source of truth: flags, scripts y artefactos canary enlazados
+Review trigger: cambio de contrato o procedimiento; revisar código y evidencia antes de operar
+
 Progressive release for Tours kill-switches. Commerce and check-in expand only after
 observation proves no regression on hold failures, hold→confirm conversion, voucher
 redeem/issued, or refund quote vs applied.

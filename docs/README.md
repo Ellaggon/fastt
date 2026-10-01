@@ -3,7 +3,7 @@
 Status: active  
 Document type: index  
 Owner: Engineering  
-Last verified: 2026-09-28
+Last verified: 2026-10-01
 Scope: índice y reglas de navegación documental  
 Source of truth: este índice y los índices de dominio
 Review trigger: incorporación, reemplazo o retiro de una fuente documental
@@ -29,9 +29,9 @@ Review trigger: incorporación, reemplazo o retiro de una fuente documental
 | Onboarding                    | [Índice de onboarding](./onboarding/README.md)                                                                                  |
 | Centro de Mando               | [Índice del Centro de Mando](./command-center/README.md)                                                                        |
 | PostgreSQL                    | [Operación PostgreSQL](./engineering/supabase-migration.md)                                                                      |
-| Integraciones                 | [Runbook de integraciones](./engineering/provider-integration-operations-runbook.md)                                            |
+| Integraciones                 | [Runbook de integraciones](./engineering/provider-integration-operations-runbook.md) y [validación UX](./provider-integrations-ux-validation.md)                                            |
 | Seguridad                     | [Registro de deuda](./engineering/security-debt-register.md) y [monitorización](./engineering/dependency-monitoring-runbook.md) |
-| Fiscalidad                    | [Contrato de fiscalidad](./fiscality/phase-0-contract.md) y [auditoría de modos heredados](./certifications/fiscality/legacy-invoicing-modes-2026-09-28.md) |
+| Fiscalidad                    | [Contrato de fiscalidad](./fiscality/phase-0-contract.md), [procedimiento de certificación](./fiscality/phase-10-certification.md) y [auditoría de modos heredados](./certifications/fiscality/legacy-invoicing-modes-2026-09-28.md) |
 | Pagos reales                  | [Activación de dinero real](./payments/live-money-activation.md) y [certificación financiera transversal](./certifications/financial/booking-payment-commission-cancellation-2026-09-28.md) |
 
 ## Contratos técnicos transversales
@@ -42,7 +42,7 @@ Review trigger: incorporación, reemplazo o retiro de una fuente documental
   [propiedad de datos del proveedor](./engineering/provider-settings-table-taxonomy.md).
 - Operación: [navegación administrativa](./engineering/backoffice-governance-baseline.md),
   [Rooms & Rates](./engineering/rooms-rates-table-taxonomy.md) y
-  [rendimiento](./performance-observability.md).
+  [rendimiento](./performance-observability.md) y [guardrails PostgreSQL](./engineering/db-surface-risk-analysis.md).
 
 Abrir sólo la fuente correspondiente a la tarea. Un contrato grande se consulta por sección;
 no es una instrucción para leer todos los reportes del repositorio.
@@ -62,3 +62,5 @@ No crear archivos `phase-N-closeout.md` para cambios ordinarios. Actualiza el do
 
 La admisión, metadata, tamaño e indexación se validan con `pnpm run check:docs`. Las reglas
 completas están en la [política de documentación](./DOCUMENTATION_POLICY.md).
+
+`Last verified` indica la última revisión documental. No acredita por sí solo un despliegue, una prueba o una aprobación comercial; esos resultados necesitan evidencia fechada con entorno y alcance. Los nombres heredados `phase-*` se conservan cuando el contenido es un contrato o procedimiento vigente, no un cierre de sesión.

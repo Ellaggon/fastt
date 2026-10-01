@@ -1,5 +1,13 @@
 # DB Surface Risk Analysis (Phase H)
 
+Status: active
+Document type: canonical
+Owner: Engineering
+Last verified: 2026-10-01
+Scope: superficie PostgreSQL y guardrails de consultas
+Source of truth: esquema y consultas enlazadas; inventarios conservan su fecha original
+Review trigger: cambio de contrato o procedimiento; revisar código y evidencia antes de operar
+
 Last updated: 2026-07-28
 
 ## Objective

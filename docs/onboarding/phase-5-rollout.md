@@ -1,5 +1,13 @@
 # Fase 5 — Lanzamiento gradual y medición
 
+Status: active
+Document type: runbook
+Owner: Provider Experience
+Last verified: 2026-10-01
+Scope: cohortes, métricas y reversión del onboarding
+Source of truth: tests/unit/provider-onboarding-rollout.test.ts y configuración de servidor
+Review trigger: cambio de contrato, controles o procedimiento; revisar evidencia del entorno antes de ejecutar
+
 **Fecha:** 15-09-2026  
 **Estado:** controles de lanzamiento implementados; no activado sobre proveedores reales.
 
@@ -32,7 +40,7 @@ Un error de autorización, publicación, inventario, pérdida de preparación, r
 - Persistir `SETTINGS_FUNNEL_SINK=both` para que el funnel sea consultable en `ProviderAuditLog` y disponible en logs.
 - Consultar `GET /api/admin/providers/settings-funnel` como administrador para bloqueos, CTA y dominios completados. Nunca guardar documentos, tokens o datos personales en los eventos.
 - Medir por cohorte: inicio efectivo, primera identidad, primer borrador, primera oferta reservable, abandono, errores, latencia y tickets de soporte.
-- No comparar cohortes hasta contar con al menos 30 altas elegibles por vertical y una ventana equivalente, como define el contrato de Fase 0.
+- Usar al menos 30 altas elegibles por vertical y una ventana equivalente como umbral exploratorio del piloto. No equivale a significancia estadística ni a certificación; definir el tamaño de muestra antes de una comparación decisoria.
 
 ## Criterios de avance
 

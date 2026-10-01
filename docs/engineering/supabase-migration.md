@@ -70,3 +70,34 @@ sobre una fila v2: coordinar el despliegue de la aplicación. Para revertir cód
 conservar este protocolo y la clave por producto; el índice anterior perdería
 compatibilidad al existir varios tours. No reconstruir sesiones sobrescritas ni
 asignar automáticamente un producto a las filas históricas sin él.
+
+### Publicar y certificar el escritor v2
+
+Responsable: la persona que administra Fastt. La publicación es una acción explícita,
+separada de preparar código local; no requiere inventar aprobadores adicionales.
+
+1. Identificar el proyecto Vercel que sirve el dominio operativo y la revisión candidata.
+   El repositorio contempla `fastt` y `fastt-five`; no asumir que ambos son producción.
+   Respaldar sesiones y comprobar registro/checksum de las dos migraciones anteriores.
+2. Ejecutar `pnpm run check`, `pnpm run build` y las pruebas unitarias de sesiones;
+   ejecutar `tests/integration/preparation-session-persistence.test.ts` con la configuración
+   de integración y una base aislada compatible. No sustituirla por producción.
+3. Preparar un deployment de revisión con el adaptador Vercel y secretos del entorno correcto.
+   Comprobar que HTML, cliente y API pertenecen a la misma revisión; un build local con
+   adaptador Node no certifica este deployment. Promoverlo sólo después de estas comprobaciones.
+4. En el dominio operativo, usar dos productos controlados del mismo proveedor y usuario.
+   Alternar recorridos, recargar y reanudarlos: comprobar selección y ruta independientes.
+   Confirmar respuestas exitosas del endpoint y filas con `writeVersion = 2`; comparar
+   inventario, aprobaciones y reservas antes/después para excluir cambios ajenos a sesiones.
+5. Probar una petición autenticada sin `writeVersion: 2`: debe devolver 409 sin modificar
+   filas. Verificar rechazo de relaciones ajenas y que una navegación retrasada no reemplaza
+   una posterior. Registrar revisión desplegada, fecha y resultados sin credenciales.
+6. Si falla el guardado, detener la certificación y corregir o desplegar una revisión que
+   conserve v2. No retirar el trigger, restaurar el índice antiguo ni promover un escritor v1.
+   Una pestaña antigua debe recargarse; no prometer que su cliente incorporará avisos nuevos.
+
+Una sesión anterior sobrescrita sólo puede recuperarse si existe un respaldo o registro
+verificable. Sin esa evidencia, reanudar desde el diagnóstico actual del producto y solicitar
+selección si hay varias ofertas; no inventar la última ruta visitada. Esto recupera el recorrido,
+no el historial perdido. El cierre exige evidencia del runtime operativo; preparar este
+procedimiento o aprobar pruebas locales no equivale a publicar ni certificar producción.

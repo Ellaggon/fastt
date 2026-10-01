@@ -1,5 +1,13 @@
 # Performance Observability Contract
 
+Status: active
+Document type: canonical
+Owner: Engineering
+Last verified: 2026-10-01
+Scope: instrumentación y criterios de rendimiento SSR/API
+Source of truth: código de instrumentación, logs y mediciones del entorno objetivo
+Review trigger: cambio de contrato o procedimiento; revisar código y evidencia antes de operar
+
 Fastt treats performance as a production contract, not as a local-only benchmark.
 
 ## Response Headers

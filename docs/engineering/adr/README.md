@@ -1,5 +1,13 @@
 # Architecture Decision Records — Tours / Experiences
 
+Status: active
+Document type: index
+Owner: Engineering
+Last verified: 2026-10-01
+Scope: decisiones de expansión de esquema y capacidades de tours
+Source of truth: ADRs enlazados; respetar el estado individual de cada decisión
+Review trigger: cambio de contrato o procedimiento; revisar código y evidencia antes de operar
+
 ADRs in this folder gate **schema expansions** for the tour vertical.
 
 ## When an ADR is mandatory

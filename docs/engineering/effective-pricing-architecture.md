@@ -1,5 +1,13 @@
 # Effective Pricing Architecture (Source of Truth)
 
+Status: active
+Document type: canonical
+Owner: Pricing / Engineering
+Last verified: 2026-10-01
+Scope: identidad y resolución de precio efectivo
+Source of truth: modelo y consumidores de precio efectivo enlazados
+Review trigger: cambio de contrato o procedimiento; revisar código y evidencia antes de operar
+
 ## Canonical identity
 
 Effective pricing is canonical by:

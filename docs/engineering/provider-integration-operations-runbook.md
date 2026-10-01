@@ -1,5 +1,13 @@
 # Provider Integration Operations Runbook
 
+Status: active
+Document type: runbook
+Owner: Engineering / Operations
+Last verified: 2026-10-01
+Scope: retención, métricas y operación de integraciones
+Source of truth: tablas, scripts y comandos enlazados
+Review trigger: cambio de contrato o procedimiento; revisar código y evidencia antes de operar
+
 Last updated: 2026-08-05
 
 ## Scope

@@ -1,8 +1,17 @@
 # Fase E — Validación con trabajo representativo y adopción
 
-**Estado:** validación parcial; certificación de decisiones no superada. Sin despliegue general.  
+Status: active
+Document type: runbook
+Owner: Operations / Engineering
+Last verified: 2026-10-01
+Scope: certificación, observación humana, cohortes y reversión del Centro de Mando
+Source of truth: contrato operativo, pruebas y certificador enlazados
+Review trigger: cambio de contrato, controles o procedimiento; revisar evidencia del entorno antes de ejecutar
+Supersedes: `docs/reports/provider-admin-ux-analysis-2026-09-06.md`, `docs/reports/provider-admin-implementation-audit-2026-09-07.md`
+
+**Evidencia del 7 de septiembre:** validación parcial; certificación de decisiones no superada. No acredita despliegue general ni estado actual.
 **Propietarios:** Operaciones, QA y Producto.  
-**Referencia:** `docs/reports/report-source.md` y las fases A–D del Centro de Mando.
+**Referencia:** contrato operativo y fundaciones de seguridad de este directorio.
 
 ## Objetivo y límite
 
@@ -98,4 +107,17 @@ No declarar esta fase cerrada hasta adjuntar al ticket o registro de release:
 
 ## Revisión posterior de la ejecución (7 de septiembre de 2026)
 
-La comprobación de solo lectura contra Supabase devolvió `passed: false`: los cuatro casos de certificación siguen abiertos, sin decisiones aplicadas, eventos de aplicación ni reservas de idempotencia exitosas. La comprobación de navegación en Codex fue realizada por el agente, no por administradores participantes. No existen métricas de observación humana que permitan cerrar la adopción. El análisis y las correcciones posteriores están en `docs/reports/provider-admin-implementation-audit-2026-09-07.md`.
+La comprobación de solo lectura contra Supabase devolvió `passed: false`: los cuatro casos de certificación siguen abiertos, sin decisiones aplicadas, eventos de aplicación ni reservas de idempotencia exitosas. La comprobación de navegación en Codex fue realizada por el agente, no por administradores participantes. No existen métricas de observación humana que permitan cerrar la adopción. Esta observación es histórica: no certifica el estado del entorno actual.
+
+## Pendientes conservados de la auditoría del 7 de septiembre
+
+Estos hallazgos requieren comprobar código y entorno antes de declararse resueltos. La limpieza documental no los certifica.
+
+- **Recuperación transaccional:** la auditoría observó aplicación de la fuente y cierre del caso en transacciones separadas. Certificar reconciliación por decisión, efecto ya aplicado y reintento idempotente; una operación incierta no admite otra propuesta.
+- **Persistencia real:** usar dos proveedores fixture en base aislada, más de 100 casos cerrados y uno activo antiguo. Verificar consulta, permisos, maker/checker, reemplazo documental, MFA, conflicto y respuesta perdida después de persistir. Registrar decisiones, eventos y número de efectos.
+- **Vigencia de evidencia:** distinguir fecha de revisión de actualización; decidir vigencia por política, sujeto y documento. No imponer caducidad universal de 90 días.
+- **Solicitudes de información:** acreditar destinatario autorizado, canal, entrega y respuesta correlacionada. Sin fuente persistida, mostrar «sin confirmación registrada».
+- **Observación humana:** ejecutar T1–T5 con participantes reales y un checker distinto del maker cuando corresponda. Comprobar teclado, foco, zoom 200% y ancho de 375 px. El recorrido de un agente no sustituye esas sesiones.
+- **Adopción:** demostrar paridad de permisos, evidencia, auditoría, MFA y segundo control antes de habilitar escritura legacy o ampliar cohortes. No simular un segundo aprobador cuando trabaja una sola persona.
+
+La auditoría histórica registró 38 pruebas aprobadas con cobertura parcialmente simulada y una certificación Supabase negativa. Esos resultados no deben presentarse como checks actuales ni como aprobación operativa.

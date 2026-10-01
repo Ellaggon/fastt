@@ -1,5 +1,13 @@
 # Rooms & Rates Table Taxonomy
 
+Status: active
+Document type: canonical
+Owner: Engineering
+Last verified: 2026-10-01
+Scope: propiedad de inventario, tarifas y políticas compartidas
+Source of truth: src/shared/infrastructure/db/schema/ y contratos enlazados
+Review trigger: cambio de contrato o procedimiento; revisar código y evidencia antes de operar
+
 This document classifies the operational tables used by Rooms & Rates, booking, search,
 and policy resolution. It is intentionally small: each table should have one role so the
 system does not drift back into duplicate contractual sources.
