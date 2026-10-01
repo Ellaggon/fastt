@@ -144,6 +144,26 @@ const previewSelection = {
 	variantId: url.searchParams.get("variantId"),
 	ratePlanId: url.searchParams.get("ratePlanId"),
 }
+const preparationPath = `/product/${encodeURIComponent(productId)}/preview`
+const preparationReturnUrl = new URL(preparationPath, url.origin)
+const requestedReturnTo = url.searchParams.get("returnTo")
+if (requestedReturnTo) {
+	try {
+		const requested = new URL(requestedReturnTo, url.origin)
+		if (requested.origin === url.origin && requested.pathname === preparationPath) {
+			for (const key of ["playbook", "step", "flow"] as const) {
+				const value = requested.searchParams.get(key)
+				if (value) preparationReturnUrl.searchParams.set(key, value)
+			}
+		}
+	} catch {
+		/* Invalid return destinations use the owned product preview. */
+	}
+}
+const preparationReturnHref = withTourOfferSelection(
+	`${preparationReturnUrl.pathname}${preparationReturnUrl.search}`,
+	previewSelection
+)
 
 const departureStr = url.searchParams.get("departure")
 const quantities = parseTourTicketQuantitiesFromSearchParams(url.searchParams)
@@ -568,13 +588,7 @@ const mapEmbed =
 							<p class="font-semibold">Vista previa privada del proveedor</p>
 							<p>Esta es la misma plantilla pública. Las acciones de reserva están desactivadas.</p>
 						</div>
-						<a
-							class="font-semibold underline"
-							href={withTourOfferSelection(
-								`/product/${encodeURIComponent(productId)}/preview`,
-								previewSelection
-							)}
-						>
+						<a class="font-semibold underline" href={preparationReturnHref}>
 							Volver a preparación
 						</a>
 					</div>
@@ -587,8 +601,11 @@ const mapEmbed =
 						data-preview-content-warning
 					>
 						<div>
-							<p class="font-semibold">Revisión editorial pendiente</p>
-							<p>La descripción aún es demasiado breve o repetitiva para una ficha pública.</p>
+							<p class="font-semibold">Mejora sugerida de la descripción</p>
+							<p>
+								Añade detalles concretos del recorrido para ayudar al viajero a entender la
+								experiencia.
+							</p>
 						</div>
 						<a
 							class="font-semibold underline"

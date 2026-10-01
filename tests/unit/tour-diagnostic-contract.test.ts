@@ -1,3 +1,7 @@
+import {
+	projectTourPublishingStages,
+	getTourPublishingStage,
+} from "@/lib/playbook/tour-publishing-stages"
 import { describe, expect, it } from "vitest"
 import {
 	TOUR_REQUIREMENTS,
@@ -165,5 +169,33 @@ describe("B1 tour diagnosis contract", () => {
 			complete: false,
 		})
 		expect(summarizeTourDiagnostic(diagnosis).preparation.readinessPercent).toBe(100)
+	})
+})
+
+describe("B6 preparation and navigation", () => {
+	it("leaves preparation unchanged at every navigation stage and excludes review from the denominator", () => {
+		const diagnosis = fixture()
+		diagnosis.requirements.price.result = pending
+		const before = summarizeTourDiagnostic(diagnosis).preparation
+		for (const step of ["content", "photos", "rate", "calendar", "preview"]) {
+			expect(getTourPublishingStage(step).total).toBe(6)
+			expect(summarizeTourDiagnostic(diagnosis).preparation).toEqual(before)
+		}
+		expect(before).toMatchObject({ readinessPercent: 90, totalCount: 10 })
+		const stages = projectTourPublishingStages(diagnosis)
+		expect(stages[3].state).toBe("pending")
+		expect(stages[5].state).toBe("pending")
+	})
+	it("keeps 100% preparation when authorization or activation prevents publication", () => {
+		const diagnosis = fixture()
+		diagnosis.requirements.provider_authorization.result = pending
+		diagnosis.requirements.rate_activation.result = pending
+		expect(summarizeTourDiagnostic(diagnosis).preparation.readinessPercent).toBe(100)
+		expect(
+			projectTourPublishingStages(diagnosis)
+				.slice(0, 5)
+				.every((stage) => stage.state === "ready")
+		).toBe(true)
+		expect(projectTourPublishingStages(diagnosis)[5].state).toBe("pending")
 	})
 })

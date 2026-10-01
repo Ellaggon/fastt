@@ -1,3 +1,7 @@
+import {
+	getLaunchLikeStage,
+	resolveLaunchPlaybookDefinition,
+} from "@/lib/playbook/launch-playbook-definition"
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { describe, expect, it } from "vitest"
@@ -14,50 +18,40 @@ import { buildTourCommercialLinks } from "@/lib/tours/tourProviderNavigation"
 const source = (path: string) => readFileSync(resolve(process.cwd(), path), "utf8")
 
 describe("tour provider phase 5", () => {
-	it("gives each tour screen its own stage in the order the provider walks them", () => {
-		expect(TOUR_PUBLISHING_STAGE_COUNT).toBe(11)
-		expect(getTourPublishingStage("content")).toMatchObject({ position: 1, label: "Identidad" })
-		expect(getTourPublishingStage("photos")).toMatchObject({ position: 2, label: "Fotos" })
-		expect(getTourPublishingStage("location")).toMatchObject({ position: 3, label: "Destino" })
-		expect(getTourPublishingStage("subtype")).toMatchObject({
-			position: 4,
-			label: "Itinerario y detalles",
+	it("uses the same six groups for launch and continuation, including the final preview", () => {
+		const launch = resolveLaunchPlaybookDefinition("launch-tour", {
+			productId: "tour",
+			isHotel: false,
 		})
-		expect(getTourPublishingStage("tickets")).toMatchObject({ position: 5, label: "Participantes" })
-		expect(getTourPublishingStage("categories")).toMatchObject({
-			position: 6,
-			label: "Participantes y búsqueda",
-		})
-		expect(getTourPublishingStage("departure")).toMatchObject({ position: 7, label: "Salida" })
-		expect(getTourPublishingStage("rate")).toMatchObject({ position: 8, label: "Precio" })
-		expect(getTourPublishingStage("bookingPolicies")).toMatchObject({
-			position: 9,
-			label: "Condiciones de reserva",
-		})
-		expect(getTourPublishingStage("calendar")).toMatchObject({
-			position: 10,
-			label: "Disponibilidad",
-		})
-		expect(getTourPublishingStage("preview")).toMatchObject({
-			position: 11,
-			label: "Revisión y publicación",
-		})
-		expect(getTourPublishingStage("rate").position).toBeGreaterThan(
-			getTourPublishingStage("departure").position
-		)
-		expect(getTourPublishingStage("bookingPolicies").position).toBeGreaterThan(
-			getTourPublishingStage("rate").position
-		)
-		expect(getTourPublishingStage("calendar").position).toBeGreaterThan(
-			getTourPublishingStage("bookingPolicies").position
-		)
+		for (const step of launch.steps)
+			expect(getLaunchLikeStage(launch, step.id)).toEqual({
+				label: getTourPublishingStage(step.id).label,
+				position: getTourPublishingStage(step.id).position,
+				total: 6,
+			})
+		const preview = source("src/pages/product/[id]/preview.astro")
+		expect(preview).toContain("playbookVertical={vertical.vertical}")
+		expect(preview).toContain("variantId={previewVariantId}")
+		expect(preview).toContain("ratePlanId={previewRatePlanId}")
+	})
+
+	it("groups navigation screens into six stages without turning substeps into progress", () => {
+		expect(TOUR_PUBLISHING_STAGE_COUNT).toBe(6)
+		for (const step of ["content", "location", "categories"])
+			expect(getTourPublishingStage(step).position).toBe(1)
+		expect(getTourPublishingStage("subtype").position).toBe(2)
+		expect(getTourPublishingStage("photos").position).toBe(3)
+		for (const step of ["tickets", "departure", "rate", "bookingPolicies"])
+			expect(getTourPublishingStage(step).position).toBe(4)
+		expect(getTourPublishingStage("calendar").position).toBe(5)
+		expect(getTourPublishingStage("preview").position).toBe(6)
 	})
 
 	it("uses diagnostic preparation rather than visited stages in the progress bar", () => {
 		const layout = source("src/layouts/PlaybookLayout.astro")
 		expect(layout).toContain("isTourCompletePlaybook || isTourLaunch")
 		expect(layout).toContain("progressPercent = progress.progress.progressPercent")
-		expect(layout).toContain("aria-valuenow={visualProgressPercent}")
+		expect(layout).toContain("preparation={tourAttention.preparation}")
 		expect(layout).not.toContain("tourPublishingProgressPercent")
 		expect(layout).toContain("!lightweight || isTourCompletePlaybook")
 	})

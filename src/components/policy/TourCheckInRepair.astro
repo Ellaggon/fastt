@@ -13,8 +13,11 @@ const { ratePlanId } = Astro.props
 		Retira la condición hotelera de llegada que no corresponde a este tour. El alcance se muestra
 		antes de confirmar.
 	</p>
-	<Button type="button" variant="link" className="mt-2 px-0" data-repair-open
-		>Revisar condición heredada</Button
+	<Button
+		type="button"
+		variant="ghost"
+		className="mt-2 h-auto px-0 underline underline-offset-4"
+		data-repair-open>Revisar condición heredada</Button
 	>
 	<Dialog
 		class="w-[min(92vw,36rem)] p-6 shadow-xl backdrop:bg-black/50"

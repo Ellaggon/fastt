@@ -5,6 +5,7 @@ import {
 } from "@/lib/tours/tourDiagnosticPresentation"
 import { loadTourCommercialContext } from "@/lib/tours/loadTourCommercialContext"
 import { withTourCommercialContext } from "@/lib/tours/resolveTourCommercialContext"
+import PreparationProgress from "@/components/tours/TourPreparationProgress.astro"
 import Button from "@/components/ui/Button.astro"
 import GuidedPreparationLayout from "@/layouts/GuidedPreparationLayout.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
@@ -296,7 +297,7 @@ if (isComplete && active && lightweight) {
 					: (getPreviousLaunchStep(stepId, launchCtx)?.buildHref(launchCtx) ?? null)
 	}
 
-	if (active && productId && !lightweight) {
+	if (active && productId && (!lightweight || isTourLaunch)) {
 		const user = await getUserFromRequest(Astro.request)
 		const providerId = user ? await getProviderIdFromRequest(Astro.request, user) : null
 		if (providerId) {
@@ -344,7 +345,8 @@ const formBoundContinue = Boolean(boundContinueFormId)
 const showHrefContinue = !formBoundContinue && !ownsPrimaryCta
 const persistAndExit = formBoundContinue && Boolean(productId)
 const formContinueLabel = continueLabel === "Continuar →" ? "Guardar y continuar" : continueLabel
-const showProgress = active && currentStepKnown && !isTerminalStep
+const showProgress =
+	active && currentStepKnown && (!isTerminalStep || isTourLaunch || playbookVertical === "tour")
 const isTourCompletePlaybook = isComplete && active && playbookVertical === "tour" && stageTotal > 0
 const showReadinessMeter = showProgress && (!lightweight || isTourCompletePlaybook)
 const stageProgressPercent =
@@ -388,10 +390,10 @@ const progressHeading =
 			: stepNumber && totalSteps
 				? `Paso ${stepNumber} de ${totalSteps}`
 				: "Progreso"
+// Lightweight controls evaluation cost, never persistence of the current navigation.
 const preparationSessionPayload =
 	active &&
 	productId &&
-	!lightweight &&
 	(playbookId === "launch" || playbookId === LAUNCH_TOUR_PLAYBOOK_ID || isComplete)
 		? {
 				productId,
@@ -418,18 +420,29 @@ const PlaybookShell = active ? GuidedPreparationLayout : WorkspaceLayout
 				<p class="text-xs font-semibold tracking-wide text-slate-300 uppercase">
 					{progressHeading}
 				</p>
-				{showReadinessMeter ? (
+				{isTourCompletePlaybook || isTourLaunch ? (
+					tourAttention ? (
+						<PreparationProgress
+							preparation={tourAttention.preparation}
+							showMeter={!isTerminalStep}
+							stages={tourAttention.stages}
+							activeStageId={getTourPublishingStage(stepId).id}
+						/>
+					) : (
+						<p class="text-sm text-slate-400">Preparación aún sin evaluar</p>
+					)
+				) : showReadinessMeter ? (
 					<div
 						class="fastt-progress-track h-1.5 overflow-hidden bg-slate-800"
 						role="progressbar"
-						aria-label={`Progreso de ${playbookTitle}: ${progressHeading}`}
+						aria-label={`Progreso de ${playbookTitle}`}
 						aria-valuenow={visualProgressPercent}
 						aria-valuemin={0}
 						aria-valuemax={100}
 					>
 						<div
 							class="fastt-progress-value h-full"
-							style={`width: ${visualProgressPercent}%; min-width: ${visualProgressPercent > 0 ? "0.75rem" : "0"}; background-color: var(--fastt-color-selection);`}
+							style={`width: ${visualProgressPercent}%; background-color: var(--fastt-color-selection);`}
 						/>
 					</div>
 				) : null}
@@ -445,9 +458,7 @@ const PlaybookShell = active ? GuidedPreparationLayout : WorkspaceLayout
 			>
 				<div>
 					<>
-						<p class="font-medium">
-							{progressPercent}% preparado · {tourAttention.nextLabel}
-						</p>
+						<p class="font-medium">{tourAttention.nextLabel}</p>
 						<p class="mt-1 text-slate-400">{tourAttention.support}</p>
 					</>
 				</div>
