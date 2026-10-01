@@ -60,3 +60,43 @@ export function getTourPublishingStage(stepId: string | null | undefined): TourP
 }
 
 export const TOUR_PUBLISHING_STAGE_COUNT = TOTAL
+const STAGE_READINESS_SECTIONS: Record<string, string[]> = {
+	identity: ["content"],
+	photos: ["photos"],
+	destination: ["location"],
+	itinerary: ["subtype", "itinerary"],
+	participants: ["tickets"],
+	categories: ["categories"],
+	departure: ["departure"],
+	rate: ["rate"],
+	booking: ["bookingPolicies"],
+	availability: ["calendar"],
+	review: ["preview"],
+}
+
+export function countCompletedTourPublishingStages(completedSectionKeys: Iterable<string>): number {
+	const completed = new Set(
+		Array.from(completedSectionKeys, (key) => String(key ?? "").trim()).filter(Boolean)
+	)
+	return SCREENS.filter((screen) => {
+		const sections = STAGE_READINESS_SECTIONS[screen.id] ?? screen.steps
+		return sections.every((section) => completed.has(section))
+	}).length
+}
+
+/** Bar fill: share of the 11 tour stages already satisfied in readiness data. */
+export function tourPublishingProgressPercent(options: {
+	completedSectionKeys?: Iterable<string>
+	currentStepId?: string | null
+}): number {
+	const completedCount = options.completedSectionKeys
+		? countCompletedTourPublishingStages(options.completedSectionKeys)
+		: 0
+	if (completedCount > 0) {
+		return Math.min(100, Math.round((completedCount / TOTAL) * 100))
+	}
+	const stage = getTourPublishingStage(options.currentStepId)
+	if (stage.position <= 0) return 0
+	const passedStages = Math.max(0, stage.position - 1)
+	return Math.min(100, Math.round((passedStages / TOTAL) * 100))
+}

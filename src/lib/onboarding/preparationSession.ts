@@ -1,4 +1,9 @@
 import { preparationPathContext, PreparationSessionError } from "./preparationSessionContext"
+import { loadTourCommercialContext } from "@/lib/tours/loadTourCommercialContext"
+import {
+	tourContextSelectionHref,
+	withTourCommercialContext,
+} from "@/lib/tours/resolveTourCommercialContext"
 import { LAUNCH_STEPS, buildPlaybookHref } from "@/lib/playbook/launch-accommodation"
 import { TOUR_LAUNCH_STEPS, buildTourPlaybookHref } from "@/lib/playbook/launch-tour"
 import {
@@ -235,7 +240,23 @@ export async function listActivePreparationSessions(
 								normalizeCompleteToPublishStep(row.stepId) ?? "content"
 							)
 						: buildPlaybookHref(`/product/${encodeURIComponent(row.productId)}/content`, "content")
-			const href = savedPath ?? fallback
+			let href = savedPath ?? fallback
+			if (row.vertical === "tour") {
+				const context = await loadTourCommercialContext({
+					providerId,
+					productId: row.productId,
+					userId,
+					url: new URL(href, "http://fastt.local"),
+				})
+				if (context.status === "not_found" || context.status === "not_tour") return []
+				if ("options" in context) {
+					href =
+						context.status === "unresolved" &&
+						["invalid_selection", "selection_required"].includes(context.reason)
+							? tourContextSelectionHref(context, href)
+							: withTourCommercialContext(href, context)
+				}
+			}
 			return [
 				{
 					productId: row.productId,
