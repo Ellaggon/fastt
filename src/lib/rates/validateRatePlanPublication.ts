@@ -1,5 +1,5 @@
 import {
-	effectivePolicyCompatibilityIssues,
+	evaluateEffectivePolicyReadiness,
 	policyBusinessContextFromProduct,
 } from "@/lib/policies/policy-business-compatibility"
 import { baseRateRepository, variantInventoryConfigRepository } from "@/container"
@@ -79,15 +79,15 @@ export async function validateRatePlanPublication(params: {
 			})
 		: null
 
-	const compatibilityIssues = isTour
-		? effectivePolicyCompatibilityIssues(
-				policyBusinessContextFromProduct({
-					productId: params.productId,
-					productType: product?.productType,
-				}),
-				policies?.policies ?? []
-			)
-		: []
+	const policyReadiness = evaluateEffectivePolicyReadiness(
+		policyBusinessContextFromProduct({
+			productId: params.productId,
+			productType: product?.productType,
+		}),
+		policies?.policies ?? [],
+		policies?.missingCategories ?? requiredCategories
+	)
+	const compatibilityIssues = policyReadiness.compatibilityIssues
 	const blockers: string[] = []
 	const blockerDetails: Array<{ id: string; label: string }> = []
 	const addBlocker = (id: string, label: string) => {
@@ -150,10 +150,7 @@ export async function validateRatePlanPublication(params: {
 			capacityReady: isTour
 				? Number(capacity?.maxOccupancy ?? 0) > 0
 				: Number(inventory?.defaultTotalUnits ?? 0) > 0,
-			conditionsReady:
-				requiredCategories.length > 0 &&
-				policies?.missingCategories.length === 0 &&
-				compatibilityIssues.length === 0,
+			conditionsReady: policyReadiness.isSellableByContract,
 			configuredDateCount: Number(configuredDates[0]?.value ?? 0),
 			availableDateCount: Number(availability[0]?.value ?? 0),
 		},

@@ -10,10 +10,15 @@ import {
 } from "@/shared/infrastructure/db/compat"
 import {
 	listPolicyCoverageByProvider,
+	resolveEffectivePolicies,
 	REQUIRED_POLICY_CATEGORIES,
 	summarizeMissingPolicyCategories,
 } from "@/modules/policies/public"
 import { getRequiredPolicyCategories } from "@/lib/policies/policy-business-contract"
+import {
+	evaluateEffectivePolicyReadiness,
+	policyBusinessContextFromProduct,
+} from "@/lib/policies/policy-business-compatibility"
 import type { PolicyCategory } from "@/modules/policies/public"
 
 export type RatePlanConditionsSummary = {
@@ -191,6 +196,41 @@ export async function readRatePlanConditionSummaries(
 		scheduleRatePlanConditionStateRefresh({ ratePlanIds: refreshIds, channel })
 	}
 
+	// Legacy coverage snapshots only record presence. Tours must not inherit a false
+	// green state from those rows; use the cached effective-policy resolver instead.
+	const tourContexts = (await listContextsByRatePlanIds(ids)).filter(
+		(context) => String(context.productType).toLowerCase() === "tour"
+	)
+	await Promise.all(
+		tourContexts.map(async (context) => {
+			const business = policyBusinessContextFromProduct(context)
+			const resolved = await resolveEffectivePolicies({
+				productId: context.productId,
+				variantId: context.variantId,
+				ratePlanId: context.ratePlanId,
+				channel: channel || DEFAULT_CHANNEL,
+				requiredCategories: [...business.contract.requiredCategories],
+				onMissingCategory: "return_null",
+			})
+			const readiness = evaluateEffectivePolicyReadiness(
+				business,
+				resolved.policies,
+				resolved.missingCategories
+			)
+			result.set(context.ratePlanId, {
+				conditionsComplete: readiness.isSellableByContract,
+				totalCategories: business.contract.requiredCategories.length,
+				coveredCategories: readiness.coverageCount,
+				missingCategories: [
+					...new Set([...readiness.missingCategories, ...readiness.invalidCategories]),
+				],
+				policyCoverageUpdatedAt: null,
+				summary: readiness.compatibilityIssues.length
+					? readiness.compatibilityIssues.map((issue) => issue.message).join(" ")
+					: summaryForMissing(readiness.missingCategories),
+			})
+		})
+	)
 	return result
 }
 

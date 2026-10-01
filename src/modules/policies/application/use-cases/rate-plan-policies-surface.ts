@@ -14,6 +14,12 @@ import { PolicyExceptionRuleRepository } from "../../infrastructure/repositories
 import type { PolicyCategory } from "../../domain/policy.category"
 import { getRequiredPolicyCategories } from "@/lib/policies/policy-business-contract"
 
+import {
+	evaluateEffectivePolicyReadiness,
+	policyBusinessContextFromProduct,
+	type PolicyCompatibilityIssue,
+} from "@/lib/policies/policy-business-compatibility"
+
 export const REQUIRED_POLICY_CATEGORIES = ["Cancellation", "Payment", "CheckIn", "NoShow"] as const
 
 export const POLICY_CATEGORY_ORDER: Record<string, string> = POLICY_CATEGORY_LABELS
@@ -32,6 +38,8 @@ export type PolicyPlanView = {
 	ratePlanName: string
 	isDefault: boolean
 	requiredCategories: readonly PolicyCategory[]
+	invalidCategories?: string[]
+	compatibilityIssues?: Array<PolicyCompatibilityIssue & { category: string }>
 	coverageCount: number
 	missingCategories: string[]
 	isSellableByContract: boolean
@@ -334,15 +342,21 @@ export async function buildRatePlanPoliciesSurface(params: {
 					return [category, snapshotLabel(category, key ? (snapshot as any)[key] : null)]
 				})
 			)
-			const isSellableByContract =
-				requiredCategories.length > 0 && resolved.missingCategories.length === 0
+			const readiness = evaluateEffectivePolicyReadiness(
+				policyBusinessContextFromProduct({ productId, productType }),
+				resolved.policies,
+				resolved.missingCategories
+			)
+			const { isSellableByContract } = readiness
 			const contractFacts = buildContractFacts(resolved, snapshot)
 			return {
 				ratePlanId,
 				ratePlanName: String(plan.name),
 				isDefault: Boolean(plan.isDefault),
 				requiredCategories,
-				coverageCount: requiredCategories.length - resolved.missingCategories.length,
+				coverageCount: readiness.coverageCount,
+				invalidCategories: readiness.invalidCategories,
+				compatibilityIssues: readiness.compatibilityIssues,
 				missingCategories:
 					requiredCategories.length > 0
 						? resolved.missingCategories

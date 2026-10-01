@@ -1,9 +1,11 @@
 ---
 import PolicyAssignmentFlow from "@/components/policy/PolicyAssignmentFlow.astro"
+import TourCheckInRepair from "@/components/policy/TourCheckInRepair.astro"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Drawer from "@/components/ui/Drawer.astro"
 import DrawerHeader from "@/components/ui/DrawerHeader.astro"
+import Notice from "@/components/ui/Notice.astro"
 import { POLICY_CATEGORY_OPTIONS } from "@/data/policy/policy-categories"
 import { routes } from "@/lib/routes"
 import {
@@ -84,8 +86,6 @@ function policySummaryForDisplay(value: string): string {
 	return value
 		.replaceAll("Paga en la propiedad", "Paga al proveedor durante la experiencia")
 		.replaceAll("Pago en propiedad", "Pago al proveedor")
-		.replaceAll("primera noche", "reserva")
-		.replaceAll("estadía completa", "reserva completa")
 }
 
 function formattedResolvedAt(value: string): string {
@@ -116,10 +116,14 @@ function providerHouseRulesHref(
 	return query ? `${routes.providerHouseRules()}?${query}` : routes.providerHouseRules()
 }
 
-function guidedStatus(missing: boolean): {
+function guidedStatus(
+	missing: boolean,
+	invalid = false
+): {
 	label: string
 	variant: "info" | "success" | "warning"
 } {
+	if (invalid) return { label: "Requiere revisión", variant: "warning" }
 	if (missing) return { label: "Pendiente", variant: "warning" }
 	if (isGuidedSurface) return { label: "Preconfigurada", variant: "info" }
 	return { label: "Completa", variant: "success" }
@@ -164,16 +168,23 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 				requiredCategories.includes(category.value)
 			).map((category) => ({
 				key: category.value,
-				label:
-					isTour && category.value === "NoShow" ? "Presentación para la salida" : category.label,
+				label: category.label,
 			}))
 			const cancellationMissing = plan.missingCategories.includes("Cancellation")
 			const noShowMissing = plan.missingCategories.includes("NoShow")
 			const paymentMissing = plan.missingCategories.includes("Payment")
 			const arrivalMissing = plan.missingCategories.includes("CheckIn")
 			const cancellationBlockComplete = !cancellationMissing && !noShowMissing
-			const cancellationStatus = guidedStatus(!cancellationBlockComplete)
-			const paymentStatus = guidedStatus(paymentMissing)
+			const cancellationStatus = guidedStatus(
+				!cancellationBlockComplete,
+				(plan.invalidCategories ?? []).some(
+					(category) => category === "Cancellation" || category === "NoShow"
+				)
+			)
+			const paymentStatus = guidedStatus(
+				paymentMissing,
+				(plan.invalidCategories ?? []).includes("Payment")
+			)
 			const arrivalSourceLabel =
 				isGuidedSurface && plan.contractFacts.arrivalSource === "Tarifa"
 					? "Condición inicial"
@@ -248,6 +259,29 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 							</div>
 						)}
 
+						{(plan.compatibilityIssues ?? []).length > 0 && (
+							<Notice
+								variant="warning"
+								className="my-4"
+								aria-label="Condiciones que requieren revisión"
+								title="Revisa las condiciones antes de activar esta tarifa"
+							>
+								<ul class="mt-2 list-disc space-y-1 pl-5">
+									{plan.compatibilityIssues?.map((issue) => (
+										<li>{issue.message}</li>
+									))}
+								</ul>
+								<p class="mt-2">
+									Usa los botones de cambio para reemplazar las condiciones de cancelación, pago o
+									no presentación que requieran revisión. Las reservas anteriores conservan sus
+									condiciones.
+								</p>
+								{(plan.invalidCategories ?? []).includes("CheckIn") &&
+									!requiredCategories.includes("CheckIn") && (
+										<TourCheckInRepair ratePlanId={plan.ratePlanId} />
+									)}
+							</Notice>
+						)}
 						{hasContract ? (
 							<div class="divide-y divide-slate-200">
 								<section class="py-5" data-contract-block="cancellation-no-show">

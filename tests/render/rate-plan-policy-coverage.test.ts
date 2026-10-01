@@ -35,13 +35,18 @@ function plan(productType: string, missingCategories: string[] = []): PolicyPlan
 	}
 }
 
-async function render(productType: string, missing: string[] = [], hidden = false) {
+async function render(
+	productType: string,
+	missing: string[] = [],
+	hidden = false,
+	override: Partial<PolicyPlanView> = {}
+) {
 	const container = await AstroContainer.create()
 	return container.renderToString(RatePlanPoliciesSurface, {
 		request: new Request("https://fastt.test/rates/plans/rate-fixture"),
 		props: {
 			description: "Condiciones",
-			policyPlans: [plan(productType, missing)],
+			policyPlans: [{ ...plan(productType, missing), ...override }],
 			checkIn: "2026-10-01",
 			checkOut: "2026-10-02",
 			offeringType: productType === "tour" ? "tour" : "accommodation",
@@ -76,6 +81,44 @@ describe("rendered rate policy coverage", () => {
 		expect(html).toContain('data-contract-sellability="blocked"')
 		expect(html).not.toContain("0/0")
 		expect(html).not.toContain("data-assignment-category=")
+	})
+
+	it("shows incompatible historical conditions as reviewable even in embedded detail", async () => {
+		const html = await render("tour", [], true, {
+			coverageCount: 2,
+			isSellableByContract: false,
+			invalidCategories: ["Cancellation"],
+			compatibilityIssues: [
+				{
+					category: "Cancellation",
+					code: "tour_stay_length_policy_not_supported",
+					message:
+						"Las condiciones por estadía pertenecen a alojamientos y no se pueden asignar a un tour.",
+				},
+			],
+		})
+		expect(html).toContain("Requiere revisión")
+		expect(html).toContain("Las condiciones por estadía pertenecen")
+		expect(html).toContain('data-assignment-category="Cancellation"')
+		expect(html).not.toContain('data-contract-sellability="ready"')
+	})
+
+	it("does not declare a full counter ready when an unsupported inherited condition remains", async () => {
+		const html = await render("tour", [], false, {
+			isSellableByContract: false,
+			invalidCategories: ["CheckIn"],
+			compatibilityIssues: [
+				{
+					category: "CheckIn",
+					code: "policy_category_not_supported",
+					message: "Condición hotelera incompatible",
+				},
+			],
+		})
+		expect(html).toContain('data-contract-sellability="blocked"')
+		expect(html).toContain("Revisar condición heredada")
+		expect(html).toContain("data-tour-checkin-repair")
+		expect(html).not.toContain("Condiciones completas")
 	})
 
 	it("hides summary and technical controls in the embedded detail", async () => {
