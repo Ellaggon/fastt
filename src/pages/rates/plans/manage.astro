@@ -1,4 +1,8 @@
 ---
+import {
+	loadTourCommercialEntryContext,
+	tourContextEntryResponse,
+} from "@/lib/tours/loadTourCommercialContext"
 import { Plus, X } from "@lucide/astro"
 import Button from "@/components/ui/Button.astro"
 import Dialog from "@/components/ui/Dialog.astro"
@@ -212,6 +216,17 @@ const completePlaybook = resolveCompleteToPublishPlaybookFromUrl(Astro.url)
 const flow = Astro.url.searchParams.get("flow")
 const requestedProductId = String(Astro.url.searchParams.get("productId") ?? "").trim()
 const requestedVariantId = String(Astro.url.searchParams.get("variantId") ?? "").trim()
+const entryContext = await loadTourCommercialEntryContext({
+	providerId: auth.providerId,
+	productId: requestedProductId,
+	request: Astro.request,
+	url: Astro.url,
+})
+if (entryContext) {
+	const entryResponse = tourContextEntryResponse(entryContext, Astro.url)
+	if (entryResponse) return entryResponse
+}
+
 const rateEntry = await timing.time("entryContext", () =>
 	loadRatePlanManagementEntry({ url: Astro.url, providerId: auth.providerId, variantChoices })
 )
@@ -1011,7 +1026,7 @@ logRoutePerformance({
 	const form = document.querySelector("[data-rate-plan-create-form]")
 	function bindLocalRateDraft(targetForm, key) {
 		if (!(targetForm instanceof HTMLFormElement)) return { clear: () => {} }
-		const storageKey = `fastt:playbook-form-draft:${key}`
+		const storageKey = `fastt:playbook-form-draft:v2:${key}`
 		const controls = () =>
 			Array.from(targetForm.elements).filter(
 				(element) =>
@@ -1061,7 +1076,7 @@ logRoutePerformance({
 	}
 	const formDraft = bindLocalRateDraft(
 		form,
-		`rates:${window.location.pathname}:${activePlaybook || "standalone"}:${requestedVariantId || "new-rate"}`
+		`rates:${new URL(window.location.href).searchParams.get("productId") || "unscoped"}:${window.location.pathname}:${activePlaybook || "standalone"}:${requestedVariantId || "new-rate"}`
 	)
 	if (isTourPlaybookRateStep && form instanceof HTMLFormElement) {
 		const nameInput = form.querySelector('[name="name"]')

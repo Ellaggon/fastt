@@ -1,0 +1,113 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { buildCompleteToPublishHref } from "@/lib/playbook/complete-to-publish"
+import { buildTourPlaybookHref } from "@/lib/playbook/launch-tour"
+import { loadTourCommercialContext } from "@/lib/tours/loadTourCommercialContext"
+import {
+	tourSelectionReturnTo,
+	withTourCommercialContext,
+} from "@/lib/tours/resolveTourCommercialContext"
+
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
+const providerId = await getProviderIdFromRequest(Astro.request, user)
+if (!providerId) return Astro.redirect("/provider/settings")
+const productId = String(Astro.params.id ?? "")
+const context = await loadTourCommercialContext({
+	providerId,
+	productId,
+	request: Astro.request,
+	selection: {},
+})
+if (context.status === "not_found" || context.status === "not_tour")
+	return new Response("Tour no encontrado", { status: 404 })
+if (context.status === "read_failed")
+	return new Response("No se pudo consultar la oferta. Vuelve a intentarlo.", { status: 503 })
+const options = "options" in context ? context.options : []
+const returnTo = tourSelectionReturnTo(productId, Astro.url.searchParams.get("returnTo"))
+const returnUrl = new URL(returnTo, "http://fastt.local")
+function creationHref(href: string, step: "departure" | "rate") {
+	if (returnUrl.searchParams.get("playbook") === "complete-to-publish")
+		return buildCompleteToPublishHref(href, step)
+	if (returnUrl.searchParams.get("playbook") || returnUrl.searchParams.get("flow"))
+		return buildTourPlaybookHref(href, step)
+	return href
+}
+---
+
+<WorkspaceLayout title="Elegir opción y tarifa">
+	<section class="mx-auto max-w-3xl space-y-5">
+		<div class="space-y-2">
+			<h1 class="text-2xl font-semibold">¿Qué oferta quieres revisar?</h1>
+			<p>
+				Elige una opción y su tarifa. La guía, el calendario y la revisión mantendrán esta
+				selección.
+			</p>
+		</div>
+		{
+			options.length === 0 && (
+				<Card>
+					<>
+						<p>Todavía no hay opciones.</p>
+						<Button
+							href={creationHref(
+								`/product/${encodeURIComponent(productId)}/departures/new`,
+								"departure"
+							)}
+						>
+							Crear opción
+						</Button>
+					</>
+				</Card>
+			)
+		}
+		{
+			options.map((option) => (
+				<Card class="space-y-3">
+					<h2 class="text-lg font-semibold">{option.name}</h2>
+					<p class="text-sm">
+						{option.bookingMode === "private"
+							? "Solicitud privada"
+							: option.bookingMode === "shared"
+								? "Reserva compartida"
+								: "Modalidad pendiente"}
+					</p>
+					<div class="flex flex-wrap gap-3">
+						{option.rates.map((rate) => (
+							<Button
+								href={withTourCommercialContext(returnTo, {
+									productId,
+									options,
+									status: "resolved",
+									source: "url",
+									option,
+									rate,
+									variantId: option.variantId,
+									ratePlanId: rate.ratePlanId,
+								})}
+							>
+								{rate.name}
+								{rate.isActive ? "" : " · Inactiva"}
+							</Button>
+						))}
+						{option.rates.length === 0 && (
+							<Button
+								href={creationHref(
+									`/rates/plans/manage?${new URLSearchParams({ productId, variantId: option.variantId, openDialog: "1" })}`,
+									"rate"
+								)}
+							>
+								Configurar tarifa
+							</Button>
+						)}
+					</div>
+				</Card>
+			))
+		}
+		<a href={`/product/${encodeURIComponent(productId)}`}>Volver al tour</a>
+	</section>
+</WorkspaceLayout>

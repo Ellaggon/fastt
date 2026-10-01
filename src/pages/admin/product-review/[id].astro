@@ -2,6 +2,7 @@
 import { productRepository } from "@/container"
 import InternalAdminLayout from "@/layouts/InternalAdminLayout.astro"
 import { requireInternalAdmin } from "@/lib/auth/requireInternalAdmin"
+import { resolveCanonicalProductPublicationValidationErrors } from "@/lib/product/canonical-product-publication"
 import { evaluateProductReadiness } from "@/modules/catalog/public"
 
 let isAdmin = false
@@ -21,7 +22,21 @@ let readiness: Awaited<ReturnType<typeof evaluateProductReadiness>> | { error: s
 
 if (isAdmin) {
 	try {
-		readiness = await evaluateProductReadiness({ repo: productRepository }, { productId })
+		const aggregate = await productRepository.getProductAggregate(productId)
+		if (!aggregate) throw new Error("Product not found")
+		readiness = await evaluateProductReadiness(
+			{
+				repo: productRepository,
+				resolvePublicationValidationErrors: () =>
+					resolveCanonicalProductPublicationValidationErrors({
+						productId,
+						providerId: aggregate.product.providerId,
+						request: Astro.request,
+						url: Astro.url,
+					}),
+			},
+			{ productId }
+		)
 	} catch (error) {
 		readiness = { error: error instanceof Error ? error.message : "internal_error" }
 	}

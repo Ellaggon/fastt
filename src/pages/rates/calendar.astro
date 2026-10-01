@@ -31,6 +31,10 @@ import { providerLocalToday } from "@/lib/rates/providerLocalToday"
 import { sellableDailyInventoryCondition } from "@/lib/rates/sellableDailyInventoryCondition"
 import { routes } from "@/lib/routes"
 import {
+	loadTourCommercialEntryContext,
+	tourContextEntryResponse,
+} from "@/lib/tours/loadTourCommercialContext"
+import {
 	and,
 	count,
 	DailyInventory,
@@ -86,11 +90,23 @@ const variantIdParam = String(Astro.url.searchParams.get("variantId") ?? "").tri
 const ratePlanIdParam = String(Astro.url.searchParams.get("ratePlanId") ?? "").trim()
 const matchedRow = rows.find(
 	(row: RatePlanListItem) =>
-		(variantIdParam && String(row.variantId) === variantIdParam) ||
-		(ratePlanIdParam && String(row.ratePlanId) === ratePlanIdParam)
+		Boolean(variantIdParam || ratePlanIdParam) &&
+		(!variantIdParam || String(row.variantId) === variantIdParam) &&
+		(!ratePlanIdParam || String(row.ratePlanId) === ratePlanIdParam)
 )
 const requestedProductId = String(Astro.url.searchParams.get("productId") ?? "").trim()
 const requestedVariantId = String(Astro.url.searchParams.get("variantId") ?? "").trim()
+const entryContext = await loadTourCommercialEntryContext({
+	providerId: auth.providerId,
+	productId: requestedProductId,
+	request: Astro.request,
+	url: Astro.url,
+})
+if (entryContext) {
+	const entryResponse = tourContextEntryResponse(entryContext, Astro.url)
+	if (entryResponse) return entryResponse
+}
+
 const contextualRow =
 	matchedRow ?? rows.find((row: RatePlanListItem) => String(row.productId) === requestedProductId)
 const requestedProduct =

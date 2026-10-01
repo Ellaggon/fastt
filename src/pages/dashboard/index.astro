@@ -123,7 +123,7 @@ const lastPathByProductId = new Map(
 const preparationByProduct = await listProductOperationalPreparation(
 	providerId,
 	products.map((product) => product.id),
-	{ lastPathByProductId }
+	{ lastPathByProductId, request: Astro.request }
 )
 const addRoomPlaybook = resolveAddRoomPlaybookFromUrl(Astro.url)
 const flow = Astro.url.searchParams.get("flow")
@@ -219,6 +219,7 @@ function preparationMessage(
 ) {
 	if (!preparation)
 		return `Revisa la preparación del ${isTour ? "tour" : "alojamiento"} antes de publicarlo.`
+	if (isTour && preparation.tourPresentation) return preparation.tourPresentation.message
 	if (preparation.isPublished) {
 		return isTour ? "Publicado y visible para viajeros." : "Publicado y visible para huéspedes."
 	}
@@ -235,6 +236,7 @@ function preparationSupport(
 	preparation: ProductPreparationSummary | null | undefined,
 	isTour: boolean
 ) {
+	if (isTour && preparation?.tourPresentation) return preparation.tourPresentation.support
 	if (roomCount === 0) {
 		return isTour
 			? "Crea la primera salida para definir fecha, cupo, precio y disponibilidad desde el flujo guiado."
@@ -453,7 +455,10 @@ function addAnotherServiceCopy() {
 									preparationSessions
 								)
 								const continuePreparationHref =
-									savedPreparationHref ?? preparation?.continuePreparationHref ?? accommodationHref
+									(isTour
+										? preparation?.continuePreparationHref
+										: (savedPreparationHref ?? preparation?.continuePreparationHref)) ??
+									accommodationHref
 								const isPublished = Boolean(preparation?.isPublished)
 								const isReadyToPublish =
 									!isChoosingForAddRoom && !isPublished && Boolean(preparation?.readyToPublish)
@@ -461,18 +466,24 @@ function addAnotherServiceCopy() {
 								const showInventoryStats = hasVariants
 								const showOpsActions = isChoosingForAddRoom || isPublished
 								const showAside = isChoosingForAddRoom || showInventoryStats || showOpsActions
-								const accommodationPrimaryHref = isSetup
-									? continuePreparationHref
-									: isReadyToPublish
-										? (preparation?.previewHref ?? routes.productPreview(product.id))
-										: accommodationHref
-								const accommodationLabel = isSetup
-									? "Continuar preparación"
-									: isReadyToPublish
-										? "Revisar y publicar"
-										: isTour
-											? "Abrir tour"
-											: "Abrir alojamiento"
+								const accommodationPrimaryHref =
+									isTour && preparation?.tourPresentation
+										? preparation.tourPresentation.primaryAction.href
+										: isSetup
+											? continuePreparationHref
+											: isReadyToPublish
+												? (preparation?.previewHref ?? routes.productPreview(product.id))
+												: accommodationHref
+								const accommodationLabel =
+									isTour && preparation?.tourPresentation
+										? preparation.tourPresentation.primaryAction.label
+										: isSetup
+											? "Continuar preparación"
+											: isReadyToPublish
+												? "Revisar y publicar"
+												: isTour
+													? "Abrir tour"
+													: "Abrir alojamiento"
 								const previewRooms = product.rooms.slice(0, 3)
 								const remainingRooms = Math.max(0, product.rooms.length - previewRooms.length)
 								const preparationPercent = Math.max(
@@ -707,6 +718,7 @@ function addAnotherServiceCopy() {
 	function preparationMessage(preparation: any, isTour: boolean) {
 		if (!preparation)
 			return `Revisa la preparación del ${isTour ? "tour" : "alojamiento"} antes de publicarlo.`
+		if (isTour && preparation.tourPresentation) return preparation.tourPresentation.message
 		if (preparation.isPublished) {
 			return isTour ? "Publicado y visible para viajeros." : "Publicado y visible para huéspedes."
 		}
@@ -721,6 +733,7 @@ function addAnotherServiceCopy() {
 	}
 
 	function preparationSupport(roomCount: number, preparation: any, isTour: boolean) {
+		if (isTour && preparation?.tourPresentation) return preparation.tourPresentation.support
 		if (roomCount === 0) {
 			return isTour
 				? "Crea la primera salida para definir fecha, cupo, precio y disponibilidad desde el flujo guiado."
@@ -795,10 +808,21 @@ function addAnotherServiceCopy() {
 			const isPublished = Boolean(preparation?.isPublished)
 			const isReadyToPublish = !isPublished && Boolean(preparation?.readyToPublish)
 			const isSetup = !isPublished && !isReadyToPublish
-			if (isSetup) {
+			if (isTour && preparation?.tourPresentation) {
+				action.href = preparation.tourPresentation.primaryAction.href
+				setActionLabel(action, preparation.tourPresentation.primaryAction.label)
+			} else if (isSetup) {
 				const savedHref = card.dataset.savedPreparationHref
-				action.href = savedHref || preparation.continuePreparationHref || action.href
-				setActionLabel(action, "Continuar preparación")
+				action.href =
+					(isTour
+						? preparation.continuePreparationHref
+						: savedHref || preparation.continuePreparationHref) || action.href
+				setActionLabel(
+					action,
+					isTour
+						? (preparation.tourPresentation?.primaryAction.label ?? "Continuar preparación")
+						: "Continuar preparación"
+				)
 			} else if (isReadyToPublish) {
 				action.href = preparation.previewHref
 				setActionLabel(action, "Revisar y publicar")
