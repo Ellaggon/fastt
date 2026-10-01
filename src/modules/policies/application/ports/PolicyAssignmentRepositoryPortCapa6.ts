@@ -17,6 +17,7 @@ export interface PolicyAssignmentRepositoryPortCapa6 {
 		assignmentId: string
 		ownerProviderId: string
 		actorUserId?: string | null
+		repairContext?: { productId: string; variantId: string; ratePlanId: string }
 	}): Promise<{ assignmentId: string; deactivated: boolean }>
 
 	resolveScopeContext(params: { scope: PolicyScope; scopeId: string }): Promise<{

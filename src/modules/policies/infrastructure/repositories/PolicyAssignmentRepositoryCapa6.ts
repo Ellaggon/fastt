@@ -126,6 +126,7 @@ export class PolicyAssignmentRepositoryCapa6 implements PolicyAssignmentReposito
 		assignmentId: string
 		ownerProviderId: string
 		actorUserId?: string | null
+		repairContext?: { productId: string; variantId: string; ratePlanId: string }
 	}): Promise<{ assignmentId: string; deactivated: boolean }> {
 		return db.transaction(async (tx) => {
 			await this.assertAuditActorExists(tx, params.actorUserId)
@@ -133,6 +134,7 @@ export class PolicyAssignmentRepositoryCapa6 implements PolicyAssignmentReposito
 				.select({
 					id: PolicyAssignment.id,
 					policyGroupId: PolicyAssignment.policyGroupId,
+					category: PolicyAssignment.category,
 					scope: PolicyAssignment.scope,
 					scopeId: PolicyAssignment.scopeId,
 					channel: PolicyAssignment.channel,
@@ -140,6 +142,7 @@ export class PolicyAssignmentRepositoryCapa6 implements PolicyAssignmentReposito
 				})
 				.from(PolicyAssignment)
 				.where(eq(PolicyAssignment.id, params.assignmentId))
+				.for("update")
 				.then(first)
 			if (!assignment) throw new Error("POLICY_ASSIGNMENT_NOT_FOUND")
 
@@ -150,6 +153,28 @@ export class PolicyAssignmentRepositoryCapa6 implements PolicyAssignmentReposito
 			if (!context) throw new Error("POLICY_ASSIGNMENT_SCOPE_NOT_FOUND")
 			if (context.providerId !== params.ownerProviderId) {
 				throw new Error("POLICY_ASSIGNMENT_OWNER_MISMATCH")
+			}
+
+			if (params.repairContext) {
+				const expected = params.repairContext
+				const product = await tx
+					.select({ productType: Product.productType })
+					.from(Product)
+					.where(eq(Product.id, context.productId))
+					.for("update")
+					.then(first)
+				if (
+					!params.actorUserId ||
+					assignment.category !== "CheckIn" ||
+					String(product?.productType ?? "")
+						.trim()
+						.toLowerCase() !== "tour" ||
+					context.productId !== expected.productId ||
+					(context.variantId && context.variantId !== expected.variantId) ||
+					(context.ratePlanId && context.ratePlanId !== expected.ratePlanId)
+				) {
+					throw new Error("TOUR_CHECKIN_REPAIR_CONTEXT_INVALID")
+				}
 			}
 			if (!assignment.isActive) {
 				return { assignmentId: String(assignment.id), deactivated: false }
@@ -168,8 +193,16 @@ export class PolicyAssignmentRepositoryCapa6 implements PolicyAssignmentReposito
 				scope: String(assignment.scope),
 				scopeId: String(assignment.scopeId),
 				channel: assignment.channel == null ? null : String(assignment.channel),
-				beforeJson: { isActive: true },
-				afterJson: { isActive: false },
+				beforeJson: {
+					isActive: true,
+					...(params.repairContext ? { category: assignment.category } : {}),
+				},
+				afterJson: {
+					isActive: false,
+					...(params.repairContext
+						? { reasonCode: "tour_historical_checkin_removed", reviewContext: params.repairContext }
+						: {}),
+				},
 			})
 			return { assignmentId: String(assignment.id), deactivated: true }
 		})

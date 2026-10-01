@@ -102,6 +102,14 @@ if (!isPlaybookMode) {
 const { checkIn, checkOut } = resolvePolicyDateRange(Astro.url)
 const ratePlanDetailViews = ["conditions", "price", "details"] as const
 type RatePlanDetailView = (typeof ratePlanDetailViews)[number]
+function ratePlanViewHref(view: string) {
+	const target = new URL(Astro.url)
+	target.searchParams.set("vista", view)
+	target.searchParams.set("productId", String(row.productId))
+	target.searchParams.set("variantId", String(row.variantId))
+	target.searchParams.set("ratePlanId", ratePlanId)
+	return target.pathname + target.search
+}
 const requestedView = String(Astro.url.searchParams.get("vista") ?? "conditions")
 const activeView: RatePlanDetailView = ratePlanDetailViews.includes(
 	requestedView as RatePlanDetailView
@@ -263,7 +271,9 @@ const tabs = [
 	{
 		id: "conditions",
 		label: "Condiciones",
-		meta: policyCoverage.label,
+		meta: policyPlan?.compatibilityIssues?.length
+			? `${policyCoverage.label} · Revisar`
+			: policyCoverage.label,
 	},
 	{
 		id: "price",
@@ -363,6 +373,7 @@ const complianceReviewHref = (() => {
 	return `${target.pathname}?${target.searchParams.toString()}`
 })()
 const effectiveActiveView = isPlaybookMode ? "conditions" : activeView
+const ratePlanListHref = `${routes.rates()}?${new URLSearchParams({ productId: String(row.productId), variantId: String(row.variantId), ratePlanId })}`
 const Layout = activePlaybook ? PlaybookLayout : WorkspaceLayout
 const layoutProps =
 	activePlaybook === "add-room"
@@ -469,7 +480,7 @@ logRoutePerformance({
 			{
 				isPlaybookMode ? null : (
 					<div class="flex flex-wrap gap-2">
-						<Button href={routes.rates()} variant="secondary">
+						<Button href={ratePlanListHref} variant="secondary">
 							Volver a tarifas
 						</Button>
 					</div>
@@ -495,7 +506,7 @@ logRoutePerformance({
 						<TabsOutsidePanel class="mb-3" aria-label="Configurar tarifa" data-rate-plan-tabs>
 							{tabs.map((tab) => (
 								<a
-									href={`?vista=${tab.id}`}
+									href={ratePlanViewHref(tab.id)}
 									data-rate-plan-tab={tab.id}
 									aria-current={effectiveActiveView === tab.id ? "page" : undefined}
 									data-active={effectiveActiveView === tab.id ? "true" : "false"}
@@ -901,6 +912,11 @@ logRoutePerformance({
 
 	for (const tab of ratePlanTabs) {
 		tab.addEventListener("click", (event) => {
+			if (
+				event instanceof MouseEvent &&
+				(event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
+			)
+				return
 			event.preventDefault()
 			renderRatePlanTab(String(tab.dataset.ratePlanTab ?? "conditions"), true)
 		})

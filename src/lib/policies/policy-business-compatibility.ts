@@ -204,3 +204,34 @@ export function effectivePolicyCompatibilityIssues(
 		})
 	)
 }
+
+/** Presence and compatibility are distinct; only valid required categories count as ready. */
+export function evaluateEffectivePolicyReadiness(
+	context: PolicyBusinessContext,
+	entries: Parameters<typeof effectivePolicyCompatibilityIssues>[1],
+	missingCategories: readonly string[]
+) {
+	const required = context.contract.requiredCategories
+	const issues = entries.flatMap((entry) =>
+		effectivePolicyCompatibilityIssues(context, [entry]).map((issue) => ({
+			...issue,
+			category: entry.category,
+		}))
+	)
+	const invalidCategories = [...new Set(issues.map((issue) => issue.category))]
+	const pendingCategories = required.filter(
+		(category) =>
+			missingCategories.includes(category) || !entries.some((entry) => entry.category === category)
+	)
+	const coverageCount = required.filter(
+		(category) => !pendingCategories.includes(category) && !invalidCategories.includes(category)
+	).length
+	return {
+		coverageCount,
+		missingCategories: pendingCategories,
+		invalidCategories,
+		compatibilityIssues: issues,
+		isSellableByContract:
+			required.length > 0 && pendingCategories.length === 0 && issues.length === 0,
+	}
+}

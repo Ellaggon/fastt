@@ -6,6 +6,14 @@ const deactivatePolicyAssignmentSchema = z.object({
 	assignmentId: z.string().min(1),
 	ownerProviderId: z.string().min(1),
 	actorUserId: z.string().min(1).optional(),
+	repairContext: z
+		.object({
+			productId: z.string().min(1),
+			variantId: z.string().min(1),
+			ratePlanId: z.string().min(1),
+		})
+		.strict()
+		.optional(),
 })
 
 export type DeactivatePolicyAssignmentInput = z.input<typeof deactivatePolicyAssignmentSchema>
@@ -19,5 +27,6 @@ export async function deactivatePolicyAssignmentCapa6(
 		assignmentId: parsed.assignmentId,
 		ownerProviderId: parsed.ownerProviderId,
 		actorUserId: parsed.actorUserId ?? null,
+		repairContext: parsed.repairContext,
 	})
 }
