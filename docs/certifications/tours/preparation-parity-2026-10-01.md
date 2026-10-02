@@ -1,6 +1,6 @@
 # Preparación de tours: evidencia de paridad y sesiones
 
-Status: certified-local-production-sessions-http-negative-pending
+Status: certified-local-production-ui-sessions-http-negative-pending
 Document type: certification
 Owner: Engineering / responsable de Fastt
 Last verified: 2026-10-02
@@ -13,8 +13,9 @@ Supersedes: `docs/certifications/tours/preparation-sessions-v2-2026-10-01.md` (e
 ## Alcance certificado
 
 El recorrido local autenticado en escritorio y móvil coincide con el diagnóstico del servidor.
-La persistencia de sesiones por producto está certificada en producción. Las últimas correcciones
-de navegación, progreso y diálogo sólo están verificadas localmente; no atribuirlas al despliegue.
+La persistencia de sesiones por producto y las superficies principales están comprobadas en
+producción. El diálogo de reparación y los casos publicado agotado/privada habilitada conservan
+el alcance local/controlado descrito abajo; no atribuirlos a una venta operativa probada.
 Estos resultados no autorizan venta: condiciones incompatibles y habilitaciones pendientes
 continúan bloqueando la oferta.
 
@@ -98,8 +99,28 @@ sesión devuelve 401. La petición HTTP obsoleta autenticada sólo está probada
 
 ## Pendientes y recuperación
 
-- Revalidar las últimas correcciones locales en producción tras desplegarlas.
+### Revalidación tras merges del 02-10-2026
+
+Sobre `4fe2f5fb` (PRs #416, #419 y #420 integradas) volvieron a aprobar 292 regresiones,
+18 renders y 12 pruebas PostgreSQL aisladas, sin escribir en la base operativa.
+Vercel identifica como producción `dpl_8qufavvFvLpd74qzSue44ta3tgZk`, READY,
+`https://fastt-qz6kxxzte-ellaggons-projects.vercel.app`, creado el 02-10-2026 a las
+11:01 America/Santiago y asociado a `fastt-five.vercel.app`. La salida de inspect no
+expone SHA: no se afirma correspondencia exacta de commit sólo por su hora de creación.
+
+Codex autenticado comprobó catálogo, dashboard, preview, detalle de condiciones y guía
+en ese dominio. Ambas ofertas conservan opción/tarifa, pendientes y 90%/30%; catálogo
+cuenta cero listas para publicar y el detalle muestra «Condiciones 2/3 · Revisar».
+Guía móvil de la segunda oferta a 390 × 844: `scrollWidth=390`, `aria-valuenow=30`,
+selección/retorno correctos y reserva desactivada; viewport restablecido.
+Una pestaña nueva del mismo navegador recuperó el control tras el timeout de la original.
+El acceso directo a `/api/internal/product-summary` fue bloqueado por el navegador
+(`ERR_BLOCKED_BY_CLIENT`), no obtuvo una respuesta de la aplicación.
+No se activaron/publicaron ofertas ni se retiraron políticas reales para producir estos casos.
+
 - Comprobar HTTP 409 de escritor antiguo autenticado en el dominio operativo sin mutar datos.
+- Certificar el GET individual autenticado en producción mediante un cliente autorizado
+  que permita esa ruta; su paridad HTTP local y las regresiones controladas están aprobadas.
 - Toda reversión debe conservar v2, clave por producto y trigger; una sesión sobrescrita sólo
   se recupera con respaldo. Procedimiento: [operación PostgreSQL](../../engineering/supabase-migration.md#publicar-y-certificar-el-escritor-v2).
 
