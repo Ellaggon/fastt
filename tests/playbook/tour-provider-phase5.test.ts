@@ -142,20 +142,17 @@ describe("tour provider phase 5", () => {
 	it("does not offer guided activation while provider governance blocks publishing", () => {
 		const calendar = source("src/pages/rates/calendar.astro")
 		const workspace = source("src/components/rates/SingleCalendarWorkspace.tsx")
-		expect(calendar).toContain("evaluateProviderGovernance(auth.providerId")
-		expect(calendar).toContain('blocker.capabilities.includes("publish")')
+		expect(calendar).toContain("loadCompleteToPublishState")
+		expect(calendar).toContain("tourActivationDecision(guidedTourState.tourDiagnostic)")
 		expect(calendar).toContain("activationBlockers: guidedTourPublishBlockers.map")
-		expect(calendar).toContain('url.searchParams.set("line", "tour")')
-		expect(calendar).toContain('url.searchParams.set("experience", playbookProductId)')
+		expect(calendar).toContain("href: blocker.href")
 		expect(workspace).toContain(
 			"activationBlockers?: Array<{ id: string; label: string; href: string }>"
 		)
 		expect(workspace).toContain("isTourGuidedAvailability && !hasActivationBlockers")
 		expect(workspace).toContain("Resolver requisito")
-		expect(workspace).toContain('"Habilitación pendiente"')
-		expect(workspace).toContain(
-			"Antes de aceptar reservas, completa estos requisitos del proveedor:"
-		)
-		expect(workspace).toContain("todavía no puede recibir reservas")
+		expect(workspace).toContain('"Activación pendiente"')
+		expect(workspace).toContain("Antes de activar esta oferta, resuelve estos requisitos:")
+		expect(workspace).toContain("requisitos de activación indicados")
 	})
 })

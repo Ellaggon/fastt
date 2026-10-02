@@ -170,15 +170,19 @@ export async function summarizeProductPreparation(params: {
 		statusLabel:
 			status === "published"
 				? presentation.label
-				: publishState.readyToPublish
-					? "Listo para publicar"
-					: presentation.label,
+				: tourPresentation
+					? tourPresentation.catalogStatus.label
+					: publishState.readyToPublish
+						? "Listo para publicar"
+						: presentation.label,
 		statusVariant:
 			status === "published"
 				? presentation.variant
-				: publishState.readyToPublish
-					? "info"
-					: presentation.variant,
+				: tourPresentation
+					? tourPresentation.catalogStatus.variant
+					: publishState.readyToPublish
+						? "info"
+						: presentation.variant,
 		isPublished: status === "published",
 		readinessPercent: publishState.readinessPercent,
 		blockerCount: blockers.length,

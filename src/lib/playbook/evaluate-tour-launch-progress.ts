@@ -7,7 +7,6 @@ import {
 	type TourLaunchContext,
 	type TourLaunchStepId,
 } from "@/lib/playbook/launch-tour"
-import { getProductFullAggregate } from "@/modules/catalog/public"
 
 export type TourLaunchProgressResult = {
 	playbookId: "launch-tour"
@@ -46,9 +45,6 @@ export async function evaluateTourLaunchProgress(
 	providerId: string,
 	options: TourProgressOptions = {}
 ): Promise<TourLaunchProgressResult | null> {
-	const aggregate = await getProductFullAggregate(productId, providerId)
-	if (!aggregate) return null
-
 	const publishState = await loadCompleteToPublishState({
 		productId,
 		providerId,
@@ -130,6 +126,7 @@ export async function evaluateTourLaunchProgress(
 		playbookId: "launch-tour",
 		tourPresentation: publishState.tourDiagnostic
 			? presentTourDiagnostic(publishState.tourDiagnostic, {
+					published: publishState.editorialStatus === "published",
 					previewHref: publishState.checks.find((check) => check.key === "preview")!.href,
 				})
 			: undefined,

@@ -11,7 +11,7 @@ import {
 import { TOUR_REQUIREMENT_PRESENTATION } from "./tourDiagnosticPresentation"
 import type { LoadedTourContext } from "./loadTourCommercialContext"
 import { completeToPublishStepHref } from "@/lib/playbook/complete-to-publish"
-import { tourContextSelectionHref } from "./resolveTourCommercialContext"
+import { tourContextSelectionHref, tourContextRecoveryHref } from "./resolveTourCommercialContext"
 
 export type TourObservation = {
 	ready: boolean
@@ -31,6 +31,14 @@ export function buildTourDiagnostic(input: {
 	observedAt?: Date
 }): TourDiagnostic {
 	const { context, observations, productId } = input
+	const retryHref = tourContextRecoveryHref(
+		completeToPublishStepHref(productId, "preview", context.status === "resolved" ? context : {}),
+		context.status === "resolved"
+			? context
+			: context.status === "read_failed"
+				? context.recoveryIntent
+				: undefined
+	)
 	const resolved = context.status === "resolved" && context.option.bookingMode !== null
 	const selection: TourDiagnostic["context"]["selection"] =
 		resolved && context.status === "resolved"
@@ -91,11 +99,7 @@ export function buildTourDiagnostic(input: {
 						observation.code === "read_failed"
 							? {
 									label: "Volver a intentar",
-									href: completeToPublishStepHref(
-										productId,
-										"preview",
-										context.status === "resolved" ? context : {}
-									),
+									href: retryHref,
 								}
 							: (observation.action ?? { label: TOUR_REQUIREMENT_PRESENTATION[id].action, href }),
 				}
@@ -147,7 +151,7 @@ export function buildTourDiagnostic(input: {
 						context.status === "resolved"
 							? completeToPublishStepHref(productId, "departure", context)
 							: context.status === "read_failed"
-								? completeToPublishStepHref(productId, "preview")
+								? retryHref
 								: context.status === "unresolved" && context.reason === "missing_option"
 									? completeToPublishStepHref(productId, "departure")
 									: context.status === "unresolved" && context.reason === "missing_rate"
@@ -159,6 +163,21 @@ export function buildTourDiagnostic(input: {
 												)
 											: `/product/${encodeURIComponent(productId)}`,
 				},
+			}
+		}
+		if (
+			resolved &&
+			selection.state === "resolved" &&
+			selection.bookingMode === "private" &&
+			id === "current_availability"
+		) {
+			result = {
+				state: "not_applicable",
+				reason: {
+					code: "private_request_without_inventory",
+					message: "La opción privada recibe solicitudes sin reservar cupos compartidos.",
+				},
+				applicabilityReference: "tour-diagnostic-v1:private-request-without-hold",
 			}
 		}
 		requirements[id] = { scope, result }
@@ -249,4 +268,24 @@ export function evaluateTourCapabilities(
 		book: decide("book", [...publication, "current_availability"], "shared"),
 		receive_request: decide("receive_request", publication, "private"),
 	}
+}
+
+/** Same activation decision and corrective actions for UI and commands. */
+export function tourActivationDecision(diagnosis: TourDiagnostic) {
+	const decision = evaluateTourCapabilities(diagnosis).activate
+	const blockers = decision.allowed
+		? []
+		: decision.blockers.map(({ requirementId, reason }) => {
+				const result = diagnosis.requirements[requirementId].result
+				if (!("action" in result)) throw new Error("Activation blocker lacks correction")
+				return {
+					id: requirementId,
+					label: reason.message,
+					reason,
+					responsible: result.responsible,
+					action: result.action,
+					href: result.action.href,
+				}
+			})
+	return { ...decision, blockers }
 }

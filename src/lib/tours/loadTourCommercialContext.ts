@@ -14,6 +14,8 @@ import {
 } from "@/shared/infrastructure/db/compat"
 import {
 	resolveTourCommercialContext,
+	tourContextSelectionHint,
+	tourContextRecoveryHref,
 	tourContextSelectionHref,
 	withTourCommercialContext,
 	type TourContextResolution,
@@ -23,7 +25,8 @@ import {
 
 export type LoadedTourContext =
 	| TourContextResolution
-	| { status: "not_found" | "not_tour" | "read_failed"; productId: string }
+	| { status: "not_found" | "not_tour"; productId: string }
+	| { status: "read_failed"; productId: string; recoveryIntent?: TourSelectionHint }
 type Input = {
 	providerId: string
 	productId: string
@@ -34,12 +37,14 @@ type Input = {
 	userId?: string
 }
 
-function selectionHint(input: Input): TourSelectionHint {
-	const url = {
-		variantId: input.url?.searchParams.get("variantId"),
-		ratePlanId: input.url?.searchParams.get("ratePlanId"),
+function readFailure(productId: string, intent: TourSelectionHint): LoadedTourContext {
+	const variantId = intent.variantId?.trim() || null
+	const ratePlanId = intent.ratePlanId?.trim() || null
+	return {
+		status: "read_failed",
+		productId,
+		...(variantId || ratePlanId ? { recoveryIntent: { variantId, ratePlanId } } : {}),
 	}
-	return url.variantId?.trim() || url.ratePlanId?.trim() ? url : (input.selection ?? url)
 }
 
 /** Rate/calendar entries may have only an option or rate ID; infer product through owned joins. */
@@ -47,7 +52,7 @@ export async function loadTourCommercialEntryContext(
 	input: Input
 ): Promise<LoadedTourContext | null> {
 	if (input.productId) return loadTourCommercialContext(input)
-	const hint = selectionHint(input)
+	const hint = tourContextSelectionHint(input)
 	if (!hint.variantId && !hint.ratePlanId) return null
 	try {
 		const query = db
@@ -65,7 +70,7 @@ export async function loadTourCommercialEntryContext(
 		if (!product) return { status: "not_found", productId: "" }
 		return loadTourCommercialContext({ ...input, productId: product.productId })
 	} catch {
-		return { status: "read_failed", productId: "" }
+		return readFailure("", hint)
 	}
 }
 
@@ -89,7 +94,12 @@ export function tourContextValidationResponse(context: LoadedTourContext): Respo
 				error === "read_failed"
 					? {
 							label: "Volver a intentar",
-							href: `/product/${encodeURIComponent(context.productId)}/preview`,
+							href: tourContextRecoveryHref(
+								context.productId
+									? `/product/${encodeURIComponent(context.productId)}/preview`
+									: "/rates/plans/manage",
+								context.status === "read_failed" ? context.recoveryIntent : undefined
+							),
 						}
 					: error === "not_found"
 						? { label: "Volver a mis tours", href: "/catalog/tours" }
@@ -136,13 +146,13 @@ export function tourContextEntryResponse(context: LoadedTourContext, url: URL): 
 const requestCache = new WeakMap<Request, Map<string, Promise<LoadedTourContext>>>()
 
 export function loadTourCommercialContext(input: Input): Promise<LoadedTourContext> {
-	if (!input.request) return load(input)
+	if (!input.request || input.request.method !== "GET") return load(input)
 	let cache = requestCache.get(input.request)
 	if (!cache) {
 		cache = new Map()
 		requestCache.set(input.request, cache)
 	}
-	const hint = selectionHint(input)
+	const hint = tourContextSelectionHint(input)
 	const key = JSON.stringify([
 		input.providerId,
 		input.productId,
@@ -160,6 +170,9 @@ export function loadTourCommercialContext(input: Input): Promise<LoadedTourConte
 }
 
 async function load(input: Input): Promise<LoadedTourContext> {
+	const hint = tourContextSelectionHint(input)
+	let recoveryIntent: TourSelectionHint =
+		hint.variantId?.trim() || hint.ratePlanId?.trim() ? hint : (input.session ?? hint)
 	try {
 		const product = await db
 			.select({ id: Product.id, productType: Product.productType })
@@ -226,7 +239,7 @@ async function load(input: Input): Promise<LoadedTourContext> {
 				reason: "invalid_selection",
 			}
 		}
-		const url = selectionHint(input)
+		const url = tourContextSelectionHint(input)
 		let session: TourSelectionHint | undefined = input.session
 		if (!session && !url.variantId?.trim() && !url.ratePlanId?.trim()) {
 			const userId =
@@ -251,6 +264,7 @@ async function load(input: Input): Promise<LoadedTourContext> {
 					.limit(1)
 					.then(first)
 				session = saved ?? undefined
+				if (session) recoveryIntent = session
 			}
 		}
 		return resolveTourCommercialContext({
@@ -264,6 +278,6 @@ async function load(input: Input): Promise<LoadedTourContext> {
 			"tour-commercial-context: read failed",
 			error instanceof Error ? error.message : "unknown"
 		)
-		return { status: "read_failed", productId: input.productId }
+		return readFailure(input.productId, recoveryIntent)
 	}
 }

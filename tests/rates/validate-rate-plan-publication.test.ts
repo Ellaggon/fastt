@@ -43,6 +43,7 @@ vi.mock("@/shared/infrastructure/db/compat", () => ({
 	Product: mocks.productTable,
 	and: vi.fn((...conditions: unknown[]) => conditions),
 	count: vi.fn(),
+	sql: vi.fn(),
 	eq: vi.fn(),
 	first: (rows: unknown[]) => rows[0],
 	gt: mocks.gt,
@@ -213,7 +214,9 @@ describe("validate rate plan publication", () => {
 	it("private options require configured dates but do not consume shared sellable inventory", async () => {
 		mocks.productWhere.mockResolvedValue([{ productType: "tour" }])
 		mocks.capacityWhere.mockResolvedValue([{ maxOccupancy: 8, bookingMode: "private" }])
-		mocks.inventoryWhere.mockResolvedValueOnce([{ value: 0 }]).mockResolvedValueOnce([{ value: 2 }])
+		mocks.inventoryWhere
+			.mockResolvedValueOnce([{ value: 0 }])
+			.mockResolvedValueOnce([{ value: 2, futureDateCount: 1, futureCapacityDateCount: 0 }])
 		const result = await validateRatePlanPublication({
 			productId: "tour",
 			variantId: "option",
@@ -222,6 +225,8 @@ describe("validate rate plan publication", () => {
 		expect(result.canPublish).toBe(true)
 		expect(result.observations.availableDateCount).toBe(0)
 		expect(result.observations.configuredDateCount).toBe(2)
+		expect(result.observations.futureDateCount).toBe(1)
+		expect(result.observations.futureCapacityDateCount).toBe(0)
 	})
 
 	it("rejects an effective hotel policy on the selected tour rate", async () => {

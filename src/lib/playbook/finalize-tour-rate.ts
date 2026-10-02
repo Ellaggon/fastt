@@ -1,4 +1,5 @@
-import { loadTourAuthorization } from "@/lib/tours/loadTourAuthorization"
+import { loadCompleteToPublishState } from "./evaluate-complete-to-publish-progress"
+import { tourActivationDecision } from "@/lib/tours/buildTourDiagnostic"
 import { tourActivationBlockers } from "./tourActivationBlockers"
 import {
 	ratePlanCommandRepository,
@@ -15,7 +16,6 @@ import { invalidateAggregateCache } from "@/lib/cache/ssrAggregateCache"
 import { buildCompleteToPublishHref } from "@/lib/playbook/complete-to-publish"
 import { buildTourPlaybookHref, buildTourReviewHref } from "@/lib/playbook/launch-tour"
 import { assertProviderCapability } from "@/lib/provider-governance"
-import { validateRatePlanPublication } from "@/lib/rates/validateRatePlanPublication"
 import { evaluateVariantReadiness } from "@/modules/catalog/public"
 import { getRatePlanById, resolveRatePlanOwnerContext } from "@/modules/pricing/public"
 
@@ -83,12 +83,6 @@ export async function finalizeTourRate(input: Input) {
 		return { ok: false as const, status: 404 as const, error: "Tarifa o salida no encontrada." }
 	}
 
-	await assertProviderCapability({
-		providerId: input.providerId,
-		currentUserId: input.userId,
-		capability: "publish",
-	})
-
 	const [ratePlan, variant] = await Promise.all([
 		getRatePlanById(input.ratePlanId) as Promise<{
 			name?: unknown
@@ -114,57 +108,66 @@ export async function finalizeTourRate(input: Input) {
 	// A retry after a lost response reports the state that already committed,
 	// without requiring the original validation snapshot to remain unchanged.
 	if (ratePlan.isActive && ratePlan.isDefault && variant.salesEnabled) {
+		await assertProviderCapability({
+			providerId: input.providerId,
+			currentUserId: input.userId,
+			capability: "publish",
+		})
+
 		const cacheRefreshed = await refreshTourActivationSurfaces(input)
 		return successResult(input, true, !cacheRefreshed)
 	}
 
-	const authorization = await loadTourAuthorization(input)
-	const authorizationBlockers = Object.entries(authorization)
-		.filter(([, observation]) => !observation.ready)
-		.map(([id, observation]) => ({
-			id,
-			label: observation.message,
-			href: `/provider/settings/verification?line=tour&experience=${encodeURIComponent(input.productId)}`,
-		}))
-	if (authorizationBlockers.length)
-		return {
-			ok: false as const,
-			status: 409 as const,
-			error: "Esta experiencia todavía no está habilitada.",
-			blockers: authorizationBlockers,
-		}
-	const publication = await validateRatePlanPublication({
-		productId: input.productId,
-		variantId: input.variantId,
-		ratePlanId: input.ratePlanId,
-	})
-	if (!publication.canPublish) {
-		return {
-			ok: false as const,
-			status: 409 as const,
-			error: "Aún falta información para activar la tarifa de esta salida.",
-			blockers: tourActivationBlockers(
-				publication.blockerDetails ??
-					publication.blockers.map((label) => ({ id: "departure", label })),
-				input
-			),
-		}
+	const evaluateActivation = async () => {
+		const state = await loadCompleteToPublishState({
+			providerId: input.providerId,
+			productId: input.productId,
+			selection: { variantId: input.variantId, ratePlanId: input.ratePlanId },
+		})
+		if (!state?.tourDiagnostic) throw new Error("Tour activation diagnosis unavailable")
+		return tourActivationDecision(state.tourDiagnostic)
 	}
+	const activation = await evaluateActivation()
+	if (!activation.allowed)
+		return {
+			ok: false as const,
+			status: 409 as const,
+			error: "Completa los requisitos indicados antes de activar esta oferta.",
+			capability: activation.capability,
+			source: activation.source,
+			blockers: activation.blockers,
+		}
+
+	await assertProviderCapability({
+		providerId: input.providerId,
+		currentUserId: input.userId,
+		capability: "publish",
+	})
+
 	const readiness = await evaluateVariantReadiness(
 		{ repo: variantManagementRepository, pricingReadRepo: ratePlanPricingReadRepository },
 		{ variantId: input.variantId, ratePlanId: input.ratePlanId }
 	)
 	if (readiness.lifecycleState !== "ready") {
+		const currentActivation = await evaluateActivation()
+		const fallback = tourActivationBlockers(
+			readiness.validationErrors
+				.filter((error) => error.code !== "inventory_missing")
+				.map((error) => ({ id: error.code, label: error.message })),
+			input
+		)
 		return {
 			ok: false as const,
 			status: 409 as const,
-			error: "La salida aún no está lista para activar.",
-			blockers: tourActivationBlockers(
-				readiness.validationErrors
-					.filter((error) => error.code !== "inventory_missing")
-					.map((error) => ({ id: error.code, label: error.message })),
-				input
-			),
+			error: "La salida cambió durante la activación. Revisa los requisitos y vuelve a intentar.",
+			blockers: currentActivation.blockers.length
+				? currentActivation.blockers
+				: fallback.length
+					? fallback
+					: tourActivationBlockers(
+							[{ id: "departure", label: "Actualiza la salida y vuelve a intentar." }],
+							input
+						),
 		}
 	}
 
@@ -180,39 +183,38 @@ export async function finalizeTourRate(input: Input) {
 		return { ok: false as const, status: 404 as const, error: "Tarifa o salida no encontrada." }
 	}
 	if (activationResult === "not_ready") {
-		const [currentPublication, currentReadiness] = await Promise.all([
-			validateRatePlanPublication({
-				productId: input.productId,
-				variantId: input.variantId,
-				ratePlanId: input.ratePlanId,
-			}),
+		const [currentActivation, currentReadiness] = await Promise.all([
+			evaluateActivation(),
 			evaluateVariantReadiness(
 				{ repo: variantManagementRepository, pricingReadRepo: ratePlanPricingReadRepository },
 				{ variantId: input.variantId, ratePlanId: input.ratePlanId }
 			),
 		])
-		const blockers = [
-			...(currentPublication.blockerDetails ??
-				currentPublication.blockers.map((label) => ({ id: "departure", label }))),
-			...(currentReadiness.lifecycleState !== "ready"
-				? currentReadiness.validationErrors
-						.filter((error) => error.code !== "inventory_missing")
-						.map((error) => ({
-							id: error.code,
-							label: error.message,
-						}))
-				: []),
-		]
+		const blockers = currentActivation.blockers
+		const concurrencyBlockers = tourActivationBlockers(
+			currentReadiness.validationErrors
+				.filter((error) => error.code !== "inventory_missing")
+				.map((error) => ({ id: error.code, label: error.message })),
+			input
+		)
+
 		return {
 			ok: false as const,
 			status: 409 as const,
 			error: "La salida cambió mientras se activaba. Revisa estos requisitos y vuelve a intentar.",
-			blockers: tourActivationBlockers(
-				blockers.length
-					? blockers
-					: [{ id: "departure", label: "Actualiza la salida y vuelve a intentar la activación." }],
-				input
-			),
+			blockers: blockers.length
+				? blockers
+				: concurrencyBlockers.length
+					? concurrencyBlockers
+					: tourActivationBlockers(
+							[
+								{
+									id: "departure",
+									label: "La salida cambió durante la activación. Actualiza y vuelve a intentar.",
+								},
+							],
+							input
+						),
 		}
 	}
 	const cacheRefreshed = await refreshTourActivationSurfaces(input)

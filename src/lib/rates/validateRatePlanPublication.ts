@@ -18,6 +18,7 @@ import {
 	eq,
 	first,
 	gt,
+	sql,
 	Product,
 } from "@/shared/infrastructure/db/compat"
 
@@ -60,7 +61,11 @@ export async function validateRatePlanPublication(params: {
 				.where(eq(VariantCapacity.variantId, params.variantId))
 				.then(first),
 			db
-				.select({ value: count() })
+				.select({
+					value: count(),
+					futureDateCount: sql<number>`count(*) filter (where ${DailyInventory.date} > ${providerLocalToday(params.productId)})`,
+					futureCapacityDateCount: sql<number>`count(*) filter (where ${DailyInventory.date} > ${providerLocalToday(params.productId)} and ${DailyInventory.totalInventory} > 0)`,
+				})
 				.from(DailyInventory)
 				.where(eq(DailyInventory.variantId, params.variantId)),
 		]
@@ -152,6 +157,8 @@ export async function validateRatePlanPublication(params: {
 				: Number(inventory?.defaultTotalUnits ?? 0) > 0,
 			conditionsReady: policyReadiness.isSellableByContract,
 			configuredDateCount: Number(configuredDates[0]?.value ?? 0),
+			futureDateCount: Number(configuredDates[0]?.futureDateCount ?? 0),
+			futureCapacityDateCount: Number(configuredDates[0]?.futureCapacityDateCount ?? 0),
 			availableDateCount: Number(availability[0]?.value ?? 0),
 		},
 	}

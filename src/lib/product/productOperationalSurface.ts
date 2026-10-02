@@ -2,6 +2,7 @@ import {
 	and,
 	db,
 	eq,
+	inArray,
 	first,
 	Product,
 	ProductOperationalSurface,
@@ -203,12 +204,18 @@ export async function listProductOperationalPreparation(
 ): Promise<Map<string, ProductPreparationSummary>> {
 	const ids = Array.from(new Set(productIds.map((id) => String(id ?? "").trim()).filter(Boolean)))
 	if (!providerId || ids.length === 0) return new Map()
+	// Editorial state belongs to the owned product, not its preparation snapshot.
+	const products = await db
+		.select({ productId: Product.id, status: Product.publicationState })
+		.from(Product)
+		.where(and(eq(Product.providerId, providerId), inArray(Product.id, ids)))
 	const result = new Map<string, ProductPreparationSummary>()
 	await Promise.all(
-		ids.map(async (productId) => {
+		products.map(async ({ productId, status }) => {
 			const summary = await summarizeProductPreparation({
 				productId,
 				providerId,
+				status: String(status ?? "draft"),
 				lastPath: options?.lastPathByProductId?.get(productId) ?? null,
 				request: options?.request,
 			})

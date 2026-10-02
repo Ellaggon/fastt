@@ -1,3 +1,4 @@
+import { tourActivationDecision } from "./buildTourDiagnostic"
 import { projectTourPublishingStages } from "@/lib/playbook/tour-publishing-stages"
 import {
 	TOUR_REQUIREMENTS,
@@ -73,12 +74,38 @@ export function presentTourDiagnostic(
 	})
 	const publicationBlockers = blockers.filter((blocker) => blocker.axis !== "operation")
 	const relevant = options.published ? blockers : publicationBlockers
+	const readyToPublish = !options.published && publicationBlockers.length === 0
+	const selection = diagnosis.context.selection
+	const hasUnknown = Object.values(diagnosis.requirements).some(
+		({ result }) => result.state === "not_evaluable"
+	)
+	const catalogStatus = {
+		prepared: summary.preparation.complete,
+		readyToPublish,
+		label:
+			selection.state === "unresolved" && selection.reason === "selection_required"
+				? "Selecciona oferta"
+				: hasUnknown
+					? "Evaluación pendiente"
+					: readyToPublish
+						? "Listo para publicar"
+						: summary.preparation.complete
+							? "Ficha preparada"
+							: "En preparación",
+		variant: readyToPublish ? ("success" as const) : ("info" as const),
+	}
+	const privateRequestsEnabled =
+		diagnosis.context.selection.state === "resolved" &&
+		diagnosis.context.selection.bookingMode === "private" &&
+		publicationBlockers.length === 0
 	const next = relevant[0]
 	const primaryAction = next?.action ?? {
 		label: options.published ? "Revisar ficha" : "Revisar y publicar",
 		href: options.previewHref,
 	}
 	return {
+		catalogStatus,
+		activation: tourActivationDecision(diagnosis),
 		stages: projectTourPublishingStages(diagnosis),
 		preparation: summary.preparation,
 		primaryAction,
@@ -86,7 +113,9 @@ export function presentTourDiagnostic(
 		message: options.published
 			? next
 				? `Publicado · ${next.label.toLowerCase()} pendiente.`
-				: "Publicado y visible para viajeros."
+				: privateRequestsEnabled
+					? "Publicado · solicitudes privadas habilitadas."
+					: "Publicado y visible para viajeros."
 			: !summary.preparation.complete
 				? `${summary.preparation.readyCount} de ${summary.preparation.totalCount} requisitos preparados.`
 				: !summary.authorization.complete
@@ -97,11 +126,30 @@ export function presentTourDiagnostic(
 		support:
 			next?.reason.message ??
 			(options.published
-				? "Gestiona opciones, precios y fechas desde sus herramientas."
+				? privateRequestsEnabled
+					? "El viajero puede solicitar una cotización. La solicitud no confirma una reserva ni retiene cupos."
+					: "Gestiona opciones, precios y fechas desde sus herramientas."
 				: "Verifica la opción y tarifa elegidas en la vista previa."),
 		nextLabel: next?.label ?? "Revisión final",
 		nextResponsible: next?.responsible ?? null,
 		publicationBlockers,
 		blockers,
+	}
+}
+
+/** Counts evaluated offers independently of persisted editorial readiness. */
+export function summarizeTourCatalog(
+	rows: readonly {
+		published: boolean
+		presentation?: ReturnType<typeof presentTourDiagnostic> | null
+	}[]
+) {
+	return {
+		total: rows.length,
+		published: rows.filter((row) => row.published).length,
+		prepared: rows.filter((row) => row.presentation?.catalogStatus.prepared).length,
+		readyToPublish: rows.filter(
+			(row) => !row.published && row.presentation?.catalogStatus.readyToPublish
+		).length,
 	}
 }

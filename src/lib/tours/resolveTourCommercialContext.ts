@@ -126,3 +126,26 @@ export function withTourCommercialContext(href: string, context: TourContextReso
 	if (context.ratePlanId) url.searchParams.set("ratePlanId", context.ratePlanId)
 	return `${url.pathname}${url.search}${url.hash}`
 }
+
+/** Unvalidated intent is only carried to a retry; the next request must resolve ownership again. */
+export function tourContextRecoveryHref(href: string, intent?: TourSelectionHint): string {
+	const target = new URL(href, "http://fastt.local")
+	if (target.origin !== "http://fastt.local") throw new Error("Expected a local tour retry")
+	for (const key of ["variantId", "ratePlanId"] as const) {
+		target.searchParams.delete(key)
+		const value = intent?.[key]?.trim()
+		if (value) target.searchParams.set(key, value)
+	}
+	return target.pathname + target.search + target.hash
+}
+
+export function tourContextSelectionHint(input: {
+	url?: URL
+	selection?: TourSelectionHint
+}): TourSelectionHint {
+	const url = {
+		variantId: input.url?.searchParams.get("variantId"),
+		ratePlanId: input.url?.searchParams.get("ratePlanId"),
+	}
+	return url.variantId?.trim() || url.ratePlanId?.trim() ? url : (input.selection ?? url)
+}

@@ -247,7 +247,7 @@ export function resolveTourLaunchStepFromUrl(
 
 type TourSharedRateContext = {
 	isTour: boolean
-	step: Extract<TourLaunchStepId, "rate" | "conditions" | "calendar">
+	step: Extract<TourLaunchStepId, "rate" | "conditions" | "calendar" | "preview">
 	productId: string
 	variantId?: string
 	ratePlanId?: string
@@ -263,17 +263,35 @@ export function getTourSharedRateCanonicalHref(
 ): string | null {
 	if (!context.isTour) return null
 
-	const playbook = String(url.searchParams.get("playbook") ?? "").trim()
-	const flow = String(url.searchParams.get("flow") ?? "").trim()
-	const isCompletePlaybook = playbook === "complete-to-publish"
+	const playbook = String(url.searchParams.get("playbook") ?? "")
+		.trim()
+		.toLowerCase()
+	const flow = String(url.searchParams.get("flow") ?? "")
+		.trim()
+		.toLowerCase()
+	const isCompletePlaybook =
+		playbook === "complete-to-publish" ||
+		playbook === "complete" ||
+		(!playbook && flow === "complete")
 	const isTourPlaybook = playbook === LAUNCH_TOUR_PLAYBOOK_ID
 	const hasAccommodationIntent =
-		playbook === "launch" || playbook === "add-room" || flow === "create" || flow === "add-room"
+		playbook === "launch" ||
+		playbook === "launch-accommodation" ||
+		playbook === "add-room" ||
+		flow === "create" ||
+		flow === "add-room"
 	if (!isCompletePlaybook && !isTourPlaybook && !hasAccommodationIntent) return null
 
 	const params = new URLSearchParams(url.searchParams)
 	params.set("playbook", isCompletePlaybook ? "complete-to-publish" : LAUNCH_TOUR_PLAYBOOK_ID)
-	params.set("step", isCompletePlaybook ? (params.get("step") ?? context.step) : context.step)
+	params.set(
+		"step",
+		context.step === "preview"
+			? "preview"
+			: isCompletePlaybook
+				? (params.get("step") ?? context.step)
+				: context.step
+	)
 	params.set("flow", isCompletePlaybook ? "complete" : "create")
 	params.set("productId", context.productId)
 	if (context.variantId) params.set("variantId", context.variantId)
@@ -281,8 +299,16 @@ export function getTourSharedRateCanonicalHref(
 	if (context.ratePlanId) params.set("ratePlanId", context.ratePlanId)
 	else params.delete("ratePlanId")
 
-	const href = `${url.pathname}?${params.toString()}`
-	return href === `${url.pathname}${url.search}` ? null : href
+	const href = `${url.pathname}?${params.toString()}${url.hash}`
+	return href === `${url.pathname}${url.search}${url.hash}` ? null : href
+}
+
+/** Resolve preview navigation only after ownership and commercial selection are checked. */
+export function getTourPreviewCanonicalHref(
+	url: URL,
+	context: Omit<TourSharedRateContext, "step">
+): string | null {
+	return getTourSharedRateCanonicalHref(url, { ...context, step: "preview" })
 }
 
 /** Keep a tour rate detail page out of accommodation playbooks and restore its exact context. */

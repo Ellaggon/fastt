@@ -1,3 +1,4 @@
+import { tourContextSelectionHint } from "@/lib/tours/resolveTourCommercialContext"
 import {
 	presentTourDiagnostic,
 	TOUR_REQUIREMENT_PRESENTATION,
@@ -20,7 +21,11 @@ import {
 	type ProductVerticalSectionKey,
 } from "@/lib/catalog/productVerticalRegistry"
 import { routes } from "@/lib/routes"
-import { productRepository } from "@/container"
+import {
+	productRepository,
+	variantManagementRepository,
+	ratePlanPricingReadRepository,
+} from "@/container"
 import {
 	TOUR_QUALITY_MIN_IMAGES,
 	TOUR_QUALITY_MIN_ITINERARY_STEPS,
@@ -29,7 +34,11 @@ import {
 	buildCompleteToPublishHref,
 	completeToPublishStepHref,
 } from "@/lib/playbook/complete-to-publish"
-import { getProductFullAggregate, getProductVariantsAggregate } from "@/modules/catalog/public"
+import {
+	getProductFullAggregate,
+	getProductVariantsAggregate,
+	evaluateVariantReadiness,
+} from "@/modules/catalog/public"
 import {
 	essentialHouseRuleTypes,
 	houseRuleLabels,
@@ -56,6 +65,7 @@ export type CompleteToPublishCheck = {
 }
 
 export type CompleteToPublishState = {
+	editorialStatus?: string
 	checks: CompleteToPublishCheck[]
 	tourContext?: LoadedTourContext
 	tourDiagnostic?: TourDiagnostic
@@ -154,14 +164,54 @@ function sectionCta(section: ProductVerticalSectionKey): string {
 	return ctas[section] ?? "Completar"
 }
 
-export async function loadCompleteToPublishState(params: {
+type CompleteToPublishInput = {
 	productId: string
 	providerId: string
 	request?: Request
 	url?: URL
 	selection?: { variantId?: string | null; ratePlanId?: string | null }
 	session?: { variantId?: string | null; ratePlanId?: string | null }
-}): Promise<CompleteToPublishState | null> {
+}
+const diagnosisByRequest = new WeakMap<
+	Request,
+	Map<string, Promise<CompleteToPublishState | null>>
+>()
+
+/** A read request observes one snapshot per commercial intent; commands always evaluate afresh. */
+export function loadCompleteToPublishState(
+	params: CompleteToPublishInput
+): Promise<CompleteToPublishState | null> {
+	if (!params.request || params.request.method !== "GET")
+		return evaluateCompleteToPublishState(params)
+	const hint = tourContextSelectionHint(params)
+	const explicit = Boolean(hint.variantId?.trim() || hint.ratePlanId?.trim())
+	const key = JSON.stringify([
+		params.providerId,
+		params.productId,
+		params.url?.searchParams.get("productId") &&
+		params.url.searchParams.get("productId") !== params.productId
+			? params.url.searchParams.get("productId")
+			: null,
+		hint.variantId?.trim() || null,
+		hint.ratePlanId?.trim() || null,
+		explicit ? null : params.session?.variantId?.trim() || null,
+		explicit ? null : params.session?.ratePlanId?.trim() || null,
+	])
+	let cache = diagnosisByRequest.get(params.request)
+	if (!cache) {
+		cache = new Map()
+		diagnosisByRequest.set(params.request, cache)
+	}
+	const existing = cache.get(key)
+	if (existing) return existing
+	const pending = evaluateCompleteToPublishState(params)
+	cache.set(key, pending)
+	return pending
+}
+
+async function evaluateCompleteToPublishState(
+	params: CompleteToPublishInput
+): Promise<CompleteToPublishState | null> {
 	const { productId, providerId } = params
 	const aggregate = await getProductFullAggregate(productId, providerId)
 	if (!aggregate) return null
@@ -185,17 +235,31 @@ export async function loadCompleteToPublishState(params: {
 	const selectedActiveSlotCount =
 		selectedOption?.salesEnabled && selectedOption.lifecycleState === "ready" ? 1 : 0
 	let commercialReadFailed = false
-	const commercial =
+	const [commercial, variantReadiness] =
 		tourContext?.status === "resolved"
-			? await validateRatePlanPublication({
-					productId,
-					variantId: tourContext.variantId!,
-					ratePlanId: tourContext.ratePlanId!,
-				}).catch(() => {
-					commercialReadFailed = true
-					return null
-				})
-			: null
+			? await Promise.all([
+					validateRatePlanPublication({
+						productId,
+						variantId: tourContext.variantId!,
+						ratePlanId: tourContext.ratePlanId!,
+					}).catch(() => {
+						commercialReadFailed = true
+						return null
+					}),
+					evaluateVariantReadiness(
+						{
+							repo: variantManagementRepository,
+							pricingReadRepo: ratePlanPricingReadRepository,
+							persist: false,
+						},
+						{ variantId: tourContext.variantId!, ratePlanId: tourContext.ratePlanId! }
+					).catch(() => null),
+				])
+			: [null, undefined]
+
+	const readinessHas = (code: string) =>
+		Boolean(variantReadiness?.validationErrors.some((error) => error.code === code))
+
 	const authorization =
 		vertical.vertical === "tour"
 			? await loadTourAuthorization({ productId, providerId }).catch(() => {
@@ -532,15 +596,15 @@ export async function loadCompleteToPublishState(params: {
 					completionBySection.categories!.detail
 				),
 				option_profile: observed(
-					Boolean(selectedOption?.hasProfile),
+					Boolean(selectedOption?.hasProfile) && !readinessHas("missing_tour_slot_profile"),
 					"Completa horario, idioma y modalidad de la opción."
 				),
 				group_capacity: commercialObservation(
-					Boolean(commercial?.observations.capacityReady),
+					Boolean(commercial?.observations.capacityReady) && !readinessHas("missing_capacity"),
 					"Define el máximo de participantes de esta opción."
 				),
 				price: commercialObservation(
-					Boolean(commercial?.observations.priceReady),
+					Boolean(commercial?.observations.priceReady) && !readinessHas("pricing_missing"),
 					commercial?.blockerDetails?.find((blocker) => blocker.id === "price")?.label ??
 						"Define un precio base positivo y una moneda válida."
 				),
@@ -559,18 +623,50 @@ export async function loadCompleteToPublishState(params: {
 				...authorization,
 				option_activation: observed(
 					Boolean(selectedActiveSlotCount),
-					"Activa esta opción desde el calendario."
+					selectedOption?.lifecycleState === "ready" && !selectedOption.salesEnabled
+						? "La opción está desactivada para venta. Revisa y activa cuando corresponda."
+						: "Activa esta opción desde el calendario."
 				),
 				rate_activation: observed(
 					Boolean(tourContext.status === "resolved" && tourContext.rate.isActive),
 					"Activa esta tarifa desde el calendario."
 				),
-				current_availability: commercialObservation(
-					futureAvailableDateCount > 0,
-					"No hay fechas futuras con cupo sin reservar."
-				),
+				current_availability: {
+					...commercialObservation(
+						futureAvailableDateCount > 0,
+						Number(commercial?.observations.futureDateCount ?? 0) === 0
+							? "No hay fechas futuras programadas para esta opción."
+							: Number(commercial?.observations.futureCapacityDateCount ?? 0) === 0
+								? "Las fechas futuras no tienen cupo habilitado. Abre cupos en el calendario."
+								: "Todos los cupos de las fechas futuras están reservados."
+					),
+					code: commercialReadFailed
+						? "read_failed"
+						: Number(commercial?.observations.futureDateCount ?? 0) === 0
+							? "no_future_dates"
+							: Number(commercial?.observations.futureCapacityDateCount ?? 0) === 0
+								? "dates_closed"
+								: "sold_out",
+				},
 			},
 		})
+		if (variantReadiness === null) {
+			for (const id of ["option_profile", "group_capacity", "price"] as const) {
+				tourDiagnostic.requirements[id].result = {
+					state: "not_evaluable",
+					reason: {
+						code: "read_failed",
+						message: "No se pudo comprobar la preparación de la opción.",
+					},
+					responsible: "fastt",
+					action: {
+						label: "Volver a intentar",
+						href: completeToPublishStepHref(productId, "preview", tourCommercialContext),
+					},
+				}
+			}
+		}
+
 		// Each requirement remains independent even when two corrections share an editor.
 		checks.splice(
 			0,
@@ -650,6 +746,9 @@ export async function loadCompleteToPublishState(params: {
 
 	return {
 		checks,
+		editorialStatus: String(aggregate.status ?? "draft")
+			.trim()
+			.toLowerCase(),
 		tourContext,
 		tourDiagnostic,
 		blockers,
@@ -761,6 +860,7 @@ export async function evaluateCompleteToPublishProgress(
 		playbookId: "complete-to-publish",
 		tourPresentation: state.tourDiagnostic
 			? presentTourDiagnostic(state.tourDiagnostic, {
+					published: state.editorialStatus === "published",
 					previewHref: state.checks.find((check) => check.key === "preview")!.href,
 				})
 			: undefined,
