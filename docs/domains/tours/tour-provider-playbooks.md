@@ -3,7 +3,7 @@
 Status: active  
 Document type: canonical  
 Owner: Tours / Provider Experience  
-Last verified: 2026-10-01
+Last verified: 2026-10-02
 Scope: definición ideal de los recorridos guiados (playbooks) del proveedor de tours, sus etapas, diagnóstico compartido, navegación y reglas de interfaz  
 Source of truth: este documento; implementación en `src/lib/playbook/`, layouts de playbook y superficies enlazadas del proveedor  
 Related code/tests: `src/lib/playbook/`, `src/layouts/PlaybookLayout.astro`, `src/pages/product/`, `src/pages/catalog/tours.astro`, pruebas de wizard comercial de tours  
@@ -111,17 +111,23 @@ Estados: `ready` exige evidencia; `pending`, acción pendiente; `blocked`, imped
 
 Preparación = listas / diez, redondeado. Lo desconocido queda en el denominador; v1 no exime preparación por modalidad privada. Autorización, activación, operación, navegación y preview derivado no suman. Agotamiento o revisión pueden coexistir con 100% preparado.
 
+En privadas, `current_availability` es `not_applicable`: una solicitud no retiene inventario compartido. Con los demás requisitos cumplidos se muestran solicitudes privadas habilitadas. En compartidas, el diagnóstico distingue fechas futuras ausentes, fechas sin cupo habilitado y cupos agotados; la desactivación comercial pertenece al eje de activación.
+
 Capacidades: preparar, activar, publicar, reservar y recibir solicitud; decisiones del servidor con fuente y causas, nunca permiso por porcentaje. Compartida requiere cotización y hold. Privada recibe solicitud sin cupo ni cotización; aceptarla no confirma venta. La solicitud privada verifica autorización comercial y evidencia vigente antes de persistir; no reserva inventario ni genera cotización.
 
 Referencias: precio pendiente con perfil listo (90%); sin activación, agotamiento o revisión (100% preparado, eje correspondiente incompleto); lectura fallida; selección inválida; privada sólo solicitud.
 
 ### Contexto comercial visible
 
-Resolver B2: `src/lib/tours/loadTourCommercialContext.ts` y `resolveTourCommercialContext.ts`. Comprueba proveedor/producto y pertenencia de opción/tarifa. Prioridad: URL explícita, sesión del mismo usuario/producto/línea, única opción con única tarifa. Una URL inválida se rechaza; una sesión obsoleta se descarta. El selector conserva retorno y playbook; enlaces y peticiones de evaluación/publicación mantienen IDs validados. Pruebas: `tests/unit/tour-commercial-context*.test.ts`.
+Resolver B2: `src/lib/tours/loadTourCommercialContext.ts` y `resolveTourCommercialContext.ts`. Comprueba proveedor/producto y pertenencia de opción/tarifa. Prioridad: URL explícita, sesión del mismo usuario/producto/línea, única opción con única tarifa. Una URL inválida se rechaza; una sesión obsoleta se descarta. Si una lectura falla, la intención original se conserva separadamente como `recoveryIntent`, sin conceder selección ni permisos; el reintento lleva esos IDs y vuelve a validar pertenencia, sin reemplazarlos por otra oferta de la sesión. El selector conserva retorno y playbook; enlaces y peticiones de evaluación/publicación mantienen IDs validados. Pruebas: `tests/unit/tour-commercial-context*.test.ts`.
 
-Evaluación B3: `buildTourDiagnostic.ts` proyecta observaciones de precio, condiciones y calendario de `validateRatePlanPublication.ts`; `loadTourAuthorization.ts` reutiliza gobernanza, política comercial y puerta de evidencia. Preparación, preview y publicación consumen resultados independientes. Configurar fechas y tener cupo actual son estados distintos; fallos de lectura son `not_evaluable`. Autorización y activación bloquean publicación sin reducir el porcentaje de preparación.
+Evaluación B3: `buildTourDiagnostic.ts` comparte observaciones de `validateRatePlanPublication.ts`, autorización de `loadTourAuthorization.ts` y preparación de salida en modo de sólo lectura (`persist: false`). `tourActivationDecision` conserva causas, responsable, acciones y retorno en interfaz y comando; activar no exige activación previa ni ficha editorial completa. El comando mantiene autorización, reevaluación de lifecycle y transacción; los reintentos informan el estado persistido. Guardar fechas refresca el diagnóstico conservando la URL. Fechas configuradas y cupo actual son independientes; errores son `not_evaluable`. Autorización y activación no reducen preparación.
+
+`loadCompleteToPublishState` comparte una promesa GET por petición, proveedor, producto e intención comercial; página y layout no repiten lecturas. Navegación no cambia la clave. Fallos sólo se comparten dentro de esa petición. Mutaciones, peticiones nuevas y evaluaciones sin petición consultan de nuevo; no reutilizan cotizaciones ni permisos previos.
 
 B5: `tourDiagnosticPresentation.ts` proyecta motivos y acciones en catálogo, dashboard, guía, preview y errores de API, con selección y retorno. Una lectura fallida ofrece reintento. El refresco conserva el diagnóstico; la barra mide preparación. Pruebas: `tests/unit/tour-preparation-diagnostic.test.ts` y `tests/unit/product-tour-selection-api.test.ts`.
+
+El catálogo separa estado editorial (borrador/publicado) de preparación y habilitación actual. Las etiquetas y contadores de fichas preparadas y listas para publicar se proyectan del diagnóstico de la oferta seleccionada, nunca de `Product.publicationState=ready`. Selección ambigua o evaluación desconocida no suman a listas para publicar; agotamiento no reduce preparación.
 
 ### Progreso
 

@@ -3,7 +3,7 @@
 Status: certified-local-production-sessions-http-negative-pending
 Document type: certification
 Owner: Engineering / responsable de Fastt
-Last verified: 2026-10-01
+Last verified: 2026-10-02
 Scope: diagnóstico, navegación, persistencia y revisión desplegada de sesiones v2
 Source of truth: pruebas ejecutadas, PostgreSQL y recorridos autenticados en Brave/Codex
 Related code/tests: tests/unit/tour-preparation-diagnostic.test.ts, tests/integration/preparation-session-persistence.test.ts, tests/integration/tour-slot-profile-persistence.test.ts, tests/integration/tour-checkin-repair.test.ts, tests/render/tour-preparation-progress.test.ts
@@ -54,6 +54,30 @@ con la proyección del servidor; no equivale a probar HTTP de publicación. En B
   No se confirmó una retirada real ni se publicó o reservó durante el recorrido local.
 
 ## Sesiones v2 desplegadas
+
+### Revalidación integrada local del 02-10-2026
+
+Revisión local sobre `f849b619`, con cambios sin commit. Aprobaron 160 regresiones en
+12 archivos, 18 pruebas de render en 4 archivos y build. Incluyen guía y API individual
+para publicado agotado, privada habilitada y `ready` incompatible. Son escenarios
+controlados: la cuenta del recorrido tiene dos borradores, no un tour publicado privado.
+
+PostgreSQL aislado volvió a aprobar las 12 pruebas de los tres archivos de integración
+anteriores, incluyendo actualización de perfil existente y conservación completa de
+`DailyInventory`. El primer intento recibió `ENOTFOUND` dentro del sandbox; la misma
+ejecución fuera del sandbox aprobó, sin modificar datos operativos.
+
+En Brave autenticado se alternaron las dos ofertas de la tabla: catálogo, guía,
+detalle de condiciones, preview y GET real de `/api/internal/product-summary` conservan
+opción/tarifa y coinciden en 90%/30%, pendiente y destino correctivo. El enlace de la API
+regresa al preview de la misma oferta. Navegar de la etapa 6 a condiciones mantiene 90%.
+A 390 × 844, preview tiene anchura y `scrollWidth` de 390; Enter abre y cierra las etapas,
+el foco permanece en el control y `aria-valuenow` es 90. Viewport restablecido.
+La ficha pública embebida mantiene ambos identificadores y reserva desactivada.
+No se retiraron asignaciones, activaron ofertas ni generaron reservas reales.
+
+Esta revalidación certifica la integración local; no cambia los pendientes de producción
+ni acredita una sesión con lector de pantalla real.
 
 Proyecto Vercel `fastt` (`prj_6OZB9AZ2kDk2C6LJtkL7vBNVTwsB`), dominio
 `https://fastt-five.vercel.app`. Deployment inicial `dpl_E7iQqhFhdJJTeCaNSzB2xyXxXjEo`,
