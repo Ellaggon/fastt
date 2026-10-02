@@ -37,7 +37,11 @@ export type VerificationRequirementScopes = {
 	resourceIds: string[]
 }
 
+export type VerificationPresentationArea = "activity" | "safety"
+
 export type VerificationRequirement = {
+	/** Tour UI placement; never creates or enforces a requirement. */
+	presentationArea: VerificationPresentationArea | null
 	id: string
 	layer: VerificationRequirementLayer
 	label: string
@@ -91,18 +95,23 @@ function unique(values: readonly (string | null | undefined)[], maximum: number)
 	return result
 }
 
-function requirement(input: {
-	id: string
-	layer: VerificationRequirementLayer
-	label: string
-	documentType?: ProviderDocumentType | null
-	uploadValue?: string | null
-	accountDocuments?: boolean
-	appliesBecause: string
-	scopes?: VerificationRequirementScopes
-}): VerificationRequirement {
+function requirement(
+	input: {
+		id: string
+		label: string
+		documentType?: ProviderDocumentType | null
+		uploadValue?: string | null
+		accountDocuments?: boolean
+		appliesBecause: string
+		scopes?: VerificationRequirementScopes
+	} & (
+		| { layer: "tour"; presentationArea: VerificationPresentationArea }
+		| { layer: "shared" | "lodging"; presentationArea?: never }
+	)
+): VerificationRequirement {
 	const documentType = input.documentType ?? null
 	return {
+		presentationArea: input.presentationArea ?? null,
 		id: input.id,
 		layer: input.layer,
 		label: input.label,
@@ -283,6 +292,7 @@ function tourPack(tours: readonly TourVerificationContext[]): VerificationRequir
 		return [
 			requirement({
 				id: "tour.context_missing",
+				presentationArea: "activity",
 				layer: "tour",
 				label: "Actividad, territorio y papel de la experiencia",
 				appliesBecause:
@@ -313,6 +323,7 @@ function tourPack(tours: readonly TourVerificationContext[]): VerificationRequir
 		pack.push(
 			requirement({
 				id: "tour.context_missing",
+				presentationArea: "activity",
 				layer: "tour",
 				label: "Actividad y territorio de la experiencia",
 				appliesBecause:
@@ -326,6 +337,7 @@ function tourPack(tours: readonly TourVerificationContext[]): VerificationRequir
 		pack.push(
 			requirement({
 				id: "tour.guide_credential",
+				presentationArea: "activity",
 				layer: "tour",
 				label: "Credencial de guía",
 				documentType: "operating_license",
@@ -344,6 +356,7 @@ function tourPack(tours: readonly TourVerificationContext[]): VerificationRequir
 		pack.push(
 			requirement({
 				id: "tour.operator_license",
+				presentationArea: "activity",
 				layer: "tour",
 				label: "Habilitación de operador o intermediario",
 				documentType: "operating_license",
@@ -357,6 +370,7 @@ function tourPack(tours: readonly TourVerificationContext[]): VerificationRequir
 		pack.push(
 			requirement({
 				id: "tour.operating_role_missing",
+				presentationArea: "activity",
 				layer: "tour",
 				label: "Papel operativo de la experiencia",
 				appliesBecause: "Sin papel de guía, operador o intermediario no se pide una credencial.",
@@ -368,6 +382,7 @@ function tourPack(tours: readonly TourVerificationContext[]): VerificationRequir
 		pack.push(
 			requirement({
 				id: "tour.insurance",
+				presentationArea: "safety",
 				layer: "tour",
 				label: "Seguro de la actividad",
 				documentType: "insurance",
@@ -381,6 +396,7 @@ function tourPack(tours: readonly TourVerificationContext[]): VerificationRequir
 		pack.push(
 			requirement({
 				id: "tour.food_handling_pending",
+				presentationArea: "safety",
 				layer: "tour",
 				label: "Manipulación de alimentos",
 				appliesBecause:

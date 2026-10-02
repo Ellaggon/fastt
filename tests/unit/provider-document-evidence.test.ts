@@ -125,6 +125,14 @@ describe("provider document evidence scope", () => {
 		expect(() => parseTourComplianceContext({ activityClasses: ["hotel_pool"] })).toThrow("invalid_tour_activity_class")
 	})
 
+	it.each(["BO-LP", "BO-CB", "BO-SC", "BO-PT"])("accepts the catalog territory %s without translating its code", (code) => {
+		expect(parseTourComplianceContext({ jurisdictionCode: code }).jurisdictionCode).toBe(code)
+	})
+
+	it.each(["La Paz", "LP", "BO-unknown", "BO-LP,BO-SC"])("rejects unrecognized territory %s instead of guessing", (code) => {
+		expect(() => parseTourComplianceContext({ jurisdictionCode: code })).toThrow("invalid_tour_jurisdiction")
+	})
+
 	it("restores previously saved activity declarations, including legacy JSON text", () => {
 		expect(storedTourActivityClasses(["adventure", "transport", "adventure"])).toEqual(["adventure", "transport"])
 		expect(storedTourActivityClasses('["guided_nature","water_air"]')).toEqual(["guided_nature", "water_air"])

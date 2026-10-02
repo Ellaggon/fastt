@@ -1,5 +1,6 @@
 ---
 import ProviderReviewWaitNotice from "@/components/provider/ProviderReviewWaitNotice.astro"
+import ProviderTourEvidenceFields from "@/components/provider/ProviderTourEvidenceFields.astro"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
@@ -11,10 +12,15 @@ import {
 	tourComplianceActivityClasses,
 	tourComplianceActivityLabels,
 } from "@/lib/tours/tour-compliance-context"
+import type { DocumentListPresentation } from "@/lib/verification/document-list-presentation"
+import { copyVerificationNavigationQuery } from "@/lib/verification/navigation"
 
 type OptionalDocType = { value: string; label: string; description?: string }
 
 type Props = {
+	documentPresentation?: Record<string, DocumentListPresentation>
+	guideResources?: Array<{ id: string; name: string }>
+	resourceChoices?: Array<{ id: string; name: string; type: string }>
 	surface?: "archive" | "tour-activity" | "tour-safety"
 	documents?: ProviderDocumentRecord[]
 	documentTypes?: OptionalDocType[]
@@ -36,6 +42,9 @@ type Props = {
 }
 
 const {
+	documentPresentation = {},
+	guideResources = [],
+	resourceChoices = [],
 	surface = "archive",
 	documents = [],
 	documentTypes = [],
@@ -51,7 +60,9 @@ const {
 const tourSurface = surface !== "archive"
 
 const pendingCount = documents.filter((doc) => doc.status === "pending").length
-const verifiedCount = documents.filter((doc) => doc.status === "verified").length
+const verifiedCount = documents.filter(
+	(doc) => doc.status === "verified" && (!tourSurface || !isProviderDocumentExpired(doc.expiresAt))
+).length
 const rejectedCount = documents.filter((doc) => doc.status === "rejected").length
 const expiredDocuments = documents.filter(
 	(doc) => doc.status === "verified" && isProviderDocumentExpired(doc.expiresAt)
@@ -67,9 +78,11 @@ const uploadTypes = renewalIsExpired
 		)
 	: documentTypes
 const selectedType = renewalIsExpired
-	? uploadTypes.length === 1
-		? uploadTypes[0].value
-		: null
+	? uploadTypes.some((item) => item.value === defaultUploadType)
+		? defaultUploadType
+		: uploadTypes.length === 1
+			? uploadTypes[0].value
+			: null
 	: documentTypes.some((item) => item.value === defaultUploadType)
 		? defaultUploadType
 		: documentTypes[0]?.value
@@ -85,16 +98,20 @@ const otherProducts = availableProducts.filter(
 	(product) => product.id !== scopeProductId && (!selectedLine || product.kind === selectedLine)
 )
 
+function requirementHref(type: string) {
+	const params = new URLSearchParams(Astro.url.searchParams)
+	params.set("type", type)
+	return `?${params.toString()}#tour-evidence-${surface}`
+}
 function renewalHref(documentId: string) {
 	const params = new URLSearchParams(Astro.url.searchParams)
 	params.set("renewDocumentId", documentId)
 	return `?${params.toString()}`
 }
-const uploadAction = new URL("/api/provider/settings/documents", Astro.url)
-for (const key of ["line", "tab", "experience", "lodgingTab", "tourTab"]) {
-	const value = Astro.url.searchParams.get(key)
-	if (value) uploadAction.searchParams.set(key, value)
-}
+const uploadAction = copyVerificationNavigationQuery(
+	new URL("/api/provider/settings/documents", Astro.url),
+	Astro.url
+)
 ---
 
 <section
@@ -138,7 +155,24 @@ for (const key of ["line", "tab", "experience", "lodgingTab", "tourTab"]) {
 										)}
 									</p>
 								) : null}
-								{doc.scopes.length ? (
+								{tourSurface && documentPresentation[doc.id] ? (
+									<div class="mt-3 space-y-2 text-sm text-slate-600">
+										<p>
+											<strong>Archivo:</strong> {documentPresentation[doc.id].fileLabel}
+										</p>
+										<p>
+											<strong>Para esta experiencia:</strong>{" "}
+											{documentPresentation[doc.id].applicabilityLabel}
+										</p>
+										<p>{documentPresentation[doc.id].detail}</p>
+										<p>
+											<strong>Titular:</strong> {documentPresentation[doc.id].subjectLabel}
+										</p>
+										<p>
+											<strong>Alcance:</strong> {documentPresentation[doc.id].scopeLabel}
+										</p>
+									</div>
+								) : doc.scopes.length ? (
 									<p class="mt-2 text-sm leading-6 text-slate-600">
 										Alcance:{" "}
 										{doc.scopes
@@ -174,7 +208,9 @@ for (const key of ["line", "tab", "experience", "lodgingTab", "tourTab"]) {
 												: "neutral"
 								}
 							>
-								{doc.statusLabel}
+								{tourSurface
+									? (documentPresentation[doc.id]?.fileLabel ?? doc.statusLabel)
+									: doc.statusLabel}
 							</Badge>
 						</div>
 
@@ -185,7 +221,9 @@ for (const key of ["line", "tab", "experience", "lodgingTab", "tourTab"]) {
 								class="mt-3"
 							/>
 						) : null}
-						{doc.status === "verified" && isProviderDocumentExpired(doc.expiresAt) ? (
+						{doc.status === "verified" &&
+						isProviderDocumentExpired(doc.expiresAt) &&
+						(!tourSurface || doc.scopes.some((scope) => scope.productId === scopeProductId)) ? (
 							<a
 								href={renewalHref(doc.id)}
 								class="inline-flex text-sm font-semibold text-slate-900 underline underline-offset-2"
@@ -249,7 +287,8 @@ for (const key of ["line", "tab", "experience", "lodgingTab", "tourTab"]) {
 							{pendingCount} enviado{pendingCount === 1 ? "" : "s"}
 						</Badge>
 						<Badge variant={verifiedCount ? "success" : "neutral"}>
-							{verifiedCount} verificado{verifiedCount === 1 ? "" : "s"}
+							{verifiedCount}{" "}
+							{tourSurface ? "archivos aprobados" : `verificado${verifiedCount === 1 ? "" : "s"}`}
 						</Badge>
 						<Badge variant={rejectedCount ? "error" : "neutral"}>
 							{rejectedCount} por corregir
@@ -262,135 +301,172 @@ for (const key of ["line", "tab", "experience", "lodgingTab", "tourTab"]) {
 						el titular, alcance y vigencia coinciden con la experiencia indicada arriba.
 					</p>
 				) : null}
-				<label class="grid gap-2 text-sm font-medium text-slate-700">
-					Tipo
-					<Select name="type" required>
-						{selectedType === null ? (
-							<option value="" disabled selected>
-								Selecciona la habilitación que vas a renovar
-							</option>
-						) : null}
-						{uploadTypes.map((item) => (
-							<option value={item.value} selected={item.value === selectedType}>
-								{item.label}
-							</option>
-						))}
-					</Select>
-				</label>
-				<details
-					class="fastt-soft-box border border-slate-200 bg-slate-50 p-4"
-					open={tourSurface ? true : undefined}
-				>
-					<summary class="cursor-pointer font-semibold text-slate-900">
-						Alcance y vigencia de esta evidencia
-					</summary>
-					<p class="mt-2 text-sm leading-6 text-slate-600">
-						Indica sólo lo que el documento realmente cubre. Otra licencia o póliza no reemplaza
-						esta.
-					</p>
-					{!scopeProductId && scopeProducts.length ? (
-						<label class="mt-4 grid gap-2 text-sm font-medium text-slate-700">
-							Oferta principal cubierta
-							<Select name="scopeProductId" required>
-								<option value="" disabled selected>
-									Selecciona la oferta que cubre este documento
-								</option>
-								{scopeProducts.map((product) => (
-									<option value={product.id}>
-										{product.name ||
-											(product.kind === "lodging"
-												? "Alojamiento sin nombre"
-												: "Experiencia sin nombre")}
-									</option>
-								))}
-							</Select>
-						</label>
-					) : null}
-					{otherProducts.length ? (
-						<fieldset class="mt-4 grid gap-2 text-sm text-slate-700">
-							<legend class="font-medium">
-								Ofertas cubiertas{scopeProductId ? " también" : ""}
-							</legend>
-							<p class="text-xs leading-5 text-slate-500">
-								Marca sólo las ofertas que este archivo cubre. La evidencia de una oferta no se
-								reutiliza en otra sin revisión de alcance.
+				{tourSurface ? (
+					<div class="space-y-2">
+						<p class="text-sm font-semibold text-slate-900">Respaldo que vas a enviar</p>
+						<nav aria-label="Requisito documental" class="flex flex-wrap gap-2">
+							{uploadTypes.map((item) => (
+								<a
+									href={requirementHref(item.value)}
+									aria-current={item.value === selectedType ? "page" : undefined}
+									class="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+								>
+									{item.label}
+								</a>
+							))}
+						</nav>
+						<input type="hidden" name="type" value={selectedType ?? ""} />
+						{scopeProductId && (
+							<p class="text-sm text-slate-600">
+								Experiencia:{" "}
+								{availableProducts.find((product) => product.id === scopeProductId)?.name ||
+									"Experiencia sin nombre"}
 							</p>
-							<div class="grid gap-2 sm:grid-cols-2">
-								{otherProducts.map((product) => (
-									<label class="fastt-soft-box inline-flex items-center gap-2 border border-slate-200 bg-white px-3 py-2">
-										<input type="checkbox" name="scopeProductId" value={product.id} />
-										{product.name ||
-											(product.kind === "lodging"
-												? "Alojamiento sin nombre"
-												: "Experiencia sin nombre")}
+						)}
+					</div>
+				) : (
+					<label class="grid gap-2 text-sm font-medium text-slate-700">
+						Tipo
+						<Select name="type" required>
+							{selectedType === null ? (
+								<option value="" disabled selected>
+									Selecciona la habilitación que vas a renovar
+								</option>
+							) : null}
+							{uploadTypes.map((item) => (
+								<option value={item.value} selected={item.value === selectedType}>
+									{item.label}
+								</option>
+							))}
+						</Select>
+					</label>
+				)}
+
+				{tourSurface ? (
+					<ProviderTourEvidenceFields
+						selectedType={selectedType}
+						scopeProductId={scopeProductId}
+						scopeProducts={scopeProducts}
+						otherProducts={otherProducts}
+						guideResources={guideResources}
+						resourceChoices={resourceChoices}
+					/>
+				) : (
+					<details
+						class="fastt-soft-box border border-slate-200 bg-slate-50 p-4"
+						open={tourSurface ? true : undefined}
+					>
+						<summary class="cursor-pointer font-semibold text-slate-900">
+							Alcance y vigencia de esta evidencia
+						</summary>
+						<p class="mt-2 text-sm leading-6 text-slate-600">
+							Indica sólo lo que el documento realmente cubre. Otra licencia o póliza no reemplaza
+							esta.
+						</p>
+						{!scopeProductId && scopeProducts.length ? (
+							<label class="mt-4 grid gap-2 text-sm font-medium text-slate-700">
+								Oferta principal cubierta
+								<Select name="scopeProductId" required>
+									<option value="" disabled selected>
+										Selecciona la oferta que cubre este documento
+									</option>
+									{scopeProducts.map((product) => (
+										<option value={product.id}>
+											{product.name ||
+												(product.kind === "lodging"
+													? "Alojamiento sin nombre"
+													: "Experiencia sin nombre")}
+										</option>
+									))}
+								</Select>
+							</label>
+						) : null}
+						{otherProducts.length ? (
+							<fieldset class="mt-4 grid gap-2 text-sm text-slate-700">
+								<legend class="font-medium">
+									Ofertas cubiertas{scopeProductId ? " también" : ""}
+								</legend>
+								<p class="text-xs leading-5 text-slate-500">
+									Marca sólo las ofertas que este archivo cubre. La evidencia de una oferta no se
+									reutiliza en otra sin revisión de alcance.
+								</p>
+								<div class="grid gap-2 sm:grid-cols-2">
+									{otherProducts.map((product) => (
+										<label class="fastt-soft-box inline-flex items-center gap-2 border border-slate-200 bg-white px-3 py-2">
+											<input type="checkbox" name="scopeProductId" value={product.id} />
+											{product.name ||
+												(product.kind === "lodging"
+													? "Alojamiento sin nombre"
+													: "Experiencia sin nombre")}
+										</label>
+									))}
+								</div>
+							</fieldset>
+						) : null}
+						<div class="mt-4 grid gap-4 sm:grid-cols-2">
+							<label class="grid gap-2 text-sm font-medium text-slate-700">
+								Emisor
+								<Input name="issuer" placeholder="Autoridad o aseguradora" />
+							</label>
+							<label class="grid gap-2 text-sm font-medium text-slate-700">
+								Emitido el (opcional)
+								<Input name="issuedAt" type="date" />
+							</label>
+							<label class="grid gap-2 text-sm font-medium text-slate-700">
+								Vence el
+								<Input name="expiresAt" type="date" />
+							</label>
+							<label class="grid gap-2 text-sm font-medium text-slate-700">
+								Titular cubierto
+								<Select name="subjectType" required={tourSurface}>
+									{tourSurface ? (
+										<option value="" disabled selected>
+											Selecciona a quién cubre
+										</option>
+									) : null}
+									<option value="provider">Proveedor</option>
+									<option value="legal_entity">Entidad legal</option>
+									<option value="person">Persona o guía</option>
+									<option value="resource">Recurso operativo</option>
+									<option value="third_party">Tercero</option>
+								</Select>
+								{tourSurface ? (
+									<span class="text-xs leading-5 font-normal text-slate-500">
+										La credencial de guía debe identificar a una persona o recurso; una licencia del
+										establecimiento no la sustituye.
+									</span>
+								) : null}
+							</label>
+							<label class="grid gap-2 text-sm font-medium text-slate-700">
+								Referencia del titular{tourSurface ? "" : " (si corresponde)"}
+								<Input
+									name="subjectReference"
+									required={tourSurface}
+									placeholder="Identificador del guía o recurso registrado"
+								/>
+							</label>
+							<label class="grid gap-2 text-sm font-medium text-slate-700">
+								Código territorial (opcional)
+								<Input name="territoryCode" placeholder="BO-LP o código de permiso" />
+							</label>
+							<label class="grid gap-2 text-sm font-medium text-slate-700">
+								Territorio cubierto (opcional)
+								<Input name="territoryLabel" placeholder="La Paz, ruta o área autorizada" />
+							</label>
+						</div>
+						<fieldset class="mt-4 grid gap-2 text-sm text-slate-700">
+							<legend class="font-medium">Actividad cubierta (si corresponde)</legend>
+							<div class="flex flex-wrap gap-x-4 gap-y-2">
+								{tourComplianceActivityClasses.map((value) => (
+									<label class="inline-flex items-center gap-2">
+										<input type="checkbox" name="activityClass" value={value} />
+										{tourComplianceActivityLabels[value]}
 									</label>
 								))}
 							</div>
 						</fieldset>
-					) : null}
-					<div class="mt-4 grid gap-4 sm:grid-cols-2">
-						<label class="grid gap-2 text-sm font-medium text-slate-700">
-							Emisor
-							<Input name="issuer" placeholder="Autoridad o aseguradora" />
-						</label>
-						<label class="grid gap-2 text-sm font-medium text-slate-700">
-							Emitido el (opcional)
-							<Input name="issuedAt" type="date" />
-						</label>
-						<label class="grid gap-2 text-sm font-medium text-slate-700">
-							Vence el
-							<Input name="expiresAt" type="date" />
-						</label>
-						<label class="grid gap-2 text-sm font-medium text-slate-700">
-							Titular cubierto
-							<Select name="subjectType" required={tourSurface}>
-								{tourSurface ? (
-									<option value="" disabled selected>
-										Selecciona a quién cubre
-									</option>
-								) : null}
-								<option value="provider">Proveedor</option>
-								<option value="legal_entity">Entidad legal</option>
-								<option value="person">Persona o guía</option>
-								<option value="resource">Recurso operativo</option>
-								<option value="third_party">Tercero</option>
-							</Select>
-							{tourSurface ? (
-								<span class="text-xs leading-5 font-normal text-slate-500">
-									La credencial de guía debe identificar a una persona o recurso; una licencia del
-									establecimiento no la sustituye.
-								</span>
-							) : null}
-						</label>
-						<label class="grid gap-2 text-sm font-medium text-slate-700">
-							Referencia del titular{tourSurface ? "" : " (si corresponde)"}
-							<Input
-								name="subjectReference"
-								required={tourSurface}
-								placeholder="Identificador del guía o recurso registrado"
-							/>
-						</label>
-						<label class="grid gap-2 text-sm font-medium text-slate-700">
-							Código territorial (opcional)
-							<Input name="territoryCode" placeholder="BO-LP o código de permiso" />
-						</label>
-						<label class="grid gap-2 text-sm font-medium text-slate-700">
-							Territorio cubierto (opcional)
-							<Input name="territoryLabel" placeholder="La Paz, ruta o área autorizada" />
-						</label>
-					</div>
-					<fieldset class="mt-4 grid gap-2 text-sm text-slate-700">
-						<legend class="font-medium">Actividad cubierta (si corresponde)</legend>
-						<div class="flex flex-wrap gap-x-4 gap-y-2">
-							{tourComplianceActivityClasses.map((value) => (
-								<label class="inline-flex items-center gap-2">
-									<input type="checkbox" name="activityClass" value={value} />
-									{tourComplianceActivityLabels[value]}
-								</label>
-							))}
-						</div>
-					</fieldset>
-				</details>
+					</details>
+				)}
 				<label class="grid gap-2 text-sm font-medium text-slate-700">
 					Archivo
 					<input
@@ -406,7 +482,12 @@ for (const key of ["line", "tab", "experience", "lodgingTab", "tourTab"]) {
 					<Input name="submissionNotes" placeholder="Versión vigente / dato actualizado" />
 				</label>
 				<div class="fastt-form-submit-footer">
-					<Button type="submit" variant="selection" class="w-full sm:w-auto">
+					<Button
+						type="submit"
+						variant="selection"
+						class="w-full sm:w-auto"
+						disabled={!selectedType}
+					>
 						Enviar a revisión
 					</Button>
 				</div>

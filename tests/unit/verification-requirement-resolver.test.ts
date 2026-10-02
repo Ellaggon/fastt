@@ -375,3 +375,26 @@ describe("verification requirement resolver", () => {
 		).toEqual(["business_registration"])
 	})
 })
+
+it("declares presentation areas on current tour requirements without changing required documents", () => {
+	const result = resolveVerificationRequirements(
+		input({
+			tours: [
+				{
+					productId: "tour-area",
+					operatingRole: "operator",
+					activityClasses: ["adventure", "gastronomic"],
+					jurisdictionCode: "BO-LP",
+					departureResourceIds: [],
+				},
+			],
+		})
+	)
+	for (const requirement of result.requirements.filter((entry) => entry.layer === "tour")) {
+		expect(requirement.presentationArea).toBe(
+			["tour.insurance", "tour.food_handling_pending"].includes(requirement.id)
+				? "safety"
+				: "activity"
+		)
+	}
+})

@@ -28,6 +28,8 @@ const { model } = Astro.props as Props
 const {
 	activeSectionId,
 	navigation,
+	tourDocumentPresentation,
+	tourResources,
 	tourProducts,
 	tourPlaybook,
 	nextActionId,
@@ -133,6 +135,12 @@ const paymentResult = activeSectionId === "payments" ? result : ""
 const paymentError = activeSectionId === "payments" ? error : ""
 
 const uploadErrorMessages: Record<string, string> = {
+	document_subject_not_found:
+		"El titular no es un guía o recurso vigente de este negocio. Selecciónalo nuevamente antes de enviar.",
+	document_subject_reference_required: "Selecciona el guía titular de la credencial.",
+	document_subject_type_invalid:
+		"El titular elegido no corresponde a este requisito. Revisa a quién se emitió el documento.",
+	document_product_scope_required: "Selecciona la experiencia cubierta por el documento.",
 	document_file_meta_required:
 		"Faltó el tipo o nombre del archivo. Vuelve a elegir el PDF o la foto.",
 	document_file_required: "No se recibió el archivo. Elige de nuevo el PDF o la imagen.",
@@ -524,13 +532,18 @@ const paymentErrorMessages: Record<
 					<h2 id="verification-panel-activity-title" class="sr-only">
 						Actividad y licencias
 					</h2>
-					<ProviderTourOperatingContext
-						productId={navigation?.experienceId ?? null}
-						context={tourContext ?? null}
-						canEdit={canEditTourContext}
-						result={result}
-						error={error}
-					/>
+					{navigation?.experienceId && (
+						<ProviderTourOperatingContext
+							productId={navigation.experienceId}
+							productName={
+								tourProducts.find((product) => product.id === navigation.experienceId)?.name
+							}
+							context={tourContext ?? null}
+							canEdit={canEditTourContext}
+							result={result}
+							error={error}
+						/>
+					)}
 					{commercialLine?.collectionModel === "platform_collect" ? (
 						<Notice variant="warning" title="Revisar cobro histórico de tours">
 							Esta línea conserva una declaración de cobro por Fastt. Fastt no procesa pagos de
@@ -544,12 +557,14 @@ const paymentErrorMessages: Record<
 							.
 						</Notice>
 					) : null}
-					<ProviderVerificationLineSections
-						screen={screen}
-						line="tour"
-						tourArea="activity"
-						experienceId={navigation?.experienceId}
-					/>
+					{navigation?.experienceId && (
+						<ProviderVerificationLineSections
+							screen={screen}
+							line="tour"
+							tourArea="activity"
+							experienceId={navigation.experienceId}
+						/>
+					)}
 					{tourVerification[0]?.state === "waiting_on_fastt" ? (
 						<Notice variant="info" title="Pendiente de política Fastt">
 							Esta combinación todavía requiere una regla comercial aprobada. Puedes guardar la
@@ -570,6 +585,10 @@ const paymentErrorMessages: Record<
 					{tourEvidenceOptions.activity.length && navigation?.experienceId ? (
 						<ProviderVerificationOptionals
 							surface="tour-activity"
+							renewalDocumentId={Astro.url.searchParams.get("renewDocumentId")}
+							documentPresentation={tourDocumentPresentation}
+							resourceChoices={tourResources}
+							guideResources={tourResources.filter((resource) => resource.type === "guide")}
 							documents={tourEvidenceDocuments("activity")}
 							documentTypes={tourEvidenceOptions.activity}
 							canManageDocuments={canManageDocuments}
@@ -598,13 +617,15 @@ const paymentErrorMessages: Record<
 					<h2 id="verification-panel-safety-title" class="sr-only">
 						Seguridad y permisos
 					</h2>
-					<ProviderVerificationLineSections
-						screen={screen}
-						line="tour"
-						tourArea="safety"
-						experienceId={navigation?.experienceId}
-						safetyState={tourPlaybook.find((tab) => tab.id === "safety")?.uiState}
-					/>
+					{navigation?.experienceId && (
+						<ProviderVerificationLineSections
+							screen={screen}
+							line="tour"
+							tourArea="safety"
+							experienceId={navigation?.experienceId}
+							safetyState={tourPlaybook.find((tab) => tab.id === "safety")?.uiState}
+						/>
+					)}
 					{result === "submitted" ? (
 						<Notice variant="success" title="Respaldo enviado">
 							La evidencia de seguridad quedó en revisión para esta experiencia.
@@ -619,6 +640,10 @@ const paymentErrorMessages: Record<
 					{tourEvidenceOptions.safety.length && navigation?.experienceId ? (
 						<ProviderVerificationOptionals
 							surface="tour-safety"
+							renewalDocumentId={Astro.url.searchParams.get("renewDocumentId")}
+							documentPresentation={tourDocumentPresentation}
+							resourceChoices={tourResources}
+							guideResources={tourResources.filter((resource) => resource.type === "guide")}
 							documents={tourEvidenceDocuments("safety")}
 							documentTypes={tourEvidenceOptions.safety}
 							canManageDocuments={canManageDocuments}

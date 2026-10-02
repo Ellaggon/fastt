@@ -22,6 +22,7 @@ import {
 export type VerificationScreenItemState = "ready" | "in_review" | "action_needed" | "not_started"
 
 export type VerificationScreenItem = {
+	presentationArea?: VerificationRequirement["presentationArea"]
 	id: string
 	label: string
 	state: VerificationScreenItemState
@@ -325,21 +326,27 @@ export function buildVerificationScreenSections(
 				requirement.id === "tour.context_missing" ||
 				requirement.id === "tour.operating_role_missing"
 			if (!collectable && !declaredGap) {
-				return item(requirement.id, requirement.label, "not_started", null, false)
+				return {
+					...item(requirement.id, requirement.label, "not_started", null, false),
+					presentationArea: requirement.presentationArea,
+				}
 			}
 			const evidence = collectable ? tourEvidenceState(input, requirement) : null
-			return item(
-				requirement.id,
-				requirement.label,
-				collectable ? (evidence?.state ?? "not_started") : "action_needed",
-				requirement.id === "tour.operating_role_missing"
-					? null
-					: collectable
-						? documentsHref(requirement.uploadValue ?? (requirement.documentType as string))
-						: tourContextHref(requirement.scopes.productIds),
-				true,
-				evidence?.detail ?? null
-			)
+			return {
+				...item(
+					requirement.id,
+					requirement.label,
+					collectable ? (evidence?.state ?? "not_started") : "action_needed",
+					requirement.id === "tour.operating_role_missing"
+						? null
+						: collectable
+							? documentsHref(requirement.uploadValue ?? (requirement.documentType as string))
+							: tourContextHref(requirement.scopes.productIds),
+					true,
+					evidence?.detail ?? null
+				),
+				presentationArea: requirement.presentationArea,
+			}
 		})
 
 	const sharedForSelling = sharedItems.filter(

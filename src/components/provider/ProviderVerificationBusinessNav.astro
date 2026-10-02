@@ -4,6 +4,7 @@ import Button from "@/components/ui/Button.astro"
 import FormField from "@/components/ui/FormField.astro"
 import Select from "@/components/ui/Select.astro"
 import TabsInsidePanel from "@/components/ui/TabsInsidePanel.astro"
+import { safeProductPreviewReturn, safeRatePlanPlaybookReturn } from "@/lib/auth/returnTo"
 import type { ProviderTrustLink } from "@/lib/provider-trust-map"
 import { TRUST_GLOSSARY } from "@/lib/provider-trust-map"
 import type { VerificationNavigation, VerificationPlaybookTab } from "@/lib/verification/navigation"
@@ -19,6 +20,9 @@ type Props = {
 }
 
 const { navigation, url, products, playbook = [], trustLinks = [] } = Astro.props as Props
+const returnTo =
+	safeProductPreviewReturn(url.searchParams.get("returnTo")) ??
+	safeRatePlanPlaybookReturn(url.searchParams.get("returnTo"))
 const navigationPlaybook: VerificationPlaybookTab[] =
 	navigation.line === "tour"
 		? playbook
@@ -57,7 +61,8 @@ const lineLabels = { lodging: "Alojamientos", tour: "Tours" } as const
 const currentLine = navigation.line
 /** Licencias y seguro dependen de la experiencia; identidad y fiscal son de cuenta. */
 const experienceScopedTab = navigation.tab === "activity" || navigation.tab === "safety"
-const showExperienceSelector = currentLine === "tour" && experienceScopedTab && products.length > 1
+const showExperienceSelector =
+	currentLine === "tour" && experienceScopedTab && (products.length > 1 || !navigation.experienceId)
 ---
 
 <div class="space-y-4" data-verification-business-nav>
@@ -86,7 +91,18 @@ const showExperienceSelector = currentLine === "tour" && experienceScopedTab && 
 		) : null
 	}
 	{
-		showExperienceSelector ? (
+		currentLine === "tour" && experienceScopedTab && !navigation.experienceId ? (
+			<p role="status" class="text-sm text-slate-600">
+				{url.searchParams.has("experience")
+					? "La experiencia del enlace no está disponible en este negocio. Selecciona una experiencia para continuar."
+					: products.length
+						? "Selecciona la experiencia que quieres verificar."
+						: "Crea una experiencia para verificar su operación y seguridad."}
+			</p>
+		) : null
+	}
+	{
+		showExperienceSelector && products.length > 0 ? (
 			<form
 				method="get"
 				action="/provider/settings/verification"
@@ -94,6 +110,7 @@ const showExperienceSelector = currentLine === "tour" && experienceScopedTab && 
 				data-verification-experience-selector
 			>
 				<input type="hidden" name="line" value="tour" />
+				{returnTo && <input type="hidden" name="returnTo" value={returnTo} />}
 				<input type="hidden" name="tab" value={navigation.tab} />
 				<input type="hidden" name="tourTab" value={navigation.tab} />
 				{url.searchParams.get("lodgingTab") ? (
@@ -104,7 +121,10 @@ const showExperienceSelector = currentLine === "tour" && experienceScopedTab && 
 					htmlFor="verification-experience-select"
 					class="min-w-56 flex-1 text-slate-200 [&_label]:text-slate-200"
 				>
-					<Select id="verification-experience-select" name="experience">
+					<Select id="verification-experience-select" name="experience" required>
+						<option value="" disabled selected={!navigation.experienceId}>
+							Selecciona una experiencia
+						</option>
 						{products.map((product) => (
 							<option value={product.id} selected={product.id === navigation.experienceId}>
 								{product.name || "Experiencia sin nombre"}

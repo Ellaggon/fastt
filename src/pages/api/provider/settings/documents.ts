@@ -12,6 +12,7 @@ import {
 	submitProviderDocument,
 	validateDocumentFile,
 } from "@/lib/provider-documents"
+import { and, db, eq, TourOperationalResource } from "@/shared/infrastructure/db/compat"
 import { routes } from "@/lib/routes"
 import { loadProviderVerificationResolution } from "@/lib/verification/requirement-context"
 import { matchUpload, type VerificationRequirement } from "@/lib/verification/requirement-resolver"
@@ -289,8 +290,21 @@ export const POST: APIRoute = async ({ request }) => {
 			.getAll("activityClass")
 			.map((value) => String(value).trim())
 			.filter(Boolean)
-		const scopes = matchedRequirement?.scopes
 		const isGuideCredential = matchedRequirement?.id === "tour.guide_credential"
+		if (isGuideCredential && parsed.subjectReference) {
+			const guide = await db
+				.select({ id: TourOperationalResource.id })
+				.from(TourOperationalResource)
+				.where(
+					and(
+						eq(TourOperationalResource.id, parsed.subjectReference),
+						eq(TourOperationalResource.providerId, providerId),
+						eq(TourOperationalResource.type, "guide"),
+						eq(TourOperationalResource.status, "active")
+					)
+				)
+			if (!guide.length) throw new Error("document_subject_not_found")
+		}
 		const requiresProductScope =
 			matchedRequirement?.layer === "lodging" || matchedRequirement?.layer === "tour"
 		const evidence = {
@@ -299,12 +313,10 @@ export const POST: APIRoute = async ({ request }) => {
 			expiresAt: parsed.expiresAt,
 			subjectType: parsed.subjectType,
 			subjectReference: parsed.subjectReference,
-			productIds: postedProductIds.length ? postedProductIds : (scopes?.productIds ?? []),
-			resourceIds: postedResourceIds.length ? postedResourceIds : (scopes?.resourceIds ?? []),
-			territories: territoryCode
-				? [{ code: territoryCode, label: territoryLabel }]
-				: (scopes?.territoryCodes ?? []).map((code) => ({ code, label: "" })),
-			activityClasses: postedActivities.length ? postedActivities : (scopes?.activityClasses ?? []),
+			productIds: postedProductIds,
+			resourceIds: postedResourceIds,
+			territories: territoryCode ? [{ code: territoryCode, label: territoryLabel }] : [],
+			activityClasses: postedActivities,
 		}
 
 		let fileBytes: Uint8Array | null = null
@@ -324,7 +336,11 @@ export const POST: APIRoute = async ({ request }) => {
 			evidence,
 			requireProductScope: requiresProductScope,
 			requireSubjectReference: isGuideCredential,
-			allowedSubjectTypes: isGuideCredential ? ["person", "resource"] : undefined,
+			allowedSubjectTypes: isGuideCredential
+				? ["person", "resource"]
+				: matchedRequirement?.id === "tour.operator_license"
+					? ["provider", "legal_entity"]
+					: undefined,
 			scopeProductType:
 				matchedRequirement?.layer === "tour"
 					? "tour"

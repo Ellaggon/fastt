@@ -270,3 +270,31 @@ describe("verification screen sections", () => {
 		expect(publish).not.toContain("screen-sections")
 	})
 })
+
+it("propagates an arbitrary safety requirement without recognizing its identifier", () => {
+	const result = screen({
+		requirements: [
+			{
+				id: "test.custom-safety",
+				layer: "tour",
+				presentationArea: "safety",
+				label: "Permiso de prueba",
+				documentType: "operating_license",
+				uploadValue: "operating_license::test.custom-safety",
+				accountDocuments: false,
+				appliesBecause: "Fixture; no production requirement",
+				scopes: {
+					productIds: ["tour-lp"],
+					resourceIds: [],
+					territoryCodes: [],
+					activityClasses: [],
+				},
+			},
+		],
+	})
+	expect(result.sections.find((section) => section.id === "tour")?.items[0]).toMatchObject({
+		id: "test.custom-safety",
+		presentationArea: "safety",
+		state: "not_started",
+	})
+})
