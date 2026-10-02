@@ -1,4 +1,5 @@
 import { and, db, eq, first, TourComplianceContext } from "@/shared/infrastructure/db/compat"
+import { tourOperatingTerritory } from "@/lib/tours/tour-operating-territories"
 
 export const tourOperatingRoles = ["operator", "guide", "intermediary"] as const
 export const tourComplianceActivityClasses = [
@@ -67,7 +68,8 @@ export function parseTourComplianceContext(input: {
 	)
 		throw new Error("invalid_tour_activity_class")
 	const jurisdictionCode = String(input.jurisdictionCode ?? "").trim()
-	if (jurisdictionCode.length > 64) throw new Error("invalid_tour_jurisdiction")
+	if (jurisdictionCode && !tourOperatingTerritory(jurisdictionCode))
+		throw new Error("invalid_tour_jurisdiction")
 	return {
 		operatingRole: operatingRole as TourOperatingRole | null,
 		activityClasses: activityClasses as TourComplianceActivityClass[],

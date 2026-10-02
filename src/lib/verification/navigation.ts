@@ -1,3 +1,4 @@
+import { safeProductPreviewReturn, safeRatePlanPlaybookReturn } from "@/lib/auth/returnTo"
 import type { CommercialLine } from "@/lib/verification/commercial-lines"
 import { TRUST_GLOSSARY, type TrustLinkUiState } from "@/lib/provider-trust-map"
 
@@ -263,7 +264,14 @@ export function copyVerificationNavigationQuery(target: URL, source: URL): URL {
 	if (tab && allowed.includes(tab as VerificationTab)) target.searchParams.set("tab", tab)
 	for (const key of ["experience", "lodgingTab", "tourTab"]) {
 		const value = source.searchParams.get(key)
-		if (value && value.length < 180) target.searchParams.set(key, value)
+		if (!value || value.length >= 180) continue
+		if (key === "lodgingTab" && !lodgingTabs.includes(value as VerificationTab)) continue
+		if (key === "tourTab" && ![...tourTabs, "payments"].includes(value as VerificationTab)) continue
+		target.searchParams.set(key, value)
 	}
+	const returnTo =
+		safeProductPreviewReturn(source.searchParams.get("returnTo")) ??
+		safeRatePlanPlaybookReturn(source.searchParams.get("returnTo"))
+	if (returnTo) target.searchParams.set("returnTo", returnTo)
 	return target
 }

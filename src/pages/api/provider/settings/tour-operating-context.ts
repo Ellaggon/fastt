@@ -2,6 +2,7 @@ import type { APIRoute } from "astro"
 
 import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
 import { invalidateProduct, invalidateProvider } from "@/lib/cache/invalidation"
+import { copyVerificationNavigationQuery } from "@/lib/verification/navigation"
 import { routes } from "@/lib/routes"
 import {
 	parseTourComplianceContext,
@@ -9,10 +10,14 @@ import {
 } from "@/lib/tours/tour-compliance-context"
 import { and, db, eq, first, Product } from "@/shared/infrastructure/db/compat"
 
-function redirect(request: Request, productId: string, result: string) {
-	const target = new URL(routes.providerSettingsVerification(), request.url)
+export function tourOperatingContextRedirect(request: Request, productId: string, result: string) {
+	const target = copyVerificationNavigationQuery(
+		new URL(routes.providerSettingsVerification(), request.url),
+		new URL(request.url)
+	)
 	target.searchParams.set("line", "tour")
 	target.searchParams.set("tab", "activity")
+	target.searchParams.set("tourTab", "activity")
 	if (productId) target.searchParams.set("experience", productId)
 	target.searchParams.set(result === "context_saved" ? "result" : "error", result)
 	target.hash = "tour-operating-context"
@@ -28,7 +33,7 @@ export const POST: APIRoute = async ({ request }) => {
 	const form = await request.formData()
 	const productId = String(form.get("productId") ?? "").trim()
 	if (!session.provider.permissions?.canEditProfile)
-		return redirect(request, productId, "forbidden")
+		return tourOperatingContextRedirect(request, productId, "forbidden")
 	const owned = await db
 		.select({ id: Product.id, type: Product.productType })
 		.from(Product)
@@ -42,17 +47,19 @@ export const POST: APIRoute = async ({ request }) => {
 			jurisdictionCode: form.get("jurisdictionCode"),
 		})
 		if (!input.operatingRole || !input.jurisdictionCode || input.activityClasses.length === 0) {
-			return redirect(request, productId, "invalid_context")
+			return tourOperatingContextRedirect(request, productId, "invalid_context")
 		}
 		await saveTourComplianceContext({ productId, providerId: session.provider.providerId, input })
 		await Promise.all([
 			invalidateProduct(productId),
 			invalidateProvider(session.provider.providerId),
 		])
-		return redirect(request, productId, "context_saved")
+		return tourOperatingContextRedirect(request, productId, "context_saved")
 	} catch (error) {
+		if (error instanceof Error && error.message === "invalid_tour_jurisdiction")
+			return tourOperatingContextRedirect(request, productId, "invalid_territory")
 		if (String(error).includes("invalid_tour_"))
-			return redirect(request, productId, "invalid_context")
+			return tourOperatingContextRedirect(request, productId, "invalid_context")
 		throw error
 	}
 }
