@@ -3,18 +3,24 @@ import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import Checkbox from "@/components/ui/Checkbox.astro"
 import FormField from "@/components/ui/FormField.astro"
-import Input from "@/components/ui/Input.astro"
 import Notice from "@/components/ui/Notice.astro"
 import Select from "@/components/ui/Select.astro"
+import { routes } from "@/lib/routes"
 import {
 	storedTourActivityClasses,
 	tourComplianceActivityClasses,
 	tourComplianceActivityLabels,
 	type TourOperatingRole,
 } from "@/lib/tours/tour-compliance-context"
+import {
+	tourOperatingTerritories,
+	tourOperatingTerritory,
+} from "@/lib/tours/tour-operating-territories"
+import { copyVerificationNavigationQuery } from "@/lib/verification/navigation"
 
 type Props = {
 	productId: string | null
+	productName?: string | null
 	context: {
 		operatingRole: string | null
 		activityClassesJson: unknown
@@ -25,8 +31,21 @@ type Props = {
 	error?: string
 }
 
-const { productId, context, canEdit, result, error } = Astro.props as Props
+const { productId, productName, context, canEdit, result, error } = Astro.props as Props
+const navigationSource = new URL(Astro.url)
+navigationSource.searchParams.set("line", "tour")
+navigationSource.searchParams.set("tab", "activity")
+const submitUrl = copyVerificationNavigationQuery(
+	new URL("/api/provider/settings/tour-operating-context", Astro.url),
+	navigationSource
+)
 const selectedActivities = storedTourActivityClasses(context?.activityClassesJson)
+const storedTerritory = context?.jurisdictionCode ?? ""
+const legacyTerritory = Boolean(storedTerritory && !tourOperatingTerritory(storedTerritory))
+const supportParams = new URLSearchParams({
+	line: "tour",
+	from: `${Astro.url.pathname}${Astro.url.search}`,
+})
 const roles: Array<{ value: TourOperatingRole; label: string }> = [
 	{ value: "guide", label: "Guía" },
 	{ value: "operator", label: "Operador" },
@@ -36,6 +55,13 @@ const roles: Array<{ value: TourOperatingRole; label: string }> = [
 
 <Card class="space-y-5" data-tour-operating-context>
 	<div class="max-w-2xl">
+		{
+			productId && (
+				<p class="mb-2 text-sm font-semibold text-slate-700">
+					{productName || "Experiencia sin nombre"}
+				</p>
+			)
+		}
 		<h2 id="tour-operating-context" class="text-lg font-semibold text-slate-950">
 			Cómo operas esta experiencia
 		</h2>
@@ -44,6 +70,21 @@ const roles: Array<{ value: TourOperatingRole; label: string }> = [
 			pueden corresponder.
 		</p>
 	</div>
+	{
+		legacyTerritory ? (
+			<Notice variant="warning" title="Territorio declarado por revisar">
+				La declaración anterior «{storedTerritory}» se conserva. Selecciona el departamento donde
+				operas antes de guardar; no lo cambiaremos automáticamente.
+			</Notice>
+		) : null
+	}
+	{
+		error === "invalid_territory" ? (
+			<Notice variant="warning" title="No se guardó el territorio">
+				Selecciona un departamento de la lista. La declaración anterior permanece intacta.
+			</Notice>
+		) : null
+	}
 	{
 		result === "context_saved" ? (
 			<Notice variant="success" title="Operación guardada">
@@ -69,7 +110,7 @@ const roles: Array<{ value: TourOperatingRole; label: string }> = [
 		productId && canEdit ? (
 			<form
 				method="post"
-				action="/api/provider/settings/tour-operating-context"
+				action={`${submitUrl.pathname}${submitUrl.search}`}
 				class="space-y-5"
 				data-tour-operating-context-form
 			>
@@ -88,14 +129,36 @@ const roles: Array<{ value: TourOperatingRole; label: string }> = [
 						</Select>
 					</FormField>
 					<FormField label="Territorio operativo" htmlFor="tour-jurisdiction-code" required>
-						<Input
+						<Select
 							id="tour-jurisdiction-code"
 							name="jurisdictionCode"
-							maxlength="64"
 							required
-							value={context?.jurisdictionCode ?? ""}
-							placeholder="Ej.: BO-LP"
-						/>
+							aria-describedby="tour-territory-help"
+							hasError={error === "invalid_territory"}
+							aria-invalid={error === "invalid_territory" ? "true" : undefined}
+						>
+							<option value="" selected={!storedTerritory || legacyTerritory}>
+								{legacyTerritory
+									? "Selecciona para revisar la declaración"
+									: "Selecciona un departamento"}
+							</option>
+							{tourOperatingTerritories.map((territory) => (
+								<option value={territory.code} selected={storedTerritory === territory.code}>
+									{territory.label}
+								</option>
+							))}
+						</Select>
+						<p id="tour-territory-help" class="text-xs leading-5 text-slate-500">
+							Declara el territorio de esta experiencia. Si no aparece o el recorrido abarca varios
+							departamentos,{" "}
+							<a
+								class="font-semibold underline"
+								href={`${routes.providerSupport()}?${supportParams}`}
+							>
+								solicita revisión
+							</a>
+							; no elijas uno por aproximación.
+						</p>
 					</FormField>
 				</div>
 				<fieldset class="space-y-3">
