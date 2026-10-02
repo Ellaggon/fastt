@@ -1,4 +1,5 @@
 ---
+import TourPublishedReviewAction from "@/components/tours/TourPublishedReviewAction.astro"
 import TourPreparationProgress from "@/components/tours/TourPreparationProgress.astro"
 import { presentTourDiagnostic } from "@/lib/tours/tourDiagnosticPresentation"
 import {
@@ -24,6 +25,7 @@ import { resolveLaunchPlaybookFromUrl } from "@/lib/playbook/launch-accommodatio
 import {
 	buildTourPlaybookHref,
 	buildTourProviderPreviewHref,
+	getTourPreviewCanonicalHref,
 	resolveTourLaunchPlaybookFromUrl,
 	type TourLaunchStepId,
 } from "@/lib/playbook/launch-tour"
@@ -92,6 +94,13 @@ if (isTour) {
 	})
 	const entryResponse = tourContextEntryResponse(selection, Astro.url)
 	if (entryResponse) return entryResponse
+	const canonicalHref = getTourPreviewCanonicalHref(Astro.url, {
+		isTour,
+		productId,
+		variantId: "variantId" in selection ? (selection.variantId ?? undefined) : undefined,
+		ratePlanId: "ratePlanId" in selection ? (selection.ratePlanId ?? undefined) : undefined,
+	})
+	if (canonicalHref) return Astro.redirect(canonicalHref)
 }
 const previewVariantId = String(Astro.url.searchParams.get("variantId") ?? "").trim()
 const previewRatePlanId = String(Astro.url.searchParams.get("ratePlanId") ?? "").trim()
@@ -216,15 +225,6 @@ const playbook = resolvePlaybookFromUrl(Astro.url, { isHotel })
 const launchPlaybook = resolveLaunchPlaybookFromUrl(Astro.url)
 const tourLaunchPlaybook = resolveTourLaunchPlaybookFromUrl(Astro.url)
 const completePlaybook = resolveCompleteToPublishPlaybookFromUrl(Astro.url)
-const flow = Astro.url.searchParams.get("flow")
-
-if (!playbook.active && flow === "create") {
-	return Astro.redirect(buildPlaybookHref(routes.productPreview(productId), "preview"))
-}
-if (!playbook.active && flow === "complete") {
-	return Astro.redirect(buildCompleteToPublishHref(routes.productPreview(productId), "preview"))
-}
-
 const playbookId = playbook.active ? playbook.playbookId : null
 const stepId =
 	playbookId === "complete-to-publish"
@@ -532,92 +532,93 @@ if (!isTour) {
 					)
 				}
 
-				<div
-					class="flex flex-col gap-4 border-t border-white/10 pt-5 sm:flex-row sm:items-center sm:justify-between"
-				>
-					<div class="flex min-w-0 items-start gap-3">
-						<span class="fastt-section-icon">
-							{
-								isPublished || readyToPublish ? (
-									<CircleCheck class="size-4" aria-hidden="true" />
-								) : (
-									<ClipboardList class="size-4" aria-hidden="true" />
-								)
-							}
-						</span>
-						<div class="min-w-0">
-							<p class="text-xs font-semibold tracking-[0.14em] text-neutral-500 uppercase">
-								{
-									isPublished
-										? "Revisión"
-										: readyToPublish && publicationEligible
-											? "Siguiente acción"
-											: "Siguiente requisito"
-								}
-							</p>
-							<p class="mt-1 text-base font-semibold text-white">
-								{
-									isPublished
-										? "La página pública ya está disponible"
-										: readyToPublish && publicationEligible
-											? `Publicar ${vertical.labels.singular.toLowerCase()}`
-											: readyToPublish
-												? (publicationBlocker?.label ?? "Configura el negocio para publicar")
-												: (nextBlocker?.label ?? "Revisa los requisitos pendientes")
-								}
-							</p>
-							<p class="mt-1 max-w-xl text-sm leading-6 text-neutral-400">
-								{
-									tourPresentation
-										? tourPresentation.support
-										: isPublished
-											? "Puedes volver a la ficha para operar el alojamiento o revisar el resultado público."
+				{
+					isPublished && tourPresentation ? (
+						<TourPublishedReviewAction
+							presentation={tourPresentation}
+							backHref={`${routes.productDetail(productId)}?${new URLSearchParams({ ...(previewVariantId ? { variantId: previewVariantId } : {}), ...(previewRatePlanId ? { ratePlanId: previewRatePlanId } : {}) })}`}
+							backLabel={playbook.active ? "Salir y volver a la ficha" : "Volver a la ficha"}
+						/>
+					) : (
+						<div class="flex flex-col gap-4 border-t border-white/10 pt-5 sm:flex-row sm:items-center sm:justify-between">
+							<div class="flex min-w-0 items-start gap-3">
+								<span class="fastt-section-icon">
+									{isPublished || readyToPublish ? (
+										<CircleCheck class="size-4" aria-hidden="true" />
+									) : (
+										<ClipboardList class="size-4" aria-hidden="true" />
+									)}
+								</span>
+								<div class="min-w-0">
+									<p class="text-xs font-semibold tracking-[0.14em] text-neutral-500 uppercase">
+										{isPublished
+											? "Revisión"
 											: readyToPublish && publicationEligible
-												? `Revisa la ficha pública debajo y confirma que representa correctamente tu ${vertical.labels.singular.toLowerCase()}.`
+												? "Siguiente acción"
+												: "Siguiente requisito"}
+									</p>
+									<p class="mt-1 text-base font-semibold text-white">
+										{isPublished
+											? "La página pública ya está disponible"
+											: readyToPublish && publicationEligible
+												? `Publicar ${vertical.labels.singular.toLowerCase()}`
 												: readyToPublish
-													? "La ficha ya está preparada. Resuelve este requisito del negocio para publicarla."
-													: (nextBlocker?.detail ??
-														"Completa el siguiente requisito para continuar.")
-								}
-							</p>
-						</div>
-					</div>
-					<div class="flex shrink-0 flex-wrap items-center gap-2">
-						<Button
-							href={isTour
-								? `${routes.productDetail(productId)}?${new URLSearchParams({ ...(previewVariantId ? { variantId: previewVariantId } : {}), ...(previewRatePlanId ? { ratePlanId: previewRatePlanId } : {}) })}`
-								: routes.productDetail(productId)}
-							variant="secondary"
-						>
-							{playbook.active ? "Salir y volver a la ficha" : "Volver a la ficha"}
-						</Button>
-						{
-							isPublished ? null : readyToPublish && publicationEligible ? (
-								<Button class="publish-product-button" type="button" variant="onDark">
-									Publicar {vertical.labels.singular}
-								</Button>
-							) : readyToPublish && publicationBlocker ? (
-								<Button href={publicationBlocker.href} variant="onDark">
-									Resolver configuración
-								</Button>
-							) : (
+													? (publicationBlocker?.label ?? "Configura el negocio para publicar")
+													: (nextBlocker?.label ?? "Revisa los requisitos pendientes")}
+									</p>
+									<p class="mt-1 max-w-xl text-sm leading-6 text-neutral-400">
+										{tourPresentation
+											? tourPresentation.support
+											: isPublished
+												? "Puedes volver a la ficha para operar el alojamiento o revisar el resultado público."
+												: readyToPublish && publicationEligible
+													? `Revisa la ficha pública debajo y confirma que representa correctamente tu ${vertical.labels.singular.toLowerCase()}.`
+													: readyToPublish
+														? "La ficha ya está preparada. Resuelve este requisito del negocio para publicarla."
+														: (nextBlocker?.detail ??
+															"Completa el siguiente requisito para continuar.")}
+									</p>
+								</div>
+							</div>
+							<div class="flex shrink-0 flex-wrap items-center gap-2">
 								<Button
 									href={
-										nextBlocker
-											? checkHref(nextBlocker)
-											: (tourPresentation?.primaryAction.href ?? completePreparationHref)
+										isTour
+											? `${routes.productDetail(productId)}?${new URLSearchParams({ ...(previewVariantId ? { variantId: previewVariantId } : {}), ...(previewRatePlanId ? { ratePlanId: previewRatePlanId } : {}) })}`
+											: routes.productDetail(productId)
 									}
-									variant="onDark"
+									variant="secondary"
 								>
-									{nextBlocker?.cta ??
-										tourPresentation?.primaryAction.label ??
-										"Completar preparación"}
-									<ArrowRight class="h-4 w-4" aria-hidden="true" />
+									{playbook.active ? "Salir y volver a la ficha" : "Volver a la ficha"}
 								</Button>
-							)
-						}
-					</div>
-				</div>
+								{isPublished ? null : readyToPublish && publicationEligible ? (
+									<Button class="publish-product-button" type="button" variant="onDark">
+										Publicar {vertical.labels.singular}
+									</Button>
+								) : readyToPublish && publicationBlocker ? (
+									<Button href={publicationBlocker.href} variant="onDark">
+										Resolver configuración
+									</Button>
+								) : (
+									<Button
+										href={
+											nextBlocker
+												? checkHref(nextBlocker)
+												: (tourPresentation?.primaryAction.href ?? completePreparationHref)
+										}
+										variant="onDark"
+									>
+										{nextBlocker?.cta ??
+											tourPresentation?.primaryAction.label ??
+											"Completar preparación"}
+										<ArrowRight class="h-4 w-4" aria-hidden="true" />
+									</Button>
+								)}
+							</div>
+						</div>
+					)
+				}
+
 				<div
 					id="publishFeedback"
 					class="hidden rounded-[var(--fastt-radius-control)] bg-white/10 px-4 py-3 text-sm leading-6 text-slate-200"

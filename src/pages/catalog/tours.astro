@@ -14,6 +14,7 @@ import { getProviderCatalogSummary } from "@/lib/catalog/providerCatalogSummary"
 import { buildCompleteToPublishEntryHref } from "@/lib/playbook/complete-to-publish"
 import { summarizeProductPreparation } from "@/lib/playbook/summarize-product-preparation"
 import { routes } from "@/lib/routes"
+import { summarizeTourCatalog } from "@/lib/tours/tourDiagnosticPresentation"
 import { buildTourCommercialLinks, contextualizeTourLink } from "@/lib/tours/tourProviderNavigation"
 
 const user = await getUserFromRequest(Astro.request)
@@ -77,6 +78,12 @@ const taskRows = await Promise.all(
 		}
 	})
 )
+const evaluatedSummary = summarizeTourCatalog(
+	taskRows.map(({ product, preparation }) => ({
+		published: product.status.state === "published",
+		presentation: preparation?.tourPresentation,
+	}))
+)
 ---
 
 <WorkspaceLayout title="Tours">
@@ -112,10 +119,14 @@ const taskRows = await Promise.all(
 		</Card>
 
 		<WorkspaceMetricStats class="md:grid-cols-4" ariaLabel="Resumen de tours">
-			<WorkspaceMetricStat label="Tours">{catalog.summary.total}</WorkspaceMetricStat>
-			<WorkspaceMetricStat label="Publicados">{catalog.summary.published}</WorkspaceMetricStat>
-			<WorkspaceMetricStat label="Listos">{catalog.summary.ready}</WorkspaceMetricStat>
-			<WorkspaceMetricStat label="Borradores">{catalog.summary.draft}</WorkspaceMetricStat>
+			<WorkspaceMetricStat label="Tours">{evaluatedSummary.total}</WorkspaceMetricStat>
+			<WorkspaceMetricStat label="Publicados">{evaluatedSummary.published}</WorkspaceMetricStat>
+			<WorkspaceMetricStat label="Fichas preparadas"
+				>{evaluatedSummary.prepared}</WorkspaceMetricStat
+			>
+			<WorkspaceMetricStat label="Listos para publicar"
+				>{evaluatedSummary.readyToPublish}</WorkspaceMetricStat
+			>
 		</WorkspaceMetricStats>
 
 		<section class="space-y-4">
@@ -144,7 +155,14 @@ const taskRows = await Promise.all(
 								<div class="min-w-0 space-y-3">
 									<div class="flex flex-wrap items-center gap-2">
 										<h3 class="truncate text-base font-semibold text-slate-950">{product.name}</h3>
-										<Badge variant={product.status.variant}>{product.status.label}</Badge>
+										<Badge variant={product.status.state === "published" ? "success" : "neutral"}>
+											{product.status.state === "published" ? "Publicado" : "Borrador"}
+										</Badge>
+										<Badge
+											variant={preparation?.tourPresentation?.catalogStatus.variant ?? "warning"}
+										>
+											{preparation?.tourPresentation?.catalogStatus.label ?? "Evaluación pendiente"}
+										</Badge>
 									</div>
 									{preparation && !preparation.isPublished ? (
 										<>
@@ -175,7 +193,7 @@ const taskRows = await Promise.all(
 									) : (
 										<p class="text-sm text-slate-600">
 											{preparation?.tourPresentation?.support ??
-												"Publicado · gestiona opciones, precio y cupos."}
+												"No se pudo evaluar la oferta. Vuelve a revisar su preparación."}
 										</p>
 									)}
 								</div>
