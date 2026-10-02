@@ -1,3 +1,7 @@
+import {
+	presentExperienceDocument,
+	type DocumentListPresentation,
+} from "@/lib/verification/document-list-presentation"
 import { getIdentityVendorStatus } from "@/lib/identity-vendor"
 import { getPayoutRailStatus } from "@/lib/payout-rail"
 import { resolveProductCommercialDiagnosis } from "@/lib/commercial-policy/enforcement"
@@ -56,6 +60,7 @@ import {
 	buildTourVerificationPlaybook,
 	trustStateFromKycSlotState,
 	resolveVerificationNavigation,
+	resolveVerificationExperience,
 	summarizeVerificationPlaybook,
 	verificationNavigationHref,
 	type VerificationNavigation,
@@ -66,7 +71,14 @@ import {
 	buildTourVerificationReadiness,
 	type TourVerificationReadiness,
 } from "@/lib/provider-tour-verification"
-import { and, asc, db, eq, Product } from "@/shared/infrastructure/db/compat"
+import {
+	and,
+	asc,
+	db,
+	eq,
+	Product,
+	TourOperationalResource,
+} from "@/shared/infrastructure/db/compat"
 
 export type VerificationTrustPanelId = VerificationTab
 
@@ -85,6 +97,8 @@ export type ProviderVerificationWorkspaceModel = {
 	activeSectionId: VerificationTrustPanelId
 	navigation: VerificationNavigation | null
 	tourPlaybook: VerificationPlaybookTab[]
+	tourDocumentPresentation: Record<string, DocumentListPresentation>
+	tourResources: Array<{ id: string; name: string; type: string }>
 	tourProducts: Array<{ id: string; name: string | null }>
 	listaReady: boolean
 	trustMapComplete: boolean
@@ -235,10 +249,26 @@ export async function loadProviderVerificationWorkspace(params: {
 			.catch(() => []),
 		readProviderCommercialLineState(params.providerId),
 	])
+	const tourResources = loadedResolution.lines.includes("tour")
+		? await db
+				.select({
+					id: TourOperationalResource.id,
+					name: TourOperationalResource.name,
+					type: TourOperationalResource.type,
+				})
+				.from(TourOperationalResource)
+				.where(
+					and(
+						eq(TourOperationalResource.providerId, params.providerId),
+						eq(TourOperationalResource.status, "active")
+					)
+				)
+		: []
 	const requestedExperience = params.url.searchParams.get("experience")
-	const selectedExperienceId = tourProducts.some((product) => product.id === requestedExperience)
-		? requestedExperience
-		: (tourProducts[0]?.id ?? null)
+	const selectedExperienceId = resolveVerificationExperience(
+		requestedExperience,
+		tourProducts.map((product) => product.id)
+	)
 	const displayedTours = tourProducts.filter((product) => product.id === selectedExperienceId)
 	const requestedLine = params.url.searchParams.get("line")
 	const selectedLine = loadedResolution.lines.includes(requestedLine as "lodging" | "tour")
@@ -268,8 +298,8 @@ export async function loadProviderVerificationWorkspace(params: {
 			appliesToSelectedTour(requirement)
 	)
 	const tourEvidenceOptions = {
-		activity: tourRequirements.filter((requirement) => requirement.id !== "tour.insurance"),
-		safety: tourRequirements.filter((requirement) => requirement.id === "tour.insurance"),
+		activity: tourRequirements.filter((requirement) => requirement.presentationArea === "activity"),
+		safety: tourRequirements.filter((requirement) => requirement.presentationArea === "safety"),
 	}
 	const mapEvidenceOption = (requirement: (typeof tourRequirements)[number]) => ({
 		value: requirement.uploadValue as string,
@@ -289,6 +319,22 @@ export async function loadProviderVerificationWorkspace(params: {
 	)
 
 	const documents = trustSnapshot?.documents ?? []
+	const tourDocumentPresentation = Object.fromEntries(
+		documents.map((document) => [
+			document.id,
+			presentExperienceDocument({
+				document,
+				requirements: tourRequirements,
+				operation: {
+					productId: selectedExperienceId,
+					territoryCodes: tourContext?.jurisdictionCode ? [tourContext.jurisdictionCode] : [],
+					activityClasses: storedTourActivityClasses(tourContext?.activityClassesJson),
+				},
+				products: tourProducts,
+				resources: tourResources,
+			}),
+		])
+	)
 	const kycSlots = trustSnapshot?.kycSlots ?? []
 	const historicalBusinessRegistrationDocuments = holderRequiresBusinessRegistration(holderType)
 		? []
@@ -389,10 +435,7 @@ export async function loadProviderVerificationWorkspace(params: {
 				fasttCollects: screen.paymentsCountsForSelling,
 			})
 		: null
-	const navigation =
-		resolvedNavigation && resolvedNavigation.line === "tour"
-			? { ...resolvedNavigation, experienceId: selectedExperienceId }
-			: resolvedNavigation
+	const navigation = resolvedNavigation
 	const visibleTrustLinks = visibleVerificationTrustLinks(
 		trustLinks,
 		screen,
@@ -532,11 +575,12 @@ export async function loadProviderVerificationWorkspace(params: {
 					payments: linkState("payments"),
 					activity: countingTourItems
 						.filter(
-							(item) => item.id !== "tour.insurance" && item.id !== "tour.operating_role_missing"
+							(item) =>
+								item.presentationArea === "activity" && item.id !== "tour.operating_role_missing"
 						)
 						.map((item) => item.state),
 					safety: countingTourItems
-						.filter((item) => item.id === "tour.insurance")
+						.filter((item) => item.presentationArea === "safety")
 						.map((item) => item.state),
 					contextComplete,
 					policyResolved: tourVerification[0]?.state !== "waiting_on_fastt",
@@ -550,6 +594,8 @@ export async function loadProviderVerificationWorkspace(params: {
 		activeSectionId,
 		navigation,
 		tourPlaybook,
+		tourDocumentPresentation,
+		tourResources,
 		tourProducts: tourProducts.map((product) => ({ id: product.id, name: product.name })),
 		listaReady,
 		trustMapComplete,

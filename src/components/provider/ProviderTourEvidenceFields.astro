@@ -1,0 +1,293 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Input from "@/components/ui/Input.astro"
+import Select from "@/components/ui/Select.astro"
+import { tourOperatingTerritories } from "@/lib/tours/tour-operating-territories"
+import {
+	tourComplianceActivityClasses,
+	tourComplianceActivityLabels,
+} from "@/lib/tours/tour-compliance-context"
+type ProductChoice = { id: string; name: string | null; kind?: "tour" | "lodging" }
+type Props = {
+	selectedType: string | null | undefined
+	scopeProductId: string | null
+	scopeProducts: ProductChoice[]
+	otherProducts: ProductChoice[]
+	guideResources: Array<{ id: string; name: string }>
+	resourceChoices: Array<{ id: string; name: string; type: string }>
+}
+const {
+	selectedType,
+	scopeProductId,
+	scopeProducts,
+	otherProducts,
+	guideResources,
+	resourceChoices,
+} = Astro.props as Props
+const tourSurface = true
+const guideCredential = selectedType === "operating_license::tour.guide_credential"
+const operatorLicense = selectedType === "operating_license::tour.operator_license"
+const insurance = selectedType?.split("::")[0] === "insurance"
+const subjectOptions = guideCredential
+	? [{ value: "person", label: "Guía registrado" }]
+	: operatorLicense
+		? [
+				{ value: "provider", label: "Titular del negocio" },
+				{ value: "legal_entity", label: "Entidad legal" },
+			]
+		: [
+				{ value: "provider", label: "Titular del negocio" },
+				{ value: "legal_entity", label: "Entidad legal" },
+				{ value: "person", label: "Persona o guía" },
+				{ value: "resource", label: "Recurso operativo" },
+				{ value: "third_party", label: "Tercero" },
+			]
+---
+
+<details
+	class="fastt-soft-box border border-slate-200 bg-slate-50 p-4"
+	open={tourSurface ? true : undefined}
+>
+	<summary class="cursor-pointer font-semibold text-slate-900">
+		Alcance y vigencia de esta evidencia
+	</summary>
+	<p class="mt-2 text-sm leading-6 text-slate-600">
+		Indica sólo lo que el documento realmente cubre. Otra licencia o póliza no reemplaza esta.
+	</p>
+	{
+		!scopeProductId && scopeProducts.length ? (
+			<label class="mt-4 grid gap-2 text-sm font-medium text-slate-700">
+				Oferta principal cubierta
+				<Select name="scopeProductId" required>
+					<option value="" disabled selected>
+						Selecciona la oferta que cubre este documento
+					</option>
+					{scopeProducts.map((product) => (
+						<option value={product.id}>
+							{product.name ||
+								(product.kind === "lodging" ? "Alojamiento sin nombre" : "Experiencia sin nombre")}
+						</option>
+					))}
+				</Select>
+			</label>
+		) : null
+	}
+	{
+		otherProducts.length ? (
+			<details class="mt-4">
+				<summary class="cursor-pointer text-sm font-medium">
+					Vincular otras ofertas (opcional)
+				</summary>
+				<fieldset class="mt-3 grid gap-2 text-sm text-slate-700">
+					<legend class="font-medium">Otras ofertas cubiertas por el mismo documento</legend>
+					<p class="text-xs leading-5 text-slate-500">
+						Marca sólo las ofertas que este archivo cubre. La evidencia de una oferta no se
+						reutiliza en otra sin revisión de alcance.
+					</p>
+					<div class="grid gap-2 sm:grid-cols-2">
+						{otherProducts.map((product) => (
+							<label class="fastt-soft-box inline-flex items-center gap-2 border border-slate-200 bg-white px-3 py-2">
+								<input type="checkbox" name="scopeProductId" value={product.id} />
+								{product.name ||
+									(product.kind === "lodging"
+										? "Alojamiento sin nombre"
+										: "Experiencia sin nombre")}
+							</label>
+						))}
+					</div>
+				</fieldset>
+			</details>
+		) : null
+	}
+	<div class="mt-4 grid gap-4 sm:grid-cols-2">
+		<label class="grid gap-2 text-sm font-medium text-slate-700">
+			Emisor
+			<Input name="issuer" placeholder="Autoridad o aseguradora" />
+		</label>
+		<label class="grid gap-2 text-sm font-medium text-slate-700">
+			Emitido el (opcional)
+			<Input name="issuedAt" type="date" />
+		</label>
+		<label class="grid gap-2 text-sm font-medium text-slate-700">
+			Vence el
+			<Input name="expiresAt" type="date" />
+		</label>
+		<label class="grid gap-2 text-sm font-medium text-slate-700">
+			{insurance ? "Asegurado que figura en la póliza" : "Titular del documento"}
+			<Select name="subjectType" required={tourSurface} data-evidence-subject>
+				{
+					tourSurface ? (
+						<option value="" disabled selected>
+							Selecciona a quién cubre
+						</option>
+					) : null
+				}
+				{
+					subjectOptions.map((option) => (
+						<option value={option.value} selected={guideCredential}>
+							{option.label}
+						</option>
+					))
+				}
+			</Select>
+			{
+				tourSurface ? (
+					<span class="text-xs leading-5 font-normal text-slate-500">
+						Elige al titular que aparece en el documento, no a quien carga el archivo.
+					</span>
+				) : null
+			}
+		</label>
+		{
+			guideCredential ? (
+				<label class="grid gap-2 text-sm font-medium text-slate-700">
+					Guía titular de la credencial
+					<select
+						class="fastt-field min-h-11 w-full"
+						name="subjectReference"
+						required
+						data-evidence-guide
+					>
+						<option value="" disabled selected>
+							Selecciona el guía
+						</option>
+						{guideResources.map((guide) => (
+							<option value={guide.id}>{guide.name}</option>
+						))}
+					</select>
+					<span class="text-xs font-normal text-slate-500">
+						Debe ser la persona identificada en la credencial. Si no aparece, regístrala aquí.
+					</span>
+					<div class="flex flex-wrap gap-2" data-guide-registration>
+						<Input
+							aria-label="Nombre completo del guía"
+							data-guide-name
+							placeholder="Nombre completo del guía"
+						/>
+						<Button type="button" variant="secondary" data-register-evidence-guide>
+							Registrar guía
+						</Button>
+						<span role="status" data-guide-registration-status />
+					</div>
+				</label>
+			) : (
+				<label class="grid gap-2 text-sm font-medium text-slate-700">
+					{insurance ? "Nombre o razón social del asegurado" : "Nombre o razón social del titular"}
+					<Input
+						name="subjectReference"
+						placeholder="Tal como aparece en el documento"
+						data-evidence-subject-text
+					/>
+					<select
+						class="fastt-field min-h-11 w-full"
+						name="subjectReference"
+						disabled
+						hidden
+						data-evidence-subject-resource
+						required
+					>
+						<option value="" selected disabled>
+							Selecciona la persona o recurso registrado
+						</option>
+						{resourceChoices.map((guide) => (
+							<option value={guide.id} data-resource-type={guide.type}>
+								{guide.name}
+							</option>
+						))}
+					</select>
+				</label>
+			)
+		}
+		<label class="grid gap-2 text-sm font-medium text-slate-700">
+			Departamento cubierto por el documento
+			<Select name="territoryCode">
+				<option value="" selected> Sin cobertura departamental declarada </option>
+				{
+					tourOperatingTerritories.map((territory) => (
+						<option value={territory.code}>{territory.label}</option>
+					))
+				}
+			</Select>
+		</label>
+		<label class="grid gap-2 text-sm font-medium text-slate-700">
+			Detalle de cobertura territorial (opcional)
+			<Input
+				name="territoryLabel"
+				placeholder="Ruta, municipio o área que figura en el documento"
+			/>
+		</label>
+	</div>
+	<fieldset class="mt-4 grid gap-2 text-sm text-slate-700">
+		<legend class="font-medium">Actividad cubierta (si corresponde)</legend>
+		<div class="flex flex-wrap gap-x-4 gap-y-2">
+			{
+				tourComplianceActivityClasses.map((value) => (
+					<label class="inline-flex items-center gap-2">
+						<input type="checkbox" name="activityClass" value={value} />
+						{tourComplianceActivityLabels[value]}
+					</label>
+				))
+			}
+		</div>
+	</fieldset>
+</details>
+<script>
+	document.addEventListener("change", (event) => {
+		const target = event.target
+		if (!(target instanceof HTMLSelectElement) || !target.matches("[data-evidence-subject]")) return
+		const form = target.closest("form")
+		const text = form?.querySelector<HTMLInputElement>("[data-evidence-subject-text]")
+		const resource = form?.querySelector<HTMLSelectElement>("[data-evidence-subject-resource]")
+		if (!text || !resource) return
+		const resourceSubject = target.value === "person" || target.value === "resource"
+		text.disabled = resourceSubject
+		text.hidden = resourceSubject
+		for (const option of resource.options) {
+			if (option.value)
+				option.hidden = target.value === "person" && option.dataset.resourceType !== "guide"
+		}
+		resource.value = ""
+		resource.disabled = !resourceSubject
+		resource.hidden = !resourceSubject
+	})
+	document.addEventListener("click", async (event) => {
+		const target =
+			event.target instanceof Element
+				? event.target.closest<HTMLButtonElement>("[data-register-evidence-guide]")
+				: null
+		if (!target || target.disabled) return
+		const form = target.closest("form")
+		const input = form?.querySelector<HTMLInputElement>("[data-guide-name]")
+		const select = form?.querySelector<HTMLSelectElement>("[data-evidence-guide]")
+		const status = form?.querySelector<HTMLElement>("[data-guide-registration-status]")
+		if (!input || !select || !status) return
+		if (input.value.trim().length < 2) {
+			status.textContent = "Escribe el nombre completo del guía."
+			input.focus()
+			return
+		}
+		target.disabled = true
+		status.textContent = "Registrando guía…"
+		try {
+			const response = await fetch("/api/tours/resources", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					intent: "create_resource",
+					type: "guide",
+					name: input.value.trim(),
+				}),
+			})
+			const data = await response.json()
+			if (!response.ok || !data.resource?.id) throw new Error("registration_failed")
+			select.add(new Option(data.resource.name, data.resource.id, true, true))
+			status.textContent =
+				"Guía registrado. Comprueba que coincide con la credencial antes de enviarla."
+			select.focus()
+		} catch {
+			status.textContent = "No se pudo registrar. Revisa tu sesión e inténtalo nuevamente."
+		} finally {
+			target.disabled = false
+		}
+	})
+</script>

@@ -1,4 +1,5 @@
 ---
+import { copyVerificationNavigationQuery } from "@/lib/verification/navigation"
 import Card from "@/components/ui/Card.astro"
 import type { VerificationScreen } from "@/lib/verification/screen-sections"
 import type { VerificationPlaybookTab } from "@/lib/verification/navigation"
@@ -21,14 +22,19 @@ const {
 const lineSections = screen.sections.filter(
 	(section) => section.id !== "shared" && (!line || section.id === line) && section.items.length > 0
 )
-const safetyIds = new Set(["tour.insurance", "tour.food_handling_pending"])
-function contextualHref(href: string, id: string): string {
-	if (line === "tour") {
-		if (id === "tour.insurance") return "#tour-evidence-tour-safety"
-		if (id === "tour.guide_credential" || id === "tour.operator_license")
-			return "#tour-evidence-tour-activity"
-	}
+function contextualHref(href: string, area: "activity" | "safety" | null | undefined): string {
+	if (
+		line === "tour" &&
+		area &&
+		new URL(href, Astro.url).pathname === "/provider/settings/verification/documents"
+	)
+		return `#tour-evidence-tour-${area}`
 	const url = new URL(href, Astro.url)
+	if (url.pathname === "/provider/settings/verification") {
+		const destinationTab = url.searchParams.get("tab")
+		copyVerificationNavigationQuery(url, Astro.url)
+		if (destinationTab) url.searchParams.set("tab", destinationTab)
+	}
 	if (url.pathname === "/provider/settings/verification/documents" && line) {
 		url.searchParams.set("line", line)
 		url.searchParams.set("tab", line === "tour" ? (tourArea ?? "activity") : "business")
@@ -48,9 +54,7 @@ function contextualHref(href: string, id: string): string {
 				const listed = section.items.filter(
 					(entry) =>
 						entry.id !== "tour.operating_role_missing" &&
-						(section.id !== "tour" ||
-							!tourArea ||
-							(tourArea === "safety" ? safetyIds.has(entry.id) : !safetyIds.has(entry.id)))
+						(section.id !== "tour" || !tourArea || entry.presentationArea === tourArea)
 				)
 				if (!listed.length && !(section.id === "tour" && tourArea === "safety")) return null
 				return (
@@ -80,7 +84,7 @@ function contextualHref(href: string, id: string): string {
 									>
 										{entry.href ? (
 											<a
-												href={contextualHref(entry.href, entry.id)}
+												href={contextualHref(entry.href, entry.presentationArea)}
 												class="flex items-center justify-between gap-3 text-sm text-slate-800 underline-offset-2 hover:underline"
 											>
 												<span>

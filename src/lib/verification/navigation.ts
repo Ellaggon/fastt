@@ -189,6 +189,15 @@ function tabFromLegacyUrl(url: URL): VerificationTab {
 	return "identity"
 }
 
+/** Explicit stale selections never fall back to another experience. */
+export function resolveVerificationExperience(
+	requested: string | null,
+	ids: readonly string[]
+): string | null {
+	if (requested !== null) return ids.includes(requested) ? requested : null
+	return ids.length === 1 ? ids[0] : null
+}
+
 /** Server-side source of truth: a URL cannot select another provider's experience. */
 export function resolveVerificationNavigation(input: {
 	url: URL
@@ -212,9 +221,7 @@ export function resolveVerificationNavigation(input: {
 			: "identity"
 	const requestedExperience = input.url.searchParams.get("experience")
 	const experienceId =
-		line === "tour" && requestedExperience && input.experienceIds.includes(requestedExperience)
-			? requestedExperience
-			: null
+		line === "tour" ? resolveVerificationExperience(requestedExperience, input.experienceIds) : null
 	return { line, tab, experienceId, lines, tabs, fasttCollects: input.fasttCollects }
 }
 
@@ -250,6 +257,10 @@ export function verificationNavigationHref(input: {
 			? (input.navigation.experienceId ?? input.url.searchParams.get("experience"))
 			: input.experienceId
 	if (experienceId) params.set("experience", experienceId)
+	const returnTo =
+		safeProductPreviewReturn(input.url.searchParams.get("returnTo")) ??
+		safeRatePlanPlaybookReturn(input.url.searchParams.get("returnTo"))
+	if (returnTo) params.set("returnTo", returnTo)
 	url.search = params.toString()
 	return `${url.pathname}${url.search}`
 }
