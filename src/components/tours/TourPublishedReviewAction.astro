@@ -1,0 +1,50 @@
+---
+import Button from "@/components/ui/Button.astro"
+import type { presentTourDiagnostic } from "@/lib/tours/tourDiagnosticPresentation"
+import { ArrowRight, CircleCheck, ClipboardList } from "@lucide/astro"
+
+type Props = {
+	presentation: ReturnType<typeof presentTourDiagnostic>
+	backHref: string
+	backLabel: string
+}
+const { presentation, backHref, backLabel } = Astro.props
+const hasPending = presentation.nextRequirementId !== null
+---
+
+<div
+	class="flex flex-col gap-4 border-t border-white/10 pt-5 sm:flex-row sm:items-center sm:justify-between"
+	data-tour-published-review
+>
+	<div class="flex min-w-0 items-start gap-3">
+		<span class="fastt-section-icon">
+			{
+				hasPending ? (
+					<ClipboardList class="size-4" aria-hidden="true" />
+				) : (
+					<CircleCheck class="size-4" aria-hidden="true" />
+				)
+			}
+		</span>
+		<div class="min-w-0">
+			<p class="text-xs font-semibold tracking-[0.14em] text-neutral-500 uppercase">
+				{hasPending ? "Siguiente acción" : "Revisión"}
+			</p>
+			<p class="mt-1 text-base font-semibold text-white">
+				{hasPending ? presentation.nextLabel : "Revisa la oferta publicada"}
+			</p>
+			<p class="mt-1 max-w-xl text-sm leading-6 text-neutral-400">{presentation.support}</p>
+		</div>
+	</div>
+	<div class="flex shrink-0 flex-wrap items-center gap-2">
+		<Button href={backHref} variant="secondary">{backLabel}</Button>
+		{
+			hasPending ? (
+				<Button href={presentation.primaryAction.href} variant="onDark">
+					{presentation.primaryAction.label}
+					<ArrowRight class="h-4 w-4" aria-hidden="true" />
+				</Button>
+			) : null
+		}
+	</div>
+</div>
