@@ -676,6 +676,9 @@ export default function SingleCalendarWorkspace({
 					: `Disponibilidad abierta para ${nights} ${nights === 1 ? "noche" : "noches"} con ${units} ${units === 1 ? "unidad" : "unidades"} por noche.`
 			)
 			setGuidedFeedbackVariant("success")
+			// The server owns activation eligibility. Refresh its observations after writing dates,
+			// keeping the current URL (product, option, rate and playbook) intact.
+			if (isTourGuidedAvailability) window.location.reload()
 		} catch (error) {
 			setGuidedFeedbackVariant("error")
 			setGuidedFeedback(error instanceof Error ? error.message : "No se pudo abrir disponibilidad")
@@ -1028,7 +1031,7 @@ export default function SingleCalendarWorkspace({
 											}
 										>
 											{hasActivationBlockers
-												? "Habilitación pendiente"
+												? "Activación pendiente"
 												: guidedIsReady
 													? "Lista"
 													: "Pendiente"}
@@ -1037,7 +1040,7 @@ export default function SingleCalendarWorkspace({
 									<p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
 										{isTourGuidedAvailability
 											? hasActivationBlockers && guidedIsReady
-												? "Hay fechas futuras con cupo. La tarifa todavía no puede recibir reservas hasta resolver la habilitación de la cuenta."
+												? "Hay fechas futuras con cupo. La oferta necesita resolver los requisitos de activación indicados."
 												: "Elige una o más fechas futuras y asigna el cupo de participantes. Con al menos una fecha con cupo, la salida queda lista para reservar."
 											: "Configura inventario inicial para un primer rango vendible. Precios y condiciones ya se revisaron en los pasos anteriores."}
 									</p>
@@ -1173,7 +1176,7 @@ export default function SingleCalendarWorkspace({
 							{isTourGuidedAvailability && hasActivationBlockers ? (
 								<Notice variant="warning">
 									<div className="space-y-3">
-										<p>Antes de aceptar reservas, completa estos requisitos del proveedor:</p>
+										<p>Antes de activar esta oferta, resuelve estos requisitos:</p>
 										<ul
 											className="space-y-2"
 											aria-label="Requisitos pendientes para activar la oferta"

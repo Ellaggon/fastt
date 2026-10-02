@@ -13,6 +13,7 @@ import {
 	COMPLETE_TO_PUBLISH_PLAYBOOK_ID,
 	resolveCompleteToPublishPlaybookFromUrl,
 } from "@/lib/playbook/complete-to-publish"
+import { loadCompleteToPublishState } from "@/lib/playbook/evaluate-complete-to-publish-progress"
 import {
 	getNextLaunchStep,
 	resolveLaunchPlaybookFromUrl,
@@ -22,7 +23,6 @@ import {
 	LAUNCH_TOUR_PLAYBOOK_ID,
 	resolveTourLaunchPlaybookFromUrl,
 } from "@/lib/playbook/launch-tour"
-import { evaluateProviderGovernance } from "@/lib/provider-governance"
 import {
 	loadProviderRatePlansReadModel,
 	type RatePlanListItem,
@@ -30,6 +30,7 @@ import {
 import { providerLocalToday } from "@/lib/rates/providerLocalToday"
 import { sellableDailyInventoryCondition } from "@/lib/rates/sellableDailyInventoryCondition"
 import { routes } from "@/lib/routes"
+import { tourActivationDecision } from "@/lib/tours/buildTourDiagnostic"
 import {
 	loadTourCommercialEntryContext,
 	tourContextEntryResponse,
@@ -193,37 +194,21 @@ const isGuidedAvailabilityStep = Boolean(
 		tourLaunchPlaybook.stepId === "calendar" ||
 		completePlaybook.stepId === "calendar")
 )
-const guidedTourPublishBlockers =
+const guidedTourState =
 	isGuidedAvailabilityStep &&
 	isTourContext &&
 	(activePlaybook === "complete-to-publish" || activePlaybook === "launch-tour")
-		? (
-				await evaluateProviderGovernance(auth.providerId, {
-					currentUserId: workspaceContext.user.id,
-					persist: false,
-				})
-			).blockers.filter((blocker) => blocker.capabilities.includes("publish"))
-		: []
-function guidedTourPublishBlockerHref(blocker: (typeof guidedTourPublishBlockers)[number]) {
-	const url = new URL(blocker.href, Astro.url)
-	const verificationPath = routes.providerSettingsVerification()
-	if (url.pathname === verificationPath || url.pathname.startsWith(`${verificationPath}/`)) {
-		url.searchParams.set("line", "tour")
-		url.searchParams.set("experience", playbookProductId)
-	}
-	if (url.pathname === verificationPath) {
-		const tabByArea: Record<string, string> = {
-			verification: "identity",
-			documents: "identity",
-			fiscality: "fiscal",
-			payments: "payments",
-		}
-		const tab = tabByArea[blocker.areaId ?? ""] ?? "identity"
-		url.searchParams.set("tab", tab)
-		url.searchParams.set("tourTab", tab)
-	}
-	return `${url.pathname}${url.search}`
-}
+		? await loadCompleteToPublishState({
+				providerId: auth.providerId,
+				productId: playbookProductId,
+				request: Astro.request,
+				url: Astro.url,
+			})
+		: null
+const guidedTourActivation = guidedTourState?.tourDiagnostic
+	? tourActivationDecision(guidedTourState.tourDiagnostic)
+	: null
+const guidedTourPublishBlockers = guidedTourActivation?.blockers ?? []
 const guidedVariantId = String(
 	addRoomCtx.variantId || launchCtx.variantId || variantIdParam || ""
 ).trim()
@@ -380,7 +365,7 @@ timing.setHeader(Astro.response.headers)
 						activationBlockers: guidedTourPublishBlockers.map((blocker) => ({
 							id: blocker.id,
 							label: blocker.label,
-							href: guidedTourPublishBlockerHref(blocker),
+							href: blocker.href,
 						})),
 					}
 				: undefined}

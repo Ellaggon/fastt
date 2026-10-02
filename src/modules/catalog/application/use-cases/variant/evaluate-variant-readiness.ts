@@ -14,6 +14,7 @@ export async function evaluateVariantReadiness(
 	deps: {
 		repo: VariantManagementRepositoryPort
 		pricingReadRepo: VariantPricingReadPort
+		persist?: boolean
 	},
 	params: { variantId: string; ratePlanId?: string }
 ): Promise<{
@@ -86,11 +87,12 @@ export async function evaluateVariantReadiness(
 
 	const lifecycleState: "draft" | "ready" = blockingErrors.length === 0 ? "ready" : "draft"
 
-	await deps.repo.persistLifecycleEvaluation({
-		variantId: parsed.variantId,
-		lifecycleState,
-		validationErrorsJson: allErrors,
-	})
+	if (deps.persist !== false)
+		await deps.repo.persistLifecycleEvaluation({
+			variantId: parsed.variantId,
+			lifecycleState,
+			validationErrorsJson: allErrors,
+		})
 
 	return { variantId: parsed.variantId, lifecycleState, validationErrors: allErrors }
 }

@@ -235,3 +235,24 @@ describe("canonical selected tour diagnosis", () => {
 		expect(result.validationErrors.some((error) => error.code === "missing_images")).toBe(true)
 	})
 })
+
+it("variant diagnosis can be read-only while activation retains lifecycle persistence", async () => {
+	const { evaluateVariantReadiness } = await import("@/modules/catalog/public")
+	const persistLifecycleEvaluation = vi.fn()
+	const repo = {
+		getVariantById: vi.fn(async () => ({ id: "option", kind: "tour_slot" })),
+		hasTourSlotProfile: vi.fn(async () => true),
+		getCapacity: vi.fn(async () => ({ maxOccupancy: 8 })),
+		persistLifecycleEvaluation,
+	} as unknown as import("@/modules/catalog/application/ports/VariantManagementRepositoryPort").VariantManagementRepositoryPort
+	const pricingReadRepo = {
+		getDefaultRatePlanPricingSummaryByVariant: vi.fn(async () => ({ ratePlanId: "rate" })),
+		getRatePlanPricingSummary: vi.fn(async () => ({ ratePlanId: "rate" })),
+	}
+	const input = { variantId: "option", ratePlanId: "rate" }
+	const readonly = await evaluateVariantReadiness({ repo, pricingReadRepo, persist: false }, input)
+	expect(readonly.lifecycleState).toBe("ready")
+	expect(persistLifecycleEvaluation).not.toHaveBeenCalled()
+	expect(await evaluateVariantReadiness({ repo, pricingReadRepo }, input)).toEqual(readonly)
+	expect(persistLifecycleEvaluation).toHaveBeenCalledTimes(1)
+})

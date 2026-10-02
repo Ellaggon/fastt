@@ -61,6 +61,7 @@ import {
 	loadTourCommercialContext,
 	loadTourCommercialEntryContext,
 	tourContextEntryResponse,
+	tourContextValidationResponse,
 } from "@/lib/tours/loadTourCommercialContext"
 
 const input = { providerId: "provider", productId: "tour" }
@@ -139,6 +140,17 @@ describe("owned tour context loader", () => {
 		await loadTourCommercialContext({ ...input, productId: "other", request })
 		expect(mocks.queries.filter((query) => query.table === "option")).toHaveLength(2)
 	})
+	it("does not reuse context during mutation requests", async () => {
+		const request = new Request("https://fastt.test/api/activate", { method: "POST" })
+		await loadTourCommercialContext({ ...input, request })
+		mocks.data.option = []
+		expect(await loadTourCommercialContext({ ...input, request })).toMatchObject({
+			status: "unresolved",
+			reason: "missing_option",
+		})
+		expect(mocks.queries.filter((query) => query.table === "option")).toHaveLength(2)
+	})
+
 	it("does not cache between requests", async () => {
 		await loadTourCommercialContext({ ...input, request: new Request("https://fastt.test") })
 		await loadTourCommercialContext({ ...input, request: new Request("https://fastt.test") })
@@ -153,6 +165,56 @@ describe("owned tour context loader", () => {
 		})
 		errorLog.mockRestore()
 	})
+	it.each(["product", "option"])(
+		"preserves offer A through %s failure and revalidates A despite session B",
+		async (table) => {
+			const log = vi.spyOn(console, "error").mockImplementation(() => undefined)
+			const url = new URL(
+				"https://fastt.test/product/tour/preview?variantId=option&ratePlanId=rate"
+			)
+			const session = { variantId: "other", ratePlanId: "other-rate" }
+			mocks.fail = table
+			const failed = await loadTourCommercialContext({ ...input, url, session })
+			expect(failed).toEqual({
+				status: "read_failed",
+				productId: "tour",
+				recoveryIntent: { variantId: "option", ratePlanId: "rate" },
+			})
+			expect(failed).not.toHaveProperty("variantId")
+			const response = tourContextValidationResponse(failed)!
+			expect(response.status).toBe(503)
+			const body = await response.json()
+			const retryUrl = new URL(body.action.href, url)
+			expect(retryUrl.searchParams.get("variantId")).toBe("option")
+			expect(retryUrl.searchParams.get("ratePlanId")).toBe("rate")
+			mocks.fail = ""
+			mocks.data.option = [row, { ...row, variantId: "other", ratePlanId: "other-rate" }]
+			expect(await loadTourCommercialContext({ ...input, url: retryUrl, session })).toMatchObject({
+				status: "resolved",
+				source: "url",
+				variantId: "option",
+				ratePlanId: "rate",
+			})
+			mocks.data.option = [{ ...row, variantId: "other", ratePlanId: "other-rate" }]
+			expect(await loadTourCommercialContext({ ...input, url: retryUrl, session })).toMatchObject({
+				status: "unresolved",
+				reason: "invalid_selection",
+			})
+			log.mockRestore()
+		}
+	)
+	it("preserves a partial inherited intent without filling it from the session", async () => {
+		const log = vi.spyOn(console, "error").mockImplementation(() => undefined)
+		mocks.fail = "option"
+		const failed = await loadTourCommercialContext({
+			...input,
+			selection: { ratePlanId: "rate" },
+			session: { variantId: "other", ratePlanId: "other-rate" },
+		})
+		expect(failed).toMatchObject({ recoveryIntent: { variantId: null, ratePlanId: "rate" } })
+		log.mockRestore()
+	})
+
 	it("explicit URL intent precedes inherited page hints", async () => {
 		mocks.data.option = [row, { ...row, variantId: "other", ratePlanId: "other-rate" }]
 		expect(

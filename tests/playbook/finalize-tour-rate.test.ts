@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
 	activateTourRate: vi.fn(),
+	loadState: vi.fn(),
 	loadTourAuthorization: vi.fn(),
 	getVariantById: vi.fn(),
 	validateRatePlanPublication: vi.fn(),
@@ -16,8 +17,12 @@ const mocks = vi.hoisted(() => ({
 	evaluateVariantReadiness: vi.fn(),
 }))
 
-vi.mock("@/lib/tours/loadTourAuthorization", () => ({
-	loadTourAuthorization: mocks.loadTourAuthorization,
+vi.mock("@/lib/playbook/evaluate-complete-to-publish-progress", () => ({
+	loadCompleteToPublishState: mocks.loadState,
+}))
+
+vi.mock("@/lib/auth/requireProvider", () => ({
+	requireProvider: async () => ({ providerId: "provider-1", user: { id: "user-1" } }),
 }))
 
 vi.mock("@/container", () => ({
@@ -48,6 +53,11 @@ vi.mock("@/lib/cache/invalidation", () => ({
 	invalidateProvider: mocks.invalidateProvider,
 }))
 
+import { buildTourDiagnostic } from "@/lib/tours/buildTourDiagnostic"
+import { TOUR_REQUIREMENTS } from "@/lib/tours/tourDiagnosticContract"
+import { resolveTourCommercialContext } from "@/lib/tours/resolveTourCommercialContext"
+import { POST } from "@/pages/api/rateplans/activate-guided"
+import { presentTourDiagnostic } from "@/lib/tours/tourDiagnosticPresentation"
 import { finalizeTourRate } from "@/lib/playbook/finalize-tour-rate"
 
 const input = {
@@ -62,6 +72,47 @@ const input = {
 describe("finalize tour rate", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
+		mocks.loadState.mockImplementation(async () => {
+			const publication = await mocks.validateRatePlanPublication()
+			const authorization = await mocks.loadTourAuthorization()
+			const observations = Object.fromEntries(
+				Object.keys(TOUR_REQUIREMENTS).map((id) => [id, { ready: true, message: "" }])
+			)
+			Object.assign(observations, authorization)
+			if (!publication.canPublish)
+				for (const blocker of publication.blockerDetails ??
+					publication.blockers.map((label: string) => ({ id: "current_availability", label })))
+					observations[blocker.id] = { ready: false, message: blocker.label }
+			return {
+				tourDiagnostic: buildTourDiagnostic({
+					providerId: input.providerId,
+					productId: input.productId,
+					context: resolveTourCommercialContext({
+						productId: input.productId,
+						options: [
+							{
+								variantId: input.variantId,
+								name: "Salida",
+								bookingMode: "shared",
+								lifecycleState: "ready",
+								salesEnabled: false,
+								hasProfile: true,
+								hasCapacity: true,
+								rates: [
+									{
+										ratePlanId: input.ratePlanId,
+										name: "Tarifa",
+										isActive: false,
+										isDefault: false,
+									},
+								],
+							},
+						],
+					}),
+					observations: observations as Parameters<typeof buildTourDiagnostic>[0]["observations"],
+				}),
+			}
+		})
 		mocks.loadTourAuthorization.mockResolvedValue({
 			provider_authorization: { ready: true, message: "" },
 			experience_authorization: { ready: true, message: "" },
@@ -102,7 +153,11 @@ describe("finalize tour rate", () => {
 	it("returns exact authorization blockers before any activation write", async () => {
 		mocks.loadTourAuthorization.mockResolvedValue({
 			provider_authorization: { ready: true, message: "" },
-			experience_authorization: { ready: false, message: "Licencia pendiente" },
+			experience_authorization: {
+				ready: false,
+				message: "Licencia pendiente",
+				action: { label: "Revisar licencia", href: "/provider/settings/verification?tab=licenses" },
+			},
 		})
 		const result = await finalizeTourRate(input)
 		expect(result.ok).toBe(false)
@@ -112,12 +167,116 @@ describe("finalize tour rate", () => {
 				{
 					id: "experience_authorization",
 					label: "Licencia pendiente",
-					href: "/provider/settings/verification?line=tour&experience=product-1",
+					href: expect.stringContaining("returnTo="),
 				},
 			],
 		})
 		expect(mocks.activateTourRate).not.toHaveBeenCalled()
 	})
+
+	it.each([
+		"price",
+		"conditions",
+		"current_availability",
+		"experience_authorization",
+		"read_failed",
+	])("endpoint matches the visible activation decision for %s", async (scenario) => {
+		if (scenario === "experience_authorization")
+			mocks.loadTourAuthorization.mockResolvedValue({
+				provider_authorization: { ready: true, message: "" },
+				experience_authorization: {
+					ready: false,
+					message: "Renueva la licencia",
+					responsible: "provider",
+					action: {
+						label: "Renovar licencia",
+						href: "/provider/settings/verification?tourTab=licenses",
+					},
+				},
+			})
+		else if (scenario !== "read_failed")
+			mocks.validateRatePlanPublication.mockResolvedValue({
+				canPublish: false,
+				blockerDetails: [{ id: scenario, label: "Corrige este requisito" }],
+			})
+		const state = await mocks.loadState()
+		if (scenario === "read_failed")
+			state.tourDiagnostic.requirements.price.result = {
+				state: "not_evaluable",
+				reason: { code: "read_failed", message: "No se pudo verificar precio" },
+				responsible: "fastt",
+				action: {
+					label: "Volver a intentar",
+					href: "/product/product-1/preview?variantId=slot-1&ratePlanId=rate-1",
+				},
+			}
+		mocks.loadState.mockResolvedValue(state)
+		const visible = presentTourDiagnostic(state.tourDiagnostic, {
+			previewHref: "/product/product-1/preview",
+		}).activation
+		const response = await POST({
+			request: new Request("https://fastt.test/api/rateplans/activate-guided", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(input),
+			}),
+		} as Parameters<typeof POST>[0])
+		const payload = await response.json()
+		expect(response.status).toBe(409)
+		expect(visible.allowed).toBe(false)
+		expect(payload.capability).toBe(visible.capability)
+		expect(payload.source).toBe(visible.source)
+		expect(payload.blockers).toEqual(visible.blockers)
+		expect(mocks.activateTourRate).not.toHaveBeenCalled()
+		if (scenario === "experience_authorization") {
+			const target = new URL(payload.blockers[0].href, "https://fastt.test")
+			expect(target.searchParams.get("tourTab")).toBe("licenses")
+			const back = new URL(target.searchParams.get("returnTo")!, target)
+			expect(back.searchParams.get("variantId")).toBe("slot-1")
+			expect(back.searchParams.get("ratePlanId")).toBe("rate-1")
+		}
+	})
+
+	it.each(["shared", "private"] as const)(
+		"respects %s activation without requiring editorial completion",
+		async (mode) => {
+			const state = await mocks.loadState()
+			state.tourDiagnostic.context.selection.bookingMode = mode
+			state.tourDiagnostic.requirements.photos.result = {
+				state: "pending",
+				reason: { code: "photos", message: "Agrega fotos" },
+				responsible: "provider",
+				action: { label: "Editar fotos", href: "/product/product-1/images" },
+			}
+			state.tourDiagnostic.requirements.current_availability.result =
+				mode === "private"
+					? {
+							state: "not_applicable",
+							reason: {
+								code: "private_request_without_inventory",
+								message: "No consume inventario compartido",
+							},
+							applicabilityReference: "tour-diagnostic-v1:private-request-without-hold",
+						}
+					: {
+							state: "pending",
+							reason: { code: "sold_out", message: "Cupos agotados" },
+							responsible: "provider",
+							action: {
+								label: "Revisar disponibilidad",
+								href: "/rates/calendar?productId=product-1&variantId=slot-1&ratePlanId=rate-1",
+							},
+						}
+			mocks.loadState.mockResolvedValue(state)
+			const visible = presentTourDiagnostic(state.tourDiagnostic, {
+				previewHref: "/product/product-1/preview",
+			}).activation
+			expect(visible.allowed).toBe(mode === "private")
+			const result = await finalizeTourRate(input)
+			expect(result.ok).toBe(visible.allowed)
+			if (!result.ok) expect(result).toMatchObject({ blockers: visible.blockers })
+		}
+	)
 
 	it("activates the rate after availability without waiting for provider publication setup", async () => {
 		const result = await finalizeTourRate(input)
