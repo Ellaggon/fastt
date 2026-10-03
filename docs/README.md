@@ -37,6 +37,7 @@ Review trigger: incorporación, reemplazo o retiro de una fuente documental
 ## Contratos técnicos transversales
 
 - UI: [sistema de diseño](./design-system-governance.md) y [playbooks](./engineering/playbook-contract.md).
+- Formularios con pestañas: [navegación local y conservación de contexto](./domains/ui/local-workspace-tabs.md).
 - Datos: [aislamiento de fixtures](./engineering/marketplace-data-isolation.md),
   [geografía](./engineering/marketplace-geography-migration.md) y
   [propiedad de datos del proveedor](./engineering/provider-settings-table-taxonomy.md).

@@ -150,6 +150,14 @@ body {
 	border-radius: var(--fastt-radius-card);
 }
 
+.fastt-field-help-panel {
+	border-radius: var(--fastt-radius-card);
+	border: 1px solid rgb(226 232 240);
+	background: rgb(255 255 255);
+	padding: 0.625rem 0.75rem;
+	box-shadow: 0 10px 24px rgb(15 23 42 / 12%);
+}
+
 .fastt-check-input,
 .fastt-radio-input {
 	accent-color: var(--fastt-color-action);
