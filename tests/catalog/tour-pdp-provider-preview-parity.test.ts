@@ -16,7 +16,10 @@ describe("tour PDP provider preview parity", () => {
 		expect(page).toContain("<TourGallery")
 		expect(page).toContain("<TourDepartureSection")
 		expect(page).toContain("previewMode={isProviderPreview}")
+		expect(page).toContain("showProviderPreviewChrome")
+		expect(page).toContain('class="bg-black text-slate-100" data-provider-preview-chrome')
 		expect(page).toContain("data-provider-preview-banner")
+		expect(page).not.toContain("data-public-tour-sheet")
 	})
 
 	it("labels preview-only differences and cannot start a booking flow", () => {

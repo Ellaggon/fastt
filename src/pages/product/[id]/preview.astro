@@ -114,6 +114,9 @@ const publicPreviewReturnTo = Astro.url.pathname + Astro.url.search
 const realTourPreviewWithReturn = realTourPreviewHref
 	? `${realTourPreviewHref}&${new URLSearchParams({ returnTo: publicPreviewReturnTo })}`
 	: null
+const realTourPreviewEmbedded = realTourPreviewWithReturn
+	? `${realTourPreviewWithReturn}&embedded=1`
+	: null
 
 const selectedTourReviewOffer =
 	isTour && previewVariantId && previewRatePlanId
@@ -696,7 +699,7 @@ if (!isTour) {
 					<div class="overflow-hidden rounded-xl border border-slate-700 bg-white shadow-xl">
 						<iframe
 							title={`Vista pública de ${aggregate.displayName}`}
-							src={realTourPreviewWithReturn}
+							src={realTourPreviewEmbedded}
 							class="h-[48rem] w-full bg-white"
 							loading="eager"
 						/>

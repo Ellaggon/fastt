@@ -2,6 +2,7 @@
 import Breadcrumbs from "@/components/Breadcrumbs.astro"
 import TourDepartureSection from "@/components/tours/TourDepartureSection.astro"
 import TourGallery from "@/components/tours/TourGallery.astro"
+import TourMeetingMap from "@/components/tours/TourMeetingMap.astro"
 import Badge from "@/components/ui/Badge.astro"
 import { searchOffers } from "@/container"
 import { SERVICE_CATALOG } from "@/data/service/service-catalog"
@@ -66,7 +67,6 @@ import {
 	Car,
 	Check,
 	Clock,
-	ExternalLink,
 	Gauge,
 	Languages,
 	MapPin,
@@ -128,6 +128,8 @@ const isProviderPreview =
 	String(previewOwnership?.productType ?? "")
 		.trim()
 		.toLowerCase() === "tour"
+const hideProviderPreviewChrome = isProviderPreview && url.searchParams.get("embedded") === "1"
+const showProviderPreviewChrome = isProviderPreview && !hideProviderPreviewChrome
 if (requestedProviderPreview && !isProviderPreview) return Astro.redirect("/tours")
 
 if (isProviderPreview && previewProviderId) {
@@ -388,8 +390,12 @@ const categoryRows = productId
 const categories = categoryRows.map((row) => String(row.name)).filter(Boolean)
 const meetingAddress = fieldFromObject(productData?.subtype?.meetingPointJson, "address")
 const meetingInstructions = fieldFromObject(productData?.subtype?.meetingPointJson, "instructions")
-const meetingLat = fieldFromObject(productData?.subtype?.meetingPointJson, "lat")
-const meetingLng = fieldFromObject(productData?.subtype?.meetingPointJson, "lng")
+function finiteCoordinate(value: unknown) {
+	const number = typeof value === "number" ? value : Number(value)
+	return Number.isFinite(number) ? number : null
+}
+const meetingMapLatitude = finiteCoordinate(productData?.location?.lat)
+const meetingMapLongitude = finiteCoordinate(productData?.location?.lng)
 const pickupArea = fieldFromObject(productData?.subtype?.pickupJson, "defaultArea")
 const pickupInstructions = fieldFromObject(productData?.subtype?.pickupJson, "instructions")
 const guideLanguages = fieldFromObject(productData?.subtype?.guideJson, "languages")
@@ -548,14 +554,6 @@ const breadcrumbItems = [
 		current: true,
 	},
 ]
-
-const mapsQuery = encodeURIComponent(
-	[meetingAddress, productData?.destination?.name].filter(Boolean).join(", ")
-)
-const mapEmbed =
-	meetingLat && meetingLng
-		? `https://www.openstreetmap.org/export/embed.html?bbox=${Number(meetingLng) - 0.01}%2C${Number(meetingLat) - 0.01}%2C${Number(meetingLng) + 0.01}%2C${Number(meetingLat) + 0.01}&layer=mapnik&marker=${meetingLat}%2C${meetingLng}`
-		: null
 ---
 
 <Layout
@@ -577,48 +575,57 @@ const mapEmbed =
 		: undefined}
 >
 	<main id="content" class="min-h-screen bg-white pb-24 text-slate-950 md:pb-16">
-		<div class="mx-auto max-w-7xl space-y-7 px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
-			{
-				isProviderPreview ? (
-					<div
-						class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950"
-						data-provider-preview-banner
-					>
-						<div>
-							<p class="font-semibold">Vista previa privada del proveedor</p>
-							<p>Esta es la misma plantilla pública. Las acciones de reserva están desactivadas.</p>
-						</div>
-						<a class="font-semibold underline" href={preparationReturnHref}>
-							Volver a preparación
-						</a>
-					</div>
-				) : null
-			}
-			{
-				isProviderPreview && descriptionNeedsEditorialReview ? (
-					<div
-						class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
-						data-preview-content-warning
-					>
-						<div>
-							<p class="font-semibold">Mejora sugerida de la descripción</p>
-							<p>
-								Añade detalles concretos del recorrido para ayudar al viajero a entender la
-								experiencia.
-							</p>
-						</div>
-						<a
-							class="font-semibold underline"
-							href={withTourOfferSelection(
-								`/product/${encodeURIComponent(productId)}/content`,
-								previewSelection
-							)}
+		{
+			showProviderPreviewChrome ? (
+				<div class="bg-black text-slate-100" data-provider-preview-chrome>
+					<div class="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:px-6 lg:px-8">
+						<div
+							class="flex flex-wrap items-center justify-between gap-x-6 gap-y-3"
+							data-provider-preview-banner
 						>
-							Editar descripción
-						</a>
+							<div class="max-w-3xl min-w-0">
+								<p class="text-base font-semibold text-white">Vista previa privada del proveedor</p>
+								<p class="mt-1 text-sm leading-6 text-slate-400">
+									Esta es la misma plantilla pública. Las acciones de reserva están desactivadas.
+								</p>
+							</div>
+							<a
+								class="inline-flex h-10 shrink-0 items-center rounded-lg bg-white px-4 text-sm font-semibold text-slate-950 shadow-sm transition hover:bg-slate-100"
+								href={preparationReturnHref}
+							>
+								Volver a preparación
+							</a>
+						</div>
+						{descriptionNeedsEditorialReview ? (
+							<div
+								class="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-white/10 pt-5"
+								data-preview-content-warning
+							>
+								<div class="max-w-3xl min-w-0">
+									<p class="text-base font-semibold text-white">
+										Mejora sugerida de la descripción
+									</p>
+									<p class="mt-1 text-sm leading-6 text-slate-400">
+										Añade detalles concretos del recorrido para ayudar al viajero a entender la
+										experiencia.
+									</p>
+								</div>
+								<a
+									class="inline-flex h-10 shrink-0 items-center rounded-lg border border-white/15 px-4 text-sm font-semibold text-white transition hover:bg-white/10"
+									href={withTourOfferSelection(
+										`/product/${encodeURIComponent(productId)}/content`,
+										previewSelection
+									)}
+								>
+									Editar descripción
+								</a>
+							</div>
+						) : null}
 					</div>
-				) : null
-			}
+				</div>
+			) : null
+		}
+		<div class="mx-auto max-w-7xl space-y-7 px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
 			<Breadcrumbs items={breadcrumbItems} tone="light" />
 
 			{
@@ -789,7 +796,9 @@ const mapEmbed =
 										<div
 											class:list={[
 												"mt-5 grid gap-6",
-												mapEmbed && "md:grid-cols-[minmax(0,1fr)_18rem]",
+												meetingMapLatitude != null &&
+													meetingMapLongitude != null &&
+													"md:grid-cols-[minmax(0,1fr)_18rem]",
 											]}
 										>
 											<div class="space-y-5 text-sm leading-6 text-slate-700">
@@ -820,24 +829,11 @@ const mapEmbed =
 														</div>
 													</div>
 												) : null}
-												{meetingAddress ? (
-													<a
-														class="inline-flex items-center gap-2 font-semibold text-orange-800 underline-offset-4 hover:underline"
-														href={`https://www.openstreetmap.org/search?query=${mapsQuery}`}
-														target="_blank"
-														rel="noreferrer"
-													>
-														Abrir ubicación en el mapa
-														<ExternalLink class="size-4" aria-hidden="true" />
-													</a>
-												) : null}
 											</div>
-											{mapEmbed ? (
-												<iframe
-													title="Mapa del punto de encuentro"
-													class="h-52 w-full rounded-xl border border-slate-200"
-													src={mapEmbed}
-													loading="lazy"
+											{meetingMapLatitude != null && meetingMapLongitude != null ? (
+												<TourMeetingMap
+													latitude={meetingMapLatitude}
+													longitude={meetingMapLongitude}
 												/>
 											) : null}
 										</div>
