@@ -11,6 +11,10 @@ import {
 } from "@/lib/provider-trust-map"
 import { loadProviderVerificationWorkspace } from "@/lib/provider-verification-workspace"
 import { routes } from "@/lib/routes"
+import {
+	copyVerificationNavigationQuery,
+	tourDocumentWorkspaceHref,
+} from "@/lib/verification/navigation"
 import { loadProviderVerificationResolution } from "@/lib/verification/requirement-context"
 import { requestedTypeRoutesToPack } from "@/lib/verification/requirement-resolver"
 
@@ -41,13 +45,6 @@ const routesToPack =
 	loadedResolution?.enforced && loadedResolution.resolution
 		? requestedTypeRoutesToPack(loadedResolution.resolution, requestedType)
 		: optionalTypeValues.has(requestedType)
-// Line-pack uploads live on /verification/documents. Identity slots stay here.
-if (requestedType && routesToPack) {
-	const target = new URL(routes.providerSettingsVerificationDocuments(), Astro.url)
-	target.searchParams.set("type", requestedType)
-	return Astro.redirect(target.pathname + target.search)
-}
-
 const model = await loadProviderVerificationWorkspace({
 	providerId,
 	sessionPermissions,
@@ -55,6 +52,26 @@ const model = await loadProviderVerificationWorkspace({
 	url: Astro.url,
 	verificationResolution: loadedResolution ?? undefined,
 })
+if (requestedType && routesToPack) {
+	const tourHref = model.navigation
+		? tourDocumentWorkspaceHref({
+				url: Astro.url,
+				navigation: model.navigation,
+				requirements: loadedResolution?.resolution?.requirements ?? [],
+			})
+		: null
+	if (tourHref) {
+		if (tourHref !== Astro.url.pathname + Astro.url.search) return Astro.redirect(tourHref)
+	} else {
+		const target = copyVerificationNavigationQuery(
+			new URL(routes.providerSettingsVerificationDocuments(), Astro.url),
+			Astro.url
+		)
+		target.searchParams.set("type", requestedType)
+		return Astro.redirect(target.pathname + target.search)
+	}
+}
+
 const {
 	trustLinks,
 	listaReady,
@@ -94,7 +111,7 @@ const pageGuidance =
 			? "Verificación de alojamientos"
 			: TRUST_GLOSSARY.page.heading}
 	description={model.navigation?.line === "tour"
-		? "Revisa identidad, actividad, seguridad y fiscalidad de la experiencia seleccionada."
+		? "Revisa los requisitos del titular y los respaldos aplicables a tus experiencias."
 		: model.navigation?.line === "lodging"
 			? "Completa identidad, negocio, fiscalidad y pagos del alojamiento."
 			: pageGuidance}

@@ -41,7 +41,8 @@ const {
 } = Astro.props as Props
 const saveAction = copyVerificationNavigationQuery(
 	new URL("/api/provider/settings/payment-accounts", Astro.url),
-	Astro.url
+	Astro.url,
+	"payments"
 )
 
 const rail = payoutRail ?? getPayoutRailStatus()

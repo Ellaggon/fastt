@@ -75,7 +75,8 @@ function redirectToPayments(
 	return Response.redirect(
 		copyVerificationNavigationQuery(
 			new URL(paymentsRedirectTarget(result, returnTo), request.url),
-			new URL(request.url)
+			new URL(request.url),
+			"payments"
 		),
 		303
 	)
@@ -89,7 +90,8 @@ function redirectToPaymentsError(
 	return Response.redirect(
 		copyVerificationNavigationQuery(
 			new URL(paymentsRedirectTarget(error, returnTo, "error"), request.url),
-			new URL(request.url)
+			new URL(request.url),
+			"payments"
 		),
 		303
 	)

@@ -47,7 +47,7 @@ it("transports remembered lodging tab and a safe contextual return in the form a
 	url.searchParams.set("returnTo", returnTo)
 	const html = await container.renderToString(Context, {
 		request: new Request(url),
-		props: { productId: "tour-a", productName: "Mi experiencia", context: null, canEdit: true },
+		props: { productId: "tour-a", context: null, canEdit: true },
 	})
 	const action = html
 		.match(/action="([^"]+)"/)?.[1]
@@ -66,7 +66,6 @@ it.each(["guide", "operator", "intermediary"])(
 		const html = await container.renderToString(Context, {
 			props: {
 				productId: "tour-a",
-				productName: "Experiencia A",
 				canEdit: true,
 				context: {
 					operatingRole: role,
@@ -75,7 +74,6 @@ it.each(["guide", "operator", "intermediary"])(
 				},
 			},
 		})
-		expect(html).toContain("Experiencia A")
 		expect(html).toMatch(new RegExp(`value="${role}"[^>]*selected`))
 		expect(html).toMatch(/value="BO-LP"[^>]*selected/)
 		expect(html).toMatch(/value="urban_cultural"[^>]*checked/)

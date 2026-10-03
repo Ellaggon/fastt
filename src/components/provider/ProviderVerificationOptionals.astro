@@ -110,7 +110,8 @@ function renewalHref(documentId: string) {
 }
 const uploadAction = copyVerificationNavigationQuery(
 	new URL("/api/provider/settings/documents", Astro.url),
-	Astro.url
+	Astro.url,
+	surface === "tour-activity" ? "activity" : surface === "tour-safety" ? "safety" : undefined
 )
 ---
 

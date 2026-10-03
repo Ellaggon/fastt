@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { safeRatePlanPlaybookReturn } from "@/lib/auth/returnTo"
+import { safeRatePlanPlaybookReturn, safeVerificationReturn } from "@/lib/auth/returnTo"
 
 const valid =
 	"/rates/plans/d31281f5-0000-4000-8000-000000000001?playbook=launch-tour&step=conditions&flow=create&productId=df7746a8-0000-4000-8000-000000000002&variantId=32691ff6-0000-4000-8000-000000000003"
@@ -30,4 +30,20 @@ describe("safeRatePlanPlaybookReturn", () => {
 			)
 		).toBeNull()
 	})
+})
+
+describe("unguided verification offer return", () => {
+	const offer = "/rates/plans/a?productId=p&variantId=v&ratePlanId=a"
+	it("preserves a concrete offer and retains the guided guard", () => {
+		expect(safeVerificationReturn(offer)).toBe(offer)
+		expect(safeVerificationReturn(valid)).toBe(valid)
+		expect(safeRatePlanPlaybookReturn(offer)).toBeNull()
+	})
+	it.each([
+		"//evil.test",
+		"/rates/plans/manage?productId=p&variantId=v&ratePlanId=manage",
+		"/rates/plans/a?productId=p",
+		offer.replace("ratePlanId=a", "ratePlanId=b"),
+		offer + "&playbook=launch",
+	])("rejects %s", (value) => expect(safeVerificationReturn(value)).toBeNull())
 })

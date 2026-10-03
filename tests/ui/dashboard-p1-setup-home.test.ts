@@ -23,10 +23,13 @@ describe("dashboard P1 setup vs operate home", () => {
 		expect(dashboard).not.toContain('class="sr-only">Resumen Operativo')
 	})
 
-	it("keeps provider as a compact notice and hides add-service during setup", () => {
+	it("keeps provider as a compact notice and offers another service from the home", () => {
 		expect(dashboard).toContain("data-dashboard-provider-notice")
 		expect(dashboard).toContain("Cuenta de proveedor")
-		expect(dashboard).toContain("showAddAnotherService = products.length > 0 && !isChoosingForAddRoom && !isSetupHome")
+		expect(dashboard).toContain(
+			"showAddAnotherService = products.length > 0 && !isChoosingForAddRoom"
+		)
+		expect(dashboard).toContain("Agregar otro servicio")
 		expect(dashboard).not.toContain("Ir a proveedor")
 	})
 

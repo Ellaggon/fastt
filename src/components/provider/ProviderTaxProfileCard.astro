@@ -31,7 +31,8 @@ const {
 } = Astro.props as Props
 const saveAction = copyVerificationNavigationQuery(
 	new URL("/api/provider/settings/tax-configuration", Astro.url),
-	Astro.url
+	Astro.url,
+	"fiscal"
 )
 const status = taxConfiguration?.status ?? "not_configured"
 const country = taxConfiguration?.taxResidenceCountry ?? ""

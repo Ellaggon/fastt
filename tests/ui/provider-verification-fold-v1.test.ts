@@ -121,9 +121,11 @@ describe("V1 verification fold reorder (action-first)", () => {
 		).toBe("fiscal")
 		expect(
 			resolveVerificationTrustPanelFromUrl(
-				new URL("https://fastt.test/provider/settings/verification#kyc-slot-government_id")
+				new URL(
+					"https://fastt.test/provider/settings/verification?type=government_id#kyc-slot-government_id"
+				)
 			)
-		).toBe("business")
+		).toBe("identity")
 		expect(
 			resolveVerificationTrustPanelFromUrl(
 				new URL("https://fastt.test/provider/settings/verification#verification-status-panel")

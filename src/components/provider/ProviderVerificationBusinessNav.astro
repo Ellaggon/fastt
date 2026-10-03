@@ -1,15 +1,22 @@
 ---
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
-import FormField from "@/components/ui/FormField.astro"
+import Card from "@/components/ui/Card.astro"
 import Select from "@/components/ui/Select.astro"
 import TabsInsidePanel from "@/components/ui/TabsInsidePanel.astro"
-import { safeProductPreviewReturn, safeRatePlanPlaybookReturn } from "@/lib/auth/returnTo"
+import { safeVerificationReturn } from "@/lib/auth/returnTo"
 import type { ProviderTrustLink } from "@/lib/provider-trust-map"
 import { TRUST_GLOSSARY } from "@/lib/provider-trust-map"
 import type { VerificationNavigation, VerificationPlaybookTab } from "@/lib/verification/navigation"
 import { verificationNavigationHref, verificationTabLabel } from "@/lib/verification/navigation"
-import { CircleDollarSign, Compass, LifeBuoy, ReceiptText, ShieldCheck } from "@lucide/astro"
+import {
+	ChevronRight,
+	CircleDollarSign,
+	Compass,
+	LifeBuoy,
+	ReceiptText,
+	ShieldCheck,
+} from "@lucide/astro"
 
 type Props = {
 	navigation: VerificationNavigation
@@ -20,9 +27,7 @@ type Props = {
 }
 
 const { navigation, url, products, playbook = [], trustLinks = [] } = Astro.props as Props
-const returnTo =
-	safeProductPreviewReturn(url.searchParams.get("returnTo")) ??
-	safeRatePlanPlaybookReturn(url.searchParams.get("returnTo"))
+const returnTo = safeVerificationReturn(url.searchParams.get("returnTo"))
 const navigationPlaybook: VerificationPlaybookTab[] =
 	navigation.line === "tour"
 		? playbook
@@ -62,7 +67,7 @@ const currentLine = navigation.line
 /** Licencias y seguro dependen de la experiencia; identidad y fiscal son de cuenta. */
 const experienceScopedTab = navigation.tab === "activity" || navigation.tab === "safety"
 const showExperienceSelector =
-	currentLine === "tour" && experienceScopedTab && (products.length > 1 || !navigation.experienceId)
+	currentLine === "tour" && Boolean(navigation.experienceId) && products.length > 1
 ---
 
 <div class="space-y-4" data-verification-business-nav>
@@ -74,6 +79,7 @@ const showExperienceSelector =
 					return (
 						<a
 							href={verificationNavigationHref({ url, navigation, line })}
+							data-astro-prefetch="hover"
 							aria-current={active ? "page" : undefined}
 							data-verification-line-link={line}
 							class:list={[
@@ -88,54 +94,6 @@ const showExperienceSelector =
 					)
 				})}
 			</nav>
-		) : null
-	}
-	{
-		currentLine === "tour" && experienceScopedTab && !navigation.experienceId ? (
-			<p role="status" class="text-sm text-slate-600">
-				{url.searchParams.has("experience")
-					? "La experiencia del enlace no está disponible en este negocio. Selecciona una experiencia para continuar."
-					: products.length
-						? "Selecciona la experiencia que quieres verificar."
-						: "Crea una experiencia para verificar su operación y seguridad."}
-			</p>
-		) : null
-	}
-	{
-		showExperienceSelector && products.length > 0 ? (
-			<form
-				method="get"
-				action="/provider/settings/verification"
-				class="flex flex-wrap items-end gap-3"
-				data-verification-experience-selector
-			>
-				<input type="hidden" name="line" value="tour" />
-				{returnTo && <input type="hidden" name="returnTo" value={returnTo} />}
-				<input type="hidden" name="tab" value={navigation.tab} />
-				<input type="hidden" name="tourTab" value={navigation.tab} />
-				{url.searchParams.get("lodgingTab") ? (
-					<input type="hidden" name="lodgingTab" value={url.searchParams.get("lodgingTab")} />
-				) : null}
-				<FormField
-					label="Experiencia"
-					htmlFor="verification-experience-select"
-					class="min-w-56 flex-1 text-slate-200 [&_label]:text-slate-200"
-				>
-					<Select id="verification-experience-select" name="experience" required>
-						<option value="" disabled selected={!navigation.experienceId}>
-							Selecciona una experiencia
-						</option>
-						{products.map((product) => (
-							<option value={product.id} selected={product.id === navigation.experienceId}>
-								{product.name || "Experiencia sin nombre"}
-							</option>
-						))}
-					</Select>
-				</FormField>
-				<Button type="submit" variant="secondary">
-					Ver experiencia
-				</Button>
-			</form>
 		) : null
 	}
 	{
@@ -156,7 +114,6 @@ const showExperienceSelector =
 						return (
 							<a
 								href={tab.href}
-								data-astro-prefetch="viewport"
 								aria-current={active ? "page" : undefined}
 								aria-label={`${tab.label}. Estado: ${tab.stateLabel}.`}
 								data-verification-tab-link={tab.id}
@@ -178,6 +135,123 @@ const showExperienceSelector =
 						)
 					})}
 				</TabsInsidePanel>
+			</div>
+		) : null
+	}
+
+	{
+		currentLine === "tour" ? (
+			<div
+				class="fastt-card space-y-4 border border-slate-200 bg-white p-5 text-slate-900 sm:p-6"
+				data-verification-experience-context
+				hidden={!experienceScopedTab}
+			>
+				{currentLine === "tour" && !navigation.experienceId ? (
+					<p role="status" class="text-base font-semibold text-slate-900">
+						{url.searchParams.has("experience")
+							? "La experiencia del enlace no está disponible en este negocio. Selecciona una experiencia para continuar."
+							: products.length
+								? "Selecciona una experiencia."
+								: "Crea una experiencia para verificar su operación y seguridad."}
+					</p>
+				) : null}
+				{currentLine === "tour" && !navigation.experienceId && products.length > 0 ? (
+					<section
+						class="space-y-4"
+						aria-label="Experiencias para revisar"
+						data-verification-experience-overview
+					>
+						<p class="text-sm text-slate-600" data-verification-experience-prompt>
+							{navigation.tab === "safety"
+								? "Elige el tour para revisar sus respaldos de seguridad."
+								: "Elige el tour para revisar sus datos de operación y licencias."}
+						</p>
+						<ul class="grid gap-3 sm:grid-cols-2">
+							{products.map((product) => (
+								<li>
+									<Card
+										variant="plain"
+										className="bg-slate-50/60 p-0 transition-colors hover:border-slate-400 hover:bg-white hover:shadow-sm"
+									>
+										<a
+											class="block px-4 py-4 text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900"
+											href={verificationNavigationHref({
+												url,
+												navigation,
+												line: "tour",
+												tab: navigation.tab,
+												experienceId: product.id,
+											})}
+										>
+											<span class="block font-semibold">
+												{product.name || "Experiencia sin nombre"}
+											</span>
+											<span class="mt-2 flex items-center justify-between gap-3 text-sm text-slate-600">
+												<span data-verification-experience-action>
+													Revisar{" "}
+													{navigation.tab === "safety"
+														? "seguridad y permisos"
+														: "actividad y licencias"}
+												</span>
+												<ChevronRight class="h-4 w-4 shrink-0" aria-hidden="true" />
+											</span>
+										</a>
+									</Card>
+								</li>
+							))}
+						</ul>
+					</section>
+				) : null}
+				{currentLine === "tour" && navigation.experienceId && products.length === 1 ? (
+					<p class="text-sm text-slate-600">
+						Experiencia que estás revisando:{" "}
+						<strong class="text-slate-900">{products[0]?.name || "Experiencia sin nombre"}</strong>
+					</p>
+				) : null}
+				{showExperienceSelector && products.length > 0 ? (
+					<form
+						method="get"
+						action="/provider/settings/verification"
+						class="flex flex-col gap-3"
+						data-verification-experience-selector
+					>
+						<input type="hidden" name="line" value="tour" />
+						{returnTo && <input type="hidden" name="returnTo" value={returnTo} />}
+						<input type="hidden" name="tab" value={navigation.tab} />
+						<input type="hidden" name="tourTab" value={navigation.tab} />
+						{url.searchParams.get("lodgingTab") ? (
+							<input type="hidden" name="lodgingTab" value={url.searchParams.get("lodgingTab")} />
+						) : null}
+						<div class="space-y-2">
+							<label
+								for="verification-experience-select"
+								class="block text-sm font-semibold text-slate-700"
+							>
+								Experiencia que estás revisando
+							</label>
+							<div class="flex items-center gap-3">
+								<Select
+									id="verification-experience-select"
+									name="experience"
+									required
+									class="min-w-0 flex-1"
+								>
+									<option value="" disabled selected={!navigation.experienceId}>
+										Selecciona una experiencia
+									</option>
+									{products.map((product) => (
+										<option value={product.id} selected={product.id === navigation.experienceId}>
+											{product.name || "Experiencia sin nombre"}
+										</option>
+									))}
+								</Select>
+								<Button type="submit" variant="secondary" size="lg" class="shrink-0">
+									Cambiar experiencia
+								</Button>
+							</div>
+						</div>
+					</form>
+				) : null}
 			</div>
 		) : null
 	}
