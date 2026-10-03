@@ -23,7 +23,11 @@ describe("tour PDP content architecture", () => {
 
 	it("consolidates logistics and avoids repeating it in pre-booking requirements", () => {
 		expect(source).toContain("Encuentro y recogida")
-		expect(source).toContain("Abrir ubicación en el mapa")
+		expect(source).toContain("Punto de encuentro")
+		expect(source).toContain("<TourMeetingMap")
+		expect(source).toContain("productData?.location?.lat")
+		expect(source).not.toContain("Abrir ubicación en el mapa")
+		expect(source).not.toContain("openstreetmap.org/search")
 		const requirements = source.slice(
 			source.indexOf("const beforeYouBook"),
 			source.indexOf("const durationLabel")

@@ -1,0 +1,91 @@
+---
+import Card from "@/components/ui/Card.astro"
+import "leaflet/dist/leaflet.css"
+
+interface Props {
+	latitude: number
+	longitude: number
+}
+
+const { latitude, longitude } = Astro.props
+---
+
+<Card
+	variant="flush"
+	className="h-52 overflow-hidden bg-slate-100 p-0"
+	data-tour-meeting-map
+	data-latitude={latitude}
+	data-longitude={longitude}
+>
+	<div
+		class="h-full w-full"
+		data-tour-meeting-map-canvas
+		role="img"
+		aria-label="Mapa del punto de encuentro"
+	>
+	</div>
+</Card>
+
+<script>
+	import L from "leaflet"
+
+	const maps = new WeakMap<HTMLElement, L.Map>()
+
+	function pointOf(root: HTMLElement): [number, number] | null {
+		const latitude = Number(root.dataset.latitude)
+		const longitude = Number(root.dataset.longitude)
+		return Number.isFinite(latitude) && Number.isFinite(longitude) ? [latitude, longitude] : null
+	}
+
+	function renderMeetingMap(root: HTMLElement) {
+		if (root.dataset.ready === "true") return
+		const point = pointOf(root)
+		const canvas = root.querySelector<HTMLElement>("[data-tour-meeting-map-canvas]")
+		if (!point || !canvas) return
+		root.dataset.ready = "true"
+
+		const map = L.map(canvas, {
+			attributionControl: true,
+			zoomControl: true,
+			scrollWheelZoom: false,
+		}).setView(point, 16)
+
+		L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+			maxZoom: 19,
+			attribution: "&copy; OpenStreetMap",
+		}).addTo(map)
+
+		L.circleMarker(point, {
+			radius: 8,
+			color: "#ffffff",
+			weight: 3,
+			fillColor: "#c2410c",
+			fillOpacity: 1,
+		}).addTo(map)
+
+		maps.set(root, map)
+		window.setTimeout(() => map.invalidateSize(), 80)
+	}
+
+	function initMeetingMaps() {
+		document.querySelectorAll<HTMLElement>("[data-tour-meeting-map]").forEach((root) => {
+			renderMeetingMap(root)
+		})
+	}
+
+	function destroyMeetingMaps() {
+		document.querySelectorAll<HTMLElement>("[data-tour-meeting-map]").forEach((root) => {
+			maps.get(root)?.remove()
+			maps.delete(root)
+			delete root.dataset.ready
+		})
+	}
+
+	if (document.documentElement.dataset.tourMeetingMapBound !== "true") {
+		document.documentElement.dataset.tourMeetingMapBound = "true"
+		document.addEventListener("astro:before-swap", destroyMeetingMaps)
+		document.addEventListener("astro:page-load", initMeetingMaps)
+	}
+
+	initMeetingMaps()
+</script>
