@@ -1,0 +1,32 @@
+---
+const { label = "Cargando formulario" } = Astro.props
+---
+
+<section
+	class="fastt-card space-y-6 border border-slate-200 bg-white p-5 sm:p-6"
+	aria-label={label}
+	aria-busy="true"
+>
+	<p role="status" class="text-sm font-medium text-slate-600">{label}</p>
+	<div class="space-y-6 motion-safe:animate-pulse" aria-hidden="true">
+		<div class="h-6 w-56 max-w-full rounded bg-slate-200"></div>
+		<div class="h-3 w-4/5 rounded bg-slate-100"></div>
+		<div class="grid gap-5 sm:grid-cols-2">
+			{
+				[0, 1].map(() => (
+					<div class="space-y-2">
+						<>
+							<div class="h-3 w-28 rounded bg-slate-200" />
+							<div class="h-11 rounded-lg bg-slate-100" />
+						</>
+					</div>
+				))
+			}
+		</div>
+		<div class="h-3 w-40 rounded bg-slate-200"></div>
+		<div class="grid grid-cols-2 gap-4 sm:grid-cols-3">
+			{[0, 1, 2, 3, 4, 5].map(() => <div class="h-5 rounded bg-slate-100" />)}
+		</div>
+		<div class="h-11 w-40 rounded-lg bg-slate-200"></div>
+	</div>
+</section>

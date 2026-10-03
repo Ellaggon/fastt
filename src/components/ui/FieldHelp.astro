@@ -1,0 +1,181 @@
+---
+import IconButton from "@/components/ui/IconButton.astro"
+import { CircleHelp } from "@lucide/astro"
+
+const { id, title, triggerLabel = "Más información", placement = "top-end" } = Astro.props
+
+const panelId = `${id}-panel`
+---
+
+<span
+	class="fastt-field-help inline-flex align-middle"
+	data-field-help
+	data-field-help-placement={placement}
+>
+	<IconButton
+		type="button"
+		variant="ghost"
+		size="sm"
+		class="size-7 min-h-0 shrink-0 text-slate-400 hover:bg-sky-50 hover:text-sky-700"
+		aria-label={triggerLabel}
+		aria-describedby={panelId}
+		data-field-help-trigger
+	>
+		<CircleHelp class="size-4" aria-hidden="true" />
+	</IconButton>
+	<div
+		id={panelId}
+		role="tooltip"
+		class="fastt-field-help-panel pointer-events-none hidden w-72 max-w-[calc(100vw-2rem)] opacity-0"
+		data-field-help-panel
+	>
+		<p class="font-semibold text-slate-950">{title}</p>
+		<div class="mt-1 space-y-2 text-xs leading-5 text-slate-600">
+			<slot />
+		</div>
+	</div>
+</span>
+
+<script>
+	function clamp(value: number, min: number, max: number) {
+		return Math.min(Math.max(value, min), max)
+	}
+
+	function positionFieldHelpPanel(trigger: HTMLElement, panel: HTMLElement, placement: string) {
+		const gap = 8
+		const viewportPad = 12
+		panel.style.position = "fixed"
+		panel.style.zIndex = "300"
+		panel.style.margin = "0"
+		panel.style.width = "18rem"
+		panel.style.maxWidth = `calc(100vw - ${viewportPad * 2}px)`
+
+		const triggerRect = trigger.getBoundingClientRect()
+		const panelRect = panel.getBoundingClientRect()
+		const panelWidth = panelRect.width || panel.offsetWidth
+		const panelHeight = panelRect.height || panel.offsetHeight
+
+		let top = triggerRect.bottom + gap
+		let left = triggerRect.left
+
+		if (placement === "top-end" || placement === "top-start") {
+			top = triggerRect.top - panelHeight - gap
+		}
+		if (placement === "top-end" || placement === "bottom-end" || placement === "right-start") {
+			left = triggerRect.right - panelWidth
+		}
+		if (placement === "right-start") {
+			top = triggerRect.top
+			left = triggerRect.right + gap
+		}
+		if (placement === "left-start") {
+			top = triggerRect.top
+			left = triggerRect.left - panelWidth - gap
+		}
+
+		const card = trigger.closest(".fastt-card")
+		const cardRect = card?.getBoundingClientRect()
+		if (cardRect && placement.startsWith("top")) {
+			const aboveCardTop = cardRect.top - panelHeight - gap
+			if (aboveCardTop >= viewportPad) {
+				top = aboveCardTop
+			}
+		}
+
+		top = clamp(top, viewportPad, window.innerHeight - panelHeight - viewportPad)
+		left = clamp(left, viewportPad, window.innerWidth - panelWidth - viewportPad)
+
+		panel.style.top = `${Math.round(top)}px`
+		panel.style.left = `${Math.round(left)}px`
+	}
+
+	function initFieldHelps(root: ParentNode = document) {
+		root.querySelectorAll("[data-field-help]").forEach((rootEl) => {
+			if (!(rootEl instanceof HTMLElement) || rootEl.dataset.fieldHelpReady === "1") return
+			rootEl.dataset.fieldHelpReady = "1"
+
+			const trigger = rootEl.querySelector("[data-field-help-trigger]")
+			const panel = rootEl.querySelector("[data-field-help-panel]")
+			if (!(trigger instanceof HTMLElement) || !(panel instanceof HTMLElement)) return
+
+			const placement = rootEl.dataset.fieldHelpPlacement ?? "top-end"
+			let anchor: Comment | null = null
+			let hideTimer = 0
+			let repositionHandler: (() => void) | null = null
+
+			const ensureAnchor = () => {
+				if (anchor) return
+				anchor = document.createComment("field-help-panel-anchor")
+				rootEl.appendChild(anchor)
+			}
+
+			const mountPanel = () => {
+				ensureAnchor()
+				if (panel.parentElement !== document.body) {
+					document.body.appendChild(panel)
+				}
+			}
+
+			const restorePanel = () => {
+				if (panel.parentElement === document.body && anchor) {
+					anchor.parentElement?.insertBefore(panel, anchor.nextSibling)
+				}
+				panel.style.position = ""
+				panel.style.top = ""
+				panel.style.left = ""
+				panel.style.width = ""
+				panel.style.maxWidth = ""
+				panel.style.zIndex = ""
+			}
+
+			const show = () => {
+				window.clearTimeout(hideTimer)
+				mountPanel()
+				panel.classList.remove("hidden")
+				panel.classList.add("pointer-events-auto", "opacity-100")
+				positionFieldHelpPanel(trigger, panel, placement)
+				if (!repositionHandler) {
+					repositionHandler = () => {
+						if (panel.classList.contains("hidden")) return
+						positionFieldHelpPanel(trigger, panel, placement)
+					}
+					window.addEventListener("scroll", repositionHandler, true)
+					window.addEventListener("resize", repositionHandler)
+				}
+			}
+
+			const hide = () => {
+				panel.classList.add("hidden", "pointer-events-none", "opacity-0")
+				panel.classList.remove("pointer-events-auto", "opacity-100")
+				if (repositionHandler) {
+					window.removeEventListener("scroll", repositionHandler, true)
+					window.removeEventListener("resize", repositionHandler)
+					repositionHandler = null
+				}
+				restorePanel()
+			}
+
+			const scheduleHide = () => {
+				window.clearTimeout(hideTimer)
+				hideTimer = window.setTimeout(hide, 120)
+			}
+
+			rootEl.addEventListener("mouseenter", show)
+			rootEl.addEventListener("mouseleave", (event) => {
+				if (event.relatedTarget instanceof Node && panel.contains(event.relatedTarget)) return
+				scheduleHide()
+			})
+			panel.addEventListener("mouseenter", () => window.clearTimeout(hideTimer))
+			panel.addEventListener("mouseleave", scheduleHide)
+
+			trigger.addEventListener("focus", show)
+			trigger.addEventListener("blur", (event) => {
+				if (event.relatedTarget instanceof Node && panel.contains(event.relatedTarget)) return
+				scheduleHide()
+			})
+		})
+	}
+
+	initFieldHelps()
+	document.addEventListener("astro:page-load", () => initFieldHelps())
+</script>
