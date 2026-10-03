@@ -14,5 +14,9 @@ function readFile(relativePath: string) {
 
 /** Page + shared 4-tab workspace so source-scan tests still see panel markup and loaders. */
 export function readVerificationSurface(pageRelative: string) {
-	return [pageRelative, ...extras].map(readFile).join("\n")
+	const page = readFile(pageRelative)
+	const canonical = page.includes("verificationSectionUrl")
+		? ["src/pages/provider/settings/verification.astro"]
+		: []
+	return [pageRelative, ...canonical, ...extras].map(readFile).join("\n")
 }

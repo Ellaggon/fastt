@@ -64,10 +64,6 @@ export function providerOperationalNavigation(
 					{ label: "Soporte", href: routes.providerSupport(), status: "canonical" },
 				],
 			},
-			{
-				title: "Añadir",
-				items: [{ label: "Añadir servicio", href: routes.productCreate(), status: "canonical" }],
-			},
 		]
 	}
 
@@ -100,10 +96,6 @@ export function providerOperationalNavigation(
 					{ label: "Configuración", href: routes.settings(), status: "canonical" },
 					{ label: "Soporte", href: routes.providerSupport(), status: "canonical" },
 				],
-			},
-			{
-				title: "Añadir",
-				items: [{ label: "Añadir servicio", href: routes.productCreate(), status: "canonical" }],
 			},
 		]
 	}

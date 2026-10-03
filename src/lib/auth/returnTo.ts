@@ -43,3 +43,27 @@ export function safeProductPreviewReturn(value: unknown): string | null {
 	if (!/^\/product\/[^/]+\/preview$/.test(target.pathname)) return null
 	return `${target.pathname}${target.search}${target.hash}`
 }
+
+/** Evidence may return to a concrete offer outside a guided creation flow. */
+export function safeVerificationReturn(value: unknown): string | null {
+	const guided = safeRatePlanPlaybookReturn(value) ?? safeProductPreviewReturn(value)
+	if (guided) return guided
+	const raw = String(value ?? "").trim()
+	if (!raw.startsWith("/") || raw.startsWith("//") || raw.includes("://")) return null
+	try {
+		const url = new URL(raw, "http://fastt.local")
+		if (
+			url.origin !== "http://fastt.local" ||
+			!/^\/rates\/plans\/[^/]+$/.test(url.pathname) ||
+			url.pathname.endsWith("/manage")
+		)
+			return null
+		if (url.searchParams.has("playbook")) return null
+		if (!["productId", "variantId", "ratePlanId"].every((key) => url.searchParams.get(key)?.trim()))
+			return null
+		if (url.searchParams.get("ratePlanId") !== url.pathname.split("/").at(-1)) return null
+		return url.pathname + url.search
+	} catch {
+		return null
+	}
+}

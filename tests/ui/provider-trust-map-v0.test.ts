@@ -43,6 +43,10 @@ describe("V0 trust map IA + glossary (cuenta vs docs)", () => {
 			"#verification-status-panel"
 		)
 		expect(links.find((link) => link.id === "business")?.href).toContain("#kyc-slots")
+		for (const id of ["identity", "business"]) {
+			const target = new URL(links.find((link) => link.id === id)!.href, "https://fastt.test")
+			expect(target.searchParams.get("tab")).toBe(id)
+		}
 		expect(links.find((link) => link.id === "fiscal")?.href).toContain("/verification/fiscal")
 		expect(links.find((link) => link.id === "payments")?.href).toContain("/payments")
 	})

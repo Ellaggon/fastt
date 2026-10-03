@@ -2,7 +2,7 @@ import type { APIRoute } from "astro"
 import { ZodError, z } from "zod"
 
 import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
-import { safeProductPreviewReturn, safeRatePlanPlaybookReturn } from "@/lib/auth/returnTo"
+import { safeVerificationReturn, safeRatePlanPlaybookReturn } from "@/lib/auth/returnTo"
 import { invalidateProvider, invalidateProviderGovernance } from "@/lib/cache/invalidation"
 import { assertHolderDeclarationAllowsDocuments } from "@/lib/provider-holder-profile"
 import {
@@ -91,7 +91,7 @@ function applyOptionalDocumentContext(
 			target.searchParams.set("playbookVertical", vertical)
 		return
 	}
-	const preview = safeProductPreviewReturn(returnToRaw)
+	const preview = safeVerificationReturn(returnToRaw)
 	if (!preview) return
 	target.searchParams.set("returnTo", preview)
 }

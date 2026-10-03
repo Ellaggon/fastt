@@ -338,8 +338,10 @@ const completeContinueHref = completePlaybook.active
 			})
 	: null
 const complianceReviewHref = (() => {
-	const base = routes.providerSettingsVerificationDocuments()
-	if (!(isPlaybookMode && isTourContext)) return base
+	const base = isTourContext
+		? routes.providerSettingsVerification()
+		: routes.providerSettingsVerificationDocuments()
+	if (!isTourContext) return base
 	const current = new URL(`${Astro.url.pathname}${Astro.url.search}`, "http://fastt.local")
 	if (!current.searchParams.get("productId"))
 		current.searchParams.set("productId", tourCtx.productId)
@@ -368,6 +370,10 @@ const complianceReviewHref = (() => {
 		const value = current.searchParams.get(key)
 		if (value) target.searchParams.set(key, value)
 	}
+	target.searchParams.set("line", "tour")
+	target.searchParams.set("tab", "activity")
+	target.searchParams.set("tourTab", "activity")
+	target.searchParams.set("experience", tourCtx.productId)
 	target.searchParams.set("playbookVertical", "tour")
 	target.searchParams.set("returnTo", returnTo)
 	return `${target.pathname}?${target.searchParams.toString()}`

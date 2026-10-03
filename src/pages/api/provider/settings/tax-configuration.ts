@@ -1,5 +1,8 @@
 import type { APIRoute } from "astro"
-import { copyVerificationNavigationQuery } from "@/lib/verification/navigation"
+import {
+	copyVerificationNavigationQuery,
+	verificationSectionUrl,
+} from "@/lib/verification/navigation"
 import { ZodError, z } from "zod"
 
 import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
@@ -46,42 +49,36 @@ function shouldReturnHtmlRedirect(request: Request) {
 	return false
 }
 
-function fiscalRedirectPath(result: string, returnToRaw?: FormDataEntryValue | null): string {
-	const returnTo = String(returnToRaw ?? "").trim()
-	const base =
-		returnTo === "taxIdentity"
-			? routes.providerSettingsTaxIdentity()
-			: routes.providerSettingsVerificationFiscal()
-	const url = `${base}?result=${encodeURIComponent(result)}`
-	return url
+function fiscalRedirectTarget(request: Request, returnToRaw?: FormDataEntryValue | null): URL {
+	const source = new URL(request.url)
+	return String(returnToRaw ?? "").trim() === "taxIdentity"
+		? copyVerificationNavigationQuery(
+				new URL(routes.providerSettingsTaxIdentity(), source),
+				source,
+				"fiscal"
+			)
+		: verificationSectionUrl(source, "fiscal")
 }
 
-function redirectAfterFiscalSubmit(
+export function redirectAfterFiscalSubmit(
 	request: Request,
 	result: string,
 	returnToRaw?: FormDataEntryValue | null
 ) {
-	return Response.redirect(
-		copyVerificationNavigationQuery(
-			new URL(fiscalRedirectPath(result, returnToRaw), request.url),
-			new URL(request.url)
-		),
-		303
-	)
+	const target = fiscalRedirectTarget(request, returnToRaw)
+	target.searchParams.delete("error")
+	target.searchParams.set("result", result)
+	return Response.redirect(target, 303)
 }
 
-function redirectAfterFiscalError(
+export function redirectAfterFiscalError(
 	request: Request,
 	error: string,
 	returnToRaw?: FormDataEntryValue | null
 ) {
-	const base =
-		String(returnToRaw ?? "").trim() === "taxIdentity"
-			? routes.providerSettingsTaxIdentity()
-			: routes.providerSettingsVerificationFiscal()
-	const target = new URL(base, request.url)
+	const target = fiscalRedirectTarget(request, returnToRaw)
+	target.searchParams.delete("result")
 	target.searchParams.set("error", error)
-	copyVerificationNavigationQuery(target, new URL(request.url))
 	return Response.redirect(target, 303)
 }
 

@@ -20,7 +20,6 @@ import { copyVerificationNavigationQuery } from "@/lib/verification/navigation"
 
 type Props = {
 	productId: string | null
-	productName?: string | null
 	context: {
 		operatingRole: string | null
 		activityClassesJson: unknown
@@ -31,7 +30,7 @@ type Props = {
 	error?: string
 }
 
-const { productId, productName, context, canEdit, result, error } = Astro.props as Props
+const { productId, context, canEdit, result, error } = Astro.props as Props
 const navigationSource = new URL(Astro.url)
 navigationSource.searchParams.set("line", "tour")
 navigationSource.searchParams.set("tab", "activity")
@@ -55,13 +54,6 @@ const roles: Array<{ value: TourOperatingRole; label: string }> = [
 
 <Card class="space-y-5" data-tour-operating-context>
 	<div class="max-w-2xl">
-		{
-			productId && (
-				<p class="mb-2 text-sm font-semibold text-slate-700">
-					{productName || "Experiencia sin nombre"}
-				</p>
-			)
-		}
 		<h2 id="tour-operating-context" class="text-lg font-semibold text-slate-950">
 			Cómo operas esta experiencia
 		</h2>
@@ -178,7 +170,11 @@ const roles: Array<{ value: TourOperatingRole; label: string }> = [
 						))}
 					</div>
 				</fieldset>
-				<Button type="submit">Guardar operación</Button>
+				<div class="flex justify-end pt-5">
+					<Button type="submit" variant="selection">
+						Guardar operación
+					</Button>
+				</div>
 			</form>
 		) : (
 			<p class="text-sm text-slate-600">

@@ -46,6 +46,21 @@ const canonicalHref = canonicalPath ? new URL(canonicalPath, Astro.url.origin).h
 			crossorigin=""
 		/>
 		<title>{title}</title>
+		<script is:inline>
+			// Register before ClientRouter: a complete local workspace can own a
+			// history entry without the router starting a second document load.
+			if (!window.__fasttLocalHistoryBridge) {
+				window.__fasttLocalHistoryBridge = true
+				window.addEventListener(
+					"popstate",
+					(event) => {
+						const local = new CustomEvent("fastt:before-history-navigation", { cancelable: true })
+						if (!document.dispatchEvent(local)) event.stopImmediatePropagation()
+					},
+					true
+				)
+			}
+		</script>
 		<ClientRouter />
 	</head>
 	<body class:list={["min-h-screen font-sans", bodyClass]}>

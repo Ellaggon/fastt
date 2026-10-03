@@ -20,6 +20,7 @@ describe("provider operational navigation", () => {
 			])
 		)
 		expect(labels).not.toContain("Salidas y cupos")
+		expect(labels).not.toContain("Añadir servicio")
 	})
 
 	it("uses tour vocabulary for departures and day-of operations", () => {
@@ -31,6 +32,7 @@ describe("provider operational navigation", () => {
 		expect(labels).not.toContain("Mis alojamientos")
 		expect(labels).not.toContain("Habitaciones")
 		expect(labels).not.toContain("Reglas para huéspedes")
+		expect(labels).not.toContain("Añadir servicio")
 	})
 
 	it("only adopts a vertical automatically when the provider has one active vertical", () => {

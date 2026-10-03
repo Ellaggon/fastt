@@ -1,6 +1,7 @@
 ---
 import Button from "@/components/ui/Button.astro"
 import Checkbox from "@/components/ui/Checkbox.astro"
+import FieldHelp from "@/components/ui/FieldHelp.astro"
 import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
@@ -48,8 +49,10 @@ const {
 
 const isEditMode = mode === "edit"
 const resolvedLanguageCode = String(languageCode ?? "es")
-	.trim()
-	.toLowerCase()
+const selectionCheckboxClass =
+	"tour-slot-selection-checkbox cursor-pointer rounded-[var(--fastt-radius-card)] border border-sky-100 bg-sky-50/80 p-3 transition hover:border-sky-200 has-[:checked]:border-[var(--fastt-color-selection)] has-[:checked]:bg-[var(--fastt-color-selection-soft)]"
+		.trim()
+		.toLowerCase()
 const languageOptions = TOUR_SLOT_LANGUAGE_OPTIONS.some(
 	(entry) => entry.code === resolvedLanguageCode
 )
@@ -129,8 +132,15 @@ const languageOptions = TOUR_SLOT_LANGUAGE_OPTIONS.some(
 			<Users class="h-4 w-4 text-slate-500" />
 			<h2 class="text-sm font-semibold text-slate-950">Cupo y modalidad</h2>
 		</header>
-		<div class="grid gap-4 md:grid-cols-2">
-			<FormField label="Máximo de participantes por grupo" for="maxPax" required>
+		<div class="grid gap-4 md:grid-cols-2 md:items-stretch">
+			<div class="flex flex-col gap-2">
+				<label
+					for="maxPax"
+					class="flex items-center text-sm font-semibold leading-snug text-slate-800 md:flex-1"
+				>
+					Máximo de participantes por grupo
+					<span class="ml-1 text-red-600">*</span>
+				</label>
 				<Input
 					id="maxPax"
 					name="maxPax"
@@ -139,8 +149,34 @@ const languageOptions = TOUR_SLOT_LANGUAGE_OPTIONS.some(
 					required
 					value={String(maxPax ?? 12)}
 				/>
-			</FormField>
-			<FormField label="Modalidad" htmlFor="bookingMode" required>
+			</div>
+			<div class="flex flex-col gap-2">
+				<div class="flex w-full items-center justify-between gap-1.5 md:flex-1">
+					<label for="bookingMode" class="text-sm font-semibold leading-snug text-slate-800">
+						Modalidad
+						<span class="ml-1 text-red-600">*</span>
+					</label>
+					<FieldHelp
+						id="tour-booking-mode-help"
+						title="Cómo reserva el viajero"
+						triggerLabel="Ayuda sobre modalidad"
+						placement="top-end"
+					>
+						<p>
+							Aquí eliges cómo reserva el viajero. El tope de grupo lo defines arriba con «Máximo de
+							participantes»: adulto, niño y demás tipos suman al mismo cupo (no hay plazas
+							separadas por tipo).
+						</p>
+						<p>
+							<strong>Compartido.</strong> Reserva directa: el viajero elige fecha y tarifa y el sistema
+							descuenta plazas del inventario.
+						</p>
+						<p>
+							<strong>Privado.</strong> Solicitud de cotización: no se retiene cupo hasta que aceptes
+							la solicitud.
+						</p>
+					</FieldHelp>
+				</div>
 				<Select id="bookingMode" name="bookingMode" required>
 					<option value="shared" selected={bookingMode !== "private"}>
 						Compartido (reserva directa con cupo común)
@@ -149,7 +185,7 @@ const languageOptions = TOUR_SLOT_LANGUAGE_OPTIONS.some(
 						Privado (solicitud de cotización)
 					</option>
 				</Select>
-			</FormField>
+			</div>
 		</div>
 		<p class="text-sm leading-5 text-slate-600">
 			Este máximo limita el tamaño del grupo que puede reservar. Guardar no cambia los cupos ni las
@@ -162,6 +198,7 @@ const languageOptions = TOUR_SLOT_LANGUAGE_OPTIONS.some(
 					value="true"
 					checked={false}
 					label="Usar este máximo como cupo predeterminado para nuevas fechas"
+					class={selectionCheckboxClass}
 				/>
 			) : (
 				<p class="text-sm leading-5 text-slate-600">
@@ -170,15 +207,12 @@ const languageOptions = TOUR_SLOT_LANGUAGE_OPTIONS.some(
 				</p>
 			)
 		}
-		<p class="text-sm leading-5 text-slate-600">
-			Las categorías de participantes comparten este mismo cupo. Una salida privada queda como
-			solicitud de cotización y no bloquea inventario hasta que el proveedor la acepte.
-		</p>
 		<Checkbox
 			name="isActive"
 			value="true"
 			checked={isActive !== false}
 			label="Salida activa (visible para venta)"
+			class={selectionCheckboxClass}
 		/>
 	</section>
 
@@ -234,14 +268,20 @@ const languageOptions = TOUR_SLOT_LANGUAGE_OPTIONS.some(
 				</div>
 			</footer>
 		) : (
-			<div class:list={["flex flex-wrap gap-3", playbookFooterControls ? "hidden" : ""]}>
-				<Button type="submit" id="tour-slot-submit">
+			<div class:list={["flex justify-end pt-5", playbookFooterControls ? "hidden" : ""]}>
+				<Button type="submit" id="tour-slot-submit" variant="selection">
 					{submitLabel || (isEditMode ? "Guardar salida" : "Crear salida")}
 				</Button>
 			</div>
 		)
 	}
 </form>
+
+<style is:global>
+	.tour-slot-selection-checkbox .fastt-check-input {
+		accent-color: var(--fastt-color-selection);
+	}
+</style>
 
 <script>
 	const form = document.getElementById("tour-slot-profile-form") as HTMLFormElement | null

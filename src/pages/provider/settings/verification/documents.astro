@@ -6,7 +6,7 @@ import Notice from "@/components/ui/Notice.astro"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import ProviderSettingsLayout from "@/layouts/ProviderSettingsLayout.astro"
 import { requireProviderSessionSurface } from "@/lib/auth/requireProvider"
-import { safeProductPreviewReturn, safeRatePlanPlaybookReturn } from "@/lib/auth/returnTo"
+import { safeVerificationReturn, safeRatePlanPlaybookReturn } from "@/lib/auth/returnTo"
 import { listOpenComplianceAssignments } from "@/lib/provider-compliance-ops"
 import {
 	listProviderDocuments,
@@ -14,6 +14,11 @@ import {
 	requiredKycDocumentTypes,
 } from "@/lib/provider-documents"
 import { formatProviderRoleLabel } from "@/lib/provider-permissions"
+import {
+	copyVerificationNavigationQuery,
+	resolveVerificationNavigation,
+	tourDocumentWorkspaceHref,
+} from "@/lib/verification/navigation"
 import { routes } from "@/lib/routes"
 import { loadProviderVerificationResolution } from "@/lib/verification/requirement-context"
 import { packDocumentTypes, packUploadOptions } from "@/lib/verification/requirement-resolver"
@@ -87,6 +92,20 @@ const renewalDocumentId = String(Astro.url.searchParams.get("renewDocumentId") ?
 
 const result = Astro.url.searchParams.get("result")
 const requestedType = String(Astro.url.searchParams.get("type") ?? "").trim()
+const navigation = resolveVerificationNavigation({
+	url: Astro.url,
+	lines: loadedResolution?.lines ?? [...new Set(availableProducts.map((product) => product.kind))],
+	experienceIds: availableProducts
+		.filter((product) => product.kind === "tour")
+		.map((product) => product.id),
+	fasttCollects: false,
+})
+const tourWorkspaceHref = tourDocumentWorkspaceHref({
+	url: Astro.url,
+	navigation,
+	requirements: resolvedPack?.requirements ?? [],
+})
+if (tourWorkspaceHref) return Astro.redirect(tourWorkspaceHref)
 const defaultOptionalUploadType = optionalDocumentTypes.some((item) => item.value === requestedType)
 	? requestedType
 	: (optionalDocumentTypes.find((item) => item.value.startsWith(`${requestedType}::`))?.value ??
@@ -115,7 +134,7 @@ const resultMessages: Record<
 }
 
 const playbookReturnHref = safeRatePlanPlaybookReturn(Astro.url.searchParams.get("returnTo"))
-const previewReturnHref = safeProductPreviewReturn(Astro.url.searchParams.get("returnTo"))
+const evidenceReturnHref = safeVerificationReturn(Astro.url.searchParams.get("returnTo"))
 const playbookReturnUrl = playbookReturnHref
 	? new URL(playbookReturnHref, "http://fastt.local")
 	: null
@@ -129,11 +148,10 @@ const scopeProductId =
 	String(Astro.url.searchParams.get("scopeProductId") ?? "").trim() ||
 	String(playbookReturnUrl?.searchParams.get("productId") ?? "").trim() ||
 	null
-const verificationBackUrl = new URL(routes.providerSettingsVerification(), Astro.url)
-for (const key of ["line", "tab", "experience", "lodgingTab", "tourTab"]) {
-	const value = Astro.url.searchParams.get(key)
-	if (value) verificationBackUrl.searchParams.set(key, value)
-}
+const verificationBackUrl = copyVerificationNavigationQuery(
+	new URL(routes.providerSettingsVerification(), Astro.url),
+	Astro.url
+)
 const verificationBackHref = `${verificationBackUrl.pathname}${verificationBackUrl.search}`
 ---
 
@@ -212,9 +230,11 @@ const verificationBackHref = `${verificationBackUrl.pathname}${verificationBackU
 			showSettingsTabs={false}
 		>
 			<div slot="actions" class="flex flex-wrap gap-3">
-				{previewReturnHref ? (
-					<Button href={previewReturnHref} variant="secondary">
-						Volver a la experiencia
+				{evidenceReturnHref ? (
+					<Button href={evidenceReturnHref} variant="secondary">
+						{evidenceReturnHref.startsWith("/rates/plans/")
+							? "Volver a la tarifa"
+							: "Volver a la experiencia"}
 					</Button>
 				) : null}
 				<Button href={verificationBackHref} variant="secondary">
@@ -256,7 +276,7 @@ const verificationBackHref = `${verificationBackUrl.pathname}${verificationBackU
 					canManageDocuments={canManageDocuments}
 					defaultUploadType={defaultOptionalUploadType}
 					documentAssignments={documentAssignmentById}
-					playbookReturnTo={previewReturnHref}
+					playbookReturnTo={evidenceReturnHref}
 					scopeProductId={scopeProductId}
 					availableProducts={availableProducts}
 					renewalDocumentId={renewalDocumentId}

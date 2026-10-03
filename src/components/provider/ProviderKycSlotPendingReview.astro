@@ -5,7 +5,7 @@ import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import type { ProviderKycSlot } from "@/lib/provider-documents"
 import { buildProviderReviewWaitState } from "@/lib/provider-review-wait-state"
-import { routes } from "@/lib/routes"
+import { verificationSectionUrl } from "@/lib/verification/navigation"
 
 type Props = {
 	kycSlot: ProviderKycSlot
@@ -27,6 +27,12 @@ const {
 	compact = false,
 	showFiscalBridge = true,
 } = Astro.props as Props
+
+const fiscalTarget = verificationSectionUrl(Astro.url, "fiscal")
+// Result messages belong to the current submission, not to this next action.
+fiscalTarget.searchParams.delete("result")
+fiscalTarget.searchParams.delete("error")
+const fiscalHref = fiscalTarget.pathname + fiscalTarget.search
 
 const assignment = kycSlot.documentId ? (documentAssignments[kycSlot.documentId] ?? null) : null
 const fileLabel = kycSlot.fileName || "Archivo recibido"
@@ -58,11 +64,7 @@ const documentWait = buildProviderReviewWaitState("document", { assignment })
 				) : null}
 				{showFiscalBridge ? (
 					<div class="flex flex-wrap items-center gap-2 pt-1" data-kyc-slot-next-action>
-						<Button
-							href={routes.providerSettingsVerificationFiscal()}
-							variant="secondary"
-							size="sm"
-						>
+						<Button href={fiscalHref} variant="secondary" size="sm">
 							Continuar a Fiscalidad
 						</Button>
 						<span class="text-sm text-slate-600">Mientras tanto, revisa el NIT/TIN.</span>
@@ -85,11 +87,7 @@ const documentWait = buildProviderReviewWaitState("document", { assignment })
 					<ProviderReviewWaitNotice domain="document" assignment={assignment} compact />
 					{showFiscalBridge ? (
 						<div class="flex flex-wrap items-center gap-2" data-kyc-slot-next-action>
-							<Button
-								href={routes.providerSettingsVerificationFiscal()}
-								variant="secondary"
-								size="sm"
-							>
+							<Button href={fiscalHref} variant="secondary" size="sm">
 								Continuar a Fiscalidad
 							</Button>
 						</div>

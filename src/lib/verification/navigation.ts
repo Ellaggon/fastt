@@ -1,4 +1,4 @@
-import { safeProductPreviewReturn, safeRatePlanPlaybookReturn } from "@/lib/auth/returnTo"
+import { safeVerificationReturn } from "@/lib/auth/returnTo"
 import type { CommercialLine } from "@/lib/verification/commercial-lines"
 import { TRUST_GLOSSARY, type TrustLinkUiState } from "@/lib/provider-trust-map"
 
@@ -176,17 +176,36 @@ export function verificationTabsFor(
 	return line === "lodging" ? lodgingTabs : fasttCollects ? [...tourTabs, "payments"] : tourTabs
 }
 
-function tabFromLegacyUrl(url: URL): VerificationTab {
-	if (url.pathname.endsWith("/payments")) return "payments"
-	if (url.pathname.endsWith("/fiscal")) return "fiscal"
-	if (url.searchParams.get("type") === "government_id") return "identity"
-	if (
-		url.searchParams.get("type") ||
-		url.hash === "#kyc-slots" ||
-		url.hash.startsWith("#kyc-slot-")
-	)
-		return "business"
-	return "identity"
+/** Document deep links take precedence over obsolete tab aliases. */
+export function resolveVerificationTab(
+	url: URL,
+	line: CommercialLine | null,
+	fasttCollects: boolean
+): VerificationTab {
+	const type = url.searchParams.get("type")
+	const documentTab =
+		type === "government_id"
+			? "identity"
+			: type === "business_registration"
+				? line === "tour"
+					? "identity"
+					: "business"
+				: type === "tax_document"
+					? "fiscal"
+					: null
+	const candidate =
+		documentTab ??
+		url.searchParams.get("tab") ??
+		(url.pathname.endsWith("/payments")
+			? "payments"
+			: url.pathname.endsWith("/fiscal")
+				? "fiscal"
+				: type
+					? "business"
+					: "identity")
+	const normalized = candidate === "business" && line === "tour" ? "activity" : candidate
+	const tabs = line ? verificationTabsFor(line, fasttCollects) : lodgingTabs
+	return tabs.includes(normalized as VerificationTab) ? (normalized as VerificationTab) : "identity"
 }
 
 /** Explicit stale selections never fall back to another experience. */
@@ -211,14 +230,7 @@ export function resolveVerificationNavigation(input: {
 		? (requestedLine as CommercialLine)
 		: (lines[0] ?? null)
 	const tabs = line ? verificationTabsFor(line, input.fasttCollects) : lodgingTabs
-	const requestedTab = input.url.searchParams.get("tab")
-	const legacyTab = tabFromLegacyUrl(input.url)
-	const candidate = requestedTab ?? legacyTab
-	const tab = tabs.includes(candidate as VerificationTab)
-		? (candidate as VerificationTab)
-		: candidate === "business" && line === "tour"
-			? "activity"
-			: "identity"
+	const tab = resolveVerificationTab(input.url, line, input.fasttCollects)
 	const requestedExperience = input.url.searchParams.get("experience")
 	const experienceId =
 		line === "tour" ? resolveVerificationExperience(requestedExperience, input.experienceIds) : null
@@ -257,16 +269,20 @@ export function verificationNavigationHref(input: {
 			? (input.navigation.experienceId ?? input.url.searchParams.get("experience"))
 			: input.experienceId
 	if (experienceId) params.set("experience", experienceId)
-	const returnTo =
-		safeProductPreviewReturn(input.url.searchParams.get("returnTo")) ??
-		safeRatePlanPlaybookReturn(input.url.searchParams.get("returnTo"))
+	const returnTo = safeVerificationReturn(input.url.searchParams.get("returnTo"))
 	if (returnTo) params.set("returnTo", returnTo)
 	url.search = params.toString()
 	return `${url.pathname}${url.search}`
 }
 
 /** Carries navigation context through browser form posts and their 303 redirects. */
-export function copyVerificationNavigationQuery(target: URL, source: URL): URL {
+export function copyVerificationNavigationQuery(
+	target: URL,
+	source: URL,
+	destinationTab?: VerificationTab
+): URL {
+	const returnTo = safeVerificationReturn(source.searchParams.get("returnTo"))
+	if (returnTo) target.searchParams.set("returnTo", returnTo)
 	const line = source.searchParams.get("line")
 	if (line !== "lodging" && line !== "tour") return target
 	target.searchParams.set("line", line)
@@ -280,9 +296,83 @@ export function copyVerificationNavigationQuery(target: URL, source: URL): URL {
 		if (key === "tourTab" && ![...tourTabs, "payments"].includes(value as VerificationTab)) continue
 		target.searchParams.set(key, value)
 	}
-	const returnTo =
-		safeProductPreviewReturn(source.searchParams.get("returnTo")) ??
-		safeRatePlanPlaybookReturn(source.searchParams.get("returnTo"))
-	if (returnTo) target.searchParams.set("returnTo", returnTo)
+	if (destinationTab && allowed.includes(destinationTab)) {
+		target.searchParams.set("tab", destinationTab)
+		target.searchParams.set(`${line}Tab`, destinationTab)
+	}
 	return target
+}
+
+/** Route tour evidence to its declared area; the archive remains available without a type. */
+export function tourDocumentWorkspaceHref(input: {
+	url: URL
+	navigation: VerificationNavigation
+	requirements: readonly {
+		layer: string
+		documentType: string | null
+		uploadValue: string | null
+		presentationArea: "activity" | "safety" | null
+		scopes: { productIds: string[] }
+	}[]
+}): string | null {
+	const type = input.url.searchParams.get("type")?.trim()
+	if (input.navigation.line !== "tour" || !type) return null
+	const matches = input.requirements.filter(
+		(item) =>
+			item.layer === "tour" &&
+			(item.uploadValue === type || item.documentType === type) &&
+			(!input.navigation.experienceId ||
+				!item.scopes.productIds.length ||
+				item.scopes.productIds.includes(input.navigation.experienceId))
+	)
+	const areas = new Set(matches.map((item) => item.presentationArea).filter(Boolean))
+	// Without an unambiguous requirement, open Activity to select/review context,
+	// never infer a document's coverage or manufacture a safety requirement.
+	const tab = ["government_id", "business_registration", "tax_document"].includes(type)
+		? resolveVerificationTab(input.url, "tour", input.navigation.fasttCollects)
+		: areas.size === 1 && areas.has("safety")
+			? "safety"
+			: "activity"
+	const target = new URL(
+		verificationNavigationHref({ url: input.url, navigation: input.navigation, line: "tour", tab }),
+		input.url
+	)
+	for (const key of ["type", "renewDocumentId", "result", "error"]) {
+		const value = input.url.searchParams.get(key)
+		if (value) target.searchParams.set(key, value)
+	}
+	return target.pathname + target.search
+}
+
+/** Legacy section entries and form responses share the canonical workspace. */
+export function verificationSectionUrl(source: URL, tab: VerificationTab): URL {
+	const target = copyVerificationNavigationQuery(
+		new URL("/provider/settings/verification", source),
+		source,
+		tab
+	)
+	// A legacy entry may not yet declare a line; the workspace resolves it.
+	target.searchParams.set("tab", tab)
+	for (const key of ["result", "error"]) {
+		const value = source.searchParams.get(key)
+		if (value) target.searchParams.set(key, value)
+	}
+	return target
+}
+
+/** Visible return belongs only to evidence for the originating tour offer. */
+export function tourEvidenceReturnHref(
+	url: URL,
+	navigation: VerificationNavigation | null
+): string | null {
+	if (
+		navigation?.line !== "tour" ||
+		!navigation.experienceId ||
+		!["activity", "safety"].includes(navigation.tab)
+	)
+		return null
+	const href = safeVerificationReturn(url.searchParams.get("returnTo"))
+	if (!href || !href.startsWith("/rates/plans/")) return null
+	const origin = new URL(href, url)
+	return origin.searchParams.get("productId") === navigation.experienceId ? href : null
 }

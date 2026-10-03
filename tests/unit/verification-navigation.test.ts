@@ -7,6 +7,8 @@ import {
 	summarizeVerificationPlaybook,
 	verificationNavigationHref,
 	verificationTabsFor,
+	tourDocumentWorkspaceHref,
+	tourEvidenceReturnHref,
 } from "@/lib/verification/navigation"
 
 const base = "https://fastt.test/provider/settings/verification"
@@ -98,7 +100,7 @@ describe("verification navigation by business line", () => {
 			experienceIds: [],
 			fasttCollects: false,
 		})
-		expect(business.tab).toBe("activity")
+		expect(business.tab).toBe("identity")
 	})
 
 	it("retains line, tab and experience through a form redirect without copying unrelated input", () => {
@@ -240,4 +242,161 @@ it("preserves an allowed return while switching business lines and rejects exter
 	expect(copyVerificationNavigationQuery(new URL(base), url).searchParams.has("returnTo")).toBe(
 		false
 	)
+})
+
+describe("legacy verification destinations", () => {
+	it.each([
+		["tour", "?tab=business", "activity"],
+		["tour", "?tab=business&type=business_registration", "identity"],
+		["tour", "#kyc-slot-business_registration", "identity"],
+		["lodging", "?type=business_registration", "business"],
+		["tour", "?type=tax_document", "fiscal"],
+		["tour", "?tab=payments", "identity"],
+		["tour", "/payments", "identity"],
+		["lodging", "?tab=safety", "identity"],
+	])("normalizes %s %s to %s", (line, suffix, tab) => {
+		expect(
+			resolveVerificationNavigation({
+				url: new URL(base + suffix),
+				lines: [line as "tour" | "lodging"],
+				experienceIds: [],
+				fasttCollects: false,
+			}).tab
+		).toBe(tab)
+	})
+})
+
+describe("tour document detours", () => {
+	const returnTo = "/rates/plans/plan-a?productId=tour-a&variantId=slot-a&ratePlanId=plan-a"
+	const source = new URL(
+		`${base}/documents?line=tour&tab=identity&experience=tour-a&lodgingTab=fiscal&tourTab=identity&type=insurance&renewDocumentId=doc-a&returnTo=${encodeURIComponent(returnTo)}`
+	)
+	const navigation = resolveVerificationNavigation({
+		url: source,
+		lines: ["tour"],
+		experienceIds: ["tour-a", "tour-b"],
+		fasttCollects: false,
+	})
+	it("routes evidence by the selected requirement area and preserves renewal and origin", () => {
+		const result = new URL(
+			tourDocumentWorkspaceHref({
+				url: source,
+				navigation,
+				requirements: [
+					{
+						layer: "tour",
+						documentType: "insurance",
+						uploadValue: "insurance",
+						presentationArea: "safety",
+						scopes: { productIds: ["tour-a"] },
+					},
+				],
+			})!,
+			base
+		)
+		expect(result.pathname).toBe("/provider/settings/verification")
+		expect(Object.fromEntries(result.searchParams)).toMatchObject({
+			line: "tour",
+			tab: "safety",
+			tourTab: "safety",
+			lodgingTab: "fiscal",
+			experience: "tour-a",
+			returnTo,
+			type: "insurance",
+			renewDocumentId: "doc-a",
+		})
+		expect(
+			tourDocumentWorkspaceHref({
+				url: result,
+				navigation: { ...navigation, tab: "safety" },
+				requirements: [
+					{
+						layer: "tour",
+						documentType: "insurance",
+						uploadValue: "insurance",
+						presentationArea: "safety",
+						scopes: { productIds: ["tour-a"] },
+					},
+				],
+			})
+		).toBe(result.pathname + result.search)
+	})
+	it("does not borrow another experience's safety requirement", () => {
+		const result = new URL(
+			tourDocumentWorkspaceHref({
+				url: source,
+				navigation,
+				requirements: [
+					{
+						layer: "tour",
+						documentType: "insurance",
+						uploadValue: "insurance",
+						presentationArea: "safety",
+						scopes: { productIds: ["tour-b"] },
+					},
+				],
+			})!,
+			base
+		)
+		expect(result.searchParams.get("tab")).toBe("activity")
+	})
+	it("retains the independent archive and lodging document route", () => {
+		const archive = new URL(source)
+		archive.searchParams.delete("type")
+		expect(tourDocumentWorkspaceHref({ url: archive, navigation, requirements: [] })).toBeNull()
+		expect(
+			tourDocumentWorkspaceHref({
+				url: source,
+				navigation: { ...navigation, line: "lodging" },
+				requirements: [],
+			})
+		).toBeNull()
+	})
+	it("preserves a safe archive return and rejects an external one", () => {
+		expect(
+			copyVerificationNavigationQuery(new URL(base), source).searchParams.get("returnTo")
+		).toBe(returnTo)
+		const unsafe = new URL(source)
+		unsafe.searchParams.set("returnTo", "https://evil.test")
+		expect(
+			copyVerificationNavigationQuery(new URL(base), unsafe).searchParams.has("returnTo")
+		).toBe(false)
+	})
+})
+
+describe("visible evidence return", () => {
+	const url = new URL(
+		base +
+			"?line=tour&experience=p&returnTo=" +
+			encodeURIComponent("/rates/plans/a?productId=p&variantId=v&ratePlanId=a")
+	)
+	const nav = resolveVerificationNavigation({
+		url,
+		lines: ["tour"],
+		experienceIds: ["p", "other"],
+		fasttCollects: false,
+	})
+	it.each(["identity", "fiscal", "payments", "business"] as const)(
+		"does not add a return action to %s",
+		(tab) => expect(tourEvidenceReturnHref(url, { ...nav, tab })).toBeNull()
+	)
+	it.each(["activity", "safety"] as const)(
+		"returns from %s to the exact originating offer",
+		(tab) =>
+			expect(tourEvidenceReturnHref(url, { ...nav, tab })).toBe(
+				"/rates/plans/a?productId=p&variantId=v&ratePlanId=a"
+			)
+	)
+	it("does not imply that another selected experience belongs to the originating rate", () =>
+		expect(
+			tourEvidenceReturnHref(url, { ...nav, tab: "activity", experienceId: "other" })
+		).toBeNull())
+	it("keeps preview returns internal", () => {
+		const preview = new URL(url)
+		preview.searchParams.set("returnTo", "/product/p/preview")
+		expect(tourEvidenceReturnHref(preview, { ...nav, tab: "activity" })).toBeNull()
+		expect(
+			copyVerificationNavigationQuery(new URL(base), preview).searchParams.get("returnTo")
+		).toBe("/product/p/preview")
+	})
 })

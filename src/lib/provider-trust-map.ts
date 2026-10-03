@@ -300,7 +300,7 @@ export function resolveTrustAlignedHubCoach(
 			label: "Negocio: faltan documentos mínimos",
 			body: "Un documento a la vez en Verificación. Sin los mínimos verificados no puedes liquidar con confianza.",
 			ctaLabel: "Continuar en verificación",
-			href: `${routes.providerSettingsVerification()}#kyc-slots`,
+			href: `${routes.providerSettingsVerification()}?tab=business#kyc-slots`,
 		}
 	}
 	if (id === "fiscality") {
@@ -505,7 +505,7 @@ export function buildProviderTrustMap(input: BuildProviderTrustMapInput = {}): P
 	const identityUi: TrustLinkUiState = !legalNameComplete ? "action_needed" : account.uiState
 	const identityHref = !legalNameComplete
 		? PROFILE_LEGAL_NAME_HREF
-		: `${routes.providerSettingsVerification()}#verification-status-panel`
+		: `${routes.providerSettingsVerification()}?tab=identity#verification-status-panel`
 	const businessUi = resolveBusinessUiState({
 		documentsComplete: Boolean(input.documentsComplete),
 		hasRejectedDocs: Boolean(input.hasRejectedDocs),
@@ -534,7 +534,7 @@ export function buildProviderTrustMap(input: BuildProviderTrustMapInput = {}): P
 			id: "business",
 			label: TRUST_GLOSSARY.links.business.label,
 			description: TRUST_GLOSSARY.links.business.description,
-			href: `${routes.providerSettingsVerification()}#kyc-slots`,
+			href: `${routes.providerSettingsVerification()}?tab=business#kyc-slots`,
 			uiState: businessUi,
 			stateLabel: trustLinkStateLabel(businessUi),
 			tone: trustLinkTone(businessUi),
@@ -897,7 +897,7 @@ export function buildDocumentsUploadNextStep(params: {
 			: accountRejected || needsResubmit
 				? "Corregir documentos"
 				: "Enviar a revisión",
-		ctaHref: `#kyc-slot-${params.slot.type}`,
+		ctaHref: `${routes.providerSettingsVerification()}?type=${encodeURIComponent(params.slot.type)}#kyc-slot-${params.slot.type}`,
 		consequenceLine:
 			"Sin los documentos mínimos verificados no puedes liquidar cobros ni publicar con confianza.",
 		anchorsKyc: true,
@@ -1022,7 +1022,9 @@ export function resolveVerificationNextStep(params: {
 	}
 
 	if (accountRejected && linkId === "identity") {
-		const correctHref = slot ? `#kyc-slot-${slot.type}` : "#kyc-slots"
+		const correctHref = slot
+			? `${routes.providerSettingsVerification()}?type=${encodeURIComponent(slot.type)}#kyc-slot-${slot.type}`
+			: `${routes.providerSettingsVerification()}?tab=business#kyc-slots`
 		return {
 			linkId: "identity",
 			title: "La cuenta requiere cambios",
@@ -1059,7 +1061,7 @@ export function resolveVerificationNextStep(params: {
 			title: `${slot.label}: enviado`,
 			body: "Fastt está revisando este documento. Mientras tanto puedes seguir el mapa o completar Fiscal cuando toque.",
 			ctaLabel: "Ver estado del documento",
-			ctaHref: `#kyc-slot-${slot.type}`,
+			ctaHref: `${routes.providerSettingsVerification()}?type=${encodeURIComponent(slot.type)}#kyc-slot-${slot.type}`,
 			consequenceLine: null,
 			anchorsKyc: true,
 			ctaKind: "status",
@@ -1092,7 +1094,7 @@ export function resolveVerificationNextStep(params: {
 					: "La revisión de cuenta sigue en curso. Si faltan documentos, quien tenga permiso de Documentos debe enviarlos."
 				: "Revisa el estado de la cuenta o continúa con el siguiente eslabón del mapa.",
 			ctaLabel: waiting ? "Ver estado de cuenta" : "Ver identidad",
-			ctaHref: "#verification-status-panel",
+			ctaHref: `${routes.providerSettingsVerification()}?tab=identity#verification-status-panel`,
 			consequenceLine: waiting
 				? "Sin la cuenta lista no puedes publicar ni aceptar reservas con confianza."
 				: null,

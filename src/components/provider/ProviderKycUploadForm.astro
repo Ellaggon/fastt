@@ -3,6 +3,7 @@ import ProviderKycCaptureCoach from "@/components/provider/ProviderKycCaptureCoa
 import ProviderKycFileField from "@/components/provider/ProviderKycFileField.astro"
 import Button from "@/components/ui/Button.astro"
 import Input from "@/components/ui/Input.astro"
+import { copyVerificationNavigationQuery } from "@/lib/verification/navigation"
 
 type Props = {
 	documentType: string
@@ -18,11 +19,16 @@ const {
 	showSubmitButton = true,
 	payoutBlocks = true,
 } = Astro.props as Props
-const uploadAction = new URL("/api/provider/settings/documents", Astro.url)
-for (const key of ["line", "tab", "experience", "lodgingTab", "tourTab"]) {
-	const value = Astro.url.searchParams.get(key)
-	if (value) uploadAction.searchParams.set(key, value)
-}
+const uploadAction = copyVerificationNavigationQuery(
+	new URL("/api/provider/settings/documents", Astro.url),
+	Astro.url,
+	documentType === "government_id" ||
+		(Astro.url.searchParams.get("line") === "tour" && documentType === "business_registration")
+		? "identity"
+		: documentType === "tax_document"
+			? "fiscal"
+			: "business"
+)
 ---
 
 <form

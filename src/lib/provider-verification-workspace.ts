@@ -60,6 +60,7 @@ import {
 	buildTourVerificationPlaybook,
 	trustStateFromKycSlotState,
 	resolveVerificationNavigation,
+	resolveVerificationTab,
 	resolveVerificationExperience,
 	summarizeVerificationPlaybook,
 	verificationNavigationHref,
@@ -189,12 +190,7 @@ export function visibleVerificationTrustLinks(
 }
 
 export function resolveVerificationTrustPanelFromUrl(url: URL): VerificationTrustPanelId {
-	const path = normalizePath(url.pathname)
-	if (path.endsWith("/verification/payments")) return "payments"
-	if (path.endsWith("/verification/fiscal")) return "fiscal"
-	if (url.searchParams.get("type")) return "business"
-	if (url.hash === "#kyc-slots" || url.hash.startsWith("#kyc-slot-")) return "business"
-	return "identity"
+	return resolveVerificationTab(url, null, false) as VerificationTrustPanelId
 }
 
 export async function loadProviderVerificationWorkspace(params: {
@@ -214,9 +210,46 @@ export async function loadProviderVerificationWorkspace(params: {
 	const uploadErrorCode = String(params.url.searchParams.get("error") ?? "").trim()
 	const error = uploadErrorCode
 
-	const loadedResolution =
-		params.verificationResolution ?? (await loadProviderVerificationResolution(params.providerId))
-	const holder = await readProviderHolderProfile(params.providerId)
+	// Independent reads must not add a network round trip per prerequisite.
+	const resolutionPromise = Promise.resolve(
+		params.verificationResolution ?? loadProviderVerificationResolution(params.providerId)
+	)
+	const [
+		loadedResolution,
+		holder,
+		openAssignments,
+		tourProducts,
+		commercialLineState,
+		tourResources,
+	] = await Promise.all([
+		resolutionPromise,
+		readProviderHolderProfile(params.providerId),
+		listOpenComplianceAssignments({ providerId: params.providerId }).catch(() => []),
+		db
+			.select({ id: Product.id, name: Product.name, publicationState: Product.publicationState })
+			.from(Product)
+			.where(and(eq(Product.providerId, params.providerId), eq(Product.productType, "tour")))
+			.orderBy(asc(Product.creationDate))
+			.catch(() => []),
+		readProviderCommercialLineState(params.providerId),
+		resolutionPromise.then((resolution) =>
+			resolution.lines.includes("tour")
+				? db
+						.select({
+							id: TourOperationalResource.id,
+							name: TourOperationalResource.name,
+							type: TourOperationalResource.type,
+						})
+						.from(TourOperationalResource)
+						.where(
+							and(
+								eq(TourOperationalResource.providerId, params.providerId),
+								eq(TourOperationalResource.status, "active")
+							)
+						)
+				: []
+		),
+	])
 	const holderType =
 		holder?.holderType === "persona_natural" || holder?.holderType === "entidad"
 			? holder.holderType
@@ -231,44 +264,20 @@ export async function loadProviderVerificationWorkspace(params: {
 			? new Set<string>(packDocumentTypes(loadedResolution.resolution))
 			: null
 
-	const [trustSnapshot, openAssignments, tourProducts, commercialLineState] = await Promise.all([
-		buildProviderVerificationTrustSnapshot({
-			providerId: params.providerId,
-			kycDocumentTypes,
-		}).catch(() => null),
-		listOpenComplianceAssignments({ providerId: params.providerId }).catch(() => []),
-		db
-			.select({
-				id: Product.id,
-				name: Product.name,
-				publicationState: Product.publicationState,
-			})
-			.from(Product)
-			.where(and(eq(Product.providerId, params.providerId), eq(Product.productType, "tour")))
-			.orderBy(asc(Product.creationDate))
-			.catch(() => []),
-		readProviderCommercialLineState(params.providerId),
-	])
-	const tourResources = loadedResolution.lines.includes("tour")
-		? await db
-				.select({
-					id: TourOperationalResource.id,
-					name: TourOperationalResource.name,
-					type: TourOperationalResource.type,
-				})
-				.from(TourOperationalResource)
-				.where(
-					and(
-						eq(TourOperationalResource.providerId, params.providerId),
-						eq(TourOperationalResource.status, "active")
-					)
-				)
-		: []
 	const requestedExperience = params.url.searchParams.get("experience")
 	const selectedExperienceId = resolveVerificationExperience(
 		requestedExperience,
 		tourProducts.map((product) => product.id)
 	)
+	const [trustSnapshot, tourContext] = await Promise.all([
+		buildProviderVerificationTrustSnapshot({
+			providerId: params.providerId,
+			kycDocumentTypes,
+		}).catch(() => null),
+		selectedExperienceId
+			? readTourComplianceContext(selectedExperienceId, params.providerId)
+			: null,
+	])
 	const displayedTours = tourProducts.filter((product) => product.id === selectedExperienceId)
 	const requestedLine = params.url.searchParams.get("line")
 	const selectedLine = loadedResolution.lines.includes(requestedLine as "lodging" | "tour")
@@ -280,9 +289,6 @@ export async function loadProviderVerificationWorkspace(params: {
 	)
 	const commercialLine =
 		commercialLineState.lines.find((entry) => entry.line === selectedLine) ?? null
-	const tourContext = selectedExperienceId
-		? await readTourComplianceContext(selectedExperienceId, params.providerId)
-		: null
 	const appliesToSelectedTour = (requirement: {
 		layer: string
 		scopes: { productIds: string[] }

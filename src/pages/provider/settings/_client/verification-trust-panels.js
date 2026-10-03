@@ -1,3 +1,5 @@
+import { sameLocalTabContext, rememberTabInDestination } from "@/lib/ui/local-tab-navigation"
+
 const VERIFICATION_WORKSPACE_PATHS = new Set([
 	"/provider/settings/verification",
 	"/provider/settings/verification/fiscal",
@@ -21,22 +23,32 @@ function isVerificationWorkspacePath(pathname) {
 	return VERIFICATION_WORKSPACE_PATHS.has(normalizePath(pathname))
 }
 
-function resolveVerificationTrustPanelFromUrl(url) {
-	const businessTab = url.searchParams.get("tab")
-	if (["identity", "business", "activity", "safety", "fiscal", "payments"].includes(businessTab))
-		return businessTab
-	const pathname = normalizePath(url.pathname || window.location.pathname)
-	if (pathname.endsWith("/verification/payments")) return "payments"
-	if (pathname.endsWith("/verification/fiscal")) return "fiscal"
-	if (!pathname.includes("/provider/settings/verification")) return "identity"
-	if (url.searchParams.get("type") === "government_id") return "identity"
-	if (url.searchParams.get("type")) return "business"
-	if (url.hash === "#kyc-slots" || url.hash.startsWith("#kyc-slot-")) return "business"
-	return "identity"
+/** Translate only known old anchors. Query selection always remains authoritative. */
+function canonicalLegacyVerificationUrl(url) {
+	if (
+		!isVerificationWorkspacePath(url.pathname) ||
+		url.searchParams.has("tab") ||
+		url.searchParams.has("type")
+	)
+		return null
+	const target = new URL(url.href)
+	const slot = /^#kyc-slot-(government_id|business_registration|tax_document)$/.exec(url.hash)
+	if (slot) target.searchParams.set("type", slot[1])
+	else if (url.hash === "#verification-status-panel") target.searchParams.set("tab", "identity")
+	else if (url.hash === "#kyc-slots") {
+		target.searchParams.set("tab", "business")
+	} else return null
+	return target
 }
 
 function resolveVerificationTrustPanel() {
-	return resolveVerificationTrustPanelFromUrl(new URL(window.location.href))
+	// Tabs are server-rendered. URL aliases must never activate an unrendered
+	// or inapplicable panel after hydration or a history navigation.
+	return (
+		document
+			.querySelector("[data-verification-workspace]")
+			?.getAttribute("data-verification-active-tab") || "identity"
+	)
 }
 
 function prefersReducedMotion() {
@@ -109,15 +121,100 @@ function syncVerificationTabNav(activeId) {
 	})
 }
 
+function verificationPanel(tab) {
+	if (!tab || !/^[a-z_]+$/.test(tab)) return null
+	return document.querySelector(`[data-verification-trust-panel="${tab}"]`)
+}
+
+/** Same page and same experience: only the visible section changes. */
+function sameVerificationWorkspace(current, next) {
+	return sameLocalTabContext(current, next, ["tab", "tourTab", "lodgingTab", "result", "error"])
+}
+
+function selectVerificationTab(tab) {
+	const workspace = document.querySelector("[data-verification-workspace]")
+	if (!workspace || !verificationPanel(tab)) return false
+	const permitted = (workspace.getAttribute("data-verification-rendered-tabs") || "").split(" ")
+	if (!permitted.includes(tab)) return false
+	workspace.setAttribute("data-verification-active-tab", tab)
+	return true
+}
+
+function syncVerificationExperienceContext(activeId) {
+	const scoped = activeId === "activity" || activeId === "safety"
+	document
+		.querySelectorAll("[data-verification-experience-context], [data-verification-evidence-return]")
+		.forEach((el) => {
+			el.toggleAttribute("hidden", !scoped)
+		})
+	const experienceCopy =
+		activeId === "safety"
+			? {
+					prompt: "Elige el tour para revisar sus respaldos de seguridad.",
+					action: "Revisar seguridad y permisos",
+				}
+			: {
+					prompt: "Elige el tour para revisar sus datos de operación y licencias.",
+					action: "Revisar actividad y licencias",
+				}
+	if (scoped) {
+		document.querySelectorAll("[data-verification-experience-prompt]").forEach((el) => {
+			el.textContent = experienceCopy.prompt
+		})
+		document.querySelectorAll("[data-verification-experience-action]").forEach((el) => {
+			el.textContent = experienceCopy.action
+		})
+	}
+	const line = new URL(window.location.href).searchParams.get("line")
+	document.querySelectorAll("[data-verification-experience-context] a[href]").forEach((link) => {
+		const href = link.getAttribute("href")
+		if (!href || href.startsWith("#")) return
+		const next = new URL(href, window.location.href)
+		if (next.origin !== window.location.origin) return
+		next.searchParams.set("tab", activeId)
+		if (line === "tour" || line === "lodging") next.searchParams.set(`${line}Tab`, activeId)
+		link.setAttribute("href", next.pathname + next.search + next.hash)
+	})
+	document
+		.querySelectorAll(
+			"[data-verification-experience-selector] input[name='tab'], [data-verification-experience-selector] input[name='tourTab']"
+		)
+		.forEach((input) => {
+			input.value = activeId
+		})
+}
+
+function syncVerificationNavigationContext() {
+	const current = new URL(window.location.href)
+	const workspace = document.querySelector("[data-verification-workspace]")
+	workspace?.querySelectorAll("a[href], form[action]").forEach((element) => {
+		const attribute = element.tagName === "FORM" ? "action" : "href"
+		const value = element.getAttribute(attribute)
+		if (!value || value.startsWith("#")) return
+		const target = new URL(value, current)
+		if (target.origin !== current.origin || !target.searchParams.has("line")) return
+		rememberTabInDestination(target, current)
+		element.setAttribute(attribute, target.pathname + target.search + target.hash)
+	})
+}
+
 function syncVerificationTrustPanels() {
+	const legacy = canonicalLegacyVerificationUrl(new URL(window.location.href))
+	if (legacy) {
+		window.location.assign(legacy.pathname + legacy.search + legacy.hash)
+		return
+	}
 	const activeId = resolveVerificationTrustPanel()
 	syncVerificationPageDescription(activeId)
 	syncVerificationTabNav(activeId)
+	syncVerificationExperienceContext(activeId)
+	syncVerificationNavigationContext()
 	const hubActive = activeId === "identity" || activeId === "business"
 	document.querySelectorAll("[data-verification-trust-panel]").forEach((panel) => {
 		const isActive = panel.getAttribute("data-verification-trust-panel") === activeId
 		panel.removeAttribute("hidden")
 		panel.setAttribute("data-active", isActive ? "true" : "false")
+		panel.setAttribute("aria-hidden", isActive ? "false" : "true")
 		if (isActive) {
 			panel.removeAttribute("inert")
 		} else {
@@ -137,7 +234,7 @@ function syncVerificationTrustPanels() {
 function activateVerificationTrustUrl(url, options = {}) {
 	const { preserveScroll = true, scrollToPanel = false } = options
 	const run = () => {
-		window.history.pushState({}, "", url.pathname + url.search + url.hash)
+		window.history.pushState(window.history.state, "", url.pathname + url.search + url.hash)
 		syncVerificationTrustPanels()
 		window.dispatchEvent(new Event("provider-verification-trust-sync"))
 		if (scrollToPanel && url.hash) {
@@ -165,43 +262,28 @@ function handleVerificationTrustClick(event) {
 	if (target.getAttribute("target") === "_blank") return
 	const href = target.getAttribute("href")
 	if (!href) return
-	const url = new URL(href, window.location.href)
+	const sourceUrl = new URL(href, window.location.href)
+	const url = canonicalLegacyVerificationUrl(sourceUrl) ?? sourceUrl
 	if (url.origin !== window.location.origin) return
 	const currentUrl = new URL(window.location.href)
 	if (currentUrl.searchParams.has("line")) {
-		const businessNav = target.closest("[data-verification-business-nav]")
-		if (businessNav) {
-			if (target.closest("[data-verification-tab-link]")) {
-				event.preventDefault()
-				activateVerificationTrustUrl(url, {
-					preserveScroll: true,
-					scrollToPanel: Boolean(url.hash),
-				})
-				return
-			}
-			if (target.closest("[data-verification-line-link]")) return
+		const tabId = target.getAttribute("data-verification-tab-link")
+		if (
+			tabId &&
+			!document.querySelector("[data-verification-workspace][data-loading]") &&
+			sameVerificationWorkspace(currentUrl, url) &&
+			selectVerificationTab(tabId)
+		) {
+			// The sections are already rendered. Switching them here avoids reloading the workspace.
+			event.preventDefault()
+			activateVerificationTrustUrl(url, { preserveScroll: true, scrollToPanel: false })
 			return
 		}
-		if (isVerificationWorkspacePath(url.pathname) && !url.searchParams.has("line")) {
-			url.searchParams.set("line", currentUrl.searchParams.get("line"))
-			const experience = currentUrl.searchParams.get("experience")
-			if (experience) url.searchParams.set("experience", experience)
-			const tab = url.pathname.endsWith("/fiscal")
-				? "fiscal"
-				: url.pathname.endsWith("/payments")
-					? "payments"
-					: url.searchParams.get("type") === "government_id"
-						? "identity"
-						: url.searchParams.get("type")
-							? currentUrl.searchParams.get("line") === "tour"
-								? "activity"
-								: "business"
-							: "identity"
-			url.searchParams.set("tab", tab)
-		}
+		// A different line or experience still needs the server-rendered workspace.
+		if (target.closest("[data-verification-business-nav]")) return
 		if (isVerificationWorkspacePath(url.pathname)) {
 			event.preventDefault()
-			if (normalizePath(url.pathname) === normalizePath(currentUrl.pathname)) {
+			if (url.pathname === currentUrl.pathname && url.search === currentUrl.search) {
 				activateVerificationTrustUrl(url, {
 					preserveScroll: true,
 					scrollToPanel: Boolean(url.hash),
@@ -213,6 +295,9 @@ function handleVerificationTrustClick(event) {
 		return
 	}
 	if (!isVerificationWorkspacePath(url.pathname)) return
+	// Older entries also need SSR when the path or query changes. Only anchors
+	// within the already loaded workspace may switch locally.
+	if (url.pathname !== currentUrl.pathname || url.search !== currentUrl.search) return
 	const trustRail = target.closest("[data-trust-link]")
 	event.preventDefault()
 	const next = url.pathname + url.search + url.hash
@@ -236,6 +321,35 @@ window.__fasttVerificationTrustSync = syncVerificationTrustPanels
 
 if (!window.__fasttVerificationTrustBound) {
 	window.__fasttVerificationTrustBound = true
+	document.addEventListener("astro:before-preparation", (event) => {
+		const workspace = document.querySelector("[data-verification-workspace]")
+		const loading = workspace?.querySelector("[data-verification-loading]")
+		if (!loading || !isVerificationWorkspacePath(event.to.pathname)) return
+		workspace.setAttribute("data-loading", "")
+		loading.hidden = false
+		const slow = workspace.querySelector("[data-verification-loading-slow]")
+		const timer = window.setTimeout(() => {
+			if (slow) slow.hidden = false
+		}, 12000)
+		const reset = () => {
+			window.clearTimeout(timer)
+			workspace.removeAttribute("data-loading")
+			loading.hidden = true
+			if (slow) slow.hidden = true
+		}
+		event.signal.addEventListener("abort", reset, { once: true })
+		const load = event.loader
+		event.loader = async () => {
+			try {
+				await load()
+			} catch (error) {
+				reset()
+				throw error
+			} finally {
+				window.clearTimeout(timer)
+			}
+		}
+	})
 	document.addEventListener("click", handleVerificationTrustClick, true)
 	document.addEventListener("astro:page-load", () => {
 		if (window.__fasttVerificationTrustSync) window.__fasttVerificationTrustSync()
@@ -247,12 +361,30 @@ if (!window.__fasttVerificationTrustBound) {
 			})
 		}
 	})
-	window.addEventListener("popstate", () => {
-		preserveVerificationScrollPosition(() => {
-			if (window.__fasttVerificationTrustSync) window.__fasttVerificationTrustSync()
-		})
-		window.dispatchEvent(new Event("provider-verification-trust-sync"))
-	})
+	document.addEventListener(
+		"fastt:before-history-navigation",
+		(event) => {
+			const current = new URL(window.location.href)
+			const workspace = document.querySelector("[data-verification-workspace]")
+			const initial = workspace?.getAttribute("data-verification-initial-url")
+			const tab = current.searchParams.get("tab") || "identity"
+			if (
+				!initial ||
+				!sameVerificationWorkspace(new URL(initial, current), current) ||
+				!selectVerificationTab(tab)
+			) {
+				return
+			}
+			// Handle this local entry before Astro's router reloads the same workspace.
+			// A different object still goes through the server branch above.
+			event.preventDefault()
+			preserveVerificationScrollPosition(() => {
+				if (window.__fasttVerificationTrustSync) window.__fasttVerificationTrustSync()
+			})
+			window.dispatchEvent(new Event("provider-verification-trust-sync"))
+		},
+		true
+	)
 }
 
 syncVerificationTrustPanels()

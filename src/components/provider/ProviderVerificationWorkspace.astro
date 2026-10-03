@@ -1,4 +1,5 @@
 ---
+import FormSkeleton from "@/components/ui/FormSkeleton.astro"
 import ProviderDocumentsAccessDenied from "@/components/provider/ProviderDocumentsAccessDenied.astro"
 import ProviderIdentityVendorCard from "@/components/provider/ProviderIdentityVendorCard.astro"
 import ProviderKycSlotsCard from "@/components/provider/ProviderKycSlotsCard.astro"
@@ -18,13 +19,21 @@ import { resolveProviderRejectCategory } from "@/lib/provider-reject-categories"
 import type { ProviderVerificationWorkspaceModel } from "@/lib/provider-verification-workspace"
 import { isProviderTrustMapComplete } from "@/lib/provider-trust-map"
 import { routes } from "@/lib/routes"
-import { verificationNavigationHref, type VerificationTab } from "@/lib/verification/navigation"
+import {
+	verificationNavigationHref,
+	tourEvidenceReturnHref,
+	type VerificationTab,
+} from "@/lib/verification/navigation"
 
 type Props = {
 	model: ProviderVerificationWorkspaceModel
 }
 
 const { model } = Astro.props as Props
+const evidenceReturnHref = tourEvidenceReturnHref(
+	Astro.url,
+	model.navigation ? { ...model.navigation, tab: "activity" } : null
+)
 const {
 	activeSectionId,
 	navigation,
@@ -120,8 +129,7 @@ function panelLabel(id: "identity" | "business" | "fiscal" | "payments") {
 }
 
 const hubActive = activeSectionId === "identity" || activeSectionId === "business"
-const hideIdentityAccountStatus =
-	activeSectionId === "identity" && Boolean(selectedLine || identitySlots.length)
+const hideIdentityAccountStatus = Boolean(selectedLine || identitySlots.length)
 const accountVerificationStatus = String(latestVerification?.status ?? "pending")
 const accountRejected = accountVerificationStatus === "rejected"
 const accountRejectCategory = accountRejected
@@ -236,7 +244,13 @@ const paymentErrorMessages: Record<
 }
 ---
 
-<div class="space-y-6 md:space-y-8" data-verification-workspace>
+<div
+	class="space-y-6 md:space-y-8"
+	data-verification-workspace
+	data-verification-active-tab={activeSectionId}
+	data-verification-rendered-tabs={navigation?.tabs.join(" ")}
+	data-verification-initial-url={Astro.url.pathname + Astro.url.search}
+>
 	{
 		hubActive && documentResult && documentResultMessages[documentResult] ? (
 			<div data-verification-hub-chrome>
@@ -294,15 +308,6 @@ const paymentErrorMessages: Record<
 					playbook={tourPlaybook}
 					trustLinks={trustLinks}
 				/>
-				{commercialLine && selectedLine === "lodging" && activeSectionId === "payments" ? (
-					<ProviderLodgingCollectionModel
-						collectionModel={commercialLine.collectionModel}
-						canEdit={canEditTourContext}
-						returnTo={`${Astro.url.pathname}${Astro.url.search}`}
-						result={result}
-						error={error}
-					/>
-				) : null}
 			</div>
 		) : (
 			<div data-verification-trust-nav>
@@ -319,6 +324,13 @@ const paymentErrorMessages: Record<
 		)
 	}
 
+	<div data-verification-loading hidden>
+		<FormSkeleton label="Cargando los datos de verificación…" />
+		<p data-verification-loading-slow hidden class="mt-3 text-sm text-slate-400" role="status">
+			La consulta está tardando. Puedes elegir otra pestaña para continuar.
+		</p>
+	</div>
+
 	<div class="verification-trust-panels-stage" data-verification-trust-panels-stage>
 		<section
 			class="space-y-6 md:space-y-8"
@@ -330,7 +342,7 @@ const paymentErrorMessages: Record<
 		>
 			<h2 id="verification-panel-identity-title" class="sr-only">{panelLabel("identity")}</h2>
 			{
-				holderDeclarationInReview && activeSectionId === "identity" ? (
+				holderDeclarationInReview ? (
 					<Notice
 						variant="info"
 						title="Fastt está revisando el cambio de titular"
@@ -347,8 +359,7 @@ const paymentErrorMessages: Record<
 			{
 				selectedLine === "tour" &&
 				latestVerification?.status === "pending" &&
-				!holderDeclarationInReview &&
-				activeSectionId === "identity" ? (
+				!holderDeclarationInReview ? (
 					<Notice
 						variant="info"
 						title="La revisión de la cuenta sigue en curso"
@@ -396,7 +407,7 @@ const paymentErrorMessages: Record<
 				)
 			}
 			{
-				identitySlots.length && (!navigation?.line || activeSectionId === "identity") ? (
+				identitySlots.length ? (
 					<ProviderKycSlotsCard
 						slots={identitySlots}
 						canManageDocuments={canManageDocuments}
@@ -414,7 +425,7 @@ const paymentErrorMessages: Record<
 				) : null
 			}
 			{
-				selectedLine === "tour" && businessSlots.length && activeSectionId === "identity" ? (
+				selectedLine === "tour" && businessSlots.length ? (
 					<ProviderKycSlotsCard
 						slots={businessSlots}
 						canManageDocuments={canManageDocuments}
@@ -428,7 +439,7 @@ const paymentErrorMessages: Record<
 				) : null
 			}
 			{
-				historicalBusinessRegistrationDocuments.length && activeSectionId === "identity" ? (
+				historicalBusinessRegistrationDocuments.length ? (
 					<Notice variant="info" title="Registro mercantil en historial">
 						<p class="text-sm leading-6">
 							Como persona natural ya no pedimos registro mercantil. Los archivos anteriores se
@@ -463,9 +474,7 @@ const paymentErrorMessages: Record<
 				) : null
 			}
 			{
-				selectedLine === "tour" ||
-				(navigation?.line && activeSectionId !== "business") ? null : screen &&
-				  businessSlots.length === 0 ? (
+				selectedLine === "tour" ? null : screen && businessSlots.length === 0 ? (
 					<Notice variant="info" title="No se requiere registro de entidad">
 						El titular de esta cuenta no tiene un documento societario pendiente en esta línea.
 					</Notice>
@@ -535,9 +544,6 @@ const paymentErrorMessages: Record<
 					{navigation?.experienceId && (
 						<ProviderTourOperatingContext
 							productId={navigation.experienceId}
-							productName={
-								tourProducts.find((product) => product.id === navigation.experienceId)?.name
-							}
 							context={tourContext ?? null}
 							canEdit={canEditTourContext}
 							result={result}
@@ -660,6 +666,22 @@ const paymentErrorMessages: Record<
 			) : null
 		}
 
+		{
+			evidenceReturnHref && (
+				<div
+					data-verification-evidence-return
+					hidden={!["activity", "safety"].includes(activeSectionId)}
+				>
+					<a
+						href={evidenceReturnHref}
+						class="inline-flex text-sm text-slate-300 underline underline-offset-4 hover:text-white"
+					>
+						Volver a la tarifa
+					</a>
+				</div>
+			)
+		}
+
 		<section
 			class="space-y-6 md:space-y-8"
 			data-verification-trust-panel="fiscal"
@@ -714,6 +736,17 @@ const paymentErrorMessages: Record<
 			aria-labelledby="verification-panel-payments-title"
 		>
 			<h2 id="verification-panel-payments-title" class="sr-only">{panelLabel("payments")}</h2>
+			{
+				commercialLine && selectedLine === "lodging" ? (
+					<ProviderLodgingCollectionModel
+						collectionModel={commercialLine.collectionModel}
+						canEdit={canEditTourContext}
+						returnTo={`${Astro.url.pathname}${Astro.url.search}`}
+						result={result}
+						error={error}
+					/>
+				) : null
+			}
 			{
 				screen && !screen.paymentsCountsForSelling ? (
 					<Notice variant="info" title="Pagos no cuenta para vender">
@@ -819,6 +852,10 @@ const paymentErrorMessages: Record<
 	}
 </div>
 <style is:global>
+	[data-verification-workspace][data-loading] .verification-trust-panels-stage,
+	[data-verification-workspace][data-loading] [data-verification-experience-context] {
+		display: none;
+	}
 	.verification-trust-panels-stage {
 		position: relative;
 		isolation: isolate;
@@ -826,9 +863,9 @@ const paymentErrorMessages: Record<
 
 	[data-verification-trust-panel] {
 		transition:
-			opacity 0.42s cubic-bezier(0.4, 0, 0.2, 1),
-			transform 0.42s cubic-bezier(0.4, 0, 0.2, 1),
-			visibility 0.42s;
+			opacity 0.18s cubic-bezier(0.4, 0, 0.2, 1),
+			transform 0.18s cubic-bezier(0.4, 0, 0.2, 1),
+			visibility 0.18s;
 	}
 
 	[data-verification-trust-panel][data-active="false"] {
