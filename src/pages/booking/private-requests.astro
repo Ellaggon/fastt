@@ -1,0 +1,267 @@
+---
+import BookingSections from "@/components/booking/BookingSections.astro"
+import PrivateRequestDetail from "@/components/booking/PrivateRequestDetail.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Select from "@/components/ui/Select.astro"
+import { productRepository } from "@/container"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { loadProviderOperationalDay } from "@/lib/booking/providerOperationalDay"
+import { isTourProductType } from "@/lib/catalog/productVerticalRegistry"
+import {
+	findTourPrivateRequest,
+	listTourPrivateRequests,
+	privateRequestStatuses,
+	type PrivateRequestStatus,
+} from "@/modules/catalog/public"
+import { and, asc, db, eq, Product, sql } from "@/shared/infrastructure/db/compat"
+const context = await Astro.locals.getWorkspaceContext()
+if (!context.user) return Astro.redirect("/SignInPage")
+if (!context.provider) return Astro.redirect("/provider/settings")
+const providerId = context.provider.providerId
+const productId = Astro.url.searchParams.get("productId")?.trim() || undefined
+const requestId = Astro.url.searchParams.get("requestId")?.trim() || undefined
+const status = Astro.url.searchParams.get("status") ?? "pending"
+const page = Number(Astro.url.searchParams.get("page") ?? 1)
+if (
+	(status !== "all" && !privateRequestStatuses.includes(status as PrivateRequestStatus)) ||
+	!Number.isSafeInteger(page) ||
+	page < 1
+)
+	return new Response("Filtros inválidos", { status: 400 })
+if (productId) {
+	const product = await productRepository.ensureProductOwnedByProvider(productId, providerId)
+	if (!product || !isTourProductType(product.productType))
+		return new Response("Experiencia no disponible", { status: 404 })
+}
+const rawReturn = Astro.url.searchParams.get("returnTo")
+let returnTo: string | undefined
+if (rawReturn?.startsWith("/") && !rawReturn.startsWith("//")) {
+	const target = new URL(rawReturn, Astro.url.origin)
+	const match = target.pathname.match(/^\/product\/([^/]+)(?:\/departures)?\/?$/)
+	if (target.origin === Astro.url.origin && match && (!productId || match[1] === productId)) {
+		const owned = await productRepository.ensureProductOwnedByProvider(match[1], providerId)
+		if (owned && isTourProductType(owned.productType)) returnTo = target.pathname + target.search
+	}
+}
+let day = { timezone: "UTC", date: "" }
+let failed = false
+let result: Awaited<ReturnType<typeof listTourPrivateRequests>> | undefined
+let selected: Awaited<ReturnType<typeof findTourPrivateRequest>> = null
+let products: { id: string; name: string }[] = []
+try {
+	;[result, selected, products, day] = await Promise.all([
+		listTourPrivateRequests(providerId, {
+			productId,
+			status: status as PrivateRequestStatus | "all",
+			page,
+			pageSize: 20,
+		}),
+		requestId ? findTourPrivateRequest(providerId, requestId) : Promise.resolve(null),
+		db
+			.select({ id: Product.id, name: Product.name })
+			.from(Product)
+			.where(and(eq(Product.providerId, providerId), sql`lower(${Product.productType}) = 'tour'`))
+			.orderBy(asc(Product.name)),
+		loadProviderOperationalDay(providerId),
+	])
+} catch {
+	failed = true
+}
+if (!failed && requestId && (!selected || (productId && selected.request.productId !== productId)))
+	return new Response("Solicitud no disponible", { status: 404 })
+const labels: Record<string, string> = {
+	pending: "Pendientes",
+	accepted: "Aceptadas",
+	declined: "Rechazadas",
+	expired: "Vencidas",
+	cancelled: "Canceladas",
+	all: "Todas",
+}
+function href(changes: Record<string, string | null>) {
+	const url = new URL(Astro.url)
+	url.searchParams.set("scope", "tour")
+	if (!returnTo) url.searchParams.delete("returnTo")
+	for (const [key, value] of Object.entries(changes))
+		value === null ? url.searchParams.delete(key) : url.searchParams.set(key, value)
+	return url.pathname + url.search
+}
+const dayLabel = (date: string) =>
+	new Intl.DateTimeFormat("es-BO", { dateStyle: "medium", timeZone: "UTC" }).format(
+		new Date(`${date}T12:00:00Z`)
+	)
+---
+
+<WorkspaceLayout title="Solicitudes privadas" productType="Tour">
+	<section class="space-y-5">
+		<header>
+			<h1 class="text-2xl font-semibold text-white sm:text-3xl">Solicitudes privadas</h1><p
+				class="mt-2 text-sm text-slate-400"
+			>
+				Revisa las solicitudes de tus tours.
+			</p>
+		</header>
+		<BookingSections
+			active="requests"
+			scope="tour"
+			productId={productId}
+			pendingCount={result?.pendingCount}
+		/>
+		{
+			returnTo ? (
+				<a href={returnTo} class="inline-block text-sm text-slate-300 underline">
+					Volver al tour
+				</a>
+			) : null
+		}
+		<Card class="flex flex-wrap items-end gap-3 p-4">
+			<form method="get" class="flex w-full flex-wrap items-end gap-3">
+				<input type="hidden" name="scope" value="tour" />{
+					returnTo ? <input type="hidden" name="returnTo" value={returnTo} /> : null
+				}
+				<label for="request-status" class="grid min-w-[10rem] gap-1 text-sm font-medium">
+					Estado
+					<Select id="request-status" name="status" value={status}>
+						{Object.entries(labels).map(([value, label]) => <option value={value}>{label}</option>)}
+					</Select>
+				</label>
+				{
+					products.length > 1 || productId ? (
+						<label
+							for="request-product"
+							class="grid min-w-[12rem] flex-1 gap-1 text-sm font-medium"
+						>
+							Tour
+							<Select id="request-product" name="productId" value={productId ?? ""}>
+								<option value="">Todos mis tours</option>
+								{products.map((p) => (
+									<option value={p.id}>{p.name}</option>
+								))}
+							</Select>
+						</label>
+					) : null
+				}
+				<Button type="submit" variant="primary"> Aplicar filtros </Button>
+			</form>
+		</Card>
+		{
+			failed ? (
+				<div class="rounded-xl bg-white p-6 text-slate-900">
+					<>
+						<p>No pudimos cargar las solicitudes.</p>
+						<a href={href({})} class="mt-3 inline-block underline">
+							Reintentar
+						</a>
+					</>
+				</div>
+			) : (
+				<>
+					{selected ? (
+						<div id="selected-request" class="space-y-3" tabindex="-1">
+							{Astro.url.searchParams.get("result") === selected.request.status ? (
+								<p role="status" class="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">
+									Decisión guardada:{" "}
+									{labels[selected.request.status]?.replace(/s$/, "") ?? selected.request.status}.
+								</p>
+							) : null}
+							<a
+								href={href({ requestId: null, result: null })}
+								class="text-sm text-slate-300 underline"
+							>
+								Cerrar detalle
+							</a>
+							<PrivateRequestDetail item={selected} timezone={day.timezone} />
+						</div>
+					) : null}
+					<div class="space-y-3">
+						<p class="text-sm text-slate-400">{result?.total ?? 0} solicitudes en esta vista</p>
+						{result?.items.length ? (
+							result.items.map((item) => {
+								const r = item.request
+								const party = r.partyJson as {
+									adults?: number
+									children?: number
+									infants?: number
+								}
+								return (
+									<article class="flex flex-col gap-3 rounded-xl bg-white p-4 text-slate-900 sm:flex-row sm:items-center sm:justify-between">
+										<div class="min-w-0">
+											<h2 class="font-semibold">{item.productName}</h2>
+											<p class="text-sm text-slate-600">
+												{item.variantName ?? "Opción solicitada"} · {dayLabel(r.departureDate)}
+											</p>
+											<p class="mt-1 text-sm">
+												{r.contactName} ·{" "}
+												{Number(party.adults ?? 0) +
+													Number(party.children ?? 0) +
+													Number(party.infants ?? 0)}{" "}
+												participantes
+											</p>
+											<p class="mt-1 text-xs font-semibold">
+												{labels[r.status]?.replace(/s$/, "") ?? r.status}
+												{r.status === "pending" &&
+												r.slaDueAt &&
+												new Date(r.slaDueAt).getTime() < Date.now()
+													? " · Plazo de respuesta superado"
+													: ""}
+											</p>
+											{r.status === "pending" && r.slaDueAt ? (
+												<p class="mt-1 text-xs text-slate-600">
+													Responder antes de{" "}
+													{new Intl.DateTimeFormat("es-BO", {
+														dateStyle: "medium",
+														timeStyle: "short",
+														timeZone: day.timezone,
+													}).format(new Date(r.slaDueAt))}{" "}
+													· {day.timezone}
+												</p>
+											) : null}
+										</div>
+										<a
+											class="inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg border border-slate-300 px-4 text-sm font-semibold"
+											href={href({ requestId: r.id, result: null }) + "#selected-request"}
+										>
+											Revisar solicitud
+										</a>
+									</article>
+								)
+							})
+						) : (
+							<div class="rounded-xl border border-dashed border-slate-600 p-6 text-slate-200">
+								{status === "pending" && !productId
+									? "No tienes solicitudes pendientes."
+									: "No hay solicitudes con estos filtros."}
+							</div>
+						)}
+					</div>
+					{result && result.pageCount > 1 ? (
+						<nav
+							aria-label="Páginas de solicitudes"
+							class="flex flex-wrap items-center gap-4 text-sm text-slate-200"
+						>
+							{result.page > 1 ? (
+								<a
+									class="underline"
+									href={href({ page: String(result.page - 1), requestId: null, result: null })}
+								>
+									Anterior
+								</a>
+							) : null}
+							<span>
+								Página {result.page} de {result.pageCount}
+							</span>
+							{result.page < result.pageCount ? (
+								<a
+									class="underline"
+									href={href({ page: String(result.page + 1), requestId: null, result: null })}
+								>
+									Siguiente
+								</a>
+							) : null}
+						</nav>
+					) : null}
+				</>
+			)
+		}
+	</section>
+</WorkspaceLayout>

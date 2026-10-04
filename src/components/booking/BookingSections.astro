@@ -1,0 +1,48 @@
+---
+interface Props {
+	active: "bookings" | "requests"
+	scope?: string
+	productId?: string
+	variantId?: string
+	vista?: string
+	pendingCount?: number
+}
+const { active, scope = "tour", productId, variantId, vista, pendingCount } = Astro.props
+const bookingsParams = new URLSearchParams({ scope })
+if (productId) bookingsParams.set("productId", productId)
+if (variantId) bookingsParams.set("variantId", variantId)
+if (vista) bookingsParams.set("vista", vista)
+const bookingsHref = `/booking?${bookingsParams.toString()}`
+const requestParams = new URLSearchParams({ scope: "tour", status: "pending" })
+if (productId) requestParams.set("productId", productId)
+const requestHref = `/booking/private-requests?${requestParams.toString()}`
+---
+
+<nav aria-label="Gestión de reservas" class="flex flex-wrap gap-2 border-b border-slate-800 pb-3">
+	<a
+		href={bookingsHref}
+		aria-current={active === "bookings" ? "page" : undefined}
+		class:list={[
+			"rounded-lg px-4 py-2 text-sm font-semibold transition-colors",
+			active === "bookings" ? "bg-white text-slate-950" : "text-slate-300 hover:bg-slate-800",
+		]}>Reservas</a
+	>
+	<a
+		href={requestHref}
+		aria-current={active === "requests" ? "page" : undefined}
+		class:list={[
+			"rounded-lg px-4 py-2 text-sm font-semibold transition-colors",
+			active === "requests" ? "bg-white text-slate-950" : "text-slate-300 hover:bg-slate-800",
+		]}
+		>Solicitudes privadas{
+			pendingCount !== undefined ? (
+				<span
+					class="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-950"
+					aria-label={`${pendingCount} pendientes`}
+				>
+					{pendingCount}
+				</span>
+			) : null
+		}</a
+	>
+</nav>

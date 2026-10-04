@@ -1,4 +1,7 @@
 ---
+import BookingSections from "@/components/booking/BookingSections.astro"
+import { productRepository, variantManagementRepository } from "@/container"
+import { countPendingTourPrivateRequests } from "@/modules/catalog/public"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import DatesModal from "@/components/ui/DatesModal.astro"
@@ -8,30 +11,137 @@ import Select from "@/components/ui/Select.astro"
 import TabsOutsidePanel from "@/components/ui/TabsOutsidePanel.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { routes } from "@/lib/routes"
-import { resolveVerticalVocabulary } from "@/lib/verticalVocabulary"
+import { getVerticalOpsVocabulary } from "@/lib/verticalVocabulary"
+import { loadProviderOperationalDay } from "@/lib/booking/providerOperationalDay"
+import { resolveBookingWorkspaceContext } from "@/lib/booking/bookingWorkspaceContext"
+import { listProviderCommercialLines } from "@/lib/verification/commercial-lines"
 
 const workspaceContext = await Astro.locals.getWorkspaceContext()
 if (!workspaceContext.user) return Astro.redirect("/SignInPage")
 if (!workspaceContext.provider) return Astro.redirect(routes.providerOnboardingStart())
 const sidebarData = await workspaceContext.sidebarDataPromise
-const ops = resolveVerticalVocabulary(sidebarData?.productTypes ?? []).ops
+
+const requestedProductId = Astro.url.searchParams.get("productId")?.trim() || ""
+const requestedVariantId = Astro.url.searchParams.get("variantId")?.trim() || ""
+const requestedVariant = requestedVariantId
+	? await variantManagementRepository.getVariantById(requestedVariantId)
+	: null
+if (requestedVariantId && !requestedVariant)
+	return new Response("La salida seleccionada no está disponible para esta cuenta.", {
+		status: 404,
+	})
+if (requestedProductId && requestedVariant && requestedVariant.productId !== requestedProductId)
+	return new Response("La salida no pertenece a la experiencia seleccionada.", { status: 404 })
+const productId = requestedProductId || requestedVariant?.productId || ""
+const productContext = productId
+	? await productRepository.ensureProductOwnedByProvider(
+			productId,
+			workspaceContext.provider.providerId
+		)
+	: null
+if (productId && !productContext)
+	return new Response("La experiencia seleccionada no está disponible para esta cuenta.", {
+		status: 404,
+	})
+
+const [commercialLines, operationalDay] = await Promise.all([
+	listProviderCommercialLines(workspaceContext.provider.providerId).catch(() => []),
+	loadProviderOperationalDay(workspaceContext.provider.providerId),
+])
+const requestedScope = Astro.url.searchParams.get("scope") ?? Astro.url.searchParams.get("vertical")
+const workspaceResolution = resolveBookingWorkspaceContext({
+	productTypes: sidebarData?.productTypes ?? [],
+	commercialLines: commercialLines.map((entry) => entry.line),
+	requestedScope,
+	verifiedProductType: productContext?.productType,
+})
+if (!workspaceResolution.valid) {
+	const message =
+		workspaceResolution.reason === "scope_product_mismatch"
+			? "El negocio seleccionado no coincide con esta experiencia."
+			: workspaceResolution.reason === "scope_unavailable"
+				? "Este negocio no forma parte de las líneas habilitadas para esta cuenta."
+				: "El filtro de negocio no es válido."
+	return new Response(
+		`<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Contexto de reservas no válido</title><main style="font-family:system-ui,sans-serif;max-width:38rem;margin:12vh auto;padding:2rem;color:#0f172a"><h1>Revisa el negocio seleccionado</h1><p>${message}</p><a href="/booking?scope=all">Volver a todas las reservas</a></main></html>`,
+		{ status: 400, headers: { "Content-Type": "text/html; charset=utf-8" } }
+	)
+}
+const availableVerticals =
+	"availableVerticals" in workspaceResolution ? workspaceResolution.availableVerticals : []
+const selectedVertical = workspaceResolution.vertical
+const initialVertical = selectedVertical ?? "all"
+const ops = getVerticalOpsVocabulary(selectedVertical ?? "generic")
+const entityLabel =
+	selectedVertical === "tour"
+		? "Experiencia"
+		: selectedVertical === "hotel"
+			? "Alojamiento"
+			: "Oferta"
+const guestLabel = `${ops.guest.charAt(0).toLocaleUpperCase("es-BO")}${ops.guest.slice(1)}`
+const calendarLabel =
+	selectedVertical === "tour"
+		? "Salidas y cupos"
+		: selectedVertical === "hotel"
+			? "Ver calendario"
+			: "Calendario"
+const operationalDate = operationalDay.date
+const productTypeForLayout = productContext?.productType ?? selectedVertical
+
+function contextualHref(path: string, changes: Record<string, string | null> = {}) {
+	const params = new URLSearchParams()
+	if (selectedVertical) params.set("scope", selectedVertical)
+	else if (
+		availableVerticals.length > 1 ||
+		String(requestedScope ?? "")
+			.trim()
+			.toLowerCase() === "all"
+	)
+		params.set("scope", "all")
+	if (productId) params.set("productId", productId)
+	if (requestedVariantId) params.set("variantId", requestedVariantId)
+	for (const [key, value] of Object.entries(changes)) {
+		if (value === null) params.delete(key)
+		else params.set(key, value)
+	}
+	const query = params.toString()
+	return query ? `${path}?${query}` : path
+}
 
 const initialFrom = String(Astro.url.searchParams.get("from") ?? "").trim()
 const initialTo = String(Astro.url.searchParams.get("to") ?? "").trim()
-const initialStatus = String(Astro.url.searchParams.get("status") ?? "all")
+const requestedStatus = String(Astro.url.searchParams.get("status") ?? "all")
 	.trim()
 	.toLowerCase()
-const initialVista = String(Astro.url.searchParams.get("vista") ?? "today")
-	.trim()
-	.toLowerCase()
-const initialVertical = String(
-	Astro.url.searchParams.get("scope") ?? Astro.url.searchParams.get("vertical") ?? "all"
+const initialStatus = ["all", "draft", "confirmed", "cancelled", "expired"].includes(
+	requestedStatus
 )
+	? requestedStatus
+	: "all"
+const requestedVista = String(Astro.url.searchParams.get("vista") ?? "today")
 	.trim()
 	.toLowerCase()
+const initialVista = ["today", "upcoming", "in_house", "departures", "cancelled", "all"].includes(
+	requestedVista
+)
+	? requestedVista
+	: "today"
+const initialSearch = String(Astro.url.searchParams.get("search") ?? "").trim()
+const hasTourRequests = selectedVertical !== "hotel" && availableVerticals.includes("tour")
+let pendingPrivateRequests: number | undefined
+if (hasTourRequests) {
+	try {
+		pendingPrivateRequests = await countPendingTourPrivateRequests(
+			workspaceContext.provider.providerId,
+			productId || undefined
+		)
+	} catch {
+		/* Unknown count stays absent. */
+	}
+}
 ---
 
-<WorkspaceLayout title="Reservas">
+<WorkspaceLayout title="Reservas" productType={productTypeForLayout}>
 	<section class="space-y-8" data-booking-page>
 		<header
 			class="flex flex-col gap-4 border-b border-slate-800 pb-5 lg:flex-row lg:items-end lg:justify-between"
@@ -42,17 +152,61 @@ const initialVertical = String(
 				</p>
 				<h1 class="text-3xl font-semibold tracking-tight text-white">Reservas</h1>
 				<p class="max-w-3xl text-sm leading-6 text-slate-400">
-					{ops.pageIntro}
+					{productContext?.name ? `${entityLabel} · ${productContext.name}. ` : ""}{ops.pageIntro}
 				</p>
 			</div>
 			<div class="flex flex-wrap gap-2">
-				<Button href="/rates/calendar" variant="secondary">Ver calendario</Button>
-				<Button href={routes.bookingDayOf()} variant="secondary">Cola day-of</Button>
-				<Button href="/booking?vertical=tour&vista=today" variant="secondary">Solo Tours</Button>
-				<Button href="/booking?vista=today" variant="primary">Ver hoy</Button>
+				{
+					selectedVertical === "tour" ? (
+						<div class="contents">
+							<Button href={contextualHref(routes.bookingDayOf())} variant="primary">
+								Salidas de hoy
+							</Button>
+							<Button
+								href={contextualHref(routes.calendar(), { focus: "availability" })}
+								variant="secondary"
+							>
+								{calendarLabel}
+							</Button>
+						</div>
+					) : (
+						<Button href={contextualHref(routes.calendar())} variant="secondary">
+							{calendarLabel}
+						</Button>
+					)
+				}
+				{
+					selectedVertical === null && workspaceResolution.availableVerticals.includes("tour") ? (
+						<Button href="/booking?scope=tour&vista=today" variant="secondary">
+							Reservas de tours
+						</Button>
+					) : null
+				}
+				{
+					initialVista !== "today" ? (
+						<Button
+							href={contextualHref(routes.bookingList(), { vista: "today" })}
+							variant="primary"
+						>
+							Ver hoy
+						</Button>
+					) : null
+				}
 			</div>
 		</header>
 
+		{
+			hasTourRequests ? (
+				<BookingSections
+					active="bookings"
+					scope={initialVertical}
+					productId={productId || undefined}
+					variantId={requestedVariantId || undefined}
+					vista={initialVista}
+					pendingCount={pendingPrivateRequests}
+				/>
+			) : null
+		}
 		<div id="bookingMetrics" class="grid grid-cols-2 gap-3 xl:grid-cols-4">
 			{
 				[
@@ -116,6 +270,7 @@ const initialVertical = String(
 						id="bookingSearch"
 						name="search"
 						type="search"
+						value={initialSearch}
 						placeholder={ops.searchPlaceholder || "Buscar huésped o reserva"}
 						className="h-10 rounded-md"
 					/>
@@ -199,8 +354,8 @@ const initialVertical = String(
 		</Card>
 
 		<Section
-			title="Cola de reservas"
-			description="Prioriza la próxima acción de recepción."
+			title="Reservas para gestionar"
+			description="Revisa el estado y la próxima acción de cada reserva."
 			class="space-y-5"
 			titleClass="text-slate-100"
 		>
@@ -218,9 +373,9 @@ const initialVertical = String(
 							class="border-b border-slate-200 bg-slate-50/80 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500"
 						>
 							<tr>
-								<th class="px-4 py-3">Huésped</th>
-								<th class="px-4 py-3">Alojamiento</th>
-								<th class="px-4 py-3">Estancia</th>
+								<th class="px-4 py-3">{guestLabel}</th>
+								<th class="px-4 py-3">{entityLabel}</th>
+								<th class="px-4 py-3">{ops.stayWindow}</th>
 								<th class="px-4 py-3">Estado</th>
 								<th class="px-4 py-3">Pago</th>
 								<th class="px-4 py-3 text-right">Próxima acción</th>
@@ -282,7 +437,23 @@ const initialVertical = String(
 	<script
 		is:inline
 		data-astro-rerun
-		define:vars={{ initialFrom, initialTo, initialStatus, initialVista, initialVertical }}
+		define:vars={{
+			initialFrom,
+			initialTo,
+			initialStatus,
+			initialSearch,
+			initialVista,
+			initialVertical,
+			initialProductId: productId,
+			initialVariantId: requestedVariantId,
+			operationalDate,
+			metricArrivalsToday: ops.metricArrivalsToday,
+			metricArrivalsDetail: ops.metricArrivalsDetail,
+			metricDeparturesToday: ops.metricDeparturesToday,
+			metricDeparturesDetail: ops.metricDeparturesDetail,
+			metricInProgress: ops.metricInProgress,
+			metricInProgressDetail: ops.metricInProgressDetail,
+		}}
 	>
 		;(function () {
 			const bootBookingPage = () => {
@@ -294,7 +465,7 @@ const initialVertical = String(
 				const state = {
 					items: [],
 					activeTab: initialVista || "today",
-					query: "",
+					query: initialSearch,
 					limit: 25,
 					hasMore: false,
 				}
@@ -315,7 +486,18 @@ const initialVertical = String(
 				const loadMoreWrap = document.getElementById("bookingLoadMoreWrap")
 				const loadMoreButton = document.getElementById("bookingLoadMore")
 
-				const todayIso = () => new Date().toISOString().slice(0, 10)
+				const todayIso = () => operationalDate
+				const bookingDetailHref = (bookingId) => {
+					const detail = new URL(
+						`/booking/${encodeURIComponent(String(bookingId || ""))}`,
+						window.location.origin
+					)
+					detail.searchParams.set(
+						"returnTo",
+						`${window.location.pathname}${window.location.search}`
+					)
+					return `${detail.pathname}${detail.search}`
+				}
 				const money = (currency, value) =>
 					`${String(currency || "USD")} ${Number(value || 0).toFixed(2)}`
 				const guestName = (item) => {
@@ -350,8 +532,8 @@ const initialVertical = String(
 					const outDate = parseIsoDate(checkOut)
 					const includeYear =
 						Boolean(inDate && outDate && inDate.getUTCFullYear() !== outDate.getUTCFullYear()) ||
-						Boolean(inDate && inDate.getUTCFullYear() !== new Date().getUTCFullYear()) ||
-						Boolean(outDate && outDate.getUTCFullYear() !== new Date().getUTCFullYear())
+						Boolean(inDate && inDate.getUTCFullYear() !== Number(operationalDate.slice(0, 4))) ||
+						Boolean(outDate && outDate.getUTCFullYear() !== Number(operationalDate.slice(0, 4)))
 					return `${shortDate(checkIn, includeYear)} → ${shortDate(checkOut, includeYear)}`
 				}
 				const paymentLabel = (item) => {
@@ -451,6 +633,21 @@ const initialVertical = String(
 					filterCount.textContent = String(count)
 					filterCount.classList.toggle("hidden", count === 0)
 				}
+				const syncUrl = () => {
+					const url = new URL(window.location.href)
+					url.searchParams.set("vista", state.activeTab)
+					for (const [key, value] of [
+						["from", fromInput?.value],
+						["to", toInput?.value],
+						["status", statusInput?.value === "all" ? "" : statusInput?.value],
+						["search", state.query],
+					]) {
+						const normalized = String(value || "").trim()
+						if (normalized) url.searchParams.set(key, normalized)
+						else url.searchParams.delete(key)
+					}
+					window.history.replaceState({}, "", url.toString())
+				}
 				const tabMatches = (item, tab) => {
 					const today = todayIso()
 					const lifecycle = String(item?.lifecycleState || "")
@@ -510,19 +707,19 @@ const initialVertical = String(
 					).length
 					const values = [
 						[
-							"Llegan hoy",
+							metricArrivalsToday,
 							state.items.filter((item) => item?.checkIn === today).length,
-							"Check-ins esperados",
+							metricArrivalsDetail,
 						],
 						[
-							"Salen hoy",
+							metricDeparturesToday,
 							state.items.filter((item) => item?.checkOut === today).length,
-							"Check-outs pendientes",
+							metricDeparturesDetail,
 						],
 						[
-							"En estancia",
+							metricInProgress,
 							state.items.filter((item) => item?.lifecycleState === "in_house").length,
-							"Huéspedes alojados",
+							metricInProgressDetail,
 						],
 						["Pago pendiente", pendingPayment, "Reservas con saldo"],
 					]
@@ -561,9 +758,10 @@ const initialVertical = String(
 							const when =
 								isTour && item?.departureTime ? `${stay} · ${String(item.departureTime)}` : stay
 							const voucher = voucherLabel(item)
+							const detailHref = bookingDetailHref(item?.bookingId)
 							const action = item?.canCheckIn
 								? `<button type="button" class="fastt-button inline-flex h-8 items-center justify-center rounded-md border border-slate-950 bg-slate-950 px-3 text-xs font-semibold text-white transition hover:bg-slate-800" data-check-in="${String(item.bookingId)}">${nextAction(item)}</button>`
-								: `<a class="fastt-button inline-flex h-8 items-center justify-center rounded-md border border-slate-950 bg-slate-950 px-3 text-xs font-semibold text-white transition hover:bg-slate-800" href="/booking/${encodeURIComponent(String(item?.bookingId || ""))}" data-astro-prefetch>${nextAction(item)}</a>`
+								: `<a class="fastt-button inline-flex h-8 items-center justify-center rounded-md border border-slate-950 bg-slate-950 px-3 text-xs font-semibold text-white transition hover:bg-slate-800" href="${detailHref}" data-astro-prefetch>${nextAction(item)}</a>`
 							return `<tr class="border-b border-slate-100 align-top hover:bg-slate-50">
 							<td class="px-4 py-4">
 								<p class="font-semibold text-slate-950">${guestName(item)}</p>
@@ -584,7 +782,7 @@ const initialVertical = String(
 							<td class="px-4 py-4 text-right">
 								<div class="flex flex-col items-end gap-2">
 									${action}
-									<a class="text-xs font-medium text-slate-500 hover:text-slate-800" href="/booking/${encodeURIComponent(String(item?.bookingId || ""))}">Detalle</a>
+									<a class="text-xs font-medium text-slate-500 hover:text-slate-800" href="${detailHref}">Detalle</a>
 								</div>
 							</td>
 						</tr>`
@@ -596,9 +794,10 @@ const initialVertical = String(
 							const stay = stayLabel(item)
 							const isTour = String(item?.vertical || "").toLowerCase() === "tour"
 							const voucher = voucherLabel(item)
+							const detailHref = bookingDetailHref(item?.bookingId)
 							const action = item?.canCheckIn
 								? `<button type="button" class="fastt-button mt-4 inline-flex h-9 w-full items-center justify-center rounded-md border border-slate-950 bg-slate-950 px-3 text-sm font-semibold text-white transition hover:bg-slate-800" data-check-in="${String(item.bookingId)}">${nextAction(item)}</button>`
-								: `<a class="fastt-button mt-4 inline-flex h-9 w-full items-center justify-center rounded-md border border-slate-950 bg-slate-950 px-3 text-sm font-semibold text-white transition hover:bg-slate-800" href="/booking/${encodeURIComponent(String(item?.bookingId || ""))}" data-astro-prefetch>${nextAction(item)}</a>`
+								: `<a class="fastt-button mt-4 inline-flex h-9 w-full items-center justify-center rounded-md border border-slate-950 bg-slate-950 px-3 text-sm font-semibold text-white transition hover:bg-slate-800" href="${detailHref}" data-astro-prefetch>${nextAction(item)}</a>`
 							return `<article class="fastt-row-card rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-4">
 							<div class="flex items-start justify-between gap-3">
 								<div>
@@ -647,6 +846,8 @@ const initialVertical = String(
 						if (to) qs.set("to", to)
 						if (status && status !== "all") qs.set("status", status)
 						if (initialVertical !== "all") qs.set("scope", initialVertical)
+						if (initialProductId) qs.set("productId", initialProductId)
+						if (initialVariantId) qs.set("variantId", initialVariantId)
 						qs.set("limit", String(state.limit))
 						const response = await fetch(
 							`/api/internal/provider-bookings-summary?${qs.toString()}`,
@@ -657,10 +858,7 @@ const initialVertical = String(
 						if (!response.ok) throw new Error(`provider_bookings_${response.status}`)
 						const payload = await response.json()
 						const received = Array.isArray(payload?.items) ? payload.items : []
-						state.items =
-							initialVertical === "tour"
-								? received.filter((item) => String(item?.vertical || "").toLowerCase() === "tour")
-								: received
+						state.items = received
 						state.hasMore = Boolean(payload?.pagination?.hasMore)
 						render()
 						if (latency)
@@ -692,19 +890,19 @@ const initialVertical = String(
 				document.querySelectorAll("[data-booking-tab]").forEach((button) => {
 					button.addEventListener("click", () => {
 						state.activeTab = button.getAttribute("data-booking-tab") || "today"
-						const url = new URL(window.location.href)
-						url.searchParams.set("vista", state.activeTab)
-						window.history.replaceState({}, "", url.toString())
+						syncUrl()
 						render()
 					})
 				})
 				searchInput?.addEventListener("input", () => {
 					state.query = String(searchInput.value || "")
+					syncUrl()
 					render()
 				})
 				form?.addEventListener("submit", (event) => {
 					event.preventDefault()
 					state.limit = 25
+					syncUrl()
 					void fetchBookings()
 				})
 				loadMoreButton?.addEventListener("click", async () => {

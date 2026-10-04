@@ -9,13 +9,27 @@ if (!user) return Astro.redirect("/SignInPage")
 
 const bookingId = String(Astro.params.id ?? "").trim()
 if (!bookingId) return Astro.redirect("/booking")
+let bookingListReturnHref = "/booking"
+const rawReturnTo = Astro.url.searchParams.get("returnTo")
+if (rawReturnTo) {
+	try {
+		const target = new URL(rawReturnTo, Astro.url.origin)
+		if (target.origin === Astro.url.origin && target.pathname === "/booking") {
+			bookingListReturnHref = `${target.pathname}${target.search}`
+		}
+	} catch {
+		/* Invalid return targets keep the safe Reservations default. */
+	}
+}
 ---
 
 <WorkspaceLayout title="Detalle de reserva">
 	<section class="space-y-6">
 		<header class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
 			<div class="space-y-2">
-				<Button href="/booking" variant="ghost" size="sm" class="w-fit">Volver a reservas</Button>
+				<Button href={bookingListReturnHref} variant="ghost" size="sm" class="w-fit"
+					>Volver a reservas</Button
+				>
 				<div>
 					<p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
 						Detalle de reserva
@@ -32,8 +46,10 @@ if (!bookingId) return Astro.redirect("/booking")
 				</div>
 			</div>
 			<div class="flex flex-wrap gap-2">
-				<Button id="primaryBookingAction" href="/booking" variant="primary">Ver reserva</Button>
-				<Button href="/booking" variant="secondary">Cerrar</Button>
+				<Button id="primaryBookingAction" href={bookingListReturnHref} variant="primary"
+					>Ver reserva</Button
+				>
+				<Button href={bookingListReturnHref} variant="secondary">Cerrar</Button>
 			</div>
 		</header>
 
@@ -86,7 +102,7 @@ if (!bookingId) return Astro.redirect("/booking")
 		</div>
 	</section>
 
-	<script is:inline define:vars={{ bookingId }}>
+	<script is:inline define:vars={{ bookingId, bookingListReturnHref }}>
 		;(function () {
 			const state = { activeTab: "summary", payload: null }
 			const title = document.getElementById("bookingGuestTitle")
@@ -216,7 +232,7 @@ if (!bookingId) return Astro.redirect("/booking")
 				}
 				if (primaryAction) {
 					primaryAction.textContent = action
-					primaryAction.setAttribute("href", booking.canCheckIn ? "#" : "/booking")
+					primaryAction.setAttribute("href", booking.canCheckIn ? "#" : bookingListReturnHref)
 					primaryAction.dataset.canCheckIn = booking.canCheckIn ? "true" : "false"
 				}
 				if (!hero) return
