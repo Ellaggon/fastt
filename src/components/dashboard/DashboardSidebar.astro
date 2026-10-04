@@ -8,8 +8,13 @@ import {
 	type SidebarDisclosureMode,
 } from "@/lib/backoffice-governance"
 import {
+	providerNavigationItemId,
+	resolveProviderNavigationSelection,
+} from "@/lib/dashboard/providerNavigationSelection"
+import {
 	providerOperationalNavigation,
 	resolveOperationalSidebarVertical,
+	type ProviderNavigationItemId,
 	type ProviderOperationalNavigationItem,
 } from "@/lib/dashboard/providerOperationalNavigation"
 import type { ProviderSidebarReadiness } from "@/lib/dashboard/providerSidebarReadiness"
@@ -28,22 +33,6 @@ interface Props {
 }
 
 const { pathname = "", currentPath = pathname, workspaceContext, workspaceScope } = Astro.props
-const isAccommodationHubSurface = (value: string) =>
-	/^\/catalog\/accommodations(?:\/|$)/.test(value)
-const isProductDetailSurface = (value: string) => /^\/product\/[^/]+\/?$/.test(value)
-const isRoomSurface = (value: string) => /^\/product\/[^/]+\/rooms(?:\/|$)/.test(value)
-const hrefPath = (href: string) => href.split(/[?#]/)[0] ?? href
-const isActive = (href: string) => {
-	if (href.includes("?") || href.includes("#")) return currentPath === href
-	const path = hrefPath(href)
-	return pathname === path || pathname.startsWith(`${path}/`)
-}
-const activeHref =
-	enterpriseNavigation
-		.flatMap((section) => section.items.map((item) => item.href))
-		.filter((href) => isActive(href))
-		.sort((a, b) => b.length - a.length)[0] ?? ""
-
 const sidebarData = workspaceContext.sidebarData
 const sidebarReadiness: ProviderSidebarReadiness = sidebarData?.summaries ?? {}
 const disclosureMode: SidebarDisclosureMode = workspaceContext.disclosureMode
@@ -53,47 +42,25 @@ const primaryAccommodationRoomsHref = sidebarData?.primaryAccommodationRoomsHref
 const primaryAccommodationHouseRulesHref = sidebarData?.primaryAccommodationHouseRulesHref ?? null
 const visibleNavigationBase = filterEnterpriseNavigationForDisclosure(enterpriseNavigation, {
 	mode: disclosureMode,
-	activeHref,
 	productTypes: serviceProductTypes,
 })
+const contextualHrefs: Partial<Record<ProviderNavigationItemId, string | null>> = {
+	"accommodations": primaryAccommodationHref,
+	"rooms": primaryAccommodationRoomsHref,
+	"house-rules": primaryAccommodationHouseRulesHref,
+}
+function contextualDestination<T extends ProviderOperationalNavigationItem>(item: T): T {
+	const href = contextualHrefs[item.id]
+	return href ? { ...item, href } : item
+}
 const visibleNavigation = visibleNavigationBase.map((section) => ({
 	...section,
-	items: section.items.map((item) => {
-		if (item.label === "Alojamiento" && primaryAccommodationHref) {
-			return { ...item, href: primaryAccommodationHref }
-		}
-		if (item.label === "Habitaciones" && primaryAccommodationRoomsHref) {
-			return { ...item, href: primaryAccommodationRoomsHref }
-		}
-		if (item.label === "Reglas para huéspedes" && primaryAccommodationHouseRulesHref) {
-			return { ...item, href: primaryAccommodationHouseRulesHref }
-		}
-		return item
-	}),
+	items: section.items.map((source) => ({
+		...source,
+		id: source.id ?? providerNavigationItemId(source.href),
+	})),
 }))
-type SidebarNavigationItem =
-	| (typeof enterpriseNavigation)[number]["items"][number]
-	| ProviderOperationalNavigationItem
-
-const isSectionActive = (items: readonly SidebarNavigationItem[]) =>
-	items.some((item) => isItemActive(item))
-
-function isItemActive(item: SidebarNavigationItem) {
-	if (item.label === "Alojamiento") {
-		const path = hrefPath(item.href)
-		return (
-			isProductDetailSurface(pathname) ||
-			(isAccommodationHubSurface(pathname) && activeHref !== item.href) ||
-			(Boolean(path) &&
-				(pathname === path || pathname.startsWith(`${path}/`)) &&
-				!isRoomSurface(pathname))
-		)
-	}
-	if (item.label === "Habitaciones") return isRoomSurface(pathname) || isActive(item.href)
-	// Longest matching href wins — e.g. /provider/settings/verification must not
-	// also light up the parent Configuración item (/provider/settings).
-	return hrefPath(item.href) === hrefPath(activeHref)
-}
+type SidebarNavigationItem = ProviderOperationalNavigationItem & { navGroup?: string }
 
 function itemSummary(item: SidebarNavigationItem) {
 	return sidebarReadiness[item.href] ?? ""
@@ -121,11 +88,13 @@ const hasHotelService = serviceTypes.includes("hotel")
 const onlyHotelService = hasHotelService && new Set(serviceTypes).size === 1
 const defaultNavigationGroups = [
 	{
+		id: "start",
 		title: "Inicio",
 		sections: ["Inicio"],
 		collapsible: false,
 	},
 	{
+		id: "services",
 		title: onlyHotelService ? "Servicio" : "Servicios",
 		sections: onlyHotelService ? ["Servicios", "Alojamiento"] : ["Servicios"],
 		collapsible: false,
@@ -134,20 +103,23 @@ const defaultNavigationGroups = [
 		? []
 		: [
 				{
+					id: "accommodation",
 					title: "Alojamiento",
 					sections: ["Alojamiento"],
 					collapsible: false,
 				},
 			]),
-	{ title: "Venta", sections: ["Venta"], collapsible: false },
-	{ title: "Reservas", sections: ["Reservas"], collapsible: false },
-	{ title: "Finanzas", sections: ["Finanzas"], collapsible: false },
-	{ title: "Análisis", sections: ["Analítica"], collapsible: false },
-	{ title: "Distribución", sections: ["Distribución"], collapsible: false },
-	{ title: "Configuración", sections: ["Configuración"], collapsible: false },
+	{ id: "sales", title: "Venta", sections: ["Venta"], collapsible: false },
+	{ id: "bookings", title: "Reservas", sections: ["Reservas"], collapsible: false },
+	{ id: "finance", title: "Finanzas", sections: ["Finanzas"], collapsible: false },
+	{ id: "analytics", title: "Análisis", sections: ["Analítica"], collapsible: false },
+	{ id: "distribution", title: "Distribución", sections: ["Distribución"], collapsible: false },
+	{ id: "utilities", title: "Configuración", sections: ["Configuración"], collapsible: false },
 ]
 	.map((group) => ({
-		...group,
+		id: group.id,
+		heading: group.id === "start" ? undefined : group.title,
+		collapsible: group.collapsible,
 		items: group.sections.flatMap((title) => sectionByTitle.get(title)?.items ?? []),
 	}))
 	.filter((group) => group.items.length > 0)
@@ -157,14 +129,17 @@ const operationalVertical = resolveOperationalSidebarVertical({
 	availableVerticals: serviceTypes,
 })
 const operationalNavigation = providerOperationalNavigation(operationalVertical)
-const navigationGroups = operationalNavigation ?? defaultNavigationGroups
-
-function sidebarSectionTitle(group: (typeof navigationGroups)[number]): string {
-	if ("id" in group && group.id === "start") return "Inicio"
-	if ("heading" in group && group.heading) return group.heading
-	if ("title" in group && group.title) return group.title
-	return "Inicio"
-}
+const navigationGroups = (operationalNavigation ?? defaultNavigationGroups).map((group) => ({
+	...group,
+	items: group.items.map(contextualDestination),
+}))
+const activeItemId = resolveProviderNavigationSelection({
+	path: currentPath,
+	vertical: operationalVertical,
+	items: navigationGroups.flatMap((group) => group.items),
+})
+const isItemActive = (item: SidebarNavigationItem) => item.id === activeItemId
+const isSectionActive = (items: readonly SidebarNavigationItem[]) => items.some(isItemActive)
 
 function shouldShowNavGroupHeading(
 	item: SidebarNavigationItem,
@@ -183,7 +158,9 @@ function shouldShowNavGroupHeading(
 	{
 		navigationGroups.map((group) => (
 			<DashboardSidebarSection
-				title={sidebarSectionTitle(group)}
+				id={group.id}
+				heading={group.heading}
+				first={group.id === "start"}
 				active={isSectionActive(group.items)}
 				collapsible={group.collapsible}
 				defaultOpen={!group.collapsible}
@@ -198,6 +175,7 @@ function shouldShowNavGroupHeading(
 								</p>
 							) : null}
 							<DashboardSidebarItem
+								id={item.id}
 								href={withWorkspaceNavigationScope(item.href, workspaceScope)}
 								label={item.label}
 								status={item.status}

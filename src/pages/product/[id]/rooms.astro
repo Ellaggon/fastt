@@ -91,7 +91,7 @@ const layoutProps = addRoomPlaybook.active
 	: { title: `Habitaciones · ${owned.name}` }
 ---
 
-<Layout {...layoutProps}>
+<Layout {...layoutProps} productType={owned.productType}>
 	<section
 		class:list={["space-y-6 md:space-y-8", isAddRoomConfirmation && "space-y-10 md:space-y-12"]}
 		data-rooms-summary-page

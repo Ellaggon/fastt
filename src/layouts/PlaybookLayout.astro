@@ -50,6 +50,7 @@ import { getTourPublishingStage } from "@/lib/playbook/tour-publishing-stages"
 
 interface Props {
 	title?: string
+	productType?: string | null
 	playbookId?: PlaybookId | null
 	active?: boolean
 	stepId?: LaunchStepId | TourLaunchStepId | string | null
@@ -71,6 +72,7 @@ interface Props {
 
 const {
 	title = "Workspace",
+	productType = null,
 	playbookId = "launch",
 	active = false,
 	stepId = null,
@@ -413,7 +415,12 @@ const preparationSessionPayload =
 const PlaybookShell = active ? GuidedPreparationLayout : WorkspaceLayout
 ---
 
-<PlaybookShell title={title} playbookTitle={playbookTitle} stepLabel={stepLabel}>
+<PlaybookShell
+	title={title}
+	productType={productType ?? playbookVertical}
+	playbookTitle={playbookTitle}
+	stepLabel={stepLabel}
+>
 	{
 		showProgress ? (
 			<div class="mb-5 space-y-2">

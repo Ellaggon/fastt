@@ -14,6 +14,8 @@ import {
 	Gauge,
 	House,
 	Layers3,
+	LifeBuoy,
+	ListChecks,
 	Map,
 	Package,
 	PlugZap,
@@ -22,7 +24,10 @@ import {
 	WalletCards,
 } from "@lucide/astro"
 
+import type { ProviderNavigationItemId } from "@/lib/dashboard/providerOperationalNavigation"
+
 interface Props {
+	id: ProviderNavigationItemId
 	href: string
 	label: string
 	status?: "canonical" | "transitional"
@@ -30,11 +35,11 @@ interface Props {
 	summaryTone?: "neutral" | "success" | "warning" | "danger"
 	active?: boolean
 	prefetch?: boolean
-	level?: 1 | 2 | 3 | 4
 	compact?: boolean
 }
 
 const {
+	id,
 	href,
 	label,
 	status = "canonical",
@@ -42,49 +47,37 @@ const {
 	summaryTone = "neutral",
 	active = false,
 	prefetch = false,
-	level = 1,
 	compact = false,
 } = Astro.props
 
-const iconByLabel = {
-	"Resumen": House,
-	"Reservas": ClipboardList,
-	"Tarifas": Layers3,
-	"Calendario": CalendarDays,
-	"Calendario de precios": CalendarDays,
-	"Condiciones": ClipboardList,
-	"Multicalendario": CalendarRange,
-	"Servicios": Building2,
-	"Servicio": Building2,
-	"Alojamiento": Building2,
-	"Alojamientos": Building2,
-	"Mis alojamientos": Building2,
-	"Mis tours": Map,
-	"Salidas y cupos": CalendarDays,
-	"Operación de hoy": ClipboardList,
-	"Añadir servicio": Building2,
-	"Habitaciones": BedDouble,
-	"Reglas para huéspedes": BookOpen,
-	"Tours": Map,
-	"Paquetes": Package,
-	"Traslados": CarFront,
-	"Finanzas": WalletCards,
-	"Bandeja financiera": WalletCards,
-	"Cobros": CircleDollarSign,
-	"Liquidaciones": ReceiptText,
-	"Pagos a proveedores": WalletCards,
-	"Reembolsos": ReceiptText,
-	"Impuestos y cargos": ReceiptText,
-	"Fiscalidad": ReceiptText,
-	"Integraciones": PlugZap,
-	"Ingresos": CircleDollarSign,
-	"Rendimiento": ChartNoAxesColumnIncreasing,
-	"Ocupación": BarChart3,
-	"Configuración": Settings,
-	"Perfil del proveedor": Settings,
-	"Verificación": BadgeCheck,
+const iconById = {
+	"overview": House,
+	"bookings": ClipboardList,
+	"today": ListChecks,
+	"pricing": Layers3,
+	"availability": CalendarDays,
+	"tour-catalog": Map,
+	"accommodations": Building2,
+	"rooms": BedDouble,
+	"house-rules": BookOpen,
+	"finance": WalletCards,
+	"settings": Settings,
+	"support": LifeBuoy,
+	"route:/rates/multi-calendar": CalendarRange,
+	"route:/catalog/packages": Package,
+	"route:/catalog/limousines": CarFront,
+	"route:/financial/collections": CircleDollarSign,
+	"route:/financial/settlements": ReceiptText,
+	"route:/financial/provider-payables": WalletCards,
+	"route:/financial/refunds": ReceiptText,
+	"route:/provider/settings/tax-fees": ReceiptText,
+	"route:/system/integrations": PlugZap,
+	"route:/analytics/revenue": CircleDollarSign,
+	"route:/analytics/performance": ChartNoAxesColumnIncreasing,
+	"route:/analytics/occupancy": BarChart3,
+	"route:/provider/settings/verification": BadgeCheck,
 } as const
-const Icon = iconByLabel[label as keyof typeof iconByLabel] ?? Gauge
+const Icon = iconById[id as keyof typeof iconById] ?? Gauge
 const compactClass = compact ? "py-0.5" : "py-1"
 const summaryToneClass = {
 	neutral: "text-slate-400",
@@ -104,6 +97,7 @@ const shouldShowSummary =
 	<a
 		href={href}
 		data-workspace-nav
+		data-navigation-id={id}
 		aria-current={active ? "page" : undefined}
 		data-astro-prefetch={prefetch ? true : undefined}
 		data-governance-status={status}

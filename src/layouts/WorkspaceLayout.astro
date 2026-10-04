@@ -11,9 +11,10 @@ import {
 
 interface Props {
 	title?: string
+	productType?: string | null
 }
 
-const { title = "Workspace" } = Astro.props
+const { title = "Workspace", productType = null } = Astro.props
 const pathname = Astro.url.pathname
 const currentPath = `${Astro.url.pathname}${Astro.url.search}`
 const workspaceContext = await resolveWorkspaceShellContext(
@@ -22,10 +23,15 @@ const workspaceContext = await resolveWorkspaceShellContext(
 const workspaceScope = resolveWorkspaceNavigationScope({
 	productTypes: workspaceContext.sidebarData?.productTypes,
 	searchParams: Astro.url.searchParams,
+	verifiedProductType: productType,
 })
+const effectiveScopeParams = new URLSearchParams(Astro.url.searchParams)
+if (workspaceScope.vertical) effectiveScopeParams.set("scope", workspaceScope.vertical)
 const operationalContext = resolveWorkspaceOperationalContext({
-	productTypes: workspaceContext.sidebarData?.productTypes,
-	searchParams: Astro.url.searchParams,
+	productTypes: productType
+		? [...(workspaceContext.sidebarData?.productTypes ?? []), productType]
+		: workspaceContext.sidebarData?.productTypes,
+	searchParams: effectiveScopeParams,
 })
 ---
 
