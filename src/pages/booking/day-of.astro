@@ -43,7 +43,7 @@ const dateLabel = new Intl.DateTimeFormat("es-BO", { dateStyle: "long", timeZone
 )
 ---
 
-<WorkspaceLayout title="Salidas de hoy" productType="tour">
+<WorkspaceLayout title="Cola day-of" productType="tour">
 	<section class="space-y-8" data-day-of-queue>
 		<header
 			class="flex flex-col gap-4 border-b border-slate-800 pb-5 lg:flex-row lg:items-end lg:justify-between"
@@ -52,10 +52,10 @@ const dateLabel = new Intl.DateTimeFormat("es-BO", { dateStyle: "long", timeZone
 				<p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
 					Operación del día
 				</p>
-				<h1 class="text-3xl font-semibold tracking-tight text-white">Salidas de hoy</h1>
+				<h1 class="text-3xl font-semibold tracking-tight text-white">Cola day-of</h1>
 				<p class="max-w-3xl text-sm leading-6 text-slate-400">
-					{dateLabel} · {timezone}. {product?.name ? `${product.name} · ` : ""}Gestiona las reservas
-					confirmadas de la jornada.
+					Salidas de hoy · {dateLabel} · {timezone}. {product?.name ? `${product.name} · ` : ""}
+					Gestiona las reservas confirmadas de la jornada.
 				</p>
 			</div>
 			<div class="flex flex-wrap gap-2">
