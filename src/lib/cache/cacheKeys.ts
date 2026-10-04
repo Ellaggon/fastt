@@ -18,7 +18,7 @@ export const cacheKeys = {
 		providerRole: string
 	): string {
 		const mode = workspaceExperience === "professional" ? "professional" : "essential"
-		return `ws:provider:${providerId}:sidebar:v3:${userId}:${mode}:${providerRole}`
+		return `ws:provider:${providerId}:sidebar:v4:${userId}:${mode}:${providerRole}`
 	},
 	providerRatePlansSurface(providerId: string, checkIn: string, checkOut: string): string {
 		return `ws:provider:${providerId}:rates:surface:${checkIn}:${checkOut}`

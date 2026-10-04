@@ -1,4 +1,5 @@
 import type { APIRoute } from "astro"
+import { isCalendarDay } from "@/lib/booking/providerOperationalDay"
 
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
@@ -43,9 +44,22 @@ export const GET: APIRoute = async ({ request, url }) => {
 		const vertical = String(url.searchParams.get("scope") ?? url.searchParams.get("vertical") ?? "")
 			.trim()
 			.toLowerCase()
-		const limit = Math.max(1, Math.min(Number(url.searchParams.get("limit") ?? 25) || 25, 100))
+		const departureDate = String(url.searchParams.get("departureDate") ?? "").trim()
+		const offset = Number(url.searchParams.get("offset") ?? 0)
+		if (
+			!Number.isSafeInteger(offset) ||
+			offset < 0 ||
+			!["", "all", "tour", "hotel"].includes(vertical)
+		)
+			return new Response(JSON.stringify({ error: "invalid_booking_filters" }), { status: 400 })
+		if (departureDate && !isCalendarDay(departureDate))
+			return new Response(JSON.stringify({ error: "invalid_departure_date" }), { status: 400 })
+		const limit = Math.max(
+			1,
+			Math.min(Math.floor(Number(url.searchParams.get("limit") ?? 25)) || 25, 100)
+		)
 		const result = await readThrough(
-			cacheKeys.providerBookingsSummary(providerId, status, from || "any", to || "any", limit),
+			`${cacheKeys.providerBookingsSummary(providerId, status, from || "any", to || "any", limit)}:${JSON.stringify([departureDate, offset, productId, variantId, vertical])}`,
 			cacheTtls.providerBookingsSummary,
 			() =>
 				bookingOperationsQueryRepository.listByProvider({
@@ -54,17 +68,16 @@ export const GET: APIRoute = async ({ request, url }) => {
 					from: from || undefined,
 					to: to || undefined,
 					limit,
+					offset,
+					departureDate: departureDate || undefined,
+					productId: productId || undefined,
+					variantId: variantId || undefined,
+					vertical: vertical || undefined,
 				})
 		)
 		logEndpoint()
 		const durationMs = Number((performance.now() - startedAt).toFixed(1))
-		const items = result.items.filter(
-			(item: { variantId?: string | null; productId?: string | null; vertical?: string | null }) =>
-				(!variantId || item.variantId === variantId) &&
-				(!productId || item.productId === productId) &&
-				(!vertical || item.vertical === vertical)
-		)
-		return new Response(JSON.stringify({ ...result, items }), {
+		return new Response(JSON.stringify(result), {
 			status: 200,
 			headers: {
 				"Content-Type": "application/json",

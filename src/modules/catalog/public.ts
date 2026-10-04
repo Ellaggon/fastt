@@ -149,3 +149,11 @@ export async function listMarketplaceHotelsByGeoPlace(params: {
 	const { listMarketplaceHotelsByGeoPlace } = await import("@/container")
 	return listMarketplaceHotelsByGeoPlace(params)
 }
+
+export {
+	listTourPrivateRequests,
+	findTourPrivateRequest,
+	countPendingTourPrivateRequests,
+	privateRequestStatuses,
+	type PrivateRequestStatus,
+} from "./infrastructure/repositories/TourPrivateRequestQueryRepository"

@@ -280,7 +280,7 @@ export class TourTrustRepository implements TourTrustRepositoryPort {
 		status: string
 		providerNote: string | null
 	}) {
-		await db
+		const rows = await db
 			.update(TourPrivateRequest)
 			.set({
 				status: params.status,
@@ -290,8 +290,11 @@ export class TourTrustRepository implements TourTrustRepositoryPort {
 			.where(
 				and(
 					eq(TourPrivateRequest.id, params.requestId),
-					eq(TourPrivateRequest.providerId, params.providerId)
+					eq(TourPrivateRequest.providerId, params.providerId),
+					eq(TourPrivateRequest.status, "pending")
 				)
 			)
+			.returning({ id: TourPrivateRequest.id })
+		return rows.length === 1
 	}
 }

@@ -245,7 +245,7 @@ async function getRatesSummary(
 	if (policyReadiness.incompleteRatePlans > 0) {
 		return `${plural(ratePlanIds.length, "tarifa")} con precio · ${compactContractCount(policyReadiness.incompleteRatePlans)}`
 	}
-	return `${plural(ratePlanIds.length, "tarifa")} listas · ${plural(activeRules, "regla")} de precio`
+	return `${plural(ratePlanIds.length, "tarifa")} con precio · ${plural(activeRules, "regla")} de precio`
 }
 
 async function getPricingCalendarSummary(ratePlanIds: string[]) {
@@ -264,9 +264,9 @@ async function getPricingCalendarSummary(ratePlanIds: string[]) {
 	const ready = pricedRatePlanIds.size
 	const missing = Math.max(ratePlanIds.length - ready, 0)
 	if (missing > 0) {
-		return `${plural(ready, "tarifa lista", "tarifas listas")} · ${plural(missing, "requiere", "requieren")} atención`
+		return `${plural(ready, "tarifa con precio", "tarifas con precio")} · ${plural(missing, "requiere", "requieren")} atención`
 	}
-	return plural(ready, "tarifa lista", "tarifas listas")
+	return plural(ready, "tarifa con precio", "tarifas con precio")
 }
 
 async function getRestrictionsSummary(
