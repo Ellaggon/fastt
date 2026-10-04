@@ -1,21 +1,44 @@
 ---
 import ContextSwitcher from "@/components/ui/ContextSwitcher.astro"
 import { routes } from "@/lib/routes"
+import type { WorkspaceNavigationScope } from "@/lib/workspace/verticalContext"
 
 interface Props {
 	variant?: "surface" | "topbar"
 	includeMultiCalendar?: boolean
+	workspaceScope?: WorkspaceNavigationScope
 }
 
-const { variant = "topbar", includeMultiCalendar = true } = Astro.props
+const { variant = "topbar", includeMultiCalendar = true, workspaceScope } = Astro.props
 const path = Astro.url.pathname.replace(/\/$/, "") || "/"
 
+const isTour = workspaceScope?.vertical
+	? workspaceScope.vertical === "tour"
+	: Astro.url.searchParams.get("scope") === "tour"
+const contextHref = (path: string) => {
+	const params = new URLSearchParams()
+	for (const key of ["scope", "productId", "variantId", "ratePlanId", "checkIn", "checkOut"]) {
+		const value = Astro.url.searchParams.get(key)
+		if (value) params.set(key, value)
+	}
+	if (workspaceScope?.vertical) params.set("scope", workspaceScope.vertical)
+	if (workspaceScope?.productId) params.set("productId", workspaceScope.productId)
+	return params.size ? `${path}?${params}` : path
+}
 const options = [
-	{ id: "calendar", label: "Calendario", href: routes.calendar() },
-	{ id: "rates", label: "Tarifas", href: routes.rates() },
-	{ id: "ical", label: "Conexiones iCal", href: routes.ratesCalendarConnections() },
+	{
+		id: "calendar",
+		label: isTour ? "Salidas y cupos" : "Calendario",
+		href: contextHref(routes.calendar()),
+	},
+	{
+		id: "rates",
+		label: isTour ? "Precios y condiciones" : "Tarifas",
+		href: contextHref(routes.rates()),
+	},
+	{ id: "ical", label: "Conexiones iCal", href: contextHref(routes.ratesCalendarConnections()) },
 	...(includeMultiCalendar
-		? [{ id: "multi", label: "Multicalendario", href: routes.ratesMultiCalendar() }]
+		? [{ id: "multi", label: "Multicalendario", href: contextHref(routes.ratesMultiCalendar()) }]
 		: []),
 ]
 

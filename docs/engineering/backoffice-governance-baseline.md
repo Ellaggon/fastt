@@ -3,7 +3,7 @@
 Status: active
 Document type: canonical
 Owner: Platform / Engineering
-Last verified: 2026-10-03
+Last verified: 2026-10-04
 Scope: shells, rutas, propiedad y límites del backoffice
 Source of truth: rutas y controles enlazados
 Related code/tests: src/lib/dashboard/providerOperationalNavigation.ts; src/lib/dashboard/providerNavigationSelection.ts; tests/unit/provider-navigation-selection.test.ts; tests/render/provider-sidebar-navigation.test.ts
@@ -134,6 +134,25 @@ Pages pass their ownership-checked product type through WorkspaceLayout/Playbook
 it overrides contradictory URL scope without sidebar queries. Mixed providers preserve the
 selected line; consolidated views do not choose one arbitrarily. Hotel labels and order stay
 intact. Navigation does not grant permissions or change playbook progress.
+
+Destination coherence is part of this contract:
+
+- Salidas de hoy uses the provider's operational timezone and departure date, not
+  the booking end date. It includes every page of confirmed tour reservations,
+  labels reservations/participants/departures separately and carries the date to
+  the manifest. An empty booking queue does not mean no dates are scheduled.
+- Precios y condiciones scopes rows, creation choices and drafts to the selected
+  business. Tour offer states and corrective destinations use the shared tour
+  diagnostic; a weekly shared departure does not need 30 consecutive available
+  dates, and private requests do not need shared inventory.
+- Switching sales tools preserves authorized product/option/rate context.
+  Sidebar price counts describe prices, never imply publication authorization.
+
+Private requests live under Reservas at `/booking/private-requests`; the product route
+is a compatibility entry with an explicit product filter. Provider ownership and filters
+apply before pagination; the pending counter covers all owned tours. Accepting a request
+changes its workflow state only, without a booking, quote or inventory hold. Transitions
+compare the pending state atomically and preserve the first completed decision.
 
 Revenue Management, Marketing, CRM, Opportunities, Observability Console and Administration
 RBAC remain planned and must not appear as active destinations.
