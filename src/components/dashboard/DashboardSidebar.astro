@@ -159,6 +159,13 @@ const operationalVertical = resolveOperationalSidebarVertical({
 const operationalNavigation = providerOperationalNavigation(operationalVertical)
 const navigationGroups = operationalNavigation ?? defaultNavigationGroups
 
+function sidebarSectionTitle(group: (typeof navigationGroups)[number]): string {
+	if ("id" in group && group.id === "start") return "Inicio"
+	if ("heading" in group && group.heading) return group.heading
+	if ("title" in group && group.title) return group.title
+	return "Inicio"
+}
+
 function shouldShowNavGroupHeading(
 	item: SidebarNavigationItem,
 	index: number,
@@ -176,7 +183,7 @@ function shouldShowNavGroupHeading(
 	{
 		navigationGroups.map((group) => (
 			<DashboardSidebarSection
-				title={group.title}
+				title={sidebarSectionTitle(group)}
 				active={isSectionActive(group.items)}
 				collapsible={group.collapsible}
 				defaultOpen={!group.collapsible}
