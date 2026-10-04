@@ -1,19 +1,49 @@
 ---
+import { productRepository, variantManagementRepository } from "@/container"
+import { isTourProductType } from "@/lib/catalog/productVerticalRegistry"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import Section from "@/components/ui/Section.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { routes } from "@/lib/routes"
-import { resolveVerticalVocabulary } from "@/lib/verticalVocabulary"
+import { loadProviderOperationalDay } from "@/lib/booking/providerOperationalDay"
 
 const workspaceContext = await Astro.locals.getWorkspaceContext()
 if (!workspaceContext.user) return Astro.redirect("/SignInPage")
 if (!workspaceContext.provider) return Astro.redirect(routes.providerOnboardingStart())
-const sidebarData = await workspaceContext.sidebarDataPromise
-const ops = resolveVerticalVocabulary(sidebarData?.productTypes ?? []).ops
+const requestedVariantId = Astro.url.searchParams.get("variantId") || ""
+const variant = requestedVariantId
+	? await variantManagementRepository.getVariantById(requestedVariantId)
+	: null
+const productId = Astro.url.searchParams.get("productId") || variant?.productId || ""
+const product = productId
+	? await productRepository.ensureProductOwnedByProvider(
+			productId,
+			workspaceContext.provider.providerId
+		)
+	: null
+if (
+	(productId && (!product || !isTourProductType(product.productType))) ||
+	(requestedVariantId && (!variant || variant.productId !== productId))
+)
+	return new Response("Salida no encontrada", { status: 404 })
+const dayParams = new URLSearchParams({ scope: "tour" })
+if (productId) dayParams.set("productId", productId)
+if (requestedVariantId) dayParams.set("variantId", requestedVariantId)
+const dayReturn = `/booking/day-of?${dayParams}`
+const calendarHref = `/rates/calendar?${dayParams}`
+const bookingsParams = new URLSearchParams(dayParams)
+bookingsParams.set("vista", "all")
+const bookingsHref = `${routes.bookingList()}?${bookingsParams}`
+const { date: operationalDate, timezone } = await loadProviderOperationalDay(
+	workspaceContext.provider.providerId
+)
+const dateLabel = new Intl.DateTimeFormat("es-BO", { dateStyle: "long", timeZone: "UTC" }).format(
+	new Date(`${operationalDate}T12:00:00Z`)
+)
 ---
 
-<WorkspaceLayout title="Cola day-of">
+<WorkspaceLayout title="Salidas de hoy" productType="tour">
 	<section class="space-y-8" data-day-of-queue>
 		<header
 			class="flex flex-col gap-4 border-b border-slate-800 pb-5 lg:flex-row lg:items-end lg:justify-between"
@@ -22,20 +52,26 @@ const ops = resolveVerticalVocabulary(sidebarData?.productTypes ?? []).ops
 				<p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
 					Operación del día
 				</p>
-				<h1 class="text-3xl font-semibold tracking-tight text-white">Cola day-of</h1>
+				<h1 class="text-3xl font-semibold tracking-tight text-white">Salidas de hoy</h1>
 				<p class="max-w-3xl text-sm leading-6 text-slate-400">
-					{ops.queueHint}. Presentación y reparación de voucher para las salidas de hoy.
+					{dateLabel} · {timezone}. {product?.name ? `${product.name} · ` : ""}Gestiona las reservas
+					confirmadas de la jornada.
 				</p>
 			</div>
 			<div class="flex flex-wrap gap-2">
-				<Button href={routes.bookingList()} variant="secondary">Todas las reservas</Button>
-				<Button href="/booking?vista=today" variant="primary">Vista hoy</Button>
+				<Button href={bookingsHref} variant="secondary">Todas las reservas</Button>
+				<Button href={calendarHref} variant="primary">Salidas y cupos</Button>
 			</div>
 		</header>
 
 		<div id="dayOfMetrics" class="grid grid-cols-2 gap-3 sm:grid-cols-4">
 			{
-				["Pendientes", "Presentados", "Voucher emitido", "Salidas"].map((label) => (
+				[
+					"Reservas por gestionar",
+					"Reservas presentadas",
+					"Vouchers emitidos",
+					"Salidas con reservas",
+				].map((label) => (
 					<Card class="border border-slate-700 bg-slate-900/60 p-4">
 						<p class="text-xs tracking-[0.12em] text-slate-500 uppercase">{label}</p>
 						<p class="mt-2 h-7 w-10 animate-pulse rounded bg-slate-700" />
@@ -44,13 +80,17 @@ const ops = resolveVerticalVocabulary(sidebarData?.productTypes ?? []).ops
 			}
 		</div>
 
-		<Section title="Salidas de hoy" description="Ordenadas por hora de salida.">
+		<Section
+			titleClass="text-slate-100"
+			title="Reservas por salida"
+			description="Ordenadas por hora de salida."
+		>
 			<Card class="fastt-workspace-panel min-h-[280px] border bg-white p-0 text-slate-900">
 				<div
 					class="flex flex-col gap-2 border-b border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
 				>
 					<p id="dayOfSummary" class="text-sm text-slate-600">Cargando salidas...</p>
-					<p id="dayOfLatency" class="text-xs text-slate-400"></p>
+					<Button id="dayOfRetry" type="button" variant="ghost" size="sm" hidden>Reintentar</Button>
 				</div>
 				<div id="dayOfRows" class="divide-y divide-slate-100">
 					{
@@ -66,7 +106,11 @@ const ops = resolveVerticalVocabulary(sidebarData?.productTypes ?? []).ops
 		</Section>
 	</section>
 
-	<script is:inline data-astro-rerun>
+	<script
+		is:inline
+		data-astro-rerun
+		define:vars={{ operationalDate, productId, requestedVariantId, dayReturn, calendarHref }}
+	>
 		;(function () {
 			const root = document.querySelector("[data-day-of-queue]")
 			if (!(root instanceof HTMLElement)) return
@@ -74,11 +118,11 @@ const ops = resolveVerticalVocabulary(sidebarData?.productTypes ?? []).ops
 			root.dataset.dayOfBootReady = "true"
 
 			const summary = document.getElementById("dayOfSummary")
-			const latency = document.getElementById("dayOfLatency")
+			const retry = document.getElementById("dayOfRetry")
 			const rows = document.getElementById("dayOfRows")
 			const metrics = document.getElementById("dayOfMetrics")
 
-			const todayIso = () => new Date().toISOString().slice(0, 10)
+			const todayIso = () => operationalDate
 			const escapeHtml = (value) =>
 				String(value ?? "")
 					.replace(/&/g, "&amp;")
@@ -148,7 +192,7 @@ const ops = resolveVerticalVocabulary(sidebarData?.productTypes ?? []).ops
 
 			const markNoShow = async (bookingId, button) => {
 				if (!bookingId || !button) return
-				if (!window.confirm("¿Marcar a este participante como no presentado?")) return
+				if (!window.confirm("¿Marcar esta reserva como no presentada?")) return
 				button.setAttribute("disabled", "true")
 				try {
 					const response = await fetch("/api/booking/tour-operations", {
@@ -160,7 +204,7 @@ const ops = resolveVerticalVocabulary(sidebarData?.productTypes ?? []).ops
 					await loadQueue()
 				} catch {
 					button.removeAttribute("disabled")
-					window.alert("No se pudo registrar la no presentación.")
+					window.alert("No se pudo marcar la reserva como no presentada.")
 				}
 			}
 
@@ -176,11 +220,11 @@ const ops = resolveVerticalVocabulary(sidebarData?.productTypes ?? []).ops
 					(item) => String(item?.voucher?.status || "").toLowerCase() === "issued"
 				).length
 				const cards = [
-					["Pendientes", pending],
-					["Presentados", presented],
-					["Voucher emitido", issued],
+					["Reservas por gestionar", pending],
+					["Reservas presentadas", presented],
+					["Vouchers emitidos", issued],
 					[
-						"Salidas",
+						"Salidas con reservas",
 						new Set(
 							items.map(
 								(item) => `${item?.productId || ""}:${item?.variantId || item?.bookingId || ""}`
@@ -204,7 +248,7 @@ const ops = resolveVerticalVocabulary(sidebarData?.productTypes ?? []).ops
 			const renderRows = (items) => {
 				if (!rows) return
 				if (!items.length) {
-					rows.innerHTML = `<div class="px-4 py-10 text-center text-sm text-slate-500">No hay salidas de tour para hoy.</div>`
+					rows.innerHTML = `<div class="px-4 py-10 text-center text-sm text-slate-500">No hay reservas confirmadas para hoy.<a class="mt-3 block font-semibold text-slate-700" href="${escapeHtml(calendarHref)}">Revisar Salidas y cupos</a></div>`
 					return
 				}
 				const byDeparture = new Map()
@@ -221,17 +265,18 @@ const ops = resolveVerticalVocabulary(sidebarData?.productTypes ?? []).ops
 							(total, item) =>
 								total +
 								Number(item?.occupancyDetail?.adults || 0) +
-								Number(item?.occupancyDetail?.children || 0),
+								Number(item?.occupancyDetail?.children || 0) +
+								Number(item?.occupancyDetail?.infants || 0),
 							0
 						)
-						const capacity = departure?.slotProfile?.maxPax
+
 						const presented = group.filter((item) => Boolean(item?.checkedInAt)).length
 						const noShows = group.filter(
 							(item) => String(item?.operationalStatus || "").toLowerCase() === "no_show"
 						).length
 						const heading = `<div class="flex flex-wrap items-center justify-between gap-2 bg-slate-50 px-4 py-3">
-							<div><p class="font-semibold text-slate-950">${escapeHtml(departure?.departureTime || "Sin hora")} · ${escapeHtml(departure?.productName || "Tour")}</p><p class="text-xs text-slate-500">${escapeHtml(departure?.variantName || "Salida")} · ${pax}${capacity ? `/${escapeHtml(capacity)}` : ""} participantes · ${presented} presentados${noShows ? ` · ${noShows} no presentados` : ""}</p></div>
-							<a class="text-xs font-semibold text-slate-600 hover:text-slate-950" href="/product/${encodeURIComponent(String(departure?.productId || ""))}/departures/${encodeURIComponent(String(departure?.variantId || ""))}">Ver manifiesto</a>
+							<div><p class="font-semibold text-slate-950">${escapeHtml(departure?.departureTime || "Sin hora")} · ${escapeHtml(departure?.productName || "Tour")}</p><p class="text-xs text-slate-500">${escapeHtml(departure?.variantName || "Salida")} · ${pax} participantes · ${presented} reservas presentadas${noShows ? ` · ${noShows} reservas no presentadas` : ""}</p></div>
+							<a class="text-xs font-semibold text-slate-600 hover:text-slate-950" href="/product/${encodeURIComponent(String(departure?.productId || ""))}/departures/${encodeURIComponent(String(departure?.variantId || ""))}?departureDate=${encodeURIComponent(operationalDate)}&returnTo=${encodeURIComponent(dayReturn)}#departureManifest">Ver manifiesto</a>
 						</div>`
 						const participants = group
 							.map((item) => {
@@ -247,7 +292,7 @@ const ops = resolveVerticalVocabulary(sidebarData?.productTypes ?? []).ops
 									? `<button type="button" class="fastt-button inline-flex h-9 items-center justify-center rounded-md border border-slate-950 bg-slate-950 px-3 text-sm font-semibold text-white hover:bg-slate-800" data-check-in="${escapeHtml(item.bookingId)}">${escapeHtml(action)}</button>`
 									: `<a class="fastt-button inline-flex h-9 items-center justify-center rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800" href="/booking/${encodeURIComponent(String(item.bookingId || ""))}">${escapeHtml(action)}</a>`
 								const noShow = canAct
-									? `<button type="button" class="fastt-button inline-flex h-9 items-center justify-center rounded-md px-2 text-xs font-semibold text-slate-600 hover:bg-slate-100" data-no-show="${escapeHtml(item.bookingId)}">No presentado</button>`
+									? `<button type="button" class="fastt-button inline-flex h-9 items-center justify-center rounded-md px-2 text-xs font-semibold text-slate-600 hover:bg-slate-100" data-no-show="${escapeHtml(item.bookingId)}">No presentada</button>`
 									: ""
 								return `<article class="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
 							<div class="min-w-0 space-y-1">
@@ -278,25 +323,35 @@ const ops = resolveVerticalVocabulary(sidebarData?.productTypes ?? []).ops
 			}
 
 			const loadQueue = async () => {
-				const started = performance.now()
+				if (retry) retry.hidden = true
 				if (summary) summary.textContent = "Cargando salidas..."
 				try {
 					const today = todayIso()
 					const qs = new URLSearchParams({
-						from: today,
-						to: today,
+						departureDate: today,
+						scope: "tour",
 						status: "confirmed",
 						limit: "100",
 					})
-					const response = await fetch(`/api/internal/provider-bookings-summary?${qs}`, {
-						headers: { accept: "application/json" },
-					})
-					const payload = await response.json().catch(() => ({}))
-					if (!response.ok) {
-						if (summary) summary.textContent = "No se pudo cargar la cola day-of."
-						return
+					if (productId) qs.set("productId", productId)
+					if (requestedVariantId) qs.set("variantId", requestedVariantId)
+					const collected = []
+					let offset = 0
+					let hasMore = true
+					while (hasMore) {
+						qs.set("offset", String(offset))
+						const response = await fetch(`/api/internal/provider-bookings-summary?${qs}`, {
+							headers: { accept: "application/json" },
+						})
+						if (!response.ok) throw new Error("queue_failed")
+						const payload = await response.json()
+						const page = Array.isArray(payload.items) ? payload.items : []
+						collected.push(...page)
+						hasMore = Boolean(payload.pagination?.hasMore)
+						if (hasMore && !page.length) throw new Error("empty_page")
+						offset += 100
 					}
-					const items = (Array.isArray(payload?.items) ? payload.items : [])
+					const items = collected
 						.filter((item) => String(item?.vertical || "").toLowerCase() === "tour")
 						.filter((item) => String(item?.checkIn || "") === today)
 						.sort((a, b) =>
@@ -307,17 +362,20 @@ const ops = resolveVerticalVocabulary(sidebarData?.productTypes ?? []).ops
 					if (summary) {
 						summary.textContent =
 							items.length === 0
-								? "Sin salidas de tour confirmadas para hoy."
-								: `${items.length} salidas ordenadas por hora.`
-					}
-					if (latency) {
-						latency.textContent = `${Math.round(performance.now() - started)} ms`
+								? "0 reservas confirmadas"
+								: `${new Set(items.map((item) => item.variantId)).size} salidas · ${items.length} reservas confirmadas.`
 					}
 				} catch {
-					if (summary) summary.textContent = "Error de red al cargar la cola day-of."
+					if (summary) summary.textContent = "No se pudieron cargar las reservas de hoy."
+					if (rows)
+						rows.innerHTML =
+							'<p class="p-6 text-sm text-slate-600" role="alert">Vuelve a intentar para consultar la jornada actual.</p>'
+					if (metrics) metrics.innerHTML = ""
+					if (retry) retry.hidden = false
 				}
 			}
 
+			retry?.addEventListener("click", () => void loadQueue())
 			void loadQueue()
 		})()
 	</script>

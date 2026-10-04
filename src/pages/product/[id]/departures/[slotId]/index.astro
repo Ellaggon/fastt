@@ -1,5 +1,6 @@
 ---
 import TourSlotProfileEditor from "@/components/tours/TourSlotProfileEditor.astro"
+import { isCalendarDay } from "@/lib/booking/providerOperationalDay"
 import Card from "@/components/ui/Card.astro"
 import { productRepository, variantManagementRepository } from "@/container"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
@@ -40,6 +41,22 @@ if (
 	return Astro.redirect(routes.productDeparturesForProduct(productId))
 }
 
+const manifestDate = Astro.url.searchParams.get("departureDate") || ""
+if (manifestDate && !isCalendarDay(manifestDate))
+	return new Response("Fecha inválida", { status: 400 })
+const rawReturn = Astro.url.searchParams.get("returnTo") || ""
+const returnUrl = rawReturn.startsWith("/") ? new URL(rawReturn, Astro.url.origin) : null
+const manifestReturn =
+	returnUrl &&
+	returnUrl.origin === Astro.url.origin &&
+	returnUrl.pathname === "/booking/day-of" &&
+	returnUrl.searchParams.get("scope") === "tour" &&
+	(!returnUrl.searchParams.has("productId") ||
+		returnUrl.searchParams.get("productId") === productId) &&
+	(!returnUrl.searchParams.has("variantId") || returnUrl.searchParams.get("variantId") === slotId)
+		? returnUrl.pathname + returnUrl.search
+		: null
+
 const override =
 	profile?.meetingPointOverrideJson && typeof profile.meetingPointOverrideJson === "object"
 		? String((profile.meetingPointOverrideJson as any).instructions ?? "").trim()
@@ -59,6 +76,12 @@ function safeConditionsReturn(value: string): string | null {
 
 const conditionsReturnHref = playbook.active ? safeConditionsReturn(rawReturnTo) : null
 const Layout = playbook.active ? PlaybookLayout : WorkspaceLayout
+const isManifestView = Boolean(manifestDate) && !playbook.active
+const manifestDateLabel = manifestDate
+	? new Intl.DateTimeFormat("es-BO", { dateStyle: "long", timeZone: "UTC" }).format(
+			new Date(`${manifestDate}T12:00:00Z`)
+		)
+	: ""
 const layoutProps = playbook.active
 	? {
 			title: `${owned.name} · Editar salida`,
@@ -73,15 +96,29 @@ const layoutProps = playbook.active
 			hideFooter: true,
 			lightweight: true,
 		}
-	: { title: `${owned.name} · Editar salida` }
+	: { title: `${owned.name} · ${isManifestView ? "Manifiesto de participantes" : "Editar salida"}` }
 ---
 
 <Layout {...layoutProps} productType={owned.productType}>
 	<section class="space-y-6 md:space-y-8">
 		<header class="flex flex-col gap-2">
 			<h1 class="text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl">
-				{playbook.active ? "Editar horario y detalles de la salida" : variant.name}
+				{
+					isManifestView
+						? "Manifiesto de participantes"
+						: playbook.active
+							? "Editar horario y detalles de la salida"
+							: variant.name
+				}
 			</h1>
+			{
+				isManifestView && (
+					<p class="text-sm font-normal text-slate-300">
+						{owned.name} · {variant.name} · {manifestDateLabel}
+						{profile?.departureTime ? ` · ${profile.departureTime}` : ""}
+					</p>
+				)
+			}
 			{
 				conditionsReturnHref ? (
 					<p class="max-w-2xl text-sm leading-6 text-slate-300">
@@ -92,29 +129,40 @@ const layoutProps = playbook.active
 			}
 		</header>
 
-		<TourSlotProfileEditor
-			productId={productId}
-			variantId={slotId}
-			mode="edit"
-			name={variant.name}
-			description={variant.description}
-			departureTime={profile?.departureTime ?? "09:00"}
-			durationMinutes={profile?.durationMinutes ?? null}
-			maxPax={profile?.maxPax ?? 12}
-			languageCode={profile?.languageCode ?? "es"}
-			bookingMode={(profile?.bookingMode as "shared" | "private") ?? "shared"}
-			meetingPointOverride={override}
-			isActive={profile?.isActive ?? variant.salesEnabled}
-			redirectOnSuccess={conditionsReturnHref ?? routes.productDeparturesForProduct(productId)}
-			submitLabel={conditionsReturnHref ? "Guardar y volver a condiciones" : null}
-			cancelHref={conditionsReturnHref}
-		/>
+		{
+			!isManifestView && (
+				<TourSlotProfileEditor
+					productId={productId}
+					variantId={slotId}
+					mode="edit"
+					name={variant.name}
+					description={variant.description}
+					departureTime={profile?.departureTime ?? "09:00"}
+					durationMinutes={profile?.durationMinutes ?? null}
+					maxPax={profile?.maxPax ?? 12}
+					languageCode={profile?.languageCode ?? "es"}
+					bookingMode={(profile?.bookingMode as "shared" | "private") ?? "shared"}
+					meetingPointOverride={override}
+					isActive={profile?.isActive ?? variant.salesEnabled}
+					redirectOnSuccess={conditionsReturnHref ?? routes.productDeparturesForProduct(productId)}
+					submitLabel={conditionsReturnHref ? "Guardar y volver a condiciones" : null}
+					cancelHref={conditionsReturnHref}
+				/>
+			)
+		}
 
 		{
 			playbook.active ? null : (
 				<Card class="space-y-3 bg-white">
 					<div>
-						<h2 class="text-lg font-semibold text-slate-950">Manifiesto de participantes</h2>
+						<h2 class="text-lg font-semibold text-slate-950">
+							{isManifestView ? "Reservas confirmadas" : "Manifiesto de participantes"}
+						</h2>
+						{manifestReturn && (
+							<a href={manifestReturn} class="text-sm font-semibold text-slate-700">
+								Volver a Salidas de hoy
+							</a>
+						)}
 						<p class="text-sm text-slate-600">
 							Reservas confirmadas para esta salida. La presentación y el voucher se gestionan desde
 							el detalle de cada reserva.
@@ -127,17 +175,30 @@ const layoutProps = playbook.active
 			)
 		}
 	</section>
-	<script is:inline define:vars={{ slotId }}>
+	<script is:inline data-astro-rerun define:vars={{ slotId, manifestDate }}>
 		;(async () => {
 			const target = document.getElementById("departureManifest")
 			if (!target) return
 			try {
 				const params = new URLSearchParams({ variantId: slotId, status: "confirmed", limit: "100" })
-				const response = await fetch(`/api/internal/provider-bookings-summary?${params}`, {
-					headers: { accept: "application/json" },
-				})
-				const payload = await response.json()
-				const items = Array.isArray(payload?.items) ? payload.items : []
+				if (manifestDate) params.set("departureDate", manifestDate)
+				params.set("scope", "tour")
+				const items = []
+				let offset = 0
+				let hasMore = true
+				while (hasMore) {
+					params.set("offset", String(offset))
+					const response = await fetch(`/api/internal/provider-bookings-summary?${params}`, {
+						headers: { accept: "application/json" },
+					})
+					if (!response.ok) throw new Error("manifest_failed")
+					const payload = await response.json()
+					const page = Array.isArray(payload.items) ? payload.items : []
+					items.push(...page)
+					hasMore = Boolean(payload.pagination?.hasMore)
+					if (hasMore && !page.length) throw new Error("empty_page")
+					offset += 100
+				}
 				const escapeHtml = (value) =>
 					String(value ?? "")
 						.replaceAll("&", "&amp;")

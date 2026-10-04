@@ -1,0 +1,176 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import Textarea from "@/components/ui/Textarea.astro"
+import type { findTourPrivateRequest } from "@/modules/catalog/public"
+interface Props {
+	item: NonNullable<Awaited<ReturnType<typeof findTourPrivateRequest>>>
+	timezone: string
+}
+const { item, timezone } = Astro.props
+const r = item.request
+const party = r.partyJson as { adults?: number; children?: number; infants?: number }
+const statuses: Record<string, string> = {
+	pending: "Pendiente",
+	accepted: "Aceptada",
+	declined: "Rechazada",
+	expired: "Vencida",
+	cancelled: "Cancelada",
+}
+const day = new Intl.DateTimeFormat("es-BO", { dateStyle: "long", timeZone: "UTC" }).format(
+	new Date(`${r.departureDate}T12:00:00Z`)
+)
+---
+
+<Card
+	variant="plain"
+	class="p-5 sm:p-6"
+	data-private-request-detail
+	data-request-id={r.id}
+	aria-labelledby="request-title"
+>
+	<header class="mb-5 space-y-1">
+		<h2 id="request-title" class="text-xl font-semibold">{item.productName}</h2><p
+			class="text-sm text-slate-600"
+		>
+			{item.variantName ?? "Opción solicitada"} · {day}
+		</p><p class="text-sm font-semibold">{statuses[r.status] ?? r.status}</p>
+	</header>
+	<dl class="grid gap-4 sm:grid-cols-2">
+		<div>
+			<dt class="text-xs font-semibold text-slate-500">Solicitante</dt><dd>{r.contactName}</dd><dd
+				class="break-all text-sm"
+			>
+				{r.contactEmail}
+			</dd>{r.contactPhone ? <dd class="text-sm">{r.contactPhone}</dd> : null}
+		</div>
+		<div>
+			<dt class="text-xs font-semibold text-slate-500">Participantes</dt><dd>
+				{party.adults ?? 0} adultos · {party.children ?? 0} niños · {party.infants ?? 0} bebés
+			</dd>
+		</div>
+		{
+			r.slaDueAt ? (
+				<div>
+					<dd class="text-sm">
+						{new Intl.DateTimeFormat("es-BO", {
+							dateStyle: "medium",
+							timeStyle: "short",
+							timeZone: timezone,
+						}).format(new Date(r.slaDueAt))}{" "}
+						· {timezone}
+					</dd>
+					{r.status === "pending" && new Date(r.slaDueAt).getTime() < Date.now() ? (
+						<dd class="text-sm font-semibold text-amber-800">Plazo de respuesta superado</dd>
+					) : null}
+				</div>
+			) : null
+		}
+	</dl>
+	{
+		r.message ? (
+			<div class="mt-5">
+				<>
+					<h3 class="text-sm font-semibold">Mensaje del solicitante</h3>
+					<p class="mt-1 text-sm break-words whitespace-pre-wrap text-slate-700">{r.message}</p>
+				</>
+			</div>
+		) : null
+	}
+	{
+		r.status === "pending" ? (
+			<form class="mt-5 space-y-3 border-t border-slate-200 pt-5" data-request-actions>
+				<label for="request-note" class="block text-sm font-medium">
+					Nota de gestión <span class="font-normal text-slate-500">(opcional)</span>
+				</label>
+				<Textarea
+					id="request-note"
+					name="providerNote"
+					maxlength={2000}
+					rows={3}
+					value={r.providerNote ?? ""}
+					data-request-note
+				/>
+				<p class="text-sm text-slate-600">Aceptar esta solicitud no confirma una reserva.</p>
+				<div class="flex flex-wrap gap-2">
+					<>
+						<Button type="submit" name="decision" value="accepted">
+							Aceptar solicitud
+						</Button>
+						<Button type="submit" name="decision" value="declined" variant="secondary">
+							Rechazar solicitud
+						</Button>
+					</>
+				</div>
+				<p role="status" aria-live="polite" class="text-sm text-slate-700" data-request-result />
+			</form>
+		) : r.providerNote ? (
+			<div class="mt-5">
+				<>
+					<h3 class="text-sm font-semibold">Nota de gestión</h3>
+					<p class="text-sm break-words whitespace-pre-wrap">{r.providerNote}</p>
+				</>
+			</div>
+		) : null
+	}
+</Card>
+<script>
+	function initializeRequest() {
+		const root = document.querySelector<HTMLElement>("[data-private-request-detail]")
+		const form = root?.querySelector<HTMLFormElement>("[data-request-actions]")
+		if (!root || !form || form.dataset.ready) return
+		form.dataset.ready = "true"
+		form.addEventListener("submit", async (event) => {
+			event.preventDefault()
+			const decision = (event as SubmitEvent).submitter as HTMLButtonElement | null
+			if (!decision || form.dataset.busy === "true") return
+			const buttons = Array.from(form.querySelectorAll<HTMLButtonElement>("button[type=submit]"))
+			const output = form.querySelector<HTMLElement>("[data-request-result]")!
+			const note = form.querySelector<HTMLTextAreaElement>("[data-request-note]")!
+			form.dataset.busy = "true"
+			form.setAttribute("aria-busy", "true")
+			buttons.forEach((b) => (b.disabled = true))
+			output.textContent = "Guardando decisión…"
+			try {
+				const response = await fetch("/api/tours/private-request/transition", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						requestId: root.dataset.requestId,
+						status: decision.value,
+						providerNote: note.value.trim() || null,
+					}),
+				})
+				const payload = await response.json()
+				if (!response.ok) {
+					output.textContent =
+						response.status === 409
+							? "La solicitud cambió. Actualiza para revisar su estado actual."
+							: response.status === 401
+								? "Tu sesión venció. Inicia sesión y vuelve a intentar."
+								: "No se pudo guardar. Conservamos tu nota; vuelve a intentar."
+					if (response.status === 409) {
+						const refresh = document.createElement("a")
+						refresh.href = window.location.href
+						refresh.textContent = " Actualizar solicitud"
+						refresh.className = "underline"
+						output.append(refresh)
+					}
+					return
+				}
+				const next = new URL(window.location.href)
+				next.searchParams.set("result", payload.status)
+				window.location.assign(next.href)
+			} catch {
+				output.textContent =
+					"No recibimos confirmación. Conservamos tu nota; puedes reintentar la misma decisión."
+			} finally {
+				form.dataset.busy = "false"
+				form.setAttribute("aria-busy", "false")
+				buttons.forEach((b) => (b.disabled = false))
+			}
+		})
+	}
+	initializeRequest()
+	document.addEventListener("astro:page-load", initializeRequest)
+</script>
