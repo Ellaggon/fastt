@@ -1,25 +1,33 @@
 ---
 interface Props {
-	title: string
+	id: string
+	heading?: string
+	first?: boolean
 	active?: boolean
 	collapsible?: boolean
 	defaultOpen?: boolean
 }
 
-const { title, active = false, collapsible = false, defaultOpen = false } = Astro.props
-const isStartSection = title === "Inicio"
+const {
+	id,
+	heading,
+	first = false,
+	active = false,
+	collapsible = false,
+	defaultOpen = false,
+} = Astro.props
 ---
 
 {
-	collapsible ? (
+	collapsible && heading ? (
 		<details
 			open={defaultOpen || active}
-			data-nav-section
+			data-nav-section={id}
 			data-active={active ? "true" : "false"}
 			class="group/section border-t border-white/[0.08] pt-4"
 		>
 			<summary class="flex cursor-pointer list-none items-center justify-between px-2.5 text-[11px] font-semibold tracking-[0.08em] text-slate-400 uppercase transition-colors hover:text-white [&::-webkit-details-marker]:hidden">
-				<span>{title}</span>
+				<span>{heading}</span>
 				<svg
 					class="h-3.5 w-3.5 text-slate-500 transition-transform group-open/section:rotate-90"
 					viewBox="0 0 20 20"
@@ -41,16 +49,16 @@ const isStartSection = title === "Inicio"
 		</details>
 	) : (
 		<section
-			data-nav-section
+			data-nav-section={id}
 			data-active={active ? "true" : "false"}
-			class={isStartSection ? "pt-1" : "border-t border-white/[0.08] pt-4"}
+			class={first ? "pt-1" : "border-t border-white/[0.08] pt-4"}
 		>
-			{isStartSection ? null : (
+			{heading ? (
 				<p class="px-2.5 text-[11px] font-semibold tracking-[0.08em] text-slate-400 uppercase">
-					{title}
+					{heading}
 				</p>
-			)}
-			<div class={isStartSection ? "space-y-0.5" : "mt-2 space-y-0.5"}>
+			) : null}
+			<div class={heading ? "mt-2 space-y-0.5" : "space-y-0.5"}>
 				<slot />
 			</div>
 		</section>

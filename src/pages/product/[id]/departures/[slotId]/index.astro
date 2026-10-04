@@ -76,7 +76,7 @@ const layoutProps = playbook.active
 	: { title: `${owned.name} · Editar salida` }
 ---
 
-<Layout {...layoutProps}>
+<Layout {...layoutProps} productType={owned.productType}>
 	<section class="space-y-6 md:space-y-8">
 		<header class="flex flex-col gap-2">
 			<h1 class="text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl">

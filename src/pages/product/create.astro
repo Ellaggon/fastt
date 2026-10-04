@@ -98,6 +98,7 @@ const compatibleGeoPlaces = destinations.filter((place) =>
 	active={activePlaybook}
 	stepId={resolvedPlaybook.stepId ?? "create"}
 	isHotel={isLaunchHotelFlow}
+	playbookVertical={isChooser ? null : selectedVertical}
 	continueFormId={activePlaybook ? "createForm" : null}
 	continueLabel="Crear y continuar"
 >

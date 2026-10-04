@@ -85,7 +85,10 @@ const selectedAmenityIds = selectedAmenityRows.map((row) => String(row.amenityId
 const roomAmenities = resolveRoomAmenityOptions(amenities, selectedAmenityIds)
 ---
 
-<WorkspaceLayout title="Contenido del alojamiento · Ficha de habitación">
+<WorkspaceLayout
+	title="Contenido del alojamiento · Ficha de habitación"
+	productType={owned.productType}
+>
 	<section class="space-y-6 md:space-y-8 text-slate-100">
 		<header class="flex flex-col gap-2">
 			<div class="flex flex-wrap items-start justify-between gap-3">

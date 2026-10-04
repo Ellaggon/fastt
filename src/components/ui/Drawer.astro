@@ -45,6 +45,8 @@ const finalOverlayClass =
 </aside>
 
 <script>
+	const drawerOpeners = new WeakMap<HTMLElement, HTMLElement>()
+
 	function overlayFor(drawer: HTMLElement): HTMLElement | null {
 		const previous = drawer.previousElementSibling
 		if (previous instanceof HTMLElement && previous.hasAttribute("data-drawer-overlay")) {
@@ -66,6 +68,19 @@ const finalOverlayClass =
 
 	function anyDrawerOpen() {
 		return Boolean(document.querySelector(".fastt-side-sheet.translate-x-0"))
+	}
+
+	function focusableElements(drawer: HTMLElement): HTMLElement[] {
+		return Array.from(
+			drawer.querySelectorAll<HTMLElement>(
+				'a[href], area[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), iframe, object, embed, [contenteditable="true"], [tabindex]:not([tabindex^="-"])'
+			)
+		).filter(
+			(element) =>
+				element.getAttribute("aria-hidden") !== "true" &&
+				!element.closest("[inert]") &&
+				element.getClientRects().length > 0
+		)
 	}
 
 	function setDrawerOpen(
@@ -100,15 +115,17 @@ const finalOverlayClass =
 		document.documentElement.classList.toggle("overflow-hidden", open || anyDrawerOpen())
 
 		if (open) {
+			if (opener) drawerOpeners.set(drawer, opener)
 			opener?.closest("details")?.removeAttribute("open")
 			requestAnimationFrame(() => drawer.querySelector<HTMLElement>("[data-drawer-close]")?.focus())
 			return
 		}
 
+		const capturedOpener = drawerOpeners.get(drawer)
 		const returnFocus = drawer.getAttribute("data-drawer-return-focus")
-		if (returnFocus) {
-			document.querySelector<HTMLElement>(returnFocus)?.focus({ preventScroll: true })
-		}
+		const fallback = returnFocus ? document.querySelector<HTMLElement>(returnFocus) : null
+		drawerOpeners.delete(drawer)
+		;(capturedOpener?.isConnected ? capturedOpener : fallback)?.focus({ preventScroll: true })
 	}
 
 	if (!window.__fasttDrawerController) {
@@ -148,10 +165,36 @@ const finalOverlayClass =
 		})
 
 		document.addEventListener("keydown", (event) => {
-			if (event.key !== "Escape") return
-			document
-				.querySelectorAll<HTMLElement>(".fastt-side-sheet.translate-x-0")
-				.forEach((drawer) => setDrawerOpen(drawer, false))
+			const openDrawers = document.querySelectorAll<HTMLElement>(
+				".fastt-side-sheet.translate-x-0[aria-hidden='false']"
+			)
+			const drawer = openDrawers.item(openDrawers.length - 1)
+			if (!drawer) return
+
+			if (event.key === "Escape") {
+				event.preventDefault()
+				setDrawerOpen(drawer, false)
+				return
+			}
+
+			if (event.key !== "Tab") return
+			const focusable = focusableElements(drawer)
+			if (!focusable.length) {
+				event.preventDefault()
+				drawer.focus({ preventScroll: true })
+				return
+			}
+
+			const first = focusable[0]
+			const last = focusable[focusable.length - 1]
+			const active = document.activeElement
+			if (event.shiftKey && (active === first || !drawer.contains(active))) {
+				event.preventDefault()
+				last?.focus()
+			} else if (!event.shiftKey && (active === last || !drawer.contains(active))) {
+				event.preventDefault()
+				first?.focus()
+			}
 		})
 	}
 </script>
