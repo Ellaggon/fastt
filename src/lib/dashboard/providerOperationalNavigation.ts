@@ -4,14 +4,31 @@ import type {
 	WorkspaceNavigationScope,
 } from "@/lib/workspace/verticalContext"
 
+export type ProviderNavigationItemId =
+	| "overview"
+	| "bookings"
+	| "today"
+	| "availability"
+	| "tour-catalog"
+	| "pricing"
+	| "finance"
+	| "settings"
+	| "support"
+	| "accommodations"
+	| "rooms"
+	| "house-rules"
+	| `route:${string}`
+
 export type ProviderOperationalNavigationItem = {
+	id: ProviderNavigationItemId
 	label: string
 	href: string
 	status: "canonical" | "transitional"
 }
 
 export type ProviderOperationalNavigationGroup = {
-	title: string
+	id: string
+	heading?: string
 	items: ProviderOperationalNavigationItem[]
 	collapsible?: boolean
 }
@@ -27,15 +44,24 @@ export function providerOperationalNavigation(
 	if (vertical === "hotel") {
 		return [
 			{
-				title: "Inicio",
-				items: [{ label: "Resumen", href: routes.dashboard(), status: "canonical" }],
+				id: "start",
+				items: [
+					{ id: "overview", label: "Resumen", href: routes.dashboard(), status: "canonical" },
+				],
 			},
 			{
-				title: "Alojamiento",
+				id: "accommodation",
+				heading: "Alojamiento",
 				items: [
-					{ label: "Mis alojamientos", href: routes.accommodations(), status: "canonical" },
-					{ label: "Habitaciones", href: routes.rooms(), status: "canonical" },
 					{
+						id: "accommodations",
+						label: "Mis alojamientos",
+						href: routes.accommodations(),
+						status: "canonical",
+					},
+					{ id: "rooms", label: "Habitaciones", href: routes.rooms(), status: "canonical" },
+					{
+						id: "house-rules",
 						label: "Reglas para huéspedes",
 						href: routes.providerHouseRules(),
 						status: "canonical",
@@ -43,25 +69,38 @@ export function providerOperationalNavigation(
 				],
 			},
 			{
-				title: "Venta",
+				id: "sales",
+				heading: "Venta",
 				items: [
-					{ label: "Tarifas", href: routes.rates(), status: "canonical" },
-					{ label: "Calendario", href: routes.calendar(), status: "canonical" },
+					{ id: "pricing", label: "Tarifas", href: routes.rates(), status: "canonical" },
+					{ id: "availability", label: "Calendario", href: routes.calendar(), status: "canonical" },
 				],
 			},
 			{
-				title: "Reservas",
-				items: [{ label: "Reservas", href: routes.bookingList(), status: "canonical" }],
-			},
-			{
-				title: "Finanzas",
-				items: [{ label: "Finanzas", href: routes.financialOperations(), status: "canonical" }],
-			},
-			{
-				title: "Configuración",
+				id: "bookings",
+				heading: "Reservas",
 				items: [
-					{ label: "Configuración", href: routes.settings(), status: "canonical" },
-					{ label: "Soporte", href: routes.providerSupport(), status: "canonical" },
+					{ id: "bookings", label: "Reservas", href: routes.bookingList(), status: "canonical" },
+				],
+			},
+			{
+				id: "finance",
+				heading: "Finanzas",
+				items: [
+					{
+						id: "finance",
+						label: "Finanzas",
+						href: routes.financialOperations(),
+						status: "canonical",
+					},
+				],
+			},
+			{
+				id: "utilities",
+				heading: "Configuración",
+				items: [
+					{ id: "settings", label: "Configuración", href: routes.settings(), status: "canonical" },
+					{ id: "support", label: "Soporte", href: routes.providerSupport(), status: "canonical" },
 				],
 			},
 		]
@@ -70,31 +109,64 @@ export function providerOperationalNavigation(
 	if (vertical === "tour") {
 		return [
 			{
-				title: "Inicio",
-				items: [{ label: "Resumen", href: routes.dashboard(), status: "canonical" }],
-			},
-			{
-				title: "Tours",
-				items: [{ label: "Mis tours", href: routes.catalogTours(), status: "canonical" }],
-			},
-			{
-				title: "Operación",
+				id: "start",
 				items: [
-					{ label: "Salidas y cupos", href: routes.calendar(), status: "canonical" },
-					{ label: "Reservas", href: routes.bookingList(), status: "canonical" },
-					{ label: "Operación de hoy", href: routes.bookingDayOf(), status: "canonical" },
+					{ id: "overview", label: "Resumen", href: routes.dashboard(), status: "canonical" },
 				],
 			},
-			{ title: "Venta", items: [{ label: "Tarifas", href: routes.rates(), status: "canonical" }] },
 			{
-				title: "Finanzas",
-				items: [{ label: "Finanzas", href: routes.financialOperations(), status: "canonical" }],
+				id: "operation",
+				heading: "Operación",
+				items: [
+					{ id: "bookings", label: "Reservas", href: routes.bookingList(), status: "canonical" },
+					{
+						id: "today",
+						label: "Salidas de hoy",
+						href: routes.bookingDayOf(),
+						status: "canonical",
+					},
+					{
+						id: "availability",
+						label: "Salidas y cupos",
+						href: routes.calendar(),
+						status: "canonical",
+					},
+				],
 			},
 			{
-				title: "Configuración",
+				id: "offer",
+				heading: "Oferta",
 				items: [
-					{ label: "Configuración", href: routes.settings(), status: "canonical" },
-					{ label: "Soporte", href: routes.providerSupport(), status: "canonical" },
+					{
+						id: "tour-catalog",
+						label: "Mis tours",
+						href: routes.catalogTours(),
+						status: "canonical",
+					},
+					{
+						id: "pricing",
+						label: "Precios y condiciones",
+						href: routes.rates(),
+						status: "canonical",
+					},
+				],
+			},
+			{
+				id: "finance",
+				items: [
+					{
+						id: "finance",
+						label: "Finanzas",
+						href: routes.financialOperations(),
+						status: "canonical",
+					},
+				],
+			},
+			{
+				id: "utilities",
+				items: [
+					{ id: "settings", label: "Configuración", href: routes.settings(), status: "canonical" },
+					{ id: "support", label: "Soporte", href: routes.providerSupport(), status: "canonical" },
 				],
 			},
 		]

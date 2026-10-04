@@ -71,10 +71,17 @@ export function resolveProviderWorkspaceContext(input: {
 export function resolveWorkspaceNavigationScope(input: {
 	productTypes?: readonly unknown[]
 	searchParams: URLSearchParams
+	/** Product type already checked for ownership by the page, never raw URL input. */
+	verifiedProductType?: unknown
 }): WorkspaceNavigationScope {
+	const productVertical = normalizeProductVertical(input.verifiedProductType)
+	const verifiedVertical = isActiveWorkspaceVertical(productVertical) ? productVertical : null
 	const context = resolveProviderWorkspaceContext({
-		productTypes: input.productTypes,
-		vertical: input.searchParams.get("scope") ?? input.searchParams.get("vertical"),
+		productTypes: verifiedVertical
+			? [...(input.productTypes ?? []), verifiedVertical]
+			: input.productTypes,
+		vertical:
+			verifiedVertical ?? input.searchParams.get("scope") ?? input.searchParams.get("vertical"),
 		productId: input.searchParams.get("productId"),
 	})
 	return { vertical: context.vertical, productId: context.productId }

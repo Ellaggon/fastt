@@ -27,7 +27,12 @@ describe("provider operational navigation", () => {
 		const groups = providerOperationalNavigation("tour") ?? []
 		const labels = groups.flatMap((group) => group.items.map((item) => item.label))
 		expect(labels).toEqual(
-			expect.arrayContaining(["Mis tours", "Salidas y cupos", "Operación de hoy", "Tarifas"])
+			expect.arrayContaining([
+				"Mis tours",
+				"Salidas y cupos",
+				"Salidas de hoy",
+				"Precios y condiciones",
+			])
 		)
 		expect(labels).not.toContain("Mis alojamientos")
 		expect(labels).not.toContain("Habitaciones")

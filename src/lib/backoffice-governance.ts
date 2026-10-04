@@ -1,4 +1,5 @@
 import { routes } from "@/lib/routes"
+import type { ProviderNavigationItemId } from "@/lib/dashboard/providerOperationalNavigation"
 import { resolveProviderWorkspaceContext } from "@/lib/workspace/verticalContext"
 
 export type GovernanceStatus =
@@ -34,6 +35,8 @@ export type BackofficeShellClassification = {
 }
 
 export type EnterpriseNavigationItem = {
+	/** Explicit identity when a legacy helper shares another item's destination. */
+	id?: ProviderNavigationItemId
 	label: string
 	href: string
 	status: Extract<GovernanceStatus, "canonical" | "transitional">
@@ -1097,6 +1100,7 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 		items: [
 			{
 				label: "Alojamiento",
+				id: "accommodations",
 				href: routes.accommodations(),
 				status: "canonical",
 				summary: "Ficha, fotos, descripción, ubicación, habitaciones y vista previa.",
@@ -1132,12 +1136,14 @@ export const enterpriseNavigation: EnterpriseNavigationSection[] = [
 		items: [
 			{
 				label: "Habitaciones",
+				id: "rooms",
 				href: routes.rooms(),
 				status: "canonical",
 				summary: "Tipos de habitación, capacidad, fotos propias y contexto físico.",
 			},
 			{
 				label: "Reglas para huéspedes",
+				id: "house-rules",
 				href: routes.providerHouseRules(),
 				status: "canonical",
 				summary:

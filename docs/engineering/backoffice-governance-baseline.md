@@ -3,9 +3,10 @@
 Status: active
 Document type: canonical
 Owner: Platform / Engineering
-Last verified: 2026-10-01
+Last verified: 2026-10-03
 Scope: shells, rutas, propiedad y límites del backoffice
 Source of truth: rutas y controles enlazados
+Related code/tests: src/lib/dashboard/providerOperationalNavigation.ts; src/lib/dashboard/providerNavigationSelection.ts; tests/unit/provider-navigation-selection.test.ts; tests/render/provider-sidebar-navigation.test.ts
 Review trigger: cambio de contrato o procedimiento; revisar código y evidencia antes de operar
 
 ## Purpose
@@ -33,7 +34,7 @@ Runtime invariants remain unchanged:
 | Internal Admin               | Platform/provider governance                                 | Uses InternalAdminLayout only.                                   |
 | Internal Ops / Observability | Health, debug, backfills, shadow reports                     | Internal-only APIs; never linked directly from provider sidebar. |
 | Governance                   | Provider settings, verification, controls                    | Visible only as Administration & Governance.                     |
-| Support                      | Help, cases, escalation                                      | Planned; not active until support workflow exists.               |
+| Support                      | Provider cases and responses                                 | Active provider workflow at `/provider/support`; internal review stays under `/admin/support`. |
 
 ## Shell governance
 
@@ -98,28 +99,44 @@ Mandatory coverage:
 | /api/admin/\*\*                                                        | Internal-only            | Internal Admin               | Internal Admin              |
 | /, /hotels/**, /tours/**, /api/search-v2                               | Public                   | Public Marketplace           | Public Marketplace / Search |
 
-## Canonical enterprise navigation
+## Provider navigation contract
 
-The sidebar is organized by operational ownership, not implementation folders.
+`providerOperationalNavigation` owns the selected-line menu; `enterpriseNavigation`
+is the consolidated fallback. Tours exposes these nine identities in order:
 
-1. Command Center
-2. Habitaciones y tarifas
-3. Reservations
-4. Property Content
-5. Payments & Finance
-6. Analytics & Performance
-7. Connectivity
-8. Administration & Governance
+| Heading | Identity | Label | Destination |
+| --- | --- | --- | --- |
+| None | `overview` | Resumen | `/dashboard` |
+| Operación | `bookings` | Reservas | `/booking` |
+| Operación | `today` | Salidas de hoy | `/booking/day-of` |
+| Operación | `availability` | Salidas y cupos | `/rates/calendar` |
+| Oferta | `tour-catalog` | Mis tours | `/catalog/tours` |
+| Oferta | `pricing` | Precios y condiciones | `/rates/plans/manage` |
+| None | `finance` | Finanzas | `/financial` |
+| None | `settings` | Configuración | `/provider/settings` |
+| None | `support` | Soporte | `/provider/support` |
 
-The following modules remain planned and must not be represented as mature operational surfaces yet:
+Only Operación and Oferta have headings. Labels never define identity or icons.
+`resolveProviderNavigationSelection` selects exactly one **visible** item:
 
-- Revenue Management
-- Marketing
-- Guest Relations / CRM
-- Opportunities
-- Support Operations
-- Observability Console
-- Administration RBAC
+- Product content, preview, offer selection and departure profiles → Mis tours.
+  Product private requests → Reservas; day-of → Salidas de hoy.
+- Calendar, connections and multicalendar → Salidas y cupos.
+  Rate plans and pricing jobs → Precios y condiciones.
+- Financial descendants → Finanzas; settings descendants, including verification,
+  fiscality and integrations → Configuración; support → Soporte.
+
+Specific routes precede general families. Queries, playbooks, fragments and trailing
+slashes do not affect selection. Unknown routes have no fallback; tests discover applicable
+page files and require coverage. Only the selected item receives `aria-current="page"`.
+
+Pages pass their ownership-checked product type through WorkspaceLayout/PlaybookLayout;
+it overrides contradictory URL scope without sidebar queries. Mixed providers preserve the
+selected line; consolidated views do not choose one arbitrarily. Hotel labels and order stay
+intact. Navigation does not grant permissions or change playbook progress.
+
+Revenue Management, Marketing, CRM, Opportunities, Observability Console and Administration
+RBAC remain planned and must not appear as active destinations.
 
 ## Capa 1 enterprise shell canonicalization
 

@@ -944,6 +944,10 @@ describe("Guardrail: backoffice governance navigation", () => {
 			join(process.cwd(), "src/components/dashboard/DashboardSidebarSection.astro"),
 			"utf8"
 		)
+		const selectionSource = readFileSync(
+			join(process.cwd(), "src/lib/dashboard/providerNavigationSelection.ts"),
+			"utf8"
+		)
 
 		expect(workspaceSource).not.toContain("getBackofficeRouteClassification")
 		expect(workspaceSource).not.toContain("getEnterpriseNavigationSection")
@@ -974,6 +978,7 @@ describe("Guardrail: backoffice governance navigation", () => {
 		expect(sidebarSource).not.toContain("Sección activa")
 		expect(governanceSource).toContain('title: "Servicios"')
 		expect(governanceSource).toContain('title: "Alojamiento"')
+		expect(selectionSource).toContain("resolveProviderNavigationSelection")
 		expect(sidebarSource).toContain("isAccommodationHubSurface")
 		expect(sidebarSource).toContain("isRoomSurface")
 		expect(sidebarSource).not.toContain("12 tarifas")
