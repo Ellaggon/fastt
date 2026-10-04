@@ -3,6 +3,9 @@ import {
 	loadTourCommercialEntryContext,
 	tourContextEntryResponse,
 } from "@/lib/tours/loadTourCommercialContext"
+import { loadProviderOperationalDay, isCalendarDay } from "@/lib/booking/providerOperationalDay"
+import { loadCompleteToPublishState } from "@/lib/playbook/evaluate-complete-to-publish-progress"
+import { presentTourDiagnostic } from "@/lib/tours/tourDiagnosticPresentation"
 import { Plus, X } from "@lucide/astro"
 import Button from "@/components/ui/Button.astro"
 import Dialog from "@/components/ui/Dialog.astro"
@@ -61,11 +64,14 @@ function isoDate(date: Date) {
 	return date.toISOString().slice(0, 10)
 }
 
-const today = new Date()
+const operationalDay = await loadProviderOperationalDay(auth.providerId)
+const today = new Date(`${operationalDay.date}T00:00:00Z`)
 const horizonEnd = new Date(today)
 horizonEnd.setUTCDate(horizonEnd.getUTCDate() + 30)
 const checkIn = Astro.url.searchParams.get("checkIn") || isoDate(today)
 const checkOut = Astro.url.searchParams.get("checkOut") || isoDate(horizonEnd)
+if (!isCalendarDay(checkIn) || !isCalendarDay(checkOut) || checkOut <= checkIn)
+	return new Response("El periodo de evaluación no es válido", { status: 400 })
 const requestedView = String(Astro.url.searchParams.get("vista") ?? "attention")
 const activeView = requestedView === "drafts" ? "inactive" : requestedView
 
@@ -74,7 +80,57 @@ const [ratePlansSurface, variantChoices] = await Promise.all([
 	timing.time("variants", () => loadProviderRatePlanVariants(auth.providerId)),
 	timing.time("sidebar", () => workspaceContext.sidebarDataPromise),
 ])
-const rows = ratePlansSurface.ratePlans
+const explicitScope = Astro.url.searchParams.get("scope")
+const selectedProductId = Astro.url.searchParams.get("productId")
+const selectedVariantId = Astro.url.searchParams.get("variantId")
+const selectedType = variantChoices.find(
+	(choice) => choice.variantId === selectedVariantId || choice.productId === selectedProductId
+)?.productType
+const tourScope = selectedType
+	? selectedType.toLowerCase() === "tour"
+	: explicitScope === "tour" ||
+		(!explicitScope &&
+			variantChoices.length > 0 &&
+			variantChoices.every((choice) => choice.productType.toLowerCase() === "tour"))
+const rows = ratePlansSurface.ratePlans.filter(
+	(row) =>
+		(!selectedProductId || row.productId === selectedProductId) &&
+		(!selectedVariantId || row.variantId === selectedVariantId) &&
+		(selectedType || tourScope
+			? row.productType.toLowerCase() === (tourScope ? "tour" : selectedType?.toLowerCase())
+			: explicitScope === "hotel"
+				? row.productType.toLowerCase() !== "tour"
+				: true)
+)
+const privateRateIds = new Set<string>()
+const tourPresentations = new Map(
+	await Promise.all(
+		rows
+			.filter((row) => row.productType.toLowerCase() === "tour")
+			.map(async (row) => {
+				const state = await loadCompleteToPublishState({
+					providerId: auth.providerId,
+					productId: row.productId,
+					request: Astro.request,
+					selection: { variantId: row.variantId, ratePlanId: row.ratePlanId },
+				})
+				if (
+					state?.tourDiagnostic?.context.selection.state === "resolved" &&
+					state.tourDiagnostic.context.selection.bookingMode === "private"
+				)
+					privateRateIds.add(row.ratePlanId)
+				return [
+					row.ratePlanId,
+					state?.tourDiagnostic
+						? presentTourDiagnostic(state.tourDiagnostic, {
+								published: state.editorialStatus === "published",
+								previewHref: `/product/${row.productId}/preview?variantId=${row.variantId}&ratePlanId=${row.ratePlanId}`,
+							})
+						: null,
+				] as const
+			})
+	)
+)
 
 function money(value: number | null | undefined, currency: string | null | undefined) {
 	if (value == null || !Number.isFinite(Number(value))) return "Sin precio"
@@ -107,6 +163,25 @@ function commercialState(row: (typeof rows)[number]) {
 			reason: "No acepta reservas nuevas.",
 			href: `${routes.ratePlanDetail(ratePlanId)}?vista=details`,
 			badge: "neutral" as const,
+		}
+	}
+	if (row.productType.toLowerCase() === "tour") {
+		const presentation = tourPresentations.get(row.ratePlanId)
+		if (!presentation)
+			return {
+				key: "evaluation",
+				label: "Evaluación pendiente",
+				reason: "No se pudo comprobar la oferta.",
+				href: `/product/${row.productId}/preview?variantId=${row.variantId}&ratePlanId=${ratePlanId}`,
+				badge: "warning" as const,
+			}
+		const next = presentation.blockers[0]
+		return {
+			key: next ? next.id : "ready",
+			label: next ? "Requiere atención" : "Preparada",
+			reason: next?.reason.message ?? presentation.support,
+			href: presentation.primaryAction.href,
+			badge: next ? ("warning" as const) : ("success" as const),
 		}
 	}
 	if (!row.pricingReadiness?.hasBasePrice) {
@@ -181,14 +256,18 @@ const ratePlanDisplayRows = rows.map((row) => {
 		stateLabel: state.label,
 		stateReason: state.reason,
 		stateBadge: state.badge,
-		resolveHref: routes.ratePlanPolicies(String(row.ratePlanId)),
+		resolveHref: state.href,
 		resolveLabel: state.key === "ready" ? "Ver" : "Resolver",
 		priceLabel: money(row.pricingReadiness?.basePrice, row.pricingReadiness?.currency),
 		policyLabel: shortPolicySummary(row.policySummary),
-		policyCoverageLabel: total ? `${coverageLabel} completas` : "Contrato sin definir",
+		policyCoverageLabel: total
+			? `${coverageLabel} ${row.productType.toLowerCase() === "tour" ? "condiciones válidas" : "completas"}`
+			: "Contrato sin definir",
 		inventoryLabel:
 			String(row.productType ?? "").toLowerCase() === "tour"
-				? `${row.inventoryReadiness?.availableDays ?? 0}/${row.inventoryReadiness?.expectedDays ?? 30} fechas`
+				? privateRateIds.has(row.ratePlanId)
+					? "Solicitudes privadas"
+					: `${row.inventoryReadiness?.availableDays ?? 0} fechas con cupo`
 				: `${row.inventoryReadiness?.availableDays ?? 0}/${row.inventoryReadiness?.expectedDays ?? 30} noches`,
 		inventoryModeLabel: restrictions ? "Venta ajustada" : "Venta estándar",
 		priceUnitLabel:
@@ -230,6 +309,12 @@ if (entryContext) {
 const rateEntry = await timing.time("entryContext", () =>
 	loadRatePlanManagementEntry({ url: Astro.url, providerId: auth.providerId, variantChoices })
 )
+if (
+	tourScope &&
+	!rateEntry.productId &&
+	(addRoomPlaybook.active || launchPlaybook.active || flow === "add-room" || flow === "create")
+)
+	return Astro.redirect("/catalog/tours?scope=tour")
 if (rateEntry.notFound) return new Response("Oferta no encontrada", { status: 404 })
 if (rateEntry.redirectHref) return Astro.redirect(rateEntry.redirectHref)
 const { matchedVariant, productType, isTour: productIsTour } = rateEntry
@@ -258,10 +343,16 @@ const playbookProductId =
 	addRoomPlaybook.productId ||
 	completePlaybook.productId ||
 	requestedProductId
-const isTourRateContext = productType.toLowerCase() === "tour" || productIsTour
+const isTourRateContext = productType ? productType.toLowerCase() === "tour" : tourScope
 const scopedVariantChoices = requestedProductId
 	? variantChoices.filter((choice) => choice.productId === requestedProductId)
-	: variantChoices
+	: variantChoices.filter((choice) =>
+			isTourRateContext
+				? choice.productType.toLowerCase() === "tour"
+				: explicitScope === "hotel"
+					? choice.productType.toLowerCase() !== "tour"
+					: true
+		)
 const addRoomCtx = {
 	productId: playbookProductId,
 	variantId: requestedVariantId || undefined,
@@ -385,7 +476,7 @@ const layoutProps =
 							playbookVertical: isTourRateContext ? "tour" : "hotel",
 							hideFooter: true,
 						}
-					: { title: "Tarifas" }
+					: { title: isTourRateContext ? "Precios y condiciones" : "Tarifas" }
 
 timing.add("history", 0, "deferred_endpoint")
 timing.addTotal("total")
@@ -408,7 +499,7 @@ logRoutePerformance({
 	installRatePlanTabsController()
 </script>
 
-<Layout {...layoutProps} productType={productType || null}>
+<Layout {...layoutProps} productType={productType || (isTourRateContext ? "tour" : null)}>
 	<div class="rate-plans-manage space-y-5" data-rate-plan-view-controller>
 		<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
 			<div class="space-y-1.5">
@@ -416,7 +507,9 @@ logRoutePerformance({
 					{
 						isPlaybookRateStep
 							? `${isTourPlaybookRateStep ? "Precio" : "Tarifa"} de ${playbookVariantLabel}`
-							: "Tarifas"
+							: isTourRateContext
+								? "Precios y condiciones"
+								: "Tarifas"
 					}
 				</h1>
 				<p class="max-w-2xl text-sm leading-6 text-slate-300">
@@ -426,7 +519,7 @@ logRoutePerformance({
 								? "Define el precio en las monedas que aceptas y las condiciones iniciales de esta salida. Después revisarás la reserva."
 								: "Define el precio base y la propuesta comercial inicial para que esta habitación pueda venderse."
 							: isTourRateContext
-								? "Define cómo se venden las salidas del tour: precio por participante, condiciones y fechas disponibles."
+								? "Gestiona los precios, las condiciones y el estado de cada oferta de tus tours."
 								: "Define cómo se venden tus habitaciones: precio base, condiciones y acceso al calendario."
 					}
 				</p>
@@ -642,6 +735,9 @@ logRoutePerformance({
 							))}
 						</TabsOutsidePanel>
 						<p class="pb-3 text-xs text-slate-500">Evaluación: próximos 30 días</p>
+						<p class="pb-3 text-xs text-slate-500">
+							Calendario del periodo: {checkIn} a {checkOut} · {operationalDay.timezone}
+						</p>
 					</div>
 
 					<p
@@ -1054,7 +1150,13 @@ logRoutePerformance({
 			const entries = raw ? JSON.parse(raw) : []
 			if (Array.isArray(entries)) {
 				for (const element of controls()) {
-					const match = entries.find((entry) => entry.key === (element.name || element.id))
+					const match = entries.find(
+						(entry) =>
+							entry.key === (element.name || element.id) &&
+							(!(element instanceof HTMLInputElement) ||
+								!["checkbox", "radio"].includes(element.type) ||
+								entry.value === element.value)
+					)
 					if (!match) continue
 					if (element instanceof HTMLInputElement && ["checkbox", "radio"].includes(element.type)) {
 						element.checked = Boolean(match.checked)
@@ -1076,7 +1178,7 @@ logRoutePerformance({
 	}
 	const formDraft = bindLocalRateDraft(
 		form,
-		`rates:${new URL(window.location.href).searchParams.get("productId") || "unscoped"}:${window.location.pathname}:${activePlaybook || "standalone"}:${requestedVariantId || "new-rate"}`
+		`rates:v2:${isTourRateContext ? "tour" : "lodging"}:${new URL(window.location.href).searchParams.get("productId") || "unscoped"}:${window.location.pathname}:${activePlaybook || "standalone"}:${requestedVariantId || "new-rate"}`
 	)
 	if (isTourPlaybookRateStep && form instanceof HTMLFormElement) {
 		const nameInput = form.querySelector('[name="name"]')
