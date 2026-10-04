@@ -40,10 +40,10 @@ describe("tours P0A broken-flow remediations", () => {
 	})
 
 	it("private-request inbox can accept or decline via transition API", () => {
-		const page = read("src/components/booking/PrivateRequestDetail.astro")
+		const page = read("src/pages/product/[id]/private-requests.astro")
 		expect(page).toContain("/api/tours/private-request/transition")
-		expect(page).toContain('value="accepted"')
-		expect(page).toContain('value="declined"')
+		expect(page).toContain('data-transition="accepted"')
+		expect(page).toContain('data-transition="declined"')
 		expect(page).toContain("providerNote")
 		expect(page).toContain("Aceptar")
 		expect(page).toContain("Rechazar")
