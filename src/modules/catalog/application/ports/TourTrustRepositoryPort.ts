@@ -125,5 +125,5 @@ export interface TourTrustRepositoryPort {
 		providerId: string
 		status: string
 		providerNote: string | null
-	}): Promise<void>
+	}): Promise<boolean>
 }

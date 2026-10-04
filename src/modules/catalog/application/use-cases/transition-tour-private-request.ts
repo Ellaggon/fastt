@@ -48,12 +48,18 @@ export async function transitionTourPrivateRequest(
 		return { ok: false, error: "invalid_transition" }
 	}
 
-	await deps.repo.updatePrivateRequestTransition({
+	const changed = await deps.repo.updatePrivateRequestTransition({
 		requestId,
 		providerId,
 		status,
 		providerNote,
 	})
 
+	if (!changed) {
+		const persisted = await deps.repo.findPrivateRequestForProvider({ requestId, providerId })
+		if (!persisted) return { ok: false, error: "not_found" }
+		if (persisted.status === status) return { ok: true, requestId, status, idempotent: true }
+		return { ok: false, error: "invalid_transition" }
+	}
 	return { ok: true, requestId, status, idempotent: false }
 }

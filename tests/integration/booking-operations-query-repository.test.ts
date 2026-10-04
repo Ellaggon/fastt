@@ -132,3 +132,89 @@ describe("BookingOperationsQueryRepository", () => {
 		expect(detail?.taxes).toHaveLength(1)
 	})
 })
+
+describe("tour departure day query", () => {
+	it("filters date, vertical and option before pagination, preserving next-day ends", async () => {
+		const suffix = crypto.randomUUID()
+		const providerId = `provider_day_${suffix}`
+		const geoPlaceId = `geo_day_${suffix}`
+		await upsertGeoPlace({
+			id: geoPlaceId,
+			name: "La Paz",
+			type: "city",
+			country: "BO",
+			slug: `day-${suffix}`,
+		})
+		const products = ["Tour", "Hotel"]
+		for (const type of products) {
+			const productId = `${type}_day_${suffix}`
+			const variantId = `variant_${productId}`
+			const templateId = `template_${productId}`
+			const ratePlanId = `rate_${productId}`
+			await upsertProduct({ id: productId, name: type, productType: type, geoPlaceId, providerId })
+			await upsertVariant({ id: variantId, productId, name: "Opción" })
+			await upsertRatePlanTemplate({ id: templateId, name: "Estándar" })
+			await upsertRatePlan({ id: ratePlanId, templateId, variantId, isActive: true })
+			for (let index = 0; index < 3; index++) {
+				const bookingId = `booking_${type}_${index}_${suffix}`
+				const checkIn = index === 2 ? "2999-06-23" : "2999-06-22"
+				await db
+					.insert(Booking)
+					.values({
+						id: bookingId,
+						providerId,
+						ratePlanId,
+						checkInDate: checkIn,
+						checkOutDate: "2999-06-24",
+						totalAmount: 100,
+						currency: "BOB",
+						status: "confirmed",
+					})
+				await db
+					.insert(BookingLineItem)
+					.values({
+						id: `line_${bookingId}`,
+						bookingId,
+						variantId,
+						ratePlanId,
+						checkIn,
+						checkOut: "2999-06-24",
+						adults: 1,
+						children: 0,
+						subtotalAmount: 100,
+						taxAmount: 0,
+						totalAmount: 100,
+						productIdSnapshot: productId,
+					})
+			}
+		}
+		const query = {
+			providerId,
+			vertical: "tour",
+			departureDate: "2999-06-22",
+			status: "confirmed",
+			limit: 1,
+		}
+		const firstPage = await bookingOperationsQueryRepository.listByProvider(query)
+		const secondPage = await bookingOperationsQueryRepository.listByProvider({
+			...query,
+			offset: 1,
+		})
+		expect(firstPage.pagination).toMatchObject({ total: 2, hasMore: true })
+		expect(secondPage.pagination).toMatchObject({ total: 2, hasMore: false })
+		expect(firstPage.items[0].bookingId).not.toBe(secondPage.items[0].bookingId)
+		for (const item of [...firstPage.items, ...secondPage.items]) {
+			expect(item).toMatchObject({
+				vertical: "tour",
+				checkIn: "2999-06-22",
+				checkOut: "2999-06-24",
+			})
+		}
+		const wrongOption = await bookingOperationsQueryRepository.listByProvider({
+			...query,
+			variantId: `variant_Hotel_day_${suffix}`,
+		})
+		expect(wrongOption.pagination.total).toBe(0)
+		expect(wrongOption.items).toEqual([])
+	})
+})

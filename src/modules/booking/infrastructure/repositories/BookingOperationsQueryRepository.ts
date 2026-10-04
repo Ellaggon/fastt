@@ -38,12 +38,17 @@ type BookingLifecycle = {
 	reality: "persisted_status" | "persisted_operation" | "date_derived_visibility"
 }
 
-type ListFilters = {
+export type ListFilters = {
 	providerId: string
 	status?: string
 	from?: string
 	to?: string
 	limit?: number
+	offset?: number
+	departureDate?: string
+	productId?: string
+	variantId?: string
+	vertical?: string
 }
 
 type BookingDetailKey = {
@@ -252,10 +257,29 @@ function countBy(
 
 export class BookingOperationsQueryRepository {
 	async listByProvider(filters: ListFilters) {
-		const limit = Math.max(1, Math.min(Number(filters.limit ?? 25) || 25, 100))
+		const limit = Math.max(1, Math.min(Math.floor(Number(filters.limit ?? 25)) || 25, 100))
 		const predicates = [eq(Booking.providerId, filters.providerId)]
 		if (filters.status && filters.status !== "all") {
 			predicates.push(eq(Booking.status, filters.status))
+		}
+		if (filters.departureDate) predicates.push(eq(Booking.checkInDate, filters.departureDate))
+		const linePredicates = [
+			filters.productId ? eq(Product.id, filters.productId) : undefined,
+			filters.variantId ? eq(Variant.id, filters.variantId) : undefined,
+			filters.vertical === "tour"
+				? sql`lower(${Product.productType}) = 'tour'`
+				: filters.vertical === "hotel"
+					? sql`lower(${Product.productType}) <> 'tour'`
+					: undefined,
+		]
+		if (linePredicates.some(Boolean)) {
+			const matchingLines = db
+				.select({ bookingId: BookingLineItem.bookingId })
+				.from(BookingLineItem)
+				.innerJoin(Variant, eq(Variant.id, BookingLineItem.variantId))
+				.innerJoin(Product, eq(Product.id, Variant.productId))
+				.where(and(...linePredicates))
+			predicates.push(inArray(Booking.id, matchingLines))
 		}
 		if (filters.from) predicates.push(gte(Booking.checkInDate, filters.from))
 		if (filters.to) predicates.push(lte(Booking.checkOutDate, filters.to))
@@ -272,6 +296,7 @@ export class BookingOperationsQueryRepository {
 			.where(and(...predicates))
 			.orderBy(desc(Booking.bookingDate), desc(Booking.id))
 			.limit(limit + 1)
+			.offset(Math.max(0, filters.offset ?? 0))
 
 		const pagedBookingIds = bookingIdRows.slice(0, limit).map((row) => String(row.bookingId))
 		if (!pagedBookingIds.length) {
@@ -292,6 +317,7 @@ export class BookingOperationsQueryRepository {
 				},
 				pagination: {
 					limit,
+					offset: filters.offset ?? 0,
 					returned: 0,
 					total,
 					hasMore: false,
@@ -341,7 +367,13 @@ export class BookingOperationsQueryRepository {
 			.leftJoin(Variant, eq(Variant.id, BookingLineItem.variantId))
 			.leftJoin(Product, eq(Product.id, Variant.productId))
 			.leftJoin(TourSlotProfile, eq(TourSlotProfile.variantId, BookingLineItem.variantId))
-			.where(and(eq(Booking.providerId, filters.providerId), inArray(Booking.id, pagedBookingIds)))
+			.where(
+				and(
+					eq(Booking.providerId, filters.providerId),
+					inArray(Booking.id, pagedBookingIds),
+					...linePredicates
+				)
+			)
 			.orderBy(desc(Booking.bookingDate), desc(Booking.id))
 
 		const bookingIds = [...new Set(rows.map((row) => row.bookingId))]
@@ -532,6 +564,7 @@ export class BookingOperationsQueryRepository {
 			},
 			pagination: {
 				limit,
+				offset: filters.offset ?? 0,
 				returned: items.length,
 				total,
 				hasMore: bookingIdRows.length > limit,
