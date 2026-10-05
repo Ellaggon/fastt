@@ -1,9 +1,9 @@
 import type { RatePlanIntentId } from "./ratePlanIntentPresets"
 
 export type ContractPresetBundle = {
-	Cancellation: string
+	Cancellation?: string
 	Payment: string
-	CheckIn: string
+	CheckIn?: string
 	NoShow: string
 }
 
@@ -73,7 +73,6 @@ export function resolveCommercialIntentSpec(
 	return {
 		...spec,
 		contract: {
-			...spec.contract,
 			Payment: "pay_at_property",
 			NoShow: "no_show_percentage_100",
 		},

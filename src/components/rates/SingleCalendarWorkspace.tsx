@@ -1,5 +1,8 @@
+import { completeToPublishNextHref } from "@/lib/playbook/complete-to-publish"
+import { tourPreparationNextHref } from "@/lib/playbook/launch-tour"
 import { providerCalendarDate } from "@/lib/rates/providerCalendarDate"
 /** @jsxRuntime classic */
+import { CalendarDays, CalendarRange, ChevronDown, Ticket, Users } from "lucide-react"
 import React, { startTransition, useEffect, useMemo, useRef, useState } from "react"
 
 import CalendarResponsiveDrawer from "@/components/rates/CalendarResponsiveDrawer"
@@ -46,12 +49,67 @@ type Props = {
 		initialInventoryDays: number
 		timezone?: string
 		finalizationError?: string
-		activationBlockers?: Array<{ id: string; label: string; href: string }>
 	}
 }
 
 type DrawerAction = "manual_price" | "inventory_units" | "stop_sell" | "min_los" | null
 type GuidedActivationBlocker = { id: string; label: string; href?: string }
+type TourGuidedAvailabilitySnapshot = {
+	from: string
+	to: string
+	units: number
+	range: "next_30" | "next_60" | "custom"
+	nights: number
+	variantName: string
+	ratePlanName: string
+}
+
+function tourGuidedAvailabilityStorageKey(variantId: string) {
+	return `fastt:tour-guided-availability:${variantId}`
+}
+
+function guidedRangePresetLabel(range: TourGuidedAvailabilitySnapshot["range"]) {
+	if (range === "next_60") return "Próximos 60 días"
+	if (range === "custom") return "Personalizado"
+	return "Próximos 30 días"
+}
+
+function tourGuidedPlaybookContinueHref(
+	guidedAvailability: NonNullable<Props["guidedAvailability"]>,
+	variantId: string,
+	ratePlanId: string
+): string | null {
+	const context = {
+		productId: guidedAvailability.productId,
+		variantId: variantId || undefined,
+		ratePlanId: ratePlanId || undefined,
+	}
+	if (guidedAvailability.playbook === "complete-to-publish") {
+		return completeToPublishNextHref(guidedAvailability.productId, "calendar", "tour", context)
+	}
+	if (guidedAvailability.playbook === "launch-tour") {
+		return tourPreparationNextHref(new URLSearchParams(window.location.search), context, "calendar")
+	}
+	return null
+}
+
+function enableTourPlaybookFooterContinue(href: string) {
+	const footer = document.querySelector(".fastt-playbook-footer")
+	if (!footer) return
+	const cta = footer.querySelector(".fastt-playbook-cta")
+	if (!cta) return
+	if (cta instanceof HTMLAnchorElement) {
+		cta.href = href
+		return
+	}
+	if (cta instanceof HTMLButtonElement) {
+		const link = document.createElement("a")
+		link.href = href
+		link.className = cta.className
+		link.textContent = "Guardar y continuar"
+		cta.replaceWith(link)
+	}
+}
 
 const WEEKDAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
 const RANGE_PRESETS = [
@@ -210,6 +268,21 @@ function cellPresentation(
 	}
 }
 
+type GuidedApplyingRange = {
+	from: string
+	to: string
+	units: number
+}
+
+function guidedOpeningDayPresentation() {
+	return {
+		primary: "",
+		secondary: "Abriendo cupo…",
+		tone: "neutral" as const,
+		guidedOpening: true as const,
+	}
+}
+
 function toneClass(tone: string) {
 	const tones: Record<string, string> = {
 		past: "border-slate-100 bg-slate-50/50 text-slate-300",
@@ -239,7 +312,6 @@ export default function SingleCalendarWorkspace({
 }: Props) {
 	const isTourGuidedAvailability = guidedAvailability?.vertical === "tour"
 	const isAddRoomGuidedAvailability = guidedAvailability?.playbook === "add-room"
-	const hasActivationBlockers = Boolean(guidedAvailability?.activationBlockers?.length)
 	const guidedStartDate = addDays(providerCalendarDate(guidedAvailability?.timezone), 1)
 	const initialRequest = {
 		ratePlanId: initialRatePlanId,
@@ -279,6 +351,11 @@ export default function SingleCalendarWorkspace({
 	const [guidedTo, setGuidedTo] = useState(addDays(guidedStartDate, 29))
 	const [guidedUnits, setGuidedUnits] = useState(1)
 	const [guidedFinalizing, setGuidedFinalizing] = useState(false)
+	const [guidedEditorExpanded, setGuidedEditorExpanded] = useState(true)
+	const [guidedApplyingRange, setGuidedApplyingRange] = useState<GuidedApplyingRange | null>(null)
+	const [guidedSavedConfig, setGuidedSavedConfig] = useState<TourGuidedAvailabilitySnapshot | null>(
+		null
+	)
 	const [gridDirection, setGridDirection] = useState<"previous" | "next" | "neutral">("neutral")
 	const [updatedDates, setUpdatedDates] = useState<Set<string>>(new Set())
 	const [pricingJobId, setPricingJobId] = useState<string | null>(null)
@@ -291,13 +368,49 @@ export default function SingleCalendarWorkspace({
 		: localIsoDate()
 	const isGuidedAvailability = Boolean(guidedAvailability)
 	const requiredGuidedDays = Math.max(1, Number(guidedAvailability?.requiredDays ?? 30))
-	const guidedProgressPercent = Math.min(
-		100,
-		Math.round((guidedInventoryDays / requiredGuidedDays) * 100)
-	)
 	const guidedIsReady = guidedInventoryDays >= requiredGuidedDays
+	const tourGuidedCollapsed = isTourGuidedAvailability && !guidedEditorExpanded
 
 	const selected = useMemo(() => [...selectedDates].sort(), [selectedDates])
+	const guidedVariantId = surface?.selectedVariantId || initialVariantId || ""
+
+	useEffect(() => {
+		if (!isTourGuidedAvailability || !guidedVariantId) return
+		const storageKey = tourGuidedAvailabilityStorageKey(guidedVariantId)
+		try {
+			const raw = sessionStorage.getItem(storageKey)
+			if (raw) {
+				const parsed = JSON.parse(raw) as TourGuidedAvailabilitySnapshot
+				setGuidedSavedConfig(parsed)
+				setGuidedFrom(parsed.from)
+				setGuidedTo(parsed.to)
+				setGuidedUnits(parsed.units)
+				setGuidedRange(parsed.range)
+				setGuidedEditorExpanded(false)
+				return
+			}
+		} catch {
+			/* ignore malformed snapshot */
+		}
+		if (guidedIsReady) setGuidedEditorExpanded(false)
+	}, [isTourGuidedAvailability, guidedVariantId, guidedIsReady])
+
+	useEffect(() => {
+		if (!isTourGuidedAvailability || !guidedAvailability || !guidedIsReady) return
+		const href = tourGuidedPlaybookContinueHref(
+			guidedAvailability,
+			guidedVariantId,
+			surface?.selectedRatePlanId ?? initialRatePlanId ?? ""
+		)
+		if (href) enableTourPlaybookFooterContinue(href)
+	}, [
+		isTourGuidedAvailability,
+		guidedAvailability,
+		guidedIsReady,
+		guidedVariantId,
+		surface?.selectedRatePlanId,
+		initialRatePlanId,
+	])
 
 	useEffect(() => {
 		if (!selectionHint) return
@@ -640,6 +753,7 @@ export default function SingleCalendarWorkspace({
 		}
 
 		setLoading(true)
+		setGuidedApplyingRange({ from: guidedFrom, to: guidedTo, units })
 		setGuidedFeedbackVariant("info")
 		setGuidedFeedback("Abriendo disponibilidad inicial...")
 		try {
@@ -676,18 +790,58 @@ export default function SingleCalendarWorkspace({
 					: `Disponibilidad abierta para ${nights} ${nights === 1 ? "noche" : "noches"} con ${units} ${units === 1 ? "unidad" : "unidades"} por noche.`
 			)
 			setGuidedFeedbackVariant("success")
-			// The server owns activation eligibility. Refresh its observations after writing dates,
-			// keeping the current URL (product, option, rate and playbook) intact.
-			if (isTourGuidedAvailability) window.location.reload()
+			if (isTourGuidedAvailability && guidedAvailability) {
+				const snapshot: TourGuidedAvailabilitySnapshot = {
+					from: guidedFrom,
+					to: guidedTo,
+					units,
+					range: guidedRange,
+					nights,
+					variantName: guidedAvailability.variantName || readySurface.selectedContext || "Salida",
+					ratePlanName:
+						guidedAvailability.ratePlanName || readySurface.selectedRatePlanName || "Tarifa",
+				}
+				setGuidedSavedConfig(snapshot)
+				try {
+					sessionStorage.setItem(
+						tourGuidedAvailabilityStorageKey(readySurface.selectedVariantId),
+						JSON.stringify(snapshot)
+					)
+				} catch {
+					/* storage may be unavailable */
+				}
+				setGuidedEditorExpanded(false)
+				const continueHref = tourGuidedPlaybookContinueHref(
+					guidedAvailability,
+					readySurface.selectedVariantId,
+					readySurface.selectedRatePlanId ?? ""
+				)
+				if (continueHref) enableTourPlaybookFooterContinue(continueHref)
+			}
 		} catch (error) {
 			setGuidedFeedbackVariant("error")
 			setGuidedFeedback(error instanceof Error ? error.message : "No se pudo abrir disponibilidad")
 		} finally {
+			setGuidedApplyingRange(null)
 			setLoading(false)
 		}
 	}
 
 	async function finalizeGuidedRate() {
+		if (isTourGuidedAvailability && guidedAvailability) {
+			window.location.assign(
+				tourPreparationNextHref(
+					new URLSearchParams(window.location.search),
+					{
+						productId: guidedAvailability.productId,
+						variantId: readySurface.selectedVariantId ?? undefined,
+						ratePlanId: readySurface.selectedRatePlanId ?? undefined,
+					},
+					"calendar"
+				)
+			)
+			return
+		}
 		if ((!isAddRoomGuidedAvailability && !isTourGuidedAvailability) || !guidedIsReady) {
 			setGuidedFeedbackVariant("error")
 			setGuidedFeedback(
@@ -1008,337 +1162,394 @@ export default function SingleCalendarWorkspace({
 					? closedDays === 0
 					: readySurface.conditions.complete
 	const guidedNights = guidedNightCount()
-
+	const tourGuidedSummary: TourGuidedAvailabilitySnapshot | null =
+		guidedSavedConfig ??
+		(isTourGuidedAvailability && guidedIsReady && guidedNights > 0 && guidedAvailability
+			? {
+					from: guidedFrom,
+					to: guidedTo,
+					units: guidedUnits,
+					range: guidedRange,
+					nights: guidedNights,
+					variantName: guidedAvailability.variantName || readySurface.selectedContext || "Salida",
+					ratePlanName:
+						guidedAvailability.ratePlanName || readySurface.selectedRatePlanName || "Tarifa",
+				}
+			: null)
 	return (
 		<div className="space-y-5" aria-busy={loading}>
 			{isGuidedAvailability && guidedAvailability && (
 				<Card as="section" className="fastt-workspace-panel overflow-hidden p-0 text-slate-900">
-					<div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]">
-						<div className="space-y-5 p-5 md:p-6">
-							<div className="flex flex-wrap items-start justify-between gap-3">
-								<div>
-									<div className="flex flex-wrap items-center gap-2">
-										<h2 className="text-xl font-semibold text-slate-950">
-											{isTourGuidedAvailability
-												? hasActivationBlockers && guidedIsReady
-													? "Disponibilidad configurada"
-													: "Abre la primera fecha reservable"
-												: "Abrir disponibilidad inicial"}
-										</h2>
-										<Badge
-											variant={
-												hasActivationBlockers ? "warning" : guidedIsReady ? "success" : "warning"
-											}
-										>
-											{hasActivationBlockers
-												? "Activación pendiente"
-												: guidedIsReady
-													? "Lista"
-													: "Pendiente"}
-										</Badge>
-									</div>
-									<p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
-										{isTourGuidedAvailability
-											? hasActivationBlockers && guidedIsReady
-												? "Hay fechas futuras con cupo. La oferta necesita resolver los requisitos de activación indicados."
-												: "Elige una o más fechas futuras y asigna el cupo de participantes. Con al menos una fecha con cupo, la salida queda lista para reservar."
-											: "Configura inventario inicial para un primer rango vendible. Precios y condiciones ya se revisaron en los pasos anteriores."}
-									</p>
-								</div>
-								<div className="min-w-36 text-right">
-									<p className="text-xs font-semibold text-slate-500 uppercase">Meta</p>
-									<p className="mt-1 text-sm font-semibold text-slate-950">
-										{Math.min(guidedInventoryDays, requiredGuidedDays)}/{requiredGuidedDays}{" "}
-										{isTourGuidedAvailability
-											? requiredGuidedDays === 1
-												? "fecha futura"
-												: "fechas futuras"
-											: "noches"}
-									</p>
-									<div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
-										<div
-											className="h-full rounded-full bg-[var(--fastt-color-selection)]"
-											style={{ width: `${guidedProgressPercent}%` }}
-										/>
-									</div>
-								</div>
-							</div>
-
-							<div className="grid gap-3 md:grid-cols-3">
-								<ChoiceCard
-									selected={guidedRange === "next_30"}
-									onClick={() => setGuidedPreset("next_30")}
-									className="py-3"
-								>
-									<p className="text-sm font-semibold text-slate-950">Próximos 30 días</p>
-									<p className="mt-1 text-xs leading-5 text-slate-500">
-										Recomendado para publicar.
-									</p>
-								</ChoiceCard>
-								<ChoiceCard
-									selected={guidedRange === "next_60"}
-									onClick={() => setGuidedPreset("next_60")}
-									className="py-3"
-								>
-									<p className="text-sm font-semibold text-slate-950">Próximos 60 días</p>
-									<p className="mt-1 text-xs leading-5 text-slate-500">Más margen para reservas.</p>
-								</ChoiceCard>
-								<ChoiceCard
-									selected={guidedRange === "custom"}
-									onClick={() => setGuidedPreset("custom")}
-									className="py-3"
-								>
-									<p className="text-sm font-semibold text-slate-950">Personalizado</p>
-									<p className="mt-1 text-xs leading-5 text-slate-500">Elige fechas exactas.</p>
-								</ChoiceCard>
-							</div>
-
-							<div className="grid gap-4 md:grid-cols-[1fr_1fr_160px]">
-								<label className="block text-sm">
-									<span className="font-medium text-slate-800">Desde</span>
-									<Input
-										type="date"
-										value={guidedFrom}
-										min={guidedStartDate}
-										onChange={(event) => {
-											setGuidedRange("custom")
-											setGuidedFrom(event.target.value)
-										}}
-										className="mt-1.5"
-									/>
-								</label>
-								<label className="block text-sm">
-									<span className="font-medium text-slate-800">Hasta</span>
-									<Input
-										type="date"
-										value={guidedTo}
-										min={guidedFrom || providerCalendarDate(guidedAvailability?.timezone)}
-										onChange={(event) => {
-											setGuidedRange("custom")
-											setGuidedTo(event.target.value)
-										}}
-										className="mt-1.5"
-									/>
-								</label>
-								<label className="block text-sm">
-									<span className="font-medium text-slate-800">
-										{isTourGuidedAvailability ? "Cupo de participantes" : "Cupo por noche"}
+					{tourGuidedCollapsed && tourGuidedSummary ? (
+						<>
+							<button
+								type="button"
+								className="guided-tour-availability-disclosure__summary"
+								onClick={() => setGuidedEditorExpanded(true)}
+								disabled={loading || guidedFinalizing}
+								aria-label={`Editar fechas y cupos: ${guidedRangePresetLabel(tourGuidedSummary.range)}, ${formatRange(tourGuidedSummary.from, tourGuidedSummary.to)}, ${tourGuidedSummary.nights} ${tourGuidedSummary.nights === 1 ? "fecha" : "fechas"}, ${tourGuidedSummary.units} ${tourGuidedSummary.units === 1 ? "participante" : "participantes"}`}
+							>
+								<span className="guided-tour-availability-disclosure__summary-leading">
+									<span className="guided-tour-availability-disclosure__check" aria-hidden="true">
+										✓
 									</span>
-									<Input
-										type="number"
-										min="1"
-										step="1"
-										value={guidedUnits}
-										onChange={(event) => setGuidedUnits(Number(event.target.value))}
-										className="mt-1.5"
-									/>
-								</label>
-							</div>
+									<span className="guided-tour-availability-disclosure__values">
+										<span className="guided-tour-availability-disclosure__item">
+											<CalendarRange className="h-4 w-4" aria-hidden="true" />
+											<span className="min-w-0 truncate">
+												{guidedRangePresetLabel(tourGuidedSummary.range)}
+											</span>
+										</span>
+										<span
+											className="guided-tour-availability-disclosure__divider"
+											aria-hidden="true"
+										/>
+										<span className="guided-tour-availability-disclosure__item">
+											<CalendarDays className="h-4 w-4" aria-hidden="true" />
+											<span className="min-w-0 truncate">
+												{formatRange(tourGuidedSummary.from, tourGuidedSummary.to)}
+											</span>
+										</span>
+										<span
+											className="guided-tour-availability-disclosure__divider"
+											aria-hidden="true"
+										/>
+										<span className="guided-tour-availability-disclosure__item">
+											<Users className="h-4 w-4" aria-hidden="true" />
+											<span className="min-w-0 truncate">
+												{tourGuidedSummary.nights}{" "}
+												{tourGuidedSummary.nights === 1 ? "fecha" : "fechas"}
+												<span aria-hidden="true"> · </span>
+												{tourGuidedSummary.units}{" "}
+												{tourGuidedSummary.units === 1 ? "participante" : "participantes"}
+											</span>
+										</span>
+										<span
+											className="guided-tour-availability-disclosure__divider"
+											aria-hidden="true"
+										/>
+										<span className="guided-tour-availability-disclosure__item guided-tour-availability-disclosure__item--rate">
+											<Ticket className="h-4 w-4" aria-hidden="true" />
+											<span className="guided-tour-availability-disclosure__item-text min-w-0 truncate">
+												{tourGuidedSummary.ratePlanName}
+											</span>
+										</span>
+									</span>
+								</span>
+								<span className="guided-tour-availability-disclosure__action">
+									<span className="hidden md:inline">Editar fechas y cupos</span>
+									<ChevronDown className="h-4 w-4" aria-hidden="true" />
+								</span>
+							</button>
+							{guidedFeedback ? (
+								<div className="guided-tour-availability-disclosure__feedback">
+									<Notice variant={guidedFeedbackVariant}>
+										<p className="text-sm">{guidedFeedback}</p>
+									</Notice>
+								</div>
+							) : null}
+						</>
+					) : null}
+					<div
+						className={
+							isTourGuidedAvailability
+								? `grid transition-[grid-template-rows,opacity] duration-300 ease-in-out motion-reduce:transition-none ${
+										tourGuidedCollapsed
+											? "pointer-events-none grid-rows-[0fr] opacity-0"
+											: "grid-rows-[1fr] opacity-100"
+									}`
+								: undefined
+						}
+						aria-hidden={tourGuidedCollapsed}
+					>
+						<div className={isTourGuidedAvailability ? "min-h-0 overflow-hidden" : undefined}>
+							<div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]">
+								<div className="space-y-5 p-5 md:p-6">
+									<div>
+										<div className="flex flex-wrap items-center gap-2">
+											<h2 className="text-xl font-semibold text-slate-950">
+												{isTourGuidedAvailability
+													? guidedIsReady
+														? "Disponibilidad configurada"
+														: "Configura fechas y cupos"
+													: "Abrir disponibilidad inicial"}
+											</h2>
+											<Badge variant={guidedIsReady ? "success" : "warning"}>
+												{guidedIsReady ? "Lista" : "Pendiente"}
+											</Badge>
+										</div>
+										<p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
+											{isTourGuidedAvailability
+												? guidedIsReady
+													? "Hay fechas futuras con cupo. Revisa el tour para comprobar su preparación y habilitación."
+													: "Elige una o más fechas futuras y asigna el cupo de participantes. La revisión comprobará por separado la habilitación y activación comercial."
+												: "Configura inventario inicial para un primer rango vendible. Precios y condiciones ya se revisaron en los pasos anteriores."}
+										</p>
+									</div>
 
-							<div className="flex flex-col gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
-								<p className="text-sm leading-6 text-slate-500">
-									{guidedNights > 0
-										? isTourGuidedAvailability
-											? `Abrirás ${guidedNights} ${guidedNights === 1 ? "fecha" : "fechas"} con cupo para ${guidedUnits || 0} ${Number(guidedUnits) === 1 ? "participante" : "participantes"} por salida.`
-											: `Abrirás ${guidedNights} ${guidedNights === 1 ? "noche" : "noches"} con ${guidedUnits || 0} ${Number(guidedUnits) === 1 ? "unidad" : "unidades"} disponible por noche.`
-										: "Selecciona un rango para calcular la disponibilidad inicial."}
-								</p>
-								<div className="flex flex-wrap justify-end gap-3">
-									<Button
-										type="button"
-										onClick={() => void applyGuidedAvailability()}
-										disabled={loading || guidedFinalizing}
-										variant={guidedIsReady && isAddRoomGuidedAvailability ? "secondary" : "primary"}
-									>
-										{guidedIsReady && isAddRoomGuidedAvailability
-											? "Actualizar disponibilidad"
-											: "Abrir disponibilidad"}
-									</Button>
-									{(isAddRoomGuidedAvailability ||
-										(isTourGuidedAvailability && !hasActivationBlockers)) &&
-									guidedIsReady &&
-									!guidedTerminalHref ? (
+									<div className="grid gap-3 md:grid-cols-3">
+										<ChoiceCard
+											selected={guidedRange === "next_30"}
+											onClick={() => setGuidedPreset("next_30")}
+											className="py-3"
+										>
+											<p className="text-sm font-semibold text-slate-950">Próximos 30 días</p>
+											<p className="mt-1 text-xs leading-5 text-slate-500">
+												Recomendado para publicar.
+											</p>
+										</ChoiceCard>
+										<ChoiceCard
+											selected={guidedRange === "next_60"}
+											onClick={() => setGuidedPreset("next_60")}
+											className="py-3"
+										>
+											<p className="text-sm font-semibold text-slate-950">Próximos 60 días</p>
+											<p className="mt-1 text-xs leading-5 text-slate-500">
+												Más margen para reservas.
+											</p>
+										</ChoiceCard>
+										<ChoiceCard
+											selected={guidedRange === "custom"}
+											onClick={() => setGuidedPreset("custom")}
+											className="py-3"
+										>
+											<p className="text-sm font-semibold text-slate-950">Personalizado</p>
+											<p className="mt-1 text-xs leading-5 text-slate-500">Elige fechas exactas.</p>
+										</ChoiceCard>
+									</div>
+
+									<div className="grid gap-4 md:grid-cols-[1fr_1fr_160px]">
+										<label className="block text-sm">
+											<span className="font-medium text-slate-800">Desde</span>
+											<Input
+												type="date"
+												value={guidedFrom}
+												min={guidedStartDate}
+												onChange={(event) => {
+													setGuidedRange("custom")
+													setGuidedFrom(event.target.value)
+												}}
+												className="mt-1.5"
+											/>
+										</label>
+										<label className="block text-sm">
+											<span className="font-medium text-slate-800">Hasta</span>
+											<Input
+												type="date"
+												value={guidedTo}
+												min={guidedFrom || providerCalendarDate(guidedAvailability?.timezone)}
+												onChange={(event) => {
+													setGuidedRange("custom")
+													setGuidedTo(event.target.value)
+												}}
+												className="mt-1.5"
+											/>
+										</label>
+										<label className="block text-sm">
+											<span className="font-medium text-slate-800">
+												{isTourGuidedAvailability ? "Cupo de participantes" : "Cupo por noche"}
+											</span>
+											<Input
+												type="number"
+												min="1"
+												step="1"
+												value={guidedUnits}
+												onChange={(event) => setGuidedUnits(Number(event.target.value))}
+												className="mt-1.5"
+											/>
+										</label>
+									</div>
+
+									<div className="flex flex-col gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
+										<p className="text-sm leading-6 text-slate-500">
+											{guidedNights > 0
+												? isTourGuidedAvailability
+													? `Abrirás ${guidedNights} ${guidedNights === 1 ? "fecha" : "fechas"} con cupo para ${guidedUnits || 0} ${Number(guidedUnits) === 1 ? "participante" : "participantes"} por salida.`
+													: `Abrirás ${guidedNights} ${guidedNights === 1 ? "noche" : "noches"} con ${guidedUnits || 0} ${Number(guidedUnits) === 1 ? "unidad" : "unidades"} disponible por noche.`
+												: "Selecciona un rango para calcular la disponibilidad inicial."}
+										</p>
+										{!(isTourGuidedAvailability && guidedIsReady) ? (
+											<div className="flex flex-wrap justify-end gap-3">
+												<Button
+													type="button"
+													onClick={() => void applyGuidedAvailability()}
+													disabled={loading || guidedFinalizing}
+													size="lg"
+													className="min-h-11 shrink-0 px-6 sm:px-7"
+													variant={
+														guidedIsReady && isAddRoomGuidedAvailability ? "secondary" : "primary"
+													}
+												>
+													{guidedIsReady && isAddRoomGuidedAvailability
+														? "Actualizar disponibilidad"
+														: "Abrir disponibilidad"}
+												</Button>
+												{isAddRoomGuidedAvailability && guidedIsReady && !guidedTerminalHref ? (
+													<Button
+														type="button"
+														onClick={() => void finalizeGuidedRate()}
+														disabled={loading || guidedFinalizing}
+														className="fastt-playbook-cta"
+													>
+														{guidedFinalizing ? "Finalizando..." : "Finalizar configuración"}
+													</Button>
+												) : null}
+											</div>
+										) : null}
+									</div>
+
+									{guidedFeedback && (
+										<Notice variant={guidedFeedbackVariant}>
+											<div className="space-y-2">
+												<p>{guidedFeedback}</p>
+												{guidedActivationBlockers.length > 0 ? (
+													<ul
+														className="space-y-2"
+														aria-label="Requisitos pendientes para activar la oferta"
+													>
+														{guidedActivationBlockers.map((blocker) => (
+															<li
+																key={blocker.id}
+																className="flex flex-col gap-2 rounded-lg border border-red-200 bg-white/70 p-3 sm:flex-row sm:items-center sm:justify-between"
+															>
+																<span>{blocker.label}</span>
+																<a
+																	href={blocker.href}
+																	className="inline-flex min-h-10 items-center font-semibold text-slate-900 underline underline-offset-4"
+																>
+																	Resolver requisito
+																</a>
+															</li>
+														))}
+													</ul>
+												) : null}
+												{guidedTerminalHref ? (
+													<a
+														href={guidedTerminalHref}
+														className="inline-flex min-h-10 items-center font-semibold text-slate-900 underline underline-offset-4"
+													>
+														Abrir resumen de la oferta
+													</a>
+												) : null}
+											</div>
+										</Notice>
+									)}
+								</div>
+
+								<aside className="border-t border-slate-200 bg-slate-50 p-5 md:p-6 lg:border-t-0 lg:border-l">
+									<p className="text-xs font-semibold text-slate-500 uppercase">Contexto</p>
+									<dl className="mt-4 space-y-4 text-sm">
+										<div>
+											<dt className="text-slate-500">
+												{isTourGuidedAvailability ? "Salida" : "Habitación"}
+											</dt>
+											<dd className="mt-1 font-semibold text-slate-950">
+												{guidedAvailability.variantName || readySurface.selectedContext}
+											</dd>
+										</div>
+										<div>
+											<dt className="text-slate-500">Tarifa</dt>
+											<dd className="mt-1 font-semibold text-slate-950">
+												{guidedAvailability.ratePlanName || readySurface.selectedRatePlanName}
+											</dd>
+										</div>
+										<div>
+											<dt className="text-slate-500">Después de este paso</dt>
+											<dd className="mt-1 leading-6 text-slate-700">
+												Podrás ajustar cierres, reglas y cupos diarios desde el calendario
+												operativo.
+											</dd>
+										</div>
+									</dl>
+								</aside>
+							</div>
+							{isTourGuidedAvailability && guidedIsReady ? (
+								<div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]">
+									<div className="flex items-center justify-end px-5 py-3 md:px-6">
 										<Button
 											type="button"
-											onClick={() => void finalizeGuidedRate()}
+											onClick={() => void applyGuidedAvailability()}
 											disabled={loading || guidedFinalizing}
-											className="fastt-playbook-cta"
+											size="lg"
+											className="min-h-11 shrink-0 px-6 sm:px-7"
+											variant="secondary"
 										>
-											{guidedFinalizing
-												? "Finalizando..."
-												: isTourGuidedAvailability
-													? "Activar tarifa y continuar"
-													: "Finalizar configuración"}
+											Actualizar disponibilidad
 										</Button>
-									) : null}
-								</div>
-							</div>
-							{isTourGuidedAvailability && hasActivationBlockers ? (
-								<Notice variant="warning">
-									<div className="space-y-3">
-										<p>Antes de activar esta oferta, resuelve estos requisitos:</p>
-										<ul
-											className="space-y-2"
-											aria-label="Requisitos pendientes para activar la oferta"
+									</div>
+									<div className="flex items-center justify-end px-5 py-3 md:px-6">
+										<Button
+											type="button"
+											variant="ghost"
+											size="sm"
+											onClick={() => setGuidedEditorExpanded(false)}
+											disabled={loading || guidedFinalizing}
+											className="min-h-11 gap-1.5 px-3 text-xs text-slate-600"
 										>
-											{guidedAvailability.activationBlockers?.map((blocker) => (
-												<li
-													key={blocker.id}
-													className="flex flex-col gap-2 rounded-lg border border-amber-200 bg-white/70 p-3 sm:flex-row sm:items-center sm:justify-between"
-												>
-													<span>{blocker.label}</span>
-													<Button href={blocker.href} variant="secondary" size="sm">
-														Resolver requisito
-													</Button>
-												</li>
-											))}
-										</ul>
+											Contraer
+											<ChevronDown className="h-3.5 w-3.5 rotate-180" aria-hidden="true" />
+										</Button>
 									</div>
-								</Notice>
+								</div>
 							) : null}
-
-							{guidedFeedback && (
-								<Notice variant={guidedFeedbackVariant}>
-									<div className="space-y-2">
-										<p>{guidedFeedback}</p>
-										{guidedActivationBlockers.length > 0 ? (
-											<ul
-												className="space-y-2"
-												aria-label="Requisitos pendientes para activar la oferta"
-											>
-												{guidedActivationBlockers.map((blocker) => (
-													<li
-														key={blocker.id}
-														className="flex flex-col gap-2 rounded-lg border border-red-200 bg-white/70 p-3 sm:flex-row sm:items-center sm:justify-between"
-													>
-														<span>{blocker.label}</span>
-														<a
-															href={blocker.href}
-															className="inline-flex min-h-10 items-center font-semibold text-slate-900 underline underline-offset-4"
-														>
-															Resolver requisito
-														</a>
-													</li>
-												))}
-											</ul>
-										) : null}
-										{guidedTerminalHref ? (
-											<a
-												href={guidedTerminalHref}
-												className="inline-flex min-h-10 items-center font-semibold text-slate-900 underline underline-offset-4"
-											>
-												Abrir resumen de la oferta
-											</a>
-										) : null}
-									</div>
-								</Notice>
-							)}
 						</div>
-
-						<aside className="border-t border-slate-200 bg-slate-50 p-5 md:p-6 lg:border-t-0 lg:border-l">
-							<p className="text-xs font-semibold text-slate-500 uppercase">Contexto</p>
-							<dl className="mt-4 space-y-4 text-sm">
-								<div>
-									<dt className="text-slate-500">
-										{isTourGuidedAvailability ? "Salida" : "Habitación"}
-									</dt>
-									<dd className="mt-1 font-semibold text-slate-950">
-										{guidedAvailability.variantName || readySurface.selectedContext}
-									</dd>
-								</div>
-								<div>
-									<dt className="text-slate-500">Tarifa</dt>
-									<dd className="mt-1 font-semibold text-slate-950">
-										{guidedAvailability.ratePlanName || readySurface.selectedRatePlanName}
-									</dd>
-								</div>
-								<div>
-									<dt className="text-slate-500">Después de este paso</dt>
-									<dd className="mt-1 leading-6 text-slate-700">
-										Podrás ajustar cierres, reglas y cupos diarios desde el calendario operativo.
-									</dd>
-								</div>
-							</dl>
-						</aside>
 					</div>
 				</Card>
 			)}
 
-			<Card
-				as="section"
-				className="fastt-workspace-panel relative z-10 !overflow-visible p-4 text-slate-900"
-			>
-				{loading && !isGuidedAvailability && (
-					<span className="calendar-loading-frame" aria-hidden="true">
-						<span className="calendar-loading-bar" />
-					</span>
-				)}
+			{!isGuidedAvailability || selectedExternalDays.length > 0 ? (
+				<Card
+					as="section"
+					className="fastt-workspace-panel relative z-10 !overflow-visible p-4 text-slate-900"
+				>
+					{loading && !isGuidedAvailability && (
+						<span className="calendar-loading-frame" aria-hidden="true">
+							<span className="calendar-loading-bar" />
+						</span>
+					)}
 
-				{!isGuidedAvailability ? (
-					<div className="flex flex-wrap items-center gap-3 lg:gap-4">
-						<div className="flex shrink-0 items-center gap-2">
-							<IconButton
-								onClick={() => void loadSurface({ month: readySurface.previousMonth })}
-								label="Mes anterior"
-								size="sm"
-							>
-								‹
-							</IconButton>
-							<h2 className="min-w-[10rem] text-center text-base font-semibold text-slate-950">
-								{monthLabel(readySurface.month)}
-							</h2>
-							<IconButton
-								onClick={() => void loadSurface({ month: readySurface.nextMonth })}
-								label="Mes siguiente"
-								size="sm"
-							>
-								›
-							</IconButton>
-						</div>
-						<label className="fastt-prompt-field min-w-0 flex-1" htmlFor="calendar-rate-plan">
-							<span className="fastt-prompt-field__copy">
-								<span className="fastt-prompt-field__label">Tarifa</span>
-								<Select
-									id="calendar-rate-plan"
-									value={readySurface.selectedRatePlanId}
-									onChange={(event) => void loadSurface({ ratePlanId: event.target.value })}
+					{!isGuidedAvailability ? (
+						<div className="flex flex-wrap items-center gap-3 lg:gap-4">
+							<div className="flex shrink-0 items-center gap-2">
+								<IconButton
+									onClick={() => void loadSurface({ month: readySurface.previousMonth })}
+									label="Mes anterior"
+									size="sm"
 								>
-									{readySurface.ratePlans.map((ratePlan) => (
-										<option key={ratePlan.id} value={ratePlan.id}>
-											{ratePlan.context} · {ratePlan.name}
-										</option>
-									))}
-								</Select>
-							</span>
-						</label>
-					</div>
-				) : null}
-
-				<div className="fastt-calendar-toolbar sticky top-3 z-20 mt-4 p-3">
-					{isGuidedAvailability ? (
-						<div className="space-y-3">
-							<div>
-								<p className="font-semibold text-slate-950">Verificación de disponibilidad</p>
-								<p className="text-xs text-slate-500">
-									{isTourGuidedAvailability
-										? "Confirma que las fechas futuras configuradas ya muestran inventario inicial."
-										: "Confirma que las noches configuradas ya muestran inventario inicial para esta habitación."}
-								</p>
+									‹
+								</IconButton>
+								<h2 className="min-w-[10rem] text-center text-base font-semibold text-slate-950">
+									{monthLabel(readySurface.month)}
+								</h2>
+								<IconButton
+									onClick={() => void loadSurface({ month: readySurface.nextMonth })}
+									label="Mes siguiente"
+									size="sm"
+								>
+									›
+								</IconButton>
 							</div>
-							{guidedInventoryDays <= 0 ? (
-								<p className="text-xs leading-5 text-slate-500">
-									Todavía no hay inventario inicial guardado. Usa{" "}
-									<strong>Abrir disponibilidad</strong> arriba para actualizar esta verificación.
-								</p>
-							) : (
-								<p className="rounded-lg bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-900 ring-1 ring-emerald-200">
-									El calendario confirma la cobertura inicial guardada. Las reservas, retenidos y
-									bloqueos se gestionan después desde el calendario operativo.
-								</p>
-							)}
+							<label className="fastt-prompt-field min-w-0 flex-1" htmlFor="calendar-rate-plan">
+								<span className="fastt-prompt-field__copy">
+									<span className="fastt-prompt-field__label">Tarifa</span>
+									<Select
+										id="calendar-rate-plan"
+										value={readySurface.selectedRatePlanId}
+										onChange={(event) => void loadSurface({ ratePlanId: event.target.value })}
+									>
+										{readySurface.ratePlans.map((ratePlan) => (
+											<option key={ratePlan.id} value={ratePlan.id}>
+												{ratePlan.context} · {ratePlan.name}
+											</option>
+										))}
+									</Select>
+								</span>
+							</label>
 						</div>
-					) : (
-						<>
+					) : null}
+
+					{!isGuidedAvailability ? (
+						<div className="fastt-calendar-toolbar sticky top-3 z-20 mt-4 p-3">
 							<div className="flex flex-wrap items-center justify-between gap-3">
 								<div className="flex flex-wrap gap-2">
 									{actions.map((action) => {
@@ -1402,38 +1613,38 @@ export default function SingleCalendarWorkspace({
 									{summary}
 								</p>
 							</div>
-						</>
-					)}
-				</div>
+						</div>
+					) : null}
 
-				{selectedExternalDays.length > 0 && (
-					<Notice
-						variant={
-							selectedExternalDays.some((day) => day.externalCalendar?.conflictCount)
-								? "warning"
-								: "info"
-						}
-					>
-						<p className="font-semibold">
-							{selectedExternalDays.length === 1
-								? "La fecha seleccionada tiene actividad externa"
-								: `${selectedExternalDays.length} fechas seleccionadas tienen actividad externa`}
-						</p>
-						<p className="mt-1">
-							Los bloqueos ya están incluidos en el cupo disponible. Revisa la conexión antes de
-							abrir inventario sobre estas fechas.
-						</p>
-						<Button
-							href="/rates/calendar/connections?view=conflicts"
-							variant="secondary"
-							size="sm"
-							className="mt-3"
+					{selectedExternalDays.length > 0 && (
+						<Notice
+							variant={
+								selectedExternalDays.some((day) => day.externalCalendar?.conflictCount)
+									? "warning"
+									: "info"
+							}
 						>
-							Revisar calendarios
-						</Button>
-					</Notice>
-				)}
-			</Card>
+							<p className="font-semibold">
+								{selectedExternalDays.length === 1
+									? "La fecha seleccionada tiene actividad externa"
+									: `${selectedExternalDays.length} fechas seleccionadas tienen actividad externa`}
+							</p>
+							<p className="mt-1">
+								Los bloqueos ya están incluidos en el cupo disponible. Revisa la conexión antes de
+								abrir inventario sobre estas fechas.
+							</p>
+							<Button
+								href="/rates/calendar/connections?view=conflicts"
+								variant="secondary"
+								size="sm"
+								className="mt-3"
+							>
+								Revisar calendarios
+							</Button>
+						</Notice>
+					)}
+				</Card>
+			) : null}
 
 			<Card
 				as="section"
@@ -1557,13 +1768,26 @@ export default function SingleCalendarWorkspace({
 						key={`${readySurface.selectedRatePlanId}:${readySurface.month}:${showInventoryDetail ? "detail" : "summary"}`}
 						data-direction={gridDirection}
 						data-inventory-detail={showInventoryDetail ? "true" : undefined}
+						aria-busy={guidedApplyingRange ? true : undefined}
+						aria-live={guidedApplyingRange ? "polite" : undefined}
 						className="calendar-grid-enter mt-1 grid grid-cols-7 gap-1 md:gap-2"
 					>
 						{Array.from({ length: readySurface.leadingBlankDays }).map((_, index) => (
 							<div key={`blank-${index}`} className="min-h-20 md:min-h-28" />
 						))}
 						{readySurface.days.map((day) => {
-							const presentation = cellPresentation(mode, day, showComparison, showInventoryDetail)
+							const inApplyingRange = Boolean(
+								guidedApplyingRange &&
+								!day.isPast &&
+								day.date >= guidedApplyingRange.from &&
+								day.date <= guidedApplyingRange.to
+							)
+							const presentation = inApplyingRange
+								? guidedOpeningDayPresentation()
+								: {
+										...cellPresentation(mode, day, showComparison, showInventoryDetail),
+										guidedOpening: false as const,
+									}
 							const external = day.externalCalendar
 							const isSelected = selectedDates.has(day.date)
 							const isToday = day.date === today
@@ -1584,14 +1808,21 @@ export default function SingleCalendarWorkspace({
 									onClick={() => {
 										if (!isGuidedAvailability) selectDate(day)
 									}}
-									aria-label={`${formatDate(day.date, true)}${presentation.primary ? ` · ${presentation.primary}` : ""}${external?.eventCount ? ` · ${external.eventCount} bloqueo externo` : ""}${external?.conflictCount ? ` · ${external.conflictCount} conflicto` : ""}`}
+									aria-label={`${formatDate(day.date, true)}${
+										inApplyingRange
+											? " · Abriendo cupo"
+											: presentation.primary
+												? ` · ${presentation.primary}`
+												: ""
+									}${external?.eventCount ? ` · ${external.eventCount} bloqueo externo` : ""}${external?.conflictCount ? ` · ${external.conflictCount} conflicto` : ""}`}
 									aria-pressed={isSelected}
 									data-external-calendar-day={external?.eventCount ? "true" : undefined}
 									data-external-calendar-conflict={external?.conflictCount ? "true" : undefined}
 									data-selected={isSelected}
 									data-selection-edge={selectionEdge}
 									data-today={isToday}
-									className={`calendar-cell fastt-calendar-cell min-h-20 border p-1.5 text-left disabled:cursor-default md:min-h-28 md:p-2 ${updatedDates.has(day.date) ? "calendar-updated" : ""} ${external?.conflictCount ? "ring-1 ring-amber-400" : external?.eventCount ? "border-sky-300" : ""} ${toneClass(presentation.tone)}`}
+									data-guided-opening={inApplyingRange ? "true" : undefined}
+									className={`calendar-cell fastt-calendar-cell min-h-20 border p-1.5 text-left disabled:cursor-default md:min-h-28 md:p-2 ${updatedDates.has(day.date) ? "calendar-updated" : ""} ${inApplyingRange ? "calendar-cell-guided-opening" : ""} ${external?.conflictCount ? "ring-1 ring-amber-400" : external?.eventCount ? "border-sky-300" : ""} ${toneClass(presentation.tone)}`}
 								>
 									<div className="flex items-start justify-end gap-1.5">
 										{isToday && (
@@ -1606,21 +1837,35 @@ export default function SingleCalendarWorkspace({
 											{day.day}
 										</span>
 									</div>
-									{!day.isPast && presentation.primary && (
+									{!day.isPast && (inApplyingRange || presentation.primary) && (
 										<div key={mode} className="calendar-cell-content">
-											<p className="mt-2 truncate text-[11px] font-semibold md:text-sm">
-												{presentation.primary}
-											</p>
-											{presentation.secondary && (
-												<p
-													className={`mt-1 line-clamp-2 text-[9px] leading-4 opacity-65 md:text-[11px] ${
-														showInventoryDetail || isGuidedAvailability
-															? "block"
-															: "hidden sm:block"
-													}`}
-												>
-													{presentation.secondary}
-												</p>
+											{inApplyingRange ? (
+												<>
+													<div
+														className="calendar-cell-guided-opening-bar mt-2 h-3.5 w-[4.75rem] max-w-full rounded bg-slate-200/90"
+														aria-hidden="true"
+													/>
+													<p className="mt-1 line-clamp-2 text-[9px] leading-4 text-slate-500 md:text-[11px]">
+														{presentation.secondary}
+													</p>
+												</>
+											) : (
+												<>
+													<p className="mt-2 truncate text-[11px] font-semibold md:text-sm">
+														{presentation.primary}
+													</p>
+													{presentation.secondary && (
+														<p
+															className={`mt-1 line-clamp-2 text-[9px] leading-4 opacity-65 md:text-[11px] ${
+																showInventoryDetail || isGuidedAvailability
+																	? "block"
+																	: "hidden sm:block"
+															}`}
+														>
+															{presentation.secondary}
+														</p>
+													)}
+												</>
 											)}
 										</div>
 									)}

@@ -28,6 +28,7 @@ import {
 } from "@/lib/playbook/launch-accommodation"
 import {
 	buildTourPlaybookHref,
+	tourPreparationNextHref,
 	LAUNCH_TOUR_PLAYBOOK_ID,
 	resolveTourLaunchPlaybookFromUrl,
 } from "@/lib/playbook/launch-tour"
@@ -491,6 +492,17 @@ logRoutePerformance({
 	userId: auth.user.id,
 	providerId: auth.providerId,
 })
+const tourRateSaveHref = isTourRateContext
+	? tourPreparationNextHref(
+			Astro.url.searchParams,
+			{
+				productId: String(playbookProductId || ""),
+				variantId: "__SAVED_OPTION__",
+				ratePlanId: "__SAVED_RATE__",
+			},
+			"rate"
+		)
+	: null
 ---
 
 <script>
@@ -1059,6 +1071,7 @@ logRoutePerformance({
 <script
 	define:vars={{
 		requestedVariantId,
+		tourRateSaveHref,
 		shouldOpenDialog,
 		addRoomPlaybookActive: addRoomPlaybook.active,
 		launchPlaybookActive: launchPlaybook.active,
@@ -1443,6 +1456,13 @@ logRoutePerformance({
 				variantId: String(data.get("variantId") || ""),
 			}
 			formDraft.clear()
+			if (isTourRateContext && (tourLaunchPlaybookActive || completePlaybookActive)) {
+				window.location.href = tourRateSaveHref
+					.replace("__SAVED_OPTION__", encodeURIComponent(payload.variantId))
+					.replace("__SAVED_RATE__", encodeURIComponent(String(result.ratePlanId)))
+				return
+			}
+
 			if (addRoomPlaybookActive) {
 				const params = new URLSearchParams({
 					playbook: "add-room",
