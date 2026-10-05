@@ -122,15 +122,12 @@ const labels = {
 						return (
 							<li
 								class={itemClass}
+								aria-current={isActive ? "step" : undefined}
 								data-tour-stage-id={stage.id}
 								data-tour-stage-state={stage.state}
 							>
 								{stage.href ? (
-									<a
-										class="tour-stage-rail__link"
-										href={stage.href}
-										aria-current={isActive ? "step" : undefined}
-									>
+									<a class="tour-stage-rail__link" href={stage.href}>
 										{inner}
 									</a>
 								) : (
