@@ -1,4 +1,5 @@
 ---
+import { tourPreparationNextHref } from "@/lib/playbook/launch-tour"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import Notice from "@/components/ui/Notice.astro"
@@ -40,10 +41,15 @@ const playbookRepair = getCompleteToPublishPlaybookRepairHref(Astro.url, {
 })
 if (playbookRepair) return Astro.redirect(playbookRepair)
 const playbook = resolvePlaybookFromUrl(Astro.url)
-const isCompletePlaybook = playbook.playbookId === COMPLETE_TO_PUBLISH_PLAYBOOK_ID
-const continueHref = isCompletePlaybook
-	? buildCompleteToPublishHref(`/product/${encodeURIComponent(productId)}/categories`, "categories")
-	: buildTourPlaybookHref(`/product/${encodeURIComponent(productId)}/categories`, "categories")
+const continueHref = tourPreparationNextHref(
+	Astro.url.searchParams,
+	{
+		productId,
+		variantId: Astro.url.searchParams.get("variantId") ?? undefined,
+		ratePlanId: Astro.url.searchParams.get("ratePlanId") ?? undefined,
+	},
+	"tickets"
+)
 
 const tickets = await db
 	.select()
@@ -362,10 +368,16 @@ const initialTickets = tickets.map((t) => ({
 				}
 			})
 
+			let savingParticipants = false
 			async function saveAndContinuePlaybook(submitter) {
+				if (savingParticipants) return
+				const exitAfterSave =
+					submitter instanceof HTMLButtonElement &&
+					submitter.name === "playbookNav" &&
+					submitter.value === "exit"
 				const hasActiveTicket = rows.some((row) => row.isActive)
 
-				if (hasActiveTicket) {
+				if (hasActiveTicket || exitAfterSave) {
 					hideRequirementsNotice()
 				} else if (rows.length === 0) {
 					showEmptyStepRequirementsNotice()
@@ -379,17 +391,22 @@ const initialTickets = tickets.map((t) => ({
 					return
 				}
 
+				savingParticipants = true
 				if (submitter instanceof HTMLButtonElement) submitter.disabled = true
 				if (status) status.textContent = "Guardando participantes..."
 				try {
-					await saveTickets()
-					window.location.href = categoriesHref
+					if (rows.length) await saveTickets()
+					window.location.href = exitAfterSave
+						? `/product/${encodeURIComponent(productId)}`
+						: categoriesHref
 				} catch (error) {
 					if (status)
 						status.textContent =
 							error instanceof Error
 								? `${error.message} Revisa los datos e inténtalo de nuevo.`
 								: "No se pudo guardar. Inténtalo de nuevo."
+				} finally {
+					savingParticipants = false
 					if (submitter instanceof HTMLButtonElement) submitter.disabled = false
 				}
 			}
@@ -397,14 +414,6 @@ const initialTickets = tickets.map((t) => ({
 			document.getElementById("ticketsPlaybookForm")?.addEventListener("submit", async (event) => {
 				event.preventDefault()
 				const submitter = event.submitter
-				if (
-					submitter instanceof HTMLButtonElement &&
-					submitter.name === "playbookNav" &&
-					submitter.value === "exit"
-				) {
-					window.location.href = `/product/${encodeURIComponent(productId)}`
-					return
-				}
 				await saveAndContinuePlaybook(submitter)
 			})
 

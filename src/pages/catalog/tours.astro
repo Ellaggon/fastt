@@ -56,7 +56,20 @@ const taskRows = await Promise.all(
 					) as typeof baseLinks)
 				: baseLinks
 		const primaryTask = preparation?.tourPresentation
-			? preparation.tourPresentation.primaryAction
+			? {
+					label:
+						product.status.state === "published"
+							? preparation.tourPresentation.primaryAction.label
+							: preparation.tourPresentation.preparation.complete
+								? "Publicar tour"
+								: "Continuar preparación",
+					href:
+						product.status.state === "published"
+							? preparation.tourPresentation.primaryAction.href
+							: preparation.tourPresentation.preparation.complete
+								? preparation.previewHref
+								: preparation.continuePreparationHref,
+				}
 			: product.status.state === "published"
 				? { label: "Revisar disponibilidad", href: links.calendarHref }
 				: preparation?.readyToPublish
@@ -198,7 +211,7 @@ const evaluatedSummary = summarizeTourCatalog(
 									)}
 								</div>
 								<div class="flex max-w-xl flex-wrap justify-start gap-2 lg:justify-end">
-									<Button href={primaryTask.href} size="sm">
+									<Button href={primaryTask.href} variant="selection" size="sm">
 										{primaryTask.label}
 									</Button>
 									<Button

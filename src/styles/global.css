@@ -332,248 +332,8 @@ body {
 		display: none;
 	}
 
-	.verification-wizard-progress-label--alternate
-		.verification-wizard-progress-label__phase--total {
+	.verification-wizard-progress-label--alternate .verification-wizard-progress-label__phase--total {
 		position: static;
-		animation: none;
-	}
-}
-
-.tour-preparation-disclosure .verification-wizard-progress-label__phase--total,
-.tour-preparation-disclosure .verification-wizard-progress-label__phase--breakdown {
-	pointer-events: none;
-	z-index: 1;
-}
-
-.tour-preparation-disclosure[data-active-line="requirements"]
-	.verification-wizard-progress-label__phase--total {
-	z-index: 3;
-}
-
-.tour-preparation-disclosure[data-active-line="stages"]
-	.verification-wizard-progress-label__phase--breakdown {
-	z-index: 3;
-}
-
-.tour-preparation-disclosure__trigger {
-	pointer-events: auto;
-	display: block;
-	width: 100%;
-	border: 0;
-	background: transparent;
-	padding: 0;
-	text-align: left;
-	color: inherit;
-	font: inherit;
-	letter-spacing: inherit;
-	text-transform: inherit;
-}
-
-.tour-preparation-disclosure__trigger:disabled {
-	cursor: default;
-	opacity: 1;
-	pointer-events: none;
-}
-
-.tour-preparation-disclosure__trigger--interactive:not(:disabled):focus-visible {
-	outline: 1px solid rgb(148 163 184 / 0.45);
-	outline-offset: 3px;
-	border-radius: 0.25rem;
-}
-
-.tour-preparation-disclosure__label-text {
-	display: inline-block;
-	transform-origin: left center;
-	transition:
-		color 0.55s cubic-bezier(0.25, 0.1, 0.25, 1),
-		transform 0.55s cubic-bezier(0.25, 0.1, 0.25, 1);
-}
-
-.tour-preparation-disclosure__trigger--interactive:not(:disabled):is(:hover, :focus-visible)
-	.tour-preparation-disclosure__label-text,
-.tour-preparation-disclosure[data-active-line="requirements"]:is(:hover, :focus-within)
-	.verification-wizard-progress-label__phase--total
-	.tour-preparation-disclosure__trigger--interactive:not(:disabled)
-	.tour-preparation-disclosure__label-text,
-.tour-preparation-disclosure[data-active-line="stages"]:is(:hover, :focus-within)
-	.verification-wizard-progress-label__phase--breakdown
-	.tour-preparation-disclosure__trigger--interactive:not(:disabled)
-	.tour-preparation-disclosure__label-text,
-.tour-preparation-disclosure[data-active-line="both"]:is(:hover, :focus-within)
-	.verification-wizard-progress-label__phase--total
-	.tour-preparation-disclosure__trigger--interactive:not(:disabled):hover
-	.tour-preparation-disclosure__label-text,
-.tour-preparation-disclosure[data-active-line="both"]:is(:hover, :focus-within)
-	.verification-wizard-progress-label__phase--breakdown
-	.tour-preparation-disclosure__trigger--interactive:not(:disabled):hover
-	.tour-preparation-disclosure__label-text {
-	transform: scale(1.025);
-}
-
-.tour-preparation-disclosure__trigger--interactive:not(:disabled):is(:hover, :focus-visible)
-	.tour-preparation-disclosure__label-text,
-.tour-preparation-disclosure[data-active-line="requirements"]:is(:hover, :focus-within)
-	.verification-wizard-progress-label__phase--total
-	.tour-preparation-disclosure__trigger--interactive:not(:disabled)
-	.tour-preparation-disclosure__label-text,
-.tour-preparation-disclosure[data-active-line="stages"]:is(:hover, :focus-within)
-	.verification-wizard-progress-label__phase--breakdown
-	.tour-preparation-disclosure__trigger--interactive:not(:disabled)
-	.tour-preparation-disclosure__label-text,
-.tour-preparation-disclosure[data-active-line="both"]:is(:hover, :focus-within)
-	.verification-wizard-progress-label__phase--total
-	.tour-preparation-disclosure__trigger--interactive:not(:disabled):hover
-	.tour-preparation-disclosure__label-text,
-.tour-preparation-disclosure[data-active-line="both"]:is(:hover, :focus-within)
-	.verification-wizard-progress-label__phase--breakdown
-	.tour-preparation-disclosure__trigger--interactive:not(:disabled):hover
-	.tour-preparation-disclosure__label-text {
-	color: rgb(226 232 240);
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.tour-preparation-disclosure__label-text {
-		transition: color 0.2s ease;
-	}
-
-	.tour-preparation-disclosure__trigger--interactive:not(:disabled):is(:hover, :focus-visible)
-		.tour-preparation-disclosure__label-text,
-	.tour-preparation-disclosure[data-active-line="requirements"]:is(:hover, :focus-within)
-		.verification-wizard-progress-label__phase--total
-		.tour-preparation-disclosure__trigger--interactive:not(:disabled)
-		.tour-preparation-disclosure__label-text,
-	.tour-preparation-disclosure[data-active-line="stages"]:is(:hover, :focus-within)
-		.verification-wizard-progress-label__phase--breakdown
-		.tour-preparation-disclosure__trigger--interactive:not(:disabled)
-		.tour-preparation-disclosure__label-text {
-		transform: none;
-	}
-}
-
-.tour-preparation-disclosure:hover .verification-wizard-progress-label__phase,
-.tour-preparation-disclosure:focus-within .verification-wizard-progress-label__phase {
-	animation-play-state: paused;
-}
-
-.tour-preparation-disclosure[data-expanded-mode="stages"],
-.tour-preparation-disclosure[data-expanded-mode="requirements"] {
-	.verification-wizard-progress-label__phase {
-		animation-play-state: paused !important;
-	}
-}
-
-.tour-preparation-disclosure[data-expanded-mode="stages"]
-	.verification-wizard-progress-label__phase--total {
-	opacity: 0 !important;
-	visibility: hidden !important;
-}
-
-.tour-preparation-disclosure[data-expanded-mode="stages"]
-	.verification-wizard-progress-label__phase--breakdown {
-	opacity: 1 !important;
-	transform: translate3d(0, 0, 0) !important;
-	filter: none !important;
-}
-
-.tour-preparation-disclosure[data-expanded-mode="requirements"]
-	.verification-wizard-progress-label__phase--breakdown {
-	opacity: 0 !important;
-	visibility: hidden !important;
-}
-
-.tour-preparation-disclosure[data-expanded-mode="requirements"]
-	.verification-wizard-progress-label__phase--total {
-	opacity: 1 !important;
-	transform: translate3d(0, 0, 0) !important;
-	filter: none !important;
-}
-
-.tour-preparation-disclosure--restart-alternate .verification-wizard-progress-label__phase {
-	animation: none !important;
-}
-
-.tour-preparation-disclosure--restart-alternate[data-restart-phase="total"]
-	.verification-wizard-progress-label__phase--total {
-	opacity: 1 !important;
-	visibility: visible !important;
-	transform: none !important;
-	filter: none !important;
-}
-
-.tour-preparation-disclosure--restart-alternate[data-restart-phase="total"]
-	.verification-wizard-progress-label__phase--breakdown {
-	opacity: 0 !important;
-	visibility: hidden !important;
-	transform: none !important;
-	filter: none !important;
-}
-
-.tour-preparation-disclosure--restart-alternate[data-restart-phase="breakdown"]
-	.verification-wizard-progress-label__phase--breakdown {
-	opacity: 1 !important;
-	visibility: visible !important;
-	transform: none !important;
-	filter: none !important;
-}
-
-.tour-preparation-disclosure--restart-alternate[data-restart-phase="breakdown"]
-	.verification-wizard-progress-label__phase--total {
-	opacity: 0 !important;
-	visibility: hidden !important;
-	transform: none !important;
-	filter: none !important;
-}
-
-.tour-preparation-disclosure__panel {
-	display: grid;
-	grid-template-rows: 0fr;
-	opacity: 0;
-	transform: translate3d(0, -0.35rem, 0);
-	transition:
-		grid-template-rows 0.42s cubic-bezier(0.4, 0, 0.2, 1),
-		opacity 0.36s cubic-bezier(0.4, 0, 0.2, 1),
-		transform 0.36s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.tour-preparation-disclosure[data-expanded-mode="stages"]
-	.tour-preparation-disclosure__panel--stages {
-	grid-template-rows: 1fr;
-	opacity: 1;
-	transform: translate3d(0, 0, 0);
-}
-
-.tour-preparation-disclosure[data-expanded-mode="requirements"]
-	.tour-preparation-disclosure__panel--requirements {
-	grid-template-rows: 1fr;
-	opacity: 1;
-	transform: translate3d(0, 0, 0);
-}
-
-.tour-preparation-disclosure__panel-inner {
-	overflow: hidden;
-	min-height: 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.tour-preparation-disclosure__panel {
-		transition: none;
-	}
-
-	.tour-preparation-disclosure.verification-wizard-progress-label--alternate
-		.verification-wizard-progress-label__stack {
-		display: flex;
-		flex-direction: column;
-		gap: 0.125rem;
-		min-height: auto;
-	}
-
-	.tour-preparation-disclosure.verification-wizard-progress-label--alternate
-		.verification-wizard-progress-label__phase {
-		position: static;
-		opacity: 1;
-		visibility: visible;
-		transform: none;
-		filter: none;
 		animation: none;
 	}
 }
@@ -811,7 +571,8 @@ html[data-verification-submit-pending="true"] {
 .fastt-row-card-info {
 	border-color: rgb(37 99 235 / 28%);
 	background:
-		linear-gradient(90deg, var(--fastt-color-selection-soft), transparent 18%), rgb(255 255 255 / 92%);
+		linear-gradient(90deg, var(--fastt-color-selection-soft), transparent 18%),
+		rgb(255 255 255 / 92%);
 }
 
 .fastt-row-card-danger {
@@ -1297,6 +1058,185 @@ html[data-verification-submit-pending="true"] {
 
 .calendar-updated {
 	animation: calendar-updated 700ms var(--fastt-ease-settle) both;
+}
+
+.calendar-cell-guided-opening {
+	opacity: 0.92;
+}
+
+.calendar-cell-guided-opening-bar {
+	animation: calendar-guided-opening-pulse 1.05s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.calendar-cell-guided-opening-bar {
+		animation: none;
+		opacity: 0.72;
+	}
+}
+
+@keyframes calendar-guided-opening-pulse {
+	0%,
+	100% {
+		opacity: 0.45;
+	}
+	50% {
+		opacity: 1;
+	}
+}
+
+/* Guided tour calendar summary — same row pattern as tour-search-disclosure, flat inside panel */
+.guided-tour-availability-disclosure__summary {
+	display: flex;
+	width: 100%;
+	min-height: 3.5rem;
+	cursor: pointer;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	padding: 0.625rem 1.25rem;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	color: rgb(15 23 42);
+	text-align: left;
+	transition: background-color 180ms ease;
+}
+
+.guided-tour-availability-disclosure__summary:hover:not(:disabled) {
+	background: rgb(248 250 252);
+}
+
+.guided-tour-availability-disclosure__summary:focus-visible {
+	outline: 2px solid var(--fastt-color-selection);
+	outline-offset: 2px;
+}
+
+.guided-tour-availability-disclosure__summary:disabled {
+	cursor: not-allowed;
+	opacity: 0.6;
+}
+
+.guided-tour-availability-disclosure__summary-leading,
+.guided-tour-availability-disclosure__values,
+.guided-tour-availability-disclosure__item,
+.guided-tour-availability-disclosure__action {
+	display: inline-flex;
+	align-items: center;
+}
+
+.guided-tour-availability-disclosure__summary-leading {
+	min-width: 0;
+	flex: 1;
+	gap: 0.75rem;
+}
+
+.guided-tour-availability-disclosure__check {
+	display: inline-flex;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	width: 2rem;
+	height: 2rem;
+	border-radius: 9999px;
+	background: rgb(236 253 245);
+	font-size: 0.875rem;
+	font-weight: 700;
+	line-height: 1;
+	color: rgb(4 120 87);
+	box-shadow: inset 0 0 0 1px rgb(167 243 208 / 0.9);
+}
+
+.guided-tour-availability-disclosure__values {
+	min-width: 0;
+	flex-wrap: wrap;
+	gap: 0.375rem 1rem;
+	font-size: 0.875rem;
+	font-weight: 600;
+}
+
+.guided-tour-availability-disclosure__item {
+	min-width: 0;
+	gap: 0.4375rem;
+	white-space: nowrap;
+}
+
+.guided-tour-availability-disclosure__item svg {
+	flex-shrink: 0;
+	color: rgb(71 85 105);
+}
+
+.guided-tour-availability-disclosure__divider {
+	width: 1px;
+	height: 1.25rem;
+	flex-shrink: 0;
+	background: rgb(226 232 240);
+}
+
+.guided-tour-availability-disclosure__action {
+	flex-shrink: 0;
+	gap: 0.5rem;
+	color: rgb(51 65 85);
+	font-size: 0.8125rem;
+	font-weight: 700;
+}
+
+.guided-tour-availability-disclosure__action svg {
+	transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.guided-tour-availability-disclosure__summary:hover:not(:disabled)
+	.guided-tour-availability-disclosure__action
+	svg {
+	transform: translateY(2px);
+}
+
+.guided-tour-availability-disclosure__feedback {
+	padding: 0 1.25rem 1rem;
+}
+
+@media (min-width: 48rem) {
+	.guided-tour-availability-disclosure__summary {
+		padding-inline: 1.5rem;
+	}
+
+	.guided-tour-availability-disclosure__feedback {
+		padding-inline: 1.5rem;
+	}
+}
+
+@media (max-width: 40rem) {
+	.guided-tour-availability-disclosure__summary {
+		padding-inline: 1.25rem;
+	}
+
+	.guided-tour-availability-disclosure__summary-leading {
+		gap: 0.625rem;
+	}
+
+	.guided-tour-availability-disclosure__values {
+		gap: 0.375rem 0.625rem;
+	}
+
+	.guided-tour-availability-disclosure__divider {
+		display: none;
+	}
+
+	.guided-tour-availability-disclosure__item--rate .guided-tour-availability-disclosure__item-text {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.guided-tour-availability-disclosure__summary,
+	.guided-tour-availability-disclosure__action svg {
+		transition: none;
+	}
 }
 
 .calendar-loading-frame {
