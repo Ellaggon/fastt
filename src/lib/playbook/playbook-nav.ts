@@ -12,6 +12,7 @@ import {
 } from "@/lib/playbook/launch-accommodation"
 import {
 	buildTourPlaybookHref,
+	tourPreparationNextHref,
 	LAUNCH_TOUR_PLAYBOOK_ID,
 	type TourLaunchStepId,
 } from "@/lib/playbook/launch-tour"
@@ -26,7 +27,9 @@ export function isCompleteToPublishPlaybookMode(formData: FormData): boolean {
 		.trim()
 		.toLowerCase()
 	return (
-		flow === "complete" || playbook === COMPLETE_TO_PUBLISH_PLAYBOOK_ID || playbook === "complete"
+		playbook === COMPLETE_TO_PUBLISH_PLAYBOOK_ID ||
+		playbook === "complete" ||
+		(!playbook && flow === "complete")
 	)
 }
 
@@ -83,8 +86,7 @@ export function completeToPublishRedirectHref(productId: string): string {
 export function playbookRedirectHrefFor(
 	playbookId: PlaybookId,
 	path: string,
-	step: LaunchStepId | TourLaunchStepId | AddRoomStepId,
-	productId?: string
+	step: LaunchStepId | TourLaunchStepId | AddRoomStepId
 ): string {
 	if (playbookId === ADD_ROOM_PLAYBOOK_ID) {
 		return buildAddRoomHref(path, step as AddRoomStepId)
@@ -142,6 +144,38 @@ export function resolvePlaybookRedirectAfterSave(
 	if (intent === "exit" || !isPlaybookMode(formData)) {
 		return productWorkspaceHref(options.productId)
 	}
+	const source = new URLSearchParams(typeof window === "undefined" ? "" : window.location.search)
+	for (const key of [
+		"playbook",
+		"returnTo",
+		"variantId",
+		"ratePlanId",
+		"tourFlowVersion",
+		"flow",
+	]) {
+		const value = String(formData.get(key) ?? "").trim()
+		if (value) source.set(key, value)
+	}
+	const vertical = String(formData.get("playbookVertical") || options.vertical || "")
+	if (
+		isTourLaunchPlaybookMode(formData) ||
+		(isCompleteToPublishPlaybookMode(formData) && vertical === "tour")
+	) {
+		return tourPreparationNextHref(
+			source,
+			{
+				productId: options.productId,
+				variantId: source.get("variantId") ?? undefined,
+				ratePlanId: source.get("ratePlanId") ?? undefined,
+			},
+			String(
+				formData.get("playbookCurrentStep") ||
+					options.currentStep ||
+					source.get("step") ||
+					"content"
+			)
+		)
+	}
 	if (isCompleteToPublishPlaybookMode(formData)) {
 		return completeToPublishNextHref(
 			options.productId,
@@ -151,9 +185,6 @@ export function resolvePlaybookRedirectAfterSave(
 	}
 	if (isAddRoomPlaybookMode(formData)) {
 		return addRoomRedirectHref(options.launchPath, options.launchStep as AddRoomStepId)
-	}
-	if (isTourLaunchPlaybookMode(formData)) {
-		return buildTourPlaybookHref(options.launchPath, options.launchStep as TourLaunchStepId)
 	}
 	return playbookRedirectHref(options.launchPath, options.launchStep)
 }

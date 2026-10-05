@@ -37,8 +37,9 @@ export async function loadTourAuthorization(input: { providerId: string; product
 						? firstShared.href
 						: verificationHref,
 			},
-			message:
-				shared.map((blocker) => blocker.label).join(" ") || "Revisa la habilitación de la cuenta.",
+			message: shared.length
+				? `Requisitos pendientes: ${[...new Set(shared.map((blocker) => blocker.label))].join(" · ")}`
+				: "Revisa la habilitación de la cuenta.",
 		},
 		experience_authorization: {
 			ready:
@@ -54,16 +55,26 @@ export async function loadTourAuthorization(input: { providerId: string; product
 			},
 			message:
 				[
-					...(!publication.eligible
-						? [
-								publication.reason === "provider_not_commercial"
-									? "El negocio no está habilitado para uso comercial."
-									: "Esta ficha pertenece a datos no aptos para publicación pública.",
-							]
-						: []),
-					...specific.map((blocker) => blocker.label),
-					...policy.map((blocker) => blocker.action),
-				].join(" ") || "Revisa los requisitos de esta experiencia.",
+					...new Set([
+						...(!publication.eligible
+							? [
+									publication.reason === "provider_not_commercial"
+										? "El negocio no está habilitado para uso comercial."
+										: "Esta ficha pertenece a datos no aptos para publicación pública.",
+								]
+							: []),
+						...specific.map((blocker) => blocker.label),
+						...policy.map((blocker) =>
+							/^policy_context_(unsupported|conflict)/.test(blocker.id)
+								? "Fastt debe revisar las políticas comerciales aplicables a esta combinación."
+								: /^policy_contract_empty/.test(blocker.id)
+									? "Fastt debe completar los requisitos de la política comercial aprobada."
+									: /^collection_model_undecided/.test(blocker.id)
+										? "Fastt debe definir el modelo de cobro aplicable."
+										: blocker.action
+						),
+					]),
+				].join(" · ") || "Revisa los requisitos de esta experiencia.",
 		},
 	}
 }

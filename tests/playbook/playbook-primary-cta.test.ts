@@ -1,8 +1,10 @@
+import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { describe, expect, it } from "vitest"
 
 import {
+	isCompleteToPublishPlaybookMode,
 	readPlaybookNavIntent,
 	resolvePlaybookRedirectAfterSave,
 } from "@/lib/playbook/playbook-nav"
@@ -13,6 +15,14 @@ function read(path: string) {
 }
 
 describe("playbook primary CTA contract", () => {
+	it("keeps an explicit preparation form identity when a legacy flow value remains", () => {
+		const form = new FormData()
+		form.set("playbook", "launch-tour")
+		form.set("flow", "complete")
+		expect(isCompleteToPublishPlaybookMode(form)).toBe(false)
+		form.set("playbook", "complete-to-publish")
+		expect(isCompleteToPublishPlaybookMode(form)).toBe(true)
+	})
 	const layout = read("src/layouts/PlaybookLayout.astro")
 
 	it("does not keep a skip-save Continuar next to a form Guardar y continuar", () => {
@@ -42,15 +52,15 @@ describe("playbook primary CTA contract", () => {
 		expect(images).toContain('playbook.active ? "hidden"')
 	})
 
-	it("keeps complete-to-publish on tickets instead of dropping to the workspace", () => {
-		const resolved = resolveCompleteToPublishPlaybookFromUrl(
+	it("keeps canonical preparation on tickets instead of dropping to the workspace", () => {
+		const resolved = resolvePlaybookFromUrl(
 			new URL(
-				"http://localhost/product/p1/tickets?playbook=complete-to-publish&step=tickets&flow=complete"
+				"http://localhost/product/p1/tickets?playbook=launch-tour&step=tickets&flow=create&tourFlowVersion=2"
 			)
 		)
 		expect(resolved).toMatchObject({
 			active: true,
-			playbookId: "complete-to-publish",
+			playbookId: "launch-tour",
 			stepId: "tickets",
 			productId: "p1",
 		})
@@ -74,7 +84,7 @@ describe("playbook primary CTA contract", () => {
 		expect(departures).toContain("resolvePlaybookFromUrl")
 	})
 
-	it("sends Guardar y continuar to the next complete-to-publish step, not preview", () => {
+	it("continues legacy preparation while publication corrections return to review", () => {
 		const continueData = new FormData()
 		continueData.set("playbook", "complete-to-publish")
 		continueData.set("flow", "complete")
@@ -87,7 +97,7 @@ describe("playbook primary CTA contract", () => {
 				launchStep: "subtype",
 				intent: "continue",
 			})
-		).toBe("/product/p1/tickets?playbook=complete-to-publish&step=tickets&flow=complete")
+		).toBe("/product/p1/tickets?playbook=launch-tour&step=tickets&flow=create&tourFlowVersion=2")
 
 		continueData.set("playbookCurrentStep", "content")
 		expect(
@@ -97,7 +107,22 @@ describe("playbook primary CTA contract", () => {
 				launchStep: "categories",
 				intent: "continue",
 			})
-		).toBe("/product/p1/categories?playbook=complete-to-publish&step=categories&flow=complete")
+		).toBe(
+			"/product/p1/categories?playbook=launch-tour&step=categories&flow=create&tourFlowVersion=2"
+		)
+
+		continueData.set("tourFlowVersion", "2")
+		const publication = new URL(
+			resolvePlaybookRedirectAfterSave(continueData, {
+				productId: "p1",
+				launchPath: "/product/p1/categories",
+				launchStep: "categories",
+				intent: "continue",
+			}),
+			"http://fastt.local"
+		)
+		expect(publication.pathname).toBe("/product/p1/preview")
+		expect(publication.searchParams.get("playbook")).toBe("complete-to-publish")
 
 		const exitData = new FormData()
 		exitData.set("playbook", "complete-to-publish")

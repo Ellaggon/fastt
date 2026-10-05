@@ -14,7 +14,11 @@ export const TOUR_REQUIREMENT_PRESENTATION = {
 	logistics: { section: "subtype", label: "Itinerario y logística", action: "Completar logística" },
 	photos: { section: "photos", label: "Fotos", action: "Editar fotos" },
 	participants: { section: "tickets", label: "Participantes", action: "Configurar participantes" },
-	activities: { section: "categories", label: "Actividades", action: "Elegir actividades" },
+	activities: {
+		section: "categories",
+		label: "Categorías de búsqueda",
+		action: "Elegir categorías",
+	},
 	option_profile: { section: "departure", label: "Perfil de la opción", action: "Editar opción" },
 	group_capacity: {
 		section: "departure",
@@ -39,12 +43,12 @@ export const TOUR_REQUIREMENT_PRESENTATION = {
 		action: "Revisar experiencia",
 	},
 	option_activation: {
-		section: "calendar",
+		section: "preview",
 		label: "Activación de la opción",
 		action: "Revisar y activar",
 	},
 	rate_activation: {
-		section: "calendar",
+		section: "preview",
 		label: "Activación de la tarifa",
 		action: "Revisar y activar",
 	},
@@ -106,8 +110,19 @@ export function presentTourDiagnostic(
 	}
 	return {
 		catalogStatus,
+		reviewStatusLabel: options.published
+			? "Publicado"
+			: hasUnknown
+				? "Evaluación pendiente"
+				: !summary.preparation.complete
+					? "Preparación pendiente"
+					: !summary.authorization.complete
+						? "Habilitación pendiente"
+						: !summary.activation.complete
+							? "Activación pendiente"
+							: "Listo",
 		activation: tourActivationDecision(diagnosis),
-		stages: projectTourPublishingStages(diagnosis, { previewHref: options.previewHref }),
+		stages: projectTourPublishingStages(diagnosis),
 		preparationRequirements: projectTourPreparationRequirements(diagnosis),
 		preparation: summary.preparation,
 		primaryAction,

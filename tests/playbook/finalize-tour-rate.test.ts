@@ -309,7 +309,7 @@ describe("finalize tour rate", () => {
 		if (!result.ok) return
 
 		const terminalUrl = new URL(result.terminalHref, "https://fastt.test")
-		expect(terminalUrl.searchParams.get("playbook")).toBe("launch-tour")
+		expect(terminalUrl.searchParams.get("playbook")).toBe("complete-to-publish")
 		expect(terminalUrl.searchParams.get("variantId")).toBe("slot-1")
 		expect(terminalUrl.searchParams.get("ratePlanId")).toBe("rate-1")
 	})

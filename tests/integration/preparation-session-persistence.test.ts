@@ -18,7 +18,11 @@ import {
 	upsertVariant,
 } from "@/shared/infrastructure/test-support/db-test-data"
 import { upsertProvider } from "../test-support/catalog-db-test-data"
-import { savePreparationSession } from "@/lib/onboarding/preparationSession"
+import {
+	savePreparationSession,
+	listActivePreparationSessions,
+	completeTourPreparationSessions,
+} from "@/lib/onboarding/preparationSession"
 const auth = vi.hoisted(() => ({ userId: "", providerId: "" }))
 vi.mock("@/lib/auth/getUserFromRequest", () => ({
 	getUserFromRequest: async () => ({ id: auth.userId }),
@@ -140,6 +144,58 @@ describe("B4 PostgreSQL sessions", () => {
 		await savePreparationSession({ ...input(), navigationAt: older })
 		expect((await rows())[0].stepId).toBe("images")
 	})
+	it("orders A and B together, groups resumes and accepts an explicit newer return to A", async () => {
+		const older = new Date(Date.now() - 3000)
+		const newer = new Date(Date.now() - 2000)
+		await savePreparationSession({ ...input(), navigationAt: older })
+		await savePreparationSession({
+			...input(),
+			playbookId: "complete-to-publish",
+			stepId: "preview",
+			lastPath: `/product/${a}/preview?playbook=complete-to-publish&step=preview&tourFlowVersion=2&variantId=${va}&ratePlanId=${ra}`,
+			navigationAt: newer,
+		})
+		await savePreparationSession({ ...input(), navigationAt: older })
+		await savePreparationSession({ ...input(), navigationAt: newer })
+		let resumes = await listActivePreparationSessions(auth.providerId, auth.userId)
+		expect(resumes).toHaveLength(1)
+		expect(resumes[0].href).toContain("playbook=complete-to-publish")
+		expect(resumes[0].href).toContain(`ratePlanId=${ra}`)
+		await savePreparationSession({
+			...input(),
+			lastPath: `/product/${a}/content?playbook=launch-tour&tourFlowVersion=2`,
+			navigationAt: new Date(Date.now() - 1000),
+		})
+		resumes = await listActivePreparationSessions(auth.providerId, auth.userId)
+		expect(resumes).toHaveLength(1)
+		expect(resumes[0].href).toContain("playbook=launch-tour")
+		expect(resumes[0].href).toContain(`variantId=${va}`)
+	})
+
+	it("closes both sessions on publication and a preview visit cannot reopen them", async () => {
+		await savePreparationSession(input())
+		await savePreparationSession({
+			...input(),
+			playbookId: "complete-to-publish",
+			stepId: "preview",
+			lastPath: `/product/${a}/preview?playbook=complete-to-publish&tourFlowVersion=2`,
+		})
+		expect(await rows()).toHaveLength(2)
+		// Only in the isolated test database: exercise the real publication boundary with an eligible record.
+		await db
+			.update(Provider)
+			.set({ accountPurpose: "commercial", dataClassification: "production" })
+			.where(eq(Provider.id, auth.providerId))
+		await db.update(Product).set({ dataClass: "production" }).where(eq(Product.id, a))
+		await db.update(Product).set({ publicationState: "published" }).where(eq(Product.id, a))
+		// The reader also excludes a published tour before session cleanup completes.
+		expect(await listActivePreparationSessions(auth.providerId, auth.userId)).toEqual([])
+		await completeTourPreparationSessions(auth.providerId, a)
+		await savePreparationSession(input())
+		expect((await rows()).every((row) => row.status === "completed")).toBe(true)
+		expect(await listActivePreparationSessions(auth.providerId, auth.userId)).toEqual([])
+	})
+
 	it("rejects foreign option/rate/path and obsolete direct API requests before persistence", async () => {
 		for (const change of [
 			{ variantId: vb, ratePlanId: rb },

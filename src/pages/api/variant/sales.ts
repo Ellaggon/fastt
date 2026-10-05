@@ -6,8 +6,7 @@ import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { invalidateVariant } from "@/lib/cache/invalidation"
 import { setVariantSalesEnabled } from "@/modules/catalog/public"
 import { variantManagementRepository, productRepository } from "@/container"
-import { buildCompleteToPublishEntryHref } from "@/lib/playbook/complete-to-publish"
-import { routes } from "@/lib/routes"
+import { tourPublicationHref } from "@/lib/playbook/tour-playbook-context"
 import { isTourProductType } from "@/lib/catalog/productVerticalRegistry"
 
 export const POST: APIRoute = async ({ request }) => {
@@ -32,7 +31,7 @@ export const POST: APIRoute = async ({ request }) => {
 					error: "TOUR_GUIDED_ACTIVATION_REQUIRED",
 					message:
 						"Activa esta salida desde la revisión guiada para validar precio, condiciones y fechas.",
-					nextActionHref: buildCompleteToPublishEntryHref(routes.productPreview(variant.productId)),
+					nextActionHref: tourPublicationHref(variant.productId, { variantId }),
 				}),
 				{ status: 409, headers: { "Content-Type": "application/json" } }
 			)

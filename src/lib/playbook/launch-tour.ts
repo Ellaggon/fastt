@@ -1,3 +1,8 @@
+import {
+	resolveTourPlaybookContext,
+	tourPublicationHref,
+	tourPublicationReturn,
+} from "./tour-playbook-context"
 export const LAUNCH_TOUR_PLAYBOOK_ID = "launch-tour" as const
 export const LAUNCH_TOUR_PLAYBOOK_TITLE = "Preparar tour"
 
@@ -26,6 +31,51 @@ export type TourLaunchStepDefinition = {
 	label: string
 	guestImpact: string
 	buildHref: (context: TourLaunchContext) => string
+}
+
+/** Shared order for creation, continuation and preparation presentation. */
+export const TOUR_PREPARATION_STAGES = [
+	{
+		id: "presentation",
+		label: "Presenta tu experiencia",
+		steps: ["create", "content", "categories"],
+		requirements: ["presentation", "activities"],
+	},
+	{
+		id: "logistics",
+		label: "Recorrido y logística",
+		steps: ["location", "subtype"],
+		requirements: ["logistics"],
+	},
+	{ id: "photos", label: "Fotos", steps: ["images"], requirements: ["photos"] },
+	{
+		id: "offer",
+		label: "Primera opción, precio y condiciones",
+		steps: ["tickets", "departure", "rate", "conditions"],
+		requirements: ["participants", "option_profile", "group_capacity", "price", "conditions"],
+	},
+	{
+		id: "calendar",
+		label: "Fechas y cupos",
+		steps: ["calendar"],
+		requirements: ["calendar_configuration"],
+	},
+] as const
+
+export function normalizeTourLaunchStep(step: string | null | undefined): TourLaunchStepId | null {
+	const raw = String(step ?? "").trim()
+	const aliases: Record<string, TourLaunchStepId> = {
+		photos: "images",
+		bookingPolicies: "conditions",
+		itinerary: "subtype",
+		inclusions: "subtype",
+		services: "subtype",
+		identity: "create",
+	}
+	if (aliases[raw]) return aliases[raw]
+	return [...TOUR_PREPARATION_STAGES.flatMap((stage) => [...stage.steps]), "preview"].includes(raw)
+		? (raw as TourLaunchStepId)
+		: null
 }
 
 const TOUR_LAUNCH_STEP_DEFINITIONS: TourLaunchStepDefinition[] = [
@@ -79,7 +129,7 @@ const TOUR_LAUNCH_STEP_DEFINITIONS: TourLaunchStepDefinition[] = [
 	},
 	{
 		id: "departure",
-		label: "Primera salida",
+		label: "Perfil de la opción",
 		guestImpact: "Fecha, hora, cupo e idioma disponibles para reservar.",
 		buildHref: ({ productId, variantId }) =>
 			buildTourPlaybookHref(
@@ -139,22 +189,25 @@ const TOUR_LAUNCH_STEP_DEFINITIONS: TourLaunchStepDefinition[] = [
 	},
 	{
 		id: "preview",
-		label: "Vista previa y publicar",
+		label: "Revisar y publicar",
 		guestImpact: "Revisa la oferta antes de recibir reservas.",
 		buildHref: ({ productId, variantId, ratePlanId }) =>
 			buildTourPlaybookHref(buildTourReviewHref(productId, { variantId, ratePlanId }), "preview"),
 	},
 ]
 
-export const TOUR_LAUNCH_STEPS: TourLaunchStepDefinition[] = TOUR_LAUNCH_STEP_DEFINITIONS.map(
-	(step) => ({
+export const TOUR_LAUNCH_STEPS: TourLaunchStepDefinition[] = TOUR_LAUNCH_STEP_DEFINITIONS.slice()
+	.sort((a, b) => {
+		const order = [...TOUR_PREPARATION_STAGES.flatMap((stage) => [...stage.steps]), "preview"]
+		return order.indexOf(a.id) - order.indexOf(b.id)
+	})
+	.map((step) => ({
 		...step,
 		buildHref: (context) =>
 			step.id === "create"
 				? step.buildHref(context)
 				: withTourOfferSelection(step.buildHref(context), context),
-	})
-)
+	}))
 
 export function withTourOfferSelection(
 	path: string,
@@ -176,7 +229,7 @@ export function buildTourReviewHref(
 	productId: string,
 	context: { variantId?: string | null; ratePlanId?: string | null } = {}
 ): string {
-	return withTourOfferSelection(`/product/${encodeURIComponent(productId)}/preview`, context)
+	return tourPublicationHref(productId, context)
 }
 
 export function buildTourProviderPreviewHref(
@@ -189,22 +242,25 @@ export function buildTourProviderPreviewHref(
 export function buildTourPlaybookHref(path: string, step: TourLaunchStepId): string {
 	const [basePath, existingQuery = ""] = path.split("?")
 	const params = new URLSearchParams(existingQuery)
-	params.set("playbook", LAUNCH_TOUR_PLAYBOOK_ID)
+	params.set("playbook", step === "preview" ? "complete-to-publish" : LAUNCH_TOUR_PLAYBOOK_ID)
 	params.set("step", step)
-	params.set("flow", "create")
+	params.set("flow", step === "preview" ? "complete" : "create")
+	params.set("tourFlowVersion", "2")
 	return `${basePath}?${params}`
 }
 
 export function getTourLaunchStepById(
 	stepId: TourLaunchStepId | string | null | undefined
 ): TourLaunchStepDefinition | null {
-	return TOUR_LAUNCH_STEPS.find((step) => step.id === stepId) ?? null
+	return TOUR_LAUNCH_STEPS.find((step) => step.id === normalizeTourLaunchStep(stepId)) ?? null
 }
 
 export function getNextTourLaunchStep(
 	currentStepId: TourLaunchStepId | string | null | undefined
 ): TourLaunchStepDefinition | null {
-	const index = TOUR_LAUNCH_STEPS.findIndex((step) => step.id === currentStepId)
+	const index = TOUR_LAUNCH_STEPS.findIndex(
+		(step) => step.id === normalizeTourLaunchStep(currentStepId)
+	)
 	if (index < 0 || index >= TOUR_LAUNCH_STEPS.length - 1) return null
 	return TOUR_LAUNCH_STEPS[index + 1] ?? null
 }
@@ -212,7 +268,9 @@ export function getNextTourLaunchStep(
 export function getPreviousTourLaunchStep(
 	currentStepId: TourLaunchStepId | string | null | undefined
 ): TourLaunchStepDefinition | null {
-	const index = TOUR_LAUNCH_STEPS.findIndex((step) => step.id === currentStepId)
+	const index = TOUR_LAUNCH_STEPS.findIndex(
+		(step) => step.id === normalizeTourLaunchStep(currentStepId)
+	)
 	if (index <= 0) return null
 	return TOUR_LAUNCH_STEPS[index - 1] ?? null
 }
@@ -291,24 +349,18 @@ export function getTourSharedRateCanonicalHref(
 		return null
 
 	const params = new URLSearchParams(url.searchParams)
+	const resolved = resolveTourPlaybookContext(url, context.productId)
 	const useCompletePlaybook =
-		isCompletePlaybook || (hasTourOfferSelection && !isTourPlaybook && !hasAccommodationIntent)
+		context.step === "preview" ||
+		resolved?.part === "publish" ||
+		(hasTourOfferSelection && !isTourPlaybook && !hasAccommodationIntent && !isCompletePlaybook)
 	params.set("playbook", useCompletePlaybook ? "complete-to-publish" : LAUNCH_TOUR_PLAYBOOK_ID)
-	const completeStep =
-		context.step === "preview"
-			? "preview"
-			: context.step === "conditions"
-				? "bookingPolicies"
-				: context.step
 	params.set(
 		"step",
-		context.step === "preview"
-			? "preview"
-			: useCompletePlaybook
-				? (params.get("step") ?? completeStep)
-				: context.step
+		context.step === "conditions" && useCompletePlaybook ? "bookingPolicies" : context.step
 	)
 	params.set("flow", useCompletePlaybook ? "complete" : "create")
+	params.set("tourFlowVersion", "2")
 	params.set("productId", context.productId)
 	if (context.variantId) params.set("variantId", context.variantId)
 	else params.delete("variantId")
@@ -334,7 +386,11 @@ export function getTourRateDetailCanonicalHref(
 ): string | null {
 	return getTourSharedRateCanonicalHref(url, {
 		...context,
-		step: "conditions",
+		step:
+			url.searchParams.get("vista") === "price" ||
+			normalizeTourLaunchStep(url.searchParams.get("step")) === "rate"
+				? "rate"
+				: "conditions",
 	})
 }
 
@@ -348,4 +404,34 @@ export function resolveTourLaunchPlaybookFromUrl(url: URL): {
 	const inferredStep = inferTourLaunchStepFromPathname(url.pathname)
 	const stepId = active ? (getTourLaunchStepById(explicitStep)?.id ?? inferredStep) : null
 	return { active, playbookId: active ? LAUNCH_TOUR_PLAYBOOK_ID : null, stepId }
+}
+
+/** An editing detour returns only to the same product review. */
+export function tourPreparationReturnHref(value: unknown, productId: string): string | null {
+	return tourPublicationReturn(value, productId)
+}
+
+export function tourPreparationNextHref(
+	source: URLSearchParams,
+	context: TourLaunchContext,
+	currentStep: string
+): string {
+	const current = getTourLaunchStepById(currentStep)
+	const path = current?.buildHref(context) ?? `/product/${context.productId}/content`
+	const url = new URL(path, "http://fastt.local")
+	url.search = source.toString()
+	const resolved = resolveTourPlaybookContext(url, context.productId)
+	if (resolved?.part === "publish")
+		return (
+			tourPublicationReturn(source.get("returnTo"), context.productId, context) ??
+			tourPublicationHref(context.productId, context)
+		)
+	const next = getNextTourLaunchStep(currentStep) ?? getTourLaunchStepById("preview")!
+	const href = next.buildHref(context)
+	if (resolved?.returnHref && next.id !== "preview") {
+		const target = new URL(href, "http://fastt.local")
+		target.searchParams.set("returnTo", resolved.returnHref)
+		return target.pathname + target.search
+	}
+	return href
 }

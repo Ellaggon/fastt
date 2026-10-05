@@ -1,3 +1,5 @@
+import { resolveTourPlaybookContext } from "./tour-playbook-context"
+import { normalizeTourLaunchStep } from "./launch-tour"
 import {
 	ADD_ROOM_PLAYBOOK_ID,
 	resolveAddRoomPlaybookFromUrl,
@@ -40,6 +42,24 @@ export function resolvePlaybookFromUrl(
 	url: URL,
 	options: { isHotel?: boolean } = {}
 ): ResolvedPlaybook {
+	if (options.isHotel === false || url.searchParams.get("playbook") === "launch-tour") {
+		const productId =
+			url.pathname.match(/^\/product\/([^/]+)/)?.[1] ?? url.searchParams.get("productId") ?? ""
+		const tour = resolveTourPlaybookContext(url, productId)
+		if (tour)
+			return {
+				active: true,
+				playbookId: tour.playbookId,
+				stepId:
+					tour.part === "prepare"
+						? (normalizeTourLaunchStep(url.searchParams.get("step")) ?? inferTourStep(url))
+						: resolveCompleteToPublishPlaybookFromUrl(tour.canonical).stepId,
+				productId,
+				variantId: url.searchParams.get("variantId") ?? "",
+				ratePlanId: url.searchParams.get("ratePlanId") ?? "",
+				isHotel: false,
+			}
+	}
 	const complete = resolveCompleteToPublishPlaybookFromUrl(url)
 	if (complete.active) {
 		return {
@@ -89,4 +109,14 @@ export function resolvePlaybookFromUrl(
 		ratePlanId: "",
 		isHotel: options.isHotel ?? false,
 	}
+}
+
+function inferTourStep(url: URL) {
+	return (
+		normalizeTourLaunchStep(
+			resolveCompleteToPublishPlaybookFromUrl(
+				new URL(url.pathname + "?playbook=complete-to-publish", url)
+			).stepId
+		) ?? "content"
+	)
 }

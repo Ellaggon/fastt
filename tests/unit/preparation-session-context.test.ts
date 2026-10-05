@@ -27,6 +27,13 @@ describe("preparation session paths", () => {
 			})
 		).toThrow()
 	})
+	it("accepts an encoded publication return in the query without relaxing pathname checks", () => {
+		const lastPath =
+			"/product/tour-a/departures/option-a?playbook=complete-to-publish&tourFlowVersion=2&returnTo=%2Fproduct%2Ftour-a%2Fpreview"
+		expect(preparationPathContext({ productId, lastPath }).url.searchParams.get("returnTo")).toBe(
+			"/product/tour-a/preview"
+		)
+	})
 	it("extracts selection from the path when the body has no identifiers", () => {
 		expect(
 			preparationPathContext({ productId, lastPath: "/rates/plans/rate-a?variantId=option-a" })

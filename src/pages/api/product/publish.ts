@@ -1,3 +1,4 @@
+import { completeTourPreparationSessions } from "@/lib/onboarding/preparationSession"
 import {
 	loadTourCommercialContext,
 	tourContextValidationResponse,
@@ -127,6 +128,8 @@ export const POST: APIRoute = async ({ request }) => {
 				headers: { "Content-Type": "application/json" },
 			})
 		}
+		if (String(owned.productType).toLowerCase() === "tour")
+			await completeTourPreparationSessions(providerId, productId)
 		await refreshProductOperationalSurfaceAfterMutation({
 			productId,
 			providerId,
