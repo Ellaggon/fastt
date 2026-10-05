@@ -11,6 +11,7 @@ import { isTourProductType } from "@/lib/catalog/productVerticalRegistry"
 import {
 	buildCompleteToPublishHref,
 	COMPLETE_TO_PUBLISH_PLAYBOOK_ID,
+	getCompleteToPublishPlaybookRepairHref,
 } from "@/lib/playbook/complete-to-publish"
 import { buildTourPlaybookHref } from "@/lib/playbook/launch-tour"
 import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
@@ -37,6 +38,11 @@ const owned = productId
 	: null
 if (!owned || !isTourProductType(owned.productType)) return Astro.redirect(routes.catalogTours())
 
+const playbookRepair = getCompleteToPublishPlaybookRepairHref(Astro.url, {
+	isTour: true,
+	productId,
+})
+if (playbookRepair) return Astro.redirect(playbookRepair)
 const playbook = resolvePlaybookFromUrl(Astro.url)
 const isCompletePlaybook = playbook.playbookId === COMPLETE_TO_PUBLISH_PLAYBOOK_ID
 const departurePath = `/product/${encodeURIComponent(productId)}/departures/new`

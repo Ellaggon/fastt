@@ -249,6 +249,335 @@ body {
 	}
 }
 
+.verification-wizard-progress-label__stack {
+	position: relative;
+	min-height: 1.25rem;
+	margin: 0;
+}
+
+.verification-wizard-progress-label__phase {
+	display: block;
+}
+
+.verification-wizard-progress-label--alternate .verification-wizard-progress-label__phase {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	will-change: opacity, transform, filter;
+}
+
+.verification-wizard-progress-label--alternate
+	.verification-wizard-progress-label__phase--breakdown {
+	line-height: 1.25rem;
+}
+
+@keyframes verification-wizard-progress-label-a {
+	0%,
+	38% {
+		opacity: 1;
+		transform: translate3d(0, 0, 0);
+		filter: blur(0);
+	}
+	46%,
+	88% {
+		opacity: 0;
+		transform: translate3d(0, -0.4rem, 0);
+		filter: blur(4px);
+	}
+	100% {
+		opacity: 1;
+		transform: translate3d(0, 0, 0);
+		filter: blur(0);
+	}
+}
+
+@keyframes verification-wizard-progress-label-b {
+	0%,
+	38% {
+		opacity: 0;
+		transform: translate3d(0, 0.45rem, 0);
+		filter: blur(4px);
+	}
+	46%,
+	88% {
+		opacity: 1;
+		transform: translate3d(0, 0, 0);
+		filter: blur(0);
+	}
+	100% {
+		opacity: 0;
+		transform: translate3d(0, -0.35rem, 0);
+		filter: blur(3px);
+	}
+}
+
+.verification-wizard-progress-label--alternate .verification-wizard-progress-label__phase--total {
+	animation: verification-wizard-progress-label-a 7.5s cubic-bezier(0.45, 0.05, 0.2, 1) infinite;
+}
+
+.verification-wizard-progress-label--alternate
+	.verification-wizard-progress-label__phase--breakdown {
+	animation: verification-wizard-progress-label-b 7.5s cubic-bezier(0.45, 0.05, 0.2, 1) infinite;
+}
+
+.verification-wizard-progress-label--alternate:hover .verification-wizard-progress-label__phase,
+.verification-wizard-progress-label--alternate:focus-within
+	.verification-wizard-progress-label__phase {
+	animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.verification-wizard-progress-label--alternate
+		.verification-wizard-progress-label__phase--breakdown {
+		display: none;
+	}
+
+	.verification-wizard-progress-label--alternate
+		.verification-wizard-progress-label__phase--total {
+		position: static;
+		animation: none;
+	}
+}
+
+.tour-preparation-disclosure .verification-wizard-progress-label__phase--total,
+.tour-preparation-disclosure .verification-wizard-progress-label__phase--breakdown {
+	pointer-events: none;
+	z-index: 1;
+}
+
+.tour-preparation-disclosure[data-active-line="requirements"]
+	.verification-wizard-progress-label__phase--total {
+	z-index: 3;
+}
+
+.tour-preparation-disclosure[data-active-line="stages"]
+	.verification-wizard-progress-label__phase--breakdown {
+	z-index: 3;
+}
+
+.tour-preparation-disclosure__trigger {
+	pointer-events: auto;
+	display: block;
+	width: 100%;
+	border: 0;
+	background: transparent;
+	padding: 0;
+	text-align: left;
+	color: inherit;
+	font: inherit;
+	letter-spacing: inherit;
+	text-transform: inherit;
+}
+
+.tour-preparation-disclosure__trigger:disabled {
+	cursor: default;
+	opacity: 1;
+	pointer-events: none;
+}
+
+.tour-preparation-disclosure__trigger--interactive:not(:disabled):focus-visible {
+	outline: 1px solid rgb(148 163 184 / 0.45);
+	outline-offset: 3px;
+	border-radius: 0.25rem;
+}
+
+.tour-preparation-disclosure__label-text {
+	display: inline-block;
+	transform-origin: left center;
+	transition:
+		color 0.55s cubic-bezier(0.25, 0.1, 0.25, 1),
+		transform 0.55s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+.tour-preparation-disclosure__trigger--interactive:not(:disabled):is(:hover, :focus-visible)
+	.tour-preparation-disclosure__label-text,
+.tour-preparation-disclosure[data-active-line="requirements"]:is(:hover, :focus-within)
+	.verification-wizard-progress-label__phase--total
+	.tour-preparation-disclosure__trigger--interactive:not(:disabled)
+	.tour-preparation-disclosure__label-text,
+.tour-preparation-disclosure[data-active-line="stages"]:is(:hover, :focus-within)
+	.verification-wizard-progress-label__phase--breakdown
+	.tour-preparation-disclosure__trigger--interactive:not(:disabled)
+	.tour-preparation-disclosure__label-text,
+.tour-preparation-disclosure[data-active-line="both"]:is(:hover, :focus-within)
+	.verification-wizard-progress-label__phase--total
+	.tour-preparation-disclosure__trigger--interactive:not(:disabled):hover
+	.tour-preparation-disclosure__label-text,
+.tour-preparation-disclosure[data-active-line="both"]:is(:hover, :focus-within)
+	.verification-wizard-progress-label__phase--breakdown
+	.tour-preparation-disclosure__trigger--interactive:not(:disabled):hover
+	.tour-preparation-disclosure__label-text {
+	transform: scale(1.025);
+}
+
+.tour-preparation-disclosure__trigger--interactive:not(:disabled):is(:hover, :focus-visible)
+	.tour-preparation-disclosure__label-text,
+.tour-preparation-disclosure[data-active-line="requirements"]:is(:hover, :focus-within)
+	.verification-wizard-progress-label__phase--total
+	.tour-preparation-disclosure__trigger--interactive:not(:disabled)
+	.tour-preparation-disclosure__label-text,
+.tour-preparation-disclosure[data-active-line="stages"]:is(:hover, :focus-within)
+	.verification-wizard-progress-label__phase--breakdown
+	.tour-preparation-disclosure__trigger--interactive:not(:disabled)
+	.tour-preparation-disclosure__label-text,
+.tour-preparation-disclosure[data-active-line="both"]:is(:hover, :focus-within)
+	.verification-wizard-progress-label__phase--total
+	.tour-preparation-disclosure__trigger--interactive:not(:disabled):hover
+	.tour-preparation-disclosure__label-text,
+.tour-preparation-disclosure[data-active-line="both"]:is(:hover, :focus-within)
+	.verification-wizard-progress-label__phase--breakdown
+	.tour-preparation-disclosure__trigger--interactive:not(:disabled):hover
+	.tour-preparation-disclosure__label-text {
+	color: rgb(226 232 240);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.tour-preparation-disclosure__label-text {
+		transition: color 0.2s ease;
+	}
+
+	.tour-preparation-disclosure__trigger--interactive:not(:disabled):is(:hover, :focus-visible)
+		.tour-preparation-disclosure__label-text,
+	.tour-preparation-disclosure[data-active-line="requirements"]:is(:hover, :focus-within)
+		.verification-wizard-progress-label__phase--total
+		.tour-preparation-disclosure__trigger--interactive:not(:disabled)
+		.tour-preparation-disclosure__label-text,
+	.tour-preparation-disclosure[data-active-line="stages"]:is(:hover, :focus-within)
+		.verification-wizard-progress-label__phase--breakdown
+		.tour-preparation-disclosure__trigger--interactive:not(:disabled)
+		.tour-preparation-disclosure__label-text {
+		transform: none;
+	}
+}
+
+.tour-preparation-disclosure:hover .verification-wizard-progress-label__phase,
+.tour-preparation-disclosure:focus-within .verification-wizard-progress-label__phase {
+	animation-play-state: paused;
+}
+
+.tour-preparation-disclosure[data-expanded-mode="stages"],
+.tour-preparation-disclosure[data-expanded-mode="requirements"] {
+	.verification-wizard-progress-label__phase {
+		animation-play-state: paused !important;
+	}
+}
+
+.tour-preparation-disclosure[data-expanded-mode="stages"]
+	.verification-wizard-progress-label__phase--total {
+	opacity: 0 !important;
+	visibility: hidden !important;
+}
+
+.tour-preparation-disclosure[data-expanded-mode="stages"]
+	.verification-wizard-progress-label__phase--breakdown {
+	opacity: 1 !important;
+	transform: translate3d(0, 0, 0) !important;
+	filter: none !important;
+}
+
+.tour-preparation-disclosure[data-expanded-mode="requirements"]
+	.verification-wizard-progress-label__phase--breakdown {
+	opacity: 0 !important;
+	visibility: hidden !important;
+}
+
+.tour-preparation-disclosure[data-expanded-mode="requirements"]
+	.verification-wizard-progress-label__phase--total {
+	opacity: 1 !important;
+	transform: translate3d(0, 0, 0) !important;
+	filter: none !important;
+}
+
+.tour-preparation-disclosure--restart-alternate .verification-wizard-progress-label__phase {
+	animation: none !important;
+}
+
+.tour-preparation-disclosure--restart-alternate[data-restart-phase="total"]
+	.verification-wizard-progress-label__phase--total {
+	opacity: 1 !important;
+	visibility: visible !important;
+	transform: none !important;
+	filter: none !important;
+}
+
+.tour-preparation-disclosure--restart-alternate[data-restart-phase="total"]
+	.verification-wizard-progress-label__phase--breakdown {
+	opacity: 0 !important;
+	visibility: hidden !important;
+	transform: none !important;
+	filter: none !important;
+}
+
+.tour-preparation-disclosure--restart-alternate[data-restart-phase="breakdown"]
+	.verification-wizard-progress-label__phase--breakdown {
+	opacity: 1 !important;
+	visibility: visible !important;
+	transform: none !important;
+	filter: none !important;
+}
+
+.tour-preparation-disclosure--restart-alternate[data-restart-phase="breakdown"]
+	.verification-wizard-progress-label__phase--total {
+	opacity: 0 !important;
+	visibility: hidden !important;
+	transform: none !important;
+	filter: none !important;
+}
+
+.tour-preparation-disclosure__panel {
+	display: grid;
+	grid-template-rows: 0fr;
+	opacity: 0;
+	transform: translate3d(0, -0.35rem, 0);
+	transition:
+		grid-template-rows 0.42s cubic-bezier(0.4, 0, 0.2, 1),
+		opacity 0.36s cubic-bezier(0.4, 0, 0.2, 1),
+		transform 0.36s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tour-preparation-disclosure[data-expanded-mode="stages"]
+	.tour-preparation-disclosure__panel--stages {
+	grid-template-rows: 1fr;
+	opacity: 1;
+	transform: translate3d(0, 0, 0);
+}
+
+.tour-preparation-disclosure[data-expanded-mode="requirements"]
+	.tour-preparation-disclosure__panel--requirements {
+	grid-template-rows: 1fr;
+	opacity: 1;
+	transform: translate3d(0, 0, 0);
+}
+
+.tour-preparation-disclosure__panel-inner {
+	overflow: hidden;
+	min-height: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.tour-preparation-disclosure__panel {
+		transition: none;
+	}
+
+	.tour-preparation-disclosure.verification-wizard-progress-label--alternate
+		.verification-wizard-progress-label__stack {
+		display: flex;
+		flex-direction: column;
+		gap: 0.125rem;
+		min-height: auto;
+	}
+
+	.tour-preparation-disclosure.verification-wizard-progress-label--alternate
+		.verification-wizard-progress-label__phase {
+		position: static;
+		opacity: 1;
+		visibility: visible;
+		transform: none;
+		filter: none;
+		animation: none;
+	}
+}
+
 html[data-verification-submit-pending="true"] {
 	cursor: wait;
 }

@@ -37,9 +37,10 @@ describe("tour provider phase 5", () => {
 
 	it("groups navigation screens into six stages without turning substeps into progress", () => {
 		expect(TOUR_PUBLISHING_STAGE_COUNT).toBe(6)
-		for (const step of ["content", "location", "categories"])
+		for (const step of ["content", "categories"])
 			expect(getTourPublishingStage(step).position).toBe(1)
-		expect(getTourPublishingStage("subtype").position).toBe(2)
+		for (const step of ["location", "subtype"])
+			expect(getTourPublishingStage(step).position).toBe(2)
 		expect(getTourPublishingStage("photos").position).toBe(3)
 		for (const step of ["tickets", "departure", "rate", "bookingPolicies"])
 			expect(getTourPublishingStage(step).position).toBe(4)
@@ -57,8 +58,14 @@ describe("tour provider phase 5", () => {
 	})
 
 	it("keeps participants and discovery categories as consecutive independent tasks", () => {
-		expect(completeToPublishNextHref("tour-1", "tickets", "tour")).toBe(
+		expect(completeToPublishNextHref("tour-1", "content", "tour")).toBe(
 			"/product/tour-1/categories?playbook=complete-to-publish&step=categories&flow=complete"
+		)
+		expect(completeToPublishNextHref("tour-1", "categories", "tour")).toBe(
+			"/product/tour-1/location?playbook=complete-to-publish&step=location&flow=complete"
+		)
+		expect(completeToPublishNextHref("tour-1", "tickets", "tour")).toBe(
+			"/product/tour-1/departures/new?playbook=complete-to-publish&step=departure&flow=complete"
 		)
 		const participants = source("src/pages/product/[id]/tickets.astro")
 		const categories = source("src/pages/product/[id]/categories.astro")

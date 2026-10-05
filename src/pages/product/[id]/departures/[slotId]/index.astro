@@ -8,6 +8,7 @@ import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { isTourProductType } from "@/lib/catalog/productVerticalRegistry"
+import { getCompleteToPublishPlaybookRepairHref } from "@/lib/playbook/complete-to-publish"
 import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
 import { routes } from "@/lib/routes"
 import { db, eq, first, TourSlotProfile } from "@/shared/infrastructure/db/compat"
@@ -62,6 +63,11 @@ const override =
 		? String((profile.meetingPointOverrideJson as any).instructions ?? "").trim()
 		: ""
 
+const playbookRepair = getCompleteToPublishPlaybookRepairHref(Astro.url, {
+	isTour: true,
+	productId,
+})
+if (playbookRepair) return Astro.redirect(playbookRepair)
 const playbook = resolvePlaybookFromUrl(Astro.url, { isHotel: false })
 const rawReturnTo = String(Astro.url.searchParams.get("returnTo") ?? "").trim()
 

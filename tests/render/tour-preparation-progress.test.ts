@@ -12,7 +12,8 @@ describe("shared accessible tour preparation", () => {
 					preparation: { readyCount: percent / 10, totalCount: 10, readinessPercent: percent },
 				},
 			})
-			expect(html).toContain(`${percent}% preparado`)
+			expect(html).toContain(`Preparado ${percent}%`)
+			expect(html).toContain(`Requisitos ${percent / 10} de 10`)
 			expect(html).toContain(`aria-valuenow="${percent}"`)
 			expect(html).toContain(`width: ${percent}%`)
 		}
@@ -37,7 +38,39 @@ describe("shared accessible tour preparation", () => {
 			},
 		})
 		expect(html).toContain('aria-current="step"')
-		expect(html).toContain("Pendiente")
+		expect(html).toContain("En curso")
+		expect(html).toContain("tour-stage-rail__step--active")
 		expect(html).not.toContain('role="progressbar"')
+	})
+	it("renders stages as one horizontal rail", async () => {
+		const container = await AstroContainer.create()
+		const html = await container.renderToString(Progress, {
+			props: {
+				preparation: { readyCount: 3, totalCount: 10, readinessPercent: 30 },
+				activeStageId: "photos",
+				stagePresentation: "list",
+				stages: [
+					{
+						id: "presentation",
+						label: "Presenta tu experiencia",
+						position: 1,
+						total: 6,
+						state: "pending",
+						href: "/product/t/content",
+					},
+					{
+						id: "photos",
+						label: "Fotos",
+						position: 3,
+						total: 6,
+						state: "pending",
+						href: null,
+					},
+				],
+			},
+		})
+		expect(html).toContain('class="tour-stage-list')
+		expect(html).not.toContain("grid-cols-3")
+		expect(html).toContain('data-tour-stage-id="photos"')
 	})
 })

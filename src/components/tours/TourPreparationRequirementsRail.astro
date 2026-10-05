@@ -1,0 +1,225 @@
+---
+import {
+	requirementStatusLabel,
+	type TourPreparationRequirementView,
+} from "@/lib/tours/tourPreparationRequirements"
+import type { TourRequirementId } from "@/lib/tours/tourDiagnosticContract"
+
+interface Props {
+	requirements: TourPreparationRequirementView[]
+	activeRequirementId?: TourRequirementId | null
+}
+
+const { requirements, activeRequirementId = null } = Astro.props
+---
+
+<div class="tour-requirements-rail" data-tour-requirements-rail>
+	<div class="tour-requirements-rail__viewport">
+		<div class="tour-requirements-rail__scroller" data-requirements-scroller tabindex="-1">
+			<ol class="tour-requirements-rail__track list-none p-0">
+				{
+					requirements.map((requirement) => {
+						const isActive = requirement.id === activeRequirementId
+						const statusLabel = requirementStatusLabel(requirement, activeRequirementId)
+						const itemClass = [
+							"tour-requirements-rail__item",
+							isActive ? "tour-requirements-rail__item--active" : "",
+							requirement.state === "ready" ? "tour-requirements-rail__item--ready" : "",
+							requirement.state === "blocked" ? "tour-requirements-rail__item--blocked" : "",
+						]
+							.filter(Boolean)
+							.join(" ")
+						const inner = (
+							<>
+								<p class="tour-requirements-rail__heading">
+									<span class="tour-requirements-rail__index">{requirement.position}</span>
+									<span class="tour-requirements-rail__label">{requirement.label}</span>
+								</p>
+								<span class="tour-requirements-rail__status">{statusLabel}</span>
+							</>
+						)
+						return (
+							<li
+								class={itemClass}
+								data-requirement-id={requirement.id}
+								data-requirement-active={isActive ? "true" : "false"}
+							>
+								{requirement.href ? (
+									<a
+										class="tour-requirements-rail__link"
+										href={requirement.href}
+										aria-current={isActive ? "step" : undefined}
+									>
+										{inner}
+									</a>
+								) : (
+									<div class="tour-requirements-rail__body">{inner}</div>
+								)}
+							</li>
+						)
+					})
+				}
+			</ol>
+		</div>
+	</div>
+</div>
+
+<style>
+	.tour-requirements-rail__viewport {
+		position: relative;
+	}
+
+	.tour-requirements-rail__viewport::before,
+	.tour-requirements-rail__viewport::after {
+		content: "";
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		width: 1.75rem;
+		z-index: 2;
+		pointer-events: none;
+	}
+
+	.tour-requirements-rail__viewport::before {
+		left: 0;
+		background: linear-gradient(to right, rgb(2 6 23 / 0.95), transparent);
+	}
+
+	.tour-requirements-rail__viewport::after {
+		right: 0;
+		background: linear-gradient(to left, rgb(2 6 23 / 0.95), transparent);
+	}
+
+	.tour-requirements-rail__scroller {
+		overflow-x: auto;
+		overflow-y: hidden;
+		scrollbar-width: none;
+		-ms-overflow-style: none;
+	}
+
+	.tour-requirements-rail__scroller::-webkit-scrollbar {
+		display: none;
+	}
+
+	.tour-requirements-rail__track {
+		display: flex;
+		gap: 0.5rem;
+		padding: 0.125rem 1.5rem;
+		min-width: min-content;
+	}
+
+	.tour-requirements-rail__item {
+		flex: 0 0 auto;
+		width: 8.75rem;
+	}
+
+	.tour-requirements-rail__link,
+	.tour-requirements-rail__body {
+		display: flex;
+		height: 100%;
+		min-height: 4.25rem;
+		flex-direction: column;
+		justify-content: flex-start;
+		gap: 0.125rem;
+		border-radius: 0.5rem;
+		border: 1px solid rgb(100 116 139 / 0.28);
+		background: rgb(15 23 42 / 0.35);
+		padding: 0.5rem 0.625rem;
+		text-align: left;
+		transition:
+			border-color 0.2s ease,
+			background-color 0.2s ease,
+			box-shadow 0.2s ease;
+	}
+
+	.tour-requirements-rail__link {
+		color: inherit;
+		text-decoration: none;
+	}
+
+	.tour-requirements-rail__link:hover {
+		border-color: rgb(148 163 184 / 0.45);
+		background: rgb(30 41 59 / 0.55);
+	}
+
+	.tour-requirements-rail__heading {
+		display: flex;
+		align-items: baseline;
+		gap: 0.35rem;
+		margin: 0;
+		min-width: 0;
+	}
+
+	.tour-requirements-rail__index {
+		flex-shrink: 0;
+		font-size: 0.6875rem;
+		font-weight: 700;
+		line-height: 1.25;
+		color: rgb(148 163 184);
+	}
+
+	.tour-requirements-rail__label {
+		min-width: 0;
+		font-size: 0.6875rem;
+		line-height: 1.25;
+		font-weight: 600;
+		color: rgb(226 232 240);
+	}
+
+	.tour-requirements-rail__status {
+		margin-top: auto;
+		font-size: 0.625rem;
+		line-height: 1.2;
+		color: rgb(148 163 184);
+	}
+
+	.tour-requirements-rail__item--active .tour-requirements-rail__link,
+	.tour-requirements-rail__item--active .tour-requirements-rail__body {
+		border-color: var(--fastt-color-selection);
+		background: linear-gradient(180deg, rgb(37 99 235 / 0.22), rgb(15 23 42 / 0.5));
+		box-shadow:
+			inset 0 0 0 1px rgb(37 99 235 / 0.35),
+			0 8px 20px rgb(37 99 235 / 0.12);
+	}
+
+	.tour-requirements-rail__item--active .tour-requirements-rail__index {
+		color: rgb(191 219 254);
+	}
+
+	.tour-requirements-rail__item--active .tour-requirements-rail__label {
+		color: rgb(248 250 252);
+	}
+
+	.tour-requirements-rail__item--active .tour-requirements-rail__status {
+		font-weight: 600;
+		color: rgb(191 219 254);
+	}
+
+	@media (min-width: 640px) {
+		.tour-requirements-rail__index,
+		.tour-requirements-rail__label {
+			font-size: 0.75rem;
+		}
+	}
+
+	.tour-requirements-rail__item--ready .tour-requirements-rail__status {
+		color: rgb(110 231 183);
+	}
+
+	.tour-requirements-rail__item--blocked .tour-requirements-rail__status {
+		color: rgb(252 211 77);
+	}
+</style>
+
+<script>
+	import { centerTourRequirementsRail } from "@/lib/playbook/tour-preparation-requirements-rail.client.ts"
+
+	function initRequirementRails() {
+		document.querySelectorAll<HTMLElement>("[data-tour-requirements-rail]").forEach((rail) => {
+			centerTourRequirementsRail(rail)
+		})
+	}
+	initRequirementRails()
+	document.addEventListener("astro:page-load", initRequirementRails)
+	window.addEventListener("resize", initRequirementRails)
+</script>

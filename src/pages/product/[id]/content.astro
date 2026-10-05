@@ -6,7 +6,10 @@ import Input from "@/components/ui/Input.astro"
 import Textarea from "@/components/ui/Textarea.astro"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
-import { buildCompleteToPublishHref } from "@/lib/playbook/complete-to-publish"
+import {
+	buildCompleteToPublishHref,
+	getCompleteToPublishPlaybookRepairHref,
+} from "@/lib/playbook/complete-to-publish"
 import { buildPlaybookHref } from "@/lib/playbook/launch-accommodation"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
@@ -37,6 +40,8 @@ if (!aggregate) return Astro.redirect("/product/create")
 const vertical = getProductVerticalEntry(aggregate.productType)
 const isHotel = vertical.vertical === "hotel"
 const isTour = vertical.vertical === "tour"
+const playbookRepair = getCompleteToPublishPlaybookRepairHref(Astro.url, { isTour, productId })
+if (playbookRepair) return Astro.redirect(playbookRepair)
 const playbookResolved = resolvePlaybookFromUrl(Astro.url, { isHotel })
 const descriptionValue = aggregate.content.description ?? ""
 

@@ -11,6 +11,7 @@ import { routes } from "@/lib/routes"
 import {
 	buildCompleteToPublishHref,
 	COMPLETE_TO_PUBLISH_PLAYBOOK_ID,
+	getCompleteToPublishPlaybookRepairHref,
 } from "@/lib/playbook/complete-to-publish"
 import { buildTourPlaybookHref } from "@/lib/playbook/launch-tour"
 import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
@@ -33,6 +34,11 @@ if (!isTourProductType(owned.productType)) return Astro.redirect(routes.productD
 
 const product = await getProductAggregate(productId)
 if (!product) return Astro.redirect("/product/create")
+const playbookRepair = getCompleteToPublishPlaybookRepairHref(Astro.url, {
+	isTour: true,
+	productId,
+})
+if (playbookRepair) return Astro.redirect(playbookRepair)
 const playbook = resolvePlaybookFromUrl(Astro.url)
 const isCompletePlaybook = playbook.playbookId === COMPLETE_TO_PUBLISH_PLAYBOOK_ID
 const continueHref = isCompletePlaybook

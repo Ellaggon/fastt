@@ -7,7 +7,10 @@ import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
-import { buildCompleteToPublishHref } from "@/lib/playbook/complete-to-publish"
+import {
+	buildCompleteToPublishHref,
+	getCompleteToPublishPlaybookRepairHref,
+} from "@/lib/playbook/complete-to-publish"
 import { buildPlaybookHref } from "@/lib/playbook/launch-accommodation"
 import { playbookRedirectHrefFor } from "@/lib/playbook/playbook-nav"
 import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
@@ -37,6 +40,8 @@ if (!product) return Astro.redirect("/product/create")
 const vertical = getProductVerticalEntry(product.productType)
 const isHotel = vertical.vertical === "hotel"
 const isTour = vertical.vertical === "tour"
+const playbookRepair = getCompleteToPublishPlaybookRepairHref(Astro.url, { isTour, productId })
+if (playbookRepair) return Astro.redirect(playbookRepair)
 const playbook = resolvePlaybookFromUrl(Astro.url, { isHotel })
 const existingImages = product.images || []
 const enforceTourPublicationGallery = isTour && playbook.active
