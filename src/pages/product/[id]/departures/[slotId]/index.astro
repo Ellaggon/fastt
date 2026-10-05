@@ -1,4 +1,5 @@
 ---
+import { tourPreparationNextHref, tourPreparationReturnHref } from "@/lib/playbook/launch-tour"
 import TourSlotProfileEditor from "@/components/tours/TourSlotProfileEditor.astro"
 import { isCalendarDay } from "@/lib/booking/providerOperationalDay"
 import Card from "@/components/ui/Card.astro"
@@ -81,6 +82,10 @@ function safeConditionsReturn(value: string): string | null {
 }
 
 const conditionsReturnHref = playbook.active ? safeConditionsReturn(rawReturnTo) : null
+const reviewReturnHref =
+	playbook.playbookId === "complete-to-publish"
+		? tourPreparationReturnHref(rawReturnTo, productId)
+		: null
 const Layout = playbook.active ? PlaybookLayout : WorkspaceLayout
 const isManifestView = Boolean(manifestDate) && !playbook.active
 const manifestDateLabel = manifestDate
@@ -143,15 +148,36 @@ const layoutProps = playbook.active
 					mode="edit"
 					name={variant.name}
 					description={variant.description}
-					departureTime={profile?.departureTime ?? "09:00"}
+					departureTime={profile?.departureTime ?? ""}
 					durationMinutes={profile?.durationMinutes ?? null}
-					maxPax={profile?.maxPax ?? 12}
-					languageCode={profile?.languageCode ?? "es"}
-					bookingMode={(profile?.bookingMode as "shared" | "private") ?? "shared"}
+					maxPax={profile?.maxPax ?? null}
+					languageCode={profile?.languageCode ?? ""}
+					bookingMode={(profile?.bookingMode as "shared" | "private") ?? null}
 					meetingPointOverride={override}
 					isActive={profile?.isActive ?? variant.salesEnabled}
-					redirectOnSuccess={conditionsReturnHref ?? routes.productDeparturesForProduct(productId)}
-					submitLabel={conditionsReturnHref ? "Guardar y volver a condiciones" : null}
+					redirectOnSuccess={
+						conditionsReturnHref ??
+						(playbook.active
+							? tourPreparationNextHref(
+									Astro.url.searchParams,
+									{
+										productId,
+										variantId: slotId,
+										ratePlanId: Astro.url.searchParams.get("ratePlanId") ?? undefined,
+									},
+									"departure"
+								)
+							: routes.productDeparturesForProduct(productId))
+					}
+					submitLabel={
+						playbook.playbookId === "complete-to-publish"
+							? "Guardar y volver"
+							: conditionsReturnHref
+								? "Guardar y volver a condiciones"
+								: playbook.active
+									? "Guardar y continuar"
+									: null
+					}
 					cancelHref={conditionsReturnHref}
 				/>
 			)

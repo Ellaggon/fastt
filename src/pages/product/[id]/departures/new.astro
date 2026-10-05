@@ -29,7 +29,7 @@ if (!isTourProductType(owned.productType)) return Astro.redirect(routes.productD
 
 const product = await getProductAggregate(productId)
 if (!product) return Astro.redirect("/product/create")
-const playbook = resolvePlaybookFromUrl(Astro.url)
+const playbook = resolvePlaybookFromUrl(Astro.url, { isHotel: false })
 const isCompletePlaybook = playbook.playbookId === COMPLETE_TO_PUBLISH_PLAYBOOK_ID
 const tourRateHref = isCompletePlaybook
 	? buildCompleteToPublishHref(

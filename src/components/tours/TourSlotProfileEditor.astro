@@ -48,19 +48,19 @@ const {
 } = Astro.props
 
 const isEditMode = mode === "edit"
-const resolvedLanguageCode = String(languageCode ?? "es")
+const resolvedLanguageCode = String(languageCode ?? (isEditMode ? "" : "es"))
 const selectionCheckboxClass =
 	"tour-slot-selection-checkbox cursor-pointer rounded-[var(--fastt-radius-card)] border border-sky-100 bg-sky-50/80 p-3 transition hover:border-sky-200 has-[:checked]:border-[var(--fastt-color-selection)] has-[:checked]:bg-[var(--fastt-color-selection-soft)]"
 		.trim()
 		.toLowerCase()
-const languageOptions = TOUR_SLOT_LANGUAGE_OPTIONS.some(
-	(entry) => entry.code === resolvedLanguageCode
-)
-	? TOUR_SLOT_LANGUAGE_OPTIONS
-	: [
-			{ code: resolvedLanguageCode, label: resolvedLanguageCode.toUpperCase() },
-			...TOUR_SLOT_LANGUAGE_OPTIONS,
-		]
+const languageOptions =
+	!resolvedLanguageCode ||
+	TOUR_SLOT_LANGUAGE_OPTIONS.some((entry) => entry.code === resolvedLanguageCode)
+		? TOUR_SLOT_LANGUAGE_OPTIONS
+		: [
+				{ code: resolvedLanguageCode, label: resolvedLanguageCode.toUpperCase() },
+				...TOUR_SLOT_LANGUAGE_OPTIONS,
+			]
 ---
 
 <form
@@ -96,7 +96,7 @@ const languageOptions = TOUR_SLOT_LANGUAGE_OPTIONS.some(
 					name="departureTime"
 					type="time"
 					required
-					value={departureTime ?? "09:00"}
+					value={departureTime ?? (isEditMode ? "" : "09:00")}
 				/>
 			</FormField>
 			<FormField
@@ -147,7 +147,7 @@ const languageOptions = TOUR_SLOT_LANGUAGE_OPTIONS.some(
 					type="number"
 					min="1"
 					required
-					value={String(maxPax ?? 12)}
+					value={maxPax == null && isEditMode ? "" : String(maxPax ?? 12)}
 				/>
 			</div>
 			<div class="flex flex-col gap-2">
@@ -178,7 +178,14 @@ const languageOptions = TOUR_SLOT_LANGUAGE_OPTIONS.some(
 					</FieldHelp>
 				</div>
 				<Select id="bookingMode" name="bookingMode" required>
-					<option value="shared" selected={bookingMode !== "private"}>
+					{
+						isEditMode && !bookingMode ? (
+							<option value="" selected disabled>
+								Selecciona una modalidad
+							</option>
+						) : null
+					}
+					<option value="shared" selected={bookingMode === "shared"}>
 						Compartido (reserva directa con cupo común)
 					</option>
 					<option value="private" selected={bookingMode === "private"}>
@@ -226,6 +233,13 @@ const languageOptions = TOUR_SLOT_LANGUAGE_OPTIONS.some(
 		<div class="grid gap-4 md:grid-cols-2">
 			<FormField label="Idioma" htmlFor="languageCode" required>
 				<Select id="languageCode" name="languageCode" required>
+					{
+						!resolvedLanguageCode ? (
+							<option value="" selected disabled>
+								Selecciona un idioma
+							</option>
+						) : null
+					}
 					{
 						languageOptions.map((lang) => (
 							<option value={lang.code} selected={resolvedLanguageCode === lang.code}>
@@ -284,110 +298,143 @@ const languageOptions = TOUR_SLOT_LANGUAGE_OPTIONS.some(
 </style>
 
 <script>
-	const form = document.getElementById("tour-slot-profile-form") as HTMLFormElement | null
-	const statusEl = document.getElementById("tour-slot-form-status")
-	const submitBtn = document.getElementById("tour-slot-submit") as HTMLButtonElement | null
-	const draftKey = form
-		? `fastt:tour-departure-draft:${form.dataset.productId || "unknown"}:${form.dataset.variantId || "new"}`
-		: ""
-	let draftEnabled = true
+	import { tourPreparationNextHref } from "@/lib/playbook/launch-tour"
+	function initTourSlotProfileForm() {
+		const form = document.getElementById("tour-slot-profile-form") as HTMLFormElement | null
+		if (!(form instanceof HTMLFormElement) || form.dataset.bound === "true") return
+		form.dataset.bound = "true"
+		const statusEl = document.getElementById("tour-slot-form-status")
+		const submitBtn = document.getElementById("tour-slot-submit") as HTMLButtonElement | null
+		const draftKey = form
+			? `fastt:tour-departure-draft:${form.dataset.productId || "unknown"}:${form.dataset.variantId || "new"}`
+			: ""
+		let draftEnabled = true
+		// Retain the creation intent until the server confirms it, including reloads.
+		const creationKeyStorage = `${draftKey}:creation-key`
+		if (form && !form.dataset.variantId) {
+			let creationKey = window.sessionStorage.getItem(creationKeyStorage)
+			if (!creationKey) {
+				creationKey = crypto.randomUUID()
+				window.sessionStorage.setItem(creationKeyStorage, creationKey)
+			}
+			const input = document.createElement("input")
+			input.type = "hidden"
+			input.name = "creationKey"
+			input.value = creationKey
+			form.append(input)
+		}
 
-	function draftControls() {
-		if (!form) return []
-		return Array.from(form.elements).filter(
-			(control): control is HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement =>
-				control instanceof HTMLInputElement ||
-				control instanceof HTMLSelectElement ||
-				control instanceof HTMLTextAreaElement
-		)
-	}
+		function draftControls() {
+			if (!form) return []
+			return Array.from(form.elements).filter(
+				(control): control is HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement =>
+					control instanceof HTMLInputElement ||
+					control instanceof HTMLSelectElement ||
+					control instanceof HTMLTextAreaElement
+			)
+		}
 
-	function saveDraft() {
-		if (!draftKey || !draftEnabled) return
-		const values = draftControls()
-			.filter((control) => control.name && control.type !== "hidden")
-			.map((control) => ({
-				name: control.name,
-				value: control.value,
-				checked: control instanceof HTMLInputElement ? control.checked : undefined,
-			}))
-		window.sessionStorage.setItem(draftKey, JSON.stringify(values))
-	}
+		function saveDraft() {
+			if (!draftKey || !draftEnabled) return
+			const values = draftControls()
+				.filter((control) => control.name && control.type !== "hidden")
+				.map((control) => ({
+					name: control.name,
+					value: control.value,
+					checked: control instanceof HTMLInputElement ? control.checked : undefined,
+				}))
+			window.sessionStorage.setItem(draftKey, JSON.stringify(values))
+		}
 
-	if (form && draftKey) {
-		try {
-			const saved = JSON.parse(window.sessionStorage.getItem(draftKey) || "[]")
-			if (Array.isArray(saved)) {
-				for (const control of draftControls()) {
-					const entry = saved.find((item) => item?.name === control.name)
-					if (!entry) continue
-					if (control instanceof HTMLInputElement && control.type === "checkbox") {
-						control.checked = Boolean(entry.checked)
-					} else if (control.type !== "hidden") {
-						control.value = String(entry.value ?? "")
+		if (form && draftKey) {
+			try {
+				const saved = JSON.parse(window.sessionStorage.getItem(draftKey) || "[]")
+				if (Array.isArray(saved)) {
+					for (const control of draftControls()) {
+						const entry = saved.find((item) => item?.name === control.name)
+						if (!entry) continue
+						if (control instanceof HTMLInputElement && control.type === "checkbox") {
+							control.checked = Boolean(entry.checked)
+						} else if (control.type !== "hidden") {
+							control.value = String(entry.value ?? "")
+						}
+					}
+					if (saved.length && statusEl) {
+						statusEl.textContent = "Recuperamos el borrador de esta salida."
 					}
 				}
-				if (saved.length && statusEl) {
-					statusEl.textContent = "Recuperamos el borrador de esta salida."
-				}
+			} catch {
+				window.sessionStorage.removeItem(draftKey)
 			}
-		} catch {
-			window.sessionStorage.removeItem(draftKey)
+			form.addEventListener("input", saveDraft)
+			form.addEventListener("change", saveDraft)
+			window.addEventListener("pagehide", saveDraft)
 		}
-		form.addEventListener("input", saveDraft)
-		form.addEventListener("change", saveDraft)
-		window.addEventListener("pagehide", saveDraft)
-	}
 
-	form?.addEventListener("submit", async (event) => {
-		event.preventDefault()
-		if (!form) return
-		const submitter = event.submitter
-		if (
-			submitter instanceof HTMLButtonElement &&
-			submitter.name === "playbookNav" &&
-			submitter.value === "exit"
-		) {
-			const productId = form.dataset.productId || ""
-			window.location.href = `/product/${encodeURIComponent(productId)}`
-			return
-		}
-		const activeSubmit = submitter instanceof HTMLButtonElement ? submitter : submitBtn
-		statusEl?.setAttribute("role", "status")
-		if (statusEl) statusEl.textContent = "Guardando salida..."
-		if (activeSubmit) activeSubmit.disabled = true
-		try {
-			const response = await fetch("/api/variant/tour-slot-profile", {
-				method: "POST",
-				body: new FormData(form),
-			})
-			const payload = await response.json().catch(() => ({}))
-			if (!response.ok) {
+		form?.addEventListener("submit", async (event) => {
+			event.preventDefault()
+			if (!form) return
+			const submitter = event.submitter
+			const exitAfterSave =
+				submitter instanceof HTMLButtonElement &&
+				submitter.name === "playbookNav" &&
+				submitter.value === "exit"
+			if (form.dataset.saving === "true") return
+			form.dataset.saving = "true"
+
+			const activeSubmit = submitter instanceof HTMLButtonElement ? submitter : submitBtn
+			statusEl?.setAttribute("role", "status")
+			if (statusEl) statusEl.textContent = "Guardando salida..."
+			if (activeSubmit) activeSubmit.disabled = true
+			try {
+				const response = await fetch("/api/variant/tour-slot-profile", {
+					method: "POST",
+					body: new FormData(form),
+				})
+				const payload = await response.json().catch(() => ({}))
+				if (!response.ok) {
+					if (statusEl) {
+						statusEl.setAttribute("role", "alert")
+						statusEl.textContent =
+							payload?.error === "validation_error"
+								? "No pudimos guardar. Revisa el nombre, la hora, el cupo y el idioma."
+								: "No se pudo crear la salida. Tu borrador sigue guardado para que puedas reintentar."
+					}
+					return
+				}
+				draftEnabled = false
+				window.sessionStorage.removeItem(creationKeyStorage)
+				window.sessionStorage.removeItem(draftKey)
+				const productId = form.dataset.productId || ""
+				const redirect = form.dataset.redirect || ""
+
+				const variantId = String(payload?.variantId ?? "")
+				const source = new URLSearchParams(window.location.search)
+				const guided = ["launch-tour", "complete-to-publish", "complete"].includes(
+					source.get("playbook") || ""
+				)
+				const destination = guided
+					? tourPreparationNextHref(
+							source,
+							{ productId, variantId, ratePlanId: source.get("ratePlanId") || undefined },
+							"departure"
+						)
+					: redirect.replace("__VARIANT_ID__", encodeURIComponent(variantId))
+				window.location.href =
+					(exitAfterSave ? `/product/${encodeURIComponent(productId)}` : destination) ||
+					`/product/${encodeURIComponent(productId)}/departures${variantId ? `?created=${encodeURIComponent(variantId)}` : ""}`
+			} catch {
 				if (statusEl) {
 					statusEl.setAttribute("role", "alert")
 					statusEl.textContent =
-						payload?.error === "validation_error"
-							? "No pudimos guardar. Revisa el nombre, la hora, el cupo y el idioma."
-							: "No se pudo crear la salida. Tu borrador sigue guardado para que puedas reintentar."
+						"Se perdió la conexión. Tu borrador sigue guardado; comprueba la red e inténtalo de nuevo."
 				}
-				return
+			} finally {
+				form.dataset.saving = "false"
+				if (activeSubmit) activeSubmit.disabled = false
 			}
-			draftEnabled = false
-			window.sessionStorage.removeItem(draftKey)
-			const productId = form.dataset.productId || ""
-			const redirect = form.dataset.redirect || ""
-			const variantId = String(payload?.variantId ?? "")
-			window.location.href =
-				redirect.replace("__VARIANT_ID__", encodeURIComponent(variantId)) ||
-				`/product/${encodeURIComponent(productId)}/departures${variantId ? `?created=${encodeURIComponent(variantId)}` : ""}`
-		} catch {
-			if (statusEl) {
-				statusEl.setAttribute("role", "alert")
-				statusEl.textContent =
-					"Se perdió la conexión. Tu borrador sigue guardado; comprueba la red e inténtalo de nuevo."
-			}
-		} finally {
-			if (activeSubmit) activeSubmit.disabled = false
-		}
-	})
+		})
+	}
+	initTourSlotProfileForm()
+	document.addEventListener("astro:page-load", initTourSlotProfileForm)
 </script>
