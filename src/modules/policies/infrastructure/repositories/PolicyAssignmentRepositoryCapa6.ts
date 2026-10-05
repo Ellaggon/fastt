@@ -7,11 +7,20 @@ import {
 	isNull,
 	PolicyAssignment,
 	PolicyAuditLog,
+	Policy,
+	PolicyGroup,
+	PolicyRule,
+	CancellationTier,
 	Product,
 	Variant,
 	RatePlan,
 	User,
 } from "@/shared/infrastructure/db/compat"
+import {
+	evaluatePolicyBusinessCompatibility,
+	policyBusinessContextFromProduct,
+} from "@/lib/policies/policy-business-compatibility"
+import { PolicyValidationError } from "../../application/errors/policyValidationError"
 import { typedCatalogAssignmentTarget } from "@/shared/domain/assignment-target"
 import type { PolicyCategory } from "../../domain/policy.category"
 import type { PolicyScope } from "../../domain/policy.scope"
@@ -39,6 +48,66 @@ export class PolicyAssignmentRepositoryCapa6 implements PolicyAssignmentReposito
 			if (!context) throw new Error("POLICY_ASSIGNMENT_SCOPE_NOT_FOUND")
 			if (context.providerId !== params.ownerProviderId) {
 				throw new Error("POLICY_ASSIGNMENT_OWNER_MISMATCH")
+			}
+
+			// Assignments follow a group, so every active version that may become
+			// effective must satisfy the destination contract before any write.
+			const product = await tx
+				.select({ productType: Product.productType })
+				.from(Product)
+				.where(eq(Product.id, context.productId))
+				.for("share")
+				.then(first)
+			if (!product) throw new Error("POLICY_ASSIGNMENT_SCOPE_NOT_FOUND")
+			const versions = await tx
+				.select({
+					id: Policy.id,
+					category: PolicyGroup.category,
+					stayLengthType: Policy.stayLengthType,
+					refundBasis: Policy.refundBasis,
+					ownerProviderId: PolicyGroup.ownerProviderId,
+				})
+				.from(Policy)
+				.innerJoin(PolicyGroup, eq(PolicyGroup.id, Policy.groupId))
+				.where(and(eq(Policy.groupId, params.policyGroupId), eq(Policy.status, "active")))
+				.for("share")
+			if (
+				!versions.some((version) => version.id === params.policyId) ||
+				versions.some(
+					(version) =>
+						version.ownerProviderId !== params.ownerProviderId ||
+						version.category !== params.category
+				)
+			) {
+				throw new Error("POLICY_ASSIGNMENT_POLICY_CONTEXT_INVALID")
+			}
+			const business = policyBusinessContextFromProduct({
+				productId: context.productId,
+				productType: product.productType,
+			})
+			for (const version of versions) {
+				const [rules, tiers] = await Promise.all([
+					tx
+						.select({ ruleKey: PolicyRule.ruleKey, ruleValue: PolicyRule.ruleValue })
+						.from(PolicyRule)
+						.where(eq(PolicyRule.policyId, version.id)),
+					tx.select().from(CancellationTier).where(eq(CancellationTier.policyId, version.id)),
+				])
+				const issues = evaluatePolicyBusinessCompatibility(business, {
+					category: version.category,
+					stayLengthType: version.stayLengthType,
+					refundBasis: version.refundBasis,
+					rules: Object.fromEntries(rules.map((rule) => [String(rule.ruleKey), rule.ruleValue])),
+					cancellationTiers: tiers,
+				})
+				if (issues.length)
+					throw new PolicyValidationError(
+						issues.map((issue) => ({
+							path: ["policyId"],
+							code: issue.code,
+							message: issue.message,
+						}))
+					)
 			}
 
 			const channelCondition =

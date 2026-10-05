@@ -3,7 +3,7 @@
 Status: active  
 Document type: canonical  
 Owner: Tours / Pricing & Policies  
-Last verified: 2026-09-22  
+Last verified: 2026-10-04
 Scope: condiciones de tarifa, preview, asignación y publicación de tours  
 Source of truth: `src/lib/policies/policy-business-contract.ts` y `src/lib/policies/policy-business-compatibility.ts`  
 Related code/tests: `src/pages/api/policies/`, `src/components/policy/`, `tests/policies/`, `tests/integration/tour-policy-existing-payment-assignment.test.ts`  
@@ -27,6 +27,10 @@ Supersedes: auditoría de condiciones 2026-09-21 y cierres A–D
 ## Resolución y validación
 
 El servidor deriva el negocio desde el destino real —producto, variante o tarifa— y aplica la misma compatibilidad a opciones, preview y asignación. Los modos `existing`, `preset` y `draft` no pueden eludirla mediante una petición directa.
+
+Crear una propuesta de precio de tours asigna únicamente pago directo y no presentación. La cancelación queda pendiente de elección explícita en condiciones; no se hereda la plantilla hotelera ni se elige por el nombre de la propuesta. Reintentar la creación del contrato base conserva la cancelación ya elegida.
+
+La escritura compartida vuelve a validar, dentro de su transacción y antes de reemplazar asignaciones, todas las versiones activas del grupo contra el destino real. Los valores ausentes de horas no equivalen a cero.
 
 Tours dispone de plantillas propias con cortes horarios. Se rechazan `CheckIn`, estadía corta/larga, cancelación sólo por días, prepago y no-show basado en primera noche. Alojamiento conserva su catálogo y semántica anterior. Un tipo nuevo falla cerrado hasta declarar contrato propio.
 

@@ -1,7 +1,11 @@
 import { config as loadDotenv } from "dotenv"
 import postgres from "postgres"
-
 import { getPostgresConnectionUrl } from "../../src/shared/infrastructure/db/env"
+import {
+	evaluatePolicyBusinessCompatibility,
+	policyBusinessContextFromProduct,
+	type PolicyCompatibilityCandidate,
+} from "../../src/lib/policies/policy-business-compatibility"
 
 if (process.env.FASTT_DATA_ENV === "test") {
 	loadDotenv({ path: ".env.test", override: false })
@@ -11,7 +15,7 @@ if (process.env.FASTT_DATA_ENV === "test") {
 	loadDotenv({ path: ".env", override: false })
 }
 
-type Finding = {
+type InventoryRow = {
 	assignmentId: string
 	productId: string
 	productName: string
@@ -19,13 +23,10 @@ type Finding = {
 	scopeId: string
 	category: string
 	isActive: boolean
-	policyId: string | null
-	policyPresetKey: string | null
-	stayLengthType: string | null
-	paymentType: string | null
-	noShowPenaltyType: string | null
-	hasHourCutoff: boolean
-	reviewReasons: string[]
+	channel: string | null
+	effectiveFrom: string | null
+	effectiveTo: string | null
+	policies: Array<PolicyCompatibilityCandidate & { id: string; version: number }>
 }
 
 async function main() {
@@ -35,73 +36,81 @@ async function main() {
 		idle_timeout: 5,
 		connect_timeout: 15,
 	})
-
 	try {
-		const rows = await sql<Finding[]>`
-			with tour_assignments as (
-				select
-					assignment.id as "assignmentId",
-					product.id as "productId",
-					product.name as "productName",
-					assignment.scope,
-					assignment."scopeId" as "scopeId",
-					assignment.category,
-					assignment."isActive" as "isActive",
-					policy.id as "policyId",
-					policy."policyPresetKey" as "policyPresetKey",
-					policy."stayLengthType" as "stayLengthType",
-					payment."ruleValue" #>> '{}' as "paymentType",
-					no_show."ruleValue" #>> '{}' as "noShowPenaltyType",
-					coalesce(hour_cutoff."hasHourCutoff", false) as "hasHourCutoff"
-				from "PolicyAssignment" assignment
-				join "PolicyGroup" policy_group on policy_group.id = assignment."policyGroupId"
-				left join lateral (
-					select id, "policyPresetKey", "stayLengthType"
-					from "Policy"
-					where "groupId" = policy_group.id and status = 'active'
-					order by version desc, id desc
-					limit 1
-				) policy on true
-				left join "PolicyRule" payment on payment."policyId" = policy.id and payment."ruleKey" = 'paymentType'
-				left join "PolicyRule" no_show on no_show."policyId" = policy.id and no_show."ruleKey" = 'penaltyType'
-				left join lateral (
-					select bool_or("hoursBeforeDeparture" is not null) as "hasHourCutoff"
-					from "CancellationTier"
-					where "policyId" = policy.id
-				) hour_cutoff on true
-				left join "Product" direct_product on direct_product.id = assignment."productTargetId"
-				left join "Variant" direct_variant on direct_variant.id = assignment."variantTargetId"
-				left join "RatePlan" direct_rate_plan on direct_rate_plan.id = assignment."ratePlanTargetId"
-				left join "Variant" rate_plan_variant on rate_plan_variant.id = direct_rate_plan."variantId"
-				join "Product" product on product.id = coalesce(direct_product.id, direct_variant."productId", rate_plan_variant."productId")
-				where lower(product."productType") = 'tour'
-			)
-			select *, array_remove(array[
-				case when category = 'CheckIn' then 'hotel_arrival_category' end,
-				case when category = 'Cancellation' and coalesce("stayLengthType", '') = 'long_stay' then 'long_stay_contract' end,
-				case when category = 'Cancellation' and not "hasHourCutoff" then 'day_based_cutoff_requires_decision' end,
-				case when category = 'Payment' and coalesce("paymentType", '') <> 'pay_at_property' then 'unsupported_payment_type' end,
-				case when category = 'NoShow' and "noShowPenaltyType" = 'first_night' then 'first_night_basis' end
-			], null) as "reviewReasons"
-			from tour_assignments
-			order by "productName", category, "assignmentId"
+		const rows = await sql.begin(
+			"read only",
+			async (tx) => tx<InventoryRow[]>`
+			select assignment.id as "assignmentId", product.id as "productId", product.name as "productName",
+				assignment.scope, assignment."scopeId", assignment.category, assignment."isActive", assignment.channel,
+				assignment."effectiveFrom", assignment."effectiveTo",
+				coalesce((select jsonb_agg(jsonb_build_object(
+					'id', policy.id, 'version', policy.version, 'category', assignment.category,
+					'stayLengthType', policy."stayLengthType", 'refundBasis', policy."refundBasis",
+					'rules', coalesce((select jsonb_object_agg(rule."ruleKey", rule."ruleValue") from "PolicyRule" rule where rule."policyId" = policy.id and rule."ruleKey" is not null), '{}'::jsonb),
+					'cancellationTiers', coalesce((select jsonb_agg(jsonb_build_object('daysBeforeArrival', tier."daysBeforeArrival", 'hoursBeforeDeparture', tier."hoursBeforeDeparture", 'penaltyType', tier."penaltyType", 'penaltyAmount', tier."penaltyAmount")) from "CancellationTier" tier where tier."policyId" = policy.id), '[]'::jsonb)
+				)) from "Policy" policy where policy."groupId" = assignment."policyGroupId" and policy.status = 'active'), '[]'::jsonb) as policies
+			from "PolicyAssignment" assignment
+			left join "Product" direct_product on direct_product.id = assignment."productTargetId"
+			left join "Variant" direct_variant on direct_variant.id = assignment."variantTargetId"
+			left join "RatePlan" direct_rate on direct_rate.id = assignment."ratePlanTargetId"
+			left join "Variant" rate_variant on rate_variant.id = direct_rate."variantId"
+			join "Product" product on assignment.scope = 'global' or product.id = coalesce(direct_product.id, direct_variant."productId", rate_variant."productId")
+			where lower(product."productType") = 'tour'
+			order by product.name, assignment.category, assignment.id
 		`
-
-		const active = rows.filter((row) => row.isActive)
-		const needsReview = rows.filter((row) => row.reviewReasons.length > 0)
+		)
+		const inventory = rows.map(({ policies, ...row }) => ({
+			...row,
+			versions: policies.map((policy) => ({
+				policyId: policy.id,
+				version: policy.version,
+				issues: evaluatePolicyBusinessCompatibility(
+					policyBusinessContextFromProduct({ productId: row.productId, productType: "tour" }),
+					policy
+				),
+			})),
+			missingActiveVersion: policies.length === 0,
+		}))
+		const requiresReview = inventory.filter(
+			(row) =>
+				row.isActive &&
+				(row.missingActiveVersion || row.versions.some((version) => version.issues.length))
+		)
+		const historicalReview = inventory.filter(
+			(row) =>
+				!row.isActive &&
+				(row.missingActiveVersion || row.versions.some((version) => version.issues.length))
+		)
+		// The effective gate honours scope precedence, channel and validity. Raw
+		// assignments are an inventory, not a substitute for this observation.
+		const { auditTourProductPolicyCompatibility } =
+			await import("../../src/lib/policies/audit-tour-policy-compatibility")
+		const effectiveFindings = []
+		for (const productId of new Set(
+			rows.filter((row) => row.isActive).map((row) => row.productId)
+		)) {
+			effectiveFindings.push({
+				productId,
+				findings: await auditTourProductPolicyCompatibility(productId),
+			})
+		}
 		console.log(
 			JSON.stringify(
 				{
 					report: "tour_policy_assignment_inventory",
 					readOnly: true,
 					generatedAt: new Date().toISOString(),
+					effectiveChannel: "web",
 					totals: {
-						assignments: rows.length,
-						activeAssignments: active.length,
-						requiresReview: needsReview.length,
+						assignments: inventory.length,
+						activeAssignments: inventory.filter((row) => row.isActive).length,
+						requiresReview: requiresReview.length,
+						historicalReview: historicalReview.length,
 					},
-					requiresReview: needsReview,
-					allAssignments: rows,
+					requiresReview,
+					historicalReview,
+					effectiveFindings,
+					allAssignments: inventory,
 				},
 				null,
 				2
@@ -111,7 +120,6 @@ async function main() {
 		await sql.end()
 	}
 }
-
 main().catch((error) => {
 	console.error(error)
 	process.exitCode = 1

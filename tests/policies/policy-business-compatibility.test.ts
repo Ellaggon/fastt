@@ -82,6 +82,30 @@ describe("policy business compatibility", () => {
 		}
 	})
 
+	it.each([null, undefined, "", " "])(
+		"rejects day-only persisted cutoffs with missing hours %s",
+		(hoursBeforeDeparture) => {
+			expect(
+				evaluatePolicyBusinessCompatibility(tour, {
+					category: "Cancellation",
+					stayLengthType: "any",
+					cancellationTiers: [{ daysBeforeArrival: 5, hoursBeforeDeparture }],
+				})[0]?.code
+			).toBe("tour_cancellation_requires_hour_cutoff")
+		}
+	)
+	it("accepts an explicit zero-hour departure cutoff and non-refundable policies without lead time", () => {
+		for (const tiers of [[{ daysBeforeArrival: 0, hoursBeforeDeparture: 0 }], []]) {
+			expect(
+				evaluatePolicyBusinessCompatibility(tour, {
+					category: "Cancellation",
+					stayLengthType: "any",
+					cancellationTiers: tiers,
+				})
+			).toEqual([])
+		}
+	})
+
 	it("does not change the established hotel policy contract", () => {
 		expect(
 			evaluatePolicyBusinessCompatibility(hotel, {
