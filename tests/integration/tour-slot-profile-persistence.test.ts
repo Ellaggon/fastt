@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { v5 as uuidv5 } from "uuid"
 
 import {
 	DailyInventory,
@@ -104,16 +105,34 @@ afterEach(() => {
 
 describe("tour slot profile persistence in PostgreSQL", () => {
 	it.each([
-		{ action: "inserts", seedExistingProfile: false, updateDefaultCapacity: false },
-		{ action: "updates", seedExistingProfile: true, updateDefaultCapacity: false },
+		{
+			action: "inserts",
+			seedExistingProfile: false,
+			updateDefaultCapacity: false,
+			recoveringCreation: false,
+		},
+		{
+			action: "updates",
+			seedExistingProfile: true,
+			updateDefaultCapacity: false,
+			recoveringCreation: false,
+		},
 		{
 			action: "explicitly changes the future default and updates",
+			recoveringCreation: false,
 			seedExistingProfile: true,
 			updateDefaultCapacity: true,
 		},
+		{
+			action: "recovers a lost creation response and retries",
+			seedExistingProfile: false,
+			updateDefaultCapacity: false,
+			recoveringCreation: true,
+		},
 	])(
 		"$action the slot profile without changing scheduled inventory rows",
-		async ({ seedExistingProfile, updateDefaultCapacity }) => {
+		async ({ seedExistingProfile, updateDefaultCapacity, recoveringCreation }) => {
+			const creationKey = crypto.randomUUID()
 			const suffix = crypto.randomUUID().replaceAll("-", "")
 			const fixture = {
 				providerId: `tour-profile-provider-${suffix}`,
@@ -125,6 +144,11 @@ describe("tour slot profile persistence in PostgreSQL", () => {
 				userId: `user_tour-profile-${suffix}@example.test`,
 			}
 
+			if (recoveringCreation)
+				fixture.variantId = uuidv5(
+					JSON.stringify([fixture.providerId, fixture.productId, creationKey]),
+					uuidv5.URL
+				)
 			installSupabaseAuthStub({
 				[fixture.token]: { id: fixture.userId, email: fixture.email },
 			})
@@ -151,16 +175,17 @@ describe("tour slot profile persistence in PostgreSQL", () => {
 					providerId: fixture.providerId,
 					dataClass: "fixture",
 				})
-				await upsertVariant({
-					id: fixture.variantId,
-					productId: fixture.productId,
-					kind: "tour_slot",
-					name: "Salida original",
-					description: "Perfil antes del cambio",
-					lifecycleState: "ready",
-					salesEnabled: false,
-					maxOccupancy: 6,
-				})
+				if (!recoveringCreation)
+					await upsertVariant({
+						id: fixture.variantId,
+						productId: fixture.productId,
+						kind: "tour_slot",
+						name: "Salida original",
+						description: "Perfil antes del cambio",
+						lifecycleState: "ready",
+						salesEnabled: false,
+						maxOccupancy: 6,
+					})
 				let seededInventoryConfig: typeof VariantInventoryConfig.$inferSelect | undefined
 				let seededProfileCreatedAt: Date | undefined
 				if (seedExistingProfile) {
@@ -195,17 +220,20 @@ describe("tour slot profile persistence in PostgreSQL", () => {
 					seededProfileCreatedAt = seededProfile?.createdAt ?? undefined
 				}
 
-				const scheduledRows = [
-					{ date: "2030-03-10", totalInventory: 8, reservedCount: 2 },
-					{ date: "2030-03-17", totalInventory: 6, reservedCount: 1 },
-				]
-				await db.insert(DailyInventory).values(
-					scheduledRows.map((row) => ({
-						id: crypto.randomUUID(),
-						variantId: fixture.variantId,
-						...row,
-					}))
-				)
+				const scheduledRows = recoveringCreation
+					? []
+					: [
+							{ date: "2030-03-10", totalInventory: 8, reservedCount: 2 },
+							{ date: "2030-03-17", totalInventory: 6, reservedCount: 1 },
+						]
+				if (scheduledRows.length)
+					await db.insert(DailyInventory).values(
+						scheduledRows.map((row) => ({
+							id: crypto.randomUUID(),
+							variantId: fixture.variantId,
+							...row,
+						}))
+					)
 				const before = await db
 					.select()
 					.from(DailyInventory)
@@ -213,7 +241,8 @@ describe("tour slot profile persistence in PostgreSQL", () => {
 
 				const form = new FormData()
 				form.set("productId", fixture.productId)
-				form.set("variantId", fixture.variantId)
+				if (recoveringCreation) form.set("creationKey", creationKey)
+				else form.set("variantId", fixture.variantId)
 				form.set("name", "Salida actualizada")
 				form.set("description", "Perfil actualizado sin alterar fechas")
 				form.set("departureTime", "09:30")
@@ -225,6 +254,13 @@ describe("tour slot profile persistence in PostgreSQL", () => {
 				form.set("isActive", "true")
 				if (updateDefaultCapacity) form.set("updateDefaultCapacity", "true")
 
+				if (recoveringCreation) {
+					// Ignore the successful response, as a disconnected client would.
+					const lostResponse = await saveTourSlotProfile({
+						request: makeRequest(fixture.token, form),
+					} as never)
+					expect(lostResponse.status).toBe(200)
+				}
 				const response = await saveTourSlotProfile({
 					request: makeRequest(fixture.token, form),
 				} as never)
@@ -232,7 +268,9 @@ describe("tour slot profile persistence in PostgreSQL", () => {
 				expect(await response.json()).toMatchObject({
 					ok: true,
 					variantId: fixture.variantId,
-					defaultCapacityUpdated: !seedExistingProfile || updateDefaultCapacity,
+					defaultCapacityUpdated: recoveringCreation
+						? false
+						: !seedExistingProfile || updateDefaultCapacity,
 				})
 
 				const [profile, capacity, inventoryConfig, after] = await Promise.all([
@@ -254,6 +292,18 @@ describe("tour slot profile persistence in PostgreSQL", () => {
 					db.select().from(DailyInventory).where(eq(DailyInventory.variantId, fixture.variantId)),
 				])
 
+				if (recoveringCreation) {
+					const variants = await db
+						.select()
+						.from(Variant)
+						.where(eq(Variant.productId, fixture.productId))
+					expect(variants).toHaveLength(1)
+					expect(variants[0]).toMatchObject({
+						id: fixture.variantId,
+						lifecycleState: "draft",
+						salesEnabled: false,
+					})
+				}
 				expect(profile).toMatchObject({
 					departureTime: "09:30",
 					durationMinutes: 180,

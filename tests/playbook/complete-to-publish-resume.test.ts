@@ -33,7 +33,7 @@ describe("complete-to-publish resume", () => {
 			check("preview", false),
 		]
 		expect(buildCompleteToPublishResumeHref("tour-1", checks)).toBe(
-			"/product/tour-1/photos?playbook=complete-to-publish&step=photos&flow=complete"
+			"/product/tour-1/photos?playbook=launch-tour&step=images&flow=create&tourFlowVersion=2"
 		)
 	})
 
@@ -45,7 +45,7 @@ describe("complete-to-publish resume", () => {
 			check("preview", false),
 		]
 		expect(buildCompleteToPublishResumeHref("tour-1", checks)).toBe(
-			"/product/tour-1/location?playbook=complete-to-publish&step=location&flow=complete"
+			"/product/tour-1/location?playbook=launch-tour&step=location&flow=create&tourFlowVersion=2"
 		)
 	})
 
@@ -61,11 +61,11 @@ describe("complete-to-publish resume", () => {
 			check("preview", false),
 		]
 		expect(buildCompleteToPublishResumeHref("tour-1", checks)).toBe(
-			"/product/tour-1/itinerary?playbook=complete-to-publish&step=itinerary&flow=complete"
+			"/product/tour-1/itinerary?playbook=launch-tour&step=subtype&flow=create&tourFlowVersion=2"
 		)
 	})
 
-	it("ignores a saved path that skips an earlier unresolved requirement", () => {
+	it("resumes the saved editing location while earlier requirements remain visible", () => {
 		const checks = [
 			check("content", true),
 			check("photos", false),
@@ -76,9 +76,19 @@ describe("complete-to-publish resume", () => {
 			resolveCompleteToPublishResume("tour-1", checks, {
 				lastPath: "/product/tour-1/tickets?playbook=complete-to-publish&step=tickets&flow=complete",
 			}).href
-		).toBe("/product/tour-1/photos?playbook=complete-to-publish&step=photos&flow=complete")
+		).toBe("/product/tour-1/tickets?playbook=complete-to-publish&step=tickets&flow=complete")
 	})
 
+	it("resumes B at its task summary even while preparation requirements remain pending", () => {
+		const savedPath =
+			"/product/tour-1/preview?playbook=complete-to-publish&step=preview&tourFlowVersion=2&variantId=slot-2&ratePlanId=rate-2"
+		expect(
+			resolveCompleteToPublishResume("tour-1", [check("photos", false), check("preview", false)], {
+				lastPath: savedPath,
+				vertical: "tour",
+			}).href
+		).toBe(savedPath)
+	})
 	it("preserves the saved path when it is the first unresolved requirement", () => {
 		const checks = [
 			check("content", true),
@@ -87,7 +97,7 @@ describe("complete-to-publish resume", () => {
 			check("preview", false),
 		]
 		const savedPath =
-			"/product/tour-1/photos?playbook=complete-to-publish&step=photos&flow=complete&panel=gallery"
+			"/product/tour-1/photos?playbook=launch-tour&step=images&flow=create&tourFlowVersion=2&panel=gallery"
 		expect(resolveCompleteToPublishResume("tour-1", checks, { lastPath: savedPath }).href).toBe(
 			savedPath
 		)

@@ -14,14 +14,10 @@ export function preparationPathContext(input: {
 	ratePlanId?: string | null
 }) {
 	const path = input.lastPath
-	if (
-		!path.startsWith("/") ||
-		path.startsWith("//") ||
-		path.includes("\\") ||
-		/%2f|%5c/i.test(path)
-	)
+	if (!path.startsWith("/") || path.startsWith("//") || path.includes("\\"))
 		throw new PreparationSessionError("invalid_preparation_path")
 	const url = new URL(path, "http://fastt.local")
+	if (/%2f|%5c/i.test(url.pathname)) throw new PreparationSessionError("invalid_preparation_path")
 	let segments: string[]
 	try {
 		segments = url.pathname.split("/").filter(Boolean).map(decodeURIComponent)

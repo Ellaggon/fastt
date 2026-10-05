@@ -1,0 +1,193 @@
+---
+import { summarizeTourDiagnostic, type TourDiagnostic } from "@/lib/tours/tourDiagnosticContract"
+import { presentTourDiagnostic } from "@/lib/tours/tourDiagnosticPresentation"
+import { projectTourPublicationTasks } from "@/lib/tours/tourPublicationTasks"
+import { buildTourPlaybookHref } from "@/lib/playbook/launch-tour"
+import Button from "@/components/ui/Button.astro"
+interface Props {
+	diagnosis: TourDiagnostic
+	reviewHref: string
+	published: boolean
+}
+const { diagnosis, reviewHref, published } = Astro.props
+const summary = summarizeTourDiagnostic(diagnosis)
+const presentation = presentTourDiagnostic(diagnosis, { previewHref: reviewHref, published })
+const { tasks, waiting, completed } = projectTourPublicationTasks(diagnosis)
+const selection = diagnosis.context.selection
+const edit = new URL(
+	buildTourPlaybookHref(
+		`/product/${encodeURIComponent(diagnosis.context.productId)}/content`,
+		"content"
+	),
+	"http://fastt.local"
+)
+edit.searchParams.set("returnTo", reviewHref)
+if (selection.state === "resolved") {
+	edit.searchParams.set("variantId", selection.variantId)
+	edit.searchParams.set("ratePlanId", selection.ratePlanId)
+}
+---
+
+<div class="space-y-5" data-tour-review-status>
+	{
+		!published && tasks.length ? (
+			<div class="space-y-3" data-tour-publication-tasks>
+				<h2 class="text-sm font-semibold text-slate-950">
+					{`${tasks.length} ${tasks.length === 1 ? "tarea pendiente" : "tareas pendientes"}`}
+				</h2>
+				<ul class="list-none divide-y divide-slate-200 p-0">
+					{tasks.map((task, index) => (
+						<li
+							class="flex flex-col gap-3 py-4 first:pt-0 sm:flex-row sm:items-center sm:justify-between"
+							data-tour-publication-task={task.key}
+						>
+							<div class="min-w-0 space-y-1">
+								<h3 class="text-sm font-semibold text-slate-950">{task.label}</h3>
+								{task.messages.map((message) => (
+									<p class="text-sm leading-6 text-slate-600">{message}</p>
+								))}
+							</div>
+							<Button
+								href={task.href ?? reviewHref}
+								variant={index === 0 ? "primary" : "secondary"}
+								aria-label={`${task.unknown ? "Reintentar" : "Completar"}: ${task.label}`}
+								size="sm"
+								class="shrink-0"
+								reload={task.unknown}
+							>
+								{task.unknown ? "Reintentar" : "Completar"}
+							</Button>
+						</li>
+					))}
+				</ul>
+			</div>
+		) : null
+	}
+	{
+		!published && waiting.length ? (
+			<aside class="space-y-3 border-t border-slate-200 pt-5" data-tour-publication-waiting>
+				<h2 class="text-sm font-semibold text-slate-950">
+					{waiting.some((task) => /in_review|under_review/.test(task.code))
+						? "En revisión por Fastt"
+						: "Pendiente de Fastt"}
+				</h2>
+				{waiting.map((task) => (
+					<div class="space-y-1">
+						<h3 class="text-sm font-semibold text-slate-950">{task.label}</h3>
+						{task.messages.map((message) => (
+							<p class="text-sm leading-6 text-slate-600">{message}</p>
+						))}
+					</div>
+				))}
+				<Button href={reviewHref} reload variant="secondary" size="sm">
+					Comprobar estado
+				</Button>
+			</aside>
+		) : null
+	}
+	<details class="fastt-soft-box group" data-tour-publication-completed>
+		<summary
+			class="tour-preparation-summary cursor-pointer list-none px-4 py-3 text-xs font-semibold tracking-wide text-slate-600 uppercase [&::-webkit-details-marker]:hidden"
+			>Requisitos cumplidos ({completed.length})</summary
+		>
+		<ul class="list-none space-y-2 border-t border-slate-200 px-4 py-3 text-sm text-slate-700">
+			{
+				completed.map((item) => (
+					<li class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+						<a
+							href={item.href}
+							class="font-medium text-slate-900 underline-offset-4 hover:underline"
+						>
+							{item.label}
+						</a>
+						<span class="text-xs font-semibold text-emerald-700">Completo</span>
+					</li>
+				))
+			}
+		</ul>
+	</details>
+	{
+		!published &&
+		!tasks.length &&
+		!waiting.length &&
+		!summary.activation.complete &&
+		presentation.activation.allowed &&
+		selection.state === "resolved" ? (
+			<div class="space-y-3 border-t border-slate-200 pt-5">
+				<p class="text-sm leading-6 text-slate-600">
+					Revisa la ficha y activa la oferta para continuar.
+				</p>
+				<Button
+					type="button"
+					class="fastt-playbook-cta"
+					data-tour-review-activate
+					data-product-id={diagnosis.context.productId}
+					data-variant-id={selection.variantId}
+					data-rate-plan-id={selection.ratePlanId}
+				>
+					Activar oferta
+				</Button>
+				<p data-tour-activation-feedback role="status" class="text-sm text-slate-600" />
+			</div>
+		) : null
+	}
+	{
+		!published ? (
+			<div class="flex justify-end border-t border-slate-200 pt-4">
+				<Button href={edit.pathname + edit.search} variant="ghost" size="sm">
+					Editar preparación
+				</Button>
+			</div>
+		) : null
+	}
+</div>
+<script>
+	function initTourActivation() {
+		const button = document.querySelector<HTMLButtonElement>("[data-tour-review-activate]")
+		if (!button || button.dataset.bound) return
+		button.dataset.bound = "true"
+		button.addEventListener("click", async () => {
+			if (button.disabled) return
+			button.disabled = true
+			const feedback = document.querySelector<HTMLElement>("[data-tour-activation-feedback]")
+			if (feedback) feedback.textContent = "Verificando y activando la oferta…"
+			try {
+				const response = await fetch("/api/rateplans/activate-guided", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						productId: button.dataset.productId,
+						variantId: button.dataset.variantId,
+						ratePlanId: button.dataset.ratePlanId,
+						playbook:
+							new URLSearchParams(window.location.search).get("playbook") === "launch-tour"
+								? "launch-tour"
+								: "complete-to-publish",
+					}),
+				})
+				const body = await response.json().catch(() => ({}))
+				if (!response.ok) {
+					if (feedback)
+						feedback.textContent = [
+							body.error ?? "No se pudo activar la oferta.",
+							...(Array.isArray(body.blockers)
+								? body.blockers
+										.map((item: { message?: string; label?: string }) => item.message ?? item.label)
+										.filter(Boolean)
+								: []),
+						].join(" ")
+					return
+				}
+				window.location.reload()
+			} catch {
+				if (feedback)
+					feedback.textContent =
+						"No se pudo confirmar la activación. Comprueba la conexión y vuelve a intentar; se recuperará el estado guardado."
+			} finally {
+				button.disabled = false
+			}
+		})
+	}
+	initTourActivation()
+	document.addEventListener("astro:page-load", initTourActivation)
+</script>

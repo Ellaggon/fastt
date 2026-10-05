@@ -70,7 +70,7 @@ describe("rendered rate page without tour departures", () => {
 			const result = await response(`playbook=${playbook}`)
 			expect(result.status).toBe(302)
 			expect(result.headers.get("location")).toBe(
-				"/product/tour-1/departures/new?playbook=launch-tour&step=departure&flow=create"
+				"/product/tour-1/departures/new?playbook=launch-tour&step=departure&flow=create&tourFlowVersion=2"
 			)
 		}
 	)

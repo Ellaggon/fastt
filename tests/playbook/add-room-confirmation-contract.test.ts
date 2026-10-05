@@ -59,7 +59,7 @@ describe("add-room completion contract", () => {
 		expect(layout).toContain("isAddRoomTerminalStep(stepId)")
 		// Lodging confirmation hides progress; tours retain their independent readiness display.
 		expect(layout).toMatch(
-			/const showProgress\s*=\s*active && currentStepKnown && \(!isTerminalStep \|\| isTourLaunch \|\| playbookVertical === "tour"\)/
+			/const showProgress\s*=\s*active && currentStepKnown && !isTerminalStep && !isTourPublication/
 		)
 		expect(layout).toContain("showProgress ? (")
 		expect(layout).toContain("stageProgressPercent")

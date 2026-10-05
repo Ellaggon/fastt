@@ -1,4 +1,9 @@
 import {
+	normalizeTourLaunchStep,
+	tourPreparationReturnHref,
+	buildTourPlaybookHref,
+} from "./launch-tour"
+import {
 	getProductVerticalEntry,
 	type ProductVerticalSectionKey,
 } from "@/lib/catalog/productVerticalRegistry"
@@ -32,7 +37,9 @@ export function isCompleteToPublishPlaybookActive(url: URL): boolean {
 		.trim()
 		.toLowerCase()
 	return (
-		playbook === COMPLETE_TO_PUBLISH_PLAYBOOK_ID || playbook === "complete" || flow === "complete"
+		playbook === COMPLETE_TO_PUBLISH_PLAYBOOK_ID ||
+		playbook === "complete" ||
+		(!playbook && flow === "complete")
 	)
 }
 
@@ -76,7 +83,7 @@ export function resolveCompleteToPublishPlaybookFromUrl(url: URL): {
 
 	const inferredStep = inferCompleteToPublishStepFromPath(url)
 
-	const stepId = active ? explicitStep || inferredStep : null
+	const stepId = active ? (normalizeCompleteToPublishStep(explicitStep) ?? inferredStep) : null
 
 	return {
 		active,
@@ -88,7 +95,8 @@ export function resolveCompleteToPublishPlaybookFromUrl(url: URL): {
 
 function lastPathBelongsToProduct(
 	productId: string,
-	lastPath: string | null | undefined
+	lastPath: string | null | undefined,
+	allowPreparation = false
 ): string | null {
 	const path = String(lastPath ?? "").trim()
 	if (!path.startsWith("/") || path.startsWith("//") || path.includes("://")) return null
@@ -109,6 +117,7 @@ function lastPathBelongsToProduct(
 		.trim()
 		.toLowerCase()
 	if (
+		!(allowPreparation && playbook === "launch-tour") &&
 		playbook !== COMPLETE_TO_PUBLISH_PLAYBOOK_ID &&
 		playbook !== "complete" &&
 		flow !== "complete"
@@ -134,12 +143,9 @@ function inferCompleteToPublishVertical(checks: CompleteToPublishCheck[]): strin
 }
 
 function normalizeTourNavigationStep(step: string): ProductVerticalSectionKey | null {
-	const raw = String(step ?? "")
-		.trim()
-		.toLowerCase()
-	if (raw === "services") return "services"
+	const raw = normalizeTourLaunchStep(step) ?? String(step ?? "").trim()
 	if (raw === "conditions") return "bookingPolicies"
-	return normalizeCompleteToPublishStep(step)
+	return normalizeCompleteToPublishStep(raw)
 }
 
 /** Tour wizard order follows publishing stages, not readiness checklist order. */
@@ -160,7 +166,7 @@ export function completeToPublishNavigationOrder(
 			steps.push(normalized)
 		}
 	}
-	return steps
+	return [...steps, "preview"]
 }
 
 export function resolveCompleteToPublishResume(
@@ -171,22 +177,39 @@ export function resolveCompleteToPublishResume(
 	const playbookResumeOrder = completeToPublishNavigationOrder(
 		options?.vertical ?? inferCompleteToPublishVertical(checks)
 	)
-	const bySection = new Map(checks.map((check) => [check.sectionKey, check]))
+	const bySection = new Map<ProductVerticalSectionKey, CompleteToPublishCheck>()
+	for (const check of checks) {
+		const key =
+			getProductVerticalEntry(options?.vertical ?? inferCompleteToPublishVertical(checks))
+				.vertical === "tour"
+				? (normalizeTourNavigationStep(check.sectionKey) ?? check.sectionKey)
+				: check.sectionKey
+		const existing = bySection.get(key)
+		if (!existing || !check.complete) bySection.set(key, check)
+	}
 	const playbookSteps = playbookResumeOrder
 		.map((sectionKey) => bySection.get(sectionKey))
 		.filter((check): check is CompleteToPublishCheck => Boolean(check))
-	const firstIncomplete = playbookSteps.find((check) => !check.complete) ?? null
+	const isTour =
+		Boolean(options?.lastPath?.includes("tourFlowVersion=2")) ||
+		getProductVerticalEntry(options?.vertical ?? inferCompleteToPublishVertical(checks))
+			.vertical === "tour"
+	const firstIncomplete =
+		playbookSteps.find((check) => !check.complete && (!isTour || check.sectionKey !== "preview")) ??
+		null
 
 	const preview = checks.find((check) => check.sectionKey === "preview")
 	let previewHref = buildCompleteToPublishHref(
 		preview?.href ?? routes.productPreview(productId),
 		"preview"
 	)
-	const savedPath = lastPathBelongsToProduct(productId, options?.lastPath)
+	const savedPath = lastPathBelongsToProduct(productId, options?.lastPath, isTour)
 	if (savedPath) {
 		const url = new URL(savedPath, "http://fastt.local")
 		const resolved = resolveCompleteToPublishPlaybookFromUrl(url)
-		const current = checks.find((check) => check.sectionKey === resolved.stepId) ?? null
+		const savedStep =
+			resolved.stepId ?? normalizeCompleteToPublishStep(url.searchParams.get("step"))
+		const current = checks.find((check) => check.sectionKey === savedStep) ?? null
 		// Once preparation is complete, a prior commercial step still identifies
 		// the offer being prepared, even though its form no longer needs attention.
 		const savedVariantId = url.searchParams.get("variantId")?.trim()
@@ -199,12 +222,11 @@ export function resolveCompleteToPublishResume(
 			target.searchParams.set("ratePlanId", savedRatePlanId)
 			previewHref = `${target.pathname}${target.search}`
 		}
-		// A saved URL is useful only while it still represents the first unresolved
-		// requirement. Resuming a later step would hide an earlier publication blocker
-		// until the final preview, which makes the guided flow contradict itself.
+		// Resume the last valid editing location; review remains available once preparation is complete.
 		if (
 			current &&
-			((firstIncomplete && current.sectionKey === firstIncomplete.sectionKey) ||
+			((isTour && current.sectionKey === "preview") ||
+				(firstIncomplete && current.sectionKey !== "preview") ||
 				(!firstIncomplete && current.sectionKey === "preview"))
 		) {
 			// A legacy preview URL may lack selection; use the diagnosed pair only
@@ -236,7 +258,9 @@ export function resolveCompleteToPublishResume(
 		}
 	}
 	return {
-		href: buildCompleteToPublishHref(resume.href, resume.sectionKey),
+		href: isTour
+			? buildTourPlaybookHref(resume.href, normalizeTourLaunchStep(resume.sectionKey) ?? "content")
+			: buildCompleteToPublishHref(resume.href, resume.sectionKey),
 		sectionKey: resume.sectionKey,
 		label: resume.label,
 	}
@@ -320,7 +344,13 @@ export function getCompleteToPublishPlaybookRepairHref(
 		inferCompleteToPublishStepFromPath(url)
 	if (!step) return null
 
-	const repaired = completeToPublishStepHref(context.productId, step, { variantId, ratePlanId })
+	const target = new URL(
+		completeToPublishStepHref(context.productId, step, { variantId, ratePlanId }),
+		url.origin
+	)
+	const returnHref = tourPreparationReturnHref(url.searchParams.get("returnTo"), context.productId)
+	if (returnHref) target.searchParams.set("returnTo", returnHref)
+	const repaired = target.pathname + target.search
 	const current = `${url.pathname}${url.search}`
 	return repaired !== current ? repaired : null
 }
@@ -408,7 +438,12 @@ function adjacentCompleteToPublishStep(
 	context: { variantId?: string | null; ratePlanId?: string | null } = {}
 ): { step: ProductVerticalSectionKey; href: string } | null {
 	const steps = completeToPublishOrderedSteps(verticalHint)
-	const current = normalizeCompleteToPublishStep(currentStep) ?? steps[0] ?? null
+	const current =
+		(getProductVerticalEntry(verticalHint).vertical === "tour"
+			? normalizeTourNavigationStep(String(currentStep ?? ""))
+			: normalizeCompleteToPublishStep(currentStep)) ??
+		steps[0] ??
+		null
 	if (!current) return null
 	const currentIndex = steps.indexOf(current)
 	const start = currentIndex >= 0 ? currentIndex : 0

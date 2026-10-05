@@ -26,14 +26,14 @@ describe("tour preview navigation from trusted product context", () => {
 		const href = getTourPreviewCanonicalHref(url, context)!
 		expect(href).not.toBeNull()
 		const canonical = new URL(href, url)
-		expect(canonical.searchParams.get("playbook")).toBe("launch-tour")
+		expect(canonical.searchParams.get("playbook")).toBe("complete-to-publish")
 		expect(canonical.searchParams.get("step")).toBe("preview")
 		expect(canonical.searchParams.get("variantId")).toBe("option")
 		expect(canonical.searchParams.get("ratePlanId")).toBe("rate")
 		expect(canonical.searchParams.get("returnTo")).toBe("/catalog/tours")
 		expect(canonical.hash).toBe("#review")
 		const resolved = resolvePlaybookFromUrl(canonical, { isHotel: false })
-		expect(resolved.playbookId).toBe("launch-tour")
+		expect(resolved.playbookId).toBe("complete-to-publish")
 		const definition = resolveLaunchPlaybookDefinition("launch-tour", {
 			productId: "tour",
 			isHotel: false,
@@ -82,7 +82,7 @@ describe("tour preview navigation from trusted product context", () => {
 			getTourPreviewCanonicalHref(url, { isTour: true, productId: "tour" })!,
 			url
 		)
-		expect(canonical.searchParams.get("playbook")).toBe("launch-tour")
+		expect(canonical.searchParams.get("playbook")).toBe("complete-to-publish")
 		expect(canonical.searchParams.has("variantId")).toBe(false)
 		expect(canonical.searchParams.has("ratePlanId")).toBe(false)
 	})

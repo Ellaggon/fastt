@@ -9,6 +9,7 @@ import {
 } from "@/lib/tours/resolveTourCommercialContext"
 import {
 	buildCompleteToPublishEntryHref,
+	buildCompleteToPublishHref,
 	resolveCompleteToPublishResume,
 } from "@/lib/playbook/complete-to-publish"
 import { loadCompleteToPublishState } from "@/lib/playbook/evaluate-complete-to-publish-progress"
@@ -137,12 +138,17 @@ export async function summarizeProductPreparation(params: {
 			session,
 		}))
 
-	const previewHref =
+	const rawPreviewHref =
 		"options" in tourContext
 			? tourContext.status === "unresolved" && tourContext.reason === "selection_required"
 				? tourContextSelectionHref(tourContext, routes.productPreview(productId))
 				: withTourCommercialContext(routes.productPreview(productId), tourContext)
 			: routes.productPreview(productId)
+
+	const previewHref =
+		publishState.tourDiagnostic && tourContext.status === "resolved"
+			? buildCompleteToPublishHref(rawPreviewHref, "preview")
+			: rawPreviewHref
 
 	const blockers = publishState.blockers.filter((check) => check.sectionKey !== "preview")
 	const resume = resolveCompleteToPublishResume(productId, publishState.checks, {
@@ -191,7 +197,7 @@ export async function summarizeProductPreparation(params: {
 		readyToPublish: status !== "published" && publishState.readyToPublish,
 		completedChecks: publishState.completedChecks,
 		totalChecks: publishState.totalChecks,
-		continuePreparationHref: tourPresentation?.primaryAction.href ?? resume.href,
+		continuePreparationHref: resume.href,
 		previewHref: tourPresentation
 			? previewHref
 			: publishState.readyToPublish

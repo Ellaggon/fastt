@@ -18,7 +18,7 @@ import { buildTourCommercialLinks } from "@/lib/tours/tourProviderNavigation"
 const source = (path: string) => readFileSync(resolve(process.cwd(), path), "utf8")
 
 describe("tour provider phase 5", () => {
-	it("uses the same six groups for launch and continuation, including the final preview", () => {
+	it("uses the same five preparation groups for launch and continuation, including the final preview", () => {
 		const launch = resolveLaunchPlaybookDefinition("launch-tour", {
 			productId: "tour",
 			isHotel: false,
@@ -27,7 +27,7 @@ describe("tour provider phase 5", () => {
 			expect(getLaunchLikeStage(launch, step.id)).toEqual({
 				label: getTourPublishingStage(step.id).label,
 				position: getTourPublishingStage(step.id).position,
-				total: 6,
+				total: 5,
 			})
 		const preview = source("src/pages/product/[id]/preview.astro")
 		expect(preview).toContain("playbookVertical={vertical.vertical}")
@@ -35,8 +35,8 @@ describe("tour provider phase 5", () => {
 		expect(preview).toContain("ratePlanId={previewRatePlanId}")
 	})
 
-	it("groups navigation screens into six stages without turning substeps into progress", () => {
-		expect(TOUR_PUBLISHING_STAGE_COUNT).toBe(6)
+	it("groups navigation screens into five stages without turning substeps into progress", () => {
+		expect(TOUR_PUBLISHING_STAGE_COUNT).toBe(5)
 		for (const step of ["content", "categories"])
 			expect(getTourPublishingStage(step).position).toBe(1)
 		for (const step of ["location", "subtype"])
@@ -45,16 +45,16 @@ describe("tour provider phase 5", () => {
 		for (const step of ["tickets", "departure", "rate", "bookingPolicies"])
 			expect(getTourPublishingStage(step).position).toBe(4)
 		expect(getTourPublishingStage("calendar").position).toBe(5)
-		expect(getTourPublishingStage("preview").position).toBe(6)
+		expect(getTourPublishingStage("preview").position).toBe(0)
 	})
 
-	it("uses diagnostic preparation rather than visited stages in the progress bar", () => {
+	it("uses diagnostic stage states without a competing tour progress bar", () => {
 		const layout = source("src/layouts/PlaybookLayout.astro")
-		expect(layout).toContain("isTourCompletePlaybook || isTourLaunch")
+		expect(layout).toContain("isTourPreparation")
 		expect(layout).toContain("progressPercent = progress.progress.progressPercent")
-		expect(layout).toContain("preparation={tourAttention.preparation}")
+		expect(layout).toContain("stages={tourAttention.stages}")
 		expect(layout).not.toContain("tourPublishingProgressPercent")
-		expect(layout).toContain("!lightweight || isTourCompletePlaybook")
+		expect(layout).toContain("showProgress && !lightweight && !isTourLaunch")
 	})
 
 	it("keeps participants and discovery categories as consecutive independent tasks", () => {
@@ -116,8 +116,12 @@ describe("tour provider phase 5", () => {
 		expect(preview).toContain("src={realTourPreviewEmbedded}")
 		expect(preview).toContain("href={realTourPreviewWithReturn}")
 		expect(preview).toContain("ratePlanId: previewRatePlanId")
-		expect(preview).toContain("eq(Variant.productId, productId)")
-		expect(preview).toContain("eq(RatePlan.id, previewRatePlanId)")
+		expect(preview).toContain('tourCommercialContext?.status === "resolved"')
+		expect(preview).toContain("variantName: tourCommercialContext.option.name")
+		expect(preview).toContain("ratePlanName: tourCommercialContext.rate.name")
+		const commercialContext = source("src/lib/tours/loadTourCommercialContext.ts")
+		expect(commercialContext).toContain("eq(Variant.productId, input.productId)")
+		expect(commercialContext).toContain('eq(Variant.kind, "tour_slot")')
 		expect(preview).toContain("data-selected-tour-review")
 		expect(publicTour).toContain("eq(Product.providerId, previewProviderId)")
 		expect(publicTour).toContain("Vista previa privada del proveedor")
@@ -150,19 +154,10 @@ describe("tour provider phase 5", () => {
 		expect(readiness).toContain("summarizeTourDiagnostic(tourDiagnostic).preparation")
 	})
 	it("does not offer guided activation while provider governance blocks publishing", () => {
-		const calendar = source("src/pages/rates/calendar.astro")
 		const workspace = source("src/components/rates/SingleCalendarWorkspace.tsx")
-		expect(calendar).toContain("loadCompleteToPublishState")
-		expect(calendar).toContain("tourActivationDecision(guidedTourState.tourDiagnostic)")
-		expect(calendar).toContain("activationBlockers: guidedTourPublishBlockers.map")
-		expect(calendar).toContain("href: blocker.href")
-		expect(workspace).toContain(
-			"activationBlockers?: Array<{ id: string; label: string; href: string }>"
-		)
-		expect(workspace).toContain("isTourGuidedAvailability && !hasActivationBlockers")
-		expect(workspace).toContain("Resolver requisito")
-		expect(workspace).toContain('"Activación pendiente"')
-		expect(workspace).toContain("Antes de activar esta oferta, resuelve estos requisitos:")
-		expect(workspace).toContain("requisitos de activación indicados")
+		expect(workspace).toContain("enableTourPlaybookFooterContinue")
+		const review = source("src/components/tours/TourReviewStatus.astro")
+		expect(review).toContain("presentation.activation.allowed")
+		expect(review).toContain("Activar oferta")
 	})
 })

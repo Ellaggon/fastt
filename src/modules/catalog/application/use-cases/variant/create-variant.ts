@@ -30,6 +30,8 @@ export async function createVariant(
 		inventoryBootstrap?: InventoryBootstrapPort
 	},
 	params: {
+		/** Trusted server-generated ID for recoverable creation. */
+		variantId?: string
 		productId: string
 		name: string
 		description?: string | null
@@ -59,7 +61,7 @@ export async function createVariant(
 		throw new Error("Variant kind does not match product type")
 	}
 
-	const variantId = crypto.randomUUID()
+	const variantId = params.variantId ?? crypto.randomUUID()
 	const createdAt = new Date()
 
 	// A new unit is not validated and never enters sales implicitly.

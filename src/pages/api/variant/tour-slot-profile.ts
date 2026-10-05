@@ -1,7 +1,7 @@
 import type { APIRoute } from "astro"
+import { v5 as uuidv5 } from "uuid"
 import { ZodError, z } from "zod"
 import {
-	first,
 	db,
 	eq,
 	TourSlotProfile,
@@ -28,6 +28,7 @@ const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
 const tourSlotSchema = z.object({
 	productId: z.string().trim().min(1),
 	variantId: z.string().trim().optional(),
+	creationKey: z.string().uuid().optional(),
 	name: z.string().trim().min(1),
 	description: z.string().trim().optional(),
 	departureTime: z.string().trim().regex(TIME_RE, "Usa hora HH:MM (24h)"),
@@ -66,6 +67,7 @@ export const POST: APIRoute = async ({ request }) => {
 		const parsed = tourSlotSchema.parse({
 			productId: form.get("productId"),
 			variantId: form.get("variantId") ? String(form.get("variantId")) : undefined,
+			creationKey: form.get("creationKey") || undefined,
 			name: form.get("name"),
 			description: form.get("description") ? String(form.get("description")) : undefined,
 			departureTime: form.get("departureTime"),
@@ -90,58 +92,60 @@ export const POST: APIRoute = async ({ request }) => {
 			})
 		}
 
+		// A creation intent maps to one server-derived ID even if the response is lost.
+		// Ownership stays authoritative; client keys never grant access to a variant.
 		let variantId = String(parsed.variantId ?? "").trim()
-		if (variantId) {
-			const existing = await variantManagementRepository.getVariantById(variantId)
-			if (!existing || existing.productId !== parsed.productId) {
-				return new Response(JSON.stringify({ error: "Not found" }), {
-					status: 404,
-					headers: { "Content-Type": "application/json" },
-				})
+		const recoveringCreation = !variantId && Boolean(parsed.creationKey)
+		if (recoveringCreation)
+			variantId = uuidv5(
+				JSON.stringify([providerId, parsed.productId, parsed.creationKey]),
+				uuidv5.URL
+			)
+		let existing = variantId ? await variantManagementRepository.getVariantById(variantId) : null
+		if (parsed.variantId && !existing)
+			return new Response(JSON.stringify({ error: "Not found" }), { status: 404 })
+		if (!existing) {
+			try {
+				const result = await createVariant(
+					{
+						repo: variantManagementRepository,
+						inventoryConfigRepo: variantInventoryConfigRepository,
+					},
+					{
+						variantId: variantId || undefined,
+						productId: parsed.productId,
+						name: parsed.name,
+						kind: "tour_slot",
+						description: parsed.description ?? null,
+						defaultTotalUnits: parsed.maxPax,
+						bootstrapInventory: false,
+					}
+				)
+				variantId = result.variantId
+			} catch (error) {
+				// Another same-intent request may have inserted the row, or initialization
+				// may have failed after insertion. Finish that same row on the retry.
+				existing = recoveringCreation
+					? await variantManagementRepository.getVariantById(variantId)
+					: null
+				if (!existing) throw error
 			}
+		}
+		if (existing) {
 			if (
-				String(existing.kind ?? "")
-					.trim()
-					.toLowerCase() !== "tour_slot"
+				existing.productId !== parsed.productId ||
+				String(existing.kind ?? "").toLowerCase() !== "tour_slot"
 			) {
-				return new Response(JSON.stringify({ error: "La ficha solo aplica a salidas." }), {
-					status: 400,
-					headers: { "Content-Type": "application/json" },
-				})
+				return new Response(JSON.stringify({ error: "Not found" }), { status: 404 })
 			}
 			await db
 				.update(Variant)
-				.set({
-					name: parsed.name,
-					description: parsed.description ?? null,
-				})
+				.set({ name: parsed.name, description: parsed.description ?? null })
 				.where(eq(Variant.id, variantId))
-		} else {
-			const result = await createVariant(
-				{
-					repo: variantManagementRepository,
-					inventoryConfigRepo: variantInventoryConfigRepository,
-				},
-				{
-					productId: parsed.productId,
-					name: parsed.name,
-					kind: "tour_slot",
-					description: parsed.description ?? null,
-					defaultTotalUnits: parsed.maxPax,
-					bootstrapInventory: false,
-				}
-			)
-			variantId = result.variantId
 		}
 
 		const overrideRaw = String(parsed.meetingPointOverride ?? "").trim()
 		const meetingPointOverrideJson = overrideRaw ? { instructions: overrideRaw } : null
-
-		const profileExists = await db
-			.select({ variantId: TourSlotProfile.variantId })
-			.from(TourSlotProfile)
-			.where(eq(TourSlotProfile.variantId, variantId))
-			.then(first)
 
 		const profileValues = {
 			departureTime: parsed.departureTime,
@@ -154,18 +158,10 @@ export const POST: APIRoute = async ({ request }) => {
 			updatedAt: new Date(),
 		}
 
-		if (profileExists) {
-			await db
-				.update(TourSlotProfile)
-				.set(profileValues)
-				.where(eq(TourSlotProfile.variantId, variantId))
-		} else {
-			await db.insert(TourSlotProfile).values({
-				variantId,
-				...profileValues,
-				createdAt: new Date(),
-			})
-		}
+		await db
+			.insert(TourSlotProfile)
+			.values({ variantId, ...profileValues, createdAt: new Date() })
+			.onConflictDoUpdate({ target: TourSlotProfile.variantId, set: profileValues })
 
 		const inventoryConfig = await variantInventoryConfigRepository.getByVariantId(variantId)
 		// Initial setup needs a default; subsequent profile edits do not change it.

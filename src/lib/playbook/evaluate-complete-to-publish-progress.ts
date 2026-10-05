@@ -1,3 +1,5 @@
+import { projectTourLogisticsObservation } from "@/lib/tours/tourPreparationRequirements"
+import { getTourLaunchStepById } from "./launch-tour"
 import { tourContextSelectionHint } from "@/lib/tours/resolveTourCommercialContext"
 import {
 	presentTourDiagnostic,
@@ -8,7 +10,7 @@ import {
 	summarizeTourDiagnostic,
 	tourPublicationBlockers,
 } from "@/lib/tours/buildTourDiagnostic"
-import { TOUR_REQUIREMENTS, type TourDiagnostic } from "@/lib/tours/tourDiagnosticContract"
+import { type TourDiagnostic } from "@/lib/tours/tourDiagnosticContract"
 import { loadTourAuthorization } from "@/lib/tours/loadTourAuthorization"
 import { validateRatePlanPublication } from "@/lib/rates/validateRatePlanPublication"
 import {
@@ -33,6 +35,8 @@ import {
 import {
 	buildCompleteToPublishHref,
 	completeToPublishStepHref,
+	completeToPublishNavigationOrder,
+	normalizeCompleteToPublishStep,
 } from "@/lib/playbook/complete-to-publish"
 import {
 	getProductFullAggregate,
@@ -575,13 +579,16 @@ async function evaluateCompleteToPublishState(
 					),
 					"Completa nombre, destino, descripción y destacados."
 				),
-				logistics: observed(
-					Boolean(
-						completionBySection.subtype?.complete &&
-						completionBySection.itinerary?.complete &&
-						completionBySection.location?.complete
-					),
-					"Completa duración, encuentro, inclusiones, ubicación e itinerario."
+				logistics: projectTourLogisticsObservation(
+					["subtype", "itinerary", "location"].map((sectionKey) => ({
+						sectionKey: sectionKey as "subtype" | "itinerary" | "location",
+						complete: Boolean(
+							completionBySection[sectionKey as ProductVerticalSectionKey]?.complete
+						),
+						detail: completionBySection[sectionKey as ProductVerticalSectionKey]!.detail,
+					})),
+					productId,
+					tourContext.status === "resolved" ? tourContext : {}
 				),
 				photos: observed(
 					Boolean(completionBySection.photos?.complete),
@@ -625,11 +632,11 @@ async function evaluateCompleteToPublishState(
 					Boolean(selectedActiveSlotCount),
 					selectedOption?.lifecycleState === "ready" && !selectedOption.salesEnabled
 						? "La opción está desactivada para venta. Revisa y activa cuando corresponda."
-						: "Activa esta opción desde el calendario."
+						: "Activa esta opción desde la revisión final."
 				),
 				rate_activation: observed(
 					Boolean(tourContext.status === "resolved" && tourContext.rate.isActive),
-					"Activa esta tarifa desde el calendario."
+					"Activa esta tarifa desde la revisión final."
 				),
 				current_availability: {
 					...commercialObservation(
@@ -811,28 +818,31 @@ export async function evaluateCompleteToPublishProgress(
 	// partially prepared accommodation look like it had returned to "Paso 1 de N".
 	const orderedSteps = state.checks
 	const progressSteps = state.tourDiagnostic
-		? orderedSteps
-				.filter(
+		? completeToPublishNavigationOrder("tour").map((sectionKey) => {
+				const matching = orderedSteps.filter(
 					(check) =>
-						check.key === "preview" ||
-						(check.key in TOUR_REQUIREMENTS &&
-							TOUR_REQUIREMENTS[check.key as keyof typeof TOUR_REQUIREMENTS].axis === "preparation")
+						check.sectionKey === sectionKey ||
+						(sectionKey === "location" && check.sectionKey === "subtype")
 				)
-				.reduce<CompleteToPublishCheck[]>((grouped, check) => {
-					const existing = grouped.find((item) => item.sectionKey === check.sectionKey)
-					if (existing) {
-						existing.complete = existing.complete && check.complete
-						if (!check.complete) {
-							existing.detail = check.detail
-							existing.cta = check.cta
-							existing.href = check.href
-						}
-					} else grouped.push({ ...check })
-					return grouped
-				}, [])
+				const check = matching.find((item) => !item.complete) ?? matching[0]
+				const definition = getTourLaunchStepById(sectionKey)!
+				return {
+					...(check ?? orderedSteps[0]),
+					key: check?.key ?? sectionKey,
+					sectionKey,
+					label: definition.label,
+					guestImpact: definition.guestImpact,
+					complete: matching.length > 0 && matching.every((item) => item.complete),
+					href: completeToPublishStepHref(
+						productId,
+						sectionKey,
+						state.tourContext && "variantId" in state.tourContext ? state.tourContext : {}
+					),
+				}
+			})
 		: orderedSteps
 
-	const explicitStep = String(options.currentStepId ?? "").trim() as ProductVerticalSectionKey
+	const explicitStep = normalizeCompleteToPublishStep(String(options.currentStepId ?? ""))
 	const currentStepId =
 		explicitStep ||
 		state.blockers[0]?.sectionKey ||

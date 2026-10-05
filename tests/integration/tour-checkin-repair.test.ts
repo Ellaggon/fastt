@@ -1,7 +1,4 @@
-import {
-	deactivatePolicyAssignmentCapa6UseCase as deactivatePolicyAssignmentCapa6,
-	replacePolicyAssignmentCapa6UseCase as replacePolicyAssignmentCapa6,
-} from "@/container/policies-write.container"
+import { deactivatePolicyAssignmentCapa6UseCase as deactivatePolicyAssignmentCapa6 } from "@/container/policies-write.container"
 import { resolveEffectivePolicies as resolveUncached } from "@/modules/policies/application/use-cases/resolve-effective-policies"
 import { PolicyResolutionRepository } from "@/modules/policies/infrastructure/repositories/PolicyResolutionRepository"
 const resolveEffectivePolicies = (context: {
@@ -77,11 +74,16 @@ async function fixture(productType = "Tour", category: "CheckIn" | "Payment" = "
 				? { paymentType: "pay_at_property" }
 				: { checkInFrom: "15:00", checkInUntil: "22:00", checkOutUntil: "11:00" },
 	})
-	const assignment = await replacePolicyAssignmentCapa6({
-		policyId: policy.policyId,
+	// Seed historical evidence directly: today's assignment command must reject it.
+	const assignment = { assignmentId: randomUUID() }
+	await db.insert(PolicyAssignment).values({
+		id: assignment.assignmentId,
+		policyGroupId: policy.groupId,
+		category,
 		scope: "product",
-		scopeId: productId,
+		productTargetId: productId,
 		channel: null,
+		isActive: true,
 	})
 	return {
 		providerId,
@@ -99,36 +101,32 @@ describe("controlled historical tour CheckIn repair", () => {
 		const f = await fixture()
 		const policyBefore = await db.select().from(Policy).where(eq(Policy.id, f.policyId))
 		const bookingId = randomUUID()
-		await db
-			.insert(Booking)
-			.values({
-				id: bookingId,
-				providerId: f.providerId,
-				userId: null,
-				ratePlanId: f.repairContext.ratePlanId,
-				checkInDate: "2026-03-10",
-				checkOutDate: "2026-03-11",
-				numAdults: 2,
-				numChildren: 0,
-				totalAmount: 100,
-				currency: "BOB",
-				status: "confirmed",
-				source: "web",
-			})
-		await db
-			.insert(BookingPolicySnapshot)
-			.values({
-				id: randomUUID(),
-				bookingId,
+		await db.insert(Booking).values({
+			id: bookingId,
+			providerId: f.providerId,
+			userId: null,
+			ratePlanId: f.repairContext.ratePlanId,
+			checkInDate: "2026-03-10",
+			checkOutDate: "2026-03-11",
+			numAdults: 2,
+			numChildren: 0,
+			totalAmount: 100,
+			currency: "BOB",
+			status: "confirmed",
+			source: "web",
+		})
+		await db.insert(BookingPolicySnapshot).values({
+			id: randomUUID(),
+			bookingId,
+			category: "CheckIn",
+			policyId: f.policyId,
+			policySnapshotJson: {
 				category: "CheckIn",
 				policyId: f.policyId,
-				policySnapshotJson: {
-					category: "CheckIn",
-					policyId: f.policyId,
-					rules: { checkInFrom: "15:00" },
-				},
-				createdAt: new Date(),
-			})
+				rules: { checkInFrom: "15:00" },
+			},
+			createdAt: new Date(),
+		})
 		const historicalBefore = await db
 			.select()
 			.from(BookingPolicySnapshot)

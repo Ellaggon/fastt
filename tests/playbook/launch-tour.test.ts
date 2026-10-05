@@ -14,6 +14,21 @@ import {
 import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
 
 describe("playbook/launch-tour", () => {
+	it("keeps the price editor distinct from conditions in both preparation modes", () => {
+		for (const playbook of ["launch-tour", "complete-to-publish"]) {
+			const url = new URL(
+				`https://fastt.test/rates/plans/rate?playbook=${playbook}&vista=price&step=conditions`
+			)
+			const href = getTourRateDetailCanonicalHref(url, {
+				isTour: true,
+				productId: "tour",
+				variantId: "option",
+				ratePlanId: "rate",
+			})
+			expect(new URL(href!, url.origin).searchParams.get("step")).toBe("rate")
+		}
+	})
+
 	it("canonicalizes legacy and generic create links for a tour rate detail", () => {
 		const context = {
 			isTour: true,
@@ -71,7 +86,7 @@ describe("playbook/launch-tour", () => {
 		expect(
 			getTourRateDetailCanonicalHref(
 				new URL(
-					"https://fastt.test/rates/plans/rate_1?playbook=launch-tour&step=conditions&flow=create&productId=tour_123&variantId=slot_1&ratePlanId=rate_1"
+					"https://fastt.test/rates/plans/rate_1?playbook=launch-tour&step=conditions&flow=create&productId=tour_123&variantId=slot_1&ratePlanId=rate_1&tourFlowVersion=2"
 				),
 				context
 			)
@@ -96,7 +111,7 @@ describe("playbook/launch-tour", () => {
 				variantId: "slot_1",
 			})
 		).toBe(
-			"/rates/calendar?productId=tour_123&variantId=slot_1&flow=create&step=calendar&playbook=launch-tour"
+			"/rates/calendar?productId=tour_123&variantId=slot_1&flow=create&step=calendar&playbook=launch-tour&tourFlowVersion=2"
 		)
 	})
 
@@ -135,8 +150,8 @@ describe("playbook/launch-tour", () => {
 			}
 		)
 		const canonical = new URL(complete!, "https://fastt.test")
-		expect(canonical.searchParams.get("playbook")).toBe("complete-to-publish")
-		expect(canonical.searchParams.get("flow")).toBe("complete")
+		expect(canonical.searchParams.get("playbook")).toBe("launch-tour")
+		expect(canonical.searchParams.get("flow")).toBe("create")
 		expect(canonical.searchParams.get("step")).toBe("calendar")
 		expect(
 			getTourSharedRateCanonicalHref(new URL("https://fastt.test/rates/calendar"), {
@@ -157,11 +172,11 @@ describe("playbook/launch-tour", () => {
 		expect(TOUR_LAUNCH_STEPS.map((step) => step.id)).toEqual([
 			"create",
 			"content",
-			"location",
-			"images",
-			"subtype",
-			"tickets",
 			"categories",
+			"location",
+			"subtype",
+			"images",
+			"tickets",
 			"departure",
 			"rate",
 			"conditions",
@@ -178,7 +193,7 @@ describe("playbook/launch-tour", () => {
 		expect(reviewUrl.pathname).toBe("/product/tour_123/preview")
 		expect(reviewUrl.searchParams.get("variantId")).toBe("slot_1")
 		expect(reviewUrl.searchParams.get("ratePlanId")).toBe("rate_1")
-		expect(reviewUrl.searchParams.get("playbook")).toBe("launch-tour")
+		expect(reviewUrl.searchParams.get("playbook")).toBe("complete-to-publish")
 
 		const publicReviewUrl = new URL(
 			buildTourProviderPreviewHref("tour_123", {
@@ -196,7 +211,7 @@ describe("playbook/launch-tour", () => {
 	it("keeps the tour playbook identity through shared product routes", () => {
 		const href = buildTourPlaybookHref("/product/tour_123/departures/new", "departure")
 		expect(href).toBe(
-			"/product/tour_123/departures/new?playbook=launch-tour&step=departure&flow=create"
+			"/product/tour_123/departures/new?playbook=launch-tour&step=departure&flow=create&tourFlowVersion=2"
 		)
 		expect(resolvePlaybookFromUrl(new URL(`https://fastt.test${href}`))).toMatchObject({
 			active: true,
@@ -220,9 +235,9 @@ describe("playbook/launch-tour", () => {
 	})
 
 	it("provides the same navigation contract as accommodation", () => {
-		expect(getPreviousTourLaunchStep("tickets")?.id).toBe("subtype")
-		expect(getNextTourLaunchStep("tickets")?.id).toBe("categories")
-		expect(getNextTourLaunchStep("categories")?.id).toBe("departure")
+		expect(getPreviousTourLaunchStep("tickets")?.id).toBe("images")
+		expect(getNextTourLaunchStep("tickets")?.id).toBe("departure")
+		expect(getNextTourLaunchStep("categories")?.id).toBe("location")
 		expect(getNextTourLaunchStep("rate")?.id).toBe("conditions")
 		expect(getNextTourLaunchStep("conditions")?.id).toBe("calendar")
 		expect(inferTourLaunchStepFromPathname("/rates/plans/rate_123")).toBe("conditions")

@@ -48,6 +48,8 @@ describe("tour commercial rate context", () => {
 		expect(hotel.contract.Payment).toBe("prepayment_full")
 		expect(tour.contract.Payment).toBe("pay_at_property")
 		expect(tour.contract.NoShow).toBe("no_show_percentage_100")
+		expect(tour.contract.CheckIn).toBeUndefined()
+		expect(tour.contract.Cancellation).toBeUndefined()
 		const manage = source("src/pages/rates/plans/manage.astro")
 		expect(manage).toContain('value="flexible"')
 		expect(manage).toContain('value="early_booking"')
@@ -65,6 +67,11 @@ describe("tour commercial rate context", () => {
 
 		expect(standard.type).toBe("package")
 		expect(standard.value).toBe(0)
+		expect(standard.contract).toEqual({
+			Payment: "pay_at_property",
+			NoShow: "no_show_percentage_100",
+		})
+		expect(advance.contract).toEqual(standard.contract)
 		expect(advance.type).toBe("percentage_discount")
 		expect(advance.value).toBe(18)
 		expect(advance.minAdvanceDays).toBe(30)
@@ -132,9 +139,14 @@ describe("tour commercial rate context", () => {
 			"src/modules/pricing/infrastructure/repositories/RatePlanCommandRepository.ts"
 		)
 
-		expect(calendar).toContain("Activar tarifa y continuar")
+		expect(calendar).toContain("enableTourPlaybookFooterContinue")
+		expect(calendar).toContain("guidedApplyingRange")
+		expect(calendar).toContain("Abriendo cupo…")
+		expect(calendar).toContain("calendar-cell-guided-opening")
+		expect(calendar).toContain("guided-tour-availability-disclosure__summary")
 		expect(calendar).toContain("finalizeGuidedRate")
-		expect(page).toContain("hideFooter: isTourContext")
+		expect(page).toContain('continueLabel: "Guardar y continuar"')
+		expect(page).toContain("hideFooter: false")
 		expect(endpoint).toContain("finalizeTourRate")
 		expect(validator).toContain("const minimumAvailabilityDays = isTour ? 1")
 		expect(validator).toContain("sellableDailyInventoryCondition()")

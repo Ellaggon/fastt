@@ -628,8 +628,7 @@ const limousineSubtype =
 										playbook.playbookId === "complete-to-publish"
 											? `/product/${productId}/location`
 											: `/product/${productId}/images`,
-										playbook.playbookId === "complete-to-publish" ? "location" : "images",
-										productId
+										playbook.playbookId === "complete-to-publish" ? "location" : "images"
 									)
 								: `/product/${encodeURIComponent(productId)}/images`}
 							variant="secondary"
@@ -641,7 +640,13 @@ const limousineSubtype =
 							type="submit"
 							className={playbook.active ? "fastt-playbook-cta" : ""}
 						>
-							{playbook.active ? "Guardar y continuar" : "Guardar subtipo"}
+							{
+								isTour && playbook.playbookId === "complete-to-publish"
+									? "Guardar y volver"
+									: playbook.active
+										? "Guardar y continuar"
+										: "Guardar subtipo"
+							}
 						</Button>
 					</div>
 				</form>
@@ -662,192 +667,202 @@ const limousineSubtype =
 		import { bindPlaybookFormDraft } from "@/lib/forms/playbookFormDraft.ts"
 		import { setPlaybookSubmitBusy } from "@/lib/forms/playbookFormBusy.ts"
 
-		const form = document.getElementById("subtypeForm")
-		const stateLabel = document.getElementById("stateLabel")
-		const stateDetail = document.getElementById("stateDetail")
-		const btn = document.getElementById("submitBtn")
-		const isHotel = form instanceof HTMLElement && form.dataset.isHotel === "true"
-		const isTour = form instanceof HTMLElement && form.dataset.isTour === "true"
-		const draft = bindPlaybookFormDraft(form instanceof HTMLFormElement ? form : null, {
-			key: `product:${window.location.pathname}:subtype`,
-		})
+		function initSubtypeForm() {
+			const form = document.getElementById("subtypeForm")
+			if (!(form instanceof HTMLFormElement) || form.dataset.bound === "true") return
+			form.dataset.bound = "true"
+			const stateLabel = document.getElementById("stateLabel")
+			const stateDetail = document.getElementById("stateDetail")
+			const btn = document.getElementById("submitBtn")
+			const isHotel = form instanceof HTMLElement && form.dataset.isHotel === "true"
+			const isTour = form instanceof HTMLElement && form.dataset.isTour === "true"
+			const draft = bindPlaybookFormDraft(form instanceof HTMLFormElement ? form : null, {
+				key: `product:${window.location.pathname}:subtype`,
+			})
 
-		function setState(state, detail = "") {
-			const labels = {
-				empty: "Vacío: sin cambios guardados.",
-				loading: "Cargando: guardando subtipo...",
-				success: "Éxito: subtipo guardado correctamente.",
-				error: "Error: no se pudo guardar el subtipo.",
-				disabled: "Deshabilitado: esperando respuesta del servidor.",
-			}
-			stateLabel.textContent = labels[state] || labels.empty
-			stateDetail.textContent = detail
-		}
-
-		const tourFieldErrors = {
-			duration: "durationError",
-			durationMinutes: "durationMinutesError",
-			meetingPointJson: "meetingPointAddressError",
-			itineraryJson: "tourItineraryError",
-			includesJson: "tourIncludesError",
-		}
-
-		function setFieldError(fieldId, errorId, message) {
-			const field = document.getElementById(fieldId)
-			const error = document.getElementById(errorId)
-			if (field) field.setAttribute("aria-invalid", message ? "true" : "false")
-			if (!error) return
-			error.textContent = message
-			error.classList.toggle("hidden", !message)
-		}
-
-		function validateTourForm() {
-			if (!isTour) return true
-			const values = {
-				duration: String(document.getElementById("duration")?.value || "").trim(),
-				durationMinutes: Number(document.getElementById("durationMinutes")?.value || 0),
-				meetingPointAddress: String(
-					document.getElementById("meetingPointAddress")?.value || ""
-				).trim(),
-				itinerary: String(document.getElementById("tourItinerary")?.value || "")
-					.split(/\r?\n|,/)
-					.map((value) => value.trim())
-					.filter(Boolean),
-				includes: String(document.getElementById("tourIncludes")?.value || "")
-					.split(/\r?\n|,/)
-					.map((value) => value.trim())
-					.filter(Boolean),
-			}
-			const errors = {
-				duration: values.duration ? "" : "Indica la duración del tour.",
-				durationMinutes:
-					Number.isInteger(values.durationMinutes) && values.durationMinutes > 0
-						? ""
-						: "Indica una duración en minutos mayor que cero.",
-				meetingPointAddress: values.meetingPointAddress ? "" : "Indica el punto de encuentro.",
-				itinerary:
-					values.itinerary.length >= 3
-						? ""
-						: "Agrega al menos 3 paradas o momentos, uno por línea.",
-				includes: values.includes.length ? "" : "Agrega al menos una inclusión.",
-			}
-			setFieldError("duration", "durationError", errors.duration)
-			setFieldError("durationMinutes", "durationMinutesError", errors.durationMinutes)
-			setFieldError("meetingPointAddress", "meetingPointAddressError", errors.meetingPointAddress)
-			setFieldError("tourItinerary", "tourItineraryError", errors.itinerary)
-			setFieldError("tourIncludes", "tourIncludesError", errors.includes)
-			const firstInvalid = Object.entries(errors).find(([, message]) => Boolean(message))?.[0]
-			const fieldIds = {
-				duration: "duration",
-				durationMinutes: "durationMinutes",
-				meetingPointAddress: "meetingPointAddress",
-				itinerary: "tourItinerary",
-				includes: "tourIncludes",
-			}
-			if (firstInvalid) {
-				document.getElementById(fieldIds[firstInvalid])?.focus()
-				setState("error", "Revisa los campos marcados.")
-				return false
-			}
-			return true
-		}
-
-		function showServerFieldErrors(text) {
-			if (!isTour) return
-			try {
-				const payload = JSON.parse(text)
-				const errors = payload?.error?.fieldErrors
-				if (!errors || typeof errors !== "object") return
-				for (const [field, errorId] of Object.entries(tourFieldErrors)) {
-					const messages = errors[field]
-					if (!Array.isArray(messages) || !messages.length) continue
-					const fieldId =
-						field === "meetingPointJson"
-							? "meetingPointAddress"
-							: field === "itineraryJson"
-								? "tourItinerary"
-								: field === "includesJson"
-									? "tourIncludes"
-									: field
-					setFieldError(fieldId, errorId, String(messages[0]))
+			function setState(state, detail = "") {
+				const labels = {
+					empty: "Vacío: sin cambios guardados.",
+					loading: "Cargando: guardando subtipo...",
+					success: "Éxito: subtipo guardado correctamente.",
+					error: "Error: no se pudo guardar el subtipo.",
+					disabled: "Deshabilitado: esperando respuesta del servidor.",
 				}
-			} catch {
-				// The status message still exposes non-validation server errors.
+				stateLabel.textContent = labels[state] || labels.empty
+				stateDetail.textContent = detail
 			}
-		}
 
-		form?.addEventListener("submit", async (e) => {
-			e.preventDefault()
-			const fd = new FormData(form)
-			const intent = readPlaybookNavIntent(fd, e.submitter)
-			const id = String(fd.get("productId") || "")
-			if (intent === "exit" && !validateTourForm()) {
-				window.location.href = resolvePlaybookRedirectAfterSave(fd, {
-					productId: id,
-					launchPath: `/product/${encodeURIComponent(id)}/preview`,
-					launchStep: "preview",
-					intent: "exit",
-				})
-				return
+			const tourFieldErrors = {
+				duration: "durationError",
+				durationMinutes: "durationMinutesError",
+				meetingPointJson: "meetingPointAddressError",
+				itineraryJson: "tourItineraryError",
+				includesJson: "tourIncludesError",
 			}
-			if (!validateTourForm()) return
-			setState("loading")
-			setPlaybookSubmitBusy(form, true)
-			setState("disabled")
 
-			try {
-				const res = await fetch("/api/product/subtype", { method: "POST", body: fd })
-				const txt = await res.text()
-				if (!res.ok) {
-					setPlaybookSubmitBusy(form, false)
-					showServerFieldErrors(txt)
-					setState("error", `status=${res.status}\n${txt}`)
-					return
+			function setFieldError(fieldId, errorId, message) {
+				const field = document.getElementById(fieldId)
+				const error = document.getElementById(errorId)
+				if (field) field.setAttribute("aria-invalid", message ? "true" : "false")
+				if (!error) return
+				error.textContent = message
+				error.classList.toggle("hidden", !message)
+			}
+
+			function validateTourForm() {
+				if (!isTour) return true
+				const values = {
+					duration: String(document.getElementById("duration")?.value || "").trim(),
+					durationMinutes: Number(document.getElementById("durationMinutes")?.value || 0),
+					meetingPointAddress: String(
+						document.getElementById("meetingPointAddress")?.value || ""
+					).trim(),
+					itinerary: String(document.getElementById("tourItinerary")?.value || "")
+						.split(/\r?\n|,/)
+						.map((value) => value.trim())
+						.filter(Boolean),
+					includes: String(document.getElementById("tourIncludes")?.value || "")
+						.split(/\r?\n|,/)
+						.map((value) => value.trim())
+						.filter(Boolean),
 				}
-				setState("success", "Guardado correctamente")
-				draft.clear()
-				if (intent === "exit" || !isPlaybookMode(fd)) {
+				const errors = {
+					duration: values.duration ? "" : "Indica la duración del tour.",
+					durationMinutes:
+						Number.isInteger(values.durationMinutes) && values.durationMinutes > 0
+							? ""
+							: "Indica una duración en minutos mayor que cero.",
+					meetingPointAddress: values.meetingPointAddress ? "" : "Indica el punto de encuentro.",
+					itinerary:
+						values.itinerary.length >= 3
+							? ""
+							: "Agrega al menos 3 paradas o momentos, uno por línea.",
+					includes: values.includes.length ? "" : "Agrega al menos una inclusión.",
+				}
+				setFieldError("duration", "durationError", errors.duration)
+				setFieldError("durationMinutes", "durationMinutesError", errors.durationMinutes)
+				setFieldError("meetingPointAddress", "meetingPointAddressError", errors.meetingPointAddress)
+				setFieldError("tourItinerary", "tourItineraryError", errors.itinerary)
+				setFieldError("tourIncludes", "tourIncludesError", errors.includes)
+				const firstInvalid = Object.entries(errors).find(([, message]) => Boolean(message))?.[0]
+				const fieldIds = {
+					duration: "duration",
+					durationMinutes: "durationMinutes",
+					meetingPointAddress: "meetingPointAddress",
+					itinerary: "tourItinerary",
+					includes: "tourIncludes",
+				}
+				if (firstInvalid) {
+					document.getElementById(fieldIds[firstInvalid])?.focus()
+					setState("error", "Revisa los campos marcados.")
+					return false
+				}
+				return true
+			}
+
+			function showServerFieldErrors(text) {
+				if (!isTour) return
+				try {
+					const payload = JSON.parse(text)
+					const errors = payload?.error?.fieldErrors
+					if (!errors || typeof errors !== "object") return
+					for (const [field, errorId] of Object.entries(tourFieldErrors)) {
+						const messages = errors[field]
+						if (!Array.isArray(messages) || !messages.length) continue
+						const fieldId =
+							field === "meetingPointJson"
+								? "meetingPointAddress"
+								: field === "itineraryJson"
+									? "tourItinerary"
+									: field === "includesJson"
+										? "tourIncludes"
+										: field
+						setFieldError(fieldId, errorId, String(messages[0]))
+					}
+				} catch {
+					// The status message still exposes non-validation server errors.
+				}
+			}
+
+			form?.addEventListener("submit", async (e) => {
+				e.preventDefault()
+				const fd = new FormData(form)
+				const intent = readPlaybookNavIntent(fd, e.submitter)
+				const id = String(fd.get("productId") || "")
+				if (intent === "exit" && !validateTourForm()) {
 					window.location.href = resolvePlaybookRedirectAfterSave(fd, {
 						productId: id,
+						currentStep: "subtype",
 						launchPath: `/product/${encodeURIComponent(id)}/preview`,
 						launchStep: "preview",
 						intent: "exit",
 					})
 					return
 				}
-				if (isCompleteToPublishPlaybookMode(fd)) {
-					window.location.href = resolvePlaybookRedirectAfterSave(fd, {
-						productId: id,
-						launchPath: `/product/${encodeURIComponent(id)}/preview`,
-						launchStep: "preview",
-						submitter: e.submitter,
-					})
-					return
-				}
-				if (isHotel) {
+				if (!validateTourForm()) return
+				setState("loading")
+				setPlaybookSubmitBusy(form, true)
+				setState("disabled")
+
+				try {
+					const res = await fetch("/api/product/subtype", { method: "POST", body: fd })
+					const txt = await res.text()
+					if (!res.ok) {
+						setPlaybookSubmitBusy(form, false)
+						showServerFieldErrors(txt)
+						setState("error", `status=${res.status}\n${txt}`)
+						return
+					}
+					setState("success", "Guardado correctamente")
+					draft.clear()
+					if (intent === "exit" || !isPlaybookMode(fd)) {
+						window.location.href = resolvePlaybookRedirectAfterSave(fd, {
+							productId: id,
+							currentStep: "subtype",
+							launchPath: `/product/${encodeURIComponent(id)}/preview`,
+							launchStep: "preview",
+							intent: "exit",
+						})
+						return
+					}
+					if (isCompleteToPublishPlaybookMode(fd)) {
+						window.location.href = resolvePlaybookRedirectAfterSave(fd, {
+							productId: id,
+							currentStep: "subtype",
+							launchPath: `/product/${encodeURIComponent(id)}/preview`,
+							launchStep: "preview",
+							submitter: e.submitter,
+						})
+						return
+					}
+					if (isHotel) {
+						window.location.href = playbookRedirectHref(
+							`/product/${encodeURIComponent(id)}/rooms/new`,
+							"room-profile"
+						)
+						return
+					}
+					if (isTourLaunchPlaybookMode(fd)) {
+						window.location.href = resolvePlaybookRedirectAfterSave(fd, {
+							productId: id,
+							currentStep: "subtype",
+							launchPath: `/product/${encodeURIComponent(id)}/tickets`,
+							launchStep: "tickets",
+							submitter: e.submitter,
+						})
+						return
+					}
 					window.location.href = playbookRedirectHref(
-						`/product/${encodeURIComponent(id)}/rooms/new`,
-						"room-profile"
+						`/product/${encodeURIComponent(id)}/preview`,
+						"preview"
 					)
-					return
+				} catch (err) {
+					setPlaybookSubmitBusy(form, false)
+					setState("error", `Error de red: ${String(err)}`)
 				}
-				if (isTourLaunchPlaybookMode(fd)) {
-					window.location.href = resolvePlaybookRedirectAfterSave(fd, {
-						productId: id,
-						launchPath: `/product/${encodeURIComponent(id)}/tickets`,
-						launchStep: "tickets",
-						submitter: e.submitter,
-					})
-					return
-				}
-				window.location.href = playbookRedirectHref(
-					`/product/${encodeURIComponent(id)}/preview`,
-					"preview"
-				)
-			} catch (err) {
-				setPlaybookSubmitBusy(form, false)
-				setState("error", `Error de red: ${String(err)}`)
-			}
-		})
+			})
+		}
+		initSubtypeForm()
+		document.addEventListener("astro:page-load", initSubtypeForm)
 	</script>
 </PlaybookLayout>

@@ -1,3 +1,4 @@
+import { resolveTourPlaybookContext } from "@/lib/playbook/tour-playbook-context"
 import { preparationPathContext, PreparationSessionError } from "./preparationSessionContext"
 import { loadTourCommercialContext } from "@/lib/tours/loadTourCommercialContext"
 import {
@@ -5,7 +6,11 @@ import {
 	withTourCommercialContext,
 } from "@/lib/tours/resolveTourCommercialContext"
 import { LAUNCH_STEPS, buildPlaybookHref } from "@/lib/playbook/launch-accommodation"
-import { TOUR_LAUNCH_STEPS, buildTourPlaybookHref } from "@/lib/playbook/launch-tour"
+import {
+	TOUR_LAUNCH_STEPS,
+	buildTourPlaybookHref,
+	normalizeTourLaunchStep,
+} from "@/lib/playbook/launch-tour"
 import {
 	buildCompleteToPublishHref,
 	completeToPublishStepHref,
@@ -58,6 +63,20 @@ export function normalizePreparationPath(value: unknown): string | null {
 
 export async function savePreparationSession(input: PreparationSessionInput) {
 	const parsed = preparationPathContext(input)
+	if (input.vertical === "tour") {
+		const tour = resolveTourPlaybookContext(parsed.url, input.productId)
+		if (tour) {
+			input = {
+				...input,
+				playbookId: tour.playbookId,
+				stepId:
+					tour.part === "prepare"
+						? (normalizeTourLaunchStep(input.stepId) ?? input.stepId)
+						: (normalizeCompleteToPublishStep(input.stepId) ?? input.stepId),
+			}
+			parsed.url = tour.canonical
+		}
+	}
 	const validStep =
 		input.playbookId === "complete-to-publish"
 			? normalizeCompleteToPublishStep(input.stepId) === input.stepId
@@ -69,9 +88,13 @@ export async function savePreparationSession(input: PreparationSessionInput) {
 	if (!Number.isFinite(navigationAt.getTime()) || navigationAt.getTime() > Date.now() + 60_000)
 		throw new PreparationSessionError("invalid_navigation_time")
 	return db.transaction(async (tx) => {
-		// Serialize initial creation and updates of the same session, not unrelated tours.
+		// Publication and session writes share a product lock; navigation also orders both playbooks.
+		if (input.vertical === "tour")
+			await tx.execute(
+				sql`SELECT pg_advisory_xact_lock(hashtextextended(${JSON.stringify([input.providerId, input.productId, "tour-publication"])}, 0))`
+			)
 		await tx.execute(
-			sql`SELECT set_config('fastt.preparation_write_version', '2', true), pg_advisory_xact_lock(hashtextextended(${JSON.stringify([input.providerId, input.userId, input.productId, input.playbookId])}, 0))`
+			sql`SELECT set_config('fastt.preparation_write_version', '2', true), pg_advisory_xact_lock(hashtextextended(${JSON.stringify([input.providerId, input.userId, input.productId, input.vertical === "tour" ? "tour-flow" : input.playbookId])}, 0))`
 		)
 		const product = await tx
 			.select({ productType: Product.productType })
@@ -96,6 +119,35 @@ export async function savePreparationSession(input: PreparationSessionInput) {
 			eq(ProviderPreparationSession.playbookId, input.playbookId)
 		)
 		const existing = await tx.select().from(ProviderPreparationSession).where(key).then(first)
+		if (isTour) {
+			const latest = await tx
+				.select()
+				.from(ProviderPreparationSession)
+				.where(
+					and(
+						eq(ProviderPreparationSession.providerId, input.providerId),
+						eq(ProviderPreparationSession.userId, input.userId),
+						eq(ProviderPreparationSession.productId, input.productId),
+						eq(ProviderPreparationSession.vertical, "tour")
+					)
+				)
+				.orderBy(desc(ProviderPreparationSession.updatedAt))
+				.limit(1)
+				.then(first)
+			if (
+				latest &&
+				(new Date(latest.updatedAt).getTime() > navigationAt.getTime() ||
+					(latest.playbookId !== input.playbookId &&
+						new Date(latest.updatedAt).getTime() === navigationAt.getTime()))
+			)
+				return latest.id
+			const published = await tx
+				.select({ status: Product.publicationState })
+				.from(Product)
+				.where(eq(Product.id, input.productId))
+				.then(first)
+			if (published?.status === "published") return existing?.id ?? null
+		}
 		// An old pagehide or a delayed request cannot overwrite a newer navigation.
 		let variantId = parsed.explicitSelection ? parsed.variantId : (existing?.variantId ?? null)
 		let ratePlanId = parsed.explicitSelection ? parsed.ratePlanId : (existing?.ratePlanId ?? null)
@@ -183,6 +235,7 @@ export async function listActivePreparationSessions(
 			ratePlanId: ProviderPreparationSession.ratePlanId,
 			lastPath: ProviderPreparationSession.lastPath,
 			productName: Product.name,
+			publicationState: Product.publicationState,
 		})
 		.from(ProviderPreparationSession)
 		.innerJoin(Product, eq(Product.id, ProviderPreparationSession.productId))
@@ -196,8 +249,16 @@ export async function listActivePreparationSessions(
 		)
 		.orderBy(desc(ProviderPreparationSession.updatedAt))
 
+	const seenTours = new Set<string>()
+	const currentRows = rows.filter((row) => {
+		if (row.vertical !== "tour" || !row.productId) return true
+		if (row.publicationState === "published") return false
+		if (seenTours.has(row.productId)) return false
+		seenTours.add(row.productId)
+		return true
+	})
 	const resumes = await Promise.all(
-		rows.map(async (row) => {
+		currentRows.map(async (row) => {
 			if (!row.productId || !isPreparationPlaybookId(row.playbookId)) return []
 			if (!isPreparationVertical(row.vertical)) return []
 			let savedPath = normalizePreparationPath(row.lastPath)
@@ -242,6 +303,8 @@ export async function listActivePreparationSessions(
 						: buildPlaybookHref(`/product/${encodeURIComponent(row.productId)}/content`, "content")
 			let href = savedPath ?? fallback
 			if (row.vertical === "tour") {
+				const tour = resolveTourPlaybookContext(new URL(href, "http://fastt.local"), row.productId)
+				if (tour) href = tour.canonical.pathname + tour.canonical.search
 				const context = await loadTourCommercialContext({
 					providerId,
 					productId: row.productId,
@@ -281,4 +344,23 @@ export function savedCompleteToPublishHrefForProduct(
 		return href.includes("playbook=complete-to-publish") || href.includes("flow=complete")
 	})
 	return match?.href ?? null
+}
+
+/** Publication closes both sessions; subsequent visits cannot reopen a published tour. */
+export async function completeTourPreparationSessions(providerId: string, productId: string) {
+	await db.transaction(async (tx) => {
+		await tx.execute(
+			sql`SELECT set_config('fastt.preparation_write_version', '2', true), pg_advisory_xact_lock(hashtextextended(${JSON.stringify([providerId, productId, "tour-publication"])}, 0))`
+		)
+		await tx
+			.update(ProviderPreparationSession)
+			.set({ status: "completed", writeVersion: 2 })
+			.where(
+				and(
+					eq(ProviderPreparationSession.providerId, providerId),
+					eq(ProviderPreparationSession.productId, productId),
+					eq(ProviderPreparationSession.vertical, "tour")
+				)
+			)
+	})
 }

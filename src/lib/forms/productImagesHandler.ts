@@ -1,3 +1,8 @@
+import {
+	confirmProductImageUpload,
+	confirmedProductGalleryIds,
+	type ProductImageUpload,
+} from "./productImageUpload"
 import { setPlaybookSubmitBusy } from "@/lib/forms/playbookFormBusy"
 import {
 	readPlaybookNavIntent,
@@ -10,9 +15,8 @@ function qs<T extends Element>(sel: string, el: ParentNode = document) {
 
 type UploadState = "pending" | "queued" | "uploading" | "success" | "error"
 
-type PendingImage = {
+type PendingImage = ProductImageUpload & {
 	id: string
-	file: File
 	previewUrl: string
 	state: UploadState
 	error?: string
@@ -69,9 +73,21 @@ function initProductImagesForm() {
 			existingImages.length + pendingImages.filter((item) => item.state !== "error").length
 		const missing = Math.max(0, requiredImageCount - total)
 		if (continueButton && form?.dataset.uploading !== "true") {
-			continueButton.disabled = missing > 0
+			if (form?.dataset.allowEmptyPreparation === "true")
+				continueButton.textContent =
+					total === 0 && pendingImages.length === 0 ? "Completar después" : "Guardar y continuar"
+			continueButton.disabled =
+				form?.dataset.allowPartialPublication === "true"
+					? total === 0 && pendingImages.length === 0
+					: missing > 0
 			continueButton.title =
-				missing > 0 ? `Agrega ${missing} foto${missing === 1 ? "" : "s"} más para continuar.` : ""
+				form?.dataset.allowPartialPublication === "true"
+					? total === 0 && pendingImages.length === 0
+						? "Agrega una foto para guardar."
+						: ""
+					: missing > 0
+						? `Agrega ${missing} foto${missing === 1 ? "" : "s"} más para continuar.`
+						: ""
 		}
 		if (imageCount) {
 			imageCount.textContent = `${total}/5 fotos ${requiredImageCount > 0 ? "necesarias para publicar" : "recomendadas"}`
@@ -259,7 +275,7 @@ function initProductImagesForm() {
 	if (initialRequirement.missing > 0) {
 		setState(
 			"incomplete",
-			`Faltan ${initialRequirement.missing} foto${initialRequirement.missing === 1 ? "" : "s"} para continuar con la preparación.`
+			`Faltan ${initialRequirement.missing} foto${initialRequirement.missing === 1 ? "" : "s"} para completar este requisito.`
 		)
 	} else if (existingImages.length > 0) {
 		setState(
@@ -275,6 +291,7 @@ function initProductImagesForm() {
 	) {
 		window.location.href = resolvePlaybookRedirectAfterSave(formFd, {
 			productId,
+			currentStep: "images",
 			launchPath: `/product/${encodeURIComponent(productId)}/subtype`,
 			launchStep: "subtype",
 			submitter,
@@ -294,7 +311,11 @@ function initProductImagesForm() {
 		const productId = String(formFd.get("productId") || "")
 		const intent = readPlaybookNavIntent(formFd, e.submitter)
 		const requirement = syncPublicationRequirement()
-		if (intent === "continue" && requirement.missing > 0) {
+		if (
+			intent === "continue" &&
+			requirement.missing > 0 &&
+			form.dataset.allowPartialPublication !== "true"
+		) {
 			setState(
 				"incomplete",
 				`Agrega ${requirement.missing} foto${requirement.missing === 1 ? "" : "s"} más antes de continuar.`
@@ -303,7 +324,7 @@ function initProductImagesForm() {
 			return
 		}
 		form.dataset.uploading = "true"
-		const queue = pendingImages.filter((item) => item.state !== "error" && item.state !== "success")
+		const queue = pendingImages.filter((item) => item.state !== "success")
 		const busyLabel = queue.length > 0 ? `Subiendo 1 de ${queue.length}…` : "Continuando…"
 		setPlaybookSubmitBusy(form, true, busyLabel)
 		setState("loading", busyLabel)
@@ -315,7 +336,10 @@ function initProductImagesForm() {
 					redirectAfterSuccess(formFd, productId, e.submitter)
 					return
 				}
-				if (intent === "exit") {
+				if (
+					intent === "exit" ||
+					(intent === "continue" && form.dataset.allowEmptyPreparation === "true")
+				) {
 					redirectAfterSuccess(formFd, productId, e.submitter)
 					return
 				}
@@ -328,11 +352,10 @@ function initProductImagesForm() {
 			for (const item of queue) item.state = "queued"
 			renderPreviewGrid()
 
-			const imageIds: string[] = []
 			let uploaded = 0
 
 			for (const item of pendingImages) {
-				if (item.state === "error" || item.state === "success") continue
+				if (item.state === "success") continue
 				uploaded += 1
 				item.state = "uploading"
 				item.error = ""
@@ -341,63 +364,16 @@ function initProductImagesForm() {
 				setState("loading", progressLabel)
 				renderPreviewGrid()
 
-				const initFd = new FormData()
-				initFd.set("productId", productId)
-				initFd.set("file", item.file)
-
-				const initRes = await fetch("/api/uploads/init", { method: "POST", body: initFd })
-				const initTxt = await initRes.text()
-				if (!initRes.ok) {
+				try {
+					await confirmProductImageUpload(item, productId)
+				} catch (error) {
 					item.state = "error"
-					item.error = `Inicialización fallida (${initRes.status})`
+					item.error = error instanceof Error ? error.message : "No se pudo confirmar la imagen."
 					renderPreviewGrid()
-					releaseUpload()
-					setState("error", `Error de inicialización (${initRes.status}):\n${initTxt}`)
-					return
+					throw error
 				}
-
-				const initJson = JSON.parse(initTxt) as {
-					imageId: string
-					objectKey: string
-					signedUrl: string
-				}
-
-				const putRes = await fetch(initJson.signedUrl, {
-					method: "PUT",
-					body: item.file,
-					headers: { "Content-Type": item.file.type },
-				})
-				if (!putRes.ok) {
-					item.state = "error"
-					item.error = `Carga fallida (${putRes.status})`
-					renderPreviewGrid()
-					releaseUpload()
-					setState("error", `Error de carga al storage (${putRes.status}).`)
-					return
-				}
-
-				const completeFd = new FormData()
-				completeFd.set("productId", productId)
-				completeFd.set("imageId", initJson.imageId)
-				completeFd.set("objectKey", initJson.objectKey)
-
-				const completeRes = await fetch("/api/uploads/complete", {
-					method: "POST",
-					body: completeFd,
-				})
-				const completeTxt = await completeRes.text()
-				if (!completeRes.ok) {
-					item.state = "error"
-					item.error = `Finalización fallida (${completeRes.status})`
-					renderPreviewGrid()
-					releaseUpload()
-					setState("error", `Error al completar carga (${completeRes.status}):\n${completeTxt}`)
-					return
-				}
-
 				item.state = "success"
 				renderPreviewGrid()
-				imageIds.push(initJson.imageId)
 			}
 
 			setPlaybookSubmitBusy(form, true, "Guardando galería…")
@@ -405,8 +381,11 @@ function initProductImagesForm() {
 
 			const setFd = new FormData()
 			setFd.set("productId", productId)
-			const galleryIds = [...existingImages.map((image) => image.id), ...imageIds].filter(Boolean)
-			for (const id of [...new Set(galleryIds)]) setFd.append("imageId", id)
+			const galleryIds = confirmedProductGalleryIds(
+				existingImages.map((image) => image.id),
+				pendingImages
+			)
+			for (const id of galleryIds) setFd.append("imageId", id)
 
 			const res = await fetch("/api/product/images", { method: "POST", body: setFd })
 			const txt = await res.text()

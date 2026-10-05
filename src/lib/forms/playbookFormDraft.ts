@@ -84,7 +84,9 @@ export function bindPlaybookFormDraft(form: HTMLFormElement | null, options: Dra
 	const storageKey = `fastt:playbook-form-draft:${options.key}`
 	const excludeNames = new Set(options.excludeNames ?? [])
 
+	let cleared = false
 	const save = () => {
+		if (cleared) return
 		const entries = collectEntries(form, excludeNames)
 		window.sessionStorage.setItem(storageKey, JSON.stringify({ entries, savedAt: Date.now() }))
 	}
@@ -101,6 +103,7 @@ export function bindPlaybookFormDraft(form: HTMLFormElement | null, options: Dra
 	}
 
 	const clear = () => {
+		cleared = true
 		window.sessionStorage.removeItem(storageKey)
 	}
 

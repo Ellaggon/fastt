@@ -1,0 +1,33 @@
+---
+import { Hotel, Ticket } from "@lucide/astro"
+
+interface Props {
+	productName: string
+	variantName?: string | null
+	isTour?: boolean
+	class?: string
+}
+
+const { productName, variantName = "", isTour = true, class: className = "" } = Astro.props
+const label = variantName?.trim()
+	? `${productName.trim()} · ${variantName.trim()}`
+	: productName.trim()
+---
+
+{
+	label ? (
+		<p
+			class:list={[
+				"flex items-center gap-2 text-xs font-semibold tracking-wide text-slate-400 uppercase",
+				className,
+			]}
+		>
+			{isTour ? (
+				<Ticket class="h-4 w-4" aria-hidden="true" />
+			) : (
+				<Hotel class="h-4 w-4" aria-hidden="true" />
+			)}
+			{label}
+		</p>
+	) : null
+}

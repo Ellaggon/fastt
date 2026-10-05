@@ -101,6 +101,10 @@ describe("preparation preview recovery through dashboard summary", () => {
 			"/product/tour-1/preview?playbook=complete-to-publish&variantId=slot-3&ratePlanId=rate-3"
 		mocks.rows = [{ ...baseSession, variantId: "slot-3", ratePlanId: "rate-3", lastPath }]
 		const sessions = await listActivePreparationSessions("provider-1", "user-1")
-		expect(sessions[0].href).toBe(lastPath)
+		const saved = new URL(sessions[0].href, "https://fastt.test")
+		expect(saved.pathname).toBe("/product/tour-1/preview")
+		expect(saved.searchParams.get("variantId")).toBe("slot-3")
+		expect(saved.searchParams.get("ratePlanId")).toBe("rate-3")
+		expect(saved.searchParams.get("tourFlowVersion")).toBe("2")
 	})
 })
