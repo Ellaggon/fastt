@@ -12,7 +12,7 @@ export async function assignTourRatePlanPolicies(params: {
 		description: "Flexible tour cancellation",
 		cancellationTiers: [
 			{
-				daysBeforeArrival: 0,
+				daysBeforeArrival: 1,
 				hoursBeforeDeparture: 24,
 				penaltyType: "percentage",
 				penaltyAmount: 0,
