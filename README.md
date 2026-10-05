@@ -27,11 +27,15 @@ Aplicacion SSR en Astro para una plataforma tipo OTA (tours/hoteles) con panel d
 ## Desarrollo
 
 ```sh
-npm install
-npm run dev
+pnpm install --frozen-lockfile
+pnpm dev
 ```
 
 Servidor local: `http://localhost:4321`
+
+Usar pnpm (versión declarada en `packageManager`) para respetar el lockfile y los parches de dependencias.
+Astro 6.1.9 incorpora mediante `patches/astro@6.1.9.patch` la [corrección oficial de recarga SSR](https://github.com/withastro/astro/pull/17685): el identificador interno necesita el prefijo `virtual:` para que Vite no le añada `.js`.
+Retirar el parche y su entrada `pnpm.patchedDependencies` al actualizar a una versión que incluya esa corrección (verificada en 7.2.3; 6.4.8 aún no la incluye), regenerar el lockfile y comprobar una recarga SSR completa. La migración a Astro 7 requiere revisar adaptadores y Vite 8.
 
 ## Documentación
 
