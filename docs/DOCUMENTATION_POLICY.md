@@ -101,4 +101,7 @@ pnpm run check:docs:staged
 El primer comando revisa cambios locales y archivos sin seguimiento. El segundo revisa exactamente
 lo preparado para commit. CI aplica las mismas reglas a los Markdown agregados o modificados en el
 cambio. La validación exige metadata y ubicación en archivos nuevos, comprueba su indexación,
-rechaza nombres efímeros y detecta enlaces locales rotos.
+rechaza nombres efímeros y detecta enlaces locales rotos. Las tablas GFM en estilo alineado deben
+mantener las barras verticales en la misma columna en todas las filas (MD060); usa
+`pnpm run format:docs:tables -- --fix <archivos>` si el editor marca desalineación. El límite de
+longitud de línea (MD013) aplica al texto corrido, no a filas de tabla (`.markdownlint.jsonc`).
