@@ -3,89 +3,42 @@
 Status: active  
 Document type: canonical  
 Owner: Tours / Provider Experience  
-Last verified: 2026-10-02
+Last verified: 2026-10-04
 Scope: definición ideal de los recorridos guiados (playbooks) del proveedor de tours, sus etapas, diagnóstico compartido, navegación y reglas de interfaz  
 Source of truth: este documento; implementación en `src/lib/playbook/`, layouts de playbook y superficies enlazadas del proveedor  
 Related code/tests: `src/lib/playbook/`, `src/layouts/PlaybookLayout.astro`, `src/pages/product/`, `src/pages/catalog/tours.astro`, pruebas de wizard comercial de tours  
 Review trigger: cambio de etapas, playbooks, requisitos de preparación, verificación o activación comercial de tours  
-Supersedes: `docs/domains/tours/provider-workflow.md` (retirado: recuento histórico de pantallas; reemplazado por seis etapas y progreso por requisitos)
-
-## Principios de diseño (referencia de mercado)
-
-- **Airbnb:** separar preparación, revisión y programación; explicitar el alcance de cambios y enlazar cada pendiente con su corrección.
-- **Expedia:** separar configuración inicial y operación; sus fuentes públicas no acreditan un orden de editor privado.
+Supersedes: `docs/domains/tours/provider-workflow.md` (retirado: recuento histórico de pantallas; reemplazado por preparación y revisión con diagnóstico compartido)
 
 ## Base reutilizable
 
-| Recorrido o herramienta | Decisión |
-| ----------------------- | -------- |
-| **Crear tour** (`launch-tour`) | Conservar sus formularios y reorganizarlos en el playbook de preparación. |
-| **Completar preparación** (`complete-to-publish`) | Convertirlo en modo de continuación del mismo recorrido de creación, no un playbook con reglas distintas. |
-| **Verificación de tours** | Recorrido independiente, conectado con cada experiencia. |
-| **Añadir o editar salida** | Recorrido corto para añadir una opción comercial completa; reutilizar formulario, persistencia y enlaces comerciales existentes. |
-| **Corregir pendientes** | Reparación guiada basada en el diagnóstico compartido. |
-| **Calendario, reservas y operación diaria** | Acceso directo; no obligar a pasar por la creación. |
-| **Solicitudes privadas** | Gestión de solicitudes hasta existir una cotización estructurada (fuera del alcance de un playbook de cierre de venta privada en la fase actual). |
+- **Preparar tour** y **Publicar tour**: dos playbooks con navegación y pantallas de entrada propias dentro de un único flujo. Comparten datos, formularios y validación, no indicadores simultáneos.
+- **Verificación**: independiente, conectada con la experiencia.
+- **Añadir o editar salida**: opción comercial completa con persistencia y enlaces existentes.
+- **Corregir pendientes**: reparación según diagnóstico compartido.
+- **Calendario y operación diaria**: acceso directo sin repetir creación.
+- **Solicitudes privadas**: gestión de solicitudes; cotización y cierre de venta quedan fuera del alcance actual.
 
 
-## Cuatro playbooks
+## Cuatro flujos de trabajo
 
-| Playbook | Finalidad | Tipo de navegación |
-| -------- | --------- | ------------------ |
-| **1. Preparar y publicar un tour** | Construir una primera oferta coherente. | Seis etapas, con reanudación. |
-| **2. Habilitar mi actividad de tours** | Resolver identidad y requisitos aplicables al proveedor. | Áreas paralelas con estados. |
-| **3. Añadir una opción al tour** | Incorporar otro horario, idioma o modalidad vendible. | Recorrido corto de cuatro pasos. |
-| **4. Resolver pendientes de venta** | Corregir causas concretas de bloqueo o pérdida de disponibilidad. | Pasos dinámicos según diagnóstico. |
+| Flujo                                  | Finalidad                                                         | Tipo de navegación                                             |
+| -------------------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------- |
+| **1. Preparar y publicar un tour**     | Construir una primera oferta coherente.                           | Dos playbooks conectados: Preparar tour → Publicar tour.       |
+| **2. Habilitar mi actividad de tours** | Resolver identidad y requisitos aplicables al proveedor.          | Áreas paralelas con estados.                                   |
+| **3. Añadir una opción al tour**       | Incorporar otro horario, idioma o modalidad vendible.             | Recorrido corto de cuatro pasos.                               |
+| **4. Resolver pendientes de venta**    | Corregir causas concretas de bloqueo o pérdida de disponibilidad. | Pasos dinámicos según diagnóstico.                             |
 
-## Playbook 1 — Preparar y publicar un tour
+## Flujo 1 — Crear y publicar un tour
 
-### Seis etapas
+La [especificación de Preparar tour y Publicar tour](./tour-preparation-publication.md)
+define dos playbooks conectados dentro de un flujo: A construye el borrador en cinco etapas;
+B evalúa lo guardado, muestra sólo pendientes, reutiliza formularios precargados y confirma
+la publicación. Sus indicadores y navegación nunca se muestran simultáneamente.
 
-| Etapa | Contenido | Condición para completarla |
-| ----- | --------- | -------------------------- |
-| **1. Presenta tu experiencia** | Nombre, destino de descubrimiento, categoría pública, descripción y destacados. | Información persistida y validada con los mismos criterios que verá el preview. |
-| **2. Recorrido y logística** | Duración, itinerario, inclusiones, exclusiones, encuentro, recogida y requisitos del participante. | Duración coherente y logística suficiente para entender qué ocurrirá. |
-| **3. Fotos** | Carga, portada, orden, recorte y descripciones pertinentes. | Se cumple el mínimo vigente y no quedan archivos pendientes de carga. |
-| **4. Opción, precio y condiciones** | Participantes, horario, idioma, modalidad, precio, monedas, condiciones y preguntas. | Una opción comercial queda configurada de forma consistente. |
-| **5. Fechas y cupos** | Fechas concretas o repetición explícita, capacidad por fecha y excepciones. | Existe disponibilidad conforme a la modalidad y al contrato vigente. |
-| **6. Revisar y publicar** | Ficha real, resumen comercial, preparación, habilitación y acción final. | El servidor confirma todos los requisitos aplicables. |
-
-### Etapa 4 — Subpasos
-
-Subpasos breves, sin una sola página con todos los formularios abiertos:
-
-1. Grupo y horario  
-2. Precio  
-3. Condiciones  
-
-### Mínimos de contenido
-
-Los mínimos actuales (**cinco fotos** y **tres actividades del itinerario**) deben anunciarse en sus formularios correspondientes. Si se flexibilizan por tipo de experiencia, debe ser una decisión explícita y reflejarse en todos los validadores.
-
-### Condiciones y calendario
-
-Condiciones van **antes** del calendario. Antes de elegir fechas se explica la regla relativa (por ejemplo, “hasta 24 horas antes”). Después de configurar una fecha, la revisión final muestra un ejemplo con día, hora y zona reales. No debe aparecer un error por no haber completado todavía una etapa posterior.
-
-### Revisión final — Tres estados
-
-| Estado | Significado |
-| ------ | ----------- |
-| **Ficha preparada** | Contenido y configuración completos. |
-| **Negocio habilitado** | Requisitos aplicables aprobados. |
-| **Oferta disponible** | Fechas, precio y cupo permiten recibir reservas o solicitudes. |
-
-
-### Comportamiento al guardar una salida (dentro del recorrido)
-
-| Entrada | Comportamiento esperado |
-| ------- | ------------------------ |
-| Paso del recorrido principal | Guardar y continuar al siguiente requisito. |
-| Ajuste temporal desde condiciones | Guardar y volver a la tarifa de origen. |
-| Edición cotidiana | Guardar y permanecer o volver al listado contextualizado. |
-
-### Finalización comercial
-
-La finalización debe devolver un resultado verificable: **configuración completada**, **pendiente concreto** o **fallo recuperable**. No un éxito general cuando una parte necesaria falló.
+Es el contrato objetivo reformulado; el código en curso aún debe adaptarse y verificarse.
+El reporte incluye ambos flujos, pantallas, retornos, casos límite y criterios de aceptación.
+El [diagrama editable](./diagrams/01-preparar-publicar-tour.excalidraw) representa el mismo contrato.
 
 ### Separación de acciones de persistencia
 
@@ -115,37 +68,26 @@ En privadas, `current_availability` es `not_applicable`: una solicitud no retien
 
 Capacidades: preparar, activar, publicar, reservar y recibir solicitud; decisiones del servidor con fuente y causas, nunca permiso por porcentaje. Compartida requiere cotización y hold. Privada recibe solicitud sin cupo ni cotización; aceptarla no confirma venta. La solicitud privada verifica autorización comercial y evidencia vigente antes de persistir; no reserva inventario ni genera cotización.
 
-Referencias: precio pendiente con perfil listo (90%); sin activación, agotamiento o revisión (100% preparado, eje correspondiente incompleto); lectura fallida; selección inválida; privada sólo solicitud.
-
 ### Contexto comercial visible
 
-Resolver B2: `src/lib/tours/loadTourCommercialContext.ts` y `resolveTourCommercialContext.ts`. Comprueba proveedor/producto y pertenencia de opción/tarifa. Prioridad: URL explícita, sesión del mismo usuario/producto/línea, única opción con única tarifa. Una URL inválida se rechaza; una sesión obsoleta se descarta. Si una lectura falla, la intención original se conserva separadamente como `recoveryIntent`, sin conceder selección ni permisos; el reintento lleva esos IDs y vuelve a validar pertenencia, sin reemplazarlos por otra oferta de la sesión. El selector conserva retorno y playbook; enlaces y peticiones de evaluación/publicación mantienen IDs validados. Pruebas: `tests/unit/tour-commercial-context*.test.ts`.
+`loadTourCommercialContext.ts` y `resolveTourCommercialContext.ts` validan pertenencia proveedor/producto/opción/tarifa. Prioridad: URL explícita, sesión del mismo usuario/producto/línea, oferta única. URL inválida se rechaza; sesión obsoleta se descarta. Lectura fallida conserva `recoveryIntent` sin permisos: reintentar los mismos IDs, sin sustituir oferta. Selector, enlaces y comandos conservan retorno, playbook y selección validada. Pruebas: `tests/unit/tour-commercial-context*.test.ts`.
 
-Evaluación B3: `buildTourDiagnostic.ts` comparte observaciones de `validateRatePlanPublication.ts`, autorización de `loadTourAuthorization.ts` y preparación de salida en modo de sólo lectura (`persist: false`). `tourActivationDecision` conserva causas, responsable, acciones y retorno en interfaz y comando; activar no exige activación previa ni ficha editorial completa. El comando mantiene autorización, reevaluación de lifecycle y transacción; los reintentos informan el estado persistido. Guardar fechas refresca el diagnóstico conservando la URL. Fechas configuradas y cupo actual son independientes; errores son `not_evaluable`. Autorización y activación no reducen preparación.
+`buildTourDiagnostic.ts` reutiliza publicación, autorización y preparación en lectura (`persist: false`). `tourActivationDecision` conserva causas, responsable, acción y retorno; activar no exige activación previa ni ficha editorial completa. El comando mantiene autorización, reevaluación de lifecycle y transacción; reintentos recuperan el estado persistido. Guardar fechas refresca diagnóstico y URL. Calendario configurado y cupo actual son independientes; errores son `not_evaluable`. Autorización y activación no reducen preparación.
 
 `loadCompleteToPublishState` comparte una promesa GET por petición, proveedor, producto e intención comercial; página y layout no repiten lecturas. Navegación no cambia la clave. Fallos sólo se comparten dentro de esa petición. Mutaciones, peticiones nuevas y evaluaciones sin petición consultan de nuevo; no reutilizan cotizaciones ni permisos previos.
 
-B5: `tourDiagnosticPresentation.ts` proyecta motivos y acciones en catálogo, dashboard, guía, preview y errores de API, con selección y retorno. Una lectura fallida ofrece reintento. El refresco conserva el diagnóstico; la barra mide preparación. Pruebas: `tests/unit/tour-preparation-diagnostic.test.ts` y `tests/unit/product-tour-selection-api.test.ts`.
+`tourDiagnosticPresentation.ts` proyecta motivos y acciones con selección y retorno en catálogo, dashboard, guía, preview y APIs. Una lectura fallida ofrece reintento. Pruebas: `tests/unit/tour-preparation-diagnostic.test.ts` y `tests/unit/product-tour-selection-api.test.ts`.
 
 El catálogo separa estado editorial (borrador/publicado) de preparación y habilitación actual. Las etiquetas y contadores de fichas preparadas y listas para publicar se proyectan del diagnóstico de la oferta seleccionada, nunca de `Product.publicationState=ready`. Selección ambigua o evaluación desconocida no suman a listas para publicar; agotamiento no reduce preparación.
 
-### Progreso
+### Persistencia compartida
 
-B6: `tour-publishing-stages.ts` agrupa las pantallas en seis etapas; sus subpasos no suman avance. `TourPreparationProgress.astro` comparte porcentaje, texto y valor accesible entre guía y preview. La etapa de revisión refleja preparación, autorización y activación, pero no agrega un requisito ni un bloqueo duplicado. Sin diagnóstico no se presenta un porcentaje inventado. El índice distingue la etapa actual mediante `aria-current="step"` de su estado persistido; cambiar de pantalla no altera requisitos.
-
-- La **posición** puede mostrarse como “Etapa X de 6”.  
-- Un identificador explícito de recorrido de **tours** debe prevalecer sobre parámetros genéricos de flujo de creación (por ejemplo `flow=create` de alojamiento).
-
-### Reanudación y persistencia
-
-- Recuperación mediante **sessionStorage** y **sesión persistida de preparación** (conservar ambos patrones donde apliquen).  
-- B4: clave proveedor/usuario/producto/playbook; validación, lock y upsert atómicos. Conserva selección y descarta navegación retrasada. Cliente v2 y trigger bloquean escrituras antiguas. Migraciones: ver [operación PostgreSQL](../../engineering/supabase-migration.md#sesiones-de-preparación-por-producto); prueba `tests/integration/preparation-session-persistence.test.ts`. No reconstruye sesiones ya sobrescritas.
-- Los borradores locales al salir no sustituyen guardado en servidor.  
-- Creaciones y activaciones deben ser **recuperables e idempotentes** (evitar duplicar variantes tras respuesta perdida).
-
-### Requisitos visibles desde el inicio
-
-Separar contenido y habilitación del negocio, pero el proveedor debe conocer **ambos** desde el principio. La pantalla final no debe revelar exigencias que el recorrido omitió explicar (por ejemplo, revisión editorial).
+Sesiones v2 por proveedor/usuario/producto/playbook: validación, lock y upsert atómicos,
+selección validada y rechazo de navegación atrasada. La separación A/B debe mantener estas
+garantías y registrar intención de reanudación; los datos locales no sustituyen el servidor.
+Referencia: `tests/integration/preparation-session-persistence.test.ts` y
+[operación PostgreSQL](../../engineering/supabase-migration.md#sesiones-de-preparación-por-producto).
+Creaciones y activaciones recuperan el mismo resultado tras reintentos.
 
 ## Playbook 2 — Habilitar mi actividad de tours
 
@@ -153,12 +95,12 @@ Recorrido **independiente** de la preparación de la ficha, conectado cuando se 
 
 ### Áreas (trabajo paralelo)
 
-| Área | Qué debe resolver |
-| ---- | ----------------- |
-| **Identidad** | Titular y representación cuando corresponda; reutilización de evidencia válida. |
-| **Actividad y licencias** | Papel operativo, actividades, territorio y credenciales aplicables. |
-| **Seguridad y permisos** | Evidencias determinadas por actividad, alcance y política aprobada. |
-| **Fiscal** | Identidad fiscal del vendedor y estado de revisión. |
+| Área                      | Qué debe resolver                                                               |
+| ------------------------- | ------------------------------------------------------------------------------- |
+| **Identidad**             | Titular y representación cuando corresponda; reutilización de evidencia válida. |
+| **Actividad y licencias** | Papel operativo, actividades, territorio y credenciales aplicables.             |
+| **Seguridad y permisos**  | Evidencias determinadas por actividad, alcance y política aprobada.             |
+| **Fiscal**                | Identidad fiscal del vendedor y estado de revisión.                             |
 
 ### Reglas
 
@@ -172,22 +114,22 @@ Recorrido **independiente** de la preparación de la ficha, conectado cuando se 
 
 **Entrada:** “Añadir opción” desde el tour o sus salidas.
 
-| Paso | Contenido |
-| ---- | --------- |
+| Paso                        | Contenido                                                                     |
+| --------------------------- | ----------------------------------------------------------------------------- |
 | **1. Configurar la opción** | Nombre, horario, idioma, modalidad, capacidad y diferencias respecto al tour. |
-| **2. Precio y condiciones** | Reutilizar explícitamente una configuración compatible o crear otra. |
-| **3. Fechas y cupos** | Seleccionar qué fechas se habilitan. |
-| **4. Revisar y activar** | Comprobar el resultado y mostrar exactamente qué recibirá el viajero. |
+| **2. Precio y condiciones** | Reutilizar explícitamente una configuración compatible o crear otra.          |
+| **3. Fechas y cupos**       | Seleccionar qué fechas se habilitan.                                          |
+| **4. Revisar y activar**    | Comprobar el resultado y mostrar exactamente qué recibirá el viajero.         |
 
 - Debe permitir **“Usar como base una opción existente”**, mostrando qué se copiará.  
 - No copiar reservas, aprobaciones documentales ni excepciones de calendario sin decisión explícita.
 
 ### Vocabulario
 
-| Término | Definición |
-| ------- | ---------- |
-| **Opción** | Combinación reutilizable de horario, idioma y modalidad. |
-| **Salida programada** | Esa opción en una fecha concreta. |
+| Término               | Definición                                               |
+| --------------------- | -------------------------------------------------------- |
+| **Opción**            | Combinación reutilizable de horario, idioma y modalidad. |
+| **Salida programada** | Esa opción en una fecha concreta.                        |
 
 Agregar otra fecha a la **misma opción** se resuelve en **calendario**, sin duplicar la experiencia ni crear otra variante.
 
@@ -203,15 +145,15 @@ Recorrido **dinámico** en tres momentos:
 2. **Corregir:** abrir el formulario correspondiente con el campo o sección enfocados.  
 3. **Comprobar:** reevaluar y confirmar si la causa quedó resuelta.
 
-| Pendiente | Destino correcto |
-| --------- | ---------------- |
-| No hay fechas futuras | Calendario de la opción afectada. |
-| Tarifa sin precio válido | Precio de esa tarifa. |
-| Política incompatible | Editor de esa condición. |
-| Salida configurada pero sin activar | Revisión y activación comercial. |
-| Evidencia vencida | Documento y alcance que requieren renovación. |
-| Política Fastt pendiente | Estado de espera y atención interna; sin formulario documental ficticio. |
-| Todos los cupos vendidos | Informar agotamiento; ofrecer ampliar o abrir fechas si corresponde. |
+| Pendiente                           | Destino correcto                                                         |
+| ----------------------------------- | ------------------------------------------------------------------------ |
+| No hay fechas futuras               | Calendario de la opción afectada.                                        |
+| Tarifa sin precio válido            | Precio de esa tarifa.                                                    |
+| Política incompatible               | Editor de esa condición.                                                 |
+| Salida configurada pero sin activar | Revisión y activación comercial.                                         |
+| Evidencia vencida                   | Documento y alcance que requieren renovación.                            |
+| Política Fastt pendiente            | Estado de espera y atención interna; sin formulario documental ficticio. |
+| Todos los cupos vendidos            | Informar agotamiento; ofrecer ampliar o abrir fechas si corresponde.     |
 
 No todo pendiente es un error: **agotamiento**, **pausa voluntaria** y **revisión interna** necesitan estados distintos.
 
@@ -219,16 +161,16 @@ No todo pendiente es un error: **agotamiento**, **pausa voluntaria** y **revisi�
 
 Cambiar un precio, cerrar una fecha, revisar un manifiesto o registrar asistencia requiere **contexto visible**, **alcance del cambio** y **resultado verificable**, con acceso directo a calendario, reservas y operación del día.
 
-No construir en esta fase un quinto playbook de **“cerrar venta privada”** sobre el formulario de notas existente; requiere cotización con importe, moneda, vigencia, condiciones, aceptación y enlace al flujo de reserva (proyecto posterior con contrato propio).
+No construir en esta fase otro playbook de **“cerrar venta privada”** sobre el formulario de notas existente; requiere cotización con importe, moneda, vigencia, condiciones, aceptación y enlace al flujo de reserva (proyecto posterior con contrato propio).
 
 ## Interfaz compartida de los playbooks guiados
 
 ### Barra de progreso y encabezado
 
 - Encabezado persistente con **nombre del tour** y, cuando corresponda, **opción** y **tarifa**.  
-- **Etapa actual** separada del **porcentaje preparado**.  
-- Escritorio: índice compacto de las seis etapas (playbook 1) con estados.  
-- Móvil: desplegable “Ver preparación”.  
+- **Preparar tour:** sólo etapa actual; índice bajo demanda.
+- **Publicar tour:** sólo pendientes accionables; cumplidos plegados.
+- Nunca mostrar ambos índices o porcentajes competidores en una misma pantalla.
 - **Una acción principal** por pantalla.  
 - **“Guardar y continuar”** solo avanza tras confirmar persistencia en servidor.  
 - **“Guardar y salir”** solo si realmente guarda en servidor.  
@@ -247,8 +189,8 @@ Conservar la **presentación pública compartida**; evitar navegación administr
 
 ## Construcción técnica compartida
 
-- **Una definición canónica** del recorrido de tours; identificadores antiguos como entradas compatibles.  
-- **Contexto compartido:** proveedor, producto, opción, tarifa, etapa, modalidad y retorno.  
+- **Un flujo canónico con dos playbooks** para crear/publicar; entradas antiguas compatibles.
+- **Contexto compartido:** proveedor, producto, opción, tarifa, playbook, ubicación, modalidad y retorno.
 - Separar evaluación de **preparación**, **autorización para publicar** y **disponibilidad para reservar**.  
 - **Reutilizar** componentes de edición existentes dentro de la guía.  
 - **Formularios compartidos** entre entradas del mismo playbook (creación y continuación).  
