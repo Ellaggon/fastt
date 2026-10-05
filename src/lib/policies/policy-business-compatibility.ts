@@ -142,7 +142,11 @@ export function evaluatePolicyBusinessCompatibility(
 			(tier) =>
 				isPositive(tier.daysBeforeArrival) &&
 				!isPositive(tier.hoursBeforeDeparture) &&
-				Number(tier.hoursBeforeDeparture) !== 0
+				!(
+					tier.hoursBeforeDeparture != null &&
+					String(tier.hoursBeforeDeparture).trim() !== "" &&
+					Number(tier.hoursBeforeDeparture) === 0
+				)
 		)
 		if (hasDayOnlyLeadTime) {
 			return [

@@ -3,7 +3,7 @@
 Status: active  
 Document type: runbook  
 Owner: Tours / Operations  
-Last verified: 2026-10-01
+Last verified: 2026-10-04
 Scope: detectar y reemplazar condiciones incompatibles sin alterar reservas anteriores  
 Source of truth: `scripts/db/audit-tour-policy-assignments.ts` y `src/lib/policies/audit-tour-policy-compatibility.ts`  
 Related code/tests: `src/lib/product/canonical-product-publication.ts`, pruebas de compatibilidad de políticas
@@ -17,10 +17,12 @@ Ejecutar el inventario de sólo lectura:
 pnpm exec tsx scripts/db/audit-tour-policy-assignments.ts
 ```
 
+El inventario incluye asignaciones activas, históricas y globales, con canal, vigencia y compatibilidad de cada versión activa. `effectiveFindings` contrasta por separado las condiciones efectivas con el mismo evaluador de publicación. Los registros inactivos no son bloqueos actuales.
+
 Clasificar cada resultado:
 
-- `compatible`: pago `pay_at_property`, no-show por total/porcentaje y cancelación con horas.
-- `decision_required`: cancelación por días; el proveedor debe elegir una ventana en horas.
+- `compatible`: pago `pay_at_property`, no-show por total/porcentaje y cancelación con horas o no reembolsable.
+- `decision_required`: cancelación por días; el proveedor debe elegir una ventana en horas o una condición no reembolsable.
 - `replacement_required`: `CheckIn`, primera noche, prepago o estadía larga.
 
 ## Reparación
@@ -46,8 +48,4 @@ Referencia ejecutable: `tests/integration/tour-checkin-repair.test.ts` (PostgreS
 
 ## Reversión
 
-Si la revisión comercial falla, restaurar la asignación anterior por su identificador/versionado y deshabilitar la nueva. No reescribir `daysBeforeArrival`, `first_night`, pagos ni snapshots. Cualquier relajación temporal del gate de publicación exige un cambio de código revisado y una ventana de despliegue registrada.
-
-## Inventario conocido
-
-La lectura del 21 de septiembre de 2026 encontró cuatro asignaciones activas y dos que requerían revisión en el tour `df7746a8-f728-4254-925e-a1e5a510ee7f`: cancelación basada en días y `CheckIn` hotelero. El dato es evidencia fechada; volver a ejecutar el inventario antes de operar.
+Si la revisión comercial falla, mantener bloqueada la venta y elegir otra versión compatible mediante el editor. El historial conserva los identificadores anteriores; no reactivar una asignación incompatible para eludir el validador. No reescribir `daysBeforeArrival`, `first_night`, pagos ni snapshots. Cualquier relajación temporal del gate de publicación exige un cambio de código revisado y una ventana de despliegue registrada.

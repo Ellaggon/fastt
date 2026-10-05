@@ -38,7 +38,7 @@ import { POST as reviewModeratePost } from "@/pages/api/reviews/moderate"
 import { POST as marketplacePost } from "@/pages/api/telemetry/marketplace"
 import { loadHotelTourCrossSell } from "@/lib/tours/hotelTourCrossSell"
 import { tourDepartureToStay } from "@/lib/tours/tourSemantics"
-import { createPolicyCapa6, replacePolicyAssignmentCapa6 } from "@/modules/policies/public"
+import { assignTourRatePlanPolicies } from "../test-support/tour-policy-fixture"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
 import { markProductPublished } from "../test-support/catalog-db-test-data"
 
@@ -847,39 +847,10 @@ describe("integration/tour P2 runtime trust (review, private, cross-sell, cancel
 			createdAt: new Date(),
 		} as any)
 
-		for (const policy of [
-			await createPolicyCapa6({
-				ownerProviderId: "prov_test",
-				category: "Cancellation",
-				description: "Flexible",
-				cancellationTiers: [{ daysBeforeArrival: 0, penaltyType: "percentage", penaltyAmount: 0 }],
-			} as any),
-			await createPolicyCapa6({
-				ownerProviderId: "prov_test",
-				category: "Payment",
-				description: "Pay later",
-				rules: { paymentType: "pay_at_property" },
-			} as any),
-			await createPolicyCapa6({
-				ownerProviderId: "prov_test",
-				category: "CheckIn",
-				description: "Day of",
-				rules: { checkInFrom: "09:00", checkInUntil: "11:00", checkOutUntil: "18:00" },
-			} as any),
-			await createPolicyCapa6({
-				ownerProviderId: "prov_test",
-				category: "NoShow",
-				description: "No show",
-				rules: { penaltyType: "percentage", penaltyAmount: 100 },
-			} as any),
-		]) {
-			await replacePolicyAssignmentCapa6({
-				policyId: policy.policyId,
-				scope: "rate_plan",
-				scopeId: ratePlanId,
-				channel: "web",
-			})
-		}
+		await assignTourRatePlanPolicies({
+			ownerProviderId: "prov_test",
+			ratePlanId,
+		})
 
 		await db.insert(EffectivePricing).values({
 			id: `ep_${suffix}`,

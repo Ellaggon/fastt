@@ -29,7 +29,7 @@ import { POST as holdPost } from "@/pages/api/inventory/hold"
 import { POST as bookingConfirmPost } from "@/pages/api/booking/confirm"
 import { searchOffers } from "@/container"
 import { tourDepartureToStay } from "@/lib/tours/tourSemantics"
-import { replacePolicyAssignmentCapa6, createPolicyCapa6 } from "@/modules/policies/public"
+import { assignTourRatePlanPolicies } from "../test-support/tour-policy-fixture"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
 import { markProductPublished } from "../test-support/catalog-db-test-data"
 import { upsertGeoPlace } from "@/shared/infrastructure/test-support/db-test-data"
@@ -201,46 +201,10 @@ async function seedTourCommercialReady(params: {
 		createdAt: new Date(),
 	} as any)
 
-	const cancellation = await createPolicyCapa6({
+	await assignTourRatePlanPolicies({
 		ownerProviderId: "prov_test",
-		category: "Cancellation",
-		description: "Flexible tour cancellation",
-		cancellationTiers: [
-			{
-				daysBeforeArrival: 1,
-				hoursBeforeDeparture: 6,
-				penaltyType: "percentage",
-				penaltyAmount: 0,
-			},
-			{ daysBeforeArrival: 0, penaltyType: "percentage", penaltyAmount: 100 },
-		],
-	} as any)
-	const payment = await createPolicyCapa6({
-		ownerProviderId: "prov_test",
-		category: "Payment",
-		description: "Pay at property",
-		rules: { paymentType: "pay_at_property" },
-	} as any)
-	const checkIn = await createPolicyCapa6({
-		ownerProviderId: "prov_test",
-		category: "CheckIn",
-		description: "Tour day-of",
-		rules: { checkInFrom: "08:00", checkInUntil: "18:00", checkOutUntil: "20:00" },
-	} as any)
-	const noShow = await createPolicyCapa6({
-		ownerProviderId: "prov_test",
-		category: "NoShow",
-		description: "No-show full",
-		rules: { penaltyType: "percentage", penaltyAmount: 100 },
-	} as any)
-	for (const policy of [cancellation, payment, checkIn, noShow]) {
-		await replacePolicyAssignmentCapa6({
-			policyId: policy.policyId,
-			scope: "rate_plan",
-			scopeId: params.ratePlanId,
-			channel: "web",
-		})
-	}
+		ratePlanId: params.ratePlanId,
+	})
 
 	await db.insert(DailyInventory).values({
 		id: `di_${crypto.randomUUID()}`,
