@@ -1,6 +1,6 @@
 ---
 import TourPublishedReviewAction from "@/components/tours/TourPublishedReviewAction.astro"
-import TourPreparationProgress from "@/components/tours/TourPreparationProgress.astro"
+import TourReviewStatus from "@/components/tours/TourReviewStatus.astro"
 import { presentTourDiagnostic } from "@/lib/tours/tourDiagnosticPresentation"
 import {
 	loadTourCommercialContext,
@@ -47,7 +47,6 @@ import { ArrowRight, BedDouble, CircleCheck, ClipboardList, ShieldCheck } from "
 import { buildGuestStayExpectationsSnapshot } from "@/modules/house-rules/public"
 import { mapResolvedPoliciesToUI, resolveEffectivePolicies } from "@/modules/policies/public"
 import {
-	and,
 	first,
 	asc,
 	db,
@@ -55,9 +54,7 @@ import {
 	Image,
 	inArray,
 	Product,
-	RatePlan,
 	VariantImage,
-	Variant,
 } from "@/shared/infrastructure/db/compat"
 
 const user = await getUserFromRequest(Astro.request)
@@ -85,13 +82,16 @@ const verificationDocumentsHref = isTour
 	? `${routes.providerSettingsVerificationDocuments()}?line=tour&tab=activity&experience=${encodeURIComponent(productId)}`
 	: routes.providerSettingsVerificationDocuments()
 const publicDetailHref = vertical.routes.publicDetailHref(productId)
-if (isTour) {
-	const selection = await loadTourCommercialContext({
-		providerId,
-		productId,
-		request: Astro.request,
-		url: Astro.url,
-	})
+const tourCommercialContext = isTour
+	? await loadTourCommercialContext({
+			providerId,
+			productId,
+			request: Astro.request,
+			url: Astro.url,
+		})
+	: null
+if (tourCommercialContext) {
+	const selection = tourCommercialContext
 	const entryResponse = tourContextEntryResponse(selection, Astro.url)
 	if (entryResponse) return entryResponse
 	const canonicalHref = getTourPreviewCanonicalHref(Astro.url, {
@@ -119,26 +119,14 @@ const realTourPreviewEmbedded = realTourPreviewWithReturn
 	: null
 
 const selectedTourReviewOffer =
-	isTour && previewVariantId && previewRatePlanId
-		? await db
-				.select({
-					variantName: Variant.name,
-					ratePlanName: RatePlan.name,
-					ratePlanIsActive: RatePlan.isActive,
-					ratePlanIsDefault: RatePlan.isDefault,
-					salesEnabled: Variant.salesEnabled,
-				})
-				.from(Variant)
-				.innerJoin(RatePlan, eq(RatePlan.variantId, Variant.id))
-				.where(
-					and(
-						eq(Variant.id, previewVariantId),
-						eq(Variant.productId, productId),
-						eq(Variant.kind, "tour_slot"),
-						eq(RatePlan.id, previewRatePlanId)
-					)
-				)
-				.then(first)
+	tourCommercialContext?.status === "resolved"
+		? {
+				variantName: tourCommercialContext.option.name,
+				ratePlanName: tourCommercialContext.rate.name,
+				ratePlanIsActive: tourCommercialContext.rate.isActive,
+				ratePlanIsDefault: tourCommercialContext.rate.isDefault,
+				salesEnabled: tourCommercialContext.option.salesEnabled,
+			}
 		: null
 
 const statusRow = await db
@@ -239,6 +227,13 @@ const stepId =
 				: "preview"
 
 function checkHref(check: (typeof checks)[number]) {
+	const href = unreturnedCheckHref(check)
+	if (!isTour || check.sectionKey === "preview") return href
+	const target = new URL(href, Astro.url)
+	target.searchParams.set("returnTo", Astro.url.pathname + Astro.url.search)
+	return target.pathname + target.search + target.hash
+}
+function unreturnedCheckHref(check: (typeof checks)[number]) {
 	if (isTour && check.href.startsWith("/provider/")) {
 		const target = new URL(check.href, Astro.url)
 		target.searchParams.set("returnTo", Astro.url.pathname + Astro.url.search)
@@ -454,7 +449,7 @@ if (!isTour) {
 			) : null
 		}
 
-		<Card variant="dark" class="!border-neutral-800 !bg-black">
+		<Card variant="panel" class="fastt-workspace-panel">
 			<div class="space-y-6">
 				<div class="flex flex-wrap items-start justify-between gap-4">
 					<div class="flex min-w-0 items-start gap-3">
@@ -468,7 +463,7 @@ if (!isTour) {
 							}
 						</span>
 						<div class="min-w-0">
-							<p class="text-xl font-semibold text-white">
+							<p class="text-xl font-semibold text-slate-950">
 								{
 									isPublished
 										? `${vertical.labels.workspaceSingular} publicado`
@@ -477,10 +472,12 @@ if (!isTour) {
 											: "Pendientes para publicar"
 								}
 							</p>
-							<p class="mt-1 max-w-3xl text-sm leading-6 text-neutral-400">
+							<p class="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
 								{
 									tourPresentation
-										? tourPresentation.message
+										? tourPresentation.preparation.complete
+											? tourPresentation.message
+											: "Completa lo que falta; tus datos guardados se conservan."
 										: isPublished
 											? "La ficha ya está activa. Usa esta revisión para comprobar cómo la verá el viajero."
 											: readyToPublish && publicationEligible
@@ -493,25 +490,29 @@ if (!isTour) {
 						</div>
 					</div>
 					<Badge
-						variant={isPublished || (readyToPublish && publicationEligible)
-							? "darkSuccess"
-							: "darkWarning"}
+						variant={isPublished || (readyToPublish && publicationEligible) ? "success" : "warning"}
 					>
 						{
 							isPublished
 								? "Publicado"
 								: readyToPublish && publicationEligible
 									? "Listo"
-									: readyToPublish
-										? "Negocio pendiente"
-										: `${readinessPercent}% ${publishState.tourDiagnostic ? "preparado" : "listo"}`
+									: tourPresentation
+										? tourPresentation.reviewStatusLabel
+										: readyToPublish
+											? "Negocio pendiente"
+											: `${readinessPercent}% listo`
 						}
 					</Badge>
 				</div>
 
 				{
 					tourPresentation ? (
-						<TourPreparationProgress preparation={tourPresentation.preparation} />
+						<TourReviewStatus
+							diagnosis={publishState.tourDiagnostic!}
+							reviewHref={Astro.url.pathname + Astro.url.search}
+							published={isPublished}
+						/>
 					) : (
 						<div class="flex items-center gap-3">
 							<div
@@ -520,14 +521,14 @@ if (!isTour) {
 								aria-valuemin="0"
 								aria-valuemax="100"
 								aria-valuenow={readinessPercent}
-								class="h-1 flex-1 overflow-hidden rounded-full bg-white/10"
+								class="h-1 flex-1 overflow-hidden rounded-full bg-slate-200"
 							>
 								<div
 									class="h-full rounded-full"
 									style={`width: ${Math.max(0, Math.min(100, readinessPercent))}%; background-color: var(--fastt-color-selection);`}
 								/>
 							</div>
-							<p class="shrink-0 text-xs font-medium text-neutral-400 tabular-nums">
+							<p class="shrink-0 text-xs font-medium text-slate-500 tabular-nums">
 								{actionableCompletedChecks} de{" "}
 								{publishState.tourDiagnostic ? publishState.totalChecks : actionableChecks.length}
 							</p>
@@ -536,14 +537,16 @@ if (!isTour) {
 				}
 
 				{
-					isPublished && tourPresentation ? (
+					!isPublished &&
+					tourPresentation &&
+					!(readyToPublish && publicationEligible) ? null : isPublished && tourPresentation ? (
 						<TourPublishedReviewAction
 							presentation={tourPresentation}
 							backHref={`${routes.productDetail(productId)}?${new URLSearchParams({ ...(previewVariantId ? { variantId: previewVariantId } : {}), ...(previewRatePlanId ? { ratePlanId: previewRatePlanId } : {}) })}`}
 							backLabel={playbook.active ? "Salir y volver a la ficha" : "Volver a la ficha"}
 						/>
 					) : (
-						<div class="flex flex-col gap-4 border-t border-white/10 pt-5 sm:flex-row sm:items-center sm:justify-between">
+						<div class="flex flex-col gap-4 border-t border-slate-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
 							<div class="flex min-w-0 items-start gap-3">
 								<span class="fastt-section-icon">
 									{isPublished || readyToPublish ? (
@@ -553,14 +556,14 @@ if (!isTour) {
 									)}
 								</span>
 								<div class="min-w-0">
-									<p class="text-xs font-semibold tracking-[0.14em] text-neutral-500 uppercase">
+									<p class="text-xs font-semibold tracking-[0.14em] text-slate-500 uppercase">
 										{isPublished
 											? "Revisión"
 											: readyToPublish && publicationEligible
 												? "Siguiente acción"
 												: "Siguiente requisito"}
 									</p>
-									<p class="mt-1 text-base font-semibold text-white">
+									<p class="mt-1 text-base font-semibold text-slate-950">
 										{isPublished
 											? "La página pública ya está disponible"
 											: readyToPublish && publicationEligible
@@ -569,7 +572,7 @@ if (!isTour) {
 													? (publicationBlocker?.label ?? "Configura el negocio para publicar")
 													: (nextBlocker?.label ?? "Revisa los requisitos pendientes")}
 									</p>
-									<p class="mt-1 max-w-xl text-sm leading-6 text-neutral-400">
+									<p class="mt-1 max-w-xl text-sm leading-6 text-slate-600">
 										{tourPresentation
 											? tourPresentation.support
 											: isPublished
@@ -595,11 +598,13 @@ if (!isTour) {
 									{playbook.active ? "Salir y volver a la ficha" : "Volver a la ficha"}
 								</Button>
 								{isPublished ? null : readyToPublish && publicationEligible ? (
-									<Button class="publish-product-button" type="button" variant="onDark">
+									<Button class="publish-product-button fastt-playbook-cta" type="button">
 										Publicar {vertical.labels.singular}
 									</Button>
-								) : readyToPublish && publicationBlocker ? (
-									<Button href={publicationBlocker.href} variant="onDark">
+								) : tourPresentation?.preparation.complete &&
+								  tourPresentation.activation.allowed ? null : readyToPublish &&
+								  publicationBlocker ? (
+									<Button href={publicationBlocker.href} variant="primary">
 										Resolver configuración
 									</Button>
 								) : (
@@ -609,7 +614,7 @@ if (!isTour) {
 												? checkHref(nextBlocker)
 												: (tourPresentation?.primaryAction.href ?? completePreparationHref)
 										}
-										variant="onDark"
+										class="fastt-playbook-cta"
 									>
 										{nextBlocker?.cta ??
 											tourPresentation?.primaryAction.label ??
@@ -624,13 +629,13 @@ if (!isTour) {
 
 				<div
 					id="publishFeedback"
-					class="hidden rounded-[var(--fastt-radius-control)] bg-white/10 px-4 py-3 text-sm leading-6 text-slate-200"
+					class="hidden rounded-[var(--fastt-radius-control)] border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700"
 					role="status"
 				>
 				</div>
 				<a
 					id="providerBlockerAction"
-					class="mt-3 hidden text-sm font-semibold text-white underline"
+					class="mt-3 hidden text-sm font-semibold text-slate-900 underline"
 					href="#"
 				>
 					Resolver configuración del negocio
@@ -639,7 +644,13 @@ if (!isTour) {
 		</Card>
 
 		{
-			realTourPreviewHref ? (
+			realTourPreviewHref &&
+			(isPublished ||
+				(tourPresentation?.preparation.complete &&
+					publishState.tourDiagnostic?.requirements.provider_authorization.result.state ===
+						"ready" &&
+					publishState.tourDiagnostic?.requirements.experience_authorization.result.state ===
+						"ready")) ? (
 				<section class="space-y-3" data-real-public-preview>
 					{previewVariantId || previewRatePlanId ? (
 						<aside
