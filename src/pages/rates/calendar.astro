@@ -1,4 +1,5 @@
 ---
+import PlaybookProductContextLine from "@/components/playbook/PlaybookProductContextLine.astro"
 import CalendarSubnav from "@/components/rates/CalendarSubnav.astro"
 import CalendarWorkspaceHeader from "@/components/rates/CalendarWorkspaceHeader"
 import CalendarWorkspaceSkeleton from "@/components/rates/CalendarWorkspaceSkeleton.astro"
@@ -11,9 +12,9 @@ import { resolveAddRoomPlaybookFromUrl } from "@/lib/playbook/add-room"
 import {
 	buildCompleteToPublishHref,
 	COMPLETE_TO_PUBLISH_PLAYBOOK_ID,
+	completeToPublishNextHref,
 	resolveCompleteToPublishPlaybookFromUrl,
 } from "@/lib/playbook/complete-to-publish"
-import { loadCompleteToPublishState } from "@/lib/playbook/evaluate-complete-to-publish-progress"
 import {
 	getNextLaunchStep,
 	resolveLaunchPlaybookFromUrl,
@@ -22,6 +23,7 @@ import {
 	getTourSharedRateCanonicalHref,
 	LAUNCH_TOUR_PLAYBOOK_ID,
 	resolveTourLaunchPlaybookFromUrl,
+	tourPreparationNextHref,
 } from "@/lib/playbook/launch-tour"
 import {
 	loadProviderRatePlansReadModel,
@@ -30,7 +32,6 @@ import {
 import { providerLocalToday } from "@/lib/rates/providerLocalToday"
 import { sellableDailyInventoryCondition } from "@/lib/rates/sellableDailyInventoryCondition"
 import { routes } from "@/lib/routes"
-import { tourActivationDecision } from "@/lib/tours/buildTourDiagnostic"
 import {
 	loadTourCommercialEntryContext,
 	tourContextEntryResponse,
@@ -194,21 +195,6 @@ const isGuidedAvailabilityStep = Boolean(
 		tourLaunchPlaybook.stepId === "calendar" ||
 		completePlaybook.stepId === "calendar")
 )
-const guidedTourState =
-	isGuidedAvailabilityStep &&
-	isTourContext &&
-	(activePlaybook === "complete-to-publish" || activePlaybook === "launch-tour")
-		? await loadCompleteToPublishState({
-				providerId: auth.providerId,
-				productId: playbookProductId,
-				request: Astro.request,
-				url: Astro.url,
-			})
-		: null
-const guidedTourActivation = guidedTourState?.tourDiagnostic
-	? tourActivationDecision(guidedTourState.tourDiagnostic)
-	: null
-const guidedTourPublishBlockers = guidedTourActivation?.blockers ?? []
 const guidedVariantId = String(
 	addRoomCtx.variantId || launchCtx.variantId || variantIdParam || ""
 ).trim()
@@ -246,6 +232,36 @@ const guidedInventoryDays =
 				)
 			)
 		: 0
+const tourGuidedLaunchContext = {
+	productId: playbookProductId,
+	variantId: variantIdParam || undefined,
+	ratePlanId: ratePlanIdParam || undefined,
+}
+const tourGuidedPlaybookContinue =
+	isGuidedAvailabilityStep && isTourContext
+		? {
+				hideFooter: false,
+				playbookVertical: "tour" as const,
+				continueLabel: "Guardar y continuar",
+				continueHref:
+					activePlaybook === "launch-tour"
+						? tourPreparationNextHref(
+								new URLSearchParams(Astro.url.searchParams),
+								tourGuidedLaunchContext,
+								"calendar"
+							)
+						: activePlaybook === "complete-to-publish"
+							? completeToPublishNextHref(
+									playbookProductId,
+									"calendar",
+									"tour",
+									tourGuidedLaunchContext
+								)
+							: null,
+				continueDisabled: guidedInventoryDays < 1,
+				continueDisabledTitle: "Abre al menos una fecha futura con cupo antes de continuar.",
+			}
+		: null
 const Layout = activePlaybook ? PlaybookLayout : WorkspaceLayout
 const layoutProps =
 	activePlaybook === "add-room"
@@ -282,7 +298,7 @@ const layoutProps =
 						variantId: variantIdParam,
 						ratePlanId: ratePlanIdParam,
 						isHotel: false,
-						hideFooter: true,
+						...tourGuidedPlaybookContinue,
 					}
 				: activePlaybook === "complete-to-publish"
 					? {
@@ -298,9 +314,10 @@ const layoutProps =
 							isHotel: !isTourContext,
 							playbookVertical: isTourContext ? "tour" : "hotel",
 							continueHref: isTourContext
-								? null
+								? (tourGuidedPlaybookContinue?.continueHref ?? null)
 								: buildCompleteToPublishHref(routes.productPreview(playbookProductId), "preview"),
-							hideFooter: isTourContext,
+							hideFooter: isTourContext ? false : undefined,
+							...(isTourContext ? tourGuidedPlaybookContinue : {}),
 						}
 					: { title: "Calendario" }
 
@@ -311,10 +328,22 @@ for (const name of ["pricing", "inventory", "restrictions", "searchFreshness", "
 }
 timing.addTotal("total")
 timing.setHeader(Astro.response.headers)
+
+const deferPlaybookProductContext = Boolean(
+	isGuidedAvailabilityStep && isTourContext && activePlaybook
+)
+const guidedTourContextLine =
+	deferPlaybookProductContext && matchedRow
+		? {
+				productName: String(matchedRow.productName ?? ""),
+				variantName: String(matchedRow.variantName ?? ""),
+			}
+		: null
 ---
 
 <Layout
 	{...layoutProps}
+	deferPlaybookProductContext={deferPlaybookProductContext}
 	productType={contextualRow?.productType ?? requestedProduct?.productType ?? null}
 >
 	<div class="space-y-6 md:space-y-8">
@@ -322,10 +351,12 @@ timing.setHeader(Astro.response.headers)
 			isGuidedAvailabilityStep ? (
 				<header class="flex flex-wrap items-start justify-between gap-4">
 					<div class="space-y-2">
-						{isTourContext ? (
-							<p class="text-xs font-semibold tracking-wide text-slate-400 uppercase">
-								{matchedRow?.productName ?? ""} · Primera salida
-							</p>
+						{guidedTourContextLine ? (
+							<PlaybookProductContextLine
+								productName={guidedTourContextLine.productName}
+								variantName={guidedTourContextLine.variantName}
+								isTour
+							/>
 						) : null}
 						<h1 class="text-3xl font-semibold text-slate-100">Disponibilidad inicial</h1>
 						<p class="max-w-3xl text-sm leading-6 text-slate-300">
@@ -365,11 +396,6 @@ timing.setHeader(Astro.response.headers)
 						initialInventoryDays: guidedInventoryDays,
 						timezone: calendarTimezone,
 						finalizationError: guidedFinalizationError,
-						activationBlockers: guidedTourPublishBlockers.map((blocker) => ({
-							id: blocker.id,
-							label: blocker.label,
-							href: blocker.href,
-						})),
 					}
 				: undefined}
 		>

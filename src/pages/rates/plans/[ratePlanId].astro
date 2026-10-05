@@ -1,5 +1,7 @@
 ---
+import { tourPreparationReturnHref } from "@/lib/playbook/launch-tour"
 import { loadTourCommercialContext } from "@/lib/tours/loadTourCommercialContext"
+import { ratePlanPricingReadRepository } from "@/container"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import FormField from "@/components/ui/FormField.astro"
@@ -20,7 +22,7 @@ import {
 	resolveLaunchPlaybookFromUrl,
 } from "@/lib/playbook/launch-accommodation"
 import {
-	getNextTourLaunchStep,
+	tourPreparationNextHref,
 	getTourRateDetailCanonicalHref,
 	resolveTourLaunchPlaybookFromUrl,
 } from "@/lib/playbook/launch-tour"
@@ -163,7 +165,16 @@ if (isPlaybookMode) {
 		variantName: String(row.variantName ?? ""),
 		ratePlanName: String(row.ratePlanName),
 	}
-	loaded = { initialCurrency: "USD", initialBasePrice: "" }
+	const pricingSummary =
+		activeView === "price"
+			? await timing.time("basePrice", () =>
+					ratePlanPricingReadRepository.getRatePlanPricingSummary(ratePlanId)
+				)
+			: null
+	loaded = {
+		initialCurrency: pricingSummary?.currency ?? "USD",
+		initialBasePrice: pricingSummary?.basePrice != null ? String(pricingSummary.basePrice) : "",
+	}
 } else {
 	const loadedRatePlanPromise = timing.time("ratePlanContext", () =>
 		loadRatePlanPricingData({
@@ -323,15 +334,17 @@ const tourCtx = {
 	variantId: String(row.variantId),
 	ratePlanId,
 }
+const reviewReturnHref =
+	isTourContext && completePlaybook.active && Astro.url.searchParams.get("tourFlowVersion") === "2"
+		? tourPreparationReturnHref(Astro.url.searchParams.get("returnTo"), tourCtx.productId)
+		: null
+const currentTourRateStep = activeView === "price" ? "rate" : "conditions"
 const tourContinueHref = tourLaunchPlaybook.active
-	? (getNextTourLaunchStep("conditions")?.buildHref(tourCtx) ?? null)
+	? tourPreparationNextHref(Astro.url.searchParams, tourCtx, currentTourRateStep)
 	: null
 const completeContinueHref = completePlaybook.active
 	? isTourContext
-		? buildCompleteToPublishHref(
-				`${routes.calendar()}?focus=availability&productId=${encodeURIComponent(tourCtx.productId)}&variantId=${encodeURIComponent(tourCtx.variantId)}&ratePlanId=${encodeURIComponent(ratePlanId)}`,
-				"calendar"
-			)
+		? tourPreparationNextHref(Astro.url.searchParams, tourCtx, currentTourRateStep)
 		: completeToPublishNextHref(tourCtx.productId, "bookingPolicies", "hotel", {
 				variantId: tourCtx.variantId,
 				ratePlanId,
@@ -378,7 +391,7 @@ const complianceReviewHref = (() => {
 	target.searchParams.set("returnTo", returnTo)
 	return `${target.pathname}?${target.searchParams.toString()}`
 })()
-const effectiveActiveView = isPlaybookMode ? "conditions" : activeView
+const effectiveActiveView = isPlaybookMode && !isTourContext ? "conditions" : activeView
 const ratePlanListHref = `${routes.rates()}?${new URLSearchParams({ productId: String(row.productId), variantId: String(row.variantId), ratePlanId })}`
 const Layout = activePlaybook ? PlaybookLayout : WorkspaceLayout
 const layoutProps =
@@ -393,7 +406,11 @@ const layoutProps =
 				ratePlanId,
 				isHotel: true,
 				continueHref: addRoomContinueHref,
-				continueLabel: "Confirmar condiciones y continuar →",
+				continueLabel: reviewReturnHref
+					? "Volver a revisión"
+					: isTourContext && currentTourRateStep === "rate"
+						? "Guardar precio y continuar"
+						: "Confirmar condiciones y continuar →",
 				continueReload: true,
 			}
 		: activePlaybook === "launch"
@@ -407,7 +424,11 @@ const layoutProps =
 					ratePlanId,
 					isHotel: true,
 					continueHref: launchContinueHref,
-					continueLabel: "Confirmar condiciones y continuar →",
+					continueLabel: reviewReturnHref
+						? "Volver a revisión"
+						: isTourContext && currentTourRateStep === "rate"
+							? "Guardar precio y continuar"
+							: "Confirmar condiciones y continuar →",
 					continueReload: true,
 				}
 			: activePlaybook === "launch-tour"
@@ -420,8 +441,13 @@ const layoutProps =
 						variantId: tourCtx.variantId,
 						ratePlanId,
 						isHotel: false,
-						continueHref: tourContinueHref,
-						continueLabel: "Confirmar condiciones y continuar →",
+						continueHref: reviewReturnHref ?? tourContinueHref,
+						continueFormId: currentTourRateStep === "rate" ? "pricingForm" : undefined,
+						continueLabel: reviewReturnHref
+							? "Volver a revisión"
+							: isTourContext && currentTourRateStep === "rate"
+								? "Guardar precio y continuar"
+								: "Confirmar condiciones y continuar →",
 						continueReload: true,
 					}
 				: activePlaybook === "complete-to-publish"
@@ -435,8 +461,14 @@ const layoutProps =
 							ratePlanId,
 							isHotel: !isTourContext,
 							playbookVertical: isTourContext ? "tour" : "hotel",
-							continueHref: completeContinueHref,
-							continueLabel: "Confirmar condiciones y continuar →",
+							continueHref: reviewReturnHref ?? completeContinueHref,
+							continueFormId:
+								isTourContext && currentTourRateStep === "rate" ? "pricingForm" : undefined,
+							continueLabel: reviewReturnHref
+								? "Volver a revisión"
+								: isTourContext && currentTourRateStep === "rate"
+									? "Guardar precio y continuar"
+									: "Confirmar condiciones y continuar →",
 							continueReload: true,
 							lightweight: true,
 						}
@@ -463,11 +495,15 @@ logRoutePerformance({
 		<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
 			<div class="space-y-1.5">
 				<h1 class="text-3xl font-semibold text-slate-100">
-					{isPlaybookMode ? "Condiciones de la tarifa" : viewTitles[effectiveActiveView]}
+					{
+						isPlaybookMode && effectiveActiveView === "conditions"
+							? "Condiciones de la tarifa"
+							: viewTitles[effectiveActiveView]
+					}
 				</h1>
 				<p class="max-w-2xl text-sm leading-6 text-slate-300">
 					{
-						isPlaybookMode
+						isPlaybookMode && effectiveActiveView === "conditions"
 							? isTourContext
 								? "Revisa cancelación, pago al proveedor, presentación y preguntas necesarias antes de abrir fechas."
 								: "Creamos condiciones iniciales para esta tarifa. Revísalas o ajústalas antes de abrir disponibilidad."
@@ -681,9 +717,13 @@ logRoutePerformance({
 			</div>
 
 			{
-				isPlaybookMode ? null : (
+				isPlaybookMode && !(isTourContext && effectiveActiveView === "price") ? null : (
 					<div
-						class={effectiveActiveView === "price" ? "p-5" : "hidden p-5"}
+						class={
+							effectiveActiveView === "price"
+								? "fastt-card bg-white p-5 text-slate-950"
+								: "hidden p-5"
+						}
 						data-rate-plan-panel="price"
 					>
 						<div class="mx-auto max-w-3xl">
@@ -693,6 +733,16 @@ logRoutePerformance({
 								initialBasePrice={loaded.initialBasePrice}
 								backHref={routes.rates()}
 								offeringType={offeringType}
+								guidedContinueHref={
+									isPlaybookMode && isTourContext
+										? (reviewReturnHref ?? tourContinueHref ?? completeContinueHref)
+										: undefined
+								}
+								guidedExitHref={
+									isPlaybookMode && isTourContext
+										? `/product/${encodeURIComponent(tourCtx.productId)}`
+										: undefined
+								}
 							/>
 						</div>
 					</div>
@@ -881,165 +931,178 @@ logRoutePerformance({
 </Layout>
 
 <script>
-	const ratePlanTabs = Array.from(
-		document.querySelectorAll<HTMLAnchorElement>("[data-rate-plan-tab]")
-	)
-	const ratePlanPanels = Array.from(
-		document.querySelectorAll<HTMLElement>("[data-rate-plan-panel]")
-	)
+	function initRatePlanWorkspace() {
+		const workspace = document.querySelector<HTMLElement>("[data-rate-plan-panel]")
+		if (!workspace || workspace.dataset.workspaceBound === "true") return
+		workspace.dataset.workspaceBound = "true"
+		const ratePlanTabs = Array.from(
+			document.querySelectorAll<HTMLAnchorElement>("[data-rate-plan-tab]")
+		)
+		const ratePlanPanels = Array.from(
+			document.querySelectorAll<HTMLElement>("[data-rate-plan-panel]")
+		)
 
-	function renderRatePlanTab(view: string, updateUrl = false) {
-		for (const panel of ratePlanPanels) {
-			panel.classList.toggle("hidden", panel.dataset.ratePlanPanel !== view)
-		}
-		for (const tab of ratePlanTabs) {
-			const active = tab.dataset.ratePlanTab === view
-			tab.dataset.active = active ? "true" : "false"
-			tab.classList.toggle("text-slate-600", !active)
-			tab.classList.toggle("hover:bg-sky-100/80", !active)
-			tab.classList.toggle("hover:text-sky-950", !active)
-			if (active) tab.setAttribute("aria-current", "page")
-			else tab.removeAttribute("aria-current")
-		}
-		if (updateUrl) {
-			const url = new URL(window.location.href)
-			url.searchParams.set("vista", view)
-			window.history.pushState({ ratePlanView: view }, "", url)
-		}
-	}
-
-	for (const tab of ratePlanTabs) {
-		tab.addEventListener("click", (event) => {
-			if (
-				event instanceof MouseEvent &&
-				(event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
-			)
-				return
-			event.preventDefault()
-			renderRatePlanTab(String(tab.dataset.ratePlanTab ?? "conditions"), true)
-		})
-	}
-	window.addEventListener("popstate", () => {
-		renderRatePlanTab(new URL(window.location.href).searchParams.get("vista") ?? "conditions")
-	})
-
-	const editForm = document.querySelector<HTMLFormElement>("[data-rate-plan-edit-form]")
-	const statusButton = document.querySelector<HTMLButtonElement>("[data-rate-plan-toggle-status]")
-	statusButton?.addEventListener("click", async () => {
-		if (!editForm) return
-		const feedback = editForm.querySelector<HTMLElement>("[data-rate-plan-edit-feedback]")
-		const formData = new FormData(editForm)
-		const nextActive = statusButton.dataset.nextActive === "true"
-		statusButton.disabled = true
-		if (feedback)
-			feedback.textContent = nextActive ? "Activando tarifa..." : "Desactivando tarifa..."
-		try {
-			const response = await fetch("/api/rateplans/update", {
-				method: "PUT",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					id: editForm.dataset.ratePlanId,
-					name: String(formData.get("name") || ""),
-					description: String(formData.get("description") || ""),
-					isActive: nextActive,
-					isDefault: Boolean(formData.get("isDefault")),
-				}),
-			})
-			const result = await response.json().catch(() => null)
-			if (!response.ok) throw new Error(result?.error || "No se pudo cambiar el estado")
-			window.location.reload()
-		} catch (error) {
-			if (feedback)
-				feedback.textContent =
-					error instanceof Error ? error.message : "No se pudo cambiar el estado"
-			statusButton.disabled = false
-		}
-	})
-
-	const deleteDialog = document.querySelector<HTMLDialogElement>("[data-rate-plan-delete-dialog]")
-	const deleteForm = document.querySelector<HTMLFormElement>("[data-rate-plan-delete-form]")
-	const deleteInput = deleteForm?.querySelector<HTMLInputElement>(
-		"[data-rate-plan-delete-confirmation]"
-	)
-	const deleteSubmit = deleteForm?.querySelector<HTMLButtonElement>(
-		"[data-confirm-rate-plan-delete]"
-	)
-	document
-		.querySelector("[data-open-rate-plan-delete]")
-		?.addEventListener("click", () => deleteDialog?.showModal())
-	if (
-		new URL(window.location.href).searchParams.get("accion") === "eliminar" &&
-		!document.querySelector<HTMLButtonElement>("[data-open-rate-plan-delete]")?.disabled
-	) {
-		deleteDialog?.showModal()
-	}
-	document
-		.querySelector("[data-close-rate-plan-delete]")
-		?.addEventListener("click", () => deleteDialog?.close())
-	deleteDialog?.addEventListener("click", (event) => {
-		if (event.target === deleteDialog) deleteDialog.close()
-	})
-	deleteInput?.addEventListener("input", () => {
-		if (deleteSubmit)
-			deleteSubmit.disabled =
-				deleteInput.value.trim() !== String(deleteForm?.dataset.ratePlanName ?? "")
-	})
-	deleteForm?.addEventListener("submit", async (event) => {
-		event.preventDefault()
-		if (!deleteSubmit || deleteSubmit.disabled) return
-		const feedback = deleteForm.querySelector<HTMLElement>("[data-rate-plan-delete-feedback]")
-		deleteSubmit.disabled = true
-		if (feedback) feedback.textContent = "Eliminando tarifa..."
-		try {
-			const response = await fetch("/api/rateplans/delete", {
-				method: "DELETE",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ id: deleteForm.dataset.ratePlanId }),
-			})
-			const result = await response.json().catch(() => null)
-			if (!response.ok) throw new Error(result?.error || "No se pudo eliminar la tarifa")
-			window.location.href = "/rates/plans/manage?vista=all"
-		} catch (error) {
-			if (feedback)
-				feedback.textContent =
-					error instanceof Error ? error.message : "No se pudo eliminar la tarifa"
-			deleteSubmit.disabled = false
-		}
-	})
-
-	document.querySelectorAll<HTMLFormElement>("[data-rate-plan-edit-form]").forEach((form) => {
-		form.addEventListener("submit", async (event) => {
-			event.preventDefault()
-			const feedback = form.querySelector("[data-rate-plan-edit-feedback]")
-			const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]')
-			const formData = new FormData(form)
-			const payload = {
-				id: form.dataset.ratePlanId,
-				name: String(formData.get("name") || ""),
-				description: String(formData.get("description") || ""),
-				isActive: Boolean(formData.get("isActive")),
-				isDefault: Boolean(formData.get("isDefault")),
+		function renderRatePlanTab(view: string, updateUrl = false) {
+			for (const panel of ratePlanPanels) {
+				panel.classList.toggle("hidden", panel.dataset.ratePlanPanel !== view)
 			}
-			if (feedback) feedback.textContent = "Guardando..."
-			submit?.setAttribute("disabled", "true")
+			for (const tab of ratePlanTabs) {
+				const active = tab.dataset.ratePlanTab === view
+				tab.dataset.active = active ? "true" : "false"
+				tab.classList.toggle("text-slate-600", !active)
+				tab.classList.toggle("hover:bg-sky-100/80", !active)
+				tab.classList.toggle("hover:text-sky-950", !active)
+				if (active) tab.setAttribute("aria-current", "page")
+				else tab.removeAttribute("aria-current")
+			}
+			if (updateUrl) {
+				const url = new URL(window.location.href)
+				url.searchParams.set("vista", view)
+				window.history.pushState({ ratePlanView: view }, "", url)
+			}
+		}
+
+		for (const tab of ratePlanTabs) {
+			tab.addEventListener("click", (event) => {
+				if (
+					event instanceof MouseEvent &&
+					(event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
+				)
+					return
+				event.preventDefault()
+				renderRatePlanTab(String(tab.dataset.ratePlanTab ?? "conditions"), true)
+			})
+		}
+		const onPopState = () => {
+			renderRatePlanTab(new URL(window.location.href).searchParams.get("vista") ?? "conditions")
+		}
+		window.addEventListener("popstate", onPopState)
+		document.addEventListener(
+			"astro:before-swap",
+			() => window.removeEventListener("popstate", onPopState),
+			{ once: true }
+		)
+
+		const editForm = document.querySelector<HTMLFormElement>("[data-rate-plan-edit-form]")
+		const statusButton = document.querySelector<HTMLButtonElement>("[data-rate-plan-toggle-status]")
+		statusButton?.addEventListener("click", async () => {
+			if (!editForm) return
+			const feedback = editForm.querySelector<HTMLElement>("[data-rate-plan-edit-feedback]")
+			const formData = new FormData(editForm)
+			const nextActive = statusButton.dataset.nextActive === "true"
+			statusButton.disabled = true
+			if (feedback)
+				feedback.textContent = nextActive ? "Activando tarifa..." : "Desactivando tarifa..."
 			try {
 				const response = await fetch("/api/rateplans/update", {
 					method: "PUT",
 					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify(payload),
+					body: JSON.stringify({
+						id: editForm.dataset.ratePlanId,
+						name: String(formData.get("name") || ""),
+						description: String(formData.get("description") || ""),
+						isActive: nextActive,
+						isDefault: Boolean(formData.get("isDefault")),
+					}),
 				})
 				const result = await response.json().catch(() => null)
-				if (!response.ok) throw new Error(result?.error || "No se pudo guardar la tarifa")
+				if (!response.ok) throw new Error(result?.error || "No se pudo cambiar el estado")
 				window.location.reload()
 			} catch (error) {
-				if (feedback) {
+				if (feedback)
 					feedback.textContent =
-						error instanceof Error ? error.message : "No se pudo guardar la tarifa"
-				}
-				submit?.removeAttribute("disabled")
+						error instanceof Error ? error.message : "No se pudo cambiar el estado"
+				statusButton.disabled = false
 			}
 		})
-	})
+
+		const deleteDialog = document.querySelector<HTMLDialogElement>("[data-rate-plan-delete-dialog]")
+		const deleteForm = document.querySelector<HTMLFormElement>("[data-rate-plan-delete-form]")
+		const deleteInput = deleteForm?.querySelector<HTMLInputElement>(
+			"[data-rate-plan-delete-confirmation]"
+		)
+		const deleteSubmit = deleteForm?.querySelector<HTMLButtonElement>(
+			"[data-confirm-rate-plan-delete]"
+		)
+		document
+			.querySelector("[data-open-rate-plan-delete]")
+			?.addEventListener("click", () => deleteDialog?.showModal())
+		if (
+			new URL(window.location.href).searchParams.get("accion") === "eliminar" &&
+			!document.querySelector<HTMLButtonElement>("[data-open-rate-plan-delete]")?.disabled
+		) {
+			deleteDialog?.showModal()
+		}
+		document
+			.querySelector("[data-close-rate-plan-delete]")
+			?.addEventListener("click", () => deleteDialog?.close())
+		deleteDialog?.addEventListener("click", (event) => {
+			if (event.target === deleteDialog) deleteDialog.close()
+		})
+		deleteInput?.addEventListener("input", () => {
+			if (deleteSubmit)
+				deleteSubmit.disabled =
+					deleteInput.value.trim() !== String(deleteForm?.dataset.ratePlanName ?? "")
+		})
+		deleteForm?.addEventListener("submit", async (event) => {
+			event.preventDefault()
+			if (!deleteSubmit || deleteSubmit.disabled) return
+			const feedback = deleteForm.querySelector<HTMLElement>("[data-rate-plan-delete-feedback]")
+			deleteSubmit.disabled = true
+			if (feedback) feedback.textContent = "Eliminando tarifa..."
+			try {
+				const response = await fetch("/api/rateplans/delete", {
+					method: "DELETE",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ id: deleteForm.dataset.ratePlanId }),
+				})
+				const result = await response.json().catch(() => null)
+				if (!response.ok) throw new Error(result?.error || "No se pudo eliminar la tarifa")
+				window.location.href = "/rates/plans/manage?vista=all"
+			} catch (error) {
+				if (feedback)
+					feedback.textContent =
+						error instanceof Error ? error.message : "No se pudo eliminar la tarifa"
+				deleteSubmit.disabled = false
+			}
+		})
+
+		document.querySelectorAll<HTMLFormElement>("[data-rate-plan-edit-form]").forEach((form) => {
+			form.addEventListener("submit", async (event) => {
+				event.preventDefault()
+				const feedback = form.querySelector("[data-rate-plan-edit-feedback]")
+				const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]')
+				const formData = new FormData(form)
+				const payload = {
+					id: form.dataset.ratePlanId,
+					name: String(formData.get("name") || ""),
+					description: String(formData.get("description") || ""),
+					isActive: Boolean(formData.get("isActive")),
+					isDefault: Boolean(formData.get("isDefault")),
+				}
+				if (feedback) feedback.textContent = "Guardando..."
+				submit?.setAttribute("disabled", "true")
+				try {
+					const response = await fetch("/api/rateplans/update", {
+						method: "PUT",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify(payload),
+					})
+					const result = await response.json().catch(() => null)
+					if (!response.ok) throw new Error(result?.error || "No se pudo guardar la tarifa")
+					window.location.reload()
+				} catch (error) {
+					if (feedback) {
+						feedback.textContent =
+							error instanceof Error ? error.message : "No se pudo guardar la tarifa"
+					}
+					submit?.removeAttribute("disabled")
+				}
+			})
+		})
+	}
+	initRatePlanWorkspace()
+	document.addEventListener("astro:page-load", initRatePlanWorkspace)
 </script>
 
 <script>

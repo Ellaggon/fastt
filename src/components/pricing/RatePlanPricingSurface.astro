@@ -8,6 +8,8 @@ interface Props {
 	ratePlanId: string
 	initialCurrency: string
 	initialBasePrice: string
+	guidedContinueHref?: string | null
+	guidedExitHref?: string | null
 	backHref?: string
 	offeringType?: "accommodation" | "tour"
 }
@@ -16,13 +18,20 @@ const {
 	ratePlanId,
 	initialCurrency,
 	initialBasePrice,
+	guidedContinueHref,
+	guidedExitHref,
 	backHref = "/rates/plans/manage",
 	offeringType = "accommodation",
 } = Astro.props
 const isTour = offeringType === "tour"
 ---
 
-<form id="pricingForm" class="mx-auto max-w-3xl space-y-6">
+<form
+	id="pricingForm"
+	class="mx-auto max-w-3xl space-y-6"
+	data-guided-continue={guidedContinueHref}
+	data-guided-exit={guidedExitHref}
+>
 	<Input type="hidden" name="ratePlanId" value={ratePlanId} />
 	<div class="space-y-5">
 		<div>
@@ -67,50 +76,74 @@ const isTour = offeringType === "tour"
 			</FormField>
 		</div>
 	</div>
-	<p id="pricingFeedback" class="whitespace-pre-wrap text-sm text-slate-600"></p>
-	<div class="flex flex-wrap items-center justify-between gap-3 pt-2">
-		<Button href={backHref} variant="ghost"> Volver a tarifas </Button>
-		<Button id="submitBtn" type="submit"> Guardar precio base </Button>
-	</div>
+	<p id="pricingFeedback" role="status" class="whitespace-pre-wrap text-sm text-slate-600"></p>
+	{
+		!guidedContinueHref ? (
+			<div class="flex flex-wrap items-center justify-between gap-3 pt-2">
+				<Button href={backHref} variant="ghost">
+					{" "}
+					Volver a tarifas{" "}
+				</Button>
+				<Button id="submitBtn" type="submit">
+					{" "}
+					Guardar precio base{" "}
+				</Button>
+			</div>
+		) : null
+	}
 </form>
 
-<script type="module">
-	const form = document.getElementById("pricingForm")
-	const submitBtn = document.getElementById("submitBtn")
-	const feedback = document.getElementById("pricingFeedback")
-
-	function setState(state, detail = "") {
-		const labels = {
-			loading: "Guardando...",
-			success: "Guardado correctamente.",
-			error: "No se pudo guardar el precio base.",
-		}
-		if (feedback) feedback.textContent = `${labels[state] ?? ""}${detail ? `\n${detail}` : ""}`
-	}
-
-	form?.addEventListener("submit", async (event) => {
-		event.preventDefault()
-		if (!(submitBtn instanceof HTMLButtonElement) || !(form instanceof HTMLFormElement)) return
-		submitBtn.disabled = true
-		setState("loading")
-		try {
+<script>
+	import { setPlaybookSubmitBusy } from "@/lib/forms/playbookFormBusy"
+	import { bindPlaybookFormDraft } from "@/lib/forms/playbookFormDraft"
+	function initPricingForm() {
+		const form = document.getElementById("pricingForm")
+		if (!(form instanceof HTMLFormElement) || form.dataset.bound === "true") return
+		form.dataset.bound = "true"
+		const feedback = document.getElementById("pricingFeedback")
+		const draft = bindPlaybookFormDraft(form, {
+			key: `rate:${new FormData(form).get("ratePlanId")}:base-price`,
+		})
+		form.addEventListener("submit", async (event) => {
+			event.preventDefault()
+			if (form.dataset.saving === "true") return
+			const submitter = event.submitter
+			const exit =
+				submitter instanceof HTMLButtonElement &&
+				submitter.name === "playbookNav" &&
+				submitter.value === "exit"
 			const formData = new FormData(form)
-			const response = await fetch("/api/pricing/base-rate", { method: "POST", body: formData })
-			if (response.status === 401) {
-				window.location.href = "/SignInPage"
-				return
+			form.dataset.saving = "true"
+			setPlaybookSubmitBusy(form, true, "Guardando…")
+			if (feedback) {
+				feedback.setAttribute("role", "status")
+				feedback.textContent = "Guardando precio…"
 			}
-			const payload = await response.json().catch(() => ({}))
-			if (!response.ok) {
-				submitBtn.disabled = false
-				setState("error", String(payload?.error ?? response.status))
-				return
+			try {
+				const response = await fetch("/api/pricing/base-rate", { method: "POST", body: formData })
+				if (response.status === 401) {
+					window.location.href = "/SignInPage"
+					return
+				}
+				const payload = await response.json().catch(() => ({}))
+				if (!response.ok)
+					throw new Error(String(payload?.error ?? "No se pudo guardar el precio base."))
+				draft.clear()
+				if (feedback) feedback.textContent = "Precio guardado."
+				const destination = exit ? form.dataset.guidedExit : form.dataset.guidedContinue
+				if (destination) window.location.href = destination
+				else window.location.reload()
+			} catch (error) {
+				if (feedback) {
+					feedback.setAttribute("role", "alert")
+					feedback.textContent = `${error instanceof Error ? error.message : "No se pudo guardar."} Conservamos los datos para reintentar.`
+				}
+			} finally {
+				form.dataset.saving = "false"
+				setPlaybookSubmitBusy(form, false)
 			}
-			setState("success")
-			window.location.reload()
-		} catch (error) {
-			submitBtn.disabled = false
-			setState("error", `Error de red: ${String(error)}`)
-		}
-	})
+		})
+	}
+	initPricingForm()
+	document.addEventListener("astro:page-load", initPricingForm)
 </script>
