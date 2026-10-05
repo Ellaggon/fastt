@@ -426,8 +426,8 @@ const tourAttentionTargetsCurrentStep =
 	Boolean(guidedAttentionHref) &&
 	normalizePlaybookAttentionHref(Astro.url, guidedAttentionHref) === currentPlaybookHref
 /** Playbook pages already host the form; hide self-referential diagnosis cards. */
-const showTourAttentionAside =
-	showProgress && Boolean(tourAttention) && !tourAttentionTargetsCurrentStep
+const activeTourAttention =
+	showProgress && tourAttention && !tourAttentionTargetsCurrentStep ? tourAttention : null
 
 const progressHeading =
 	isAddRoom && stepNumber && totalSteps
@@ -655,20 +655,20 @@ const PlaybookShell = active ? GuidedPreparationLayout : WorkspaceLayout
 	}
 
 	{
-		showTourAttentionAside ? (
+		activeTourAttention ? (
 			<aside
 				class="fastt-card mb-4 flex flex-wrap items-center justify-between gap-3 border-slate-700 bg-slate-900/40 px-4 py-3 text-sm"
 				aria-label="Diagnóstico de la oferta"
 			>
 				<div>
 					<>
-						<p class="font-medium">{tourAttention.nextLabel}</p>
-						<p class="mt-1 text-slate-400">{tourAttention.support}</p>
+						<p class="font-medium">{activeTourAttention.nextLabel}</p>
+						<p class="mt-1 text-slate-400">{activeTourAttention.support}</p>
 					</>
 				</div>
-				{tourAttention.nextRequirementId ? (
+				{activeTourAttention.nextRequirementId ? (
 					<a class="shrink-0 font-medium underline underline-offset-4" href={guidedAttentionHref}>
-						{tourAttention.primaryAction.label}
+						{activeTourAttention.primaryAction.label}
 					</a>
 				) : null}
 			</aside>
