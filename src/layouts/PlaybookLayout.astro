@@ -6,12 +6,11 @@ import {
 import { loadTourCommercialContext } from "@/lib/tours/loadTourCommercialContext"
 import { withTourCommercialContext } from "@/lib/tours/resolveTourCommercialContext"
 import PreparationProgress from "@/components/tours/TourPreparationProgress.astro"
-import TourPreparationRequirementsRail from "@/components/tours/TourPreparationRequirementsRail.astro"
 import {
-	formatTourPreparationProgressLine,
-	resolveActiveTourPreparationRequirement,
-} from "@/lib/tours/tourPreparationRequirements"
-import type { TourRequirementId } from "@/lib/tours/tourDiagnosticContract"
+	resolveTourPlaybookContext,
+	tourPublicationHref,
+} from "@/lib/playbook/tour-playbook-context"
+import PlaybookProductContextLine from "@/components/playbook/PlaybookProductContextLine.astro"
 import Button from "@/components/ui/Button.astro"
 import GuidedPreparationLayout from "@/layouts/GuidedPreparationLayout.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
@@ -53,8 +52,6 @@ import {
 } from "@/lib/playbook/launch-tour"
 import type { PlaybookId } from "@/lib/playbook/types"
 import { getTourPublishingStage } from "@/lib/playbook/tour-publishing-stages"
-import { Hotel, Ticket } from "@lucide/astro"
-
 interface Props {
 	title?: string
 	productType?: string | null
@@ -76,12 +73,14 @@ interface Props {
 	hideFooter?: boolean
 	lightweight?: boolean
 	productDisplayName?: string
+	/** When true, the page renders the product context line next to its step heading. */
+	deferPlaybookProductContext?: boolean
 }
 
 const {
 	title = "Workspace",
 	productType = null,
-	playbookId = "launch",
+	playbookId: propPlaybookId = "launch",
 	active = false,
 	stepId = null,
 	productId = "",
@@ -99,8 +98,15 @@ const {
 	hideFooter = false,
 	lightweight = false,
 	productDisplayName: productDisplayNameProp = "",
+	deferPlaybookProductContext = false,
 } = Astro.props
 
+const tourFlow =
+	active && (playbookVertical === "tour" || propPlaybookId === "launch-tour")
+		? resolveTourPlaybookContext(Astro.url, productId)
+		: null
+const playbookId = tourFlow?.playbookId ?? propPlaybookId
+const isTourPublication = tourFlow?.part === "publish"
 const isAddRoom = playbookId === "add-room"
 const isComplete = playbookId === "complete-to-publish"
 const isTourLaunch = playbookId === LAUNCH_TOUR_PLAYBOOK_ID
@@ -166,17 +172,24 @@ let stageLabel = ""
 let stagePosition = 0
 let stageTotal = 0
 
-function applyTourPublishingStage(resolvedStepId: string | null | undefined) {
-	const normalized =
-		normalizeCompleteToPublishStep(resolvedStepId) ?? String(resolvedStepId ?? "").trim()
-	if (!normalized) return
-	const stage = getTourPublishingStage(normalized)
-	stageLabel = stage.label
-	stagePosition = stage.position
-	stageTotal = stage.total
-}
-
-if (isComplete && active && lightweight) {
+if (isTourPublication) {
+	playbookTitle = "Publicar tour"
+	currentStepKnown = true
+	if (productId) {
+		const user = await getUserFromRequest(Astro.request)
+		const providerId = user ? await getProviderIdFromRequest(Astro.request, user) : null
+		if (providerId) {
+			const { evaluateCompleteToPublishProgress } =
+				await import("@/lib/playbook/evaluate-complete-to-publish-progress")
+			const progress = await evaluateCompleteToPublishProgress(productId, providerId, {
+				currentStepId: stepId,
+				request: Astro.request,
+				url: Astro.url,
+			})
+			tourAttention = progress?.tourPresentation ?? null
+		}
+	}
+} else if (isComplete && active && lightweight) {
 	playbookTitle = COMPLETE_TO_PUBLISH_PLAYBOOK_TITLE
 	currentStepKnown = true
 	if (productId) {
@@ -186,10 +199,7 @@ if (isComplete && active && lightweight) {
 			playbookVertical || (isHotel ? "hotel" : null),
 			{ variantId, ratePlanId }
 		)
-	}
-	if (playbookVertical === "tour") {
-		applyTourPublishingStage(stepId)
-		if (productId) {
+		if (playbookVertical === "tour") {
 			const user = await getUserFromRequest(Astro.request)
 			const providerId = user ? await getProviderIdFromRequest(Astro.request, user) : null
 			if (providerId) {
@@ -200,16 +210,18 @@ if (isComplete && active && lightweight) {
 					request: Astro.request,
 					url: Astro.url,
 				})
-				if (progress) {
-					progressPercent = progress.progress.progressPercent
-					tourAttention = progress.tourPresentation ?? null
-				}
+				tourAttention = progress?.tourPresentation ?? null
 			}
 		}
 	}
+	if (playbookVertical === "tour" && stepId) {
+		const stage = getTourPublishingStage(stepId)
+		stageLabel = stage.label
+		stagePosition = stage.position
+		stageTotal = stage.total
+	}
 } else if (isComplete && active && productId) {
 	playbookTitle = COMPLETE_TO_PUBLISH_PLAYBOOK_TITLE
-	let completeProgressCurrentStep: string | null = null
 	const user = await getUserFromRequest(Astro.request)
 	const providerId = user ? await getProviderIdFromRequest(Astro.request, user) : null
 	if (providerId) {
@@ -222,7 +234,6 @@ if (isComplete && active && lightweight) {
 		})
 		if (progress) {
 			tourAttention = progress.tourPresentation ?? null
-			completeProgressCurrentStep = progress.currentStep
 			progressPercent = progress.progress.progressPercent
 			totalSteps = progress.progress.totalSteps
 			const current = progress.steps.find((step) => step.isCurrent) ?? progress.steps[0]
@@ -244,9 +255,11 @@ if (isComplete && active && lightweight) {
 			}
 		}
 	}
-	if (playbookVertical === "tour") {
-		applyTourPublishingStage(stepId || completeProgressCurrentStep)
-		if (stepId) currentStepKnown = true
+	if (playbookVertical === "tour" && stepId) {
+		const stage = getTourPublishingStage(stepId)
+		stageLabel = stage.label
+		stagePosition = stage.position
+		stageTotal = stage.total
 	}
 } else {
 	const currentStep = active
@@ -340,6 +353,23 @@ if (isComplete && active && lightweight) {
 	}
 }
 
+if (isTourLaunch && tourFlow?.returnHref) {
+	const withReviewReturn = (href: string) => {
+		const url = new URL(href, Astro.url)
+		url.searchParams.set("returnTo", tourFlow.returnHref!)
+		return url.pathname + url.search
+	}
+	if (previousHref) previousHref = withReviewReturn(previousHref)
+	if (tourAttention)
+		tourAttention = {
+			...tourAttention,
+			stages: tourAttention.stages.map((stage) => ({
+				...stage,
+				href: withReviewReturn(stage.href),
+			})),
+		}
+}
+
 const exitHref = productId
 	? isAddRoom
 		? `/product/${encodeURIComponent(productId)}/rooms`
@@ -354,20 +384,17 @@ const showFooter = active && currentStepKnown && !hideFooter
 const boundContinueFormId = continueFormId?.trim() || ""
 const formBoundContinue = Boolean(boundContinueFormId)
 const showHrefContinue = !formBoundContinue && !ownsPrimaryCta
-const persistAndExit = formBoundContinue && Boolean(productId)
+const persistAndExit = formBoundContinue && Boolean(productId) && !isTourPublication
 const formContinueLabel = continueLabel === "Continuar →" ? "Guardar y continuar" : continueLabel
-const showProgress =
-	active && currentStepKnown && (!isTerminalStep || isTourLaunch || playbookVertical === "tour")
-const isTourCompletePlaybook = isComplete && active && playbookVertical === "tour" && stageTotal > 0
-const showReadinessMeter = showProgress && (!lightweight || isTourCompletePlaybook)
+const showProgress = active && currentStepKnown && !isTerminalStep && !isTourPublication
+const showReadinessMeter = showProgress && !lightweight && !isTourLaunch
 const stageProgressPercent =
 	stagePosition > 0 && stageTotal > 0 ? Math.round((stagePosition / stageTotal) * 100) : 0
-const visualProgressPercent =
-	isTourCompletePlaybook || isTourLaunch
-		? Math.min(100, Math.max(0, progressPercent))
-		: stageProgressPercent > 0
-			? Math.min(100, Math.max(progressPercent, stageProgressPercent))
-			: Math.min(100, Math.max(0, progressPercent))
+const visualProgressPercent = isTourLaunch
+	? Math.min(100, Math.max(0, progressPercent))
+	: stageProgressPercent > 0
+		? Math.min(100, Math.max(progressPercent, stageProgressPercent))
+		: Math.min(100, Math.max(0, progressPercent))
 const tourAttentionHref = tourAttention?.primaryAction.href ?? ""
 const attentionSection = tourAttention?.nextRequirementId
 	? TOUR_REQUIREMENT_PRESENTATION[tourAttention.nextRequirementId].section
@@ -433,26 +460,24 @@ const progressHeading =
 	isAddRoom && stepNumber && totalSteps
 		? `${playbookTitle} - Paso ${stepNumber} de ${totalSteps}`
 		: stageLabel && stagePosition > 0 && stageTotal > 0
-			? `Etapa ${stagePosition} de ${stageTotal} · ${stageLabel}`
+			? `Etapa ${stagePosition} de ${stageTotal}`
 			: stepNumber && totalSteps
 				? `Paso ${stepNumber} de ${totalSteps}`
 				: "Progreso"
-const tourPreparationProgressLine = tourAttention
-	? formatTourPreparationProgressLine(tourAttention.preparation)
-	: ""
-const showTourAlternatingProgressLabel =
-	Boolean(tourAttention) &&
-	stagePosition > 0 &&
-	stageTotal > 0 &&
-	Boolean(tourPreparationProgressLine) &&
-	(isTourCompletePlaybook || isTourLaunch) &&
-	progressHeading.startsWith("Etapa ")
-const activeTourRequirementId: TourRequirementId | null = tourAttention
-	? resolveActiveTourPreparationRequirement(
-			String(stepId ?? ""),
-			tourAttention.nextRequirementId as TourRequirementId | null
-		)
-	: null
+const isTourPreparation = isTourLaunch && !isTourPublication
+const showTourStagesRail =
+	isTourPreparation || (isComplete && playbookVertical === "tour" && !isTourPublication)
+const reviewReturnHref =
+	isTourPublication && stepId !== "preview"
+		? tourPublicationHref(productId, { variantId, ratePlanId })
+		: null
+if (isTourPreparation) playbookTitle = "Preparar tour"
+if (isTourPublication) {
+	playbookTitle = "Publicar tour"
+	stepLabel = ""
+	previousHref = reviewReturnHref
+	resolvedContinueHref = reviewReturnHref
+}
 // Lightweight controls evaluation cost, never persistence of the current navigation.
 const preparationSessionPayload =
 	active &&
@@ -486,20 +511,30 @@ if (!productDisplayName && active && productId) {
 }
 
 const isTourPlaybookContext =
-	playbookVertical === "tour" || playbookId === LAUNCH_TOUR_PLAYBOOK_ID || isTourCompletePlaybook
-const showPlaybookProductContext = active && Boolean(productDisplayName)
+	playbookVertical === "tour" || playbookId === LAUNCH_TOUR_PLAYBOOK_ID || isTourPublication
+const showPlaybookProductContext =
+	active && Boolean(productDisplayName) && !deferPlaybookProductContext
 const tourVariantLabel =
 	resolvedTourContext &&
 	"option" in resolvedTourContext &&
 	resolvedTourContext.status === "resolved"
 		? resolvedTourContext.option.name.trim()
 		: ""
-const playbookProductContextLine = isTourPlaybookContext
-	? tourVariantLabel
-		? `${productDisplayName} · ${tourVariantLabel}`
-		: productDisplayName
-	: `${productDisplayName} · Nueva habitación`
-
+const correctionMessages =
+	isTourPublication && stepId !== "preview"
+		? [
+				...new Set(
+					(tourAttention?.blockers ?? [])
+						.filter(
+							(blocker) =>
+								normalizeCompleteToPublishStep(
+									TOUR_REQUIREMENT_PRESENTATION[blocker.id].section
+								) === normalizeCompleteToPublishStep(stepId)
+						)
+						.map((blocker) => blocker.reason.message)
+				),
+			]
+		: []
 const PlaybookShell = active ? GuidedPreparationLayout : WorkspaceLayout
 ---
 
@@ -514,148 +549,58 @@ const PlaybookShell = active ? GuidedPreparationLayout : WorkspaceLayout
 			<div class="mb-5 space-y-2">
 				{showProgress ? (
 					<>
-						{showTourAlternatingProgressLabel && tourAttention ? (
-							<div
-								class="tour-preparation-disclosure verification-wizard-progress-label verification-wizard-progress-label--alternate"
-								data-tour-preparation-disclosure
-								data-expanded-mode="none"
-								data-active-line="none"
-							>
-								<div class="verification-wizard-progress-label__stack text-sm font-medium text-slate-200">
-									<span class="verification-wizard-progress-label__phase verification-wizard-progress-label__phase--total">
-										<Button
-											type="button"
-											variant="ghost"
-											size="sm"
-											class="tour-preparation-disclosure__trigger tour-preparation-disclosure__trigger--total tour-preparation-disclosure__trigger--interactive text-xs font-semibold tracking-wide text-slate-300 normal-case"
-											data-tour-preparation-requirements-toggle
-											aria-expanded="false"
-											aria-controls="tour-preparation-requirements-panel"
-											disabled
-										>
-											<span class="tour-preparation-disclosure__label-text">
-												{tourPreparationProgressLine}
-											</span>
-										</Button>
-									</span>
-									<span class="verification-wizard-progress-label__phase verification-wizard-progress-label__phase--breakdown">
-										<Button
-											type="button"
-											variant="ghost"
-											size="sm"
-											class="tour-preparation-disclosure__trigger tour-preparation-disclosure__trigger--breakdown tour-preparation-disclosure__trigger--interactive text-xs font-semibold tracking-wide text-slate-300 uppercase"
-											data-tour-preparation-stage-toggle
-											aria-expanded="false"
-											aria-controls="tour-preparation-stages-panel"
-											disabled
-										>
-											<span class="tour-preparation-disclosure__label-text">{progressHeading}</span>
-										</Button>
-									</span>
-								</div>
-								<p class="sr-only">
-									{tourPreparationProgressLine}. {progressHeading}. Abre los requisitos cuando veas
-									el porcentaje; abre las etapas cuando veas la etapa actual.
-								</p>
-								<div
-									id="tour-preparation-stages-panel"
-									class="tour-preparation-disclosure__panel tour-preparation-disclosure__panel--stages"
-									data-tour-preparation-stages-panel
-								>
-									<div class="tour-preparation-disclosure__panel-inner">
-										<PreparationProgress
-											preparation={tourAttention.preparation}
-											showMeter={false}
-											showProgressLine={false}
-											stages={tourAttention.stages}
-											activeStageId={getTourPublishingStage(stepId).id}
-											stagePresentation="rail"
-										/>
-									</div>
-								</div>
-								{tourAttention.preparationRequirements ? (
-									<div
-										id="tour-preparation-requirements-panel"
-										class="tour-preparation-disclosure__panel tour-preparation-disclosure__panel--requirements"
-										data-tour-preparation-requirements-panel
-									>
-										<div class="tour-preparation-disclosure__panel-inner">
-											<TourPreparationRequirementsRail
-												requirements={tourAttention.preparationRequirements}
-												activeRequirementId={activeTourRequirementId}
-											/>
-										</div>
-									</div>
+						{showTourStagesRail ? (
+							<div class="space-y-3">
+								{isTerminalStep ? (
+									<p class="text-sm font-semibold text-slate-200">Revisar y publicar</p>
+								) : null}
+								{!isTerminalStep && tourAttention ? (
+									<PreparationProgress
+										stages={tourAttention.stages}
+										activeStageId={getTourPublishingStage(stepId).id}
+										stagePosition={stagePosition}
+										stageTotal={stageTotal}
+										stageLabel={stageLabel}
+									/>
 								) : null}
 							</div>
-						) : showTourAlternatingProgressLabel ? (
-							<div
-								class="verification-wizard-progress-label verification-wizard-progress-label--alternate"
-								data-tour-preparation-progress-label
-							>
-								<p class="verification-wizard-progress-label__stack text-sm font-medium text-slate-200">
-									<span class="verification-wizard-progress-label__phase verification-wizard-progress-label__phase--total text-xs font-semibold tracking-wide text-slate-300 normal-case">
-										{tourPreparationProgressLine}
-									</span>
-									<span
-										class="verification-wizard-progress-label__phase verification-wizard-progress-label__phase--breakdown text-xs font-semibold tracking-wide text-slate-300 uppercase"
-										aria-hidden="true"
-									>
-										{progressHeading}
-									</span>
-								</p>
-							</div>
 						) : (
-							<p class="text-xs font-semibold tracking-wide text-slate-300 uppercase">
-								{progressHeading}
-							</p>
+							<>
+								<p class="text-xs font-semibold tracking-wide text-slate-300 uppercase">
+									{progressHeading}
+								</p>
+								{showReadinessMeter ? (
+									<div
+										class="fastt-progress-track h-1.5 overflow-hidden bg-slate-800"
+										role="progressbar"
+										aria-label={`Progreso de ${playbookTitle}`}
+										aria-valuenow={visualProgressPercent}
+										aria-valuemin={0}
+										aria-valuemax={100}
+									>
+										<div
+											class="fastt-progress-value h-full"
+											style={`width: ${visualProgressPercent}%; background-color: var(--fastt-color-selection);`}
+										/>
+									</div>
+								) : null}
+							</>
 						)}
-						{isTourCompletePlaybook || isTourLaunch ? (
-							tourAttention ? (
-								<PreparationProgress
-									preparation={tourAttention.preparation}
-									showMeter={!isTerminalStep}
-									showProgressLine={!showTourAlternatingProgressLabel}
-									stages={tourAttention.stages}
-									activeStageId={getTourPublishingStage(stepId).id}
-									stagePresentation={showTourAlternatingProgressLabel ? "none" : "rail"}
-								/>
-							) : (
-								<p class="text-sm text-slate-400">Preparación aún sin evaluar</p>
-							)
-						) : showReadinessMeter ? (
-							<div
-								class="fastt-progress-track h-1.5 overflow-hidden bg-slate-800"
-								role="progressbar"
-								aria-label={`Progreso de ${playbookTitle}`}
-								aria-valuenow={visualProgressPercent}
-								aria-valuemin={0}
-								aria-valuemax={100}
-							>
-								<div
-									class="fastt-progress-value h-full"
-									style={`width: ${visualProgressPercent}%; background-color: var(--fastt-color-selection);`}
-								/>
-							</div>
-						) : null}
 					</>
 				) : null}
 				{showPlaybookProductContext ? (
-					<p class="flex items-center gap-2 text-xs font-semibold tracking-wide text-slate-400 uppercase">
-						{isTourPlaybookContext ? (
-							<Ticket class="h-4 w-4" aria-hidden="true" />
-						) : (
-							<Hotel class="h-4 w-4" aria-hidden="true" />
-						)}
-						{playbookProductContextLine}
-					</p>
+					<PlaybookProductContextLine
+						productName={productDisplayName}
+						variantName={isTourPlaybookContext ? tourVariantLabel : "Nueva habitación"}
+						isTour={isTourPlaybookContext}
+					/>
 				) : null}
 			</div>
 		) : null
 	}
 
 	{
-		activeTourAttention ? (
+		activeTourAttention && !isTourPreparation && !isTourPublication ? (
 			<aside
 				class="fastt-card mb-4 flex flex-wrap items-center justify-between gap-3 border-slate-700 bg-slate-900/40 px-4 py-3 text-sm"
 				aria-label="Diagnóstico de la oferta"
@@ -672,6 +617,27 @@ const PlaybookShell = active ? GuidedPreparationLayout : WorkspaceLayout
 					</a>
 				) : null}
 			</aside>
+		) : null
+	}
+	{
+		isTourPublication && !isTerminalStep ? (
+			<div class="mb-4 space-y-2" data-tour-publication-correction>
+				{hideFooter && reviewReturnHref ? (
+					<Button
+						href={reviewReturnHref}
+						variant="ghost"
+						size="sm"
+						class="text-slate-300! hover:text-slate-950! focus:ring-white"
+					>
+						← Volver a publicación
+					</Button>
+				) : null}
+				<div id="tour-publication-cause" class="space-y-2">
+					{correctionMessages.map((message) => (
+						<p class="text-sm text-slate-300">{message}</p>
+					))}
+				</div>
+			</div>
 		) : null
 	}
 	<slot />
@@ -691,7 +657,16 @@ const PlaybookShell = active ? GuidedPreparationLayout : WorkspaceLayout
 		if (preparationSessionPayload) {
 			const navigationAt = preparationSessionPayload.navigationAt
 			const savePreparationSession = () => {
-				const lastPath = `${window.location.pathname}${window.location.search}`
+				const navigationUrl = new URL(window.location.href)
+				navigationUrl.searchParams.set("playbook", preparationSessionPayload.playbookId)
+				if (preparationSessionPayload.vertical === "tour") {
+					navigationUrl.searchParams.set("tourFlowVersion", "2")
+					navigationUrl.searchParams.set(
+						"flow",
+						preparationSessionPayload.playbookId === "launch-tour" ? "create" : "complete"
+					)
+				}
+				const lastPath = navigationUrl.pathname + navigationUrl.search
 				const url = new URL(window.location.href)
 				const selection =
 					url.searchParams.has("variantId") || url.searchParams.has("ratePlanId")
@@ -746,7 +721,7 @@ const PlaybookShell = active ? GuidedPreparationLayout : WorkspaceLayout
 							variant="ghost"
 							className="text-slate-300 hover:bg-slate-800 hover:text-white"
 						>
-							← Anterior
+							{isTourPublication ? "← Volver a publicación" : "← Anterior"}
 						</Button>
 					) : null}
 				</div>
@@ -763,14 +738,14 @@ const PlaybookShell = active ? GuidedPreparationLayout : WorkspaceLayout
 						>
 							Dejar para más tarde
 						</Button>
-					) : (
+					) : !isTourPublication ? (
 						<a
 							href={exitHref}
 							class="inline-flex h-10 items-center justify-center px-2 text-sm font-medium text-slate-500 transition hover:text-slate-200"
 						>
 							Dejar para más tarde
 						</a>
-					)}
+					) : null}
 					{isTerminalStep && isComplete ? (
 						<p class="text-sm text-slate-400">Usa el botón Publicar en la vista previa.</p>
 					) : isTerminalStep ? (
@@ -785,11 +760,11 @@ const PlaybookShell = active ? GuidedPreparationLayout : WorkspaceLayout
 							value="continue"
 							className="fastt-playbook-cta"
 						>
-							{formContinueLabel}
+							{reviewReturnHref ? "Guardar y volver" : formContinueLabel}
 						</Button>
 					) : showHrefContinue && resolvedContinueHref && continueDisabled ? (
 						<Button disabled className="fastt-playbook-cta" title={continueDisabledTitle}>
-							{continueLabel}
+							{reviewReturnHref ? "Volver a publicación" : continueLabel}
 						</Button>
 					) : showHrefContinue && resolvedContinueHref ? (
 						<Button
@@ -797,7 +772,7 @@ const PlaybookShell = active ? GuidedPreparationLayout : WorkspaceLayout
 							className="fastt-playbook-cta"
 							reload={continueReload}
 						>
-							{continueLabel}
+							{reviewReturnHref ? "Volver a publicación" : continueLabel}
 						</Button>
 					) : null}
 				</div>
@@ -805,9 +780,86 @@ const PlaybookShell = active ? GuidedPreparationLayout : WorkspaceLayout
 		) : null
 	}
 
-	<script>
-		import { initTourPreparationDisclosures } from "@/lib/playbook/tour-preparation-disclosure.client.ts"
-		initTourPreparationDisclosures()
-		document.addEventListener("astro:page-load", initTourPreparationDisclosures)
+	<script
+		is:inline
+		define:vars={{
+			isTourPreparation,
+			isTourPublication,
+			playbookId,
+			productId,
+			stepId,
+			variantId,
+			ratePlanId,
+			reviewReturnHref,
+			boundContinueFormId,
+		}}
+	>
+		if (isTourPreparation || isTourPublication) {
+			for (const form of document.querySelectorAll("form")) {
+				if (
+					form.id !== boundContinueFormId &&
+					form.id !== "tour-slot-profile-form" &&
+					!form.querySelector('[name="playbook"]')
+				)
+					continue
+				for (const [name, value] of Object.entries({
+					playbook: playbookId,
+					tourFlowVersion: "2",
+					flow: isTourPublication ? "complete" : "create",
+					playbookCurrentStep: stepId,
+					playbookVertical: "tour",
+					variantId,
+					ratePlanId,
+					returnTo: reviewReturnHref,
+				})) {
+					if (!value) continue
+					let field = form.querySelector(`[name="${name}"]`)
+					if (!field) {
+						field = document.createElement("input")
+						field.type = "hidden"
+						field.name = name
+						form.appendChild(field)
+					}
+					field.value = value
+				}
+			}
+		}
+		if (isTourPublication && reviewReturnHref) {
+			const focusTourCorrection = () => {
+				const form = document.getElementById(boundContinueFormId || "tour-slot-profile-form")
+				if (!(form instanceof HTMLFormElement) || form.dataset.publicationFocused) return
+				form.dataset.publicationFocused = "true"
+				const missing = Array.from(form.elements).find(
+					(control) =>
+						(control instanceof HTMLInputElement ||
+							control instanceof HTMLSelectElement ||
+							control instanceof HTMLTextAreaElement) &&
+						!control.disabled &&
+						control.required &&
+						!control.checkValidity()
+				)
+				const cause = document.getElementById("tour-publication-cause")
+				const target =
+					missing instanceof HTMLInputElement && missing.type === "file"
+						? form.querySelector("#dropzone")
+						: missing instanceof HTMLSelectElement
+							? missing.closest("[data-fastt-select]")?.querySelector("[data-fastt-select-trigger]")
+							: (missing ??
+								(Number(form.dataset.requiredImageCount) > 0 && cause?.textContent.trim()
+									? form.querySelector("#dropzone")
+									: null))
+				if (target instanceof HTMLElement) {
+					if (cause?.textContent.trim())
+						target.setAttribute(
+							"aria-describedby",
+							[target.getAttribute("aria-describedby"), cause.id].filter(Boolean).join(" ")
+						)
+					target.focus({ preventScroll: true })
+				}
+			}
+			if (document.readyState === "complete") focusTourCorrection()
+			else window.addEventListener("load", focusTourCorrection, { once: true })
+			document.addEventListener("astro:page-load", focusTourCorrection, { once: true })
+		}
 	</script>
 </PlaybookShell>

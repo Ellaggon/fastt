@@ -247,8 +247,7 @@ const meetingHref =
 										: playbookRedirectHrefFor(
 												playbook.playbookId,
 												`/product/${encodeURIComponent(productId)}/content`,
-												"content",
-												productId
+												"content"
 											)
 									: `/product/${encodeURIComponent(productId)}/content`}
 								variant="secondary"
@@ -260,7 +259,13 @@ const meetingHref =
 								type="submit"
 								className={playbook.active ? "fastt-playbook-cta" : ""}
 							>
-								{playbook.active ? "Guardar y continuar" : "Guardar ubicación"}
+								{
+									isTour && playbook.playbookId === "complete-to-publish"
+										? "Guardar y volver"
+										: playbook.active
+											? "Guardar y continuar"
+											: "Guardar ubicación"
+								}
 							</Button>
 						</div>
 					</div>
@@ -375,6 +380,7 @@ const meetingHref =
 				if (intent === "exit" && !String(fd.get("geoPlaceId") || "").trim()) {
 					window.location.href = resolvePlaybookRedirectAfterSave(fd, {
 						productId: targetProductId,
+						currentStep: "location",
 						launchPath: `/product/${encodeURIComponent(targetProductId)}/images`,
 						launchStep: "images",
 						intent: "exit",
@@ -399,6 +405,7 @@ const meetingHref =
 					draft.clear()
 					window.location.href = resolvePlaybookRedirectAfterSave(fd, {
 						productId: targetProductId,
+						currentStep: "location",
 						launchPath: `/product/${encodeURIComponent(targetProductId)}/images`,
 						launchStep: "images",
 						submitter: e.submitter,
