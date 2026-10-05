@@ -137,6 +137,9 @@
     "overrides": {
       "path-to-regexp": "6.3.0",
       "@vercel/routing-utils>path-to-regexp": "6.3.0"
+    },
+    "patchedDependencies": {
+      "astro@6.1.9": "patches/astro@6.1.9.patch"
     }
   }
 }

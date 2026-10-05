@@ -1,0 +1,21 @@
+diff --git a/dist/vite-plugin-app/index.d.ts b/dist/vite-plugin-app/index.d.ts
+index 733c51ae72b3bf9fc05f7fb13aacb22474f53254..289da532e9fcbbc567617565f7ee41d223d49931 100644
+--- a/dist/vite-plugin-app/index.d.ts
++++ b/dist/vite-plugin-app/index.d.ts
+@@ -1,3 +1,3 @@
+ import type * as vite from 'vite';
+-export declare const ASTRO_DEV_SERVER_APP_ID = "astro:server-app";
++export declare const ASTRO_DEV_SERVER_APP_ID = "virtual:astro:server-app";
+ export declare function vitePluginApp(): vite.Plugin[];
+diff --git a/dist/vite-plugin-app/index.js b/dist/vite-plugin-app/index.js
+index 83cb7ca2219851f955ffa8b2605c50ff974c1c52..09fa2170fcab6eabc35848d477f9ec772db8616f 100644
+--- a/dist/vite-plugin-app/index.js
++++ b/dist/vite-plugin-app/index.js
+@@ -1,6 +1,6 @@
+ const ASTRO_APP_ID = "virtual:astro:app";
+ const RESOLVED_ASTRO_APP_ID = "\0" + ASTRO_APP_ID;
+-const ASTRO_DEV_SERVER_APP_ID = "astro:server-app";
++const ASTRO_DEV_SERVER_APP_ID = "virtual:astro:server-app";
+ function vitePluginApp() {
+   let command;
+   return [
