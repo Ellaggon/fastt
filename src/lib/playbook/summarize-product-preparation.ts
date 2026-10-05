@@ -146,6 +146,7 @@ export async function summarizeProductPreparation(params: {
 
 	const blockers = publishState.blockers.filter((check) => check.sectionKey !== "preview")
 	const resume = resolveCompleteToPublishResume(productId, publishState.checks, {
+		vertical: publishState.tourDiagnostic ? "tour" : undefined,
 		lastPath:
 			params.lastPath && "options" in tourContext
 				? withTourCommercialContext(params.lastPath, tourContext)

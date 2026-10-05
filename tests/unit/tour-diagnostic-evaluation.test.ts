@@ -63,6 +63,16 @@ describe("B3 independent authoritative observations", () => {
 		expect(summarizeTourDiagnostic(diagnostic).preparation.readinessPercent).toBe(90)
 		expect(tourPublicationBlockers(diagnostic).map((b) => b.id)).toEqual(["price"])
 	})
+	it("preparation correction links activate complete-to-publish", () => {
+		const diagnostic = fixture({ presentation: { ready: false, message: "Falta presentación" } })
+		const result = diagnostic.requirements.presentation.result
+		if (!("action" in result)) throw new Error("missing action")
+		const url = new URL(result.action.href, "https://fastt.test")
+		expect(url.searchParams.get("playbook")).toBe("complete-to-publish")
+		expect(url.searchParams.get("step")).toBe("content")
+		expect(url.searchParams.get("variantId")).toBe("option")
+		expect(url.searchParams.get("ratePlanId")).toBe("rate")
+	})
 	it.each([
 		"provider_authorization",
 		"experience_authorization",
