@@ -151,19 +151,29 @@ function localQaEnvironment() {
 }
 
 async function ensureCertificationPolicies(ratePlanId: string) {
+	const isTourRatePlan = ratePlanId === TOUR_RATE_PLAN_ID
 	const cancellation = await createPolicyCapa6({
 		ownerProviderId: PROVIDER_ID,
 		category: "Cancellation",
 		description: "Certificación marketplace",
-		cancellationTiers: [
-			{
-				daysBeforeArrival: 1,
-				hoursBeforeDeparture: 6,
-				penaltyType: "percentage",
-				penaltyAmount: 0,
-			},
-			{ daysBeforeArrival: 0, penaltyType: "percentage", penaltyAmount: 100 },
-		],
+		cancellationTiers: isTourRatePlan
+			? [
+					{
+						hoursBeforeDeparture: 24,
+						penaltyType: "percentage",
+						penaltyAmount: 0,
+					},
+					{ hoursBeforeDeparture: 0, penaltyType: "percentage", penaltyAmount: 100 },
+				]
+			: [
+					{
+						daysBeforeArrival: 1,
+						hoursBeforeDeparture: 6,
+						penaltyType: "percentage",
+						penaltyAmount: 0,
+					},
+					{ daysBeforeArrival: 0, penaltyType: "percentage", penaltyAmount: 100 },
+				],
 	})
 	const payment = await createPolicyCapa6({
 		ownerProviderId: PROVIDER_ID,
@@ -171,19 +181,24 @@ async function ensureCertificationPolicies(ratePlanId: string) {
 		description: "Pay at property",
 		rules: { paymentType: "pay_at_property" },
 	})
-	const checkIn = await createPolicyCapa6({
-		ownerProviderId: PROVIDER_ID,
-		category: "CheckIn",
-		description: "Certificación marketplace",
-		rules: { checkInFrom: "08:00", checkInUntil: "18:00", checkOutUntil: "20:00" },
-	})
+	const checkIn = isTourRatePlan
+		? null
+		: await createPolicyCapa6({
+				ownerProviderId: PROVIDER_ID,
+				category: "CheckIn",
+				description: "Certificación marketplace",
+				rules: { checkInFrom: "08:00", checkInUntil: "18:00", checkOutUntil: "20:00" },
+			})
 	const noShow = await createPolicyCapa6({
 		ownerProviderId: PROVIDER_ID,
 		category: "NoShow",
 		description: "Certificación marketplace",
 		rules: { penaltyType: "percentage", penaltyAmount: 100 },
 	})
-	for (const policy of [cancellation, payment, checkIn, noShow]) {
+	const policies = checkIn
+		? [cancellation, payment, checkIn, noShow]
+		: [cancellation, payment, noShow]
+	for (const policy of policies) {
 		await replacePolicyAssignmentCapa6({
 			policyId: policy.policyId,
 			scope: "rate_plan",

@@ -32,7 +32,7 @@ import { POST as checkInPost } from "@/pages/api/booking/check-in"
 import { GET as tripGet } from "@/pages/api/trips/[bookingId]"
 import { tourDepartureToStay } from "@/lib/tours/tourSemantics"
 import { deriveBookingLifecycle } from "@/modules/booking/public"
-import { replacePolicyAssignmentCapa6, createPolicyCapa6 } from "@/modules/policies/public"
+import { assignTourRatePlanPolicies } from "../test-support/tour-policy-fixture"
 import { buildOccupancyKey } from "@/shared/domain/occupancy"
 import { markProductPublished } from "../test-support/catalog-db-test-data"
 
@@ -223,39 +223,10 @@ async function seedTourBookingReady(params: {
 		createdAt: new Date(),
 	} as any)
 
-	for (const policy of [
-		await createPolicyCapa6({
-			ownerProviderId: "prov_test",
-			category: "Cancellation",
-			description: "Flexible",
-			cancellationTiers: [{ daysBeforeArrival: 1, penaltyType: "percentage", penaltyAmount: 0 }],
-		} as any),
-		await createPolicyCapa6({
-			ownerProviderId: "prov_test",
-			category: "Payment",
-			description: "Pay later",
-			rules: { paymentType: "pay_at_property" },
-		} as any),
-		await createPolicyCapa6({
-			ownerProviderId: "prov_test",
-			category: "CheckIn",
-			description: "Day of",
-			rules: { checkInFrom: "09:00", checkInUntil: "11:00", checkOutUntil: "18:00" },
-		} as any),
-		await createPolicyCapa6({
-			ownerProviderId: "prov_test",
-			category: "NoShow",
-			description: "No show",
-			rules: { penaltyType: "percentage", penaltyAmount: 100 },
-		} as any),
-	]) {
-		await replacePolicyAssignmentCapa6({
-			policyId: policy.policyId,
-			scope: "rate_plan",
-			scopeId: ratePlanId,
-			channel: "web",
-		})
-	}
+	await assignTourRatePlanPolicies({
+		ownerProviderId: "prov_test",
+		ratePlanId,
+	})
 
 	await db.insert(DailyInventory).values({
 		id: `di_${crypto.randomUUID()}`,
