@@ -11,8 +11,18 @@ export async function assignTourRatePlanPolicies(params: {
 		category: "Cancellation",
 		description: "Flexible tour cancellation",
 		cancellationTiers: [
-			{ hoursBeforeDeparture: 24, penaltyType: "percentage", penaltyAmount: 0 },
-			{ hoursBeforeDeparture: 0, penaltyType: "percentage", penaltyAmount: 100 },
+			{
+				daysBeforeArrival: 0,
+				hoursBeforeDeparture: 24,
+				penaltyType: "percentage",
+				penaltyAmount: 0,
+			},
+			{
+				daysBeforeArrival: 0,
+				hoursBeforeDeparture: 0,
+				penaltyType: "percentage",
+				penaltyAmount: 100,
+			},
 		],
 	} as any)
 	const payment = await createPolicyCapa6({

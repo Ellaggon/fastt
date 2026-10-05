@@ -159,11 +159,17 @@ async function ensureCertificationPolicies(ratePlanId: string) {
 		cancellationTiers: isTourRatePlan
 			? [
 					{
+						daysBeforeArrival: 0,
 						hoursBeforeDeparture: 24,
 						penaltyType: "percentage",
 						penaltyAmount: 0,
 					},
-					{ hoursBeforeDeparture: 0, penaltyType: "percentage", penaltyAmount: 100 },
+					{
+						daysBeforeArrival: 0,
+						hoursBeforeDeparture: 0,
+						penaltyType: "percentage",
+						penaltyAmount: 100,
+					},
 				]
 			: [
 					{
