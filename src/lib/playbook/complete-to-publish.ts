@@ -4,6 +4,7 @@ import {
 } from "@/lib/catalog/productVerticalRegistry"
 import { routes } from "@/lib/routes"
 import type { CompleteToPublishCheck } from "@/lib/playbook/evaluate-complete-to-publish-progress"
+import { TOUR_PUBLISHING_STAGES } from "@/lib/playbook/tour-publishing-stages"
 
 export const COMPLETE_TO_PUBLISH_PLAYBOOK_ID = "complete-to-publish" as const
 
@@ -35,6 +36,30 @@ export function isCompleteToPublishPlaybookActive(url: URL): boolean {
 	)
 }
 
+export function inferCompleteToPublishStepFromPath(url: URL): ProductVerticalSectionKey | null {
+	if (url.pathname.endsWith("/preview")) return "preview"
+	if (url.pathname.endsWith("/content")) return "content"
+	if (url.pathname.endsWith("/images")) return "photos"
+	if (url.pathname.endsWith("/location")) return "location"
+	if (url.pathname.endsWith("/subtype")) return "subtype"
+	if (url.pathname.endsWith("/rooms")) return "rooms"
+	if (url.pathname.endsWith("/tickets")) return "tickets"
+	if (url.pathname.endsWith("/categories")) return "categories"
+	if (url.pathname.includes("/departures/")) return "departure"
+	if (url.pathname.includes("/house-rules")) return "houseRules"
+	if (url.pathname.includes("/rates/calendar")) return "calendar"
+	if (url.pathname.match(/\/rates\/plans\/[^/]+$/)) {
+		const vista = String(url.searchParams.get("vista") ?? "")
+			.trim()
+			.toLowerCase()
+		if (vista === "price") return "rate"
+		return "bookingPolicies"
+	}
+	if (url.pathname.includes("/rates/plans/manage")) return "rate"
+	if (url.pathname.includes("/rates/")) return "bookingPolicies"
+	return null
+}
+
 export function resolveCompleteToPublishPlaybookFromUrl(url: URL): {
 	active: boolean
 	playbookId: typeof COMPLETE_TO_PUBLISH_PLAYBOOK_ID | null
@@ -49,18 +74,7 @@ export function resolveCompleteToPublishPlaybookFromUrl(url: URL): {
 	const productId =
 		String(url.searchParams.get("productId") ?? "").trim() || (pathProductMatch?.[1] ?? "")
 
-	let inferredStep: ProductVerticalSectionKey | null = null
-	if (url.pathname.endsWith("/preview")) inferredStep = "preview"
-	else if (url.pathname.endsWith("/content")) inferredStep = "content"
-	else if (url.pathname.endsWith("/images")) inferredStep = "photos"
-	else if (url.pathname.endsWith("/location")) inferredStep = "location"
-	else if (url.pathname.endsWith("/subtype")) inferredStep = "subtype"
-	else if (url.pathname.endsWith("/rooms")) inferredStep = "rooms"
-	else if (url.pathname.endsWith("/tickets")) inferredStep = "tickets"
-	else if (url.pathname.endsWith("/categories")) inferredStep = "categories"
-	else if (url.pathname.includes("/departures/")) inferredStep = "departure"
-	else if (url.pathname.includes("/house-rules")) inferredStep = "houseRules"
-	else if (url.pathname.includes("/rates/")) inferredStep = "bookingPolicies"
+	const inferredStep = inferCompleteToPublishStepFromPath(url)
 
 	const stepId = active ? explicitStep || inferredStep : null
 
@@ -104,28 +118,59 @@ function lastPathBelongsToProduct(
 	return `${url.pathname}${url.search}`
 }
 
+function inferCompleteToPublishVertical(checks: CompleteToPublishCheck[]): string | null {
+	const keys = new Set(checks.map((check) => check.sectionKey))
+	if (
+		keys.has("tickets") ||
+		keys.has("departure") ||
+		keys.has("itinerary") ||
+		keys.has("categories") ||
+		(keys.has("photos") && keys.has("location"))
+	) {
+		return "tour"
+	}
+	if (keys.has("rooms") || keys.has("houseRules")) return "hotel"
+	return null
+}
+
+function normalizeTourNavigationStep(step: string): ProductVerticalSectionKey | null {
+	const raw = String(step ?? "")
+		.trim()
+		.toLowerCase()
+	if (raw === "services") return "services"
+	if (raw === "conditions") return "bookingPolicies"
+	return normalizeCompleteToPublishStep(step)
+}
+
+/** Tour wizard order follows publishing stages, not readiness checklist order. */
+export function completeToPublishNavigationOrder(
+	verticalHint?: string | null
+): ProductVerticalSectionKey[] {
+	const entry = getProductVerticalEntry(verticalHint)
+	if (entry.vertical !== "tour") {
+		return entry.readiness.requiredSections.filter((section) => section !== "identity")
+	}
+	const steps: ProductVerticalSectionKey[] = []
+	const seen = new Set<ProductVerticalSectionKey>()
+	for (const stage of TOUR_PUBLISHING_STAGES) {
+		for (const rawStep of stage.steps) {
+			const normalized = normalizeTourNavigationStep(String(rawStep))
+			if (!normalized || seen.has(normalized)) continue
+			seen.add(normalized)
+			steps.push(normalized)
+		}
+	}
+	return steps
+}
+
 export function resolveCompleteToPublishResume(
 	productId: string,
 	checks: CompleteToPublishCheck[],
-	options?: { lastPath?: string | null }
+	options?: { lastPath?: string | null; vertical?: string | null }
 ): { href: string; sectionKey: string | null; label: string | null } {
-	const playbookResumeOrder: ProductVerticalSectionKey[] = [
-		"content",
-		"photos",
-		"location",
-		"subtype",
-		"itinerary",
-		"tickets",
-		"categories",
-		"departure",
-		"rate",
-		"bookingPolicies",
-		"calendar",
-		"rooms",
-		"houseRules",
-		"inclusions",
-		"preview",
-	]
+	const playbookResumeOrder = completeToPublishNavigationOrder(
+		options?.vertical ?? inferCompleteToPublishVertical(checks)
+	)
 	const bySection = new Map(checks.map((check) => [check.sectionKey, check]))
 	const playbookSteps = playbookResumeOrder
 		.map((sectionKey) => bySection.get(sectionKey))
@@ -253,7 +298,31 @@ export function completeToPublishStepHref(
 	const url = new URL(href, "http://fastt.local")
 	if (context.variantId?.trim()) url.searchParams.set("variantId", context.variantId.trim())
 	if (context.ratePlanId?.trim()) url.searchParams.set("ratePlanId", context.ratePlanId.trim())
-	return `${url.pathname}${url.search}${url.hash}`
+	const pathWithSelection = `${url.pathname}${url.search}${url.hash}`
+	return buildCompleteToPublishHref(pathWithSelection, section)
+}
+
+/** Repair tour preparation links that carry offer selection but omit playbook query params. */
+export function getCompleteToPublishPlaybookRepairHref(
+	url: URL,
+	context: { isTour: boolean; productId: string }
+): string | null {
+	if (!context.isTour || !String(context.productId ?? "").trim()) return null
+	if (isCompleteToPublishPlaybookActive(url)) return null
+	if (String(url.searchParams.get("playbook") ?? "").trim() === "launch-tour") return null
+
+	const variantId = url.searchParams.get("variantId")?.trim() ?? ""
+	const ratePlanId = url.searchParams.get("ratePlanId")?.trim() ?? ""
+	if (!variantId && !ratePlanId) return null
+
+	const step =
+		normalizeCompleteToPublishStep(url.searchParams.get("step")) ??
+		inferCompleteToPublishStepFromPath(url)
+	if (!step) return null
+
+	const repaired = completeToPublishStepHref(context.productId, step, { variantId, ratePlanId })
+	const current = `${url.pathname}${url.search}`
+	return repaired !== current ? repaired : null
 }
 
 function unscopedCompleteToPublishStepHref(
@@ -273,6 +342,7 @@ function unscopedCompleteToPublishStepHref(
 		case "subtype":
 		case "itinerary":
 		case "inclusions":
+		case "services":
 			return `/product/${encodeURIComponent(productId)}/subtype`
 		case "tickets":
 			return `/product/${encodeURIComponent(productId)}/tickets`
@@ -327,9 +397,7 @@ function unscopedCompleteToPublishStepHref(
 }
 
 function completeToPublishOrderedSteps(verticalHint?: string | null): ProductVerticalSectionKey[] {
-	return getProductVerticalEntry(verticalHint).readiness.requiredSections.filter(
-		(section) => section !== "identity"
-	)
+	return completeToPublishNavigationOrder(verticalHint)
 }
 
 function adjacentCompleteToPublishStep(

@@ -1,5 +1,6 @@
 import { tourActivationDecision } from "./buildTourDiagnostic"
 import { projectTourPublishingStages } from "@/lib/playbook/tour-publishing-stages"
+import { projectTourPreparationRequirements } from "@/lib/tours/tourPreparationRequirements"
 import {
 	TOUR_REQUIREMENTS,
 	summarizeTourDiagnostic,
@@ -106,7 +107,8 @@ export function presentTourDiagnostic(
 	return {
 		catalogStatus,
 		activation: tourActivationDecision(diagnosis),
-		stages: projectTourPublishingStages(diagnosis),
+		stages: projectTourPublishingStages(diagnosis, { previewHref: options.previewHref }),
+		preparationRequirements: projectTourPreparationRequirements(diagnosis),
 		preparation: summary.preparation,
 		primaryAction,
 		nextRequirementId: next?.id ?? null,

@@ -280,19 +280,35 @@ export function getTourSharedRateCanonicalHref(
 		playbook === "add-room" ||
 		flow === "create" ||
 		flow === "add-room"
-	if (!isCompletePlaybook && !isTourPlaybook && !hasAccommodationIntent) return null
+	const hasTourOfferSelection =
+		context.isTour &&
+		Boolean(String(context.productId ?? url.searchParams.get("productId") ?? "").trim()) &&
+		Boolean(
+			String(context.variantId ?? url.searchParams.get("variantId") ?? "").trim() ||
+			String(context.ratePlanId ?? url.searchParams.get("ratePlanId") ?? "").trim()
+		)
+	if (!isCompletePlaybook && !isTourPlaybook && !hasAccommodationIntent && !hasTourOfferSelection)
+		return null
 
 	const params = new URLSearchParams(url.searchParams)
-	params.set("playbook", isCompletePlaybook ? "complete-to-publish" : LAUNCH_TOUR_PLAYBOOK_ID)
+	const useCompletePlaybook =
+		isCompletePlaybook || (hasTourOfferSelection && !isTourPlaybook && !hasAccommodationIntent)
+	params.set("playbook", useCompletePlaybook ? "complete-to-publish" : LAUNCH_TOUR_PLAYBOOK_ID)
+	const completeStep =
+		context.step === "preview"
+			? "preview"
+			: context.step === "conditions"
+				? "bookingPolicies"
+				: context.step
 	params.set(
 		"step",
 		context.step === "preview"
 			? "preview"
-			: isCompletePlaybook
-				? (params.get("step") ?? context.step)
+			: useCompletePlaybook
+				? (params.get("step") ?? completeStep)
 				: context.step
 	)
-	params.set("flow", isCompletePlaybook ? "complete" : "create")
+	params.set("flow", useCompletePlaybook ? "complete" : "create")
 	params.set("productId", context.productId)
 	if (context.variantId) params.set("variantId", context.variantId)
 	else params.delete("variantId")
