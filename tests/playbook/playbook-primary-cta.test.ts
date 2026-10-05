@@ -87,17 +87,17 @@ describe("playbook primary CTA contract", () => {
 				launchStep: "subtype",
 				intent: "continue",
 			})
-		).toBe("/product/p1/location?playbook=complete-to-publish&step=location&flow=complete")
+		).toBe("/product/p1/tickets?playbook=complete-to-publish&step=tickets&flow=complete")
 
 		continueData.set("playbookCurrentStep", "content")
 		expect(
 			resolvePlaybookRedirectAfterSave(continueData, {
 				productId: "p1",
-				launchPath: "/product/p1/location",
-				launchStep: "location",
+				launchPath: "/product/p1/categories",
+				launchStep: "categories",
 				intent: "continue",
 			})
-		).toBe("/product/p1/images?playbook=complete-to-publish&step=photos&flow=complete")
+		).toBe("/product/p1/categories?playbook=complete-to-publish&step=categories&flow=complete")
 
 		const exitData = new FormData()
 		exitData.set("playbook", "complete-to-publish")

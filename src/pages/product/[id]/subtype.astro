@@ -7,7 +7,10 @@ import Select from "@/components/ui/Select.astro"
 import Textarea from "@/components/ui/Textarea.astro"
 import { TOUR_DIFFICULTY_OPTIONS, normalizeTourDifficulty } from "@/lib/tours/tourDifficulty"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
-import { buildCompleteToPublishHref } from "@/lib/playbook/complete-to-publish"
+import {
+	buildCompleteToPublishHref,
+	getCompleteToPublishPlaybookRepairHref,
+} from "@/lib/playbook/complete-to-publish"
 import { buildPlaybookHref } from "@/lib/playbook/launch-accommodation"
 import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
 import { playbookRedirectHrefFor } from "@/lib/playbook/playbook-nav"
@@ -41,6 +44,9 @@ const pt = String(product.productType || "")
 	.trim()
 	.toLowerCase()
 const isHotel = pt === "hotel"
+const isTour = pt === "tour"
+const playbookRepair = getCompleteToPublishPlaybookRepairHref(Astro.url, { isTour, productId })
+if (playbookRepair) return Astro.redirect(playbookRepair)
 const playbook = resolvePlaybookFromUrl(Astro.url, { isHotel })
 const vertical = getProductVerticalDefinition(product.productType)
 const verticalLabel = vertical?.labels.singular.toLowerCase() ?? "oferta"

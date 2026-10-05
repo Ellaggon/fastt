@@ -45,7 +45,7 @@ describe("complete-to-publish resume", () => {
 			check("preview", false),
 		]
 		expect(buildCompleteToPublishResumeHref("tour-1", checks)).toBe(
-			"/product/tour-1/photos?playbook=complete-to-publish&step=photos&flow=complete"
+			"/product/tour-1/location?playbook=complete-to-publish&step=location&flow=complete"
 		)
 	})
 
@@ -61,7 +61,7 @@ describe("complete-to-publish resume", () => {
 			check("preview", false),
 		]
 		expect(buildCompleteToPublishResumeHref("tour-1", checks)).toBe(
-			"/product/tour-1/photos?playbook=complete-to-publish&step=photos&flow=complete"
+			"/product/tour-1/itinerary?playbook=complete-to-publish&step=itinerary&flow=complete"
 		)
 	})
 

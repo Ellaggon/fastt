@@ -1,13 +1,25 @@
 ---
 import type { projectTourPublishingStages } from "@/lib/playbook/tour-publishing-stages"
+import { formatTourPreparationProgressLine } from "@/lib/tours/tourPreparationRequirements"
 interface Props {
 	preparation: { readyCount: number; totalCount: number; readinessPercent: number }
 	stages?: ReturnType<typeof projectTourPublishingStages>
 	activeStageId?: string
 	showMeter?: boolean
+	/** When false, only the progress bar renders (label lives in PlaybookLayout). */
+	showProgressLine?: boolean
+	stagePresentation?: "none" | "rail" | "list"
 }
-const { preparation, stages, activeStageId, showMeter = true } = Astro.props
+const {
+	preparation,
+	stages,
+	activeStageId,
+	showMeter = true,
+	showProgressLine = true,
+	stagePresentation = stages ? "rail" : "none",
+} = Astro.props
 const percent = preparation.readinessPercent
+const preparationProgressLine = formatTourPreparationProgressLine(preparation)
 const labels = {
 	ready: "Lista",
 	pending: "Pendiente",
@@ -20,16 +32,14 @@ const labels = {
 	{
 		showMeter ? (
 			<>
-				<p class="text-sm font-medium">
-					{percent}% preparado · {preparation.readyCount} de {preparation.totalCount} requisitos
-				</p>
+				{showProgressLine ? <p class="text-sm font-medium">{preparationProgressLine}</p> : null}
 				<div
 					role="progressbar"
 					aria-label="Preparación de la ficha"
 					aria-valuemin={0}
 					aria-valuemax={100}
 					aria-valuenow={percent}
-					aria-valuetext={`${percent}% preparado; ${preparation.readyCount} de ${preparation.totalCount} requisitos`}
+					aria-valuetext={preparationProgressLine.replace(" · ", "; ")}
 					class="fastt-progress-track h-1.5 overflow-hidden bg-slate-500/20"
 				>
 					<div
@@ -42,47 +52,295 @@ const labels = {
 	}
 
 	{
-		stages ? (
-			<details class="tour-stage-index" open>
-				<summary class="cursor-pointer text-sm font-medium">Ver preparación</summary>
-				<ol
-					class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3"
-					aria-label="Etapas de preparación"
-				>
-					{stages.map((stage) => (
-						<li
-							aria-current={stage.id === activeStageId ? "step" : undefined}
-							class="rounded-lg border border-slate-500/20 px-3 py-2 text-xs"
-						>
-							<span class="block font-medium">
-								{stage.position}. {stage.label}
-							</span>
-							<span class="mt-1 block text-slate-400">
-								{labels[stage.state as keyof typeof labels]}
-							</span>
-						</li>
-					))}
+		stages && stagePresentation === "list" ? (
+			<nav aria-label="Etapas de preparación" class="tour-stage-list-wrap">
+				<ol class="tour-stage-list mt-3 list-none space-y-3 p-0">
+					{stages.map((stage) => {
+						const isActive = stage.id === activeStageId
+						const statusLabel = isActive ? "En curso" : labels[stage.state as keyof typeof labels]
+						const itemClass = [
+							"tour-stage-list__item",
+							isActive ? "tour-stage-list__item--active" : "",
+							stage.state === "ready" ? "tour-stage-list__item--ready" : "",
+							stage.state === "blocked" ? "tour-stage-list__item--blocked" : "",
+						]
+							.filter(Boolean)
+							.join(" ")
+						const inner = (
+							<>
+								<span class="tour-stage-list__index">{stage.position}</span>
+								<span class="tour-stage-list__label">{stage.label}</span>
+								<span class="tour-stage-list__status">{statusLabel}</span>
+							</>
+						)
+						return (
+							<li
+								class={itemClass}
+								aria-current={isActive ? "step" : undefined}
+								data-tour-stage-id={stage.id}
+							>
+								{stage.href && !isActive ? (
+									<a class="tour-stage-list__link" href={stage.href}>
+										{inner}
+									</a>
+								) : (
+									<div class="tour-stage-list__body">{inner}</div>
+								)}
+							</li>
+						)
+					})}
 				</ol>
-			</details>
+			</nav>
+		) : null
+	}
+
+	{
+		stages && stagePresentation === "rail" ? (
+			<nav aria-label="Etapas de preparación">
+				<ol class="tour-stage-rail mt-3 flex min-w-0 list-none gap-1.5 overflow-x-auto p-0 pb-0.5 sm:gap-2">
+					{stages.map((stage) => {
+						const isActive = stage.id === activeStageId
+						const statusLabel = isActive ? "En curso" : labels[stage.state as keyof typeof labels]
+						const itemClass = [
+							"tour-stage-rail__step",
+							isActive ? "tour-stage-rail__step--active" : "",
+							stage.state === "ready" ? "tour-stage-rail__step--ready" : "",
+							stage.state === "blocked" ? "tour-stage-rail__step--blocked" : "",
+							stage.state === "not_evaluable" ? "tour-stage-rail__step--muted" : "",
+						]
+							.filter(Boolean)
+							.join(" ")
+						const inner = (
+							<>
+								<p class="tour-stage-rail__heading">
+									<span class="tour-stage-rail__index">{stage.position}</span>
+									<span class="tour-stage-rail__label">{stage.label}</span>
+								</p>
+								<span class="tour-stage-rail__status">{statusLabel}</span>
+							</>
+						)
+						return (
+							<li
+								class={itemClass}
+								data-tour-stage-id={stage.id}
+								data-tour-stage-state={stage.state}
+							>
+								{stage.href ? (
+									<a
+										class="tour-stage-rail__link"
+										href={stage.href}
+										aria-current={isActive ? "step" : undefined}
+									>
+										{inner}
+									</a>
+								) : (
+									<div class="tour-stage-rail__body">{inner}</div>
+								)}
+							</li>
+						)
+					})}
+				</ol>
+			</nav>
 		) : null
 	}
 </div>
+
 <style>
-	@media (min-width: 768px) {
-		.tour-stage-index > summary {
-			display: none;
+	.tour-stage-rail {
+		scrollbar-width: thin;
+		scrollbar-color: rgb(100 116 139 / 0.45) transparent;
+	}
+
+	.tour-stage-rail__step {
+		flex: 1 1 0;
+		min-width: 5.75rem;
+	}
+
+	.tour-stage-rail__link,
+	.tour-stage-rail__body {
+		display: flex;
+		height: 100%;
+		min-height: 4.25rem;
+		flex-direction: column;
+		justify-content: flex-start;
+		gap: 0.125rem;
+		border-radius: 0.5rem;
+		border: 1px solid rgb(100 116 139 / 0.28);
+		background: rgb(15 23 42 / 0.35);
+		padding: 0.5rem 0.625rem;
+		text-align: left;
+		transition:
+			border-color 0.2s ease,
+			background-color 0.2s ease,
+			box-shadow 0.2s ease;
+	}
+
+	.tour-stage-rail__link {
+		text-decoration: none;
+		color: inherit;
+	}
+
+	.tour-stage-rail__link:hover {
+		border-color: rgb(148 163 184 / 0.45);
+		background: rgb(30 41 59 / 0.55);
+	}
+
+	.tour-stage-rail__heading {
+		display: flex;
+		align-items: baseline;
+		gap: 0.35rem;
+		margin: 0;
+		min-width: 0;
+	}
+
+	.tour-stage-rail__index {
+		flex-shrink: 0;
+		font-size: 0.6875rem;
+		font-weight: 700;
+		line-height: 1.25;
+		color: rgb(148 163 184);
+	}
+
+	.tour-stage-rail__label {
+		min-width: 0;
+		font-size: 0.6875rem;
+		line-height: 1.25;
+		font-weight: 600;
+		color: rgb(226 232 240);
+	}
+
+	.tour-stage-rail__status {
+		margin-top: auto;
+		font-size: 0.625rem;
+		line-height: 1.2;
+		color: rgb(148 163 184);
+	}
+
+	.tour-stage-rail__step--active .tour-stage-rail__link,
+	.tour-stage-rail__step--active .tour-stage-rail__body {
+		border-color: var(--fastt-color-selection);
+		background: linear-gradient(180deg, rgb(37 99 235 / 0.22), rgb(15 23 42 / 0.5));
+		box-shadow:
+			inset 0 0 0 1px rgb(37 99 235 / 0.35),
+			0 8px 20px rgb(37 99 235 / 0.12);
+	}
+
+	.tour-stage-rail__step--active .tour-stage-rail__index {
+		color: rgb(191 219 254);
+	}
+
+	.tour-stage-rail__step--active .tour-stage-rail__label {
+		color: rgb(248 250 252);
+	}
+
+	.tour-stage-rail__step--active .tour-stage-rail__status {
+		font-weight: 600;
+		color: rgb(191 219 254);
+	}
+
+	.tour-stage-rail__step--ready .tour-stage-rail__link,
+	.tour-stage-rail__step--ready .tour-stage-rail__body {
+		border-color: rgb(16 185 129 / 0.35);
+		background: rgb(6 78 59 / 0.18);
+	}
+
+	.tour-stage-rail__step--ready .tour-stage-rail__status {
+		color: rgb(110 231 183);
+	}
+
+	.tour-stage-rail__step--blocked .tour-stage-rail__link,
+	.tour-stage-rail__step--blocked .tour-stage-rail__body {
+		border-color: rgb(245 158 11 / 0.45);
+	}
+
+	.tour-stage-rail__step--blocked .tour-stage-rail__status {
+		color: rgb(252 211 77);
+	}
+
+	@media (min-width: 640px) {
+		.tour-stage-rail__step {
+			min-width: 0;
 		}
+
+		.tour-stage-rail__index,
+		.tour-stage-rail__label {
+			font-size: 0.75rem;
+		}
+	}
+
+	.tour-stage-list__link,
+	.tour-stage-list__body {
+		display: grid;
+		gap: 0.125rem;
+		border-radius: 0.5rem;
+		border: 1px solid rgb(100 116 139 / 0.22);
+		background: rgb(15 23 42 / 0.35);
+		padding: 0.625rem 0.75rem;
+	}
+
+	.tour-stage-list__link {
+		color: inherit;
+		text-decoration: none;
+	}
+
+	.tour-stage-list__link:hover {
+		border-color: rgb(148 163 184 / 0.4);
+		background: rgb(30 41 59 / 0.5);
+	}
+
+	.tour-stage-list__index {
+		font-size: 0.75rem;
+		font-weight: 700;
+		color: rgb(148 163 184);
+	}
+
+	.tour-stage-list__label {
+		font-size: 0.875rem;
+		font-weight: 600;
+		line-height: 1.35;
+		color: rgb(226 232 240);
+	}
+
+	.tour-stage-list__status {
+		font-size: 0.75rem;
+		color: rgb(148 163 184);
+	}
+
+	.tour-stage-list__item--active .tour-stage-list__link,
+	.tour-stage-list__item--active .tour-stage-list__body {
+		border-color: var(--fastt-color-selection);
+		background: linear-gradient(180deg, rgb(37 99 235 / 0.18), rgb(15 23 42 / 0.45));
+		box-shadow: inset 0 0 0 1px rgb(37 99 235 / 0.3);
+	}
+
+	.tour-stage-list__item--active .tour-stage-list__status {
+		font-weight: 600;
+		color: rgb(191 219 254);
+	}
+
+	.tour-stage-list__item--ready .tour-stage-list__status {
+		color: rgb(110 231 183);
+	}
+
+	.tour-stage-list__item--blocked .tour-stage-list__status {
+		color: rgb(252 211 77);
 	}
 </style>
 
 <script>
-	const desktop = window.matchMedia("(min-width: 768px)")
-	function initializeTourStageIndexes() {
-		document.querySelectorAll<HTMLDetailsElement>(".tour-stage-index").forEach((index) => {
-			index.open = desktop.matches
+	function scrollActiveTourStageIntoView() {
+		const active = document.querySelector<HTMLElement>(
+			"[data-tour-preparation-progress] .tour-stage-rail__step--active"
+		)
+		if (!active || typeof active.scrollIntoView !== "function") return
+		active.scrollIntoView({
+			inline: "center",
+			block: "nearest",
+			behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
 		})
 	}
-	initializeTourStageIndexes()
-	desktop.addEventListener("change", initializeTourStageIndexes)
-	document.addEventListener("astro:page-load", initializeTourStageIndexes)
+	if (document.querySelector("[data-tour-preparation-progress] .tour-stage-rail")) {
+		scrollActiveTourStageIntoView()
+		document.addEventListener("astro:page-load", scrollActiveTourStageIntoView)
+	}
 </script>

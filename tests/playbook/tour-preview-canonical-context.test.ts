@@ -58,10 +58,23 @@ describe("tour preview navigation from trusted product context", () => {
 		expect(canonical.searchParams.get("ratePlanId")).toBe("rate")
 	})
 	it("leaves normal reviews and lodging navigation unchanged", () => {
-		expect(getTourPreviewCanonicalHref(entry(""), context)).toBeNull()
+		expect(
+			getTourPreviewCanonicalHref(
+				new URL("https://fastt.test/product/tour/preview?returnTo=%2Fcatalog%2Ftours"),
+				{ isTour: true, productId: "tour" }
+			)
+		).toBeNull()
 		const url = entry("playbook=add-room")
 		expect(getTourPreviewCanonicalHref(url, { ...context, isTour: false })).toBeNull()
 		expect(resolvePlaybookFromUrl(url, { isHotel: true }).playbookId).toBe("add-room")
+	})
+	it("restores complete-to-publish when offer selection is present without playbook params", () => {
+		const url = entry("")
+		const href = getTourPreviewCanonicalHref(url, context)!
+		const canonical = new URL(href, url)
+		expect(canonical.searchParams.get("playbook")).toBe("complete-to-publish")
+		expect(canonical.searchParams.get("step")).toBe("preview")
+		expect(canonical.searchParams.get("flow")).toBe("complete")
 	})
 	it("normalizes a tour without an option and does not invent a selection", () => {
 		const url = new URL("https://fastt.test/product/tour/preview?flow=create")

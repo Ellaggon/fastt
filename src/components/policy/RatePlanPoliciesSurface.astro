@@ -200,7 +200,7 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 					<article
 						class:list={[
 							"overflow-hidden",
-							embeddedGuidedSection
+							embeddedGuidedSection || (isTour && !showPlanSummary)
 								? ""
 								: showHeader || showPlanSummary || isProfessionalMode
 									? "border-y border-slate-200"

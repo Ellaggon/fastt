@@ -13,6 +13,8 @@ describe("tour payment terms UI", () => {
 			source("src/components/policy/PolicyAssignmentFlow.astro"),
 		])
 
+		expect(conditions).toContain("La edición de salida conserva esta tarifa y sus condiciones.")
+		expect(conditions).toContain("embeddedGuidedSection || (isTour && !showPlanSummary)")
 		expect(conditions).toContain("Pago al proveedor")
 		expect(conditions).toContain("Confirmar pago al proveedor")
 		expect(guest).toContain("recibe: ${payload.payment.recipient}")

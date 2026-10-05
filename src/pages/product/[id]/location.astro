@@ -5,7 +5,10 @@ import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
-import { buildCompleteToPublishHref } from "@/lib/playbook/complete-to-publish"
+import {
+	buildCompleteToPublishHref,
+	getCompleteToPublishPlaybookRepairHref,
+} from "@/lib/playbook/complete-to-publish"
 import { buildPlaybookHref } from "@/lib/playbook/launch-accommodation"
 import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
 import { playbookRedirectHrefFor } from "@/lib/playbook/playbook-nav"
@@ -39,6 +42,8 @@ if (!product) return Astro.redirect("/product/create")
 const vertical = getProductVerticalEntry(product.productType)
 const isHotel = vertical.vertical === "hotel"
 const isTour = vertical.vertical === "tour"
+const playbookRepair = getCompleteToPublishPlaybookRepairHref(Astro.url, { isTour, productId })
+if (playbookRepair) return Astro.redirect(playbookRepair)
 const playbook = resolvePlaybookFromUrl(Astro.url, { isHotel })
 const existingLocation = product.location
 const geoPlaces = await db

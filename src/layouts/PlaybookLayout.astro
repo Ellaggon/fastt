@@ -6,6 +6,12 @@ import {
 import { loadTourCommercialContext } from "@/lib/tours/loadTourCommercialContext"
 import { withTourCommercialContext } from "@/lib/tours/resolveTourCommercialContext"
 import PreparationProgress from "@/components/tours/TourPreparationProgress.astro"
+import TourPreparationRequirementsRail from "@/components/tours/TourPreparationRequirementsRail.astro"
+import {
+	formatTourPreparationProgressLine,
+	resolveActiveTourPreparationRequirement,
+} from "@/lib/tours/tourPreparationRequirements"
+import type { TourRequirementId } from "@/lib/tours/tourDiagnosticContract"
 import Button from "@/components/ui/Button.astro"
 import GuidedPreparationLayout from "@/layouts/GuidedPreparationLayout.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
@@ -47,6 +53,7 @@ import {
 } from "@/lib/playbook/launch-tour"
 import type { PlaybookId } from "@/lib/playbook/types"
 import { getTourPublishingStage } from "@/lib/playbook/tour-publishing-stages"
+import { Hotel, Ticket } from "@lucide/astro"
 
 interface Props {
 	title?: string
@@ -68,6 +75,7 @@ interface Props {
 	ownsPrimaryCta?: boolean
 	hideFooter?: boolean
 	lightweight?: boolean
+	productDisplayName?: string
 }
 
 const {
@@ -90,6 +98,7 @@ const {
 	ownsPrimaryCta = false,
 	hideFooter = false,
 	lightweight = false,
+	productDisplayName: productDisplayNameProp = "",
 } = Astro.props
 
 const isAddRoom = playbookId === "add-room"
@@ -384,6 +393,42 @@ if (tourAttentionHref.startsWith("/provider/")) {
 				)
 			: tourAttentionHref
 }
+
+function normalizePlaybookAttentionHref(base: URL, href: string): string {
+	try {
+		const url = new URL(href, base)
+		const params = new URLSearchParams()
+		for (const key of [
+			"playbook",
+			"step",
+			"flow",
+			"variantId",
+			"ratePlanId",
+			"vista",
+			"focus",
+			"productId",
+		]) {
+			const value = url.searchParams.get(key)?.trim()
+			if (value) params.set(key, value)
+		}
+		const query = params.toString()
+		return `${url.pathname}${query ? `?${query}` : ""}`
+	} catch {
+		return href
+	}
+}
+
+const currentPlaybookHref = normalizePlaybookAttentionHref(
+	Astro.url,
+	`${Astro.url.pathname}${Astro.url.search}`
+)
+const tourAttentionTargetsCurrentStep =
+	Boolean(guidedAttentionHref) &&
+	normalizePlaybookAttentionHref(Astro.url, guidedAttentionHref) === currentPlaybookHref
+/** Playbook pages already host the form; hide self-referential diagnosis cards. */
+const showTourAttentionAside =
+	showProgress && Boolean(tourAttention) && !tourAttentionTargetsCurrentStep
+
 const progressHeading =
 	isAddRoom && stepNumber && totalSteps
 		? `${playbookTitle} - Paso ${stepNumber} de ${totalSteps}`
@@ -392,6 +437,22 @@ const progressHeading =
 			: stepNumber && totalSteps
 				? `Paso ${stepNumber} de ${totalSteps}`
 				: "Progreso"
+const tourPreparationProgressLine = tourAttention
+	? formatTourPreparationProgressLine(tourAttention.preparation)
+	: ""
+const showTourAlternatingProgressLabel =
+	Boolean(tourAttention) &&
+	stagePosition > 0 &&
+	stageTotal > 0 &&
+	Boolean(tourPreparationProgressLine) &&
+	(isTourCompletePlaybook || isTourLaunch) &&
+	progressHeading.startsWith("Etapa ")
+const activeTourRequirementId: TourRequirementId | null = tourAttention
+	? resolveActiveTourPreparationRequirement(
+			String(stepId ?? ""),
+			tourAttention.nextRequirementId as TourRequirementId | null
+		)
+	: null
 // Lightweight controls evaluation cost, never persistence of the current navigation.
 const preparationSessionPayload =
 	active &&
@@ -412,6 +473,33 @@ const preparationSessionPayload =
 				ratePlanId,
 			}
 		: null
+
+let productDisplayName = productDisplayNameProp.trim()
+if (!productDisplayName && active && productId) {
+	const user = await getUserFromRequest(Astro.request)
+	const providerId = user ? await getProviderIdFromRequest(Astro.request, user) : null
+	if (providerId) {
+		const { getProductFullAggregate } = await import("@/modules/catalog/public")
+		const aggregate = await getProductFullAggregate(productId, providerId)
+		productDisplayName = String(aggregate?.displayName ?? "").trim()
+	}
+}
+
+const isTourPlaybookContext =
+	playbookVertical === "tour" || playbookId === LAUNCH_TOUR_PLAYBOOK_ID || isTourCompletePlaybook
+const showPlaybookProductContext = active && Boolean(productDisplayName)
+const tourVariantLabel =
+	resolvedTourContext &&
+	"option" in resolvedTourContext &&
+	resolvedTourContext.status === "resolved"
+		? resolvedTourContext.option.name.trim()
+		: ""
+const playbookProductContextLine = isTourPlaybookContext
+	? tourVariantLabel
+		? `${productDisplayName} · ${tourVariantLabel}`
+		: productDisplayName
+	: `${productDisplayName} · Nueva habitación`
+
 const PlaybookShell = active ? GuidedPreparationLayout : WorkspaceLayout
 ---
 
@@ -422,43 +510,152 @@ const PlaybookShell = active ? GuidedPreparationLayout : WorkspaceLayout
 	stepLabel={stepLabel}
 >
 	{
-		showProgress ? (
+		showProgress || showPlaybookProductContext ? (
 			<div class="mb-5 space-y-2">
-				<p class="text-xs font-semibold tracking-wide text-slate-300 uppercase">
-					{progressHeading}
-				</p>
-				{isTourCompletePlaybook || isTourLaunch ? (
-					tourAttention ? (
-						<PreparationProgress
-							preparation={tourAttention.preparation}
-							showMeter={!isTerminalStep}
-							stages={tourAttention.stages}
-							activeStageId={getTourPublishingStage(stepId).id}
-						/>
-					) : (
-						<p class="text-sm text-slate-400">Preparación aún sin evaluar</p>
-					)
-				) : showReadinessMeter ? (
-					<div
-						class="fastt-progress-track h-1.5 overflow-hidden bg-slate-800"
-						role="progressbar"
-						aria-label={`Progreso de ${playbookTitle}`}
-						aria-valuenow={visualProgressPercent}
-						aria-valuemin={0}
-						aria-valuemax={100}
-					>
-						<div
-							class="fastt-progress-value h-full"
-							style={`width: ${visualProgressPercent}%; background-color: var(--fastt-color-selection);`}
-						/>
-					</div>
+				{showProgress ? (
+					<>
+						{showTourAlternatingProgressLabel && tourAttention ? (
+							<div
+								class="tour-preparation-disclosure verification-wizard-progress-label verification-wizard-progress-label--alternate"
+								data-tour-preparation-disclosure
+								data-expanded-mode="none"
+								data-active-line="none"
+							>
+								<div class="verification-wizard-progress-label__stack text-sm font-medium text-slate-200">
+									<span class="verification-wizard-progress-label__phase verification-wizard-progress-label__phase--total">
+										<Button
+											type="button"
+											variant="ghost"
+											size="sm"
+											class="tour-preparation-disclosure__trigger tour-preparation-disclosure__trigger--total tour-preparation-disclosure__trigger--interactive text-xs font-semibold tracking-wide text-slate-300 normal-case"
+											data-tour-preparation-requirements-toggle
+											aria-expanded="false"
+											aria-controls="tour-preparation-requirements-panel"
+											disabled
+										>
+											<span class="tour-preparation-disclosure__label-text">
+												{tourPreparationProgressLine}
+											</span>
+										</Button>
+									</span>
+									<span class="verification-wizard-progress-label__phase verification-wizard-progress-label__phase--breakdown">
+										<Button
+											type="button"
+											variant="ghost"
+											size="sm"
+											class="tour-preparation-disclosure__trigger tour-preparation-disclosure__trigger--breakdown tour-preparation-disclosure__trigger--interactive text-xs font-semibold tracking-wide text-slate-300 uppercase"
+											data-tour-preparation-stage-toggle
+											aria-expanded="false"
+											aria-controls="tour-preparation-stages-panel"
+											disabled
+										>
+											<span class="tour-preparation-disclosure__label-text">{progressHeading}</span>
+										</Button>
+									</span>
+								</div>
+								<p class="sr-only">
+									{tourPreparationProgressLine}. {progressHeading}. Abre los requisitos cuando veas
+									el porcentaje; abre las etapas cuando veas la etapa actual.
+								</p>
+								<div
+									id="tour-preparation-stages-panel"
+									class="tour-preparation-disclosure__panel tour-preparation-disclosure__panel--stages"
+									data-tour-preparation-stages-panel
+								>
+									<div class="tour-preparation-disclosure__panel-inner">
+										<PreparationProgress
+											preparation={tourAttention.preparation}
+											showMeter={false}
+											showProgressLine={false}
+											stages={tourAttention.stages}
+											activeStageId={getTourPublishingStage(stepId).id}
+											stagePresentation="rail"
+										/>
+									</div>
+								</div>
+								{tourAttention.preparationRequirements ? (
+									<div
+										id="tour-preparation-requirements-panel"
+										class="tour-preparation-disclosure__panel tour-preparation-disclosure__panel--requirements"
+										data-tour-preparation-requirements-panel
+									>
+										<div class="tour-preparation-disclosure__panel-inner">
+											<TourPreparationRequirementsRail
+												requirements={tourAttention.preparationRequirements}
+												activeRequirementId={activeTourRequirementId}
+											/>
+										</div>
+									</div>
+								) : null}
+							</div>
+						) : showTourAlternatingProgressLabel ? (
+							<div
+								class="verification-wizard-progress-label verification-wizard-progress-label--alternate"
+								data-tour-preparation-progress-label
+							>
+								<p class="verification-wizard-progress-label__stack text-sm font-medium text-slate-200">
+									<span class="verification-wizard-progress-label__phase verification-wizard-progress-label__phase--total text-xs font-semibold tracking-wide text-slate-300 normal-case">
+										{tourPreparationProgressLine}
+									</span>
+									<span
+										class="verification-wizard-progress-label__phase verification-wizard-progress-label__phase--breakdown text-xs font-semibold tracking-wide text-slate-300 uppercase"
+										aria-hidden="true"
+									>
+										{progressHeading}
+									</span>
+								</p>
+							</div>
+						) : (
+							<p class="text-xs font-semibold tracking-wide text-slate-300 uppercase">
+								{progressHeading}
+							</p>
+						)}
+						{isTourCompletePlaybook || isTourLaunch ? (
+							tourAttention ? (
+								<PreparationProgress
+									preparation={tourAttention.preparation}
+									showMeter={!isTerminalStep}
+									showProgressLine={!showTourAlternatingProgressLabel}
+									stages={tourAttention.stages}
+									activeStageId={getTourPublishingStage(stepId).id}
+									stagePresentation={showTourAlternatingProgressLabel ? "none" : "rail"}
+								/>
+							) : (
+								<p class="text-sm text-slate-400">Preparación aún sin evaluar</p>
+							)
+						) : showReadinessMeter ? (
+							<div
+								class="fastt-progress-track h-1.5 overflow-hidden bg-slate-800"
+								role="progressbar"
+								aria-label={`Progreso de ${playbookTitle}`}
+								aria-valuenow={visualProgressPercent}
+								aria-valuemin={0}
+								aria-valuemax={100}
+							>
+								<div
+									class="fastt-progress-value h-full"
+									style={`width: ${visualProgressPercent}%; background-color: var(--fastt-color-selection);`}
+								/>
+							</div>
+						) : null}
+					</>
+				) : null}
+				{showPlaybookProductContext ? (
+					<p class="flex items-center gap-2 text-xs font-semibold tracking-wide text-slate-400 uppercase">
+						{isTourPlaybookContext ? (
+							<Ticket class="h-4 w-4" aria-hidden="true" />
+						) : (
+							<Hotel class="h-4 w-4" aria-hidden="true" />
+						)}
+						{playbookProductContextLine}
+					</p>
 				) : null}
 			</div>
 		) : null
 	}
 
 	{
-		showProgress && tourAttention ? (
+		showTourAttentionAside ? (
 			<aside
 				class="fastt-card mb-4 flex flex-wrap items-center justify-between gap-3 border-slate-700 bg-slate-900/40 px-4 py-3 text-sm"
 				aria-label="Diagnóstico de la oferta"
@@ -607,4 +804,10 @@ const PlaybookShell = active ? GuidedPreparationLayout : WorkspaceLayout
 			</footer>
 		) : null
 	}
+
+	<script>
+		import { initTourPreparationDisclosures } from "@/lib/playbook/tour-preparation-disclosure.client.ts"
+		initTourPreparationDisclosures()
+		document.addEventListener("astro:page-load", initTourPreparationDisclosures)
+	</script>
 </PlaybookShell>
