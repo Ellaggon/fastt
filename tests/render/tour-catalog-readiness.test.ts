@@ -5,7 +5,16 @@ import { TOUR_REQUIREMENTS } from "@/lib/tours/tourDiagnosticContract"
 import { presentTourDiagnostic } from "@/lib/tours/tourDiagnosticPresentation"
 import { resolveTourCommercialContext } from "@/lib/tours/resolveTourCommercialContext"
 
-const mocks = vi.hoisted(() => ({ preparation: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+	preparation: vi.fn(),
+	catalogProducts: [
+		{
+			id: "tour",
+			name: "Tour fixture",
+			status: { state: "ready", label: "Listo", variant: "success" },
+		},
+	] as Array<{ id: string; name: string; status: { state: string; label: string; variant: string } }>,
+}))
 vi.mock("@/lib/auth/getUserFromRequest", () => ({
 	getUserFromRequest: async () => ({ id: "user" }),
 }))
@@ -15,13 +24,7 @@ vi.mock("@/lib/auth/getProviderIdFromRequest", () => ({
 vi.mock("@/layouts/WorkspaceLayout.astro", async () => import("@/components/ui/Card.astro"))
 vi.mock("@/lib/catalog/providerCatalogSummary", () => ({
 	getProviderCatalogSummary: async () => ({
-		products: [
-			{
-				id: "tour",
-				name: "Tour fixture",
-				status: { state: "ready", label: "Listo", variant: "success" },
-			},
-		],
+		products: mocks.catalogProducts,
 		summary: { total: 1, ready: 1, published: 0, draft: 0 },
 	}),
 }))
@@ -123,6 +126,13 @@ it("renders a published private offer without a shared availability warning", as
 		published: true,
 		previewHref: "/product/tour/preview",
 	})
+	mocks.catalogProducts = [
+		{
+			id: "tour",
+			name: "Tour fixture",
+			status: { state: "published", label: "Publicado", variant: "success" },
+		},
+	]
 	mocks.preparation.mockResolvedValue({
 		isPublished: true,
 		tourContext: context,
