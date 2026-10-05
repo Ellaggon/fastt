@@ -1,0 +1,14 @@
+{
+	"default": true,
+	// Aligned GFM tables (MD060) pad cells to a common width; that necessarily exceeds
+	// prose line limits. Exclude table rows from MD013; keep 80 cols for text.
+	"MD013": {
+		"line_length": 80,
+		"code_blocks": false,
+		"tables": false,
+		"headings": false
+	},
+	"MD060": {
+		"style": "aligned"
+	}
+}
