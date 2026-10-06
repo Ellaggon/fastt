@@ -126,3 +126,18 @@ it("keeps stage completion coherent with individual saved requirements and autho
 	diagnosis.requirements.rate_activation.result = pending("/product/tour/preview")
 	expect(presentTourDiagnostic(diagnosis, options).reviewStatusLabel).toBe("Activación pendiente")
 })
+
+it("keeps a concrete missing-option correction actionable instead of retrying the summary", () => {
+	const diagnosis = tourDiagnosticFixture()
+	diagnosis.requirements.option_profile.result = {
+		state: "not_evaluable",
+		responsible: "provider",
+		reason: { code: "missing_option", message: "Crea una opción" },
+		action: { label: "Crear opción", href: "/product/tour/departures/new" },
+	}
+	const task = projectTourPublicationTasks(diagnosis).tasks.find((task) =>
+		task.ids.includes("option_profile")
+	)!
+	expect(task.unknown).toBe(false)
+	expect(new URL(task.href!, "http://fastt.local").pathname).toBe("/product/tour/departures/new")
+})

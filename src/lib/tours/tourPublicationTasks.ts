@@ -31,6 +31,12 @@ export function projectTourPublicationTasks(diagnosis: TourDiagnostic) {
 		if (definition.axis !== "preparation" && definition.axis !== "authorization") continue
 		const result = diagnosis.requirements[id].result
 		const label = TOUR_REQUIREMENT_PRESENTATION[id].label
+		const isDependency =
+			"reason" in result &&
+			["missing_option", "missing_rate", "selection_required", "invalid_selection"].includes(
+				result.reason.code
+			)
+		const unknown = result.state === "not_evaluable" && !isDependency
 		const href = tourPublicationCorrectionHref(
 			tourPreparationRequirementHref(diagnosis, id),
 			diagnosis.context.productId,
@@ -45,7 +51,7 @@ export function projectTourPublicationTasks(diagnosis: TourDiagnostic) {
 		const existing = tasks.get(key)
 		if (existing) {
 			existing.ids.push(id)
-			if (result.state === "not_evaluable") {
+			if (unknown) {
 				existing.unknown = true
 				existing.href = null
 			}
@@ -58,9 +64,9 @@ export function projectTourPublicationTasks(diagnosis: TourDiagnostic) {
 			ids: [id],
 			label: id === "option_profile" || id === "group_capacity" ? "Completar opción" : label,
 			messages: [result.reason.message],
-			href: result.state === "not_evaluable" || result.responsible === "fastt" ? null : href,
+			href: unknown || result.responsible === "fastt" ? null : href,
 			responsible: result.responsible,
-			unknown: result.state === "not_evaluable",
+			unknown,
 			code: result.reason.code,
 		})
 	}
