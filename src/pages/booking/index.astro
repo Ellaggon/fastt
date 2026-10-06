@@ -13,7 +13,8 @@ import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { routes } from "@/lib/routes"
 import { getVerticalOpsVocabulary } from "@/lib/verticalVocabulary"
 import { loadProviderOperationalDay } from "@/lib/booking/providerOperationalDay"
-import { resolveBookingWorkspaceContext } from "@/lib/booking/bookingWorkspaceContext"
+import { resolveWorkspaceScope } from "@/lib/workspace/resolveWorkspaceScope"
+import { workspaceScopeInvalidResponse } from "@/lib/workspace/workspaceScopeInvalidResponse"
 import { listProviderCommercialLines } from "@/lib/verification/commercial-lines"
 
 const workspaceContext = await Astro.locals.getWorkspaceContext()
@@ -49,23 +50,28 @@ const [commercialLines, operationalDay] = await Promise.all([
 	loadProviderOperationalDay(workspaceContext.provider.providerId),
 ])
 const requestedScope = Astro.url.searchParams.get("scope") ?? Astro.url.searchParams.get("vertical")
-const workspaceResolution = resolveBookingWorkspaceContext({
+const workspaceResolution = resolveWorkspaceScope({
 	productTypes: sidebarData?.productTypes ?? [],
 	commercialLines: commercialLines.map((entry) => entry.line),
 	requestedScope,
+	productId,
+	products: productContext
+		? [
+				{
+					id: productId,
+					name: String(productContext.productName ?? productContext.name ?? ""),
+					productType: String(productContext.productType ?? ""),
+				},
+			]
+		: [],
 	verifiedProductType: productContext?.productType,
 })
 if (!workspaceResolution.valid) {
-	const message =
-		workspaceResolution.reason === "scope_product_mismatch"
-			? "El negocio seleccionado no coincide con esta experiencia."
-			: workspaceResolution.reason === "scope_unavailable"
-				? "Este negocio no forma parte de las líneas habilitadas para esta cuenta."
-				: "El filtro de negocio no es válido."
-	return new Response(
-		`<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Contexto de reservas no válido</title><main style="font-family:system-ui,sans-serif;max-width:38rem;margin:12vh auto;padding:2rem;color:#0f172a"><h1>Revisa el negocio seleccionado</h1><p>${message}</p><a href="/booking?scope=all">Volver a todas las reservas</a></main></html>`,
-		{ status: 400, headers: { "Content-Type": "text/html; charset=utf-8" } }
-	)
+	return workspaceScopeInvalidResponse(workspaceResolution, {
+		title: "Contexto de reservas no válido",
+		recoveryHref: "/booking?scope=all",
+		recoveryLabel: "Volver a todas las reservas",
+	})
 }
 const availableVerticals =
 	"availableVerticals" in workspaceResolution ? workspaceResolution.availableVerticals : []

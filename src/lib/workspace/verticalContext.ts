@@ -127,6 +127,22 @@ export function resolveWorkspaceScopeOptions(input: {
 		}))
 }
 
+/** Preserves shareable URL scope for navigation without validating provider catalog membership. */
+export function workspaceNavigationScopeFromSearchParams(
+	searchParams: URLSearchParams
+): WorkspaceNavigationScope {
+	const rawScope = searchParams.get("scope") ?? searchParams.get("vertical")
+	const productId = String(searchParams.get("productId") ?? "").trim() || null
+	if (!rawScope || String(rawScope).trim() === "all") {
+		return { vertical: null, productId }
+	}
+	const normalized = normalizeProductVertical(rawScope)
+	if (!isActiveWorkspaceVertical(normalized)) {
+		return { vertical: null, productId }
+	}
+	return { vertical: normalized, productId }
+}
+
 export function withWorkspaceNavigationScope(
 	href: string,
 	scope: WorkspaceNavigationScope
