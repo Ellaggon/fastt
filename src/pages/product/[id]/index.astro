@@ -188,6 +188,22 @@ logRoutePerformance({
 <WorkspaceLayout title={`${detailTitle} · ${owned.name}`} productType={owned.productType}>
 	<section class="space-y-6 md:space-y-8">
 		<header class="space-y-2">
+			{
+				isTour && (
+					<nav
+						aria-label="Ubicación"
+						class="flex flex-wrap items-center gap-2 text-sm text-slate-400"
+					>
+						<>
+							<a href="/catalog/tours" class="hover:text-white">
+								Mis tours
+							</a>
+							<span aria-hidden="true">/</span>
+							<span aria-current="page">{owned.name}</span>
+						</>
+					</nav>
+				)
+			}
 			<div class="min-w-0 space-y-2">
 				<h1 class="sr-only">{owned.name}</h1>
 				{
@@ -349,7 +365,7 @@ logRoutePerformance({
 			data-is-package={String(isPackage)}
 			data-singular-label={vertical.labels.singular}
 			data-workspace-singular-label={vertical.labels.workspaceSingular}
-			data-preview-href={routes.productPreview(productId)}
+			data-preview-href={previewHref}
 			hidden
 		>
 		</div>
@@ -495,7 +511,7 @@ logRoutePerformance({
 							Abre las herramientas diarias sin repetir la información de la ficha.
 						</p>
 						<div class="mt-5 grid gap-2">
-							<Button href={routes.productPreview(productId)} className="w-full justify-start">
+							<Button href={previewHref} className="w-full justify-start">
 								<Eye class="size-4" aria-hidden="true" />
 								Vista previa
 							</Button>
@@ -508,7 +524,7 @@ logRoutePerformance({
 											className="w-full justify-start"
 										>
 											<CalendarDays class="size-4" aria-hidden="true" />
-											Gestionar salidas
+											Gestionar opciones
 										</Button>
 										<Button
 											href={tourCommercialLinks.participantsHref}
@@ -555,7 +571,7 @@ logRoutePerformance({
 			productId={productId}
 			productName={owned.name}
 			workspaceSingularLabel={vertical.labels.workspaceSingular}
-			variantsLabel={isTour ? "salidas" : isHotel ? "habitaciones" : "modalidades"}
+			variantsLabel={isTour ? "opciones" : isHotel ? "habitaciones" : "modalidades"}
 		/>
 	</section>
 

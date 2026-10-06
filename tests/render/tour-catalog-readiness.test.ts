@@ -7,13 +7,15 @@ import { resolveTourCommercialContext } from "@/lib/tours/resolveTourCommercialC
 
 const mocks = vi.hoisted(() => ({
 	preparation: vi.fn(),
+	catalogReadFails: false,
 	catalogProducts: [
 		{
 			id: "tour",
 			name: "Tour fixture",
-			status: { state: "ready", label: "Listo", variant: "success" },
+			publicationState: "ready",
+			optionCount: 3,
 		},
-	] as Array<{ id: string; name: string; status: { state: string; label: string; variant: string } }>,
+	] as Array<{ id: string; name: string; publicationState: string; optionCount: number }>,
 }))
 vi.mock("@/lib/auth/getUserFromRequest", () => ({
 	getUserFromRequest: async () => ({ id: "user" }),
@@ -22,11 +24,18 @@ vi.mock("@/lib/auth/getProviderIdFromRequest", () => ({
 	getProviderIdFromRequest: async () => "provider",
 }))
 vi.mock("@/layouts/WorkspaceLayout.astro", async () => import("@/components/ui/Card.astro"))
-vi.mock("@/lib/catalog/providerCatalogSummary", () => ({
-	getProviderCatalogSummary: async () => ({
-		products: mocks.catalogProducts,
-		summary: { total: 1, ready: 1, published: 0, draft: 0 },
-	}),
+vi.mock("@/lib/catalog/providerTourCatalog", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@/lib/catalog/providerTourCatalog")>()),
+	listProviderTourCatalog: async () => {
+		if (mocks.catalogReadFails) throw new Error("database unavailable")
+		return {
+			products: mocks.catalogProducts,
+			counts: { total: 1, published: 0, draft: 1 },
+			filteredTotal: 1,
+			page: 1,
+			pageCount: 1,
+		}
+	},
 }))
 vi.mock("@/lib/playbook/summarize-product-preparation", () => ({
 	summarizeProductPreparation: mocks.preparation,
@@ -69,6 +78,8 @@ it.each([false, true])(
 		const presentation = presentTourDiagnostic(diagnostic, { previewHref: "/product/tour/preview" })
 		mocks.preparation.mockResolvedValue({
 			isPublished: false,
+			continuePreparationHref:
+				"/product/tour/content?playbook=launch-tour&step=content&flow=create",
 			tourContext: context,
 			tourPresentation: presentation,
 			readinessPercent: presentation.preparation.readinessPercent,
@@ -82,11 +93,10 @@ it.each([false, true])(
 		})
 		expect(html).toMatch(/>\s*Borrador\s*</)
 		expect(html).not.toMatch(/>\s*Listo\s*</)
-		expect(html).toContain(`aria-valuenow="${conditionsReady ? 100 : 90}"`)
-		// Assert the actual rendered metric, not just the projection feeding it.
-		expect(html).toMatch(
-			new RegExp(`Listos para publicar</p>\\s*<p[^>]*>\\s*${conditionsReady ? 1 : 0}\\s*</p>`)
-		)
+		expect(html).not.toContain('role="progressbar"')
+		expect(html).not.toContain("Fichas preparadas")
+		expect(html).toMatch(/3\s+opciones/)
+		expect(html.match(/data-tour-id="tour"/g)).toHaveLength(1)
 		if (!conditionsReady) {
 			expect(html).toContain("Condición histórica incompatible")
 			expect(html).not.toMatch(/>\s*Listo para publicar\s*<\/span>/)
@@ -130,7 +140,8 @@ it("renders a published private offer without a shared availability warning", as
 		{
 			id: "tour",
 			name: "Tour fixture",
-			status: { state: "published", label: "Publicado", variant: "success" },
+			publicationState: "published",
+			optionCount: 1,
 		},
 	]
 	mocks.preparation.mockResolvedValue({
@@ -150,4 +161,19 @@ it("renders a published private offer without a shared availability warning", as
 	expect(html).not.toContain("disponibilidad actual pendiente")
 	expect(html).not.toContain("Revisar disponibilidad")
 	expect(html).toContain("Revisar ficha")
+})
+
+it("reports a failed catalog read without presenting an empty business", async () => {
+	mocks.catalogReadFails = true
+	try {
+		const container = await AstroContainer.create()
+		const html = await container.renderToString(ToursCatalog, {
+			request: new Request("https://fastt.test/catalog/tours"),
+		})
+		expect(html).toContain("No pudimos cargar tus tours")
+		expect(html).toContain("Reintentar")
+		expect(html).not.toContain("Crea tu primer tour")
+	} finally {
+		mocks.catalogReadFails = false
+	}
 })
