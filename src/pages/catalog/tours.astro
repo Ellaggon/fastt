@@ -1,245 +1,307 @@
 ---
-import { ArrowLeft, Map, Plus } from "@lucide/astro"
-
+import { Image as ImageIcon, Plus, Search } from "@lucide/astro"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
-import WorkspaceMetricStat from "@/components/ui/WorkspaceMetricStat.astro"
-import WorkspaceMetricStats from "@/components/ui/WorkspaceMetricStats.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
-import { getProviderCatalogSummary } from "@/lib/catalog/providerCatalogSummary"
-import { buildCompleteToPublishEntryHref } from "@/lib/playbook/complete-to-publish"
+import {
+	listProviderTourCatalog,
+	tourCatalogFilters,
+	tourCatalogHref,
+} from "@/lib/catalog/providerTourCatalog"
 import { summarizeProductPreparation } from "@/lib/playbook/summarize-product-preparation"
 import { routes } from "@/lib/routes"
-import { summarizeTourCatalog } from "@/lib/tours/tourDiagnosticPresentation"
-import { buildTourCommercialLinks, contextualizeTourLink } from "@/lib/tours/tourProviderNavigation"
+import { presentTourCatalogItem } from "@/lib/tours/tourCatalogPresentation"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
-
-const providerId = (await getProviderIdFromRequest(Astro.request)) ?? ""
+const providerId = (await getProviderIdFromRequest(Astro.request, user)) ?? ""
 if (!providerId) return Astro.redirect(routes.providerSettingsProfile())
-
 const vertical = getProductVerticalEntry("tour")
-const catalog = await getProviderCatalogSummary(providerId, vertical.productType)
+const filters = tourCatalogFilters(Astro.url.searchParams)
+let catalogError = false
+const catalog = await listProviderTourCatalog(providerId, filters).catch((error) => {
+	console.error("Tour catalog unavailable", error)
+	catalogError = true
+	return {
+		products: [],
+		counts: { total: 0, published: 0, draft: 0 },
+		filteredTotal: 0,
+		page: 1,
+		pageCount: 1,
+	}
+})
 const taskRows = await Promise.all(
 	catalog.products.map(async (product) => {
 		const preparation = await summarizeProductPreparation({
 			productId: product.id,
 			providerId,
-			status: product.status.state,
+			status: product.publicationState,
 			request: Astro.request,
-			url: Astro.url,
+		}).catch((error) => {
+			console.error("Tour catalog evaluation unavailable", { productId: product.id, error })
+			return null
 		})
-		const baseLinks = buildTourCommercialLinks({
-			productId: product.id,
-			variantId:
-				preparation?.tourContext && "variantId" in preparation.tourContext
-					? preparation.tourContext.variantId
-					: null,
-			ratePlanId:
-				preparation?.tourContext && "ratePlanId" in preparation.tourContext
-					? preparation.tourContext.ratePlanId
-					: null,
-		})
-		const context = preparation?.tourContext
-		const links =
-			context && "options" in context
-				? (Object.fromEntries(
-						Object.entries(baseLinks).map(([key, href]) => [
-							key,
-							contextualizeTourLink(href, context),
-						])
-					) as typeof baseLinks)
-				: baseLinks
-		const primaryTask = preparation?.tourPresentation
-			? {
-					label:
-						product.status.state === "published"
-							? preparation.tourPresentation.primaryAction.label
-							: preparation.tourPresentation.preparation.complete
-								? "Publicar tour"
-								: "Continuar preparación",
-					href:
-						product.status.state === "published"
-							? preparation.tourPresentation.primaryAction.href
-							: preparation.tourPresentation.preparation.complete
-								? preparation.previewHref
-								: preparation.continuePreparationHref,
-				}
-			: product.status.state === "published"
-				? { label: "Revisar disponibilidad", href: links.calendarHref }
-				: preparation?.readyToPublish
-					? { label: "Revisar y publicar", href: preparation.previewHref }
-					: {
-							label: preparation?.nextStepCta ?? "Continuar preparación",
-							href:
-								preparation?.continuePreparationHref ?? buildCompleteToPublishEntryHref(product.id),
-						}
-		return {
-			product,
-			preparation,
-			links,
-			primaryTask,
-			detailHref:
-				context && "options" in context
-					? contextualizeTourLink(routes.productDetail(product.id), context)
-					: routes.productDetail(product.id),
-		}
+		return { product, ...presentTourCatalogItem(product.id, preparation) }
 	})
 )
-const evaluatedSummary = summarizeTourCatalog(
-	taskRows.map(({ product, preparation }) => ({
-		published: product.status.state === "published",
-		presentation: preparation?.tourPresentation,
-	}))
-)
+const filterTabs = [
+	{ state: "all" as const, label: "Todos", count: catalog.counts.total },
+	{ state: "draft" as const, label: "Borradores", count: catalog.counts.draft },
+	{ state: "published" as const, label: "Publicados", count: catalog.counts.published },
+]
 ---
 
-<WorkspaceLayout title="Tours">
-	<section class="space-y-6">
-		<Card variant="dark" class="!border-neutral-800 !bg-black">
-			<div class="flex flex-wrap items-start justify-between gap-5">
-				<div class="max-w-3xl space-y-3">
-					<a
-						href={routes.dashboard()}
-						class="inline-flex items-center gap-2 text-sm font-semibold text-slate-400 hover:text-white"
-					>
-						<ArrowLeft class="h-4 w-4" aria-hidden="true" />Inicio</a
-					>
-					<div class="space-y-2">
-						<p
-							class="inline-flex items-center gap-2 text-xs font-semibold tracking-[0.14em] text-neutral-500 uppercase"
+<WorkspaceLayout title="Mis tours" productType="tour">
+	<section class="space-y-6" data-tour-catalog>
+		<header class="flex flex-wrap items-center justify-between gap-4">
+			<h1 class="text-2xl font-semibold tracking-tight text-white sm:text-3xl">Mis tours</h1>
+			<Button href={vertical.routes.workspaceCreateHref} variant="onDark"
+				><Plus class="size-4" aria-hidden="true" />Crear tour</Button
+			>
+		</header>
+		<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+			<nav class="flex flex-wrap gap-1" aria-label="Estado de los tours">
+				{
+					filterTabs.map(({ state, label, count }) => (
+						<a
+							href={tourCatalogHref({ ...filters, state, page: 1 })}
+							aria-current={filters.state === state ? "page" : undefined}
+							class:list={[
+								"inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white",
+								filters.state === state
+									? "bg-white text-slate-950"
+									: "text-slate-400 hover:bg-white/10 hover:text-white",
+							]}
 						>
-							<Map class="h-4 w-4" aria-hidden="true" />
-							Tours
-						</p>
-						<h1 class="text-3xl font-semibold tracking-tight text-white">Tours</h1>
-						<p class="text-sm leading-6 text-neutral-400">
-							Prepara experiencias con punto de encuentro, duración, itinerario, fotos, cupos y
-							disponibilidad sin mezclarlo con la operación hotelera.
-						</p>
-					</div>
+							{label}
+							<span class="text-xs tabular-nums opacity-70">{catalogError ? "—" : count}</span>
+						</a>
+					))
+				}
+			</nav>
+			<form
+				action="/catalog/tours"
+				method="get"
+				class="flex min-w-0 items-center gap-2 sm:max-w-sm"
+			>
+				{filters.state !== "all" && <input type="hidden" name="state" value={filters.state} />}
+				<div class="relative min-w-0 flex-1">
+					<label for="tour-search" class="sr-only">Buscar tours por nombre</label>
+					<Search
+						class="pointer-events-none absolute top-3.5 left-3 size-4 text-slate-400"
+						aria-hidden="true"
+					/>
+					<input
+						id="tour-search"
+						name="q"
+						value={filters.query}
+						maxlength="120"
+						type="search"
+						placeholder="Buscar tours"
+						class="fastt-field h-11 w-full border-white/15 bg-white/5 pr-3 pl-9 text-sm text-white placeholder:text-slate-500 focus:border-white/40 focus:ring-white/20"
+					/>
 				</div>
-				<Button href={vertical.routes.workspaceCreateHref} variant="onDark">
-					<Plus class="h-4 w-4" aria-hidden="true" />
-					Crear tour
-				</Button>
-			</div>
-		</Card>
-
-		<WorkspaceMetricStats class="md:grid-cols-4" ariaLabel="Resumen de tours">
-			<WorkspaceMetricStat label="Tours">{evaluatedSummary.total}</WorkspaceMetricStat>
-			<WorkspaceMetricStat label="Publicados">{evaluatedSummary.published}</WorkspaceMetricStat>
-			<WorkspaceMetricStat label="Fichas preparadas"
-				>{evaluatedSummary.prepared}</WorkspaceMetricStat
-			>
-			<WorkspaceMetricStat label="Listos para publicar"
-				>{evaluatedSummary.readyToPublish}</WorkspaceMetricStat
-			>
-		</WorkspaceMetricStats>
-
-		<section class="space-y-4">
-			<div class="space-y-1">
-				<h2 class="text-xl font-semibold text-white">Qué necesita atención</h2>
-				<p class="text-sm leading-6 text-slate-400">
-					Continúa el requisito exacto de cada tour o abre directamente su operación diaria.
-				</p>
-			</div>
-			{
-				taskRows.length === 0 ? (
-					<Card class="grid gap-4 bg-white md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-						<div class="space-y-1">
-							<h3 class="text-lg font-semibold text-slate-950">Todavía no hay tours</h3>
-							<p class="text-sm leading-6 text-slate-500">
-								Crea una ficha inicial y completa contenido, itinerario, tickets, salida, precio y
-								cupo para poder publicarla.
-							</p>
-						</div>
-						<Button href={vertical.routes.workspaceCreateHref}>Crear tour</Button>
-					</Card>
-				) : (
-					<div class="grid gap-3">
-						{taskRows.map(({ product, preparation, links, primaryTask, detailHref }) => (
-							<Card class="grid gap-5 bg-white p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-								<div class="min-w-0 space-y-3">
-									<div class="flex flex-wrap items-center gap-2">
-										<h3 class="truncate text-base font-semibold text-slate-950">{product.name}</h3>
-										<Badge variant={product.status.state === "published" ? "success" : "neutral"}>
-											{product.status.state === "published" ? "Publicado" : "Borrador"}
-										</Badge>
-										<Badge
-											variant={preparation?.tourPresentation?.catalogStatus.variant ?? "warning"}
+				<Button type="submit" variant="onDark" size="sm">Buscar</Button>
+			</form>
+		</div>
+		{
+			catalogError ? (
+				<Card class="space-y-3 bg-white p-6" role="status">
+					<>
+						<h2 class="text-lg font-semibold text-slate-950">No pudimos cargar tus tours</h2>
+						<p class="text-sm text-slate-600">Vuelve a consultar el catálogo.</p>
+						<Button href={tourCatalogHref(filters)} variant="secondary">
+							Reintentar
+						</Button>
+					</>
+				</Card>
+			) : taskRows.length === 0 ? (
+				<Card class="space-y-3 bg-white p-6">
+					<h2 class="text-lg font-semibold text-slate-950">
+						{filters.query || filters.state !== "all"
+							? "No hay tours con estos filtros"
+							: "Crea tu primer tour"}
+					</h2>
+					<p class="text-sm text-slate-600">
+						{filters.query || filters.state !== "all"
+							? "Prueba otro nombre o revisa todos tus tours."
+							: "Añade una experiencia a tu negocio y prepara su primera opción."}
+					</p>
+					<Button
+						href={
+							filters.query || filters.state !== "all"
+								? "/catalog/tours"
+								: vertical.routes.workspaceCreateHref
+						}
+						variant="secondary"
+					>
+						{filters.query || filters.state !== "all" ? "Ver todos" : "Crear tour"}
+					</Button>
+				</Card>
+			) : (
+				<ul class="space-y-3" aria-label="Tours del negocio">
+					{taskRows.map(
+						({ product, primaryAction, detailHref, previewHref, links, statusLabel, support }) => (
+							<li data-tour-id={product.id}>
+								<Card variant="row" class="bg-white p-4 sm:p-5">
+									<div class="flex flex-wrap items-start gap-4">
+										<a
+											href={detailHref}
+											tabindex="-1"
+											aria-hidden="true"
+											class="flex h-20 w-24 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100 sm:h-24 sm:w-32"
 										>
-											{preparation?.tourPresentation?.catalogStatus.label ?? "Evaluación pendiente"}
-										</Badge>
-									</div>
-									{preparation && !preparation.isPublished ? (
-										<>
-											<div class="flex max-w-xl items-center gap-3">
-												<div
-													class="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200"
-													role="progressbar"
-													aria-label="Preparación del tour"
-													aria-valuemin={0}
-													aria-valuemax={100}
-													aria-valuenow={preparation.readinessPercent}
+											{product.imageUrl ? (
+												<img
+													src={product.imageUrl}
+													alt=""
+													loading="lazy"
+													decoding="async"
+													class="h-full w-full object-cover"
+												/>
+											) : (
+												<ImageIcon class="size-7 text-slate-300" />
+											)}
+										</a>
+										<div class="min-w-0 flex-1 basis-40 space-y-2">
+											<div class="flex flex-wrap items-center gap-2">
+												<h2 class="min-w-0 text-base font-semibold text-slate-950">
+													<a
+														href={detailHref}
+														class="rounded break-words hover:underline focus-visible:outline-2 focus-visible:outline-offset-2"
+													>
+														{product.name}
+													</a>
+												</h2>
+												<Badge
+													variant={product.publicationState === "published" ? "success" : "neutral"}
 												>
-													<div
-														class="h-full rounded-full bg-slate-950"
-														style={`width: ${Math.max(0, Math.min(100, preparation.readinessPercent))}%`}
-													/>
-												</div>
-												<span class="text-xs font-medium text-slate-500 tabular-nums">
-													{preparation.readinessPercent}%
-												</span>
+													{product.publicationState === "published" ? "Publicado" : "Borrador"}
+												</Badge>
 											</div>
-											<p class="text-sm text-slate-600">
-												<span class="font-semibold text-slate-900">Siguiente:</span>{" "}
-												{preparation.nextStepLabel ?? "Revisar preparación"}
-												{preparation.nextStepBody ? ` · ${preparation.nextStepBody}` : ""}
+											<p class="text-xs text-slate-500">
+												{product.destinationName && `${product.destinationName} · `}
+												{Number(product.optionCount)}{" "}
+												{Number(product.optionCount) === 1 ? "opción" : "opciones"}
 											</p>
-										</>
-									) : (
-										<p class="text-sm text-slate-600">
-											{preparation?.tourPresentation?.support ??
-												"No se pudo evaluar la oferta. Vuelve a revisar su preparación."}
-										</p>
-									)}
-								</div>
-								<div class="flex max-w-xl flex-wrap justify-start gap-2 lg:justify-end">
-									<Button href={primaryTask.href} variant="selection" size="sm">
-										{primaryTask.label}
-									</Button>
-									<Button
-										href={preparation?.previewHref ?? routes.productPreview(product.id)}
-										variant="secondary"
-										size="sm"
-									>
-										Vista previa
-									</Button>
-									<Button href={detailHref} variant="secondary" size="sm">
-										Editar ficha
-									</Button>
-									{product.primaryVariantId ? (
-										<>
-											<Button href={links.priceHref} variant="ghost" size="sm">
-												Precio
+											<p class="text-sm font-medium text-slate-800">{statusLabel}</p>
+											<p class="max-w-2xl text-sm leading-5 text-slate-600">{support}</p>
+										</div>
+										<div class="flex shrink-0 basis-full flex-wrap items-center gap-2 sm:basis-auto sm:flex-col sm:items-end">
+											<Button href={primaryAction.href} variant="selection" size="sm">
+												{primaryAction.label}
 											</Button>
-											<Button href={links.calendarHref} variant="ghost" size="sm">
-												Disponibilidad
-											</Button>
-										</>
-									) : null}
-								</div>
-							</Card>
-						))}
+											<details class="group relative">
+												<summary class="cursor-pointer rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2">
+													Más acciones<span class="sr-only"> de {product.name}</span>
+												</summary>
+												<nav
+													aria-label={`Acciones de ${product.name}`}
+													class="fastt-soft-box absolute right-0 z-10 mt-1 w-56 bg-white p-1.5 shadow-lg"
+												>
+													{[
+														{ href: detailHref, label: "Editar tour" },
+														{ href: previewHref, label: "Vista previa" },
+														{ href: links.priceHref, label: "Precios y condiciones" },
+														{ href: links.calendarHref, label: "Fechas y cupos" },
+													].map(({ href, label }) => (
+														<a
+															href={href}
+															class="block rounded-lg px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-100 focus-visible:bg-slate-100 focus-visible:outline-none"
+														>
+															{label}
+														</a>
+													))}
+												</nav>
+											</details>
+										</div>
+									</div>
+								</Card>
+							</li>
+						)
+					)}
+				</ul>
+			)
+		}
+		{
+			catalog.pageCount > 1 && (
+				<nav
+					aria-label="Páginas de tours"
+					class="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-400"
+				>
+					<span>
+						Página {catalog.page} de {catalog.pageCount} · {catalog.filteredTotal} tours
+					</span>
+					<div class="flex gap-2">
+						{catalog.page > 1 && (
+							<Button
+								href={tourCatalogHref({ ...filters, page: catalog.page - 1 })}
+								variant="onDark"
+								size="sm"
+							>
+								Anterior
+							</Button>
+						)}
+						{catalog.page < catalog.pageCount && (
+							<Button
+								href={tourCatalogHref({ ...filters, page: catalog.page + 1 })}
+								variant="onDark"
+								size="sm"
+							>
+								Siguiente
+							</Button>
+						)}
 					</div>
-				)
-			}
-		</section>
+				</nav>
+			)
+		}
 	</section>
 </WorkspaceLayout>
+<script>
+	// Keep menus local, dismissible and mutually exclusive without an extra island.
+	function bindTourMenus() {
+		const root = document.querySelector<HTMLElement>("[data-tour-catalog]")
+		if (!root || root.dataset.menusBound) return
+		root.dataset.menusBound = "true"
+		root.addEventListener(
+			"toggle",
+			(event) => {
+				const menu = event.target
+				if (!(menu instanceof HTMLDetailsElement) || !menu.open) return
+				root.querySelectorAll<HTMLDetailsElement>("details[open]").forEach((other) => {
+					if (other !== menu) other.open = false
+				})
+			},
+			true
+		)
+		root.addEventListener("keydown", (event) => {
+			if (event.key !== "Escape") return
+			const menu = (event.target as HTMLElement).closest("details")
+			if (menu) {
+				menu.open = false
+				menu.querySelector("summary")?.focus()
+			}
+		})
+		document.addEventListener(
+			"click",
+			(event) => {
+				root.querySelectorAll<HTMLDetailsElement>("details[open]").forEach((menu) => {
+					if (!menu.contains(event.target as Node)) menu.open = false
+				})
+			},
+			{
+				signal: (() => {
+					const controller = new AbortController()
+					document.addEventListener("astro:before-swap", () => controller.abort(), { once: true })
+					return controller.signal
+				})(),
+			}
+		)
+	}
+	bindTourMenus()
+	document.addEventListener("astro:page-load", bindTourMenus)
+</script>
