@@ -3,7 +3,7 @@
 Status: active  
 Document type: canonical  
 Owner: Tours / Provider Experience  
-Last verified: 2026-10-04
+Last verified: 2026-10-05
 Scope: definición ideal de los recorridos guiados (playbooks) del proveedor de tours, sus etapas, diagnóstico compartido, navegación y reglas de interfaz  
 Source of truth: este documento; implementación en `src/lib/playbook/`, layouts de playbook y superficies enlazadas del proveedor  
 Related code/tests: `src/lib/playbook/`, `src/layouts/PlaybookLayout.astro`, `src/pages/product/`, `src/pages/catalog/tours.astro`, pruebas de wizard comercial de tours  
@@ -78,7 +78,19 @@ Capacidades: preparar, activar, publicar, reservar y recibir solicitud; decision
 
 `tourDiagnosticPresentation.ts` proyecta motivos y acciones con selección y retorno en catálogo, dashboard, guía, preview y APIs. Una lectura fallida ofrece reintento. Pruebas: `tests/unit/tour-preparation-diagnostic.test.ts` y `tests/unit/product-tour-selection-api.test.ts`.
 
-El catálogo separa estado editorial (borrador/publicado) de preparación y habilitación actual. Las etiquetas y contadores de fichas preparadas y listas para publicar se proyectan del diagnóstico de la oferta seleccionada, nunca de `Product.publicationState=ready`. Selección ambigua o evaluación desconocida no suman a listas para publicar; agotamiento no reduce preparación.
+El negocio es `Provider`; cada tour es `Product` + `Tour`; sus opciones son `Variant` +
+`TourSlotProfile`. Tarifas y fechas no crean otros tours. Resumen presenta actividad del día
+local, solicitudes privadas y como máximo la última preparación válida; Mis tours concentra
+el catálogo, con una fila por producto, búsqueda y filtros editoriales paginados. La identidad
+comercial aparece en el shell, sin repetirla en cada ficha.
+
+El catálogo separa borrador/publicado de preparación y habilitación actuales. Sus filtros
+cuentan estados editoriales; las acciones y pendientes proceden del diagnóstico de la oferta,
+nunca de `Product.publicationState=ready`. Una selección ambigua requiere elegir oferta.
+Agotamiento no reduce preparación. Sólo se evalúa la página visible; Resumen no vuelve a
+evaluar todo el catálogo. Referencias: `src/lib/catalog/providerTourCatalog.ts`,
+`src/components/dashboard/TourBusinessOverview.astro`, `src/lib/tours/tourCatalogPresentation.ts`
+y `tests/integration/provider-tour-catalog.test.ts`.
 
 ### Persistencia compartida
 

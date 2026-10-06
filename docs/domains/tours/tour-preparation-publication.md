@@ -66,13 +66,20 @@ sus instrucciones en la cabecera. Separar playbooks no justifica cambiar los est
 **Gatillos:** Crear tour; Continuar preparación de un borrador que quedó en esta parte;
 Editar preparación desde la segunda parte cuando el usuario quiera revisar varias etapas.
 
-| Etapa                    | Formularios existentes                                                |
-| ------------------------ | --------------------------------------------------------------------- |
-| 1. Presentación          | Identidad y destino → descripción y destacados → categorías.          |
-| 2. Recorrido y logística | Ubicación/encuentro → duración, itinerario, inclusiones y requisitos. |
-| 3. Fotos                 | Carga, portada, orden y descripciones.                                |
-| 4. Opción y precio       | Participantes → perfil, modalidad y grupo → precio → condiciones.     |
-| 5. Fechas y cupos        | Fechas o repetición, capacidades y excepciones de la opción.          |
+| Etapa                    | Formularios existentes                                                      |
+| ------------------------ | --------------------------------------------------------------------------- |
+| 1. Presentación          | Un único formulario: nombre, destino, descripción, destacados y categorías. |
+| 2. Recorrido y logística | Ubicación/encuentro → duración, itinerario, inclusiones y requisitos.       |
+| 3. Fotos                 | Carga, portada, orden y descripciones.                                      |
+| 4. Opción y precio       | Participantes → perfil, modalidad y grupo → precio → condiciones.           |
+| 5. Fechas y cupos        | Fechas o repetición, capacidades y excepciones de la opción.                |
+
+La etapa «Presenta tu experiencia» se completa en una sola página. El guardado conjunto de
+nombre, destino, descripción, destacados y categorías es transaccional; «Guardar y pasar a
+recorrido» conduce a la etapa 2. «Guardar y salir» permite conservar una presentación parcial
+como borrador. Las antiguas entradas de descripción y categorías de preparación redirigen
+a `/product/{id}/presentation`, con los datos existentes y el contexto conservados. La etapa
+actual pendiente se presenta como «En curso»; navegar nunca acredita requisitos completados.
 
 **Pantalla normal:** identidad breve del tour, `Etapa 4 de 5`, título del formulario,
 campos pertinentes y una acción principal. La etapa completa se consulta mediante
@@ -235,4 +242,3 @@ repositorios y comandos compartidos; no duplicar validadores ni guardar copias d
 Los IDs heredados requieren compatibilidad: `complete-to-publish` sin versión también reanuda A;
 no basta renombrarlo para enviar todas sus URLs a B. Migrar intención y sesiones explícitamente,
 sin inventar una tabla nueva antes de comprobar las capacidades de la persistencia existente.
-

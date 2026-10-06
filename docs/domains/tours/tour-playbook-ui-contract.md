@@ -30,7 +30,7 @@ no autorizan renombrar la interfaz durante este cambio. Los diez requisitos sigu
 validaciones de datos; no se convierten en diez pantallas obligatorias ni en otro contador.
 
 Preservar reglas de precios, políticas, autorización, inventario y propiedad del proveedor.
-No modificar el diseño de campos ni la semántica del editor de salida. No agregar dependencias,
+La primera etapa reúne sus campos en `TourPresentationForm.astro`; no modificar la semántica del editor de salida. No agregar dependencias,
 una tabla de progreso, otro motor de publicación o copias de los formularios para cada playbook.
 Alojamiento y Añadir opción conservan sus contratos. Los cambios ajenos existentes en el árbol
 no deben revertirse ni incorporarse por conveniencia a este rediseño.
@@ -49,7 +49,7 @@ permanecen; no reemplazarla por botones grandes, pills, otro stepper o una barra
 No sustituir clases por componentes que alteren silenciosamente dimensiones o apariencia.
 
 El `summary` de etapas muestra «Etapa X de Y - [nombre]», cerrado por defecto con `details/summary`. Al abrirlo, mantiene
-las cinco tarjetas y sus estados. «Pendiente · Etapa actual» puede permanecer dentro de la
+las cinco tarjetas y sus estados. «En curso» identifica la presentación pendiente dentro de la
 única tarjeta activa; no debe repetirse como otro aviso encima del formulario. La pantalla
 normal sólo muestra una ubicación («Etapa 4 de 5»), el título del formulario y contexto breve.
 No repetir el nombre completo de la etapa en tres cabeceras.
@@ -190,4 +190,3 @@ Si activar funciona y publicar falla, conservar activación y mostrar sólo el f
 Si aparece un nuevo bloqueo, reconstruir las tareas; si no se conoce el resultado, releer antes
 de repetir. Un tour ya publicado muestra su estado y acceso operativo, sin pedir otra
 publicación ni crear una oferta. Agotamiento actual no convierte la preparación en incompleta.
-
