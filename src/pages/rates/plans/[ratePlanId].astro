@@ -11,6 +11,7 @@ import RatePlanPricingSurface from "@/components/pricing/RatePlanPricingSurface.
 import TabsOutsidePanel from "@/components/ui/TabsOutsidePanel.astro"
 import Textarea from "@/components/ui/Textarea.astro"
 import { Hotel, ShieldCheck, Ticket } from "@lucide/astro"
+import PlaybookStepHeader from "@/components/playbook/PlaybookStepHeader.astro"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import {
 	buildAddRoomHref,
@@ -493,24 +494,35 @@ logRoutePerformance({
 <Layout {...layoutProps} productType={String(row.productType)}>
 	<div class="space-y-5">
 		<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
-			<div class="space-y-1.5">
-				<h1 class="text-3xl font-semibold text-slate-100">
-					{
-						isPlaybookMode && effectiveActiveView === "conditions"
-							? "Condiciones de la tarifa"
-							: viewTitles[effectiveActiveView]
-					}
-				</h1>
-				<p class="max-w-2xl text-sm leading-6 text-slate-300">
-					{
-						isPlaybookMode && effectiveActiveView === "conditions"
-							? isTourContext
+			{
+				isPlaybookMode && effectiveActiveView === "conditions" ? (
+					<PlaybookStepHeader
+						size="lg"
+						icon="conditions"
+						title="Condiciones de la tarifa"
+						lead={
+							isTourContext
 								? "Revisa cancelación, pago al proveedor, presentación y preguntas necesarias antes de abrir fechas."
 								: "Creamos condiciones iniciales para esta tarifa. Revísalas o ajústalas antes de abrir disponibilidad."
-							: viewDescriptions[effectiveActiveView]
-					}
-				</p>
-			</div>
+						}
+					/>
+				) : (
+					<div class="space-y-1.5">
+						<h1 class="text-3xl font-semibold text-slate-100">
+							{isPlaybookMode && effectiveActiveView === "conditions"
+								? "Condiciones de la tarifa"
+								: viewTitles[effectiveActiveView]}
+						</h1>
+						<p class="max-w-2xl text-sm leading-6 text-slate-300">
+							{isPlaybookMode && effectiveActiveView === "conditions"
+								? isTourContext
+									? "Revisa cancelación, pago al proveedor, presentación y preguntas necesarias antes de abrir fechas."
+									: "Creamos condiciones iniciales para esta tarifa. Revísalas o ajústalas antes de abrir disponibilidad."
+								: viewDescriptions[effectiveActiveView]}
+						</p>
+					</div>
+				)
+			}
 			{
 				isPlaybookMode ? null : (
 					<div class="flex flex-wrap gap-2">

@@ -1,5 +1,5 @@
 ---
-import PlaybookProductContextLine from "@/components/playbook/PlaybookProductContextLine.astro"
+import PlaybookStepHeader from "@/components/playbook/PlaybookStepHeader.astro"
 import CalendarSubnav from "@/components/rates/CalendarSubnav.astro"
 import CalendarWorkspaceHeader from "@/components/rates/CalendarWorkspaceHeader"
 import CalendarWorkspaceSkeleton from "@/components/rates/CalendarWorkspaceSkeleton.astro"
@@ -328,43 +328,33 @@ for (const name of ["pricing", "inventory", "restrictions", "searchFreshness", "
 }
 timing.addTotal("total")
 timing.setHeader(Astro.response.headers)
-
-const deferPlaybookProductContext = Boolean(
-	isGuidedAvailabilityStep && isTourContext && activePlaybook
-)
-const guidedTourContextLine =
-	deferPlaybookProductContext && matchedRow
-		? {
-				productName: String(matchedRow.productName ?? ""),
-				variantName: String(matchedRow.variantName ?? ""),
-			}
-		: null
 ---
 
 <Layout
 	{...layoutProps}
-	deferPlaybookProductContext={deferPlaybookProductContext}
 	productType={contextualRow?.productType ?? requestedProduct?.productType ?? null}
 >
 	<div class="space-y-6 md:space-y-8">
 		{
 			isGuidedAvailabilityStep ? (
 				<header class="flex flex-wrap items-start justify-between gap-4">
-					<div class="space-y-2">
-						{guidedTourContextLine ? (
-							<PlaybookProductContextLine
-								productName={guidedTourContextLine.productName}
-								variantName={guidedTourContextLine.variantName}
-								isTour
-							/>
-						) : null}
-						<h1 class="text-3xl font-semibold text-slate-100">Disponibilidad inicial</h1>
-						<p class="max-w-3xl text-sm leading-6 text-slate-300">
-							{isTourContext
-								? "Abre al menos una fecha futura con cupo para participantes. Esa será la primera salida que podrán reservar los viajeros."
-								: "Configura las primeras fechas con inventario para esta habitación. Después podrás operar el calendario completo."}
-						</p>
-					</div>
+					{isTourContext ? (
+						<PlaybookStepHeader
+							size="lg"
+							icon="calendar"
+							title="Fechas y cupos"
+							lead="Abre al menos una fecha futura con cupo para participantes. Esa será la primera salida que podrán reservar los viajeros."
+							leadClass="max-w-3xl"
+						/>
+					) : (
+						<PlaybookStepHeader
+							size="lg"
+							icon="calendar"
+							title="Disponibilidad inicial"
+							lead="Configura las primeras fechas con inventario para esta habitación. Después podrás operar el calendario completo."
+							leadClass="max-w-3xl"
+						/>
+					)}
 				</header>
 			) : null
 		}
