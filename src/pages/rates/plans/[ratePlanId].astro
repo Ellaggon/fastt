@@ -1212,6 +1212,7 @@ logRoutePerformance({
 					return false
 				}
 				savedKey = nextKey
+				document.dispatchEvent(new Event("fastt:playbook-saved"))
 				if (status) status.textContent = ""
 				return true
 			})()

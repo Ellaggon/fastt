@@ -1,0 +1,45 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+---
+
+<Card data-calendar-runtime-error hidden role="alert" class="bg-white text-slate-900">
+	<h2 class="text-lg font-semibold">No se pudo iniciar el calendario</h2>
+	<p class="mt-2 text-sm text-slate-600">
+		La descarga del editor no terminó. Tus datos guardados se conservan.
+	</p>
+	<Button type="button" data-calendar-reload class="mt-4">Volver a cargar calendario</Button>
+</Card>
+<script is:inline data-astro-rerun>
+	;(() => {
+		const script = document.currentScript
+		const root = script?.closest("[data-calendar-runtime]")
+		if (!root || root.dataset.recoveryInstalled) return
+		root.dataset.recoveryInstalled = "true"
+		const island = root.querySelector("astro-island")
+		const error = root.querySelector("[data-calendar-runtime-error]")
+		let timer
+		const clear = () => window.clearTimeout(timer)
+		const mounted = () => {
+			clear()
+			error.hidden = true
+			island.hidden = false
+		}
+		const fail = () => {
+			if (!root.isConnected || !island.hasAttribute("ssr")) return
+			island.hidden = true
+			error.hidden = false
+			const cta = document.querySelector(".fastt-playbook-footer .fastt-playbook-cta")
+			if (cta instanceof HTMLButtonElement) {
+				cta.disabled = true
+				cta.textContent = "Calendario no disponible"
+			}
+		}
+		island?.addEventListener("astro:hydrate", mounted, { once: true })
+		timer = window.setTimeout(fail, 15000)
+		root
+			.querySelector("[data-calendar-reload]")
+			?.addEventListener("click", () => window.location.reload())
+		document.addEventListener("astro:before-swap", clear, { once: true })
+	})()
+</script>
