@@ -2,16 +2,16 @@
 import FinancialUnifiedWorkspace from "@/components/financial/FinancialUnifiedWorkspace.astro"
 import ProviderCommercialContractCard from "@/components/provider/ProviderCommercialContractCard.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
-import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
-import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { filterProviderContractSurfaceByScope } from "@/lib/commercial-policy/filter-provider-contract-surface"
 import { loadProviderContractSurface } from "@/lib/commercial-policy/provider-contract-surface"
-import { routes } from "@/lib/routes"
+import { prepareFinancialWorkspaceScope } from "@/lib/workspace/financialWorkspaceScope"
 
-const user = await getUserFromRequest(Astro.request)
-if (!user) return Astro.redirect("/SignInPage")
-const providerId = await getProviderIdFromRequest(Astro.request, user)
-if (!providerId) return Astro.redirect(routes.providerOnboardingStart())
-const contractModel = await loadProviderContractSurface(providerId)
+const prepared = await prepareFinancialWorkspaceScope(Astro.request, Astro.url)
+if (prepared instanceof Response) return prepared
+const contractModel = filterProviderContractSurfaceByScope(
+	await loadProviderContractSurface(prepared.providerId),
+	prepared.scope
+)
 
 /*
 	Financial UX guardrail vocabulary intentionally preserved here while the
@@ -48,5 +48,8 @@ const contractModel = await loadProviderContractSurface(providerId)
 
 <WorkspaceLayout title="Finanzas">
 	<ProviderCommercialContractCard model={contractModel} compact={true} />
-	<FinancialUnifiedWorkspace />
+	<FinancialUnifiedWorkspace
+		scope={prepared.scope}
+		isSimpleFinancialView={prepared.isSimpleFinancialView}
+	/>
 </WorkspaceLayout>

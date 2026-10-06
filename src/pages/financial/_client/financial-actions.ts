@@ -1,3 +1,5 @@
+import { withFinancialApiScope } from "./financial-api-scope"
+
 export type ReviewAction = "acknowledge" | "resolve" | "dismiss"
 export type RefundHandoffAction = "acknowledge" | "close" | "dismiss"
 
@@ -79,10 +81,13 @@ export async function searchFinancialBookingCandidates(
 ): Promise<FinancialBookingCandidate[]> {
 	const params = new URLSearchParams({ limit: "10" })
 	if (query.trim()) params.set("q", query.trim())
-	const response = await fetch(`/api/internal/financial/booking-candidates?${params.toString()}`, {
-		headers: { accept: "application/json" },
-		signal: options.signal,
-	})
+	const response = await fetch(
+		withFinancialApiScope(`/api/internal/financial/booking-candidates?${params.toString()}`),
+		{
+			headers: { accept: "application/json" },
+			signal: options.signal,
+		}
+	)
 	if (!response.ok) throw new Error("financial_booking_candidate_search_failed")
 	const body = await response.json()
 	return Array.isArray(body?.items) ? body.items : []

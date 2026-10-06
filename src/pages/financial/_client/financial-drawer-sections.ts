@@ -9,9 +9,12 @@ import type { FinancialDrawerViewModel } from "./financial-drawer-view-model"
 import {
 	bookingDisplayName,
 	bookingSubtitle,
+	buildFinancialHumanContext,
 	providerDisplayName,
 	technicalReference,
 } from "./financial-human-display"
+import { financialBookingDetailHref } from "./financial-navigation-scope"
+import { financialStayGuestLabel } from "./financial-ops-vocabulary"
 import { financialMetricCard, financialUi } from "./financial-ui-classes"
 
 type DrawerRenderDeps = {
@@ -166,7 +169,7 @@ function renderAttention(input: DrawerRenderInput, deps: DrawerRenderDeps): stri
 				<p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-sky-700/80">Caso abierto</p>
 				<h2 class="mt-2 text-xl font-semibold tracking-[-0.02em] text-slate-950">${deps.escapeHtml(row.title)}</h2>
 				<p class="mt-2 max-w-md text-sm leading-6 text-slate-700">${deps.escapeHtml(shortOperationalDescription(input))}</p>
-				<p class="mt-3 text-xs leading-5 text-slate-500">${deps.escapeHtml(bookingLabel)} · ${deps.escapeHtml(productLabel)}</p>
+				<p class="mt-3 text-xs leading-5 text-slate-500">${item.bookingId ? `<a class="font-semibold text-slate-800 hover:text-slate-950" href="${financialBookingDetailHref(item.bookingId)}" data-astro-reload>${deps.escapeHtml(bookingLabel)}</a>` : deps.escapeHtml(bookingLabel)} · ${deps.escapeHtml(productLabel)}</p>
 			</div>
 			<div class="shrink-0 text-right">
 				<p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">${deps.escapeHtml(row.amountLabel)}</p>
@@ -194,14 +197,15 @@ function renderContext(input: DrawerRenderInput, deps: DrawerRenderDeps): string
 	const bookingLabel = bookingDisplayName(item.bookingId, { operation, ...item })
 	const providerLabel = providerDisplayName(item.providerId, { operation, ...item })
 	const productLabel = bookingSubtitle({ operation, ...item })
+	const itemVertical = buildFinancialHumanContext({ operation, ...item }).vertical
 	return section(
 		"Contexto",
 		`<details class="rounded-2xl bg-slate-50/70 p-4 ring-1 ring-slate-900/[0.04]">
 			<summary class="cursor-pointer text-sm font-semibold text-slate-800">Ver datos de reserva y proveedor</summary>
 			<div class="mt-3 grid gap-3 sm:grid-cols-2">
-				<div><div class="text-xs text-slate-500">Reserva</div><div class="mt-1 text-sm font-semibold text-slate-900">${deps.escapeHtml(bookingLabel)}</div></div>
+				<div><div class="text-xs text-slate-500">Reserva</div><div class="mt-1 text-sm font-semibold text-slate-900">${item.bookingId ? `<a class="text-slate-900 hover:text-slate-700" href="${financialBookingDetailHref(item.bookingId)}" data-astro-reload>${deps.escapeHtml(bookingLabel)}</a>` : deps.escapeHtml(bookingLabel)}</div></div>
 				<div><div class="text-xs text-slate-500">Proveedor</div><div class="mt-1 text-sm font-semibold text-slate-900">${deps.escapeHtml(providerLabel)}</div></div>
-				<div class="sm:col-span-2"><div class="text-xs text-slate-500">Estadía y huésped</div><div class="mt-1 text-sm leading-5 text-slate-700">${deps.escapeHtml(productLabel)}</div></div>
+				<div class="sm:col-span-2"><div class="text-xs text-slate-500">${deps.escapeHtml(financialStayGuestLabel(itemVertical))}</div><div class="mt-1 text-sm leading-5 text-slate-700">${deps.escapeHtml(productLabel)}</div></div>
 			</div>
 		</details>`
 	)
@@ -378,6 +382,8 @@ function renderProviderFinance(input: DrawerRenderInput, deps: DrawerRenderDeps)
 		<div class="mt-3 grid gap-3 sm:grid-cols-2">
 			${financialMetricCard("Importe bruto", deps.escapeHtml(deps.money(finance.currency, finance.grossAmount)))}
 			${financialMetricCard("Comisión", finance.commissionAmount == null ? "Información faltante" : deps.escapeHtml(deps.money(finance.currency, finance.commissionAmount)))}
+			${financialMetricCard("Línea comercial", deps.escapeHtml(copy.commercialLineLabel))}
+			${financialMetricCard("Versión de acuerdo", deps.escapeHtml(finance.commission?.snapshot?.agreementVersion || "Sin versión registrada"))}
 			${financialMetricCard("Impuestos", deps.escapeHtml(deps.money(finance.currency, finance.taxAmount)))}
 			${financialMetricCard("Pendiente al proveedor", finance.netPayable == null ? "Información faltante" : deps.escapeHtml(deps.money(finance.currency, finance.netPayable)))}
 		</div>
@@ -434,7 +440,7 @@ function renderTimeline(input: DrawerRenderInput, deps: DrawerRenderDeps): strin
 	)
 }
 
-function renderEvidenceAssociation(_input: DrawerRenderInput, deps: DrawerRenderDeps): string {
+function renderEvidenceAssociation(): string {
 	return section(
 		"Acción recomendada",
 		`<div class="fastt-drawer-soft-card p-4">
@@ -445,16 +451,16 @@ function renderEvidenceAssociation(_input: DrawerRenderInput, deps: DrawerRender
 		</div>
 		<div id="financialEvidenceAssociationModal" data-financial-floating-panel class="fixed inset-0 z-[100] hidden items-center justify-center bg-slate-950/35 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="financialEvidenceAssociationTitle" aria-describedby="financialEvidenceAssociationDescription">
 			<div class="fastt-floating-modal-card w-full max-w-[620px] text-slate-900">
-				<header class="flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4"><div><div id="financialEvidenceAssociationTitle" class="text-lg font-semibold text-slate-950">Asociar comprobante</div><p id="financialEvidenceAssociationDescription" class="mt-1 text-sm text-slate-500">Busca por código, huésped o fecha. Solo verás reservas de esta cuenta.</p></div><button type="button" data-close-panel="financialEvidenceAssociationModal" class="fastt-icon-button p-2 text-slate-500" aria-label="Cerrar">×</button></header>
+				<header class="flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4"><div><div id="financialEvidenceAssociationTitle" class="text-lg font-semibold text-slate-950">Asociar comprobante</div><p id="financialEvidenceAssociationDescription" class="mt-1 text-sm text-slate-500" data-financial-ops-copy="evidence-search-description">Busca por código o fecha. Solo verás reservas de esta cuenta.</p></div><button type="button" data-close-panel="financialEvidenceAssociationModal" class="fastt-icon-button p-2 text-slate-500" aria-label="Cerrar">×</button></header>
 				<div class="space-y-4 p-5">
 					<div class="relative">
-						<label class="block space-y-1.5 text-sm" for="financialEvidenceBookingSearch"><span class="font-medium">Reserva</span><input id="financialEvidenceBookingSearch" type="search" maxlength="120" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="financialEvidenceBookingResults" aria-expanded="false" class="fastt-field h-11 w-full bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400" placeholder="Código, huésped o fecha (AAAA-MM-DD)" /></label>
+						<label class="block space-y-1.5 text-sm" for="financialEvidenceBookingSearch"><span class="font-medium">Reserva</span><input id="financialEvidenceBookingSearch" type="search" maxlength="120" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="financialEvidenceBookingResults" aria-expanded="false" class="fastt-field h-11 w-full bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400" placeholder="Código o fecha (AAAA-MM-DD)" data-financial-ops-copy="evidence-search-placeholder" /></label>
 						<input id="financialEvidenceBookingId" type="hidden" value="" />
 						<div id="financialEvidenceBookingResults" role="listbox" aria-label="Resultados de reservas" class="fastt-soft-box absolute inset-x-0 z-20 mt-2 hidden max-h-64 overflow-y-auto bg-white p-1 shadow-[var(--fastt-shadow-row-hover)]"></div>
 						<p id="financialEvidenceBookingSearchStatus" class="mt-2 text-xs leading-5 text-slate-500" role="status" aria-live="polite">Cargando reservas recientes…</p>
 						<p id="financialEvidenceBookingSelection" class="mt-2 hidden rounded-lg bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-900 ring-1 ring-emerald-900/10"></p>
 					</div>
-					<label class="block space-y-1.5 text-sm"><span class="font-medium">Motivo de la asociación</span><textarea id="financialEvidenceAssociationReason" maxlength="1000" class="${financialUi.reviewTextarea}" placeholder="Ej. La referencia y el importe coinciden con el comprobante del huésped."></textarea></label>
+					<label class="block space-y-1.5 text-sm"><span class="font-medium">Motivo de la asociación</span><textarea id="financialEvidenceAssociationReason" maxlength="1000" class="${financialUi.reviewTextarea}" placeholder="Ej. La referencia y el importe coinciden con el comprobante." data-financial-ops-copy="evidence-reason-placeholder"></textarea></label>
 					<p id="financialEvidenceAssociationError" class="hidden rounded-lg bg-rose-50 px-3 py-2 text-sm leading-5 text-rose-800 ring-1 ring-rose-900/10" role="alert" tabindex="-1"></p>
 					<div class="fastt-soft-box bg-slate-50 p-4 text-xs leading-5 text-slate-600">Después de confirmar, el comprobante participará en la conciliación de esa reserva. Una corrección posterior requiere evidencia compensatoria.</div>
 				</div>
@@ -469,7 +475,7 @@ function renderActions(input: DrawerRenderInput, deps: DrawerRenderDeps): string
 	if (
 		["unmatched_payment", "unmatched_settlement"].includes(String(item?.evidenceIssue?.kind || ""))
 	) {
-		return renderEvidenceAssociation(input, deps)
+		return renderEvidenceAssociation()
 	}
 	const missing = missingEvidenceGroup(input)
 	const canCompare = canConfirmReconciliation(input)

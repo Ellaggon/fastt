@@ -1,3 +1,5 @@
+import { commercialLineSummaryLabel } from "@/lib/financial/commissionAgreement"
+
 import {
 	labelFrom,
 	providerFinanceQueueLabels,
@@ -11,6 +13,7 @@ export type ProviderFinanceCopy = {
 	reconciliationDependency: string
 	nextAction: string
 	freshnessNote: string
+	commercialLineLabel: string
 }
 
 const providerFinanceReasonByCode: Record<string, string> = {
@@ -97,6 +100,9 @@ export function buildProviderFinanceCopy(finance: any): ProviderFinanceCopy {
 			: reconciliationStatusLabels[blockingStatus] || "Los importes todavía requieren revisión",
 		nextAction: explainProviderFinanceNextAction(finance),
 		freshnessNote,
+		commercialLineLabel: finance?.commercialLine
+			? commercialLineSummaryLabel(finance.commercialLine)
+			: "Por clasificar",
 	}
 }
 

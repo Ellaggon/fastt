@@ -7,11 +7,8 @@ import {
 	refreshFinancialJson,
 } from "../../_client/financial-data-cache"
 import {
-	filterItemsByAccommodationScope,
-	getFinancialAccommodationScope,
-} from "../../_client/financial-accommodation-scope"
-import {
 	bookingDisplayName,
+	financialDrawerReservaRow,
 	bookingSubtitle,
 	buildBookingContextIndex,
 	resolveBookingContext,
@@ -23,6 +20,7 @@ import {
 	financialSegmentMarkup,
 	financialUi,
 } from "../../_client/financial-ui-classes"
+import { financialScopeProductLabel } from "../../_client/financial-ops-vocabulary"
 
 type RefundSegment =
 	| "needs_review"
@@ -246,11 +244,7 @@ function segmentCount(segment: RefundSegment): number {
 }
 
 function scopedItems(): RefundItem[] {
-	return filterItemsByAccommodationScope(
-		state.items,
-		getFinancialAccommodationScope(),
-		state.bookingContext
-	)
+	return state.items
 }
 
 function ageDays(label: string): number {
@@ -380,8 +374,8 @@ function openDrawer(item: RefundItem): void {
 				<p class="mt-3 text-sm leading-6 text-slate-700">${escapeHtml(item.whatHappened)}</p>
 			</div>
 			<div class="grid gap-3 sm:grid-cols-2">
-				${detailRow("Reserva", bookingDisplayName(item.bookingId, context))}
-				${detailRow("Alojamiento", bookingSubtitle(context))}
+				${financialDrawerReservaRow(item.bookingId, context)}
+				${detailRow(financialScopeProductLabel(context.vertical), bookingSubtitle(context))}
 				${detailRow("Cancelación", item.cancellation)}
 				${detailRow("Política aplicada", item.policyApplied)}
 				${detailRow("Importe", formatMoney(item.expectedAmount, item.currency))}

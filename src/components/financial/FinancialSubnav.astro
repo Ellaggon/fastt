@@ -2,6 +2,10 @@
 import TabsInsidePanel from "@/components/ui/TabsInsidePanel.astro"
 import { financialNavigationItems } from "@/lib/financial/financialNavigation"
 import {
+	withWorkspaceNavigationScope,
+	workspaceNavigationScopeFromSearchParams,
+} from "@/lib/workspace/verticalContext"
+import {
 	CircleDollarSign,
 	HandCoins,
 	ReceiptText,
@@ -17,13 +21,8 @@ interface Props {
 const { pathname = Astro.url.pathname } = Astro.props
 const isActive = (href: string) =>
 	href === "/financial" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`)
-const selectedProductId = String(Astro.url.searchParams.get("productId") ?? "").trim()
-const scopedHref = (href: string) => {
-	if (!selectedProductId) return href
-	const params = new URLSearchParams()
-	params.set("productId", selectedProductId)
-	return `${href}?${params.toString()}`
-}
+const workspaceScope = workspaceNavigationScopeFromSearchParams(Astro.url.searchParams)
+const scopedHref = (href: string) => withWorkspaceNavigationScope(href, workspaceScope)
 const compactLabelByLabel: Record<string, string> = {
 	"Bandeja financiera": "Bandeja",
 	"Pagos a proveedores": "Proveedores",

@@ -12,7 +12,7 @@ import {
 
 import DashboardSidebar from "@/components/dashboard/DashboardSidebar.astro"
 import WorkspacePreferencesDrawer from "@/components/dashboard/WorkspacePreferencesDrawer.astro"
-import AccommodationContextSwitcher from "@/components/product/AccommodationContextSwitcher.astro"
+import FinancialContextSwitcher from "@/components/financial/FinancialContextSwitcher.astro"
 import ProductContextSwitcher from "@/components/product/ProductContextSwitcher.astro"
 import RatePlanContextSwitcher from "@/components/rates/RatePlanContextSwitcher.astro"
 import SalesContextSwitcher from "@/components/rates/SalesContextSwitcher.astro"
@@ -248,9 +248,10 @@ const showContextSwitcher =
 						includeMultiCalendar={workspaceContext.effectiveWorkspaceExperience === "professional"}
 					/>
 				) : showContextSwitcher && isFinancialWorkspace ? (
-					<AccommodationContextSwitcher
+					<FinancialContextSwitcher
 						providerId={providerId}
-						target="financial"
+						workspaceScope={workspaceScope}
+						productTypes={workspaceContext.sidebarData?.productTypes}
 						variant="topbar"
 					/>
 				) : showContextSwitcher && isFiscalWorkspace ? (
