@@ -13,6 +13,7 @@ export async function createRatePlanContract(params: {
 
 	for (const category of Object.keys(params.presets) as Array<keyof ContractPresetBundle>) {
 		const policyPresetKey = params.presets[category]
+		if (!policyPresetKey) continue
 		const presetPolicy = await getOrCreateProviderPresetPolicy({
 			providerId: params.providerId,
 			actorUserId: params.actorUserId,

@@ -80,6 +80,7 @@ const legacyInteractiveFiles = new Set([
 	"src/components/productUI/RoomSection.astro",
 	"src/components/rates/CalendarResponsiveDrawer.tsx",
 	"src/components/rates/MultiCalendarWorkspace.tsx",
+	"src/components/rates/SingleCalendarWorkspace.tsx",
 	"src/components/rooms/RoomProfileEditor.astro",
 	"src/components/searchPanel/TourSearchPanel.astro",
 	"src/pages/SignInPage/index.astro",
