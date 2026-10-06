@@ -46,10 +46,11 @@ describe("tour slot profile (fase 2)", () => {
 		expect(routes).toContain("/departures")
 
 		const index = read("src/pages/product/[id]/departures/index.astro")
-		expect(index).toContain("Salidas del tour")
-		expect(index).toContain("horas distintas")
-		expect(index).toContain("Tarifas")
-		expect(index).toContain("Calendario")
+		expect(index).toContain("Opciones del tour")
+		expect(index).toContain("alternativa distinta")
+		expect(index).toContain("buildTourCommercialLinks")
+		expect(index).toContain("Precios y condiciones")
+		expect(index).toContain("Fechas y cupos")
 
 		const hub = read("src/pages/product/[id]/index.astro")
 		expect(hub).toContain("loadTourCommercialContext")
