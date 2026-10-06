@@ -1,4 +1,4 @@
-import { commercialLineSummaryLabel } from "@/lib/financial/commissionAgreement"
+import { getVerticalVocabulary } from "@/lib/verticalVocabulary"
 
 import {
 	labelFrom,
@@ -101,7 +101,7 @@ export function buildProviderFinanceCopy(finance: any): ProviderFinanceCopy {
 		nextAction: explainProviderFinanceNextAction(finance),
 		freshnessNote,
 		commercialLineLabel: finance?.commercialLine
-			? commercialLineSummaryLabel(finance.commercialLine)
+			? getVerticalVocabulary(finance.commercialLine === "tour" ? "tour" : "hotel").productPlural
 			: "Por clasificar",
 	}
 }
