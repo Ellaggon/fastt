@@ -2071,13 +2071,18 @@ CREATE TABLE "CommissionSnapshot" (
 	"id" text PRIMARY KEY,
 	"bookingId" text NOT NULL,
 	"providerId" text NOT NULL,
+	"commercialLine" text,
+	"agreementVersion" text,
 	"commissionRate" numeric(7, 4) NOT NULL,
 	"commissionAmount" numeric(14, 2) NOT NULL,
 	"basis" text NOT NULL,
 	"currency" text NOT NULL,
 	"snapshotAt" timestamp with time zone NOT NULL,
-	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	CONSTRAINT "CommissionSnapshot_commercialLine_check" CHECK ("commercialLine" IS NULL OR "commercialLine" IN ('lodging', 'tour'))
 );
+
+CREATE INDEX "CommissionSnapshot_provider_line_idx" ON "CommissionSnapshot" ("providerId", "commercialLine");
 
 CREATE TABLE "PayoutRecord" (
 	"id" text PRIMARY KEY,

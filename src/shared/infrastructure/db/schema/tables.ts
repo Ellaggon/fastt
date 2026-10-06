@@ -4307,6 +4307,10 @@ export const CommissionSnapshot = pgTable(
 		id: pk(),
 		bookingId: txt("bookingId").references(() => Booking.id),
 		providerId: txt("providerId").references(() => Provider.id),
+		/** Accepted commercial line the commission was frozen under; null = legacy snapshot without declared line. */
+		commercialLine: txtOpt("commercialLine"),
+		/** Version of the provider+line agreement applied; null/"undeclared" = no accepted agreement recorded. */
+		agreementVersion: txtOpt("agreementVersion"),
 		commissionRate: ratioOpt("commissionRate").notNull(),
 		commissionAmount: amount("commissionAmount"),
 		basis: txt("basis"),
@@ -4317,6 +4321,7 @@ export const CommissionSnapshot = pgTable(
 	(table) => [
 		index("CommissionSnapshot_booking_provider_idx").on(table.bookingId, table.providerId),
 		index("CommissionSnapshot_provider_snapshot_idx").on(table.providerId, table.snapshotAt),
+		index("CommissionSnapshot_provider_line_idx").on(table.providerId, table.commercialLine),
 	]
 )
 

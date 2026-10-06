@@ -40,6 +40,11 @@ import {
 	eq,
 	sql,
 } from "@/shared/infrastructure/db/compat"
+import {
+	COMMISSION_AGREEMENT_VERSION_UNDECLARED,
+	defaultCommissionAgreementVersion,
+} from "@/lib/financial/commissionAgreement"
+import { commercialLineForProductType } from "@/lib/verification/commercial-lines"
 import { buildOccupancyKey, normalizeOccupancy } from "@/shared/domain/occupancy"
 
 const QA_EMAIL = process.env.LOCAL_QA_AUTH_EMAIL?.trim().toLowerCase() || "ellaggon@gmail.com"
@@ -1214,6 +1219,10 @@ async function seedProviderFinance(): Promise<void> {
 			})
 	}
 
+	const demoCommercialLine = commercialLineForProductType("hotel")
+	const demoAgreementVersion = demoCommercialLine
+		? defaultCommissionAgreementVersion(demoCommercialLine)
+		: COMMISSION_AGREEMENT_VERSION_UNDECLARED
 	for (const booking of bookings.filter((entry) => entry.id !== "1048")) {
 		const commission = commissionAmount(booking.amount)
 		await db
@@ -1222,6 +1231,8 @@ async function seedProviderFinance(): Promise<void> {
 				id: `qa-commission-${booking.id}`,
 				bookingId: booking.id,
 				providerId,
+				commercialLine: demoCommercialLine,
+				agreementVersion: demoAgreementVersion,
 				commissionRate: 0.15,
 				commissionAmount: commission,
 				basis: "provider_finance_demo_contract_snapshot",
@@ -1233,6 +1244,8 @@ async function seedProviderFinance(): Promise<void> {
 				target: [CommissionSnapshot.id],
 				set: {
 					providerId,
+					commercialLine: demoCommercialLine,
+					agreementVersion: demoAgreementVersion,
 					commissionRate: 0.15,
 					commissionAmount: commission,
 					basis: "provider_finance_demo_contract_snapshot",

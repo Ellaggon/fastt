@@ -18,6 +18,10 @@ function map(row: any): CommissionSnapshot {
 		id: String(row.id),
 		bookingId: String(row.bookingId),
 		providerId: String(row.providerId),
+		commercialLine: row.commercialLine
+			? (String(row.commercialLine) as CommissionSnapshot["commercialLine"])
+			: null,
+		agreementVersion: row.agreementVersion ? String(row.agreementVersion) : null,
 		commissionRate: Number(row.commissionRate ?? 0),
 		commissionAmount: Number(row.commissionAmount ?? 0),
 		basis: String(row.basis) as CommissionSnapshot["basis"],
@@ -61,7 +65,19 @@ export class CommissionSnapshotRepository implements CommissionSnapshotRepositor
 		)[0]
 		if (existing) return { snapshot: existing, created: false }
 		const row = { ...input, id: input.id ?? crypto.randomUUID(), createdAt: new Date() }
-		await db.insert(CommissionSnapshotTable).values(row as any)
+		await db.insert(CommissionSnapshotTable).values({
+			id: row.id,
+			bookingId: row.bookingId,
+			providerId: row.providerId,
+			commercialLine: row.commercialLine,
+			agreementVersion: row.agreementVersion,
+			commissionRate: row.commissionRate,
+			commissionAmount: row.commissionAmount,
+			basis: row.basis,
+			currency: row.currency,
+			snapshotAt: row.snapshotAt,
+			createdAt: row.createdAt,
+		})
 
 		return { snapshot: map(row), created: true }
 	}
