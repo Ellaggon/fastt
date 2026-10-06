@@ -45,7 +45,15 @@ import {
 	ProviderExternalCalendarEvent,
 	ProviderIntegrationMapping,
 	Provider,
+	ProviderCommercialLine,
+	ProductCategory,
+	sql,
 } from "@/shared/infrastructure/db/compat"
+import { isPublicTourCategory } from "@/lib/tours/tourDiscoveryFilters"
+import {
+	TourPresentationError,
+	type TourPresentationCommand,
+} from "../../application/use-cases/product/save-tour-presentation"
 import { DeleteObjectCommand } from "@aws-sdk/client-s3"
 import type { S3Client } from "@aws-sdk/client-s3"
 import type {
@@ -64,6 +72,145 @@ export class ProductRepository implements ProductRepositoryPort {
 		private r2?: S3Client,
 		private readonly ratePlanCommands: RatePlanCommandRepositoryPort = new RatePlanCommandRepository()
 	) {}
+
+	async saveTourPresentation(input: TourPresentationCommand): Promise<void> {
+		await db.transaction(async (tx) => {
+			// A stable creation ID also reconciles a retry after a lost response.
+			await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${input.productId}, 0))`)
+			const product = await tx
+				.select()
+				.from(Product)
+				.where(eq(Product.id, input.productId))
+				.for("update")
+				.then(first)
+			if (
+				product &&
+				(product.providerId !== input.providerId || product.productType.toLowerCase() !== "tour")
+			)
+				throw new TourPresentationError("No encontramos este tour en tu negocio.", 404)
+			if (!product && input.mode === "edit")
+				throw new TourPresentationError("No encontramos este tour en tu negocio.", 404)
+			const place = await tx
+				.select()
+				.from(GeoPlace)
+				.where(eq(GeoPlace.id, input.geoPlaceId))
+				.then(first)
+			if (
+				!place ||
+				place.status !== "active" ||
+				geoPlaceCompatibilityError({ productType: "tour", placeType: place.placeType })
+			)
+				throw new TourPresentationError(
+					"Selecciona una ciudad o lugar disponible para tours.",
+					400,
+					"geoPlaceId"
+				)
+			const categories = input.categoryIds.length
+				? await tx
+						.select()
+						.from(ProductCategory)
+						.where(
+							and(
+								inArray(ProductCategory.id, input.categoryIds),
+								eq(ProductCategory.vertical, "tour"),
+								eq(ProductCategory.isActive, true),
+								eq(ProductCategory.dataClass, "production")
+							)
+						)
+				: []
+			if (
+				categories.length !== input.categoryIds.length ||
+				categories.some((category) => !isPublicTourCategory(category))
+			)
+				throw new TourPresentationError(
+					"Elige tipos de experiencia disponibles para tours.",
+					400,
+					"categoryIds"
+				)
+			if (!product) {
+				await tx.insert(Product).values({
+					id: input.productId,
+					providerId: input.providerId,
+					name: input.name,
+					productType: "Tour",
+				})
+				await tx
+					.insert(ProviderCommercialLine)
+					.values({
+						id: crypto.randomUUID(),
+						providerId: input.providerId,
+						line: "tour",
+						source: "product",
+						originProductId: input.productId,
+						enrolledByUserId: input.actorId,
+					})
+					.onConflictDoNothing({
+						target: [ProviderCommercialLine.providerId, ProviderCommercialLine.line],
+					})
+			} else {
+				await tx
+					.update(Product)
+					.set({ name: input.name, lastUpdated: new Date() })
+					.where(eq(Product.id, input.productId))
+			}
+			const primary = await tx
+				.select()
+				.from(ProductGeoPlace)
+				.where(
+					and(
+						eq(ProductGeoPlace.productId, input.productId),
+						eq(ProductGeoPlace.role, "primary_discovery"),
+						eq(ProductGeoPlace.isPrimary, true)
+					)
+				)
+				.then(first)
+			if (primary?.placeId !== input.geoPlaceId) {
+				if (primary)
+					await tx
+						.update(ProductGeoPlace)
+						.set({ placeId: input.geoPlaceId, updatedAt: new Date() })
+						.where(eq(ProductGeoPlace.id, primary.id))
+				else
+					await tx.insert(ProductGeoPlace).values({
+						id: `geo:product-place:${input.productId}`,
+						productId: input.productId,
+						placeId: input.geoPlaceId,
+						role: "primary_discovery",
+						isPrimary: true,
+						source: "tour_presentation",
+					})
+				await tx.insert(ProductGeoPlaceActivity).values({
+					id: crypto.randomUUID(),
+					productId: input.productId,
+					previousPlaceId: primary?.placeId ?? null,
+					placeId: input.geoPlaceId,
+					actorId: input.actorId,
+					source: "tour_presentation",
+				})
+			}
+			await tx
+				.insert(ProductContent)
+				.values({
+					productId: input.productId,
+					description: input.description,
+					highlightsJson: input.highlights,
+					dataClass: product?.dataClass ?? "production",
+				})
+				.onConflictDoUpdate({
+					target: ProductContent.productId,
+					set: { description: input.description, highlightsJson: input.highlights },
+				})
+			await tx.delete(ProductCategoryLink).where(eq(ProductCategoryLink.productId, input.productId))
+			if (input.categoryIds.length)
+				await tx.insert(ProductCategoryLink).values(
+					input.categoryIds.map((categoryId) => ({
+						id: crypto.randomUUID(),
+						productId: input.productId,
+						categoryId,
+					}))
+				)
+		})
+	}
 
 	private async assertCompatiblePrimaryGeoPlace(productType: string, geoPlaceId: string) {
 		const place = await db

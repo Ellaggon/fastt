@@ -22,6 +22,14 @@ export { geoPlaceCompatibilityError, isGeoPlaceCompatible } from "./domain/geo-p
 export type { GeoPlaceType } from "./domain/geo-place-compatibility"
 
 export { createProduct } from "./application/use-cases/product/create-product"
+export {
+	saveTourPresentation,
+	TourPresentationError,
+} from "./application/use-cases/product/save-tour-presentation"
+export type {
+	TourPresentationInput,
+	TourPresentationRepositoryPort,
+} from "./application/use-cases/product/save-tour-presentation"
 export { upsertProductContent } from "./application/use-cases/product/upsert-product-content"
 export { upsertProductLocation } from "./application/use-cases/product/upsert-product-location"
 export {
