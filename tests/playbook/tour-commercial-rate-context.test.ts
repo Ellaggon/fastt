@@ -139,13 +139,15 @@ describe("tour commercial rate context", () => {
 			"src/modules/pricing/infrastructure/repositories/RatePlanCommandRepository.ts"
 		)
 
-		expect(calendar).toContain("enableTourPlaybookFooterContinue")
+		expect(calendar).toContain("calendarContinueState")
 		expect(calendar).toContain("guidedApplyingRange")
 		expect(calendar).toContain("Abriendo cupo…")
 		expect(calendar).toContain("calendar-cell-guided-opening")
 		expect(calendar).toContain("guided-tour-availability-disclosure__summary")
 		expect(calendar).toContain("finalizeGuidedRate")
-		expect(page).toContain('continueLabel: "Guardar y continuar"')
+		expect(page).toContain(
+			'continueLabel: calendarDependency ? "Completar después" : "Cargando calendario…"'
+		)
 		expect(page).toContain("hideFooter: false")
 		expect(endpoint).toContain("finalizeTourRate")
 		expect(validator).toContain("const minimumAvailabilityDays = isTour ? 1")

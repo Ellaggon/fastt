@@ -18,6 +18,7 @@ describe("continuous tour preparation", () => {
 		const positions = steps.map((step) => getTourPublishingStage(step.id).position)
 		expect(positions).toEqual([...positions].sort((a, b) => a - b))
 		expect(completeToPublishNavigationOrder("tour")).toEqual([
+			"content",
 			...steps.map((step) =>
 				step.id === "images" ? "photos" : step.id === "conditions" ? "bookingPolicies" : step.id
 			),

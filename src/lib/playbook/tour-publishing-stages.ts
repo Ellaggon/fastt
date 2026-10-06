@@ -16,7 +16,7 @@ export type TourPublishingStage = { id: string; label: string; position: number;
 
 const STAGE_CANONICAL_SECTION = {
 	presentation: "content",
-	logistics: "location",
+	logistics: "subtype",
 	photos: "photos",
 	offer: "tickets",
 	calendar: "calendar",
@@ -77,7 +77,7 @@ export function projectTourPublishingStages(diagnosis: TourDiagnostic) {
 				)
 		)
 		const result = firstPending ? diagnosis.requirements[firstPending].result : null
-		const pendingHref = result && "action" in result ? result.action.href : null
+
 		return {
 			id: stage.id,
 			label: stage.label,
@@ -85,14 +85,7 @@ export function projectTourPublishingStages(diagnosis: TourDiagnostic) {
 			total: TOUR_PUBLISHING_STAGE_COUNT,
 			state,
 			pendingReason: result && "reason" in result ? result.reason.message : null,
-			href: pendingHref
-				? buildTourPlaybookHref(
-						pendingHref,
-						normalizeTourLaunchStep(
-							new URL(pendingHref, "http://fastt.local").searchParams.get("step")
-						) ?? normalizeTourLaunchStep(STAGE_CANONICAL_SECTION[stage.id])!
-					)
-				: tourPublishingStageHref(diagnosis, stage.id),
+			href: tourPublishingStageHref(diagnosis, stage.id),
 		}
 	})
 }

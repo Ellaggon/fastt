@@ -146,7 +146,7 @@ describe("tour provider phase 5", () => {
 	})
 	it("does not offer guided activation while provider governance blocks publishing", () => {
 		const workspace = source("src/components/rates/SingleCalendarWorkspace.tsx")
-		expect(workspace).toContain("enableTourPlaybookFooterContinue")
+		expect(workspace).toContain("calendarContinueState")
 		const review = source("src/components/tours/TourReviewStatus.astro")
 		expect(review).toContain("presentation.activation.allowed")
 		expect(review).toContain("Activar oferta")
