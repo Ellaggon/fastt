@@ -24,10 +24,13 @@ describe("Guardrail: commission snapshots carry the accepted commercial line (G7
 		expect(drizzleBlock).toContain('commercialLine: txtOpt("commercialLine")')
 		expect(drizzleBlock).toContain('agreementVersion: txtOpt("agreementVersion")')
 
-		const baseline = commissionSnapshotTableBlock(read("db/postgres/0001_initial_schema.sql"))
-		expect(baseline).toMatch(/"commercialLine" text,/)
-		expect(baseline).toMatch(/"agreementVersion" text,/)
-		expect(baseline).toContain("CommissionSnapshot_commercialLine_check")
+		const baseline = read("db/postgres/0001_initial_schema.sql")
+		const baselineTable = commissionSnapshotTableBlock(baseline)
+		expect(baselineTable).toMatch(/"commercialLine" text,/)
+		expect(baselineTable).toMatch(/"agreementVersion" text,/)
+		expect(baseline).toContain(
+			'CREATE INDEX "CommissionSnapshot_provider_line_idx" ON "CommissionSnapshot" ("providerId", "commercialLine")'
+		)
 
 		const migration = read("db/migrations/2026-10-06_commission_snapshot_commercial_line.sql")
 		expect(migration).toContain('ADD COLUMN IF NOT EXISTS "commercialLine" text')

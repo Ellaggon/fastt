@@ -17,7 +17,7 @@ export const queueLabels: Record<string, string> = {
 	provider_finance_review: "Pagos pendientes",
 	snapshot_gaps: "Datos de la reserva incompletos",
 	evidence_unknown: "Comprobantes por confirmar",
-	multi_room_review: "Reserva de varias habitaciones",
+	multi_line_review: "Reserva con varias líneas",
 	clean_records: "Sin revisión pendiente",
 	all: "Todos los casos",
 }
@@ -83,7 +83,7 @@ export const workItemLabels: Record<string, string> = {
 	missing_refund_reference: "Falta el comprobante de reembolso",
 	incomplete_contract_snapshot: "Faltan datos confirmados de la reserva",
 	evidence_unknown: "Los comprobantes requieren confirmación",
-	multi_room_review: "Revisar distribución de habitaciones",
+	multi_line_review: "Revisar varias líneas de la reserva",
 }
 
 export const providerFinanceQueueLabels: Record<string, string> = {
@@ -125,6 +125,10 @@ export const staleReasonLabels: Record<string, string> = {
 	commission_currency_mismatch: "La moneda de la comisión no coincide con la reserva",
 	commission_basis_mismatch: "La comisión ya no coincide con las condiciones confirmadas",
 	commission_amount_stale: "El importe de la comisión cambió desde la última revisión",
+	commission_commercial_line_mismatch:
+		"La comisión se congeló con otra línea comercial; revisa el acuerdo aplicado",
+	commission_agreement_undeclared:
+		"La comisión no indica el acuerdo comercial aceptado; revisa la línea de la reserva",
 	payable_currency_mismatch: "La moneda del pago pendiente no coincide con la reserva",
 	payable_gross_amount_stale: "El importe bruto cambió desde la última revisión",
 	payable_commission_amount_stale: "La comisión cambió desde la última revisión",
@@ -133,8 +137,11 @@ export const staleReasonLabels: Record<string, string> = {
 	statement_gross_amount_stale: "El importe bruto del resumen cambió desde la última revisión",
 	statement_commission_amount_stale: "La comisión del resumen cambió desde la última revisión",
 	statement_tax_amount_stale: "Los impuestos del resumen cambiaron desde la última revisión",
-	statement_net_amount_stale: "El importe pendiente del resumen cambió desde la última revisión",
+	statement_net_payable_stale: "El importe pendiente del resumen cambió desde la última revisión",
 	statement_currency_mismatch: "La moneda del resumen no coincide con los pagos pendientes",
+	statement_currency_ambiguous: "El resumen mezcla monedas; revisa los pagos pendientes incluidos",
+	payable_dependency_blocked: "Un pago pendiente del resumen sigue bloqueado",
+	reconciliation_review_stale: "La conciliación cambió después de la última revisión",
 }
 
 export function humanize(value: unknown, fallback = "-"): string {
