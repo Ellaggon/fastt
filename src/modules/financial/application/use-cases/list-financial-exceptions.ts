@@ -1,3 +1,5 @@
+import type { FinancialApiProductFilter } from "@/lib/financial/financialApiProductScope"
+
 import type { FinancialExceptionRepositoryPort } from "../ports/FinancialWorkflowRepositoryPort"
 import type {
 	FinancialExceptionCode,
@@ -13,6 +15,7 @@ export async function listFinancialExceptions(
 		code?: FinancialExceptionCode | "all"
 		nextOwner?: string | "all"
 		bookingId?: string
+		productFilter?: FinancialApiProductFilter
 		limit?: number
 	}
 ): Promise<FinancialExceptionRecord[]> {
