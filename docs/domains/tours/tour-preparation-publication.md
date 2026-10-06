@@ -3,7 +3,7 @@
 Status: active  
 Document type: canonical  
 Owner: Tours / Provider Experience  
-Last verified: 2026-10-05  
+Last verified: 2026-10-06
 Scope: contrato objetivo de experiencia, navegación y continuidad entre Preparar tour y Publicar tour  
 Source of truth: requerimiento de separación del proveedor; diagnóstico en `src/lib/tours/tourDiagnosticContract.ts` y contrato compartido de playbooks de tours  
 Related code/tests: `src/layouts/PlaybookLayout.astro`, `src/lib/playbook/launch-tour.ts`, `src/lib/playbook/complete-to-publish.ts`, `src/lib/tours/tourDiagnosticContract.ts`, `tests/playbook/`, `tests/render/tour-preparation-progress.test.ts`  
@@ -73,6 +73,16 @@ Editar preparación desde la segunda parte cuando el usuario quiera revisar vari
 | 3. Fotos                 | Carga, portada, orden y descripciones.                                      |
 | 4. Opción y precio       | Participantes → perfil, modalidad y grupo → precio → condiciones.           |
 | 5. Fechas y cupos        | Fechas o repetición, capacidades y excepciones de la opción.                |
+
+Las cinco entradas del índice tienen destinos estables, independientes del primer requisito
+pendiente. Fechas y cupos abre el calendario; si falta opción o tarifa, esa entrada explica la
+dependencia y ofrece la acción correspondiente. No redirige silenciosamente a crear una opción.
+Se puede trabajar fuera de orden cuando existan las entidades necesarias. Guardar continúa al
+siguiente formulario lógico; una corrección de Publicación vuelve a su resumen. Al terminar
+preparación, Publicación muestra los pendientes anteriores sin imponer otro recorrido completo.
+Cambiar de etapa con cambios locales pide confirmación. Mientras se cargan fotos o se guarda,
+se impide abandonar por un enlace; cerrar o recargar utiliza la advertencia del navegador.
+Sólo la confirmación de persistencia elimina la advertencia del formulario correspondiente.
 
 La etapa «Presenta tu experiencia» se completa en una sola página. El guardado conjunto de
 nombre, destino, descripción, destacados y categorías es transaccional; «Guardar y pasar a
