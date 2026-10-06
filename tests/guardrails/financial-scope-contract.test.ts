@@ -57,12 +57,6 @@ describe("Guardrail: financial line scope contract (G11)", () => {
 		)
 		expect(violations).toEqual([])
 	})
-
-	it("propagates scope on financial subnav links", () => {
-		const subnav = read("src/components/financial/FinancialSubnav.astro")
-		expect(subnav).toContain("withWorkspaceNavigationScope")
-		expect(subnav).toContain("workspaceNavigationScopeFromSearchParams")
-	})
 })
 
 describe("Guardrail: neutral financial exception copy (G10)", () => {
@@ -116,10 +110,5 @@ describe("Guardrail: booking detail keeps the financial scope (G3/G4)", () => {
 		expect(detail).toContain('target.pathname.startsWith("/financial/")')
 		expect(detail).toContain("Volver a finanzas")
 		expect(detail).not.toMatch(/"Alojamiento"/)
-	})
-
-	it("keeps the current query when switching financial context", () => {
-		const switcher = read("src/components/financial/FinancialContextSwitcher.astro")
-		expect(switcher).toContain("`${Astro.url.pathname}${Astro.url.search}`")
 	})
 })

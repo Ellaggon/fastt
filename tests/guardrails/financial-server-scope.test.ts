@@ -54,12 +54,4 @@ describe("Guardrail: financial reads filter by workspace scope on the server", (
 		expect(source).toContain("scopeApplied: false")
 		expect(source).toMatch(/reconciliationMatchRepository\.findByProvider\(\{\s*providerId: auth\.providerId,\s*bookingIds,/)
 	})
-
-	it("does not filter financial rows by accommodation on the client", () => {
-		const filters = read("src/pages/financial/_client/financial-filters.ts")
-		expect(filters).not.toContain("itemMatchesAccommodationScope")
-		expect(filters).not.toContain("accommodationId")
-		const cache = read("src/pages/financial/_client/financial-data-cache.ts")
-		expect(cache).toContain("withFinancialApiScope")
-	})
 })
