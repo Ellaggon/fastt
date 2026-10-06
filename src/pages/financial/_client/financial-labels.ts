@@ -137,8 +137,11 @@ export const staleReasonLabels: Record<string, string> = {
 	statement_gross_amount_stale: "El importe bruto del resumen cambió desde la última revisión",
 	statement_commission_amount_stale: "La comisión del resumen cambió desde la última revisión",
 	statement_tax_amount_stale: "Los impuestos del resumen cambiaron desde la última revisión",
-	statement_net_amount_stale: "El importe pendiente del resumen cambió desde la última revisión",
+	statement_net_payable_stale: "El importe pendiente del resumen cambió desde la última revisión",
 	statement_currency_mismatch: "La moneda del resumen no coincide con los pagos pendientes",
+	statement_currency_ambiguous: "El resumen mezcla monedas; revisa los pagos pendientes incluidos",
+	payable_dependency_blocked: "Un pago pendiente del resumen sigue bloqueado",
+	reconciliation_review_stale: "La conciliación cambió después de la última revisión",
 }
 
 export function humanize(value: unknown, fallback = "-"): string {
