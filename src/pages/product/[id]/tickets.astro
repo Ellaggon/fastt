@@ -82,7 +82,7 @@ const initialTickets = tickets.map((t) => ({
 		<PlaybookStepHeader
 			icon="participants"
 			title="Participantes"
-			lead="Define quién puede reservar y qué edades admite cada tipo. Las categorías que describen la actividad se eligen por separado en el siguiente paso."
+			lead="Define quién puede reservar y qué edades admite cada tipo. Las actividades que describen el tour se eligen en Presentación."
 		/>
 
 		<Card class="space-y-4 bg-white">
@@ -391,10 +391,12 @@ const initialTickets = tickets.map((t) => ({
 				}
 
 				savingParticipants = true
+				document.getElementById("ticket-editor-list")?.setAttribute("data-playbook-busy", "true")
 				if (submitter instanceof HTMLButtonElement) submitter.disabled = true
 				if (status) status.textContent = "Guardando participantes..."
 				try {
 					if (rows.length) await saveTickets()
+					document.dispatchEvent(new Event("fastt:playbook-saved"))
 					window.location.href = exitAfterSave
 						? `/product/${encodeURIComponent(productId)}`
 						: categoriesHref
@@ -406,6 +408,7 @@ const initialTickets = tickets.map((t) => ({
 								: "No se pudo guardar. Inténtalo de nuevo."
 				} finally {
 					savingParticipants = false
+					document.getElementById("ticket-editor-list")?.setAttribute("data-playbook-busy", "false")
 					if (submitter instanceof HTMLButtonElement) submitter.disabled = false
 				}
 			}

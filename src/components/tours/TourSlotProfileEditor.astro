@@ -402,6 +402,7 @@ const languageOptions =
 					}
 					return
 				}
+				document.dispatchEvent(new CustomEvent("fastt:playbook-saved", { detail: { form } }))
 				draftEnabled = false
 				window.sessionStorage.removeItem(creationKeyStorage)
 				window.sessionStorage.removeItem(draftKey)

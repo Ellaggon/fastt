@@ -82,7 +82,12 @@ function restoreEntries(form: HTMLFormElement, entries: DraftEntry[], excludeNam
 
 export function bindPlaybookFormDraft(form: HTMLFormElement | null, options: DraftOptions) {
 	if (!form || options.enabled === false || typeof window === "undefined" || !storageAvailable()) {
-		return { clear: () => {} }
+		return {
+			clear: () => {
+				if (typeof document !== "undefined")
+					document.dispatchEvent(new CustomEvent("fastt:playbook-saved", { detail: { form } }))
+			},
+		}
 	}
 
 	const storageKey = `fastt:playbook-form-draft:${options.key}`
@@ -107,6 +112,7 @@ export function bindPlaybookFormDraft(form: HTMLFormElement | null, options: Dra
 	}
 
 	const clear = () => {
+		document.dispatchEvent(new CustomEvent("fastt:playbook-saved", { detail: { form } }))
 		cleared = true
 		window.sessionStorage.removeItem(storageKey)
 	}

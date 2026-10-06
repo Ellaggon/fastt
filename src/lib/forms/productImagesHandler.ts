@@ -68,6 +68,7 @@ function initProductImagesForm() {
 	)
 
 	function syncPublicationRequirement() {
+		if (form) form.dataset.playbookDirty = pendingImages.length > 0 ? "true" : "false"
 		const total =
 			existingImages.length + pendingImages.filter((item) => item.state !== "error").length
 		const missing = Math.max(0, requiredImageCount - total)
@@ -314,6 +315,11 @@ function initProductImagesForm() {
 		productId: string,
 		submitter?: EventTarget | null
 	) {
+		document.dispatchEvent(new CustomEvent("fastt:playbook-saved", { detail: { form } }))
+		if (form) {
+			form.dataset.uploading = "false"
+			form.dataset.playbookDirty = "false"
+		}
 		window.location.href = resolvePlaybookRedirectAfterSave(formFd, {
 			productId,
 			currentStep: "images",
