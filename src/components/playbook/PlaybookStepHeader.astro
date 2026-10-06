@@ -1,0 +1,87 @@
+---
+import {
+	BedDouble,
+	Building2,
+	CalendarPlus,
+	CalendarRange,
+	Camera,
+	CircleDollarSign,
+	CirclePlus,
+	FileText,
+	Globe,
+	LayoutGrid,
+	MapPinned,
+	Route,
+	ScrollText,
+	Sparkles,
+	Tags,
+	Users,
+} from "@lucide/astro"
+
+const STEP_ICONS = {
+	presentation: Sparkles,
+	location: MapPinned,
+	photos: Camera,
+	itinerary: Route,
+	participants: Users,
+	option: CalendarPlus,
+	rate: CircleDollarSign,
+	conditions: ScrollText,
+	calendar: CalendarRange,
+	categories: Tags,
+	content: FileText,
+	chooser: LayoutGrid,
+	create: CirclePlus,
+	room: BedDouble,
+	building: Building2,
+	geo: Globe,
+} as const
+
+export type PlaybookStepIconId = keyof typeof STEP_ICONS
+
+interface Props {
+	title: string
+	lead: string
+	icon: PlaybookStepIconId
+	eyebrow?: string
+	size?: "default" | "lg"
+	tone?: "playbook" | "light"
+	leadClass?: string
+}
+
+const {
+	title,
+	lead,
+	icon,
+	eyebrow = "",
+	size = "default",
+	tone = "playbook",
+	leadClass = "",
+} = Astro.props
+const Icon = STEP_ICONS[icon]
+const titleClass =
+	size === "lg"
+		? tone === "light"
+			? "text-3xl font-semibold text-slate-950"
+			: "text-3xl font-semibold text-slate-100"
+		: tone === "light"
+			? "text-2xl font-semibold text-slate-950 sm:text-3xl"
+			: "text-2xl font-semibold text-white sm:text-3xl"
+const iconClass =
+	tone === "light"
+		? "mt-0.5 h-5 w-5 shrink-0 text-slate-500"
+		: "mt-0.5 h-5 w-5 shrink-0 text-slate-400"
+const defaultLeadClass =
+	tone === "light"
+		? "flex max-w-2xl gap-2 text-sm leading-6 text-slate-600"
+		: "flex max-w-2xl gap-2 text-sm leading-6 text-slate-300"
+---
+
+<header class="space-y-1.5">
+	{eyebrow.trim() ? <p class="text-sm font-medium text-slate-400">{eyebrow.trim()}</p> : null}
+	<h1 class={titleClass}>{title}</h1>
+	<p class:list={[defaultLeadClass, leadClass]}>
+		<Icon class={iconClass} aria-hidden="true" />
+		<span>{lead}</span>
+	</p>
+</header>

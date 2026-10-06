@@ -1,0 +1,57 @@
+---
+import Card from "@/components/ui/Card.astro"
+import Input from "@/components/ui/Input.astro"
+
+interface Props {
+	existingImagesLength: number
+	requiredForPublication: boolean
+}
+
+const { existingImagesLength, requiredForPublication } = Astro.props
+const panelClass = "space-y-4 bg-white"
+---
+
+<div class="space-y-5">
+	<Card class={panelClass}>
+		<div class="space-y-1">
+			<h2 class="text-sm font-semibold text-slate-950">Subir imágenes</h2>
+			<p class="text-sm leading-6 text-slate-600">
+				Arrastra archivos aquí o abre el selector. Solo imágenes (JPG, PNG, WebP).
+			</p>
+		</div>
+		<Input
+			id="files"
+			type="file"
+			name="files"
+			accept="image/*"
+			multiple
+			required={existingImagesLength === 0 && requiredForPublication}
+			className="hidden"
+			aria-describedby="imageUploadHelp imageCount"
+		/>
+		<div
+			id="dropzone"
+			class="fastt-soft-box cursor-pointer border-2 border-dashed border-slate-200 px-6 py-10 text-center transition hover:border-slate-300 hover:bg-slate-100/80"
+			role="button"
+			tabindex="0"
+			aria-controls="files"
+			aria-describedby="imageUploadHelp imageCount"
+		>
+			<p class="text-sm font-medium text-slate-800">Suelta imágenes aquí</p>
+			<p class="mt-1 text-sm text-slate-500">o haz clic para elegir archivos</p>
+			<p id="imageUploadHelp" class="mt-3 text-xs leading-5 text-slate-500">
+				Enter o Espacio abren el selector del sistema.
+			</p>
+		</div>
+	</Card>
+
+	<Card class={panelClass}>
+		<h2 class="text-sm font-semibold text-slate-950">Vista previa</h2>
+		<div
+			id="previewGrid"
+			class="grid min-h-[7.5rem] grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4"
+			aria-live="polite"
+		>
+		</div>
+	</Card>
+</div>

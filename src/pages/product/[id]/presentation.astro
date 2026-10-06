@@ -1,0 +1,48 @@
+---
+import TourPresentationForm from "@/components/tours/TourPresentationForm.astro"
+import { productRepository } from "@/container"
+import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { isTourProductType } from "@/lib/catalog/productVerticalRegistry"
+import { resolveTourPlaybookContext } from "@/lib/playbook/tour-playbook-context"
+import { loadTourPresentationForm } from "@/lib/tours/loadTourPresentationForm"
+import { getProductFullAggregate } from "@/modules/catalog/public"
+const user = await getUserFromRequest(Astro.request)
+if (!user) return Astro.redirect("/SignInPage")
+const providerId = await getProviderIdFromRequest(Astro.request, user)
+if (!providerId) return Astro.redirect("/provider/settings")
+const productId = String(Astro.params.id ?? "")
+const owned = await productRepository.ensureProductOwnedByProvider(productId, providerId)
+if (!owned || !isTourProductType(owned.productType)) return Astro.redirect("/catalog/tours")
+const aggregate = await getProductFullAggregate(productId, providerId)
+if (!aggregate || !isTourProductType(aggregate.productType)) return Astro.redirect("/catalog/tours")
+const options = await loadTourPresentationForm(productId)
+const flow = resolveTourPlaybookContext(Astro.url, productId)
+const highlights = Array.isArray(aggregate.content.highlights)
+	? aggregate.content.highlights.map(String)
+	: []
+---
+
+<PlaybookLayout
+	title={`${aggregate.displayName} · Presentación`}
+	playbookId={flow?.playbookId ?? null}
+	active={Boolean(flow)}
+	stepId={flow?.part === "publish" ? "content" : "create"}
+	productId={productId}
+	isHotel={false}
+	playbookVertical="tour"
+	continueFormId={flow ? "tourPresentationForm" : null}
+	continueLabel={flow?.part === "publish" ? "Guardar y volver" : "Guardar y pasar a recorrido"}
+>
+	<TourPresentationForm
+		providerId={providerId}
+		productId={productId}
+		name={aggregate.displayName}
+		geoPlaceId={aggregate.geoPlace?.id}
+		description={aggregate.content.description}
+		highlights={highlights}
+		options={options}
+		guided={Boolean(flow)}
+	/>
+</PlaybookLayout>

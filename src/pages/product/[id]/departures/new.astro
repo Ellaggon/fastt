@@ -1,4 +1,5 @@
 ---
+import PlaybookStepHeader from "@/components/playbook/PlaybookStepHeader.astro"
 import TourSlotProfileEditor from "@/components/tours/TourSlotProfileEditor.astro"
 import { productRepository } from "@/container"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
@@ -43,7 +44,7 @@ const tourRateHref = isCompletePlaybook
 ---
 
 <PlaybookLayout
-	title={`${product.displayName} · Nueva salida`}
+	title={`${product.displayName} · Nueva opción`}
 	playbookId={playbook.playbookId}
 	active={playbook.active}
 	stepId={playbook.stepId ?? "departure"}
@@ -53,13 +54,11 @@ const tourRateHref = isCompletePlaybook
 	continueFormId={playbook.active ? "tour-slot-profile-form" : null}
 >
 	<section class="space-y-5">
-		<header class="space-y-1.5">
-			<h1 class="text-2xl font-semibold text-white sm:text-3xl">Crea una salida</h1>
-			<p class="max-w-2xl text-sm leading-6 text-slate-300">
-				Define hora, cupo, idioma y modalidad de esta salida. Las fechas y el precio los configuras
-				en los pasos siguientes.
-			</p>
-		</header>
+		<PlaybookStepHeader
+			icon="option"
+			title="Perfil de la opción"
+			lead="Define hora, cupo, idioma y modalidad de esta opción. Las fechas y el precio los configuras en los pasos siguientes."
+		/>
 
 		<TourSlotProfileEditor
 			productId={productId}

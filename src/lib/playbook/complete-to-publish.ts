@@ -144,6 +144,7 @@ function inferCompleteToPublishVertical(checks: CompleteToPublishCheck[]): strin
 
 function normalizeTourNavigationStep(step: string): ProductVerticalSectionKey | null {
 	const raw = normalizeTourLaunchStep(step) ?? String(step ?? "").trim()
+	if (raw === "create") return "content"
 	if (raw === "conditions") return "bookingPolicies"
 	return normalizeCompleteToPublishStep(raw)
 }

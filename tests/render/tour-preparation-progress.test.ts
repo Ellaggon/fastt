@@ -28,10 +28,19 @@ describe("tour preparation and review rendered contract", () => {
 				activeStageId: "photos",
 				stagePosition: 3,
 				stageTotal: 6,
-				stageLabel: "Fotos",
 			},
 		})
-		expect(html).toContain("Etapa 3 de 6 - Fotos")
+		expect(html).toContain("Etapa 3 de 6")
+		const withProduct = await container.renderToString(Progress, {
+			props: {
+				stages: projectTourPublishingStages(diagnosis),
+				activeStageId: "photos",
+				stagePosition: 1,
+				stageTotal: 5,
+				productName: "Paseo por el parque",
+			},
+		})
+		expect(withProduct).toContain("Paseo por el parque - Etapa 1 de 5")
 		expect(html.match(/data-tour-stage-id=/g)).toHaveLength(5)
 		expect(html).toContain('aria-current="step"')
 		expect(html).toContain("Etapa actual")
@@ -102,7 +111,7 @@ describe("tour preparation and review rendered contract", () => {
 	})
 })
 
-it("explains why a grouped stage is pending although presentation is complete", async () => {
+it("marks a grouped stage pending without surfacing requirement copy in stage boxes", async () => {
 	const diagnosis = fixture()
 	diagnosis.requirements.activities.result = {
 		...pending,
@@ -117,7 +126,7 @@ it("explains why a grouped stage is pending although presentation is complete", 
 		props: { stages: projectTourPublishingStages(diagnosis) },
 	})
 	expect(progress).toContain('data-tour-stage-id="presentation" data-tour-stage-state="pending"')
-	expect(progress).toContain("Selecciona al menos una categoría de búsqueda.")
+	expect(progress).not.toContain("Selecciona al menos una categoría de búsqueda.")
 	const review = await container.renderToString(Review, {
 		props: { diagnosis, reviewHref, published: false },
 	})

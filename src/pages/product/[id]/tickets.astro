@@ -1,5 +1,6 @@
 ---
 import { tourPreparationNextHref } from "@/lib/playbook/launch-tour"
+import PlaybookStepHeader from "@/components/playbook/PlaybookStepHeader.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import Notice from "@/components/ui/Notice.astro"
@@ -78,13 +79,11 @@ const initialTickets = tickets.map((t) => ({
 	continueFormId={playbook.active ? "ticketsPlaybookForm" : null}
 >
 	<section class="space-y-6" data-product-id={productId}>
-		<header class="space-y-1.5">
-			<h1 class="text-2xl font-semibold text-white sm:text-3xl">Tipos de participante</h1>
-			<p class="max-w-2xl text-sm leading-6 text-slate-300">
-				Define quién puede reservar y qué edades admite cada tipo. Las categorías que describen la
-				actividad se eligen por separado en el siguiente paso.
-			</p>
-		</header>
+		<PlaybookStepHeader
+			icon="participants"
+			title="Participantes"
+			lead="Define quién puede reservar y qué edades admite cada tipo. Las categorías que describen la actividad se eligen por separado en el siguiente paso."
+		/>
 
 		<Card class="space-y-4 bg-white">
 			<div class="flex flex-wrap items-center justify-between gap-3">

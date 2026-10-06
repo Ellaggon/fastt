@@ -64,7 +64,11 @@ function collectEntries(form: HTMLFormElement, excludeNames: Set<string>): Draft
 function restoreEntries(form: HTMLFormElement, entries: DraftEntry[], excludeNames: Set<string>) {
 	for (const element of Array.from(form.elements)) {
 		if (!isDraftControl(element, excludeNames)) continue
-		const match = entries.find((entry) => entry.key === controlKey(element))
+		const isChoice =
+			element instanceof HTMLInputElement && ["checkbox", "radio"].includes(element.type)
+		const match = entries.find(
+			(entry) => entry.key === controlKey(element) && (!isChoice || entry.value === element.value)
+		)
 		if (!match) continue
 		if (element instanceof HTMLInputElement && ["checkbox", "radio"].includes(element.type)) {
 			element.checked = Boolean(match.checked)

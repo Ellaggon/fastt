@@ -5,15 +5,13 @@ interface Props {
 	activeStageId?: string
 	stagePosition?: number
 	stageTotal?: number
-	stageLabel?: string
+	productName?: string
 }
-const { stages, activeStageId, stagePosition = 0, stageTotal = 0, stageLabel = "" } = Astro.props
-const stageSummaryLabel =
-	stagePosition > 0 && stageTotal > 0 && stageLabel.trim()
-		? `Etapa ${stagePosition} de ${stageTotal} - ${stageLabel.trim()}`
-		: stagePosition > 0 && stageTotal > 0
-			? `Etapa ${stagePosition} de ${stageTotal}`
-			: "Ver etapas"
+const { stages, activeStageId, stagePosition = 0, stageTotal = 0, productName = "" } = Astro.props
+const stageCoreLabel =
+	stagePosition > 0 && stageTotal > 0 ? `Etapa ${stagePosition} de ${stageTotal}` : "Ver etapas"
+const tourName = productName.trim()
+const stageSummaryLabel = tourName ? `${tourName} - ${stageCoreLabel}` : stageCoreLabel
 const labels = {
 	ready: "Completa",
 	pending: "Pendiente",
@@ -22,18 +20,21 @@ const labels = {
 }
 ---
 
-<div class="space-y-3" data-tour-preparation-progress>
+<div class="space-y-0" data-tour-preparation-progress>
 	{
 		stages ? (
-			<details class="group">
-				<summary class="tour-preparation-summary cursor-pointer py-2 text-sm font-semibold text-slate-300">
+			<details class="group" data-tour-stages-disclosure>
+				<summary class="tour-preparation-summary cursor-pointer py-0 text-sm leading-snug font-semibold text-slate-300">
 					{stageSummaryLabel}
 				</summary>
 				<nav aria-label="Etapas de preparación" class="mt-3">
 					<ol class="tour-stage-rail grid list-none gap-2 p-0 lg:grid-cols-5">
 						{stages.map((stage) => {
 							const isActive = stage.id === activeStageId
-							const statusLabel = labels[stage.state as keyof typeof labels]
+							const statusLabel =
+								isActive && stage.state === "pending"
+									? "En curso"
+									: labels[stage.state as keyof typeof labels]
 							const itemClass = [
 								"tour-stage-rail__step",
 								isActive ? "tour-stage-rail__step--active" : "",
@@ -51,11 +52,8 @@ const labels = {
 									</p>
 									<span class="tour-stage-rail__status">
 										{statusLabel}
-										{isActive ? " · Etapa actual" : ""}
+										{isActive && stage.state !== "pending" ? " · Etapa actual" : ""}
 									</span>
-									{stage.pendingReason ? (
-										<span class="tour-stage-rail__status">{stage.pendingReason}</span>
-									) : null}
 								</>
 							)
 							return (
@@ -215,3 +213,50 @@ const labels = {
 		}
 	}
 </style>
+
+<script>
+	function initStageTransitions() {
+		document
+			.querySelectorAll<HTMLDetailsElement>("[data-tour-stages-disclosure]")
+			.forEach((details) => {
+				if (details.dataset.transitionBound) return
+				const summary = details.querySelector("summary")
+				const content = details.querySelector("nav")
+				if (!summary || !content) return
+				details.dataset.transitionBound = "true"
+				let expanded = details.open
+				let animation: Animation | null = null
+				summary.addEventListener("click", (event) => {
+					event.preventDefault()
+					const from = details.getBoundingClientRect().height
+					animation?.cancel()
+					expanded = !expanded
+					content.inert = !expanded
+					summary.setAttribute("aria-expanded", String(expanded))
+					if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+						details.open = expanded
+						details.style.removeProperty("overflow")
+						animation = null
+						return
+					}
+					// Keep the native disclosure open until its closing animation finishes.
+					details.open = true
+					const to = expanded
+						? details.getBoundingClientRect().height
+						: summary.getBoundingClientRect().height
+					details.style.overflow = "hidden"
+					animation = details.animate([{ height: `${from}px` }, { height: `${to}px` }], {
+						duration: 360,
+						easing: "cubic-bezier(0.2, 0.8, 0.2, 1)",
+					})
+					animation.onfinish = () => {
+						details.open = expanded
+						details.style.removeProperty("overflow")
+						animation = null
+					}
+				})
+			})
+	}
+	initStageTransitions()
+	document.addEventListener("astro:page-load", initStageTransitions)
+</script>

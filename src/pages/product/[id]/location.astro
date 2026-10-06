@@ -4,6 +4,7 @@ import Card from "@/components/ui/Card.astro"
 import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
+import PlaybookStepHeader from "@/components/playbook/PlaybookStepHeader.astro"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import {
 	buildCompleteToPublishHref,
@@ -92,8 +93,25 @@ const meetingHref =
 	continueFormId={playbook.active ? "locationForm" : null}
 >
 	<section class="space-y-8">
-		<section class="space-y-4">
-			<Card class="rounded-lg border-slate-200 bg-slate-100 shadow-none">
+		<section class:list={["space-y-4", playbook.active && "space-y-6"]}>
+			{
+				playbook.active ? (
+					<PlaybookStepHeader
+						icon={isTour ? "location" : "geo"}
+						title={isTour ? "Destino y encuentro" : "Metadata geográfica"}
+						lead={
+							isTour
+								? "Selecciona el destino que organiza las búsquedas y ubica el área general en el mapa. Esto no cambia el punto exacto donde el viajero se reúne con el guía."
+								: `Define ubicación, coordenadas y contexto geográfico de ${vertical.labels.singular}.`
+						}
+					/>
+				) : null
+			}
+			<Card
+				class:list={[
+					playbook.active ? "bg-white" : "rounded-lg border-slate-200 bg-slate-100 shadow-none",
+				]}
+			>
 				<form
 					id="locationForm"
 					method="POST"
@@ -122,18 +140,20 @@ const meetingHref =
 					<Input id="lat" type="hidden" name="lat" value={String(initialLat)} />
 					<Input id="lng" type="hidden" name="lng" value={String(initialLng)} />
 
-					<header class="space-y-1.5">
-						<h2 class="text-xl font-semibold text-slate-900">
-							{isTour ? "Destino y zona pública" : "Metadata geográfica"}
-						</h2>
-						<p class="text-sm leading-6 text-slate-600">
-							{
-								isTour
-									? "Selecciona el destino que organiza las búsquedas y ubica el área general en el mapa. Esto no cambia el punto exacto donde el viajero se reúne con el guía."
-									: `Define ubicación, coordenadas y contexto geográfico de ${vertical.labels.singular}.`
-							}
-						</p>
-					</header>
+					{
+						!playbook.active ? (
+							<header class="space-y-1.5">
+								<h2 class="text-xl font-semibold text-slate-900">
+									{isTour ? "Destino y zona pública" : "Metadata geográfica"}
+								</h2>
+								<p class="text-sm leading-6 text-slate-600">
+									{isTour
+										? "Selecciona el destino que organiza las búsquedas y ubica el área general en el mapa. Esto no cambia el punto exacto donde el viajero se reúne con el guía."
+										: `Define ubicación, coordenadas y contexto geográfico de ${vertical.labels.singular}.`}
+								</p>
+							</header>
+						) : null
+					}
 
 					<FormField
 						label={isTour ? "Zona o dirección de discovery (opcional)" : "Dirección (opcional)"}

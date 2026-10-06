@@ -64,7 +64,7 @@ describe("two tour playbooks rendered in their actual layout", () => {
 	it("A shows only its five folded stages and preserves the review return on stage links", async () => {
 		const html = await render("prepare")
 		expect(html).toContain("Preparar tour")
-		expect(html).toContain("Etapa 4 de 5 - Primera opción, precio y condiciones")
+		expect(html).toContain("Tour guardado - Etapa 4 de 5")
 		expect(html).not.toContain("Ver etapas")
 		expect(html.match(/data-tour-stage-id=/g)).toHaveLength(5)
 		expect(html).not.toMatch(/<details[^>]*open/)

@@ -1,10 +1,12 @@
 ---
 import { tourPreparationNextHref } from "@/lib/playbook/launch-tour"
+import { tourPresentationCanonicalHref } from "@/lib/playbook/launch-tour"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import Checkbox from "@/components/ui/Checkbox.astro"
 import Notice from "@/components/ui/Notice.astro"
 import { productRepository } from "@/container"
+import PlaybookStepHeader from "@/components/playbook/PlaybookStepHeader.astro"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
@@ -38,6 +40,9 @@ const owned = productId
 	? await productRepository.ensureProductOwnedByProvider(productId, providerId)
 	: null
 if (!owned || !isTourProductType(owned.productType)) return Astro.redirect(routes.catalogTours())
+
+const presentationHref = tourPresentationCanonicalHref(Astro.url, productId)
+if (presentationHref) return Astro.redirect(presentationHref)
 
 const playbookRepair = getCompleteToPublishPlaybookRepairHref(Astro.url, {
 	isTour: true,
@@ -95,14 +100,12 @@ const qualityCriteria = tourActivityQualityCriteria(selectedCategories)
 	continueFormId={playbook.active ? "categoriesPlaybookForm" : null}
 >
 	<section class="space-y-6">
-		<header class="space-y-1.5">
-			<p class="text-sm font-medium text-slate-400">Descubrimiento</p>
-			<h1 class="text-2xl font-semibold text-white sm:text-3xl">Categorías de búsqueda</h1>
-			<p class="max-w-2xl text-sm leading-6 text-slate-300">
-				Estas categorías describen la actividad y ayudan a encontrarla. No representan tipos de
-				participante, precios ni cupos.
-			</p>
-		</header>
+		<PlaybookStepHeader
+			icon="categories"
+			eyebrow="Descubrimiento"
+			title="Categorías de búsqueda"
+			lead="Estas categorías describen la actividad y ayudan a encontrarla. No representan tipos de participante, precios ni cupos."
+		/>
 
 		<Card class="space-y-5 bg-white">
 			<form id="categoriesPlaybookForm" class="space-y-5">

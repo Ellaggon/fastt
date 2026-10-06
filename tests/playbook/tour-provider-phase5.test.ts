@@ -57,9 +57,9 @@ describe("tour provider phase 5", () => {
 		expect(layout).toContain("showProgress && !lightweight && !isTourLaunch")
 	})
 
-	it("keeps participants and discovery categories as consecutive independent tasks", () => {
+	it("keeps categories in presentation and participants in the commercial stage", () => {
 		expect(completeToPublishNextHref("tour-1", "content", "tour")).toBe(
-			"/product/tour-1/categories?playbook=complete-to-publish&step=categories&flow=complete"
+			"/product/tour-1/location?playbook=complete-to-publish&step=location&flow=complete"
 		)
 		expect(completeToPublishNextHref("tour-1", "categories", "tour")).toBe(
 			"/product/tour-1/location?playbook=complete-to-publish&step=location&flow=complete"
@@ -92,15 +92,6 @@ describe("tour provider phase 5", () => {
 		expect(launchCalendar).toContain("productId=tour-1")
 		expect(launchCalendar).toContain("variantId=departure-1")
 		expect(launchCalendar).toContain("ratePlanId=rate-1")
-	})
-
-	it("makes the catalog task-oriented and resumes the exact missing requirement", () => {
-		const catalog = source("src/pages/catalog/tours.astro")
-		expect(catalog).toContain("Qué necesita atención")
-		expect(catalog).toContain("preparation.nextStepLabel")
-		expect(catalog).toContain("continuePreparationHref")
-		expect(catalog).toContain("links.priceHref")
-		expect(catalog).toContain("links.calendarHref")
 	})
 
 	it("uses the actual public tour page for an owner-only non-bookable preview", () => {

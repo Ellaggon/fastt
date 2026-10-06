@@ -1,9 +1,12 @@
 ---
 import Button from "@/components/ui/Button.astro"
+import TourPresentationForm from "@/components/tours/TourPresentationForm.astro"
+import { loadTourPresentationForm } from "@/lib/tours/loadTourPresentationForm"
 import Card from "@/components/ui/Card.astro"
 import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
+import PlaybookStepHeader from "@/components/playbook/PlaybookStepHeader.astro"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import { LAUNCH_TOUR_PLAYBOOK_ID } from "@/lib/playbook/launch-tour"
 import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
@@ -75,18 +78,21 @@ const activeVerticals = listActiveProductVerticalEntries()
 const createCopy = vertical.creation
 const selectedProductType = vertical.productType ?? ""
 const isLaunchHotelFlow = isHotelLaunch
-const destinations = isChooser
-	? []
-	: await db
-			.select({
-				id: GeoPlace.id,
-				name: GeoPlace.canonicalName,
-				country: GeoPlace.countryCode,
-				placeType: GeoPlace.placeType,
-			})
-			.from(GeoPlace)
-			.where(eq(GeoPlace.status, "active"))
-			.orderBy(asc(GeoPlace.canonicalName))
+const tourPresentationOptions =
+	selectedVertical === "tour" ? await loadTourPresentationForm() : null
+const destinations =
+	isChooser || selectedVertical === "tour"
+		? []
+		: await db
+				.select({
+					id: GeoPlace.id,
+					name: GeoPlace.canonicalName,
+					country: GeoPlace.countryCode,
+					placeType: GeoPlace.placeType,
+				})
+				.from(GeoPlace)
+				.where(eq(GeoPlace.status, "active"))
+				.orderBy(asc(GeoPlace.canonicalName))
 const compatibleGeoPlaces = destinations.filter((place) =>
 	isGeoPlaceCompatible({ productType: selectedProductType, placeType: place.placeType })
 )
@@ -99,21 +105,26 @@ const compatibleGeoPlaces = destinations.filter((place) =>
 	stepId={resolvedPlaybook.stepId ?? "create"}
 	isHotel={isLaunchHotelFlow}
 	playbookVertical={isChooser ? null : selectedVertical}
-	continueFormId={activePlaybook ? "createForm" : null}
-	continueLabel="Crear y continuar"
+	continueFormId={activePlaybook ? (isTourLaunch ? "tourPresentationForm" : "createForm") : null}
+	continueLabel={isTourLaunch ? "Guardar y pasar a recorrido" : "Crear y continuar"}
 >
 	<section class="space-y-8">
 		{
-			isChooser ? (
+			tourPresentationOptions ? (
+				<TourPresentationForm
+					providerId={providerId}
+					options={tourPresentationOptions}
+					guided={activePlaybook}
+				/>
+			) : isChooser ? (
 				<section class="space-y-4">
-					<header class="space-y-1">
-						<p class="text-sm font-medium text-slate-400">Servicios</p>
-						<h1 class="text-3xl font-semibold text-slate-100">¿Qué quieres ofrecer?</h1>
-						<p class="max-w-2xl text-sm text-slate-400">
-							Elige el tipo de servicio antes de iniciar su configuración. Cada tipo usa su propio
-							recorrido operativo.
-						</p>
-					</header>
+					<PlaybookStepHeader
+						size="lg"
+						icon="chooser"
+						eyebrow="Servicios"
+						title="¿Qué quieres ofrecer?"
+						lead="Elige el tipo de servicio antes de iniciar su configuración. Cada tipo usa su propio recorrido operativo."
+					/>
 					<div class="grid gap-4 md:grid-cols-2">
 						{activeVerticals.map((entry) => (
 							<Card class="flex flex-col justify-between gap-5 bg-slate-100">
@@ -132,17 +143,13 @@ const compatibleGeoPlaces = destinations.filter((place) =>
 				</section>
 			) : (
 				<section class="space-y-4">
-					<header class="space-y-1">
-						<p class="text-sm font-medium text-slate-400">{vertical.labels.workspacePlural}</p>
-						<h1 class="text-3xl font-semibold text-slate-100">{createCopy.heading}</h1>
-						<p class="text-sm text-slate-400">{createCopy.description}</p>
-						{isTourLaunch ? (
-							<p class="text-sm text-slate-400">
-								Prepara la ficha. Antes de publicarla revisaremos los requisitos y la verificación
-								aplicable.
-							</p>
-						) : null}
-					</header>
+					<PlaybookStepHeader
+						size="lg"
+						icon="create"
+						eyebrow={vertical.labels.workspacePlural}
+						title={createCopy.heading}
+						lead={`${createCopy.description}${isTourLaunch ? " Antes de publicarla revisaremos los requisitos y la verificación aplicable." : ""}`}
+					/>
 
 					<Card class="rounded-lg border-slate-200 bg-slate-100 shadow-none">
 						<form

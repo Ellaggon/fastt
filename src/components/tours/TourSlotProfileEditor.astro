@@ -81,13 +81,13 @@ const languageOptions =
 			<h2 class="text-sm font-semibold text-slate-950">Salida</h2>
 		</header>
 		<div class="grid gap-4 md:grid-cols-2">
-			<FormField label="Nombre de la salida" for="name" required>
+			<FormField label="Nombre de la opción" for="name" required>
 				<Input
 					id="name"
 					name="name"
 					required
 					value={name ?? ""}
-					placeholder="Ej: Salida mañana 09:00"
+					placeholder="Ej: Compartida en español"
 				/>
 			</FormField>
 			<FormField label="Hora de salida" for="departureTime" required>
@@ -100,7 +100,7 @@ const languageOptions =
 				/>
 			</FormField>
 			<FormField
-				label="Duración de esta salida (minutos, opcional)"
+				label="Duración de esta opción (minutos, opcional)"
 				htmlFor="durationMinutes"
 				description="Si la dejas vacía, usamos la duración configurada en los detalles del tour."
 			>
@@ -120,7 +120,7 @@ const languageOptions =
 				name="description"
 				rows={3}
 				value={description ?? ""}
-				placeholder="Notas visibles para el viajero sobre esta salida"
+				placeholder="Notas visibles para el viajero sobre esta opción"
 			/>
 		</FormField>
 	</section>
@@ -218,7 +218,7 @@ const languageOptions =
 			name="isActive"
 			value="true"
 			checked={isActive !== false}
-			label="Salida activa (visible para venta)"
+			label="Opción activa (visible para venta)"
 			class={selectionCheckboxClass}
 		/>
 	</section>
@@ -257,7 +257,7 @@ const languageOptions =
 					placeholder="Ej: Entrada sur del parque, junto al kiosco"
 				/>
 				<p class="text-xs leading-5 text-slate-500">
-					Solo si esta salida reúne al grupo en un lugar diferente al del tour.
+					Solo si esta opción reúne al grupo en un lugar diferente al del tour.
 				</p>
 			</FormField>
 		</div>
@@ -277,14 +277,14 @@ const languageOptions =
 						Volver sin guardar
 					</Button>
 					<Button type="submit" id="tour-slot-submit" className="fastt-playbook-cta">
-						{submitLabel || (isEditMode ? "Guardar salida" : "Crear salida")}
+						{submitLabel || (isEditMode ? "Guardar opción" : "Crear opción")}
 					</Button>
 				</div>
 			</footer>
 		) : (
 			<div class:list={["flex justify-end pt-5", playbookFooterControls ? "hidden" : ""]}>
 				<Button type="submit" id="tour-slot-submit" variant="selection">
-					{submitLabel || (isEditMode ? "Guardar salida" : "Crear salida")}
+					{submitLabel || (isEditMode ? "Guardar opción" : "Crear opción")}
 				</Button>
 			</div>
 		)
@@ -360,7 +360,7 @@ const languageOptions =
 						}
 					}
 					if (saved.length && statusEl) {
-						statusEl.textContent = "Recuperamos el borrador de esta salida."
+						statusEl.textContent = "Recuperamos el borrador de esta opción."
 					}
 				}
 			} catch {
@@ -384,7 +384,7 @@ const languageOptions =
 
 			const activeSubmit = submitter instanceof HTMLButtonElement ? submitter : submitBtn
 			statusEl?.setAttribute("role", "status")
-			if (statusEl) statusEl.textContent = "Guardando salida..."
+			if (statusEl) statusEl.textContent = "Guardando opción..."
 			if (activeSubmit) activeSubmit.disabled = true
 			try {
 				const response = await fetch("/api/variant/tour-slot-profile", {
@@ -398,7 +398,7 @@ const languageOptions =
 						statusEl.textContent =
 							payload?.error === "validation_error"
 								? "No pudimos guardar. Revisa el nombre, la hora, el cupo y el idioma."
-								: "No se pudo crear la salida. Tu borrador sigue guardado para que puedas reintentar."
+								: "No se pudo crear la opción. Tu borrador sigue guardado para que puedas reintentar."
 					}
 					return
 				}

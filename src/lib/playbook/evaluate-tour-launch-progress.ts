@@ -74,7 +74,8 @@ export async function evaluateTourLaunchProgress(
 	}
 
 	const completion: Record<TourLaunchStepId, boolean> = {
-		create: true,
+		create:
+			Boolean(completionBySection.get("content")) && Boolean(completionBySection.get("categories")),
 		content: Boolean(completionBySection.get("content")),
 		location: Boolean(
 			completionBySection.get(publishState.tourDiagnostic ? "subtype" : "location")

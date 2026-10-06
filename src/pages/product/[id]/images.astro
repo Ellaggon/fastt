@@ -1,4 +1,6 @@
 ---
+import PlaybookStepHeader from "@/components/playbook/PlaybookStepHeader.astro"
+import TourImagesPlaybookFields from "@/components/tours/TourImagesPlaybookFields.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import FormField from "@/components/ui/FormField.astro"
@@ -47,6 +49,7 @@ const existingImages = product.images || []
 const isTourPreparation = isTour && playbook.playbookId === "launch-tour"
 const enforceTourPublicationGallery = isTour && playbook.playbookId === "complete-to-publish"
 const missingTourImages = Math.max(0, TOUR_QUALITY_MIN_IMAGES - existingImages.length)
+const tourPlaybookGuided = isTour && playbook.active
 ---
 
 <PlaybookLayout
@@ -62,144 +65,233 @@ const missingTourImages = Math.max(0, TOUR_QUALITY_MIN_IMAGES - existingImages.l
 	continueDisabled={enforceTourPublicationGallery && existingImages.length === 0}
 	continueDisabledTitle="Agrega una foto para guardar."
 >
-	<section class="space-y-8">
-		<section class="space-y-4">
-			<Card class="rounded-lg border-slate-200 bg-slate-100 shadow-none">
-				<form
-					id="imagesForm"
-					method="POST"
-					action="/api/product/images"
-					class="max-w-3xl space-y-8"
-					data-allow-empty-preparation={isTourPreparation ? "true" : undefined}
-					data-allow-partial-publication={enforceTourPublicationGallery ? "true" : undefined}
-					data-required-image-count={enforceTourPublicationGallery ? TOUR_QUALITY_MIN_IMAGES : 0}
-				>
-					<Input type="hidden" name="productId" value={productId} />
-					<Input
-						type="hidden"
-						name="flow"
-						value={flow === "create" ? "create" : flow === "complete" ? "complete" : "edit"}
+	<section class:list={[tourPlaybookGuided ? "space-y-6" : "space-y-8"]}>
+		<section
+			class:list={[
+				tourPlaybookGuided ? "space-y-6" : "space-y-4",
+				playbook.active && !tourPlaybookGuided && "space-y-6",
+			]}
+		>
+			{
+				tourPlaybookGuided ? (
+					<PlaybookStepHeader
+						icon="photos"
+						title="Fotos"
+						lead={
+							enforceTourPublicationGallery
+								? "Para publicar necesitas cinco fotos: portada, experiencia, entorno y detalles. Puedes guardar y volver después."
+								: "Recomendamos cinco fotos: portada, experiencia, entorno y detalles. Puedes completar este paso después si aún no las tienes."
+						}
 					/>
-					{
-						playbook.active && playbook.playbookId ? (
+				) : playbook.active ? (
+					<PlaybookStepHeader
+						icon="photos"
+						title={
+							isHotel
+								? "Galería del alojamiento"
+								: isTour
+									? "Galería del tour"
+									: "Galería de la oferta"
+						}
+						lead={
+							isTour && enforceTourPublicationGallery
+								? "Para publicar necesitas 5 fotos: portada, experiencia, entorno y detalles. Puedes guardar el borrador y volver después."
+								: isTour
+									? "Recomendamos 5 fotos: portada, experiencia, entorno y detalles."
+									: "Arrastra imágenes aquí o haz clic para seleccionarlas."
+						}
+					/>
+				) : null
+			}
+			{
+				tourPlaybookGuided ? (
+					<form
+						id="imagesForm"
+						method="POST"
+						action="/api/product/images"
+						class="w-full max-w-5xl space-y-5"
+						data-playbook-guided="true"
+						data-allow-empty-preparation={isTourPreparation ? "true" : undefined}
+						data-allow-partial-publication={enforceTourPublicationGallery ? "true" : undefined}
+						data-required-image-count={enforceTourPublicationGallery ? TOUR_QUALITY_MIN_IMAGES : 0}
+					>
+						<Input type="hidden" name="productId" value={productId} />
+						<Input
+							type="hidden"
+							name="flow"
+							value={flow === "create" ? "create" : flow === "complete" ? "complete" : "edit"}
+						/>
+						{playbook.playbookId ? (
 							<Input type="hidden" name="playbook" value={playbook.playbookId} />
-						) : null
-					}
-					{
-						playbook.active && playbook.playbookId === "complete-to-publish" ? (
+						) : null}
+						{playbook.playbookId === "complete-to-publish" ? (
 							<>
 								<Input type="hidden" name="playbookCurrentStep" value="photos" />
 								<Input type="hidden" name="playbookVertical" value={vertical.vertical} />
 							</>
-						) : null
-					}
-					<header class="space-y-1.5">
-						<h2 class="text-xl font-semibold text-slate-900">
-							{
-								isHotel
-									? "Galería del alojamiento"
-									: isTour
-										? "Galería del tour"
-										: "Galería de la oferta"
-							}
-						</h2>
-						<p class="text-sm leading-6 text-slate-600">
-							{
-								isTour && enforceTourPublicationGallery
-									? "Para publicar necesitas 5 fotos: portada, experiencia, entorno y detalles. Puedes guardar el borrador y volver después."
-									: isTour
-										? "Recomendamos 5 fotos: portada, experiencia, entorno y detalles."
-										: "Arrastra imágenes aquí o haz clic para seleccionarlas."
-							}
-						</p>
-						<p id="imageCount" class="text-sm font-semibold text-slate-800" aria-live="polite">
-							{existingImages.length}/{TOUR_QUALITY_MIN_IMAGES} fotos {
-								enforceTourPublicationGallery ? "necesarias para publicar" : "recomendadas"
-							}
-						</p>
-					</header>
-
-					<FormField label="Carga de imágenes" htmlFor="files" required>
-						<Input
-							id="files"
-							type="file"
-							name="files"
-							accept="image/*"
-							multiple
-							required={existingImages.length === 0}
-							className="hidden"
-							aria-describedby="imageUploadHelp imageCount"
+						) : null}
+						<TourImagesPlaybookFields
+							existingImagesLength={existingImages.length}
+							requiredForPublication={enforceTourPublicationGallery}
 						/>
-						<div
-							id="dropzone"
-							class="fastt-empty-state cursor-pointer rounded-xl border-2 border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-600 transition"
-							role="button"
-							tabindex="0"
-							aria-controls="files"
-							aria-describedby="imageUploadHelp imageCount"
+						<p id="stateLabel" class="text-sm text-slate-400" role="status" aria-live="polite" />
+						<p id="stateDetail" class="hidden text-sm whitespace-pre-wrap text-slate-400" />
+						<p id="imageCount" class="text-sm font-medium text-slate-400" aria-live="polite">
+							{existingImages.length}/{TOUR_QUALITY_MIN_IMAGES} fotos{" "}
+							{enforceTourPublicationGallery ? "necesarias para publicar" : "recomendadas"}
+						</p>
+						<button
+							id="submitBtn"
+							type="submit"
+							class="fastt-button hidden"
+							tabindex="-1"
+							aria-hidden="true"
 						>
-							<p class="font-medium text-slate-700">Suelta imágenes aquí</p>
-							<p class="mt-1 text-slate-500">o haz clic para abrir el selector</p>
-							<p id="imageUploadHelp" class="mt-2 text-xs text-slate-500">
-								Usa Enter o Espacio para elegir archivos. Solo se aceptan imágenes.
-							</p>
-						</div>
-					</FormField>
-
-					<div class="space-y-3">
-						<p class="text-sm font-medium text-slate-700">Vista previa</p>
-						<div id="previewGrid" class="grid grid-cols-2 gap-4 sm:grid-cols-3" aria-live="polite">
-						</div>
-					</div>
-
-					<div class="space-y-4 pt-2">
-						<div class="space-y-1">
-							<p id="stateLabel" class="text-sm text-slate-600" aria-live="polite">
-								{
-									enforceTourPublicationGallery && missingTourImages > 0
-										? `Faltan ${missingTourImages} foto${missingTourImages === 1 ? "" : "s"} para completar este requisito.`
-										: existingImages.length > 0
-											? "Listo: puedes continuar con las fotos existentes o agregar nuevas."
-											: "Vacío: selecciona imágenes para continuar."
-								}
-							</p>
-							<p id="stateDetail" class="whitespace-pre-wrap text-sm text-slate-600"></p>
-						</div>
-
-						<div
-							class:list={["flex items-center justify-end gap-3", playbook.active ? "hidden" : ""]}
+							Enviar
+						</button>
+					</form>
+				) : (
+					<Card
+						class:list={[
+							playbook.active ? "bg-white" : "rounded-lg border-slate-200 bg-slate-100 shadow-none",
+						]}
+					>
+						<form
+							id="imagesForm"
+							method="POST"
+							action="/api/product/images"
+							class="max-w-3xl space-y-8"
+							data-allow-empty-preparation={isTourPreparation ? "true" : undefined}
+							data-allow-partial-publication={enforceTourPublicationGallery ? "true" : undefined}
+							data-required-image-count={
+								enforceTourPublicationGallery ? TOUR_QUALITY_MIN_IMAGES : 0
+							}
 						>
-							<Button
-								href={playbook.active && playbook.playbookId
-									? playbookRedirectHrefFor(
-											playbook.playbookId,
-											playbook.playbookId === "complete-to-publish"
-												? `/product/${productId}/content`
-												: `/product/${productId}/location`,
-											playbook.playbookId === "complete-to-publish" ? "content" : "location"
-										)
-									: `/product/${encodeURIComponent(productId)}/location`}
-								variant="secondary"
-							>
-								Volver
-							</Button>
-							<Button
-								id="submitBtn"
-								type="submit"
-								className={playbook.active ? "fastt-playbook-cta" : ""}
-							>
-								{
-									isTour && playbook.playbookId === "complete-to-publish"
-										? "Guardar y volver"
-										: playbook.active
-											? "Guardar y continuar"
-											: "Subir y asociar"
-								}
-							</Button>
-						</div>
-					</div>
-				</form>
-			</Card>
+							<Input type="hidden" name="productId" value={productId} />
+							<Input
+								type="hidden"
+								name="flow"
+								value={flow === "create" ? "create" : flow === "complete" ? "complete" : "edit"}
+							/>
+							{playbook.active && playbook.playbookId ? (
+								<Input type="hidden" name="playbook" value={playbook.playbookId} />
+							) : null}
+							{playbook.active && playbook.playbookId === "complete-to-publish" ? (
+								<>
+									<Input type="hidden" name="playbookCurrentStep" value="photos" />
+									<Input type="hidden" name="playbookVertical" value={vertical.vertical} />
+								</>
+							) : null}
+							{!playbook.active ? (
+								<header class="space-y-1.5">
+									<h2 class="text-xl font-semibold text-slate-900">
+										{isHotel
+											? "Galería del alojamiento"
+											: isTour
+												? "Galería del tour"
+												: "Galería de la oferta"}
+									</h2>
+									<p class="text-sm leading-6 text-slate-600">
+										{isTour && enforceTourPublicationGallery
+											? "Para publicar necesitas 5 fotos: portada, experiencia, entorno y detalles. Puedes guardar el borrador y volver después."
+											: isTour
+												? "Recomendamos 5 fotos: portada, experiencia, entorno y detalles."
+												: "Arrastra imágenes aquí o haz clic para seleccionarlas."}
+									</p>
+								</header>
+							) : null}
+							<p id="imageCount" class="text-sm font-semibold text-slate-800" aria-live="polite">
+								{existingImages.length}/{TOUR_QUALITY_MIN_IMAGES} fotos{" "}
+								{enforceTourPublicationGallery ? "necesarias para publicar" : "recomendadas"}
+							</p>
+
+							<FormField label="Carga de imágenes" htmlFor="files" required>
+								<Input
+									id="files"
+									type="file"
+									name="files"
+									accept="image/*"
+									multiple
+									required={existingImages.length === 0}
+									className="hidden"
+									aria-describedby="imageUploadHelp imageCount"
+								/>
+								<div
+									id="dropzone"
+									class="fastt-empty-state cursor-pointer rounded-xl border-2 border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-600 transition"
+									role="button"
+									tabindex="0"
+									aria-controls="files"
+									aria-describedby="imageUploadHelp imageCount"
+								>
+									<p class="font-medium text-slate-700">Suelta imágenes aquí</p>
+									<p class="mt-1 text-slate-500">o haz clic para abrir el selector</p>
+									<p id="imageUploadHelp" class="mt-2 text-xs text-slate-500">
+										Usa Enter o Espacio para elegir archivos. Solo se aceptan imágenes.
+									</p>
+								</div>
+							</FormField>
+
+							<div class="space-y-3">
+								<p class="text-sm font-medium text-slate-700">Vista previa</p>
+								<div
+									id="previewGrid"
+									class="grid grid-cols-2 gap-4 sm:grid-cols-3"
+									aria-live="polite"
+								/>
+							</div>
+
+							<div class="space-y-4 pt-2">
+								<div class="space-y-1">
+									<p id="stateLabel" class="text-sm text-slate-600" aria-live="polite">
+										{enforceTourPublicationGallery && missingTourImages > 0
+											? `Faltan ${missingTourImages} foto${missingTourImages === 1 ? "" : "s"} para completar este requisito.`
+											: existingImages.length > 0
+												? "Listo: puedes continuar con las fotos existentes o agregar nuevas."
+												: "Vacío: selecciona imágenes para continuar."}
+									</p>
+									<p id="stateDetail" class="text-sm whitespace-pre-wrap text-slate-600" />
+								</div>
+
+								<div
+									class:list={[
+										"flex items-center justify-end gap-3",
+										playbook.active ? "hidden" : "",
+									]}
+								>
+									<Button
+										href={
+											playbook.active && playbook.playbookId
+												? playbookRedirectHrefFor(
+														playbook.playbookId,
+														playbook.playbookId === "complete-to-publish"
+															? `/product/${productId}/content`
+															: `/product/${productId}/location`,
+														playbook.playbookId === "complete-to-publish" ? "content" : "location"
+													)
+												: `/product/${encodeURIComponent(productId)}/location`
+										}
+										variant="secondary"
+									>
+										Volver
+									</Button>
+									<Button
+										id="submitBtn"
+										type="submit"
+										className={playbook.active ? "fastt-playbook-cta" : ""}
+									>
+										{isTour && playbook.playbookId === "complete-to-publish"
+											? "Guardar y volver"
+											: playbook.active
+												? "Guardar y continuar"
+												: "Subir y asociar"}
+									</Button>
+								</div>
+							</div>
+						</form>
+					</Card>
+				)
+			}
 		</section>
 	</section>
 
