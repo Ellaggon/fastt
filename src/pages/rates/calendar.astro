@@ -1,9 +1,12 @@
 ---
 import PlaybookStepHeader from "@/components/playbook/PlaybookStepHeader.astro"
+import CalendarRuntimeRecovery from "@/components/rates/CalendarRuntimeRecovery.astro"
 import CalendarSubnav from "@/components/rates/CalendarSubnav.astro"
 import CalendarWorkspaceHeader from "@/components/rates/CalendarWorkspaceHeader"
 import CalendarWorkspaceSkeleton from "@/components/rates/CalendarWorkspaceSkeleton.astro"
 import SingleCalendarWorkspace from "@/components/rates/SingleCalendarWorkspace"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import type { WorkspaceRequestContext } from "@/lib/dashboard/workspaceRequestContext"
@@ -20,6 +23,7 @@ import {
 	resolveLaunchPlaybookFromUrl,
 } from "@/lib/playbook/launch-accommodation"
 import {
+	buildTourPlaybookHref,
 	getTourSharedRateCanonicalHref,
 	LAUNCH_TOUR_PLAYBOOK_ID,
 	resolveTourLaunchPlaybookFromUrl,
@@ -108,6 +112,26 @@ if (entryContext) {
 	const entryResponse = tourContextEntryResponse(entryContext, Astro.url)
 	if (entryResponse) return entryResponse
 }
+
+const calendarDependency =
+	entryContext?.status === "unresolved" &&
+	["missing_option", "missing_rate"].includes(entryContext.reason)
+		? entryContext.reason
+		: null
+const calendarDependencyTarget = new URL(
+	buildTourPlaybookHref(
+		calendarDependency === "missing_rate"
+			? `/rates/plans/manage?productId=${encodeURIComponent(requestedProductId)}&openDialog=1`
+			: `/product/${encodeURIComponent(requestedProductId)}/tickets`,
+		calendarDependency === "missing_rate" ? "rate" : "tickets"
+	),
+	Astro.url
+)
+for (const key of ["variantId", "ratePlanId", "returnTo"]) {
+	const value = Astro.url.searchParams.get(key)
+	if (value) calendarDependencyTarget.searchParams.set(key, value)
+}
+const calendarDependencyHref = calendarDependencyTarget.pathname + calendarDependencyTarget.search
 
 const contextualRow =
 	matchedRow ?? rows.find((row: RatePlanListItem) => String(row.productId) === requestedProductId)
@@ -242,7 +266,7 @@ const tourGuidedPlaybookContinue =
 		? {
 				hideFooter: false,
 				playbookVertical: "tour" as const,
-				continueLabel: "Guardar y continuar",
+				continueLabel: calendarDependency ? "Completar después" : "Cargando calendario…",
 				continueHref:
 					activePlaybook === "launch-tour"
 						? tourPreparationNextHref(
@@ -258,8 +282,8 @@ const tourGuidedPlaybookContinue =
 									tourGuidedLaunchContext
 								)
 							: null,
-				continueDisabled: guidedInventoryDays < 1,
-				continueDisabledTitle: "Abre al menos una fecha futura con cupo antes de continuar.",
+				continueDisabled: !calendarDependency,
+				continueDisabledTitle: "Espera a que cargue el calendario.",
 			}
 		: null
 const Layout = activePlaybook ? PlaybookLayout : WorkspaceLayout
@@ -367,29 +391,50 @@ timing.setHeader(Astro.response.headers)
 			) : null
 		}
 
-		<SingleCalendarWorkspace
-			client:only="react"
-			initialRatePlanId={ratePlanIdParam || undefined}
-			initialVariantId={variantIdParam || undefined}
-			initialMonth={Astro.url.searchParams.get("month") ?? undefined}
-			isProfessional={isProfessionalCalendar}
-			initialMode={initialMode}
-			guidedAvailability={isGuidedAvailabilityStep
-				? {
-						playbook: activePlaybook,
-						vertical: isTourContext ? "tour" : "hotel",
-						productId: playbookProductId,
-						productName: matchedRow?.productName ?? "",
-						variantName: matchedRow?.variantName ?? "",
-						ratePlanName: matchedRow?.ratePlanName ?? "",
-						requiredDays: isTourContext ? 1 : 30,
-						initialInventoryDays: guidedInventoryDays,
-						timezone: calendarTimezone,
-						finalizationError: guidedFinalizationError,
-					}
-				: undefined}
-		>
-			<CalendarWorkspaceSkeleton slot="fallback" />
-		</SingleCalendarWorkspace>
+		{
+			calendarDependency ? (
+				<Card class="bg-white text-slate-900">
+					<h2 class="text-lg font-semibold">
+						{calendarDependency === "missing_option"
+							? "Primero crea una opción para configurar sus fechas"
+							: "Primero configura la tarifa de esta opción"}
+					</h2>
+					<p class="mt-2 mb-4 text-sm text-slate-600">
+						Las fechas y los cupos pertenecen a una opción del tour.
+					</p>
+					<Button href={calendarDependencyHref}>Configurar opción y precio</Button>
+				</Card>
+			) : (
+				<div data-calendar-runtime>
+					<SingleCalendarWorkspace
+						client:only="react"
+						initialRatePlanId={ratePlanIdParam || undefined}
+						initialVariantId={variantIdParam || undefined}
+						initialMonth={Astro.url.searchParams.get("month") ?? undefined}
+						isProfessional={isProfessionalCalendar}
+						initialMode={initialMode}
+						guidedAvailability={
+							isGuidedAvailabilityStep
+								? {
+										playbook: activePlaybook,
+										vertical: isTourContext ? "tour" : "hotel",
+										productId: playbookProductId,
+										productName: matchedRow?.productName ?? "",
+										variantName: matchedRow?.variantName ?? "",
+										ratePlanName: matchedRow?.ratePlanName ?? "",
+										requiredDays: isTourContext ? 1 : 30,
+										initialInventoryDays: guidedInventoryDays,
+										timezone: calendarTimezone,
+										finalizationError: guidedFinalizationError,
+									}
+								: undefined
+						}
+					>
+						<CalendarWorkspaceSkeleton slot="fallback" />
+					</SingleCalendarWorkspace>
+					<CalendarRuntimeRecovery />
+				</div>
+			)
+		}
 	</div>
 </Layout>

@@ -75,7 +75,7 @@ describe("calendar progressive navigation contract", () => {
 		const policies = read("src/pages/rates/plans/[ratePlanId].astro")
 		const playbookLayout = read("src/layouts/PlaybookLayout.astro")
 
-		expect(policies).toContain('continueLabel: "Confirmar condiciones y continuar →"')
+		expect(policies).toContain('"Confirmar condiciones y continuar →"')
 		expect(policies).toContain("continueReload: true")
 		expect(playbookLayout).toContain("reload={continueReload}")
 		expect(read("src/components/ui/Button.astro")).toContain(

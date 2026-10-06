@@ -1,3 +1,11 @@
+import {
+	CalendarReadError,
+	readCalendarResponse,
+	calendarContinueState,
+	continueCalendarAfterSave,
+	saveCalendarAvailability,
+	calendarRecoveryReturnTo,
+} from "@/lib/rates/calendarClientRequest"
 import { completeToPublishNextHref } from "@/lib/playbook/complete-to-publish"
 import { tourPreparationNextHref } from "@/lib/playbook/launch-tour"
 import { providerCalendarDate } from "@/lib/rates/providerCalendarDate"
@@ -93,24 +101,6 @@ function tourGuidedPlaybookContinueHref(
 	return null
 }
 
-function enableTourPlaybookFooterContinue(href: string) {
-	const footer = document.querySelector(".fastt-playbook-footer")
-	if (!footer) return
-	const cta = footer.querySelector(".fastt-playbook-cta")
-	if (!cta) return
-	if (cta instanceof HTMLAnchorElement) {
-		cta.href = href
-		return
-	}
-	if (cta instanceof HTMLButtonElement) {
-		const link = document.createElement("a")
-		link.href = href
-		link.className = cta.className
-		link.textContent = "Guardar y continuar"
-		cta.replaceWith(link)
-	}
-}
-
 const WEEKDAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
 const RANGE_PRESETS = [
 	["visible_weekend", "Fin de semana"],
@@ -137,11 +127,7 @@ async function fetchCalendarSurface(
 	const query = new URLSearchParams({ month: request.month })
 	if (request.ratePlanId) query.set("ratePlanId", request.ratePlanId)
 	if (request.variantId) query.set("variantId", request.variantId)
-	const response = await fetch(`/api/rates/calendar?${query.toString()}`, { signal })
-	const body = await response.json().catch(() => ({}))
-	if (!response.ok || !body?.surface) {
-		throw new Error(body?.error || "No se pudo actualizar el calendario")
-	}
+	const body = await readCalendarResponse(`/api/rates/calendar?${query.toString()}`, signal)
 	const surface = body.surface as SingleCalendarSurface
 	surfaceCache.set(
 		surfaceCacheKey(surface.selectedRatePlanId, surface.selectedVariantId, surface.month),
@@ -333,6 +319,10 @@ export default function SingleCalendarWorkspace({
 	const [reviewed, setReviewed] = useState(false)
 	const [loading, setLoading] = useState(!surface)
 	const [feedback, setFeedback] = useState("")
+	const [readError, setReadError] = useState<CalendarReadError | null>(null)
+	const failedRequest = useRef(initialRequest)
+	const [guidedEdited, setGuidedEdited] = useState(false)
+	const saveInFlight = useRef(false)
 	const [selectionHint, setSelectionHint] = useState("")
 	const [selectionHintAction, setSelectionHintAction] = useState("")
 	const [guidedFeedback, setGuidedFeedback] = useState(guidedAvailability?.finalizationError ?? "")
@@ -395,21 +385,50 @@ export default function SingleCalendarWorkspace({
 		if (guidedIsReady) setGuidedEditorExpanded(false)
 	}, [isTourGuidedAvailability, guidedVariantId, guidedIsReady])
 
+	const guidedDirty =
+		guidedEdited &&
+		(!guidedSavedConfig ||
+			guidedFrom !== guidedSavedConfig.from ||
+			guidedTo !== guidedSavedConfig.to ||
+			guidedUnits !== guidedSavedConfig.units)
 	useEffect(() => {
-		if (!isTourGuidedAvailability || !guidedAvailability || !guidedIsReady) return
-		const href = tourGuidedPlaybookContinueHref(
-			guidedAvailability,
-			guidedVariantId,
-			surface?.selectedRatePlanId ?? initialRatePlanId ?? ""
-		)
-		if (href) enableTourPlaybookFooterContinue(href)
+		if (!isTourGuidedAvailability || !guidedAvailability) return
+		const footer = document.querySelector(".fastt-playbook-footer")
+		const current = footer?.querySelector(".fastt-playbook-cta")
+		if (!current) return
+		const button = current instanceof HTMLButtonElement ? current : document.createElement("button")
+		if (button !== current) {
+			button.className = current.className
+			current.replaceWith(button)
+		}
+		button.type = "button"
+		const state = calendarContinueState({
+			loading: loading || !surface,
+			failed: !!readError,
+			dirty: guidedDirty,
+			saving: !!guidedApplyingRange,
+			hasAvailability: guidedIsReady,
+		})
+		button.textContent = state.label
+		button.disabled = state.disabled
+		button.removeAttribute("title")
+		const continueToPublication = () => {
+			void finalizeGuidedRate()
+		}
+		button.addEventListener("click", continueToPublication)
+		return () => button.removeEventListener("click", continueToPublication)
 	}, [
 		isTourGuidedAvailability,
 		guidedAvailability,
+		loading,
+		surface,
+		readError,
+		guidedDirty,
+		guidedApplyingRange,
 		guidedIsReady,
-		guidedVariantId,
-		surface?.selectedRatePlanId,
-		initialRatePlanId,
+		guidedFrom,
+		guidedTo,
+		guidedUnits,
 	])
 
 	useEffect(() => {
@@ -458,11 +477,18 @@ export default function SingleCalendarWorkspace({
 					: "neutral"
 		)
 		setFeedback("")
+		setReadError(null)
+		failedRequest.current = {
+			ratePlanId: requestedRatePlanId,
+			variantId: requestedVariantId,
+			month: requestedMonth,
+		}
 		const key = surfaceCacheKey(requestedRatePlanId, requestedVariantId, requestedMonth)
 		if (options.force) surfaceCache.delete(key)
 		const cached = options.force ? null : surfaceCache.get(key)
 		if (cached) {
 			activeRequest.current?.abort()
+			requestSequence.current++
 			startTransition(() => {
 				setSurface(cached)
 				setSelectedDates(new Set())
@@ -510,7 +536,15 @@ export default function SingleCalendarWorkspace({
 				window.history.replaceState(null, "", nextUrl)
 			}
 		} catch (error) {
+			if (sequence !== requestSequence.current) return
 			if (error instanceof DOMException && error.name === "AbortError") return
+			setReadError(
+				error instanceof CalendarReadError
+					? error
+					: new CalendarReadError(
+							"No se pudo consultar el calendario. Comprueba tu conexión y vuelve a intentarlo."
+						)
+			)
 			setFeedback(error instanceof Error ? error.message : "No se pudo actualizar el calendario")
 		} finally {
 			if (sequence === requestSequence.current) setLoading(false)
@@ -578,6 +612,28 @@ export default function SingleCalendarWorkspace({
 		return () => window.clearTimeout(timeout)
 	}, [updatedDates])
 
+	const recovery = readError ? (
+		<Notice variant="error">
+			<p role="alert">{readError.message}</p>
+			{readError.requiresSignIn ? (
+				<a
+					href={`/SignInPage?returnTo=${encodeURIComponent(calendarRecoveryReturnTo(window.location.href, failedRequest.current))}`}
+				>
+					Iniciar sesión
+				</a>
+			) : (
+				<Button
+					type="button"
+					variant="secondary"
+					disabled={loading}
+					onClick={() => void loadSurface(failedRequest.current, { force: true })}
+				>
+					Reintentar
+				</Button>
+			)}
+		</Notice>
+	) : null
+	if (!surface && readError) return <section aria-busy={loading}>{recovery}</section>
 	if (!surface) {
 		return (
 			<section
@@ -701,6 +757,7 @@ export default function SingleCalendarWorkspace({
 	}
 
 	function setGuidedPreset(kind: "next_30" | "next_60" | "custom") {
+		setGuidedEdited(true)
 		setGuidedRange(kind)
 		const start = guidedStartDate
 		if (kind === "next_30") {
@@ -720,7 +777,8 @@ export default function SingleCalendarWorkspace({
 		return Math.max(0, Math.round((end.getTime() - start.getTime()) / 86400000) + 1)
 	}
 
-	async function applyGuidedAvailability() {
+	async function applyGuidedAvailability(): Promise<boolean> {
+		if (saveInFlight.current) return false
 		const nights = guidedNightCount()
 		const units = Math.trunc(Number(guidedUnits))
 		if (!readySurface.selectedVariantId) {
@@ -730,17 +788,17 @@ export default function SingleCalendarWorkspace({
 					? "No hay una salida seleccionada para abrir disponibilidad."
 					: "No hay una habitación seleccionada para abrir disponibilidad."
 			)
-			return
+			return false
 		}
 		if (!guidedFrom || !guidedTo || guidedTo < guidedFrom || nights <= 0) {
 			setGuidedFeedbackVariant("error")
 			setGuidedFeedback("Elige un rango de fechas válido.")
-			return
+			return false
 		}
 		if (guidedFrom <= providerCalendarDate(guidedAvailability?.timezone)) {
 			setGuidedFeedbackVariant("error")
 			setGuidedFeedback("La primera fecha reservable debe ser futura.")
-			return
+			return false
 		}
 		if (!Number.isFinite(units) || units < 1) {
 			setGuidedFeedbackVariant("error")
@@ -749,30 +807,21 @@ export default function SingleCalendarWorkspace({
 					? "El cupo de participantes debe ser al menos 1."
 					: "El cupo por noche debe ser al menos 1."
 			)
-			return
+			return false
 		}
 
+		saveInFlight.current = true
 		setLoading(true)
 		setGuidedApplyingRange({ from: guidedFrom, to: guidedTo, units })
 		setGuidedFeedbackVariant("info")
 		setGuidedFeedback("Abriendo disponibilidad inicial...")
 		try {
-			const response = await fetch("/api/inventory/bulk-apply", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					selection: { variantIds: [readySurface.selectedVariantId] },
-					dateRange: { from: guidedFrom, to: addDays(guidedTo, 1) },
-					operation: { type: "SET_INVENTORY", value: units },
-					context: { source: "playbook-availability" },
-				}),
+			await saveCalendarAvailability({
+				selection: { variantIds: [readySurface.selectedVariantId] },
+				dateRange: { from: guidedFrom, to: addDays(guidedTo, 1) },
+				operation: { type: "SET_INVENTORY", value: units },
+				context: { source: "playbook-availability" },
 			})
-			const body = await response.json().catch(() => ({}))
-			if (!response.ok || Number(body?.summary?.failed || 0) > 0) {
-				throw new Error(
-					body?.failures?.[0]?.error || body?.error || "No se pudo abrir disponibilidad"
-				)
-			}
 			const changedDates = new Set(
 				readySurface.days
 					.filter((day) => day.date >= guidedFrom && day.date <= guidedTo)
@@ -811,17 +860,16 @@ export default function SingleCalendarWorkspace({
 					/* storage may be unavailable */
 				}
 				setGuidedEditorExpanded(false)
-				const continueHref = tourGuidedPlaybookContinueHref(
-					guidedAvailability,
-					readySurface.selectedVariantId,
-					readySurface.selectedRatePlanId ?? ""
-				)
-				if (continueHref) enableTourPlaybookFooterContinue(continueHref)
 			}
+			setGuidedEdited(false)
+			return true
 		} catch (error) {
+			if (error instanceof CalendarReadError && error.requiresSignIn) setReadError(error)
 			setGuidedFeedbackVariant("error")
 			setGuidedFeedback(error instanceof Error ? error.message : "No se pudo abrir disponibilidad")
+			return false
 		} finally {
+			saveInFlight.current = false
 			setGuidedApplyingRange(null)
 			setLoading(false)
 		}
@@ -829,17 +877,19 @@ export default function SingleCalendarWorkspace({
 
 	async function finalizeGuidedRate() {
 		if (isTourGuidedAvailability && guidedAvailability) {
-			window.location.assign(
-				tourPreparationNextHref(
-					new URLSearchParams(window.location.search),
-					{
-						productId: guidedAvailability.productId,
-						variantId: readySurface.selectedVariantId ?? undefined,
-						ratePlanId: readySurface.selectedRatePlanId ?? undefined,
-					},
-					"calendar"
-				)
+			if (loading || readError || saveInFlight.current) return
+			const href = tourGuidedPlaybookContinueHref(
+				guidedAvailability,
+				readySurface.selectedVariantId,
+				readySurface.selectedRatePlanId ?? ""
 			)
+			if (href)
+				await continueCalendarAfterSave({
+					dirty: guidedDirty,
+					save: applyGuidedAvailability,
+					href,
+					navigate: (target) => window.location.assign(target),
+				})
 			return
 		}
 		if ((!isAddRoomGuidedAvailability && !isTourGuidedAvailability) || !guidedIsReady) {
@@ -1178,6 +1228,7 @@ export default function SingleCalendarWorkspace({
 			: null)
 	return (
 		<div className="space-y-5" aria-busy={loading}>
+			{recovery}
 			{isGuidedAvailability && guidedAvailability && (
 				<Card as="section" className="fastt-workspace-panel overflow-hidden p-0 text-slate-900">
 					{tourGuidedCollapsed && tourGuidedSummary ? (
@@ -1326,6 +1377,7 @@ export default function SingleCalendarWorkspace({
 												value={guidedFrom}
 												min={guidedStartDate}
 												onChange={(event) => {
+													setGuidedEdited(true)
 													setGuidedRange("custom")
 													setGuidedFrom(event.target.value)
 												}}
@@ -1339,6 +1391,7 @@ export default function SingleCalendarWorkspace({
 												value={guidedTo}
 												min={guidedFrom || providerCalendarDate(guidedAvailability?.timezone)}
 												onChange={(event) => {
+													setGuidedEdited(true)
 													setGuidedRange("custom")
 													setGuidedTo(event.target.value)
 												}}
@@ -1354,7 +1407,10 @@ export default function SingleCalendarWorkspace({
 												min="1"
 												step="1"
 												value={guidedUnits}
-												onChange={(event) => setGuidedUnits(Number(event.target.value))}
+												onChange={(event) => {
+													setGuidedEdited(true)
+													setGuidedUnits(Number(event.target.value))
+												}}
 												className="mt-1.5"
 											/>
 										</label>
@@ -1891,8 +1947,8 @@ export default function SingleCalendarWorkspace({
 				</div>
 			</Card>
 
-			{feedback && !drawerAction && (
-				<p className="text-sm font-medium text-slate-200">{feedback}</p>
+			{feedback && !drawerAction && !readError && (
+				<p className="text-sm font-medium text-slate-600">{feedback}</p>
 			)}
 
 			{drawerAction && (
