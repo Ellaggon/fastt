@@ -1,0 +1,229 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import { loadProviderOperationalDay } from "@/lib/booking/providerOperationalDay"
+import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
+import { countProviderTours } from "@/lib/catalog/providerTourCatalog"
+import { listActivePreparationSessions } from "@/lib/onboarding/preparationSession"
+import { summarizeProductPreparation } from "@/lib/playbook/summarize-product-preparation"
+import { presentTourCatalogItem } from "@/lib/tours/tourCatalogPresentation"
+import { bookingOperationsQueryRepository } from "@/modules/booking/public"
+import { countPendingTourPrivateRequests } from "@/modules/catalog/public"
+import { ArrowRight, Map, ShieldCheck } from "@lucide/astro"
+
+interface Props {
+	providerId: string
+	userId: string
+	providerNotice?: { label: string; href: string } | null
+	embedded?: boolean
+}
+const { providerId, userId, providerNotice, embedded = false } = Astro.props
+const createHref = getProductVerticalEntry("tour").routes.workspaceCreateHref
+const [countsResult, sessionsResult, dayResult, requestsResult] = await Promise.allSettled([
+	countProviderTours(providerId),
+	listActivePreparationSessions(providerId, userId, { vertical: "tour", limit: 1 }),
+	loadProviderOperationalDay(providerId),
+	countPendingTourPrivateRequests(providerId),
+])
+const counts = countsResult.status === "fulfilled" ? countsResult.value : null
+const session = sessionsResult.status === "fulfilled" ? sessionsResult.value[0] : null
+const day = dayResult.status === "fulfilled" ? dayResult.value : null
+const pendingRequests = requestsResult.status === "fulfilled" ? requestsResult.value : null
+let bookings: Awaited<ReturnType<typeof bookingOperationsQueryRepository.listByProvider>> | null =
+	null
+if (day) {
+	try {
+		bookings = await bookingOperationsQueryRepository.listByProvider({
+			providerId,
+			vertical: "tour",
+			status: "confirmed",
+			departureDate: day.date,
+			limit: 4,
+		})
+	} catch (error) {
+		console.error("Tour overview bookings unavailable", error)
+	}
+}
+let preparation = null
+if (session) {
+	try {
+		preparation = await summarizeProductPreparation({
+			providerId,
+			productId: session.productId,
+			request: Astro.request,
+			lastPath: session.href,
+		})
+	} catch (error) {
+		console.error("Tour overview preparation unavailable", error)
+	}
+}
+const resume = session ? presentTourCatalogItem(session.productId, preparation) : null
+const dayLabel = day
+	? new Intl.DateTimeFormat("es-BO", { dateStyle: "long", timeZone: "UTC" }).format(
+			new Date(`${day.date}T12:00:00Z`)
+		)
+	: null
+const dayHref = `/booking/day-of?scope=tour${day ? `&date=${day.date}` : ""}`
+const bookingsHref = dayHref
+---
+
+<section class="space-y-6" data-tour-business-overview>
+	{
+		!embedded && (
+			<header>
+				<h1 class="text-2xl font-semibold tracking-tight text-white sm:text-3xl">Resumen</h1>
+			</header>
+		)
+	}
+	{
+		providerNotice && (
+			<a
+				href={providerNotice.href}
+				data-dashboard-provider-notice
+				class="fastt-card flex flex-wrap items-center justify-between gap-3 border border-white/10 bg-white/5 px-4 py-3 text-sm text-white transition-colors hover:bg-white/10"
+			>
+				<>
+					<span class="flex min-w-0 items-start gap-3">
+						<>
+							<ShieldCheck class="mt-0.5 size-4 shrink-0 text-slate-400" aria-hidden="true" />
+							<span>
+								<>
+									<span class="block font-medium text-white">Cuenta del negocio</span>
+									<span class="mt-1 block text-slate-400">{providerNotice.label}</span>
+								</>
+							</span>
+						</>
+					</span>
+					<span class="font-medium text-white">Revisar</span>
+				</>
+			</a>
+		)
+	}
+	{
+		counts?.total === 0 ? (
+			<Card class="space-y-4 bg-white p-6">
+				<Map class="size-6 text-slate-400" aria-hidden="true" />
+				<div class="space-y-2">
+					<>
+						<h2 class="text-xl font-semibold text-slate-950">Crea tu primer tour</h2>
+						<p class="text-sm text-slate-600">
+							Añade una experiencia a tu negocio y prepara su primera opción.
+						</p>
+					</>
+				</div>
+				<Button href={createHref}>Crear tour</Button>
+			</Card>
+		) : (
+			<>
+				<section class="space-y-3" aria-labelledby="tour-today-title">
+					<div class="flex flex-wrap items-center justify-between gap-3">
+						<>
+							<div>
+								<h2 id="tour-today-title" class="text-lg font-semibold text-white">
+									Hoy
+								</h2>
+								{dayLabel && (
+									<p class="mt-1 text-sm text-slate-400">
+										{dayLabel} · {day?.timezone}
+									</p>
+								)}
+							</div>
+							<Button href={dayHref} variant="onDark" size="sm">
+								Ver salidas de hoy
+								<ArrowRight class="size-4" aria-hidden="true" />
+							</Button>
+						</>
+					</div>
+					<div class="grid gap-3 sm:grid-cols-2">
+						<a
+							href={bookingsHref}
+							class="fastt-card border border-white/10 bg-white/5 p-5 text-white transition-colors hover:bg-white/10"
+						>
+							<>
+								<p class="text-sm text-slate-400">Reservas confirmadas para hoy</p>
+								<p class="mt-2 text-2xl font-semibold text-white tabular-nums">
+									{bookings ? bookings.pagination.total : "No disponible"}
+								</p>
+							</>
+							{!bookings && (
+								<p class="mt-2 text-sm text-slate-400">Revisa las reservas o vuelve a cargar.</p>
+							)}
+						</a>
+						<a
+							href="/booking/private-requests?scope=tour&status=pending"
+							class="fastt-card border border-white/10 bg-white/5 p-5 text-white transition-colors hover:bg-white/10"
+						>
+							<>
+								<p class="text-sm text-slate-400">Solicitudes privadas pendientes</p>
+								<p class="mt-2 text-2xl font-semibold text-white tabular-nums">
+									{pendingRequests ?? "No disponible"}
+								</p>
+							</>
+							{pendingRequests === null && (
+								<p class="mt-2 text-sm text-slate-400">Abre solicitudes para volver a consultar.</p>
+							)}
+						</a>
+					</div>
+					{bookings && bookings.items.length > 0 ? (
+						<ul class="divide-y divide-white/10 rounded-xl border border-white/10">
+							{bookings.items.map((item) => (
+								<li>
+									<a
+										href={`/booking/${encodeURIComponent(item.bookingId)}?scope=tour`}
+										class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm hover:bg-white/5"
+									>
+										<span class="min-w-0">
+											<span class="block font-medium text-white">{item.guestName}</span>
+											<span class="block text-slate-400">{item.productName}</span>
+										</span>
+										<span class="text-slate-400">
+											{item.departureTime || "Horario por revisar"}
+										</span>
+									</a>
+								</li>
+							))}
+						</ul>
+					) : (
+						bookings && <p class="text-sm text-slate-400">No hay reservas confirmadas para hoy.</p>
+					)}
+				</section>
+				{session && resume && (
+					<Card class="space-y-3 bg-white p-5" data-tour-resume data-product-id={session.productId}>
+						<p class="text-xs font-medium tracking-wide text-slate-500 uppercase">
+							Continúa donde quedaste
+						</p>
+						<h2 class="text-lg font-semibold text-slate-950">{session.productName}</h2>
+						<p class="text-sm text-slate-600">{resume.support}</p>
+						<Button href={resume.primaryAction.href} variant="selection" size="sm">
+							{resume.primaryAction.label}
+						</Button>
+					</Card>
+				)}
+				{sessionsResult.status === "rejected" && (
+					<p role="status" class="text-sm text-slate-400">
+						No pudimos recuperar tu última preparación. Puedes retomarla desde Mis tours.
+					</p>
+				)}
+				<Card
+					class="flex flex-wrap items-center justify-between gap-4 bg-white p-5"
+					data-tour-catalog-summary
+				>
+					<div>
+						<>
+							<h2 class="text-base font-semibold text-slate-950">Tus tours</h2>
+							<p class="mt-1 text-sm text-slate-600">
+								{counts
+									? `${counts.total} ${counts.total === 1 ? "tour" : "tours"} · ${counts.published} publicados · ${counts.draft} borradores`
+									: "No pudimos cargar el resumen del catálogo."}
+							</p>
+						</>
+					</div>
+					<Button href="/catalog/tours" variant="secondary" size="sm">
+						Ver mis tours
+						<ArrowRight class="size-4" aria-hidden="true" />
+					</Button>
+				</Card>
+			</>
+		)
+	}
+</section>

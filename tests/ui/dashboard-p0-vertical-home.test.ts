@@ -18,7 +18,7 @@ describe("dashboard P0 vertical home", () => {
 	})
 
 	it("uses real Spanish inventory copy instead of concatenating s", () => {
-		expect(dashboard).toContain("Sin salidas todavía")
+		expect(dashboard).toContain("Sin opciones todavía")
 		expect(dashboard).toContain("variantInventorySummary")
 		expect(dashboard).toContain("spanishCount")
 		expect(dashboard).not.toContain("{product.rooms.length} {variantLabel}")
@@ -38,6 +38,8 @@ describe("dashboard P0 vertical home", () => {
 		expect(dashboard).toContain("const VerticalIcon = isTour ? MapIcon : Hotel")
 		expect(dashboard).toContain("Agrega otro tour u otra línea")
 		expect(dashboard).toContain("Publicado y visible para viajeros.")
-		expect(dashboard).toContain("Si quieres sumar espacios dentro del mismo hotel, crea habitaciones.")
+		expect(dashboard).toContain(
+			"Si quieres sumar espacios dentro del mismo hotel, crea habitaciones."
+		)
 	})
 })

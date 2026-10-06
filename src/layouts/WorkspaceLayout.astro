@@ -48,6 +48,13 @@ const operationalContext = resolveWorkspaceOperationalContext({
 			>
 				<div class="mb-3.5 px-2.5">
 					<p class="truncate text-lg font-semibold text-white">Fastt</p>
+					{
+						workspaceContext.businessName && (
+							<p class="mt-1 truncate text-sm text-slate-400" title={workspaceContext.businessName}>
+								{workspaceContext.businessName}
+							</p>
+						)
+					}
 				</div>
 				<DashboardSidebar
 					pathname={pathname}

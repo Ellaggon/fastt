@@ -26,11 +26,14 @@ describe("dashboard home presentation", () => {
 		])
 		expect(isDashboardSetupHome(products, preparation)).toBe(true)
 		expect(
-			isDashboardSetupHome(products, new Map([["t1", { isPublished: true, readyToPublish: false }]]))
+			isDashboardSetupHome(
+				products,
+				new Map([["t1", { isPublished: true, readyToPublish: false }]])
+			)
 		).toBe(false)
 	})
 
-	it("uses a setup heading for a single unfinished tour", () => {
+	it("keeps a stable overview heading for unfinished and operating tours", () => {
 		expect(
 			resolveDashboardHomeCopy({
 				isChoosingForAddRoom: false,
@@ -42,7 +45,7 @@ describe("dashboard home presentation", () => {
 				productCount: 1,
 			})
 		).toMatchObject({
-			title: "Prepara tu tour",
+			title: "Resumen",
 		})
 		expect(
 			resolveDashboardHomeCopy({
@@ -55,7 +58,7 @@ describe("dashboard home presentation", () => {
 				productCount: 1,
 				hasTodayOperations: true,
 			}).title
-		).toBe("Hoy")
+		).toBe("Resumen")
 	})
 
 	it("summarizes today's operational attention, ignoring cancelled bookings", () => {
