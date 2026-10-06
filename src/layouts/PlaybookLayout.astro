@@ -663,6 +663,7 @@ const PlaybookShell = active ? GuidedPreparationLayout : WorkspaceLayout
 		) : null
 	}
 	<div class:list={[tightTourPlaybookStepSpacing && "-mt-1"]}>
+		{isTourPreparation || isTourPublication ? <div data-tour-navigation-guard-marker /> : null}
 		<slot />
 	</div>
 
@@ -887,3 +888,15 @@ const PlaybookShell = active ? GuidedPreparationLayout : WorkspaceLayout
 		}
 	</script>
 </PlaybookShell>
+
+<script>
+	import { installTourPreparationNavigationGuard } from "@/lib/forms/tourPreparationNavigationGuard"
+	function install() {
+		const marker = document.querySelector("[data-tour-navigation-guard-marker]")
+		const main = marker?.closest("main")
+		if (main instanceof HTMLElement) main.setAttribute("data-tour-navigation-guard", "")
+		installTourPreparationNavigationGuard()
+	}
+	install()
+	document.addEventListener("astro:page-load", install)
+</script>
