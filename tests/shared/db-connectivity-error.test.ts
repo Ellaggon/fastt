@@ -27,5 +27,13 @@ describe("database connectivity errors", () => {
 		const middleware = readFileSync(new URL("src/middleware.ts", root), "utf8")
 		expect(middleware).toContain("isTransientDatabaseConnectivityError")
 		expect(middleware).toContain("/estado-servicio")
+		expect(middleware).toContain("buildEstadoServicioResponse")
+	})
+
+	it("keeps the degraded page free of client router dependencies", () => {
+		const page = readFileSync(new URL("src/pages/estado-servicio.astro", root), "utf8")
+		expect(page).toContain("DegradedServiceLayout")
+		expect(page).not.toContain("ClientRouter")
+		expect(page).not.toContain('layouts/Layout.astro"')
 	})
 })

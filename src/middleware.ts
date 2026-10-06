@@ -9,6 +9,7 @@ import {
 	summarizeCacheEvents,
 	type FasttRequestContext,
 } from "@/lib/observability/requestContext"
+import { buildEstadoServicioResponse } from "@/lib/platform/estadoServicioResponse"
 import { isTransientDatabaseConnectivityError } from "@/shared/infrastructure/db/connectivity-error"
 
 /**
@@ -95,7 +96,10 @@ export const onRequest: MiddlewareHandler = async (context, next) => {
 		} catch (error) {
 			if (!isTransientDatabaseConnectivityError(error)) throw error
 			const url = new URL(context.request.url)
-			if (url.pathname === "/estado-servicio") throw error
+			if (url.pathname === "/estado-servicio") {
+				const retryHref = sanitizeReturnTo(url.searchParams.get("next"), "/")
+				return buildEstadoServicioResponse(retryHref)
+			}
 			console.error("[fastt] database connectivity", {
 				requestId: requestContext.id,
 				path: url.pathname,

@@ -6,6 +6,7 @@ import {
 	resolveWorkspaceScopeOptions,
 	resolveWorkspaceNavigationScope,
 	withWorkspaceNavigationScope,
+	workspaceNavigationScopeFromSearchParams,
 } from "@/lib/workspace/verticalContext"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
@@ -44,6 +45,20 @@ describe("workspace vertical context", () => {
 			vertical: "tour",
 			productId: "tour_123",
 		})
+	})
+
+	it("reads navigation scope from financial-style query params", () => {
+		expect(
+			workspaceNavigationScopeFromSearchParams(
+				new URLSearchParams("scope=tour&productId=tour_123")
+			)
+		).toEqual({ vertical: "tour", productId: "tour_123" })
+		expect(
+			workspaceNavigationScopeFromSearchParams(new URLSearchParams("scope=all&productId=tour_123"))
+		).toEqual({ vertical: null, productId: "tour_123" })
+		expect(withWorkspaceNavigationScope("/financial/collections", { vertical: "tour", productId: null })).toBe(
+			"/financial/collections?scope=tour"
+		)
 	})
 
 	it("serializes scope without dropping existing page filters", () => {
@@ -102,6 +117,16 @@ describe("workspace vertical context", () => {
 				searchParams: new URLSearchParams("scope=tour"),
 			})
 		).toMatchObject({ level: "vertical", vertical: "tour", productId: null })
+	})
+
+	it("keeps financial subnav links scoped like the sidebar", () => {
+		const financialSubnav = readFileSync(
+			join(process.cwd(), "src/components/financial/FinancialSubnav.astro"),
+			"utf8"
+		)
+		expect(financialSubnav).toContain("withWorkspaceNavigationScope")
+		expect(financialSubnav).toContain("workspaceNavigationScopeFromSearchParams")
+		expect(financialSubnav).not.toMatch(/params\.set\("productId"/)
 	})
 
 	it("keeps the context selector aligned with the provider navigation grid", () => {

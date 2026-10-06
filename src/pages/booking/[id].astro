@@ -3,24 +3,46 @@ import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { getVerticalVocabulary } from "@/lib/verticalVocabulary"
+import {
+	withWorkspaceNavigationScope,
+	workspaceNavigationScopeFromSearchParams,
+} from "@/lib/workspace/verticalContext"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
 
 const bookingId = String(Astro.params.id ?? "").trim()
 if (!bookingId) return Astro.redirect("/booking")
-let bookingListReturnHref = "/booking"
+// The detail keeps the workspace scope it was opened with (line/product) on every way back.
+const navigationScope = workspaceNavigationScopeFromSearchParams(Astro.url.searchParams)
+let bookingListReturnHref = withWorkspaceNavigationScope("/booking", navigationScope)
+let bookingListReturnLabel = "Volver a reservas"
 const rawReturnTo = Astro.url.searchParams.get("returnTo")
 if (rawReturnTo) {
 	try {
 		const target = new URL(rawReturnTo, Astro.url.origin)
-		if (target.origin === Astro.url.origin && target.pathname === "/booking") {
-			bookingListReturnHref = `${target.pathname}${target.search}`
+		const isReservations = target.pathname === "/booking"
+		const isFinancial =
+			target.pathname === "/financial" || target.pathname.startsWith("/financial/")
+		if (target.origin === Astro.url.origin && (isReservations || isFinancial)) {
+			bookingListReturnHref = withWorkspaceNavigationScope(
+				`${target.pathname}${target.search}${target.hash}`,
+				navigationScope
+			)
+			if (isFinancial) bookingListReturnLabel = "Volver a finanzas"
 		}
 	} catch {
 		/* Invalid return targets keep the safe Reservations default. */
 	}
 }
+// Subtitle fallbacks come from the booking's own vertical, never from a hardcoded lodging default.
+const verticalFallbacks = Object.fromEntries(
+	(["hotel", "tour", "rental", "package", "limousine", "generic"] as const).map((vertical) => {
+		const vocabulary = getVerticalVocabulary(vertical)
+		return [vertical, { product: vocabulary.scopeProduct, variant: vocabulary.scopeVariant }]
+	})
+)
 ---
 
 <WorkspaceLayout title="Detalle de reserva">
@@ -28,7 +50,7 @@ if (rawReturnTo) {
 		<header class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
 			<div class="space-y-2">
 				<Button href={bookingListReturnHref} variant="ghost" size="sm" class="w-fit"
-					>Volver a reservas</Button
+					>{bookingListReturnLabel}</Button
 				>
 				<div>
 					<p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
@@ -102,7 +124,7 @@ if (rawReturnTo) {
 		</div>
 	</section>
 
-	<script is:inline define:vars={{ bookingId, bookingListReturnHref }}>
+	<script is:inline define:vars={{ bookingId, bookingListReturnHref, verticalFallbacks }}>
 		;(function () {
 			const state = { activeTab: "summary", payload: null }
 			const title = document.getElementById("bookingGuestTitle")
@@ -225,9 +247,11 @@ if (rawReturnTo) {
 				const stay = `${fmtDate(booking.checkIn)} → ${fmtDate(booking.checkOut)}`
 				if (title) title.textContent = guestName(booking)
 				if (subtitle) {
-					const productFallback = String(booking.vertical || "") === "tour" ? "Tour" : "Alojamiento"
-					const variantFallback =
-						String(booking.vertical || "") === "tour" ? "Salida" : "Habitación"
+					const fallbacks =
+						verticalFallbacks[String(booking.vertical || "").toLowerCase()] ||
+						verticalFallbacks.generic
+					const productFallback = fallbacks.product
+					const variantFallback = fallbacks.variant
 					subtitle.textContent = `${stay} · ${String(firstAllocation.productName || productFallback)} · ${String(firstAllocation.variantName || variantFallback)}`
 				}
 				if (primaryAction) {
@@ -417,12 +441,14 @@ if (rawReturnTo) {
 					return
 				}
 				if (state.activeTab === "room") {
-					const isTour = String(booking.vertical || "") === "tour"
+					const fallbacks =
+						verticalFallbacks[String(booking.vertical || "").toLowerCase()] ||
+						verticalFallbacks.generic
 					panel.innerHTML = `<div class="space-y-3">
 						${allocations
 							.map((item) =>
 								section(
-									`${String(item.productName || (isTour ? "Tour" : "Alojamiento"))} · ${String(item.variantName || (isTour ? "Salida" : "Habitación"))}`,
+									`${String(item.productName || fallbacks.product)} · ${String(item.variantName || fallbacks.variant)}`,
 									[
 										keyValue("Tarifa", item.ratePlanName || item.ratePlanId || "Tarifa contratada"),
 										keyValue("Fechas", `${fmtDate(item.checkIn)} → ${fmtDate(item.checkOut)}`),

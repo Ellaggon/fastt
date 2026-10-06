@@ -23,6 +23,14 @@ vi.mock("@/lib/booking/providerOperationalDay", () => ({
 		.mockResolvedValue({ date: "2026-10-04", timezone: "America/La_Paz" }),
 	isCalendarDay: (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value),
 }))
+vi.mock("@/lib/verification/commercial-lines", async (importOriginal) => ({
+	...(await importOriginal<Record<string, unknown>>()),
+	listProviderCommercialLines: vi.fn(async () =>
+		mocks.productRows.some((row) => row.productType.toLowerCase() === "tour")
+			? [{ line: "tour" }]
+			: [{ line: "lodging" }]
+	),
+}))
 vi.mock("@/lib/playbook/evaluate-complete-to-publish-progress", async (importOriginal) => ({
 	...(await importOriginal<Record<string, unknown>>()),
 	loadCompleteToPublishState: vi.fn(async () => ({
@@ -51,7 +59,9 @@ async function response(query: string, productId = "tour-1") {
 			getWorkspaceContext: async () => ({
 				user: { id: "user-1" },
 				provider: { providerId: "provider-1" },
-				sidebarDataPromise: Promise.resolve({}),
+				sidebarDataPromise: Promise.resolve({
+					productTypes: mocks.productRows.map((row) => row.productType),
+				}),
 			}),
 		} as never,
 	})

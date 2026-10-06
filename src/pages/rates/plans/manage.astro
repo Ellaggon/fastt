@@ -49,6 +49,9 @@ import { ratePlanIntentPresets } from "@/lib/rates/ratePlanIntentPresets"
 import { routes } from "@/lib/routes"
 import { normalizePolicyCoverage } from "@/lib/policies/policy-business-contract"
 import { summarizeMissingPolicyCategories } from "@/modules/policies/public"
+import { resolveWorkspaceScope } from "@/lib/workspace/resolveWorkspaceScope"
+import { workspaceScopeInvalidResponse } from "@/lib/workspace/workspaceScopeInvalidResponse"
+import { listProviderCommercialLines } from "@/lib/verification/commercial-lines"
 
 const startedAt = performance.now()
 const timing = createServerTimingRecorder()
@@ -77,13 +80,64 @@ if (!isCalendarDay(checkIn) || !isCalendarDay(checkOut) || checkOut <= checkIn)
 const requestedView = String(Astro.url.searchParams.get("vista") ?? "attention")
 const activeView = requestedView === "drafts" ? "inactive" : requestedView
 
-const [ratePlansSurface, variantChoices] = await Promise.all([
+const [ratePlansSurface, variantChoices, sidebarData] = await Promise.all([
 	buildProviderRatePlansSurface({ providerId: auth.providerId, checkIn, checkOut, timing }),
 	timing.time("variants", () => loadProviderRatePlanVariants(auth.providerId)),
 	timing.time("sidebar", () => workspaceContext.sidebarDataPromise),
 ])
-const explicitScope = Astro.url.searchParams.get("scope")
+const explicitScope = Astro.url.searchParams.get("scope") ?? Astro.url.searchParams.get("vertical")
 const selectedProductId = Astro.url.searchParams.get("productId")
+const rateScopeProducts = [
+	...new Map([
+		...variantChoices.map((choice) => [
+			choice.productId,
+			{
+				id: String(choice.productId),
+				name: String(choice.productName || choice.productId),
+				productType: String(choice.productType ?? ""),
+			},
+		]),
+		...ratePlansSurface.ratePlans.map((row) => [
+			row.productId,
+			{
+				id: String(row.productId),
+				name: String(row.productName || row.productId),
+				productType: String(row.productType ?? ""),
+			},
+		]),
+	] as Array<[string, { id: string; name: string; productType: string }]>).values(),
+]
+if (explicitScope || selectedProductId) {
+	const commercialLines = await listProviderCommercialLines(auth.providerId).catch(() => [])
+	const productTypes = [
+		...(sidebarData?.productTypes ?? []),
+		...rateScopeProducts.map((product) => product.productType),
+	]
+	const ratesScope = resolveWorkspaceScope({
+		requestedScope: explicitScope,
+		productId: selectedProductId,
+		productTypes,
+		commercialLines: commercialLines.map((entry) => entry.line),
+		products: rateScopeProducts,
+	})
+	// Guided creation can pass productId before variants/rates exist; only fail closed when the
+	// catalog we already loaded contradicts the requested scope/product.
+	const emptyProductCatalog = rateScopeProducts.length === 0
+	if (
+		!ratesScope.valid &&
+		!(
+			emptyProductCatalog &&
+			ratesScope.reason === "scope_product_mismatch" &&
+			Boolean(selectedProductId)
+		)
+	) {
+		return workspaceScopeInvalidResponse(ratesScope, {
+			title: "Contexto de tarifas no válido",
+			recoveryHref: `${routes.rates()}?scope=all`,
+			recoveryLabel: "Volver a todas las tarifas",
+		})
+	}
+}
 const selectedVariantId = Astro.url.searchParams.get("variantId")
 const selectedType = variantChoices.find(
 	(choice) => choice.variantId === selectedVariantId || choice.productId === selectedProductId
