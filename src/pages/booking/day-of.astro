@@ -41,6 +41,13 @@ const { date: operationalDate, timezone } = await loadProviderOperationalDay(
 const dateLabel = new Intl.DateTimeFormat("es-BO", { dateStyle: "long", timeZone: "UTC" }).format(
 	new Date(`${operationalDate}T12:00:00Z`)
 )
+const dayOfMetricCardClass = "fastt-card border border-white/10 bg-white/5 p-5 text-white"
+const dayOfMetricLabels = [
+	"Reservas por gestionar",
+	"Reservas presentadas",
+	"Vouchers emitidos",
+	"Salidas con reservas",
+] as const
 ---
 
 <WorkspaceLayout title="Cola day-of" productType="tour">
@@ -66,16 +73,11 @@ const dateLabel = new Intl.DateTimeFormat("es-BO", { dateStyle: "long", timeZone
 
 		<div id="dayOfMetrics" class="grid grid-cols-2 gap-3 sm:grid-cols-4">
 			{
-				[
-					"Reservas por gestionar",
-					"Reservas presentadas",
-					"Vouchers emitidos",
-					"Salidas con reservas",
-				].map((label) => (
-					<Card class="border border-slate-700 bg-slate-900/60 p-4">
-						<p class="text-xs tracking-[0.12em] text-slate-500 uppercase">{label}</p>
-						<p class="mt-2 h-7 w-10 animate-pulse rounded bg-slate-700" />
-					</Card>
+				dayOfMetricLabels.map((label) => (
+					<div class={dayOfMetricCardClass}>
+						<p class="text-sm text-slate-400">{label}</p>
+						<p class="mt-2 h-8 w-12 animate-pulse rounded bg-white/10" aria-hidden="true" />
+					</div>
 				))
 			}
 		</div>
@@ -237,9 +239,9 @@ const dateLabel = new Intl.DateTimeFormat("es-BO", { dateStyle: "long", timeZone
 						([
 							label,
 							value,
-						]) => `<div class="fastt-soft-box rounded-[var(--fastt-radius-card)] border border-slate-700 bg-slate-900/60 p-4">
-						<p class="text-xs uppercase tracking-[0.12em] text-slate-500">${label}</p>
-						<p class="mt-2 text-2xl font-semibold text-white">${value}</p>
+						]) => `<div class="fastt-card border border-white/10 bg-white/5 p-5 text-white">
+						<p class="text-sm text-slate-400">${label}</p>
+						<p class="mt-2 text-2xl font-semibold text-white tabular-nums">${value}</p>
 					</div>`
 					)
 					.join("")

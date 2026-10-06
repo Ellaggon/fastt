@@ -65,6 +65,8 @@ const dayLabel = day
 	: null
 const dayHref = `/booking/day-of?scope=tour${day ? `&date=${day.date}` : ""}`
 const bookingsHref = dayHref
+const darkMetricCardClass =
+	"fastt-card block border border-white/10 bg-white/5 p-5 text-white transition-colors hover:bg-white/10"
 ---
 
 <section class="space-y-6" data-tour-business-overview>
@@ -80,22 +82,16 @@ const bookingsHref = dayHref
 			<a
 				href={providerNotice.href}
 				data-dashboard-provider-notice
-				class="fastt-card flex flex-wrap items-center justify-between gap-3 border border-white/10 bg-white/5 px-4 py-3 text-sm text-white transition-colors hover:bg-white/10"
+				class="fastt-card flex flex-wrap items-center justify-between gap-3 border border-white/10 bg-white/5 px-4 py-3 text-sm transition-colors hover:bg-white/10"
 			>
-				<>
-					<span class="flex min-w-0 items-start gap-3">
-						<>
-							<ShieldCheck class="mt-0.5 size-4 shrink-0 text-slate-400" aria-hidden="true" />
-							<span>
-								<>
-									<span class="block font-medium text-white">Cuenta del negocio</span>
-									<span class="mt-1 block text-slate-400">{providerNotice.label}</span>
-								</>
-							</span>
-						</>
+				<span class="flex min-w-0 items-start gap-3">
+					<ShieldCheck class="mt-0.5 h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+					<span class="min-w-0">
+						<span class="block font-semibold text-white">Cuenta del negocio</span>
+						<span class="mt-0.5 block text-slate-400">{providerNotice.label}</span>
 					</span>
-					<span class="font-medium text-white">Revisar</span>
-				</>
+				</span>
+				<span class="shrink-0 font-semibold text-white">Revisar</span>
 			</a>
 		)
 	}
@@ -135,10 +131,7 @@ const bookingsHref = dayHref
 						</>
 					</div>
 					<div class="grid gap-3 sm:grid-cols-2">
-						<a
-							href={bookingsHref}
-							class="fastt-card border border-white/10 bg-white/5 p-5 text-white transition-colors hover:bg-white/10"
-						>
+						<a href={bookingsHref} class={darkMetricCardClass}>
 							<>
 								<p class="text-sm text-slate-400">Reservas confirmadas para hoy</p>
 								<p class="mt-2 text-2xl font-semibold text-white tabular-nums">
@@ -151,7 +144,7 @@ const bookingsHref = dayHref
 						</a>
 						<a
 							href="/booking/private-requests?scope=tour&status=pending"
-							class="fastt-card border border-white/10 bg-white/5 p-5 text-white transition-colors hover:bg-white/10"
+							class={darkMetricCardClass}
 						>
 							<>
 								<p class="text-sm text-slate-400">Solicitudes privadas pendientes</p>
