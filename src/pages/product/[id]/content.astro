@@ -154,9 +154,7 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 
 					<div class="space-y-4 pt-2">
 						<div class="space-y-1">
-							<p id="stateLabel" class="text-sm text-slate-600" aria-live="polite">
-								Vacío: sin cambios guardados.
-							</p>
+							<p id="stateLabel" class="text-sm text-slate-600" aria-live="polite"></p>
 							<p id="stateDetail" class="whitespace-pre-wrap text-sm text-slate-600"></p>
 						</div>
 
@@ -179,7 +177,13 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 								type="submit"
 								className={playbookResolved.active ? "fastt-playbook-cta" : ""}
 							>
-								{playbookResolved.active ? "Guardar y continuar" : "Guardar contenido"}
+								{
+									isTour && playbookResolved.playbookId === "complete-to-publish"
+										? "Guardar y volver"
+										: playbookResolved.active
+											? "Guardar y continuar"
+											: "Guardar contenido"
+								}
 							</Button>
 						</div>
 					</div>
@@ -197,78 +201,85 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 		import { bindPlaybookFormDraft } from "@/lib/forms/playbookFormDraft.ts"
 		import { setPlaybookSubmitBusy } from "@/lib/forms/playbookFormBusy.ts"
 
-		const form = document.getElementById("contentForm")
-		const btn = document.getElementById("submitBtn")
-		const stateLabel = document.getElementById("stateLabel")
-		const stateDetail = document.getElementById("stateDetail")
-		const descriptionInput = document.getElementById("description")
-		const descriptionError = document.getElementById("descriptionError")
-		const draft = bindPlaybookFormDraft(form instanceof HTMLFormElement ? form : null, {
-			key: `product:${window.location.pathname}:content`,
-		})
+		function initContentForm() {
+			const form = document.getElementById("contentForm")
+			if (!(form instanceof HTMLFormElement) || form.dataset.bound === "true") return
+			form.dataset.bound = "true"
+			const btn = document.getElementById("submitBtn")
+			const stateLabel = document.getElementById("stateLabel")
+			const stateDetail = document.getElementById("stateDetail")
+			const descriptionInput = document.getElementById("description")
+			const descriptionError = document.getElementById("descriptionError")
+			const draft = bindPlaybookFormDraft(form instanceof HTMLFormElement ? form : null, {
+				key: `product:${window.location.pathname}:content`,
+			})
 
-		function setState(state, detail = "") {
-			const labels = {
-				empty: "Vacío: sin cambios guardados.",
-				loading: "Cargando: guardando contenido...",
-				success: "Éxito: contenido guardado correctamente.",
-				error: "Error: no se pudo guardar el contenido.",
-				disabled: "Deshabilitado: esperando respuesta del servidor.",
+			function setState(state, detail = "") {
+				const labels = {
+					empty: "",
+					loading: "Guardando contenido…",
+					success: "Contenido guardado.",
+					error: "Error: no se pudo guardar el contenido.",
+					disabled: "Guardando contenido…",
+				}
+				stateLabel.textContent = labels[state] || labels.empty
+				stateDetail.textContent = detail
 			}
-			stateLabel.textContent = labels[state] || labels.empty
-			stateDetail.textContent = detail
-		}
 
-		form?.addEventListener("submit", async (e) => {
-			e.preventDefault()
-			setState("loading")
-			descriptionError?.classList.add("hidden")
-			descriptionError.textContent = ""
-			descriptionInput?.removeAttribute("aria-invalid")
+			form?.addEventListener("submit", async (e) => {
+				e.preventDefault()
+				setState("loading")
+				descriptionError?.classList.add("hidden")
+				descriptionError.textContent = ""
+				descriptionInput?.removeAttribute("aria-invalid")
 
-			const description = String(descriptionInput?.value || "").trim()
-			if (!description) {
-				if (readPlaybookNavIntent(new FormData(form), e.submitter) === "exit") {
-					window.location.href = `/product/${encodeURIComponent(String(new FormData(form).get("productId") || ""))}`
+				const description = String(descriptionInput?.value || "").trim()
+				if (!description) {
+					if (readPlaybookNavIntent(new FormData(form), e.submitter) === "exit") {
+						window.location.href = `/product/${encodeURIComponent(String(new FormData(form).get("productId") || ""))}`
+						return
+					}
+					setState("empty")
+					descriptionError.textContent = "La descripción es obligatoria."
+					descriptionError?.classList.remove("hidden")
+					descriptionInput?.setAttribute("aria-invalid", "true")
+					descriptionInput?.focus()
 					return
 				}
-				setState("empty")
-				descriptionError.textContent = "La descripción es obligatoria."
-				descriptionError?.classList.remove("hidden")
-				descriptionInput?.setAttribute("aria-invalid", "true")
-				descriptionInput?.focus()
-				return
-			}
 
-			setPlaybookSubmitBusy(form, true)
-			setState("disabled")
+				setPlaybookSubmitBusy(form, true)
+				setState("disabled")
 
-			try {
-				const fd = new FormData(form)
-				const res = await fetch("/api/product/content", { method: "POST", body: fd })
-				const txt = await res.text()
+				try {
+					const fd = new FormData(form)
+					const res = await fetch("/api/product/content", { method: "POST", body: fd })
+					const txt = await res.text()
 
-				if (!res.ok) {
+					if (!res.ok) {
+						setPlaybookSubmitBusy(form, false)
+						setState("error", `status=${res.status}\n${txt}`)
+						return
+					}
+
+					setState("success", "Guardado correctamente")
+					draft.clear()
+					setTimeout(() => {
+						const targetProductId = String(fd.get("productId") || "")
+						window.location.href = resolvePlaybookRedirectAfterSave(fd, {
+							productId: targetProductId,
+							currentStep: "content",
+							launchPath: `/product/${encodeURIComponent(targetProductId)}/location`,
+							launchStep: "location",
+							submitter: e.submitter,
+						})
+					}, 350)
+				} catch (err) {
 					setPlaybookSubmitBusy(form, false)
-					setState("error", `status=${res.status}\n${txt}`)
-					return
+					setState("error", `Error de red: ${String(err)}`)
 				}
-
-				setState("success", "Guardado correctamente")
-				draft.clear()
-				setTimeout(() => {
-					const targetProductId = String(fd.get("productId") || "")
-					window.location.href = resolvePlaybookRedirectAfterSave(fd, {
-						productId: targetProductId,
-						launchPath: `/product/${encodeURIComponent(targetProductId)}/location`,
-						launchStep: "location",
-						submitter: e.submitter,
-					})
-				}, 350)
-			} catch (err) {
-				setPlaybookSubmitBusy(form, false)
-				setState("error", `Error de red: ${String(err)}`)
-			}
-		})
+			})
+		}
+		initContentForm()
+		document.addEventListener("astro:page-load", initContentForm)
 	</script>
 </PlaybookLayout>
