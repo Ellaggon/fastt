@@ -8,9 +8,6 @@ import {
 	desc,
 	eq,
 	inArray,
-	lt,
-	or,
-	Product,
 	Provider,
 	Variant,
 } from "@/shared/infrastructure/db/compat"
@@ -26,50 +23,34 @@ import {
 	buildFinancialReconciliationMatch,
 } from "@/modules/financial/public"
 
+import {
+	resolveFinancialApiProductScope,
+	type FinancialApiProductFilter,
+} from "@/lib/financial/financialApiProductScope"
+import {
+	listScopedProviderBookingIdPage,
+	parseFinancialBookingCursor,
+} from "@/lib/financial/financialScopedBookingQuery"
+import { snapshotProduct, variantProduct } from "@/lib/financial/providerFinanceLineAggregate"
+
 import { json, requireFinancialProvider } from "./_stage2"
-
-type BookingCursor = {
-	confirmedAt: Date
-	id: string
-}
-
-function parseBookingCursor(value: string | null): BookingCursor | null {
-	if (!value) return null
-	const [time, id] = value.split("|")
-	const confirmedAt = new Date(Number(time))
-	if (!id || Number.isNaN(confirmedAt.getTime())) return null
-	return { confirmedAt, id }
-}
-
-function bookingCursorFromRow(row: { bookingId: unknown; confirmedAt?: unknown }): string | null {
-	const date = row.confirmedAt ? new Date(String(row.confirmedAt)) : null
-	if (!date || Number.isNaN(date.getTime())) return null
-	return `${date.getTime()}|${String(row.bookingId)}`
-}
 
 export const GET: APIRoute = async ({ request, url }) => {
 	const auth = await requireFinancialProvider(request)
 	if (!auth.ok) return auth.response
+	const scopeResult = await resolveFinancialApiProductScope(auth.providerId, url)
+	if (!scopeResult.ok) return scopeResult.response
+
 	const status = String(url.searchParams.get("status") ?? "all").trim()
 	const limit = Math.max(1, Math.min(Number(url.searchParams.get("limit") ?? 100) || 100, 250))
-	const cursor = parseBookingCursor(url.searchParams.get("cursor"))
-	const bookingPredicates = [eq(Booking.providerId, auth.providerId)]
-	if (cursor) {
-		bookingPredicates.push(
-			or(
-				lt(Booking.confirmedAt, cursor.confirmedAt),
-				and(eq(Booking.confirmedAt, cursor.confirmedAt), lt(Booking.id, cursor.id))
-			)!
-		)
-	}
-	const bookingIdRows = await db
-		.select({ bookingId: Booking.id, confirmedAt: Booking.confirmedAt })
-		.from(Booking)
-		.where(and(...bookingPredicates))
-		.orderBy(desc(Booking.confirmedAt), desc(Booking.id))
-		.limit(limit + 1)
-
-	const pagedBookingIds = bookingIdRows.slice(0, limit).map((row) => String(row.bookingId))
+	const cursor = parseFinancialBookingCursor(url.searchParams.get("cursor"))
+	const bookingPage = await listScopedProviderBookingIdPage({
+		providerId: auth.providerId,
+		productFilter: scopeResult.productFilter,
+		cursor,
+		limit,
+	})
+	const pagedBookingIds = bookingPage.rows.map((row) => row.bookingId)
 	if (!pagedBookingIds.length) {
 		const [unmatchedPaymentTransactions, unmatchedSettlementRecords, duplicateRaw] =
 			await Promise.all([
@@ -91,6 +72,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 			items: [],
 			duplicateExternalReferences,
 			unmatchedEvidence: {
+				...unmatchedEvidenceScope(scopeResult.productFilter),
 				paymentTransactions: unmatchedPaymentTransactions.map((row) => ({
 					...row,
 					mismatchReason: "unmatched_payment_transaction",
@@ -131,14 +113,17 @@ export const GET: APIRoute = async ({ request, url }) => {
 			ratePlanNameSnapshot: BookingLineItem.ratePlanNameSnapshot,
 			providerDisplayName: Provider.displayName,
 			providerLegalName: Provider.legalName,
-			productName: Product.name,
+			productName: snapshotProduct.name,
+			productType: snapshotProduct.productType,
+			productTypeFallback: variantProduct.productType,
 			variantName: Variant.name,
 		})
 		.from(Booking)
 		.leftJoin(BookingLineItem, eq(BookingLineItem.bookingId, Booking.id))
 		.leftJoin(Provider, eq(Provider.id, Booking.providerId))
+		.leftJoin(snapshotProduct, eq(snapshotProduct.id, BookingLineItem.productIdSnapshot))
 		.leftJoin(Variant, eq(Variant.id, BookingLineItem.variantId))
-		.leftJoin(Product, eq(Product.id, Variant.productId))
+		.leftJoin(variantProduct, eq(variantProduct.id, Variant.productId))
 		.where(and(eq(Booking.providerId, auth.providerId), inArray(Booking.id, pagedBookingIds)))
 		.orderBy(desc(Booking.confirmedAt), desc(Booking.id))
 
@@ -177,7 +162,11 @@ export const GET: APIRoute = async ({ request, url }) => {
 			bookingIds,
 			limit: 1000,
 		}),
-		reconciliationMatchRepository.findByProvider({ providerId: auth.providerId, limit: 1000 }),
+		reconciliationMatchRepository.findByProvider({
+			providerId: auth.providerId,
+			bookingIds,
+			limit: 1000,
+		}),
 		paymentTransactionRepository.findUnmatchedByProvider({
 			providerId: auth.providerId,
 			limit: 250,
@@ -262,6 +251,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 		items,
 		duplicateExternalReferences,
 		unmatchedEvidence: {
+			...unmatchedEvidenceScope(scopeResult.productFilter),
 			paymentTransactions: unmatchedPaymentTransactions.map((row) => ({
 				...row,
 				mismatchReason: "unmatched_payment_transaction",
@@ -285,9 +275,8 @@ export const GET: APIRoute = async ({ request, url }) => {
 		pagination: {
 			limit,
 			returned: items.length,
-			hasMore: bookingIdRows.length > limit,
-			nextCursor:
-				bookingIdRows.length > limit ? bookingCursorFromRow(bookingIdRows[limit - 1]) : null,
+			hasMore: bookingPage.hasMore,
+			nextCursor: bookingPage.nextCursor,
 		},
 		readOnly: true,
 	})
@@ -302,6 +291,18 @@ function groupBy<T>(rows: T[], keyFn: (row: T) => string): Map<string, T[]> {
 		grouped.set(key, bucket)
 	}
 	return grouped
+}
+
+/**
+ * Evidence without a booking has no commercial line, so it cannot be attributed to the active
+ * scope. It is still returned (it needs review) but declared as provider-wide so the client
+ * presents it apart from scoped cases instead of mixing it in.
+ */
+function unmatchedEvidenceScope(productFilter: FinancialApiProductFilter) {
+	return {
+		scopeApplied: false as const,
+		scope: productFilter === null ? ("provider" as const) : ("provider_unattributed" as const),
+	}
 }
 
 type EmptySummaryOverrides = Partial<{

@@ -1,3 +1,6 @@
+import { normalizeProductVertical } from "@/lib/catalog/productVerticalRegistry"
+import { resolveBookingCommercialLineFromRows } from "@/lib/financial/commissionAgreement"
+
 import {
 	detectFinancialExceptions,
 	type DetectedFinancialException,
@@ -51,6 +54,10 @@ export type FinancialOperationBookingRow = {
 	productId?: unknown
 	productName: unknown
 	variantName: unknown
+	/** Product type from the line item product snapshot; defines the booking's own vertical. */
+	productType?: unknown
+	/** Product type reached through the live variant; fallback only. */
+	productTypeFallback?: unknown
 }
 
 export type FinancialEvidenceRow = {
@@ -64,6 +71,19 @@ export type BookingTaxFeeSnapshotRow = {
 	bookingId: string
 	totalAmount?: unknown
 	breakdownJson?: unknown
+}
+
+/** Vertical of the booking itself (not the workspace scope); `null` when no row declares a product type. */
+export function bookingVertical(rows: readonly FinancialOperationBookingRow[]): string | null {
+	for (const row of rows) {
+		const vertical = normalizeProductVertical(row.productType)
+		if (vertical !== "generic") return vertical
+	}
+	for (const row of rows) {
+		const vertical = normalizeProductVertical(row.productTypeFallback)
+		if (vertical !== "generic") return vertical
+	}
+	return null
 }
 
 export function dateOnly(value: unknown): string | null {
@@ -283,6 +303,9 @@ export function buildFinancialOperationReview(params: {
 		contract: {
 			version: first.contractSnapshotVersion ?? "missing_contract_snapshot_version",
 			productId: first.productIdSnapshot ?? first.productId ?? null,
+			// The booking's own vertical/line so the client can present each row with its vocabulary.
+			vertical: bookingVertical(params.group),
+			commercialLine: resolveBookingCommercialLineFromRows(params.group),
 			productName: first.productNameSnapshot ?? first.productName ?? null,
 			variantName: first.variantNameSnapshot ?? first.variantName ?? null,
 			ratePlanName: first.ratePlanNameSnapshot ?? null,

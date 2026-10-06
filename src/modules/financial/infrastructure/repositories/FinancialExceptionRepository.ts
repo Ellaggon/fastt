@@ -1,3 +1,5 @@
+import type { FinancialApiProductFilter } from "@/lib/financial/financialApiProductScope"
+import { bookingIdMatchesProductFilter } from "@/lib/financial/financialScopedBookingQuery"
 import {
 	first,
 	and,
@@ -11,10 +13,11 @@ import type {
 	FinancialExceptionCreateInput,
 	FinancialExceptionRepositoryPort,
 } from "../../application/ports/FinancialWorkflowRepositoryPort"
-import type {
-	FinancialExceptionCode,
-	FinancialExceptionRecord,
-	FinancialExceptionStatus,
+import {
+	normalizeFinancialExceptionCode,
+	type FinancialExceptionCode,
+	type FinancialExceptionRecord,
+	type FinancialExceptionStatus,
 } from "../../domain/financial-exception-record"
 
 function map(row: any): FinancialExceptionRecord {
@@ -22,7 +25,7 @@ function map(row: any): FinancialExceptionRecord {
 		id: String(row.id),
 		bookingId: String(row.bookingId),
 		providerId: String(row.providerId),
-		code: String(row.code) as FinancialExceptionCode,
+		code: normalizeFinancialExceptionCode(row.code),
 		severity: String(row.severity) as FinancialExceptionRecord["severity"],
 		status: String(row.status) as FinancialExceptionStatus,
 		basis: String(row.basis) as FinancialExceptionRecord["basis"],
@@ -46,11 +49,24 @@ export class FinancialExceptionRepository implements FinancialExceptionRepositor
 		code?: FinancialExceptionCode | "all"
 		nextOwner?: string | "all"
 		bookingId?: string
+		productFilter?: FinancialApiProductFilter
 		limit?: number
 	}): Promise<FinancialExceptionRecord[]> {
 		const providerId = String(params?.providerId ?? "").trim()
 		if (!providerId) return []
+		if (
+			params?.productFilter !== undefined &&
+			params.productFilter !== null &&
+			params.productFilter.length === 0
+		) {
+			return []
+		}
 		const filters = [eq(FinancialExceptionTable.providerId, providerId)]
+		const productPredicate = bookingIdMatchesProductFilter(
+			FinancialExceptionTable.bookingId,
+			params?.productFilter ?? null
+		)
+		if (productPredicate) filters.push(productPredicate)
 		if (params?.status && params.status !== "all")
 			filters.push(eq(FinancialExceptionTable.status, params.status))
 		if (params?.code && params.code !== "all")

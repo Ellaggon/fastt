@@ -3,6 +3,7 @@ import { first, and, Booking, db, eq } from "@/shared/infrastructure/db/compat"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getProviderSessionSurfaceFromRequest } from "@/lib/auth/providerSessionSurface"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { resolveFinancialApiProductScope } from "@/lib/financial/financialApiProductScope"
 import { ensureLocalFinancialDemoSeed } from "@/lib/dev/ensureLocalFinancialDemoSeed"
 
 type FinancialProviderAuth =
@@ -50,6 +51,10 @@ export async function bookingBelongsToProvider(
 		.where(and(eq(Booking.id, bookingId), eq(Booking.providerId, providerId)))
 		.then(first)
 	return Boolean(row)
+}
+
+export async function readFinancialApiProductScope(providerId: string, url: URL) {
+	return resolveFinancialApiProductScope(providerId, url)
 }
 
 export async function readJson(request: Request): Promise<Record<string, unknown>> {

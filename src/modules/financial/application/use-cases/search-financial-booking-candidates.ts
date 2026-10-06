@@ -1,8 +1,15 @@
+import type { FinancialApiProductFilter } from "@/lib/financial/financialApiProductScope"
+
 import type { FinancialBookingCandidateRepositoryPort } from "../ports/FinancialBookingCandidateRepositoryPort"
 
 export async function searchFinancialBookingCandidates(
 	deps: { repository: FinancialBookingCandidateRepositoryPort },
-	input: { providerId: string; query?: string | null; limit?: number | null }
+	input: {
+		providerId: string
+		query?: string | null
+		limit?: number | null
+		productFilter?: FinancialApiProductFilter
+	}
 ) {
 	const providerId = String(input.providerId || "").trim()
 	const query = String(input.query || "")
@@ -16,5 +23,17 @@ export async function searchFinancialBookingCandidates(
 	if (query.length === 1) throw new Error("FINANCIAL_BOOKING_SEARCH_QUERY_TOO_SHORT")
 	if (query.length > 120) throw new Error("FINANCIAL_BOOKING_SEARCH_QUERY_TOO_LONG")
 
-	return deps.repository.search({ providerId, query, limit })
+	if (
+		input.productFilter !== undefined &&
+		input.productFilter !== null &&
+		input.productFilter.length === 0
+	) {
+		return []
+	}
+	return deps.repository.search({
+		providerId,
+		query,
+		limit,
+		productFilter: input.productFilter ?? null,
+	})
 }

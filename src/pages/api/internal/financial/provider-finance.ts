@@ -8,9 +8,6 @@ import {
 	desc,
 	eq,
 	inArray,
-	lt,
-	or,
-	Product,
 	Variant,
 } from "@/shared/infrastructure/db/compat"
 
@@ -23,29 +20,20 @@ import {
 	providerStatementRepository,
 	reconciliationMatchRepository,
 } from "@/container/financial.container"
+import { resolveFinancialApiProductScope } from "@/lib/financial/financialApiProductScope"
+import {
+	listScopedProviderBookingIdPage,
+	parseFinancialBookingCursor,
+} from "@/lib/financial/financialScopedBookingQuery"
+import {
+	loadScopedProviderFinanceLineSummary,
+	snapshotProduct,
+	variantProduct,
+} from "@/lib/financial/providerFinanceLineAggregate"
 import { assertProviderCapability } from "@/lib/provider-governance"
 import { buildProviderFinanceSummary } from "@/modules/financial/public"
 
 import { json, requireFinancialProvider } from "./_stage2"
-
-type BookingCursor = {
-	confirmedAt: Date
-	id: string
-}
-
-function parseBookingCursor(value: string | null): BookingCursor | null {
-	if (!value) return null
-	const [time, id] = value.split("|")
-	const confirmedAt = new Date(Number(time))
-	if (!id || Number.isNaN(confirmedAt.getTime())) return null
-	return { confirmedAt, id }
-}
-
-function bookingCursorFromRow(row: { bookingId: unknown; confirmedAt?: unknown }): string | null {
-	const date = row.confirmedAt ? new Date(String(row.confirmedAt)) : null
-	if (!date || Number.isNaN(date.getTime())) return null
-	return `${date.getTime()}|${String(row.bookingId)}`
-}
 
 export const GET: APIRoute = async ({ request, url }) => {
 	const auth = await requireFinancialProvider(request)
@@ -68,26 +56,18 @@ export const GET: APIRoute = async ({ request, url }) => {
 		}
 		throw error
 	}
+	const scopeResult = await resolveFinancialApiProductScope(auth.providerId, url)
+	if (!scopeResult.ok) return scopeResult.response
+
 	const limit = Math.max(1, Math.min(Number(url.searchParams.get("limit") ?? 25) || 25, 100))
-	const cursor = parseBookingCursor(url.searchParams.get("cursor"))
-	const bookingPredicates = [eq(Booking.providerId, auth.providerId)]
-	if (cursor) {
-		bookingPredicates.push(
-			or(
-				lt(Booking.confirmedAt, cursor.confirmedAt),
-				and(eq(Booking.confirmedAt, cursor.confirmedAt), lt(Booking.id, cursor.id))
-			)!
-		)
-	}
-
-	const bookingIdRows = await db
-		.select({ bookingId: Booking.id, confirmedAt: Booking.confirmedAt })
-		.from(Booking)
-		.where(and(...bookingPredicates))
-		.orderBy(desc(Booking.confirmedAt), desc(Booking.id))
-		.limit(limit + 1)
-
-	const pagedBookingIds = bookingIdRows.slice(0, limit).map((row) => String(row.bookingId))
+	const cursor = parseFinancialBookingCursor(url.searchParams.get("cursor"))
+	const bookingPage = await listScopedProviderBookingIdPage({
+		providerId: auth.providerId,
+		productFilter: scopeResult.productFilter,
+		cursor,
+		limit,
+	})
+	const pagedBookingIds = bookingPage.rows.map((row) => row.bookingId)
 	if (!pagedBookingIds.length) {
 		return json({
 			items: [],
@@ -98,6 +78,8 @@ export const GET: APIRoute = async ({ request, url }) => {
 				totalCommission: 0,
 				blockedCount: 0,
 				readyCount: 0,
+				byCommercialLine: [],
+				byCommercialLineBasis: "full_scope",
 			},
 			pagination: { limit, returned: 0, hasMore: false, nextCursor: null },
 			readOnly: true,
@@ -125,16 +107,19 @@ export const GET: APIRoute = async ({ request, url }) => {
 			detailTaxAmount: BookingLineItem.taxAmount,
 			providerIdSnapshot: BookingLineItem.providerIdSnapshot,
 			productIdSnapshot: BookingLineItem.productIdSnapshot,
-			productId: Product.id,
+			productId: snapshotProduct.id,
 			productNameSnapshot: BookingLineItem.productNameSnapshot,
 			variantNameSnapshot: BookingLineItem.variantNameSnapshot,
-			productName: Product.name,
+			productName: snapshotProduct.name,
+			productType: snapshotProduct.productType,
+			productTypeFallback: variantProduct.productType,
 			variantName: Variant.name,
 		})
 		.from(Booking)
 		.leftJoin(BookingLineItem, eq(BookingLineItem.bookingId, Booking.id))
+		.leftJoin(snapshotProduct, eq(snapshotProduct.id, BookingLineItem.productIdSnapshot))
 		.leftJoin(Variant, eq(Variant.id, BookingLineItem.variantId))
-		.leftJoin(Product, eq(Product.id, Variant.productId))
+		.leftJoin(variantProduct, eq(variantProduct.id, Variant.productId))
 		.where(and(eq(Booking.providerId, auth.providerId), inArray(Booking.id, pagedBookingIds)))
 		.orderBy(desc(Booking.confirmedAt), desc(Booking.id))
 
@@ -152,24 +137,17 @@ export const GET: APIRoute = async ({ request, url }) => {
 
 	const [
 		profile,
-		commissionSnapshots,
-		payableSnapshots,
+		scopeCommissionSnapshots,
+		scopePayableSnapshots,
 		payoutRecords,
 		statements,
 		reconciliationMatches,
 		settlementRecords,
 	] = await Promise.all([
 		providerFinancialProfileRepository.findByProviderId(auth.providerId),
-		commissionSnapshotRepository.findByProvider({
-			providerId: auth.providerId,
-			bookingIds,
-			limit: 1000,
-		}),
-		providerPayableSnapshotRepository.findByProvider({
-			providerId: auth.providerId,
-			bookingIds,
-			limit: 1000,
-		}),
+		// Provider-wide snapshots: the page uses its subset, the line aggregate needs the full scope.
+		commissionSnapshotRepository.findByProvider({ providerId: auth.providerId, limit: 1000 }),
+		providerPayableSnapshotRepository.findByProvider({ providerId: auth.providerId, limit: 1000 }),
 		payoutRecordRepository.findByProvider({
 			providerId: auth.providerId,
 			bookingIds,
@@ -184,6 +162,20 @@ export const GET: APIRoute = async ({ request, url }) => {
 		}),
 	])
 
+	const pagedBookingIdSet = new Set(bookingIds)
+	const commissionSnapshots = scopeCommissionSnapshots.filter((row) =>
+		pagedBookingIdSet.has(row.bookingId)
+	)
+	const payableSnapshots = scopePayableSnapshots.filter((row) =>
+		pagedBookingIdSet.has(row.bookingId)
+	)
+	const scopeLineSummary = await loadScopedProviderFinanceLineSummary({
+		providerId: auth.providerId,
+		productFilter: scopeResult.productFilter,
+		commissionSnapshots: scopeCommissionSnapshots,
+		payableSnapshots: scopePayableSnapshots,
+	})
+
 	const summary = buildProviderFinanceSummary({
 		providerId: auth.providerId,
 		bookingRows,
@@ -195,6 +187,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 		statements,
 		reconciliationMatches,
 		settlementRecords,
+		scopeLineSummary,
 	})
 
 	return json({
@@ -202,9 +195,8 @@ export const GET: APIRoute = async ({ request, url }) => {
 		pagination: {
 			limit,
 			returned: Array.isArray(summary.items) ? summary.items.length : 0,
-			hasMore: bookingIdRows.length > limit,
-			nextCursor:
-				bookingIdRows.length > limit ? bookingCursorFromRow(bookingIdRows[limit - 1]) : null,
+			hasMore: bookingPage.hasMore,
+			nextCursor: bookingPage.nextCursor,
 		},
 		readOnly: true,
 		sourceOfTruth: {

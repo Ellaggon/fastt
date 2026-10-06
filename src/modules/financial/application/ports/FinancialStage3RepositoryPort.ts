@@ -79,6 +79,7 @@ export type ReconciliationMatchRepositoryPort = {
 	): Promise<ReconciliationMatch | null>
 	findByProvider(params: {
 		providerId: string
+		bookingIds?: string[]
 		status?: ReconciliationMatch["status"] | "all"
 		reviewStatus?: ReconciliationMatch["reviewStatus"] | "all"
 		limit?: number

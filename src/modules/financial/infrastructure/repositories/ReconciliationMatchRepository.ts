@@ -3,6 +3,7 @@ import {
 	and,
 	desc,
 	eq,
+	inArray,
 	ReconciliationMatch as ReconciliationMatchTable,
 	db,
 } from "@/shared/infrastructure/db/compat"
@@ -75,6 +76,7 @@ export class ReconciliationMatchRepository implements ReconciliationMatchReposit
 
 	async findByProvider(params: {
 		providerId: string
+		bookingIds?: string[]
 		status?: ReconciliationMatch["status"] | "all"
 		reviewStatus?: ReconciliationMatch["reviewStatus"] | "all"
 		limit?: number
@@ -82,6 +84,8 @@ export class ReconciliationMatchRepository implements ReconciliationMatchReposit
 		const providerId = String(params.providerId ?? "").trim()
 		if (!providerId) return []
 		const filters = [eq(ReconciliationMatchTable.providerId, providerId)]
+		const bookingIds = Array.from(new Set((params.bookingIds ?? []).map(String).filter(Boolean)))
+		if (bookingIds.length) filters.push(inArray(ReconciliationMatchTable.bookingId, bookingIds))
 		if (params.status && params.status !== "all")
 			filters.push(eq(ReconciliationMatchTable.status, params.status))
 		if (params.reviewStatus && params.reviewStatus !== "all") {

@@ -52,7 +52,7 @@ const requiredExceptionSignals = [
 	"missing_settlement_reference",
 	"missing_refund_reference",
 	"incomplete_contract_snapshot",
-	"multi_room_review",
+	"multi_line_review",
 	"nextOwner",
 	"ageDays",
 ]
