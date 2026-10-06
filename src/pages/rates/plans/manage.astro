@@ -15,6 +15,7 @@ import TabsOutsidePanel from "@/components/ui/TabsOutsidePanel.astro"
 import RatePlanRecentChanges from "@/components/rates/RatePlanRecentChanges.astro"
 import RatePlanResponsiveTable from "@/components/rates/RatePlanResponsiveTable.astro"
 import TourAcceptedCurrencies from "@/components/rates/TourAcceptedCurrencies.astro"
+import PlaybookStepHeader from "@/components/playbook/PlaybookStepHeader.astro"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import {
 	getNextAddRoomStep,
@@ -514,28 +515,42 @@ const tourRateSaveHref = isTourRateContext
 <Layout {...layoutProps} productType={productType || (isTourRateContext ? "tour" : null)}>
 	<div class="rate-plans-manage space-y-5" data-rate-plan-view-controller>
 		<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
-			<div class="space-y-1.5">
-				<h1 class="text-3xl font-semibold text-slate-100">
-					{
-						isPlaybookRateStep
-							? `${isTourPlaybookRateStep ? "Precio" : "Tarifa"} de ${playbookVariantLabel}`
-							: isTourRateContext
-								? "Precios y condiciones"
-								: "Tarifas"
-					}
-				</h1>
-				<p class="max-w-2xl text-sm leading-6 text-slate-300">
-					{
-						isPlaybookRateStep
-							? isTourPlaybookRateStep
-								? "Define el precio en las monedas que aceptas y las condiciones iniciales de esta salida. Después revisarás la reserva."
-								: "Define el precio base y la propuesta comercial inicial para que esta habitación pueda venderse."
-							: isTourRateContext
-								? "Gestiona los precios, las condiciones y el estado de cada oferta de tus tours."
-								: "Define cómo se venden tus habitaciones: precio base, condiciones y acceso al calendario."
-					}
-				</p>
-			</div>
+			{
+				isPlaybookRateStep && isTourPlaybookRateStep ? (
+					<PlaybookStepHeader
+						size="lg"
+						icon="rate"
+						title={`Precio de ${playbookVariantLabel}`}
+						lead="Define el precio en las monedas que aceptas y las condiciones iniciales de esta salida. Después revisarás la reserva."
+					/>
+				) : isPlaybookRateStep ? (
+					<PlaybookStepHeader
+						size="lg"
+						icon="rate"
+						title={`Tarifa de ${playbookVariantLabel}`}
+						lead="Define el precio base y la propuesta comercial inicial para que esta habitación pueda venderse."
+					/>
+				) : (
+					<div class="space-y-1.5">
+						<h1 class="text-3xl font-semibold text-slate-100">
+							{isPlaybookRateStep
+								? `${isTourPlaybookRateStep ? "Precio" : "Tarifa"} de ${playbookVariantLabel}`
+								: isTourRateContext
+									? "Precios y condiciones"
+									: "Tarifas"}
+						</h1>
+						<p class="max-w-2xl text-sm leading-6 text-slate-300">
+							{isPlaybookRateStep
+								? isTourPlaybookRateStep
+									? "Define el precio en las monedas que aceptas y las condiciones iniciales de esta salida. Después revisarás la reserva."
+									: "Define el precio base y la propuesta comercial inicial para que esta habitación pueda venderse."
+								: isTourRateContext
+									? "Gestiona los precios, las condiciones y el estado de cada oferta de tus tours."
+									: "Define cómo se venden tus habitaciones: precio base, condiciones y acceso al calendario."}
+						</p>
+					</div>
+				)
+			}
 			{
 				isPlaybookRateStep ? null : (
 					<Button type="button" variant="secondary" data-open-rate-plan-dialog>
