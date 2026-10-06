@@ -8,6 +8,8 @@ import type {
 } from "@/modules/financial/public"
 import { buildFinancialReviewOverlay, listFinancialExceptions } from "@/modules/financial/public"
 
+import { resolveFinancialApiProductScope } from "@/lib/financial/financialApiProductScope"
+
 import { json, requireFinancialProvider } from "./_stage2"
 import { GET as getFinancialOperations } from "./operations"
 
@@ -52,6 +54,8 @@ async function readOperationsDerivedExceptions(context: Parameters<APIRoute>[0])
 export const GET: APIRoute = async ({ request, url }) => {
 	const auth = await requireFinancialProvider(request)
 	if (!auth.ok) return auth.response
+	const scopeResult = await resolveFinancialApiProductScope(auth.providerId, url)
+	if (!scopeResult.ok) return scopeResult.response
 	const status = readStatusFilter(String(url.searchParams.get("status") ?? "all"))
 	const code = String(url.searchParams.get("code") ?? "all") as FinancialExceptionCode | "all"
 	const nextOwner = String(url.searchParams.get("owner") ?? "all")
@@ -73,6 +77,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 				code: "all",
 				nextOwner: "all",
 				bookingId,
+				productFilter: scopeResult.productFilter,
 				limit: 500,
 			}
 		)

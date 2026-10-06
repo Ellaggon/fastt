@@ -6,6 +6,7 @@ import {
 	financialReviewEventRepository,
 } from "@/container/financial.container"
 import { invalidateFinancialProviderSummary } from "@/lib/cache/invalidation"
+import { resolveFinancialApiProductScope } from "@/lib/financial/financialApiProductScope"
 import { recordFinancialReference } from "@/modules/financial/public"
 import type {
 	FinancialReferenceBasis,
@@ -33,6 +34,8 @@ export const GET: APIRoute = async ({ request }) => {
 	const auth = await requireFinancialProvider(request)
 	if (!auth.ok) return auth.response
 	const url = new URL(request.url)
+	const scopeResult = await resolveFinancialApiProductScope(auth.providerId, url)
+	if (!scopeResult.ok) return scopeResult.response
 	const bookingIds = [
 		...String(url.searchParams.get("bookingIds") ?? "")
 			.split(",")
@@ -48,6 +51,7 @@ export const GET: APIRoute = async ({ request }) => {
 		const items = await financialReferenceRepository.findByProvider({
 			providerId: auth.providerId,
 			bookingIds,
+			productFilter: scopeResult.productFilter,
 			limit: Number.isFinite(limit) ? limit : 500,
 		})
 		return json({ items })

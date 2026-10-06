@@ -1,3 +1,5 @@
+import type { FinancialApiProductFilter } from "@/lib/financial/financialApiProductScope"
+
 import type {
 	FinancialExceptionCode,
 	FinancialExceptionRecord,
@@ -31,6 +33,7 @@ export type FinancialExceptionRepositoryPort = {
 		code?: FinancialExceptionCode | "all"
 		nextOwner?: string | "all"
 		bookingId?: string
+		productFilter?: FinancialApiProductFilter
 		limit?: number
 	}): Promise<FinancialExceptionRecord[]>
 	findByIdForProvider(id: string, providerId: string): Promise<FinancialExceptionRecord | null>
@@ -59,6 +62,7 @@ export type FinancialReferenceRepositoryPort = {
 	findByProvider(params: {
 		providerId: string
 		bookingIds?: string[]
+		productFilter?: FinancialApiProductFilter
 		limit?: number
 	}): Promise<FinancialReference[]>
 	findExisting(params: {
@@ -80,6 +84,7 @@ export type RefundHandoffRepositoryPort = {
 	findByProvider(params: {
 		providerId: string
 		bookingIds?: string[]
+		productFilter?: FinancialApiProductFilter
 		status?: RefundHandoffRecord["status"] | "all"
 		limit?: number
 		cursor?: { openedAt: Date; id: string } | null
@@ -115,6 +120,7 @@ export type FinancialReviewEventRepositoryPort = {
 		financialExceptionId?: string
 		refundHandoffId?: string
 		reconciliationMatchId?: string
+		productFilter?: FinancialApiProductFilter
 		limit?: number
 	}): Promise<FinancialReviewEvent[]>
 }

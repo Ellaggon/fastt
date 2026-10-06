@@ -1,4 +1,8 @@
+import type { SQL } from "drizzle-orm"
+import type { AnyPgColumn } from "drizzle-orm/pg-core"
+
 import {
+	and,
 	db,
 	eq,
 	FinancialExceptionRecord,
@@ -11,6 +15,8 @@ import {
 
 import { cacheKeys, cacheTtls } from "@/lib/cache/cacheKeys"
 import * as persistentCache from "@/lib/cache/persistentCache"
+import type { FinancialApiProductFilter } from "@/lib/financial/financialApiProductScope"
+import { bookingIdMatchesProductFilter } from "@/lib/financial/financialScopedBookingQuery"
 
 type MoneySummary = {
 	count: number
@@ -46,7 +52,7 @@ export type FinancialProviderSummarySurface = {
 		}
 	}
 	freshness: {
-		source: "FinancialProviderSummary"
+		source: "FinancialProviderSummary" | "scoped_live_aggregate"
 		cacheState: "hit" | "miss"
 		computedAt: string
 		stale: boolean
@@ -54,9 +60,11 @@ export type FinancialProviderSummarySurface = {
 		invalidationReason: string | null
 	}
 	readModel: {
-		materialized: true
+		materialized: boolean
 		detailStrategy: "tab_detail_on_demand"
 		cacheTtlSeconds: number
+		/** `provider` = whole account; `workspace_scope` = filtered to the active line/product. */
+		scope: "provider" | "workspace_scope"
 	}
 }
 
@@ -123,11 +131,24 @@ function surfaceFromRow(
 			materialized: true,
 			detailStrategy: "tab_detail_on_demand",
 			cacheTtlSeconds: cacheTtls.financialProviderSummary,
+			scope: "provider",
 		},
 	}
 }
 
-async function computeFinancialProviderSummary(providerId: string): Promise<{
+function scopedPredicate(
+	column: AnyPgColumn,
+	providerPredicate: SQL,
+	productFilter: FinancialApiProductFilter
+): SQL {
+	const predicate = bookingIdMatchesProductFilter(column, productFilter)
+	return predicate ? and(providerPredicate, predicate)! : providerPredicate
+}
+
+async function computeFinancialProviderSummary(
+	providerId: string,
+	productFilter: FinancialApiProductFilter = null
+): Promise<{
 	collections: FinancialProviderSummarySurface["summary"]["collections"]
 	refunds: FinancialProviderSummarySurface["summary"]["refunds"]
 	exceptions: FinancialProviderSummarySurface["summary"]["exceptions"]
@@ -145,7 +166,13 @@ async function computeFinancialProviderSummary(providerId: string): Promise<{
 				lastAt: sql<Date | null>`max(${PaymentTransaction.occurredAt})`,
 			})
 			.from(PaymentTransaction)
-			.where(eq(PaymentTransaction.providerId, providerId))
+			.where(
+				scopedPredicate(
+					PaymentTransaction.bookingId,
+					eq(PaymentTransaction.providerId, providerId),
+					productFilter
+				)
+			)
 			.then((rows) => rows[0]),
 		db
 			.select({
@@ -158,7 +185,13 @@ async function computeFinancialProviderSummary(providerId: string): Promise<{
 				lastAt: sql<Date | null>`max(${RefundLedger.appliedAt})`,
 			})
 			.from(RefundLedger)
-			.where(eq(RefundLedger.providerId, providerId))
+			.where(
+				scopedPredicate(
+					RefundLedger.bookingId,
+					eq(RefundLedger.providerId, providerId),
+					productFilter
+				)
+			)
 			.then((rows) => rows[0]),
 		db
 			.select({
@@ -170,7 +203,13 @@ async function computeFinancialProviderSummary(providerId: string): Promise<{
 				lastOpenedAt: sql<Date | null>`max(${FinancialExceptionRecord.openedAt})`,
 			})
 			.from(FinancialExceptionRecord)
-			.where(eq(FinancialExceptionRecord.providerId, providerId))
+			.where(
+				scopedPredicate(
+					FinancialExceptionRecord.bookingId,
+					eq(FinancialExceptionRecord.providerId, providerId),
+					productFilter
+				)
+			)
 			.then((rows) => rows[0]),
 		db
 			.select({
@@ -182,7 +221,13 @@ async function computeFinancialProviderSummary(providerId: string): Promise<{
 				lastAt: sql<Date | null>`max(${FinancialSettlementRecord.settlementDate})`,
 			})
 			.from(FinancialSettlementRecord)
-			.where(eq(FinancialSettlementRecord.providerId, providerId))
+			.where(
+				scopedPredicate(
+					FinancialSettlementRecord.bookingId,
+					eq(FinancialSettlementRecord.providerId, providerId),
+					productFilter
+				)
+			)
 			.then((rows) => rows[0]),
 	])
 
@@ -271,11 +316,52 @@ export async function refreshFinancialProviderSummary(params: {
 	return surface
 }
 
+/**
+ * Scoped summaries are not materialized: they are computed live with the workspace product
+ * filter and cached under a scope-specific key, so the provider-wide row never leaks into a line.
+ */
+async function getScopedFinancialProviderSummary(
+	providerId: string,
+	productFilter: string[]
+): Promise<FinancialProviderSummarySurface> {
+	const key = cacheKeys.financialProviderSummaryScoped(providerId, productFilter)
+	const cached = await persistentCache.get(key)
+	if (cached && typeof cached === "object") {
+		const surface = cached as FinancialProviderSummarySurface
+		return { ...surface, freshness: { ...surface.freshness, cacheState: "hit" } }
+	}
+	const computed = await computeFinancialProviderSummary(providerId, productFilter)
+	const surface: FinancialProviderSummarySurface = {
+		providerId,
+		summary: computed,
+		freshness: {
+			source: "scoped_live_aggregate",
+			cacheState: "miss",
+			computedAt: new Date().toISOString(),
+			stale: false,
+			invalidatedAt: null,
+			invalidationReason: null,
+		},
+		readModel: {
+			materialized: false,
+			detailStrategy: "tab_detail_on_demand",
+			cacheTtlSeconds: cacheTtls.financialProviderSummary,
+			scope: "workspace_scope",
+		},
+	}
+	await persistentCache.set(key, surface, cacheTtls.financialProviderSummary)
+	return surface
+}
+
 export async function getFinancialProviderSummary(params: {
 	providerId: string
+	productFilter?: FinancialApiProductFilter
 }): Promise<FinancialProviderSummarySurface> {
 	const providerId = String(params.providerId ?? "").trim()
 	if (!providerId) throw new Error("providerId_required")
+	if (params.productFilter !== undefined && params.productFilter !== null) {
+		return getScopedFinancialProviderSummary(providerId, params.productFilter)
+	}
 	const key = cacheKeys.financialProviderSummary(providerId)
 	const cached = await persistentCache.get(key)
 	if (cached && typeof cached === "object") {

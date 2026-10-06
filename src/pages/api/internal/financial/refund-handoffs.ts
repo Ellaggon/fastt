@@ -3,6 +3,8 @@ import type { APIRoute } from "astro"
 import { refundHandoffRepository } from "@/container/financial.container"
 import type { RefundHandoffStatus } from "@/modules/financial/public"
 
+import { resolveFinancialApiProductScope } from "@/lib/financial/financialApiProductScope"
+
 import { json, requireFinancialProvider } from "./_stage2"
 
 const allowedStatuses = new Set([
@@ -33,6 +35,8 @@ export const GET: APIRoute = async ({ request }) => {
 	const auth = await requireFinancialProvider(request)
 	if (!auth.ok) return auth.response
 	const url = new URL(request.url)
+	const scopeResult = await resolveFinancialApiProductScope(auth.providerId, url)
+	if (!scopeResult.ok) return scopeResult.response
 	const bookingIds = [
 		...String(url.searchParams.get("bookingIds") ?? "")
 			.split(",")
@@ -52,6 +56,7 @@ export const GET: APIRoute = async ({ request }) => {
 		const items = await refundHandoffRepository.findByProvider({
 			providerId: auth.providerId,
 			bookingIds,
+			productFilter: scopeResult.productFilter,
 			status: status as RefundHandoffStatus | "all",
 			limit: limit + 1,
 			cursor,

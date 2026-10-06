@@ -1,13 +1,19 @@
 import type { APIRoute } from "astro"
 
+import { resolveFinancialApiProductScope } from "@/lib/financial/financialApiProductScope"
 import { getFinancialProviderSummary } from "@/lib/financial/financialProviderSummary"
 
 import { requireFinancialProvider } from "./_stage2"
 
-export const GET: APIRoute = async ({ request }) => {
+export const GET: APIRoute = async ({ request, url }) => {
 	const auth = await requireFinancialProvider(request)
 	if (!auth.ok) return auth.response
-	const summary = await getFinancialProviderSummary({ providerId: auth.providerId })
+	const scopeResult = await resolveFinancialApiProductScope(auth.providerId, url)
+	if (!scopeResult.ok) return scopeResult.response
+	const summary = await getFinancialProviderSummary({
+		providerId: auth.providerId,
+		productFilter: scopeResult.productFilter,
+	})
 	return new Response(JSON.stringify(summary), {
 		status: 200,
 		headers: {

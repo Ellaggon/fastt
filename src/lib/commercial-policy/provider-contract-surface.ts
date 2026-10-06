@@ -25,6 +25,7 @@ type ContractStatus = "pending" | "in_review" | "approved" | "unavailable"
 export type ProviderContractOffering = {
 	productId: string
 	name: string
+	commercialLine: import("@/lib/verification/commercial-lines").CommercialLine | null
 	verticalLabel: string
 	collectionModelLabel: string
 	country: string | null
@@ -65,6 +66,7 @@ function unavailableOffering(params: {
 	return {
 		productId: params.productId,
 		name: params.name,
+		commercialLine: commercialLineForProductType(params.vertical),
 		verticalLabel: verticalLabel(params.vertical),
 		collectionModelLabel: "Aún por definir",
 		country: params.country,
@@ -183,6 +185,7 @@ export async function loadProviderContractSurface(
 				return {
 					productId,
 					name: String(product.name || "Servicio"),
+					commercialLine: commercialLineForProductType(product.productType),
 					verticalLabel: verticalLabel(vertical),
 					collectionModelLabel: modelLabel(collectionModel),
 					country,

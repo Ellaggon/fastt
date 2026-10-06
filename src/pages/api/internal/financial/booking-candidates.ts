@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro"
 
 import { financialBookingCandidateRepository } from "@/container/financial.container"
+import { resolveFinancialApiProductScope } from "@/lib/financial/financialApiProductScope"
 import { searchFinancialBookingCandidates } from "@/modules/financial/public"
 
 import { json, requireFinancialManager } from "./_stage2"
@@ -8,6 +9,8 @@ import { json, requireFinancialManager } from "./_stage2"
 export const GET: APIRoute = async ({ request, url }) => {
 	const auth = await requireFinancialManager(request)
 	if (!auth.ok) return auth.response
+	const scopeResult = await resolveFinancialApiProductScope(auth.providerId, url)
+	if (!scopeResult.ok) return scopeResult.response
 	try {
 		const items = await searchFinancialBookingCandidates(
 			{ repository: financialBookingCandidateRepository },
@@ -15,6 +18,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 				providerId: auth.providerId,
 				query: url.searchParams.get("q"),
 				limit: Number(url.searchParams.get("limit") ?? 10),
+				productFilter: scopeResult.productFilter,
 			}
 		)
 		const response = json({ items })

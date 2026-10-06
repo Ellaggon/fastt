@@ -9,6 +9,9 @@ import {
 	sql,
 } from "@/shared/infrastructure/db/compat"
 
+import type { FinancialApiProductFilter } from "@/lib/financial/financialApiProductScope"
+import { bookingIdMatchesProductFilter } from "@/lib/financial/financialScopedBookingQuery"
+
 import type {
 	FinancialReferenceCreateInput,
 	FinancialReferenceRepositoryPort,
@@ -46,13 +49,26 @@ export class FinancialReferenceRepository implements FinancialReferenceRepositor
 	async findByProvider(params?: {
 		providerId: string
 		bookingIds?: string[]
+		productFilter?: FinancialApiProductFilter
 		limit?: number
 	}): Promise<FinancialReference[]> {
 		const providerId = String(params?.providerId ?? "").trim()
 		if (!providerId) return []
+		if (
+			params?.productFilter !== undefined &&
+			params.productFilter !== null &&
+			params.productFilter.length === 0
+		) {
+			return []
+		}
 		const bookingIds = Array.from(new Set((params?.bookingIds || []).map(String).filter(Boolean)))
 		const filters = [eq(FinancialReferenceTable.providerId, providerId)]
 		if (bookingIds.length) filters.push(inArray(FinancialReferenceTable.bookingId, bookingIds))
+		const productPredicate = bookingIdMatchesProductFilter(
+			FinancialReferenceTable.bookingId,
+			params?.productFilter ?? null
+		)
+		if (productPredicate) filters.push(productPredicate)
 		const rows = await db
 			.select()
 			.from(FinancialReferenceTable)

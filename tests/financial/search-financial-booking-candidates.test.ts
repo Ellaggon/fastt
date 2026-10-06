@@ -16,6 +16,7 @@ describe("searchFinancialBookingCandidates", () => {
 			providerId: "provider_1",
 			query: "Ana Pérez",
 			limit: 20,
+			productFilter: null,
 		})
 	})
 

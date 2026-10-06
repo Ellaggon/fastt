@@ -11,6 +11,9 @@ import {
 	sql,
 } from "@/shared/infrastructure/db/compat"
 
+import type { FinancialApiProductFilter } from "@/lib/financial/financialApiProductScope"
+import { bookingMatchesProductFilterPredicate } from "@/lib/financial/financialScopedBookingQuery"
+
 import type {
 	FinancialBookingCandidate,
 	FinancialBookingCandidateRepositoryPort,
@@ -40,7 +43,12 @@ export class FinancialBookingCandidateRepository implements FinancialBookingCand
 		providerId: string
 		query: string
 		limit: number
+		productFilter?: FinancialApiProductFilter
 	}): Promise<FinancialBookingCandidate[]> {
+		const productFilter = params.productFilter ?? null
+		if (productFilter !== null && productFilter.length === 0) return []
+		const scopePredicate =
+			bookingMatchesProductFilterPredicate(productFilter, this.database) ?? undefined
 		const query = normalizedSearch(params.query)
 		const dateSearch = isDateSearch(query)
 		const pattern = `%${query.replace(/[%_\\]/g, "\\$&")}%`
@@ -94,7 +102,7 @@ export class FinancialBookingCandidateRepository implements FinancialBookingCand
 				externalBookingId: Booking.externalBookingId,
 			})
 			.from(Booking)
-			.where(and(eq(Booking.providerId, params.providerId), candidatePredicate))
+			.where(and(eq(Booking.providerId, params.providerId), scopePredicate, candidatePredicate))
 			.orderBy(relevance, desc(Booking.confirmedAt), desc(Booking.bookingDate), desc(Booking.id))
 			.limit(params.limit)
 		const bookingIds = rows.map((row) => row.id)

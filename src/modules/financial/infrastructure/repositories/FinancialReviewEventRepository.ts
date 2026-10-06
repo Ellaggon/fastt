@@ -6,6 +6,9 @@ import {
 	db,
 } from "@/shared/infrastructure/db/compat"
 
+import type { FinancialApiProductFilter } from "@/lib/financial/financialApiProductScope"
+import { bookingIdMatchesProductFilter } from "@/lib/financial/financialScopedBookingQuery"
+
 import type {
 	FinancialReviewEventCreateInput,
 	FinancialReviewEventRepositoryPort,
@@ -45,11 +48,24 @@ export class FinancialReviewEventRepository implements FinancialReviewEventRepos
 		financialExceptionId?: string
 		refundHandoffId?: string
 		reconciliationMatchId?: string
+		productFilter?: FinancialApiProductFilter
 		limit?: number
 	}): Promise<FinancialReviewEvent[]> {
 		const providerId = String(params?.providerId ?? "").trim()
 		if (!providerId) return []
+		if (
+			params?.productFilter !== undefined &&
+			params.productFilter !== null &&
+			params.productFilter.length === 0
+		) {
+			return []
+		}
 		const filters = [eq(FinancialReviewEventTable.providerId, providerId)]
+		const productPredicate = bookingIdMatchesProductFilter(
+			FinancialReviewEventTable.bookingId,
+			params?.productFilter ?? null
+		)
+		if (productPredicate) filters.push(productPredicate)
 		if (params?.bookingId) filters.push(eq(FinancialReviewEventTable.bookingId, params.bookingId))
 		if (params?.financialExceptionId) {
 			filters.push(eq(FinancialReviewEventTable.financialExceptionId, params.financialExceptionId))

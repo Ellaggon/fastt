@@ -14,6 +14,9 @@ import type {
 	RefundHandoffCreateInput,
 	RefundHandoffRepositoryPort,
 } from "../../application/ports/FinancialWorkflowRepositoryPort"
+import type { FinancialApiProductFilter } from "@/lib/financial/financialApiProductScope"
+import { bookingIdMatchesProductFilter } from "@/lib/financial/financialScopedBookingQuery"
+
 import type { RefundHandoffRecord } from "../../domain/refund-handoff-record"
 
 const terminalStatuses = new Set(["closed", "dismissed"])
@@ -62,15 +65,28 @@ export class RefundHandoffRepository implements RefundHandoffRepositoryPort {
 	async findByProvider(params?: {
 		providerId: string
 		bookingIds?: string[]
+		productFilter?: FinancialApiProductFilter
 		status?: RefundHandoffRecord["status"] | "all"
 		limit?: number
 		cursor?: { openedAt: Date; id: string } | null
 	}): Promise<RefundHandoffRecord[]> {
 		const providerId = String(params?.providerId ?? "").trim()
 		if (!providerId) return []
+		if (
+			params?.productFilter !== undefined &&
+			params.productFilter !== null &&
+			params.productFilter.length === 0
+		) {
+			return []
+		}
 		const bookingIds = Array.from(new Set((params?.bookingIds || []).map(String).filter(Boolean)))
 		const filters = [eq(RefundHandoffTable.providerId, providerId)]
 		if (bookingIds.length) filters.push(inArray(RefundHandoffTable.bookingId, bookingIds))
+		const productPredicate = bookingIdMatchesProductFilter(
+			RefundHandoffTable.bookingId,
+			params?.productFilter ?? null
+		)
+		if (productPredicate) filters.push(productPredicate)
 		if (params?.status && params.status !== "all")
 			filters.push(eq(RefundHandoffTable.status, params.status))
 		if (params?.cursor) {

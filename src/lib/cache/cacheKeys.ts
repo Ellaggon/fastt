@@ -157,6 +157,10 @@ export const cacheKeys = {
 	financialProviderSummary(providerId: string): string {
 		return `ws:financial:provider:${providerId}:summary`
 	},
+	/** Scoped summaries are keyed by the sorted product list so a line never reads another line's cache. */
+	financialProviderSummaryScoped(providerId: string, productIds: readonly string[]): string {
+		return `ws:financial:provider:${providerId}:summary:scope:${[...productIds].sort().join(",")}`
+	},
 	financialProviderSummaryPrefix(providerId: string): string {
 		return `ws:financial:provider:${providerId}:`
 	},

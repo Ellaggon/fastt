@@ -1,3 +1,5 @@
+import type { FinancialApiProductFilter } from "@/lib/financial/financialApiProductScope"
+
 export type FinancialBookingCandidate = {
 	id: string
 	guestName: string | null
@@ -17,5 +19,7 @@ export interface FinancialBookingCandidateRepositoryPort {
 		providerId: string
 		query: string
 		limit: number
+		/** null = whole provider; [] = nothing matches; ids = bookings with a line item in those products. */
+		productFilter?: FinancialApiProductFilter
 	}): Promise<FinancialBookingCandidate[]>
 }
