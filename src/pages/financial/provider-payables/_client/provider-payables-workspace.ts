@@ -7,11 +7,8 @@ import {
 	refreshFinancialJson,
 } from "../../_client/financial-data-cache"
 import {
-	filterItemsByAccommodationScope,
-	getFinancialAccommodationScope,
-} from "../../_client/financial-accommodation-scope"
-import {
 	bookingDisplayName,
+	financialDrawerReservaRow,
 	bookingSubtitle,
 	buildBookingContextIndex,
 	providerDisplayName,
@@ -24,6 +21,7 @@ import {
 	financialSegmentMarkup,
 	financialUi,
 } from "../../_client/financial-ui-classes"
+import { financialScopeProductLabel } from "../../_client/financial-ops-vocabulary"
 
 type ProviderPayablesSegment =
 	| "blocked"
@@ -255,11 +253,7 @@ function segmentCount(segment: ProviderPayablesSegment): number {
 }
 
 function scopedItems(): ProviderPayableItem[] {
-	return filterItemsByAccommodationScope(
-		state.items,
-		getFinancialAccommodationScope(),
-		state.bookingContext
-	)
+	return state.items
 }
 
 function sortProviderPayableItems(items: ProviderPayableItem[]): ProviderPayableItem[] {
@@ -293,7 +287,25 @@ function renderRows(): void {
 	if (summary) {
 		summary.textContent = `${visible.length} caso${visible.length === 1 ? "" : "s"} · ${segmentLabels[state.segment]}.`
 	}
-	if (summaryHint) summaryHint.textContent = segmentHints[state.segment]
+	if (summaryHint) {
+		const lineRows = Array.isArray(state.payload?.summary?.byCommercialLine)
+			? state.payload.summary.byCommercialLine
+			: []
+		const lineBreakdown = lineRows
+			.map(
+				(row: any) =>
+					`${String(row.label || row.line)}: ${Number(row.bookingCount || 0)} · comisión ${formatCompactAmount(row.totalCommissionAmount, String(state.items[0]?.currency || "USD"))}`
+			)
+			.join(" · ")
+		// Only a scope-wide aggregate may be presented as the line breakdown; a page-level one is partial.
+		const breakdownLabel =
+			state.payload?.summary?.byCommercialLineBasis === "page"
+				? "Desglose por línea (solo esta página)"
+				: "Desglose por línea"
+		summaryHint.textContent = lineBreakdown
+			? `${segmentHints[state.segment]} ${breakdownLabel}: ${lineBreakdown}.`
+			: segmentHints[state.segment]
+	}
 	renderLoadMore()
 	if (!visible.length) {
 		const emptyMessages: Record<ProviderPayablesSegment, string> = {
@@ -417,8 +429,8 @@ function openDrawer(item: ProviderPayableItem): void {
 			</div>
 			<div class="grid gap-3 sm:grid-cols-2">
 				${detailRow("Proveedor", providerDisplayName(item.raw?.providerId || item.provider, context))}
-				${detailRow("Reserva", bookingDisplayName(item.bookingId, context))}
-				${detailRow("Alojamiento", bookingSubtitle(context))}
+				${financialDrawerReservaRow(item.bookingId, context)}
+				${detailRow(financialScopeProductLabel(context.vertical), bookingSubtitle(context))}
 				${detailRow("Bruto", formatMoney(item.grossAmount, item.currency))}
 				${detailRow("Comisión", formatMoney(item.commissionAmount, item.currency))}
 				${detailRow("Impuestos", formatMoney(item.taxAmount, item.currency))}

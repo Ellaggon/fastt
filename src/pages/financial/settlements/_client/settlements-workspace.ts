@@ -7,11 +7,8 @@ import {
 	refreshFinancialJson,
 } from "../../_client/financial-data-cache"
 import {
-	filterItemsByAccommodationScope,
-	getFinancialAccommodationScope,
-} from "../../_client/financial-accommodation-scope"
-import {
 	bookingDisplayName,
+	financialDrawerReservaRow,
 	bookingSubtitle,
 	buildBookingContextIndex,
 	resolveBookingContext,
@@ -23,6 +20,7 @@ import {
 	financialSegmentMarkup,
 	financialUi,
 } from "../../_client/financial-ui-classes"
+import { financialScopeProductLabel } from "../../_client/financial-ops-vocabulary"
 
 type SettlementSegment =
 	| "amount_mismatch"
@@ -264,11 +262,7 @@ function segmentCount(segment: SettlementSegment): number {
 }
 
 function scopedItems(): SettlementItem[] {
-	return filterItemsByAccommodationScope(
-		state.items,
-		getFinancialAccommodationScope(),
-		state.bookingContext
-	)
+	return state.items
 }
 
 function sortSettlementItems(items: SettlementItem[]): SettlementItem[] {
@@ -393,8 +387,8 @@ function openDrawer(item: SettlementItem): void {
 				<p class="mt-3 text-sm leading-6 text-slate-700">${escapeHtml(item.description)}</p>
 			</div>
 			<div class="grid gap-3 sm:grid-cols-2">
-				${detailRow("Reserva", bookingDisplayName(item.bookingId, context))}
-				${detailRow("Alojamiento", bookingSubtitle(context))}
+				${financialDrawerReservaRow(item.bookingId, context)}
+				${detailRow(financialScopeProductLabel(context.vertical), bookingSubtitle(context))}
 				${detailRow("Reserva confirmada", formatMoney(item.confirmedAmount, item.currency))}
 				${detailRow("Cobro registrado", formatMoney(item.collectionAmount, item.currency))}
 				${detailRow("Liquidación registrada", formatMoney(item.settlementAmount, item.currency))}

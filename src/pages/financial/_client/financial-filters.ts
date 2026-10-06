@@ -1,6 +1,5 @@
 import type { FinancialActorFilter } from "./financial-actor-filters"
 import { actorMatchesRow } from "./financial-actor-filters"
-import { itemMatchesAccommodationScope } from "./financial-accommodation-scope"
 import type { FinancialRowViewModel } from "./financial-row-view-model"
 
 export type FinancialWorkspaceFilterState = {
@@ -8,8 +7,6 @@ export type FinancialWorkspaceFilterState = {
 	search: string
 	age: string
 	actor: FinancialActorFilter
-	accommodationId?: string
-	accommodationName?: string
 }
 
 function exceptionCodes(item: any): string[] {
@@ -116,14 +113,9 @@ export function filterFinancialRows(params: {
 	return items.filter((item) => {
 		if (isSuppressed(item)) return false
 		const row = rowFor(item)
-		const accommodationMatches = itemMatchesAccommodationScope(item, {
-			productId: String(filters.accommodationId ?? ""),
-			productName: String(filters.accommodationName ?? ""),
-		})
 		const searchMatches = textMatches(item, filters.search)
 		const ageMatches = ageFilterMatches(row, filters.age)
 		return (
-			accommodationMatches &&
 			searchMatches &&
 			ageMatches &&
 			queueMatchesRow({

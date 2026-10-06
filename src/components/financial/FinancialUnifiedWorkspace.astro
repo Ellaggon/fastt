@@ -5,12 +5,16 @@ import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import Select from "@/components/ui/Select.astro"
 import TabsOutsidePanel from "@/components/ui/TabsOutsidePanel.astro"
-import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
-import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { getProviderSidebarData } from "@/lib/dashboard/providerSidebarReadiness"
-import { getProviderUserWorkspacePreferenceRead } from "@/lib/providerUserWorkspacePreference"
+import type { WorkspaceScopeResolved } from "@/lib/workspace/resolveWorkspaceScope"
+import { getVerticalVocabulary } from "@/lib/verticalVocabulary"
 import { actorFilterOptions } from "@/pages/financial/_client/financial-actor-filters"
-import { db, eq, Product } from "@/shared/infrastructure/db/compat"
+
+interface Props {
+	scope?: WorkspaceScopeResolved | null
+	isSimpleFinancialView?: boolean
+}
+
+const { scope = null, isSimpleFinancialView: isSimpleFinancialViewProp } = Astro.props
 
 type FinancialViewId =
 	| "inbox"
@@ -46,41 +50,11 @@ const segmentTabItemActive =
 	"fastt-tabs-outside-panel__item px-3 py-2 text-sm font-semibold whitespace-nowrap"
 const segmentTabItemInactive = `${segmentTabItemActive} text-slate-600 hover:bg-sky-100/80 hover:text-sky-950`
 
-let isSimpleFinancialView = true
-let providerId = ""
-let selectedAccommodation: { id: string; name: string } | null = null
-try {
-	const user = await getUserFromRequest(Astro.request)
-	providerId = (await getProviderIdFromRequest(Astro.request, user)) ?? ""
-	if (providerId) {
-		const workspacePreference = user?.id
-			? await getProviderUserWorkspacePreferenceRead({ providerId, userId: user.id })
-			: null
-		const sidebarData = await getProviderSidebarData(providerId, {
-			userId: user?.id,
-			workspaceExperience: workspacePreference?.schemaAvailable
-				? workspacePreference.experience
-				: undefined,
-		})
-		isSimpleFinancialView = sidebarData.disclosureMode === "small-provider"
-		const products = (
-			await db
-				.select({ id: Product.id, name: Product.name, type: Product.productType })
-				.from(Product)
-				.where(eq(Product.providerId, providerId))
-		)
-			.map((product) => ({
-				id: String(product.id),
-				name: String(product.name || product.type || "Servicio"),
-			}))
-			.sort((left, right) => left.name.localeCompare(right.name, "es"))
-		const requestedProductId = String(Astro.url.searchParams.get("productId") ?? "").trim()
-		selectedAccommodation =
-			products.find((product) => product.id === requestedProductId) ?? products[0] ?? null
-	}
-} catch {
-	isSimpleFinancialView = true
-}
+const isSimpleFinancialView = isSimpleFinancialViewProp ?? true
+const scopeCatalog = scope ? getVerticalVocabulary(scope.vertical ?? "generic") : null
+const financialSearchPlaceholder = scopeCatalog
+	? `Buscar reserva, ${scopeCatalog.productPlural}, proveedor o referencia...`
+	: "Buscar reserva, producto, proveedor o referencia..."
 ---
 
 <FinancialWorkspaceShell
@@ -89,12 +63,18 @@ try {
 	note="Fastt organiza evidencia y revisiones financieras. No ejecuta cobros, pagos ni reembolsos."
 >
 	{
-		selectedAccommodation ? (
+		scope ? (
 			<div
-				id="financialAccommodationContext"
+				id="financialScopeContext"
 				class="hidden"
-				data-product-id={selectedAccommodation.id}
-				data-product-name={selectedAccommodation.name}
+				data-vertical={scope.vertical ?? ""}
+				data-product-ids={scope.productIds.join(",")}
+				data-product-id={scope.product?.id ?? ""}
+				data-product-name={scope.product?.name ?? ""}
+				data-ops-vocabulary={JSON.stringify(scope.vocabulary)}
+				data-scope-product={scopeCatalog?.scopeProduct ?? ""}
+				data-scope-variant={scopeCatalog?.scopeVariant ?? ""}
+				data-product-plural={scopeCatalog?.productPlural ?? ""}
 			/>
 		) : null
 	}
@@ -259,7 +239,7 @@ try {
 						</details>
 						<FinancialCompactSearch
 							id="financialSearchFilter"
-							placeholder="Buscar reserva, alojamiento, proveedor o referencia..."
+							placeholder={financialSearchPlaceholder}
 						/>
 					</div>
 					<div>

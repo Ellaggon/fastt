@@ -77,9 +77,6 @@ export function initFinancialWorkspace(): void {
 	const drawerBackdrop = document.getElementById("financialReviewBackdrop")
 	const drawerBody = document.getElementById("financialReviewDrawerBody")
 	const drawerClose = document.getElementById("financialReviewDrawerClose")
-	const accommodationContext = document.getElementById("financialAccommodationContext")
-	const selectedAccommodationId = String(accommodationContext?.dataset.productId || "").trim()
-	const selectedAccommodationName = String(accommodationContext?.dataset.productName || "").trim()
 	const pagingState = {
 		operationsLimit: 25,
 		operationsPayload: null as any,
@@ -150,8 +147,6 @@ export function initFinancialWorkspace(): void {
 			segment: inboxState.segment,
 			search: String(searchFilter?.value || ""),
 			age: String(ageFilter?.value || "all"),
-			accommodationId: selectedAccommodationId,
-			accommodationName: selectedAccommodationName,
 		}
 	}
 
@@ -165,23 +160,6 @@ export function initFinancialWorkspace(): void {
 				isSuppressed: (item) => refundHandoffDerivedSuppressed(workspaceState, item),
 			})
 		)
-	}
-
-	function accommodationScopedItems(items: any[]): any[] {
-		return filterFinancialRows({
-			items,
-			filters: {
-				actor: "all" as any,
-				segment: "all",
-				search: "",
-				age: "all",
-				accommodationId: selectedAccommodationId,
-				accommodationName: selectedAccommodationName,
-			},
-			rowFor,
-			isTerminalReview,
-			isSuppressed: (item) => refundHandoffDerivedSuppressed(workspaceState, item),
-		})
 	}
 
 	function ageDays(labelText: string): number {
@@ -253,7 +231,7 @@ export function initFinancialWorkspace(): void {
 		const nextSegment = primarySummaryQueues.find(
 			(metric) =>
 				metric.queue !== inboxState.segment &&
-				countQueue(accommodationScopedItems(workspaceState.combinedItems), metric.queue) > 0
+				countQueue(workspaceState.combinedItems, metric.queue) > 0
 		)
 		const action = nextSegment
 			? `<button type="button" data-empty-queue="${nextSegment.queue}" class="mt-3 ${financialUi.buttonSecondarySm}">Ver ${escapeHtml(nextSegment.label.toLowerCase())}</button>`
@@ -523,13 +501,12 @@ export function initFinancialWorkspace(): void {
 
 	function renderFinancialView(): void {
 		mergeFinancialWorkspaceItems(workspaceState)
-		const scopedItems = accommodationScopedItems(workspaceState.combinedItems)
 		const filteredItems = applyFilters(workspaceState.combinedItems)
-		renderSummary(scopedItems)
+		renderSummary(workspaceState.combinedItems)
 		renderFilterSummary()
 		renderRows(filteredItems)
 		if (listSummary) {
-			const openCount = countQueue(scopedItems, "needs_action_today")
+			const openCount = countQueue(workspaceState.combinedItems, "needs_action_today")
 			const shownCount = filteredItems.length
 			const actor = String(actorFilter?.value || "all") as any
 			listSummary.textContent = `${openCount} ${openCount === 1 ? "caso requiere" : "casos requieren"} atención. Mostrando ${shownCount}.`

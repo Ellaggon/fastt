@@ -7,12 +7,9 @@ import {
 	refreshFinancialJson,
 } from "../../_client/financial-data-cache"
 import {
-	filterItemsByAccommodationScope,
-	getFinancialAccommodationScope,
-} from "../../_client/financial-accommodation-scope"
-import {
 	bookingDisplayName,
 	bookingSubtitle,
+	financialDrawerReservaRow,
 	buildBookingContextIndex,
 	maskExternalReference,
 	resolveBookingContext,
@@ -25,6 +22,7 @@ import {
 	financialSegmentMarkup,
 	financialUi,
 } from "../../_client/financial-ui-classes"
+import { financialScopeProductLabel } from "../../_client/financial-ops-vocabulary"
 
 type CollectionSegment = "requires_proof" | "unmatched" | "duplicate" | "in_review"
 
@@ -241,11 +239,7 @@ function segmentCount(segment: CollectionSegment): number {
 }
 
 function scopedItems(): CollectionItem[] {
-	return filterItemsByAccommodationScope(
-		state.items,
-		getFinancialAccommodationScope(),
-		state.bookingContext
-	)
+	return state.items
 }
 
 function sortCollectionItems(items: CollectionItem[]): CollectionItem[] {
@@ -366,8 +360,8 @@ function openDrawer(item: CollectionItem): void {
 				<p class="mt-3 text-sm leading-6 text-slate-700">${escapeHtml(item.description)}</p>
 			</div>
 			<div class="grid gap-3 sm:grid-cols-2">
-				${detailRow("Reserva", bookingDisplayName(item.bookingId, context))}
-				${detailRow("Alojamiento", bookingSubtitle(context))}
+				${financialDrawerReservaRow(item.bookingId, context)}
+				${detailRow(financialScopeProductLabel(context.vertical), bookingSubtitle(context))}
 				${detailRow("Importe", formatMoney(item.amount, item.currency))}
 				${detailRow("Referencia", maskExternalReference(item.externalReference, item.processor))}
 				${detailRow("Procesador", item.processor)}

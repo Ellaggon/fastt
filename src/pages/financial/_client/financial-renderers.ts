@@ -6,6 +6,7 @@ import {
 	providerDisplayName,
 	stateDotClass,
 } from "./financial-human-display"
+import { financialBookingDetailHref } from "./financial-navigation-scope"
 import { financialUi } from "./financial-ui-classes"
 
 type RowRenderDeps = {
@@ -79,7 +80,7 @@ export function renderFinancialRowHtml(params: {
 	const inboxState = renderInboxState(row)
 	const bookingLabel = bookingDisplayName(item.bookingId, { operation, ...item })
 	const bookingContext = item.bookingId
-		? `<a class="font-semibold text-slate-950 hover:text-slate-700" href="/booking/${encodeURIComponent(String(item.bookingId || ""))}">${deps.escapeHtml(bookingLabel)}</a>`
+		? `<a class="font-semibold text-slate-950 hover:text-slate-700" href="${financialBookingDetailHref(item.bookingId)}" data-astro-reload>${deps.escapeHtml(bookingLabel)}</a>`
 		: `<div class="font-semibold text-slate-950">Sin reserva asociada</div>`
 	const subtitle = bookingSubtitle({ operation, ...item })
 	const providerLabel = providerDisplayName(item.providerId, { operation, ...item })

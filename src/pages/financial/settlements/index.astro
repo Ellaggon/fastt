@@ -1,12 +1,15 @@
 ---
 import FinancialUnifiedWorkspace from "@/components/financial/FinancialUnifiedWorkspace.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
-import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { prepareFinancialWorkspaceScope } from "@/lib/workspace/financialWorkspaceScope"
 
-const user = await getUserFromRequest(Astro.request)
-if (!user) return Astro.redirect("/SignInPage")
+const prepared = await prepareFinancialWorkspaceScope(Astro.request, Astro.url)
+if (prepared instanceof Response) return prepared
 ---
 
 <WorkspaceLayout title="Finanzas">
-	<FinancialUnifiedWorkspace />
+	<FinancialUnifiedWorkspace
+		scope={prepared.scope}
+		isSimpleFinancialView={prepared.isSimpleFinancialView}
+	/>
 </WorkspaceLayout>

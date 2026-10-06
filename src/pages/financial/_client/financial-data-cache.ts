@@ -16,6 +16,8 @@ const store: FinancialCacheStore =
 	globalCache.__fasttFinancialDataCache ||
 	(globalCache.__fasttFinancialDataCache = { entries: new Map<string, CachedEntry>() })
 
+import { withFinancialApiScope } from "./financial-api-scope"
+
 const headers = { accept: "application/json" }
 
 export const financialEndpointUrls = {
@@ -58,10 +60,12 @@ export function financialUrlWithCursor(
 	url: string,
 	params: { limit?: number; cursor?: string | null }
 ): string {
-	return financialUrlWithParams(url, {
-		limit: params.limit,
-		cursor: params.cursor || null,
-	})
+	return withFinancialApiScope(
+		financialUrlWithParams(url, {
+			limit: params.limit,
+			cursor: params.cursor || null,
+		})
+	)
 }
 
 export function mergeFinancialPayloadById<T extends { items?: any[] }>(
@@ -106,7 +110,7 @@ export const financialRouteEndpointMap: Record<string, string[]> = {
 }
 
 function cacheKey(url: string): string {
-	return url
+	return withFinancialApiScope(url)
 }
 
 export function getCachedFinancialJson<T = unknown>(url: string): T | null {
@@ -118,13 +122,14 @@ export async function fetchFinancialJson<T = unknown>(
 	url: string,
 	options: { force?: boolean } = {}
 ): Promise<T> {
+	const scopedUrl = withFinancialApiScope(url)
 	const key = cacheKey(url)
 	const existing = store.entries.get(key)
 	if (!options.force && existing?.data != null) return existing.data as T
 	if (existing?.inFlight) return existing.inFlight as Promise<T>
 
-	const request = fetch(url, { headers }).then(async (response) => {
-		if (!response.ok) throw new Error(`financial_fetch_failed:${url}`)
+	const request = fetch(scopedUrl, { headers }).then(async (response) => {
+		if (!response.ok) throw new Error(`financial_fetch_failed:${scopedUrl}`)
 		const data = await response.json()
 		store.entries.set(key, { data, updatedAt: Date.now() })
 		return data

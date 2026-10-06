@@ -1,7 +1,24 @@
+import { financialBookingDetailHref } from "./financial-navigation-scope"
+import {
+	financialProductNameFallback,
+	financialVariantNameFallback,
+	normalizeItemVertical,
+} from "./financial-ops-vocabulary"
+
+function escapeHtml(value: unknown): string {
+	return String(value ?? "")
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+}
+
 export type FinancialHumanContext = {
 	bookingId?: unknown
 	providerId?: unknown
 	productId?: unknown
+	/** The booking's own vertical (tour/hotel), independent of the workspace scope. */
+	vertical?: unknown
 	reservationCode?: unknown
 	bookingCode?: unknown
 	confirmationCode?: unknown
@@ -53,6 +70,12 @@ function contextFromOperation(operation: any): FinancialHumanContext {
 		bookingId: operation?.bookingId,
 		providerId: operation?.providerId,
 		productId: operation?.contract?.productId || operation?.productId,
+		vertical: normalizeItemVertical(
+			operation?.contract?.vertical ||
+				operation?.vertical ||
+				operation?.contract?.commercialLine ||
+				operation?.commercialLine
+		),
 		productName: operation?.contract?.productName || operation?.productName,
 		variantName: operation?.contract?.variantName || operation?.variantName,
 		checkIn: operation?.stay?.checkIn || operation?.checkInDate || operation?.checkIn,
@@ -92,6 +115,19 @@ export function buildFinancialHumanContext(
 			readPath(operation, "contract.productId"),
 			operation?.productId,
 			operation?.productIdSnapshot
+		),
+		vertical: normalizeItemVertical(
+			firstText(
+				fallback?.vertical,
+				raw?.vertical,
+				raw?.commercialLine,
+				readPath(raw, "contract.vertical"),
+				readPath(raw, "contract.commercialLine"),
+				readPath(operation, "contract.vertical"),
+				readPath(operation, "contract.commercialLine"),
+				operation?.vertical,
+				operation?.commercialLine
+			)
 		),
 		reservationCode: firstText(
 			raw?.reservationCode,
@@ -169,6 +205,17 @@ export function resolveBookingContext(
 	return mergeContext(contextIndex?.get(key), buildFinancialHumanContext(raw, { bookingId }))
 }
 
+export function bookingReservaDrawerLink(bookingId: unknown, context: any = {}): string {
+	const id = String(bookingId ?? "").trim()
+	const label = bookingDisplayName(bookingId, context)
+	if (!id || id === "Sin reserva" || id.includes(",")) return escapeHtml(label)
+	return `<a class="text-slate-900 hover:text-slate-700" href="${financialBookingDetailHref(id)}" data-astro-reload>${escapeHtml(label)}</a>`
+}
+
+export function financialDrawerReservaRow(bookingId: unknown, context: any = {}): string {
+	return `<div class="fastt-drawer-soft-card p-4"><p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Reserva</p><p class="mt-2 text-sm font-semibold text-slate-900">${bookingReservaDrawerLink(bookingId, context)}</p></div>`
+}
+
 export function bookingDisplayName(value: unknown, context: any = {}): string {
 	const humanContext = buildFinancialHumanContext(context, { bookingId: value })
 	const explicit = firstText(
@@ -183,8 +230,14 @@ export function bookingDisplayName(value: unknown, context: any = {}): string {
 
 export function bookingSubtitle(context: any = {}): string {
 	const humanContext = buildFinancialHumanContext(context)
-	const product = firstText(humanContext.productName, "Alojamiento")
-	const variant = firstText(humanContext.variantName, "Asignación")
+	const product = firstText(
+		humanContext.productName,
+		financialProductNameFallback(humanContext.vertical)
+	)
+	const variant = firstText(
+		humanContext.variantName,
+		financialVariantNameFallback(humanContext.vertical)
+	)
 	const checkIn = dateLabel(humanContext.checkIn)
 	const checkOut = dateLabel(humanContext.checkOut)
 	const stay = checkIn && checkOut ? ` · ${checkIn}-${checkOut}` : ""

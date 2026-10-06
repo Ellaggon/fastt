@@ -1,3 +1,8 @@
+import {
+	currentFinancialNavigationScope,
+	withFinancialNavigationScope,
+} from "./financial-navigation-scope"
+
 type FinancialViewId =
 	| "inbox"
 	| "collections"
@@ -45,16 +50,29 @@ function applyFinancialView(view: FinancialViewId): void {
 	document.title = viewTitles[view]
 }
 
+function normalizeFinancialNavUrl(url: URL): URL {
+	const scopedPath = withFinancialNavigationScope(
+		`${url.pathname}${url.search}${url.hash}`,
+		currentFinancialNavigationScope()
+	)
+	return new URL(scopedPath, url.origin)
+}
+
 function navigateFinancialView(url: URL): void {
-	const view = viewForFinancialPath(url.pathname)
+	const scopedUrl = normalizeFinancialNavUrl(url)
+	const view = viewForFinancialPath(scopedUrl.pathname)
 	if (!view) return
-	window.history.pushState({ financialView: view }, "", `${url.pathname}${url.search}${url.hash}`)
+	window.history.pushState(
+		{ financialView: view },
+		"",
+		`${scopedUrl.pathname}${scopedUrl.search}${scopedUrl.hash}`
+	)
 	applyFinancialView(view)
 	window.scrollTo({ top: 0, behavior: "instant" })
 }
 
 function isSameOriginFinancialNav(link: HTMLAnchorElement): URL | null {
-	const url = new URL(link.href)
+	const url = normalizeFinancialNavUrl(new URL(link.href))
 	if (url.origin !== window.location.origin) return null
 	if (!viewForFinancialPath(url.pathname)) return null
 	return url

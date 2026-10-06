@@ -3,6 +3,7 @@ import {
 	financialRouteEndpointMap,
 	prewarmFinancialEndpoints,
 } from "./financial-data-cache"
+import { applyFinancialOpsCopyToDocument } from "./financial-ops-vocabulary"
 import { initFinancialWorkspaceRouter, viewForFinancialPath } from "./financial-workspace-router"
 
 type WorkspaceLoader = () => Promise<Record<string, unknown>>
@@ -96,6 +97,7 @@ export function wireFinancialNavigationPrewarm(): void {
 }
 
 export function bootFinancialExperience(): void {
+	applyFinancialOpsCopyToDocument()
 	initFinancialWorkspaceRouter((view) => void bootFinancialView(view))
 	prewarmCurrentFinancialPage()
 	wireFinancialNavigationPrewarm()

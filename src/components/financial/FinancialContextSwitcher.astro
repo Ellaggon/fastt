@@ -1,0 +1,107 @@
+---
+import ContextSwitcher from "@/components/ui/ContextSwitcher.astro"
+import { listProviderCommercialLines } from "@/lib/verification/commercial-lines"
+import { getVerticalVocabulary } from "@/lib/verticalVocabulary"
+import {
+	resolveWorkspaceScope,
+	type WorkspaceScopeProduct,
+} from "@/lib/workspace/resolveWorkspaceScope"
+import {
+	withWorkspaceNavigationScope,
+	type WorkspaceNavigationScope,
+} from "@/lib/workspace/verticalContext"
+import { db, eq, Product } from "@/shared/infrastructure/db/compat"
+
+interface Props {
+	providerId: string
+	workspaceScope: WorkspaceNavigationScope
+	productTypes?: readonly unknown[]
+	variant?: "surface" | "topbar"
+}
+
+const { providerId, workspaceScope, productTypes = [], variant = "topbar" } = Astro.props
+
+const catalogProducts: WorkspaceScopeProduct[] = providerId
+	? (
+			await db
+				.select({ id: Product.id, name: Product.name, productType: Product.productType })
+				.from(Product)
+				.where(eq(Product.providerId, providerId))
+		)
+			.map((row) => ({
+				id: String(row.id),
+				name: String(row.name || row.productType || "Servicio"),
+				productType: String(row.productType ?? ""),
+			}))
+			.sort((left, right) => left.name.localeCompare(right.name, "es"))
+	: []
+
+const commercialLines = providerId
+	? (await listProviderCommercialLines(providerId).catch(() => [])).map((entry) => entry.line)
+	: []
+
+const requestedScope =
+	workspaceScope.vertical ??
+	Astro.url.searchParams.get("scope") ??
+	Astro.url.searchParams.get("vertical")
+
+const resolution = resolveWorkspaceScope({
+	requestedScope,
+	productId: workspaceScope.productId ?? Astro.url.searchParams.get("productId"),
+	productTypes,
+	commercialLines,
+	products: catalogProducts,
+})
+
+const vertical = resolution.valid ? resolution.vertical : null
+const vocabulary = getVerticalVocabulary(vertical ?? "generic")
+const label = vertical ? vocabulary.scopeProduct : "Operación"
+const icon = vertical === "tour" ? "tour" : vertical === "hotel" ? "accommodation" : "service"
+
+// Keep the rest of the query (filters, open case) and let the helper rewrite scope/productId.
+const buildHref = (productId: string | null) =>
+	withWorkspaceNavigationScope(`${Astro.url.pathname}${Astro.url.search}`, {
+		vertical,
+		productId,
+	})
+
+const scopedProducts = resolution.valid
+	? catalogProducts.filter((product) =>
+			resolution.productIds.length === 0 ? true : resolution.productIds.includes(product.id)
+		)
+	: []
+
+const selectedProduct =
+	(resolution.valid ? resolution.product : null) ??
+	scopedProducts.find((product) => product.id === workspaceScope.productId) ??
+	null
+
+const lineLabel = vertical ? `Todos los ${vocabulary.productPlural}` : "Toda la operación"
+
+const options = [
+	...(vertical
+		? [{ id: "__line__", label: lineLabel, href: buildHref(null) }]
+		: [{ id: "__all__", label: lineLabel, href: buildHref(null) }]),
+	...scopedProducts.map((product) => ({
+		id: product.id,
+		label: product.name,
+		href: buildHref(product.id),
+		nested: true,
+	})),
+]
+
+const currentValue = selectedProduct?.name ?? lineLabel
+const selectedId = selectedProduct?.id ?? (vertical ? "__line__" : "__all__")
+---
+
+<ContextSwitcher
+	label={label}
+	value={currentValue}
+	options={options}
+	selectedId={selectedId}
+	icon={icon}
+	menuLabel={`Cambiar ${label.toLowerCase()}`}
+	emptyMessage={`No hay otros ${vocabulary.productPlural} en esta línea.`}
+	ariaLabel={`Cambiar ${label.toLowerCase()} actual`}
+	variant={variant}
+/>
