@@ -36,7 +36,7 @@ export default defineConfig({
 	vite: {
 		plugins: [reactDevelopmentRuntime, tailwindcss()],
 		optimizeDeps: {
-			include: ["zod"],
+			include: ["zod", "lucide-react"],
 		},
 		resolve: {
 			alias: {
