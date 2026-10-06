@@ -1,4 +1,5 @@
 ---
+import PlaybookStepHeader from "@/components/playbook/PlaybookStepHeader.astro"
 import RoomProfileEditor from "@/components/rooms/RoomProfileEditor.astro"
 import { productRepository } from "@/container"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
@@ -67,18 +68,14 @@ const roomEditorPlaybookId =
 	hideFooter={playbook.active}
 >
 	<section class="space-y-5 text-slate-100">
-		<header class="flex flex-wrap items-end justify-between gap-4 pb-5">
-			<div class="space-y-1.5">
-				<h1 class="text-3xl font-semibold text-slate-100">Crea una habitación para huéspedes</h1>
-				<p class="max-w-2xl text-sm leading-6 text-slate-300">
-					{
-						isAddRoom
-							? "Define el espacio físico de la nueva habitación. Después completarás fotos, tarifa y disponibilidad."
-							: "Empieza con la experiencia física: camas, baño, capacidad, vista, comodidades y notas. Las tarifas y la disponibilidad se completan después."
-					}
-				</p>
-			</div>
-		</header>
+		<PlaybookStepHeader
+			size="lg"
+			icon="room"
+			title="Crea una habitación para huéspedes"
+			lead={isAddRoom
+				? "Define el espacio físico de la nueva habitación. Después completarás fotos, tarifa y disponibilidad."
+				: "Empieza con la experiencia física: camas, baño, capacidad, vista, comodidades y notas. Las tarifas y la disponibilidad se completan después."}
+		/>
 
 		<RoomProfileEditor
 			productId={productId}

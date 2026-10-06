@@ -10,6 +10,7 @@ import {
 	inferTourLaunchStepFromPathname,
 	LAUNCH_TOUR_PLAYBOOK_ID,
 	TOUR_LAUNCH_STEPS,
+	tourPresentationCanonicalHref,
 } from "@/lib/playbook/launch-tour"
 import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
 
@@ -171,8 +172,6 @@ describe("playbook/launch-tour", () => {
 	it("defines a reservable tour path from identity to availability", () => {
 		expect(TOUR_LAUNCH_STEPS.map((step) => step.id)).toEqual([
 			"create",
-			"content",
-			"categories",
 			"location",
 			"subtype",
 			"images",
@@ -242,5 +241,30 @@ describe("playbook/launch-tour", () => {
 		expect(getNextTourLaunchStep("conditions")?.id).toBe("calendar")
 		expect(inferTourLaunchStepFromPathname("/rates/plans/rate_123")).toBe("conditions")
 		expect(inferTourLaunchStepFromPathname("/rates/calendar")).toBe("calendar")
+	})
+})
+
+describe("unified tour presentation", () => {
+	it.each(["content", "categories"])(
+		"redirects legacy %s preserving commercial and return context",
+		(step) => {
+			const url = new URL(
+				`https://fastt.test/product/tour/${step}?playbook=launch-tour&step=${step}&flow=create&variantId=option&ratePlanId=rate&returnTo=%2Fproduct%2Ftour%2Fpreview`
+			)
+			const target = new URL(tourPresentationCanonicalHref(url, "tour")!, url.origin)
+			expect(target.pathname).toBe("/product/tour/presentation")
+			expect(target.searchParams.get("step")).toBe("create")
+			expect(target.searchParams.get("variantId")).toBe("option")
+			expect(target.searchParams.get("ratePlanId")).toBe("rate")
+			expect(target.searchParams.get("returnTo")).toContain("/product/tour/preview?")
+			expect(getNextTourLaunchStep(step)?.id).toBe("location")
+		}
+	)
+	it("returns from stage two to the existing presentation instead of creating another tour", () => {
+		const previous = getPreviousTourLaunchStep("location")!
+		expect(previous.id).toBe("create")
+		expect(
+			previous.buildHref({ productId: "tour", variantId: "option", ratePlanId: "rate" })
+		).toContain("/product/tour/presentation?")
 	})
 })

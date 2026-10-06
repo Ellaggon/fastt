@@ -1,5 +1,6 @@
 ---
 import { tourPreparationNextHref, tourPreparationReturnHref } from "@/lib/playbook/launch-tour"
+import PlaybookStepHeader from "@/components/playbook/PlaybookStepHeader.astro"
 import TourSlotProfileEditor from "@/components/tours/TourSlotProfileEditor.astro"
 import { isCalendarDay } from "@/lib/booking/providerOperationalDay"
 import Card from "@/components/ui/Card.astro"
@@ -95,7 +96,7 @@ const manifestDateLabel = manifestDate
 	: ""
 const layoutProps = playbook.active
 	? {
-			title: `${owned.name} · Editar salida`,
+			title: `${owned.name} · Editar opción`,
 			playbookId: playbook.playbookId,
 			active: true,
 			stepId: playbook.stepId ?? "departure",
@@ -107,38 +108,41 @@ const layoutProps = playbook.active
 			hideFooter: true,
 			lightweight: true,
 		}
-	: { title: `${owned.name} · ${isManifestView ? "Manifiesto de participantes" : "Editar salida"}` }
+	: { title: `${owned.name} · ${isManifestView ? "Manifiesto de participantes" : "Editar opción"}` }
 ---
 
 <Layout {...layoutProps} productType={owned.productType}>
 	<section class="space-y-6 md:space-y-8">
-		<header class="flex flex-col gap-2">
-			<h1 class="text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl">
-				{
-					isManifestView
-						? "Manifiesto de participantes"
-						: playbook.active
-							? "Editar horario y detalles de la salida"
-							: variant.name
-				}
-			</h1>
-			{
-				isManifestView && (
+		{
+			isManifestView ? (
+				<header class="flex flex-col gap-2">
+					<h1 class="text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl">
+						Manifiesto de participantes
+					</h1>
 					<p class="text-sm font-normal text-slate-300">
 						{owned.name} · {variant.name} · {manifestDateLabel}
 						{profile?.departureTime ? ` · ${profile.departureTime}` : ""}
 					</p>
-				)
-			}
-			{
-				conditionsReturnHref ? (
-					<p class="max-w-2xl text-sm leading-6 text-slate-300">
-						Este ajuste conserva tu lugar en la guía. Al guardar volverás a las condiciones de la
-						tarifa.
-					</p>
-				) : null
-			}
-		</header>
+				</header>
+			) : playbook.active ? (
+				<PlaybookStepHeader
+					size="lg"
+					icon="option"
+					title="Perfil de la opción"
+					lead={
+						conditionsReturnHref
+							? "Ajusta horario, cupo e idioma. Al guardar volverás a las condiciones de la tarifa."
+							: "Ajusta horario, cupo, idioma y modalidad de esta salida antes de continuar con precio y fechas."
+					}
+				/>
+			) : (
+				<header class="flex flex-col gap-2">
+					<h1 class="text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl">
+						{variant.name}
+					</h1>
+				</header>
+			)
+		}
 
 		{
 			!isManifestView && (

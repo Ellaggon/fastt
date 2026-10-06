@@ -38,7 +38,7 @@ export const TOUR_PREPARATION_STAGES = [
 	{
 		id: "presentation",
 		label: "Presenta tu experiencia",
-		steps: ["create", "content", "categories"],
+		steps: ["create"],
 		requirements: ["presentation", "activities"],
 	},
 	{
@@ -65,6 +65,8 @@ export const TOUR_PREPARATION_STAGES = [
 export function normalizeTourLaunchStep(step: string | null | undefined): TourLaunchStepId | null {
 	const raw = String(step ?? "").trim()
 	const aliases: Record<string, TourLaunchStepId> = {
+		content: "create",
+		categories: "create",
 		photos: "images",
 		bookingPolicies: "conditions",
 		itinerary: "subtype",
@@ -81,16 +83,15 @@ export function normalizeTourLaunchStep(step: string | null | undefined): TourLa
 const TOUR_LAUNCH_STEP_DEFINITIONS: TourLaunchStepDefinition[] = [
 	{
 		id: "create",
-		label: "Crear tour",
+		label: "Presenta tu experiencia",
 		guestImpact: "La identidad de la experiencia que venderás.",
-		buildHref: () => buildTourPlaybookHref("/product/create", "create"),
-	},
-	{
-		id: "content",
-		label: "Descripción",
-		guestImpact: "Lo que verá el viajero antes de reservar.",
 		buildHref: ({ productId }) =>
-			buildTourPlaybookHref(`/product/${encodeURIComponent(productId)}/content`, "content"),
+			buildTourPlaybookHref(
+				productId
+					? `/product/${encodeURIComponent(productId)}/presentation`
+					: "/product/create?type=Tour",
+				"create"
+			),
 	},
 	{
 		id: "location",
@@ -119,13 +120,6 @@ const TOUR_LAUNCH_STEP_DEFINITIONS: TourLaunchStepDefinition[] = [
 		guestImpact: "Quién puede reservar y qué edades admite cada tipo de participante.",
 		buildHref: ({ productId }) =>
 			buildTourPlaybookHref(`/product/${encodeURIComponent(productId)}/tickets`, "tickets"),
-	},
-	{
-		id: "categories",
-		label: "Categorías de búsqueda",
-		guestImpact: "Cómo encontrarán los viajeros esta experiencia en el catálogo.",
-		buildHref: ({ productId }) =>
-			buildTourPlaybookHref(`/product/${encodeURIComponent(productId)}/categories`, "categories"),
 	},
 	{
 		id: "departure",
@@ -204,7 +198,7 @@ export const TOUR_LAUNCH_STEPS: TourLaunchStepDefinition[] = TOUR_LAUNCH_STEP_DE
 	.map((step) => ({
 		...step,
 		buildHref: (context) =>
-			step.id === "create"
+			step.id === "create" && !context.productId
 				? step.buildHref(context)
 				: withTourOfferSelection(step.buildHref(context), context),
 	}))
@@ -240,7 +234,15 @@ export function buildTourProviderPreviewHref(
 }
 
 export function buildTourPlaybookHref(path: string, step: TourLaunchStepId): string {
-	const [basePath, existingQuery = ""] = path.split("?")
+	let [basePath, existingQuery = ""] = path.split("?")
+	if (
+		step === "content" ||
+		step === "categories" ||
+		(step === "create" && /\/(content|categories)$/.test(basePath))
+	) {
+		basePath = basePath.replace(/\/(content|categories)$/, "/presentation")
+		step = "create"
+	}
 	const params = new URLSearchParams(existingQuery)
 	params.set("playbook", step === "preview" ? "complete-to-publish" : LAUNCH_TOUR_PLAYBOOK_ID)
 	params.set("step", step)
@@ -277,18 +279,32 @@ export function getPreviousTourLaunchStep(
 
 export function inferTourLaunchStepFromPathname(pathname: string): TourLaunchStepId | null {
 	if (pathname === "/product/create") return "create"
-	if (pathname.endsWith("/content")) return "content"
+	if (
+		pathname.endsWith("/presentation") ||
+		pathname.endsWith("/content") ||
+		pathname.endsWith("/categories")
+	)
+		return "create"
 	if (pathname.endsWith("/location")) return "location"
 	if (pathname.endsWith("/images")) return "images"
 	if (pathname.endsWith("/subtype")) return "subtype"
 	if (pathname.endsWith("/tickets")) return "tickets"
-	if (pathname.endsWith("/categories")) return "categories"
 	if (pathname.endsWith("/departures/new")) return "departure"
 	if (pathname.includes("/rates/plans/manage")) return "rate"
 	if (pathname.match(/\/rates\/plans\/[^/]+$/)) return "conditions"
 	if (pathname.includes("/rates/calendar")) return "calendar"
 	if (pathname.endsWith("/preview")) return "preview"
 	return null
+}
+
+/** Old preparation entries converge on the complete presentation, preserving selection and return. */
+export function tourPresentationCanonicalHref(url: URL, productId: string): string | null {
+	const context = resolveTourPlaybookContext(url, productId)
+	if (context?.part !== "prepare" || !/\/(content|categories)$/.test(url.pathname)) return null
+	const target = context.canonical
+	target.pathname = `/product/${encodeURIComponent(productId)}/presentation`
+	target.searchParams.set("step", "create")
+	return target.pathname + target.search + target.hash
 }
 
 export function resolveTourLaunchStepFromUrl(

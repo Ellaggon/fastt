@@ -223,7 +223,8 @@ export type PreparationResume = {
 
 export async function listActivePreparationSessions(
 	providerId: string,
-	userId: string
+	userId: string,
+	options: { vertical?: PreparationVertical; limit?: number } = {}
 ): Promise<PreparationResume[]> {
 	const rows = await db
 		.select({
@@ -251,6 +252,7 @@ export async function listActivePreparationSessions(
 
 	const seenTours = new Set<string>()
 	const currentRows = rows.filter((row) => {
+		if (options.vertical && row.vertical !== options.vertical) return false
 		if (row.vertical !== "tour" || !row.productId) return true
 		if (row.publicationState === "published") return false
 		if (seenTours.has(row.productId)) return false
@@ -258,7 +260,7 @@ export async function listActivePreparationSessions(
 		return true
 	})
 	const resumes = await Promise.all(
-		currentRows.map(async (row) => {
+		currentRows.slice(0, options.limit ?? currentRows.length).map(async (row) => {
 			if (!row.productId || !isPreparationPlaybookId(row.playbookId)) return []
 			if (!isPreparationVertical(row.vertical)) return []
 			let savedPath = normalizePreparationPath(row.lastPath)

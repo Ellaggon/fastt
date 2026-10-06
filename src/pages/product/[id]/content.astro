@@ -1,9 +1,11 @@
 ---
 import Button from "@/components/ui/Button.astro"
+import { tourPresentationCanonicalHref } from "@/lib/playbook/launch-tour"
 import Card from "@/components/ui/Card.astro"
 import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
 import Textarea from "@/components/ui/Textarea.astro"
+import PlaybookStepHeader from "@/components/playbook/PlaybookStepHeader.astro"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
 import {
@@ -40,6 +42,8 @@ if (!aggregate) return Astro.redirect("/product/create")
 const vertical = getProductVerticalEntry(aggregate.productType)
 const isHotel = vertical.vertical === "hotel"
 const isTour = vertical.vertical === "tour"
+const presentationHref = isTour ? tourPresentationCanonicalHref(Astro.url, productId) : null
+if (presentationHref) return Astro.redirect(presentationHref)
 const playbookRepair = getCompleteToPublishPlaybookRepairHref(Astro.url, { isTour, productId })
 if (playbookRepair) return Astro.redirect(playbookRepair)
 const playbookResolved = resolvePlaybookFromUrl(Astro.url, { isHotel })
@@ -63,8 +67,27 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 	continueFormId={playbookResolved.active ? "contentForm" : null}
 >
 	<section class="space-y-8">
-		<section class="space-y-4">
-			<Card class="rounded-lg border-slate-200 bg-slate-100 shadow-none">
+		<section class:list={["space-y-4", playbookResolved.active && "space-y-6"]}>
+			{
+				playbookResolved.active ? (
+					<PlaybookStepHeader
+						icon="content"
+						title="Contenido principal"
+						lead={
+							isTour
+								? "Describe la experiencia para que el viajero pueda decidir si este tour es para él. El itinerario y el punto de encuentro se completan más adelante."
+								: `Este bloque define la información visible de ${vertical.labels.singular}.`
+						}
+					/>
+				) : null
+			}
+			<Card
+				class:list={[
+					playbookResolved.active
+						? "bg-white"
+						: "rounded-lg border-slate-200 bg-slate-100 shadow-none",
+				]}
+			>
 				<form
 					id="contentForm"
 					method="POST"
@@ -90,16 +113,18 @@ const highlightsValue = Array.isArray(aggregate.content.highlights)
 							</>
 						) : null
 					}
-					<header class="space-y-1.5">
-						<h2 class="text-xl font-semibold text-slate-900">Contenido principal</h2>
-						<p class="text-sm leading-6 text-slate-600">
-							{
-								isTour
-									? "Describe la experiencia para que el viajero pueda decidir si este tour es para él. El itinerario y el punto de encuentro se completan más adelante."
-									: `Este bloque define la información visible de ${vertical.labels.singular}.`
-							}
-						</p>
-					</header>
+					{
+						!playbookResolved.active ? (
+							<header class="space-y-1.5">
+								<h2 class="text-xl font-semibold text-slate-900">Contenido principal</h2>
+								<p class="text-sm leading-6 text-slate-600">
+									{isTour
+										? "Describe la experiencia para que el viajero pueda decidir si este tour es para él. El itinerario y el punto de encuentro se completan más adelante."
+										: `Este bloque define la información visible de ${vertical.labels.singular}.`}
+								</p>
+							</header>
+						) : null
+					}
 
 					<FormField label="Descripción" htmlFor="description" required>
 						<Textarea

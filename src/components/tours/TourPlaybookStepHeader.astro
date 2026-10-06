@@ -1,0 +1,9 @@
+---
+import PlaybookStepHeader from "@/components/playbook/PlaybookStepHeader.astro"
+
+export type { PlaybookStepIconId as TourPlaybookStepIconId } from "@/components/playbook/PlaybookStepHeader.astro"
+
+const props = Astro.props
+---
+
+<PlaybookStepHeader {...props} />

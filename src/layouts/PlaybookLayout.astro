@@ -75,6 +75,7 @@ interface Props {
 	productDisplayName?: string
 	/** When true, the page renders the product context line next to its step heading. */
 	deferPlaybookProductContext?: boolean
+	playbookProductContextTourIcon?: "ticket" | "compass"
 }
 
 const {
@@ -99,6 +100,7 @@ const {
 	lightweight = false,
 	productDisplayName: productDisplayNameProp = "",
 	deferPlaybookProductContext = false,
+	playbookProductContextTourIcon = "compass",
 } = Astro.props
 
 const tourFlow =
@@ -308,14 +310,12 @@ if (isTourPublication) {
 		previousHref = isAddRoom
 			? (getPreviousAddRoomStep(stepId, addRoomCtx)?.buildHref(addRoomCtx) ?? null)
 			: isTourLaunch
-				? previousStep.id === "create" && productId
-					? null
-					: previousStep.buildHref({
-							productId,
-							isHotel: false,
-							variantId: variantId || undefined,
-							ratePlanId: ratePlanId || undefined,
-						})
+				? previousStep.buildHref({
+						productId,
+						isHotel: false,
+						variantId: variantId || undefined,
+						ratePlanId: ratePlanId || undefined,
+					})
 				: previousStep.id === "create" && productId
 					? null
 					: (getPreviousLaunchStep(stepId, launchCtx)?.buildHref(launchCtx) ?? null)
@@ -514,12 +514,21 @@ const isTourPlaybookContext =
 	playbookVertical === "tour" || playbookId === LAUNCH_TOUR_PLAYBOOK_ID || isTourPublication
 const showPlaybookProductContext =
 	active && Boolean(productDisplayName) && !deferPlaybookProductContext
-const tourVariantLabel =
-	resolvedTourContext &&
-	"option" in resolvedTourContext &&
-	resolvedTourContext.status === "resolved"
-		? resolvedTourContext.option.name.trim()
-		: ""
+const tourPlaybookHeadlinePrefix = isTourPlaybookContext ? productDisplayName.trim() : ""
+const formatTourPlaybookHeadline = (suffix: string) => {
+	const tail = suffix.trim()
+	if (!tourPlaybookHeadlinePrefix) return tail
+	if (!tail) return tourPlaybookHeadlinePrefix
+	return `${tourPlaybookHeadlinePrefix} - ${tail}`
+}
+const showHotelPlaybookProductContext = showPlaybookProductContext && !isTourPlaybookContext
+const showTourPlaybookHeadlineOnly =
+	showPlaybookProductContext &&
+	isTourPlaybookContext &&
+	!showProgress &&
+	Boolean(tourPlaybookHeadlinePrefix)
+/** Keeps the stage summary visually paired with each step’s form title. */
+const tightTourPlaybookStepSpacing = isTourPlaybookContext && active
 const correctionMessages =
 	isTourPublication && stepId !== "preview"
 		? [
@@ -545,25 +554,42 @@ const PlaybookShell = active ? GuidedPreparationLayout : WorkspaceLayout
 	stepLabel={stepLabel}
 >
 	{
-		showProgress || showPlaybookProductContext ? (
-			<div class="mb-5 space-y-2">
+		showProgress ||
+		showHotelPlaybookProductContext ||
+		showTourPlaybookHeadlineOnly ||
+		(isTourPlaybookContext && isTerminalStep && tourPlaybookHeadlinePrefix) ? (
+			<div class:list={[tightTourPlaybookStepSpacing ? "mb-2 space-y-1" : "mb-5 space-y-3"]}>
+				{showHotelPlaybookProductContext ? (
+					<PlaybookProductContextLine
+						productName={productDisplayName}
+						variantName="Nueva habitación"
+						isTour={false}
+					/>
+				) : null}
+				{isTourPlaybookContext && isTerminalStep && tourPlaybookHeadlinePrefix ? (
+					<p class="text-sm leading-snug font-semibold text-slate-300">
+						{formatTourPlaybookHeadline("Revisar y publicar")}
+					</p>
+				) : null}
+				{showTourPlaybookHeadlineOnly ? (
+					<p class="text-sm leading-snug font-semibold text-slate-300">
+						{tourPlaybookHeadlinePrefix}
+					</p>
+				) : null}
 				{showProgress ? (
 					<>
 						{showTourStagesRail ? (
-							<div class="space-y-3">
-								{isTerminalStep ? (
-									<p class="text-sm font-semibold text-slate-200">Revisar y publicar</p>
-								) : null}
+							<>
 								{!isTerminalStep && tourAttention ? (
 									<PreparationProgress
 										stages={tourAttention.stages}
 										activeStageId={getTourPublishingStage(stepId).id}
 										stagePosition={stagePosition}
 										stageTotal={stageTotal}
-										stageLabel={stageLabel}
+										productName={tourPlaybookHeadlinePrefix}
 									/>
 								) : null}
-							</div>
+							</>
 						) : (
 							<>
 								<p class="text-xs font-semibold tracking-wide text-slate-300 uppercase">
@@ -587,13 +613,6 @@ const PlaybookShell = active ? GuidedPreparationLayout : WorkspaceLayout
 							</>
 						)}
 					</>
-				) : null}
-				{showPlaybookProductContext ? (
-					<PlaybookProductContextLine
-						productName={productDisplayName}
-						variantName={isTourPlaybookContext ? tourVariantLabel : "Nueva habitación"}
-						isTour={isTourPlaybookContext}
-					/>
 				) : null}
 			</div>
 		) : null
@@ -621,7 +640,10 @@ const PlaybookShell = active ? GuidedPreparationLayout : WorkspaceLayout
 	}
 	{
 		isTourPublication && !isTerminalStep ? (
-			<div class="mb-4 space-y-2" data-tour-publication-correction>
+			<div
+				class:list={["space-y-2", tightTourPlaybookStepSpacing ? "mb-2" : "mb-4"]}
+				data-tour-publication-correction
+			>
 				{hideFooter && reviewReturnHref ? (
 					<Button
 						href={reviewReturnHref}
@@ -640,7 +662,9 @@ const PlaybookShell = active ? GuidedPreparationLayout : WorkspaceLayout
 			</div>
 		) : null
 	}
-	<slot />
+	<div class:list={[tightTourPlaybookStepSpacing && "-mt-1"]}>
+		<slot />
+	</div>
 
 	{
 		preparationSessionPayload ? (

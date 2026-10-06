@@ -1,4 +1,6 @@
 ---
+import PlaybookStepHeader from "@/components/playbook/PlaybookStepHeader.astro"
+import TourSubtypePlaybookFields from "@/components/tours/TourSubtypePlaybookFields.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import FormField from "@/components/ui/FormField.astro"
@@ -52,6 +54,7 @@ const vertical = getProductVerticalDefinition(product.productType)
 const verticalLabel = vertical?.labels.singular.toLowerCase() ?? "oferta"
 const detailTitle = vertical?.labels.detailTitle ?? "Detalles de la oferta"
 const subtypeHeading = pt === "hotel" ? "Detalles del alojamiento" : `Detalles del ${verticalLabel}`
+const tourPlaybookGuided = pt === "tour" && playbook.active
 const workspacePlural = vertical?.labels.workspacePlural ?? "Ofertas"
 
 function listToText(value: unknown, key = "description") {
@@ -146,511 +149,565 @@ const limousineSubtype =
 	playbookVertical={pt}
 	continueFormId={playbook.active ? "subtypeForm" : null}
 >
-	<section class="space-y-8">
-		<section id="tour-meeting-point" class="space-y-4 scroll-mt-24">
-			<Card class="rounded-lg border-slate-200 bg-slate-100 shadow-none">
-				<form
-					id="subtypeForm"
-					method="POST"
-					action="/api/product/subtype"
-					class="max-w-3xl space-y-6"
-					data-is-hotel={isHotel ? "true" : "false"}
-					data-is-tour={pt === "tour" ? "true" : "false"}
-					novalidate={pt === "tour"}
-				>
-					<Input type="hidden" name="productId" value={productId} />
-					<Input
-						type="hidden"
-						name="flow"
-						value={flow === "create" ? "create" : flow === "complete" ? "complete" : "edit"}
+	<section class:list={[tourPlaybookGuided ? "space-y-6" : "space-y-8"]}>
+		<section
+			id="tour-meeting-point"
+			class:list={[
+				"scroll-mt-24",
+				tourPlaybookGuided ? "space-y-6" : "space-y-4",
+				playbook.active && !tourPlaybookGuided && "space-y-6",
+			]}
+		>
+			{
+				tourPlaybookGuided ? (
+					<PlaybookStepHeader
+						icon="itinerary"
+						title="Itinerario y detalles"
+						lead="Indica duración, punto de encuentro, paradas del recorrido e inclusiones visibles para el viajero."
 					/>
-					{
-						playbook.active && playbook.playbookId ? (
+				) : playbook.active ? (
+					<PlaybookStepHeader
+						icon="building"
+						title={subtypeHeading}
+						lead="Completa los campos propios de este tipo de oferta."
+					/>
+				) : null
+			}
+			{
+				tourPlaybookGuided ? (
+					<form
+						id="subtypeForm"
+						method="POST"
+						action="/api/product/subtype"
+						class="w-full max-w-5xl space-y-5"
+						data-is-hotel="false"
+						data-is-tour="true"
+						data-playbook-guided="true"
+						novalidate
+					>
+						<Input type="hidden" name="productId" value={productId} />
+						<Input
+							type="hidden"
+							name="flow"
+							value={flow === "create" ? "create" : flow === "complete" ? "complete" : "edit"}
+						/>
+						{playbook.playbookId ? (
 							<Input type="hidden" name="playbook" value={playbook.playbookId} />
-						) : null
-					}
-					{
-						playbook.active && playbook.playbookId === "complete-to-publish" ? (
+						) : null}
+						{playbook.playbookId === "complete-to-publish" ? (
 							<>
 								<Input type="hidden" name="playbookCurrentStep" value="subtype" />
 								<Input type="hidden" name="playbookVertical" value={pt} />
 							</>
-						) : null
-					}
-					<header class="space-y-1.5">
-						<h2 class="text-xl font-semibold text-slate-900">{subtypeHeading}</h2>
-						<p class="text-sm leading-6 text-slate-600">
-							Completa los campos propios de este tipo de oferta.
-						</p>
-					</header>
-
-					<div class="space-y-4">
-						{
-							pt === "hotel" ? (
-								<div class="space-y-4">
-									<FormField label="Estrellas" htmlFor="stars">
-										<Input
-											id="stars"
-											name="stars"
-											value={hotelSubtype?.stars != null ? String(hotelSubtype.stars) : ""}
-											placeholder="1-5"
-										/>
-									</FormField>
-									<FormField label="Teléfono" htmlFor="phone">
-										<Input
-											id="phone"
-											name="phone"
-											value={hotelSubtype?.phone ?? ""}
-											placeholder="Opcional"
-										/>
-									</FormField>
-									<FormField label="Correo" htmlFor="email">
-										<Input
-											id="email"
-											name="email"
-											value={hotelSubtype?.email ?? ""}
-											placeholder="Opcional"
-										/>
-									</FormField>
-									<FormField label="Sitio web" htmlFor="website">
-										<Input
-											id="website"
-											name="website"
-											value={hotelSubtype?.website ?? ""}
-											placeholder="Opcional"
-										/>
-									</FormField>
-								</div>
-							) : null
-						}
-
-						{
-							pt === "tour" ? (
-								<div class="space-y-6">
-									<section
-										class="space-y-5 rounded-xl border border-slate-200 bg-white p-5"
-										aria-labelledby="tourEssentialsHeading"
-									>
-										<div class="space-y-1">
-											<h3 id="tourEssentialsHeading" class="text-lg font-semibold text-slate-900">
-												Información esencial
-											</h3>
-											<p class="text-sm text-slate-600">
-												Completa estos datos para explicar cómo funciona el tour.
-											</p>
-										</div>
-										<div class="grid gap-4 md:grid-cols-2">
-											<FormField label="Duración visible" htmlFor="duration" required>
-												<Input
-													id="duration"
-													name="duration"
-													value={tourSubtype?.duration ?? ""}
-													placeholder="Ej: 4 horas"
-													required
-													aria-describedby="durationHelp durationError"
-												/>
-												<p id="durationHelp" class="text-xs text-slate-500">
-													Así se mostrará al viajero.
-												</p>
-												<p id="durationError" class="hidden text-sm text-red-600" />
-											</FormField>
-											<FormField
-												label="Duración total en minutos"
-												htmlFor="durationMinutes"
-												required
-											>
-												<Input
-													id="durationMinutes"
-													name="durationMinutes"
-													type="number"
-													min="1"
-													inputmode="numeric"
-													value={
-														tourSubtype?.durationMinutes != null
-															? String(tourSubtype.durationMinutes)
-															: ""
-													}
-													placeholder="240"
-													required
-													aria-describedby="durationMinutesError"
-												/>
-												<p id="durationMinutesError" class="hidden text-sm text-red-600" />
-											</FormField>
-										</div>
-										<FormField
-											label="Punto de encuentro"
-											htmlFor="meetingPointAddress"
-											required
-											description="Este es el lugar exacto donde comienza el tour; no es la ubicación de discovery del paso anterior."
-										>
-											<Input
-												id="meetingPointAddress"
-												name="meetingPointAddress"
-												value={fieldFromObject(tourSubtype?.meetingPointJson, "address")}
-												placeholder="Dirección, puerta o referencia reconocible"
-												required
-												aria-describedby="meetingPointAddressError"
-											/>
-											<p id="meetingPointAddressError" class="hidden text-sm text-red-600" />
-										</FormField>
-										<FormField
-											label="Instrucciones para encontrar al guía (opcional)"
-											htmlFor="meetingPointInstructions"
-										>
-											<Textarea
-												id="meetingPointInstructions"
-												name="meetingPointInstructions"
-												value={fieldFromObject(tourSubtype?.meetingPointJson, "instructions")}
-												rows="3"
-												placeholder="Ej: espera junto a la puerta azul 15 minutos antes."
-											/>
-										</FormField>
-										<FormField
-											label="Itinerario (mínimo 3 momentos)"
-											htmlFor="tourItinerary"
-											required
-										>
-											<Textarea
-												id="tourItinerary"
-												name="tourItinerary"
-												value={listToText(tourSubtype?.itineraryJson)}
-												rows="6"
-												placeholder={
-													"Encuentro y bienvenida\nRecorrido por el centro histórico\nVisita al mirador"
-												}
-												required
-												aria-describedby="tourItineraryHelp tourItineraryError"
-											/>
-											<p id="tourItineraryHelp" class="text-xs text-slate-500">
-												Escribe una parada o momento por línea.
-											</p>
-											<p id="tourItineraryError" class="hidden text-sm text-red-600" />
-										</FormField>
-										<FormField label="Qué incluye" htmlFor="tourIncludes" required>
-											<Textarea
-												id="tourIncludes"
-												name="tourIncludes"
-												value={listToText(tourSubtype?.includesJson)}
-												rows="4"
-												placeholder={"Guía local\nEntradas\nTransporte durante el recorrido"}
-												required
-												aria-describedby="tourIncludesError"
-											/>
-											<p id="tourIncludesError" class="hidden text-sm text-red-600" />
-										</FormField>
-									</section>
-
-									<details class="rounded-xl border border-slate-200 bg-white p-5">
-										<summary class="cursor-pointer font-semibold text-slate-900">
-											Presentación y guía (opcional)
-										</summary>
-										<div class="mt-5 space-y-4">
-											<FormField label="Nivel de dificultad" htmlFor="difficultyLevel">
-												{(() => {
-													const selected =
-														normalizeTourDifficulty(tourSubtype?.difficultyLevel) ?? ""
-													return (
-														<Select id="difficultyLevel" name="difficultyLevel">
-															<option value="" selected={selected === ""}>
-																Sin definir
-															</option>
-															{TOUR_DIFFICULTY_OPTIONS.map((level) => (
-																<option value={level.value} selected={selected === level.value}>
-																	{level.label}
-																</option>
-															))}
-														</Select>
-													)
-												})()}
-											</FormField>
-											<FormField label="Idiomas del guía" htmlFor="guideLanguages">
-												<Input
-													id="guideLanguages"
-													name="guideLanguages"
-													value={fieldFromObject(tourSubtype?.guideJson, "languages")}
-													placeholder="Español, inglés"
-												/>
-											</FormField>
-											<FormField label="Tipo de guía" htmlFor="guideType">
-												<Input
-													id="guideType"
-													name="guideType"
-													value={fieldFromObject(tourSubtype?.guideJson, "guideType")}
-													placeholder="Guía local, conductor guía, anfitrión..."
-												/>
-											</FormField>
-											<div class="fastt-soft-box rounded-[var(--fastt-radius-card)] border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-												<p class="font-semibold text-slate-900">Categorías de discovery</p>
-												<p class="mt-1 leading-6">
-													Se completan en
-													<a
-														class="font-semibold text-sky-800 underline"
-														href={`/product/${productId}/categories`}
-													>
-														Categorías de búsqueda
-													</a>
-													.
-												</p>
-											</div>
-										</div>
-									</details>
-
-									<details class="rounded-xl border border-slate-200 bg-white p-5">
-										<summary class="cursor-pointer font-semibold text-slate-900">
-											Logística, exclusiones y seguridad (opcional)
-										</summary>
-										<div class="mt-5 space-y-4">
-											<FormField label="Área de recogida" htmlFor="pickupDefaultArea">
-												<Input
-													id="pickupDefaultArea"
-													name="pickupDefaultArea"
-													value={fieldFromObject(tourSubtype?.pickupJson, "defaultArea")}
-													placeholder="Hoteles de la zona centro, aeropuerto..."
-												/>
-											</FormField>
-											<FormField label="Instrucciones de recogida" htmlFor="pickupInstructions">
-												<Textarea
-													id="pickupInstructions"
-													name="pickupInstructions"
-													value={fieldFromObject(tourSubtype?.pickupJson, "instructions")}
-													rows="2"
-												/>
-											</FormField>
-											<FormField label="No incluye" htmlFor="tourExcludes">
-												<Textarea
-													id="tourExcludes"
-													name="tourExcludes"
-													value={listToText(tourSubtype?.excludesJson)}
-													rows="3"
-													placeholder="Propinas, almuerzo..."
-												/>
-											</FormField>
-											<FormField label="Requisitos de seguridad" htmlFor="safetyRequirements">
-												<Textarea
-													id="safetyRequirements"
-													name="safetyRequirements"
-													value={fieldFromObject(tourSubtype?.safetyJson, "requirements")}
-													rows="3"
-												/>
-											</FormField>
-											<FormField
-												label="Advertencias o condiciones físicas"
-												htmlFor="safetyWarnings"
-											>
-												<Textarea
-													id="safetyWarnings"
-													name="safetyWarnings"
-													value={fieldFromObject(tourSubtype?.safetyJson, "warnings")}
-													rows="3"
-												/>
-											</FormField>
-										</div>
-									</details>
-
-									<p class="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-700">
-										El papel operativo, el territorio y las actividades se editan en
-										<a
-											class="ml-1 font-semibold underline underline-offset-2"
-											href={`${routes.providerSettingsVerification()}?line=tour&tab=activity&experience=${encodeURIComponent(productId)}#tour-operating-context`}
-											target="_blank"
-											rel="noopener noreferrer"
-										>
-											Verificación de tours (abre otra pestaña)
-										</a>
-										. Puedes continuar esta guía y completarlos después.
+						) : null}
+						<TourSubtypePlaybookFields productId={productId} tourSubtype={tourSubtype} />
+						<p id="stateLabel" class="text-sm text-slate-400" role="status" aria-live="polite" />
+						<p id="stateDetail" class="hidden text-sm whitespace-pre-wrap text-slate-400" />
+					</form>
+				) : (
+					<Card
+						class:list={[
+							playbook.active ? "bg-white" : "rounded-lg border-slate-200 bg-slate-100 shadow-none",
+						]}
+					>
+						<form
+							id="subtypeForm"
+							method="POST"
+							action="/api/product/subtype"
+							class="max-w-3xl space-y-6"
+							data-is-hotel={isHotel ? "true" : "false"}
+							data-is-tour={pt === "tour" ? "true" : "false"}
+							data-playbook-guided="false"
+							novalidate={pt === "tour"}
+						>
+							<Input type="hidden" name="productId" value={productId} />
+							<Input
+								type="hidden"
+								name="flow"
+								value={flow === "create" ? "create" : flow === "complete" ? "complete" : "edit"}
+							/>
+							{playbook.active && playbook.playbookId ? (
+								<Input type="hidden" name="playbook" value={playbook.playbookId} />
+							) : null}
+							{playbook.active && playbook.playbookId === "complete-to-publish" ? (
+								<>
+									<Input type="hidden" name="playbookCurrentStep" value="subtype" />
+									<Input type="hidden" name="playbookVertical" value={pt} />
+								</>
+							) : null}
+							{!playbook.active ? (
+								<header class="space-y-1.5">
+									<h2 class="text-xl font-semibold text-slate-900">{subtypeHeading}</h2>
+									<p class="text-sm leading-6 text-slate-600">
+										Completa los campos propios de este tipo de oferta.
 									</p>
-								</div>
-							) : null
-						}
+								</header>
+							) : null}
 
-						{
-							pt === "package" ? (
-								<div class="space-y-4">
-									<FormField label="Itinerario" htmlFor="itinerary">
-										<Textarea
-											id="itinerary"
-											name="itinerary"
-											value={listToText(packageSubtype?.itineraryJson)}
-											rows="5"
-											placeholder="Un día o etapa por línea"
-										/>
-									</FormField>
-									<FormField label="Días" htmlFor="days">
-										<Input
-											id="days"
-											name="days"
-											value={packageSubtype?.days != null ? String(packageSubtype.days) : ""}
-											placeholder="0 o más"
-										/>
-									</FormField>
-									<FormField label="Noches" htmlFor="nights">
-										<Input
-											id="nights"
-											name="nights"
-											value={packageSubtype?.nights != null ? String(packageSubtype.nights) : ""}
-											placeholder="0 o más"
-										/>
-									</FormField>
-									<FormField label="Incluye" htmlFor="includes">
-										<Textarea
-											id="includes"
-											name="includes"
-											value={listToText(packageSubtype?.includesJson, "")}
-											rows="4"
-											placeholder="Una inclusión por línea"
-										/>
-									</FormField>
-									<FormField label="No incluye" htmlFor="excludes">
-										<Textarea
-											id="excludes"
-											name="excludes"
-											value={listToText(packageSubtype?.excludesJson, "")}
-											rows="4"
-											placeholder="Una exclusión por línea"
-										/>
-									</FormField>
-								</div>
-							) : null
-						}
-
-						{
-							pt === "limousine" ? (
-								<div class="space-y-4">
-									<FormField label="Marca" htmlFor="vehicleMake">
-										<Input
-											id="vehicleMake"
-											name="vehicleMake"
-											value={fieldFromObject(limousineSubtype?.vehicleProfileJson, "make")}
-											placeholder="Mercedes-Benz"
-										/>
-									</FormField>
-									<FormField label="Modelo" htmlFor="vehicleModel">
-										<Input
-											id="vehicleModel"
-											name="vehicleModel"
-											value={fieldFromObject(limousineSubtype?.vehicleProfileJson, "model")}
-											placeholder="Clase S"
-										/>
-									</FormField>
-									<FormField label="Clase de vehículo" htmlFor="vehicleClass">
-										<Input
-											id="vehicleClass"
-											name="vehicleClass"
-											value={fieldFromObject(limousineSubtype?.vehicleProfileJson, "class")}
-											placeholder="Ejecutivo, lujo, van premium"
-										/>
-									</FormField>
-									<FormField label="Color" htmlFor="vehicleColor">
-										<Input
-											id="vehicleColor"
-											name="vehicleColor"
-											value={fieldFromObject(limousineSubtype?.vehicleProfileJson, "color")}
-											placeholder="Negro"
-										/>
-									</FormField>
-									<div class="grid gap-4 md:grid-cols-2">
-										<FormField label="Capacidad de pasajeros" htmlFor="passengerCapacity">
+							<div class="space-y-4">
+								{pt === "hotel" ? (
+									<div class="space-y-4">
+										<FormField label="Estrellas" htmlFor="stars">
 											<Input
-												id="passengerCapacity"
-												name="passengerCapacity"
-												value={
-													limousineSubtype?.passengerCapacity != null
-														? String(limousineSubtype.passengerCapacity)
-														: ""
-												}
-												placeholder="3"
+												id="stars"
+												name="stars"
+												value={hotelSubtype?.stars != null ? String(hotelSubtype.stars) : ""}
+												placeholder="1-5"
 											/>
 										</FormField>
-										<FormField label="Capacidad de equipaje" htmlFor="luggageCapacity">
+										<FormField label="Teléfono" htmlFor="phone">
 											<Input
-												id="luggageCapacity"
-												name="luggageCapacity"
-												value={
-													limousineSubtype?.luggageCapacity != null
-														? String(limousineSubtype.luggageCapacity)
-														: ""
-												}
-												placeholder="2"
+												id="phone"
+												name="phone"
+												value={hotelSubtype?.phone ?? ""}
+												placeholder="Opcional"
+											/>
+										</FormField>
+										<FormField label="Correo" htmlFor="email">
+											<Input
+												id="email"
+												name="email"
+												value={hotelSubtype?.email ?? ""}
+												placeholder="Opcional"
+											/>
+										</FormField>
+										<FormField label="Sitio web" htmlFor="website">
+											<Input
+												id="website"
+												name="website"
+												value={hotelSubtype?.website ?? ""}
+												placeholder="Opcional"
 											/>
 										</FormField>
 									</div>
-									<FormField label="Área base de recogida" htmlFor="pickupDefaultArea">
-										<Input
-											id="pickupDefaultArea"
-											name="pickupDefaultArea"
-											value={fieldFromObject(limousineSubtype?.pickupJson, "defaultArea")}
-											placeholder="Aeropuerto, zona hotelera..."
-										/>
-									</FormField>
-									<FormField label="Instrucciones de recogida" htmlFor="pickupInstructions">
-										<Textarea
-											id="pickupInstructions"
-											name="pickupInstructions"
-											value={fieldFromObject(limousineSubtype?.pickupJson, "instructions")}
-											rows="3"
-										/>
-									</FormField>
-									<FormField label="Área base de destino" htmlFor="dropoffDefaultArea">
-										<Input
-											id="dropoffDefaultArea"
-											name="dropoffDefaultArea"
-											value={fieldFromObject(limousineSubtype?.dropoffJson, "defaultArea")}
-											placeholder="Centro, terminal, hotel..."
-										/>
-									</FormField>
-									<FormField label="Instrucciones de dropoff" htmlFor="dropoffInstructions">
-										<Textarea
-											id="dropoffInstructions"
-											name="dropoffInstructions"
-											value={fieldFromObject(limousineSubtype?.dropoffJson, "instructions")}
-											rows="3"
-										/>
-									</FormField>
-								</div>
-							) : null
-						}
-					</div>
+								) : null}
 
-					<div class="space-y-1">
-						<p id="stateLabel" class="text-sm text-slate-600" aria-live="polite">
-							Vacío: sin cambios guardados.
-						</p>
-						<p id="stateDetail" class="whitespace-pre-wrap text-sm text-slate-600"></p>
-					</div>
+								{pt === "tour" ? (
+									<div class="space-y-6">
+										<section
+											class="space-y-5 rounded-xl border border-slate-200 bg-white p-5"
+											aria-labelledby="tourEssentialsHeading"
+										>
+											<div class="space-y-1">
+												<h3 id="tourEssentialsHeading" class="text-lg font-semibold text-slate-900">
+													Información esencial
+												</h3>
+												<p class="text-sm text-slate-600">
+													Completa estos datos para explicar cómo funciona el tour.
+												</p>
+											</div>
+											<div class="grid gap-4 md:grid-cols-2">
+												<FormField label="Duración visible" htmlFor="duration" required>
+													<Input
+														id="duration"
+														name="duration"
+														value={tourSubtype?.duration ?? ""}
+														placeholder="Ej: 4 horas"
+														required
+														aria-describedby="durationHelp durationError"
+													/>
+													<p id="durationHelp" class="text-xs text-slate-500">
+														Así se mostrará al viajero.
+													</p>
+													<p id="durationError" class="hidden text-sm text-red-600" />
+												</FormField>
+												<FormField
+													label="Duración total en minutos"
+													htmlFor="durationMinutes"
+													required
+												>
+													<Input
+														id="durationMinutes"
+														name="durationMinutes"
+														type="number"
+														min="1"
+														inputmode="numeric"
+														value={
+															tourSubtype?.durationMinutes != null
+																? String(tourSubtype.durationMinutes)
+																: ""
+														}
+														placeholder="240"
+														required
+														aria-describedby="durationMinutesError"
+													/>
+													<p id="durationMinutesError" class="hidden text-sm text-red-600" />
+												</FormField>
+											</div>
+											<FormField
+												label="Punto de encuentro"
+												htmlFor="meetingPointAddress"
+												required
+												description="Este es el lugar exacto donde comienza el tour; no es la ubicación de discovery del paso anterior."
+											>
+												<Input
+													id="meetingPointAddress"
+													name="meetingPointAddress"
+													value={fieldFromObject(tourSubtype?.meetingPointJson, "address")}
+													placeholder="Dirección, puerta o referencia reconocible"
+													required
+													aria-describedby="meetingPointAddressError"
+												/>
+												<p id="meetingPointAddressError" class="hidden text-sm text-red-600" />
+											</FormField>
+											<FormField
+												label="Instrucciones para encontrar al guía (opcional)"
+												htmlFor="meetingPointInstructions"
+											>
+												<Textarea
+													id="meetingPointInstructions"
+													name="meetingPointInstructions"
+													value={fieldFromObject(tourSubtype?.meetingPointJson, "instructions")}
+													rows="3"
+													placeholder="Ej: espera junto a la puerta azul 15 minutos antes."
+												/>
+											</FormField>
+											<FormField
+												label="Itinerario (mínimo 3 momentos)"
+												htmlFor="tourItinerary"
+												required
+											>
+												<Textarea
+													id="tourItinerary"
+													name="tourItinerary"
+													value={listToText(tourSubtype?.itineraryJson)}
+													rows="6"
+													placeholder={
+														"Encuentro y bienvenida\nRecorrido por el centro histórico\nVisita al mirador"
+													}
+													required
+													aria-describedby="tourItineraryHelp tourItineraryError"
+												/>
+												<p id="tourItineraryHelp" class="text-xs text-slate-500">
+													Escribe una parada o momento por línea.
+												</p>
+												<p id="tourItineraryError" class="hidden text-sm text-red-600" />
+											</FormField>
+											<FormField label="Qué incluye" htmlFor="tourIncludes" required>
+												<Textarea
+													id="tourIncludes"
+													name="tourIncludes"
+													value={listToText(tourSubtype?.includesJson)}
+													rows="4"
+													placeholder={"Guía local\nEntradas\nTransporte durante el recorrido"}
+													required
+													aria-describedby="tourIncludesError"
+												/>
+												<p id="tourIncludesError" class="hidden text-sm text-red-600" />
+											</FormField>
+										</section>
 
-					<div
-						class:list={["flex items-center justify-end gap-3", playbook.active ? "hidden" : ""]}
-					>
-						<Button
-							href={playbook.active && playbook.playbookId
-								? playbookRedirectHrefFor(
-										playbook.playbookId,
-										playbook.playbookId === "complete-to-publish"
-											? `/product/${productId}/location`
-											: `/product/${productId}/images`,
-										playbook.playbookId === "complete-to-publish" ? "location" : "images"
-									)
-								: `/product/${encodeURIComponent(productId)}/images`}
-							variant="secondary"
-						>
-							Volver
-						</Button>
-						<Button
-							id="submitBtn"
-							type="submit"
-							className={playbook.active ? "fastt-playbook-cta" : ""}
-						>
-							{
-								isTour && playbook.playbookId === "complete-to-publish"
-									? "Guardar y volver"
-									: playbook.active
-										? "Guardar y continuar"
-										: "Guardar subtipo"
-							}
-						</Button>
-					</div>
-				</form>
-			</Card>
+										<details class="rounded-xl border border-slate-200 bg-white p-5">
+											<summary class="cursor-pointer font-semibold text-slate-900">
+												Presentación y guía (opcional)
+											</summary>
+											<div class="mt-5 space-y-4">
+												<FormField label="Nivel de dificultad" htmlFor="difficultyLevel">
+													{(() => {
+														const selected =
+															normalizeTourDifficulty(tourSubtype?.difficultyLevel) ?? ""
+														return (
+															<Select id="difficultyLevel" name="difficultyLevel">
+																<option value="" selected={selected === ""}>
+																	Sin definir
+																</option>
+																{TOUR_DIFFICULTY_OPTIONS.map((level) => (
+																	<option value={level.value} selected={selected === level.value}>
+																		{level.label}
+																	</option>
+																))}
+															</Select>
+														)
+													})()}
+												</FormField>
+												<FormField label="Idiomas del guía" htmlFor="guideLanguages">
+													<Input
+														id="guideLanguages"
+														name="guideLanguages"
+														value={fieldFromObject(tourSubtype?.guideJson, "languages")}
+														placeholder="Español, inglés"
+													/>
+												</FormField>
+												<FormField label="Tipo de guía" htmlFor="guideType">
+													<Input
+														id="guideType"
+														name="guideType"
+														value={fieldFromObject(tourSubtype?.guideJson, "guideType")}
+														placeholder="Guía local, conductor guía, anfitrión..."
+													/>
+												</FormField>
+												<div class="fastt-soft-box rounded-[var(--fastt-radius-card)] border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+													<p class="font-semibold text-slate-900">Categorías de discovery</p>
+													<p class="mt-1 leading-6">
+														Se completan en
+														<a
+															class="font-semibold text-sky-800 underline"
+															href={`/product/${productId}/categories`}
+														>
+															Categorías de búsqueda
+														</a>
+														.
+													</p>
+												</div>
+											</div>
+										</details>
+
+										<details class="rounded-xl border border-slate-200 bg-white p-5">
+											<summary class="cursor-pointer font-semibold text-slate-900">
+												Logística, exclusiones y seguridad (opcional)
+											</summary>
+											<div class="mt-5 space-y-4">
+												<FormField label="Área de recogida" htmlFor="pickupDefaultArea">
+													<Input
+														id="pickupDefaultArea"
+														name="pickupDefaultArea"
+														value={fieldFromObject(tourSubtype?.pickupJson, "defaultArea")}
+														placeholder="Hoteles de la zona centro, aeropuerto..."
+													/>
+												</FormField>
+												<FormField label="Instrucciones de recogida" htmlFor="pickupInstructions">
+													<Textarea
+														id="pickupInstructions"
+														name="pickupInstructions"
+														value={fieldFromObject(tourSubtype?.pickupJson, "instructions")}
+														rows="2"
+													/>
+												</FormField>
+												<FormField label="No incluye" htmlFor="tourExcludes">
+													<Textarea
+														id="tourExcludes"
+														name="tourExcludes"
+														value={listToText(tourSubtype?.excludesJson)}
+														rows="3"
+														placeholder="Propinas, almuerzo..."
+													/>
+												</FormField>
+												<FormField label="Requisitos de seguridad" htmlFor="safetyRequirements">
+													<Textarea
+														id="safetyRequirements"
+														name="safetyRequirements"
+														value={fieldFromObject(tourSubtype?.safetyJson, "requirements")}
+														rows="3"
+													/>
+												</FormField>
+												<FormField
+													label="Advertencias o condiciones físicas"
+													htmlFor="safetyWarnings"
+												>
+													<Textarea
+														id="safetyWarnings"
+														name="safetyWarnings"
+														value={fieldFromObject(tourSubtype?.safetyJson, "warnings")}
+														rows="3"
+													/>
+												</FormField>
+											</div>
+										</details>
+
+										<p class="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-700">
+											El papel operativo, el territorio y las actividades se editan en
+											<a
+												class="ml-1 font-semibold underline underline-offset-2"
+												href={`${routes.providerSettingsVerification()}?line=tour&tab=activity&experience=${encodeURIComponent(productId)}#tour-operating-context`}
+												target="_blank"
+												rel="noopener noreferrer"
+											>
+												Verificación de tours (abre otra pestaña)
+											</a>
+											. Puedes continuar esta guía y completarlos después.
+										</p>
+									</div>
+								) : null}
+
+								{pt === "package" ? (
+									<div class="space-y-4">
+										<FormField label="Itinerario" htmlFor="itinerary">
+											<Textarea
+												id="itinerary"
+												name="itinerary"
+												value={listToText(packageSubtype?.itineraryJson)}
+												rows="5"
+												placeholder="Un día o etapa por línea"
+											/>
+										</FormField>
+										<FormField label="Días" htmlFor="days">
+											<Input
+												id="days"
+												name="days"
+												value={packageSubtype?.days != null ? String(packageSubtype.days) : ""}
+												placeholder="0 o más"
+											/>
+										</FormField>
+										<FormField label="Noches" htmlFor="nights">
+											<Input
+												id="nights"
+												name="nights"
+												value={packageSubtype?.nights != null ? String(packageSubtype.nights) : ""}
+												placeholder="0 o más"
+											/>
+										</FormField>
+										<FormField label="Incluye" htmlFor="includes">
+											<Textarea
+												id="includes"
+												name="includes"
+												value={listToText(packageSubtype?.includesJson, "")}
+												rows="4"
+												placeholder="Una inclusión por línea"
+											/>
+										</FormField>
+										<FormField label="No incluye" htmlFor="excludes">
+											<Textarea
+												id="excludes"
+												name="excludes"
+												value={listToText(packageSubtype?.excludesJson, "")}
+												rows="4"
+												placeholder="Una exclusión por línea"
+											/>
+										</FormField>
+									</div>
+								) : null}
+
+								{pt === "limousine" ? (
+									<div class="space-y-4">
+										<FormField label="Marca" htmlFor="vehicleMake">
+											<Input
+												id="vehicleMake"
+												name="vehicleMake"
+												value={fieldFromObject(limousineSubtype?.vehicleProfileJson, "make")}
+												placeholder="Mercedes-Benz"
+											/>
+										</FormField>
+										<FormField label="Modelo" htmlFor="vehicleModel">
+											<Input
+												id="vehicleModel"
+												name="vehicleModel"
+												value={fieldFromObject(limousineSubtype?.vehicleProfileJson, "model")}
+												placeholder="Clase S"
+											/>
+										</FormField>
+										<FormField label="Clase de vehículo" htmlFor="vehicleClass">
+											<Input
+												id="vehicleClass"
+												name="vehicleClass"
+												value={fieldFromObject(limousineSubtype?.vehicleProfileJson, "class")}
+												placeholder="Ejecutivo, lujo, van premium"
+											/>
+										</FormField>
+										<FormField label="Color" htmlFor="vehicleColor">
+											<Input
+												id="vehicleColor"
+												name="vehicleColor"
+												value={fieldFromObject(limousineSubtype?.vehicleProfileJson, "color")}
+												placeholder="Negro"
+											/>
+										</FormField>
+										<div class="grid gap-4 md:grid-cols-2">
+											<FormField label="Capacidad de pasajeros" htmlFor="passengerCapacity">
+												<Input
+													id="passengerCapacity"
+													name="passengerCapacity"
+													value={
+														limousineSubtype?.passengerCapacity != null
+															? String(limousineSubtype.passengerCapacity)
+															: ""
+													}
+													placeholder="3"
+												/>
+											</FormField>
+											<FormField label="Capacidad de equipaje" htmlFor="luggageCapacity">
+												<Input
+													id="luggageCapacity"
+													name="luggageCapacity"
+													value={
+														limousineSubtype?.luggageCapacity != null
+															? String(limousineSubtype.luggageCapacity)
+															: ""
+													}
+													placeholder="2"
+												/>
+											</FormField>
+										</div>
+										<FormField label="Área base de recogida" htmlFor="pickupDefaultArea">
+											<Input
+												id="pickupDefaultArea"
+												name="pickupDefaultArea"
+												value={fieldFromObject(limousineSubtype?.pickupJson, "defaultArea")}
+												placeholder="Aeropuerto, zona hotelera..."
+											/>
+										</FormField>
+										<FormField label="Instrucciones de recogida" htmlFor="pickupInstructions">
+											<Textarea
+												id="pickupInstructions"
+												name="pickupInstructions"
+												value={fieldFromObject(limousineSubtype?.pickupJson, "instructions")}
+												rows="3"
+											/>
+										</FormField>
+										<FormField label="Área base de destino" htmlFor="dropoffDefaultArea">
+											<Input
+												id="dropoffDefaultArea"
+												name="dropoffDefaultArea"
+												value={fieldFromObject(limousineSubtype?.dropoffJson, "defaultArea")}
+												placeholder="Centro, terminal, hotel..."
+											/>
+										</FormField>
+										<FormField label="Instrucciones de dropoff" htmlFor="dropoffInstructions">
+											<Textarea
+												id="dropoffInstructions"
+												name="dropoffInstructions"
+												value={fieldFromObject(limousineSubtype?.dropoffJson, "instructions")}
+												rows="3"
+											/>
+										</FormField>
+									</div>
+								) : null}
+							</div>
+
+							<div class="space-y-1">
+								<p id="stateLabel" class="text-sm text-slate-600" aria-live="polite">
+									Vacío: sin cambios guardados.
+								</p>
+								<p id="stateDetail" class="text-sm whitespace-pre-wrap text-slate-600" />
+							</div>
+
+							<div
+								class:list={[
+									"flex items-center justify-end gap-3",
+									playbook.active ? "hidden" : "",
+								]}
+							>
+								<Button
+									href={
+										playbook.active && playbook.playbookId
+											? playbookRedirectHrefFor(
+													playbook.playbookId,
+													playbook.playbookId === "complete-to-publish"
+														? `/product/${productId}/location`
+														: `/product/${productId}/images`,
+													playbook.playbookId === "complete-to-publish" ? "location" : "images"
+												)
+											: `/product/${encodeURIComponent(productId)}/images`
+									}
+									variant="secondary"
+								>
+									Volver
+								</Button>
+								<Button
+									id="submitBtn"
+									type="submit"
+									className={playbook.active ? "fastt-playbook-cta" : ""}
+								>
+									{isTour && playbook.playbookId === "complete-to-publish"
+										? "Guardar y volver"
+										: playbook.active
+											? "Guardar y continuar"
+											: "Guardar subtipo"}
+								</Button>
+							</div>
+						</form>
+					</Card>
+				)
+			}
 		</section>
 	</section>
 
@@ -676,13 +733,14 @@ const limousineSubtype =
 			const btn = document.getElementById("submitBtn")
 			const isHotel = form instanceof HTMLElement && form.dataset.isHotel === "true"
 			const isTour = form instanceof HTMLElement && form.dataset.isTour === "true"
+			const playbookGuided = form.dataset.playbookGuided === "true"
 			const draft = bindPlaybookFormDraft(form instanceof HTMLFormElement ? form : null, {
 				key: `product:${window.location.pathname}:subtype`,
 			})
 
 			function setState(state, detail = "") {
 				const labels = {
-					empty: "Vacío: sin cambios guardados.",
+					empty: playbookGuided ? "" : "Vacío: sin cambios guardados.",
 					loading: "Cargando: guardando subtipo...",
 					success: "Éxito: subtipo guardado correctamente.",
 					error: "Error: no se pudo guardar el subtipo.",

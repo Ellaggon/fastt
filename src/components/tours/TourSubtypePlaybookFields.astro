@@ -1,0 +1,271 @@
+---
+import Card from "@/components/ui/Card.astro"
+import FormField from "@/components/ui/FormField.astro"
+import Input from "@/components/ui/Input.astro"
+import Select from "@/components/ui/Select.astro"
+import Textarea from "@/components/ui/Textarea.astro"
+import { routes } from "@/lib/routes"
+import { TOUR_DIFFICULTY_OPTIONS, normalizeTourDifficulty } from "@/lib/tours/tourDifficulty"
+
+interface TourSubtypeRow {
+	duration: string | null
+	durationMinutes: number | null
+	difficultyLevel: string | null
+	meetingPointJson: unknown
+	itineraryJson: unknown
+	safetyJson: unknown
+	guideJson: unknown
+	includesJson: unknown
+	excludesJson: unknown
+	pickupJson: unknown
+}
+
+interface Props {
+	productId: string
+	tourSubtype: TourSubtypeRow | null | undefined
+}
+
+const { productId, tourSubtype } = Astro.props
+const panelClass = "space-y-5 bg-white"
+
+function listToText(value: unknown, key = "description") {
+	if (!Array.isArray(value)) return ""
+	return value
+		.map((item) => {
+			if (typeof item === "string") return item
+			if (item && typeof item === "object")
+				return String((item as Record<string, unknown>)[key] ?? "").trim()
+			return ""
+		})
+		.filter(Boolean)
+		.join("\n")
+}
+
+function fieldFromObject(value: unknown, key: string) {
+	if (!value || typeof value !== "object") return ""
+	return String((value as Record<string, unknown>)[key] ?? "")
+}
+
+const selectedDifficulty = normalizeTourDifficulty(tourSubtype?.difficultyLevel) ?? ""
+---
+
+<div class="space-y-5">
+	<Card class={panelClass}>
+		<fieldset class="space-y-4 border-0 p-0">
+			<legend class="sr-only">Duración</legend>
+			<div class="grid gap-4 md:grid-cols-2">
+				<FormField label="Duración visible" htmlFor="duration" required>
+					<Input
+						id="duration"
+						name="duration"
+						value={tourSubtype?.duration ?? ""}
+						placeholder="Ej: 4 horas"
+						required
+						aria-describedby="durationHelp durationError"
+					/>
+					<p id="durationHelp" class="mt-2 text-sm leading-6 text-slate-500">
+						Así se mostrará al viajero.
+					</p>
+					<p id="durationError" class="hidden text-sm text-red-600"></p>
+				</FormField>
+				<FormField label="Duración total en minutos" htmlFor="durationMinutes" required>
+					<Input
+						id="durationMinutes"
+						name="durationMinutes"
+						type="number"
+						min="1"
+						inputmode="numeric"
+						value={tourSubtype?.durationMinutes != null ? String(tourSubtype.durationMinutes) : ""}
+						placeholder="240"
+						required
+						aria-describedby="durationMinutesError"
+					/>
+					<p id="durationMinutesError" class="hidden text-sm text-red-600"></p>
+				</FormField>
+			</div>
+		</fieldset>
+	</Card>
+
+	<Card class={panelClass}>
+		<fieldset class="space-y-4 border-0 p-0">
+			<legend class="sr-only">Punto de encuentro</legend>
+			<FormField
+				label="Punto de encuentro"
+				htmlFor="meetingPointAddress"
+				required
+				description="Este es el lugar exacto donde comienza el tour; no es la ubicación de discovery del paso anterior."
+			>
+				<Input
+					id="meetingPointAddress"
+					name="meetingPointAddress"
+					value={fieldFromObject(tourSubtype?.meetingPointJson, "address")}
+					placeholder="Dirección, puerta o referencia reconocible"
+					required
+					aria-describedby="meetingPointAddressError"
+				/>
+				<p id="meetingPointAddressError" class="hidden text-sm text-red-600"></p>
+			</FormField>
+			<FormField
+				label="Instrucciones para encontrar al guía (opcional)"
+				htmlFor="meetingPointInstructions"
+			>
+				<Textarea
+					id="meetingPointInstructions"
+					name="meetingPointInstructions"
+					value={fieldFromObject(tourSubtype?.meetingPointJson, "instructions")}
+					rows="3"
+					placeholder="Ej: espera junto a la puerta azul 15 minutos antes."
+				/>
+			</FormField>
+		</fieldset>
+	</Card>
+
+	<Card class={panelClass}>
+		<fieldset class="space-y-4 border-0 p-0">
+			<legend class="sr-only">Recorrido e inclusiones</legend>
+			<FormField label="Itinerario (mínimo 3 momentos)" htmlFor="tourItinerary" required>
+				<Textarea
+					id="tourItinerary"
+					name="tourItinerary"
+					value={listToText(tourSubtype?.itineraryJson)}
+					rows="6"
+					placeholder={"Encuentro y bienvenida\nRecorrido por el centro histórico\nVisita al mirador"}
+					required
+					aria-describedby="tourItineraryHelp tourItineraryError"
+				/>
+				<p id="tourItineraryHelp" class="mt-2 text-sm leading-6 text-slate-500">
+					Escribe una parada o momento por línea.
+				</p>
+				<p id="tourItineraryError" class="hidden text-sm text-red-600"></p>
+			</FormField>
+			<FormField label="Qué incluye" htmlFor="tourIncludes" required>
+				<Textarea
+					id="tourIncludes"
+					name="tourIncludes"
+					value={listToText(tourSubtype?.includesJson)}
+					rows="4"
+					placeholder={"Guía local\nEntradas\nTransporte durante el recorrido"}
+					required
+					aria-describedby="tourIncludesError"
+				/>
+				<p id="tourIncludesError" class="hidden text-sm text-red-600"></p>
+			</FormField>
+		</fieldset>
+	</Card>
+
+	<Card class="overflow-hidden bg-white p-0">
+		<details class="group">
+			<summary
+				class="cursor-pointer list-none px-5 py-4 text-sm font-semibold text-slate-900 [&::-webkit-details-marker]:hidden"
+			>
+				Presentación y guía (opcional)
+			</summary>
+			<div class="space-y-4 border-t border-slate-200 px-5 pt-4 pb-5">
+				<FormField label="Nivel de dificultad" htmlFor="difficultyLevel">
+					<Select id="difficultyLevel" name="difficultyLevel">
+						<option value="" selected={selectedDifficulty === ""}> Sin definir </option>
+						{
+							TOUR_DIFFICULTY_OPTIONS.map((level) => (
+								<option value={level.value} selected={selectedDifficulty === level.value}>
+									{level.label}
+								</option>
+							))
+						}
+					</Select>
+				</FormField>
+				<FormField label="Idiomas del guía" htmlFor="guideLanguages">
+					<Input
+						id="guideLanguages"
+						name="guideLanguages"
+						value={fieldFromObject(tourSubtype?.guideJson, "languages")}
+						placeholder="Español, inglés"
+					/>
+				</FormField>
+				<FormField label="Tipo de guía" htmlFor="guideType">
+					<Input
+						id="guideType"
+						name="guideType"
+						value={fieldFromObject(tourSubtype?.guideJson, "guideType")}
+						placeholder="Guía local, conductor guía, anfitrión..."
+					/>
+				</FormField>
+				<p class="text-sm leading-6 text-slate-600">
+					Las categorías de búsqueda se editan en
+					<a
+						class="font-semibold text-sky-800 underline underline-offset-2"
+						href={`/product/${productId}/categories`}
+					>
+						Categorías de búsqueda
+					</a>
+					.
+				</p>
+			</div>
+		</details>
+	</Card>
+
+	<Card class="overflow-hidden bg-white p-0">
+		<details class="group">
+			<summary
+				class="cursor-pointer list-none px-5 py-4 text-sm font-semibold text-slate-900 [&::-webkit-details-marker]:hidden"
+			>
+				Logística, exclusiones y seguridad (opcional)
+			</summary>
+			<div class="space-y-4 border-t border-slate-200 px-5 pt-4 pb-5">
+				<FormField label="Área de recogida" htmlFor="pickupDefaultArea">
+					<Input
+						id="pickupDefaultArea"
+						name="pickupDefaultArea"
+						value={fieldFromObject(tourSubtype?.pickupJson, "defaultArea")}
+						placeholder="Hoteles de la zona centro, aeropuerto..."
+					/>
+				</FormField>
+				<FormField label="Instrucciones de recogida" htmlFor="pickupInstructions">
+					<Textarea
+						id="pickupInstructions"
+						name="pickupInstructions"
+						value={fieldFromObject(tourSubtype?.pickupJson, "instructions")}
+						rows="2"
+					/>
+				</FormField>
+				<FormField label="No incluye" htmlFor="tourExcludes">
+					<Textarea
+						id="tourExcludes"
+						name="tourExcludes"
+						value={listToText(tourSubtype?.excludesJson)}
+						rows="3"
+						placeholder="Propinas, almuerzo..."
+					/>
+				</FormField>
+				<FormField label="Requisitos de seguridad" htmlFor="safetyRequirements">
+					<Textarea
+						id="safetyRequirements"
+						name="safetyRequirements"
+						value={fieldFromObject(tourSubtype?.safetyJson, "requirements")}
+						rows="3"
+					/>
+				</FormField>
+				<FormField label="Advertencias o condiciones físicas" htmlFor="safetyWarnings">
+					<Textarea
+						id="safetyWarnings"
+						name="safetyWarnings"
+						value={fieldFromObject(tourSubtype?.safetyJson, "warnings")}
+						rows="3"
+					/>
+				</FormField>
+			</div>
+		</details>
+	</Card>
+
+	<p class="text-sm leading-6 text-slate-400">
+		El papel operativo, el territorio y las actividades se editan en
+		<a
+			class="font-medium text-slate-300 underline underline-offset-2"
+			href={`${routes.providerSettingsVerification()}?line=tour&tab=activity&experience=${encodeURIComponent(productId)}#tour-operating-context`}
+			target="_blank"
+			rel="noopener noreferrer"
+		>
+			Verificación de tours
+		</a>
+		. Puedes continuar esta guía y completarlos después.
+	</p>
+</div>

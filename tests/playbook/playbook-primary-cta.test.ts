@@ -107,9 +107,7 @@ describe("playbook primary CTA contract", () => {
 				launchStep: "categories",
 				intent: "continue",
 			})
-		).toBe(
-			"/product/p1/categories?playbook=launch-tour&step=categories&flow=create&tourFlowVersion=2"
-		)
+		).toBe("/product/p1/location?playbook=launch-tour&step=location&flow=create&tourFlowVersion=2")
 
 		continueData.set("tourFlowVersion", "2")
 		const publication = new URL(

@@ -1,0 +1,300 @@
+---
+import PlaybookStepHeader from "@/components/playbook/PlaybookStepHeader.astro"
+import Card from "@/components/ui/Card.astro"
+import Button from "@/components/ui/Button.astro"
+import FormField from "@/components/ui/FormField.astro"
+import Input from "@/components/ui/Input.astro"
+import Select from "@/components/ui/Select.astro"
+import Textarea from "@/components/ui/Textarea.astro"
+import Checkbox from "@/components/ui/Checkbox.astro"
+import type { loadTourPresentationForm } from "@/lib/tours/loadTourPresentationForm"
+interface Props {
+	providerId: string
+	productId?: string
+	name?: string
+	geoPlaceId?: string | null
+	description?: string | null
+	highlights?: string[]
+	options: Awaited<ReturnType<typeof loadTourPresentationForm>>
+	guided?: boolean
+}
+const {
+	providerId,
+	productId,
+	name = "",
+	geoPlaceId = "",
+	description = "",
+	highlights = [],
+	options,
+	guided = true,
+} = Astro.props
+const linked = new Set(options.linkedIds)
+const panelClass = guided
+	? "space-y-5 bg-white"
+	: "space-y-5 rounded-lg border-slate-200 bg-slate-100 shadow-none"
+---
+
+<section class="space-y-6">
+	<PlaybookStepHeader
+		icon="presentation"
+		title="Presenta tu experiencia"
+		lead="Cuenta qué ofreces y dónde. Después completarás el recorrido y la logística."
+		tone={guided ? "playbook" : "light"}
+	/>
+	<form
+		id="tourPresentationForm"
+		action="/api/product/tour-presentation"
+		method="POST"
+		class:list={["w-full", guided ? "max-w-5xl space-y-5" : "max-w-3xl space-y-6"]}
+		data-draft-owner={providerId}
+	>
+		<Input type="hidden" name="productId" value={productId ?? crypto.randomUUID()} />
+		<Input type="hidden" name="mode" value={productId ? "edit" : "create"} />
+		{
+			["playbook", "flow", "tourFlowVersion", "variantId", "ratePlanId", "returnTo"].map((key) => (
+				<Input type="hidden" name={key} value={Astro.url.searchParams.get(key) ?? ""} />
+			))
+		}
+
+		<div
+			class:list={[
+				guided
+					? "grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(17.5rem,22rem)]"
+					: "contents",
+			]}
+		>
+			<Card class:list={[panelClass, guided && "lg:col-start-1 lg:row-start-1"]}>
+				<fieldset class="space-y-4 border-0 p-0">
+					<legend class="sr-only">Datos básicos</legend>
+					<FormField label="Nombre del tour" htmlFor="name" required>
+						<Input
+							id="name"
+							name="name"
+							value={name}
+							maxlength={200}
+							required
+							placeholder="Paseo por el centro histórico de La Paz"
+							aria-describedby="nameError"
+						/>
+						<p id="nameError" data-presentation-error="name" class="hidden text-sm text-red-600">
+						</p>
+					</FormField>
+					<FormField label="Destino" htmlFor="geoPlaceId" required>
+						<Select
+							id="geoPlaceId"
+							name="geoPlaceId"
+							required
+							aria-describedby="destinationHelp geoPlaceIdError"
+						>
+							<option value="">Selecciona una ciudad o lugar</option>
+							{
+								options.places.map((place) => (
+									<option value={place.id} selected={place.id === geoPlaceId}>
+										{place.name} · {place.country}
+									</option>
+								))
+							}
+						</Select>
+						<p id="destinationHelp" class="mt-2 text-sm leading-6 text-slate-500">
+							El lugar donde los viajeros encontrarán este tour. El punto de encuentro se indica
+							después.
+						</p>
+						<p
+							id="geoPlaceIdError"
+							data-presentation-error="geoPlaceId"
+							class="hidden text-sm text-red-600"
+						>
+						</p>
+					</FormField>
+				</fieldset>
+			</Card>
+
+			<Card class:list={[panelClass, guided && "lg:col-start-1 lg:row-start-2"]}>
+				<fieldset class="space-y-4 border-0 p-0">
+					<legend class="sr-only">Descripción y destacados</legend>
+					<FormField label="Descripción" htmlFor="description" required>
+						<Textarea
+							id="description"
+							name="description"
+							value={description ?? ""}
+							rows="5"
+							required
+							maxlength={20000}
+							placeholder="Explica qué vivirá el viajero y para quién está pensado este tour."
+							aria-describedby="descriptionError"
+						/>
+						<p
+							id="descriptionError"
+							data-presentation-error="description"
+							class="hidden text-sm text-red-600"
+						>
+						</p>
+					</FormField>
+					<FormField label="Lo que hace especial esta experiencia" htmlFor="highlights" required>
+						<Textarea
+							id="highlights"
+							name="highlights"
+							value={highlights.join("\n")}
+							rows="4"
+							required
+							placeholder={`Guía local experto\nMiradores del centro histórico`}
+							aria-describedby="highlightsHelp highlightsError"
+						/>
+						<p id="highlightsHelp" class="mt-2 text-sm leading-6 text-slate-500">
+							Escribe un destacado por línea.
+						</p>
+						<p
+							id="highlightsError"
+							data-presentation-error="highlights"
+							class="hidden text-sm text-red-600"
+						>
+						</p>
+					</FormField>
+				</fieldset>
+			</Card>
+
+			<Card
+				class:list={[
+					panelClass,
+					guided && "lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:self-stretch",
+				]}
+			>
+				<fieldset
+					class="flex h-full flex-col gap-4 border-0 p-0"
+					aria-describedby="categoryIdsError"
+				>
+					<div class="space-y-1">
+						<legend class="block w-full text-sm font-semibold text-slate-950">
+							¿Qué tipo de experiencia ofreces?
+						</legend>
+						<p class="text-sm leading-6 text-slate-600">
+							Elige las actividades que describen este tour.
+						</p>
+					</div>
+					<div class:list={["pt-1", guided ? "flex flex-col gap-2" : "flex flex-wrap gap-2.5"]}>
+						{
+							options.categories.map((category) => (
+								<Checkbox
+									name="categoryId"
+									value={category.id}
+									checked={linked.has(String(category.id))}
+									className={
+										guided
+											? "fastt-soft-box flex min-h-10 w-full items-center rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-800 transition hover:border-slate-300 hover:bg-slate-50"
+											: "fastt-soft-box inline-flex min-h-10 items-center rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-800 transition hover:border-slate-300 hover:bg-slate-50"
+									}
+								>
+									{category.name}
+								</Checkbox>
+							))
+						}
+					</div>
+					<p
+						id="categoryIdsError"
+						data-presentation-error="categoryIds"
+						class="hidden text-sm text-red-600"
+					>
+					</p>
+				</fieldset>
+			</Card>
+		</div>
+
+		<p data-presentation-status class="text-sm text-slate-400" role="status" aria-live="polite"></p>
+		{!guided ? <Button type="submit">Guardar presentación</Button> : null}
+	</form>
+</section>
+<script>
+	import { setPlaybookSubmitBusy } from "@/lib/forms/playbookFormBusy"
+	import { bindPlaybookFormDraft } from "@/lib/forms/playbookFormDraft"
+	function initPresentation() {
+		const form = document.getElementById("tourPresentationForm")
+		if (!(form instanceof HTMLFormElement) || form.dataset.bound) return
+		form.dataset.bound = "true"
+		const id = form.elements.namedItem("productId") as HTMLInputElement
+		const mode = form.elements.namedItem("mode") as HTMLInputElement
+		const creationKey = `fastt:tour-presentation-create:${form.dataset.draftOwner}`
+		try {
+			if (mode.value === "create") {
+				const previous = sessionStorage.getItem(creationKey)
+				if (previous && /^[0-9a-f-]{36}$/i.test(previous)) id.value = previous
+				else sessionStorage.setItem(creationKey, id.value)
+			}
+		} catch {
+			/* Form still works when browser storage is unavailable. */
+		}
+		const draft = bindPlaybookFormDraft(form, {
+			key: `tour-presentation:${form.dataset.draftOwner}:${id.value}`,
+		})
+		const status = form.querySelector<HTMLElement>("[data-presentation-status]")!
+		form.addEventListener("submit", async (event) => {
+			event.preventDefault()
+			if (form.dataset.saving) return
+			const fd = new FormData(form)
+			if (event.submitter instanceof HTMLButtonElement)
+				fd.set("playbookNav", event.submitter.value === "exit" ? "exit" : "continue")
+			form.querySelectorAll<HTMLElement>("[data-presentation-error]").forEach((node) => {
+				node.textContent = ""
+				node.classList.add("hidden")
+			})
+			form
+				.querySelectorAll("[aria-invalid]")
+				.forEach((node) => node.removeAttribute("aria-invalid"))
+			if (fd.get("playbookNav") !== "exit" && !fd.getAll("categoryId").length) {
+				const error = form.querySelector<HTMLElement>('[data-presentation-error="categoryIds"]')!
+				error.textContent = "Selecciona al menos un tipo de experiencia."
+				error.classList.remove("hidden")
+				const control = form.querySelector<HTMLInputElement>('[name="categoryId"]')
+				control?.setAttribute("aria-invalid", "true")
+				control?.focus()
+				status.textContent = "Revisa los campos indicados."
+				return
+			}
+			setPlaybookSubmitBusy(form, true, "Guardando…")
+			form.dataset.saving = "true"
+			status.textContent = "Guardando presentación…"
+			try {
+				const response = await fetch(form.action, { method: "POST", body: fd })
+				const result = await response.json()
+				if (!response.ok) {
+					let first: HTMLElement | null = null
+					for (const [field, messages] of Object.entries(result.fieldErrors ?? {})) {
+						const error = form.querySelector<HTMLElement>(
+							`[data-presentation-error="${CSS.escape(field)}"]`
+						)
+						if (error) {
+							error.textContent = (messages as string[]).join(" ")
+							error.classList.remove("hidden")
+						}
+						const control = form.querySelector<HTMLElement>(
+							`[name="${CSS.escape(field === "categoryIds" ? "categoryId" : field)}"]`
+						)
+						control?.setAttribute("aria-invalid", "true")
+						first ??= control
+					}
+					first?.focus()
+					throw new Error(
+						response.status === 401
+							? "Tu sesión venció. Inicia sesión de nuevo; conservamos tus datos."
+							: result.error
+					)
+				}
+				status.textContent = "Presentación guardada."
+				mode.value = "edit"
+				draft.clear()
+				try {
+					sessionStorage.removeItem(creationKey)
+				} catch {
+					/* No storage required. */
+				}
+				window.location.assign(result.nextHref)
+			} catch (error) {
+				status.textContent =
+					error instanceof Error ? error.message : "No pudimos guardar. Vuelve a intentarlo."
+				delete form.dataset.saving
+				setPlaybookSubmitBusy(form, false)
+			}
+		})
+	}
+	initPresentation()
+	document.addEventListener("astro:page-load", initPresentation)
+</script>

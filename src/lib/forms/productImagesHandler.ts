@@ -31,7 +31,6 @@ type ExistingImage = {
 
 function initProductImagesForm() {
 	const form = qs<HTMLFormElement>("#imagesForm")
-	const btn = qs<HTMLButtonElement>("#submitBtn")
 	const filesInput = qs<HTMLInputElement>("#files")
 	const dropzone = qs<HTMLDivElement>("#dropzone")
 	const previewGrid = qs<HTMLDivElement>("#previewGrid")
@@ -39,9 +38,9 @@ function initProductImagesForm() {
 	const stateLabel = qs<HTMLElement>("#stateLabel")
 	const stateDetail = qs<HTMLElement>("#stateDetail")
 
-	if (!form || !btn || !filesInput || !dropzone || !previewGrid || !stateLabel || !stateDetail)
-		return
+	if (!form || !filesInput || !dropzone || !previewGrid || !stateLabel || !stateDetail) return
 	if (form.dataset.bound === "true") return
+	const playbookGuided = form.dataset.playbookGuided === "true"
 	form.dataset.bound = "true"
 
 	const pendingImages: PendingImage[] = []
@@ -99,14 +98,23 @@ function initProductImagesForm() {
 		state: "empty" | "incomplete" | "loading" | "success" | "error" | "disabled",
 		detail = ""
 	) {
-		const labels: Record<string, string> = {
-			empty: "Vacío: selecciona imágenes para continuar.",
-			incomplete: "Pendiente: completa la galería para continuar.",
-			loading: "Subiendo fotografías. Espera a que termine antes de volver a pulsar.",
-			success: "Éxito: imágenes asociadas correctamente.",
-			error: "Error: no se pudieron asociar las imágenes.",
-			disabled: "Subiendo fotografías. Espera a que termine antes de volver a pulsar.",
-		}
+		const labels: Record<string, string> = playbookGuided
+			? {
+					empty: "",
+					incomplete: "Agrega más fotos para completar la galería recomendada.",
+					loading: "Subiendo fotografías…",
+					success: "Imágenes guardadas.",
+					error: "No se pudieron subir las imágenes.",
+					disabled: "Subiendo fotografías…",
+				}
+			: {
+					empty: "Vacío: selecciona imágenes para continuar.",
+					incomplete: "Pendiente: completa la galería para continuar.",
+					loading: "Subiendo fotografías. Espera a que termine antes de volver a pulsar.",
+					success: "Éxito: imágenes asociadas correctamente.",
+					error: "Error: no se pudieron asociar las imágenes.",
+					disabled: "Subiendo fotografías. Espera a que termine antes de volver a pulsar.",
+				}
 		stateLabelEl.textContent = labels[state] || labels.empty
 		stateDetailEl.textContent = detail
 	}
@@ -129,8 +137,9 @@ function initProductImagesForm() {
 		)
 		syncPublicationRequirement()
 		if (pendingImages.length === 0 && existingImages.length === 0) {
-			previewGridEl.innerHTML =
-				'<p class="fastt-empty-state col-span-full p-6 text-sm text-slate-600">Todavía no hay imágenes cargadas.</p>'
+			previewGridEl.innerHTML = playbookGuided
+				? '<p class="col-span-full rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">Las fotos que subas aparecerán aquí.</p>'
+				: '<p class="fastt-empty-state col-span-full p-6 text-sm text-slate-600">Todavía no hay imágenes cargadas.</p>'
 			return
 		}
 
@@ -248,19 +257,24 @@ function initProductImagesForm() {
 		event.preventDefault()
 		fileInputEl.click()
 	})
+	const dropzoneRestClasses = playbookGuided
+		? ["border-slate-200", "bg-slate-50"]
+		: ["border-slate-300", "bg-white"]
+	const dropzoneActiveClasses = ["border-slate-950", "bg-slate-50", "ring-2", "ring-slate-950/10"]
+
 	dropzoneEl.addEventListener("dragover", (event) => {
 		event.preventDefault()
-		dropzoneEl.classList.remove("border-slate-300", "bg-white")
-		dropzoneEl.classList.add("border-slate-950", "bg-slate-50", "ring-2", "ring-slate-950/10")
+		dropzoneEl.classList.remove(...dropzoneRestClasses)
+		dropzoneEl.classList.add(...dropzoneActiveClasses)
 	})
 	dropzoneEl.addEventListener("dragleave", () => {
-		dropzoneEl.classList.remove("border-slate-950", "bg-slate-50", "ring-2", "ring-slate-950/10")
-		dropzoneEl.classList.add("border-slate-300", "bg-white")
+		dropzoneEl.classList.remove(...dropzoneActiveClasses)
+		dropzoneEl.classList.add(...dropzoneRestClasses)
 	})
 	dropzoneEl.addEventListener("drop", (event) => {
 		event.preventDefault()
-		dropzoneEl.classList.remove("border-slate-950", "bg-slate-50", "ring-2", "ring-slate-950/10")
-		dropzoneEl.classList.add("border-slate-300", "bg-white")
+		dropzoneEl.classList.remove(...dropzoneActiveClasses)
+		dropzoneEl.classList.add(...dropzoneRestClasses)
 		if (!event.dataTransfer?.files?.length) return
 		addFiles(event.dataTransfer.files)
 	})
@@ -272,7 +286,18 @@ function initProductImagesForm() {
 
 	renderPreviewGrid()
 	const initialRequirement = syncPublicationRequirement()
-	if (initialRequirement.missing > 0) {
+	if (playbookGuided) {
+		if (initialRequirement.missing > 0 && form.dataset.allowPartialPublication === "true") {
+			setState(
+				"incomplete",
+				`Faltan ${initialRequirement.missing} foto${initialRequirement.missing === 1 ? "" : "s"} para publicar.`
+			)
+		} else if (existingImages.length > 0) {
+			setState("empty", "Puedes continuar con estas fotos o agregar más.")
+		} else {
+			setState("empty")
+		}
+	} else if (initialRequirement.missing > 0) {
 		setState(
 			"incomplete",
 			`Faltan ${initialRequirement.missing} foto${initialRequirement.missing === 1 ? "" : "s"} para completar este requisito.`
