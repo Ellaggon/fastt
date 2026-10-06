@@ -72,7 +72,7 @@ const scopedProducts = resolution.valid
 	: []
 
 const selectedProduct =
-	(resolution.valid && resolution.product) ??
+	(resolution.valid ? resolution.product : null) ??
 	scopedProducts.find((product) => product.id === workspaceScope.productId) ??
 	null
 
