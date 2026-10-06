@@ -3,7 +3,7 @@
 Status: active  
 Document type: index  
 Owner: Tours / Engineering  
-Last verified: 2026-09-26
+Last verified: 2026-10-05
 Scope: descubrimiento, ficha, reserva y operación del proveedor
 Source of truth: documentos canónicos enlazados en este índice  
 Review trigger: cambio del contrato o de las superficies públicas y del proveedor de tours
@@ -13,7 +13,10 @@ Review trigger: cambio del contrato o de las superficies públicas y del proveed
 - [Políticas comerciales de tours](./policies.md): contrato, editor, preview y compatibilidad histórica.
 - [Acuerdo económico inicial](./commercial-terms.md): propuesta de cobro directo, comisión, base, devengo y cancelaciones; pendiente de aceptación.
 - [Matriz comercial BO v1](./policy-annex.md): borrador sin firma. No exige documentos nuevos hasta que Políticas, Finanzas y Operaciones Tours la ratifiquen.
-- [Playbooks del proveedor](./tour-provider-playbooks.md): especificación ideal de los cuatro recorridos guiados, etapas, diagnóstico compartido e interfaz.
+- [Playbooks del proveedor](./tour-provider-playbooks.md): cuatro flujos de trabajo; creación/publicación separadas en dos playbooks conectados, con datos y diagnóstico compartidos.
+- [Preparar y publicar: dos playbooks](./tour-preparation-publication.md): contrato de separación, continuidad, pantallas y criterios de aceptación implementado en código local.
+- [Contrato de interfaz de playbooks](./tour-playbook-ui-contract.md): cambios por componente, estilos actuales, formularios, tareas y publicación.
+- [Navegación y verificación de playbooks](./tour-playbook-navigation-contract.md): identidades, compatibilidad, sesiones, ejecución y criterios de cierre.
 - [Taxonomía de datos](../../engineering/tour-vertical-table-taxonomy.md): Product → Variant/tour_slot → RatePlan → inventario → reserva.
 - [ADRs de Tours](../../engineering/adr/README.md): capacidades diferidas y expansiones de esquema.
 - [Rollout canary](../../engineering/tours-rollout-canary.md): habilitación gradual.
