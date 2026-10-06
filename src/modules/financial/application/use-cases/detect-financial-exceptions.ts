@@ -102,7 +102,7 @@ export function detectFinancialExceptions(
 			...base,
 			code: "incomplete_contract_snapshot",
 			severity: "attention",
-			reason: "Contract audit evidence is incomplete for room or tax/fee snapshots.",
+			reason: "Contract audit evidence is incomplete for line item or tax/fee snapshots.",
 			nextOwner: "reservations",
 			basis: "contract_snapshot",
 		})
@@ -110,10 +110,10 @@ export function detectFinancialExceptions(
 	if (input.lineItemAllocationCount > 1) {
 		exceptions.push({
 			...base,
-			code: "multi_room_review",
+			code: "multi_line_review",
 			severity: "review",
 			reason:
-				"Multi-room contract: totals are aggregated from room snapshots and should be reviewed as a group.",
+				"Multiple line items: totals are aggregated from line snapshots and should be reviewed together.",
 			nextOwner: "financial_operations",
 			basis: "contract_snapshot",
 		})

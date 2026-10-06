@@ -15,10 +15,24 @@ export const FINANCIAL_EXCEPTION_CODES = [
 	"missing_settlement_reference",
 	"missing_refund_reference",
 	"incomplete_contract_snapshot",
-	"multi_room_review",
+	"multi_line_review",
 ] as const
 
 export type FinancialExceptionCode = (typeof FINANCIAL_EXCEPTION_CODES)[number]
+
+/** Lodging-specific codes persisted before the vertical-neutral vocabulary; read-time aliases only. */
+const LEGACY_FINANCIAL_EXCEPTION_CODES: Record<string, FinancialExceptionCode> = {
+	multi_room_review: "multi_line_review",
+}
+
+/**
+ * Normalizes a persisted code to the canonical vocabulary. Legacy rows are read as their
+ * neutral equivalent; a value outside the catalog is returned as-is for the caller to handle.
+ */
+export function normalizeFinancialExceptionCode(value: unknown): FinancialExceptionCode {
+	const raw = String(value ?? "").trim()
+	return LEGACY_FINANCIAL_EXCEPTION_CODES[raw] ?? (raw as FinancialExceptionCode)
+}
 export type FinancialExceptionSeverity = "review" | "attention"
 export type FinancialExceptionBasis = "contract_snapshot" | "financial_evidence" | "refund_handoff"
 export type FinancialNextOwner =

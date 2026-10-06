@@ -1,3 +1,9 @@
+import {
+	isCommissionAgreementDeclared,
+	resolveBookingCommercialLineFromRows,
+} from "@/lib/financial/commissionAgreement"
+import type { CommercialLine } from "@/lib/verification/commercial-lines"
+
 import type { CommissionSnapshot } from "../../domain/commission-snapshot"
 import type { FinancialSettlementRecord } from "../../domain/financial-settlement-record"
 import type { ProviderPayableSnapshot } from "../../domain/provider-payable-snapshot"
@@ -157,6 +163,28 @@ function reconciliationReady(match: ReconciliationMatch | null): boolean {
 	return Boolean(match && match.status === "matched" && (match.reviewState ?? "fresh") !== "stale")
 }
 
+/**
+ * A commission is only trustworthy when it was frozen under the booking's commercial line and
+ * an accepted agreement version. Both conditions are evaluated from persisted snapshots only.
+ */
+export function commissionAgreementStaleReasons(
+	commission: Pick<CommissionSnapshot, "commercialLine" | "agreementVersion">,
+	bookingCommercialLine: CommercialLine | null
+): string[] {
+	const reasons: string[] = []
+	if (
+		commission.commercialLine &&
+		bookingCommercialLine &&
+		commission.commercialLine !== bookingCommercialLine
+	) {
+		reasons.push("commission_commercial_line_mismatch")
+	}
+	if (!isCommissionAgreementDeclared(commission.agreementVersion)) {
+		reasons.push("commission_agreement_undeclared")
+	}
+	return reasons
+}
+
 function latestStatement(statements: ProviderStatement[]): ProviderStatement | null {
 	return (
 		statements.find((row) => row.status === "visible" || row.status === "recorded") ??
@@ -230,6 +258,7 @@ export function buildProviderFinanceMaterialization(params: {
 		const commission = commissionByBooking.get(bookingId) ?? null
 		const expectedCommission =
 			commission == null ? null : roundMoney(grossAmount * Number(commission.commissionRate ?? 0))
+		const bookingCommercialLine = resolveBookingCommercialLineFromRows(rows)
 		const commissionStaleReasons =
 			commission == null
 				? []
@@ -239,6 +268,7 @@ export function buildProviderFinanceMaterialization(params: {
 						expectedCommission !== roundMoney(commission.commissionAmount)
 							? "commission_amount_stale"
 							: null,
+						...commissionAgreementStaleReasons(commission, bookingCommercialLine),
 					].filter(Boolean) as string[])
 		const commissionState: ProviderFinanceSnapshotState = commission
 			? commissionStaleReasons.length

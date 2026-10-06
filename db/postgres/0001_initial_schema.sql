@@ -2071,6 +2071,8 @@ CREATE TABLE "CommissionSnapshot" (
 	"id" text PRIMARY KEY,
 	"bookingId" text NOT NULL,
 	"providerId" text NOT NULL,
+	"commercialLine" text,
+	"agreementVersion" text,
 	"commissionRate" numeric(7, 4) NOT NULL,
 	"commissionAmount" numeric(14, 2) NOT NULL,
 	"basis" text NOT NULL,
@@ -4842,6 +4844,8 @@ CREATE INDEX "FinancialProviderSummary_invalidatedAt_idx" ON "FinancialProviderS
 CREATE INDEX "CommissionSnapshot_booking_provider_idx" ON "CommissionSnapshot" ("bookingId", "providerId");
 
 CREATE INDEX "CommissionSnapshot_provider_snapshot_idx" ON "CommissionSnapshot" ("providerId", "snapshotAt");
+
+CREATE INDEX "CommissionSnapshot_provider_line_idx" ON "CommissionSnapshot" ("providerId", "commercialLine");
 
 CREATE INDEX "PayoutRecord_bookingId_idx" ON "PayoutRecord" ("bookingId");
 

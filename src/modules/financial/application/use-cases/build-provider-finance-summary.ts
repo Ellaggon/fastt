@@ -1,3 +1,9 @@
+import {
+	commercialLineSummaryLabel,
+	resolveBookingCommercialLineFromRows,
+} from "@/lib/financial/commissionAgreement"
+import type { CommercialLine } from "@/lib/verification/commercial-lines"
+
 import type { CommissionSnapshot } from "../../domain/commission-snapshot"
 import type { FinancialSettlementRecord } from "../../domain/financial-settlement-record"
 import type { PayoutRecord } from "../../domain/payout-record"
@@ -7,6 +13,7 @@ import type { ProviderStatement } from "../../domain/provider-statement"
 import type { ReconciliationMatch } from "../../domain/reconciliation-match"
 import {
 	buildProviderFinanceMaterialization,
+	commissionAgreementStaleReasons,
 	type ProviderFinanceMaterializationItem,
 	type ProviderFinanceStatementDraft,
 } from "./build-provider-finance-materialization"
@@ -24,6 +31,10 @@ export type ProviderFinanceBookingSnapshotRow = {
 	productId?: unknown
 	productNameSnapshot: unknown
 	variantNameSnapshot: unknown
+	/** Product type resolved from the line item product snapshot (immutable line source). */
+	productType?: unknown
+	/** Product type resolved through the live variant; only used when the snapshot join is empty. */
+	productTypeFallback?: unknown
 	ratePlanNameSnapshot?: unknown
 }
 
@@ -59,9 +70,88 @@ export type ProviderFinanceBlockingDetail = {
 		| "statement"
 }
 
+export type ProviderFinanceLineSummary = {
+	line: CommercialLine
+	label: string
+	bookingCount: number
+	totalGrossAmount: number
+	totalCommissionAmount: number
+	totalNetPayableVisible: number
+	commissionSnapshotMissing: number
+}
+
+/**
+ * `full_scope`: aggregated over every booking in the active workspace scope (not paginated).
+ * `page`: aggregated over the current page only; never present it as a provider total.
+ */
+export type ProviderFinanceLineSummaryBasis = "full_scope" | "page"
+
+export type ProviderFinanceLineAggregateRow = {
+	bookingId: string
+	grossAmount: unknown
+	productType?: unknown
+	productTypeFallback?: unknown
+}
+
+/**
+ * Aggregates provider finance totals by commercial line from scope-wide rows. Commission and
+ * payable figures come exclusively from persisted snapshots.
+ */
+export function aggregateProviderFinanceByCommercialLine(input: {
+	rows: readonly ProviderFinanceLineAggregateRow[]
+	commissionSnapshots: readonly Pick<CommissionSnapshot, "bookingId" | "commissionAmount">[]
+	payableSnapshots: readonly Pick<ProviderPayableSnapshot, "bookingId" | "netPayable">[]
+}): ProviderFinanceLineSummary[] {
+	const commissionByBooking = new Map(
+		input.commissionSnapshots.map((snapshot) => [snapshot.bookingId, snapshot])
+	)
+	const payableByBooking = new Map(
+		input.payableSnapshots.map((snapshot) => [snapshot.bookingId, snapshot])
+	)
+	const buckets = new Map<CommercialLine, ProviderFinanceLineSummary>()
+	const grouped = groupBy([...input.rows], (row) => row.bookingId)
+	for (const [bookingId, rows] of grouped.entries()) {
+		const line = resolveBookingCommercialLineFromRows(rows)
+		if (!line) continue
+		const bucket = buckets.get(line) ?? emptyLineSummary(line)
+		const commission = commissionByBooking.get(bookingId) ?? null
+		const payable = payableByBooking.get(bookingId) ?? null
+		bucket.bookingCount += 1
+		bucket.totalGrossAmount = roundMoney(
+			bucket.totalGrossAmount + rows.reduce((sum, row) => sum + Number(row.grossAmount ?? 0), 0)
+		)
+		bucket.totalCommissionAmount = roundMoney(
+			bucket.totalCommissionAmount + Number(commission?.commissionAmount ?? 0)
+		)
+		bucket.totalNetPayableVisible = roundMoney(
+			bucket.totalNetPayableVisible + Number(payable?.netPayable ?? 0)
+		)
+		if (!commission) bucket.commissionSnapshotMissing += 1
+		buckets.set(line, bucket)
+	}
+	return sortLineSummaries([...buckets.values()])
+}
+
+function emptyLineSummary(line: CommercialLine): ProviderFinanceLineSummary {
+	return {
+		line,
+		label: commercialLineSummaryLabel(line),
+		bookingCount: 0,
+		totalGrossAmount: 0,
+		totalCommissionAmount: 0,
+		totalNetPayableVisible: 0,
+		commissionSnapshotMissing: 0,
+	}
+}
+
+function sortLineSummaries(summaries: ProviderFinanceLineSummary[]): ProviderFinanceLineSummary[] {
+	return summaries.sort((left, right) => left.line.localeCompare(right.line))
+}
+
 export type ProviderFinanceReviewItem = {
 	bookingId: string
 	providerId: string
+	commercialLine: CommercialLine | null
 	currency: string
 	grossAmount: number
 	commissionAmount: number | null
@@ -162,6 +252,8 @@ export type ProviderFinanceSummary = {
 		totalCommissionAmount: number
 		totalTaxAmount: number
 		totalNetPayableVisible: number
+		byCommercialLine: ProviderFinanceLineSummary[]
+		byCommercialLineBasis: ProviderFinanceLineSummaryBasis
 	}
 }
 
@@ -299,6 +391,8 @@ export function buildProviderFinanceSummary(params: {
 	statements: ProviderStatement[]
 	reconciliationMatches: ReconciliationMatch[]
 	settlementRecords: FinancialSettlementRecord[]
+	/** Scope-wide line aggregate; when absent the summary falls back to a page-level aggregate. */
+	scopeLineSummary?: ProviderFinanceLineSummary[]
 }): ProviderFinanceSummary {
 	const materialization = buildProviderFinanceMaterialization({
 		providerId: params.providerId,
@@ -381,9 +475,21 @@ export function buildProviderFinanceSummary(params: {
 			...(materialized?.commission.staleReasons ?? []),
 			...(materialized?.payable.staleReasons ?? []),
 		]
+		const commercialLine = resolveBookingCommercialLineFromRows(rows)
+		const agreementReasons = commission
+			? commissionAgreementStaleReasons(commission, commercialLine).filter(
+					(reason) => !staleReasons.includes(reason)
+				)
+			: []
+		if (agreementReasons.length) {
+			staleReasons.push(...agreementReasons)
+			if (!queues.includes("commission_snapshot_missing"))
+				queues.push("commission_snapshot_missing")
+		}
 		return {
 			bookingId,
 			providerId: params.providerId,
+			commercialLine,
 			currency,
 			grossAmount,
 			commissionAmount: commission?.commissionAmount ?? null,
@@ -489,6 +595,23 @@ export function buildProviderFinanceSummary(params: {
 		}
 	})
 
+	const pageLineSummary = aggregateProviderFinanceByCommercialLine({
+		rows: params.bookingRows.map((row) => ({
+			bookingId: row.bookingId,
+			grossAmount: row.detailTotalAmount,
+			productType: row.productType,
+			productTypeFallback: row.productTypeFallback,
+		})),
+		commissionSnapshots: params.commissionSnapshots,
+		payableSnapshots: params.payableSnapshots,
+	})
+	const byCommercialLine = params.scopeLineSummary
+		? sortLineSummaries([...params.scopeLineSummary])
+		: pageLineSummary
+	const byCommercialLineBasis: ProviderFinanceLineSummaryBasis = params.scopeLineSummary
+		? "full_scope"
+		: "page"
+
 	return {
 		providerId: params.providerId,
 		profile: params.profile,
@@ -524,6 +647,8 @@ export function buildProviderFinanceSummary(params: {
 			totalNetPayableVisible: roundMoney(
 				items.reduce((sum, item) => sum + Number(item.payable.netPayable ?? 0), 0)
 			),
+			byCommercialLine,
+			byCommercialLineBasis,
 		},
 	}
 }
