@@ -314,7 +314,15 @@ const showContextSwitcher =
 		class="fastt-side-sheet--dark max-w-80 text-slate-100"
 	>
 		<div class="flex items-center justify-between gap-3 border-b border-white/[0.08] px-4 py-3">
-			<p class="truncate text-base font-semibold text-white">Fastt</p>
+			<div class="min-w-0">
+				<p class="truncate text-base font-semibold text-white">Fastt</p>{
+					workspaceContext.businessName && (
+						<p class="mt-1 truncate text-sm text-slate-400" title={workspaceContext.businessName}>
+							{workspaceContext.businessName}
+						</p>
+					)
+				}
+			</div>
 			<IconButton
 				type="button"
 				variant="ghost"

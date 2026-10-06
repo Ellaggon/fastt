@@ -20,8 +20,8 @@ describe("dashboard P2 today board", () => {
 		expect(dashboard).toContain("!isSetupHome && !isChoosingForAddRoom")
 	})
 
-	it("keeps catalog Hotel/Tours KPIs only for multi-vertical operate homes", () => {
-		expect(dashboard).toContain("showCrossVerticalKpis = !isSetupHome && operatedFamilies > 1")
+	it("avoids duplicating tour totals in the legacy multi-vertical board", () => {
+		expect(dashboard).toContain("showCrossVerticalKpis = !hasTour && !isSetupHome && operatedFamilies > 1")
 		expect(dashboard).not.toContain('<WorkspaceMetricStat label="Salidas">')
 		expect(dashboard).not.toContain('<WorkspaceMetricStat label="Habitaciones">')
 	})
