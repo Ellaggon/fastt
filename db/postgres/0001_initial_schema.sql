@@ -2078,11 +2078,8 @@ CREATE TABLE "CommissionSnapshot" (
 	"basis" text NOT NULL,
 	"currency" text NOT NULL,
 	"snapshotAt" timestamp with time zone NOT NULL,
-	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
-	CONSTRAINT "CommissionSnapshot_commercialLine_check" CHECK ("commercialLine" IS NULL OR "commercialLine" IN ('lodging', 'tour'))
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now()
 );
-
-CREATE INDEX "CommissionSnapshot_provider_line_idx" ON "CommissionSnapshot" ("providerId", "commercialLine");
 
 CREATE TABLE "PayoutRecord" (
 	"id" text PRIMARY KEY,
@@ -4847,6 +4844,8 @@ CREATE INDEX "FinancialProviderSummary_invalidatedAt_idx" ON "FinancialProviderS
 CREATE INDEX "CommissionSnapshot_booking_provider_idx" ON "CommissionSnapshot" ("bookingId", "providerId");
 
 CREATE INDEX "CommissionSnapshot_provider_snapshot_idx" ON "CommissionSnapshot" ("providerId", "snapshotAt");
+
+CREATE INDEX "CommissionSnapshot_provider_line_idx" ON "CommissionSnapshot" ("providerId", "commercialLine");
 
 CREATE INDEX "PayoutRecord_bookingId_idx" ON "PayoutRecord" ("bookingId");
 

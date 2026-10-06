@@ -66,6 +66,8 @@ function commission(overrides: Partial<CommissionSnapshot> = {}): CommissionSnap
 		id: "commission_stage4_1",
 		bookingId,
 		providerId,
+		commercialLine: null,
+		agreementVersion: null,
 		commissionRate: 0.15,
 		commissionAmount: 30,
 		basis: "booking_line_item_snapshot",
