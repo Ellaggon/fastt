@@ -88,27 +88,49 @@ const [ratePlansSurface, variantChoices, sidebarData] = await Promise.all([
 const explicitScope = Astro.url.searchParams.get("scope") ?? Astro.url.searchParams.get("vertical")
 const selectedProductId = Astro.url.searchParams.get("productId")
 const rateScopeProducts = [
-	...new Map(
-		variantChoices.map((choice) => [
+	...new Map([
+		...variantChoices.map((choice) => [
 			choice.productId,
 			{
 				id: String(choice.productId),
 				name: String(choice.productName || choice.productId),
 				productType: String(choice.productType ?? ""),
 			},
-		])
-	).values(),
+		]),
+		...ratePlansSurface.ratePlans.map((row) => [
+			row.productId,
+			{
+				id: String(row.productId),
+				name: String(row.productName || row.productId),
+				productType: String(row.productType ?? ""),
+			},
+		]),
+	] as Array<[string, { id: string; name: string; productType: string }]>).values(),
 ]
 if (explicitScope || selectedProductId) {
 	const commercialLines = await listProviderCommercialLines(auth.providerId).catch(() => [])
+	const productTypes = [
+		...(sidebarData?.productTypes ?? []),
+		...rateScopeProducts.map((product) => product.productType),
+	]
 	const ratesScope = resolveWorkspaceScope({
 		requestedScope: explicitScope,
 		productId: selectedProductId,
-		productTypes: sidebarData?.productTypes ?? [],
+		productTypes,
 		commercialLines: commercialLines.map((entry) => entry.line),
 		products: rateScopeProducts,
 	})
-	if (!ratesScope.valid) {
+	// Guided creation can pass productId before variants/rates exist; only fail closed when the
+	// catalog we already loaded contradicts the requested scope/product.
+	const emptyProductCatalog = rateScopeProducts.length === 0
+	if (
+		!ratesScope.valid &&
+		!(
+			emptyProductCatalog &&
+			ratesScope.reason === "scope_product_mismatch" &&
+			Boolean(selectedProductId)
+		)
+	) {
 		return workspaceScopeInvalidResponse(ratesScope, {
 			title: "Contexto de tarifas no válido",
 			recoveryHref: `${routes.rates()}?scope=all`,
