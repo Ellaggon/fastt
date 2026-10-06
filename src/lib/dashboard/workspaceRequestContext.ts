@@ -1,3 +1,4 @@
+import { db, eq, Provider } from "@/shared/infrastructure/db/compat"
 import type { SidebarDisclosureMode } from "@/lib/backoffice-governance"
 import { getProviderSessionSurfaceFromRequest } from "@/lib/auth/providerSessionSurface"
 import type { ProviderSessionSurface } from "@/lib/auth/authCache"
@@ -15,6 +16,7 @@ export type WorkspaceRequestContext = {
 	user: AuthUser | null
 	provider: ProviderSessionSurface | null
 	sidebarDataPromise: Promise<ProviderSidebarData | null>
+	businessNamePromise?: Promise<string | null>
 	workspaceExperience: "essential" | "professional"
 	showProfessionalToggle: boolean
 }
@@ -23,6 +25,7 @@ export type WorkspaceShellContext = {
 	user: AuthUser | null
 	provider: ProviderSessionSurface | null
 	sidebarData: ProviderSidebarData | null
+	businessName?: string | null
 	workspaceExperience: "essential" | "professional"
 	effectiveWorkspaceExperience: "essential" | "professional"
 	workspaceCapabilities: ProviderWorkspaceCapabilities
@@ -64,10 +67,24 @@ export async function buildWorkspaceRequestContext(
 			})
 		: Promise.resolve(null)
 
+	const businessNamePromise = provider
+		? db
+				.select({ displayName: Provider.displayName, legalName: Provider.legalName })
+				.from(Provider)
+				.where(eq(Provider.id, provider.providerId))
+				.then(([row]) =>
+					row ? row.displayName?.trim() || row.legalName?.trim() || "Tu negocio" : null
+				)
+				.catch((error) => {
+					console.error("Workspace business identity unavailable", error)
+					return null
+				})
+		: Promise.resolve(null)
 	return {
 		user,
 		provider,
 		sidebarDataPromise,
+		businessNamePromise,
 		workspaceExperience,
 		showProfessionalToggle: Boolean(provider),
 	}
@@ -76,7 +93,10 @@ export async function buildWorkspaceRequestContext(
 export async function resolveWorkspaceShellContext(
 	context: WorkspaceRequestContext
 ): Promise<WorkspaceShellContext> {
-	const sidebarData = await context.sidebarDataPromise
+	const [sidebarData, businessName] = await Promise.all([
+		context.sidebarDataPromise,
+		context.businessNamePromise,
+	])
 	const fallbackCapabilities = resolveProviderWorkspaceCapabilities({
 		ratePlanCount: 0,
 		variantCount: 0,
@@ -93,6 +113,7 @@ export async function resolveWorkspaceShellContext(
 		user: context.user,
 		provider: context.provider,
 		sidebarData,
+		businessName,
 		workspaceExperience: context.workspaceExperience,
 		effectiveWorkspaceExperience,
 		workspaceCapabilities: sidebarData?.capabilities ?? fallbackCapabilities,

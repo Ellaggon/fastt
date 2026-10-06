@@ -19,7 +19,8 @@ describe("dashboard P1 setup vs operate home", () => {
 	it("uses a visible setup heading instead of a hidden operational title", () => {
 		const presentation = read("src/lib/dashboard/dashboardHomePresentation.ts")
 		expect(dashboard).toContain("homeCopy.title")
-		expect(presentation).toContain("Prepara tu tour")
+		expect(presentation).toContain('title: "Resumen"')
+		expect(dashboard).toContain("TourBusinessOverview")
 		expect(dashboard).not.toContain('class="sr-only">Resumen Operativo')
 	})
 
@@ -27,7 +28,7 @@ describe("dashboard P1 setup vs operate home", () => {
 		expect(dashboard).toContain("data-dashboard-provider-notice")
 		expect(dashboard).toContain("Cuenta de proveedor")
 		expect(dashboard).toContain(
-			"showAddAnotherService = products.length > 0 && !isChoosingForAddRoom"
+			"showAddAnotherService = products.length > 0 && !isChoosingForAddRoom && !hasTour"
 		)
 		expect(dashboard).toContain("Agregar otro servicio")
 		expect(dashboard).not.toContain("Ir a proveedor")

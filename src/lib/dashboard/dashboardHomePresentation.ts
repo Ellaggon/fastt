@@ -54,14 +54,10 @@ export function resolveDashboardHomeCopy(input: {
 			intro: "Añade tu primer servicio para empezar a operar.",
 		}
 	}
+	if (input.hasTour) {
+		return { title: "Resumen", intro: "Actividad y próximos pasos de tu negocio." }
+	}
 	if (input.isSetupHome) {
-		if (input.hasTour && !input.hasHotel) {
-			return {
-				title: input.tourCount === 1 ? "Prepara tu tour" : "Prepara tus tours",
-				intro:
-					"Termina la ficha para publicarla. La operación diaria aparece cuando el tour esté listo.",
-			}
-		}
 		if (input.hasHotel && !input.hasTour) {
 			return {
 				title: input.hotelCount === 1 ? "Prepara tu alojamiento" : "Prepara tus alojamientos",
