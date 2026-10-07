@@ -34,6 +34,9 @@ Guardrail:
 - New raw `<button class=...>`, `<input class=...>`, `<select class=...>`,
   `<textarea class=...>`, raw dialogs/modals, raw card panels, and legacy external color
   tokens are blocked outside `ui/*` and `ui-react/*`.
+- Form controls on dark workspace shells should use `fastt-field fastt-field--on-dark`
+  (or an Input variant that applies it). The guardrail accepts either token; it does not
+  require the light `#b0b0b0` edge from bare `.fastt-field`.
 - Existing legacy exceptions are listed explicitly in `scripts/check-ui-raw-objects.mjs`.
   Do not add to that list for new work; migrate the surface to a UI primitive instead.
 

@@ -110,9 +110,10 @@ const wrapperSurfaceFiles = [
 
 const allowedClassTokens = {
 	button: ["fastt-button", "calendar-control", "fastt-tabs-inside-panel__item"],
-	input: ["fastt-field", "fastt-check-input", "calendar-control"],
-	select: ["fastt-field", "calendar-control"],
-	textarea: ["fastt-field", "calendar-control"],
+	// Dark workspace shells may use fastt-field--on-dark; do not force the light #b0b0b0 edge.
+	input: ["fastt-field", "fastt-field--on-dark", "fastt-check-input", "calendar-control"],
+	select: ["fastt-field", "fastt-field--on-dark", "calendar-control"],
+	textarea: ["fastt-field", "fastt-field--on-dark", "calendar-control"],
 	dialog: ["fastt-dialog"],
 	card: ["fastt-card", "fastt-row-card", "fastt-soft-box", "fastt-notice", "fastt-empty-state"],
 	modal: ["fastt-modal-backdrop", "modal-overlay", "calendar-backdrop", "fastt-drawer-overlay"],
