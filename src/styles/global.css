@@ -532,7 +532,6 @@ html[data-verification-submit-pending="true"] {
 }
 
 .fastt-card {
-	border-color: var(--fastt-color-border);
 	border-radius: var(--fastt-radius-panel);
 	box-shadow: var(--fastt-shadow-card);
 	overflow: hidden;
