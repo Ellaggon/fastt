@@ -48,7 +48,10 @@ describe("tour preparation and review rendered contract", () => {
 		expect(html).not.toContain("Revisar y publicar")
 		expect(html).not.toContain("90%")
 		expect(html).not.toContain("<progress")
-		expect(html).toContain("lg:grid-cols-3")
+		expect(html).toContain("data-tour-stage-rail-viewport")
+		expect(html).toContain("data-tour-stage-rail")
+		expect(html).toContain("overflow-x-auto")
+		expect(html).not.toContain("lg:grid-cols-3")
 	})
 	it("shows only pending tasks and folds completed requirements without stages", async () => {
 		const diagnosis = fixture()

@@ -28,52 +28,62 @@ const labels = {
 					{stageSummaryLabel}
 				</summary>
 				<nav aria-label="Etapas de preparación" class="mt-3">
-					<ol class="tour-stage-rail grid list-none gap-2 p-0 lg:grid-cols-3">
-						{stages.map((stage) => {
-							const isActive = stage.id === activeStageId
-							const statusLabel =
-								isActive && stage.state === "pending"
-									? "En curso"
-									: labels[stage.state as keyof typeof labels]
-							const itemClass = [
-								"tour-stage-rail__step",
-								isActive ? "tour-stage-rail__step--active" : "",
-								stage.state === "ready" ? "tour-stage-rail__step--ready" : "",
-								stage.state === "blocked" ? "tour-stage-rail__step--blocked" : "",
-								stage.state === "not_evaluable" ? "tour-stage-rail__step--muted" : "",
-							]
-								.filter(Boolean)
-								.join(" ")
-							const inner = (
-								<>
-									<p class="tour-stage-rail__heading">
-										<span class="tour-stage-rail__index">{stage.position}</span>
-										<span class="tour-stage-rail__label">{stage.label}</span>
-									</p>
-									<span class="tour-stage-rail__status">
-										{statusLabel}
-										{isActive && stage.state !== "pending" ? " · Etapa actual" : ""}
-									</span>
-								</>
-							)
-							return (
-								<li
-									class={itemClass}
-									aria-current={isActive ? "step" : undefined}
-									data-tour-stage-id={stage.id}
-									data-tour-stage-state={stage.state}
-								>
-									{stage.href ? (
-										<a class="tour-stage-rail__link" href={stage.href}>
-											{inner}
-										</a>
-									) : (
-										<div class="tour-stage-rail__body">{inner}</div>
-									)}
-								</li>
-							)
-						})}
-					</ol>
+					<div
+						class="tour-stage-rail-viewport"
+						data-tour-stage-rail-viewport
+						data-fade-start="false"
+						data-fade-end="true"
+					>
+						<ol
+							class="tour-stage-rail flex min-w-0 list-none gap-1.5 overflow-x-auto p-0 pb-0.5 sm:gap-2"
+							data-tour-stage-rail
+						>
+							{stages.map((stage) => {
+								const isActive = stage.id === activeStageId
+								const statusLabel =
+									isActive && stage.state === "pending"
+										? "En curso"
+										: labels[stage.state as keyof typeof labels]
+								const itemClass = [
+									"tour-stage-rail__step",
+									isActive ? "tour-stage-rail__step--active" : "",
+									stage.state === "ready" ? "tour-stage-rail__step--ready" : "",
+									stage.state === "blocked" ? "tour-stage-rail__step--blocked" : "",
+									stage.state === "not_evaluable" ? "tour-stage-rail__step--muted" : "",
+								]
+									.filter(Boolean)
+									.join(" ")
+								const inner = (
+									<>
+										<p class="tour-stage-rail__heading">
+											<span class="tour-stage-rail__index">{stage.position}</span>
+											<span class="tour-stage-rail__label">{stage.label}</span>
+										</p>
+										<span class="tour-stage-rail__status">
+											{statusLabel}
+											{isActive && stage.state !== "pending" ? " · Etapa actual" : ""}
+										</span>
+									</>
+								)
+								return (
+									<li
+										class={itemClass}
+										aria-current={isActive ? "step" : undefined}
+										data-tour-stage-id={stage.id}
+										data-tour-stage-state={stage.state}
+									>
+										{stage.href ? (
+											<a class="tour-stage-rail__link" href={stage.href}>
+												{inner}
+											</a>
+										) : (
+											<div class="tour-stage-rail__body">{inner}</div>
+										)}
+									</li>
+								)
+							})}
+						</ol>
+					</div>
 				</nav>
 			</details>
 		) : null
@@ -81,14 +91,55 @@ const labels = {
 </div>
 
 <style>
+	.tour-stage-rail-viewport {
+		position: relative;
+		min-width: 0;
+		--tour-stage-fade-start: transparent;
+		--tour-stage-fade-end: black;
+		-webkit-mask-image: linear-gradient(
+			to right,
+			var(--tour-stage-fade-start),
+			black 1.5rem,
+			black calc(100% - 1.5rem),
+			var(--tour-stage-fade-end)
+		);
+		mask-image: linear-gradient(
+			to right,
+			var(--tour-stage-fade-start),
+			black 1.5rem,
+			black calc(100% - 1.5rem),
+			var(--tour-stage-fade-end)
+		);
+	}
+
+	.tour-stage-rail-viewport[data-fade-start="true"] {
+		--tour-stage-fade-start: transparent;
+	}
+
+	.tour-stage-rail-viewport[data-fade-start="false"] {
+		--tour-stage-fade-start: black;
+	}
+
+	.tour-stage-rail-viewport[data-fade-end="true"] {
+		--tour-stage-fade-end: transparent;
+	}
+
+	.tour-stage-rail-viewport[data-fade-end="false"] {
+		--tour-stage-fade-end: black;
+	}
+
 	.tour-stage-rail {
 		scrollbar-width: thin;
 		scrollbar-color: rgb(100 116 139 / 0.45) transparent;
+		scroll-snap-type: x proximity;
+		-webkit-overflow-scrolling: touch;
 	}
 
 	.tour-stage-rail__step {
-		flex: 1 1 0;
-		min-width: 5.75rem;
+		/* ~5–6 cards visible; overflow fades and scrolls instead of crushing all nine. */
+		flex: 0 0 auto;
+		width: 8.5rem;
+		scroll-snap-align: center;
 	}
 
 	.tour-stage-rail__link,
@@ -194,7 +245,7 @@ const labels = {
 
 	@media (min-width: 640px) {
 		.tour-stage-rail__step {
-			min-width: 0;
+			width: 9rem;
 		}
 
 		.tour-stage-rail__index,
@@ -215,10 +266,45 @@ const labels = {
 </style>
 
 <script>
+	function syncRailFade(viewport: HTMLElement, rail: HTMLElement) {
+		const maxScroll = Math.max(0, rail.scrollWidth - rail.clientWidth)
+		const left = rail.scrollLeft
+		viewport.dataset.fadeStart = left > 4 ? "true" : "false"
+		viewport.dataset.fadeEnd = left < maxScroll - 4 ? "true" : "false"
+	}
+
+	function focusActiveStage(details: HTMLDetailsElement) {
+		const rail = details.querySelector<HTMLElement>("[data-tour-stage-rail]")
+		const viewport = details.querySelector<HTMLElement>("[data-tour-stage-rail-viewport]")
+		const active = details.querySelector<HTMLElement>(
+			'.tour-stage-rail__step--active, [aria-current="step"]'
+		)
+		if (!rail || !viewport || !active) return
+		const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+		active.scrollIntoView({
+			inline: "center",
+			block: "nearest",
+			behavior: reduced ? "auto" : "smooth",
+		})
+		requestAnimationFrame(() => syncRailFade(viewport, rail))
+	}
+
+	function bindStageRail(details: HTMLDetailsElement) {
+		const rail = details.querySelector<HTMLElement>("[data-tour-stage-rail]")
+		const viewport = details.querySelector<HTMLElement>("[data-tour-stage-rail-viewport]")
+		if (!rail || !viewport || rail.dataset.railBound) return
+		rail.dataset.railBound = "true"
+		const sync = () => syncRailFade(viewport, rail)
+		rail.addEventListener("scroll", sync, { passive: true })
+		window.addEventListener("resize", sync)
+		sync()
+	}
+
 	function initStageTransitions() {
 		document
 			.querySelectorAll<HTMLDetailsElement>("[data-tour-stages-disclosure]")
 			.forEach((details) => {
+				bindStageRail(details)
 				if (details.dataset.transitionBound) return
 				const summary = details.querySelector("summary")
 				const content = details.querySelector("nav")
@@ -226,6 +312,12 @@ const labels = {
 				details.dataset.transitionBound = "true"
 				let expanded = details.open
 				let animation: Animation | null = null
+				if (expanded) {
+					content.inert = false
+					focusActiveStage(details)
+				} else {
+					content.inert = true
+				}
 				summary.addEventListener("click", (event) => {
 					event.preventDefault()
 					const from = details.getBoundingClientRect().height
@@ -237,6 +329,7 @@ const labels = {
 						details.open = expanded
 						details.style.removeProperty("overflow")
 						animation = null
+						if (expanded) focusActiveStage(details)
 						return
 					}
 					// Keep the native disclosure open until its closing animation finishes.
@@ -253,6 +346,7 @@ const labels = {
 						details.open = expanded
 						details.style.removeProperty("overflow")
 						animation = null
+						if (expanded) focusActiveStage(details)
 					}
 				})
 			})
