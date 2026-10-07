@@ -61,6 +61,50 @@ const canonicalHref = canonicalPath ? new URL(canonicalPath, Astro.url.origin).h
 				)
 			}
 		</script>
+		<script is:inline data-workspace-router-recovery>
+			;(function () {
+				if (window.__fasttRouterRecoveryInstalled) return
+				window.__fasttRouterRecoveryInstalled = true
+				let recoveryTimer = 0
+				let revision = 0
+				function complete() {
+					window.clearTimeout(recoveryTimer)
+					revision++
+				}
+				document.addEventListener("astro:before-preparation", function (event) {
+					complete()
+					// Never replace or replay a form submission with a GET navigation.
+					if (event.formData) return
+					const current = revision
+					let destination
+					try {
+						destination = new URL(String(event.to), location.href)
+						if (destination.origin !== location.origin) return
+					} catch {
+						return
+					}
+					// Recover router/module failures without dropping query or beforeunload protection.
+					const recover = function () {
+						if (current !== revision || event.signal?.aborted) return
+						complete()
+						location.assign(destination.href)
+					}
+					recoveryTimer = window.setTimeout(recover, 12000)
+					const loader = event.loader
+					if (typeof loader === "function") {
+						event.loader = async function () {
+							try {
+								return await loader()
+							} catch (error) {
+								recover()
+								throw error
+							}
+						}
+					}
+				})
+				document.addEventListener("astro:page-load", complete)
+			})()
+		</script>
 		<ClientRouter />
 	</head>
 	<body class:list={["min-h-screen font-sans", bodyClass]}>
