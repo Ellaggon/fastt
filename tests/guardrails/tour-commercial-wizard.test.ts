@@ -10,6 +10,9 @@ describe("tour commercial wizard", () => {
 	it("separates participant definitions from public discovery categories", () => {
 		const participants = read("src/pages/product/[id]/tickets.astro")
 		const categories = read("src/pages/product/[id]/categories.astro")
+		const presentation = read("src/components/tours/TourPresentationForm.astro")
+		const presentationLoader = read("src/lib/tours/loadTourPresentationForm.ts")
+		const categoryChoices = read("src/components/tours/TourCategoryChoices.astro")
 		expect(participants).toContain(
 			'continueFormId={playbook.active ? "ticketsPlaybookForm" : null}'
 		)
@@ -17,11 +20,17 @@ describe("tour commercial wizard", () => {
 		expect(participants).toContain('aria-label="Nombre visible de la entrada ${index + 1}"')
 		expect(participants).toContain("categoriesHref")
 		expect(participants).not.toContain("ProductCategoryLink")
-		expect(categories).toContain("publicTourCategories")
-		expect(categories).toContain("Selecciona una categoría")
-		expect(categories).toContain('eq(ProductCategory.isActive, true)')
-		expect(categories).toContain('eq(ProductCategory.dataClass, "production")')
-		expect(categories).toContain("representan tipos de")
+		// Categories live in presentation; /categories is only a compatibility redirect.
+		expect(categories).toContain("tourPresentationCanonicalHref")
+		expect(categories).toContain("Compatibility entry")
+		expect(categories).not.toContain("publicTourCategories")
+		expect(categories).not.toContain("ProductCategoryLink")
+		expect(presentation).toContain("TourCategoryChoices")
+		expect(categoryChoices).toContain('name="categoryId"')
+		expect(categoryChoices).toContain("¿Qué tipo de experiencia ofreces?")
+		expect(presentationLoader).toContain("publicTourCategories")
+		expect(presentationLoader).toContain('eq(ProductCategory.isActive, true)')
+		expect(presentationLoader).toContain('eq(ProductCategory.dataClass, "production")')
 	})
 
 	it("preserves departure drafts and distinguishes templates from dates", () => {

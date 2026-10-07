@@ -3,7 +3,7 @@
 Status: active  
 Document type: canonical  
 Owner: Tours / Pricing & Policies  
-Last verified: 2026-10-04
+Last verified: 2026-10-07
 Scope: condiciones de tarifa, preview, asignación y publicación de tours  
 Source of truth: `src/lib/policies/policy-business-contract.ts` y `src/lib/policies/policy-business-compatibility.ts`  
 Related code/tests: `src/pages/api/policies/`, `src/components/policy/`, `tests/policies/`, `tests/integration/tour-policy-existing-payment-assignment.test.ts`  
@@ -47,6 +47,10 @@ Obtiene hora de salida desde `TourSlotProfile` y zona/moneda desde `ProviderProf
 ## Editor y navegación
 
 La interfaz usa experiencia, salida y tarifa. Las categorías y opciones llegan filtradas desde servidor. El diálogo tiene nombre y descripción accesibles, cierra con Escape, devuelve el foco y conserva los datos ante errores. El enlace a salida/cupo mantiene producto, variante y tarifa.
+
+La entrada estable `/product/{id}/conditions` valida la oferta antes de abrir el editor. Si falta opción o tarifa, explica esa dependencia; con varias ofertas pide selección y nunca sustituye una selección explícita inválida. Conserva el retorno y los identificadores validados. Cancelación y no presentación tienen estados independientes; el pago directo válido es informativo.
+
+Las preguntas se cargan al abrir su sección opcional y sólo se guardan mediante su acción explícita. Una lectura fallida no representa una lista vacía ni permite sobrescribirla; el error conserva los campos y ofrece recuperación.
 
 Las preguntas operativas pertenecen al tour completo: se responden una vez por reserva, aplican a todas sus salidas y tarifas, y quedan congeladas con la reserva. Los cambios afectan reservas nuevas.
 

@@ -106,6 +106,28 @@ describe("rendered rate page without tour departures", () => {
 		expect(html).toContain("Preparar alojamiento")
 		expect(html).not.toContain("Preparar tour")
 	})
+	it("accepts an owned new tour absent from a nonempty pricing catalog", async () => {
+		mocks.variants = [
+			{
+				productId: "other-tour",
+				productType: "tour",
+				productName: "Otro tour",
+				variantId: "other-option",
+				variantName: "Otra opción",
+				label: "Otro tour",
+			},
+		]
+		const result = await response(
+			"playbook=launch-tour&step=conditions&flow=create&tourFlowVersion=2"
+		)
+		expect(result.status).toBe(302)
+		expect(result.headers.get("location")).toContain("/product/tour-1/conditions?")
+	})
+	it("keeps rejecting a contradictory hotel scope for an owned tour", async () => {
+		const result = await response("scope=hotel&playbook=launch-tour&step=conditions")
+		expect(result.status).toBe(400)
+		expect(await result.text()).toContain("El negocio seleccionado no coincide")
+	})
 })
 
 function offer(

@@ -101,6 +101,10 @@ it("keeps stage completion coherent with individual saved requirements and autho
 		"pending",
 		"ready",
 		"ready",
+		"ready",
+		"ready",
+		"ready",
+		"ready",
 		"pending",
 	])
 	expect(stages[0].pendingReason).toBe(diagnosis.requirements.activities.result.reason.message)
@@ -109,7 +113,7 @@ it("keeps stage completion coherent with individual saved requirements and autho
 	expect(view.tasks).toHaveLength(4)
 	expect(view.waiting).toHaveLength(1)
 	expect(view.completed).toHaveLength(7)
-	expect(view.completed.map((item) => item.id)).toContain("presentation")
+	expect(view.completed.map((item) => item.id)).not.toContain("presentation")
 	const options = { previewHref: "/product/tour/preview" }
 	expect(presentTourDiagnostic(diagnosis, options).reviewStatusLabel).toBe("Preparación pendiente")
 	for (const id of ["activities", "logistics", "calendar_configuration"] as const) {
@@ -140,4 +144,22 @@ it("keeps a concrete missing-option correction actionable instead of retrying th
 	)!
 	expect(task.unknown).toBe(false)
 	expect(new URL(task.href!, "http://fastt.local").pathname).toBe("/product/tour/departures/new")
+})
+
+it("groups content and categories into one presentation correction without false completion", () => {
+	const diagnosis = tourDiagnosticFixture()
+	diagnosis.requirements.activities.result = pending("/product/tour/categories?step=categories")
+	let view = projectTourPublicationTasks(diagnosis)
+	expect(
+		view.completed.some((item) => item.id === "presentation" || item.id === "activities")
+	).toBe(false)
+	expect(view.tasks).toHaveLength(1)
+	expect(view.tasks[0].label).toBe("Presentación")
+	expect(new URL(view.tasks[0].href!, "http://fastt.local").pathname).toBe(
+		"/product/tour/presentation"
+	)
+	diagnosis.requirements.presentation.result = pending("/product/tour/content?step=content")
+	view = projectTourPublicationTasks(diagnosis)
+	expect(view.tasks).toHaveLength(1)
+	expect(view.tasks[0].ids).toEqual(["presentation", "activities"])
 })

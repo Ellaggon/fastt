@@ -32,7 +32,7 @@ utilizados en el análisis y diagrama no prescriben cambios de apariencia ni de 
 cabecera de etapas y comprobaciones. La validación local no acredita un despliegue operativo.
 
 La crítica es de arquitectura de información: en una pantalla de edición se presentan
-ubicación, cinco etapas, diez comprobaciones, estados, contexto comercial y formulario.
+ubicación, nueve etapas, once comprobaciones, estados, contexto comercial y formulario.
 El administrador debe interpretar dos modelos de avance antes de realizar su tarea.
 Plegar ambas listas o mejorar sus colores no resuelve esa competencia.
 
@@ -57,24 +57,34 @@ Debe asumirse en navegación y persistencia, sin trasladarlo al administrador me
 textos, selectores de modo o indicadores. «Preparar tour» y «Publicar tour» son nombres de
 acciones reconocibles; la palabra playbook no necesita aparecer en la interfaz.
 
-La cuarta etapa sigue agrupando varias decisiones. Se conserva como bloque de preparación,
-pero cada pantalla tiene un título corto y una acción: no se vuelcan todos sus formularios ni
-sus instrucciones en la cabecera. Separar playbooks no justifica cambiar los estilos existentes.
+Participantes, opción, precio y condiciones tienen entradas propias. Cada etapa abre el
+formulario que promete su título y evalúa sólo sus comprobaciones. El índice permanece
+plegado; expandirlo no muestra instrucciones ni formularios adicionales.
 
 ## Playbook A — Preparar tour
 
 **Gatillos:** Crear tour; Continuar preparación de un borrador que quedó en esta parte;
 Editar preparación desde la segunda parte cuando el usuario quiera revisar varias etapas.
 
-| Etapa                    | Formularios existentes                                                      |
-| ------------------------ | --------------------------------------------------------------------------- |
-| 1. Presentación          | Un único formulario: nombre, destino, descripción, destacados y categorías. |
-| 2. Recorrido y logística | Ubicación/encuentro → duración, itinerario, inclusiones y requisitos.       |
-| 3. Fotos                 | Carga, portada, orden y descripciones.                                      |
-| 4. Opción y precio       | Participantes → perfil, modalidad y grupo → precio → condiciones.           |
-| 5. Fechas y cupos        | Fechas o repetición, capacidades y excepciones de la opción.                |
+| Etapa                     | Formularios existentes                                                      |
+| ------------------------- | --------------------------------------------------------------------------- |
+| 1. Presentación           | Un único formulario: nombre, destino, descripción, destacados y categorías. |
+| 2. Itinerario y logística | Duración, itinerario, inclusiones y requisitos.                             |
+| 3. Ubicación y encuentro  | Punto de encuentro, dirección e indicaciones.                               |
+| 4. Fotos                  | Carga, portada, orden y descripciones.                                      |
+| 5. Participantes          | Tipos de participante y edades admitidas.                                   |
+| 6. Primera opción         | Nombre, horario, modalidad, idioma y capacidad del grupo.                   |
+| 7. Precio                 | Tarifa de la opción y precio por participante o grupo.                      |
+| 8. Condiciones de reserva | Cancelación, pago, no presentación y preguntas.                             |
+| 9. Fechas y cupos         | Fechas o repetición, capacidades y excepciones de la opción.                |
 
-Las cinco entradas del índice tienen destinos estables, independientes del primer requisito
+Presentación incluye nombre, destino, descripción, destacados y categorías tanto al crear como
+al corregir desde Publicación. El resumen agrupa contenido y categorías en una sola tarea;
+no muestra Presentación cumplida mientras alguna de sus comprobaciones esté pendiente.
+Las entradas antiguas de contenido y categorías redirigen al formulario unificado conservando
+selección y retorno. Las comprobaciones del servidor siguen validándose por separado.
+
+Las nueve entradas del índice tienen destinos estables, independientes del primer requisito
 pendiente. Fechas y cupos abre el calendario; si falta opción o tarifa, esa entrada explica la
 dependencia y ofrece la acción correspondiente. No redirige silenciosamente a crear una opción.
 Se puede trabajar fuera de orden cuando existan las entidades necesarias. Guardar continúa al
@@ -91,15 +101,15 @@ como borrador. Las antiguas entradas de descripción y categorías de preparaci�
 a `/product/{id}/presentation`, con los datos existentes y el contexto conservados. La etapa
 actual pendiente se presenta como «En curso»; navegar nunca acredita requisitos completados.
 
-**Pantalla normal:** identidad breve del tour, `Etapa 4 de 5`, título del formulario,
+**Pantalla normal:** identidad breve del tour, `Etapa 6 de 9`, título del formulario,
 campos pertinentes y una acción principal. La etapa completa se consulta mediante
 un único acceso «Ver etapas», cerrado por defecto; no se imprime su lista junto al formulario.
 No hay comprobaciones, porcentaje de preparación, cuatro paneles de diagnóstico ni avisos
 repetidos de publicación. Se preservan estilos, tarjetas, tipografía y resaltados existentes.
 
 La etapa indica ubicación en el recorrido. No se añade «Pendiente · Etapa actual» a cada
-pantalla ni se considera completa una etapa por visitarla. Dentro de la cuarta etapa,
-los títulos distinguen Participantes, Opción, Precio y Condiciones; no se usan 4a/4b ni otro contador.
+pantalla ni se considera completa una etapa por visitarla. Las etapas 5–8 distinguen
+Participantes, Opción, Precio y Condiciones; no se utilizan subnumeraciones ni otro contador.
 
 **Persistencia:** Guardar y continuar valida el formulario y confirma el guardado antes de
 avanzar. Los errores son locales y conservan datos. Puede guardarse un borrador parcial cuando
@@ -133,7 +143,7 @@ B evalúa datos, no exige haber visitado A.
    compartida necesita cupo vigente; una solicitud privada no equivale a reserva ni retiene cupo.
 
 **Pantalla normal de B:** título Publicar tour, contexto compacto, pendientes y una acción
-principal contextual. No incluye las cinco etapas, «Etapa 4 de 5» ni una lista duplicada por etapas.
+principal contextual. No incluye las nueve etapas, «Etapa 6 de 9» ni una lista duplicada por etapas.
 No sustituirlo por otro wizard de diez pantallas obligatorias: se trabaja sólo lo que falta.
 
 Puede mostrarse «3 tareas pendientes»; no «Requisito 1 de 10». La unidad es una tarea accionable:
@@ -170,7 +180,7 @@ conservan sus reglas independientes; no se suman artificialmente a esas diez val
 
 ```text
 PREPARAR TOUR                         PUBLICAR TOUR
-Etapa 4 de 5                         Completar opción
+Etapa 6 de 9                         Completar opción
 Prueba de certificación · 09:00       Prueba de certificación · 09:00
 Configura tu opción                  Falta indicar el máximo del grupo.
 [Formulario con datos actuales]      [Mismo formulario, datos precargados]
@@ -188,10 +198,10 @@ se muestra junto al cambio de capacidad, no como introducción de todas las pant
 flowchart TD
   Crear[Crear o continuar preparación] --> A1
   subgraph A[Playbook A · Preparar tour]
-    A1[1 Presentación] --> A2[2 Recorrido y logística]
-    A2 --> A3[3 Fotos] --> A4[4 Opción y precio] --> A5[5 Fechas y cupos]
+    A1[1 Presentación] --> A2[2 Itinerario y logística]
+    A2 --> A3[3 Ubicación y encuentro] --> A4[4 Fotos] --> A5[5 Participantes] --> A6[6 Primera opción] --> A7[7 Precio] --> A8[8 Condiciones] --> A9[9 Fechas y cupos]
   end
-  A5 --> Puente[Continuar a publicación]
+  A9 --> Puente[Continuar a publicación]
   Directo[Publicar o continuar publicación] --> Evaluar
   Puente --> Evaluar
   subgraph B[Playbook B · Publicar tour]

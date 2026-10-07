@@ -120,4 +120,29 @@ describe("policy business compatibility", () => {
 			})
 		).toEqual([])
 	})
+	it.each(["room_rate", "first_night", "provider_policy", "deposit"])(
+		"rejects the explicit cancellation basis %s for tours while preserving hotels",
+		(refundBasis) => {
+			const candidate = {
+				category: "Cancellation",
+				refundBasis,
+				cancellationTiers: [{ hoursBeforeDeparture: 24 }],
+			}
+			expect(evaluatePolicyBusinessCompatibility(tour, candidate)[0]?.code).toBe(
+				"tour_cancellation_basis_not_supported"
+			)
+			expect(evaluatePolicyBusinessCompatibility(hotel, candidate)).toEqual([])
+		}
+	)
+	it("accepts cancellation on the total booking and preserves compatibility of unspecified historical metadata", () => {
+		for (const refundBasis of ["total_booking", "none", undefined, null]) {
+			expect(
+				evaluatePolicyBusinessCompatibility(tour, {
+					category: "Cancellation",
+					refundBasis,
+					cancellationTiers: [{ hoursBeforeDeparture: 24 }],
+				})
+			).toEqual([])
+		}
+	})
 })

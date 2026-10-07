@@ -3,7 +3,9 @@ import { tourPreparationNextHref, tourPreparationReturnHref } from "@/lib/playbo
 import PlaybookStepHeader from "@/components/playbook/PlaybookStepHeader.astro"
 import TourSlotProfileEditor from "@/components/tours/TourSlotProfileEditor.astro"
 import { isCalendarDay } from "@/lib/booking/providerOperationalDay"
+import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
+import { ArrowLeft } from "@lucide/astro"
 import { productRepository, variantManagementRepository } from "@/container"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
@@ -125,16 +127,26 @@ const layoutProps = playbook.active
 					</p>
 				</header>
 			) : playbook.active ? (
-				<PlaybookStepHeader
-					size="lg"
-					icon="option"
-					title="Perfil de la opción"
-					lead={
-						conditionsReturnHref
-							? "Ajusta horario, cupo e idioma. Al guardar volverás a las condiciones de la tarifa."
-							: "Ajusta horario, cupo, idioma y modalidad de esta salida antes de continuar con precio y fechas."
-					}
-				/>
+				<div class="flex flex-wrap items-end justify-between gap-4">
+					<div class="max-w-3xl min-w-0">
+						<PlaybookStepHeader
+							size="lg"
+							icon="option"
+							title="Perfil de la opción"
+							lead={
+								conditionsReturnHref
+									? "Ajusta horario, cupo e idioma. Al guardar volverás a las condiciones de la tarifa."
+									: "Ajusta horario, cupo, idioma y modalidad de esta salida antes de continuar con precio y fechas."
+							}
+						/>
+					</div>
+					{reviewReturnHref ? (
+						<Button href={reviewReturnHref} variant="onDark">
+							<ArrowLeft class="size-4" aria-hidden="true" />
+							Volver a publicación
+						</Button>
+					) : null}
+				</div>
 			) : (
 				<header class="flex flex-col gap-2">
 					<h1 class="text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl">

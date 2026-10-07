@@ -14,7 +14,7 @@ const pending = {
 const reviewHref = "/product/tour/preview?variantId=option&ratePlanId=rate"
 
 describe("tour preparation and review rendered contract", () => {
-	it("renders five stable stages with current location independent from readiness", async () => {
+	it("renders nine stable stages with current location independent from readiness", async () => {
 		const diagnosis = fixture()
 		diagnosis.requirements.photos.result = {
 			...pending,
@@ -27,28 +27,28 @@ describe("tour preparation and review rendered contract", () => {
 				stages: projectTourPublishingStages(diagnosis),
 				activeStageId: "photos",
 				stagePosition: 3,
-				stageTotal: 6,
+				stageTotal: 9,
 			},
 		})
-		expect(html).toContain("Etapa 3 de 6")
+		expect(html).toContain("Etapa 3 de 9")
 		const withProduct = await container.renderToString(Progress, {
 			props: {
 				stages: projectTourPublishingStages(diagnosis),
 				activeStageId: "photos",
 				stagePosition: 1,
-				stageTotal: 5,
+				stageTotal: 9,
 				productName: "Paseo por el parque",
 			},
 		})
-		expect(withProduct).toContain("Paseo por el parque - Etapa 1 de 5")
-		expect(html.match(/data-tour-stage-id=/g)).toHaveLength(5)
+		expect(withProduct).toContain("Paseo por el parque - Etapa 1 de 9")
+		expect(html.match(/data-tour-stage-id=/g)).toHaveLength(9)
 		expect(html).toContain('aria-current="step"')
 		expect(html).toContain("Etapa actual")
 		expect(html).toContain("No se pudo comprobar")
 		expect(html).not.toContain("Revisar y publicar")
 		expect(html).not.toContain("90%")
 		expect(html).not.toContain("<progress")
-		expect(html).toContain("lg:grid-cols-5")
+		expect(html).toContain("lg:grid-cols-3")
 	})
 	it("shows only pending tasks and folds completed requirements without stages", async () => {
 		const diagnosis = fixture()
@@ -131,7 +131,8 @@ it("marks a grouped stage pending without surfacing requirement copy in stage bo
 		props: { diagnosis, reviewHref, published: false },
 	})
 	expect(review).toContain("1 tarea pendiente")
-	expect(review).toContain("Categorías de búsqueda")
+	expect(review).not.toContain("Categorías de búsqueda")
+	expect(review).toContain("/product/tour/presentation?")
 	expect(review).toContain("Requisitos cumplidos (9)")
 	expect(review).toContain("Presentación")
 })

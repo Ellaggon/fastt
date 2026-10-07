@@ -6,7 +6,7 @@ import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
 import Textarea from "@/components/ui/Textarea.astro"
-import Checkbox from "@/components/ui/Checkbox.astro"
+import TourCategoryChoices from "@/components/tours/TourCategoryChoices.astro"
 import type { loadTourPresentationForm } from "@/lib/tours/loadTourPresentationForm"
 interface Props {
 	providerId: string
@@ -163,32 +163,11 @@ const panelClass = guided
 					class="flex h-full flex-col gap-4 border-0 p-0"
 					aria-describedby="categoryIdsError"
 				>
-					<div class="space-y-1">
-						<legend class="block w-full text-sm font-semibold text-slate-950">
-							¿Qué tipo de experiencia ofreces?
-						</legend>
-						<p class="text-sm leading-6 text-slate-600">
-							Elige las actividades que describen este tour.
-						</p>
-					</div>
-					<div class:list={["pt-1", guided ? "flex flex-col gap-2" : "flex flex-wrap gap-2.5"]}>
-						{
-							options.categories.map((category) => (
-								<Checkbox
-									name="categoryId"
-									value={category.id}
-									checked={linked.has(String(category.id))}
-									className={
-										guided
-											? "fastt-soft-box flex min-h-10 w-full items-center rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-800 transition hover:border-slate-300 hover:bg-slate-50"
-											: "fastt-soft-box inline-flex min-h-10 items-center rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-800 transition hover:border-slate-300 hover:bg-slate-50"
-									}
-								>
-									{category.name}
-								</Checkbox>
-							))
-						}
-					</div>
+					<TourCategoryChoices
+						categories={options.categories}
+						selectedIds={linked}
+						stacked={guided}
+					/>
 					<p
 						id="categoryIdsError"
 						data-presentation-error="categoryIds"

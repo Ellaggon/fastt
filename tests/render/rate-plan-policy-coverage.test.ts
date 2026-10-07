@@ -58,6 +58,27 @@ async function render(
 }
 
 describe("rendered rate policy coverage", () => {
+	it("presents tour cancellation and no-show independently and keeps valid direct payment read-only", async () => {
+		const html = await render("tour")
+		expect(html).toContain("Si el viajero no se presenta")
+		expect(html).toContain('data-contract-block="no-show"')
+		expect(html).toContain('data-assignment-category="Cancellation"')
+		expect(html).toContain('data-assignment-category="NoShow"')
+		expect(html).not.toContain('data-assignment-category="Payment"')
+	})
+	it("offers repair for an incompatible tour payment without hiding its invalid state", async () => {
+		const html = await render("tour", [], true, {
+			invalidCategories: ["Payment"],
+			isSellableByContract: false,
+			coverageCount: 2,
+		})
+		expect(html).toContain('data-assignment-category="Payment"')
+		expect(html).toContain("Confirmar pago al proveedor")
+		expect(html).not.toContain("El proveedor cobra el total")
+	})
+	it("keeps the hotel payment editor available", async () => {
+		expect(await render("hotel")).toContain('data-assignment-category="Payment"')
+	})
 	it.each([
 		["tour", [], "3/3", 3],
 		["tour", ["Payment"], "2/3", 3],

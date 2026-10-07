@@ -123,8 +123,8 @@ describe("B3 shared preparation and server diagnosis", () => {
 		mocks.commercial.mockResolvedValue({ observations: { ...observations, priceReady: false } })
 		const state = (await loadCompleteToPublishState(input))!
 		const guide = (await evaluateTourLaunchProgress("tour", "provider"))!
-		expect(state.readinessPercent).toBe(90)
-		expect(guide.progress).toEqual({ completedSteps: 9, totalSteps: 10, progressPercent: 90 })
+		expect(state.readinessPercent).toBe(91)
+		expect(guide.progress).toEqual({ completedSteps: 10, totalSteps: 11, progressPercent: 91 })
 		expect(state.tourDiagnostic!.requirements.option_profile.result.state).toBe("ready")
 		expect(publicationValidationErrorsFromState(state).map((error) => error.code)).toEqual([
 			"price",
@@ -801,7 +801,7 @@ describe("guide and individual API parity through the real GET handler", () => {
 			expect(body.preparation.isPublished).toBe(published)
 			expect(body.preparation.readyToPublish).toBe(false)
 			expect(body.progress.progressPercent).toBe(
-				scenario === "historical_ready_incompatible" ? 90 : 100
+				scenario === "historical_ready_incompatible" ? 91 : 100
 			)
 			for (const guide of [launch, complete]) {
 				const presentation = guide.tourPresentation!

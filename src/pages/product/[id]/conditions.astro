@@ -1,0 +1,157 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
+import {
+	resolveTourPlaybookContext,
+	tourPublicationReturn,
+} from "@/lib/playbook/tour-playbook-context"
+import { routes } from "@/lib/routes"
+import { loadTourCommercialContext } from "@/lib/tours/loadTourCommercialContext"
+import { withTourCommercialContext } from "@/lib/tours/resolveTourCommercialContext"
+
+const workspace = await Astro.locals.getWorkspaceContext()
+if (!workspace.user) {
+	const returnTo = Astro.url.pathname + Astro.url.search
+	return Astro.redirect(`/SignInPage?${new URLSearchParams({ returnTo })}`)
+}
+if (!workspace.provider) return Astro.redirect(routes.providerOnboardingStart())
+const productId = String(Astro.params.id ?? "")
+const context = await loadTourCommercialContext({
+	providerId: workspace.provider.providerId,
+	productId,
+	request: Astro.request,
+	url: Astro.url,
+})
+if (context.status === "not_found" || context.status === "not_tour")
+	return new Response("Tour no encontrado", { status: 404 })
+const flow = resolveTourPlaybookContext(Astro.url, productId)
+const params = new URLSearchParams(flow?.canonical.searchParams ?? Astro.url.searchParams)
+params.delete("openDialog")
+params.delete("vista")
+params.delete("scope")
+params.delete("vertical")
+if (flow) params.set("step", flow.part === "publish" ? "bookingPolicies" : "conditions")
+
+if (context.status === "resolved" && context.variantId && context.ratePlanId) {
+	const returnHref = tourPublicationReturn(params.get("returnTo"), productId, context)
+	if (returnHref) params.set("returnTo", returnHref)
+	else params.delete("returnTo")
+	params.set("productId", productId)
+	params.set("variantId", context.variantId)
+	params.set("ratePlanId", context.ratePlanId)
+	params.set("vista", "conditions")
+	return Astro.redirect(`/rates/plans/${encodeURIComponent(context.ratePlanId)}?${params}`)
+}
+const reason =
+	context.status === "read_failed"
+		? "read_failed"
+		: "reason" in context
+			? context.reason
+			: "selection_required"
+const options = "options" in context ? context.options : []
+const missingRate = reason === "missing_rate"
+const selectedVariantId = "variantId" in context ? (context.variantId ?? undefined) : undefined
+const title =
+	reason === "read_failed"
+		? "No pudimos cargar las condiciones"
+		: reason === "invalid_selection"
+			? "Revisa la opción y tarifa seleccionadas"
+			: reason === "selection_required"
+				? "Elige la opción y tarifa"
+				: missingRate
+					? "Primero crea una tarifa"
+					: "Primero crea una opción"
+const message =
+	reason === "read_failed"
+		? "Vuelve a intentarlo para consultar la misma oferta."
+		: reason === "invalid_selection"
+			? "La selección del enlace no pertenece a este tour o ya no está disponible. Elige la oferta que quieres configurar."
+			: reason === "selection_required"
+				? "Las condiciones se guardan en una tarifa. Selecciona cuál quieres configurar."
+				: missingRate
+					? "Necesitas una tarifa para guardar la cancelación, el pago y la no presentación. Puedes definir las condiciones antes de abrir fechas."
+					: "Necesitas una opción para definir sus condiciones de reserva."
+if (reason === "read_failed") Astro.response.status = 503
+if (reason === "invalid_selection") Astro.response.status = 400
+
+function prerequisiteHref(step: "departure" | "rate", variantId?: string) {
+	const targetParams = new URLSearchParams(params)
+	targetParams.delete("variantId")
+	targetParams.delete("ratePlanId")
+	if (variantId) targetParams.set("variantId", variantId)
+	if (flow) targetParams.set("step", step)
+	if (step === "rate") {
+		targetParams.set("productId", productId)
+		targetParams.set("openDialog", "1")
+		return `/rates/plans/manage?${targetParams}`
+	}
+	targetParams.delete("productId")
+	return `/product/${encodeURIComponent(productId)}/departures/new?${targetParams}`
+}
+---
+
+<PlaybookLayout
+	title="Condiciones de reserva"
+	productType="tour"
+	playbookId={flow?.playbookId ?? null}
+	active={Boolean(flow)}
+	stepId={flow?.part === "publish" ? "bookingPolicies" : "conditions"}
+	productId={productId}
+	variantId={"variantId" in context ? (context.variantId ?? "") : ""}
+	isHotel={false}
+	playbookVertical="tour"
+	hideFooter
+>
+	<section class="mx-auto max-w-3xl space-y-5">
+		<h1 class="text-2xl font-semibold">Condiciones de reserva</h1>
+		<Card class="space-y-4">
+			<h2 class="text-lg font-semibold">{title}</h2>
+			<p class="text-sm leading-6 text-slate-600">{message}</p>
+			{
+				reason === "read_failed" ? (
+					<Button href={Astro.url.pathname + Astro.url.search} data-astro-reload>
+						Volver a intentar
+					</Button>
+				) : reason === "missing_option" ? (
+					<Button href={prerequisiteHref("departure")}>Crear opción</Button>
+				) : missingRate ? (
+					<Button href={prerequisiteHref("rate", selectedVariantId)}>Crear tarifa</Button>
+				) : (
+					<div class="space-y-4">
+						{options.map((option) => (
+							<div class="space-y-2 border-t border-slate-200 pt-4">
+								<h3 class="font-semibold">{option.name}</h3>
+								<div class="flex flex-wrap gap-2">
+									{option.rates.map((rate) => (
+										<Button
+											variant="secondary"
+											href={withTourCommercialContext(Astro.url.pathname + `?${params}`, {
+												productId,
+												options,
+												status: "resolved",
+												source: "url",
+												option,
+												rate,
+												variantId: option.variantId,
+												ratePlanId: rate.ratePlanId,
+											})}
+										>
+											{rate.name}
+										</Button>
+									))}
+									{option.rates.length === 0 && (
+										<Button href={prerequisiteHref("rate", option.variantId)}>Crear tarifa</Button>
+									)}
+								</div>
+							</div>
+						))}
+						{options.length === 0 && (
+							<Button href={prerequisiteHref("departure")}>Crear opción</Button>
+						)}
+					</div>
+				)
+			}
+		</Card>
+	</section>
+</PlaybookLayout>

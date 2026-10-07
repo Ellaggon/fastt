@@ -1508,7 +1508,14 @@ const policyModalCopy = {
 			return
 		}
 		renderScopeOptions(defaultScopeId)
-		if (isProfessionalMode && defaultPolicyId && policySelect) policySelect.value = defaultPolicyId
+		const currentPolicyAvailable = Boolean(
+			defaultPolicyId &&
+			assignmentState.options.policies?.some(
+				(policy) =>
+					String(policy.id) === defaultPolicyId && String(policy.category) === defaultCategory
+			)
+		)
+		if (currentPolicyAvailable && policySelect) policySelect.value = defaultPolicyId
 		if (defaultCategory && categorySelect) categorySelect.value = defaultCategory
 		if (channelSelect) {
 			channelSelect.value = defaultChannel
@@ -1518,13 +1525,21 @@ const policyModalCopy = {
 		renderExistingCards()
 		renderPresetCardsState()
 		renderModalChrome(categorySelect?.value || defaultCategory)
-		setMode(defaultMode)
+		setMode(isTourEditor && currentPolicyAvailable ? "existing" : defaultMode)
 		assignmentSubmit.disabled = false
 		renderImpact()
+		resetAssignmentNavigationBaseline()
+	}
+
+	function resetAssignmentNavigationBaseline() {
+		const form = document.getElementById("policyAssignmentForm")
+		if (form instanceof HTMLFormElement)
+			document.dispatchEvent(new CustomEvent("fastt:playbook-saved", { detail: { form } }))
 	}
 
 	function closeAssignmentFlow() {
 		assignmentOverlay?.classList.add("hidden")
+		resetAssignmentNavigationBaseline()
 		returnFocusElement?.focus?.()
 	}
 

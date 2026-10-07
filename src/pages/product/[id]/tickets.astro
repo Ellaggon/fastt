@@ -88,7 +88,7 @@ const initialTickets = tickets.map((t) => ({
 		<Card class="space-y-4 bg-white">
 			<div class="flex flex-wrap items-center justify-between gap-3">
 				<div>
-					<h2 class="text-sm font-semibold text-slate-950">Tipos de entrada</h2>
+					<h2 class="text-sm font-semibold text-slate-950">Tipos de participante</h2>
 					<p class="mt-1 text-xs text-slate-500">
 						Nombre visible, rango de edad, orden y si está activo para reservar.
 					</p>
@@ -201,7 +201,7 @@ const initialTickets = tickets.map((t) => ({
 				if (!list) return
 				if (!rows.length) {
 					list.innerHTML =
-						'<p class="fastt-empty-state rounded-[var(--fastt-radius-control)] border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-600">Aún no hay tipos de entrada. Usa la plantilla estándar o agrega uno manualmente.</p>'
+						'<p class="fastt-empty-state rounded-[var(--fastt-radius-control)] border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-600">Aún no hay tipos de participante. Usa la plantilla estándar o agrega uno manualmente.</p>'
 					return
 				}
 				list.innerHTML = rows
@@ -314,7 +314,7 @@ const initialTickets = tickets.map((t) => ({
 				}))
 				render()
 				hideRequirementsNotice()
-				if (status) status.textContent = `${rows.length} tipos de entrada listos.`
+				if (status) status.textContent = `${rows.length} tipos de participante listos.`
 			})
 
 			async function saveTickets() {
@@ -353,7 +353,7 @@ const initialTickets = tickets.map((t) => ({
 
 			document.getElementById("save-tickets-btn")?.addEventListener("click", async () => {
 				if (!rows.length) {
-					if (status) status.textContent = "Agrega al menos un tipo de entrada."
+					if (status) status.textContent = "Agrega al menos un tipo de participante."
 					return
 				}
 				if (status) status.textContent = "Guardando..."

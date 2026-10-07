@@ -162,9 +162,14 @@ export function buildTourPolicyCategoryPreview(params: {
 			}
 		}
 
-		const deadline = context.departureDate
-			? formatDeadline(cancellation?.freeCancellationDeadlineLocal)
-			: null
+		const hasHourlyCutoff = context.configuredCancellationTiers?.some(
+			(tier) => tier.hoursBeforeDeparture != null
+		)
+		// An hourly rule must not display a fallback deadline computed from hotel days.
+		const deadline =
+			context.departureDate && (!hasHourlyCutoff || freeTier?.hoursBeforeDeparture != null)
+				? formatDeadline(cancellation?.freeCancellationDeadlineLocal)
+				: null
 		const freeLead = freeCancellationLead(freeTier, context)
 		return {
 			category,

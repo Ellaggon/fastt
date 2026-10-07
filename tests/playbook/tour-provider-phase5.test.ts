@@ -12,13 +12,12 @@ import {
 	getTourPublishingStage,
 	TOUR_PUBLISHING_STAGE_COUNT,
 } from "@/lib/playbook/tour-publishing-stages"
-import { tourActivityQualityCriteria } from "@/lib/tours/tourActivityQuality"
 import { buildTourCommercialLinks } from "@/lib/tours/tourProviderNavigation"
 
 const source = (path: string) => readFileSync(resolve(process.cwd(), path), "utf8")
 
 describe("tour provider phase 5", () => {
-	it("uses the same five preparation groups for launch and continuation, including the final preview", () => {
+	it("uses the same nine preparation groups for launch and continuation, including the final preview", () => {
 		const launch = resolveLaunchPlaybookDefinition("launch-tour", {
 			productId: "tour",
 			isHotel: false,
@@ -27,7 +26,7 @@ describe("tour provider phase 5", () => {
 			expect(getLaunchLikeStage(launch, step.id)).toEqual({
 				label: getTourPublishingStage(step.id).label,
 				position: getTourPublishingStage(step.id).position,
-				total: 5,
+				total: 9,
 			})
 		const preview = source("src/pages/product/[id]/preview.astro")
 		expect(preview).toContain("playbookVertical={vertical.vertical}")
@@ -35,16 +34,21 @@ describe("tour provider phase 5", () => {
 		expect(preview).toContain("ratePlanId={previewRatePlanId}")
 	})
 
-	it("groups navigation screens into five stages without turning substeps into progress", () => {
-		expect(TOUR_PUBLISHING_STAGE_COUNT).toBe(5)
+	it("groups navigation screens into nine stages without turning substeps into progress", () => {
+		expect(TOUR_PUBLISHING_STAGE_COUNT).toBe(9)
 		for (const step of ["content", "categories"])
 			expect(getTourPublishingStage(step).position).toBe(1)
-		for (const step of ["location", "subtype"])
-			expect(getTourPublishingStage(step).position).toBe(2)
-		expect(getTourPublishingStage("photos").position).toBe(3)
-		for (const step of ["tickets", "departure", "rate", "bookingPolicies"])
-			expect(getTourPublishingStage(step).position).toBe(4)
-		expect(getTourPublishingStage("calendar").position).toBe(5)
+		expect(getTourPublishingStage("subtype").position).toBe(2)
+		expect(getTourPublishingStage("location").position).toBe(3)
+		expect(getTourPublishingStage("photos").position).toBe(4)
+		for (const [step, position] of [
+			["tickets", 5],
+			["departure", 6],
+			["rate", 7],
+			["bookingPolicies", 8],
+		] as const)
+			expect(getTourPublishingStage(step).position).toBe(position)
+		expect(getTourPublishingStage("calendar").position).toBe(9)
 		expect(getTourPublishingStage("preview").position).toBe(0)
 	})
 
@@ -59,10 +63,10 @@ describe("tour provider phase 5", () => {
 
 	it("keeps categories in presentation and participants in the commercial stage", () => {
 		expect(completeToPublishNextHref("tour-1", "content", "tour")).toBe(
-			"/product/tour-1/location?playbook=complete-to-publish&step=location&flow=complete"
+			"/product/tour-1/subtype?playbook=complete-to-publish&step=subtype&flow=complete"
 		)
 		expect(completeToPublishNextHref("tour-1", "categories", "tour")).toBe(
-			"/product/tour-1/location?playbook=complete-to-publish&step=location&flow=complete"
+			"/product/tour-1/subtype?playbook=complete-to-publish&step=subtype&flow=complete"
 		)
 		expect(completeToPublishNextHref("tour-1", "tickets", "tour")).toBe(
 			"/product/tour-1/departures/new?playbook=complete-to-publish&step=departure&flow=complete"
@@ -70,7 +74,11 @@ describe("tour provider phase 5", () => {
 		const participants = source("src/pages/product/[id]/tickets.astro")
 		const categories = source("src/pages/product/[id]/categories.astro")
 		expect(participants).not.toContain("ProductCategoryLink")
-		expect(categories).toContain("representan tipos de")
+		expect(categories).toContain("tourPresentationCanonicalHref")
+		expect(source("src/components/tours/TourPresentationForm.astro")).toContain(
+			"TourCategoryChoices"
+		)
+		expect(categories).not.toContain("Criterios de calidad")
 	})
 
 	it("keeps product, departure and rate in direct commercial editing links", () => {
@@ -121,20 +129,12 @@ describe("tour provider phase 5", () => {
 
 	it("explains location and booking-question scope without mixing concepts", () => {
 		const location = source("src/pages/product/[id]/location.astro")
-		const conditions = source("src/pages/rates/plans/[ratePlanId].astro")
+		const conditions = source("src/components/tours/TourBookingQuestions.astro")
 		expect(location).toContain("Destino y zona pública")
 		expect(location).toContain("Punto de encuentro operativo")
 		expect(conditions).toContain("Preguntas al reservar")
-		expect(conditions).toContain("todas las salidas y tarifas")
-		expect(conditions).toContain("tourCustomQuestionRequired")
-	})
-
-	it("adds activity-specific quality guidance while retaining universal criteria", () => {
-		const food = tourActivityQualityCriteria([{ slug: "tour-gastronomico" }])
-		const adventure = tourActivityQualityCriteria([{ name: "Aventura en montaña" }])
-		expect(food.map((criterion) => criterion.id)).toContain("dietary-needs")
-		expect(adventure.map((criterion) => criterion.id)).toContain("physical-demand")
-		expect(food.map((criterion) => criterion.id)).toContain("meeting-instructions")
+		expect(conditions).toContain("todas las opciones y tarifas")
+		expect(conditions).toContain('name="customRequired"')
 	})
 
 	it("uses independent selected-offer observations rather than aggregate departure counters", () => {

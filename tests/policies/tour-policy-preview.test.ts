@@ -142,4 +142,32 @@ describe("tour policy preview", () => {
 		expect(preview.items.map((item) => item.label)).not.toContain("Cancelación gratuita")
 		expect(preview.items[1]).toMatchObject({ value: "50% de reembolso" })
 	})
+	it("no muestra un corte hotelero cuando el snapshot no resolvió las horas", () => {
+		const preview = buildTourPolicyCategoryPreview({
+			category: "Cancellation",
+			context: {
+				...context,
+				configuredCancellationTiers: [
+					{ hoursBeforeDeparture: 24, penaltyType: "percentage", penaltyAmount: 0 },
+				],
+			},
+			snapshot: {
+				cancellation: {
+					calculation: {
+						cancellation: {
+							freeCancellationDeadlineLocal: "2026-10-07T00:00:00[property_local]",
+							refundTiers: [
+								{ hoursBeforeDeparture: null, refundPercent: 100 },
+								{ hoursBeforeDeparture: null, refundPercent: 0 },
+							],
+						},
+					},
+				},
+			} as any,
+		})
+		expect(preview.items.find((item) => item.key === "free_cancellation")?.value).toBe(
+			"Hasta 24 horas antes de la salida"
+		)
+		expect(JSON.stringify(preview)).not.toContain("00:00")
+	})
 })

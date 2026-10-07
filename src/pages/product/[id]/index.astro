@@ -188,22 +188,6 @@ logRoutePerformance({
 <WorkspaceLayout title={`${detailTitle} · ${owned.name}`} productType={owned.productType}>
 	<section class="space-y-6 md:space-y-8">
 		<header class="space-y-2">
-			{
-				isTour && (
-					<nav
-						aria-label="Ubicación"
-						class="flex flex-wrap items-center gap-2 text-sm text-slate-400"
-					>
-						<>
-							<a href="/catalog/tours" class="hover:text-white">
-								Mis tours
-							</a>
-							<span aria-hidden="true">/</span>
-							<span aria-current="page">{owned.name}</span>
-						</>
-					</nav>
-				)
-			}
 			<div class="min-w-0 space-y-2">
 				<h1 class="sr-only">{owned.name}</h1>
 				{

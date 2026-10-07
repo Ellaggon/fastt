@@ -45,6 +45,7 @@ describe("rate management entry without departures", () => {
 			playbook: "launch-tour",
 			step: "departure",
 			flow: "create",
+			tourFlowVersion: "2",
 		})
 		expect(mocks.where).toHaveBeenCalledWith([
 			{ column: "product.id", value: "tour-1" },
@@ -104,5 +105,26 @@ describe("rate management entry without departures", () => {
 		const result = await load("")
 		expect(result).toMatchObject({ notFound: false, redirectHref: null, productId: "" })
 		expect(mocks.where).not.toHaveBeenCalled()
+	})
+	it("keeps the conditions stage and recovery context for a new tour even when another tour has options", async () => {
+		const choices = [
+			{
+				productId: "other-tour",
+				productType: "tour",
+				productName: "Otro tour",
+				variantId: "other-slot",
+				variantName: "Otra opción",
+				label: "Otro tour",
+			},
+		]
+		const result = await load(
+			"productId=tour-1&playbook=launch-tour&step=conditions&flow=create&tourFlowVersion=2&returnTo=%2Fproduct%2Ftour-1%2Fpreview",
+			choices
+		)
+		const target = new URL(result.redirectHref!, "https://fastt.test")
+		expect(target.pathname).toBe("/product/tour-1/conditions")
+		expect(target.searchParams.get("step")).toBe("conditions")
+		expect(target.searchParams.get("returnTo")).toBe("/product/tour-1/preview")
+		expect(target.searchParams.has("variantId")).toBe(false)
 	})
 })

@@ -26,11 +26,15 @@ export function projectTourPublicationTasks(diagnosis: TourDiagnostic) {
 	>()
 	const completed: { id: TourRequirementId; label: string; href: string }[] = []
 	const selection = tourDiagnosticSelectionContext(diagnosis)
+	const presentationReady = (["presentation", "activities"] as const).every((id) => {
+		const state = diagnosis.requirements[id].result.state
+		return state === "ready" || state === "not_applicable"
+	})
 	for (const id of Object.keys(TOUR_REQUIREMENTS) as TourRequirementId[]) {
 		const definition = TOUR_REQUIREMENTS[id]
 		if (definition.axis !== "preparation" && definition.axis !== "authorization") continue
 		const result = diagnosis.requirements[id].result
-		const label = TOUR_REQUIREMENT_PRESENTATION[id].label
+		const label = id === "activities" ? "Presentación" : TOUR_REQUIREMENT_PRESENTATION[id].label
 		const isDependency =
 			"reason" in result &&
 			["missing_option", "missing_rate", "selection_required", "invalid_selection"].includes(
@@ -43,7 +47,12 @@ export function projectTourPublicationTasks(diagnosis: TourDiagnostic) {
 			selection
 		)
 		if (result.state === "ready" || result.state === "not_applicable") {
-			if (definition.axis === "preparation") completed.push({ id, label, href })
+			if (
+				definition.axis === "preparation" &&
+				id !== "activities" &&
+				(id !== "presentation" || presentationReady)
+			)
+				completed.push({ id, label, href })
 			continue
 		}
 		const target = new URL(href, "http://fastt.local")

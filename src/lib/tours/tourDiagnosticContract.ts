@@ -4,6 +4,7 @@ import { z } from "zod"
 export const TOUR_REQUIREMENTS = {
 	presentation: { axis: "preparation", scope: "product" },
 	logistics: { axis: "preparation", scope: "product" },
+	location: { axis: "preparation", scope: "product" },
 	photos: { axis: "preparation", scope: "product" },
 	participants: { axis: "preparation", scope: "product" },
 	activities: { axis: "preparation", scope: "product" },

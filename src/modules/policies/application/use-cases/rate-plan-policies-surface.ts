@@ -45,6 +45,7 @@ export type PolicyPlanView = {
 	isSellableByContract: boolean
 	sellabilityLabel: string
 	policySummary: string
+	policyIdsByCategory?: Record<string, string>
 	inheritanceByCategory: Record<string, string>
 	overrideSummaryByCategory: Record<string, string>
 	snapshotPreviewByCategory: Record<string, string>
@@ -366,6 +367,9 @@ export async function buildRatePlanPoliciesSurface(params: {
 				policySummary: requiredCategories.length
 					? derivePolicySummaryFromResolvedPolicies(resolved)
 					: "Contrato de políticas no definido",
+				policyIdsByCategory: Object.fromEntries(
+					resolved.policies.map((entry) => [String(entry.category), String(entry.policy.id)])
+				),
 				inheritanceByCategory,
 				overrideSummaryByCategory,
 				snapshotPreviewByCategory,

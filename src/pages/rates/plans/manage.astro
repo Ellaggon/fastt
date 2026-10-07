@@ -85,10 +85,26 @@ const [ratePlansSurface, variantChoices, sidebarData] = await Promise.all([
 	timing.time("variants", () => loadProviderRatePlanVariants(auth.providerId)),
 	timing.time("sidebar", () => workspaceContext.sidebarDataPromise),
 ])
+const rateEntry = await timing.time("entryContext", () =>
+	loadRatePlanManagementEntry({ url: Astro.url, providerId: auth.providerId, variantChoices })
+)
+if (rateEntry.notFound) return new Response("Oferta no encontrada", { status: 404 })
 const explicitScope = Astro.url.searchParams.get("scope") ?? Astro.url.searchParams.get("vertical")
 const selectedProductId = Astro.url.searchParams.get("productId")
 const rateScopeProducts = [
 	...new Map([
+		...(rateEntry.productId
+			? [
+					[
+						rateEntry.productId,
+						{
+							id: rateEntry.productId,
+							name: rateEntry.productId,
+							productType: rateEntry.productType,
+						},
+					],
+				]
+			: []),
 		...variantChoices.map((choice) => [
 			choice.productId,
 			{
@@ -120,17 +136,7 @@ if (explicitScope || selectedProductId) {
 		commercialLines: commercialLines.map((entry) => entry.line),
 		products: rateScopeProducts,
 	})
-	// Guided creation can pass productId before variants/rates exist; only fail closed when the
-	// catalog we already loaded contradicts the requested scope/product.
-	const emptyProductCatalog = rateScopeProducts.length === 0
-	if (
-		!ratesScope.valid &&
-		!(
-			emptyProductCatalog &&
-			ratesScope.reason === "scope_product_mismatch" &&
-			Boolean(selectedProductId)
-		)
-	) {
+	if (!ratesScope.valid) {
 		return workspaceScopeInvalidResponse(ratesScope, {
 			title: "Contexto de tarifas no válido",
 			recoveryHref: `${routes.rates()}?scope=all`,
@@ -138,10 +144,14 @@ if (explicitScope || selectedProductId) {
 		})
 	}
 }
+if (rateEntry.redirectHref && /\/product\/[^/]+\/conditions/.test(rateEntry.redirectHref))
+	return Astro.redirect(rateEntry.redirectHref)
 const selectedVariantId = Astro.url.searchParams.get("variantId")
-const selectedType = variantChoices.find(
-	(choice) => choice.variantId === selectedVariantId || choice.productId === selectedProductId
-)?.productType
+const selectedType =
+	rateEntry.productType ||
+	variantChoices.find(
+		(choice) => choice.variantId === selectedVariantId || choice.productId === selectedProductId
+	)?.productType
 const tourScope = selectedType
 	? selectedType.toLowerCase() === "tour"
 	: explicitScope === "tour" ||
@@ -362,16 +372,13 @@ if (entryContext) {
 	if (entryResponse) return entryResponse
 }
 
-const rateEntry = await timing.time("entryContext", () =>
-	loadRatePlanManagementEntry({ url: Astro.url, providerId: auth.providerId, variantChoices })
-)
 if (
 	tourScope &&
 	!rateEntry.productId &&
 	(addRoomPlaybook.active || launchPlaybook.active || flow === "add-room" || flow === "create")
 )
 	return Astro.redirect("/catalog/tours?scope=tour")
-if (rateEntry.notFound) return new Response("Oferta no encontrada", { status: 404 })
+
 if (rateEntry.redirectHref) return Astro.redirect(rateEntry.redirectHref)
 const { matchedVariant, productType, isTour: productIsTour } = rateEntry
 if (!addRoomPlaybook.active && flow === "add-room") {

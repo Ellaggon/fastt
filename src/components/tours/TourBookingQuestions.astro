@@ -1,0 +1,177 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Checkbox from "@/components/ui/Checkbox.astro"
+import Input from "@/components/ui/Input.astro"
+import { TOUR_QUESTION_LABELS } from "@/lib/tours/tourBookingQuestionsEditor"
+interface Props {
+	productId: string
+}
+const { productId } = Astro.props
+const questionChoiceClass =
+	"fastt-soft-box flex w-full cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-white p-3 text-sm font-medium text-slate-800 transition hover:border-slate-300 hover:bg-slate-50 has-[:checked]:border-sky-300 has-[:checked]:bg-sky-50/40"
+---
+
+<details
+	class="fastt-card overflow-hidden rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white text-slate-950"
+	data-tour-questions
+>
+	<summary
+		class="cursor-pointer px-5 py-4 font-semibold focus-visible:outline-2 focus-visible:outline-offset-2"
+	>
+		Preguntas al reservar <span class="ml-2 text-sm font-normal text-slate-500">Opcional</span>
+	</summary>
+	<form
+		data-tour-questions-form
+		data-product-id={productId}
+		class="space-y-4 border-t border-slate-100 p-5"
+	>
+		<p class="text-sm leading-6 text-slate-600">
+			Solicita solo datos necesarios para operar. Estas preguntas aplican a todas las opciones y
+			tarifas del tour; los cambios afectan reservas nuevas.
+		</p>
+		<p data-questions-status role="status" aria-live="polite" class="text-sm text-slate-600">
+			Cargando preguntas…
+		</p>
+		<div class="flex gap-3">
+			<Button type="button" data-questions-retry hidden variant="secondary">Reintentar</Button>
+			<a data-questions-sign-in hidden class="text-sm font-semibold underline">Iniciar sesión</a>
+		</div>
+		<fieldset disabled class="space-y-4" data-questions-fields>
+			<legend class="sr-only">Preguntas para el viajero</legend>
+			<div class="grid gap-3 sm:grid-cols-2">
+				{
+					Object.entries(TOUR_QUESTION_LABELS).map(([code, label]) => (
+						<Checkbox name="question" value={code} className={questionChoiceClass}>
+							{label}
+						</Checkbox>
+					))
+				}
+			</div>
+			<label class="block text-sm font-medium"
+				>Pregunta adicional
+				<Input
+					name="customQuestion"
+					minlength="3"
+					maxlength="180"
+					placeholder="Ej.: ¿Qué talla de traje de neopreno necesitas?"
+					className="mt-2"
+				/>
+			</label>
+			<Checkbox name="customRequired" className="text-sm text-slate-800">
+				Hacer obligatoria la pregunta adicional
+			</Checkbox>
+			<Button type="submit" variant="secondary">Guardar preguntas</Button>
+		</fieldset>
+	</form>
+</details>
+
+<script>
+	import {
+		BookingQuestionsRequestError,
+		createTourBookingQuestionsEditor,
+		TOUR_QUESTION_LABELS,
+		type TourBookingQuestion,
+	} from "@/lib/tours/tourBookingQuestionsEditor"
+
+	function init() {
+		for (const details of document.querySelectorAll<HTMLDetailsElement>("[data-tour-questions]")) {
+			if (details.dataset.bound) continue
+			details.dataset.bound = "true"
+			const form = details.querySelector<HTMLFormElement>("form")!
+			const editor = createTourBookingQuestionsEditor(form.dataset.productId!)
+			const fields = form.querySelector<HTMLFieldSetElement>("fieldset")!
+			const status = form.querySelector<HTMLElement>("[data-questions-status]")!
+			const retry = form.querySelector<HTMLButtonElement>("[data-questions-retry]")!
+			const signIn = form.querySelector<HTMLAnchorElement>("[data-questions-sign-in]")!
+			const custom = form.elements.namedItem("customQuestion") as HTMLInputElement
+			const required = form.elements.namedItem("customRequired") as HTMLInputElement
+			const inputs = Array.from(form.querySelectorAll<HTMLInputElement>('[name="question"]'))
+			let loading = false
+			function showError(error: unknown, saving = false) {
+				const expired = error instanceof BookingQuestionsRequestError && error.status === 401
+				status.textContent = expired
+					? error.message
+					: saving
+						? "No pudimos confirmar el guardado. Tus cambios siguen aquí; reintenta."
+						: "No se pudieron cargar las preguntas. Reintenta antes de editarlas."
+				retry.hidden = saving || expired
+				signIn.hidden = !expired
+				signIn.href = `/SignInPage?${new URLSearchParams({ returnTo: location.pathname + location.search })}`
+			}
+			async function load() {
+				if (loading || editor.questions) return
+				loading = true
+				retry.hidden = true
+				status.textContent = "Cargando preguntas…"
+				form.setAttribute("aria-busy", "true")
+				try {
+					const questions = await editor.load()
+					if (!form.isConnected) return
+					for (const input of inputs)
+						input.checked = questions.some((question) => question.code === input.value)
+					const additional = questions.find((question) => question.code === "custom")
+					custom.value = additional?.label ?? ""
+					required.checked = additional?.required ?? false
+					fields.disabled = false
+					status.textContent = questions.length
+						? "Preguntas guardadas cargadas."
+						: "Todavía no solicitas preguntas al reservar."
+					signIn.hidden = true
+					document.dispatchEvent(new CustomEvent("fastt:playbook-saved", { detail: { form } }))
+				} catch (error) {
+					showError(error)
+				} finally {
+					loading = false
+					form.removeAttribute("aria-busy")
+				}
+			}
+			details.addEventListener("toggle", () => {
+				if (details.open) void load()
+			})
+			retry.addEventListener("click", () => void load())
+			form.addEventListener("submit", async (event) => {
+				event.preventDefault()
+				if (fields.disabled || !editor.questions) return
+				const next: TourBookingQuestion[] = inputs
+					.filter((input) => input.checked)
+					.map((input) => {
+						const code = input.value as keyof typeof TOUR_QUESTION_LABELS
+						return (
+							editor.questions!.find((question) => question.code === code) ?? {
+								id: crypto.randomUUID(),
+								code,
+								label: TOUR_QUESTION_LABELS[code],
+								required: true,
+							}
+						)
+					})
+				if (custom.value.trim())
+					next.push({
+						id:
+							editor.questions.find((question) => question.code === "custom")?.id ??
+							crypto.randomUUID(),
+						code: "custom",
+						label: custom.value.trim(),
+						required: required.checked,
+					})
+				fields.disabled = true
+				form.dataset.playbookBusy = "true"
+				status.textContent = "Guardando preguntas…"
+				try {
+					await editor.save(next)
+					fields.disabled = false
+					status.textContent = "Preguntas guardadas."
+					document.dispatchEvent(new CustomEvent("fastt:playbook-saved", { detail: { form } }))
+				} catch (error) {
+					showError(error, true)
+				} finally {
+					fields.disabled = false
+					delete form.dataset.playbookBusy
+				}
+			})
+			if (details.open) void load()
+		}
+	}
+	init()
+	document.addEventListener("astro:page-load", init)
+</script>
