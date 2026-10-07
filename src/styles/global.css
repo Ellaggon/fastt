@@ -348,7 +348,10 @@ html[data-verification-submit-pending="true"] {
 
 .fastt-field {
 	min-height: var(--fastt-field-height);
-	border: 1px solid var(--fastt-color-border-strong);
+	/* Width/style only: keep border-color overridable by utilities and --on-dark. */
+	border-width: 1px;
+	border-style: solid;
+	border-color: var(--fastt-color-border-strong);
 	border-radius: var(--fastt-radius-field);
 	outline: none;
 	transition:
@@ -359,6 +362,37 @@ html[data-verification-submit-pending="true"] {
 .fastt-field:focus {
 	border-color: var(--fastt-color-focus);
 	box-shadow: 0 0 0 2px var(--fastt-color-focus);
+}
+
+/* Dark workspace shells (catalog, playbook, day-of): soft slate edge instead of #b0b0b0. */
+.fastt-field--on-dark {
+	border-color: rgb(255 255 255 / 0.1);
+	background-color: rgb(255 255 255 / 0.04);
+	color: rgb(255 255 255);
+	box-shadow: none;
+	-webkit-appearance: none;
+	appearance: none;
+}
+
+.fastt-field--on-dark::placeholder {
+	color: rgb(100 116 139);
+}
+
+.fastt-field--on-dark:hover {
+	border-color: rgb(255 255 255 / 0.2);
+}
+
+.fastt-field--on-dark:focus,
+.fastt-field--on-dark:focus-visible {
+	border-color: rgb(255 255 255 / 0.2);
+	box-shadow: none;
+}
+
+.fastt-field--on-dark::-webkit-search-decoration,
+.fastt-field--on-dark::-webkit-search-cancel-button,
+.fastt-field--on-dark::-webkit-search-results-button,
+.fastt-field--on-dark::-webkit-search-results-decoration {
+	display: none;
 }
 
 .fastt-select {
