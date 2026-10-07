@@ -48,6 +48,7 @@ const cancellationPreset = (
 	...preset,
 	category: "Cancellation",
 	localTimezone: "property_local",
+	businesses: ["hotel"],
 })
 
 export const POLICY_PRESET_CATALOG = [

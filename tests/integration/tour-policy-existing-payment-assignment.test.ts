@@ -109,6 +109,20 @@ describe("tour policy assignment: existing payment", () => {
 			description: "Política histórica hotelera que un tour no puede reutilizar",
 			policyPresetKey: "long_term",
 		})
+		const roomBasedCancellation = await createPolicyCapa6({
+			ownerProviderId: providerId,
+			category: "Cancellation",
+			description: "Base hotelera con un plazo horario",
+			refundBasis: "room_rate",
+			cancellationTiers: [
+				{
+					hoursBeforeDeparture: 24,
+					daysBeforeArrival: 0,
+					penaltyType: "percentage",
+					penaltyAmount: 100,
+				},
+			],
+		})
 		installAuth(token, { id: `remote_${suffix}`, email })
 
 		const response = await assignPolicyPost({
@@ -156,6 +170,42 @@ describe("tour policy assignment: existing payment", () => {
 		} as any)
 		expect(optionsResponse.status).toBe(200)
 		const options = await optionsResponse.json()
+		expect(options.policies.map((policy: { id: string }) => policy.id)).not.toContain(
+			roomBasedCancellation.policyId
+		)
+		expect(
+			options.presets
+				.filter((preset: { category: string }) => preset.category === "Cancellation")
+				.map((preset: { key: string }) => preset.key)
+		).toEqual(["tour_flexible_24h", "tour_non_refundable"])
+		for (const mode of ["existing", "draft"] as const) {
+			const body = {
+				mode,
+				scope: "rate_plan",
+				scopeId: ratePlanId,
+				category: "Cancellation",
+				...(mode === "existing"
+					? { policyId: roomBasedCancellation.policyId }
+					: {
+							refundBasis: "room_rate",
+							cancellationTiers: [
+								{
+									hoursBeforeDeparture: 24,
+									daysBeforeArrival: 0,
+									penaltyType: "percentage",
+									penaltyAmount: 100,
+								},
+							],
+						}),
+			}
+			for (const endpoint of [assignPolicyPost, previewPolicyPost]) {
+				const rejected = await endpoint({ request: request(token, body) } as any)
+				expect(rejected.status).toBe(409)
+				expect(await rejected.json()).toMatchObject({
+					error: "tour_cancellation_basis_not_supported",
+				})
+			}
+		}
 		expect(options.context).toEqual(
 			expect.objectContaining({
 				business: "tour",
@@ -185,7 +235,7 @@ describe("tour policy assignment: existing payment", () => {
 		} as any)
 		expect(previewResponse.status).toBe(409)
 		expect(await previewResponse.json()).toEqual(
-			expect.objectContaining({ error: "tour_stay_length_policy_not_supported" })
+			expect.objectContaining({ error: "policy_category_not_supported" })
 		)
 
 		const existingPreviewResponse = await previewPolicyPost({
@@ -212,7 +262,7 @@ describe("tour policy assignment: existing payment", () => {
 		} as any)
 		expect(presetResponse.status).toBe(409)
 		expect(await presetResponse.json()).toEqual(
-			expect.objectContaining({ error: "tour_stay_length_policy_not_supported" })
+			expect.objectContaining({ error: "policy_category_not_supported" })
 		)
 
 		const existingResponse = await assignPolicyPost({
@@ -255,5 +305,5 @@ describe("tour policy assignment: existing payment", () => {
 		expect(await noShowResponse.json()).toEqual(
 			expect.objectContaining({ error: "tour_no_show_basis_not_supported" })
 		)
-	})
+	}, 90_000)
 })

@@ -60,7 +60,15 @@ const currentPath = `${Astro.url.pathname}${Astro.url.search}`
 function withPlaybookContext(path: string, step: "departure" | "calendar", returnAfter = false) {
 	if (!playbookMode) return path
 	const target = new URL(path, "http://fastt.local")
-	for (const key of ["playbook", "flow", "productId", "variantId", "ratePlanId"]) {
+	for (const key of [
+		"playbook",
+		"flow",
+		"tourFlowVersion",
+		"returnTo",
+		"productId",
+		"variantId",
+		"ratePlanId",
+	]) {
 		const value = Astro.url.searchParams.get(key)
 		if (value) target.searchParams.set(key, value)
 	}
@@ -174,13 +182,18 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 			const noShowMissing = plan.missingCategories.includes("NoShow")
 			const paymentMissing = plan.missingCategories.includes("Payment")
 			const arrivalMissing = plan.missingCategories.includes("CheckIn")
-			const cancellationBlockComplete = !cancellationMissing && !noShowMissing
+			const cancellationBlockComplete = !cancellationMissing && (isTour || !noShowMissing)
 			const cancellationStatus = guidedStatus(
 				!cancellationBlockComplete,
 				(plan.invalidCategories ?? []).some(
-					(category) => category === "Cancellation" || category === "NoShow"
+					(category) => category === "Cancellation" || (!isTour && category === "NoShow")
 				)
 			)
+			const noShowStatus = guidedStatus(
+				noShowMissing,
+				(plan.invalidCategories ?? []).includes("NoShow")
+			)
+			const paymentInvalid = (plan.invalidCategories ?? []).includes("Payment")
 			const paymentStatus = guidedStatus(
 				paymentMissing,
 				(plan.invalidCategories ?? []).includes("Payment")
@@ -293,7 +306,7 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 											<div class="min-w-0">
 												<div class="flex flex-wrap items-center gap-2">
 													<h4 class="font-semibold text-slate-950">
-														Cancelación y no presentación
+														{isTour ? "Cancelación" : "Cancelación y no presentación"}
 													</h4>
 													<Badge variant={cancellationStatus.variant}>
 														{cancellationStatus.label}
@@ -301,7 +314,7 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 												</div>
 												<p class="mt-1 text-sm leading-5 text-slate-500">
 													{isTour
-														? "Qué ocurre si el viajero cancela o no se presenta a la salida."
+														? "Qué ocurre si el viajero cancela antes de la salida."
 														: "Qué ocurre si el huésped cancela o no llega."}
 												</p>
 											</div>
@@ -318,22 +331,36 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 													data-assignment-scope="rate_plan"
 													data-assignment-scope-id={plan.ratePlanId}
 													data-assignment-category="Cancellation"
+													data-assignment-policy-id={
+														isTour && !cancellationMissing
+															? plan.policyIdsByCategory?.Cancellation
+															: undefined
+													}
 												>
 													{cancellationMissing ? "Configurar cancelación" : "Cambiar cancelación"}
 													{cancellationMissing && <ArrowRight class="h-4 w-4" />}
 												</Button>
-												<Button
-													type="button"
-													variant={noShowMissing ? "primary" : "ghost"}
-													size="sm"
-													class="policy-assignment-open"
-													data-assignment-mode="preset"
-													data-assignment-scope="rate_plan"
-													data-assignment-scope-id={plan.ratePlanId}
-													data-assignment-category="NoShow"
-												>
-													{noShowMissing ? "Configurar no presentación" : "Cambiar no presentación"}
-												</Button>
+												{!isTour && (
+													<Button
+														type="button"
+														variant={noShowMissing ? "primary" : "ghost"}
+														size="sm"
+														class="policy-assignment-open"
+														data-assignment-mode="preset"
+														data-assignment-scope="rate_plan"
+														data-assignment-scope-id={plan.ratePlanId}
+														data-assignment-category="NoShow"
+														data-assignment-policy-id={
+															isTour && !noShowMissing
+																? plan.policyIdsByCategory?.NoShow
+																: undefined
+														}
+													>
+														{noShowMissing
+															? "Configurar no presentación"
+															: "Cambiar no presentación"}
+													</Button>
+												)}
 											</div>
 										</div>
 
@@ -356,15 +383,51 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 													{plan.contractFacts.cancellationPenalty}
 												</dd>
 											</div>
-											<div>
-												<dt class="text-xs font-medium text-slate-500">Si no llega</dt>
-												<dd class="mt-1 text-sm font-semibold text-slate-900">
-													{plan.contractFacts.noShowCharge}
-												</dd>
-											</div>
+											{!isTour && (
+												<div>
+													<dt class="text-xs font-medium text-slate-500">Si no llega</dt>
+													<dd class="mt-1 text-sm font-semibold text-slate-900">
+														{plan.contractFacts.noShowCharge}
+													</dd>
+												</div>
+											)}
 										</dl>
 									</div>
 								</section>
+
+								{isTour && (
+									<section class="py-5" data-contract-block="no-show">
+										<div class="flex flex-wrap items-start justify-between gap-4 px-1 sm:px-4">
+											<div class="space-y-2">
+												<div class="flex flex-wrap items-center gap-2">
+													<h4 class="font-semibold text-slate-950">Si el viajero no se presenta</h4>
+													<Badge variant={noShowStatus.variant}>{noShowStatus.label}</Badge>
+												</div>
+												<p class="text-sm text-slate-500">
+													Condición aplicable si no acude a la salida reservada.
+												</p>
+												<p class="text-sm font-semibold text-slate-900">
+													{plan.contractFacts.noShowCharge}
+												</p>
+											</div>
+											<Button
+												type="button"
+												variant={noShowMissing ? "primary" : "secondary"}
+												size="sm"
+												class="policy-assignment-open"
+												data-assignment-mode="preset"
+												data-assignment-scope="rate_plan"
+												data-assignment-scope-id={plan.ratePlanId}
+												data-assignment-category="NoShow"
+												data-assignment-policy-id={
+													isTour && !noShowMissing ? plan.policyIdsByCategory?.NoShow : undefined
+												}
+											>
+												{noShowMissing ? "Configurar no presentación" : "Cambiar no presentación"}
+											</Button>
+										</div>
+									</section>
+								)}
 
 								<section class="py-5" data-contract-block="payment-guarantee">
 									<div class="grid gap-6 lg:grid-cols-[minmax(220px,0.75fr)_minmax(0,1.4fr)]">
@@ -389,23 +452,25 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 
 										<div class="px-1 sm:px-4">
 											<div class="flex justify-end">
-												<Button
-													type="button"
-													variant={paymentMissing ? "primary" : "secondary"}
-													size="sm"
-													class="policy-assignment-open"
-													data-assignment-mode="preset"
-													data-assignment-scope="rate_plan"
-													data-assignment-scope-id={plan.ratePlanId}
-													data-assignment-category="Payment"
-												>
-													{paymentMissing
-														? isTour
-															? "Confirmar pago al proveedor"
-															: "Configurar pago"
-														: "Cambiar pago"}
-													{paymentMissing && <ArrowRight class="h-4 w-4" />}
-												</Button>
+												{(!isTour || paymentMissing || paymentInvalid) && (
+													<Button
+														type="button"
+														variant={paymentMissing ? "primary" : "secondary"}
+														size="sm"
+														class="policy-assignment-open"
+														data-assignment-mode="preset"
+														data-assignment-scope="rate_plan"
+														data-assignment-scope-id={plan.ratePlanId}
+														data-assignment-category="Payment"
+													>
+														{paymentMissing || (isTour && paymentInvalid)
+															? isTour
+																? "Confirmar pago al proveedor"
+																: "Configurar pago"
+															: "Cambiar pago"}
+														{paymentMissing && <ArrowRight class="h-4 w-4" />}
+													</Button>
+												)}
 											</div>
 										</div>
 
@@ -413,7 +478,7 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 											<div>
 												<dt class="text-xs font-medium text-slate-500">Cuándo paga</dt>
 												<dd class="mt-1 text-sm font-semibold text-slate-900">
-													{isTour && !paymentMissing
+													{isTour && !paymentMissing && !paymentInvalid
 														? "Al realizar el tour"
 														: plan.contractFacts.paymentTiming}
 												</dd>
@@ -421,7 +486,7 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 											<div>
 												<dt class="text-xs font-medium text-slate-500">Cuánto paga</dt>
 												<dd class="mt-1 text-sm font-semibold text-slate-900">
-													{isTour && !paymentMissing
+													{isTour && !paymentMissing && !paymentInvalid
 														? "El proveedor cobra el total"
 														: plan.contractFacts.paymentAmount}
 												</dd>
@@ -436,95 +501,73 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 									</div>
 								</section>
 
-								<section class="py-5" data-contract-block="arrival-departure">
-									<div class="grid gap-6 lg:grid-cols-[minmax(220px,0.75fr)_minmax(0,1.4fr)]">
-										<div class="flex min-w-0 items-start gap-3 px-1 sm:px-4">
-											<span class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
-												<CalendarClock class="h-5 w-5" />
-											</span>
-											<div class="min-w-0">
-												<div class="flex flex-wrap items-center gap-2">
-													<h4 class="font-semibold text-slate-950">
-														{isTour ? "Presentación para la salida" : "Llegada y salida"}
-													</h4>
-													<Badge variant={isTour ? "info" : arrivalStatusValue.variant}>
-														{isTour ? "Definida en la salida" : arrivalStatusValue.label}
-													</Badge>
-												</div>
-												<p class="mt-1 text-sm leading-5 text-slate-500">
-													{isTour
-														? "La hora, idioma, modalidad y cupo se gestionan en la salida; la tarifa conserva sus condiciones comerciales."
-														: plan.contractFacts.arrivalSource === "Tarifa"
+								{!isTour && (
+									<section class="py-5" data-contract-block="arrival-departure">
+										<div class="grid gap-6 lg:grid-cols-[minmax(220px,0.75fr)_minmax(0,1.4fr)]">
+											<div class="flex min-w-0 items-start gap-3 px-1 sm:px-4">
+												<span class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+													<CalendarClock class="h-5 w-5" />
+												</span>
+												<div class="min-w-0">
+													<div class="flex flex-wrap items-center gap-2">
+														<h4 class="font-semibold text-slate-950">Llegada y salida</h4>
+														<Badge variant={arrivalStatusValue.variant}>
+															{arrivalStatusValue.label}
+														</Badge>
+													</div>
+													<p class="mt-1 text-sm leading-5 text-slate-500">
+														{plan.contractFacts.arrivalSource === "Tarifa"
 															? "Esta tarifa tiene un horario distinto al del alojamiento."
 															: "Horarios compartidos por las tarifas del alojamiento. Se editan en las reglas del hotel; aquí solo puedes crear una excepción de horario."}
-												</p>
-											</div>
-										</div>
-
-										{isTour ? (
-											<div class="px-1 sm:px-4">
-												<div class="flex justify-end">
-													<Button href={tourDepartureHref} variant="secondary" size="sm">
-														Editar salida
-													</Button>
+													</p>
 												</div>
 											</div>
-										) : isGuidedSurface ? (
-											<div class="px-1 sm:px-4">
-												<div class="flex justify-end">
-													<Button
-														type="button"
-														variant={arrivalMissing ? "primary" : "secondary"}
-														size="sm"
-														class="policy-arrival-open"
-														data-arrival-scope-id={productId}
-													>
-														{arrivalMissing ? "Configurar horarios" : "Editar horarios"}
-														{arrivalMissing && <ArrowRight class="h-4 w-4" />}
-													</Button>
-												</div>
-											</div>
-										) : (
-											<div class="px-1 sm:px-4">
-												<div class="flex flex-wrap justify-end gap-2">
-													<Button
-														href={providerHouseRulesHref(productId, plan.ratePlanId, "arrival")}
-														variant="secondary"
-														size="sm"
-													>
-														Editar en alojamiento
-													</Button>
-													<Button
-														href={providerHouseRulesHref(
-															productId,
-															plan.ratePlanId,
-															"arrival",
-															"rate-exception"
-														)}
-														variant={arrivalMissing ? "primary" : "secondary"}
-														size="sm"
-														data-rate-arrival-exception-cta
-													>
-														{plan.contractFacts.arrivalSource === "Tarifa"
-															? "Editar excepción de horario"
-															: "Excepción de esta tarifa"}
-														{arrivalMissing && <ArrowRight class="h-4 w-4" />}
-													</Button>
-												</div>
-											</div>
-										)}
 
-										{isTour && (
-											<div class="mt-2 px-1 sm:px-4 lg:col-start-2 lg:mt-4">
-												<p class="text-sm leading-6 text-slate-600">
-													{playbookMode
-														? "La disponibilidad se configura en el siguiente paso. Puedes corregir ahora el horario o los detalles de esta salida."
-														: "La edición de salida conserva esta tarifa y sus condiciones."}
-												</p>
-											</div>
-										)}
+											{isGuidedSurface ? (
+												<div class="px-1 sm:px-4">
+													<div class="flex justify-end">
+														<Button
+															type="button"
+															variant={arrivalMissing ? "primary" : "secondary"}
+															size="sm"
+															class="policy-arrival-open"
+															data-arrival-scope-id={productId}
+														>
+															{arrivalMissing ? "Configurar horarios" : "Editar horarios"}
+															{arrivalMissing && <ArrowRight class="h-4 w-4" />}
+														</Button>
+													</div>
+												</div>
+											) : (
+												<div class="px-1 sm:px-4">
+													<div class="flex flex-wrap justify-end gap-2">
+														<Button
+															href={providerHouseRulesHref(productId, plan.ratePlanId, "arrival")}
+															variant="secondary"
+															size="sm"
+														>
+															Editar en alojamiento
+														</Button>
+														<Button
+															href={providerHouseRulesHref(
+																productId,
+																plan.ratePlanId,
+																"arrival",
+																"rate-exception"
+															)}
+															variant={arrivalMissing ? "primary" : "secondary"}
+															size="sm"
+															data-rate-arrival-exception-cta
+														>
+															{plan.contractFacts.arrivalSource === "Tarifa"
+																? "Editar excepción de horario"
+																: "Excepción de esta tarifa"}
+															{arrivalMissing && <ArrowRight class="h-4 w-4" />}
+														</Button>
+													</div>
+												</div>
+											)}
 
-										{!isTour && (
 											<dl class="mt-2 grid gap-x-8 gap-y-4 px-1 sm:grid-cols-[minmax(0,1.4fr)_minmax(180px,0.6fr)] sm:px-4 lg:col-start-2 lg:mt-4">
 												<div>
 													<dt class="text-xs font-medium text-slate-500">Horario</dt>
@@ -540,9 +583,9 @@ function arrivalStatus(params: { missing: boolean; source: string }): {
 													</dd>
 												</div>
 											</dl>
-										)}
-									</div>
-								</section>
+										</div>
+									</section>
+								)}
 							</div>
 						) : (
 							<p class="px-4 py-5 text-sm text-slate-600">

@@ -25,6 +25,7 @@ export type PolicyCompatibilityIssue = {
 		| "policy_category_not_supported"
 		| "tour_stay_length_policy_not_supported"
 		| "tour_cancellation_requires_hour_cutoff"
+		| "tour_cancellation_basis_not_supported"
 		| "tour_payment_type_not_supported"
 		| "tour_no_show_basis_not_supported"
 	message: string
@@ -127,6 +128,23 @@ export function evaluatePolicyBusinessCompatibility(
 	}
 
 	if (category === "Cancellation") {
+		const refundBasis = normalized(candidate.refundBasis)
+		// `none` means no refund, rather than a hotel calculation basis.
+		if (
+			refundBasis &&
+			refundBasis !== "none" &&
+			!contract.cancellation.allowedPenaltyBases.includes(
+				refundBasis as "total_booking" | "room_rate"
+			)
+		) {
+			return [
+				{
+					code: "tour_cancellation_basis_not_supported",
+					message:
+						"La cancelación de un tour debe calcularse sobre el total de la reserva; las bases de habitación o noche no son aplicables.",
+				},
+			]
+		}
 		const stayLengthType = normalized(candidate.stayLengthType || "any")
 		if (stayLengthType !== "any") {
 			return [

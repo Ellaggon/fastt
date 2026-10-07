@@ -270,6 +270,7 @@ export function buildPolicyFinancialPreviewFromResolution(
 	const cancelledAt = input.cancelledAt ?? new Date()
 	const snapshot = buildPolicySnapshot({
 		resolvedPolicies: input.resolvedPolicies,
+		providerId: input.providerId,
 		checkIn: input.checkIn,
 		checkOut: input.checkOut,
 		channel: input.channel ?? null,
@@ -279,6 +280,7 @@ export function buildPolicyFinancialPreviewFromResolution(
 	})
 	const longStaySnapshot = buildPolicySnapshot({
 		resolvedPolicies: input.resolvedPolicies,
+		providerId: input.providerId,
 		checkIn: input.checkIn,
 		checkOut: addDays(input.checkIn, 28),
 		channel: input.channel ?? null,
