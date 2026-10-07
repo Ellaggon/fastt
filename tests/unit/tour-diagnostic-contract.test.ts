@@ -59,9 +59,9 @@ describe("B1 tour diagnosis contract", () => {
 			const diagnosis = fixture()
 			diagnosis.requirements[id].result = pending
 			expect(summarizeTourDiagnostic(diagnosis).preparation).toMatchObject({
-				readyCount: 9,
-				totalCount: 10,
-				readinessPercent: 90,
+				readyCount: 10,
+				totalCount: 11,
+				readinessPercent: 91,
 				complete: false,
 			})
 		}
@@ -92,7 +92,7 @@ describe("B1 tour diagnosis contract", () => {
 			state: "not_evaluable",
 			reason: { code: "read_failed", message: "Reintenta la consulta" },
 		}
-		expect(summarizeTourDiagnostic(diagnosis).preparation.readinessPercent).toBe(90)
+		expect(summarizeTourDiagnostic(diagnosis).preparation.readinessPercent).toBe(91)
 	})
 	it("private requests never imply a quote, hold or booking", () => {
 		expect(summarizeTourDiagnostic(fixture("private")).transactionSemantics).toBe(
@@ -178,13 +178,13 @@ describe("B6 preparation and navigation", () => {
 		diagnosis.requirements.price.result = pending
 		const before = summarizeTourDiagnostic(diagnosis).preparation
 		for (const step of ["content", "photos", "rate", "calendar", "preview"]) {
-			expect(getTourPublishingStage(step).total).toBe(5)
+			expect(getTourPublishingStage(step).total).toBe(9)
 			expect(summarizeTourDiagnostic(diagnosis).preparation).toEqual(before)
 		}
-		expect(before).toMatchObject({ readinessPercent: 90, totalCount: 10 })
+		expect(before).toMatchObject({ readinessPercent: 91, totalCount: 11 })
 		const stages = projectTourPublishingStages(diagnosis)
-		expect(stages[3].state).toBe("pending")
-		expect(stages).toHaveLength(5)
+		expect(stages[6].state).toBe("pending")
+		expect(stages).toHaveLength(9)
 		expect(getTourPublishingStage("preview").position).toBe(0)
 	})
 	it("keeps 100% preparation when authorization or activation prevents publication", () => {
@@ -197,6 +197,6 @@ describe("B6 preparation and navigation", () => {
 				.slice(0, 5)
 				.every((stage) => stage.state === "ready")
 		).toBe(true)
-		expect(projectTourPublishingStages(diagnosis)).toHaveLength(5)
+		expect(projectTourPublishingStages(diagnosis)).toHaveLength(9)
 	})
 })

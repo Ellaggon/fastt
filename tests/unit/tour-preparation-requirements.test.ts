@@ -78,7 +78,7 @@ describe("continuous tour preparation", () => {
 		).toContain("step=calendar")
 	})
 	it("keeps the ten checks secondary and preserves blocked and unknown statuses", () => {
-		expect(TOUR_PREPARATION_REQUIREMENT_ORDER).toHaveLength(10)
+		expect(TOUR_PREPARATION_REQUIREMENT_ORDER).toHaveLength(11)
 		expect(
 			formatTourPreparationProgressLine({ readyCount: 9, totalCount: 10, readinessPercent: 90 })
 		).toBe("9 de 10 comprobaciones cumplidas")

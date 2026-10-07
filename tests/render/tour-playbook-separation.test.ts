@@ -61,12 +61,12 @@ async function render(part: "prepare" | "publish") {
 	})
 }
 describe("two tour playbooks rendered in their actual layout", () => {
-	it("A shows only its five folded stages and preserves the review return on stage links", async () => {
+	it("A shows only its nine folded stages and preserves the review return on stage links", async () => {
 		const html = await render("prepare")
 		expect(html).toContain("Preparar tour")
-		expect(html).toContain("Tour guardado - Etapa 4 de 5")
+		expect(html).toContain("Tour guardado - Etapa 6 de 9")
 		expect(html).not.toContain("Ver etapas")
-		expect(html.match(/data-tour-stage-id=/g)).toHaveLength(5)
+		expect(html.match(/data-tour-stage-id=/g)).toHaveLength(9)
 		expect(html).not.toMatch(/<details[^>]*open/)
 		expect(html).not.toContain("data-tour-publication-correction")
 		expect(html).not.toContain("comprobaciones cumplidas")

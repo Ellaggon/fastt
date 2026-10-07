@@ -3,6 +3,7 @@ import {
 	tourPublicationHref,
 	tourPublicationReturn,
 } from "./tour-playbook-context"
+import { tourConditionsHref } from "@/lib/tours/tourConditionsHref"
 export const LAUNCH_TOUR_PLAYBOOK_ID = "launch-tour" as const
 export const LAUNCH_TOUR_PLAYBOOK_TITLE = "Preparar tour"
 
@@ -43,16 +44,35 @@ export const TOUR_PREPARATION_STAGES = [
 	},
 	{
 		id: "logistics",
-		label: "Recorrido y logística",
-		steps: ["location", "subtype"],
+		label: "Itinerario y logística",
+		steps: ["subtype"],
 		requirements: ["logistics"],
+	},
+	{
+		id: "location",
+		label: "Ubicación y encuentro",
+		steps: ["location"],
+		requirements: ["location"],
 	},
 	{ id: "photos", label: "Fotos", steps: ["images"], requirements: ["photos"] },
 	{
-		id: "offer",
-		label: "Primera opción, precio y condiciones",
-		steps: ["tickets", "departure", "rate", "conditions"],
-		requirements: ["participants", "option_profile", "group_capacity", "price", "conditions"],
+		id: "participants",
+		label: "Participantes",
+		steps: ["tickets"],
+		requirements: ["participants"],
+	},
+	{
+		id: "option",
+		label: "Primera opción",
+		steps: ["departure"],
+		requirements: ["option_profile", "group_capacity"],
+	},
+	{ id: "price", label: "Precio", steps: ["rate"], requirements: ["price"] },
+	{
+		id: "conditions",
+		label: "Condiciones de reserva",
+		steps: ["conditions"],
+		requirements: ["conditions"],
 	},
 	{
 		id: "calendar",
@@ -95,7 +115,7 @@ const TOUR_LAUNCH_STEP_DEFINITIONS: TourLaunchStepDefinition[] = [
 	},
 	{
 		id: "location",
-		label: "Destino y encuentro",
+		label: "Ubicación y encuentro",
 		guestImpact: "Dónde se descubre la experiencia y cómo se identifica su punto de inicio.",
 		buildHref: ({ productId }) =>
 			buildTourPlaybookHref(`/product/${encodeURIComponent(productId)}/location`, "location"),
@@ -109,7 +129,7 @@ const TOUR_LAUNCH_STEP_DEFINITIONS: TourLaunchStepDefinition[] = [
 	},
 	{
 		id: "subtype",
-		label: "Itinerario y detalles",
+		label: "Itinerario y logística",
 		guestImpact: "Duración, dificultad e itinerario de la experiencia.",
 		buildHref: ({ productId }) =>
 			buildTourPlaybookHref(`/product/${encodeURIComponent(productId)}/subtype`, "subtype"),
@@ -152,23 +172,8 @@ const TOUR_LAUNCH_STEP_DEFINITIONS: TourLaunchStepDefinition[] = [
 		id: "conditions",
 		label: "Condiciones y preguntas",
 		guestImpact: "Cancelación, confirmación y datos necesarios para operar la reserva.",
-		buildHref: ({ productId, variantId, ratePlanId }) => {
-			if (ratePlanId) {
-				const params = new URLSearchParams({
-					vista: "conditions",
-					productId,
-					ratePlanId,
-				})
-				if (variantId) params.set("variantId", variantId)
-				return buildTourPlaybookHref(
-					`/rates/plans/${encodeURIComponent(ratePlanId)}?${params.toString()}`,
-					"conditions"
-				)
-			}
-			const params = new URLSearchParams({ productId, openDialog: "1" })
-			if (variantId) params.set("variantId", variantId)
-			return buildTourPlaybookHref(`/rates/plans/manage?${params.toString()}`, "conditions")
-		},
+		buildHref: ({ productId, ...selection }) =>
+			buildTourPlaybookHref(tourConditionsHref(productId, selection), "conditions"),
 	},
 	{
 		id: "calendar",
@@ -289,6 +294,7 @@ export function inferTourLaunchStepFromPathname(pathname: string): TourLaunchSte
 	if (pathname.endsWith("/images")) return "images"
 	if (pathname.endsWith("/subtype")) return "subtype"
 	if (pathname.endsWith("/tickets")) return "tickets"
+	if (pathname.endsWith("/conditions")) return "conditions"
 	if (pathname.endsWith("/departures/new")) return "departure"
 	if (pathname.includes("/rates/plans/manage")) return "rate"
 	if (pathname.match(/\/rates\/plans\/[^/]+$/)) return "conditions"
@@ -300,10 +306,10 @@ export function inferTourLaunchStepFromPathname(pathname: string): TourLaunchSte
 /** Old preparation entries converge on the complete presentation, preserving selection and return. */
 export function tourPresentationCanonicalHref(url: URL, productId: string): string | null {
 	const context = resolveTourPlaybookContext(url, productId)
-	if (context?.part !== "prepare" || !/\/(content|categories)$/.test(url.pathname)) return null
-	const target = context.canonical
+	if (!/\/(content|categories)$/.test(url.pathname)) return null
+	const target = context?.canonical ?? new URL(url)
 	target.pathname = `/product/${encodeURIComponent(productId)}/presentation`
-	target.searchParams.set("step", "create")
+	if (context) target.searchParams.set("step", context.part === "publish" ? "content" : "create")
 	return target.pathname + target.search + target.hash
 }
 

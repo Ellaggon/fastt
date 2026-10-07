@@ -12,6 +12,7 @@ import {
 export const TOUR_REQUIREMENT_PRESENTATION = {
 	presentation: { section: "content", label: "Presentación", action: "Editar presentación" },
 	logistics: { section: "subtype", label: "Itinerario y logística", action: "Completar logística" },
+	location: { section: "location", label: "Ubicación y encuentro", action: "Definir ubicación" },
 	photos: { section: "photos", label: "Fotos", action: "Editar fotos" },
 	participants: { section: "tickets", label: "Participantes", action: "Configurar participantes" },
 	activities: {

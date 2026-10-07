@@ -10,6 +10,7 @@ import {
 	resolveCompleteToPublishPlaybookFromUrl,
 } from "@/lib/playbook/complete-to-publish"
 import type { ProviderRatePlanVariantChoice } from "./loadProviderRatePlanVariants"
+import { tourConditionsHref } from "@/lib/tours/tourConditionsHref"
 
 /** Resolve a rate entry from owned data, including products without any variants. */
 export async function loadRatePlanManagementEntry(params: {
@@ -47,7 +48,13 @@ export async function loadRatePlanManagementEntry(params: {
 		variantId: contextVariant?.variantId,
 	})
 	let redirectHref = canonicalHref
-	if (isTour && !contextVariant) {
+	const requestedStep = url.searchParams.get("step")
+	if (isTour && ["conditions", "bookingPolicies"].includes(requestedStep ?? "")) {
+		const target = new URL(tourConditionsHref(productId), url)
+		target.search = url.search
+		target.searchParams.delete("openDialog")
+		redirectHref = target.pathname + target.search
+	} else if (isTour && !contextVariant) {
 		const departureHref = `/product/${encodeURIComponent(productId)}/departures/new`
 		redirectHref = resolveCompleteToPublishPlaybookFromUrl(url).active
 			? buildCompleteToPublishHref(departureHref, "departure")

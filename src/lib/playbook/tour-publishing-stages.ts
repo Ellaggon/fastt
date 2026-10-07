@@ -2,6 +2,7 @@ import type { ProductVerticalSectionKey } from "@/lib/catalog/productVerticalReg
 import { completeToPublishStepHref } from "@/lib/playbook/complete-to-publish"
 import { type TourDiagnostic } from "@/lib/tours/tourDiagnosticContract"
 import { tourDiagnosticSelectionContext } from "@/lib/tours/tourPreparationRequirements"
+import { tourConditionsHref } from "@/lib/tours/tourConditionsHref"
 
 import {
 	TOUR_PREPARATION_STAGES,
@@ -17,8 +18,12 @@ export type TourPublishingStage = { id: string; label: string; position: number;
 const STAGE_CANONICAL_SECTION = {
 	presentation: "content",
 	logistics: "subtype",
+	location: "location",
 	photos: "photos",
-	offer: "tickets",
+	participants: "tickets",
+	option: "departure",
+	price: "rate",
+	conditions: "bookingPolicies",
 	calendar: "calendar",
 } as const satisfies Record<
 	(typeof TOUR_PUBLISHING_STAGES)[number]["id"],
@@ -33,7 +38,9 @@ export function tourPublishingStageHref(
 	const context = tourDiagnosticSelectionContext(diagnosis)
 
 	return buildTourPlaybookHref(
-		completeToPublishStepHref(productId, STAGE_CANONICAL_SECTION[stageId], context),
+		stageId === "conditions"
+			? tourConditionsHref(productId, context)
+			: completeToPublishStepHref(productId, STAGE_CANONICAL_SECTION[stageId], context),
 		normalizeTourLaunchStep(STAGE_CANONICAL_SECTION[stageId])!
 	)
 }
@@ -62,7 +69,16 @@ export function getTourPublishingStage(stepId: string | null | undefined): TourP
 /** Preparation state is independent of authorization, activation and review. */
 export function projectTourPublishingStages(diagnosis: TourDiagnostic) {
 	return TOUR_PUBLISHING_STAGES.map((stage, index) => {
-		const states = stage.requirements.map((id) => diagnosis.requirements[id].result.state)
+		const states = stage.requirements.map((id) => {
+			const result = diagnosis.requirements[id].result
+			return result.state === "not_evaluable" &&
+				"reason" in result &&
+				["missing_option", "missing_rate", "selection_required", "invalid_selection"].includes(
+					result.reason.code
+				)
+				? "pending"
+				: result.state
+		})
 		const state = states.includes("not_evaluable")
 			? "not_evaluable"
 			: states.includes("blocked")

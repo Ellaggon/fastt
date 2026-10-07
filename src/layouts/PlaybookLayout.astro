@@ -515,18 +515,12 @@ const isTourPlaybookContext =
 const showPlaybookProductContext =
 	active && Boolean(productDisplayName) && !deferPlaybookProductContext
 const tourPlaybookHeadlinePrefix = isTourPlaybookContext ? productDisplayName.trim() : ""
-const formatTourPlaybookHeadline = (suffix: string) => {
-	const tail = suffix.trim()
-	if (!tourPlaybookHeadlinePrefix) return tail
-	if (!tail) return tourPlaybookHeadlinePrefix
-	return `${tourPlaybookHeadlinePrefix} - ${tail}`
-}
 const showHotelPlaybookProductContext = showPlaybookProductContext && !isTourPlaybookContext
-const showTourPlaybookHeadlineOnly =
-	showPlaybookProductContext &&
+/** One tour title on publish/preview — never "{name} - Revisar y publicar" plus the bare name. */
+const showTourPlaybookHeadline =
 	isTourPlaybookContext &&
-	!showProgress &&
-	Boolean(tourPlaybookHeadlinePrefix)
+	Boolean(tourPlaybookHeadlinePrefix) &&
+	(isTerminalStep || (!showProgress && showPlaybookProductContext))
 /** Keeps the stage summary visually paired with each step’s form title. */
 const tightTourPlaybookStepSpacing = isTourPlaybookContext && active
 const correctionMessages =
@@ -554,10 +548,7 @@ const PlaybookShell = active ? GuidedPreparationLayout : WorkspaceLayout
 	stepLabel={stepLabel}
 >
 	{
-		showProgress ||
-		showHotelPlaybookProductContext ||
-		showTourPlaybookHeadlineOnly ||
-		(isTourPlaybookContext && isTerminalStep && tourPlaybookHeadlinePrefix) ? (
+		showProgress || showHotelPlaybookProductContext || showTourPlaybookHeadline ? (
 			<div class:list={[tightTourPlaybookStepSpacing ? "mb-2 space-y-1" : "mb-5 space-y-3"]}>
 				{showHotelPlaybookProductContext ? (
 					<PlaybookProductContextLine
@@ -566,12 +557,7 @@ const PlaybookShell = active ? GuidedPreparationLayout : WorkspaceLayout
 						isTour={false}
 					/>
 				) : null}
-				{isTourPlaybookContext && isTerminalStep && tourPlaybookHeadlinePrefix ? (
-					<p class="text-sm leading-snug font-semibold text-slate-300">
-						{formatTourPlaybookHeadline("Revisar y publicar")}
-					</p>
-				) : null}
-				{showTourPlaybookHeadlineOnly ? (
+				{showTourPlaybookHeadline ? (
 					<p class="text-sm leading-snug font-semibold text-slate-300">
 						{tourPlaybookHeadlinePrefix}
 					</p>
@@ -641,24 +627,19 @@ const PlaybookShell = active ? GuidedPreparationLayout : WorkspaceLayout
 	{
 		isTourPublication && !isTerminalStep ? (
 			<div
-				class:list={["space-y-2", tightTourPlaybookStepSpacing ? "mb-2" : "mb-4"]}
+				class:list={[
+					correctionMessages.length > 0 ? "space-y-2" : "",
+					correctionMessages.length > 0 ? (tightTourPlaybookStepSpacing ? "mb-2" : "mb-4") : "",
+				]}
 				data-tour-publication-correction
 			>
-				{hideFooter && reviewReturnHref ? (
-					<Button
-						href={reviewReturnHref}
-						variant="ghost"
-						size="sm"
-						class="text-slate-300! hover:text-slate-950! focus:ring-white"
-					>
-						← Volver a publicación
-					</Button>
+				{correctionMessages.length > 0 ? (
+					<div id="tour-publication-cause" class="space-y-2">
+						{correctionMessages.map((message) => (
+							<p class="text-sm text-slate-300">{message}</p>
+						))}
+					</div>
 				) : null}
-				<div id="tour-publication-cause" class="space-y-2">
-					{correctionMessages.map((message) => (
-						<p class="text-sm text-slate-300">{message}</p>
-					))}
-				</div>
 			</div>
 		) : null
 	}

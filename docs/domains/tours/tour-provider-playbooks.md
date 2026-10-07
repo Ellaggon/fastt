@@ -32,7 +32,7 @@ Supersedes: `docs/domains/tours/provider-workflow.md` (retirado: recuento histó
 ## Flujo 1 — Crear y publicar un tour
 
 La [especificación de Preparar tour y Publicar tour](./tour-preparation-publication.md)
-define dos playbooks conectados dentro de un flujo: A construye el borrador en cinco etapas;
+define dos playbooks conectados dentro de un flujo: A construye el borrador en nueve etapas;
 B evalúa lo guardado, muestra sólo pendientes, reutiliza formularios precargados y confirma
 la publicación. Sus indicadores y navegación nunca se muestran simultáneamente.
 

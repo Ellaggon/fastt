@@ -60,7 +60,7 @@ describe("B3 independent authoritative observations", () => {
 	it("a rate without valid price stays pending while its profile is ready", () => {
 		const diagnostic = fixture({ price: { ready: false, message: "Define precio" } })
 		expect(diagnostic.requirements.option_profile.result.state).toBe("ready")
-		expect(summarizeTourDiagnostic(diagnostic).preparation.readinessPercent).toBe(90)
+		expect(summarizeTourDiagnostic(diagnostic).preparation.readinessPercent).toBe(91)
 		expect(tourPublicationBlockers(diagnostic).map((b) => b.id)).toEqual(["price"])
 	})
 	it("preparation correction links activate complete-to-publish", () => {
@@ -106,7 +106,7 @@ describe("B3 independent authoritative observations", () => {
 			) as TourObservations,
 		})
 		expect(diagnostic.requirements.price.result.state).toBe("not_evaluable")
-		expect(summarizeTourDiagnostic(diagnostic).preparation.readinessPercent).toBe(50)
+		expect(summarizeTourDiagnostic(diagnostic).preparation.readinessPercent).toBe(55)
 	})
 })
 

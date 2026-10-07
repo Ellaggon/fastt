@@ -172,8 +172,8 @@ describe("playbook/launch-tour", () => {
 	it("defines a reservable tour path from identity to availability", () => {
 		expect(TOUR_LAUNCH_STEPS.map((step) => step.id)).toEqual([
 			"create",
-			"location",
 			"subtype",
+			"location",
 			"images",
 			"tickets",
 			"departure",
@@ -236,7 +236,7 @@ describe("playbook/launch-tour", () => {
 	it("provides the same navigation contract as accommodation", () => {
 		expect(getPreviousTourLaunchStep("tickets")?.id).toBe("images")
 		expect(getNextTourLaunchStep("tickets")?.id).toBe("departure")
-		expect(getNextTourLaunchStep("categories")?.id).toBe("location")
+		expect(getNextTourLaunchStep("categories")?.id).toBe("subtype")
 		expect(getNextTourLaunchStep("rate")?.id).toBe("conditions")
 		expect(getNextTourLaunchStep("conditions")?.id).toBe("calendar")
 		expect(inferTourLaunchStepFromPathname("/rates/plans/rate_123")).toBe("conditions")
@@ -257,14 +257,30 @@ describe("unified tour presentation", () => {
 			expect(target.searchParams.get("variantId")).toBe("option")
 			expect(target.searchParams.get("ratePlanId")).toBe("rate")
 			expect(target.searchParams.get("returnTo")).toContain("/product/tour/preview?")
-			expect(getNextTourLaunchStep(step)?.id).toBe("location")
+			expect(getNextTourLaunchStep(step)?.id).toBe("subtype")
 		}
 	)
 	it("returns from stage two to the existing presentation instead of creating another tour", () => {
-		const previous = getPreviousTourLaunchStep("location")!
+		const previous = getPreviousTourLaunchStep("subtype")!
 		expect(previous.id).toBe("create")
 		expect(
 			previous.buildHref({ productId: "tour", variantId: "option", ratePlanId: "rate" })
 		).toContain("/product/tour/presentation?")
 	})
 })
+
+it.each(["content", "categories"])(
+	"redirects publication %s to the complete presentation and preserves return",
+	(step) => {
+		const url = new URL(
+			`https://fastt.test/product/tour/${step}?playbook=complete-to-publish&flow=complete&tourFlowVersion=2&step=${step}&variantId=option&ratePlanId=rate&returnTo=%2Fproduct%2Ftour%2Fpreview`
+		)
+		const target = new URL(tourPresentationCanonicalHref(url, "tour")!, url.origin)
+		expect(target.pathname).toBe("/product/tour/presentation")
+		expect(target.searchParams.get("step")).toBe("content")
+		expect(target.searchParams.get("playbook")).toBe("complete-to-publish")
+		expect(target.searchParams.get("variantId")).toBe("option")
+		expect(target.searchParams.get("ratePlanId")).toBe("rate")
+		expect(target.searchParams.get("returnTo")).toContain("/product/tour/preview?")
+	}
+)

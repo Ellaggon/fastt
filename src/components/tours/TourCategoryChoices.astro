@@ -1,0 +1,30 @@
+---
+import Checkbox from "@/components/ui/Checkbox.astro"
+interface Props {
+	categories: Array<{ id: string; name: string }>
+	selectedIds: Set<string>
+	stacked?: boolean
+}
+const { categories, selectedIds, stacked = false } = Astro.props
+---
+
+<legend class="block w-full text-sm font-semibold text-slate-950"
+	>¿Qué tipo de experiencia ofreces?</legend
+>
+<p class="text-sm leading-6 text-slate-600">
+	Elige las actividades que describen este tour. Puedes seleccionar varias.
+</p>
+<div class:list={["pt-1", stacked ? "flex flex-col gap-2" : "flex flex-wrap gap-2.5"]}>
+	{
+		categories.map((category) => (
+			<Checkbox
+				name="categoryId"
+				value={category.id}
+				checked={selectedIds.has(String(category.id))}
+				className={`fastt-soft-box inline-flex min-h-10 items-center rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-800 transition hover:border-slate-300 hover:bg-slate-50 ${stacked ? "w-full" : ""}`}
+			>
+				{category.name}
+			</Checkbox>
+		))
+	}
+</div>

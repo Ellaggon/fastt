@@ -24,7 +24,7 @@ Un flujo comercial con dos playbooks reales: A prepara, B completa pendientes y 
 Comparten entidades, formularios y evaluadores. Difieren en entrada, navegación, retorno y
 acción principal. No basta cambiar nombres ni esconder una de dos listas montadas en el DOM.
 
-Mantener los cinco grupos de preparación y sus etiquetas actuales, incluida «Primera opción,
+Mantener los nueve grupos de preparación y sus etiquetas actuales, incluida «Primera opción,
 precio y condiciones». Los nombres abreviados del reporte conceptual describen esos grupos;
 no autorizan renombrar la interfaz durante este cambio. Los diez requisitos siguen siendo
 validaciones de datos; no se convierten en diez pantallas obligatorias ni en otro contador.
@@ -44,14 +44,14 @@ escritorio y móvil, con una etapa activa y estados completos/pendientes. No usa
 
 Conservar tarjetas compactas, radio 0.5 rem, borde sutil, fondo oscuro, índice junto al título,
 jerarquía tipográfica, estados discretos, selección azul con el token `--fastt-color-selection`,
-hover y foco actuales. La cuadrícula de cinco columnas en escritorio y su adaptación móvil
+hover y foco actuales. La cuadrícula de tres columnas en escritorio y su adaptación móvil
 permanecen; no reemplazarla por botones grandes, pills, otro stepper o una barra de porcentaje.
 No sustituir clases por componentes que alteren silenciosamente dimensiones o apariencia.
 
 El `summary` de etapas muestra «Etapa X de Y - [nombre]», cerrado por defecto con `details/summary`. Al abrirlo, mantiene
-las cinco tarjetas y sus estados. «En curso» identifica la presentación pendiente dentro de la
+las nueve tarjetas y sus estados. «En curso» identifica la presentación pendiente dentro de la
 única tarjeta activa; no debe repetirse como otro aviso encima del formulario. La pantalla
-normal sólo muestra una ubicación («Etapa 4 de 5»), el título del formulario y contexto breve.
+normal sólo muestra una ubicación («Etapa 6 de 9»), el título del formulario y contexto breve.
 No repetir el nombre completo de la etapa en tres cabeceras.
 
 B reutiliza el lenguaje visual de tarjetas y controles actuales. Sus tareas no llevan números

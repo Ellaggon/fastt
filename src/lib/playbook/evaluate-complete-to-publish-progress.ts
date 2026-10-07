@@ -580,7 +580,7 @@ async function evaluateCompleteToPublishState(
 					"Completa nombre, destino, descripción y destacados."
 				),
 				logistics: projectTourLogisticsObservation(
-					["subtype", "itinerary", "location"].map((sectionKey) => ({
+					["subtype", "itinerary"].map((sectionKey) => ({
 						sectionKey: sectionKey as "subtype" | "itinerary" | "location",
 						complete: Boolean(
 							completionBySection[sectionKey as ProductVerticalSectionKey]?.complete
@@ -589,6 +589,10 @@ async function evaluateCompleteToPublishState(
 					})),
 					productId,
 					tourContext.status === "resolved" ? tourContext : {}
+				),
+				location: observed(
+					Boolean(completionBySection.location?.complete),
+					completionBySection.location!.detail
 				),
 				photos: observed(
 					Boolean(completionBySection.photos?.complete),

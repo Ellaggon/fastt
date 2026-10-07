@@ -72,6 +72,13 @@ export function tourPublicationCorrectionHref(
 	selection: { variantId?: string | null; ratePlanId?: string | null } = {}
 ) {
 	const url = new URL(href, "http://fastt.local")
+	if (
+		url.pathname === `/product/${encodeURIComponent(productId)}/content` ||
+		url.pathname === `/product/${encodeURIComponent(productId)}/categories`
+	) {
+		url.pathname = `/product/${encodeURIComponent(productId)}/presentation`
+		url.searchParams.set("step", "content")
+	}
 	url.searchParams.set("returnTo", tourPublicationHref(productId, selection))
 	if (url.pathname.startsWith("/product/") || url.pathname.startsWith("/rates/")) {
 		url.searchParams.set("playbook", "complete-to-publish")
