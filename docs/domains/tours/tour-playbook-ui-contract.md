@@ -44,9 +44,11 @@ escritorio y móvil, con una etapa activa y estados completos/pendientes. No usa
 
 Conservar tarjetas compactas, radio 0.5 rem, borde sutil, fondo oscuro, índice junto al título,
 jerarquía tipográfica, estados discretos, selección azul con el token `--fastt-color-selection`,
-hover y foco actuales. La cuadrícula de tres columnas en escritorio y su adaptación móvil
-permanecen; no reemplazarla por botones grandes, pills, otro stepper o una barra de porcentaje.
-No sustituir clases por componentes que alteren silenciosamente dimensiones o apariencia.
+hover y foco actuales. El rail horizontal con scroll mantiene el orden 1→9; cada tarjeta tiene
+ancho fijo (~5–6 visibles) y los extremos usan un fade (`mask-image`) cuando hay más etapas.
+Al abrir, la etapa activa queda centrada. No reemplazarlo por una cuadrícula, botones grandes,
+pills, otro stepper o una barra de porcentaje. No sustituir clases por componentes que alteren
+silenciosamente dimensiones o apariencia.
 
 El `summary` de etapas muestra «Etapa X de Y - [nombre]», cerrado por defecto con `details/summary`. Al abrirlo, mantiene
 las nueve tarjetas y sus estados. «En curso» identifica la presentación pendiente dentro de la
