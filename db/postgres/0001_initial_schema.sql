@@ -86,6 +86,23 @@ CREATE TABLE "ProviderPreparationSession" (
 	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
 );
 
+CREATE TABLE "ProviderOptionPreparationSession" (
+	"id" text PRIMARY KEY,
+	"providerId" text NOT NULL,
+	"userId" text NOT NULL,
+	"productId" text,
+	"playbookId" text NOT NULL,
+	"writeVersion" integer NOT NULL DEFAULT 1,
+	"vertical" text NOT NULL,
+	"stepId" text NOT NULL,
+	"variantId" text,
+	"ratePlanId" text,
+	"lastPath" text NOT NULL,
+	"status" text NOT NULL DEFAULT 'active',
+	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
+	"updatedAt" timestamp with time zone NOT NULL DEFAULT now()
+);
+
 CREATE TABLE "ProviderProfile" (
 	"providerId" text PRIMARY KEY,
 	"timezone" text NOT NULL,
@@ -2272,6 +2289,27 @@ ALTER TABLE "ProviderPreparationSession"
 	ON DELETE CASCADE
 ;
 
+ALTER TABLE "ProviderOptionPreparationSession"
+	ADD CONSTRAINT "ProviderOptionPreparationSession_providerId_fk"
+	FOREIGN KEY ("providerId")
+	REFERENCES "Provider" ("id")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "ProviderOptionPreparationSession"
+	ADD CONSTRAINT "ProviderOptionPreparationSession_userId_fk"
+	FOREIGN KEY ("userId")
+	REFERENCES "User" ("id")
+	ON DELETE CASCADE
+;
+
+ALTER TABLE "ProviderOptionPreparationSession"
+	ADD CONSTRAINT "ProviderOptionPreparationSession_productId_fk"
+	FOREIGN KEY ("productId")
+	REFERENCES "Product" ("id")
+	ON DELETE CASCADE
+;
+
 ALTER TABLE "ProviderProfile"
 	ADD CONSTRAINT "ProviderProfile_providerId_fk"
 	FOREIGN KEY ("providerId")
@@ -4177,6 +4215,10 @@ CREATE INDEX "ProviderPreparationSession_owner_status_updated_idx" ON "ProviderP
 
 CREATE INDEX "ProviderPreparationSession_product_idx" ON "ProviderPreparationSession" ("productId");
 
+CREATE INDEX "ProviderOptionPreparationSession_owner_status_updated_idx" ON "ProviderOptionPreparationSession" ("providerId", "userId", "status", "updatedAt");
+
+CREATE INDEX "ProviderOptionPreparationSession_product_idx" ON "ProviderOptionPreparationSession" ("productId");
+
 CREATE INDEX "ProviderDocument_providerId_type_idx" ON "ProviderDocument" ("providerId", "type");
 
 CREATE INDEX "ProviderDocument_providerId_status_idx" ON "ProviderDocument" ("providerId", "status");
@@ -4918,6 +4960,12 @@ ALTER TABLE "ProviderPreparationSession" ADD CONSTRAINT "ProviderPreparationSess
 ALTER TABLE "ProviderPreparationSession" ADD CONSTRAINT "ProviderPreparationSession_vertical_check" CHECK ("vertical" IN ('hotel', 'tour'));
 
 ALTER TABLE "ProviderPreparationSession" ADD CONSTRAINT "ProviderPreparationSession_status_check" CHECK ("status" IN ('active', 'completed', 'abandoned'));
+
+ALTER TABLE "ProviderOptionPreparationSession" ADD CONSTRAINT "ProviderOptionPreparationSession_playbook_check" CHECK ("playbookId" = 'add-tour-option');
+
+ALTER TABLE "ProviderOptionPreparationSession" ADD CONSTRAINT "ProviderOptionPreparationSession_vertical_check" CHECK ("vertical" IN ('hotel', 'tour'));
+
+ALTER TABLE "ProviderOptionPreparationSession" ADD CONSTRAINT "ProviderOptionPreparationSession_status_check" CHECK ("status" IN ('active', 'completed', 'abandoned'));
 
 ALTER TABLE "ProviderDocument" ADD CONSTRAINT "ProviderDocument_subjectType_check" CHECK ("subjectType" IN ('provider', 'legal_entity', 'person', 'resource', 'third_party'));
 
