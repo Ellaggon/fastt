@@ -45,6 +45,7 @@ describe("tour commercial wizard", () => {
 		expect(editor).toContain("Ayuda sobre modalidad")
 		expect(editor).not.toContain("huésped")
 		expect(page).toContain("Define el horario habitual, la capacidad, el idioma y la modalidad")
-		expect(page).toContain("Después podrás configurar precios, condiciones y fechas.")
+		expect(page).toContain("Después podrás configurar la tarifa, condiciones y fechas.")
+		expect(page).not.toMatch(/configurar precios/i)
 	})
 })
