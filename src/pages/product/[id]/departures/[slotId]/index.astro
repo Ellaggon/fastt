@@ -136,7 +136,7 @@ const layoutProps = playbook.active
 							lead={
 								conditionsReturnHref
 									? "Ajusta horario, cupo e idioma. Al guardar volverás a las condiciones de la tarifa."
-									: "Ajusta horario, cupo, idioma y modalidad de esta salida antes de continuar con precio y fechas."
+									: "Ajusta horario, cupo, idioma y modalidad de esta opción antes de continuar con precio y fechas."
 							}
 						/>
 					</div>
@@ -204,7 +204,7 @@ const layoutProps = playbook.active
 				<Card class="space-y-3 bg-white">
 					<div>
 						<h2 class="text-lg font-semibold text-slate-950">
-							{isManifestView ? "Reservas confirmadas" : "Manifiesto de participantes"}
+							{isManifestView ? "Reservas confirmadas" : "Reservas de esta opción"}
 						</h2>
 						{manifestReturn && (
 							<a href={manifestReturn} class="text-sm font-semibold text-slate-700">
@@ -212,8 +212,10 @@ const layoutProps = playbook.active
 							</a>
 						)}
 						<p class="text-sm text-slate-600">
-							Reservas confirmadas para esta salida. La presentación y el voucher se gestionan desde
-							el detalle de cada reserva.
+							{isManifestView
+								? "Reservas confirmadas para esta salida."
+								: "Reservas confirmadas de esta opción, en todas sus fechas."}{" "}
+							La presentación y el voucher se gestionan desde el detalle de cada reserva.
 						</p>
 					</div>
 					<div id="departureManifest" class="divide-y divide-slate-100 text-sm text-slate-700">
@@ -263,7 +265,7 @@ const layoutProps = playbook.active
 								return `<a class="flex items-center justify-between gap-3 px-1 py-3 hover:bg-slate-50" href="/booking/${encodeURIComponent(String(item.bookingId))}"><span>${guest}</span><span class="text-xs text-slate-500">${state}</span></a>`
 							})
 							.join("")
-					: '<p class="py-4 text-slate-500">No hay participantes confirmados para esta salida.</p>'
+					: `<p class="py-4 text-slate-500">${manifestDate ? "No hay participantes confirmados para esta salida." : "No hay reservas confirmadas para esta opción."}</p>`
 			} catch {
 				target.textContent = "No se pudo cargar el manifiesto."
 			}

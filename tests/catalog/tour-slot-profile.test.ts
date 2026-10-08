@@ -46,9 +46,10 @@ describe("tour slot profile (fase 2)", () => {
 		expect(routes).toContain("/departures")
 
 		const index = read("src/pages/product/[id]/departures/index.astro")
-		expect(index).toContain("Opciones del tour")
+		expect(index).toContain("Opciones y horarios")
 		expect(index).toContain("alternativa distinta")
-		expect(index).toContain("buildTourCommercialLinks")
+		expect(index).toContain("loadTourOptionsWorkspace")
+		expect(read("src/lib/tours/tourOptionsWorkspace.ts")).toContain("buildTourCommercialLinks")
 		expect(index).toContain("Precios y condiciones")
 		expect(index).toContain("Fechas y cupos")
 
@@ -61,7 +62,7 @@ describe("tour slot profile (fase 2)", () => {
 		expect(hub).toContain("Ficha del tour")
 
 		const hydration = read("src/pages/product/_client/product-summary-hydration.ts")
-		expect(hydration).toContain("salidas configuradas")
+		expect(hydration).toContain("opciones configuradas")
 		expect(hydration).toContain("config.isTour")
 		expect(hydration).toContain('applyCheck("variants", "departure"')
 	})

@@ -1,0 +1,225 @@
+---
+import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import { requireProvider } from "@/lib/auth/requireProvider"
+import { getOptionSession, sessionHref } from "@/lib/onboarding/tourOptionSession"
+import { loadCompleteToPublishState } from "@/lib/playbook/evaluate-complete-to-publish-progress"
+import { tourActivationDecision } from "@/lib/tours/buildTourDiagnostic"
+import { optionWizardHref, type OptionStep } from "@/lib/playbook/add-tour-option"
+import {
+	db,
+	eq,
+	TourSlotProfile,
+	Variant,
+	RatePlan,
+	Product,
+} from "@/shared/infrastructure/db/compat"
+import { TOUR_SLOT_LANGUAGE_OPTIONS } from "@/lib/tours/tourSlotLanguageOptions"
+import { loadRatePlanPricingData } from "@/lib/pricing/loadRatePlanPricingData"
+const { providerId, user } = await requireProvider(Astro.request)
+const productId = Astro.params.id!,
+	variantId = Astro.params.slotId!
+const session = await getOptionSession(
+	providerId,
+	user.id,
+	Astro.url.searchParams.get("sessionId") || "",
+	productId
+).catch(() => null)
+if (!session || session.variantId !== variantId)
+	return new Response("Recorrido no encontrado", { status: 404 })
+if (!session.ratePlanId) return Astro.redirect(sessionHref(session, "price"))
+const ratePlanId = session.ratePlanId
+const [state, profiles, rates, products, pricing] = await Promise.all([
+	loadCompleteToPublishState({
+		providerId,
+		productId,
+		request: Astro.request,
+		selection: { variantId, ratePlanId },
+	}),
+	db
+		.select({
+			name: Variant.name,
+			time: TourSlotProfile.departureTime,
+			language: TourSlotProfile.languageCode,
+			mode: TourSlotProfile.bookingMode,
+			capacity: TourSlotProfile.maxPax,
+		})
+		.from(Variant)
+		.innerJoin(TourSlotProfile, eq(TourSlotProfile.variantId, Variant.id))
+		.where(eq(Variant.id, variantId)),
+	db.select().from(RatePlan).where(eq(RatePlan.id, ratePlanId)),
+	db
+		.select({ name: Product.name, status: Product.publicationState })
+		.from(Product)
+		.where(eq(Product.id, productId)),
+	loadRatePlanPricingData({ request: Astro.request, ratePlanId }),
+])
+const decision = state?.tourDiagnostic ? tourActivationDecision(state.tourDiagnostic) : null
+const profile = profiles[0],
+	rate = rates[0],
+	product = products[0]
+if (!profile || !rate || !product)
+	return new Response("La oferta ya no está disponible", { status: 404 })
+const context = { productId, variantId, ratePlanId, sessionId: session.id }
+const summary = [
+	["Opción", profile.name],
+	["Horario habitual", profile.time],
+	[
+		"Idioma",
+		TOUR_SLOT_LANGUAGE_OPTIONS.find((language) => language.code === profile.language)?.label ||
+			profile.language,
+	],
+	["Modalidad", profile.mode === "private" ? "Privada · solicitudes" : "Compartida"],
+	["Máximo del grupo", String(profile.capacity)],
+	["Tarifa", rate.name],
+	[
+		"Precio base",
+		"loaded" in pricing
+			? `${pricing.loaded.initialBasePrice} ${pricing.loaded.initialCurrency}`
+			: "No se pudo comprobar",
+	],
+]
+const correction = (blocker: NonNullable<typeof decision>["blockers"][number]) => {
+	const target = new URL(blocker.action.href, "http://fastt.local")
+	if (target.pathname.startsWith("/provider/")) {
+		target.searchParams.set("returnTo", sessionHref(session, "review"))
+		return target.pathname + target.search + target.hash
+	}
+	const id = String(blocker.id)
+	const step: OptionStep = id.includes("price")
+		? "price"
+		: id.includes("condition") || id.includes("polic")
+			? "conditions"
+			: id.includes("calendar") || id.includes("avail")
+				? "calendar"
+				: "profile"
+	const href = new URL(optionWizardHref(context, step), "http://fastt.local")
+	href.searchParams.set("optionReturn", "review")
+	return href.pathname + href.search
+}
+---
+
+<PlaybookLayout
+	title="Revisar y activar opción"
+	playbookId="add-tour-option"
+	active
+	stepId="review"
+	productId={productId}
+	variantId={variantId}
+	ratePlanId={ratePlanId}
+	playbookVertical="tour"
+	hideFooter
+	lightweight
+	productDisplayName={product.name}
+>
+	<section class="space-y-5">
+		<h1 class="text-2xl font-bold">Revisar y activar</h1><Card class="bg-white text-slate-950"
+			><dl class="grid gap-4 sm:grid-cols-2">
+				{
+					summary.map(([label, value]) => (
+						<div>
+							<>
+								<dt class="text-sm text-slate-500">{label}</dt>
+								<dd class="font-semibold">{value || "Pendiente"}</dd>
+							</>
+						</div>
+					))
+				}
+			</dl><div class="mt-4 flex flex-wrap gap-3">
+				<a
+					href={optionWizardHref(context, "conditions")}
+					class="min-h-11 py-2 font-semibold underline">Revisar condiciones</a
+				><a
+					href={optionWizardHref(context, "calendar")}
+					class="min-h-11 py-2 font-semibold underline">Revisar fechas y cupos</a
+				>
+			</div></Card
+		>
+		{
+			!decision ? (
+				<Card class="bg-white">
+					<>
+						<p>No pudimos comprobar la activación.</p>
+						<Button href={Astro.url.pathname + Astro.url.search}>Volver a intentar</Button>
+					</>
+				</Card>
+			) : decision.blockers.length > 0 ? (
+				<Card class="bg-white">
+					<>
+						<h2 class="font-semibold">Pendientes para activar</h2>
+						<ul class="mt-3 space-y-3">
+							{decision.blockers.map((blocker) => (
+								<li>
+									<p>{blocker.reason.message}</p>
+									<a
+										href={correction(blocker)}
+										class="inline-flex min-h-11 items-center font-semibold underline"
+									>
+										{blocker.action.label}
+									</a>
+								</li>
+							))}
+						</ul>
+					</>
+				</Card>
+			) : (
+				<p class="text-sm text-slate-300">
+					{product.status === "published"
+						? "El tour ya está publicado. Al activar se habilita esta oferta según su modalidad."
+						: "La opción puede activarse. El tour seguirá en borrador hasta que completes su publicación."}
+				</p>
+			)
+		}
+		<p id="option-activation-feedback" role="status" class="text-sm"></p><div
+			class="flex flex-wrap gap-3"
+		>
+			<Button href={`/product/${productId}/departures`} variant="onDark"
+				>Guardar para después</Button
+			><Button id="activate-option" disabled={!decision?.allowed}>Activar opción</Button>
+		</div>
+	</section>
+	<script define:vars={{ productId, variantId, ratePlanId, sessionId: session.id }}>
+		const button = document.getElementById("activate-option"),
+			feedback = document.getElementById("option-activation-feedback")
+		button?.addEventListener("click", async () => {
+			if (!(button instanceof HTMLButtonElement) || button.disabled) return
+			button.disabled = true
+			if (feedback) feedback.textContent = "Activando opción…"
+			try {
+				const response = await fetch("/api/rateplans/activate-guided", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						productId,
+						variantId,
+						ratePlanId,
+						sessionId,
+						playbook: "add-tour-option",
+					}),
+				})
+				const body = await response.json()
+				if (!response.ok)
+					throw new Error(body.error || "No se pudo activar. Revisa los pendientes.")
+				if (body.cacheRefreshPending || body.sessionClosePending) {
+					if (feedback)
+						feedback.textContent =
+							"La opción está activada; falta actualizar las vistas. Reintenta para recuperar el resultado."
+					button.disabled = false
+					button.textContent = "Reintentar actualización"
+					return
+				}
+				location.href = body.terminalHref
+			} catch (error) {
+				if (feedback) {
+					feedback.setAttribute("role", "alert")
+					feedback.textContent =
+						error instanceof Error
+							? error.message
+							: "Se perdió la respuesta. Reintenta para recuperar el estado."
+				}
+				button.disabled = false
+			}
+		})
+	</script>
+</PlaybookLayout>

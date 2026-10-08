@@ -1,3 +1,5 @@
+import { persistOptionDestination } from "@/lib/forms/tourOptionNavigation"
+import { optionWizardContext, optionWizardHref } from "@/lib/playbook/add-tour-option"
 import {
 	CalendarReadError,
 	readCalendarResponse,
@@ -13,6 +15,7 @@ import { providerCalendarDate } from "@/lib/rates/providerCalendarDate"
 import { CalendarDays, CalendarRange, ChevronDown, Ticket, Users } from "lucide-react"
 import React, { startTransition, useEffect, useMemo, useRef, useState } from "react"
 
+import TourDepartureSchedulePanel from "./TourDepartureSchedulePanel"
 import CalendarResponsiveDrawer from "@/components/rates/CalendarResponsiveDrawer"
 import PricingBulkJobOperationPanel, {
 	type PricingBulkJobView,
@@ -22,6 +25,7 @@ import {
 	Button,
 	Card,
 	ChoiceCard,
+	DatesModal,
 	FloatingPopover,
 	IconButton,
 	Input,
@@ -46,8 +50,15 @@ type Props = {
 	initialMonth?: string
 	isProfessional: boolean
 	initialMode?: CalendarControlMode
+	tourScheduling?: boolean
 	guidedAvailability?: {
-		playbook: "add-room" | "launch" | "launch-tour" | "complete-to-publish" | null
+		playbook:
+			| "add-room"
+			| "launch"
+			| "launch-tour"
+			| "complete-to-publish"
+			| "add-tour-option"
+			| null
 		vertical: "hotel" | "tour"
 		productId: string
 		productName: string
@@ -294,6 +305,7 @@ export default function SingleCalendarWorkspace({
 	initialMonth = currentMonth(),
 	isProfessional,
 	initialMode = "price",
+	tourScheduling = false,
 	guidedAvailability,
 }: Props) {
 	const isTourGuidedAvailability = guidedAvailability?.vertical === "tour"
@@ -322,6 +334,7 @@ export default function SingleCalendarWorkspace({
 	const [readError, setReadError] = useState<CalendarReadError | null>(null)
 	const failedRequest = useRef(initialRequest)
 	const [guidedEdited, setGuidedEdited] = useState(false)
+	const [schedulePending, setSchedulePending] = useState(false)
 	const saveInFlight = useRef(false)
 	const [selectionHint, setSelectionHint] = useState("")
 	const [selectionHintAction, setSelectionHintAction] = useState("")
@@ -402,6 +415,8 @@ export default function SingleCalendarWorkspace({
 			current.replaceWith(button)
 		}
 		button.type = "button"
+		button.classList.add("fastt-button", "fastt-playbook-cta")
+		button.classList.remove("hover:bg-slate-800", "bg-slate-950")
 		const state = calendarContinueState({
 			loading: loading || !surface,
 			failed: !!readError,
@@ -409,10 +424,15 @@ export default function SingleCalendarWorkspace({
 			saving: !!guidedApplyingRange,
 			hasAvailability: guidedIsReady,
 		})
-		button.textContent = state.label
-		button.disabled = state.disabled
+		button.textContent = schedulePending
+			? "Confirma la programación para continuar"
+			: guidedAvailability.playbook === "add-tour-option" && !state.disabled
+				? "Continuar a revisión"
+				: state.label
+		button.disabled = state.disabled || schedulePending
 		button.removeAttribute("title")
 		const continueToPublication = () => {
+			if (schedulePending) return
 			void finalizeGuidedRate()
 		}
 		button.addEventListener("click", continueToPublication)
@@ -424,6 +444,7 @@ export default function SingleCalendarWorkspace({
 		surface,
 		readError,
 		guidedDirty,
+		schedulePending,
 		guidedApplyingRange,
 		guidedIsReady,
 		guidedFrom,
@@ -633,71 +654,92 @@ export default function SingleCalendarWorkspace({
 			)}
 		</Notice>
 	) : null
+	const tourScheduleVariantId = surface?.selectedVariantId || initialVariantId
+	const tourSchedulePanel =
+		tourScheduling && tourScheduleVariantId ? (
+			<TourDepartureSchedulePanel
+				variantId={tourScheduleVariantId}
+				embedded={isTourGuidedAvailability}
+				onPendingChange={setSchedulePending}
+				onSaved={async (saved) => {
+					setGuidedInventoryDays((count) => count + saved.createdDates.length)
+					surfaceCache.clear()
+					await loadSurface({}, { force: true })
+				}}
+			/>
+		) : null
+
 	if (!surface && readError) return <section aria-busy={loading}>{recovery}</section>
 	if (!surface) {
 		return (
-			<section
-				className="fastt-workspace-panel overflow-hidden border border-slate-200 bg-white p-4 text-slate-900"
-				aria-busy="true"
-			>
-				<div className="animate-pulse">
-					<div className="flex flex-wrap items-end justify-between gap-3">
-						<div className="space-y-2">
-							<div className="h-3 w-16 rounded-md bg-neutral-200" />
-							<div className="h-10 w-72 max-w-[75vw] rounded-md bg-neutral-100" />
+			<div className="space-y-5" aria-busy="true">
+				{recovery}
+				{tourSchedulePanel}
+				<section
+					className="fastt-workspace-panel overflow-hidden border border-slate-200 bg-white p-4 text-slate-900"
+					aria-busy="true"
+				>
+					<div className="animate-pulse">
+						<div className="flex flex-wrap items-end justify-between gap-3">
+							<div className="space-y-2">
+								<div className="h-3 w-16 rounded-md bg-neutral-200" />
+								<div className="h-10 w-72 max-w-[75vw] rounded-md bg-neutral-100" />
+							</div>
+							<div className="flex gap-2">
+								<div className="h-9 w-24 rounded-md bg-neutral-100" />
+								<div className="h-9 w-32 rounded-md bg-neutral-100" />
+							</div>
 						</div>
-						<div className="flex gap-2">
-							<div className="h-9 w-24 rounded-md bg-neutral-100" />
-							<div className="h-9 w-32 rounded-md bg-neutral-100" />
+						<div className="mt-4 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
+							<div className="h-3 w-24 rounded-md bg-neutral-200" />
+							<div className="mt-3 grid gap-3 sm:grid-cols-3">
+								{Array.from({ length: 3 }).map((_, index) => (
+									<div key={index} className="h-10 rounded-md border border-neutral-200 bg-white" />
+								))}
+							</div>
 						</div>
-					</div>
-					<div className="mt-4 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
-						<div className="h-3 w-24 rounded-md bg-neutral-200" />
-						<div className="mt-3 grid gap-3 sm:grid-cols-3">
-							{Array.from({ length: 3 }).map((_, index) => (
-								<div key={index} className="h-10 rounded-md border border-neutral-200 bg-white" />
+						<div className="mt-5 flex items-center justify-between border-b border-neutral-200 pb-3">
+							<div className="h-7 w-36 rounded-md bg-neutral-200" />
+							<div className="flex gap-2">
+								<div className="size-8 rounded-md bg-neutral-100" />
+								<div className="size-8 rounded-md bg-neutral-100" />
+							</div>
+						</div>
+						<div className="mt-3 grid grid-cols-7 gap-1.5 md:gap-2">
+							{Array.from({ length: 7 }).map((_, index) => (
+								<div
+									key={`weekday-${index}`}
+									className="mx-auto h-3 w-5 rounded-md bg-neutral-100 sm:w-10"
+								/>
+							))}
+							{Array.from({ length: 28 }).map((_, index) => (
+								<div
+									key={index}
+									className="min-h-20 rounded-md border border-neutral-200 bg-neutral-50 p-2 md:min-h-24"
+								>
+									<div className="size-4 rounded-md bg-neutral-200" />
+									{index % 3 !== 0 && (
+										<div className="mt-5 h-2.5 w-3/5 rounded-md bg-neutral-100" />
+									)}
+								</div>
 							))}
 						</div>
 					</div>
-					<div className="mt-5 flex items-center justify-between border-b border-neutral-200 pb-3">
-						<div className="h-7 w-36 rounded-md bg-neutral-200" />
-						<div className="flex gap-2">
-							<div className="size-8 rounded-md bg-neutral-100" />
-							<div className="size-8 rounded-md bg-neutral-100" />
-						</div>
-					</div>
-					<div className="mt-3 grid grid-cols-7 gap-1.5 md:gap-2">
-						{Array.from({ length: 7 }).map((_, index) => (
-							<div
-								key={`weekday-${index}`}
-								className="mx-auto h-3 w-5 rounded-md bg-neutral-100 sm:w-10"
-							/>
-						))}
-						{Array.from({ length: 28 }).map((_, index) => (
-							<div
-								key={index}
-								className="min-h-20 rounded-md border border-neutral-200 bg-neutral-50 p-2 md:min-h-24"
+					{feedback && (
+						<div className="mt-4 flex items-center justify-between gap-3 text-sm text-red-700">
+							<span>{feedback}</span>
+							<Button
+								type="button"
+								variant="secondary"
+								onClick={() => void loadSurface(initialRequest)}
 							>
-								<div className="size-4 rounded-md bg-neutral-200" />
-								{index % 3 !== 0 && <div className="mt-5 h-2.5 w-3/5 rounded-md bg-neutral-100" />}
-							</div>
-						))}
-					</div>
-				</div>
-				{feedback && (
-					<div className="mt-4 flex items-center justify-between gap-3 text-sm text-red-700">
-						<span>{feedback}</span>
-						<Button
-							type="button"
-							variant="secondary"
-							onClick={() => void loadSurface(initialRequest)}
-						>
-							Reintentar
-						</Button>
-					</div>
-				)}
-				<span className="sr-only">Cargando calendario</span>
-			</section>
+								Reintentar
+							</Button>
+						</div>
+					)}
+					<span className="sr-only">Cargando calendario</span>
+				</section>
+			</div>
 		)
 	}
 
@@ -785,7 +827,7 @@ export default function SingleCalendarWorkspace({
 			setGuidedFeedbackVariant("error")
 			setGuidedFeedback(
 				isTourGuidedAvailability
-					? "No hay una salida seleccionada para abrir disponibilidad."
+					? "Selecciona una opción para configurar sus fechas."
 					: "No hay una habitación seleccionada para abrir disponibilidad."
 			)
 			return false
@@ -846,7 +888,7 @@ export default function SingleCalendarWorkspace({
 					units,
 					range: guidedRange,
 					nights,
-					variantName: guidedAvailability.variantName || readySurface.selectedContext || "Salida",
+					variantName: guidedAvailability.variantName || readySurface.selectedContext || "Opción",
 					ratePlanName:
 						guidedAvailability.ratePlanName || readySurface.selectedRatePlanName || "Tarifa",
 				}
@@ -878,6 +920,17 @@ export default function SingleCalendarWorkspace({
 	async function finalizeGuidedRate() {
 		if (isTourGuidedAvailability && guidedAvailability) {
 			if (loading || readError || saveInFlight.current) return
+			const wizard = optionWizardContext(new URL(window.location.href))
+			if (wizard) {
+				try {
+					window.location.assign(await persistOptionDestination(optionWizardHref(wizard, "review")))
+				} catch (error) {
+					setGuidedFeedback(
+						error instanceof Error ? error.message : "No pudimos guardar la continuación."
+					)
+				}
+				return
+			}
 			const href = tourGuidedPlaybookContinueHref(
 				guidedAvailability,
 				readySurface.selectedVariantId,
@@ -909,7 +962,7 @@ export default function SingleCalendarWorkspace({
 			setGuidedFeedbackVariant("error")
 			setGuidedFeedback(
 				isTourGuidedAvailability
-					? "No se encontró el contexto completo de la salida para continuar."
+					? "No se pudo identificar la opción y su tarifa para continuar."
 					: "No se encontró el contexto completo de la habitación para finalizar."
 			)
 			return
@@ -922,7 +975,7 @@ export default function SingleCalendarWorkspace({
 		setGuidedFeedbackVariant("info")
 		setGuidedFeedback(
 			isTourGuidedAvailability
-				? "Verificando la salida y activando la tarifa..."
+				? "Comprobando la opción y activando la tarifa..."
 				: "Verificando la habitación y activando la tarifa..."
 		)
 		try {
@@ -1166,7 +1219,7 @@ export default function SingleCalendarWorkspace({
 				})
 			}
 			const body = await response.json().catch(() => ({}))
-			if (!response.ok || Number(body?.summary?.failed || 0) > 0) {
+			if (!response.ok || Number(body?.summary?.failedDays ?? body?.summary?.failed ?? 0) > 0) {
 				throw new Error(body?.failures?.[0]?.error || body?.error || "No se pudo guardar")
 			}
 			const changedDates = new Set(selected)
@@ -1221,7 +1274,7 @@ export default function SingleCalendarWorkspace({
 					units: guidedUnits,
 					range: guidedRange,
 					nights: guidedNights,
-					variantName: guidedAvailability.variantName || readySurface.selectedContext || "Salida",
+					variantName: guidedAvailability.variantName || readySurface.selectedContext || "Opción",
 					ratePlanName:
 						guidedAvailability.ratePlanName || readySurface.selectedRatePlanName || "Tarifa",
 				}
@@ -1229,7 +1282,8 @@ export default function SingleCalendarWorkspace({
 	return (
 		<div className="space-y-5" aria-busy={loading}>
 			{recovery}
-			{isGuidedAvailability && guidedAvailability && (
+			{tourSchedulePanel}
+			{isGuidedAvailability && guidedAvailability && !tourScheduling && (
 				<Card as="section" className="fastt-workspace-panel overflow-hidden p-0 text-slate-900">
 					{tourGuidedCollapsed && tourGuidedSummary ? (
 						<>
@@ -1370,34 +1424,28 @@ export default function SingleCalendarWorkspace({
 									</div>
 
 									<div className="grid gap-4 md:grid-cols-[1fr_1fr_160px]">
-										<label className="block text-sm">
-											<span className="font-medium text-slate-800">Desde</span>
-											<Input
-												type="date"
-												value={guidedFrom}
-												min={guidedStartDate}
-												onChange={(event) => {
-													setGuidedEdited(true)
-													setGuidedRange("custom")
-													setGuidedFrom(event.target.value)
-												}}
-												className="mt-1.5"
-											/>
-										</label>
-										<label className="block text-sm">
-											<span className="font-medium text-slate-800">Hasta</span>
-											<Input
-												type="date"
-												value={guidedTo}
-												min={guidedFrom || providerCalendarDate(guidedAvailability?.timezone)}
-												onChange={(event) => {
-													setGuidedEdited(true)
-													setGuidedRange("custom")
-													setGuidedTo(event.target.value)
-												}}
-												className="mt-1.5"
-											/>
-										</label>
+										<DatesModal
+											id="guided-availability-from"
+											label="Desde"
+											value={guidedFrom}
+											min={guidedStartDate}
+											onChange={(next) => {
+												setGuidedEdited(true)
+												setGuidedRange("custom")
+												setGuidedFrom(next)
+											}}
+										/>
+										<DatesModal
+											id="guided-availability-to"
+											label="Hasta"
+											value={guidedTo}
+											min={guidedFrom || providerCalendarDate(guidedAvailability?.timezone)}
+											onChange={(next) => {
+												setGuidedEdited(true)
+												setGuidedRange("custom")
+												setGuidedTo(next)
+											}}
+										/>
 										<label className="block text-sm">
 											<span className="font-medium text-slate-800">
 												{isTourGuidedAvailability ? "Cupo de participantes" : "Cupo por noche"}
@@ -1431,9 +1479,13 @@ export default function SingleCalendarWorkspace({
 													onClick={() => void applyGuidedAvailability()}
 													disabled={loading || guidedFinalizing}
 													size="lg"
-													className="min-h-11 shrink-0 px-6 sm:px-7"
+													className={
+														guidedIsReady && isAddRoomGuidedAvailability
+															? "min-h-11 shrink-0 px-6 sm:px-7"
+															: "fastt-playbook-cta min-h-11 shrink-0 px-6 sm:px-7"
+													}
 													variant={
-														guidedIsReady && isAddRoomGuidedAvailability ? "secondary" : "primary"
+														guidedIsReady && isAddRoomGuidedAvailability ? "secondary" : "selection"
 													}
 												>
 													{guidedIsReady && isAddRoomGuidedAvailability
@@ -1445,6 +1497,7 @@ export default function SingleCalendarWorkspace({
 														type="button"
 														onClick={() => void finalizeGuidedRate()}
 														disabled={loading || guidedFinalizing}
+														variant="selection"
 														className="fastt-playbook-cta"
 													>
 														{guidedFinalizing ? "Finalizando..." : "Finalizar configuración"}
@@ -1497,7 +1550,7 @@ export default function SingleCalendarWorkspace({
 									<dl className="mt-4 space-y-4 text-sm">
 										<div>
 											<dt className="text-slate-500">
-												{isTourGuidedAvailability ? "Salida" : "Habitación"}
+												{isTourGuidedAvailability ? "Opción" : "Habitación"}
 											</dt>
 											<dd className="mt-1 font-semibold text-slate-950">
 												{guidedAvailability.variantName || readySurface.selectedContext}

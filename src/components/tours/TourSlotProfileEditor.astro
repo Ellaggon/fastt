@@ -78,10 +78,10 @@ const languageOptions =
 	>
 		<header class="flex items-center gap-2">
 			<Clock class="h-4 w-4 text-slate-500" />
-			<h2 class="text-sm font-semibold text-slate-950">Salida</h2>
+			<h2 class="text-sm font-semibold text-slate-950">Configuración de la opción</h2>
 		</header>
 		<div class="grid gap-4 md:grid-cols-2">
-			<FormField label="Nombre de la opción" for="name" required>
+			<FormField label="Nombre de la opción" htmlFor="name" required>
 				<Input
 					id="name"
 					name="name"
@@ -90,7 +90,12 @@ const languageOptions =
 					placeholder="Ej: Compartida en español"
 				/>
 			</FormField>
-			<FormField label="Hora de salida" for="departureTime" required>
+			<FormField
+				label="Horario habitual"
+				htmlFor="departureTime"
+				required
+				description="Las fechas disponibles se configuran en el calendario."
+			>
 				<Input
 					id="departureTime"
 					name="departureTime"
@@ -114,7 +119,7 @@ const languageOptions =
 				/>
 			</FormField>
 		</div>
-		<FormField label="Descripción (opcional)" for="description">
+		<FormField label="Descripción (opcional)" htmlFor="description">
 			<Textarea
 				id="description"
 				name="description"
@@ -172,8 +177,7 @@ const languageOptions =
 							descuenta plazas del inventario.
 						</p>
 						<p>
-							<strong>Privado.</strong> Solicitud de cotización: no se retiene cupo hasta que aceptes
-							la solicitud.
+							<strong>Privado.</strong> La solicitud no confirma una reserva ni retiene cupos.
 						</p>
 					</FieldHelp>
 				</div>
@@ -189,7 +193,7 @@ const languageOptions =
 						Compartido (reserva directa con cupo común)
 					</option>
 					<option value="private" selected={bookingMode === "private"}>
-						Privado (solicitud de cotización)
+						Privado · por solicitud
 					</option>
 				</Select>
 			</div>
@@ -214,13 +218,26 @@ const languageOptions =
 				</p>
 			)
 		}
-		<Checkbox
-			name="isActive"
-			value="true"
-			checked={isActive !== false}
-			label="Opción activa (visible para venta)"
-			class={selectionCheckboxClass}
-		/>
+		{
+			isEditMode ? (
+				<>
+					<>
+						<Checkbox
+							name="isActive"
+							value="true"
+							checked={isActive !== false}
+							label="Habilitar el perfil de esta opción"
+							class={selectionCheckboxClass}
+						/>
+						<p class="text-xs leading-5 text-slate-500">
+							La activación comercial se revisa por separado.
+						</p>
+					</>
+				</>
+			) : (
+				<input type="hidden" name="isActive" value="true" />
+			)
+		}
 	</section>
 
 	<section
@@ -276,14 +293,24 @@ const languageOptions =
 					>
 						Volver sin guardar
 					</Button>
-					<Button type="submit" id="tour-slot-submit" className="fastt-playbook-cta">
+					<Button
+						type="submit"
+						id="tour-slot-submit"
+						variant="selection"
+						className="fastt-playbook-cta"
+					>
 						{submitLabel || (isEditMode ? "Guardar opción" : "Crear opción")}
 					</Button>
 				</div>
 			</footer>
 		) : (
 			<div class:list={["flex justify-end pt-5", playbookFooterControls ? "hidden" : ""]}>
-				<Button type="submit" id="tour-slot-submit" variant="selection">
+				<Button
+					type="submit"
+					id="tour-slot-submit"
+					variant="selection"
+					className="fastt-playbook-cta"
+				>
 					{submitLabel || (isEditMode ? "Guardar opción" : "Crear opción")}
 				</Button>
 			</div>
@@ -298,6 +325,7 @@ const languageOptions =
 </style>
 
 <script>
+	import { persistOptionDestination } from "@/lib/forms/tourOptionNavigation"
 	import { tourPreparationNextHref } from "@/lib/playbook/launch-tour"
 	function initTourSlotProfileForm() {
 		const form = document.getElementById("tour-slot-profile-form") as HTMLFormElement | null
@@ -306,13 +334,15 @@ const languageOptions =
 		const statusEl = document.getElementById("tour-slot-form-status")
 		const submitBtn = document.getElementById("tour-slot-submit") as HTMLButtonElement | null
 		const draftKey = form
-			? `fastt:tour-departure-draft:${form.dataset.productId || "unknown"}:${form.dataset.variantId || "new"}`
+			? `fastt:tour-departure-draft:${form.dataset.productId || "unknown"}:${form.dataset.variantId || "new"}:${new URLSearchParams(location.search).get("sessionId") || "default"}`
 			: ""
 		let draftEnabled = true
 		// Retain the creation intent until the server confirms it, including reloads.
 		const creationKeyStorage = `${draftKey}:creation-key`
 		if (form && !form.dataset.variantId) {
-			let creationKey = window.sessionStorage.getItem(creationKeyStorage)
+			let creationKey =
+				new URLSearchParams(location.search).get("sessionId") ||
+				window.sessionStorage.getItem(creationKeyStorage)
 			if (!creationKey) {
 				creationKey = crypto.randomUUID()
 				window.sessionStorage.setItem(creationKeyStorage, creationKey)
@@ -403,17 +433,17 @@ const languageOptions =
 					return
 				}
 				document.dispatchEvent(new CustomEvent("fastt:playbook-saved", { detail: { form } }))
-				draftEnabled = false
-				window.sessionStorage.removeItem(creationKeyStorage)
-				window.sessionStorage.removeItem(draftKey)
 				const productId = form.dataset.productId || ""
 				const redirect = form.dataset.redirect || ""
 
 				const variantId = String(payload?.variantId ?? "")
 				const source = new URLSearchParams(window.location.search)
-				const guided = ["launch-tour", "complete-to-publish", "complete"].includes(
-					source.get("playbook") || ""
-				)
+				const guided = [
+					"launch-tour",
+					"complete-to-publish",
+					"complete",
+					"add-tour-option",
+				].includes(source.get("playbook") || "")
 				const destination = guided
 					? tourPreparationNextHref(
 							source,
@@ -421,14 +451,23 @@ const languageOptions =
 							"departure"
 						)
 					: redirect.replace("__VARIANT_ID__", encodeURIComponent(variantId))
+				const persistedDestination = await persistOptionDestination(destination)
+				draftEnabled = false
+				window.sessionStorage.removeItem(creationKeyStorage)
+				window.sessionStorage.removeItem(draftKey)
+				form.dataset.saving = "false"
 				window.location.href =
-					(exitAfterSave ? `/product/${encodeURIComponent(productId)}` : destination) ||
+					(exitAfterSave
+						? `/product/${encodeURIComponent(productId)}${source.get("playbook") === "add-tour-option" ? "/departures" : ""}`
+						: persistedDestination) ||
 					`/product/${encodeURIComponent(productId)}/departures${variantId ? `?created=${encodeURIComponent(variantId)}` : ""}`
-			} catch {
+			} catch (error) {
 				if (statusEl) {
 					statusEl.setAttribute("role", "alert")
 					statusEl.textContent =
-						"Se perdió la conexión. Tu borrador sigue guardado; comprueba la red e inténtalo de nuevo."
+						error instanceof Error
+							? error.message
+							: "Se perdió la conexión. Tu borrador sigue guardado; reintenta."
 				}
 			} finally {
 				form.dataset.saving = "false"

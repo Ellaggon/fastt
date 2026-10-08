@@ -1,3 +1,4 @@
+import { readTourRequestData } from "./tourRequestReads"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import {
 	and,
@@ -174,33 +175,43 @@ async function load(input: Input): Promise<LoadedTourContext> {
 	let recoveryIntent: TourSelectionHint =
 		hint.variantId?.trim() || hint.ratePlanId?.trim() ? hint : (input.session ?? hint)
 	try {
-		const product = await db
-			.select({ id: Product.id, productType: Product.productType })
-			.from(Product)
-			.where(and(eq(Product.id, input.productId), eq(Product.providerId, input.providerId)))
-			.then(first)
+		const product = await readTourRequestData(
+			input.request,
+			`owned-tour:${input.providerId}:${input.productId}`,
+			() =>
+				db
+					.select({ id: Product.id, productType: Product.productType })
+					.from(Product)
+					.where(and(eq(Product.id, input.productId), eq(Product.providerId, input.providerId)))
+					.then(first)
+		)
 		if (!product) return { status: "not_found", productId: input.productId }
 		if (String(product.productType).toLowerCase() !== "tour")
 			return { status: "not_tour", productId: input.productId }
-		const rows = await db
-			.select({
-				variantId: Variant.id,
-				name: Variant.name,
-				lifecycleState: Variant.lifecycleState,
-				salesEnabled: Variant.salesEnabled,
-				profileId: TourSlotProfile.variantId,
-				capacityId: VariantCapacity.variantId,
-				bookingMode: TourSlotProfile.bookingMode,
-				ratePlanId: RatePlan.id,
-				rateName: RatePlan.name,
-				isActive: RatePlan.isActive,
-				isDefault: RatePlan.isDefault,
-			})
-			.from(Variant)
-			.leftJoin(TourSlotProfile, eq(TourSlotProfile.variantId, Variant.id))
-			.leftJoin(VariantCapacity, eq(VariantCapacity.variantId, Variant.id))
-			.leftJoin(RatePlan, eq(RatePlan.variantId, Variant.id))
-			.where(and(eq(Variant.productId, input.productId), eq(Variant.kind, "tour_slot")))
+		const rows = await readTourRequestData(
+			input.request,
+			`tour-offers:${input.providerId}:${input.productId}`,
+			async () =>
+				db
+					.select({
+						variantId: Variant.id,
+						name: Variant.name,
+						lifecycleState: Variant.lifecycleState,
+						salesEnabled: Variant.salesEnabled,
+						profileId: TourSlotProfile.variantId,
+						capacityId: VariantCapacity.variantId,
+						bookingMode: TourSlotProfile.bookingMode,
+						ratePlanId: RatePlan.id,
+						rateName: RatePlan.name,
+						isActive: RatePlan.isActive,
+						isDefault: RatePlan.isDefault,
+					})
+					.from(Variant)
+					.leftJoin(TourSlotProfile, eq(TourSlotProfile.variantId, Variant.id))
+					.leftJoin(VariantCapacity, eq(VariantCapacity.variantId, Variant.id))
+					.leftJoin(RatePlan, eq(RatePlan.variantId, Variant.id))
+					.where(and(eq(Variant.productId, input.productId), eq(Variant.kind, "tour_slot")))
+		)
 		const options = new Map<string, TourOfferOption>()
 		for (const row of rows) {
 			let option = options.get(row.variantId)

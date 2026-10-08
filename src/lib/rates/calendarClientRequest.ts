@@ -83,7 +83,11 @@ export async function saveCalendarAvailability(payload: unknown) {
 		if (response.status === 401)
 			throw new CalendarReadError("Tu sesión venció. Inicia sesión para continuar.", true)
 		const body = await response.json()
-		if (!response.ok || !body.summary || Number(body.summary.failed || 0) > 0)
+		if (
+			!response.ok ||
+			!body.summary ||
+			Number(body.summary.failedDays ?? body.summary.failed ?? 0) > 0
+		)
 			throw new Error(
 				body.failures?.[0]?.error || body.error || "No se pudo guardar la disponibilidad."
 			)

@@ -266,7 +266,7 @@ const initialGroupSummary = (() => {
 										</p>
 									) : isPrivate ? (
 										<p class="text-right text-sm font-semibold text-slate-950">
-											A cotizar
+											Por solicitud
 											<span class="block font-normal text-slate-500">salida privada</span>
 										</p>
 									) : null}
@@ -279,7 +279,7 @@ const initialGroupSummary = (() => {
 											data-quote-private-variant={variantId}
 											disabled={previewMode || !hasSearchedDeparture}
 										>
-											Cotizar salida privada
+											Solicitar salida privada
 										</button>
 									) : (
 										ratePlans.map((rp: any) => {
@@ -322,7 +322,8 @@ const initialGroupSummary = (() => {
 		{
 			previewMode ? (
 				<Notice title="Reservas desactivadas en vista previa" data-preview-booking-disabled>
-					Publica el tour para habilitar cotizaciones, holds y checkout en esta misma ficha.
+					La publicación y los requisitos comerciales habilitan las solicitudes privadas o reservas
+					de esta experiencia.
 				</Notice>
 			) : (
 				<>
@@ -387,10 +388,10 @@ const initialGroupSummary = (() => {
 				id="tourPrivateQuote"
 				class="fastt-soft-box hidden rounded-[var(--fastt-radius-card)] border border-sky-200 bg-sky-50/60 p-4"
 			>
-				<p class="text-sm font-semibold text-slate-950">Cotizar salida privada</p>
+				<p class="text-sm font-semibold text-slate-950">Solicitar salida privada</p>
 				<p class="mt-1 text-xs leading-5 text-slate-600">
-					No se reserva inventario hasta que el proveedor acepte. Recibirás una cotización con el
-					contexto de fecha, grupo y contacto (SLA 24h).
+					Envía tu fecha, grupo y contacto al proveedor. La solicitud no confirma una reserva ni
+					retiene cupos.
 				</p>
 				<div class="mt-3 grid gap-2 sm:grid-cols-2">
 					<Input id="privateContactName" placeholder="Nombre" autocomplete="name" />
@@ -645,7 +646,7 @@ const initialGroupSummary = (() => {
 			privateQuote?.classList.remove("hidden")
 			setSelectionPanelState("private")
 			if (privateStatus) {
-				privateStatus.textContent = "Completa tus datos para solicitar la cotización."
+				privateStatus.textContent = "Completa tus datos para enviar la solicitud."
 			}
 			setMobileStatus("Solicitud privada", "Revisar solicitud")
 		}
@@ -794,7 +795,7 @@ const initialGroupSummary = (() => {
 							payload.bookingStatus === "instant"
 								? "Confirmación inmediata"
 								: payload.bookingStatus === "request"
-									? "Solicitud de cotización"
+									? "Solicitud privada"
 									: "Confirmación sujeta a revisión"
 						const cancellationDeadline = formatCancellationDeadline(
 							payload.freeCancellationDeadline
@@ -839,7 +840,7 @@ const initialGroupSummary = (() => {
 					if (statusEl)
 						statusEl.textContent =
 							payload.bookingStatus === "request"
-								? "Esta opción requiere cotización; completa tus datos abajo."
+								? "Esta opción se gestiona por solicitud; completa tus datos abajo."
 								: "Tarifa seleccionada. Revisa las condiciones y reserva el cupo para continuar."
 					setMobileStatus("Condiciones listas", "Revisar reserva")
 				} catch {
@@ -1007,7 +1008,7 @@ const initialGroupSummary = (() => {
 							payload?.error === "tours_checkout_disabled"
 								? "La reserva de tours no está disponible ahora (rollout). Intenta más tarde."
 								: payload?.error === "private_on_request"
-									? "Salida privada: usa Cotizar salida privada (sin hold)."
+									? "Salida privada: envía una solicitud; no retiene cupos."
 									: payload?.error === "not_available" || payload?.error === "not_holdable"
 										? "No hay cupo suficiente para esa salida."
 										: "No se pudo crear el hold."
