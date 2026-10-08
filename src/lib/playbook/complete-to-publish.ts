@@ -332,7 +332,12 @@ export function getCompleteToPublishPlaybookRepairHref(
 	url: URL,
 	context: { isTour: boolean; productId: string }
 ): string | null {
-	if (!context.isTour || !String(context.productId ?? "").trim()) return null
+	if (
+		!context.isTour ||
+		!String(context.productId ?? "").trim() ||
+		url.searchParams.get("playbook") === "add-tour-option"
+	)
+		return null
 	if (isCompleteToPublishPlaybookActive(url)) return null
 	if (String(url.searchParams.get("playbook") ?? "").trim() === "launch-tour") return null
 

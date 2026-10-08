@@ -79,11 +79,18 @@ body {
 .fastt-button {
 	min-height: var(--fastt-control-md);
 	border-radius: var(--fastt-radius-pill);
+	cursor: pointer;
 	transition:
 		background-color var(--fastt-motion-fast) ease,
 		border-color var(--fastt-motion-fast) ease,
 		box-shadow var(--fastt-motion-fast) ease,
 		transform var(--fastt-motion-fast) ease;
+}
+
+.fastt-button:disabled,
+.fastt-button[aria-disabled="true"],
+fieldset:disabled .fastt-button {
+	cursor: not-allowed;
 }
 
 .fastt-button:not(:disabled):hover {
@@ -94,20 +101,38 @@ body {
 	transform: scale(0.98);
 }
 
-.fastt-playbook-cta {
+.fastt-button.fastt-playbook-cta {
 	min-width: 10rem;
 	background-color: var(--fastt-color-selection);
 	color: #fff;
 	box-shadow: 0 10px 24px var(--fastt-color-selection-shadow);
+	transition:
+		background-color var(--fastt-motion-fast) ease,
+		box-shadow var(--fastt-motion-fast) ease,
+		transform var(--fastt-motion-fast) var(--fastt-ease-standard),
+		filter var(--fastt-motion-fast) ease;
 }
 
-.fastt-playbook-cta:not(:disabled):hover {
+.fastt-button.fastt-playbook-cta:not(:disabled):hover {
 	background-color: #1d4ed8;
-	box-shadow: 0 14px 30px var(--fastt-color-selection-shadow);
+	box-shadow: 0 16px 34px rgb(37 99 235 / 42%);
+	filter: brightness(1.08);
+	transform: translateY(-1px);
 }
 
-.fastt-playbook-cta:not(:disabled):active {
-	transform: scale(0.98);
+.fastt-button.fastt-playbook-cta:not(:disabled):active {
+	background-color: #1e40af;
+	box-shadow: 0 8px 18px var(--fastt-color-selection-shadow);
+	filter: brightness(0.98);
+	transform: translateY(0) scale(0.98);
+}
+
+.fastt-button.fastt-playbook-cta:focus-visible {
+	outline: none;
+	box-shadow:
+		0 0 0 2px #0f172a,
+		0 0 0 4px var(--fastt-color-selection),
+		0 10px 24px var(--fastt-color-selection-shadow);
 }
 
 .fastt-playbook-footer {
@@ -364,10 +389,10 @@ html[data-verification-submit-pending="true"] {
 	box-shadow: 0 0 0 2px var(--fastt-color-focus);
 }
 
-/* Dark workspace shells (catalog, playbook, day-of): soft slate edge instead of #b0b0b0. */
+/* Soft dark-shell fields: same surface as bg-white/5 workspace cards/notices. */
 .fastt-field--on-dark {
 	border-color: rgb(255 255 255 / 0.1);
-	background-color: rgb(255 255 255 / 0.04);
+	background-color: rgb(255 255 255 / 0.05);
 	color: rgb(255 255 255);
 	box-shadow: none;
 	-webkit-appearance: none;

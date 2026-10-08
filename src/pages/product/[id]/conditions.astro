@@ -1,4 +1,5 @@
 ---
+import PlaybookStepHeader from "@/components/playbook/PlaybookStepHeader.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
@@ -89,6 +90,9 @@ function prerequisiteHref(step: "departure" | "rate", variantId?: string) {
 	targetParams.delete("productId")
 	return `/product/${encodeURIComponent(productId)}/departures/new?${targetParams}`
 }
+
+const stepLead =
+	"Define qué ocurre al cancelar o no presentarse. Las preguntas al reservar son opcionales."
 ---
 
 <PlaybookLayout
@@ -103,11 +107,14 @@ function prerequisiteHref(step: "departure" | "rate", variantId?: string) {
 	playbookVertical="tour"
 	hideFooter
 >
-	<section class="mx-auto max-w-3xl space-y-5">
-		<h1 class="text-2xl font-semibold">Condiciones de reserva</h1>
-		<Card class="space-y-4">
-			<h2 class="text-lg font-semibold">{title}</h2>
-			<p class="text-sm leading-6 text-slate-600">{message}</p>
+	<section class="space-y-6">
+		<PlaybookStepHeader icon="conditions" title="Condiciones de reserva" lead={stepLead} />
+
+		<Card class="space-y-4 bg-white text-slate-900">
+			<div class="space-y-1.5">
+				<h2 class="text-lg font-semibold text-slate-950">{title}</h2>
+				<p class="text-sm leading-6 text-slate-600">{message}</p>
+			</div>
 			{
 				reason === "read_failed" ? (
 					<Button href={Astro.url.pathname + Astro.url.search} data-astro-reload>
@@ -120,8 +127,8 @@ function prerequisiteHref(step: "departure" | "rate", variantId?: string) {
 				) : (
 					<div class="space-y-4">
 						{options.map((option) => (
-							<div class="space-y-2 border-t border-slate-200 pt-4">
-								<h3 class="font-semibold">{option.name}</h3>
+							<div class="space-y-2 border-t border-slate-200 pt-4 first:border-t-0 first:pt-0">
+								<h3 class="text-sm font-semibold text-slate-950">{option.name}</h3>
 								<div class="flex flex-wrap gap-2">
 									{option.rates.map((rate) => (
 										<Button

@@ -3,7 +3,7 @@
 Status: active  
 Document type: canonical  
 Owner: Tours / Provider Experience  
-Last verified: 2026-10-05
+Last verified: 2026-10-08
 Scope: definición ideal de los recorridos guiados (playbooks) del proveedor de tours, sus etapas, diagnóstico compartido, navegación y reglas de interfaz  
 Source of truth: este documento; implementación en `src/lib/playbook/`, layouts de playbook y superficies enlazadas del proveedor  
 Related code/tests: `src/lib/playbook/`, `src/layouts/PlaybookLayout.astro`, `src/pages/product/`, `src/pages/catalog/tours.astro`, pruebas de wizard comercial de tours  
@@ -14,7 +14,7 @@ Supersedes: `docs/domains/tours/provider-workflow.md` (retirado: recuento histó
 
 - **Preparar tour** y **Publicar tour**: dos playbooks con navegación y pantallas de entrada propias dentro de un único flujo. Comparten datos, formularios y validación, no indicadores simultáneos.
 - **Verificación**: independiente, conectada con la experiencia.
-- **Añadir o editar salida**: opción comercial completa con persistencia y enlaces existentes.
+- **Añadir o editar opción**: asistente independiente de cinco pasos con reanudación por configuración; editar conserva las superficies existentes.
 - **Corregir pendientes**: reparación según diagnóstico compartido.
 - **Calendario y operación diaria**: acceso directo sin repetir creación.
 - **Solicitudes privadas**: gestión de solicitudes; cotización y cierre de venta quedan fuera del alcance actual.
@@ -26,7 +26,7 @@ Supersedes: `docs/domains/tours/provider-workflow.md` (retirado: recuento histó
 | -------------------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------- |
 | **1. Preparar y publicar un tour**     | Construir una primera oferta coherente.                           | Dos playbooks conectados: Preparar tour → Publicar tour.       |
 | **2. Habilitar mi actividad de tours** | Resolver identidad y requisitos aplicables al proveedor.          | Áreas paralelas con estados.                                   |
-| **3. Añadir una opción al tour**       | Incorporar otro horario, idioma o modalidad vendible.             | Recorrido corto de cuatro pasos.                               |
+| **3. Añadir una opción al tour**       | Incorporar otro horario, idioma o modalidad vendible.             | Recorrido objetivo de cinco etapas.                            |
 | **4. Resolver pendientes de venta**    | Corregir causas concretas de bloqueo o pérdida de disponibilidad. | Pasos dinámicos según diagnóstico.                             |
 
 ## Flujo 1 — Crear y publicar un tour
@@ -124,26 +124,56 @@ Recorrido **independiente** de la preparación de la ficha, conectado cuando se 
 
 ## Playbook 3 — Añadir una opción al tour
 
-**Entrada:** “Añadir opción” desde el tour o sus salidas.
+**Entrada:** “Añadir opción” desde el tour o la gestión de opciones.
+
+`add-tour-option` reutiliza los formularios y termina en activación, sin publicar el tour.
+`ProviderOptionPreparationSession` conserva cada configuración independientemente;
+no altera sesiones antiguas. Valida relaciones y revisión antes de guardar navegación.
+Abandonar conserva datos. Base: sólo perfil; precio y condiciones requieren revisión.
+[Decisión de persistencia](../../engineering/adr/0006-option-preparation-sessions.md).
+Pruebas: `tests/unit/add-tour-option.test.ts` y
+`tests/integration/tour-option-session-persistence.test.ts`.
 
 | Paso                        | Contenido                                                                     |
 | --------------------------- | ----------------------------------------------------------------------------- |
 | **1. Configurar la opción** | Nombre, horario, idioma, modalidad, capacidad y diferencias respecto al tour. |
-| **2. Precio y condiciones** | Reutilizar explícitamente una configuración compatible o crear otra.          |
-| **3. Fechas y cupos**       | Seleccionar qué fechas se habilitan.                                          |
-| **4. Revisar y activar**    | Comprobar el resultado y mostrar exactamente qué recibirá el viajero.         |
+| **2. Precio**               | Reutilizar explícitamente un precio compatible o configurar otro.             |
+| **3. Condiciones**          | Revisar las condiciones compatibles de la tarifa seleccionada.                |
+| **4. Fechas y cupos**       | Seleccionar qué fechas se habilitan según modalidad.                          |
+| **5. Revisar y activar**    | Comprobar la opción y mostrar exactamente qué recibirá el viajero.            |
 
 - Debe permitir **“Usar como base una opción existente”**, mostrando qué se copiará.  
 - No copiar reservas, aprobaciones documentales ni excepciones de calendario sin decisión explícita.
 
 ### Vocabulario
 
-| Término               | Definición                                               |
-| --------------------- | -------------------------------------------------------- |
-| **Opción**            | Combinación reutilizable de horario, idioma y modalidad. |
-| **Salida programada** | Esa opción en una fecha concreta.                        |
+- **Negocio:** titular que ofrece las experiencias (`Provider`).
+- **Tour / experiencia:** producto elegido por el viajero (`Product` + `Tour`).
+- **Opción:** configuración reutilizable de modalidad, idioma, horario y diferencias (`Variant` + `TourSlotProfile`).
+- **Horario habitual:** hora del perfil; no abre fechas por sí sola.
+- **Salida programada:** opción en una fecha y horario efectivo; no requiere ajustes en `TourDepartureInstance`.
+- **Tarifa:** precio y condiciones de la opción (`RatePlan`); no crea otro inventario.
+- **Cupo total:** capacidad configurada para una fecha.
+- **Cupos disponibles:** capacidad que el motor todavía permite reservar.
 
-Agregar otra fecha a la **misma opción** se resuelve en **calendario**, sin duplicar la experiencia ni crear otra variante.
+Agregar fechas a la misma opción se resuelve en calendario, sin crear variantes.
+«Programar salidas» añade fechas ausentes por periodo, días y exclusiones; conserva
+reservas, cierres y ajustes. Revisa antes de guardar; el resultado persistido permite
+reintentar. Un recálculo fallido indica actualización pendiente. Pruebas:
+`tests/integration/tour-schedule-persistence.test.ts`.
+Inventario único por opción/fecha: dos horarios del mismo día requieren opciones distintas.
+`TourDepartureInstance` guarda ajustes, no cupos. Configurar perfil, habilitarlo, activar
+comercialmente y publicar son acciones distintas.
+
+Acciones: **Añadir / editar opción**, configurar el perfil; **Programar salidas**, abrir
+fechas; **Gestionar fechas y cupos**, revisar disponibilidad; **Editar salida del [fecha]**,
+modificar una ocurrencia; **Precios y condiciones**, gestionar la tarifa. **Añadir horario**
+es un acceso asistido futuro: no mostrar el botón hasta implementarlo.
+
+Selectores sin fecha: **Opción**; reservas con fecha: **Salida**. Se conservan rutas, IDs y tablas.
+
+Opciones y horarios se abre desde catálogo y ficha, con diagnóstico por tarifa, selección
+y retorno. Referencia: `src/lib/tours/tourOptionsWorkspace.ts`.
 
 ### Modalidad privada
 
@@ -162,7 +192,7 @@ Recorrido **dinámico** en tres momentos:
 | No hay fechas futuras               | Calendario de la opción afectada.                                        |
 | Tarifa sin precio válido            | Precio de esa tarifa.                                                    |
 | Política incompatible               | Editor de esa condición.                                                 |
-| Salida configurada pero sin activar | Revisión y activación comercial.                                         |
+| Opción configurada pero sin activar | Revisión y activación comercial.                                         |
 | Evidencia vencida                   | Documento y alcance que requieren renovación.                            |
 | Política Fastt pendiente            | Estado de espera y atención interna; sin formulario documental ficticio. |
 | Todos los cupos vendidos            | Informar agotamiento; ofrecer ampliar o abrir fechas si corresponde.     |
@@ -201,13 +231,9 @@ Conservar la **presentación pública compartida**; evitar navegación administr
 
 ## Construcción técnica compartida
 
-- **Un flujo canónico con dos playbooks** para crear/publicar; entradas antiguas compatibles.
-- **Contexto compartido:** proveedor, producto, opción, tarifa, playbook, ubicación, modalidad y retorno.
-- Separar evaluación de **preparación**, **autorización para publicar** y **disponibilidad para reservar**.  
-- **Reutilizar** componentes de edición existentes dentro de la guía.  
-- **Formularios compartidos** entre entradas del mismo playbook (creación y continuación).  
-- Cargar contexto **una vez por petición**; evitar recalcular agregados completos desde página, layout y preview por separado.  
-- Conectar reservas y políticas existentes; no introducir un motor paralelo de reglas.
+Contexto validado por petición: proveedor, producto, opción, tarifa, modalidad y retorno.
+Reutilizar formularios, evaluación y políticas; distinguir preparación, publicación y
+venta. No recalcular agregados en página y layout ni crear motores paralelos.
 
 ## Contrato de políticas comerciales (tours)
 

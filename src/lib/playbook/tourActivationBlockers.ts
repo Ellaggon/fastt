@@ -37,8 +37,8 @@ export function tourActivationBlockers(blockers: CommercialBlocker[], context: C
 		}
 		const target = `${path}?${query}`
 		const labels: Record<string, string> = {
-			missing_tour_slot_profile: "Completa el horario, idioma y grupo de esta salida.",
-			missing_capacity: "Define la capacidad de esta salida.",
+			missing_tour_slot_profile: "Completa el horario, idioma y grupo de esta opción.",
+			missing_capacity: "Define la capacidad de esta opción.",
 			pricing_missing: "Completa el precio de esta tarifa.",
 		}
 		return {

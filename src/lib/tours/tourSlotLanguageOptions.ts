@@ -1,4 +1,4 @@
-/** Idiomas ofrecidos en una salida (código ISO 639-1, etiqueta en español). */
+/** Idiomas ofrecidos en una opción de tour (código ISO 639-1, etiqueta en español). */
 export const TOUR_SLOT_LANGUAGE_OPTIONS = [
 	{ code: "es", label: "Español" },
 	{ code: "en", label: "Inglés" },

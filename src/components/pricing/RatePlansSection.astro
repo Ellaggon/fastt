@@ -62,7 +62,9 @@ const { ratePlans, initialCurrency, hasDefaultPlan, initialBasePrice, variantId,
 				<Button href={routes.productRoomDetail(productId, variantId)} variant="secondary">
 					Volver
 				</Button>
-				<Button id="submitBtn" type="submit"> Guardar precio base </Button>
+				<Button id="submitBtn" type="submit" variant="selection" className="fastt-playbook-cta">
+					Guardar precio base
+				</Button>
 			</div>
 		</form>
 
@@ -132,7 +134,14 @@ const { ratePlans, initialCurrency, hasDefaultPlan, initialBasePrice, variantId,
 			</FormSection>
 			<p id="ratePlanFeedback" class="whitespace-pre-wrap text-sm text-slate-600"></p>
 			<div class="flex justify-end">
-				<Button id="ratePlanSubmitBtn" type="submit"> Crear tarifa </Button>
+				<Button
+					id="ratePlanSubmitBtn"
+					type="submit"
+					variant="selection"
+					className="fastt-playbook-cta"
+				>
+					Crear tarifa
+				</Button>
 			</div>
 		</form>
 	</Card>

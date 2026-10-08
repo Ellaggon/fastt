@@ -179,7 +179,13 @@ const panelClass = guided
 		</div>
 
 		<p data-presentation-status class="text-sm text-slate-400" role="status" aria-live="polite"></p>
-		{!guided ? <Button type="submit">Guardar presentación</Button> : null}
+		{
+			!guided ? (
+				<Button type="submit" variant="selection" className="fastt-playbook-cta">
+					Guardar presentación
+				</Button>
+			) : null
+		}
 	</form>
 </section>
 <script>

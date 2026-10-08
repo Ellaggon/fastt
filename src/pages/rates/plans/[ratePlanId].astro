@@ -1,4 +1,10 @@
 ---
+import {
+	optionWizardContext,
+	optionWizardHref,
+	optionStep,
+	optionNextHref,
+} from "@/lib/playbook/add-tour-option"
 import { tourPreparationReturnHref } from "@/lib/playbook/launch-tour"
 import { loadTourCommercialContext } from "@/lib/tours/loadTourCommercialContext"
 import { ratePlanPricingReadRepository } from "@/container"
@@ -71,15 +77,18 @@ const addRoomPlaybook = resolveAddRoomPlaybookFromUrl(Astro.url)
 const launchPlaybook = resolveLaunchPlaybookFromUrl(Astro.url)
 const tourLaunchPlaybook = resolveTourLaunchPlaybookFromUrl(Astro.url)
 const completePlaybook = resolveCompleteToPublishPlaybookFromUrl(Astro.url)
-const activePlaybook = addRoomPlaybook.active
-	? "add-room"
-	: completePlaybook.active
-		? "complete-to-publish"
-		: launchPlaybook.active
-			? "launch"
-			: tourLaunchPlaybook.active
-				? "launch-tour"
-				: null
+const optionWizard = optionWizardContext(Astro.url)
+const activePlaybook = optionWizard
+	? "add-tour-option"
+	: addRoomPlaybook.active
+		? "add-room"
+		: completePlaybook.active
+			? "complete-to-publish"
+			: launchPlaybook.active
+				? "launch"
+				: tourLaunchPlaybook.active
+					? "launch-tour"
+					: null
 const isPlaybookMode = Boolean(activePlaybook)
 
 // PlaybookLayout has no provider-wide sidebar. Avoid its readiness aggregation on
@@ -356,8 +365,31 @@ const completeContinueHref = completePlaybook.active
 const effectiveActiveView = isPlaybookMode && !isTourContext ? "conditions" : activeView
 const ratePlanListHref = `${routes.rates()}?${new URLSearchParams({ productId: String(row.productId), variantId: String(row.variantId), ratePlanId })}`
 const Layout = activePlaybook ? PlaybookLayout : WorkspaceLayout
-const layoutProps =
-	activePlaybook === "add-room"
+const layoutProps = optionWizard
+	? {
+			title: `${row.ratePlanName}`,
+			playbookId: "add-tour-option" as const,
+			active: true,
+			stepId: optionStep(Astro.url.searchParams.get("step")),
+			productId: String(row.productId),
+			variantId: String(row.variantId),
+			ratePlanId,
+			playbookVertical: "tour" as const,
+			continueFormId: activeView === "price" ? "pricingForm" : undefined,
+			continueHref: optionNextHref(
+				Astro.url.searchParams,
+				{ productId: String(row.productId), variantId: String(row.variantId), ratePlanId },
+				activeView
+			),
+			continueLabel:
+				activeView === "price"
+					? "Guardar y continuar"
+					: Astro.url.searchParams.get("optionReturn") === "review"
+						? "Volver a revisión"
+						: "Continuar a fechas y cupos",
+			lightweight: true,
+		}
+	: activePlaybook === "add-room"
 		? {
 				title: `Tarifa · ${row.ratePlanName}`,
 				playbookId: "add-room" as const,
@@ -462,7 +494,14 @@ logRoutePerformance({
 
 <Layout {...layoutProps} productType={String(row.productType)}>
 	<div class="space-y-5">
-		<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
+		<header
+			class:list={[
+				"flex flex-wrap items-end justify-between gap-4",
+				isPlaybookMode && effectiveActiveView === "conditions"
+					? null
+					: "border-b border-slate-800 pb-5",
+			]}
+		>
 			{
 				isPlaybookMode && effectiveActiveView === "conditions" ? (
 					<PlaybookStepHeader
@@ -632,12 +671,24 @@ logRoutePerformance({
 								offeringType={offeringType}
 								guidedContinueHref={
 									isPlaybookMode && isTourContext
-										? (reviewReturnHref ?? tourContinueHref ?? completeContinueHref)
+										? optionWizard
+											? optionNextHref(
+													Astro.url.searchParams,
+													{
+														productId: String(row.productId),
+														variantId: String(row.variantId),
+														ratePlanId,
+													},
+													activeView
+												)
+											: (reviewReturnHref ?? tourContinueHref ?? completeContinueHref)
 										: undefined
 								}
 								guidedExitHref={
 									isPlaybookMode && isTourContext
-										? `/product/${encodeURIComponent(tourCtx.productId)}`
+										? optionWizard
+											? `/product/${encodeURIComponent(tourCtx.productId)}/departures`
+											: `/product/${encodeURIComponent(tourCtx.productId)}`
 										: undefined
 								}
 							/>
@@ -718,7 +769,9 @@ logRoutePerformance({
 								</section>
 								<div class="flex flex-wrap items-center justify-between gap-3 py-8 sm:py-12">
 									<p class="text-sm text-slate-500" data-rate-plan-edit-feedback />
-									<Button type="submit">Guardar cambios</Button>
+									<Button type="submit" variant="selection" className="fastt-playbook-cta">
+										Guardar cambios
+									</Button>
 								</div>
 							</form>
 

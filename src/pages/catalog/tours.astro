@@ -102,7 +102,7 @@ const filterTabs = [
 						maxlength="120"
 						type="search"
 						placeholder="Buscar tours"
-						class="fastt-field fastt-field--on-dark h-11 w-full pr-3 pl-9 text-sm"
+						class="fastt-field fastt-field--on-dark h-11 w-full border-white/10 bg-white/5 pr-3 pl-9 text-sm text-white placeholder:text-slate-400"
 					/>
 				</div>
 				<Button type="submit" variant="onDark" size="sm">Buscar</Button>
@@ -185,8 +185,12 @@ const filterTabs = [
 											</div>
 											<p class="text-xs text-slate-500">
 												{product.destinationName && `${product.destinationName} · `}
-												{Number(product.optionCount)}{" "}
-												{Number(product.optionCount) === 1 ? "opción" : "opciones"}
+												<a
+													href={links.departuresHref}
+													class="inline-flex min-h-11 items-center rounded font-semibold text-slate-700 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2"
+												>
+													Opciones y horarios · {Number(product.optionCount)}
+												</a>
 											</p>
 											<p class="text-sm font-medium text-slate-800">{statusLabel}</p>
 											<p class="max-w-2xl text-sm leading-5 text-slate-600">{support}</p>

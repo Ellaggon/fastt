@@ -599,13 +599,21 @@ if (!isTour) {
 									{playbook.active ? "Salir y volver a la ficha" : "Volver a la ficha"}
 								</Button>
 								{isPublished ? null : readyToPublish && publicationEligible ? (
-									<Button class="publish-product-button fastt-playbook-cta" type="button">
+									<Button
+										class="publish-product-button fastt-playbook-cta"
+										type="button"
+										variant="selection"
+									>
 										Publicar {vertical.labels.singular}
 									</Button>
 								) : tourPresentation?.preparation.complete &&
 								  tourPresentation.activation.allowed ? null : readyToPublish &&
 								  publicationBlocker ? (
-									<Button href={publicationBlocker.href} variant="primary">
+									<Button
+										href={publicationBlocker.href}
+										variant="selection"
+										className="fastt-playbook-cta"
+									>
 										Resolver configuración
 									</Button>
 								) : (
@@ -615,6 +623,7 @@ if (!isTour) {
 												? checkHref(nextBlocker)
 												: (tourPresentation?.primaryAction.href ?? completePreparationHref)
 										}
+										variant="selection"
 										class="fastt-playbook-cta"
 									>
 										{nextBlocker?.cta ??

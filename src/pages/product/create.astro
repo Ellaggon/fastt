@@ -228,7 +228,12 @@ const compatibleGeoPlaces = destinations.filter((place) =>
 									{" "}
 									Volver{" "}
 								</Button>
-								<Button id="submitBtn" type="submit">
+								<Button
+									id="submitBtn"
+									type="submit"
+									variant="selection"
+									className="fastt-playbook-cta"
+								>
 									{activePlaybook ? "Crear y continuar" : createCopy.submitLabel}
 								</Button>
 							</div>

@@ -439,12 +439,12 @@ export function initProductSummaryHydration(): void {
 				setText(
 					"summaryRooms",
 					hasVariants
-						? `${Number(payload?.variants?.count ?? 0)} salidas configuradas${
+						? `${Number(payload?.variants?.count ?? 0)} opciones configuradas${
 								Array.isArray(payload?.variants?.names) && payload.variants.names.length > 0
 									? `: ${payload.variants.names.join(", ")}`
 									: "."
 							}`
-						: "Agrega salidas (horarios) para que este tour pueda venderse."
+						: "Añade una opción para configurar su precio y fechas."
 				)
 			}
 

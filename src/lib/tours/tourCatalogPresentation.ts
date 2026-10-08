@@ -20,7 +20,10 @@ export function presentTourCatalogItem(
 	const contextualize = (href: string) =>
 		context && "options" in context ? contextualizeTourLink(href, context) : href
 	const links = Object.fromEntries(
-		Object.entries(base).map(([key, href]) => [key, contextualize(href)])
+		Object.entries(base).map(([key, href]) => [
+			key,
+			key === "departuresHref" ? href : contextualize(href),
+		])
 	) as typeof base
 	const previewHref = preparation?.previewHref ?? routes.productPreview(productId)
 	const selection = context?.status === "resolved" ? context : {}
