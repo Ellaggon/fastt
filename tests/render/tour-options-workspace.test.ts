@@ -1,7 +1,7 @@
 import { experimental_AstroContainer as AstroContainer } from "astro/container"
 import { beforeEach, expect, it, vi } from "vitest"
 import { presentTourOption, summarizeTourOptions } from "@/lib/tours/tourOptionsWorkspace"
-const mocks = vi.hoisted(() => ({ load: vi.fn() }))
+const mocks = vi.hoisted(() => ({ load: vi.fn(), sessions: vi.fn() }))
 vi.mock("@/lib/auth/getUserFromRequest", () => ({
 	getUserFromRequest: async () => ({ id: "user" }),
 }))
@@ -9,6 +9,10 @@ vi.mock("@/lib/auth/getProviderIdFromRequest", () => ({
 	getProviderIdFromRequest: async () => "provider",
 }))
 vi.mock("@/layouts/WorkspaceLayout.astro", async () => import("@/components/ui/Card.astro"))
+vi.mock("@/lib/onboarding/tourOptionSession", () => ({
+	listOptionSessions: mocks.sessions,
+	sessionHref: () => "/product/tour/departures/new",
+}))
 vi.mock("@/lib/tours/tourOptionsWorkspace", async (importOriginal) => ({
 	...(await importOriginal<typeof import("@/lib/tours/tourOptionsWorkspace")>()),
 	loadTourOptionsWorkspace: mocks.load,
@@ -30,6 +34,8 @@ const option = presentTourOption({
 })
 beforeEach(() => {
 	mocks.load.mockReset()
+	mocks.sessions.mockReset()
+	mocks.sessions.mockResolvedValue([])
 })
 async function render(query = "") {
 	const container = await AstroContainer.create()
