@@ -1,5 +1,13 @@
 ---
 import {
+	ADD_TOUR_OPTION,
+	OPTION_STEPS,
+	optionNextHref,
+	optionWizardHref,
+	optionStep,
+} from "@/lib/playbook/add-tour-option"
+import type { getOptionSession } from "@/lib/onboarding/tourOptionSession"
+import {
 	TOUR_REQUIREMENT_PRESENTATION,
 	type presentTourDiagnostic,
 } from "@/lib/tours/tourDiagnosticPresentation"
@@ -76,6 +84,8 @@ interface Props {
 	/** When true, the page renders the product context line next to its step heading. */
 	deferPlaybookProductContext?: boolean
 	playbookProductContextTourIcon?: "ticket" | "compass"
+	/** When true, B corrections are absorbed by the page step header (no duplicate cause list). */
+	hidePublicationCorrections?: boolean
 }
 
 const {
@@ -101,7 +111,16 @@ const {
 	productDisplayName: productDisplayNameProp = "",
 	deferPlaybookProductContext = false,
 	playbookProductContextTourIcon = "compass",
+	hidePublicationCorrections = false,
 } = Astro.props
+
+const isOptionWizard =
+	propPlaybookId === ADD_TOUR_OPTION || Astro.url.searchParams.get("playbook") === ADD_TOUR_OPTION
+let optionSession: Awaited<ReturnType<typeof getOptionSession>> | null = null
+if (isOptionWizard) {
+	optionSession = Astro.locals.optionPreparationSession ?? null
+	if (!optionSession) throw new Error("Option preparation must be validated before rendering")
+}
 
 const tourFlow =
 	active && (playbookVertical === "tour" || propPlaybookId === "launch-tour")
@@ -115,7 +134,12 @@ const isTourLaunch = playbookId === LAUNCH_TOUR_PLAYBOOK_ID
 let variantId = propVariantId
 let ratePlanId = propRatePlanId
 let resolvedTourContext: Awaited<ReturnType<typeof loadTourCommercialContext>> | null = null
-if (active && productId && (playbookVertical === "tour" || playbookId === "launch-tour")) {
+if (
+	!isOptionWizard &&
+	active &&
+	productId &&
+	(playbookVertical === "tour" || playbookId === "launch-tour")
+) {
 	const user = await getUserFromRequest(Astro.request)
 	const providerId = user ? await getProviderIdFromRequest(Astro.request, user) : null
 	if (providerId) {
@@ -174,7 +198,24 @@ let stageLabel = ""
 let stagePosition = 0
 let stageTotal = 0
 
-if (isTourPublication) {
+if (isOptionWizard && optionSession) {
+	const step = optionStep(Astro.url.searchParams.get("step"))
+	const position = OPTION_STEPS.findIndex((item) => item.id === step)
+	playbookTitle = "Añadir opción"
+	stepLabel = OPTION_STEPS[position].label
+	stepNumber = position + 1
+	totalSteps = OPTION_STEPS.length
+	currentStepKnown = true
+	const context = {
+		productId,
+		sessionId: optionSession.id,
+		variantId: optionSession.variantId || variantId,
+		ratePlanId: optionSession.ratePlanId || ratePlanId,
+	}
+	previousHref = position > 0 ? optionWizardHref(context, OPTION_STEPS[position - 1].id) : null
+	resolvedContinueHref =
+		step === "review" ? null : optionNextHref(Astro.url.searchParams, context, step)
+} else if (isTourPublication) {
 	playbookTitle = "Publicar tour"
 	currentStepKnown = true
 	if (productId) {
@@ -370,11 +411,13 @@ if (isTourLaunch && tourFlow?.returnHref) {
 		}
 }
 
-const exitHref = productId
-	? isAddRoom
-		? `/product/${encodeURIComponent(productId)}/rooms`
-		: `/product/${encodeURIComponent(productId)}`
-	: "/dashboard"
+const exitHref = isOptionWizard
+	? `/product/${encodeURIComponent(productId)}/departures`
+	: productId
+		? isAddRoom
+			? `/product/${encodeURIComponent(productId)}/rooms`
+			: `/product/${encodeURIComponent(productId)}`
+		: "/dashboard"
 const isTerminalStep = isAddRoom
 	? isAddRoomTerminalStep(stepId)
 	: isComplete
@@ -387,7 +430,7 @@ const showHrefContinue = !formBoundContinue && !ownsPrimaryCta
 const persistAndExit = formBoundContinue && Boolean(productId) && !isTourPublication
 const formContinueLabel = continueLabel === "Continuar →" ? "Guardar y continuar" : continueLabel
 const showProgress = active && currentStepKnown && !isTerminalStep && !isTourPublication
-const showReadinessMeter = showProgress && !lightweight && !isTourLaunch
+const showReadinessMeter = showProgress && !lightweight && !isTourLaunch && !isOptionWizard
 const stageProgressPercent =
 	stagePosition > 0 && stageTotal > 0 ? Math.round((stagePosition / stageTotal) * 100) : 0
 const visualProgressPercent = isTourLaunch
@@ -482,6 +525,7 @@ if (isTourPublication) {
 const preparationSessionPayload =
 	active &&
 	productId &&
+	!isOptionWizard &&
 	(playbookId === "launch" || playbookId === LAUNCH_TOUR_PLAYBOOK_ID || isComplete)
 		? {
 				productId,
@@ -524,7 +568,7 @@ const showTourPlaybookHeadline =
 /** Keeps the stage summary visually paired with each step’s form title. */
 const tightTourPlaybookStepSpacing = isTourPlaybookContext && active
 const correctionMessages =
-	isTourPublication && stepId !== "preview"
+	isTourPublication && stepId !== "preview" && !hidePublicationCorrections
 		? [
 				...new Set(
 					(tourAttention?.blockers ?? [])
@@ -644,7 +688,79 @@ const PlaybookShell = active ? GuidedPreparationLayout : WorkspaceLayout
 		) : null
 	}
 	<div class:list={[tightTourPlaybookStepSpacing && "-mt-1"]}>
-		{isTourPreparation || isTourPublication ? <div data-tour-navigation-guard-marker /> : null}
+		{
+			isTourPreparation || isTourPublication || isOptionWizard ? (
+				<div data-tour-navigation-guard-marker />
+			) : null
+		}
+		{
+			isOptionWizard && optionSession ? (
+				<div
+					data-option-session
+					data-revision={new Date(optionSession.updatedAt).getTime()}
+					data-session-id={optionSession.id}
+					class="mb-4 space-y-3"
+				>
+					<p class="text-sm text-slate-300">{productDisplayName}</p>
+					<details>
+						<>
+							<summary class="min-h-11 cursor-pointer text-sm font-semibold">Ver etapas</summary>
+							<nav aria-label="Añadir opción">
+								<ol class="grid gap-2 sm:grid-cols-2">
+									{OPTION_STEPS.map((step, index) => (
+										<li>
+											<a
+												data-option-navigation
+												aria-disabled={
+													(step.id !== "profile" && !variantId) ||
+													(["conditions", "calendar", "review"].includes(step.id) && !ratePlanId)
+														? "true"
+														: undefined
+												}
+												tabindex={
+													(step.id !== "profile" && !variantId) ||
+													(["conditions", "calendar", "review"].includes(step.id) && !ratePlanId)
+														? -1
+														: undefined
+												}
+												href={
+													(step.id !== "profile" && !variantId) ||
+													(["conditions", "calendar", "review"].includes(step.id) && !ratePlanId)
+														? undefined
+														: optionWizardHref(
+																{ productId, sessionId: optionSession!.id, variantId, ratePlanId },
+																step.id
+															)
+												}
+												aria-current={
+													step.id === optionStep(Astro.url.searchParams.get("step"))
+														? "step"
+														: undefined
+												}
+												class="block rounded-lg border border-slate-700 px-3 py-2 text-sm"
+											>
+												{index + 1}. {step.label}
+												{step.id !== "profile" && !variantId ? (
+													<span class="block text-xs text-slate-400">
+														Guarda primero el perfil de la opción.
+													</span>
+												) : ["conditions", "calendar", "review"].includes(step.id) &&
+												  !ratePlanId ? (
+													<span class="block text-xs text-slate-400">
+														Configura primero una tarifa.
+													</span>
+												) : null}
+											</a>
+										</li>
+									))}
+								</ol>
+							</nav>
+						</>
+					</details>
+					<p data-option-navigation-error role="alert" class="text-sm text-amber-400" hidden />
+				</div>
+			) : null
+		}
 		<slot />
 	</div>
 
@@ -659,6 +775,58 @@ const PlaybookShell = active ? GuidedPreparationLayout : WorkspaceLayout
 			/>
 		) : null
 	}
+	<script>
+		import { persistOptionDestination } from "@/lib/forms/tourOptionNavigation"
+		window.fasttOptionDestination = persistOptionDestination
+		function bindOptionNavigation() {
+			const marker = document.querySelector<HTMLElement>("[data-option-session]")
+			if (!marker || marker.dataset.bound) return
+			marker.dataset.bound = "true"
+			document.addEventListener(
+				"click",
+				async (event) => {
+					const link = (event.target as Element)?.closest<HTMLAnchorElement>("a[href]")
+					if (
+						!link ||
+						event.defaultPrevented ||
+						event.ctrlKey ||
+						event.metaKey ||
+						event.shiftKey ||
+						event.button !== 0
+					)
+						return
+					const target = new URL(link.href, location.href)
+					if (
+						target.origin !== location.origin ||
+						target.searchParams.get("playbook") !== "add-tour-option"
+					)
+						return
+					if (target.searchParams.get("sessionId") !== marker.dataset.sessionId) return
+					event.preventDefault()
+					try {
+						location.href = await persistOptionDestination(target.pathname + target.search)
+					} catch (error) {
+						const feedback = document.querySelector<HTMLElement>("[data-option-navigation-error]")
+						if (feedback) {
+							feedback.hidden = false
+							feedback.textContent =
+								error instanceof Error ? error.message : "No pudimos guardar la continuación."
+						}
+					}
+				},
+				{
+					signal: (() => {
+						const controller = new AbortController()
+						document.addEventListener("astro:before-swap", () => controller.abort(), { once: true })
+						return controller.signal
+					})(),
+				}
+			)
+		}
+		bindOptionNavigation()
+		document.addEventListener("astro:page-load", bindOptionNavigation)
+	</script>
+
 	<script define:vars={{ preparationSessionPayload }}>
 		if (preparationSessionPayload) {
 			const navigationAt = preparationSessionPayload.navigationAt
@@ -755,7 +923,7 @@ const PlaybookShell = active ? GuidedPreparationLayout : WorkspaceLayout
 					{isTerminalStep && isComplete ? (
 						<p class="text-sm text-slate-400">Usa el botón Publicar en la vista previa.</p>
 					) : isTerminalStep ? (
-						<Button href={exitHref} className="fastt-playbook-cta">
+						<Button href={exitHref} variant="selection" className="fastt-playbook-cta">
 							{isAddRoom ? "Ver habitaciones" : "Ir a la ficha"}
 						</Button>
 					) : formBoundContinue ? (
@@ -764,17 +932,24 @@ const PlaybookShell = active ? GuidedPreparationLayout : WorkspaceLayout
 							form={boundContinueFormId}
 							name="playbookNav"
 							value="continue"
+							variant="selection"
 							className="fastt-playbook-cta"
 						>
 							{reviewReturnHref ? "Guardar y volver" : formContinueLabel}
 						</Button>
 					) : showHrefContinue && resolvedContinueHref && continueDisabled ? (
-						<Button disabled className="fastt-playbook-cta" title={continueDisabledTitle}>
+						<Button
+							disabled
+							variant="selection"
+							className="fastt-playbook-cta"
+							title={continueDisabledTitle}
+						>
 							{reviewReturnHref ? "Volver a publicación" : continueLabel}
 						</Button>
 					) : showHrefContinue && resolvedContinueHref ? (
 						<Button
 							href={resolvedContinueHref}
+							variant="selection"
 							className="fastt-playbook-cta"
 							reload={continueReload}
 						>

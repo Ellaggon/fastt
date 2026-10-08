@@ -1,3 +1,4 @@
+import { optionWizardContext, optionStep, ADD_TOUR_OPTION } from "./add-tour-option"
 import { resolveTourPlaybookContext } from "./tour-playbook-context"
 import { normalizeTourLaunchStep } from "./launch-tour"
 import {
@@ -42,6 +43,17 @@ export function resolvePlaybookFromUrl(
 	url: URL,
 	options: { isHotel?: boolean } = {}
 ): ResolvedPlaybook {
+	const option = optionWizardContext(url)
+	if (option && options.isHotel !== true)
+		return {
+			active: true,
+			playbookId: ADD_TOUR_OPTION,
+			stepId: optionStep(url.searchParams.get("step")),
+			productId: option.productId,
+			variantId: option.variantId || "",
+			ratePlanId: option.ratePlanId || "",
+			isHotel: false,
+		}
 	if (options.isHotel === false || url.searchParams.get("playbook") === "launch-tour") {
 		const productId =
 			url.pathname.match(/^\/product\/([^/]+)/)?.[1] ?? url.searchParams.get("productId") ?? ""

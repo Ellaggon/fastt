@@ -101,8 +101,8 @@ function input(productId = a, variantId: string | null = va, ratePlanId: string 
 		ratePlanId,
 		vertical: "tour" as const,
 		playbookId: "launch-tour" as const,
-		stepId: "content",
-		lastPath: `/product/${productId}/content`,
+		stepId: "create",
+		lastPath: `/product/${productId}/presentation`,
 	}
 }
 async function rows() {
@@ -163,7 +163,7 @@ describe("B4 PostgreSQL sessions", () => {
 		expect(resumes[0].href).toContain(`ratePlanId=${ra}`)
 		await savePreparationSession({
 			...input(),
-			lastPath: `/product/${a}/content?playbook=launch-tour&tourFlowVersion=2`,
+			lastPath: `/product/${a}/presentation?playbook=launch-tour&tourFlowVersion=2`,
 			navigationAt: new Date(Date.now() - 1000),
 		})
 		resumes = await listActivePreparationSessions(auth.providerId, auth.userId)
@@ -200,7 +200,7 @@ describe("B4 PostgreSQL sessions", () => {
 		for (const change of [
 			{ variantId: vb, ratePlanId: rb },
 			{ ratePlanId: rb },
-			{ lastPath: `/product/${b}/content` },
+			{ lastPath: `/product/${b}/presentation` },
 			{ vertical: "hotel" },
 		]) {
 			const response = await request({

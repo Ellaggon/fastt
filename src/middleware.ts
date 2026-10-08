@@ -1,4 +1,8 @@
 import type { MiddlewareHandler } from "astro"
+import { requireProvider } from "@/lib/auth/requireProvider"
+import { getOptionSession } from "@/lib/onboarding/tourOptionSession"
+import { PreparationSessionError } from "@/lib/onboarding/preparationSessionContext"
+import { optionWizardContext } from "@/lib/playbook/add-tour-option"
 import { ensureAuthSessionForRequest } from "@/lib/auth/ensureAuthSession"
 import { sanitizeReturnTo } from "@/lib/auth/returnTo"
 import { buildWorkspaceRequestContext } from "@/lib/dashboard/workspaceRequestContext"
@@ -82,6 +86,41 @@ export const onRequest: MiddlewareHandler = async (context, next) => {
 	return runWithRequestContext(requestContext, async () => {
 		try {
 			const refreshedAuthCookies = await ensureAuthSessionForRequest(context.request)
+			const optionContext = optionWizardContext(context.url)
+			if (optionContext && !context.url.pathname.startsWith("/api/")) {
+				try {
+					const { providerId, user } = await requireProvider(context.request, {
+						unauthorizedResponse: context.redirect(
+							`/SignInPage?returnTo=${encodeURIComponent(context.url.pathname + context.url.search)}`
+						),
+					})
+					const session = await getOptionSession(
+						providerId,
+						user.id,
+						optionContext.sessionId,
+						optionContext.productId
+					)
+					if (session.status !== "active")
+						return context.redirect(`/product/${encodeURIComponent(session.productId!)}/departures`)
+					if (
+						(session.variantId &&
+							optionContext.variantId &&
+							session.variantId !== optionContext.variantId) ||
+						(session.ratePlanId &&
+							optionContext.ratePlanId &&
+							session.ratePlanId !== optionContext.ratePlanId)
+					)
+						return new Response("La selección no corresponde a este recorrido.", { status: 409 })
+					context.locals.optionPreparationSession = session
+				} catch (error) {
+					if (error instanceof Response) return error
+					if (error instanceof PreparationSessionError)
+						return new Response("Recorrido no encontrado. Vuelve a Opciones y horarios.", {
+							status: error.status,
+						})
+					throw error
+				}
+			}
 			const response = appendSetCookieHeaders(await next(), refreshedAuthCookies ?? [])
 			const totalMs = performance.now() - requestContext.startedAt
 			const cache = summarizeCacheEvents(requestContext.cacheEvents)
