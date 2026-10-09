@@ -55,6 +55,18 @@ beforeEach(() => {
 			preparation: { complete: false },
 			catalogStatus: { label: "En preparación" },
 			support: "Completa las fotos",
+			stages: [
+				{
+					id: "photos",
+					state: "pending",
+					href: "/product/draft/images?playbook=launch-tour&step=images&flow=create&tourFlowVersion=2",
+				},
+			],
+			primaryAction: {
+				label: "Continuar ficha",
+				href: "/product/draft/images?playbook=launch-tour&step=images&flow=create&tourFlowVersion=2",
+			},
+			blockers: [],
 		},
 	})
 })

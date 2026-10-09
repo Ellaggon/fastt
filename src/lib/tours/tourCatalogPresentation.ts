@@ -36,7 +36,7 @@ export function presentTourCatalogItem(
 			(context.status === "unresolved" && context.reason === "invalid_selection"))
 	const selectionRequired =
 		context?.status === "unresolved" && context.reason === "selection_required"
-	const pendingContent = presentation?.stages.find((stage) => stage.state !== "ready")
+	const pendingContent = presentation?.stages?.find((stage) => stage.state !== "ready")
 	const correction = presentation?.primaryAction
 	const verification = correction?.href.startsWith("/provider/settings/verification")
 	const primaryAction = !presentation

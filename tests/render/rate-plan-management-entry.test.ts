@@ -74,21 +74,28 @@ describe("rendered rate page without tour departures", () => {
 		mocks.rates = []
 		mocks.diagnostic = null
 	})
-	it.each(["launch", "add-room"])(
-		"canonicalizes legacy %s to the tour rate stage without jumping to departures",
+	it.each(["launch", "add-room", "launch-tour"])(
+		"canonicalizes %s rate entry to the publication rate stage without jumping to departures",
 		async (playbook) => {
-			const result = await response(`playbook=${playbook}`)
+			const result = await response(
+				playbook === "launch-tour"
+					? "playbook=launch-tour&step=rate&flow=create&tourFlowVersion=2"
+					: `playbook=${playbook}`
+			)
 			expect(result.status).toBe(302)
 			const location = result.headers.get("location") ?? ""
 			expect(location).toContain("/rates/plans/manage?")
-			expect(location).toContain("playbook=launch-tour")
+			expect(location).toContain("playbook=complete-to-publish")
 			expect(location).toContain("step=rate")
+			expect(location).toContain("flow=complete")
 			expect(location).not.toContain("/departures/")
 		}
 	)
 
 	it("shows the missing-option empty state on the tour rate stage", async () => {
-		const result = await response("playbook=launch-tour&step=rate&flow=create&tourFlowVersion=2")
+		const result = await response(
+			"playbook=complete-to-publish&step=rate&flow=complete&tourFlowVersion=2"
+		)
 		expect(result.status).toBe(200)
 		const html = await result.text()
 		expect(html).toContain("Primero crea una opción")

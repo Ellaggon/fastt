@@ -104,7 +104,9 @@ describe("rate management entry without departures", () => {
 		const target = new URL(result.redirectHref!, "https://fastt.test")
 		expect(target.pathname).toBe("/rates/plans/manage")
 		expect(target.searchParams.get("variantId")).toBe("slot-1")
-		expect(target.searchParams.get("playbook")).toBe("launch-tour")
+		expect(target.searchParams.get("playbook")).toBe("complete-to-publish")
+		expect(target.searchParams.get("step")).toBe("rate")
+		expect(target.searchParams.get("flow")).toBe("complete")
 		expect(mocks.where).not.toHaveBeenCalled()
 	})
 
