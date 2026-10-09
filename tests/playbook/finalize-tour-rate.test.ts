@@ -372,7 +372,7 @@ describe("finalize tour rate", () => {
 			status: 409,
 			blockers: [
 				expect.objectContaining({
-					label: "Completa el horario, idioma y grupo de esta salida.",
+					label: "Completa el horario, idioma y grupo de esta opción.",
 					href: expect.any(String),
 				}),
 			],

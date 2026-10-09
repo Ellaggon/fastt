@@ -2,7 +2,7 @@ import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from "reac
 
 import { cn } from "./utils"
 
-type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "success"
+type ButtonVariant = "primary" | "selection" | "secondary" | "ghost" | "danger" | "success"
 type ButtonSize = "sm" | "md" | "lg"
 
 type BaseProps = {
@@ -25,6 +25,8 @@ type AnchorButtonProps = BaseProps &
 
 const variantClass: Record<ButtonVariant, string> = {
 	primary: "bg-slate-950 text-white shadow-sm hover:bg-slate-800",
+	selection:
+		"bg-[var(--fastt-color-selection)] text-white shadow-[0_10px_24px_var(--fastt-color-selection-shadow)] hover:bg-[#1d4ed8] focus:ring-[var(--fastt-color-selection)]",
 	secondary:
 		"border border-slate-200 bg-white text-slate-700 shadow-sm hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950",
 	ghost: "bg-transparent text-slate-700 hover:bg-slate-100 hover:text-slate-950",
@@ -41,7 +43,7 @@ const sizeClass: Record<ButtonSize, string> = {
 export default function Button(props: NativeButtonProps | AnchorButtonProps) {
 	const { variant = "primary", size = "md", className, children } = props
 	const resolvedClass = cn(
-		"fastt-button inline-flex items-center justify-center gap-2 rounded-[var(--fastt-radius-control)] font-semibold transition focus:outline-none focus:ring-2 focus:ring-slate-950 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60",
+		"fastt-button inline-flex cursor-pointer items-center justify-center gap-2 rounded-[var(--fastt-radius-control)] font-semibold transition focus:outline-none focus:ring-2 focus:ring-slate-950 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60",
 		variantClass[variant],
 		sizeClass[size],
 		className

@@ -1,14 +1,6 @@
 import { and, db, eq, first, Product } from "@/shared/infrastructure/db/compat"
 import { isTourProductType } from "@/lib/catalog/productVerticalRegistry"
-import {
-	buildTourPlaybookHref,
-	getTourSharedRateCanonicalHref,
-	resolveTourLaunchPlaybookFromUrl,
-} from "@/lib/playbook/launch-tour"
-import {
-	buildCompleteToPublishHref,
-	resolveCompleteToPublishPlaybookFromUrl,
-} from "@/lib/playbook/complete-to-publish"
+import { getTourSharedRateCanonicalHref } from "@/lib/playbook/launch-tour"
 import type { ProviderRatePlanVariantChoice } from "./loadProviderRatePlanVariants"
 import { tourConditionsHref } from "@/lib/tours/tourConditionsHref"
 
@@ -41,6 +33,7 @@ export async function loadRatePlanManagementEntry(params: {
 	const productId = String(product?.productId ?? "")
 	const productType = String(product?.productType ?? "")
 	const isTour = isTourProductType(productType)
+	const missingOption = Boolean(isTour && productId && !contextVariant)
 	const canonicalHref = getTourSharedRateCanonicalHref(url, {
 		isTour,
 		step: "rate",
@@ -49,18 +42,23 @@ export async function loadRatePlanManagementEntry(params: {
 	})
 	let redirectHref = canonicalHref
 	const requestedStep = url.searchParams.get("step")
-	if (isTour && ["conditions", "bookingPolicies"].includes(requestedStep ?? "")) {
+	if (
+		isTour &&
+		url.searchParams.get("playbook") !== "add-tour-option" &&
+		["conditions", "bookingPolicies"].includes(requestedStep ?? "")
+	) {
 		const target = new URL(tourConditionsHref(productId), url)
 		target.search = url.search
 		target.searchParams.delete("openDialog")
 		redirectHref = target.pathname + target.search
-	} else if (isTour && !contextVariant) {
-		const departureHref = `/product/${encodeURIComponent(productId)}/departures/new`
-		redirectHref = resolveCompleteToPublishPlaybookFromUrl(url).active
-			? buildCompleteToPublishHref(departureHref, "departure")
-			: canonicalHref || resolveTourLaunchPlaybookFromUrl(url).active
-				? buildTourPlaybookHref(departureHref, "departure")
-				: departureHref
 	}
-	return { matchedVariant, productId, productType, isTour, notFound, redirectHref }
+	return {
+		matchedVariant,
+		productId,
+		productType,
+		isTour,
+		notFound,
+		missingOption,
+		redirectHref,
+	}
 }

@@ -80,7 +80,7 @@ export async function finalizeTourRate(input: Input) {
 			.trim()
 			.toLowerCase() !== "tour"
 	) {
-		return { ok: false as const, status: 404 as const, error: "Tarifa o salida no encontrada." }
+		return { ok: false as const, status: 404 as const, error: "Tarifa u opción no encontrada." }
 	}
 
 	const [ratePlan, variant] = await Promise.all([
@@ -102,7 +102,7 @@ export async function finalizeTourRate(input: Input) {
 			.trim()
 			.toLowerCase() !== "tour_slot"
 	) {
-		return { ok: false as const, status: 404 as const, error: "Salida no encontrada." }
+		return { ok: false as const, status: 404 as const, error: "Opción no encontrada." }
 	}
 
 	// A retry after a lost response reports the state that already committed,
@@ -159,13 +159,13 @@ export async function finalizeTourRate(input: Input) {
 		return {
 			ok: false as const,
 			status: 409 as const,
-			error: "La salida cambió durante la activación. Revisa los requisitos y vuelve a intentar.",
+			error: "La opción cambió durante la activación. Revisa los requisitos y vuelve a intentar.",
 			blockers: currentActivation.blockers.length
 				? currentActivation.blockers
 				: fallback.length
 					? fallback
 					: tourActivationBlockers(
-							[{ id: "departure", label: "Actualiza la salida y vuelve a intentar." }],
+							[{ id: "departure", label: "Actualiza la opción y vuelve a intentar." }],
 							input
 						),
 		}
@@ -180,7 +180,7 @@ export async function finalizeTourRate(input: Input) {
 		description: ratePlan.description == null ? null : String(ratePlan.description),
 	})
 	if (activationResult === "not_found") {
-		return { ok: false as const, status: 404 as const, error: "Tarifa o salida no encontrada." }
+		return { ok: false as const, status: 404 as const, error: "Tarifa u opción no encontrada." }
 	}
 	if (activationResult === "not_ready") {
 		const [currentActivation, currentReadiness] = await Promise.all([
@@ -201,7 +201,7 @@ export async function finalizeTourRate(input: Input) {
 		return {
 			ok: false as const,
 			status: 409 as const,
-			error: "La salida cambió mientras se activaba. Revisa estos requisitos y vuelve a intentar.",
+			error: "La opción cambió mientras se activaba. Revisa estos requisitos y vuelve a intentar.",
 			blockers: blockers.length
 				? blockers
 				: concurrencyBlockers.length
@@ -210,7 +210,7 @@ export async function finalizeTourRate(input: Input) {
 							[
 								{
 									id: "departure",
-									label: "La salida cambió durante la activación. Actualiza y vuelve a intentar.",
+									label: "La opción cambió durante la activación. Actualiza y vuelve a intentar.",
 								},
 							],
 							input

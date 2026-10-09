@@ -1,11 +1,14 @@
 ---
 import PlaybookStepHeader from "@/components/playbook/PlaybookStepHeader.astro"
 import TourSlotProfileEditor from "@/components/tours/TourSlotProfileEditor.astro"
+import Button from "@/components/ui/Button.astro"
 import { productRepository } from "@/container"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { isTourProductType } from "@/lib/catalog/productVerticalRegistry"
+import { getOptionSession, optionBases } from "@/lib/onboarding/tourOptionSession"
+import { optionWizardHref } from "@/lib/playbook/add-tour-option"
 import {
 	buildCompleteToPublishHref,
 	COMPLETE_TO_PUBLISH_PLAYBOOK_ID,
@@ -31,6 +34,34 @@ if (!isTourProductType(owned.productType)) return Astro.redirect(routes.productD
 const product = await getProductAggregate(productId)
 if (!product) return Astro.redirect("/product/create")
 const playbook = resolvePlaybookFromUrl(Astro.url, { isHotel: false })
+const wizard = playbook.playbookId === "add-tour-option"
+const optionSession = wizard
+	? await getOptionSession(
+			providerId,
+			user.id,
+			Astro.url.searchParams.get("sessionId") || "",
+			productId
+		).catch(() => null)
+	: null
+if (wizard && !optionSession) return new Response("Recorrido no encontrado", { status: 404 })
+if (optionSession?.variantId)
+	return Astro.redirect(
+		optionWizardHref(
+			{
+				productId,
+				sessionId: optionSession.id,
+				variantId: optionSession.variantId,
+				ratePlanId: optionSession.ratePlanId,
+			},
+			"profile"
+		)
+	)
+const bases = wizard ? await optionBases(providerId, productId) : []
+const baseId = Astro.url.searchParams.get("base")
+const base = baseId ? bases.find((row) => row.id === baseId) : null
+if (baseId && !base)
+	return new Response("La opción de origen no pertenece a este tour.", { status: 404 })
+const startId = crypto.randomUUID()
 const isCompletePlaybook = playbook.playbookId === COMPLETE_TO_PUBLISH_PLAYBOOK_ID
 const tourRateHref = isCompletePlaybook
 	? buildCompleteToPublishHref(
@@ -57,16 +88,87 @@ const tourRateHref = isCompletePlaybook
 		<PlaybookStepHeader
 			icon="option"
 			title="Perfil de la opción"
-			lead="Define hora, cupo, idioma y modalidad de esta opción. Las fechas y el precio los configuras en los pasos siguientes."
+			lead={playbook.active
+				? "Define el horario habitual, la capacidad, el idioma y la modalidad. Después configurarás el precio."
+				: "Define la modalidad, el horario y la capacidad. Después podrás configurar la tarifa, condiciones y fechas."}
 		/>
 
-		<TourSlotProfileEditor
-			productId={productId}
-			mode="create"
-			playbookFooterControls={playbook.active}
-			redirectOnSuccess={playbook.active
-				? tourRateHref
-				: routes.productDeparturesForProduct(productId)}
-		/>
+		{
+			!playbook.active ? (
+				<form
+					method="POST"
+					action="/api/onboarding/tour-option-session"
+					class="rounded-xl border border-slate-700 p-5"
+				>
+					<>
+						<input type="hidden" name="action" value="start" />
+						<input type="hidden" name="productId" value={productId} />
+						<input type="hidden" name="sessionId" value={startId} />
+						<p class="mb-4">
+							Configura perfil, precio, condiciones y fechas; revisa la opción antes de activarla.
+						</p>
+						<Button type="submit" variant="selection" className="fastt-playbook-cta">
+							Empezar configuración
+						</Button>
+					</>
+				</form>
+			) : null
+		}
+		{
+			wizard && bases.length > 0 ? (
+				<form method="GET" class="space-y-2">
+					<>
+						<input type="hidden" name="playbook" value="add-tour-option" />
+						<input type="hidden" name="step" value="profile" />
+						<input type="hidden" name="sessionId" value={optionSession!.id} />
+						<label class="block text-sm font-semibold" for="option-base">
+							Usar una opción como base
+						</label>
+						<div class="flex flex-wrap gap-3">
+							<>
+								<select
+									id="option-base"
+									name="base"
+									class="fastt-field min-h-11 rounded-lg bg-white px-3 text-slate-950"
+								>
+									<option value="">Configurar desde cero</option>
+									{bases.map((row) => (
+										<option value={row.id} selected={row.id === baseId}>
+											{row.name}
+										</option>
+									))}
+								</select>
+								<Button type="submit" variant="onDark">
+									Precargar perfil
+								</Button>
+							</>
+						</div>
+						<p class="text-sm text-slate-300">
+							Precarga idioma, modalidad, duración, capacidad y descripción. Revisa nombre y
+							horario. Las fechas y reservas se conservan en la opción original.
+						</p>
+					</>
+				</form>
+			) : null
+		}
+		{
+			playbook.active ? (
+				<TourSlotProfileEditor
+					productId={productId}
+					mode="create"
+					name={base ? `${base.name} — nueva opción` : undefined}
+					description={base?.description}
+					departureTime={base?.departureTime}
+					durationMinutes={base?.durationMinutes}
+					maxPax={base?.maxPax}
+					languageCode={base?.languageCode}
+					bookingMode={base?.bookingMode as "shared" | "private" | null}
+					playbookFooterControls={playbook.active}
+					redirectOnSuccess={
+						playbook.active ? tourRateHref : routes.productDeparturesForProduct(productId)
+					}
+				/>
+			) : null
+		}
 	</section>
 </PlaybookLayout>

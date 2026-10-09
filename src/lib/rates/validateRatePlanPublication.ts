@@ -1,3 +1,4 @@
+import { readTourRequestData } from "@/lib/tours/tourRequestReads"
 import {
 	evaluateEffectivePolicyReadiness,
 	policyBusinessContextFromProduct,
@@ -24,52 +25,63 @@ import {
 
 const MINIMUM_SELLABLE_AVAILABILITY_DAYS = 30
 
+async function loadPublicationContext(params: { productId: string; variantId: string }) {
+	const [inventory, availability, product, capacity, configuredDates] = await Promise.all([
+		variantInventoryConfigRepository.getByVariantId(params.variantId),
+		db
+			.select({ value: count() })
+			.from(DailyInventory)
+			.where(
+				and(
+					eq(DailyInventory.variantId, params.variantId),
+					gt(DailyInventory.date, providerLocalToday(params.productId)),
+					sellableDailyInventoryCondition()
+				)
+			),
+		db
+			.select({
+				productType: Product.productType,
+				timezone: providerLocalTimezone(params.productId),
+			})
+			.from(Product)
+			.where(eq(Product.id, params.productId))
+			.then(first),
+		db
+			.select({
+				maxOccupancy: VariantCapacity.maxOccupancy,
+				bookingMode: TourSlotProfile.bookingMode,
+			})
+			.from(VariantCapacity)
+			.leftJoin(TourSlotProfile, eq(TourSlotProfile.variantId, VariantCapacity.variantId))
+			.where(eq(VariantCapacity.variantId, params.variantId))
+			.then(first),
+		db
+			.select({
+				value: count(),
+				futureDateCount: sql<number>`count(*) filter (where ${DailyInventory.date} > ${providerLocalToday(params.productId)})`,
+				futureCapacityDateCount: sql<number>`count(*) filter (where ${DailyInventory.date} > ${providerLocalToday(params.productId)} and ${DailyInventory.totalInventory} > 0)`,
+			})
+			.from(DailyInventory)
+			.where(eq(DailyInventory.variantId, params.variantId)),
+	])
+	return { inventory, availability, product, capacity, configuredDates }
+}
+
 export async function validateRatePlanPublication(params: {
 	ratePlanId: string
 	variantId: string
 	productId: string
+	request?: Request
 }) {
-	const [baseline, inventory, availability, product, capacity, configuredDates] = await Promise.all(
-		[
-			baseRateRepository.getCanonicalPricingBaselineByRatePlanId(params.ratePlanId),
-			variantInventoryConfigRepository.getByVariantId(params.variantId),
-			db
-				.select({ value: count() })
-				.from(DailyInventory)
-				.where(
-					and(
-						eq(DailyInventory.variantId, params.variantId),
-						gt(DailyInventory.date, providerLocalToday(params.productId)),
-						sellableDailyInventoryCondition()
-					)
-				),
-			db
-				.select({
-					productType: Product.productType,
-					timezone: providerLocalTimezone(params.productId),
-				})
-				.from(Product)
-				.where(eq(Product.id, params.productId))
-				.then(first),
-			db
-				.select({
-					maxOccupancy: VariantCapacity.maxOccupancy,
-					bookingMode: TourSlotProfile.bookingMode,
-				})
-				.from(VariantCapacity)
-				.leftJoin(TourSlotProfile, eq(TourSlotProfile.variantId, VariantCapacity.variantId))
-				.where(eq(VariantCapacity.variantId, params.variantId))
-				.then(first),
-			db
-				.select({
-					value: count(),
-					futureDateCount: sql<number>`count(*) filter (where ${DailyInventory.date} > ${providerLocalToday(params.productId)})`,
-					futureCapacityDateCount: sql<number>`count(*) filter (where ${DailyInventory.date} > ${providerLocalToday(params.productId)} and ${DailyInventory.totalInventory} > 0)`,
-				})
-				.from(DailyInventory)
-				.where(eq(DailyInventory.variantId, params.variantId)),
-		]
-	)
+	const [baseline, context] = await Promise.all([
+		baseRateRepository.getCanonicalPricingBaselineByRatePlanId(params.ratePlanId),
+		readTourRequestData(
+			params.request,
+			`publication-context:${params.productId}:${params.variantId}`,
+			() => loadPublicationContext(params)
+		),
+	])
+	const { inventory, availability, product, capacity, configuredDates } = context
 	const requiredCategories = [...getRequiredPolicyCategories(product?.productType)]
 	const isTour = String(product?.productType ?? "").toLowerCase() === "tour"
 	const minimumAvailabilityDays = isTour ? 1 : MINIMUM_SELLABLE_AVAILABILITY_DAYS
@@ -116,7 +128,7 @@ export async function validateRatePlanPublication(params: {
 		addBlocker(
 			"capacity",
 			isTour
-				? "Define el cupo físico de esta salida."
+				? "Define el máximo de participantes por grupo de esta opción."
 				: "Define cuántas unidades físicas tiene esta habitación."
 		)
 	}
@@ -140,7 +152,7 @@ export async function validateRatePlanPublication(params: {
 			isTour
 				? capacity?.bookingMode === "private"
 					? "Programa al menos una fecha de referencia para esta opción privada."
-					: "Abre al menos una fecha futura con cupo para esta salida."
+					: "Abre al menos una fecha futura con cupo para esta opción."
 				: `Configura al menos ${MINIMUM_SELLABLE_AVAILABILITY_DAYS} noches con disponibilidad.`
 		)
 	}

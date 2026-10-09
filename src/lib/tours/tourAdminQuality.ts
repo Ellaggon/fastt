@@ -127,7 +127,7 @@ const PUBLICATION_ERROR_BY_BLOCKER: Record<
 	},
 	no_complete_salida: {
 		code: "missing_tour_schedule",
-		message: "At least one salida with profile, capacity and rate is required",
+		message: "At least one option with profile, capacity and rate is required",
 	},
 }
 
@@ -172,12 +172,12 @@ const ISSUE_META: Record<
 	},
 	no_complete_salida: {
 		severity: "blocker",
-		label: "Crea una salida con profile, cupo y tarifa",
+		label: "Configura una opción con perfil, capacidad y tarifa",
 		path: (id) => `/product/${id}/departures`,
 	},
 	no_active_salida: {
 		severity: "warning",
-		label: "Activa al menos una salida",
+		label: "Activa al menos una opción",
 		path: (id) => `/product/${id}/departures`,
 	},
 	draft_status: {

@@ -15,14 +15,16 @@ ADRs in this folder gate **schema expansions** for the tour vertical.
 Any new physical table (or parallel booking path) for tours requires an ADR **before**
 migration + drizzle schema land. This includes, at minimum:
 
-| Capability | Proposed tables | ADR |
-| ---------- | --------------- | --- |
-| Guide roster / assignment | `Guide`, `TourGuideAssignment` | [0002](./0002-tour-guide-assignment.md) |
-| Date-level salida overrides | `TourDepartureInstance` | [0003](./0003-tour-departure-instance.md) |
-| Viator / channel sync | Channel mapping + sync runs (no parallel bookings) | [0004](./0004-viator-channel-sync.md) |
+| Capability                  | Proposed tables                                    | ADR                                       |
+| --------------------------- | -------------------------------------------------- | ----------------------------------------- |
+| Guide roster / assignment   | `Guide`, `TourGuideAssignment`                     | [0002](./0002-tour-guide-assignment.md)   |
+| Date-level salida overrides | `TourDepartureInstance`                            | [0003](./0003-tour-departure-instance.md) |
+| Viator / channel sync       | Channel mapping + sync runs (no parallel bookings) | [0004](./0004-viator-channel-sync.md)     |
 
 Hotel channel **content** ownership (property / unit / rate; ARI unchanged):
 [0005](./0005-channel-content-ownership.md).
+
+Shared provider navigation: [0006 — independent option sessions](./0006-option-preparation-sessions.md).
 
 Umbrella deferral policy: [0001](./0001-deferred-tour-p3-capabilities.md).
 
@@ -57,3 +59,4 @@ Without all four, status must stay `deferred` or `proposed`. CI guardrail
 3. Design review: confirm mapping onto Product → Variant/`tour_slot` → RatePlan →
    DailyInventory → Hold → Booking (no parallel booking engine).
 4. Set status `accepted`, then open the migration PR that references the ADR path.
+

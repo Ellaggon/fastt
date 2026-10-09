@@ -1,170 +1,430 @@
 ---
+import { listOptionSessions, sessionHref } from "@/lib/onboarding/tourOptionSession"
+import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
-import { productRepository } from "@/container"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { isTourProductType } from "@/lib/catalog/productVerticalRegistry"
 import { routes } from "@/lib/routes"
-import { buildTourCommercialLinks } from "@/lib/tours/tourProviderNavigation"
-import { getProductAggregate } from "@/modules/catalog/public"
-import {
-	and,
-	asc,
-	db,
-	eq,
-	TourSlotProfile,
-	Variant,
-	VariantCapacity,
-} from "@/shared/infrastructure/db/compat"
-import { Plus } from "@lucide/astro"
+import { loadTourOptionsWorkspace } from "@/lib/tours/tourOptionsWorkspace"
+import { TOUR_SLOT_LANGUAGE_OPTIONS } from "@/lib/tours/tourSlotLanguageOptions"
+import { CirclePlay, Ticket } from "@lucide/astro"
 
+function optionBadge(state: string): { label: string; variant: "success" | "warning" | "neutral" } {
+	if (state === "available") return { label: "Disponible", variant: "success" }
+	if (state === "requests") return { label: "Solicitudes", variant: "success" }
+	if (state === "draft") return { label: "Lista", variant: "success" }
+	if (state === "disabled") return { label: "Deshabilitada", variant: "neutral" }
+	if (state === "unknown") return { label: "Sin comprobar", variant: "warning" }
+	return { label: "Pendiente", variant: "warning" }
+}
+
+function firstOptionId(
+	items: Array<{ id: string; state: string }>,
+	match: (state: string) => boolean
+) {
+	return items.find((row) => match(row.state))?.id ?? null
+}
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
-
 const providerId = (await getProviderIdFromRequest(Astro.request, user)) ?? ""
 if (!providerId) return Astro.redirect(routes.providerSettingsProfile())
-
 const productId = String(Astro.params.id ?? "")
-if (!productId) return Astro.redirect("/product/create")
-
-const owned = await productRepository.ensureProductOwnedByProvider(productId, providerId)
-if (!owned) return Astro.redirect("/product/create")
-if (!isTourProductType(owned.productType)) return Astro.redirect(routes.productDetail(productId))
-
-const product = await getProductAggregate(productId)
-if (!product) return Astro.redirect("/product/create")
-
-const rows = await db
-	.select({
-		id: Variant.id,
-		name: Variant.name,
-		departureTime: TourSlotProfile.departureTime,
-		durationMinutes: TourSlotProfile.durationMinutes,
-		maxPax: TourSlotProfile.maxPax,
-		languageCode: TourSlotProfile.languageCode,
-		bookingMode: TourSlotProfile.bookingMode,
-		profileActive: TourSlotProfile.isActive,
-		capacityMax: VariantCapacity.maxOccupancy,
-	})
-	.from(Variant)
-	.leftJoin(TourSlotProfile, eq(TourSlotProfile.variantId, Variant.id))
-	.leftJoin(VariantCapacity, eq(VariantCapacity.variantId, Variant.id))
-	.where(and(eq(Variant.productId, productId), eq(Variant.kind, "tour_slot")))
-	.orderBy(asc(TourSlotProfile.departureTime), asc(Variant.name))
-
-const createdId = String(Astro.url.searchParams.get("created") ?? "").trim()
+let workspace: Awaited<ReturnType<typeof loadTourOptionsWorkspace>> = null
+let failed = false
+try {
+	workspace = await loadTourOptionsWorkspace({ providerId, productId, request: Astro.request })
+} catch {
+	failed = true
+}
+if (!failed && !workspace) return new Response("Tour no encontrado", { status: 404 })
+const rows = workspace?.rows ?? []
+const created = rows.find((row) => row.id === Astro.url.searchParams.get("created"))
+const optionSessions = failed ? [] : await listOptionSessions(providerId, user.id, productId)
+const startId = crypto.randomUUID()
+const summary = workspace?.summary
+const tourImageUrl = workspace?.product.imageUrl ?? null
+const optionMetricCardClass =
+	"fastt-card block border border-white/10 bg-white/5 p-5 text-white transition-colors hover:bg-white/10"
+const optionSummaryMetrics = summary
+	? [
+			{
+				count: summary.attention,
+				label: "Por completar o revisar",
+				optionId: firstOptionId(
+					rows,
+					(state) => !["available", "requests", "disabled", "unknown"].includes(state)
+				),
+			},
+			{
+				count: summary.available,
+				label: summary.available === 1 ? "Disponible para reservar" : "Disponibles para reservar",
+				optionId: firstOptionId(rows, (state) => state === "available"),
+			},
+			{
+				count: summary.requests,
+				label: "Con solicitudes habilitadas",
+				optionId: firstOptionId(rows, (state) => state === "requests"),
+			},
+			{
+				count: summary.disabled,
+				label: summary.disabled === 1 ? "Deshabilitada" : "Deshabilitadas",
+				optionId: firstOptionId(rows, (state) => state === "disabled"),
+			},
+			{
+				count: summary.unknown,
+				label: "Sin comprobar",
+				optionId: firstOptionId(rows, (state) => state === "unknown"),
+			},
+		].filter((metric) => metric.count > 0)
+	: []
+const optionSummaryStatus =
+	!summary || summary.total === 0
+		? null
+		: summary.attention > 0
+			? "Hay opciones por completar o revisar en la lista."
+			: summary.unknown > 0
+				? "Algunas opciones no se pudieron comprobar. Revisa la lista."
+				: summary.disabled === summary.total
+					? "Todas las opciones están deshabilitadas."
+					: summary.available + summary.requests === summary.total
+						? "Todas las opciones están listas para operar."
+						: "Revisa el detalle de cada opción en la lista."
 ---
 
-<WorkspaceLayout title={`${product.displayName} · Opciones`} productType={owned.productType}>
-	<section class="space-y-6 md:space-y-8">
+<WorkspaceLayout title="Opciones y horarios" productType="Tour">
+	<section class="space-y-6" data-tour-options>
 		<header class="flex flex-col gap-2">
-			<nav aria-label="Ubicación" class="flex flex-wrap items-center gap-2 text-sm text-slate-400">
-				<a href="/catalog/tours" class="hover:text-white">Mis tours</a><span aria-hidden="true"
-					>/</span
-				><a href={routes.productDetail(productId)} class="hover:text-white">{product.displayName}</a
-				><span aria-hidden="true">/</span><span aria-current="page">Opciones</span>
-			</nav>
-			<div class="flex flex-wrap items-start justify-between gap-3">
-				<h1 class="text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl">
-					Opciones del tour
+			<div class="flex flex-wrap items-center justify-between gap-3">
+				<h1 class="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+					Opciones y horarios
 				</h1>
-				<div class="flex flex-wrap gap-2">
-					<Button
-						href={`/product/${productId}/private-requests`}
-						variant="secondary"
-						class="shrink-0"
-					>
-						Solicitudes privadas
-					</Button>
-					<Button href={routes.productDepartureNew(productId)} class="shrink-0">
-						<span class="inline-flex items-center gap-2">
-							<Plus class="h-4 w-4" />
-							Añadir opción
-						</span>
-					</Button>
-				</div>
+				{
+					!failed && rows.length > 0 && (
+						<form method="POST" action="/api/onboarding/tour-option-session">
+							<>
+								<input type="hidden" name="action" value="start" />
+								<input type="hidden" name="productId" value={productId} />
+								<input type="hidden" name="sessionId" value={startId} />
+								<Button type="submit" variant="onDark">
+									Añadir opción
+								</Button>
+							</>
+						</form>
+					)
+				}
 			</div>
 			<p class="max-w-3xl text-sm leading-5 text-slate-300 sm:leading-6">
-				Define cómo se realiza este tour: modalidad, idioma, horario y capacidad. Una opción basta;
-				añade otras cuando ofrezcas una alternativa distinta.
+				Una opción define modalidad, idioma, horario y capacidad. Programa sus fechas desde el
+				calendario; añade otra opción cuando ofrezcas una alternativa distinta.
 			</p>
 		</header>
-
 		{
-			createdId ? (
-				<Card class="border-emerald-200 bg-emerald-50 text-emerald-900">
-					<p class="text-sm font-semibold">Opción creada</p>
-					<p class="mt-1 text-sm">Ya puedes asignar tarifas y abrir el calendario.</p>
-				</Card>
-			) : null
-		}
-
-		{
-			rows.length === 0 ? (
-				<Card class="bg-white">
-					<p class="text-sm font-semibold text-slate-950">Sin opciones todavía</p>
-					<p class="mt-2 text-sm text-slate-600">
-						Crea la primera opción con hora, idioma y máximo de participantes.
-					</p>
-					<div class="mt-4">
-						<Button href={routes.productDepartureNew(productId)}>Crear primera opción</Button>
-					</div>
-				</Card>
-			) : (
-				<ul class="grid gap-3">
-					{rows.map((row) => {
-						const links = buildTourCommercialLinks({ productId, variantId: row.id })
-						const time = String(row.departureTime ?? "—")
-						const pax = Number(row.maxPax ?? row.capacityMax ?? 0) || null
-						const mode = row.bookingMode === "private" ? "Privado" : "Compartido"
-						const lang = String(row.languageCode ?? "—").toUpperCase()
-						return (
-							<li>
-								<Card class="bg-white">
-									<div class="flex flex-wrap items-start justify-between gap-3">
-										<div>
-											<p class="text-base font-semibold text-slate-950">{row.name}</p>
-											<p class="mt-1 text-sm text-slate-600">
-												{time} · {pax ? `${pax} participantes` : "Cupo pendiente"} · {lang} · {mode}
-											</p>
-											{!row.departureTime ? (
-												<p class="mt-1 text-xs font-semibold text-amber-700">
-													Falta completar el perfil de la opción
-												</p>
-											) : null}
-										</div>
-										<div class="flex flex-wrap gap-2">
-											<Button
-												href={routes.productDepartureDetail(productId, row.id)}
-												variant="secondary"
-											>
-												Editar
-											</Button>
-											<Button href={links.conditionsHref} variant="secondary">
-												Precios y condiciones
-											</Button>
-											<Button href={links.calendarHref} variant="secondary">
-												Fechas y cupos
-											</Button>
-										</div>
-									</div>
-								</Card>
-							</li>
-						)
-					})}
-				</ul>
+			optionSessions.length > 0 && (
+				<section class="space-y-3" aria-label="Configuraciones en curso">
+					<ul class="space-y-3">
+						{optionSessions.map((session) => {
+							const optionName =
+								rows.find((row) => row.id === session.variantId)?.name || "Nueva opción"
+							return (
+								<li class="fastt-card flex flex-wrap items-center justify-between gap-3 border border-white/10 bg-white/5 px-4 py-3 text-sm transition-colors hover:bg-white/10">
+									<span class="flex min-w-0 items-start gap-3">
+										<CirclePlay class="mt-0.5 h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+										<span class="min-w-0">
+											<span class="block font-semibold text-white">{optionName}</span>
+											<span class="mt-0.5 block text-slate-400">
+												Configuración en curso · retoma donde la dejaste
+											</span>
+										</span>
+									</span>
+									<span class="flex shrink-0 items-center gap-4 self-center">
+										<a
+											href={sessionHref(session)}
+											class="inline-flex items-center text-sm font-semibold text-white hover:underline"
+										>
+											Continuar configuración
+										</a>
+										<Button
+											type="button"
+											variant="ghost"
+											data-abandon-option-session={session.id}
+											className="inline-flex min-h-11 items-center px-0 text-sm font-semibold text-slate-400 transition-colors hover:bg-transparent hover:text-white"
+										>
+											Descartar recorrido
+										</Button>
+									</span>
+								</li>
+							)
+						})}
+					</ul>
+					<p data-option-session-feedback role="status" class="text-sm text-slate-400" />
+				</section>
 			)
 		}
 
-		<div class="pt-2">
-			<a
-				href={routes.productDetail(productId)}
-				class="text-sm font-semibold text-slate-400 hover:text-white"
-			>
-				← Volver a la ficha
-			</a>
-		</div>
+		{
+			created && (
+				<Card class="bg-emerald-50 text-emerald-900">
+					<p>
+						Opción creada.{" "}
+						<a class="font-semibold underline" href={`#option-${created.id}`}>
+							Revisar {created.name}
+						</a>
+					</p>
+				</Card>
+			)
+		}
+		{
+			failed ? (
+				<Card class="bg-white">
+					<>
+						<h2 class="font-semibold">No se pudieron comprobar las opciones</h2>
+						<p class="mt-2 text-sm text-slate-600">No se han modificado tus datos.</p>
+						<Button class="mt-4" href={Astro.url.pathname + Astro.url.search}>
+							Reintentar
+						</Button>
+					</>
+				</Card>
+			) : rows.length === 0 ? (
+				<Card class="bg-white">
+					<>
+						<h2 class="font-semibold">Sin opciones todavía</h2>
+						<p class="mt-2 text-sm text-slate-600">
+							Crea la primera opción para configurar su precio y sus fechas.
+						</p>
+						<form method="POST" action="/api/onboarding/tour-option-session">
+							<>
+								<input type="hidden" name="action" value="start" />
+								<input type="hidden" name="productId" value={productId} />
+								<input type="hidden" name="sessionId" value={startId} />
+								<Button class="fastt-playbook-cta mt-4" type="submit" variant="selection">
+									Crear primera opción
+								</Button>
+							</>
+						</form>
+					</>
+				</Card>
+			) : (
+				<>
+					<section class="space-y-3" aria-labelledby="option-summary-title" aria-live="polite">
+						<div>
+							<h2 id="option-summary-title" class="text-lg font-semibold text-white">
+								Resumen
+							</h2>
+							<p class="mt-1 text-sm text-slate-400">
+								{summary?.total ?? 0} {(summary?.total ?? 0) === 1 ? "opción" : "opciones"} en este
+								tour
+							</p>
+						</div>
+						{optionSummaryMetrics.length > 0 && (
+							<div
+								class:list={[
+									"grid gap-3",
+									optionSummaryMetrics.length === 1 ? "sm:grid-cols-1" : "sm:grid-cols-2",
+								]}
+							>
+								{optionSummaryMetrics.map((metric) => {
+									const content = (
+										<>
+											<p class="text-sm text-slate-400">{metric.label}</p>
+											<p class="mt-2 text-2xl font-semibold text-white tabular-nums">
+												{metric.count}
+											</p>
+										</>
+									)
+									return metric.optionId ? (
+										<a href={`#option-${metric.optionId}`} class={optionMetricCardClass}>
+											{content}
+										</a>
+									) : (
+										<div class={optionMetricCardClass}>{content}</div>
+									)
+								})}
+							</div>
+						)}
+						{optionSummaryStatus && <p class="text-sm text-slate-400">{optionSummaryStatus}</p>}
+					</section>
+					<ul id="opciones-del-tour" class="space-y-3" aria-label="Opciones del tour">
+						{rows.map((row) => {
+							const badge = optionBadge(row.state)
+							const editHref = `${routes.productDepartureDetail(productId, row.id)}?returnTo=${encodeURIComponent(`${routes.productDeparturesForProduct(productId)}#option-${row.id}`)}`
+							const meta = [
+								row.departureTime ?? "Horario pendiente",
+								TOUR_SLOT_LANGUAGE_OPTIONS.find((lang) => lang.code === row.languageCode)?.label ??
+									"Idioma pendiente",
+								row.bookingMode === "private"
+									? "Privada"
+									: row.bookingMode === "shared"
+										? "Compartida"
+										: "Modalidad pendiente",
+								row.maxPax ? `Hasta ${row.maxPax} participantes` : "Capacidad pendiente",
+							].join(" · ")
+							const support = [
+								row.detail,
+								row.nextAvailableDate
+									? `Próxima fecha con cupo: ${new Intl.DateTimeFormat("es", {
+											dateStyle: "medium",
+											timeZone: "UTC",
+										}).format(new Date(`${row.nextAvailableDate}T12:00:00Z`))}`
+									: "",
+							]
+								.filter(Boolean)
+								.join(" ")
+							const moreActions = [
+								...(!["Editar opción", "Completar opción"].includes(row.primary.label)
+									? [{ href: editHref, label: "Editar opción" }]
+									: []),
+								{ href: row.links.conditionsHref, label: "Precios y condiciones" },
+								...(row.bookingMode === "shared"
+									? [{ href: `${row.links.calendarHref}&schedule=1`, label: "Programar salidas" }]
+									: []),
+								...(row.primary.label !== "Gestionar fechas y cupos"
+									? [{ href: row.links.calendarHref, label: "Fechas y cupos" }]
+									: []),
+								...row.rates.map((rate) => ({
+									href: rate.action.href,
+									label: `${rate.action.label} · ${rate.name}`,
+								})),
+							]
+							return (
+								<li id={`option-${row.id}`} class="scroll-mt-24" data-option-id={row.id}>
+									<Card variant="row" class="bg-white p-4 sm:p-5">
+										<div class="flex flex-wrap items-start gap-4">
+											<div
+												class="flex h-20 w-24 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100 sm:h-24 sm:w-32"
+												aria-hidden="true"
+											>
+												{tourImageUrl ? (
+													<img
+														src={tourImageUrl}
+														alt=""
+														loading="lazy"
+														decoding="async"
+														class="h-full w-full object-cover"
+													/>
+												) : (
+													<Ticket class="size-7 text-slate-300" />
+												)}
+											</div>
+											<div class="min-w-0 flex-1 basis-40 space-y-2">
+												<div class="flex flex-wrap items-center gap-2">
+													<h2 class="min-w-0 text-base font-semibold break-words text-slate-950">
+														{row.name}
+													</h2>
+													<Badge variant={badge.variant}>{badge.label}</Badge>
+												</div>
+												<p class="flex min-h-11 items-center text-xs text-slate-500">{meta}</p>
+												<p class="text-sm font-medium text-slate-800">{row.label}</p>
+												{support && (
+													<p class="max-w-2xl text-sm leading-6 text-slate-600">{support}</p>
+												)}
+											</div>
+											<div class="flex shrink-0 basis-full flex-wrap items-center gap-2 sm:basis-auto sm:flex-col sm:items-end">
+												<Button href={row.primary.href} variant="selection" size="sm">
+													{row.primary.label}
+												</Button>
+												<details class="group relative">
+													<summary class="cursor-pointer rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2">
+														Más acciones
+														<span class="sr-only"> de {row.name}</span>
+													</summary>
+													<nav
+														aria-label={`Acciones de ${row.name}`}
+														class="fastt-soft-box absolute right-0 z-10 mt-1 w-56 bg-white p-1.5 shadow-lg"
+													>
+														{moreActions.map(({ href, label }) => (
+															<a
+																href={href}
+																class="block rounded-lg px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-100 focus-visible:bg-slate-100 focus-visible:outline-none"
+															>
+																{label}
+															</a>
+														))}
+													</nav>
+												</details>
+											</div>
+										</div>
+									</Card>
+								</li>
+							)
+						})}
+					</ul>
+				</>
+			)
+		}
+		<a
+			href={routes.productDetail(productId)}
+			class="inline-flex min-h-11 items-center text-sm font-semibold text-slate-300"
+			>← Volver al tour</a
+		>
 	</section>
 </WorkspaceLayout>
+
+<script>
+	for (const button of document.querySelectorAll<HTMLButtonElement>(
+		"[data-abandon-option-session]"
+	))
+		button.addEventListener("click", async () => {
+			if (!confirm("¿Descartar este recorrido? La opción guardada se conserva.")) return
+			button.disabled = true
+			try {
+				const response = await fetch("/api/onboarding/tour-option-session", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						action: "abandon",
+						sessionId: button.dataset.abandonOptionSession,
+					}),
+				})
+				if (!response.ok) throw new Error("No se pudo descartar el recorrido.")
+				location.reload()
+			} catch (error) {
+				button.disabled = false
+				const target = document.querySelector("[data-option-session-feedback]")
+				if (target) target.textContent = error instanceof Error ? error.message : "Reintenta."
+			}
+		})
+
+	function bindOptionMenus() {
+		const root = document.querySelector<HTMLElement>("[data-tour-options]")
+		if (!root || root.dataset.menusBound) return
+		root.dataset.menusBound = "true"
+		root.addEventListener(
+			"toggle",
+			(event) => {
+				const menu = event.target
+				if (!(menu instanceof HTMLDetailsElement) || !menu.open) return
+				root.querySelectorAll<HTMLDetailsElement>("details[open]").forEach((other) => {
+					if (other !== menu) other.open = false
+				})
+			},
+			true
+		)
+		root.addEventListener("keydown", (event) => {
+			if (event.key !== "Escape") return
+			const menu = (event.target as HTMLElement).closest("details")
+			if (menu) {
+				menu.open = false
+				menu.querySelector("summary")?.focus()
+			}
+		})
+		document.addEventListener(
+			"click",
+			(event) => {
+				root.querySelectorAll<HTMLDetailsElement>("details[open]").forEach((menu) => {
+					if (!menu.contains(event.target as Node)) menu.open = false
+				})
+			},
+			{
+				signal: (() => {
+					const controller = new AbortController()
+					document.addEventListener("astro:before-swap", () => controller.abort(), { once: true })
+					return controller.signal
+				})(),
+			}
+		)
+	}
+	bindOptionMenus()
+	document.addEventListener("astro:page-load", bindOptionMenus)
+</script>

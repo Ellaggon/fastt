@@ -1,3 +1,4 @@
+import { readTourRequestData } from "@/lib/tours/tourRequestReads"
 import { projectTourLogisticsObservation } from "@/lib/tours/tourPreparationRequirements"
 import { getTourLaunchStepById } from "./launch-tour"
 import { tourContextSelectionHint } from "@/lib/tours/resolveTourCommercialContext"
@@ -217,13 +218,21 @@ async function evaluateCompleteToPublishState(
 	params: CompleteToPublishInput
 ): Promise<CompleteToPublishState | null> {
 	const { productId, providerId } = params
-	const aggregate = await getProductFullAggregate(productId, providerId)
+	const aggregate = await readTourRequestData(
+		params.request,
+		`aggregate:${providerId}:${productId}`,
+		() => getProductFullAggregate(productId, providerId)
+	)
 	if (!aggregate) return null
 
 	const vertical = getProductVerticalEntry(aggregate.productType)
 	const verticalLabel = vertical.labels.singular.toLowerCase()
 	const isHotel = vertical.vertical === "hotel"
-	const repositoryAggregate = await productRepository.getProductAggregate(productId)
+	const repositoryAggregate = await readTourRequestData(
+		params.request,
+		`repository-aggregate:${providerId}:${productId}`,
+		() => productRepository.getProductAggregate(productId)
+	)
 	const tourReadiness =
 		repositoryAggregate?.verticalReadiness?.kind === "tour"
 			? repositoryAggregate.verticalReadiness.tour
@@ -246,6 +255,7 @@ async function evaluateCompleteToPublishState(
 						productId,
 						variantId: tourContext.variantId!,
 						ratePlanId: tourContext.ratePlanId!,
+						request: params.request,
 					}).catch(() => {
 						commercialReadFailed = true
 						return null
@@ -266,7 +276,9 @@ async function evaluateCompleteToPublishState(
 
 	const authorization =
 		vertical.vertical === "tour"
-			? await loadTourAuthorization({ productId, providerId }).catch(() => {
+			? await readTourRequestData(params.request, `authorization:${providerId}:${productId}`, () =>
+					loadTourAuthorization({ productId, providerId })
+				).catch(() => {
 					return {
 						provider_authorization: {
 							ready: false,

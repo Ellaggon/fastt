@@ -40,7 +40,11 @@ const hasPending = presentation.nextRequirementId !== null
 		<Button href={backHref} variant="secondary">{backLabel}</Button>
 		{
 			hasPending ? (
-				<Button href={presentation.primaryAction.href} class="fastt-playbook-cta">
+				<Button
+					href={presentation.primaryAction.href}
+					variant="selection"
+					class="fastt-playbook-cta"
+				>
 					{presentation.primaryAction.label}
 					<ArrowRight class="h-4 w-4" aria-hidden="true" />
 				</Button>

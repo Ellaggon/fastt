@@ -30,7 +30,7 @@ export const POST: APIRoute = async ({ request }) => {
 				JSON.stringify({
 					error: "TOUR_GUIDED_ACTIVATION_REQUIRED",
 					message:
-						"Activa esta salida desde la revisión guiada para validar precio, condiciones y fechas.",
+						"Activa esta opción desde la revisión guiada para validar precio, condiciones y fechas.",
 					nextActionHref: tourPublicationHref(variant.productId, { variantId }),
 				}),
 				{ status: 409, headers: { "Content-Type": "application/json" } }

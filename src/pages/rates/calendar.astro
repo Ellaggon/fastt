@@ -12,6 +12,7 @@ import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import type { WorkspaceRequestContext } from "@/lib/dashboard/workspaceRequestContext"
 import { createServerTimingRecorder } from "@/lib/observability/serverTiming"
 import { resolveAddRoomPlaybookFromUrl } from "@/lib/playbook/add-room"
+import { optionWizardContext, optionWizardHref } from "@/lib/playbook/add-tour-option"
 import {
 	buildCompleteToPublishHref,
 	COMPLETE_TO_PUBLISH_PLAYBOOK_ID,
@@ -40,6 +41,7 @@ import {
 	loadTourCommercialEntryContext,
 	tourContextEntryResponse,
 } from "@/lib/tours/loadTourCommercialContext"
+import { tourCalendarPlaybookLead } from "@/lib/tours/tourCalendarPlaybookLead"
 import {
 	and,
 	count,
@@ -50,6 +52,8 @@ import {
 	gt,
 	Product,
 	ProviderProfile,
+	sql,
+	TourSlotProfile,
 	Variant,
 } from "@/shared/infrastructure/db/compat"
 
@@ -81,6 +85,7 @@ const tourLaunchPlaybook = resolveTourLaunchPlaybookFromUrl(Astro.url)
 const completePlaybook = resolveCompleteToPublishPlaybookFromUrl(Astro.url)
 const flow = Astro.url.searchParams.get("flow")
 const needsGuidedContext = Boolean(
+	Astro.url.searchParams.get("playbook") === "add-tour-option" ||
 	addRoomPlaybook.active ||
 	launchPlaybook.active ||
 	tourLaunchPlaybook.active ||
@@ -136,13 +141,13 @@ const calendarDependencyHref = calendarDependencyTarget.pathname + calendarDepen
 const contextualRow =
 	matchedRow ?? rows.find((row: RatePlanListItem) => String(row.productId) === requestedProductId)
 const requestedProduct =
-	needsGuidedContext && !contextualRow && requestedProductId
+	!contextualRow && requestedProductId
 		? await db
 				.select({ productId: Product.id, productType: Product.productType })
 				.from(Product)
 				.where(and(eq(Product.id, requestedProductId), eq(Product.providerId, auth.providerId)))
 				.then(first)
-		: needsGuidedContext && !contextualRow && requestedVariantId
+		: !contextualRow && requestedVariantId
 			? await db
 					.select({ productId: Product.id, productType: Product.productType })
 					.from(Variant)
@@ -203,18 +208,22 @@ const launchContinueHref = launchPlaybook.active
 	? (getNextLaunchStep(launchPlaybook.stepId ?? "calendar", launchCtx)?.buildHref(launchCtx) ??
 		null)
 	: null
-const activePlaybook = addRoomPlaybook.active
-	? "add-room"
-	: completePlaybook.active
-		? "complete-to-publish"
-		: launchPlaybook.active
-			? "launch"
-			: tourLaunchPlaybook.active
-				? "launch-tour"
-				: null
+const optionWizard = optionWizardContext(Astro.url)
+const activePlaybook = optionWizard
+	? "add-tour-option"
+	: addRoomPlaybook.active
+		? "add-room"
+		: completePlaybook.active
+			? "complete-to-publish"
+			: launchPlaybook.active
+				? "launch"
+				: tourLaunchPlaybook.active
+					? "launch-tour"
+					: null
 const isGuidedAvailabilityStep = Boolean(
 	activePlaybook &&
-	(addRoomPlaybook.stepId === "availability" ||
+	(optionWizard ||
+		addRoomPlaybook.stepId === "availability" ||
 		launchPlaybook.stepId === "calendar" ||
 		tourLaunchPlaybook.stepId === "calendar" ||
 		completePlaybook.stepId === "calendar")
@@ -236,8 +245,46 @@ const calendarTimezone = isGuidedAvailabilityStep
 				.then(first)
 		)?.timezone || "UTC"
 	: "UTC"
+const guidedAvailabilityStats =
+	isGuidedAvailabilityStep && guidedVariantId && isTourContext
+		? await timing.time("inventory", async () => {
+				const [availability, configuredDates, profile] = await Promise.all([
+					db
+						.select({ value: count() })
+						.from(DailyInventory)
+						.where(
+							and(
+								eq(DailyInventory.variantId, guidedVariantId),
+								gt(DailyInventory.date, providerLocalToday(playbookProductId)),
+								sellableDailyInventoryCondition()
+							)
+						)
+						.then(first),
+					db
+						.select({
+							futureDateCount: sql<number>`count(*) filter (where ${DailyInventory.date} > ${providerLocalToday(playbookProductId)})`,
+							futureCapacityDateCount: sql<number>`count(*) filter (where ${DailyInventory.date} > ${providerLocalToday(playbookProductId)} and ${DailyInventory.totalInventory} > 0)`,
+						})
+						.from(DailyInventory)
+						.where(eq(DailyInventory.variantId, guidedVariantId))
+						.then(first),
+					db
+						.select({ bookingMode: TourSlotProfile.bookingMode })
+						.from(TourSlotProfile)
+						.where(eq(TourSlotProfile.variantId, guidedVariantId))
+						.then(first),
+				])
+				return {
+					availableDateCount: Number(availability?.value ?? 0),
+					futureDateCount: Number(configuredDates?.futureDateCount ?? 0),
+					futureCapacityDateCount: Number(configuredDates?.futureCapacityDateCount ?? 0),
+					bookingMode: profile?.bookingMode ?? null,
+				}
+			})
+		: null
 const guidedInventoryDays =
-	isGuidedAvailabilityStep && guidedVariantId
+	guidedAvailabilityStats?.availableDateCount ??
+	(isGuidedAvailabilityStep && guidedVariantId && !isTourContext
 		? await timing.time("inventory", async () =>
 				Number(
 					(
@@ -255,7 +302,10 @@ const guidedInventoryDays =
 					)?.value ?? 0
 				)
 			)
-		: 0
+		: 0)
+const tourCalendarLead = isTourContext
+	? tourCalendarPlaybookLead(guidedAvailabilityStats ?? {})
+	: "Configura las primeras fechas con inventario para esta habitación. Después podrás operar el calendario completo."
 const tourGuidedLaunchContext = {
 	productId: playbookProductId,
 	variantId: variantIdParam || undefined,
@@ -287,8 +337,21 @@ const tourGuidedPlaybookContinue =
 			}
 		: null
 const Layout = activePlaybook ? PlaybookLayout : WorkspaceLayout
-const layoutProps =
-	activePlaybook === "add-room"
+const layoutProps = optionWizard
+	? {
+			title: "Fechas y cupos",
+			playbookId: "add-tour-option" as const,
+			active: true,
+			stepId: "calendar",
+			productId: playbookProductId,
+			variantId: variantIdParam,
+			ratePlanId: ratePlanIdParam,
+			playbookVertical: "tour" as const,
+			continueHref: optionWizardHref(optionWizard, "review"),
+			continueLabel: "Continuar a revisión",
+			lightweight: true,
+		}
+	: activePlaybook === "add-room"
 		? {
 				title: "Calendario",
 				playbookId: "add-room" as const,
@@ -357,17 +420,22 @@ timing.setHeader(Astro.response.headers)
 <Layout
 	{...layoutProps}
 	productType={contextualRow?.productType ?? requestedProduct?.productType ?? null}
+	productDisplayName={contextualRow?.productName ?? ""}
+	hidePublicationCorrections={Boolean(isGuidedAvailabilityStep && isTourContext)}
 >
 	<div class="space-y-6 md:space-y-8">
 		{
 			isGuidedAvailabilityStep ? (
-				<header class="flex flex-wrap items-start justify-between gap-4">
+				<header
+					id={isTourContext ? "tour-publication-cause" : undefined}
+					class="flex flex-wrap items-start justify-between gap-4"
+				>
 					{isTourContext ? (
 						<PlaybookStepHeader
 							size="lg"
 							icon="calendar"
 							title="Fechas y cupos"
-							lead="Abre al menos una fecha futura con cupo para participantes. Esa será la primera salida que podrán reservar los viajeros."
+							lead={tourCalendarLead}
 							leadClass="max-w-3xl"
 						/>
 					) : (
@@ -375,7 +443,7 @@ timing.setHeader(Astro.response.headers)
 							size="lg"
 							icon="calendar"
 							title="Disponibilidad inicial"
-							lead="Configura las primeras fechas con inventario para esta habitación. Después podrás operar el calendario completo."
+							lead={tourCalendarLead}
 							leadClass="max-w-3xl"
 						/>
 					)}
@@ -412,6 +480,7 @@ timing.setHeader(Astro.response.headers)
 						initialVariantId={variantIdParam || undefined}
 						initialMonth={Astro.url.searchParams.get("month") ?? undefined}
 						isProfessional={isProfessionalCalendar}
+						tourScheduling={isTourContext}
 						initialMode={initialMode}
 						guidedAvailability={
 							isGuidedAvailabilityStep

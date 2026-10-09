@@ -7,6 +7,7 @@ import Drawer from "@/components/ui/Drawer.astro"
 import DrawerHeader from "@/components/ui/DrawerHeader.astro"
 import Notice from "@/components/ui/Notice.astro"
 import { POLICY_CATEGORY_OPTIONS } from "@/data/policy/policy-categories"
+import { optionWizardContext, optionWizardHref } from "@/lib/playbook/add-tour-option"
 import { routes } from "@/lib/routes"
 import {
 	ArrowRight,
@@ -59,6 +60,16 @@ const currentPath = `${Astro.url.pathname}${Astro.url.search}`
 
 function withPlaybookContext(path: string, step: "departure" | "calendar", returnAfter = false) {
 	if (!playbookMode) return path
+	const optionContext = optionWizardContext(Astro.url)
+	if (optionContext) {
+		const target = new URL(
+			optionWizardHref(optionContext, step === "departure" ? "profile" : "calendar"),
+			"http://fastt.local"
+		)
+		if (returnAfter || Astro.url.searchParams.get("optionReturn") === "review")
+			target.searchParams.set("optionReturn", "review")
+		return target.pathname + target.search
+	}
 	const target = new URL(path, "http://fastt.local")
 	for (const key of [
 		"playbook",

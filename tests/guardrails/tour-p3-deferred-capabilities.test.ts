@@ -44,7 +44,10 @@ describe("tour P3 deferred capabilities (ADR gate)", () => {
 		expect(adrStatus(policy)).toContain("accepted")
 		expect(policy).toContain("Evidence gate")
 
-		for (const path of ["docs/engineering/adr/0002-tour-guide-assignment.md", "docs/engineering/adr/0003-tour-departure-instance.md"]) {
+		for (const path of [
+			"docs/engineering/adr/0002-tour-guide-assignment.md",
+			"docs/engineering/adr/0003-tour-departure-instance.md",
+		]) {
 			const source = read(path)
 			expect(adrStatus(source)).toContain("accepted")
 		}
@@ -61,9 +64,11 @@ describe("tour P3 deferred capabilities (ADR gate)", () => {
 		expect(channel).toMatch(/parallel|no parallel/i)
 	})
 
-	it("documents the historical P3 deferral in tour taxonomy", () => {
+	it("documents accepted resources separately from deferred integrations", () => {
 		const taxonomy = read("docs/engineering/tour-vertical-table-taxonomy.md")
-		expect(taxonomy).toContain("P3 — Deferred by volume")
+		expect(taxonomy).toContain("Resource capabilities and deferred integrations")
+		expect(taxonomy).toContain("(`accepted`)")
+		expect(taxonomy).toContain("(`deferred`)")
 		expect(taxonomy).toContain("TourGuideAssignment")
 		expect(taxonomy).toContain("TourDepartureInstance")
 		expect(taxonomy).toContain("0004-viator-channel-sync")

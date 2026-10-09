@@ -1,4 +1,5 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react"
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 
 import Button from "./Button"
 import { cn } from "./utils"
@@ -14,8 +15,11 @@ type Props = {
 	placeholder?: string
 	error?: string
 	compact?: boolean
+	disabled?: boolean
 	className?: string
 }
+
+type PanelCoords = { top: number; left: number; width: number }
 
 function formatIsoDate(date: Date) {
 	return date.toISOString().slice(0, 10)
@@ -48,6 +52,24 @@ function formatDisplayDate(value: string, placeholder: string) {
 	})
 }
 
+const PANEL_WIDTH = 288
+const PANEL_ESTIMATED_HEIGHT = 320
+const VIEWPORT_GAP = 8
+
+function placePanel(trigger: DOMRect, panelHeight = PANEL_ESTIMATED_HEIGHT): PanelCoords {
+	const width = Math.min(PANEL_WIDTH, window.innerWidth - VIEWPORT_GAP * 2)
+	let left = trigger.left
+	if (left + width > window.innerWidth - VIEWPORT_GAP) {
+		left = Math.max(VIEWPORT_GAP, window.innerWidth - VIEWPORT_GAP - width)
+	}
+	const spaceBelow = window.innerHeight - trigger.bottom - VIEWPORT_GAP
+	const spaceAbove = trigger.top - VIEWPORT_GAP
+	// Prefer opening above so sibling controls under the field stay usable.
+	const openAbove = spaceAbove >= 160 || (spaceBelow < panelHeight && spaceAbove > spaceBelow)
+	const top = openAbove ? Math.max(VIEWPORT_GAP, trigger.top - panelHeight - 8) : trigger.bottom + 8
+	return { top, left, width }
+}
+
 export default function DatesModal({
 	id,
 	label,
@@ -59,13 +81,17 @@ export default function DatesModal({
 	placeholder = "Seleccionar fecha",
 	error,
 	compact = false,
+	disabled = false,
 	className,
 }: Props) {
 	const [open, setOpen] = useState(false)
+	const [coords, setCoords] = useState<PanelCoords | null>(null)
 	const generatedId = useId()
 	const triggerId = id ?? generatedId
 	const panelId = `${triggerId}-panel`
 	const rootRef = useRef<HTMLDivElement>(null)
+	const triggerRef = useRef<HTMLButtonElement>(null)
+	const panelRef = useRef<HTMLDivElement>(null)
 	const selected = parseIsoDate(value)
 	const minDate = parseIsoDate(min)
 	const maxDate = parseIsoDate(max)
@@ -82,9 +108,37 @@ export default function DatesModal({
 	}, [value])
 
 	useEffect(() => {
+		if (disabled) setOpen(false)
+	}, [disabled])
+
+	useLayoutEffect(() => {
+		if (!open) {
+			setCoords(null)
+			return
+		}
+		function sync() {
+			const trigger = triggerRef.current
+			if (!trigger) return
+			const measured = panelRef.current?.getBoundingClientRect().height
+			setCoords(placePanel(trigger.getBoundingClientRect(), measured || PANEL_ESTIMATED_HEIGHT))
+		}
+		sync()
+		const raf = requestAnimationFrame(sync)
+		window.addEventListener("resize", sync)
+		window.addEventListener("scroll", sync, true)
+		return () => {
+			cancelAnimationFrame(raf)
+			window.removeEventListener("resize", sync)
+			window.removeEventListener("scroll", sync, true)
+		}
+	}, [open, currentMonth])
+
+	useEffect(() => {
 		if (!open) return
 		function onPointerDown(event: MouseEvent) {
-			if (!rootRef.current?.contains(event.target as Node)) setOpen(false)
+			const target = event.target as Node
+			if (rootRef.current?.contains(target) || panelRef.current?.contains(target)) return
+			setOpen(false)
 		}
 		function onKeyDown(event: KeyboardEvent) {
 			if (event.key === "Escape") setOpen(false)
@@ -116,21 +170,113 @@ export default function DatesModal({
 		return cells
 	}, [currentMonth, minDate, maxDate])
 
+	const panel =
+		open && coords ? (
+			<div
+				ref={panelRef}
+				id={panelId}
+				role="dialog"
+				aria-label={label}
+				className="fixed z-[320] rounded-2xl border border-slate-200 bg-white p-3 shadow-xl"
+				style={{ top: coords.top, left: coords.left, width: coords.width }}
+			>
+				<div className="mb-2 flex items-center justify-between gap-2">
+					<button
+						type="button"
+						className="rounded-full p-1 text-slate-600 hover:bg-slate-100"
+						aria-label="Mes anterior"
+						onClick={() =>
+							setCurrentMonth(
+								new Date(Date.UTC(currentMonth.getUTCFullYear(), currentMonth.getUTCMonth() - 1, 1))
+							)
+						}
+					>
+						‹
+					</button>
+					<p className="text-sm font-semibold text-slate-900">{monthLabel(currentMonth)}</p>
+					<button
+						type="button"
+						className="rounded-full p-1 text-slate-600 hover:bg-slate-100"
+						aria-label="Mes siguiente"
+						onClick={() =>
+							setCurrentMonth(
+								new Date(Date.UTC(currentMonth.getUTCFullYear(), currentMonth.getUTCMonth() + 1, 1))
+							)
+						}
+					>
+						›
+					</button>
+				</div>
+				<div className="mb-1 grid grid-cols-7 gap-1 text-center text-[11px] font-medium text-slate-500">
+					<span>L</span>
+					<span>M</span>
+					<span>X</span>
+					<span>J</span>
+					<span>V</span>
+					<span>S</span>
+					<span>D</span>
+				</div>
+				<div className="grid grid-cols-7 gap-1">
+					{days.map((cell, index) =>
+						cell ? (
+							<button
+								key={cell.iso}
+								type="button"
+								disabled={cell.disabled}
+								className={cn(
+									"h-8 rounded text-xs text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-30",
+									value === cell.iso && "bg-slate-950 text-white hover:bg-slate-950"
+								)}
+								onClick={() => {
+									onChange(cell.iso)
+									setOpen(false)
+								}}
+							>
+								{cell.day}
+							</button>
+						) : (
+							<span key={`pad-${index}`} className="h-8" />
+						)
+					)}
+				</div>
+				<div className="mt-3 flex items-center justify-between gap-2">
+					<Button
+						type="button"
+						variant="ghost"
+						size="sm"
+						onClick={() => {
+							onChange("")
+						}}
+					>
+						Limpiar
+					</Button>
+					<Button type="button" size="sm" onClick={() => setOpen(false)}>
+						Listo
+					</Button>
+				</div>
+			</div>
+		) : null
+
 	return (
 		<div ref={rootRef} className={cn("relative h-full min-w-0", className)}>
 			<button
+				ref={triggerRef}
 				type="button"
 				id={triggerId}
+				disabled={disabled}
 				className={cn(
 					"fastt-prompt-field h-full w-full text-left",
 					compact && "fastt-prompt-field--compact",
-					error && "fastt-prompt-field--invalid"
+					error && "fastt-prompt-field--invalid",
+					disabled && "cursor-not-allowed opacity-60"
 				)}
 				aria-haspopup="dialog"
 				aria-expanded={open}
 				aria-controls={panelId}
 				aria-invalid={Boolean(error)}
-				onClick={() => setOpen((current) => !current)}
+				onClick={() => {
+					if (!disabled) setOpen((current) => !current)
+				}}
 			>
 				<span className="fastt-prompt-field__copy">
 					<span className="fastt-prompt-field__label">
@@ -157,90 +303,7 @@ export default function DatesModal({
 					/>
 				</svg>
 			</button>
-			{open ? (
-				<div
-					id={panelId}
-					role="dialog"
-					aria-label={label}
-					className="absolute left-0 z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-200 bg-white p-3 shadow-xl"
-				>
-					<div className="mb-2 flex items-center justify-between gap-2">
-						<button
-							type="button"
-							className="rounded-full p-1 text-slate-600 hover:bg-slate-100"
-							aria-label="Mes anterior"
-							onClick={() =>
-								setCurrentMonth(
-									new Date(
-										Date.UTC(currentMonth.getUTCFullYear(), currentMonth.getUTCMonth() - 1, 1)
-									)
-								)
-							}
-						>
-							‹
-						</button>
-						<p className="text-sm font-semibold text-slate-900">{monthLabel(currentMonth)}</p>
-						<button
-							type="button"
-							className="rounded-full p-1 text-slate-600 hover:bg-slate-100"
-							aria-label="Mes siguiente"
-							onClick={() =>
-								setCurrentMonth(
-									new Date(
-										Date.UTC(currentMonth.getUTCFullYear(), currentMonth.getUTCMonth() + 1, 1)
-									)
-								)
-							}
-						>
-							›
-						</button>
-					</div>
-					<div className="mb-1 grid grid-cols-7 gap-1 text-center text-[11px] font-medium text-slate-500">
-						<span>L</span>
-						<span>M</span>
-						<span>X</span>
-						<span>J</span>
-						<span>V</span>
-						<span>S</span>
-						<span>D</span>
-					</div>
-					<div className="grid grid-cols-7 gap-1">
-						{days.map((cell, index) =>
-							cell ? (
-								<button
-									key={cell.iso}
-									type="button"
-									disabled={cell.disabled}
-									className={cn(
-										"h-8 rounded text-xs text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-30",
-										value === cell.iso && "bg-slate-950 text-white hover:bg-slate-950"
-									)}
-									onClick={() => onChange(cell.iso)}
-								>
-									{cell.day}
-								</button>
-							) : (
-								<span key={`pad-${index}`} className="h-8" />
-							)
-						)}
-					</div>
-					<div className="mt-3 flex items-center justify-between gap-2">
-						<Button
-							type="button"
-							variant="ghost"
-							size="sm"
-							onClick={() => {
-								onChange("")
-							}}
-						>
-							Limpiar
-						</Button>
-						<Button type="button" size="sm" onClick={() => setOpen(false)}>
-							Listo
-						</Button>
-					</div>
-				</div>
-			) : null}
+			{typeof document !== "undefined" && panel ? createPortal(panel, document.body) : null}
 			{error ? <p className="mt-1.5 text-xs text-red-600">{error}</p> : null}
 		</div>
 	)

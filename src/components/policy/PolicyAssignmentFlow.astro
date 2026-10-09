@@ -535,7 +535,14 @@ const policyModalCopy = {
 			<p class:list={["text-sm text-slate-600", !isProfessionalMode && "hidden"]}>
 				La asignación reemplaza la condición activa de la misma categoría para este alcance y canal.
 			</p>
-			<Button type="button" id="policyAssignmentSubmit"> Guardar cambios </Button>
+			<Button
+				type="button"
+				id="policyAssignmentSubmit"
+				variant="selection"
+				className="fastt-playbook-cta"
+			>
+				Guardar cambios
+			</Button>
 		</div>
 	</div>
 </div>

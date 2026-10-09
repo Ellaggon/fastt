@@ -95,7 +95,9 @@ it.each([false, true])(
 		expect(html).not.toMatch(/>\s*Listo\s*</)
 		expect(html).not.toContain('role="progressbar"')
 		expect(html).not.toContain("Fichas preparadas")
-		expect(html).toMatch(/3\s+opciones/)
+		expect(html).toMatch(
+			/href="\/product\/tour\/departures"[^>]*>\s*Opciones y horarios · 3\s*<\/a>/
+		)
 		expect(html.match(/data-tour-id="tour"/g)).toHaveLength(1)
 		if (!conditionsReady) {
 			expect(html).toContain("Condición histórica incompatible")
@@ -157,7 +159,7 @@ it("renders a published private offer without a shared availability warning", as
 	const html = await container.renderToString(ToursCatalog, {
 		request: new Request("https://fastt.test/catalog/tours"),
 	})
-	expect(html).toContain("El viajero puede solicitar una cotización")
+	expect(html).toContain("El viajero puede enviar una solicitud privada")
 	expect(html).not.toContain("disponibilidad actual pendiente")
 	expect(html).not.toContain("Revisar disponibilidad")
 	expect(html).toContain("Revisar ficha")

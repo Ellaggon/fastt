@@ -249,7 +249,12 @@ const localTabs = [
 									<p class="mb-3 text-xs leading-5 text-slate-500">
 										La URL se cifra antes de guardarse y debe usar HTTPS.
 									</p>
-									<Button type="submit" disabled={!data.variants.length}>
+									<Button
+										type="submit"
+										variant="selection"
+										className="fastt-playbook-cta"
+										disabled={!data.variants.length}
+									>
 										<Plus class="size-4" aria-hidden="true" />
 										Conectar y actualizar
 									</Button>
@@ -440,7 +445,12 @@ const localTabs = [
 									de reimportación.
 								</p>
 								<div>
-									<Button type="submit" disabled={!data.variants.length}>
+									<Button
+										type="submit"
+										variant="selection"
+										className="fastt-playbook-cta"
+										disabled={!data.variants.length}
+									>
 										<ExternalLink class="size-4" aria-hidden="true" />
 										Crear enlace
 									</Button>

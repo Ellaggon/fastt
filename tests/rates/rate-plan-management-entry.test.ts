@@ -35,36 +35,37 @@ describe("rate management entry without departures", () => {
 		"flow=create",
 		"flow=add-room",
 		"playbook=launch-tour&flow=create",
-	])("routes an owned tour with no variants from %s to its departure step", async (query) => {
+	])("does not jump to departures for an owned tour with no variants from %s", async (query) => {
 		const result = await load(`productId=tour-1&${query}&ratePlanId=obsolete&openDialog=1`)
 		expect(result.notFound).toBe(false)
 		expect(result.isTour).toBe(true)
-		const target = new URL(result.redirectHref!, "https://fastt.test")
-		expect(target.pathname).toBe("/product/tour-1/departures/new")
-		expect(Object.fromEntries(target.searchParams)).toEqual({
-			playbook: "launch-tour",
-			step: "departure",
-			flow: "create",
-			tourFlowVersion: "2",
-		})
+		expect(result.missingOption).toBe(true)
+		if (result.redirectHref) {
+			const target = new URL(result.redirectHref, "https://fastt.test")
+			expect(target.pathname).toBe("/rates/plans/manage")
+			expect(target.pathname).not.toContain("/departures/")
+		}
 		expect(mocks.where).toHaveBeenCalledWith([
 			{ column: "product.id", value: "tour-1" },
 			{ column: "product.providerId", value: "provider-1" },
 		])
 	})
 
-	it("preserves the continuation playbook when a departure is missing", async () => {
+	it("keeps the rate stage for the continuation playbook when a departure is missing", async () => {
 		const result = await load(
-			"productId=tour-1&playbook=complete-to-publish&step=rate&flow=complete"
+			"productId=tour-1&playbook=complete-to-publish&step=rate&flow=complete&tourFlowVersion=2"
 		)
-		expect(result.redirectHref).toBe(
-			"/product/tour-1/departures/new?playbook=complete-to-publish&step=departure&flow=complete"
-		)
+		expect(result.missingOption).toBe(true)
+		if (result.redirectHref) {
+			expect(result.redirectHref).toContain("/rates/plans/manage")
+			expect(result.redirectHref).not.toContain("/departures/")
+		}
 	})
 
-	it("offers a departure form for an ordinary tour rate entry without inventing a guide", async () => {
+	it("stays on rate management for an ordinary tour entry without inventing a guide", async () => {
 		const result = await load("productId=tour-1")
-		expect(result.redirectHref).toBe("/product/tour-1/departures/new")
+		expect(result.missingOption).toBe(true)
+		expect(result.redirectHref).toBeNull()
 	})
 
 	it.each(["hotel", "accommodation"])(
@@ -73,7 +74,12 @@ describe("rate management entry without departures", () => {
 			mocks.where.mockResolvedValue([{ productId: "hotel-1", productType }])
 			for (const playbook of ["launch", "add-room"]) {
 				const result = await load(`productId=hotel-1&playbook=${playbook}`)
-				expect(result).toMatchObject({ isTour: false, notFound: false, redirectHref: null })
+				expect(result).toMatchObject({
+					isTour: false,
+					notFound: false,
+					missingOption: false,
+					redirectHref: null,
+				})
 			}
 		}
 	)
@@ -81,7 +87,7 @@ describe("rate management entry without departures", () => {
 	it("rejects a missing or unowned product instead of falling back to a hotel", async () => {
 		mocks.where.mockResolvedValue([])
 		const result = await load("productId=other-product&playbook=launch")
-		expect(result).toMatchObject({ notFound: true, redirectHref: null })
+		expect(result).toMatchObject({ notFound: true, missingOption: false, redirectHref: null })
 	})
 
 	it("keeps a selected owned departure and avoids an additional product query", async () => {
@@ -94,6 +100,7 @@ describe("rate management entry without departures", () => {
 			label: "Tour · Salida",
 		}
 		const result = await load("productId=tour-1&variantId=slot-1&playbook=add-room", [choice])
+		expect(result.missingOption).toBe(false)
 		const target = new URL(result.redirectHref!, "https://fastt.test")
 		expect(target.pathname).toBe("/rates/plans/manage")
 		expect(target.searchParams.get("variantId")).toBe("slot-1")
@@ -103,7 +110,12 @@ describe("rate management entry without departures", () => {
 
 	it("leaves the global rate workspace without a product unscoped", async () => {
 		const result = await load("")
-		expect(result).toMatchObject({ notFound: false, redirectHref: null, productId: "" })
+		expect(result).toMatchObject({
+			notFound: false,
+			missingOption: false,
+			redirectHref: null,
+			productId: "",
+		})
 		expect(mocks.where).not.toHaveBeenCalled()
 	})
 	it("keeps the conditions stage and recovery context for a new tour even when another tour has options", async () => {

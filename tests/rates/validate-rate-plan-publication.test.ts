@@ -163,7 +163,7 @@ describe("validate rate plan publication", () => {
 
 		expect(result).toMatchObject({
 			canPublish: false,
-			blockers: ["Abre al menos una fecha futura con cupo para esta salida."],
+			blockers: ["Abre al menos una fecha futura con cupo para esta opción."],
 		})
 		expect(mocks.lt).toHaveBeenCalledWith("reservedCount", "totalInventory")
 	})
@@ -201,8 +201,8 @@ describe("validate rate plan publication", () => {
 
 		expect(result.blockers).toEqual([
 			"Define un precio base mayor que cero.",
-			"Define el cupo físico de esta salida.",
-			"Abre al menos una fecha futura con cupo para esta salida.",
+			"Define el máximo de participantes por grupo de esta opción.",
+			"Abre al menos una fecha futura con cupo para esta opción.",
 		])
 		expect(result.blockerDetails.map((blocker) => blocker.id)).toEqual([
 			"price",

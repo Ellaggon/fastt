@@ -3,7 +3,7 @@
 Status: active
 Document type: canonical
 Owner: Tours / Engineering
-Last verified: 2026-10-01
+Last verified: 2026-10-07
 Scope: significado de tablas y datos comerciales de tours sobre el modelo compartido
 Source of truth: esquema, migraciones y pruebas enlazadas en este documento
 Related code/tests: `src/shared/infrastructure/db/schema/`, `src/pages/api/variant/tour-slot-profile.ts`, `src/pages/api/variant/create.ts`, `tests/catalog/tour-slot-profile.test.ts`
@@ -11,19 +11,22 @@ Review trigger: cambio del modelo de salidas, inventario, reserva o disponibilid
 
 Sibling of [`rooms-rates-table-taxonomy.md`](./rooms-rates-table-taxonomy.md).
 Defines how lodging-shaped columns map to tours/experiences without a second booking engine.
+Functional vocabulary: [provider playbooks](../domains/tours/tour-provider-playbooks.md#vocabulario).
 
 ## Semantic mapping (source of truth)
 
 | Physical column / table | Tour meaning |
 | --- | --- |
-| `Variant` with `kind = tour_slot` | Product option / salida (Viator option, Airbnb schedule template) |
-| `DailyInventory.date` | Departure calendar date |
+| `Variant` with `kind = tour_slot` | Opción reutilizable del tour; no una fecha programada |
+| `TourSlotProfile` | Horario habitual, idioma, modalidad y límite de grupo de la opción. |
+| `DailyInventory.date` | Fecha de salida; inventario único por opción y fecha. |
+| `TourDepartureInstance` | Ajustes operativos opcionales por opción y fecha; sin capacidad ni precio propios. |
 | `Booking.checkInDate` | `departureDate` |
 | `Booking.checkOutDate` | End of activity window (`departureDate + 1` for day tours, or multi-day end) |
 | `BookingLineItem` | Línea de reserva compartida (no una habitación de hotel) |
 | `SearchUnitView.pricePerNight` | Price per participant / unit |
 | `CancellationTier.daysBeforeArrival` | Days before departure (MVP) |
-| `VariantCapacity.maxOccupancy` | Max participants (pax) on the salida |
+| `VariantCapacity.maxOccupancy` | Máximo de participantes por grupo de la opción |
 
 ## Tour content columns (Fase 1)
 
@@ -32,7 +35,7 @@ Defines how lodging-shaped columns map to tours/experiences without a second boo
 | `Tour.duration` | Display label (legacy free text) |
 | `Tour.durationMinutes` | Queryable duration in minutes |
 | `Tour.includesJson` / `excludesJson` | Aligned with Package |
-| `ProductCategory` + `ProductCategoryLink` | Canonical discovery taxonomy; managed in `/product/[id]/tickets` |
+| `ProductCategory` + `ProductCategoryLink` | Canonical discovery taxonomy; managed in `/product/[id]/presentation` (legacy `/categories` entry) |
 | `Tour.pickupJson` | Optional pickup logistics (Limousine pattern) |
 | `Tour.meetingPointJson` / `itineraryJson` / `safetyJson` / `guideJson` | Existing structured JSON |
 
@@ -69,23 +72,24 @@ Notes:
 ## TourSlotProfile (Fase 2)
 
 One profile per `Variant(kind=tour_slot)`. Convention: **1 Variant per clock time**
-(e.g. “Salida 09:00”, “Salida 14:00”). `DailyInventory.date` stays date-only; the hour
+(e.g. “Compartida · 09:00”, “Compartida · 14:00”). `DailyInventory.date` stays date-only; the hour
 lives on the profile (Airbnb schedule instance / Viator timedEntry ≈ variant+profile).
 
 | Column | Role |
 | --- | --- |
 | `TourSlotProfile.variantId` | PK = `Variant` with `kind=tour_slot` (1:1) |
 | `departureTime` | Clock time (HH:MM) NOT NULL; not encoded in `DailyInventory.date` |
-| `durationMinutes` | Optional override of `Tour.durationMinutes` for this salida |
+| `durationMinutes` | Optional override of `Tour.durationMinutes` for this option |
 | `maxPax` | Máximo de participantes del perfil y `VariantCapacity.maxOccupancy`; el cupo predeterminado se inicializa si falta o cambia sólo con `updateDefaultCapacity` explícito. No reescribe `DailyInventory`. |
-| `languageCode` | Language for this salida |
+| `languageCode` | Language for this option |
 | `bookingMode` | `shared` \| `private` (DEFAULT `shared`) |
 | `meetingPointOverrideJson` | Optional override vs product meeting point |
 | `isActive` | Estado del perfil; guardar no cambia `Variant.isActive`. La activación comercial es una acción independiente. |
 
-UI: provider **Salidas** at `/product/{id}/departures` (not hotel rooms). Product hub
-exposes CTAs Tarifas + Calendario for tours. Readiness for a sellable salida requires
-**profile + capacity + default rate**.
+UI: provider **Opciones y horarios** at `/product/{id}/departures` (not hotel rooms). Product hub
+exposes CTAs Tarifas + Calendario for tours. The option requires **profile + capacity + default rate** as its base configuration.
+Current sellability additionally depends on compatible conditions, authorization,
+commercial activation and date availability, as defined by the shared diagnostic.
 
 Saving a tour slot profile does not create or overwrite `DailyInventory` rows. The
 profile stores the option's maximum group size; the provider opens dates and sets their
@@ -120,10 +124,10 @@ Close-out migration: `db/migrations/2026-08-18_tour_slot_profile_closeout.sql`.
 | `ProductCategoryLink` | Product ↔ category |
 | `ProductReview` | Trust / rating for sort `rating_desc` (public = `published` only); verified via `bookingId` + attendance |
 | `MarketplaceEvent` | Cross-sell impressions/clicks/attributed bookings |
-| `TourPrivateRequest` | Private salida quote requests (no hold until provider accepts) |
+| `TourPrivateRequest` | Solicitudes privadas; aceptar una nota no crea hold, cotización ni reserva |
 | Indexes | `Tour.durationMinutes`, `Tour.difficultyLevel`, category/review indexes |
 
-Search `/buscar/tours` requires `startDate` and reads sellable `tour_slot` rows from `SearchUnitView` via `getTourSearchSurface` (min available price, published ratings, applicable salida). Category/duration/difficulty stay query-backed; `priceMin`/`priceMax` apply after the materialized from-price. Categories are edited only on `/product/[id]/tickets` (`ProductCategoryLink`).
+Search `/buscar/tours` requires `startDate` and reads sellable `tour_slot` rows from `SearchUnitView` via `getTourSearchSurface` (min available price, published ratings, applicable salida). Category/duration/difficulty stay query-backed; `priceMin`/`priceMax` apply after the materialized from-price. Categories are edited in Presentación (`ProductCategoryLink`); `/tickets` configures participant age bands.
 
 ## Ops clarity (Fase 6)
 
@@ -226,7 +230,7 @@ Tour content JSON shapes (same maturity suite, not the quality-floor claim):
 | Contract | Exact proof | Status |
 | --- | --- | --- |
 | Public search/PDP copy + this taxonomy mapping doc | [`tour-public-surfaces.test.ts`](../../tests/guardrails/tour-public-surfaces.test.ts) | Guardrail |
-| P3 tables deferred (no Guide / TourGuideAssignment / TourDepartureInstance in schema) | [`tour-p3-deferred-capabilities.test.ts`](../../tests/guardrails/tour-p3-deferred-capabilities.test.ts) | Guardrail |
+| Resource ADRs accepted; Viator remains deferred | [`tour-p3-deferred-capabilities.test.ts`](../../tests/guardrails/tour-p3-deferred-capabilities.test.ts) | Guardrail |
 | `BookingLineItem` como contrato físico transversal | [`booking-line-item-physical-contract.test.ts`](../../tests/postgres/booking-line-item-physical-contract.test.ts) → `uses the cross-vertical table name across table, constraints, indexes and trigger` | Guardrail |
 | Schema / semantics contracts (outside phase6 command unless added) | [`tour-tickets-discovery.test.ts`](../../tests/catalog/tour-tickets-discovery.test.ts), [`tour-semantics.test.ts`](../../tests/catalog/tour-semantics.test.ts), [`tour-slot-profile.test.ts`](../../tests/catalog/tour-slot-profile.test.ts), [`tour-ticket-occupancy.test.ts`](../../tests/catalog/tour-ticket-occupancy.test.ts), [`tour-search-surface.test.ts`](../../tests/catalog/tour-search-surface.test.ts), [`tour-p2-trust.test.ts`](../../tests/catalog/tour-p2-trust.test.ts) | Guardrail / unit (not phase6 runtime matrix) |
 
@@ -284,15 +288,15 @@ Runbook: [`tours-rollout-canary.md`](./tours-rollout-canary.md).
 
 Exact proof: [`tour-rollout-canary.test.ts`](../../tests/catalog/tour-rollout-canary.test.ts) → staging host gate; allowlist provider gate; percentage bucket; expansion blocked on baseline regression.
 
-## P3 — Deferred by volume (ADR-gated)
+## Resource capabilities and deferred integrations (ADR-gated)
 
-Do **not** add these tables until the matching ADR is `accepted` with metrics +
-incident evidence. Process: [`docs/engineering/adr/README.md`](./adr/README.md).
+Accepted ADRs and the current schema determine implemented resource capabilities.
+Deferred integrations require an accepted ADR with evidence. Process: [`docs/engineering/adr/README.md`](./adr/README.md).
 
 | Capability | Tables | ADR | Until then use |
 | --- | --- | --- | --- |
-| Guide roster / assignment | `Guide`, `TourGuideAssignment` | [0002](./adr/0002-tour-guide-assignment.md) (`deferred`) | `Tour.guideJson` guest copy |
-| Date-specific salida overrides | `TourDepartureInstance` (`variantId`+`date` only; never replaces DailyInventory) | [0003](./adr/0003-tour-departure-instance.md) (`deferred`) | Close inventory / extra Variant |
+| Guide roster / assignment | `Guide`, `TourGuideAssignment` | [0002](./adr/0002-tour-guide-assignment.md) (`accepted`) | Reviewed operational resources; guest copy remains in `Tour.guideJson` |
+| Date-specific salida overrides | `TourDepartureInstance` (`variantId`+`date` only; never replaces DailyInventory) | [0003](./adr/0003-tour-departure-instance.md) (`accepted`) | Sparse operational overrides; inventory remains in `DailyInventory` |
 | Viator / channel sync | Connector mappings → existing spine | [0004](./adr/0004-viator-channel-sync.md) (`deferred`) | Local options, tickets, policies, vouchers first |
 
 Policy umbrella: [ADR 0001](./adr/0001-deferred-tour-p3-capabilities.md).
@@ -303,5 +307,5 @@ Policy umbrella: [ADR 0001](./adr/0001-deferred-tour-p3-capabilities.md).
 - Drop `VariantRoom*` (hotel-only, still required)
 - Create a parallel Experiences booking schema
 - Renombrar columnas físicas compartidas (`checkInDate`, `pricePerNight`) sin una migración de dominio y evidencia de coste/beneficio
-- Introduce `Guide` / `TourGuideAssignment` / `TourDepartureInstance` without an accepted ADR + evidence
+- Add deferred capabilities without an accepted ADR + evidence
 - Build Viator/channel bookings outside Hold → Booking → BookingVoucher

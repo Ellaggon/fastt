@@ -1,1 +1,6 @@
-export type PlaybookId = "launch" | "launch-tour" | "add-room" | "complete-to-publish"
+export type PlaybookId =
+	| "launch"
+	| "launch-tour"
+	| "add-room"
+	| "complete-to-publish"
+	| "add-tour-option"

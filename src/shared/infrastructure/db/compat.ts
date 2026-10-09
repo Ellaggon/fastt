@@ -138,6 +138,7 @@ export {
 	ProviderPayableSnapshot,
 	ProviderPaymentAccount,
 	ProviderPreparationSession,
+	ProviderOptionPreparationSession,
 	ProviderProfile,
 	ProviderStatement,
 	ProviderTaxConfiguration,

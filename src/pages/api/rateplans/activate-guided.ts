@@ -1,3 +1,5 @@
+import { PreparationSessionError } from "@/lib/onboarding/preparationSessionContext"
+import { getOptionSession, finishOptionSession } from "@/lib/onboarding/tourOptionSession"
 import type { APIRoute } from "astro"
 import { requireProvider } from "@/lib/auth/requireProvider"
 import { finalizeAddRoom } from "@/lib/playbook/finalize-add-room"
@@ -16,13 +18,14 @@ function json(status: number, payload: Record<string, unknown>) {
 export const POST: APIRoute = async ({ request }) => {
 	try {
 		const { providerId, user } = await requireProvider(request)
-		const { ratePlanId, productId, variantId, playbook } = (await request
+		const { ratePlanId, productId, variantId, playbook, sessionId } = (await request
 			.json()
 			.catch(() => ({}))) as {
 			ratePlanId?: unknown
 			productId?: unknown
 			variantId?: unknown
 			playbook?: unknown
+			sessionId?: unknown
 		}
 		const id = String(ratePlanId ?? "").trim()
 		if (!id) return json(400, { error: "ratePlanId es obligatorio." })
@@ -44,9 +47,24 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 		const normalizedPlaybook = String(playbook ?? "")
 		let result
+		let sessionClosePending = false
 		if (isTour) {
-			if (!["launch-tour", "complete-to-publish"].includes(normalizedPlaybook)) {
+			if (!["launch-tour", "complete-to-publish", "add-tour-option"].includes(normalizedPlaybook)) {
 				return json(400, { error: "El playbook de activación de tours no es válido." })
+			}
+			if (normalizedPlaybook === "add-tour-option") {
+				const session = await getOptionSession(
+					providerId,
+					user.id,
+					String(sessionId || ""),
+					requestedProductId
+				)
+				if (
+					session.status === "abandoned" ||
+					session.variantId !== requestedVariantId ||
+					session.ratePlanId !== id
+				)
+					return json(409, { error: "La oferta no corresponde al recorrido." })
 			}
 			result = await finalizeTourRate({
 				providerId,
@@ -54,7 +72,10 @@ export const POST: APIRoute = async ({ request }) => {
 				productId: requestedProductId,
 				variantId: requestedVariantId,
 				ratePlanId: id,
-				playbook: normalizedPlaybook as "launch-tour" | "complete-to-publish",
+				playbook:
+					normalizedPlaybook === "add-tour-option"
+						? "complete-to-publish"
+						: (normalizedPlaybook as "launch-tour" | "complete-to-publish"),
 			})
 		} else {
 			result = await finalizeAddRoom({
@@ -66,8 +87,18 @@ export const POST: APIRoute = async ({ request }) => {
 			})
 		}
 		if (!result.ok) return json(result.status, result)
+		if (normalizedPlaybook === "add-tour-option") {
+			try {
+				await finishOptionSession(providerId, user.id, String(sessionId || ""), "completed")
+			} catch (error) {
+				sessionClosePending = true
+				console.error("option-session:activation-persisted", error)
+			}
+			result.terminalHref = `/product/${encodeURIComponent(requestedProductId)}/departures?activated=${encodeURIComponent(requestedVariantId)}#option-${encodeURIComponent(requestedVariantId)}`
+		}
 		return json(200, {
 			success: true,
+			sessionClosePending,
 			ratePlanId: result.ratePlanId,
 			...("alreadyActive" in result ? { alreadyActive: result.alreadyActive } : {}),
 			...("cacheRefreshPending" in result
@@ -77,6 +108,11 @@ export const POST: APIRoute = async ({ request }) => {
 		})
 	} catch (error) {
 		if (error instanceof Response) return error
+		if (error instanceof PreparationSessionError)
+			return json(error.status, {
+				error: "Este recorrido no está disponible. Vuelve a Opciones y horarios.",
+				code: error.code,
+			})
 		if (error instanceof Error && error.message.startsWith("PROVIDER_CONFIGURATION_BLOCKED")) {
 			const details = (
 				error as Error & {

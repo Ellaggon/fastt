@@ -18,6 +18,7 @@ export const databaseTablesByDomain = {
 		"ProviderSupportRequest",
 		"ProviderSupportMessage",
 		"ProviderPreparationSession",
+		"ProviderOptionPreparationSession",
 		"ProviderProfile",
 		"ProviderDocument",
 		"ProviderDocumentScope",

@@ -75,20 +75,38 @@ describe("rendered rate page without tour departures", () => {
 		mocks.diagnostic = null
 	})
 	it.each(["launch", "add-room"])(
-		"redirects the legacy %s page without flow to the tour guide",
+		"canonicalizes legacy %s to the tour rate stage without jumping to departures",
 		async (playbook) => {
 			const result = await response(`playbook=${playbook}`)
 			expect(result.status).toBe(302)
-			expect(result.headers.get("location")).toBe(
-				"/product/tour-1/departures/new?playbook=launch-tour&step=departure&flow=create&tourFlowVersion=2"
-			)
+			const location = result.headers.get("location") ?? ""
+			expect(location).toContain("/rates/plans/manage?")
+			expect(location).toContain("playbook=launch-tour")
+			expect(location).toContain("step=rate")
+			expect(location).not.toContain("/departures/")
 		}
 	)
 
-	it("preserves the completion guide instead of showing an impossible rate form", async () => {
-		const result = await response("playbook=complete-to-publish&step=rate&flow=complete")
-		expect(result.status).toBe(302)
-		expect(result.headers.get("location")).toContain("playbook=complete-to-publish&step=departure")
+	it("shows the missing-option empty state on the tour rate stage", async () => {
+		const result = await response("playbook=launch-tour&step=rate&flow=create&tourFlowVersion=2")
+		expect(result.status).toBe(200)
+		const html = await result.text()
+		expect(html).toContain("Primero crea una opción")
+		expect(html).toContain("Necesitas una opción para definir su precio.")
+		expect(html).toContain("Crear opción")
+		expect(html).toContain("/product/tour-1/departures/new")
+		expect(html).not.toContain('id="guidedRatePlanForm"')
+	})
+
+	it("keeps the completion guide on rate with the same missing-option empty state", async () => {
+		const result = await response(
+			"playbook=complete-to-publish&step=rate&flow=complete&tourFlowVersion=2"
+		)
+		expect(result.status).toBe(200)
+		const html = await result.text()
+		expect(html).toContain("Primero crea una opción")
+		expect(html).toContain("playbook=complete-to-publish")
+		expect(html).toContain("step=departure")
 	})
 
 	it("returns 404 for an unresolved product before rendering a hotel guide", async () => {

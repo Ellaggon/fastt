@@ -145,7 +145,7 @@ export function presentTourDiagnostic(
 			next?.reason.message ??
 			(options.published
 				? privateRequestsEnabled
-					? "El viajero puede solicitar una cotización. La solicitud no confirma una reserva ni retiene cupos."
+					? "El viajero puede enviar una solicitud privada. La solicitud no confirma una reserva ni retiene cupos."
 					: "Gestiona opciones, precios y fechas desde sus herramientas."
 				: "Verifica la opción y tarifa elegidas en la vista previa."),
 		nextLabel: next?.label ?? "Revisión final",

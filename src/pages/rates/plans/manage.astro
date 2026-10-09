@@ -1,5 +1,11 @@
 ---
 import {
+	optionWizardContext,
+	optionWizardHref,
+	optionStep,
+	optionNextHref,
+} from "@/lib/playbook/add-tour-option"
+import {
 	loadTourCommercialEntryContext,
 	tourContextEntryResponse,
 } from "@/lib/tours/loadTourCommercialContext"
@@ -8,6 +14,7 @@ import { loadCompleteToPublishState } from "@/lib/playbook/evaluate-complete-to-
 import { presentTourDiagnostic } from "@/lib/tours/tourDiagnosticPresentation"
 import { Plus, X } from "@lucide/astro"
 import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
 import Dialog from "@/components/ui/Dialog.astro"
 import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
@@ -35,6 +42,7 @@ import {
 } from "@/lib/playbook/launch-tour"
 import {
 	COMPLETE_TO_PUBLISH_PLAYBOOK_ID,
+	buildCompleteToPublishHref,
 	completeToPublishPreviousHref,
 	resolveCompleteToPublishPlaybookFromUrl,
 } from "@/lib/playbook/complete-to-publish"
@@ -400,13 +408,22 @@ if (
 	return Astro.redirect(`${routes.rates()}?${params.toString()}`)
 }
 
-const shouldOpenDialog = Astro.url.searchParams.get("openDialog") === "1"
+const missingOption = rateEntry.missingOption
+const shouldOpenDialog = !missingOption && Astro.url.searchParams.get("openDialog") === "1"
 const playbookProductId =
 	rateEntry.productId ||
 	addRoomPlaybook.productId ||
 	completePlaybook.productId ||
 	requestedProductId
 const isTourRateContext = productType ? productType.toLowerCase() === "tour" : tourScope
+const createOptionHref = (() => {
+	if (!playbookProductId) return null
+	const departureHref = `/product/${encodeURIComponent(playbookProductId)}/departures/new`
+	if (completePlaybook.active) return buildCompleteToPublishHref(departureHref, "departure")
+	if (tourLaunchPlaybook.active || launchPlaybook.active)
+		return buildTourPlaybookHref(departureHref, "departure")
+	return departureHref
+})()
 const scopedVariantChoices = requestedProductId
 	? variantChoices.filter((choice) => choice.productId === requestedProductId)
 	: variantChoices.filter((choice) =>
@@ -437,19 +454,22 @@ const launchContinueHref = launchPlaybook.active
 const launchPreviousHref = launchPlaybook.active
 	? (getPreviousLaunchStep("rate", launchCtx)?.buildHref(launchCtx) ?? null)
 	: null
-const activePlaybook = addRoomPlaybook.active
-	? "add-room"
-	: completePlaybook.active
-		? "complete-to-publish"
-		: launchPlaybook.active
-			? "launch"
-			: tourLaunchPlaybook.active
-				? "launch-tour"
-				: null
+const optionWizard = optionWizardContext(Astro.url)
+const activePlaybook = optionWizard
+	? "add-tour-option"
+	: addRoomPlaybook.active
+		? "add-room"
+		: completePlaybook.active
+			? "complete-to-publish"
+			: launchPlaybook.active
+				? "launch"
+				: tourLaunchPlaybook.active
+					? "launch-tour"
+					: null
 const isPlaybookRateStep = Boolean(activePlaybook)
 const isTourPlaybookRateStep = Boolean(activePlaybook && isTourRateContext)
 const playbookVariantLabel =
-	matchedVariant?.variantName ?? (isTourPlaybookRateStep ? "esta salida" : "esta habitación")
+	matchedVariant?.variantName ?? (isTourPlaybookRateStep ? "esta opción" : "esta habitación")
 const guidedIntentPresets = ratePlanIntentPresets
 const availableIntentPresets = isTourRateContext
 	? ratePlanIntentPresets.filter((preset) => ["flexible", "early_booking"].includes(preset.id))
@@ -460,8 +480,9 @@ const tourVariantHasMainRate = Object.fromEntries(
 		rows.some((row) => String(row.variantId) === choice.variantId && Boolean(row.isDefault)),
 	])
 )
-const playbookPreviousHref =
-	activePlaybook === "add-room"
+const playbookPreviousHref = optionWizard
+	? optionWizardHref(optionWizard, "profile")
+	: activePlaybook === "add-room"
 		? addRoomPreviousHref
 		: activePlaybook === "launch"
 			? launchPreviousHref
@@ -478,8 +499,9 @@ const playbookPreviousHref =
 							{ variantId: requestedVariantId }
 						)
 					: null
-const playbookExitHref =
-	activePlaybook === "add-room" && playbookProductId
+const playbookExitHref = optionWizard
+	? `/product/${encodeURIComponent(optionWizard.productId)}/departures`
+	: activePlaybook === "add-room" && playbookProductId
 		? routes.productRoomsForProduct(playbookProductId)
 		: activePlaybook === "launch" && playbookProductId
 			? routes.productDetail(playbookProductId)
@@ -489,8 +511,20 @@ const playbookExitHref =
 					? routes.productDetail(playbookProductId)
 					: routes.rates()
 const Layout = activePlaybook ? PlaybookLayout : WorkspaceLayout
-const layoutProps =
-	activePlaybook === "add-room"
+const layoutProps = optionWizard
+	? {
+			title: "Precio de la opción",
+			playbookId: "add-tour-option" as const,
+			active: true,
+			stepId: "price",
+			productId: playbookProductId,
+			variantId: requestedVariantId,
+			ratePlanId: Astro.url.searchParams.get("ratePlanId") || "",
+			playbookVertical: "tour" as const,
+			hideFooter: true,
+			lightweight: true,
+		}
+	: activePlaybook === "add-room"
 		? {
 				title: "Tarifas · Nueva tarifa",
 				playbookId: "add-room" as const,
@@ -516,7 +550,7 @@ const layoutProps =
 				}
 			: activePlaybook === "launch-tour"
 				? {
-						title: "Tarifas · Precio de la salida",
+						title: "Tarifas · Precio de la opción",
 						playbookId: LAUNCH_TOUR_PLAYBOOK_ID,
 						active: true,
 						stepId: tourLaunchPlaybook.stepId ?? "rate",
@@ -528,7 +562,7 @@ const layoutProps =
 				: activePlaybook === "complete-to-publish"
 					? {
 							title: isTourRateContext
-								? "Tarifas · Precio de la salida"
+								? "Tarifas · Precio de la opción"
 								: "Tarifas · Primera tarifa",
 							playbookId: COMPLETE_TO_PUBLISH_PLAYBOOK_ID,
 							active: true,
@@ -575,14 +609,21 @@ const tourRateSaveHref = isTourRateContext
 
 <Layout {...layoutProps} productType={productType || (isTourRateContext ? "tour" : null)}>
 	<div class="rate-plans-manage space-y-5" data-rate-plan-view-controller>
-		<header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
+		<header class="flex flex-wrap items-end justify-between gap-4">
 			{
-				isPlaybookRateStep && isTourPlaybookRateStep ? (
+				missingOption && (isTourPlaybookRateStep || isTourRateContext) ? (
+					<PlaybookStepHeader
+						size="lg"
+						icon="rate"
+						title="Precio"
+						lead="Define el precio de venta de la opción."
+					/>
+				) : isPlaybookRateStep && isTourPlaybookRateStep ? (
 					<PlaybookStepHeader
 						size="lg"
 						icon="rate"
 						title={`Precio de ${playbookVariantLabel}`}
-						lead="Define el precio en las monedas que aceptas y las condiciones iniciales de esta salida. Después revisarás la reserva."
+						lead="Define el precio en las monedas que aceptas y las condiciones iniciales de esta opción. Después revisarás la reserva."
 					/>
 				) : isPlaybookRateStep ? (
 					<PlaybookStepHeader
@@ -603,7 +644,7 @@ const tourRateSaveHref = isTourRateContext
 						<p class="max-w-2xl text-sm leading-6 text-slate-300">
 							{isPlaybookRateStep
 								? isTourPlaybookRateStep
-									? "Define el precio en las monedas que aceptas y las condiciones iniciales de esta salida. Después revisarás la reserva."
+									? "Define el precio en las monedas que aceptas y las condiciones iniciales de esta opción. Después revisarás la reserva."
 									: "Define el precio base y la propuesta comercial inicial para que esta habitación pueda venderse."
 								: isTourRateContext
 									? "Gestiona los precios, las condiciones y el estado de cada oferta de tus tours."
@@ -613,7 +654,7 @@ const tourRateSaveHref = isTourRateContext
 				)
 			}
 			{
-				isPlaybookRateStep ? null : (
+				isPlaybookRateStep || missingOption ? null : (
 					<Button type="button" variant="secondary" data-open-rate-plan-dialog>
 						<Plus class="mr-2 size-4" /> Nueva tarifa
 					</Button>
@@ -622,7 +663,19 @@ const tourRateSaveHref = isTourRateContext
 		</header>
 
 		{
-			isPlaybookRateStep ? (
+			missingOption && createOptionHref ? (
+				<section class="space-y-6">
+					<Card class="space-y-4 bg-white text-slate-900">
+						<div class="space-y-1.5">
+							<h2 class="text-lg font-semibold text-slate-950">Primero crea una opción</h2>
+							<p class="text-sm leading-6 text-slate-600">
+								Necesitas una opción para definir su precio.
+							</p>
+						</div>
+						<Button href={createOptionHref}>Crear opción</Button>
+					</Card>
+				</section>
+			) : isPlaybookRateStep ? (
 				<>
 					<form
 						id="guidedRatePlanForm"
@@ -636,12 +689,12 @@ const tourRateSaveHref = isTourRateContext
 									<div>
 										<h2 class="text-lg font-semibold text-slate-950">
 											{isTourPlaybookRateStep
-												? "Precio para esta salida"
+												? "Precio para esta opción"
 												: "Tarifa para esta habitación"}
 										</h2>
 										<p class="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
 											{isTourPlaybookRateStep
-												? "La salida ya tiene horario, idioma y cupo máximo. Ahora define su tarifa estándar y el precio por participante en cada moneda que aceptas."
+												? "La opción ya tiene horario, idioma y cupo máximo. Ahora define su tarifa estándar y el precio por participante en cada moneda que aceptas."
 												: "La habitación ya está creada y tiene fotos. Ahora define cómo se venderá: propuesta, nombre visible y precio base."}
 										</p>
 									</div>
@@ -649,13 +702,13 @@ const tourRateSaveHref = isTourRateContext
 									<div class="grid gap-4 md:grid-cols-2">
 										<label class="block space-y-1.5 text-sm md:col-span-2">
 											<span class="font-medium text-slate-800">
-												{isTourPlaybookRateStep ? "Salida" : "Habitación"}
+												{isTourPlaybookRateStep ? "Opción" : "Habitación"}
 											</span>
 											<input type="hidden" name="variantId" value={requestedVariantId} />
 											<div class="fastt-soft-box border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900">
 												{matchedVariant?.label ??
 													(isTourPlaybookRateStep
-														? "Salida seleccionada"
+														? "Opción seleccionada"
 														: "Habitación seleccionada")}
 											</div>
 										</label>
@@ -670,7 +723,7 @@ const tourRateSaveHref = isTourRateContext
 													</span>
 												</div>
 												<p class="mt-2 leading-6 text-slate-600">
-													Define el precio normal de esta salida. Cuando esté publicada podrás
+													Define el precio normal de esta opción. Cuando esté publicada podrás
 													añadir una promoción por reserva anticipada sin reemplazar esta
 													referencia.
 												</p>
@@ -735,7 +788,7 @@ const tourRateSaveHref = isTourRateContext
 											<strong class="text-slate-900">Usar como tarifa principal</strong>
 											<span class="mt-1 block text-slate-500">
 												{isTourPlaybookRateStep
-													? "Esta será la referencia de precio de la salida. Las promociones futuras se calcularán desde una tarifa principal verificable."
+													? "Esta será la referencia de precio de la opción. Las promociones futuras se calcularán desde una tarifa principal verificable."
 													: "Será la tarifa de referencia para esta habitación mientras completas condiciones y disponibilidad."}
 											</span>
 										</span>
@@ -790,6 +843,7 @@ const tourRateSaveHref = isTourRateContext
 								form="guidedRatePlanForm"
 								name="publicationMode"
 								value="draft"
+								variant="selection"
 								className="fastt-playbook-cta"
 								data-guided-rate-submit
 							>
@@ -802,7 +856,7 @@ const tourRateSaveHref = isTourRateContext
 		}
 
 		{
-			!isPlaybookRateStep ? (
+			!isPlaybookRateStep && !missingOption ? (
 				<section class="fastt-card border bg-white text-slate-900">
 					<div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 pt-4">
 						<TabsOutsidePanel class="mb-3" aria-label="Estado de tarifas" data-rate-plan-tabs>
@@ -837,11 +891,15 @@ const tourRateSaveHref = isTourRateContext
 			) : null
 		}
 
-		{!isPlaybookRateStep ? <RatePlanRecentChanges checkIn={checkIn} checkOut={checkOut} /> : null}
+		{
+			!isPlaybookRateStep && !missingOption ? (
+				<RatePlanRecentChanges checkIn={checkIn} checkOut={checkOut} />
+			) : null
+		}
 	</div>
 
 	{
-		!isPlaybookRateStep ? (
+		!isPlaybookRateStep && !missingOption ? (
 			<Dialog class="w-[min(720px,calc(100%-2rem))]" data-rate-plan-dialog>
 				<form data-rate-plan-create-form class="max-h-[90vh] overflow-y-auto">
 					<header class="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4">
@@ -869,12 +927,12 @@ const tourRateSaveHref = isTourRateContext
 								<h2 class="font-semibold">¿Qué quieres vender?</h2>
 								<p class="mt-1 text-sm text-slate-500">
 									{isTourRateContext
-										? "Elige la salida y la propuesta comercial."
+										? "Elige la opción y la propuesta comercial."
 										: "Elige la habitación y la propuesta comercial."}
 								</p>
 							</div>
 							<label class="block space-y-1.5 text-sm">
-								<span class="font-medium">{isTourRateContext ? "Salida" : "Habitación"}</span>
+								<span class="font-medium">{isTourRateContext ? "Opción" : "Habitación"}</span>
 								<Select name="variantId" required>
 									<option value="">
 										{isTourRateContext ? "Selecciona una salida" : "Selecciona una habitación"}
@@ -893,7 +951,7 @@ const tourRateSaveHref = isTourRateContext
 								<fieldset class="space-y-2" data-tour-offer-selector>
 									<legend class="text-sm font-medium">Tipo de tarifa</legend>
 									<p class="text-sm leading-6 text-slate-500">
-										El precio estándar es la referencia de la salida. Una promoción se crea como
+										El precio estándar es la referencia de la opción. Una promoción se crea como
 										alternativa y nunca reemplaza esa referencia.
 									</p>
 									<div class="grid gap-3 sm:grid-cols-2">
@@ -918,7 +976,7 @@ const tourRateSaveHref = isTourRateContext
 										</label>
 									</div>
 									<p class="hidden text-sm text-amber-700" data-main-rate-required>
-										Primero crea o marca una tarifa estándar como principal para la salida
+										Primero crea o marca una tarifa estándar como principal para la opción
 										seleccionada.
 									</p>
 									<div
@@ -1061,16 +1119,21 @@ const tourRateSaveHref = isTourRateContext
 							<Button type="button" variant="secondary" class="hidden" data-wizard-back>
 								Volver
 							</Button>
-							<Button type="button" data-wizard-next>
-								{" "}
-								Continuar{" "}
+							<Button
+								type="button"
+								variant="selection"
+								className="fastt-playbook-cta"
+								data-wizard-next
+							>
+								Continuar
 							</Button>
 							{isTourRateContext ? (
 								<Button
 									type="submit"
 									name="publicationMode"
 									value="draft"
-									class="hidden"
+									variant="selection"
+									class="fastt-playbook-cta hidden"
 									data-publish
 								>
 									Guardar y revisar condiciones
@@ -1091,7 +1154,8 @@ const tourRateSaveHref = isTourRateContext
 										type="submit"
 										name="publicationMode"
 										value="publish"
-										class="hidden"
+										variant="selection"
+										class="fastt-playbook-cta hidden"
 										data-publish
 									>
 										Publicar
@@ -1327,7 +1391,7 @@ const tourRateSaveHref = isTourRateContext
 		if (advanceInput instanceof HTMLInputElement) {
 			advanceInput.setCustomValidity(
 				isAdvance && !hasMainRate
-					? "Primero crea o marca una tarifa estándar como principal para esta salida."
+					? "Primero crea o marca una tarifa estándar como principal para esta opción."
 					: ""
 			)
 		}
@@ -1348,7 +1412,7 @@ const tourRateSaveHref = isTourRateContext
 			const data = new FormData(form)
 			const variant =
 				form.querySelector('[name="variantId"]')?.selectedOptions[0]?.textContent ??
-				(isTourRateContext ? "Salida" : "Habitación")
+				(isTourRateContext ? "Opción" : "Habitación")
 			const intent = String(data.get("intent") || "flexible")
 			const priceUnit = isTourRateContext ? "por participante" : "por noche"
 			const offers = readCurrencyOffers(form)
@@ -1469,7 +1533,8 @@ const tourRateSaveHref = isTourRateContext
 			addRoomPlaybookActive ||
 			launchPlaybookActive ||
 			tourLaunchPlaybookActive ||
-			completePlaybookActive
+			completePlaybookActive ||
+			activePlaybook === "add-tour-option"
 				? "draft"
 				: submitter?.value === "publish"
 					? "publish"
@@ -1532,10 +1597,16 @@ const tourRateSaveHref = isTourRateContext
 				variantId: String(data.get("variantId") || ""),
 			}
 			formDraft.clear()
-			if (isTourRateContext && (tourLaunchPlaybookActive || completePlaybookActive)) {
-				window.location.href = tourRateSaveHref
-					.replace("__SAVED_OPTION__", encodeURIComponent(payload.variantId))
-					.replace("__SAVED_RATE__", encodeURIComponent(String(result.ratePlanId)))
+			document.dispatchEvent(new CustomEvent("fastt:playbook-saved", { detail: { form } }))
+			if (
+				isTourRateContext &&
+				(tourLaunchPlaybookActive || completePlaybookActive || activePlaybook === "add-tour-option")
+			) {
+				window.location.href = await window.fasttOptionDestination(
+					tourRateSaveHref
+						.replaceAll("__SAVED_OPTION__", encodeURIComponent(payload.variantId))
+						.replaceAll("__SAVED_RATE__", encodeURIComponent(String(result.ratePlanId)))
+				)
 				return
 			}
 

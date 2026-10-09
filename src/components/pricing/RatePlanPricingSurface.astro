@@ -84,9 +84,8 @@ const isTour = offeringType === "tour"
 					{" "}
 					Volver a tarifas{" "}
 				</Button>
-				<Button id="submitBtn" type="submit">
-					{" "}
-					Guardar precio base{" "}
+				<Button id="submitBtn" type="submit" variant="selection" className="fastt-playbook-cta">
+					Guardar precio base
 				</Button>
 			</div>
 		) : null
@@ -96,6 +95,7 @@ const isTour = offeringType === "tour"
 <script>
 	import { setPlaybookSubmitBusy } from "@/lib/forms/playbookFormBusy"
 	import { bindPlaybookFormDraft } from "@/lib/forms/playbookFormDraft"
+	import { persistOptionDestination } from "@/lib/forms/tourOptionNavigation"
 	function initPricingForm() {
 		const form = document.getElementById("pricingForm")
 		if (!(form instanceof HTMLFormElement) || form.dataset.bound === "true") return
@@ -131,8 +131,12 @@ const isTour = offeringType === "tour"
 				draft.clear()
 				if (feedback) feedback.textContent = "Precio guardado."
 				const destination = exit ? form.dataset.guidedExit : form.dataset.guidedContinue
-				if (destination) window.location.href = destination
-				else window.location.reload()
+				if (destination) {
+					const next = await persistOptionDestination(destination)
+					form.dataset.saving = "false"
+					document.dispatchEvent(new CustomEvent("fastt:playbook-saved", { detail: { form } }))
+					window.location.href = next
+				} else window.location.reload()
 			} catch (error) {
 				if (feedback) {
 					feedback.setAttribute("role", "alert")

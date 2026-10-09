@@ -1,3 +1,4 @@
+import { optionNextHref } from "./add-tour-option"
 import {
 	resolveTourPlaybookContext,
 	tourPublicationHref,
@@ -341,7 +342,7 @@ export function getTourSharedRateCanonicalHref(
 	url: URL,
 	context: TourSharedRateContext
 ): string | null {
-	if (!context.isTour) return null
+	if (!context.isTour || url.searchParams.get("playbook") === "add-tour-option") return null
 
 	const playbook = String(url.searchParams.get("playbook") ?? "")
 		.trim()
@@ -438,6 +439,8 @@ export function tourPreparationNextHref(
 	context: TourLaunchContext,
 	currentStep: string
 ): string {
+	if (source.get("playbook") === "add-tour-option")
+		return optionNextHref(source, context, currentStep)
 	const current = getTourLaunchStepById(currentStep)
 	const path = current?.buildHref(context) ?? `/product/${context.productId}/content`
 	const url = new URL(path, "http://fastt.local")

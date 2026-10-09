@@ -1807,6 +1807,47 @@ export const ProviderPreparationSession = pgTable(
 	]
 )
 
+export const ProviderOptionPreparationSession = pgTable(
+	"ProviderOptionPreparationSession",
+	{
+		id: pk(),
+		providerId: txt("providerId").references(() => Provider.id, { onDelete: "cascade" }),
+		userId: txt("userId").references(() => User.id, { onDelete: "cascade" }),
+		productId: txtOpt("productId").references(() => Product.id, { onDelete: "cascade" }),
+		playbookId: txt("playbookId"),
+		writeVersion: intDefault("writeVersion", 1),
+		vertical: txt("vertical"),
+		stepId: txt("stepId"),
+		variantId: txtOpt("variantId"),
+		ratePlanId: txtOpt("ratePlanId"),
+		lastPath: txt("lastPath"),
+		status: text("status").default("active").notNull(),
+		createdAt: now("createdAt"),
+		updatedAt: now("updatedAt"),
+	},
+	(table) => [
+		index("ProviderOptionPreparationSession_owner_status_updated_idx").on(
+			table.providerId,
+			table.userId,
+			table.status,
+			table.updatedAt
+		),
+		index("ProviderOptionPreparationSession_product_idx").on(table.productId),
+		check(
+			"ProviderOptionPreparationSession_playbook_check",
+			sql`${table.playbookId} = 'add-tour-option'`
+		),
+		check(
+			"ProviderOptionPreparationSession_vertical_check",
+			sql`${table.vertical} IN ('hotel', 'tour')`
+		),
+		check(
+			"ProviderOptionPreparationSession_status_check",
+			sql`${table.status} IN ('active', 'completed', 'abandoned')`
+		),
+	]
+)
+
 /** Product discovery geography. */
 export const ProductGeoPlace = pgTable(
 	"ProductGeoPlace",
@@ -2532,7 +2573,7 @@ export const TourSlotProfile = pgTable(
 			.primaryKey()
 			.references(() => Variant.id),
 		departureTime: txt("departureTime"),
-		/** Optional override of Tour.durationMinutes for this salida. */
+		/** Optional override of Tour.durationMinutes for this reusable option. */
 		durationMinutes: intOpt("durationMinutes"),
 		maxPax: int("maxPax"),
 		languageCode: txt("languageCode"),

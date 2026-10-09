@@ -56,7 +56,14 @@ const { coverageDays, coverageStart, coverageEnd } = Astro.props
 			<p id="effectivePricingWarning" class="whitespace-pre-wrap text-sm text-amber-700"></p>
 			<p id="effectivePricingFeedback" class="whitespace-pre-wrap text-sm text-slate-600"></p>
 			<div class="flex flex-wrap items-center justify-end gap-3">
-				<Button id="effectivePricingSubmitBtn" type="submit"> Extender cobertura </Button>
+				<Button
+					id="effectivePricingSubmitBtn"
+					type="submit"
+					variant="selection"
+					className="fastt-playbook-cta"
+				>
+					Extender cobertura
+				</Button>
 				<Button id="effectivePricingOverwriteBtn" type="button" variant="secondary">
 					Regenerar cobertura
 				</Button>

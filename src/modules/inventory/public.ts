@@ -3,6 +3,12 @@
 // NOTE: Infrastructure exports exist only to support composition-root wiring (container).
 
 // Application use-cases
+export {
+	loadTourScheduleContext,
+	previewTourDepartures,
+	programTourDepartures,
+	TourScheduleError,
+} from "./infrastructure/services/program-tour-departures"
 export { holdInventory } from "./application/use-cases/hold-inventory"
 export { createInventoryHold } from "./application/use-cases/create-inventory-hold"
 export { releaseInventoryHold } from "./application/use-cases/release-inventory-hold"
