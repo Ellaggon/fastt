@@ -1820,6 +1820,19 @@ export const ProviderOptionPreparationSession = pgTable(
 		stepId: txt("stepId"),
 		variantId: txtOpt("variantId"),
 		ratePlanId: txtOpt("ratePlanId"),
+		entryIntent: text("entryIntent")
+			.$type<"first_publication" | "additional_option">()
+			.default("additional_option")
+			.notNull(),
+		handoffAt: timestamp("handoffAt", { withTimezone: true }),
+		creationIntent: jsonb("creationIntent").$type<{
+			mode: "schedule"
+			sourceVariantId: string
+			sourceRatePlanId?: string
+			reusePrice: boolean
+			reuseConditions: boolean
+			sourceFingerprint: string
+		}>(),
 		lastPath: txt("lastPath"),
 		status: text("status").default("active").notNull(),
 		createdAt: now("createdAt"),
@@ -1833,6 +1846,13 @@ export const ProviderOptionPreparationSession = pgTable(
 			table.updatedAt
 		),
 		index("ProviderOptionPreparationSession_product_idx").on(table.productId),
+		uniqueIndex("ProviderOptionPreparationSession_first_active_idx")
+			.on(table.providerId, table.userId, table.productId)
+			.where(sql`${table.entryIntent} = 'first_publication' AND ${table.status} = 'active'`),
+		check(
+			"ProviderOptionPreparationSession_entryIntent_check",
+			sql`${table.entryIntent} IN ('first_publication', 'additional_option')`
+		),
 		check(
 			"ProviderOptionPreparationSession_playbook_check",
 			sql`${table.playbookId} = 'add-tour-option'`
