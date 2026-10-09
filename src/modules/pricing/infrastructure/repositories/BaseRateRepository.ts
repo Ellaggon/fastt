@@ -14,13 +14,14 @@ import type {
 } from "../../application/ports/RatePlanPricingBaselineRepositoryPort"
 
 export class BaseRateRepository implements RatePlanPricingBaselineRepositoryPort {
+	constructor(private readonly connection: Pick<typeof db, "select" | "insert" | "update"> = db) {}
 	async getCanonicalPricingBaselineByRatePlanId(
 		ratePlanId: string
 	): Promise<CanonicalPricingBaselineSnapshot | null> {
 		const normalizedRatePlanId = String(ratePlanId ?? "").trim()
 		if (!normalizedRatePlanId) return null
 		const targetDate = new Date()
-		const policy = await db
+		const policy = await this.connection
 			.select({
 				basePrice: RatePlanOccupancyPolicy.baseAmount,
 				currency: RatePlanOccupancyPolicy.currency,
@@ -57,7 +58,7 @@ export class BaseRateRepository implements RatePlanPricingBaselineRepositoryPort
 			.trim()
 			.toUpperCase()
 		const normalizedBasePrice = Number(params.basePrice)
-		const existingPolicy = await db
+		const existingPolicy = await this.connection
 			.select({ id: RatePlanOccupancyPolicy.id })
 			.from(RatePlanOccupancyPolicy)
 			.where(
@@ -70,7 +71,7 @@ export class BaseRateRepository implements RatePlanPricingBaselineRepositoryPort
 			.orderBy(desc(RatePlanOccupancyPolicy.effectiveFrom), desc(RatePlanOccupancyPolicy.id))
 			.then(first)
 		if (existingPolicy?.id) {
-			await db
+			await this.connection
 				.update(RatePlanOccupancyPolicy)
 				.set({
 					baseAmount: normalizedBasePrice,
@@ -80,7 +81,7 @@ export class BaseRateRepository implements RatePlanPricingBaselineRepositoryPort
 				.where(eq(RatePlanOccupancyPolicy.id, existingPolicy.id))
 			return
 		}
-		await db.insert(RatePlanOccupancyPolicy).values({
+		await this.connection.insert(RatePlanOccupancyPolicy).values({
 			id: crypto.randomUUID(),
 			ratePlanId: normalizedRatePlanId,
 			baseAdults: 2,

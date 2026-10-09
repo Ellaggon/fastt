@@ -148,6 +148,9 @@ const previewSelection = {
 }
 const preparationPath = `/product/${encodeURIComponent(productId)}/preview`
 const preparationReturnUrl = new URL(preparationPath, url.origin)
+preparationReturnUrl.searchParams.set("playbook", "complete-to-publish")
+preparationReturnUrl.searchParams.set("step", "preview")
+preparationReturnUrl.searchParams.set("flow", "complete")
 const requestedReturnTo = url.searchParams.get("returnTo")
 if (requestedReturnTo) {
 	try {
@@ -593,7 +596,7 @@ const breadcrumbItems = [
 								class="inline-flex h-10 shrink-0 items-center rounded-lg bg-white px-4 text-sm font-semibold text-slate-950 shadow-sm transition hover:bg-slate-100"
 								href={preparationReturnHref}
 							>
-								Volver a preparación
+								Revisar publicación
 							</a>
 						</div>
 						{descriptionNeedsEditorialReview ? (
@@ -613,7 +616,7 @@ const breadcrumbItems = [
 								<a
 									class="inline-flex h-10 shrink-0 items-center rounded-lg border border-white/15 px-4 text-sm font-semibold text-white transition hover:bg-white/10"
 									href={withTourOfferSelection(
-										`/product/${encodeURIComponent(productId)}/content`,
+										`/product/${encodeURIComponent(productId)}/presentation?playbook=complete-to-publish&step=content&flow=complete&returnTo=${encodeURIComponent(preparationReturnHref)}`,
 										previewSelection
 									)}
 								>

@@ -5,6 +5,7 @@ import Input from "@/components/ui/Input.astro"
 import Notice from "@/components/ui/Notice.astro"
 import Textarea from "@/components/ui/Textarea.astro"
 import { CalendarDays, ChevronDown, Clock, Users } from "@lucide/astro"
+import { TOUR_SLOT_LANGUAGE_OPTIONS } from "@/lib/tours/tourSlotLanguageOptions"
 
 const {
 	offers = [],
@@ -18,6 +19,18 @@ const {
 } = Astro.props
 
 const isRail = layout === "rail"
+const alternativeNames = new Set(
+	(offers ?? []).map((offer: any) => {
+		const id = String(offer?.variantId ?? offer?.variant?.id ?? "")
+		return String(slotsByVariantId?.[id]?.name ?? offer?.variant?.name ?? "Opción del tour").trim()
+	})
+)
+const offerHeading =
+	offers.length === 1
+		? "Tu opción del tour"
+		: alternativeNames.size === 1
+			? "Elige la hora de inicio"
+			: "Elige cómo disfrutar el tour"
 
 function ratePlanIdOf(ratePlan: any): string {
 	return String(ratePlan?.ratePlanId ?? ratePlan?.id ?? "").trim()
@@ -205,7 +218,8 @@ const initialGroupSummary = (() => {
 				<div class="mb-3 flex items-end justify-between gap-4">
 					<div>
 						<h3 id="tourOfferStep" class="text-sm font-semibold text-slate-950">
-							<span class="mr-2 text-orange-700">2.</span>Elige una opción
+							<span class="mr-2 text-orange-700">2.</span>
+							{offerHeading}
 						</h3>
 						<p class="mt-1 text-xs leading-5 text-slate-600">
 							Precios para la fecha y el grupo consultados.
@@ -213,7 +227,7 @@ const initialGroupSummary = (() => {
 					</div>
 					<p id="tourResultsState" class="text-right text-xs text-slate-500" aria-live="polite">
 						{hasSearchedDeparture
-							? "Elige una tarifa para ver condiciones."
+							? "Revisa las alternativas y sus condiciones."
 							: "Consulta pendiente."}
 					</p>
 				</div>
@@ -221,9 +235,11 @@ const initialGroupSummary = (() => {
 					{(offers ?? []).map((offer: any) => {
 						const variantId = String(offer?.variantId ?? offer?.variant?.id ?? "")
 						const slot = slotsByVariantId?.[variantId] ?? {}
-						const name = String(slot.name ?? offer?.variant?.name ?? "Salida")
+						const name = String(slot.name ?? offer?.variant?.name ?? "Opción del tour")
 						const time = String(slot.departureTime ?? "—")
-						const lang = String(slot.languageCode ?? "").toUpperCase()
+						const lang =
+							TOUR_SLOT_LANGUAGE_OPTIONS.find((language) => language.code === slot.languageCode)
+								?.label ?? String(slot.languageCode ?? "").toUpperCase()
 						const isPrivate = String(slot.bookingMode ?? "").toLowerCase() === "private"
 						const mode = isPrivate ? "Privado" : "Compartido"
 						const maxPax =
@@ -292,13 +308,19 @@ const initialGroupSummary = (() => {
 													class="fastt-button flex w-full items-center justify-between rounded-[var(--fastt-radius-control)] border border-slate-200 px-3 py-2.5 text-left text-sm font-semibold text-slate-800 hover:border-slate-400 hover:bg-slate-50 aria-pressed:border-slate-950 aria-pressed:bg-slate-950 aria-pressed:text-white"
 													data-select-variant-id={variantId}
 													data-select-rateplan-id={id}
-													data-option-label={`${name} · ${String(rp.ratePlanName ?? rp.name ?? "Tarifa")}`}
+													data-option-label={name}
+													data-option-time={time}
+													data-option-language={lang}
 													data-option-price={rpPrice ?? ""}
 													data-option-currency={currencyOf(rp)}
 													aria-pressed="false"
 													disabled={previewMode || !hasSearchedDeparture}
 												>
-													<span>{String(rp.ratePlanName ?? rp.name ?? "Tarifa")}</span>
+													<span>
+														{ratePlans.length === 1
+															? "Revisar condiciones"
+															: String(rp.ratePlanName ?? rp.name ?? "Condiciones de reserva")}
+													</span>
 													<span class="text-xs font-medium opacity-80">
 														{rpPrice != null ? `${currencyOf(rp)} ${rpPrice}` : "Consultar"}
 													</span>
@@ -801,7 +823,17 @@ const initialGroupSummary = (() => {
 							payload.freeCancellationDeadline
 						)
 						if (selectionConfirmation) {
-							selectionConfirmation.textContent = `${String(btn.dataset.optionLabel ?? "Opción seleccionada")}. ${confirmation}. ${payload.policySummary}`
+							selectionConfirmation.textContent = [
+								btn.dataset.optionLabel || "Opción del tour",
+								departureDate(),
+								btn.dataset.optionTime,
+								btn.dataset.optionLanguage,
+								describeGroup(),
+								confirmation,
+								payload.policySummary,
+							]
+								.filter(Boolean)
+								.join(" · ")
 						}
 						if (selectionPrice) {
 							const amount = String(btn.dataset.optionPrice ?? "").trim()
@@ -862,9 +894,15 @@ const initialGroupSummary = (() => {
 					`[data-select-variant-id="${CSS.escape(initialVariantId)}"][data-select-rateplan-id="${CSS.escape(initialRatePlanId)}"]`
 				)
 				?.click()
+		} else if (!initialVariantId && !initialRatePlanId && departureDate()) {
+			const choices = root.querySelectorAll<HTMLButtonElement>("[data-select-variant-id]")
+			const privateChoices = root.querySelectorAll("[data-quote-private-variant]")
+			if (choices.length === 1 && privateChoices.length === 0 && !choices[0].disabled)
+				choices[0].click()
 		}
 		updateGroupSummary()
-		if (departureDate()) setMobileStatus("Elige una opción", "Ver salidas")
+		if (departureDate() && !selectedVariantId)
+			setMobileStatus("Elige cómo disfrutar el tour", "Ver salidas")
 		mobileBookingCta?.addEventListener("click", (event) => {
 			root.scrollIntoView({ behavior: reducedMotion() ? "auto" : "smooth", block: "start" })
 			// A touch user keeps their current focus context. Keyboard activation moves focus to the date.

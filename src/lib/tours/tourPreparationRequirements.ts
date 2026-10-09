@@ -1,7 +1,10 @@
-import { TOUR_PREPARATION_STAGES } from "@/lib/playbook/launch-tour"
 import type { ProductVerticalSectionKey } from "@/lib/catalog/productVerticalRegistry"
 import { completeToPublishStepHref } from "@/lib/playbook/complete-to-publish"
-import { type TourDiagnostic, type TourRequirementId } from "./tourDiagnosticContract"
+import {
+	TOUR_REQUIREMENTS,
+	type TourDiagnostic,
+	type TourRequirementId,
+} from "./tourDiagnosticContract"
 import { TOUR_REQUIREMENT_PRESENTATION } from "./tourDiagnosticPresentation"
 
 export function tourDiagnosticSelectionContext(diagnosis: TourDiagnostic) {
@@ -24,9 +27,9 @@ export function tourPreparationRequirementHref(
 	)
 }
 
-export const TOUR_PREPARATION_REQUIREMENT_ORDER = TOUR_PREPARATION_STAGES.flatMap((stage) => [
-	...stage.requirements,
-])
+export const TOUR_PREPARATION_REQUIREMENT_ORDER = (
+	Object.keys(TOUR_REQUIREMENTS) as TourRequirementId[]
+).filter((id) => TOUR_REQUIREMENTS[id].axis === "preparation")
 
 export type TourPreparationRequirementView = {
 	id: TourRequirementId

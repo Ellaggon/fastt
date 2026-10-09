@@ -47,8 +47,8 @@ it("saves once and advances directly to stage two preserving the commercial sele
 	expect(response.status).toBe(200)
 	const result = await response.json()
 	const url = new URL(result.nextHref, "https://fastt.test")
-	expect(url.pathname).toBe(`/product/${productId}/location`)
-	expect(url.searchParams.get("step")).toBe("location")
+	expect(url.pathname).toBe(`/product/${productId}/subtype`)
+	expect(url.searchParams.get("step")).toBe("subtype")
 	expect(url.searchParams.get("variantId")).toBe("option")
 	expect(url.searchParams.get("ratePlanId")).toBe("rate")
 	expect(mocks.save).toHaveBeenCalledOnce()
@@ -85,3 +85,19 @@ it("rejects an expired session without changing persisted data", async () => {
 	expect(response.status).toBe(401)
 	expect(mocks.save).not.toHaveBeenCalled()
 })
+
+it("returns an editorial correction to the same tour and selected offer", async () => {
+	const href = `/product/${productId}?variantId=option&ratePlanId=rate`
+	const response = await POST({
+		request: request({ playbook: "", flow: "edit", returnTo: href }),
+	} as never)
+	expect(response.status).toBe(200)
+	expect((await response.json()).nextHref).toBe(href)
+})
+it.each(["//evil.test", "/product/another", "/\\evil.test"])(
+	"rejects unrelated editorial return %s",
+	async (returnTo) => {
+		const response = await POST({ request: request({ playbook: "", returnTo }) } as never)
+		expect((await response.json()).nextHref).toBe(`/product/${productId}`)
+	}
+)

@@ -18,6 +18,8 @@ Functional vocabulary: [provider playbooks](../domains/tours/tour-provider-playb
 | Physical column / table | Tour meaning |
 | --- | --- |
 | `Variant` with `kind = tour_slot` | Opción reutilizable del tour; no una fecha programada |
+| `Variant.name` | Nombre comercial visible al viajero; puede repetirse en horarios distintos. |
+| `RatePlan.name` | Nombre de la tarifa; no sustituye el nombre comercial de la opción. |
 | `TourSlotProfile` | Horario habitual, idioma, modalidad y límite de grupo de la opción. |
 | `DailyInventory.date` | Fecha de salida; inventario único por opción y fecha. |
 | `TourDepartureInstance` | Ajustes operativos opcionales por opción y fecha; sin capacidad ni precio propios. |

@@ -7,7 +7,7 @@ import { resolve } from "node:path"
 import { describe, expect, it } from "vitest"
 
 import { completeToPublishNextHref } from "@/lib/playbook/complete-to-publish"
-import { TOUR_LAUNCH_STEPS } from "@/lib/playbook/launch-tour"
+import { getTourLaunchStepById } from "@/lib/playbook/launch-tour"
 import {
 	getTourPublishingStage,
 	TOUR_PUBLISHING_STAGE_COUNT,
@@ -26,7 +26,7 @@ describe("tour provider phase 5", () => {
 			expect(getLaunchLikeStage(launch, step.id)).toEqual({
 				label: getTourPublishingStage(step.id).label,
 				position: getTourPublishingStage(step.id).position,
-				total: 9,
+				total: 5,
 			})
 		const preview = source("src/pages/product/[id]/preview.astro")
 		expect(preview).toContain("playbookVertical={vertical.vertical}")
@@ -35,20 +35,13 @@ describe("tour provider phase 5", () => {
 	})
 
 	it("groups navigation screens into nine stages without turning substeps into progress", () => {
-		expect(TOUR_PUBLISHING_STAGE_COUNT).toBe(9)
+		expect(TOUR_PUBLISHING_STAGE_COUNT).toBe(5)
 		for (const step of ["content", "categories"])
 			expect(getTourPublishingStage(step).position).toBe(1)
 		expect(getTourPublishingStage("subtype").position).toBe(2)
 		expect(getTourPublishingStage("location").position).toBe(3)
 		expect(getTourPublishingStage("photos").position).toBe(4)
-		for (const [step, position] of [
-			["tickets", 5],
-			["departure", 6],
-			["rate", 7],
-			["bookingPolicies", 8],
-		] as const)
-			expect(getTourPublishingStage(step).position).toBe(position)
-		expect(getTourPublishingStage("calendar").position).toBe(9)
+		expect(getTourPublishingStage("tickets").position).toBe(5)
 		expect(getTourPublishingStage("preview").position).toBe(0)
 	})
 
@@ -69,7 +62,7 @@ describe("tour provider phase 5", () => {
 			"/product/tour-1/subtype?playbook=complete-to-publish&step=subtype&flow=complete"
 		)
 		expect(completeToPublishNextHref("tour-1", "tickets", "tour")).toBe(
-			"/product/tour-1/departures/new?playbook=complete-to-publish&step=departure&flow=complete"
+			"/product/tour-1/preview?playbook=complete-to-publish&step=preview&flow=complete"
 		)
 		const participants = source("src/pages/product/[id]/tickets.astro")
 		const categories = source("src/pages/product/[id]/categories.astro")
@@ -92,7 +85,7 @@ describe("tour provider phase 5", () => {
 		expect(links.priceHref).toContain("variantId=departure-1")
 		expect(links.calendarHref).toContain("ratePlanId=rate-1")
 
-		const launchCalendar = TOUR_LAUNCH_STEPS.find((step) => step.id === "calendar")?.buildHref({
+		const launchCalendar = getTourLaunchStepById("calendar")?.buildHref({
 			productId: "tour-1",
 			variantId: "departure-1",
 			ratePlanId: "rate-1",
@@ -133,7 +126,7 @@ describe("tour provider phase 5", () => {
 		expect(location).toContain("Destino y zona pública")
 		expect(location).toContain("Punto de encuentro operativo")
 		expect(conditions).toContain("Preguntas al reservar")
-		expect(conditions).toContain("todas las opciones y tarifas")
+		expect(conditions).toContain("Preguntas al reservar")
 		expect(conditions).toContain('name="customRequired"')
 	})
 

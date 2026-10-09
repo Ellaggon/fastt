@@ -23,6 +23,7 @@ import type {
 } from "../../application/ports/PolicyResolutionRepositoryPort"
 
 export class PolicyResolutionRepository implements PolicyResolutionRepositoryPort {
+	constructor(private readonly connection: Pick<typeof db, "select"> = db) {}
 	async listActiveAssignments(params: {
 		scopeChain: ScopeNode[]
 		channels: Array<string | null>
@@ -40,7 +41,7 @@ export class PolicyResolutionRepository implements PolicyResolutionRepositoryPor
 			and(eq(PolicyAssignment.scope, p.scope), eq(PolicyAssignment.scopeId, p.scopeId))
 		)
 
-		const rows = await db
+		const rows = await this.connection
 			.select({
 				id: PolicyAssignment.id,
 				policyGroupId: PolicyAssignment.policyGroupId,
@@ -93,7 +94,7 @@ export class PolicyResolutionRepository implements PolicyResolutionRepositoryPor
 		const asOf = String(params.asOfDate ?? "").trim()
 		if (!asOf) return {}
 
-		const rows = await db
+		const rows = await this.connection
 			.select({
 				id: Policy.id,
 				groupId: Policy.groupId,
@@ -152,7 +153,7 @@ export class PolicyResolutionRepository implements PolicyResolutionRepositoryPor
 	async listPolicyRulesByPolicyId(policyId: string): Promise<PolicyRuleRow[]> {
 		const id = String(policyId ?? "").trim()
 		if (!id) return []
-		const rows = await db.select().from(PolicyRule).where(eq(PolicyRule.policyId, id))
+		const rows = await this.connection.select().from(PolicyRule).where(eq(PolicyRule.policyId, id))
 		return rows.map((r: any) => ({
 			id: String(r.id),
 			policyId: String(r.policyId),
@@ -164,7 +165,10 @@ export class PolicyResolutionRepository implements PolicyResolutionRepositoryPor
 	async listCancellationTiersByPolicyId(policyId: string): Promise<CancellationTierRow[]> {
 		const id = String(policyId ?? "").trim()
 		if (!id) return []
-		const rows = await db.select().from(CancellationTier).where(eq(CancellationTier.policyId, id))
+		const rows = await this.connection
+			.select()
+			.from(CancellationTier)
+			.where(eq(CancellationTier.policyId, id))
 
 		// Deterministic ordering: closest-to-arrival first.
 		rows.sort((a: any, b: any) => {
@@ -187,8 +191,11 @@ export class PolicyResolutionRepository implements PolicyResolutionRepositoryPor
 		if (!ids.length) return { rulesByPolicyId: {}, cancellationTiersByPolicyId: {} }
 
 		const [rules, tiers] = await Promise.all([
-			db.select().from(PolicyRule).where(inArray(PolicyRule.policyId, ids)),
-			db.select().from(CancellationTier).where(inArray(CancellationTier.policyId, ids)),
+			this.connection.select().from(PolicyRule).where(inArray(PolicyRule.policyId, ids)),
+			this.connection
+				.select()
+				.from(CancellationTier)
+				.where(inArray(CancellationTier.policyId, ids)),
 		])
 		const rulesByPolicyId: Record<string, PolicyRuleRow[]> = {}
 		for (const row of rules as any[]) {

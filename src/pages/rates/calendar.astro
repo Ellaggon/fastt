@@ -5,8 +5,7 @@ import CalendarSubnav from "@/components/rates/CalendarSubnav.astro"
 import CalendarWorkspaceHeader from "@/components/rates/CalendarWorkspaceHeader"
 import CalendarWorkspaceSkeleton from "@/components/rates/CalendarWorkspaceSkeleton.astro"
 import SingleCalendarWorkspace from "@/components/rates/SingleCalendarWorkspace"
-import Button from "@/components/ui/Button.astro"
-import Card from "@/components/ui/Card.astro"
+import TourPrerequisiteCard from "@/components/tours/TourPrerequisiteCard.astro"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import type { WorkspaceRequestContext } from "@/lib/dashboard/workspaceRequestContext"
@@ -461,17 +460,18 @@ timing.setHeader(Astro.response.headers)
 
 		{
 			calendarDependency ? (
-				<Card class="bg-white text-slate-900">
-					<h2 class="text-lg font-semibold">
-						{calendarDependency === "missing_option"
+				<TourPrerequisiteCard
+					title={
+						calendarDependency === "missing_option"
 							? "Primero crea una opción para configurar sus fechas"
-							: "Primero configura la tarifa de esta opción"}
-					</h2>
-					<p class="mt-2 mb-4 text-sm text-slate-600">
-						Las fechas y los cupos pertenecen a una opción del tour.
-					</p>
-					<Button href={calendarDependencyHref}>Configurar opción y precio</Button>
-				</Card>
+							: "Primero configura la tarifa de esta opción"
+					}
+					lead="Las fechas y los cupos pertenecen a una opción del tour."
+					actionLabel={
+						calendarDependency === "missing_option" ? "Crear opción" : "Configurar opción y precio"
+					}
+					href={calendarDependencyHref}
+				/>
 			) : (
 				<div data-calendar-runtime>
 					<SingleCalendarWorkspace

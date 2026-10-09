@@ -2,7 +2,6 @@ import type { ProductVerticalSectionKey } from "@/lib/catalog/productVerticalReg
 import { completeToPublishStepHref } from "@/lib/playbook/complete-to-publish"
 import { type TourDiagnostic } from "@/lib/tours/tourDiagnosticContract"
 import { tourDiagnosticSelectionContext } from "@/lib/tours/tourPreparationRequirements"
-import { tourConditionsHref } from "@/lib/tours/tourConditionsHref"
 
 import {
 	TOUR_PREPARATION_STAGES,
@@ -21,10 +20,6 @@ const STAGE_CANONICAL_SECTION = {
 	location: "location",
 	photos: "photos",
 	participants: "tickets",
-	option: "departure",
-	price: "rate",
-	conditions: "bookingPolicies",
-	calendar: "calendar",
 } as const satisfies Record<
 	(typeof TOUR_PUBLISHING_STAGES)[number]["id"],
 	ProductVerticalSectionKey
@@ -38,9 +33,7 @@ export function tourPublishingStageHref(
 	const context = tourDiagnosticSelectionContext(diagnosis)
 
 	return buildTourPlaybookHref(
-		stageId === "conditions"
-			? tourConditionsHref(productId, context)
-			: completeToPublishStepHref(productId, STAGE_CANONICAL_SECTION[stageId], context),
+		completeToPublishStepHref(productId, STAGE_CANONICAL_SECTION[stageId], context),
 		normalizeTourLaunchStep(STAGE_CANONICAL_SECTION[stageId])!
 	)
 }

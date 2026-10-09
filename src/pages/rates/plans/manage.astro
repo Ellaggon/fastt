@@ -23,6 +23,7 @@ import RatePlanRecentChanges from "@/components/rates/RatePlanRecentChanges.astr
 import RatePlanResponsiveTable from "@/components/rates/RatePlanResponsiveTable.astro"
 import TourAcceptedCurrencies from "@/components/rates/TourAcceptedCurrencies.astro"
 import PlaybookStepHeader from "@/components/playbook/PlaybookStepHeader.astro"
+import TourPrerequisiteCard from "@/components/tours/TourPrerequisiteCard.astro"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import {
 	getNextAddRoomStep,
@@ -665,15 +666,12 @@ const tourRateSaveHref = isTourRateContext
 		{
 			missingOption && createOptionHref ? (
 				<section class="space-y-6">
-					<Card class="space-y-4 bg-white text-slate-900">
-						<div class="space-y-1.5">
-							<h2 class="text-lg font-semibold text-slate-950">Primero crea una opción</h2>
-							<p class="text-sm leading-6 text-slate-600">
-								Necesitas una opción para definir su precio.
-							</p>
-						</div>
-						<Button href={createOptionHref}>Crear opción</Button>
-					</Card>
+					<TourPrerequisiteCard
+						title="Primero crea una opción"
+						lead="Necesitas una opción para definir su precio."
+						actionLabel="Crear opción"
+						href={createOptionHref}
+					/>
 				</section>
 			) : isPlaybookRateStep ? (
 				<>

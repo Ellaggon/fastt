@@ -1,5 +1,6 @@
 ---
 import { listOptionSessions, sessionHref } from "@/lib/onboarding/tourOptionSession"
+import TourPrerequisiteCard from "@/components/tours/TourPrerequisiteCard.astro"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
@@ -133,9 +134,7 @@ const optionSummaryStatus =
 										<CirclePlay class="mt-0.5 h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
 										<span class="min-w-0">
 											<span class="block font-semibold text-white">{optionName}</span>
-											<span class="mt-0.5 block text-slate-400">
-												Configuración en curso · retoma donde la dejaste
-											</span>
+											<span class="mt-0.5 block text-slate-400">Retoma donde la dejaste</span>
 										</span>
 									</span>
 									<span class="flex shrink-0 items-center gap-4 self-center">
@@ -187,24 +186,19 @@ const optionSummaryStatus =
 					</>
 				</Card>
 			) : rows.length === 0 ? (
-				<Card class="bg-white">
-					<>
-						<h2 class="font-semibold">Sin opciones todavía</h2>
-						<p class="mt-2 text-sm text-slate-600">
-							Crea la primera opción para configurar su precio y sus fechas.
-						</p>
-						<form method="POST" action="/api/onboarding/tour-option-session">
-							<>
-								<input type="hidden" name="action" value="start" />
-								<input type="hidden" name="productId" value={productId} />
-								<input type="hidden" name="sessionId" value={startId} />
-								<Button class="fastt-playbook-cta mt-4" type="submit" variant="selection">
-									Crear primera opción
-								</Button>
-							</>
-						</form>
-					</>
-				</Card>
+				<TourPrerequisiteCard
+					title="Primero crea una opción"
+					lead="Necesitas una opción para configurar su precio y sus fechas."
+				>
+					<form method="POST" action="/api/onboarding/tour-option-session">
+						<input type="hidden" name="action" value="start" />
+						<input type="hidden" name="productId" value={productId} />
+						<input type="hidden" name="sessionId" value={startId} />
+						<Button type="submit" variant="selection" className="fastt-playbook-cta">
+							Crear opción
+						</Button>
+					</form>
+				</TourPrerequisiteCard>
 			) : (
 				<>
 					<section class="space-y-3" aria-labelledby="option-summary-title" aria-live="polite">
@@ -333,6 +327,19 @@ const optionSummaryStatus =
 														aria-label={`Acciones de ${row.name}`}
 														class="fastt-soft-box absolute right-0 z-10 mt-1 w-56 bg-white p-1.5 shadow-lg"
 													>
+														<form method="POST" action="/api/onboarding/tour-option-session">
+															<input type="hidden" name="action" value="start" />
+															<input type="hidden" name="productId" value={productId} />
+															<input type="hidden" name="sessionId" value={crypto.randomUUID()} />
+															<input type="hidden" name="sourceVariantId" value={row.id} />
+															<Button
+																type="submit"
+																variant="ghost"
+																className="h-auto w-full justify-start rounded-lg px-3 py-2.5 text-left text-sm font-normal text-slate-700 hover:bg-slate-100"
+															>
+																Añadir horario<span class="sr-only"> de {row.name}</span>
+															</Button>
+														</form>
 														{moreActions.map(({ href, label }) => (
 															<a
 																href={href}

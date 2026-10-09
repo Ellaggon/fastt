@@ -43,12 +43,12 @@ async function render(part: "prepare" | "publish") {
 	const container = await AstroContainer.create()
 	return container.renderToString(PlaybookLayout, {
 		request: new Request(
-			`https://fastt.test/product/tour/departures/option?playbook=${part === "prepare" ? "launch-tour" : "complete-to-publish"}&step=departure&tourFlowVersion=2&variantId=option&ratePlanId=rate&returnTo=%2Fproduct%2Ftour%2Fpreview`
+			`https://fastt.test/product/tour/${part === "prepare" ? "tickets" : "departures/option"}?playbook=${part === "prepare" ? "launch-tour" : "complete-to-publish"}&step=${part === "prepare" ? "tickets" : "departure"}&tourFlowVersion=2&variantId=option&ratePlanId=rate&returnTo=%2Fproduct%2Ftour%2Fpreview`
 		),
 		props: {
 			active: true,
 			playbookId: part === "prepare" ? "launch-tour" : "complete-to-publish",
-			stepId: "departure",
+			stepId: part === "prepare" ? "tickets" : "departure",
 			productId: "tour",
 			variantId: "option",
 			ratePlanId: "rate",
@@ -61,12 +61,23 @@ async function render(part: "prepare" | "publish") {
 	})
 }
 describe("two tour playbooks rendered in their actual layout", () => {
+	it("shows all five stages before a product exists without links to unsaved forms", async () => {
+		const container = await AstroContainer.create()
+		const html = await container.renderToString(PlaybookLayout, {
+			request: new Request("https://fastt.test/product/create?type=Tour&playbook=launch-tour&step=create&flow=create&tourFlowVersion=2"),
+			props: { active: true, playbookId: "launch-tour", stepId: "create", playbookVertical: "tour", isHotel: false },
+		})
+		expect(html).toContain("Etapa 1 de 5")
+		expect(html.match(/data-tour-stage-id=/g)).toHaveLength(5)
+		expect(html).toContain('aria-current="step"')
+		expect(html).not.toContain('href="/product//')
+	})
 	it("A shows only its nine folded stages and preserves the review return on stage links", async () => {
 		const html = await render("prepare")
-		expect(html).toContain("Preparar tour")
-		expect(html).toContain("Tour guardado - Etapa 6 de 9")
+		expect(html).toContain("Crear tour")
+		expect(html).toContain("Tour guardado - Etapa 5 de 5")
 		expect(html).not.toContain("Ver etapas")
-		expect(html.match(/data-tour-stage-id=/g)).toHaveLength(9)
+		expect(html.match(/data-tour-stage-id=/g)).toHaveLength(5)
 		expect(html).not.toMatch(/<details[^>]*open/)
 		expect(html).not.toContain("data-tour-publication-correction")
 		expect(html).not.toContain("comprobaciones cumplidas")

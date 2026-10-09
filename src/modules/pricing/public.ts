@@ -154,3 +154,6 @@ export async function ensurePricingCoverageForRequestRuntime(params: {
 		params
 	)
 }
+
+/** Baseline persistence shares the caller's atomic transaction. */
+export { BaseRateRepository as TransactionalPricingBaselineRepository } from "./infrastructure/repositories/BaseRateRepository"

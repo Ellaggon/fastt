@@ -3,7 +3,7 @@
 Status: active  
 Document type: canonical  
 Owner: Tours / Provider Experience  
-Last verified: 2026-10-08
+Last verified: 2026-10-09
 Scope: definición ideal de los recorridos guiados (playbooks) del proveedor de tours, sus etapas, diagnóstico compartido, navegación y reglas de interfaz  
 Source of truth: este documento; implementación en `src/lib/playbook/`, layouts de playbook y superficies enlazadas del proveedor  
 Related code/tests: `src/lib/playbook/`, `src/layouts/PlaybookLayout.astro`, `src/pages/product/`, `src/pages/catalog/tours.astro`, pruebas de wizard comercial de tours  
@@ -32,11 +32,11 @@ Supersedes: `docs/domains/tours/provider-workflow.md` (retirado: recuento histó
 ## Flujo 1 — Crear y publicar un tour
 
 La [especificación de Preparar tour y Publicar tour](./tour-preparation-publication.md)
-define dos playbooks conectados dentro de un flujo: A construye el borrador en nueve etapas;
+define dos playbooks conectados dentro de un flujo: A construye la ficha en cinco etapas y continúa al asistente de primera opción;
 B evalúa lo guardado, muestra sólo pendientes, reutiliza formularios precargados y confirma
 la publicación. Sus indicadores y navegación nunca se muestran simultáneamente.
 
-Es el contrato objetivo reformulado; el código en curso aún debe adaptarse y verificarse.
+El cierre de ficha y la primera opción conservan recorridos y reanudaciones separados.
 El reporte incluye ambos flujos, pantallas, retornos, casos límite y criterios de aceptación.
 El [diagrama editable](./diagrams/01-preparar-publicar-tour.excalidraw) representa el mismo contrato.
 
@@ -129,7 +129,7 @@ Recorrido **independiente** de la preparación de la ficha, conectado cuando se 
 `add-tour-option` reutiliza los formularios y termina en activación, sin publicar el tour.
 `ProviderOptionPreparationSession` conserva cada configuración independientemente;
 no altera sesiones antiguas. Valida relaciones y revisión antes de guardar navegación.
-Abandonar conserva datos. Base: sólo perfil; precio y condiciones requieren revisión.
+Abandonar conserva datos. Base normal: sólo perfil; precio y condiciones requieren revisión.
 [Decisión de persistencia](../../engineering/adr/0006-option-preparation-sessions.md).
 Pruebas: `tests/unit/add-tour-option.test.ts` y
 `tests/integration/tour-option-session-persistence.test.ts`.
@@ -146,6 +146,18 @@ Pruebas: `tests/unit/add-tour-option.test.ts` y
 - No copiar reservas, aprobaciones documentales ni excepciones de calendario sin decisión explícita.
 
 ### Vocabulario
+
+El nombre comercial de la opción se guarda en `Variant.name` y describe la alternativa que
+recibe el viajero; no es el nombre de `RatePlan`. El editor lo presenta como «Nombre que verán
+los viajeros». Horario, idioma, precio y condiciones se muestran separados del título.
+«Añadir horario» conserva ese nombre; no concatena la hora. Una nueva alternativa empieza
+sin un nombre inventado. Los nombres históricos no se cambian automáticamente.
+
+La administración conserva «Opciones y horarios». En la ficha pública, una combinación
+compartida inequívoca se selecciona después de la consulta y carga sus condiciones; varias
+alternativas requieren elección. Nunca se sustituye una selección explícita por la primera.
+El nombre de tarifa sirve como respaldo cuando hay varias condiciones y el resultado no
+incluye una etiqueta comercial verificada; no se deducen políticas de un nombre.
 
 - **Negocio:** titular que ofrece las experiencias (`Provider`).
 - **Tour / experiencia:** producto elegido por el viajero (`Product` + `Tour`).
@@ -168,7 +180,15 @@ comercialmente y publicar son acciones distintas.
 Acciones: **Añadir / editar opción**, configurar el perfil; **Programar salidas**, abrir
 fechas; **Gestionar fechas y cupos**, revisar disponibilidad; **Editar salida del [fecha]**,
 modificar una ocurrencia; **Precios y condiciones**, gestionar la tarifa. **Añadir horario**
-es un acceso asistido futuro: no mostrar el botón hasta implementarlo.
+inicia el mismo asistente desde una opción existente: hora nueva vacía y configuración
+común editable bajo demanda. El origen se conserva en la sesión. Precio base/moneda y
+condiciones se reutilizan mediante confirmaciones independientes y tarifa explícita;
+no se copian promociones, fechas, reservas, cierres ni ajustes operativos. Condiciones
+incompatibles o con excepciones fechadas exigen configuración nueva. Las condiciones
+locales reutilizadas tienen grupos propios; las de producto conservan su herencia.
+Crear perfil, tarifa y continuación es atómico y recuperable; un cambio del origen exige
+revisarlo, y un reintento no sobrescribe la opción ya creada. Sin activación automática.
+Pruebas: `tests/integration/tour-schedule-option-persistence.test.ts`.
 
 Selectores sin fecha: **Opción**; reservas con fecha: **Salida**. Se conservan rutas, IDs y tablas.
 

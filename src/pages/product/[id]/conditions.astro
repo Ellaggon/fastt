@@ -1,7 +1,7 @@
 ---
 import PlaybookStepHeader from "@/components/playbook/PlaybookStepHeader.astro"
+import TourPrerequisiteCard from "@/components/tours/TourPrerequisiteCard.astro"
 import Button from "@/components/ui/Button.astro"
-import Card from "@/components/ui/Card.astro"
 import PlaybookLayout from "@/layouts/PlaybookLayout.astro"
 import {
 	resolveTourPlaybookContext,
@@ -110,11 +110,7 @@ const stepLead =
 	<section class="space-y-6">
 		<PlaybookStepHeader icon="conditions" title="Condiciones de reserva" lead={stepLead} />
 
-		<Card class="space-y-4 bg-white text-slate-900">
-			<div class="space-y-1.5">
-				<h2 class="text-lg font-semibold text-slate-950">{title}</h2>
-				<p class="text-sm leading-6 text-slate-600">{message}</p>
-			</div>
+		<TourPrerequisiteCard title={title} lead={message}>
 			{
 				reason === "read_failed" ? (
 					<Button href={Astro.url.pathname + Astro.url.search} data-astro-reload>
@@ -159,6 +155,6 @@ const stepLead =
 					</div>
 				)
 			}
-		</Card>
+		</TourPrerequisiteCard>
 	</section>
 </PlaybookLayout>

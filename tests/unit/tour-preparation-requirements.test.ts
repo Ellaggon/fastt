@@ -37,9 +37,7 @@ describe("continuous tour preparation", () => {
 				const url = new URL(href, "http://fastt.local")
 				expect(url.searchParams.get("variantId")).toBe("option")
 				expect(url.searchParams.get("ratePlanId")).toBe("rate")
-				expect(url.searchParams.get("playbook")).toBe(
-					step.id === "calendar" ? "complete-to-publish" : "launch-tour"
-				)
+				expect(url.searchParams.get("playbook")).toBe(step.id === "tickets" ? null : "launch-tour")
 			}
 		}
 	})
@@ -75,7 +73,7 @@ describe("continuous tour preparation", () => {
 				{ productId: "tour" },
 				"bookingPolicies"
 			)
-		).toContain("step=calendar")
+		).toContain("step=preview")
 	})
 	it("keeps the ten checks secondary and preserves blocked and unknown statuses", () => {
 		expect(TOUR_PREPARATION_REQUIREMENT_ORDER).toHaveLength(11)

@@ -37,8 +37,10 @@ const panelClass = guided
 <section class="space-y-6">
 	<PlaybookStepHeader
 		icon="presentation"
-		title="Presenta tu experiencia"
-		lead="Cuenta qué ofreces y dónde. Después completarás el recorrido y la logística."
+		title={productId && !guided ? "Presentación del tour" : "Presenta tu experiencia"}
+		lead={productId && !guided
+			? "Actualiza el nombre, destino y contenido de esta experiencia."
+			: "Cuenta qué ofreces y dónde. Después completarás el recorrido y la logística."}
 		tone={guided ? "playbook" : "light"}
 	/>
 	<form

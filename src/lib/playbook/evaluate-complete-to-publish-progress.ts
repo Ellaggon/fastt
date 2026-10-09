@@ -1,3 +1,4 @@
+import { evaluateTourContentReadiness } from "@/lib/tours/tourContentReadiness"
 import { readTourRequestData } from "@/lib/tours/tourRequestReads"
 import { projectTourLogisticsObservation } from "@/lib/tours/tourPreparationRequirements"
 import { getTourLaunchStepById } from "./launch-tour"
@@ -237,6 +238,8 @@ async function evaluateCompleteToPublishState(
 		repositoryAggregate?.verticalReadiness?.kind === "tour"
 			? repositoryAggregate.verticalReadiness.tour
 			: null
+	const contentReadiness = evaluateTourContentReadiness(aggregate, tourReadiness)
+
 	const tourContext =
 		vertical.vertical === "tour" ? await loadTourCommercialContext(params) : undefined
 	if (tourContext?.status === "not_found") return null
@@ -584,40 +587,28 @@ async function evaluateCompleteToPublishState(
 			timezone: commercial?.observations.timezone ?? "UTC",
 			observations: {
 				presentation: observed(
-					Boolean(
-						completionBySection.content?.complete &&
-						aggregate.displayName?.trim() &&
-						aggregate.geoPlace?.id
-					),
+					contentReadiness.presentation,
 					"Completa nombre, destino, descripción y destacados."
 				),
-				logistics: projectTourLogisticsObservation(
-					["subtype", "itinerary"].map((sectionKey) => ({
-						sectionKey: sectionKey as "subtype" | "itinerary" | "location",
-						complete: Boolean(
-							completionBySection[sectionKey as ProductVerticalSectionKey]?.complete
-						),
-						detail: completionBySection[sectionKey as ProductVerticalSectionKey]!.detail,
-					})),
-					productId,
-					tourContext.status === "resolved" ? tourContext : {}
-				),
-				location: observed(
-					Boolean(completionBySection.location?.complete),
-					completionBySection.location!.detail
-				),
-				photos: observed(
-					Boolean(completionBySection.photos?.complete),
-					completionBySection.photos!.detail
-				),
-				participants: observed(
-					Boolean(completionBySection.tickets?.complete),
-					completionBySection.tickets!.detail
-				),
-				activities: observed(
-					Boolean(completionBySection.categories?.complete),
-					completionBySection.categories!.detail
-				),
+				logistics: {
+					...projectTourLogisticsObservation(
+						["subtype", "itinerary"].map((sectionKey) => ({
+							sectionKey: sectionKey as "subtype" | "itinerary",
+							complete: Boolean(
+								completionBySection[sectionKey as ProductVerticalSectionKey]?.complete
+							),
+							detail: completionBySection[sectionKey as ProductVerticalSectionKey]!.detail,
+						})),
+						productId,
+						tourContext.status === "resolved" ? tourContext : {}
+					),
+					ready: contentReadiness.logistics,
+				},
+
+				location: observed(contentReadiness.location, completionBySection.location!.detail),
+				photos: observed(contentReadiness.photos, completionBySection.photos!.detail),
+				participants: observed(contentReadiness.participants, completionBySection.tickets!.detail),
+				activities: observed(contentReadiness.activities, completionBySection.categories!.detail),
 				option_profile: observed(
 					Boolean(selectedOption?.hasProfile) && !readinessHas("missing_tour_slot_profile"),
 					"Completa horario, idioma y modalidad de la opción."

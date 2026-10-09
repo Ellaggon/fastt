@@ -14,6 +14,7 @@ import {
 } from "@/lib/catalog/providerTourCatalog"
 import { summarizeProductPreparation } from "@/lib/playbook/summarize-product-preparation"
 import { routes } from "@/lib/routes"
+import { listOptionSessionsForProducts, sessionHref } from "@/lib/onboarding/tourOptionSession"
 import { presentTourCatalogItem } from "@/lib/tours/tourCatalogPresentation"
 
 const user = await getUserFromRequest(Astro.request)
@@ -34,20 +35,51 @@ const catalog = await listProviderTourCatalog(providerId, filters).catch((error)
 		pageCount: 1,
 	}
 })
-const taskRows = await Promise.all(
-	catalog.products.map(async (product) => {
-		const preparation = await summarizeProductPreparation({
-			productId: product.id,
-			providerId,
-			status: product.publicationState,
-			request: Astro.request,
-		}).catch((error) => {
-			console.error("Tour catalog evaluation unavailable", { productId: product.id, error })
-			return null
-		})
-		return { product, ...presentTourCatalogItem(product.id, preparation) }
-	})
-)
+const sessionsPromise = listOptionSessionsForProducts(
+	providerId,
+	user.id,
+	catalog.products.map((product) => product.id)
+).catch((error) => {
+	console.error("Tour configuration resume unavailable", error)
+	return []
+})
+const [sessions, preparations] = await Promise.all([
+	sessionsPromise,
+	Promise.all(
+		catalog.products.map((product) =>
+			summarizeProductPreparation({
+				productId: product.id,
+				providerId,
+				status: product.publicationState,
+				request: Astro.request,
+			}).catch((error) => {
+				console.error("Tour catalog evaluation unavailable", { productId: product.id, error })
+				return null
+			})
+		)
+	),
+])
+const taskRows = catalog.products.map((product, index) => {
+	const preparation = preparations[index]
+	const active = sessions.find(
+		(session) => session.productId === product.id && session.entryIntent === "first_publication"
+	)
+	return {
+		product,
+		...presentTourCatalogItem(
+			product.id,
+			preparation,
+			active
+				? {
+						resumeHref: sessionHref(active),
+						handedOff: Boolean(active.handoffAt),
+						variantId: active.variantId,
+					}
+				: undefined
+		),
+	}
+})
+
 const filterTabs = [
 	{ state: "all" as const, label: "Todos", count: catalog.counts.total },
 	{ state: "draft" as const, label: "Borradores", count: catalog.counts.draft },
@@ -102,7 +134,7 @@ const filterTabs = [
 						maxlength="120"
 						type="search"
 						placeholder="Buscar tours"
-						class="fastt-field fastt-field--on-dark h-11 w-full border-white/10 bg-white/5 pr-3 pl-9 text-sm text-white placeholder:text-slate-400"
+						class="fastt-field fastt-field--on-dark h-11 w-full appearance-none border-white/10 bg-[#0d0d0d] pr-3 pl-9 text-sm text-white placeholder:text-slate-400 outline-none transition focus-visible:border-white/20 focus-visible:ring-2 focus-visible:ring-white/10"
 					/>
 				</div>
 				<Button type="submit" variant="onDark" size="sm">Buscar</Button>
@@ -145,7 +177,16 @@ const filterTabs = [
 			) : (
 				<ul class="space-y-3" aria-label="Tours del negocio">
 					{taskRows.map(
-						({ product, primaryAction, detailHref, previewHref, links, statusLabel, support }) => (
+						({
+							product,
+							primaryAction,
+							detailHref,
+							previewHref,
+							publicationHref,
+							links,
+							statusLabel,
+							support,
+						}) => (
 							<li data-tour-id={product.id}>
 								<Card variant="row" class="bg-white p-4 sm:p-5">
 									<div class="flex flex-wrap items-start gap-4">
@@ -208,10 +249,11 @@ const filterTabs = [
 													class="fastt-soft-box absolute right-0 z-10 mt-1 w-56 bg-white p-1.5 shadow-lg"
 												>
 													{[
-														{ href: detailHref, label: "Editar tour" },
+														{ href: detailHref, label: "Editar ficha" },
 														{ href: previewHref, label: "Vista previa" },
-														{ href: links.priceHref, label: "Precios y condiciones" },
-														{ href: links.calendarHref, label: "Fechas y cupos" },
+														...(primaryAction.href !== publicationHref
+															? [{ href: publicationHref, label: "Revisar publicación" }]
+															: []),
 													].map(({ href, label }) => (
 														<a
 															href={href}

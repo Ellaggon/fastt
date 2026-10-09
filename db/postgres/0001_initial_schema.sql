@@ -97,6 +97,9 @@ CREATE TABLE "ProviderOptionPreparationSession" (
 	"stepId" text NOT NULL,
 	"variantId" text,
 	"ratePlanId" text,
+	"entryIntent" text NOT NULL DEFAULT 'additional_option',
+	"handoffAt" timestamp with time zone,
+	"creationIntent" jsonb,
 	"lastPath" text NOT NULL,
 	"status" text NOT NULL DEFAULT 'active',
 	"createdAt" timestamp with time zone NOT NULL DEFAULT now(),
@@ -4219,6 +4222,8 @@ CREATE INDEX "ProviderOptionPreparationSession_owner_status_updated_idx" ON "Pro
 
 CREATE INDEX "ProviderOptionPreparationSession_product_idx" ON "ProviderOptionPreparationSession" ("productId");
 
+CREATE UNIQUE INDEX "ProviderOptionPreparationSession_first_active_idx" ON "ProviderOptionPreparationSession" ("providerId", "userId", "productId") WHERE "entryIntent" = 'first_publication' AND "status" = 'active';
+
 CREATE INDEX "ProviderDocument_providerId_type_idx" ON "ProviderDocument" ("providerId", "type");
 
 CREATE INDEX "ProviderDocument_providerId_status_idx" ON "ProviderDocument" ("providerId", "status");
@@ -4960,6 +4965,8 @@ ALTER TABLE "ProviderPreparationSession" ADD CONSTRAINT "ProviderPreparationSess
 ALTER TABLE "ProviderPreparationSession" ADD CONSTRAINT "ProviderPreparationSession_vertical_check" CHECK ("vertical" IN ('hotel', 'tour'));
 
 ALTER TABLE "ProviderPreparationSession" ADD CONSTRAINT "ProviderPreparationSession_status_check" CHECK ("status" IN ('active', 'completed', 'abandoned'));
+
+ALTER TABLE "ProviderOptionPreparationSession" ADD CONSTRAINT "ProviderOptionPreparationSession_entryIntent_check" CHECK ("entryIntent" IN ('first_publication', 'additional_option'));
 
 ALTER TABLE "ProviderOptionPreparationSession" ADD CONSTRAINT "ProviderOptionPreparationSession_playbook_check" CHECK ("playbookId" = 'add-tour-option');
 
@@ -6105,6 +6112,40 @@ $$ LANGUAGE plpgsql;
 DROP TRIGGER IF EXISTS fastt_option_preparation_session_context ON "ProviderOptionPreparationSession";
 CREATE TRIGGER fastt_option_preparation_session_context BEFORE INSERT OR UPDATE ON "ProviderOptionPreparationSession"
  FOR EACH ROW EXECUTE FUNCTION fastt_validate_option_preparation_session();
+
+CREATE OR REPLACE FUNCTION fastt_validate_schedule_creation_intent() RETURNS trigger AS $$
+BEGIN
+ IF TG_OP = 'UPDATE' AND OLD."creationIntent" IS NOT NULL THEN
+  IF OLD."creationIntent"->>'sourceVariantId' IS DISTINCT FROM NEW."creationIntent"->>'sourceVariantId'
+    OR OLD."creationIntent"->>'mode' IS DISTINCT FROM NEW."creationIntent"->>'mode'
+    OR (OLD."variantId" IS NOT NULL AND OLD."creationIntent" IS DISTINCT FROM NEW."creationIntent") THEN
+   RAISE EXCEPTION 'schedule_creation_intent_immutable' USING ERRCODE = '23514';
+  END IF;
+ END IF;
+ IF NEW."creationIntent" IS NOT NULL THEN
+  IF NEW."creationIntent"->>'mode' IS DISTINCT FROM 'schedule' OR NOT EXISTS (
+   SELECT 1 FROM "Variant" v JOIN "Product" p ON p.id = v."productId"
+   WHERE v.id = NEW."creationIntent"->>'sourceVariantId' AND p.id = NEW."productId"
+     AND p."providerId" = NEW."providerId" AND v.kind = 'tour_slot' AND lower(p."productType") = 'tour'
+  ) THEN RAISE EXCEPTION 'schedule_creation_source_invalid' USING ERRCODE = '23514'; END IF;
+  IF NEW."creationIntent"->>'sourceRatePlanId' IS NOT NULL AND NOT EXISTS (
+   SELECT 1 FROM "RatePlan" r WHERE r.id = NEW."creationIntent"->>'sourceRatePlanId'
+    AND r."variantId" = NEW."creationIntent"->>'sourceVariantId'
+  ) THEN RAISE EXCEPTION 'schedule_creation_rate_invalid' USING ERRCODE = '23514'; END IF;
+ END IF;
+ RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS fastt_schedule_creation_intent ON "ProviderOptionPreparationSession";
+CREATE TRIGGER fastt_schedule_creation_intent BEFORE INSERT OR UPDATE ON "ProviderOptionPreparationSession"
+ FOR EACH ROW EXECUTE FUNCTION fastt_validate_schedule_creation_intent();
+
+CREATE OR REPLACE FUNCTION fastt_option_entry_intent_guard() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+ IF NEW."entryIntent" IS DISTINCT FROM OLD."entryIntent" THEN RAISE EXCEPTION 'option_entry_intent_immutable'; END IF;
+ RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS "ProviderOptionPreparationSession_entry_intent_guard" ON "ProviderOptionPreparationSession";
+CREATE TRIGGER "ProviderOptionPreparationSession_entry_intent_guard" BEFORE UPDATE ON "ProviderOptionPreparationSession" FOR EACH ROW EXECUTE FUNCTION fastt_option_entry_intent_guard();
 
 
 

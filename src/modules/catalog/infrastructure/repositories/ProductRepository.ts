@@ -132,7 +132,7 @@ export class ProductRepository implements ProductRepositoryPort {
 					id: input.productId,
 					providerId: input.providerId,
 					name: input.name,
-					productType: "Tour",
+					productType: "tour",
 				})
 				await tx
 					.insert(ProviderCommercialLine)

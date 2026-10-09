@@ -1,7 +1,8 @@
 ---
 import type { projectTourPublishingStages } from "@/lib/playbook/tour-publishing-stages"
+import type { OptionWizardStage } from "@/lib/playbook/add-tour-option"
 interface Props {
-	stages: ReturnType<typeof projectTourPublishingStages>
+	stages: ReturnType<typeof projectTourPublishingStages> | OptionWizardStage[]
 	activeStageId?: string
 	stagePosition?: number
 	stageTotal?: number

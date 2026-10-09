@@ -35,9 +35,11 @@ Guardrail:
   `<textarea class=...>`, raw dialogs/modals, raw card panels, and legacy external color
   tokens are blocked outside `ui/*` and `ui-react/*`.
 - Form controls on dark workspace shells should use `fastt-field fastt-field--on-dark`
-  (or the same surface tokens: `border-white/10 bg-white/5`), matching soft cards like
-  “Cuenta del negocio” and option sessions in progress. Do not use solid `bg-white` for
-  those fields. The guardrail accepts `fastt-field` with or without `--on-dark`.
+  (same `rgb(255 255 255 / 0.05)` surface as `border-white/10 bg-white/5` session cards;
+  avoids Chrome’s blue-gray `type="search"` styling—do not set `color-scheme: dark` on fields),
+  aligned with soft cards like “Cuenta del negocio” and option sessions in progress.
+  Do not use solid `bg-white` for those fields. The guardrail accepts `fastt-field`
+  with or without `--on-dark`.
 - Existing legacy exceptions are listed explicitly in `scripts/check-ui-raw-objects.mjs`.
   Do not add to that list for new work; migrate the surface to a UI primitive instead.
 

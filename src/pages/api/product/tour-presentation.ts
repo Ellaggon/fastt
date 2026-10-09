@@ -1,3 +1,4 @@
+import { safeProductWorkspaceReturn } from "@/lib/auth/returnTo"
 import type { APIRoute } from "astro"
 import { ZodError } from "zod"
 import { productRepository } from "@/container"
@@ -59,7 +60,8 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 		const nextHref =
 			input.intent === "exit" || !source.get("playbook")
-				? `/product/${encodeURIComponent(result.productId)}`
+				? (safeProductWorkspaceReturn(source.get("returnTo"), result.productId) ??
+					`/product/${encodeURIComponent(result.productId)}`)
 				: tourPreparationNextHref(
 						source,
 						{

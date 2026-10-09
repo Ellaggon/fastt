@@ -1,0 +1,204 @@
+---
+import Button from "@/components/ui/Button.astro"
+import Card from "@/components/ui/Card.astro"
+import { productRepository } from "@/container"
+import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
+import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
+import { listOptionSessions, sessionHref } from "@/lib/onboarding/tourOptionSession"
+import { buildTourPlaybookHref } from "@/lib/playbook/launch-tour"
+import { evaluateTourContentReadiness } from "@/lib/tours/tourContentReadiness"
+import { getProductFullAggregate } from "@/modules/catalog/public"
+import {
+	and,
+	db,
+	eq,
+	ne,
+	ProductCategoryLink,
+	RatePlan,
+	TourTicketType,
+	Variant,
+} from "@/shared/infrastructure/db/compat"
+const user = await getUserFromRequest(Astro.request)
+if (!user)
+	return Astro.redirect(
+		`/SignInPage?returnTo=${encodeURIComponent(Astro.url.pathname + Astro.url.search)}`
+	)
+const providerId = await getProviderIdFromRequest(Astro.request, user)
+if (!providerId) return Astro.redirect("/provider/settings/profile")
+const productId = Astro.params.id!
+const owned = await productRepository.ensureProductOwnedByProvider(productId, providerId)
+if (!owned || owned.productType.toLowerCase() !== "tour")
+	return new Response("Tour no encontrado", { status: 404 })
+let content: ReturnType<typeof evaluateTourContentReadiness> | null = null
+let sessions: Awaited<ReturnType<typeof listOptionSessions>> = []
+let offers: {
+	variantId: string
+	name: string
+	ratePlanId: string | null
+	rateName: string | null
+}[] = []
+try {
+	const [aggregate, ticketRows, categoryRows, loadedSessions, loadedOffers] = await Promise.all([
+		getProductFullAggregate(productId, providerId),
+		db
+			.select({ id: TourTicketType.id })
+			.from(TourTicketType)
+			.where(and(eq(TourTicketType.productId, productId), eq(TourTicketType.isActive, true)))
+			.limit(1),
+		db
+			.select({ id: ProductCategoryLink.id })
+			.from(ProductCategoryLink)
+			.where(eq(ProductCategoryLink.productId, productId))
+			.limit(1),
+		listOptionSessions(providerId, user.id, productId),
+		db
+			.select({
+				variantId: Variant.id,
+				name: Variant.name,
+				ratePlanId: RatePlan.id,
+				rateName: RatePlan.name,
+			})
+			.from(Variant)
+			.leftJoin(RatePlan, eq(RatePlan.variantId, Variant.id))
+			.where(
+				and(
+					eq(Variant.productId, productId),
+					eq(Variant.kind, "tour_slot"),
+					ne(Variant.lifecycleState, "archived")
+				)
+			),
+	])
+	if (aggregate?.status === "published") return Astro.redirect(`/product/${productId}/departures`)
+	if (aggregate)
+		content = evaluateTourContentReadiness(aggregate, {
+			hasCategory: categoryRows.length > 0,
+			hasActiveTickets: ticketRows.length > 0,
+		})
+	sessions = loadedSessions
+	offers = loadedOffers
+} catch (error) {
+	console.error("tour-content-close", error)
+}
+const active = sessions.find((row) => row.entryIntent === "first_publication")
+const areas = content
+	? [
+			{
+				label: "Presentación",
+				ready: content.presentation && content.activities,
+				path: "presentation",
+				step: "create",
+			},
+			{
+				label: "Itinerario y logística",
+				ready: content.logistics,
+				path: "subtype",
+				step: "subtype",
+			},
+			{
+				label: "Ubicación y encuentro",
+				ready: content.location,
+				path: "location",
+				step: "location",
+			},
+			{ label: "Fotos", ready: content.photos, path: "images", step: "images" },
+			{ label: "Participantes", ready: content.participants, path: "tickets", step: "tickets" },
+		]
+	: []
+const pending = areas.filter((row) => !row.ready)
+const startKey = crypto.randomUUID()
+---
+
+<WorkspaceLayout title="Ficha del tour">
+	<section class="mx-auto max-w-2xl space-y-6 py-8">
+		<p class="text-sm text-slate-400">{owned.name}</p>
+		<Card class="space-y-5 bg-white text-slate-950">
+			{
+				Astro.url.searchParams.has("sessionError") && (
+					<p role="alert" class="text-sm text-red-700">
+						No pudimos iniciar la configuración. Tus datos siguen guardados; revisa la selección y
+						vuelve a intentar.
+					</p>
+				)
+			}
+			<h1 class="text-2xl font-bold">
+				{
+					!content
+						? "No pudimos comprobar la ficha"
+						: content.complete
+							? "La ficha de tu tour está preparada"
+							: "Tu borrador está guardado"
+				}
+			</h1>
+			{
+				!content ? (
+					<Button href={Astro.url.pathname}>Volver a intentar</Button>
+				) : (
+					<>
+						<p class="text-slate-600">
+							{content.complete
+								? "Ahora configura la primera opción: horario, precio, condiciones y fechas."
+								: "Puedes completar estas áreas o continuar con la configuración de una opción."}
+						</p>
+						{pending.length > 0 && (
+							<ul class="space-y-2">
+								{pending.map((row) => (
+									<li>
+										<a
+											class="inline-flex min-h-11 items-center font-semibold underline"
+											href={buildTourPlaybookHref(
+												`/product/${productId}/${row.path}`,
+												row.step as "create" | "subtype" | "location" | "images" | "tickets"
+											)}
+										>
+											Completar {row.label.toLowerCase()}
+										</a>
+									</li>
+								))}
+							</ul>
+						)}
+						{active ? (
+							<Button href={sessionHref(active)} variant="selection" className="fastt-playbook-cta">
+								{active.handoffAt ? "Revisar publicación" : "Continuar configuración"}
+							</Button>
+						) : (
+							<form method="post" action="/api/onboarding/tour-option-session" class="space-y-4">
+								<input type="hidden" name="action" value="start" />
+								<input type="hidden" name="entryIntent" value="first_publication" />
+								<input type="hidden" name="productId" value={productId} />
+								<input type="hidden" name="sessionId" value={startKey} />
+								{offers.length > 1 ? (
+									<label class="block space-y-2">
+										<span class="font-semibold">Elige la oferta que quieres continuar</span>
+										<select name="offer" required class="fastt-field w-full">
+											<option value="">Selecciona una opción y tarifa</option>
+											{offers.map((row) => (
+												<option
+													value={JSON.stringify({
+														variantId: row.variantId,
+														ratePlanId: row.ratePlanId || undefined,
+													})}
+												>
+													{row.name}
+													{row.rateName ? ` · ${row.rateName}` : " · Sin tarifa"}
+												</option>
+											))}
+										</select>
+									</label>
+								) : null}
+								<Button type="submit" variant="selection" className="fastt-playbook-cta">
+									{offers.length
+										? "Continuar configuración"
+										: content.complete
+											? "Configurar cómo se reserva"
+											: "Configurar una opción"}
+								</Button>
+							</form>
+						)}
+					</>
+				)
+			}
+		</Card>
+		<Button href="/catalog/tours?scope=tour" variant="secondary">Ir a Mis tours</Button>
+	</section>
+</WorkspaceLayout>

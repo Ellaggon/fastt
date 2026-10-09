@@ -4,6 +4,8 @@ import {
 	optionWizardContext,
 	optionNextHref,
 	OPTION_STEPS,
+	projectOptionWizardStages,
+	optionStepLocked,
 } from "@/lib/playbook/add-tour-option"
 const context = {
 	productId: "tour-a",
@@ -11,6 +13,33 @@ const context = {
 	variantId: "option-a",
 	ratePlanId: "rate-a",
 }
+it("locks later steps until profile and rate exist", () => {
+	expect(optionStepLocked("profile", null, null)).toBe(false)
+	expect(optionStepLocked("price", null, null)).toBe(true)
+	expect(optionStepLocked("conditions", "option-a", null)).toBe(true)
+	expect(optionStepLocked("calendar", "option-a", "rate-a")).toBe(false)
+})
+
+it("projects five rail stages aligned with the active step", () => {
+	const stages = projectOptionWizardStages(context, "price")
+	expect(stages).toHaveLength(5)
+	expect(stages.map((stage) => stage.label)).toEqual([
+		"Configurar opción",
+		"Precio",
+		"Condiciones",
+		"Fechas y cupos",
+		"Revisar y activar",
+	])
+	expect(stages[0]?.state).toBe("ready")
+	expect(stages[1]?.state).toBe("pending")
+	expect(stages[1]?.href).toContain("step=price")
+	const withoutRate = projectOptionWizardStages(
+		{ ...context, ratePlanId: null },
+		"profile",
+	)
+	expect(withoutRate[2]?.href).toBe("")
+})
+
 it("uses five explicit steps and preserves commercial selection in every destination", () => {
 	expect(OPTION_STEPS.map((step) => step.id)).toEqual([
 		"profile",

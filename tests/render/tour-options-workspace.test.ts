@@ -51,7 +51,9 @@ it("empty list has one create action", async () => {
 		summary: summarizeTourOptions([]),
 	})
 	const html = await render()
-	expect(html).toContain("Crear primera opción")
+	expect(html).toContain("Primero crea una opción")
+	expect(html).toContain("Necesitas una opción para configurar su precio y sus fechas.")
+	expect(html).toContain("Crear opción")
 	expect(html).not.toContain("Añadir opción")
 })
 it("failed read cannot become an empty list", async () => {

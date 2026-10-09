@@ -76,7 +76,9 @@ afterAll(async () => {
 it("persists the whole presentation once and reconciles a retry with the same creation ID", async () => {
 	await saveTourPresentation({ repo }, input, actor)
 	await saveTourPresentation({ repo }, input, actor)
-	expect(await db.select().from(Product).where(eq(Product.id, input.productId))).toHaveLength(1)
+	const products = await db.select().from(Product).where(eq(Product.id, input.productId))
+	expect(products).toHaveLength(1)
+	expect(products[0].productType).toBe("tour")
 	expect(
 		(await db.select().from(ProductContent).where(eq(ProductContent.productId, input.productId)))[0]
 	).toMatchObject({ description: input.description, highlightsJson: input.highlights })
@@ -114,7 +116,7 @@ it("updates the existing presentation preserving editorial state and SEO", async
 		actor
 	)
 	expect((await db.select().from(Product).where(eq(Product.id, input.productId)))[0]).toMatchObject(
-		{ name: "Paseo actualizado", publicationState: "published", productType: "Tour" }
+		{ name: "Paseo actualizado", publicationState: "published", productType: "tour" }
 	)
 	expect(
 		(await db.select().from(ProductContent).where(eq(ProductContent.productId, input.productId)))[0]

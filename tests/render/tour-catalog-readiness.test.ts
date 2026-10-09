@@ -17,6 +17,10 @@ const mocks = vi.hoisted(() => ({
 		},
 	] as Array<{ id: string; name: string; publicationState: string; optionCount: number }>,
 }))
+vi.mock("@/lib/onboarding/tourOptionSession", () => ({
+	listOptionSessionsForProducts: async () => [],
+	sessionHref: () => "/session",
+}))
 vi.mock("@/lib/auth/getUserFromRequest", () => ({
 	getUserFromRequest: async () => ({ id: "user" }),
 }))
@@ -95,6 +99,11 @@ it.each([false, true])(
 		expect(html).not.toMatch(/>\s*Listo\s*</)
 		expect(html).not.toContain('role="progressbar"')
 		expect(html).not.toContain("Fichas preparadas")
+		expect(html).toContain("Editar ficha")
+		expect(html).toContain("Revisar publicación")
+		expect(html).toContain("/tours/tour?preview=provider")
+		expect(html).not.toContain("Precios y condiciones")
+		expect(html).not.toContain("Fechas y cupos")
 		expect(html).toMatch(
 			/href="\/product\/tour\/departures"[^>]*>\s*Opciones y horarios · 3\s*<\/a>/
 		)
@@ -162,7 +171,7 @@ it("renders a published private offer without a shared availability warning", as
 	expect(html).toContain("El viajero puede enviar una solicitud privada")
 	expect(html).not.toContain("disponibilidad actual pendiente")
 	expect(html).not.toContain("Revisar disponibilidad")
-	expect(html).toContain("Revisar ficha")
+	expect(html).toContain("Gestionar opciones y horarios")
 })
 
 it("reports a failed catalog read without presenting an empty business", async () => {

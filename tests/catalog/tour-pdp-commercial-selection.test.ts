@@ -7,7 +7,7 @@ const source = readFileSync(resolve("src/components/tours/TourDepartureSection.a
 describe("tour PDP commercial selection", () => {
 	it("uses a declared sequence from search to selection and a held total", () => {
 		expect(source).toContain("1.</span>Fecha y grupo")
-		expect(source).toContain("2.</span>Elige una opción")
+		expect(source).toContain("Elige cómo disfrutar el tour")
 		expect(source).toContain("3.</span>Revisa y reserva")
 		expect(source).toContain("Total confirmado:")
 		expect(source).toContain("El total contractual y cargos se fijan al reservar cupo.")

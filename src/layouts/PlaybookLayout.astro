@@ -5,6 +5,8 @@ import {
 	optionNextHref,
 	optionWizardHref,
 	optionStep,
+	projectOptionWizardStages,
+	type OptionStep,
 } from "@/lib/playbook/add-tour-option"
 import type { getOptionSession } from "@/lib/onboarding/tourOptionSession"
 import {
@@ -56,6 +58,7 @@ import {
 	LAUNCH_TOUR_PLAYBOOK_ID,
 	buildTourPlaybookHref,
 	TOUR_LAUNCH_STEPS,
+	TOUR_PREPARATION_STAGES,
 	type TourLaunchStepId,
 } from "@/lib/playbook/launch-tour"
 import type { PlaybookId } from "@/lib/playbook/types"
@@ -197,11 +200,19 @@ let currentStepKnown = false
 let stageLabel = ""
 let stagePosition = 0
 let stageTotal = 0
+let optionWizardStages: ReturnType<typeof projectOptionWizardStages> | null = null
+let optionWizardActiveStep: OptionStep | null = null
 
 if (isOptionWizard && optionSession) {
 	const step = optionStep(Astro.url.searchParams.get("step"))
+	optionWizardActiveStep = step
 	const position = OPTION_STEPS.findIndex((item) => item.id === step)
-	playbookTitle = "Añadir opción"
+	playbookTitle =
+		optionSession.entryIntent === "first_publication"
+			? "Configurar cómo se reserva"
+			: optionSession.creationIntent?.mode === "schedule"
+				? "Añadir horario"
+				: "Añadir opción"
 	stepLabel = OPTION_STEPS[position].label
 	stepNumber = position + 1
 	totalSteps = OPTION_STEPS.length
@@ -215,6 +226,9 @@ if (isOptionWizard && optionSession) {
 	previousHref = position > 0 ? optionWizardHref(context, OPTION_STEPS[position - 1].id) : null
 	resolvedContinueHref =
 		step === "review" ? null : optionNextHref(Astro.url.searchParams, context, step)
+	optionWizardStages = projectOptionWizardStages(context, step, {
+		entryIntent: optionSession.entryIntent,
+	})
 } else if (isTourPublication) {
 	playbookTitle = "Publicar tour"
 	currentStepKnown = true
@@ -509,12 +523,28 @@ const progressHeading =
 				: "Progreso"
 const isTourPreparation = isTourLaunch && !isTourPublication
 const showTourStagesRail =
-	isTourPreparation || (isComplete && playbookVertical === "tour" && !isTourPublication)
+	isOptionWizard ||
+	isTourPreparation ||
+	(isComplete && playbookVertical === "tour" && !isTourPublication)
+// Before the first save, later stages have no product to edit yet.
+const tourStages =
+	tourAttention?.stages ??
+	(isTourPreparation && !productId
+		? TOUR_PREPARATION_STAGES.map((stage, index) => ({
+				id: stage.id,
+				label: stage.label,
+				position: index + 1,
+				total: TOUR_PREPARATION_STAGES.length,
+				state: "pending" as const,
+				pendingReason: null,
+				href: "",
+			}))
+		: null)
 const reviewReturnHref =
 	isTourPublication && stepId !== "preview"
 		? tourPublicationHref(productId, { variantId, ratePlanId })
 		: null
-if (isTourPreparation) playbookTitle = "Preparar tour"
+if (isTourPreparation) playbookTitle = "Crear tour"
 if (isTourPublication) {
 	playbookTitle = "Publicar tour"
 	stepLabel = ""
@@ -559,14 +589,20 @@ const isTourPlaybookContext =
 const showPlaybookProductContext =
 	active && Boolean(productDisplayName) && !deferPlaybookProductContext
 const tourPlaybookHeadlinePrefix = isTourPlaybookContext ? productDisplayName.trim() : ""
+const progressStages = optionWizardStages ?? (showTourStagesRail ? tourStages : null)
+const progressActiveStageId = optionWizardActiveStep ?? getTourPublishingStage(stepId).id
+const progressStagePosition = isOptionWizard && stepNumber ? stepNumber : stagePosition
+const progressStageTotal = isOptionWizard && totalSteps ? totalSteps : stageTotal
+const progressProductName = isOptionWizard ? productDisplayName : tourPlaybookHeadlinePrefix
 const showHotelPlaybookProductContext = showPlaybookProductContext && !isTourPlaybookContext
 /** One tour title on publish/preview — never "{name} - Revisar y publicar" plus the bare name. */
 const showTourPlaybookHeadline =
 	isTourPlaybookContext &&
 	Boolean(tourPlaybookHeadlinePrefix) &&
 	(isTerminalStep || (!showProgress && showPlaybookProductContext))
-/** Keeps the stage summary visually paired with each step’s form title. */
-const tightTourPlaybookStepSpacing = isTourPlaybookContext && active
+/** Keeps the stage summary visually paired with each step’s form title (not preview/publish). */
+const tightTourPlaybookStepSpacing =
+	(isTourPlaybookContext || isOptionWizard) && active && !isTerminalStep
 const correctionMessages =
 	isTourPublication && stepId !== "preview" && !hidePublicationCorrections
 		? [
@@ -610,13 +646,13 @@ const PlaybookShell = active ? GuidedPreparationLayout : WorkspaceLayout
 					<>
 						{showTourStagesRail ? (
 							<>
-								{!isTerminalStep && tourAttention ? (
+								{!isTerminalStep && progressStages ? (
 									<PreparationProgress
-										stages={tourAttention.stages}
-										activeStageId={getTourPublishingStage(stepId).id}
-										stagePosition={stagePosition}
-										stageTotal={stageTotal}
-										productName={tourPlaybookHeadlinePrefix}
+										stages={progressStages}
+										activeStageId={progressActiveStageId}
+										stagePosition={progressStagePosition}
+										stageTotal={progressStageTotal}
+										productName={progressProductName}
 									/>
 								) : null}
 							</>
@@ -699,65 +735,10 @@ const PlaybookShell = active ? GuidedPreparationLayout : WorkspaceLayout
 					data-option-session
 					data-revision={new Date(optionSession.updatedAt).getTime()}
 					data-session-id={optionSession.id}
-					class="mb-4 space-y-3"
+					class="sr-only"
+					aria-hidden="true"
 				>
-					<p class="text-sm text-slate-300">{productDisplayName}</p>
-					<details>
-						<>
-							<summary class="min-h-11 cursor-pointer text-sm font-semibold">Ver etapas</summary>
-							<nav aria-label="Añadir opción">
-								<ol class="grid gap-2 sm:grid-cols-2">
-									{OPTION_STEPS.map((step, index) => (
-										<li>
-											<a
-												data-option-navigation
-												aria-disabled={
-													(step.id !== "profile" && !variantId) ||
-													(["conditions", "calendar", "review"].includes(step.id) && !ratePlanId)
-														? "true"
-														: undefined
-												}
-												tabindex={
-													(step.id !== "profile" && !variantId) ||
-													(["conditions", "calendar", "review"].includes(step.id) && !ratePlanId)
-														? -1
-														: undefined
-												}
-												href={
-													(step.id !== "profile" && !variantId) ||
-													(["conditions", "calendar", "review"].includes(step.id) && !ratePlanId)
-														? undefined
-														: optionWizardHref(
-																{ productId, sessionId: optionSession!.id, variantId, ratePlanId },
-																step.id
-															)
-												}
-												aria-current={
-													step.id === optionStep(Astro.url.searchParams.get("step"))
-														? "step"
-														: undefined
-												}
-												class="block rounded-lg border border-slate-700 px-3 py-2 text-sm"
-											>
-												{index + 1}. {step.label}
-												{step.id !== "profile" && !variantId ? (
-													<span class="block text-xs text-slate-400">
-														Guarda primero el perfil de la opción.
-													</span>
-												) : ["conditions", "calendar", "review"].includes(step.id) &&
-												  !ratePlanId ? (
-													<span class="block text-xs text-slate-400">
-														Configura primero una tarifa.
-													</span>
-												) : null}
-											</a>
-										</li>
-									))}
-								</ol>
-							</nav>
-						</>
-					</details>
-					<p data-option-navigation-error role="alert" class="text-sm text-amber-400" hidden />
+					<p data-option-navigation-error role="alert" hidden />
 				</div>
 			) : null
 		}
