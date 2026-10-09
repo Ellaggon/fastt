@@ -131,3 +131,15 @@ export async function deactivatePolicyAssignmentCapa6(
 	await invalidateAllPolicyConditions("policy_assignment_deactivated")
 	return result
 }
+
+/** Fresh resolution on the caller's transaction; never serves cached permissions. */
+export async function resolveEffectivePoliciesInTransaction(
+	connection: Pick<typeof import("@/shared/infrastructure/db/compat").db, "select">,
+	params: Parameters<typeof resolveEffectivePolicies>[0]
+) {
+	const { PolicyResolutionRepository } =
+		await import("./infrastructure/repositories/PolicyResolutionRepository")
+	const { resolveEffectivePolicies: resolve } =
+		await import("./application/use-cases/resolve-effective-policies")
+	return resolve({ repo: new PolicyResolutionRepository(connection) }, params)
+}

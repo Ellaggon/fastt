@@ -13,16 +13,16 @@ import {
 	CalendarReadError,
 } from "@/lib/rates/calendarClientRequest"
 import { Button, DatesModal } from "@/components/ui-react"
+import { cn } from "@/components/ui-react/utils"
 
 const endpoint = "/api/inventory/program-tour-departures"
 const weekdays = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"]
+const weekdayShort = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"]
+const weekdayOrder = [1, 2, 3, 4, 5, 6, 0] as const
 const formatDate = (date: string) =>
 	new Intl.DateTimeFormat("es", { dateStyle: "medium", timeZone: "UTC" }).format(
 		new Date(`${date}T12:00:00Z`)
 	)
-const inputClass =
-	"mt-1 block min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-slate-950"
-
 export default function TourDepartureSchedulePanel({
 	variantId,
 	onSaved,
@@ -131,6 +131,13 @@ export default function TourDepartureSchedulePanel({
 			document.removeEventListener("click", navigate, true)
 		}
 	}, [])
+	function toggleWeekday(day: number) {
+		change({
+			weekdays: input.weekdays.includes(day)
+				? input.weekdays.filter((value) => value !== day)
+				: [...input.weekdays, day],
+		})
+	}
 	function change(next: Partial<TourScheduleInput>) {
 		setInput((value) => ({ ...value, ...next }))
 		setPreview(null)
@@ -235,7 +242,7 @@ export default function TourDepartureSchedulePanel({
 			{open && (
 				<div
 					id="tour-schedule-panel"
-					className={embedded ? "space-y-4" : "mt-4 space-y-4"}
+					className={embedded ? "space-y-5" : "mt-4 space-y-5"}
 					aria-busy={busy}
 				>
 					{embedded ? (
@@ -284,136 +291,190 @@ export default function TourDepartureSchedulePanel({
 											error={fields.to}
 											onChange={(next) => change({ to: next })}
 										/>
-										<label>
-											Cupo total por salida
-											<input
-												className={inputClass}
-												type="number"
-												min={1}
-												value={input.capacity}
-												disabled={busy || !!result}
-												aria-invalid={!!fields.capacity}
-												aria-describedby={fields.capacity ? "schedule-capacity-error" : undefined}
-												onChange={(event) => change({ capacity: Number(event.target.value) })}
-											/>
-											{fields.capacity && (
-												<span id="schedule-capacity-error" className="text-sm text-red-700">
-													{fields.capacity}
-												</span>
-											)}
-										</label>
-									</div>
-									<fieldset disabled={busy || !!result}>
-										<legend className="font-semibold">Días de salida</legend>
-										<div className="mt-2 flex flex-wrap gap-3">
-											{[1, 2, 3, 4, 5, 6, 0].map((day) => (
-												<label
-													key={day}
-													className="flex min-h-11 items-center gap-2 rounded-lg border px-3"
-												>
+										<div className="min-w-0">
+											<label
+												className={cn(
+													"fastt-prompt-field h-full w-full cursor-text",
+													fields.capacity && "fastt-prompt-field--invalid"
+												)}
+											>
+												<span className="fastt-prompt-field__copy">
+													<span className="fastt-prompt-field__label">Cupo total por salida</span>
 													<input
-														type="checkbox"
-														checked={input.weekdays.includes(day)}
-														onChange={(e) =>
-															change({
-																weekdays: e.target.checked
-																	? [...input.weekdays, day]
-																	: input.weekdays.filter((value) => value !== day),
-															})
+														className="fastt-field w-full"
+														type="number"
+														min={1}
+														inputMode="numeric"
+														value={input.capacity}
+														disabled={busy || !!result}
+														aria-invalid={!!fields.capacity}
+														aria-describedby={
+															fields.capacity ? "schedule-capacity-error" : undefined
 														}
+														onChange={(event) => change({ capacity: Number(event.target.value) })}
 													/>
-													{weekdays[day]}
-												</label>
-											))}
+												</span>
+											</label>
+											{fields.capacity && (
+												<p id="schedule-capacity-error" className="mt-1.5 text-xs text-red-600">
+													{fields.capacity}
+												</p>
+											)}
 										</div>
-										{fields.weekdays && <p role="alert">{fields.weekdays}</p>}
-									</fieldset>
-									<details>
-										<summary className="min-h-11 cursor-pointer py-2">Excluir fechas</summary>
-										<div className="flex flex-wrap items-end gap-3">
-											<div className="min-w-[14rem] flex-1">
+									</div>
+									<div className="space-y-3 pt-1">
+										<p id="tour-schedule-weekdays-label" className="fastt-prompt-field__label">
+											Días de salida
+										</p>
+										<div
+											role="group"
+											aria-labelledby="tour-schedule-weekdays-label"
+											className="grid grid-cols-2 gap-2.5 min-[520px]:grid-cols-4 xl:grid-cols-7"
+										>
+											{weekdayOrder.map((day) => {
+												const active = input.weekdays.includes(day)
+												const locked = busy || !!result
+												return (
+													<button
+														key={day}
+														type="button"
+														disabled={locked}
+														aria-pressed={active}
+														aria-label={weekdays[day]}
+														title={weekdays[day]}
+														className={cn(
+															"tour-schedule-weekday min-h-12 w-full cursor-pointer rounded-xl px-3 py-2.5 text-center text-sm font-semibold tracking-tight transition-[background-color,box-shadow,transform,color] duration-200 ease-out disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none",
+															active
+																? "bg-white text-slate-950 shadow-[0_2px_14px_rgba(15,23,42,0.07)]"
+																: "bg-slate-100/80 text-slate-600"
+														)}
+														onClick={() => toggleWeekday(day)}
+													>
+														{weekdayShort[day]}
+													</button>
+												)
+											})}
+										</div>
+										{fields.weekdays && (
+											<p className="text-xs text-red-600" role="alert">
+												{fields.weekdays}
+											</p>
+										)}
+									</div>
+									<div className="space-y-3 pt-2">
+										<div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+											<div className="min-w-0">
+												<p className="fastt-prompt-field__label">Excluir fechas</p>
+												<p className="mt-0.5 text-sm text-slate-500">
+													Opcional. Días concretos del rango que no quieres programar.
+												</p>
+											</div>
+											{input.excluded.length > 0 && (
+												<p className="shrink-0 text-xs font-medium text-slate-500">
+													{input.excluded.length} excluida
+													{input.excluded.length === 1 ? "" : "s"}
+												</p>
+											)}
+										</div>
+										{input.excluded.length > 0 && (
+											<ul className="flex flex-wrap gap-2">
+												{input.excluded.map((date) => (
+													<li key={date}>
+														<span className="inline-flex max-w-full items-center gap-0.5 rounded-md bg-slate-100 py-1 pr-1 pl-2.5 text-sm text-slate-800">
+															<span className="truncate">{formatDate(date)}</span>
+															<Button
+																type="button"
+																variant="ghost"
+																size="sm"
+																className="h-8 shrink-0 px-2 text-slate-600"
+																disabled={busy || !!result}
+																aria-label={`Incluir nuevamente ${formatDate(date)}`}
+																onClick={() =>
+																	change({
+																		excluded: input.excluded.filter((value) => value !== date),
+																	})
+																}
+															>
+																Quitar
+															</Button>
+														</span>
+													</li>
+												))}
+											</ul>
+										)}
+										{fields.excluded && (
+											<p className="text-xs text-red-600" role="alert">
+												{fields.excluded}
+											</p>
+										)}
+										{preview && (
+											<div role="status" className="rounded-lg bg-slate-50 p-4">
+												<p className="font-semibold">
+													Se añadirán {preview.newDates.length} salidas
+												</p>
+												<p>
+													{preview.preservedDates.length} fechas configuradas se conservan sin
+													cambios.
+												</p>
+												{preview.blockedDates.length > 0 && (
+													<p>
+														{preview.blockedDates.length} fechas excluidas por cancelación, bloqueo
+														externo o retención.
+													</p>
+												)}
+												<details>
+													<summary className="cursor-pointer py-2">Ver fechas nuevas</summary>
+													<p>
+														{preview.newDates.map(formatDate).join(", ") ||
+															"Todas las fechas seleccionadas ya existen o están excluidas."}
+													</p>
+												</details>
+											</div>
+										)}
+										{!result && (
+											<div className="flex flex-wrap items-end gap-2 sm:gap-3">
 												<DatesModal
 													id="tour-schedule-exclude"
-													label="Fecha que no quieres programar"
+													label="Fecha a excluir"
+													placeholder="Seleccionar fecha"
+													compact
+													className="w-full max-w-[16rem] min-w-[12rem] shrink-0 sm:w-[14rem]"
 													value={excludedDate}
 													min={String(input.from || context.today)}
 													max={String(input.to || "") || undefined}
 													disabled={busy || !!result}
 													onChange={setExcludedDate}
 												/>
+												<Button
+													type="button"
+													variant="secondary"
+													size="sm"
+													className="min-h-10 shrink-0 px-3"
+													disabled={!excludedDate || busy || !!result}
+													onClick={() => {
+														if (!input.excluded.includes(excludedDate))
+															change({ excluded: [...input.excluded, excludedDate] })
+														setExcludedDate("")
+													}}
+												>
+													Añadir
+												</Button>
+												<Button
+													type="button"
+													variant="selection"
+													className="fastt-playbook-cta ml-auto min-h-10 shrink-0"
+													disabled={busy || (!!preview && !preview.newDates.length)}
+													onClick={() => void submit(!!preview)}
+												>
+													{busy
+														? "Procesando…"
+														: preview
+															? `Programar ${preview.newDates.length} salidas`
+															: "Revisar fechas"}
+												</Button>
 											</div>
-											<Button
-												type="button"
-												variant="ghost"
-												className="min-h-11 px-0 underline"
-												disabled={!excludedDate || busy || !!result}
-												onClick={() => {
-													if (!input.excluded.includes(excludedDate))
-														change({ excluded: [...input.excluded, excludedDate] })
-													setExcludedDate("")
-												}}
-											>
-												Excluir fecha
-											</Button>
-										</div>
-										<ul>
-											{input.excluded.map((date) => (
-												<li key={date} className="flex items-center gap-3">
-													{formatDate(date)}
-													<Button
-														type="button"
-														variant="ghost"
-														className="min-h-11 px-0 underline"
-														disabled={busy || !!result}
-														aria-label={`Incluir nuevamente ${formatDate(date)}`}
-														onClick={() =>
-															change({ excluded: input.excluded.filter((value) => value !== date) })
-														}
-													>
-														Quitar exclusión
-													</Button>
-												</li>
-											))}
-										</ul>
-										{fields.excluded && <span role="alert">{fields.excluded}</span>}
-									</details>
-									{preview && (
-										<div role="status" className="rounded-lg bg-slate-50 p-4">
-											<p className="font-semibold">Se añadirán {preview.newDates.length} salidas</p>
-											<p>
-												{preview.preservedDates.length} fechas configuradas se conservan sin
-												cambios.
-											</p>
-											{preview.blockedDates.length > 0 && (
-												<p>
-													{preview.blockedDates.length} fechas excluidas por cancelación, bloqueo
-													externo o retención.
-												</p>
-											)}
-											<details>
-												<summary className="cursor-pointer py-2">Ver fechas nuevas</summary>
-												<p>
-													{preview.newDates.map(formatDate).join(", ") ||
-														"Todas las fechas seleccionadas ya existen o están excluidas."}
-												</p>
-											</details>
-										</div>
-									)}
-									{!result && (
-										<Button
-											type="button"
-											variant="selection"
-											className="fastt-playbook-cta"
-											disabled={busy || (!!preview && !preview.newDates.length)}
-											onClick={() => void submit(!!preview)}
-										>
-											{busy
-												? "Procesando…"
-												: preview
-													? `Programar ${preview.newDates.length} salidas`
-													: "Revisar fechas"}
-										</Button>
-									)}
+										)}
+									</div>
 									{result && (
 										<div role="status">
 											<p>
