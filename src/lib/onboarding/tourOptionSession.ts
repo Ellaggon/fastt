@@ -1,7 +1,9 @@
+import { tourPublicationHref } from "@/lib/playbook/tour-playbook-context"
 import {
 	and,
 	db,
 	eq,
+	inArray,
 	ne,
 	sql,
 	Product,
@@ -17,6 +19,7 @@ import {
 	optionWizardHref,
 	type OptionStep,
 } from "@/lib/playbook/add-tour-option"
+import { loadScheduleSource } from "./tourScheduleCreation"
 import { PreparationSessionError, preparationPathContext } from "./preparationSessionContext"
 
 export type OptionSession = typeof ProviderOptionPreparationSession.$inferSelect
@@ -29,6 +32,12 @@ const ownedKey = (providerId: string, userId: string, id: string) =>
 		eq(ProviderOptionPreparationSession.playbookId, ADD_TOUR_OPTION)
 	)
 export function sessionHref(session: OptionSession, step: OptionStep = optionStep(session.stepId)) {
+	if (
+		session.entryIntent === "first_publication" &&
+		session.handoffAt &&
+		step === optionStep(session.stepId)
+	)
+		return tourPublicationHref(session.productId!, session)
 	const href = optionWizardHref(
 		{
 			productId: session.productId!,
@@ -50,7 +59,10 @@ export async function startOptionSession(
 	providerId: string,
 	userId: string,
 	productId: string,
-	id: string
+	id: string,
+	sourceVariantId?: string,
+	entryIntent: "first_publication" | "additional_option" = "additional_option",
+	selection?: { variantId?: string; ratePlanId?: string }
 ) {
 	if (!uuid.test(id)) throw new PreparationSessionError("invalid_session")
 	return db.transaction(async (tx) => {
@@ -59,8 +71,81 @@ export async function startOptionSession(
 			.select()
 			.from(Product)
 			.where(and(eq(Product.id, productId), eq(Product.providerId, providerId)))
+			.for("update")
 		if (!product || product.productType.toLowerCase() !== "tour")
 			throw new PreparationSessionError("product_not_found", 404)
+		if (entryIntent === "first_publication") {
+			if (product.publicationState === "published" || sourceVariantId)
+				throw new PreparationSessionError("first_publication_unavailable", 409)
+			const [active] = await tx
+				.select()
+				.from(ProviderOptionPreparationSession)
+				.where(
+					and(
+						eq(ProviderOptionPreparationSession.providerId, providerId),
+						eq(ProviderOptionPreparationSession.userId, userId),
+						eq(ProviderOptionPreparationSession.productId, productId),
+						eq(ProviderOptionPreparationSession.entryIntent, "first_publication"),
+						eq(ProviderOptionPreparationSession.status, "active")
+					)
+				)
+			if (active) {
+				if (
+					(selection?.variantId && selection.variantId !== active.variantId) ||
+					(selection?.ratePlanId && selection.ratePlanId !== active.ratePlanId)
+				)
+					throw new PreparationSessionError("session_selection_conflict", 409)
+				return active
+			}
+			const options = await tx
+				.select()
+				.from(Variant)
+				.where(
+					and(
+						eq(Variant.productId, productId),
+						eq(Variant.kind, "tour_slot"),
+						ne(Variant.lifecycleState, "archived")
+					)
+				)
+			const option = selection?.variantId
+				? options.find((row) => row.id === selection?.variantId)
+				: options.length === 1
+					? options[0]
+					: null
+			if (selection?.variantId && !option)
+				throw new PreparationSessionError("preparation_variant_mismatch", 422)
+			if (options.length && !option) throw new PreparationSessionError("selection_required", 409)
+			if (option) {
+				const rates = await tx.select().from(RatePlan).where(eq(RatePlan.variantId, option.id))
+				const rate = selection?.ratePlanId
+					? rates.find((row) => row.id === selection?.ratePlanId)
+					: rates.length === 1
+						? rates[0]
+						: null
+				if (selection?.ratePlanId && !rate)
+					throw new PreparationSessionError("preparation_rate_mismatch", 422)
+				if (rates.length > 1 && !rate) throw new PreparationSessionError("selection_required", 409)
+				selection = { variantId: option.id, ratePlanId: rate?.id }
+			} else if (selection?.ratePlanId)
+				throw new PreparationSessionError("preparation_rate_mismatch", 422)
+		}
+
+		const [existing] = await tx
+			.select()
+			.from(ProviderOptionPreparationSession)
+			.where(ownedKey(providerId, userId, id))
+		if (existing) {
+			if (existing.entryIntent !== entryIntent)
+				throw new PreparationSessionError("session_intent_conflict", 409)
+			if (existing.productId !== productId)
+				throw new PreparationSessionError("session_not_found", 404)
+			if ((existing.creationIntent?.sourceVariantId || undefined) !== sourceVariantId)
+				throw new PreparationSessionError("session_intent_conflict", 409)
+			return existing
+		}
+		const source = sourceVariantId
+			? await loadScheduleSource(tx, providerId, productId, sourceVariantId)
+			: null
 		await tx
 			.insert(ProviderOptionPreparationSession)
 			.values({
@@ -70,9 +155,21 @@ export async function startOptionSession(
 				productId,
 				playbookId: ADD_TOUR_OPTION,
 				vertical: "tour",
+				entryIntent,
+				variantId: selection?.variantId,
+				ratePlanId: selection?.ratePlanId,
 				writeVersion: 2,
+				creationIntent: source
+					? {
+							mode: "schedule",
+							sourceVariantId: source.source.variant.id,
+							reusePrice: false,
+							reuseConditions: false,
+							sourceFingerprint: source.fingerprint,
+						}
+					: null,
 				stepId: "profile",
-				lastPath: optionWizardHref({ productId, sessionId: id }, "profile"),
+				lastPath: optionWizardHref({ productId, sessionId: id, ...selection }, "profile"),
 			})
 			.onConflictDoNothing()
 		const [session] = await tx
@@ -81,6 +178,8 @@ export async function startOptionSession(
 			.where(ownedKey(providerId, userId, id))
 		if (!session || session.productId !== productId)
 			throw new PreparationSessionError("session_not_found", 404)
+		if ((session.creationIntent?.sourceVariantId || undefined) !== sourceVariantId)
+			throw new PreparationSessionError("session_intent_conflict", 409)
 		return session
 	})
 }
@@ -172,6 +271,7 @@ export async function saveOptionSession(
 			.set({
 				variantId,
 				ratePlanId,
+				handoffAt: null,
 				stepId,
 				lastPath: path.pathname + path.search,
 				updatedAt,
@@ -216,6 +316,14 @@ export async function finishOptionSession(
 	})
 }
 export async function listOptionSessions(providerId: string, userId: string, productId: string) {
+	return listOptionSessionsForProducts(providerId, userId, [productId])
+}
+export async function listOptionSessionsForProducts(
+	providerId: string,
+	userId: string,
+	productIds: string[]
+) {
+	if (!productIds.length) return []
 	return db
 		.select()
 		.from(ProviderOptionPreparationSession)
@@ -223,7 +331,7 @@ export async function listOptionSessions(providerId: string, userId: string, pro
 			and(
 				eq(ProviderOptionPreparationSession.providerId, providerId),
 				eq(ProviderOptionPreparationSession.userId, userId),
-				eq(ProviderOptionPreparationSession.productId, productId),
+				inArray(ProviderOptionPreparationSession.productId, productIds),
 				eq(ProviderOptionPreparationSession.playbookId, ADD_TOUR_OPTION),
 				eq(ProviderOptionPreparationSession.status, "active")
 			)
@@ -240,6 +348,7 @@ export async function optionBases(providerId: string, productId: string) {
 			maxPax: TourSlotProfile.maxPax,
 			languageCode: TourSlotProfile.languageCode,
 			bookingMode: TourSlotProfile.bookingMode,
+			meetingPointOverrideJson: TourSlotProfile.meetingPointOverrideJson,
 		})
 		.from(Variant)
 		.innerJoin(Product, and(eq(Product.id, Variant.productId), eq(Product.providerId, providerId)))
@@ -251,4 +360,41 @@ export async function optionBases(providerId: string, productId: string) {
 				ne(Variant.lifecycleState, "archived")
 			)
 		)
+}
+
+/** A transfer records navigation, without certifying activation or publication. */
+export async function handoffFirstOption(providerId: string, userId: string, id: string) {
+	return db.transaction(async (tx) => {
+		await tx.execute(sql`SELECT set_config('fastt.preparation_write_version','2',true)`)
+		const [session] = await tx
+			.select()
+			.from(ProviderOptionPreparationSession)
+			.where(ownedKey(providerId, userId, id))
+			.for("update")
+		if (!session || session.status !== "active" || session.entryIntent !== "first_publication")
+			throw new PreparationSessionError("session_not_active", 409)
+		const [rate] = await tx
+			.select({ id: RatePlan.id })
+			.from(RatePlan)
+			.innerJoin(Variant, eq(Variant.id, RatePlan.variantId))
+			.where(
+				and(
+					eq(RatePlan.id, session.ratePlanId || ""),
+					eq(Variant.id, session.variantId || ""),
+					eq(Variant.productId, session.productId!),
+					ne(Variant.lifecycleState, "archived")
+				)
+			)
+		if (!rate) throw new PreparationSessionError("preparation_rate_mismatch", 422)
+		if (!session.handoffAt)
+			await tx
+				.update(ProviderOptionPreparationSession)
+				.set({
+					handoffAt: new Date(),
+					writeVersion: 2,
+					updatedAt: new Date(Math.max(Date.now(), session.updatedAt.getTime() + 1)),
+				})
+				.where(eq(ProviderOptionPreparationSession.id, id))
+		return tourPublicationHref(session.productId!, session)
+	})
 }

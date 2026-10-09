@@ -1,6 +1,6 @@
 export const ADD_TOUR_OPTION = "add-tour-option" as const
 export const OPTION_STEPS = [
-	{ id: "profile", label: "Configurar opción" },
+	{ id: "profile", label: "Opción y horario" },
 	{ id: "price", label: "Precio" },
 	{ id: "conditions", label: "Condiciones" },
 	{ id: "calendar", label: "Fechas y cupos" },
@@ -12,6 +12,64 @@ export type OptionWizardContext = {
 	sessionId: string
 	variantId?: string | null
 	ratePlanId?: string | null
+}
+
+export type OptionWizardStageState = "ready" | "pending" | "blocked" | "not_evaluable"
+
+export type OptionWizardStage = {
+	id: OptionStep
+	label: string
+	position: number
+	total: number
+	state: OptionWizardStageState
+	pendingReason: string | null
+	href: string
+}
+
+export function optionStepLocked(
+	stepId: OptionStep,
+	variantId?: string | null,
+	ratePlanId?: string | null
+) {
+	if (stepId !== "profile" && !variantId) return true
+	if (["conditions", "calendar", "review"].includes(stepId) && !ratePlanId) return true
+	return false
+}
+
+export function projectOptionWizardStages(
+	context: OptionWizardContext,
+	activeStep: OptionStep,
+	options: { entryIntent?: "first_publication" | "additional_option" | null } = {}
+): OptionWizardStage[] {
+	const activeIndex = OPTION_STEPS.findIndex((step) => step.id === activeStep)
+	const variantId = context.variantId ?? null
+	const ratePlanId = context.ratePlanId ?? null
+	return OPTION_STEPS.map((step, index) => {
+		const locked = optionStepLocked(step.id, variantId, ratePlanId)
+		const label =
+			step.id === "review" && options.entryIntent === "first_publication"
+				? "Revisar primera opción"
+				: step.label
+		let state: OptionWizardStageState = "pending"
+		if (index < activeIndex) state = "ready"
+		else if (locked && index > activeIndex) state = "blocked"
+		let pendingReason: string | null = null
+		if (locked) {
+			if (step.id !== "profile" && !variantId)
+				pendingReason = "Guarda primero el perfil de la opción."
+			else if (["conditions", "calendar", "review"].includes(step.id) && !ratePlanId)
+				pendingReason = "Configura primero una tarifa."
+		}
+		return {
+			id: step.id,
+			label,
+			position: index + 1,
+			total: OPTION_STEPS.length,
+			state,
+			pendingReason,
+			href: locked ? "" : optionWizardHref(context, step.id),
+		}
+	})
 }
 export function optionStep(value: unknown): OptionStep {
 	return OPTION_STEPS.some((step) => step.id === value) ? (value as OptionStep) : "profile"

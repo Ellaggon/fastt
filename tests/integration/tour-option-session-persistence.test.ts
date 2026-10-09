@@ -24,7 +24,10 @@ import {
 	saveOptionSession,
 	getOptionSession,
 	listOptionSessions,
+	listOptionSessionsForProducts,
 	finishOptionSession,
+	handoffFirstOption,
+	sessionHref,
 } from "@/lib/onboarding/tourOptionSession"
 import { completeTourPreparationSessions } from "@/lib/onboarding/preparationSession"
 import { optionWizardHref } from "@/lib/playbook/add-tour-option"
@@ -199,14 +202,111 @@ it("closes only a persisted activation, recovers a repeated completion and leave
 	const session = await saveOptionSession(provider, user, {
 		sessionId: started.id,
 		revision: started.updatedAt.getTime(),
-		lastPath: optionWizardHref({ productId: product, sessionId: started.id, variantId: variants[0], ratePlanId: rates[0] }, "review"),
+		lastPath: optionWizardHref(
+			{ productId: product, sessionId: started.id, variantId: variants[0], ratePlanId: rates[0] },
+			"review"
+		),
 	})
-	await expect(finishOptionSession(provider, user, session.id, "completed")).rejects.toThrow("activation_required")
+	await expect(finishOptionSession(provider, user, session.id, "completed")).rejects.toThrow(
+		"activation_required"
+	)
 	await db.update(RatePlan).set({ isActive: true }).where(eq(RatePlan.id, rates[0]))
 	await db.update(Variant).set({ salesEnabled: true }).where(eq(Variant.id, variants[0]))
 	await finishOptionSession(provider, user, session.id, "completed")
 	await finishOptionSession(provider, user, session.id, "completed")
 	expect((await getOptionSession(provider, user, session.id)).status).toBe("completed")
 	expect((await getOptionSession(provider, user, independent.id)).status).toBe("active")
-	await expect(finishOptionSession(provider, user, session.id, "abandoned")).rejects.toThrow("session_not_active")
+	await expect(finishOptionSession(provider, user, session.id, "abandoned")).rejects.toThrow(
+		"session_not_active"
+	)
+})
+
+it("reuses the first-publication session atomically and hands off without activating", async () => {
+	const selection = { variantId: variants[0], ratePlanId: rates[0] }
+	const [first, repeated] = await Promise.all([
+		startOptionSession(
+			provider,
+			user,
+			product,
+			crypto.randomUUID(),
+			undefined,
+			"first_publication",
+			selection
+		),
+		startOptionSession(
+			provider,
+			user,
+			product,
+			crypto.randomUUID(),
+			undefined,
+			"first_publication",
+			selection
+		),
+	])
+	expect(first.id).toBe(repeated.id)
+	await expect(
+		startOptionSession(
+			provider,
+			user,
+			product,
+			crypto.randomUUID(),
+			undefined,
+			"first_publication",
+			{ variantId: variants[1], ratePlanId: rates[1] }
+		)
+	).rejects.toMatchObject({ code: "session_selection_conflict" })
+	const href = await handoffFirstOption(provider, user, first.id)
+	const url = new URL(href, "http://fastt.local")
+	expect(url.pathname).toBe(`/product/${product}/preview`)
+	expect(url.searchParams.get("variantId")).toBe(variants[0])
+	expect(url.searchParams.get("ratePlanId")).toBe(rates[0])
+	const handed = (await getOptionSession(provider, user, first.id))!
+	expect(handed.status).toBe("active")
+	expect(sessionHref(handed)).toBe(href)
+	const [rate] = await db.select().from(RatePlan).where(eq(RatePlan.id, rates[0]))
+	expect(rate.isActive).toBe(false)
+	const corrected = await saveOptionSession(provider, user, {
+		sessionId: first.id,
+		revision: revision(handed),
+		lastPath: optionWizardHref(
+			{ productId: product, sessionId: first.id, ...selection },
+			"profile"
+		),
+	})
+	expect(corrected.handoffAt).toBeNull()
+	expect(new URL(sessionHref(corrected), "http://fastt.local").pathname).toContain("/departures/")
+})
+it("requires an explicit offer when several exist and rejects a foreign tariff", async () => {
+	await expect(
+		startOptionSession(provider, user, product, crypto.randomUUID(), undefined, "first_publication")
+	).rejects.toMatchObject({ code: "selection_required" })
+	await expect(
+		startOptionSession(
+			provider,
+			user,
+			product,
+			crypto.randomUUID(),
+			undefined,
+			"first_publication",
+			{ variantId: variants[0], ratePlanId: rates[1] }
+		)
+	).rejects.toMatchObject({ code: "preparation_rate_mismatch" })
+})
+
+it("loads catalog resumptions only for the requested owned products and user", async () => {
+	const a = await startOptionSession(provider, user, product, crypto.randomUUID())
+	const b = await startOptionSession(provider, user, other, crypto.randomUUID())
+	expect(
+		(await listOptionSessionsForProducts(provider, user, [product, other])).map((s) => s.id).sort()
+	).toEqual([a.id, b.id].sort())
+	expect((await listOptionSessionsForProducts(provider, user, [product])).map((s) => s.id)).toEqual(
+		[a.id]
+	)
+	expect(
+		await listOptionSessionsForProducts(provider, crypto.randomUUID(), [product, other])
+	).toEqual([])
+	expect(await listOptionSessionsForProducts(crypto.randomUUID(), user, [product, other])).toEqual(
+		[]
+	)
+	expect(await listOptionSessionsForProducts(provider, user, [])).toEqual([])
 })

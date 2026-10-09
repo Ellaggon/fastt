@@ -61,6 +61,7 @@ const profile = profiles[0],
 	product = products[0]
 if (!profile || !rate || !product)
 	return new Response("La oferta ya no está disponible", { status: 404 })
+const firstPublication = session.entryIntent === "first_publication"
 const context = { productId, variantId, ratePlanId, sessionId: session.id }
 const summary = [
 	["Opción", profile.name],
@@ -101,7 +102,7 @@ const correction = (blocker: NonNullable<typeof decision>["blockers"][number]) =
 ---
 
 <PlaybookLayout
-	title="Revisar y activar opción"
+	title={firstPublication ? "Revisar primera opción" : "Revisar y activar opción"}
 	playbookId="add-tour-option"
 	active
 	stepId="review"
@@ -114,7 +115,9 @@ const correction = (blocker: NonNullable<typeof decision>["blockers"][number]) =
 	productDisplayName={product.name}
 >
 	<section class="space-y-5">
-		<h1 class="text-2xl font-bold">Revisar y activar</h1><Card class="bg-white text-slate-950"
+		<h1 class="text-2xl font-bold">
+			{firstPublication ? "Revisar primera opción" : "Revisar y activar"}
+		</h1><Card class="bg-white text-slate-950"
 			><dl class="grid gap-4 sm:grid-cols-2">
 				{
 					summary.map(([label, value]) => (
@@ -171,12 +174,33 @@ const correction = (blocker: NonNullable<typeof decision>["blockers"][number]) =
 				</p>
 			)
 		}
-		<p id="option-activation-feedback" role="status" class="text-sm"></p><div
-			class="flex flex-wrap gap-3"
-		>
-			<Button href={`/product/${productId}/departures`} variant="onDark"
-				>Guardar para después</Button
-			><Button id="activate-option" disabled={!decision?.allowed}>Activar opción</Button>
+		<p id="option-activation-feedback" role="status" class="text-sm">
+			{
+				Astro.url.searchParams.has("sessionError")
+					? "No pudimos guardar la continuación. Tus datos siguen guardados; vuelve a intentar."
+					: ""
+			}
+		</p><div class="flex flex-wrap gap-3">
+			<Button
+				href={firstPublication
+					? `/product/${productId}/preparation-complete`
+					: `/product/${productId}/departures`}
+				variant="onDark">Guardar para después</Button
+			>{
+				firstPublication ? (
+					<form method="post" action="/api/onboarding/tour-option-session">
+						<>
+							<input type="hidden" name="action" value="handoff_to_publication" />
+							<input type="hidden" name="sessionId" value={session.id} />
+						</>
+						<Button type="submit">Continuar a publicación</Button>
+					</form>
+				) : (
+					<Button id="activate-option" disabled={!decision?.allowed}>
+						Activar opción
+					</Button>
+				)
+			}
 		</div>
 	</section>
 	<script define:vars={{ productId, variantId, ratePlanId, sessionId: session.id }}>
