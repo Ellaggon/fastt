@@ -12,6 +12,7 @@ interface Props {
 	guidedExitHref?: string | null
 	backHref?: string
 	offeringType?: "accommodation" | "tour"
+	showSectionHeader?: boolean
 }
 
 const {
@@ -22,35 +23,36 @@ const {
 	guidedExitHref,
 	backHref = "/rates/plans/manage",
 	offeringType = "accommodation",
+	showSectionHeader = true,
 } = Astro.props
 const isTour = offeringType === "tour"
 ---
 
 <form
 	id="pricingForm"
-	class="mx-auto max-w-3xl space-y-6"
+	class="space-y-4"
 	data-guided-continue={guidedContinueHref}
 	data-guided-exit={guidedExitHref}
 >
 	<Input type="hidden" name="ratePlanId" value={ratePlanId} />
-	<div class="space-y-5">
-		<div>
-			<h2 class="text-lg font-semibold text-slate-950">Precio base</h2>
-			<p class="mt-1 text-sm leading-6 text-slate-500">
-				{
-					isTour
-						? "Es el precio de referencia por participante. Los ajustes por fecha se hacen desde el calendario."
-						: "Es el precio de referencia por noche. Los ajustes por fecha se hacen desde el calendario."
-				}
-			</p>
-		</div>
-		<div class="grid gap-5 sm:grid-cols-[12rem_minmax(0,1fr)]">
+	<div class="space-y-4">
+		{
+			showSectionHeader ? (
+				<div>
+					<h2 class="text-lg font-semibold text-slate-950">Precio base</h2>
+					<p class="mt-1 text-sm leading-6 text-slate-500">
+						{isTour
+							? "Es el precio de referencia por participante. Los ajustes por fecha se hacen desde el calendario."
+							: "Es el precio de referencia por noche. Los ajustes por fecha se hacen desde el calendario."}
+					</p>
+				</div>
+			) : null
+		}
+		<div class="grid gap-4 sm:grid-cols-2 sm:gap-5">
 			<FormField
 				label="Moneda"
 				htmlFor="currency"
-				description={isTour
-					? "Esta tarifa se cobra en una moneda. Si también aceptas otra, crea una tarifa adicional con su precio."
-					: "Se aplica a esta tarifa."}
+				description={isTour ? undefined : "Se aplica a esta tarifa."}
 				required
 			>
 				<Select id="currency" name="currency" value={initialCurrency} required>
@@ -75,6 +77,14 @@ const isTour = offeringType === "tour"
 				/>
 			</FormField>
 		</div>
+		{
+			isTour ? (
+				<p class="text-sm leading-6 text-slate-500">
+					Esta tarifa se cobra en una moneda. Si también aceptas otra, crea una tarifa adicional con
+					su precio.
+				</p>
+			) : null
+		}
 	</div>
 	<p id="pricingFeedback" role="status" class="whitespace-pre-wrap text-sm text-slate-600"></p>
 	{

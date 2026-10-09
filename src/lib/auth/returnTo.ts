@@ -67,3 +67,20 @@ export function safeVerificationReturn(value: unknown): string | null {
 		return null
 	}
 }
+
+/** Editorial saves return only to this tour's management page. */
+export function safeProductWorkspaceReturn(value: unknown, productId: string): string | null {
+	const raw = String(value ?? "").trim()
+	if (!raw.startsWith("/") || raw.startsWith("//") || raw.includes("\\")) return null
+	try {
+		const target = new URL(raw, "http://fastt.local")
+		if (
+			target.origin !== "http://fastt.local" ||
+			target.pathname !== `/product/${encodeURIComponent(productId)}`
+		)
+			return null
+		return target.pathname + target.search + target.hash
+	} catch {
+		return null
+	}
+}

@@ -389,37 +389,6 @@ html[data-verification-submit-pending="true"] {
 	box-shadow: 0 0 0 2px var(--fastt-color-focus);
 }
 
-/* Soft dark-shell fields: same surface as bg-white/5 workspace cards/notices. */
-.fastt-field--on-dark {
-	border-color: rgb(255 255 255 / 0.1);
-	background-color: rgb(255 255 255 / 0.05);
-	color: rgb(255 255 255);
-	box-shadow: none;
-	-webkit-appearance: none;
-	appearance: none;
-}
-
-.fastt-field--on-dark::placeholder {
-	color: rgb(100 116 139);
-}
-
-.fastt-field--on-dark:hover {
-	border-color: rgb(255 255 255 / 0.2);
-}
-
-.fastt-field--on-dark:focus,
-.fastt-field--on-dark:focus-visible {
-	border-color: rgb(255 255 255 / 0.2);
-	box-shadow: none;
-}
-
-.fastt-field--on-dark::-webkit-search-decoration,
-.fastt-field--on-dark::-webkit-search-cancel-button,
-.fastt-field--on-dark::-webkit-search-results-button,
-.fastt-field--on-dark::-webkit-search-results-decoration {
-	display: none;
-}
-
 .fastt-select {
 	position: relative;
 	width: 100%;
@@ -575,6 +544,39 @@ html[data-verification-submit-pending="true"] {
 .fastt-prompt-field .fastt-field:focus {
 	border: 0 !important;
 	box-shadow: none !important;
+}
+
+.tour-schedule-weekday:not(:disabled) {
+	transition:
+		background-color var(--fastt-motion-fast) ease,
+		box-shadow var(--fastt-motion-fast) ease,
+		transform var(--fastt-motion-fast) ease,
+		color var(--fastt-motion-fast) ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+	.tour-schedule-weekday:not(:disabled):hover {
+		background: rgb(255 255 255);
+		color: rgb(15 23 42);
+		box-shadow: 0 4px 16px rgb(15 23 42 / 0.1);
+		transform: translateY(-1px);
+	}
+
+	.tour-schedule-weekday[aria-pressed="true"]:not(:disabled):hover {
+		background: rgb(248 250 252);
+		box-shadow: 0 4px 18px rgb(15 23 42 / 0.12);
+	}
+}
+
+.tour-schedule-weekday:not(:disabled):active {
+	transform: translateY(0);
+}
+
+.tour-schedule-weekday:focus-visible {
+	outline: none;
+	box-shadow:
+		0 0 0 2px rgb(255 255 255),
+		0 0 0 4px var(--fastt-color-focus);
 }
 
 .fastt-section-icon {

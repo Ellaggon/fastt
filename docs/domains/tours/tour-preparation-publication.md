@@ -3,7 +3,7 @@
 Status: active  
 Document type: canonical  
 Owner: Tours / Provider Experience  
-Last verified: 2026-10-06
+Last verified: 2026-10-09
 Scope: contrato objetivo de experiencia, navegación y continuidad entre Preparar tour y Publicar tour  
 Source of truth: requerimiento de separación del proveedor; diagnóstico en `src/lib/tours/tourDiagnosticContract.ts` y contrato compartido de playbooks de tours  
 Related code/tests: `src/layouts/PlaybookLayout.astro`, `src/lib/playbook/launch-tour.ts`, `src/lib/playbook/complete-to-publish.ts`, `src/lib/tours/tourDiagnosticContract.ts`, `tests/playbook/`, `tests/render/tour-preparation-progress.test.ts`  
@@ -73,10 +73,7 @@ Editar preparación desde la segunda parte cuando el usuario quiera revisar vari
 | 3. Ubicación y encuentro  | Punto de encuentro, dirección e indicaciones.                               |
 | 4. Fotos                  | Carga, portada, orden y descripciones.                                      |
 | 5. Participantes          | Tipos de participante y edades admitidas.                                   |
-| 6. Primera opción         | Nombre, horario, modalidad, idioma y capacidad del grupo.                   |
-| 7. Precio                 | Tarifa de la opción y precio por participante o grupo.                      |
-| 8. Condiciones de reserva | Cancelación, pago, no presentación y preguntas.                             |
-| 9. Fechas y cupos         | Fechas o repetición, capacidades y excepciones de la opción.                |
+
 
 Presentación incluye nombre, destino, descripción, destacados y categorías tanto al crear como
 al corregir desde Publicación. El resumen agrupa contenido y categorías en una sola tarea;
@@ -84,7 +81,7 @@ no muestra Presentación cumplida mientras alguna de sus comprobaciones esté pe
 Las entradas antiguas de contenido y categorías redirigen al formulario unificado conservando
 selección y retorno. Las comprobaciones del servidor siguen validándose por separado.
 
-Las nueve entradas del índice tienen destinos estables, independientes del primer requisito
+Las cinco entradas del índice tienen destinos estables, independientes del primer requisito
 pendiente. Fechas y cupos abre el calendario; si falta opción o tarifa, esa entrada explica la
 dependencia y ofrece la acción correspondiente. No redirige silenciosamente a crear una opción.
 Se puede trabajar fuera de orden cuando existan las entidades necesarias. Guardar continúa al
@@ -101,15 +98,14 @@ como borrador. Las antiguas entradas de descripción y categorías de preparaci�
 a `/product/{id}/presentation`, con los datos existentes y el contexto conservados. La etapa
 actual pendiente se presenta como «En curso»; navegar nunca acredita requisitos completados.
 
-**Pantalla normal:** identidad breve del tour, `Etapa 6 de 9`, título del formulario,
+**Pantalla normal:** identidad breve del tour, `Paso 1 de 5`, título del formulario,
 campos pertinentes y una acción principal. La etapa completa se consulta mediante
 un único acceso «Ver etapas», cerrado por defecto; no se imprime su lista junto al formulario.
 No hay comprobaciones, porcentaje de preparación, cuatro paneles de diagnóstico ni avisos
 repetidos de publicación. Se preservan estilos, tarjetas, tipografía y resaltados existentes.
 
 La etapa indica ubicación en el recorrido. No se añade «Pendiente · Etapa actual» a cada
-pantalla ni se considera completa una etapa por visitarla. Las etapas 5–8 distinguen
-Participantes, Opción, Precio y Condiciones; no se utilizan subnumeraciones ni otro contador.
+pantalla ni se considera completa una etapa por visitarla. La quinta etapa contiene sólo Participantes. Perfil de opción, precio, condiciones y fechas pertenecen al asistente independiente de opciones, no a la ficha del tour.
 
 **Persistencia:** Guardar y continuar valida el formulario y confirma el guardado antes de
 avanzar. Los errores son locales y conservan datos. Puede guardarse un borrador parcial cuando
@@ -117,11 +113,22 @@ el contrato de datos lo permita; no se inventan valores para saltar campos oblig
 Una omisión permitida se ofrece como «Completar después», sin marcarla cumplida.
 «Guardar y salir» exige guardado real; un borrador local se identifica como tal.
 
-**Salida:** desde calendario, «Continuar a publicación» abre B. No activa ni publica.
-No exige tener los diez requisitos cumplidos para consultar B; de otro modo B carecería de
-función para completar pendientes. Sí exige un tour persistido y contexto comercial válido,
-o un selector explícito cuando falte opción/tarifa. En la entrada inicial se explica una vez
-que la publicación también depende de la verificación aplicable; no se repite en cada página.
+**Salida de la ficha:** guardar Participantes abre `/product/{id}/preparation-complete`.
+La pantalla no contiene índice ni porcentaje comercial. Con contenido incompleto dice
+«Tu borrador está guardado» y ofrece los formularios pendientes; sólo con las cinco áreas
+comprobadas dice «La ficha de tu tour está preparada». Un fallo de lectura permite reintentar.
+
+**Primera opción:** la acción POST inicia o recupera una sesión `first_publication` por
+proveedor, usuario y producto. Con varias ofertas exige selección explícita; con una oferta
+válida conserva sus identificadores. No crea sesiones mediante GET. La cabecera dice
+«Configurar primera opción»; las entradas ordinarias siguen diciendo «Añadir opción» o
+«Añadir horario». Ambos usan los mismos cinco formularios comerciales.
+
+En revisión de la primera opción, «Continuar a publicación» persiste `handoffAt` y conserva
+opción/tarifa sin activar ni publicar. Puede consultarse publicación con pendientes de Fastt.
+La sesión sigue activa: transferir navegación no acredita activación. Al reanudar vuelve a
+publicación; editar una etapa elimina esa marca y recupera el asistente. Añadir una opción o
+horario a un tour publicado conserva su salida a gestión y activación independiente.
 
 ## Playbook B — Publicar tour
 
@@ -143,7 +150,7 @@ B evalúa datos, no exige haber visitado A.
    compartida necesita cupo vigente; una solicitud privada no equivale a reserva ni retiene cupo.
 
 **Pantalla normal de B:** título Publicar tour, contexto compacto, pendientes y una acción
-principal contextual. No incluye las nueve etapas, «Etapa 6 de 9» ni una lista duplicada por etapas.
+principal contextual. No incluye las cinco etapas, «Etapa 3 de 5» ni una lista duplicada por etapas.
 No sustituirlo por otro wizard de diez pantallas obligatorias: se trabaja sólo lo que falta.
 
 Puede mostrarse «3 tareas pendientes»; no «Requisito 1 de 10». La unidad es una tarea accionable:
@@ -180,7 +187,7 @@ conservan sus reglas independientes; no se suman artificialmente a esas diez val
 
 ```text
 PREPARAR TOUR                         PUBLICAR TOUR
-Etapa 6 de 9                         Completar opción
+Paso 1 de 5                         Completar opción
 Prueba de certificación · 09:00       Prueba de certificación · 09:00
 Configura tu opción                  Falta indicar el máximo del grupo.
 [Formulario con datos actuales]      [Mismo formulario, datos precargados]
@@ -199,9 +206,11 @@ flowchart TD
   Crear[Crear o continuar preparación] --> A1
   subgraph A[Playbook A · Preparar tour]
     A1[1 Presentación] --> A2[2 Itinerario y logística]
-    A2 --> A3[3 Ubicación y encuentro] --> A4[4 Fotos] --> A5[5 Participantes] --> A6[6 Primera opción] --> A7[7 Precio] --> A8[8 Condiciones] --> A9[9 Fechas y cupos]
+    A2 --> A3[3 Ubicación y encuentro] --> A4[4 Fotos] --> A5[5 Participantes]
   end
-  A9 --> Puente[Continuar a publicación]
+  A5 --> Cierre[Ficha preparada o borrador guardado]
+  Cierre --> Opcion[Configurar o continuar primera opción]
+  Opcion --> Puente[Continuar a publicación sin activar]
   Directo[Publicar o continuar publicación] --> Evaluar
   Puente --> Evaluar
   subgraph B[Playbook B · Publicar tour]
@@ -228,8 +237,7 @@ flowchart TD
 El regreso explícito de B a A conserva un retorno a B; una corrección puntual permanece en B.
 Salir y reanudar mantiene **qué playbook**, pantalla, tour, opción, tarifa y retorno.
 Cambiar de parte no reinicia datos, no crea otra oferta y no significa publicar.
-El [mapa editable de ambos playbooks](./diagrams/01-preparar-publicar-tour.excalidraw)
-representa este flujo completo con gatillos, decisiones, desvíos y retornos.
+El diagrama Mermaid anterior es la referencia del flujo actual; el mapa editable anterior conserva el recorrido histórico y no redefine las cinco etapas.
 
 Correspondencia con el código local: el calendario usa «Continuar a publicación».
 Los errores de activación y publicación muestran la causa en B y conservan lo guardado;
@@ -262,3 +270,27 @@ repositorios y comandos compartidos; no duplicar validadores ni guardar copias d
 Los IDs heredados requieren compatibilidad: `complete-to-publish` sin versión también reanuda A;
 no basta renombrarlo para enviar todas sus URLs a B. Migrar intención y sesiones explícitamente,
 sin inventar una tabla nueva antes de comprobar las capacidades de la persistencia existente.
+
+## Gestión después de crear la ficha
+
+Mis tours conserva nombre, imagen y estado editorial. La acción principal utiliza el
+mismo diagnóstico que la ficha administrativa: continuar contenido pendiente, retomar
+la primera configuración, resolver una verificación o revisar publicación. Una tarea
+que depende de Fastt conserva su acción de consulta; no invita a aportar documentos
+sin un requisito aplicable. Las sesiones de configuración se consultan por página,
+con propiedad de proveedor y usuario; su lectura no crea sesiones.
+
+Cada tarjeta mantiene «Opciones y horarios» y un menú breve con Editar ficha,
+Vista previa y Revisar publicación cuando no repita la acción principal. Precio y
+calendario se gestionan dentro de la opción; los accesos globales operativos permanecen.
+
+La ficha administrativa separa Ficha del tour, Opciones y horarios y Publicación.
+Participantes pertenece al contenido; categorías se edita dentro de Presentación.
+No conserva un bloque adicional de Operación que repita estas herramientas.
+
+Vista previa abre la presentación al viajero en modo proveedor, conservando opción
+y tarifa validadas. Revisar publicación abre el diagnóstico y la confirmación expresa.
+Una corrección guiada regresa a publicación; una edición desde la ficha regresa al
+mismo tour, conservando su selección. El retorno editorial sólo acepta la página de
+ese producto; no admite destinos externos ni otro tour. Fotos conserva la revisión
+por archivo antes de abandonar la pantalla.

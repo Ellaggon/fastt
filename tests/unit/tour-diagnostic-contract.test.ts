@@ -178,13 +178,13 @@ describe("B6 preparation and navigation", () => {
 		diagnosis.requirements.price.result = pending
 		const before = summarizeTourDiagnostic(diagnosis).preparation
 		for (const step of ["content", "photos", "rate", "calendar", "preview"]) {
-			expect(getTourPublishingStage(step).total).toBe(9)
+			expect(getTourPublishingStage(step).total).toBe(5)
 			expect(summarizeTourDiagnostic(diagnosis).preparation).toEqual(before)
 		}
 		expect(before).toMatchObject({ readinessPercent: 91, totalCount: 11 })
 		const stages = projectTourPublishingStages(diagnosis)
-		expect(stages[6].state).toBe("pending")
-		expect(stages).toHaveLength(9)
+		expect(stages.every((stage) => stage.state === "ready")).toBe(true)
+		expect(stages).toHaveLength(5)
 		expect(getTourPublishingStage("preview").position).toBe(0)
 	})
 	it("keeps 100% preparation when authorization or activation prevents publication", () => {
@@ -197,6 +197,6 @@ describe("B6 preparation and navigation", () => {
 				.slice(0, 5)
 				.every((stage) => stage.state === "ready")
 		).toBe(true)
-		expect(projectTourPublishingStages(diagnosis)).toHaveLength(9)
+		expect(projectTourPublishingStages(diagnosis)).toHaveLength(5)
 	})
 })

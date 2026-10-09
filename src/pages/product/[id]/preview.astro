@@ -401,7 +401,7 @@ if (!isTour) {
 ---
 
 <PlaybookLayout
-	title={`${vertical.labels.workspacePlural} · Vista previa`}
+	title={`${vertical.labels.workspacePlural} · ${isTour ? "Revisar publicación" : "Vista previa"}`}
 	playbookId={playbookId}
 	active={playbook.active}
 	stepId={stepId}

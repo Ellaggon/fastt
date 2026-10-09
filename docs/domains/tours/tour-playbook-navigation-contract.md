@@ -125,8 +125,8 @@ Actualizar pruebas que exigían la antigua doble navegación, conservando sus co
 
 Casos mínimos de aceptación:
 
-- Nuevo tour: nueve etapas, un formulario por pantalla, sin requisitos visibles en A.
-- B con cinco requisitos listos: reconoce sus datos; sólo pide faltantes y nunca nueve etapas.
+- Nuevo tour: cinco etapas, un formulario por pantalla, sin requisitos visibles en A.
+- B con cinco requisitos listos: reconoce sus datos; sólo pide faltantes y nunca cinco etapas.
 - Perfil y capacidad pendientes: una tarea, formulario precargado, un guardado, retorno a B.
 - Precio listo/fotos insuficientes: corregir fotos no recorre precio ni condiciones.
 - Todo listo: revisión directa; activación explícita si procede y publicación confirmada.

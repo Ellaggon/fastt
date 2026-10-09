@@ -38,13 +38,13 @@ describe("tour rate playbook context", () => {
 		})
 	})
 
-	it("preserves the selected departure and rate in backward and forward navigation", () => {
+	it("does not send a commercial correction back through content and preserves selection on review", () => {
 		expect(
 			completeToPublishPreviousHref("tour_1", "bookingPolicies", "tour", {
 				variantId: "slot_1",
 				ratePlanId: "rate_1",
 			})
-		).toContain("variantId=slot_1")
+		).toBeNull()
 		expect(
 			completeToPublishNextHref("tour_1", "bookingPolicies", "tour", {
 				variantId: "slot_1",

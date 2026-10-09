@@ -41,7 +41,7 @@ describe("tour preparation and review rendered contract", () => {
 			},
 		})
 		expect(withProduct).toContain("Paseo por el parque - Etapa 1 de 9")
-		expect(html.match(/data-tour-stage-id=/g)).toHaveLength(9)
+		expect(html.match(/data-tour-stage-id=/g)).toHaveLength(5)
 		expect(html).toContain('aria-current="step"')
 		expect(html).toContain("Etapa actual")
 		expect(html).toContain("No se pudo comprobar")

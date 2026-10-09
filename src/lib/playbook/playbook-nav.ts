@@ -1,3 +1,4 @@
+import { safeProductWorkspaceReturn } from "@/lib/auth/returnTo"
 import { ADD_ROOM_PLAYBOOK_ID, buildAddRoomHref, type AddRoomStepId } from "@/lib/playbook/add-room"
 import {
 	COMPLETE_TO_PUBLISH_PLAYBOOK_ID,
@@ -141,9 +142,6 @@ export function resolvePlaybookRedirectAfterSave(
 	}
 ): string {
 	const intent = options.intent ?? readPlaybookNavIntent(formData, options.submitter)
-	if (intent === "exit" || !isPlaybookMode(formData)) {
-		return productWorkspaceHref(options.productId)
-	}
 	const source = new URLSearchParams(typeof window === "undefined" ? "" : window.location.search)
 	for (const key of [
 		"playbook",
@@ -155,6 +153,12 @@ export function resolvePlaybookRedirectAfterSave(
 	]) {
 		const value = String(formData.get(key) ?? "").trim()
 		if (value) source.set(key, value)
+	}
+	if (intent === "exit" || !isPlaybookMode(formData)) {
+		return (
+			safeProductWorkspaceReturn(source.get("returnTo"), options.productId) ??
+			productWorkspaceHref(options.productId)
+		)
 	}
 	const vertical = String(formData.get("playbookVertical") || options.vertical || "")
 	if (

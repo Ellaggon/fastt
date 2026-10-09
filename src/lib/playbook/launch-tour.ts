@@ -1,3 +1,4 @@
+import { safeProductWorkspaceReturn } from "@/lib/auth/returnTo"
 import { optionNextHref } from "./add-tour-option"
 import {
 	resolveTourPlaybookContext,
@@ -6,7 +7,7 @@ import {
 } from "./tour-playbook-context"
 import { tourConditionsHref } from "@/lib/tours/tourConditionsHref"
 export const LAUNCH_TOUR_PLAYBOOK_ID = "launch-tour" as const
-export const LAUNCH_TOUR_PLAYBOOK_TITLE = "Preparar tour"
+export const LAUNCH_TOUR_PLAYBOOK_TITLE = "Crear tour"
 
 export type TourLaunchStepId =
 	| "create"
@@ -62,25 +63,6 @@ export const TOUR_PREPARATION_STAGES = [
 		steps: ["tickets"],
 		requirements: ["participants"],
 	},
-	{
-		id: "option",
-		label: "Primera opción",
-		steps: ["departure"],
-		requirements: ["option_profile", "group_capacity"],
-	},
-	{ id: "price", label: "Precio", steps: ["rate"], requirements: ["price"] },
-	{
-		id: "conditions",
-		label: "Condiciones de reserva",
-		steps: ["conditions"],
-		requirements: ["conditions"],
-	},
-	{
-		id: "calendar",
-		label: "Fechas y cupos",
-		steps: ["calendar"],
-		requirements: ["calendar_configuration"],
-	},
 ] as const
 
 export function normalizeTourLaunchStep(step: string | null | undefined): TourLaunchStepId | null {
@@ -96,7 +78,14 @@ export function normalizeTourLaunchStep(step: string | null | undefined): TourLa
 		identity: "create",
 	}
 	if (aliases[raw]) return aliases[raw]
-	return [...TOUR_PREPARATION_STAGES.flatMap((stage) => [...stage.steps]), "preview"].includes(raw)
+	return [
+		...TOUR_PREPARATION_STAGES.flatMap((stage) => [...stage.steps]),
+		"departure",
+		"rate",
+		"conditions",
+		"calendar",
+		"preview",
+	].includes(raw)
 		? (raw as TourLaunchStepId)
 		: null
 }
@@ -196,9 +185,16 @@ const TOUR_LAUNCH_STEP_DEFINITIONS: TourLaunchStepDefinition[] = [
 	},
 ]
 
-export const TOUR_LAUNCH_STEPS: TourLaunchStepDefinition[] = TOUR_LAUNCH_STEP_DEFINITIONS.slice()
+const COMPATIBLE_TOUR_STEPS: TourLaunchStepDefinition[] = TOUR_LAUNCH_STEP_DEFINITIONS.slice()
 	.sort((a, b) => {
-		const order = [...TOUR_PREPARATION_STAGES.flatMap((stage) => [...stage.steps]), "preview"]
+		const order = [
+			...TOUR_PREPARATION_STAGES.flatMap((stage) => [...stage.steps]),
+			"departure",
+			"rate",
+			"conditions",
+			"calendar",
+			"preview",
+		]
 		return order.indexOf(a.id) - order.indexOf(b.id)
 	})
 	.map((step) => ({
@@ -208,6 +204,10 @@ export const TOUR_LAUNCH_STEPS: TourLaunchStepDefinition[] = TOUR_LAUNCH_STEP_DE
 				? step.buildHref(context)
 				: withTourOfferSelection(step.buildHref(context), context),
 	}))
+
+export const TOUR_LAUNCH_STEPS = COMPATIBLE_TOUR_STEPS.filter((step) =>
+	TOUR_PREPARATION_STAGES.some((stage) => stage.steps.some((id) => id === step.id))
+)
 
 export function withTourOfferSelection(
 	path: string,
@@ -260,7 +260,7 @@ export function buildTourPlaybookHref(path: string, step: TourLaunchStepId): str
 export function getTourLaunchStepById(
 	stepId: TourLaunchStepId | string | null | undefined
 ): TourLaunchStepDefinition | null {
-	return TOUR_LAUNCH_STEPS.find((step) => step.id === normalizeTourLaunchStep(stepId)) ?? null
+	return COMPATIBLE_TOUR_STEPS.find((step) => step.id === normalizeTourLaunchStep(stepId)) ?? null
 }
 
 export function getNextTourLaunchStep(
@@ -374,7 +374,7 @@ export function getTourSharedRateCanonicalHref(
 	const params = new URLSearchParams(url.searchParams)
 	const resolved = resolveTourPlaybookContext(url, context.productId)
 	const useCompletePlaybook =
-		context.step === "preview" ||
+		["preview", "departure", "rate", "conditions", "calendar"].includes(context.step) ||
 		resolved?.part === "publish" ||
 		(hasTourOfferSelection && !isTourPlaybook && !hasAccommodationIntent && !isCompletePlaybook)
 	params.set("playbook", useCompletePlaybook ? "complete-to-publish" : LAUNCH_TOUR_PLAYBOOK_ID)
@@ -439,6 +439,10 @@ export function tourPreparationNextHref(
 	context: TourLaunchContext,
 	currentStep: string
 ): string {
+	const workspaceReturn = !source.get("playbook")
+		? safeProductWorkspaceReturn(source.get("returnTo"), context.productId)
+		: null
+	if (workspaceReturn) return workspaceReturn
 	if (source.get("playbook") === "add-tour-option")
 		return optionNextHref(source, context, currentStep)
 	const current = getTourLaunchStepById(currentStep)
@@ -450,6 +454,12 @@ export function tourPreparationNextHref(
 		return (
 			tourPublicationReturn(source.get("returnTo"), context.productId, context) ??
 			tourPublicationHref(context.productId, context)
+		)
+	if (currentStep === "tickets" && resolved?.returnHref) return resolved.returnHref
+	if (currentStep === "tickets")
+		return withTourOfferSelection(
+			`/product/${encodeURIComponent(context.productId)}/preparation-complete`,
+			context
 		)
 	const next = getNextTourLaunchStep(currentStep) ?? getTourLaunchStepById("preview")!
 	const href = next.buildHref(context)

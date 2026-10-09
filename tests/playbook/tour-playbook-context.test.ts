@@ -46,8 +46,9 @@ describe("two connected tour playbooks", () => {
 			returnTo: tourPublicationHref("tour", selection),
 		})
 		const next = url(tourPreparationNextHref(params, selection, "tickets"))
-		expect(next.pathname).toBe("/product/tour/departures/option")
-		expect(next.searchParams.get("returnTo")).toBe(tourPublicationHref("tour", selection))
+		expect(next.pathname).toBe("/product/tour/preview")
+		expect(next.searchParams.get("variantId")).toBe("option")
+		expect(next.searchParams.get("ratePlanId")).toBe("rate")
 	})
 	it("rejects external, cross-product, cross-offer and nested returns", () => {
 		expect(tourPublicationReturn("https://evil.test/product/tour/preview", "tour")).toBeNull()

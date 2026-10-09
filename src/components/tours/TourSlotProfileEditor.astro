@@ -7,9 +7,16 @@ import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
 import Textarea from "@/components/ui/Textarea.astro"
 import { Clock, Languages, Users } from "@lucide/astro"
+import { getPolicyPresetLabel } from "@/data/policy/policy-presets"
+import { getPolicyCategoryLabel } from "@/data/policy/policy-categories"
 import { TOUR_SLOT_LANGUAGE_OPTIONS } from "@/lib/tours/tourSlotLanguageOptions"
 
+type ScheduleSource = Awaited<
+	ReturnType<typeof import("@/lib/onboarding/tourScheduleCreation").loadScheduleSource>
+>
 interface Props {
+	scheduleSource?: ScheduleSource | null
+	scheduleSessionId?: string
 	productId: string
 	variantId?: string | null
 	mode: "create" | "edit"
@@ -29,6 +36,8 @@ interface Props {
 }
 
 const {
+	scheduleSource = null,
+	scheduleSessionId,
 	productId,
 	variantId = null,
 	mode,
@@ -47,6 +56,20 @@ const {
 	cancelHref = null,
 } = Astro.props
 
+function reusedConditionLabel(
+	entry: NonNullable<ScheduleSource["conditions"]>["policies"][number]
+) {
+	const category = getPolicyCategoryLabel(entry.category)
+	const label =
+		entry.category === "Payment"
+			? "Pago directo al proveedor"
+			: getPolicyPresetLabel(
+					entry.policy.policyPresetKey || "",
+					entry.category as import("@/modules/policies/public").PolicyCategory,
+					entry.policy.description.replace(/huésped/gi, "viajero")
+				)
+	return label.toLowerCase().startsWith(category.toLowerCase()) ? label : `${category}: ${label}`
+}
 const isEditMode = mode === "edit"
 const resolvedLanguageCode = String(languageCode ?? (isEditMode ? "" : "es"))
 const selectionCheckboxClass =
@@ -67,11 +90,42 @@ const languageOptions =
 	id="tour-slot-profile-form"
 	class="space-y-6"
 	data-product-id={productId}
+	data-schedule={scheduleSource ? "true" : undefined}
 	data-variant-id={variantId ?? ""}
 	data-redirect={redirectOnSuccess ?? ""}
 >
 	{isEditMode ? <input type="hidden" name="variantId" value={variantId ?? ""} /> : null}
 	<input type="hidden" name="productId" value={productId} />
+
+	{
+		scheduleSource && (
+			<>
+				<input type="hidden" name="sessionId" value={scheduleSessionId} />
+				<input type="hidden" name="sourceFingerprint" value={scheduleSource.fingerprint} />
+				<input type="hidden" name="sourceRatePlanId" value={scheduleSource.rate?.id || ""} />
+				<section class="fastt-card space-y-3 border border-slate-200 bg-white p-5 text-slate-950">
+					<p class="text-sm">
+						{languageOptions.find((lang) => lang.code === resolvedLanguageCode)?.label} ·{" "}
+						{bookingMode === "private" ? "Privada" : "Compartida"} · Hasta {maxPax} participantes
+						{durationMinutes ? ` · ${durationMinutes} min` : ""}
+					</p>
+					<p class="text-sm text-slate-600">
+						Se conserva la configuración del perfil y su punto de encuentro. Las nuevas fechas se
+						programan después.
+					</p>
+					<Button
+						type="button"
+						variant="ghost"
+						data-modify-schedule
+						aria-expanded="false"
+						className="min-h-11 px-0 text-sm font-semibold underline"
+					>
+						Modificar configuración
+					</Button>
+				</section>
+			</>
+		)
+	}
 
 	<section
 		class="fastt-card space-y-4 rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-5 text-slate-950"
@@ -81,14 +135,18 @@ const languageOptions =
 			<h2 class="text-sm font-semibold text-slate-950">Configuración de la opción</h2>
 		</header>
 		<div class="grid gap-4 md:grid-cols-2">
-			<FormField label="Nombre de la opción" htmlFor="name" required>
+			<FormField label="Nombre que verán los viajeros" htmlFor="name" required>
 				<Input
 					id="name"
 					name="name"
 					required
 					value={name ?? ""}
-					placeholder="Ej: Compartida en español"
+					placeholder="Ej.: Visita privada con transporte"
+					aria-describedby="optionNameHelp"
 				/>
+				<p id="optionNameHelp" class="text-xs leading-5 text-slate-500">
+					Describe qué distingue esta alternativa del tour.
+				</p>
 			</FormField>
 			<FormField
 				label="Horario habitual"
@@ -104,33 +162,39 @@ const languageOptions =
 					value={departureTime ?? (isEditMode ? "" : "09:00")}
 				/>
 			</FormField>
-			<FormField
-				label="Duración de esta opción (minutos, opcional)"
-				htmlFor="durationMinutes"
-				description="Si la dejas vacía, usamos la duración configurada en los detalles del tour."
-			>
-				<Input
-					id="durationMinutes"
-					name="durationMinutes"
-					type="number"
-					min="1"
-					value={durationMinutes != null ? String(durationMinutes) : ""}
-					placeholder="Ej: 180"
+			<div data-schedule-common hidden={Boolean(scheduleSource)}>
+				<FormField
+					label="Duración de esta opción (minutos, opcional)"
+					htmlFor="durationMinutes"
+					description="Si la dejas vacía, usamos la duración configurada en los detalles del tour."
+				>
+					<Input
+						id="durationMinutes"
+						name="durationMinutes"
+						type="number"
+						min="1"
+						value={durationMinutes != null ? String(durationMinutes) : ""}
+						placeholder="Ej: 180"
+					/>
+				</FormField>
+			</div>
+		</div>
+		<div data-schedule-common hidden={Boolean(scheduleSource)}>
+			<FormField label="Descripción (opcional)" htmlFor="description">
+				<Textarea
+					id="description"
+					name="description"
+					rows={3}
+					value={description ?? ""}
+					placeholder="Notas visibles para el viajero sobre esta opción"
 				/>
 			</FormField>
 		</div>
-		<FormField label="Descripción (opcional)" htmlFor="description">
-			<Textarea
-				id="description"
-				name="description"
-				rows={3}
-				value={description ?? ""}
-				placeholder="Notas visibles para el viajero sobre esta opción"
-			/>
-		</FormField>
 	</section>
 
 	<section
+		data-schedule-common
+		hidden={Boolean(scheduleSource)}
 		class="fastt-card space-y-4 rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-5 text-slate-950"
 	>
 		<header class="flex items-center gap-2">
@@ -241,6 +305,8 @@ const languageOptions =
 	</section>
 
 	<section
+		data-schedule-common
+		hidden={Boolean(scheduleSource)}
 		class="fastt-card space-y-4 rounded-[var(--fastt-radius-card)] border border-slate-200 bg-white p-5 text-slate-950"
 	>
 		<header class="flex items-center gap-2">
@@ -266,6 +332,15 @@ const languageOptions =
 					}
 				</Select>
 			</FormField>
+			{
+				scheduleSource && (
+					<Checkbox
+						name="replaceMeetingPoint"
+						label="Cambiar el punto de encuentro de este horario"
+						checked={false}
+					/>
+				)
+			}
 			<FormField label="Punto de encuentro distinto (opcional)" htmlFor="meetingPointOverride">
 				<Input
 					id="meetingPointOverride"
@@ -279,6 +354,70 @@ const languageOptions =
 			</FormField>
 		</div>
 	</section>
+
+	{
+		scheduleSource && (
+			<section class="fastt-card space-y-4 border border-slate-200 bg-white p-5 text-slate-950">
+				<h2 class="font-semibold">Reutilizar precio y condiciones</h2>
+				{scheduleSource.rate ? (
+					<>
+						<p class="text-sm text-slate-600">{scheduleSource.rate.name}</p>
+						{scheduleSource.priceReusable ? (
+							<Checkbox
+								name="reusePrice"
+								label={`Usar precio base: ${scheduleSource.baseline!.basePrice} ${scheduleSource.baseline!.currency}`}
+								checked={false}
+							/>
+						) : (
+							<p class="text-sm text-slate-600">Sin precio base válido. Lo configurarás después.</p>
+						)}
+						{scheduleSource.conditionsReusable ? (
+							<>
+								<Checkbox
+									name="reuseConditions"
+									label="Usar estas condiciones compatibles"
+									checked={false}
+								/>
+								<ul class="space-y-1 text-sm text-slate-600">
+									{scheduleSource.conditions!.policies.map((entry) => (
+										<li>{reusedConditionLabel(entry)}</li>
+									))}
+								</ul>
+							</>
+						) : (
+							<p class="text-sm text-slate-600">
+								{scheduleSource.datedConditions
+									? "Hay condiciones por fecha o ajustes específicos. Revisa condiciones nuevas para este horario."
+									: "Las condiciones necesitan revisión. Las configurarás después."}
+							</p>
+						)}
+					</>
+				) : (
+					<p class="text-sm text-slate-600">
+						Selecciona arriba una tarifa si quieres reutilizarla. También puedes configurar un
+						precio y condiciones nuevos.
+					</p>
+				)}
+				<p class="text-xs text-slate-500">
+					No se copian fechas, reservas, cierres, promociones ni ajustes de salidas.
+				</p>
+				<div data-equivalent-confirmation hidden>
+					<a
+						href={`/product/${productId}/departures`}
+						class="text-sm font-semibold underline"
+						target="_blank"
+					>
+						Revisar opciones existentes
+					</a>
+					<Checkbox
+						name="confirmEquivalent"
+						label="Necesito otra opción con este horario, idioma y modalidad"
+						checked={false}
+					/>
+				</div>
+			</section>
+		)
+	}
 
 	<p id="tour-slot-form-status" class="text-sm text-slate-300" role="status" aria-live="polite"></p>
 
@@ -332,6 +471,18 @@ const languageOptions =
 		if (!(form instanceof HTMLFormElement) || form.dataset.bound === "true") return
 		form.dataset.bound = "true"
 		const statusEl = document.getElementById("tour-slot-form-status")
+		const schedule = form.dataset.schedule === "true"
+		form
+			.querySelector<HTMLButtonElement>("[data-modify-schedule]")
+			?.addEventListener("click", (event) => {
+				const button = event.currentTarget as HTMLButtonElement
+				const expanded = button.getAttribute("aria-expanded") !== "true"
+				button.setAttribute("aria-expanded", String(expanded))
+				form
+					.querySelectorAll<HTMLElement>("[data-schedule-common]")
+					.forEach((element) => (element.hidden = !expanded))
+			})
+
 		const submitBtn = document.getElementById("tour-slot-submit") as HTMLButtonElement | null
 		const draftKey = form
 			? `fastt:tour-departure-draft:${form.dataset.productId || "unknown"}:${form.dataset.variantId || "new"}:${new URLSearchParams(location.search).get("sessionId") || "default"}`
@@ -373,16 +524,34 @@ const languageOptions =
 					value: control.value,
 					checked: control instanceof HTMLInputElement ? control.checked : undefined,
 				}))
-			window.sessionStorage.setItem(draftKey, JSON.stringify(values))
+			window.sessionStorage.setItem(
+				draftKey,
+				JSON.stringify({
+					values,
+					sourceFingerprint: (
+						form?.elements.namedItem("sourceFingerprint") as HTMLInputElement | null
+					)?.value,
+				})
+			)
 		}
 
 		if (form && draftKey) {
 			try {
-				const saved = JSON.parse(window.sessionStorage.getItem(draftKey) || "[]")
+				const draft = JSON.parse(window.sessionStorage.getItem(draftKey) || "[]")
+				const saved = Array.isArray(draft) ? draft : draft.values
+				const sameSource =
+					draft.sourceFingerprint ===
+					(form?.elements.namedItem("sourceFingerprint") as HTMLInputElement | null)?.value
 				if (Array.isArray(saved)) {
 					for (const control of draftControls()) {
 						const entry = saved.find((item) => item?.name === control.name)
-						if (!entry) continue
+						if (
+							!entry ||
+							(schedule &&
+								["reusePrice", "reuseConditions", "confirmEquivalent"].includes(control.name) &&
+								!sameSource)
+						)
+							continue
 						if (control instanceof HTMLInputElement && control.type === "checkbox") {
 							control.checked = Boolean(entry.checked)
 						} else if (control.type !== "hidden") {
@@ -417,18 +586,49 @@ const languageOptions =
 			if (statusEl) statusEl.textContent = "Guardando opción..."
 			if (activeSubmit) activeSubmit.disabled = true
 			try {
-				const response = await fetch("/api/variant/tour-slot-profile", {
-					method: "POST",
-					body: new FormData(form),
-				})
+				const fields = new FormData(form)
+				const response = await fetch(
+					schedule ? "/api/variant/tour-schedule-option" : "/api/variant/tour-slot-profile",
+					{
+						method: "POST",
+						...(schedule
+							? {
+									headers: { "Content-Type": "application/json" },
+									body: JSON.stringify({
+										sessionId: fields.get("sessionId"),
+										productId: fields.get("productId"),
+										sourceFingerprint: fields.get("sourceFingerprint"),
+										sourceRatePlanId: fields.get("sourceRatePlanId") || undefined,
+										name: fields.get("name"),
+										description: fields.get("description"),
+										departureTime: fields.get("departureTime"),
+										durationMinutes: fields.get("durationMinutes")
+											? Number(fields.get("durationMinutes"))
+											: null,
+										maxPax: Number(fields.get("maxPax")),
+										languageCode: fields.get("languageCode"),
+										bookingMode: fields.get("bookingMode"),
+										meetingPointOverride: fields.get("meetingPointOverride"),
+										reusePrice: fields.has("reusePrice"),
+										reuseConditions: fields.has("reuseConditions"),
+										replaceMeetingPoint: fields.has("replaceMeetingPoint"),
+										confirmEquivalent: fields.has("confirmEquivalent"),
+									}),
+								}
+							: { body: fields }),
+					}
+				)
 				const payload = await response.json().catch(() => ({}))
 				if (!response.ok) {
+					if (payload.error === "schedule_equivalent_exists")
+						form.querySelector<HTMLElement>("[data-equivalent-confirmation]")!.hidden = false
 					if (statusEl) {
 						statusEl.setAttribute("role", "alert")
 						statusEl.textContent =
-							payload?.error === "validation_error"
+							payload.message ||
+							(payload?.error === "validation_error"
 								? "No pudimos guardar. Revisa el nombre, la hora, el cupo y el idioma."
-								: "No se pudo crear la opción. Tu borrador sigue guardado para que puedas reintentar."
+								: "No se pudo crear la opción. Tu borrador sigue guardado para que puedas reintentar.")
 					}
 					return
 				}
@@ -451,7 +651,13 @@ const languageOptions =
 							"departure"
 						)
 					: redirect.replace("__VARIANT_ID__", encodeURIComponent(variantId))
-				const persistedDestination = await persistOptionDestination(destination)
+				if (schedule) {
+					const marker = document.querySelector<HTMLElement>("[data-option-session]")
+					if (marker) marker.dataset.revision = String(payload.revision)
+				}
+				const persistedDestination = schedule
+					? payload.href
+					: await persistOptionDestination(destination)
 				draftEnabled = false
 				window.sessionStorage.removeItem(creationKeyStorage)
 				window.sessionStorage.removeItem(draftKey)

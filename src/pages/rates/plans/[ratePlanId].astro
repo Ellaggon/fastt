@@ -497,9 +497,7 @@ logRoutePerformance({
 		<header
 			class:list={[
 				"flex flex-wrap items-end justify-between gap-4",
-				isPlaybookMode && effectiveActiveView === "conditions"
-					? null
-					: "border-b border-slate-800 pb-5",
+				isPlaybookMode ? null : "border-b border-slate-800 pb-5",
 			]}
 		>
 			{
@@ -655,44 +653,48 @@ logRoutePerformance({
 			{
 				isPlaybookMode && !(isTourContext && effectiveActiveView === "price") ? null : (
 					<div
-						class={
+						class:list={[
 							effectiveActiveView === "price"
-								? "fastt-card bg-white p-5 text-slate-950"
-								: "hidden p-5"
-						}
+								? [
+										"fastt-card bg-white p-5 text-slate-950 md:p-6",
+										isPlaybookMode && isTourContext
+											? "overflow-hidden rounded-[var(--fastt-radius-card)] border border-slate-200"
+											: "",
+									]
+								: "hidden p-5",
+						]}
 						data-rate-plan-panel="price"
 					>
-						<div class="mx-auto max-w-3xl">
-							<RatePlanPricingSurface
-								ratePlanId={String(row.ratePlanId)}
-								initialCurrency={loaded.initialCurrency}
-								initialBasePrice={loaded.initialBasePrice}
-								backHref={routes.rates()}
-								offeringType={offeringType}
-								guidedContinueHref={
-									isPlaybookMode && isTourContext
-										? optionWizard
-											? optionNextHref(
-													Astro.url.searchParams,
-													{
-														productId: String(row.productId),
-														variantId: String(row.variantId),
-														ratePlanId,
-													},
-													activeView
-												)
-											: (reviewReturnHref ?? tourContinueHref ?? completeContinueHref)
-										: undefined
-								}
-								guidedExitHref={
-									isPlaybookMode && isTourContext
-										? optionWizard
-											? `/product/${encodeURIComponent(tourCtx.productId)}/departures`
-											: `/product/${encodeURIComponent(tourCtx.productId)}`
-										: undefined
-								}
-							/>
-						</div>
+						<RatePlanPricingSurface
+							ratePlanId={String(row.ratePlanId)}
+							initialCurrency={loaded.initialCurrency}
+							initialBasePrice={loaded.initialBasePrice}
+							backHref={routes.rates()}
+							offeringType={offeringType}
+							showSectionHeader={!(isPlaybookMode && isTourContext)}
+							guidedContinueHref={
+								isPlaybookMode && isTourContext
+									? optionWizard
+										? optionNextHref(
+												Astro.url.searchParams,
+												{
+													productId: String(row.productId),
+													variantId: String(row.variantId),
+													ratePlanId,
+												},
+												activeView
+											)
+										: (reviewReturnHref ?? tourContinueHref ?? completeContinueHref)
+									: undefined
+							}
+							guidedExitHref={
+								isPlaybookMode && isTourContext
+									? optionWizard
+										? `/product/${encodeURIComponent(tourCtx.productId)}/departures`
+										: `/product/${encodeURIComponent(tourCtx.productId)}`
+									: undefined
+							}
+						/>
 					</div>
 				)
 			}

@@ -53,6 +53,11 @@ export function resolveTourPlaybookContext(url: URL, productId: string) {
 	const returnHref = tourPublicationReturn(params.get("returnTo"), productId, selection)
 	const part: TourPlaybookPart =
 		url.pathname.endsWith("/preview") ||
+		["departure", "rate", "conditions", "bookingPolicies", "calendar"].includes(
+			params.get("step") || ""
+		) ||
+		url.pathname.startsWith("/rates/") ||
+		/\/departures(?:\/|$)/.test(url.pathname) ||
 		(complete && (params.get("tourFlowVersion") === TOUR_FLOW_VERSION || returnHref))
 			? "publish"
 			: "prepare"

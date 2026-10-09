@@ -1,4 +1,5 @@
 ---
+import { safeProductWorkspaceReturn } from "@/lib/auth/returnTo"
 import { tourPreparationNextHref } from "@/lib/playbook/launch-tour"
 import PlaybookStepHeader from "@/components/playbook/PlaybookStepHeader.astro"
 import Button from "@/components/ui/Button.astro"
@@ -52,6 +53,10 @@ const continueHref = tourPreparationNextHref(
 	"tickets"
 )
 
+const editorialReturnHref = !playbook.active
+	? safeProductWorkspaceReturn(Astro.url.searchParams.get("returnTo"), productId)
+	: null
+
 const tickets = await db
 	.select()
 	.from(TourTicketType)
@@ -77,6 +82,7 @@ const initialTickets = tickets.map((t) => ({
 	isHotel={false}
 	playbookVertical="tour"
 	continueFormId={playbook.active ? "ticketsPlaybookForm" : null}
+	continueLabel={playbook.playbookId === "launch-tour" ? "Guardar y terminar ficha" : undefined}
 >
 	<section class="space-y-6" data-product-id={productId}>
 		<PlaybookStepHeader
@@ -151,6 +157,7 @@ const initialTickets = tickets.map((t) => ({
 			initialTickets,
 			categoriesHref: continueHref,
 			playbookActive: playbook.active,
+			editorialReturnHref,
 		}}
 	>
 		;(function () {
@@ -360,6 +367,7 @@ const initialTickets = tickets.map((t) => ({
 				try {
 					await saveTickets()
 					if (status) status.textContent = "Entradas guardadas."
+					if (editorialReturnHref) window.location.assign(editorialReturnHref)
 				} catch (error) {
 					if (status)
 						status.textContent =

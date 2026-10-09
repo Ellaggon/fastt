@@ -13,6 +13,7 @@ import { getProviderSessionSurfaceFromRequest } from "@/lib/auth/providerSession
 import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
 import { logRoutePerformance } from "@/lib/observability/performanceLog"
 import { createServerTimingRecorder } from "@/lib/observability/serverTiming"
+import { listOptionSessions, sessionHref } from "@/lib/onboarding/tourOptionSession"
 import { buildCompleteToPublishEntryHref } from "@/lib/playbook/complete-to-publish"
 import {
 	resolveProductPreparationCoach,
@@ -23,6 +24,7 @@ import { summarizeProductPreparation } from "@/lib/playbook/summarize-product-pr
 import { getProductOperationalSurface } from "@/lib/product/productOperationalSurface"
 import { routes } from "@/lib/routes"
 import { loadTourCommercialContext } from "@/lib/tours/loadTourCommercialContext"
+import { presentTourCatalogItem } from "@/lib/tours/tourCatalogPresentation"
 import { buildTourCommercialLinksForLoadedContext } from "@/lib/tours/tourProviderNavigation"
 import {
 	ArrowRight,
@@ -89,7 +91,7 @@ const status = String(operationalSurface?.status || "draft")
 
 const readiness = operationalSurface?.readiness ?? null
 const canonicalPreparation =
-	status !== "published"
+	isTour || status !== "published"
 		? await timing.time("canonicalPreparation", () =>
 				summarizeProductPreparation({
 					productId,
@@ -112,7 +114,28 @@ const publishState =
 		: null
 const completePreparationHref =
 	preparation?.continuePreparationHref ?? buildCompleteToPublishEntryHref(productId)
-const previewHref = preparation?.previewHref ?? routes.productPreview(productId)
+const tourSessions = isTour
+	? await listOptionSessions(providerId, user.id, productId).catch((error) => {
+			console.error("Tour configuration resume unavailable", error)
+			return []
+		})
+	: []
+const firstSession = tourSessions.find((session) => session.entryIntent === "first_publication")
+const tourManagement = isTour
+	? presentTourCatalogItem(
+			productId,
+			preparation,
+			firstSession
+				? {
+						resumeHref: sessionHref(firstSession),
+						handedOff: Boolean(firstSession.handoffAt),
+						variantId: firstSession.variantId,
+					}
+				: undefined
+		)
+	: null
+const previewHref =
+	tourManagement?.previewHref ?? preparation?.previewHref ?? routes.productPreview(productId)
 const preparationCoach = publishState
 	? resolveProductPreparationCoach({
 			tourPresentation: preparation?.tourPresentation,
@@ -165,10 +188,16 @@ const conditionsHref = isHotel
 	: isTour
 		? tourCommercialLinks.conditionsHref
 		: routes.rates()
-const productContentHref = `/product/${encodeURIComponent(productId)}/content`
-const productImagesHref = `/product/${encodeURIComponent(productId)}/images`
-const productLocationHref = `/product/${encodeURIComponent(productId)}/location`
-const productSubtypeHref = `/product/${encodeURIComponent(productId)}/subtype`
+const editorialHref = (path: string) => {
+	const href = `/product/${encodeURIComponent(productId)}/${path}`
+	return isTour
+		? `${href}?${new URLSearchParams({ returnTo: Astro.url.pathname + Astro.url.search })}`
+		: href
+}
+const productContentHref = editorialHref(isTour ? "presentation" : "content")
+const productImagesHref = editorialHref("images")
+const productLocationHref = editorialHref("location")
+const productSubtypeHref = editorialHref("subtype")
 
 timing.addTotal("productPage")
 timing.setHeader(Astro.response.headers)
@@ -189,9 +218,16 @@ logRoutePerformance({
 	<section class="space-y-6 md:space-y-8">
 		<header class="space-y-2">
 			<div class="min-w-0 space-y-2">
-				<h1 class="sr-only">{owned.name}</h1>
+				<h1 class={isTour ? "text-2xl font-semibold text-white" : "sr-only"}>{owned.name}</h1>
 				{
-					preparationCoach ? null : (
+					isTour && (
+						<Badge variant={isPublished ? "success" : "neutral"}>
+							{isPublished ? "Publicado" : "Borrador"}
+						</Badge>
+					)
+				}
+				{
+					isTour || preparationCoach ? null : (
 						<>
 							<p
 								id="productHeaderMeta"
@@ -212,11 +248,13 @@ logRoutePerformance({
 		</header>
 
 		{
-			isTour && (
-				<nav aria-label="Opciones del tour" class="flex flex-wrap items-center gap-3">
-					<Button href={tourCommercialLinks.departuresHref} variant="onDark">
-						<CalendarDays class="size-4" aria-hidden="true" />
-						Opciones y horarios
+			tourManagement && (
+				<nav aria-label="Acciones del tour" class="flex flex-wrap gap-3">
+					<Button href={tourManagement.primaryAction.href} variant="onDark">
+						{tourManagement.primaryAction.label}
+					</Button>
+					<Button href={previewHref} variant="onDark">
+						Vista previa
 					</Button>
 				</nav>
 			)
@@ -241,10 +279,7 @@ logRoutePerformance({
 							</div>
 						</div>
 						<div class="flex flex-wrap justify-end gap-2">
-							<Button
-								href={isTour ? tourCommercialLinks.calendarHref : routes.calendar()}
-								variant="secondary"
-							>
+							<Button href={routes.calendar()} variant="secondary">
 								<CalendarDays class="h-4 w-4" aria-hidden="true" />
 								Abrir calendario
 							</Button>
@@ -260,7 +295,7 @@ logRoutePerformance({
 		}
 
 		{
-			status !== "published" && publishState && preparationCoach ? (
+			!isTour && status !== "published" && publishState && preparationCoach ? (
 				<section class="space-y-4" data-product-preparation>
 					<Card variant="dark" class="!border-neutral-800 !bg-black">
 						<div class="space-y-6">
@@ -375,7 +410,7 @@ logRoutePerformance({
 				<div class="space-y-3">
 					<div class="px-1">
 						<p class="text-xs font-semibold tracking-[0.14em] text-slate-400 uppercase">
-							Contenido del anuncio
+							{isTour ? "Ficha del tour" : "Contenido del anuncio"}
 						</p>
 						<p class="mt-1 text-sm text-slate-500">
 							Descripción, características y ubicación tal como las verá el viajero.
@@ -383,11 +418,11 @@ logRoutePerformance({
 					</div>
 					<div class="grid gap-5 lg:grid-cols-2">
 						<ProductListingSectionCard
-							title="Descripción"
+							title={isTour ? "Presentación" : "Descripción"}
 							subtitle="Resumen y destacados de la ficha pública"
 							badgeId="blockBadge-content"
 							editHref={productContentHref}
-							editLabel="Editar descripción"
+							editLabel={isTour ? "Editar presentación" : "Editar descripción"}
 							Icon={FileText}
 						>
 							<p id="summaryDescription" class="text-sm leading-6 text-slate-600">
@@ -397,7 +432,11 @@ logRoutePerformance({
 						</ProductListingSectionCard>
 
 						<ProductListingSectionCard
-							title={isHotel ? "Tipo y características" : "Detalles de la oferta"}
+							title={isHotel
+								? "Tipo y características"
+								: isTour
+									? "Itinerario y logística"
+									: "Detalles de la oferta"}
 							subtitle={isHotel
 								? "Categoría, servicios y atributos del alojamiento"
 								: "Información clave de la oferta"}
@@ -437,7 +476,9 @@ logRoutePerformance({
 							</span>
 							<div class="min-w-0">
 								<div class="flex flex-wrap items-center gap-2">
-									<p class="text-sm font-semibold text-slate-950">Ubicación</p>
+									<p class="text-sm font-semibold text-slate-950">
+										{isTour ? "Ubicación y encuentro" : "Ubicación"}
+									</p>
 									<Badge id="blockBadge-location" variant="neutral">Cargando...</Badge>
 								</div>
 								<p id="summaryAddress" class="mt-1 text-sm leading-6 text-slate-500">
@@ -451,6 +492,18 @@ logRoutePerformance({
 					</div>
 					<ProductLocationPreview label={`Ubicación de ${owned.name}`} />
 				</Card>
+
+				{
+					isTour && (
+						<Card className="space-y-3 bg-white text-slate-900">
+							<h2 class="text-base font-semibold">Participantes</h2>
+							<p class="text-sm text-slate-600">Tipos de participante y edades admitidas.</p>
+							<Button href={editorialHref("tickets")} variant="secondary">
+								Editar participantes
+							</Button>
+						</Card>
+					)
+				}
 
 				{
 					isHotel ? (
@@ -498,60 +551,71 @@ logRoutePerformance({
 				}
 			</div>
 
-			<aside class="space-y-5 xl:sticky xl:top-5 xl:self-start" aria-label="Operación">
-				<Card variant="flush" className="fastt-workspace-panel overflow-hidden">
-					<div class="p-5 md:p-6">
-						<p class="text-sm font-semibold text-slate-950">Operación</p>
-						<p class="mt-1 text-sm leading-6 text-slate-500">
-							Abre las herramientas diarias sin repetir la información de la ficha.
-						</p>
-						<div class="mt-5 grid gap-2">
-							<Button href={previewHref} className="w-full justify-start">
-								<Eye class="size-4" aria-hidden="true" />
-								Vista previa
-							</Button>
-							{
-								isTour ? (
-									<>
-										<Button
-											href={tourCommercialLinks.participantsHref}
-											variant="secondary"
-											className="w-full justify-start"
-										>
-											<ClipboardList class="size-4" aria-hidden="true" />
-											Participantes
-										</Button>
-										<Button
-											href={tourCommercialLinks.categoriesHref}
-											variant="secondary"
-											className="w-full justify-start"
-										>
-											<Tags class="size-4" aria-hidden="true" />
-											Categorías de búsqueda
-										</Button>
-									</>
-								) : null
-							}
-							<Button
-								href={isTour ? tourCommercialLinks.priceHref : routes.rates()}
-								variant="secondary"
-								className="w-full justify-start"
-							>
-								<Tags class="size-4" aria-hidden="true" />
-								{isTour ? "Editar precio" : "Abrir tarifas"}
-							</Button>
-							<Button
-								href={isTour ? tourCommercialLinks.calendarHref : routes.calendar()}
-								variant="secondary"
-								className="w-full justify-start"
-							>
-								<CalendarDays class="size-4" aria-hidden="true" />
-								{isTour ? "Revisar disponibilidad" : "Abrir calendario"}
-							</Button>
-						</div>
-					</div>
-				</Card>
-			</aside>
+			{
+				isTour && tourManagement ? (
+					<aside class="space-y-5" aria-label="Gestión del tour">
+						<Card class="space-y-3 bg-white">
+							<>
+								<h2 class="text-base font-semibold text-slate-950">Opciones y horarios</h2>
+								<p class="text-sm text-slate-600">
+									{tourContext && "options" in tourContext
+										? `${tourContext.options.length} opciones en este tour`
+										: "Consulta la configuración de tus opciones."}
+								</p>
+								<Button href={tourManagement.links.departuresHref}>
+									Gestionar opciones y horarios
+								</Button>
+							</>
+						</Card>
+						<Card class="space-y-3 bg-white">
+							<>
+								<h2 class="text-base font-semibold text-slate-950">Publicación</h2>
+								<p class="text-sm text-slate-600">{isPublished ? "Publicado" : "Borrador"}</p>
+								<p class="text-sm text-slate-600">{tourManagement.support}</p>
+								<Button href={tourManagement.publicationHref}>Revisar publicación</Button>
+							</>
+						</Card>
+					</aside>
+				) : (
+					<>
+						{
+							<aside class="space-y-5 xl:sticky xl:top-5 xl:self-start" aria-label="Operación">
+								<Card variant="flush" className="fastt-workspace-panel overflow-hidden">
+									<div class="p-5 md:p-6">
+										<p class="text-sm font-semibold text-slate-950">Operación</p>
+										<p class="mt-1 text-sm leading-6 text-slate-500">
+											Abre las herramientas diarias sin repetir la información de la ficha.
+										</p>
+										<div class="mt-5 grid gap-2">
+											<Button href={previewHref} className="w-full justify-start">
+												<Eye class="size-4" aria-hidden="true" />
+												Vista previa
+											</Button>
+
+											<Button
+												href={routes.rates()}
+												variant="secondary"
+												className="w-full justify-start"
+											>
+												<Tags class="size-4" aria-hidden="true" />
+												Abrir tarifas
+											</Button>
+											<Button
+												href={routes.calendar()}
+												variant="secondary"
+												className="w-full justify-start"
+											>
+												<CalendarDays class="size-4" aria-hidden="true" />
+												Abrir calendario
+											</Button>
+										</div>
+									</div>
+								</Card>
+							</aside>
+						}
+					</>
+				)
+			}
 		</div>
 
 		<ProductDeleteControls
