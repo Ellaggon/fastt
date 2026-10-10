@@ -476,6 +476,8 @@ async function upsertFixture(params: {
 		.insert(Tour)
 		.values({
 			productId: TOUR_PRODUCT_ID,
+			experienceFormat: "guided_tour",
+			formatContractVersion: 1,
 			duration: "3 horas",
 			durationMinutes: 180,
 			difficultyLevel: "easy",
@@ -488,7 +490,12 @@ async function upsertFixture(params: {
 		})
 		.onConflictDoUpdate({
 			target: Tour.productId,
-			set: { duration: "3 horas", durationMinutes: 180 },
+			set: {
+				experienceFormat: "guided_tour",
+				formatContractVersion: 1,
+				duration: "3 horas",
+				durationMinutes: 180,
+			},
 		})
 
 	await seedMarketplaceCertificationCommercialPolicy({

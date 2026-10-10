@@ -1,9 +1,11 @@
+import { EXPERIENCE_FORMATS } from "@/shared/domain/experience-format"
 import { z } from "zod"
 
 export const tourPresentationSchema = z
 	.object({
 		productId: z.string().uuid(),
 		mode: z.enum(["create", "edit"]),
+		experienceFormat: z.enum(EXPERIENCE_FORMATS).optional(),
 		name: z
 			.string()
 			.trim()

@@ -165,3 +165,24 @@ export {
 	privateRequestStatuses,
 	type PrivateRequestStatus,
 } from "./infrastructure/repositories/TourPrivateRequestQueryRepository"
+
+export {
+	EXPERIENCE_FORMATS,
+	ExperienceFormatError,
+	isExperienceFormat,
+	experienceFormatReady,
+	experienceProgramMinimum,
+	experienceFormatSnapshot,
+} from "@/shared/domain/experience-format"
+export type { ExperienceFormat } from "@/shared/domain/experience-format"
+
+export async function declareExperienceFormat(input: {
+	productId: string
+	providerId: string
+	actorUserId: string
+	experienceFormat: import("@/shared/domain/experience-format").ExperienceFormat
+}) {
+	const { ExperienceFormatRepository } =
+		await import("./infrastructure/repositories/ExperienceFormatRepository")
+	return new ExperienceFormatRepository().declare(input)
+}

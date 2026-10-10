@@ -14,6 +14,8 @@ import {
 	ProductGeoPlace,
 	ProductGeoPlaceActivity,
 	ProviderCommercialLine,
+	Tour,
+	ProviderAuditLog,
 } from "@/shared/infrastructure/db/compat"
 import { ProductRepository } from "@/modules/catalog/infrastructure/repositories/ProductRepository"
 import { saveTourPresentation } from "@/modules/catalog/application/use-cases/product/save-tour-presentation"
@@ -27,6 +29,7 @@ const repo = new ProductRepository()
 const input = {
 	productId: productIds[0],
 	mode: "create",
+	experienceFormat: "guided_tour",
 	name: "Paseo cultural",
 	geoPlaceId: placeIds[0],
 	description: "Recorre el centro histórico acompañado de un guía.",
@@ -67,6 +70,8 @@ afterAll(async () => {
 		.where(inArray(ProductGeoPlaceActivity.productId, productIds))
 	await db.delete(ProductGeoPlace).where(inArray(ProductGeoPlace.productId, productIds))
 	await db.delete(ProviderCommercialLine).where(eq(ProviderCommercialLine.providerId, providerId))
+	await db.delete(Tour).where(inArray(Tour.productId, productIds))
+	await db.delete(ProviderAuditLog).where(eq(ProviderAuditLog.providerId, providerId))
 	await db.delete(Product).where(inArray(Product.id, productIds))
 	await db.delete(ProductCategory).where(eq(ProductCategory.id, categoryId))
 	await db.delete(GeoPlace).where(inArray(GeoPlace.id, placeIds))
@@ -79,6 +84,12 @@ it("persists the whole presentation once and reconciles a retry with the same cr
 	const products = await db.select().from(Product).where(eq(Product.id, input.productId))
 	expect(products).toHaveLength(1)
 	expect(products[0].productType).toBe("tour")
+	expect(
+		(await db.select().from(Tour).where(eq(Tour.productId, input.productId)))[0]
+	).toMatchObject({ experienceFormat: "guided_tour", formatContractVersion: 1 })
+	expect(
+		await db.select().from(ProviderAuditLog).where(eq(ProviderAuditLog.providerId, providerId))
+	).toHaveLength(1)
 	expect(
 		(await db.select().from(ProductContent).where(eq(ProductContent.productId, input.productId)))[0]
 	).toMatchObject({ description: input.description, highlightsJson: input.highlights })
@@ -124,14 +135,24 @@ it("updates the existing presentation preserving editorial state and SEO", async
 })
 it("rolls back all changes on an intermediate database failure", async () => {
 	const before = await db.select().from(Product).where(eq(Product.id, input.productId))
+	const classification = await db.select().from(Tour).where(eq(Tour.productId, input.productId))
 	await expect(
 		saveTourPresentation(
 			{ repo },
-			{ ...input, mode: "edit", name: "No debe quedar", geoPlaceId: placeIds[0] },
+			{
+				...input,
+				mode: "edit",
+				name: "No debe quedar",
+				experienceFormat: "workshop",
+				geoPlaceId: placeIds[0],
+			},
 			{ ...actor, actorId: randomUUID() }
 		)
 	).rejects.toThrow()
 	expect(await db.select().from(Product).where(eq(Product.id, input.productId))).toEqual(before)
+	expect(await db.select().from(Tour).where(eq(Tour.productId, input.productId))).toEqual(
+		classification
+	)
 	expect(
 		(
 			await db.select().from(ProductGeoPlace).where(eq(ProductGeoPlace.productId, input.productId))

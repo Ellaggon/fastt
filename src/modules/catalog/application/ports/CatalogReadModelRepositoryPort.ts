@@ -58,6 +58,8 @@ export type ProductFullAggregate = {
 		  }
 		| {
 				kind: "tour"
+				experienceFormat?: import("@/shared/domain/experience-format").ExperienceFormat | null
+				formatContractVersion?: number
 				duration: string | null
 				durationMinutes: number | null
 				difficultyLevel: string | null

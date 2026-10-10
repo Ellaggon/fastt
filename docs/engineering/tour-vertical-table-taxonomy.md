@@ -3,7 +3,7 @@
 Status: active
 Document type: canonical
 Owner: Tours / Engineering
-Last verified: 2026-10-07
+Last verified: 2026-10-10
 Scope: significado de tablas y datos comerciales de tours sobre el modelo compartido
 Source of truth: esquema, migraciones y pruebas enlazadas en este documento
 Related code/tests: `src/shared/infrastructure/db/schema/`, `src/pages/api/variant/tour-slot-profile.ts`, `src/pages/api/variant/create.ts`, `tests/catalog/tour-slot-profile.test.ts`
@@ -29,6 +29,35 @@ Functional vocabulary: [provider playbooks](../domains/tours/tour-provider-playb
 | `SearchUnitView.pricePerNight` | Price per participant / unit |
 | `CancellationTier.daysBeforeArrival` | Days before departure (MVP) |
 | `VariantCapacity.maxOccupancy` | Máximo de participantes por grupo de la opción |
+
+## Clasificación de experiencias
+
+La identidad física sigue siendo `Product(productType=tour)` + `Tour`.
+`Tour.experienceFormat` declara `guided_tour`, `workshop`, `class` o `tasting`,
+independientemente de categorías y actividades reguladas. No se infiere desde esos datos.
+
+Migraciones: `db/migrations/2026-10-10_experience_format.sql` y
+`db/migrations/2026-10-10_experience_policy_context_guard.sql`. Las filas existentes conservan
+formato nulo y `formatContractVersion=0`; las nuevas usan versión 1 y deben clasificarse
+para publicar. El trigger impide insertar una exención histórica o reducir la versión.
+La declaración y su auditoría son atómicas y reintentables mediante Presentación o
+`POST /api/product/experience-format`, que exige permiso de edición y propiedad.
+
+El programa reutiliza `itineraryJson`: recorridos históricos/guiados requieren tres
+momentos; los demás formatos, uno. El contrato compartido está en
+`src/shared/domain/experience-format.ts`. Esto prepara contenido; no habilita venta.
+Políticas históricas sólo cubren tours. Una política con `contextVersion=2` debe declarar
+`experienceFormats` y estar aprobada. Contextos publicados/retirados son inmutables.
+El selector de creación sólo ofrece recorridos guiados; otros formatos permanecen sin
+oferta pública hasta adaptar sus formularios, papeles y políticas. No se añaden roles.
+
+Nuevos holds guardan `experienceClassification` en el snapshot de expectativas; la
+confirmación lo conserva. No se migran reservas, cupos ni alcances de evidencias.
+Inventario de lectura: `scripts/db/audit-tour-canonical-contract.ts`.
+Pruebas: `tests/integration/experience-format-persistence.test.ts` y
+`tests/unit/commercial-policy-evaluate.test.ts`. Aplicar primero en base aislada siguiendo
+[el runbook PostgreSQL](./supabase-migration.md). Revertir conserva esquema y clasificación;
+una versión antigua debe excluir los formatos nuevos.
 
 ## Tour content columns (Fase 1)
 

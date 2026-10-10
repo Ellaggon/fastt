@@ -1,3 +1,4 @@
+import { type ExperienceFormat } from "@/shared/domain/experience-format"
 import {
 	and,
 	db,
@@ -58,6 +59,8 @@ function normalizeContextSelector(value: unknown): CommercialPolicyContextSelect
 	if (!value || typeof value !== "object" || Array.isArray(value)) return null
 	const raw = value as Record<string, unknown>
 	const selector = {
+		contextVersion: raw.contextVersion === undefined ? undefined : Number(raw.contextVersion),
+		experienceFormats: stringArray(raw.experienceFormats) as ExperienceFormat[],
 		operatingRoles: stringArray(raw.operatingRoles).slice(0, 12),
 		activityClasses: stringArray(raw.activityClasses).slice(0, 12),
 		jurisdictionCodes: stringArray(raw.jurisdictionCodes).slice(0, 20),

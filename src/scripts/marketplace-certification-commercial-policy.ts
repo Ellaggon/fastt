@@ -7,6 +7,7 @@ import {
 	TourComplianceContext,
 	User,
 	db,
+	eq,
 } from "@/shared/infrastructure/db/compat"
 type Db = typeof db
 
@@ -73,11 +74,13 @@ async function seedVerticalPolicies(params: {
 				id: versionId,
 				policySetId: setId,
 				version: 1,
-				status: "published",
+				// A tour version cannot be published until its rule and three approval
+				// records exist; publish it after those rows have been seeded below.
+				status: params.vertical === "tour" ? "draft" : "published",
 				effectiveFrom: new Date("2026-01-01T00:00:00Z"),
-				approvedBy: params.userId,
-				approvedAt: new Date("2026-01-01T00:00:00Z"),
-				approvalReference: "marketplace-certification-fixture",
+				approvedBy: params.vertical === "tour" ? null : params.userId,
+				approvedAt: params.vertical === "tour" ? null : new Date("2026-01-01T00:00:00Z"),
+				approvalReference: params.vertical === "tour" ? null : "marketplace-certification-fixture",
 				contextJson: params.vertical === "tour" ? tourContextJson : null,
 				createdAt: params.now,
 			})
@@ -126,6 +129,16 @@ async function seedVerticalPolicies(params: {
 						},
 					})
 			}
+			await params.db
+				.update(CompliancePolicyVersion)
+				.set({
+					status: "published",
+					approvedBy: params.userId,
+					approvedAt: new Date("2026-01-01T00:00:00Z"),
+					approvalReference: "marketplace-certification-fixture",
+					contextJson: tourContextJson,
+				})
+				.where(eq(CompliancePolicyVersion.id, versionId))
 		}
 	}
 }

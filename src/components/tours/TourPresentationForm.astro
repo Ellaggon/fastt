@@ -7,10 +7,13 @@ import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
 import Textarea from "@/components/ui/Textarea.astro"
 import TourCategoryChoices from "@/components/tours/TourCategoryChoices.astro"
+import type { ExperienceFormat } from "@/shared/domain/experience-format"
 import type { loadTourPresentationForm } from "@/lib/tours/loadTourPresentationForm"
 interface Props {
 	providerId: string
 	productId?: string
+	experienceFormat?: ExperienceFormat | null
+	formatContractVersion?: number
 	name?: string
 	geoPlaceId?: string | null
 	description?: string | null
@@ -22,6 +25,8 @@ const {
 	providerId,
 	productId,
 	name = "",
+	experienceFormat = null,
+	formatContractVersion = 1,
 	geoPlaceId = "",
 	description = "",
 	highlights = [],
@@ -79,6 +84,41 @@ const panelClass = guided
 							aria-describedby="nameError"
 						/>
 						<p id="nameError" data-presentation-error="name" class="hidden text-sm text-red-600">
+						</p>
+					</FormField>
+
+					<FormField
+						label="Formato de la experiencia"
+						htmlFor="experienceFormat"
+						required={formatContractVersion === 1}
+					>
+						<Select
+							id="experienceFormat"
+							name="experienceFormat"
+							required={formatContractVersion === 1}
+							aria-describedby="experienceFormatError"
+						>
+							<option value="">Selecciona el formato</option>
+							<option value="guided_tour" selected={experienceFormat === "guided_tour"}
+								>Tour o recorrido guiado</option
+							>
+							{
+								experienceFormat && experienceFormat !== "guided_tour" && (
+									<option value={experienceFormat} selected>
+										{
+											{ workshop: "Taller", class: "Clase", tasting: "Degustación" }[
+												experienceFormat
+											]
+										}
+									</option>
+								)
+							}
+						</Select>
+						<p
+							id="experienceFormatError"
+							data-presentation-error="experienceFormat"
+							class="hidden text-sm text-red-600"
+						>
 						</p>
 					</FormField>
 					<FormField label="Destino" htmlFor="geoPlaceId" required>

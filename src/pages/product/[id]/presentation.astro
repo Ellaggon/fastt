@@ -39,6 +39,12 @@ const highlights = Array.isArray(aggregate.content.highlights)
 		providerId={providerId}
 		productId={productId}
 		name={aggregate.displayName}
+		experienceFormat={aggregate.subtype?.kind === "tour"
+			? aggregate.subtype.experienceFormat
+			: null}
+		formatContractVersion={aggregate.subtype?.kind === "tour"
+			? aggregate.subtype.formatContractVersion
+			: 1}
 		geoPlaceId={aggregate.geoPlace?.id}
 		description={aggregate.content.description}
 		highlights={highlights}

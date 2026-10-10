@@ -87,7 +87,7 @@ export default function TourDepartureSchedulePanel({
 					variantId,
 					from: start.toISOString().slice(0, 10),
 					to: start.toISOString().slice(0, 10),
-					weekdays: [0, 1, 2, 3, 4, 5, 6],
+					weekdays: [1, 2, 3, 4, 5],
 					capacity: ctx.capacity,
 					excluded: [],
 				})
@@ -342,12 +342,7 @@ export default function TourDepartureSchedulePanel({
 														aria-pressed={active}
 														aria-label={weekdays[day]}
 														title={weekdays[day]}
-														className={cn(
-															"tour-schedule-weekday min-h-12 w-full cursor-pointer rounded-xl px-3 py-2.5 text-center text-sm font-semibold tracking-tight transition-[background-color,box-shadow,transform,color] duration-200 ease-out disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none",
-															active
-																? "bg-white text-slate-950 shadow-[0_2px_14px_rgba(15,23,42,0.07)]"
-																: "bg-slate-100/80 text-slate-600"
-														)}
+														className="fastt-button tour-schedule-weekday min-h-12 w-full cursor-pointer rounded-xl px-3 py-2.5 text-center text-sm font-semibold tracking-tight disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
 														onClick={() => toggleWeekday(day)}
 													>
 														{weekdayShort[day]}
@@ -432,46 +427,50 @@ export default function TourDepartureSchedulePanel({
 											</div>
 										)}
 										{!result && (
-											<div className="flex flex-wrap items-end gap-2 sm:gap-3">
+											<div className="grid items-end gap-4 sm:grid-cols-3">
 												<DatesModal
 													id="tour-schedule-exclude"
 													label="Fecha a excluir"
 													placeholder="Seleccionar fecha"
-													compact
-													className="w-full max-w-[16rem] min-w-[12rem] shrink-0 sm:w-[14rem]"
+													className="min-w-0"
 													value={excludedDate}
 													min={String(input.from || context.today)}
 													max={String(input.to || "") || undefined}
 													disabled={busy || !!result}
 													onChange={setExcludedDate}
 												/>
-												<Button
-													type="button"
-													variant="secondary"
-													size="sm"
-													className="min-h-10 shrink-0 px-3"
-													disabled={!excludedDate || busy || !!result}
-													onClick={() => {
-														if (!input.excluded.includes(excludedDate))
-															change({ excluded: [...input.excluded, excludedDate] })
-														setExcludedDate("")
-													}}
-												>
-													Añadir
-												</Button>
-												<Button
-													type="button"
-													variant="selection"
-													className="fastt-playbook-cta ml-auto min-h-10 shrink-0"
-													disabled={busy || (!!preview && !preview.newDates.length)}
-													onClick={() => void submit(!!preview)}
-												>
-													{busy
-														? "Procesando…"
-														: preview
-															? `Programar ${preview.newDates.length} salidas`
-															: "Revisar fechas"}
-												</Button>
+												<div className="flex justify-start">
+													<Button
+														type="button"
+														variant="secondary"
+														size="lg"
+														className="h-11 shrink-0 px-4"
+														disabled={!excludedDate || busy || !!result}
+														onClick={() => {
+															if (!input.excluded.includes(excludedDate))
+																change({ excluded: [...input.excluded, excludedDate] })
+															setExcludedDate("")
+														}}
+													>
+														Añadir
+													</Button>
+												</div>
+												<div className="flex justify-end sm:col-start-3">
+													<Button
+														type="button"
+														variant="selection"
+														size="lg"
+														className="fastt-playbook-cta w-full min-w-[10rem] shrink-0 sm:w-auto"
+														disabled={busy || (!!preview && !preview.newDates.length)}
+														onClick={() => void submit(!!preview)}
+													>
+														{busy
+															? "Procesando…"
+															: preview
+																? `Programar ${preview.newDates.length} salidas`
+																: "Revisar fechas"}
+													</Button>
+												</div>
 											</div>
 										)}
 									</div>

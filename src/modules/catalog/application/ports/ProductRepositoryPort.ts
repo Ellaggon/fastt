@@ -36,6 +36,8 @@ export type ProductAggregate = {
 			completeRoomCount: number
 		}
 		tour?: {
+			experienceFormat?: import("@/shared/domain/experience-format").ExperienceFormat | null
+			formatContractVersion?: number
 			hasItinerary: boolean
 			itinerarySteps: number
 			hasMeetingPoint: boolean

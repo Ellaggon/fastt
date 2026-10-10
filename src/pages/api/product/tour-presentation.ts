@@ -20,6 +20,7 @@ export const POST: APIRoute = async ({ request }) => {
 		const input = {
 			productId: String(form.get("productId") ?? ""),
 			mode: String(form.get("mode") ?? ""),
+			experienceFormat: String(form.get("experienceFormat") ?? "").trim() || undefined,
 			name: String(form.get("name") ?? ""),
 			geoPlaceId: String(form.get("geoPlaceId") ?? ""),
 			description: String(form.get("description") ?? ""),

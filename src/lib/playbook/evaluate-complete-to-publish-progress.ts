@@ -1,3 +1,4 @@
+import { experienceProgramMinimum } from "@/shared/domain/experience-format"
 import { evaluateTourContentReadiness } from "@/lib/tours/tourContentReadiness"
 import { readTourRequestData } from "@/lib/tours/tourRequestReads"
 import { projectTourLogisticsObservation } from "@/lib/tours/tourPreparationRequirements"
@@ -30,10 +31,7 @@ import {
 	variantManagementRepository,
 	ratePlanPricingReadRepository,
 } from "@/container"
-import {
-	TOUR_QUALITY_MIN_IMAGES,
-	TOUR_QUALITY_MIN_ITINERARY_STEPS,
-} from "@/lib/tours/tourAdminQuality"
+import { TOUR_QUALITY_MIN_IMAGES } from "@/lib/tours/tourAdminQuality"
 import {
 	buildCompleteToPublishHref,
 	completeToPublishStepHref,
@@ -306,6 +304,7 @@ async function evaluateCompleteToPublishState(
 		.map((item) => item.trim())
 		.filter(Boolean)
 	const tourSubtype = aggregate.subtype?.kind === "tour" ? aggregate.subtype : null
+	const minimumProgramSteps = experienceProgramMinimum(tourSubtype?.experienceFormat)
 	const tourItinerarySteps = Array.isArray(tourSubtype?.itinerary)
 		? tourSubtype.itinerary.filter(Boolean).length
 		: 0
@@ -502,9 +501,9 @@ async function evaluateCompleteToPublishState(
 					: "Condiciones principales visibles.",
 		},
 		itinerary: {
-			complete: tourItinerarySteps >= TOUR_QUALITY_MIN_ITINERARY_STEPS,
-			statusLabel: `${tourItinerarySteps}/${TOUR_QUALITY_MIN_ITINERARY_STEPS} pasos`,
-			detail: `Completa al menos ${TOUR_QUALITY_MIN_ITINERARY_STEPS} pasos del itinerario.`,
+			complete: tourItinerarySteps >= minimumProgramSteps,
+			statusLabel: `${tourItinerarySteps}/${minimumProgramSteps} pasos`,
+			detail: `Completa al menos ${minimumProgramSteps} pasos del itinerario.`,
 		},
 		tickets: {
 			complete: vertical.vertical !== "tour" || Boolean(tourReadiness?.hasActiveTickets),
@@ -588,7 +587,7 @@ async function evaluateCompleteToPublishState(
 			observations: {
 				presentation: observed(
 					contentReadiness.presentation,
-					"Completa nombre, destino, descripción y destacados."
+					"Completa nombre, formato, destino, descripción y destacados."
 				),
 				logistics: {
 					...projectTourLogisticsObservation(

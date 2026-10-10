@@ -137,6 +137,8 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 				hotelStars: Hotel.stars,
 				hotelPhone: Hotel.phone,
 				hotelEmail: Hotel.email,
+				tourExperienceFormat: Tour.experienceFormat,
+				tourFormatContractVersion: Tour.formatContractVersion,
 				tourDuration: Tour.duration,
 				tourDurationMinutes: Tour.durationMinutes,
 				tourDifficulty: Tour.difficultyLevel,
@@ -222,6 +224,10 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 				: normalizedType === "tour"
 					? {
 							kind: "tour" as const,
+							experienceFormat: row.tourExperienceFormat as
+								| import("@/shared/domain/experience-format").ExperienceFormat
+								| null,
+							formatContractVersion: row.tourFormatContractVersion ?? 1,
 							duration: row.tourDuration ? String(row.tourDuration) : null,
 							durationMinutes: row.tourDurationMinutes ?? null,
 							difficultyLevel: row.tourDifficulty ? String(row.tourDifficulty) : null,

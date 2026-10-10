@@ -19,7 +19,7 @@ type Props = {
 	className?: string
 }
 
-type PanelCoords = { top: number; left: number; width: number }
+type PanelCoords = { top: number; left: number; width: number; placement: "above" | "below" }
 
 function formatIsoDate(date: Date) {
 	return date.toISOString().slice(0, 10)
@@ -64,10 +64,13 @@ function placePanel(trigger: DOMRect, panelHeight = PANEL_ESTIMATED_HEIGHT): Pan
 	}
 	const spaceBelow = window.innerHeight - trigger.bottom - VIEWPORT_GAP
 	const spaceAbove = trigger.top - VIEWPORT_GAP
-	// Prefer opening above so sibling controls under the field stay usable.
-	const openAbove = spaceAbove >= 160 || (spaceBelow < panelHeight && spaceAbove > spaceBelow)
-	const top = openAbove ? Math.max(VIEWPORT_GAP, trigger.top - panelHeight - 8) : trigger.bottom + 8
-	return { top, left, width }
+	const fitsBelow = spaceBelow >= panelHeight
+	const fitsAbove = spaceAbove >= panelHeight
+	const openAbove = !fitsBelow && (fitsAbove || spaceAbove > spaceBelow)
+	const top = openAbove
+		? Math.max(VIEWPORT_GAP, trigger.top - panelHeight - 8)
+		: Math.min(trigger.bottom + 8, window.innerHeight - panelHeight - VIEWPORT_GAP)
+	return { top, left, width, placement: openAbove ? "above" : "below" }
 }
 
 export default function DatesModal({
@@ -172,89 +175,101 @@ export default function DatesModal({
 
 	const panel =
 		open && coords ? (
-			<div
-				ref={panelRef}
-				id={panelId}
-				role="dialog"
-				aria-label={label}
-				className="fixed z-[320] rounded-2xl border border-slate-200 bg-white p-3 shadow-xl"
-				style={{ top: coords.top, left: coords.left, width: coords.width }}
-			>
-				<div className="mb-2 flex items-center justify-between gap-2">
-					<button
-						type="button"
-						className="rounded-full p-1 text-slate-600 hover:bg-slate-100"
-						aria-label="Mes anterior"
-						onClick={() =>
-							setCurrentMonth(
-								new Date(Date.UTC(currentMonth.getUTCFullYear(), currentMonth.getUTCMonth() - 1, 1))
+			<>
+				<div
+					className="fastt-dates-modal-backdrop fixed inset-0 z-[319] bg-slate-900/[0.06] motion-reduce:bg-transparent"
+					aria-hidden="true"
+					onClick={() => setOpen(false)}
+				/>
+				<div
+					ref={panelRef}
+					id={panelId}
+					role="dialog"
+					aria-label={label}
+					data-placement={coords.placement}
+					className="fastt-dates-modal-panel fixed z-[320] rounded-2xl border border-slate-200/90 bg-white p-3 shadow-[0_8px_30px_rgb(15_23_42_/_12%)] ring-1 ring-slate-200/60 motion-reduce:animate-none"
+					style={{ top: coords.top, left: coords.left, width: coords.width }}
+				>
+					<div className="mb-2 flex items-center justify-between gap-2">
+						<button
+							type="button"
+							className="rounded-full p-1 text-slate-600 hover:bg-slate-100"
+							aria-label="Mes anterior"
+							onClick={() =>
+								setCurrentMonth(
+									new Date(
+										Date.UTC(currentMonth.getUTCFullYear(), currentMonth.getUTCMonth() - 1, 1)
+									)
+								)
+							}
+						>
+							‹
+						</button>
+						<p className="text-sm font-semibold text-slate-900">{monthLabel(currentMonth)}</p>
+						<button
+							type="button"
+							className="rounded-full p-1 text-slate-600 hover:bg-slate-100"
+							aria-label="Mes siguiente"
+							onClick={() =>
+								setCurrentMonth(
+									new Date(
+										Date.UTC(currentMonth.getUTCFullYear(), currentMonth.getUTCMonth() + 1, 1)
+									)
+								)
+							}
+						>
+							›
+						</button>
+					</div>
+					<div className="mb-1 grid grid-cols-7 gap-1 text-center text-[11px] font-medium text-slate-500">
+						<span>L</span>
+						<span>M</span>
+						<span>X</span>
+						<span>J</span>
+						<span>V</span>
+						<span>S</span>
+						<span>D</span>
+					</div>
+					<div className="grid grid-cols-7 gap-1">
+						{days.map((cell, index) =>
+							cell ? (
+								<button
+									key={cell.iso}
+									type="button"
+									disabled={cell.disabled}
+									className={cn(
+										"h-8 rounded text-xs text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-30",
+										value === cell.iso && "bg-slate-950 text-white hover:bg-slate-950"
+									)}
+									onClick={() => {
+										onChange(cell.iso)
+										setOpen(false)
+									}}
+								>
+									{cell.day}
+								</button>
+							) : (
+								<span key={`pad-${index}`} className="h-8" />
 							)
-						}
-					>
-						‹
-					</button>
-					<p className="text-sm font-semibold text-slate-900">{monthLabel(currentMonth)}</p>
-					<button
-						type="button"
-						className="rounded-full p-1 text-slate-600 hover:bg-slate-100"
-						aria-label="Mes siguiente"
-						onClick={() =>
-							setCurrentMonth(
-								new Date(Date.UTC(currentMonth.getUTCFullYear(), currentMonth.getUTCMonth() + 1, 1))
-							)
-						}
-					>
-						›
-					</button>
+						)}
+					</div>
+					<div className="mt-3 flex items-center justify-between gap-2">
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							onClick={() => {
+								onChange("")
+							}}
+						>
+							Limpiar
+						</Button>
+						<Button type="button" size="sm" onClick={() => setOpen(false)}>
+							Listo
+						</Button>
+					</div>
 				</div>
-				<div className="mb-1 grid grid-cols-7 gap-1 text-center text-[11px] font-medium text-slate-500">
-					<span>L</span>
-					<span>M</span>
-					<span>X</span>
-					<span>J</span>
-					<span>V</span>
-					<span>S</span>
-					<span>D</span>
-				</div>
-				<div className="grid grid-cols-7 gap-1">
-					{days.map((cell, index) =>
-						cell ? (
-							<button
-								key={cell.iso}
-								type="button"
-								disabled={cell.disabled}
-								className={cn(
-									"h-8 rounded text-xs text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-30",
-									value === cell.iso && "bg-slate-950 text-white hover:bg-slate-950"
-								)}
-								onClick={() => {
-									onChange(cell.iso)
-									setOpen(false)
-								}}
-							>
-								{cell.day}
-							</button>
-						) : (
-							<span key={`pad-${index}`} className="h-8" />
-						)
-					)}
-				</div>
-				<div className="mt-3 flex items-center justify-between gap-2">
-					<Button
-						type="button"
-						variant="ghost"
-						size="sm"
-						onClick={() => {
-							onChange("")
-						}}
-					>
-						Limpiar
-					</Button>
-					<Button type="button" size="sm" onClick={() => setOpen(false)}>
-						Listo
-					</Button>
-				</div>
-			</div>
+			</>
 		) : null
 
 	return (
@@ -267,6 +282,7 @@ export default function DatesModal({
 				className={cn(
 					"fastt-prompt-field h-full w-full text-left",
 					compact && "fastt-prompt-field--compact",
+					open && !disabled && "fastt-prompt-field--open",
 					error && "fastt-prompt-field--invalid",
 					disabled && "cursor-not-allowed opacity-60"
 				)}

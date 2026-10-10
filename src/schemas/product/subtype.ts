@@ -1,3 +1,4 @@
+import { EXPERIENCE_FORMATS, experienceProgramMinimum } from "@/shared/domain/experience-format"
 import { z } from "zod"
 import { normalizeProductTypeForStorage } from "@/lib/catalog/productVerticalRegistry"
 import { canonicalizeTourDifficultyForStorage } from "@/lib/tours/tourDifficulty"
@@ -34,32 +35,43 @@ const tourItineraryStepSchema = z
 	})
 	.passthrough()
 
-export const tourSchema = z.object({
-	productId: z.string().min(1),
-	productType: z.literal("tour"),
-	duration: z.string().trim().min(1, "Indica la duración del tour."),
-	durationMinutes: z.preprocess((v) => {
-		if (v === null || v === undefined || v === "") return undefined
-		const n = Number(v)
-		return Number.isFinite(n) ? n : undefined
-	}, z.number().int().positive("La duración debe ser mayor que cero.")),
-	difficultyLevel: z.preprocess(
-		(v) => {
-			if (v === "" || v == null) return null
-			return canonicalizeTourDifficultyForStorage(v)
-		},
-		z.enum(["easy", "moderate", "hard"]).optional().nullable()
-	),
-	meetingPointJson: tourMeetingPointSchema,
-	itineraryJson: z
-		.array(tourItineraryStepSchema)
-		.min(3, "Agrega al menos 3 paradas o momentos al itinerario."),
-	safetyJson: z.unknown().optional().nullable(),
-	guideJson: z.unknown().optional().nullable(),
-	includesJson: z.array(z.string().trim().min(1)).min(1, "Agrega al menos una inclusión."),
-	excludesJson: z.unknown().optional().nullable(),
-	pickupJson: z.unknown().optional().nullable(),
-})
+export const tourSchema = z
+	.object({
+		productId: z.string().min(1),
+		productType: z.literal("tour"),
+		experienceFormat: z.enum(EXPERIENCE_FORMATS).optional().nullable(),
+		duration: z.string().trim().min(1, "Indica la duración del tour."),
+		durationMinutes: z.preprocess((v) => {
+			if (v === null || v === undefined || v === "") return undefined
+			const n = Number(v)
+			return Number.isFinite(n) ? n : undefined
+		}, z.number().int().positive("La duración debe ser mayor que cero.")),
+		difficultyLevel: z.preprocess(
+			(v) => {
+				if (v === "" || v == null) return null
+				return canonicalizeTourDifficultyForStorage(v)
+			},
+			z.enum(["easy", "moderate", "hard"]).optional().nullable()
+		),
+		meetingPointJson: tourMeetingPointSchema,
+		itineraryJson: z
+			.array(tourItineraryStepSchema)
+			.min(1, "Describe los momentos de la actividad."),
+		safetyJson: z.unknown().optional().nullable(),
+		guideJson: z.unknown().optional().nullable(),
+		includesJson: z.array(z.string().trim().min(1)).min(1, "Agrega al menos una inclusión."),
+		excludesJson: z.unknown().optional().nullable(),
+		pickupJson: z.unknown().optional().nullable(),
+	})
+	.superRefine((value, context) => {
+		const minimum = experienceProgramMinimum(value.experienceFormat)
+		if (value.itineraryJson.length < minimum)
+			context.addIssue({
+				code: "custom",
+				path: ["itineraryJson"],
+				message: `Agrega al menos ${minimum} paradas o momentos a la actividad.`,
+			})
+	})
 
 export const packageSchema = z.object({
 	productId: z.string().min(1),
