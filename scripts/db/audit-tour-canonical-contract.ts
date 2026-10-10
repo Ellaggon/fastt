@@ -27,9 +27,7 @@ async function main() {
 	})
 
 	try {
-		const tableRows = await sql<
-			{ tableName: string; columns: string[] }[]
-		>`
+		const tableRows = await sql<{ tableName: string; columns: string[] }[]>`
 			select
 				table_name as "tableName",
 				array_agg(column_name order by ordinal_position) as columns
@@ -135,21 +133,45 @@ async function main() {
 			order by slug, id
 		`
 
+		const formatColumns = await sql<{ column_name: string }[]>`
+			SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'Tour'
+			AND column_name IN ('experienceFormat', 'formatContractVersion')
+		`
+		const experienceClassification =
+			formatColumns.length === 2
+				? await sql`
+			SELECT p.id AS "productId", p."providerId", p."publicationState", t."experienceFormat", t."formatContractVersion",
+			EXISTS(SELECT 1 FROM "Booking" b JOIN "RatePlan" r ON r.id = b."ratePlanId" JOIN "Variant" v ON v.id = r."variantId" WHERE v."productId" = p.id) AS "hasBookings",
+			EXISTS(SELECT 1 FROM "TourComplianceContext" c WHERE c."productId" = p.id) AS "hasOperatingDeclaration",
+			EXISTS(SELECT 1 FROM "ProviderDocumentScope" d WHERE d."productId" = p.id) AS "hasScopedEvidence"
+			FROM "Product" p LEFT JOIN "Tour" t ON t."productId" = p.id WHERE lower(p."productType") = 'tour'
+			ORDER BY p.id
+		`
+				: { migrationRequired: "2026-10-10_experience_format" }
 		const report = {
+			experienceClassification,
 			operationalTables: tableRows,
 			missingOperationalTables: operationalTables.filter(
 				(table) => !tableRows.some((row) => row.tableName === table)
 			),
 			legacyCategories: hasLegacyCategories
 				? categoryRows[0]
-				: { retired: true, toursWithLegacyCategories: 0, nonArrayValues: 0, categoryValues: 0, unlinkedValues: 0 },
+				: {
+						retired: true,
+						toursWithLegacyCategories: 0,
+						nonArrayValues: 0,
+						categoryValues: 0,
+						unlinkedValues: 0,
+					},
 			unlinkedLabels,
 			matchingCategories,
 		}
 		console.log(JSON.stringify(report, null, 2))
 
 		if (report.missingOperationalTables.length > 0) {
-			throw new Error(`Missing canonical tour tables: ${report.missingOperationalTables.join(", ")}`)
+			throw new Error(
+				`Missing canonical tour tables: ${report.missingOperationalTables.join(", ")}`
+			)
 		}
 		if (hasLegacyCategories && Number(categoryRows[0]?.nonArrayValues ?? 0) > 0) {
 			throw new Error("Tour.categoriesJson contains non-array values and cannot be retired safely.")

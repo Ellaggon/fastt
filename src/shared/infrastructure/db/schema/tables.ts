@@ -2198,6 +2198,9 @@ export const Tour = pgTable(
 		productId: text("productId")
 			.primaryKey()
 			.references(() => Product.id),
+		/** Explicit format; null remains unclassified. Existing migrated rows use contract 0. */
+		experienceFormat: txtOpt("experienceFormat"),
+		formatContractVersion: intDefault("formatContractVersion", 1),
 		duration: txtOpt("duration"),
 		durationMinutes: intOpt("durationMinutes"),
 		difficultyLevel: txtOpt("difficultyLevel"),
@@ -2210,6 +2213,14 @@ export const Tour = pgTable(
 		pickupJson: jsonb("pickupJson"),
 	},
 	(table) => [
+		check(
+			"Tour_experienceFormat_check",
+			sql`${table.experienceFormat} IS NULL OR ${table.experienceFormat} IN ('guided_tour', 'workshop', 'class', 'tasting')`
+		),
+		check(
+			"Tour_formatContractVersion_check",
+			sql`${table.formatContractVersion} IN (0, 1) AND (${table.formatContractVersion} = 1 OR ${table.experienceFormat} IS NULL)`
+		),
 		index("Tour_durationMinutes_idx").on(table.durationMinutes),
 		index("Tour_difficultyLevel_idx").on(table.difficultyLevel),
 	]
