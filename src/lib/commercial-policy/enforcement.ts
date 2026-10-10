@@ -1,3 +1,4 @@
+import { experienceFormatReady, type ExperienceFormat } from "@/shared/domain/experience-format"
 import { diagnoseCommercialPolicy } from "@/lib/commercial-policy/read"
 import type {
 	CommercialCapability,
@@ -25,6 +26,7 @@ import {
 	GeoPlace,
 	Product,
 	ProductGeoPlace,
+	Tour,
 } from "@/shared/infrastructure/db/compat"
 
 export class CommercialPolicyBlockedError extends Error {
@@ -128,6 +130,27 @@ export async function resolveProductCommercialDiagnosis(params: {
 			),
 		}
 	}
+	const format =
+		vertical === "tour"
+			? await db
+					.select({
+						experienceFormat: Tour.experienceFormat,
+						formatContractVersion: Tour.formatContractVersion,
+					})
+					.from(Tour)
+					.where(eq(Tour.productId, params.productId))
+					.then(first)
+			: null
+	if (vertical === "tour" && (!format || !experienceFormatReady(format)))
+		return {
+			productId: params.productId,
+			providerId: params.providerId,
+			vertical: "tour",
+			diagnosis: blockedDiagnosis(
+				"experience_format_missing",
+				"Selecciona el tipo de experiencia antes de publicar o reservar."
+			),
+		}
 	const holder =
 		params.holder === undefined ? await readProviderHolderProfile(params.providerId) : params.holder
 	if (!holder) {
@@ -214,6 +237,8 @@ export async function resolveProductCommercialDiagnosis(params: {
 				vertical: vertical as "hotel" | "tour" | "whole_home",
 				collectionModel,
 				productId: params.productId,
+				experienceFormat: format?.experienceFormat as ExperienceFormat | null,
+				formatContractVersion: format?.formatContractVersion,
 				jurisdictionCode: tourContext?.jurisdictionCode ?? null,
 				operatingRole:
 					(tourContext?.operatingRole as "operator" | "guide" | "intermediary" | null) ?? null,

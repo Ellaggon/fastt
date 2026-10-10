@@ -39,19 +39,19 @@ function version(
 		context:
 			vertical === "tour"
 				? {
-					operatingRoles: ["guide"],
-					activityClasses: ["guided_nature"],
-					jurisdictionCodes: ["BO-LP"],
-				}
+						operatingRoles: ["guide"],
+						activityClasses: ["guided_nature"],
+						jurisdictionCodes: ["BO-LP"],
+					}
 				: null,
 		signatures:
 			vertical === "tour"
 				? ["policy", "finance", "tour_operations"].map((approvalArea) => ({
-					approvalArea: approvalArea as "policy" | "finance" | "tour_operations",
-					approverUserId: `${approvalArea}-reviewer`,
-					approvalReference: `signed-${approvalArea}`,
-					approvedAt: new Date("2026-01-01"),
-				}))
+						approvalArea: approvalArea as "policy" | "finance" | "tour_operations",
+						approverUserId: `${approvalArea}-reviewer`,
+						approvalReference: `signed-${approvalArea}`,
+						approvedAt: new Date("2026-01-01"),
+					}))
 				: [],
 		requirements: [
 			{
@@ -87,7 +87,11 @@ describe("commercial policy diagnosis", () => {
 			approvalReference: "FIN-TOUR-BO-1",
 			approvedAt: new Date("2026-01-01"),
 		})
-		candidate.context = { operatingRoles: ["guide"], activityClasses: [], jurisdictionCodes: ["BO-LP"] }
+		candidate.context = {
+			operatingRoles: ["guide"],
+			activityClasses: [],
+			jurisdictionCodes: ["BO-LP"],
+		}
 		expect(tourPolicyPublicationErrors(candidate)).toContain("tour_policy_context_incomplete")
 		candidate.context.activityClasses = ["guided_nature"]
 		candidate.requirements[0].sourceReference = null
@@ -364,5 +368,66 @@ describe("commercial policy diagnosis", () => {
 				verifiedEvidence: sharedEvidence,
 			}).capabilities.publish
 		).toBe(false)
+	})
+})
+
+describe("experience format policy boundaries", () => {
+	const versions = () => [version("holder", "CL"), version("product", "BO"), version("tax", "CL")]
+	const verifiedEvidence = ["holder-verified", "product-verified", "tax-verified"]
+	it("preserves legacy tour approvals but never extends them to a workshop", () => {
+		expect(
+			evaluateCommercialPolicy({ context, versions: versions(), verifiedEvidence }).capabilities
+				.publish
+		).toBe(true)
+		for (const experienceFormat of ["workshop", "class", "tasting"] as const) {
+			const diagnosis = evaluateCommercialPolicy({
+				context: { ...context, experienceFormat, formatContractVersion: 1 },
+				versions: versions(),
+				verifiedEvidence,
+			})
+			expect(diagnosis.policyStatus).toBe("unsupported")
+			expect(diagnosis.capabilities.publish).toBe(false)
+			expect(diagnosis.capabilities.booking).toBe(false)
+		}
+	})
+	it("requires explicit classification for a new contract", () => {
+		expect(
+			evaluateCommercialPolicy({
+				context: { ...context, formatContractVersion: 1, experienceFormat: null },
+				versions: versions(),
+				verifiedEvidence,
+			}).capabilities.publish
+		).toBe(false)
+	})
+	it("matches only the formats explicitly covered by a signed v2 policy", () => {
+		const policies = versions().map((policy) => ({
+			...policy,
+			context: { ...policy.context!, contextVersion: 2, experienceFormats: ["workshop" as const] },
+		}))
+		expect(
+			evaluateCommercialPolicy({
+				context: { ...context, experienceFormat: "workshop", formatContractVersion: 1 },
+				versions: policies,
+				verifiedEvidence,
+			}).capabilities.publish
+		).toBe(true)
+		expect(
+			evaluateCommercialPolicy({
+				context: { ...context, experienceFormat: "class", formatContractVersion: 1 },
+				versions: policies,
+				verifiedEvidence,
+			}).capabilities.publish
+		).toBe(false)
+	})
+	it("rejects unknown policy versions and format declarations without v2", () => {
+		for (const selector of [
+			{ contextVersion: 99 },
+			{ experienceFormats: ["workshop" as const] },
+			{ contextVersion: 2, experienceFormats: [] },
+		]) {
+			const policy = version("product", "BO")
+			policy.context = { ...policy.context!, ...selector }
+			expect(tourPolicyPublicationErrors(policy).length).toBeGreaterThan(0)
+		}
 	})
 })

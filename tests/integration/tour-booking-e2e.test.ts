@@ -150,6 +150,8 @@ async function seedTourCommercialReady(params: {
 		.insert(Tour)
 		.values({
 			productId: params.productId,
+			experienceFormat: "guided_tour",
+			formatContractVersion: 1,
 			duration: "3h",
 			durationMinutes: 180,
 			difficultyLevel: "easy",
@@ -427,6 +429,11 @@ describe("integration/tour booking E2E (P0 1.1)", () => {
 				.where(eq(Booking.id, bookingId))
 				.then((rows) => rows[0])
 			expect(booking).toBeTruthy()
+			expect((booking?.guestExpectationsSnapshotJson as any)?.experienceClassification).toEqual({
+				version: "experience_classification_v1",
+				format: "guided_tour",
+				contractVersion: 1,
+			})
 			expect(String(booking?.status)).toBe("confirmed")
 			const paymentEvidence = await db
 				.select({ id: PaymentTransaction.id })

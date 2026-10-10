@@ -1,3 +1,4 @@
+import { type ExperienceFormat } from "@/shared/domain/experience-format"
 import {
 	and,
 	db,
@@ -59,6 +60,8 @@ function selector(value: unknown): CommercialPolicyVersion["context"] {
 	if (!value || typeof value !== "object" || Array.isArray(value)) return null
 	const source = value as Record<string, unknown>
 	const result = {
+		contextVersion: source.contextVersion === undefined ? undefined : Number(source.contextVersion),
+		experienceFormats: array(source.experienceFormats) as ExperienceFormat[],
 		operatingRoles: array(source.operatingRoles),
 		activityClasses: array(source.activityClasses),
 		jurisdictionCodes: array(source.jurisdictionCodes),

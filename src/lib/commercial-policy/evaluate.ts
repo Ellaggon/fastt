@@ -1,4 +1,5 @@
 import { isProviderDocumentExpired } from "@/lib/provider-document-validity"
+import { isExperienceFormat, type ExperienceFormat } from "@/shared/domain/experience-format"
 import {
 	diagnoseVerificationEvidence,
 	normalizeVerificationEvidence,
@@ -12,6 +13,8 @@ export type CommercialCapability =
 	| "integrations"
 export type JurisdictionRole = "holder" | "tax" | "payout" | "product"
 export type CommercialPolicyContext = {
+	experienceFormat?: ExperienceFormat | null
+	formatContractVersion?: number
 	holderType: "persona_natural" | "entidad"
 	holderCountry: string
 	taxCountry: string | null
@@ -66,7 +69,7 @@ export type CommercialPolicyRequirement = {
 export type CommercialPolicyContextSelector = Pick<
 	CommercialRequirementCondition,
 	"operatingRoles" | "activityClasses" | "jurisdictionCodes"
->
+> & { contextVersion?: number; experienceFormats?: ExperienceFormat[] }
 export type CommercialPolicyApprovalArea = "policy" | "finance" | "tour_operations"
 export type CommercialPolicyApproval = {
 	approvalArea: CommercialPolicyApprovalArea
@@ -168,6 +171,19 @@ export const requiredTourApprovalAreas: CommercialPolicyApprovalArea[] = [
 function versionMatchesContext(version: CommercialPolicyVersion, context: CommercialPolicyContext) {
 	if (version.vertical !== "tour") return true
 	const selector = version.context
+	if (selector?.experienceFormats?.length && selector.contextVersion !== 2) return false
+	if (selector?.contextVersion === 2) {
+		if (
+			!isExperienceFormat(context.experienceFormat) ||
+			!selector.experienceFormats?.includes(context.experienceFormat)
+		)
+			return false
+	} else {
+		if (selector?.contextVersion !== undefined && selector.contextVersion !== 1) return false
+		// Unversioned approvals describe the historical tour contract only.
+		if (context.experienceFormat != null && context.experienceFormat !== "guided_tour") return false
+		if (context.experienceFormat == null && (context.formatContractVersion ?? 0) !== 0) return false
+	}
 	if (
 		!selector?.operatingRoles?.length ||
 		!selector.activityClasses?.length ||
@@ -200,6 +216,12 @@ export function tourPolicyPublicationErrors(version: CommercialPolicyVersion): s
 	if (version.vertical !== "tour") return []
 	const errors: string[] = []
 	if (
+		version.context?.contextVersion === 2 &&
+		(!version.context.experienceFormats?.length ||
+			!version.context.experienceFormats.every(isExperienceFormat))
+	)
+		errors.push("experience_policy_formats_incomplete")
+	if (
 		!versionMatchesContext(version, {
 			holderType: version.holderType,
 			holderCountry: version.country,
@@ -208,6 +230,7 @@ export function tourPolicyPublicationErrors(version: CommercialPolicyVersion): s
 			productCountry: version.country,
 			vertical: "tour",
 			collectionModel: version.collectionModel,
+			experienceFormat: version.context?.experienceFormats?.[0],
 			operatingRole: version.context
 				?.operatingRoles?.[0] as CommercialPolicyContext["operatingRole"],
 			activityClasses: version.context?.activityClasses,

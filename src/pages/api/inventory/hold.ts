@@ -1,3 +1,4 @@
+import { experienceFormatSnapshot } from "@/shared/domain/experience-format"
 import type { APIRoute } from "astro"
 import { ZodError, z } from "zod"
 import {
@@ -13,6 +14,7 @@ import {
 	Provider,
 	SearchUnitView,
 	TourSlotProfile,
+	Tour,
 	TourBookingQuestion,
 } from "@/shared/infrastructure/db/compat"
 
@@ -589,7 +591,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 						repo: inventoryHoldRepository,
 						resolveEffectivePolicies: (ctx) => resolveEffectivePolicies(ctx),
 						buildGuestExpectationsSnapshot: async (productId, variantId) => {
-							const [base, questions] = await Promise.all([
+							const [base, questions, classification] = await Promise.all([
 								buildGuestStayExpectationsSnapshot(productId, { variantId }),
 								db
 									.select({
@@ -601,9 +603,20 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 									.from(TourBookingQuestion)
 									.where(eq(TourBookingQuestion.productId, productId))
 									.orderBy(asc(TourBookingQuestion.sortOrder)),
+								db
+									.select({
+										experienceFormat: Tour.experienceFormat,
+										formatContractVersion: Tour.formatContractVersion,
+									})
+									.from(Tour)
+									.where(eq(Tour.productId, productId))
+									.then(first),
 							])
 							return {
 								...(base && typeof base === "object" ? base : {}),
+								...(classification
+									? { experienceClassification: experienceFormatSnapshot(classification) }
+									: {}),
 								tourBookingQuestions: questions.map((question) => ({
 									id: String(question.id),
 									code: String(question.code),
