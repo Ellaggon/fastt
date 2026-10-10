@@ -20,7 +20,10 @@ import {
 } from "@/shared/infrastructure/db/compat"
 import { TOUR_QUALITY_MIN_IMAGES } from "@/lib/tours/tourAdminQuality"
 
-import { productVerticalRegistry, normalizeProductTypeForStorage } from "@/lib/catalog/productVerticalRegistry"
+import {
+	productVerticalRegistry,
+	normalizeProductTypeForStorage,
+} from "@/lib/catalog/productVerticalRegistry"
 import { productRepository } from "@/container"
 import { evaluateProductReadiness, getProductFullAggregate } from "@/modules/catalog/public"
 import { SubtypeRepository } from "@/modules/catalog/infrastructure/repositories/SubtypeRepository"
@@ -251,6 +254,12 @@ describe("vertical maturity", () => {
 			safetyJson: { requirements: "Calzado comodo" },
 			guideJson: { languages: "es" },
 		})
+		// This readiness fixture represents a provider-declared guided tour.
+		await db
+			.update(Tour)
+			.set({ experienceFormat: "guided_tour", formatContractVersion: 1 })
+			.where(eq(Tour.productId, productId))
+
 		await db.insert(ProductCategory).values({
 			id: categoryId,
 			slug: `city-tour-${suffix}`,
