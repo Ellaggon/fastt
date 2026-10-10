@@ -94,6 +94,8 @@ export async function evaluateProductReadiness(
 		errors.push(
 			...tourPublicationValidationErrors({
 				status: agg.publication.state,
+				experienceFormat: tour?.experienceFormat,
+				formatContractVersion: tour?.formatContractVersion,
 				imageCount: Number(tour?.imageCount ?? agg.imagesCount ?? 0),
 				itinerarySteps: Number(tour?.itinerarySteps ?? 0),
 				hasMeetingPoint: Boolean(tour?.hasMeetingPoint),

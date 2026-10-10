@@ -3,10 +3,7 @@ import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { BookingLineItem } from "@/shared/infrastructure/db/schema/tables"
 import { TOUR_SEMANTICS } from "@/lib/tours/tourSemantics"
-import {
-	scoreTourQuality,
-	tourPublicationValidationErrors,
-} from "@/lib/tours/tourAdminQuality"
+import { scoreTourQuality, tourPublicationValidationErrors } from "@/lib/tours/tourAdminQuality"
 import { deriveBookingLifecycle } from "@/modules/booking/public"
 import { getVerticalOpsVocabulary } from "@/lib/verticalVocabulary"
 
@@ -84,6 +81,25 @@ describe("tour ops clarity (fase 6)", () => {
 		expect(strong.score).toBe(100)
 		expect(strong.issues).toEqual([])
 		expect(strong.blockers).toEqual([])
+
+		const unclassified = {
+			status: "published",
+			imageCount: 5,
+			itinerarySteps: 3,
+			hasMeetingPoint: true,
+			hasDurationMinutes: true,
+			hasIncludes: true,
+			categoryCount: 1,
+			activeTicketCount: 2,
+			activeSalidaCount: 2,
+			completeSalidaCount: 1,
+			experienceFormat: null,
+			formatContractVersion: 1,
+		}
+		expect(scoreTourQuality(unclassified).blockers).toEqual(["missing_experience_format"])
+		expect(tourPublicationValidationErrors(unclassified).map((item) => item.code)).toEqual([
+			"missing_experience_format",
+		])
 
 		const fourPhotos = {
 			status: "draft" as const,

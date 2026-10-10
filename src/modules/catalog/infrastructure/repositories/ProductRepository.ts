@@ -1,3 +1,4 @@
+import { persistExperienceFormatDeclaration } from "./ExperienceFormatRepository"
 import {
 	first,
 	db,
@@ -153,6 +154,13 @@ export class ProductRepository implements ProductRepositoryPort {
 					.set({ name: input.name, lastUpdated: new Date() })
 					.where(eq(Product.id, input.productId))
 			}
+			if (input.experienceFormat)
+				await persistExperienceFormatDeclaration(tx, {
+					productId: input.productId,
+					providerId: input.providerId,
+					actorUserId: input.actorId,
+					experienceFormat: input.experienceFormat,
+				})
 			const primary = await tx
 				.select()
 				.from(ProductGeoPlace)
@@ -680,6 +688,10 @@ export class ProductRepository implements ProductRepositoryPort {
 				kind: "tour",
 				subtypeExists,
 				tour: {
+					experienceFormat: tour?.experienceFormat as
+						| import("@/shared/domain/experience-format").ExperienceFormat
+						| null,
+					formatContractVersion: tour?.formatContractVersion ?? 1,
 					hasItinerary: itinerarySteps > 0,
 					itinerarySteps,
 					hasMeetingPoint: tourHasMeetingPoint(tour?.meetingPointJson),

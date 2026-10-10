@@ -212,20 +212,24 @@ export class SubtypeRepository {
 			subtype = c
 		}
 
-		// Preserve legacy semantics (even though it ignores the tx variable in selects).
+		// Read through the same transaction as the subtype mutation.
 		if (subtype === "hotel") {
-			const r = await db.select().from(Hotel).where(eq(Hotel.productId, productId)).then(first)
+			const r = await dbOrtx.select().from(Hotel).where(eq(Hotel.productId, productId)).then(first)
 			return !!r
 		}
 		if (subtype === "tour") {
-			const r = await db.select().from(Tour).where(eq(Tour.productId, productId)).then(first)
+			const r = await dbOrtx.select().from(Tour).where(eq(Tour.productId, productId)).then(first)
 			return !!r
 		}
 		if (subtype === "package") {
-			const r = await db.select().from(Package).where(eq(Package.productId, productId)).then(first)
+			const r = await dbOrtx
+				.select()
+				.from(Package)
+				.where(eq(Package.productId, productId))
+				.then(first)
 			return !!r
 		}
-		const r = await db
+		const r = await dbOrtx
 			.select()
 			.from(Limousine)
 			.where(eq(Limousine.productId, productId))

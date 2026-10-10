@@ -1,4 +1,9 @@
 import {
+	experienceFormatReady,
+	experienceProgramMinimum,
+	type ExperienceFormat,
+} from "@/shared/domain/experience-format"
+import {
 	and,
 	count,
 	db,
@@ -21,6 +26,7 @@ export const TOUR_QUALITY_MIN_IMAGES = 5
 export const TOUR_QUALITY_MIN_ITINERARY_STEPS = 3
 
 export type TourQualityIssue =
+	| "missing_experience_format"
 	| "missing_images"
 	| "thin_itinerary"
 	| "missing_meeting_point"
@@ -76,6 +82,8 @@ export function tourHasMeetingPoint(value: unknown): boolean {
 }
 
 export type TourQualityScoreInput = {
+	experienceFormat?: ExperienceFormat | null
+	formatContractVersion?: number
 	status: string | null | undefined
 	imageCount: number
 	itinerarySteps: number
@@ -97,6 +105,10 @@ const PUBLICATION_ERROR_BY_BLOCKER: Record<
 	Exclude<TourQualityIssue, "draft_status" | "no_active_salida">,
 	TourPublicationValidationError
 > = {
+	missing_experience_format: {
+		code: "missing_experience_format",
+		message: "Selecciona el formato de la experiencia.",
+	},
 	missing_images: {
 		code: "missing_tour_images",
 		message: `At least ${TOUR_QUALITY_MIN_IMAGES} photos are required before publishing a tour`,
@@ -135,6 +147,11 @@ const ISSUE_META: Record<
 	TourQualityIssue,
 	{ severity: "blocker" | "warning"; label: string; path: (id: string) => string }
 > = {
+	missing_experience_format: {
+		severity: "blocker",
+		label: "Selecciona el formato de la experiencia",
+		path: (id) => `/product/${id}/presentation`,
+	},
 	missing_images: {
 		severity: "blocker",
 		label: `Sube al menos ${TOUR_QUALITY_MIN_IMAGES} fotos`,
@@ -142,7 +159,7 @@ const ISSUE_META: Record<
 	},
 	thin_itinerary: {
 		severity: "blocker",
-		label: `Itinerario con ≥${TOUR_QUALITY_MIN_ITINERARY_STEPS} pasos`,
+		label: "Completa el programa de la actividad",
 		path: (id) => `/product/${id}/subtype`,
 	},
 	missing_meeting_point: {
@@ -196,6 +213,10 @@ export function scoreTourQuality(input: TourQualityScoreInput): {
 } {
 	const issues: TourQualityIssue[] = []
 	let score = 100
+	if (!experienceFormatReady(input)) {
+		issues.push("missing_experience_format")
+		score -= 12
+	}
 	const status = String(input.status ?? "draft")
 		.trim()
 		.toLowerCase()
@@ -204,7 +225,7 @@ export function scoreTourQuality(input: TourQualityScoreInput): {
 		issues.push("missing_images")
 		score -= input.imageCount === 0 ? 28 : 14
 	}
-	if (input.itinerarySteps < TOUR_QUALITY_MIN_ITINERARY_STEPS) {
+	if (input.itinerarySteps < experienceProgramMinimum(input.experienceFormat)) {
 		issues.push("thin_itinerary")
 		score -= input.itinerarySteps === 0 ? 28 : 12
 	}
@@ -277,11 +298,24 @@ export function tourPublicationBlockers(input: TourQualityScoreInput): TourQuali
 export function tourPublicationValidationErrors(
 	input: TourQualityScoreInput
 ): TourPublicationValidationError[] {
-	return tourPublicationBlockers(input).flatMap((issue) => {
-		if (issue === "draft_status" || issue === "no_active_salida") return []
-		const mapped = PUBLICATION_ERROR_BY_BLOCKER[issue]
-		return mapped ? [mapped] : []
-	})
+	return [
+		...tourPublicationBlockers(input).flatMap((issue) => {
+			if (issue === "draft_status" || issue === "no_active_salida") return []
+			const mapped = PUBLICATION_ERROR_BY_BLOCKER[issue]
+			return mapped
+				? [
+						{
+							...mapped,
+							...(issue === "thin_itinerary"
+								? {
+										message: `Describe al menos ${experienceProgramMinimum(input.experienceFormat)} momentos de la actividad.`,
+									}
+								: {}),
+						},
+					]
+				: []
+		}),
+	]
 }
 
 export async function loadTourAdminQualityQueue(params?: {
@@ -300,6 +334,8 @@ export async function loadTourAdminQualityQueue(params?: {
 			name: Product.name,
 			providerId: Product.providerId,
 			status: Product.publicationState,
+			experienceFormat: Tour.experienceFormat,
+			formatContractVersion: Tour.formatContractVersion,
 			itineraryJson: Tour.itineraryJson,
 			meetingPointJson: Tour.meetingPointJson,
 			durationMinutes: Tour.durationMinutes,
@@ -408,6 +444,8 @@ export async function loadTourAdminQualityQueue(params?: {
 		const activeTicketCount = ticketsByProduct.get(row.productId) ?? 0
 		const scored = scoreTourQuality({
 			status: row.status,
+			experienceFormat: row.experienceFormat as ExperienceFormat | null,
+			formatContractVersion: row.formatContractVersion,
 			imageCount,
 			itinerarySteps,
 			hasMeetingPoint: tourHasMeetingPoint(row.meetingPointJson),

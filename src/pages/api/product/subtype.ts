@@ -1,3 +1,4 @@
+import { db, eq, Tour } from "@/shared/infrastructure/db/compat"
 import type { APIRoute } from "astro"
 import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { invalidateProduct } from "@/lib/cache/invalidation"
@@ -145,10 +146,16 @@ export const POST: APIRoute = async ({ request }) => {
 							}
 
 		if (subtypeType === "tour") {
+			// Classification has its own audited command. Never trust a form to lower this requirement.
+			const [classification] = await db
+				.select({ experienceFormat: Tour.experienceFormat })
+				.from(Tour)
+				.where(eq(Tour.productId, productId))
 			const parsed = tourSchema.safeParse({
 				productId,
 				productType: "tour",
 				...subtype,
+				experienceFormat: classification?.experienceFormat ?? null,
 			})
 			if (!parsed.success) {
 				return new Response(JSON.stringify({ error: parsed.error.flatten() }), {
@@ -159,6 +166,7 @@ export const POST: APIRoute = async ({ request }) => {
 			const validatedSubtype: Record<string, unknown> = { ...parsed.data }
 			delete validatedSubtype.productId
 			delete validatedSubtype.productType
+			delete validatedSubtype.experienceFormat
 			subtype = validatedSubtype
 		}
 
