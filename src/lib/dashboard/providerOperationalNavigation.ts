@@ -121,13 +121,13 @@ export function providerOperationalNavigation(
 					{ id: "bookings", label: "Reservas", href: routes.bookingList(), status: "canonical" },
 					{
 						id: "today",
-						label: "Salidas de hoy",
+						label: "Actividades de hoy",
 						href: routes.bookingDayOf(),
 						status: "canonical",
 					},
 					{
 						id: "availability",
-						label: "Salidas y cupos",
+						label: "Fechas y cupos",
 						href: routes.calendar(),
 						status: "canonical",
 					},
@@ -139,7 +139,7 @@ export function providerOperationalNavigation(
 				items: [
 					{
 						id: "tour-catalog",
-						label: "Mis tours",
+						label: "Mis experiencias",
 						href: routes.catalogTours(),
 						status: "canonical",
 					},

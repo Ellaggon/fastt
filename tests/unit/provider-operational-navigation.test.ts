@@ -19,7 +19,7 @@ describe("provider operational navigation", () => {
 				"Reservas",
 			])
 		)
-		expect(labels).not.toContain("Salidas y cupos")
+		expect(labels).not.toContain("Fechas y cupos")
 		expect(labels).not.toContain("Añadir servicio")
 	})
 
@@ -28,9 +28,9 @@ describe("provider operational navigation", () => {
 		const labels = groups.flatMap((group) => group.items.map((item) => item.label))
 		expect(labels).toEqual(
 			expect.arrayContaining([
-				"Mis tours",
-				"Salidas y cupos",
-				"Salidas de hoy",
+				"Mis experiencias",
+				"Fechas y cupos",
+				"Actividades de hoy",
 				"Precios y condiciones",
 			])
 		)

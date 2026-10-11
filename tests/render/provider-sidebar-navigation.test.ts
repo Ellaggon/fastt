@@ -64,7 +64,7 @@ describe("rendered provider sidebar", () => {
 		expect(html.match(/<p\b/g)).toHaveLength(2)
 		expect(html.match(/data-navigation-id=/g)).toHaveLength(9)
 		expect(html).toContain("Precios y condiciones")
-		expect(html).toContain("Salidas de hoy")
+		expect(html).toContain("Actividades de hoy")
 	})
 	it("preserves hotel destinations and does not highlight dashboard aliases together", async () => {
 		const html = await render("/product/h/rooms/new", ["hotel"])
