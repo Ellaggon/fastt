@@ -1,4 +1,16 @@
-import { first, db, Hotel, Limousine, Tour, Package, eq } from "@/shared/infrastructure/db/compat"
+import { tourProgramPatch } from "@/modules/catalog/application/tourProgramPatch"
+import { tourSchema } from "@/schemas/product/subtype"
+import {
+	first,
+	db,
+	Hotel,
+	Limousine,
+	Tour,
+	Package,
+	Product,
+	and,
+	eq,
+} from "@/shared/infrastructure/db/compat"
 
 export type HotelPayload = {
 	productId: string
@@ -105,22 +117,54 @@ export class SubtypeRepository {
 	}
 
 	async updateTour(dbOrTx: DBOrTx, productId: string, data: Partial<TourPayload>) {
-		const patch: Record<string, unknown> = {
-			duration: data.duration ?? null,
-			durationMinutes: data.durationMinutes ?? null,
-			difficultyLevel: data.difficultyLevel ?? null,
-			meetingPointJson: data.meetingPointJson ?? null,
-			itineraryJson: data.itineraryJson ?? null,
-			safetyJson: data.safetyJson ?? null,
-			guideJson: data.guideJson ?? null,
-			includesJson: data.includesJson ?? null,
-			excludesJson: data.excludesJson ?? null,
-			pickupJson: data.pickupJson ?? null,
-		}
+		const patch = { ...data }
+		delete patch.productId
+		if (!Object.keys(patch).length) return
 		await dbOrTx
 			.update(Tour)
 			.set(patch as any)
 			.where(eq(Tour.productId, productId))
+	}
+
+	/** Serialize program edits with format declarations; validate the effective saved record. */
+	async saveTourProgram(productId: string, providerId: string, form: FormData) {
+		return db.transaction(async (tx) => {
+			const [product] = await tx
+				.select({ id: Product.id })
+				.from(Product)
+				.where(
+					and(
+						eq(Product.id, productId),
+						eq(Product.providerId, providerId),
+						eq(Product.productType, "tour")
+					)
+				)
+				.for("update")
+			if (!product)
+				return Response.json({ error: "No tienes acceso a esta experiencia." }, { status: 403 })
+			const [current] = await tx.select().from(Tour).where(eq(Tour.productId, productId))
+			const expected = form.get("expectedExperienceFormat")
+			if (expected !== null && expected !== (current?.experienceFormat ?? "historical"))
+				return Response.json(
+					{
+						error:
+							"El formato cambió. Recarga el formulario antes de guardar; tus cambios no se han enviado.",
+					},
+					{ status: 409 }
+				)
+			const patch = tourProgramPatch(form, current ?? {})
+			const parsed = tourSchema.safeParse({
+				...current,
+				...patch,
+				productId,
+				productType: "tour",
+				experienceFormat: current?.experienceFormat ?? null,
+			})
+			if (!parsed.success) return Response.json({ error: parsed.error.flatten() }, { status: 400 })
+			if (current) await this.updateTour(tx, productId, patch)
+			else await this.insertTour(tx, { productId, ...patch })
+			return Response.json({ ok: true })
+		})
 	}
 
 	async deleteTour(dbOrTx: DBOrTx, productId: string) {

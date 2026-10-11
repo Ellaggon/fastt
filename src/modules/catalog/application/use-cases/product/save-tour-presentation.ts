@@ -9,9 +9,9 @@ export const tourPresentationSchema = z
 		name: z
 			.string()
 			.trim()
-			.min(1, "Escribe el nombre del tour.")
+			.min(1, "Escribe el nombre de la experiencia.")
 			.max(200, "Usa hasta 200 caracteres para el nombre."),
-		geoPlaceId: z.string().trim().min(1, "Selecciona un destino."),
+		geoPlaceId: z.string().trim().min(1, "Selecciona una ciudad o lugar."),
 		description: z
 			.string()
 			.trim()
@@ -30,7 +30,7 @@ export const tourPresentationSchema = z
 		for (const [path, valid, message] of [
 			["description", Boolean(input.description), "Describe la experiencia."],
 			["highlights", input.highlights.length > 0, "Añade al menos un destacado."],
-			["categoryIds", input.categoryIds.length > 0, "Selecciona al menos un tipo de experiencia."],
+			["categoryIds", input.categoryIds.length > 0, "Selecciona al menos una temática."],
 		] as const) {
 			if (!valid) context.addIssue({ code: "custom", path: [path], message })
 		}
