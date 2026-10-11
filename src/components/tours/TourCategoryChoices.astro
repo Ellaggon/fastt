@@ -8,11 +8,9 @@ interface Props {
 const { categories, selectedIds, stacked = false } = Astro.props
 ---
 
-<legend class="block w-full text-sm font-semibold text-slate-950"
-	>¿Qué tipo de experiencia ofreces?</legend
->
+<legend class="block w-full text-sm font-semibold text-slate-950">Temáticas</legend>
 <p class="text-sm leading-6 text-slate-600">
-	Elige las actividades que describen este tour. Puedes seleccionar varias.
+	Selecciona las categorías que describen esta experiencia y ayudan a encontrarla.
 </p>
 <div class:list={["pt-1", stacked ? "flex flex-col gap-2" : "flex flex-wrap gap-2.5"]}>
 	{

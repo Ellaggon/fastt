@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto"
 import { beforeEach, expect, it, vi } from "vitest"
-const mocks = vi.hoisted(() => ({ save: vi.fn(), user: vi.fn(), provider: vi.fn() }))
+const mocks = vi.hoisted(() => ({ save: vi.fn(), session: vi.fn(), invalidate: vi.fn() }))
 vi.mock("@/container", () => ({ productRepository: { saveTourPresentation: mocks.save } }))
-vi.mock("@/lib/auth/getUserFromRequest", () => ({ getUserFromRequest: mocks.user }))
-vi.mock("@/lib/auth/getProviderIdFromRequest", () => ({ getProviderIdFromRequest: mocks.provider }))
+vi.mock("@/lib/auth/providerSessionSurface", () => ({
+	getProviderSessionSurfaceFromRequest: mocks.session,
+}))
 vi.mock("@/lib/cache/invalidation", () => ({
-	invalidateProduct: vi.fn(),
+	invalidateProduct: mocks.invalidate,
 	invalidateProvider: vi.fn(),
 }))
 vi.mock("@/lib/product/productOperationalSurface", () => ({
@@ -38,8 +39,12 @@ function request(values: Record<string, string> = {}) {
 }
 beforeEach(() => {
 	vi.clearAllMocks()
-	mocks.user.mockResolvedValue({ id: "user" })
-	mocks.provider.mockResolvedValue("provider")
+	mocks.session.mockResolvedValue({
+		userId: "user",
+		providerId: "provider",
+		permissions: { canEditProfile: true },
+	})
+	mocks.invalidate.mockResolvedValue(undefined)
 	mocks.save.mockResolvedValue(undefined)
 })
 it("saves once and advances directly to stage two preserving the commercial selection", async () => {
@@ -80,7 +85,7 @@ it("allows an intentional partial draft exit without advancing the stage", async
 	expect((await response.json()).nextHref).toBe(`/product/${productId}`)
 })
 it("rejects an expired session without changing persisted data", async () => {
-	mocks.user.mockResolvedValue(null)
+	mocks.session.mockResolvedValue(null)
 	const response = await POST({ request: request() } as never)
 	expect(response.status).toBe(401)
 	expect(mocks.save).not.toHaveBeenCalled()
@@ -101,3 +106,27 @@ it.each(["//evil.test", "/product/another", "/\\evil.test"])(
 		expect((await response.json()).nextHref).toBe(`/product/${productId}`)
 	}
 )
+
+it("rejects classification through presentation without edit permission", async () => {
+	mocks.session.mockResolvedValue({
+		userId: "user",
+		providerId: "provider",
+		permissions: { canEditProfile: false },
+	})
+	const response = await POST({ request: request({ experienceFormat: "guided_tour" }) } as never)
+	expect(response.status).toBe(403)
+	expect(mocks.save).not.toHaveBeenCalled()
+})
+it("reports confirmed persistence even when cache invalidation fails", async () => {
+	mocks.invalidate.mockRejectedValueOnce(new Error("cache unavailable"))
+	const response = await POST({ request: request() } as never)
+	expect(response.status).toBe(200)
+	expect((await response.json()).nextHref).toContain(`/product/${productId}/subtype`)
+	expect(mocks.save).toHaveBeenCalledOnce()
+})
+it("rejects an invalid format without writing", async () => {
+	const response = await POST({ request: request({ experienceFormat: "concert" }) } as never)
+	expect(response.status).toBe(400)
+	expect((await response.json()).fieldErrors.experienceFormat).toBeDefined()
+	expect(mocks.save).not.toHaveBeenCalled()
+})

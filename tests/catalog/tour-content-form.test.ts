@@ -63,8 +63,8 @@ describe("Tour content-form wizard", () => {
 		const subtype = read("src/pages/product/[id]/subtype.astro")
 		const tourSubtypeFields = read("src/components/tours/TourSubtypePlaybookFields.astro")
 		expect(location).toContain("Ubicación para discovery")
-		expect(location).toContain("El punto exacto donde empieza el tour")
-		expect(`${subtype}\n${tourSubtypeFields}`).toContain("no es la ubicación de discovery")
+		expect(location.replace(/\s+/g, " ")).toContain("El lugar exacto donde empieza la experiencia")
+		expect(`${subtype}\n${tourSubtypeFields}`).toContain("no es la ubicación del catálogo")
 	})
 
 	it("allows keyboard image selection and continuing with existing photos", () => {
