@@ -230,7 +230,7 @@ if (isOptionWizard && optionSession) {
 		entryIntent: optionSession.entryIntent,
 	})
 } else if (isTourPublication) {
-	playbookTitle = "Publicar tour"
+	playbookTitle = "Publicar experiencia"
 	currentStepKnown = true
 	if (productId) {
 		const user = await getUserFromRequest(Astro.request)
@@ -408,6 +408,16 @@ if (isOptionWizard && optionSession) {
 	}
 }
 
+if (tourAttention && (isTourLaunch || (isComplete && playbookVertical === "tour"))) {
+	const currentStage = tourAttention.stages.find(
+		(stage) => stage.id === getTourPublishingStage(stepId).id
+	)
+	if (currentStage) {
+		stageLabel = currentStage.label
+		stepLabel = currentStage.label
+	}
+}
+
 if (isTourLaunch && tourFlow?.returnHref) {
 	const withReviewReturn = (href: string) => {
 		const url = new URL(href, Astro.url)
@@ -544,9 +554,9 @@ const reviewReturnHref =
 	isTourPublication && stepId !== "preview"
 		? tourPublicationHref(productId, { variantId, ratePlanId })
 		: null
-if (isTourPreparation) playbookTitle = "Crear tour"
+if (isTourPreparation) playbookTitle = "Crear experiencia"
 if (isTourPublication) {
-	playbookTitle = "Publicar tour"
+	playbookTitle = "Publicar experiencia"
 	stepLabel = ""
 	previousHref = reviewReturnHref
 	resolvedContinueHref = reviewReturnHref

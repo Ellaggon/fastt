@@ -10,6 +10,8 @@ import {
 	RatePlan,
 	VariantCapacity,
 	GeoPlace,
+	Tour,
+	ProviderAuditLog,
 	ProductGeoPlace,
 } from "@/shared/infrastructure/db/compat"
 import {
@@ -29,6 +31,7 @@ import {
 	handoffFirstOption,
 	sessionHref,
 } from "@/lib/onboarding/tourOptionSession"
+import { ExperienceFormatRepository } from "@/modules/catalog/infrastructure/repositories/ExperienceFormatRepository"
 import { completeTourPreparationSessions } from "@/lib/onboarding/preparationSession"
 import { optionWizardHref } from "@/lib/playbook/add-tour-option"
 let provider: string,
@@ -78,6 +81,8 @@ beforeEach(async () => {
 	}
 })
 afterEach(async () => {
+	await db.delete(ProviderAuditLog).where(eq(ProviderAuditLog.providerId, provider))
+	await db.delete(Tour).where(eq(Tour.productId, product))
 	await db
 		.delete(ProviderOptionPreparationSession)
 		.where(eq(ProviderOptionPreparationSession.providerId, provider))
@@ -309,4 +314,36 @@ it("loads catalog resumptions only for the requested owned products and user", a
 		[]
 	)
 	expect(await listOptionSessionsForProducts(provider, user, [])).toEqual([])
+})
+
+it("changing the saved experience format preserves an independent commercial session and selection", async () => {
+	await db
+		.insert(Tour)
+		.values({ productId: product, experienceFormat: "guided_tour", formatContractVersion: 1 })
+	const started = await startOptionSession(provider, user, product, crypto.randomUUID())
+	const saved = await saveOptionSession(provider, user, {
+		sessionId: started.id,
+		revision: revision(started),
+		lastPath: optionWizardHref(
+			{ productId: product, sessionId: started.id, variantId: variants[0], ratePlanId: rates[0] },
+			"conditions"
+		),
+	})
+	const before = await getOptionSession(provider, user, started.id)
+	const formatRepository = new ExperienceFormatRepository()
+	await formatRepository.declare({
+		productId: product,
+		providerId: provider,
+		actorUserId: user,
+		experienceFormat: "class",
+	})
+	const resumed = await getOptionSession(provider, user, started.id)
+	expect(resumed).toEqual(before)
+	expect(resumed.variantId).toBe(saved.variantId)
+	expect(resumed.ratePlanId).toBe(saved.ratePlanId)
+	expect(sessionHref(resumed)).toContain(variants[0])
+	expect(sessionHref(resumed)).toContain(rates[0])
+	expect(await listOptionSessions(provider, user, product)).toHaveLength(1)
+	const [tour] = await db.select().from(Tour).where(eq(Tour.productId, product))
+	expect(tour.experienceFormat).toBe("class")
 })

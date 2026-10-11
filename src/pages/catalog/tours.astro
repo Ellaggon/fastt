@@ -81,22 +81,22 @@ const taskRows = catalog.products.map((product, index) => {
 })
 
 const filterTabs = [
-	{ state: "all" as const, label: "Todos", count: catalog.counts.total },
+	{ state: "all" as const, label: "Todas", count: catalog.counts.total },
 	{ state: "draft" as const, label: "Borradores", count: catalog.counts.draft },
-	{ state: "published" as const, label: "Publicados", count: catalog.counts.published },
+	{ state: "published" as const, label: "Publicadas", count: catalog.counts.published },
 ]
 ---
 
-<WorkspaceLayout title="Mis tours" productType="tour">
+<WorkspaceLayout title="Mis experiencias" productType="tour">
 	<section class="space-y-6" data-tour-catalog>
 		<header class="flex flex-wrap items-center justify-between gap-4">
-			<h1 class="text-2xl font-semibold tracking-tight text-white sm:text-3xl">Mis tours</h1>
+			<h1 class="text-2xl font-semibold tracking-tight text-white sm:text-3xl">Mis experiencias</h1>
 			<Button href={vertical.routes.workspaceCreateHref} variant="onDark"
-				><Plus class="size-4" aria-hidden="true" />Crear tour</Button
+				><Plus class="size-4" aria-hidden="true" />Crear experiencia</Button
 			>
 		</header>
 		<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-			<nav class="flex flex-wrap gap-1" aria-label="Estado de los tours">
+			<nav class="flex flex-wrap gap-1" aria-label="Estado de las experiencias">
 				{
 					filterTabs.map(({ state, label, count }) => (
 						<a
@@ -122,7 +122,7 @@ const filterTabs = [
 			>
 				{filters.state !== "all" && <input type="hidden" name="state" value={filters.state} />}
 				<div class="relative min-w-0 flex-1">
-					<label for="tour-search" class="sr-only">Buscar tours por nombre</label>
+					<label for="tour-search" class="sr-only">Buscar experiencias por nombre</label>
 					<Search
 						class="pointer-events-none absolute top-3.5 left-3 size-4 text-slate-400"
 						aria-hidden="true"
@@ -133,7 +133,7 @@ const filterTabs = [
 						value={filters.query}
 						maxlength="120"
 						type="search"
-						placeholder="Buscar tours"
+						placeholder="Buscar experiencias"
 						class="fastt-field fastt-field--on-dark h-11 w-full appearance-none border-white/10 bg-[#0d0d0d] pr-3 pl-9 text-sm text-white placeholder:text-slate-400 outline-none transition focus-visible:border-white/20 focus-visible:ring-2 focus-visible:ring-white/10"
 					/>
 				</div>
@@ -144,7 +144,7 @@ const filterTabs = [
 			catalogError ? (
 				<Card class="space-y-3 bg-white p-6" role="status">
 					<>
-						<h2 class="text-lg font-semibold text-slate-950">No pudimos cargar tus tours</h2>
+						<h2 class="text-lg font-semibold text-slate-950">No pudimos cargar tus experiencias</h2>
 						<p class="text-sm text-slate-600">Vuelve a consultar el catálogo.</p>
 						<Button href={tourCatalogHref(filters)} variant="secondary">
 							Reintentar
@@ -155,12 +155,12 @@ const filterTabs = [
 				<Card class="space-y-3 bg-white p-6">
 					<h2 class="text-lg font-semibold text-slate-950">
 						{filters.query || filters.state !== "all"
-							? "No hay tours con estos filtros"
-							: "Crea tu primer tour"}
+							? "No hay experiencias con estos filtros"
+							: "Crea tu primera experiencia"}
 					</h2>
 					<p class="text-sm text-slate-600">
 						{filters.query || filters.state !== "all"
-							? "Prueba otro nombre o revisa todos tus tours."
+							? "Prueba otro nombre o revisa todas tus experiencias."
 							: "Añade una experiencia a tu negocio y prepara su primera opción."}
 					</p>
 					<Button
@@ -171,11 +171,11 @@ const filterTabs = [
 						}
 						variant="secondary"
 					>
-						{filters.query || filters.state !== "all" ? "Ver todos" : "Crear tour"}
+						{filters.query || filters.state !== "all" ? "Ver todas" : "Crear experiencia"}
 					</Button>
 				</Card>
 			) : (
-				<ul class="space-y-3" aria-label="Tours del negocio">
+				<ul class="space-y-3" aria-label="Experiencias del negocio">
 					{taskRows.map(
 						({
 							product,
@@ -221,7 +221,7 @@ const filterTabs = [
 												<Badge
 													variant={product.publicationState === "published" ? "success" : "neutral"}
 												>
-													{product.publicationState === "published" ? "Publicado" : "Borrador"}
+													{product.publicationState === "published" ? "Publicada" : "Borrador"}
 												</Badge>
 											</div>
 											<p class="text-xs text-slate-500">
@@ -276,11 +276,11 @@ const filterTabs = [
 		{
 			catalog.pageCount > 1 && (
 				<nav
-					aria-label="Páginas de tours"
+					aria-label="Páginas de experiencias"
 					class="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-400"
 				>
 					<span>
-						Página {catalog.page} de {catalog.pageCount} · {catalog.filteredTotal} tours
+						Página {catalog.page} de {catalog.pageCount} · {catalog.filteredTotal} experiencias
 					</span>
 					<div class="flex gap-2">
 						{catalog.page > 1 && (

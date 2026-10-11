@@ -176,7 +176,7 @@ export async function summarizeProductPreparation(params: {
 		status,
 		statusLabel:
 			status === "published"
-				? presentation.label
+				? (tourPresentation?.reviewStatusLabel ?? presentation.label)
 				: tourPresentation
 					? tourPresentation.catalogStatus.label
 					: publishState.readyToPublish
@@ -197,7 +197,7 @@ export async function summarizeProductPreparation(params: {
 		readyToPublish: status !== "published" && publishState.readyToPublish,
 		completedChecks: publishState.completedChecks,
 		totalChecks: publishState.totalChecks,
-		continuePreparationHref: resume.href,
+		continuePreparationHref: tourPresentation?.primaryAction.href ?? resume.href,
 		previewHref: tourPresentation
 			? previewHref
 			: publishState.readyToPublish

@@ -60,7 +60,7 @@ const profileFlash = readProviderFormFlash(
 )
 if (identityFlash || profileFlash)
 	Astro.cookies.delete(PROVIDER_FORM_FLASH_COOKIE, { path: "/provider" })
-const serviceLabel = vertical === "tour" ? "tour" : "alojamiento"
+const serviceLabel = vertical === "tour" ? "experiencia" : "alojamiento"
 Astro.cookies.set(PROVIDER_ONBOARDING_SELECTION_COOKIE, vertical, {
 	path: "/",
 	httpOnly: true,

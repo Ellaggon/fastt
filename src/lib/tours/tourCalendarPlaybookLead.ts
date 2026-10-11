@@ -12,7 +12,7 @@ export function tourCalendarPlaybookLead(input: {
 	const futureCapacityDateCount = Number(input.futureCapacityDateCount ?? 0)
 	const availableDateCount = Number(input.availableDateCount ?? 0)
 	if (availableDateCount > 0) {
-		return "Revisa o amplía las fechas con cupo de esta opción. Los viajeros reservan sobre esas salidas."
+		return "Revisa o amplía las fechas con cupo de esta opción. Los viajeros reservan esas fechas y horarios."
 	}
 	if (futureDateCount > 0 && futureCapacityDateCount === 0) {
 		return "Las fechas futuras no tienen cupo habilitado. Abre cupos en el calendario."
@@ -23,5 +23,5 @@ export function tourCalendarPlaybookLead(input: {
 	if (input.bookingMode === "private") {
 		return "Programa al menos una fecha de referencia para esta opción privada."
 	}
-	return "Abre al menos una fecha futura con cupo para participantes. Esa será la primera salida que podrán reservar los viajeros."
+	return "Abre al menos una fecha futura con cupo para participantes. Los viajeros podrán reservar esa fecha y horario."
 }

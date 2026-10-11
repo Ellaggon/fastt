@@ -1,4 +1,5 @@
 ---
+import { experienceJourneyPresentation } from "@/lib/tours/experienceFormatPresentation"
 import { listOptionSessions, sessionHref } from "@/lib/onboarding/tourOptionSession"
 import TourPrerequisiteCard from "@/components/tours/TourPrerequisiteCard.astro"
 import Badge from "@/components/ui/Badge.astro"
@@ -39,7 +40,7 @@ try {
 } catch {
 	failed = true
 }
-if (!failed && !workspace) return new Response("Tour no encontrado", { status: 404 })
+if (!failed && !workspace) return new Response("Experiencia no encontrada", { status: 404 })
 const rows = workspace?.rows ?? []
 const created = rows.find((row) => row.id === Astro.url.searchParams.get("created"))
 const optionSessions = failed ? [] : await listOptionSessions(providerId, user.id, productId)
@@ -239,7 +240,7 @@ const optionSummaryStatus =
 						)}
 						{optionSummaryStatus && <p class="text-sm text-slate-400">{optionSummaryStatus}</p>}
 					</section>
-					<ul id="opciones-del-tour" class="space-y-3" aria-label="Opciones del tour">
+					<ul id="opciones-del-tour" class="space-y-3" aria-label="Opciones de la experiencia">
 						{rows.map((row) => {
 							const badge = optionBadge(row.state)
 							const editHref = `${routes.productDepartureDetail(productId, row.id)}?returnTo=${encodeURIComponent(`${routes.productDeparturesForProduct(productId)}#option-${row.id}`)}`
@@ -271,7 +272,13 @@ const optionSummaryStatus =
 									: []),
 								{ href: row.links.conditionsHref, label: "Precios y condiciones" },
 								...(row.bookingMode === "shared"
-									? [{ href: `${row.links.calendarHref}&schedule=1`, label: "Programar salidas" }]
+									? [
+											{
+												href: `${row.links.calendarHref}&schedule=1`,
+												label: experienceJourneyPresentation(workspace?.product.experienceFormat)
+													.scheduleAction,
+											},
+										]
 									: []),
 								...(row.primary.label !== "Gestionar fechas y cupos"
 									? [{ href: row.links.calendarHref, label: "Fechas y cupos" }]

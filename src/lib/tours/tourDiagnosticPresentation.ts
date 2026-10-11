@@ -1,3 +1,5 @@
+import { experienceJourneyPresentation } from "./experienceFormatPresentation"
+import type { ExperienceFormat } from "@/shared/domain/experience-format"
 import { tourActivationDecision } from "./buildTourDiagnostic"
 import { projectTourPublishingStages } from "@/lib/playbook/tour-publishing-stages"
 import { projectTourPreparationRequirements } from "@/lib/tours/tourPreparationRequirements"
@@ -60,6 +62,18 @@ export const TOUR_REQUIREMENT_PRESENTATION = {
 	},
 } as const satisfies Record<TourRequirementId, { section: string; label: string; action: string }>
 
+export function tourRequirementPresentation(
+	id: TourRequirementId,
+	format?: ExperienceFormat | null
+) {
+	const journey = experienceJourneyPresentation(format)
+	const base = TOUR_REQUIREMENT_PRESENTATION[id]
+	if (id === "logistics")
+		return { ...base, label: journey.logisticsLabel, action: journey.programAction }
+	if (id === "location") return { ...base, label: journey.locationLabel }
+	return base
+}
+
 export function presentTourDiagnostic(
 	diagnosis: TourDiagnostic,
 	options: { published?: boolean; previewHref: string }
@@ -72,7 +86,7 @@ export function presentTourDiagnostic(
 					{
 						id,
 						axis: TOUR_REQUIREMENTS[id].axis,
-						label: TOUR_REQUIREMENT_PRESENTATION[id].label,
+						label: tourRequirementPresentation(id, diagnosis.context.experienceFormat).label,
 						...result,
 					},
 				]
@@ -94,7 +108,7 @@ export function presentTourDiagnostic(
 				: hasUnknown
 					? "Evaluación pendiente"
 					: readyToPublish
-						? "Listo para publicar"
+						? "Lista para publicar"
 						: summary.preparation.complete
 							? "Ficha preparada"
 							: "En preparación",
@@ -112,7 +126,7 @@ export function presentTourDiagnostic(
 	return {
 		catalogStatus,
 		reviewStatusLabel: options.published
-			? "Publicado"
+			? "Publicada"
 			: hasUnknown
 				? "Evaluación pendiente"
 				: !summary.preparation.complete
@@ -121,7 +135,7 @@ export function presentTourDiagnostic(
 						? "Habilitación pendiente"
 						: !summary.activation.complete
 							? "Activación pendiente"
-							: "Listo",
+							: "Lista",
 		activation: tourActivationDecision(diagnosis),
 		stages: projectTourPublishingStages(diagnosis),
 		preparationRequirements: projectTourPreparationRequirements(diagnosis),
@@ -130,10 +144,10 @@ export function presentTourDiagnostic(
 		nextRequirementId: next?.id ?? null,
 		message: options.published
 			? next
-				? `Publicado · ${next.label.toLowerCase()} pendiente.`
+				? `Publicada · ${next.label.toLowerCase()} pendiente.`
 				: privateRequestsEnabled
-					? "Publicado · solicitudes privadas habilitadas."
-					: "Publicado y visible para viajeros."
+					? "Publicada · solicitudes privadas habilitadas."
+					: "Publicada y visible para viajeros."
 			: !summary.preparation.complete
 				? `${summary.preparation.readyCount} de ${summary.preparation.totalCount} requisitos preparados.`
 				: !summary.authorization.complete

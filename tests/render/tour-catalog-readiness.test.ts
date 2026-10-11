@@ -181,9 +181,9 @@ it("reports a failed catalog read without presenting an empty business", async (
 		const html = await container.renderToString(ToursCatalog, {
 			request: new Request("https://fastt.test/catalog/tours"),
 		})
-		expect(html).toContain("No pudimos cargar tus tours")
+		expect(html).toContain("No pudimos cargar tus experiencias")
 		expect(html).toContain("Reintentar")
-		expect(html).not.toContain("Crea tu primer tour")
+		expect(html).not.toContain("Crea tu primera experiencia")
 	} finally {
 		mocks.catalogReadFails = false
 	}

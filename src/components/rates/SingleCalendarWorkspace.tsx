@@ -877,7 +877,7 @@ export default function SingleCalendarWorkspace({
 			setGuidedInventoryDays((current) => Math.max(current, nights))
 			setGuidedFeedback(
 				isTourGuidedAvailability
-					? `Disponibilidad abierta para ${nights} ${nights === 1 ? "fecha" : "fechas"} con cupo para ${units} ${units === 1 ? "participante" : "participantes"} por salida.`
+					? `Disponibilidad abierta para ${nights} ${nights === 1 ? "fecha" : "fechas"} con cupo para ${units} ${units === 1 ? "participante" : "participantes"} por fecha y horario.`
 					: `Disponibilidad abierta para ${nights} ${nights === 1 ? "noche" : "noches"} con ${units} ${units === 1 ? "unidad" : "unidades"} por noche.`
 			)
 			setGuidedFeedbackVariant("success")
@@ -1468,7 +1468,7 @@ export default function SingleCalendarWorkspace({
 										<p className="text-sm leading-6 text-slate-500">
 											{guidedNights > 0
 												? isTourGuidedAvailability
-													? `Abrirás ${guidedNights} ${guidedNights === 1 ? "fecha" : "fechas"} con cupo para ${guidedUnits || 0} ${Number(guidedUnits) === 1 ? "participante" : "participantes"} por salida.`
+													? `Abrirás ${guidedNights} ${guidedNights === 1 ? "fecha" : "fechas"} con cupo para ${guidedUnits || 0} ${Number(guidedUnits) === 1 ? "participante" : "participantes"} por fecha y horario.`
 													: `Abrirás ${guidedNights} ${guidedNights === 1 ? "noche" : "noches"} con ${guidedUnits || 0} ${Number(guidedUnits) === 1 ? "unidad" : "unidades"} disponible por noche.`
 												: "Selecciona un rango para calcular la disponibilidad inicial."}
 										</p>

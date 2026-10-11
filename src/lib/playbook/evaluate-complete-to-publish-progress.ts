@@ -1,3 +1,4 @@
+import { experienceJourneyPresentation } from "@/lib/tours/experienceFormatPresentation"
 import { experienceProgramMinimum } from "@/shared/domain/experience-format"
 import { evaluateTourContentReadiness } from "@/lib/tours/tourContentReadiness"
 import { readTourRequestData } from "@/lib/tours/tourRequestReads"
@@ -7,6 +8,7 @@ import { tourContextSelectionHint } from "@/lib/tours/resolveTourCommercialConte
 import {
 	presentTourDiagnostic,
 	TOUR_REQUIREMENT_PRESENTATION,
+	tourRequirementPresentation,
 } from "@/lib/tours/tourDiagnosticPresentation"
 import {
 	buildTourDiagnostic,
@@ -304,6 +306,7 @@ async function evaluateCompleteToPublishState(
 		.map((item) => item.trim())
 		.filter(Boolean)
 	const tourSubtype = aggregate.subtype?.kind === "tour" ? aggregate.subtype : null
+	const journey = experienceJourneyPresentation(tourSubtype?.experienceFormat)
 	const minimumProgramSteps = experienceProgramMinimum(tourSubtype?.experienceFormat)
 	const tourItinerarySteps = Array.isArray(tourSubtype?.itinerary)
 		? tourSubtype.itinerary.filter(Boolean).length
@@ -502,8 +505,8 @@ async function evaluateCompleteToPublishState(
 		},
 		itinerary: {
 			complete: tourItinerarySteps >= minimumProgramSteps,
-			statusLabel: `${tourItinerarySteps}/${minimumProgramSteps} pasos`,
-			detail: `Completa al menos ${minimumProgramSteps} pasos del itinerario.`,
+			statusLabel: `${tourItinerarySteps}/${minimumProgramSteps} momentos`,
+			detail: `Completa al menos ${minimumProgramSteps} ${minimumProgramSteps === 1 ? "momento" : "momentos"} del ${journey.programLabel.toLowerCase()}.`,
 		},
 		tickets: {
 			complete: vertical.vertical !== "tour" || Boolean(tourReadiness?.hasActiveTickets),
@@ -580,6 +583,7 @@ async function evaluateCompleteToPublishState(
 			...(commercialReadFailed ? { code: "read_failed" } : {}),
 		})
 		tourDiagnostic = buildTourDiagnostic({
+			experienceFormat: tourSubtype?.experienceFormat,
 			providerId,
 			productId,
 			context: tourContext,
@@ -599,7 +603,8 @@ async function evaluateCompleteToPublishState(
 							detail: completionBySection[sectionKey as ProductVerticalSectionKey]!.detail,
 						})),
 						productId,
-						tourContext.status === "resolved" ? tourContext : {}
+						tourContext.status === "resolved" ? tourContext : {},
+						tourSubtype?.experienceFormat
 					),
 					ready: contentReadiness.logistics,
 				},
@@ -685,8 +690,10 @@ async function evaluateCompleteToPublishState(
 			0,
 			checks.length,
 			...Object.entries(tourDiagnostic.requirements).map(([id, requirement]) => {
-				const presentation =
-					TOUR_REQUIREMENT_PRESENTATION[id as keyof typeof TOUR_REQUIREMENT_PRESENTATION]
+				const presentation = tourRequirementPresentation(
+					id as keyof typeof TOUR_REQUIREMENT_PRESENTATION,
+					tourSubtype?.experienceFormat
+				)
 				const sectionKey = presentation.section
 				const result = requirement.result
 				const complete = result.state === "ready" || result.state === "not_applicable"

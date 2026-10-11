@@ -64,8 +64,16 @@ describe("two tour playbooks rendered in their actual layout", () => {
 	it("shows all five stages before a product exists without links to unsaved forms", async () => {
 		const container = await AstroContainer.create()
 		const html = await container.renderToString(PlaybookLayout, {
-			request: new Request("https://fastt.test/product/create?type=Tour&playbook=launch-tour&step=create&flow=create&tourFlowVersion=2"),
-			props: { active: true, playbookId: "launch-tour", stepId: "create", playbookVertical: "tour", isHotel: false },
+			request: new Request(
+				"https://fastt.test/product/create?type=Tour&playbook=launch-tour&step=create&flow=create&tourFlowVersion=2"
+			),
+			props: {
+				active: true,
+				playbookId: "launch-tour",
+				stepId: "create",
+				playbookVertical: "tour",
+				isHotel: false,
+			},
 		})
 		expect(html).toContain("Etapa 1 de 5")
 		expect(html.match(/data-tour-stage-id=/g)).toHaveLength(5)
@@ -74,7 +82,7 @@ describe("two tour playbooks rendered in their actual layout", () => {
 	})
 	it("A shows only its nine folded stages and preserves the review return on stage links", async () => {
 		const html = await render("prepare")
-		expect(html).toContain("Crear tour")
+		expect(html).toContain("Crear experiencia")
 		expect(html).toContain("Tour guardado - Etapa 5 de 5")
 		expect(html).not.toContain("Ver etapas")
 		expect(html.match(/data-tour-stage-id=/g)).toHaveLength(5)
@@ -85,7 +93,7 @@ describe("two tour playbooks rendered in their actual layout", () => {
 	})
 	it("B mounts only the correction and returns to publication, never to the next stage", async () => {
 		const html = await render("publish")
-		expect(html).toContain("Publicar tour")
+		expect(html).toContain("Publicar experiencia")
 		expect(html).toContain("data-tour-publication-correction")
 		expect(html).toContain("Guardar y volver")
 		expect(html).not.toContain("Dejar para más tarde")
