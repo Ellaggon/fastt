@@ -128,8 +128,9 @@ en un fallo. Estas reglas se prueban en `tests/integration/tour-program-persiste
 
 La comprobación del programa comparte `experience-program.ts` entre preparación, diagnóstico,
 calidad interna y lectura del servidor. Cuenta descripciones o títulos históricos y cadenas
-no vacíos; objetos vacíos no acreditan momentos. Duración positiva entera, encuentro reconocible
-e inclusiones con texto siguen siendo requisitos independientes. Consultar o editar datos
+no vacíos; objetos vacíos no acreditan momentos. Programa exige duración positiva entera
+e inclusiones con texto. El encuentro reconocible se verifica en Lugar; su ausencia no bloquea
+el guardado de Programa. Lugar guarda descubrimiento, coordenadas e indicaciones atómicamente. Consultar o editar datos
 históricos no reescribe automáticamente su contenido.
 
 Los errores del formulario conservan valores y muestran la causa junto al campo o las acciones.
