@@ -3,7 +3,7 @@
 Status: active
 Document type: canonical
 Owner: Tours / Engineering
-Last verified: 2026-10-10
+Last verified: 2026-10-12
 Scope: significado de tablas y datos comerciales de tours sobre el modelo compartido
 Source of truth: esquema, migraciones y pruebas enlazadas en este documento
 Related code/tests: `src/shared/infrastructure/db/schema/`, `src/pages/api/variant/tour-slot-profile.ts`, `src/pages/api/variant/create.ts`, `tests/catalog/tour-slot-profile.test.ts`
@@ -55,6 +55,17 @@ La creación por Presentación sólo admite recorridos guiados, tanto en el sele
 en el servidor. La lista compartida es `EXPERIENCE_CREATION_FORMATS`; las experiencias
 ya clasificadas conservan su formato al editarse. Otros formatos permanecen sin
 oferta pública hasta adaptar sus formularios, papeles y políticas. No se añaden roles.
+
+Verificación y descubrimiento presentan el formato guardado mediante
+`src/lib/tours/experienceFormatPresentation.ts`. Identidad y Fiscal siguen perteneciendo
+al titular; Actividad y Seguridad mantienen el contexto de la experiencia. Los formularios
+documentales sólo ofrecen requisitos existentes aceptados por la política aplicable que
+devuelve `commercial-policy/evaluate.ts`; no se equiparan guía e instructor.
+La ficha pública y el preview comparten etiquetas y ocultan datos turísticos no aplicables
+sin borrarlos. Sólo un `guided_tour` declarado y público emite `TouristTrip`; no se infieren
+eventos fechados ni formatos históricos. Estos cambios no conceden capacidades de venta.
+Pruebas de presentación: `tests/unit/experience-public-presentation.test.ts` y
+`tests/render/experience-public-page.test.ts`.
 
 Nuevos holds guardan `experienceClassification` en el snapshot de expectativas; la
 confirmación lo conserva. No se migran reservas, cupos ni alcances de evidencias.
