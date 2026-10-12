@@ -21,16 +21,33 @@ it("renders one precarged form for all presentation requirements", async () => {
 					{ id: "city-tour", slug: "city-tour", name: "City tour" },
 				],
 				linkedIds: ["culture", "city-tour"],
+
+				families: [
+					{ id: "arts", name: "Arte y artesanía", isActive: true },
+					{ id: "food", name: "Gastronomía", isActive: true },
+				],
+				activities: [
+					{ id: "ceramics", name: "Cerámica", parentCategoryId: "arts", isActive: true },
+				],
+				additionalThemeIds: ["food"],
+				classification: { classificationRevision: 4, primaryActivityCategoryId: "ceramics" },
 			},
 		},
 	})
 	expect(html.match(/<form\b/g)).toHaveLength(1)
-	for (const field of ["name", "geoPlaceId", "description", "highlights", "categoryId"])
+	for (const field of [
+		"name",
+		"geoPlaceId",
+		"description",
+		"highlights",
+		"primaryActivityCategoryId",
+		"additionalThemeId",
+	])
 		expect(html).toContain(`name="${field}"`)
 	expect(html).toContain("Descripción existente")
 	expect(html).toContain("Guía local")
 	expect(html).toContain('value="city" selected')
-	expect(html.match(/type="checkbox"[^>]*checked/g)).toHaveLength(2)
+	expect(html.match(/type="checkbox"[^>]*checked/g)).toHaveLength(1)
 	expect(html).toContain('action="/api/product/tour-presentation"')
 	expect(html).toContain('name="variantId" value="option"')
 	expect(html).not.toContain("/categories?")
@@ -39,7 +56,7 @@ it("renders one precarged form for all presentation requirements", async () => {
 it.each([
 	[null, 0, null],
 	[null, 1, null],
-	["guided_tour", 1, "Tour guiado"],
+	["guided_tour", 1, "Visita o recorrido guiado"],
 	["workshop", 1, "Taller"],
 	["class", 1, "Clase"],
 	["tasting", 1, "Degustación"],
@@ -67,8 +84,8 @@ it.each([
 		if (experienceFormat)
 			expect(select).toMatch(new RegExp(`value="${experienceFormat}" selected[^>]*>\\s*${label}`))
 		else expect(select).not.toMatch(/value="(?:guided_tour|workshop|class|tasting)" selected/)
-		expect(html).toContain("Temáticas")
+		expect(html).toContain("Otras temáticas relacionadas")
 		expect(html).toContain("Nombre de la experiencia")
-		if (experienceFormat !== "workshop") expect(select).not.toContain('value="workshop"')
+		for (const format of ["guided_tour", "workshop", "class", "tasting"]) expect(select).toContain(`value="${format}"`)
 	}
 )

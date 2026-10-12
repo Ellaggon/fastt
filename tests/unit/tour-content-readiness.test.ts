@@ -111,7 +111,8 @@ it.each(["duration", "meetingPoint", "includes", "program"])(
 		if (missing === "includes") aggregate.subtype.includes = [" "]
 		if (missing === "program") aggregate.subtype.itinerary = [{}, null, { description: " " }]
 		const result = evaluateTourContentReadiness(aggregate, declarations)
-		expect(result.logistics).toBe(false)
+		expect(result.logistics).toBe(missing === "meetingPoint")
+		if (missing === "meetingPoint") expect(result.location).toBe(false)
 		expect(result.complete).toBe(false)
 	}
 )

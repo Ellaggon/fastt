@@ -24,6 +24,9 @@ vi.mock("@/shared/infrastructure/db/compat", async (importOriginal) => ({
 	db: {
 		select: () => ({
 			from: () => ({
+				leftJoin() {
+					return this
+				},
 				where: () =>
 					Promise.resolve([
 						{

@@ -48,6 +48,8 @@ vi.mock("@/shared/infrastructure/db/compat", async (original) => {
 							? [
 									{
 										experienceFormat: state.format,
+										activityContractVersion: 1,
+										primaryActivityCategoryId: "cooking",
 										durationMinutes: 60,
 										itineraryJson: [{ description: "Práctica con ingredientes" }],
 										guideJson: { guideType: "local", languages: "es" },
@@ -56,9 +58,20 @@ vi.mock("@/shared/infrastructure/db/compat", async (original) => {
 										meetingPointJson: { address: "Sala de cocina" },
 									},
 								]
-							: table === actual.ProductCategoryLink
-								? [{ name: "Gastronomía", slug: "gastronomia" }]
-								: []
+							: table === actual.ProductCategory
+								? [
+										{
+											id: "cooking",
+											name: "Cocina",
+											slug: "activity-cooking",
+											parentCategoryId: "food",
+											isActive: true,
+										},
+										{ id: "food", name: "Gastronomía", slug: "experience-food", isActive: true },
+									]
+								: table === actual.ProductCategoryLink
+									? [{ categoryId: "stale", assignmentKind: "legacy" }]
+									: []
 				const query: any = {
 					from: (value: unknown) => {
 						table = value
@@ -90,6 +103,7 @@ it.each(["guided_tour", "workshop", "class", "tasting", null])(
 			const html = await container.renderToString(Page, { request, params: { id: "experience" } })
 			expect(html).toContain("Práctica con ingredientes")
 			expect(html).toContain("Gastronomía")
+			expect(html).toContain("Cocina")
 			expect(html).toContain("Elige fecha y horario")
 			if (format === "guided_tour") {
 				expect(html).toContain("Itinerario")

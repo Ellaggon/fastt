@@ -59,9 +59,7 @@ describe("experience format throughout preparation and publication", () => {
 			expect(html).toContain(`mínimo ${minimum} ${minimum === 1 ? "momento" : "momentos"}`)
 			expect(html).toContain("Contenido guardado")
 			expect(html.includes('name="guideType"')).toBe(format == null || format === "guided_tour")
-			expect(html.includes('name="pickupDefaultArea"')).toBe(
-				format == null || format === "guided_tour"
-			)
+			expect(html).toContain('name="pickupDefaultArea"')
 			expect(html).toContain('name="expectedExperienceFormat"')
 			if (format && format !== "guided_tour")
 				expect(html).not.toContain("Recorrido por el centro histórico")
