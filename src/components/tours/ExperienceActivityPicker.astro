@@ -1,0 +1,134 @@
+---
+import FormField from "@/components/ui/FormField.astro"
+import Input from "@/components/ui/Input.astro"
+import Select from "@/components/ui/Select.astro"
+import type { loadTourPresentationForm } from "@/lib/tours/loadTourPresentationForm"
+interface Props {
+	options: Awaited<ReturnType<typeof loadTourPresentationForm>>
+}
+const { options } = Astro.props
+const activities = options.activities ?? [],
+	families = options.families ?? []
+const selected = options.classification?.primaryActivityCategoryId ?? ""
+const activity = activities.find((row) => row.id === selected)
+---
+
+<div data-activity-picker class="space-y-3">
+	<FormField label="Buscar actividad" htmlFor="activitySearch">
+		<Input
+			id="activitySearch"
+			type="search"
+			placeholder="Por ejemplo: cerámica, cocina o senderismo"
+			autocomplete="off"
+			aria-controls="primaryActivityCategoryId"
+		/>
+	</FormField>
+	<FormField label="Actividad principal" htmlFor="primaryActivityCategoryId" required>
+		<Select
+			id="primaryActivityCategoryId"
+			name="primaryActivityCategoryId"
+			aria-describedby="activityHelp primaryActivityCategoryIdError"
+		>
+			<option value="">Selecciona la actividad</option>
+			{
+				families.map((family) => (
+					<optgroup label={family.name} data-family-id={family.id}>
+						{activities
+							.filter(
+								(row) => row.parentCategoryId === family.id && (row.isActive || row.id === selected)
+							)
+							.map((row) => (
+								<option
+									value={row.id}
+									selected={row.id === selected}
+									data-search={[
+										row.name,
+										family.name,
+										...(Array.isArray(row.searchAliasesJson) ? row.searchAliasesJson : []),
+									].join(" ")}
+								>
+									{row.name}
+									{!row.isActive ? " · Requiere revisión" : ""}
+								</option>
+							))}
+					</optgroup>
+				))
+			}
+		</Select>
+		<p id="activityHelp" class="mt-2 text-sm leading-6 text-slate-500">
+			Elige qué harán los participantes. El formato se selecciona por separado.
+		</p>
+		{
+			activity && !activity.isActive && (
+				<p class="text-sm text-amber-700">
+					Esta actividad ya no admite nuevas selecciones. Revísala antes de continuar.
+				</p>
+			)
+		}
+		<p
+			id="primaryActivityCategoryIdError"
+			data-presentation-error="primaryActivityCategoryId"
+			class="hidden text-sm text-red-600"
+		>
+		</p>
+	</FormField>
+	<p data-activity-results role="status" aria-live="polite" class="text-sm text-slate-600"></p>
+	<a href="/provider/support" class="text-sm font-semibold text-slate-700 underline"
+		>¿Falta tu actividad? Solicita su incorporación</a
+	>
+</div>
+<script>
+	function bindActivityPickers() {
+		document.querySelectorAll<HTMLElement>("[data-activity-picker]").forEach((root) => {
+			if (root.dataset.bound) return
+			root.dataset.bound = "true"
+			const search = root.querySelector<HTMLInputElement>("input[type=search]")!
+			const select = root.querySelector<HTMLSelectElement>("select")!
+			const groups = Array.from(select.querySelectorAll("optgroup")).map(
+				(group) => group.cloneNode(true) as HTMLOptGroupElement
+			)
+			const normalize = (text: string) =>
+				text
+					.normalize("NFD")
+					.replace(/[\u0300-\u036f]/g, "")
+					.toLowerCase()
+					.trim()
+			search.addEventListener("input", () => {
+				const selection = select.value,
+					query = normalize(search.value)
+				select.querySelectorAll("optgroup").forEach((group) => group.remove())
+				let count = 0
+				for (const source of groups) {
+					const group = source.cloneNode(true) as HTMLOptGroupElement
+					Array.from(group.querySelectorAll("option")).forEach((option) => {
+						const matches = normalize(option.dataset.search ?? option.textContent ?? "").includes(
+							query
+						)
+						if (matches) count++
+						if (!matches && option.value !== selection) option.remove()
+					})
+					if (group.children.length) select.append(group)
+				}
+				select.value = selection
+				select.dispatchEvent(new Event("fastt:options-updated"))
+				root.querySelector<HTMLElement>("[data-activity-results]")!.textContent = count
+					? `${count} ${count === 1 ? "actividad encontrada" : "actividades encontradas"}.`
+					: "No encontramos esa actividad. Puedes solicitar su incorporación."
+			})
+			const updateThemes = () => {
+				const family = select.selectedOptions[0]?.parentElement?.getAttribute("data-family-id")
+				const form = select.form
+				form?.querySelectorAll<HTMLInputElement>("[name=additionalThemeId]").forEach((input) => {
+					input.disabled = input.value === family
+					if (input.disabled) input.checked = false
+					const wrapper = input.closest("label")
+					if (wrapper) wrapper.style.display = input.disabled ? "none" : ""
+				})
+			}
+			select.addEventListener("change", updateThemes)
+			updateThemes()
+		})
+	}
+	bindActivityPickers()
+	document.addEventListener("astro:page-load", bindActivityPickers)
+</script>

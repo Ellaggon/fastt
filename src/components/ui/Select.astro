@@ -167,7 +167,17 @@ const listboxId = id ? `${id}-listbox` : undefined
 
 			const renderMenu = () => {
 				menu.innerHTML = ""
+				let previousGroup: Element | null = null
 				options().forEach((option, index) => {
+					const group = option.parentElement
+					if (group?.tagName === "OPTGROUP" && group !== previousGroup) {
+						const heading = document.createElement("li")
+						heading.role = "presentation"
+						heading.className = "px-3 pt-3 pb-1 text-xs font-semibold text-slate-500"
+						heading.textContent = group.getAttribute("label")
+						menu.appendChild(heading)
+					}
+					previousGroup = group
 					const item = document.createElement("li")
 					const button = document.createElement("button")
 					button.type = "button"
@@ -221,7 +231,7 @@ const listboxId = id ? `${id}-listbox` : undefined
 			const moveActive = (direction: 1 | -1) => {
 				const enabled = enabledOptions()
 				if (!enabled.length) return
-				const current = selectedOption()
+				const current = activeIndex >= 0 ? options()[activeIndex] : selectedOption()
 				let nextIndex = enabled.findIndex((option) => option === current)
 				if (nextIndex < 0) nextIndex = 0
 				else nextIndex = (nextIndex + direction + enabled.length) % enabled.length
@@ -231,6 +241,7 @@ const listboxId = id ? `${id}-listbox` : undefined
 				})
 				const activeButton = menu.querySelector<HTMLButtonElement>(`[data-index="${activeIndex}"]`)
 				activeButton?.setAttribute("data-active", "true")
+				activeButton?.focus()
 				activeButton?.scrollIntoView({ block: "nearest" })
 			}
 
@@ -287,6 +298,7 @@ const listboxId = id ? `${id}-listbox` : undefined
 				}
 			})
 
+			select.addEventListener("fastt:options-updated", renderMenu)
 			select.addEventListener("change", () => {
 				syncLabel()
 				renderMenu()

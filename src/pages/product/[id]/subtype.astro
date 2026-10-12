@@ -22,7 +22,16 @@ import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { getProductVerticalDefinition } from "@/lib/catalog/productVerticalRegistry"
 import { routes } from "@/lib/routes"
 import { getProductById } from "@/modules/catalog/public"
-import { first, db, eq, Hotel, Limousine, Package, Tour } from "@/shared/infrastructure/db/compat"
+import {
+	first,
+	db,
+	eq,
+	Hotel,
+	Limousine,
+	Package,
+	Tour,
+	ProductCategory,
+} from "@/shared/infrastructure/db/compat"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
@@ -94,6 +103,7 @@ const tourSubtype =
 		? await db
 				.select({
 					experienceFormat: Tour.experienceFormat,
+					activityName: ProductCategory.name,
 					duration: Tour.duration,
 					durationMinutes: Tour.durationMinutes,
 					difficultyLevel: Tour.difficultyLevel,
@@ -106,6 +116,7 @@ const tourSubtype =
 					pickupJson: Tour.pickupJson,
 				})
 				.from(Tour)
+				.leftJoin(ProductCategory, eq(ProductCategory.id, Tour.primaryActivityCategoryId))
 				.where(eq(Tour.productId, productId))
 				.then(first)
 		: null
@@ -156,7 +167,7 @@ if (isTour) subtypeHeading = journey.logisticsLabel
 >
 	<section class:list={[tourPlaybookGuided ? "space-y-6" : "space-y-8"]}>
 		<section
-			id="tour-meeting-point"
+			id="tour-program"
 			class:list={[
 				"scroll-mt-24",
 				tourPlaybookGuided ? "space-y-6" : "space-y-4",
@@ -168,7 +179,7 @@ if (isTour) subtypeHeading = journey.logisticsLabel
 					<PlaybookStepHeader
 						icon="itinerary"
 						title={journey.logisticsLabel}
-						lead="Indica duración, lugar de inicio, programa e inclusiones visibles para el viajero."
+						lead="Indica la duración, el programa y las inclusiones. El lugar y las indicaciones se completan después."
 					/>
 				) : playbook.active ? (
 					<PlaybookStepHeader
@@ -207,7 +218,11 @@ if (isTour) subtypeHeading = journey.logisticsLabel
 								<Input type="hidden" name="playbookVertical" value={pt} />
 							</>
 						) : null}
-						<TourSubtypePlaybookFields productId={productId} tourSubtype={tourSubtype} />
+						<TourSubtypePlaybookFields
+							productId={productId}
+							tourSubtype={tourSubtype}
+							activityName={tourSubtype?.activityName}
+						/>
 						<p id="stateLabel" class="text-sm text-slate-400" role="status" aria-live="polite" />
 						<p id="stateDetail" class="hidden text-sm whitespace-pre-wrap text-slate-400" />
 						<a
@@ -299,7 +314,11 @@ if (isTour) subtypeHeading = journey.logisticsLabel
 								) : null}
 
 								{pt === "tour" ? (
-									<TourSubtypePlaybookFields productId={productId} tourSubtype={tourSubtype} />
+									<TourSubtypePlaybookFields
+										productId={productId}
+										tourSubtype={tourSubtype}
+										activityName={tourSubtype?.activityName}
+									/>
 								) : null}
 
 								{pt === "package" ? (
@@ -513,6 +532,15 @@ if (isTour) subtypeHeading = journey.logisticsLabel
 		import { setPlaybookSubmitBusy } from "@/lib/forms/playbookFormBusy.ts"
 
 		function initSubtypeForm() {
+			if (window.location.hash === "#tour-meeting-point") {
+				const target = new URL(window.location.href)
+				target.pathname = target.pathname.replace(/\/subtype$/, "/location")
+				if (target.searchParams.has("step")) target.searchParams.set("step", "location")
+				target.hash = "meetingPointAddress"
+				window.location.replace(target.pathname + target.search + target.hash)
+				return
+			}
+
 			const form = document.getElementById("subtypeForm")
 			if (!(form instanceof HTMLFormElement) || form.dataset.bound === "true") return
 			form.dataset.bound = "true"
@@ -557,14 +585,29 @@ if (isTour) subtypeHeading = journey.logisticsLabel
 				error.classList.toggle("hidden", !message)
 			}
 
+			function syncDuration() {
+				const hours = document.getElementById("durationHours") as HTMLInputElement | null
+				const minutes = document.getElementById("durationPartMinutes") as HTMLInputElement | null
+				const total = document.getElementById("durationMinutes") as HTMLInputElement | null
+				const label = document.getElementById("duration") as HTMLInputElement | null
+				if (!hours || !minutes || !total || !label) return
+				const h = Number(hours.value),
+					m = Number(minutes.value)
+				const valid = Number.isInteger(h) && h >= 0 && Number.isInteger(m) && m >= 0 && m < 60
+				total.value = valid ? String(h * 60 + m) : "0"
+				const custom = form.querySelector<HTMLInputElement>("[name=durationCustomEnabled]")?.checked
+				if (!custom && valid)
+					label.value = [h ? `${h} ${h === 1 ? "hora" : "horas"}` : "", m ? `${m} min` : ""]
+						.filter(Boolean)
+						.join(" ")
+			}
+			form.querySelector("[data-experience-duration]")?.addEventListener("input", syncDuration)
 			function validateTourForm() {
+				syncDuration()
 				if (!isTour) return true
 				const values = {
 					duration: String(document.getElementById("duration")?.value || "").trim(),
 					durationMinutes: Number(document.getElementById("durationMinutes")?.value || 0),
-					meetingPointAddress: String(
-						document.getElementById("meetingPointAddress")?.value || ""
-					).trim(),
 					itinerary: experienceProgramLines(document.getElementById("tourItinerary")?.value),
 					includes: String(document.getElementById("tourIncludes")?.value || "")
 						.split(/\r?\n|,/)
@@ -577,7 +620,6 @@ if (isTour) subtypeHeading = journey.logisticsLabel
 						Number.isInteger(values.durationMinutes) && values.durationMinutes > 0
 							? ""
 							: "Indica una duración en minutos mayor que cero.",
-					meetingPointAddress: values.meetingPointAddress ? "" : "Indica el punto de encuentro.",
 					itinerary:
 						values.itinerary.length >= programMinimum
 							? ""
@@ -585,14 +627,13 @@ if (isTour) subtypeHeading = journey.logisticsLabel
 					includes: values.includes.length ? "" : "Agrega al menos una inclusión.",
 				}
 				setFieldError("duration", "durationError", errors.duration)
-				setFieldError("durationMinutes", "durationMinutesError", errors.durationMinutes)
-				setFieldError("meetingPointAddress", "meetingPointAddressError", errors.meetingPointAddress)
+				setFieldError("durationHours", "durationMinutesError", errors.durationMinutes)
 				setFieldError("tourItinerary", "tourItineraryError", errors.itinerary)
 				setFieldError("tourIncludes", "tourIncludesError", errors.includes)
 				const firstInvalid = Object.entries(errors).find(([, message]) => Boolean(message))?.[0]
 				const fieldIds = {
-					duration: "duration",
-					durationMinutes: "durationMinutes",
+					duration: "durationHours",
+					durationMinutes: "durationHours",
 					meetingPointAddress: "meetingPointAddress",
 					itinerary: "tourItinerary",
 					includes: "tourIncludes",

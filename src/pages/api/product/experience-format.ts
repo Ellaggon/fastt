@@ -10,7 +10,11 @@ import {
 } from "@/modules/catalog/public"
 
 const declaration = z
-	.object({ productId: z.string().uuid(), experienceFormat: z.enum(EXPERIENCE_FORMATS) })
+	.object({
+		productId: z.string().uuid(),
+		experienceFormat: z.enum(EXPERIENCE_FORMATS),
+		expectedClassificationRevision: z.number().int().nonnegative().optional(),
+	})
 	.strict()
 
 export const POST: APIRoute = async ({ request }) => {
@@ -46,7 +50,14 @@ export const POST: APIRoute = async ({ request }) => {
 		if (error instanceof ExperienceFormatError)
 			return Response.json(
 				{ error: error.code },
-				{ status: error.code === "product_not_owned" ? 403 : 400 }
+				{
+					status:
+						error.code === "product_not_owned"
+							? 403
+							: error.code === "classification_conflict"
+								? 409
+								: 400,
+				}
 			)
 		console.error("experience.format.declaration_failed", error)
 		return Response.json({ error: "declaration_failed" }, { status: 500 })

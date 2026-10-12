@@ -15,7 +15,7 @@ import { isTourProductType } from "@/lib/catalog/productVerticalRegistry"
 import { getCompleteToPublishPlaybookRepairHref } from "@/lib/playbook/complete-to-publish"
 import { resolvePlaybookFromUrl } from "@/lib/playbook/resolve-playbook"
 import { routes } from "@/lib/routes"
-import { db, eq, first, TourSlotProfile } from "@/shared/infrastructure/db/compat"
+import { db, eq, first, Tour, TourSlotProfile } from "@/shared/infrastructure/db/compat"
 
 const user = await getUserFromRequest(Astro.request)
 if (!user) return Astro.redirect("/SignInPage")
@@ -28,11 +28,17 @@ const slotId = String(Astro.params.slotId ?? "")
 if (!productId) return Astro.redirect("/product/create")
 if (!slotId) return Astro.redirect(routes.productDeparturesForProduct(productId))
 
-const [owned, variant, profile] = await Promise.all([
+const [owned, variant, profileRow] = await Promise.all([
 	productRepository.ensureProductOwnedByProvider(productId, providerId),
 	variantManagementRepository.getVariantById(slotId),
-	db.select().from(TourSlotProfile).where(eq(TourSlotProfile.variantId, slotId)).then(first),
+	db
+		.select({ profile: TourSlotProfile, experienceFormat: Tour.experienceFormat })
+		.from(TourSlotProfile)
+		.innerJoin(Tour, eq(Tour.productId, productId))
+		.where(eq(TourSlotProfile.variantId, slotId))
+		.then(first),
 ])
+const profile = profileRow?.profile
 if (!owned) return Astro.redirect("/product/create")
 if (!isTourProductType(owned.productType)) return Astro.redirect(routes.productDetail(productId))
 if (!variant || variant.productId !== productId) {
@@ -159,6 +165,7 @@ const layoutProps = playbook.active
 		{
 			!isManifestView && (
 				<TourSlotProfileEditor
+					experienceFormat={profileRow?.experienceFormat}
 					productId={productId}
 					variantId={slotId}
 					mode="edit"
