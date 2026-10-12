@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto"
 import { beforeEach, expect, it, vi } from "vitest"
-const mocks = vi.hoisted(() => ({ save: vi.fn(), session: vi.fn(), invalidate: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+	save: vi.fn(),
+	session: vi.fn(),
+	invalidate: vi.fn(),
+	refresh: vi.fn(),
+}))
 vi.mock("@/container", () => ({ productRepository: { saveTourPresentation: mocks.save } }))
 vi.mock("@/lib/auth/providerSessionSurface", () => ({
 	getProviderSessionSurfaceFromRequest: mocks.session,
@@ -10,7 +15,7 @@ vi.mock("@/lib/cache/invalidation", () => ({
 	invalidateProvider: vi.fn(),
 }))
 vi.mock("@/lib/product/productOperationalSurface", () => ({
-	refreshProductOperationalSurfaceAfterMutation: vi.fn(),
+	refreshProductOperationalSurfaceAfterMutation: mocks.refresh,
 }))
 import { POST } from "@/pages/api/product/tour-presentation"
 const productId = randomUUID()
@@ -46,6 +51,7 @@ beforeEach(() => {
 	})
 	mocks.invalidate.mockResolvedValue(undefined)
 	mocks.save.mockResolvedValue(undefined)
+	mocks.refresh.mockResolvedValue(undefined)
 })
 it("saves once and advances directly to stage two preserving the commercial selection", async () => {
 	const response = await POST({ request: request() } as never)
@@ -57,6 +63,8 @@ it("saves once and advances directly to stage two preserving the commercial sele
 	expect(url.searchParams.get("variantId")).toBe("option")
 	expect(url.searchParams.get("ratePlanId")).toBe("rate")
 	expect(mocks.save).toHaveBeenCalledOnce()
+	expect(mocks.invalidate).toHaveBeenCalledWith(productId, { refreshOperationalSurface: false })
+	expect(mocks.refresh).toHaveBeenCalledOnce()
 	expect(mocks.save).toHaveBeenCalledWith(
 		expect.objectContaining({
 			providerId: "provider",
@@ -71,6 +79,7 @@ it("returns field errors before saving incomplete continuation", async () => {
 	expect(response.status).toBe(400)
 	expect((await response.json()).fieldErrors.description).toBeDefined()
 	expect(mocks.save).not.toHaveBeenCalled()
+	expect(mocks.refresh).not.toHaveBeenCalled()
 })
 it("allows an intentional partial draft exit without advancing the stage", async () => {
 	const form = await request({ playbookNav: "exit", description: "", highlights: "" }).formData()
@@ -129,4 +138,19 @@ it("rejects an invalid format without writing", async () => {
 	expect(response.status).toBe(400)
 	expect((await response.json()).fieldErrors.experienceFormat).toBeDefined()
 	expect(mocks.save).not.toHaveBeenCalled()
+})
+
+it("keeps committed success when the read-model refresh fails", async () => {
+	mocks.refresh.mockRejectedValueOnce(new Error("refresh unavailable"))
+	const response = await POST({ request: request() } as never)
+	expect(response.status).toBe(200)
+	expect(mocks.save).toHaveBeenCalledOnce()
+	expect(mocks.refresh).toHaveBeenCalledOnce()
+})
+
+it("refreshes each successive committed save independently", async () => {
+	await POST({ request: request() } as never)
+	await POST({ request: request({ name: "Nueva presentación" }) } as never)
+	expect(mocks.save).toHaveBeenCalledTimes(2)
+	expect(mocks.refresh).toHaveBeenCalledTimes(2)
 })
