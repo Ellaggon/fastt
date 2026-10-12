@@ -3,11 +3,40 @@ import type {
 	CommercialPolicyDiagnosis,
 } from "@/lib/commercial-policy/evaluate"
 import { routes } from "@/lib/routes"
+import type { VerificationRequirement } from "@/lib/verification/requirement-resolver"
 
 export type TourVerificationProduct = {
 	id: string
 	name: string | null
 	publicationState: string | null
+	experienceFormat?: string | null
+	formatContractVersion?: number | null
+}
+
+/** Existing UI descriptors only: approval never creates a generic upload form. */
+export function applicableExperienceVerificationRequirements(
+	requirements: VerificationRequirement[],
+	diagnosis: CommercialPolicyDiagnosis | null,
+	format: unknown
+): VerificationRequirement[] {
+	return requirements.filter((requirement) => {
+		if (requirement.layer !== "tour") return true
+		if (!requirement.documentType) {
+			return (
+				format == null ||
+				format === "guided_tour" ||
+				["tour.context_missing", "tour.operating_role_missing"].includes(requirement.id)
+			)
+		}
+		return (
+			diagnosis?.policyStatus === "supported" &&
+			Boolean(
+				diagnosis.applicableRequirements?.some((approved) =>
+					approved.acceptedEvidence.includes(requirement.documentType as string)
+				)
+			)
+		)
+	})
 }
 
 export type TourVerificationAction = {
@@ -71,6 +100,12 @@ function actionForBlocker(
 		return {
 			label: "Completar ubicación de la experiencia",
 			href: routes.productDetail(product.id),
+		}
+	}
+	if (blocker.id === "experience_format_missing") {
+		return {
+			label: "Completar formato",
+			href: `/product/${encodeURIComponent(product.id)}/presentation`,
 		}
 	}
 	return null

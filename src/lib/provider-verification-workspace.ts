@@ -70,6 +70,8 @@ import {
 } from "@/lib/verification/navigation"
 import {
 	buildTourVerificationReadiness,
+	applicableExperienceVerificationRequirements,
+	type TourVerificationProduct,
 	type TourVerificationReadiness,
 } from "@/lib/provider-tour-verification"
 import {
@@ -78,6 +80,7 @@ import {
 	db,
 	eq,
 	Product,
+	Tour,
 	TourOperationalResource,
 } from "@/shared/infrastructure/db/compat"
 
@@ -100,7 +103,7 @@ export type ProviderVerificationWorkspaceModel = {
 	tourPlaybook: VerificationPlaybookTab[]
 	tourDocumentPresentation: Record<string, DocumentListPresentation>
 	tourResources: Array<{ id: string; name: string; type: string }>
-	tourProducts: Array<{ id: string; name: string | null }>
+	tourProducts: TourVerificationProduct[]
 	listaReady: boolean
 	trustMapComplete: boolean
 	trustLinks: ProviderTrustLink[]
@@ -226,8 +229,15 @@ export async function loadProviderVerificationWorkspace(params: {
 		readProviderHolderProfile(params.providerId),
 		listOpenComplianceAssignments({ providerId: params.providerId }).catch(() => []),
 		db
-			.select({ id: Product.id, name: Product.name, publicationState: Product.publicationState })
+			.select({
+				id: Product.id,
+				name: Product.name,
+				publicationState: Product.publicationState,
+				experienceFormat: Tour.experienceFormat,
+				formatContractVersion: Tour.formatContractVersion,
+			})
 			.from(Product)
+			.leftJoin(Tour, eq(Tour.productId, Product.id))
 			.where(and(eq(Product.providerId, params.providerId), eq(Product.productType, "tour")))
 			.orderBy(asc(Product.creationDate))
 			.catch(() => []),
@@ -279,6 +289,27 @@ export async function loadProviderVerificationWorkspace(params: {
 			: null,
 	])
 	const displayedTours = tourProducts.filter((product) => product.id === selectedExperienceId)
+	const selectedDiagnosis = selectedExperienceId
+		? (
+				await resolveProductCommercialDiagnosis({
+					providerId: params.providerId,
+					productId: selectedExperienceId,
+					holder,
+					documents: trustSnapshot?.documents,
+				})
+			).diagnosis
+		: null
+	const selectedRequirements = applicableExperienceVerificationRequirements(
+		(loadedResolution.resolution?.requirements ?? []).filter(
+			(requirement) =>
+				requirement.layer !== "tour" ||
+				!selectedExperienceId ||
+				requirement.scopes.productIds.length === 0 ||
+				requirement.scopes.productIds.includes(selectedExperienceId)
+		),
+		selectedDiagnosis,
+		displayedTours[0]?.experienceFormat
+	)
 	const requestedLine = params.url.searchParams.get("line")
 	const selectedLine = loadedResolution.lines.includes(requestedLine as "lodging" | "tour")
 		? (requestedLine as "lodging" | "tour")
@@ -297,7 +328,7 @@ export async function loadProviderVerificationWorkspace(params: {
 		!selectedExperienceId ||
 		requirement.scopes.productIds.length === 0 ||
 		requirement.scopes.productIds.includes(selectedExperienceId)
-	const tourRequirements = (loadedResolution.resolution?.requirements ?? []).filter(
+	const tourRequirements = selectedRequirements.filter(
 		(requirement) =>
 			requirement.layer === "tour" &&
 			Boolean(requirement.documentType && requirement.uploadValue) &&
@@ -314,13 +345,7 @@ export async function loadProviderVerificationWorkspace(params: {
 	})
 	const tourVerification: TourVerificationReadiness[] = await Promise.all(
 		displayedTours.map(async (product) => {
-			const resolved = await resolveProductCommercialDiagnosis({
-				providerId: params.providerId,
-				productId: product.id,
-				holder,
-				documents: trustSnapshot?.documents,
-			})
-			return buildTourVerificationReadiness({ product, diagnosis: resolved.diagnosis })
+			return buildTourVerificationReadiness({ product, diagnosis: selectedDiagnosis! })
 		})
 	)
 
@@ -399,7 +424,7 @@ export async function loadProviderVerificationWorkspace(params: {
 			? buildVerificationScreenSections({
 					lines: loadedResolution.lines,
 					collectionModel: selectedLineCollectionModel,
-					requirements: loadedResolution.resolution.requirements.filter(appliesToSelectedTour),
+					requirements: selectedRequirements.filter(appliesToSelectedTour),
 					legalNameComplete,
 					accountStatus: latestVerification?.status ?? null,
 					fiscalStatus: taxConfiguration?.status ?? null,
@@ -589,7 +614,7 @@ export async function loadProviderVerificationWorkspace(params: {
 						.filter((item) => item.presentationArea === "safety")
 						.map((item) => item.state),
 					contextComplete,
-					policyResolved: tourVerification[0]?.state !== "waiting_on_fastt",
+					policyResolved: selectedDiagnosis?.policyStatus === "supported",
 				})
 			: []
 	const tourProgress = tourPlaybook.length ? summarizeVerificationPlaybook(tourPlaybook) : null
@@ -602,7 +627,7 @@ export async function loadProviderVerificationWorkspace(params: {
 		tourPlaybook,
 		tourDocumentPresentation,
 		tourResources,
-		tourProducts: tourProducts.map((product) => ({ id: product.id, name: product.name })),
+		tourProducts,
 		listaReady,
 		trustMapComplete,
 		trustLinks: visibleTrustLinks,

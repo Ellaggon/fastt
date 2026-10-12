@@ -95,6 +95,8 @@ const historicalSupportHref = new URL(routes.providerSupport(), Astro.url)
 historicalSupportHref.searchParams.set("topic", "historical_tour_collection")
 historicalSupportHref.searchParams.set("line", "tour")
 historicalSupportHref.searchParams.set("from", `${Astro.url.pathname}${Astro.url.search}`)
+const policySupportHref = new URL(historicalSupportHref)
+policySupportHref.searchParams.set("topic", "verification")
 function tourEvidenceDocuments(area: "activity" | "safety") {
 	const types = new Set(tourEvidenceOptions[area].map((option) => option.value.split("::")[0]))
 	return documents.filter((document) => {
@@ -575,6 +577,12 @@ const paymentErrorMessages: Record<
 						<Notice variant="info" title="Pendiente de política Fastt">
 							Esta combinación todavía requiere una regla comercial aprobada. Puedes guardar la
 							operación; no subas documentos que no aparezcan como aplicables.
+							<a
+								class="font-semibold underline underline-offset-2"
+								href={`${policySupportHref.pathname}${policySupportHref.search}`}
+							>
+								Solicitar revisión
+							</a>
 						</Notice>
 					) : null}
 					{result === "submitted" ? (
