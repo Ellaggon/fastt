@@ -51,6 +51,8 @@ import {
 	Variant,
 } from "@/shared/infrastructure/db/compat"
 import { publicCatalogProductEligibility } from "@/lib/marketplace/public-catalog-eligibility"
+import { experiencePublicPresentation } from "@/lib/tours/experienceFormatPresentation"
+import { isExperienceFormat, type ExperienceFormat } from "@/shared/domain/experience-format"
 
 export type TourSearchCard = {
 	productId: string
@@ -61,6 +63,7 @@ export type TourSearchCard = {
 	duration: string | null
 	durationMinutes: number | null
 	difficultyLevel: string | null
+	experienceFormat: ExperienceFormat | null
 	/** Materialized sellable unit price for the departure day (SUV.pricePerNight). */
 	fromPrice: number
 	currency: string
@@ -274,6 +277,7 @@ async function loadTourSearchSurfaceCards(params: {
 	}
 
 	if (levelCanonical) {
+		whereParts.push(or(isNull(Tour.experienceFormat), eq(Tour.experienceFormat, "guided_tour")))
 		const matchValues = tourDifficultyMatchValues(levelCanonical)
 		whereParts.push(
 			sql`lower(${Tour.difficultyLevel}) in (${sql.join(
@@ -309,6 +313,7 @@ async function loadTourSearchSurfaceCards(params: {
 			duration: Tour.duration,
 			durationMinutes: Tour.durationMinutes,
 			difficultyLevel: Tour.difficultyLevel,
+			experienceFormat: Tour.experienceFormat,
 			departureTime: TourSlotProfile.departureTime,
 			imageUrl: Image.url,
 		})
@@ -375,7 +380,11 @@ async function loadTourSearchSurfaceCards(params: {
 					duration: row.duration == null ? null : String(row.duration),
 					durationMinutes: row.durationMinutes == null ? null : Number(row.durationMinutes) || null,
 					difficultyLevel:
-						row.difficultyLevel == null ? null : tourDifficultyLabel(row.difficultyLevel),
+						!experiencePublicPresentation(row.experienceFormat).showTourDetails ||
+						row.difficultyLevel == null
+							? null
+							: tourDifficultyLabel(row.difficultyLevel),
+					experienceFormat: isExperienceFormat(row.experienceFormat) ? row.experienceFormat : null,
 					fromPrice: price,
 					currency,
 					variantId,

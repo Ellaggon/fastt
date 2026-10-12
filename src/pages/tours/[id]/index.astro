@@ -12,6 +12,10 @@ import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { publicCatalogProductEligibility } from "@/lib/marketplace/public-catalog-eligibility"
 import { withTourOfferSelection } from "@/lib/playbook/launch-tour"
 import {
+	experiencePublicPresentation,
+	experienceStructuredData,
+} from "@/lib/tours/experienceFormatPresentation"
+import {
 	loadTourCommercialContext,
 	tourContextEntryResponse,
 } from "@/lib/tours/loadTourCommercialContext"
@@ -364,6 +368,10 @@ try {
 }
 
 const productData = product ? { ...product, images, subtype, services, description } : null
+const experiencePresentation = experiencePublicPresentation(subtype?.experienceFormat)
+const difficultyLabel = experiencePresentation.showTourDetails
+	? tourDifficultyLabel(subtype?.difficultyLevel)
+	: null
 
 const descriptionWords =
 	String(description ?? "")
@@ -399,10 +407,18 @@ function finiteCoordinate(value: unknown) {
 }
 const meetingMapLatitude = finiteCoordinate(productData?.location?.lat)
 const meetingMapLongitude = finiteCoordinate(productData?.location?.lng)
-const pickupArea = fieldFromObject(productData?.subtype?.pickupJson, "defaultArea")
-const pickupInstructions = fieldFromObject(productData?.subtype?.pickupJson, "instructions")
-const guideLanguages = fieldFromObject(productData?.subtype?.guideJson, "languages")
-const guideType = fieldFromObject(productData?.subtype?.guideJson, "guideType")
+const pickupArea = experiencePresentation.showTourDetails
+	? fieldFromObject(productData?.subtype?.pickupJson, "defaultArea")
+	: ""
+const pickupInstructions = experiencePresentation.showTourDetails
+	? fieldFromObject(productData?.subtype?.pickupJson, "instructions")
+	: ""
+const guideLanguages = experiencePresentation.showTourDetails
+	? fieldFromObject(productData?.subtype?.guideJson, "languages")
+	: ""
+const guideType = experiencePresentation.showTourDetails
+	? fieldFromObject(productData?.subtype?.guideJson, "guideType")
+	: ""
 const safetyRequirements = fieldFromObject(productData?.subtype?.safetyJson, "requirements")
 const safetyWarnings = fieldFromObject(productData?.subtype?.safetyJson, "warnings")
 const beforeYouBook = [
@@ -550,7 +566,7 @@ const searchState = {
 
 const breadcrumbItems = [
 	{ name: "Home", href: "/" },
-	{ name: "Tours", href: "/tours" },
+	{ name: "Experiencias", href: "/tours" },
 	{
 		name: productData?.name || "/",
 		href: `/tours/${productId}`,
@@ -560,22 +576,20 @@ const breadcrumbItems = [
 ---
 
 <Layout
-	title={productData?.name || "Tour"}
+	title={productData?.name || "Experiencia"}
 	bodyClass="bg-white text-slate-950"
 	description={description ||
 		`Información de la experiencia ${productData?.name || "seleccionada"}.`}
 	canonicalPath={productData && !isProviderPreview
 		? `/tours/${encodeURIComponent(productId)}`
 		: undefined}
-	structuredData={productData && !isProviderPreview
-		? {
-				"@context": "https://schema.org",
-				"@type": "TouristTrip",
-				"name": productData.name,
-				"url": new URL(`/tours/${encodeURIComponent(productId)}`, Astro.url.origin).href,
-				"description": description || undefined,
-			}
-		: undefined}
+	structuredData={experienceStructuredData({
+		format: subtype?.experienceFormat,
+		name: productData?.name,
+		url: new URL(`/tours/${encodeURIComponent(productId)}`, Astro.url.origin).href,
+		description,
+		preview: isProviderPreview,
+	})}
 >
 	<main id="content" class="min-h-screen bg-white pb-24 text-slate-950 md:pb-16">
 		{
@@ -609,7 +623,7 @@ const breadcrumbItems = [
 										Mejora sugerida de la descripción
 									</p>
 									<p class="mt-1 text-sm leading-6 text-slate-400">
-										Añade detalles concretos del recorrido para ayudar al viajero a entender la
+										Añade detalles concretos de la actividad para ayudar al viajero a entender la
 										experiencia.
 									</p>
 								</div>
@@ -639,7 +653,7 @@ const breadcrumbItems = [
 							href="/tours"
 							class="rounded-[var(--fastt-radius-card)] border border-gray-500 px-6 py-3 transition hover:bg-gray-800 hover:text-white"
 						>
-							Volver a tours
+							Volver a experiencias
 						</a>
 					</div>
 				) : productData ? (
@@ -673,7 +687,7 @@ const breadcrumbItems = [
 								<div>
 									<p class="text-sm font-semibold text-orange-700">La experiencia</p>
 									<h2 class="mt-1 text-2xl font-semibold tracking-tight text-slate-950">
-										Lo esencial, antes de elegir una salida
+										Lo esencial, antes de elegir fecha y horario
 									</h2>
 								</div>
 								<div class="flex flex-wrap gap-2">
@@ -685,8 +699,13 @@ const breadcrumbItems = [
 								</div>
 							</div>
 
-							{categories.length > 0 ? (
-								<ul class="mt-5 flex flex-wrap gap-2" aria-label="Tipos de actividad">
+							{categories.length > 0 || experiencePresentation.formatLabel ? (
+								<ul class="mt-5 flex flex-wrap gap-2" aria-label="Formato y temáticas">
+									{experiencePresentation.formatLabel && (
+										<li class="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">
+											{experiencePresentation.formatLabel}
+										</li>
+									)}
 									{categories.map((category) => (
 										<li class="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">
 											{category}
@@ -701,10 +720,7 @@ const breadcrumbItems = [
 								</p>
 							) : null}
 
-							{(durationLabel ||
-								productData.subtype?.difficultyLevel ||
-								guideLanguages ||
-								guideType) && (
+							{(durationLabel || difficultyLabel || guideLanguages || guideType) && (
 								<dl class="mt-7 grid gap-x-8 gap-y-5 border-y border-slate-200 py-6 sm:grid-cols-2 lg:grid-cols-4">
 									{durationLabel ? (
 										<div class="flex gap-3">
@@ -717,16 +733,14 @@ const breadcrumbItems = [
 											</div>
 										</div>
 									) : null}
-									{productData.subtype?.difficultyLevel ? (
+									{difficultyLabel ? (
 										<div class="flex gap-3">
 											<Gauge class="mt-0.5 size-5 shrink-0 text-slate-500" aria-hidden="true" />
 											<div>
 												<dt class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
 													Nivel
 												</dt>
-												<dd class="mt-1 text-sm font-semibold text-slate-950">
-													{tourDifficultyLabel(productData.subtype.difficultyLevel)}
-												</dd>
+												<dd class="mt-1 text-sm font-semibold text-slate-950">{difficultyLabel}</dd>
 											</div>
 										</div>
 									) : null}
@@ -766,7 +780,7 @@ const breadcrumbItems = [
 										<p class="text-sm text-slate-500">Experiencia operada por</p>
 										<p class="font-semibold text-slate-950">{productData.operator.name}</p>
 										<p class="mt-1 text-sm leading-6 text-slate-600">
-											Gestiona la salida, el encuentro y las indicaciones operativas del recorrido.
+											Gestiona la actividad y sus indicaciones.
 										</p>
 									</div>
 								</div>
@@ -793,7 +807,7 @@ const breadcrumbItems = [
 										<div class="flex items-center gap-3">
 											<MapPin class="size-5 text-orange-700" aria-hidden="true" />
 											<h2 class="text-2xl font-semibold tracking-tight text-slate-950">
-												Encuentro y recogida
+												{experiencePresentation.locationLabel}
 											</h2>
 										</div>
 										<div
@@ -812,7 +826,11 @@ const breadcrumbItems = [
 															aria-hidden="true"
 														/>
 														<div>
-															<p class="font-semibold text-slate-950">Punto de encuentro</p>
+															<p class="font-semibold text-slate-950">
+																{experiencePresentation.showTourDetails
+																	? "Punto de encuentro"
+																	: "Lugar"}
+															</p>
 															{meetingAddress ? <p class="mt-1">{meetingAddress}</p> : null}
 															{meetingInstructions ? (
 																<p class="mt-1 text-slate-600">{meetingInstructions}</p>
@@ -848,7 +866,7 @@ const breadcrumbItems = [
 										<div class="flex items-center gap-3">
 											<Route class="size-5 text-orange-700" aria-hidden="true" />
 											<h2 class="text-2xl font-semibold tracking-tight text-slate-950">
-												Itinerario
+												{experiencePresentation.programLabel}
 											</h2>
 										</div>
 										<ol class="mt-6 space-y-0">

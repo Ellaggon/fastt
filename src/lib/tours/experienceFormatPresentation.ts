@@ -1,4 +1,4 @@
-import type { ExperienceFormat } from "@/shared/domain/experience-format"
+import { isExperienceFormat, type ExperienceFormat } from "@/shared/domain/experience-format"
 
 type ExperienceFormatPresentation = {
 	label: string
@@ -60,5 +60,33 @@ export function experienceJourneyPresentation(format: unknown) {
 						: format === "tasting"
 							? "Presentación y degustación de productos"
 							: "Describe qué harán los participantes",
+	}
+}
+
+/** Historical data stays readable without assigning it a declared format. */
+export function experiencePublicPresentation(format: unknown) {
+	return {
+		formatLabel: isExperienceFormat(format) ? getExperienceFormatPresentation(format).label : null,
+		programLabel: experienceJourneyPresentation(format).programLabel,
+		locationLabel: format === "guided_tour" ? "Encuentro y recogida" : "Lugar e indicaciones",
+		showTourDetails: format == null || format === "guided_tour",
+	}
+}
+
+/** Only a declared guided tour can describe itself as a TouristTrip. */
+export function experienceStructuredData(input: {
+	format: unknown
+	name: string | null | undefined
+	url: string
+	description?: string | null
+	preview: boolean
+}) {
+	if (input.preview || input.format !== "guided_tour" || !input.name?.trim()) return undefined
+	return {
+		"@context": "https://schema.org",
+		"@type": "TouristTrip",
+		"name": input.name,
+		"url": input.url,
+		"description": input.description || undefined,
 	}
 }

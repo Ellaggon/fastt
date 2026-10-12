@@ -31,14 +31,16 @@ describe("tour PDP browser surface (trust + ticket→price→hold)", () => {
 		// Trust signal in hero, then booking rail, then meeting/itinerary copy.
 		expect(pdp.indexOf("reseñas publicadas")).toBeLessThan(pdp.indexOf("<TourDepartureSection"))
 		expect(pdp.indexOf("<TourDepartureSection")).toBeLessThan(pdp.indexOf("Punto de encuentro"))
-		expect(pdp.indexOf("Punto de encuentro")).toBeLessThan(pdp.indexOf("Itinerario"))
+		expect(pdp.indexOf("Punto de encuentro")).toBeLessThan(
+			pdp.indexOf("{experiencePresentation.programLabel}")
+		)
 		expect(pdp).toContain("avgRating")
 		expect(pdp).toContain("reviewCount")
 		expect(pdp).not.toContain("checkInTime")
 		expect(pdp).not.toContain("checkOutTime")
 
 		expect(departure).toContain("Reserva tu experiencia")
-		expect(departure).toContain("Elige fecha y salida")
+		expect(departure).toContain("Elige fecha y horario")
 		expect(departure).toContain("Fecha y grupo")
 		expect(departure).toContain("Revisa y reserva")
 		expect(departure).toContain("data-ticket-qty")
@@ -47,7 +49,7 @@ describe("tour PDP browser surface (trust + ticket→price→hold)", () => {
 		expect(departure).toContain("Reservar cupo")
 		expect(departure).toContain("Continuar a checkout")
 		expect(departure).toContain("/checkout/tours?")
-		expect(departure).toContain("Solicitar salida privada")
+		expect(departure).toContain("Solicitar experiencia privada")
 		expect(departure).toMatch(/La solicitud no confirma una reserva ni\s+retiene cupos/)
 		expect(departure.indexOf("Actualizar precio")).toBeLessThan(departure.indexOf("Reservar cupo"))
 		expect(departure.indexOf("Reservar cupo")).toBeLessThan(

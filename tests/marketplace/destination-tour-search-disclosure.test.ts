@@ -44,7 +44,7 @@ describe("destination tour search disclosure", () => {
 		expect(panel).toContain("tour-search-filters-control")
 		expect(panel).toContain('data-search-field="submit"')
 		expect(panel).toContain('compact\n\t\t\t? "w-full"')
-		expect(panel).toContain("Fecha de salida")
+		expect(panel).toContain("Fecha</label")
 		expect(panel).not.toContain("Fecha de salida (opcional)")
 		expect(panel).toContain('variant="secondary"')
 		expect(panel).toContain('aria-label="Filtros"')
@@ -52,7 +52,7 @@ describe("destination tour search disclosure", () => {
 		expect(panel).toContain('type="submit"')
 		expect(panel).toContain('variant="primary"')
 		expect(panel).toContain(">Buscar<")
-		expect(panel).toContain('aria-label="Buscar tours"')
+		expect(panel).toContain('aria-label="Buscar experiencias"')
 	})
 
 	it("summarizes destination, departure and optional filters without empty-state noise", () => {

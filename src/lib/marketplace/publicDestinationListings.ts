@@ -16,6 +16,7 @@ import {
 import { incrementCounter } from "@/lib/observability/metrics"
 import { type PublicMarketplaceVertical } from "@/lib/marketplace/publicDestinationRoutes"
 import { publicCatalogProductEligibility } from "@/lib/marketplace/public-catalog-eligibility"
+import { experiencePublicPresentation } from "@/lib/tours/experienceFormatPresentation"
 
 export type PublicDestination = {
 	slug: string
@@ -36,6 +37,7 @@ export type PublicDestinationListing = {
 	stars: number | null
 	duration: string | null
 	difficultyLevel: string | null
+	experienceFormat?: string | null
 }
 
 function productTypeFor(vertical: PublicMarketplaceVertical) {
@@ -132,6 +134,7 @@ const listingFields = {
 	stars: Hotel.stars,
 	duration: Tour.duration,
 	difficultyLevel: Tour.difficultyLevel,
+	experienceFormat: Tour.experienceFormat,
 }
 
 function uniqueListings(rows: PublicDestinationListing[], limit: number) {
@@ -139,7 +142,12 @@ function uniqueListings(rows: PublicDestinationListing[], limit: number) {
 	return rows.reduce<PublicDestinationListing[]>((result, row) => {
 		if (result.length >= limit || seen.has(row.id)) return result
 		seen.add(row.id)
-		result.push(row)
+		result.push({
+			...row,
+			difficultyLevel: experiencePublicPresentation(row.experienceFormat).showTourDetails
+				? row.difficultyLevel
+				: null,
+		})
 		return result
 	}, [])
 }

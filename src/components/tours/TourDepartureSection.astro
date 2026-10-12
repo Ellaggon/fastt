@@ -22,15 +22,17 @@ const isRail = layout === "rail"
 const alternativeNames = new Set(
 	(offers ?? []).map((offer: any) => {
 		const id = String(offer?.variantId ?? offer?.variant?.id ?? "")
-		return String(slotsByVariantId?.[id]?.name ?? offer?.variant?.name ?? "Opción del tour").trim()
+		return String(
+			slotsByVariantId?.[id]?.name ?? offer?.variant?.name ?? "Opción de la experiencia"
+		).trim()
 	})
 )
 const offerHeading =
 	offers.length === 1
-		? "Tu opción del tour"
+		? "Tu opción de la experiencia"
 		: alternativeNames.size === 1
 			? "Elige la hora de inicio"
-			: "Elige cómo disfrutar el tour"
+			: "Elige una opción"
 
 function ratePlanIdOf(ratePlan: any): string {
 	return String(ratePlan?.ratePlanId ?? ratePlan?.id ?? "").trim()
@@ -81,7 +83,7 @@ const initialGroupSummary = (() => {
 			Reserva tu experiencia
 		</span>
 		<h2 id="tourBookingHeading" class="mt-1 text-2xl font-semibold text-slate-950">
-			Elige fecha y salida
+			Elige fecha y horario
 		</h2>
 		<p class="mt-2 max-w-xl text-sm leading-6 text-slate-600">
 			Primero consulta disponibilidad. Después elige una opción y revisa sus condiciones antes de
@@ -111,7 +113,7 @@ const initialGroupSummary = (() => {
 			<div class="flex flex-col gap-1">
 				<label class="text-xs font-medium text-slate-600" for="tourDepartureDate">
 					<span class="inline-flex items-center gap-1"
-						><CalendarDays class="size-3.5" aria-hidden="true" /> Fecha de salida</span
+						><CalendarDays class="size-3.5" aria-hidden="true" /> Fecha</span
 					>
 				</label>
 				<Input
@@ -180,7 +182,7 @@ const initialGroupSummary = (() => {
 				class={isRail ? "w-full" : "self-end"}
 				disabled={previewMode}
 			>
-				Ver salidas
+				Ver disponibilidad
 			</Button>
 		</div>
 	</Card>
@@ -190,8 +192,8 @@ const initialGroupSummary = (() => {
 			<Card variant="plain" class="border border-dashed border-slate-300 p-4" data-offer-panel>
 				<p class="text-sm font-medium text-slate-800">
 					{hasSearchedDeparture
-						? "No hay salidas con cupo para esta fecha y grupo."
-						: "Elige fecha y grupo para consultar las salidas disponibles."}
+						? "No hay opciones con cupo para esta fecha y grupo."
+						: "Elige fecha y grupo para consultar las opciones disponibles."}
 				</p>
 				<p class="mt-1 text-sm leading-6 text-slate-600">
 					{hasSearchedDeparture
@@ -235,7 +237,7 @@ const initialGroupSummary = (() => {
 					{(offers ?? []).map((offer: any) => {
 						const variantId = String(offer?.variantId ?? offer?.variant?.id ?? "")
 						const slot = slotsByVariantId?.[variantId] ?? {}
-						const name = String(slot.name ?? offer?.variant?.name ?? "Opción del tour")
+						const name = String(slot.name ?? offer?.variant?.name ?? "Opción de la experiencia")
 						const time = String(slot.departureTime ?? "—")
 						const lang =
 							TOUR_SLOT_LANGUAGE_OPTIONS.find((language) => language.code === slot.languageCode)
@@ -283,7 +285,7 @@ const initialGroupSummary = (() => {
 									) : isPrivate ? (
 										<p class="text-right text-sm font-semibold text-slate-950">
 											Por solicitud
-											<span class="block font-normal text-slate-500">salida privada</span>
+											<span class="block font-normal text-slate-500">experiencia privada</span>
 										</p>
 									) : null}
 								</div>
@@ -295,7 +297,7 @@ const initialGroupSummary = (() => {
 											data-quote-private-variant={variantId}
 											disabled={previewMode || !hasSearchedDeparture}
 										>
-											Solicitar salida privada
+											Solicitar experiencia privada
 										</button>
 									) : (
 										ratePlans.map((rp: any) => {
@@ -410,7 +412,7 @@ const initialGroupSummary = (() => {
 				id="tourPrivateQuote"
 				class="fastt-soft-box hidden rounded-[var(--fastt-radius-card)] border border-sky-200 bg-sky-50/60 p-4"
 			>
-				<p class="text-sm font-semibold text-slate-950">Solicitar salida privada</p>
+				<p class="text-sm font-semibold text-slate-950">Solicitar experiencia privada</p>
 				<p class="mt-1 text-xs leading-5 text-slate-600">
 					Envía tu fecha, grupo y contacto al proveedor. La solicitud no confirma una reserva ni
 					retiene cupos.
@@ -499,7 +501,7 @@ const initialGroupSummary = (() => {
 				<div class="min-w-0 flex-1">
 					<p class="text-xs text-slate-500">Reserva esta experiencia</p>
 					<p data-mobile-booking-status class="truncate text-sm font-semibold text-slate-950">
-						Elige fecha y salida
+						Elige fecha y horario
 					</p>
 				</div>
 				<button
@@ -508,7 +510,7 @@ const initialGroupSummary = (() => {
 					data-mobile-booking-cta
 					aria-controls="booking"
 				>
-					Ver salidas
+					Ver disponibilidad
 				</button>
 			</div>
 		</div>
@@ -563,7 +565,7 @@ const initialGroupSummary = (() => {
 		) as HTMLButtonElement | null
 		const privateCancel = document.getElementById("tourPrivateCancelBtn")
 
-		function setMobileStatus(message: string, action = "Ver salidas") {
+		function setMobileStatus(message: string, action = "Ver disponibilidad") {
 			if (mobileStatus) mobileStatus.textContent = message
 			if (mobileBookingCta) mobileBookingCta.textContent = action
 		}
@@ -623,7 +625,7 @@ const initialGroupSummary = (() => {
 		}
 
 		function invalidateSelection(
-			message = "Hay cambios sin consultar. Actualiza las salidas para continuar."
+			message = "Hay cambios sin consultar. Actualiza la disponibilidad para continuar."
 		) {
 			selectedVariantId = ""
 			selectedRatePlanId = ""
@@ -639,7 +641,7 @@ const initialGroupSummary = (() => {
 			root.dataset.selectionState = "stale"
 			setOfferActionsDisabled(true)
 			if (resultsState) resultsState.textContent = "Hay cambios sin consultar."
-			setMobileStatus("Actualiza fecha o grupo", "Ver salidas")
+			setMobileStatus("Actualiza fecha o grupo", "Ver disponibilidad")
 			root
 				.querySelectorAll<HTMLButtonElement>("[data-select-rateplan-id]")
 				.forEach((button) => button.setAttribute("aria-pressed", "false"))
@@ -653,8 +655,8 @@ const initialGroupSummary = (() => {
 		function showPrivateQuote(variantId: string) {
 			if (!departureDate()) {
 				if (statusEl)
-					statusEl.textContent = "Elige una fecha antes de solicitar una salida privada."
-				setMobileStatus("Elige una fecha", "Ver salidas")
+					statusEl.textContent = "Elige una fecha antes de solicitar una experiencia privada."
+				setMobileStatus("Elige una fecha", "Ver disponibilidad")
 				return
 			}
 			privateVariantId = variantId
@@ -678,7 +680,7 @@ const initialGroupSummary = (() => {
 			privateQuote?.classList.add("hidden")
 			sharedCheckout?.classList.remove("hidden")
 			setSelectionPanelState("ready")
-			setMobileStatus("Elige fecha y salida", "Ver salidas")
+			setMobileStatus("Elige fecha y horario", "Ver disponibilidad")
 		}
 
 		function readQuantities() {
@@ -760,14 +762,14 @@ const initialGroupSummary = (() => {
 				return
 			}
 			if (!productId || !date) {
-				if (statusEl) statusEl.textContent = "Elige una fecha de salida."
+				if (statusEl) statusEl.textContent = "Elige una fecha."
 				return
 			}
 			root.dataset.selectionState = "loading"
 			setSelectionPanelState("loading")
 			root.setAttribute("aria-busy", "true")
-			if (statusEl) statusEl.textContent = "Consultando salidas y precios para este grupo..."
-			setMobileStatus("Consultando salidas...", "Ver salidas")
+			if (statusEl) statusEl.textContent = "Consultando disponibilidad y precios para este grupo..."
+			setMobileStatus("Consultando disponibilidad...", "Ver disponibilidad")
 			if (searchBtn instanceof HTMLButtonElement) {
 				searchBtn.disabled = true
 				searchBtn.textContent = "Consultando..."
@@ -824,7 +826,7 @@ const initialGroupSummary = (() => {
 						)
 						if (selectionConfirmation) {
 							selectionConfirmation.textContent = [
-								btn.dataset.optionLabel || "Opción del tour",
+								btn.dataset.optionLabel || "Opción de la experiencia",
 								departureDate(),
 								btn.dataset.optionTime,
 								btn.dataset.optionLanguage,
@@ -902,7 +904,7 @@ const initialGroupSummary = (() => {
 		}
 		updateGroupSummary()
 		if (departureDate() && !selectedVariantId)
-			setMobileStatus("Elige cómo disfrutar el tour", "Ver salidas")
+			setMobileStatus("Elige una opción", "Ver disponibilidad")
 		mobileBookingCta?.addEventListener("click", (event) => {
 			root.scrollIntoView({ behavior: reducedMotion() ? "auto" : "smooth", block: "start" })
 			// A touch user keeps their current focus context. Keyboard activation moves focus to the date.
@@ -937,7 +939,7 @@ const initialGroupSummary = (() => {
 		root.querySelectorAll<HTMLInputElement>("[data-ticket-qty]").forEach((input) =>
 			input.addEventListener("input", () => {
 				updateGroupSummary()
-				invalidateSelection("El grupo cambió. Actualiza las salidas para continuar.")
+				invalidateSelection("El grupo cambió. Actualiza la disponibilidad para continuar.")
 			})
 		)
 
@@ -993,7 +995,7 @@ const initialGroupSummary = (() => {
 					if (privateStatus) {
 						privateStatus.textContent =
 							payload?.error === "not_private"
-								? "Esta salida ya no es privada."
+								? "Esta opción ya no es privada."
 								: "No se pudo enviar la solicitud."
 					}
 					return
@@ -1012,7 +1014,7 @@ const initialGroupSummary = (() => {
 		reserveBtn?.addEventListener("click", async () => {
 			const from = departureDate()
 			if (!selectedVariantId || !selectedRatePlanId || !from) {
-				if (statusEl) statusEl.textContent = "Selecciona salida, tarifa y fecha."
+				if (statusEl) statusEl.textContent = "Selecciona opción, tarifa y fecha."
 				return
 			}
 			const { occupancyDetail, rooms } = toOccupancy(readQuantities())
@@ -1044,11 +1046,11 @@ const initialGroupSummary = (() => {
 					if (statusEl) {
 						statusEl.textContent =
 							payload?.error === "tours_checkout_disabled"
-								? "La reserva de tours no está disponible ahora (rollout). Intenta más tarde."
+								? "Las reservas no están disponibles ahora. Intenta más tarde."
 								: payload?.error === "private_on_request"
-									? "Salida privada: envía una solicitud; no retiene cupos."
+									? "Experiencia privada: envía una solicitud; no retiene cupos."
 									: payload?.error === "not_available" || payload?.error === "not_holdable"
-										? "No hay cupo suficiente para esa salida."
+										? "No hay cupo suficiente para esa fecha y horario."
 										: "No se pudo crear el hold."
 					}
 					if (payload?.error === "tours_checkout_disabled" && reserveBtn) {

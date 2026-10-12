@@ -9,7 +9,7 @@ describe("tour search surface (P1 discovery)", () => {
 	})
 
 	it("exposes vertical card vocabulary for tours vs hotels", () => {
-		expect(getVerticalVocabulary("tour").card.viewCta).toBe("Ver tour")
+		expect(getVerticalVocabulary("tour").card.viewCta).toBe("Ver experiencia")
 		expect(getVerticalVocabulary("tour").card.priceUnitLabel).toMatch(/participante/i)
 		expect(getVerticalVocabulary("hotel").card.viewCta).toBe("Ver hotel")
 		expect(getVerticalVocabulary("hotel").card.priceUnitLabel).toMatch(/noche/i)

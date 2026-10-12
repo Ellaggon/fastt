@@ -40,7 +40,7 @@ const extras = quote?.taxesAndFees?.total ?? 0
 					Completa tu reserva
 				</h1>
 				<p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-					Revisarás la selección retenida, tus datos necesarios para esta salida y el total antes de
+					Revisarás la selección retenida, tus datos necesarios para tu reserva y el total antes de
 					confirmar.
 				</p>
 
@@ -51,8 +51,8 @@ const extras = quote?.taxesAndFees?.total ?? 0
 								Esta selección ya no está disponible
 							</h2>
 							<p class="mt-2 text-sm text-slate-700">
-								No encontramos la cotización que intentabas revisar. Vuelve a elegir una salida para
-								consultar el precio vigente.
+								No encontramos la cotización que intentabas revisar. Vuelve a consultar
+								disponibilidad para consultar el precio vigente.
 							</p>
 							<Button href={productSelectionPath} class="mt-5">
 								Buscar disponibilidad
@@ -72,7 +72,7 @@ const extras = quote?.taxesAndFees?.total ?? 0
 					) : checkout.payment.status !== "provider_at_experience" ? (
 						<Card class="mt-6 border-amber-200 bg-amber-50 p-6">
 							<h2 class="text-lg font-semibold text-slate-950">
-								Esta salida no tiene una modalidad de pago disponible
+								Esta reserva no tiene una modalidad de pago disponible
 							</h2>
 							<p class="mt-2 text-sm text-slate-700">{checkout.payment.detail}</p>
 							<Button href={productSelectionPath} class="mt-5">
@@ -109,7 +109,7 @@ const extras = quote?.taxesAndFees?.total ?? 0
 
 							{checkout.questions.length ? (
 								<Card class="p-5">
-									<h2 class="text-lg font-semibold text-slate-950">Datos para esta salida</h2>
+									<h2 class="text-lg font-semibold text-slate-950">Datos para tu reserva</h2>
 									<p class="mt-1 text-sm text-slate-600">
 										El proveedor solicita estos datos para preparar tu experiencia.
 									</p>
@@ -321,7 +321,7 @@ const extras = quote?.taxesAndFees?.total ?? 0
 				else if (payload?.error === "missing_required_answers")
 					showError("Completa los datos obligatorios marcados para confirmar.")
 				else if (payload?.error === "PAYMENT_METHOD_UNAVAILABLE")
-					showError("Esta salida no tiene una modalidad de pago que Fastt pueda confirmar.")
+					showError("Esta reserva no tiene una modalidad de pago que Fastt pueda confirmar.")
 				else
 					showError(
 						"No pudimos confirmar la reserva. Revisa el estado antes de intentarlo nuevamente."

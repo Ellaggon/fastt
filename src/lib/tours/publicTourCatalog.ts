@@ -17,6 +17,8 @@ import { resolvePublicDestination } from "@/lib/marketplace/publicDestinationLis
 import { publicTourCategories } from "@/lib/tours/tourDiscoveryFilters"
 import { normalizeTourDifficulty, tourDifficultyLabel } from "@/lib/tours/tourDifficulty"
 import { durationMinutesMatchesBucket, parseDurationMinutes } from "@/lib/tours/tourSemantics"
+import { experiencePublicPresentation } from "@/lib/tours/experienceFormatPresentation"
+import { isExperienceFormat, type ExperienceFormat } from "@/shared/domain/experience-format"
 
 export type PublicTourCatalogCard = {
 	productId: string
@@ -26,6 +28,7 @@ export type PublicTourCatalogCard = {
 	destinationName: string | null
 	duration: string | null
 	difficultyLevel: string | null
+	experienceFormat: ExperienceFormat | null
 	avgRating: number | null
 	reviewCount: number
 }
@@ -64,6 +67,7 @@ const cardFields = {
 	)`.as("destinationName"),
 	duration: Tour.duration,
 	difficultyLevel: Tour.difficultyLevel,
+	experienceFormat: Tour.experienceFormat,
 	avgRating: sql<number | null>`(
 		SELECT ROUND(AVG(review."rating")::numeric, 1)::float
 		FROM "ProductReview" review
@@ -181,7 +185,12 @@ export async function getPublicTourCatalog(
 			.filter((card) =>
 				durationMinutesMatchesBucket(parseDurationMinutes(card.duration), params.durationBucket)
 			)
-			.filter((card) => !level || normalizeTourDifficulty(card.difficultyLevel) === level)
+			.filter(
+				(card) =>
+					!level ||
+					(experiencePublicPresentation(card.experienceFormat).showTourDetails &&
+						normalizeTourDifficulty(card.difficultyLevel) === level)
+			)
 			.sort((a, b) => {
 				if (sort === "duration_asc") {
 					return (
@@ -197,9 +206,12 @@ export async function getPublicTourCatalog(
 			.slice(0, limit)
 			.map((card) => ({
 				...card,
+				experienceFormat: isExperienceFormat(card.experienceFormat) ? card.experienceFormat : null,
 				avgRating: card.avgRating == null ? null : Number(card.avgRating),
 				reviewCount: Number(card.reviewCount ?? 0),
-				difficultyLevel: tourDifficultyLabel(card.difficultyLevel) || null,
+				difficultyLevel: experiencePublicPresentation(card.experienceFormat).showTourDetails
+					? tourDifficultyLabel(card.difficultyLevel) || null
+					: null,
 			}))
 
 		const publicCategories = publicTourCategories(rawCategories)

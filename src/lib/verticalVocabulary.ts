@@ -133,7 +133,7 @@ const VOCABULARY: Record<ProviderVertical, VerticalVocabulary> = {
 			financeGrossSourceLabel: "Líneas de reserva consolidadas",
 		},
 		card: {
-			viewCta: "Ver tour",
+			viewCta: "Ver experiencia",
 			priceUnitLabel: "Desde (por participante)",
 		},
 	},
