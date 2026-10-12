@@ -66,5 +66,11 @@ export function evaluateExperienceProgram(input: {
 		includes: experienceHasInclusions(input.includes),
 		program: momentCount >= minimum,
 	}
-	return { checks, momentCount, minimum, complete: Object.values(checks).every(Boolean) }
+	return {
+		checks,
+		momentCount,
+		minimum,
+		programComplete: checks.duration && checks.includes && checks.program,
+		complete: Object.values(checks).every(Boolean),
+	}
 }
