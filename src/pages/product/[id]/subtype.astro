@@ -1,6 +1,7 @@
 ---
 import { experienceJourneyPresentation } from "@/lib/tours/experienceFormatPresentation"
 import { experienceProgramMinimum } from "@/shared/domain/experience-format"
+import PlaybookFormContextHiddenInputs from "@/components/playbook/PlaybookFormContextHiddenInputs.astro"
 import PlaybookStepHeader from "@/components/playbook/PlaybookStepHeader.astro"
 import TourSubtypePlaybookFields from "@/components/tours/TourSubtypePlaybookFields.astro"
 import Button from "@/components/ui/Button.astro"
@@ -191,11 +192,7 @@ if (isTour) subtypeHeading = journey.logisticsLabel
 						novalidate
 					>
 						<Input type="hidden" name="productId" value={productId} />
-						{["variantId", "ratePlanId", "returnTo", "tourFlowVersion"].map((name) =>
-							Astro.url.searchParams.has(name) ? (
-								<Input type="hidden" name={name} value={Astro.url.searchParams.get(name) ?? ""} />
-							) : null
-						)}
+						<PlaybookFormContextHiddenInputs />
 						<Input
 							type="hidden"
 							name="flow"
@@ -239,11 +236,7 @@ if (isTour) subtypeHeading = journey.logisticsLabel
 							novalidate={pt === "tour"}
 						>
 							<Input type="hidden" name="productId" value={productId} />
-							{["variantId", "ratePlanId", "returnTo", "tourFlowVersion"].map((name) =>
-								Astro.url.searchParams.has(name) ? (
-									<Input type="hidden" name={name} value={Astro.url.searchParams.get(name) ?? ""} />
-								) : null
-							)}
+							<PlaybookFormContextHiddenInputs />
 							<Input
 								type="hidden"
 								name="flow"
