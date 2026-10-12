@@ -19,6 +19,7 @@ import {
 } from "@/shared/infrastructure/db/compat"
 import { ExperienceFormatRepository } from "@/modules/catalog/infrastructure/repositories/ExperienceFormatRepository"
 import { CatalogReadModelRepository } from "@/modules/catalog/infrastructure/repositories/CatalogReadModelRepository"
+import { evaluateTourContentReadiness } from "@/lib/tours/tourContentReadiness"
 
 const ids = Array.from({ length: 8 }, () => crypto.randomUUID())
 const [
@@ -189,6 +190,49 @@ it("rejects unknown formats and legacy contract downgrades in PostgreSQL", async
 			.set({ experienceFormat: null, formatContractVersion: 0 })
 			.where(eq(Tour.productId, productId))
 	).rejects.toThrow()
+})
+
+it("declares through HTTP, retries once and reevaluates persisted content without touching bookings", async () => {
+	session = { providerId, userId, permissions: { canEditProfile: true } }
+	const before = await protectedRows()
+	const auditBefore = await db
+		.select()
+		.from(ProviderAuditLog)
+		.where(eq(ProviderAuditLog.entityId, productId))
+	const call = (experienceFormat: string) =>
+		POST({
+			request: new Request("https://fastt.test/api/product/experience-format", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ productId, experienceFormat }),
+			}),
+		} as Parameters<typeof POST>[0])
+	const read = () => new CatalogReadModelRepository().getProductFullAggregate(productId, providerId)
+	expect((await call("guided_tour")).status).toBe(200)
+	const guided = await read()
+	expect(evaluateTourContentReadiness(guided!, null).program).toMatchObject({
+		minimum: 3,
+		checks: { program: false },
+	})
+	expect((await call("class")).status).toBe(200)
+	expect((await call("class")).status).toBe(200)
+	const current = await read()
+	expect(current?.subtype).toMatchObject({ experienceFormat: "class", formatContractVersion: 1 })
+	expect(evaluateTourContentReadiness(current!, null).program).toMatchObject({
+		minimum: 1,
+		checks: { program: true },
+	})
+	expect(await protectedRows()).toEqual(before)
+	const audits = await db
+		.select()
+		.from(ProviderAuditLog)
+		.where(eq(ProviderAuditLog.entityId, productId))
+	expect(audits).toHaveLength(auditBefore.length + 2)
+	expect(
+		audits.filter(
+			(row) => (row.afterJson as { experienceFormat?: string })?.experienceFormat === "guided_tour"
+		)
+	).toHaveLength(1)
 })
 
 it("rejects unauthenticated, unauthorized and foreign-product direct requests", async () => {

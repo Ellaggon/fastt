@@ -31,7 +31,7 @@ export const POST: APIRoute = async ({ request }) => {
 			actorUserId: session.userId,
 		})
 		try {
-			await invalidateProduct(parsed.data.productId)
+			await invalidateProduct(parsed.data.productId, { refreshOperationalSurface: false })
 			await refreshProductOperationalSurfaceAfterMutation({
 				productId: parsed.data.productId,
 				providerId: session.providerId,
