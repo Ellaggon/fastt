@@ -105,7 +105,7 @@ describe("booking workspace context", () => {
 		state.lines = ["lodging", "tour"]
 		const tourHtml = await (await render("scope=tour&productId=tour-1")).text()
 		expect(tourHtml).toContain("Experiencia · Tour de prueba")
-		expect(tourHtml).toContain("Salidas de hoy")
+		expect(tourHtml).toContain("Actividades de hoy")
 
 		const allHtml = (await (await render("scope=all")).text())
 			.replaceAll("&#38;", "&")
@@ -122,7 +122,7 @@ describe("booking workspace context", () => {
 
 		expect(response.status).toBe(200)
 		expect(html).toContain("Alojamiento · Alojamiento de prueba")
-		expect(html).not.toContain("Salidas de hoy")
+		expect(html).not.toContain("Actividades de hoy")
 		expect(html).not.toContain("Solicitudes privadas")
 	})
 

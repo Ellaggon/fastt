@@ -86,7 +86,7 @@ async function render() {
 }
 it("shows one resumption and operational totals independent of drafts or the four-row preview", async () => {
 	const html = await render()
-	expect(html).toContain("3 tours · 1 publicados · 2 borradores")
+	expect(html).toContain("3 experiencias · 1 publicada · 2 borradores")
 	expect(html.match(/data-tour-resume/g)).toHaveLength(1)
 	expect(html).not.toContain("data-dashboard-product-card")
 	expect(html).toContain("Ana")
@@ -106,13 +106,13 @@ it("does not invent a last tour when there is no saved session", async () => {
 	const html = await render()
 	expect(html).not.toContain("data-tour-resume")
 	expect(mocks.preparation).not.toHaveBeenCalled()
-	expect(html).toContain("Ver mis tours")
+	expect(html).toContain("Ver mis experiencias")
 })
 it("offers creation for an empty business", async () => {
 	mocks.counts.mockResolvedValue({ total: 0, published: 0, draft: 0 })
 	mocks.sessions.mockResolvedValue([])
 	const html = await render()
-	expect(html).toContain("Crea tu primer tour")
+	expect(html).toContain("Crea tu primera experiencia")
 	expect(html).not.toContain("Reservas confirmadas para hoy")
 })
 it("keeps failed operational queries visibly unknown", async () => {
