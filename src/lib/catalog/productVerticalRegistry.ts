@@ -295,7 +295,7 @@ export const productVerticalRegistry = {
 			},
 			{
 				key: "categories",
-				label: "Categorías de búsqueda",
+				label: "Actividad principal",
 				description: "Clasificación pública usada para descubrir la experiencia.",
 				required: true,
 				owner: "catalog",

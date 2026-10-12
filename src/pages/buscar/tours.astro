@@ -78,6 +78,7 @@ if (effectiveStartDate && !invalidPriceRange && !missingPriceCurrency) {
 			startDate: effectiveStartDate,
 			geoPlaceId: destination?.id ?? null,
 			categorySlugs,
+			experienceFormat: params.get("format"),
 			durationBucket,
 			level,
 			priceMin: priceMin.value,
@@ -101,6 +102,7 @@ const catalog =
 		? await getPublicTourCatalog({
 				destinationPath: canonicalPath,
 				categorySlugs,
+				experienceFormat: params.get("format"),
 				durationBucket,
 				level,
 				sort,
@@ -111,7 +113,16 @@ const catalog =
 const levelLabel = level ? tourDifficultyLabel(level) || level : null
 const durationLabel = tourDurationBucketLabel(durationBucket)
 const clearParams = new URLSearchParams(params)
-for (const key of ["category", "duration", "level", "priceMin", "priceMax", "currency", "sort"])
+for (const key of [
+	"format",
+	"category",
+	"duration",
+	"level",
+	"priceMin",
+	"priceMax",
+	"currency",
+	"sort",
+])
 	clearParams.delete(key)
 const clearFiltersHref = publicSearchHref("tours", clearParams, canonicalPath ?? undefined)
 const destinationHref = canonicalPath ? publicDestinationHref(canonicalPath, "tours") : "/tours"
@@ -277,6 +288,7 @@ const currencies = new Set(tours.map((tour) => tour.currency))
 								currency={tour.currency}
 								metaLine={[
 									experiencePublicPresentation(tour.experienceFormat).formatLabel,
+									tour.primaryActivityName,
 									tour.departureTime ? `Inicio ${tour.departureTime}` : null,
 									`${tour.availableSlots} horario${tour.availableSlots === 1 ? "" : "s"} disponible${tour.availableSlots === 1 ? "" : "s"}`,
 								]

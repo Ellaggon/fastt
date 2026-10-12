@@ -1,3 +1,4 @@
+import { experienceCategoryFilter, experienceDurationFilter } from "./experienceClassificationSql"
 /**
  * Tour marketplace discovery read model.
  * One batched SearchUnitView query → min available price, rating, applicable salida.
@@ -12,11 +13,7 @@ import {
 	tourDifficultyLabel,
 	tourDifficultyMatchValues,
 } from "@/lib/tours/tourDifficulty"
-import {
-	durationMinutesMatchesBucket,
-	normalizeTourDurationBucket,
-	tourDepartureToStay,
-} from "@/lib/tours/tourSemantics"
+import { durationMinutesMatchesBucket, tourDepartureToStay } from "@/lib/tours/tourSemantics"
 import {
 	filterTourSearchCardsForCanary,
 	recordTourSearch,
@@ -40,8 +37,6 @@ import {
 	Product,
 	Provider,
 	ProductGeoPlace,
-	ProductCategory,
-	ProductCategoryLink,
 	ProductContent,
 	ProductReview,
 	sql,
@@ -64,6 +59,7 @@ export type TourSearchCard = {
 	durationMinutes: number | null
 	difficultyLevel: string | null
 	experienceFormat: ExperienceFormat | null
+	primaryActivityName?: string | null
 	/** Materialized sellable unit price for the departure day (SUV.pricePerNight). */
 	fromPrice: number
 	currency: string
@@ -120,17 +116,6 @@ function isSellableRow(row: {
 	)
 }
 
-function durationBucketSql(bucket: string | null | undefined) {
-	const b = normalizeTourDurationBucket(bucket)
-	if (!b) return null
-	const minutes = Tour.durationMinutes
-	if (b === "up_to_4h") return and(sql`${minutes} is not null`, lt(minutes, 4 * 60 + 1))
-	if (b === "four_to_eight_hours") return and(gte(minutes, 4 * 60 + 1), lt(minutes, 8 * 60))
-	if (b === "full_day") return and(gte(minutes, 8 * 60), lt(minutes, 24 * 60))
-	if (b === "multi_day") return gte(minutes, 24 * 60)
-	return null
-}
-
 /**
  * Discovery occupancy: 1 adult — “precio desde” comparable across products.
  * SUV rows are keyed by occupancy; use buildOccupancyKey(TOUR_DISCOVERY_OCCUPANCY)
@@ -142,6 +127,7 @@ export async function getTourSearchSurface(params: {
 	startDate: string
 	geoPlaceId?: string | null
 	categorySlugs?: string[]
+	experienceFormat?: string | null
 	durationBucket?: string | null
 	level?: string | null
 	priceMin?: number | null
@@ -209,6 +195,7 @@ async function loadTourSearchSurfaceCards(params: {
 	departureDate: string
 	geoPlaceId?: string | null
 	categorySlugs?: string[]
+	experienceFormat?: string | null
 	durationBucket?: string | null
 	level?: string | null
 	priceMin?: number | null
@@ -233,17 +220,9 @@ async function loadTourSearchSurfaceCards(params: {
 	let categoryProductIds: string[] | null = null
 	if (categorySlugs.length > 0) {
 		const linked = await db
-			.select({ productId: ProductCategoryLink.productId })
-			.from(ProductCategoryLink)
-			.innerJoin(ProductCategory, eq(ProductCategory.id, ProductCategoryLink.categoryId))
-			.where(
-				and(
-					eq(ProductCategory.vertical, "tour"),
-					eq(ProductCategory.isActive, true),
-					eq(ProductCategory.dataClass, "production"),
-					inArray(ProductCategory.slug, categorySlugs)
-				)
-			)
+			.select({ productId: Product.id })
+			.from(Product)
+			.where(experienceCategoryFilter(sql`${Product.id}`, categorySlugs))
 		categoryProductIds = [...new Set(linked.map((row) => String(row.productId)))]
 		if (categoryProductIds.length === 0) {
 			return empty("empty")
@@ -268,6 +247,7 @@ async function loadTourSearchSurfaceCards(params: {
 		or(isNull(SearchUnitView.primaryBlocker), eq(SearchUnitView.primaryBlocker, "")),
 	]
 
+	if (params.experienceFormat) whereParts.push(eq(Tour.experienceFormat, params.experienceFormat))
 	if (params.geoPlaceId) {
 		whereParts.push(eq(ProductGeoPlace.placeId, params.geoPlaceId))
 	}
@@ -287,7 +267,10 @@ async function loadTourSearchSurfaceCards(params: {
 		)
 	}
 
-	const durationClause = durationBucketSql(params.durationBucket)
+	const durationClause = experienceDurationFilter(
+		sql`${Tour.durationMinutes}`,
+		params.durationBucket
+	)
 	if (durationClause) {
 		whereParts.push(durationClause)
 	}
@@ -314,6 +297,9 @@ async function loadTourSearchSurfaceCards(params: {
 			durationMinutes: Tour.durationMinutes,
 			difficultyLevel: Tour.difficultyLevel,
 			experienceFormat: Tour.experienceFormat,
+			primaryActivityName: sql<
+				string | null
+			>`(SELECT name FROM "ProductCategory" WHERE id = ${Tour.primaryActivityCategoryId})`,
 			departureTime: TourSlotProfile.departureTime,
 			imageUrl: Image.url,
 		})
@@ -385,6 +371,7 @@ async function loadTourSearchSurfaceCards(params: {
 							? null
 							: tourDifficultyLabel(row.difficultyLevel),
 					experienceFormat: isExperienceFormat(row.experienceFormat) ? row.experienceFormat : null,
+					primaryActivityName: row.primaryActivityName,
 					fromPrice: price,
 					currency,
 					variantId,

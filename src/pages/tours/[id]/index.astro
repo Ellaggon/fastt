@@ -11,6 +11,7 @@ import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { publicCatalogProductEligibility } from "@/lib/marketplace/public-catalog-eligibility"
 import { withTourOfferSelection } from "@/lib/playbook/launch-tour"
+import { experienceCategoryMembership } from "@/lib/tours/experienceClassificationSql"
 import {
 	experiencePublicPresentation,
 	experienceStructuredData,
@@ -52,7 +53,6 @@ import {
 	or,
 	Product,
 	ProductCategory,
-	ProductCategoryLink,
 	ProductContent,
 	ProductGeoPlace,
 	ProductImage,
@@ -61,6 +61,7 @@ import {
 	ProductService,
 	Provider,
 	SearchUnitView,
+	sql,
 	Tour,
 	TourSlotProfile,
 	TourTicketType,
@@ -362,6 +363,21 @@ try {
 		.orderBy(asc(ProductImage.sortOrder))
 
 	subtype = await db.select().from(Tour).where(eq(Tour.productId, productId)).then(first)
+	if (subtype) {
+		const taxonomy = await db
+			.select()
+			.from(ProductCategory)
+			.where(
+				and(
+					eq(ProductCategory.vertical, "tour"),
+					eq(ProductCategory.dataClass, "production"),
+					experienceCategoryMembership(sql`${productId}`, sql`${ProductCategory.id}`)
+				)
+			)
+		subtype.primaryActivity =
+			taxonomy.find((row) => row.id === subtype.primaryActivityCategoryId) ?? null
+		subtype.categories = taxonomy.filter((row) => row.isActive)
+	}
 } catch (e) {
 	console.error("Error al obtener detalles del tour:", e)
 	errorMessage = e instanceof Error ? e.message : "Error desconocido"
@@ -384,21 +400,10 @@ const descriptionNeedsEditorialReview =
 const itinerarySteps = asStringList(productData?.subtype?.itineraryJson)
 const includes = asStringList(productData?.subtype?.includesJson)
 const excludes = asStringList(productData?.subtype?.excludesJson)
-const categoryRows = productId
-	? await db
-			.select({ name: ProductCategory.name, slug: ProductCategory.slug })
-			.from(ProductCategoryLink)
-			.innerJoin(ProductCategory, eq(ProductCategory.id, ProductCategoryLink.categoryId))
-			.where(
-				and(
-					eq(ProductCategoryLink.productId, productId),
-					eq(ProductCategory.vertical, "tour"),
-					eq(ProductCategory.isActive, true)
-				)
-			)
-			.orderBy(asc(ProductCategory.sortOrder), asc(ProductCategory.name))
-	: []
-const categories = categoryRows.map((row) => String(row.name)).filter(Boolean)
+const categories = (subtype?.categories ?? [])
+	.filter((category: { name: string }) => category.name !== subtype?.primaryActivity?.name)
+	.map((category: { name: string }) => category.name)
+const primaryActivityName = subtype?.primaryActivity?.name ?? null
 const meetingAddress = fieldFromObject(productData?.subtype?.meetingPointJson, "address")
 const meetingInstructions = fieldFromObject(productData?.subtype?.meetingPointJson, "instructions")
 function finiteCoordinate(value: unknown) {
@@ -706,11 +711,13 @@ const breadcrumbItems = [
 											{experiencePresentation.formatLabel}
 										</li>
 									)}
-									{categories.map((category) => (
-										<li class="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">
-											{category}
-										</li>
-									))}
+									{[...(primaryActivityName ? [primaryActivityName] : []), ...categories].map(
+										(category) => (
+											<li class="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">
+												{category}
+											</li>
+										)
+									)}
 								</ul>
 							) : null}
 

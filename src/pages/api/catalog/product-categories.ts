@@ -92,6 +92,16 @@ export const POST: APIRoute = async ({ request }) => {
 			return new Response(JSON.stringify({ error: "invalid_product_vertical" }), { status: 409 })
 		}
 
+		if (vertical === "tour") {
+			return new Response(
+				JSON.stringify({
+					error: "Actualiza la actividad y las temáticas desde Presentación.",
+					code: "experience_classification_form_required",
+					href: `/product/${encodeURIComponent(parsed.productId)}/presentation`,
+				}),
+				{ status: 409, headers: { "Content-Type": "application/json" } }
+			)
+		}
 		const uniqueIds = [...new Set(parsed.categoryIds.map((id) => id.trim()).filter(Boolean))]
 		if (uniqueIds.length > 0) {
 			const valid = await db

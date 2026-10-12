@@ -10,7 +10,7 @@ import TourSearchDisclosure from "@/components/searchPanel/TourSearchDisclosure.
 import { publicTourCategories } from "@/lib/tours/tourDiscoveryFilters"
 import { TOUR_DIFFICULTY_OPTIONS } from "@/lib/tours/tourDifficulty"
 import { normalizeTourDurationBucket, TOUR_DURATION_OPTIONS } from "@/lib/tours/tourSemantics"
-import { and, asc, db, eq, ProductCategory } from "@/shared/infrastructure/db/compat"
+import { and, asc, db, eq, inArray, or, ProductCategory } from "@/shared/infrastructure/db/compat"
 
 interface Props {
 	destinationPath?: string | null
@@ -37,6 +37,7 @@ const level = String(params.get("level") ?? "")
 const selectedCategories = new Set(
 	params.getAll("category").map((value) => value.trim().toLowerCase())
 )
+const selectedFormat = params.get("format") ?? ""
 const priceMin = params.get("priceMin") ?? ""
 const priceMax = params.get("priceMax") ?? ""
 const currency = /^[A-Z]{3}$/.test(String(params.get("currency") ?? "").toUpperCase())
@@ -72,7 +73,13 @@ try {
 				and(
 					eq(ProductCategory.vertical, "tour"),
 					eq(ProductCategory.isActive, true),
-					eq(ProductCategory.dataClass, "production")
+					eq(ProductCategory.dataClass, "production"),
+					or(
+						eq(ProductCategory.classificationKind, "family"),
+						selectedCategories.size
+							? inArray(ProductCategory.slug, [...selectedCategories])
+							: undefined
+					)
 				)
 			)
 			.orderBy(asc(ProductCategory.sortOrder), asc(ProductCategory.name))
@@ -221,7 +228,7 @@ const activeFilterLabels = [
 				{
 					categories.length ? (
 						<div data-tour-filters-section>
-							<p class="text-sm font-semibold text-slate-800">Actividades</p>
+							<p class="text-sm font-semibold text-slate-800">Temáticas</p>
 							<div id="activitiesWrap" class="mt-3 flex flex-wrap gap-2">
 								{categories.map((category) => (
 									<label class="cursor-pointer" data-tour-filters-chip>
@@ -241,6 +248,28 @@ const activeFilterLabels = [
 						</div>
 					) : null
 				}
+
+				<div class="mt-5">
+					<label
+						for="experienceFormatFilter"
+						class="mb-1.5 block text-sm font-semibold text-slate-800">Formato</label
+					>
+					<Select id="experienceFormatFilter" name="format">
+						<option value="">Todos los formatos</option>
+						{
+							[
+								{ value: "guided_tour", label: "Tour guiado" },
+								{ value: "workshop", label: "Taller" },
+								{ value: "class", label: "Clase" },
+								{ value: "tasting", label: "Degustación" },
+							].map((item) => (
+								<option value={item.value} selected={selectedFormat === item.value}>
+									{item.label}
+								</option>
+							))
+						}
+					</Select>
+				</div>
 
 				<div
 					class:list={["grid gap-4 md:grid-cols-2", categories.length ? "mt-5" : ""]}
