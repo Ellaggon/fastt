@@ -180,9 +180,12 @@ export async function declareExperienceFormat(input: {
 	productId: string
 	providerId: string
 	actorUserId: string
+	expectedClassificationRevision?: number
 	experienceFormat: import("@/shared/domain/experience-format").ExperienceFormat
 }) {
 	const { ExperienceFormatRepository } =
 		await import("./infrastructure/repositories/ExperienceFormatRepository")
 	return new ExperienceFormatRepository().declare(input)
 }
+
+export { productLocationSchema } from "./application/schemas/product/productLocationSchema"

@@ -12,6 +12,7 @@ export class ExperienceFormatRepository {
 		providerId: string
 		actorUserId: string
 		experienceFormat: ExperienceFormat
+		expectedClassificationRevision?: number
 	}) {
 		if (!isExperienceFormat(input.experienceFormat))
 			throw new ExperienceFormatError("invalid_format")
@@ -41,15 +42,32 @@ export async function persistExperienceFormatDeclaration(
 		providerId: string
 		actorUserId: string
 		experienceFormat: ExperienceFormat
+		expectedClassificationRevision?: number
 	}
 ) {
 	const [before] = await tx
 		.select({
 			experienceFormat: Tour.experienceFormat,
 			formatContractVersion: Tour.formatContractVersion,
+			activityContractVersion: Tour.activityContractVersion,
+			primaryActivityCategoryId: Tour.primaryActivityCategoryId,
+			classificationRevision: Tour.classificationRevision,
 		})
 		.from(Tour)
 		.where(eq(Tour.productId, input.productId))
+	if (
+		before?.primaryActivityCategoryId &&
+		before.experienceFormat !== input.experienceFormat &&
+		input.expectedClassificationRevision !== before.classificationRevision
+	)
+		throw new ExperienceFormatError("classification_conflict")
+	if (
+		input.expectedClassificationRevision !== undefined &&
+		before &&
+		input.expectedClassificationRevision !== before.classificationRevision &&
+		before.experienceFormat !== input.experienceFormat
+	)
+		throw new ExperienceFormatError("classification_conflict")
 	if (before?.experienceFormat === input.experienceFormat && before.formatContractVersion === 1)
 		return before
 	const after = { experienceFormat: input.experienceFormat, formatContractVersion: 1 }

@@ -1,3 +1,7 @@
+import {
+	experienceDurationLabel,
+	experienceDurationMinutes,
+} from "@/shared/domain/experience-duration"
 import { experienceProgramLines } from "@/shared/domain/experience-format"
 import { canonicalizeTourDifficultyForStorage } from "@/lib/tours/tourDifficulty"
 import { parseDurationMinutes } from "@/lib/tours/tourSemantics"
@@ -19,6 +23,15 @@ export function tourProgramPatch(
 	if (form.has("durationMinutes"))
 		patch.durationMinutes = text("durationMinutes") ? Number(text("durationMinutes")) : null
 	else if (form.has("duration")) patch.durationMinutes = parseDurationMinutes(text("duration"))
+	if (form.has("durationHours") || form.has("durationPartMinutes")) {
+		patch.durationMinutes = experienceDurationMinutes(
+			form.get("durationHours"),
+			form.get("durationPartMinutes")
+		)
+		patch.duration = form.has("durationCustomEnabled")
+			? text("duration") || null
+			: experienceDurationLabel(patch.durationMinutes)
+	}
 	if (form.has("difficultyLevel"))
 		patch.difficultyLevel = canonicalizeTourDifficultyForStorage(form.get("difficultyLevel"))
 	if (form.has("tourItinerary"))

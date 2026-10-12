@@ -1,6 +1,6 @@
 import { experienceProgramMoments } from "@/shared/domain/experience-program"
 import { tourProgramPatch } from "@/modules/catalog/application/tourProgramPatch"
-import { tourSchema } from "@/schemas/product/subtype"
+import { tourProgramSchema } from "@/schemas/product/subtype"
 import {
 	first,
 	db,
@@ -154,7 +154,7 @@ export class SubtypeRepository {
 					{ status: 409 }
 				)
 			const patch = tourProgramPatch(form, current ?? {})
-			const parsed = tourSchema.safeParse({
+			const parsed = tourProgramSchema.safeParse({
 				...current,
 				...patch,
 				itineraryJson: experienceProgramMoments(patch.itineraryJson ?? current?.itineraryJson).map(

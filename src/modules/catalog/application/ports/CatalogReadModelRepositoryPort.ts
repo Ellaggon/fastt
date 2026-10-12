@@ -1,4 +1,5 @@
 export type CatalogProductAggregate = {
+	experienceFormat?: import("@/shared/domain/experience-format").ExperienceFormat | null
 	id: string
 	displayName: string
 	productType: string
@@ -60,6 +61,12 @@ export type ProductFullAggregate = {
 				kind: "tour"
 				experienceFormat?: import("@/shared/domain/experience-format").ExperienceFormat | null
 				formatContractVersion?: number
+				activityContractVersion?: number
+				primaryActivityCategoryId?: string | null
+				primaryActivity?:
+					| import("@/shared/domain/experience-classification").ExperienceActivity
+					| null
+				classificationRevision?: number
 				duration: string | null
 				durationMinutes: number | null
 				difficultyLevel: string | null
