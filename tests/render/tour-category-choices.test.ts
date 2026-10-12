@@ -17,8 +17,8 @@ describe("shared tour activity selection", () => {
 					stacked,
 				},
 			})
-			expect(html).toContain("¿Qué tipo de experiencia ofreces?")
-			expect(html).toContain("Puedes seleccionar varias.")
+			expect(html).toContain("Temáticas")
+			expect(html).toContain("Selecciona las categorías que describen esta experiencia")
 			expect(html.match(/name="categoryId"/g)).toHaveLength(2)
 			expect(html).toMatch(/value="culture"[^>]*checked/)
 			expect(html).not.toContain("Criterios de calidad")
