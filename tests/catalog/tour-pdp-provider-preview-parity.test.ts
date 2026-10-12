@@ -38,6 +38,7 @@ describe("tour PDP provider preview parity", () => {
 		const page = read("src/pages/tours/[id]/index.astro")
 
 		expect(page).toContain("productData && !isProviderPreview")
-		expect(page).toContain('"@type": "TouristTrip"')
+		expect(page).toContain("experienceStructuredData({")
+		expect(page).toContain("preview: isProviderPreview")
 	})
 })

@@ -96,3 +96,22 @@ it("does not infer a format for a product with no Tour subtype", () => {
 	aggregate.subtype = null
 	expect(evaluateTourContentReadiness(aggregate, declarations).presentation).toBe(false)
 })
+
+it.each(["duration", "meetingPoint", "includes", "program"])(
+	"a class program cannot complete logistics with missing %s",
+	(missing) => {
+		const aggregate = contentFixture()
+		if (aggregate.subtype?.kind !== "tour") throw new Error("fixture")
+		Object.assign(aggregate.subtype, {
+			experienceFormat: "class",
+			itinerary: [{ description: "Práctica" }],
+		})
+		if (missing === "duration") aggregate.subtype.durationMinutes = 0
+		if (missing === "meetingPoint") aggregate.subtype.meetingPoint = {}
+		if (missing === "includes") aggregate.subtype.includes = [" "]
+		if (missing === "program") aggregate.subtype.itinerary = [{}, null, { description: " " }]
+		const result = evaluateTourContentReadiness(aggregate, declarations)
+		expect(result.logistics).toBe(false)
+		expect(result.complete).toBe(false)
+	}
+)

@@ -8,6 +8,7 @@ import { routes } from "@/lib/routes"
 import { experienceJourneyPresentation } from "@/lib/tours/experienceFormatPresentation"
 import { TOUR_DIFFICULTY_OPTIONS, normalizeTourDifficulty } from "@/lib/tours/tourDifficulty"
 import { experienceProgramMinimum } from "@/shared/domain/experience-format"
+import { experienceProgramMoments } from "@/shared/domain/experience-program"
 
 interface TourSubtypeRow {
 	experienceFormat?: string | null
@@ -140,7 +141,7 @@ const selectedDifficulty = normalizeTourDifficulty(tourSubtype?.difficultyLevel)
 				<Textarea
 					id="tourItinerary"
 					name="tourItinerary"
-					value={listToText(tourSubtype?.itineraryJson)}
+					value={experienceProgramMoments(tourSubtype?.itineraryJson).join("\n")}
 					rows="6"
 					placeholder={journey.programPlaceholder}
 					required

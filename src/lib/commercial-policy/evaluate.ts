@@ -115,6 +115,8 @@ export type CommercialPolicyDiagnosis = {
 		evidenceScope?: "provider" | "product" | "operation"
 	}>
 	policyVersionIds: string[]
+	/** Presentation consumes the same required evidence selected by this evaluation. */
+	applicableRequirements?: Array<CommercialPolicyRequirement & { policyVersionId: string }>
 	capabilityStates: Record<CommercialCapability, "allowed" | "blocked" | "not_applicable">
 }
 
@@ -497,6 +499,14 @@ export function evaluateCommercialPolicy(input: {
 		blockers,
 		satisfiedRequirements,
 		policyVersionIds: selected.map((row) => row.id),
+		applicableRequirements: selected.flatMap((version) =>
+			version.requirements
+				.filter(
+					(requirement) =>
+						requirement.required && requirementApplies(requirement.condition, input.context)
+				)
+				.map((requirement) => ({ ...requirement, policyVersionId: version.id }))
+		),
 		capabilityStates,
 	}
 }

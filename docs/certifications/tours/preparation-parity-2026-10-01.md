@@ -3,7 +3,7 @@
 Status: certified-local-production-ui-sessions-http-negative-pending
 Document type: certification
 Owner: Engineering / responsable de Fastt
-Last verified: 2026-10-02
+Last verified: 2026-10-12
 Scope: diagnóstico, navegación, persistencia y revisión desplegada de sesiones v2
 Source of truth: pruebas ejecutadas, PostgreSQL y recorridos autenticados en Brave/Codex
 Related code/tests: tests/unit/tour-preparation-diagnostic.test.ts, tests/integration/preparation-session-persistence.test.ts, tests/integration/tour-slot-profile-persistence.test.ts, tests/integration/tour-checkin-repair.test.ts, tests/render/tour-preparation-progress.test.ts
@@ -129,3 +129,44 @@ Artefactos privados ignorados por Git: `artifacts/backups/preparation-sessions/`
 `2026-10-01-cert-after.json`, `2026-10-01-two-tours.jpg`, `b7-server-parity.json`,
 `b7-preview-desktop.jpg`, `b7-mobile-certified.jpg` y `repair-dialog-certified-2026-10-01.jpg`.
 No publicar sus datos. No se midió TTFB de producción.
+
+
+## Programa por formato: ampliación local — 2026-10-12
+
+Alcance: programa, conservación de datos y retorno del formulario de experiencias.
+La suite `tests/integration/tour-program-persistence.test.ts` ejecuta la ruta real con
+repositorios y PostgreSQL reales; sólo controla sesión y refresco de proyecciones.
+Los fixtures son independientes. La concurrencia utiliza transacciones reales y una
+barrera alrededor del bloqueo de producto; no modifica el endpoint para provocar fallos.
+
+La matriz cubre mínimos por formato, comas dentro de un momento, propiedad/permisos,
+formato manipulado u obsoleto, omisión de controles turísticos, vaciado explícito,
+conservación de JSON histórico y fallo posterior al commit. El diagnóstico de programa
+se comprueba sobre las filas persistidas y no implica autorización comercial.
+Los registros con formato nulo y versión 0 se representan en una tabla temporal de
+la conexión, conservando las tablas y protecciones vigentes. La prueba de migración
+`tests/integration/experience-format-persistence.test.ts` acredita la clasificación
+nula y versión histórica sin conceder esa excepción a inserciones nuevas.
+
+`tests/render/tour-program-page.test.ts` renderiza página y layouts en preparación,
+publicación y edición para guiado, taller, clase, degustación y formato nulo: un
+formulario, campos únicos, mínimos, precarga, recuperación y contexto. El controlador
+real se ejecuta en `tests/unit/tour-program-controller.test.ts`, incluidos error de
+red/reintento y salida sin navegación cuando falla validación.
+
+En Codex autenticado sobre localhost se comprobó la experiencia de certificación
+`5ab05897-140f-4e11-be46-29371e18c89d`, opción
+`e8c305ef-b8b1-5f3b-899e-81d4f698b423` y tarifa
+`80d356df-2c9b-4cbc-a6cb-cf486e064098`. En móvil de 390 × 844, dos momentos
+mostraron error junto al campo y recuperaron el foco al enviar mediante teclado;
+al restaurar los valores originales, el guardado volvió a la ficha con su selección.
+En escritorio de 1280 × 900, la corrección desde Publicación volvió al mismo resumen
+y la preparación normal avanzó a Ubicación, conservando opción y tarifa.
+Los guardados visuales conservaron el contenido original; no publicaron ni activaron.
+Los demás formatos se acreditan en PostgreSQL y renderizado controlados, no mediante
+una reclasificación de datos reales. El error de red se certifica en el controlador;
+no se interrumpió la conexión del navegador del usuario.
+
+Esta ampliación conserva alcance local; no acredita despliegue de las correcciones.
+Repetir las suites anteriores y el recorrido autenticado si cambia el guardado,
+la clasificación, el formulario o el contrato de retorno.

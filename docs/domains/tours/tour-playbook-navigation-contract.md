@@ -3,7 +3,7 @@
 Status: active  
 Document type: canonical  
 Owner: Tours / Provider Experience / Engineering  
-Last verified: 2026-10-05  
+Last verified: 2026-10-12
 Scope: identidad, sesiones, compatibilidad, eficiencia y verificación de los dos playbooks  
 Source of truth: `tour-preparation-publication.md`; código actual citado en cada sección  
 Related code/tests: `src/layouts/PlaybookLayout.astro`, `src/lib/playbook/`, `src/lib/onboarding/preparationSession.ts`, `tests/playbook/`, `tests/render/`, `tests/integration/preparation-session-persistence.test.ts`  
@@ -98,6 +98,18 @@ Cargar una vez el contexto y diagnóstico por render y pasarlos a las proyeccion
 No volver a consultar la misma oferta para header, etapas, tareas y preview independientemente.
 Reevaluar tras mutación o retorno pertinente; no introducir polling permanente de requisitos.
 Las secciones nativas plegables no necesitan una isla React ni otro controlador cliente.
+
+El formato viaja en las lecturas de producto y catálogo; las etiquetas no consultan por tarjeta.
+`loadTourCommercialContext` y `loadCompleteToPublishState` comparten una observación por petición
+y selección. Los comandos y las peticiones nuevas evalúan de nuevo; cambiar formato no reinicia
+sesiones ni sustituye una opción explícita. Identidades técnicas y claves de borrador se conservan.
+Presentación y declaración de formato invalidan con `refreshOperationalSurface: false` y realizan
+un refresco explícito por guardado. El valor predeterminado de `invalidateProduct` conserva el
+refresco para otros consumidores. Un fallo de proyección posterior al commit se registra sin
+convertir la persistencia confirmada en error de guardado. Reservas y snapshots permanecen intactos.
+Las regresiones de consultas y refresco están en `experience-catalog-batch.test.ts`,
+`product-invalidation-refresh.test.ts` y `tour-preparation-diagnostic.test.ts`; la declaración HTTP
+se certifica con PostgreSQL en `experience-format-persistence.test.ts`.
 
 Eliminar imports, props, listeners y selectores de la presentación retirada cuando no tengan
 referencias. Comprobar antes de borrar los archivos de disclosure/rail ya retirados en el árbol

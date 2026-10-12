@@ -25,7 +25,7 @@ it("keeps a unique alternative separate from its internal rate name", async () =
 	const html = await render([{ variantId: "morning", ratePlans: [rate("rate")] }], {
 		morning: { name: "Visita compartida", departureTime: "09:00", bookingMode: "shared" },
 	})
-	expect(html).toContain("Tu opción del tour")
+	expect(html).toContain("Tu opción de la experiencia")
 	expect(html).toContain("Visita compartida")
 	expect(html).not.toContain("Tarifa interna")
 	expect(html).toContain('data-option-label="Visita compartida"')
@@ -60,12 +60,7 @@ it("shows distinct alternatives and preserves named rate choices without inventi
 			private: { name: "Visita privada", bookingMode: "private" },
 		}
 	)
-	for (const value of [
-		"Elige cómo disfrutar el tour",
-		"Flexible",
-		"No reembolsable",
-		"Visita privada",
-	])
+	for (const value of ["Elige una opción", "Flexible", "No reembolsable", "Visita privada"])
 		expect(html).toContain(value)
 })
 it("labels and precargas the existing public name accessibly", async () => {

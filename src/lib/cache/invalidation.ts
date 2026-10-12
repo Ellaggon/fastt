@@ -143,14 +143,18 @@ export async function invalidateCalendarSurface(providerId: string, source: stri
 	console.debug("cache invalidated", { scope: "calendar_surface", providerId: id, source })
 }
 
-export async function invalidateProduct(productId: string): Promise<void> {
+export async function invalidateProduct(
+	productId: string,
+	options: { refreshOperationalSurface?: boolean } = {}
+): Promise<void> {
 	invalidateAggregateCache({ productId })
 	await Promise.all([
 		delByPrefix(`ws:product:${productId}`),
 		delByPrefix("ws:search:public"),
 		invalidateRatePlanSurfacesByOwnership({ productId }),
 	])
-	refreshProductSurface(productId, "invalidate_product")
+	if (options.refreshOperationalSurface !== false)
+		refreshProductSurface(productId, "invalidate_product")
 	console.debug("cache invalidated", { scope: "product", id: productId })
 }
 

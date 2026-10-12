@@ -1,3 +1,8 @@
+import {
+	experienceProgramMomentCount,
+	experienceHasInclusions,
+	experienceHasDuration,
+} from "@/shared/domain/experience-program"
 import { persistExperienceFormatDeclaration } from "./ExperienceFormatRepository"
 import { EXPERIENCE_CREATION_FORMATS } from "@/shared/domain/experience-format"
 import {
@@ -705,7 +710,7 @@ export class ProductRepository implements ProductRepositoryPort {
 						primarySlot.defaultRatePlanId ? String(primarySlot.defaultRatePlanId) : null
 					)
 				: null
-			const itinerarySteps = Array.isArray(tour?.itineraryJson) ? tour.itineraryJson.length : 0
+			const itinerarySteps = experienceProgramMomentCount(tour?.itineraryJson)
 			const [categoryRow, ticketRow] = await Promise.all([
 				db
 					.select({ id: ProductCategoryLink.id })
@@ -732,8 +737,8 @@ export class ProductRepository implements ProductRepositoryPort {
 					hasItinerary: itinerarySteps > 0,
 					itinerarySteps,
 					hasMeetingPoint: tourHasMeetingPoint(tour?.meetingPointJson),
-					hasDurationMinutes: tour?.durationMinutes != null && Number(tour.durationMinutes) > 0,
-					hasIncludes: Array.isArray(tour?.includesJson) && tour.includesJson.length > 0,
+					hasDurationMinutes: experienceHasDuration(tour?.durationMinutes),
+					hasIncludes: experienceHasInclusions(tour?.includesJson),
 					hasCategory: Boolean(categoryRow?.id),
 					hasActiveTickets: Boolean(ticketRow?.id),
 					hasSchedule: sellableCompleteSlotCount > 0,

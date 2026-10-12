@@ -15,8 +15,9 @@ describe("tour public surfaces (fase 0+1)", () => {
 		expect(source).toContain("getTourSearchSurface")
 		expect(source).toContain("href={`/tours/${tour.productId}")
 		expect(source).not.toContain("href={`/hotels/${t.id}`}")
-		expect(source).toContain("Sin salidas para estos filtros")
-		expect(source).toContain("Búsqueda de tours no disponible")
+		expect(source).toContain("No encontramos experiencias con estos filtros")
+		expect(source).toContain("Sin disponibilidad para estos filtros")
+		expect(source).toContain("Búsqueda de experiencias no disponible")
 		expect(source).toContain('availability === "disabled"')
 		expect(source).not.toContain("No se encontraron hoteles")
 		expect(source).toContain("canonical tour search failed")
@@ -24,7 +25,7 @@ describe("tour public surfaces (fase 0+1)", () => {
 
 	it("tour PDP renders tour fields instead of hotel check-in leftovers", () => {
 		const source = readFileSync(resolve("src/pages/tours/[id]/index.astro"), "utf8")
-		expect(source).toContain("Itinerario")
+		expect(source).toContain("experiencePresentation.programLabel")
 		expect(source).toContain("Punto de encuentro")
 		expect(source).toContain("includes")
 		expect(source).toContain("pickup")

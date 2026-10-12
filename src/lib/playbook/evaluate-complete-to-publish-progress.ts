@@ -1,5 +1,4 @@
 import { experienceJourneyPresentation } from "@/lib/tours/experienceFormatPresentation"
-import { experienceProgramMinimum } from "@/shared/domain/experience-format"
 import { evaluateTourContentReadiness } from "@/lib/tours/tourContentReadiness"
 import { readTourRequestData } from "@/lib/tours/tourRequestReads"
 import { projectTourLogisticsObservation } from "@/lib/tours/tourPreparationRequirements"
@@ -307,10 +306,9 @@ async function evaluateCompleteToPublishState(
 		.filter(Boolean)
 	const tourSubtype = aggregate.subtype?.kind === "tour" ? aggregate.subtype : null
 	const journey = experienceJourneyPresentation(tourSubtype?.experienceFormat)
-	const minimumProgramSteps = experienceProgramMinimum(tourSubtype?.experienceFormat)
-	const tourItinerarySteps = Array.isArray(tourSubtype?.itinerary)
-		? tourSubtype.itinerary.filter(Boolean).length
-		: 0
+	const contentProgram = contentReadiness.program
+	const minimumProgramSteps = contentProgram.minimum
+	const tourItinerarySteps = contentProgram.momentCount
 
 	const guestExpectationsSnapshot = isHotel
 		? await buildGuestStayExpectationsSnapshot(productId)
@@ -432,21 +430,20 @@ async function evaluateCompleteToPublishState(
 				vertical.vertical === "tour"
 					? Boolean(
 							tourSubtype &&
-							Number(tourSubtype.durationMinutes ?? 0) > 0 &&
-							tourSubtype.meetingPoint &&
-							Array.isArray(tourSubtype.includes) &&
-							tourSubtype.includes.length > 0
+							contentProgram.checks.duration &&
+							contentProgram.checks.meetingPoint &&
+							contentProgram.checks.includes
 						)
 					: Boolean(aggregate.subtype),
 			detail:
 				vertical.vertical === "tour"
-					? "Define duración, punto de encuentro e inclusiones."
+					? `Completa: ${[!contentProgram.checks.duration && "duración en minutos", !contentProgram.checks.meetingPoint && "punto de encuentro", !contentProgram.checks.includes && "inclusiones"].filter(Boolean).join(", ") || "datos del programa configurados"}.`
 					: aggregate.subtype
 						? "Detalles del subtipo configurados."
 						: "Completa los detalles.",
 			statusLabel:
 				vertical.vertical === "tour"
-					? "Detalles del tour"
+					? journey.logisticsLabel
 					: aggregate.subtype
 						? "Configurado"
 						: "Sin configurar",
@@ -606,7 +603,6 @@ async function evaluateCompleteToPublishState(
 						tourContext.status === "resolved" ? tourContext : {},
 						tourSubtype?.experienceFormat
 					),
-					ready: contentReadiness.logistics,
 				},
 
 				location: observed(contentReadiness.location, completionBySection.location!.detail),

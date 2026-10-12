@@ -3,7 +3,7 @@
 Status: active  
 Document type: canonical  
 Owner: Tours / Provider Experience / Engineering  
-Last verified: 2026-10-05  
+Last verified: 2026-10-12
 Scope: cambios requeridos en presentación, formularios, tareas y publicación  
 Source of truth: `tour-preparation-publication.md`; código actual citado en cada sección  
 Related code/tests: `src/layouts/PlaybookLayout.astro`, `src/lib/playbook/`, `src/lib/onboarding/preparationSession.ts`, `tests/playbook/`, `tests/render/`, `tests/integration/preparation-session-persistence.test.ts`  
@@ -24,7 +24,11 @@ Un flujo comercial con dos playbooks reales: A prepara, B completa pendientes y 
 Comparten entidades, formularios y evaluadores. Difieren en entrada, navegación, retorno y
 acción principal. No basta cambiar nombres ni esconder una de dos listas montadas en el DOM.
 
-Mantener las cinco etapas de ficha: Presentación, Itinerario, Ubicación, Fotos y Participantes. La primera opción utiliza el asistente comercial existente con intención `first_publication`; su revisión permite continuar a publicación sin activar. Los diez requisitos siguen siendo
+Mantener las cinco etapas de ficha: Presentación, Itinerario y logística / Programa y detalles,
+Ubicación y encuentro / Lugar e indicaciones, Fotos y Participantes. Las etiquetas se proyectan
+desde el formato persistido con `experienceFormatPresentation.ts`; IDs y posiciones se conservan.
+Un formato histórico nulo usa vocabulario general y conserva su mínimo histórico de programa.
+La primera opción utiliza el asistente comercial existente con intención `first_publication`; su revisión permite continuar a publicación sin activar. Los diez requisitos siguen siendo
 validaciones de datos; no se convierten en diez pantallas obligatorias ni en otro contador.
 
 Preservar reglas de precios, políticas, autorización, inventario y propiedad del proveedor.

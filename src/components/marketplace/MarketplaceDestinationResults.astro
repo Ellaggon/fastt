@@ -15,6 +15,7 @@ import {
 	type PublicMarketplaceVertical,
 } from "@/lib/marketplace/publicDestinationRoutes"
 import { resolveDestinationTourDepartureDate } from "@/lib/marketplace/publicTourDepartureDate"
+import { experiencePublicPresentation } from "@/lib/tours/experienceFormatPresentation"
 
 interface Props {
 	vertical: PublicMarketplaceVertical
@@ -37,7 +38,7 @@ const departureLabel = (() => {
 		timeZone: "UTC",
 	})
 })()
-const verticalLabel = isHotels ? "Alojamientos" : "Tours"
+const verticalLabel = isHotels ? "Alojamientos" : "Experiencias"
 const searchLabel = destination
 	? `${verticalLabel} en ${destination.name}`
 	: `Buscar ${verticalLabel.toLowerCase()}`
@@ -173,9 +174,16 @@ const structuredData = destination
 													{listing.address}
 												</p>
 											) : null}
-											{!isHotels && (listing.duration || listing.difficultyLevel) ? (
+											{!isHotels &&
+											(listing.duration || listing.difficultyLevel || listing.experienceFormat) ? (
 												<p class="mt-2 text-sm text-slate-600">
-													{[listing.duration, listing.difficultyLevel].filter(Boolean).join(" · ")}
+													{[
+														experiencePublicPresentation(listing.experienceFormat).formatLabel,
+														listing.duration,
+														listing.difficultyLevel,
+													]
+														.filter(Boolean)
+														.join(" · ")}
 												</p>
 											) : null}
 											{listing.description ? (

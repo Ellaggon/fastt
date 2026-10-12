@@ -1,4 +1,5 @@
-import { experienceFormatReady, experienceProgramMinimum } from "@/shared/domain/experience-format"
+import { evaluateExperienceProgram } from "@/shared/domain/experience-program"
+import { experienceFormatReady } from "@/shared/domain/experience-format"
 import type { ProductFullAggregate } from "@/modules/catalog/public"
 import { TOUR_QUALITY_MIN_IMAGES } from "./tourAdminQuality"
 
@@ -16,15 +17,14 @@ export function evaluateTourContentReadiness(
 		Array.isArray(aggregate.content.highlights) &&
 		aggregate.content.highlights.length
 	)
-	const logistics = Boolean(
-		tour &&
-		Number(tour.durationMinutes ?? 0) > 0 &&
-		tour.meetingPoint &&
-		Array.isArray(tour.includes) &&
-		tour.includes.length &&
-		Array.isArray(tour.itinerary) &&
-		tour.itinerary.filter(Boolean).length >= experienceProgramMinimum(tour.experienceFormat)
-	)
+	const program = evaluateExperienceProgram({
+		experienceFormat: tour?.experienceFormat,
+		durationMinutes: tour?.durationMinutes,
+		meetingPoint: tour?.meetingPoint,
+		itinerary: tour?.itinerary,
+		includes: tour?.includes,
+	})
+	const logistics = Boolean(tour && program.complete)
 	const location = aggregate.location.lat !== null && aggregate.location.lng !== null
 	const photos = aggregate.images.length >= TOUR_QUALITY_MIN_IMAGES
 	const participants = Boolean(readiness?.hasActiveTickets)
@@ -32,6 +32,7 @@ export function evaluateTourContentReadiness(
 	return {
 		presentation,
 		logistics,
+		program,
 		location,
 		photos,
 		participants,

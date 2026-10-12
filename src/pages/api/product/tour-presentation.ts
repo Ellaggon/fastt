@@ -37,7 +37,10 @@ export const POST: APIRoute = async ({ request }) => {
 		})
 		// Read-model refresh cannot turn a committed save into a false failure.
 		try {
-			await Promise.all([invalidateProduct(result.productId), invalidateProvider(providerId)])
+			await Promise.all([
+				invalidateProduct(result.productId, { refreshOperationalSurface: false }),
+				invalidateProvider(providerId),
+			])
 			await refreshProductOperationalSurfaceAfterMutation({
 				productId: result.productId,
 				providerId,

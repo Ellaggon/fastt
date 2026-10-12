@@ -7,6 +7,7 @@ import TabsInsidePanel from "@/components/ui/TabsInsidePanel.astro"
 import { safeVerificationReturn } from "@/lib/auth/returnTo"
 import type { ProviderTrustLink } from "@/lib/provider-trust-map"
 import { TRUST_GLOSSARY } from "@/lib/provider-trust-map"
+import { experiencePublicPresentation } from "@/lib/tours/experienceFormatPresentation"
 import type { VerificationNavigation, VerificationPlaybookTab } from "@/lib/verification/navigation"
 import { verificationNavigationHref, verificationTabLabel } from "@/lib/verification/navigation"
 import {
@@ -21,7 +22,7 @@ import {
 type Props = {
 	navigation: VerificationNavigation
 	url: URL
-	products: Array<{ id: string; name: string | null }>
+	products: Array<{ id: string; name: string | null; experienceFormat?: string | null }>
 	playbook?: VerificationPlaybookTab[]
 	trustLinks?: ProviderTrustLink[]
 }
@@ -64,6 +65,9 @@ const playbookComplete =
 	navigationPlaybook.every((tab) => tab.uiState === "ready" || tab.uiState === "not_applicable")
 const lineLabels = { lodging: "Alojamientos", tour: "Experiencias" } as const
 const currentLine = navigation.line
+const selectedFormatLabel = experiencePublicPresentation(
+	products.find((product) => product.id === navigation.experienceId)?.experienceFormat
+).formatLabel
 /** Licencias y seguro dependen de la experiencia; identidad y fiscal son de cuenta. */
 const experienceScopedTab = navigation.tab === "activity" || navigation.tab === "safety"
 const showExperienceSelector =
@@ -252,6 +256,7 @@ const showExperienceSelector =
 						</div>
 					</form>
 				) : null}
+				{selectedFormatLabel ? <p class="text-sm text-slate-500">{selectedFormatLabel}</p> : null}
 			</div>
 		) : null
 	}

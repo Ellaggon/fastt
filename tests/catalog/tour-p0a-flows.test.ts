@@ -26,9 +26,10 @@ describe("tours P0A broken-flow remediations", () => {
 	it("search page distinguishes rollout off from commercial empty", () => {
 		const search = read("src/pages/buscar/tours.astro")
 		expect(search).toContain('availability === "disabled"')
-		expect(search).toContain("Búsqueda de tours no disponible")
-		expect(search).toContain("La reserva pública de tours no está abierta en este momento.")
-		expect(search).toContain("Sin salidas para estos filtros")
+		expect(search).toContain("Búsqueda de experiencias no disponible")
+		expect(search).toContain("La reserva pública de experiencias no está abierta en este momento.")
+		expect(search).toContain("Sin disponibilidad para estos filtros")
+		expect(search).toContain("No encontramos experiencias con estos filtros")
 		expect(search).toContain("Selecciona una fecha")
 		expect(search).not.toContain("<code>tour_slot</code>")
 	})
@@ -36,7 +37,7 @@ describe("tours P0A broken-flow remediations", () => {
 	it("PDP hold/confirm explain tours_checkout_disabled", () => {
 		const booking = read("src/components/tours/TourDepartureSection.astro")
 		expect(booking).toContain('payload?.error === "tours_checkout_disabled"')
-		expect(booking).toContain("La reserva de tours no está disponible ahora (rollout)")
+		expect(booking).toContain("Las reservas no están disponibles ahora. Intenta más tarde.")
 	})
 
 	it("private-request inbox can accept or decline via transition API", () => {

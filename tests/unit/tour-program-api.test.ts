@@ -18,10 +18,11 @@ vi.mock("@/lib/product/productOperationalSurface", () => ({
 	refreshProductOperationalSurfaceAfterMutation: mocks.refresh,
 }))
 import { POST } from "@/pages/api/product/subtype"
-const call = () => {
+const call = (extras: Record<string, string> = {}) => {
 	const form = new FormData()
 	form.set("productId", "experience")
 	form.set("tourItinerary", "Práctica")
+	for (const [key, value] of Object.entries(extras)) form.set(key, value)
 	return POST({
 		request: new Request("http://localhost/api/product/subtype", { method: "POST", body: form }),
 	} as never)
@@ -54,3 +55,12 @@ it("a failed projection does not report a committed save as failed", async () =>
 		log.mockRestore()
 	}
 })
+
+it.each(["complianceOperatingRole", "complianceActivityClass", "complianceJurisdictionCode"])(
+	"rejects legacy %s before any write",
+	async (field) => {
+		expect((await call({ [field]: "legacy" })).status).toBe(400)
+		expect(mocks.save).not.toHaveBeenCalled()
+		expect(mocks.refresh).not.toHaveBeenCalled()
+	}
+)

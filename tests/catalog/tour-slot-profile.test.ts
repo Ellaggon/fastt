@@ -111,7 +111,8 @@ describe("tour booking guest commerce (fase 3)", () => {
 		expect(pdp).toContain("TourTicketType")
 
 		const section = read("src/components/tours/TourDepartureSection.astro")
-		expect(section).toContain("Fecha de salida")
+		expect(section).toContain("Fecha y grupo")
+		expect(section).toContain('id="tourDepartureDate"')
 		expect(section).toContain("data-ticket-qty")
 		expect(section).toContain("occupancyDetail")
 		expect(section).toContain("/api/inventory/hold")

@@ -82,9 +82,13 @@ beforeEach(() => {
 		subtype: {
 			kind: "tour",
 			durationMinutes: 120,
-			meetingPoint: "Plaza",
+			meetingPoint: { address: "Plaza" },
 			includes: ["Guía"],
-			itinerary: [{}, {}, {}],
+			itinerary: [
+				{ description: "Encuentro" },
+				{ description: "Recorrido" },
+				{ description: "Cierre" },
+			],
 		},
 	})
 	mocks.context.mockResolvedValue({
@@ -679,6 +683,30 @@ describe("one diagnosis snapshot per request and selection", () => {
 		)
 		expect(mocks.aggregate).toHaveBeenCalledTimes(1)
 		expect(mocks.context).toHaveBeenCalledTimes(2)
+	})
+	it("reevaluates a format change on the next request without changing commercial selection", async () => {
+		const aggregate = await mocks.aggregate()
+		aggregate.subtype.experienceFormat = "guided_tour"
+		aggregate.subtype.formatContractVersion = 1
+		aggregate.subtype.itinerary = [{ description: "Práctica" }]
+		const first = await loadCompleteToPublishState({
+			...input,
+			request: new Request("https://fastt.test/preview"),
+		})
+		expect(first!.tourDiagnostic!.requirements.logistics.result.state).toBe("pending")
+		mocks.aggregate.mockResolvedValue({
+			...aggregate,
+			subtype: { ...aggregate.subtype, experienceFormat: "class" },
+		})
+		const next = await loadCompleteToPublishState({
+			...input,
+			request: new Request("https://fastt.test/preview"),
+		})
+		expect(next!.tourDiagnostic!.requirements.logistics.result.state).toBe("ready")
+		expect(next!.tourDiagnostic!.context).toMatchObject({
+			selection: { variantId: "option", ratePlanId: "rate" },
+			experienceFormat: "class",
+		})
 	})
 	it("new requests, commands and requestless evaluations read afresh", async () => {
 		clearReads()

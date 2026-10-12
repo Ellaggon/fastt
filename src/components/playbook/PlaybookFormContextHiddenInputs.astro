@@ -1,0 +1,14 @@
+---
+import Input from "@/components/ui/Input.astro"
+import { PLAYBOOK_FORM_PASSTHROUGH_QUERY_KEYS } from "@/lib/playbook/playbook-form-context"
+
+const { searchParams } = Astro.url
+---
+
+{
+	PLAYBOOK_FORM_PASSTHROUGH_QUERY_KEYS.map((name) =>
+		searchParams.has(name) ? (
+			<Input type="hidden" name={name} value={searchParams.get(name) ?? ""} />
+		) : null
+	)
+}

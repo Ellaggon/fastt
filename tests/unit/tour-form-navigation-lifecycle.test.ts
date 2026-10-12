@@ -17,6 +17,9 @@ describe("tour forms after navigating back", () => {
 				string
 			>
 			elements: unknown[] = []
+			querySelector() {
+				return null
+			}
 			listeners: Record<string, ((event: any) => unknown)[]> = {}
 			addEventListener(name: string, handler: (event: any) => unknown) {
 				;(this.listeners[name] ??= []).push(handler)
@@ -56,6 +59,8 @@ describe("tour forms after navigating back", () => {
 		}).outputText
 		runInNewContext(js, {
 			document,
+			URLSearchParams,
+			location: { search: "" },
 			fetch,
 			HTMLElement: Form,
 			HTMLFormElement: Form,

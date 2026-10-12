@@ -1,3 +1,4 @@
+import { experienceProgramMoments } from "@/shared/domain/experience-program"
 import { tourProgramPatch } from "@/modules/catalog/application/tourProgramPatch"
 import { tourSchema } from "@/schemas/product/subtype"
 import {
@@ -148,7 +149,7 @@ export class SubtypeRepository {
 				return Response.json(
 					{
 						error:
-							"El formato cambió. Recarga el formulario antes de guardar; tus cambios no se han enviado.",
+							"El formato cambió. Recarga el formulario antes de guardar; tus cambios no se guardaron.",
 					},
 					{ status: 409 }
 				)
@@ -156,6 +157,9 @@ export class SubtypeRepository {
 			const parsed = tourSchema.safeParse({
 				...current,
 				...patch,
+				itineraryJson: experienceProgramMoments(patch.itineraryJson ?? current?.itineraryJson).map(
+					(description, index) => ({ step: index + 1, description })
+				),
 				productId,
 				productType: "tour",
 				experienceFormat: current?.experienceFormat ?? null,

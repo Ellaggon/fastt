@@ -6,6 +6,7 @@ import Notice from "@/components/ui/Notice.astro"
 import SearchLayout from "@/layouts/SearchLayout.astro"
 import { resolvePublicDestination } from "@/lib/marketplace/publicDestinationListings"
 import { publicDestinationHref, publicSearchHref } from "@/lib/marketplace/publicDestinationRoutes"
+import { experiencePublicPresentation } from "@/lib/tours/experienceFormatPresentation"
 import { getPublicTourCatalog } from "@/lib/tours/publicTourCatalog"
 import { tourDifficultyLabel } from "@/lib/tours/tourDifficulty"
 import {
@@ -91,7 +92,7 @@ if (effectiveStartDate && !invalidPriceRange && !missingPriceCurrency) {
 		availability = surface.meta.availability
 	} catch (error) {
 		console.error("canonical tour search failed", error)
-		loadError = "No se pudo cargar la disponibilidad de tours."
+		loadError = "No se pudo cargar la disponibilidad de experiencias."
 	}
 }
 
@@ -118,22 +119,22 @@ const currencies = new Set(tours.map((tour) => tour.currency))
 ---
 
 <SearchLayout
-	title="Buscar tours"
+	title="Buscar experiencias"
 	producType="tours"
-	description="Busca tours disponibles por fecha, duración, nivel y destino en Bolivia."
+	description="Busca experiencias disponibles por fecha, duración, nivel y destino en Bolivia."
 	canonicalPath="/buscar/tours"
 	searchPanelProps={{ destinationPath: canonicalPath, destinationName: destination?.name }}
 >
 	<main class="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
 		<header class="border-b border-slate-200 pb-5">
-			<p class="text-sm font-semibold text-slate-500">Resultados de tours</p>
+			<p class="text-sm font-semibold text-slate-500">Resultados de experiencias</p>
 			<h1 class="mt-1 text-3xl font-semibold text-slate-950">
-				{destination?.name ? `Tours en ${destination.name}` : "Encuentra un tour"}
+				{destination?.name ? `Experiencias en ${destination.name}` : "Encuentra una experiencia"}
 			</h1>
 			<p class="mt-2 text-sm text-slate-600">
 				{
 					effectiveStartDate
-						? `Salidas disponibles el ${new Intl.DateTimeFormat("es-BO", { dateStyle: "long", timeZone: "UTC" }).format(new Date(`${effectiveStartDate}T00:00:00Z`))}`
+						? `Disponibilidad para el ${new Intl.DateTimeFormat("es-BO", { dateStyle: "long", timeZone: "UTC" }).format(new Date(`${effectiveStartDate}T00:00:00Z`))}`
 						: "Explora experiencias publicadas y elige una fecha cuando quieras comprobar cupos y precio."
 				}
 				{durationLabel ? ` · ${durationLabel}` : ""}{levelLabel ? ` · ${levelLabel}` : ""}
@@ -171,7 +172,7 @@ const currencies = new Set(tours.map((tour) => tour.currency))
 		{
 			!rawStartDate && !invalidDestination ? (
 				<Notice variant="info" title="Estás explorando sin fecha">
-					Estas son experiencias publicadas. Selecciona una fecha para consultar salidas, cupos y
+					Estas son experiencias publicadas. Selecciona una fecha para consultar fechas, cupos y
 					precios reales.
 				</Notice>
 			) : null
@@ -179,8 +180,8 @@ const currencies = new Set(tours.map((tour) => tour.currency))
 		{
 			!effectiveStartDate && hasPriceFilter ? (
 				<Notice variant="warning" title="El presupuesto necesita una fecha">
-					No aplicamos el rango todavía porque el precio depende de una salida. Elige una fecha para
-					compararlo en la moneda indicada.
+					No aplicamos el rango todavía porque el precio depende de la fecha y opción. Elige una
+					fecha para compararlo en la moneda indicada.
 				</Notice>
 			) : null
 		}
@@ -193,8 +194,8 @@ const currencies = new Set(tours.map((tour) => tour.currency))
 		}
 		{
 			!loadError && availability === "disabled" ? (
-				<Notice variant="info" title="Búsqueda de tours no disponible">
-					La reserva pública de tours no está abierta en este momento.{" "}
+				<Notice variant="info" title="Búsqueda de experiencias no disponible">
+					La reserva pública de experiencias no está abierta en este momento.{" "}
 					<a href={destinationHref} class="font-semibold underline">
 						Explorar experiencias
 					</a>
@@ -266,7 +267,7 @@ const currencies = new Set(tours.map((tour) => tour.currency))
 							<ProductCard
 								vertical="tour"
 								name={tour.name}
-								href={`/tours/${tour.productId}?departure=${encodeURIComponent(tour.departureDate)}&adults=1`}
+								href={`/tours/${tour.productId}?${new URLSearchParams({ departure: tour.departureDate, adults: "1", variantId: tour.variantId, ratePlanId: tour.ratePlanId })}`}
 								image={tour.imageUrl || "/favicon-sbg.webp"}
 								alt={tour.name}
 								duration={tour.duration || ""}
@@ -274,7 +275,13 @@ const currencies = new Set(tours.map((tour) => tour.currency))
 								description={tour.description || ""}
 								price={tour.fromPrice}
 								currency={tour.currency}
-								metaLine={`${tour.departureTime ? `Salida ${tour.departureTime} · ` : ""}${tour.availableSlots} salida${tour.availableSlots === 1 ? "" : "s"} disponible${tour.availableSlots === 1 ? "" : "s"}`}
+								metaLine={[
+									experiencePublicPresentation(tour.experienceFormat).formatLabel,
+									tour.departureTime ? `Inicio ${tour.departureTime}` : null,
+									`${tour.availableSlots} horario${tour.availableSlots === 1 ? "" : "s"} disponible${tour.availableSlots === 1 ? "" : "s"}`,
+								]
+									.filter(Boolean)
+									.join(" · ")}
 								stars={tour.avgRating ?? 0}
 								reviewCount={tour.reviewCount}
 								services={[]}
@@ -282,9 +289,11 @@ const currencies = new Set(tours.map((tour) => tour.currency))
 						))
 					) : (
 						<section class="fastt-card space-y-4 p-6 text-center">
-							<h2 class="text-lg font-semibold text-slate-950">Sin salidas para estos filtros</h2>
+							<h2 class="text-lg font-semibold text-slate-950">
+								Sin disponibilidad para estos filtros
+							</h2>
 							<p class="mx-auto max-w-xl text-sm leading-6 text-slate-600">
-								No encontramos una salida con cupo y precio para esta combinación. Puedes ampliar
+								No encontramos una opción con cupo y precio para esta combinación. Puedes ampliar
 								los filtros o revisar experiencias del destino.
 							</p>
 							<div class="flex flex-wrap justify-center gap-3">

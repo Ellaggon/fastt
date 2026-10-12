@@ -1,4 +1,10 @@
 import {
+	experienceProgramMomentCount,
+	experienceHasMeetingPoint,
+	experienceHasInclusions,
+	experienceHasDuration,
+} from "@/shared/domain/experience-program"
+import {
 	experienceFormatReady,
 	experienceProgramMinimum,
 	type ExperienceFormat,
@@ -67,19 +73,8 @@ export type TourQualityRow = {
 	reviewHref: string
 }
 
-function asArray(value: unknown): unknown[] {
-	return Array.isArray(value) ? value : []
-}
-
-/** Shared meeting-point truth for admin score + publish readiness. */
-export function tourHasMeetingPoint(value: unknown): boolean {
-	if (!value || typeof value !== "object") return false
-	const row = value as Record<string, unknown>
-	const label = String(row.label ?? row.name ?? row.address ?? "").trim()
-	const lat = Number(row.lat ?? row.latitude)
-	const lng = Number(row.lng ?? row.longitude)
-	return Boolean(label) || (Number.isFinite(lat) && Number.isFinite(lng))
-}
+/** Backwards-compatible export for existing publication consumers. */
+export const tourHasMeetingPoint = experienceHasMeetingPoint
 
 export type TourQualityScoreInput = {
 	experienceFormat?: ExperienceFormat | null
@@ -436,7 +431,7 @@ export async function loadTourAdminQualityQueue(params?: {
 	)
 
 	const rows: TourQualityRow[] = products.map((row) => {
-		const itinerarySteps = asArray(row.itineraryJson).length
+		const itinerarySteps = experienceProgramMomentCount(row.itineraryJson)
 		const imageCount = imagesByProduct.get(row.productId) ?? 0
 		const activeSalidaCount = salidasByProduct.get(row.productId) ?? 0
 		const completeSalidaCount = completeByProduct.get(row.productId) ?? 0
@@ -449,8 +444,8 @@ export async function loadTourAdminQualityQueue(params?: {
 			imageCount,
 			itinerarySteps,
 			hasMeetingPoint: tourHasMeetingPoint(row.meetingPointJson),
-			hasDurationMinutes: row.durationMinutes != null && Number(row.durationMinutes) > 0,
-			hasIncludes: asArray(row.includesJson).length > 0,
+			hasDurationMinutes: experienceHasDuration(row.durationMinutes),
+			hasIncludes: experienceHasInclusions(row.includesJson),
 			categoryCount,
 			activeTicketCount,
 			activeSalidaCount,
@@ -464,8 +459,8 @@ export async function loadTourAdminQualityQueue(params?: {
 			imageCount,
 			itinerarySteps,
 			hasMeetingPoint: tourHasMeetingPoint(row.meetingPointJson),
-			hasDurationMinutes: row.durationMinutes != null && Number(row.durationMinutes) > 0,
-			hasIncludes: asArray(row.includesJson).length > 0,
+			hasDurationMinutes: experienceHasDuration(row.durationMinutes),
+			hasIncludes: experienceHasInclusions(row.includesJson),
 			categoryCount,
 			activeTicketCount,
 			activeSalidaCount,

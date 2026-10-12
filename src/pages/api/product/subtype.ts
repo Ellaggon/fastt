@@ -2,10 +2,6 @@ import type { APIRoute } from "astro"
 import { getProviderSessionSurfaceFromRequest } from "@/lib/auth/providerSessionSurface"
 import { invalidateProduct } from "@/lib/cache/invalidation"
 import { refreshProductOperationalSurfaceAfterMutation } from "@/lib/product/productOperationalSurface"
-import {
-	parseTourComplianceContext,
-	saveTourComplianceContext,
-} from "@/lib/tours/tour-compliance-context"
 import { updateProductSubtype } from "@/modules/catalog/public"
 import { productRepository, subtypeRepository } from "@/container"
 
@@ -65,6 +61,21 @@ export const POST: APIRoute = async ({ request }) => {
 				status: 400,
 				headers: { "Content-Type": "application/json" },
 			})
+		}
+
+		if (
+			subtypeType === "tour" &&
+			["complianceOperatingRole", "complianceActivityClass", "complianceJurisdictionCode"].some(
+				(key) => form.has(key)
+			)
+		) {
+			return Response.json(
+				{
+					error:
+						"La operación se declara en Verificación de experiencias. Guarda el programa sin esos campos.",
+				},
+				{ status: 400 }
+			)
 		}
 
 		let subtype: any =
@@ -136,22 +147,6 @@ export const POST: APIRoute = async ({ request }) => {
 						subtype,
 					})
 		if (response.ok) {
-			if (
-				subtypeType === "tour" &&
-				["complianceOperatingRole", "complianceActivityClass", "complianceJurisdictionCode"].some(
-					(key) => form.has(key)
-				)
-			) {
-				await saveTourComplianceContext({
-					productId,
-					providerId,
-					input: parseTourComplianceContext({
-						operatingRole: form.get("complianceOperatingRole"),
-						activityClasses: form.getAll("complianceActivityClass"),
-						jurisdictionCode: form.get("complianceJurisdictionCode"),
-					}),
-				})
-			}
 			try {
 				await invalidateProduct(productId)
 				await refreshProductOperationalSurfaceAfterMutation({
@@ -167,6 +162,8 @@ export const POST: APIRoute = async ({ request }) => {
 		return response
 	} catch (err) {
 		console.error("product/subtype error:", err)
-		return new Response(JSON.stringify({ error: "Server error" }), { status: 500 })
+		return new Response(JSON.stringify({ error: "No pudimos guardar. Vuelve a intentarlo." }), {
+			status: 500,
+		})
 	}
 }

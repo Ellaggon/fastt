@@ -1,6 +1,7 @@
 ---
 import { experienceJourneyPresentation } from "@/lib/tours/experienceFormatPresentation"
 import { experienceProgramMinimum } from "@/shared/domain/experience-format"
+import PlaybookFormContextHiddenInputs from "@/components/playbook/PlaybookFormContextHiddenInputs.astro"
 import PlaybookStepHeader from "@/components/playbook/PlaybookStepHeader.astro"
 import TourSubtypePlaybookFields from "@/components/tours/TourSubtypePlaybookFields.astro"
 import Button from "@/components/ui/Button.astro"
@@ -191,6 +192,7 @@ if (isTour) subtypeHeading = journey.logisticsLabel
 						novalidate
 					>
 						<Input type="hidden" name="productId" value={productId} />
+						<PlaybookFormContextHiddenInputs />
 						<Input
 							type="hidden"
 							name="flow"
@@ -208,6 +210,13 @@ if (isTour) subtypeHeading = journey.logisticsLabel
 						<TourSubtypePlaybookFields productId={productId} tourSubtype={tourSubtype} />
 						<p id="stateLabel" class="text-sm text-slate-400" role="status" aria-live="polite" />
 						<p id="stateDetail" class="hidden text-sm whitespace-pre-wrap text-slate-400" />
+						<a
+							id="stateRecovery"
+							class="hidden text-sm font-semibold text-sky-700 underline underline-offset-2"
+							href="#"
+						>
+							Volver al formulario
+						</a>
 					</form>
 				) : (
 					<Card
@@ -227,6 +236,7 @@ if (isTour) subtypeHeading = journey.logisticsLabel
 							novalidate={pt === "tour"}
 						>
 							<Input type="hidden" name="productId" value={productId} />
+							<PlaybookFormContextHiddenInputs />
 							<Input
 								type="hidden"
 								name="flow"
@@ -440,7 +450,11 @@ if (isTour) subtypeHeading = journey.logisticsLabel
 								<p id="stateLabel" class="text-sm text-slate-600" aria-live="polite">
 									Vacío: sin cambios guardados.
 								</p>
-								<p id="stateDetail" class="text-sm whitespace-pre-wrap text-slate-600" />
+								<p id="stateDetail" class="hidden text-sm whitespace-pre-wrap text-slate-600" />
+								<a
+									id="stateRecovery"
+									class="hidden text-sm font-medium text-sky-600 underline underline-offset-4"
+								/>
 							</div>
 
 							<div
@@ -490,7 +504,6 @@ if (isTour) subtypeHeading = journey.logisticsLabel
 		import {
 			isCompleteToPublishPlaybookMode,
 			isPlaybookMode,
-			isTourLaunchPlaybookMode,
 			playbookRedirectHref,
 			readPlaybookNavIntent,
 			resolvePlaybookRedirectAfterSave,
@@ -505,7 +518,7 @@ if (isTour) subtypeHeading = journey.logisticsLabel
 			form.dataset.bound = "true"
 			const stateLabel = document.getElementById("stateLabel")
 			const stateDetail = document.getElementById("stateDetail")
-			const btn = document.getElementById("submitBtn")
+			const recovery = document.getElementById("stateRecovery")
 			const isHotel = form instanceof HTMLElement && form.dataset.isHotel === "true"
 			const isTour = form instanceof HTMLElement && form.dataset.isTour === "true"
 			const playbookGuided = form.dataset.playbookGuided === "true"
@@ -520,10 +533,11 @@ if (isTour) subtypeHeading = journey.logisticsLabel
 					loading: "Guardando cambios…",
 					success: "Cambios guardados.",
 					error: "No pudimos guardar. Conservamos tus datos.",
-					disabled: "Deshabilitado: esperando respuesta del servidor.",
 				}
 				stateLabel.textContent = labels[state] || labels.empty
 				stateDetail.textContent = detail
+				stateDetail.classList.toggle("hidden", !detail)
+				recovery?.classList.add("hidden")
 			}
 
 			const tourFieldErrors = {
@@ -597,6 +611,7 @@ if (isTour) subtypeHeading = journey.logisticsLabel
 					const payload = JSON.parse(text)
 					const errors = payload?.error?.fieldErrors
 					if (!errors || typeof errors !== "object") return
+					let firstInvalid = null
 					for (const [field, errorId] of Object.entries(tourFieldErrors)) {
 						const messages = errors[field]
 						if (!Array.isArray(messages) || !messages.length) continue
@@ -609,7 +624,9 @@ if (isTour) subtypeHeading = journey.logisticsLabel
 										? "tourIncludes"
 										: field
 						setFieldError(fieldId, errorId, String(messages[0]))
+						firstInvalid ??= fieldId
 					}
+					document.getElementById(firstInvalid)?.focus()
 				} catch {
 					// The status message still exposes non-validation server errors.
 				}
@@ -623,7 +640,6 @@ if (isTour) subtypeHeading = journey.logisticsLabel
 				if (!validateTourForm()) return
 				setState("loading")
 				setPlaybookSubmitBusy(form, true)
-				setState("disabled")
 
 				try {
 					const res = await fetch("/api/product/subtype", { method: "POST", body: fd })
@@ -636,27 +652,33 @@ if (isTour) subtypeHeading = journey.logisticsLabel
 							const body = JSON.parse(txt)
 							if (typeof body.error === "string") message = body.error
 						} catch {}
+						if (res.status === 401)
+							message = "Tu sesión venció. Inicia sesión para guardar; conservamos tus datos."
+						if (res.status === 403) message = "No tienes permiso para guardar esta experiencia."
 						setState("error", message)
+						if (recovery && [401, 409].includes(res.status)) {
+							const returnTo = window.location.pathname + window.location.search
+							recovery.href =
+								res.status === 401 ? `/SignInPage?${new URLSearchParams({ returnTo })}` : returnTo
+							recovery.textContent = res.status === 401 ? "Iniciar sesión" : "Recargar formulario"
+							recovery.classList.remove("hidden")
+						}
 						return
 					}
 					setState("success", "Guardado correctamente")
 					draft.clear()
-					if (intent === "exit" || !isPlaybookMode(fd)) {
+					if (
+						isTour ||
+						intent === "exit" ||
+						!isPlaybookMode(fd) ||
+						isCompleteToPublishPlaybookMode(fd)
+					) {
 						window.location.href = resolvePlaybookRedirectAfterSave(fd, {
 							productId: id,
 							currentStep: "subtype",
-							launchPath: `/product/${encodeURIComponent(id)}/preview`,
-							launchStep: "preview",
-							intent: "exit",
-						})
-						return
-					}
-					if (isCompleteToPublishPlaybookMode(fd)) {
-						window.location.href = resolvePlaybookRedirectAfterSave(fd, {
-							productId: id,
-							currentStep: "subtype",
-							launchPath: `/product/${encodeURIComponent(id)}/preview`,
-							launchStep: "preview",
+							launchPath: `/product/${encodeURIComponent(id)}/location`,
+							launchStep: "location",
+							intent: !isPlaybookMode(fd) ? "exit" : intent,
 							submitter: e.submitter,
 						})
 						return
@@ -668,23 +690,13 @@ if (isTour) subtypeHeading = journey.logisticsLabel
 						)
 						return
 					}
-					if (isTourLaunchPlaybookMode(fd)) {
-						window.location.href = resolvePlaybookRedirectAfterSave(fd, {
-							productId: id,
-							currentStep: "subtype",
-							launchPath: `/product/${encodeURIComponent(id)}/location`,
-							launchStep: "location",
-							submitter: e.submitter,
-						})
-						return
-					}
 					window.location.href = playbookRedirectHref(
 						`/product/${encodeURIComponent(id)}/preview`,
 						"preview"
 					)
 				} catch (err) {
 					setPlaybookSubmitBusy(form, false)
-					setState("error", `Error de red: ${String(err)}`)
+					setState("error", "No pudimos conectar. Vuelve a intentarlo; conservamos tus datos.")
 				}
 			})
 		}

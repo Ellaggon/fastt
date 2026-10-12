@@ -155,10 +155,16 @@ export function resolvePlaybookRedirectAfterSave(
 		if (value) source.set(key, value)
 	}
 	if (intent === "exit" || !isPlaybookMode(formData)) {
-		return (
+		const target = new URL(
 			safeProductWorkspaceReturn(source.get("returnTo"), options.productId) ??
-			productWorkspaceHref(options.productId)
+				productWorkspaceHref(options.productId),
+			"http://fastt.local"
 		)
+		for (const key of ["variantId", "ratePlanId"]) {
+			const value = source.get(key)
+			if (value) target.searchParams.set(key, value)
+		}
+		return target.pathname + target.search + target.hash
 	}
 	const vertical = String(formData.get("playbookVertical") || options.vertical || "")
 	if (

@@ -3,7 +3,7 @@
 Status: active  
 Document type: canonical  
 Owner: Tours / Provider Experience  
-Last verified: 2026-10-11
+Last verified: 2026-10-12
 Scope: contrato objetivo de experiencia, navegación y continuidad entre Preparar tour y Publicar tour  
 Source of truth: requerimiento de separación del proveedor; diagnóstico en `src/lib/tours/tourDiagnosticContract.ts` y contrato compartido de playbooks de tours  
 Related code/tests: `src/layouts/PlaybookLayout.astro`, `src/lib/playbook/launch-tour.ts`, `src/lib/playbook/complete-to-publish.ts`, `src/lib/tours/tourDiagnosticContract.ts`, `tests/playbook/`, `tests/render/tour-preparation-progress.test.ts`  
@@ -126,6 +126,20 @@ de producto utilizado para declarar formato. Un formulario cuyo formato ha cambi
 sin escritura. La actualización de proyecciones posterior al commit no convierte el guardado
 en un fallo. Estas reglas se prueban en `tests/integration/tour-program-persistence.test.ts`.
 
+La comprobación del programa comparte `experience-program.ts` entre preparación, diagnóstico,
+calidad interna y lectura del servidor. Cuenta descripciones o títulos históricos y cadenas
+no vacíos; objetos vacíos no acreditan momentos. Duración positiva entera, encuentro reconocible
+e inclusiones con texto siguen siendo requisitos independientes. Consultar o editar datos
+históricos no reescribe automáticamente su contenido.
+
+Los errores del formulario conservan valores y muestran la causa junto al campo o las acciones.
+Una sesión vencida ofrece iniciar sesión con retorno; un cambio de formato ofrece recargar sin
+descartar automáticamente el borrador. Después de guardar, preparación continúa a Ubicación,
+una corrección vuelve al mismo resumen de publicación y edición/salida vuelve a la ficha
+con su opción y tarifa. Los campos operativos antiguos se rechazan antes de escribir: su
+formulario vigente pertenece a Verificación. `tests/unit/tour-program-controller.test.ts` y
+`tests/playbook/program-save-navigation.test.ts` cubren estos destinos y errores.
+
 **Persistencia:** Guardar y continuar valida el formulario y confirma el guardado antes de
 avanzar. Los errores son locales y conservan datos. Puede guardarse un borrador parcial cuando
 el contrato de datos lo permita; no se inventan valores para saltar campos obligatorios.
@@ -198,10 +212,10 @@ Los mínimos vigentes se comunican junto al campo: cinco fotos y un programa de 
 para recorridos guiados o históricos, y un momento para talleres, clases y degustaciones.
 No se inventan requisitos de publicación para justificar la existencia de B.
 
-**Correspondencia de las diez validaciones:** presentación y actividades ← etapa 1;
-logística ← etapa 2; fotos ← etapa 3; participantes, perfil, capacidad, precio y condiciones
-← etapa 4; calendario configurado ← etapa 5. Autorización, activación y disponibilidad
-conservan sus reglas independientes; no se suman artificialmente a esas diez validaciones.
+**Correspondencia con preparación:** presentación y categorías ← etapa 1; programa y
+logística ← etapa 2; ubicación ← etapa 3; fotos ← etapa 4; participantes ← etapa 5.
+Perfil, capacidad, precio, condiciones y fechas pertenecen a configuración comercial.
+Autorización, activación y disponibilidad conservan sus reglas independientes.
 
 ## Ejemplo: editar una salida
 
