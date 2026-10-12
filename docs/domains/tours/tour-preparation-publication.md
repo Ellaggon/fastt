@@ -3,7 +3,7 @@
 Status: active  
 Document type: canonical  
 Owner: Tours / Provider Experience  
-Last verified: 2026-10-09
+Last verified: 2026-10-11
 Scope: contrato objetivo de experiencia, navegación y continuidad entre Preparar tour y Publicar tour  
 Source of truth: requerimiento de separación del proveedor; diagnóstico en `src/lib/tours/tourDiagnosticContract.ts` y contrato compartido de playbooks de tours  
 Related code/tests: `src/layouts/PlaybookLayout.astro`, `src/lib/playbook/launch-tour.ts`, `src/lib/playbook/complete-to-publish.ts`, `src/lib/tours/tourDiagnosticContract.ts`, `tests/playbook/`, `tests/render/tour-preparation-progress.test.ts`  
@@ -81,6 +81,17 @@ no muestra Presentación cumplida mientras alguna de sus comprobaciones esté pe
 Las entradas antiguas de contenido y categorías redirigen al formulario unificado conservando
 selección y retorno. Las comprobaciones del servidor siguen validándose por separado.
 
+El formato guardado adapta las etiquetas de las mismas cinco etapas: un tour guiado usa
+«Itinerario y logística» y «Ubicación y encuentro»; taller, clase o degustación usan
+«Programa y detalles» y «Lugar e indicaciones». Sin clasificación histórica se presenta
+vocabulario neutral, conservando su mínimo vigente. Los identificadores, destinos y sesiones
+no cambian por formato. `experienceFormatPresentation.ts` concentra la presentación; el
+mínimo proviene de `experienceProgramMinimum()`. El diagnóstico transporta la clasificación
+como contexto de presentación, separado de selección comercial y autorización.
+Opciones y horarios conserva su gestión: «Hora de inicio», programación de fechas y cupos.
+Las superficies agregadas usan lenguaje general; la solicitud privada no confirma una reserva.
+La creación general de nuevos formatos sigue restringida hasta completar su habilitación.
+
 Las cinco entradas del índice tienen destinos estables, independientes del primer requisito
 pendiente. Fechas y cupos abre el calendario; si falta opción o tarifa, esa entrada explica la
 dependencia y ofrece la acción correspondiente. No redirige silenciosamente a crear una opción.
@@ -107,6 +118,14 @@ repetidos de publicación. Se preservan estilos, tarjetas, tipografía y resalta
 La etapa indica ubicación en el recorrido. No se añade «Pendiente · Etapa actual» a cada
 pantalla ni se considera completa una etapa por visitarla. La quinta etapa contiene sólo Participantes. Perfil de opción, precio, condiciones y fechas pertenecen al asistente independiente de opciones, no a la ficha del tour.
 
+El formulario de programa es común a creación y edición. Los controles turísticos de guía,
+dificultad y recogida sólo se presentan en tours guiados y registros históricos. Un campo omitido
+conserva lo guardado; un campo opcional enviado vacío elimina únicamente ese valor, conservando
+las demás propiedades del objeto. El servidor valida el registro efectivo bajo el mismo bloqueo
+de producto utilizado para declarar formato. Un formulario cuyo formato ha cambiado se rechaza
+sin escritura. La actualización de proyecciones posterior al commit no convierte el guardado
+en un fallo. Estas reglas se prueban en `tests/integration/tour-program-persistence.test.ts`.
+
 **Persistencia:** Guardar y continuar valida el formulario y confirma el guardado antes de
 avanzar. Los errores son locales y conservan datos. Puede guardarse un borrador parcial cuando
 el contrato de datos lo permita; no se inventan valores para saltar campos obligatorios.
@@ -116,7 +135,7 @@ Una omisión permitida se ofrece como «Completar después», sin marcarla cumpl
 **Salida de la ficha:** guardar Participantes abre `/product/{id}/preparation-complete`.
 La pantalla no contiene índice ni porcentaje comercial. Con contenido incompleto dice
 «Tu borrador está guardado» y ofrece los formularios pendientes; sólo con las cinco áreas
-comprobadas dice «La ficha de tu tour está preparada». Un fallo de lectura permite reintentar.
+comprobadas dice «La ficha de tu experiencia está preparada». Un fallo de lectura permite reintentar.
 
 **Primera opción:** la acción POST inicia o recupera una sesión `first_publication` por
 proveedor, usuario y producto. Con varias ofertas exige selección explícita; con una oferta
@@ -175,7 +194,8 @@ la selección; nunca convierte los datos desconocidos en formularios supuestamen
 
 «Llenado» no significa «cumplido»: una foto cargada no satisface un mínimo de cinco; una
 condición seleccionada puede ser incompatible. El dato se conserva y se explica el pendiente.
-Los mínimos vigentes (cinco fotos, tres actividades del itinerario) se comunican junto al campo.
+Los mínimos vigentes se comunican junto al campo: cinco fotos y un programa de tres momentos
+para recorridos guiados o históricos, y un momento para talleres, clases y degustaciones.
 No se inventan requisitos de publicación para justificar la existencia de B.
 
 **Correspondencia de las diez validaciones:** presentación y actividades ← etapa 1;

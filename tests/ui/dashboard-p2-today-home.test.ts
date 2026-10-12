@@ -21,13 +21,15 @@ describe("dashboard P2 today board", () => {
 	})
 
 	it("avoids duplicating tour totals in the legacy multi-vertical board", () => {
-		expect(dashboard).toContain("showCrossVerticalKpis = !hasTour && !isSetupHome && operatedFamilies > 1")
+		expect(dashboard).toContain(
+			"showCrossVerticalKpis = !hasTour && !isSetupHome && operatedFamilies > 1"
+		)
 		expect(dashboard).not.toContain('<WorkspaceMetricStat label="Salidas">')
 		expect(dashboard).not.toContain('<WorkspaceMetricStat label="Habitaciones">')
 	})
 
 	it("does not strip operational sidebar destinations", () => {
-		expect(nav).toContain("Salidas y cupos")
+		expect(nav).toContain("Fechas y cupos")
 		expect(nav).toContain("Reservas")
 		expect(nav).toContain("Tarifas")
 		expect(nav).toContain("Finanzas")

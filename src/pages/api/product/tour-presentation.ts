@@ -2,8 +2,7 @@ import { safeProductWorkspaceReturn } from "@/lib/auth/returnTo"
 import type { APIRoute } from "astro"
 import { ZodError } from "zod"
 import { productRepository } from "@/container"
-import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
-import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getProviderSessionSurfaceFromRequest } from "@/lib/auth/providerSessionSurface"
 import { invalidateProduct, invalidateProvider } from "@/lib/cache/invalidation"
 import { refreshProductOperationalSurfaceAfterMutation } from "@/lib/product/productOperationalSurface"
 import { tourPreparationNextHref } from "@/lib/playbook/launch-tour"
@@ -11,10 +10,11 @@ import { saveTourPresentation, TourPresentationError } from "@/modules/catalog/p
 
 export const POST: APIRoute = async ({ request }) => {
 	const json = (body: unknown, status = 200) => Response.json(body, { status })
-	const user = await getUserFromRequest(request)
-	if (!user) return json({ error: "Inicia sesión para guardar." }, 401)
-	const providerId = await getProviderIdFromRequest(request, user)
-	if (!providerId) return json({ error: "No encontramos tu negocio." }, 403)
+	const session = await getProviderSessionSurfaceFromRequest(request)
+	if (!session) return json({ error: "Inicia sesión para guardar." }, 401)
+	if (!session.permissions.canEditProfile)
+		return json({ error: "No tienes permiso para editar esta experiencia." }, 403)
+	const { providerId, userId } = session
 	try {
 		const form = await request.formData()
 		const input = {
@@ -33,11 +33,11 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 		const result = await saveTourPresentation({ repo: productRepository }, input, {
 			providerId,
-			actorId: user.id,
+			actorId: userId,
 		})
-		await Promise.all([invalidateProduct(result.productId), invalidateProvider(providerId)])
 		// Read-model refresh cannot turn a committed save into a false failure.
 		try {
+			await Promise.all([invalidateProduct(result.productId), invalidateProvider(providerId)])
 			await refreshProductOperationalSurfaceAfterMutation({
 				productId: result.productId,
 				providerId,

@@ -183,6 +183,7 @@ it("permits a partial draft only when deliberately saving and exiting", async ()
 			...input,
 			productId: productIds[2],
 			intent: "exit",
+			experienceFormat: undefined,
 			description: "",
 			highlights: [],
 			categoryIds: [],
@@ -192,4 +193,62 @@ it("permits a partial draft only when deliberately saving and exiting", async ()
 	expect(
 		(await db.select().from(Product).where(eq(Product.id, productIds[2])))[0].publicationState
 	).toBe("draft")
+	expect((await db.select().from(Tour).where(eq(Tour.productId, productIds[2])))[0]).toMatchObject({
+		experienceFormat: null,
+		formatContractVersion: 1,
+	})
+	await expect(
+		saveTourPresentation(
+			{ repo },
+			{
+				...input,
+				productId: productIds[2],
+				mode: "edit",
+				experienceFormat: undefined,
+			},
+			actor
+		)
+	).rejects.toMatchObject({ field: "experienceFormat" })
 })
+
+it("preserves the declared format when an editorial save omits it", async () => {
+	const before = await db.select().from(Tour).where(eq(Tour.productId, input.productId))
+	const audits = await db
+		.select()
+		.from(ProviderAuditLog)
+		.where(eq(ProviderAuditLog.providerId, providerId))
+	await saveTourPresentation(
+		{ repo },
+		{ ...input, mode: "edit", experienceFormat: undefined, name: "Ficha conservada" },
+		actor
+	)
+	expect(await db.select().from(Tour).where(eq(Tour.productId, input.productId))).toEqual(before)
+	expect(
+		await db.select().from(ProviderAuditLog).where(eq(ProviderAuditLog.providerId, providerId))
+	).toEqual(audits)
+})
+it("rejects an unclassified new continuation before any persistence", async () => {
+	await expect(
+		saveTourPresentation(
+			{ repo },
+			{ ...input, productId: productIds[1], experienceFormat: undefined },
+			actor
+		)
+	).rejects.toMatchObject({ field: "experienceFormat" })
+	expect(await db.select().from(Product).where(eq(Product.id, productIds[1]))).toHaveLength(0)
+})
+
+it.each(["workshop", "class", "tasting"])(
+	"rejects new %s presentation even when submitted directly",
+	async (experienceFormat) => {
+		await expect(
+			saveTourPresentation(
+				{ repo },
+				{ ...input, productId: productIds[1], experienceFormat },
+				actor
+			)
+		).rejects.toMatchObject({ status: 400, field: "experienceFormat" })
+		expect(await db.select().from(Product).where(eq(Product.id, productIds[1]))).toHaveLength(0)
+		expect(await db.select().from(Tour).where(eq(Tour.productId, productIds[1]))).toHaveLength(0)
+	}
+)

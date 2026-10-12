@@ -119,7 +119,7 @@ describe("Options summarize authoritative commercial decisions", () => {
 			reason: { code: "presentation", message: "Completa presentación" },
 			action: { label: "Editar presentación", href: "/product/tour/presentation" },
 		}
-		expect(row(diagnosis).label).toBe("Preparación del tour pendiente")
+		expect(row(diagnosis).label).toBe("Preparación de la experiencia pendiente")
 	})
 
 	it("failed evaluation is not empty or ready", () => {

@@ -308,7 +308,7 @@ export function tourPublicationValidationErrors(
 							...mapped,
 							...(issue === "thin_itinerary"
 								? {
-										message: `Describe al menos ${experienceProgramMinimum(input.experienceFormat)} momentos de la actividad.`,
+										message: `Describe al menos ${experienceProgramMinimum(input.experienceFormat)} ${experienceProgramMinimum(input.experienceFormat) === 1 ? "momento" : "momentos"} de la actividad.`,
 									}
 								: {}),
 						},

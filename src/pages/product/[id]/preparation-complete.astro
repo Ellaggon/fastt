@@ -7,6 +7,7 @@ import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { listOptionSessions, sessionHref } from "@/lib/onboarding/tourOptionSession"
 import { buildTourPlaybookHref } from "@/lib/playbook/launch-tour"
+import { experienceJourneyPresentation } from "@/lib/tours/experienceFormatPresentation"
 import { evaluateTourContentReadiness } from "@/lib/tours/tourContentReadiness"
 import { getProductFullAggregate } from "@/modules/catalog/public"
 import {
@@ -29,7 +30,8 @@ if (!providerId) return Astro.redirect("/provider/settings/profile")
 const productId = Astro.params.id!
 const owned = await productRepository.ensureProductOwnedByProvider(productId, providerId)
 if (!owned || owned.productType.toLowerCase() !== "tour")
-	return new Response("Tour no encontrado", { status: 404 })
+	return new Response("Experiencia no encontrada", { status: 404 })
+let journey = experienceJourneyPresentation(null)
 let content: ReturnType<typeof evaluateTourContentReadiness> | null = null
 let sessions: Awaited<ReturnType<typeof listOptionSessions>> = []
 let offers: {
@@ -71,6 +73,10 @@ try {
 	])
 	if (aggregate?.status === "published") return Astro.redirect(`/product/${productId}/departures`)
 	if (aggregate)
+		journey = experienceJourneyPresentation(
+			aggregate.subtype?.kind === "tour" ? aggregate.subtype.experienceFormat : null
+		)
+	if (aggregate)
 		content = evaluateTourContentReadiness(aggregate, {
 			hasCategory: categoryRows.length > 0,
 			hasActiveTickets: ticketRows.length > 0,
@@ -90,13 +96,13 @@ const areas = content
 				step: "create",
 			},
 			{
-				label: "Itinerario y logística",
+				label: journey.logisticsLabel,
 				ready: content.logistics,
 				path: "subtype",
 				step: "subtype",
 			},
 			{
-				label: "Ubicación y encuentro",
+				label: journey.locationLabel,
 				ready: content.location,
 				path: "location",
 				step: "location",
@@ -109,7 +115,7 @@ const pending = areas.filter((row) => !row.ready)
 const startKey = crypto.randomUUID()
 ---
 
-<WorkspaceLayout title="Ficha del tour">
+<WorkspaceLayout title="Ficha de la experiencia">
 	<section class="mx-auto max-w-2xl space-y-6 py-8">
 		<p class="text-sm text-slate-400">{owned.name}</p>
 		<Card class="space-y-5 bg-white text-slate-950">
@@ -126,7 +132,7 @@ const startKey = crypto.randomUUID()
 					!content
 						? "No pudimos comprobar la ficha"
 						: content.complete
-							? "La ficha de tu tour está preparada"
+							? "La ficha de tu experiencia está preparada"
 							: "Tu borrador está guardado"
 				}
 			</h1>
@@ -199,6 +205,6 @@ const startKey = crypto.randomUUID()
 				)
 			}
 		</Card>
-		<Button href="/catalog/tours?scope=tour" variant="secondary">Ir a Mis tours</Button>
+		<Button href="/catalog/tours?scope=tour" variant="secondary">Ir a Mis experiencias</Button>
 	</section>
 </WorkspaceLayout>

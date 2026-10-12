@@ -1,3 +1,5 @@
+import { experienceJourneyPresentation } from "@/lib/tours/experienceFormatPresentation"
+import type { ExperienceFormat } from "@/shared/domain/experience-format"
 import type { ProductVerticalSectionKey } from "@/lib/catalog/productVerticalRegistry"
 import { completeToPublishStepHref } from "@/lib/playbook/complete-to-publish"
 import { type TourDiagnostic } from "@/lib/tours/tourDiagnosticContract"
@@ -38,7 +40,19 @@ export function tourPublishingStageHref(
 	)
 }
 
-export function getTourPublishingStage(stepId: string | null | undefined): TourPublishingStage {
+export function tourStageLabel(id: string, fallback: string, format?: ExperienceFormat | null) {
+	const journey = experienceJourneyPresentation(format)
+	return id === "logistics"
+		? journey.logisticsLabel
+		: id === "location"
+			? journey.locationLabel
+			: fallback
+}
+
+export function getTourPublishingStage(
+	stepId: string | null | undefined,
+	format?: ExperienceFormat | null
+): TourPublishingStage {
 	const normalized = normalizeTourLaunchStep(stepId)
 	if (normalized === "preview")
 		return {
@@ -53,7 +67,7 @@ export function getTourPublishingStage(stepId: string | null | undefined): TourP
 	const stage = TOUR_PUBLISHING_STAGES[index < 0 ? 0 : index]
 	return {
 		id: stage.id,
-		label: stage.label,
+		label: tourStageLabel(stage.id, stage.label, format),
 		position: index < 0 ? 1 : index + 1,
 		total: TOUR_PUBLISHING_STAGE_COUNT,
 	}
@@ -89,7 +103,7 @@ export function projectTourPublishingStages(diagnosis: TourDiagnostic) {
 
 		return {
 			id: stage.id,
-			label: stage.label,
+			label: tourStageLabel(stage.id, stage.label, diagnosis.context.experienceFormat),
 			position: index + 1,
 			total: TOUR_PUBLISHING_STAGE_COUNT,
 			state,

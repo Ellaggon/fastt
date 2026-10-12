@@ -66,12 +66,12 @@ const showContinue = entry.kind === "render-continue"
 					</Card>
 					<Card className="flex min-h-52 flex-col justify-between gap-5 border-slate-700 bg-white p-6">
 						<div class="space-y-2">
-							<h2 class="text-xl font-semibold text-slate-950">Tour o actividad</h2>
+							<h2 class="text-xl font-semibold text-slate-950">Experiencias</h2>
 							<p class="text-sm leading-6 text-slate-600">
 								Para experiencias con participantes, horarios y cupos.
 							</p>
 						</div>
-						<Button href={providerOnboardingBusinessHref("tour")}>Preparar tour</Button>
+						<Button href={providerOnboardingBusinessHref("tour")}>Preparar experiencia</Button>
 					</Card>
 				</div>
 				<p class="text-sm leading-6 text-slate-400">Podrás añadir otros servicios después.</p>
@@ -80,7 +80,7 @@ const showContinue = entry.kind === "render-continue"
 			<div class="space-y-6">
 				<header class="space-y-3">
 					<h1 class="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-						Continúa preparando tu {entry.vertical === "tour" ? "tour" : "alojamiento"}
+						Continúa preparando {entry.vertical === "tour" ? "tu experiencia" : "tu alojamiento"}
 					</h1>
 					<p class="max-w-2xl text-sm leading-6 text-slate-300">
 						Guardamos tu elección para que no tengas que empezar de nuevo.
@@ -107,14 +107,14 @@ const showContinue = entry.kind === "render-continue"
 					<Card className="space-y-4 bg-white p-6">
 						<h2 class="text-xl font-semibold text-slate-950">Quiero ofrecer un servicio</h2>
 						<p class="text-sm leading-6 text-slate-600">
-							Crea tu negocio y prepara un alojamiento o tour.
+							Crea tu negocio y prepara un alojamiento o una experiencia.
 						</p>
 						<Button href={providerOnboardingStartHref()}>Ofrecer en Fastt</Button>
 					</Card>
 					<Card className="space-y-4 bg-white p-6">
 						<h2 class="text-xl font-semibold text-slate-950">Quiero explorar viajes</h2>
 						<p class="text-sm leading-6 text-slate-600">
-							Busca alojamientos, tours y próximos viajes.
+							Busca alojamientos, experiencias y próximos viajes.
 						</p>
 						<Button href="/" variant="secondary">
 							Ir a explorar

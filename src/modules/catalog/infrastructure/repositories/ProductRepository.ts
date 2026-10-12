@@ -1,4 +1,5 @@
 import { persistExperienceFormatDeclaration } from "./ExperienceFormatRepository"
+import { EXPERIENCE_CREATION_FORMATS } from "@/shared/domain/experience-format"
 import {
 	first,
 	db,
@@ -88,9 +89,40 @@ export class ProductRepository implements ProductRepositoryPort {
 				product &&
 				(product.providerId !== input.providerId || product.productType.toLowerCase() !== "tour")
 			)
-				throw new TourPresentationError("No encontramos este tour en tu negocio.", 404)
+				throw new TourPresentationError("No encontramos esta experiencia en tu negocio.", 404)
 			if (!product && input.mode === "edit")
-				throw new TourPresentationError("No encontramos este tour en tu negocio.", 404)
+				throw new TourPresentationError("No encontramos esta experiencia en tu negocio.", 404)
+			if (
+				!product &&
+				input.experienceFormat &&
+				!EXPERIENCE_CREATION_FORMATS.includes(input.experienceFormat)
+			)
+				throw new TourPresentationError(
+					"Este formato todavía no está disponible para crear experiencias.",
+					400,
+					"experienceFormat"
+				)
+			const classification = product
+				? await tx
+						.select({
+							experienceFormat: Tour.experienceFormat,
+							formatContractVersion: Tour.formatContractVersion,
+						})
+						.from(Tour)
+						.where(eq(Tour.productId, input.productId))
+						.then(first)
+				: null
+			if (
+				input.intent === "continue" &&
+				!input.experienceFormat &&
+				!classification?.experienceFormat &&
+				classification?.formatContractVersion !== 0
+			)
+				throw new TourPresentationError(
+					"Selecciona el formato de la experiencia.",
+					400,
+					"experienceFormat"
+				)
 			const place = await tx
 				.select()
 				.from(GeoPlace)
@@ -102,7 +134,7 @@ export class ProductRepository implements ProductRepositoryPort {
 				geoPlaceCompatibilityError({ productType: "tour", placeType: place.placeType })
 			)
 				throw new TourPresentationError(
-					"Selecciona una ciudad o lugar disponible para tours.",
+					"Selecciona una ciudad o lugar disponible para experiencias.",
 					400,
 					"geoPlaceId"
 				)
@@ -124,7 +156,7 @@ export class ProductRepository implements ProductRepositoryPort {
 				categories.some((category) => !isPublicTourCategory(category))
 			)
 				throw new TourPresentationError(
-					"Elige tipos de experiencia disponibles para tours.",
+					"Selecciona temáticas disponibles para experiencias.",
 					400,
 					"categoryIds"
 				)
@@ -161,6 +193,11 @@ export class ProductRepository implements ProductRepositoryPort {
 					actorUserId: input.actorId,
 					experienceFormat: input.experienceFormat,
 				})
+			else if (!classification)
+				await tx
+					.insert(Tour)
+					.values({ productId: input.productId })
+					.onConflictDoNothing({ target: Tour.productId })
 			const primary = await tx
 				.select()
 				.from(ProductGeoPlace)

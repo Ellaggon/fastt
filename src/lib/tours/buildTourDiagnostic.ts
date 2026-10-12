@@ -8,7 +8,11 @@ import {
 	type TourRequirementId,
 	type TourRequirementResult,
 } from "./tourDiagnosticContract"
-import { TOUR_REQUIREMENT_PRESENTATION } from "./tourDiagnosticPresentation"
+import type { ExperienceFormat } from "@/shared/domain/experience-format"
+import {
+	tourRequirementPresentation,
+	TOUR_REQUIREMENT_PRESENTATION,
+} from "./tourDiagnosticPresentation"
 import type { LoadedTourContext } from "./loadTourCommercialContext"
 import { completeToPublishStepHref } from "@/lib/playbook/complete-to-publish"
 import { tourContextSelectionHref, tourContextRecoveryHref } from "./resolveTourCommercialContext"
@@ -27,6 +31,7 @@ export function buildTourDiagnostic(input: {
 	productId: string
 	context: LoadedTourContext
 	observations: TourObservations
+	experienceFormat?: ExperienceFormat | null
 	timezone?: string
 	observedAt?: Date
 }): TourDiagnostic {
@@ -101,7 +106,10 @@ export function buildTourDiagnostic(input: {
 									label: "Volver a intentar",
 									href: retryHref,
 								}
-							: (observation.action ?? { label: TOUR_REQUIREMENT_PRESENTATION[id].action, href }),
+							: (observation.action ?? {
+									label: tourRequirementPresentation(id, input.experienceFormat).action,
+									href,
+								}),
 				}
 		if (definition.axis === "authorization" && "action" in result) {
 			const target = new URL(result.action.href, "http://fastt.local")
@@ -187,6 +195,7 @@ export function buildTourDiagnostic(input: {
 		context: {
 			providerId: input.providerId,
 			productId,
+			experienceFormat: input.experienceFormat,
 			selection,
 			timezone: input.timezone ?? "UTC",
 			observedAt: (input.observedAt ?? new Date()).toISOString(),

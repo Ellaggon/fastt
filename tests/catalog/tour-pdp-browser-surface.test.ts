@@ -115,7 +115,7 @@ describe("tour PDP browser surface (trust + ticket→price→hold)", () => {
 	it("day-of queue surface exposes check-in + voucher repair for today's salidas", () => {
 		const dayOf = read("src/pages/booking/day-of.astro")
 		expect(dayOf).toContain("data-day-of-queue")
-		expect(dayOf).toContain("Cola day-of")
+		expect(dayOf).toContain("Actividades de hoy")
 		expect(dayOf).toContain("/api/booking/check-in")
 		expect(dayOf).toContain("Reparar voucher")
 		expect(dayOf).toContain("provider-bookings-summary")

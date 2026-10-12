@@ -7,7 +7,7 @@ import {
 } from "./tour-playbook-context"
 import { tourConditionsHref } from "@/lib/tours/tourConditionsHref"
 export const LAUNCH_TOUR_PLAYBOOK_ID = "launch-tour" as const
-export const LAUNCH_TOUR_PLAYBOOK_TITLE = "Crear tour"
+export const LAUNCH_TOUR_PLAYBOOK_TITLE = "Crear experiencia"
 
 export type TourLaunchStepId =
 	| "create"
@@ -120,7 +120,7 @@ const TOUR_LAUNCH_STEP_DEFINITIONS: TourLaunchStepDefinition[] = [
 	{
 		id: "subtype",
 		label: "Itinerario y logística",
-		guestImpact: "Duración, dificultad e itinerario de la experiencia.",
+		guestImpact: "Duración, programa e inclusiones de la experiencia.",
 		buildHref: ({ productId }) =>
 			buildTourPlaybookHref(`/product/${encodeURIComponent(productId)}/subtype`, "subtype"),
 	},

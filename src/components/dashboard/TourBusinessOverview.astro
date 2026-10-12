@@ -101,13 +101,13 @@ const darkMetricCardClass =
 				<Map class="size-6 text-slate-400" aria-hidden="true" />
 				<div class="space-y-2">
 					<>
-						<h2 class="text-xl font-semibold text-slate-950">Crea tu primer tour</h2>
+						<h2 class="text-xl font-semibold text-slate-950">Crea tu primera experiencia</h2>
 						<p class="text-sm text-slate-600">
 							Añade una experiencia a tu negocio y prepara su primera opción.
 						</p>
 					</>
 				</div>
-				<Button href={createHref}>Crear tour</Button>
+				<Button href={createHref}>Crear experiencia</Button>
 			</Card>
 		) : (
 			<>
@@ -194,7 +194,7 @@ const darkMetricCardClass =
 				)}
 				{sessionsResult.status === "rejected" && (
 					<p role="status" class="text-sm text-slate-400">
-						No pudimos recuperar tu última preparación. Puedes retomarla desde Mis tours.
+						No pudimos recuperar tu última preparación. Puedes retomarla desde Mis experiencias.
 					</p>
 				)}
 				<Card
@@ -203,16 +203,16 @@ const darkMetricCardClass =
 				>
 					<div>
 						<>
-							<h2 class="text-base font-semibold text-slate-950">Tus tours</h2>
+							<h2 class="text-base font-semibold text-slate-950">Tus experiencias</h2>
 							<p class="mt-1 text-sm text-slate-600">
 								{counts
-									? `${counts.total} ${counts.total === 1 ? "tour" : "tours"} · ${counts.published} publicados · ${counts.draft} borradores`
+									? `${counts.total} ${counts.total === 1 ? "experiencia" : "experiencias"} · ${counts.published} ${counts.published === 1 ? "publicada" : "publicadas"} · ${counts.draft} borradores`
 									: "No pudimos cargar el resumen del catálogo."}
 							</p>
 						</>
 					</div>
 					<Button href="/catalog/tours" variant="secondary" size="sm">
-						Ver mis tours
+						Ver mis experiencias
 						<ArrowRight class="size-4" aria-hidden="true" />
 					</Button>
 				</Card>

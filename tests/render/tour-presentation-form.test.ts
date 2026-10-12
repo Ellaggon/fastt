@@ -35,3 +35,40 @@ it("renders one precarged form for all presentation requirements", async () => {
 	expect(html).toContain('name="variantId" value="option"')
 	expect(html).not.toContain("/categories?")
 })
+
+it.each([
+	[null, 0, null],
+	[null, 1, null],
+	["guided_tour", 1, "Tour guiado"],
+	["workshop", 1, "Taller"],
+	["class", 1, "Clase"],
+	["tasting", 1, "Degustación"],
+] as const)(
+	"preserves format %s without inferring it from themes",
+	async (experienceFormat, formatContractVersion, label) => {
+		const container = await AstroContainer.create()
+		const html = await container.renderToString(Form, {
+			request: new Request("https://fastt.test/product/tour/presentation"),
+			props: {
+				providerId: "provider",
+				productId: "tour",
+				experienceFormat,
+				formatContractVersion,
+				options: {
+					places: [],
+					categories: [{ id: "food", slug: "gastronomy", name: "Gastronomía" }],
+					linkedIds: ["food"],
+				},
+			},
+		})
+		const select = html.match(/<select[^>]*name="experienceFormat"[\s\S]*?<\/select>/)?.[0] ?? ""
+		expect(select).toContain('value="guided_tour"')
+		expect(select.includes("required")).toBe(formatContractVersion === 1)
+		if (experienceFormat)
+			expect(select).toMatch(new RegExp(`value="${experienceFormat}" selected[^>]*>\\s*${label}`))
+		else expect(select).not.toMatch(/value="(?:guided_tour|workshop|class|tasting)" selected/)
+		expect(html).toContain("Temáticas")
+		expect(html).toContain("Nombre de la experiencia")
+		if (experienceFormat !== "workshop") expect(select).not.toContain('value="workshop"')
+	}
+)

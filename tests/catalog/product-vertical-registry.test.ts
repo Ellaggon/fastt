@@ -21,7 +21,7 @@ describe("catalog/product vertical registry", () => {
 		expect(normalizeProductVertical("Limousine")).toBe("limousine")
 
 		expect(getProductVerticalEntry("Hotel").labels.workspaceSingular).toBe("Alojamiento")
-		expect(getProductVerticalEntry("Tour").labels.workspaceSingular).toBe("Tour")
+		expect(getProductVerticalEntry("Tour").labels.workspaceSingular).toBe("Experiencia")
 		expect(getProductVerticalEntry("Package").labels.workspaceSingular).toBe("Paquete")
 		expect(getProductVerticalEntry("Limousine").labels.workspaceSingular).toBe("Traslado")
 	})
@@ -46,7 +46,7 @@ describe("catalog/product vertical registry", () => {
 		])
 		expect(active.map((entry) => entry.creation.typeOptionLabel)).toEqual([
 			"Alojamiento",
-			"Tour",
+			"Experiencia",
 			"Paquete",
 			"Traslado",
 			"Propiedad",
@@ -74,7 +74,7 @@ describe("catalog/product vertical registry", () => {
 		expect(productVerticalRegistry.rental.routes.publicDetailHref("p1")).toBe("/homes/p1")
 
 		expect(productVerticalRegistry.hotel.creation.heading).toBe("Crear alojamiento")
-		expect(productVerticalRegistry.tour.creation.namePlaceholder).toContain("City Tour")
+		expect(productVerticalRegistry.tour.creation.namePlaceholder).toContain("Paseo")
 		expect(productVerticalRegistry.package.creation.namePlaceholder).toContain("4 dias")
 		expect(productVerticalRegistry.limousine.creation.namePlaceholder).toContain("aeropuerto")
 	})

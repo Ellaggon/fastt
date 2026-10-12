@@ -76,16 +76,19 @@ describe("five-stage content close", () => {
 		aggregate.subtype.formatContractVersion = 0
 		expect(evaluateTourContentReadiness(aggregate, declarations).presentation).toBe(true)
 	})
-	it("accepts a workshop program without inventing tour stops", () => {
-		const aggregate = contentFixture()
-		if (aggregate.subtype?.kind !== "tour") throw new Error("fixture")
-		aggregate.subtype.experienceFormat = "workshop"
-		aggregate.subtype.formatContractVersion = 1
-		aggregate.subtype.itinerary = [{ step: 1, description: "Preparar una pieza" }]
-		expect(evaluateTourContentReadiness(aggregate, declarations).complete).toBe(true)
-		aggregate.subtype.experienceFormat = "guided_tour"
-		expect(evaluateTourContentReadiness(aggregate, declarations).logistics).toBe(false)
-	})
+	it.each(["workshop", "class", "tasting"] as const)(
+		"accepts a %s program without inventing tour stops",
+		(format) => {
+			const aggregate = contentFixture()
+			if (aggregate.subtype?.kind !== "tour") throw new Error("fixture")
+			aggregate.subtype.experienceFormat = format
+			aggregate.subtype.formatContractVersion = 1
+			aggregate.subtype.itinerary = [{ step: 1, description: "Preparar una pieza" }]
+			expect(evaluateTourContentReadiness(aggregate, declarations).complete).toBe(true)
+			aggregate.subtype.experienceFormat = "guided_tour"
+			expect(evaluateTourContentReadiness(aggregate, declarations).logistics).toBe(false)
+		}
+	)
 })
 
 it("does not infer a format for a product with no Tour subtype", () => {

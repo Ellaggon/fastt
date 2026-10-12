@@ -5,9 +5,12 @@ import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
 import Textarea from "@/components/ui/Textarea.astro"
 import { routes } from "@/lib/routes"
+import { experienceJourneyPresentation } from "@/lib/tours/experienceFormatPresentation"
 import { TOUR_DIFFICULTY_OPTIONS, normalizeTourDifficulty } from "@/lib/tours/tourDifficulty"
+import { experienceProgramMinimum } from "@/shared/domain/experience-format"
 
 interface TourSubtypeRow {
+	experienceFormat?: string | null
 	duration: string | null
 	durationMinutes: number | null
 	difficultyLevel: string | null
@@ -26,6 +29,10 @@ interface Props {
 }
 
 const { productId, tourSubtype } = Astro.props
+const journey = experienceJourneyPresentation(tourSubtype?.experienceFormat)
+const programMinimum = experienceProgramMinimum(tourSubtype?.experienceFormat)
+const showTourFields =
+	tourSubtype?.experienceFormat == null || tourSubtype.experienceFormat === "guided_tour"
 const panelClass = "space-y-5 bg-white"
 
 function listToText(value: unknown, key = "description") {
@@ -50,6 +57,11 @@ const selectedDifficulty = normalizeTourDifficulty(tourSubtype?.difficultyLevel)
 ---
 
 <div class="space-y-5">
+	<input
+		type="hidden"
+		name="expectedExperienceFormat"
+		value={tourSubtype?.experienceFormat ?? "historical"}
+	/>
 	<Card class={panelClass}>
 		<fieldset class="space-y-4 border-0 p-0">
 			<legend class="sr-only">Duración</legend>
@@ -93,7 +105,7 @@ const selectedDifficulty = normalizeTourDifficulty(tourSubtype?.difficultyLevel)
 				label="Punto de encuentro"
 				htmlFor="meetingPointAddress"
 				required
-				description="Este es el lugar exacto donde comienza el tour; no es la ubicación de discovery del paso anterior."
+				description="Este es el lugar exacto donde comienza la experiencia; no es la ubicación del catálogo."
 			>
 				<Input
 					id="meetingPointAddress"
@@ -105,10 +117,7 @@ const selectedDifficulty = normalizeTourDifficulty(tourSubtype?.difficultyLevel)
 				/>
 				<p id="meetingPointAddressError" class="hidden text-sm text-red-600"></p>
 			</FormField>
-			<FormField
-				label="Instrucciones para encontrar al guía (opcional)"
-				htmlFor="meetingPointInstructions"
-			>
+			<FormField label="Indicaciones para llegar (opcional)" htmlFor="meetingPointInstructions">
 				<Textarea
 					id="meetingPointInstructions"
 					name="meetingPointInstructions"
@@ -122,19 +131,23 @@ const selectedDifficulty = normalizeTourDifficulty(tourSubtype?.difficultyLevel)
 
 	<Card class={panelClass}>
 		<fieldset class="space-y-4 border-0 p-0">
-			<legend class="sr-only">Recorrido e inclusiones</legend>
-			<FormField label="Itinerario (mínimo 3 momentos)" htmlFor="tourItinerary" required>
+			<legend class="sr-only">Programa e inclusiones</legend>
+			<FormField
+				label={`${journey.programLabel} (mínimo ${programMinimum} ${programMinimum === 1 ? "momento" : "momentos"})`}
+				htmlFor="tourItinerary"
+				required
+			>
 				<Textarea
 					id="tourItinerary"
 					name="tourItinerary"
 					value={listToText(tourSubtype?.itineraryJson)}
 					rows="6"
-					placeholder={"Encuentro y bienvenida\nRecorrido por el centro histórico\nVisita al mirador"}
+					placeholder={journey.programPlaceholder}
 					required
 					aria-describedby="tourItineraryHelp tourItineraryError"
 				/>
 				<p id="tourItineraryHelp" class="mt-2 text-sm leading-6 text-slate-500">
-					Escribe una parada o momento por línea.
+					Escribe un momento de la actividad por línea.
 				</p>
 				<p id="tourItineraryError" class="hidden text-sm text-red-600"></p>
 			</FormField>
@@ -144,7 +157,9 @@ const selectedDifficulty = normalizeTourDifficulty(tourSubtype?.difficultyLevel)
 					name="tourIncludes"
 					value={listToText(tourSubtype?.includesJson)}
 					rows="4"
-					placeholder={"Guía local\nEntradas\nTransporte durante el recorrido"}
+					placeholder={showTourFields
+						? "Guía local\nEntradas\nTransporte durante el recorrido"
+						: "Materiales\nActividad acompañada"}
 					required
 					aria-describedby="tourIncludesError"
 				/>
@@ -153,56 +168,48 @@ const selectedDifficulty = normalizeTourDifficulty(tourSubtype?.difficultyLevel)
 		</fieldset>
 	</Card>
 
-	<Card class="overflow-hidden bg-white p-0">
-		<details class="group">
-			<summary
-				class="cursor-pointer list-none px-5 py-4 text-sm font-semibold text-slate-900 [&::-webkit-details-marker]:hidden"
-			>
-				Presentación y guía (opcional)
-			</summary>
-			<div class="space-y-4 border-t border-slate-200 px-5 pt-4 pb-5">
-				<FormField label="Nivel de dificultad" htmlFor="difficultyLevel">
-					<Select id="difficultyLevel" name="difficultyLevel">
-						<option value="" selected={selectedDifficulty === ""}> Sin definir </option>
-						{
-							TOUR_DIFFICULTY_OPTIONS.map((level) => (
-								<option value={level.value} selected={selectedDifficulty === level.value}>
-									{level.label}
+	{
+		showTourFields && (
+			<Card class="overflow-hidden bg-white p-0">
+				<details class="group">
+					<summary class="cursor-pointer list-none px-5 py-4 text-sm font-semibold text-slate-900 [&::-webkit-details-marker]:hidden">
+						Presentación y guía (opcional)
+					</summary>
+					<div class="space-y-4 border-t border-slate-200 px-5 pt-4 pb-5">
+						<FormField label="Nivel de dificultad" htmlFor="difficultyLevel">
+							<Select id="difficultyLevel" name="difficultyLevel">
+								<option value="" selected={selectedDifficulty === ""}>
+									{" "}
+									Sin definir{" "}
 								</option>
-							))
-						}
-					</Select>
-				</FormField>
-				<FormField label="Idiomas del guía" htmlFor="guideLanguages">
-					<Input
-						id="guideLanguages"
-						name="guideLanguages"
-						value={fieldFromObject(tourSubtype?.guideJson, "languages")}
-						placeholder="Español, inglés"
-					/>
-				</FormField>
-				<FormField label="Tipo de guía" htmlFor="guideType">
-					<Input
-						id="guideType"
-						name="guideType"
-						value={fieldFromObject(tourSubtype?.guideJson, "guideType")}
-						placeholder="Guía local, conductor guía, anfitrión..."
-					/>
-				</FormField>
-				<p class="text-sm leading-6 text-slate-600">
-					Las categorías de búsqueda se editan en
-					<a
-						class="font-semibold text-sky-800 underline underline-offset-2"
-						href={`/product/${productId}/categories`}
-					>
-						Categorías de búsqueda
-					</a>
-					.
-				</p>
-			</div>
-		</details>
-	</Card>
-
+								{TOUR_DIFFICULTY_OPTIONS.map((level) => (
+									<option value={level.value} selected={selectedDifficulty === level.value}>
+										{level.label}
+									</option>
+								))}
+							</Select>
+						</FormField>
+						<FormField label="Idiomas del guía" htmlFor="guideLanguages">
+							<Input
+								id="guideLanguages"
+								name="guideLanguages"
+								value={fieldFromObject(tourSubtype?.guideJson, "languages")}
+								placeholder="Español, inglés"
+							/>
+						</FormField>
+						<FormField label="Tipo de guía" htmlFor="guideType">
+							<Input
+								id="guideType"
+								name="guideType"
+								value={fieldFromObject(tourSubtype?.guideJson, "guideType")}
+								placeholder="Guía local, conductor guía, anfitrión..."
+							/>
+						</FormField>
+					</div>
+				</details>
+			</Card>
+		)
+	}
 	<Card class="overflow-hidden bg-white p-0">
 		<details class="group">
 			<summary
@@ -211,22 +218,28 @@ const selectedDifficulty = normalizeTourDifficulty(tourSubtype?.difficultyLevel)
 				Logística, exclusiones y seguridad (opcional)
 			</summary>
 			<div class="space-y-4 border-t border-slate-200 px-5 pt-4 pb-5">
-				<FormField label="Área de recogida" htmlFor="pickupDefaultArea">
-					<Input
-						id="pickupDefaultArea"
-						name="pickupDefaultArea"
-						value={fieldFromObject(tourSubtype?.pickupJson, "defaultArea")}
-						placeholder="Hoteles de la zona centro, aeropuerto..."
-					/>
-				</FormField>
-				<FormField label="Instrucciones de recogida" htmlFor="pickupInstructions">
-					<Textarea
-						id="pickupInstructions"
-						name="pickupInstructions"
-						value={fieldFromObject(tourSubtype?.pickupJson, "instructions")}
-						rows="2"
-					/>
-				</FormField>
+				{
+					showTourFields && (
+						<div class="space-y-4">
+							<FormField label="Área de recogida" htmlFor="pickupDefaultArea">
+								<Input
+									id="pickupDefaultArea"
+									name="pickupDefaultArea"
+									value={fieldFromObject(tourSubtype?.pickupJson, "defaultArea")}
+									placeholder="Hoteles de la zona centro, aeropuerto..."
+								/>
+							</FormField>
+							<FormField label="Instrucciones de recogida" htmlFor="pickupInstructions">
+								<Textarea
+									id="pickupInstructions"
+									name="pickupInstructions"
+									value={fieldFromObject(tourSubtype?.pickupJson, "instructions")}
+									rows="2"
+								/>
+							</FormField>
+						</div>
+					)
+				}
 				<FormField label="No incluye" htmlFor="tourExcludes">
 					<Textarea
 						id="tourExcludes"
@@ -264,7 +277,7 @@ const selectedDifficulty = normalizeTourDifficulty(tourSubtype?.difficultyLevel)
 			target="_blank"
 			rel="noopener noreferrer"
 		>
-			Verificación de tours
+			Verificación de experiencias
 		</a>
 		. Puedes continuar esta guía y completarlos después.
 	</p>

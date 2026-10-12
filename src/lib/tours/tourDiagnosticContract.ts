@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { EXPERIENCE_FORMATS } from "@/shared/domain/experience-format"
 
 /** B1 defines observations, not a second evaluator of pricing or eligibility rules. */
 export const TOUR_REQUIREMENTS = {
@@ -94,6 +95,7 @@ export const tourDiagnosticSchema = z
 		context: z
 			.object({
 				providerId: z.string().min(1),
+				experienceFormat: z.enum(EXPERIENCE_FORMATS).nullable().optional(),
 				productId: z.string().min(1),
 				selection: z.discriminatedUnion("state", [
 					z

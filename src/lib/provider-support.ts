@@ -18,7 +18,11 @@ export const supportTopics = {
 	payments: "Cuenta de pago",
 	other: "Otra consulta",
 } as const
-export const supportLines = { tour: "Tours", lodging: "Alojamientos", account: "Cuenta" } as const
+export const supportLines = {
+	tour: "Experiencias",
+	lodging: "Alojamientos",
+	account: "Cuenta",
+} as const
 export const supportStatuses = {
 	open: "Recibida",
 	waiting_provider: "Esperando tu respuesta",

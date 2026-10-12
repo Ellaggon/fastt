@@ -1,3 +1,4 @@
+import { experienceJourneyPresentation } from "@/lib/tours/experienceFormatPresentation"
 import { presentTourDiagnostic } from "@/lib/tours/tourDiagnosticPresentation"
 import { TOUR_REQUIREMENTS } from "@/lib/tours/tourDiagnosticContract"
 import { loadCompleteToPublishState } from "@/lib/playbook/evaluate-complete-to-publish-progress"
@@ -77,9 +78,7 @@ export async function evaluateTourLaunchProgress(
 		create:
 			Boolean(completionBySection.get("content")) && Boolean(completionBySection.get("categories")),
 		content: Boolean(completionBySection.get("content")),
-		location: Boolean(
-			completionBySection.get(publishState.tourDiagnostic ? "subtype" : "location")
-		),
+		location: Boolean(completionBySection.get("location")),
 		images: Boolean(completionBySection.get("photos")),
 		subtype:
 			Boolean(completionBySection.get("subtype")) &&
@@ -111,9 +110,17 @@ export async function evaluateTourLaunchProgress(
 				? (publishState.tourContext.ratePlanId ?? undefined)
 				: undefined,
 	}
+	const journey = experienceJourneyPresentation(
+		publishState.tourDiagnostic?.context.experienceFormat
+	)
 	const steps = TOUR_LAUNCH_STEPS.map((step) => ({
 		key: step.id,
-		label: step.label,
+		label:
+			step.id === "subtype"
+				? journey.logisticsLabel
+				: step.id === "location"
+					? journey.locationLabel
+					: step.label,
 		guestImpact: step.guestImpact,
 		complete: completion[step.id],
 		href: step.buildHref(ctx),

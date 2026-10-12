@@ -17,6 +17,7 @@ import {
 	Product,
 	RatePlan,
 	sql,
+	Tour,
 	TourSlotProfile,
 	Variant,
 	VariantCapacity,
@@ -122,7 +123,9 @@ export function presentTourOption(input: {
 		if (permitted)
 			return {
 				...rate,
-				label: input.published ? "Configuración válida" : "Configuración válida · tour en borrador",
+				label: input.published
+					? "Configuración válida"
+					: "Configuración válida · experiencia en borrador",
 				issue: false,
 				unknown: false,
 				action: contextualAction(
@@ -289,7 +292,7 @@ export function presentTourOption(input: {
 		return result(
 			state,
 			state === "sold_out"
-				? "Próximas salidas agotadas"
+				? "Próximas fechas y horarios agotados"
 				: state === "no_capacity"
 					? "Sin cupos habilitados"
 					: "Sin próximas fechas",
@@ -304,7 +307,9 @@ export function presentTourOption(input: {
 		)
 	return result(
 		pending === "option_activation" || pending === "rate_activation" ? "inactive" : "pending",
-		activationOnly ? "Lista para activar" : (labels[pending!] ?? "Preparación del tour pendiente"),
+		activationOnly
+			? "Lista para activar"
+			: (labels[pending!] ?? "Preparación de la experiencia pendiente"),
 		detail,
 		{
 			...correction,
@@ -342,11 +347,13 @@ export async function loadTourOptionsWorkspace(input: {
 			name: Product.name,
 			status: Product.publicationState,
 			productType: Product.productType,
+			experienceFormat: Tour.experienceFormat,
 			imageUrl: sql<
 				string | null
 			>`(select image."url" from "ProductImage" link join "Image" image on image."id" = link."imageId" where link."productId" = "Product"."id" order by link."isPrimary" desc, link."sortOrder", link."imageId" limit 1)`,
 		})
 		.from(Product)
+		.leftJoin(Tour, eq(Tour.productId, Product.id))
 		.where(and(eq(Product.id, input.productId), eq(Product.providerId, input.providerId)))
 		.then((rows) => rows[0])
 	if (!product || !isTourProductType(product.productType)) return null

@@ -88,7 +88,7 @@ const entityLabel =
 const guestLabel = `${ops.guest.charAt(0).toLocaleUpperCase("es-BO")}${ops.guest.slice(1)}`
 const calendarLabel =
 	selectedVertical === "tour"
-		? "Salidas y cupos"
+		? "Fechas y cupos"
 		: selectedVertical === "hotel"
 			? "Ver calendario"
 			: "Calendario"
@@ -165,7 +165,7 @@ if (hasTourRequests) {
 					selectedVertical === "tour" ? (
 						<div class="contents">
 							<Button href={contextualHref(routes.bookingDayOf())} variant="primary">
-								Salidas de hoy
+								Actividades de hoy
 							</Button>
 							<Button
 								href={contextualHref(routes.calendar(), { focus: "availability" })}

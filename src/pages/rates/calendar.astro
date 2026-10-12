@@ -405,7 +405,12 @@ const layoutProps = optionWizard
 							hideFooter: isTourContext ? false : undefined,
 							...(isTourContext ? tourGuidedPlaybookContinue : {}),
 						}
-					: { title: "Calendario" }
+					: {
+							title:
+								isTourContext || Astro.url.searchParams.get("scope") === "tour"
+									? "Fechas y cupos"
+									: "Calendario",
+						}
 
 for (const name of ["pricing", "inventory", "restrictions", "searchFreshness", "ical"]) {
 	if (!timing.metrics.some((metric) => metric.name === name)) {

@@ -3,7 +3,7 @@ import {
 	type TourDiagnostic,
 	type TourRequirementId,
 } from "./tourDiagnosticContract"
-import { TOUR_REQUIREMENT_PRESENTATION } from "./tourDiagnosticPresentation"
+import { tourRequirementPresentation } from "./tourDiagnosticPresentation"
 import {
 	tourPreparationRequirementHref,
 	tourDiagnosticSelectionContext,
@@ -34,7 +34,10 @@ export function projectTourPublicationTasks(diagnosis: TourDiagnostic) {
 		const definition = TOUR_REQUIREMENTS[id]
 		if (definition.axis !== "preparation" && definition.axis !== "authorization") continue
 		const result = diagnosis.requirements[id].result
-		const label = id === "activities" ? "Presentación" : TOUR_REQUIREMENT_PRESENTATION[id].label
+		const label =
+			id === "activities"
+				? "Presentación"
+				: tourRequirementPresentation(id, diagnosis.context.experienceFormat).label
 		const isDependency =
 			"reason" in result &&
 			["missing_option", "missing_rate", "selection_required", "invalid_selection"].includes(

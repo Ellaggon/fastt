@@ -119,6 +119,43 @@ beforeEach(() => {
 })
 const input = { providerId: "provider", productId: "tour" }
 describe("B3 shared preparation and server diagnosis", () => {
+	it("does not let a complete program mark the independent location stage complete", async () => {
+		const aggregate = await mocks.aggregate()
+		aggregate.location = { lat: null, lng: null }
+		mocks.aggregate.mockResolvedValue(aggregate)
+		const guide = (await evaluateTourLaunchProgress("tour", "provider"))!
+		expect(guide.steps.find((step) => step.key === "subtype")?.complete).toBe(true)
+		expect(guide.steps.find((step) => step.key === "location")?.complete).toBe(false)
+		expect(guide.tourPresentation?.stages.find((stage) => stage.id === "location")?.state).toBe(
+			"pending"
+		)
+	})
+
+	it.each(["guided_tour", "workshop", "class", "tasting"] as const)(
+		"keeps %s program readiness and corrective labels equal across consumers",
+		async (format) => {
+			const aggregate = await mocks.aggregate()
+			aggregate.subtype.experienceFormat = format
+			aggregate.subtype.formatContractVersion = 1
+			aggregate.subtype.itinerary = [{ description: "Una actividad" }]
+			mocks.aggregate.mockResolvedValue(aggregate)
+			const state = (await loadCompleteToPublishState(input))!
+			const guide = (await evaluateTourLaunchProgress("tour", "provider"))!
+			const projected = guide.tourPresentation!
+			const logistics = state.tourDiagnostic!.requirements.logistics.result
+			expect(logistics.state).toBe(format === "guided_tour" ? "pending" : "ready")
+			expect(state.tourDiagnostic!.context.experienceFormat).toBe(format)
+			expect(projected.preparationRequirements.find((row) => row.id === "logistics")?.label).toBe(
+				format === "guided_tour" ? "Itinerario y logística" : "Programa y detalles"
+			)
+			expect(state.checks.find((check) => check.key === "logistics")?.label).toBe(
+				projected.stages[1].label
+			)
+			expect(guide.progress.progressPercent).toBe(state.readinessPercent)
+			if ("action" in logistics) expect(logistics.action.label).toBe("Completar itinerario")
+		}
+	)
+
 	it("reports a real missing price in preparation, guide and server with identical progress", async () => {
 		mocks.commercial.mockResolvedValue({ observations: { ...observations, priceReady: false } })
 		const state = (await loadCompleteToPublishState(input))!
@@ -217,7 +254,17 @@ describe("B5 surface parity", () => {
 			option: { ...context.option, hasProfile: false },
 		})
 		const guide = (await evaluateTourLaunchProgress("tour", "provider"))!
-		expect(guide.steps.find((step) => step.key === "departure")?.complete).toBe(false)
+		expect(guide.steps.some((step) => step.key === "departure")).toBe(false)
+		expect(
+			guide.tourPresentation?.preparationRequirements.find(
+				(requirement) => requirement.id === "option_profile"
+			)?.state
+		).toBe("pending")
+		expect(
+			guide.tourPresentation?.preparationRequirements.find(
+				(requirement) => requirement.id === "group_capacity"
+			)?.state
+		).toBe("ready")
 	})
 	it("separates a Fastt decision from preparation and retains its corrective action", async () => {
 		mocks.authorization.mockResolvedValue({
@@ -246,7 +293,7 @@ describe("B5 surface parity", () => {
 		mocks.commercial.mockResolvedValue({ observations: { ...observations, availableDateCount: 0 } })
 		const card = (await summarizeProductPreparation({ ...input, status: "published" }))!
 		expect(card.readinessPercent).toBe(100)
-		expect(card.tourPresentation?.message).toBe("Publicado · disponibilidad actual pendiente.")
+		expect(card.tourPresentation?.message).toBe("Publicada · disponibilidad actual pendiente.")
 		expect(card.tourPresentation?.primaryAction.label).toBe("Revisar disponibilidad")
 		expect(card.tourPresentation?.primaryAction.href).toContain("variantId=option&ratePlanId=rate")
 		expect(card.tourPresentation?.publicationBlockers).toEqual([])
@@ -362,9 +409,9 @@ describe("catalog readiness ignores stale editorial ready state", () => {
 			const card = (await summarizeProductPreparation({ ...input, status: "ready" }))!
 			expect(card.statusLabel).toBe(card.tourPresentation!.catalogStatus.label)
 			expect(card.statusVariant).toBe(card.tourPresentation!.catalogStatus.variant)
-			expect(card.statusLabel).not.toBe("Listo para publicar")
+			expect(card.statusLabel).not.toBe("Lista para publicar")
 			expect(card.tourPresentation!.catalogStatus.readyToPublish).toBe(false)
-			expect(card.tourPresentation!.catalogStatus.label).not.toBe("Listo para publicar")
+			expect(card.tourPresentation!.catalogStatus.label).not.toBe("Lista para publicar")
 			expect(
 				summarizeTourCatalog([{ published: false, presentation: card.tourPresentation }])
 					.readyToPublish
@@ -376,10 +423,10 @@ describe("catalog readiness ignores stale editorial ready state", () => {
 	it("counts a genuinely publishable draft even if its stored state is draft, excluding published tours and unread diagnoses", async () => {
 		const draft = (await summarizeProductPreparation({ ...input, status: "draft" }))!
 		const published = (await summarizeProductPreparation({ ...input, status: "published" }))!
-		expect(draft.statusLabel).toBe("Listo para publicar")
+		expect(draft.statusLabel).toBe("Lista para publicar")
 		expect(draft.statusVariant).toBe("success")
-		expect(published.statusLabel).toBe("Publicado")
-		expect(draft.tourPresentation!.catalogStatus.label).toBe("Listo para publicar")
+		expect(published.statusLabel).toBe("Publicada")
+		expect(draft.tourPresentation!.catalogStatus.label).toBe("Lista para publicar")
 		expect(published.tourPresentation!.catalogStatus.label).toBe("Ficha preparada")
 		expect(
 			summarizeTourCatalog([
@@ -420,7 +467,7 @@ describe("operation respects the selected booking mode", () => {
 		expect(evaluateTourCapabilities(diagnosis).receive_request.allowed).toBe(true)
 		expect(evaluateTourCapabilities(diagnosis).book.allowed).toBe(false)
 		const card = (await summarizeProductPreparation({ ...input, status: "published" }))!
-		expect(card.tourPresentation!.message).toBe("Publicado · solicitudes privadas habilitadas.")
+		expect(card.tourPresentation!.message).toBe("Publicada · solicitudes privadas habilitadas.")
 		expect(card.tourPresentation!.primaryAction.label).toBe("Revisar ficha")
 		expect(card.tourPresentation!.blockers).toEqual([])
 		expect(state.readinessPercent).toBe(100)
@@ -614,7 +661,9 @@ describe("one diagnosis snapshot per request and selection", () => {
 				url: new URL("https://fastt.test/?productId=foreign"),
 			}),
 		])
-		expect(mocks.aggregate).toHaveBeenCalledTimes(5)
+		// Product content is shared by provider/product; commercial decisions retain each intent.
+		expect(mocks.aggregate).toHaveBeenCalledTimes(3)
+		expect(mocks.context).toHaveBeenCalledTimes(5)
 	})
 	it("does not conflate fallback sessions when no explicit intent exists", async () => {
 		clearReads()
@@ -628,7 +677,8 @@ describe("one diagnosis snapshot per request and selection", () => {
 				})
 			)
 		)
-		expect(mocks.aggregate).toHaveBeenCalledTimes(2)
+		expect(mocks.aggregate).toHaveBeenCalledTimes(1)
+		expect(mocks.context).toHaveBeenCalledTimes(2)
 	})
 	it("new requests, commands and requestless evaluations read afresh", async () => {
 		clearReads()
@@ -723,7 +773,7 @@ describe("editorial state in both preparation guides", () => {
 			}))!
 			for (const guide of [launch, complete]) {
 				expect(guide.tourPresentation!.nextRequirementId).toBeNull()
-				expect(guide.tourPresentation!.message).not.toContain("Publicado")
+				expect(guide.tourPresentation!.message).not.toContain("Publicada")
 				expect(guide.progress.progressPercent).toBe(100)
 			}
 		}
@@ -733,7 +783,7 @@ describe("editorial state in both preparation guides", () => {
 it("preserves published editorial state while reporting incompatible conditions separately", async () => {
 	mocks.commercial.mockResolvedValue({ observations: { ...observations, conditionsReady: false } })
 	const summary = (await summarizeProductPreparation({ ...input, status: "published" }))!
-	expect(summary.statusLabel).toBe("Publicado")
+	expect(summary.statusLabel).toBe("Publicada")
 	expect(summary.statusVariant).toBe("success")
 	expect(summary.readyToPublish).toBe(false)
 	expect(summary.tourPresentation!.nextRequirementId).toBe("conditions")
@@ -829,7 +879,7 @@ describe("guide and individual API parity through the real GET handler", () => {
 					)
 				).toBeDefined()
 			}
-			if (!published) expect(body.preparation.statusLabel).not.toBe("Listo para publicar")
+			if (!published) expect(body.preparation.statusLabel).not.toBe("Lista para publicar")
 		}
 	)
 })

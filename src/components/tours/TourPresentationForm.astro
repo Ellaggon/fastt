@@ -7,7 +7,11 @@ import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
 import Textarea from "@/components/ui/Textarea.astro"
 import TourCategoryChoices from "@/components/tours/TourCategoryChoices.astro"
-import type { ExperienceFormat } from "@/shared/domain/experience-format"
+import { getExperienceFormatPresentation } from "@/lib/tours/experienceFormatPresentation"
+import {
+	EXPERIENCE_CREATION_FORMATS,
+	type ExperienceFormat,
+} from "@/shared/domain/experience-format"
 import type { loadTourPresentationForm } from "@/lib/tours/loadTourPresentationForm"
 interface Props {
 	providerId: string
@@ -33,6 +37,10 @@ const {
 	options,
 	guided = true,
 } = Astro.props
+const formatPresentation = getExperienceFormatPresentation(experienceFormat)
+const offeredFormats = [
+	...new Set([...EXPERIENCE_CREATION_FORMATS, ...(experienceFormat ? [experienceFormat] : [])]),
+]
 const linked = new Set(options.linkedIds)
 const panelClass = guided
 	? "space-y-5 bg-white"
@@ -42,10 +50,10 @@ const panelClass = guided
 <section class="space-y-6">
 	<PlaybookStepHeader
 		icon="presentation"
-		title={productId && !guided ? "Presentación del tour" : "Presenta tu experiencia"}
+		title={productId && !guided ? "Presentación de la experiencia" : "Presenta tu experiencia"}
 		lead={productId && !guided
 			? "Actualiza el nombre, destino y contenido de esta experiencia."
-			: "Cuenta qué ofreces y dónde. Después completarás el recorrido y la logística."}
+			: "Cuenta qué ofreces y dónde. Después completarás los detalles de la experiencia."}
 		tone={guided ? "playbook" : "light"}
 	/>
 	<form
@@ -73,14 +81,14 @@ const panelClass = guided
 			<Card class:list={[panelClass, guided && "lg:col-start-1 lg:row-start-1"]}>
 				<fieldset class="space-y-4 border-0 p-0">
 					<legend class="sr-only">Datos básicos</legend>
-					<FormField label="Nombre del tour" htmlFor="name" required>
+					<FormField label="Nombre de la experiencia" htmlFor="name" required>
 						<Input
 							id="name"
 							name="name"
 							value={name}
 							maxlength={200}
 							required
-							placeholder="Paseo por el centro histórico de La Paz"
+							placeholder={formatPresentation.namePlaceholder}
 							aria-describedby="nameError"
 						/>
 						<p id="nameError" data-presentation-error="name" class="hidden text-sm text-red-600">
@@ -88,7 +96,7 @@ const panelClass = guided
 					</FormField>
 
 					<FormField
-						label="Formato de la experiencia"
+						label="Formato"
 						htmlFor="experienceFormat"
 						required={formatContractVersion === 1}
 					>
@@ -99,19 +107,12 @@ const panelClass = guided
 							aria-describedby="experienceFormatError"
 						>
 							<option value="">Selecciona el formato</option>
-							<option value="guided_tour" selected={experienceFormat === "guided_tour"}
-								>Tour o recorrido guiado</option
-							>
 							{
-								experienceFormat && experienceFormat !== "guided_tour" && (
-									<option value={experienceFormat} selected>
-										{
-											{ workshop: "Taller", class: "Clase", tasting: "Degustación" }[
-												experienceFormat
-											]
-										}
+								offeredFormats.map((format) => (
+									<option value={format} selected={experienceFormat === format}>
+										{getExperienceFormatPresentation(format).label}
 									</option>
-								)
+								))
 							}
 						</Select>
 						<p
@@ -121,7 +122,7 @@ const panelClass = guided
 						>
 						</p>
 					</FormField>
-					<FormField label="Destino" htmlFor="geoPlaceId" required>
+					<FormField label="Ciudad o lugar" htmlFor="geoPlaceId" required>
 						<Select
 							id="geoPlaceId"
 							name="geoPlaceId"
@@ -138,8 +139,8 @@ const panelClass = guided
 							}
 						</Select>
 						<p id="destinationHelp" class="mt-2 text-sm leading-6 text-slate-500">
-							El lugar donde los viajeros encontrarán este tour. El punto de encuentro se indica
-							después.
+							El lugar donde se podrá encontrar esta experiencia. La dirección y las indicaciones se
+							completan después.
 						</p>
 						<p
 							id="geoPlaceIdError"
@@ -162,7 +163,7 @@ const panelClass = guided
 							rows="5"
 							required
 							maxlength={20000}
-							placeholder="Explica qué vivirá el viajero y para quién está pensado este tour."
+							placeholder={formatPresentation.descriptionPlaceholder}
 							aria-describedby="descriptionError"
 						/>
 						<p
@@ -179,7 +180,7 @@ const panelClass = guided
 							value={highlights.join("\n")}
 							rows="4"
 							required
-							placeholder={`Guía local experto\nMiradores del centro histórico`}
+							placeholder="Escribe lo que hace especial esta experiencia"
 							aria-describedby="highlightsHelp highlightsError"
 						/>
 						<p id="highlightsHelp" class="mt-2 text-sm leading-6 text-slate-500">
@@ -268,7 +269,7 @@ const panelClass = guided
 				.forEach((node) => node.removeAttribute("aria-invalid"))
 			if (fd.get("playbookNav") !== "exit" && !fd.getAll("categoryId").length) {
 				const error = form.querySelector<HTMLElement>('[data-presentation-error="categoryIds"]')!
-				error.textContent = "Selecciona al menos un tipo de experiencia."
+				error.textContent = "Selecciona al menos una temática."
 				error.classList.remove("hidden")
 				const control = form.querySelector<HTMLInputElement>('[name="categoryId"]')
 				control?.setAttribute("aria-invalid", "true")

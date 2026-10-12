@@ -68,7 +68,7 @@ export async function loadTourScheduleContext(
 		row.lifecycle === "archived" ||
 		!isTourProductType(row.productType)
 	)
-		throw new TourScheduleError(404, "No encontramos esta opción de tours")
+		throw new TourScheduleError(404, "No encontramos esta opción de la experiencia")
 	if (!/^\d{2}:\d{2}$/.test(row.time) || row.maxPax < 1)
 		throw new TourScheduleError(422, "Completa el horario y la capacidad de la opción")
 	const timezone = row.timezone || "UTC"

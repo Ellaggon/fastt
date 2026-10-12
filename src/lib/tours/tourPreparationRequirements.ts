@@ -1,3 +1,5 @@
+import type { ExperienceFormat } from "@/shared/domain/experience-format"
+import { experienceJourneyPresentation } from "./experienceFormatPresentation"
 import type { ProductVerticalSectionKey } from "@/lib/catalog/productVerticalRegistry"
 import { completeToPublishStepHref } from "@/lib/playbook/complete-to-publish"
 import {
@@ -5,7 +7,10 @@ import {
 	type TourDiagnostic,
 	type TourRequirementId,
 } from "./tourDiagnosticContract"
-import { TOUR_REQUIREMENT_PRESENTATION } from "./tourDiagnosticPresentation"
+import {
+	tourRequirementPresentation,
+	TOUR_REQUIREMENT_PRESENTATION,
+} from "./tourDiagnosticPresentation"
 
 export function tourDiagnosticSelectionContext(diagnosis: TourDiagnostic) {
 	const selection = diagnosis.context.selection
@@ -46,7 +51,7 @@ export function projectTourPreparationRequirements(
 		const href = tourPreparationRequirementHref(diagnosis, id)
 		return {
 			id,
-			label: TOUR_REQUIREMENT_PRESENTATION[id].label,
+			label: tourRequirementPresentation(id, diagnosis.context.experienceFormat).label,
 			state: result.state,
 			href,
 		}
@@ -73,16 +78,21 @@ export function requirementStatusLabel(requirement: TourPreparationRequirementVi
 export function projectTourLogisticsObservation(
 	checks: { sectionKey: "subtype" | "itinerary" | "location"; complete: boolean; detail: string }[],
 	productId: string,
-	selection: { variantId?: string | null; ratePlanId?: string | null } = {}
+	selection: { variantId?: string | null; ratePlanId?: string | null } = {},
+	format?: ExperienceFormat | null
 ) {
 	const pending = checks.find((check) => !check.complete)
 	return {
 		ready: !pending,
-		message: pending?.detail ?? "Recorrido y logística completos.",
+		message:
+			pending?.detail ?? `${experienceJourneyPresentation(format).logisticsLabel} completos.`,
 		...(pending
 			? {
 					action: {
-						label: pending.sectionKey === "location" ? "Definir ubicación" : "Completar logística",
+						label:
+							pending.sectionKey === "location"
+								? "Definir ubicación"
+								: experienceJourneyPresentation(format).programAction,
 						href: completeToPublishStepHref(productId, pending.sectionKey, selection),
 					},
 				}

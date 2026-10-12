@@ -33,6 +33,9 @@ Functional vocabulary: [provider playbooks](../domains/tours/tour-provider-playb
 ## Clasificación de experiencias
 
 La identidad física sigue siendo `Product(productType=tour)` + `Tour`.
+La interfaz del proveedor denomina esta línea «Experiencias». El registro vertical conserva
+las etiquetas generales; `experienceFormatPresentation.ts` presenta cada formato sin inferirlo
+desde las temáticas. Rutas, sesiones y valores técnicos mantienen sus identidades actuales.
 `Tour.experienceFormat` declara `guided_tour`, `workshop`, `class` o `tasting`,
 independientemente de categorías y actividades reguladas. No se infiere desde esos datos.
 
@@ -48,7 +51,9 @@ momentos; los demás formatos, uno. El contrato compartido está en
 `src/shared/domain/experience-format.ts`. Esto prepara contenido; no habilita venta.
 Políticas históricas sólo cubren tours. Una política con `contextVersion=2` debe declarar
 `experienceFormats` y estar aprobada. Contextos publicados/retirados son inmutables.
-El selector de creación sólo ofrece recorridos guiados; otros formatos permanecen sin
+La creación por Presentación sólo admite recorridos guiados, tanto en el selector como
+en el servidor. La lista compartida es `EXPERIENCE_CREATION_FORMATS`; las experiencias
+ya clasificadas conservan su formato al editarse. Otros formatos permanecen sin
 oferta pública hasta adaptar sus formularios, papeles y políticas. No se añaden roles.
 
 Nuevos holds guardan `experienceClassification` en el snapshot de expectativas; la

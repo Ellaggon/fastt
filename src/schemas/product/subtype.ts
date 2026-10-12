@@ -40,7 +40,7 @@ export const tourSchema = z
 		productId: z.string().min(1),
 		productType: z.literal("tour"),
 		experienceFormat: z.enum(EXPERIENCE_FORMATS).optional().nullable(),
-		duration: z.string().trim().min(1, "Indica la duración del tour."),
+		duration: z.string().trim().min(1, "Indica la duración de la experiencia."),
 		durationMinutes: z.preprocess((v) => {
 			if (v === null || v === undefined || v === "") return undefined
 			const n = Number(v)

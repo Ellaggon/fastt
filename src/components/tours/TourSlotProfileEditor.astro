@@ -145,11 +145,11 @@ const languageOptions =
 					aria-describedby="optionNameHelp"
 				/>
 				<p id="optionNameHelp" class="text-xs leading-5 text-slate-500">
-					Describe qué distingue esta alternativa del tour.
+					Describe qué distingue esta opción de la experiencia.
 				</p>
 			</FormField>
 			<FormField
-				label="Horario habitual"
+				label="Hora de inicio"
 				htmlFor="departureTime"
 				required
 				description="Las fechas disponibles se configuran en el calendario."
@@ -166,7 +166,7 @@ const languageOptions =
 				<FormField
 					label="Duración de esta opción (minutos, opcional)"
 					htmlFor="durationMinutes"
-					description="Si la dejas vacía, usamos la duración configurada en los detalles del tour."
+					description="Si la dejas vacía, usamos la duración configurada en los detalles de la experiencia."
 				>
 					<Input
 						id="durationMinutes"
@@ -349,7 +349,7 @@ const languageOptions =
 					placeholder="Ej: Entrada sur del parque, junto al kiosco"
 				/>
 				<p class="text-xs leading-5 text-slate-500">
-					Solo si esta opción reúne al grupo en un lugar diferente al del tour.
+					Solo si esta opción reúne al grupo en un lugar diferente al de la experiencia.
 				</p>
 			</FormField>
 		</div>
@@ -399,7 +399,7 @@ const languageOptions =
 					</p>
 				)}
 				<p class="text-xs text-slate-500">
-					No se copian fechas, reservas, cierres, promociones ni ajustes de salidas.
+					No se copian fechas, reservas, cierres, promociones ni ajustes operativos.
 				</p>
 				<div data-equivalent-confirmation hidden>
 					<a

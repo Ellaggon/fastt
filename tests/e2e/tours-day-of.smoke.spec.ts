@@ -72,7 +72,7 @@ test.describe("B2 Playwright smoke — day-of queue check-in + voucher repair", 
 
 		await page.goto("/tour-day-of-harness.html")
 
-		await expect(page.getByRole("heading", { name: "Cola day-of" })).toBeVisible()
+		await expect(page.getByRole("heading", { name: "Actividades de hoy" })).toBeVisible()
 		await expect(page.locator("#dayOfSummary")).toContainText("2 salidas ordenadas por hora")
 		await expect(page.locator("[data-booking-row=bkg_dayof_1]")).toContainText("09:30")
 		await expect(page.locator("[data-booking-row=bkg_dayof_1]")).toContainText("Reparar voucher")

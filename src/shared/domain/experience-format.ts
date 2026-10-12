@@ -2,6 +2,9 @@
 export const EXPERIENCE_FORMATS = ["guided_tour", "workshop", "class", "tasting"] as const
 export type ExperienceFormat = (typeof EXPERIENCE_FORMATS)[number]
 
+/** General creation stays limited until downstream forms support the other formats. */
+export const EXPERIENCE_CREATION_FORMATS: readonly ExperienceFormat[] = ["guided_tour"]
+
 export function isExperienceFormat(value: unknown): value is ExperienceFormat {
 	return EXPERIENCE_FORMATS.some((format) => format === value)
 }
@@ -15,6 +18,14 @@ export function experienceFormatReady(input: {
 		isExperienceFormat(input.experienceFormat) ||
 		(input.experienceFormat == null && (input.formatContractVersion ?? 0) === 0)
 	)
+}
+
+/** One program moment per line; punctuation inside a description is preserved. */
+export function experienceProgramLines(value: unknown): string[] {
+	return String(value ?? "")
+		.split(/\r?\n/)
+		.map((line) => line.trim())
+		.filter(Boolean)
 }
 
 export function experienceProgramMinimum(format: unknown): number {

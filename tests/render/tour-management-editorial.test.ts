@@ -15,7 +15,7 @@ it("renders an editorial presentation without creation instructions and keeps it
 			options: { linkedIds: [], places: [], categories: [] },
 		},
 	})
-	expect(html).toContain("Presentación del tour")
+	expect(html).toContain("Presentación de la experiencia")
 	expect(html).toContain("Guardar presentación")
 	expect(html).not.toContain("Después completarás el recorrido")
 	expect(html).toContain("/product/tour?variantId=option")

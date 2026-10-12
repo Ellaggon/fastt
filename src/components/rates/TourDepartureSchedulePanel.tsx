@@ -236,7 +236,7 @@ export default function TourDepartureSchedulePanel({
 						}
 					}}
 				>
-					Programar salidas
+					Programar fechas
 				</Button>
 			)}
 			{open && (
@@ -247,11 +247,11 @@ export default function TourDepartureSchedulePanel({
 				>
 					{embedded ? (
 						<h2 ref={heading} tabIndex={-1} className="sr-only">
-							Programar salidas
+							Programar fechas
 						</h2>
 					) : (
 						<h2 ref={heading} tabIndex={-1} className="text-lg font-semibold">
-							Programar salidas
+							Programar fechas
 						</h2>
 					)}
 					{!context && busy && (

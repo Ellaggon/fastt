@@ -51,9 +51,11 @@ describe("tours P0A broken-flow remediations", () => {
 
 	it("provider subtype stores difficulty via canonical select", () => {
 		const subtype = read("src/pages/product/[id]/subtype.astro")
-		expect(subtype).toContain("TOUR_DIFFICULTY_OPTIONS")
-		expect(subtype).toContain('name="difficultyLevel"')
-		expect(subtype).toContain("normalizeTourDifficulty")
-		expect(subtype).not.toContain('placeholder="Fácil, Moderado, Difícil..."')
+		const fields = read("src/components/tours/TourSubtypePlaybookFields.astro")
+		expect(subtype).toContain("TourSubtypePlaybookFields")
+		expect(fields).toContain("TOUR_DIFFICULTY_OPTIONS")
+		expect(fields).toContain('name="difficultyLevel"')
+		expect(fields).toContain("normalizeTourDifficulty")
+		expect(fields).not.toContain('placeholder="Fácil, Moderado, Difícil..."')
 	})
 })

@@ -76,6 +76,6 @@ export function presentTourCatalogItem(
 		primaryAction,
 		detailHref: contextualize(routes.productDetail(productId)),
 		statusLabel: presentation?.catalogStatus.label ?? "Evaluación pendiente",
-		support: presentation?.support ?? "No pudimos evaluar este tour. Vuelve a intentarlo.",
+		support: presentation?.support ?? "No pudimos evaluar esta experiencia. Vuelve a intentarlo.",
 	}
 }

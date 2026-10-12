@@ -1,16 +1,12 @@
-import { db, eq, Tour } from "@/shared/infrastructure/db/compat"
 import type { APIRoute } from "astro"
-import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
+import { getProviderSessionSurfaceFromRequest } from "@/lib/auth/providerSessionSurface"
 import { invalidateProduct } from "@/lib/cache/invalidation"
 import { refreshProductOperationalSurfaceAfterMutation } from "@/lib/product/productOperationalSurface"
-import { canonicalizeTourDifficultyForStorage } from "@/lib/tours/tourDifficulty"
-import { parseDurationMinutes } from "@/lib/tours/tourSemantics"
 import {
 	parseTourComplianceContext,
 	saveTourComplianceContext,
 } from "@/lib/tours/tour-compliance-context"
 import { updateProductSubtype } from "@/modules/catalog/public"
-import { tourSchema } from "@/schemas/product/subtype"
 import { productRepository, subtypeRepository } from "@/container"
 
 function listFromForm(value: FormDataEntryValue | null): string[] {
@@ -31,13 +27,17 @@ function objectFromFields(
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
-		const providerId = await getProviderIdFromRequest(request)
+		const session = await getProviderSessionSurfaceFromRequest(request)
+		const providerId = session?.providerId
 		if (!providerId) {
 			return new Response(JSON.stringify({ error: "Unauthorized / not a provider" }), {
 				status: 401,
 				headers: { "Content-Type": "application/json" },
 			})
 		}
+
+		if (!session?.permissions.canEditProfile)
+			return Response.json({ error: "No tienes permiso para editar." }, { status: 403 })
 
 		const form = await request.formData()
 		const productId = String(form.get("productId") ?? "").trim()
@@ -68,48 +68,14 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 
 		let subtype: any =
-			subtypeType === "hotel"
-				? {
-						stars: form.get("stars") ? Number(form.get("stars")) : null,
-						phone: String(form.get("phone") ?? "").trim() || null,
-						email: String(form.get("email") ?? "").trim() || null,
-						website: String(form.get("website") ?? "").trim() || null,
-					}
-				: subtypeType === "tour"
+			subtypeType === "tour"
+				? {}
+				: subtypeType === "hotel"
 					? {
-							duration: String(form.get("duration") ?? "").trim() || null,
-							durationMinutes: (() => {
-								const raw = String(form.get("durationMinutes") ?? "").trim()
-								if (raw) {
-									const n = Number(raw)
-									return Number.isFinite(n) ? n : null
-								}
-								return parseDurationMinutes(String(form.get("duration") ?? ""))
-							})(),
-							difficultyLevel: canonicalizeTourDifficultyForStorage(form.get("difficultyLevel")),
-							meetingPointJson: objectFromFields({
-								address: form.get("meetingPointAddress"),
-								instructions: form.get("meetingPointInstructions"),
-							}),
-							itineraryJson: listFromForm(form.get("tourItinerary")).map((description, index) => ({
-								step: index + 1,
-								description,
-							})),
-							safetyJson: objectFromFields({
-								requirements: form.get("safetyRequirements"),
-								warnings: form.get("safetyWarnings"),
-							}),
-							guideJson: objectFromFields({
-								languages: listFromForm(form.get("guideLanguages")).join(", "),
-								guideType: form.get("guideType"),
-							}),
-							includesJson: listFromForm(form.get("tourIncludes")),
-							excludesJson: listFromForm(form.get("tourExcludes")),
-							// Categories: ProductCategoryLink via /product/[id]/tickets (canonical).
-							pickupJson: objectFromFields({
-								defaultArea: form.get("pickupDefaultArea"),
-								instructions: form.get("pickupInstructions"),
-							}),
+							stars: form.get("stars") ? Number(form.get("stars")) : null,
+							phone: String(form.get("phone") ?? "").trim() || null,
+							email: String(form.get("email") ?? "").trim() || null,
+							website: String(form.get("website") ?? "").trim() || null,
 						}
 					: subtypeType === "package"
 						? {
@@ -145,49 +111,30 @@ export const POST: APIRoute = async ({ request }) => {
 									: null,
 							}
 
-		if (subtypeType === "tour") {
-			// Classification has its own audited command. Never trust a form to lower this requirement.
-			const [classification] = await db
-				.select({ experienceFormat: Tour.experienceFormat })
-				.from(Tour)
-				.where(eq(Tour.productId, productId))
-			const parsed = tourSchema.safeParse({
-				productId,
-				productType: "tour",
-				...subtype,
-				experienceFormat: classification?.experienceFormat ?? null,
-			})
-			if (!parsed.success) {
-				return new Response(JSON.stringify({ error: parsed.error.flatten() }), {
-					status: 400,
-					headers: { "Content-Type": "application/json" },
-				})
-			}
-			const validatedSubtype: Record<string, unknown> = { ...parsed.data }
-			delete validatedSubtype.productId
-			delete validatedSubtype.productType
-			delete validatedSubtype.experienceFormat
-			subtype = validatedSubtype
-		}
-
-		const response = await updateProductSubtype({
-			ensureOwned: (pid, prov) => productRepository.ensureProductOwnedByProvider(pid, prov),
-			runInTransaction: (fn) => subtypeRepository.runInTransaction(fn),
-			subtypeExists: (dbOrTx, pid, subtypeName) =>
-				subtypeRepository.subtypeExists(dbOrTx, pid, subtypeName),
-			updateHotel: (dbOrTx, pid, data) => subtypeRepository.updateHotel(dbOrTx, pid, data),
-			updateTour: (dbOrTx, pid, data) => subtypeRepository.updateTour(dbOrTx, pid, data),
-			updatePackage: (dbOrTx, pid, data) => subtypeRepository.updatePackage(dbOrTx, pid, data),
-			updateLimousine: (dbOrTx, pid, data) => subtypeRepository.updateLimousine(dbOrTx, pid, data),
-			insertHotel: (dbOrTx, data) => subtypeRepository.insertHotel(dbOrTx, data as any),
-			insertTour: (dbOrTx, data) => subtypeRepository.insertTour(dbOrTx, data as any),
-			insertPackage: (dbOrTx, data) => subtypeRepository.insertPackage(dbOrTx, data as any),
-			insertLimousine: (dbOrTx, data) => subtypeRepository.insertLimousine(dbOrTx, data as any),
-			providerId,
-			productId,
-			subtypeType,
-			subtype,
-		})
+		const response =
+			subtypeType === "tour"
+				? await subtypeRepository.saveTourProgram(productId, providerId, form)
+				: await updateProductSubtype({
+						ensureOwned: (pid, prov) => productRepository.ensureProductOwnedByProvider(pid, prov),
+						runInTransaction: (fn) => subtypeRepository.runInTransaction(fn),
+						subtypeExists: (dbOrTx, pid, subtypeName) =>
+							subtypeRepository.subtypeExists(dbOrTx, pid, subtypeName),
+						updateHotel: (dbOrTx, pid, data) => subtypeRepository.updateHotel(dbOrTx, pid, data),
+						updateTour: (dbOrTx, pid, data) => subtypeRepository.updateTour(dbOrTx, pid, data),
+						updatePackage: (dbOrTx, pid, data) =>
+							subtypeRepository.updatePackage(dbOrTx, pid, data),
+						updateLimousine: (dbOrTx, pid, data) =>
+							subtypeRepository.updateLimousine(dbOrTx, pid, data),
+						insertHotel: (dbOrTx, data) => subtypeRepository.insertHotel(dbOrTx, data as any),
+						insertTour: (dbOrTx, data) => subtypeRepository.insertTour(dbOrTx, data as any),
+						insertPackage: (dbOrTx, data) => subtypeRepository.insertPackage(dbOrTx, data as any),
+						insertLimousine: (dbOrTx, data) =>
+							subtypeRepository.insertLimousine(dbOrTx, data as any),
+						providerId,
+						productId,
+						subtypeType,
+						subtype,
+					})
 		if (response.ok) {
 			if (
 				subtypeType === "tour" &&
@@ -205,13 +152,17 @@ export const POST: APIRoute = async ({ request }) => {
 					}),
 				})
 			}
-			await invalidateProduct(productId)
-			await refreshProductOperationalSurfaceAfterMutation({
-				productId,
-				providerId,
-				request,
-				source: "product.subtype",
-			})
+			try {
+				await invalidateProduct(productId)
+				await refreshProductOperationalSurfaceAfterMutation({
+					productId,
+					providerId,
+					request,
+					source: "product.subtype",
+				})
+			} catch (error) {
+				console.error("product.subtype.surface_refresh_failed", error)
+			}
 		}
 		return response
 	} catch (err) {
