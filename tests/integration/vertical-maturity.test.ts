@@ -188,8 +188,13 @@ describe("vertical maturity", () => {
 		expect(aggregate?.subtype).toMatchObject({
 			kind: "tour",
 			primaryActivityCategoryId: activityId,
-			categories: [{ id: activityId, slug: `adventure-${suffix}`, name: "Adventure" }],
 		})
+		expect(aggregate?.subtype?.categories).toEqual(
+			expect.arrayContaining([
+				{ id: activityId, slug: `adventure-${suffix}`, name: "Adventure" },
+				{ id: familyId, slug: `adventure-family-${suffix}`, name: "Adventure family" },
+			])
+		)
 	})
 
 	it("adds Limousine as a first-class vertical with vehicle and capacity profile", async () => {
