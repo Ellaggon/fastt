@@ -219,10 +219,12 @@ async function seedSellableTour(params: {
 			} as any)
 			.onConflictDoNothing()
 
-		await db
-			.update(Tour)
-			.set({ primaryActivityCategoryId: activityId, activityContractVersion: 1 })
-			.where(eq(Tour.productId, params.productId))
+		if (params.categoryActive ?? true) {
+			await db
+				.update(Tour)
+				.set({ primaryActivityCategoryId: activityId, activityContractVersion: 1 })
+				.where(eq(Tour.productId, params.productId))
+		}
 	}
 
 	if (params.reviewRating != null) {
