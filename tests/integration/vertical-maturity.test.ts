@@ -189,7 +189,9 @@ describe("vertical maturity", () => {
 			kind: "tour",
 			primaryActivityCategoryId: activityId,
 		})
-		expect(aggregate?.subtype?.categories).toEqual(
+		const tourSubtype =
+			aggregate?.subtype?.kind === "tour" ? aggregate.subtype : null
+		expect(tourSubtype?.categories).toEqual(
 			expect.arrayContaining([
 				{ id: activityId, slug: `adventure-${suffix}`, name: "Adventure" },
 				{ id: familyId, slug: `adventure-family-${suffix}`, name: "Adventure family" },
