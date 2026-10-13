@@ -12,7 +12,6 @@ import {
 	Product,
 	ProductGeoPlace,
 	ProductCategory,
-	ProductCategoryLink,
 	ProductReview,
 	Provider,
 	RatePlan,
@@ -94,7 +93,6 @@ async function seedSellableTour(params: {
 			difficultyLevel: params.difficultyLevel,
 			meetingPointJson: { address: "Plaza Murillo" },
 			itineraryJson: ["Paso 1", "Paso 2", "Paso 3"],
-			activityContractVersion: 0,
 		} as any)
 		.onConflictDoNothing()
 
@@ -189,26 +187,42 @@ async function seedSellableTour(params: {
 	}
 
 	if (params.categorySlug) {
-		const categoryId = `cat_${params.categorySlug}_${params.suffix}`
+		const familyId = `fam_${params.categorySlug}_${params.suffix}`
+		const activityId = `act_${params.categorySlug}_${params.suffix}`
 		await db
 			.insert(ProductCategory)
 			.values({
-				id: categoryId,
+				id: familyId,
+				slug: `${params.categorySlug}-family`,
+				name: `${params.categorySlug} family`,
+				vertical: "tour",
+				classificationKind: "family",
+				dataClass: "production",
+				sortOrder: 1,
+				isActive: true,
+				createdAt: new Date(),
+			} as any)
+			.onConflictDoNothing()
+		await db
+			.insert(ProductCategory)
+			.values({
+				id: activityId,
 				slug: params.categorySlug,
 				name: params.categorySlug,
 				vertical: "tour",
+				classificationKind: "activity",
+				parentCategoryId: familyId,
+				dataClass: "production",
 				sortOrder: 1,
 				isActive: params.categoryActive ?? true,
 				createdAt: new Date(),
 			} as any)
 			.onConflictDoNothing()
 
-		await db.insert(ProductCategoryLink).values({
-			id: `pcl_${params.suffix}`,
-			productId: params.productId,
-			categoryId,
-			createdAt: new Date(),
-		} as any)
+		await db
+			.update(Tour)
+			.set({ primaryActivityCategoryId: activityId, activityContractVersion: 1 })
+			.where(eq(Tour.productId, params.productId))
 	}
 
 	if (params.reviewRating != null) {
