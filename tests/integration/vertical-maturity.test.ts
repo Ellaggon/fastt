@@ -141,6 +141,10 @@ describe("vertical maturity", () => {
 			excludesJson: ["Propinas"],
 			pickupJson: { defaultArea: "Hoteles centro", instructions: "Recojo 07:30" },
 		})
+		await db
+			.update(Tour)
+			.set({ activityContractVersion: 0 })
+			.where(eq(Tour.productId, productId))
 
 		const row = await db
 			.select()
@@ -257,7 +261,11 @@ describe("vertical maturity", () => {
 		// This readiness fixture represents a provider-declared guided tour.
 		await db
 			.update(Tour)
-			.set({ experienceFormat: "guided_tour", formatContractVersion: 1 })
+			.set({
+				experienceFormat: "guided_tour",
+				formatContractVersion: 1,
+				activityContractVersion: 0,
+			})
 			.where(eq(Tour.productId, productId))
 
 		await db.insert(ProductCategory).values({

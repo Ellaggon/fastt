@@ -94,6 +94,7 @@ async function seedSellableTour(params: {
 			difficultyLevel: params.difficultyLevel,
 			meetingPointJson: { address: "Plaza Murillo" },
 			itineraryJson: ["Paso 1", "Paso 2", "Paso 3"],
+			activityContractVersion: 0,
 		} as any)
 		.onConflictDoNothing()
 
