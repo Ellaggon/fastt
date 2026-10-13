@@ -239,16 +239,18 @@ it("rejects an unclassified new continuation before any persistence", async () =
 })
 
 it.each(["workshop", "class", "tasting"])(
-	"rejects new %s presentation even when submitted directly",
+	"prepares new %s without activating or publishing it",
 	async (experienceFormat) => {
-		await expect(
-			saveTourPresentation(
-				{ repo },
-				{ ...input, productId: productIds[1], experienceFormat },
-				actor
-			)
-		).rejects.toMatchObject({ status: 400, field: "experienceFormat" })
-		expect(await db.select().from(Product).where(eq(Product.id, productIds[1]))).toHaveLength(0)
-		expect(await db.select().from(Tour).where(eq(Tour.productId, productIds[1]))).toHaveLength(0)
+		await saveTourPresentation({ repo }, { ...input, productId: productIds[1], experienceFormat }, actor)
+		const [product] = await db.select().from(Product).where(eq(Product.id, productIds[1]))
+		const [tour] = await db.select().from(Tour).where(eq(Tour.productId, productIds[1]))
+		expect(product.publicationState).toBe("draft")
+		expect(tour.experienceFormat).toBe(experienceFormat)
+		await db.delete(Tour).where(eq(Tour.productId, productIds[1]))
+		await db.delete(ProductCategoryLink).where(eq(ProductCategoryLink.productId, productIds[1]))
+		await db.delete(ProductContent).where(eq(ProductContent.productId, productIds[1]))
+		await db.delete(ProductGeoPlaceActivity).where(eq(ProductGeoPlaceActivity.productId, productIds[1]))
+		await db.delete(ProductGeoPlace).where(eq(ProductGeoPlace.productId, productIds[1]))
+		await db.delete(Product).where(eq(Product.id, productIds[1]))
 	}
 )

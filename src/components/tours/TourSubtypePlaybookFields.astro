@@ -7,6 +7,7 @@ import Textarea from "@/components/ui/Textarea.astro"
 import { routes } from "@/lib/routes"
 import { experienceJourneyPresentation } from "@/lib/tours/experienceFormatPresentation"
 import { TOUR_DIFFICULTY_OPTIONS, normalizeTourDifficulty } from "@/lib/tours/tourDifficulty"
+import { experienceDurationLabel } from "@/shared/domain/experience-duration"
 import { experienceProgramMinimum } from "@/shared/domain/experience-format"
 import { experienceProgramMoments } from "@/shared/domain/experience-program"
 
@@ -25,11 +26,12 @@ interface TourSubtypeRow {
 }
 
 interface Props {
+	activityName?: string | null
 	productId: string
 	tourSubtype: TourSubtypeRow | null | undefined
 }
 
-const { productId, tourSubtype } = Astro.props
+const { productId, tourSubtype, activityName } = Astro.props
 const journey = experienceJourneyPresentation(tourSubtype?.experienceFormat)
 const programMinimum = experienceProgramMinimum(tourSubtype?.experienceFormat)
 const showTourFields =
@@ -54,6 +56,10 @@ function fieldFromObject(value: unknown, key: string) {
 	return String((value as Record<string, unknown>)[key] ?? "")
 }
 
+const totalMinutes = tourSubtype?.durationMinutes ?? 0
+const customDuration = Boolean(
+	tourSubtype?.duration && tourSubtype.duration !== experienceDurationLabel(totalMinutes)
+)
 const selectedDifficulty = normalizeTourDifficulty(tourSubtype?.difficultyLevel) ?? ""
 ---
 
@@ -64,75 +70,76 @@ const selectedDifficulty = normalizeTourDifficulty(tourSubtype?.difficultyLevel)
 		value={tourSubtype?.experienceFormat ?? "historical"}
 	/>
 	<Card class={panelClass}>
-		<fieldset class="space-y-4 border-0 p-0">
-			<legend class="sr-only">Duración</legend>
-			<div class="grid gap-4 md:grid-cols-2">
-				<FormField label="Duración visible" htmlFor="duration" required>
+		<fieldset class="space-y-4 border-0 p-0" data-experience-duration>
+			<legend class="text-sm font-semibold text-slate-950">Duración de la experiencia</legend>
+			<div class="grid gap-4 sm:grid-cols-2">
+				<FormField label="Horas" htmlFor="durationHours">
+					<Input
+						id="durationHours"
+						name="durationHours"
+						type="number"
+						min="0"
+						step="1"
+						value={String(Math.floor(totalMinutes / 60))}
+						inputmode="numeric"
+						aria-describedby="durationMinutesError"
+					/>
+				</FormField>
+				<FormField label="Minutos" htmlFor="durationPartMinutes">
+					<Input
+						id="durationPartMinutes"
+						name="durationPartMinutes"
+						type="number"
+						min="0"
+						max="59"
+						step="1"
+						value={String(totalMinutes % 60)}
+						inputmode="numeric"
+						aria-describedby="durationMinutesError"
+					/>
+				</FormField>
+			</div>
+			<Input
+				id="durationMinutes"
+				name="durationMinutes"
+				type="hidden"
+				value={String(totalMinutes)}
+			/>
+			<p id="durationMinutesError" class="hidden text-sm text-red-600"></p>
+			<details open={customDuration}>
+				<summary class="cursor-pointer text-sm font-medium text-slate-600"
+					>Personalizar el texto de duración</summary
+				>
+				<label class="mt-3 flex items-center gap-2 text-sm text-slate-600"
+					><input type="checkbox" name="durationCustomEnabled" checked={customDuration} /> Usar un texto
+					personalizado</label
+				>
+				<FormField label="Duración visible" htmlFor="duration">
 					<Input
 						id="duration"
 						name="duration"
-						value={tourSubtype?.duration ?? ""}
-						placeholder="Ej: 4 horas"
-						required
-						aria-describedby="durationHelp durationError"
+						value={tourSubtype?.duration ?? experienceDurationLabel(totalMinutes)}
+						placeholder="Ej: aproximadamente 2 horas"
+						aria-describedby="durationError"
 					/>
-					<p id="durationHelp" class="mt-2 text-sm leading-6 text-slate-500">
-						Así se mostrará al viajero.
-					</p>
 					<p id="durationError" class="hidden text-sm text-red-600"></p>
 				</FormField>
-				<FormField label="Duración total en minutos" htmlFor="durationMinutes" required>
-					<Input
-						id="durationMinutes"
-						name="durationMinutes"
-						type="number"
-						min="1"
-						inputmode="numeric"
-						value={tourSubtype?.durationMinutes != null ? String(tourSubtype.durationMinutes) : ""}
-						placeholder="240"
-						required
-						aria-describedby="durationMinutesError"
-					/>
-					<p id="durationMinutesError" class="hidden text-sm text-red-600"></p>
-				</FormField>
-			</div>
-		</fieldset>
-	</Card>
-
-	<Card class={panelClass}>
-		<fieldset class="space-y-4 border-0 p-0">
-			<legend class="sr-only">Punto de encuentro</legend>
-			<FormField
-				label="Punto de encuentro"
-				htmlFor="meetingPointAddress"
-				required
-				description="Este es el lugar exacto donde comienza la experiencia; no es la ubicación del catálogo."
-			>
-				<Input
-					id="meetingPointAddress"
-					name="meetingPointAddress"
-					value={fieldFromObject(tourSubtype?.meetingPointJson, "address")}
-					placeholder="Dirección, puerta o referencia reconocible"
-					required
-					aria-describedby="meetingPointAddressError"
-				/>
-				<p id="meetingPointAddressError" class="hidden text-sm text-red-600"></p>
-			</FormField>
-			<FormField label="Indicaciones para llegar (opcional)" htmlFor="meetingPointInstructions">
-				<Textarea
-					id="meetingPointInstructions"
-					name="meetingPointInstructions"
-					value={fieldFromObject(tourSubtype?.meetingPointJson, "instructions")}
-					rows="3"
-					placeholder="Ej: espera junto a la puerta azul 15 minutos antes."
-				/>
-			</FormField>
+			</details>
 		</fieldset>
 	</Card>
 
 	<Card class={panelClass}>
 		<fieldset class="space-y-4 border-0 p-0">
 			<legend class="sr-only">Programa e inclusiones</legend>
+			<p class="text-sm font-semibold text-slate-950">{journey.programQuestion}</p>
+			{
+				activityName && (
+					<p class="text-sm text-slate-500">
+						Describe el desarrollo de {activityName.toLocaleLowerCase("es")} y lo que recibirán los
+						participantes.
+					</p>
+				)
+			}
 			<FormField
 				label={`${journey.programLabel} (mínimo ${programMinimum} ${programMinimum === 1 ? "momento" : "momentos"})`}
 				htmlFor="tourItinerary"
@@ -158,9 +165,7 @@ const selectedDifficulty = normalizeTourDifficulty(tourSubtype?.difficultyLevel)
 					name="tourIncludes"
 					value={listToText(tourSubtype?.includesJson)}
 					rows="4"
-					placeholder={showTourFields
-						? "Guía local\nEntradas\nTransporte durante el recorrido"
-						: "Materiales\nActividad acompañada"}
+					placeholder={journey.includesPlaceholder}
 					required
 					aria-describedby="tourIncludesError"
 				/>
@@ -177,19 +182,6 @@ const selectedDifficulty = normalizeTourDifficulty(tourSubtype?.difficultyLevel)
 						Presentación y guía (opcional)
 					</summary>
 					<div class="space-y-4 border-t border-slate-200 px-5 pt-4 pb-5">
-						<FormField label="Nivel de dificultad" htmlFor="difficultyLevel">
-							<Select id="difficultyLevel" name="difficultyLevel">
-								<option value="" selected={selectedDifficulty === ""}>
-									{" "}
-									Sin definir{" "}
-								</option>
-								{TOUR_DIFFICULTY_OPTIONS.map((level) => (
-									<option value={level.value} selected={selectedDifficulty === level.value}>
-										{level.label}
-									</option>
-								))}
-							</Select>
-						</FormField>
 						<FormField label="Idiomas del guía" htmlFor="guideLanguages">
 							<Input
 								id="guideLanguages"
@@ -212,15 +204,18 @@ const selectedDifficulty = normalizeTourDifficulty(tourSubtype?.difficultyLevel)
 		)
 	}
 	<Card class="overflow-hidden bg-white p-0">
-		<details class="group">
+		<details
+			class="group"
+			open={Boolean(selectedDifficulty || tourSubtype?.pickupJson || tourSubtype?.safetyJson)}
+		>
 			<summary
 				class="cursor-pointer list-none px-5 py-4 text-sm font-semibold text-slate-900 [&::-webkit-details-marker]:hidden"
 			>
-				Logística, exclusiones y seguridad (opcional)
+				Indicaciones, exclusiones y características (opcional)
 			</summary>
 			<div class="space-y-4 border-t border-slate-200 px-5 pt-4 pb-5">
 				{
-					showTourFields && (
+					(
 						<div class="space-y-4">
 							<FormField label="Área de recogida" htmlFor="pickupDefaultArea">
 								<Input
@@ -241,6 +236,21 @@ const selectedDifficulty = normalizeTourDifficulty(tourSubtype?.difficultyLevel)
 						</div>
 					)
 				}
+				<FormField label="Esfuerzo físico (si corresponde)" htmlFor="difficultyLevel">
+					<Select id="difficultyLevel" name="difficultyLevel">
+						<option value="" selected={selectedDifficulty === ""}>
+							{" "}
+							Sin definir{" "}
+						</option>
+						{
+							TOUR_DIFFICULTY_OPTIONS.map((level) => (
+								<option value={level.value} selected={selectedDifficulty === level.value}>
+									{level.label}
+								</option>
+							))
+						}
+					</Select>
+				</FormField>
 				<FormField label="No incluye" htmlFor="tourExcludes">
 					<Textarea
 						id="tourExcludes"

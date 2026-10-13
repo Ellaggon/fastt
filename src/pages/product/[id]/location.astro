@@ -1,4 +1,5 @@
 ---
+import ExperienceMeetingFields from "@/components/tours/ExperienceMeetingFields.astro"
 import { experienceJourneyPresentation } from "@/lib/tours/experienceFormatPresentation"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
@@ -77,13 +78,6 @@ const meetingInstructions =
 	tourMeetingPoint && typeof tourMeetingPoint === "object"
 		? String((tourMeetingPoint as Record<string, unknown>).instructions ?? "").trim()
 		: ""
-const meetingPath = `/product/${encodeURIComponent(productId)}/subtype#tour-meeting-point`
-const meetingHref =
-	playbook.playbookId === "complete-to-publish"
-		? buildCompleteToPublishHref(meetingPath, "subtype")
-		: playbook.playbookId === "launch-tour"
-			? `${meetingPath.split("#")[0]}?playbook=launch-tour&step=subtype&flow=create#tour-meeting-point`
-			: meetingPath
 const tourPlaybookGuided = isTour && playbook.active
 const tourLocationPanelClass = "space-y-5 bg-white"
 ---
@@ -112,7 +106,7 @@ const tourLocationPanelClass = "space-y-5 bg-white"
 						title={isTour ? journey.locationLabel : "Metadata geográfica"}
 						lead={
 							isTour
-								? "Selecciona el destino que organiza las búsquedas y ubica el área general en el mapa. Esto no cambia el punto exacto donde el viajero se reúne con el guía."
+								? "Confirma dónde se encuentra la experiencia y el lugar exacto al que deben acudir los participantes."
 								: `Define ubicación, coordenadas y contexto geográfico de ${vertical.labels.singular}.`
 						}
 					/>
@@ -127,6 +121,17 @@ const tourLocationPanelClass = "space-y-5 bg-white"
 						class="w-full max-w-5xl space-y-5"
 					>
 						<Input type="hidden" name="productId" value={productId} />
+						{isTour && (
+							<Input
+								type="hidden"
+								name="expectedExperienceFormat"
+								value={
+									product.subtype?.kind === "tour"
+										? (product.subtype.experienceFormat ?? "historical")
+										: "historical"
+								}
+							/>
+						)}
 						<Input
 							type="hidden"
 							name="flow"
@@ -135,8 +140,18 @@ const tourLocationPanelClass = "space-y-5 bg-white"
 						{playbook.playbookId ? (
 							<Input type="hidden" name="playbook" value={playbook.playbookId} />
 						) : null}
-						<Input id="lat" type="hidden" name="lat" value={String(initialLat)} />
-						<Input id="lng" type="hidden" name="lng" value={String(initialLng)} />
+						<Input
+							id="lat"
+							type="hidden"
+							name="lat"
+							value={existingLocation?.lat == null ? "" : String(existingLocation.lat)}
+						/>
+						<Input
+							id="lng"
+							type="hidden"
+							name="lng"
+							value={existingLocation?.lng == null ? "" : String(existingLocation.lng)}
+						/>
 
 						<Card class={tourLocationPanelClass}>
 							<fieldset class="space-y-4 border-0 p-0">
@@ -207,31 +222,11 @@ const tourLocationPanelClass = "space-y-5 bg-white"
 						</Card>
 
 						<Card class={tourLocationPanelClass}>
-							<fieldset class="space-y-4 border-0 p-0" aria-labelledby="meetingPointHeading">
-								<legend class="sr-only">Punto de encuentro</legend>
-								<div class="flex flex-wrap items-start justify-between gap-3">
-									<div class="min-w-0 space-y-1">
-										<h2 id="meetingPointHeading" class="text-base font-semibold text-slate-950">
-											Punto de encuentro
-										</h2>
-										<p class="max-w-xl text-sm leading-6 text-slate-500">
-											Lugar exacto donde el viajero se reúne con el guía. No es la ubicación de
-											discovery del catálogo.
-										</p>
-									</div>
-									<Button href={meetingHref} variant="secondary" size="sm" class="shrink-0">
-										{meetingAddress ? "Editar punto de encuentro" : "Definir punto de encuentro"}
-									</Button>
-								</div>
-								<div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
-									<p class="font-medium text-slate-900">
-										{meetingAddress || "Todavía no se definió el punto exacto."}
-									</p>
-									{meetingInstructions ? (
-										<p class="mt-1.5 leading-6 text-slate-600">{meetingInstructions}</p>
-									) : null}
-								</div>
-							</fieldset>
+							<ExperienceMeetingFields
+								address={meetingAddress}
+								instructions={meetingInstructions}
+								format={product.subtype?.kind === "tour" ? product.subtype.experienceFormat : null}
+							/>
 						</Card>
 
 						<p id="stateLabel" class="sr-only" role="status" aria-live="polite" />
@@ -252,6 +247,17 @@ const tourLocationPanelClass = "space-y-5 bg-white"
 							class="max-w-3xl space-y-6"
 						>
 							<Input type="hidden" name="productId" value={productId} />
+							{isTour && (
+								<Input
+									type="hidden"
+									name="expectedExperienceFormat"
+									value={
+										product.subtype?.kind === "tour"
+											? (product.subtype.experienceFormat ?? "historical")
+											: "historical"
+									}
+								/>
+							)}
 							<Input
 								type="hidden"
 								name="flow"
@@ -266,8 +272,18 @@ const tourLocationPanelClass = "space-y-5 bg-white"
 									<Input type="hidden" name="playbookVertical" value={vertical.vertical} />
 								</>
 							) : null}
-							<Input id="lat" type="hidden" name="lat" value={String(initialLat)} />
-							<Input id="lng" type="hidden" name="lng" value={String(initialLng)} />
+							<Input
+								id="lat"
+								type="hidden"
+								name="lat"
+								value={existingLocation?.lat == null ? "" : String(existingLocation.lat)}
+							/>
+							<Input
+								id="lng"
+								type="hidden"
+								name="lng"
+								value={existingLocation?.lng == null ? "" : String(existingLocation.lng)}
+							/>
 
 							{!playbook.active ? (
 								<header class="space-y-1.5">
@@ -276,7 +292,7 @@ const tourLocationPanelClass = "space-y-5 bg-white"
 									</h2>
 									<p class="text-sm leading-6 text-slate-600">
 										{isTour
-											? "Selecciona el destino que organiza las búsquedas y ubica el área general en el mapa. Esto no cambia el punto exacto donde el viajero se reúne con el guía."
+											? "Confirma dónde se encuentra la experiencia y el lugar exacto al que deben acudir los participantes."
 											: `Define ubicación, coordenadas y contexto geográfico de ${vertical.labels.singular}.`}
 									</p>
 								</header>
@@ -347,33 +363,13 @@ const tourLocationPanelClass = "space-y-5 bg-white"
 							</section>
 
 							{isTour ? (
-								<section
-									class="space-y-3 border-t border-slate-100 pt-6"
-									aria-labelledby="meetingPointHeading"
-								>
-									<div class="flex flex-wrap items-start justify-between gap-3">
-										<div class="max-w-xl min-w-0 space-y-1">
-											<h3 id="meetingPointHeading" class="text-base font-semibold text-slate-950">
-												Punto de encuentro operativo
-											</h3>
-											<p class="text-sm leading-6 text-slate-600">
-												Se muestra al viajero para encontrar al guía. Es independiente del destino y
-												de la zona pública elegidos arriba.
-											</p>
-										</div>
-										<Button href={meetingHref} variant="secondary" size="sm" class="shrink-0">
-											{meetingAddress ? "Editar punto de encuentro" : "Definir punto de encuentro"}
-										</Button>
-									</div>
-									<div class="fastt-soft-box border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-										<p class="font-medium text-slate-900">
-											{meetingAddress || "Todavía no se definió el punto exacto."}
-										</p>
-										{meetingInstructions ? (
-											<p class="mt-1.5 leading-6 text-slate-600">{meetingInstructions}</p>
-										) : null}
-									</div>
-								</section>
+								<ExperienceMeetingFields
+									address={meetingAddress}
+									instructions={meetingInstructions}
+									format={
+										product.subtype?.kind === "tour" ? product.subtype.experienceFormat : null
+									}
+								/>
 							) : null}
 
 							<div
@@ -434,13 +430,9 @@ const tourLocationPanelClass = "space-y-5 bg-white"
 	</section>
 
 	<script>
-		import L from "leaflet"
 		import { bindPlaybookFormDraft } from "@/lib/forms/playbookFormDraft.ts"
 		import { setPlaybookSubmitBusy } from "@/lib/forms/playbookFormBusy.ts"
-		import {
-			readPlaybookNavIntent,
-			resolvePlaybookRedirectAfterSave,
-		} from "@/lib/playbook/playbook-nav.ts"
+		import { resolvePlaybookRedirectAfterSave } from "@/lib/playbook/playbook-nav.ts"
 
 		type LocationState = "empty" | "loading" | "success" | "error" | "disabled"
 
@@ -457,6 +449,7 @@ const tourLocationPanelClass = "space-y-5 bg-white"
 			}
 			stateLabel.textContent = labels[state] || labels.empty
 			stateDetail.textContent = detail
+			stateDetail.classList.toggle("hidden", !detail)
 		}
 
 		function updateCoords(lat: number, lng: number) {
@@ -484,66 +477,29 @@ const tourLocationPanelClass = "space-y-5 bg-white"
 				key: `product:${window.location.pathname}:location`,
 			})
 
-			const initialLat = Number(mapElement.dataset.lat || "-16.495905")
-			const initialLng = Number(mapElement.dataset.lng || "-68.133623")
-			const map = L.map(mapElement).setView([initialLat, initialLng], 12)
-
-			L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-				maxZoom: 19,
-				attribution: "&copy; OpenStreetMap",
-			}).addTo(map)
-
-			const marker = L.marker([initialLat, initialLng], { draggable: true }).addTo(map)
-			updateCoords(initialLat, initialLng)
-
-			window.setTimeout(() => map.invalidateSize(), 80)
-
-			map.on("click", (event) => {
-				const { lat, lng } = event.latlng
-				marker.setLatLng([lat, lng])
-				updateCoords(lat, lng)
-			})
-
-			marker.on("dragend", () => {
-				const { lat, lng } = marker.getLatLng()
-				updateCoords(lat, lng)
-			})
-
-			mapElement.addEventListener("keydown", (event) => {
-				const offsets: Record<string, [number, number]> = {
-					ArrowUp: [0.001, 0],
-					ArrowDown: [-0.001, 0],
-					ArrowLeft: [0, -0.001],
-					ArrowRight: [0, 0.001],
-				}
-				const offset = offsets[event.key]
-				if (!offset) return
-				event.preventDefault()
-				const current = marker.getLatLng()
-				const next: [number, number] = [current.lat + offset[0], current.lng + offset[1]]
-				marker.setLatLng(next)
-				map.panTo(next)
-				updateCoords(next[0], next[1])
-			})
-
 			form.addEventListener("submit", async (e) => {
 				e.preventDefault()
 				const fd = new FormData(form)
-				const intent = readPlaybookNavIntent(fd, e.submitter)
 				const targetProductId = String(fd.get("productId") || "")
-				if (intent === "exit" && !String(fd.get("geoPlaceId") || "").trim()) {
-					window.location.href = resolvePlaybookRedirectAfterSave(fd, {
-						productId: targetProductId,
-						currentStep: "location",
-						launchPath: `/product/${encodeURIComponent(targetProductId)}/images`,
-						launchStep: "images",
-						intent: "exit",
-					})
+				const invalid = form.querySelector<HTMLInputElement>("#meetingPointAddress")
+				if (invalid && !invalid.value.trim()) {
+					invalid.setAttribute("aria-invalid", "true")
+					const error = document.getElementById("meetingPointAddressError")
+					if (error) {
+						error.textContent = "Indica el lugar exacto de la experiencia."
+						error.classList.remove("hidden")
+					}
+					invalid.focus()
+					setState("error", "Revisa el lugar de la experiencia.")
+					return
+				}
+				if (!String(fd.get("lat") ?? "").trim() || !String(fd.get("lng") ?? "").trim()) {
+					setState("error", "Selecciona la ubicación en el mapa.")
+					mapElement.focus()
 					return
 				}
 				setState("loading")
 				setPlaybookSubmitBusy(form, true)
-				setState("disabled")
 
 				try {
 					const res = await fetch("/api/product/location", { method: "POST", body: fd })
@@ -551,7 +507,29 @@ const tourLocationPanelClass = "space-y-5 bg-white"
 
 					if (!res.ok) {
 						setPlaybookSubmitBusy(form, false)
-						setState("error", `status=${res.status}\n${txt}`)
+						let body: { error?: unknown } = {}
+						try {
+							body = JSON.parse(txt)
+						} catch {
+							/* Preserve values for retry. */
+						}
+						const message =
+							typeof body.error === "string"
+								? body.error
+								: "Revisa el lugar y los campos indicados antes de reintentar."
+						setState("error", message)
+						const field = form.querySelector<HTMLInputElement>("#meetingPointAddress")
+						if (field && !field.value.trim()) {
+							field.setAttribute("aria-invalid", "true")
+							field.focus()
+						}
+						if (res.status === 401) {
+							const login = document.createElement("a")
+							login.href = `/SignInPage?returnTo=${encodeURIComponent(window.location.pathname + window.location.search)}`
+							login.textContent = "Iniciar sesión"
+							login.className = "ml-2 underline"
+							document.getElementById("stateDetail")?.append(login)
+						}
 						return
 					}
 
@@ -569,6 +547,67 @@ const tourLocationPanelClass = "space-y-5 bg-white"
 					setState("error", `Error de red: ${String(err)}`)
 				}
 			})
+			void (async () => {
+				try {
+					const { default: L } = await import("leaflet")
+					const initialLat = Number(mapElement.dataset.lat || "-16.495905")
+					const initialLng = Number(mapElement.dataset.lng || "-68.133623")
+					const map = L.map(mapElement).setView([initialLat, initialLng], 12)
+
+					L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+						maxZoom: 19,
+						attribution: "&copy; OpenStreetMap",
+					}).addTo(map)
+
+					const marker = L.marker([initialLat, initialLng], { draggable: true }).addTo(map)
+					const savedLat = (document.getElementById("lat") as HTMLInputElement)?.value
+					const savedLng = (document.getElementById("lng") as HTMLInputElement)?.value
+					if (savedLat && savedLng) {
+						marker.setLatLng([Number(savedLat), Number(savedLng)])
+						updateCoords(Number(savedLat), Number(savedLng))
+					}
+
+					window.setTimeout(() => map.invalidateSize(), 80)
+
+					map.on("click", (event) => {
+						const { lat, lng } = event.latlng
+						marker.setLatLng([lat, lng])
+						updateCoords(lat, lng)
+					})
+
+					marker.on("dragend", () => {
+						const { lat, lng } = marker.getLatLng()
+						updateCoords(lat, lng)
+					})
+
+					mapElement.addEventListener("keydown", (event) => {
+						const offsets: Record<string, [number, number]> = {
+							ArrowUp: [0.001, 0],
+							ArrowDown: [-0.001, 0],
+							ArrowLeft: [0, -0.001],
+							ArrowRight: [0, 0.001],
+						}
+						const offset = offsets[event.key]
+						if (!offset) return
+						event.preventDefault()
+						const current = marker.getLatLng()
+						const next: [number, number] = [current.lat + offset[0], current.lng + offset[1]]
+						marker.setLatLng(next)
+						map.panTo(next)
+						updateCoords(next[0], next[1])
+					})
+				} catch {
+					mapElement.textContent =
+						"No se pudo cargar el mapa. Recarga para volver a intentarlo; tus campos se conservan."
+					const retry = document.createElement("button")
+					retry.type = "button"
+					retry.textContent = "Volver a cargar mapa"
+					retry.className =
+						"mt-3 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold"
+					retry.addEventListener("click", () => window.location.reload())
+					mapElement.append(retry)
+				}
+			})()
 		}
 
 		initLocationMap()

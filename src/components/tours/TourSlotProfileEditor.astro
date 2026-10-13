@@ -17,6 +17,7 @@ type ScheduleSource = Awaited<
 interface Props {
 	scheduleSource?: ScheduleSource | null
 	scheduleSessionId?: string
+	experienceFormat?: string | null
 	productId: string
 	variantId?: string | null
 	mode: "create" | "edit"
@@ -36,6 +37,7 @@ interface Props {
 }
 
 const {
+	experienceFormat = null,
 	scheduleSource = null,
 	scheduleSessionId,
 	productId,
@@ -311,10 +313,10 @@ const languageOptions =
 	>
 		<header class="flex items-center gap-2">
 			<Languages class="h-4 w-4 text-slate-500" />
-			<h2 class="text-sm font-semibold text-slate-950">Idioma y punto de encuentro</h2>
+			<h2 class="text-sm font-semibold text-slate-950">Idioma y lugar</h2>
 		</header>
 		<div class="grid gap-4 md:grid-cols-2">
-			<FormField label="Idioma" htmlFor="languageCode" required>
+			<FormField label="Idioma de la actividad" htmlFor="languageCode" required>
 				<Select id="languageCode" name="languageCode" required>
 					{
 						!resolvedLanguageCode ? (
@@ -336,12 +338,21 @@ const languageOptions =
 				scheduleSource && (
 					<Checkbox
 						name="replaceMeetingPoint"
-						label="Cambiar el punto de encuentro de este horario"
+						label={
+							experienceFormat === "guided_tour"
+								? "Cambiar el punto de encuentro de este horario"
+								: "Cambiar el lugar de este horario"
+						}
 						checked={false}
 					/>
 				)
 			}
-			<FormField label="Punto de encuentro distinto (opcional)" htmlFor="meetingPointOverride">
+			<FormField
+				label={experienceFormat === "guided_tour"
+					? "Punto de encuentro distinto (opcional)"
+					: "Lugar distinto (opcional)"}
+				htmlFor="meetingPointOverride"
+			>
 				<Input
 					id="meetingPointOverride"
 					name="meetingPointOverride"

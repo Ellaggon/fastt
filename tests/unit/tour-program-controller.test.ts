@@ -33,6 +33,7 @@ function controller({
 	class Form {
 		dataset = { isTour: "true", programMinimum: String(minimum) }
 		listener: any
+		querySelector() { return null }
 		addEventListener(_: string, fn: any) {
 			this.listener = fn
 		}
@@ -41,6 +42,8 @@ function controller({
 	const controls = new Map<string, any>()
 	for (const [id, value] of Object.entries({
 		duration: "1 hora",
+		durationHours: invalid ? "0" : "1",
+		durationPartMinutes: "0",
 		durationMinutes: invalid ? "0" : "60",
 		meetingPointAddress: "Sala",
 		tourItinerary: program,
@@ -132,7 +135,7 @@ it("invalid Save and exit never sends, clears or navigates", async () => {
 	const page = controller({ invalid: true, intent: "exit" })
 	await page.submit()
 	expect(page.fetch).not.toHaveBeenCalled()
-	expect(page.get("durationMinutes").focus).toHaveBeenCalledOnce()
+	expect(page.get("durationHours").focus).toHaveBeenCalledOnce()
 	expect(page.clear).not.toHaveBeenCalled()
 	expect(page.window.location.href).toBe("")
 	expect(page.get("durationMinutesError").classList.contains("hidden")).toBe(false)

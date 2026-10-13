@@ -1,4 +1,8 @@
 import {
+	evaluateExperienceClassification,
+	type ExperienceActivity,
+} from "@/shared/domain/experience-classification"
+import {
 	experienceProgramMomentCount,
 	experienceHasMeetingPoint,
 	experienceHasInclusions,
@@ -19,6 +23,7 @@ import {
 	inArray,
 	Product,
 	ProductCategoryLink,
+	ProductCategory,
 	RatePlan,
 	Tour,
 	TourSlotProfile,
@@ -79,6 +84,9 @@ export const tourHasMeetingPoint = experienceHasMeetingPoint
 export type TourQualityScoreInput = {
 	experienceFormat?: ExperienceFormat | null
 	formatContractVersion?: number
+	activityContractVersion?: number
+	primaryActivityCategoryId?: string | null
+	primaryActivity?: ExperienceActivity | null
 	status: string | null | undefined
 	imageCount: number
 	itinerarySteps: number
@@ -126,7 +134,7 @@ const PUBLICATION_ERROR_BY_BLOCKER: Record<
 	},
 	missing_category: {
 		code: "missing_tour_category",
-		message: "At least one ProductCategoryLink is required",
+		message: "Selecciona una actividad principal disponible en Presentación.",
 	},
 	missing_active_tickets: {
 		code: "missing_tour_tickets",
@@ -159,8 +167,8 @@ const ISSUE_META: Record<
 	},
 	missing_meeting_point: {
 		severity: "blocker",
-		label: "Completa el punto de encuentro",
-		path: (id) => `/product/${id}/subtype`,
+		label: "Completa el lugar de la experiencia",
+		path: (id) => `/product/${id}/location`,
 	},
 	missing_duration: {
 		severity: "blocker",
@@ -174,8 +182,8 @@ const ISSUE_META: Record<
 	},
 	missing_category: {
 		severity: "blocker",
-		label: "Asigna categoría de discovery",
-		path: (id) => `/product/${id}/tickets`,
+		label: "Revisa la actividad principal",
+		path: (id) => `/product/${id}/presentation`,
 	},
 	missing_active_tickets: {
 		severity: "blocker",
@@ -236,7 +244,10 @@ export function scoreTourQuality(input: TourQualityScoreInput): {
 		issues.push("missing_includes")
 		score -= 8
 	}
-	if (input.categoryCount < 1) {
+	if (
+		!evaluateExperienceClassification({ ...input, hasLegacyCategory: input.categoryCount > 0 })
+			.ready
+	) {
 		issues.push("missing_category")
 		score -= 10
 	}
@@ -331,6 +342,8 @@ export async function loadTourAdminQualityQueue(params?: {
 			status: Product.publicationState,
 			experienceFormat: Tour.experienceFormat,
 			formatContractVersion: Tour.formatContractVersion,
+			activityContractVersion: Tour.activityContractVersion,
+			primaryActivityCategoryId: Tour.primaryActivityCategoryId,
 			itineraryJson: Tour.itineraryJson,
 			meetingPointJson: Tour.meetingPointJson,
 			durationMinutes: Tour.durationMinutes,
@@ -346,73 +359,87 @@ export async function loadTourAdminQualityQueue(params?: {
 	}
 
 	const productIds = products.map((row) => row.productId)
-	const [imageRows, salidaRows, completeRows, categoryRows, ticketRows] = await Promise.all([
-		db
-			.select({
-				productId: ProductImage.productId,
-				imageCount: count(Image.id),
-			})
-			.from(ProductImage)
-			.innerJoin(Image, eq(Image.id, ProductImage.imageId))
-			.where(inArray(ProductImage.productId, productIds))
-			.groupBy(ProductImage.productId),
-		db
-			.select({
-				productId: Variant.productId,
-				activeSalidaCount: count(Variant.id),
-			})
-			.from(Variant)
-			.where(
-				and(
-					inArray(Variant.productId, productIds),
-					eq(Variant.kind, "tour_slot"),
-					eq(Variant.salesEnabled, true),
-					eq(Variant.lifecycleState, "ready")
+	const [imageRows, salidaRows, completeRows, categoryRows, ticketRows, activities] =
+		await Promise.all([
+			db
+				.select({
+					productId: ProductImage.productId,
+					imageCount: count(Image.id),
+				})
+				.from(ProductImage)
+				.innerJoin(Image, eq(Image.id, ProductImage.imageId))
+				.where(inArray(ProductImage.productId, productIds))
+				.groupBy(ProductImage.productId),
+			db
+				.select({
+					productId: Variant.productId,
+					activeSalidaCount: count(Variant.id),
+				})
+				.from(Variant)
+				.where(
+					and(
+						inArray(Variant.productId, productIds),
+						eq(Variant.kind, "tour_slot"),
+						eq(Variant.salesEnabled, true),
+						eq(Variant.lifecycleState, "ready")
+					)
 				)
-			)
-			.groupBy(Variant.productId),
-		db
-			.select({
-				productId: Variant.productId,
-				completeSalidaCount: count(Variant.id),
-			})
-			.from(Variant)
-			.innerJoin(TourSlotProfile, eq(TourSlotProfile.variantId, Variant.id))
-			.innerJoin(VariantCapacity, eq(VariantCapacity.variantId, Variant.id))
-			.innerJoin(
-				RatePlan,
-				and(
-					eq(RatePlan.variantId, Variant.id),
-					eq(RatePlan.isDefault, true),
-					eq(RatePlan.isActive, true)
+				.groupBy(Variant.productId),
+			db
+				.select({
+					productId: Variant.productId,
+					completeSalidaCount: count(Variant.id),
+				})
+				.from(Variant)
+				.innerJoin(TourSlotProfile, eq(TourSlotProfile.variantId, Variant.id))
+				.innerJoin(VariantCapacity, eq(VariantCapacity.variantId, Variant.id))
+				.innerJoin(
+					RatePlan,
+					and(
+						eq(RatePlan.variantId, Variant.id),
+						eq(RatePlan.isDefault, true),
+						eq(RatePlan.isActive, true)
+					)
 				)
-			)
-			.where(
-				and(
-					inArray(Variant.productId, productIds),
-					eq(Variant.kind, "tour_slot"),
-					eq(Variant.salesEnabled, true),
-					eq(Variant.lifecycleState, "ready")
+				.where(
+					and(
+						inArray(Variant.productId, productIds),
+						eq(Variant.kind, "tour_slot"),
+						eq(Variant.salesEnabled, true),
+						eq(Variant.lifecycleState, "ready")
+					)
 				)
-			)
-			.groupBy(Variant.productId),
-		db
-			.select({
-				productId: ProductCategoryLink.productId,
-				categoryCount: count(ProductCategoryLink.id),
-			})
-			.from(ProductCategoryLink)
-			.where(inArray(ProductCategoryLink.productId, productIds))
-			.groupBy(ProductCategoryLink.productId),
-		db
-			.select({
-				productId: TourTicketType.productId,
-				activeTicketCount: count(TourTicketType.id),
-			})
-			.from(TourTicketType)
-			.where(and(inArray(TourTicketType.productId, productIds), eq(TourTicketType.isActive, true)))
-			.groupBy(TourTicketType.productId),
-	])
+				.groupBy(Variant.productId),
+			db
+				.select({
+					productId: ProductCategoryLink.productId,
+					categoryCount: count(ProductCategoryLink.id),
+				})
+				.from(ProductCategoryLink)
+				.where(inArray(ProductCategoryLink.productId, productIds))
+				.groupBy(ProductCategoryLink.productId),
+			db
+				.select({
+					productId: TourTicketType.productId,
+					activeTicketCount: count(TourTicketType.id),
+				})
+				.from(TourTicketType)
+				.where(
+					and(inArray(TourTicketType.productId, productIds), eq(TourTicketType.isActive, true))
+				)
+				.groupBy(TourTicketType.productId),
+			db
+				.select()
+				.from(ProductCategory)
+				.where(
+					inArray(
+						ProductCategory.id,
+						products.flatMap((row) =>
+							row.primaryActivityCategoryId ? [row.primaryActivityCategoryId] : []
+						)
+					)
+				),
+		])
 
 	const imagesByProduct = new Map(
 		imageRows.map((row) => [String(row.productId), Number(row.imageCount ?? 0)])
@@ -441,6 +468,9 @@ export async function loadTourAdminQualityQueue(params?: {
 			status: row.status,
 			experienceFormat: row.experienceFormat as ExperienceFormat | null,
 			formatContractVersion: row.formatContractVersion,
+			activityContractVersion: row.activityContractVersion,
+			primaryActivityCategoryId: row.primaryActivityCategoryId,
+			primaryActivity: activities.find((activity) => activity.id === row.primaryActivityCategoryId),
 			imageCount,
 			itinerarySteps,
 			hasMeetingPoint: tourHasMeetingPoint(row.meetingPointJson),

@@ -51,10 +51,14 @@ momentos; los demás formatos, uno. El contrato compartido está en
 `src/shared/domain/experience-format.ts`. Esto prepara contenido; no habilita venta.
 Políticas históricas sólo cubren tours. Una política con `contextVersion=2` debe declarar
 `experienceFormats` y estar aprobada. Contextos publicados/retirados son inmutables.
-La creación por Presentación sólo admite recorridos guiados, tanto en el selector como
-en el servidor. La lista compartida es `EXPERIENCE_CREATION_FORMATS`; las experiencias
-ya clasificadas conservan su formato al editarse. Otros formatos permanecen sin
-oferta pública hasta adaptar sus formularios, papeles y políticas. No se añaden roles.
+Presentación permite preparar los cuatro formatos mediante la lista compartida
+`EXPERIENCE_CREATION_FORMATS`. Preparar una ficha no autoriza su venta: cada formato
+requiere una política aplicable aprobada y los requisitos correspondientes; no se añaden roles.
+Programa valida duración, inclusiones y momentos sin exigir el encuentro. Lugar guarda
+ubicación de descubrimiento, coordenadas e indicaciones conjuntamente en una transacción,
+con propiedad, control de formato concurrente y auditoría. Los campos omitidos se conservan.
+Pruebas de persistencia: `tests/integration/tour-program-persistence.test.ts` y
+`tests/integration/experience-location-persistence.test.ts`.
 
 Verificación y descubrimiento presentan el formato guardado mediante
 `src/lib/tours/experienceFormatPresentation.ts`. Identidad y Fiscal siguen perteneciendo
@@ -74,6 +78,28 @@ Pruebas: `tests/integration/experience-format-persistence.test.ts` y
 `tests/unit/commercial-policy-evaluate.test.ts`. Aplicar primero en base aislada siguiendo
 [el runbook PostgreSQL](./supabase-migration.md). Revertir conserva esquema y clasificación;
 una versión antigua debe excluir los formatos nuevos.
+
+## Actividad y negocio del proveedor
+
+`ProviderCommercialLine.businessKinds` describe el negocio del titular: Perfil lo valida
+y audita sin conceder permisos. `ProductCategory.classificationKind` distingue `legacy`,
+`family` y `activity`; `parentCategoryId` relaciona actividad y familia, y `searchAliasesJson`
+conserva filtros históricos. `Tour.primaryActivityCategoryId` declara la actividad, independiente
+del formato. Temáticas adicionales usan `additional_theme`; vínculos `legacy` se conservan.
+Históricos mantienen `activityContractVersion=0`; nuevos usan versión 1 y requieren actividad.
+
+`classificationRevision` controla concurrencia. Presentación guarda clasificación, contenido
+y auditoría atómicamente; reintentos idénticos no duplican auditoría y cambios obsoletos
+devuelven 409. Escritores antiguos no pueden borrar selección moderna ni reducir contrato.
+Se conservan inventario, reservas, snapshots, evidencias, rutas y sesiones.
+
+Aplicar primero en base aislada, en orden:
+`db/migrations/2026-10-12_experience_activity_classification.sql` (incluye semillas) y
+`db/migrations/2026-10-12_experience_theme_revision.sql`.
+Revertir conserva columnas y protecciones; la taxonomía no amplía permisos de venta.
+Fuentes: `src/shared/domain/experience-classification.ts`,
+`src/lib/tours/experienceClassificationSql.ts`,
+`tests/integration/experience-activity-persistence.test.ts`.
 
 ## Tour content columns (Fase 1)
 

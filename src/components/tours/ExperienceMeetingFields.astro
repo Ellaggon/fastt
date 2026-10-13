@@ -1,0 +1,37 @@
+---
+import FormField from "@/components/ui/FormField.astro"
+import Input from "@/components/ui/Input.astro"
+import Textarea from "@/components/ui/Textarea.astro"
+const { address = "", instructions = "", format = null } = Astro.props
+const guided = format === "guided_tour"
+---
+
+<fieldset class="space-y-4 border-0 p-0" aria-labelledby="meetingPointHeading">
+	<legend id="meetingPointHeading" class="text-base font-semibold text-slate-950"
+		>{guided ? "Punto de encuentro" : "Lugar de la experiencia"}</legend
+	>
+	<FormField
+		label={guided ? "Dirección o referencia de encuentro" : "Dirección o referencia del lugar"}
+		htmlFor="meetingPointAddress"
+		required
+	>
+		<Input
+			id="meetingPointAddress"
+			name="meetingPointAddress"
+			value={address}
+			required
+			placeholder="Dirección, puerta o referencia reconocible"
+			aria-describedby="meetingPointAddressError"
+		/>
+		<p id="meetingPointAddressError" class="hidden text-sm text-red-600"></p>
+	</FormField>
+	<FormField label="Indicaciones para llegar (opcional)" htmlFor="meetingPointInstructions">
+		<Textarea
+			id="meetingPointInstructions"
+			name="meetingPointInstructions"
+			value={instructions}
+			rows="3"
+			placeholder="Indica el acceso y dónde deben esperar los participantes."
+		/>
+	</FormField>
+</fieldset>

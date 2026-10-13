@@ -7,7 +7,6 @@ import {
 	Limousine,
 	Package,
 	ProductCategory,
-	ProductCategoryLink,
 	ProductContent,
 	ProductLocation,
 	RatePlan,
@@ -141,7 +140,6 @@ describe("vertical maturity", () => {
 			excludesJson: ["Propinas"],
 			pickupJson: { defaultArea: "Hoteles centro", instructions: "Recojo 07:30" },
 		})
-
 		const row = await db
 			.select()
 			.from(Tour)
@@ -156,28 +154,49 @@ describe("vertical maturity", () => {
 		expect(row?.excludesJson).toEqual(["Propinas"])
 		expect(row?.pickupJson).toMatchObject({ defaultArea: "Hoteles centro" })
 
-		const categoryId = `cat_${suffix}`
+		const familyId = `fam_${suffix}`
+		const activityId = `act_${suffix}`
 		await db.insert(ProductCategory).values({
-			id: categoryId,
-			slug: `adventure-${suffix}`,
-			name: "Adventure",
+			id: familyId,
+			slug: `adventure-family-${suffix}`,
+			name: "Adventure family",
 			vertical: "tour",
+			classificationKind: "family",
+			dataClass: "production",
 			sortOrder: 0,
 			isActive: true,
 			createdAt: new Date(),
 		})
-		await db.insert(ProductCategoryLink).values({
-			id: `pcl_${suffix}`,
-			productId,
-			categoryId,
+		await db.insert(ProductCategory).values({
+			id: activityId,
+			slug: `adventure-${suffix}`,
+			name: "Adventure",
+			vertical: "tour",
+			classificationKind: "activity",
+			parentCategoryId: familyId,
+			dataClass: "production",
+			sortOrder: 0,
+			isActive: true,
 			createdAt: new Date(),
 		})
+		await db
+			.update(Tour)
+			.set({ primaryActivityCategoryId: activityId, activityContractVersion: 1 })
+			.where(eq(Tour.productId, productId))
 
 		const aggregate = await getProductFullAggregate(productId, "prov_test")
 		expect(aggregate?.subtype).toMatchObject({
 			kind: "tour",
-			categories: [{ id: categoryId, slug: `adventure-${suffix}`, name: "Adventure" }],
+			primaryActivityCategoryId: activityId,
 		})
+		const tourSubtype =
+			aggregate?.subtype?.kind === "tour" ? aggregate.subtype : null
+		expect(tourSubtype?.categories).toEqual(
+			expect.arrayContaining([
+				{ id: activityId, slug: `adventure-${suffix}`, name: "Adventure" },
+				{ id: familyId, slug: `adventure-family-${suffix}`, name: "Adventure family" },
+			])
+		)
 	})
 
 	it("adds Limousine as a first-class vertical with vehicle and capacity profile", async () => {
@@ -255,26 +274,40 @@ describe("vertical maturity", () => {
 			guideJson: { languages: "es" },
 		})
 		// This readiness fixture represents a provider-declared guided tour.
-		await db
-			.update(Tour)
-			.set({ experienceFormat: "guided_tour", formatContractVersion: 1 })
-			.where(eq(Tour.productId, productId))
-
+		const familyId = `fam_ready_${suffix}`
+		const activityId = categoryId
 		await db.insert(ProductCategory).values({
-			id: categoryId,
-			slug: `city-tour-${suffix}`,
-			name: "City Tour",
+			id: familyId,
+			slug: `city-tour-family-${suffix}`,
+			name: "City Tour family",
 			vertical: "tour",
+			classificationKind: "family",
+			dataClass: "production",
 			sortOrder: 1,
 			isActive: true,
 			createdAt: new Date(),
 		})
-		await db.insert(ProductCategoryLink).values({
-			id: `pcl_${suffix}`,
-			productId,
-			categoryId,
+		await db.insert(ProductCategory).values({
+			id: activityId,
+			slug: `city-tour-${suffix}`,
+			name: "City Tour",
+			vertical: "tour",
+			classificationKind: "activity",
+			parentCategoryId: familyId,
+			dataClass: "production",
+			sortOrder: 1,
+			isActive: true,
 			createdAt: new Date(),
 		})
+		await db
+			.update(Tour)
+			.set({
+				experienceFormat: "guided_tour",
+				formatContractVersion: 1,
+				primaryActivityCategoryId: activityId,
+				activityContractVersion: 1,
+			})
+			.where(eq(Tour.productId, productId))
 		await db.insert(TourTicketType).values({
 			id: `ttt_${suffix}`,
 			productId,

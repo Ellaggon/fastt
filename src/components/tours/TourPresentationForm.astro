@@ -6,6 +6,7 @@ import FormField from "@/components/ui/FormField.astro"
 import Input from "@/components/ui/Input.astro"
 import Select from "@/components/ui/Select.astro"
 import Textarea from "@/components/ui/Textarea.astro"
+import ExperienceActivityPicker from "@/components/tours/ExperienceActivityPicker.astro"
 import TourCategoryChoices from "@/components/tours/TourCategoryChoices.astro"
 import { getExperienceFormatPresentation } from "@/lib/tours/experienceFormatPresentation"
 import {
@@ -41,7 +42,8 @@ const formatPresentation = getExperienceFormatPresentation(experienceFormat)
 const offeredFormats = [
 	...new Set([...EXPERIENCE_CREATION_FORMATS, ...(experienceFormat ? [experienceFormat] : [])]),
 ]
-const linked = new Set(options.linkedIds)
+const linked = new Set(options.additionalThemeIds ?? [])
+const families = (options.families ?? []).filter((row) => row.isActive)
 const panelClass = guided
 	? "space-y-5 bg-white"
 	: "space-y-5 rounded-lg border-slate-200 bg-slate-100 shadow-none"
@@ -65,6 +67,12 @@ const panelClass = guided
 	>
 		<Input type="hidden" name="productId" value={productId ?? crypto.randomUUID()} />
 		<Input type="hidden" name="mode" value={productId ? "edit" : "create"} />
+		<Input type="hidden" name="classificationPayloadVersion" value="1" />
+		<Input
+			type="hidden"
+			name="expectedClassificationRevision"
+			value={options.classification?.classificationRevision ?? 0}
+		/>
 		{
 			["playbook", "flow", "tourFlowVersion", "variantId", "ratePlanId", "returnTo"].map((key) => (
 				<Input type="hidden" name={key} value={Astro.url.searchParams.get(key) ?? ""} />
@@ -95,8 +103,9 @@ const panelClass = guided
 						</p>
 					</FormField>
 
+					<ExperienceActivityPicker options={options} />
 					<FormField
-						label="Formato"
+						label="¿Cómo se desarrolla la experiencia?"
 						htmlFor="experienceFormat"
 						required={formatContractVersion === 1}
 					>
@@ -104,9 +113,9 @@ const panelClass = guided
 							id="experienceFormat"
 							name="experienceFormat"
 							required={formatContractVersion === 1}
-							aria-describedby="experienceFormatError"
+							aria-describedby="experienceFormatHelp experienceFormatError"
 						>
-							<option value="">Selecciona el formato</option>
+							<option value="">Selecciona cómo se desarrolla</option>
 							{
 								offeredFormats.map((format) => (
 									<option value={format} selected={experienceFormat === format}>
@@ -115,6 +124,9 @@ const panelClass = guided
 								))
 							}
 						</Select>
+						<p id="experienceFormatHelp" class="text-sm leading-6 text-slate-500">
+							{formatPresentation.explanation}
+						</p>
 						<p
 							id="experienceFormatError"
 							data-presentation-error="experienceFormat"
@@ -204,16 +216,18 @@ const panelClass = guided
 			>
 				<fieldset
 					class="flex h-full flex-col gap-4 border-0 p-0"
-					aria-describedby="categoryIdsError"
+					aria-describedby="additionalThemeIdsError"
 				>
 					<TourCategoryChoices
-						categories={options.categories}
+						categories={families}
+						name="additionalThemeId"
+						optional={true}
 						selectedIds={linked}
 						stacked={guided}
 					/>
 					<p
-						id="categoryIdsError"
-						data-presentation-error="categoryIds"
+						id="additionalThemeIdsError"
+						data-presentation-error="additionalThemeIds"
 						class="hidden text-sm text-red-600"
 					>
 					</p>
@@ -234,6 +248,8 @@ const panelClass = guided
 <script>
 	import { setPlaybookSubmitBusy } from "@/lib/forms/playbookFormBusy"
 	import { bindPlaybookFormDraft } from "@/lib/forms/playbookFormDraft"
+	import { getExperienceFormatPresentation } from "@/lib/tours/experienceFormatPresentation"
+	import { isExperienceFormat } from "@/shared/domain/experience-format"
 	function initPresentation() {
 		const form = document.getElementById("tourPresentationForm")
 		if (!(form instanceof HTMLFormElement) || form.dataset.bound) return
@@ -254,6 +270,22 @@ const panelClass = guided
 			key: `tour-presentation:${form.dataset.draftOwner}:${id.value}`,
 		})
 		const status = form.querySelector<HTMLElement>("[data-presentation-status]")!
+		const refreshFormat = () => {
+			const formatField = form.querySelector<HTMLSelectElement>('select[name="experienceFormat"]')
+			const format = isExperienceFormat(formatField?.value) ? formatField!.value : null
+			const presentation = getExperienceFormatPresentation(format)
+			const help = form.querySelector("#experienceFormatHelp")
+			if (help) help.textContent = presentation.explanation
+			const name = form.querySelector<HTMLInputElement>("#name")
+			const description = form.querySelector<HTMLTextAreaElement>("#description")
+			if (name) name.placeholder = presentation.namePlaceholder
+			if (description) description.placeholder = presentation.descriptionPlaceholder
+		}
+		form.addEventListener("change", (event) => {
+			if (event.target instanceof HTMLSelectElement && event.target.name === "experienceFormat")
+				refreshFormat()
+		})
+		refreshFormat()
 		form.addEventListener("submit", async (event) => {
 			event.preventDefault()
 			if (form.dataset.saving) return
@@ -267,16 +299,19 @@ const panelClass = guided
 			form
 				.querySelectorAll("[aria-invalid]")
 				.forEach((node) => node.removeAttribute("aria-invalid"))
-			if (fd.get("playbookNav") !== "exit" && !fd.getAll("categoryId").length) {
-				const error = form.querySelector<HTMLElement>('[data-presentation-error="categoryIds"]')!
-				error.textContent = "Selecciona al menos una temática."
+			if (fd.get("playbookNav") !== "exit" && !fd.get("primaryActivityCategoryId")) {
+				const error = form.querySelector<HTMLElement>(
+					'[data-presentation-error="primaryActivityCategoryId"]'
+				)!
+				error.textContent = "Selecciona la actividad principal."
 				error.classList.remove("hidden")
-				const control = form.querySelector<HTMLInputElement>('[name="categoryId"]')
-				control?.setAttribute("aria-invalid", "true")
-				control?.focus()
+				const control = form.querySelector<HTMLSelectElement>('[name="primaryActivityCategoryId"]')!
+				control.setAttribute("aria-invalid", "true")
+				control.focus()
 				status.textContent = "Revisa los campos indicados."
 				return
 			}
+
 			setPlaybookSubmitBusy(form, true, "Guardando…")
 			form.dataset.saving = "true"
 			status.textContent = "Guardando presentación…"
@@ -294,7 +329,7 @@ const panelClass = guided
 							error.classList.remove("hidden")
 						}
 						const control = form.querySelector<HTMLElement>(
-							`[name="${CSS.escape(field === "categoryIds" ? "categoryId" : field)}"]`
+							`[name="${CSS.escape(field === "additionalThemeIds" ? "additionalThemeId" : field)}"]`
 						)
 						control?.setAttribute("aria-invalid", "true")
 						first ??= control

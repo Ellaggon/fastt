@@ -22,6 +22,7 @@ type DrizzleTable = Record<string | symbol, unknown>
 type DrizzleColumn = {
 	name: string
 	columnType: string
+	baseColumn?: DrizzleColumn
 	notNull: boolean
 	primary: boolean
 	hasDefault: boolean
@@ -106,6 +107,9 @@ function assertRegistryCoversSchema() {
 
 function columnType(column: DrizzleColumn): string {
 	switch (column.columnType) {
+		case "PgArray":
+			if (!column.baseColumn) throw new Error(`Missing array base column ${column.name}`)
+			return `${columnType(column.baseColumn)}[]`
 		case "PgText":
 			return "text"
 		case "PgInteger":
@@ -144,7 +148,13 @@ function columnDefinition(column: DrizzleColumn, sourceTable: string): string {
 	if (column.primary) parts.push("PRIMARY KEY")
 	if (column.notNull && !column.primary) parts.push("NOT NULL")
 	const sqlDefault =
-		defaultSql(column.default) ??
+		(Array.isArray(column.default)
+			? column.columnType === "PgArray"
+				? `ARRAY[${column.default.map(literal).join(", ")}]::${columnType(column)}`
+				: column.columnType === "PgJsonb"
+					? `${literal(JSON.stringify(column.default))}::jsonb`
+					: null
+			: defaultSql(column.default)) ??
 		(column.hasDefault && column.columnType === "PgTimestamp" ? "now()" : null)
 	if (column.hasDefault && sqlDefault) parts.push("DEFAULT", sqlDefault)
 	return parts.join(" ")

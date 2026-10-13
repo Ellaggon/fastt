@@ -137,7 +137,7 @@ function sectionLabel(section: ProductVerticalSectionKey, verticalLabel: string)
 		bookingPolicies: "Condiciones de reserva",
 		itinerary: "Itinerario del tour",
 		tickets: "Tipos de participante",
-		categories: "Categorías de búsqueda",
+		categories: "Actividad principal",
 		departure: "Primera salida",
 		rate: "Precio de la salida",
 		calendar: "Cupo y disponibilidad",
@@ -159,7 +159,7 @@ function sectionCta(section: ProductVerticalSectionKey): string {
 		bookingPolicies: "Revisar tarifas",
 		itinerary: "Editar itinerario",
 		tickets: "Configurar participantes",
-		categories: "Elegir categorías",
+		categories: "Elegir actividad",
 		departure: "Editar salida",
 		rate: "Configurar precio",
 		calendar: "Configurar disponibilidad",
@@ -415,29 +415,33 @@ async function evaluateCompleteToPublishState(
 				: "Sin fotos",
 		},
 		location: {
-			complete: aggregate.location.lat !== null && aggregate.location.lng !== null,
+			complete:
+				aggregate.location.lat !== null &&
+				aggregate.location.lng !== null &&
+				(vertical.vertical !== "tour" || contentProgram.checks.meetingPoint),
 			statusLabel:
-				aggregate.location.lat !== null && aggregate.location.lng !== null
+				aggregate.location.lat !== null &&
+				aggregate.location.lng !== null &&
+				(vertical.vertical !== "tour" || contentProgram.checks.meetingPoint)
 					? "Ubicación definida"
 					: "Sin ubicación",
 			detail:
-				aggregate.location.lat !== null && aggregate.location.lng !== null
+				aggregate.location.lat !== null &&
+				aggregate.location.lng !== null &&
+				(vertical.vertical !== "tour" || contentProgram.checks.meetingPoint)
 					? "Coordenadas configuradas."
-					: "Agrega coordenadas antes de publicar.",
+					: vertical.vertical === "tour"
+						? "Define la ubicación y el lugar exacto de la experiencia."
+						: "Agrega coordenadas antes de publicar.",
 		},
 		subtype: {
 			complete:
 				vertical.vertical === "tour"
-					? Boolean(
-							tourSubtype &&
-							contentProgram.checks.duration &&
-							contentProgram.checks.meetingPoint &&
-							contentProgram.checks.includes
-						)
+					? Boolean(tourSubtype && contentProgram.checks.duration && contentProgram.checks.includes)
 					: Boolean(aggregate.subtype),
 			detail:
 				vertical.vertical === "tour"
-					? `Completa: ${[!contentProgram.checks.duration && "duración en minutos", !contentProgram.checks.meetingPoint && "punto de encuentro", !contentProgram.checks.includes && "inclusiones"].filter(Boolean).join(", ") || "datos del programa configurados"}.`
+					? `Completa: ${[!contentProgram.checks.duration && "duración en minutos", !contentProgram.checks.includes && "inclusiones"].filter(Boolean).join(", ") || "datos del programa configurados"}.`
 					: aggregate.subtype
 						? "Detalles del subtipo configurados."
 						: "Completa los detalles.",
@@ -516,14 +520,16 @@ async function evaluateCompleteToPublishState(
 			statusLabel: tourReadiness?.hasActiveTickets ? "Modalidad activa" : "Sin modalidad",
 		},
 		categories: {
-			complete: vertical.vertical !== "tour" || Boolean(tourReadiness?.hasCategory),
+			complete: vertical.vertical !== "tour" || contentReadiness.activities,
 			detail:
 				vertical.vertical !== "tour"
 					? "No aplica para este tipo de oferta."
-					: tourReadiness?.hasCategory
-						? "La experiencia tiene una categoría pública de búsqueda."
-						: "Selecciona al menos una categoría de búsqueda.",
-			statusLabel: tourReadiness?.hasCategory ? "Categoría asignada" : "Sin categoría",
+					: contentReadiness.activities
+						? "La clasificación de la experiencia está preparada."
+						: contentReadiness.classification.status === "needs_review"
+							? "La actividad seleccionada requiere revisión."
+							: "Selecciona la actividad principal en Presentación.",
+			statusLabel: contentReadiness.activities ? "Actividad definida" : "Revisar actividad",
 		},
 		inclusions: {
 			complete: packageInclusionItems.length > 0,

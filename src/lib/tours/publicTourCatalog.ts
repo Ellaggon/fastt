@@ -1,11 +1,15 @@
 import {
+	experienceCategoryFilter,
+	experienceCategoryMembership,
+	experienceDurationFilter,
+} from "./experienceClassificationSql"
+import {
 	and,
 	asc,
 	db,
 	eq,
 	Product,
 	ProductCategory,
-	ProductCategoryLink,
 	ProductContent,
 	Provider,
 	sql,
@@ -15,7 +19,11 @@ import {
 import { publicCatalogProductEligibility } from "@/lib/marketplace/public-catalog-eligibility"
 import { resolvePublicDestination } from "@/lib/marketplace/publicDestinationListings"
 import { publicTourCategories } from "@/lib/tours/tourDiscoveryFilters"
-import { normalizeTourDifficulty, tourDifficultyLabel } from "@/lib/tours/tourDifficulty"
+import {
+	normalizeTourDifficulty,
+	tourDifficultyLabel,
+	tourDifficultyMatchValues,
+} from "@/lib/tours/tourDifficulty"
 import { durationMinutesMatchesBucket, parseDurationMinutes } from "@/lib/tours/tourSemantics"
 import { experiencePublicPresentation } from "@/lib/tours/experienceFormatPresentation"
 import { isExperienceFormat, type ExperienceFormat } from "@/shared/domain/experience-format"
@@ -29,6 +37,8 @@ export type PublicTourCatalogCard = {
 	duration: string | null
 	difficultyLevel: string | null
 	experienceFormat: ExperienceFormat | null
+	primaryActivityName?: string | null
+	primaryFamilyName?: string | null
 	avgRating: number | null
 	reviewCount: number
 }
@@ -66,8 +76,15 @@ const cardFields = {
 		LIMIT 1
 	)`.as("destinationName"),
 	duration: Tour.duration,
+	durationMinutes: Tour.durationMinutes,
 	difficultyLevel: Tour.difficultyLevel,
 	experienceFormat: Tour.experienceFormat,
+	primaryActivityName: sql<
+		string | null
+	>`(SELECT name FROM "ProductCategory" WHERE id = ${Tour.primaryActivityCategoryId})`,
+	primaryFamilyName: sql<
+		string | null
+	>`(SELECT family.name FROM "ProductCategory" activity JOIN "ProductCategory" family ON family.id = activity."parentCategoryId" WHERE activity.id = ${Tour.primaryActivityCategoryId})`,
 	avgRating: sql<number | null>`(
 		SELECT ROUND(AVG(review."rating")::numeric, 1)::float
 		FROM "ProductReview" review
@@ -87,6 +104,7 @@ export async function getPublicTourCatalog(
 	params: {
 		destinationPath?: string | null
 		categorySlugs?: string[]
+		experienceFormat?: string | null
 		durationBucket?: string | null
 		level?: string | null
 		sort?: string | null
@@ -115,18 +133,18 @@ export async function getPublicTourCatalog(
 		)`
 		: undefined
 	const categoryPredicate = categorySlugs.length
-		? sql`EXISTS (
-			SELECT 1 FROM "ProductCategoryLink" relation
-			JOIN "ProductCategory" category ON category."id" = relation."categoryId"
-			WHERE relation."productId" = ${Product.id}
-				AND category."vertical" = 'tour'
-				AND category."isActive" = true
-				AND category."dataClass" = 'production'
-				AND category."slug" IN (${sql.join(
-					categorySlugs.map((slug) => sql`${slug}`),
-					sql`, `
-				)})
-		)`
+		? experienceCategoryFilter(sql`${Product.id}`, categorySlugs)
+		: undefined
+
+	const durationPredicate = experienceDurationFilter(
+		sql`${Tour.durationMinutes}`,
+		params.durationBucket
+	)
+	const levelPredicate = level
+		? sql`(${Tour.experienceFormat} IS NULL OR ${Tour.experienceFormat} = 'guided_tour') AND lower(${Tour.difficultyLevel}) IN (${sql.join(
+				tourDifficultyMatchValues(level).map((value) => sql`${value}`),
+				sql`, `
+			)})`
 		: undefined
 
 	try {
@@ -146,7 +164,10 @@ export async function getPublicTourCatalog(
 						publicCatalogProductEligibility(),
 						eq(Product.publicationState, "published"),
 						destinationPredicate,
-						categoryPredicate
+						durationPredicate,
+						levelPredicate,
+						categoryPredicate,
+						params.experienceFormat ? eq(Tour.experienceFormat, params.experienceFormat) : undefined
 					)
 				)
 				.limit(Math.max(limit * 4, 40)),
@@ -158,14 +179,25 @@ export async function getPublicTourCatalog(
 					productCount: sql<number>`COUNT(DISTINCT ${Product.id})::int`,
 				})
 				.from(ProductCategory)
-				.innerJoin(ProductCategoryLink, eq(ProductCategoryLink.categoryId, ProductCategory.id))
-				.innerJoin(Product, eq(Product.id, ProductCategoryLink.productId))
+				.innerJoin(
+					Product,
+					experienceCategoryMembership(sql`${Product.id}`, sql`${ProductCategory.id}`)
+				)
 				.innerJoin(Provider, eq(Provider.id, Product.providerId))
+				.innerJoin(Tour, eq(Tour.productId, Product.id))
 				.where(
 					and(
 						eq(ProductCategory.vertical, "tour"),
 						eq(ProductCategory.isActive, true),
 						eq(ProductCategory.dataClass, "production"),
+						eq(ProductCategory.classificationKind, "family"),
+						destinationPredicate,
+						durationPredicate,
+						levelPredicate,
+						categoryPredicate,
+						params.experienceFormat
+							? eq(Tour.experienceFormat, params.experienceFormat)
+							: undefined,
 						eq(Product.publicationState, "published"),
 						eq(Product.dataClass, "production"),
 						publicCatalogProductEligibility()
@@ -183,7 +215,10 @@ export async function getPublicTourCatalog(
 		const sort = String(params.sort ?? "relevance")
 		const cards = rawCards
 			.filter((card) =>
-				durationMinutesMatchesBucket(parseDurationMinutes(card.duration), params.durationBucket)
+				durationMinutesMatchesBucket(
+					card.durationMinutes ?? parseDurationMinutes(card.duration),
+					params.durationBucket
+				)
 			)
 			.filter(
 				(card) =>
@@ -207,6 +242,8 @@ export async function getPublicTourCatalog(
 			.map((card) => ({
 				...card,
 				experienceFormat: isExperienceFormat(card.experienceFormat) ? card.experienceFormat : null,
+				primaryActivityName: card.primaryActivityName,
+				primaryFamilyName: card.primaryFamilyName,
 				avgRating: card.avgRating == null ? null : Number(card.avgRating),
 				reviewCount: Number(card.reviewCount ?? 0),
 				difficultyLevel: experiencePublicPresentation(card.experienceFormat).showTourDetails

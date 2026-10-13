@@ -1,5 +1,6 @@
 import {
 	first,
+	sql,
 	and,
 	asc,
 	db,
@@ -8,12 +9,10 @@ import {
 	GeoPlace,
 	Hotel,
 	Image,
-	inArray,
 	Limousine,
 	Package,
 	Product,
 	ProductCategory,
-	ProductCategoryLink,
 	ProductContent,
 	ProductGeoPlace,
 	ProductImage,
@@ -53,6 +52,7 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 				id: Product.id,
 				displayName: Product.name,
 				productType: Product.productType,
+				experienceFormat: Tour.experienceFormat,
 				contentDescription: ProductContent.description,
 				status: Product.publicationState,
 				contentHighlights: ProductContent.highlightsJson,
@@ -61,6 +61,7 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 				lng: ProductLocation.lng,
 			})
 			.from(Product)
+			.leftJoin(Tour, eq(Tour.productId, Product.id))
 			.leftJoin(ProductContent, eq(ProductContent.productId, Product.id))
 			.leftJoin(ProductLocation, eq(ProductLocation.productId, Product.id))
 			.where(eq(Product.id, productId))
@@ -89,6 +90,9 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 			id: row.id,
 			displayName: row.displayName,
 			productType: row.productType,
+			experienceFormat: row.experienceFormat as
+				| import("@/shared/domain/experience-format").ExperienceFormat
+				| null,
 			status: row.status || "draft",
 			content: {
 				description,
@@ -138,6 +142,9 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 				hotelPhone: Hotel.phone,
 				hotelEmail: Hotel.email,
 				tourExperienceFormat: Tour.experienceFormat,
+				tourActivityId: Tour.primaryActivityCategoryId,
+				tourActivityContract: Tour.activityContractVersion,
+				tourClassificationRevision: Tour.classificationRevision,
 				tourFormatContractVersion: Tour.formatContractVersion,
 				tourDuration: Tour.duration,
 				tourDurationMinutes: Tour.durationMinutes,
@@ -200,11 +207,18 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 					slug: ProductCategory.slug,
 					name: ProductCategory.name,
 					sortOrder: ProductCategory.sortOrder,
+					classificationKind: ProductCategory.classificationKind,
+					parentCategoryId: ProductCategory.parentCategoryId,
+					isActive: ProductCategory.isActive,
+					vertical: ProductCategory.vertical,
+					dataClass: ProductCategory.dataClass,
 				})
-				.from(ProductCategoryLink)
-				.innerJoin(ProductCategory, eq(ProductCategory.id, ProductCategoryLink.categoryId))
+				.from(ProductCategory)
 				.where(
-					and(eq(ProductCategoryLink.productId, productId), eq(ProductCategory.vertical, "tour"))
+					and(
+						eq(ProductCategory.vertical, "tour"),
+						sql`(${ProductCategory.id} = ${row.tourActivityId} OR ${ProductCategory.id} IN (SELECT "parentCategoryId" FROM "ProductCategory" WHERE id = ${row.tourActivityId}) OR ${ProductCategory.id} IN (SELECT "categoryId" FROM "ProductCategoryLink" WHERE "productId" = ${productId} AND (${row.tourActivityContract} = 0 OR "assignmentKind" = 'additional_theme')))`
+					)
 				)
 				.orderBy(asc(ProductCategory.sortOrder), asc(ProductCategory.name)),
 		])
@@ -228,6 +242,11 @@ export class CatalogReadModelRepository implements CatalogReadModelRepositoryPor
 								| import("@/shared/domain/experience-format").ExperienceFormat
 								| null,
 							formatContractVersion: row.tourFormatContractVersion ?? 1,
+							activityContractVersion: row.tourActivityContract ?? 0,
+							primaryActivityCategoryId: row.tourActivityId ?? null,
+							classificationRevision: row.tourClassificationRevision ?? 0,
+							primaryActivity:
+								tourCategories.find((category) => category.id === row.tourActivityId) ?? null,
 							duration: row.tourDuration ? String(row.tourDuration) : null,
 							durationMinutes: row.tourDurationMinutes ?? null,
 							difficultyLevel: row.tourDifficulty ? String(row.tourDifficulty) : null,

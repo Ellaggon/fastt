@@ -1,0 +1,84 @@
+---
+import ProviderSettingsHubCard from "@/components/provider/ProviderSettingsHubCard.astro"
+import Button from "@/components/ui/Button.astro"
+import Checkbox from "@/components/ui/Checkbox.astro"
+import { EXPERIENCE_BUSINESS_KINDS } from "@/shared/domain/experience-classification"
+interface Props {
+	kinds: string[]
+	editable?: boolean
+}
+const { kinds, editable = false } = Astro.props
+---
+
+<ProviderSettingsHubCard
+	title="Tu negocio de experiencias"
+	description={editable
+		? "Selecciona los tipos de negocio que describes. Puedes elegir más de uno."
+		: undefined}
+	class="mt-6"
+>
+	{
+		editable ? (
+			<form
+				method="POST"
+				action="/api/provider/settings/experience-business"
+				data-experience-business
+				class="space-y-4"
+			>
+				<fieldset class="grid gap-3 sm:grid-cols-2">
+					<legend class="sr-only">Tipos de negocio</legend>
+					{Object.entries(EXPERIENCE_BUSINESS_KINDS).map(([code, label]) => (
+						<Checkbox name="businessKind" value={code} checked={kinds.includes(code)}>
+							{label}
+						</Checkbox>
+					))}
+				</fieldset>
+				<p role="status" aria-live="polite" class="text-sm text-slate-600" />
+				<Button type="submit" variant="selection">
+					Guardar tipo de negocio
+				</Button>
+			</form>
+		) : (
+			<p class="text-sm text-slate-600">
+				{kinds.length
+					? kinds
+							.map(
+								(code) => EXPERIENCE_BUSINESS_KINDS[code as keyof typeof EXPERIENCE_BUSINESS_KINDS]
+							)
+							.join(" · ")
+					: "Tipo de negocio sin indicar"}
+			</p>
+		)
+	}
+</ProviderSettingsHubCard>
+<script>
+	function bindBusinessForms() {
+		document.querySelectorAll<HTMLFormElement>("[data-experience-business]").forEach((form) => {
+			if (form.dataset.bound) return
+			form.dataset.bound = "true"
+			form.addEventListener("submit", async (event) => {
+				event.preventDefault()
+				if (form.dataset.saving) return
+				form.dataset.saving = "true"
+				const button = form.querySelector<HTMLButtonElement>("button[type=submit]")!,
+					status = form.querySelector<HTMLElement>("[role=status]")!
+				button.disabled = true
+				status.textContent = "Guardando…"
+				try {
+					const response = await fetch(form.action, { method: "POST", body: new FormData(form) }),
+						result = await response.json()
+					if (!response.ok) throw new Error(result.error)
+					status.textContent = "Tipo de negocio guardado."
+				} catch (error) {
+					status.textContent =
+						error instanceof Error ? error.message : "No pudimos guardar. Vuelve a intentarlo."
+				} finally {
+					button.disabled = false
+					delete form.dataset.saving
+				}
+			})
+		})
+	}
+	bindBusinessForms()
+	document.addEventListener("astro:page-load", bindBusinessForms)
+</script>

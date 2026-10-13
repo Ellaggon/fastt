@@ -28,6 +28,16 @@ export const POST: APIRoute = async ({ request }) => {
 				.split(/\r?\n/)
 				.map((item) => item.trim())
 				.filter(Boolean),
+			classificationPayloadVersion: form.has("classificationPayloadVersion")
+				? Number(form.get("classificationPayloadVersion"))
+				: undefined,
+			primaryActivityCategoryId: form.has("primaryActivityCategoryId")
+				? String(form.get("primaryActivityCategoryId") ?? "").trim() || null
+				: undefined,
+			additionalThemeIds: form.getAll("additionalThemeId").map(String),
+			expectedClassificationRevision: form.has("expectedClassificationRevision")
+				? Number(form.get("expectedClassificationRevision"))
+				: undefined,
 			categoryIds: form.getAll("categoryId").map(String),
 			intent: form.get("playbookNav") === "exit" ? "exit" : "continue",
 		}

@@ -2,8 +2,8 @@
 export const EXPERIENCE_FORMATS = ["guided_tour", "workshop", "class", "tasting"] as const
 export type ExperienceFormat = (typeof EXPERIENCE_FORMATS)[number]
 
-/** General creation stays limited until downstream forms support the other formats. */
-export const EXPERIENCE_CREATION_FORMATS: readonly ExperienceFormat[] = ["guided_tour"]
+/** Content preparation is independent from commercial authorization. */
+export const EXPERIENCE_CREATION_FORMATS: readonly ExperienceFormat[] = EXPERIENCE_FORMATS
 
 export function isExperienceFormat(value: unknown): value is ExperienceFormat {
 	return EXPERIENCE_FORMATS.some((format) => format === value)
@@ -44,7 +44,7 @@ export function experienceFormatSnapshot(input: {
 }
 
 export class ExperienceFormatError extends Error {
-	constructor(readonly code: "invalid_format" | "product_not_owned") {
+	constructor(readonly code: "invalid_format" | "product_not_owned" | "classification_conflict") {
 		super(code)
 	}
 }

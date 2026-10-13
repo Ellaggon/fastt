@@ -115,6 +115,8 @@ export const ProviderCommercialLine = pgTable(
 		id: pk(),
 		providerId: txt("providerId").references(() => Provider.id, { onDelete: "cascade" }),
 		line: txt("line"),
+		businessKinds: text("businessKinds").array().default([]).notNull(),
+		businessKindsUpdatedAt: ts("businessKindsUpdatedAt"),
 		source: txt("source"),
 		/** Declared per business line; never inferred from another line or legacy account state. */
 		collectionModel: text("collectionModel").default("undecided").notNull(),
@@ -132,6 +134,10 @@ export const ProviderCommercialLine = pgTable(
 		enrolledAt: now("enrolledAt"),
 	},
 	(table) => [
+		check(
+			"ProviderCommercialLine_businessKinds_check",
+			sql`cardinality(${table.businessKinds}) <= 10 AND ${table.businessKinds} <@ ARRAY['operator','creative_studio','school','food_business','producer','cultural_center','wellness_studio','sports_operator','science_center','other']::text[] AND array_position(${table.businessKinds}, NULL) IS NULL`
+		),
 		uniqueIndex("ProviderCommercialLine_provider_line_unique").on(table.providerId, table.line),
 		index("ProviderCommercialLine_provider_idx").on(table.providerId),
 		check("ProviderCommercialLine_line_check", sql`${table.line} IN ('lodging', 'tour')`),
@@ -2045,11 +2051,23 @@ export const ProductCategory = pgTable(
 		name: txt("name"),
 		vertical: txt("vertical"),
 		sortOrder: intDefault("sortOrder", 0),
+		classificationKind: text("classificationKind").default("legacy").notNull(),
+		parentCategoryId: text("parentCategoryId").references((): AnyPgColumn => ProductCategory.id),
+		searchAliasesJson: jsonb("searchAliasesJson").default([]).notNull(),
 		isActive: boolDefault("isActive", true),
 		dataClass: text("dataClass").default("production").notNull(),
 		createdAt: now("createdAt"),
 	},
 	(table) => [
+		index("ProductCategory_parent_idx").on(table.parentCategoryId),
+		check(
+			"ProductCategory_kind_check",
+			sql`${table.classificationKind} IN ('legacy', 'family', 'activity') AND ((${table.classificationKind} = 'activity') = (${table.parentCategoryId} IS NOT NULL))`
+		),
+		check(
+			"ProductCategory_aliases_check",
+			sql`jsonb_typeof(${table.searchAliasesJson}) = 'array' AND jsonb_array_length(${table.searchAliasesJson}) <= 20`
+		),
 		uniqueIndex("ProductCategory_vertical_slug_unique").on(table.vertical, table.slug),
 		index("ProductCategory_vertical_idx").on(table.vertical),
 		check("ProductCategory_slug_format_check", sql`${table.slug} ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'`),
@@ -2063,9 +2081,14 @@ export const ProductCategoryLink = pgTable(
 		id: pk(),
 		productId: txt("productId").references(() => Product.id),
 		categoryId: txt("categoryId").references(() => ProductCategory.id),
+		assignmentKind: text("assignmentKind").default("legacy").notNull(),
 		createdAt: now("createdAt"),
 	},
 	(table) => [
+		check(
+			"ProductCategoryLink_assignment_check",
+			sql`${table.assignmentKind} IN ('legacy', 'additional_theme')`
+		),
 		uniqueIndex("ProductCategoryLink_product_category_unique").on(
 			table.productId,
 			table.categoryId
@@ -2200,6 +2223,11 @@ export const Tour = pgTable(
 			.references(() => Product.id),
 		/** Explicit format; null remains unclassified. Existing migrated rows use contract 0. */
 		experienceFormat: txtOpt("experienceFormat"),
+		primaryActivityCategoryId: text("primaryActivityCategoryId").references(
+			() => ProductCategory.id
+		),
+		activityContractVersion: intDefault("activityContractVersion", 1),
+		classificationRevision: intDefault("classificationRevision", 0),
 		formatContractVersion: intDefault("formatContractVersion", 1),
 		duration: txtOpt("duration"),
 		durationMinutes: intOpt("durationMinutes"),
@@ -2221,6 +2249,11 @@ export const Tour = pgTable(
 			"Tour_formatContractVersion_check",
 			sql`${table.formatContractVersion} IN (0, 1) AND (${table.formatContractVersion} = 1 OR ${table.experienceFormat} IS NULL)`
 		),
+		check(
+			"Tour_activity_contract_check",
+			sql`${table.activityContractVersion} IN (0, 1) AND (${table.activityContractVersion} = 1 OR ${table.primaryActivityCategoryId} IS NULL) AND ${table.classificationRevision} >= 0`
+		),
+		index("Tour_primaryActivity_idx").on(table.primaryActivityCategoryId),
 		index("Tour_durationMinutes_idx").on(table.durationMinutes),
 		index("Tour_difficultyLevel_idx").on(table.difficultyLevel),
 	]

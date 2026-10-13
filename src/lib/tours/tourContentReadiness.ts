@@ -1,3 +1,4 @@
+import { evaluateExperienceClassification } from "@/shared/domain/experience-classification"
 import { evaluateExperienceProgram } from "@/shared/domain/experience-program"
 import { experienceFormatReady } from "@/shared/domain/experience-format"
 import type { ProductFullAggregate } from "@/modules/catalog/public"
@@ -24,11 +25,18 @@ export function evaluateTourContentReadiness(
 		itinerary: tour?.itinerary,
 		includes: tour?.includes,
 	})
-	const logistics = Boolean(tour && program.complete)
-	const location = aggregate.location.lat !== null && aggregate.location.lng !== null
+	const logistics = Boolean(tour && program.programComplete)
+	const location =
+		aggregate.location.lat !== null &&
+		aggregate.location.lng !== null &&
+		program.checks.meetingPoint
 	const photos = aggregate.images.length >= TOUR_QUALITY_MIN_IMAGES
 	const participants = Boolean(readiness?.hasActiveTickets)
-	const activities = Boolean(readiness?.hasCategory)
+	const classification = evaluateExperienceClassification({
+		...tour,
+		hasLegacyCategory: readiness?.hasCategory,
+	})
+	const activities = classification.ready
 	return {
 		presentation,
 		logistics,
@@ -37,6 +45,7 @@ export function evaluateTourContentReadiness(
 		photos,
 		participants,
 		activities,
+		classification,
 		complete: presentation && activities && logistics && location && photos && participants,
 	}
 }

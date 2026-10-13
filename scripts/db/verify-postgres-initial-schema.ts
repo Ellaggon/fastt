@@ -22,7 +22,15 @@ type ColumnRow = {
 	table_name: string
 	column_name: string
 	data_type: string
+	udt_name: string
 	is_nullable: "YES" | "NO"
+}
+
+function actualSqlType(row: ColumnRow): string {
+	if (row.data_type === "ARRAY" && row.udt_name.startsWith("_")) {
+		return `${row.udt_name.slice(1)}[]`
+	}
+	return row.data_type
 }
 
 type SchemaColumn = {
@@ -88,13 +96,13 @@ async function main() {
 		)
 		const rows = selectedNames
 			? await sql<ColumnRow[]>`
-				select table_name, column_name, data_type, is_nullable
+				select table_name, column_name, data_type, udt_name, is_nullable
 				from information_schema.columns
 				where table_schema = 'public' and table_name = any(${selectedNames})
 				order by table_name, ordinal_position
 			`
 			: await sql<ColumnRow[]>`
-				select table_name, column_name, data_type, is_nullable
+				select table_name, column_name, data_type, udt_name, is_nullable
 				from information_schema.columns
 				where table_schema = 'public'
 				order by table_name, ordinal_position
@@ -129,9 +137,10 @@ async function main() {
 			const actualForTable = actualColumns.get(name) ?? new Map()
 			return [...expectedForTable.entries()].flatMap(([columnName, expectedColumn]) => {
 				const actualColumn = actualForTable.get(columnName)
+				const actualType = actualColumn ? actualSqlType(actualColumn) : null
 				if (
 					!actualColumn ||
-					(actualColumn.data_type === expectedColumn.sqlType &&
+					(actualType === expectedColumn.sqlType &&
 						(actualColumn.is_nullable === "NO") === expectedColumn.notNull)
 				) {
 					return []
@@ -141,7 +150,7 @@ async function main() {
 						table: name,
 						column: columnName,
 						expectedType: expectedColumn.sqlType,
-						actualType: actualColumn.data_type,
+						actualType: actualType ?? actualColumn.data_type,
 						expectedNotNull: expectedColumn.notNull,
 						actualNotNull: actualColumn.is_nullable === "NO",
 					},

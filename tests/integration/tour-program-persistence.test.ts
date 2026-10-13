@@ -339,3 +339,28 @@ it.each([2, 3])(
 		})
 	}
 )
+
+it("program saves before location and computes duration from visible controls", async () => {
+	await db.update(Tour).set({ meetingPointJson: null }).where(eq(Tour.productId, productId))
+	const response = await call({
+		tourItinerary: "Preparación y práctica",
+		tourIncludes: "Materiales",
+		durationHours: "1",
+		durationPartMinutes: "30",
+		durationMinutes: "999",
+	})
+	expect(response.status).toBe(200)
+	const after = await read()
+	expect(after.durationMinutes).toBe(90)
+	expect(after.duration).toBe("1 hora 30 min")
+	expect(after.meetingPointJson).toBeNull()
+	const program = evaluateExperienceProgram({
+		experienceFormat: "class",
+		durationMinutes: after.durationMinutes,
+		itinerary: after.itineraryJson,
+		includes: after.includesJson,
+		meetingPoint: after.meetingPointJson,
+	})
+	expect(program.programComplete).toBe(true)
+	expect(program.checks.meetingPoint).toBe(false)
+})

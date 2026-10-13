@@ -1,3 +1,4 @@
+import { evaluateExperienceClassification } from "@/shared/domain/experience-classification"
 import {
 	experienceProgramMomentCount,
 	experienceHasInclusions,
@@ -31,6 +32,7 @@ import {
 	TourSlotProfile,
 	TourTicketType,
 	ProductCategoryLink,
+	ProviderAuditLog,
 	Package,
 	Variant,
 	VariantCapacity,
@@ -112,6 +114,9 @@ export class ProductRepository implements ProductRepositoryPort {
 						.select({
 							experienceFormat: Tour.experienceFormat,
 							formatContractVersion: Tour.formatContractVersion,
+							primaryActivityCategoryId: Tour.primaryActivityCategoryId,
+							activityContractVersion: Tour.activityContractVersion,
+							classificationRevision: Tour.classificationRevision,
 						})
 						.from(Tour)
 						.where(eq(Tour.productId, input.productId))
@@ -127,6 +132,97 @@ export class ProductRepository implements ProductRepositoryPort {
 					"Selecciona el formato de la experiencia.",
 					400,
 					"experienceFormat"
+				)
+			const modern = input.classificationPayloadVersion === 1
+			if (
+				!modern &&
+				classification?.primaryActivityCategoryId &&
+				input.experienceFormat &&
+				input.experienceFormat !== classification.experienceFormat
+			)
+				throw new TourPresentationError(
+					"Actualiza el formulario para cambiar la clasificación.",
+					409,
+					"experienceFormat"
+				)
+			const activity =
+				modern && input.primaryActivityCategoryId
+					? await tx
+							.select()
+							.from(ProductCategory)
+							.where(eq(ProductCategory.id, input.primaryActivityCategoryId))
+							.for("share")
+							.then(first)
+					: null
+			if (
+				modern &&
+				input.primaryActivityCategoryId &&
+				(!activity ||
+					activity.classificationKind !== "activity" ||
+					activity.vertical !== "tour" ||
+					activity.dataClass !== "production" ||
+					!activity.isActive)
+			)
+				throw new TourPresentationError(
+					"Selecciona una actividad disponible.",
+					400,
+					"primaryActivityCategoryId"
+				)
+			const themeIds = [...new Set(input.additionalThemeIds)].filter(
+				(id) => id !== activity?.parentCategoryId
+			)
+			const themes =
+				modern && themeIds.length
+					? await tx
+							.select()
+							.from(ProductCategory)
+							.where(inArray(ProductCategory.id, themeIds))
+							.for("share")
+					: []
+			if (
+				modern &&
+				(themes.length !== themeIds.length ||
+					themes.some(
+						(theme) =>
+							theme.classificationKind !== "family" ||
+							theme.vertical !== "tour" ||
+							theme.dataClass !== "production" ||
+							!theme.isActive
+					))
+			)
+				throw new TourPresentationError(
+					"Selecciona temáticas disponibles.",
+					400,
+					"additionalThemeIds"
+				)
+			const oldThemes = modern
+				? await tx
+						.select()
+						.from(ProductCategoryLink)
+						.where(
+							and(
+								eq(ProductCategoryLink.productId, input.productId),
+								eq(ProductCategoryLink.assignmentKind, "additional_theme")
+							)
+						)
+				: []
+			const unchangedSelection =
+				classification?.primaryActivityCategoryId === input.primaryActivityCategoryId &&
+				(!input.experienceFormat || classification?.experienceFormat === input.experienceFormat) &&
+				oldThemes
+					.map((row) => row.categoryId)
+					.sort()
+					.join() === [...themeIds].sort().join()
+			if (
+				modern &&
+				classification &&
+				input.expectedClassificationRevision !== classification.classificationRevision &&
+				!unchangedSelection
+			)
+				throw new TourPresentationError(
+					"La clasificación cambió en otra edición. Conservamos tus datos; actualiza la página para revisar la selección.",
+					409,
+					"primaryActivityCategoryId"
 				)
 			const place = await tx
 				.select()
@@ -197,6 +293,9 @@ export class ProductRepository implements ProductRepositoryPort {
 					providerId: input.providerId,
 					actorUserId: input.actorId,
 					experienceFormat: input.experienceFormat,
+					expectedClassificationRevision: modern
+						? input.expectedClassificationRevision
+						: classification?.classificationRevision,
 				})
 			else if (!classification)
 				await tx
@@ -250,15 +349,69 @@ export class ProductRepository implements ProductRepositoryPort {
 					target: ProductContent.productId,
 					set: { description: input.description, highlightsJson: input.highlights },
 				})
-			await tx.delete(ProductCategoryLink).where(eq(ProductCategoryLink.productId, input.productId))
-			if (input.categoryIds.length)
-				await tx.insert(ProductCategoryLink).values(
-					input.categoryIds.map((categoryId) => ({
+			if (modern) {
+				await tx
+					.update(Tour)
+					.set({
+						primaryActivityCategoryId: input.primaryActivityCategoryId ?? null,
+						activityContractVersion: 1,
+					})
+					.where(eq(Tour.productId, input.productId))
+				for (const existing of oldThemes) {
+					if (!themeIds.includes(existing.categoryId))
+						await tx.delete(ProductCategoryLink).where(eq(ProductCategoryLink.id, existing.id))
+				}
+				for (const categoryId of themeIds) {
+					if (oldThemes.some((row) => row.categoryId === categoryId)) continue
+					await tx
+						.insert(ProductCategoryLink)
+						.values({
+							id: crypto.randomUUID(),
+							productId: input.productId,
+							categoryId,
+							assignmentKind: "additional_theme",
+						})
+						.onConflictDoUpdate({
+							target: [ProductCategoryLink.productId, ProductCategoryLink.categoryId],
+							set: { assignmentKind: "additional_theme" },
+						})
+				}
+				if (!unchangedSelection)
+					await tx.insert(ProviderAuditLog).values({
 						id: crypto.randomUUID(),
-						productId: input.productId,
-						categoryId,
-					}))
-				)
+						providerId: input.providerId,
+						actorUserId: input.actorId,
+						action: "experience.activity.declared",
+						entityType: "product",
+						entityId: input.productId,
+						beforeJson: {
+							primaryActivityCategoryId: classification?.primaryActivityCategoryId ?? null,
+							additionalThemeIds: oldThemes.map((row) => row.categoryId),
+						},
+						afterJson: {
+							primaryActivityCategoryId: input.primaryActivityCategoryId ?? null,
+							additionalThemeIds: themeIds,
+						},
+						riskLevel: "low",
+					})
+			} else if ((classification?.activityContractVersion ?? 0) === 0) {
+				await tx
+					.delete(ProductCategoryLink)
+					.where(
+						and(
+							eq(ProductCategoryLink.productId, input.productId),
+							eq(ProductCategoryLink.assignmentKind, "legacy")
+						)
+					)
+				if (input.categoryIds.length)
+					await tx.insert(ProductCategoryLink).values(
+						input.categoryIds.map((categoryId) => ({
+							id: crypto.randomUUID(),
+							productId: input.productId,
+							categoryId,
+						}))
+					)
+			}
 		})
 	}
 
@@ -454,6 +607,146 @@ export class ProductRepository implements ProductRepositoryPort {
 				lng: params.lng ?? null,
 			})
 			.where(eq(ProductLocation.productId, params.productId))
+	}
+
+	/** Location, discovery destination and encounter are one provider command. */
+	async saveTourLocation(input: {
+		productId: string
+		providerId: string
+		actorId: string | null
+		geoPlaceId: string
+		address: string | null
+		lat: number
+		lng: number
+		form: FormData
+	}) {
+		return db.transaction(async (tx) => {
+			const product = await tx
+				.select()
+				.from(Product)
+				.where(
+					and(
+						eq(Product.id, input.productId),
+						eq(Product.providerId, input.providerId),
+						eq(Product.productType, "tour")
+					)
+				)
+				.for("update")
+				.then(first)
+			if (!product) throw new TourPresentationError("No tienes acceso a esta experiencia.", 403)
+			const tour = await tx
+				.select()
+				.from(Tour)
+				.where(eq(Tour.productId, input.productId))
+				.then(first)
+			if (!tour)
+				throw new TourPresentationError("No encontramos la ficha de esta experiencia.", 404)
+			const expected = input.form.get("expectedExperienceFormat")
+			if (expected !== null && expected !== (tour.experienceFormat ?? "historical"))
+				throw new TourPresentationError(
+					"El formato cambió. Recarga antes de guardar; conservamos tus cambios en el formulario.",
+					409
+				)
+			const place = await tx
+				.select()
+				.from(GeoPlace)
+				.where(and(eq(GeoPlace.id, input.geoPlaceId), eq(GeoPlace.status, "active")))
+				.then(first)
+			if (
+				!place ||
+				geoPlaceCompatibilityError({ productType: product.productType, placeType: place.placeType })
+			)
+				throw new TourPresentationError("Selecciona un lugar compatible y activo.", 400)
+			const existingMeeting =
+				tour.meetingPointJson &&
+				typeof tour.meetingPointJson === "object" &&
+				!Array.isArray(tour.meetingPointJson)
+					? { ...(tour.meetingPointJson as Record<string, unknown>) }
+					: {}
+			const meeting = { ...existingMeeting }
+			for (const [key, field] of [
+				["address", "meetingPointAddress"],
+				["instructions", "meetingPointInstructions"],
+			]) {
+				if (!input.form.has(field)) continue
+				const value = String(input.form.get(field) ?? "").trim()
+				if (value) meeting[key] = value
+				else delete meeting[key]
+			}
+			if (input.form.has("meetingPointAddress") && !String(meeting.address ?? "").trim())
+				throw new TourPresentationError("Indica el lugar exacto de la experiencia.", 400)
+			const oldLocation = await tx
+				.select()
+				.from(ProductLocation)
+				.where(eq(ProductLocation.productId, input.productId))
+				.then(first)
+			const current = await tx
+				.select()
+				.from(ProductGeoPlace)
+				.where(
+					and(
+						eq(ProductGeoPlace.productId, input.productId),
+						eq(ProductGeoPlace.role, "primary_discovery"),
+						eq(ProductGeoPlace.isPrimary, true)
+					)
+				)
+				.then(first)
+			if (current?.placeId !== input.geoPlaceId) {
+				if (current)
+					await tx
+						.update(ProductGeoPlace)
+						.set({ placeId: input.geoPlaceId, updatedAt: new Date() })
+						.where(eq(ProductGeoPlace.id, current.id))
+				else
+					await tx.insert(ProductGeoPlace).values({
+						id: `geo:product-place:${input.productId}`,
+						productId: input.productId,
+						placeId: input.geoPlaceId,
+						role: "primary_discovery",
+						isPrimary: true,
+						source: "product.location.update",
+					})
+				await tx.insert(ProductGeoPlaceActivity).values({
+					id: crypto.randomUUID(),
+					productId: input.productId,
+					previousPlaceId: current?.placeId ?? null,
+					placeId: input.geoPlaceId,
+					actorId: input.actorId,
+					source: "product.location.update",
+				})
+			}
+			const location = { address: input.address, lat: input.lat, lng: input.lng }
+			await tx
+				.insert(ProductLocation)
+				.values({ productId: input.productId, ...location })
+				.onConflictDoUpdate({ target: ProductLocation.productId, set: location })
+			if (input.form.has("meetingPointAddress") || input.form.has("meetingPointInstructions"))
+				await tx
+					.update(Tour)
+					.set({ meetingPointJson: Object.keys(meeting).length ? meeting : null })
+					.where(eq(Tour.productId, input.productId))
+			const before = {
+				location: oldLocation
+					? { address: oldLocation.address, lat: oldLocation.lat, lng: oldLocation.lng }
+					: null,
+				meeting: existingMeeting,
+				placeId: current?.placeId ?? null,
+			}
+			const after = { location, meeting, placeId: input.geoPlaceId }
+			if (JSON.stringify(before) !== JSON.stringify(after))
+				await tx.insert(ProviderAuditLog).values({
+					id: crypto.randomUUID(),
+					providerId: input.providerId,
+					actorUserId: input.actorId,
+					action: "experience.location.updated",
+					entityType: "product",
+					entityId: input.productId,
+					beforeJson: before,
+					afterJson: after,
+					riskLevel: "low",
+				})
+			return { productId: input.productId }
+		})
 	}
 
 	async setProductGeoPlace(params: {
@@ -711,7 +1004,7 @@ export class ProductRepository implements ProductRepositoryPort {
 					)
 				: null
 			const itinerarySteps = experienceProgramMomentCount(tour?.itineraryJson)
-			const [categoryRow, ticketRow] = await Promise.all([
+			const [categoryRow, ticketRow, primaryActivity] = await Promise.all([
 				db
 					.select({ id: ProductCategoryLink.id })
 					.from(ProductCategoryLink)
@@ -724,6 +1017,13 @@ export class ProductRepository implements ProductRepositoryPort {
 					.where(and(eq(TourTicketType.productId, productId), eq(TourTicketType.isActive, true)))
 					.limit(1)
 					.then(first),
+				tour?.primaryActivityCategoryId
+					? db
+							.select()
+							.from(ProductCategory)
+							.where(eq(ProductCategory.id, tour.primaryActivityCategoryId))
+							.then(first)
+					: Promise.resolve(null),
 			])
 
 			verticalReadiness = {
@@ -739,7 +1039,11 @@ export class ProductRepository implements ProductRepositoryPort {
 					hasMeetingPoint: tourHasMeetingPoint(tour?.meetingPointJson),
 					hasDurationMinutes: experienceHasDuration(tour?.durationMinutes),
 					hasIncludes: experienceHasInclusions(tour?.includesJson),
-					hasCategory: Boolean(categoryRow?.id),
+					hasCategory: evaluateExperienceClassification({
+						...tour,
+						primaryActivity,
+						hasLegacyCategory: Boolean(categoryRow?.id),
+					}).ready,
 					hasActiveTickets: Boolean(ticketRow?.id),
 					hasSchedule: sellableCompleteSlotCount > 0,
 					imageCount: images.length,

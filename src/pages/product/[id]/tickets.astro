@@ -88,7 +88,7 @@ const initialTickets = tickets.map((t) => ({
 		<PlaybookStepHeader
 			icon="participants"
 			title="Participantes"
-			lead="Define quién puede reservar y qué edades admite cada tipo. Las actividades que describen el tour se eligen en Presentación."
+			lead="Define quién puede reservar y qué edades admite cada tipo. Las actividades que describen la experiencia se eligen en Presentación."
 		/>
 
 		<Card class="space-y-4 bg-white">
@@ -100,14 +100,14 @@ const initialTickets = tickets.map((t) => ({
 					</p>
 				</div>
 				<div class="flex flex-wrap gap-2">
-					<Button type="button" id="seed-tickets-btn" variant="secondary" size="sm">
-						Plantilla Adulto / Niño / Infante
-					</Button>
 					<Button type="button" id="add-ticket-btn" variant="secondary" size="sm">
 						<span class="inline-flex items-center gap-1">
 							<Plus class="h-3.5 w-3.5" />
-							Agregar
+							Añadir participante
 						</span>
+					</Button>
+					<Button type="button" id="seed-tickets-btn" variant="secondary" size="sm">
+						Plantilla Adulto / Niño / Infante
 					</Button>
 					{
 						!playbook.active ? (
@@ -208,7 +208,7 @@ const initialTickets = tickets.map((t) => ({
 				if (!list) return
 				if (!rows.length) {
 					list.innerHTML =
-						'<p class="fastt-empty-state rounded-[var(--fastt-radius-control)] border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-600">Aún no hay tipos de participante. Usa la plantilla estándar o agrega uno manualmente.</p>'
+						'<p class="fastt-empty-state rounded-[var(--fastt-radius-control)] border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-600">Aún no hay tipos de participante. Añade un participante o utiliza la plantilla por edades.</p>'
 					return
 				}
 				list.innerHTML = rows
@@ -290,7 +290,7 @@ const initialTickets = tickets.map((t) => ({
 				rows.push({
 					id: crypto.randomUUID(),
 					code: "custom",
-					label: "Personalizado",
+					label: "Participante",
 					minAge: null,
 					maxAge: null,
 					sortOrder: (rows.length + 1) * 10,
