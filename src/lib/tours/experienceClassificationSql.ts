@@ -7,7 +7,7 @@ export function experienceCategoryMembership(productId: SQL, categoryId: SQL) {
   WHERE classification."productId" = ${productId} AND (
    classification."primaryActivityCategoryId" = ${categoryId}
    OR ${categoryId} = (SELECT "parentCategoryId" FROM "ProductCategory" WHERE id = classification."primaryActivityCategoryId")
-   OR EXISTS (SELECT 1 FROM "ProductCategoryLink" relation WHERE relation."productId" = ${productId} AND relation."categoryId" = ${categoryId} AND (classification."activityContractVersion" = 0 OR relation."assignmentKind" = 'additional_theme'))
+   OR EXISTS (SELECT 1 FROM "ProductCategoryLink" relation WHERE relation."productId" = ${productId} AND relation."categoryId" = ${categoryId} AND (classification."activityContractVersion" = 0 OR (relation."assignmentKind" = 'additional_theme' AND EXISTS (SELECT 1 FROM "ProductCategory" a JOIN "ProductCategory" f ON f.id = relation."categoryId" WHERE a.id = classification."primaryActivityCategoryId" AND a."isActive" AND f."isActive" AND f."classificationKind" = 'family' AND f.vertical = a.vertical AND f."dataClass" = a."dataClass" AND f.id = ANY(a."allowedAdditionalThemeIds")))))
    OR (classification."activityContractVersion" = 0 AND EXISTS (
     SELECT 1 FROM "ProductCategoryLink" relation JOIN "ProductCategory" legacy ON legacy.id = relation."categoryId"
     JOIN "ProductCategory" family ON family.id = ${categoryId} AND family."classificationKind" = 'family'
