@@ -22,6 +22,7 @@ export const tourPresentationSchema = z
 			.max(30, "Selecciona o escribe hasta 30 elementos."),
 		classificationPayloadVersion: z.literal(1).optional(),
 		primaryActivityCategoryId: z.string().trim().min(1).nullable().optional(),
+		expectedThemeCompatibilityRevision: z.number().int().nonnegative().optional(),
 		additionalThemeIds: z.array(z.string().min(1)).max(8).default([]),
 		expectedClassificationRevision: z.number().int().nonnegative().optional(),
 		categoryIds: z
