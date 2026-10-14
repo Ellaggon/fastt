@@ -36,7 +36,9 @@ describe("tour commercial rate context", () => {
 
 		expect(pricing).toContain('offeringType?: "accommodation" | "tour"')
 		expect(pricing).toContain('isTour ? "Precio por participante" : "Precio base por noche"')
-		expect(policies).toContain('isTour ? "Presentación para la salida" : "Llegada y salida"')
+		expect(policies).toContain('{!isTour && (')
+		expect(policies).toContain('data-contract-block="arrival-departure"')
+		expect(policies).toContain("Llegada y salida")
 		expect(table).toContain("row.priceUnitLabel")
 		expect(createEndpoint).not.toContain('error: "Habitación no encontrada."')
 	})
@@ -101,7 +103,9 @@ describe("tour commercial rate context", () => {
 		expect(source("src/components/rates/TourAcceptedCurrencies.astro")).toContain(
 			"Puedes cobrar en bolivianos, en dólares o en ambos."
 		)
-		expect(manage).toContain('"Salida seleccionada"')
+		expect(manage).toContain('"Opción seleccionada"')
+		expect(manage).toContain("tourScopeLabels.scopeProduct")
+		expect(manage).toContain("tourScopeLabels.scopeVariant")
 		expect(manage).toContain("Condiciones de reserva")
 		expect(manage).toContain("ratePlanIntentPresets.filter")
 		expect(tourSuccessBranch).toContain('step: "conditions"')

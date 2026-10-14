@@ -40,11 +40,19 @@ test("fiscality uses a contextual header, segmented navigation and progressive f
 	expect(read("src/components/dashboard/WorkspaceNavigationPending.astro")).toContain(
 		"rate-plan-detail"
 	)
-	expect(read("src/pages/product/[id]/index.astro")).toContain("flex flex-col gap-2")
+	expect(read("src/pages/product/[id]/index.astro")).toContain("w-full justify-start")
+	expect(read("src/components/product/ProductTourManagementPanelContent.astro")).toContain(
+		"grid gap-2"
+	)
+	expect(read("src/components/product/ProductTourWorkspaceSidebar.astro")).toContain("order-first")
+	expect(read("src/components/product/ProductTourWorkspaceSidebar.astro")).toContain(
+		"data-drawer-open"
+	)
 	expect(read("src/pages/product/[id]/index.astro")).toContain('class="sr-only">{owned.name}')
 	expect(read("src/pages/product/[id]/index.astro")).not.toContain(
 		"text-xl font-bold tracking-tight text-white sm:text-2xl md:text-3xl"
 	)
+	expect(read("src/pages/product/[id]/index.astro")).not.toContain("text-2xl font-semibold text-white")
 	expect(read("src/pages/product/[id]/index.astro")).not.toContain("ProductContextSwitcher")
 	expect(read("src/pages/product/[id]/index.astro")).not.toContain("border-b border-slate-800 pb-5")
 	expect(read("src/pages/provider/house-rules.astro")).toContain("flex flex-col gap-2")

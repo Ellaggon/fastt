@@ -35,14 +35,14 @@ const operationalContext = resolveWorkspaceOperationalContext({
 })
 ---
 
-<Layout title={title}>
+<Layout title={title} bodyClass="fastt-workspace-shell">
 	<div
-		class="min-h-screen bg-black text-slate-100"
+		class="min-h-screen overflow-x-clip bg-black text-slate-100"
 		data-workspace-context-level={operationalContext.level}
 		data-workspace-context-vertical={operationalContext.vertical ?? undefined}
 		data-workspace-context-product={operationalContext.productId ?? undefined}
 	>
-		<div class="flex min-h-screen">
+		<div class="flex min-h-screen overflow-x-clip">
 			<aside
 				class="sticky top-0 hidden h-screen w-68 shrink-0 overflow-y-auto bg-black px-3 py-4 text-slate-100 lg:block xl:w-72"
 			>
@@ -71,7 +71,7 @@ const operationalContext = resolveWorkspaceOperationalContext({
 					pathname={pathname}
 					currentPath={currentPath}
 				/>
-				<main class="relative min-w-0 flex-1" data-workspace-main>
+				<main class="relative min-w-0 flex-1 overflow-x-clip" data-workspace-main>
 					<WorkspaceNavigationPending />
 					<div class="mx-auto max-w-7xl min-w-0 px-4 py-4 sm:px-6 sm:py-8">
 						<slot />

@@ -389,6 +389,22 @@ html[data-verification-submit-pending="true"] {
 	box-shadow: 0 0 0 2px var(--fastt-color-focus);
 }
 
+.fastt-field--on-dark {
+	border-color: rgb(255 255 255 / 0.1);
+	background-color: rgb(255 255 255 / 0.05);
+	color: rgb(248 250 252);
+}
+
+.fastt-field--on-dark::placeholder {
+	color: rgb(148 163 184);
+}
+
+.fastt-field--on-dark:focus,
+.fastt-field--on-dark:focus-visible {
+	border-color: rgb(255 255 255 / 0.2);
+	box-shadow: 0 0 0 2px rgb(255 255 255 / 0.1);
+}
+
 .fastt-select {
 	position: relative;
 	width: 100%;
@@ -1056,6 +1072,19 @@ html.fastt-modal-open {
 .fastt-side-sheet[aria-hidden="true"] {
 	box-shadow: none;
 	border-color: transparent;
+}
+
+.fastt-workspace-shell {
+	overflow-x: clip;
+}
+
+html:has(.fastt-workspace-shell) {
+	overflow-x: clip;
+}
+
+.leaflet-container {
+	max-width: 100%;
+	overflow: hidden;
 }
 
 .fastt-side-sheet-header {

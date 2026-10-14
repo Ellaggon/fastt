@@ -1,4 +1,5 @@
 ---
+import TourPreparationCompleteRecap from "@/components/tours/TourPreparationCompleteRecap.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
 import { productRepository } from "@/container"
@@ -7,8 +8,13 @@ import { getProviderIdFromRequest } from "@/lib/auth/getProviderIdFromRequest"
 import { getUserFromRequest } from "@/lib/auth/getUserFromRequest"
 import { listOptionSessions, sessionHref } from "@/lib/onboarding/tourOptionSession"
 import { buildTourPlaybookHref } from "@/lib/playbook/launch-tour"
-import { experienceJourneyPresentation } from "@/lib/tours/experienceFormatPresentation"
+import {
+	experienceJourneyPresentation,
+	getExperienceFormatPresentation,
+} from "@/lib/tours/experienceFormatPresentation"
 import { evaluateTourContentReadiness } from "@/lib/tours/tourContentReadiness"
+import { formatTourDuration } from "@/lib/tours/tourSemantics"
+import type { ProductFullAggregate } from "@/modules/catalog/public"
 import { getProductFullAggregate } from "@/modules/catalog/public"
 import {
 	and,
@@ -31,6 +37,19 @@ const productId = Astro.params.id!
 const owned = await productRepository.ensureProductOwnedByProvider(productId, providerId)
 if (!owned || owned.productType.toLowerCase() !== "tour")
 	return new Response("Experiencia no encontrada", { status: 404 })
+function highlightLines(value: unknown): string[] {
+	if (!Array.isArray(value)) return []
+	return value
+		.map((item) => {
+			if (typeof item === "string") return item.trim()
+			if (item && typeof item === "object" && "text" in item) return String(item.text ?? "").trim()
+			return String(item ?? "").trim()
+		})
+		.filter(Boolean)
+		.slice(0, 6)
+}
+
+let aggregate: ProductFullAggregate | null = null
 let journey = experienceJourneyPresentation(null)
 let content: ReturnType<typeof evaluateTourContentReadiness> | null = null
 let sessions: Awaited<ReturnType<typeof listOptionSessions>> = []
@@ -41,36 +60,38 @@ let offers: {
 	rateName: string | null
 }[] = []
 try {
-	const [aggregate, ticketRows, categoryRows, loadedSessions, loadedOffers] = await Promise.all([
-		getProductFullAggregate(productId, providerId),
-		db
-			.select({ id: TourTicketType.id })
-			.from(TourTicketType)
-			.where(and(eq(TourTicketType.productId, productId), eq(TourTicketType.isActive, true)))
-			.limit(1),
-		db
-			.select({ id: ProductCategoryLink.id })
-			.from(ProductCategoryLink)
-			.where(eq(ProductCategoryLink.productId, productId))
-			.limit(1),
-		listOptionSessions(providerId, user.id, productId),
-		db
-			.select({
-				variantId: Variant.id,
-				name: Variant.name,
-				ratePlanId: RatePlan.id,
-				rateName: RatePlan.name,
-			})
-			.from(Variant)
-			.leftJoin(RatePlan, eq(RatePlan.variantId, Variant.id))
-			.where(
-				and(
-					eq(Variant.productId, productId),
-					eq(Variant.kind, "tour_slot"),
-					ne(Variant.lifecycleState, "archived")
-				)
-			),
-	])
+	const [loadedAggregate, ticketRows, categoryRows, loadedSessions, loadedOffers] =
+		await Promise.all([
+			getProductFullAggregate(productId, providerId),
+			db
+				.select({ id: TourTicketType.id })
+				.from(TourTicketType)
+				.where(and(eq(TourTicketType.productId, productId), eq(TourTicketType.isActive, true)))
+				.limit(1),
+			db
+				.select({ id: ProductCategoryLink.id })
+				.from(ProductCategoryLink)
+				.where(eq(ProductCategoryLink.productId, productId))
+				.limit(1),
+			listOptionSessions(providerId, user.id, productId),
+			db
+				.select({
+					variantId: Variant.id,
+					name: Variant.name,
+					ratePlanId: RatePlan.id,
+					rateName: RatePlan.name,
+				})
+				.from(Variant)
+				.leftJoin(RatePlan, eq(RatePlan.variantId, Variant.id))
+				.where(
+					and(
+						eq(Variant.productId, productId),
+						eq(Variant.kind, "tour_slot"),
+						ne(Variant.lifecycleState, "archived")
+					)
+				),
+		])
+	aggregate = loadedAggregate
 	if (aggregate?.status === "published") return Astro.redirect(`/product/${productId}/departures`)
 	if (aggregate)
 		journey = experienceJourneyPresentation(
@@ -113,6 +134,28 @@ const areas = content
 	: []
 const pending = areas.filter((row) => !row.ready)
 const startKey = crypto.randomUUID()
+const tourSubtype = aggregate?.subtype?.kind === "tour" ? aggregate.subtype : null
+const recap = aggregate
+	? {
+			formatLabel: tourSubtype?.experienceFormat
+				? getExperienceFormatPresentation(tourSubtype.experienceFormat).label
+				: null,
+			activityName: tourSubtype?.primaryActivity?.name ?? null,
+			destinationName: aggregate.geoPlace?.canonicalName ?? null,
+			durationLabel: tourSubtype
+				? formatTourDuration({
+						durationMinutes: tourSubtype.durationMinutes,
+						duration: tourSubtype.duration,
+					})
+				: null,
+			description: aggregate.content.description?.trim() || null,
+			highlights: highlightLines(aggregate.content.highlights),
+			address: aggregate.location.address?.trim() || null,
+			imageUrls: aggregate.images.slice(0, 6).map((image) => image.url),
+			areas: areas.map(({ label, ready }) => ({ label, ready })),
+		}
+	: null
+const productFichaHref = `/product/${encodeURIComponent(productId)}`
 ---
 
 <WorkspaceLayout title="Ficha de la experiencia">
@@ -146,6 +189,7 @@ const startKey = crypto.randomUUID()
 								? "Ahora configura la primera opción: horario, precio, condiciones y fechas."
 								: "Puedes completar estas áreas o continuar con la configuración de una opción."}
 						</p>
+						{recap ? <TourPreparationCompleteRecap {...recap} /> : null}
 						{pending.length > 0 && (
 							<ul class="space-y-2">
 								{pending.map((row) => (
@@ -205,6 +249,9 @@ const startKey = crypto.randomUUID()
 				)
 			}
 		</Card>
-		<Button href="/catalog/tours?scope=tour" variant="secondary">Ir a Mis experiencias</Button>
+		<div class="flex flex-wrap gap-3">
+			<Button href={productFichaHref} variant="secondary"> Ver ficha completa </Button>
+			<Button href="/catalog/tours?scope=tour" variant="secondary"> Ir a Mis experiencias </Button>
+		</div>
 	</section>
 </WorkspaceLayout>

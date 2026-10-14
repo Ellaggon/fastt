@@ -4,6 +4,7 @@ import ProductListingSectionCard from "@/components/product/ProductListingSectio
 import ProductLocationPreview from "@/components/product/ProductLocationPreview.astro"
 import ProductMediaGallery from "@/components/product/ProductMediaGallery.astro"
 import ProductStayPreparationRow from "@/components/product/ProductStayPreparationRow.astro"
+import ProductTourWorkspaceSidebar from "@/components/product/ProductTourWorkspaceSidebar.astro"
 import Badge from "@/components/ui/Badge.astro"
 import Button from "@/components/ui/Button.astro"
 import Card from "@/components/ui/Card.astro"
@@ -38,6 +39,7 @@ import {
 	MapPin,
 	Package,
 	Tags,
+	Users,
 } from "@lucide/astro"
 
 const startedAt = performance.now()
@@ -198,6 +200,18 @@ const productContentHref = editorialHref(isTour ? "presentation" : "content")
 const productImagesHref = editorialHref("images")
 const productLocationHref = editorialHref("location")
 const productSubtypeHref = editorialHref("subtype")
+const tourOptionSummary =
+	tourContext && "options" in tourContext
+		? `${tourContext.options.length} opciones en este tour`
+		: "Consulta la configuración de tus opciones."
+const tourPendingStageHref =
+	preparation?.tourPresentation?.stages?.find((stage) => stage.state !== "ready")?.href ?? null
+const tourContinueHref =
+	tourPendingStageHref ??
+	(tourManagement?.primaryAction.label === "Continuar configuración"
+		? tourManagement.primaryAction.href
+		: completePreparationHref)
+const tourDeleteLabel = `Eliminar ${vertical.labels.workspaceSingular.toLowerCase()}`
 
 timing.addTotal("productPage")
 timing.setHeader(Astro.response.headers)
@@ -215,49 +229,31 @@ logRoutePerformance({
 ---
 
 <WorkspaceLayout title={`${detailTitle} · ${owned.name}`} productType={owned.productType}>
-	<section class="space-y-6 md:space-y-8">
-		<header class="space-y-2">
-			<div class="min-w-0 space-y-2">
-				<h1 class={isTour ? "text-2xl font-semibold text-white" : "sr-only"}>{owned.name}</h1>
-				{
-					isTour && (
-						<Badge variant={isPublished ? "success" : "neutral"}>
-							{isPublished ? "Publicado" : "Borrador"}
-						</Badge>
-					)
-				}
-				{
-					isTour || preparationCoach ? null : (
-						<>
-							<p
-								id="productHeaderMeta"
-								class="max-w-3xl text-sm leading-5 text-slate-300 sm:leading-6"
-							>
-								{productHeaderTitle}
-							</p>
-							<p
-								id="productHeaderSummary"
-								class="max-w-3xl text-sm leading-5 text-slate-400 sm:leading-6"
-							>
-								{productHeaderSummaryText}
-							</p>
-						</>
-					)
-				}
-			</div>
-		</header>
-
+	<section class="min-w-0 max-w-full space-y-6 overflow-x-clip md:space-y-8">
 		{
-			tourManagement && (
-				<nav aria-label="Acciones del tour" class="flex flex-wrap gap-3">
-					<Button href={tourManagement.primaryAction.href} variant="onDark">
-						{tourManagement.primaryAction.label}
-					</Button>
-					<Button href={previewHref} variant="onDark">
-						Vista previa
-					</Button>
-				</nav>
-			)
+			!isTour ? (
+				<header class="space-y-2">
+					<div class="min-w-0 space-y-2">
+						<h1 class="sr-only">{owned.name}</h1>
+						{preparationCoach ? null : (
+							<>
+								<p
+									id="productHeaderMeta"
+									class="max-w-3xl text-sm leading-5 text-slate-300 sm:leading-6"
+								>
+									{productHeaderTitle}
+								</p>
+								<p
+									id="productHeaderSummary"
+									class="max-w-3xl text-sm leading-5 text-slate-400 sm:leading-6"
+								>
+									{productHeaderSummaryText}
+								</p>
+							</>
+						)}
+					</div>
+				</header>
+			) : null
 		}
 
 		{
@@ -400,35 +396,45 @@ logRoutePerformance({
 		>
 		</div>
 
-		<div data-product-deferred-root class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
-			<div class="space-y-5">
+		<div
+			data-product-deferred-root
+			class="grid min-w-0 max-w-full grid-flow-dense gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]"
+		>
+			<div class="min-w-0 max-w-full space-y-5 xl:col-start-1 xl:row-start-1">
 				<ProductMediaGallery
 					imagesHref={productImagesHref}
 					singularLabel={vertical.labels.singular}
 				/>
 
 				<div class="space-y-3">
-					<div class="px-1">
-						<p class="text-xs font-semibold tracking-[0.14em] text-slate-400 uppercase">
-							{isTour ? "Ficha del tour" : "Contenido del anuncio"}
-						</p>
-						<p class="mt-1 text-sm text-slate-500">
-							Descripción, características y ubicación tal como las verá el viajero.
-						</p>
-					</div>
-					<div class="grid gap-5 lg:grid-cols-2">
+					{
+						!isTour ? (
+							<div class="px-1">
+								<p class="text-xs font-semibold tracking-[0.14em] text-slate-400 uppercase">
+									Contenido del anuncio
+								</p>
+								<p class="mt-1 text-sm text-slate-500">
+									Descripción, características y ubicación tal como las verá el viajero.
+								</p>
+							</div>
+						) : null
+					}
+					<div class="grid items-start gap-5 lg:grid-cols-2">
 						<ProductListingSectionCard
 							title={isTour ? "Presentación" : "Descripción"}
-							subtitle="Resumen y destacados de la ficha pública"
+							subtitle={isTour ? undefined : "Resumen y destacados de la ficha pública"}
 							badgeId="blockBadge-content"
 							editHref={productContentHref}
 							editLabel={isTour ? "Editar presentación" : "Editar descripción"}
 							Icon={FileText}
+							dense={isTour}
 						>
-							<p id="summaryDescription" class="text-sm leading-6 text-slate-600">
+							<p id="summaryDescription" class="text-sm leading-6 text-slate-600 line-clamp-4">
 								Cargando descripción...
 							</p>
-							<p id="summaryHighlights" class="mt-3 text-sm text-slate-500">Destacados: -</p>
+							<p id="summaryHighlights" class="text-xs font-medium text-slate-500">
+								Cargando destacados...
+							</p>
 						</ProductListingSectionCard>
 
 						<ProductListingSectionCard
@@ -439,21 +445,25 @@ logRoutePerformance({
 									: "Detalles de la oferta"}
 							subtitle={isHotel
 								? "Categoría, servicios y atributos del alojamiento"
-								: "Información clave de la oferta"}
+								: isTour
+									? undefined
+									: "Información clave de la oferta"}
 							badgeId="blockBadge-subtype"
 							editHref={productSubtypeHref}
 							editLabel={isHotel ? "Editar tipo y características" : "Editar detalles"}
-							Icon={BedDouble}
+							Icon={isTour ? Map : BedDouble}
+							dense={isTour}
 						>
-							<p id="summaryProductType" class="text-sm leading-6 text-slate-600">
-								Cargando detalles...
-							</p>
 							{
 								isTour ? (
-									<p id="summaryTourDetails" class="mt-3 text-sm leading-6 text-slate-500">
+									<p id="summaryTourDetails" class="text-sm leading-6 text-slate-600">
 										Cargando duración y guía...
 									</p>
-								) : null
+								) : (
+									<p id="summaryProductType" class="text-sm leading-6 text-slate-600">
+										Cargando detalles...
+									</p>
+								)
 							}
 							{
 								isPackage ? (
@@ -494,15 +504,20 @@ logRoutePerformance({
 				</Card>
 
 				{
-					isTour && (
-						<Card className="space-y-3 bg-white text-slate-900">
-							<h2 class="text-base font-semibold">Participantes</h2>
-							<p class="text-sm text-slate-600">Tipos de participante y edades admitidas.</p>
-							<Button href={editorialHref("tickets")} variant="secondary">
-								Editar participantes
-							</Button>
-						</Card>
-					)
+					isTour ? (
+						<ProductListingSectionCard
+							title="Participantes"
+							badgeId="blockBadge-tickets"
+							editHref={editorialHref("tickets")}
+							editLabel="Editar participantes"
+							Icon={Users}
+							compact
+						>
+							<p id="summaryParticipants" class="text-sm leading-5 text-slate-500">
+								Tipos de participante y edades admitidas.
+							</p>
+						</ProductListingSectionCard>
+					) : null
 				}
 
 				{
@@ -553,29 +568,18 @@ logRoutePerformance({
 
 			{
 				isTour && tourManagement ? (
-					<aside class="space-y-5" aria-label="Gestión del tour">
-						<Card class="space-y-3 bg-white">
-							<>
-								<h2 class="text-base font-semibold text-slate-950">Opciones y horarios</h2>
-								<p class="text-sm text-slate-600">
-									{tourContext && "options" in tourContext
-										? `${tourContext.options.length} opciones en este tour`
-										: "Consulta la configuración de tus opciones."}
-								</p>
-								<Button href={tourManagement.links.departuresHref}>
-									Gestionar opciones y horarios
-								</Button>
-							</>
-						</Card>
-						<Card class="space-y-3 bg-white">
-							<>
-								<h2 class="text-base font-semibold text-slate-950">Publicación</h2>
-								<p class="text-sm text-slate-600">{isPublished ? "Publicado" : "Borrador"}</p>
-								<p class="text-sm text-slate-600">{tourManagement.support}</p>
-								<Button href={tourManagement.publicationHref}>Revisar publicación</Button>
-							</>
-						</Card>
-					</aside>
+					<ProductTourWorkspaceSidebar
+						isPublished={isPublished}
+						optionSummary={tourOptionSummary}
+						publicationSupport={tourManagement.support}
+						continueHref={tourContinueHref}
+						previewHref={previewHref}
+						departuresHref={tourManagement.links.departuresHref}
+						publicationHref={tourManagement.publicationHref}
+						deleteLabel={tourDeleteLabel}
+						productId={productId}
+						productName={owned.name}
+					/>
 				) : (
 					<>
 						{
@@ -623,6 +627,7 @@ logRoutePerformance({
 			productName={owned.name}
 			workspaceSingularLabel={vertical.labels.workspaceSingular}
 			variantsLabel={isTour ? "opciones" : isHotel ? "habitaciones" : "modalidades"}
+			showPromo={!isTour}
 		/>
 	</section>
 

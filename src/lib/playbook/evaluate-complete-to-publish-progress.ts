@@ -14,7 +14,7 @@ import {
 	summarizeTourDiagnostic,
 	tourPublicationBlockers,
 } from "@/lib/tours/buildTourDiagnostic"
-import { type TourDiagnostic } from "@/lib/tours/tourDiagnosticContract"
+import { type TourDiagnostic, type TourRequirementId } from "@/lib/tours/tourDiagnosticContract"
 import { loadTourAuthorization } from "@/lib/tours/loadTourAuthorization"
 import { validateRatePlanPublication } from "@/lib/rates/validateRatePlanPublication"
 import {
@@ -687,18 +687,43 @@ async function evaluateCompleteToPublishState(
 			}
 		}
 
+		const tourRequirementCompleteDetail = (
+			requirementId: TourRequirementId,
+			sectionKey: string
+		): string => {
+			const section = completionBySection[sectionKey as ProductVerticalSectionKey]
+			if (section?.complete && section.detail.trim()) return section.detail
+			const byRequirement: Partial<Record<TourRequirementId, string>> = {
+				option_profile: "Horario, idioma y modalidad configurados.",
+				group_capacity: "Capacidad del grupo definida.",
+				price: "Precio base configurado.",
+				conditions: "Condiciones visibles para el viajero.",
+				calendar_configuration: "Hay fechas programadas para esta opción.",
+				provider_authorization: "Proveedor habilitado para vender.",
+				experience_authorization: "Experiencia habilitada para publicar.",
+				option_activation: "Opción activa para venta.",
+				rate_activation: "Tarifa activa.",
+				current_availability: "Hay cupos en fechas futuras.",
+				activities: "Clasificación de búsqueda lista.",
+				participants: "Tipos de participante configurados.",
+			}
+			return byRequirement[requirementId] ?? "Listo."
+		}
+
 		// Each requirement remains independent even when two corrections share an editor.
 		checks.splice(
 			0,
 			checks.length,
 			...Object.entries(tourDiagnostic.requirements).map(([id, requirement]) => {
+				const requirementId = id as TourRequirementId
 				const presentation = tourRequirementPresentation(
-					id as keyof typeof TOUR_REQUIREMENT_PRESENTATION,
+					requirementId,
 					tourSubtype?.experienceFormat
 				)
 				const sectionKey = presentation.section
 				const result = requirement.result
 				const complete = result.state === "ready" || result.state === "not_applicable"
+				const sectionCompletion = completionBySection[sectionKey as ProductVerticalSectionKey]
 				return {
 					key: id,
 					sectionKey,
@@ -707,11 +732,13 @@ async function evaluateCompleteToPublishState(
 						"action" in result ? result.reason.message : "Requisito comprobado de la experiencia",
 					complete,
 					statusLabel: complete
-						? "Listo"
+						? (sectionCompletion?.statusLabel ?? "Listo")
 						: result.state === "not_evaluable"
 							? "Sin evaluar"
 							: "Pendiente",
-					detail: complete ? "Requisito comprobado." : result.reason.message,
+					detail: complete
+						? tourRequirementCompleteDetail(requirementId, sectionKey)
+						: result.reason.message,
 					href:
 						"action" in result
 							? result.action.href

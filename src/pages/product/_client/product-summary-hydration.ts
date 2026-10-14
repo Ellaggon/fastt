@@ -37,7 +37,24 @@ function configFromRoot(root: HTMLElement): ProductSummaryConfig {
 	}
 }
 
-function renderMediaSlot(element: HTMLElement, url: string | null, emptyLabel: string): void {
+const GENERIC_PREPARATION_DETAIL = new Set([
+	"Requisito comprobado.",
+	"Requisito comprobado de la experiencia",
+])
+
+function isUsefulPreparationDetail(detail: string | undefined): detail is string {
+	if (!detail) return false
+	return !GENERIC_PREPARATION_DETAIL.has(detail.trim())
+}
+
+function renderMediaSlot(
+	element: HTMLElement,
+	url: string | null,
+	emptyLabel: string,
+	altLabel: string
+): void {
+	const thumb = element.closest<HTMLElement>("[data-product-media-thumb]")
+	if (thumb) thumb.hidden = !url
 	element.replaceChildren()
 	if (!url) {
 		const empty = document.createElement("div")
@@ -49,7 +66,7 @@ function renderMediaSlot(element: HTMLElement, url: string | null, emptyLabel: s
 	}
 	const image = document.createElement("img")
 	image.src = url
-	image.alt = "Vista previa"
+	image.alt = altLabel
 	image.className = "h-full w-full object-cover"
 	element.appendChild(image)
 }
@@ -77,8 +94,18 @@ function hydrateProductMediaGallery(
 	const totalCount = Number(payload?.images?.count ?? galleryUrls.length)
 
 	const mobileCover = document.getElementById("productHeroMedia")
+	const photoAlt = (index: number) =>
+		index === 0
+			? `Foto principal de ${config.singularLabel}`
+			: `Foto ${index + 1} de ${config.singularLabel}`
+
 	if (mobileCover) {
-		renderMediaSlot(mobileCover, galleryUrls[0] ?? null, `Fotos de ${config.singularLabel}`)
+		renderMediaSlot(
+			mobileCover,
+			galleryUrls[0] ?? null,
+			`Fotos de ${config.singularLabel}`,
+			photoAlt(0)
+		)
 	}
 
 	const mobileStrip = document.getElementById("summaryImageGrid")
@@ -94,7 +121,7 @@ function hydrateProductMediaGallery(
 			for (const url of stripUrls) {
 				const image = document.createElement("img")
 				image.src = url
-				image.alt = "Vista previa"
+				image.alt = photoAlt(galleryUrls.indexOf(url))
 				image.className =
 					"h-16 w-20 shrink-0 rounded-[var(--fastt-radius-control)] object-cover ring-1 ring-slate-900/5"
 				mobileStrip.appendChild(image)
@@ -106,9 +133,16 @@ function hydrateProductMediaGallery(
 	if (mosaic) {
 		const coverSlots = mosaic.querySelectorAll<HTMLElement>("[data-product-media-cover]")
 		const thumbSlots = mosaic.querySelectorAll<HTMLElement>("[data-product-media-thumb]")
-		coverSlots.forEach((slot) => renderMediaSlot(slot, galleryUrls[0] ?? null, "Foto principal"))
+		coverSlots.forEach((slot) =>
+			renderMediaSlot(slot, galleryUrls[0] ?? null, "Foto principal", photoAlt(0))
+		)
 		thumbSlots.forEach((slot, index) =>
-			renderMediaSlot(slot, galleryUrls[index + 1] ?? null, `Foto ${index + 2}`)
+			renderMediaSlot(
+				slot,
+				galleryUrls[index + 1] ?? null,
+				`Foto ${index + 2}`,
+				photoAlt(index + 1)
+			)
 		)
 		const moreBadge = mosaic.querySelector<HTMLElement>("[data-product-media-more]")
 		if (moreBadge) {
@@ -342,6 +376,10 @@ export function initProductSummaryHydration(): void {
 
 			if (config.isTour) {
 				applyCheck("variants", "departure", Boolean(payload?.checks?.hasVariants))
+				const ticketsCheck = applyCheck("tickets", "tickets", false)
+				if (isUsefulPreparationDetail(ticketsCheck?.detail)) {
+					setText("summaryParticipants", ticketsCheck.detail)
+				}
 			}
 
 			setText("summaryDescription", String(payload?.content?.descriptionPreview ?? ""))
@@ -358,11 +396,30 @@ export function initProductSummaryHydration(): void {
 				locationPreview.dataset.locationResolved = "true"
 				document.dispatchEvent(new CustomEvent("product-location-preview:update"))
 			}
-			setText("summaryImagesCount", `${Number(payload?.images?.count ?? 0)} fotos cargadas`)
-			if (photosCheck?.detail) setText("summaryImagesCount", photosCheck.detail)
-			setText("summaryProductType", subtypeSummary)
-			if (subtypeCheck?.detail) setText("summaryProductType", subtypeCheck.detail)
-			if (contentCheck?.detail) setText("summaryHighlights", contentCheck.detail)
+			const imageCount = Number(payload?.images?.count ?? 0)
+			setText(
+				"summaryImagesCount",
+				imageCount === 1 ? "1 foto cargada" : `${imageCount} fotos cargadas`
+			)
+			if (isUsefulPreparationDetail(photosCheck?.detail)) {
+				setText("summaryImagesCount", photosCheck.detail)
+			}
+			if (!config.isTour) {
+				setText("summaryProductType", subtypeSummary)
+				if (isUsefulPreparationDetail(subtypeCheck?.detail)) {
+					setText("summaryProductType", subtypeCheck.detail)
+				}
+			}
+			if (isUsefulPreparationDetail(contentCheck?.detail)) {
+				setText("summaryHighlights", contentCheck.detail)
+			} else if (highlightsCount > 0) {
+				setText(
+					"summaryHighlights",
+					highlightsCount === 1 ? "1 destacado" : `${highlightsCount} destacados`
+				)
+			} else {
+				setText("summaryHighlights", "Sin destacados")
+			}
 
 			if (config.isTour) {
 				const guideLanguages = Array.isArray(subtypeDetails.guideLanguages)
