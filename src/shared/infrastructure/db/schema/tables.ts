@@ -2054,6 +2054,8 @@ export const ProductCategory = pgTable(
 		classificationKind: text("classificationKind").default("legacy").notNull(),
 		parentCategoryId: text("parentCategoryId").references((): AnyPgColumn => ProductCategory.id),
 		searchAliasesJson: jsonb("searchAliasesJson").default([]).notNull(),
+		allowedAdditionalThemeIds: text("allowedAdditionalThemeIds").array().default([]).notNull(),
+		themeCompatibilityRevision: integer("themeCompatibilityRevision").default(0).notNull(),
 		isActive: boolDefault("isActive", true),
 		dataClass: text("dataClass").default("production").notNull(),
 		createdAt: now("createdAt"),
