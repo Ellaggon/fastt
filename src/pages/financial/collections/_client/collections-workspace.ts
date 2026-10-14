@@ -1,4 +1,8 @@
 import {
+	registerFinancialReload,
+	registerFinancialPageRetry,
+} from "../../_client/financial-load-state"
+import {
 	fetchFinancialJson,
 	financialEndpointUrls,
 	financialUrlWithCursor,
@@ -380,11 +384,13 @@ function openDrawer(item: CollectionItem): void {
 		</section>`
 	backdrop.classList.remove("hidden")
 	drawer.classList.remove("translate-x-full")
+	drawer.removeAttribute("inert")
 }
 
 function closeDrawer(): void {
 	document.getElementById("collectionsDrawerBackdrop")?.classList.add("hidden")
 	document.getElementById("collectionsDrawer")?.classList.add("translate-x-full")
+	document.getElementById("collectionsDrawer")?.setAttribute("inert", "")
 }
 
 async function loadCollections(): Promise<void> {
@@ -411,6 +417,7 @@ async function loadCollections(): Promise<void> {
 		])
 		applyPayload(payload, operationsPayload)
 	} catch {
+		if (getCachedFinancialJson(financialEndpointUrls.reconciliationQueue)) return
 		const rows = document.getElementById("collectionsRows")
 		const summary = document.getElementById("collectionsSummary")
 		if (summary) summary.textContent = "No se pudo cargar la revisión de cobros."
@@ -433,12 +440,14 @@ async function loadMoreCollections(): Promise<void> {
 				}),
 				{ force: true }
 			),
-			fetchFinancialJson(financialEndpointUrls.operations).catch(() => ({ items: [] })),
+			fetchFinancialJson(financialEndpointUrls.operations),
 		])
 		applyPayload(
 			mergeFinancialPayloadById(state.payload, payload, (item) => String(item?.bookingId || "")),
 			operationsPayload
 		)
+	} catch {
+		// Keep rows and cursor; the shared load notice owns retry.
 	} finally {
 		state.loadingMore = false
 		renderLoadMore()
@@ -473,3 +482,7 @@ export function initCollectionsWorkspace(): void {
 	document.getElementById("collectionsDrawerBackdrop")?.addEventListener("click", closeDrawer)
 	void loadCollections()
 }
+
+registerFinancialReload("/financial/collections", loadCollections)
+
+registerFinancialPageRetry("/financial/collections", loadMoreCollections)

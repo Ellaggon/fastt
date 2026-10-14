@@ -51,6 +51,7 @@ import WorkspaceLayout from "@/layouts/WorkspaceLayout.astro"
 import type { WorkspaceRequestContext } from "@/lib/dashboard/workspaceRequestContext"
 import { logRoutePerformance } from "@/lib/observability/performanceLog"
 import { createServerTimingRecorder } from "@/lib/observability/serverTiming"
+import { getProductVerticalEntry } from "@/lib/catalog/productVerticalRegistry"
 import { loadProviderRatePlanVariants } from "@/lib/rates/loadProviderRatePlanVariants"
 import { loadRatePlanManagementEntry } from "@/lib/rates/loadRatePlanManagementEntry"
 import { buildProviderRatePlansSurface } from "@/lib/rates/providerRatePlansSurface"
@@ -469,6 +470,14 @@ const activePlaybook = optionWizard
 					: null
 const isPlaybookRateStep = Boolean(activePlaybook)
 const isTourPlaybookRateStep = Boolean(activePlaybook && isTourRateContext)
+const tourScopeLabels = getProductVerticalEntry("tour").labels
+const tourVariantChoicesSpanProducts =
+	isTourRateContext && new Set(scopedVariantChoices.map((choice) => choice.productId)).size > 1
+const tourVariantChoiceLabel = (choice: (typeof scopedVariantChoices)[number]) => {
+	if (!isTourRateContext) return choice.label
+	if (tourVariantChoicesSpanProducts) return `${choice.variantName} (${choice.productName})`
+	return choice.variantName
+}
 const playbookVariantLabel =
 	matchedVariant?.variantName ?? (isTourPlaybookRateStep ? "esta opción" : "esta habitación")
 const guidedIntentPresets = ratePlanIntentPresets
@@ -700,18 +709,35 @@ const tourRateSaveHref = isTourRateContext
 									)}
 
 									<div class="grid gap-4 md:grid-cols-2">
-										<label class="block space-y-1.5 text-sm md:col-span-2">
-											<span class="font-medium text-slate-800">
-												{isTourPlaybookRateStep ? "Opción" : "Habitación"}
-											</span>
-											<input type="hidden" name="variantId" value={requestedVariantId} />
-											<div class="fastt-soft-box border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900">
-												{matchedVariant?.label ??
-													(isTourPlaybookRateStep
-														? "Opción seleccionada"
-														: "Habitación seleccionada")}
-											</div>
-										</label>
+										{isTourPlaybookRateStep ? (
+											<>
+												<label class="block space-y-1.5 text-sm">
+													<span class="font-medium text-slate-800">
+														{tourScopeLabels.scopeProduct}
+													</span>
+													<div class="fastt-soft-box border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900">
+														{matchedVariant?.productName ?? "Experiencia seleccionada"}
+													</div>
+												</label>
+												<label class="block space-y-1.5 text-sm">
+													<span class="font-medium text-slate-800">
+														{tourScopeLabels.scopeVariant}
+													</span>
+													<input type="hidden" name="variantId" value={requestedVariantId} />
+													<div class="fastt-soft-box border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900">
+														{matchedVariant?.variantName ?? "Opción seleccionada"}
+													</div>
+												</label>
+											</>
+										) : (
+											<label class="block space-y-1.5 text-sm md:col-span-2">
+												<span class="font-medium text-slate-800">Habitación</span>
+												<input type="hidden" name="variantId" value={requestedVariantId} />
+												<div class="fastt-soft-box border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900">
+													{matchedVariant?.label ?? "Habitación seleccionada"}
+												</div>
+											</label>
+										)}
 
 										{isTourPlaybookRateStep ? (
 											<div class="fastt-soft-box border border-emerald-200 bg-emerald-50/60 p-4 text-sm md:col-span-2">
@@ -942,7 +968,7 @@ const tourRateSaveHref = isTourRateContext
 											value={choice.variantId}
 											selected={choice.variantId === requestedVariantId}
 										>
-											{choice.label}
+											{tourVariantChoiceLabel(choice)}
 										</option>
 									))}
 								</Select>

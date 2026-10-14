@@ -34,9 +34,13 @@ describe("Guardrail: financial workspace uses shared line scope", () => {
 	})
 
 	it("never filters financial rows by scope in the browser; the server is the only scope boundary", () => {
-		expect(existsSync(join(process.cwd(), "src/pages/financial/_client/financial-scope.ts"))).toBe(false)
+		expect(existsSync(join(process.cwd(), "src/pages/financial/_client/financial-scope.ts"))).toBe(
+			false
+		)
 		expect(
-			existsSync(join(process.cwd(), "src/pages/financial/_client/financial-accommodation-scope.ts"))
+			existsSync(
+				join(process.cwd(), "src/pages/financial/_client/financial-accommodation-scope.ts")
+			)
 		).toBe(false)
 		const clientSources = execSync(
 			"rg -n 'itemMatches(Financial|Accommodation)Scope|filterItemsBy(Financial|Accommodation)Scope|getFinancial(Accommodation)?Scope\\(' src/pages/financial src/components/financial || true",
@@ -51,8 +55,9 @@ describe("Guardrail: financial workspace uses shared line scope", () => {
 	})
 
 	it("scopes the commercial contract card to the financial workspace line", () => {
-		const financialIndex = read("src/pages/financial/index.astro")
-		expect(financialIndex).toContain("filterProviderContractSurfaceByScope")
+		const summaryApi = read("src/pages/api/internal/financial/contract-summary.ts")
+		expect(summaryApi).toContain("resolveFinancialApiProductScope")
+		expect(summaryApi).toContain("productIds: scope.productFilter")
 		expect(read("src/shared/infrastructure/db/schema/tables.ts")).toContain("agreementVersion")
 		expect(read("src/modules/financial/domain/commission-snapshot.ts")).toContain("commercialLine")
 	})
@@ -67,7 +72,11 @@ describe("Guardrail: financial workspace uses shared line scope", () => {
 			"src/pages/financial/exceptions/_client/exceptions-workspace.ts",
 			"src/pages/financial/provider-payables/_client/provider-payables-workspace.ts",
 		]
-		const banned = ["Estadía y huésped", 'detailRow("Alojamiento"', "placeholder=\"Buscar reserva, alojamiento"]
+		const banned = [
+			"Estadía y huésped",
+			'detailRow("Alojamiento"',
+			'placeholder="Buscar reserva, alojamiento',
+		]
 		const violations = clientRoots.flatMap((file) => {
 			const source = read(file)
 			return banned.flatMap((token) => (source.includes(token) ? [`${file}: ${token}`] : []))

@@ -1,4 +1,8 @@
 import {
+	registerFinancialReload,
+	registerFinancialPageRetry,
+} from "../../_client/financial-load-state"
+import {
 	fetchFinancialJson,
 	financialEndpointUrls,
 	financialUrlWithCursor,
@@ -353,11 +357,13 @@ function openDrawer(item: ExceptionItem): void {
 			</details>
 		</section>`
 	drawer.classList.remove("translate-x-full")
+	drawer.removeAttribute("inert")
 	backdrop.classList.remove("hidden")
 }
 
 function closeDrawer(): void {
 	document.getElementById("financialExceptionsDrawer")?.classList.add("translate-x-full")
+	document.getElementById("financialExceptionsDrawer")?.setAttribute("inert", "")
 	document.getElementById("financialExceptionsDrawerBackdrop")?.classList.add("hidden")
 }
 
@@ -417,6 +423,7 @@ async function load(): Promise<void> {
 		])
 		applyPayloads(operationsPayload, exceptionsPayload)
 	} catch {
+		if (getCachedFinancialJson(financialEndpointUrls.exceptions)) return
 		const rows = document.getElementById("financialExceptionsRows")
 		const summary = document.getElementById("financialExceptionsSummary")
 		if (summary) summary.textContent = "No se pudieron cargar las excepciones."
@@ -437,13 +444,15 @@ async function loadMoreExceptions(): Promise<void> {
 				cursor: state.nextCursor,
 			}),
 			{ force: true }
-		).catch(() => ({ items: [] }))
+		)
 		applyPayloads(
 			mergeFinancialPayloadById(state.operationsPayload, operationsPayload, (item) =>
 				String(item?.bookingId || "")
 			),
 			state.exceptionsPayload || { items: [] }
 		)
+	} catch {
+		// Keep rows and cursor; the shared load notice owns retry.
 	} finally {
 		state.loadingMore = false
 		renderLoadMore()
@@ -469,3 +478,7 @@ export function initFinancialExceptionsWorkspace(): void {
 		?.addEventListener("click", closeDrawer)
 	void load()
 }
+
+registerFinancialReload("/financial/exceptions", load)
+
+registerFinancialPageRetry("/financial/exceptions", loadMoreExceptions)

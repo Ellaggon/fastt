@@ -9,6 +9,7 @@ if (prepared instanceof Response) return prepared
 
 <WorkspaceLayout title="Finanzas">
 	<FinancialUnifiedWorkspace
+		providerId={prepared.providerId}
 		scope={prepared.scope}
 		isSimpleFinancialView={prepared.isSimpleFinancialView}
 	/>

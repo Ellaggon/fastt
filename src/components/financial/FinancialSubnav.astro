@@ -1,6 +1,6 @@
 ---
 import TabsInsidePanel from "@/components/ui/TabsInsidePanel.astro"
-import { financialNavigationItems } from "@/lib/financial/financialNavigation"
+import { financialNavigationFor } from "@/lib/financial/financialNavigation"
 import {
 	withWorkspaceNavigationScope,
 	workspaceNavigationScopeFromSearchParams,
@@ -22,44 +22,82 @@ const { pathname = Astro.url.pathname } = Astro.props
 const isActive = (href: string) =>
 	href === "/financial" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`)
 const workspaceScope = workspaceNavigationScopeFromSearchParams(Astro.url.searchParams)
+const icons: Record<string, typeof WalletCards> = {
+	"/financial": WalletCards,
+	"/financial/collections": CircleDollarSign,
+	"/financial/refunds": RotateCcw,
+	"/financial/settlements": ReceiptText,
+	"/financial/provider-payables": HandCoins,
+	"/financial/exceptions": TriangleAlert,
+}
+const items = financialNavigationFor(workspaceScope.vertical)
 const scopedHref = (href: string) => withWorkspaceNavigationScope(href, workspaceScope)
 const compactLabelByLabel: Record<string, string> = {
 	"Bandeja financiera": "Bandeja",
 	"Pagos a proveedores": "Proveedores",
 }
-const iconByLabel = {
-	"Bandeja financiera": WalletCards,
-	"Cobros": CircleDollarSign,
-	"Liquidaciones": ReceiptText,
-	"Pagos a proveedores": HandCoins,
-	"Reembolsos": RotateCcw,
-	"Excepciones": TriangleAlert,
-} as const
 ---
 
-<TabsInsidePanel class="max-w-full flex-nowrap" aria-label="Navegación financiera">
+<div class="flex flex-wrap items-center gap-3">
+	<TabsInsidePanel class="max-w-full flex-nowrap" aria-label="Navegación financiera">
+		{
+			items
+				.filter((item) => !item.secondary)
+				.map((item) => {
+					const active = isActive(item.href)
+					const Icon = icons[item.href] ?? WalletCards
+					return (
+						<a
+							href={scopedHref(item.href)}
+							data-workspace-nav
+							data-financial-nav
+							data-astro-prefetch="hover"
+							data-active={active ? "true" : "false"}
+							aria-current={active ? "page" : undefined}
+							aria-label={item.label}
+							title={item.description}
+							class="fastt-tabs-inside-panel__item"
+						>
+							<>
+								<Icon class="h-4 w-4 shrink-0" aria-hidden="true" />
+								<span class="fastt-tabs-inside-panel__label">
+									{compactLabelByLabel[item.label] ?? item.label}
+								</span>
+							</>
+						</a>
+					)
+				})
+		}
+	</TabsInsidePanel>
 	{
-		financialNavigationItems.map((item) => {
-			const active = isActive(item.href)
-			const Icon = iconByLabel[item.label as keyof typeof iconByLabel]
-			return (
-				<a
-					href={scopedHref(item.href)}
-					data-workspace-nav
-					data-financial-nav
-					data-astro-prefetch="viewport"
-					data-active={active ? "true" : "false"}
-					aria-current={active ? "page" : undefined}
-					aria-label={item.label}
-					title={item.label}
-					class="fastt-tabs-inside-panel__item"
+		items.some((item) => item.secondary) && (
+			<details
+				data-financial-secondary-nav
+				class="relative"
+				open={items.some((item) => item.secondary && isActive(item.href))}
+			>
+				<summary class="cursor-pointer rounded-xl px-3 py-2 text-sm font-semibold text-slate-300 focus-visible:outline-2">
+					{items.find((item) => item.secondary && isActive(item.href))?.label ?? "Más revisiones"}
+				</summary>
+				<nav
+					aria-label="Revisiones financieras"
+					class="absolute right-0 z-20 mt-2 w-64 rounded-xl border border-slate-200 bg-white p-2 text-slate-900 shadow-lg"
 				>
-					<Icon class="h-4 w-4 shrink-0" aria-hidden="true" />
-					<span class="fastt-tabs-inside-panel__label">
-						{compactLabelByLabel[item.label] ?? item.label}
-					</span>
-				</a>
-			)
-		})
+					{items
+						.filter((item) => item.secondary)
+						.map((item) => (
+							<a
+								href={scopedHref(item.href)}
+								data-financial-nav
+								data-active={isActive(item.href) ? "true" : "false"}
+								aria-current={isActive(item.href) ? "page" : undefined}
+								class="block rounded-lg px-3 py-2 text-sm hover:bg-slate-100"
+							>
+								{item.label}
+							</a>
+						))}
+				</nav>
+			</details>
+		)
 	}
-</TabsInsidePanel>
+</div>

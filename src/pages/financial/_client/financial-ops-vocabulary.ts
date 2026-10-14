@@ -67,12 +67,12 @@ function buildPresentation(
 		ops,
 		scopeProduct: catalog.scopeProduct,
 		scopeVariant: catalog.scopeVariant,
-		productPlural: catalog.productPlural,
+		productPlural: normalized === "tour" ? "experiencias" : catalog.productPlural,
 		stayGuestLabel: `${ops.stayWindow} y ${ops.guest}`,
 		evidenceSearchDescription: `Busca por código, ${ops.guest} o fecha. Solo verás reservas de esta cuenta.`,
 		evidenceSearchPlaceholder: `Código, ${ops.guest} o fecha (AAAA-MM-DD)`,
 		evidenceReasonPlaceholder: `Ej. La referencia y el importe coinciden con el comprobante del ${ops.guest}.`,
-		workspaceSearchPlaceholder: `Buscar reserva, ${catalog.productPlural}, proveedor o referencia...`,
+		workspaceSearchPlaceholder: `Buscar reserva, ${normalized === "tour" ? "experiencia" : catalog.productPlural}, proveedor o referencia...`,
 	}
 }
 

@@ -1,4 +1,8 @@
 import {
+	registerFinancialReload,
+	registerFinancialPageRetry,
+} from "../../_client/financial-load-state"
+import {
 	fetchFinancialJson,
 	financialEndpointUrls,
 	financialUrlWithCursor,
@@ -413,11 +417,13 @@ function openDrawer(item: SettlementItem): void {
 		</section>`
 	backdrop.classList.remove("hidden")
 	drawer.classList.remove("translate-x-full")
+	drawer.removeAttribute("inert")
 }
 
 function closeDrawer(): void {
 	document.getElementById("settlementsDrawerBackdrop")?.classList.add("hidden")
 	document.getElementById("settlementsDrawer")?.classList.add("translate-x-full")
+	document.getElementById("settlementsDrawer")?.setAttribute("inert", "")
 }
 
 async function loadSettlements(): Promise<void> {
@@ -444,6 +450,7 @@ async function loadSettlements(): Promise<void> {
 		])
 		applyPayload(payload, operationsPayload)
 	} catch {
+		if (getCachedFinancialJson(financialEndpointUrls.reconciliationQueue)) return
 		const rows = document.getElementById("settlementsRows")
 		const summary = document.getElementById("settlementsSummary")
 		if (summary) summary.textContent = "No se pudo cargar la comparación de liquidaciones."
@@ -466,12 +473,14 @@ async function loadMoreSettlements(): Promise<void> {
 				}),
 				{ force: true }
 			),
-			fetchFinancialJson(financialEndpointUrls.operations).catch(() => ({ items: [] })),
+			fetchFinancialJson(financialEndpointUrls.operations),
 		])
 		applyPayload(
 			mergeFinancialPayloadById(state.payload, payload, (item) => String(item?.bookingId || "")),
 			operationsPayload
 		)
+	} catch {
+		// Keep rows and cursor; the shared load notice owns retry.
 	} finally {
 		state.loadingMore = false
 		renderLoadMore()
@@ -506,3 +515,7 @@ export function initSettlementsWorkspace(): void {
 	document.getElementById("settlementsDrawerBackdrop")?.addEventListener("click", closeDrawer)
 	void loadSettlements()
 }
+
+registerFinancialReload("/financial/settlements", loadSettlements)
+
+registerFinancialPageRetry("/financial/settlements", loadMoreSettlements)

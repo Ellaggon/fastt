@@ -1,4 +1,8 @@
 import {
+	registerFinancialReload,
+	registerFinancialPageRetry,
+} from "../../_client/financial-load-state"
+import {
 	fetchFinancialJson,
 	financialEndpointUrls,
 	financialUrlWithCursor,
@@ -460,11 +464,13 @@ function openDrawer(item: ProviderPayableItem): void {
 		</section>`
 	backdrop.classList.remove("hidden")
 	drawer.classList.remove("translate-x-full")
+	drawer.removeAttribute("inert")
 }
 
 function closeDrawer(): void {
 	document.getElementById("providerPayablesDrawerBackdrop")?.classList.add("hidden")
 	document.getElementById("providerPayablesDrawer")?.classList.add("translate-x-full")
+	document.getElementById("providerPayablesDrawer")?.setAttribute("inert", "")
 }
 
 async function loadProviderPayables(): Promise<void> {
@@ -496,6 +502,7 @@ async function loadProviderPayables(): Promise<void> {
 		])
 		applyPayload(payload, operationsPayload)
 	} catch {
+		if (getCachedFinancialJson(financialEndpointUrls.providerFinance)) return
 		const rows = document.getElementById("providerPayablesRows")
 		const summary = document.getElementById("providerPayablesSummary")
 		if (summary) summary.textContent = "No se pudo cargar pagos pendientes a proveedores."
@@ -518,12 +525,14 @@ async function loadMoreProviderPayables(): Promise<void> {
 				}),
 				{ force: true }
 			),
-			fetchFinancialJson(financialEndpointUrls.operations).catch(() => ({ items: [] })),
+			fetchFinancialJson(financialEndpointUrls.operations),
 		])
 		applyPayload(
 			mergeFinancialPayloadById(state.payload, payload, (item) => String(item?.bookingId || "")),
 			operationsPayload
 		)
+	} catch {
+		// Keep rows and cursor; the shared load notice owns retry.
 	} finally {
 		state.loadingMore = false
 		renderLoadMore()
@@ -560,3 +569,7 @@ export function initProviderPayablesWorkspace(): void {
 	document.getElementById("providerPayablesDrawerBackdrop")?.addEventListener("click", closeDrawer)
 	void loadProviderPayables()
 }
+
+registerFinancialReload("/financial/provider-payables", loadProviderPayables)
+
+registerFinancialPageRetry("/financial/provider-payables", loadMoreProviderPayables)
